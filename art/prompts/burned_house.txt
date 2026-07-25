@@ -1,0 +1,22 @@
+Pixel art sprite of a burned, charred ruined building, rendered in a dark spruce green colour palette. Single asset on a plain flat background, centred, viewed straight on.
+
+COMPOSITION AND VIEWPOINT — match this exactly:
+The building is seen from ground level, straight on, at a very slight three-quarter angle so the front face dominates and only a sliver of the left side wall is visible. The horizon is level with the base of the structure. The building sits squarely in the centre of the frame, occupying roughly the middle two thirds of the image, with empty space around it. It is a small, squat, wide structure — wider than it is tall, roughly 4:3 proportions. No other objects, no landscape, no trees, no people.
+
+THE STRUCTURE:
+A simple peaked timber building, like a small barn, cabin, or longhouse. A steep triangular gable roof rises to a sharp ridge at the top centre. The roofline is slightly uneven and sagging, broken and warped from fire damage. The walls are made of vertical timber planks, visible as distinct vertical lines running from the ground to the eaves, many of them cracked, split, and blackened.
+
+ABSOLUTELY NO WINDOWS. The walls are unbroken by any window openings whatsoever — no glass, no shutters, no frames, no square holes. This is critical.
+
+The single opening is a tall, dark doorway in the centre of the front wall, roughly one third the width of the building. Inside the doorway is pure impenetrable blackness — a void, with no interior detail visible. The doorway edges are ragged and burnt.
+
+A small, narrow chimney pops out of the roof, offset slightly to one side of the ridge, made of rough stacked stone or brick. It is modest and short — a stubby little chimney, not a tall industrial stack. No smoke.
+
+FIRE DAMAGE:
+The whole structure is charred and scorched. The timber is blackened, with deep soot staining that is heaviest around the doorway and up under the eaves. Some planks are burnt through, leaving gaps and jagged broken edges. The roof has holes where it has partially collapsed, exposing dark charred rafter beams beneath, like blackened ribs. Charred, splintered wood. The building is a ruin but still standing and structurally recognisable.
+
+COLOUR — dark spruce:
+Restrained, cohesive palette built entirely around dark spruce green — deep, desaturated blue-green forest tones. The darkest shadows and the doorway void are near-black spruce green. Midtones are muted dark green-grey. The few highlights, catching the top edges of the roof and the chimney, are a slightly lighter desaturated sage-spruce. Charred areas read as very dark cold green-black rather than warm brown or orange. No warm colours anywhere — no orange, no fire, no embers, no red. No bright saturated colours. Monochromatic and moody, the entire image reading as one dark spruce green family.
+
+STYLE:
+Clean, deliberate pixel art with crisp hard-edged pixels and no anti-aliasing or blur. Limited palette of about five to six shades of spruce green. Readable chunky pixel forms with clear silhouette. Hand-crafted retro game asset quality, in the tradition of detailed 16-bit era sprite work. Sharp, precise, and legible at small size. Flat plain background so the sprite can be cut out.
