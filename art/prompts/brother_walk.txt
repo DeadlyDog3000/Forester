@@ -1,0 +1,17 @@
+A pixel art sprite sheet: FOUR animation frames of the SAME character, arranged in a 2x2 grid — four equal quadrants, one full-body character per quadrant, nothing else. No borders, no frame lines, no labels, no text, no numbers.
+
+THE CHARACTER — identical in all four frames:
+A young peasant man from 1683, in tattered medieval rags. A rough, patched, knee-length tunic of coarse undyed cloth in dull brown, torn at the sleeves and hem, tied at the waist with a simple rope belt. Ragged loose trousers in darker grey-brown. Short messy dark brown hair. Simple cloth-wrapped feet. Lean and weathered but determined. No armour, no weapons, no jewellery, no bright colours — he is a refugee.
+
+THE ANIMATION — a 4-frame walking cycle, side view, walking to the RIGHT:
+Top-left quadrant: frame 1, right leg forward mid-stride.
+Top-right quadrant: frame 2, legs passing, nearly together.
+Bottom-left quadrant: frame 3, left leg forward mid-stride.
+Bottom-right quadrant: frame 4, legs passing, nearly together, arms opposite to frame 2.
+Same character, same size, same proportions, same palette in every frame — only the legs and arms change. Full side profile facing right in all frames.
+
+STYLE:
+True low-resolution pixel art with big chunky square pixels, hard edges, no anti-aliasing, no gradients, no soft shading. Each frame reads clearly at 32x32 pixels. Bold simple shapes, strictly limited palette of about six muted earthy colours: brown cloth, grey-brown trousers, dark brown hair, pale skin, near-black outline. 16-bit era sprite work.
+
+BACKGROUND:
+Completely flat, uniform, solid neutral grey background across the whole image, clearly different from every colour in the character, so it can be keyed out. Generous empty space around each character. No ground, no shadow, no scenery, no panel dividers.

@@ -1,0 +1,16 @@
+A single 32x32 pixel game sprite of one spruce pine tree. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients. Every pixel a deliberate flat block of solid colour. Authentic 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+Must read clearly at 32 pixels. Bold blocky shapes only, no fine needle detail, no thin branches.
+
+COMPOSITION:
+Perfectly square 1:1 image. One single tree, centred, filling nearly the whole frame top to bottom, seen straight on from ground level. Flat head-on view, not isometric.
+
+THE TREE:
+A classic tall conical spruce / pine silhouette: a narrow pointed tip at the top widening in three or four chunky stacked triangular tiers of foliage, like stair-stepped layers, each tier slightly wider than the one above, with blocky jagged bottom edges. At the base, a short stubby trunk, a few pixels wide and a few pixels tall, clearly visible below the lowest foliage tier.
+
+COLOUR — dark spruce green, 5 shades only:
+Strictly limited flat palette. Near-black green outline and deepest shadow under each tier. Very dark spruce green for the shadowed right side. Mid dark spruce green for the main foliage mass. Slightly lighter desaturated sage-spruce for the lit left edges of each tier. Dark walnut brown for the trunk only. Cold, moody forest tones. No bright green, no yellow, no warm light.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour neutral grey background, clearly different from every green and brown in the sprite so it can be keyed out. No ground, no grass, no shadow, no sky, no other trees, no border, no text.

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forester — Alpha</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1210;
+    color: #cfd8d3;
+    font-family: "Courier New", monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 12px;
+    user-select: none;
+  }
+  h1 { font-size: 18px; letter-spacing: 4px; color: #7da083; margin: 4px 0 2px; }
+  .sub { font-size: 11px; color: #5a6b60; margin-bottom: 8px; }
+  #wrap { position: relative; }
+  canvas {
+    image-rendering: pixelated;
+    border: 2px solid #24352b;
+    background: #17251c;
+    cursor: crosshair;
+    max-width: 100%;
+  }
+  #ui {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 960px;
+    max-width: 100%;
+    margin-top: 8px;
+  }
+  .btn {
+    background: #1c2a21;
+    color: #cfd8d3;
+    border: 1px solid #3a5243;
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn:hover { background: #24352b; }
+  .btn.active { background: #3a5243; border-color: #7da083; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  #msg { font-size: 12px; color: #c9a86a; min-height: 16px; margin-top: 6px; }
+  .dropdown { position: relative; }
+  .dropdown-menu {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 4px;
+    background: #14201a;
+    border: 1px solid #3a5243;
+    min-width: 200px;
+    z-index: 5;
+  }
+  .dropdown.open .dropdown-menu { display: block; }
+  .menu-item { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid #24352b; }
+  .menu-item:last-child { border-bottom: none; }
+  #help { font-size: 11px; color: #5a6b60; margin-top: 6px; max-width: 960px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>FORESTER</h1>
+  <div class="sub">alpha — Hamburg is behind you. The forest is what you have.</div>
+  <div id="wrap"><canvas id="game" width="960" height="540"></canvas></div>
+  <div id="ui">
+    <div class="dropdown" id="buildDrop">
+      <button class="btn" id="buildToggle">BUILD &#9662;</button>
+      <div class="dropdown-menu" id="buildMenu">
+        <button class="btn menu-item" data-build="cabin">Log Cabin &mdash; free</button>
+      </div>
+    </div>
+    <span style="flex:1"></span>
+    <button class="btn" id="craftDoor">Order: Craft Door (5 logs)</button>
+  </div>
+  <div id="msg"></div>
+  <div id="help">
+    Click the brother or sister to select them, then click a tree to send them logging,
+    or click ground to walk. Repairing the family cabin needs 20 logs + 1 door — order a
+    door crafted first, then click the burned cabin with a civilian selected. No coin needed out here.
+  </div>
+<script src="game.js"></script>
+</body>
+</html>
