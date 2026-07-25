@@ -1,0 +1,19 @@
+A single 32x32 pixel game sprite of a log cabin serving as a civilian recruitment office. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. Every pixel a deliberate flat block of colour. Authentic 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+Must read clearly at 32 pixels. Bold blocky shapes only.
+
+COMPOSITION:
+Perfectly square 1:1 image. Building centred, filling nearly the whole frame, seen straight on from ground level — flat head-on front elevation, not isometric. Slightly wider than tall, squat and sturdy.
+
+THE BUILDING:
+Built exactly like a traditional log cabin: walls of horizontal stacked round logs reading as bold horizontal bands of alternating brown shades, with round log ends visible as stacked stubs at both side edges. A broad gently rounded roof arching over the building, rendered as stair-stepped blocky pixel curves, complete and undamaged. A small stubby stone-grey chimney offset to one side. A tall dark doorway on the LEFT side of the front wall, reaching the ground, filled with solid near-black.
+
+THE DISTINGUISHING FEATURES — on the RIGHT side of the front wall:
+A small square window opening fitted with vertical wooden bars — two or three thin vertical dark-brown bars across a dark opening, like a rustic teller window. Directly underneath that barred window, a narrow horizontal slot in the wall — a thin dark horizontal slit a few pixels wide, like a letterbox for handing documents through. These two features must be clearly readable: barred square above, thin slot below.
+
+COLOUR — warm browns plus grey, strictly limited:
+The same warm brown log-cabin palette: near-black espresso outline and openings, dark walnut shadow, mid chestnut log walls, honey brown lit bands, pale tan highlights, plus stone grey for the chimney. No green, no red, no bright colours.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour neutral grey background, clearly different from every colour in the sprite so it can be keyed out. No ground, no scenery, no shadow, no border, no text.

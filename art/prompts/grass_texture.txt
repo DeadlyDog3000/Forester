@@ -1,0 +1,12 @@
+A seamless, tileable pixel art ground texture of dark forest grass, viewed from directly above. True low-resolution pixel art: chunky square pixels, hard edges, no anti-aliasing, no gradients.
+
+CRITICAL — SEAMLESS TILING:
+The texture must tile perfectly: the left edge must continue the right edge, the top edge must continue the bottom edge, with no visible seams, borders, or vignetting. Uniform brightness across the whole image — no lighting hotspots, no darker corners.
+
+THE TEXTURE:
+Dense, short forest grass and moss. A calm, even field of muted dark green pixels with subtle variation: small scattered tufts, tiny darker moss patches, an occasional lighter blade. Low contrast — the variation must be gentle so buildings and characters read clearly on top of it. No flowers, no stones, no dirt paths, no leaves, no objects, no text.
+
+COLOUR — 4 to 5 flat shades only:
+Muted, dark, cold forest greens: a deep green base, a slightly darker moss green, a slightly lighter sage green for sparse highlights. Cohesive with a dark spruce forest setting. No bright green, no yellow, no warm tones.
+
+Perfectly square 1:1 image, the texture filling the entire frame edge to edge.

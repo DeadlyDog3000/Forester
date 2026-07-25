@@ -1,0 +1,10 @@
+A pixel art character portrait for a dialogue box in a retro game: a close-up bust of a young wilderness hunter from 1683 Germany, head and shoulders, facing slightly toward the viewer.
+
+THE FACE:
+A lean young man in his early twenties, clean-shaven with shaggy sandy-blond hair falling from under a simple wool hood. Sharp alert eyes, a thin face, a faint scar on one cheek. The collar of a coarse wool tunic and a leather strap of a game bag cross his shoulders. His expression is curious and a little hopeful — a wanderer who has been alone a long time.
+
+STYLE:
+True low-resolution pixel art, chunky square pixels, hard edges, no anti-aliasing, no gradients, no smooth shading — flat blocks of colour with crisp pixel clusters. Readable at 64x64 pixels. Limited palette of about ten muted colours: browns, wool greys, dull greens, pale skin, sandy hair. 16-bit RPG dialogue portrait style.
+
+COMPOSITION:
+Perfectly square 1:1 image. The bust fills most of the frame, centred. Plain flat very dark green-grey background filling the rest — a single solid colour, no scenery, no border, no frame decoration, no text.

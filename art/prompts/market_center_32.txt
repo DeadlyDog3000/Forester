@@ -1,0 +1,16 @@
+A single 32x32 pixel game sprite of a small medieval market stall where villagers sell bread and meat. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. Every pixel a deliberate flat block of colour. Authentic 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+Must read clearly at 32 pixels. Bold blocky shapes only.
+
+COMPOSITION:
+Perfectly square 1:1 image. The stall centred, filling nearly the whole frame, seen straight on from ground level — flat head-on front elevation, not isometric. Wider than tall.
+
+THE STALL:
+An open-fronted wooden market stall: four sturdy timber corner posts holding up a simple sloped plank roof with a striped cloth awning along its front edge — chunky alternating vertical stripes of dull cream and faded red on the awning. Below, a solid wooden counter running the full width at waist height. On the counter, tiny simplified goods: two or three round pale loaves of bread on one side and a couple of dark red cuts of meat on the other — each just a few pixels, readable as blobs of colour. The space between counter and roof is open and dark behind the goods.
+
+COLOUR — strictly limited:
+Warm brown timber palette matching a log-cabin village: near-black outline, dark walnut, mid chestnut, honey brown. Plus faded red and dull cream for the awning stripes, pale tan for bread, deep dull red for meat. No bright saturated colours, no green.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour neutral grey background, clearly different from every colour in the sprite so it can be keyed out. No ground, no scenery, no shadow, no border, no text.

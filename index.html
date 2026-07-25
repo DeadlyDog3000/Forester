@@ -7,87 +7,164 @@
 <style>
   :root { color-scheme: dark; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0d1210;
-    color: #cfd8d3;
-    font-family: "Courier New", monospace;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
-    padding: 12px;
-    user-select: none;
-  }
-  h1 { font-size: 18px; letter-spacing: 4px; color: #7da083; margin: 4px 0 2px; }
-  .sub { font-size: 11px; color: #5a6b60; margin-bottom: 8px; }
-  #wrap { position: relative; }
-  canvas {
-    image-rendering: pixelated;
-    border: 2px solid #24352b;
-    background: #17251c;
-    cursor: crosshair;
-    max-width: 100%;
-  }
-  #ui {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-    width: 960px;
-    max-width: 100%;
-    margin-top: 8px;
-  }
-  .btn {
-    background: #1c2a21;
-    color: #cfd8d3;
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0d1210; }
+  body { font-family: "Courier New", monospace; color: #cfd8d3; user-select: none; }
+  #game { position: fixed; inset: 0; width: 100vw; height: 100vh; image-rendering: pixelated; cursor: crosshair; }
+
+  .panel {
+    position: fixed;
+    background: rgba(13, 18, 16, 0.92);
     border: 1px solid #3a5243;
-    padding: 8px 14px;
-    font-family: inherit;
     font-size: 12px;
-    cursor: pointer;
+    z-index: 10;
+  }
+
+  /* top resource bar */
+  #hud { top: 0; left: 0; right: 0; display: flex; gap: 18px; padding: 8px 14px; border-width: 0 0 1px 0; align-items: center; flex-wrap: wrap; }
+  #hud b { color: #c9a86a; font-weight: normal; }
+  #hud .spacer { flex: 1; }
+
+  /* bottom action bar */
+  #actions { bottom: 0; left: 0; right: 0; display: flex; gap: 8px; padding: 8px 14px; border-width: 1px 0 0 0; align-items: center; }
+
+  .btn {
+    background: #1c2a21; color: #cfd8d3; border: 1px solid #3a5243;
+    padding: 7px 12px; font-family: inherit; font-size: 12px; cursor: pointer;
   }
   .btn:hover { background: #24352b; }
   .btn.active { background: #3a5243; border-color: #7da083; }
   .btn:disabled { opacity: 0.4; cursor: default; }
-  #msg { font-size: 12px; color: #c9a86a; min-height: 16px; margin-top: 6px; }
+
   .dropdown { position: relative; }
   .dropdown-menu {
-    display: none;
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    margin-bottom: 4px;
-    background: #14201a;
-    border: 1px solid #3a5243;
-    min-width: 200px;
-    z-index: 5;
+    display: none; position: absolute; bottom: 100%; left: 0; margin-bottom: 4px;
+    background: #14201a; border: 1px solid #3a5243; min-width: 230px; z-index: 20;
   }
   .dropdown.open .dropdown-menu { display: block; }
   .menu-item { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid #24352b; }
   .menu-item:last-child { border-bottom: none; }
-  #help { font-size: 11px; color: #5a6b60; margin-top: 6px; max-width: 960px; text-align: center; }
+
+  #msg {
+    position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%);
+    color: #c9a86a; font-size: 13px; z-index: 10; text-shadow: 0 1px 2px #000;
+    pointer-events: none; text-align: center; max-width: 80vw;
+  }
+
+  /* selected civilian side panel */
+  #civPanel { top: 48px; right: 10px; width: 230px; padding: 10px; display: none; }
+  #civPanel h3 { font-size: 13px; color: #c9a86a; margin-bottom: 6px; letter-spacing: 1px; }
+  #civPanel .row { display: flex; justify-content: space-between; margin: 3px 0; }
+  #civPanel .barwrap { background: #101813; border: 1px solid #24352b; height: 10px; margin: 4px 0 8px; }
+  #civPanel .barfill { background: #7da083; height: 100%; }
+  #civPanel hr { border: none; border-top: 1px solid #24352b; margin: 8px 0; }
+
+  /* government panel */
+  #govPanel { top: 48px; left: 10px; width: 260px; padding: 12px; display: none; }
+  #govPanel h3 { font-size: 13px; color: #c9a86a; margin-bottom: 8px; letter-spacing: 1px; }
+  #govPanel .row { display: flex; justify-content: space-between; margin: 6px 0; align-items: center; }
+  #govPanel input[type=range] { width: 130px; accent-color: #7da083; }
+
+  /* dialogue */
+  #dialogue {
+    left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px; padding: 14px;
+    display: none; z-index: 30;
+  }
+  #dialogue .head { display: flex; gap: 12px; margin-bottom: 10px; }
+  #dialogue img { width: 96px; height: 96px; image-rendering: pixelated; border: 1px solid #3a5243; }
+  #dlgName { color: #c9a86a; font-size: 14px; margin-bottom: 6px; }
+  #dlgText { font-size: 12px; line-height: 1.5; }
+  #dlgMeterWrap { background: #101813; border: 1px solid #24352b; height: 12px; margin: 10px 0; }
+  #dlgMeter { background: linear-gradient(90deg, #a05252, #c9a86a, #7da083); height: 100%; transition: width 0.3s; }
+  #dlgOpts .btn { display: block; width: 100%; text-align: left; margin-top: 6px; }
+
+  #hint {
+    position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: #5a6b60; z-index: 5; pointer-events: none; text-shadow: 0 1px 2px #000;
+  }
 </style>
 </head>
 <body>
-  <h1>FORESTER</h1>
-  <div class="sub">alpha — Hamburg is behind you. The forest is what you have.</div>
-  <div id="wrap"><canvas id="game" width="960" height="540"></canvas></div>
-  <div id="ui">
+  <canvas id="game"></canvas>
+
+  <div class="panel" id="hud">
+    <span>LOGS <b id="rLogs">0</b></span>
+    <span>DOORS <b id="rDoors">0</b></span>
+    <span>WHEAT <b id="rWheat">0</b></span>
+    <span>BREAD <b id="rBread">0</b></span>
+    <span>MEAT <b id="rMeat">0</b></span>
+    <span>DM <b id="rDM">0</b></span>
+    <span class="spacer"></span>
+    <span>POP <b id="rPop">2</b></span>
+    <span>POLICE <b id="rPolice">0</b></span>
+    <span>TAX <b id="rTax">2</b> DM</span>
+  </div>
+
+  <div id="hint">WASD / arrow keys: move camera &nbsp;&middot;&nbsp; right-click: cancel &amp; deselect</div>
+
+  <div class="panel" id="actions">
     <div class="dropdown" id="buildDrop">
       <button class="btn" id="buildToggle">BUILD &#9662;</button>
       <div class="dropdown-menu" id="buildMenu">
-        <button class="btn menu-item" data-build="cabin">Log Cabin &mdash; free</button>
+        <button class="btn menu-item" data-build="cabin">Log Cabin &mdash; 20 logs, 1 door</button>
+        <button class="btn menu-item" data-build="recruit">Civilian Recruitment Center &mdash; 30 logs</button>
+        <button class="btn menu-item" data-build="market">Market Center &mdash; 25 logs</button>
+        <button class="btn menu-item" data-build="sapling">Replant Spruce &mdash; 1 log</button>
       </div>
     </div>
+    <div class="dropdown" id="craftDrop">
+      <button class="btn" id="craftToggle">CRAFT &#9662;</button>
+      <div class="dropdown-menu" id="craftMenu">
+        <button class="btn menu-item" data-craft="door">Door &mdash; 5 logs (needs selected civilian)</button>
+      </div>
+    </div>
+    <button class="btn" id="govToggle">GOVERNMENT</button>
     <span style="flex:1"></span>
-    <button class="btn" id="craftDoor">Order: Craft Door (5 logs)</button>
+    <span style="font-size:11px;color:#5a6b60">FORESTER alpha</span>
   </div>
+
   <div id="msg"></div>
-  <div id="help">
-    Click the brother or sister to select them, then click a tree to send them logging,
-    or click ground to walk. Repairing the family cabin needs 20 logs + 1 door — order a
-    door crafted first, then click the burned cabin with a civilian selected. No coin needed out here.
+
+  <div class="panel" id="civPanel">
+    <h3 id="cpName">—</h3>
+    <div class="row"><span>Profession</span><span id="cpProf">none</span></div>
+    <div class="row"><span>Home</span><span id="cpHome">homeless</span></div>
+    <div class="row"><span>Hunger</span><span id="cpHungerN">100</span></div>
+    <div class="barwrap"><div class="barfill" id="cpHunger" style="width:100%"></div></div>
+    <hr>
+    <div style="color:#7da083;margin-bottom:4px">INVENTORY</div>
+    <div class="row"><span>Logs</span><span id="cpLogs">0</span></div>
+    <div class="row"><span>Wheat</span><span id="cpWheat">0</span></div>
+    <div class="row"><span>Bread</span><span id="cpBread">0</span></div>
+    <div class="row"><span>Meat</span><span id="cpMeat">0</span></div>
+    <div class="row"><span>Deutsche Mark</span><span id="cpDM">0</span></div>
+    <button class="btn" id="cpDeposit" style="width:100%;margin-top:8px">Deposit goods to town storage</button>
   </div>
+
+  <div class="panel" id="govPanel">
+    <h3>GOVERNMENT OF THE COLONY</h3>
+    <div class="row">
+      <span>Tax per civilian</span>
+      <span><input type="range" id="taxSlider" min="0" max="10" value="2" step="1"> <b id="taxVal">2</b> DM</span>
+    </div>
+    <div class="row"><span>Treasury</span><span id="govDM">0 DM</span></div>
+    <div class="row"><span>Police force</span><span id="govPolice">0 officers</span></div>
+    <button class="btn" id="recruitPolice" style="width:100%;margin-top:6px">Recruit Police Officer &mdash; 50 DM</button>
+    <div style="font-size:11px;color:#5a6b60;margin-top:8px">High taxes make wandering hunters warier of joining. Police must be recruited from housed civilians.</div>
+  </div>
+
+  <div class="panel" id="dialogue">
+    <div class="head">
+      <img id="dlgFace" alt="visitor">
+      <div>
+        <div id="dlgName">Hunter</div>
+        <div id="dlgText"></div>
+      </div>
+    </div>
+    <div>Willingness to join</div>
+    <div id="dlgMeterWrap"><div id="dlgMeter" style="width:55%"></div></div>
+    <div id="dlgOpts"></div>
+  </div>
+
 <script src="game.js"></script>
 </body>
 </html>
