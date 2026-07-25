@@ -13,18 +13,15 @@
 
   .panel {
     position: fixed;
-    background: rgba(13, 18, 16, 0.92);
+    background: rgba(13, 18, 16, 0.93);
     border: 1px solid #3a5243;
     font-size: 12px;
     z-index: 10;
   }
-
-  /* top resource bar */
-  #hud { top: 0; left: 0; right: 0; display: flex; gap: 18px; padding: 8px 14px; border-width: 0 0 1px 0; align-items: center; flex-wrap: wrap; }
+  #hud { top: 0; left: 0; right: 0; display: flex; gap: 13px; padding: 7px 12px; border-width: 0 0 1px 0; align-items: center; flex-wrap: wrap; }
   #hud b { color: #c9a86a; font-weight: normal; }
   #hud .spacer { flex: 1; }
 
-  /* bottom action bar */
   #actions { bottom: 0; left: 0; right: 0; display: flex; gap: 8px; padding: 8px 14px; border-width: 1px 0 0 0; align-items: center; }
 
   .btn {
@@ -34,13 +31,15 @@
   .btn:hover { background: #24352b; }
   .btn.active { background: #3a5243; border-color: #7da083; }
   .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.danger { border-color: #7a4040; color: #d8a0a0; }
 
   .dropdown { position: relative; }
   .dropdown-menu {
     display: none; position: absolute; bottom: 100%; left: 0; margin-bottom: 4px;
-    background: #14201a; border: 1px solid #3a5243; min-width: 230px; z-index: 20;
+    background: #14201a; border: 1px solid #3a5243; min-width: 250px; z-index: 20;
   }
   .dropdown.open .dropdown-menu { display: block; }
+  .dropdown-menu.up { bottom: auto; top: 100%; margin: 4px 0 0; }
   .menu-item { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid #24352b; }
   .menu-item:last-child { border-bottom: none; }
 
@@ -49,24 +48,48 @@
     color: #c9a86a; font-size: 13px; z-index: 10; text-shadow: 0 1px 2px #000;
     pointer-events: none; text-align: center; max-width: 80vw;
   }
+  #hint {
+    position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: #5a6b60; z-index: 5; pointer-events: none; text-shadow: 0 1px 2px #000;
+  }
 
-  /* selected civilian side panel */
-  #civPanel { top: 48px; right: 10px; width: 230px; padding: 10px; display: none; }
+  #civPanel { top: 48px; right: 10px; width: 240px; padding: 10px; display: none; }
   #civPanel h3 { font-size: 13px; color: #c9a86a; margin-bottom: 6px; letter-spacing: 1px; }
   #civPanel .row { display: flex; justify-content: space-between; margin: 3px 0; }
-  #civPanel .barwrap { background: #101813; border: 1px solid #24352b; height: 10px; margin: 4px 0 8px; }
-  #civPanel .barfill { background: #7da083; height: 100%; }
-  #civPanel hr { border: none; border-top: 1px solid #24352b; margin: 8px 0; }
+  .barwrap { background: #101813; border: 1px solid #24352b; height: 10px; margin: 3px 0 6px; }
+  .barfill { background: #7da083; height: 100%; }
+  .barfill.red { background: #a05252; }
+  #civPanel hr { border: none; border-top: 1px solid #24352b; margin: 7px 0; }
 
-  /* government panel */
-  #govPanel { top: 48px; left: 10px; width: 260px; padding: 12px; display: none; }
+  #govPanel { top: 48px; left: 10px; width: 280px; padding: 12px; display: none; max-height: 80vh; overflow-y: auto; }
   #govPanel h3 { font-size: 13px; color: #c9a86a; margin-bottom: 8px; letter-spacing: 1px; }
+  #govPanel h4 { font-size: 12px; color: #7da083; margin: 10px 0 4px; }
   #govPanel .row { display: flex; justify-content: space-between; margin: 6px 0; align-items: center; }
   #govPanel input[type=range] { width: 130px; accent-color: #7da083; }
+  #govPanel label { display: flex; gap: 6px; align-items: center; margin: 4px 0; cursor: pointer; }
 
-  /* dialogue */
+  #techPanel {
+    top: 48px; left: 300px; width: 460px; max-height: 82vh; overflow-y: auto;
+    padding: 12px; display: none; z-index: 15;
+  }
+  #techPanel h3 { font-size: 13px; color: #c9a86a; letter-spacing: 1px; margin-bottom: 8px; }
+  .techTabs { display: flex; gap: 6px; margin-bottom: 8px; }
+  .tech {
+    border: 1px solid #24352b; padding: 6px 8px; margin: 4px 0; display: flex;
+    justify-content: space-between; align-items: center; gap: 8px;
+  }
+  .tech .nm { color: #cfd8d3; }
+  .tech .desc { color: #5a6b60; font-size: 11px; }
+  .tech.done { border-color: #3a5243; } .tech.done .nm { color: #7da083; }
+  .tech.locked { opacity: 0.45; }
+  .tech .barwrap { width: 90px; margin: 0; }
+
+  #bldgPanel { top: 48px; right: 10px; width: 240px; padding: 10px; display: none; }
+  #bldgPanel h3 { font-size: 13px; color: #c9a86a; margin-bottom: 6px; }
+  #bldgPanel .row { display: flex; justify-content: space-between; margin: 3px 0; }
+
   #dialogue {
-    left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px; padding: 14px;
+    left: 50%; top: 50%; transform: translate(-50%, -50%); width: 470px; padding: 14px;
     display: none; z-index: 30;
   }
   #dialogue .head { display: flex; gap: 12px; margin-bottom: 10px; }
@@ -76,11 +99,6 @@
   #dlgMeterWrap { background: #101813; border: 1px solid #24352b; height: 12px; margin: 10px 0; }
   #dlgMeter { background: linear-gradient(90deg, #a05252, #c9a86a, #7da083); height: 100%; transition: width 0.3s; }
   #dlgOpts .btn { display: block; width: 100%; text-align: left; margin-top: 6px; }
-
-  #hint {
-    position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
-    font-size: 11px; color: #5a6b60; z-index: 5; pointer-events: none; text-shadow: 0 1px 2px #000;
-  }
 </style>
 </head>
 <body>
@@ -88,33 +106,39 @@
 
   <div class="panel" id="hud">
     <span>LOGS <b id="rLogs">0</b></span>
+    <span>SEEDS <b id="rSeeds">0</b></span>
+    <span>STONE <b id="rStone">0</b></span>
+    <span>IRON <b id="rIron">0</b></span>
     <span>DOORS <b id="rDoors">0</b></span>
-    <span>WHEAT <b id="rWheat">0</b></span>
     <span>BREAD <b id="rBread">0</b></span>
     <span>MEAT <b id="rMeat">0</b></span>
+    <span>WPNS <b id="rWeapons">0</b></span>
+    <span>TOOLS <b id="rTools">0</b></span>
     <span>DM <b id="rDM">0</b></span>
     <span class="spacer"></span>
     <span>POP <b id="rPop">2</b></span>
     <span>POLICE <b id="rPolice">0</b></span>
-    <span>TAX <b id="rTax">2</b> DM</span>
+    <span>HAPPY <b id="rHappy">–</b></span>
+    <span>TAX <b id="rTax">2</b></span>
   </div>
 
-  <div id="hint">WASD / arrow keys: move camera &nbsp;&middot;&nbsp; right-click: cancel &amp; deselect</div>
+  <div id="hint">WASD / arrows: camera &middot; right-click: cancel &amp; deselect &middot; click buildings to inspect</div>
 
   <div class="panel" id="actions">
     <div class="dropdown" id="buildDrop">
       <button class="btn" id="buildToggle">BUILD &#9662;</button>
       <div class="dropdown-menu" id="buildMenu">
-        <button class="btn menu-item" data-build="cabin">Log Cabin &mdash; 20 logs, 1 door</button>
+        <button class="btn menu-item" data-build="cabin" id="miCabin">Log Cabin</button>
         <button class="btn menu-item" data-build="recruit">Civilian Recruitment Center &mdash; 30 logs</button>
         <button class="btn menu-item" data-build="market">Market Center &mdash; 25 logs</button>
+        <button class="btn menu-item" data-build="farm" id="miFarm">Wheat Farm &mdash; 3 logs, 6 seeds</button>
         <button class="btn menu-item" data-build="sapling">Replant Spruce &mdash; 1 log</button>
       </div>
     </div>
     <div class="dropdown" id="craftDrop">
       <button class="btn" id="craftToggle">CRAFT &#9662;</button>
       <div class="dropdown-menu" id="craftMenu">
-        <button class="btn menu-item" data-craft="door">Door &mdash; 5 logs (needs selected civilian)</button>
+        <button class="btn menu-item" data-craft="door" id="miDoor">Door &mdash; 5 logs (selected civilian)</button>
       </div>
     </div>
     <button class="btn" id="govToggle">GOVERNMENT</button>
@@ -128,16 +152,41 @@
     <h3 id="cpName">—</h3>
     <div class="row"><span>Profession</span><span id="cpProf">none</span></div>
     <div class="row"><span>Home</span><span id="cpHome">homeless</span></div>
+    <div class="row"><span>Health</span><span id="cpHpN">100</span></div>
+    <div class="barwrap"><div class="barfill red" id="cpHp" style="width:100%"></div></div>
     <div class="row"><span>Hunger</span><span id="cpHungerN">100</span></div>
     <div class="barwrap"><div class="barfill" id="cpHunger" style="width:100%"></div></div>
+    <div class="row"><span>Happiness</span><span id="cpHappyN">80</span></div>
+    <div class="barwrap"><div class="barfill" id="cpHappy" style="width:80%"></div></div>
+    <div class="row"><span>Tool</span><span id="cpTool">none</span></div>
     <hr>
     <div style="color:#7da083;margin-bottom:4px">INVENTORY</div>
     <div class="row"><span>Logs</span><span id="cpLogs">0</span></div>
+    <div class="row"><span>Seeds</span><span id="cpSeeds">0</span></div>
+    <div class="row"><span>Stone</span><span id="cpStone">0</span></div>
+    <div class="row"><span>Iron</span><span id="cpIron">0</span></div>
     <div class="row"><span>Wheat</span><span id="cpWheat">0</span></div>
     <div class="row"><span>Bread</span><span id="cpBread">0</span></div>
     <div class="row"><span>Meat</span><span id="cpMeat">0</span></div>
     <div class="row"><span>Deutsche Mark</span><span id="cpDM">0</span></div>
-    <button class="btn" id="cpDeposit" style="width:100%;margin-top:8px">Deposit goods to town storage</button>
+    <button class="btn" id="cpDeposit" style="width:100%;margin-top:6px">Deposit goods to town storage</button>
+    <div class="dropdown" id="recruitDrop" style="margin-top:6px">
+      <button class="btn" id="recruitToggle" style="width:100%">Recruit &#9662;</button>
+      <div class="dropdown-menu up" id="recruitMenu" style="width:100%">
+        <button class="btn menu-item" data-prof="farmer">as Farmer</button>
+        <button class="btn menu-item" data-prof="police" id="miPolice">as Police (40 DM)</button>
+        <button class="btn menu-item" data-prof="blacksmith" id="miSmith">as Blacksmith</button>
+      </div>
+    </div>
+    <button class="btn" id="cpBuyTool" style="width:100%;margin-top:6px">Buy tool from smithy (gov funds, 10 DM)</button>
+    <div id="cpFarms" style="font-size:11px;color:#5a6b60;margin-top:6px"></div>
+  </div>
+
+  <div class="panel" id="bldgPanel">
+    <h3 id="bpName">—</h3>
+    <div id="bpInfo" style="font-size:11px;color:#5a6b60;margin-bottom:6px"></div>
+    <div class="row"><span>Occupants</span><span id="bpOcc">—</span></div>
+    <button class="btn danger" id="bpDismantle" style="width:100%;margin-top:8px">Dismantle</button>
   </div>
 
   <div class="panel" id="govPanel">
@@ -148,8 +197,24 @@
     </div>
     <div class="row"><span>Treasury</span><span id="govDM">0 DM</span></div>
     <div class="row"><span>Police force</span><span id="govPolice">0 officers</span></div>
-    <button class="btn" id="recruitPolice" style="width:100%;margin-top:6px">Recruit Police Officer &mdash; 50 DM</button>
-    <div style="font-size:11px;color:#5a6b60;margin-top:8px">High taxes make wandering hunters warier of joining. Police must be recruited from housed civilians.</div>
+    <div class="row"><span>Colony happiness</span><span id="govHappy">–</span></div>
+    <h4>LAWS</h4>
+    <label><input type="checkbox" id="lawCivWeapons"> Civilians may keep weapons</label>
+    <label><input type="checkbox" id="lawHunterWeapons" checked> Hunters may keep weapons</label>
+    <label id="lawForcedRow" style="display:none"><input type="checkbox" id="lawForced"> Forced labour edict (Slavery)</label>
+    <div style="font-size:11px;color:#5a6b60;margin-top:4px">Weapon laws decide who fights back with steel when unrest turns to rebellion. High taxes breed rebellion; police must put it down.</div>
+    <h4>RESEARCH</h4>
+    <button class="btn" id="techToggle" style="width:100%">Open Tech Tree</button>
+    <div id="researchNow" style="font-size:11px;color:#7da083;margin-top:6px">No research underway.</div>
+  </div>
+
+  <div class="panel" id="techPanel">
+    <h3>TECH TREE <span id="techClose" style="float:right;cursor:pointer;color:#5a6b60">[close]</span></h3>
+    <div class="techTabs">
+      <button class="btn active" id="tabGrowth">Growth</button>
+      <button class="btn" id="tabMilitary">Military Philosophy</button>
+    </div>
+    <div id="techList"></div>
   </div>
 
   <div class="panel" id="dialogue">

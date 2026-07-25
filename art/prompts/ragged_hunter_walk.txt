@@ -1,0 +1,15 @@
+A pixel art sprite sheet: FOUR animation frames of the SAME character, arranged in a 2x2 grid — four equal quadrants, one full-body character per quadrant, nothing else. No borders, no frame lines, no labels, no text.
+
+THE CHARACTER — identical in all four frames:
+A former wilderness hunter from 1683 who has joined a poor forest colony: he still wears his fur cap and keeps his full dark beard, but his clothes are now tattered medieval peasant rags — a patched, torn, knee-length tunic of coarse grey-brown cloth with a rope belt, frayed ragged trousers, simple cloth-wrapped feet. No bow, no weapons, no leather jerkin — those days are behind him. Lean and weathered.
+
+THE ANIMATION — a 4-frame walking cycle, side view, walking to the RIGHT:
+Top-left: frame 1, right leg forward mid-stride. Top-right: frame 2, legs passing.
+Bottom-left: frame 3, left leg forward mid-stride. Bottom-right: frame 4, legs passing, arms opposite frame 2.
+Same character, same size, same proportions, same palette every frame — only limbs move. Full side profile facing right in all frames.
+
+STYLE:
+True low-resolution pixel art, big chunky square pixels, hard edges, no anti-aliasing, no gradients. Each frame reads clearly at 32x32 pixels. Limited palette of about six muted earthy colours: grey-brown rags, dark fur cap, dark beard, pale skin, near-black outline. 16-bit era sprite work.
+
+BACKGROUND:
+Completely flat uniform solid neutral grey across the whole image, clearly different from every character colour, so it can be keyed out. Generous space around each figure. No ground, no shadow, no scenery, no dividers.

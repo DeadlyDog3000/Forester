@@ -1,0 +1,16 @@
+A single 32x32 pixel game sprite of a stone outcrop with iron veins, for a village-builder game. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. Authentic 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+Must read clearly at 32 pixels. Bold blocky shapes only.
+
+COMPOSITION:
+Perfectly square 1:1 image. One cluster of rocks centred, filling most of the frame, seen straight on from ground level like other sprites in a top-down RPG.
+
+THE OUTCROP:
+Two or three large rounded grey boulders leaning together, chunky and angular, with a few small stones at their base. Across the faces of the boulders, two or three short jagged veins of rust-orange iron ore, each just a few pixels, clearly visible against the grey stone. Simple highlight on the upper-left edges of the boulders, shadow beneath.
+
+COLOUR — strictly limited, 5 shades:
+Cool grey stone: near-black outline, dark slate shadow, mid grey stone, pale grey highlight, plus a dull rust-orange for the iron veins. Muted and cold, sitting comfortably next to dark spruce greens. No bright colours.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour neutral background clearly different from every sprite colour (use a flat mid-magenta-free plain light grey), so it can be keyed out. No ground, no grass, no shadow cast on the ground, no border, no text.

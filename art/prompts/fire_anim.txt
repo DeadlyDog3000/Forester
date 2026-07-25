@@ -1,0 +1,10 @@
+A pixel art sprite sheet: FOUR animation frames of a burning fire, arranged in a 2x2 grid — four equal quadrants, one flame per quadrant, nothing else. No borders, no frame lines, no labels, no text.
+
+THE FLAME — same size and position in all four frames:
+A chunky campfire-sized blaze of leaping flames, wide at the base and tapering into two or three licking tongues at the top. Each frame shows the same fire with the tongues in a different flickering position — leaning left, standing tall, leaning right, splitting — so the four frames loop as a flickering animation. A few single-pixel embers float above the tips.
+
+STYLE:
+True low-resolution pixel art, big chunky square pixels, hard edges, no anti-aliasing, no gradients. Each frame reads clearly at 32x32 pixels. Strictly limited flame palette of five colours: deep red-orange at the base, bright orange in the middle, warm yellow at the heart, a few pale yellow-white hottest pixels, near-black red for the outline. No smoke, no logs, no ground.
+
+BACKGROUND:
+Completely flat uniform solid neutral grey across the whole image, clearly different from every flame colour, so it can be keyed out. Generous space around each flame. No scenery, no dividers.

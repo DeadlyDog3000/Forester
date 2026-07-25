@@ -1,0 +1,16 @@
+A single 32x32 pixel game sprite of a small patch of tall seeding grass, for a village-builder game. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. Authentic 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+Must read clearly at 32 pixels. Bold blocky shapes only.
+
+COMPOSITION:
+Perfectly square 1:1 image. One tuft of wild grass centred, occupying the middle half of the frame, seen straight on from ground level like other sprites in a top-down RPG.
+
+THE PATCH:
+A wild tuft of five to seven tall grass blades fanning out from a single base, clearly taller and scrappier than lawn grass. At the tip of three or four blades, tiny drooping seed heads — one or two pale golden pixels each — so the patch reads as harvestable seeding grass. Slightly lighter green than a dark forest floor so it stands out on grass terrain.
+
+COLOUR — strictly limited, 4 shades:
+Mid green blades with a lighter sage green edge, near-black green outline at the base, pale gold seed heads. Muted, cohesive with a dark spruce forest. No bright neon green.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour plain light grey background clearly different from every sprite colour, so it can be keyed out. No ground, no soil, no shadow, no border, no text.

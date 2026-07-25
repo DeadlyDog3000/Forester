@@ -1,0 +1,17 @@
+A pixel art sprite sheet: FOUR animation frames of the SAME character, arranged in a 2x2 grid — four equal quadrants, one full-body character per quadrant, nothing else. No borders, no frame lines, no labels, no text.
+
+THE CHARACTER — identical in all four frames:
+A peasant man from 1683 in tattered medieval rags — patched knee-length grey-brown tunic with rope belt, ragged trousers, cloth-wrapped feet, short dark hair — unarmed, fighting with his bare fists.
+
+THE ANIMATION — a 4-frame fist-fighting attack, side view, facing RIGHT:
+Top-left: frame 1, boxing guard stance, both fists raised in front of his face.
+Top-right: frame 2, wind-up, rear fist pulled back behind his shoulder.
+Bottom-left: frame 3, the punch — rear fist driven straight forward at full extension, body twisted into it.
+Bottom-right: frame 4, recovery, fist retracting, weight coming back.
+Same character, same size, same proportions, same palette every frame — only pose changes. Full side profile facing right in all frames.
+
+STYLE:
+True low-resolution pixel art, big chunky square pixels, hard edges, no anti-aliasing, no gradients. Each frame reads clearly at 32x32 pixels. Limited palette of about six muted colours: grey-brown rags, pale skin, near-black outline. 16-bit era sprite work.
+
+BACKGROUND:
+Completely flat uniform solid neutral grey across the whole image, clearly different from every character colour, so it can be keyed out. Generous space around each figure. No ground, no shadow, no scenery, no dividers.

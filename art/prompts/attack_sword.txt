@@ -1,0 +1,17 @@
+A pixel art sprite sheet: FOUR animation frames of the SAME character, arranged in a 2x2 grid — four equal quadrants, one full-body character per quadrant, nothing else. No borders, no frame lines, no labels, no text.
+
+THE CHARACTER — identical in all four frames:
+A peasant man from 1683 in tattered medieval rags — patched knee-length grey-brown tunic with rope belt, ragged trousers, cloth-wrapped feet, short dark hair — holding a plain short sword with a simple crossguard.
+
+THE ANIMATION — a 4-frame sword attack, side view, facing RIGHT:
+Top-left: frame 1, guard stance, sword held low in front.
+Top-right: frame 2, wind-up, sword raised high behind his head.
+Bottom-left: frame 3, the strike — sword swung forward horizontally, arm fully extended.
+Bottom-right: frame 4, follow-through, sword swept down past his leg, body leaning forward.
+Same character, same size, same proportions, same palette every frame — only pose changes. Full side profile facing right in all frames.
+
+STYLE:
+True low-resolution pixel art, big chunky square pixels, hard edges, no anti-aliasing, no gradients. Each frame reads clearly at 32x32 pixels. Limited palette of about six muted colours: grey-brown rags, steel grey blade, pale skin, near-black outline. 16-bit era sprite work.
+
+BACKGROUND:
+Completely flat uniform solid neutral grey across the whole image, clearly different from every character colour, so it can be keyed out. Generous space around each figure. No ground, no shadow, no scenery, no dividers.
