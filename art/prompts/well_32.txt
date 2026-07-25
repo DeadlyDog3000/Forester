@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a village water well. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the well centred, seen straight on from ground level.
+
+THE WELL: A round waist-high wall of grey fieldstones, with two timber posts rising from its sides holding a small peaked timber roof. Under the roof, a wooden windlass roller with a rope descending into the dark well mouth, and a small wooden bucket hanging from it. Simple, sturdy, welcoming.
+
+COLOUR: Grey fieldstone (three shades), warm brown timber posts and roof, near-black well mouth and outline, pale rope. No bright colours.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.

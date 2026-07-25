@@ -1,6 +1,6 @@
 "use strict";
 
-// ===== Forester alpha 0.3 — tech, unrest, and iron =====
+// ===== Forester alpha 0.4 — raiders, soldiers, and the long ledger =====
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -19,18 +19,22 @@ const HARVEST_TIME = 3, PATCH_TIME = 2, QUARRY_TIME = 4, SMITH_TIME = 8;
 const BASE_LOGS_PER_TREE = 5;
 const HUNGER_DECAY = 0.35, STARVE_DPS = 2;
 const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
-const TAX_INTERVAL = 45, POLICE_COST = 40, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
-const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8;
+const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
+const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8, DODGE_CHANCE = 0.15;
+const EAT_HEAL = 15;
+const RAID_MIN = 100, RAID_MAX = 170, MAX_RAIDERS = 4, MAX_CAMPS = 6;
 
 const REPAIR_COST = { logs: 20, doors: 1 };
 const STATIC_COSTS = {
   recruit: { logs: 30 }, market: { logs: 25 }, sapling: { logs: 1 },
+  watchtower: { logs: 15, stone: 5 }, bakery: { logs: 20, stone: 3 }, well: { logs: 10, stone: 8 },
 };
+const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
+  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well" };
 
-// --- tech tree (from the hand-drawn trees) ---
+// --- tech tree ---
 const TECH = {};
 function T(id, name, tree, req, depth, desc) { TECH[id] = { id, name, tree, req, depth, desc, done: false }; }
-// GROWTH
 T("foraging", "Foraging", "growth", [], 0, "Grass patches give +1 seed, gathered twice as fast");
 T("treecutting", "Tree Cutting", "growth", ["foraging"], 1, "Chopping 20% faster");
 T("axing", "Axing", "growth", ["treecutting"], 2, "Chopping 35% faster in total");
@@ -44,17 +48,16 @@ T("pets", "Pets", "growth", ["taming"], 5, "+4 colony happiness");
 T("pettoys", "Pet Toys", "growth", ["pets"], 6, "+4 colony happiness");
 T("pettraining", "Pet Training", "growth", ["pets"], 6, "Guard animals: torching 25% slower");
 T("petarmour", "Pet Armour", "growth", ["pettraining"], 7, "Police +25 health");
-T("guarddogs", "Guard Dogs", "growth", ["pettraining"], 7, "Police spot rebels much farther away");
+T("guarddogs", "Guard Dogs", "growth", ["pettraining"], 7, "Police spot enemies much farther away");
 T("wardogs", "War Dogs", "growth", ["guarddogs"], 8, "Police +5 damage");
 T("horses", "Horses", "growth", ["taming"], 5, "Everyone walks 15% faster");
 T("horsebreeding", "Horse Breeding", "growth", ["horses"], 6, "+10% more walking speed");
 T("horsefeed", "Horse Feed", "growth", ["horses"], 6, "Hunger fades 20% slower");
 T("stables", "Stables", "growth", ["horses"], 6, "Building & farm work 20% faster");
 T("saddling", "Saddling", "growth", ["horses"], 6, "+10% more walking speed");
-T("warhorse", "War Horse", "growth", ["saddling", "stables"], 7, "Police move 35% faster");
-T("cavalry", "Cavalry", "growth", ["warhorse"], 8, "Police +50 health");
-T("hussars", "Hussars", "growth", ["cavalry"], 9, "Police +15 damage");
-// MILITARY PHILOSOPHY
+T("warhorse", "War Horse", "growth", ["saddling", "stables"], 7, "Police & soldiers move 35% faster");
+T("cavalry", "Cavalry", "growth", ["warhorse"], 8, "Police & soldiers +50 health");
+T("hussars", "Hussars", "growth", ["cavalry"], 9, "Police & soldiers +15 damage");
 T("trading", "Trading", "military", [], 0, "Market prices +1 DM");
 T("currencies", "Currencies", "military", ["trading"], 1, "Taxes collect +1 DM");
 T("marketing", "Marketing", "military", ["currencies"], 2, "Market prices +1 more DM");
@@ -71,19 +74,20 @@ T("blades", "Blades", "military", ["forging"], 5, "All weapons +5 damage");
 T("hilts", "Hilts", "military", ["blades"], 6, "Weapons cost 1 less iron");
 T("swords", "Swords", "military", ["hilts"], 7, "Blacksmiths may forge swords (20 dmg)");
 T("battleaxes", "Battle Axes", "military", ["swords"], 8, "Blacksmiths may forge battle axes (28 dmg)");
-T("lances", "Lances", "military", ["swords"], 8, "Police +10 damage (requires War Horse)");
-T("defending", "Defending", "military", ["policing"], 4, "Buildings torched 30% slower");
-T("raiding", "Raiding", "military", ["defending"], 5, "Police +10 damage");
+T("lances", "Lances", "military", ["swords"], 8, "Police & soldiers +10 damage (requires War Horse)");
+T("defending", "Defending", "military", ["policing"], 4, "Police take weapons from the armoury; torching 30% slower — but the camps take notice");
+T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
 T("occupation", "Occupation", "military", ["raiding"], 6, "Taxes collect +1 more DM");
 TECH.lances.req.push("warhorse");
 
 const has = id => TECH[id].done;
 const techCost = t => 15 + t.depth * 12;
 const techTime = t => 45 + t.depth * 40;
-let research = null; // {id, t}
+let research = null;
 
 // --- derived stats ---
-const walkSpeed = c => BASE_WALK * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && c.profession === "police" ? (has("warhorse") ? 1.35 : 1.15) : 1);
+const isForce = c => c.profession === "police" || c.profession === "soldier";
+const walkSpeed = c => BASE_WALK * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1);
 const workMul = c => (c && c.tool ? 0.65 : 1) * (has("stables") ? 0.8 : 1) * (laws.forced ? 0.75 : 1);
 const chopTime = c => BASE_CHOP * (has("axing") ? 0.65 : has("treecutting") ? 0.8 : 1) * workMul(c);
 const logsPerTree = () => BASE_LOGS_PER_TREE + (has("sawing") ? 2 : 0) + (has("sawmills") ? 3 : 0);
@@ -92,15 +96,15 @@ const farmSeedCost = () => has("seeding") ? 4 : 6;
 const farmRipen = () => BASE_FARM_RIPEN * (has("agriculture") ? 0.7 : 1);
 const sellPrice = () => 3 + (has("trading") ? 1 : 0) + (has("marketing") ? 1 : 0);
 const taxBonus = () => (has("currencies") ? 1 : 0) + (has("occupation") ? 1 : 0) + (has("slavemarket") ? 2 : 0);
-const policeDmg = () => 12 + (has("wardogs") ? 5 : 0) + (has("hussars") ? 15 : 0) + (has("lances") ? 10 : 0) + (has("raiding") ? 10 : 0);
-const policeMaxHp = () => 100 + (has("petarmour") ? 25 : 0) + (has("cavalry") ? 50 : 0);
+const forceDmg = c => (c.profession === "soldier" ? 15 : 12) + (has("wardogs") ? 5 : 0) + (has("hussars") ? 15 : 0) + (has("lances") ? 10 : 0) + (has("raiding") ? 10 : 0) + (c.armed ? weaponDmg() : 0);
 const torchTime = () => TORCH_TIME / ((has("defending") ? 0.7 : 1) * (has("pettraining") ? 0.75 : 1));
-const weaponDmg = () => (has("battleaxes") ? 28 : has("swords") ? 20 : has("spears") ? 14 : 0) + (has("blades") ? 5 : 0);
+const weaponDmg = () => (has("battleaxes") ? 28 : has("swords") ? 20 : has("spears") ? 14 : 8) + (has("blades") ? 5 : 0);
 const weaponIron = () => Math.max(1, 2 - (has("hilts") ? 1 : 0));
 const canForgeWeapons = () => has("spears") || has("swords") || has("battleaxes");
 const treasuryFloor = () => has("loanship") ? -50 : 0;
 const cabinCapacity = () => has("landownership") ? 3 : 2;
 const dismantleRefund = () => has("ownership") ? 0.75 : 0.5;
+const nearWatchtower = (x, y) => buildings.some(b => b.type === "watchtower" && !b.fire && Math.hypot(b.x - x, b.y - y) < 400);
 
 function cabinCost() {
   const built = buildings.filter(b => b.type === "cabin" && b.placed).length;
@@ -114,15 +118,14 @@ function costOf(type) {
 
 // --- assets ---
 const IMAGES = {
-  tree: "assets/sprites/env/spruce_tree_32.png",
-  grass: "assets/sprites/env/grass_64.png",
-  stone: "assets/sprites/env/stone_32.png",
-  patch: "assets/sprites/env/grasspatch_32.png",
-  burned: "assets/sprites/buildings/burned_house_32.png",
-  cabin: "assets/sprites/buildings/log_cabin_32.png",
-  recruit: "assets/sprites/buildings/recruitment_center_32.png",
-  market: "assets/sprites/buildings/market_32.png",
+  tree: "assets/sprites/env/spruce_tree_32.png", grass: "assets/sprites/env/grass_64.png",
+  stone: "assets/sprites/env/stone_32.png", patch: "assets/sprites/env/grasspatch_32.png",
+  burned: "assets/sprites/buildings/burned_house_32.png", cabin: "assets/sprites/buildings/log_cabin_32.png",
+  recruit: "assets/sprites/buildings/recruitment_center_32.png", market: "assets/sprites/buildings/market_32.png",
   farm: "assets/sprites/buildings/farm_32.png",
+  watchtower: "assets/sprites/buildings/watchtower_32.png", bakery: "assets/sprites/buildings/bakery_32.png",
+  well: "assets/sprites/buildings/well_32.png",
+  thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
 };
 for (const who of ["sister", "brother", "hunter"]) for (let i = 0; i < 4; i++) IMAGES[`${who}${i}`] = `assets/sprites/characters/${who}_walk_${i}.png`;
 for (let i = 0; i < 4; i++) {
@@ -137,28 +140,27 @@ let loaded = 0;
 const imageNames = Object.keys(IMAGES);
 for (const key of imageNames) {
   img[key] = new Image();
-  img[key].onload = () => { if (++loaded === imageNames.length) start(); };
+  img[key].onload = img[key].onerror = () => { if (++loaded === imageNames.length) assetsReady(); };
   img[key].src = IMAGES[key];
 }
 
 // --- state ---
+let gameState = "boot"; // boot -> menu | loading -> playing -> over
 const res = { logs: 0, seeds: 0, stone: 0, iron: 0, doors: 0, wheat: 0, bread: 0, meat: 0, dm: 60, weapons: 0, tools: 0 };
-let taxRate = 2, policeCount = 0;
+let taxRate = 2, policeCount = 0, taxTimer = TAX_PERIOD;
 const laws = { civWeapons: false, hunterWeapons: true, forced: false };
 
 const cam = { x: 0, y: 0 };
+let zoom = 1;
 const keys = {};
 const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
-const buildings = [];   // {type, x, y, progress, occupants[], fire, torchP, placed}
-const farms = [];       // {x, y, ready, growT, workers[], progress}
-const civs = [];
-const visitors = [];
+const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [];
 const chunks = new Map();
-const corpsesToRemove = [];
 
-let selected = null, selectedBldg = null, buildMode = null;
+let selected = null, selectedBldg = null, selectedCamp = null, buildMode = null;
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
+let raidTimer = 60, campRespawnTimer = 300;
 let techTab = "growth";
 
 const NAME_POOL = ["Falk", "Jorg", "Matthias", "Anselm", "Dietrich", "Lorenz", "Veit", "Kaspar",
@@ -179,10 +181,12 @@ civs.push(mkCiv("Sister", "sister", 70, 130));
 function mkCiv(name, who, x, y) {
   return { name, who, x, y, tx: x, ty: y, state: "idle", anim: 0, facing: 1,
            task: null, workT: 0, home: null, profession: null,
-           hunger: 100, hp: 100, happiness: 75, rebel: false, armed: false, tool: false,
+           hunger: 100, hp: 100, maxHp: 100, happiness: 75, rebel: false, armed: false, tool: false,
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
-           autoT: 3 + Math.random() * 4, taxT: TAX_INTERVAL, atkT: 0, stuckT: 0, isCiv: true };
+           autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, isCiv: true };
 }
+
+function float(x, y, text, color) { floaters.push({ x, y, text, color, t: 1.4 }); }
 
 // --- terrain ---
 function chunkKey(cx, cy) { return cx + "," + cy; }
@@ -218,8 +222,9 @@ function getChunk(cx, cy) {
 }
 
 function visibleChunks(pad = CHUNK) {
+  const vw = canvas.width / zoom, vh = canvas.height / zoom;
   const [x0, y0] = chunkOf(cam.x - pad, cam.y - pad);
-  const [x1, y1] = chunkOf(cam.x + canvas.width + pad, cam.y + canvas.height + pad);
+  const [x1, y1] = chunkOf(cam.x + vw + pad, cam.y + vh + pad);
   const out = [];
   for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) out.push(getChunk(cx, cy));
   return out;
@@ -232,6 +237,105 @@ function nearThings(kind, wx, wy, r) {
     for (const t of getChunk(cx + dx, cy + dy)[kind])
       if (Math.hypot(t.x - wx, t.y - wy) < r) out.push(t);
   return out;
+}
+
+// --- camps & raids ---
+function spawnCamps(n) {
+  for (let i = 0; i < n && camps.length < MAX_CAMPS; i++) {
+    const a = Math.random() * Math.PI * 2, d = 1100 + Math.random() * 1100;
+    const type = Math.random() < 0.55 ? "thief" : "raid";
+    camps.push({ type, x: Math.cos(a) * d, y: Math.sin(a) * d,
+                 hp: type === "thief" ? 120 : 180, maxHp: type === "thief" ? 120 : 180,
+                 dm: 25 + Math.floor(Math.random() * 40), weapons: 1 + Math.floor(Math.random() * 2) });
+  }
+}
+
+function spawnRaid() {
+  if (!camps.length || raiders.length >= MAX_RAIDERS) return;
+  const camp = camps[Math.floor(Math.random() * camps.length)];
+  const n = camp.type === "raid" ? 3 : 2;
+  const targets = buildings.filter(b => b.type !== "burned");
+  if (!targets.length) return;
+  for (let i = 0; i < n && raiders.length < MAX_RAIDERS; i++) {
+    const t = targets[Math.floor(Math.random() * targets.length)];
+    raiders.push({ x: camp.x + i * 30, y: camp.y + i * 20, hp: 60, maxHp: 60,
+                   dmg: camp.type === "raid" ? 14 : 10, camp, target: t,
+                   state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0 });
+  }
+  if (buildings.some(b => b.type === "watchtower" && !b.fire)) {
+    const dir = Math.abs(camp.x) > Math.abs(camp.y) ? (camp.x > 0 ? "east" : "west") : (camp.y > 0 ? "south" : "north");
+    toast(`⚠ The watchtower sounds the alarm — raiders approach from the ${dir}!`);
+  } else toast("⚠ Raiders have been sighted near the colony!");
+}
+
+function updateRaider(r, dt) {
+  const speed = BASE_WALK * 0.9;
+  // fight anyone who is fighting us, or any force unit close by
+  if (!r.foe || (!civs.includes(r.foe))) {
+    r.foe = null;
+    for (const c of civs) if (isForce(c) && Math.hypot(c.x - r.x, c.y - r.y) < 90) { r.foe = c; break; }
+  }
+  if (r.foe) {
+    const d = Math.hypot(r.foe.x - r.x, r.foe.y - r.y);
+    if (d > 260) r.foe = null;
+    else {
+      if (d > 30) { r.x += (r.foe.x - r.x) / d * speed * dt; r.y += (r.foe.y - r.y) / d * speed * dt; }
+      r.facing = r.foe.x < r.x ? -1 : 1;
+      r.anim += dt * 9;
+      r.atkT -= dt;
+      if (r.atkT <= 0 && d < 48) { r.atkT = ATK_INTERVAL; strikeUnit(r, r.foe, r.dmg); }
+      return;
+    }
+  }
+  if (r.state === "approach") {
+    const t = r.target;
+    if (!buildings.includes(t)) { r.state = "flee"; return; }
+    const dx = t.x - r.x, dy = t.y + 20 - r.y, d = Math.hypot(dx, dy);
+    if (d < 30) { r.state = "steal"; r.workT = 0; }
+    else { r.x += dx / d * speed * dt; r.y += dy / d * speed * dt; r.facing = dx < 0 ? -1 : 1; r.anim += dt * 8; }
+  } else if (r.state === "steal") {
+    r.anim = 1;
+    r.workT += dt;
+    if (r.workT > 2) {
+      const take = Math.min(15, Math.max(0, res.dm - treasuryFloor()));
+      res.dm -= take; r.carry = take;
+      float(r.x, r.y - 70, "-" + take + " DM", "#d86a5a");
+      toast(`⚠ A raider makes off with ${take} DM!`);
+      r.state = "flee";
+    }
+  } else if (r.state === "flee") {
+    const dx = r.camp.x - r.x, dy = r.camp.y - r.y, d = Math.hypot(dx, dy);
+    if (d < 40 || !camps.includes(r.camp)) { raiders.splice(raiders.indexOf(r), 1); return; }
+    r.x += dx / d * speed * dt; r.y += dy / d * speed * dt; r.facing = dx < 0 ? -1 : 1; r.anim += dt * 8;
+  }
+}
+
+// generic strike between any two units (civ or raider)
+function strikeUnit(a, b, dmg) {
+  if (Math.random() < DODGE_CHANCE) { float(b.x, b.y - 70, "Dodged!", "#cfd8d3"); return; }
+  b.hp -= dmg;
+  float(b.x, b.y - 70, "-" + dmg, "#d86a5a");
+  if (b.hp <= 0) {
+    if (raiders.includes(b)) {
+      raiders.splice(raiders.indexOf(b), 1);
+      if (b.carry) { res.dm += b.carry; float(b.x, b.y - 50, "+" + b.carry + " DM", "#7da083"); }
+      toast("A raider has been cut down.");
+    } else if (civs.includes(b)) {
+      if (b.rebel && has("court") && Math.random() < 0.5) {
+        b.rebel = false; b.armed = false; b.hp = 30; b.happiness = 60;
+        toast(`${b.name} is beaten down, subdued, and hauled before the court.`);
+      } else killCiv(b, b.rebel ? "died resisting the law" : "was slain");
+    }
+    if (a.task && a.task.target === b) { a.state = "idle"; a.task = null; }
+    if (a.foe === b) a.foe = null;
+  } else if (civs.includes(b)) {
+    if (!b.rebel && !isForce(b) && (!b.task || b.task.kind !== "attack"))
+      order(b, { kind: "walk", x: b.x + (b.x - a.x) * 4, y: b.y + (b.y - a.y) * 4 });
+    else if ((b.rebel || isForce(b)) && (!b.task || !b.task.target)) {
+      if (civs.includes(a)) order(b, { kind: "attack", target: a, x: a.x, y: a.y });
+      // raider attackers are handled by force auto-targeting
+    }
+  }
 }
 
 // --- geometry ---
@@ -252,6 +356,7 @@ function legalToBuild(type, wx, wy) {
     r.h += 26;
     if (rectsOverlap(cand, r)) return false;
   }
+  for (const c of camps) if (Math.hypot(c.x - wx, c.y - wy) < 200) return false;
   for (const t of nearThings("trees", wx, wy, 160)) if (t.alive && pointInRect(t.x, t.y, inflate(cand, 10))) return false;
   for (const t of nearThings("stones", wx, wy, 160)) if (t.alive && pointInRect(t.x, t.y, inflate(cand, 10))) return false;
   return true;
@@ -276,14 +381,14 @@ function collideMove(c, nx, ny) {
 // --- helpers ---
 function toast(text) { msgEl.textContent = text; toastTimer = 5; }
 function canPay(cost) {
-  return res.logs >= (cost.logs || 0) && res.doors >= (cost.doors || 0) &&
+  return res.logs >= (cost.logs || 0) && res.doors >= (cost.doors || 0) && res.stone >= (cost.stone || 0) &&
          res.seeds >= (cost.seeds || 0) && res.dm - (cost.dm || 0) >= treasuryFloor();
 }
 function pay(cost) {
-  res.logs -= cost.logs || 0; res.doors -= cost.doors || 0;
+  res.logs -= cost.logs || 0; res.doors -= cost.doors || 0; res.stone -= cost.stone || 0;
   res.seeds -= cost.seeds || 0; res.dm -= cost.dm || 0;
 }
-const costText = c => [c.logs && `${c.logs} logs`, c.doors && `${c.doors} door`, c.seeds && `${c.seeds} seeds`, c.dm && `${c.dm} DM`].filter(Boolean).join(", ");
+const costText = c => [c.logs && `${c.logs} logs`, c.doors && `${c.doors} door`, c.stone && `${c.stone} stone`, c.seeds && `${c.seeds} seeds`, c.dm && `${c.dm} DM`].filter(Boolean).join(", ");
 
 function freeHome() { return buildings.find(b => b.type === "cabin" && b.occupants.length < cabinCapacity()) || null; }
 function houseCiv(c) {
@@ -297,29 +402,44 @@ function houseCiv(c) {
 }
 
 function killCiv(c, why) {
-  if (!civs.includes(c)) return;   // already dead — never splice by -1
+  if (!civs.includes(c)) return;
   if (c.profession === "police") policeCount--;
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
-  if (selected === c) { selected = null; }
+  if (selected === c) selected = null;
   civs.splice(civs.indexOf(c), 1);
   toast(`${c.name} ${why}. The colony numbers ${civs.length}.`);
+  if (civs.length === 0) gameOver();
   syncUI();
+}
+
+function eat(c, kind) {
+  const heal = Math.min(EAT_HEAL, c.maxHp - c.hp);
+  c.hunger = Math.min(100, c.hunger + (kind === "wheat" ? 15 : 35));
+  if (heal > 0) { c.hp += heal; float(c.x, c.y - 70, "+" + Math.round(heal), "#7da083"); }
 }
 
 // --- input ---
 addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; if (e.key === "Escape") { buildMode = null; syncUI(); } });
 addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 canvas.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const wx = cam.x + mouse.x / zoom, wy = cam.y + mouse.y / zoom;
+  zoom = Math.max(0.45, Math.min(2.4, zoom * (e.deltaY < 0 ? 1.12 : 0.89)));
+  cam.x = wx - mouse.x / zoom;
+  cam.y = wy - mouse.y / zoom;
+}, { passive: false });
 canvas.addEventListener("contextmenu", e => {
   e.preventDefault();
-  buildMode = null; selected = null; selectedBldg = null;
+  buildMode = null; selected = null; selectedBldg = null; selectedCamp = null;
   syncUI();
 });
 
 canvas.addEventListener("click", e => {
+  if (gameState !== "playing") return;
   mouse.x = e.clientX; mouse.y = e.clientY;
-  mouse.wx = mouse.x + cam.x; mouse.wy = mouse.y + cam.y;
+  mouse.wx = cam.x + mouse.x / zoom; mouse.wy = cam.y + mouse.y / zoom;
   if (paused) return;
 
   if (buildMode) { tryPlace(buildMode, mouse.wx, mouse.wy); return; }
@@ -327,15 +447,38 @@ canvas.addEventListener("click", e => {
   for (const v of visitors)
     if (Math.abs(mouse.wx - v.x) < 26 && mouse.wy < v.y && mouse.wy > v.y - CHAR_SIZE) return openDialogue(v);
 
-  // clicking a civilian: select — or order an attack on a rebel if police selected
+  // raiders: force units can be ordered onto them
+  for (const r of raiders)
+    if (Math.abs(mouse.wx - r.x) < 26 && mouse.wy < r.y && mouse.wy > r.y - CHAR_SIZE) {
+      if (selected && isForce(selected)) {
+        order(selected, { kind: "attack", target: r, x: r.x, y: r.y });
+        toast(`${selected.name} moves to intercept the raider.`);
+      } else toast("Only police or soldiers can be ordered against raiders.");
+      return;
+    }
+
+  // camps: soldiers can be ordered to sack them
+  for (const cp of camps)
+    if (Math.abs(mouse.wx - cp.x) < BLDG_SIZE / 2 && mouse.wy < cp.y && mouse.wy > cp.y - BLDG_SIZE) {
+      if (selected && selected.profession === "soldier" && has("raiding")) {
+        order(selected, { kind: "siege", target: cp, x: cp.x + 40, y: cp.y + 14 });
+        toast(`${selected.name} marches on the ${cp.type} camp.`);
+      } else {
+        selectedCamp = cp; selectedBldg = null; selected = null;
+        toast(cp.type === "thief" ? "A thief camp. Soldiers could sack it." : "A raider war-camp. Soldiers could sack it — carefully.");
+        syncUI();
+      }
+      return;
+    }
+
   for (const c of civs) {
     if (Math.abs(mouse.wx - c.x) < 24 && mouse.wy < c.y && mouse.wy > c.y - CHAR_SIZE) {
-      if (selected && selected !== c && selected.profession === "police" && c.rebel) {
+      if (selected && selected !== c && isForce(selected) && c.rebel) {
         order(selected, { kind: "attack", target: c, x: c.x, y: c.y });
         toast(`${selected.name} moves to put down ${c.name}.`);
         return;
       }
-      selected = c; selectedBldg = null;
+      selected = c; selectedBldg = null; selectedCamp = null;
       toast(`${c.name} selected.`);
       syncUI();
       return;
@@ -343,7 +486,6 @@ canvas.addEventListener("click", e => {
   }
 
   if (selected) {
-    // resource nodes
     for (const t of nearThings("trees", mouse.wx, mouse.wy, 80))
       if (t.alive && t.growth >= 1 && Math.abs(mouse.wx - t.x) < 26 && mouse.wy < t.y && mouse.wy > t.y - TREE_SIZE) {
         order(selected, { kind: "chop", target: t, x: t.x + 26, y: t.y + 6 });
@@ -362,7 +504,6 @@ canvas.addEventListener("click", e => {
         toast(`${selected.name} gathers seeds from the wild grass.`);
         return;
       }
-    // farms: assign farmer, or harvest if ripe
     for (const f of farms)
       if (pointInRect(mouse.wx, mouse.wy, bldgRect({ type: "farm", x: f.x, y: f.y }))) {
         if (selected.profession === "farmer") {
@@ -377,10 +518,9 @@ canvas.addEventListener("click", e => {
         } else if (f.ready) {
           order(selected, { kind: "harvest", target: f, x: f.x, y: f.y + 10 });
           toast(`${selected.name} goes to bring in the crop.`);
-        } else toast("Only farmers can be assigned; others can harvest when the crop is ripe.");
+        } else { selectedBldg = f; f.type = "farm"; selected = null; syncUI(); }
         return;
       }
-    // burned ruin: repair by order
     for (const b of buildings)
       if (b.type === "burned" && pointInRect(mouse.wx, mouse.wy, bldgRect(b))) {
         if (!canPay(REPAIR_COST)) {
@@ -393,11 +533,10 @@ canvas.addEventListener("click", e => {
       }
   }
 
-  // building inspection panel
   for (const b of buildings)
-    if (pointInRect(mouse.wx, mouse.wy, bldgRect(b))) { selectedBldg = b; selected = null; syncUI(); return; }
+    if (pointInRect(mouse.wx, mouse.wy, bldgRect(b))) { selectedBldg = b; selected = null; selectedCamp = null; syncUI(); return; }
   for (const f of farms)
-    if (pointInRect(mouse.wx, mouse.wy, bldgRect({ type: "farm", x: f.x, y: f.y }))) { selectedBldg = f; f.type = "farm"; selected = null; syncUI(); return; }
+    if (pointInRect(mouse.wx, mouse.wy, bldgRect({ type: "farm", x: f.x, y: f.y }))) { selectedBldg = f; f.type = "farm"; selected = null; selectedCamp = null; syncUI(); return; }
 
   if (selected) order(selected, { kind: "walk", x: mouse.wx, y: mouse.wy });
 });
@@ -415,8 +554,8 @@ function tryPlace(type, wx, wy) {
     farms.push({ x: wx, y: wy, ready: false, growT: 0, workers: [], progress: -1 });
     toast("Farm laid out. Assign farmers to it by selecting them and clicking the farm.");
   } else {
-    buildings.push({ type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true });
-    toast(type === "cabin" ? "Log cabin built." : type === "recruit" ? "Civilian Recruitment Center built." : "Market Center built.");
+    buildings.push({ type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 });
+    toast(`${BLDG_NAMES[type]} built.`);
     if (type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
   }
   buildMode = null;
@@ -441,6 +580,12 @@ function arrive(c) {
     c.state = "repairing"; c.workT = 0;
   } else if (t.kind === "attack") {
     c.state = "fighting"; c.workT = 0;
+  } else if (t.kind === "siege") {
+    if (!camps.includes(t.target)) { c.state = "idle"; c.task = null; return; }
+    c.state = "sieging"; c.workT = 0;
+  } else if (t.kind === "torch") {
+    if (!buildings.includes(t.target) || t.target.fire) { c.state = "idle"; c.task = null; return; }
+    c.state = "torching"; c.workT = 0;
   } else if (simple[t.kind]) {
     if ((t.kind === "chop" || t.kind === "quarry" || t.kind === "gather") && !t.target.alive) { c.state = "idle"; c.task = null; return; }
     c.state = simple[t.kind]; c.workT = 0;
@@ -455,14 +600,13 @@ function autonomy(c, dt) {
   c.autoT = 4 + Math.random() * 5;
 
   if (c.hunger < 60) {
-    if (c.inv.bread > 0) { c.inv.bread--; c.hunger = Math.min(100, c.hunger + 35); return; }
-    if (c.inv.meat > 0) { c.inv.meat--; c.hunger = Math.min(100, c.hunger + 35); return; }
-    if (c.inv.wheat > 0) { c.inv.wheat--; c.hunger = Math.min(100, c.hunger + 15); return; }
-    if (res.bread > 0 && c.home) { res.bread--; c.hunger = Math.min(100, c.hunger + 35); return; }
-    if (res.meat > 0 && c.home) { res.meat--; c.hunger = Math.min(100, c.hunger + 35); return; }
+    if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); return; }
+    if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); return; }
+    if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); return; }
+    if (res.bread > 0 && c.home) { res.bread--; eat(c, "bread"); return; }
+    if (res.meat > 0 && c.home) { res.meat--; eat(c, "meat"); return; }
   }
 
-  // buy a tool with their own coin
   if (!c.tool && res.tools > 0 && c.inv.dm >= TOOL_PRICE_SELF) {
     res.tools--; c.inv.dm -= TOOL_PRICE_SELF; res.dm += TOOL_PRICE_SELF; c.tool = true;
     toast(`${c.name} buys a tool from the smithy with their own coin.`);
@@ -471,7 +615,6 @@ function autonomy(c, dt) {
 
   if (!c.home) return;
 
-  // blacksmith work
   if (c.profession === "blacksmith" && has("forging")) {
     const iron = weaponIron();
     const wantTool = res.tools <= res.weapons || !canForgeWeapons();
@@ -487,13 +630,11 @@ function autonomy(c, dt) {
     }
   }
 
-  // gather seeds for the colony when stores run low
   if (res.seeds < farmSeedCost() * 2) {
     const p = nearThings("patches", c.x, c.y, 700).filter(p => p.alive)[0];
     if (p) { order(c, { kind: "gather", target: p, forColony: true, x: p.x + 16, y: p.y + 4 }); return; }
   }
 
-  // build a farm beside the cabin of their own accord — needs materials and a legal spot
   const home = c.home;
   const homeFarms = farms.filter(f => Math.hypot(f.x - home.x, f.y - home.y) < 220).length;
   const wantsFarm = homeFarms === 0 || (c.profession === "farmer" && homeFarms < 2);
@@ -530,7 +671,8 @@ function happinessTarget(c) {
   let t = 78 - taxRate * 6
         - (laws.forced ? 20 : 0)
         - (has("slavemarket") ? 8 : 0)
-        + (has("taming") ? 3 : 0) + (has("pets") ? 4 : 0) + (has("pettoys") ? 4 : 0);
+        + (has("taming") ? 3 : 0) + (has("pets") ? 4 : 0) + (has("pettoys") ? 4 : 0)
+        + Math.min(2, buildings.filter(b => b.type === "well" && !b.fire).length) * 3;
   if (c.hunger > 60) t += 4;
   if (c.hunger < 30) t -= 12;
   if (!c.home) t -= 8;
@@ -538,18 +680,18 @@ function happinessTarget(c) {
 }
 
 function maybeRebel(c) {
-  if (c.rebel || c.profession === "police" || civs.length < 2) return;
+  if (c.rebel || isForce(c) || civs.length < 2) return;
   if (c.happiness < 25 && Math.random() < 0.08) {
     c.rebel = true;
     const lawAllows = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
-    if (lawAllows && res.weapons > 0 && weaponDmg() > 0) { res.weapons--; c.armed = true; }
+    if (lawAllows && res.weapons > 0) { res.weapons--; c.armed = true; }
     c.task = null; c.state = "idle";
     toast(`⚠ ${c.name} has turned against the colony${c.armed ? " — and took a weapon" : ""}!`);
   }
 }
 
-function rebelAI(c, dt) {
-  if (c.state === "fighting" || c.state === "torching" || c.state === "walking") return;
+function rebelAI(c) {
+  if (c.state !== "idle") return;
   const targets = buildings.filter(b => b.type !== "burned" && !b.fire);
   if (targets.length && Math.random() < 0.6) {
     let best = targets[0], bd = Infinity;
@@ -564,32 +706,24 @@ function rebelAI(c, dt) {
   }
 }
 
-function policeAI(c) {
+function forceAI(c) {
   if (c.state !== "idle") return;
+  // arm up from the armoury once Defending is known
+  if (!c.armed && has("defending") && res.weapons > 0) {
+    res.weapons--; c.armed = true;
+    toast(`${c.name} takes a weapon from the armoury.`);
+  }
   const range = 450 + (has("guarddogs") ? 250 : 0);
   let best = null, bd = range;
   for (const r of civs) if (r.rebel) {
     const d = Math.hypot(r.x - c.x, r.y - c.y);
     if (d < bd) { bd = d; best = r; }
   }
-  if (best) order(c, { kind: "attack", target: best, x: best.x, y: best.y });
-}
-
-function strike(a, b) {
-  const dmg = a.profession === "police" ? policeDmg() : (a.armed ? weaponDmg() : FIST_DMG);
-  b.hp -= dmg;
-  if (b.hp <= 0) {
-    if (b.rebel && has("court") && Math.random() < 0.5) {
-      b.rebel = false; b.armed = false; b.hp = 30; b.happiness = 60;
-      toast(`${b.name} is beaten down, subdued, and hauled before the court.`);
-    } else killCiv(b, b.rebel ? "died resisting the law" : "was slain in the unrest");
-    a.state = "idle"; a.task = null;
-  } else if (!b.rebel && b.profession !== "police" && !b.task) {
-    // victims flee
-    order(b, { kind: "walk", x: b.x + (b.x - a.x) * 4, y: b.y + (b.y - a.y) * 4 });
-  } else if (b.rebel && (!b.task || b.task.kind !== "attack")) {
-    order(b, { kind: "attack", target: a, x: a.x, y: a.y }); // fight back
+  for (const r of raiders) {
+    const d = Math.hypot(r.x - c.x, r.y - c.y);
+    if (d < bd) { bd = d; best = r; }
   }
+  if (best) order(c, { kind: "attack", target: best, x: best.x, y: best.y });
 }
 
 // --- torching / fire ---
@@ -601,7 +735,7 @@ function igniteCheck(b, dt) {
     for (const o of b.occupants) o.home = null;
     b.occupants = [];
     if (b.type === "cabin") { b.type = "burned"; toast("A cabin has burned to a charred ruin. It can be repaired by order."); }
-    else { buildings.splice(buildings.indexOf(b), 1); toast(`The ${b.type === "market" ? "market" : "recruitment center"} has burned to the ground.`); }
+    else { buildings.splice(buildings.indexOf(b), 1); toast(`The ${BLDG_NAMES[b.type] || b.type} has burned to the ground.`); }
     if (selectedBldg === b) selectedBldg = null;
     syncUI();
   }
@@ -675,10 +809,7 @@ function renderDialogueOptions() {
   const opts = $("dlgOpts");
   opts.innerHTML = "";
   const pool = DLG_OPTIONS.filter(o => !v.used.has(o.text) && (!o.needs || o.needs()));
-  if (!pool.length) {
-    // nothing left to say — he decides on the spot
-    return v.meter >= 60 ? joinColony(v) : rejectColony(v);
-  }
+  if (!pool.length) return v.meter >= 60 ? joinColony(v) : rejectColony(v);
   const picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   for (const o of picks) {
@@ -686,7 +817,7 @@ function renderDialogueOptions() {
     b.className = "btn";
     b.textContent = o.text;
     b.addEventListener("click", () => {
-      v.used.add(o.text);            // never the same line twice
+      v.used.add(o.text);
       if (o.use) o.use();
       const delta = (o.dyn ? o.dyn() : o.d) + (Math.random() * 6 - 3);
       v.meter = Math.max(0, Math.min(100, v.meter + delta));
@@ -707,7 +838,7 @@ function closeDialogue() { dlg.open = false; dlg.visitor = null; paused = false;
 function joinColony(v) {
   visitors.splice(visitors.indexOf(v), 1);
   closeDialogue();
-  const c = mkCiv(v.name, "ragged", v.x, v.y);   // his hunter's leathers become colony rags
+  const c = mkCiv(v.name, "ragged", v.x, v.y);
   c.profession = "hunter";
   civs.push(c);
   const housed = houseCiv(c);
@@ -739,6 +870,10 @@ function updateResearch(dt) {
     toast(`Research complete: ${t.name} — ${t.desc}.`);
     research = null;
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
+    if ((t.id === "defending" || t.id === "raiding") && camps.length === 0) {
+      spawnCamps(4);
+      toast(`Research complete: ${t.name}. Word spreads of your colony's strength — thief and raid camps stir in the deep woods.`);
+    }
     renderTech(); syncUI();
   }
 }
@@ -794,6 +929,7 @@ document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
     $("recruitDrop").classList.remove("open");
     if (!selected) return;
     const prof = item.dataset.prof;
+    const dropPolice = () => { if (selected.profession === "police") policeCount--; };
     if (prof === "police") {
       if (!has("policing")) return toast("Recruiting police requires the Policing technology.");
       if (res.dm - POLICE_COST < treasuryFloor()) return toast(`An officer costs ${POLICE_COST} DM. Treasury: ${res.dm} DM.`);
@@ -801,14 +937,24 @@ document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
       if (selected.profession === "police") return toast(`${selected.name} already serves.`);
       res.dm -= POLICE_COST;
       selected.profession = "police"; policeCount++;
+      selected.maxHp = 100 + (has("petarmour") ? 25 : 0) + (has("cavalry") ? 50 : 0);
       toast(`${selected.name} joins the police force of the colony.`);
+    } else if (prof === "soldier") {
+      if (!has("raiding")) return toast("Soldiers require the Raiding technology.");
+      if (res.dm - SOLDIER_COST < treasuryFloor()) return toast(`A soldier costs ${SOLDIER_COST} DM. Treasury: ${res.dm} DM.`);
+      if (!selected.home) return toast("Only housed civilians may soldier.");
+      dropPolice();
+      selected.profession = "soldier";
+      selected.maxHp = 130 + (has("cavalry") ? 50 : 0);
+      selected.hp = Math.min(selected.hp + 30, selected.maxHp);
+      toast(`${selected.name} takes the colony's coin as a soldier. Click a camp to send them raiding.`);
     } else if (prof === "blacksmith") {
       if (!has("forging")) return toast("Blacksmiths require the Forging technology.");
-      if (selected.profession === "police") policeCount--;
+      dropPolice();
       selected.profession = "blacksmith";
       toast(`${selected.name} takes up the hammer as blacksmith.`);
     } else {
-      if (selected.profession === "police") policeCount--;
+      dropPolice();
       selected.profession = "farmer";
       toast(`${selected.name} takes up farming. Assign them to a farm by clicking it.`);
     }
@@ -865,7 +1011,7 @@ $("bpDismantle").addEventListener("click", () => {
   if (farms.includes(b)) {
     farms.splice(farms.indexOf(b), 1);
     res.logs += 1;
-    toast("The farm is dismantled.");
+    toast("The farm is dismantled — 1 log recovered.");
   } else {
     if (b.fire) return toast("It is on fire — no one is dismantling that.");
     const base = b.type === "burned" ? 10 : (costOf(b.type === "cabin" ? "cabin" : b.type) || { logs: 10 }).logs;
@@ -879,6 +1025,42 @@ $("bpDismantle").addEventListener("click", () => {
   syncUI();
 });
 
+// --- menu / loading / game over ---
+function assetsReady() {
+  if (sessionStorage.getItem("forester_skip")) { sessionStorage.removeItem("forester_skip"); doLoading(); }
+  else { gameState = "menu"; $("menu").style.display = "block"; }
+}
+$("menuNew").addEventListener("click", doLoading);
+$("goNew").addEventListener("click", () => { sessionStorage.setItem("forester_skip", "1"); location.reload(); });
+$("goMenu").addEventListener("click", () => { sessionStorage.removeItem("forester_skip"); location.reload(); });
+
+const LOAD_LINES = ["Felling trees…", "Warming the hearth…", "Counting Deutsche Marks…", "Waking the chickens…", "Sharpening axes…"];
+function doLoading() {
+  gameState = "loading";
+  $("menu").style.display = "none";
+  $("loading").style.display = "flex";
+  let p = 0;
+  const iv = setInterval(() => {
+    p = Math.min(100, p + 4 + Math.random() * 9);
+    $("loadBar").style.width = p + "%";
+    $("loadText").textContent = LOAD_LINES[Math.floor(p / 100 * (LOAD_LINES.length - 0.01))];
+    if (p >= 100) {
+      clearInterval(iv);
+      setTimeout(() => {
+        $("loading").style.display = "none";
+        gameState = "playing";
+        cam.x = -canvas.width / 2; cam.y = -canvas.height / 2 - 60;
+        syncUI();
+      }, 250);
+    }
+  }, 90);
+}
+function gameOver() {
+  if (gameState === "over") return;
+  gameState = "over";
+  $("gameover").style.display = "block";
+}
+
 function syncUI() {
   $("buildToggle").classList.toggle("active", !!buildMode);
   $("rLogs").textContent = res.logs; $("rSeeds").textContent = res.seeds;
@@ -888,6 +1070,8 @@ function syncUI() {
   $("rTools").textContent = res.tools; $("rDM").textContent = res.dm;
   $("rPop").textContent = civs.length; $("rPolice").textContent = policeCount;
   $("rTax").textContent = taxRate;
+  const mm = Math.floor(taxTimer / 60), ss = Math.floor(taxTimer % 60);
+  $("rTaxT").textContent = mm + ":" + String(ss).padStart(2, "0");
   const avg = civs.length ? Math.round(civs.reduce((s, c) => s + c.happiness, 0) / civs.length) : 0;
   $("rHappy").textContent = avg + "%";
   $("govHappy").textContent = avg + "%";
@@ -907,34 +1091,44 @@ function syncUI() {
     $("cpName").textContent = selected.name.toUpperCase() + (selected.rebel ? " — REBEL" : "");
     $("cpProf").textContent = selected.profession || "none";
     $("cpHome").textContent = selected.home ? "housed" : "homeless";
-    $("cpHpN").textContent = Math.round(selected.hp);
-    $("cpHp").style.width = Math.max(0, selected.hp) + "%";
+    $("cpHpN").textContent = Math.round(selected.hp) + "/" + selected.maxHp;
+    $("cpHp").style.width = Math.max(0, selected.hp / selected.maxHp * 100) + "%";
     $("cpHungerN").textContent = Math.round(selected.hunger);
     $("cpHunger").style.width = Math.max(0, selected.hunger) + "%";
     $("cpHappyN").textContent = Math.round(selected.happiness);
     $("cpHappy").style.width = Math.max(0, selected.happiness) + "%";
-    $("cpTool").textContent = selected.tool ? "good tool" : "none";
+    $("cpTool").textContent = (selected.tool ? "good tool" : "none") + (selected.armed ? " · armed" : "");
     $("cpLogs").textContent = selected.inv.logs; $("cpSeeds").textContent = selected.inv.seeds;
     $("cpStone").textContent = selected.inv.stone; $("cpIron").textContent = selected.inv.iron;
     $("cpWheat").textContent = selected.inv.wheat; $("cpBread").textContent = selected.inv.bread;
     $("cpMeat").textContent = selected.inv.meat; $("cpDM").textContent = selected.inv.dm;
     const assigned = farms.filter(f => f.workers.includes(selected)).length;
     $("cpFarms").textContent = selected.profession === "farmer" ?
-      `Tends ${assigned} farm(s). Click a farm to assign or unassign.` : "";
+      `Tends ${assigned} farm(s). Click a farm to assign or unassign.` :
+      selected.profession === "soldier" ? "Click a thief or raid camp to send them to sack it." : "";
   }
 
   const bp = $("bldgPanel");
-  if (!selectedBldg) bp.style.display = "none";
-  else {
+  if (!selectedBldg && !selectedCamp) bp.style.display = "none";
+  else if (selectedCamp) {
     bp.style.display = "block";
+    const cp = selectedCamp;
+    $("bpName").textContent = cp.type === "thief" ? "THIEF CAMP" : "RAID CAMP";
+    $("bpInfo").textContent = `Hostile. Strength ${Math.round(cp.hp)}/${cp.maxHp}. Rumoured loot: DM and weapons. Send soldiers to sack it.`;
+    $("bpOcc").textContent = "—";
+    $("bpDismantle").style.display = "none";
+  } else {
+    bp.style.display = "block";
+    $("bpDismantle").style.display = "block";
     const b = selectedBldg;
     const isFarm = farms.includes(b);
-    $("bpName").textContent = isFarm ? "WHEAT FARM" :
-      b.type === "burned" ? "BURNED RUIN" : b.type === "cabin" ? "LOG CABIN" :
-      b.type === "recruit" ? "RECRUITMENT CENTER" : "MARKET CENTER";
+    $("bpName").textContent = isFarm ? "WHEAT FARM" : (BLDG_NAMES[b.type] || b.type).toUpperCase();
     $("bpInfo").textContent = isFarm ? `${b.workers.length} farmer(s) assigned; ${b.ready ? "crop is ripe" : "crop growing"}.` :
       b.type === "burned" ? "Select a civilian and click the ruin to order its repair (20 logs + 1 door)." :
-      b.fire ? "IT IS ON FIRE." : "Standing.";
+      b.fire ? "IT IS ON FIRE." :
+      b.type === "watchtower" ? "Warns of raids; nearby police & soldiers fight harder." :
+      b.type === "bakery" ? "Bakes town wheat into bread over time." :
+      b.type === "well" ? "Fresh water. The colony is happier for it." : "Standing.";
     $("bpOcc").textContent = isFarm ? "—" : (b.occupants.length ? b.occupants.map(o => o.name).join(", ") : "none");
   }
 }
@@ -942,32 +1136,69 @@ function syncUI() {
 // --- simulation ---
 function update(dt) {
   if (toastTimer > 0 && (toastTimer -= dt) <= 0) msgEl.textContent = "";
+  const fast = keys["shift"] ? 2.6 : 1;
   const up = keys["w"] || keys["arrowup"], dn = keys["s"] || keys["arrowdown"];
   const lf = keys["a"] || keys["arrowleft"], rt = keys["d"] || keys["arrowright"];
-  if (up) cam.y -= CAM_SPEED * dt;
-  if (dn) cam.y += CAM_SPEED * dt;
-  if (lf) cam.x -= CAM_SPEED * dt;
-  if (rt) cam.x += CAM_SPEED * dt;
-  mouse.wx = mouse.x + cam.x; mouse.wy = mouse.y + cam.y;
+  if (up) cam.y -= CAM_SPEED * fast / zoom * dt;
+  if (dn) cam.y += CAM_SPEED * fast / zoom * dt;
+  if (lf) cam.x -= CAM_SPEED * fast / zoom * dt;
+  if (rt) cam.x += CAM_SPEED * fast / zoom * dt;
+  mouse.wx = cam.x + mouse.x / zoom;
+  mouse.wy = cam.y + mouse.y / zoom;
 
   if (paused) return;
 
   updateResearch(dt);
 
+  for (const f of floaters) { f.t -= dt; f.y -= 26 * dt; }
+  for (let i = floaters.length - 1; i >= 0; i--) if (floaters[i].t <= 0) floaters.splice(i, 1);
+
+  // global tax clock
+  taxTimer -= dt;
+  if (taxTimer <= 0) {
+    taxTimer = TAX_PERIOD;
+    let total = 0;
+    for (const c of civs) if (c.home && !c.rebel) {
+      const due = taxRate + taxBonus();
+      const paid = Math.min(c.inv.dm, due);
+      c.inv.dm -= paid; res.dm += paid; total += paid;
+      if (paid > 0) float(c.x, c.y - 70, "-" + paid + " DM", "#c9a86a");
+    }
+    toast(total > 0 ? `Tax day: the colony collects ${total} DM.` : "Tax day — but the people's pockets are empty.");
+  }
+
   for (const ch of visibleChunks(CHUNK * 2))
     for (const t of ch.trees)
       if (t.alive && t.growth < 1) t.growth = Math.min(1, t.growth + dt / (SAPLING_GROW * (has("replanting") ? 0.5 : 1)));
   for (const f of farms) if (!f.ready && (f.growT += dt) >= farmRipen()) f.ready = true;
-  for (const b of [...buildings]) igniteCheck(b, dt);
+  for (const b of [...buildings]) {
+    igniteCheck(b, dt);
+    if (b.type === "bakery" && !b.fire) {
+      b.bakeT = (b.bakeT || 0) + dt;
+      if (b.bakeT >= 20) {
+        b.bakeT = 0;
+        if (res.wheat >= 2) { res.wheat -= 2; res.bread++; float(b.x, b.y - 100, "+1 bread", "#c9a86a"); }
+      }
+    }
+  }
 
   if (buildings.some(b => b.type === "recruit" && !b.fire)) {
     hunterTimer -= dt;
     if (hunterTimer <= 0) {
-      hunterTimer = 100 + Math.random() * 80;    // hunters are an uncommon sight
+      hunterTimer = 100 + Math.random() * 80;
       if (visitors.length < 2) spawnVisitor();
     }
   }
   for (const v of [...visitors]) updateVisitor(v, dt);
+
+  // raids
+  if (camps.length) {
+    raidTimer -= dt;
+    if (raidTimer <= 0) { raidTimer = RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN); spawnRaid(); }
+    campRespawnTimer -= dt;
+    if (campRespawnTimer <= 0) { campRespawnTimer = 300; spawnCamps(1); }
+  }
+  for (const r of [...raiders]) updateRaider(r, dt);
 
   for (const c of [...civs]) {
     c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * dt);
@@ -980,25 +1211,15 @@ function update(dt) {
     c.happiness += Math.sign(target - c.happiness) * Math.min(Math.abs(target - c.happiness), 2.5 * dt);
     maybeRebel(c);
 
-    if (c.home && !c.rebel) {
-      c.taxT -= dt;
-      if (c.taxT <= 0) {
-        c.taxT = TAX_INTERVAL;
-        const due = taxRate + taxBonus();
-        const paid = Math.min(c.inv.dm, due);
-        c.inv.dm -= paid; res.dm += paid;
-      }
-    }
-
-    if (c.rebel) rebelAI(c, dt);
-    if (c.profession === "police" && !c.rebel) policeAI(c);
+    if (c.rebel) rebelAI(c);
+    if (isForce(c) && !c.rebel) forceAI(c);
 
     const speed = walkSpeed(c);
     if (c.state === "walking") {
-      // chase moving targets
       if (c.task && c.task.kind === "attack" && c.task.target) {
-        if (!civs.includes(c.task.target)) { c.state = "idle"; c.task = null; continue; }
-        c.tx = c.task.target.x; c.ty = c.task.target.y;
+        const t = c.task.target;
+        if (!civs.includes(t) && !raiders.includes(t)) { c.state = "idle"; c.task = null; continue; }
+        c.tx = t.x; c.ty = t.y;
       }
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
       const reach = c.task && c.task.kind === "attack" ? 34 : 5;
@@ -1015,7 +1236,7 @@ function update(dt) {
       if (c.workT >= chopTime(c)) {
         t.alive = false; t.progress = -1;
         c.inv.logs += logsPerTree();
-        toast(`${c.name} felled a spruce: +${logsPerTree()} logs in their pack.`);
+        float(c.x, c.y - 70, "+" + logsPerTree() + " logs", "#7da083");
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "quarrying") {
@@ -1025,7 +1246,7 @@ function update(dt) {
       if (c.workT >= QUARRY_TIME * workMul(c)) {
         s.alive = false; s.progress = -1;
         c.inv.stone += 3; c.inv.iron += 1;
-        toast(`${c.name} breaks the outcrop: +3 stone, +1 iron.`);
+        float(c.x, c.y - 70, "+3 stone +1 iron", "#7da083");
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "gathering") {
@@ -1036,8 +1257,8 @@ function update(dt) {
       if (c.workT >= need) {
         p.alive = false; p.progress = -1;
         const got = 2 + (has("foraging") ? 1 : 0);
-        if (c.task.forColony) { res.seeds += got; toast(`${c.name} gathers ${got} seeds for the colony stores.`); }
-        else { c.inv.seeds += got; toast(`${c.name} gathers ${got} seeds.`); }
+        if (c.task.forColony) res.seeds += got; else c.inv.seeds += got;
+        float(c.x, c.y - 70, "+" + got + " seeds", "#7da083");
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "crafting") {
@@ -1082,7 +1303,7 @@ function update(dt) {
       if (c.workT >= HARVEST_TIME * workMul(c)) {
         f.ready = false; f.growT = 0; f.progress = -1;
         c.inv.wheat += 2; c.inv.bread += 1;
-        toast(`${c.name} brings in the wheat: +2 wheat, +1 bread.`);
+        float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "selling") {
@@ -1093,25 +1314,56 @@ function update(dt) {
           if (c.inv.bread > 0) c.inv.bread--; else c.inv.meat--;
           c.inv.dm += sellPrice(); earned += sellPrice();
         }
-        if (earned) toast(`${c.name} sells at the market for ${earned} DM.`);
+        if (earned) float(c.x, c.y - 70, "+" + earned + " DM", "#c9a86a");
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "hunting") {
       c.workT += dt; c.anim = 1;
-      if (c.workT >= 6) { c.inv.meat += 2; toast(`${c.name} returns from the hunt with meat.`); c.state = "idle"; c.task = null; }
+      if (c.workT >= 6) { c.inv.meat += 2; float(c.x, c.y - 70, "+2 meat", "#7da083"); c.state = "idle"; c.task = null; }
     } else if (c.state === "fighting") {
       const foe = c.task && c.task.target;
-      if (!foe || !civs.includes(foe)) { c.state = "idle"; c.task = null; continue; }
+      const foeAlive = foe && (civs.includes(foe) || raiders.includes(foe));
+      if (!foeAlive) { c.state = "idle"; c.task = null; continue; }
       const d = Math.hypot(foe.x - c.x, foe.y - c.y);
       if (d > 130) { c.state = "walking"; c.tx = foe.x; c.ty = foe.y; continue; }
-      if (d > 30) {
-        // press the attack: keep closing while in melee range band
-        collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt);
-      }
+      if (d > 30) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt);
       c.facing = foe.x < c.x ? -1 : 1;
       c.anim += dt * 9;
       c.atkT -= dt;
-      if (c.atkT <= 0 && d < 48) { c.atkT = ATK_INTERVAL; strike(c, foe); }
+      if (c.atkT <= 0 && d < 48) {
+        c.atkT = ATK_INTERVAL;
+        let dmg = isForce(c) ? forceDmg(c) : (c.armed ? weaponDmg() : FIST_DMG);
+        if (isForce(c) && nearWatchtower(c.x, c.y)) dmg += 5;
+        strikeUnit(c, foe, dmg);
+      }
+    } else if (c.state === "sieging") {
+      const cp = c.task.target;
+      if (!camps.includes(cp)) { c.state = "idle"; c.task = null; continue; }
+      c.facing = cp.x < c.x ? -1 : 1;
+      c.anim += dt * 9;
+      c.atkT -= dt;
+      if (c.atkT <= 0) {
+        c.atkT = ATK_INTERVAL;
+        const dmg = forceDmg(c);
+        cp.hp -= dmg;
+        float(cp.x, cp.y - 100, "-" + dmg, "#d86a5a");
+        // the camp fights back
+        if (Math.random() < DODGE_CHANCE) float(c.x, c.y - 70, "Dodged!", "#cfd8d3");
+        else {
+          const ret = cp.type === "raid" ? 11 : 7;
+          c.hp -= ret;
+          float(c.x, c.y - 70, "-" + ret, "#d86a5a");
+          if (c.hp <= 0) { killCiv(c, "fell storming the camp"); continue; }
+        }
+        if (cp.hp <= 0) {
+          camps.splice(camps.indexOf(cp), 1);
+          res.dm += cp.dm; res.weapons += cp.weapons;
+          float(cp.x, cp.y - 80, `+${cp.dm} DM +${cp.weapons} wpn`, "#7da083");
+          toast(`${c.name} sacks the ${cp.type} camp — ${cp.dm} DM and ${cp.weapons} weapon(s) seized!`);
+          if (selectedCamp === cp) selectedCamp = null;
+          c.state = "idle"; c.task = null;
+        }
+      }
     } else if (c.state === "torching") {
       const b = c.task.target;
       if (!buildings.includes(b) || b.fire) { c.state = "idle"; c.task = null; continue; }
@@ -1128,42 +1380,35 @@ function update(dt) {
   }
 }
 
-// torch order arrives into "torching"
-const _arrive = arrive;
-arrive = function (c) {
-  const t = c.task;
-  if (t && t.kind === "torch") {
-    if (!buildings.includes(t.target) || t.target.fire) { c.state = "idle"; c.task = null; return; }
-    c.state = "torching"; c.workT = 0;
-    return;
-  }
-  _arrive(c);
-};
-
 // --- rendering ---
 function drawSprite(image, wx, wyFeet, size, flip) {
-  const sx = wx - cam.x, sy = wyFeet - cam.y;
-  ctx.save(); ctx.translate(sx, sy);
+  ctx.save(); ctx.translate(wx, wyFeet);
   if (flip) ctx.scale(-1, 1);
   ctx.drawImage(image, -size / 2, -size, size, size);
   ctx.restore();
 }
 function bar(wx, wyTop, frac, color, w = 44) {
-  const sx = wx - cam.x, sy = wyTop - cam.y;
-  ctx.fillStyle = "#0a0f0c"; ctx.fillRect(sx - w / 2 - 1, sy - 1, w + 2, 8);
-  ctx.fillStyle = "#1c2a21"; ctx.fillRect(sx - w / 2, sy, w, 6);
-  ctx.fillStyle = color; ctx.fillRect(sx - w / 2, sy, w * Math.min(1, Math.max(0, frac)), 6);
+  ctx.fillStyle = "#0a0f0c"; ctx.fillRect(wx - w / 2 - 1, wyTop - 1, w + 2, 8);
+  ctx.fillStyle = "#1c2a21"; ctx.fillRect(wx - w / 2, wyTop, w, 6);
+  ctx.fillStyle = color; ctx.fillRect(wx - w / 2, wyTop, w * Math.min(1, Math.max(0, frac)), 6);
 }
 
 let fireAnim = 0;
 function render(dt) {
   fireAnim += dt * 8;
-  const x0 = Math.floor(cam.x / TILE) * TILE, y0 = Math.floor(cam.y / TILE) * TILE;
-  for (let y = y0; y < cam.y + canvas.height; y += TILE)
-    for (let x = x0; x < cam.x + canvas.width; x += TILE)
-      ctx.drawImage(img.grass, x - cam.x, y - cam.y, TILE, TILE);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#17251c";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(zoom, 0, 0, zoom, -cam.x * zoom, -cam.y * zoom);
+  ctx.imageSmoothingEnabled = false;
 
-  const inView = (x, y) => x > cam.x - 120 && x < cam.x + canvas.width + 120 && y > cam.y - 140 && y < cam.y + canvas.height + 160;
+  const vw = canvas.width / zoom, vh = canvas.height / zoom;
+  const x0 = Math.floor(cam.x / TILE) * TILE, y0 = Math.floor(cam.y / TILE) * TILE;
+  for (let y = y0; y < cam.y + vh; y += TILE)
+    for (let x = x0; x < cam.x + vw; x += TILE)
+      ctx.drawImage(img.grass, x, y, TILE, TILE);
+
+  const inView = (x, y) => x > cam.x - 140 && x < cam.x + vw + 140 && y > cam.y - 160 && y < cam.y + vh + 180;
   const drawables = [];
 
   for (const ch of visibleChunks()) {
@@ -1175,9 +1420,8 @@ function render(dt) {
         if (t.progress >= 0) bar(t.x, t.y - s - 12, t.progress, "#c9a86a");
       }});
       else drawables.push({ y: t.y, draw: () => {
-        const sx = t.x - cam.x, sy = t.y - cam.y;
-        ctx.fillStyle = "#3d2b1c"; ctx.fillRect(sx - 5, sy - 8, 10, 8);
-        ctx.fillStyle = "#2a1d13"; ctx.fillRect(sx - 5, sy - 3, 10, 3);
+        ctx.fillStyle = "#3d2b1c"; ctx.fillRect(t.x - 5, t.y - 8, 10, 8);
+        ctx.fillStyle = "#2a1d13"; ctx.fillRect(t.x - 5, t.y - 3, 10, 3);
       }});
     }
     for (const s of ch.stones) if (s.alive && inView(s.x, s.y)) drawables.push({ y: s.y, draw: () => {
@@ -1189,17 +1433,32 @@ function render(dt) {
       if (p.progress >= 0) bar(p.x, p.y - 46, p.progress, "#c9a86a");
     }});
   }
+  for (const cp of camps) if (inView(cp.x, cp.y)) drawables.push({ y: cp.y, draw: () => {
+    drawSprite(img[cp.type === "thief" ? "thiefcamp" : "raidcamp"], cp.x, cp.y, BLDG_SIZE, false);
+    ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
+    ctx.fillText(cp.type === "thief" ? "thief camp" : "raid camp", cp.x, cp.y - BLDG_SIZE - 4);
+    if (cp.hp < cp.maxHp) bar(cp.x, cp.y - BLDG_SIZE - 14, cp.hp / cp.maxHp, "#a05252");
+    if (selectedCamp === cp) {
+      ctx.strokeStyle = "#d86a5a"; ctx.lineWidth = 1;
+      ctx.strokeRect(cp.x - BLDG_SIZE / 2, cp.y - BLDG_SIZE, BLDG_SIZE, BLDG_SIZE);
+    }
+  }});
   for (const f of farms) if (inView(f.x, f.y)) drawables.push({ y: f.y, draw: () => {
     drawSprite(img.farm, f.x, f.y, FARM_SIZE, false);
     if (f.progress >= 0) bar(f.x, f.y - FARM_SIZE - 12, f.progress, "#c9a86a");
     else if (f.ready) {
       ctx.fillStyle = "#d8c26a"; ctx.font = "12px monospace"; ctx.textAlign = "center";
-      ctx.fillText("ripe", f.x - cam.x, f.y - cam.y - FARM_SIZE - 4);
+      ctx.fillText("ripe", f.x, f.y - FARM_SIZE - 4);
     }
     if (selected && selected.profession === "farmer" && f.workers.includes(selected)) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1;
       const r = bldgRect({ type: "farm", x: f.x, y: f.y });
-      ctx.strokeRect(r.x - cam.x, r.y - cam.y, r.w, r.h);
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+    }
+    if (selectedBldg === f) {
+      ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1;
+      const r = bldgRect({ type: "farm", x: f.x, y: f.y });
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
     }
   }});
   for (const b of buildings) if (inView(b.x, b.y)) drawables.push({ y: b.y, draw: () => {
@@ -1215,39 +1474,55 @@ function render(dt) {
     if (selectedBldg === b) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1;
       const r = bldgRect(b);
-      ctx.strokeRect(r.x - cam.x, r.y - cam.y, r.w, r.h);
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
     }
   }});
   for (const v of visitors) if (inView(v.x, v.y)) drawables.push({ y: v.y, draw: () => {
     drawSprite(img["hunter" + (Math.floor(v.anim) % 4)], v.x, v.y, CHAR_SIZE, v.facing < 0);
     ctx.fillStyle = "#c98a6a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-    ctx.fillText(v.name + " (visitor)", v.x - cam.x, v.y - cam.y - CHAR_SIZE - 4);
+    ctx.fillText(v.name + " (visitor)", v.x, v.y - CHAR_SIZE - 4);
+  }});
+  for (const r of raiders) if (inView(r.x, r.y)) drawables.push({ y: r.y, draw: () => {
+    const frame = r.foe ? img["atksword" + (Math.floor(r.anim) % 4)] : img["hunter" + (Math.floor(r.anim) % 4)];
+    drawSprite(frame, r.x, r.y, CHAR_SIZE, r.facing < 0);
+    ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
+    ctx.fillText("RAIDER", r.x, r.y - CHAR_SIZE - 4);
+    if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
   for (const c of civs) if (inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
     if (c === selected) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(c.x - cam.x, c.y - cam.y - 2, 18, 7, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(c.x, c.y - 2, 18, 7, 0, 0, Math.PI * 2); ctx.stroke();
     }
     let frame;
-    if (c.state === "fighting")
-      frame = img[(c.profession === "police" || c.armed ? "atksword" : "atkfist") + (Math.floor(c.anim) % 4)];
-    else
-      frame = img[c.who + (Math.floor(c.anim) % 4)];
+    if (c.state === "fighting" || c.state === "sieging")
+      frame = img[(isForce(c) || c.armed ? "atksword" : "atkfist") + (Math.floor(c.anim) % 4)];
+    else frame = img[c.who + (Math.floor(c.anim) % 4)];
     drawSprite(frame, c.x, c.y, CHAR_SIZE, c.facing < 0);
-    ctx.fillStyle = c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" : (c.profession === "police" ? "#8aa0c9" : "#7da083");
+    ctx.fillStyle = c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" :
+                    c.profession === "police" ? "#8aa0c9" : c.profession === "soldier" ? "#b58a5a" : "#7da083";
     ctx.font = "10px monospace"; ctx.textAlign = "center";
-    const tag = c.rebel ? " [REBEL]" : c.profession === "police" ? " [police]" : "";
-    ctx.fillText(c.name + tag, c.x - cam.x, c.y - cam.y - CHAR_SIZE - 4);
-    if (c.hp < 100) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / 100, "#a05252", 34);
+    const tag = c.rebel ? " [REBEL]" : c.profession === "police" ? " [police]" : c.profession === "soldier" ? " [soldier]" : "";
+    ctx.fillText(c.name + tag, c.x, c.y - CHAR_SIZE - 4);
+    if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
     if (c.state === "crafting" || c.state === "buildingFarm" || c.state === "smithing" || c.state === "hunting") {
       const tot = c.state === "crafting" ? CRAFT_TIME * workMul(c) : c.state === "smithing" ? SMITH_TIME * workMul(c) :
                   c.state === "buildingFarm" ? BASE_FARM_BUILD * workMul(c) : 6;
-      bar(c.x, c.y - CHAR_SIZE - (c.hp < 100 ? 26 : 16), c.workT / tot, "#c9a86a");
+      bar(c.x, c.y - CHAR_SIZE - (c.hp < c.maxHp ? 26 : 16), c.workT / tot, "#c9a86a");
     }
   }});
 
   drawables.sort((a, b) => a.y - b.y);
   for (const d of drawables) d.draw();
+
+  // floating combat text
+  ctx.font = "12px monospace"; ctx.textAlign = "center";
+  for (const f of floaters) {
+    ctx.globalAlpha = Math.min(1, f.t / 0.5);
+    ctx.fillStyle = f.color;
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
 
   if (buildMode) {
     const ok = legalToBuild(buildMode, mouse.wx, mouse.wy) && canPay(costOf(buildMode));
@@ -1257,8 +1532,9 @@ function render(dt) {
     drawSprite(ghost, mouse.wx, mouse.wy, gs, false);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = ok ? "#7da083" : "#a05252"; ctx.lineWidth = 2;
-    ctx.strokeRect(mouse.wx - cam.x - gs / 2, mouse.wy - cam.y - gs, gs, gs);
+    ctx.strokeRect(mouse.wx - gs / 2, mouse.wy - gs, gs, gs);
   }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 // --- loop ---
@@ -1266,15 +1542,12 @@ let last = 0, uiT = 0;
 function frame(ts) {
   const dt = Math.min(0.05, (ts - last) / 1000);
   last = ts;
-  update(dt);
-  render(dt);
-  uiT += dt;
-  if (uiT > 0.25) { uiT = 0; syncUI(); }
+  if (gameState === "playing") {
+    update(dt);
+    render(dt);
+    uiT += dt;
+    if (uiT > 0.25) { uiT = 0; syncUI(); }
+  }
   requestAnimationFrame(frame);
 }
-function start() {
-  cam.x = -canvas.width / 2;
-  cam.y = -canvas.height / 2 - 60;
-  syncUI();
-  requestAnimationFrame(frame);
-}
+requestAnimationFrame(frame);

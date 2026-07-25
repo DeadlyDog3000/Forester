@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a small village bakery. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the building centred, seen straight on from ground level, slightly wider than tall.
+
+THE BAKERY: A small timber building like a log cabin but with a large domed clay bread oven bulging from its front, with a dark arched oven mouth glowing faintly warm orange inside. A wide stone chimney above the oven with a soft puff of pale smoke. A tiny wooden sign shaped like a round loaf hangs beside the oven. No windows.
+
+COLOUR: Warm brown timber palette plus pale clay cream for the oven dome, grey stone chimney, a faint warm orange oven glow as the only bright accent. Near-black outline.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.

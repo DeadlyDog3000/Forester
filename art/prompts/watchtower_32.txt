@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a wooden watchtower. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the tower centred, seen straight on from ground level, filling the frame top to bottom — taller than it is wide.
+
+THE TOWER: Four tall timber legs with one visible X cross-brace, holding up a small enclosed lookout platform near the top with a railing, under a simple pointed timber roof. A ladder line up one side. Sturdy frontier construction from rough logs.
+
+COLOUR: The warm brown log-cabin palette: near-black outline, dark walnut shadow, mid chestnut timber, honey brown lit edges. No green, no bright colours.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.

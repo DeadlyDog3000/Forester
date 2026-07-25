@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a small thief camp in the forest. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the camp centred, seen straight on from ground level like other sprites in a top-down RPG, filling most of the frame.
+
+THE CAMP: One ragged dark canvas tent with a crooked centre pole, patched and dirty. Beside it a small campfire ring of grey stones with low orange flames, and a wooden crate or barrel of stolen goods. A crude wooden post with a hanging lantern or a skull marks it as a bandit haunt. Scrappy, lawless, improvised.
+
+COLOUR: Muted and grim — dark canvas grey-brown, walnut wood, grey stone, a small warm orange fire glow as the only bright accent. Near-black outline. Sits comfortably next to dark spruce greens.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.

@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a fortified raider war-camp. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the camp centred, seen straight on from ground level like other sprites in a top-down RPG, filling most of the frame.
+
+THE CAMP: A short palisade wall of sharpened vertical wooden stakes forming the front of the camp, with a gap for a gate. Behind it rise two dark tent tops and a tall crude banner pole flying a ragged dull-red war banner. A mounted animal skull or crossed spears over the gate. Menacing, organised, military.
+
+COLOUR: Muted and grim — dark stake-brown palisade, near-black tent canvas, dull faded red banner as the accent, grey skull. Near-black outline. Sits comfortably next to dark spruce greens.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.

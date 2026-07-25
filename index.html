@@ -120,6 +120,7 @@
     <span>POLICE <b id="rPolice">0</b></span>
     <span>HAPPY <b id="rHappy">–</b></span>
     <span>TAX <b id="rTax">2</b></span>
+    <span>TAXES IN <b id="rTaxT">4:00</b></span>
   </div>
 
   <div id="hint">WASD / arrows: camera &middot; right-click: cancel &amp; deselect &middot; click buildings to inspect</div>
@@ -132,6 +133,9 @@
         <button class="btn menu-item" data-build="recruit">Civilian Recruitment Center &mdash; 30 logs</button>
         <button class="btn menu-item" data-build="market">Market Center &mdash; 25 logs</button>
         <button class="btn menu-item" data-build="farm" id="miFarm">Wheat Farm &mdash; 3 logs, 6 seeds</button>
+        <button class="btn menu-item" data-build="watchtower">Watchtower &mdash; 15 logs, 5 stone</button>
+        <button class="btn menu-item" data-build="bakery">Bakery &mdash; 20 logs, 3 stone</button>
+        <button class="btn menu-item" data-build="well">Well &mdash; 10 logs, 8 stone</button>
         <button class="btn menu-item" data-build="sapling">Replant Spruce &mdash; 1 log</button>
       </div>
     </div>
@@ -176,6 +180,7 @@
         <button class="btn menu-item" data-prof="farmer">as Farmer</button>
         <button class="btn menu-item" data-prof="police" id="miPolice">as Police (40 DM)</button>
         <button class="btn menu-item" data-prof="blacksmith" id="miSmith">as Blacksmith</button>
+        <button class="btn menu-item" data-prof="soldier" id="miSoldier">as Soldier (30 DM)</button>
       </div>
     </div>
     <button class="btn" id="cpBuyTool" style="width:100%;margin-top:6px">Buy tool from smithy (gov funds, 10 DM)</button>
@@ -228,6 +233,32 @@
     <div>Willingness to join</div>
     <div id="dlgMeterWrap"><div id="dlgMeter" style="width:55%"></div></div>
     <div id="dlgOpts"></div>
+  </div>
+
+<div id="menu" style="position:fixed;inset:0;z-index:100;display:none;background:#0d1210 url('assets/sprites/ui/ruins_scene.png') center/cover no-repeat;image-rendering:pixelated">
+    <div style="position:absolute;inset:0;background:rgba(13,18,16,0.55)"></div>
+    <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px">
+      <div style="font-size:52px;letter-spacing:14px;color:#cfd8d3;text-shadow:0 3px 0 #000">FORESTER</div>
+      <div style="font-size:13px;color:#9ab0a2;text-shadow:0 1px 2px #000">Hamburg, 1683. They took everything. Build it back.</div>
+      <button class="btn" id="menuNew" style="font-size:16px;padding:12px 40px;margin-top:14px">NEW GAME</button>
+      <div style="font-size:11px;color:#5a6b60">alpha &mdash; DeadlyDog Productions</div>
+    </div>
+  </div>
+
+  <div id="loading" style="position:fixed;inset:0;z-index:110;display:none;background:#0d1210;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+    <div style="font-size:22px;letter-spacing:8px;color:#7da083">FORESTER</div>
+    <div style="width:280px;height:12px;border:1px solid #3a5243;background:#101813"><div id="loadBar" style="height:100%;width:0%;background:#7da083"></div></div>
+    <div id="loadText" style="font-size:11px;color:#5a6b60">Felling trees&hellip;</div>
+  </div>
+
+  <div id="gameover" style="position:fixed;inset:0;z-index:120;display:none;background:#0d1210 url('assets/sprites/ui/ruins_scene.png') center/cover no-repeat;image-rendering:pixelated">
+    <div style="position:absolute;inset:0;background:rgba(13,18,16,0.6)"></div>
+    <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
+      <div style="font-size:44px;letter-spacing:10px;color:#d86a5a;text-shadow:0 3px 0 #000">GAME OVER</div>
+      <div style="font-size:13px;color:#9ab0a2;text-shadow:0 1px 2px #000">The forest has taken back the clearing. No one is left.</div>
+      <button class="btn" id="goNew" style="font-size:14px;padding:10px 32px;margin-top:10px">New Game</button>
+      <button class="btn" id="goMenu" style="font-size:14px;padding:10px 32px">Return to Main Menu</button>
+    </div>
   </div>
 
 <script src="game.js"></script>

@@ -1,0 +1,5 @@
+A pixel art illustration of the smouldering ruins of a small 1683 forest colony, for a game-over screen. Wide landscape composition.
+
+THE SCENE: A clearing in a dark spruce forest at dusk. Three or four log cabins reduced to charred, collapsed ruins — blackened timber skeletons, fallen roofs, a lone stone chimney still standing. Thin grey smoke rising from the embers. In the foreground, scattered debris: a broken cartwheel, a dropped tool. The dark silhouettes of spruce trees close in around the clearing under a heavy slate-grey sky with the last dull red light of sunset on the horizon. No people, no text. Sombre, quiet, final.
+
+STYLE: Detailed retro pixel art in the style of a 16-bit era game cutscene: visible chunky pixels, hard edges, no anti-aliasing, limited moody palette of charcoal blacks, ash greys, dark spruce greens, and one restrained band of dull ember red-orange. Painterly pixel clusters, strong silhouettes, cinematic and atmospheric.
