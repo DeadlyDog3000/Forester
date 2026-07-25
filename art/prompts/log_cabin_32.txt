@@ -1,0 +1,23 @@
+A single 32x32 pixel game sprite of an intact log cabin, in a warm brown palette. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel is a deliberate flat block of solid colour. Authentic 8-bit / 16-bit era sprite work at extremely small size. This is the pristine, undamaged version of a burned ruin sprite — the same building, before the fire.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Bold, blocky, essential shapes only. No fine detail, no thin lines, no intricate texture. The building is built from a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, with only a couple of pixels of margin. Seen straight on from ground level — a flat, head-on front elevation, like a classic side-scroller or top-down RPG building. Not isometric, not angled, not in perspective. The building is slightly wider than it is tall, squat and sturdy.
+
+THE SHAPE:
+A broad, gently rounded roof arching over the whole building — a soft curved dome-like silhouette rather than a sharp triangular peak, rendered as stair-stepped blocky pixel curves. The roofline is complete, solid, and unbroken — no holes, no sagging, no notches, no damage anywhere. A small stubby chimney, just a few pixels wide, pokes up above the roof, offset to one side. No smoke.
+
+THE WALLS — REAL LOGS:
+The walls are built from horizontal stacked round logs, reading as bold horizontal bands of alternating brown shades running the full width of the facade. At both side edges of the front wall the log ends are visible: small round circular cross-sections stacked in a vertical column, like real crisscross log-cabin corner construction, each log end showing a pixel of lighter ring colour inside so it reads as cut timber.
+
+ABSOLUTELY NO WINDOWS anywhere. The walls are solid and unbroken by any opening except the doorway. No glass, no shutters, no square holes. This is essential.
+
+One doorway only: a tall arch-topped dark opening, centred in the front wall, about a quarter of the building's width, reaching the ground. It is filled with solid near-black — a flat void with no interior detail.
+
+COLOUR — full brown, 5 shades only:
+Strictly limited palette of five flat warm browns. Near-black espresso brown for the doorway void and outline. Dark walnut brown for shadowed areas and the roof underside. Rich mid chestnut brown for the main log walls. Warm honey brown for the lit top of the roof and alternating log bands. Pale tan for the log-end rings and top highlights. No green, no grey tones, no red, no orange fire tones. The building is whole, healthy, and sturdy.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in plain neutral grey, clearly different from every brown in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no border, no frame, no text.
