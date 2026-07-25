@@ -1,0 +1,22 @@
+A single 32x32 pixel game sprite of a burned, charred building, in a dark spruce green palette. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel is a deliberate flat block of solid colour. Think authentic 8-bit / 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework. Individual wood planks must NOT be drawn — suggest the walls with at most two or three broad vertical bands of slightly different green. The whole building is built from a handful of large, chunky rectangular pixel masses. Massively simplified. Crude and bold, not delicate.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic side-scroller or top-down RPG building. Not isometric, not angled, not in perspective — a flat, head-on view of the front face. The building is slightly wider than it is tall.
+
+THE SHAPE:
+A simple triangular gable roof forming a clean chunky peak at the top, with straight blocky diagonal edges (stair-stepped pixel diagonals). Below it, a plain rectangular box for the walls. One or two obvious square notches bitten out of the roofline where it has burned through and collapsed.
+
+ABSOLUTELY NO WINDOWS anywhere. The walls are solid and unbroken. No square window holes, no glass, no shutters. This is essential.
+
+One doorway only: a simple tall dark rectangle, centred in the front wall, about a quarter of the building's width, reaching the ground. It is filled with solid near-black — a flat void with no interior detail.
+
+A small chimney: a tiny blocky rectangle, just a few pixels wide, poking up above the roof and offset to one side of the peak. Short and stubby. No smoke.
+
+COLOUR — dark spruce, 5 shades only:
+Strictly limited palette of five flat colours, all deep desaturated blue-green spruce tones. Near-black spruce for the doorway void, the burn scars and the outline. Very dark spruce for shadowed areas and the roof underside. Mid dark spruce-grey for the main wall mass. Slightly lighter greyish sage-spruce for the lit top edges of the roof and the chimney. Cold and moody throughout. Absolutely no warm colours — no brown, no orange, no red, no fire, no embers. No bright or saturated colour. The charring reads as cold green-black patches, heaviest above the doorway and around the broken roofline.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every spruce green in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no border, no frame, no text.

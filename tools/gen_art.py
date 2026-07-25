@@ -27,7 +27,7 @@ def api_key():
     sys.exit("GEMINI_API_KEY not found in .env")
 
 
-def generate(prompt, out_path, ref=None, model=DEFAULT_MODEL):
+def generate(prompt, out_path, ref=None, model=DEFAULT_MODEL, aspect="1:1"):
     parts = [{"text": prompt}]
     if ref:
         ref_path = pathlib.Path(ref)
@@ -39,9 +39,13 @@ def generate(prompt, out_path, ref=None, model=DEFAULT_MODEL):
             }
         })
 
+    payload = {
+        "contents": [{"parts": parts}],
+        "generationConfig": {"imageConfig": {"aspectRatio": aspect}},
+    }
     req = urllib.request.Request(
         ENDPOINT.format(model=model),
-        data=json.dumps({"contents": [{"parts": parts}]}).encode(),
+        data=json.dumps(payload).encode(),
         headers={"x-goog-api-key": api_key(), "Content-Type": "application/json"},
     )
 
@@ -73,7 +77,8 @@ if __name__ == "__main__":
     ap.add_argument("output")
     ap.add_argument("--ref")
     ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--aspect", default="1:1")
     args = ap.parse_args()
 
     prompt = pathlib.Path(args.prompt_file).read_text()
-    print("wrote", generate(prompt, args.output, args.ref, args.model))
+    print("wrote", generate(prompt, args.output, args.ref, args.model, args.aspect))
