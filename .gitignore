@@ -1,0 +1,10 @@
+# Secrets — never commit API keys
+.env
+*.key
+
+# OS junk
+.DS_Store
+
+# Editors
+.vscode/
+*.code-workspace
