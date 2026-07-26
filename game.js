@@ -1472,6 +1472,7 @@ function empireCells() {
   return cells;
 }
 
+function natStrength(n) { return Math.min(10, n.strength + Math.floor(playT / 900)); }
 function nationAdjacent(id) {
   if (!mapGrid) buildMapGrid();
   const mine = empireCells();
@@ -1580,7 +1581,7 @@ function mapInfoSync() {
   const soldiers = civs.filter(c => c.profession === "soldier").length;
   const adj = nationAdjacent(mapSelNation);
   document.getElementById("miDetail").textContent =
-    `Strength ${n.strength}/10. ` + (n.atWar ?
+    `Strength ${natStrength(n)}/10${natStrength(n) > n.strength ? " (grown with the years)" : ""}. ` + (n.atWar ?
       `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 soldiers and 4 weapons — and even then the odds are grim. (You have ${soldiers} soldier(s), ${res.weapons} weapon(s).)` :
       adj ? "At peace, and your borders touch theirs. Declaring war will bring their war parties to your gates — and put their settlements within your soldiers' reach." :
             "At peace — and far from your borders. No quarrel can reach a nation your territory does not touch. Expand toward them first.");
@@ -1609,7 +1610,7 @@ document.getElementById("miAssault").addEventListener("click", () => {
   if (soldiers.length < 4) return toast("An assault needs at least 4 soldiers.");
   if (res.weapons < 4) return toast("An assault needs 4 weapons in the armoury.");
   res.weapons -= 4;
-  const odds = Math.max(0.05, Math.min(0.5, soldiers.length * 0.04 + (has("raiding") ? 0.06 : 0) + (has("hussars") ? 0.06 : 0) - n.strength * 0.03));
+  const odds = Math.max(0.05, Math.min(0.5, soldiers.length * 0.04 + (has("raiding") ? 0.06 : 0) + (has("hussars") ? 0.06 : 0) - natStrength(n) * 0.03));
   if (Math.random() < odds) {
     n.lost++;
     n.captured = n.captured || [];
@@ -1635,11 +1636,13 @@ function updateWars(dt) {
       const targets = buildings.filter(b => b.type !== "burned");
       if (!targets.length || raiders.length >= MAX_RAIDERS + 2) continue;
       const a = Math.random() * Math.PI * 2;
-      for (let i = 0; i < 3; i++) {
+      const st = natStrength(n);
+      const partySize = 3 + (st >= 8 ? 1 : 0);
+      for (let i = 0; i < partySize; i++) {
         const t = targets[Math.floor(Math.random() * targets.length)];
-        const whp = 90 + (difficulty() - 1) * 12;
+        const whp = 90 + (difficulty() - 1) * 12 + st * 3;
         raiders.push({ x: Math.cos(a) * 1300 + i * 30, y: Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
-                       dmg: 16 + (difficulty() - 1) * 2, camp: { x: Math.cos(a) * 1600, y: Math.sin(a) * 1600 }, target: t,
+                       dmg: 16 + (difficulty() - 1) * 2 + Math.floor(st / 3), camp: { x: Math.cos(a) * 1600, y: Math.sin(a) * 1600 }, target: t,
                        state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, nation: id });
       }
       toast(`⚔ A war party of ${n.name} marches on the colony!`);
