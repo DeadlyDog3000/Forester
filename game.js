@@ -81,6 +81,7 @@ T("defending", "Defending", "military", ["policing"], 4, "Police take weapons fr
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
 T("occupation", "Occupation", "military", ["raiding"], 6, "Taxes collect +1 more DM");
 TECH.lances.req.push("warhorse");
+TECH.foraging.done = TECH.ownership.done = TECH.spears.done = true;   // starting knowledge
 
 const has = id => TECH[id].done;
 const techCost = t => 15 + t.depth * 12;
@@ -1002,6 +1003,7 @@ function describeTech(t) {
 $("buildToggle").addEventListener("click", () => $("buildDrop").classList.toggle("open"));
 $("craftToggle").addEventListener("click", () => $("craftDrop").classList.toggle("open"));
 $("recruitToggle").addEventListener("click", () => $("recruitDrop").classList.toggle("open"));
+$("civToggle").addEventListener("click", () => $("civDrop").classList.toggle("open"));
 document.querySelectorAll("#buildMenu .menu-item").forEach(item =>
   item.addEventListener("click", () => {
     buildMode = item.dataset.build;
@@ -1057,7 +1059,7 @@ document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
     syncUI();
   }));
 document.addEventListener("click", e => {
-  for (const id of ["buildDrop", "craftDrop", "recruitDrop"])
+  for (const id of ["buildDrop", "craftDrop", "recruitDrop", "civDrop"])
     if ($(id) && !$(id).contains(e.target)) $(id).classList.remove("open");
 });
 
@@ -1552,6 +1554,7 @@ function loadGame() {
     cam.x = d.cam.x; cam.y = d.cam.y;
     hunterTimer = d.hunterTimer; raidTimer = d.raidTimer; campRespawnTimer = d.campRespawnTimer;
     for (const [id, done] of Object.entries(d.tech)) if (TECH[id]) TECH[id].done = done;
+    TECH.foraging.done = TECH.ownership.done = TECH.spears.done = true;
     research = d.research;
     usedNames.clear(); for (const n of d.usedNames) usedNames.add(n);
     civs.length = 0;
@@ -1688,7 +1691,7 @@ function syncUI() {
   $("miFarm").textContent = `Wheat Farm — ${costText(costOf("farm"))}`;
   $("miDoor").textContent = `Door — ${doorCost()} logs (selected civilian)`;
   $("miForge").textContent = has("forging") ? `Forge — ${costText(STATIC_COSTS.forge)}` : "Forge — needs Forging research";
-  if ($("govPanel").style.display === "block") {
+  if ($("govPanel").style.display === "block" && $("civDrop").classList.contains("open")) {
     const list = $("civList");
     list.innerHTML = "";
     for (const c of civs) {
@@ -1700,6 +1703,7 @@ function syncUI() {
         selected = c; selectedBldg = null; selectedCamp = null;
         cam.x = c.x - canvas.width / 2 / zoom;
         cam.y = c.y - canvas.height / 2 / zoom;
+        $("civDrop").classList.remove("open");
         syncUI();
       });
       list.appendChild(b);

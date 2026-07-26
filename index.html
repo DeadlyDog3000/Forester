@@ -230,7 +230,10 @@
     <label id="lawForcedRow" style="display:none"><input type="checkbox" id="lawForced"> Forced labour edict (Slavery)</label>
     <div style="font-size:11px;color:#5a6b60;margin-top:4px">Weapon laws decide who fights back with steel when unrest turns to rebellion. High taxes breed rebellion; police must put it down.</div>
     <h4>CIVILIANS</h4>
-    <div id="civList" style="max-height:150px;overflow-y:auto;border:1px solid #24352b"></div>
+    <div class="dropdown" id="civDrop" style="width:100%">
+      <button class="btn" id="civToggle" style="width:100%">Civilians &#9662;</button>
+      <div class="dropdown-menu up" id="civList" style="width:100%;max-height:200px;overflow-y:auto"></div>
+    </div>
     <h4>RESEARCH</h4>
     <button class="btn" id="techToggle" style="width:100%">Open Tech Tree</button>
     <div id="researchNow" style="font-size:11px;color:#7da083;margin-top:6px">No research underway.</div>

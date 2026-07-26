@@ -22,6 +22,7 @@ const SFX = (() => {
   }
   // unlock on first user gesture (autoplay policy)
   addEventListener("pointerdown", ctx, { once: true });
+  addEventListener("keydown", ctx, { once: true });
 
   function tone(type, f0, f1, dur, vol, delay = 0) {
     const a = ctx(), t = a.currentTime + delay;
@@ -127,7 +128,7 @@ const MUSIC = (() => {
       if (lead[i]) {
         const o = a.createOscillator(), g = a.createGain();
         o.type = "square"; o.frequency.value = N(lead[i]);
-        g.gain.setValueAtTime(0.055, t);
+        g.gain.setValueAtTime(0.16, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + STEP * 1.8);
         o.connect(g); g.connect(mg);
         o.start(t); o.stop(t + STEP * 2);
@@ -135,7 +136,7 @@ const MUSIC = (() => {
       if (BASS[i]) {
         const o = a.createOscillator(), g = a.createGain();
         o.type = "triangle"; o.frequency.value = N(BASS[i]);
-        g.gain.setValueAtTime(0.12, t);
+        g.gain.setValueAtTime(0.26, t);
         g.gain.exponentialRampToValueAtTime(0.003, t + STEP * 3.6);
         o.connect(g); g.connect(mg);
         o.start(t); o.stop(t + STEP * 4);
@@ -144,7 +145,7 @@ const MUSIC = (() => {
         const s2 = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
         s2.buffer = window.__foresterNoise; s2.loop = true;
         f.type = "highpass"; f.frequency.value = HAT[i] === 2 ? 4500 : 7000;
-        g.gain.setValueAtTime(HAT[i] === 2 ? 0.05 : 0.028, t);
+        g.gain.setValueAtTime(HAT[i] === 2 ? 0.09 : 0.05, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
         s2.connect(f); f.connect(g); g.connect(mg);
         s2.start(t); s2.stop(t + 0.08);
