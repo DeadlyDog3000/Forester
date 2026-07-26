@@ -1,0 +1,3 @@
+A pixel art illustration for a game cutscene: two small cloaked figures, a young man and a young woman, fleeing at night along a muddy track into a vast dark spruce forest, seen from behind at a distance. The forest wall rises tall and black ahead, mist between the trunks, a faint cold moon behind torn clouds, the distant tiny glow of a city on the horizon behind them. Exhaustion and escape. No text.
+
+STYLE: Detailed retro pixel art like a 16-bit era game cutscene: visible chunky pixels, hard edges, no anti-aliasing, painterly pixel clusters, strong silhouettes. Limited palette of deep blue-blacks, dark spruce greens, pale moonlight grey, one faint warm ember of city light far behind. Cinematic widescreen composition.

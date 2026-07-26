@@ -1,0 +1,3 @@
+A pixel art illustration for a game cutscene: a night scene in a 1683 German city square lit by torches. A stern crowd of townsfolk in dark 17th-century clothing gathers before a magistrate's platform, silhouetted figures with torches, a man being led away between guards seen from behind at a distance, long shadows on the cobblestones, the gabled facades looming dark against a cold night sky. Ominous, unjust, final. Faces indistinct or in shadow. No text.
+
+STYLE: Detailed retro pixel art like a 16-bit era game cutscene: visible chunky pixels, hard edges, no anti-aliasing, painterly pixel clusters, strong silhouettes. Cold limited palette of near-black blues and greys with harsh orange torchlight as the only warmth. Cinematic widescreen composition.

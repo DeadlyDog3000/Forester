@@ -1880,7 +1880,7 @@ function saveGame() {
       }]),
       empireName, territoryColor, borderColor,
       territory: [...territory],
-      sackedCamps, playT, nextSettleAt,
+      sackedCamps, playT, nextSettleAt, tutStep,
       settlements: settlements.map(st => ({ ...st })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
@@ -1946,6 +1946,7 @@ function loadGame() {
     territory.clear(); for (const k of (d.territory || [])) territory.add(k);
     if (!territory.size) { expandAround(0, -40, 2); for (const b of buildings) expandAround(b.x, b.y, 1); }
     sackedCamps = d.sackedCamps || 0; playT = d.playT || 0; nextSettleAt = d.nextSettleAt || 1200;
+    tutStep = d.tutStep === undefined ? -1 : d.tutStep;
     settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
     conquests.length = 0; for (const cq of (d.conquests || [])) conquests.push(cq);
     natWars = d.natWars || [];
@@ -1973,6 +1974,90 @@ function loadGame() {
 
 setInterval(saveGame, 10000);
 addEventListener("pagehide", saveGame);
+
+// --- opening cutscene ---
+const CUTSCENE = [
+  { img: "cut1_hamburg", lines: [
+    "Hamburg, 1683. Our family had a name once — a house near the harbour, a trade, a future.",
+    "Father said the city was good to those it loved. It loved us, until it didn't." ] },
+  { img: "cut2_accusation", lines: [
+    "They came with papers and torches. \"Malicious affairs,\" the magistrate read, and would not meet our eyes.",
+    "They took Father to the square at dawn. The crowd that had bought our bread watched in silence." ] },
+  { img: "cut3_flight", lines: [
+    "We ran — my sister and I — through the marsh gate before they could take us too.",
+    "Far, far away, the old woods swallowed the road, and the city's bells faded behind us." ] },
+  { img: "cut4_clearing", lines: [
+    "Deep in the forest we found a clearing, and in it a cabin — burned, empty, forgotten. Like us.",
+    "Father is gone. The name is gone. But hands remain, and timber, and morning. We begin." ] },
+];
+let cutScene = 0, cutLine = 0, birdTimer = null;
+
+function startCutscene() {
+  gameState = "cutscene";
+  cutScene = 0; cutLine = 0;
+  showCutLine();
+  $("cutscene").style.display = "block";
+  birdTimer = setInterval(() => { if (Math.random() < 0.8) SFX.bird(); }, 1700);
+}
+function showCutLine() {
+  const sc = CUTSCENE[cutScene];
+  $("cutImg").src = `assets/sprites/ui/${sc.img}.png`;
+  $("cutText").textContent = sc.lines[cutLine];
+}
+function advanceCutscene() {
+  cutLine++;
+  if (cutLine >= CUTSCENE[cutScene].lines.length) { cutScene++; cutLine = 0; }
+  if (cutScene >= CUTSCENE.length) return endCutscene();
+  showCutLine();
+}
+function endCutscene() {
+  clearInterval(birdTimer);
+  $("cutscene").style.display = "none";
+  gameState = "playing";
+  tutStep = 0;
+  $("empireModal").style.display = "block";
+  paused = true;
+  syncUI();
+}
+addEventListener("keydown", e => {
+  if (gameState === "cutscene" && (e.code === "Space" || e.key === "Enter")) { e.preventDefault(); advanceCutscene(); }
+});
+$("cutscene").addEventListener("click", () => { if (gameState === "cutscene") advanceCutscene(); });
+
+// --- tutorial: from ash to a roof, then the woods are theirs ---
+let tutStep = -1;
+const TUT_STEPS = [
+  { text: () => "The cabin in the clearing was your family's once. First: click your Brother or Sister to select them.",
+    done: () => !!selected },
+  { text: () => "Wood rebuilds the world. With them selected, click a spruce tree to fell it.",
+    done: () => civs.some(c => c.inv.logs > 0) || res.logs > 0 },
+  { text: () => "Felled logs ride in their pack — the town can't use them there. Select the woodcutter and press \"Deposit goods to town storage\" in their panel.",
+    done: () => res.logs > 0 },
+  { text: () => `Keep the storage fed: fell and deposit until 5 logs are stored. (${Math.min(5, res.logs)}/5)`,
+    done: () => res.logs >= 5 },
+  { text: () => "A cabin needs a door. Open CRAFT ▾ and order a Door (5 logs) — your civilian will hew it.",
+    done: () => res.doors >= 1 },
+  { text: () => `The repair takes 20 stored logs. Fell more spruces and deposit them. (${res.logs}/20)`,
+    done: () => res.logs >= 20 },
+  { text: () => "Now — with a civilian selected, click the burned cabin to order its repair.",
+    done: () => !buildings.some(b => b.type === "burned") },
+  { text: () => "The roof stands, and you have a home again. Farms, walls, wanderers, taxes, the map of Europe — the rest is yours to discover. (The GOVERNMENT panel holds your laws and the tech tree.)",
+    done: () => false },
+];
+let tutDoneT = 0;
+function updateTutorial(dt) {
+  const banner = $("tutBanner");
+  if (tutStep < 0 || gameState !== "playing") { banner.style.display = "none"; return; }
+  banner.style.display = "block";
+  $("tutText").textContent = TUT_STEPS[tutStep].text();
+  if (tutStep === TUT_STEPS.length - 1) {
+    tutDoneT += dt;
+    if (tutDoneT > 12) { tutStep = -1; banner.style.display = "none"; }
+    return;
+  }
+  if (TUT_STEPS[tutStep].done()) { tutStep++; SFX.pickup(); }
+}
+$("tutSkip").addEventListener("click", () => { tutStep = -1; $("tutBanner").style.display = "none"; toast("The woods will teach you the rest."); });
 
 // --- menu / loading / game over ---
 function assetsReady() {
@@ -2012,8 +2097,7 @@ function doLoading(fromSave) {
         gameState = "playing";
         if (!restored) {
           cam.x = -canvas.width / 2; cam.y = -canvas.height / 2 - 60;
-          document.getElementById("empireModal").style.display = "block";
-          paused = true;
+          startCutscene();
         }
         toast(restored ? "The colony wakes where you left it." : "");
         syncUI();
@@ -2147,6 +2231,7 @@ function update(dt) {
   if (paused) return;
 
   worldT += dt;
+  updateTutorial(dt);
   rescueStuck(dt);
   updateNationWars(dt);
   if (difficulty() > lastTier) {

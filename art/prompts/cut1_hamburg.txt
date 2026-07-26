@@ -1,0 +1,3 @@
+A pixel art illustration for a game cutscene: the city of Hamburg in 1683 at golden dusk, seen from across the harbour. Tall narrow gabled merchant houses with steep roofs crowd the waterfront, church spires rise behind them, wooden sailing ships and small boats rest at the quay, warm lamplight in some windows, calm water reflecting the amber sky. Prosperous, warm, alive — a city someone loves and is about to lose. No people in the foreground, no text.
+
+STYLE: Detailed retro pixel art like a 16-bit era game cutscene: visible chunky pixels, hard edges, no anti-aliasing, painterly pixel clusters, strong silhouettes. Warm limited palette of amber, brick red, deep brown, and dusk blue. Cinematic widescreen composition.

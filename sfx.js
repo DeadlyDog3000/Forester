@@ -68,6 +68,24 @@ const SFX = (() => {
     eat:      () => { noise(0.05, 0.22, 1400, 600, 2); noise(0.05, 0.2, 1200, 500, 2, "bandpass", 0.11); noise(0.06, 0.16, 1000, 400, 2, "bandpass", 0.22); },
     step:     (fast) => { noise(0.035, fast ? 0.09 : 0.06, 900, 300, 1, "lowpass"); },
     crackle:  () => { noise(0.09, 0.2, 2600, 700, 3); noise(0.06, 0.16, 1800, 500, 3, "bandpass", 0.05); },
+    bird: () => {
+      // a short warbling chirp phrase, randomized each call
+      const a = ctx(), t0 = a.currentTime;
+      const n = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) {
+        const t = t0 + i * (0.09 + Math.random() * 0.07);
+        const f = 2400 + Math.random() * 1800;
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f, t);
+        o.frequency.exponentialRampToValueAtTime(f * (0.7 + Math.random() * 0.6), t + 0.07);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.05, t + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+        o.connect(g); g.connect(master);
+        o.start(t); o.stop(t + 0.1);
+      }
+    },
     gameOver: () => {
       // slow minor descent
       tone("triangle", 440, 440, 0.55, 0.22);
