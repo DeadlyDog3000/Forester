@@ -1472,6 +1472,17 @@ function empireCells() {
   return cells;
 }
 
+function nationAdjacent(id) {
+  if (!mapGrid) buildMapGrid();
+  const mine = empireCells();
+  for (const key of mine) {
+    const [c, r] = key.split(",").map(Number);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++)
+      if (mapGrid[r + dy] && mapGrid[r + dy][c + dx] === id) return true;
+  }
+  return false;
+}
+
 let mapSelNation = null;
 function renderMap() {
   const mc = document.getElementById("euromap").getContext("2d");
@@ -1567,16 +1578,19 @@ function mapInfoSync() {
   const n = NATIONS[mapSelNation];
   document.getElementById("miName").textContent = n.name.toUpperCase();
   const soldiers = civs.filter(c => c.profession === "soldier").length;
+  const adj = nationAdjacent(mapSelNation);
   document.getElementById("miDetail").textContent =
     `Strength ${n.strength}/10. ` + (n.atWar ?
       `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 soldiers and 4 weapons — and even then the odds are grim. (You have ${soldiers} soldier(s), ${res.weapons} weapon(s).)` :
-      "At peace. Declaring war will bring their war parties to your gates — and put their settlements within your soldiers' reach.");
-  w.style.display = n.atWar ? "none" : "block";
+      adj ? "At peace, and your borders touch theirs. Declaring war will bring their war parties to your gates — and put their settlements within your soldiers' reach." :
+            "At peace — and far from your borders. No quarrel can reach a nation your territory does not touch. Expand toward them first.");
+  w.style.display = n.atWar ? "none" : adj ? "block" : "none";
   pc.style.display = n.atWar ? "block" : "none";
   as.style.display = n.atWar ? "block" : "none";
 }
 document.getElementById("miWar").addEventListener("click", () => {
   const n = NATIONS[mapSelNation];
+  if (!nationAdjacent(mapSelNation)) return toast(`Your borders do not touch ${n.name}. Expand toward them first.`);
   n.atWar = true; n.warT = 30;
   for (const c of civs) c.happiness = Math.max(0, c.happiness - 6);
   toast(`⚔ ${empireName || "The colony"} declares war on ${n.name}! The people brace themselves.`);
