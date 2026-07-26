@@ -1166,24 +1166,6 @@ function autonomy(c, dt) {
 
   if (!c.home) return;
 
-  // the dead come first: a bearer carries the body, a mason raises the stone
-  const corpse = corpses.find(cp => !cp.bearer || !civs.includes(cp.bearer));
-  if (corpse && !isForce(c)) {
-    corpse.bearer = c;
-    order(c, { kind: "bury", target: corpse, x: corpse.x, y: corpse.y + 6 });
-    return;
-  }
-  const bareGrave = graves.find(gv => !gv.stone && (!gv.mason || !civs.includes(gv.mason)) && gv.mason !== c);
-  if (bareGrave && !isForce(c)) {
-    if (c.inv.stone >= 1 || res.stone >= 1) {
-      bareGrave.mason = c;
-      order(c, { kind: "gravestone", target: bareGrave, x: bareGrave.x, y: bareGrave.y + 10 });
-      return;
-    }
-    const rock = nearThings("stones", c.x, c.y, 800).filter(st => st.alive)[0];
-    if (rock) { order(c, { kind: "quarry", target: rock, x: rock.x + 26, y: rock.y + 6 }); return; }
-  }
-
   // construction first: staked-out sites need hands
   const site = buildings.find(b => b.site && (!b.builder || !civs.includes(b.builder))) ||
                farms.find(f => f.site && (!f.builder || !civs.includes(f.builder)));
@@ -1193,10 +1175,13 @@ function autonomy(c, dt) {
     return;
   }
 
-  // the town hall takes deposits without being asked — unload before new work
+  // the town hall takes deposits without being asked — unload before new work.
+  // settlement folk stock their own town's stores at their cabin instead.
+  const myTown = c.home && townOf(c.home);
   const hall = buildings.find(b => b.type === "townhall" && !b.fire && !b.site);
-  if (hall && (c.inv.logs + c.inv.seeds + c.inv.stone + c.inv.iron + c.inv.wheat) >= 5) {
-    order(c, { kind: "hallDeposit", target: hall, x: hall.x, y: hall.y + 16 });
+  if ((myTown || hall) && (c.inv.logs + c.inv.seeds + c.inv.stone + c.inv.iron + c.inv.wheat) >= 5) {
+    const dst = myTown ? c.home : hall;
+    order(c, { kind: "hallDeposit", target: dst, x: dst.x, y: dst.y + 16 });
     return;
   }
 
@@ -1291,6 +1276,24 @@ function autonomy(c, dt) {
     order(c, { kind: "sell", target: market, x: market.x, y: market.y + 16 });
     return;
   }
+  // work done — now the dead: a bearer carries the body, a mason raises the stone
+  const corpse = corpses.find(cp => !cp.bearer || !civs.includes(cp.bearer));
+  if (corpse && !isForce(c)) {
+    corpse.bearer = c;
+    order(c, { kind: "bury", target: corpse, x: corpse.x, y: corpse.y + 6 });
+    return;
+  }
+  const bareGrave = graves.find(gv => !gv.stone && (!gv.mason || !civs.includes(gv.mason)) && gv.mason !== c);
+  if (bareGrave && !isForce(c)) {
+    if (c.inv.stone >= 1 || res.stone >= 1) {
+      bareGrave.mason = c;
+      order(c, { kind: "gravestone", target: bareGrave, x: bareGrave.x, y: bareGrave.y + 10 });
+      return;
+    }
+    const rock = nearThings("stones", c.x, c.y, 800).filter(st => st.alive)[0];
+    if (rock) { order(c, { kind: "quarry", target: rock, x: rock.x + 26, y: rock.y + 6 }); return; }
+  }
+
   // nothing pressing: stretch the legs, visit a neighbour, look busy
   if (Math.random() < 0.55) wander(c, c.home || c, 60, 180);
 }
@@ -1354,6 +1357,21 @@ function forceAI(c) {
     if (d < bd) { bd = d; best = r; }
   }
   if (best) { order(c, { kind: "attack", target: best, x: best.x, y: best.y }); return; }
+  // no threats: soldiers see the dead to their rest before walking the beat
+  if (c.profession === "soldier") {
+    const corpse = corpses.find(cp => !cp.bearer || !civs.includes(cp.bearer));
+    if (corpse) {
+      corpse.bearer = c;
+      order(c, { kind: "bury", target: corpse, x: corpse.x, y: corpse.y + 6 });
+      return;
+    }
+    const bareGrave = graves.find(gv => !gv.stone && (!gv.mason || !civs.includes(gv.mason)) && gv.mason !== c);
+    if (bareGrave && (c.inv.stone >= 1 || res.stone >= 1)) {
+      bareGrave.mason = c;
+      order(c, { kind: "gravestone", target: bareGrave, x: bareGrave.x, y: bareGrave.y + 10 });
+      return;
+    }
+  }
   // no trouble: walk the beat along the borders
   c.patrolT = (c.patrolT || 0) - 1 / 60;
   if (c.patrolT <= 0) {
@@ -1602,6 +1620,29 @@ function describeTech(t) {
 $("buildToggle").addEventListener("click", () => $("buildDrop").classList.toggle("open"));
 $("craftToggle").addEventListener("click", () => $("craftDrop").classList.toggle("open"));
 $("recruitToggle").addEventListener("click", () => $("recruitDrop").classList.toggle("open"));
+$("moveToggle").addEventListener("click", () => $("moveDrop").classList.toggle("open"));
+// move a civilian to another town (or back to the capital) any time after founding
+const cabinCap = () => has("landownership") ? 3 : 1;
+function townOf(b) { return settlements.find(s => s.x !== undefined && Math.hypot(b.x - s.x, b.y - s.y) < 500) || null; }
+function ledgerOf(c) {   // where this civ's goods belong: their town's stores, or the capital's
+  const t = c.home && townOf(c.home);
+  if (!t) return res;
+  t.res = t.res || {};
+  for (const k of ["logs", "seeds", "stone", "iron", "wheat", "bread", "meat", "dm", "doors", "weapons"]) t.res[k] = t.res[k] || 0;
+  return t.res;
+}
+function sendToTown(c, target) {   // target: settlement object, or null for the capital
+  const cab = buildings.find(b => b.type === "cabin" && !b.fire && !b.site &&
+                                  b.occupants.length < cabinCap() &&
+                                  (target ? Math.hypot(b.x - target.x, b.y - target.y) < 500 : !townOf(b)));
+  if (!cab) return toast(`No roof free in ${target ? target.name : settlementName} — build a cabin there first.`);
+  if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
+  for (const f of farms) f.workers = f.workers.filter(w => w !== c);
+  c.home = cab; cab.occupants.push(c);
+  order(c, { kind: "walk", x: cab.x - 30 + Math.random() * 60, y: cab.y + 34 });
+  toast(`${c.name} sets out to live in ${target ? target.name : settlementName}.`);
+  syncUI();
+}
 $("civToggle").addEventListener("click", () => $("civDrop").classList.toggle("open"));
 document.querySelectorAll("#buildMenu .menu-item").forEach(item =>
   item.addEventListener("click", () => {
@@ -1775,12 +1816,13 @@ $("tabMilitary").addEventListener("click", () => { techTab = "military"; $("tabM
 
 $("cpDeposit").addEventListener("click", () => {
   if (!selected) return;
-  const inv = selected.inv;
+  const inv = selected.inv, led = ledgerOf(selected);
   const moved = inv.logs + inv.seeds + inv.stone + inv.iron + inv.wheat + inv.bread + inv.meat;
-  res.logs += inv.logs; res.seeds += inv.seeds; res.stone += inv.stone; res.iron += inv.iron;
-  res.wheat += inv.wheat; res.bread += inv.bread; res.meat += inv.meat;
+  led.logs += inv.logs; led.seeds += inv.seeds; led.stone += inv.stone; led.iron += inv.iron;
+  led.wheat += inv.wheat; led.bread += inv.bread; led.meat += inv.meat;
   inv.logs = inv.seeds = inv.stone = inv.iron = inv.wheat = inv.bread = inv.meat = 0;
-  toast(moved ? `${selected.name} hands ${moved} item(s) to the town storage.` : `${selected.name} has nothing to hand over.`);
+  const town = selected.home && townOf(selected.home);
+  toast(moved ? `${selected.name} hands ${moved} item(s) to ${town ? town.name + "'s" : "the town"} storage.` : `${selected.name} has nothing to hand over.`);
   syncUI();
 });
 $("cpHeal").addEventListener("click", () => {
@@ -2903,6 +2945,44 @@ function syncUI() {
     }
     if (!civs.length) list.innerHTML = '<div style="padding:6px;color:#5a6b60;font-size:11px">No one is left.</div>';
   }
+  // wagon runs between towns: send a supply crate out, or bring a town's stores home
+  {
+    const phys = settlements.filter(s => s.x !== undefined);
+    const rows = $("townRows");
+    const sig = phys.map(s => `${s.name}:${s.pop}`).join("|");
+    if (rows.dataset.sig !== sig) {
+      rows.dataset.sig = sig;
+      rows.innerHTML = "";
+      for (const s of phys) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:6px;align-items:center;margin:4px 0;font-size:11px";
+        row.innerHTML = `<span style="flex:1">${s.name} (pop ${s.pop})</span>`;
+        const send = document.createElement("button");
+        send.className = "btn"; send.style.fontSize = "10px"; send.textContent = "Send crate ▶";
+        send.title = "10 logs, 4 bread, 2 meat from the capital";
+        send.addEventListener("click", () => {
+          if (res.logs < 10 || res.bread < 4 || res.meat < 2) return toast("A supply crate takes 10 logs, 4 bread and 2 meat from the capital stores.");
+          res.logs -= 10; res.bread -= 4; res.meat -= 2;
+          s.res = s.res || {}; s.res.logs = (s.res.logs || 0) + 10; s.res.bread = (s.res.bread || 0) + 4; s.res.meat = (s.res.meat || 0) + 2;
+          SFX.pickup(); toast(`A wagon sets out for ${s.name} with a supply crate.`);
+          syncUI();
+        });
+        const take = document.createElement("button");
+        take.className = "btn"; take.style.fontSize = "10px"; take.textContent = "◀ Fetch stores";
+        take.title = "Bring everything in this town's storage back to the capital";
+        take.addEventListener("click", () => {
+          const r = s.res || {};
+          const total = Object.values(r).reduce((a, b) => a + (b || 0), 0);
+          if (!total) return toast(`${s.name}'s stores are empty.`);
+          for (const k of Object.keys(r)) { res[k] = (res[k] || 0) + (r[k] || 0); r[k] = 0; }
+          SFX.coin(); toast(`A wagon returns from ${s.name} with ${total} goods for the capital.`);
+          syncUI();
+        });
+        row.appendChild(send); row.appendChild(take);
+        rows.appendChild(row);
+      }
+    }
+  }
   $("scoutLedger").textContent = settlements.length >= 5 ? "The scouts rest — your settlements dot the map." :
     `Scouts' ledger toward a new settlement: ${Math.min(5, sackedCamps)}/5 camps sacked OR population ${Math.min(8, civs.length)}/8 · ` +
     (playT >= nextSettleAt ? "the hour is ripe" : `ready in ${Math.ceil((nextSettleAt - playT) / 60)} min`);
@@ -2933,6 +3013,28 @@ function syncUI() {
     $("cpFarms").textContent = selected.profession === "farmer" ?
       `Tends ${assigned} farm(s). Click a farm to assign or unassign.` :
       selected.profession === "soldier" ? "Click a thief or raid camp to send them to sack it." : "";
+    // send-to-town menu: any civilian can be rehoused in another town, any time
+    const phys = settlements.filter(s => s.x !== undefined);
+    const md = $("moveDrop");
+    if (phys.length && !selected.child) {
+      md.style.display = "block";
+      const cur = selected.home ? townOf(selected.home) : null;
+      const options = [];
+      if (cur) options.push({ label: `to ${settlementName} (capital)`, target: null });
+      for (const s of phys) if (s !== cur) options.push({ label: `to ${s.name} (pop ${s.pop})`, target: s });
+      const sig = options.map(o => o.label).join("|");
+      const menu = $("moveMenu");
+      if (menu.dataset.sig !== sig) {
+        menu.dataset.sig = sig;
+        menu.innerHTML = "";
+        for (const o of options) {
+          const b = document.createElement("button");
+          b.className = "btn menu-item"; b.style.width = "100%"; b.textContent = o.label;
+          b.addEventListener("click", () => { md.classList.remove("open"); sendToTown(selected, o.target); });
+          menu.appendChild(b);
+        }
+      }
+    } else md.style.display = "none";
   }
 
   const bp = $("bldgPanel");
@@ -3465,10 +3567,10 @@ function update(dt) {
       if (!buildings.includes(c.task.target)) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt;
       if (c.workT >= 1.2) {
-        const inv = c.inv;
+        const inv = c.inv, led = ledgerOf(c);
         const moved = inv.logs + inv.seeds + inv.stone + inv.iron + inv.wheat + inv.bread + inv.meat;
-        res.logs += inv.logs; res.seeds += inv.seeds; res.stone += inv.stone; res.iron += inv.iron;
-        res.wheat += inv.wheat; res.bread += inv.bread; res.meat += inv.meat;
+        led.logs += inv.logs; led.seeds += inv.seeds; led.stone += inv.stone; led.iron += inv.iron;
+        led.wheat += inv.wheat; led.bread += inv.bread; led.meat += inv.meat;
         inv.logs = inv.seeds = inv.stone = inv.iron = inv.wheat = inv.bread = inv.meat = 0;
         if (moved) { float(c.x, c.y - 70, "+" + moved + " stored", "#7da083"); SFX.pickup(); }
         c.state = "idle"; c.task = null;
