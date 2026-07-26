@@ -842,7 +842,7 @@ function arrive(c) {
   if (t && t.kind === "goHome") { c.state = "sleeping"; c.task = null; return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
-                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading" };
+                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling" };
   if (t.kind === "repair") {
     if (!canPay(REPAIR_COST)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
     pay(REPAIR_COST);
@@ -942,6 +942,14 @@ function autonomy(c, dt) {
   const v = visitors.find(v => v.state === "waiting" && !v.traded && Math.hypot(v.x - c.x, v.y - c.y) < 700);
   if (v && (c.inv.bread + c.inv.meat) > 1) {
     order(c, { kind: "trade", target: v, x: v.x + 22, y: v.y + 8 });
+    return;
+  }
+  // neighbours trade among themselves: full larders sell to hungry purses
+  const buyer = civs.find(o => o !== c && !o.rebel && o.state !== "sleeping" && o.inv.dm >= 2 &&
+                               (o.inv.bread + o.inv.meat + o.inv.wheat) === 0 &&
+                               Math.hypot(o.x - c.x, o.y - c.y) < 500);
+  if (buyer && (c.inv.bread + c.inv.meat) > 1) {
+    order(c, { kind: "peddle", target: buyer, x: buyer.x + 18, y: buyer.y + 6 });
     return;
   }
   const market = buildings.find(b => b.type === "market" && !b.fire);
@@ -1595,6 +1603,22 @@ function resolveBattle(war) {
   }
 }
 
+function updateNationTrade(dt) {
+  for (const [id, n] of Object.entries(NATIONS)) {
+    if (!n.trade) continue;
+    if (n.defeated || n.atWar) { n.trade = false; continue; }
+    n.tradeT = (n.tradeT === undefined ? 60 : n.tradeT) - dt;
+    if (n.tradeT <= 0) {
+      n.tradeT = 60;
+      const dm = 3 + Math.floor(natStrength(n) / 2);
+      res.dm += dm;
+      const goods = [["wheat", 2], ["iron", 1], ["stone", 2], ["bread", 1]][Math.floor(Math.random() * 4)];
+      res[goods[0]] += goods[1];
+      toast(`A caravan from ${n.name} arrives: +${dm} DM, +${goods[1]} ${goods[0]}.`);
+      SFX.coin();
+    }
+  }
+}
 function updateNationWars(dt) {
   natWarSpawnT -= dt;
   if (natWarSpawnT <= 0) {
@@ -1727,10 +1751,14 @@ function mapInfoSync() {
   w.style.display = n.atWar ? "none" : adj ? "block" : "none";
   pc.style.display = n.atWar ? "block" : "none";
   as.style.display = n.atWar ? "block" : "none";
+  const tr = document.getElementById("miTrade");
+  tr.style.display = (!n.atWar && adj && !n.trade) ? "block" : "none";
+  if (n.trade) document.getElementById("miDetail").textContent += " A trade route is open — caravans arrive regularly.";
 }
 document.getElementById("miWar").addEventListener("click", () => {
   const n = NATIONS[mapSelNation];
   if (!nationAdjacent(mapSelNation)) return toast(`Your borders do not touch ${n.name}. Expand toward them first.`);
+  if (n.trade) { n.trade = false; toast(`The caravans of ${n.name} turn back — trade is dead.`); }
   n.atWar = true; n.warT = 30;
   for (const c of civs) c.happiness = Math.max(0, c.happiness - 6);
   toast(`⚔ ${empireName || "The colony"} declares war on ${n.name}! The people brace themselves.`);
@@ -1742,6 +1770,16 @@ document.getElementById("miPeace").addEventListener("click", () => {
   res.dm -= 60; n.atWar = false;
   toast(`Peace with ${n.name}, bought for 60 DM.`);
   mapInfoSync(); renderMap(); syncUI();
+});
+document.getElementById("miTrade").addEventListener("click", () => {
+  const n = NATIONS[mapSelNation];
+  if (n.trade) return;
+  if (!nationAdjacent(mapSelNation)) return toast("Caravans need a shared border.");
+  if (res.dm - 40 < treasuryFloor()) return toast("Opening a trade route costs 40 DM. The treasury cannot bear it.");
+  res.dm -= 40;
+  n.trade = true; n.tradeT = 30;
+  toast(`A trade route opens with ${n.name}. The first caravan is on the road.`);
+  mapInfoSync(); syncUI();
 });
 document.getElementById("miAssault").addEventListener("click", () => {
   const n = NATIONS[mapSelNation];
@@ -1905,7 +1943,7 @@ function saveGame() {
       settlements: settlements.map(st => ({ ...st })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
-      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated }])),
+      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated, trade: !!n.trade }])),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     return true;
@@ -2072,6 +2110,8 @@ const TUT_STEPS = [
     done: () => $("govPanel").style.display === "block" },
   { text: () => "One more thing: press the MAP button. That is Europe, 1683 — your empire in your colour, nations that strengthen with the years and war among themselves. Expand toward a neighbour to earn the right to fight them.",
     done: () => $("mapOverlay").style.display === "block" },
+  { text: () => "And where there is a border, there is business: click a peaceful neighbour on the map to Open a Trade Route (40 DM) — caravans will bring DM and goods. At home, your civilians already peddle bread and meat to each other and to travellers.",
+    timed: 16 },
   { text: () => "So that's the game: gather and build by day, keep bellies full and taxes fair, wall the town before nightfall, research toward steel, and grow the empire cell by cell. Wanderers, raiders, wars, and new settlements will find you on their own. The woods are yours now.",
     done: () => false },
 ];
@@ -2087,7 +2127,13 @@ function updateTutorial(dt) {
     if (tutDoneT > 18) { tutStep = -1; banner.style.display = "none"; }
     return;
   }
-  if (TUT_STEPS[tutStep].done()) { tutStep++; SFX.pickup(); }
+  const st = TUT_STEPS[tutStep];
+  if (st.timed) {
+    st._t = (st._t || 0) + dt;
+    if (st._t >= st.timed || Object.values(NATIONS).some(n => n.trade)) { tutStep++; SFX.pickup(); }
+    return;
+  }
+  if (st.done()) { tutStep++; SFX.pickup(); }
 }
 $("tutSkip").addEventListener("click", () => { tutStep = -1; $("tutBanner").style.display = "none"; toast("The woods will teach you the rest."); });
 
@@ -2266,6 +2312,7 @@ function update(dt) {
   updateTutorial(dt);
   rescueStuck(dt);
   updateNationWars(dt);
+  updateNationTrade(dt);
   if (difficulty() > lastTier) {
     lastTier = difficulty();
     toast("⚠ Word of your colony's wealth spreads. The woods grow bolder…");
@@ -2510,6 +2557,20 @@ function update(dt) {
         c.inv.wheat += 2; c.inv.bread += 1;
         SFX.pickup();
         float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
+        c.state = "idle"; c.task = null;
+      }
+    } else if (c.state === "peddling") {
+      const b2 = c.task.target;
+      if (!civs.includes(b2) || Math.hypot(b2.x - c.x, b2.y - c.y) > 90) { c.state = "idle"; c.task = null; continue; }
+      c.workT += dt;
+      if (c.workT >= 1.5) {
+        const price = Math.min(b2.inv.dm, Math.max(1, sellPrice() - 1));
+        if (price > 0 && (c.inv.bread > 0 || c.inv.meat > 0)) {
+          if (c.inv.bread > 0) { c.inv.bread--; b2.inv.bread++; } else { c.inv.meat--; b2.inv.meat++; }
+          b2.inv.dm -= price; c.inv.dm += price;
+          float(c.x, c.y - 70, "+" + price + " DM", "#c9a86a");
+          float(b2.x, b2.y - 70, "+1 food", "#7da083");
+        }
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "trading") {
