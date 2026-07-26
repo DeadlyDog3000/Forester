@@ -1534,7 +1534,8 @@ function nationNeighbours(id) {
 }
 
 function startNatWar() {
-  const ids = Object.keys(NATIONS);
+  const ids = Object.keys(NATIONS).filter(id => !NATIONS[id].defeated);
+  if (!ids.length) return;
   const a = ids[Math.floor(Math.random() * ids.length)];
   const nbs = nationNeighbours(a).filter(b =>
     !natWars.some(w => (w.a === a && w.b === b) || (w.a === b && w.b === a)));
@@ -1544,6 +1545,18 @@ function startNatWar() {
   toast(`⚔ Word arrives from afar: ${NATIONS[a].name} and ${NATIONS[b].name} are at war!`);
 }
 
+function remainingCells(id) {
+  return cellCount(id) - ((NATIONS[id].captured || []).length);
+}
+function checkDefeated(id) {
+  const n = NATIONS[id];
+  if (n.defeated || remainingCells(id) > 0) return false;
+  n.defeated = true;
+  n.atWar = false;
+  natWars = natWars.filter(w => w.a !== id && w.b !== id);
+  toast(`⚔ ${n.name} has been DEFEATED — every league of its land is occupied. Its name passes into history.`);
+  return true;
+}
 function cellCount(id) {
   let n = 0;
   for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++) if (mapGrid[r][c] === id) n++;
@@ -1575,7 +1588,8 @@ function resolveBattle(war) {
   // rebuild the pixel map so borders visibly move — live if the map is open
   buildMapGrid();
   if (document.getElementById("mapOverlay").style.display === "block") renderMap();
-  if ((war.battles >= 3 && Math.random() < 0.3) || cellCount(loser) < 6 || !frontier.length && take === 0) {
+  if (checkDefeated(loser)) return;
+  if ((war.battles >= 3 && Math.random() < 0.3) || (!frontier.length && take === 0)) {
     natWars.splice(natWars.indexOf(war), 1);
     toast(`The war between ${NATIONS[war.a].name} and ${NATIONS[war.b].name} ends in a weary peace.`);
   }
@@ -1699,6 +1713,12 @@ function mapInfoSync() {
   document.getElementById("miName").textContent = n.name.toUpperCase();
   const soldiers = civs.filter(c => c.profession === "soldier").length;
   const adj = nationAdjacent(mapSelNation);
+  if (n.defeated) {
+    document.getElementById("miDetail").textContent =
+      `DEFEATED. ${n.name} holds not one league of land — its territory is wholly occupied, its name a memory.`;
+    w.style.display = pc.style.display = as.style.display = "none";
+    return;
+  }
   document.getElementById("miDetail").textContent =
     `Strength ${natStrength(n)}/10${natStrength(n) > n.strength ? " (grown with the years)" : ""}. ` + (n.atWar ?
       `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 soldiers and 4 weapons — and even then the odds are grim. (You have ${soldiers} soldier(s), ${res.weapons} weapon(s).)` :
@@ -1738,6 +1758,7 @@ document.getElementById("miAssault").addEventListener("click", () => {
     res.dm += 200;
     toast(`⚔ Against all odds, your soldiers storm a settlement of ${n.name}! +200 DM plunder; their land is yours on the map.`);
     SFX.coin();
+    checkDefeated(mapSelNation);
   } else {
     let lost = 0;
     for (const sd of soldiers) if (Math.random() < 0.5) { killCiv(sd, `fell before the walls of ${n.name}`); lost++; }
@@ -1748,7 +1769,7 @@ document.getElementById("miAssault").addEventListener("click", () => {
 
 function updateWars(dt) {
   for (const [id, n] of Object.entries(NATIONS)) {
-    if (!n.atWar) continue;
+    if (!n.atWar || n.defeated) continue;
     n.warT -= dt;
     if (n.warT <= 0) {
       n.warT = 110 + Math.random() * 70;
@@ -1884,7 +1905,7 @@ function saveGame() {
       settlements: settlements.map(st => ({ ...st })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
-      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [] }])),
+      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated }])),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     return true;
