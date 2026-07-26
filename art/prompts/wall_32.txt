@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a wooden palisade wall segment. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the wall segment centred, seen straight on from ground level, wider than tall.
+
+THE WALL: A defensive stockade section of vertical sharpened logs lashed side by side, tips cut to points along the top at slightly uneven heights. A horizontal reinforcing beam across the middle. Sturdy frontier fortification built from whole tree trunks.
+
+COLOUR: The warm brown log palette: near-black outline, dark walnut shadow between logs, mid chestnut trunks, honey brown lit edges and tips. No green, no grey.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.

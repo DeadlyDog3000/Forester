@@ -29,9 +29,10 @@ const STATIC_COSTS = {
   recruit: { logs: 30 }, market: { logs: 25 }, sapling: { logs: 1 },
   watchtower: { logs: 15, stone: 5 }, bakery: { logs: 20, stone: 3 }, well: { logs: 10, stone: 8 },
   forge: { logs: 20, stone: 6, iron: 2 },
+  wall: { logs: 6, stone: 2 }, gate: { logs: 10, stone: 4 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
-  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge" };
+  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate" };
 const forgeBuilt = () => buildings.some(b => b.type === "forge" && !b.fire);
 
 // --- tech tree ---
@@ -129,6 +130,8 @@ const IMAGES = {
   watchtower: "assets/sprites/buildings/watchtower_32.png", bakery: "assets/sprites/buildings/bakery_32.png",
   well: "assets/sprites/buildings/well_32.png",
   forge: "assets/sprites/buildings/forge_32.png",
+  wall: "assets/sprites/buildings/wall_32.png",
+  gate: "assets/sprites/buildings/gate_32.png",
   thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
 };
 for (const who of ["sister", "brother", "hunter"]) for (let i = 0; i < 4; i++) IMAGES[`${who}${i}`] = `assets/sprites/characters/${who}_walk_${i}.png`;
@@ -159,38 +162,41 @@ const territory = new Set();          // "cx,cy" world cells, 96px each
 const TCELL = 96;
 let sackedCamps = 0, playT = 0, nextSettleAt = 1200, settlePending = false;
 const settlements = [];               // {name, pop, mx, my} on the Europe map
-const laws = { civWeapons: false, hunterWeapons: true, forced: false };
+const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false };
 
 const cam = { x: 0, y: 0 };
 let zoom = 1;
 const keys = {};
 const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
-const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [];
+const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [];
 const chunks = new Map();
 
 let selected = null, selectedBldg = null, selectedCamp = null, buildMode = null;
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
-let raidTimer = 60, campRespawnTimer = 300;
+let worldT = 80;   // clock of the world; night falls late in each cycle
+let raidTimer = 60, campRespawnTimer = 300, patrolT = 5;
 let techTab = "growth";
 
 const NAME_POOL = ["Falk", "Jorg", "Matthias", "Anselm", "Dietrich", "Lorenz", "Veit", "Kaspar",
   "Otto", "Bruno", "Conrad", "Ludwig", "Gunther", "Wilhelm", "Albrecht", "Erwin"];
+const FEMALE_NAMES = ["Greta", "Ilse", "Marta", "Anneke", "Liesl", "Hedwig", "Frieda", "Adelheid"];
 const usedNames = new Set(["Brother", "Sister"]);
-function nextName() {
-  const free = NAME_POOL.filter(n => !usedNames.has(n));
+function nextName(gender) {
+  const pool = gender === "f" ? FEMALE_NAMES : NAME_POOL;
+  const free = pool.filter(n => !usedNames.has(n));
   const name = free.length ? free[Math.floor(Math.random() * free.length)]
-                           : NAME_POOL[Math.floor(Math.random() * NAME_POOL.length)] + " II";
+                           : pool[Math.floor(Math.random() * pool.length)] + " II";
   usedNames.add(name);
   return name;
 }
 
 buildings.push({ type: "burned", x: 0, y: 0, progress: -1, occupants: [], fire: 0, torchP: -1, placed: false });
-civs.push(mkCiv("Brother", "brother", -70, 110));
-civs.push(mkCiv("Sister", "sister", 70, 130));
+civs.push(mkCiv("Brother", "brother", -70, 110, "m"));
+civs.push(mkCiv("Sister", "sister", 70, 130, "f"));
 
-function mkCiv(name, who, x, y) {
-  return { name, who, x, y, tx: x, ty: y, state: "idle", anim: 0, facing: 1,
+function mkCiv(name, who, x, y, gender) {
+  return { name, who, nativeWho: who, gender: gender || "m", x, y, tx: x, ty: y, state: "idle", anim: 0, facing: 1,
            task: null, workT: 0, home: null, profession: null,
            hunger: 100, hp: 100, maxHp: 100, happiness: 75, rebel: false, armed: false, tool: false,
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
@@ -198,6 +204,10 @@ function mkCiv(name, who, x, y) {
 }
 
 function float(x, y, text, color) { floaters.push({ x, y, text, color, t: 1.4 }); }
+// hunters keep their own look; everyone else wears the family's spare clothes
+function refreshAvatar(c) {
+  c.who = c.profession === "hunter" ? c.nativeWho : (c.gender === "f" ? "sister" : "brother");
+}
 function onScreen(x, y) {
   return x > cam.x && x < cam.x + canvas.width / zoom && y > cam.y && y < cam.y + canvas.height / zoom;
 }
@@ -264,17 +274,29 @@ function spawnCamps(n) {
   }
 }
 
+function mkRaider(camp, state) {
+  return { x: camp.x + Math.random() * 60 - 30, y: camp.y + 20 + Math.random() * 30, hp: 60, maxHp: 60,
+           dmg: camp.type === "raid" ? 14 : 10, camp, target: null,
+           state, anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, wpx: camp.x, wpy: camp.y };
+}
 function spawnRaid() {
-  if (!camps.length || raiders.length >= MAX_RAIDERS) return;
+  const attackers = raiders.filter(r => r.state !== "patrol").length;
+  if (!camps.length || attackers >= MAX_RAIDERS) return;
   const camp = camps[Math.floor(Math.random() * camps.length)];
-  const n = camp.type === "raid" ? 3 : 2;
+  let n = camp.type === "raid" ? 3 : 2;
   const targets = buildings.filter(b => b.type !== "burned");
   if (!targets.length) return;
-  for (let i = 0; i < n && raiders.length < MAX_RAIDERS; i++) {
-    const t = targets[Math.floor(Math.random() * targets.length)];
-    raiders.push({ x: camp.x + i * 30, y: camp.y + i * 20, hp: 60, maxHp: 60,
-                   dmg: camp.type === "raid" ? 14 : 10, camp, target: t,
-                   state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0 });
+  // the patrol decides it is a good time to strike
+  for (const pr of raiders.filter(r => r.camp === camp && r.state === "patrol")) {
+    if (n <= 0) break;
+    pr.state = "approach";
+    pr.target = targets[Math.floor(Math.random() * targets.length)];
+    n--;
+  }
+  for (let i = 0; i < n && raiders.filter(r => r.state !== "patrol").length < MAX_RAIDERS; i++) {
+    const r = mkRaider(camp, "approach");
+    r.target = targets[Math.floor(Math.random() * targets.length)];
+    raiders.push(r);
   }
   if (buildings.some(b => b.type === "watchtower" && !b.fire)) {
     const dir = Math.abs(camp.x) > Math.abs(camp.y) ? (camp.x > 0 ? "east" : "west") : (camp.y > 0 ? "south" : "north");
@@ -303,12 +325,70 @@ function updateRaider(r, dt) {
   }
   r.stepT = (r.stepT || 0) - dt;
   if ((r.state === "approach" || r.state === "flee") && r.stepT <= 0 && onScreen(r.x, r.y)) { SFX.step(true); r.stepT = 0.3; }
+  if (r.state === "patrol") {
+    // circle the camp, watchful, until the strike
+    const d = Math.hypot(r.wpx - r.x, r.wpy - r.y);
+    if (d < 8 || !camps.includes(r.camp)) {
+      if (!camps.includes(r.camp)) {   // camp sacked: vengeance
+        const targets = buildings.filter(b => b.type !== "burned");
+        if (targets.length) { r.state = "approach"; r.target = targets[Math.floor(Math.random() * targets.length)]; }
+        else { raiders.splice(raiders.indexOf(r), 1); }
+        return;
+      }
+      const a = Math.random() * Math.PI * 2, rad = 70 + Math.random() * 110;
+      r.wpx = r.camp.x + Math.cos(a) * rad; r.wpy = r.camp.y + Math.sin(a) * rad;
+    } else {
+      r.x += (r.wpx - r.x) / d * speed * 0.45 * dt;
+      r.y += (r.wpy - r.y) / d * speed * 0.45 * dt;
+      r.facing = r.wpx < r.x ? -1 : 1;
+      r.anim += dt * 5;
+    }
+    return;
+  }
+  if (r.state === "axeWall") {
+    const w = r.wallTarget;
+    if (!buildings.includes(w) || w.fire) { r.state = "approach"; r.wallTarget = null; return; }
+    r.facing = w.x < r.x ? -1 : 1;
+    r.anim += dt * 9;
+    r.atkT -= dt;
+    if (r.atkT <= 0) {
+      r.atkT = ATK_INTERVAL;
+      SFX.chop();
+      w.hp -= 9;
+      float(w.x, w.y - 74, "-9", "#d86a5a");
+      if (w.hp <= 0) {
+        buildings.splice(buildings.indexOf(w), 1);
+        if (selectedBldg === w) selectedBldg = null;
+        toast(`⚠ Raiders have hacked the ${BLDG_NAMES[w.type]} to splinters!`);
+        r.state = "approach"; r.wallTarget = null;
+      }
+    }
+    return;
+  }
+  if (r.state === "torchWall") {
+    const w = r.wallTarget;
+    if (!buildings.includes(w) || w.fire) { r.state = "approach"; r.wallTarget = null; return; }
+    r.workT += dt; w.torchP = r.workT / (torchTime() * 0.8); r.anim += dt * 9;
+    if (r.workT >= torchTime() * 0.8) {
+      w.torchP = -1; w.fire = FIRE_TIME * 0.7;
+      toast(`⚠ Raiders put the ${BLDG_NAMES[w.type]} to the torch!`);
+      r.state = "approach"; r.wallTarget = null;
+    }
+    return;
+  }
   if (r.state === "approach") {
     const t = r.target;
     if (!buildings.includes(t)) { r.state = "flee"; return; }
     const dx = t.x - r.x, dy = t.y + 20 - r.y, d = Math.hypot(dx, dy);
     if (d < 30) { r.state = "steal"; r.workT = 0; }
-    else { r.x += dx / d * speed * dt; r.y += dy / d * speed * dt; r.facing = dx < 0 ? -1 : 1; r.anim += dt * 8; }
+    else {
+      const nx = r.x + dx / d * speed * dt, ny = r.y + dy / d * speed * dt;
+      // town walls bar the way — burn through them
+      const barrier = buildings.find(b => (b.type === "wall" || b.type === "gate") && !b.fire &&
+                                          pointInRect(nx, ny, inflate(bldgRect(b), 8)));
+      if (barrier) { r.state = Math.random() < 0.5 ? "torchWall" : "axeWall"; r.wallTarget = barrier; r.workT = 0; return; }
+      r.x = nx; r.y = ny; r.facing = dx < 0 ? -1 : 1; r.anim += dt * 8;
+    }
   } else if (r.state === "steal") {
     r.anim = 1;
     r.workT += dt;
@@ -358,8 +438,9 @@ function strikeUnit(a, b, dmg) {
 }
 
 // --- geometry ---
+const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72 };
 function bldgRect(b) {
-  const s = b.type === "farm" ? FARM_SIZE : BLDG_SIZE;
+  const s = SMALL_BLDG[b.type] || BLDG_SIZE;
   return { x: b.x - s / 2, y: b.y - s, w: s, h: s };
 }
 const inflate = (r, m) => ({ x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m });
@@ -370,6 +451,12 @@ const allStructures = () => buildings.concat(farms.map(f => ({ type: "farm", x: 
 const tkey = (cx, cy) => cx + "," + cy;
 function tcellOf(wx, wy) { return [Math.floor(wx / TCELL), Math.floor(wy / TCELL)]; }
 function inTerritory(wx, wy) { return territory.has(tkey(...tcellOf(wx, wy))); }
+function nearTerritory(wx, wy) {
+  const [cx, cy] = tcellOf(wx, wy);
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++)
+    if (territory.has(tkey(cx + dx, cy + dy))) return true;
+  return false;
+}
 function expandAround(wx, wy, r) {
   const [cx, cy] = tcellOf(wx, wy);
   for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) territory.add(tkey(cx + dx, cy + dy));
@@ -389,11 +476,14 @@ expandAround(0, -40, 2);   // the family clearing starts claimed
 
 function legalToBuild(type, wx, wy) {
   if (type !== "sapling" && !inTerritory(wx, wy)) return false;
-  const s = type === "sapling" ? 20 : (type === "farm" ? FARM_SIZE : BLDG_SIZE);
+  const s = type === "sapling" ? 20 : (SMALL_BLDG[type] || BLDG_SIZE);
   const cand = { x: wx - s / 2, y: wy - s, w: s, h: s };
+  const placingWall = type === "wall" || type === "gate";
   for (const b of allStructures()) {
-    const r = inflate(bldgRect(b), 12);
-    r.h += 26;
+    const bWall = b.type === "wall" || b.type === "gate";
+    const margin = placingWall && bWall ? -6 : placingWall || bWall || b.type === "farm" ? 2 : 12;
+    const r = inflate(bldgRect(b), margin);
+    if (!bWall && b.type !== "farm" && !placingWall) r.h += 26;
     if (rectsOverlap(cand, r)) return false;
   }
   for (const c of camps) if (Math.hypot(c.x - wx, c.y - wy) < 200) return false;
@@ -403,7 +493,7 @@ function legalToBuild(type, wx, wy) {
 }
 
 function collideMove(c, nx, ny) {
-  const blocked = (x, y) => allStructures().some(b => pointInRect(x, y, inflate(bldgRect(b), 6)));
+  const blocked = (x, y) => allStructures().some(b => b.type !== "gate" && pointInRect(x, y, inflate(bldgRect(b), 6)));
   const ox = c.x, oy = c.y;
   if (!blocked(nx, ny)) { c.x = nx; c.y = ny; }
   else if (!blocked(nx, c.y)) c.x = nx;
@@ -596,6 +686,11 @@ canvas.addEventListener("click", e => {
   if (selected) order(selected, { kind: "walk", x: mouse.wx, y: mouse.wy });
 });
 
+function evictFromFootprint(b) {
+  const r = inflate(bldgRect(b), 10);
+  for (const u of [...civs, ...visitors, ...raiders])
+    if (pointInRect(u.x, u.y, r)) { u.y = r.y + r.h + 14; u.x += (u.x < b.x ? -18 : 18); }
+}
 function tryPlace(type, wx, wy) {
   if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
   const cost = costOf(type);
@@ -610,10 +705,15 @@ function tryPlace(type, wx, wy) {
     toast("Spruce sapling planted.");
   } else if (type === "farm") {
     farms.push({ x: wx, y: wy, ready: false, growT: 0, workers: [], progress: -1 });
+    evictFromFootprint({ type: "farm", x: wx, y: wy });
     expandAround(wx, wy, 1);
     toast("Farm laid out. Assign farmers to it by selecting them and clicking the farm.");
   } else {
-    buildings.push({ type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 });
+    const b = { type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
+    if (type === "wall") { b.hp = b.maxHp = 90; }
+    if (type === "gate") { b.hp = b.maxHp = 130; }
+    buildings.push(b);
+    evictFromFootprint(b);
     expandAround(wx, wy, 1);
     toast(`${BLDG_NAMES[type]} built. The territory grows.`);
     if (type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
@@ -693,7 +793,8 @@ function autonomy(c, dt) {
   }
 
   if (res.seeds < farmSeedCost() * 2) {
-    const p = nearThings("patches", c.x, c.y, 700).filter(p => p.alive)[0];
+    const p = nearThings("patches", c.x, c.y, laws.freeRoam ? 800 : 450)
+      .filter(p => p.alive && (laws.freeRoam || nearTerritory(p.x, p.y)))[0];
     if (p) { order(c, { kind: "gather", target: p, forColony: true, x: p.x + 16, y: p.y + 4 }); return; }
   }
 
@@ -718,8 +819,15 @@ function autonomy(c, dt) {
     if (mine) { order(c, { kind: "harvest", target: mine, x: mine.x, y: mine.y + 10 }); return; }
   }
   if (c.profession === "hunter" && c.inv.meat < 2) {
-    const a = Math.random() * Math.PI * 2;
-    order(c, { kind: "hunt", x: c.x + Math.cos(a) * 350, y: c.y + Math.sin(a) * 350 });
+    if (laws.freeRoam) {
+      const a = Math.random() * Math.PI * 2;
+      order(c, { kind: "hunt", x: c.x + Math.cos(a) * 350, y: c.y + Math.sin(a) * 350 });
+    } else {
+      // keep to the town borders
+      const cells = [...territory];
+      const [cx2, cy2] = cells[Math.floor(Math.random() * cells.length)].split(",").map(Number);
+      order(c, { kind: "hunt", x: cx2 * TCELL + TCELL / 2 + (Math.random() * 80 - 40), y: cy2 * TCELL + TCELL / 2 + (Math.random() * 80 - 40) });
+    }
     return;
   }
   const market = buildings.find(b => b.type === "market" && !b.fire);
@@ -807,9 +915,10 @@ function spawnVisitor() {
   const center = buildings.find(b => b.type === "recruit" && !b.fire);
   if (!center) return;
   const a = Math.random() * Math.PI * 2;
+  const gender = Math.random() < 0.35 ? "f" : "m";
   visitors.push({
-    id: ++visitorSeq, name: nextName(),
-    face: Math.random() < 0.5 ? "hunter_face_a" : "hunter_face_b",
+    id: ++visitorSeq, name: nextName(gender), gender,
+    face: gender === "f" ? "hunter_face_c" : (Math.random() < 0.5 ? "hunter_face_a" : "hunter_face_b"),
     x: center.x + Math.cos(a) * 700, y: center.y + Math.sin(a) * 700,
     tx: center.x + 60, ty: center.y + 20,
     state: "walking", anim: 0, facing: 1, waitT: 75, meter: null, leaving: false, used: new Set(),
@@ -858,7 +967,7 @@ function openDialogue(v) {
   dlg.open = true; dlg.visitor = v; paused = true;
   if (v.meter === null) v.meter = Math.max(10, 55 - taxRate * 3.5);
   $("dlgFace").src = `assets/sprites/ui/${v.face}.png`;
-  $("dlgName").textContent = `${v.name}, wandering hunter`;
+  $("dlgName").textContent = `${v.name}, wandering ${v.gender === "f" ? "huntress" : "hunter"}`;
   $("dlgText").textContent = "The hunter eyes the barred window and the little slot beneath it. \"So. What is this place, then?\"";
   $("dialogue").style.display = "block";
   renderDialogueOptions();
@@ -899,13 +1008,14 @@ function closeDialogue() { dlg.open = false; dlg.visitor = null; paused = false;
 function joinColony(v) {
   visitors.splice(visitors.indexOf(v), 1);
   closeDialogue();
-  const c = mkCiv(v.name, "ragged", v.x, v.y);
+  const c = mkCiv(v.name, "hunter", v.x, v.y, v.gender);
   c.profession = "hunter";
+  refreshAvatar(c);
   civs.push(c);
   expandFrontier(3);
   const housed = houseCiv(c);
   toast(`${v.name} signs on — a civilian certificate slides out through the slot. ` +
-        (housed ? "He moves into a cabin and will pay taxes." : "Build him a cabin: no taxes until he has a roof."));
+        (housed ? `${v.gender === "f" ? "She" : "He"} moves into a cabin and will pay taxes.` : `Build ${v.gender === "f" ? "her" : "him"} a cabin: no taxes until there is a roof.`));
   syncUI();
 }
 function rejectColony(v) { closeDialogue(); sendAway(v, `${v.name} shakes his head and returns to his hunting grounds.`); }
@@ -1050,11 +1160,16 @@ document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
       dropPolice();
       selected.profession = "blacksmith";
       toast(`${selected.name} takes up the hammer as blacksmith.`);
+    } else if (prof === "hunter") {
+      dropPolice();
+      selected.profession = "hunter";
+      toast(`${selected.name} takes up the hunter's life.`);
     } else {
       dropPolice();
       selected.profession = "farmer";
       toast(`${selected.name} takes up farming. Assign them to a farm by clicking it.`);
     }
+    refreshAvatar(selected);
     syncUI();
   }));
 document.addEventListener("click", e => {
@@ -1081,6 +1196,11 @@ $("govToggle").addEventListener("click", () => {
 $("taxSlider").addEventListener("input", e => { taxRate = +e.target.value; $("taxVal").textContent = taxRate; syncUI(); });
 $("lawCivWeapons").addEventListener("change", e => { laws.civWeapons = e.target.checked; });
 $("lawHunterWeapons").addEventListener("change", e => { laws.hunterWeapons = e.target.checked; });
+$("lawFreeRoam").addEventListener("change", e => {
+  laws.freeRoam = e.target.checked;
+  toast(laws.freeRoam ? "The borders are opened: civilians may roam the deep woods on their own." :
+                        "Civilians are ordered to keep close to the town borders.");
+});
 $("lawForced").addEventListener("change", e => {
   laws.forced = e.target.checked;
   toast(laws.forced ? "The forced labour edict is proclaimed. The people will not forgive this quickly." :
@@ -1513,18 +1633,19 @@ function saveGame() {
       v: 1,
       res: { ...res }, taxRate, taxTimer, policeCount, laws: { ...laws }, zoom, settlementName,
       cam: { x: cam.x, y: cam.y },
-      hunterTimer, raidTimer, campRespawnTimer,
+      hunterTimer, raidTimer, campRespawnTimer, worldT,
       tech: Object.fromEntries(Object.values(TECH).map(t => [t.id, t.done])),
       research: research ? { ...research } : null,
       usedNames: [...usedNames],
       civs: civs.map(c => ({
-        name: c.name, who: c.who, x: c.x, y: c.y, home: bi(c.home),
+        name: c.name, who: c.who, nativeWho: c.nativeWho, gender: c.gender, x: c.x, y: c.y, home: bi(c.home),
         profession: c.profession, hunger: c.hunger, hp: c.hp, maxHp: c.maxHp,
         happiness: c.happiness, rebel: c.rebel, armed: c.armed, tool: c.tool,
         inv: { ...c.inv },
       })),
       buildings: buildings.map(b => ({
         type: b.type, x: b.x, y: b.y, fire: b.fire, placed: b.placed,
+        hp: b.hp, maxHp: b.maxHp,
         occupants: b.occupants.map(ci),
       })),
       farms: farms.map(f => ({ x: f.x, y: f.y, ready: f.ready, growT: f.growT, workers: f.workers.map(ci) })),
@@ -1552,13 +1673,15 @@ function loadGame() {
     zoom = d.zoom || 1;
     cam.x = d.cam.x; cam.y = d.cam.y;
     hunterTimer = d.hunterTimer; raidTimer = d.raidTimer; campRespawnTimer = d.campRespawnTimer;
+    worldT = d.worldT || 80;
     for (const [id, done] of Object.entries(d.tech)) if (TECH[id]) TECH[id].done = done;
     TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;
     research = d.research;
     usedNames.clear(); for (const n of d.usedNames) usedNames.add(n);
     civs.length = 0;
     for (const cd of d.civs) {
-      const c = mkCiv(cd.name, cd.who, cd.x, cd.y);
+      const c = mkCiv(cd.name, cd.nativeWho || cd.who, cd.x, cd.y, cd.gender || (cd.name === "Sister" ? "f" : "m"));
+      c.who = cd.who;
       Object.assign(c, { profession: cd.profession, hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
         happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool });
       Object.assign(c.inv, cd.inv);
@@ -1567,7 +1690,9 @@ function loadGame() {
     buildings.length = 0;
     for (const bd of d.buildings)
       buildings.push({ type: bd.type, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
-                       torchP: -1, placed: bd.placed, bakeT: 0, occupants: [] });
+                       torchP: -1, placed: bd.placed, bakeT: 0, occupants: [],
+                       hp: bd.hp ?? (bd.type === "wall" ? 90 : bd.type === "gate" ? 130 : undefined),
+                       maxHp: bd.maxHp ?? (bd.type === "wall" ? 90 : bd.type === "gate" ? 130 : undefined) });
     d.buildings.forEach((bd, i) => {
       for (const cidx of bd.occupants) if (civs[cidx]) {
         buildings[i].occupants.push(civs[cidx]);
@@ -1596,6 +1721,7 @@ function loadGame() {
     $("taxSlider").value = taxRate; $("taxVal").textContent = taxRate;
     $("lawCivWeapons").checked = laws.civWeapons;
     $("lawHunterWeapons").checked = laws.hunterWeapons;
+    $("lawFreeRoam").checked = !!laws.freeRoam;
     if ($("lawForced")) $("lawForced").checked = laws.forced;
     return true;
   } catch (e) {
@@ -1758,7 +1884,9 @@ function syncUI() {
       b.type === "watchtower" ? "Warns of raids; nearby police & soldiers fight harder." :
       b.type === "bakery" ? "Bakes town wheat into bread over time." :
       b.type === "well" ? "Fresh water. The colony is happier for it." :
-      b.type === "forge" ? "Blacksmiths work here; weapons are handed out at its racks." : "Standing.";
+      b.type === "forge" ? "Blacksmiths work here; weapons are handed out at its racks." :
+      b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
+      b.type === "gate" ? "Your people pass freely; raiders must burn it down." : "Standing.";
     $("bpOcc").textContent = isFarm ? "—" : (b.occupants.length ? b.occupants.map(o => o.name).join(", ") : "none");
   }
 }
@@ -1778,6 +1906,7 @@ function update(dt) {
 
   if (paused) return;
 
+  worldT += dt;
   updateResearch(dt);
   playT += dt;
   updateWars(dt);
@@ -1786,6 +1915,8 @@ function update(dt) {
 
   for (const f of floaters) { f.t -= dt; f.y -= 26 * dt; }
   for (let i = floaters.length - 1; i >= 0; i--) if (floaters[i].t <= 0) floaters.splice(i, 1);
+  for (const sm of smokes) { sm.t -= dt; sm.y -= 16 * dt; sm.x += sm.vx * dt * 0.4; sm.r += 2.4 * dt; }
+  for (let i = smokes.length - 1; i >= 0; i--) if (smokes[i].t <= 0) smokes.splice(i, 1);
 
   // global tax clock
   taxTimer -= dt;
@@ -1809,6 +1940,16 @@ function update(dt) {
   SFX.fireLoop(buildings.some(b => b.fire > 0));
   for (const b of [...buildings]) {
     igniteCheck(b, dt);
+    if (!b.fire && (b.type === "bakery" || (b.type === "cabin" && b.occupants.length))) {
+      b.smokeT = (b.smokeT === undefined ? Math.random() * 8 : b.smokeT) - dt;
+      if (b.smokeT <= 0) {
+        b.smokeT = 8 + Math.random() * 14;
+        const sx = b.x + (b.type === "bakery" ? 6 : -16), sy = b.y - BLDG_SIZE + 10;
+        for (let i = 0; i < 4; i++)
+          smokes.push({ x: sx + Math.random() * 4 - 2, y: sy, r: 3 + Math.random() * 2,
+                        vx: 4 + Math.random() * 5, t: 2.6 + i * 0.5, max: 2.6 + i * 0.5 });
+      }
+    }
     if (b.type === "bakery" && !b.fire) {
       b.bakeT = (b.bakeT || 0) + dt;
       if (b.bakeT >= 20) {
@@ -1833,6 +1974,14 @@ function update(dt) {
     if (raidTimer <= 0) { raidTimer = RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN); spawnRaid(); }
     campRespawnTimer -= dt;
     if (campRespawnTimer <= 0) { campRespawnTimer = 300; spawnCamps(1); }
+    patrolT = (patrolT || 0) - dt;
+    if (patrolT <= 0) {
+      patrolT = 20;
+      for (const cp of camps) {
+        const onWatch = raiders.filter(r => r.camp === cp && r.state === "patrol").length;
+        if (onWatch < 2 && raiders.length < MAX_RAIDERS + 8) raiders.push(mkRaider(cp, "patrol"));
+      }
+    }
   }
   for (const r of [...raiders]) updateRaider(r, dt);
 
@@ -1943,6 +2092,7 @@ function update(dt) {
           const f = { x: t.fx, y: t.fy, ready: false, growT: 0, workers: [], progress: -1 };
           if (c.profession === "farmer") f.workers.push(c);
           farms.push(f);
+          evictFromFootprint({ type: "farm", x: t.fx, y: t.fy });
           toast(`${c.name} finished a little wheat farm.`);
         }
         c.state = "idle"; c.task = null;
@@ -2158,6 +2308,7 @@ function render(dt) {
     }
     if (b.progress >= 0) bar(b.x, b.y - BLDG_SIZE - 12, b.progress, "#7da083");
     if (b.torchP >= 0) bar(b.x, b.y - BLDG_SIZE - 12, b.torchP, "#d86a3a");
+    if (b.maxHp && b.hp < b.maxHp) bar(b.x, b.y - (SMALL_BLDG[b.type] || BLDG_SIZE) - 10, b.hp / b.maxHp, "#a05252");
     if (selectedBldg === b) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1;
       const r = bldgRect(b);
@@ -2173,7 +2324,7 @@ function render(dt) {
     const frame = r.foe ? img["atksword" + (Math.floor(r.anim) % 4)] : img["hunter" + (Math.floor(r.anim) % 4)];
     drawSprite(frame, r.x, r.y, CHAR_SIZE, r.facing < 0);
     ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-    ctx.fillText("RAIDER", r.x, r.y - CHAR_SIZE - 4);
+    ctx.fillText(r.state === "patrol" ? "thief" : "RAIDER", r.x, r.y - CHAR_SIZE - 4);
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
   for (const c of civs) if (inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
@@ -2201,6 +2352,36 @@ function render(dt) {
 
   drawables.sort((a, b) => a.y - b.y);
   for (const d of drawables) d.draw();
+
+  for (const sm of smokes) {
+    if (!inView(sm.x, sm.y)) continue;
+    ctx.globalAlpha = 0.28 * Math.min(1, sm.t / sm.max);
+    ctx.fillStyle = "#b8bcb8";
+    ctx.beginPath(); ctx.arc(sm.x, sm.y, sm.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // night falls: darkness, and warm light spilling from the doorways
+  const DAYLEN = 300, ph = worldT % DAYLEN;
+  const night = ph < 180 ? 0 : ph < 210 ? (ph - 180) / 30 : ph < 275 ? 1 : Math.max(0, 1 - (ph - 275) / 25);
+  if (night > 0.01) {
+    ctx.fillStyle = `rgba(7, 10, 26, ${0.48 * night})`;
+    ctx.fillRect(cam.x, cam.y, vw, vh);
+    ctx.globalCompositeOperation = "lighter";
+    for (const b of buildings) {
+      if (b.fire || b.type === "burned" || b.type === "wall" || b.type === "gate" || b.type === "watchtower" || b.type === "well") continue;
+      if (!inView(b.x, b.y)) continue;
+      const lit = b.type === "cabin" ? b.occupants.length > 0 : true;
+      if (!lit) continue;
+      const flick = 0.72 + 0.18 * Math.sin(worldT * 11 + b.x * 0.7) + 0.10 * Math.sin(worldT * 23 + b.y);
+      const g = ctx.createRadialGradient(b.x, b.y - 14, 2, b.x, b.y - 14, 46);
+      g.addColorStop(0, `rgba(255, 196, 92, ${0.34 * night * flick})`);
+      g.addColorStop(1, "rgba(255, 196, 92, 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(b.x - 48, b.y - 62, 96, 72);
+    }
+    ctx.globalCompositeOperation = "source-over";
+  }
 
   // floating combat text
   ctx.font = "12px monospace"; ctx.textAlign = "center";

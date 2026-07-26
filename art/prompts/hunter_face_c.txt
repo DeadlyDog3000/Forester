@@ -1,0 +1,10 @@
+A pixel art character portrait for a dialogue box in a retro game: a close-up bust of a young huntress from 1683 Germany, head and shoulders, facing slightly toward the viewer.
+
+THE FACE:
+A weathered young woman in her late twenties, sharp-eyed and self-possessed, with dark auburn hair braided back under a fur-trimmed hood. Wind-burned cheeks, a small scar through one eyebrow. The fur collar of a worn leather jerkin at her shoulders and the strap of a game bag across them. Her expression is measuring and unafraid — a woman who has survived alone in the deep woods.
+
+STYLE:
+True low-resolution pixel art, chunky square pixels, hard edges, no anti-aliasing, no gradients, no smooth shading — flat blocks of colour with crisp pixel clusters. Readable at 64x64 pixels. Limited palette of about ten muted colours: browns, fur greys, dull greens, pale weathered skin, dark auburn hair. 16-bit RPG dialogue portrait style.
+
+COMPOSITION:
+Perfectly square 1:1 image. The bust fills most of the frame, centred. Plain flat very dark green-grey background filling the rest — a single solid colour, no scenery, no border, no frame decoration, no text.
