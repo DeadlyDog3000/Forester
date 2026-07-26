@@ -1133,27 +1133,27 @@ $("bpDismantle").addEventListener("click", () => {
 
 // ===== Empire: Europe map, nations, war, settlements =====
 
-const MG_W = 100, MG_H = 56, MPX = 12;
+const MG_W = 100, MG_H = 56, SCALE = 2, MPX = 6, FW = MG_W * SCALE, FH = MG_H * SCALE, CPX = SCALE * MPX;
 // stylized 1683 Europe in English, painted as rect blobs on a grid
 const NATIONS = {
   scotland:  { name: "Scotland", color: "#a0344a", strength: 2, blobs: [[20,4,5,5]] },
-  england:   { name: "Kingdom of England", color: "#b03a52", strength: 5, blobs: [[19,9,7,7],[24,14,3,3]] },
+  england:   { name: "Kingdom of England", color: "#b03a52", strength: 5, blobs: [[19,9,7,6],[24,13,2,2]] },
   ireland:   { name: "Ireland", color: "#94505e", strength: 1, blobs: [[13,7,4,6]] },
-  france:    { name: "Kingdom of France", color: "#2d4d8e", strength: 8, blobs: [[24,18,11,9],[22,16,7,3],[33,25,3,3]] },
-  castile:   { name: "Castile", color: "#b5541e", strength: 6, blobs: [[15,28,9,7],[17,26,7,2]] },
+  france:    { name: "Kingdom of France", color: "#2d4d8e", strength: 8, blobs: [[24,18,11,10],[23,17,8,2],[33,25,3,3]] },
+  castile:   { name: "Castile", color: "#b5541e", strength: 6, blobs: [[14,27,10,8],[17,25,7,2]] },
   aragon:    { name: "Aragon", color: "#c86a2e", strength: 3, blobs: [[24,28,5,4]] },
-  portugal:  { name: "Portugal", color: "#8e6a4a", strength: 3, blobs: [[13,28,2,7]] },
+  portugal:  { name: "Portugal", color: "#8e6a4a", strength: 3, blobs: [[12,28,2,8]] },
   hre:       { name: "Holy Roman Empire", color: "#a98436", strength: 7, blobs: [[33,13,9,8],[31,17,2,4]] },
   brandenburg:{ name: "Brandenburg", color: "#8a6c2c", strength: 4, blobs: [[40,11,7,4]] },
   saxony:    { name: "Saxony", color: "#97762f", strength: 3, blobs: [[42,15,5,3]] },
   bavaria:   { name: "Bavaria", color: "#7d6228", strength: 3, blobs: [[39,19,5,3]] },
   austria:   { name: "Austrian Empire", color: "#6b4f1c", strength: 7, blobs: [[42,20,7,4],[44,18,5,2]] },
-  savoy:     { name: "Savoy", color: "#8e2d4d", strength: 2, blobs: [[35,24,3,3]] },
+  savoy:     { name: "Savoy", color: "#8e2d4d", strength: 2, blobs: [[35,24,4,3]] },
   venice:    { name: "Venice", color: "#a03a6e", strength: 3, blobs: [[39,24,5,3],[45,27,3,2]] },
-  papal:     { name: "Papal States", color: "#8e5a8e", strength: 2, blobs: [[39,28,4,3]] },
-  naples:    { name: "Kingdom of Naples", color: "#b5541e", strength: 3, blobs: [[42,30,4,5]] },
-  sicily:    { name: "Sicily", color: "#a04a1e", strength: 1, blobs: [[40,36,4,2]] },
-  sweden:    { name: "Swedish Empire", color: "#4a6a8e", strength: 6, blobs: [[38,1,8,8],[46,2,6,4],[34,4,4,4]] },
+  papal:     { name: "Papal States", color: "#8e5a8e", strength: 2, blobs: [[39,27,4,4]] },
+  naples:    { name: "Kingdom of Naples", color: "#b5541e", strength: 3, blobs: [[41,30,4,3],[43,32,3,3],[45,34,2,2]] },
+  sicily:    { name: "Sicily", color: "#a04a1e", strength: 1, blobs: [[41,36,3,2]] },
+  sweden:    { name: "Swedish Empire", color: "#4a6a8e", strength: 6, blobs: [[37,0,4,4],[39,2,4,5],[42,4,3,4],[34,3,4,5],[47,0,7,6],[52,3,4,4]] },
   denmark:   { name: "Denmark", color: "#6a4a8e", strength: 2, blobs: [[36,9,4,3]] },
   poland:    { name: "Poland–Lithuania", color: "#8e2d8e", strength: 7, blobs: [[47,9,12,10],[52,7,8,3]] },
   russia:    { name: "Tsardom of Russia", color: "#7a7a2d", strength: 9, blobs: [[60,1,39,15],[64,15,34,9],[59,16,5,4]] },
@@ -1177,32 +1177,50 @@ const EMPIRE_HOME = { mx: 37, my: 11 };   // the woods beyond Hamburg
 
 let mapGrid = null;
 const cellHash = (c, r) => ((c * 73856093) ^ (r * 19349663)) >>> 0;
-function shade(hex, f) {
+function hexRGB(hex) {
   const n = parseInt(hex.slice(1), 16);
-  const ch = i => Math.max(0, Math.min(255, Math.round(((n >> i) & 255) * f)));
-  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
+// smooth value noise for organic coastlines (deterministic)
+function vnoise(x, y, seed) {
+  const L = 13;
+  const xi = Math.floor(x / L), yi = Math.floor(y / L);
+  let fx = x / L - xi, fy = y / L - yi;
+  fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+  const h = (a, b) => ((((a + 1e5) * 73856093) ^ ((b + 1e5) * 19349663) ^ (seed * 83492791)) >>> 0) % 1024 / 1024;
+  const a = h(xi, yi), b = h(xi + 1, yi), c2 = h(xi, yi + 1), d = h(xi + 1, yi + 1);
+  return a + (b - a) * fx + (c2 - a + (a - b + d - c2) * fx) * fy;
+}
+
+let fineGrid = null, FID = null, FIDX = null, FID_RGB = null;
+const SEA_RGB = hexRGB("#16303f");
+
 function buildMapGrid() {
   mapGrid = Array.from({ length: MG_H }, () => Array(MG_W).fill(null));
-  // landmass base (rough continent + islands + coasts)
-  const LAND = [[12,26,16,12],[18,14,20,14],[30,8,32,20],[42,4,20,10],[33,1,16,10],[46,7,54,22],
-                [56,16,44,18],[44,20,32,20],[36,22,12,16],[22,36,30,8],[60,34,20,16],[13,6,5,8],[19,3,8,14],[24,13,4,5]];
-  for (const [x, y, w, h] of LAND)
-    for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = "land";
+  // the Free Lands: unclaimed forest around your home, yours to grow into
+  const WILDS = [[33,7,7,6],[34,12,5,2]];
+  for (const [x, y, w, h] of WILDS)
+    for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = "wilds";
   for (const [id, n] of Object.entries(NATIONS))
     for (const [x, y, w, h] of n.blobs)
       for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = id;
-  // roughen the rectangles into 8-bit coastlines: two deterministic jitter passes
-  for (let pass = 0; pass < 2; pass++) {
-    const src = mapGrid.map(row => [...row]);
-    for (let r = 1; r < MG_H - 1; r++) for (let c = 1; c < MG_W - 1; c++) {
-      const h = cellHash(c + pass * 977, r);
-      if (h % 5 > 1) continue;
-      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-      const [dx, dy] = dirs[h % 4];
-      const nb = src[r + dy][c + dx];
-      if (nb !== src[r][c]) mapGrid[r][c] = nb;
-    }
+  // hard water: the English Channel and the North Sea stay open no matter the warp
+  const SEAS = [[17,15,14,2],[27,5,6,9],[43,8,4,3],[55,28,9,3]];
+  for (const [x, y, w, h] of SEAS)
+    for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = null;
+
+  // 1px fine grid: sample the coarse map through a noise warp so every
+  // border becomes an organic pixel coastline
+  FID = ["sea", "wilds", ...Object.keys(NATIONS)];
+  FIDX = Object.fromEntries(FID.map((id, i) => [id, i]));
+  FID_RGB = FID.map(id => id === "sea" ? SEA_RGB : id === "wilds" ? hexRGB("#55614e") : hexRGB(NATIONS[id].color));
+  fineGrid = new Uint8Array(FW * FH);
+  for (let r = 0; r < FH; r++) for (let c = 0; c < FW; c++) {
+    const wx = c + (vnoise(c * 3, r * 3, 1) - 0.5) * 3.2;
+    const wy = r + (vnoise(c * 3, r * 3, 2) - 0.5) * 3.2;
+    const cc = Math.max(0, Math.min(MG_W - 1, Math.floor(wx / SCALE)));
+    const rr = Math.max(0, Math.min(MG_H - 1, Math.floor(wy / SCALE)));
+    fineGrid[r * FW + c] = FIDX[mapGrid[rr][cc] || "sea"];
   }
   n_wars_init();
 }
@@ -1226,67 +1244,64 @@ let mapSelNation = null;
 function renderMap() {
   const mc = document.getElementById("euromap").getContext("2d");
   mc.imageSmoothingEnabled = false;
-  mc.fillStyle = "#16303f";
-  mc.fillRect(0, 0, MG_W * MPX, MG_H * MPX);
   const mine = empireCells();
-  for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++) {
-    const id = mapGrid[r][c];
-    if (!id) {
-      // sea gets faint pixel texture too
-      if (cellHash(c, r) % 11 === 0) { mc.fillStyle = "#1a3646"; mc.fillRect(c * MPX, r * MPX, MPX, MPX); }
-      continue;
-    }
-    let col = id === "land" ? "#5a5f58" : NATIONS[id].color;
-    if (mine.has(c + "," + r)) col = territoryColor;
-    // subtle per-cell shading breaks the flat cubic look
-    const f = 0.94 + (cellHash(c, r) % 4) * 0.035;
-    mc.fillStyle = shade(col.startsWith("#") ? col : territoryColor, f);
-    mc.fillRect(c * MPX, r * MPX, MPX, MPX);
-    // openfront-style border: a darker stroke of this territory's own colour
-    // wherever the neighbour belongs to someone else (or the sea)
-    const other = (rr, cc) => {
-      const nid = mapGrid[rr] ? mapGrid[rr][cc] : null;
-      const nMine = mine.has(cc + "," + rr);
-      const selfMine = mine.has(c + "," + r);
-      if (selfMine) return !nMine;
-      return nid !== id || nMine;
-    };
-    mc.fillStyle = shade(col.startsWith("#") ? col : territoryColor, 0.52);
-    const B = 2;
-    if (other(r - 1, c)) mc.fillRect(c * MPX, r * MPX, MPX, B);
-    if (other(r + 1, c)) mc.fillRect(c * MPX, (r + 1) * MPX - B, MPX, B);
-    if (other(r, c - 1)) mc.fillRect(c * MPX, r * MPX, B, MPX);
-    if (other(r, c + 1)) mc.fillRect((c + 1) * MPX - B, r * MPX, B, MPX);
+  const img = mc.createImageData(FW, FH);
+  const px = img.data;
+  const myCol = hexRGB(territoryColor);
+  const coarse = i => Math.floor(i / CPX);
+  const eidAt = (cc, rr) => {
+    if (cc < 0 || rr < 0 || cc >= FW || rr >= FH) return 0;
+    const nid = fineGrid[rr * FW + cc];
+    if (nid !== 0 && mine.has(coarse(cc) + "," + coarse(rr))) return 255;
+    return nid;
+  };
+  for (let r = 0; r < FH; r++) for (let c = 0; c < FW; c++) {
+    const i = r * FW + c;
+    const eid = eidAt(c, r);
+    const base = eid === 255 ? myCol : FID_RGB[fineGrid[i]];
+    const n = vnoise(c * 1.4, r * 1.4, 7);
+    let f = 0.92 + n * 0.12;
+    if (eid !== 0 &&
+        (eidAt(c - 1, r) !== eid || eidAt(c + 1, r) !== eid || eidAt(c, r - 1) !== eid || eidAt(c, r + 1) !== eid))
+      f *= 0.42;   // openfront border: darker shade of the territory's own colour, one block wide
+    px[i * 4] = base[0] * f; px[i * 4 + 1] = base[1] * f; px[i * 4 + 2] = base[2] * f; px[i * 4 + 3] = 255;
   }
+  // blow the buffer up to crisp 6x6 blocks
+  if (!window.__euroBuf) {
+    window.__euroBuf = document.createElement("canvas");
+    window.__euroBuf.width = FW; window.__euroBuf.height = FH;
+  }
+  window.__euroBuf.getContext("2d").putImageData(img, 0, 0);
+  mc.imageSmoothingEnabled = false;
+  mc.drawImage(window.__euroBuf, 0, 0, FW, FH, 0, 0, FW * MPX, FH * MPX);
   // war glow
   for (const [id, n] of Object.entries(NATIONS)) if (n.atWar) {
     mc.strokeStyle = "#d86a5a"; mc.lineWidth = 2;
-    for (const [x, y, w, h] of n.blobs) mc.strokeRect(x * MPX, y * MPX, w * MPX, h * MPX);
+    for (const [x, y, w, h] of n.blobs) mc.strokeRect(x * CPX, y * CPX, w * CPX, h * CPX);
   }
   // labels
   mc.textAlign = "center";
   for (const [name, x, y] of LABELS) {
     mc.font = "bold 11px 'Courier New', monospace";
     mc.fillStyle = "rgba(0,0,0,0.55)";
-    name.split("\n").forEach((line, i) => mc.fillText(line, x * MPX + 1, y * MPX + 1 + i * 11));
+    name.split("\n").forEach((line, i) => mc.fillText(line, x * CPX + 1, y * CPX + 1 + i * 11));
     mc.fillStyle = "#e8ecea";
-    name.split("\n").forEach((line, i) => mc.fillText(line, x * MPX, y * MPX + i * 11));
+    name.split("\n").forEach((line, i) => mc.fillText(line, x * CPX, y * CPX + i * 11));
   }
   // empire label + settlement dots
-  mc.fillStyle = "#0a0f0c";
   const home = EMPIRE_HOME;
   const dot = (mx, my, nm) => {
-    mc.fillStyle = "#0a0f0c"; mc.fillRect(mx * MPX - 2, my * MPX - 2, 6, 6);
-    mc.fillStyle = "#ffe9b0"; mc.fillRect(mx * MPX - 1, my * MPX - 1, 4, 4);
+    mc.fillStyle = "#0a0f0c"; mc.fillRect(mx * CPX - 2, my * CPX - 2, 6, 6);
+    mc.fillStyle = "#ffe9b0"; mc.fillRect(mx * CPX - 1, my * CPX - 1, 4, 4);
     mc.font = "10px 'Courier New', monospace";
-    mc.fillStyle = "#0a0f0c"; mc.fillText(nm, mx * MPX + 1, my * MPX - 5 + 1);
-    mc.fillStyle = "#ffe9b0"; mc.fillText(nm, mx * MPX, my * MPX - 5);
+    mc.fillStyle = "#0a0f0c"; mc.fillText(nm, mx * CPX + 1, my * CPX - 5 + 1);
+    mc.fillStyle = "#ffe9b0"; mc.fillText(nm, mx * CPX, my * CPX - 5);
   };
   dot(home.mx, home.my, settlementName);
   for (const st of settlements) dot(st.mx, st.my, st.name);
   mc.font = "bold 13px 'Courier New', monospace";
-  mc.fillStyle = "rgba(0,0,0,0.6)"; mc.fillText(empireName || "Your Empire", home.mx * MPX + 1, (home.my - 3) * MPX + 1);
-  mc.fillStyle = "#ffe9b0"; mc.fillText(empireName || "Your Empire", home.mx * MPX, (home.my - 3) * MPX);
+  mc.fillStyle = "rgba(0,0,0,0.6)"; mc.fillText(empireName || "Your Empire", home.mx * CPX + 1, (home.my - 3) * CPX + 1);
+  mc.fillStyle = "#ffe9b0"; mc.fillText(empireName || "Your Empire", home.mx * CPX, (home.my - 3) * CPX);
 }
 
 document.getElementById("mapToggle").addEventListener("click", () => {
@@ -1303,8 +1318,9 @@ document.getElementById("mapClose").addEventListener("click", () => {
 document.getElementById("euromap").addEventListener("click", e => {
   const rect = e.target.getBoundingClientRect();
   const c = Math.floor((e.clientX - rect.left) / MPX), r = Math.floor((e.clientY - rect.top) / MPX);
-  const id = mapGrid && mapGrid[r] && mapGrid[r][c];
-  if (!id || id === "land") { mapSelNation = null; mapInfoSync(); return; }
+  if (!fineGrid || c < 0 || r < 0 || c >= FW || r >= FH) return;
+  const id = FID[fineGrid[r * FW + c]];
+  if (!id || id === "sea" || id === "wilds") { mapSelNation = null; mapInfoSync(); return; }
   mapSelNation = id;
   mapInfoSync();
 });
