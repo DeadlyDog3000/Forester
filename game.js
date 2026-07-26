@@ -2526,7 +2526,7 @@ function syncUI() {
       const b = document.createElement("button");
       b.className = "btn menu-item";
       b.style.fontSize = "11px";
-      b.textContent = `${c.name} — ${c.profession || "no trade"} — ${Math.round(c.happiness)}% happy` + (c.rebel ? " ⚠" : "");
+      b.textContent = `${c.name} — ${c.child ? "child" : (c.profession || "no trade")}, ${c.age !== undefined ? c.age : "?"} yrs — ${Math.round(c.happiness)}% happy` + (c.rebel ? " ⚠" : "");
       b.addEventListener("click", () => {
         selected = c; selectedBldg = null; selectedCamp = null;
         cam.x = c.x - canvas.width / 2 / zoom;
@@ -2791,6 +2791,7 @@ function update(dt) {
       if (c.hp <= 0) { killCiv(c, "starved to death"); continue; }
     }
 
+    if (c.age === undefined) c.age = 20 + Math.floor(Math.random() * 26);
     if (c.child) {
       c.growT = (c.growT || 0) + dt;
       if (c.growT >= 300) { c.child = false; toast(`${c.name} has come of age and joins the working colony.`); }
