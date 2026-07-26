@@ -58,9 +58,9 @@ const SFX = (() => {
         s2.buffer = noiseBuf; s2.loop = true;
         f.type = "bandpass"; f.frequency.value = 600; f.Q.value = 0.5;
         g.gain.value = 0.0001;
-        g.gain.setTargetAtTime(0.14, t, 0.8);          // wind swells in
+        g.gain.setTargetAtTime(0.055, t, 0.8);         // wind swells in, gently
         lfo.type = "sine"; lfo.frequency.value = 0.23;  // slow gusting
-        lg.gain.value = 0.06;
+        lg.gain.value = 0.025;
         lfo.connect(lg); lg.connect(g.gain);
         s2.connect(f); f.connect(g); g.connect(master);
         s2.start(t); lfo.start(t);
