@@ -131,7 +131,6 @@
     <span>DM <b id="rDM">0</b></span>
     <span class="spacer"></span>
     <span>POP <b id="rPop">2</b></span>
-    <span>POLICE <b id="rPolice">0</b></span>
     <span>HAPPY <b id="rHappy">–</b></span>
     <span>TAX <b id="rTax">2</b></span>
     <span>TAXES IN <b id="rTaxT">4:00</b></span>
@@ -210,6 +209,8 @@
         <button class="btn menu-item" data-prof="police" id="miPolice">as Police (40 DM)</button>
         <button class="btn menu-item" data-prof="blacksmith" id="miSmith">as Blacksmith</button>
         <button class="btn menu-item" data-prof="soldier" id="miSoldier">as Soldier (30 DM)</button>
+        <button class="btn menu-item" data-prof="archer" id="miArcher">as Archer (25 DM)</button>
+        <button class="btn menu-item" data-prof="cavalry" id="miCavalry">as Cavalry (50 DM)</button>
       </div>
     </div>
     <button class="btn" id="cpBuyTool" style="width:100%;margin-top:6px">Buy tool from smithy (gov funds, 10 DM)</button>
@@ -228,13 +229,15 @@
   <div class="panel" id="govPanel">
     <h3 id="govTitle">GOVERNMENT OF NEU HAMBURG</h3>
     <div class="row"><input type="text" id="renameInput" maxlength="24" placeholder="Settlement name" style="flex:1;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:12px;padding:5px 8px"><button class="btn" id="renameBtn" style="margin-left:6px">Rename</button></div>
+    <div class="row"><input type="text" id="kingdomInput" maxlength="24" placeholder="Kingdom name" style="flex:1;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:12px;padding:5px 8px"><button class="btn" id="kingdomBtn" style="margin-left:6px">Rename Kingdom</button></div>
     <div class="row">
       <span>Tax per civilian</span>
       <span><input type="range" id="taxSlider" min="0" max="10" value="2" step="1"> <b id="taxVal">2</b> DM</span>
     </div>
     <div class="row"><span>Treasury</span><span id="govDM">0 DM</span></div>
-    <div class="row"><span>Police force</span><span id="govPolice">0 officers</span></div>
     <div class="row"><span>Colony happiness</span><span id="govHappy">–</span></div>
+    <h4>PROFESSIONS</h4>
+    <div id="govProfs" style="font-size:11px;line-height:1.7"></div>
     <h4>TERRITORY</h4>
     <div class="row"><span>Territory colour</span><input type="color" id="terrColor" value="#7da083"></div>
     <div class="row"><span>Border colour</span><input type="color" id="bordColor" value="#c9a86a"></div>

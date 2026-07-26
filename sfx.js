@@ -88,6 +88,7 @@ const SFX = (() => {
     swingFist:() => { noise(0.11, 0.16, 900, 250, 1.5); },                             // duller fist whoosh
     hit:      () => { tone("triangle", 160, 55, 0.14, 0.35); noise(0.08, 0.2, 300, 120, 1, "lowpass"); },
     dodge:    () => { noise(0.16, 0.18, 700, 2600, 2); },                              // rising whoosh
+    arrow:    () => { tone("triangle", 700, 950, 0.04, 0.1); noise(0.22, 0.13, 1600, 3400, 3); },   // bowstring pluck + arrow hiss
     chop:     () => { noise(0.06, 0.3, 700, 250, 1, "lowpass"); tone("triangle", 220, 90, 0.07, 0.2); },
     treeFall: () => { noise(0.5, 0.3, 500, 80, 1, "lowpass"); tone("triangle", 110, 40, 0.5, 0.25); },
     quarry:   () => { tone("square", 1900, 1500, 0.04, 0.1); noise(0.06, 0.28, 2600, 900, 3); },
