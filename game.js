@@ -2459,6 +2459,28 @@ document.getElementById("bordColor").addEventListener("input", e => { borderColo
 
 // --- save / load ---
 const SAVE_KEY = "forester_save";
+
+// founder's tools: one-shot save surgery via URL params, then the URL is scrubbed
+// ?scout=now — the scouts offer a new settlement immediately on Continue
+// ?disband=Name — remove a settlement by name (case-insensitive)
+try {
+  const qp = new URLSearchParams(location.search);
+  if (qp.has("scout") || qp.has("disband")) {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw && raw !== "null") {
+      const d = JSON.parse(raw);
+      if (qp.has("disband")) {
+        const name = (qp.get("disband") || "").toLowerCase();
+        const before = (d.settlements || []).length;
+        d.settlements = (d.settlements || []).filter(s => (s.name || "").toLowerCase() !== name);
+        if (d.settlements.length < before) console.log(`Disbanded settlement "${qp.get("disband")}".`);
+      }
+      if (qp.has("scout")) { d.sackedCamps = Math.max(5, d.sackedCamps || 0); d.nextSettleAt = 1; }   // 1, not 0: the loader treats 0 as unset
+      localStorage.setItem(SAVE_KEY, JSON.stringify(d));
+    }
+    history.replaceState(null, "", location.pathname);
+  }
+} catch (e) { console.error("save surgery failed", e); }
 function saveGame() {
   if (gameState !== "playing") return;
   const bi = b => buildings.indexOf(b), ci = c => civs.indexOf(c), cpi = c => camps.indexOf(c);
