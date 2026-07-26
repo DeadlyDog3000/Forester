@@ -603,6 +603,62 @@ function legalToBuild(type, wx, wy, rot) {
   return true;
 }
 
+const PATH_CELL = 44;
+function cellBlocked(px, py) {
+  return allStructures().some(b => (b.type === "wall" || b.type === "stonewall") && !b.site &&
+                                   pointInRect(px, py, inflate(bldgRect(b), 10)));
+}
+function lineBlocked(x1, y1, x2, y2) {
+  const d = Math.hypot(x2 - x1, y2 - y1), steps = Math.max(1, Math.ceil(d / 22));
+  for (let i = 1; i <= steps; i++)
+    if (cellBlocked(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)) return true;
+  return false;
+}
+function findPath(sx, sy, gx, gy) {
+  // bounded A* over a coarse grid; gates are open cells, walls are not
+  const minX = Math.floor(Math.min(sx, gx) / PATH_CELL) - 12, maxX = Math.floor(Math.max(sx, gx) / PATH_CELL) + 12;
+  const minY = Math.floor(Math.min(sy, gy) / PATH_CELL) - 12, maxY = Math.floor(Math.max(sy, gy) / PATH_CELL) + 12;
+  if ((maxX - minX) * (maxY - minY) > 4600) return null;   // too far to bother — walk straight
+  const key = (x, y) => x + "," + y;
+  const start = [Math.floor(sx / PATH_CELL), Math.floor(sy / PATH_CELL)];
+  const goal = [Math.floor(gx / PATH_CELL), Math.floor(gy / PATH_CELL)];
+  const open = [{ x: start[0], y: start[1], g: 0, f: 0, from: null }];
+  const seen = new Map([[key(start[0], start[1]), open[0]]]);
+  let goalNode = null, guard = 0;
+  while (open.length && guard++ < 4000) {
+    open.sort((a, b) => a.f - b.f);
+    const n = open.shift();
+    if (n.x === goal[0] && n.y === goal[1]) { goalNode = n; break; }
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const nx2 = n.x + dx, ny2 = n.y + dy;
+      if (nx2 < minX || ny2 < minY || nx2 > maxX || ny2 > maxY) continue;
+      const k = key(nx2, ny2);
+      if (seen.has(k)) continue;
+      const cx2 = nx2 * PATH_CELL + PATH_CELL / 2, cy2 = ny2 * PATH_CELL + PATH_CELL / 2;
+      if (cellBlocked(cx2, cy2)) { seen.set(k, null); continue; }
+      if (dx && dy && (cellBlocked(n.x * PATH_CELL + PATH_CELL / 2 + dx * PATH_CELL, n.y * PATH_CELL + PATH_CELL / 2) &&
+                       cellBlocked(n.x * PATH_CELL + PATH_CELL / 2, n.y * PATH_CELL + PATH_CELL / 2 + dy * PATH_CELL))) continue;
+      const g = n.g + (dx && dy ? 1.4 : 1);
+      const node = { x: nx2, y: ny2, g, f: g + Math.hypot(goal[0] - nx2, goal[1] - ny2), from: n };
+      seen.set(k, node);
+      open.push(node);
+    }
+  }
+  if (!goalNode) return null;
+  const pts = [];
+  for (let n = goalNode; n; n = n.from) pts.unshift([n.x * PATH_CELL + PATH_CELL / 2, n.y * PATH_CELL + PATH_CELL / 2]);
+  pts.shift();                       // drop the cell we stand in
+  if (pts.length) pts.pop();         // final leg goes to the true target
+  // smooth: drop waypoints the walker can already see past
+  const out = [];
+  let ax = sx, ay = sy;
+  for (let i = 0; i < pts.length; i++) {
+    const last = i === pts.length - 1;
+    if (!last && !lineBlocked(ax, ay, pts[i + 1][0], pts[i + 1][1])) continue;
+    out.push(pts[i]); ax = pts[i][0]; ay = pts[i][1];
+  }
+  return out;
+}
 function collideMove(c, nx, ny) {
   const blocked = (x, y) => allStructures().some(b => (b.type === "wall" || b.type === "stonewall") && !b.site && pointInRect(x, y, inflate(bldgRect(b), 6)));
   const ox = c.x, oy = c.y;
@@ -630,6 +686,12 @@ function collideMove(c, nx, ny) {
     c.stuckT += 1 / 60;
     if (c.stuckT > 1.2) {
       c.stuckT = 0;
+      // replan the route from here before cruder measures
+      if (c.task && c.task.kind !== "attack" && !c.replanned) {
+        c.replanned = true;
+        const route = findPath(c.x, c.y, c.task.x, c.task.y);
+        if (route && route.length) { c.path = route; c.tx = route[0][0]; c.ty = route[0][1]; return; }
+      }
       // walled in? take the gate like a sensible person
       if (!c.viaGate && (!c.task || c.task.kind !== "attack")) {
         let gate = null, gd = 800;
@@ -886,13 +948,31 @@ function snapWallPos(type, wx, wy) {
     const d = Math.hypot(b.x - wx, b.y - wy);
     if (d < bd) { bd = d; best = b; }
   }
-  if (!best) return [wx, wy];
-  const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 4;   // slight overlap: no gaps
-  if (wallRot) {
-    // upright chain: same column, stack above or below
-    return [best.x, best.y + (wy > best.y ? span : -span)];
+  if (best) {
+    const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 4;   // slight overlap: no gaps
+    if (wallRot) return [best.x, best.y + (wy > best.y ? span : -span)];
+    return [best.x + (wx > best.x ? span : -span), best.y];
   }
-  return [best.x + (wx > best.x ? span : -span), best.y];
+  // no same-orientation neighbour: corner onto a perpendicular one
+  let perp = null, pd = 96;
+  for (const b of buildings) {
+    if (!WALLLIKE.has(b.type)) continue;
+    if ((b.rot || 0) === wallRot) continue;
+    const d = Math.hypot(b.x - wx, b.y - wy);
+    if (d < pd) { pd = d; perp = b; }
+  }
+  if (!perp) return [wx, wy];
+  const Ln = SMALL_BLDG[perp.type], Ls = SMALL_BLDG[type];
+  if (wallRot) {
+    // placing upright against a flat run: hug its end, rising above or hanging below the line
+    const x = perp.x + (wx > perp.x ? 1 : -1) * (Ln / 2 + 8);
+    const y = wy < perp.y - 10 ? perp.y : perp.y + Ls - 20;
+    return [x, y];
+  }
+  // placing flat against an upright column: butt against its side, at its foot or head
+  const x = perp.x + (wx > perp.x ? 1 : -1) * (Ls / 2 + 8);
+  const y = wy < perp.y - Ln / 2 ? perp.y - Ln + 20 : perp.y;
+  return [x, y];
 }
 function tryPlace(type, wx, wy) {
   if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
@@ -941,6 +1021,11 @@ function order(c, task) {
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
   c.task = task; c.tx = task.x; c.ty = task.y;
   c.state = "walking"; c.workT = 0;
+  c.path = null; c.viaGate = false; c.replanned = false;
+  if (c.isCiv && task.kind !== "attack" && lineBlocked(c.x, c.y, task.x, task.y)) {
+    const route = findPath(c.x, c.y, task.x, task.y);
+    if (route && route.length) { c.path = route; c.tx = route[0][0]; c.ty = route[0][1]; }
+  }
 }
 
 function arrive(c) {
@@ -2932,9 +3017,13 @@ function update(dt) {
         c.tx = t.x; c.ty = t.y;
       }
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
-      const reach = c.task && c.task.kind === "attack" ? 34 : 5;
+      const reach = c.task && c.task.kind === "attack" ? 34 : (c.path && c.path.length ? 10 : 5);
       if (d < reach) {
-        if (c.viaGate && c.task) {
+        if (c.path && c.path.length) {
+          c.path.shift();
+          if (c.path.length) { c.tx = c.path[0][0]; c.ty = c.path[0][1]; }
+          else if (c.task) { c.tx = c.task.x; c.ty = c.task.y; }
+        } else if (c.viaGate && c.task) {
           // through the gate — now on to where we were actually going
           c.viaGate = false;
           c.tx = c.task.x; c.ty = c.task.y;
