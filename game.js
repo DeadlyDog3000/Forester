@@ -161,6 +161,9 @@ let territoryColor = "#7da083", borderColor = "#c9a86a";
 const territory = new Set();          // "cx,cy" world cells, 96px each
 const TCELL = 96;
 let sackedCamps = 0, playT = 0, nextSettleAt = 1200, settlePending = false;
+let lastTier = 1;
+// the woods grow bolder as your colony grows older and larger
+function difficulty() { return Math.min(6, 1 + Math.floor(playT / 600) + Math.floor(civs.length / 8)); }
 const settlements = [];               // {name, pop, mx, my} on the Europe map
 const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false };
 
@@ -269,18 +272,22 @@ function nearThings(kind, wx, wy, r) {
 
 // --- camps & raids ---
 function spawnCamps(n) {
-  for (let i = 0; i < n && camps.length < MAX_CAMPS; i++) {
+  const tier = difficulty();
+  for (let i = 0; i < n && camps.length < Math.min(9, 4 + tier); i++) {
     const a = Math.random() * Math.PI * 2, d = 1100 + Math.random() * 1100;
     const type = Math.random() < 0.55 ? "thief" : "raid";
-    camps.push({ type, x: Math.cos(a) * d, y: Math.sin(a) * d,
-                 hp: type === "thief" ? 120 : 180, maxHp: type === "thief" ? 120 : 180,
-                 dm: 25 + Math.floor(Math.random() * 40), weapons: 1 + Math.floor(Math.random() * 2) });
+    const hp = Math.round((type === "thief" ? 120 : 180) * (1 + 0.15 * (tier - 1)));
+    camps.push({ type, x: Math.cos(a) * d, y: Math.sin(a) * d, hp, maxHp: hp,
+                 dm: 25 + Math.floor(Math.random() * 40) + tier * 8,
+                 weapons: 1 + Math.floor(Math.random() * 2) + Math.floor(tier / 3) });
   }
 }
 
 function mkRaider(camp, state) {
-  return { x: camp.x + Math.random() * 60 - 30, y: camp.y + 20 + Math.random() * 30, hp: 60, maxHp: 60,
-           dmg: camp.type === "raid" ? 14 : 10, camp, target: null,
+  const tier = difficulty();
+  const hp = 60 + (tier - 1) * 12;
+  return { x: camp.x + Math.random() * 60 - 30, y: camp.y + 20 + Math.random() * 30, hp, maxHp: hp,
+           dmg: (camp.type === "raid" ? 14 : 10) + (tier - 1) * 2, camp, target: null,
            state, anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, wpx: camp.x, wpy: camp.y };
 }
 function spawnRaid() {
@@ -1561,8 +1568,9 @@ function updateWars(dt) {
       const a = Math.random() * Math.PI * 2;
       for (let i = 0; i < 3; i++) {
         const t = targets[Math.floor(Math.random() * targets.length)];
-        raiders.push({ x: Math.cos(a) * 1300 + i * 30, y: Math.sin(a) * 1300 + i * 24, hp: 90, maxHp: 90,
-                       dmg: 16, camp: { x: Math.cos(a) * 1600, y: Math.sin(a) * 1600 }, target: t,
+        const whp = 90 + (difficulty() - 1) * 12;
+        raiders.push({ x: Math.cos(a) * 1300 + i * 30, y: Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
+                       dmg: 16 + (difficulty() - 1) * 2, camp: { x: Math.cos(a) * 1600, y: Math.sin(a) * 1600 }, target: t,
                        state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, nation: id });
       }
       toast(`⚔ A war party of ${n.name} marches on the colony!`);
@@ -1932,6 +1940,10 @@ function update(dt) {
   if (paused) return;
 
   worldT += dt;
+  if (difficulty() > lastTier) {
+    lastTier = difficulty();
+    toast("⚠ Word of your colony's wealth spreads. The woods grow bolder…");
+  }
   updateResearch(dt);
   playT += dt;
   updateWars(dt);
@@ -1996,7 +2008,7 @@ function update(dt) {
   // raids
   if (camps.length) {
     raidTimer -= dt;
-    if (raidTimer <= 0) { raidTimer = RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN); spawnRaid(); }
+    if (raidTimer <= 0) { raidTimer = (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.88, difficulty() - 1); spawnRaid(); }
     campRespawnTimer -= dt;
     if (campRespawnTimer <= 0) { campRespawnTimer = 300; spawnCamps(1); }
     patrolT = (patrolT || 0) - dt;
@@ -2012,7 +2024,7 @@ function update(dt) {
       !buildings.some(b => (b.type === "wall" || b.type === "gate") && !b.fire)) {
     ambushT -= dt;
     if (ambushT <= 0) {
-      ambushT = 50 + Math.random() * 40;
+      ambushT = (50 + Math.random() * 40) * Math.pow(0.88, difficulty() - 1);
       const guards = civs.filter(c => isForce(c) && c.state !== "sleeping");
       const targets = buildings.filter(b => b.type !== "burned" && !b.fire);
       if (targets.length && raiders.filter(r => r.state !== "patrol").length < MAX_RAIDERS + 2) {
