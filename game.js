@@ -461,7 +461,20 @@ function eat(c, kind) {
 }
 
 // --- input ---
-addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; if (e.key === "Escape") { buildMode = null; syncUI(); } });
+let pauseOpen = false;
+function setPause(open) {
+  pauseOpen = open;
+  $("pauseMenu").style.display = open ? "block" : "none";
+  paused = pauseOpen || dlg.open || $("mapOverlay").style.display === "block" ||
+           $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
+}
+addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === "Escape") {
+    if (buildMode) { buildMode = null; syncUI(); }
+    else if (gameState === "playing" || pauseOpen) setPause(!pauseOpen);
+  }
+});
 addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 canvas.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
 canvas.addEventListener("wheel", e => {
@@ -1057,6 +1070,9 @@ $("renameBtn").addEventListener("click", () => {
   syncUI();
 });
 $("renameInput").addEventListener("keydown", e => { if (e.key === "Enter") $("renameBtn").click(); e.stopPropagation(); });
+$("pmResume").addEventListener("click", () => setPause(false));
+$("pmSave").addEventListener("click", () => { setPause(false); saveGame(); toast("The colony ledger is written. Game saved."); });
+$("pmMenu").addEventListener("click", () => { saveGame(); location.reload(); });
 $("govToggle").addEventListener("click", () => {
   const p = $("govPanel");
   p.style.display = p.style.display === "block" ? "none" : "block";
@@ -1136,42 +1152,51 @@ $("bpDismantle").addEventListener("click", () => {
 const MG_W = 100, MG_H = 56, SCALE = 2, MPX = 6, FW = MG_W * SCALE, FH = MG_H * SCALE, CPX = SCALE * MPX;
 // stylized 1683 Europe in English, painted as rect blobs on a grid
 const NATIONS = {
-  scotland:  { name: "Scotland", color: "#a0344a", strength: 2, blobs: [[20,4,5,5]] },
-  england:   { name: "Kingdom of England", color: "#b03a52", strength: 5, blobs: [[19,9,7,6],[24,13,2,2]] },
-  ireland:   { name: "Ireland", color: "#94505e", strength: 1, blobs: [[13,7,4,6]] },
-  france:    { name: "Kingdom of France", color: "#2d4d8e", strength: 8, blobs: [[24,18,11,10],[23,17,8,2],[33,25,3,3]] },
-  castile:   { name: "Castile", color: "#b5541e", strength: 6, blobs: [[14,27,10,8],[17,25,7,2]] },
-  aragon:    { name: "Aragon", color: "#c86a2e", strength: 3, blobs: [[24,28,5,4]] },
-  portugal:  { name: "Portugal", color: "#8e6a4a", strength: 3, blobs: [[12,28,2,8]] },
-  hre:       { name: "Holy Roman Empire", color: "#a98436", strength: 7, blobs: [[33,13,9,8],[31,17,2,4]] },
-  brandenburg:{ name: "Brandenburg", color: "#8a6c2c", strength: 4, blobs: [[40,11,7,4]] },
-  saxony:    { name: "Saxony", color: "#97762f", strength: 3, blobs: [[42,15,5,3]] },
-  bavaria:   { name: "Bavaria", color: "#7d6228", strength: 3, blobs: [[39,19,5,3]] },
-  austria:   { name: "Austrian Empire", color: "#6b4f1c", strength: 7, blobs: [[42,20,7,4],[44,18,5,2]] },
-  savoy:     { name: "Savoy", color: "#8e2d4d", strength: 2, blobs: [[35,24,4,3]] },
-  venice:    { name: "Venice", color: "#a03a6e", strength: 3, blobs: [[39,24,5,3],[45,27,3,2]] },
-  papal:     { name: "Papal States", color: "#8e5a8e", strength: 2, blobs: [[39,27,4,4]] },
-  naples:    { name: "Kingdom of Naples", color: "#b5541e", strength: 3, blobs: [[41,30,4,3],[43,32,3,3],[45,34,2,2]] },
-  sicily:    { name: "Sicily", color: "#a04a1e", strength: 1, blobs: [[41,36,3,2]] },
-  sweden:    { name: "Swedish Empire", color: "#4a6a8e", strength: 6, blobs: [[37,0,4,4],[39,2,4,5],[42,4,3,4],[34,3,4,5],[47,0,7,6],[52,3,4,4]] },
-  denmark:   { name: "Denmark", color: "#6a4a8e", strength: 2, blobs: [[36,9,4,3]] },
+  scotland:  { name: "Scotland", color: "#a0344a", strength: 2, blobs: [[19,2,6,3],[18,4,7,3]] },
+  england:   { name: "Kingdom of England", color: "#b03a52", strength: 5, blobs: [[18,7,7,6],[17,11,3,3],[23,12,3,2]] },
+  ireland:   { name: "Ireland", color: "#94505e", strength: 1, blobs: [[12,6,4,5]] },
+  france:    { name: "Kingdom of France", color: "#2d4d8e", strength: 8, blobs: [[23,17,12,9],[20,18,5,3],[33,24,3,3]] },
+  castile:   { name: "Castile", color: "#b5541e", strength: 6, blobs: [[14,26,10,10]] },
+  aragon:    { name: "Aragon", color: "#c86a2e", strength: 3, blobs: [[24,27,5,5]] },
+  portugal:  { name: "Portugal", color: "#8e6a4a", strength: 3, blobs: [[12,27,3,9]] },
+  hre:       { name: "Holy Roman Empire", color: "#a98436", strength: 7, blobs: [[33,13,9,9],[31,16,3,4]] },
+  brandenburg:{ name: "Brandenburg", color: "#8a6c2c", strength: 4, blobs: [[40,10,7,4]] },
+  saxony:    { name: "Saxony", color: "#97762f", strength: 3, blobs: [[42,14,5,3]] },
+  bavaria:   { name: "Bavaria", color: "#7d6228", strength: 3, blobs: [[39,18,5,4]] },
+  austria:   { name: "Austrian Empire", color: "#6b4f1c", strength: 7, blobs: [[43,20,7,4],[45,18,4,2]] },
+  milan:     { name: "Milan", color: "#a04a3a", strength: 2, blobs: [[36,23,3,2]] },
+  savoy:     { name: "Savoy", color: "#8e2d4d", strength: 2, blobs: [[34,24,3,3]] },
+  venice:    { name: "Venice", color: "#a03a6e", strength: 3, blobs: [[38,23,5,2],[43,25,3,2]] },
+  tuscany:   { name: "Tuscany", color: "#b09a4a", strength: 2, blobs: [[37,26,3,2]] },
+  papal:     { name: "Papal States", color: "#8e5a8e", strength: 2, blobs: [[39,27,3,3],[41,29,2,2]] },
+  naples:    { name: "Kingdom of Naples", color: "#b5541e", strength: 3, blobs: [[42,31,3,3],[44,33,3,3]] },
+  sicily:    { name: "Sicily", color: "#a04a1e", strength: 1, blobs: [[41,38,4,2]] },
+  sweden:    { name: "Swedish Empire", color: "#4a6a8e", strength: 6, blobs: [[34,1,4,4],[37,0,4,4],[40,2,4,5],[43,4,3,4],[47,0,8,5],[53,2,4,4]] },
+  denmark:   { name: "Denmark", color: "#6a4a8e", strength: 2, blobs: [[35,6,2,4],[38,7,3,2]] },
   poland:    { name: "Poland–Lithuania", color: "#8e2d8e", strength: 7, blobs: [[47,9,12,10],[52,7,8,3]] },
-  russia:    { name: "Tsardom of Russia", color: "#7a7a2d", strength: 9, blobs: [[60,1,39,15],[64,15,34,9],[59,16,5,4]] },
+  russia:    { name: "Tsardom of Russia", color: "#7a7a2d", strength: 9, blobs: [[60,1,39,15],[64,15,34,10],[59,16,5,4]] },
   cossacks:  { name: "Cossacks", color: "#5a8e4a", strength: 3, blobs: [[59,20,8,4]] },
-  crimea:    { name: "Crimean Khanate", color: "#6aa05a", strength: 4, blobs: [[62,24,8,4]] },
+  crimea:    { name: "Crimean Khanate", color: "#6aa05a", strength: 4, blobs: [[61,24,7,3],[63,27,4,2]] },
+  hungary:   { name: "Hungary", color: "#79a065", strength: 3, blobs: [[47,21,5,3]] },
+  transylvania:{ name: "Transylvania", color: "#86a878", strength: 2, blobs: [[52,20,4,3]] },
+  moldavia:  { name: "Moldavia", color: "#8fae7f", strength: 2, blobs: [[56,17,4,4]] },
+  wallachia: { name: "Wallachia", color: "#7ba26b", strength: 2, blobs: [[52,24,7,2]] },
   ottoman:   { name: "Ottoman Empire", color: "#2d7a3a", strength: 10,
-               blobs: [[46,24,14,10],[54,22,8,3],[60,28,16,10],[70,26,14,6],[62,38,10,10],[54,34,8,5]] },
-  algiers:   { name: "Algiers", color: "#3a8e4a", strength: 3, blobs: [[24,37,9,3]] },
-  tunis:     { name: "Tunis", color: "#3a8e4a", strength: 2, blobs: [[33,37,5,3]] },
-  tripoli:   { name: "Tripolitania", color: "#3a8e4a", strength: 2, blobs: [[38,39,9,3]] },
+               blobs: [[46,26,8,6],[49,24,4,3],[48,32,4,3],[49,35,3,2],[54,30,3,2],[57,30,14,7],[70,28,9,7],
+                       [74,33,4,9],[64,42,12,5],[62,40,4,3],[76,30,10,8]] },
+  algiers:   { name: "Algiers", color: "#3a8e4a", strength: 3, blobs: [[24,37,9,3],[22,36,4,2]] },
+  tunis:     { name: "Tunis", color: "#3a8e4a", strength: 2, blobs: [[33,36,4,4]] },
+  tripoli:   { name: "Tripolitania", color: "#3a8e4a", strength: 2, blobs: [[38,39,9,3],[46,40,6,3]] },
 };
 const LABELS = [
-  ["Scotland",22,6],["England",22,12],["Ireland",15,9],["France",29,22],["Castile",19,31],
-  ["Aragon",26,30],["Portugal",14,31],["Holy Roman\nEmpire",37,16],["Brandenburg",43,12],
-  ["Saxony",44,16],["Bavaria",41,20],["Austria",45,22],["Venice",41,25],["Papal\nStates",41,29],
-  ["Naples",44,32],["Sicily",42,37],["Swedish Empire",41,4],["Denmark",38,10],
-  ["Poland–Lithuania",52,13],["Tsardom of Russia",76,8],["Cossacks",62,22],["Crimean\nKhanate",65,26],
-  ["Ottoman Empire",62,32],["Algiers",27,38],["Tunis",35,38],["Tripolitania",42,40],
+  ["Scotland",21,4],["England",21,10],["Ireland",13,8],["France",28,21],["Castile",18,30],
+  ["Aragon",26,29],["Portugal",13,32],["Holy Roman\nEmpire",37,15],["Brandenburg",44,11],
+  ["Saxony",45,16],["Bavaria",41,20],["Austria",46,22],["Milan",36,23],["Savoy",35,26],
+  ["Venice",41,24],["Tuscany",38,27],["Papal\nStates",40,29],["Naples",46,34],["Sicily",43,40],
+  ["Swedish Empire",44,2],["Denmark",35,6],["Poland–Lithuania",52,12],["Tsardom of Russia",76,8],
+  ["Cossacks",62,22],["Crimean\nKhanate",64,25],["Hungary",49,23],["Transylvania",54,20],
+  ["Moldavia",58,17],["Wallachia",55,26],["Ottoman Empire",63,36],["Algiers",27,39],
+  ["Tunis",35,38],["Tripolitania",42,41],
 ];
 const EMPIRE_HOME = { mx: 37, my: 11 };   // the woods beyond Hamburg
 
@@ -1198,14 +1223,14 @@ const SEA_RGB = hexRGB("#16303f");
 function buildMapGrid() {
   mapGrid = Array.from({ length: MG_H }, () => Array(MG_W).fill(null));
   // the Free Lands: unclaimed forest around your home, yours to grow into
-  const WILDS = [[33,7,7,6],[34,12,5,2]];
+  const WILDS = [[33,7,7,6],[34,13,5,1]];
   for (const [x, y, w, h] of WILDS)
     for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = "wilds";
   for (const [id, n] of Object.entries(NATIONS))
     for (const [x, y, w, h] of n.blobs)
       for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = id;
   // hard water: the English Channel and the North Sea stay open no matter the warp
-  const SEAS = [[17,15,14,2],[27,5,6,9],[43,8,4,3],[55,28,9,3]];
+  const SEAS = [[16,15,14,2],[26,4,7,10],[43,9,4,4],[56,28,7,3],[52,32,4,4],[44,27,2,4]];
   for (const [x, y, w, h] of SEAS)
     for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = null;
 
@@ -1663,6 +1688,24 @@ function syncUI() {
   $("miFarm").textContent = `Wheat Farm — ${costText(costOf("farm"))}`;
   $("miDoor").textContent = `Door — ${doorCost()} logs (selected civilian)`;
   $("miForge").textContent = has("forging") ? `Forge — ${costText(STATIC_COSTS.forge)}` : "Forge — needs Forging research";
+  if ($("govPanel").style.display === "block") {
+    const list = $("civList");
+    list.innerHTML = "";
+    for (const c of civs) {
+      const b = document.createElement("button");
+      b.className = "btn menu-item";
+      b.style.fontSize = "11px";
+      b.textContent = `${c.name} — ${c.profession || "no trade"} — ${Math.round(c.happiness)}% happy` + (c.rebel ? " ⚠" : "");
+      b.addEventListener("click", () => {
+        selected = c; selectedBldg = null; selectedCamp = null;
+        cam.x = c.x - canvas.width / 2 / zoom;
+        cam.y = c.y - canvas.height / 2 / zoom;
+        syncUI();
+      });
+      list.appendChild(b);
+    }
+    if (!civs.length) list.innerHTML = '<div style="padding:6px;color:#5a6b60;font-size:11px">No one is left.</div>';
+  }
   $("researchNow").textContent = research ?
     `Researching ${TECH[research.id].name}: ${Math.round(research.t / techTime(TECH[research.id]) * 100)}%` : "No research underway.";
   if (research && $("techPanel").style.display === "block") renderTech();

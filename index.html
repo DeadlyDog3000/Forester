@@ -229,6 +229,8 @@
     <label><input type="checkbox" id="lawHunterWeapons" checked> Hunters may keep weapons</label>
     <label id="lawForcedRow" style="display:none"><input type="checkbox" id="lawForced"> Forced labour edict (Slavery)</label>
     <div style="font-size:11px;color:#5a6b60;margin-top:4px">Weapon laws decide who fights back with steel when unrest turns to rebellion. High taxes breed rebellion; police must put it down.</div>
+    <h4>CIVILIANS</h4>
+    <div id="civList" style="max-height:150px;overflow-y:auto;border:1px solid #24352b"></div>
     <h4>RESEARCH</h4>
     <button class="btn" id="techToggle" style="width:100%">Open Tech Tree</button>
     <div id="researchNow" style="font-size:11px;color:#7da083;margin-top:6px">No research underway.</div>
@@ -284,7 +286,15 @@
     </div>
   </div>
 
-<div id="mapOverlay" style="position:fixed;inset:0;z-index:90;display:none;background:rgba(9,13,11,0.96)">
+<div class="panel" id="pauseMenu" style="left:50%;top:50%;transform:translate(-50%,-50%);width:300px;padding:18px;display:none;z-index:96;text-align:center">
+    <h3 style="color:#c9a86a;letter-spacing:3px;margin-bottom:12px">PAUSED</h3>
+    <button class="btn" id="pmResume" style="width:100%;margin-bottom:6px">Resume</button>
+    <button class="btn" id="pmSave" style="width:100%;margin-bottom:6px">Save Game</button>
+    <button class="btn" id="pmMenu" style="width:100%">Save &amp; Return to Main Menu</button>
+    <div style="font-size:10px;color:#5a6b60;margin-top:8px">Esc to resume</div>
+  </div>
+
+  <div id="mapOverlay" style="position:fixed;inset:0;z-index:90;display:none;background:rgba(9,13,11,0.96)">
     <div style="display:flex;height:100%;padding:18px;gap:14px">
       <div style="flex:1;display:flex;flex-direction:column;min-width:0">
         <div style="display:flex;align-items:center;margin-bottom:8px">
