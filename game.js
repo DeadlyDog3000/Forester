@@ -753,8 +753,13 @@ canvas.addEventListener("click", e => {
         toast(`${selected.name} moves to put down ${c.name}.`);
         return;
       }
-      selected = c; selectedBldg = null; selectedCamp = null;
-      toast(`${c.name} selected.`);
+      if (selected === c) {
+        selected = null;
+        toast(`${c.name} deselected.`);
+      } else {
+        selected = c; selectedBldg = null; selectedCamp = null;
+        toast(`${c.name} selected.`);
+      }
       syncUI();
       return;
     }
