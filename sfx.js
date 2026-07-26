@@ -24,7 +24,9 @@ const SFX = (() => {
   addEventListener("pointerdown", ctx, { once: true });
   addEventListener("keydown", ctx, { once: true });
 
+  const FSET = () => window.FSET || {};
   function tone(type, f0, f1, dur, vol, delay = 0) {
+    if (FSET().sfx === false) return;
     const a = ctx(), t = a.currentTime + delay;
     const o = a.createOscillator(), g = a.createGain();
     o.type = type;
@@ -37,6 +39,7 @@ const SFX = (() => {
   }
 
   function noise(dur, vol, f0, f1, q = 1, type = "bandpass", delay = 0) {
+    if (FSET().sfx === false) return;
     const a = ctx(), t = a.currentTime + delay;
     const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
     s.buffer = noiseBuf; s.loop = true;
@@ -51,7 +54,9 @@ const SFX = (() => {
 
   let windNode = null;
   return {
+    setMaster: (v) => { ctx(); master.gain.value = v; },
     windLoop: (on) => {
+      if (FSET().ambient === false) on = false;
       if (on && !windNode) {
         const a = ctx(), t = a.currentTime;
         const s2 = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
@@ -88,7 +93,7 @@ const SFX = (() => {
     coinLoss: () => { tone("square", 660, 660, 0.06, 0.16); tone("square", 440, 330, 0.12, 0.16, 0.07); },
     death:    () => { tone("sawtooth", 320, 40, 0.6, 0.3); noise(0.3, 0.14, 500, 100, 1, "lowpass", 0.1); },
     eat:      () => { noise(0.05, 0.22, 1400, 600, 2); noise(0.05, 0.2, 1200, 500, 2, "bandpass", 0.11); noise(0.06, 0.16, 1000, 400, 2, "bandpass", 0.22); },
-    step:     (fast) => { noise(0.035, fast ? 0.09 : 0.06, 900, 300, 1, "lowpass"); },
+    step:     (fast) => { if (FSET().ambient === false) return; noise(0.035, fast ? 0.09 : 0.06, 900, 300, 1, "lowpass"); },
     crackle:  () => { noise(0.09, 0.2, 2600, 700, 3); noise(0.06, 0.16, 1800, 500, 3, "bandpass", 0.05); },
     research: () => {
       // a little eureka: rising fourth, fifth, octave with a shimmer on top
@@ -99,7 +104,7 @@ const SFX = (() => {
       tone("triangle", 2093, 2093, 0.18, 0.07, 0.34);
     },
     bird: () => {
-      // a short warbling chirp phrase, randomized each call
+      if (FSET().ambient === false || FSET().sfx === false) return;
       const a = ctx(), t0 = a.currentTime;
       const n = 2 + Math.floor(Math.random() * 3);
       for (let i = 0; i < n; i++) {
@@ -125,6 +130,7 @@ const SFX = (() => {
       tone("sawtooth", 110, 108, 1.8, 0.12, 1.5);
     },
     fireLoop: (on) => {
+      if (FSET().ambient === false) on = false;
       if (on && !fireNode) {
         const a = ctx(), t = a.currentTime;
         const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
@@ -265,6 +271,7 @@ const MUSIC = (() => {
 
   return {
     battle(on) {
+      if ((window.FSET || {}).battle === false) on = false;
       if (on && !bWanted) { bWanted = true; bNext = 0; if (bg) bg.gain.value = 0.9; bPump(); }
       else if (!on && bWanted) {
         bWanted = false;
@@ -275,6 +282,7 @@ const MUSIC = (() => {
       }
     },
     play() {
+      if ((window.FSET || {}).music === false) return;
       if (wanted) return;
       wanted = true; nextLoopAt = 0;
       if (mg) mg.gain.setValueAtTime(1, window.__foresterAC ? window.__foresterAC.currentTime : 0);

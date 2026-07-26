@@ -265,6 +265,26 @@
     <div id="techDesc">Click a lit node to research it. Hover for details.</div>
   </div>
 
+  <div class="panel" id="settingsPanel" style="left:50%;top:50%;transform:translate(-50%,-50%);width:340px;padding:16px;display:none;z-index:140">
+    <h3 style="color:#c9a86a;letter-spacing:2px;margin-bottom:10px">SETTINGS <span id="setClose" style="float:right;cursor:pointer;color:#5a6b60">[close]</span></h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0">
+      <span>Master volume</span><input type="range" id="setMaster" min="0" max="100" value="50" style="width:130px;accent-color:#7da083">
+    </div>
+    <label style="display:flex;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="setMusic" checked> Menu &amp; game-over music</label>
+    <label style="display:flex;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="setBattle" checked> Battle music</label>
+    <label style="display:flex;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="setSfx" checked> Sound effects</label>
+    <label style="display:flex;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="setAmbient" checked> Ambience (wind, fire, birds, footsteps)</label>
+    <hr style="border:none;border-top:1px solid #24352b;margin:10px 0">
+    <label style="display:flex;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="setFloaters" checked> Floating combat &amp; gain text</label>
+    <label style="display:flex;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="setLabels" checked> Name labels over characters</label>
+    <label style="display:flex;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="setSmoke" checked> Chimney smoke</label>
+    <label style="display:flex;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="setNight" checked> Night darkness &amp; cabin lights</label>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0">
+      <span>Camera speed</span><input type="range" id="setCam" min="50" max="200" value="100" style="width:130px;accent-color:#7da083">
+    </div>
+    <div style="font-size:10px;color:#5a6b60;margin-top:6px">Settings are saved on this browser, separate from your game saves.</div>
+  </div>
+
   <div class="panel" id="dialogue">
     <div class="head">
       <img id="dlgFace" alt="visitor">
@@ -298,6 +318,7 @@
       <div style="font-size:13px;color:#9ab0a2;text-shadow:0 1px 2px #000">Hamburg, 1683. They took everything. Build it back.</div>
       <button class="btn" id="menuContinue" style="font-size:16px;padding:12px 40px;margin-top:14px;display:none">CONTINUE GAME</button>
       <button class="btn" id="menuNew" style="font-size:16px;padding:12px 40px">NEW GAME</button>
+      <button class="btn" id="menuSettings" style="font-size:13px;padding:8px 30px">SETTINGS</button>
       <div style="font-size:11px;color:#5a6b60">beta &mdash; DeadlyDog Productions</div>
     </div>
   </div>
@@ -322,6 +343,7 @@
     <h3 style="color:#c9a86a;letter-spacing:3px;margin-bottom:12px">PAUSED</h3>
     <button class="btn" id="pmResume" style="width:100%;margin-bottom:6px">Resume</button>
     <button class="btn" id="pmSave" style="width:100%;margin-bottom:6px">Save Game</button>
+    <button class="btn" id="pmSettings" style="width:100%;margin-bottom:6px">Settings</button>
     <button class="btn" id="pmMenu" style="width:100%">Save &amp; Return to Main Menu</button>
     <div style="font-size:10px;color:#5a6b60;margin-top:8px">Esc to resume</div>
   </div>

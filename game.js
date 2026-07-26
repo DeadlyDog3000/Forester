@@ -201,6 +201,12 @@ const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: 
 
 const cam = { x: 0, y: 0 };
 let zoom = 1;
+const settings = Object.assign(
+  { master: 0.5, music: true, battle: true, sfx: true, ambient: true,
+    floaters: true, labels: true, smoke: true, night: true, camSpeed: 1 },
+  JSON.parse(localStorage.getItem("forester_settings") || "{}"));
+window.FSET = settings;
+function saveSettings() { localStorage.setItem("forester_settings", JSON.stringify(settings)); }
 const keys = {};
 const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
@@ -1531,6 +1537,29 @@ $("renameBtn").addEventListener("click", () => {
   syncUI();
 });
 $("renameInput").addEventListener("keydown", e => { if (e.key === "Enter") $("renameBtn").click(); e.stopPropagation(); });
+function openSettings() {
+  $("setMaster").value = Math.round(settings.master * 100);
+  $("setCam").value = Math.round(settings.camSpeed * 100);
+  for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
+                           ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"]])
+    $(id).checked = settings[key];
+  $("settingsPanel").style.display = "block";
+}
+$("pmSettings").addEventListener("click", openSettings);
+$("menuSettings").addEventListener("click", openSettings);
+$("setClose").addEventListener("click", () => { $("settingsPanel").style.display = "none"; saveSettings(); });
+$("setMaster").addEventListener("input", e => { settings.master = e.target.value / 100; SFX.setMaster(settings.master); saveSettings(); });
+$("setCam").addEventListener("input", e => { settings.camSpeed = e.target.value / 100; saveSettings(); });
+for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
+                         ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"]])
+  $(id).addEventListener("change", e => {
+    settings[key] = e.target.checked;
+    if (key === "music" && !settings.music) MUSIC.stop();
+    if (key === "music" && settings.music && (gameState === "menu" || gameState === "over")) MUSIC.play();
+    if (key === "battle" && !settings.battle) MUSIC.battle(false);
+    if (key === "ambient" && !settings.ambient) { SFX.windLoop(false); SFX.fireLoop(false); }
+    saveSettings();
+  });
 $("pmResume").addEventListener("click", () => setPause(false));
 $("pmSave").addEventListener("click", () => {
   setPause(false);
@@ -2487,6 +2516,7 @@ function updateTutorial(dt) {
 $("tutSkip").addEventListener("click", () => { tutStep = -1; $("tutBanner").style.display = "none"; toast("The woods will teach you the rest."); });
 
 // --- menu / loading / game over ---
+addEventListener("pointerdown", () => { try { SFX.setMaster(settings.master); } catch (e) {} }, { once: true });
 function assetsReady() {
   const mode = sessionStorage.getItem("forester_skip");
   sessionStorage.removeItem("forester_skip");
@@ -2667,10 +2697,10 @@ function update(dt) {
   const fast = keys["shift"] ? 2.6 : 1;
   const up = keys["w"] || keys["arrowup"], dn = keys["s"] || keys["arrowdown"];
   const lf = keys["a"] || keys["arrowleft"], rt = keys["d"] || keys["arrowright"];
-  if (up) cam.y -= CAM_SPEED * fast / zoom * dt;
-  if (dn) cam.y += CAM_SPEED * fast / zoom * dt;
-  if (lf) cam.x -= CAM_SPEED * fast / zoom * dt;
-  if (rt) cam.x += CAM_SPEED * fast / zoom * dt;
+  if (up) cam.y -= CAM_SPEED * settings.camSpeed * fast / zoom * dt;
+  if (dn) cam.y += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
+  if (lf) cam.x -= CAM_SPEED * settings.camSpeed * fast / zoom * dt;
+  if (rt) cam.x += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
   SFX.windLoop(gameState === "playing" && zoom < 0.62);   // high in the sky, only wind
@@ -2749,7 +2779,7 @@ function update(dt) {
   SFX.fireLoop(buildings.some(b => b.fire > 0));
   for (const b of [...buildings]) {
     igniteCheck(b, dt);
-    if (!b.fire && (b.type === "bakery" || (b.type === "cabin" && b.occupants.length))) {
+    if (settings.smoke && !b.fire && (b.type === "bakery" || (b.type === "cabin" && b.occupants.length))) {
       b.smokeT = (b.smokeT === undefined ? Math.random() * 8 : b.smokeT) - dt;
       if (b.smokeT <= 0) {
         b.smokeT = 8 + Math.random() * 14;
@@ -3381,13 +3411,13 @@ function render(dt) {
   for (const v of visitors) if (inView(v.x, v.y)) drawables.push({ y: v.y, draw: () => {
     drawSprite(img["hunter" + (Math.floor(v.anim) % 4)], v.x, v.y, CHAR_SIZE, v.facing < 0);
     ctx.fillStyle = "#c98a6a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-    ctx.fillText(v.name + " (visitor)", v.x, v.y - CHAR_SIZE - 4);
+    if (settings.labels) ctx.fillText(v.name + " (visitor)", v.x, v.y - CHAR_SIZE - 4);
   }});
   for (const r of raiders) if (inView(r.x, r.y)) drawables.push({ y: r.y, draw: () => {
     const frame = r.foe ? img["atksword" + (Math.floor(r.anim) % 4)] : img["hunter" + (Math.floor(r.anim) % 4)];
     drawSprite(frame, r.x, r.y, CHAR_SIZE, r.facing < 0);
     ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-    ctx.fillText(r.state === "patrol" ? "thief" : "RAIDER", r.x, r.y - CHAR_SIZE - 4);
+    if (settings.labels) ctx.fillText(r.state === "patrol" ? "thief" : "RAIDER", r.x, r.y - CHAR_SIZE - 4);
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
   for (const c of civs) if (c.state !== "sleeping" && c.state !== "warming" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
@@ -3404,7 +3434,7 @@ function render(dt) {
                     c.profession === "police" ? "#8aa0c9" : c.profession === "soldier" ? "#b58a5a" : "#7da083";
     ctx.font = "10px monospace"; ctx.textAlign = "center";
     const tag = c.rebel ? " [REBEL]" : c.child ? " (child)" : c.profession === "police" ? " [police]" : c.profession === "soldier" ? " [soldier]" : "";
-    ctx.fillText(c.name + tag, c.x, c.y - CHAR_SIZE - 4);
+    if (settings.labels) ctx.fillText(c.name + tag, c.x, c.y - CHAR_SIZE - 4);
     if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
     if (c.state === "crafting" || c.state === "buildingFarm" || c.state === "smithing" || c.state === "hunting") {
       const tot = c.state === "crafting" ? CRAFT_TIME * workMul(c) : c.state === "smithing" ? SMITH_TIME * workMul(c) :
@@ -3426,7 +3456,7 @@ function render(dt) {
 
   // night falls: darkness, and warm light spilling from the doorways
   const night = nightAmt();
-  if (night > 0.01) {
+  if (settings.night && night > 0.01) {
     ctx.fillStyle = `rgba(7, 10, 26, ${0.48 * night})`;
     ctx.fillRect(cam.x, cam.y, vw, vh);
     ctx.globalCompositeOperation = "lighter";
@@ -3447,7 +3477,7 @@ function render(dt) {
 
   // floating combat text
   ctx.font = "12px monospace"; ctx.textAlign = "center";
-  for (const f of floaters) {
+  for (const f of settings.floaters ? floaters : []) {
     ctx.globalAlpha = Math.min(1, f.t / 0.5);
     ctx.fillStyle = f.color;
     ctx.fillText(f.text, f.x, f.y);
