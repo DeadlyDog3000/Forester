@@ -67,21 +67,21 @@ T("policing", "Policing", "military", ["marketing"], 3, "Unlocks recruiting poli
 T("court", "Court", "military", ["policing"], 4, "Half of beaten rebels are subdued alive");
 T("landownership", "Land Ownership", "military", ["currencies"], 2, "Cabins house 3");
 T("ownership", "Ownership", "military", ["landownership"], 3, "Dismantling refunds 75%");
-T("loanship", "Loanship", "military", ["ownership"], 4, "Treasury may borrow to -50 DM");
-T("slavery", "Slavery", "military", ["ownership"], 4, "Forced labour edict: work +25% faster, happiness plummets");
-T("slavemarket", "Slave Market", "military", ["slavery"], 5, "+2 DM each tax collection; happiness suffers");
+T("lordship", "Lordship", "military", ["ownership"], 4, "Lords underwrite the treasury: it may borrow to -50 DM");
+T("slavery", "Slavery", "military", ["lordship"], 5, "Forced labour edict: work +25% faster, happiness plummets");
+T("slavemarket", "Slave Market", "military", ["slavery"], 6, "+2 DM each tax collection; happiness suffers");
 T("forging", "Forging", "military", ["policing"], 4, "Unlocks blacksmiths");
 T("spears", "Spears", "military", ["forging"], 5, "Blacksmiths may forge spears (14 dmg)");
-T("blades", "Blades", "military", ["forging"], 5, "All weapons +5 damage");
-T("hilts", "Hilts", "military", ["blades"], 6, "Weapons cost 1 less iron");
-T("swords", "Swords", "military", ["hilts"], 7, "Blacksmiths may forge swords (20 dmg)");
-T("battleaxes", "Battle Axes", "military", ["swords"], 8, "Blacksmiths may forge battle axes (28 dmg)");
-T("lances", "Lances", "military", ["swords"], 8, "Police & soldiers +10 damage (requires War Horse)");
+T("hilts", "Hilts", "military", ["spears"], 6, "Weapons cost 1 less iron");
+T("blades", "Blades", "military", ["hilts"], 7, "All weapons +5 damage; the secret of true sword-forging");
+T("swords", "Swords", "military", ["blades"], 8, "Blacksmiths may forge swords (20 dmg)");
+T("battleaxes", "Battle Axes", "military", ["swords"], 9, "Blacksmiths may forge battle axes (28 dmg)");
+T("lances", "Lances", "military", ["swords"], 9, "Police & soldiers +10 damage (requires War Horse)");
 T("defending", "Defending", "military", ["policing"], 4, "Police take weapons from the armoury; torching 30% slower — but the camps take notice");
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
 T("occupation", "Occupation", "military", ["raiding"], 6, "Taxes collect +1 more DM");
 TECH.lances.req.push("warhorse");
-TECH.foraging.done = TECH.ownership.done = TECH.spears.done = true;   // starting knowledge
+TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;   // starting knowledge
 
 const has = id => TECH[id].done;
 const techCost = t => 15 + t.depth * 12;
@@ -104,7 +104,7 @@ const torchTime = () => TORCH_TIME / ((has("defending") ? 0.7 : 1) * (has("pettr
 const weaponDmg = () => (has("battleaxes") ? 28 : has("swords") ? 20 : has("spears") ? 14 : 8) + (has("blades") ? 5 : 0);
 const weaponIron = () => Math.max(1, 2 - (has("hilts") ? 1 : 0));
 const canForgeWeapons = () => has("spears") || has("swords") || has("battleaxes");
-const treasuryFloor = () => has("loanship") ? -50 : 0;
+const treasuryFloor = () => has("lordship") ? -50 : 0;
 const cabinCapacity = () => has("landownership") ? 3 : 2;
 const dismantleRefund = () => has("ownership") ? 0.75 : 0.5;
 const nearWatchtower = (x, y) => buildings.some(b => b.type === "watchtower" && !b.fire && Math.hypot(b.x - x, b.y - y) < 400);
@@ -713,9 +713,8 @@ function autonomy(c, dt) {
   }
 
   if (c.profession === "farmer") {
-    const mine = farms.find(f => f.ready && f.workers.includes(c)) ||
-                 farms.find(f => f.ready && Math.hypot(f.x - home.x, f.y - home.y) < 220) ||
-                 farms.find(f => f.ready && f.workers.length === 0);
+    // a farmer tends only the farms they are assigned to — no one else's
+    const mine = farms.find(f => f.ready && f.workers.includes(c));
     if (mine) { order(c, { kind: "harvest", target: mine, x: mine.x, y: mine.y + 10 }); return; }
   }
   if (c.profession === "hunter" && c.inv.meat < 2) {
@@ -1554,7 +1553,7 @@ function loadGame() {
     cam.x = d.cam.x; cam.y = d.cam.y;
     hunterTimer = d.hunterTimer; raidTimer = d.raidTimer; campRespawnTimer = d.campRespawnTimer;
     for (const [id, done] of Object.entries(d.tech)) if (TECH[id]) TECH[id].done = done;
-    TECH.foraging.done = TECH.ownership.done = TECH.spears.done = true;
+    TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;
     research = d.research;
     usedNames.clear(); for (const n of d.usedNames) usedNames.add(n);
     civs.length = 0;
