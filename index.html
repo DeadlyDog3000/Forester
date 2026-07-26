@@ -69,9 +69,22 @@
   #govPanel label { display: flex; gap: 6px; align-items: center; margin: 4px 0; cursor: pointer; }
 
   #techPanel {
-    top: 48px; left: 300px; width: 460px; max-height: 82vh; overflow-y: auto;
+    top: 48px; left: 300px; width: min(760px, calc(100vw - 320px)); max-height: 82vh;
     padding: 12px; display: none; z-index: 15;
   }
+  #techGraphWrap { overflow: auto; max-height: 64vh; border: 1px solid #24352b; background: #0f1713; }
+  #techGraphWrap svg { display: block; }
+  .tnode { cursor: pointer; }
+  .tnode rect { fill: #14201a; stroke: #3a5243; rx: 8; }
+  .tnode.avail rect { stroke: #c9a86a; }
+  .tnode.done rect { fill: #1c2a21; stroke: #7da083; }
+  .tnode.locked { opacity: 0.42; }
+  .tnode.researching rect { stroke: #c9a86a; stroke-dasharray: 4 3; }
+  .tnode text { fill: #cfd8d3; font: 11px "Courier New", monospace; }
+  .tnode .sub { fill: #7a8f83; font-size: 9px; }
+  .tnode.done text { fill: #7da083; }
+  .tlink { stroke: #3a5243; stroke-width: 1.5; fill: none; }
+  #techDesc { font-size: 11px; color: #9ab0a2; min-height: 28px; margin-top: 8px; }
   #techPanel h3 { font-size: 13px; color: #c9a86a; letter-spacing: 1px; margin-bottom: 8px; }
   .techTabs { display: flex; gap: 6px; margin-bottom: 8px; }
   .tech {
@@ -105,6 +118,7 @@
   <canvas id="game"></canvas>
 
   <div class="panel" id="hud">
+    <span style="color:#c9a86a;letter-spacing:2px" id="rName">NEU HAMBURG</span>
     <span>LOGS <b id="rLogs">0</b></span>
     <span>SEEDS <b id="rSeeds">0</b></span>
     <span>STONE <b id="rStone">0</b></span>
@@ -136,6 +150,7 @@
         <button class="btn menu-item" data-build="watchtower">Watchtower &mdash; 15 logs, 5 stone</button>
         <button class="btn menu-item" data-build="bakery">Bakery &mdash; 20 logs, 3 stone</button>
         <button class="btn menu-item" data-build="well">Well &mdash; 10 logs, 8 stone</button>
+        <button class="btn menu-item" data-build="forge" id="miForge">Forge &mdash; 20 logs, 6 stone, 2 iron (needs Forging)</button>
         <button class="btn menu-item" data-build="sapling">Replant Spruce &mdash; 1 log</button>
       </div>
     </div>
@@ -184,6 +199,7 @@
       </div>
     </div>
     <button class="btn" id="cpBuyTool" style="width:100%;margin-top:6px">Buy tool from smithy (gov funds, 10 DM)</button>
+    <button class="btn" id="cpGiveWeapon" style="width:100%;margin-top:6px">Give weapon from armoury</button>
     <div id="cpFarms" style="font-size:11px;color:#5a6b60;margin-top:6px"></div>
   </div>
 
@@ -195,7 +211,8 @@
   </div>
 
   <div class="panel" id="govPanel">
-    <h3>GOVERNMENT OF THE COLONY</h3>
+    <h3 id="govTitle">GOVERNMENT OF NEU HAMBURG</h3>
+    <div class="row"><input type="text" id="renameInput" maxlength="24" placeholder="Settlement name" style="flex:1;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:12px;padding:5px 8px"><button class="btn" id="renameBtn" style="margin-left:6px">Rename</button></div>
     <div class="row">
       <span>Tax per civilian</span>
       <span><input type="range" id="taxSlider" min="0" max="10" value="2" step="1"> <b id="taxVal">2</b> DM</span>
@@ -219,7 +236,8 @@
       <button class="btn active" id="tabGrowth">Growth</button>
       <button class="btn" id="tabMilitary">Military Philosophy</button>
     </div>
-    <div id="techList"></div>
+    <div id="techGraphWrap"><div id="techList"></div></div>
+    <div id="techDesc">Click a lit node to research it. Hover for details.</div>
   </div>
 
   <div class="panel" id="dialogue">
@@ -240,7 +258,8 @@
     <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px">
       <div style="font-size:52px;letter-spacing:14px;color:#cfd8d3;text-shadow:0 3px 0 #000">FORESTER</div>
       <div style="font-size:13px;color:#9ab0a2;text-shadow:0 1px 2px #000">Hamburg, 1683. They took everything. Build it back.</div>
-      <button class="btn" id="menuNew" style="font-size:16px;padding:12px 40px;margin-top:14px">NEW GAME</button>
+      <button class="btn" id="menuContinue" style="font-size:16px;padding:12px 40px;margin-top:14px;display:none">CONTINUE GAME</button>
+      <button class="btn" id="menuNew" style="font-size:16px;padding:12px 40px">NEW GAME</button>
       <div style="font-size:11px;color:#5a6b60">alpha &mdash; DeadlyDog Productions</div>
     </div>
   </div>
@@ -251,7 +270,7 @@
     <div id="loadText" style="font-size:11px;color:#5a6b60">Felling trees&hellip;</div>
   </div>
 
-  <div id="gameover" style="position:fixed;inset:0;z-index:120;display:none;background:#0d1210 url('assets/sprites/ui/ruins_scene.png') center/cover no-repeat;image-rendering:pixelated">
+  <div id="gameover" style="position:fixed;inset:0;z-index:120;display:none;opacity:0;transition:opacity 2.4s ease;background:#0d1210 url('assets/sprites/ui/ruins_scene.png') center/cover no-repeat;image-rendering:pixelated">
     <div style="position:absolute;inset:0;background:rgba(13,18,16,0.6)"></div>
     <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
       <div style="font-size:44px;letter-spacing:10px;color:#d86a5a;text-shadow:0 3px 0 #000">GAME OVER</div>
@@ -261,6 +280,7 @@
     </div>
   </div>
 
+<script src="sfx.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

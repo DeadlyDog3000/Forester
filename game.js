@@ -28,9 +28,11 @@ const REPAIR_COST = { logs: 20, doors: 1 };
 const STATIC_COSTS = {
   recruit: { logs: 30 }, market: { logs: 25 }, sapling: { logs: 1 },
   watchtower: { logs: 15, stone: 5 }, bakery: { logs: 20, stone: 3 }, well: { logs: 10, stone: 8 },
+  forge: { logs: 20, stone: 6, iron: 2 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
-  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well" };
+  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge" };
+const forgeBuilt = () => buildings.some(b => b.type === "forge" && !b.fire);
 
 // --- tech tree ---
 const TECH = {};
@@ -125,6 +127,7 @@ const IMAGES = {
   farm: "assets/sprites/buildings/farm_32.png",
   watchtower: "assets/sprites/buildings/watchtower_32.png", bakery: "assets/sprites/buildings/bakery_32.png",
   well: "assets/sprites/buildings/well_32.png",
+  forge: "assets/sprites/buildings/forge_32.png",
   thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
 };
 for (const who of ["sister", "brother", "hunter"]) for (let i = 0; i < 4; i++) IMAGES[`${who}${i}`] = `assets/sprites/characters/${who}_walk_${i}.png`;
@@ -148,6 +151,7 @@ for (const key of imageNames) {
 let gameState = "boot"; // boot -> menu | loading -> playing -> over
 const res = { logs: 0, seeds: 0, stone: 0, iron: 0, doors: 0, wheat: 0, bread: 0, meat: 0, dm: 60, weapons: 0, tools: 0 };
 let taxRate = 2, policeCount = 0, taxTimer = TAX_PERIOD;
+let settlementName = "Neu Hamburg";
 const laws = { civWeapons: false, hunterWeapons: true, forced: false };
 
 const cam = { x: 0, y: 0 };
@@ -187,6 +191,9 @@ function mkCiv(name, who, x, y) {
 }
 
 function float(x, y, text, color) { floaters.push({ x, y, text, color, t: 1.4 }); }
+function onScreen(x, y) {
+  return x > cam.x && x < cam.x + canvas.width / zoom && y > cam.y && y < cam.y + canvas.height / zoom;
+}
 
 // --- terrain ---
 function chunkKey(cx, cy) { return cx + "," + cy; }
@@ -283,10 +290,12 @@ function updateRaider(r, dt) {
       r.facing = r.foe.x < r.x ? -1 : 1;
       r.anim += dt * 9;
       r.atkT -= dt;
-      if (r.atkT <= 0 && d < 48) { r.atkT = ATK_INTERVAL; strikeUnit(r, r.foe, r.dmg); }
+      if (r.atkT <= 0 && d < 48) { r.atkT = ATK_INTERVAL; SFX.swing(); strikeUnit(r, r.foe, r.dmg); }
       return;
     }
   }
+  r.stepT = (r.stepT || 0) - dt;
+  if ((r.state === "approach" || r.state === "flee") && r.stepT <= 0 && onScreen(r.x, r.y)) { SFX.step(true); r.stepT = 0.3; }
   if (r.state === "approach") {
     const t = r.target;
     if (!buildings.includes(t)) { r.state = "flee"; return; }
@@ -299,6 +308,7 @@ function updateRaider(r, dt) {
     if (r.workT > 2) {
       const take = Math.min(15, Math.max(0, res.dm - treasuryFloor()));
       res.dm -= take; r.carry = take;
+      SFX.coinLoss();
       float(r.x, r.y - 70, "-" + take + " DM", "#d86a5a");
       toast(`⚠ A raider makes off with ${take} DM!`);
       r.state = "flee";
@@ -312,12 +322,14 @@ function updateRaider(r, dt) {
 
 // generic strike between any two units (civ or raider)
 function strikeUnit(a, b, dmg) {
-  if (Math.random() < DODGE_CHANCE) { float(b.x, b.y - 70, "Dodged!", "#cfd8d3"); return; }
+  if (Math.random() < DODGE_CHANCE) { float(b.x, b.y - 70, "Dodged!", "#cfd8d3"); SFX.dodge(); return; }
   b.hp -= dmg;
   float(b.x, b.y - 70, "-" + dmg, "#d86a5a");
+  SFX.hit();
   if (b.hp <= 0) {
     if (raiders.includes(b)) {
       raiders.splice(raiders.indexOf(b), 1);
+      SFX.death();
       if (b.carry) { res.dm += b.carry; float(b.x, b.y - 50, "+" + b.carry + " DM", "#7da083"); }
       toast("A raider has been cut down.");
     } else if (civs.includes(b)) {
@@ -382,13 +394,13 @@ function collideMove(c, nx, ny) {
 function toast(text) { msgEl.textContent = text; toastTimer = 5; }
 function canPay(cost) {
   return res.logs >= (cost.logs || 0) && res.doors >= (cost.doors || 0) && res.stone >= (cost.stone || 0) &&
-         res.seeds >= (cost.seeds || 0) && res.dm - (cost.dm || 0) >= treasuryFloor();
+         res.iron >= (cost.iron || 0) && res.seeds >= (cost.seeds || 0) && res.dm - (cost.dm || 0) >= treasuryFloor();
 }
 function pay(cost) {
   res.logs -= cost.logs || 0; res.doors -= cost.doors || 0; res.stone -= cost.stone || 0;
-  res.seeds -= cost.seeds || 0; res.dm -= cost.dm || 0;
+  res.iron -= cost.iron || 0; res.seeds -= cost.seeds || 0; res.dm -= cost.dm || 0;
 }
-const costText = c => [c.logs && `${c.logs} logs`, c.doors && `${c.doors} door`, c.stone && `${c.stone} stone`, c.seeds && `${c.seeds} seeds`, c.dm && `${c.dm} DM`].filter(Boolean).join(", ");
+const costText = c => [c.logs && `${c.logs} logs`, c.doors && `${c.doors} door`, c.stone && `${c.stone} stone`, c.iron && `${c.iron} iron`, c.seeds && `${c.seeds} seeds`, c.dm && `${c.dm} DM`].filter(Boolean).join(", ");
 
 function freeHome() { return buildings.find(b => b.type === "cabin" && b.occupants.length < cabinCapacity()) || null; }
 function houseCiv(c) {
@@ -408,12 +420,14 @@ function killCiv(c, why) {
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
   if (selected === c) selected = null;
   civs.splice(civs.indexOf(c), 1);
+  SFX.death();
   toast(`${c.name} ${why}. The colony numbers ${civs.length}.`);
   if (civs.length === 0) gameOver();
   syncUI();
 }
 
 function eat(c, kind) {
+  SFX.eat();
   const heal = Math.min(EAT_HEAL, c.maxHp - c.hp);
   c.hunger = Math.min(100, c.hunger + (kind === "wheat" ? 15 : 35));
   if (heal > 0) { c.hp += heal; float(c.x, c.y - 70, "+" + Math.round(heal), "#7da083"); }
@@ -542,10 +556,12 @@ canvas.addEventListener("click", e => {
 });
 
 function tryPlace(type, wx, wy) {
+  if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
   const cost = costOf(type);
   if (!canPay(cost)) { toast(`Not enough materials: needs ${costText(cost)}.`); return; }
   if (!legalToBuild(type, wx, wy)) { toast("Cannot build there — too close to another building, its entrance, or an obstacle."); return; }
   pay(cost);
+  SFX.build();
   if (type === "sapling") {
     const [cx, cy] = chunkOf(wx, wy);
     getChunk(cx, cy).trees.push({ x: wx, y: wy, alive: true, progress: -1, growth: 0 });
@@ -609,13 +625,14 @@ function autonomy(c, dt) {
 
   if (!c.tool && res.tools > 0 && c.inv.dm >= TOOL_PRICE_SELF) {
     res.tools--; c.inv.dm -= TOOL_PRICE_SELF; res.dm += TOOL_PRICE_SELF; c.tool = true;
+    SFX.coin();
     toast(`${c.name} buys a tool from the smithy with their own coin.`);
     return;
   }
 
   if (!c.home) return;
 
-  if (c.profession === "blacksmith" && has("forging")) {
+  if (c.profession === "blacksmith" && has("forging") && forgeBuilt()) {
     const iron = weaponIron();
     const wantTool = res.tools <= res.weapons || !canForgeWeapons();
     if (wantTool && res.iron >= 1 && res.stone >= 1 && res.logs >= 1 && res.tools < 5) {
@@ -684,7 +701,7 @@ function maybeRebel(c) {
   if (c.happiness < 25 && Math.random() < 0.08) {
     c.rebel = true;
     const lawAllows = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
-    if (lawAllows && res.weapons > 0) { res.weapons--; c.armed = true; }
+    if (lawAllows && forgeBuilt() && res.weapons > 0) { res.weapons--; c.armed = true; }
     c.task = null; c.state = "idle";
     toast(`⚠ ${c.name} has turned against the colony${c.armed ? " — and took a weapon" : ""}!`);
   }
@@ -709,9 +726,9 @@ function rebelAI(c) {
 function forceAI(c) {
   if (c.state !== "idle") return;
   // arm up from the armoury once Defending is known
-  if (!c.armed && has("defending") && res.weapons > 0) {
+  if (!c.armed && has("defending") && forgeBuilt() && res.weapons > 0) {
     res.weapons--; c.armed = true;
-    toast(`${c.name} takes a weapon from the armoury.`);
+    toast(`${c.name} takes a weapon at the forge.`);
   }
   const range = 450 + (has("guarddogs") ? 250 : 0);
   let best = null, bd = range;
@@ -877,29 +894,63 @@ function updateResearch(dt) {
     renderTech(); syncUI();
   }
 }
+const NODE_W = 118, NODE_H = 42, COL_W = 148, ROW_H = 62;
 function renderTech() {
   const list = $("techList");
-  list.innerHTML = "";
-  for (const t of Object.values(TECH).filter(t => t.tree === techTab).sort((a, b) => a.depth - b.depth)) {
-    const div = document.createElement("div");
-    div.className = "tech " + (t.done ? "done" : techAvailable(t) ? "" : "locked");
-    const researching = research && research.id === t.id;
-    div.innerHTML = `<div><div class="nm">${t.name}${t.done ? " ✓" : ""}</div><div class="desc">${t.desc}` +
-      (t.req.length ? ` — needs ${t.req.map(r => TECH[r].name).join(", ")}` : "") + `</div></div>`;
-    if (researching) {
-      const wrap = document.createElement("div");
-      wrap.className = "barwrap";
-      wrap.innerHTML = `<div class="barfill" style="width:${Math.round(research.t / techTime(t) * 100)}%"></div>`;
-      div.appendChild(wrap);
-    } else if (!t.done && techAvailable(t)) {
-      const b = document.createElement("button");
-      b.className = "btn";
-      b.textContent = `${techCost(t)} DM / ${Math.round(techTime(t) / 6) / 10} min`;
-      b.addEventListener("click", () => startResearch(t.id));
-      div.appendChild(b);
-    }
-    list.appendChild(div);
+  const nodes = Object.values(TECH).filter(t => t.tree === techTab);
+  // layered layout: column = depth, row = order within depth (parents pull children toward them)
+  const byDepth = new Map();
+  for (const t of nodes) {
+    if (!byDepth.has(t.depth)) byDepth.set(t.depth, []);
+    byDepth.get(t.depth).push(t);
   }
+  const pos = new Map();
+  const depths = [...byDepth.keys()].sort((a, b) => a - b);
+  for (const d of depths) {
+    const col = byDepth.get(d);
+    col.sort((a, b) => {
+      const key = t => {
+        const ps = t.req.map(r => pos.get(r)).filter(Boolean);
+        return ps.length ? ps.reduce((s, p) => s + p.row, 0) / ps.length : 99;
+      };
+      return key(a) - key(b);
+    });
+    col.forEach((t, i) => pos.set(t.id, { col: d, row: i }));
+  }
+  const maxRow = Math.max(...[...pos.values()].map(p => p.row));
+  const W = (depths[depths.length - 1] + 1) * COL_W + 30, H = (maxRow + 1) * ROW_H + 30;
+  const cx = t => 20 + pos.get(t.id).col * COL_W;
+  const cy = t => 20 + pos.get(t.id).row * ROW_H;
+
+  let svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`;
+  for (const t of nodes) for (const r of t.req) {
+    if (!pos.has(r)) continue;   // cross-tree requirement (e.g. War Horse): note it in the tooltip instead
+    const p = TECH[r];
+    const x1 = cx(p) + NODE_W, y1 = cy(p) + NODE_H / 2, x2 = cx(t), y2 = cy(t) + NODE_H / 2;
+    svg += `<path class="tlink" d="M${x1},${y1} C${x1 + 24},${y1} ${x2 - 24},${y2} ${x2},${y2}"/>`;
+  }
+  for (const t of nodes) {
+    const researching = research && research.id === t.id;
+    const cls = t.done ? "done" : researching ? "researching" : techAvailable(t) ? "avail" : "locked";
+    const sub = t.done ? "researched" : researching ? Math.round(research.t / techTime(t) * 100) + "%" :
+                `${techCost(t)} DM · ${Math.round(techTime(t) / 6) / 10} min`;
+    svg += `<g class="tnode ${cls}" data-tech="${t.id}">
+      <rect x="${cx(t)}" y="${cy(t)}" width="${NODE_W}" height="${NODE_H}" rx="9"/>
+      <text x="${cx(t) + NODE_W / 2}" y="${cy(t) + 17}" text-anchor="middle">${t.name}${t.done ? " ✓" : ""}</text>
+      <text class="sub" x="${cx(t) + NODE_W / 2}" y="${cy(t) + 31}" text-anchor="middle">${sub}</text>
+    </g>`;
+  }
+  svg += "</svg>";
+  list.innerHTML = svg;
+  list.querySelectorAll(".tnode").forEach(g => {
+    const t = TECH[g.dataset.tech];
+    g.addEventListener("click", () => { if (techAvailable(t)) startResearch(t.id); else describeTech(t); });
+    g.addEventListener("mouseenter", () => describeTech(t));
+  });
+}
+function describeTech(t) {
+  const req = t.req.length ? ` — needs ${t.req.map(r => TECH[r].name + (TECH[r].done ? " ✓" : "")).join(", ")}` : "";
+  $("techDesc").textContent = `${t.name}: ${t.desc}${req}`;
 }
 
 // --- UI wiring ---
@@ -965,6 +1016,15 @@ document.addEventListener("click", e => {
     if ($(id) && !$(id).contains(e.target)) $(id).classList.remove("open");
 });
 
+$("renameBtn").addEventListener("click", () => {
+  const v = $("renameInput").value.trim();
+  if (!v) return toast("A settlement needs a name.");
+  settlementName = v;
+  $("renameInput").value = "";
+  toast(`The settlement is proclaimed: ${settlementName}.`);
+  syncUI();
+});
+$("renameInput").addEventListener("keydown", e => { if (e.key === "Enter") $("renameBtn").click(); e.stopPropagation(); });
 $("govToggle").addEventListener("click", () => {
   const p = $("govPanel");
   p.style.display = p.style.display === "block" ? "none" : "block";
@@ -996,6 +1056,18 @@ $("cpDeposit").addEventListener("click", () => {
   toast(moved ? `${selected.name} hands ${moved} item(s) to the town storage.` : `${selected.name} has nothing to hand over.`);
   syncUI();
 });
+$("cpGiveWeapon").addEventListener("click", () => {
+  const c = selected;
+  if (!c) return;
+  if (!forgeBuilt()) return toast("Weapons are handed out at the forge — build one first.");
+  if (c.armed) return toast(`${c.name} is already armed.`);
+  if (res.weapons < 1) return toast("The armoury is empty. Set a blacksmith to forging weapons.");
+  const lawAllows = isForce(c) || laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
+  if (!lawAllows) return toast(`The law forbids arming ${c.name}. Change the weapon laws in the government panel.`);
+  res.weapons--; c.armed = true;
+  toast(`${c.name} is handed a weapon at the forge.`);
+  syncUI();
+});
 $("cpBuyTool").addEventListener("click", () => {
   if (!selected) return;
   if (selected.tool) return toast(`${selected.name} already carries a good tool.`);
@@ -1025,17 +1097,116 @@ $("bpDismantle").addEventListener("click", () => {
   syncUI();
 });
 
+
+// --- save / load ---
+const SAVE_KEY = "forester_save";
+function saveGame() {
+  if (gameState !== "playing") return;
+  const bi = b => buildings.indexOf(b), ci = c => civs.indexOf(c), cpi = c => camps.indexOf(c);
+  try {
+    const data = {
+      v: 1,
+      res: { ...res }, taxRate, taxTimer, policeCount, laws: { ...laws }, zoom, settlementName,
+      cam: { x: cam.x, y: cam.y },
+      hunterTimer, raidTimer, campRespawnTimer,
+      tech: Object.fromEntries(Object.values(TECH).map(t => [t.id, t.done])),
+      research: research ? { ...research } : null,
+      usedNames: [...usedNames],
+      civs: civs.map(c => ({
+        name: c.name, who: c.who, x: c.x, y: c.y, home: bi(c.home),
+        profession: c.profession, hunger: c.hunger, hp: c.hp, maxHp: c.maxHp,
+        happiness: c.happiness, rebel: c.rebel, armed: c.armed, tool: c.tool,
+        inv: { ...c.inv },
+      })),
+      buildings: buildings.map(b => ({
+        type: b.type, x: b.x, y: b.y, fire: b.fire, placed: b.placed,
+        occupants: b.occupants.map(ci),
+      })),
+      farms: farms.map(f => ({ x: f.x, y: f.y, ready: f.ready, growT: f.growT, workers: f.workers.map(ci) })),
+      camps: camps.map(c => ({ ...c })),
+      chunks: [...chunks.entries()],
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch (e) { /* storage full or private mode — play on without saves */ }
+}
+
+function loadGame() {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return false;
+  try {
+    const d = JSON.parse(raw);
+    Object.assign(res, d.res);
+    taxRate = d.taxRate; taxTimer = d.taxTimer; policeCount = d.policeCount;
+    settlementName = d.settlementName || "Neu Hamburg";
+    Object.assign(laws, d.laws);
+    zoom = d.zoom || 1;
+    cam.x = d.cam.x; cam.y = d.cam.y;
+    hunterTimer = d.hunterTimer; raidTimer = d.raidTimer; campRespawnTimer = d.campRespawnTimer;
+    for (const [id, done] of Object.entries(d.tech)) if (TECH[id]) TECH[id].done = done;
+    research = d.research;
+    usedNames.clear(); for (const n of d.usedNames) usedNames.add(n);
+    civs.length = 0;
+    for (const cd of d.civs) {
+      const c = mkCiv(cd.name, cd.who, cd.x, cd.y);
+      Object.assign(c, { profession: cd.profession, hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
+        happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool });
+      Object.assign(c.inv, cd.inv);
+      civs.push(c);
+    }
+    buildings.length = 0;
+    for (const bd of d.buildings)
+      buildings.push({ type: bd.type, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
+                       torchP: -1, placed: bd.placed, bakeT: 0, occupants: [] });
+    d.buildings.forEach((bd, i) => {
+      for (const cidx of bd.occupants) if (civs[cidx]) {
+        buildings[i].occupants.push(civs[cidx]);
+        civs[cidx].home = buildings[i];
+      }
+    });
+    farms.length = 0;
+    for (const fd of d.farms)
+      farms.push({ x: fd.x, y: fd.y, ready: fd.ready, growT: fd.growT, progress: -1,
+                   workers: fd.workers.map(i => civs[i]).filter(Boolean) });
+    camps.length = 0;
+    for (const cd of d.camps) camps.push({ ...cd });
+    raiders.length = 0; visitors.length = 0; floaters.length = 0;
+    chunks.clear();
+    for (const [k, ch] of d.chunks) chunks.set(k, ch);
+    if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
+    $("taxSlider").value = taxRate; $("taxVal").textContent = taxRate;
+    $("lawCivWeapons").checked = laws.civWeapons;
+    $("lawHunterWeapons").checked = laws.hunterWeapons;
+    if ($("lawForced")) $("lawForced").checked = laws.forced;
+    return true;
+  } catch (e) {
+    console.error("save corrupted, starting fresh", e);
+    localStorage.removeItem(SAVE_KEY);
+    return false;
+  }
+}
+
+setInterval(saveGame, 10000);
+addEventListener("pagehide", saveGame);
+
 // --- menu / loading / game over ---
 function assetsReady() {
-  if (sessionStorage.getItem("forester_skip")) { sessionStorage.removeItem("forester_skip"); doLoading(); }
-  else { gameState = "menu"; $("menu").style.display = "block"; }
+  const mode = sessionStorage.getItem("forester_skip");
+  sessionStorage.removeItem("forester_skip");
+  if (mode === "new") { localStorage.removeItem(SAVE_KEY); doLoading(false); }
+  else if (mode === "continue") doLoading(true);
+  else {
+    gameState = "menu";
+    $("menu").style.display = "block";
+    if (localStorage.getItem(SAVE_KEY)) $("menuContinue").style.display = "inline-block";
+  }
 }
-$("menuNew").addEventListener("click", doLoading);
-$("goNew").addEventListener("click", () => { sessionStorage.setItem("forester_skip", "1"); location.reload(); });
-$("goMenu").addEventListener("click", () => { sessionStorage.removeItem("forester_skip"); location.reload(); });
+$("menuNew").addEventListener("click", () => { localStorage.removeItem(SAVE_KEY); doLoading(false); });
+$("menuContinue").addEventListener("click", () => doLoading(true));
+$("goNew").addEventListener("click", () => { localStorage.removeItem(SAVE_KEY); sessionStorage.setItem("forester_skip", "new"); location.reload(); });
+$("goMenu").addEventListener("click", () => { localStorage.removeItem(SAVE_KEY); location.reload(); });
 
 const LOAD_LINES = ["Felling trees…", "Warming the hearth…", "Counting Deutsche Marks…", "Waking the chickens…", "Sharpening axes…"];
-function doLoading() {
+function doLoading(fromSave) {
   gameState = "loading";
   $("menu").style.display = "none";
   $("loading").style.display = "flex";
@@ -1043,13 +1214,16 @@ function doLoading() {
   const iv = setInterval(() => {
     p = Math.min(100, p + 4 + Math.random() * 9);
     $("loadBar").style.width = p + "%";
-    $("loadText").textContent = LOAD_LINES[Math.floor(p / 100 * (LOAD_LINES.length - 0.01))];
+    $("loadText").textContent = fromSave && p > 60 ? "Reading the colony ledger…" :
+      LOAD_LINES[Math.floor(p / 100 * (LOAD_LINES.length - 0.01))];
     if (p >= 100) {
       clearInterval(iv);
       setTimeout(() => {
         $("loading").style.display = "none";
+        const restored = fromSave && loadGame();
         gameState = "playing";
-        cam.x = -canvas.width / 2; cam.y = -canvas.height / 2 - 60;
+        if (!restored) { cam.x = -canvas.width / 2; cam.y = -canvas.height / 2 - 60; }
+        toast(restored ? "The colony wakes where you left it." : "");
         syncUI();
       }, 250);
     }
@@ -1058,11 +1232,19 @@ function doLoading() {
 function gameOver() {
   if (gameState === "over") return;
   gameState = "over";
-  $("gameover").style.display = "block";
+  localStorage.removeItem(SAVE_KEY);
+  SFX.fireLoop(false);
+  SFX.gameOver();
+  const go = $("gameover");
+  go.style.display = "block";
+  go.getBoundingClientRect();          // force reflow so the transition runs
+  go.style.opacity = "1";
 }
 
 function syncUI() {
   $("buildToggle").classList.toggle("active", !!buildMode);
+  $("rName").textContent = settlementName.toUpperCase();
+  $("govTitle").textContent = "GOVERNMENT OF " + settlementName.toUpperCase();
   $("rLogs").textContent = res.logs; $("rSeeds").textContent = res.seeds;
   $("rStone").textContent = res.stone; $("rIron").textContent = res.iron;
   $("rDoors").textContent = res.doors; $("rBread").textContent = res.bread;
@@ -1080,6 +1262,7 @@ function syncUI() {
   $("miCabin").textContent = `Log Cabin — ${costText(cabinCost())}`;
   $("miFarm").textContent = `Wheat Farm — ${costText(costOf("farm"))}`;
   $("miDoor").textContent = `Door — ${doorCost()} logs (selected civilian)`;
+  $("miForge").textContent = has("forging") ? `Forge — ${costText(STATIC_COSTS.forge)}` : "Forge — needs Forging research";
   $("researchNow").textContent = research ?
     `Researching ${TECH[research.id].name}: ${Math.round(research.t / techTime(TECH[research.id]) * 100)}%` : "No research underway.";
   if (research && $("techPanel").style.display === "block") renderTech();
@@ -1128,7 +1311,8 @@ function syncUI() {
       b.fire ? "IT IS ON FIRE." :
       b.type === "watchtower" ? "Warns of raids; nearby police & soldiers fight harder." :
       b.type === "bakery" ? "Bakes town wheat into bread over time." :
-      b.type === "well" ? "Fresh water. The colony is happier for it." : "Standing.";
+      b.type === "well" ? "Fresh water. The colony is happier for it." :
+      b.type === "forge" ? "Blacksmiths work here; weapons are handed out at its racks." : "Standing.";
     $("bpOcc").textContent = isFarm ? "—" : (b.occupants.length ? b.occupants.map(o => o.name).join(", ") : "none");
   }
 }
@@ -1165,12 +1349,14 @@ function update(dt) {
       if (paid > 0) float(c.x, c.y - 70, "-" + paid + " DM", "#c9a86a");
     }
     toast(total > 0 ? `Tax day: the colony collects ${total} DM.` : "Tax day — but the people's pockets are empty.");
+    if (total > 0) SFX.coin();
   }
 
   for (const ch of visibleChunks(CHUNK * 2))
     for (const t of ch.trees)
       if (t.alive && t.growth < 1) t.growth = Math.min(1, t.growth + dt / (SAPLING_GROW * (has("replanting") ? 0.5 : 1)));
   for (const f of farms) if (!f.ready && (f.growT += dt) >= farmRipen()) f.ready = true;
+  SFX.fireLoop(buildings.some(b => b.fire > 0));
   for (const b of [...buildings]) {
     igniteCheck(b, dt);
     if (b.type === "bakery" && !b.fire) {
@@ -1228,13 +1414,21 @@ function update(dt) {
         collideMove(c, c.x + (dx / d) * speed * dt, c.y + (dy / d) * speed * dt);
         c.facing = dx < 0 ? -1 : 1;
         c.anim += dt * 8;
+        c.stepT = (c.stepT || 0) - dt;
+        if (c.stepT <= 0 && onScreen(c.x, c.y)) {
+          const fast = isForce(c);
+          SFX.step(fast);
+          c.stepT = fast ? 0.26 : 0.36;
+        }
       }
     } else if (c.state === "chopping") {
       const t = c.task.target;
       if (!t.alive) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt; t.progress = c.workT / chopTime(c); c.anim += dt * 10;
+      if ((c.workT % 0.5) < dt) SFX.chop();
       if (c.workT >= chopTime(c)) {
         t.alive = false; t.progress = -1;
+        SFX.treeFall();
         c.inv.logs += logsPerTree();
         float(c.x, c.y - 70, "+" + logsPerTree() + " logs", "#7da083");
         c.state = "idle"; c.task = null;
@@ -1243,6 +1437,7 @@ function update(dt) {
       const s = c.task.target;
       if (!s.alive) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt; s.progress = c.workT / (QUARRY_TIME * workMul(c)); c.anim += dt * 10;
+      if ((c.workT % 0.55) < dt) SFX.quarry();
       if (c.workT >= QUARRY_TIME * workMul(c)) {
         s.alive = false; s.progress = -1;
         c.inv.stone += 3; c.inv.iron += 1;
@@ -1254,15 +1449,18 @@ function update(dt) {
       if (!p.alive) { c.state = "idle"; c.task = null; continue; }
       const need = PATCH_TIME * (has("foraging") ? 0.5 : 1) * workMul(c);
       c.workT += dt; p.progress = c.workT / need; c.anim += dt * 8;
+      if ((c.workT % 0.4) < dt) SFX.rustle();
       if (c.workT >= need) {
         p.alive = false; p.progress = -1;
         const got = 2 + (has("foraging") ? 1 : 0);
         if (c.task.forColony) res.seeds += got; else c.inv.seeds += got;
+        SFX.pickup();
         float(c.x, c.y - 70, "+" + got + " seeds", "#7da083");
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "crafting") {
       c.workT += dt; c.anim += dt * 6;
+      if ((c.workT % 0.6) < dt) SFX.hammer();
       if (c.workT >= CRAFT_TIME * workMul(c)) {
         res.doors++;
         toast(`${c.name} finished a rough plank door. Doors: ${res.doors}.`);
@@ -1270,6 +1468,7 @@ function update(dt) {
       }
     } else if (c.state === "smithing") {
       c.workT += dt; c.anim += dt * 6;
+      if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= SMITH_TIME * workMul(c)) {
         if (c.task.make === "tool") { res.tools++; toast(`${c.name} finishes a sturdy tool.`); }
         else { res.weapons++; toast(`${c.name} finishes a weapon for the armoury.`); }
@@ -1278,6 +1477,7 @@ function update(dt) {
     } else if (c.state === "repairing") {
       const b = c.task.target;
       c.workT += dt; b.progress = c.workT / (REPAIR_TIME * workMul(c)); c.anim += dt * 10;
+      if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= REPAIR_TIME * workMul(c)) {
         b.type = "cabin"; b.progress = -1; b.placed = false;
         toast(`The ruin stands whole again. ${c.name} rebuilt it.`);
@@ -1286,6 +1486,7 @@ function update(dt) {
       }
     } else if (c.state === "buildingFarm") {
       c.workT += dt; c.anim += dt * 8;
+      if ((c.workT % 0.6) < dt) SFX.hammer();
       if (c.workT >= BASE_FARM_BUILD * workMul(c)) {
         const t = c.task;
         if (legalToBuild("farm", t.fx, t.fy)) {
@@ -1300,9 +1501,11 @@ function update(dt) {
       const f = c.task.target;
       if (!f.ready || !farms.includes(f)) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt; f.progress = c.workT / (HARVEST_TIME * workMul(c)); c.anim += dt * 8;
+      if ((c.workT % 0.45) < dt) SFX.rustle();
       if (c.workT >= HARVEST_TIME * workMul(c)) {
         f.ready = false; f.growT = 0; f.progress = -1;
         c.inv.wheat += 2; c.inv.bread += 1;
+        SFX.pickup();
         float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
         c.state = "idle"; c.task = null;
       }
@@ -1314,7 +1517,7 @@ function update(dt) {
           if (c.inv.bread > 0) c.inv.bread--; else c.inv.meat--;
           c.inv.dm += sellPrice(); earned += sellPrice();
         }
-        if (earned) float(c.x, c.y - 70, "+" + earned + " DM", "#c9a86a");
+        if (earned) { float(c.x, c.y - 70, "+" + earned + " DM", "#c9a86a"); SFX.coin(); }
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "hunting") {
@@ -1334,6 +1537,7 @@ function update(dt) {
         c.atkT = ATK_INTERVAL;
         let dmg = isForce(c) ? forceDmg(c) : (c.armed ? weaponDmg() : FIST_DMG);
         if (isForce(c) && nearWatchtower(c.x, c.y)) dmg += 5;
+        if (isForce(c) || c.armed) SFX.swing(); else SFX.swingFist();
         strikeUnit(c, foe, dmg);
       }
     } else if (c.state === "sieging") {
@@ -1345,8 +1549,10 @@ function update(dt) {
       if (c.atkT <= 0) {
         c.atkT = ATK_INTERVAL;
         const dmg = forceDmg(c);
+        SFX.swing();
         cp.hp -= dmg;
         float(cp.x, cp.y - 100, "-" + dmg, "#d86a5a");
+        SFX.hit();
         // the camp fights back
         if (Math.random() < DODGE_CHANCE) float(c.x, c.y - 70, "Dodged!", "#cfd8d3");
         else {
@@ -1358,6 +1564,7 @@ function update(dt) {
         if (cp.hp <= 0) {
           camps.splice(camps.indexOf(cp), 1);
           res.dm += cp.dm; res.weapons += cp.weapons;
+          SFX.coin();
           float(cp.x, cp.y - 80, `+${cp.dm} DM +${cp.weapons} wpn`, "#7da083");
           toast(`${c.name} sacks the ${cp.type} camp — ${cp.dm} DM and ${cp.weapons} weapon(s) seized!`);
           if (selectedCamp === cp) selectedCamp = null;
@@ -1368,6 +1575,7 @@ function update(dt) {
       const b = c.task.target;
       if (!buildings.includes(b) || b.fire) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt; b.torchP = c.workT / torchTime(); c.anim += dt * 9;
+      if ((c.workT % 0.35) < dt) SFX.crackle();
       if (c.workT >= torchTime()) {
         b.torchP = -1; b.fire = FIRE_TIME;
         toast(`⚠ ${c.name} has set the ${b.type === "cabin" ? "cabin" : b.type} ablaze!`);

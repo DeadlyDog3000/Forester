@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a blacksmith's forge. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the forge centred, seen straight on from ground level, slightly wider than tall.
+
+THE FORGE: An open-fronted stone smithy: a heavy fieldstone hearth on one side with glowing orange coals in its dark mouth and a wide stone chimney above. Under a simple timber lean-to roof beside it, a black iron anvil on a wooden block and a barrel for quenching. A pair of tongs or a hammer resting against the anvil. Sturdy, hot, working.
+
+COLOUR: Grey fieldstone (three shades), warm brown timber, near-black iron anvil, and a glowing orange-yellow coal bed as the single bright accent. Near-black outline.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.
