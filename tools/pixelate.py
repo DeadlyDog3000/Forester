@@ -38,11 +38,11 @@ def square_pad(img):
     return canvas
 
 
-def pixelate(src, dst, size=32, colors=5, preview=None, transparent=False, trim=False):
+def pixelate(src, dst, size=32, colors=5, preview=None, transparent=False, trim=False, tol=60):
     img = Image.open(src).convert("RGBA")
 
     if transparent:
-        img = key_background(img)
+        img = key_background(img, tol)
     if trim:
         box = img.getchannel("A").getbbox() if transparent else img.convert("RGB").getbbox()
         if box:
@@ -74,6 +74,7 @@ if __name__ == "__main__":
     ap.add_argument("--preview")
     ap.add_argument("--transparent", action="store_true")
     ap.add_argument("--trim", action="store_true")
+    ap.add_argument("--tol", type=int, default=60)
     a = ap.parse_args()
     print("wrote", pixelate(a.input, a.output, a.size, a.colors,
-                            a.preview, a.transparent, a.trim))
+                            a.preview, a.transparent, a.trim, a.tol))

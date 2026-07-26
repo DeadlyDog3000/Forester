@@ -1,0 +1,9 @@
+A seamless, tileable pixel art ground texture of fresh snow on a forest floor, viewed from directly above. True low-resolution pixel art: chunky square pixels, hard edges, no anti-aliasing, no gradients.
+
+CRITICAL — SEAMLESS TILING: the left edge must continue the right edge and the top edge must continue the bottom edge with no visible seams or vignetting. Uniform brightness across the whole image.
+
+THE TEXTURE: A calm, even blanket of snow: soft white with very subtle pale blue-grey shadow dapples, a few tiny wind ripples, and here and there a single dark tuft of dry grass poking through — sparse, one or two per region. Low contrast so buildings and characters read clearly on top.
+
+COLOUR — 4 flat shades only: snow white, pale blue-white, soft blue-grey shadow, and a dark muted green-brown for the rare grass tufts. Cold and quiet.
+
+Perfectly square 1:1 image, the texture filling the entire frame edge to edge.
