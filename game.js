@@ -2131,6 +2131,11 @@ function update(dt) {
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
       const reach = c.task && c.task.kind === "attack" ? 34 : 5;
       if (d < reach) { if (reach === 5) { c.x = c.tx; c.y = c.ty; } arrive(c); }
+      else if (c.task && c.task.kind === "emigrate") {
+        // leaving the world: nothing on the map may hold them back
+        c.x += (dx / d) * speed * dt; c.y += (dy / d) * speed * dt;
+        c.facing = dx < 0 ? -1 : 1; c.anim += dt * 8;
+      }
       else {
         collideMove(c, c.x + (dx / d) * speed * dt, c.y + (dy / d) * speed * dt);
         c.facing = dx < 0 ? -1 : 1;
