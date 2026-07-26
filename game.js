@@ -30,9 +30,10 @@ const STATIC_COSTS = {
   watchtower: { logs: 15, stone: 5 }, bakery: { logs: 20, stone: 3 }, well: { logs: 10, stone: 8 },
   forge: { logs: 20, stone: 6, iron: 2 },
   wall: { logs: 6, stone: 2 }, gate: { logs: 10, stone: 4 },
+  townhall: { logs: 40, stone: 10 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
-  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate" };
+  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall" };
 const forgeBuilt = () => buildings.some(b => b.type === "forge" && !b.fire);
 
 // --- tech tree ---
@@ -68,6 +69,7 @@ T("policing", "Policing", "military", ["marketing"], 3, "Unlocks recruiting poli
 T("court", "Court", "military", ["policing"], 4, "Half of beaten rebels are subdued alive");
 T("landownership", "Land Ownership", "military", ["currencies"], 2, "Cabins house 3");
 T("ownership", "Ownership", "military", ["landownership"], 3, "Dismantling refunds 75%");
+T("township", "Township", "military", ["landownership"], 3, "Unlocks the Town Hall — civilians deposit their goods there on their own");
 T("lordship", "Lordship", "military", ["ownership"], 4, "Lords underwrite the treasury: it may borrow to -50 DM");
 T("slavery", "Slavery", "military", ["lordship"], 5, "Forced labour edict: work +25% faster, happiness plummets");
 T("slavemarket", "Slave Market", "military", ["slavery"], 6, "+2 DM each tax collection; happiness suffers");
@@ -127,6 +129,24 @@ const IMAGES = {
   burned: "assets/sprites/buildings/burned_house_32.png", cabin: "assets/sprites/buildings/log_cabin_32.png",
   recruit: "assets/sprites/buildings/recruitment_center_32.png", market: "assets/sprites/buildings/market_32.png",
   farm: "assets/sprites/buildings/farm_32.png",
+  townhall: "assets/sprites/buildings/townhall_32.png",
+  grass_w: "assets/sprites/env/grass_w_64.png",
+  tree_w: "assets/sprites/env/tree_w_32.png",
+  stone_w: "assets/sprites/env/stone_w_32.png",
+  patch_w: "assets/sprites/env/patch_w_32.png",
+  burned_w: "assets/sprites/buildings/burned_w_32.png",
+  cabin_w: "assets/sprites/buildings/cabin_w_32.png",
+  recruit_w: "assets/sprites/buildings/recruit_w_32.png",
+  market_w: "assets/sprites/buildings/market_w_32.png",
+  farm_w: "assets/sprites/buildings/farm_w_32.png",
+  watchtower_w: "assets/sprites/buildings/watchtower_w_32.png",
+  bakery_w: "assets/sprites/buildings/bakery_w_32.png",
+  well_w: "assets/sprites/buildings/well_w_32.png",
+  forge_w: "assets/sprites/buildings/forge_w_32.png",
+  wall_w: "assets/sprites/buildings/wall_w_32.png",
+  wallv_w: "assets/sprites/buildings/wallv_w_32.png",
+  gate_w: "assets/sprites/buildings/gate_w_32.png",
+  townhall_w: "assets/sprites/buildings/townhall_w_32.png",
   watchtower: "assets/sprites/buildings/watchtower_32.png", bakery: "assets/sprites/buildings/bakery_32.png",
   well: "assets/sprites/buildings/well_32.png",
   forge: "assets/sprites/buildings/forge_32.png",
@@ -179,6 +199,14 @@ const chunks = new Map();
 let selected = null, selectedBldg = null, selectedCamp = null, buildMode = null;
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
 let worldT = 80;   // clock of the world; night falls late in each cycle
+const YEAR = 600, WINTER_AT = 420;
+function season() { return (worldT % YEAR) >= WINTER_AT ? "winter" : "summer"; }
+let lastSeason = "summer";
+function wimg(key) {
+  if (season() !== "winter") return img[key];
+  const w = img[key + "_w"];
+  return (w && w.complete && w.naturalWidth) ? w : img[key];
+}
 function nightAmt() {
   const ph = worldT % 300;
   return ph < 180 ? 0 : ph < 210 ? (ph - 180) / 30 : ph < 275 ? 1 : Math.max(0, 1 - (ph - 275) / 25);
@@ -797,6 +825,8 @@ function snapWallPos(type, wx, wy) {
 function tryPlace(type, wx, wy) {
   if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
   if ((type === "wall" || type === "gate") && !has("defending")) { toast("Walls and gates require the Defending technology."); buildMode = null; syncUI(); return; }
+  if (type === "townhall" && !has("township")) { toast("A town hall requires the Township technology."); buildMode = null; syncUI(); return; }
+  if (type === "townhall" && buildings.some(b => b.type === "townhall")) { toast("The settlement has its town hall already."); buildMode = null; syncUI(); return; }
   [wx, wy] = snapWallPos(type, wx, wy);
   const cost = costOf(type);
   if (!canPay(cost)) { toast(`Not enough materials: needs ${costText(cost)}.`); return; }
@@ -842,7 +872,7 @@ function arrive(c) {
   if (t && t.kind === "goHome") { c.state = "sleeping"; c.task = null; return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
-                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling" };
+                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing" };
   if (t.kind === "repair") {
     if (!canPay(REPAIR_COST)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
     pay(REPAIR_COST);
@@ -884,6 +914,13 @@ function autonomy(c, dt) {
   }
 
   if (!c.home) return;
+
+  // the town hall takes deposits without being asked — unload before new work
+  const hall = buildings.find(b => b.type === "townhall" && !b.fire);
+  if (hall && (c.inv.logs + c.inv.seeds + c.inv.stone + c.inv.iron + c.inv.wheat) >= 5) {
+    order(c, { kind: "hallDeposit", target: hall, x: hall.x, y: hall.y + 16 });
+    return;
+  }
 
   if (c.profession === "blacksmith" && has("forging") && forgeBuilt()) {
     const iron = weaponIron();
@@ -1134,6 +1171,7 @@ function joinColony(v) {
   visitors.splice(visitors.indexOf(v), 1);
   closeDialogue();
   const c = mkCiv(v.name, "hunter", v.x, v.y, v.gender);
+  c.inv.dm = 5 + Math.floor(Math.random() * 6);   // wanderers arrive with 5-10 DM
   c.profession = "hunter";
   refreshAvatar(c);
   civs.push(c);
@@ -2207,6 +2245,7 @@ function syncUI() {
   $("rTools").textContent = res.tools; $("rDM").textContent = res.dm;
   $("rPop").textContent = civs.length; $("rPolice").textContent = policeCount;
   $("rTax").textContent = taxRate;
+  $("rSeason").textContent = season() === "winter" ? "❄ WINTER" : "SUMMER";
   const mm = Math.floor(taxTimer / 60), ss = Math.floor(taxTimer % 60);
   $("rTaxT").textContent = mm + ":" + String(ss).padStart(2, "0");
   const avg = civs.length ? Math.round(civs.reduce((s, c) => s + c.happiness, 0) / civs.length) : 0;
@@ -2218,6 +2257,7 @@ function syncUI() {
   $("miFarm").textContent = `Wheat Farm — ${costText(costOf("farm"))}`;
   $("miDoor").textContent = `Door — ${doorCost()} logs (selected civilian)`;
   $("miForge").textContent = has("forging") ? `Forge — ${costText(STATIC_COSTS.forge)}` : "Forge — needs Forging research";
+  $("miTownhall").textContent = has("township") ? `Town Hall — ${costText(STATIC_COSTS.townhall)}` : "Town Hall — needs Township research";
   if ($("govPanel").style.display === "block" && $("civDrop").classList.contains("open")) {
     const list = $("civList");
     list.innerHTML = "";
@@ -2287,6 +2327,7 @@ function syncUI() {
       b.type === "bakery" ? "Bakes town wheat into bread over time." :
       b.type === "well" ? "Fresh water. The colony is happier for it." :
       b.type === "forge" ? "Blacksmiths work here; weapons are handed out at its racks." :
+      b.type === "townhall" ? "Civilians bring their goods here on their own — no more asking." :
       b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
       b.type === "gate" ? "Your people pass freely; raiders must burn it down." : "Standing.";
     $("bpOcc").textContent = isFarm ? "—" : (b.occupants.length ? b.occupants.map(o => o.name).join(", ") : "none");
@@ -2346,7 +2387,12 @@ function update(dt) {
   for (const ch of visibleChunks(CHUNK * 2))
     for (const t of ch.trees)
       if (t.alive && t.growth < 1) t.growth = Math.min(1, t.growth + dt / (SAPLING_GROW * (has("replanting") ? 0.5 : 1)));
-  for (const f of farms) if (!f.ready && (f.growT += dt) >= farmRipen()) f.ready = true;
+  if (season() !== lastSeason) {
+    lastSeason = season();
+    toast(lastSeason === "winter" ? "❄ Winter falls over the woods. The fields sleep; keep the larders full." :
+                                    "The thaw comes — the fields wake, and the woods turn green again.");
+  }
+  for (const f of farms) if (!f.ready && season() !== "winter" && (f.growT += dt) >= farmRipen()) f.ready = true;
   SFX.fireLoop(buildings.some(b => b.fire > 0));
   for (const b of [...buildings]) {
     igniteCheck(b, dt);
@@ -2419,7 +2465,7 @@ function update(dt) {
   for (const r of [...raiders]) updateRaider(r, dt);
 
   for (const c of [...civs]) {
-    c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * dt);
+    c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * (season() === "winter" ? 1.15 : 1) * dt);
     if (c.hunger <= 0) {
       c.hp -= STARVE_DPS * dt;
       if (c.hp <= 0) { killCiv(c, "starved to death"); continue; }
@@ -2559,6 +2605,18 @@ function update(dt) {
         float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
         c.state = "idle"; c.task = null;
       }
+    } else if (c.state === "depositing") {
+      if (!buildings.includes(c.task.target)) { c.state = "idle"; c.task = null; continue; }
+      c.workT += dt;
+      if (c.workT >= 1.2) {
+        const inv = c.inv;
+        const moved = inv.logs + inv.seeds + inv.stone + inv.iron + inv.wheat + inv.bread + inv.meat;
+        res.logs += inv.logs; res.seeds += inv.seeds; res.stone += inv.stone; res.iron += inv.iron;
+        res.wheat += inv.wheat; res.bread += inv.bread; res.meat += inv.meat;
+        inv.logs = inv.seeds = inv.stone = inv.iron = inv.wheat = inv.bread = inv.meat = 0;
+        if (moved) { float(c.x, c.y - 70, "+" + moved + " stored", "#7da083"); SFX.pickup(); }
+        c.state = "idle"; c.task = null;
+      }
     } else if (c.state === "peddling") {
       const b2 = c.task.target;
       if (!civs.includes(b2) || Math.hypot(b2.x - c.x, b2.y - c.y) > 90) { c.state = "idle"; c.task = null; continue; }
@@ -2694,7 +2752,7 @@ function render(dt) {
   const x0 = Math.floor(cam.x / TILE) * TILE, y0 = Math.floor(cam.y / TILE) * TILE;
   for (let y = y0; y < cam.y + vh; y += TILE)
     for (let x = x0; x < cam.x + vw; x += TILE)
-      ctx.drawImage(img.grass, x, y, TILE, TILE);
+      ctx.drawImage(wimg("grass"), x, y, TILE, TILE);
 
   // territory overlay: cubic cells, custom colours
   const tc0 = tcellOf(cam.x, cam.y), tc1 = tcellOf(cam.x + vw, cam.y + vh);
@@ -2732,7 +2790,7 @@ function render(dt) {
       if (!inView(t.x, t.y)) continue;
       if (t.alive) drawables.push({ y: t.y, draw: () => {
         const s = TREE_SIZE * (0.35 + 0.65 * t.growth);
-        drawSprite(img.tree, t.x, t.y, s, false);
+        drawSprite(wimg("tree"), t.x, t.y, s, false);
         if (t.progress >= 0) bar(t.x, t.y - s - 12, t.progress, "#c9a86a");
       }});
       else drawables.push({ y: t.y, draw: () => {
@@ -2741,11 +2799,11 @@ function render(dt) {
       }});
     }
     for (const s of ch.stones) if (s.alive && inView(s.x, s.y)) drawables.push({ y: s.y, draw: () => {
-      drawSprite(img.stone, s.x, s.y, NODE_SIZE, false);
+      drawSprite(wimg("stone"), s.x, s.y, NODE_SIZE, false);
       if (s.progress >= 0) bar(s.x, s.y - NODE_SIZE - 10, s.progress, "#c9a86a");
     }});
     for (const p of ch.patches) if (p.alive && inView(p.x, p.y)) drawables.push({ y: p.y, draw: () => {
-      drawSprite(img.patch, p.x, p.y, 40, false);
+      drawSprite(wimg("patch"), p.x, p.y, 40, false);
       if (p.progress >= 0) bar(p.x, p.y - 46, p.progress, "#c9a86a");
     }});
   }
@@ -2760,7 +2818,7 @@ function render(dt) {
     }
   }});
   for (const f of farms) if (inView(f.x, f.y)) drawables.push({ y: f.y, draw: () => {
-    drawSprite(img.farm, f.x, f.y, FARM_SIZE, false);
+    drawSprite(wimg("farm"), f.x, f.y, FARM_SIZE, false);
     if (f.progress >= 0) bar(f.x, f.y - FARM_SIZE - 12, f.progress, "#c9a86a");
     else if (f.ready) {
       ctx.fillStyle = "#d8c26a"; ctx.font = "12px monospace"; ctx.textAlign = "center";
@@ -2778,13 +2836,13 @@ function render(dt) {
     }
   }});
   for (const b of buildings) if (inView(b.x, b.y)) drawables.push({ y: b.y, draw: () => {
-    if (b.type === "wall" && b.rot) drawSprite(img.wallv, b.x, b.y, SMALL_BLDG.wall, false);
+    if (b.type === "wall" && b.rot) drawSprite(wimg("wallv"), b.x, b.y, SMALL_BLDG.wall, false);
     else if (b.type === "gate" && b.rot) {
       const L = SMALL_BLDG.gate;
       ctx.save(); ctx.translate(b.x, b.y - L / 2); ctx.rotate(Math.PI / 2);
-      ctx.drawImage(img.gate, -L / 2, -L / 2, L, L);
+      ctx.drawImage(wimg("gate"), -L / 2, -L / 2, L, L);
       ctx.restore();
-    } else drawSprite(img[b.type], b.x, b.y, SMALL_BLDG[b.type] || BLDG_SIZE, false);
+    } else drawSprite(wimg(b.type), b.x, b.y, SMALL_BLDG[b.type] || BLDG_SIZE, false);
     if (b.fire > 0) {
       const f = img["fire" + (Math.floor(fireAnim) % 4)];
       drawSprite(f, b.x - 20, b.y - 8, 56, false);
