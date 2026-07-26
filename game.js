@@ -1239,16 +1239,24 @@ function renderMap() {
     let col = id === "land" ? "#5a5f58" : NATIONS[id].color;
     if (mine.has(c + "," + r)) col = territoryColor;
     // subtle per-cell shading breaks the flat cubic look
-    const f = 0.92 + (cellHash(c, r) % 5) * 0.045;
+    const f = 0.94 + (cellHash(c, r) % 4) * 0.035;
     mc.fillStyle = shade(col.startsWith("#") ? col : territoryColor, f);
     mc.fillRect(c * MPX, r * MPX, MPX, MPX);
-    // dark waterline along the coast
-    const sea = (rr, cc) => !mapGrid[rr] || !mapGrid[rr][cc];
-    mc.fillStyle = "rgba(8,16,20,0.55)";
-    if (sea(r - 1, c)) mc.fillRect(c * MPX, r * MPX, MPX, 1);
-    if (sea(r + 1, c)) mc.fillRect(c * MPX, (r + 1) * MPX - 1, MPX, 1);
-    if (sea(r, c - 1)) mc.fillRect(c * MPX, r * MPX, 1, MPX);
-    if (sea(r, c + 1)) mc.fillRect((c + 1) * MPX - 1, r * MPX, 1, MPX);
+    // openfront-style border: a darker stroke of this territory's own colour
+    // wherever the neighbour belongs to someone else (or the sea)
+    const other = (rr, cc) => {
+      const nid = mapGrid[rr] ? mapGrid[rr][cc] : null;
+      const nMine = mine.has(cc + "," + rr);
+      const selfMine = mine.has(c + "," + r);
+      if (selfMine) return !nMine;
+      return nid !== id || nMine;
+    };
+    mc.fillStyle = shade(col.startsWith("#") ? col : territoryColor, 0.52);
+    const B = 2;
+    if (other(r - 1, c)) mc.fillRect(c * MPX, r * MPX, MPX, B);
+    if (other(r + 1, c)) mc.fillRect(c * MPX, (r + 1) * MPX - B, MPX, B);
+    if (other(r, c - 1)) mc.fillRect(c * MPX, r * MPX, B, MPX);
+    if (other(r, c + 1)) mc.fillRect((c + 1) * MPX - B, r * MPX, B, MPX);
   }
   // war glow
   for (const [id, n] of Object.entries(NATIONS)) if (n.atWar) {
@@ -1567,6 +1575,7 @@ function assetsReady() {
     gameState = "menu";
     $("menu").style.display = "block";
     if (localStorage.getItem(SAVE_KEY)) $("menuContinue").style.display = "inline-block";
+    MUSIC.play();
   }
 }
 $("menuNew").addEventListener("click", () => { localStorage.removeItem(SAVE_KEY); doLoading(false); });
@@ -1589,6 +1598,7 @@ function doLoading(fromSave) {
       clearInterval(iv);
       setTimeout(() => {
         $("loading").style.display = "none";
+        MUSIC.stop();
         const restored = fromSave && loadGame();
         gameState = "playing";
         if (!restored) {
@@ -1608,6 +1618,7 @@ function gameOver() {
   localStorage.removeItem(SAVE_KEY);
   SFX.fireLoop(false);
   SFX.gameOver();
+  setTimeout(() => { if (gameState === "over") MUSIC.play(); }, 4200);
   const go = $("gameover");
   go.style.display = "block";
   go.getBoundingClientRect();          // force reflow so the transition runs
@@ -1996,10 +2007,9 @@ function render(dt) {
 
   // territory overlay: cubic cells, custom colours
   const tc0 = tcellOf(cam.x, cam.y), tc1 = tcellOf(cam.x + vw, cam.y + vh);
-  ctx.fillStyle = territoryColor + "18";
+  ctx.fillStyle = territoryColor + "22";
   for (let cy = tc0[1]; cy <= tc1[1]; cy++) for (let cx = tc0[0]; cx <= tc1[0]; cx++)
     if (territory.has(tkey(cx, cy))) ctx.fillRect(cx * TCELL, cy * TCELL, TCELL, TCELL);
-  ctx.strokeStyle = borderColor; ctx.lineWidth = 2;
   ctx.beginPath();
   const CH = 22;  // chamfer size — cuts the corners so the border isn't purely cubic
   for (let cy = tc0[1] - 1; cy <= tc1[1] + 1; cy++) for (let cx = tc0[0] - 1; cx <= tc1[0] + 1; cx++) {
@@ -2016,6 +2026,11 @@ function render(dt) {
     if (S && W) { ctx.moveTo(x + CH, y + TCELL); ctx.lineTo(x, y + TCELL - CH); }
     if (S && E) { ctx.moveTo(x + TCELL - CH, y + TCELL); ctx.lineTo(x + TCELL, y + TCELL - CH); }
   }
+  // openfront look: wide soft band of the territory colour under a crisp border line
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = territoryColor + "55"; ctx.lineWidth = 9;
+  ctx.stroke();
+  ctx.strokeStyle = borderColor; ctx.lineWidth = 2.5;
   ctx.stroke();
 
   const inView = (x, y) => x > cam.x - 140 && x < cam.x + vw + 140 && y > cam.y - 160 && y < cam.y + vh + 180;

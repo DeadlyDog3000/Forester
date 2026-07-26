@@ -15,6 +15,7 @@ const SFX = (() => {
       noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      window.__foresterAC = ac; window.__foresterMaster = master; window.__foresterNoise = noiseBuf;
     }
     if (ac.state === "suspended") ac.resume();
     return ac;
@@ -101,3 +102,85 @@ const SFX = (() => {
 document.addEventListener("click", e => {
   if (e.target.closest && e.target.closest(".btn")) SFX.click();
 }, true);
+
+// ===== MUSIC — original looping chiptune, synthesized like everything else =====
+const MUSIC = (() => {
+  let wanted = false, nextLoopAt = 0, timer = null, mg = null;
+  const BPM = 92, STEP = 60 / BPM / 2;   // 8th notes
+  const N = n => n === 0 ? 0 : 440 * Math.pow(2, (n - 69) / 12);
+  // A minor, 4 bars of 8ths (32 steps), wistful and steady
+  const LEAD = [69,0,72,0,71,69,0,0, 64,0,67,0,69,0,0,0, 65,0,69,0,67,65,0,0, 64,0,62,0,64,0,0,0];
+  const LEAD2= [76,0,74,72,71,0,72,0, 69,0,0,0,64,0,67,0, 65,0,67,69,71,0,69,0, 67,0,64,0,62,0,64,0];
+  const BASS = [45,0,0,0,45,0,52,0, 40,0,0,0,40,0,47,0, 41,0,0,0,41,0,48,0, 43,0,0,0,40,0,43,0];
+  const HAT  = [0,1,0,1,0,1,0,2, 0,1,0,1,0,1,0,1, 0,1,0,1,0,1,0,2, 0,1,0,1,0,1,1,1];
+
+  function getCtx() {
+    // reuse the SFX context lazily via a played-silent call
+    SFX.click; // noop reference
+    return (function () { return window.__foresterAC; })();
+  }
+
+  function scheduleLoop(a, t0, phrase) {
+    const lead = phrase % 2 ? LEAD2 : LEAD;
+    for (let i = 0; i < 32; i++) {
+      const t = t0 + i * STEP;
+      if (lead[i]) {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "square"; o.frequency.value = N(lead[i]);
+        g.gain.setValueAtTime(0.055, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + STEP * 1.8);
+        o.connect(g); g.connect(mg);
+        o.start(t); o.stop(t + STEP * 2);
+      }
+      if (BASS[i]) {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "triangle"; o.frequency.value = N(BASS[i]);
+        g.gain.setValueAtTime(0.12, t);
+        g.gain.exponentialRampToValueAtTime(0.003, t + STEP * 3.6);
+        o.connect(g); g.connect(mg);
+        o.start(t); o.stop(t + STEP * 4);
+      }
+      if (HAT[i]) {
+        const s2 = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+        s2.buffer = window.__foresterNoise; s2.loop = true;
+        f.type = "highpass"; f.frequency.value = HAT[i] === 2 ? 4500 : 7000;
+        g.gain.setValueAtTime(HAT[i] === 2 ? 0.05 : 0.028, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        s2.connect(f); f.connect(g); g.connect(mg);
+        s2.start(t); s2.stop(t + 0.08);
+      }
+    }
+    return 32 * STEP;
+  }
+
+  let phrase = 0;
+  function pump() {
+    if (!wanted) return;
+    const a = window.__foresterAC;
+    if (!a || a.state !== "running") { timer = setTimeout(pump, 300); return; }
+    if (!mg) { mg = a.createGain(); mg.gain.value = 1; mg.connect(window.__foresterMaster); }
+    const now = a.currentTime;
+    if (nextLoopAt < now + 0.15) {
+      const start = Math.max(nextLoopAt, now + 0.1);
+      const dur = scheduleLoop(a, start, phrase++);
+      nextLoopAt = start + dur;
+    }
+    timer = setTimeout(pump, 250);   // loops forever until stop()
+  }
+
+  return {
+    play() {
+      if (wanted) return;
+      wanted = true; nextLoopAt = 0;
+      if (mg) mg.gain.setValueAtTime(1, window.__foresterAC ? window.__foresterAC.currentTime : 0);
+      pump();
+    },
+    stop() {
+      wanted = false;
+      clearTimeout(timer);
+      const a = window.__foresterAC;
+      if (mg && a) mg.gain.setTargetAtTime(0.0001, a.currentTime, 0.4);
+      setTimeout(() => { if (mg) { try { mg.disconnect(); } catch (e) {} mg = null; } }, 1500);
+    },
+  };
+})();
