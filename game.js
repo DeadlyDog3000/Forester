@@ -193,8 +193,14 @@ const usedNames = new Set(["Brother", "Sister"]);
 function nextName(gender) {
   const pool = gender === "f" ? FEMALE_NAMES : NAME_POOL;
   const free = pool.filter(n => !usedNames.has(n));
-  const name = free.length ? free[Math.floor(Math.random() * free.length)]
-                           : pool[Math.floor(Math.random() * pool.length)] + " II";
+  let name;
+  if (free.length) name = free[Math.floor(Math.random() * free.length)];
+  else {
+    const base = pool[Math.floor(Math.random() * pool.length)];
+    const suffixes = ["II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+    let k = 0;
+    do { name = base + " " + (suffixes[k] || "XX" + k); k++; } while (usedNames.has(name));
+  }
   usedNames.add(name);
   return name;
 }
@@ -224,6 +230,10 @@ function onScreen(x, y) {
 function chunkKey(cx, cy) { return cx + "," + cy; }
 function chunkOf(wx, wy) { return [Math.floor(wx / CHUNK), Math.floor(wy / CHUNK)]; }
 
+function markChunkDirty(wx, wy) {
+  const ch = chunks.get(chunkKey(...chunkOf(wx, wy)));
+  if (ch) ch.dirty = true;
+}
 function getChunk(cx, cy) {
   const key = chunkKey(cx, cy);
   let ch = chunks.get(key);
@@ -432,7 +442,7 @@ function updateRaider(r, dt) {
     }
   } else if (r.state === "flee") {
     const dx = r.camp.x - r.x, dy = r.camp.y - r.y, d = Math.hypot(dx, dy);
-    if (d < 40 || !camps.includes(r.camp)) { raiders.splice(raiders.indexOf(r), 1); return; }
+    if (d < 40 || (!r.nation && !camps.includes(r.camp))) { raiders.splice(raiders.indexOf(r), 1); return; }
     r.x += dx / d * speed * dt; r.y += dy / d * speed * dt; r.facing = dx < 0 ? -1 : 1; r.anim += dt * 8;
   }
 }
@@ -519,7 +529,7 @@ function legalToBuild(type, wx, wy, rot) {
   const placingWall = type === "wall" || type === "gate";
   for (const b of allStructures()) {
     const bWall = b.type === "wall" || b.type === "gate";
-    const margin = placingWall && bWall ? -6 : placingWall || bWall || b.type === "farm" ? 2 : 12;
+    const margin = placingWall && bWall ? -10 : placingWall || bWall || b.type === "farm" ? 2 : 12;
     const r = inflate(bldgRect(b), margin);
     if (!bWall && b.type !== "farm" && !placingWall) r.h += 26;
     if (rectsOverlap(cand, r)) return false;
@@ -588,6 +598,7 @@ function houseCiv(c) {
 
 function killCiv(c, why) {
   if (!civs.includes(c)) return;
+  if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
   if (c.profession === "police") policeCount--;
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
@@ -766,9 +777,27 @@ function evictFromFootprint(b) {
   for (const u of [...civs, ...visitors, ...raiders])
     if (pointInRect(u.x, u.y, r)) { u.y = r.y + r.h + 14; u.x += (u.x < b.x ? -18 : 18); }
 }
+function snapWallPos(type, wx, wy) {
+  if (type !== "wall" && type !== "gate") return [wx, wy];
+  let best = null, bd = 110;
+  for (const b of buildings) {
+    if (b.type !== "wall" && b.type !== "gate") continue;
+    if ((b.rot || 0) !== wallRot) continue;
+    const d = Math.hypot(b.x - wx, b.y - wy);
+    if (d < bd) { bd = d; best = b; }
+  }
+  if (!best) return [wx, wy];
+  const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 4;   // slight overlap: no gaps
+  if (wallRot) {
+    // upright chain: same column, stack above or below
+    return [best.x, best.y + (wy > best.y ? span : -span)];
+  }
+  return [best.x + (wx > best.x ? span : -span), best.y];
+}
 function tryPlace(type, wx, wy) {
   if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
   if ((type === "wall" || type === "gate") && !has("defending")) { toast("Walls and gates require the Defending technology."); buildMode = null; syncUI(); return; }
+  [wx, wy] = snapWallPos(type, wx, wy);
   const cost = costOf(type);
   if (!canPay(cost)) { toast(`Not enough materials: needs ${costText(cost)}.`); return; }
   if (!legalToBuild(type, wx, wy)) { toast(inTerritory(wx, wy) ? "Cannot build there — too close to another building, its entrance, or an obstacle."
@@ -778,6 +807,7 @@ function tryPlace(type, wx, wy) {
   if (type === "sapling") {
     const [cx, cy] = chunkOf(wx, wy);
     getChunk(cx, cy).trees.push({ x: wx, y: wy, alive: true, progress: -1, growth: 0 });
+    markChunkDirty(wx, wy);
     toast("Spruce sapling planted.");
   } else if (type === "farm") {
     farms.push({ x: wx, y: wy, ready: false, growT: 0, workers: [], progress: -1 });
@@ -812,7 +842,7 @@ function arrive(c) {
   if (t && t.kind === "goHome") { c.state = "sleeping"; c.task = null; return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
-                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing" };
+                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading" };
   if (t.kind === "repair") {
     if (!canPay(REPAIR_COST)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
     pay(REPAIR_COST);
@@ -906,6 +936,12 @@ function autonomy(c, dt) {
       const [cx2, cy2] = cells[Math.floor(Math.random() * cells.length)].split(",").map(Number);
       order(c, { kind: "hunt", x: cx2 * TCELL + TCELL / 2 + (Math.random() * 80 - 40), y: cy2 * TCELL + TCELL / 2 + (Math.random() * 80 - 40) });
     }
+    return;
+  }
+  // a waiting traveller pays better than the market stall
+  const v = visitors.find(v => v.state === "waiting" && !v.traded && Math.hypot(v.x - c.x, v.y - c.y) < 700);
+  if (v && (c.inv.bread + c.inv.meat) > 1) {
+    order(c, { kind: "trade", target: v, x: v.x + 22, y: v.y + 8 });
     return;
   }
   const market = buildings.find(b => b.type === "market" && !b.fire);
@@ -1046,7 +1082,7 @@ const DLG_OPTIONS = [
 
 function openDialogue(v) {
   dlg.open = true; dlg.visitor = v; paused = true;
-  if (v.meter === null) v.meter = Math.max(10, 55 - taxRate * 3.5);
+  if (v.meter === null) v.meter = Math.max(10, 55 - taxRate * 3.5) + (v.goodwill || 0);
   $("dlgFace").src = `assets/sprites/ui/${v.face}.png`;
   $("dlgName").textContent = `${v.name}, wandering ${v.gender === "f" ? "huntress" : "hunter"}`;
   $("dlgText").textContent = "The hunter eyes the barred window and the little slot beneath it. \"So. What is this place, then?\"";
@@ -1270,7 +1306,10 @@ $("renameBtn").addEventListener("click", () => {
 });
 $("renameInput").addEventListener("keydown", e => { if (e.key === "Enter") $("renameBtn").click(); e.stopPropagation(); });
 $("pmResume").addEventListener("click", () => setPause(false));
-$("pmSave").addEventListener("click", () => { setPause(false); saveGame(); toast("The colony ledger is written. Game saved."); });
+$("pmSave").addEventListener("click", () => {
+  setPause(false);
+  toast(saveGame() ? "The colony ledger is written. Game saved." : "⚠ The save failed — the ledger is too heavy for this browser.");
+});
 $("pmMenu").addEventListener("click", () => { saveGame(); location.reload(); });
 $("govToggle").addEventListener("click", () => {
   const p = $("govPanel");
@@ -1440,6 +1479,8 @@ function buildMapGrid() {
   const SEAS = [[16,15,14,2],[26,4,7,10],[43,9,4,4],[56,28,7,3],[52,32,4,4],[44,27,2,4]];
   for (const [x, y, w, h] of SEAS)
     for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = null;
+  // land taken in the wars of Europe
+  for (const cq of conquests) if (mapGrid[cq.r] && mapGrid[cq.r][cq.c]) mapGrid[cq.r][cq.c] = cq.to;
 
   // 1px fine grid: sample the coarse map through a noise warp so every
   // border becomes an organic pixel coastline
@@ -1473,6 +1514,84 @@ function empireCells() {
 }
 
 function natStrength(n) { return Math.min(10, n.strength + Math.floor(playT / 900)); }
+
+// --- the wars of Europe: rival nations fight each other, borders move ---
+const conquests = [];        // {c, r, to} — persistent map overrides
+let natWars = [];            // {a, b, t, battles}
+let natWarSpawnT = 90;
+
+function nationNeighbours(id) {
+  if (!mapGrid) buildMapGrid();
+  const out = new Set();
+  for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++) {
+    if (mapGrid[r][c] !== id) continue;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nid = mapGrid[r + dy] && mapGrid[r + dy][c + dx];
+      if (nid && nid !== id && nid !== "wilds" && NATIONS[nid]) out.add(nid);
+    }
+  }
+  return [...out];
+}
+
+function startNatWar() {
+  const ids = Object.keys(NATIONS);
+  const a = ids[Math.floor(Math.random() * ids.length)];
+  const nbs = nationNeighbours(a).filter(b =>
+    !natWars.some(w => (w.a === a && w.b === b) || (w.a === b && w.b === a)));
+  if (!nbs.length) return;
+  const b = nbs[Math.floor(Math.random() * nbs.length)];
+  natWars.push({ a, b, t: 30 + Math.random() * 20, battles: 0 });
+  toast(`⚔ Word arrives from afar: ${NATIONS[a].name} and ${NATIONS[b].name} are at war!`);
+}
+
+function cellCount(id) {
+  let n = 0;
+  for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++) if (mapGrid[r][c] === id) n++;
+  return n;
+}
+
+function resolveBattle(war) {
+  if (!mapGrid) buildMapGrid();
+  const sa = natStrength(NATIONS[war.a]), sb = natStrength(NATIONS[war.b]);
+  const aWins = Math.random() < sa / (sa + sb);
+  const winner = aWins ? war.a : war.b, loser = aWins ? war.b : war.a;
+  // find loser cells on the mutual border
+  const frontier = [];
+  for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++) {
+    if (mapGrid[r][c] !== loser) continue;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]])
+      if (mapGrid[r + dy] && mapGrid[r + dy][c + dx] === winner) { frontier.push([c, r]); break; }
+  }
+  const take = Math.min(frontier.length, 1 + Math.floor(Math.random() * 2));
+  for (let i = 0; i < take; i++) {
+    const [c, r] = frontier.splice(Math.floor(Math.random() * frontier.length), 1)[0];
+    const prev = conquests.findIndex(q => q.c === c && q.r === r);
+    if (prev >= 0) conquests.splice(prev, 1);
+    conquests.push({ c, r, to: winner });
+    mapGrid[r][c] = winner;
+  }
+  war.battles++;
+  if (take > 0) toast(`⚔ ${NATIONS[winner].name} seizes borderland from ${NATIONS[loser].name}!`);
+  // rebuild the pixel map so borders visibly move — live if the map is open
+  buildMapGrid();
+  if (document.getElementById("mapOverlay").style.display === "block") renderMap();
+  if ((war.battles >= 3 && Math.random() < 0.3) || cellCount(loser) < 6 || !frontier.length && take === 0) {
+    natWars.splice(natWars.indexOf(war), 1);
+    toast(`The war between ${NATIONS[war.a].name} and ${NATIONS[war.b].name} ends in a weary peace.`);
+  }
+}
+
+function updateNationWars(dt) {
+  natWarSpawnT -= dt;
+  if (natWarSpawnT <= 0) {
+    natWarSpawnT = 100 + Math.random() * 80;
+    if (natWars.length < 2) startNatWar();
+  }
+  for (const w of [...natWars]) {
+    w.t -= dt;
+    if (w.t <= 0) { w.t = 45 + Math.random() * 40; resolveBattle(w); }
+  }
+}
 function nationAdjacent(id) {
   if (!mapGrid) buildMapGrid();
   const mine = empireCells();
@@ -1557,7 +1676,7 @@ document.getElementById("mapToggle").addEventListener("click", () => {
 });
 document.getElementById("mapClose").addEventListener("click", () => {
   document.getElementById("mapOverlay").style.display = "none";
-  if (!dlg.open) paused = false;
+  setPause(pauseOpen);
 });
 document.getElementById("euromap").addEventListener("click", e => {
   const rect = e.target.getBoundingClientRect();
@@ -1658,12 +1777,12 @@ function maybeOfferSettlement() {
     settlePending = true;
     const list = document.getElementById("settleList");
     list.innerHTML = "";
-    for (const c of civs) {
+    civs.forEach((c, i) => {
       const row = document.createElement("label");
       row.style.cssText = "display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer;font-size:12px";
-      row.innerHTML = `<input type="checkbox" data-name="${c.name}"> ${c.name} — ${c.profession || "no trade"}${c.home ? "" : " (homeless)"}`;
+      row.innerHTML = `<input type="checkbox" data-idx="${i}"> ${c.name} — ${c.profession || "no trade"}${c.home ? "" : " (homeless)"}`;
       list.appendChild(row);
-    }
+    });
     document.getElementById("settleName").value = SETTLE_NAMES[settlements.length % SETTLE_NAMES.length];
     document.getElementById("settleModal").style.display = "block";
     paused = true;
@@ -1672,12 +1791,12 @@ function maybeOfferSettlement() {
 }
 document.getElementById("settleNo").addEventListener("click", () => {
   document.getElementById("settleModal").style.display = "none";
-  settlePending = false; paused = false;
+  settlePending = false; setPause(pauseOpen);
   nextSettleAt = playT + 600;   // they will ask again
   toast("The scouts are told to wait. They will ask again.");
 });
 document.getElementById("settleGo").addEventListener("click", () => {
-  const chosen = [...document.querySelectorAll("#settleList input:checked")].map(i => i.dataset.name);
+  const chosen = [...document.querySelectorAll("#settleList input:checked")].map(i => civs[+i.dataset.idx]).filter(Boolean);
   if (!chosen.length) return toast("Someone has to go.");
   if (chosen.length >= civs.length) return toast("Someone has to stay behind, too.");
   const name = document.getElementById("settleName").value.trim() || "New Settlement";
@@ -1686,17 +1805,16 @@ document.getElementById("settleGo").addEventListener("click", () => {
                mx: EMPIRE_HOME.mx + Math.round(Math.cos(angle) * (3 + settlements.length)),
                my: EMPIRE_HOME.my + Math.round(Math.sin(angle) * 2 + 2 + settlements.length) };
   settlements.push(st);
-  for (const nm of chosen) {
-    const c = civs.find(x => x.name === nm);
-    if (c) order(c, { kind: "emigrate", x: c.x + Math.cos(angle) * 1600, y: c.y + Math.sin(angle) * 1600 });
-  }
+  for (const c of chosen)
+    order(c, { kind: "emigrate", x: c.x + Math.cos(angle) * 1600, y: c.y + Math.sin(angle) * 1600 });
   document.getElementById("settleModal").style.display = "none";
-  settlePending = false; paused = false;
+  settlePending = false; setPause(pauseOpen);
   nextSettleAt = playT + 1200;
   expandFrontier(6);
   toast(`${chosen.length} settler(s) depart to found ${name}. Your empire grows on the map of Europe.`);
 });
 function emigrate(c) {
+  if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
   if (c.profession === "police") policeCount--;
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
@@ -1720,7 +1838,7 @@ function updateSettlements(dt) {
 document.getElementById("empireGo").addEventListener("click", () => {
   empireName = document.getElementById("empireInput").value.trim() || "The Forester Realm";
   document.getElementById("empireModal").style.display = "none";
-  paused = false;
+  setPause(pauseOpen);
   toast(`Let it be written: this is ${empireName}.`);
 });
 document.getElementById("empireInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("empireGo").click(); e.stopPropagation(); });
@@ -1754,15 +1872,23 @@ function saveGame() {
       })),
       farms: farms.map(f => ({ x: f.x, y: f.y, ready: f.ready, growT: f.growT, workers: f.workers.map(ci) })),
       camps: camps.map(c => ({ ...c })),
-      chunks: [...chunks.entries()],
+      chunks: [...chunks.entries()].filter(([k, ch]) => ch.dirty).map(([k, ch]) => [k, {
+        dirty: true,
+        trees: ch.trees.map(t => ({ ...t, progress: -1 })),
+        stones: ch.stones.map(t => ({ ...t, progress: -1 })),
+        patches: ch.patches.map(t => ({ ...t, progress: -1 })),
+      }]),
       empireName, territoryColor, borderColor,
       territory: [...territory],
       sackedCamps, playT, nextSettleAt,
       settlements: settlements.map(st => ({ ...st })),
-      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, lost: n.lost || 0, captured: n.captured || [] }])),
+      conquests: conquests.map(cq => ({ ...cq })),
+      natWars: natWars.map(w => ({ ...w })),
+      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [] }])),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-  } catch (e) { /* storage full or private mode — play on without saves */ }
+    return true;
+  } catch (e) { return false; }
 }
 
 function loadGame() {
@@ -1821,7 +1947,16 @@ function loadGame() {
     if (!territory.size) { expandAround(0, -40, 2); for (const b of buildings) expandAround(b.x, b.y, 1); }
     sackedCamps = d.sackedCamps || 0; playT = d.playT || 0; nextSettleAt = d.nextSettleAt || 1200;
     settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
-    if (d.wars) { n_wars_init(); for (const [id, w] of Object.entries(d.wars)) if (NATIONS[id]) Object.assign(NATIONS[id], w); }
+    conquests.length = 0; for (const cq of (d.conquests || [])) conquests.push(cq);
+    natWars = d.natWars || [];
+    mapGrid = null;   // rebuilt with conquests on next use
+    if (d.wars) {
+      n_wars_init();
+      for (const [id, w] of Object.entries(d.wars)) if (NATIONS[id]) {
+        Object.assign(NATIONS[id], w);
+        if (NATIONS[id].atWar && !NATIONS[id].warT) NATIONS[id].warT = 60 + Math.random() * 60;
+      }
+    }
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
     $("taxSlider").value = taxRate; $("taxVal").textContent = taxRate;
     $("lawCivWeapons").checked = laws.civWeapons;
@@ -2013,6 +2148,7 @@ function update(dt) {
 
   worldT += dt;
   rescueStuck(dt);
+  updateNationWars(dt);
   if (difficulty() > lastTier) {
     lastTier = difficulty();
     toast("⚠ Word of your colony's wealth spreads. The woods grow bolder…");
@@ -2079,11 +2215,13 @@ function update(dt) {
   for (const v of [...visitors]) updateVisitor(v, dt);
 
   // raids
+  if (has("defending") || has("raiding")) {
+    campRespawnTimer -= dt;
+    if (campRespawnTimer <= 0) { campRespawnTimer = 300; spawnCamps(1); }
+  }
   if (camps.length) {
     raidTimer -= dt;
     if (raidTimer <= 0) { raidTimer = (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.88, difficulty() - 1); spawnRaid(); }
-    campRespawnTimer -= dt;
-    if (campRespawnTimer <= 0) { campRespawnTimer = 300; spawnCamps(1); }
     patrolT = (patrolT || 0) - dt;
     if (patrolT <= 0) {
       patrolT = 20;
@@ -2171,6 +2309,7 @@ function update(dt) {
       if ((c.workT % 0.5) < dt) SFX.chop();
       if (c.workT >= chopTime(c)) {
         t.alive = false; t.progress = -1;
+        markChunkDirty(t.x, t.y);
         SFX.treeFall();
         c.inv.logs += logsPerTree();
         float(c.x, c.y - 70, "+" + logsPerTree() + " logs", "#7da083");
@@ -2183,6 +2322,7 @@ function update(dt) {
       if ((c.workT % 0.55) < dt) SFX.quarry();
       if (c.workT >= QUARRY_TIME * workMul(c)) {
         s.alive = false; s.progress = -1;
+        markChunkDirty(s.x, s.y);
         c.inv.stone += 3; c.inv.iron += 1;
         float(c.x, c.y - 70, "+3 stone +1 iron", "#7da083");
         c.state = "idle"; c.task = null;
@@ -2195,6 +2335,7 @@ function update(dt) {
       if ((c.workT % 0.4) < dt) SFX.rustle();
       if (c.workT >= need) {
         p.alive = false; p.progress = -1;
+        markChunkDirty(p.x, p.y);
         const got = 2 + (has("foraging") ? 1 : 0);
         if (c.task.forColony) res.seeds += got; else c.inv.seeds += got;
         SFX.pickup();
@@ -2219,6 +2360,7 @@ function update(dt) {
       }
     } else if (c.state === "repairing") {
       const b = c.task.target;
+      if (!buildings.includes(b)) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt; b.progress = c.workT / (REPAIR_TIME * workMul(c)); c.anim += dt * 10;
       if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= REPAIR_TIME * workMul(c)) {
@@ -2251,6 +2393,21 @@ function update(dt) {
         c.inv.wheat += 2; c.inv.bread += 1;
         SFX.pickup();
         float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
+        c.state = "idle"; c.task = null;
+      }
+    } else if (c.state === "trading") {
+      const v = c.task.target;
+      if (!visitors.includes(v) || v.state !== "waiting") { c.state = "idle"; c.task = null; continue; }
+      c.workT += dt;
+      if (c.workT >= 2) {
+        if (c.inv.bread > 0) c.inv.bread--; else if (c.inv.meat > 0) c.inv.meat--;
+        const price = sellPrice() + 2;
+        c.inv.dm += price;
+        v.traded = true;
+        v.goodwill = (v.goodwill || 0) + 4;   // a full belly warms a wanderer to the colony
+        float(c.x, c.y - 70, "+" + price + " DM", "#c9a86a");
+        SFX.coin();
+        toast(`${c.name} trades provisions to ${v.name} the traveller at a good price.`);
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "selling") {
@@ -2542,19 +2699,20 @@ function render(dt) {
   ctx.globalAlpha = 1;
 
   if (buildMode) {
-    const ok = legalToBuild(buildMode, mouse.wx, mouse.wy) && canPay(costOf(buildMode));
+    const [gx, gy] = snapWallPos(buildMode, mouse.wx, mouse.wy);
+    const ok = legalToBuild(buildMode, gx, gy) && canPay(costOf(buildMode));
     ctx.globalAlpha = 0.55;
     const ghost = buildMode === "sapling" ? img.tree : buildMode === "farm" ? img.farm : img[buildMode];
     const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : (SMALL_BLDG[buildMode] || (buildMode === "farm" ? FARM_SIZE : BLDG_SIZE));
-    if (buildMode === "wall" && wallRot) drawSprite(img.wallv, mouse.wx, mouse.wy, gs, false);
+    if (buildMode === "wall" && wallRot) drawSprite(img.wallv, gx, gy, gs, false);
     else if (buildMode === "gate" && wallRot) {
-      ctx.save(); ctx.translate(mouse.wx, mouse.wy - gs / 2); ctx.rotate(Math.PI / 2);
+      ctx.save(); ctx.translate(gx, gy - gs / 2); ctx.rotate(Math.PI / 2);
       ctx.drawImage(ghost, -gs / 2, -gs / 2, gs, gs);
       ctx.restore();
-    } else drawSprite(ghost, mouse.wx, mouse.wy, gs, false);
+    } else drawSprite(ghost, gx, gy, gs, false);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = ok ? "#7da083" : "#a05252"; ctx.lineWidth = 2;
-    ctx.strokeRect(mouse.wx - gs / 2, mouse.wy - gs, gs, gs);
+    ctx.strokeRect(gx - gs / 2, gy - gs, gs, gs);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
