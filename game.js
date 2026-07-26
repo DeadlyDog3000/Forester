@@ -274,7 +274,7 @@ function nearThings(kind, wx, wy, r) {
 // --- camps & raids ---
 function spawnCamps(n) {
   const tier = difficulty();
-  for (let i = 0; i < n && camps.length < Math.min(9, 4 + tier); i++) {
+  for (let i = 0; i < n && camps.length < 1; i++) {   // one camp in the world at a time
     const a = Math.random() * Math.PI * 2, d = 1100 + Math.random() * 1100;
     const type = Math.random() < 0.55 ? "thief" : "raid";
     const hp = Math.round((type === "thief" ? 120 : 180) * (1 + 0.15 * (tier - 1)));
@@ -1124,7 +1124,7 @@ function updateResearch(dt) {
     research = null;
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
     if ((t.id === "defending" || t.id === "raiding") && camps.length === 0) {
-      spawnCamps(4);
+      spawnCamps(1);
       toast(`Research complete: ${t.name}. Word spreads of your colony's strength — thief and raid camps stir in the deep woods.`);
     }
     renderTech(); syncUI();
