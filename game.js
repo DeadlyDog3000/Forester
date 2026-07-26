@@ -531,7 +531,7 @@ function legalToBuild(type, wx, wy, rot) {
 }
 
 function collideMove(c, nx, ny) {
-  const blocked = (x, y) => allStructures().some(b => b.type !== "gate" && b.type !== "farm" && pointInRect(x, y, inflate(bldgRect(b), 6)));
+  const blocked = (x, y) => allStructures().some(b => b.type === "wall" && pointInRect(x, y, inflate(bldgRect(b), 6)));
   const ox = c.x, oy = c.y;
   const stepLen = Math.hypot(nx - c.x, ny - c.y);
   // a slide only counts if it makes real progress — micro-corrections must not
@@ -752,7 +752,7 @@ function rescueStuck(dt) {
   if (rescueT > 0) return;
   rescueT = 4;
   for (const u of [...civs, ...visitors]) {
-    const jail = allStructures().find(b => b.type !== "gate" && b.type !== "farm" && pointInRect(u.x, u.y, inflate(bldgRect(b), 4)));
+    const jail = allStructures().find(b => b.type === "wall" && pointInRect(u.x, u.y, inflate(bldgRect(b), 4)));
     if (jail) {
       const r = bldgRect(jail);
       u.y = r.y + r.h + 16;
