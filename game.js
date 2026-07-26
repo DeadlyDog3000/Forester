@@ -78,7 +78,7 @@ T("blades", "Blades", "military", ["hilts"], 7, "All weapons +5 damage; the secr
 T("swords", "Swords", "military", ["blades"], 8, "Blacksmiths may forge swords (20 dmg)");
 T("battleaxes", "Battle Axes", "military", ["swords"], 9, "Blacksmiths may forge battle axes (28 dmg)");
 T("lances", "Lances", "military", ["swords"], 9, "Police & soldiers +10 damage (requires War Horse)");
-T("defending", "Defending", "military", ["policing"], 4, "Police take weapons from the armoury; torching 30% slower — but the camps take notice");
+T("defending", "Defending", "military", ["policing"], 4, "Unlocks Town Walls & Gates; police take weapons from the armoury; torching 30% slower — but the camps take notice");
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
 T("occupation", "Occupation", "military", ["raiding"], 6, "Taxes collect +1 more DM");
 TECH.lances.req.push("warhorse");
@@ -175,7 +175,11 @@ const chunks = new Map();
 let selected = null, selectedBldg = null, selectedCamp = null, buildMode = null;
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
 let worldT = 80;   // clock of the world; night falls late in each cycle
-let raidTimer = 60, campRespawnTimer = 300, patrolT = 5;
+function nightAmt() {
+  const ph = worldT % 300;
+  return ph < 180 ? 0 : ph < 210 ? (ph - 180) / 30 : ph < 275 ? 1 : Math.max(0, 1 - (ph - 275) / 25);
+}
+let raidTimer = 60, campRespawnTimer = 300, patrolT = 5, ambushT = 30;
 let techTab = "growth";
 
 const NAME_POOL = ["Falk", "Jorg", "Matthias", "Anselm", "Dietrich", "Lorenz", "Veit", "Kaspar",
@@ -380,7 +384,10 @@ function updateRaider(r, dt) {
     const t = r.target;
     if (!buildings.includes(t)) { r.state = "flee"; return; }
     const dx = t.x - r.x, dy = t.y + 20 - r.y, d = Math.hypot(dx, dy);
-    if (d < 30) { r.state = "steal"; r.workT = 0; }
+    if (d < 30) {
+      if (r.arsonist) { r.state = "torchWall"; r.wallTarget = t; r.workT = 0; }
+      else { r.state = "steal"; r.workT = 0; }
+    }
     else {
       const nx = r.x + dx / d * speed * dt, ny = r.y + dy / d * speed * dt;
       // town walls bar the way — burn through them
@@ -440,9 +447,15 @@ function strikeUnit(a, b, dmg) {
 // --- geometry ---
 const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72 };
 function bldgRect(b) {
+  if (b.type === "wall" || b.type === "gate") {
+    const L = SMALL_BLDG[b.type];
+    return b.rot ? { x: b.x - 11, y: b.y - L, w: 22, h: L }
+                 : { x: b.x - L / 2, y: b.y - 22, w: L, h: 22 };
+  }
   const s = SMALL_BLDG[b.type] || BLDG_SIZE;
   return { x: b.x - s / 2, y: b.y - s, w: s, h: s };
 }
+let wallRot = 0;
 const inflate = (r, m) => ({ x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m });
 const rectsOverlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 const pointInRect = (px, py, r) => px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
@@ -474,10 +487,12 @@ function expandFrontier(n) {
 }
 expandAround(0, -40, 2);   // the family clearing starts claimed
 
-function legalToBuild(type, wx, wy) {
+function legalToBuild(type, wx, wy, rot) {
   if (type !== "sapling" && !inTerritory(wx, wy)) return false;
   const s = type === "sapling" ? 20 : (SMALL_BLDG[type] || BLDG_SIZE);
-  const cand = { x: wx - s / 2, y: wy - s, w: s, h: s };
+  const cand = (type === "wall" || type === "gate")
+    ? bldgRect({ type, x: wx, y: wy, rot: rot === undefined ? wallRot : rot })
+    : { x: wx - s / 2, y: wy - s, w: s, h: s };
   const placingWall = type === "wall" || type === "gate";
   for (const b of allStructures()) {
     const bWall = b.type === "wall" || b.type === "gate";
@@ -561,6 +576,10 @@ function setPause(open) {
 }
 addEventListener("keydown", e => {
   keys[e.key.toLowerCase()] = true;
+  if (e.key.toLowerCase() === "r" && (buildMode === "wall" || buildMode === "gate")) {
+    wallRot = wallRot ? 0 : 1;
+    toast(`Wall turned ${wallRot ? "upright (north-south)" : "flat (east-west)"}.`);
+  }
   if (e.key === "Escape") {
     if (buildMode) { buildMode = null; syncUI(); }
     else if (gameState === "playing" || pauseOpen) setPause(!pauseOpen);
@@ -693,6 +712,7 @@ function evictFromFootprint(b) {
 }
 function tryPlace(type, wx, wy) {
   if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
+  if ((type === "wall" || type === "gate") && !has("defending")) { toast("Walls and gates require the Defending technology."); buildMode = null; syncUI(); return; }
   const cost = costOf(type);
   if (!canPay(cost)) { toast(`Not enough materials: needs ${costText(cost)}.`); return; }
   if (!legalToBuild(type, wx, wy)) { toast(inTerritory(wx, wy) ? "Cannot build there — too close to another building, its entrance, or an obstacle."
@@ -712,6 +732,7 @@ function tryPlace(type, wx, wy) {
     const b = { type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
     if (type === "wall") { b.hp = b.maxHp = 90; }
     if (type === "gate") { b.hp = b.maxHp = 130; }
+    if (type === "wall" || type === "gate") b.rot = wallRot;
     buildings.push(b);
     evictFromFootprint(b);
     expandAround(wx, wy, 1);
@@ -732,6 +753,7 @@ function order(c, task) {
 function arrive(c) {
   const t = c.task;
   if (t && t.kind === "emigrate") { emigrate(c); return; }
+  if (t && t.kind === "goHome") { c.state = "sleeping"; c.task = null; return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
                    buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing" };
@@ -867,7 +889,7 @@ function rebelAI(c) {
     for (const b of targets) { const d = Math.hypot(b.x - c.x, b.y - c.y); if (d < bd) { bd = d; best = b; } }
     order(c, { kind: "torch", target: best, x: best.x, y: best.y + 14 });
   } else {
-    const prey = civs.filter(o => o !== c && !o.rebel);
+    const prey = civs.filter(o => o !== c && !o.rebel && o.state !== "sleeping");
     if (prey.length) {
       const p = prey[Math.floor(Math.random() * prey.length)];
       order(c, { kind: "attack", target: p, x: p.x, y: p.y });
@@ -1117,7 +1139,9 @@ document.querySelectorAll("#buildMenu .menu-item").forEach(item =>
   item.addEventListener("click", () => {
     buildMode = item.dataset.build;
     $("buildDrop").classList.remove("open");
-    toast("Click the map to place. Right-click or Esc to cancel.");
+    toast(buildMode === "wall" || buildMode === "gate"
+      ? "Click to place. R rotates the segment. Right-click or Esc to cancel."
+      : "Click the map to place. Right-click or Esc to cancel.");
     syncUI();
   }));
 document.querySelectorAll("#craftMenu .menu-item").forEach(item =>
@@ -1645,7 +1669,7 @@ function saveGame() {
       })),
       buildings: buildings.map(b => ({
         type: b.type, x: b.x, y: b.y, fire: b.fire, placed: b.placed,
-        hp: b.hp, maxHp: b.maxHp,
+        hp: b.hp, maxHp: b.maxHp, rot: b.rot,
         occupants: b.occupants.map(ci),
       })),
       farms: farms.map(f => ({ x: f.x, y: f.y, ready: f.ready, growT: f.growT, workers: f.workers.map(ci) })),
@@ -1691,6 +1715,7 @@ function loadGame() {
     for (const bd of d.buildings)
       buildings.push({ type: bd.type, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
                        torchP: -1, placed: bd.placed, bakeT: 0, occupants: [],
+                       rot: bd.rot || 0,
                        hp: bd.hp ?? (bd.type === "wall" ? 90 : bd.type === "gate" ? 130 : undefined),
                        maxHp: bd.maxHp ?? (bd.type === "wall" ? 90 : bd.type === "gate" ? 130 : undefined) });
     d.buildings.forEach((bd, i) => {
@@ -1983,6 +2008,27 @@ function update(dt) {
       }
     }
   }
+  if (nightAmt() > 0.9 && camps.length &&
+      !buildings.some(b => (b.type === "wall" || b.type === "gate") && !b.fire)) {
+    ambushT -= dt;
+    if (ambushT <= 0) {
+      ambushT = 50 + Math.random() * 40;
+      const guards = civs.filter(c => isForce(c) && c.state !== "sleeping");
+      const targets = buildings.filter(b => b.type !== "burned" && !b.fire);
+      if (targets.length && raiders.filter(r => r.state !== "patrol").length < MAX_RAIDERS + 2) {
+        let camp = camps[0], bd = Infinity;
+        for (const cp of camps) { const d = Math.hypot(cp.x, cp.y); if (d < bd) { bd = d; camp = cp; } }
+        for (let i = 0; i < 3; i++) {
+          const r = mkRaider(camp, "approach");
+          r.target = targets[Math.floor(Math.random() * targets.length)];
+          r.arsonist = Math.random() < 0.5;   // half come to burn, half to steal
+          if (guards.length && i === 0) r.foe = guards[Math.floor(Math.random() * guards.length)];
+          raiders.push(r);
+        }
+        toast("⚠ Raiders pour out of the dark — the town is unwalled and they know it!");
+      }
+    }
+  } else ambushT = Math.max(ambushT, 25);
   for (const r of [...raiders]) updateRaider(r, dt);
 
   for (const c of [...civs]) {
@@ -1995,6 +2041,14 @@ function update(dt) {
     const target = happinessTarget(c);
     c.happiness += Math.sign(target - c.happiness) * Math.min(Math.abs(target - c.happiness), 2.5 * dt);
     maybeRebel(c);
+
+    const nightNow = nightAmt();
+    if (c.state === "sleeping") {
+      if (nightNow < 0.05) { c.state = "idle"; c.x = c.home ? c.home.x : c.x; c.y = c.home ? c.home.y + 18 : c.y; }
+      else continue;
+    }
+    if (nightNow > 0.5 && !isForce(c) && !c.rebel && c.home && c.state === "idle")
+      order(c, { kind: "goHome", x: c.home.x, y: c.home.y + 12 });
 
     if (c.rebel) rebelAI(c);
     if (isForce(c) && !c.rebel) forceAI(c);
@@ -2299,7 +2353,12 @@ function render(dt) {
     }
   }});
   for (const b of buildings) if (inView(b.x, b.y)) drawables.push({ y: b.y, draw: () => {
-    drawSprite(img[b.type], b.x, b.y, BLDG_SIZE, false);
+    if ((b.type === "wall" || b.type === "gate") && b.rot) {
+      const L = SMALL_BLDG[b.type];
+      ctx.save(); ctx.translate(b.x, b.y - L / 2); ctx.rotate(Math.PI / 2);
+      ctx.drawImage(img[b.type], -L / 2, -L / 2, L, L);
+      ctx.restore();
+    } else drawSprite(img[b.type], b.x, b.y, SMALL_BLDG[b.type] || BLDG_SIZE, false);
     if (b.fire > 0) {
       const f = img["fire" + (Math.floor(fireAnim) % 4)];
       drawSprite(f, b.x - 20, b.y - 8, 56, false);
@@ -2327,7 +2386,7 @@ function render(dt) {
     ctx.fillText(r.state === "patrol" ? "thief" : "RAIDER", r.x, r.y - CHAR_SIZE - 4);
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
-  for (const c of civs) if (inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
+  for (const c of civs) if (c.state !== "sleeping" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
     if (c === selected) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(c.x, c.y - 2, 18, 7, 0, 0, Math.PI * 2); ctx.stroke();
@@ -2362,8 +2421,7 @@ function render(dt) {
   ctx.globalAlpha = 1;
 
   // night falls: darkness, and warm light spilling from the doorways
-  const DAYLEN = 300, ph = worldT % DAYLEN;
-  const night = ph < 180 ? 0 : ph < 210 ? (ph - 180) / 30 : ph < 275 ? 1 : Math.max(0, 1 - (ph - 275) / 25);
+  const night = nightAmt();
   if (night > 0.01) {
     ctx.fillStyle = `rgba(7, 10, 26, ${0.48 * night})`;
     ctx.fillRect(cam.x, cam.y, vw, vh);
@@ -2396,8 +2454,12 @@ function render(dt) {
     const ok = legalToBuild(buildMode, mouse.wx, mouse.wy) && canPay(costOf(buildMode));
     ctx.globalAlpha = 0.55;
     const ghost = buildMode === "sapling" ? img.tree : buildMode === "farm" ? img.farm : img[buildMode];
-    const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : buildMode === "farm" ? FARM_SIZE : BLDG_SIZE;
-    drawSprite(ghost, mouse.wx, mouse.wy, gs, false);
+    const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : (SMALL_BLDG[buildMode] || (buildMode === "farm" ? FARM_SIZE : BLDG_SIZE));
+    if ((buildMode === "wall" || buildMode === "gate") && wallRot) {
+      ctx.save(); ctx.translate(mouse.wx, mouse.wy - gs / 2); ctx.rotate(Math.PI / 2);
+      ctx.drawImage(ghost, -gs / 2, -gs / 2, gs, gs);
+      ctx.restore();
+    } else drawSprite(ghost, mouse.wx, mouse.wy, gs, false);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = ok ? "#7da083" : "#a05252"; ctx.lineWidth = 2;
     ctx.strokeRect(mouse.wx - gs / 2, mouse.wy - gs, gs, gs);
