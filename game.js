@@ -2827,10 +2827,7 @@ function render(dt) {
         drawSprite(wimg("tree"), t.x, t.y, s, false);
         if (t.progress >= 0) bar(t.x, t.y - s - 12, t.progress, "#c9a86a");
       }});
-      else drawables.push({ y: t.y, draw: () => {
-        ctx.fillStyle = "#3d2b1c"; ctx.fillRect(t.x - 5, t.y - 8, 10, 8);
-        ctx.fillStyle = "#2a1d13"; ctx.fillRect(t.x - 5, t.y - 3, 10, 3);
-      }});
+      // felled trees leave clean ground — no stumps
     }
     for (const s of ch.stones) if (s.alive && inView(s.x, s.y)) drawables.push({ y: s.y, draw: () => {
       drawSprite(wimg("stone"), s.x, s.y, NODE_SIZE, false);
