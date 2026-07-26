@@ -2849,14 +2849,19 @@ function gameOver() {
 
 function syncUI() {
   $("buildToggle").classList.toggle("active", !!buildMode);
-  $("rName").textContent = settlementName.toUpperCase();
+  // in a daughter town's clearing, the HUD shows that town's ledger instead of the capital's
+  const hudCx = cam.x + canvas.width / 2 / zoom, hudCy = cam.y + canvas.height / 2 / zoom;
+  const hudTown = settlements.find(s => s.x !== undefined && Math.hypot(s.x - hudCx, s.y - hudCy) < 700);
+  const hr = hudTown ? (hudTown.res || {}) : res;
+  $("rName").textContent = (hudTown ? hudTown.name : settlementName).toUpperCase();
   $("govTitle").textContent = "GOVERNMENT OF " + settlementName.toUpperCase();
-  $("rLogs").textContent = res.logs; $("rSeeds").textContent = res.seeds;
-  $("rStone").textContent = res.stone; $("rIron").textContent = res.iron;
-  $("rDoors").textContent = res.doors; $("rBread").textContent = res.bread;
-  $("rMeat").textContent = res.meat; $("rWeapons").textContent = res.weapons;
-  $("rTools").textContent = buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0); $("rDM").textContent = res.dm;
-  $("rPop").textContent = civs.length;
+  $("rLogs").textContent = hr.logs || 0; $("rSeeds").textContent = hr.seeds || 0;
+  $("rStone").textContent = hr.stone || 0; $("rIron").textContent = hr.iron || 0;
+  $("rDoors").textContent = hr.doors || 0; $("rBread").textContent = hr.bread || 0;
+  $("rMeat").textContent = hr.meat || 0; $("rWeapons").textContent = hr.weapons || 0;
+  $("rTools").textContent = hudTown ? 0 : buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0);
+  $("rDM").textContent = hr.dm || 0;
+  $("rPop").textContent = hudTown ? hudTown.pop : civs.length;
   $("rTax").textContent = taxRate;
   $("rSeason").textContent = (season() === "winter" ? "❄ WINTER " : "SUMMER ") + colonyYear;
   const mm = Math.floor(taxTimer / 60), ss = Math.floor(taxTimer % 60);
@@ -3886,15 +3891,6 @@ function render(dt) {
     ctx.fillText(t.name, tx2, my2 + (sy > canvas.height - 70 ? -16 : 22));
   }
 
-  // rolling into a daughter town's clearing shows its stores
-  const cx2 = cam.x + canvas.width / 2 / zoom, cy2 = cam.y + canvas.height / 2 / zoom;
-  const nearTown = settlements.find(s => s.x !== undefined && Math.hypot(s.x - cx2, s.y - cy2) < 700);
-  const chip = $("townChip");
-  if (nearTown) {
-    const r = nearTown.res || {};
-    chip.textContent = `${nearTown.name.toUpperCase()} — POP ${nearTown.pop} · LOGS ${r.logs || 0} · STONE ${r.stone || 0} · BREAD ${r.bread || 0} · MEAT ${r.meat || 0} · DM ${r.dm || 0}`;
-    chip.style.display = "block";
-  } else chip.style.display = "none";
 }
 
 // --- loop ---
