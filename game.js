@@ -242,7 +242,7 @@ function mkCiv(name, who, x, y, gender) {
            task: null, workT: 0, home: null, profession: null,
            hunger: 100, hp: 100, maxHp: 100, happiness: 75, rebel: false, armed: false, tool: false,
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
-           autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, isCiv: true };
+           autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true };
 }
 
 function float(x, y, text, color) { floaters.push({ x, y, text, color, t: 1.4 }); }
@@ -360,7 +360,7 @@ function updateRaider(r, dt) {
   // fight anyone who is fighting us, or any force unit close by
   if (!r.foe || (!civs.includes(r.foe))) {
     r.foe = null;
-    for (const c of civs) if (isForce(c) && Math.hypot(c.x - r.x, c.y - r.y) < 90) { r.foe = c; break; }
+    for (const c of civs) if (isForce(c) && c.state !== "sleeping" && c.state !== "warming" && Math.hypot(c.x - r.x, c.y - r.y) < 90) { r.foe = c; break; }
   }
   if (r.foe) {
     const d = Math.hypot(r.foe.x - r.x, r.foe.y - r.y);
@@ -870,6 +870,7 @@ function arrive(c) {
   const t = c.task;
   if (t && t.kind === "emigrate") { emigrate(c); return; }
   if (t && t.kind === "goHome") { c.state = "sleeping"; c.task = null; return; }
+  if (t && t.kind === "warmUp") { c.state = "warming"; c.workT = 0; c.task = null; return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
                    buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing" };
@@ -1026,7 +1027,7 @@ function rebelAI(c) {
     for (const b of targets) { const d = Math.hypot(b.x - c.x, b.y - c.y); if (d < bd) { bd = d; best = b; } }
     order(c, { kind: "torch", target: best, x: best.x, y: best.y + 14 });
   } else {
-    const prey = civs.filter(o => o !== c && !o.rebel && o.state !== "sleeping");
+    const prey = civs.filter(o => o !== c && !o.rebel && o.state !== "sleeping" && o.state !== "warming");
     if (prey.length) {
       const p = prey[Math.floor(Math.random() * prey.length)];
       order(c, { kind: "attack", target: p, x: p.x, y: p.y });
@@ -1062,7 +1063,7 @@ function igniteCheck(b, dt) {
     b.fire = 0;
     for (const o of b.occupants) {
       o.home = null;
-      if (o.state === "sleeping") { o.state = "idle"; o.x = b.x + (Math.random() * 40 - 20); o.y = b.y + 24; }
+      if (o.state === "sleeping" || o.state === "warming") { o.state = "idle"; o.x = b.x + (Math.random() * 40 - 20); o.y = b.y + 24; }
     }
     b.occupants = [];
     if (b.type === "cabin") { b.type = "burned"; toast("A cabin has burned to a charred ruin. It can be repaired by order."); }
@@ -1427,7 +1428,7 @@ $("bpDismantle").addEventListener("click", () => {
     const refund = Math.floor(base * dismantleRefund());
     for (const o of b.occupants) {
       o.home = null;
-      if (o.state === "sleeping") { o.state = "idle"; o.y = b.y + 24; }
+      if (o.state === "sleeping" || o.state === "warming") { o.state = "idle"; o.y = b.y + 24; }
     }
     buildings.splice(buildings.indexOf(b), 1);
     res.logs += refund;
@@ -2150,6 +2151,8 @@ const TUT_STEPS = [
     done: () => $("mapOverlay").style.display === "block" },
   { text: () => "And where there is a border, there is business: click a peaceful neighbour on the map to Open a Trade Route (40 DM) — caravans will bring DM and goods. At home, your civilians already peddle bread and meat to each other and to travellers.",
     timed: 16 },
+  { text: () => "❄ One warning: every year winter comes. The fields sleep, and the cold kills — anyone outside too long freezes. Housed folk duck into their cabins to warm up on their own; the homeless just sit in the snow and die. Roofs before riches.",
+    timed: 16 },
   { text: () => "So that's the game: gather and build by day, keep bellies full and taxes fair, wall the town before nightfall, research toward steel, and grow the empire cell by cell. Wanderers, raiders, wars, and new settlements will find you on their own. The woods are yours now.",
     done: () => false },
 ];
@@ -2475,10 +2478,41 @@ function update(dt) {
     c.happiness += Math.sign(target - c.happiness) * Math.min(Math.abs(target - c.happiness), 2.5 * dt);
     maybeRebel(c);
 
+    // winter cold: five minutes in the open kills (guards last seven)
+    if (season() === "winter") {
+      if (c.state === "sleeping" || c.state === "warming") {
+        c.coldT = Math.max(0, c.coldT - dt * 8);
+      } else {
+        c.coldT = (c.coldT || 0) + dt;
+        const limit = isForce(c) ? 420 : 300;
+        if (c.coldT > limit - 60 && !c.coldWarned) {
+          c.coldWarned = true;
+          toast(c.home ? `❄ ${c.name} is freezing — they need to get indoors.` :
+                         `❄ ${c.name} is freezing in the open — without a roof, the cold will take them.`);
+        }
+        if (c.coldT > limit) {
+          c.hp -= 2 * dt;
+          if (Math.random() < dt * 1.5) float(c.x, c.y - 74, "❄", "#bcd8e8");
+          if (c.hp <= 0) { killCiv(c, "froze to death in the open"); continue; }
+        }
+      }
+    } else { c.coldT = 0; c.coldWarned = false; }
+
+    // housed folk duck inside to warm up before the cold turns deadly
+    if (season() === "winter" && c.home && !c.rebel && c.state === "idle" && c.coldT > 200)
+      order(c, { kind: "warmUp", x: c.home.x, y: c.home.y + 12 });
+
     const nightNow = nightAmt();
     if (c.state === "sleeping") {
       if (nightNow < 0.05) { c.state = "idle"; c.x = c.home ? c.home.x : c.x; c.y = c.home ? c.home.y + 18 : c.y; }
       else continue;
+    }
+    if (c.state === "warming") {
+      c.workT += dt;
+      if (c.workT >= 18 || season() !== "winter") {
+        c.state = "idle"; c.coldT = 0; c.coldWarned = false;
+        c.x = c.home ? c.home.x : c.x; c.y = c.home ? c.home.y + 18 : c.y;
+      } else continue;
     }
     if (nightNow > 0.5 && !isForce(c) && !c.rebel && c.home && c.state === "idle")
       order(c, { kind: "goHome", x: c.home.x, y: c.home.y + 12 });
@@ -2870,7 +2904,7 @@ function render(dt) {
     ctx.fillText(r.state === "patrol" ? "thief" : "RAIDER", r.x, r.y - CHAR_SIZE - 4);
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
-  for (const c of civs) if (c.state !== "sleeping" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
+  for (const c of civs) if (c.state !== "sleeping" && c.state !== "warming" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
     if (c === selected) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(c.x, c.y - 2, 18, 7, 0, 0, Math.PI * 2); ctx.stroke();
