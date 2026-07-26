@@ -952,14 +952,25 @@ function arrive(c) {
       // shoulder the body, then walk it to open ground
       cp.carried = c;
       t.phase = 2;
-      let gx = cp.x, gy = cp.y;
-      for (let r = 90; r < 500; r += 40) {
-        let found = false;
-        for (let a = 0; a < 6.28; a += 0.5) {
-          const x = cp.x + Math.cos(a) * r, y = cp.y + Math.sin(a) * r;
-          if (legalToBuild("sapling", x, y)) { gx = x; gy = y; found = true; break; }
+      let gx, gy;
+      // the colony buries its dead together: rows beside the first grave
+      if (graves.length) {
+        const a0 = graves[0];
+        for (let i = graves.length; i < graves.length + 40 && gx === undefined; i++) {
+          const x = a0.x + (i % 5) * 36, y = a0.y + Math.floor(i / 5) * 42;
+          if (legalToBuild("sapling", x, y) && !graves.some(g2 => Math.hypot(g2.x - x, g2.y - y) < 24)) { gx = x; gy = y; }
         }
-        if (found) break;
+      }
+      if (gx === undefined) {
+        gx = cp.x; gy = cp.y;
+        for (let r = 90; r < 500; r += 40) {
+          let found = false;
+          for (let a = 0; a < 6.28; a += 0.5) {
+            const x = cp.x + Math.cos(a) * r, y = cp.y + Math.sin(a) * r;
+            if (legalToBuild("sapling", x, y)) { gx = x; gy = y; found = true; break; }
+          }
+          if (found) break;
+        }
       }
       t.gx = gx; t.gy = gy;
       c.tx = gx; c.ty = gy;
