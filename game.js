@@ -152,6 +152,12 @@ let gameState = "boot"; // boot -> menu | loading -> playing -> over
 const res = { logs: 0, seeds: 0, stone: 0, iron: 0, doors: 0, wheat: 0, bread: 0, meat: 0, dm: 60, weapons: 0, tools: 0 };
 let taxRate = 2, policeCount = 0, taxTimer = TAX_PERIOD;
 let settlementName = "Neu Hamburg";
+let empireName = "";
+let territoryColor = "#7da083", borderColor = "#c9a86a";
+const territory = new Set();          // "cx,cy" world cells, 96px each
+const TCELL = 96;
+let sackedCamps = 0, playT = 0, nextSettleAt = 1200, settlePending = false;
+const settlements = [];               // {name, pop, mx, my} on the Europe map
 const laws = { civWeapons: false, hunterWeapons: true, forced: false };
 
 const cam = { x: 0, y: 0 };
@@ -360,7 +366,28 @@ const rectsOverlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y +
 const pointInRect = (px, py, r) => px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
 const allStructures = () => buildings.concat(farms.map(f => ({ type: "farm", x: f.x, y: f.y })));
 
+const tkey = (cx, cy) => cx + "," + cy;
+function tcellOf(wx, wy) { return [Math.floor(wx / TCELL), Math.floor(wy / TCELL)]; }
+function inTerritory(wx, wy) { return territory.has(tkey(...tcellOf(wx, wy))); }
+function expandAround(wx, wy, r) {
+  const [cx, cy] = tcellOf(wx, wy);
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) territory.add(tkey(cx + dx, cy + dy));
+}
+function expandFrontier(n) {
+  // claim n random cells adjacent to existing territory — keeps the shape organic but cubic
+  const frontier = [];
+  for (const key of territory) {
+    const [cx, cy] = key.split(",").map(Number);
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]])
+      if (!territory.has(tkey(cx + dx, cy + dy))) frontier.push([cx + dx, cy + dy]);
+  }
+  for (let i = 0; i < n && frontier.length; i++)
+    territory.add(tkey(...frontier.splice(Math.floor(Math.random() * frontier.length), 1)[0]));
+}
+expandAround(0, -40, 2);   // the family clearing starts claimed
+
 function legalToBuild(type, wx, wy) {
+  if (type !== "sapling" && !inTerritory(wx, wy)) return false;
   const s = type === "sapling" ? 20 : (type === "farm" ? FARM_SIZE : BLDG_SIZE);
   const cand = { x: wx - s / 2, y: wy - s, w: s, h: s };
   for (const b of allStructures()) {
@@ -559,7 +586,8 @@ function tryPlace(type, wx, wy) {
   if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
   const cost = costOf(type);
   if (!canPay(cost)) { toast(`Not enough materials: needs ${costText(cost)}.`); return; }
-  if (!legalToBuild(type, wx, wy)) { toast("Cannot build there — too close to another building, its entrance, or an obstacle."); return; }
+  if (!legalToBuild(type, wx, wy)) { toast(inTerritory(wx, wy) ? "Cannot build there — too close to another building, its entrance, or an obstacle."
+                             : "That land is outside your territory. Build and grow to claim more."); return; }
   pay(cost);
   SFX.build();
   if (type === "sapling") {
@@ -568,10 +596,12 @@ function tryPlace(type, wx, wy) {
     toast("Spruce sapling planted.");
   } else if (type === "farm") {
     farms.push({ x: wx, y: wy, ready: false, growT: 0, workers: [], progress: -1 });
+    expandAround(wx, wy, 1);
     toast("Farm laid out. Assign farmers to it by selecting them and clicking the farm.");
   } else {
     buildings.push({ type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 });
-    toast(`${BLDG_NAMES[type]} built.`);
+    expandAround(wx, wy, 1);
+    toast(`${BLDG_NAMES[type]} built. The territory grows.`);
     if (type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
   }
   buildMode = null;
@@ -587,6 +617,7 @@ function order(c, task) {
 
 function arrive(c) {
   const t = c.task;
+  if (t && t.kind === "emigrate") { emigrate(c); return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
                    buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing" };
@@ -858,6 +889,7 @@ function joinColony(v) {
   const c = mkCiv(v.name, "ragged", v.x, v.y);
   c.profession = "hunter";
   civs.push(c);
+  expandFrontier(3);
   const housed = houseCiv(c);
   toast(`${v.name} signs on — a civilian certificate slides out through the slot. ` +
         (housed ? "He moves into a cabin and will pay taxes." : "Build him a cabin: no taxes until he has a roof."));
@@ -1098,6 +1130,329 @@ $("bpDismantle").addEventListener("click", () => {
 });
 
 
+
+// ===== Empire: Europe map, nations, war, settlements =====
+
+const MG_W = 100, MG_H = 56, MPX = 12;
+// stylized 1683 Europe in English, painted as rect blobs on a grid
+const NATIONS = {
+  scotland:  { name: "Scotland", color: "#a0344a", strength: 2, blobs: [[20,4,5,5]] },
+  england:   { name: "Kingdom of England", color: "#b03a52", strength: 5, blobs: [[19,9,7,7],[24,14,3,3]] },
+  ireland:   { name: "Ireland", color: "#94505e", strength: 1, blobs: [[13,7,4,6]] },
+  france:    { name: "Kingdom of France", color: "#2d4d8e", strength: 8, blobs: [[24,18,11,9],[22,16,7,3],[33,25,3,3]] },
+  castile:   { name: "Castile", color: "#b5541e", strength: 6, blobs: [[15,28,9,7],[17,26,7,2]] },
+  aragon:    { name: "Aragon", color: "#c86a2e", strength: 3, blobs: [[24,28,5,4]] },
+  portugal:  { name: "Portugal", color: "#8e6a4a", strength: 3, blobs: [[13,28,2,7]] },
+  hre:       { name: "Holy Roman Empire", color: "#a98436", strength: 7, blobs: [[33,13,9,8],[31,17,2,4]] },
+  brandenburg:{ name: "Brandenburg", color: "#8a6c2c", strength: 4, blobs: [[40,11,7,4]] },
+  saxony:    { name: "Saxony", color: "#97762f", strength: 3, blobs: [[42,15,5,3]] },
+  bavaria:   { name: "Bavaria", color: "#7d6228", strength: 3, blobs: [[39,19,5,3]] },
+  austria:   { name: "Austrian Empire", color: "#6b4f1c", strength: 7, blobs: [[42,20,7,4],[44,18,5,2]] },
+  savoy:     { name: "Savoy", color: "#8e2d4d", strength: 2, blobs: [[35,24,3,3]] },
+  venice:    { name: "Venice", color: "#a03a6e", strength: 3, blobs: [[39,24,5,3],[45,27,3,2]] },
+  papal:     { name: "Papal States", color: "#8e5a8e", strength: 2, blobs: [[39,28,4,3]] },
+  naples:    { name: "Kingdom of Naples", color: "#b5541e", strength: 3, blobs: [[42,30,4,5]] },
+  sicily:    { name: "Sicily", color: "#a04a1e", strength: 1, blobs: [[40,36,4,2]] },
+  sweden:    { name: "Swedish Empire", color: "#4a6a8e", strength: 6, blobs: [[38,1,8,8],[46,2,6,4],[34,4,4,4]] },
+  denmark:   { name: "Denmark", color: "#6a4a8e", strength: 2, blobs: [[36,9,4,3]] },
+  poland:    { name: "Poland–Lithuania", color: "#8e2d8e", strength: 7, blobs: [[47,9,12,10],[52,7,8,3]] },
+  russia:    { name: "Tsardom of Russia", color: "#7a7a2d", strength: 9, blobs: [[60,1,39,15],[64,15,34,9],[59,16,5,4]] },
+  cossacks:  { name: "Cossacks", color: "#5a8e4a", strength: 3, blobs: [[59,20,8,4]] },
+  crimea:    { name: "Crimean Khanate", color: "#6aa05a", strength: 4, blobs: [[62,24,8,4]] },
+  ottoman:   { name: "Ottoman Empire", color: "#2d7a3a", strength: 10,
+               blobs: [[46,24,14,10],[54,22,8,3],[60,28,16,10],[70,26,14,6],[62,38,10,10],[54,34,8,5]] },
+  algiers:   { name: "Algiers", color: "#3a8e4a", strength: 3, blobs: [[24,37,9,3]] },
+  tunis:     { name: "Tunis", color: "#3a8e4a", strength: 2, blobs: [[33,37,5,3]] },
+  tripoli:   { name: "Tripolitania", color: "#3a8e4a", strength: 2, blobs: [[38,39,9,3]] },
+};
+const LABELS = [
+  ["Scotland",22,6],["England",22,12],["Ireland",15,9],["France",29,22],["Castile",19,31],
+  ["Aragon",26,30],["Portugal",14,31],["Holy Roman\nEmpire",37,16],["Brandenburg",43,12],
+  ["Saxony",44,16],["Bavaria",41,20],["Austria",45,22],["Venice",41,25],["Papal\nStates",41,29],
+  ["Naples",44,32],["Sicily",42,37],["Swedish Empire",41,4],["Denmark",38,10],
+  ["Poland–Lithuania",52,13],["Tsardom of Russia",76,8],["Cossacks",62,22],["Crimean\nKhanate",65,26],
+  ["Ottoman Empire",62,32],["Algiers",27,38],["Tunis",35,38],["Tripolitania",42,40],
+];
+const EMPIRE_HOME = { mx: 37, my: 11 };   // the woods beyond Hamburg
+
+let mapGrid = null;
+const cellHash = (c, r) => ((c * 73856093) ^ (r * 19349663)) >>> 0;
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = i => Math.max(0, Math.min(255, Math.round(((n >> i) & 255) * f)));
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
+function buildMapGrid() {
+  mapGrid = Array.from({ length: MG_H }, () => Array(MG_W).fill(null));
+  // landmass base (rough continent + islands + coasts)
+  const LAND = [[12,26,16,12],[18,14,20,14],[30,8,32,20],[42,4,20,10],[33,1,16,10],[46,7,54,22],
+                [56,16,44,18],[44,20,32,20],[36,22,12,16],[22,36,30,8],[60,34,20,16],[13,6,5,8],[19,3,8,14],[24,13,4,5]];
+  for (const [x, y, w, h] of LAND)
+    for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = "land";
+  for (const [id, n] of Object.entries(NATIONS))
+    for (const [x, y, w, h] of n.blobs)
+      for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = id;
+  // roughen the rectangles into 8-bit coastlines: two deterministic jitter passes
+  for (let pass = 0; pass < 2; pass++) {
+    const src = mapGrid.map(row => [...row]);
+    for (let r = 1; r < MG_H - 1; r++) for (let c = 1; c < MG_W - 1; c++) {
+      const h = cellHash(c + pass * 977, r);
+      if (h % 5 > 1) continue;
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      const [dx, dy] = dirs[h % 4];
+      const nb = src[r + dy][c + dx];
+      if (nb !== src[r][c]) mapGrid[r][c] = nb;
+    }
+  }
+  n_wars_init();
+}
+function n_wars_init() { for (const n of Object.values(NATIONS)) { if (n.atWar === undefined) { n.atWar = false; n.warT = 0; n.lost = 0; } } }
+
+function empireCells() {
+  // main settlement + founded ones, sized by population
+  const cells = new Set();
+  const grow = (mx, my, pop) => {
+    const r = Math.min(3, Math.floor(pop / 3));
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++)
+      if (Math.abs(dx) + Math.abs(dy) <= r) cells.add((mx + dx) + "," + (my + dy));
+  };
+  grow(EMPIRE_HOME.mx, EMPIRE_HOME.my, civs.length + 2);
+  for (const st of settlements) grow(st.mx, st.my, st.pop);
+  for (const n of Object.values(NATIONS)) if (n.captured) for (const key of n.captured) cells.add(key);
+  return cells;
+}
+
+let mapSelNation = null;
+function renderMap() {
+  const mc = document.getElementById("euromap").getContext("2d");
+  mc.imageSmoothingEnabled = false;
+  mc.fillStyle = "#16303f";
+  mc.fillRect(0, 0, MG_W * MPX, MG_H * MPX);
+  const mine = empireCells();
+  for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++) {
+    const id = mapGrid[r][c];
+    if (!id) {
+      // sea gets faint pixel texture too
+      if (cellHash(c, r) % 11 === 0) { mc.fillStyle = "#1a3646"; mc.fillRect(c * MPX, r * MPX, MPX, MPX); }
+      continue;
+    }
+    let col = id === "land" ? "#5a5f58" : NATIONS[id].color;
+    if (mine.has(c + "," + r)) col = territoryColor;
+    // subtle per-cell shading breaks the flat cubic look
+    const f = 0.92 + (cellHash(c, r) % 5) * 0.045;
+    mc.fillStyle = shade(col.startsWith("#") ? col : territoryColor, f);
+    mc.fillRect(c * MPX, r * MPX, MPX, MPX);
+    // dark waterline along the coast
+    const sea = (rr, cc) => !mapGrid[rr] || !mapGrid[rr][cc];
+    mc.fillStyle = "rgba(8,16,20,0.55)";
+    if (sea(r - 1, c)) mc.fillRect(c * MPX, r * MPX, MPX, 1);
+    if (sea(r + 1, c)) mc.fillRect(c * MPX, (r + 1) * MPX - 1, MPX, 1);
+    if (sea(r, c - 1)) mc.fillRect(c * MPX, r * MPX, 1, MPX);
+    if (sea(r, c + 1)) mc.fillRect((c + 1) * MPX - 1, r * MPX, 1, MPX);
+  }
+  // war glow
+  for (const [id, n] of Object.entries(NATIONS)) if (n.atWar) {
+    mc.strokeStyle = "#d86a5a"; mc.lineWidth = 2;
+    for (const [x, y, w, h] of n.blobs) mc.strokeRect(x * MPX, y * MPX, w * MPX, h * MPX);
+  }
+  // labels
+  mc.textAlign = "center";
+  for (const [name, x, y] of LABELS) {
+    mc.font = "bold 11px 'Courier New', monospace";
+    mc.fillStyle = "rgba(0,0,0,0.55)";
+    name.split("\n").forEach((line, i) => mc.fillText(line, x * MPX + 1, y * MPX + 1 + i * 11));
+    mc.fillStyle = "#e8ecea";
+    name.split("\n").forEach((line, i) => mc.fillText(line, x * MPX, y * MPX + i * 11));
+  }
+  // empire label + settlement dots
+  mc.fillStyle = "#0a0f0c";
+  const home = EMPIRE_HOME;
+  const dot = (mx, my, nm) => {
+    mc.fillStyle = "#0a0f0c"; mc.fillRect(mx * MPX - 2, my * MPX - 2, 6, 6);
+    mc.fillStyle = "#ffe9b0"; mc.fillRect(mx * MPX - 1, my * MPX - 1, 4, 4);
+    mc.font = "10px 'Courier New', monospace";
+    mc.fillStyle = "#0a0f0c"; mc.fillText(nm, mx * MPX + 1, my * MPX - 5 + 1);
+    mc.fillStyle = "#ffe9b0"; mc.fillText(nm, mx * MPX, my * MPX - 5);
+  };
+  dot(home.mx, home.my, settlementName);
+  for (const st of settlements) dot(st.mx, st.my, st.name);
+  mc.font = "bold 13px 'Courier New', monospace";
+  mc.fillStyle = "rgba(0,0,0,0.6)"; mc.fillText(empireName || "Your Empire", home.mx * MPX + 1, (home.my - 3) * MPX + 1);
+  mc.fillStyle = "#ffe9b0"; mc.fillText(empireName || "Your Empire", home.mx * MPX, (home.my - 3) * MPX);
+}
+
+document.getElementById("mapToggle").addEventListener("click", () => {
+  if (!mapGrid) buildMapGrid();
+  renderMap();
+  document.getElementById("mapTitle").textContent = (empireName || "YOUR EMPIRE").toUpperCase() + " — EUROPE, 1683";
+  document.getElementById("mapOverlay").style.display = "block";
+  paused = true;
+});
+document.getElementById("mapClose").addEventListener("click", () => {
+  document.getElementById("mapOverlay").style.display = "none";
+  if (!dlg.open) paused = false;
+});
+document.getElementById("euromap").addEventListener("click", e => {
+  const rect = e.target.getBoundingClientRect();
+  const c = Math.floor((e.clientX - rect.left) / MPX), r = Math.floor((e.clientY - rect.top) / MPX);
+  const id = mapGrid && mapGrid[r] && mapGrid[r][c];
+  if (!id || id === "land") { mapSelNation = null; mapInfoSync(); return; }
+  mapSelNation = id;
+  mapInfoSync();
+});
+function mapInfoSync() {
+  const w = document.getElementById("miWar"), pc = document.getElementById("miPeace"), as = document.getElementById("miAssault");
+  if (!mapSelNation) {
+    document.getElementById("miName").textContent = "—";
+    document.getElementById("miDetail").textContent = "Click a nation on the map.";
+    w.style.display = pc.style.display = as.style.display = "none";
+    return;
+  }
+  const n = NATIONS[mapSelNation];
+  document.getElementById("miName").textContent = n.name.toUpperCase();
+  const soldiers = civs.filter(c => c.profession === "soldier").length;
+  document.getElementById("miDetail").textContent =
+    `Strength ${n.strength}/10. ` + (n.atWar ?
+      `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 soldiers and 4 weapons — and even then the odds are grim. (You have ${soldiers} soldier(s), ${res.weapons} weapon(s).)` :
+      "At peace. Declaring war will bring their war parties to your gates — and put their settlements within your soldiers' reach.");
+  w.style.display = n.atWar ? "none" : "block";
+  pc.style.display = n.atWar ? "block" : "none";
+  as.style.display = n.atWar ? "block" : "none";
+}
+document.getElementById("miWar").addEventListener("click", () => {
+  const n = NATIONS[mapSelNation];
+  n.atWar = true; n.warT = 30;
+  for (const c of civs) c.happiness = Math.max(0, c.happiness - 6);
+  toast(`⚔ ${empireName || "The colony"} declares war on ${n.name}! The people brace themselves.`);
+  mapInfoSync(); renderMap();
+});
+document.getElementById("miPeace").addEventListener("click", () => {
+  const n = NATIONS[mapSelNation];
+  if (res.dm - 60 < treasuryFloor()) return toast("Peace costs 60 DM in reparations. The treasury cannot bear it.");
+  res.dm -= 60; n.atWar = false;
+  toast(`Peace with ${n.name}, bought for 60 DM.`);
+  mapInfoSync(); renderMap(); syncUI();
+});
+document.getElementById("miAssault").addEventListener("click", () => {
+  const n = NATIONS[mapSelNation];
+  const soldiers = civs.filter(c => c.profession === "soldier");
+  if (soldiers.length < 4) return toast("An assault needs at least 4 soldiers.");
+  if (res.weapons < 4) return toast("An assault needs 4 weapons in the armoury.");
+  res.weapons -= 4;
+  const odds = Math.max(0.05, Math.min(0.5, soldiers.length * 0.04 + (has("raiding") ? 0.06 : 0) + (has("hussars") ? 0.06 : 0) - n.strength * 0.03));
+  if (Math.random() < odds) {
+    n.lost++;
+    n.captured = n.captured || [];
+    const [bx, by] = n.blobs[0];
+    for (let i = 0; i < 4; i++) n.captured.push((bx + i % 2 + n.lost) + "," + (by + Math.floor(i / 2)));
+    res.dm += 200;
+    toast(`⚔ Against all odds, your soldiers storm a settlement of ${n.name}! +200 DM plunder; their land is yours on the map.`);
+    SFX.coin();
+  } else {
+    let lost = 0;
+    for (const sd of soldiers) if (Math.random() < 0.5) { killCiv(sd, `fell before the walls of ${n.name}`); lost++; }
+    toast(`The assault on ${n.name} is thrown back. ${lost} soldier(s) never came home.`);
+  }
+  mapInfoSync(); renderMap(); syncUI();
+});
+
+function updateWars(dt) {
+  for (const [id, n] of Object.entries(NATIONS)) {
+    if (!n.atWar) continue;
+    n.warT -= dt;
+    if (n.warT <= 0) {
+      n.warT = 110 + Math.random() * 70;
+      const targets = buildings.filter(b => b.type !== "burned");
+      if (!targets.length || raiders.length >= MAX_RAIDERS + 2) continue;
+      const a = Math.random() * Math.PI * 2;
+      for (let i = 0; i < 3; i++) {
+        const t = targets[Math.floor(Math.random() * targets.length)];
+        raiders.push({ x: Math.cos(a) * 1300 + i * 30, y: Math.sin(a) * 1300 + i * 24, hp: 90, maxHp: 90,
+                       dmg: 16, camp: { x: Math.cos(a) * 1600, y: Math.sin(a) * 1600 }, target: t,
+                       state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, nation: id });
+      }
+      toast(`⚔ A war party of ${n.name} marches on the colony!`);
+    }
+  }
+}
+
+// --- founding new settlements ---
+const SETTLE_NAMES = ["Waldheim", "Neuland", "Tannenfeld", "Ostbruck", "Hirschtal"];
+function maybeOfferSettlement() {
+  if (settlePending || gameState !== "playing") return;
+  if (playT >= nextSettleAt && sackedCamps >= 5 && civs.length >= 3) {
+    settlePending = true;
+    const list = document.getElementById("settleList");
+    list.innerHTML = "";
+    for (const c of civs) {
+      const row = document.createElement("label");
+      row.style.cssText = "display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer;font-size:12px";
+      row.innerHTML = `<input type="checkbox" data-name="${c.name}"> ${c.name} — ${c.profession || "no trade"}${c.home ? "" : " (homeless)"}`;
+      list.appendChild(row);
+    }
+    document.getElementById("settleName").value = SETTLE_NAMES[settlements.length % SETTLE_NAMES.length];
+    document.getElementById("settleModal").style.display = "block";
+    paused = true;
+    toast("Scouts bring word of good land. The colony must decide.");
+  }
+}
+document.getElementById("settleNo").addEventListener("click", () => {
+  document.getElementById("settleModal").style.display = "none";
+  settlePending = false; paused = false;
+  nextSettleAt = playT + 600;   // they will ask again
+  toast("The scouts are told to wait. They will ask again.");
+});
+document.getElementById("settleGo").addEventListener("click", () => {
+  const chosen = [...document.querySelectorAll("#settleList input:checked")].map(i => i.dataset.name);
+  if (!chosen.length) return toast("Someone has to go.");
+  if (chosen.length >= civs.length) return toast("Someone has to stay behind, too.");
+  const name = document.getElementById("settleName").value.trim() || "New Settlement";
+  const angle = Math.random() * Math.PI * 2;
+  const st = { name, pop: chosen.length,
+               mx: EMPIRE_HOME.mx + Math.round(Math.cos(angle) * (3 + settlements.length)),
+               my: EMPIRE_HOME.my + Math.round(Math.sin(angle) * 2 + 2 + settlements.length) };
+  settlements.push(st);
+  for (const nm of chosen) {
+    const c = civs.find(x => x.name === nm);
+    if (c) order(c, { kind: "emigrate", x: c.x + Math.cos(angle) * 1600, y: c.y + Math.sin(angle) * 1600 });
+  }
+  document.getElementById("settleModal").style.display = "none";
+  settlePending = false; paused = false;
+  nextSettleAt = playT + 1200;
+  expandFrontier(6);
+  toast(`${chosen.length} settler(s) depart to found ${name}. Your empire grows on the map of Europe.`);
+});
+function emigrate(c) {
+  if (c.profession === "police") policeCount--;
+  if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
+  for (const f of farms) f.workers = f.workers.filter(w => w !== c);
+  if (selected === c) selected = null;
+  civs.splice(civs.indexOf(c), 1);
+  toast(`${c.name} has left for the new settlement.`);
+  syncUI();
+}
+
+// settlements slowly grow
+let stGrowT = 0;
+function updateSettlements(dt) {
+  stGrowT += dt;
+  if (stGrowT > 120) {
+    stGrowT = 0;
+    for (const st of settlements) if (Math.random() < 0.5) st.pop++;
+  }
+}
+
+// --- empire naming & colour pickers ---
+document.getElementById("empireGo").addEventListener("click", () => {
+  empireName = document.getElementById("empireInput").value.trim() || "The Forester Realm";
+  document.getElementById("empireModal").style.display = "none";
+  paused = false;
+  toast(`Let it be written: this is ${empireName}.`);
+});
+document.getElementById("empireInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("empireGo").click(); e.stopPropagation(); });
+document.getElementById("terrColor").addEventListener("input", e => { territoryColor = e.target.value; });
+document.getElementById("bordColor").addEventListener("input", e => { borderColor = e.target.value; });
+
 // --- save / load ---
 const SAVE_KEY = "forester_save";
 function saveGame() {
@@ -1125,6 +1480,11 @@ function saveGame() {
       farms: farms.map(f => ({ x: f.x, y: f.y, ready: f.ready, growT: f.growT, workers: f.workers.map(ci) })),
       camps: camps.map(c => ({ ...c })),
       chunks: [...chunks.entries()],
+      empireName, territoryColor, borderColor,
+      territory: [...territory],
+      sackedCamps, playT, nextSettleAt,
+      settlements: settlements.map(st => ({ ...st })),
+      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, lost: n.lost || 0, captured: n.captured || [] }])),
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch (e) { /* storage full or private mode — play on without saves */ }
@@ -1172,6 +1532,15 @@ function loadGame() {
     raiders.length = 0; visitors.length = 0; floaters.length = 0;
     chunks.clear();
     for (const [k, ch] of d.chunks) chunks.set(k, ch);
+    empireName = d.empireName || "";
+    territoryColor = d.territoryColor || "#7da083";
+    borderColor = d.borderColor || "#c9a86a";
+    $("terrColor").value = territoryColor; $("bordColor").value = borderColor;
+    territory.clear(); for (const k of (d.territory || [])) territory.add(k);
+    if (!territory.size) { expandAround(0, -40, 2); for (const b of buildings) expandAround(b.x, b.y, 1); }
+    sackedCamps = d.sackedCamps || 0; playT = d.playT || 0; nextSettleAt = d.nextSettleAt || 1200;
+    settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
+    if (d.wars) { n_wars_init(); for (const [id, w] of Object.entries(d.wars)) if (NATIONS[id]) Object.assign(NATIONS[id], w); }
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
     $("taxSlider").value = taxRate; $("taxVal").textContent = taxRate;
     $("lawCivWeapons").checked = laws.civWeapons;
@@ -1222,7 +1591,11 @@ function doLoading(fromSave) {
         $("loading").style.display = "none";
         const restored = fromSave && loadGame();
         gameState = "playing";
-        if (!restored) { cam.x = -canvas.width / 2; cam.y = -canvas.height / 2 - 60; }
+        if (!restored) {
+          cam.x = -canvas.width / 2; cam.y = -canvas.height / 2 - 60;
+          document.getElementById("empireModal").style.display = "block";
+          paused = true;
+        }
         toast(restored ? "The colony wakes where you left it." : "");
         syncUI();
       }, 250);
@@ -1333,6 +1706,10 @@ function update(dt) {
   if (paused) return;
 
   updateResearch(dt);
+  playT += dt;
+  updateWars(dt);
+  updateSettlements(dt);
+  maybeOfferSettlement();
 
   for (const f of floaters) { f.t -= dt; f.y -= 26 * dt; }
   for (let i = floaters.length - 1; i >= 0; i--) if (floaters[i].t <= 0) floaters.splice(i, 1);
@@ -1566,7 +1943,8 @@ function update(dt) {
           res.dm += cp.dm; res.weapons += cp.weapons;
           SFX.coin();
           float(cp.x, cp.y - 80, `+${cp.dm} DM +${cp.weapons} wpn`, "#7da083");
-          toast(`${c.name} sacks the ${cp.type} camp — ${cp.dm} DM and ${cp.weapons} weapon(s) seized!`);
+          sackedCamps++;
+          toast(`${c.name} sacks the ${cp.type} camp — ${cp.dm} DM and ${cp.weapons} weapon(s) seized! (${sackedCamps} camps sacked)`);
           if (selectedCamp === cp) selectedCamp = null;
           c.state = "idle"; c.task = null;
         }
@@ -1615,6 +1993,30 @@ function render(dt) {
   for (let y = y0; y < cam.y + vh; y += TILE)
     for (let x = x0; x < cam.x + vw; x += TILE)
       ctx.drawImage(img.grass, x, y, TILE, TILE);
+
+  // territory overlay: cubic cells, custom colours
+  const tc0 = tcellOf(cam.x, cam.y), tc1 = tcellOf(cam.x + vw, cam.y + vh);
+  ctx.fillStyle = territoryColor + "18";
+  for (let cy = tc0[1]; cy <= tc1[1]; cy++) for (let cx = tc0[0]; cx <= tc1[0]; cx++)
+    if (territory.has(tkey(cx, cy))) ctx.fillRect(cx * TCELL, cy * TCELL, TCELL, TCELL);
+  ctx.strokeStyle = borderColor; ctx.lineWidth = 2;
+  ctx.beginPath();
+  const CH = 22;  // chamfer size — cuts the corners so the border isn't purely cubic
+  for (let cy = tc0[1] - 1; cy <= tc1[1] + 1; cy++) for (let cx = tc0[0] - 1; cx <= tc1[0] + 1; cx++) {
+    if (!territory.has(tkey(cx, cy))) continue;
+    const x = cx * TCELL, y = cy * TCELL;
+    const N = !territory.has(tkey(cx, cy - 1)), S = !territory.has(tkey(cx, cy + 1));
+    const W = !territory.has(tkey(cx - 1, cy)), E = !territory.has(tkey(cx + 1, cy));
+    if (N) { ctx.moveTo(x + (W ? CH : 0), y); ctx.lineTo(x + TCELL - (E ? CH : 0), y); }
+    if (S) { ctx.moveTo(x + (W ? CH : 0), y + TCELL); ctx.lineTo(x + TCELL - (E ? CH : 0), y + TCELL); }
+    if (W) { ctx.moveTo(x, y + (N ? CH : 0)); ctx.lineTo(x, y + TCELL - (S ? CH : 0)); }
+    if (E) { ctx.moveTo(x + TCELL, y + (N ? CH : 0)); ctx.lineTo(x + TCELL, y + TCELL - (S ? CH : 0)); }
+    if (N && W) { ctx.moveTo(x + CH, y); ctx.lineTo(x, y + CH); }
+    if (N && E) { ctx.moveTo(x + TCELL - CH, y); ctx.lineTo(x + TCELL, y + CH); }
+    if (S && W) { ctx.moveTo(x + CH, y + TCELL); ctx.lineTo(x, y + TCELL - CH); }
+    if (S && E) { ctx.moveTo(x + TCELL - CH, y + TCELL); ctx.lineTo(x + TCELL, y + TCELL - CH); }
+  }
+  ctx.stroke();
 
   const inView = (x, y) => x > cam.x - 140 && x < cam.x + vw + 140 && y > cam.y - 160 && y < cam.y + vh + 180;
   const drawables = [];

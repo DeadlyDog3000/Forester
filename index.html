@@ -161,6 +161,7 @@
       </div>
     </div>
     <button class="btn" id="govToggle">GOVERNMENT</button>
+    <button class="btn" id="mapToggle">&#128506; MAP</button>
     <span style="flex:1"></span>
     <span style="font-size:11px;color:#5a6b60">FORESTER alpha</span>
   </div>
@@ -220,6 +221,9 @@
     <div class="row"><span>Treasury</span><span id="govDM">0 DM</span></div>
     <div class="row"><span>Police force</span><span id="govPolice">0 officers</span></div>
     <div class="row"><span>Colony happiness</span><span id="govHappy">–</span></div>
+    <h4>TERRITORY</h4>
+    <div class="row"><span>Territory colour</span><input type="color" id="terrColor" value="#7da083"></div>
+    <div class="row"><span>Border colour</span><input type="color" id="bordColor" value="#c9a86a"></div>
     <h4>LAWS</h4>
     <label><input type="checkbox" id="lawCivWeapons"> Civilians may keep weapons</label>
     <label><input type="checkbox" id="lawHunterWeapons" checked> Hunters may keep weapons</label>
@@ -278,6 +282,47 @@
       <button class="btn" id="goNew" style="font-size:14px;padding:10px 32px;margin-top:10px">New Game</button>
       <button class="btn" id="goMenu" style="font-size:14px;padding:10px 32px">Return to Main Menu</button>
     </div>
+  </div>
+
+<div id="mapOverlay" style="position:fixed;inset:0;z-index:90;display:none;background:rgba(9,13,11,0.96)">
+    <div style="display:flex;height:100%;padding:18px;gap:14px">
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+        <div style="display:flex;align-items:center;margin-bottom:8px">
+          <span style="color:#c9a86a;letter-spacing:3px;font-size:15px" id="mapTitle">EUROPE — 1683</span>
+          <span style="flex:1"></span>
+          <button class="btn" id="mapClose">Close</button>
+        </div>
+        <div style="flex:1;overflow:auto;border:1px solid #3a5243;background:#0d1a24">
+          <canvas id="euromap" width="1200" height="672" style="image-rendering:pixelated;display:block"></canvas>
+        </div>
+        <div style="font-size:10px;color:#5a6b60;margin-top:4px">Stylized map. Click a nation for diplomacy. Your empire is drawn in your territory colour.</div>
+      </div>
+      <div class="panel" id="mapInfo" style="position:static;width:250px;padding:12px;align-self:flex-start">
+        <h3 style="color:#c9a86a;font-size:13px;margin-bottom:8px" id="miName">—</h3>
+        <div style="font-size:11px;color:#9ab0a2" id="miDetail">Click a nation on the map.</div>
+        <button class="btn danger" id="miWar" style="width:100%;margin-top:10px;display:none">Declare War</button>
+        <button class="btn" id="miPeace" style="width:100%;margin-top:6px;display:none">Sue for Peace (60 DM)</button>
+        <button class="btn danger" id="miAssault" style="width:100%;margin-top:6px;display:none">Assault Settlement</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="settleModal" style="left:50%;top:50%;transform:translate(-50%,-50%);width:430px;padding:16px;display:none;z-index:95">
+    <h3 style="color:#c9a86a;margin-bottom:8px">A NEW SETTLEMENT BECKONS</h3>
+    <div style="font-size:12px;color:#9ab0a2;margin-bottom:8px">Your renown has spread. Scouts have found good land for a second settlement. Choose who to send — at least one must go, and at least one must stay.</div>
+    <input type="text" id="settleName" maxlength="24" placeholder="Settlement name" style="width:100%;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:12px;padding:6px 8px;margin-bottom:8px">
+    <div id="settleList" style="max-height:180px;overflow-y:auto;border:1px solid #24352b;padding:6px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="settleGo" style="flex:1">Found the settlement</button>
+      <button class="btn" id="settleNo" style="flex:1">Not yet</button>
+    </div>
+  </div>
+
+  <div class="panel" id="empireModal" style="left:50%;top:50%;transform:translate(-50%,-50%);width:380px;padding:18px;display:none;z-index:130">
+    <h3 style="color:#c9a86a;margin-bottom:8px">NAME YOUR EMPIRE</h3>
+    <div style="font-size:12px;color:#9ab0a2;margin-bottom:10px">Hamburg cast you out. What rises from the forest will bear a name of your choosing.</div>
+    <input type="text" id="empireInput" maxlength="28" placeholder="e.g. The Falkenwald Compact" style="width:100%;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:13px;padding:8px;margin-bottom:10px">
+    <button class="btn" id="empireGo" style="width:100%">Proclaim it</button>
   </div>
 
 <script src="sfx.js"></script>
