@@ -3,7 +3,7 @@
 // ===== Forester SFX — all sounds synthesized with Web Audio, no samples =====
 
 const SFX = (() => {
-  let ac = null, master = null, noiseBuf = null, fireNode = null;
+  let ac = null, master = null, sfxBus = null, noiseBuf = null, fireNode = null;
 
   function ctx() {
     if (!ac) {
@@ -11,6 +11,9 @@ const SFX = (() => {
       master = ac.createGain();
       master.gain.value = 0.5;
       master.connect(ac.destination);
+      sfxBus = ac.createGain();      // game SFX only — ducked while the pause menu is open; music bypasses it
+      sfxBus.gain.value = 1;
+      sfxBus.connect(master);
       const len = ac.sampleRate * 2;
       noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
@@ -34,7 +37,7 @@ const SFX = (() => {
     o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(master);
+    o.connect(g); g.connect(sfxBus);
     o.start(t); o.stop(t + dur + 0.02);
   }
 
@@ -48,13 +51,14 @@ const SFX = (() => {
     f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    s.connect(f); f.connect(g); g.connect(master);
+    s.connect(f); f.connect(g); g.connect(sfxBus);
     s.start(t); s.stop(t + dur + 0.02);
   }
 
   let windNode = null;
   return {
     setMaster: (v) => { ctx(); master.gain.value = v; },
+    pauseAll: (on) => { if (!ac) return; sfxBus.gain.setTargetAtTime(on ? 0.0001 : 1, ac.currentTime, 0.04); },
     windLoop: (on) => {
       if (FSET().ambient === false) on = false;
       if (on && !windNode) {
@@ -73,7 +77,7 @@ const SFX = (() => {
           s.connect(f); s.start(t, Math.random() * 1.9);
           return s;
         });
-        f.connect(g); g.connect(master);
+        f.connect(g); g.connect(sfxBus);
         lfo.start(t);
         windNode = { srcs, lfo, g };
       } else if (!on && windNode) {
@@ -124,7 +128,7 @@ const SFX = (() => {
         g.gain.setValueAtTime(0.0001, t);
         g.gain.exponentialRampToValueAtTime(0.05, t + 0.015);
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
-        o.connect(g); g.connect(master);
+        o.connect(g); g.connect(sfxBus);
         o.start(t); o.stop(t + 0.1);
       }
     },
@@ -147,7 +151,7 @@ const SFX = (() => {
         lfo.type = "sawtooth"; lfo.frequency.value = 9;   // flicker
         lg.gain.value = 0.05;
         lfo.connect(lg); lg.connect(g.gain);
-        s.connect(f); f.connect(g); g.connect(master);
+        s.connect(f); f.connect(g); g.connect(sfxBus);
         s.start(t); lfo.start(t);
         fireNode = { s, lfo, g };
       } else if (!on && fireNode) {

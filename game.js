@@ -781,6 +781,7 @@ function setPause(open) {
   $("pauseMenu").style.display = open ? "block" : "none";
   paused = pauseOpen || dlg.open || $("mapOverlay").style.display === "block" ||
            $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
+  try { SFX.pauseAll(pauseOpen); } catch (e) {}
 }
 addEventListener("keydown", e => {
   keys[e.key.toLowerCase()] = true;
@@ -2161,6 +2162,14 @@ function renderMap() {
   mc.font = "bold 13px 'Courier New', monospace";
   mc.fillStyle = "rgba(0,0,0,0.6)"; mc.fillText(empireName || "Your Empire", home.mx * CPX + 1, (home.my - 3) * CPX + 1);
   mc.fillStyle = "#ffe9b0"; mc.fillText(empireName || "Your Empire", home.mx * CPX, (home.my - 3) * CPX);
+  // daughter settlements: a marker and name at each
+  mc.font = "10px 'Courier New', monospace";
+  for (const st of settlements) {
+    const sx = st.mx * CPX, sy = st.my * CPX;
+    mc.fillStyle = "#ffe9b0"; mc.fillRect(sx - 2, sy - 2, 5, 5);
+    mc.fillStyle = "rgba(0,0,0,0.6)"; mc.fillText(`${st.name} (${st.pop})`, sx + 1, sy - 5);
+    mc.fillStyle = "#ffe9b0"; mc.fillText(`${st.name} (${st.pop})`, sx, sy - 6);
+  }
 }
 
 document.getElementById("mapToggle").addEventListener("click", () => {
@@ -2453,6 +2462,9 @@ function saveGame() {
       natWars: natWars.map(w => ({ ...w })),
       wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated, trade: !!n.trade }])),
     };
+    // keep the previous good save as a rolling backup before overwriting
+    const prev = localStorage.getItem(SAVE_KEY);
+    if (prev && prev !== "null") localStorage.setItem(SAVE_KEY + "_backup", prev);
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     return true;
   } catch (e) { return false; }
@@ -2538,8 +2550,16 @@ function loadGame() {
     if ($("lawForced")) $("lawForced").checked = laws.forced;
     return true;
   } catch (e) {
-    console.error("save corrupted, starting fresh", e);
-    localStorage.removeItem(SAVE_KEY);
+    console.error("save corrupted", e);
+    // never load half a colony: stash the broken save, fall back to the
+    // rolling backup if there is one, and restart clean either way
+    try { if (raw && raw !== "null") localStorage.setItem(SAVE_KEY + "_broken", raw); } catch (e2) {}
+    const bak = localStorage.getItem(SAVE_KEY + "_backup");
+    if (bak && bak !== "null" && bak !== raw) {
+      localStorage.setItem(SAVE_KEY, bak);
+      localStorage.removeItem(SAVE_KEY + "_backup");
+    } else localStorage.removeItem(SAVE_KEY);
+    location.reload();
     return false;
   }
 }
