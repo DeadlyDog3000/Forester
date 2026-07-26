@@ -24,13 +24,13 @@ const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8, DODGE_CH
 const EAT_HEAL = 15;
 const RAID_MIN = 100, RAID_MAX = 170, MAX_RAIDERS = 4, MAX_CAMPS = 6;
 
-const REPAIR_COST = { logs: 20, doors: 1 };
+const REPAIR_COST = { logs: 20, doors: 1, dm: 5 };
 const STATIC_COSTS = {
-  recruit: { logs: 30 }, market: { logs: 25 }, sapling: { logs: 1 },
-  watchtower: { logs: 15, stone: 5 }, bakery: { logs: 20, stone: 3 }, well: { logs: 10, stone: 8 },
-  forge: { logs: 20, stone: 6, iron: 2 },
-  wall: { logs: 6, stone: 2 }, gate: { logs: 10, stone: 4 },
-  townhall: { logs: 40, stone: 10 },
+  recruit: { logs: 30, dm: 10 }, market: { logs: 25, dm: 8 }, sapling: { logs: 1, dm: 1 },
+  watchtower: { logs: 15, stone: 5, dm: 6 }, bakery: { logs: 20, stone: 3, dm: 8 }, well: { logs: 10, stone: 8, dm: 4 },
+  forge: { logs: 20, stone: 6, iron: 2, dm: 12 },
+  wall: { logs: 6, stone: 2, dm: 1 }, gate: { logs: 10, stone: 4, dm: 2 },
+  townhall: { logs: 40, stone: 10, dm: 20 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
   burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall" };
@@ -114,11 +114,11 @@ const nearWatchtower = (x, y) => buildings.some(b => b.type === "watchtower" && 
 
 function cabinCost() {
   const built = buildings.filter(b => b.type === "cabin" && b.placed).length;
-  return { logs: 20, doors: 1, dm: built >= 2 ? 2 : 0 };
+  return { logs: 20, doors: 1, dm: 5 + (built >= 2 ? 2 : 0) };
 }
 function costOf(type) {
   if (type === "cabin") return cabinCost();
-  if (type === "farm") return { logs: 3, seeds: farmSeedCost() };
+  if (type === "farm") return { logs: 3, seeds: farmSeedCost(), dm: 2 };
   return STATIC_COSTS[type];
 }
 
