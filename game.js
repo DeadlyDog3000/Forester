@@ -195,7 +195,7 @@ const TCELL = 96;
 let sackedCamps = 0, playT = 0, nextSettleAt = 1200, settlePending = false;
 let lastTier = 1;
 // the woods grow bolder as your colony grows older and larger
-function difficulty() { return Math.min(6, 1 + Math.floor(playT / 600) + Math.floor(civs.length / 8)); }
+function difficulty() { return Math.min(6, 1 + Math.floor(playT / 1000) + Math.floor(civs.length / 10)); }
 const settlements = [];               // {name, pop, mx, my} on the Europe map
 const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false };
 
@@ -624,6 +624,20 @@ function collideMove(c, nx, ny) {
     c.stuckT += 1 / 60;
     if (c.stuckT > 1.2) {
       c.stuckT = 0;
+      // walled in? take the gate like a sensible person
+      if (!c.viaGate && (!c.task || c.task.kind !== "attack")) {
+        let gate = null, gd = 800;
+        for (const b of buildings) {
+          if ((b.type !== "gate" && b.type !== "stonegate") || b.fire || b.site) continue;
+          const d = Math.hypot(b.x - c.x, b.y - c.y);
+          if (d < gd) { gd = d; gate = b; }
+        }
+        if (gate) {
+          c.viaGate = true;
+          c.tx = gate.x; c.ty = gate.y + 26;
+          return;
+        }
+      }
       if (c.task && c.task.kind !== "walk" && Math.hypot(c.tx - c.x, c.ty - c.y) < 110) arrive(c);
       else { c.state = "idle"; c.task = null; }
     }
@@ -1055,7 +1069,7 @@ function autonomy(c, dt) {
     }
   }
 
-  if (res.seeds < farmSeedCost() * 2) {
+  if (res.seeds < farmSeedCost() * 2 && !["lumberjack", "quarryman", "forager"].includes(c.profession)) {
     const p = nearThings("patches", c.x, c.y, laws.freeRoam ? 800 : 450)
       .filter(p => p.alive && (laws.freeRoam || nearTerritory(p.x, p.y)))[0];
     if (p) { order(c, { kind: "gather", target: p, forColony: true, x: p.x + 16, y: p.y + 4 }); return; }
@@ -1080,6 +1094,22 @@ function autonomy(c, dt) {
     // a farmer tends only the farms they are assigned to — no one else's
     const mine = farms.find(f => f.ready && f.workers.includes(c));
     if (mine) { order(c, { kind: "harvest", target: mine, x: mine.x, y: mine.y + 10 }); return; }
+  }
+  // township trades keep the stores fed without orders
+  if (c.profession === "lumberjack" && (c.inv.logs || 0) < 10) {
+    const tr = nearThings("trees", c.x, c.y, laws.freeRoam ? 800 : 500)
+      .filter(t2 => t2.alive && t2.growth >= 1 && (laws.freeRoam || nearTerritory(t2.x, t2.y)))[0];
+    if (tr) { order(c, { kind: "chop", target: tr, x: tr.x + 26, y: tr.y + 6 }); return; }
+  }
+  if (c.profession === "quarryman" && (c.inv.stone || 0) < 9) {
+    const rk = nearThings("stones", c.x, c.y, laws.freeRoam ? 900 : 600)
+      .filter(st => st.alive && (laws.freeRoam || nearTerritory(st.x, st.y)))[0];
+    if (rk) { order(c, { kind: "quarry", target: rk, x: rk.x + 26, y: rk.y + 6 }); return; }
+  }
+  if (c.profession === "forager" && (c.inv.seeds || 0) < 8) {
+    const pt = nearThings("patches", c.x, c.y, laws.freeRoam ? 800 : 500)
+      .filter(p2 => p2.alive && (laws.freeRoam || nearTerritory(p2.x, p2.y)))[0];
+    if (pt) { order(c, { kind: "gather", target: pt, x: pt.x + 16, y: pt.y + 4 }); return; }
   }
   if (c.profession === "hunter" && c.inv.meat < 2) {
     if (laws.freeRoam) {
@@ -1463,6 +1493,11 @@ document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
       dropPolice();
       selected.profession = "hunter";
       toast(`${selected.name} takes up the hunter's life.`);
+    } else if (prof === "lumberjack" || prof === "quarryman" || prof === "forager") {
+      if (!has("township")) return toast("Organized town jobs require the Township technology.");
+      dropPolice();
+      selected.profession = prof;
+      toast(`${selected.name} takes up the ${prof}'s work. They will keep at it on their own.`);
     } else {
       dropPolice();
       selected.profession = "farmer";
@@ -1600,39 +1635,39 @@ $("bpDismantle").addEventListener("click", () => {
 const MG_W = 100, MG_H = 56, SCALE = 2, MPX = 6, FW = MG_W * SCALE, FH = MG_H * SCALE, CPX = SCALE * MPX;
 // stylized 1683 Europe in English, painted as rect blobs on a grid
 const NATIONS = {
-  scotland:  { name: "Scotland", color: "#a0344a", strength: 2, blobs: [[19,2,6,3],[18,4,7,3]] },
-  england:   { name: "Kingdom of England", color: "#b03a52", strength: 5, blobs: [[18,7,7,6],[17,11,3,3],[23,12,3,2]] },
+  scotland:  { name: "Scotland", color: "#a0344a", strength: 1, blobs: [[19,2,6,3],[18,4,7,3]] },
+  england:   { name: "Kingdom of England", color: "#b03a52", strength: 3, blobs: [[18,7,7,6],[17,11,3,3],[23,12,3,2]] },
   ireland:   { name: "Ireland", color: "#94505e", strength: 1, blobs: [[12,6,4,5]] },
-  france:    { name: "Kingdom of France", color: "#2d4d8e", strength: 8, blobs: [[23,17,12,9],[20,18,5,3],[33,24,3,3]] },
-  castile:   { name: "Castile", color: "#b5541e", strength: 6, blobs: [[14,26,10,10]] },
-  aragon:    { name: "Aragon", color: "#c86a2e", strength: 3, blobs: [[24,27,5,5]] },
-  portugal:  { name: "Portugal", color: "#8e6a4a", strength: 3, blobs: [[12,27,3,9]] },
-  hre:       { name: "Holy Roman Empire", color: "#a98436", strength: 7, blobs: [[33,13,9,9],[31,16,3,4]] },
-  brandenburg:{ name: "Brandenburg", color: "#8a6c2c", strength: 4, blobs: [[40,10,7,4]] },
-  saxony:    { name: "Saxony", color: "#97762f", strength: 3, blobs: [[42,14,5,3]] },
-  bavaria:   { name: "Bavaria", color: "#7d6228", strength: 3, blobs: [[39,18,5,4]] },
-  austria:   { name: "Austrian Empire", color: "#6b4f1c", strength: 7, blobs: [[43,20,7,4],[45,18,4,2]] },
+  france:    { name: "Kingdom of France", color: "#2d4d8e", strength: 5, blobs: [[23,17,12,9],[20,18,5,3],[33,24,3,3]] },
+  castile:   { name: "Castile", color: "#b5541e", strength: 4, blobs: [[14,26,10,10]] },
+  aragon:    { name: "Aragon", color: "#c86a2e", strength: 2, blobs: [[24,27,5,5]] },
+  portugal:  { name: "Portugal", color: "#8e6a4a", strength: 2, blobs: [[12,27,3,9]] },
+  hre:       { name: "Holy Roman Empire", color: "#a98436", strength: 4, blobs: [[33,13,9,9],[31,16,3,4]] },
+  brandenburg:{ name: "Brandenburg", color: "#8a6c2c", strength: 2, blobs: [[40,10,7,4]] },
+  saxony:    { name: "Saxony", color: "#97762f", strength: 2, blobs: [[42,14,5,3]] },
+  bavaria:   { name: "Bavaria", color: "#7d6228", strength: 2, blobs: [[39,18,5,4]] },
+  austria:   { name: "Austrian Empire", color: "#6b4f1c", strength: 4, blobs: [[43,20,7,4],[45,18,4,2]] },
   milan:     { name: "Milan", color: "#a04a3a", strength: 2, blobs: [[36,23,3,2]] },
   savoy:     { name: "Savoy", color: "#8e2d4d", strength: 2, blobs: [[34,24,3,3]] },
-  venice:    { name: "Venice", color: "#a03a6e", strength: 3, blobs: [[38,23,5,2],[43,25,3,2]] },
+  venice:    { name: "Venice", color: "#a03a6e", strength: 2, blobs: [[38,23,5,2],[43,25,3,2]] },
   tuscany:   { name: "Tuscany", color: "#b09a4a", strength: 2, blobs: [[37,26,3,2]] },
   papal:     { name: "Papal States", color: "#8e5a8e", strength: 2, blobs: [[39,27,3,3],[41,29,2,2]] },
-  naples:    { name: "Kingdom of Naples", color: "#b5541e", strength: 3, blobs: [[42,31,3,3],[44,33,3,3]] },
+  naples:    { name: "Kingdom of Naples", color: "#b5541e", strength: 2, blobs: [[42,31,3,3],[44,33,3,3]] },
   sicily:    { name: "Sicily", color: "#a04a1e", strength: 1, blobs: [[41,38,4,2]] },
-  sweden:    { name: "Swedish Empire", color: "#4a6a8e", strength: 6, blobs: [[34,1,4,4],[37,0,4,4],[40,2,4,5],[43,4,3,4],[47,0,8,5],[53,2,4,4]] },
+  sweden:    { name: "Swedish Empire", color: "#4a6a8e", strength: 3, blobs: [[34,1,4,4],[37,0,4,4],[40,2,4,5],[43,4,3,4],[47,0,8,5],[53,2,4,4]] },
   denmark:   { name: "Denmark", color: "#6a4a8e", strength: 2, blobs: [[35,6,2,4],[38,7,3,2]] },
-  poland:    { name: "Poland–Lithuania", color: "#8e2d8e", strength: 7, blobs: [[47,9,12,10],[52,7,8,3]] },
-  russia:    { name: "Tsardom of Russia", color: "#7a7a2d", strength: 9, blobs: [[60,1,39,15],[64,15,34,10],[59,16,5,4]] },
-  cossacks:  { name: "Cossacks", color: "#5a8e4a", strength: 3, blobs: [[59,20,8,4]] },
-  crimea:    { name: "Crimean Khanate", color: "#6aa05a", strength: 4, blobs: [[61,24,7,3],[63,27,4,2]] },
-  hungary:   { name: "Hungary", color: "#79a065", strength: 3, blobs: [[47,21,5,3]] },
+  poland:    { name: "Poland–Lithuania", color: "#8e2d8e", strength: 4, blobs: [[47,9,12,10],[52,7,8,3]] },
+  russia:    { name: "Tsardom of Russia", color: "#7a7a2d", strength: 5, blobs: [[60,1,39,15],[64,15,34,10],[59,16,5,4]] },
+  cossacks:  { name: "Cossacks", color: "#5a8e4a", strength: 2, blobs: [[59,20,8,4]] },
+  crimea:    { name: "Crimean Khanate", color: "#6aa05a", strength: 2, blobs: [[61,24,7,3],[63,27,4,2]] },
+  hungary:   { name: "Hungary", color: "#79a065", strength: 2, blobs: [[47,21,5,3]] },
   transylvania:{ name: "Transylvania", color: "#86a878", strength: 2, blobs: [[52,20,4,3]] },
   moldavia:  { name: "Moldavia", color: "#8fae7f", strength: 2, blobs: [[56,17,4,4]] },
   wallachia: { name: "Wallachia", color: "#7ba26b", strength: 2, blobs: [[52,24,7,2]] },
-  ottoman:   { name: "Ottoman Empire", color: "#2d7a3a", strength: 10,
+  ottoman:   { name: "Ottoman Empire", color: "#2d7a3a", strength: 6,
                blobs: [[46,26,8,6],[49,24,4,3],[48,32,4,3],[49,35,3,2],[54,30,3,2],[57,30,14,7],[70,28,9,7],
                        [74,33,4,9],[64,42,12,5],[62,40,4,3],[76,30,10,8]] },
-  algiers:   { name: "Algiers", color: "#3a8e4a", strength: 3, blobs: [[24,37,9,3],[22,36,4,2]] },
+  algiers:   { name: "Algiers", color: "#3a8e4a", strength: 2, blobs: [[24,37,9,3],[22,36,4,2]] },
   tunis:     { name: "Tunis", color: "#3a8e4a", strength: 2, blobs: [[33,36,4,4]] },
   tripoli:   { name: "Tripolitania", color: "#3a8e4a", strength: 2, blobs: [[38,39,9,3],[46,40,6,3]] },
 };
@@ -1715,7 +1750,7 @@ function empireCells() {
   return cells;
 }
 
-function natStrength(n) { return Math.min(10, n.strength + Math.floor(playT / 900)); }
+function natStrength(n) { return Math.min(10, n.strength + Math.floor(playT / 1800)); }
 
 // --- the wars of Europe: rival nations fight each other, borders move ---
 const conquests = [];        // {c, r, to} — persistent map overrides
@@ -2627,6 +2662,7 @@ function update(dt) {
   if (rt) cam.x += CAM_SPEED * fast / zoom * dt;
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
+  SFX.windLoop(gameState === "playing" && zoom < 0.62);   // high in the sky, only wind
 
   if (paused) return;
 
@@ -2742,9 +2778,9 @@ function update(dt) {
       if (season() !== "winter") spawnRaid();   // raiders overwinter in their camps
     }
     for (const cp of camps) {
-      cp.fortT = (cp.fortT === undefined ? 120 : cp.fortT) - dt;
+      cp.fortT = (cp.fortT === undefined ? 200 : cp.fortT) - dt;
       if (cp.fortT <= 0) {
-        cp.fortT = 150;
+        cp.fortT = 260;
         if ((cp.fort || 0) < 3) {
           cp.fort = (cp.fort || 0) + 1;
           cp.hp += 40; cp.maxHp += 40;
@@ -2856,7 +2892,16 @@ function update(dt) {
       }
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
       const reach = c.task && c.task.kind === "attack" ? 34 : 5;
-      if (d < reach) { if (reach === 5) { c.x = c.tx; c.y = c.ty; } arrive(c); }
+      if (d < reach) {
+        if (c.viaGate && c.task) {
+          // through the gate — now on to where we were actually going
+          c.viaGate = false;
+          c.tx = c.task.x; c.ty = c.task.y;
+        } else {
+          if (reach === 5) { c.x = c.tx; c.y = c.ty; }
+          arrive(c);
+        }
+      }
       else if (c.task && c.task.kind === "emigrate") {
         // leaving the world: nothing on the map may hold them back
         c.x += (dx / d) * speed * dt; c.y += (dy / d) * speed * dt;

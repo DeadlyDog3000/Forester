@@ -49,7 +49,29 @@ const SFX = (() => {
     s.start(t); s.stop(t + dur + 0.02);
   }
 
+  let windNode = null;
   return {
+    windLoop: (on) => {
+      if (on && !windNode) {
+        const a = ctx(), t = a.currentTime;
+        const s2 = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
+        s2.buffer = noiseBuf; s2.loop = true;
+        f.type = "bandpass"; f.frequency.value = 600; f.Q.value = 0.5;
+        g.gain.value = 0.0001;
+        g.gain.setTargetAtTime(0.14, t, 0.8);          // wind swells in
+        lfo.type = "sine"; lfo.frequency.value = 0.23;  // slow gusting
+        lg.gain.value = 0.06;
+        lfo.connect(lg); lg.connect(g.gain);
+        s2.connect(f); f.connect(g); g.connect(master);
+        s2.start(t); lfo.start(t);
+        windNode = { s2, lfo, g };
+      } else if (!on && windNode) {
+        const a = ctx(), t = a.currentTime;
+        windNode.g.gain.setTargetAtTime(0.0001, t, 0.5);
+        const wn = windNode; windNode = null;
+        setTimeout(() => { try { wn.s2.stop(); wn.lfo.stop(); } catch (e) {} }, 1800);
+      }
+    },
     click:    () => { tone("square", 900, 700, 0.05, 0.12); },
     swing:    () => { noise(0.14, 0.22, 2400, 500, 2); },                              // sword whoosh
     swingFist:() => { noise(0.11, 0.16, 900, 250, 1.5); },                             // duller fist whoosh
