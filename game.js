@@ -873,7 +873,7 @@ function arrive(c) {
   if (t && t.kind === "warmUp") { c.state = "warming"; c.workT = 0; c.task = null; return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
-                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing" };
+                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping" };
   if (t.kind === "repair") {
     if (!canPay(REPAIR_COST)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
     pay(REPAIR_COST);
@@ -907,11 +907,15 @@ function autonomy(c, dt) {
     if (res.meat > 0 && c.home) { res.meat--; eat(c, "meat"); return; }
   }
 
-  if (!c.tool && res.tools > 0 && c.inv.dm >= TOOL_PRICE_SELF) {
-    res.tools--; c.inv.dm -= TOOL_PRICE_SELF; res.dm += TOOL_PRICE_SELF; c.tool = true;
-    SFX.coin();
-    toast(`${c.name} buys a tool from the smithy with their own coin.`);
-    return;
+  const shopF = buildings.find(b => b.type === "forge" && !b.fire && (b.shop || []).length);
+  if (shopF && c.profession !== "blacksmith") {
+    const wantsTool = !c.tool && c.inv.dm >= TOOL_PRICE_SELF && shopF.shop.some(i => i.kind === "tool");
+    const mayArm = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter") || isForce(c);
+    const wantsWeapon = mayArm && !c.armed && c.inv.dm >= 12 && shopF.shop.some(i => i.kind === "weapon");
+    if (wantsTool || wantsWeapon) {
+      order(c, { kind: "shopBuy", target: shopF, x: shopF.x + 30, y: shopF.y + 14 });
+      return;
+    }
   }
 
   if (!c.home) return;
@@ -924,14 +928,18 @@ function autonomy(c, dt) {
   }
 
   if (c.profession === "blacksmith" && has("forging") && forgeBuilt()) {
+    const shopForge = buildings.find(b => b.type === "forge" && !b.fire);
+    const stock = (shopForge && shopForge.shop) || [];
+    const toolsOnSale = stock.filter(i => i.kind === "tool").length;
+    const weaponsOnSale = stock.filter(i => i.kind === "weapon").length;
     const iron = weaponIron();
-    const wantTool = res.tools <= res.weapons || !canForgeWeapons();
-    if (wantTool && res.iron >= 1 && res.stone >= 1 && res.logs >= 1 && res.tools < 5) {
+    const wantTool = toolsOnSale <= weaponsOnSale || !canForgeWeapons();
+    if (wantTool && res.iron >= 1 && res.stone >= 1 && res.logs >= 1 && toolsOnSale < 3) {
       res.iron--; res.stone--; res.logs--;
       order(c, { kind: "smith", make: "tool", x: c.x, y: c.y });
       return;
     }
-    if (canForgeWeapons() && res.iron >= iron && res.stone >= 1 && res.logs >= 1 && res.weapons < 5) {
+    if (canForgeWeapons() && res.iron >= iron && res.stone >= 1 && res.logs >= 1 && weaponsOnSale < 3) {
       res.iron -= iron; res.stone--; res.logs--;
       order(c, { kind: "smith", make: "weapon", x: c.x, y: c.y });
       return;
@@ -1203,6 +1211,7 @@ function updateResearch(dt) {
   const t = TECH[research.id];
   if (research.t >= techTime(t)) {
     t.done = true;
+    SFX.research();
     toast(`Research complete: ${t.name} — ${t.desc}.`);
     research = null;
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
@@ -1409,10 +1418,30 @@ $("cpGiveWeapon").addEventListener("click", () => {
 $("cpBuyTool").addEventListener("click", () => {
   if (!selected) return;
   if (selected.tool) return toast(`${selected.name} already carries a good tool.`);
-  if (res.tools < 1) return toast("The smithy has no tools in stock.");
+  const f = buildings.find(b => b.type === "forge" && !b.fire && (b.shop || []).some(i => i.kind === "tool"));
+  if (!f) return toast("No tool on the forge racks.");
   if (res.dm - TOOL_PRICE_GOV < treasuryFloor()) return toast(`Government purchase costs ${TOOL_PRICE_GOV} DM. Treasury: ${res.dm} DM.`);
-  res.tools--; res.dm -= TOOL_PRICE_GOV; selected.tool = true;
-  toast(`The government buys ${selected.name} a fine tool from the smithy.`);
+  const item = f.shop.splice(f.shop.findIndex(i => i.kind === "tool"), 1)[0];
+  res.dm -= TOOL_PRICE_GOV;
+  const smith = civs.find(o => o.name === item.by && o.profession === "blacksmith");
+  if (smith) smith.inv.dm += TOOL_PRICE_GOV;
+  selected.tool = true;
+  toast(`The government buys ${selected.name} a fine tool from ${item.by}'s racks.`);
+  syncUI();
+});
+$("bpBuyWeapon").addEventListener("click", () => {
+  const b = selectedBldg;
+  if (!b || b.type !== "forge") return;
+  const idx = (b.shop || []).findIndex(i => i.kind === "weapon");
+  if (idx < 0) return toast("No weapon on the racks. The blacksmith is still at work.");
+  if (res.dm - 12 < treasuryFloor()) return toast("The armoury purchase costs 12 DM. Treasury: " + res.dm + " DM.");
+  const item = b.shop.splice(idx, 1)[0];
+  res.dm -= 12;
+  const smith = civs.find(o => o.name === item.by && o.profession === "blacksmith");
+  if (smith) { smith.inv.dm += 12; float(smith.x, smith.y - 70, "+12 DM", "#c9a86a"); }
+  res.weapons++;
+  SFX.coin();
+  toast(`A weapon is bought off ${item.by}'s racks for the armoury. Police and soldiers may now equip it.`);
   syncUI();
 });
 $("bpDismantle").addEventListener("click", () => {
@@ -1965,7 +1994,7 @@ function saveGame() {
       })),
       buildings: buildings.map(b => ({
         type: b.type, x: b.x, y: b.y, fire: b.fire, placed: b.placed,
-        hp: b.hp, maxHp: b.maxHp, rot: b.rot,
+        hp: b.hp, maxHp: b.maxHp, rot: b.rot, shop: b.shop || [],
         occupants: b.occupants.map(ci),
       })),
       farms: farms.map(f => ({ x: f.x, y: f.y, ready: f.ready, growT: f.growT, workers: f.workers.map(ci) })),
@@ -2019,7 +2048,7 @@ function loadGame() {
     for (const bd of d.buildings)
       buildings.push({ type: bd.type, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
                        torchP: -1, placed: bd.placed, bakeT: 0, occupants: [],
-                       rot: bd.rot || 0,
+                       rot: bd.rot || 0, shop: bd.shop || [],
                        hp: bd.type === "wall" ? Math.min(bd.hp ?? 100, 100) : bd.type === "gate" ? Math.min(bd.hp ?? 60, 60) : bd.hp,
                        maxHp: bd.type === "wall" ? 100 : bd.type === "gate" ? 60 : bd.maxHp });
     d.buildings.forEach((bd, i) => {
@@ -2245,7 +2274,7 @@ function syncUI() {
   $("rStone").textContent = res.stone; $("rIron").textContent = res.iron;
   $("rDoors").textContent = res.doors; $("rBread").textContent = res.bread;
   $("rMeat").textContent = res.meat; $("rWeapons").textContent = res.weapons;
-  $("rTools").textContent = res.tools; $("rDM").textContent = res.dm;
+  $("rTools").textContent = buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0); $("rDM").textContent = res.dm;
   $("rPop").textContent = civs.length; $("rPolice").textContent = policeCount;
   $("rTax").textContent = taxRate;
   $("rSeason").textContent = season() === "winter" ? "❄ WINTER" : "SUMMER";
@@ -2280,6 +2309,9 @@ function syncUI() {
     }
     if (!civs.length) list.innerHTML = '<div style="padding:6px;color:#5a6b60;font-size:11px">No one is left.</div>';
   }
+  $("scoutLedger").textContent = settlements.length >= 5 ? "The scouts rest — your settlements dot the map." :
+    `Scouts' ledger toward a new settlement: ${Math.min(5, sackedCamps)}/5 camps sacked · population ${civs.length}/3 · ` +
+    (playT >= nextSettleAt ? "the hour is ripe" : `ready in ${Math.ceil((nextSettleAt - playT) / 60)} min`);
   $("researchNow").textContent = research ?
     `Researching ${TECH[research.id].name}: ${Math.round(research.t / techTime(TECH[research.id]) * 100)}%` : "No research underway.";
   if (research && $("techPanel").style.display === "block") renderTech();
@@ -2329,11 +2361,12 @@ function syncUI() {
       b.type === "watchtower" ? "Warns of raids; nearby police & soldiers fight harder." :
       b.type === "bakery" ? "Bakes town wheat into bread over time." :
       b.type === "well" ? "Fresh water. The colony is happier for it." :
-      b.type === "forge" ? "Blacksmiths work here; weapons are handed out at its racks." :
+      b.type === "forge" ? `Blacksmith's shop. On the racks: ${(b.shop || []).filter(i => i.kind === "tool").length} tool(s), ${(b.shop || []).filter(i => i.kind === "weapon").length} weapon(s). Civilians buy with their own coin; the armoury buys weapons here.` :
       b.type === "townhall" ? "Civilians bring their goods here on their own — no more asking." :
       b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
       b.type === "gate" ? "Your people pass freely; raiders must burn it down." : "Standing.";
     $("bpOcc").textContent = isFarm ? "—" : (b.occupants.length ? b.occupants.map(o => o.name).join(", ") : "none");
+    $("bpBuyWeapon").style.display = (!isFarm && b.type === "forge" && (b.shop || []).some(i => i.kind === "weapon")) ? "block" : "none";
   }
 }
 
@@ -2598,8 +2631,12 @@ function update(dt) {
       c.workT += dt; c.anim += dt * 6;
       if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= SMITH_TIME * workMul(c)) {
-        if (c.task.make === "tool") { res.tools++; toast(`${c.name} finishes a sturdy tool.`); }
-        else { res.weapons++; toast(`${c.name} finishes a weapon for the armoury.`); }
+        const shopForge = buildings.find(b => b.type === "forge" && !b.fire);
+        if (shopForge) {
+          shopForge.shop = shopForge.shop || [];
+          shopForge.shop.push({ kind: c.task.make, by: c.name });
+          toast(`${c.name} finishes a ${c.task.make} and sets it for sale at the forge.`);
+        }
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "repairing") {
@@ -2637,6 +2674,31 @@ function update(dt) {
         c.inv.wheat += 2; c.inv.bread += 1;
         SFX.pickup();
         float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
+        c.state = "idle"; c.task = null;
+      }
+    } else if (c.state === "shopping") {
+      const f = c.task.target;
+      if (!buildings.includes(f) || !(f.shop || []).length) { c.state = "idle"; c.task = null; continue; }
+      c.workT += dt;
+      if (c.workT >= 1.5) {
+        const mayArm = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter") || isForce(c);
+        const wantKind = (!c.tool && f.shop.some(i => i.kind === "tool")) ? "tool" :
+                         (mayArm && !c.armed && f.shop.some(i => i.kind === "weapon")) ? "weapon" : null;
+        if (wantKind) {
+          const price = wantKind === "tool" ? TOOL_PRICE_SELF : 12;
+          if (c.inv.dm >= price) {
+            const idx = f.shop.findIndex(i => i.kind === wantKind);
+            const item = f.shop.splice(idx, 1)[0];
+            c.inv.dm -= price;
+            const smith = civs.find(o => o.name === item.by && o.profession === "blacksmith");
+            if (smith) { smith.inv.dm += price; float(smith.x, smith.y - 70, "+" + price + " DM", "#c9a86a"); }
+            else res.dm += price;
+            if (wantKind === "tool") c.tool = true; else c.armed = true;
+            float(c.x, c.y - 70, "+1 " + wantKind, "#7da083");
+            SFX.coin();
+            toast(`${c.name} buys a ${wantKind} at the forge${smith ? ` — ${item.by} pockets ${price} DM` : ""}.`);
+          }
+        }
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "depositing") {

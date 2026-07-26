@@ -68,6 +68,14 @@ const SFX = (() => {
     eat:      () => { noise(0.05, 0.22, 1400, 600, 2); noise(0.05, 0.2, 1200, 500, 2, "bandpass", 0.11); noise(0.06, 0.16, 1000, 400, 2, "bandpass", 0.22); },
     step:     (fast) => { noise(0.035, fast ? 0.09 : 0.06, 900, 300, 1, "lowpass"); },
     crackle:  () => { noise(0.09, 0.2, 2600, 700, 3); noise(0.06, 0.16, 1800, 500, 3, "bandpass", 0.05); },
+    research: () => {
+      // a little eureka: rising fourth, fifth, octave with a shimmer on top
+      tone("square", 523, 523, 0.09, 0.14);
+      tone("square", 659, 659, 0.09, 0.14, 0.1);
+      tone("square", 784, 784, 0.1, 0.15, 0.2);
+      tone("square", 1046, 1046, 0.22, 0.16, 0.3);
+      tone("triangle", 2093, 2093, 0.18, 0.07, 0.34);
+    },
     bird: () => {
       // a short warbling chirp phrase, randomized each call
       const a = ctx(), t0 = a.currentTime;
