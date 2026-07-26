@@ -22,7 +22,7 @@ const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
 const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
 const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8, DODGE_CHANCE = 0.15;
 const EAT_HEAL = 15;
-const RAID_MIN = 150, RAID_MAX = 260, MAX_RAIDERS = 4, MAX_CAMPS = 6;
+const RAID_MIN = 240, RAID_MAX = 420, MAX_RAIDERS = 4, MAX_CAMPS = 6;
 
 const REPAIR_COST = { logs: 20, doors: 1, dm: 5 };
 const STATIC_COSTS = {
@@ -445,6 +445,7 @@ function updateRaider(r, dt) {
   if (r.state === "torchWall") {
     const w = r.wallTarget;
     if (!buildings.includes(w) || w.fire) { r.state = "approach"; r.wallTarget = null; return; }
+    if (w.type === "stonewall" || w.type === "stonegate") { r.state = "axeWall"; r.atkT = ATK_INTERVAL; return; }   // stone doesn't burn
     r.workT += dt; w.torchP = r.workT / (torchTime() * 0.8); r.anim += dt * 9;
     if (r.workT >= torchTime() * 0.8) {
       w.torchP = -1; w.fire = FIRE_TIME * 0.7;
@@ -458,7 +459,7 @@ function updateRaider(r, dt) {
     if (!buildings.includes(t)) { r.state = "flee"; return; }
     const dx = t.x - r.x, dy = t.y + 20 - r.y, d = Math.hypot(dx, dy);
     if (d < 30) {
-      if (r.arsonist) { r.state = "torchWall"; r.wallTarget = t; r.workT = 0; }
+      if (r.arsonist && t.type !== "stonewall" && t.type !== "stonegate") { r.state = "torchWall"; r.wallTarget = t; r.workT = 0; }
       else { r.state = "steal"; r.workT = 0; }
     }
     else {
@@ -774,7 +775,8 @@ addEventListener("keydown", e => {
     toast(`Wall turned ${wallRot ? "upright (north-south)" : "flat (east-west)"}.`);
   }
   if (e.key === "Escape") {
-    if (buildMode) { buildMode = null; syncUI(); }
+    if ($("settingsPanel").style.display === "block") { $("settingsPanel").style.display = "none"; saveSettings(); }
+    else if (buildMode) { buildMode = null; syncUI(); }
     else if (gameState === "playing" || pauseOpen) setPause(!pauseOpen);
   }
 });
@@ -897,7 +899,8 @@ canvas.addEventListener("click", e => {
 
   for (const gv of graves)
     if (Math.abs(mouse.wx - gv.x) < 20 && mouse.wy < gv.y + 6 && mouse.wy > gv.y - 40) {
-      selectedGrave = gv; selectedBldg = null; selected = null; selectedCamp = null;
+      selectedGrave = selectedGrave === gv ? null : gv;   // click again to lay the panel to rest
+      selectedBldg = null; selected = null; selectedCamp = null;
       syncUI();
       return;
     }
@@ -906,6 +909,7 @@ canvas.addEventListener("click", e => {
   for (const f of farms)
     if (pointInRect(mouse.wx, mouse.wy, bldgRect({ type: "farm", x: f.x, y: f.y }))) { selectedBldg = f; f.type = "farm"; selected = null; selectedCamp = null; syncUI(); return; }
 
+  if (selectedGrave) { selectedGrave = null; syncUI(); }
   if (selected) order(selected, { kind: "walk", x: mouse.wx, y: mouse.wy });
 });
 
@@ -949,7 +953,7 @@ function snapWallPos(type, wx, wy) {
     if (d < bd) { bd = d; best = b; }
   }
   if (best) {
-    const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 4;   // slight overlap: no gaps
+    const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 12;   // deep overlap: sprite margins never show a gap
     if (wallRot) return [best.x, best.y + (wy > best.y ? span : -span)];
     return [best.x + (wx > best.x ? span : -span), best.y];
   }
@@ -1285,7 +1289,8 @@ function maybeRebel(c) {
 
 function rebelAI(c) {
   if (c.state !== "idle") return;
-  const targets = buildings.filter(b => b.type !== "burned" && !b.fire);
+  const targets = buildings.filter(b => b.type !== "burned" && !b.fire &&
+                                        b.type !== "stonewall" && b.type !== "stonegate");
   if (targets.length && Math.random() < 0.6) {
     let best = targets[0], bd = Infinity;
     for (const b of targets) { const d = Math.hypot(b.x - c.x, b.y - c.y); if (d < bd) { bd = d; best = b; } }
@@ -2088,7 +2093,7 @@ function renderMap() {
 document.getElementById("mapToggle").addEventListener("click", () => {
   if (!mapGrid) buildMapGrid();
   renderMap();
-  document.getElementById("mapTitle").textContent = (empireName || "YOUR EMPIRE").toUpperCase() + " — EUROPE, 1683";
+  document.getElementById("mapTitle").textContent = (empireName || "YOUR EMPIRE").toUpperCase() + " — EUROPE, " + colonyYear;
   document.getElementById("mapOverlay").style.display = "block";
   paused = true;
 });
@@ -2952,7 +2957,7 @@ function update(dt) {
       !buildings.some(b => (b.type === "wall" || b.type === "gate") && !b.fire)) {
     ambushT -= dt;
     if (ambushT <= 0) {
-      ambushT = (85 + Math.random() * 55) * Math.pow(0.9, difficulty() - 1);
+      ambushT = (140 + Math.random() * 90) * Math.pow(0.9, difficulty() - 1);
       const guards = civs.filter(c => isForce(c) && c.state !== "sleeping");
       const targets = buildings.filter(b => b.type !== "burned" && !b.fire);
       if (targets.length && raiders.filter(r => r.state !== "patrol").length < MAX_RAIDERS + 2) {
@@ -3493,20 +3498,21 @@ function render(dt) {
   }});
   for (const b of buildings) if (inView(b.x, b.y)) drawables.push({ y: b.y, draw: () => {
     if (b.site) ctx.globalAlpha = 0.45;
-    if (b.type === "wall" && b.rot) drawSprite(wimg("wallv"), b.x, b.y, SMALL_BLDG.wall, false);
-    else if (b.type === "stonewall" && b.rot) drawSprite(img.stonewallv, b.x, b.y, SMALL_BLDG.stonewall, false);
+    const wos = WALLLIKE.has(b.type) ? 10 : 0;   // walls draw oversized so chained segments visually fuse
+    if (b.type === "wall" && b.rot) drawSprite(wimg("wallv"), b.x, b.y + wos / 2, SMALL_BLDG.wall + wos, false);
+    else if (b.type === "stonewall" && b.rot) drawSprite(img.stonewallv, b.x, b.y + wos / 2, SMALL_BLDG.stonewall + wos, false);
     else if ((b.type === "stonegate" || b.type === "moat" || b.type === "ditch") && b.rot) {
-      const L = SMALL_BLDG[b.type];
-      ctx.save(); ctx.translate(b.x, b.y - L / 2); ctx.rotate(Math.PI / 2);
+      const L = SMALL_BLDG[b.type] + wos;
+      ctx.save(); ctx.translate(b.x, b.y - SMALL_BLDG[b.type] / 2); ctx.rotate(Math.PI / 2);
       ctx.drawImage(img[b.type], -L / 2, -L / 2, L, L);
       ctx.restore();
     }
     else if (b.type === "gate" && b.rot) {
-      const L = SMALL_BLDG.gate;
-      ctx.save(); ctx.translate(b.x, b.y - L / 2); ctx.rotate(Math.PI / 2);
+      const L = SMALL_BLDG.gate + wos;
+      ctx.save(); ctx.translate(b.x, b.y - SMALL_BLDG.gate / 2); ctx.rotate(Math.PI / 2);
       ctx.drawImage(wimg("gate"), -L / 2, -L / 2, L, L);
       ctx.restore();
-    } else drawSprite(wimg(b.type), b.x, b.y, SMALL_BLDG[b.type] || BLDG_SIZE, false);
+    } else drawSprite(wimg(b.type), b.x, b.y + wos / 2, (SMALL_BLDG[b.type] || BLDG_SIZE) + wos, false);
     if (b.fire > 0) {
       const f = img["fire" + (Math.floor(fireAnim) % 4)];
       drawSprite(f, b.x - 20, b.y - 8, 56, false);
