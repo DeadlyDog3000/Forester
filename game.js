@@ -537,7 +537,7 @@ function strikeUnit(a, b, dmg) {
     if (a.foe === b) a.foe = null;
   } else if (civs.includes(b)) {
     if (!b.rebel && !isForce(b) && (!b.task || b.task.kind !== "attack"))
-      order(b, { kind: "walk", x: b.x + (b.x - a.x) * 4, y: b.y + (b.y - a.y) * 4 });
+      order(b, { kind: "walk", flee: true, x: b.x + (b.x - a.x) * 4, y: b.y + (b.y - a.y) * 4 });
     else if ((b.rebel || isForce(b)) && (!b.task || !b.task.target)) {
       if (civs.includes(a)) order(b, { kind: "attack", target: a, x: a.x, y: a.y });
       // raider attackers are handled by force auto-targeting
@@ -924,6 +924,19 @@ canvas.addEventListener("click", e => {
       }
   }
 
+  // a bury order: point a civilian at the fallen and they will see it done
+  if (selected && !selected.child)
+    for (const cp of corpses)
+      if (Math.abs(mouse.wx - cp.x) < 24 && Math.abs(mouse.wy - cp.y) < 28) {
+        if (cp.carried && cp.carried !== selected) break;   // already on someone's shoulder
+        if (cp.bearer && civs.includes(cp.bearer) && cp.bearer !== selected && cp.bearer.task && cp.bearer.task.kind === "bury") {
+          cp.bearer.task = null; cp.bearer.state = "idle";  // relieved of the duty
+        }
+        cp.bearer = selected;
+        order(selected, { kind: "bury", target: cp, x: cp.x, y: cp.y + 6 });
+        toast(`${selected.name} is ordered to bury the dead.`);
+        return;
+      }
   for (const gv of graves)
     if (Math.abs(mouse.wx - gv.x) < 20 && mouse.wy < gv.y + 6 && mouse.wy > gv.y - 40) {
       selectedGrave = selectedGrave === gv ? null : gv;   // click again to lay the panel to rest
@@ -1055,6 +1068,12 @@ function tryPlace(type, wx, wy) {
 
 // --- orders ---
 function order(c, task) {
+  // a bearer shoulders the dead until the grave: only fleeing or the cold may interrupt — and then the body is set down
+  const held = corpses.find(cp => cp.carried === c);
+  if (held && task.kind !== "bury") {
+    if (task.flee || task.kind === "warmUp") { held.carried = null; held.bearer = null; }
+    else { toast(`${c.name} is bearing the dead — the burial comes first.`); return; }
+  }
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
   c.task = task; c.tx = task.x; c.ty = task.y;
   c.state = "walking"; c.workT = 0;
@@ -2106,6 +2125,7 @@ function resolveBattle(war) {
 function updateNationTrade(dt) {
   for (const [id, n] of Object.entries(NATIONS)) {
     if (n.tradeCool > 0) n.tradeCool -= dt;
+    if (n.reqCool > 0) n.reqCool -= dt;
     if (!n.trade) continue;
     if (n.defeated || n.atWar) { n.trade = false; continue; }
     n.tradeT = (n.tradeT === undefined ? 60 : n.tradeT) - dt;
@@ -2263,6 +2283,8 @@ function mapInfoSync() {
   const tr = document.getElementById("miTrade");
   tr.style.display = (!n.atWar && adj && !n.trade) ? "block" : "none";
   if (n.trade) document.getElementById("miDetail").textContent += " A trade route is open — caravans arrive regularly.";
+  $("miRequestWrap").style.display = n.trade ? "block" : "none";
+  if (n.trade) requestOddsText();
 }
 document.getElementById("miWar").addEventListener("click", () => {
   const n = NATIONS[mapSelNation];
@@ -2303,6 +2325,50 @@ const TRADE_OPTIONS = [
   { text: "\"We are small, but hard winters breed honest traders.\"", d: +5 },
   { text: "Praise the court's splendour at some length.", d: +4 },
 ];
+// what each court has in plenty — ask for anything else and the odds drop hard
+const NAT_GOODS = {
+  scotland: ["stone", "meat"], england: ["bread", "iron"], ireland: ["meat", "wheat"],
+  france: ["bread", "wheat"], castile: ["iron", "wheat"], aragon: ["stone", "bread"],
+  portugal: ["meat", "stone"], hre: ["iron", "logs"], brandenburg: ["logs", "wheat"],
+  saxony: ["iron", "stone"], bavaria: ["logs", "bread"], austria: ["iron", "bread"],
+  milan: ["iron", "bread"], savoy: ["stone", "logs"], venice: ["bread", "meat"],
+  tuscany: ["wheat", "bread"], papal: ["bread", "stone"], naples: ["wheat", "meat"],
+  sicily: ["wheat", "meat"], sweden: ["logs", "iron"], denmark: ["meat", "logs"],
+  poland: ["wheat", "logs"], russia: ["logs", "wheat"], cossacks: ["meat", "wheat"],
+  crimea: ["meat", "stone"], hungary: ["wheat", "meat"], transylvania: ["logs", "stone"],
+  moldavia: ["wheat", "meat"], wallachia: ["wheat", "logs"], ottoman: ["wheat", "stone"],
+};
+const goodsOf = id => NAT_GOODS[id] || ["wheat", "stone"];
+function requestOdds(id, good, amt) {
+  const scarce = !goodsOf(id).includes(good);
+  return Math.max(0.05, Math.min(0.95, 0.92 - amt * 0.02 - (scarce ? 0.35 : 0)));
+}
+function requestOddsText() {
+  const id = mapSelNation; if (!id || !NATIONS[id]) return;
+  const good = $("miGood").value, amt = +$("miAmt").value;
+  const scarce = !goodsOf(id).includes(good);
+  const odds = requestOdds(id, good, amt);
+  $("miOdds").textContent = (scarce ? `They have little ${good} to spare themselves. ` : `Their lands are rich in ${good}. `) +
+    `Cost: ${amt * 2} DM on delivery. The envoy rates the odds ${odds > 0.7 ? "good" : odds > 0.4 ? "uncertain" : "poor"}.`;
+}
+$("miGood").addEventListener("change", requestOddsText);
+$("miAmt").addEventListener("change", requestOddsText);
+$("miRequest").addEventListener("click", () => {
+  const id = mapSelNation, n = NATIONS[id];
+  if (!n || !n.trade) return;
+  if (n.reqCool > 0) return toast(`${n.name}'s quartermasters are still weighing the last request.`);
+  const good = $("miGood").value, amt = +$("miAmt").value, price = amt * 2;
+  if (res.dm < price) return toast(`The shipment would cost ${price} DM on delivery. Treasury: ${res.dm} DM.`);
+  n.reqCool = 90;
+  if (Math.random() < requestOdds(id, good, amt)) {
+    res.dm -= price; res[good] += amt;
+    SFX.coin();
+    toast(`${n.name} agrees — a caravan delivers ${amt} ${good} for ${price} DM.`);
+  } else {
+    toast(`${n.name} declines: ${goodsOf(id).includes(good) ? "the asking price of so large a shipment offends the court" : `their own stores of ${good} run thin`}. Ask again later.`);
+  }
+  mapInfoSync(); syncUI();
+});
 document.getElementById("miTrade").addEventListener("click", () => {
   const id = mapSelNation, n = NATIONS[id];
   if (n.trade) return;

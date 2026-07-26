@@ -377,6 +377,20 @@
         <button class="btn" id="miPeace" style="width:100%;margin-top:6px;display:none">Sue for Peace (60 DM)</button>
         <button class="btn danger" id="miAssault" style="width:100%;margin-top:6px;display:none">Assault Settlement</button>
         <button class="btn" id="miTrade" style="width:100%;margin-top:6px;display:none">Negotiate a Trade Route</button>
+        <div id="miRequestWrap" style="display:none;margin-top:10px">
+          <div style="font-size:11px;color:#7da083;margin-bottom:4px">REQUEST A SHIPMENT</div>
+          <div style="display:flex;gap:6px">
+            <select id="miGood" style="flex:1;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:4px">
+              <option value="logs">Logs</option><option value="stone">Stone</option><option value="iron">Iron</option>
+              <option value="wheat">Wheat</option><option value="bread">Bread</option><option value="meat">Meat</option>
+            </select>
+            <select id="miAmt" style="width:64px;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:4px">
+              <option value="5">5</option><option value="10">10</option><option value="20">20</option>
+            </select>
+          </div>
+          <button class="btn" id="miRequest" style="width:100%;margin-top:6px">Send the request</button>
+          <div id="miOdds" style="font-size:10px;color:#5a6b60;margin-top:4px"></div>
+        </div>
       </div>
     </div>
   </div>
