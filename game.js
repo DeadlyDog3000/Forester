@@ -1171,15 +1171,14 @@ function autonomy(c, dt) {
     const shopForge = buildings.find(b => b.type === "forge" && !b.fire && !b.site);
     const stock = (shopForge && shopForge.shop) || [];
     const toolsOnSale = stock.filter(i => i.kind === "tool").length;
-    const weaponsOnSale = stock.filter(i => i.kind === "weapon").length;
     const iron = weaponIron();
-    const wantTool = toolsOnSale <= weaponsOnSale || !canForgeWeapons();
+    const wantTool = toolsOnSale <= Math.min(3, res.weapons) || !canForgeWeapons();
     if (wantTool && res.iron >= 1 && res.stone >= 1 && res.logs >= 1 && toolsOnSale < 3) {
       res.iron--; res.stone--; res.logs--;
       order(c, { kind: "smith", make: "tool", x: c.x, y: c.y });
       return;
     }
-    if (canForgeWeapons() && res.iron >= iron && res.stone >= 1 && res.logs >= 1 && weaponsOnSale < 3) {
+    if (canForgeWeapons() && res.iron >= iron && res.stone >= 1 && res.logs >= 1 && res.weapons < 3) {
       res.iron -= iron; res.stone--; res.logs--;
       order(c, { kind: "smith", make: "weapon", x: c.x, y: c.y });
       return;
@@ -1717,6 +1716,16 @@ $("cpDeposit").addEventListener("click", () => {
   res.wheat += inv.wheat; res.bread += inv.bread; res.meat += inv.meat;
   inv.logs = inv.seeds = inv.stone = inv.iron = inv.wheat = inv.bread = inv.meat = 0;
   toast(moved ? `${selected.name} hands ${moved} item(s) to the town storage.` : `${selected.name} has nothing to hand over.`);
+  syncUI();
+});
+$("cpHeal").addEventListener("click", () => {
+  const c = selected;
+  if (!c) return;
+  if (c.hp >= c.maxHp) return toast(`${c.name} is already hale and whole.`);
+  if (c.inv.bread + c.inv.meat + c.inv.wheat + res.bread + res.meat <= 0)
+    return toast("No food anywhere — bake bread or hunt before ordering a heal.");
+  c.task = null; c.state = "healing"; c.workT = 0;
+  toast(`${c.name} sits down to eat until their wounds mend.`);
   syncUI();
 });
 $("cpGiveWeapon").addEventListener("click", () => {
@@ -2797,7 +2806,7 @@ function syncUI() {
       b.type === "watchtower" ? "Warns of raids; nearby police & soldiers fight harder." :
       b.type === "bakery" ? "Bakes town wheat into bread over time." :
       b.type === "well" ? "Fresh water. The colony is happier for it." :
-      b.type === "forge" ? `Blacksmith's shop. On the racks: ${(b.shop || []).filter(i => i.kind === "tool").length} tool(s), ${(b.shop || []).filter(i => i.kind === "weapon").length} weapon(s). Civilians buy with their own coin; the armoury buys weapons here.` :
+      b.type === "forge" ? `Blacksmith's shop. On the racks: ${(b.shop || []).filter(i => i.kind === "tool").length} tool(s). Civilians buy tools with their own coin; forged weapons go straight to the armoury.` :
       b.type === "townhall" ? "Civilians bring their goods here on their own — no more asking." :
       b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
       b.type === "gate" ? "Your people pass freely; raiders must burn it down." : "Standing.";
@@ -3033,6 +3042,23 @@ function update(dt) {
         c.x = c.home ? c.home.x : c.x; c.y = c.home ? c.home.y + 18 : c.y;
       } else continue;
     }
+    if (c.state === "healing") {
+      if (c.hp >= c.maxHp) { c.state = "idle"; toast(`${c.name} is eaten back to full health.`); }
+      else {
+        c.workT = (c.workT || 0) + dt;
+        if (c.workT >= 1.4) {
+          c.workT = 0;
+          if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); }
+          else if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); }
+          else if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); }
+          else if (res.bread > 0) { res.bread--; eat(c, "bread"); }
+          else if (res.meat > 0) { res.meat--; eat(c, "meat"); }
+          else { c.state = "idle"; toast(`${c.name} has no food left to heal with — the larders are bare.`); }
+          if (c.state === "healing" && c.hp >= c.maxHp) { c.state = "idle"; toast(`${c.name} is eaten back to full health.`); }
+        }
+        continue;
+      }
+    }
     if (nightNow > 0.5 && !isForce(c) && !c.rebel && c.home && c.state === "idle")
       order(c, { kind: "goHome", x: c.home.x, y: c.home.y + 12 });
 
@@ -3130,11 +3156,21 @@ function update(dt) {
       c.workT += dt; c.anim += dt * 6;
       if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= SMITH_TIME * workMul(c)) {
-        const shopForge = buildings.find(b => b.type === "forge" && !b.fire && !b.site);
-        if (shopForge) {
-          shopForge.shop = shopForge.shop || [];
-          shopForge.shop.push({ kind: c.task.make, by: c.name });
-          toast(`${c.name} finishes a ${c.task.make} and sets it for sale at the forge.`);
+        if (c.task.make === "weapon") {
+          // weapons go straight to the armoury; the treasury pays the smith when it can
+          res.weapons++;
+          if (res.dm - 12 >= treasuryFloor()) {
+            res.dm -= 12; c.inv.dm += 12; SFX.coin();
+            float(c.x, c.y - 70, "+12 DM", "#c9a86a");
+            toast(`${c.name} forges a weapon — bought for 12 DM and racked in the armoury.`);
+          } else toast(`${c.name} forges a weapon for the armoury — the treasury too thin to pay the smithy.`);
+        } else {
+          const shopForge = buildings.find(b => b.type === "forge" && !b.fire && !b.site);
+          if (shopForge) {
+            shopForge.shop = shopForge.shop || [];
+            shopForge.shop.push({ kind: c.task.make, by: c.name });
+            toast(`${c.name} finishes a ${c.task.make} and sets it for sale at the forge.`);
+          }
         }
         c.state = "idle"; c.task = null;
       }

@@ -59,22 +59,28 @@ const SFX = (() => {
       if (FSET().ambient === false) on = false;
       if (on && !windNode) {
         const a = ctx(), t = a.currentTime;
-        const s2 = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
-        s2.buffer = noiseBuf; s2.loop = true;
+        const f = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
         f.type = "bandpass"; f.frequency.value = 600; f.Q.value = 0.5;
         g.gain.value = 0.0001;
-        g.gain.setTargetAtTime(0.055, t, 0.8);         // wind swells in, gently
+        g.gain.setTargetAtTime(0.04, t, 0.8);          // wind swells in, gently
         lfo.type = "sine"; lfo.frequency.value = 0.23;  // slow gusting
-        lg.gain.value = 0.025;
+        lg.gain.value = 0.02;
         lfo.connect(lg); lg.connect(g.gain);
-        s2.connect(f); f.connect(g); g.connect(master);
-        s2.start(t); lfo.start(t);
-        windNode = { s2, lfo, g };
+        // two detuned noise sources at random offsets: loop points never align, no audible repeat
+        const srcs = [1, 0.81].map(rate => {
+          const s = a.createBufferSource();
+          s.buffer = noiseBuf; s.loop = true; s.playbackRate.value = rate;
+          s.connect(f); s.start(t, Math.random() * 1.9);
+          return s;
+        });
+        f.connect(g); g.connect(master);
+        lfo.start(t);
+        windNode = { srcs, lfo, g };
       } else if (!on && windNode) {
         const a = ctx(), t = a.currentTime;
         windNode.g.gain.setTargetAtTime(0.0001, t, 0.5);
         const wn = windNode; windNode = null;
-        setTimeout(() => { try { wn.s2.stop(); wn.lfo.stop(); } catch (e) {} }, 1800);
+        setTimeout(() => { try { wn.srcs.forEach(s => s.stop()); wn.lfo.stop(); } catch (e) {} }, 1800);
       }
     },
     click:    () => { tone("square", 900, 700, 0.05, 0.12); },
