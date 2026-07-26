@@ -2372,18 +2372,44 @@ document.getElementById("settleGo").addEventListener("click", () => {
   if (!chosen.length) return toast("Someone has to go.");
   if (chosen.length >= civs.length) return toast("Someone has to stay behind, too.");
   const name = document.getElementById("settleName").value.trim() || "New Settlement";
-  const angle = Math.random() * Math.PI * 2;
-  const st = { name, pop: chosen.length,
+  // find a clear patch of woods a few screens out, away from camps and other towns
+  let site = null, angle = Math.random() * Math.PI * 2;
+  for (let tries = 0; tries < 24 && !site; tries++) {
+    angle = Math.random() * Math.PI * 2;
+    const dist = 1800 + Math.random() * 600;
+    const x = Math.round(Math.cos(angle) * dist), y = Math.round(Math.sin(angle) * dist);
+    if (camps.every(cp => Math.hypot(cp.x - x, cp.y - y) > 800) &&
+        settlements.every(s => s.x === undefined || Math.hypot(s.x - x, s.y - y) > 1200)) site = { x, y };
+  }
+  if (!site) site = { x: Math.round(Math.cos(angle) * 2500), y: Math.round(Math.sin(angle) * 2500) };
+  // raise the first cabins and claim the clearing
+  const newCabins = [];
+  for (let i = 0; i < Math.max(1, Math.ceil(chosen.length / 2)); i++) {
+    const bx = site.x + (i % 3) * 150 - 150, by = site.y + Math.floor(i / 3) * 170;
+    for (const t of nearThings("trees", bx, by, 130)) t.alive = false;
+    for (const s of nearThings("stones", bx, by, 100)) s.alive = false;
+    const b = { type: "cabin", x: bx, y: by, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
+    buildings.push(b); newCabins.push(b);
+  }
+  expandAround(site.x, site.y, 3);
+  const st = { name, pop: chosen.length, x: site.x, y: site.y,
+               res: { logs: 10, stone: 4, bread: 4, meat: 2, dm: 10 },
                mx: EMPIRE_HOME.mx + Math.round(Math.cos(angle) * (3 + settlements.length)),
                my: EMPIRE_HOME.my + Math.round(Math.sin(angle) * 2 + 2 + settlements.length) };
   settlements.push(st);
-  for (const c of chosen)
-    order(c, { kind: "emigrate", x: c.x + Math.cos(angle) * 1600, y: c.y + Math.sin(angle) * 1600 });
+  // the settlers keep their names and trades — they walk out and live there
+  chosen.forEach((c, i) => {
+    if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
+    for (const f of farms) f.workers = f.workers.filter(w => w !== c);
+    const cab = newCabins[i % newCabins.length];
+    c.home = cab; cab.occupants.push(c);
+    order(c, { kind: "walk", x: cab.x - 40 + (i % 2) * 80, y: cab.y + 34 });
+  });
   document.getElementById("settleModal").style.display = "none";
   settlePending = false; setPause(pauseOpen);
   nextSettleAt = playT + 1200;
   expandFrontier(6);
-  toast(`${chosen.length} settler(s) depart to found ${name}. Your empire grows on the map of Europe.`);
+  toast(`${chosen.length} settler(s) set out to found ${name} — follow them, or watch for its marker at the screen's edge.`);
   setTimeout(() => vignette("firstSettlement"), 400);
 });
 function emigrate(c) {
@@ -2398,13 +2424,25 @@ function emigrate(c) {
   syncUI();
 }
 
-// settlements slowly grow
+// settlements slowly grow — physical towns count their real residents and work their stores
 let stGrowT = 0;
 function updateSettlements(dt) {
   stGrowT += dt;
   if (stGrowT > 120) {
     stGrowT = 0;
-    for (const st of settlements) if (Math.random() < 0.5) st.pop++;
+    for (const st of settlements) {
+      if (st.x !== undefined) {
+        st.pop = civs.filter(c => c.home && Math.hypot(c.home.x - st.x, c.home.y - st.y) < 500).length;
+        st.res = st.res || { logs: 0, stone: 0, bread: 0, meat: 0, dm: 0 };
+        if (st.pop > 0 && season() !== "winter") {
+          st.res.logs += Math.floor(Math.random() * st.pop) + 1;
+          st.res.bread += Math.random() < 0.6 ? 1 : 0;
+          st.res.meat += Math.random() < 0.4 ? 1 : 0;
+          st.res.dm += Math.floor(Math.random() * 3);
+          st.res.stone += Math.random() < 0.3 ? 1 : 0;
+        }
+      } else if (Math.random() < 0.5) st.pop++;   // legacy map-only settlements
+    }
   }
 }
 
@@ -3808,6 +3846,33 @@ function render(dt) {
     else ctx.strokeRect(gx - gs / 2, gy - gs, gs, gs);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  // edge-of-screen markers for towns that are out of view
+  const towns = settlements.filter(s => s.x !== undefined).map(s => ({ x: s.x, y: s.y, name: s.name }));
+  if (towns.length) towns.push({ x: 0, y: -40, name: settlementName || "Home" });
+  for (const t of towns) {
+    const sx = (t.x - cam.x) * zoom, sy = (t.y - cam.y) * zoom;
+    if (sx > -40 && sx < canvas.width + 40 && sy > -40 && sy < canvas.height + 40) continue;
+    const mx2 = Math.max(30, Math.min(canvas.width - 30, sx));
+    const my2 = Math.max(52, Math.min(canvas.height - 70, sy));
+    ctx.save(); ctx.translate(mx2, my2); ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = "rgba(13,18,16,0.85)"; ctx.fillRect(-8, -8, 16, 16);
+    ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1.5; ctx.strokeRect(-8, -8, 16, 16);
+    ctx.restore();
+    ctx.fillStyle = "#c9a86a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
+    const tx2 = Math.max(46, Math.min(canvas.width - 46, mx2));
+    ctx.fillText(t.name, tx2, my2 + (sy > canvas.height - 70 ? -16 : 22));
+  }
+
+  // rolling into a daughter town's clearing shows its stores
+  const cx2 = cam.x + canvas.width / 2 / zoom, cy2 = cam.y + canvas.height / 2 / zoom;
+  const nearTown = settlements.find(s => s.x !== undefined && Math.hypot(s.x - cx2, s.y - cy2) < 700);
+  const chip = $("townChip");
+  if (nearTown) {
+    const r = nearTown.res || {};
+    chip.textContent = `${nearTown.name.toUpperCase()} — POP ${nearTown.pop} · LOGS ${r.logs || 0} · STONE ${r.stone || 0} · BREAD ${r.bread || 0} · MEAT ${r.meat || 0} · DM ${r.dm || 0}`;
+    chip.style.display = "block";
+  } else chip.style.display = "none";
 }
 
 // --- loop ---
