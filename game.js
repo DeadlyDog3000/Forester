@@ -131,6 +131,7 @@ const IMAGES = {
   well: "assets/sprites/buildings/well_32.png",
   forge: "assets/sprites/buildings/forge_32.png",
   wall: "assets/sprites/buildings/wall_32.png",
+  wallv: "assets/sprites/buildings/wall_v_32.png",
   gate: "assets/sprites/buildings/gate_32.png",
   thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
 };
@@ -291,6 +292,7 @@ function mkRaider(camp, state) {
            state, anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, wpx: camp.x, wpy: camp.y };
 }
 function spawnRaid() {
+  if (res.dm < 5) return;   // an empty treasury is not worth the walk
   const attackers = raiders.filter(r => r.state !== "patrol").length;
   if (!camps.length || attackers >= MAX_RAIDERS) return;
   const camp = camps[Math.floor(Math.random() * camps.length)];
@@ -397,10 +399,24 @@ function updateRaider(r, dt) {
     }
     else {
       const nx = r.x + dx / d * speed * dt, ny = r.y + dy / d * speed * dt;
-      // town walls bar the way — burn through them
+      // town walls bar the way — find the weakest nearby segment and break THAT
       const barrier = buildings.find(b => (b.type === "wall" || b.type === "gate") && !b.fire &&
                                           pointInRect(nx, ny, inflate(bldgRect(b), 8)));
-      if (barrier) { r.state = Math.random() < 0.5 ? "torchWall" : "axeWall"; r.wallTarget = barrier; r.workT = 0; return; }
+      if (barrier) {
+        let weakest = barrier;
+        for (const b of buildings)
+          if ((b.type === "wall" || b.type === "gate") && !b.fire && (b.hp || 0) < (weakest.hp || 0) &&
+              Math.hypot(b.x - barrier.x, b.y - barrier.y) < 320) weakest = b;
+        if (weakest !== barrier) {
+          // walk along to the weak point first
+          r.x += (weakest.x - r.x) / Math.max(1, Math.hypot(weakest.x - r.x, weakest.y - r.y)) * speed * dt;
+          r.y += (weakest.y + 26 - r.y) / Math.max(1, Math.hypot(weakest.x - r.x, weakest.y + 26 - r.y)) * speed * dt;
+          if (Math.hypot(weakest.x - r.x, weakest.y - r.y) > 40) { r.anim += dt * 8; return; }
+        }
+        r.state = Math.random() < 0.5 ? "torchWall" : "axeWall";
+        r.wallTarget = weakest; r.workT = 0;
+        return;
+      }
       r.x = nx; r.y = ny; r.facing = dx < 0 ? -1 : 1; r.anim += dt * 8;
     }
   } else if (r.state === "steal") {
@@ -517,9 +533,26 @@ function legalToBuild(type, wx, wy, rot) {
 function collideMove(c, nx, ny) {
   const blocked = (x, y) => allStructures().some(b => b.type !== "gate" && pointInRect(x, y, inflate(bldgRect(b), 6)));
   const ox = c.x, oy = c.y;
+  const stepLen = Math.hypot(nx - c.x, ny - c.y);
+  // a slide only counts if it makes real progress — micro-corrections must not
+  // suppress the sidestep, or civs oscillate against flat faces forever
+  const canX = !blocked(nx, c.y) && Math.abs(nx - c.x) > stepLen * 0.4;
+  const canY = !blocked(c.x, ny) && Math.abs(ny - c.y) > stepLen * 0.4;
   if (!blocked(nx, ny)) { c.x = nx; c.y = ny; }
-  else if (!blocked(nx, c.y)) c.x = nx;
-  else if (!blocked(c.x, ny)) c.y = ny;
+  else if (canX) c.x = nx;
+  else if (canY) c.y = ny;
+  else {
+    // sidestep perpendicular to the way we wanted to go — shimmy around the corner
+    const dx = nx - c.x, dy = ny - c.y, d = Math.max(0.001, Math.hypot(dx, dy));
+    const step = Math.hypot(dx, dy) * 1.4;
+    const side = c.sideBias || (c.sideBias = Math.random() < 0.5 ? 1 : -1);
+    const px = -dy / d * step * side, py = dx / d * step * side;
+    // snap to the dominant axis: a diagonal sidestep grazes back into the wall
+    const ax = Math.abs(px) >= Math.abs(py) ? Math.sign(px) * step : 0;
+    const ay = ax ? 0 : Math.sign(py) * step;
+    if (!blocked(c.x + ax, c.y + ay)) { c.x += ax; c.y += ay; }
+    else if (!blocked(c.x - ax, c.y - ay)) { c.x -= ax; c.y -= ay; c.sideBias = -side; }
+  }
   if (Math.hypot(c.x - ox, c.y - oy) < 0.5) {
     c.stuckT += 1 / 60;
     if (c.stuckT > 1.2) {
@@ -712,6 +745,22 @@ canvas.addEventListener("click", e => {
   if (selected) order(selected, { kind: "walk", x: mouse.wx, y: mouse.wy });
 });
 
+// heal anyone wedged inside a footprint — legacy saves, edge cases, anything
+let rescueT = 2;
+function rescueStuck(dt) {
+  rescueT -= dt;
+  if (rescueT > 0) return;
+  rescueT = 4;
+  for (const u of [...civs, ...visitors]) {
+    const jail = allStructures().find(b => b.type !== "gate" && pointInRect(u.x, u.y, inflate(bldgRect(b), 4)));
+    if (jail) {
+      const r = bldgRect(jail);
+      u.y = r.y + r.h + 16;
+      u.x += (u.x < jail.x ? -20 : 20);
+      if (u.state === "walking") u.stuckT = 0;
+    }
+  }
+}
 function evictFromFootprint(b) {
   const r = inflate(bldgRect(b), 10);
   for (const u of [...civs, ...visitors, ...raiders])
@@ -737,8 +786,8 @@ function tryPlace(type, wx, wy) {
     toast("Farm laid out. Assign farmers to it by selecting them and clicking the farm.");
   } else {
     const b = { type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
-    if (type === "wall") { b.hp = b.maxHp = 90; }
-    if (type === "gate") { b.hp = b.maxHp = 130; }
+    if (type === "wall") { b.hp = b.maxHp = 100; }
+    if (type === "gate") { b.hp = b.maxHp = 60; }
     if (type === "wall" || type === "gate") b.rot = wallRot;
     buildings.push(b);
     evictFromFootprint(b);
@@ -930,7 +979,10 @@ function igniteCheck(b, dt) {
   b.fire -= dt;
   if (b.fire <= 0) {
     b.fire = 0;
-    for (const o of b.occupants) o.home = null;
+    for (const o of b.occupants) {
+      o.home = null;
+      if (o.state === "sleeping") { o.state = "idle"; o.x = b.x + (Math.random() * 40 - 20); o.y = b.y + 24; }
+    }
     b.occupants = [];
     if (b.type === "cabin") { b.type = "burned"; toast("A cabin has burned to a charred ruin. It can be repaired by order."); }
     else { buildings.splice(buildings.indexOf(b), 1); toast(`The ${BLDG_NAMES[b.type] || b.type} has burned to the ground.`); }
@@ -1288,7 +1340,10 @@ $("bpDismantle").addEventListener("click", () => {
     if (b.fire) return toast("It is on fire — no one is dismantling that.");
     const base = b.type === "burned" ? 10 : (costOf(b.type === "cabin" ? "cabin" : b.type) || { logs: 10 }).logs;
     const refund = Math.floor(base * dismantleRefund());
-    for (const o of b.occupants) o.home = null;
+    for (const o of b.occupants) {
+      o.home = null;
+      if (o.state === "sleeping") { o.state = "idle"; o.y = b.y + 24; }
+    }
     buildings.splice(buildings.indexOf(b), 1);
     res.logs += refund;
     toast(`Dismantled — ${refund} logs recovered.`);
@@ -1724,8 +1779,8 @@ function loadGame() {
       buildings.push({ type: bd.type, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
                        torchP: -1, placed: bd.placed, bakeT: 0, occupants: [],
                        rot: bd.rot || 0,
-                       hp: bd.hp ?? (bd.type === "wall" ? 90 : bd.type === "gate" ? 130 : undefined),
-                       maxHp: bd.maxHp ?? (bd.type === "wall" ? 90 : bd.type === "gate" ? 130 : undefined) });
+                       hp: bd.type === "wall" ? Math.min(bd.hp ?? 100, 100) : bd.type === "gate" ? Math.min(bd.hp ?? 60, 60) : bd.hp,
+                       maxHp: bd.type === "wall" ? 100 : bd.type === "gate" ? 60 : bd.maxHp });
     d.buildings.forEach((bd, i) => {
       for (const cidx of bd.occupants) if (civs[cidx]) {
         buildings[i].occupants.push(civs[cidx]);
@@ -1940,6 +1995,7 @@ function update(dt) {
   if (paused) return;
 
   worldT += dt;
+  rescueStuck(dt);
   if (difficulty() > lastTier) {
     lastTier = difficulty();
     toast("⚠ Word of your colony's wealth spreads. The woods grow bolder…");
@@ -2020,7 +2076,7 @@ function update(dt) {
       }
     }
   }
-  if (nightAmt() > 0.9 && camps.length &&
+  if (nightAmt() > 0.9 && camps.length && res.dm >= 5 &&
       !buildings.some(b => (b.type === "wall" || b.type === "gate") && !b.fire)) {
     ambushT -= dt;
     if (ambushT <= 0) {
@@ -2365,10 +2421,11 @@ function render(dt) {
     }
   }});
   for (const b of buildings) if (inView(b.x, b.y)) drawables.push({ y: b.y, draw: () => {
-    if ((b.type === "wall" || b.type === "gate") && b.rot) {
-      const L = SMALL_BLDG[b.type];
+    if (b.type === "wall" && b.rot) drawSprite(img.wallv, b.x, b.y, SMALL_BLDG.wall, false);
+    else if (b.type === "gate" && b.rot) {
+      const L = SMALL_BLDG.gate;
       ctx.save(); ctx.translate(b.x, b.y - L / 2); ctx.rotate(Math.PI / 2);
-      ctx.drawImage(img[b.type], -L / 2, -L / 2, L, L);
+      ctx.drawImage(img.gate, -L / 2, -L / 2, L, L);
       ctx.restore();
     } else drawSprite(img[b.type], b.x, b.y, SMALL_BLDG[b.type] || BLDG_SIZE, false);
     if (b.fire > 0) {
@@ -2467,7 +2524,8 @@ function render(dt) {
     ctx.globalAlpha = 0.55;
     const ghost = buildMode === "sapling" ? img.tree : buildMode === "farm" ? img.farm : img[buildMode];
     const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : (SMALL_BLDG[buildMode] || (buildMode === "farm" ? FARM_SIZE : BLDG_SIZE));
-    if ((buildMode === "wall" || buildMode === "gate") && wallRot) {
+    if (buildMode === "wall" && wallRot) drawSprite(img.wallv, mouse.wx, mouse.wy, gs, false);
+    else if (buildMode === "gate" && wallRot) {
       ctx.save(); ctx.translate(mouse.wx, mouse.wy - gs / 2); ctx.rotate(Math.PI / 2);
       ctx.drawImage(ghost, -gs / 2, -gs / 2, gs, gs);
       ctx.restore();

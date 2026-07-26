@@ -1,0 +1,7 @@
+A single 32x32 pixel game sprite of a wooden palisade wall segment running VERTICALLY (top of frame to bottom of frame), seen from above and slightly in front, as in a top-down RPG. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+
+THE WALL: A narrow vertical column of sharpened stockade logs seen from overhead: the round cut tops of the logs stacked one above another in a tight line from the top edge of the frame to the bottom, each log top a small circle of rings with a pointed highlight, the column about a quarter of the frame wide and centred horizontally. Slight shadow along the right side of the column so it reads as standing timber.
+
+COLOUR: The warm brown log palette: near-black outline, dark walnut shadow side, mid chestnut log tops, honey brown ring highlights. No green, no grey.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow cast on the ground, no text.
