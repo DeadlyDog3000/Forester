@@ -1091,6 +1091,14 @@ function arrive(c) {
 }
 
 // --- autonomy ---
+function wander(c, base, minD, maxD) {
+  for (let i = 0; i < 6; i++) {
+    const a = Math.random() * Math.PI * 2, d = minD + Math.random() * (maxD - minD);
+    const x = base.x + Math.cos(a) * d, y = base.y + Math.sin(a) * d;
+    if (inTerritory(x, y)) { order(c, { kind: "walk", x, y }); return true; }
+  }
+  return false;
+}
 function autonomy(c, dt) {
   c.autoT -= dt;
   if (c.autoT > 0 || c.state !== "idle" || c.rebel) return;
@@ -1103,7 +1111,10 @@ function autonomy(c, dt) {
     if (res.bread > 0 && c.home) { res.bread--; eat(c, "bread"); return; }
     if (res.meat > 0 && c.home) { res.meat--; eat(c, "meat"); return; }
   }
-  if (c.child) return;   // children play; they do not labour
+  if (c.child) {
+    if (Math.random() < 0.7) wander(c, c.home || c, 40, 130);   // children actually play
+    return;
+  }
 
   const shopF = buildings.find(b => b.type === "forge" && !b.fire && !b.site && (b.shop || []).length);
   if (shopF && c.profession !== "blacksmith") {
@@ -1240,8 +1251,12 @@ function autonomy(c, dt) {
     return;
   }
   const market = buildings.find(b => b.type === "market" && !b.fire && !b.site);
-  if (market && (c.inv.bread + c.inv.meat) > 1)
+  if (market && (c.inv.bread + c.inv.meat) > 1) {
     order(c, { kind: "sell", target: market, x: market.x, y: market.y + 16 });
+    return;
+  }
+  // nothing pressing: stretch the legs, visit a neighbour, look busy
+  if (Math.random() < 0.55) wander(c, c.home || c, 60, 180);
 }
 
 // --- happiness & rebellion ---
@@ -1301,7 +1316,17 @@ function forceAI(c) {
     const d = Math.hypot(r.x - c.x, r.y - c.y);
     if (d < bd) { bd = d; best = r; }
   }
-  if (best) order(c, { kind: "attack", target: best, x: best.x, y: best.y });
+  if (best) { order(c, { kind: "attack", target: best, x: best.x, y: best.y }); return; }
+  // no trouble: walk the beat along the borders
+  c.patrolT = (c.patrolT || 0) - 1 / 60;
+  if (c.patrolT <= 0) {
+    c.patrolT = 6 + Math.random() * 8;
+    const cells = [...territory];
+    if (cells.length) {
+      const [cx2, cy2] = cells[Math.floor(Math.random() * cells.length)].split(",").map(Number);
+      order(c, { kind: "walk", x: cx2 * TCELL + TCELL / 2, y: cy2 * TCELL + TCELL / 2 });
+    }
+  }
 }
 
 // --- torching / fire ---
@@ -3327,6 +3352,7 @@ function update(dt) {
       }
     } else {
       c.anim = 1;
+      if (Math.random() < dt * 0.25) c.facing = -c.facing;
       autonomy(c, dt);
     }
   }
