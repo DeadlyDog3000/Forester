@@ -390,7 +390,13 @@
     <button class="btn" id="empireGo" style="width:100%">Proclaim it</button>
   </div>
 
-<script src="sfx.js?v=1785089456"></script>
-<script src="game.js?v=1785089456"></script>
+<script>
+  // load the game scripts with a per-visit version stamp so browsers can never serve stale code
+  (function () {
+    var v = Date.now();
+    document.write('<script src="sfx.js?v=' + v + '"><\/script>');
+    document.write('<script src="game.js?v=' + v + '"><\/script>');
+  })();
+</script>
 </body>
 </html>
