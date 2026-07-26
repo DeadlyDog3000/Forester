@@ -2041,12 +2041,19 @@ const TUT_STEPS = [
     done: () => res.logs >= 20 },
   { text: () => "Now — with a civilian selected, click the burned cabin to order its repair.",
     done: () => !buildings.some(b => b.type === "burned") },
-  { text: () => "The roof stands, and you have a home again. Farms, walls, wanderers, taxes, the map of Europe — the rest is yours to discover. (The GOVERNMENT panel holds your laws and the tech tree.)",
+  { text: () => "A home needs bread. Click a wild grass patch (the seeded tufts) with a civilian selected to gather seeds, deposit them, then open BUILD ▾ and lay out a Wheat Farm (3 logs, 6 seeds).",
+    done: () => farms.length > 0 },
+  { text: () => "Fields need hands. Select a resident, use Recruit ▾ to make them a Farmer, then click the farm to assign them. They'll tend it on their own.",
+    done: () => farms.some(f => f.workers.length > 0) },
+  { text: () => "Last lesson: knowledge. Open GOVERNMENT → Open Tech Tree and start any research — the rest of the tree is your future.",
+    done: () => !!research || Object.values(TECH).filter(t => t.done).length > 3 },
+  { text: () => "That's the whole loop: gather, build, recruit, research. Walls, wanderers, taxes, war, and the map of Europe are out there waiting. The woods are yours now.",
     done: () => false },
 ];
 let tutDoneT = 0;
 function updateTutorial(dt) {
   const banner = $("tutBanner");
+  if (tutStep >= TUT_STEPS.length) tutStep = TUT_STEPS.length - 1;
   if (tutStep < 0 || gameState !== "playing") { banner.style.display = "none"; return; }
   banner.style.display = "block";
   $("tutText").textContent = TUT_STEPS[tutStep].text();
