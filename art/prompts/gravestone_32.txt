@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a small frontier gravestone. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the grave centred, seen straight on from ground level.
+THE GRAVE: A modest rounded-top headstone of rough grey fieldstone, slightly tilted, with two or three unreadable single-pixel marks suggesting a carved name, standing at the head of a low mound of fresh dark earth outlined with a few small stones. Humble, hand-made, cared for.
+COLOUR: Grey stone (three shades with near-black outline), dark brown earth mound, a single pale highlight on the stone's shoulder. No green.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No grass, no scenery, no text.

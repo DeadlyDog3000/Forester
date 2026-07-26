@@ -140,6 +140,7 @@ const IMAGES = {
   stonegate: "assets/sprites/buildings/stonegate_32.png",
   moat: "assets/sprites/buildings/moat_32.png",
   ditch: "assets/sprites/buildings/ditch_32.png",
+  gravestone: "assets/sprites/env/gravestone_32.png",
   grass_w: "assets/sprites/env/grass_w_64.png",
   tree_w: "assets/sprites/env/tree_w_32.png",
   stone_w: "assets/sprites/env/stone_w_32.png",
@@ -203,10 +204,10 @@ let zoom = 1;
 const keys = {};
 const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
-const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [];
+const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [], corpses = [], graves = [];
 const chunks = new Map();
 
-let selected = null, selectedBldg = null, selectedCamp = null, buildMode = null;
+let selected = null, selectedBldg = null, selectedCamp = null, selectedGrave = null, buildMode = null;
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
 let worldT = 80;   // clock of the world; night falls late in each cycle
 const YEAR = 640, WINTER_AT = 400;   // 240s winters — long enough to kill
@@ -247,12 +248,14 @@ function nextName(gender) {
 buildings.push({ type: "burned", x: 0, y: 0, progress: -1, occupants: [], fire: 0, torchP: -1, placed: false });
 civs.push(mkCiv("Brother", "brother", -70, 110, "m"));
 civs.push(mkCiv("Sister", "sister", 70, 130, "f"));
+civs[0].age = 22; civs[1].age = 19;
 
 function mkCiv(name, who, x, y, gender) {
   return { name, who, nativeWho: who, gender: gender || "m", x, y, tx: x, ty: y, state: "idle", anim: 0, facing: 1,
            task: null, workT: 0, home: null, profession: null,
            hunger: 100, hp: 100, maxHp: 100, happiness: 75, rebel: false, armed: false, tool: false,
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
+           age: 20 + Math.floor(Math.random() * 26),
            autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true };
 }
 
@@ -653,6 +656,9 @@ function houseCiv(c) {
 function killCiv(c, why) {
   if (!civs.includes(c)) return;
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
+  corpses.push({ x: c.x, y: c.y, who: c.who, bearer: null,
+                 deceased: { name: c.name, age: c.age || 20, profession: c.profession || "no trade",
+                             cause: why, year: colonyYear } });
   if (c.profession === "police") policeCount--;
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
@@ -701,7 +707,7 @@ canvas.addEventListener("wheel", e => {
 }, { passive: false });
 canvas.addEventListener("contextmenu", e => {
   e.preventDefault();
-  buildMode = null; selected = null; selectedBldg = null; selectedCamp = null;
+  buildMode = null; selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null;
   syncUI();
 });
 
@@ -802,8 +808,14 @@ canvas.addEventListener("click", e => {
       }
   }
 
+  for (const gv of graves)
+    if (Math.abs(mouse.wx - gv.x) < 20 && mouse.wy < gv.y + 6 && mouse.wy > gv.y - 40) {
+      selectedGrave = gv; selectedBldg = null; selected = null; selectedCamp = null;
+      syncUI();
+      return;
+    }
   for (const b of buildings)
-    if (pointInRect(mouse.wx, mouse.wy, bldgRect(b))) { selectedBldg = b; selected = null; selectedCamp = null; syncUI(); return; }
+    if (pointInRect(mouse.wx, mouse.wy, bldgRect(b))) { selectedBldg = b; selected = null; selectedCamp = null; selectedGrave = null; syncUI(); return; }
   for (const f of farms)
     if (pointInRect(mouse.wx, mouse.wy, bldgRect({ type: "farm", x: f.x, y: f.y }))) { selectedBldg = f; f.type = "farm"; selected = null; selectedCamp = null; syncUI(); return; }
 
@@ -913,7 +925,31 @@ function arrive(c) {
   if (t && t.kind === "warmUp") { c.state = "warming"; c.workT = 0; c.task = null; return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
-                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping", construct: "raising" };
+                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping", construct: "raising", gravestone: "masonry" };
+  if (t.kind === "bury") {
+    const cp = t.target;
+    if (!corpses.includes(cp)) { c.state = "idle"; c.task = null; return; }
+    if (!t.phase) {
+      // shoulder the body, then walk it to open ground
+      cp.carried = c;
+      t.phase = 2;
+      let gx = cp.x, gy = cp.y;
+      for (let r = 90; r < 500; r += 40) {
+        let found = false;
+        for (let a = 0; a < 6.28; a += 0.5) {
+          const x = cp.x + Math.cos(a) * r, y = cp.y + Math.sin(a) * r;
+          if (legalToBuild("sapling", x, y)) { gx = x; gy = y; found = true; break; }
+        }
+        if (found) break;
+      }
+      t.gx = gx; t.gy = gy;
+      c.tx = gx; c.ty = gy;
+      c.state = "walking";
+      return;
+    }
+    c.state = "digging"; c.workT = 0;
+    return;
+  }
   if (t.kind === "repair") {
     if (!canPay(REPAIR_COST)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
     pay(REPAIR_COST);
@@ -960,6 +996,24 @@ function autonomy(c, dt) {
   }
 
   if (!c.home) return;
+
+  // the dead come first: a bearer carries the body, a mason raises the stone
+  const corpse = corpses.find(cp => !cp.bearer || !civs.includes(cp.bearer));
+  if (corpse && !isForce(c)) {
+    corpse.bearer = c;
+    order(c, { kind: "bury", target: corpse, x: corpse.x, y: corpse.y + 6 });
+    return;
+  }
+  const bareGrave = graves.find(gv => !gv.stone && (!gv.mason || !civs.includes(gv.mason)) && gv.mason !== c);
+  if (bareGrave && !isForce(c)) {
+    if (c.inv.stone >= 1 || res.stone >= 1) {
+      bareGrave.mason = c;
+      order(c, { kind: "gravestone", target: bareGrave, x: bareGrave.x, y: bareGrave.y + 10 });
+      return;
+    }
+    const rock = nearThings("stones", c.x, c.y, 800).filter(st => st.alive)[0];
+    if (rock) { order(c, { kind: "quarry", target: rock, x: rock.x + 26, y: rock.y + 6 }); return; }
+  }
 
   // construction first: staked-out sites need hands
   const site = buildings.find(b => b.site && (!b.builder || !civs.includes(b.builder))) ||
@@ -2100,7 +2154,7 @@ function saveGame() {
       research: research ? { ...research } : null,
       usedNames: [...usedNames],
       civs: civs.map(c => ({
-        name: c.name, who: c.who, nativeWho: c.nativeWho, gender: c.gender, child: !!c.child, growT: c.growT || 0, x: c.x, y: c.y, home: bi(c.home),
+        name: c.name, who: c.who, nativeWho: c.nativeWho, gender: c.gender, child: !!c.child, growT: c.growT || 0, age: c.age || 20, x: c.x, y: c.y, home: bi(c.home),
         profession: c.profession, hunger: c.hunger, hp: c.hp, maxHp: c.maxHp,
         happiness: c.happiness, rebel: c.rebel, armed: c.armed, tool: c.tool,
         inv: { ...c.inv },
@@ -2121,6 +2175,8 @@ function saveGame() {
       empireName, territoryColor, borderColor,
       territory: [...territory],
       sackedCamps, playT, nextSettleAt, tutStep, colonyYear, vigSeen,
+      corpses: corpses.map(cp => ({ x: cp.x, y: cp.y, who: cp.who, deceased: cp.deceased })),
+      graves: graves.map(gv => ({ x: gv.x, y: gv.y, stone: gv.stone, deceased: gv.deceased })),
       settlements: settlements.map(st => ({ ...st })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
@@ -2154,7 +2210,7 @@ function loadGame() {
       c.who = cd.who;
       Object.assign(c, { profession: cd.profession, hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
         happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool,
-        child: !!cd.child, growT: cd.growT || 0 });
+        child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20 });
       Object.assign(c.inv, cd.inv);
       civs.push(c);
     }
@@ -2190,6 +2246,8 @@ function loadGame() {
     tutStep = d.tutStep === undefined ? -1 : d.tutStep;
     colonyYear = d.colonyYear || 1683;
     vigSeen = d.vigSeen || {};
+    corpses.length = 0; for (const cp of (d.corpses || [])) corpses.push({ ...cp, bearer: null, carried: null });
+    graves.length = 0; for (const gv of (d.graves || [])) graves.push({ ...gv, mason: null });
     settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
     conquests.length = 0; for (const cq of (d.conquests || [])) conquests.push(cq);
     natWars = d.natWars || [];
@@ -2492,7 +2550,7 @@ function syncUI() {
   else {
     p.style.display = "block"; $("bldgPanel").style.display = "none";
     $("cpName").textContent = selected.name.toUpperCase() + (selected.rebel ? " — REBEL" : "");
-    $("cpProf").textContent = selected.profession || "none";
+    $("cpProf").textContent = (selected.profession || "none") + (selected.age !== undefined ? ` · age ${selected.age}` : "");
     $("cpHome").textContent = selected.home ? "housed" : "homeless";
     $("cpHpN").textContent = Math.round(selected.hp) + "/" + selected.maxHp;
     $("cpHp").style.width = Math.max(0, selected.hp / selected.maxHp * 100) + "%";
@@ -2512,6 +2570,17 @@ function syncUI() {
   }
 
   const bp = $("bldgPanel");
+  if (selectedGrave) {
+    bp.style.display = "block";
+    const d = selectedGrave.deceased;
+    $("bpName").textContent = "GRAVE OF " + d.name.toUpperCase();
+    $("bpInfo").textContent = `${d.name}, ${d.profession}, ${d.cause} in the year ${d.year}, aged ${d.age}.` +
+      (selectedGrave.stone ? " The stone stands." : " Awaiting a gravestone.");
+    $("bpOcc").textContent = "at rest";
+    $("bpDismantle").style.display = "none";
+    $("bpBuyWeapon").style.display = "none";
+    return;
+  }
   if (!selectedBldg && !selectedCamp) bp.style.display = "none";
   else if (selectedCamp) {
     bp.style.display = "block";
@@ -2601,6 +2670,11 @@ function update(dt) {
       colonyYear++;
       toast(`❄ Winter falls over the woods — the year turns to ${colonyYear}. The fields sleep; keep the larders full.`);
       vignette("firstWinter");
+      for (const c of [...civs]) {
+        c.age = (c.age || 20) + 1;
+        if (!c.child && c.age > 55 && Math.random() < (c.age - 55) * 0.05)
+          killCiv(c, `died peacefully of old age, aged ${c.age}`);
+      }
     } else {
       toast("The thaw comes — the fields wake, and the woods turn green again.");
       // spring births: each woman has a 26% chance of a child after every winter
@@ -2608,7 +2682,7 @@ function update(dt) {
         if (Math.random() < 0.26) {
           const g = Math.random() < 0.5 ? "f" : "m";
           const kid = mkCiv(nextName(g), g === "f" ? "sister" : "brother", m.x + 14, m.y + 10, g);
-          kid.child = true; kid.growT = 0;
+          kid.child = true; kid.growT = 0; kid.age = 0;
           kid.home = m.home;
           if (m.home) m.home.occupants.push(kid);
           civs.push(kid);
@@ -2891,6 +2965,29 @@ function update(dt) {
         float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
         c.state = "idle"; c.task = null;
       }
+    } else if (c.state === "digging") {
+      const cp = c.task && c.task.target;
+      if (!cp || !corpses.includes(cp)) { c.state = "idle"; c.task = null; continue; }
+      c.workT += dt; c.anim += dt * 8;
+      if ((c.workT % 0.6) < dt) SFX.chop();
+      if (c.workT >= 3) {
+        corpses.splice(corpses.indexOf(cp), 1);
+        graves.push({ x: c.task.gx, y: c.task.gy, stone: false, mason: null, deceased: cp.deceased });
+        toast(`${c.name} lays ${cp.deceased.name} to rest. A stone is owed.`);
+        c.state = "idle"; c.task = null;
+      }
+    } else if (c.state === "masonry") {
+      const gv = c.task && c.task.target;
+      if (!gv || !graves.includes(gv) || gv.stone) { c.state = "idle"; c.task = null; continue; }
+      c.workT += dt; c.anim += dt * 8;
+      if ((c.workT % 0.55) < dt) SFX.quarry();
+      if (c.workT >= 2.5) {
+        if (c.inv.stone >= 1) c.inv.stone--; else if (res.stone >= 1) res.stone--;
+        gv.stone = true; gv.mason = null;
+        toast(`${c.name} sets a gravestone for ${gv.deceased.name}. The colony remembers.`);
+        SFX.build();
+        c.state = "idle"; c.task = null;
+      }
     } else if (c.state === "raising") {
       const b = c.task.target;
       const isFarmSite = farms.includes(b);
@@ -3145,6 +3242,27 @@ function render(dt) {
     if (selectedCamp === cp) {
       ctx.strokeStyle = "#d86a5a"; ctx.lineWidth = 1;
       ctx.strokeRect(cp.x - BLDG_SIZE / 2, cp.y - BLDG_SIZE, BLDG_SIZE, BLDG_SIZE);
+    }
+  }});
+  for (const cp of corpses) {
+    if (cp.carried && civs.includes(cp.carried)) { cp.x = cp.carried.x + 8; cp.y = cp.carried.y - 6; }
+    if (!inView(cp.x, cp.y)) continue;
+    drawables.push({ y: cp.y - 1, draw: () => {
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.translate(cp.x, cp.y - 8);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(img[cp.who + "1"], -CHAR_SIZE / 2, -CHAR_SIZE / 2, CHAR_SIZE * 0.9, CHAR_SIZE * 0.9);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }});
+  }
+  for (const gv of graves) if (inView(gv.x, gv.y)) drawables.push({ y: gv.y, draw: () => {
+    if (gv.stone) drawSprite(img.gravestone, gv.x, gv.y, 42, false);
+    else { ctx.fillStyle = "#3a2c1e"; ctx.fillRect(gv.x - 12, gv.y - 8, 24, 10); }
+    if (selectedGrave === gv) {
+      ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1;
+      ctx.strokeRect(gv.x - 16, gv.y - 34, 32, 40);
     }
   }});
   for (const f of farms) if (inView(f.x, f.y)) drawables.push({ y: f.y, draw: () => {
