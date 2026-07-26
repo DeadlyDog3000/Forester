@@ -2045,9 +2045,13 @@ const TUT_STEPS = [
     done: () => farms.length > 0 },
   { text: () => "Fields need hands. Select a resident, use Recruit ▾ to make them a Farmer, then click the farm to assign them. They'll tend it on their own.",
     done: () => farms.some(f => f.workers.length > 0) },
-  { text: () => "Last lesson: knowledge. Open GOVERNMENT → Open Tech Tree and start any research — the rest of the tree is your future.",
+  { text: () => "Knowledge is power. Open GOVERNMENT → Open Tech Tree and start any research — two trees, from axes to battle steel, paid in DM and time.",
     done: () => !!research || Object.values(TECH).filter(t => t.done).length > 3 },
-  { text: () => "That's the whole loop: gather, build, recruit, research. Walls, wanderers, taxes, war, and the map of Europe are out there waiting. The woods are yours now.",
+  { text: () => "Coin: housed residents pay taxes on the countdown in the top bar. The GOVERNMENT panel sets the rate — fair taxes fill bellies and hearts, greedy ones breed rebels. (Open it to continue.)",
+    done: () => $("govPanel").style.display === "block" },
+  { text: () => "One more thing: press the MAP button. That is Europe, 1683 — your empire in your colour, nations that strengthen with the years and war among themselves. Expand toward a neighbour to earn the right to fight them.",
+    done: () => $("mapOverlay").style.display === "block" },
+  { text: () => "So that's the game: gather and build by day, keep bellies full and taxes fair, wall the town before nightfall, research toward steel, and grow the empire cell by cell. Wanderers, raiders, wars, and new settlements will find you on their own. The woods are yours now.",
     done: () => false },
 ];
 let tutDoneT = 0;
@@ -2059,7 +2063,7 @@ function updateTutorial(dt) {
   $("tutText").textContent = TUT_STEPS[tutStep].text();
   if (tutStep === TUT_STEPS.length - 1) {
     tutDoneT += dt;
-    if (tutDoneT > 12) { tutStep = -1; banner.style.display = "none"; }
+    if (tutDoneT > 18) { tutStep = -1; banner.style.display = "none"; }
     return;
   }
   if (TUT_STEPS[tutStep].done()) { tutStep++; SFX.pickup(); }
