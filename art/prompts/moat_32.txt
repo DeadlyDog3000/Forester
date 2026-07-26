@@ -1,0 +1,4 @@
+A single 32x32 pixel game sprite of a water-filled moat segment for a top-down village game. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing. Bold blocky shapes only.
+THE MOAT: A wide horizontal channel of dark water crossing the frame from left edge to right edge, seen from above: deep blue-teal water with a few single-pixel ripple highlights, banks of dark excavated earth one or two pixels thick along the top and bottom edges. Flat, low, crossable but treacherous.
+COLOUR: Deep blue-teal water (three shades), dark brown earth banks, near-black outline. No green grass inside the sprite.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the water and earth, keyable. No scenery, no text.

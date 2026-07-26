@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a stone fortification wall segment. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the wall segment centred, seen straight on from ground level, wider than tall.
+THE WALL: A defensive wall of large fitted grey stone blocks in offset courses, with crenellated battlements along the top (square merlons with gaps). Thick, heavy, permanent — a serious fortification, unlike a wooden palisade.
+COLOUR: Cool grey stone in four shades: near-black mortar lines and outline, dark slate shadow, mid grey blocks, pale grey lit tops. No brown, no green.
+BACKGROUND: Completely flat uniform solid light grey clearly different from the stone (use a warm light grey), keyable. No ground, no scenery, no text.

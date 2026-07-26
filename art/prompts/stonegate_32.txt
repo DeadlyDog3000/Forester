@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a stone gatehouse. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, centred, seen straight on from ground level.
+THE GATEHOUSE: Two short square stone towers with crenellated tops flanking an arched gateway with a lowered wooden portcullis of crossed dark timber bars. Heavy fitted stone blocks, a small banner slot above the arch. Formidable and closed.
+COLOUR: Cool grey stone (four shades: near-black outline, dark slate, mid grey, pale grey) with dark walnut timber portcullis. No green.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No ground, no scenery, no text.

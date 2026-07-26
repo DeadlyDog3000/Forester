@@ -195,7 +195,63 @@ const MUSIC = (() => {
     timer = setTimeout(pump, 250);   // loops forever until stop()
   }
 
+  // battle theme: driving minor riff, plays while raiders threaten the town
+  let bWanted = false, bNext = 0, bTimer = null, bg = null;
+  const BSTEP = 60 / 150 / 2;
+  const BLEAD = [57,0,57,60, 57,0,55,0, 57,0,57,60, 62,0,60,0, 57,0,57,60, 63,62,60,58, 57,0,60,0, 55,0,52,0];
+  const BBASS = [33,33,0,33, 33,33,0,33, 33,33,0,33, 36,0,34,0, 33,33,0,33, 33,33,0,33, 31,31,0,31, 28,0,31,0];
+  function bSchedule(a, t0) {
+    for (let i = 0; i < 32; i++) {
+      const t = t0 + i * BSTEP;
+      if (BLEAD[i]) {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "square"; o.frequency.value = N(BLEAD[i]);
+        g.gain.setValueAtTime(0.11, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + BSTEP * 1.6);
+        o.connect(g); g.connect(bg); o.start(t); o.stop(t + BSTEP * 2);
+      }
+      if (BBASS[i]) {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "sawtooth"; o.frequency.value = N(BBASS[i]);
+        g.gain.setValueAtTime(0.14, t);
+        g.gain.exponentialRampToValueAtTime(0.003, t + BSTEP * 1.8);
+        o.connect(g); g.connect(bg); o.start(t); o.stop(t + BSTEP * 2);
+      }
+      if (i % 4 === 0) {
+        const s2 = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+        s2.buffer = window.__foresterNoise; s2.loop = true;
+        f.type = "highpass"; f.frequency.value = 6000;
+        g.gain.setValueAtTime(0.05, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        s2.connect(f); f.connect(g); g.connect(bg); s2.start(t); s2.stop(t + 0.07);
+      }
+    }
+    return 32 * BSTEP;
+  }
+  function bPump() {
+    if (!bWanted) return;
+    const a = window.__foresterAC;
+    if (!a || a.state !== "running") { bTimer = setTimeout(bPump, 300); return; }
+    if (!bg) { bg = a.createGain(); bg.gain.value = 0.9; bg.connect(window.__foresterMaster); }
+    const now = a.currentTime;
+    if (bNext < now + 0.15) {
+      const start = Math.max(bNext, now + 0.08);
+      bNext = start + bSchedule(a, start);
+    }
+    bTimer = setTimeout(bPump, 200);
+  }
+
   return {
+    battle(on) {
+      if (on && !bWanted) { bWanted = true; bNext = 0; if (bg) bg.gain.value = 0.9; bPump(); }
+      else if (!on && bWanted) {
+        bWanted = false;
+        clearTimeout(bTimer);
+        const a = window.__foresterAC;
+        if (bg && a) bg.gain.setTargetAtTime(0.0001, a.currentTime, 0.5);
+        setTimeout(() => { if (bg) { try { bg.disconnect(); } catch (e) {} bg = null; } }, 1800);
+      }
+    },
     play() {
       if (wanted) return;
       wanted = true; nextLoopAt = 0;

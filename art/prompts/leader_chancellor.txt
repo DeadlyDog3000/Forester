@@ -1,0 +1,7 @@
+A pixel art character portrait for a diplomacy dialogue box in a retro game: a close-up bust of a 1683 ruler, head and shoulders, facing slightly toward the viewer.
+
+THE FIGURE: A small state's chancellor in his fifties, black merchant robes with a heavy silver chain of office, neat grey beard, ledger-keeper's sharp eyes, cautious and calculating.
+
+STYLE: True low-resolution pixel art, chunky square pixels, hard edges, no anti-aliasing, no gradients, flat blocks of colour with crisp pixel clusters. Readable at 64x64. Limited palette of about twelve muted regal colours. 16-bit RPG dialogue portrait style.
+
+COMPOSITION: Perfectly square 1:1 image, bust filling most of the frame, centred. Plain flat very dark green-grey background — a single solid colour, no scenery, no border, no text.

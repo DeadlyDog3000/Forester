@@ -1,0 +1,4 @@
+A single 32x32 pixel game sprite of a dry defensive ditch segment for a top-down village game. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing. Bold blocky shapes only.
+THE DITCH: A wide horizontal trench of dug earth crossing the frame from left edge to right edge, seen from above: a dark shadowed trench bottom with a few sharpened wooden stakes poking up as single pale pixels, banks of piled excavated soil along the top and bottom edges. Rough frontier earthworks.
+COLOUR: Dark earth browns (three shades), near-black trench shadow, pale tan stake tips. No green inside the sprite.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the earth, keyable. No scenery, no text.

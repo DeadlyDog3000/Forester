@@ -1,0 +1,4 @@
+A single 32x32 pixel game sprite of a stone fortification wall running VERTICALLY (top of frame to bottom), seen from above as in a top-down RPG. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing. Bold blocky shapes only.
+THE WALL: A narrow vertical column of fitted grey stone blocks seen from overhead: the flat walkway top of the wall with crenellation notches along both edges, running the full height of the frame, about a quarter of the frame wide, centred. Slight shadow along the right side.
+COLOUR: Cool grey stone in four shades: near-black outline and mortar, dark slate shadow, mid grey, pale grey top. No brown.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the stone, keyable. No ground, no scenery, no text.

@@ -22,7 +22,7 @@ const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
 const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
 const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8, DODGE_CHANCE = 0.15;
 const EAT_HEAL = 15;
-const RAID_MIN = 100, RAID_MAX = 170, MAX_RAIDERS = 4, MAX_CAMPS = 6;
+const RAID_MIN = 150, RAID_MAX = 260, MAX_RAIDERS = 4, MAX_CAMPS = 6;
 
 const REPAIR_COST = { logs: 20, doors: 1, dm: 5 };
 const STATIC_COSTS = {
@@ -31,10 +31,14 @@ const STATIC_COSTS = {
   forge: { logs: 20, stone: 6, iron: 2, dm: 12 },
   wall: { logs: 6, stone: 2, dm: 1 }, gate: { logs: 10, stone: 4, dm: 2 },
   townhall: { logs: 40, stone: 10, dm: 20 },
+  stonewall: { stone: 8, logs: 2, dm: 2 }, stonegate: { stone: 12, logs: 4, dm: 4 },
+  moat: { stone: 4, logs: 2, dm: 3 }, ditch: { logs: 2, dm: 1 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
-  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall" };
-const forgeBuilt = () => buildings.some(b => b.type === "forge" && !b.fire);
+  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall",
+  stonewall: "Stone Wall", stonegate: "Stone Gate", moat: "Moat", ditch: "Ditch" };
+const WALLLIKE = new Set(["wall", "gate", "stonewall", "stonegate", "moat", "ditch"]);
+const forgeBuilt = () => buildings.some(b => b.type === "forge" && !b.fire && !b.site);
 
 // --- tech tree ---
 const TECH = {};
@@ -82,6 +86,7 @@ T("battleaxes", "Battle Axes", "military", ["swords"], 9, "Blacksmiths may forge
 T("lances", "Lances", "military", ["swords"], 9, "Police & soldiers +10 damage (requires War Horse)");
 T("defending", "Defending", "military", ["policing"], 4, "Unlocks Town Walls & Gates; police take weapons from the armoury; torching 30% slower — but the camps take notice");
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
+T("defplus", "Defending II", "military", ["defending"], 5, "Stone walls & gates, and moats & ditches that mire attackers");
 T("occupation", "Occupation", "military", ["raiding"], 6, "Taxes collect +1 more DM");
 TECH.lances.req.push("warhorse");
 TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;   // starting knowledge
@@ -110,7 +115,7 @@ const canForgeWeapons = () => has("spears") || has("swords") || has("battleaxes"
 const treasuryFloor = () => has("lordship") ? -50 : 0;
 const cabinCapacity = () => has("landownership") ? 3 : 2;
 const dismantleRefund = () => has("ownership") ? 0.75 : 0.5;
-const nearWatchtower = (x, y) => buildings.some(b => b.type === "watchtower" && !b.fire && Math.hypot(b.x - x, b.y - y) < 400);
+const nearWatchtower = (x, y) => buildings.some(b => b.type === "watchtower" && !b.fire && !b.site && Math.hypot(b.x - x, b.y - y) < 400);
 
 function cabinCost() {
   const built = buildings.filter(b => b.type === "cabin" && b.placed).length;
@@ -130,6 +135,11 @@ const IMAGES = {
   recruit: "assets/sprites/buildings/recruitment_center_32.png", market: "assets/sprites/buildings/market_32.png",
   farm: "assets/sprites/buildings/farm_32.png",
   townhall: "assets/sprites/buildings/townhall_32.png",
+  stonewall: "assets/sprites/buildings/stonewall_32.png",
+  stonewallv: "assets/sprites/buildings/stonewallv_32.png",
+  stonegate: "assets/sprites/buildings/stonegate_32.png",
+  moat: "assets/sprites/buildings/moat_32.png",
+  ditch: "assets/sprites/buildings/ditch_32.png",
   grass_w: "assets/sprites/env/grass_w_64.png",
   tree_w: "assets/sprites/env/tree_w_32.png",
   stone_w: "assets/sprites/env/stone_w_32.png",
@@ -199,9 +209,10 @@ const chunks = new Map();
 let selected = null, selectedBldg = null, selectedCamp = null, buildMode = null;
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
 let worldT = 80;   // clock of the world; night falls late in each cycle
-const YEAR = 600, WINTER_AT = 420;
+const YEAR = 640, WINTER_AT = 400;   // 240s winters — long enough to kill
 function season() { return (worldT % YEAR) >= WINTER_AT ? "winter" : "summer"; }
 let lastSeason = "summer";
+let colonyYear = 1683;
 function wimg(key) {
   if (season() !== "winter") return img[key];
   const w = img[key + "_w"];
@@ -356,7 +367,13 @@ function spawnRaid() {
 }
 
 function updateRaider(r, dt) {
-  const speed = BASE_WALK * 0.9;
+  let speed = BASE_WALK * 0.9;
+  // moats and ditches mire attackers
+  for (const b of buildings) {
+    if (b.site) continue;
+    if (b.type === "moat" && pointInRect(r.x, r.y, inflate(bldgRect(b), 4))) { speed *= 0.35; break; }
+    if (b.type === "ditch" && pointInRect(r.x, r.y, inflate(bldgRect(b), 4))) { speed *= 0.6; break; }
+  }
   // fight anyone who is fighting us, or any force unit close by
   if (!r.foe || (!civs.includes(r.foe))) {
     r.foe = null;
@@ -438,12 +455,12 @@ function updateRaider(r, dt) {
     else {
       const nx = r.x + dx / d * speed * dt, ny = r.y + dy / d * speed * dt;
       // town walls bar the way — find the weakest nearby segment and break THAT
-      const barrier = buildings.find(b => (b.type === "wall" || b.type === "gate") && !b.fire &&
+      const barrier = buildings.find(b => ["wall", "gate", "stonewall", "stonegate"].includes(b.type) && !b.fire && !b.site &&
                                           pointInRect(nx, ny, inflate(bldgRect(b), 8)));
       if (barrier) {
         let weakest = barrier;
         for (const b of buildings)
-          if ((b.type === "wall" || b.type === "gate") && !b.fire && (b.hp || 0) < (weakest.hp || 0) &&
+          if (["wall", "gate", "stonewall", "stonegate"].includes(b.type) && !b.fire && !b.site && (b.hp || 0) < (weakest.hp || 0) &&
               Math.hypot(b.x - barrier.x, b.y - barrier.y) < 320) weakest = b;
         if (weakest !== barrier) {
           // walk along to the weak point first
@@ -451,7 +468,7 @@ function updateRaider(r, dt) {
           r.y += (weakest.y + 26 - r.y) / Math.max(1, Math.hypot(weakest.x - r.x, weakest.y + 26 - r.y)) * speed * dt;
           if (Math.hypot(weakest.x - r.x, weakest.y - r.y) > 40) { r.anim += dt * 8; return; }
         }
-        r.state = Math.random() < 0.5 ? "torchWall" : "axeWall";
+        r.state = (weakest.type === "stonewall" || weakest.type === "stonegate") ? "axeWall" : (Math.random() < 0.5 ? "torchWall" : "axeWall");
         r.wallTarget = weakest; r.workT = 0;
         return;
       }
@@ -506,9 +523,9 @@ function strikeUnit(a, b, dmg) {
 }
 
 // --- geometry ---
-const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72 };
+const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72, stonewall: 64, stonegate: 76, moat: 64, ditch: 64 };
 function bldgRect(b) {
-  if (b.type === "wall" || b.type === "gate") {
+  if (WALLLIKE.has(b.type)) {
     const L = SMALL_BLDG[b.type];
     return b.rot ? { x: b.x - 11, y: b.y - L, w: 22, h: L }
                  : { x: b.x - L / 2, y: b.y - 22, w: L, h: 22 };
@@ -548,15 +565,24 @@ function expandFrontier(n) {
 }
 expandAround(0, -40, 2);   // the family clearing starts claimed
 
+function nearTerritoryWide(wx, wy, pad) {
+  const [cx, cy] = tcellOf(wx, wy);
+  for (let dy = -pad; dy <= pad; dy++) for (let dx = -pad; dx <= pad; dx++)
+    if (territory.has(tkey(cx + dx, cy + dy))) return true;
+  return false;
+}
 function legalToBuild(type, wx, wy, rot) {
-  if (type !== "sapling" && !inTerritory(wx, wy)) return false;
+  if (WALLLIKE.has(type)) {
+    if (!nearTerritoryWide(wx, wy, 5)) return false;                       // not too far from home
+    for (const cp of camps) if (Math.hypot(cp.x - wx, cp.y - wy) < 520) return false;   // not at their door
+  } else if (type !== "sapling" && !inTerritory(wx, wy)) return false;
   const s = type === "sapling" ? 20 : (SMALL_BLDG[type] || BLDG_SIZE);
   const cand = (type === "wall" || type === "gate")
     ? bldgRect({ type, x: wx, y: wy, rot: rot === undefined ? wallRot : rot })
     : { x: wx - s / 2, y: wy - s, w: s, h: s };
-  const placingWall = type === "wall" || type === "gate";
+  const placingWall = WALLLIKE.has(type);
   for (const b of allStructures()) {
-    const bWall = b.type === "wall" || b.type === "gate";
+    const bWall = WALLLIKE.has(b.type);
     const margin = placingWall && bWall ? -10 : placingWall || bWall || b.type === "farm" ? 2 : 12;
     const r = inflate(bldgRect(b), margin);
     if (!bWall && b.type !== "farm" && !placingWall) r.h += 26;
@@ -569,7 +595,7 @@ function legalToBuild(type, wx, wy, rot) {
 }
 
 function collideMove(c, nx, ny) {
-  const blocked = (x, y) => allStructures().some(b => b.type === "wall" && pointInRect(x, y, inflate(bldgRect(b), 6)));
+  const blocked = (x, y) => allStructures().some(b => (b.type === "wall" || b.type === "stonewall") && !b.site && pointInRect(x, y, inflate(bldgRect(b), 6)));
   const ox = c.x, oy = c.y;
   const stepLen = Math.hypot(nx - c.x, ny - c.y);
   // a slide only counts if it makes real progress — micro-corrections must not
@@ -613,7 +639,7 @@ function pay(cost) {
 }
 const costText = c => [c.logs && `${c.logs} logs`, c.doors && `${c.doors} door`, c.stone && `${c.stone} stone`, c.iron && `${c.iron} iron`, c.seeds && `${c.seeds} seeds`, c.dm && `${c.dm} DM`].filter(Boolean).join(", ");
 
-function freeHome() { return buildings.find(b => b.type === "cabin" && b.occupants.length < cabinCapacity()) || null; }
+function freeHome() { return buildings.find(b => b.type === "cabin" && !b.site && b.occupants.length < cabinCapacity()) || null; }
 function houseCiv(c) {
   const home = freeHome();
   if (!home) return false;
@@ -655,7 +681,7 @@ function setPause(open) {
 }
 addEventListener("keydown", e => {
   keys[e.key.toLowerCase()] = true;
-  if (e.key.toLowerCase() === "r" && (buildMode === "wall" || buildMode === "gate")) {
+  if (e.key.toLowerCase() === "r" && WALLLIKE.has(buildMode)) {
     wallRot = wallRot ? 0 : 1;
     toast(`Wall turned ${wallRot ? "upright (north-south)" : "flat (east-west)"}.`);
   }
@@ -800,16 +826,25 @@ function rescueStuck(dt) {
     }
   }
 }
+const BUILD_TIMES = { cabin: 10, recruit: 12, market: 10, watchtower: 8, bakery: 10, well: 7, forge: 12, townhall: 16,
+                      wall: 3, gate: 4, stonewall: 6, stonegate: 8, moat: 6, ditch: 4, farm: 5 };
+function finishConstruction(b) {
+  b.site = false; b.progress = -1;
+  if (!WALLLIKE.has(b.type)) expandAround(b.x, b.y, 1);
+  toast(`${BLDG_NAMES[b.type]} raised.${WALLLIKE.has(b.type) ? "" : " The territory grows."}`);
+  SFX.build();
+  if (b.type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
+}
 function evictFromFootprint(b) {
   const r = inflate(bldgRect(b), 10);
   for (const u of [...civs, ...visitors, ...raiders])
     if (pointInRect(u.x, u.y, r)) { u.y = r.y + r.h + 14; u.x += (u.x < b.x ? -18 : 18); }
 }
 function snapWallPos(type, wx, wy) {
-  if (type !== "wall" && type !== "gate") return [wx, wy];
+  if (!WALLLIKE.has(type)) return [wx, wy];
   let best = null, bd = 110;
   for (const b of buildings) {
-    if (b.type !== "wall" && b.type !== "gate") continue;
+    if (!WALLLIKE.has(b.type)) continue;
     if ((b.rot || 0) !== wallRot) continue;
     const d = Math.hypot(b.x - wx, b.y - wy);
     if (d < bd) { bd = d; best = b; }
@@ -826,9 +861,13 @@ function tryPlace(type, wx, wy) {
   if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
   if ((type === "wall" || type === "gate") && !has("defending")) { toast("Walls and gates require the Defending technology."); buildMode = null; syncUI(); return; }
   if (type === "townhall" && !has("township")) { toast("A town hall requires the Township technology."); buildMode = null; syncUI(); return; }
+  if (["stonewall", "stonegate", "moat", "ditch"].includes(type) && !has("defplus")) { toast("Stoneworks and earthworks require Defending II."); buildMode = null; syncUI(); return; }
   if (type === "townhall" && buildings.some(b => b.type === "townhall")) { toast("The settlement has its town hall already."); buildMode = null; syncUI(); return; }
   [wx, wy] = snapWallPos(type, wx, wy);
   const cost = costOf(type);
+  if (WALLLIKE.has(type)) {
+    for (const cp of camps) if (Math.hypot(cp.x - wx, cp.y - wy) < 520) { toast("Too close to an enemy camp — the raiders would never let it stand."); return; }
+  }
   if (!canPay(cost)) { toast(`Not enough materials: needs ${costText(cost)}.`); return; }
   if (!legalToBuild(type, wx, wy)) { toast(inTerritory(wx, wy) ? "Cannot build there — too close to another building, its entrance, or an obstacle."
                              : "That land is outside your territory. Build and grow to claim more."); return; }
@@ -840,20 +879,21 @@ function tryPlace(type, wx, wy) {
     markChunkDirty(wx, wy);
     toast("Spruce sapling planted.");
   } else if (type === "farm") {
-    farms.push({ x: wx, y: wy, ready: false, growT: 0, workers: [], progress: -1 });
+    farms.push({ x: wx, y: wy, ready: false, growT: 0, workers: [], progress: -1, site: true, buildP: 0 });
     evictFromFootprint({ type: "farm", x: wx, y: wy });
     expandAround(wx, wy, 1);
-    toast("Farm laid out. Assign farmers to it by selecting them and clicking the farm.");
+    toast("Farm staked out — a civilian will come and build it.");
   } else {
     const b = { type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
     if (type === "wall") { b.hp = b.maxHp = 100; }
     if (type === "gate") { b.hp = b.maxHp = 60; }
-    if (type === "wall" || type === "gate") b.rot = wallRot;
+    if (type === "stonewall") { b.hp = b.maxHp = 220; }
+    if (type === "stonegate") { b.hp = b.maxHp = 140; }
+    if (WALLLIKE.has(type)) b.rot = wallRot;
+    b.site = true; b.buildP = 0;
     buildings.push(b);
     evictFromFootprint(b);
-    if (type !== "wall" && type !== "gate") expandAround(wx, wy, 1);
-    toast(`${BLDG_NAMES[type]} built. The territory grows.`);
-    if (type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
+    toast(`${BLDG_NAMES[type]} staked out — a civilian will come and raise it.`);
   }
   buildMode = null;
   syncUI();
@@ -873,7 +913,7 @@ function arrive(c) {
   if (t && t.kind === "warmUp") { c.state = "warming"; c.workT = 0; c.task = null; return; }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
-                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping" };
+                   buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping", construct: "raising" };
   if (t.kind === "repair") {
     if (!canPay(REPAIR_COST)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
     pay(REPAIR_COST);
@@ -906,8 +946,9 @@ function autonomy(c, dt) {
     if (res.bread > 0 && c.home) { res.bread--; eat(c, "bread"); return; }
     if (res.meat > 0 && c.home) { res.meat--; eat(c, "meat"); return; }
   }
+  if (c.child) return;   // children play; they do not labour
 
-  const shopF = buildings.find(b => b.type === "forge" && !b.fire && (b.shop || []).length);
+  const shopF = buildings.find(b => b.type === "forge" && !b.fire && !b.site && (b.shop || []).length);
   if (shopF && c.profession !== "blacksmith") {
     const wantsTool = !c.tool && c.inv.dm >= TOOL_PRICE_SELF && shopF.shop.some(i => i.kind === "tool");
     const mayArm = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter") || isForce(c);
@@ -920,15 +961,24 @@ function autonomy(c, dt) {
 
   if (!c.home) return;
 
+  // construction first: staked-out sites need hands
+  const site = buildings.find(b => b.site && (!b.builder || !civs.includes(b.builder))) ||
+               farms.find(f => f.site && (!f.builder || !civs.includes(f.builder)));
+  if (site && !isForce(c)) {
+    site.builder = c;
+    order(c, { kind: "construct", target: site, x: site.x + 20, y: site.y + 14 });
+    return;
+  }
+
   // the town hall takes deposits without being asked — unload before new work
-  const hall = buildings.find(b => b.type === "townhall" && !b.fire);
+  const hall = buildings.find(b => b.type === "townhall" && !b.fire && !b.site);
   if (hall && (c.inv.logs + c.inv.seeds + c.inv.stone + c.inv.iron + c.inv.wheat) >= 5) {
     order(c, { kind: "hallDeposit", target: hall, x: hall.x, y: hall.y + 16 });
     return;
   }
 
   if (c.profession === "blacksmith" && has("forging") && forgeBuilt()) {
-    const shopForge = buildings.find(b => b.type === "forge" && !b.fire);
+    const shopForge = buildings.find(b => b.type === "forge" && !b.fire && !b.site);
     const stock = (shopForge && shopForge.shop) || [];
     const toolsOnSale = stock.filter(i => i.kind === "tool").length;
     const weaponsOnSale = stock.filter(i => i.kind === "weapon").length;
@@ -998,7 +1048,7 @@ function autonomy(c, dt) {
     order(c, { kind: "peddle", target: buyer, x: buyer.x + 18, y: buyer.y + 6 });
     return;
   }
-  const market = buildings.find(b => b.type === "market" && !b.fire);
+  const market = buildings.find(b => b.type === "market" && !b.fire && !b.site);
   if (market && (c.inv.bread + c.inv.meat) > 1)
     order(c, { kind: "sell", target: market, x: market.x, y: market.y + 16 });
 }
@@ -1009,7 +1059,7 @@ function happinessTarget(c) {
         - (laws.forced ? 20 : 0)
         - (has("slavemarket") ? 8 : 0)
         + (has("taming") ? 3 : 0) + (has("pets") ? 4 : 0) + (has("pettoys") ? 4 : 0)
-        + Math.min(2, buildings.filter(b => b.type === "well" && !b.fire).length) * 3;
+        + Math.min(2, buildings.filter(b => b.type === "well" && !b.fire && !b.site).length) * 3;
   if (c.hunger > 60) t += 4;
   if (c.hunger < 30) t -= 12;
   if (!c.home) t -= 8;
@@ -1017,7 +1067,7 @@ function happinessTarget(c) {
 }
 
 function maybeRebel(c) {
-  if (c.rebel || isForce(c) || civs.length < 2) return;
+  if (c.rebel || isForce(c) || c.child || civs.length < 2) return;
   if (c.happiness < 25 && Math.random() < 0.08) {
     c.rebel = true;
     const lawAllows = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
@@ -1083,7 +1133,7 @@ function igniteCheck(b, dt) {
 
 // --- visitors & dialogue ---
 function spawnVisitor() {
-  const center = buildings.find(b => b.type === "recruit" && !b.fire);
+  const center = buildings.find(b => b.type === "recruit" && !b.fire && !b.site);
   if (!center) return;
   const a = Math.random() * Math.PI * 2;
   const gender = Math.random() < 0.35 ? "f" : "m";
@@ -1119,7 +1169,7 @@ function sendAway(v, text) {
   if (text) toast(text);
 }
 
-const dlg = { open: false, visitor: null };
+const dlg = { open: false, visitor: null, talk: null };
 const DLG_OPTIONS = [
   { text: "\"We fled Hamburg with nothing. Help us build something honest.\"", d: +14 },
   { text: "\"There is a warm cabin and a certificate with your name on it.\"", d: +12 },
@@ -1134,23 +1184,36 @@ const DLG_OPTIONS = [
   { text: "\"We have a market — your pelts would fetch real coin.\"", d: 0, dyn: () => buildings.some(b => b.type === "market") ? +13 : -10 },
 ];
 
-function openDialogue(v) {
-  dlg.open = true; dlg.visitor = v; paused = true;
-  if (v.meter === null) v.meter = Math.max(10, 55 - taxRate * 3.5) + (v.goodwill || 0);
-  $("dlgFace").src = `assets/sprites/ui/${v.face}.png`;
-  $("dlgName").textContent = `${v.name}, wandering ${v.gender === "f" ? "huntress" : "hunter"}`;
-  $("dlgText").textContent = "The hunter eyes the barred window and the little slot beneath it. \"So. What is this place, then?\"";
+function openTalk(talk) {
+  dlg.open = true; dlg.talk = talk; paused = true;
+  $("dlgFace").src = `assets/sprites/ui/${talk.face}.png`;
+  $("dlgName").textContent = talk.title;
+  $("dlgText").textContent = talk.opening;
   $("dialogue").style.display = "block";
   renderDialogueOptions();
 }
+function openDialogue(v) {
+  dlg.visitor = v;
+  if (v.meter === null) v.meter = Math.max(10, 55 - taxRate * 3.5) + (v.goodwill || 0);
+  openTalk({
+    face: v.face,
+    title: `${v.name}, wandering ${v.gender === "f" ? "huntress" : "hunter"}`,
+    opening: "The hunter eyes the barred window and the little slot beneath it. \"So. What is this place, then?\"",
+    pool: DLG_OPTIONS,
+    used: v.used,
+    get meter() { return v.meter; }, set meter(x) { v.meter = x; },
+    onWin: () => joinColony(v),
+    onLose: () => rejectColony(v),
+  });
+}
 
 function renderDialogueOptions() {
-  const v = dlg.visitor;
-  $("dlgMeter").style.width = v.meter + "%";
+  const talk = dlg.talk;
+  $("dlgMeter").style.width = talk.meter + "%";
   const opts = $("dlgOpts");
   opts.innerHTML = "";
-  const pool = DLG_OPTIONS.filter(o => !v.used.has(o.text) && (!o.needs || o.needs()));
-  if (!pool.length) return v.meter >= 60 ? joinColony(v) : rejectColony(v);
+  const pool = talk.pool.filter(o => !talk.used.has(o.text) && (!o.needs || o.needs()));
+  if (!pool.length) return talk.meter >= 60 ? talk.onWin() : talk.onLose();
   const picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   for (const o of picks) {
@@ -1158,23 +1221,23 @@ function renderDialogueOptions() {
     b.className = "btn";
     b.textContent = o.text;
     b.addEventListener("click", () => {
-      v.used.add(o.text);
+      talk.used.add(o.text);
       if (o.use) o.use();
       const delta = (o.dyn ? o.dyn() : o.d) + (Math.random() * 6 - 3);
-      v.meter = Math.max(0, Math.min(100, v.meter + delta));
-      $("dlgMeter").style.width = v.meter + "%";
-      if (v.meter >= 100) return joinColony(v);
-      if (v.meter <= 0) return rejectColony(v);
-      $("dlgText").textContent = delta >= 8 ? "He nods slowly. You are getting through to him." :
-                                 delta >= 0 ? "He grunts, noncommittal. But he has not left." :
-                                 "His eyes narrow. That was the wrong thing to say.";
+      talk.meter = Math.max(0, Math.min(100, talk.meter + delta));
+      $("dlgMeter").style.width = talk.meter + "%";
+      if (talk.meter >= 100) return talk.onWin();
+      if (talk.meter <= 0) return talk.onLose();
+      $("dlgText").textContent = delta >= 8 ? "A slow nod. You are getting through." :
+                                 delta >= 0 ? "A grunt, noncommittal. But the door stays open." :
+                                 "Eyes narrow. That was the wrong thing to say.";
       renderDialogueOptions();
     });
     opts.appendChild(b);
   }
 }
 
-function closeDialogue() { dlg.open = false; dlg.visitor = null; paused = false; $("dialogue").style.display = "none"; }
+function closeDialogue() { dlg.open = false; dlg.visitor = null; dlg.talk = null; setPause(pauseOpen); $("dialogue").style.display = "none"; }
 
 function joinColony(v) {
   visitors.splice(visitors.indexOf(v), 1);
@@ -1186,6 +1249,7 @@ function joinColony(v) {
   civs.push(c);
   expandFrontier(3);
   const housed = houseCiv(c);
+  vignette("firstRecruit");
   toast(`${v.name} signs on — a civilian certificate slides out through the slot. ` +
         (housed ? `${v.gender === "f" ? "She" : "He"} moves into a cabin and will pay taxes.` : `Build ${v.gender === "f" ? "her" : "him"} a cabin: no taxes until there is a roof.`));
   syncUI();
@@ -1310,6 +1374,7 @@ document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
   item.addEventListener("click", () => {
     $("recruitDrop").classList.remove("open");
     if (!selected) return;
+    if (selected.child) return toast(`${selected.name} is a child — give them a few more springs.`);
     const prof = item.dataset.prof;
     const dropPolice = () => { if (selected.profession === "police") policeCount--; };
     if (prof === "police") {
@@ -1386,10 +1451,12 @@ $("lawForced").addEventListener("change", e => {
 });
 $("techToggle").addEventListener("click", () => {
   const p = $("techPanel");
-  p.style.display = p.style.display === "block" ? "none" : "block";
+  const opening = p.style.display !== "block";
+  p.style.display = opening ? "block" : "none";
+  $("techToggle").textContent = opening ? "Close Tech Tree" : "Open Tech Tree";
   renderTech();
 });
-$("techClose").addEventListener("click", () => $("techPanel").style.display = "none");
+$("techClose").addEventListener("click", () => { $("techPanel").style.display = "none"; $("techToggle").textContent = "Open Tech Tree"; });
 $("tabGrowth").addEventListener("click", () => { techTab = "growth"; $("tabGrowth").classList.add("active"); $("tabMilitary").classList.remove("active"); renderTech(); });
 $("tabMilitary").addEventListener("click", () => { techTab = "military"; $("tabMilitary").classList.add("active"); $("tabGrowth").classList.remove("active"); renderTech(); });
 
@@ -1673,6 +1740,7 @@ function resolveBattle(war) {
 
 function updateNationTrade(dt) {
   for (const [id, n] of Object.entries(NATIONS)) {
+    if (n.tradeCool > 0) n.tradeCool -= dt;
     if (!n.trade) continue;
     if (n.defeated || n.atWar) { n.trade = false; continue; }
     n.tradeT = (n.tradeT === undefined ? 60 : n.tradeT) - dt;
@@ -1830,6 +1898,8 @@ document.getElementById("miWar").addEventListener("click", () => {
   n.atWar = true; n.warT = 30;
   for (const c of civs) c.happiness = Math.max(0, c.happiness - 6);
   toast(`⚔ ${empireName || "The colony"} declares war on ${n.name}! The people brace themselves.`);
+  document.getElementById("mapOverlay").style.display = "none"; setPause(pauseOpen);
+  vignette("firstWar");
   mapInfoSync(); renderMap();
 });
 document.getElementById("miPeace").addEventListener("click", () => {
@@ -1839,15 +1909,56 @@ document.getElementById("miPeace").addEventListener("click", () => {
   toast(`Peace with ${n.name}, bought for 60 DM.`);
   mapInfoSync(); renderMap(); syncUI();
 });
+function leaderOf(id) {
+  const n = NATIONS[id];
+  if (["ottoman", "crimea", "algiers", "tunis", "tripoli"].includes(id))
+    return { face: "leader_sultan", title: `The Sultan, for ${n.name}` };
+  if (["russia", "cossacks"].includes(id))
+    return { face: "leader_tsar", title: `The Tsar, for ${n.name}` };
+  if (n.strength <= 3)
+    return { face: "leader_chancellor", title: `The Chancellor of ${n.name}` };
+  return { face: "leader_king", title: `The Crown of ${n.name}` };
+}
+const TRADE_OPTIONS = [
+  { text: "Send a gift of 10 DM with our compliments.", d: +12, needs: () => res.dm >= 10, use: () => res.dm -= 10 },
+  { text: "A wagon of fresh bread for the court. (3 bread)", d: +10, needs: () => res.bread >= 3, use: () => res.bread -= 3 },
+  { text: "Iron from our quarries, freely given. (2 iron)", d: +9, needs: () => res.iron >= 2, use: () => res.iron -= 2 },
+  { text: "\"Our roads are safe, our word is good, our scales are honest.\"", d: +7 },
+  { text: "\"Your rivals already court our caravans.\"", d: 0, dyn: () => natWars.some(w => w.a === mapSelNation || w.b === mapSelNation) ? +11 : -9 },
+  { text: "\"Low tariffs, full wagons — both our peoples profit.\"", d: +8 },
+  { text: "\"Trade with us, or your merchants will regret it.\"", d: -18 },
+  { text: "\"We are small, but hard winters breed honest traders.\"", d: +5 },
+  { text: "Praise the court's splendour at some length.", d: +4 },
+];
 document.getElementById("miTrade").addEventListener("click", () => {
-  const n = NATIONS[mapSelNation];
+  const id = mapSelNation, n = NATIONS[id];
   if (n.trade) return;
-  if (!nationAdjacent(mapSelNation)) return toast("Caravans need a shared border.");
-  if (res.dm - 40 < treasuryFloor()) return toast("Opening a trade route costs 40 DM. The treasury cannot bear it.");
-  res.dm -= 40;
-  n.trade = true; n.tradeT = 30;
-  toast(`A trade route opens with ${n.name}. The first caravan is on the road.`);
-  mapInfoSync(); syncUI();
+  if (!nationAdjacent(id)) return toast("Caravans need a shared border.");
+  if (n.tradeCool > 0) return toast(`${n.name}'s court is still offended. Give it time.`);
+  const lead = leaderOf(id);
+  n.tradeMeter = n.tradeMeter === undefined ? Math.max(10, 50 - natStrength(n) * 1.5) : n.tradeMeter;
+  n.tradeUsed = n.tradeUsed || new Set();
+  openTalk({
+    face: lead.face,
+    title: lead.title,
+    opening: "The envoy is received coolly. \"A colony of exiles wishes to trade with us? Speak, then.\"",
+    pool: TRADE_OPTIONS,
+    used: n.tradeUsed,
+    get meter() { return n.tradeMeter; }, set meter(x) { n.tradeMeter = x; },
+    onWin: () => {
+      closeDialogue();
+      n.trade = true; n.tradeT = 30; n.tradeMeter = undefined; n.tradeUsed = new Set();
+      toast(`The compact is sealed — a trade route opens with ${n.name}. The first caravan is on the road.`);
+      SFX.coin();
+      mapInfoSync(); syncUI();
+    },
+    onLose: () => {
+      closeDialogue();
+      n.tradeCool = 180; n.tradeMeter = undefined; n.tradeUsed = new Set();
+      toast(`The court of ${n.name} dismisses your envoy. Try again when tempers cool.`);
+      mapInfoSync();
+    },
+  });
 });
 document.getElementById("miAssault").addEventListener("click", () => {
   const n = NATIONS[mapSelNation];
@@ -1879,6 +1990,7 @@ function updateWars(dt) {
     n.warT -= dt;
     if (n.warT <= 0) {
       n.warT = 110 + Math.random() * 70;
+      if (season() === "winter") continue;   // armies do not march in the snow
       const targets = buildings.filter(b => b.type !== "burned");
       if (!targets.length || raiders.length >= MAX_RAIDERS + 2) continue;
       const a = Math.random() * Math.PI * 2;
@@ -1939,6 +2051,7 @@ document.getElementById("settleGo").addEventListener("click", () => {
   nextSettleAt = playT + 1200;
   expandFrontier(6);
   toast(`${chosen.length} settler(s) depart to found ${name}. Your empire grows on the map of Europe.`);
+  setTimeout(() => vignette("firstSettlement"), 400);
 });
 function emigrate(c) {
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
@@ -1987,14 +2100,14 @@ function saveGame() {
       research: research ? { ...research } : null,
       usedNames: [...usedNames],
       civs: civs.map(c => ({
-        name: c.name, who: c.who, nativeWho: c.nativeWho, gender: c.gender, x: c.x, y: c.y, home: bi(c.home),
+        name: c.name, who: c.who, nativeWho: c.nativeWho, gender: c.gender, child: !!c.child, growT: c.growT || 0, x: c.x, y: c.y, home: bi(c.home),
         profession: c.profession, hunger: c.hunger, hp: c.hp, maxHp: c.maxHp,
         happiness: c.happiness, rebel: c.rebel, armed: c.armed, tool: c.tool,
         inv: { ...c.inv },
       })),
       buildings: buildings.map(b => ({
         type: b.type, x: b.x, y: b.y, fire: b.fire, placed: b.placed,
-        hp: b.hp, maxHp: b.maxHp, rot: b.rot, shop: b.shop || [],
+        hp: b.hp, maxHp: b.maxHp, rot: b.rot, shop: b.shop || [], site: !!b.site,
         occupants: b.occupants.map(ci),
       })),
       farms: farms.map(f => ({ x: f.x, y: f.y, ready: f.ready, growT: f.growT, workers: f.workers.map(ci) })),
@@ -2007,7 +2120,7 @@ function saveGame() {
       }]),
       empireName, territoryColor, borderColor,
       territory: [...territory],
-      sackedCamps, playT, nextSettleAt, tutStep,
+      sackedCamps, playT, nextSettleAt, tutStep, colonyYear, vigSeen,
       settlements: settlements.map(st => ({ ...st })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
@@ -2040,7 +2153,8 @@ function loadGame() {
       const c = mkCiv(cd.name, cd.nativeWho || cd.who, cd.x, cd.y, cd.gender || (cd.name === "Sister" ? "f" : "m"));
       c.who = cd.who;
       Object.assign(c, { profession: cd.profession, hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
-        happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool });
+        happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool,
+        child: !!cd.child, growT: cd.growT || 0 });
       Object.assign(c.inv, cd.inv);
       civs.push(c);
     }
@@ -2048,7 +2162,7 @@ function loadGame() {
     for (const bd of d.buildings)
       buildings.push({ type: bd.type, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
                        torchP: -1, placed: bd.placed, bakeT: 0, occupants: [],
-                       rot: bd.rot || 0, shop: bd.shop || [],
+                       rot: bd.rot || 0, shop: bd.shop || [], site: !!bd.site, buildP: 0,
                        hp: bd.type === "wall" ? Math.min(bd.hp ?? 100, 100) : bd.type === "gate" ? Math.min(bd.hp ?? 60, 60) : bd.hp,
                        maxHp: bd.type === "wall" ? 100 : bd.type === "gate" ? 60 : bd.maxHp });
     d.buildings.forEach((bd, i) => {
@@ -2074,6 +2188,8 @@ function loadGame() {
     if (!territory.size) { expandAround(0, -40, 2); for (const b of buildings) expandAround(b.x, b.y, 1); }
     sackedCamps = d.sackedCamps || 0; playT = d.playT || 0; nextSettleAt = d.nextSettleAt || 1200;
     tutStep = d.tutStep === undefined ? -1 : d.tutStep;
+    colonyYear = d.colonyYear || 1683;
+    vigSeen = d.vigSeen || {};
     settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
     conquests.length = 0; for (const cq of (d.conquests || [])) conquests.push(cq);
     natWars = d.natWars || [];
@@ -2101,6 +2217,56 @@ function loadGame() {
 
 setInterval(saveGame, 10000);
 addEventListener("pagehide", saveGame);
+
+// --- milestone vignettes: the story writes itself as the colony grows ---
+const VIGNETTES = {
+  firstWinter: { img: "vig_firstwinter", lines: [
+    "The first snow came in the night, quiet as a thief, and by morning the whole world was white.",
+    "Sister said nothing, but banked the fire high. We both remembered who kept the hearth in Hamburg." ] },
+  cabinDone: { img: "vig_cabindone", lines: [
+    "The cabin stands again. We kept one charred beam at the corner — Sister insisted.",
+    "\"So we remember what they took,\" she said, \"and what we took back.\"" ] },
+  firstRecruit: { img: "vig_firstrecruit", lines: [
+    "A stranger signed our book today and took a certificate through the slot in the wall.",
+    "We are no longer just a family hiding in the woods. We are a place people come to." ] },
+  firstChild: { img: "vig_firstchild", lines: [
+    "A child was born in the colony last night — the first soul who will never know Hamburg's bells.",
+    "Father, wherever you are: your name goes on. It was never theirs to take." ] },
+  firstSettlement: { img: "vig_settlement", lines: [
+    "This morning a wagon left our gate carrying friends, tools, and half our bread — to raise a new settlement over the ridge.",
+    "One clearing was survival. Two is a nation being born." ] },
+  firstWar: { img: "vig_firstwar", lines: [
+    "Tonight we planted a banner pin on the map of Europe and said the word aloud: war.",
+    "They executed a merchant on a lie. Let them learn what his children built in the dark of the woods." ] },
+  village: { img: "vig_village", lines: [
+    "Ten souls now wake to our bell. Smoke from a dozen chimneys, wheat in the rows, iron on the anvil.",
+    "They cast us out to die. Instead, we built this." ] },
+};
+let vigSeen = {};
+let vigLine = 0, vigKey = null;
+function vignette(key) {
+  if (vigSeen[key] || gameState !== "playing" || dlg.open) return;
+  vigSeen[key] = true;
+  vigKey = key; vigLine = 0;
+  const v = VIGNETTES[key];
+  $("cutImg").src = `assets/sprites/ui/${v.img}.png`;
+  $("cutText").textContent = v.lines[0];
+  $("cutscene").style.display = "block";
+  gameState = "vignette";
+  SFX.pickup();
+}
+function advanceVignette() {
+  vigLine++;
+  const v = VIGNETTES[vigKey];
+  if (vigLine >= v.lines.length) {
+    $("cutscene").style.display = "none";
+    gameState = "playing";
+    vigKey = null;
+    saveGame();
+    return;
+  }
+  $("cutText").textContent = v.lines[vigLine];
+}
 
 // --- opening cutscene ---
 const CUTSCENE = [
@@ -2148,8 +2314,12 @@ function endCutscene() {
 }
 addEventListener("keydown", e => {
   if (gameState === "cutscene" && (e.code === "Space" || e.key === "Enter")) { e.preventDefault(); advanceCutscene(); }
+  if (gameState === "vignette" && (e.code === "Space" || e.key === "Enter")) { e.preventDefault(); advanceVignette(); }
 });
-$("cutscene").addEventListener("click", () => { if (gameState === "cutscene") advanceCutscene(); });
+$("cutscene").addEventListener("click", () => {
+  if (gameState === "cutscene") advanceCutscene();
+  else if (gameState === "vignette") advanceVignette();
+});
 
 // --- tutorial: from ash to a roof, then the woods are theirs ---
 let tutStep = -1;
@@ -2178,7 +2348,7 @@ const TUT_STEPS = [
     done: () => $("govPanel").style.display === "block" },
   { text: () => "One more thing: press the MAP button. That is Europe, 1683 — your empire in your colour, nations that strengthen with the years and war among themselves. Expand toward a neighbour to earn the right to fight them.",
     done: () => $("mapOverlay").style.display === "block" },
-  { text: () => "And where there is a border, there is business: click a peaceful neighbour on the map to Open a Trade Route (40 DM) — caravans will bring DM and goods. At home, your civilians already peddle bread and meat to each other and to travellers.",
+  { text: () => "And where there is a border, there is business: on the map, send an envoy to a peaceful neighbour and convince their leader to open a trade route — gifts loosen crowns. Caravans then bring DM and goods. At home, your civilians already peddle bread and meat among themselves.",
     timed: 16 },
   { text: () => "❄ One warning: every year winter comes. The fields sleep, and the cold kills — anyone outside too long freezes. Housed folk duck into their cabins to warm up on their own; the homeless just sit in the snow and die. Roofs before riches.",
     timed: 16 },
@@ -2257,6 +2427,7 @@ function gameOver() {
   if (gameState === "over") return;
   gameState = "over";
   localStorage.removeItem(SAVE_KEY);
+  MUSIC.battle(false);
   SFX.fireLoop(false);
   SFX.gameOver();
   setTimeout(() => { if (gameState === "over") MUSIC.play(); }, 4200);
@@ -2277,7 +2448,7 @@ function syncUI() {
   $("rTools").textContent = buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0); $("rDM").textContent = res.dm;
   $("rPop").textContent = civs.length; $("rPolice").textContent = policeCount;
   $("rTax").textContent = taxRate;
-  $("rSeason").textContent = season() === "winter" ? "❄ WINTER" : "SUMMER";
+  $("rSeason").textContent = (season() === "winter" ? "❄ WINTER " : "SUMMER ") + colonyYear;
   const mm = Math.floor(taxTimer / 60), ss = Math.floor(taxTimer % 60);
   $("rTaxT").textContent = mm + ":" + String(ss).padStart(2, "0");
   const avg = civs.length ? Math.round(civs.reduce((s, c) => s + c.happiness, 0) / civs.length) : 0;
@@ -2390,6 +2561,7 @@ function update(dt) {
   rescueStuck(dt);
   updateNationWars(dt);
   updateNationTrade(dt);
+  if (civs.length >= 10) vignette("village");
   if (difficulty() > lastTier) {
     lastTier = difficulty();
     toast("⚠ Word of your colony's wealth spreads. The woods grow bolder…");
@@ -2425,8 +2597,27 @@ function update(dt) {
       if (t.alive && t.growth < 1) t.growth = Math.min(1, t.growth + dt / (SAPLING_GROW * (has("replanting") ? 0.5 : 1)));
   if (season() !== lastSeason) {
     lastSeason = season();
-    toast(lastSeason === "winter" ? "❄ Winter falls over the woods. The fields sleep; keep the larders full." :
-                                    "The thaw comes — the fields wake, and the woods turn green again.");
+    if (lastSeason === "winter") {
+      colonyYear++;
+      toast(`❄ Winter falls over the woods — the year turns to ${colonyYear}. The fields sleep; keep the larders full.`);
+      vignette("firstWinter");
+    } else {
+      toast("The thaw comes — the fields wake, and the woods turn green again.");
+      // spring births: each woman has a 26% chance of a child after every winter
+      for (const m of civs.filter(c => c.gender === "f" && !c.child)) {
+        if (Math.random() < 0.26) {
+          const g = Math.random() < 0.5 ? "f" : "m";
+          const kid = mkCiv(nextName(g), g === "f" ? "sister" : "brother", m.x + 14, m.y + 10, g);
+          kid.child = true; kid.growT = 0;
+          kid.home = m.home;
+          if (m.home) m.home.occupants.push(kid);
+          civs.push(kid);
+          toast(`A child is born to ${m.name}: a ${g === "f" ? "daughter" : "son"}, ${kid.name}.`);
+          SFX.pickup();
+          vignette("firstChild");
+        }
+      }
+    }
   }
   for (const f of farms) if (!f.ready && season() !== "winter" && (f.growT += dt) >= farmRipen()) f.ready = true;
   SFX.fireLoop(buildings.some(b => b.fire > 0));
@@ -2442,7 +2633,7 @@ function update(dt) {
                         vx: 4 + Math.random() * 5, t: 2.6 + i * 0.5, max: 2.6 + i * 0.5 });
       }
     }
-    if (b.type === "bakery" && !b.fire) {
+    if (b.type === "bakery" && !b.fire && !b.site) {
       b.bakeT = (b.bakeT || 0) + dt;
       if (b.bakeT >= 20) {
         b.bakeT = 0;
@@ -2451,7 +2642,7 @@ function update(dt) {
     }
   }
 
-  if (buildings.some(b => b.type === "recruit" && !b.fire)) {
+  if (buildings.some(b => b.type === "recruit" && !b.fire && !b.site)) {
     hunterTimer -= dt;
     if (hunterTimer <= 0) {
       hunterTimer = 100 + Math.random() * 80;
@@ -2467,7 +2658,21 @@ function update(dt) {
   }
   if (camps.length) {
     raidTimer -= dt;
-    if (raidTimer <= 0) { raidTimer = (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.88, difficulty() - 1); spawnRaid(); }
+    if (raidTimer <= 0) {
+      raidTimer = (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.88, difficulty() - 1);
+      if (season() !== "winter") spawnRaid();   // raiders overwinter in their camps
+    }
+    for (const cp of camps) {
+      cp.fortT = (cp.fortT === undefined ? 120 : cp.fortT) - dt;
+      if (cp.fortT <= 0) {
+        cp.fortT = 150;
+        if ((cp.fort || 0) < 3) {
+          cp.fort = (cp.fort || 0) + 1;
+          cp.hp += 40; cp.maxHp += 40;
+          if (Math.random() < 0.6) toast(`The ${cp.type} camp raises another ring of stakes.`);
+        }
+      }
+    }
     patrolT = (patrolT || 0) - dt;
     if (patrolT <= 0) {
       patrolT = 20;
@@ -2477,11 +2682,11 @@ function update(dt) {
       }
     }
   }
-  if (nightAmt() > 0.9 && camps.length && res.dm >= 5 &&
+  if (season() !== "winter" && nightAmt() > 0.9 && camps.length && res.dm >= 5 &&
       !buildings.some(b => (b.type === "wall" || b.type === "gate") && !b.fire)) {
     ambushT -= dt;
     if (ambushT <= 0) {
-      ambushT = (50 + Math.random() * 40) * Math.pow(0.88, difficulty() - 1);
+      ambushT = (85 + Math.random() * 55) * Math.pow(0.9, difficulty() - 1);
       const guards = civs.filter(c => isForce(c) && c.state !== "sleeping");
       const targets = buildings.filter(b => b.type !== "burned" && !b.fire);
       if (targets.length && raiders.filter(r => r.state !== "patrol").length < MAX_RAIDERS + 2) {
@@ -2499,6 +2704,11 @@ function update(dt) {
     }
   } else ambushT = Math.max(ambushT, 25);
   for (const r of [...raiders]) updateRaider(r, dt);
+  // the watchtower sounds the war-drums — until the raiders leave, or die
+  const towers = buildings.filter(b => b.type === "watchtower" && !b.fire && !b.site);
+  const threat = towers.length > 0 && raiders.some(r => r.state !== "patrol" &&
+    towers.some(tw => Math.hypot(tw.x - r.x, tw.y - r.y) < 750));
+  MUSIC.battle(threat && gameState === "playing");
 
   for (const c of [...civs]) {
     c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * (season() === "winter" ? 1.15 : 1) * dt);
@@ -2507,6 +2717,10 @@ function update(dt) {
       if (c.hp <= 0) { killCiv(c, "starved to death"); continue; }
     }
 
+    if (c.child) {
+      c.growT = (c.growT || 0) + dt;
+      if (c.growT >= 300) { c.child = false; toast(`${c.name} has come of age and joins the working colony.`); }
+    }
     const target = happinessTarget(c);
     c.happiness += Math.sign(target - c.happiness) * Math.min(Math.abs(target - c.happiness), 2.5 * dt);
     maybeRebel(c);
@@ -2517,7 +2731,7 @@ function update(dt) {
         c.coldT = Math.max(0, c.coldT - dt * 8);
       } else {
         c.coldT = (c.coldT || 0) + dt;
-        const limit = isForce(c) ? 420 : 300;
+        const limit = isForce(c) ? 210 : 150;
         if (c.coldT > limit - 60 && !c.coldWarned) {
           c.coldWarned = true;
           toast(c.home ? `❄ ${c.name} is freezing — they need to get indoors.` :
@@ -2631,7 +2845,7 @@ function update(dt) {
       c.workT += dt; c.anim += dt * 6;
       if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= SMITH_TIME * workMul(c)) {
-        const shopForge = buildings.find(b => b.type === "forge" && !b.fire);
+        const shopForge = buildings.find(b => b.type === "forge" && !b.fire && !b.site);
         if (shopForge) {
           shopForge.shop = shopForge.shop || [];
           shopForge.shop.push({ kind: c.task.make, by: c.name });
@@ -2647,6 +2861,7 @@ function update(dt) {
       if (c.workT >= REPAIR_TIME * workMul(c)) {
         b.type = "cabin"; b.progress = -1; b.placed = false;
         toast(`The ruin stands whole again. ${c.name} rebuilt it.`);
+        vignette("cabinDone");
         c.state = "idle"; c.task = null;
         for (const cc of civs) if (!cc.home) houseCiv(cc);
       }
@@ -2674,6 +2889,23 @@ function update(dt) {
         c.inv.wheat += 2; c.inv.bread += 1;
         SFX.pickup();
         float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
+        c.state = "idle"; c.task = null;
+      }
+    } else if (c.state === "raising") {
+      const b = c.task.target;
+      const isFarmSite = farms.includes(b);
+      if ((!buildings.includes(b) && !isFarmSite) || !b.site) { c.state = "idle"; c.task = null; continue; }
+      const need = (BUILD_TIMES[isFarmSite ? "farm" : b.type] || 8) * workMul(c);
+      c.workT += dt; b.progress = c.workT / need; c.anim += dt * 8;
+      if ((c.workT % 0.6) < dt) SFX.hammer();
+      if (c.workT >= need) {
+        if (isFarmSite) {
+          b.site = false; b.progress = -1;
+          if (c.profession === "farmer" && !b.workers.includes(c)) b.workers.push(c);
+          toast("The farm is built and ready for planting.");
+          SFX.build();
+        } else finishConstruction(b);
+        b.builder = null;
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "shopping") {
@@ -2789,7 +3021,7 @@ function update(dt) {
         // the camp fights back
         if (Math.random() < DODGE_CHANCE) float(c.x, c.y - 70, "Dodged!", "#cfd8d3");
         else {
-          const ret = cp.type === "raid" ? 11 : 7;
+          const ret = (cp.type === "raid" ? 11 : 7) + (cp.fort || 0) * 2;
           c.hp -= ret;
           float(c.x, c.y - 70, "-" + ret, "#d86a5a");
           if (c.hp <= 0) { killCiv(c, "fell storming the camp"); continue; }
@@ -2901,6 +3133,11 @@ function render(dt) {
     }});
   }
   for (const cp of camps) if (inView(cp.x, cp.y)) drawables.push({ y: cp.y, draw: () => {
+    // their own fortifications rise with time
+    const fort = cp.fort || 0;
+    if (fort >= 1) { drawSprite(img.wall, cp.x - 70, cp.y + 6, 52, false); drawSprite(img.wall, cp.x + 70, cp.y + 6, 52, false); }
+    if (fort >= 2) { drawSprite(img.wall, cp.x - 24, cp.y + 26, 52, false); drawSprite(img.wall, cp.x + 24, cp.y + 26, 52, false); }
+    if (fort >= 3) { drawSprite(img.wallv, cp.x - 78, cp.y - 30, 52, false); drawSprite(img.wallv, cp.x + 78, cp.y - 30, 52, false); }
     drawSprite(img[cp.type === "thief" ? "thiefcamp" : "raidcamp"], cp.x, cp.y, BLDG_SIZE, false);
     ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
     ctx.fillText(cp.type === "thief" ? "thief camp" : "raid camp", cp.x, cp.y - BLDG_SIZE - 4);
@@ -2912,6 +3149,7 @@ function render(dt) {
   }});
   for (const f of farms) if (inView(f.x, f.y)) drawables.push({ y: f.y, draw: () => {
     drawSprite(wimg("farm"), f.x, f.y, FARM_SIZE, false);
+    if (f.site) { ctx.globalAlpha = 0.45; drawSprite(wimg("farm"), f.x, f.y, FARM_SIZE, false); ctx.globalAlpha = 1; }
     if (f.progress >= 0) bar(f.x, f.y - FARM_SIZE - 12, f.progress, "#c9a86a");
     else if (f.ready) {
       ctx.fillStyle = "#d8c26a"; ctx.font = "12px monospace"; ctx.textAlign = "center";
@@ -2929,7 +3167,15 @@ function render(dt) {
     }
   }});
   for (const b of buildings) if (inView(b.x, b.y)) drawables.push({ y: b.y, draw: () => {
+    if (b.site) ctx.globalAlpha = 0.45;
     if (b.type === "wall" && b.rot) drawSprite(wimg("wallv"), b.x, b.y, SMALL_BLDG.wall, false);
+    else if (b.type === "stonewall" && b.rot) drawSprite(img.stonewallv, b.x, b.y, SMALL_BLDG.stonewall, false);
+    else if ((b.type === "stonegate" || b.type === "moat" || b.type === "ditch") && b.rot) {
+      const L = SMALL_BLDG[b.type];
+      ctx.save(); ctx.translate(b.x, b.y - L / 2); ctx.rotate(Math.PI / 2);
+      ctx.drawImage(img[b.type], -L / 2, -L / 2, L, L);
+      ctx.restore();
+    }
     else if (b.type === "gate" && b.rot) {
       const L = SMALL_BLDG.gate;
       ctx.save(); ctx.translate(b.x, b.y - L / 2); ctx.rotate(Math.PI / 2);
@@ -2942,6 +3188,7 @@ function render(dt) {
       drawSprite(f, b.x + 18, b.y - 2, 64, true);
       drawSprite(f, b.x, b.y - 40, 48, false);
     }
+    ctx.globalAlpha = 1;
     if (b.progress >= 0) bar(b.x, b.y - BLDG_SIZE - 12, b.progress, "#7da083");
     if (b.torchP >= 0) bar(b.x, b.y - BLDG_SIZE - 12, b.torchP, "#d86a3a");
     if (b.maxHp && b.hp < b.maxHp) bar(b.x, b.y - (SMALL_BLDG[b.type] || BLDG_SIZE) - 10, b.hp / b.maxHp, "#a05252");
@@ -2972,11 +3219,11 @@ function render(dt) {
     if (c.state === "fighting" || c.state === "sieging")
       frame = img[(isForce(c) || c.armed ? "atksword" : "atkfist") + (Math.floor(c.anim) % 4)];
     else frame = img[c.who + (Math.floor(c.anim) % 4)];
-    drawSprite(frame, c.x, c.y, CHAR_SIZE, c.facing < 0);
+    drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
     ctx.fillStyle = c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" :
                     c.profession === "police" ? "#8aa0c9" : c.profession === "soldier" ? "#b58a5a" : "#7da083";
     ctx.font = "10px monospace"; ctx.textAlign = "center";
-    const tag = c.rebel ? " [REBEL]" : c.profession === "police" ? " [police]" : c.profession === "soldier" ? " [soldier]" : "";
+    const tag = c.rebel ? " [REBEL]" : c.child ? " (child)" : c.profession === "police" ? " [police]" : c.profession === "soldier" ? " [soldier]" : "";
     ctx.fillText(c.name + tag, c.x, c.y - CHAR_SIZE - 4);
     if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
     if (c.state === "crafting" || c.state === "buildingFarm" || c.state === "smithing" || c.state === "hunting") {
