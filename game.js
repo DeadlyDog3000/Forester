@@ -1703,14 +1703,34 @@ function arrive(c) {
   }
 }
 
-// A hungry soul eats from the larder they are standing beside; if that town has
-// nothing, the capital's stores feed them.
-function eatFromStores(c) {
+// Every larder in the empire, nearest first: the one underfoot, then the capital,
+// then each daughter town by how far the wagons must come.
+function ledgersNear(c) {
   const led = ledgerAt(c.x, c.y);
-  for (const l of (led === res ? [res] : [led, res]))
+  const rest = settlements
+    .filter(s => s.x !== undefined && s.res && s.res !== led)
+    .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))
+    .map(s => s.res);
+  return [...new Set([led, res, ...rest])];
+}
+// A hungry soul eats from the larder they are standing beside, then the capital's.
+// An army is fed by the whole empire — a column in the field is not left to starve
+// because the village it happens to sleep in has run out of bread.
+function eatFromStores(c) {
+  const list = isForce(c) ? ledgersNear(c) : (() => {
+    const led = ledgerAt(c.x, c.y);
+    return led === res ? [res] : [led, res];
+  })();
+  for (const l of list)
     for (const k of ["bread", "meat"])
       if ((l[k] || 0) > 0) { l[k]--; eat(c, k); return true; }
   return false;
+}
+// what a given soul could actually eat right now, wherever it is stored
+function foodWithinReach(c) {
+  return (c.inv.bread || 0) + (c.inv.meat || 0) + (c.inv.wheat || 0) +
+         (isForce(c) ? ledgersNear(c) : [ledgerAt(c.x, c.y), res])
+           .reduce((n, l) => n + ((l.bread || 0) + (l.meat || 0)), 0);
 }
 
 // --- autonomy ---
@@ -2491,8 +2511,9 @@ $("cpHeal").addEventListener("click", () => {
   const c = selected;
   if (!c) return;
   if (c.hp >= c.maxHp) return toast(`${c.name} is already hale and whole.`);
-  if (c.inv.bread + c.inv.meat + c.inv.wheat + res.bread + res.meat <= 0)
-    return toast("No food anywhere — bake bread or hunt before ordering a heal.");
+  if (foodWithinReach(c) <= 0)
+    return toast(isForce(c) ? "No food anywhere in the empire — bake bread or hunt before ordering a heal."
+                            : "No food to hand — bake bread or hunt before ordering a heal.");
   c.task = null; c.state = "healing"; c.workT = 0;
   toast(`${c.name} sits down to eat until their wounds mend.`);
   syncUI();
