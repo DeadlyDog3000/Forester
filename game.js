@@ -1047,6 +1047,7 @@ function cancelAll() {
   buildMode = null; selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null;
   selGroup = []; roadMode = false; roadDrag = false; roadGhost = []; roadStart = null;
   lineStart = null; lineDrag = false; lineGhost = null;
+  closeSiegeMenu();
   syncUI();
 }
 
@@ -1281,6 +1282,7 @@ function worldClick(clientX, clientY) {
   if (gameState !== "playing") return;
   mouse.x = clientX; mouse.y = clientY;
   mouse.wx = cam.x + mouse.x / zoom; mouse.wy = cam.y + mouse.y / zoom;
+  closeSiegeMenu();                        // a click anywhere else drops the choice
   if (paused) return;
   if (roadMode) return;                    // the road builder works on press and release, not on click
 
@@ -1305,13 +1307,10 @@ function worldClick(clientX, clientY) {
     if (pointInRect(mouse.wx, mouse.wy, bldgRect(fb))) {
       const grp = soldierGroup().filter(isForce);
       if (grp.length) {
-        // the town hall is the prize and it goes to the torch — the rest of the
-        // town is worth more standing, so the sword is only for what bars the way
-        const kind = fb.keep ? "torch" : "siege";
-        grp.forEach((s, i) => { s.post = null; order(s, { kind, target: fb,
-          x: fb.x + (i % 3 - 1) * 30, y: fb.y + 22 + Math.floor(i / 3) * 16 }); });
-        toast(fb.keep ? `${grp.length} carry fire to the town hall of ${fb.town.name}!`
-                      : `${grp.length} set upon the ${BLDG_NAMES[fb.type] || fb.type}.`);
+        // the hall is the prize and always goes to the torch; for everything else
+        // the choice is the player's — axe it apart, or set it alight
+        if (fb.keep) siegeOrder(fb, "torch");
+        else openSiegeMenu(fb, clientX, clientY);
       } else if (selected) toast("Only soldiers, musketeers, cavalry or police can be sent against enemy ground.");
       else toast(`${fb.town.name} — a town of ${NATIONS[fb.town.nation].name}. Select your soldiers, then click here.`);
       return;
@@ -3114,6 +3113,34 @@ document.getElementById("miAssault").addEventListener("click", () => {
   mapInfoSync(); renderMap(); syncUI();
 });
 
+// --- axe or fire: how a wall, gate or roof of theirs is to come down ---
+const STONE = new Set(["stonewall", "stonegate"]);
+let siegeTarget = null;
+function siegeOrder(fb, kind) {
+  const grp = soldierGroup().filter(isForce);
+  if (!grp.length || !foreign.includes(fb)) return;
+  grp.forEach((s, i) => { s.post = null; order(s, { kind, target: fb,
+    x: fb.x + (i % 3 - 1) * 30, y: fb.y + 22 + Math.floor(i / 3) * 16 }); });
+  const what = fb.keep ? `the town hall of ${fb.town.name}` : (BLDG_NAMES[fb.type] || fb.type);
+  toast(kind === "torch" ? `${grp.length} carry fire to ${what}!` : `${grp.length} set about ${what} with axes.`);
+  closeSiegeMenu();
+}
+function openSiegeMenu(fb, clientX, clientY) {
+  siegeTarget = fb;
+  const m = $("siegeMenu");
+  $("siegeWhat").textContent = (BLDG_NAMES[fb.type] || fb.type).toUpperCase() + " — " + fb.town.name;
+  // stone does not burn: the axe is the only way through
+  $("siegeTorch").style.display = STONE.has(fb.type) ? "none" : "block";
+  m.style.display = "block";
+  m.style.left = Math.min(window.innerWidth - 190, Math.max(8, clientX + 12)) + "px";
+  m.style.top = Math.min(window.innerHeight - 110, Math.max(8, clientY - 20)) + "px";
+  m.style.right = "auto"; m.style.bottom = "auto";
+  SFX.popup();
+}
+function closeSiegeMenu() { siegeTarget = null; $("siegeMenu").style.display = "none"; }
+$("siegeChop").addEventListener("click", () => { if (siegeTarget) siegeOrder(siegeTarget, "siege"); });
+$("siegeTorch").addEventListener("click", () => { if (siegeTarget) siegeOrder(siegeTarget, "torch"); });
+
 // ===== foreign border towns: real ground to be taken, not a roll of dice =====
 // A crown at war plants a walled town within a march of your colony. Its keep is
 // the prize: raze it and the settlement falls, its land passing to your empire.
@@ -4294,7 +4321,21 @@ function update(dt) {
     }
   }
   for (const f of farms) if (!f.ready && season() !== "winter" && (f.growT += dt) >= farmRipen()) f.ready = true;
-  SFX.fireLoop(buildings.some(b => b.fire > 0));
+  SFX.fireLoop(buildings.some(b => b.fire > 0) || foreign.some(b => b.fire > 0));
+  // enemy timber burns down to nothing — the town has no one left to rebuild it
+  for (const fb of [...foreign]) {
+    if (!fb.fire) continue;
+    fb.fire -= dt;
+    if (settings.smoke && Math.random() < dt * 3)
+      smokes.push({ x: fb.x + (Math.random() * 30 - 15), y: fb.y - 30, r: 6 + Math.random() * 5, vx: 6, t: 2.2, max: 2.2 });
+    if (fb.fire <= 0) {
+      fb.fire = 0;
+      const town = fb.town, wasKeep = fb.keep;
+      foreign.splice(foreign.indexOf(fb), 1);
+      if (wasKeep && !town.fallen) foreignTownFalls(town);
+      else if (!wasKeep) toast(`The ${BLDG_NAMES[fb.type] || fb.type} of ${town.name} has burned to the ground.`);
+    }
+  }
   for (const b of [...buildings]) {
     igniteCheck(b, dt);
     if (settings.smoke && !b.fire && (b.type === "bakery" || (b.type === "cabin" && b.occupants.length))) {
