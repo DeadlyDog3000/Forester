@@ -342,6 +342,7 @@
     </div>
     <button class="btn" id="roadToggle">&#128739; ROADS</button>
     <button class="btn" id="govToggle">GOVERNMENT</button>
+    <button class="btn" id="milToggle">&#9876; MILITARY</button>
     <button class="btn" id="mapToggle">&#128506; MAP</button>
     <span style="flex:1"></span>
     <span style="font-size:11px;color:#5a6b60">FORESTER beta</span>
@@ -472,7 +473,7 @@
     <div style="font-size:10px;color:#5a6b60;margin-top:6px">Settings are saved on this browser, separate from your game saves.</div>
   </div>
 
-  <div class="panel" id="militaryPanel" style="left:50%;top:50%;transform:translate(-50%,-50%);width:360px;padding:16px;display:none;z-index:141">
+  <div class="panel" id="militaryPanel" style="left:50%;top:50%;transform:translate(-50%,-50%);width:360px;padding:16px;display:none;z-index:141;max-height:84vh;overflow-y:auto">
     <h3 style="color:#c9a86a;letter-spacing:2px;margin-bottom:4px">MILITARY <span id="milClose" style="float:right;cursor:pointer;color:#5a6b60">[close]</span></h3>
     <div style="font-size:10px;color:#5a6b60;margin-bottom:10px">How your soldiers look and sound in the field.</div>
 
@@ -481,7 +482,16 @@
       <span>Regimental coat</span><input type="color" id="milColor" value="#2f52a8" style="width:56px;height:26px">
     </div>
     <div style="display:flex;gap:6px;margin:6px 0 2px" id="milSwatches"></div>
-    <div style="font-size:10px;color:#5a6b60;margin-top:4px">Worn by musketeers, soldiers and police.</div>
+    <div style="font-size:10px;color:#5a6b60;margin-top:4px">Worn by musketeers, soldiers, police and cavalry.</div>
+
+    <div style="font-size:11px;color:#7da083;margin:12px 0 4px;letter-spacing:1px">THE ARMY</div>
+    <div id="milRoster" style="font-size:11px;margin:4px 0"></div>
+    <button class="btn" id="milSelectAll" style="width:100%;font-size:11px;margin-top:4px">&#9876; Select the whole army</button>
+    <div style="font-size:10px;color:#5a6b60;margin-top:4px">Musters every soldier, musketeer and rider under one order — then click the ground to march them.</div>
+
+    <div style="font-size:11px;color:#7da083;margin:12px 0 4px;letter-spacing:1px">RECRUITMENT</div>
+    <input type="text" id="milSearch" placeholder="Search people&hellip;" style="width:100%;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:5px 8px;margin-bottom:4px">
+    <div id="milRecruits" style="max-height:150px;overflow-y:auto;border:1px solid #24352b;padding:4px"></div>
 
     <div style="font-size:11px;color:#7da083;margin:12px 0 4px;letter-spacing:1px">MARCHING MUSIC</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0">

@@ -2171,12 +2171,12 @@ document.querySelectorAll("#craftMenu .menu-item").forEach(item =>
       toast(`${selected.name} starts hewing a door.`);
     }
   }));
-document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
-  item.addEventListener("click", () => {
-    $("recruitDrop").classList.remove("open");
+// the whole recruiting rite for any civilian — used by the selected-civilian
+// menu and by the MILITARY panel's roster. The parameter shadows the global
+// `selected` on purpose so the rite reads the recruit, not the selection.
+function recruitAs(selected, prof) {
     if (!selected) return;
     if (selected.child) return toast(`${selected.name} is a child — give them a few more springs.`);
-    const prof = item.dataset.prof;
     const dropPolice = () => { if (selected.profession === "police") policeCount--; };
     if (prof === "police") {
       if (!has("policing")) return toast("Recruiting police requires the Policing technology.");
@@ -2242,7 +2242,9 @@ document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
     }
     refreshAvatar(selected);
     syncUI();
-  }));
+}
+document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
+  item.addEventListener("click", () => { $("recruitDrop").classList.remove("open"); recruitAs(selected, item.dataset.prof); }));
 document.addEventListener("click", e => {
   for (const id of ["buildDrop", "craftDrop", "recruitDrop", "civDrop"])
     if ($(id) && !$(id).contains(e.target)) $(id).classList.remove("open");
@@ -3245,9 +3247,66 @@ function openMilitary() {
   sel.value = MUSIC.currentMarch();
   $("milColor").value = uniformColor;
   $("milEnabled").checked = settings.march !== false;
+  renderMilitary();
   $("militaryPanel").style.display = "block";
+  SFX.popup();
 }
+// the army roster and the recruiting table inside the MILITARY panel
+function renderMilitary() {
+  const forces = civs.filter(isForce);
+  const counts = {};
+  for (const f of forces) counts[f.profession] = (counts[f.profession] || 0) + 1;
+  $("milRoster").innerHTML = forces.length
+    ? ["soldier", "musketeer", "cavalry", "police"].filter(p => counts[p])
+        .map(p => `${p.charAt(0).toUpperCase() + p.slice(1)}${counts[p] > 1 ? "s" : ""}: <b style="color:#c9a86a">${counts[p]}</b>`).join(" &middot; ")
+    : '<span style="color:#5a6b60">The colony has no army yet.</span>';
+  const list = $("milRecruits");
+  list.innerHTML = "";
+  const OPTS = [["police", "policing", "Pol", POLICE_COST], ["soldier", "raiding", "Sol", SOLDIER_COST],
+                ["musketeer", "matchlock", "Msk", MUSKET_COST], ["cavalry", "cavalry", "Cav", CAV_COST]];
+  const open = OPTS.filter(([, t]) => has(t));
+  if (!open.length) {
+    list.innerHTML = '<div style="padding:4px;color:#5a6b60;font-size:11px">No military professions researched yet — Policing, Raiding, Matchlock Muskets or Cavalry open them.</div>';
+    return;
+  }
+  const q = ($("milSearch").value || "").trim().toLowerCase();
+  const folk = civs.filter(c => !c.child && !c.rebel &&
+    (!q || `${c.name} ${c.profession || "no trade"}`.toLowerCase().includes(q)));
+  for (const c of folk) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:4px;margin:3px 0;font-size:11px";
+    const nm = document.createElement("span");
+    nm.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    nm.textContent = `${c.name} — ${c.profession || "no trade"}`;
+    row.appendChild(nm);
+    for (const [p, , label, cost] of open) {
+      if (c.profession === p) continue;
+      const b = document.createElement("button");
+      b.className = "btn";
+      b.style.cssText = "font-size:10px;padding:3px 6px";
+      b.textContent = label;
+      b.title = `Recruit as ${p} — ${cost} DM`;
+      b.addEventListener("click", () => { recruitAs(c, p); renderMilitary(); });
+      row.appendChild(b);
+    }
+    list.appendChild(row);
+  }
+  if (!list.children.length)
+    list.innerHTML = `<div style="padding:4px;color:#5a6b60;font-size:11px">${q ? "No one matches." : "No one is left to recruit."}</div>`;
+}
+$("milSearch").addEventListener("input", renderMilitary);
+$("milSelectAll").addEventListener("click", () => {
+  const army = civs.filter(groupable);
+  if (!army.length) return toast("No soldiers, musketeers or cavalry to muster.");
+  selGroup = [...army];
+  selected = army[0];
+  MUSIC.march(false);
+  $("militaryPanel").style.display = "none";
+  toast(`The army musters — ${army.length} under one order. Click the ground to march them out.`);
+  syncUI();
+});
 $("menuMilitary").addEventListener("click", openMilitary);
+$("milToggle").addEventListener("click", openMilitary);
 $("milClose").addEventListener("click", () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); });
 $("milColor").addEventListener("input", e => setUniform(e.target.value));
 $("milMarch").addEventListener("change", e => { MUSIC.setMarch(e.target.value); settings.marchTune = e.target.value; saveSettings(); });
