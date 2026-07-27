@@ -3652,9 +3652,11 @@ const SAVE_KEY = "forester_save";
 // ?disband=Name — remove a settlement by name (case-insensitive)
 // ?peace=denmark (or any nation id, or "all") — the war is called off: a white
 //   peace, no more war parties. What the war already cost stays lost.
+// ?muster=12 — twelve musketeers are raised and added to the colony, armed,
+//   fed and housed where there is room. Restores an army lost to a bug.
 try {
   const qp = new URLSearchParams(location.search);
-  if (qp.has("scout") || qp.has("disband") || qp.has("peace")) {
+  if (qp.has("scout") || qp.has("disband") || qp.has("peace") || qp.has("muster")) {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw && raw !== "null") {
       const d = JSON.parse(raw);
@@ -3669,6 +3671,52 @@ try {
         const who = (qp.get("peace") || "").toLowerCase();
         for (const [id, w] of Object.entries(d.wars || {}))
           if ((who === "all" || id === who) && w.atWar) { w.atWar = false; w.warT = 0; console.log(`Peace with ${id}.`); }
+      }
+      if (qp.has("muster")) {
+        const n = Math.max(1, Math.min(40, parseInt(qp.get("muster"), 10) || 0));
+        d.tech = d.tech || {}; d.tech.matchlock = true;      // they must be legal to exist
+        d.civs = d.civs || []; d.buildings = d.buildings || [];
+        const maxHp = 90 + (d.tech.cavalry ? 50 : 0);
+        const cap = d.tech.landownership ? 3 : 2;
+        const used = new Set(d.usedNames || []);
+        const POOL = ["Falk", "Jorg", "Matthias", "Anselm", "Dietrich", "Lorenz", "Veit", "Kaspar",
+                      "Otto", "Bruno", "Conrad", "Ludwig", "Gunther", "Wilhelm", "Albrecht", "Erwin"];
+        const freshName = () => {
+          for (const b of POOL) if (!used.has(b)) { used.add(b); return b; }
+          for (let k = 2; ; k++) for (const b of POOL) {
+            const nm = b + " " + k;
+            if (!used.has(nm)) { used.add(nm); return nm; }
+          }
+        };
+        // muster them where the colony already stands
+        const anchor = d.civs.find(c => !c.child) || { x: 0, y: 0 };
+        // room is counted from the cabins as the save left them
+        const room = [];
+        d.buildings.forEach((b, i) => {
+          if (b.type !== "cabin" || b.site) return;
+          for (let k = (b.occupants || []).length; k < cap; k++) room.push(i);
+        });
+        let housed = 0;
+        for (let i = 0; i < n; i++) {
+          const idx = d.civs.length;
+          d.civs.push({
+            name: freshName(), who: "musketeer", nativeWho: "brother", gender: "m", child: false, growT: 0,
+            age: 21 + (i % 18), x: Math.round((anchor.x || 0) + (i % 6) * 26 - 65),
+            y: Math.round((anchor.y || 0) + Math.floor(i / 6) * 30 + 40), home: -1,
+            profession: "musketeer", hunger: 100, hp: maxHp, maxHp, happiness: 78,
+            rebel: false, armed: true, tool: false,
+            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
+          });
+          const bi = room[housed];
+          if (bi !== undefined) {
+            const b = d.buildings[bi];
+            b.occupants = b.occupants || [];
+            b.occupants.push(idx);
+            housed++;
+          }
+        }
+        d.usedNames = [...used];
+        console.log(`Mustered ${n} musketeer(s); ${housed} found a roof, ${n - housed} sleep rough.`);
       }
       localStorage.setItem(SAVE_KEY, JSON.stringify(d));
     }
