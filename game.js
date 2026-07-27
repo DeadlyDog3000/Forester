@@ -1221,10 +1221,17 @@ function worldClick(clientX, clientY) {
   // camps: soldiers can be ordered to sack them
   for (const cp of camps)
     if (Math.abs(mouse.wx - cp.x) < BLDG_SIZE / 2 && mouse.wy < cp.y && mouse.wy > cp.y - BLDG_SIZE) {
-      if (selected && (selected.profession === "soldier" || selected.profession === "cavalry") && has("raiding")) {
-        const grp = soldierGroup().filter(s => s.profession !== "musketeer");
+      // any selection that CONTAINS soldiers or cavalry marches them — a mixed
+      // group led by a musketeer no longer swallows the order silently
+      const grp = has("raiding") ? soldierGroup().filter(s => s.profession === "soldier" || s.profession === "cavalry") : [];
+      if (grp.length) {
         grp.forEach((s, i) => order(s, { kind: "siege", target: cp, x: cp.x + 40 + (i % 3) * 16, y: cp.y + 14 + Math.floor(i / 3) * 14 }));
-        toast(grp.length > 1 ? `${grp.length} fighters march on the ${cp.type} camp.` : `${selected.name} marches on the ${cp.type} camp.`);
+        toast(grp.length > 1 ? `${grp.length} fighters march on the ${cp.type} camp.` : `${grp[0].name} marches on the ${cp.type} camp.`);
+      } else if (selected && isForce(selected)) {
+        // a force unit is selected but none of them can sack — say why, keep the selection
+        toast(!has("raiding") ? "Sacking camps requires the Raiding technology."
+              : selected.profession === "musketeer" ? "Muskets are no siege tools — send soldiers or cavalry."
+              : "The police guard the town — only soldiers and cavalry march on camps.");
       } else {
         selectedCamp = cp; selectedBldg = null; selected = null;
         toast(cp.type === "thief" ? "A thief camp. Soldiers could sack it." : "A raider war-camp. Soldiers could sack it — carefully.");
