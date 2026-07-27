@@ -92,12 +92,49 @@ const SFX = (() => {
     swingFist:() => { noise(0.11, 0.16, 900, 250, 1.5); },                             // duller fist whoosh
     hit:      () => { tone("triangle", 160, 55, 0.14, 0.35); noise(0.08, 0.2, 300, 120, 1, "lowpass"); },
     dodge:    () => { noise(0.16, 0.18, 700, 2600, 2); },                              // rising whoosh
-    // black powder: a flat crack, a deep boom, and the tail rolling away
+    // Black powder at close quarters: the flint, the crack that hurts, the boom
+    // that follows it into your chest, and the report coming back off the trees.
     musket:   () => {
-      noise(0.05, 0.5, 3000, 900, 0.7, "bandpass");
-      noise(0.42, 0.42, 900, 90, 0.8, "lowpass");
-      tone("triangle", 150, 42, 0.3, 0.3);
-      noise(0.75, 0.13, 500, 70, 0.6, "lowpass", 0.06);
+      if (FSET().sfx === false) return;
+      const a = ctx(), t = a.currentTime;
+      // a touch of saturation so the crack has teeth instead of politely fading
+      const shaper = a.createWaveShaper();
+      const curve = new Float32Array(1024);
+      for (let i = 0; i < 1024; i++) {
+        const x = (i / 512) - 1;
+        curve[i] = Math.tanh(x * 3.2);
+      }
+      shaper.curve = curve;
+      shaper.oversample = "2x";
+      const out = a.createGain();
+      out.gain.value = 0.72;        // saturated hot, then trimmed: loud, never crackling
+      shaper.connect(out); out.connect(sfxBus);
+      const burst = (dur, vol, f0, f1, q, type, delay) => {
+        const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+        s.buffer = noiseBuf; s.loop = true;
+        f.type = type; f.Q.value = q;
+        f.frequency.setValueAtTime(f0, t + delay);
+        f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + delay + dur);
+        g.gain.setValueAtTime(vol, t + delay);
+        g.gain.exponentialRampToValueAtTime(0.001, t + delay + dur);
+        s.connect(f); f.connect(g); g.connect(shaper);
+        s.start(t + delay); s.stop(t + delay + dur + 0.02);
+      };
+      burst(0.012, 1.0, 7000, 4000, 0.6, "highpass", 0);      // the flint and the pan
+      burst(0.07, 1.15, 4200, 1100, 0.7, "bandpass", 0.004);  // the crack itself
+      burst(0.5, 0.95, 1400, 70, 0.9, "lowpass", 0.008);      // the powder's roar
+      // the low punch you feel rather than hear
+      const o = a.createOscillator(), og = a.createGain();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(210, t);
+      o.frequency.exponentialRampToValueAtTime(34, t + 0.34);
+      og.gain.setValueAtTime(0.75, t);
+      og.gain.exponentialRampToValueAtTime(0.001, t + 0.36);
+      o.connect(og); og.connect(shaper);
+      o.start(t); o.stop(t + 0.4);
+      // and the report rolling back out of the woods, twice
+      burst(0.3, 0.3, 1500, 200, 0.8, "lowpass", 0.11);
+      burst(0.55, 0.16, 900, 90, 0.7, "lowpass", 0.27);
     },
     ramrod:   () => { tone("square", 420, 300, 0.05, 0.08); noise(0.07, 0.1, 2200, 800, 2, "bandpass", 0.05); },
     // a soft two-note chime when word arrives — enough to look up, not to startle
