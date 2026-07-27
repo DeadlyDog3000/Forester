@@ -1675,6 +1675,10 @@ function autonomy(c, dt) {
     if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); return; }
     if (c.home && eatFromStores(c)) return;
   }
+  // A man on post keeps it. He eats what he carries (above) and fights what
+  // comes (forceAI), but runs no errands — no felling, no deposits, no market,
+  // no wandering off the line.
+  if (c.post) return;
   if (c.child) {
     if (Math.random() < 0.7) wander(c, c.home || c, 40, 130);   // children actually play
     return;
@@ -1834,8 +1838,9 @@ function autonomy(c, dt) {
     if (rock) { order(c, { kind: "quarry", target: rock, x: rock.x + 26, y: rock.y + 6 }); return; }
   }
 
-  // nothing pressing: stretch the legs, visit a neighbour, look busy
-  if (Math.random() < 0.55) wander(c, c.home || c, 60, 180);
+  // nothing pressing: stretch the legs, visit a neighbour, look busy —
+  // unless posted. A posted soldier stands his ground and looks like it.
+  if (!c.post && Math.random() < 0.55) wander(c, c.home || c, 60, 180);
 }
 
 // --- happiness & rebellion ---
@@ -2900,7 +2905,7 @@ function mapInfoSync() {
   }
   const n = NATIONS[mapSelNation];
   document.getElementById("miName").textContent = n.name.toUpperCase();
-  const soldiers = civs.filter(c => c.profession === "soldier").length;
+  const soldiers = civs.filter(c => ["soldier", "musketeer", "cavalry"].includes(c.profession)).length;
   const adj = nationAdjacent(mapSelNation);
   if (n.defeated) {
     document.getElementById("miDetail").textContent =
@@ -2910,7 +2915,7 @@ function mapInfoSync() {
   }
   document.getElementById("miDetail").textContent =
     `Strength ${natStrength(n)}/10${natStrength(n) > n.strength ? " (grown with the years)" : ""}. ` + (n.atWar ?
-      `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 soldiers and 4 weapons — and even then the odds are grim. (You have ${soldiers} soldier(s), ${res.weapons} weapon(s).)` :
+      `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 fighting men — soldiers, musketeers or cavalry; unarmed soldiers draw a weapon from the armoury. (You have ${soldiers} fighting man/men, ${res.weapons} weapon(s).)` :
       adj ? "At peace, and your borders touch theirs. Declaring war will bring their war parties to your gates — and put their settlements within your soldiers' reach." :
             "At peace — and far from your borders. No quarrel can reach a nation your territory does not touch. Expand toward them first.");
   w.style.display = n.atWar ? "none" : adj ? "block" : "none";
@@ -3045,11 +3050,14 @@ document.getElementById("miTrade").addEventListener("click", () => {
 });
 document.getElementById("miAssault").addEventListener("click", () => {
   const n = NATIONS[mapSelNation];
-  const soldiers = civs.filter(c => c.profession === "soldier");
-  if (soldiers.length < 4) return toast("An assault needs at least 4 soldiers.");
-  if (res.weapons < 4) return toast("An assault needs 4 weapons in the armoury.");
-  res.weapons -= 4;
-  const odds = Math.max(0.05, Math.min(0.5, soldiers.length * 0.04 + (has("raiding") ? 0.06 : 0) + (has("hussars") ? 0.06 : 0) - natStrength(n) * 0.03));
+  // every fighting arm joins the storm — musketeers bring their own muskets,
+  // riders their sabres; only unarmed foot soldiers draw from the armoury
+  const party = civs.filter(c => ["soldier", "musketeer", "cavalry"].includes(c.profession));
+  if (party.length < 4) return toast("An assault needs at least 4 fighting men — soldiers, musketeers or cavalry.");
+  const needW = party.filter(c => c.profession === "soldier" && !c.armed).length;
+  if (res.weapons < needW) return toast(`${needW} soldier(s) march unarmed — the armoury holds ${res.weapons} weapon(s) of the ${needW} needed.`);
+  res.weapons -= needW;
+  const odds = Math.max(0.05, Math.min(0.5, party.length * 0.04 + (has("raiding") ? 0.06 : 0) + (has("hussars") ? 0.06 : 0) - natStrength(n) * 0.03));
   if (Math.random() < odds) {
     n.lost++;
     n.captured = n.captured || [];
@@ -3061,8 +3069,8 @@ document.getElementById("miAssault").addEventListener("click", () => {
     checkDefeated(mapSelNation);
   } else {
     let lost = 0;
-    for (const sd of soldiers) if (Math.random() < 0.5) { killCiv(sd, `fell before the walls of ${n.name}`); lost++; }
-    toast(`The assault on ${n.name} is thrown back. ${lost} soldier(s) never came home.`);
+    for (const sd of party) if (Math.random() < 0.5) { killCiv(sd, `fell before the walls of ${n.name}`); lost++; }
+    toast(`The assault on ${n.name} is thrown back. ${lost} fighter(s) never came home.`);
   }
   mapInfoSync(); renderMap(); syncUI();
 });
