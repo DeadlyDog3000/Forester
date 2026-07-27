@@ -817,13 +817,43 @@ function collideMove(c, nx, ny) {
 
 // --- helpers ---
 function toast(text) { msgEl.textContent = text; toastTimer = 5; }
-function canPay(cost) {
-  return res.logs >= (cost.logs || 0) && res.doors >= (cost.doors || 0) && res.stone >= (cost.stone || 0) &&
-         res.iron >= (cost.iron || 0) && res.seeds >= (cost.seeds || 0) && res.dm - (cost.dm || 0) >= treasuryFloor();
+// Work is paid for out of the stores of whichever town you are standing in —
+// the same ledger the HUD is showing you, so what you see is what you spend.
+const LEDGER_KEYS = ["logs", "seeds", "stone", "iron", "wheat", "bread", "meat", "dm", "doors", "weapons"];
+function townAt(wx, wy) {
+  return settlements.find(s => s.x !== undefined && Math.hypot(s.x - wx, s.y - wy) < 700) || null;
 }
-function pay(cost) {
-  res.logs -= cost.logs || 0; res.doors -= cost.doors || 0; res.stone -= cost.stone || 0;
-  res.iron -= cost.iron || 0; res.seeds -= cost.seeds || 0; res.dm -= cost.dm || 0;
+function ledgerAt(wx, wy) {
+  const t = townAt(wx, wy);
+  if (!t) return res;
+  t.res = t.res || {};
+  for (const k of LEDGER_KEYS) t.res[k] = t.res[k] || 0;
+  return t.res;
+}
+// One empire, one economy. A town spends what it has to hand, and the capital
+// makes up any shortfall — so a young settlement with ten logs in its shed can
+// still raise a cabin while the capital's barns are full.
+const PAY_KINDS = ["logs", "doors", "stone", "iron", "seeds", "dm"];
+function canPay(cost, led = res) {
+  for (const k of PAY_KINDS) {
+    const need = cost[k] || 0;
+    if (!need) continue;
+    let have = led[k] || 0;
+    if (led !== res) have += (res[k] || 0) - (k === "dm" ? treasuryFloor() : 0);
+    else have -= (k === "dm" ? treasuryFloor() : 0);
+    if (have < need) return false;
+  }
+  return true;
+}
+function pay(cost, led = res) {
+  for (const k of PAY_KINDS) {
+    let need = cost[k] || 0;
+    if (!need) continue;
+    const local = Math.min(need, led[k] || 0);          // the town's own shed first
+    led[k] = (led[k] || 0) - local;
+    need -= local;
+    if (need && led !== res) res[k] = (res[k] || 0) - need;   // the capital sends the rest
+  }
 }
 const costText = c => [c.logs && `${c.logs} logs`, c.doors && `${c.doors} door`, c.stone && `${c.stone} stone`, c.iron && `${c.iron} iron`, c.seeds && `${c.seeds} seeds`, c.dm && `${c.dm} DM`].filter(Boolean).join(", ");
 
@@ -1089,8 +1119,9 @@ function worldClick(clientX, clientY) {
       }
     for (const b of buildings)
       if (b.type === "burned" && pointInRect(mouse.wx, mouse.wy, bldgRect(b))) {
-        if (!canPay(REPAIR_COST)) {
-          toast(`Repair needs ${costText(REPAIR_COST)} in town storage. Stored: ${res.logs} logs, ${res.doors} door(s).`);
+        if (!canPay(REPAIR_COST, ledgerAt(b.x, b.y))) {
+          const rl = ledgerAt(b.x, b.y);
+          toast(`Repair needs ${costText(REPAIR_COST)} in town storage. Stored: ${rl.logs || 0} logs, ${rl.doors || 0} door(s).`);
           return;
         }
         order(selected, { kind: "repair", target: b, x: b.x, y: b.y + 16 });
@@ -1210,10 +1241,15 @@ function tryPlace(type, wx, wy) {
   if (WALLLIKE.has(type)) {
     for (const cp of camps) if (Math.hypot(cp.x - wx, cp.y - wy) < 520) { toast("Too close to an enemy camp — the raiders would never let it stand."); return; }
   }
-  if (!canPay(cost)) { toast(`Not enough materials: needs ${costText(cost)}.`); return; }
+  const led = ledgerAt(wx, wy), town = townAt(wx, wy);
+  if (!canPay(cost, led)) {
+    toast(`Not enough materials: needs ${costText(cost)}` +
+          (town ? ` — ${town.name}'s stores and the capital's together fall short.` : "."));
+    return;
+  }
   if (!legalToBuild(type, wx, wy)) { toast(inTerritory(wx, wy) ? "Cannot build there — too close to another building, its entrance, or an obstacle."
                              : "That land is outside your territory. Build and grow to claim more."); return; }
-  pay(cost);
+  pay(cost, led);
   SFX.build();
   if (type === "sapling") {
     const [cx, cy] = chunkOf(wx, wy);
@@ -1305,8 +1341,9 @@ function arrive(c) {
     return;
   }
   if (t.kind === "repair") {
-    if (!canPay(REPAIR_COST)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
-    pay(REPAIR_COST);
+    const rled = ledgerAt(b.x, b.y);
+    if (!canPay(REPAIR_COST, rled)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
+    pay(REPAIR_COST, rled);
     c.state = "repairing"; c.workT = 0;
   } else if (t.kind === "attack") {
     c.state = "fighting"; c.workT = 0;
@@ -1412,12 +1449,13 @@ function autonomy(c, dt) {
   // comes out of their own purse. The treasury is the government's alone.
   const fCost = costOf("farm"), fCoin = fCost.dm || 0;
   const materials = { ...fCost, dm: 0 };
-  if (laws.civBuild && wantsFarm && canPay(materials) && c.inv.dm >= fCoin) {
+  const fled = ledgerOf(c);
+  if (laws.civBuild && wantsFarm && canPay(materials, fled) && c.inv.dm >= fCoin) {
     for (const r of [90, 120, 150]) for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
       const fx = home.x + Math.cos(a) * r, fy = home.y + Math.sin(a) * r * 0.8;
       if (legalToBuild("farm", fx, fy)) {
-        pay(materials);
+        pay(materials, fled);
         c.inv.dm -= fCoin;                    // they pay their own way
         order(c, { kind: "buildFarm", x: fx, y: fy + 8, fx, fy });
         return;
@@ -1859,8 +1897,9 @@ document.querySelectorAll("#craftMenu .menu-item").forEach(item =>
     $("craftDrop").classList.remove("open");
     if (item.dataset.craft === "door") {
       if (!selected) return toast("Select a civilian first.");
-      if (res.logs < doorCost()) return toast(`A door takes ${doorCost()} logs in storage. Stored: ${res.logs}.`);
-      res.logs -= doorCost();
+      const dled = ledgerOf(selected);
+      if ((dled.logs || 0) < doorCost()) return toast(`A door takes ${doorCost()} logs in storage. Stored: ${dled.logs || 0}.`);
+      dled.logs -= doorCost();
       order(selected, { kind: "craft", x: selected.x, y: selected.y });
       toast(`${selected.name} starts hewing a door.`);
     }
@@ -2102,7 +2141,7 @@ $("bpDismantle").addEventListener("click", () => {
   if (!b) return;
   if (farms.includes(b)) {
     farms.splice(farms.indexOf(b), 1);
-    res.logs += 1;
+    ledgerAt(b.x, b.y).logs += 1;
     toast("The farm is dismantled — 1 log recovered.");
   } else {
     if (b.fire) return toast("It is on fire — no one is dismantling that.");
@@ -2112,8 +2151,9 @@ $("bpDismantle").addEventListener("click", () => {
       o.home = null;
       if (o.state === "sleeping" || o.state === "warming") { o.state = "idle"; o.y = b.y + 24; }
     }
+    const dl = ledgerAt(b.x, b.y);
     buildings.splice(buildings.indexOf(b), 1);
-    res.logs += refund;
+    dl.logs = (dl.logs || 0) + refund;
     toast(`Dismantled — ${refund} logs recovered.`);
   }
   selectedBldg = null;
@@ -4395,7 +4435,7 @@ function render(dt) {
 
   if (buildMode) {
     const [gx, gy] = snapWallPos(buildMode, mouse.wx, mouse.wy);
-    const ok = legalToBuild(buildMode, gx, gy) && canPay(costOf(buildMode));
+    const ok = legalToBuild(buildMode, gx, gy) && canPay(costOf(buildMode), ledgerAt(gx, gy));
     ctx.globalAlpha = 0.55;
     const ghost = buildMode === "sapling" ? img.tree : buildMode === "farm" ? img.farm : img[buildMode];
     const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : (SMALL_BLDG[buildMode] || (buildMode === "farm" ? FARM_SIZE : BLDG_SIZE));
