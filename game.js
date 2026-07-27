@@ -452,13 +452,25 @@ function nearThings(kind, wx, wy, r) {
 }
 
 // --- camps & raids ---
+// Every town is on the raiders' map. A raid picks ONE town — the capital and the
+// settlements alike — and strikes it together, instead of scattering across the world.
+function townsWithBuildings() {
+  return [null, ...settlements.filter(s => s.x !== undefined)]        // null is the capital
+    .filter(t => buildings.some(b => b.type !== "burned" && townAt(b.x, b.y) === t));
+}
+function townCoin(t) { return t ? (t.res && t.res.dm) || 0 : res.dm; }
+function raidTargetsIn(town) { return buildings.filter(b => b.type !== "burned" && townAt(b.x, b.y) === town); }
 function spawnCamps(n) {
   const tier = difficulty();
   for (let i = 0; i < n && camps.length < 1; i++) {   // one camp in the world at a time
+    // the camp pitches its tents in the woods near ANY of your towns
+    const towns = [null, ...settlements.filter(s => s.x !== undefined)];
+    const anchor = towns[Math.floor(Math.random() * towns.length)];
+    const ax = anchor ? anchor.x : 0, ay = anchor ? anchor.y : 0;
     const a = Math.random() * Math.PI * 2, d = 1100 + Math.random() * 1100;
     const type = Math.random() < 0.55 ? "thief" : "raid";
     const hp = Math.round((type === "thief" ? 120 : 180) * (1 + 0.15 * (tier - 1)));
-    camps.push({ type, x: Math.cos(a) * d, y: Math.sin(a) * d, hp, maxHp: hp,
+    camps.push({ type, x: ax + Math.cos(a) * d, y: ay + Math.sin(a) * d, hp, maxHp: hp,
                  dm: 25 + Math.floor(Math.random() * 40) + tier * 8,
                  weapons: 1 + Math.floor(Math.random() * 2) + Math.floor(tier / 3) });
   }
@@ -472,12 +484,15 @@ function mkRaider(camp, state) {
            state, anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, wpx: camp.x, wpy: camp.y };
 }
 function spawnRaid() {
-  if (res.dm < 5) return;   // an empty treasury is not worth the walk
   const attackers = raiders.filter(r => r.state !== "patrol").length;
   if (!camps.length || attackers >= MAX_RAIDERS) return;
+  // raiders go where the coin is — an empty chest is not worth the walk
+  const towns = townsWithBuildings().filter(t => townCoin(t) >= 5);
+  if (!towns.length) return;
+  const town = towns[Math.floor(Math.random() * towns.length)];
   const camp = camps[Math.floor(Math.random() * camps.length)];
   let n = camp.type === "raid" ? 3 : 2;
-  const targets = buildings.filter(b => b.type !== "burned");
+  const targets = raidTargetsIn(town);
   if (!targets.length) return;
   // the patrol decides it is a good time to strike
   for (const pr of raiders.filter(r => r.camp === camp && r.state === "patrol")) {
@@ -493,8 +508,8 @@ function spawnRaid() {
   }
   if (buildings.some(b => b.type === "watchtower" && !b.fire)) {
     const dir = Math.abs(camp.x) > Math.abs(camp.y) ? (camp.x > 0 ? "east" : "west") : (camp.y > 0 ? "south" : "north");
-    toast(`⚠ The watchtower sounds the alarm — raiders approach from the ${dir}!`);
-  } else toast("⚠ Raiders have been sighted near the colony!");
+    toast(`⚠ The watchtower sounds the alarm — raiders approach from the ${dir}${town ? ", making for " + town.name : ""}!`);
+  } else toast(`⚠ Raiders have been sighted near ${town ? town.name : "the colony"}!`);
 }
 
 function updateRaider(r, dt) {
@@ -610,11 +625,13 @@ function updateRaider(r, dt) {
     r.anim = 1;
     r.workT += dt;
     if (r.workT > 2) {
-      const take = Math.min(15, Math.max(0, res.dm - treasuryFloor()));
-      res.dm -= take; r.carry = take;
+      // rob the town they are standing in — not the capital's coffers from afar
+      const led = ledgerAt(r.x, r.y), town = townAt(r.x, r.y);
+      const take = Math.min(15, Math.max(0, (led.dm || 0) - (led === res ? treasuryFloor() : 0)));
+      led.dm -= take; r.carry = take;
       SFX.coinLoss();
       float(r.x, r.y - 70, "-" + take + " DM", "#d86a5a");
-      toast(`⚠ A raider makes off with ${take} DM!`);
+      toast(`⚠ A raider makes off with ${take} DM${town ? " from " + town.name : ""}!`);
       r.state = "flee";
     }
   } else if (r.state === "flee") {
@@ -2947,19 +2964,23 @@ function updateWars(dt) {
     if (n.warT <= 0) {
       n.warT = 110 + Math.random() * 70;
       if (season() === "winter") continue;   // armies do not march in the snow
-      const targets = buildings.filter(b => b.type !== "burned");
-      if (!targets.length || raiders.length >= MAX_RAIDERS + 2) continue;
+      // a war party marches on ONE town — settlements are not spared the war
+      const towns = townsWithBuildings();
+      if (!towns.length || raiders.length >= MAX_RAIDERS + 2) continue;
+      const town = towns[Math.floor(Math.random() * towns.length)];
+      const targets = raidTargetsIn(town);
+      const cx = town ? town.x : 0, cy = town ? town.y : 0;
       const a = Math.random() * Math.PI * 2;
       const st = natStrength(n);
       const partySize = 3 + (st >= 8 ? 1 : 0);
       for (let i = 0; i < partySize; i++) {
         const t = targets[Math.floor(Math.random() * targets.length)];
         const whp = 90 + (difficulty() - 1) * 12 + st * 3;
-        raiders.push({ x: Math.cos(a) * 1300 + i * 30, y: Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
-                       dmg: 16 + (difficulty() - 1) * 2 + Math.floor(st / 3), camp: { x: Math.cos(a) * 1600, y: Math.sin(a) * 1600 }, target: t,
+        raiders.push({ x: cx + Math.cos(a) * 1300 + i * 30, y: cy + Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
+                       dmg: 16 + (difficulty() - 1) * 2 + Math.floor(st / 3), camp: { x: cx + Math.cos(a) * 1600, y: cy + Math.sin(a) * 1600 }, target: t,
                        state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, nation: id });
       }
-      eventCard(`A war party of ${n.name} marches on the colony!`, "event_warparty", "Arm yourselves");
+      eventCard(`A war party of ${n.name} marches on ${town ? town.name : "the colony"}!`, "event_warparty", "Arm yourselves");
     }
   }
 }
@@ -3966,16 +3987,21 @@ function update(dt) {
       }
     }
   }
-  if (season() !== "winter" && nightAmt() > 0.9 && camps.length && res.dm >= 5 &&
-      !buildings.some(b => (b.type === "wall" || b.type === "gate") && !b.fire)) {
+  if (season() !== "winter" && nightAmt() > 0.9 && camps.length) {
     ambushT -= dt;
     if (ambushT <= 0) {
       ambushT = (140 + Math.random() * 90) * Math.pow(0.9, difficulty() - 1);
-      const guards = civs.filter(c => isForce(c) && c.state !== "sleeping");
-      const targets = buildings.filter(b => b.type !== "burned" && !b.fire);
+      // the night ambush falls on any town left unwalled with coin in the chest —
+      // the capital's walls do not shelter a settlement half the map away
+      const openTowns = townsWithBuildings().filter(t => townCoin(t) >= 5 &&
+        !buildings.some(b => (b.type === "wall" || b.type === "gate") && !b.fire && townAt(b.x, b.y) === t));
+      const town = openTowns.length ? openTowns[Math.floor(Math.random() * openTowns.length)] : undefined;
+      const guards = civs.filter(c => isForce(c) && c.state !== "sleeping" && townAt(c.x, c.y) === town);
+      const targets = town === undefined ? [] : raidTargetsIn(town).filter(b => !b.fire);
       if (targets.length && raiders.filter(r => r.state !== "patrol").length < MAX_RAIDERS + 2) {
+        const tx = town ? town.x : 0, ty = town ? town.y : 0;
         let camp = camps[0], bd = Infinity;
-        for (const cp of camps) { const d = Math.hypot(cp.x, cp.y); if (d < bd) { bd = d; camp = cp; } }
+        for (const cp of camps) { const d = Math.hypot(cp.x - tx, cp.y - ty); if (d < bd) { bd = d; camp = cp; } }
         for (let i = 0; i < 3; i++) {
           const r = mkRaider(camp, "approach");
           r.target = targets[Math.floor(Math.random() * targets.length)];
