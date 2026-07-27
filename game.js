@@ -509,6 +509,7 @@ function spawnRaid() {
     r.target = targets[Math.floor(Math.random() * targets.length)];
     raiders.push(r);
   }
+  SFX.warHorn();
   if (buildings.some(b => b.type === "watchtower" && !b.fire)) {
     const dir = Math.abs(camp.x) > Math.abs(camp.y) ? (camp.x > 0 ? "east" : "west") : (camp.y > 0 ? "south" : "north");
     toast(`⚠ The watchtower sounds the alarm — raiders approach from the ${dir}${town ? ", making for " + town.name : ""}!`);
@@ -3018,6 +3019,7 @@ function updateWars(dt) {
                        dmg: 16 + (difficulty() - 1) * 2 + Math.floor(st / 3), camp: { x: cx + Math.cos(a) * 1600, y: cy + Math.sin(a) * 1600 }, target: t,
                        state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, nation: id });
       }
+      SFX.warHorn();
       eventCard(`A war party of ${n.name} marches on ${town ? town.name : "the colony"}!`, "event_warparty", "Arm yourselves");
     }
   }
@@ -4071,6 +4073,7 @@ function update(dt) {
           if (guards.length && i === 0) r.foe = guards[Math.floor(Math.random() * guards.length)];
           raiders.push(r);
         }
+        SFX.warHorn();
         toast("⚠ Raiders pour out of the dark — the town is unwalled and they know it!");
       }
     }
@@ -4209,7 +4212,11 @@ function update(dt) {
         c.tx = t.x; c.ty = t.y;
       }
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
-      const reach = c.task && c.task.kind === "attack" ? 34 : (c.path && c.path.length ? 10 : 5);
+      // a musketeer closes only to firing range and lets the piece do the rest;
+      // everyone else must get to arm's length
+      const reach = c.task && c.task.kind === "attack"
+        ? (c.profession === "musketeer" ? MUSKET_RANGE - 40 : 34)
+        : (c.path && c.path.length ? 10 : 5);
       if (d < reach) {
         if (c.path && c.path.length) {
           c.path.shift();

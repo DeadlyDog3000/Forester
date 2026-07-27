@@ -102,6 +102,40 @@ const SFX = (() => {
     ramrod:   () => { tone("square", 420, 300, 0.05, 0.08); noise(0.07, 0.1, 2200, 800, 2, "bandpass", 0.05); },
     // a soft two-note chime when word arrives — enough to look up, not to startle
     popup:    () => { tone("sine", 784, 784, 0.16, 0.10); tone("sine", 1175, 1175, 0.26, 0.085, 0.11); },
+    // the war horn: brazen blasts from the treeline — raiders are coming
+    warHorn:  () => {
+      if (FSET().sfx === false) return;
+      const a = ctx();
+      const blast = (t0, f0, dur, vol) => {
+        const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1100; lp.Q.value = 1.2;
+        const g = a.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(vol, t0 + 0.14);        // the swell of breath
+        g.gain.setValueAtTime(vol, t0 + Math.max(0.15, dur - 0.18));
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+        const vib = a.createOscillator(), vg = a.createGain();
+        vib.type = "sine"; vib.frequency.value = 5.2; vg.gain.value = 3.5;
+        vib.connect(vg);
+        for (const ratio of [1, 1.007, 0.5]) {                      // unison pair + an octave-down growl
+          const o = a.createOscillator();
+          o.type = "sawtooth";
+          o.frequency.setValueAtTime(f0 * ratio * 0.94, t0);
+          o.frequency.exponentialRampToValueAtTime(f0 * ratio, t0 + 0.12);   // scooping up into the note
+          vg.connect(o.frequency);
+          o.connect(lp);
+          o.start(t0); o.stop(t0 + dur + 0.05);
+        }
+        lp.connect(g); g.connect(sfxBus);
+        vib.start(t0); vib.stop(t0 + dur + 0.05);
+      };
+      const t = a.currentTime;
+      blast(t, 175, 0.75, 0.30);          // the call
+      blast(t + 0.85, 175, 0.45, 0.28);   // the short repeat
+      blast(t + 1.4, 233, 1.15, 0.32);    // up a fourth and held — the warning
+      noise(0.12, 0.08, 1800, 700, 1, "bandpass", 0);      // breath chiff on each onset
+      noise(0.10, 0.07, 1800, 700, 1, "bandpass", 0.85);
+      noise(0.12, 0.08, 1900, 800, 1, "bandpass", 1.4);
+    },
     chop:     () => { noise(0.06, 0.3, 700, 250, 1, "lowpass"); tone("triangle", 220, 90, 0.07, 0.2); },
     treeFall: () => { noise(0.5, 0.3, 500, 80, 1, "lowpass"); tone("triangle", 110, 40, 0.5, 0.25); },
     quarry:   () => { tone("square", 1900, 1500, 0.04, 0.1); noise(0.06, 0.28, 2600, 900, 3); },
