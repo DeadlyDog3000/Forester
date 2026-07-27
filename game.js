@@ -282,6 +282,8 @@ const keys = {};
 const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
 const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [], corpses = [], graves = [];
+// enemy ground: a foreign crown's border town, standing in the world to be stormed
+const foreign = [], foreignTowns = [];
 const balls = [];   // musket shot in flight — it goes where it was pointed, and no further
 // dirt paths: a set of small cells the colony has worn smooth, a fifth of a mark each
 const ROAD = 32, ROAD_COST = 0.2;      // one dirt tile of lane, a fifth of a mark apiece
@@ -544,6 +546,20 @@ function updateRaider(r, dt) {
   r.stepT = (r.stepT || 0) - dt;
   if ((r.state === "approach" || r.state === "flee") && r.stepT <= 0 && onScreen(r.x, r.y)) { SFX.step(true); r.stepT = 0.3; }
   if (r.state === "patrol") {
+    // a town's garrison holds its own ground — it never marches on your colony
+    if (r.garrison) {
+      const gd = Math.hypot(r.wpx - r.x, r.wpy - r.y);
+      if (gd < 8) {
+        const a = Math.random() * Math.PI * 2, rad = 90 + Math.random() * 150;
+        r.wpx = r.garrison.x + Math.cos(a) * rad; r.wpy = r.garrison.y + Math.sin(a) * rad * 0.85;
+      } else {
+        r.x += (r.wpx - r.x) / gd * speed * 0.4 * dt;
+        r.y += (r.wpy - r.y) / gd * speed * 0.4 * dt;
+        r.facing = r.wpx < r.x ? -1 : 1;
+        r.anim += dt * 5;
+      }
+      return;
+    }
     // circle the camp, watchful, until the strike
     const d = Math.hypot(r.wpx - r.x, r.wpy - r.y);
     if (d < 8 || !camps.includes(r.camp)) {
@@ -690,7 +706,7 @@ let wallRot = 0;
 const inflate = (r, m) => ({ x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m });
 const rectsOverlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 const pointInRect = (px, py, r) => px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
-const allStructures = () => buildings.concat(farms.map(f => ({ type: "farm", x: f.x, y: f.y })));
+const allStructures = () => buildings.concat(farms.map(f => ({ type: "farm", x: f.x, y: f.y }))).concat(foreign);
 
 const tkey = (cx, cy) => cx + "," + cy;
 function tcellOf(wx, wy) { return [Math.floor(wx / TCELL), Math.floor(wy / TCELL)]; }
@@ -1284,6 +1300,20 @@ function worldClick(clientX, clientY) {
       return;
     }
 
+  // enemy ground: any fighting man can be sent against a foreign wall or roof
+  for (const fb of foreign)
+    if (pointInRect(mouse.wx, mouse.wy, bldgRect(fb))) {
+      const grp = soldierGroup().filter(isForce);
+      if (grp.length) {
+        grp.forEach((s, i) => { s.post = null; order(s, { kind: "siege", target: fb,
+          x: fb.x + (i % 3 - 1) * 30, y: fb.y + 22 + Math.floor(i / 3) * 16 }); });
+        toast(fb.keep ? `${grp.length} storm the keep of ${fb.town.name}!`
+                      : `${grp.length} set upon the ${BLDG_NAMES[fb.type] || fb.type}.`);
+      } else if (selected) toast("Only soldiers, musketeers, cavalry or police can be sent against enemy ground.");
+      else toast(`${fb.town.name} — a town of ${NATIONS[fb.town.nation].name}. Select your soldiers, then click here.`);
+      return;
+    }
+
   // camps: soldiers can be ordered to sack them
   for (const cp of camps)
     if (Math.abs(mouse.wx - cp.x) < BLDG_SIZE / 2 && mouse.wy < cp.y && mouse.wy > cp.y - BLDG_SIZE) {
@@ -1638,7 +1668,8 @@ function arrive(c) {
   } else if (t.kind === "attack") {
     c.state = "fighting"; c.workT = 0;
   } else if (t.kind === "siege") {
-    if (!camps.includes(t.target)) { c.state = "idle"; c.task = null; return; }
+    const standing = t.target && t.target.foreign ? foreign.includes(t.target) : camps.includes(t.target);
+    if (!standing) { c.state = "idle"; c.task = null; return; }
     c.state = "sieging"; c.workT = 0;
   } else if (t.kind === "torch") {
     if (!buildings.includes(t.target) || t.target.fire) { c.state = "idle"; c.task = null; return; }
@@ -3055,33 +3086,114 @@ document.getElementById("miTrade").addEventListener("click", () => {
     },
   });
 });
+// Marching on a settlement is no longer a roll of dice: their border town is set
+// down in the world, and you take it with your own soldiers or not at all.
 document.getElementById("miAssault").addEventListener("click", () => {
-  const n = NATIONS[mapSelNation];
-  // every fighting arm joins the storm — musketeers bring their own muskets,
-  // riders their sabres; only unarmed foot soldiers draw from the armoury
+  const id = mapSelNation, n = NATIONS[id];
+  const standing = foreignTowns.find(t => t.nation === id);
+  if (standing) {
+    cam.x = standing.x - canvas.width / 2 / zoom;
+    cam.y = standing.y - canvas.height / 2 / zoom;
+    document.getElementById("mapOverlay").style.display = "none"; setPause(pauseOpen);
+    toast(`${standing.name} stands before you. Select your soldiers and click its walls, its buildings and its keep.`);
+    return;
+  }
   const party = civs.filter(c => ["soldier", "musketeer", "cavalry"].includes(c.profession));
   if (party.length < 4) return toast("An assault needs at least 4 fighting men — soldiers, musketeers or cavalry.");
-  const needW = party.filter(c => c.profession === "soldier" && !c.armed).length;
-  if (res.weapons < needW) return toast(`${needW} soldier(s) march unarmed — the armoury holds ${res.weapons} weapon(s) of the ${needW} needed.`);
-  res.weapons -= needW;
-  const odds = Math.max(0.05, Math.min(0.5, party.length * 0.04 + (has("raiding") ? 0.06 : 0) + (has("hussars") ? 0.06 : 0) - natStrength(n) * 0.03));
-  if (Math.random() < odds) {
-    n.lost++;
-    n.captured = n.captured || [];
-    const [bx, by] = n.blobs[0];
-    for (let i = 0; i < 4; i++) n.captured.push((bx + i % 2 + n.lost) + "," + (by + Math.floor(i / 2)));
-    res.dm += 200;
-    eventCard(`Your soldiers storm a settlement of ${n.name}!`, "event_conquest", "+200 DM plunder — their land is yours");
-    SFX.coin();
-    checkDefeated(mapSelNation);
-  } else {
-    let lost = 0;
-    for (const sd of party) if (Math.random() < 0.5) { killCiv(sd, `fell before the walls of ${n.name}`); lost++; }
-    toast(`The assault on ${n.name} is thrown back. ${lost} fighter(s) never came home.`);
-  }
+  const town = landForeignTown(id);
+  cam.x = town.x - canvas.width / 2 / zoom;
+  cam.y = town.y - canvas.height / 2 / zoom;
+  document.getElementById("mapOverlay").style.display = "none"; setPause(pauseOpen);
+  eventCard(`Scouts find ${town.name}, a border town of ${n.name}.`, "event_warparty",
+            "March your army there and throw down its keep");
+  toast(`${town.name} lies to the ${Math.abs(town.x) > Math.abs(town.y) ? (town.x > 0 ? "east" : "west") : (town.y > 0 ? "south" : "north")} — march your army and raze its keep. Watch for its marker at the screen's edge.`);
   mapInfoSync(); renderMap(); syncUI();
 });
 
+// ===== foreign border towns: real ground to be taken, not a roll of dice =====
+// A crown at war plants a walled town within a march of your colony. Its keep is
+// the prize: raze it and the settlement falls, its land passing to your empire.
+const FOREIGN_NAMES = { denmark: ["Nyborg", "Aalborg", "Ribe"], sweden: ["Kalmar", "Falun", "Vaxjo"],
+                        hre: ["Lindau", "Ansbach", "Weimar"], brandenburg: ["Kustrin", "Prenzlau", "Zossen"],
+                        poland: ["Torun", "Plock", "Lomza"], france: ["Verdun", "Sedan", "Toul"] };
+function foreignName(id, n) {
+  const pool = FOREIGN_NAMES[id];
+  if (pool) return pool[foreignTowns.filter(t => t.nation === id).length % pool.length];
+  return n.name + " Outpost";
+}
+function landForeignTown(id) {
+  const n = NATIONS[id];
+  const tier = Math.max(1, natStrength(n));
+  // set it down a real march away, clear of your ground, the camps and other towns
+  let site = null;
+  for (let tries = 0; tries < 40 && !site; tries++) {
+    const a = Math.random() * Math.PI * 2, d = 2600 + Math.random() * 700;
+    const x = Math.round(Math.cos(a) * d), y = Math.round(Math.sin(a) * d);
+    if (camps.every(cp => Math.hypot(cp.x - x, cp.y - y) > 900) &&
+        settlements.every(s => s.x === undefined || Math.hypot(s.x - x, s.y - y) > 1500) &&
+        foreignTowns.every(t => Math.hypot(t.x - x, t.y - y) > 1800) &&
+        !inTerritory(x, y)) site = { x, y };
+  }
+  if (!site) { const a = Math.random() * Math.PI * 2; site = { x: Math.round(Math.cos(a) * 3000), y: Math.round(Math.sin(a) * 3000) }; }
+  const town = { nation: id, name: foreignName(id, n), x: site.x, y: site.y, fallen: false,
+                 dm: 150 + tier * 40, weapons: 2 + Math.floor(tier / 2) };
+  foreignTowns.push(town);
+  const put = (type, dx, dy, hp) => {
+    const b = { type, x: site.x + dx, y: site.y + dy, hp, maxHp: hp, town, foreign: true,
+                progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
+    foreign.push(b);
+    for (const t of nearThings("trees", b.x, b.y, 90)) { t.alive = false; markChunkDirty(t.x, t.y); }
+    for (const s of nearThings("stones", b.x, b.y, 80)) { s.alive = false; markChunkDirty(s.x, s.y); }
+    return b;
+  };
+  // the keep at the heart, the town about it, a ring of wall with one gate
+  town.keep = put("townhall", 0, 0, 260 + tier * 30);
+  town.keep.keep = true;
+  put("cabin", -150, -40, 90); put("cabin", 150, -40, 90);
+  put("cabin", -110, 120, 90); put("cabin", 120, 120, 90);
+  put("market", 0, 150, 110);
+  if (tier >= 3) put("forge", -190, 90, 110);
+  if (tier >= 5) put("watchtower", 190, 90, 130);
+  const R = 300, wallHp = 90 + tier * 14, RING = 26;
+  for (let i = 0; i < RING; i++) {
+    const a = (i / RING) * Math.PI * 2;
+    const wx = Math.round(Math.cos(a) * R), wy = Math.round(Math.sin(a) * R * 0.82);
+    if (i === 6) { const g = put("gate", wx, wy, wallHp); g.rot = Math.abs(Math.cos(a)) > 0.6 ? 1 : 0; continue; }
+    const w = put(tier >= 4 ? "stonewall" : "wall", wx, wy, wallHp);
+    w.rot = Math.abs(Math.cos(a)) > 0.6 ? 1 : 0;
+  }
+  // the garrison: they hold the town and do not march on your colony
+  const garrison = 4 + Math.floor(tier / 2);
+  for (let i = 0; i < garrison; i++) {
+    const a = (i / garrison) * Math.PI * 2, rr = 120 + Math.random() * 90;
+    const hp = 80 + tier * 8;
+    raiders.push({ x: site.x + Math.cos(a) * rr, y: site.y + Math.sin(a) * rr, hp, maxHp: hp,
+                   dmg: 13 + tier, camp: { x: site.x, y: site.y }, target: null, state: "patrol",
+                   anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, nation: id, garrison: town,
+                   wpx: site.x + Math.cos(a) * rr, wpy: site.y + Math.sin(a) * rr });
+  }
+  return town;
+}
+// the town falls when its keep is thrown down
+function foreignTownFalls(town) {
+  town.fallen = true;
+  const n = NATIONS[town.nation];
+  for (let i = foreign.length - 1; i >= 0; i--) if (foreign[i].town === town) foreign.splice(i, 1);
+  for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].garrison === town) raiders.splice(i, 1);
+  for (let i = foreignTowns.length - 1; i >= 0; i--) if (foreignTowns[i] === town) foreignTowns.splice(i, 1);
+  res.dm += town.dm; res.weapons += town.weapons;
+  n.lost = (n.lost || 0) + 1;
+  n.captured = n.captured || [];
+  const [bx, by] = n.blobs[0];
+  for (let i = 0; i < 4; i++) n.captured.push((bx + i % 2 + n.lost) + "," + (by + Math.floor(i / 2)));
+  expandAround(town.x, town.y, 4);            // the ground is yours now
+  SFX.coin();
+  float(town.x, town.y - 90, `+${town.dm} DM +${town.weapons} wpn`, "#7da083");
+  eventCard(`${town.name} has fallen to ${empireName || "your empire"}!`,
+            "event_conquest", `+${town.dm} DM plunder — ${n.name} loses a settlement`);
+  checkDefeated(town.nation);
+  mapGrid = null; renderMap(); syncUI();
+}
 function updateWars(dt) {
   for (const [id, n] of Object.entries(NATIONS)) {
     if (!n.atWar || n.defeated) continue;
@@ -3461,6 +3573,12 @@ function saveGame() {
       settlements: settlements.map(st => ({ ...st })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
+      foreignTowns: foreignTowns.map(t => ({ nation: t.nation, name: t.name, x: r1(t.x), y: r1(t.y),
+                                             dm: t.dm, weapons: t.weapons })),
+      foreign: foreign.map(b => ({ type: b.type, x: r1(b.x), y: r1(b.y), hp: r1(b.hp), maxHp: b.maxHp,
+                                   rot: b.rot, keep: !!b.keep, town: foreignTowns.indexOf(b.town) })),
+      garrisons: raiders.filter(r => r.garrison).map(r => ({ x: r1(r.x), y: r1(r.y), hp: r1(r.hp), maxHp: r.maxHp,
+                                   dmg: r.dmg, nation: r.nation, town: foreignTowns.indexOf(r.garrison) })),
       wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated, trade: !!n.trade }])),
     };
     const json = JSON.stringify(data);
@@ -3579,6 +3697,22 @@ function loadGame() {
     // settlements were founded before their clearing was claimed
     for (const st of settlements) if (st.x !== undefined) expandAround(st.x, st.y, 5);
     conquests.length = 0; for (const cq of (d.conquests || [])) conquests.push(cq);
+    foreignTowns.length = 0; foreign.length = 0;
+    for (const t of (d.foreignTowns || [])) foreignTowns.push({ ...t, fallen: false });
+    for (const b of (d.foreign || [])) {
+      const town = foreignTowns[b.town];
+      if (!town) continue;
+      const fb = { ...b, town, foreign: true, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
+      foreign.push(fb);
+      if (fb.keep) town.keep = fb;
+    }
+    for (const g of (d.garrisons || [])) {
+      const town = foreignTowns[g.town];
+      if (!town) continue;
+      raiders.push({ x: g.x, y: g.y, hp: g.hp, maxHp: g.maxHp, dmg: g.dmg, nation: g.nation, garrison: town,
+                     camp: { x: town.x, y: town.y }, target: null, state: "patrol", anim: 0, facing: 1,
+                     atkT: 0, foe: null, carry: 0, wpx: g.x, wpy: g.y });
+    }
     natWars = d.natWars || [];
     mapGrid = null;   // rebuilt with conquests on next use
     if (d.wars) {
@@ -4684,6 +4818,39 @@ function update(dt) {
       }
     } else if (c.state === "sieging") {
       const cp = c.task.target;
+      // enemy town: the same storming, but the walls and roofs of a foreign crown
+      if (cp && cp.foreign) {
+        if (!foreign.includes(cp)) { c.state = "idle"; c.task = null; continue; }
+        c.facing = cp.x < c.x ? -1 : 1;
+        c.anim += dt * 9;
+        c.atkT -= dt;
+        if (c.atkT <= 0) {
+          c.atkT = ATK_INTERVAL;
+          const dmg = forceDmg(c);
+          SFX.swing();
+          cp.hp -= dmg;
+          float(cp.x, cp.y - 90, "-" + dmg, "#d86a5a");
+          SFX.hit();
+          // walls do not strike back; the keep and the garrison's roofs do
+          if (cp.keep || cp.type === "watchtower") {
+            if (Math.random() < DODGE_CHANCE) float(c.x, c.y - 70, "Dodged!", "#cfd8d3");
+            else {
+              const ret = cp.keep ? 9 : 6;
+              c.hp -= ret;
+              float(c.x, c.y - 70, "-" + ret, "#d86a5a");
+              if (c.hp <= 0) { killCiv(c, `fell before the walls of ${cp.town.name}`); continue; }
+            }
+          }
+          if (cp.hp <= 0) {
+            const town = cp.town, wasKeep = cp.keep;
+            foreign.splice(foreign.indexOf(cp), 1);
+            if (wasKeep) foreignTownFalls(town, c);
+            else { SFX.treeFall(); toast(`The ${BLDG_NAMES[cp.type] || cp.type} of ${town.name} is thrown down.`); }
+            c.state = "idle"; c.task = null;
+          }
+        }
+        continue;
+      }
       if (!camps.includes(cp)) { c.state = "idle"; c.task = null; continue; }
       c.facing = cp.x < c.x ? -1 : 1;
       c.anim += dt * 9;
@@ -4852,6 +5019,19 @@ function render(dt) {
       ctx.strokeStyle = "#d86a5a"; ctx.lineWidth = 1;
       ctx.strokeRect(cp.x - BLDG_SIZE / 2, cp.y - BLDG_SIZE, BLDG_SIZE, BLDG_SIZE);
     }
+  }});
+  // a foreign crown's town: their roofs and walls, drawn in their own colours
+  for (const fb of foreign) if (inView(fb.x, fb.y)) drawables.push({ y: fb.y, draw: () => {
+    const winter = season() === "winter";
+    const key = (winter && img[fb.type + "_w"]) ? fb.type + "_w" : fb.type;
+    const im = img[fb.rot && img[fb.type + "v"] ? fb.type + "v" : key] || img[fb.type];
+    if (im) drawSprite(im, fb.x, fb.y, SMALL_BLDG[fb.type] || BLDG_SIZE, false);
+    const col = (NATIONS[fb.town.nation] || {}).color || "#d86a5a";
+    if (fb.keep) {
+      ctx.fillStyle = col; ctx.font = "10px monospace"; ctx.textAlign = "center";
+      ctx.fillText(fb.town.name.toUpperCase(), fb.x, fb.y - BLDG_SIZE - 6);
+    }
+    if (fb.hp < fb.maxHp) bar(fb.x, fb.y - (SMALL_BLDG[fb.type] || BLDG_SIZE) - 12, fb.hp / fb.maxHp, "#a05252", fb.keep ? 44 : 30);
   }});
   for (const cp of corpses) {
     if (cp.carried && civs.includes(cp.carried)) { cp.x = cp.carried.x + 8; cp.y = cp.carried.y - 6; }
@@ -5052,17 +5232,19 @@ function render(dt) {
 
   // edge-of-screen markers for towns that are out of view
   const towns = settlements.filter(s => s.x !== undefined).map(s => ({ x: s.x, y: s.y, name: s.name }));
-  if (towns.length) towns.push({ x: 0, y: -40, name: settlementName || "Home" });
+  if (towns.length || foreignTowns.length) towns.push({ x: 0, y: -40, name: settlementName || "Home" });
+  for (const ft of foreignTowns) towns.push({ x: ft.x, y: ft.y, name: ft.name, foe: true });
   for (const t of towns) {
     const sx = (t.x - cam.x) * zoom, sy = (t.y - cam.y) * zoom;
     if (sx > -40 && sx < canvas.width + 40 && sy > -40 && sy < canvas.height + 40) continue;
     const mx2 = Math.max(30, Math.min(canvas.width - 30, sx));
     const my2 = Math.max(52, Math.min(canvas.height - 70, sy));
+    const mcol = t.foe ? "#d86a5a" : "#c9a86a";
     ctx.save(); ctx.translate(mx2, my2); ctx.rotate(Math.PI / 4);
     ctx.fillStyle = "rgba(13,18,16,0.85)"; ctx.fillRect(-8, -8, 16, 16);
-    ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1.5; ctx.strokeRect(-8, -8, 16, 16);
+    ctx.strokeStyle = mcol; ctx.lineWidth = 1.5; ctx.strokeRect(-8, -8, 16, 16);
     ctx.restore();
-    ctx.fillStyle = "#c9a86a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = mcol; ctx.font = "10px monospace"; ctx.textAlign = "center";
     const tx2 = Math.max(46, Math.min(canvas.width - 46, mx2));
     ctx.fillText(t.name, tx2, my2 + (sy > canvas.height - 70 ? -16 : 22));
   }
