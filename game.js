@@ -4305,7 +4305,7 @@ $("cutscene").addEventListener("click", () => {
 let tutStep = -1;
 const tutSeen = { map: false, gov: false, tech: false };
 const TUT_STEPS = [
-  { text: () => "That burnt cabin in the clearing was your family's. Start by clicking your Brother or Sister to select them.",
+  { text: () => "That burnt cabin was here long before you were — whoever raised it is gone. Start by clicking your Brother or Sister to select them.",
     done: () => !!selected },
   { text: () => "Everything here is built from wood. With them still selected, click a spruce tree to fell it.",
     done: () => civs.some(c => c.inv.logs > 0) || res.logs > 0 },
