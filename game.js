@@ -106,7 +106,9 @@ let research = null;
 
 // --- derived stats ---
 const isForce = c => c.profession === "police" || c.profession === "soldier" || c.profession === "musketeer" || c.profession === "cavalry";
-const walkSpeed = c => BASE_WALK * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1) * (c && c.profession === "cavalry" ? 1.45 : 1);
+// deep snow slows every traveller by a fifth — the road's packed lane still helps
+const snowPace = () => season() === "winter" ? 0.8 : 1;
+const walkSpeed = c => BASE_WALK * snowPace() * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1) * (c && c.profession === "cavalry" ? 1.45 : 1);
 const workMul = c => (c && c.tool ? 0.65 : 1) * (has("stables") ? 0.8 : 1) * (laws.forced ? 0.75 : 1);
 const chopTime = c => BASE_CHOP * (has("axing") ? 0.65 : has("treecutting") ? 0.8 : 1) * workMul(c);
 const logsPerTree = () => BASE_LOGS_PER_TREE + (has("sawing") ? 2 : 0) + (has("sawmills") ? 3 : 0);
@@ -189,9 +191,9 @@ for (let i = 0; i < 16; i++) {
   IMAGES[`road_w${i}`] = `assets/sprites/env/road_w_${i}.png`;
 }
 for (const who of ["sister", "brother", "hunter"]) for (let i = 0; i < 4; i++) IMAGES[`${who}${i}`] = `assets/sprites/characters/${who}_walk_${i}.png`;
-for (let i = 0; i < 4; i++) IMAGES[`cavalry${i}`] = `assets/sprites/characters/cavalry_walk_${i % 2}.png`;   // 2-frame ride cycle
-for (let i = 0; i < 4; i++) IMAGES[`musketeer${i}`] = `assets/sprites/characters/musketeer_walk_${i % 2}.png`;
-for (let i = 0; i < 4; i++) IMAGES[`soldierU${i}`] = `assets/sprites/characters/soldier_walk_${i % 2}.png`;
+for (let i = 0; i < 4; i++) IMAGES[`cavalry${i}`] = `assets/sprites/characters/cavalry_walk_${i}.png`;   // 4-frame gallop: stride, gather, and the rise
+for (let i = 0; i < 4; i++) IMAGES[`musketeer${i}`] = `assets/sprites/characters/musketeer_walk_${i}.png`;
+for (let i = 0; i < 4; i++) IMAGES[`soldierU${i}`] = `assets/sprites/characters/soldier_walk_${i}.png`;
 for (let i = 0; i < 4; i++) IMAGES[`atkuni${i}`] = `assets/sprites/characters/soldier_atk_${i % 3}.png`;
 for (let i = 0; i < 4; i++) {                       // aim, flash, smoke, lower — then powder, ball, ramrod, shoulder
   IMAGES[`mfire${i}`] = `assets/sprites/characters/musket_fire_${i}.png`;
@@ -280,8 +282,8 @@ const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
 const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [], corpses = [], graves = [];
 const balls = [];   // musket shot in flight — it goes where it was pointed, and no further
-// dirt paths: a set of small cells the colony has worn smooth, half a mark each
-const ROAD = 32, ROAD_COST = 0.5;      // one dirt tile of lane, half a mark apiece
+// dirt paths: a set of small cells the colony has worn smooth, a fifth of a mark each
+const ROAD = 32, ROAD_COST = 0.2;      // one dirt tile of lane, a fifth of a mark apiece
 const roads = new Set();
 const rkey = (rx, ry) => rx + "," + ry;
 const roadCellOf = (wx, wy) => [Math.floor(wx / ROAD), Math.floor(wy / ROAD)];
@@ -513,7 +515,7 @@ function spawnRaid() {
 }
 
 function updateRaider(r, dt) {
-  let speed = BASE_WALK * 0.9;
+  let speed = BASE_WALK * 0.9 * snowPace();   // the snow does not part for raiders either
   // moats and ditches mire attackers
   for (const b of buildings) {
     if (b.site) continue;
@@ -1015,7 +1017,7 @@ function cancelAll() {
   syncUI();
 }
 
-// --- roads: drag a straight dirt lane across the grass, half a mark the cell ---
+// --- roads: drag a straight dirt lane across the grass, a fifth of a mark the cell ---
 let roadMode = false, roadDrag = false, roadSpent = 0;
 let roadStart = null, roadGhost = [];
 function layRoad(rx, ry) {
@@ -1054,7 +1056,7 @@ function roadLine(a, b) {
 }
 $("roadToggle").addEventListener("click", () => {
   roadMode = !roadMode;
-  if (roadMode) { buildMode = null; toast("Road builder: press and drag — the lane snaps to straight legs (½ DM a tile). Release to build it. Click ROADS again to stop."); }
+  if (roadMode) { buildMode = null; toast("Road builder: press and drag — the lane snaps to straight legs (0.2 DM a tile). Release to build it. Click ROADS again to stop."); }
   else if (roadSpent > 0) { toast(`Road laid — ${roadSpent % 1 ? roadSpent.toFixed(1) : roadSpent} DM spent.`); roadSpent = 0; }
   syncUI();
 });
@@ -1894,7 +1896,7 @@ function updateVisitor(v, dt) {
       if (v.leaving) { visitors.splice(visitors.indexOf(v), 1); usedNames.delete(v.name); return; }
       v.state = "waiting";
     } else {
-      v.x += (dx / d) * BASE_WALK * 0.8 * dt; v.y += (dy / d) * BASE_WALK * 0.8 * dt;
+      v.x += (dx / d) * BASE_WALK * 0.8 * snowPace() * dt; v.y += (dy / d) * BASE_WALK * 0.8 * snowPace() * dt;
       v.facing = dx < 0 ? -1 : 1; v.anim += dt * 8;
     }
   } else if (v.state === "waiting") {
