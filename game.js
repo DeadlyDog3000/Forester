@@ -1305,9 +1305,12 @@ function worldClick(clientX, clientY) {
     if (pointInRect(mouse.wx, mouse.wy, bldgRect(fb))) {
       const grp = soldierGroup().filter(isForce);
       if (grp.length) {
-        grp.forEach((s, i) => { s.post = null; order(s, { kind: "siege", target: fb,
+        // the town hall is the prize and it goes to the torch — the rest of the
+        // town is worth more standing, so the sword is only for what bars the way
+        const kind = fb.keep ? "torch" : "siege";
+        grp.forEach((s, i) => { s.post = null; order(s, { kind, target: fb,
           x: fb.x + (i % 3 - 1) * 30, y: fb.y + 22 + Math.floor(i / 3) * 16 }); });
-        toast(fb.keep ? `${grp.length} storm the keep of ${fb.town.name}!`
+        toast(fb.keep ? `${grp.length} carry fire to the town hall of ${fb.town.name}!`
                       : `${grp.length} set upon the ${BLDG_NAMES[fb.type] || fb.type}.`);
       } else if (selected) toast("Only soldiers, musketeers, cavalry or police can be sent against enemy ground.");
       else toast(`${fb.town.name} — a town of ${NATIONS[fb.town.nation].name}. Select your soldiers, then click here.`);
@@ -1672,7 +1675,8 @@ function arrive(c) {
     if (!standing) { c.state = "idle"; c.task = null; return; }
     c.state = "sieging"; c.workT = 0;
   } else if (t.kind === "torch") {
-    if (!buildings.includes(t.target) || t.target.fire) { c.state = "idle"; c.task = null; return; }
+    const there = t.target && t.target.foreign ? foreign.includes(t.target) : buildings.includes(t.target);
+    if (!there || t.target.fire) { c.state = "idle"; c.task = null; return; }
     c.state = "torching"; c.workT = 0;
   } else if (simple[t.kind]) {
     if ((t.kind === "chop" || t.kind === "quarry" || t.kind === "gather") && !t.target.alive) { c.state = "idle"; c.task = null; return; }
@@ -3105,8 +3109,8 @@ document.getElementById("miAssault").addEventListener("click", () => {
   cam.y = town.y - canvas.height / 2 / zoom;
   document.getElementById("mapOverlay").style.display = "none"; setPause(pauseOpen);
   eventCard(`Scouts find ${town.name}, a border town of ${n.name}.`, "event_warparty",
-            "March your army there and throw down its keep");
-  toast(`${town.name} lies to the ${Math.abs(town.x) > Math.abs(town.y) ? (town.x > 0 ? "east" : "west") : (town.y > 0 ? "south" : "north")} — march your army and raze its keep. Watch for its marker at the screen's edge.`);
+            "March your army there and put its town hall to the torch");
+  toast(`${town.name} lies to the ${Math.abs(town.x) > Math.abs(town.y) ? (town.x > 0 ? "east" : "west") : (town.y > 0 ? "south" : "north")} — burn its town hall and the town is yours, roofs and all. Watch for its marker at the screen's edge.`);
   mapInfoSync(); renderMap(); syncUI();
 });
 
@@ -3174,23 +3178,48 @@ function landForeignTown(id) {
   }
   return town;
 }
-// the town falls when its keep is thrown down
+// the town falls when its hall burns — and what still stands becomes yours
 function foreignTownFalls(town) {
   town.fallen = true;
   const n = NATIONS[town.nation];
-  for (let i = foreign.length - 1; i >= 0; i--) if (foreign[i].town === town) foreign.splice(i, 1);
+  let taken = 0;
+  for (let i = foreign.length - 1; i >= 0; i--) {
+    const b = foreign[i];
+    if (b.town !== town) continue;
+    foreign.splice(i, 1);
+    if (b.keep) {
+      // the hall itself burns down to a charred ruin you may rebuild
+      buildings.push({ type: "burned", x: b.x, y: b.y, progress: -1, occupants: [], fire: 0,
+                       torchP: -1, placed: true, bakeT: 0 });
+      continue;
+    }
+    // roofs, walls and workshops left standing change hands, damage and all
+    delete b.foreign; delete b.town;
+    b.site = false; b.progress = -1; b.occupants = []; b.builder = null;
+    b.fire = b.fire || 0; b.torchP = -1; b.placed = true; b.bakeT = 0;
+    b.shop = b.shop || [];
+    buildings.push(b);
+    taken++;
+  }
   for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].garrison === town) raiders.splice(i, 1);
   for (let i = foreignTowns.length - 1; i >= 0; i--) if (foreignTowns[i] === town) foreignTowns.splice(i, 1);
+  town.taken = taken;
   res.dm += town.dm; res.weapons += town.weapons;
+  // the settlement joins your empire under its own name, and its roofs take your folk
+  settlements.push({ name: town.name, pop: 0, x: town.x, y: town.y,
+                     res: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0, doors: 0, weapons: 0 },
+                     ...freeMapCell() });
+  for (const c of civs) if (!c.home) houseCiv(c);
   n.lost = (n.lost || 0) + 1;
   n.captured = n.captured || [];
   const [bx, by] = n.blobs[0];
   for (let i = 0; i < 4; i++) n.captured.push((bx + i % 2 + n.lost) + "," + (by + Math.floor(i / 2)));
-  expandAround(town.x, town.y, 4);            // the ground is yours now
+  expandAround(town.x, town.y, 5);            // the ground is yours now
   SFX.coin();
   float(town.x, town.y - 90, `+${town.dm} DM +${town.weapons} wpn`, "#7da083");
   eventCard(`${town.name} has fallen to ${empireName || "your empire"}!`,
-            "event_conquest", `+${town.dm} DM plunder — ${n.name} loses a settlement`);
+            "event_conquest",
+            `+${town.dm} DM plunder, ${town.taken} building(s) taken intact — ${town.name} is yours`);
   checkDefeated(town.nation);
   mapGrid = null; renderMap(); syncUI();
 }
@@ -4884,12 +4913,17 @@ function update(dt) {
       }
     } else if (c.state === "torching") {
       const b = c.task.target;
-      if (!buildings.includes(b) || b.fire) { c.state = "idle"; c.task = null; continue; }
+      const there = b && b.foreign ? foreign.includes(b) : buildings.includes(b);
+      if (!there || b.fire) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt; b.torchP = c.workT / torchTime(); c.anim += dt * 9;
       if ((c.workT % 0.35) < dt) SFX.crackle();
       if (c.workT >= torchTime()) {
         b.torchP = -1; b.fire = FIRE_TIME;
-        toast(`⚠ ${c.name} has set the ${b.type === "cabin" ? "cabin" : b.type} ablaze!`);
+        if (b.foreign && b.keep) {
+          // the hall burning is the signal: the town is taken
+          toast(`⚠ ${c.name} puts the town hall of ${b.town.name} to the torch!`);
+          foreignTownFalls(b.town);
+        } else toast(`⚠ ${c.name} has set the ${b.type === "cabin" ? "cabin" : b.type} ablaze!`);
         c.state = "idle"; c.task = null;
       }
     } else {
