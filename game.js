@@ -2080,6 +2080,18 @@ function forceAI(c) {
       return;
     }
   }
+  // Nothing near at hand — but a raid on ANY of your towns is the army's business.
+  // Whoever is not standing a post marches, however far the trouble is.
+  const call = raidAlarm(c.x, c.y);
+  if (call) {
+    if (alarmToldT <= 0) {
+      alarmToldT = 12;
+      const where = townAt(call.x, call.y);
+      toast(`⚔ ${where ? where.name : settlementName || "The colony"} is under attack — the army marches!`);
+    }
+    order(c, { kind: "attack", target: call, x: call.x, y: call.y });
+    return;
+  }
   // no trouble: walk the beat along the borders
   c.patrolT = (c.patrolT || 0) - 1 / 60;
   if (c.patrolT <= 0) {
@@ -2090,6 +2102,20 @@ function forceAI(c) {
       order(c, { kind: "walk", x: cx2 * TCELL + TCELL / 2, y: cy2 * TCELL + TCELL / 2 });
     }
   }
+}
+// The nearest raider actually at your roofs, anywhere in the empire. A garrison
+// holding its own town is not the alarm — this is for bands come to burn and rob.
+let alarmToldT = 0;
+function raidAlarm(fromX, fromY) {
+  let best = null, bd = Infinity;
+  for (const r of raiders) {
+    if (r.garrison || r.state === "patrol" || r.state === "flee") continue;
+    const t = r.wallTarget || r.target;
+    if (!t || !buildings.includes(t)) continue;          // only those set on your buildings
+    const d = fromX === undefined ? 0 : Math.hypot(r.x - fromX, r.y - fromY);
+    if (d < bd) { bd = d; best = r; }
+  }
+  return best;
 }
 
 // --- torching / fire ---
@@ -4489,6 +4515,7 @@ function update(dt) {
     }
   }
   for (const f of farms) if (!f.ready && season() !== "winter" && (f.growT += dt) >= farmRipen()) f.ready = true;
+  if (alarmToldT > 0) alarmToldT -= dt;          // the alarm may be cried again in a while
   SFX.fireLoop(buildings.some(b => b.fire > 0) || foreign.some(b => b.fire > 0));
   // the townsfolk: about their business until soldiers come, then they run
   for (const f of foreignFolk) {
