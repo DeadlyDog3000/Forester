@@ -2001,6 +2001,12 @@ function rejectColony(v) { closeDialogue(); sendAway(v, `${v.name} shakes his he
 
 // --- tech research ---
 function techAvailable(t) { return !t.done && t.req.every(r => TECH[r].done) && (!research || research.id !== t.id); }
+// which menu entries hide until their technology is researched
+const BUILD_GATES = { forge: "forging", townhall: "township", wall: "defending", gate: "defending",
+                      stonewall: "defplus", stonegate: "defplus", moat: "defplus", ditch: "defplus" };
+const PROF_GATES = { lumberjack: "township", quarryman: "township", forager: "township",
+                     police: "policing", blacksmith: "forging", soldier: "raiding",
+                     musketeer: "matchlock", cavalry: "cavalry" };
 function startResearch(id) {
   const t = TECH[id];
   if (research) return toast("The scholars are already busy.");
@@ -2032,7 +2038,18 @@ function updateResearch(dt) {
 const NODE_W = 118, NODE_H = 42, COL_W = 148, ROW_H = 62;
 function renderTech() {
   const list = $("techList");
-  const nodes = Object.values(TECH).filter(t => t.tree === techTab);
+  const q = ($("techSearch").value || "").trim().toLowerCase();
+  // the tree stays lean: only what is researched or ready to be taken up next is
+  // drawn. Deeper techs stay out of sight until their parents are done — or are
+  // searched for by name.
+  const frontier = t => !t.done && t.req.every(r => TECH[r].done);
+  const nodes = Object.values(TECH).filter(t => t.tree === techTab)
+    .filter(t => q ? (t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q))
+                   : (t.done || frontier(t)));
+  if (!nodes.length) {
+    list.innerHTML = '<div style="padding:10px;color:#5a6b60;font-size:11px">Nothing here matches.</div>';
+    return;
+  }
   // layered layout: column = depth, row = order within depth (parents pull children toward them)
   const byDepth = new Map();
   for (const t of nodes) {
@@ -2041,6 +2058,7 @@ function renderTech() {
   }
   const pos = new Map();
   const depths = [...byDepth.keys()].sort((a, b) => a - b);
+  const colOf = new Map(depths.map((d, i) => [d, i]));   // filtered-out columns close ranks
   for (const d of depths) {
     const col = byDepth.get(d);
     col.sort((a, b) => {
@@ -2050,10 +2068,10 @@ function renderTech() {
       };
       return key(a) - key(b);
     });
-    col.forEach((t, i) => pos.set(t.id, { col: d, row: i }));
+    col.forEach((t, i) => pos.set(t.id, { col: colOf.get(d), row: i }));
   }
   const maxRow = Math.max(...[...pos.values()].map(p => p.row));
-  const W = (depths[depths.length - 1] + 1) * COL_W + 30, H = (maxRow + 1) * ROW_H + 30;
+  const W = depths.length * COL_W + 30, H = (maxRow + 1) * ROW_H + 30;
   const cx = t => 20 + pos.get(t.id).col * COL_W;
   const cy = t => 20 + pos.get(t.id).row * ROW_H;
 
@@ -2301,6 +2319,13 @@ $("techToggle").addEventListener("click", () => {
   renderTech();
 });
 $("techClose").addEventListener("click", () => { $("techPanel").style.display = "none"; $("techToggle").textContent = "Open Tech Tree"; });
+$("techSearch").addEventListener("input", renderTech);
+$("civSearch").addEventListener("input", () => syncUI());
+$("settleSearch").addEventListener("input", () => {
+  const q = ($("settleSearch").value || "").trim().toLowerCase();
+  for (const row of $("settleList").children)
+    row.style.display = !q || row.textContent.toLowerCase().includes(q) ? "" : "none";
+});
 $("tabGrowth").addEventListener("click", () => { techTab = "growth"; $("tabGrowth").classList.add("active"); $("tabMilitary").classList.remove("active"); renderTech(); });
 $("tabMilitary").addEventListener("click", () => { techTab = "military"; $("tabMilitary").classList.add("active"); $("tabGrowth").classList.remove("active"); renderTech(); });
 
@@ -3004,6 +3029,7 @@ function maybeOfferSettlement() {
       list.appendChild(row);
     });
     document.getElementById("settleName").value = SETTLE_NAMES[settlements.length % SETTLE_NAMES.length];
+    $("settleSearch").value = "";
     document.getElementById("settleModal").style.display = "block";
     paused = true;
     toast("Scouts bring word of good land. The colony must decide.");
@@ -3699,12 +3725,25 @@ function syncUI() {
   $("miCabin").textContent = `Log Cabin — ${costText(cabinCost())}`;
   $("miFarm").textContent = `Wheat Farm — ${costText(costOf("farm"))}`;
   $("miDoor").textContent = `Door — ${doorCost()} logs (selected civilian)`;
-  $("miForge").textContent = has("forging") ? `Forge — ${costText(STATIC_COSTS.forge)}` : "Forge — needs Forging research";
-  $("miTownhall").textContent = has("township") ? `Town Hall — ${costText(STATIC_COSTS.townhall)}` : "Town Hall — needs Township research";
+  $("miForge").textContent = `Forge — ${costText(STATIC_COSTS.forge)}`;
+  $("miTownhall").textContent = `Town Hall — ${costText(STATIC_COSTS.townhall)}`;
+  // menus stay lean: whatever is not yet researched simply is not shown
+  for (const [b, t] of Object.entries(BUILD_GATES)) {
+    const el = document.querySelector(`#buildMenu [data-build="${b}"]`);
+    if (el) el.style.display = has(t) ? "" : "none";
+  }
+  for (const [p, t] of Object.entries(PROF_GATES)) {
+    const el = document.querySelector(`#recruitMenu [data-prof="${p}"]`);
+    if (el) el.style.display = has(t) ? "" : "none";
+  }
   if ($("govPanel").style.display === "block" && $("civDrop").classList.contains("open")) {
     const list = $("civList");
-    list.innerHTML = "";
-    for (const c of civs) {
+    // only the rows are rebuilt — the search box (first child) keeps its focus
+    [...list.querySelectorAll("button, .civNone")].forEach(el => el.remove());
+    const cq = ($("civSearch").value || "").trim().toLowerCase();
+    const shown = civs.filter(c =>
+      !cq || `${c.name} ${c.child ? "child" : (c.profession || "no trade")}`.toLowerCase().includes(cq));
+    for (const c of shown) {
       const b = document.createElement("button");
       b.className = "btn menu-item";
       b.style.fontSize = "11px";
@@ -3719,7 +3758,8 @@ function syncUI() {
       });
       list.appendChild(b);
     }
-    if (!civs.length) list.innerHTML = '<div style="padding:6px;color:#5a6b60;font-size:11px">No one is left.</div>';
+    if (!shown.length) list.insertAdjacentHTML("beforeend",
+      `<div class="civNone" style="padding:6px;color:#5a6b60;font-size:11px">${civs.length ? "No one matches." : "No one is left."}</div>`);
   }
   // wagon runs between towns: send a supply crate out, or bring a town's stores home
   {
