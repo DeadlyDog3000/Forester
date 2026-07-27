@@ -239,6 +239,33 @@ function reDye() {
   }
 }
 const coatOf = key => dyed[key] || img[key];
+// The same dye, in any colour, for coats that are not yours: a foreign crown's
+// soldiers wear their own regimentals. Cut once and kept.
+const foeCoats = new Map();
+function foeCoat(hex, key) {
+  const ck = hex + "|" + key;
+  if (foeCoats.has(ck)) return foeCoats.get(ck);
+  const src = img[key];
+  if (!src || !src.naturalWidth) return src;
+  const [tr, tg, tb] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const cv = document.createElement("canvas");
+  cv.width = src.naturalWidth; cv.height = src.naturalHeight;
+  const cx2 = cv.getContext("2d");
+  cx2.imageSmoothingEnabled = false;
+  cx2.drawImage(src, 0, 0);
+  const d = cx2.getImageData(0, 0, cv.width, cv.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4) {
+    if (p[i + 3] < 128 || !isCoat(p[i], p[i + 1], p[i + 2])) continue;
+    const lum = (p[i] * 0.3 + p[i + 1] * 0.45 + p[i + 2] * 0.25) / 150;
+    p[i]     = Math.max(0, Math.min(255, tr * lum));
+    p[i + 1] = Math.max(0, Math.min(255, tg * lum));
+    p[i + 2] = Math.max(0, Math.min(255, tb * lum));
+  }
+  cx2.putImageData(d, 0, 0);
+  foeCoats.set(ck, cv);
+  return cv;
+}
+const RAIDER_COAT = "#7a2b2b";        // the coat of a band with no crown behind it
 for (let i = 0; i < 4; i++) {
   IMAGES[`ragged${i}`] = `assets/sprites/characters/ragged_walk_${i}.png`;
   IMAGES[`atksword${i}`] = `assets/sprites/characters/attack_sword_${i}.png`;
@@ -516,8 +543,8 @@ function spawnRaid() {
   SFX.warHorn();
   if (buildings.some(b => b.type === "watchtower" && !b.fire)) {
     const dir = Math.abs(camp.x) > Math.abs(camp.y) ? (camp.x > 0 ? "east" : "west") : (camp.y > 0 ? "south" : "north");
-    toast(`⚠ The watchtower sounds the alarm — raiders approach from the ${dir}${town ? ", making for " + town.name : ""}!`);
-  } else toast(`⚠ Raiders have been sighted near ${town ? town.name : "the colony"}!`);
+    toast(`⚠ The watchtower sounds the alarm — enemy soldiers approach from the ${dir}${town ? ", making for " + town.name : ""}!`);
+  } else toast(`⚠ Enemy soldiers have been sighted near ${town ? town.name : "the colony"}!`);
 }
 
 function updateRaider(r, dt) {
@@ -618,7 +645,9 @@ function updateRaider(r, dt) {
     if (!buildings.includes(t)) { r.state = "flee"; return; }
     const dx = t.x - r.x, dy = t.y + 20 - r.y, d = Math.hypot(dx, dy);
     if (d < 30) {
-      if (r.arsonist && t.type !== "stonewall" && t.type !== "stonegate") { r.state = "torchWall"; r.wallTarget = t; r.workT = 0; }
+      // a crown's soldiers are not thieves: they take the ground and hold it
+      if (r.nation) { r.state = "occupy"; r.workT = 0; r.holdX = r.x; r.holdY = r.y; }
+      else if (r.arsonist && t.type !== "stonewall" && t.type !== "stonegate") { r.state = "torchWall"; r.wallTarget = t; r.workT = 0; }
       else { r.state = "steal"; r.workT = 0; }
     }
     else {
@@ -643,6 +672,39 @@ function updateRaider(r, dt) {
       }
       r.x = nx; r.y = ny; r.facing = dx < 0 ? -1 : 1; r.anim += dt * 8;
     }
+  } else if (r.state === "occupy") {
+    // they stand in your streets, breaking what they please, and will not leave
+    // until they are driven out — or the town is theirs
+    r.anim += dt * 4;
+    r.workT += dt;
+    if (r.workT > 1.6) {
+      r.workT = 0;
+      const near = buildings.filter(b => b.type !== "burned" && !b.fire && !b.site &&
+                                         Math.hypot(b.x - r.x, b.y - r.y) < 190);
+      if (near.length) {
+        const b = near[Math.floor(Math.random() * near.length)];
+        r.facing = b.x < r.x ? -1 : 1;
+        b.hp = (b.hp === undefined ? 100 : b.hp) - 7;
+        b.maxHp = b.maxHp || 100;
+        float(b.x, b.y - 74, "-7", "#d86a5a");
+        SFX.chop();
+        if (b.hp <= 0) {
+          if (b.type === "cabin") { b.type = "burned"; b.hp = b.maxHp; for (const o of b.occupants) o.home = null; b.occupants = []; }
+          else buildings.splice(buildings.indexOf(b), 1);
+          toast(`⚠ Enemy soldiers have wrecked a ${BLDG_NAMES[b.type] || b.type}!`);
+        }
+      } else {
+        // nothing left standing here: mill about the ground they hold, but never
+        // wander off it — an occupying company that strays is no occupation
+        if (r.holdX === undefined) { r.holdX = r.x; r.holdY = r.y; }
+        const a = Math.random() * Math.PI * 2, rr = Math.random() * 70;
+        r.wpx = r.holdX + Math.cos(a) * rr; r.wpy = r.holdY + Math.sin(a) * rr;
+      }
+    }
+    if (r.wpx !== undefined) {
+      const wd = Math.hypot(r.wpx - r.x, r.wpy - r.y);
+      if (wd > 6) { r.x += (r.wpx - r.x) / wd * speed * 0.3 * dt; r.y += (r.wpy - r.y) / wd * speed * 0.3 * dt; }
+    }
   } else if (r.state === "steal") {
     r.anim = 1;
     r.workT += dt;
@@ -653,7 +715,7 @@ function updateRaider(r, dt) {
       led.dm -= take; r.carry = take;
       SFX.coinLoss();
       float(r.x, r.y - 70, "-" + take + " DM", "#d86a5a");
-      toast(`⚠ A raider makes off with ${take} DM${town ? " from " + town.name : ""}!`);
+      toast(`⚠ An enemy soldier makes off with ${take} DM${town ? " from " + town.name : ""}!`);
       r.state = "flee";
     }
   } else if (r.state === "flee") {
@@ -674,7 +736,7 @@ function strikeUnit(a, b, dmg) {
       raiders.splice(raiders.indexOf(b), 1);
       SFX.death();
       if (b.carry) { res.dm += b.carry; float(b.x, b.y - 50, "+" + b.carry + " DM", "#7da083"); }
-      toast("A raider has been cut down.");
+      toast("An enemy soldier has been cut down.");
     } else if (civs.includes(b)) {
       if (b.rebel && has("court") && Math.random() < 0.5) {
         b.rebel = false; b.armed = false; b.hp = 30; b.happiness = 60;
@@ -1375,8 +1437,8 @@ function worldClick(clientX, clientY) {
       if (selected && isForce(selected)) {
         const grp = soldierGroup().filter(isForce);
         for (const s of grp) order(s, { kind: "attack", target: r, x: r.x, y: r.y });
-        toast(grp.length > 1 ? `${grp.length} soldiers move to intercept the raider.` : `${selected.name} moves to intercept the raider.`);
-      } else toast("Only police or soldiers can be ordered against raiders.");
+        toast(grp.length > 1 ? `${grp.length} soldiers move to intercept the enemy.` : `${selected.name} moves to intercept the enemy.`);
+      } else toast("Only police or soldiers can be ordered against enemy soldiers.");
       return;
     }
 
@@ -2978,6 +3040,9 @@ function nationAdjacent(id) {
 
 let mapSelNation = null;
 function renderMap() {
+  // the map may never have been opened — build it before drawing it, or a
+  // conquest anywhere would throw and take the whole game loop down with it
+  if (!fineGrid || !mapGrid) buildMapGrid();
   const mc = document.getElementById("euromap").getContext("2d");
   mc.imageSmoothingEnabled = false;
   const mine = empireCells();
@@ -3172,6 +3237,18 @@ const NAT_GOODS = {
   algiers: ["meat", "iron"], tunis: ["wheat", "stone"], tripoli: ["meat", "stone"],
 };
 const goodsOf = id => NAT_GOODS[id] || ["wheat", "stone"];
+// A caravan is a barter, not a gift: they take coin AND a load of whatever their
+// own lands are poor in. What a court wants is the goods it does not already hold.
+const TRADE_GOODS = ["logs", "stone", "iron", "wheat", "bread", "meat"];
+function wantsOf(id) {
+  const rich = goodsOf(id);
+  const poor = TRADE_GOODS.filter(g => !rich.includes(g));
+  // steady per nation, not a new demand every time you open the panel
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffff;
+  return poor[h % poor.length];
+}
+const barterFor = amt => Math.max(1, Math.round(amt * 0.6));
 function requestOdds(id, good, amt) {
   const scarce = !goodsOf(id).includes(good);
   return Math.max(0.05, Math.min(0.95, 0.92 - amt * 0.02 - (scarce ? 0.35 : 0)));
@@ -3181,8 +3258,10 @@ function requestOddsText() {
   const good = $("miGood").value, amt = +$("miAmt").value;
   const scarce = !goodsOf(id).includes(good);
   const odds = requestOdds(id, good, amt);
+  const want = wantsOf(id), owe = barterFor(amt);
   $("miOdds").textContent = (scarce ? `They have little ${good} to spare themselves. ` : `Their lands are rich in ${good}. `) +
-    `Cost: ${amt * 2} DM on delivery. The envoy rates the odds ${odds > 0.7 ? "good" : odds > 0.4 ? "uncertain" : "poor"}.`;
+    `Cost: ${amt * 2} DM and ${owe} ${want} in trade (you hold ${Math.floor(res[want] || 0)}). ` +
+    `The envoy rates the odds ${odds > 0.7 ? "good" : odds > 0.4 ? "uncertain" : "poor"}.`;
 }
 $("miGood").addEventListener("change", requestOddsText);
 $("miAmt").addEventListener("change", requestOddsText);
@@ -3191,12 +3270,15 @@ $("miRequest").addEventListener("click", () => {
   if (!n || !n.trade) return;
   if (n.reqCool > 0) return toast(`${n.name}'s quartermasters are still weighing the last request.`);
   const good = $("miGood").value, amt = +$("miAmt").value, price = amt * 2;
+  const want = wantsOf(id), owe = barterFor(amt);
   if (res.dm < price) return toast(`The shipment would cost ${price} DM on delivery. Treasury: ${res.dm} DM.`);
+  if ((res[want] || 0) < owe)
+    return toast(`${n.name} wants ${owe} ${want} in the bargain — the capital's stores hold ${Math.floor(res[want] || 0)}.`);
   n.reqCool = 90;
   if (Math.random() < requestOdds(id, good, amt)) {
-    res.dm -= price; res[good] += amt;
+    res.dm -= price; res[want] -= owe; res[good] += amt;
     SFX.coin();
-    toast(`${n.name} agrees — a caravan delivers ${amt} ${good} for ${price} DM.`);
+    toast(`${n.name} agrees — a caravan delivers ${amt} ${good} for ${price} DM and ${owe} ${want}.`);
   } else {
     toast(`${n.name} declines: ${goodsOf(id).includes(good) ? "the asking price of so large a shipment offends the court" : `their own stores of ${good} run thin`}. Ask again later.`);
   }
@@ -3207,6 +3289,10 @@ document.getElementById("miTrade").addEventListener("click", () => {
   if (n.trade) return;
   if (!nationAdjacent(id)) return toast("Caravans need a shared border.");
   if (n.tradeCool > 0) return toast(`${n.name}'s court is still offended. Give it time.`);
+  // no envoy goes to a foreign court empty-handed
+  const gift = wantsOf(id), giftN = 10 + Math.floor(natStrength(n) * 1.5);
+  if ((res[gift] || 0) < giftN)
+    return toast(`An envoy to ${n.name} must carry a gift of ${giftN} ${gift} — the capital holds ${Math.floor(res[gift] || 0)}.`);
   const lead = leaderOf(id);
   n.tradeMeter = n.tradeMeter === undefined ? Math.max(28, 62 - natStrength(n) * 1.2) : n.tradeMeter;
   n.tradeUsed = n.tradeUsed || new Set();
@@ -3221,8 +3307,10 @@ document.getElementById("miTrade").addEventListener("click", () => {
     get meter() { return n.tradeMeter; }, set meter(x) { n.tradeMeter = x; },
     onWin: () => {
       closeDialogue();
+      res[gift] = Math.max(0, (res[gift] || 0) - giftN);      // the gift is handed over
       n.trade = true; n.tradeT = 30; n.tradeMeter = undefined; n.tradeUsed = new Set();
-      eventCard(`A trade route opens with ${n.name}.`, "event_caravan", "The first caravan is on the road");
+      eventCard(`A trade route opens with ${n.name}.`, "event_caravan",
+                `${giftN} ${gift} given in tribute — the first caravan is on the road`);
       SFX.coin();
       mapInfoSync(); syncUI();
     },
@@ -3368,6 +3456,82 @@ function landForeignTown(id) {
   }
   return town;
 }
+// ===== the other way round: a crown takes one of YOUR towns =====
+// An enemy column left standing in a town of yours, with no one alive to contest
+// it, holds that ground. Leave them there long enough and the town changes hands.
+const SIEGE_HOLD = 45;                       // seconds of unopposed occupation
+function townCentre(t) { return t ? { x: t.x, y: t.y } : { x: CAPITAL_X, y: CAPITAL_Y }; }
+function updateOccupation(dt) {
+  const towns = [null, ...settlements.filter(s => s.x !== undefined)];
+  for (const t of towns) {
+    const c = townCentre(t);
+    const foes = raiders.filter(r => r.nation && !r.garrison && r.state !== "flee" &&
+                                     Math.hypot(r.x - c.x, r.y - c.y) < 420);
+    const held = buildings.some(b => b.type !== "burned" && !b.fire && townAt(b.x, b.y) === t);
+    // a momentary gap in their line does not undo a siege — it eases off
+    if (!foes.length || !held) {
+      const v = Math.max(0, ((t ? t.siegeT : capitalSiegeT) || 0) - dt * 3);
+      if (t) t.siegeT = v; else capitalSiegeT = v;
+      continue;
+    }
+    // anyone of yours still fighting for it keeps the flag flying
+    const defended = civs.some(d => !d.rebel && d.hp > 0 && Math.hypot(d.x - c.x, d.y - c.y) < 420);
+    const cur = (t ? t.siegeT : capitalSiegeT) || 0;
+    if (defended) { const v = Math.max(0, cur - dt * 2); if (t) t.siegeT = v; else capitalSiegeT = v; continue; }
+    const next = cur + dt;
+    if (t) t.siegeT = next; else capitalSiegeT = next;
+    if (Math.floor(cur / 15) !== Math.floor(next / 15) && next < SIEGE_HOLD)
+      toast(`⚠ ${t ? t.name : settlementName || "the capital"} is held by ${NATIONS[foes[0].nation].name} — retake it, or lose it!`);
+    if (next >= SIEGE_HOLD) townLostTo(t, foes[0].nation);
+  }
+}
+let capitalSiegeT = 0;
+// the flag comes down: the town, its roofs and its people pass to the crown
+function townLostTo(t, natId) {
+  const n = NATIONS[natId];
+  const c = townCentre(t);
+  const name = t ? t.name : (settlementName || "the capital");
+  if (!t) {                                   // the capital itself cannot be annexed — it is sacked
+    for (const b of buildings.filter(b => b.type !== "burned" && townAt(b.x, b.y) === null &&
+                                          Math.hypot(b.x - c.x, b.y - c.y) < 420))
+      if (!b.fire && Math.random() < 0.5) b.fire = FIRE_TIME;
+    capitalSiegeT = -60;
+    res.dm = Math.max(0, Math.round(res.dm * 0.6));
+    eventCard(`${n.name} sacks ${name}!`, "event_warparty", "Buildings burn and the treasury is plundered");
+    return;
+  }
+  // a daughter town is annexed outright: it becomes one of theirs, to be retaken
+  const town = { nation: natId, name: t.name, x: t.x, y: t.y, fallen: false,
+                 dm: 60 + Math.round((t.res && t.res.dm) || 0), weapons: 2 };
+  foreignTowns.push(town);
+  let taken = 0;
+  for (const b of [...buildings]) {
+    if (townAt(b.x, b.y) !== t || b.type === "burned") continue;
+    buildings.splice(buildings.indexOf(b), 1);
+    for (const o of b.occupants || []) o.home = null;
+    b.occupants = []; b.foreign = true; b.town = town; b.site = false;
+    b.hp = b.hp || 100; b.maxHp = b.maxHp || b.hp;
+    if (b.type === "townhall" || (!town.keep && b.type === "cabin")) { town.keep = b; b.keep = true; }
+    foreign.push(b);
+    taken++;
+  }
+  if (!town.keep && foreign.length) { town.keep = foreign[foreign.length - 1]; town.keep.keep = true; }
+  // their soldiers stay as its garrison; your folk there are driven out
+  for (const r of raiders) if (r.nation === natId && Math.hypot(r.x - c.x, r.y - c.y) < 500) {
+    r.garrison = town; r.state = "patrol"; r.target = null; r.wallTarget = null;
+    r.camp = { x: t.x, y: t.y }; r.wpx = r.x; r.wpy = r.y;
+  }
+  for (const d of civs) if (Math.hypot(d.x - c.x, d.y - c.y) < 420) {
+    d.home = null; d.task = null; d.state = "idle";
+    d.x = CAPITAL_X + (Math.random() * 120 - 60); d.y = CAPITAL_Y + 90 + Math.random() * 60;
+    d.happiness = Math.max(0, d.happiness - 20);
+  }
+  settlements.splice(settlements.indexOf(t), 1);
+  mapGrid = null; renderMap(); syncUI();
+  eventCard(`${name} has fallen to ${n.name}!`, "event_conquest",
+            `${taken} building(s) lost — march on it and burn their hall to take it back`);
+}
+
 // A taken townsman joins your people — but not gladly. The conquered carry their
 // resentment for a long while, and it shows in the colony's mood.
 function captureFolk(f, quiet) {
@@ -4461,6 +4625,7 @@ function update(dt) {
   updateResearch(dt);
   playT += dt;
   updateWars(dt);
+  updateOccupation(dt);
   updateSettlements(dt);
   maybeOfferSettlement();
 
@@ -4652,7 +4817,7 @@ function update(dt) {
           raiders.push(r);
         }
         SFX.warHorn();
-        toast("⚠ Raiders pour out of the dark — the town is unwalled and they know it!");
+        toast("⚠ Enemy soldiers pour out of the dark — the town is unwalled and they know it!");
       }
     }
   } else ambushT = Math.max(ambushT, 25);
@@ -5461,11 +5626,18 @@ function render(dt) {
     ctx.fillStyle = "#c98a6a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
     if (settings.labels) ctx.fillText(v.name + " (visitor)", v.x, v.y - CHAR_SIZE - 4);
   }});
+  // enemy soldiers: every hostile in the field wears a coat of its own crown's
+  // colour — a red one where no crown stands behind them
   for (const r of raiders) if (inView(r.x, r.y)) drawables.push({ y: r.y, draw: () => {
-    const frame = r.foe ? img["atksword" + (Math.floor(r.anim) % 4)] : img["hunter" + (Math.floor(r.anim) % 4)];
+    const hex = (r.nation && NATIONS[r.nation] && NATIONS[r.nation].color) || RAIDER_COAT;
+    const i = Math.floor(r.anim) % 4;
+    const frame = foeCoat(hex, r.foe ? "atkuni" + i : "soldierU" + i);
     drawSprite(frame, r.x, r.y, CHAR_SIZE, r.facing < 0);
-    ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-    if (settings.labels) ctx.fillText(r.state === "patrol" ? "thief" : "RAIDER", r.x, r.y - CHAR_SIZE - 4);
+    if (settings.labels) {
+      ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
+      const nat = r.nation && NATIONS[r.nation] ? NATIONS[r.nation].name + " " : "";
+      ctx.fillText(nat + "Enemy Soldier", r.x, r.y - CHAR_SIZE - 4);
+    }
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
   for (const c of civs) if (c.state !== "sleeping" && c.state !== "warming" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
@@ -5696,14 +5868,22 @@ function render(dt) {
 
 // --- loop ---
 let last = 0, uiT = 0;
+let loopErrs = 0;
 function frame(ts) {
   const dt = Math.min(0.05, (ts - last) / 1000);
   last = ts;
-  if (gameState === "playing") {
-    update(dt);
-    render(dt);
-    uiT += dt;
-    if (uiT > 0.25) { uiT = 0; syncUI(); }
+  // One bad frame must never end the world: report it and keep the clock running,
+  // or a single slip anywhere freezes the colony until the page is reloaded.
+  try {
+    if (gameState === "playing") {
+      update(dt);
+      render(dt);
+      uiT += dt;
+      if (uiT > 0.25) { uiT = 0; syncUI(); }
+    }
+  } catch (e) {
+    if (loopErrs++ < 5) console.error("frame error", e);
+    if (loopErrs === 5) console.error("further frame errors will be swallowed silently");
   }
   requestAnimationFrame(frame);
 }
