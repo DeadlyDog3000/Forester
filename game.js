@@ -202,10 +202,12 @@ for (let i = 0; i < 4; i++) {                       // aim, flash, smoke, lower 
 const UNIFORM_KEYS = ["musketeer0", "musketeer1", "musketeer2", "musketeer3",
                       "mfire0", "mfire1", "mfire2", "mfire3", "mload0", "mload1", "mload2", "mload3",
                       "soldierU0", "soldierU1", "soldierU2", "soldierU3",
-                      "atkuni0", "atkuni1", "atkuni2", "atkuni3"];
+                      "atkuni0", "atkuni1", "atkuni2", "atkuni3",
+                      "cavalry0", "cavalry1", "cavalry2", "cavalry3"];
 let uniformColor = "#2f52a8";
-// who wears the regimental coat on foot (a rider at this size is mostly horse)
-const UNIFORMED = new Set(["musketeer", "police", "soldier"]);
+// who wears the regimental coat — the rider's included, now that the coat is
+// painted the same strong blue in both saddle frames
+const UNIFORMED = new Set(["musketeer", "police", "soldier", "cavalry"]);
 const dyed = {};                                    // recoloured copies, rebuilt when the dye changes
 function isCoat(r, g, b) { return b > r + 28 && b > g + 18; }
 function reDye() {
@@ -1414,7 +1416,13 @@ function tryPlace(type, wx, wy) {
   if ((type === "wall" || type === "gate") && !has("defending")) { toast("Walls and gates require the Defending technology."); buildMode = null; syncUI(); return; }
   if (type === "townhall" && !has("township")) { toast("A town hall requires the Township technology."); buildMode = null; syncUI(); return; }
   if (["stonewall", "stonegate", "moat", "ditch"].includes(type) && !has("defplus")) { toast("Stoneworks and earthworks require Defending II."); buildMode = null; syncUI(); return; }
-  if (type === "townhall" && buildings.some(b => b.type === "townhall")) { toast("The settlement has its town hall already."); buildMode = null; syncUI(); return; }
+  if (type === "townhall") {
+    // one hall per town — but every town, the capital included, may have its own
+    const here = townAt(wx, wy);
+    if (buildings.some(b => b.type === "townhall" && townAt(b.x, b.y) === here)) {
+      toast(`${here ? here.name : "The capital"} has its town hall already.`); buildMode = null; syncUI(); return;
+    }
+  }
   [wx, wy] = snapWallPos(type, wx, wy);
   const cost = costOf(type);
   if (WALLLIKE.has(type)) {
@@ -1592,10 +1600,13 @@ function autonomy(c, dt) {
   }
 
   if (!c.home) return;
+  const myTown = townAt(c.home.x, c.home.y);            // null means the capital
+  const inMyTown = b => townAt(b.x, b.y) === myTown;
 
-  // construction first: staked-out sites need hands
-  const site = buildings.find(b => b.site && (!b.builder || !civs.includes(b.builder))) ||
-               farms.find(f => f.site && (!f.builder || !civs.includes(f.builder)));
+  // construction first: staked-out sites need hands — from the same town, so a
+  // settler never treks half the map to raise the capital's shed
+  const site = buildings.find(b => b.site && inMyTown(b) && (!b.builder || !civs.includes(b.builder))) ||
+               farms.find(f => f.site && inMyTown(f) && (!f.builder || !civs.includes(f.builder)));
   if (site && !isForce(c)) {
     site.builder = c;
     order(c, { kind: "construct", target: site, x: site.x + 20, y: site.y + 14 });
@@ -1603,12 +1614,11 @@ function autonomy(c, dt) {
   }
 
   // the town hall takes deposits without being asked — unload before new work.
-  // settlement folk stock their own town's stores at their cabin instead.
-  const myTown = c.home && townOf(c.home);
-  const hall = buildings.find(b => b.type === "townhall" && !b.fire && !b.site);
-  if ((myTown || hall) && (c.inv.logs + c.inv.seeds + c.inv.stone + c.inv.iron + c.inv.wheat) >= 5) {
-    const dst = myTown ? c.home : hall;
-    order(c, { kind: "hallDeposit", target: dst, x: dst.x, y: dst.y + 16 });
+  // each town's folk use their own hall; a town without one stocks the cabins.
+  const hall = buildings.find(b => b.type === "townhall" && !b.fire && !b.site && inMyTown(b));
+  const drop = hall || (myTown ? c.home : null);
+  if (drop && (c.inv.logs + c.inv.seeds + c.inv.stone + c.inv.iron + c.inv.wheat) >= 5) {
+    order(c, { kind: "hallDeposit", target: drop, x: drop.x, y: drop.y + 16 });
     return;
   }
 
@@ -1704,7 +1714,12 @@ function autonomy(c, dt) {
     order(c, { kind: "peddle", target: buyer, x: buyer.x + 18, y: buyer.y + 6 });
     return;
   }
-  const market = buildings.find(b => b.type === "market" && !b.fire && !b.site);
+  // sell at the nearest market, not whichever town happened to build one first
+  let market = null, mDist = Infinity;
+  for (const b of buildings) if (b.type === "market" && !b.fire && !b.site) {
+    const d = Math.hypot(b.x - c.x, b.y - c.y);
+    if (d < mDist) { mDist = d; market = b; }
+  }
   if (market && (c.inv.bread + c.inv.meat) > 1) {
     order(c, { kind: "sell", target: market, x: market.x, y: market.y + 16 });
     return;
