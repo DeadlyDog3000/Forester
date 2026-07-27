@@ -1193,8 +1193,10 @@ function tryPlace(type, wx, wy) {
 function order(c, task) {
   // a bearer shoulders the dead until the grave: only fleeing or the cold may interrupt — and then the body is set down
   const held = corpses.find(cp => cp.carried === c);
-  if (held && task.kind !== "bury") {
-    if (task.flee || task.kind === "warmUp") { held.carried = null; held.bearer = null; }
+  if (held && task.target !== held) {
+    // sent elsewhere while bearing someone: lay them down for the next pair of hands,
+    // but only for burying another, fleeing, or the killing cold
+    if (task.kind === "bury" || task.flee || task.kind === "warmUp") { held.carried = null; held.bearer = null; }
     else { toast(`${c.name} is bearing the dead — the burial comes first.`); return; }
   }
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
@@ -1764,7 +1766,6 @@ $("craftToggle").addEventListener("click", () => $("craftDrop").classList.toggle
 $("recruitToggle").addEventListener("click", () => $("recruitDrop").classList.toggle("open"));
 $("moveToggle").addEventListener("click", () => $("moveDrop").classList.toggle("open"));
 // move a civilian to another town (or back to the capital) any time after founding
-const cabinCap = () => has("landownership") ? 3 : 1;
 function townOf(b) { return settlements.find(s => s.x !== undefined && Math.hypot(b.x - s.x, b.y - s.y) < 500) || null; }
 function ledgerOf(c) {   // where this civ's goods belong: their town's stores, or the capital's
   const t = c.home && townOf(c.home);
@@ -1775,7 +1776,7 @@ function ledgerOf(c) {   // where this civ's goods belong: their town's stores, 
 }
 function sendToTown(c, target) {   // target: settlement object, or null for the capital
   const cab = buildings.find(b => b.type === "cabin" && !b.fire && !b.site &&
-                                  b.occupants.length < cabinCap() &&
+                                  b.occupants.length < cabinCapacity() &&
                                   (target ? Math.hypot(b.x - target.x, b.y - target.y) < 500 : !townOf(b)));
   if (!cab) return toast(`No roof free in ${target ? target.name : settlementName} — build a cabin there first.`);
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
@@ -2483,6 +2484,7 @@ const NAT_GOODS = {
   poland: ["wheat", "logs"], russia: ["logs", "wheat"], cossacks: ["meat", "wheat"],
   crimea: ["meat", "stone"], hungary: ["wheat", "meat"], transylvania: ["logs", "stone"],
   moldavia: ["wheat", "meat"], wallachia: ["wheat", "logs"], ottoman: ["wheat", "stone"],
+  algiers: ["meat", "iron"], tunis: ["wheat", "stone"], tripoli: ["meat", "stone"],
 };
 const goodsOf = id => NAT_GOODS[id] || ["wheat", "stone"];
 function requestOdds(id, good, amt) {
@@ -2640,8 +2642,8 @@ document.getElementById("settleGo").addEventListener("click", () => {
   const newCabins = [];
   for (let i = 0; i < Math.max(1, Math.ceil(chosen.length / 2)); i++) {
     const bx = site.x + (i % 3) * 150 - 150, by = site.y + Math.floor(i / 3) * 170;
-    for (const t of nearThings("trees", bx, by, 130)) t.alive = false;
-    for (const s of nearThings("stones", bx, by, 100)) s.alive = false;
+    for (const t of nearThings("trees", bx, by, 130)) { t.alive = false; markChunkDirty(t.x, t.y); }
+    for (const s of nearThings("stones", bx, by, 100)) { s.alive = false; markChunkDirty(s.x, s.y); }
     const b = { type: "cabin", x: bx, y: by, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
     buildings.push(b); newCabins.push(b);
   }
@@ -2849,7 +2851,8 @@ function loadGame() {
                    workers: fd.workers.map(i => civs[i]).filter(Boolean) });
     camps.length = 0;
     for (const cd of d.camps) camps.push({ ...cd });
-    raiders.length = 0; visitors.length = 0; floaters.length = 0;
+    raiders.length = 0; visitors.length = 0; floaters.length = 0; arrows.length = 0;
+    selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null; selGroup = [];
     chunks.clear();
     for (const [k, ch] of (d.chunks || [])) {
       if (ch && ch.trees) {
