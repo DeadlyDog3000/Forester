@@ -1026,9 +1026,12 @@ function layRoad(rx, ry) {
   const led = ledgerAt(wx, wy);
   if ((led.dm || 0) + (led === res ? 0 : res.dm || 0) < ROAD_COST) return false;
   if (!nearTerritoryWide(wx, wy, 6)) return false;            // roads keep near your own country
-  if ((led.dm || 0) >= ROAD_COST) led.dm -= ROAD_COST; else res.dm -= ROAD_COST;
+  // kept to one decimal: 0.2 is not a clean binary fraction, and without the
+  // rounding the treasury drifts into 0.6000000000000001 territory
+  if ((led.dm || 0) >= ROAD_COST) led.dm = Math.round((led.dm - ROAD_COST) * 10) / 10;
+  else res.dm = Math.round((res.dm - ROAD_COST) * 10) / 10;
   roads.add(rkey(rx, ry));
-  roadSpent += ROAD_COST;
+  roadSpent = Math.round((roadSpent + ROAD_COST) * 10) / 10;
   return true;
 }
 // which neighbours a piece joins: 1 north, 2 east, 4 south, 8 west
@@ -3343,6 +3346,7 @@ function loadGame() {
   try {
     const d = JSON.parse(raw);
     Object.assign(res, d.res);
+    res.dm = Math.round((res.dm || 0) * 10) / 10;   // scrub float drift out of older saves
     taxRate = d.taxRate; taxTimer = d.taxTimer; policeCount = d.policeCount;
     settlementName = d.settlementName || "Neu Hamburg";
     Object.assign(laws, d.laws);
@@ -3416,6 +3420,7 @@ function loadGame() {
     corpses.length = 0; for (const cp of (d.corpses || [])) corpses.push({ ...cp, bearer: null, carried: null });
     graves.length = 0; for (const gv of (d.graves || [])) graves.push({ ...gv, mason: null });
     settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
+    for (const st of settlements) if (st.res) st.res.dm = Math.round((st.res.dm || 0) * 10) / 10;
     // every daughter town owns the ground it stands on — repairs older saves whose
     // settlements were founded before their clearing was claimed
     for (const st of settlements) if (st.x !== undefined) expandAround(st.x, st.y, 5);
@@ -3690,7 +3695,7 @@ function syncUI() {
   $("rDoors").textContent = hr.doors || 0; $("rBread").textContent = hr.bread || 0;
   $("rMeat").textContent = hr.meat || 0; $("rWeapons").textContent = hr.weapons || 0;
   $("rTools").textContent = hudTown ? 0 : buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0);
-  $("rDM").textContent = hr.dm || 0;
+  $("rDM").textContent = Math.round((hr.dm || 0) * 10) / 10;
   $("rPop").textContent = hudTown ? hudTown.pop : civs.length;
   $("rTax").textContent = taxRate;
   $("rSeason").textContent = (season() === "winter" ? "❄ WINTER " : "SUMMER ") + colonyYear;
@@ -3704,7 +3709,7 @@ function syncUI() {
   const govAvg = govFolk.length ? Math.round(govFolk.reduce((s, c) => s + c.happiness, 0) / govFolk.length) : 0;
   $("govTitle").textContent = "GOVERNMENT OF " + (hudTown ? hudTown.name : settlementName).toUpperCase();
   $("govHappy").textContent = govAvg + "%";
-  $("govDM").textContent = (hudTown ? (hr.dm || 0) : res.dm) + " DM";
+  $("govDM").textContent = Math.round((hudTown ? (hr.dm || 0) : res.dm) * 10) / 10 + " DM";
   {
     const homeless = govFolk.filter(c => !c.home).length;
     const spare = buildings.filter(b => b.type === "cabin" && !b.site && !b.fire &&
