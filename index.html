@@ -124,6 +124,28 @@
   #dlgMeter { background: linear-gradient(90deg, #a05252, #c9a86a, #7da083); height: 100%; transition: width 0.3s; }
   #dlgOpts .btn { display: block; width: 100%; text-align: left; margin-top: 6px; }
 
+  /* ===== word from afar: a card with a picture, big enough to actually read ===== */
+  #eventCard {
+    position: fixed; left: 50%; top: 70px; transform: translateX(-50%) translateY(-14px);
+    width: min(460px, calc(100vw - 24px)); z-index: 60;
+    background: rgba(9, 13, 11, 0.95); border: 1px solid #c9a86a;
+    box-shadow: 0 6px 26px rgba(0,0,0,0.65);
+    opacity: 0; pointer-events: none; transition: opacity 0.45s ease, transform 0.45s ease;
+    text-align: center; padding-bottom: 11px;
+  }
+  #eventCard.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; cursor: pointer; }
+  #eventImg { width: 100%; display: block; image-rendering: pixelated; border-bottom: 1px solid #3a5243; }
+  #eventText {
+    font-size: 19px; line-height: 1.35; color: #e8d9b8; letter-spacing: 1px;
+    padding: 11px 15px 0; text-shadow: 0 2px 3px #000;
+  }
+  #eventSub { font-size: 11px; color: #7a8f83; padding: 5px 15px 0; letter-spacing: 1px; }
+  @media (max-width: 820px), (pointer: coarse) and (max-width: 1100px) {
+    #eventCard { top: 44px; width: calc(100vw - 16px); }
+    #eventText { font-size: 15px; padding: 8px 10px 0; }
+    #eventSub { font-size: 10px; }
+  }
+
   /* ===== touch controls: hidden on desktop, raised on phones and tablets ===== */
   #touchPad { position: fixed; right: 8px; bottom: 62px; z-index: 24; display: none; flex-direction: column; gap: 7px; }
   #touchPad .tbtn {
@@ -267,6 +289,12 @@
 
   <div id="hint">WASD / arrows: camera &middot; right-click: cancel &amp; deselect &middot; click buildings to inspect</div>
 
+  <div id="eventCard">
+    <img id="eventImg" alt="">
+    <div id="eventText"></div>
+    <div id="eventSub"></div>
+  </div>
+
   <div id="touchPad">
     <button class="tbtn" id="tbRotate" title="Turn the wall">&#8635;</button>
     <button class="tbtn" id="tbCancel" title="Cancel &amp; deselect">&#10005;</button>
@@ -380,10 +408,12 @@
     <h4>TERRITORY</h4>
     <div class="row"><span>Territory colour</span><input type="color" id="terrColor" value="#7da083"></div>
     <div class="row"><span>Border colour</span><input type="color" id="bordColor" value="#c9a86a"></div>
+    <div class="row"><span>Uniform colour</span><input type="color" id="uniColor" value="#2f52a8"></div>
     <h4>LAWS</h4>
     <label><input type="checkbox" id="lawCivWeapons"> Civilians may keep weapons</label>
     <label><input type="checkbox" id="lawHunterWeapons" checked> Hunters may keep weapons</label>
     <label><input type="checkbox" id="lawFreeRoam"> Civilians may roam beyond the borders</label>
+    <label><input type="checkbox" id="lawCivBuild"> Civilians may raise farms on their own (town materials, their own coin)</label>
     <label id="lawForcedRow" style="display:none"><input type="checkbox" id="lawForced"> Forced labour edict (Slavery)</label>
     <div style="font-size:11px;color:#5a6b60;margin-top:4px">Weapon laws decide who fights back with steel when unrest turns to rebellion. High taxes breed rebellion; police must put it down.</div>
     <h4>CIVILIANS</h4>

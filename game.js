@@ -190,6 +190,37 @@ for (let i = 0; i < 4; i++) {                       // aim, flash, smoke, lower 
   IMAGES[`mfire${i}`] = `assets/sprites/characters/musket_fire_${i}.png`;
   IMAGES[`mload${i}`] = `assets/sprites/characters/musket_load_${i}.png`;
 }
+// The regimental coat is painted a strong blue so it can be picked out and dyed
+// to whatever colour the colony chooses; boots, hat, hands and musket are left alone.
+const UNIFORM_KEYS = ["musketeer0", "musketeer1", "musketeer2", "musketeer3",
+                      "mfire0", "mfire1", "mfire2", "mfire3", "mload0", "mload1", "mload2", "mload3"];
+let uniformColor = "#2f52a8";
+const dyed = {};                                    // recoloured copies, rebuilt when the dye changes
+function isCoat(r, g, b) { return b > r + 28 && b > g + 18; }
+function reDye() {
+  const [tr, tg, tb] = [1, 3, 5].map(i => parseInt(uniformColor.slice(i, i + 2), 16));
+  for (const key of UNIFORM_KEYS) {
+    const src = img[key];
+    if (!src || !src.naturalWidth) continue;
+    const cv = document.createElement("canvas");
+    cv.width = src.naturalWidth; cv.height = src.naturalHeight;
+    const cx2 = cv.getContext("2d");
+    cx2.imageSmoothingEnabled = false;
+    cx2.drawImage(src, 0, 0);
+    const d = cx2.getImageData(0, 0, cv.width, cv.height), p = d.data;
+    for (let i = 0; i < p.length; i += 4) {
+      if (p[i + 3] < 128 || !isCoat(p[i], p[i + 1], p[i + 2])) continue;
+      // keep the cloth's own light and shade: scale the new colour by this pixel's brightness
+      const lum = (p[i] * 0.3 + p[i + 1] * 0.45 + p[i + 2] * 0.25) / 150;
+      p[i]     = Math.max(0, Math.min(255, tr * lum));
+      p[i + 1] = Math.max(0, Math.min(255, tg * lum));
+      p[i + 2] = Math.max(0, Math.min(255, tb * lum));
+    }
+    cx2.putImageData(d, 0, 0);
+    dyed[key] = cv;
+  }
+}
+const coatOf = key => dyed[key] || img[key];
 for (let i = 0; i < 4; i++) {
   IMAGES[`ragged${i}`] = `assets/sprites/characters/ragged_walk_${i}.png`;
   IMAGES[`atksword${i}`] = `assets/sprites/characters/attack_sword_${i}.png`;
@@ -215,12 +246,13 @@ let empireName = "";
 let territoryColor = "#7da083", borderColor = "#c9a86a";
 const territory = new Set();          // "cx,cy" world cells, 96px each
 const TCELL = 96;
-let sackedCamps = 0, playT = 0, nextSettleAt = 1200, settlePending = false;
+const SETTLE_FIRST = 1500, SETTLE_AGAIN = 1500;   // 25 minutes to the first offer, and 25 more after each
+let sackedCamps = 0, playT = 0, nextSettleAt = SETTLE_FIRST, settlePending = false;
 let lastTier = 1;
 // the woods grow bolder as your colony grows older and larger
 function difficulty() { return Math.min(6, 1 + Math.floor(playT / 1000) + Math.floor(civs.length / 10)); }
 const settlements = [];               // {name, pop, mx, my} on the Europe map
-const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false };
+const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false, civBuild: false };
 
 const cam = { x: 0, y: 0 };
 let zoom = 1;
@@ -1376,12 +1408,17 @@ function autonomy(c, dt) {
   const home = c.home;
   const homeFarms = farms.filter(f => Math.hypot(f.x - home.x, f.y - home.y) < 220).length;
   const wantsFarm = homeFarms === 0 || (c.profession === "farmer" && homeFarms < 2);
-  if (wantsFarm && canPay(costOf("farm"))) {
+  // Only by the colony's leave may they break ground themselves — and the coin
+  // comes out of their own purse. The treasury is the government's alone.
+  const fCost = costOf("farm"), fCoin = fCost.dm || 0;
+  const materials = { ...fCost, dm: 0 };
+  if (laws.civBuild && wantsFarm && canPay(materials) && c.inv.dm >= fCoin) {
     for (const r of [90, 120, 150]) for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
       const fx = home.x + Math.cos(a) * r, fy = home.y + Math.sin(a) * r * 0.8;
       if (legalToBuild("farm", fx, fy)) {
-        pay(costOf("farm"));
+        pay(materials);
+        c.inv.dm -= fCoin;                    // they pay their own way
         order(c, { kind: "buildFarm", x: fx, y: fy + 8, fx, fy });
         return;
       }
@@ -1647,8 +1684,9 @@ function renderDialogueOptions() {
   $("dlgMeter").style.width = talk.meter + "%";
   const opts = $("dlgOpts");
   opts.innerHTML = "";
+  const winAt = talk.winAt || 100, passAt = talk.passAt || 60;
   const pool = talk.pool.filter(o => !talk.used.has(o.text) && (!o.needs || o.needs()));
-  if (!pool.length) return talk.meter >= 60 ? talk.onWin() : talk.onLose();
+  if (!pool.length) return talk.meter >= passAt ? talk.onWin() : talk.onLose();
   const picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   for (const o of picks) {
@@ -1661,7 +1699,7 @@ function renderDialogueOptions() {
       const delta = (o.dyn ? o.dyn() : o.d) + (Math.random() * 6 - 3);
       talk.meter = Math.max(0, Math.min(100, talk.meter + delta));
       $("dlgMeter").style.width = talk.meter + "%";
-      if (talk.meter >= 100) return talk.onWin();
+      if (talk.meter >= winAt) return talk.onWin();
       if (talk.meter <= 0) return talk.onLose();
       $("dlgText").textContent = delta >= 8 ? "A slow nod. You are getting through." :
                                  delta >= 0 ? "A grunt, noncommittal. But the door stays open." :
@@ -1976,6 +2014,11 @@ $("lawFreeRoam").addEventListener("change", e => {
   toast(laws.freeRoam ? "The borders are opened: civilians may roam the deep woods on their own." :
                         "Civilians are ordered to keep close to the town borders.");
 });
+$("lawCivBuild").addEventListener("change", e => {
+  laws.civBuild = e.target.checked;
+  toast(laws.civBuild ? "Civilians may break ground themselves — farms will rise from the town stores unbidden." :
+                        "Building is the government's business alone. Civilians will raise only what you order.");
+});
 $("lawForced").addEventListener("change", e => {
   laws.forced = e.target.checked;
   toast(laws.forced ? "The forced labour edict is proclaimed. The people will not forgive this quickly." :
@@ -2199,6 +2242,33 @@ function empireCells() {
   return cells;
 }
 
+// A new town is raised on empty ground, not inside somebody else's kingdom and
+// certainly not in the sea: find the nearest unclaimed cell to plant its flag on.
+function freeMapCell() {
+  if (!mapGrid) buildMapGrid();
+  const ownerAt = (mx, my) => {
+    const c = mx * 2, r = my * 2;
+    if (c < 0 || r < 0 || c >= FW || r >= FH) return "off";
+    return FID[fineGrid[r * FW + c]];
+  };
+  const taken = new Set(settlements.map(s => s.mx + "," + s.my));
+  taken.add(EMPIRE_HOME.mx + "," + EMPIRE_HOME.my);
+  for (let ring = 2; ring <= 14; ring++) {
+    const spots = [];
+    for (let dy = -ring; dy <= ring; dy++) for (let dx = -ring; dx <= ring; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+      const mx = EMPIRE_HOME.mx + dx, my = EMPIRE_HOME.my + dy;
+      if (taken.has(mx + "," + my)) continue;
+      if (ownerAt(mx, my) !== "wilds") continue;                 // unclaimed land only
+      // and elbow room from its neighbours
+      if (settlements.some(s => Math.abs(s.mx - mx) <= 1 && Math.abs(s.my - my) <= 1)) continue;
+      spots.push({ mx, my });
+    }
+    if (spots.length) return spots[Math.floor(Math.random() * spots.length)];
+  }
+  return { mx: EMPIRE_HOME.mx, my: EMPIRE_HOME.my + 1 };          // the woods will have to do
+}
+
 function natStrength(n) { return Math.min(10, n.strength + Math.floor(playT / 1800)); }
 
 // --- the wars of Europe: rival nations fight each other, borders move ---
@@ -2219,6 +2289,23 @@ function nationNeighbours(id) {
   return [...out];
 }
 
+// news from the wider world, shown as a card with a picture rather than a line of
+// small text that scrolls past unread. Click it away, or let it go on its own.
+let eventCardT = null;
+function eventCard(title, image, sub) {
+  const card = $("eventCard");
+  $("eventImg").src = `assets/sprites/ui/${image}.png`;
+  $("eventText").textContent = title;
+  $("eventSub").textContent = (sub || "") + " — click to dismiss";
+  card.classList.add("show");
+  clearTimeout(eventCardT);
+  eventCardT = setTimeout(() => card.classList.remove("show"), 8000);
+}
+$("eventCard").addEventListener("click", () => {
+  clearTimeout(eventCardT);
+  $("eventCard").classList.remove("show");
+});
+
 function startNatWar() {
   const ids = Object.keys(NATIONS).filter(id => !NATIONS[id].defeated);
   if (!ids.length) return;
@@ -2228,7 +2315,7 @@ function startNatWar() {
   if (!nbs.length) return;
   const b = nbs[Math.floor(Math.random() * nbs.length)];
   natWars.push({ a, b, t: 30 + Math.random() * 20, battles: 0 });
-  toast(`⚔ Word arrives from afar: ${NATIONS[a].name} and ${NATIONS[b].name} are at war!`);
+  eventCard(`${NATIONS[a].name} and ${NATIONS[b].name} are at war!`, "event_war", "Word arrives from afar");
 }
 
 function remainingCells(id) {
@@ -2240,7 +2327,7 @@ function checkDefeated(id) {
   n.defeated = true;
   n.atWar = false;
   natWars = natWars.filter(w => w.a !== id && w.b !== id);
-  toast(`⚔ ${n.name} has been DEFEATED — every league of its land is occupied. Its name passes into history.`);
+  eventCard(`${n.name} has been destroyed.`, "event_defeat", "Its name passes into history");
   return true;
 }
 function cellCount(id) {
@@ -2270,14 +2357,14 @@ function resolveBattle(war) {
     mapGrid[r][c] = winner;
   }
   war.battles++;
-  if (take > 0) toast(`⚔ ${NATIONS[winner].name} seizes borderland from ${NATIONS[loser].name}!`);
+  if (take > 0) eventCard(`${NATIONS[winner].name} seizes land from ${NATIONS[loser].name}!`, "event_conquest", "The borders of Europe shift");
   // rebuild the pixel map so borders visibly move — live if the map is open
   buildMapGrid();
   if (document.getElementById("mapOverlay").style.display === "block") renderMap();
   if (checkDefeated(loser)) return;
   if ((war.battles >= 3 && Math.random() < 0.3) || (!frontier.length && take === 0)) {
     natWars.splice(natWars.indexOf(war), 1);
-    toast(`The war between ${NATIONS[war.a].name} and ${NATIONS[war.b].name} ends in a weary peace.`);
+    eventCard(`${NATIONS[war.a].name} and ${NATIONS[war.b].name} make peace.`, "event_peace", "A weary truce is signed");
   }
 }
 
@@ -2461,7 +2548,7 @@ document.getElementById("miWar").addEventListener("click", () => {
   if (n.trade) { n.trade = false; toast(`The caravans of ${n.name} turn back — trade is dead.`); }
   n.atWar = true; n.warT = 30;
   for (const c of civs) c.happiness = Math.max(0, c.happiness - 6);
-  toast(`⚔ ${empireName || "The colony"} declares war on ${n.name}! The people brace themselves.`);
+  eventCard(`${empireName || "The colony"} declares war on ${n.name}!`, "event_war", "The people brace themselves");
   document.getElementById("mapOverlay").style.display = "none"; setPause(pauseOpen);
   vignette("firstWar");
   mapInfoSync(); renderMap();
@@ -2490,9 +2577,14 @@ const TRADE_OPTIONS = [
   { text: "\"Our roads are safe, our word is good, our scales are honest.\"", d: +7 },
   { text: "\"Your rivals already court our caravans.\"", d: 0, dyn: () => natWars.some(w => w.a === mapSelNation || w.b === mapSelNation) ? +11 : -9 },
   { text: "\"Low tariffs, full wagons — both our peoples profit.\"", d: +8 },
-  { text: "\"Trade with us, or your merchants will regret it.\"", d: -18 },
+  { text: "\"Trade with us, or your merchants will regret it.\"", d: -16 },
   { text: "\"We are small, but hard winters breed honest traders.\"", d: +5 },
   { text: "Praise the court's splendour at some length.", d: +4 },
+  // a court can be won round by argument alone — not every road runs through the treasury
+  { text: "\"Timber, pitch and iron: everything a fleet is built from, and we are closer than the Baltic.\"", d: +9 },
+  { text: "\"Name your tariff. We will meet it and keep our mouths shut about it.\"", d: +7 },
+  { text: "\"One caravan. If it profits you, send a second. If not, we never spoke.\"", d: +6 },
+  { text: "Let the envoy wait, and answer every question plainly and without flattery.", d: +5 },
 ];
 // what each court has in plenty — ask for anything else and the odds drop hard
 const NAT_GOODS = {
@@ -2545,7 +2637,7 @@ document.getElementById("miTrade").addEventListener("click", () => {
   if (!nationAdjacent(id)) return toast("Caravans need a shared border.");
   if (n.tradeCool > 0) return toast(`${n.name}'s court is still offended. Give it time.`);
   const lead = leaderOf(id);
-  n.tradeMeter = n.tradeMeter === undefined ? Math.max(10, 50 - natStrength(n) * 1.5) : n.tradeMeter;
+  n.tradeMeter = n.tradeMeter === undefined ? Math.max(28, 62 - natStrength(n) * 1.2) : n.tradeMeter;
   n.tradeUsed = n.tradeUsed || new Set();
   openTalk({
     face: lead.face,
@@ -2553,11 +2645,13 @@ document.getElementById("miTrade").addEventListener("click", () => {
     opening: "The envoy is received coolly. \"A colony of exiles wishes to trade with us? Speak, then.\"",
     pool: TRADE_OPTIONS,
     used: n.tradeUsed,
+    winAt: 80, passAt: 55,      // a court can be persuaded without emptying the treasury
+
     get meter() { return n.tradeMeter; }, set meter(x) { n.tradeMeter = x; },
     onWin: () => {
       closeDialogue();
       n.trade = true; n.tradeT = 30; n.tradeMeter = undefined; n.tradeUsed = new Set();
-      toast(`The compact is sealed — a trade route opens with ${n.name}. The first caravan is on the road.`);
+      eventCard(`A trade route opens with ${n.name}.`, "event_caravan", "The first caravan is on the road");
       SFX.coin();
       mapInfoSync(); syncUI();
     },
@@ -2582,7 +2676,7 @@ document.getElementById("miAssault").addEventListener("click", () => {
     const [bx, by] = n.blobs[0];
     for (let i = 0; i < 4; i++) n.captured.push((bx + i % 2 + n.lost) + "," + (by + Math.floor(i / 2)));
     res.dm += 200;
-    toast(`⚔ Against all odds, your soldiers storm a settlement of ${n.name}! +200 DM plunder; their land is yours on the map.`);
+    eventCard(`Your soldiers storm a settlement of ${n.name}!`, "event_conquest", "+200 DM plunder — their land is yours");
     SFX.coin();
     checkDefeated(mapSelNation);
   } else {
@@ -2612,7 +2706,7 @@ function updateWars(dt) {
                        dmg: 16 + (difficulty() - 1) * 2 + Math.floor(st / 3), camp: { x: Math.cos(a) * 1600, y: Math.sin(a) * 1600 }, target: t,
                        state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, nation: id });
       }
-      toast(`⚔ A war party of ${n.name} marches on the colony!`);
+      eventCard(`A war party of ${n.name} marches on the colony!`, "event_warparty", "Arm yourselves");
     }
   }
 }
@@ -2669,11 +2763,11 @@ document.getElementById("settleGo").addEventListener("click", () => {
     const b = { type: "cabin", x: bx, y: by, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
     buildings.push(b); newCabins.push(b);
   }
-  expandAround(site.x, site.y, 3);
+  expandAround(site.x, site.y, 5);   // room enough to actually build a town there
+  const flag = freeMapCell();
   const st = { name, pop: chosen.length, x: site.x, y: site.y,
                res: { logs: 10, stone: 4, bread: 4, meat: 2, dm: 10 },
-               mx: EMPIRE_HOME.mx + Math.round(Math.cos(angle) * (3 + settlements.length)),
-               my: EMPIRE_HOME.my + Math.round(Math.sin(angle) * 2 + 2 + settlements.length) };
+               mx: flag.mx, my: flag.my };
   settlements.push(st);
   // the settlers keep their names and trades — they walk out and live there
   chosen.forEach((c, i) => {
@@ -2685,7 +2779,7 @@ document.getElementById("settleGo").addEventListener("click", () => {
   });
   document.getElementById("settleModal").style.display = "none";
   settlePending = false; setPause(pauseOpen);
-  nextSettleAt = playT + 1200;
+  nextSettleAt = playT + SETTLE_AGAIN;   // the scouts rest 20 minutes before looking again
   expandFrontier(6);
   toast(`${chosen.length} settler(s) set out to found ${name} — follow them, or watch for its marker at the screen's edge.`);
   setTimeout(() => vignette("firstSettlement"), 400);
@@ -2734,6 +2828,7 @@ document.getElementById("empireGo").addEventListener("click", () => {
 document.getElementById("empireInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("empireGo").click(); e.stopPropagation(); });
 document.getElementById("terrColor").addEventListener("input", e => { territoryColor = e.target.value; });
 document.getElementById("bordColor").addEventListener("input", e => { borderColor = e.target.value; });
+document.getElementById("uniColor").addEventListener("input", e => { uniformColor = e.target.value; reDye(); });
 
 // --- save / load ---
 const SAVE_KEY = "forester_save";
@@ -2786,7 +2881,7 @@ function saveGame() {
       farms: farms.map(f => ({ x: r1(f.x), y: r1(f.y), ready: f.ready, growT: r1(f.growT), workers: f.workers.map(ci) })),
       camps: camps.map(c => ({ ...c, x: r1(c.x), y: r1(c.y) })),
       chunks: [...chunks.entries()].filter(([k, ch]) => ch.dirty).map(([k, ch]) => chunkDelta(k, ch)).filter(Boolean),
-      empireName, territoryColor, borderColor,
+      empireName, territoryColor, borderColor, uniformColor,
       territory: [...territory],
       sackedCamps, playT: r1(playT), nextSettleAt: r1(nextSettleAt), tutStep, colonyYear, vigSeen,
       corpses: corpses.map(cp => ({ x: r1(cp.x), y: r1(cp.y), who: cp.who, deceased: cp.deceased })),
@@ -2892,16 +2987,22 @@ function loadGame() {
     empireName = d.empireName || "";
     territoryColor = d.territoryColor || "#7da083";
     borderColor = d.borderColor || "#c9a86a";
+    uniformColor = d.uniformColor || "#2f52a8";
     $("terrColor").value = territoryColor; $("bordColor").value = borderColor;
+    $("uniColor").value = uniformColor; reDye();
     territory.clear(); for (const k of (d.territory || [])) territory.add(k);
     if (!territory.size) { expandAround(0, -40, 2); for (const b of buildings) expandAround(b.x, b.y, 1); }
-    sackedCamps = d.sackedCamps || 0; playT = d.playT || 0; nextSettleAt = d.nextSettleAt || 1200;
+    sackedCamps = d.sackedCamps || 0; playT = d.playT || 0;
+    nextSettleAt = d.nextSettleAt === undefined ? SETTLE_FIRST : d.nextSettleAt;
     tutStep = d.tutStep === undefined ? -1 : d.tutStep;
     colonyYear = d.colonyYear || 1683;
     vigSeen = d.vigSeen || {};
     corpses.length = 0; for (const cp of (d.corpses || [])) corpses.push({ ...cp, bearer: null, carried: null });
     graves.length = 0; for (const gv of (d.graves || [])) graves.push({ ...gv, mason: null });
     settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
+    // every daughter town owns the ground it stands on — repairs older saves whose
+    // settlements were founded before their clearing was claimed
+    for (const st of settlements) if (st.x !== undefined) expandAround(st.x, st.y, 5);
     conquests.length = 0; for (const cq of (d.conquests || [])) conquests.push(cq);
     natWars = d.natWars || [];
     mapGrid = null;   // rebuilt with conquests on next use
@@ -2917,6 +3018,7 @@ function loadGame() {
     $("lawCivWeapons").checked = laws.civWeapons;
     $("lawHunterWeapons").checked = laws.hunterWeapons;
     $("lawFreeRoam").checked = !!laws.freeRoam;
+    $("lawCivBuild").checked = !!laws.civBuild;
     if ($("lawForced")) $("lawForced").checked = laws.forced;
     return true;
   } catch (e) {
@@ -3099,6 +3201,7 @@ $("tutSkip").addEventListener("click", () => { tutStep = -1; $("tutBanner").styl
 // --- menu / loading / game over ---
 addEventListener("pointerdown", () => { try { SFX.setMaster(settings.master); } catch (e) {} }, { once: true });
 function assetsReady() {
+  reDye();                                  // the coats are cut before anyone marches
   const mode = sessionStorage.getItem("forester_skip");
   sessionStorage.removeItem("forester_skip");
   if (mode === "new") { localStorage.removeItem(SAVE_KEY); doLoading(false); }
@@ -3165,7 +3268,6 @@ function syncUI() {
   const hudTown = settlements.find(s => s.x !== undefined && Math.hypot(s.x - hudCx, s.y - hudCy) < 700);
   const hr = hudTown ? (hudTown.res || {}) : res;
   $("rName").textContent = (hudTown ? hudTown.name : settlementName).toUpperCase();
-  $("govTitle").textContent = "GOVERNMENT OF " + settlementName.toUpperCase();
   $("rLogs").textContent = hr.logs || 0; $("rSeeds").textContent = hr.seeds || 0;
   $("rStone").textContent = hr.stone || 0; $("rIron").textContent = hr.iron || 0;
   $("rDoors").textContent = hr.doors || 0; $("rBread").textContent = hr.bread || 0;
@@ -3179,11 +3281,16 @@ function syncUI() {
   $("rTaxT").textContent = mm + ":" + String(ss).padStart(2, "0");
   const avg = civs.length ? Math.round(civs.reduce((s, c) => s + c.happiness, 0) / civs.length) : 0;
   $("rHappy").textContent = avg + "%";
-  $("govHappy").textContent = avg + "%";
-  $("govDM").textContent = res.dm + " DM";
+  // Standing in a daughter town, the government panel speaks of THAT town:
+  // its name, its stores, its people — not the capital's.
+  const govFolk = hudTown ? civs.filter(c => c.home && townOf(c.home) === hudTown) : civs;
+  const govAvg = govFolk.length ? Math.round(govFolk.reduce((s, c) => s + c.happiness, 0) / govFolk.length) : 0;
+  $("govTitle").textContent = "GOVERNMENT OF " + (hudTown ? hudTown.name : settlementName).toUpperCase();
+  $("govHappy").textContent = govAvg + "%";
+  $("govDM").textContent = (hudTown ? (hr.dm || 0) : res.dm) + " DM";
   {
     const counts = {};
-    for (const c of civs) counts[c.child ? "child" : (c.profession || "no trade")] = (counts[c.child ? "child" : (c.profession || "no trade")] || 0) + 1;
+    for (const c of govFolk) counts[c.child ? "child" : (c.profession || "no trade")] = (counts[c.child ? "child" : (c.profession || "no trade")] || 0) + 1;
     const orderProfs = ["farmer", "hunter", "lumberjack", "quarryman", "forager", "blacksmith", "police", "soldier", "musketeer", "cavalry", "child", "no trade"];
     const parts = orderProfs.filter(p => counts[p]).map(p => `${p.charAt(0).toUpperCase() + p.slice(1)}: <b style="color:#c9a86a">${counts[p]}</b>`);
     for (const p of Object.keys(counts)) if (!orderProfs.includes(p)) parts.push(`${p}: <b style="color:#c9a86a">${counts[p]}</b>`);
@@ -3737,13 +3844,10 @@ function update(dt) {
       if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= SMITH_TIME * workMul(c)) {
         if (c.task.make === "weapon") {
-          // weapons go straight to the armoury; the treasury pays the smith when it can
+          // the colony's own iron, forged at the colony's forge, for the colony's
+          // armoury: no coin changes hands, and no civilian touches the treasury
           res.weapons++;
-          if (res.dm - 12 >= treasuryFloor()) {
-            res.dm -= 12; c.inv.dm += 12; SFX.coin();
-            float(c.x, c.y - 70, "+12 DM", "#c9a86a");
-            toast(`${c.name} forges a weapon — bought for 12 DM and racked in the armoury.`);
-          } else toast(`${c.name} forges a weapon for the armoury — the treasury too thin to pay the smithy.`);
+          toast(`${c.name} forges a weapon for the armoury. (${res.weapons} in store)`);
         } else {
           const shopForge = buildings.find(b => b.type === "forge" && !b.fire && !b.site);
           if (shopForge) {
@@ -3787,9 +3891,13 @@ function update(dt) {
       if ((c.workT % 0.45) < dt) SFX.rustle();
       if (c.workT >= HARVEST_TIME * workMul(c)) {
         f.ready = false; f.growT = 0; f.progress = -1;
-        c.inv.wheat += 2; c.inv.bread += 1;
+        // the harvest feeds the whole colony: bread goes to the common store at once,
+        // where any hungry soul can reach it, rather than sitting in one farmer's pack
+        c.inv.wheat += 2;
+        const led = ledgerOf(c);
+        led.bread = (led.bread || 0) + 1;
         SFX.pickup();
-        float(c.x, c.y - 70, "+2 wheat +1 bread", "#7da083");
+        float(c.x, c.y - 70, "+2 wheat · +1 bread to the store", "#7da083");
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "digging") {
@@ -4209,16 +4317,17 @@ function render(dt) {
       if (c.fireT > 0) {
         // the shot itself: flash, then the smoke hanging, then the musket coming down
         const k = 1 - c.fireT / MUSKET_FIRE_T;
-        frame = img["mfire" + (k < 0.30 ? 1 : k < 0.62 ? 2 : 3)];
+        frame = coatOf("mfire" + (k < 0.30 ? 1 : k < 0.62 ? 2 : 3));
       } else {
         const k = 1 - c.reloadT / reloadTime();                // powder → ball → ramrod → shoulder
-        frame = img["mload" + Math.min(3, Math.floor(k * 4))];
+        frame = coatOf("mload" + Math.min(3, Math.floor(k * 4)));
       }
     }
-    else if (c.profession === "musketeer" && c.state === "fighting") frame = img.mfire0;   // levelled, waiting
+    else if (c.profession === "musketeer" && c.state === "fighting") frame = coatOf("mfire0");   // levelled, waiting
     else if ((c.state === "fighting" || c.state === "sieging") && c.profession !== "cavalry" && c.profession !== "musketeer")
       frame = img[(isForce(c) || c.armed ? "atksword" : "atkfist") + (Math.floor(c.anim) % 4)];
-    else frame = img[c.who + (Math.floor(c.anim) % 4)];
+    else frame = c.profession === "musketeer" ? coatOf(c.who + (Math.floor(c.anim) % 4))
+                                              : img[c.who + (Math.floor(c.anim) % 4)];
     drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
     // the flash is painted into the firing sprite itself — nothing is drawn over it
     ctx.fillStyle = c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" :
