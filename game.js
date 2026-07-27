@@ -298,7 +298,28 @@ const SETTLE_FIRST = 1500, SETTLE_AGAIN = 1500;   // 25 minutes to the first off
 let sackedCamps = 0, playT = 0, nextSettleAt = SETTLE_FIRST, settlePending = false;
 let lastTier = 1;
 // the woods grow bolder as your colony grows older and larger
-function difficulty() { return Math.min(6, 1 + Math.floor(playT / 1000) + Math.floor(civs.length / 10)); }
+// ===== the reckoning: how much the woods and the crowns fear you =====
+// A colony that grows strong does not grow safe. Every soldier you raise, every
+// town you found, every camp you burn and every mark in the treasury is another
+// reason for someone to come and take it. Nothing here is capped by the clock.
+function menace() {
+  const army = civs.filter(isForce).length;
+  const built = buildings.filter(b => b.type !== "burned" && !b.site).length;
+  return 1
+    + playT / 1800                      // the years themselves
+    + civs.length * 0.18                // mouths, hands, and rumours
+    + army * 0.3                        // a standing army is a provocation
+    + settlements.length * 0.9          // every town is another prize
+    + Math.max(0, res.dm) / 700         // a full treasury is a story that travels
+    + built * 0.03
+    + sackedCamps * 0.3                 // they remember what you did to the last camp
+    + conquests.length * 1.2;           // and a conqueror is everyone's problem
+}
+// No ceiling worth the name: the reckoning keeps climbing as long as you do.
+function difficulty() { return Math.max(1, Math.min(20, Math.round(menace()))); }
+// how many may come at once, and how many camps the woods can hold
+function maxRaiders() { return Math.max(4, Math.min(26, Math.round(2 + menace() * 1.2))); }
+function campCap() { return Math.max(1, Math.min(MAX_CAMPS, 1 + Math.floor(menace() / 3))); }
 const settlements = [];               // {name, pop, mx, my} on the Europe map
 const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false, civBuild: false };
 
@@ -499,7 +520,7 @@ function townCoin(t) { return t ? (t.res && t.res.dm) || 0 : res.dm; }
 function raidTargetsIn(town) { return buildings.filter(b => b.type !== "burned" && townAt(b.x, b.y) === town); }
 function spawnCamps(n) {
   const tier = difficulty();
-  for (let i = 0; i < n && camps.length < 1; i++) {   // one camp in the world at a time
+  for (let i = 0; i < n && camps.length < campCap(); i++) {   // the woods hold more camps the more you have to lose
     // the camp pitches its tents in the woods near ANY of your towns
     const towns = [null, ...settlements.filter(s => s.x !== undefined)];
     const anchor = towns[Math.floor(Math.random() * towns.length)];
@@ -522,13 +543,13 @@ function mkRaider(camp, state) {
 }
 function spawnRaid() {
   const attackers = raiders.filter(r => r.state !== "patrol").length;
-  if (!camps.length || attackers >= MAX_RAIDERS) return;
+  if (!camps.length || attackers >= maxRaiders()) return;
   // raiders go where the coin is — an empty chest is not worth the walk
   const towns = townsWithBuildings().filter(t => townCoin(t) >= 5);
   if (!towns.length) return;
   const town = towns[Math.floor(Math.random() * towns.length)];
   const camp = camps[Math.floor(Math.random() * camps.length)];
-  let n = camp.type === "raid" ? 3 : 2;
+  let n = (camp.type === "raid" ? 3 : 2) + Math.floor(menace() / 3);
   const targets = raidTargetsIn(town);
   if (!targets.length) return;
   // the patrol decides it is a good time to strike
@@ -538,7 +559,7 @@ function spawnRaid() {
     pr.target = targets[Math.floor(Math.random() * targets.length)];
     n--;
   }
-  for (let i = 0; i < n && raiders.filter(r => r.state !== "patrol").length < MAX_RAIDERS; i++) {
+  for (let i = 0; i < n && raiders.filter(r => r.state !== "patrol").length < maxRaiders(); i++) {
     const r = mkRaider(camp, "approach");
     r.target = targets[Math.floor(Math.random() * targets.length)];
     raiders.push(r);
@@ -2928,7 +2949,105 @@ function freeMapCell() {
   return { mx: EMPIRE_HOME.mx, my: EMPIRE_HOME.my + 1 };          // the woods will have to do
 }
 
-function natStrength(n) { return Math.min(10, n.strength + Math.floor(playT / 1800)); }
+function natStrength(n) {
+  return Math.max(1, Math.min(10, n.strength + Math.floor(playT / 1800) + (n.mod || 0)));
+}
+
+// ===== catastrophe: the seventeenth century is unkind to everyone but you =====
+// Europe is not a painted backdrop. Plague, famine, fire and revolt fall on the
+// crowns whether you are watching or not, and every one of them changes what that
+// nation can do to you — or what you can do to it.
+const CALAMITIES = [
+  { id: "plague", name: "Plague",
+    line: n => `Plague walks the towns of ${n.name}.`,
+    sub: "Their strength fails, their caravans stop, and the roads fill with the fleeing",
+    hit: 3, years: 480,
+    fall: n => { n.trade = false; n.reqCool = 240; n.refugees = 3 + Math.floor(Math.random() * 3); } },
+  { id: "famine", name: "Famine",
+    line: n => `The harvest fails across ${n.name}.`,
+    sub: "Grain is worth more than silver there — and they will pay for it",
+    hit: 2, years: 420,
+    fall: n => { n.hungry = true; n.refugees = 1 + Math.floor(Math.random() * 3); } },
+  { id: "fire", name: "Great Fire",
+    line: n => `Fire takes the capital of ${n.name}.`,
+    sub: "Whole quarters are ash; it will be years before they rebuild",
+    hit: 2, years: 360,
+    fall: n => { n.reqCool = 150; } },
+  { id: "revolt", name: "Revolt",
+    line: n => `The peasantry of ${n.name} rises in revolt.`,
+    sub: "Their armies are turned inward, and their borders lie open",
+    hit: 4, years: 400,
+    fall: n => { n.atWar = false; n.warT = 0; n.revolt = true; } },
+  { id: "bankrupt", name: "Bankruptcy",
+    line: n => `The treasury of ${n.name} is empty — the crown cannot pay its soldiers.`,
+    sub: "Their war parties disband and go home",
+    hit: 3, years: 330,
+    fall: n => { n.atWar = false; n.warT = 0; for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].nation === n.id && !raiders[i].garrison) raiders.splice(i, 1); } },
+  { id: "succession", name: "Succession",
+    line: n => `The king of ${n.name} is dead, and the heir is disputed.`,
+    sub: "Old friendships end and old grudges are remembered",
+    hit: 1, years: 300,
+    fall: n => {
+      n.tradeCool = 200; n.trade = false;
+      const others = Object.keys(NATIONS).filter(o => o !== n.id && !NATIONS[o].defeated);
+      if (others.length && natWars.length < 3) {
+        const foe = others[Math.floor(Math.random() * others.length)];
+        natWars.push({ a: n.id, b: foe, t: 40 + Math.random() * 30, battles: 0 });
+      }
+    } },
+];
+// Those who flee a stricken country have to go somewhere, and your gate is as
+// good as any. They arrive as wanderers do — but hungrier, and more of them.
+let refugeeT = 30;
+function updateRefugees(dt) {
+  refugeeT -= dt;
+  if (refugeeT > 0) return;
+  refugeeT = 45 + Math.random() * 45;
+  const from = Object.values(NATIONS).find(n => (n.refugees || 0) > 0 && !n.defeated);
+  if (!from) return;
+  if (!buildings.some(b => b.type === "recruit" && !b.fire && !b.site)) return;   // nowhere to receive them
+  if (visitors.length > 3) return;
+  from.refugees--;
+  spawnVisitor();
+  const v = visitors[visitors.length - 1];
+  if (v) {
+    v.refugee = from.name;
+    toast(`A refugee of ${from.name} comes up the road, carrying what they could. Click them to talk.`);
+  }
+}
+let calamityT = 240;
+function updateCalamities(dt) {
+  // wounds heal: a crown climbs back toward its old strength as the years pass
+  for (const [id, n] of Object.entries(NATIONS)) {
+    if (!n.calT) continue;
+    n.calT -= dt;
+    if (n.calT <= 0) {
+      n.calT = 0; n.mod = 0; n.hungry = false; n.revolt = false;
+      if (!n.defeated) toast(`${n.name} has recovered from the ${n.calName || "calamity"}.`);
+    }
+  }
+  calamityT -= dt;
+  if (calamityT > 0) return;
+  calamityT = 300 + Math.random() * 300;
+  const open = Object.entries(NATIONS).filter(([, n]) => !n.defeated && !n.calT);
+  if (!open.length) return;
+  const [id, n] = open[Math.floor(Math.random() * open.length)];
+  const cal = CALAMITIES[Math.floor(Math.random() * CALAMITIES.length)];
+  n.id = id;
+  n.mod = -cal.hit;
+  n.calT = cal.years;
+  n.calName = cal.name.toLowerCase();
+  cal.fall(n);
+  // a nation on its knees loses ground to its neighbours
+  if (cal.hit >= 3 && n.blobs && n.blobs.length) {
+    n.captured = n.captured || [];
+    const [bx, by] = n.blobs[0];
+    n.captured.push((bx + n.captured.length) + "," + by);
+    mapGrid = null;
+  }
+  eventCard(cal.line(n), "event_war", cal.sub);
+  mapInfoSync(); renderMap();
+}
 
 // --- the wars of Europe: rival nations fight each other, borders move ---
 const conquests = [];        // {c, r, to} — persistent map overrides
@@ -3194,8 +3313,9 @@ function mapInfoSync() {
     w.style.display = pc.style.display = as.style.display = "none";
     return;
   }
+  const woe = n.calT ? ` Stricken by ${n.calName} — weakened, and slow to answer.` : "";
   document.getElementById("miDetail").textContent =
-    `Strength ${natStrength(n)}/10${natStrength(n) > n.strength ? " (grown with the years)" : ""}. ` + (n.atWar ?
+    `Strength ${natStrength(n)}/10${n.calT ? " (stricken)" : natStrength(n) > n.strength ? " (grown with the years)" : ""}.${woe} ` + (n.atWar ?
       `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 fighting men — soldiers, musketeers or cavalry; unarmed soldiers draw a weapon from the armoury. (You have ${soldiers} fighting man/men, ${res.weapons} weapon(s).)` :
       adj ? "At peace, and your borders touch theirs. Declaring war will bring their war parties to your gates — and put their settlements within your soldiers' reach." :
             "At peace — and far from your borders. No quarrel can reach a nation your territory does not touch. Expand toward them first.");
@@ -3280,8 +3400,11 @@ function wantsOf(id) {
 }
 const barterFor = amt => Math.max(1, Math.round(amt * 0.6));
 function requestOdds(id, good, amt) {
+  const n = NATIONS[id] || {};
   const scarce = !goodsOf(id).includes(good);
-  return Math.max(0.05, Math.min(0.95, 0.92 - amt * 0.02 - (scarce ? 0.35 : 0)));
+  // a starving court sells nothing it can eat, and a plagued one has no carters
+  const starving = n.hungry && ["wheat", "bread", "meat"].includes(good) ? 0.4 : 0;
+  return Math.max(0.02, Math.min(0.95, 0.92 - amt * 0.02 - (scarce ? 0.35 : 0) - starving - (n.calT ? 0.15 : 0)));
 }
 function requestOddsText() {
   const id = mapSelNation; if (!id || !NATIONS[id]) return;
@@ -3640,13 +3763,13 @@ function updateWars(dt) {
       if (season() === "winter") continue;   // armies do not march in the snow
       // a war party marches on ONE town — settlements are not spared the war
       const towns = townsWithBuildings();
-      if (!towns.length || raiders.length >= MAX_RAIDERS + 2) continue;
+      if (!towns.length || raiders.length >= maxRaiders() + 4) continue;
       const town = towns[Math.floor(Math.random() * towns.length)];
       const targets = raidTargetsIn(town);
       const cx = town ? town.x : 0, cy = town ? town.y : 0;
       const a = Math.random() * Math.PI * 2;
       const st = natStrength(n);
-      const partySize = 3 + (st >= 8 ? 1 : 0);
+      const partySize = 3 + (st >= 8 ? 1 : 0) + Math.floor(menace() / 2.5);
       for (let i = 0; i < partySize; i++) {
         const t = targets[Math.floor(Math.random() * targets.length)];
         const whp = 90 + (difficulty() - 1) * 12 + st * 3;
@@ -4019,7 +4142,8 @@ function saveGame() {
                                    dmg: r.dmg, nation: r.nation, town: foreignTowns.indexOf(r.garrison) })),
       foreignFolk: foreignFolk.map(f => ({ name: f.name, gender: f.gender, who: f.who, trade: f.trade,
                                    age: f.age, x: r1(f.x), y: r1(f.y), town: foreignTowns.indexOf(f.town) })),
-      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated, trade: !!n.trade }])),
+      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated, trade: !!n.trade,
+                             mod: n.mod || 0, calT: r1(n.calT || 0), calName: n.calName, hungry: !!n.hungry, revolt: !!n.revolt, refugees: n.refugees || 0 }])),
     };
     const json = JSON.stringify(data);
     lastSaveKB = Math.round(json.length / 1024);
@@ -4355,6 +4479,8 @@ $("tutSkip").addEventListener("click", () => { tutStep = -1; $("tutBanner").styl
 
 // --- menu / loading / game over ---
 addEventListener("pointerdown", () => { try { SFX.setMaster(settings.master); } catch (e) {} }, { once: true });
+// the regiment keeps the march you gave it
+try { if (settings.marchTune) MUSIC.setMarch(settings.marchTune); } catch (e) {}
 function assetsReady() {
   reDye();                                  // the coats are cut before anyone marches
   const mode = sessionStorage.getItem("forester_skip");
@@ -4647,6 +4773,8 @@ function update(dt) {
   rescueStuck(dt);
   updateNationWars(dt);
   updateNationTrade(dt);
+  updateCalamities(dt);
+  updateRefugees(dt);
   if (civs.length >= 10) vignette("village");
   if (difficulty() > lastTier) {
     lastTier = difficulty();
@@ -4796,12 +4924,17 @@ function update(dt) {
   // raids
   if (has("defending") || has("raiding")) {
     campRespawnTimer -= dt;
-    if (campRespawnTimer <= 0) { campRespawnTimer = 300; spawnCamps(1); }
+    if (campRespawnTimer <= 0) {
+      // the woods fill in faster as the colony grows, and while they are far
+      // below what your wealth warrants, more than one band moves in at once
+      campRespawnTimer = Math.max(70, 300 * Math.pow(0.85, difficulty() - 1));
+      spawnCamps(camps.length + 1 < campCap() ? 2 : 1);
+    }
   }
   if (camps.length) {
     raidTimer -= dt;
     if (raidTimer <= 0) {
-      raidTimer = (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.88, difficulty() - 1);
+      raidTimer = Math.max(50, (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.88, difficulty() - 1));
       if (season() !== "winter") spawnRaid();   // raiders overwinter in their camps
     }
     for (const cp of camps) {
@@ -4820,7 +4953,7 @@ function update(dt) {
       patrolT = 20;
       for (const cp of camps) {
         const onWatch = raiders.filter(r => r.camp === cp && r.state === "patrol").length;
-        if (onWatch < 2 && raiders.length < MAX_RAIDERS + 8) raiders.push(mkRaider(cp, "patrol"));
+        if (onWatch < 2 && raiders.length < maxRaiders() + 8) raiders.push(mkRaider(cp, "patrol"));
       }
     }
   }
@@ -4835,7 +4968,7 @@ function update(dt) {
       const town = openTowns.length ? openTowns[Math.floor(Math.random() * openTowns.length)] : undefined;
       const guards = civs.filter(c => isForce(c) && c.state !== "sleeping" && townAt(c.x, c.y) === town);
       const targets = town === undefined ? [] : raidTargetsIn(town).filter(b => !b.fire);
-      if (targets.length && raiders.filter(r => r.state !== "patrol").length < MAX_RAIDERS + 2) {
+      if (targets.length && raiders.filter(r => r.state !== "patrol").length < maxRaiders() + 2) {
         const tx = town ? town.x : 0, ty = town ? town.y : 0;
         let camp = camps[0], bd = Infinity;
         for (const cp of camps) { const d = Math.hypot(cp.x - tx, cp.y - ty); if (d < bd) { bd = d; camp = cp; } }
