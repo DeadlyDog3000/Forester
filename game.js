@@ -834,23 +834,109 @@ addEventListener("keydown", e => {
 });
 addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 canvas.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+function zoomAt(sx, sy, factor) {
+  const wx = cam.x + sx / zoom, wy = cam.y + sy / zoom;
+  zoom = Math.max(0.45, Math.min(2.4, zoom * factor));
+  cam.x = wx - sx / zoom;
+  cam.y = wy - sy / zoom;
+}
 canvas.addEventListener("wheel", e => {
   e.preventDefault();
-  const wx = cam.x + mouse.x / zoom, wy = cam.y + mouse.y / zoom;
-  zoom = Math.max(0.45, Math.min(2.4, zoom * (e.deltaY < 0 ? 1.12 : 0.89)));
-  cam.x = wx - mouse.x / zoom;
-  cam.y = wy - mouse.y / zoom;
+  zoomAt(mouse.x, mouse.y, e.deltaY < 0 ? 1.12 : 0.89);
 }, { passive: false });
-canvas.addEventListener("contextmenu", e => {
-  e.preventDefault();
+function cancelAll() {
   buildMode = null; selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null;
   selGroup = [];
   syncUI();
-});
+}
+canvas.addEventListener("contextmenu", e => { e.preventDefault(); cancelAll(); });
 
-canvas.addEventListener("click", e => {
+// --- touch: drag to look about, pinch to zoom, tap to act, hold to cancel ---
+const TAP_SLOP = 14, HOLD_MS = 520;
+let tPan = null, tPinch = null, tHoldTimer = null, tMoved = 0, tHandled = false;
+function touchXY(t) { return [t.clientX, t.clientY]; }
+canvas.addEventListener("touchstart", e => {
+  if (e.touches.length === 1) {
+    const [x, y] = touchXY(e.touches[0]);
+    tPan = { x, y, sx: x, sy: y, t: performance.now() };
+    tMoved = 0; tHandled = false;
+    mouse.x = x; mouse.y = y;                    // no hover on a touchscreen: the finger is the cursor
+    clearTimeout(tHoldTimer);
+    tHoldTimer = setTimeout(() => {              // press and hold stands in for a right-click
+      if (tPan && tMoved < TAP_SLOP && gameState === "playing" && !paused) {
+        tHandled = true;
+        if (navigator.vibrate) navigator.vibrate(12);
+        cancelAll();
+        toast("Selection cleared.");
+      }
+    }, HOLD_MS);
+  } else if (e.touches.length === 2) {
+    clearTimeout(tHoldTimer);
+    const [x1, y1] = touchXY(e.touches[0]), [x2, y2] = touchXY(e.touches[1]);
+    tPinch = { d: Math.hypot(x2 - x1, y2 - y1), cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
+    tPan = null; tHandled = true;
+  }
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener("touchmove", e => {
+  if (e.touches.length === 2 && tPinch) {
+    const [x1, y1] = touchXY(e.touches[0]), [x2, y2] = touchXY(e.touches[1]);
+    const d = Math.hypot(x2 - x1, y2 - y1), cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    cam.x -= (cx - tPinch.cx) / zoom; cam.y -= (cy - tPinch.cy) / zoom;   // two fingers also carry the view
+    if (tPinch.d > 0) zoomAt(cx, cy, Math.max(0.5, Math.min(2, d / tPinch.d)));
+    tPinch = { d, cx, cy };
+  } else if (e.touches.length === 1 && tPan) {
+    const [x, y] = touchXY(e.touches[0]);
+    const dx = x - tPan.x, dy = y - tPan.y;
+    tMoved += Math.hypot(dx, dy);
+    if (tMoved >= TAP_SLOP) {
+      clearTimeout(tHoldTimer);
+      // while building, the finger carries the ghost so you can see where it lands;
+      // otherwise the world moves under the finger
+      if (!buildMode) { cam.x -= dx / zoom; cam.y -= dy / zoom; tHandled = true; }
+    }
+    tPan.x = x; tPan.y = y;
+    mouse.x = x; mouse.y = y;
+  }
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener("touchend", e => {
+  clearTimeout(tHoldTimer);
+  if (tPan && !tHandled) {
+    // in build mode, lifting the finger sets the stake wherever the ghost rests
+    if (buildMode) worldClick(tPan.x, tPan.y);
+    else if (tMoved < TAP_SLOP && performance.now() - tPan.t < HOLD_MS) worldClick(tPan.sx, tPan.sy);
+  }
+  if (!e.touches.length) { tPan = null; tPinch = null; }
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener("touchcancel", () => { clearTimeout(tHoldTimer); tPan = null; tPinch = null; });
+
+// --- on-screen controls, for hands that have no keyboard ---
+const IS_TOUCH = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+if (IS_TOUCH) {
+  document.body.classList.add("touch");
+  $("cutHint").textContent = "TAP ▸";
+  $("hint").textContent = "Drag to look about · pinch to zoom · hold to deselect";
+}
+$("tbRotate").addEventListener("click", () => {
+  if (!WALLLIKE.has(buildMode)) return toast("Pick a wall, gate, moat or ditch from BUILD first.");
+  wallRot = wallRot ? 0 : 1;
+  toast(`Wall turned ${wallRot ? "upright (north-south)" : "flat (east-west)"}.`);
+  syncUI();
+});
+$("tbCancel").addEventListener("click", () => { cancelAll(); toast("Selection cleared."); });
+$("tbHome").addEventListener("click", () => {
+  const h = buildings.find(b => b.type === "cabin") || buildings[0] || { x: 0, y: -40 };
+  cam.x = h.x - canvas.width / 2 / zoom;
+  cam.y = h.y - canvas.height / 2 / zoom;
+});
+$("tbMenu").addEventListener("click", () => { if (gameState === "playing" || pauseOpen) setPause(!pauseOpen); });
+
+canvas.addEventListener("click", e => worldClick(e.clientX, e.clientY));
+function worldClick(clientX, clientY) {
   if (gameState !== "playing") return;
-  mouse.x = e.clientX; mouse.y = e.clientY;
+  mouse.x = clientX; mouse.y = clientY;
   mouse.wx = cam.x + mouse.x / zoom; mouse.wy = cam.y + mouse.y / zoom;
   if (paused) return;
 
@@ -994,7 +1080,7 @@ canvas.addEventListener("click", e => {
       order(s, { kind: "walk", x: mouse.wx + ox, y: mouse.wy + oy });
     });
   }
-});
+}
 
 // heal anyone wedged inside a footprint — legacy saves, edge cases, anything
 let rescueT = 2;
@@ -1846,9 +1932,18 @@ $("pmSave").addEventListener("click", () => {
         `The colony ledger is written. Game saved (${lastSaveKB} KB).`);
 });
 $("pmMenu").addEventListener("click", () => { saveGame(); location.reload(); });
+// on a phone the panels are bottom sheets sharing one patch of glass: only one at a time
+const NARROW = () => innerWidth <= 820 || (matchMedia("(pointer: coarse)").matches && innerWidth <= 1100);
 $("govToggle").addEventListener("click", () => {
   const p = $("govPanel");
-  p.style.display = p.style.display === "block" ? "none" : "block";
+  const opening = p.style.display !== "block";
+  p.style.display = opening ? "block" : "none";
+  if (opening && NARROW()) {
+    selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null; selGroup = [];
+    $("civPanel").style.display = "none"; $("bldgPanel").style.display = "none";
+    $("techPanel").style.display = "none";
+    syncUI();
+  }
 });
 $("taxSlider").addEventListener("input", e => { taxRate = +e.target.value; $("taxVal").textContent = taxRate; syncUI(); });
 $("lawCivWeapons").addEventListener("change", e => { laws.civWeapons = e.target.checked; });
@@ -2281,6 +2376,14 @@ document.getElementById("mapToggle").addEventListener("click", () => {
   document.getElementById("mapTitle").textContent = (empireName || "YOUR EMPIRE").toUpperCase() + " — EUROPE, " + colonyYear;
   document.getElementById("mapOverlay").style.display = "block";
   paused = true;
+  // on a phone the map is wider than the glass: open it looking at your own lands
+  const frame = document.getElementById("euromap").parentElement;
+  if (frame && frame.scrollWidth > frame.clientWidth) {
+    const mapEl = document.getElementById("euromap");
+    const scale = mapEl.getBoundingClientRect().width / mapEl.width;
+    frame.scrollLeft = Math.max(0, EMPIRE_HOME.mx * CPX * scale - frame.clientWidth / 2);
+    frame.scrollTop = Math.max(0, EMPIRE_HOME.my * CPX * scale - frame.clientHeight / 2);
+  }
 });
 document.getElementById("mapClose").addEventListener("click", () => {
   document.getElementById("mapOverlay").style.display = "none";
@@ -2288,7 +2391,9 @@ document.getElementById("mapClose").addEventListener("click", () => {
 });
 document.getElementById("euromap").addEventListener("click", e => {
   const rect = e.target.getBoundingClientRect();
-  const c = Math.floor((e.clientX - rect.left) / MPX), r = Math.floor((e.clientY - rect.top) / MPX);
+  // the map may be drawn smaller than its canvas on a phone: read taps in canvas pixels
+  const sx = e.target.width / rect.width, sy = e.target.height / rect.height;
+  const c = Math.floor((e.clientX - rect.left) * sx / MPX), r = Math.floor((e.clientY - rect.top) * sy / MPX);
   if (!fineGrid || c < 0 || r < 0 || c >= FW || r >= FH) return;
   const id = FID[fineGrid[r * FW + c]];
   if (!id || id === "sea" || id === "wilds") { mapSelNation = null; mapInfoSync(); return; }
@@ -3026,6 +3131,7 @@ function gameOver() {
 
 function syncUI() {
   $("buildToggle").classList.toggle("active", !!buildMode);
+  $("tbRotate").classList.toggle("hot", WALLLIKE.has(buildMode));
   // in a daughter town's clearing, the HUD shows that town's ledger instead of the capital's
   const hudCx = cam.x + canvas.width / 2 / zoom, hudCy = cam.y + canvas.height / 2 / zoom;
   const hudTown = settlements.find(s => s.x !== undefined && Math.hypot(s.x - hudCx, s.y - hudCy) < 700);
@@ -3129,6 +3235,7 @@ function syncUI() {
   if (!selected) p.style.display = "none";
   else {
     p.style.display = "block"; $("bldgPanel").style.display = "none";
+    if (NARROW()) $("govPanel").style.display = "none";   // one sheet at a time on a phone
     $("cpName").textContent = selected.name.toUpperCase() + (selected.rebel ? " — REBEL" : "") +
       (selGroup.length > 1 && selGroup.includes(selected) ? ` (+${selGroup.length - 1} MORE)` : "");
     $("cpProf").textContent = (selected.profession || "none") + (selected.age !== undefined ? ` · age ${selected.age}` : "");
@@ -3173,6 +3280,7 @@ function syncUI() {
   }
 
   const bp = $("bldgPanel");
+  if (NARROW() && (selectedGrave || selectedBldg || selectedCamp)) $("govPanel").style.display = "none";
   if (selectedGrave) {
     bp.style.display = "block";
     const d = selectedGrave.deceased;
