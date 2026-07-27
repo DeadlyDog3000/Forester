@@ -880,7 +880,12 @@ function collideMove(c, nx, ny) {
 }
 
 // --- helpers ---
-function toast(text) { msgEl.textContent = text; toastTimer = 5; }
+function toast(text) {
+  msgEl.textContent = text; toastTimer = 5;
+  // with the map open, a message belongs beside the button that caused it
+  const ov = document.getElementById("mapOverlay"), note = document.getElementById("miNote");
+  if (ov && note && ov.style.display === "block") { note.textContent = text; note.style.display = "block"; }
+}
 // Work is paid for out of the stores of whichever town you are standing in —
 // the same ledger the HUD is showing you, so what you see is what you spend.
 const LEDGER_KEYS = ["logs", "seeds", "stone", "iron", "wheat", "bread", "meat", "dm", "doors", "weapons"];
@@ -2897,6 +2902,8 @@ document.getElementById("euromap").addEventListener("click", e => {
 });
 function mapInfoSync() {
   const w = document.getElementById("miWar"), pc = document.getElementById("miPeace"), as = document.getElementById("miAssault");
+  const note = document.getElementById("miNote");
+  if (note) { note.textContent = ""; note.style.display = "none"; }   // a fresh nation, a fresh slate
   if (!mapSelNation) {
     document.getElementById("miName").textContent = "—";
     document.getElementById("miDetail").textContent = "Click a nation on the map.";

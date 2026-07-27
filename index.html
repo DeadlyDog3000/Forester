@@ -56,7 +56,8 @@
 
   #msg {
     position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
-    color: #f0dcae; font-size: 17px; line-height: 1.35; z-index: 10;
+    /* above the map and pause overlays: a refusal the player cannot see reads as a broken button */
+    color: #f0dcae; font-size: 17px; line-height: 1.35; z-index: 96;
     /* no plate — a heavy shadow alone keeps it legible over grass or snow */
     text-shadow: 0 2px 4px #000, 0 0 10px #000, 0 0 18px #000;
     pointer-events: none; text-align: center; max-width: 72vw;
@@ -593,6 +594,7 @@
         <button class="btn danger" id="miWar" style="width:100%;margin-top:10px;display:none">Declare War</button>
         <button class="btn" id="miPeace" style="width:100%;margin-top:6px;display:none">Sue for Peace (60 DM)</button>
         <button class="btn danger" id="miAssault" style="width:100%;margin-top:6px;display:none">Assault Settlement</button>
+        <div id="miNote" style="font-size:11px;color:#f0dcae;margin-top:8px;display:none;border-left:2px solid #c9a86a;padding-left:6px"></div>
         <button class="btn" id="miTrade" style="width:100%;margin-top:6px;display:none">Negotiate a Trade Route</button>
         <div id="miRequestWrap" style="display:none;margin-top:10px">
           <div style="font-size:11px;color:#7da083;margin-bottom:4px">REQUEST A SHIPMENT</div>
