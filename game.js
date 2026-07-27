@@ -3402,9 +3402,6 @@ function loadGame() {
         Object.assign(NATIONS[id], w);
         if (NATIONS[id].atWar && !NATIONS[id].warT) NATIONS[id].warT = 60 + Math.random() * 60;
       }
-      // standing decree: every save loads at peace with Denmark — any war with
-      // them is dropped as a white peace the moment the game opens
-      if (NATIONS.denmark && NATIONS.denmark.atWar) { NATIONS.denmark.atWar = false; NATIONS.denmark.warT = 0; }
     }
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
     $("taxSlider").value = taxRate; $("taxVal").textContent = taxRate;
