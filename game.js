@@ -3217,9 +3217,11 @@ const SAVE_KEY = "forester_save";
 // founder's tools: one-shot save surgery via URL params, then the URL is scrubbed
 // ?scout=now — the scouts offer a new settlement immediately on Continue
 // ?disband=Name — remove a settlement by name (case-insensitive)
+// ?peace=denmark (or any nation id, or "all") — the war is called off: a white
+//   peace, no more war parties. What the war already cost stays lost.
 try {
   const qp = new URLSearchParams(location.search);
-  if (qp.has("scout") || qp.has("disband")) {
+  if (qp.has("scout") || qp.has("disband") || qp.has("peace")) {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw && raw !== "null") {
       const d = JSON.parse(raw);
@@ -3230,6 +3232,11 @@ try {
         if (d.settlements.length < before) console.log(`Disbanded settlement "${qp.get("disband")}".`);
       }
       if (qp.has("scout")) { d.sackedCamps = Math.max(5, d.sackedCamps || 0); d.nextSettleAt = 1; }   // 1, not 0: the loader treats 0 as unset
+      if (qp.has("peace")) {
+        const who = (qp.get("peace") || "").toLowerCase();
+        for (const [id, w] of Object.entries(d.wars || {}))
+          if ((who === "all" || id === who) && w.atWar) { w.atWar = false; w.warT = 0; console.log(`Peace with ${id}.`); }
+      }
       localStorage.setItem(SAVE_KEY, JSON.stringify(d));
     }
     history.replaceState(null, "", location.pathname);
