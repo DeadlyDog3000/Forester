@@ -857,9 +857,17 @@ function pay(cost, led = res) {
 }
 const costText = c => [c.logs && `${c.logs} logs`, c.doors && `${c.doors} door`, c.stone && `${c.stone} stone`, c.iron && `${c.iron} iron`, c.seeds && `${c.seeds} seeds`, c.dm && `${c.dm} DM`].filter(Boolean).join(", ");
 
-function freeHome() { return buildings.find(b => b.type === "cabin" && !b.site && b.occupants.length < cabinCapacity()) || null; }
-function houseCiv(c) {
-  const home = freeHome();
+function freeHome(nearX, nearY) {
+  const open = buildings.filter(b => b.type === "cabin" && !b.site && b.occupants.length < cabinCapacity());
+  if (!open.length) return null;
+  if (nearX === undefined) return open[0];
+  // a roof close to where they are standing, so folk recruited in a settlement
+  // do not find themselves quartered back at the capital
+  return open.reduce((a, b) =>
+    Math.hypot(b.x - nearX, b.y - nearY) < Math.hypot(a.x - nearX, a.y - nearY) ? b : a);
+}
+function houseCiv(c, nearX, nearY) {
+  const home = freeHome(nearX, nearY);
   if (!home) return false;
   home.occupants.push(c); c.home = home;
   const partner = home.occupants.find(o => o !== c);
@@ -1643,8 +1651,11 @@ function igniteCheck(b, dt) {
 
 // --- visitors & dialogue ---
 function spawnVisitor() {
-  const center = buildings.find(b => b.type === "recruit" && !b.fire && !b.site);
-  if (!center) return;
+  // every recruiting house draws its own wanderers — a settlement that builds one
+  // is no longer passed over in favour of the capital
+  const centers = buildings.filter(b => b.type === "recruit" && !b.fire && !b.site);
+  if (!centers.length) return;
+  const center = centers[Math.floor(Math.random() * centers.length)];
   const a = Math.random() * Math.PI * 2;
   const gender = Math.random() < 0.35 ? "f" : "m";
   visitors.push({
@@ -1654,7 +1665,8 @@ function spawnVisitor() {
     tx: center.x + 60, ty: center.y + 20,
     state: "walking", anim: 0, facing: 1, waitT: 75, meter: null, leaving: false, used: new Set(),
   });
-  toast("A hunter approaches the recruitment center. Click him to talk.");
+  const ctown = townAt(center.x, center.y);
+  toast(`A wanderer approaches the recruitment center${ctown ? " at " + ctown.name : ""}. Click them to talk.`);
 }
 
 function updateVisitor(v, dt) {
@@ -1759,7 +1771,7 @@ function joinColony(v) {
   refreshAvatar(c);
   civs.push(c);
   expandFrontier(3);
-  const housed = houseCiv(c);
+  const housed = houseCiv(c, v.x, v.y);
   vignette("firstRecruit");
   toast(`${v.name} signs on — a civilian certificate slides out through the slot. ` +
         (housed ? `${v.gender === "f" ? "She" : "He"} moves into a cabin and will pay taxes.` : `Build ${v.gender === "f" ? "her" : "him"} a cabin: no taxes until there is a roof.`));
@@ -2038,6 +2050,7 @@ $("govToggle").addEventListener("click", () => {
   const p = $("govPanel");
   const opening = p.style.display !== "block";
   p.style.display = opening ? "block" : "none";
+  if (opening) tutSeen.gov = true;
   if (opening && NARROW()) {
     selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null; selGroup = [];
     $("civPanel").style.display = "none"; $("bldgPanel").style.display = "none";
@@ -2067,6 +2080,7 @@ $("techToggle").addEventListener("click", () => {
   const p = $("techPanel");
   const opening = p.style.display !== "block";
   p.style.display = opening ? "block" : "none";
+  if (opening) tutSeen.tech = true;
   $("techToggle").textContent = opening ? "Close Tech Tree" : "Open Tech Tree";
   renderTech();
 });
@@ -2526,6 +2540,7 @@ document.getElementById("mapToggle").addEventListener("click", () => {
   document.getElementById("mapTitle").textContent = (empireName || "YOUR EMPIRE").toUpperCase() + " — EUROPE, " + colonyYear;
   document.getElementById("mapOverlay").style.display = "block";
   paused = true;
+  tutSeen.map = true;
   // on a phone the map is wider than the glass: open it looking at your own lands
   const frame = document.getElementById("euromap").parentElement;
   if (frame && frame.scrollWidth > frame.clientWidth) {
@@ -3183,59 +3198,59 @@ $("cutscene").addEventListener("click", () => {
 });
 
 // --- tutorial: from ash to a roof, then the woods are theirs ---
+// Steps are either a TASK, which completes when the world says so, or a NOTE,
+// which the player dismisses when they have read it. Notes never expire on a
+// timer, and nothing here depends on an overlay being open at this instant —
+// panels pause the game, and a paused game used to freeze the tutorial solid.
 let tutStep = -1;
+const tutSeen = { map: false, gov: false, tech: false };
 const TUT_STEPS = [
-  { text: () => "The cabin in the clearing was your family's once. First: click your Brother or Sister to select them.",
+  { text: () => "That burnt cabin in the clearing was your family's. Start by clicking your Brother or Sister to select them.",
     done: () => !!selected },
-  { text: () => "Wood rebuilds the world. With them selected, click a spruce tree to fell it.",
+  { text: () => "Everything here is built from wood. With them still selected, click a spruce tree to fell it.",
     done: () => civs.some(c => c.inv.logs > 0) || res.logs > 0 },
-  { text: () => "Felled logs ride in their pack — the town can't use them there. Select the woodcutter and press \"Deposit goods to town storage\" in their panel.",
+  { text: () => "Logs ride in their pack, where the town cannot use them. Select the woodcutter and press \"Deposit goods to town storage\".",
     done: () => res.logs > 0 },
-  { text: () => `Keep the storage fed: fell and deposit until 5 logs are stored. (${Math.min(5, res.logs)}/5)`,
+  { text: () => `Keep felling and depositing until the store holds 5 logs. (${Math.min(5, res.logs)}/5)`,
     done: () => res.logs >= 5 },
-  { text: () => "A cabin needs a door. Open CRAFT ▾ and order a Door (5 logs) — your civilian will hew it.",
+  { text: () => "A cabin needs a door. Open CRAFT ▾ and order one — 5 logs, and your civilian will hew it.",
     done: () => res.doors >= 1 },
-  { text: () => `The repair takes 20 stored logs. Fell more spruces and deposit them. (${res.logs}/20)`,
+  { text: () => `Rebuilding takes 20 logs in store. Fell and deposit until you have them. (${Math.min(20, res.logs)}/20)`,
     done: () => res.logs >= 20 },
-  { text: () => "Now — with a civilian selected, click the burned cabin to order its repair.",
+  { text: () => "Now, with a civilian selected, click the burnt cabin to order the repair. That is your first roof.",
     done: () => !buildings.some(b => b.type === "burned") },
-  { text: () => "A home needs bread. Click a wild grass patch (the seeded tufts) with a civilian selected to gather seeds, deposit them, then open BUILD ▾ and lay out a Wheat Farm (3 logs, 6 seeds).",
+  { text: () => "Bread next. With a civilian selected, click a tuft of wild grass to gather seeds, deposit them, then open BUILD ▾ and lay out a Wheat Farm.",
     done: () => farms.length > 0 },
-  { text: () => "Fields need hands. Select a resident, use Recruit ▾ to make them a Farmer, then click the farm to assign them. They'll tend it on their own.",
+  { text: () => "Fields need hands. Select someone, use Recruit ▾ to make them a Farmer, then click the farm to assign them — they will tend it from then on.",
     done: () => farms.some(f => f.workers.length > 0) },
-  { text: () => "Knowledge is power. Open GOVERNMENT → Open Tech Tree and start any research — two trees, from axes to battle steel, paid in DM and time.",
-    done: () => !!research || Object.values(TECH).filter(t => t.done).length > 3 },
-  { text: () => "Coin: housed residents pay taxes on the countdown in the top bar. The GOVERNMENT panel sets the rate — fair taxes fill bellies and hearts, greedy ones breed rebels. (Open it to continue.)",
-    done: () => $("govPanel").style.display === "block" },
-  { text: () => "One more thing: press the MAP button. That is Europe, 1683 — your empire in your colour, nations that strengthen with the years and war among themselves. Expand toward a neighbour to earn the right to fight them.",
-    done: () => $("mapOverlay").style.display === "block" },
-  { text: () => "And where there is a border, there is business: on the map, send an envoy to a peaceful neighbour and convince their leader to open a trade route — gifts loosen crowns. Caravans then bring DM and goods. At home, your civilians already peddle bread and meat among themselves.",
-    timed: 16 },
-  { text: () => "❄ One warning: every year winter comes. The fields sleep, and the cold kills — anyone outside too long freezes. Housed folk duck into their cabins to warm up on their own; the homeless just sit in the snow and die. Roofs before riches.",
-    timed: 16 },
-  { text: () => "So that's the game: gather and build by day, keep bellies full and taxes fair, wall the town before nightfall, research toward steel, and grow the empire cell by cell. Wanderers, raiders, wars, and new settlements will find you on their own. The woods are yours now.",
-    done: () => false },
+  { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
+    done: () => tutSeen.gov },
+  { text: () => "In that panel, press Open Tech Tree and begin any research. Two trees run from sharper axes to battle steel, paid for in DM and time.",
+    done: () => tutSeen.tech || !!research || Object.values(TECH).filter(t => t.done).length > 3 },
+  { text: () => "Press the MAP button to look at Europe, 1683. Your empire is drawn in your own colour; the nations around it grow stronger with the years and make war on each other.",
+    done: () => tutSeen.map },
+  { note: true, text: () => "On that map you can send an envoy to a peaceful neighbour and talk their court into a trade route — gifts help, threats do not. Caravans then bring coin and goods to your gate." },
+  { note: true, text: () => "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches." },
+  { note: true, text: () => "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming." },
+  { note: true, text: () => "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. The woods are yours." },
 ];
-let tutDoneT = 0;
+function tutAdvance() {
+  tutStep++;
+  SFX.pickup();
+  if (tutStep >= TUT_STEPS.length) { tutStep = -1; $("tutBanner").style.display = "none"; }
+}
 function updateTutorial(dt) {
   const banner = $("tutBanner");
-  if (tutStep >= TUT_STEPS.length) tutStep = TUT_STEPS.length - 1;
+  if (tutStep >= TUT_STEPS.length) tutStep = -1;
   if (tutStep < 0 || gameState !== "playing") { banner.style.display = "none"; return; }
-  banner.style.display = "block";
-  $("tutText").textContent = TUT_STEPS[tutStep].text();
-  if (tutStep === TUT_STEPS.length - 1) {
-    tutDoneT += dt;
-    if (tutDoneT > 18) { tutStep = -1; banner.style.display = "none"; }
-    return;
-  }
   const st = TUT_STEPS[tutStep];
-  if (st.timed) {
-    st._t = (st._t || 0) + dt;
-    if (st._t >= st.timed || Object.values(NATIONS).some(n => n.trade)) { tutStep++; SFX.pickup(); }
-    return;
-  }
-  if (st.done()) { tutStep++; SFX.pickup(); }
+  banner.style.display = "block";
+  $("tutHead").textContent = `STEP ${tutStep + 1} OF ${TUT_STEPS.length}`;
+  $("tutText").textContent = st.text();
+  $("tutNext").style.display = st.note ? "inline-block" : "none";
+  if (!st.note && st.done()) tutAdvance();
 }
+$("tutNext").addEventListener("click", () => { if (tutStep >= 0 && TUT_STEPS[tutStep].note) tutAdvance(); });
 $("tutSkip").addEventListener("click", () => { tutStep = -1; $("tutBanner").style.display = "none"; toast("The woods will teach you the rest."); });
 
 // --- menu / loading / game over ---
@@ -3510,10 +3525,13 @@ function update(dt) {
   mouse.wy = cam.y + mouse.y / zoom;
   SFX.windLoop(gameState === "playing" && zoom < 0.62);   // high in the sky, only wind
 
+  // the tutorial keeps its own time: several steps ask you to open a panel or
+  // the map, and those pause the world. Ticking it here lets those steps finish.
+  updateTutorial(dt);
+
   if (paused) return;
 
   worldT += dt;
-  updateTutorial(dt);
   rescueStuck(dt);
   updateNationWars(dt);
   updateNationTrade(dt);
@@ -3607,7 +3625,8 @@ function update(dt) {
     hunterTimer -= dt;
     if (hunterTimer <= 0) {
       hunterTimer = 100 + Math.random() * 80;
-      if (visitors.length < 2) spawnVisitor();
+      const houses = buildings.filter(b => b.type === "recruit" && !b.fire && !b.site).length;
+      if (visitors.length < Math.max(2, houses + 1)) spawnVisitor();
     }
   }
   for (const v of [...visitors]) updateVisitor(v, dt);
