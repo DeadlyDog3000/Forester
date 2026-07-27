@@ -22,6 +22,7 @@ const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
 const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, MUSKET_COST = 25, CAV_COST = 50, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
 // the musket's bargain: it outranges and outhits a bow, and takes an age to load
 const MUSKET_RANGE = 250, MUSKET_FIRE_T = 0.55, BALL_SPEED = 900;
+const MUSKET_KEEP_AWAY = 110;   // closer than this, an unbayoneted musketeer gives ground
 // where the muzzle sits in world units: sprite row 4, column 28 of a 32px frame drawn at CHAR_SIZE
 const MUZZLE_X = 24, MUZZLE_Y = 56;
 const reloadTime = () => has("flintlock") ? 4.5 : 7.5;   // powder, ball, ramrod — it takes what it takes
@@ -4482,8 +4483,14 @@ function update(dt) {
           }
           continue;
         }
-        // loading a musket takes both hands and every bit of attention: he stands
-        // rooted until it is done, whatever is coming toward him
+        // without a bayonet the musket is no melee weapon: pressed too close, he
+        // gives ground — back-pedalling, still facing the foe, the ramrod still
+        // working — rather than letting the fight come to fists
+        if (!bayonet && d < MUSKET_KEEP_AWAY) {
+          collideMove(c, c.x - ((foe.x - c.x) / d) * speed * 0.85 * dt,
+                         c.y - ((foe.y - c.y) / d) * speed * 0.85 * dt);
+          c.anim += dt * 5;
+        }
         if (c.reloadT > 0) continue;
         if (d > MUSKET_RANGE + 70) { c.state = "walking"; c.tx = foe.x; c.ty = foe.y; continue; }
         if (d > MUSKET_RANGE) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt);
