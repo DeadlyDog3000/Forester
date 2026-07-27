@@ -37,9 +37,9 @@ const STATIC_COSTS = {
   recruit: { logs: 30, dm: 10 }, market: { logs: 25, dm: 8 }, sapling: { logs: 1, dm: 1 },
   watchtower: { logs: 15, stone: 5, dm: 6 }, bakery: { logs: 20, stone: 3, dm: 8 }, well: { logs: 10, stone: 8, dm: 4 },
   forge: { logs: 20, stone: 6, iron: 2, dm: 12 },
-  wall: { logs: 6, stone: 2, dm: 1 }, gate: { logs: 10, stone: 4, dm: 2 },
+  wall: { logs: 3, dm: 1 }, gate: { logs: 6, stone: 2, dm: 1 },
   townhall: { logs: 40, stone: 10, dm: 20 },
-  stonewall: { stone: 8, logs: 2, dm: 2 }, stonegate: { stone: 12, logs: 4, dm: 4 },
+  stonewall: { stone: 4, dm: 1 }, stonegate: { stone: 7, logs: 2, dm: 2 },
   moat: { stone: 4, logs: 2, dm: 3 }, ditch: { logs: 2, dm: 1 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
@@ -1642,7 +1642,7 @@ function rescueStuck(dt) {
   }
 }
 const BUILD_TIMES = { cabin: 10, recruit: 12, market: 10, watchtower: 8, bakery: 10, well: 7, forge: 12, townhall: 16,
-                      wall: 3, gate: 4, stonewall: 6, stonegate: 8, moat: 6, ditch: 4, farm: 5 };
+                      wall: 1.5, gate: 2.5, stonewall: 3, stonegate: 5, moat: 6, ditch: 4, farm: 5 };
 function finishConstruction(b) {
   b.site = false; b.progress = -1;
   if (!WALLLIKE.has(b.type)) expandAround(b.x, b.y, 1);
@@ -1665,7 +1665,7 @@ function snapWallPos(type, wx, wy) {
     if (d < bd) { bd = d; best = b; }
   }
   if (best) {
-    const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 12;   // deep overlap: sprite margins never show a gap
+    const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 6;    // a hand's overlap: the run never shows daylight
     if (wallRot) return [best.x, best.y + (wy > best.y ? span : -span)];
     return [best.x + (wx > best.x ? span : -span), best.y];
   }
