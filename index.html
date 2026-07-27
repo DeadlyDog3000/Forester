@@ -155,36 +155,69 @@
     #actions > * { flex: 0 0 auto; }
     #actions span[style*="flex:1"] { display: none; }
     #actions span:last-child { display: none; }          /* the 'FORESTER beta' mark */
-    .btn { padding: 10px 13px; font-size: 12px; min-height: 40px; }
-    .menu-item { min-height: 42px; }
+    /* the bar you steer with stays comfortably tappable */
+    #actions .btn { padding: 9px 12px; font-size: 12px; min-height: 38px; }
+    .menu-item { min-height: 34px; }
 
     .dropdown-menu {
       min-width: 0; width: calc(100vw - 16px);
-      max-height: 58vh; overflow-y: auto;
-      position: fixed; left: 8px; right: 8px; bottom: 56px; top: auto;
+      max-height: 42vh; overflow-y: auto;
+      position: fixed; left: 8px; right: 8px; bottom: 52px; top: auto;
+      font-size: 11px;
     }
-    .dropdown-menu.up { position: fixed; top: auto; bottom: 56px; }
+    .dropdown-menu.up { position: fixed; top: auto; bottom: 52px; }
+    .dropdown-menu .btn { padding: 8px 10px; font-size: 11px; }
 
-    /* side panels become bottom sheets, thumb-reachable and scrollable */
+    /* Side panels become slim bottom sheets: everything legible, the woods still
+       in view above them. Dense type, tight rows, small controls. */
     #civPanel, #bldgPanel, #govPanel {
-      top: auto; bottom: 56px; left: 8px; right: 8px; width: auto;
-      max-height: 56vh; overflow-y: auto; z-index: 30;
+      top: auto; bottom: 52px; left: 8px; right: 8px; width: auto;
+      max-height: 34vh; overflow-y: auto; z-index: 30;
+      padding: 7px 9px; font-size: 10px; line-height: 1.25;
     }
+    #civPanel h3, #bldgPanel h3, #govPanel h3 { font-size: 11px; margin-bottom: 4px; letter-spacing: 0.5px; }
+    #govPanel h4 { font-size: 10px; margin: 6px 0 2px; }
+    #civPanel .row, #bldgPanel .row, #govPanel .row { margin: 1px 0; }
+    #govPanel label { margin: 2px 0; gap: 5px; }
+    #civPanel hr { margin: 4px 0; }
+    .barwrap { height: 6px; margin: 1px 0 3px; }
+    /* controls inside a sheet: small, but still a finger's worth */
+    #civPanel .btn, #bldgPanel .btn, #govPanel .btn {
+      padding: 6px 8px; font-size: 10px; min-height: 30px; margin-top: 4px;
+    }
+    #civPanel .dropdown-menu .btn, #govPanel .dropdown-menu .btn { min-height: 32px; }
+    #govPanel input[type=text] { padding: 4px 6px !important; font-size: 10px !important; }
+    #govPanel input[type=range] { width: 96px; }
+    #govPanel input[type=color] { width: 42px; height: 22px; }
+    #civPanel .dropdown-menu, #govPanel .dropdown-menu {
+      position: absolute; left: 0; right: 0; width: auto; bottom: auto; max-height: 30vh;
+    }
+    #cpFarms, #scoutLedger, #govProfs, #townRows { font-size: 9px !important; }
     /* leave the control pad a lane of its own so it is never buried by a sheet */
-    body.touch #civPanel, body.touch #bldgPanel, body.touch #govPanel { right: 62px; }
+    body.touch #civPanel, body.touch #bldgPanel, body.touch #govPanel { right: 58px; }
     body.touch #touchPad { z-index: 34; }
-    #govPanel input[type=range] { width: 110px; }
     #techPanel {
       top: 46px; left: 8px; right: 8px; width: auto;
       max-height: calc(100vh - 118px); z-index: 40;
     }
     #techGraphWrap { max-height: calc(100vh - 230px); }
-    #dialogue { width: calc(100vw - 16px); max-height: 84vh; overflow-y: auto; padding: 12px; }
-    #dialogue img { width: 64px; height: 64px; }
-    #settingsPanel { width: calc(100vw - 24px) !important; max-height: 80vh; overflow-y: auto; }
-    #pauseMenu { width: calc(100vw - 48px) !important; }
-    #msg { bottom: 116px; font-size: 12px; max-width: 92vw; }
-    #touchPad { bottom: 60px; }
+    #dialogue { width: calc(100vw - 16px); max-height: 62vh; overflow-y: auto; padding: 10px; font-size: 11px; }
+    #dialogue img { width: 52px; height: 52px; }
+    #dialogue .head { gap: 8px; margin-bottom: 6px; }
+    #dlgName { font-size: 12px; margin-bottom: 3px; }
+    #dlgText { font-size: 11px; line-height: 1.35; }
+    #dlgMeterWrap { height: 8px; margin: 6px 0; }
+    #dlgOpts .btn { padding: 7px 9px; font-size: 11px; margin-top: 4px; }
+    #settingsPanel { width: calc(100vw - 24px) !important; max-height: 70vh; overflow-y: auto; font-size: 11px; padding: 11px !important; }
+    #settingsPanel label { margin: 3px 0 !important; }
+    #pauseMenu { width: calc(100vw - 64px) !important; padding: 12px !important; }
+    #pauseMenu .btn { padding: 10px 12px; font-size: 12px; min-height: 38px; }
+    #settleModal .btn, #empireModal .btn { padding: 9px 12px; font-size: 11px; min-height: 36px; }
+    #msg { bottom: 100px; font-size: 11px; max-width: 92vw; }
+
+    /* a smaller pad leaves more of the woods in view */
+    #touchPad { bottom: 56px; gap: 6px; }
+    #touchPad .tbtn { width: 38px; height: 38px; font-size: 15px; }
 
     /* the map of Europe: scaled to the screen rather than scrolled blindly */
     #mapOverlay > div { flex-direction: column; padding: 8px; gap: 8px; }
