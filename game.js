@@ -3673,11 +3673,21 @@ try {
           if ((who === "all" || id === who) && w.atWar) { w.atWar = false; w.warT = 0; console.log(`Peace with ${id}.`); }
       }
       if (qp.has("muster")) {
-        const n = Math.max(1, Math.min(40, parseInt(qp.get("muster"), 10) || 0));
+        const want = Math.max(1, Math.min(40, parseInt(qp.get("muster"), 10) || 0));
         d.tech = d.tech || {}; d.tech.matchlock = true;      // they must be legal to exist
         d.civs = d.civs || []; d.buildings = d.buildings || [];
         const maxHp = 90 + (d.tech.cavalry ? 50 : 0);
         const cap = d.tech.landownership ? 3 : 2;
+        // the number asked for is the TOTAL wanted, so running this twice does not
+        // double the regiment — it tops up to the number and stops
+        const have = d.civs.filter(c => c.profession === "musketeer").length;
+        const n = Math.max(0, want - have);
+        // whoever already carries a musket is made whole and fed
+        for (const c of d.civs) if (c.profession === "musketeer") {
+          c.maxHp = Math.max(c.maxHp || 0, maxHp); c.hp = c.maxHp;
+          c.armed = true; c.hunger = Math.max(c.hunger || 0, 90);
+          c.happiness = Math.max(c.happiness || 0, 70); c.rebel = false;
+        }
         const used = new Set(d.usedNames || []);
         const POOL = ["Falk", "Jorg", "Matthias", "Anselm", "Dietrich", "Lorenz", "Veit", "Kaspar",
                       "Otto", "Bruno", "Conrad", "Ludwig", "Gunther", "Wilhelm", "Albrecht", "Erwin"];
@@ -3691,12 +3701,38 @@ try {
         // muster them where the colony already stands
         const anchor = d.civs.find(c => !c.child) || { x: 0, y: 0 };
         // room is counted from the cabins as the save left them
+        // Every one of them gets a roof. A homeless soldier freezes to death in
+        // winter, which is exactly how the last muster lost half its men — so the
+        // free beds are filled first, then cabins are crowded rather than leave
+        // anyone in the snow.
+        const cabins = [];
+        d.buildings.forEach((b, i) => { if (b.type === "cabin" && !b.site) cabins.push(i); });
         const room = [];
-        d.buildings.forEach((b, i) => {
-          if (b.type !== "cabin" || b.site) return;
-          for (let k = (b.occupants || []).length; k < cap; k++) room.push(i);
+        for (const i of cabins) {
+          const b = d.buildings[i];
+          b.occupants = b.occupants || [];
+          for (let k = b.occupants.length; k < cap; k++) room.push(i);
+        }
+        let housed = 0, crowded = 0;
+        // anyone already carrying a musket but sleeping rough is brought indoors too
+        const roofless = [];
+        d.civs.forEach((c, i) => {
+          if (c.profession !== "musketeer") return;
+          if (!d.buildings.some(b => (b.occupants || []).includes(i))) roofless.push(i);
         });
-        let housed = 0;
+        const shelter = (idx) => {
+          let bi = room[housed + crowded];
+          if (bi === undefined && cabins.length) {           // no free bed: crowd one
+            bi = cabins[crowded % cabins.length];
+            crowded++;
+          } else if (bi !== undefined) housed++;
+          if (bi === undefined) return false;                // no cabins at all
+          const b = d.buildings[bi];
+          b.occupants = b.occupants || [];
+          b.occupants.push(idx);
+          return true;
+        };
+        for (const idx of roofless) shelter(idx);
         for (let i = 0; i < n; i++) {
           const idx = d.civs.length;
           d.civs.push({
@@ -3704,19 +3740,16 @@ try {
             age: 21 + (i % 18), x: Math.round((anchor.x || 0) + (i % 6) * 26 - 65),
             y: Math.round((anchor.y || 0) + Math.floor(i / 6) * 30 + 40), home: -1,
             profession: "musketeer", hunger: 100, hp: maxHp, maxHp, happiness: 78,
-            rebel: false, armed: true, tool: false,
+            rebel: false, armed: true, tool: false, coldT: 0,
             inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
           });
-          const bi = room[housed];
-          if (bi !== undefined) {
-            const b = d.buildings[bi];
-            b.occupants = b.occupants || [];
-            b.occupants.push(idx);
-            housed++;
-          }
+          shelter(idx);
         }
         d.usedNames = [...used];
-        console.log(`Mustered ${n} musketeer(s); ${housed} found a roof, ${n - housed} sleep rough.`);
+        const total = d.civs.filter(c => c.profession === "musketeer").length;
+        console.log(`Muster: had ${have}, raised ${n}, now ${total} musketeer(s). ` +
+                    `${housed} took a free bed, ${crowded} are billeted in crowded cabins` +
+                    (cabins.length ? "." : " — NO CABINS in this colony, they will sleep in the open."));
       }
       localStorage.setItem(SAVE_KEY, JSON.stringify(d));
     }
