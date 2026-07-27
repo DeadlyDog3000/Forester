@@ -1175,7 +1175,8 @@ canvas.addEventListener("mousemove", e => {
 });
 function zoomAt(sx, sy, factor) {
   const wx = cam.x + sx / zoom, wy = cam.y + sy / zoom;
-  zoom = Math.max(0.45, Math.min(2.4, zoom * factor));
+  // far enough out to see a whole march of country, close enough to read a face
+  zoom = Math.max(0.18, Math.min(2.4, zoom * factor));
   cam.x = wx - sx / zoom;
   cam.y = wy - sy / zoom;
 }
