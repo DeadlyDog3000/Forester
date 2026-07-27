@@ -19,8 +19,12 @@ const HARVEST_TIME = 3, PATCH_TIME = 2, QUARRY_TIME = 4, SMITH_TIME = 8;
 const BASE_LOGS_PER_TREE = 5;
 const HUNGER_DECAY = 0.35, STARVE_DPS = 2;
 const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
-const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, ARCHER_COST = 25, CAV_COST = 50, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
-const ARCHER_RANGE = 190, ARCHER_INTERVAL = 1.6;
+const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, MUSKET_COST = 25, CAV_COST = 50, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
+// the musket's bargain: it outranges and outhits a bow, and takes an age to load
+const MUSKET_RANGE = 250, MUSKET_FIRE_T = 0.55, BALL_SPEED = 900;
+// where the muzzle sits in world units: sprite row 4, column 28 of a 32px frame drawn at CHAR_SIZE
+const MUZZLE_X = 24, MUZZLE_Y = 56;
+const reloadTime = () => has("flintlock") ? 4.5 : 7.5;   // powder, ball, ramrod — it takes what it takes
 const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8, DODGE_CHANCE = 0.15;
 const EAT_HEAL = 15;
 const RAID_MIN = 240, RAID_MAX = 420, MAX_RAIDERS = 4, MAX_CAMPS = 6;
@@ -85,7 +89,9 @@ T("blades", "Blades", "military", ["hilts"], 7, "All weapons +5 damage; the secr
 T("swords", "Swords", "military", ["blades"], 8, "Blacksmiths may forge swords (20 dmg)");
 T("battleaxes", "Battle Axes", "military", ["swords"], 9, "Blacksmiths may forge battle axes (28 dmg)");
 T("lances", "Lances", "military", ["swords"], 9, "Distance cavalry: riders strike from lance reach; all forces +10 damage (requires War Horse)");
-T("archery", "Archery", "military", ["defending"], 5, "Unlocks Archers — they loose arrows at enemies from afar");
+T("matchlock", "Matchlock Muskets", "military", ["defending"], 5, "Unlocks Musketeers — deadly (40 dmg far, 88 point-blank), but desperately slow to load");
+T("bayonets", "Bayonets", "military", ["matchlock"], 6, "A blade at every muzzle: musketeers fight hand-to-hand as well as at range");
+T("flintlock", "Flintlock Muskets", "military", ["bayonets"], 7, "No more smouldering cord: muskets load in 4.5s instead of 7.5, and hit harder still");
 T("defending", "Defending", "military", ["policing"], 4, "Unlocks Town Walls & Gates; police take weapons from the armoury; torching 30% slower — but the camps take notice");
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
 T("defplus", "Defending II", "military", ["defending"], 5, "Stone walls & gates, and moats & ditches that mire attackers");
@@ -99,7 +105,7 @@ const techTime = t => 45 + t.depth * 40;
 let research = null;
 
 // --- derived stats ---
-const isForce = c => c.profession === "police" || c.profession === "soldier" || c.profession === "archer" || c.profession === "cavalry";
+const isForce = c => c.profession === "police" || c.profession === "soldier" || c.profession === "musketeer" || c.profession === "cavalry";
 const walkSpeed = c => BASE_WALK * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1) * (c && c.profession === "cavalry" ? 1.45 : 1);
 const workMul = c => (c && c.tool ? 0.65 : 1) * (has("stables") ? 0.8 : 1) * (laws.forced ? 0.75 : 1);
 const chopTime = c => BASE_CHOP * (has("axing") ? 0.65 : has("treecutting") ? 0.8 : 1) * workMul(c);
@@ -110,7 +116,15 @@ const farmRipen = () => BASE_FARM_RIPEN * (has("agriculture") ? 0.7 : 1);
 const sellPrice = () => 3 + (has("trading") ? 1 : 0) + (has("marketing") ? 1 : 0);
 const taxBonus = () => (has("currencies") ? 1 : 0) + (has("occupation") ? 1 : 0) + (has("slavemarket") ? 2 : 0);
 const forceDmg = c => (c.profession === "soldier" ? 15 : c.profession === "cavalry" ? 20 : 12) + (has("wardogs") ? 5 : 0) + (has("hussars") ? 15 : 0) + (has("lances") ? 10 : 0) + (has("raiding") ? 10 : 0) + (c.armed ? weaponDmg() : 0);
-const archerDmg = () => 12 + (has("blades") ? 5 : 0) + (has("hussars") ? 5 : 0);
+// A musket ball is lethal, and the closer it is fired the worse the wound:
+// 40 at the far edge of its reach, better than double that at point-blank.
+const musketDmg = (d) => {
+  const far = has("flintlock") ? 52 : 40, near = has("flintlock") ? 110 : 88;
+  const t = Math.max(0, Math.min(1, (d === undefined ? MUSKET_RANGE : d) / MUSKET_RANGE));
+  return Math.round(near + (far - near) * t) + (has("hussars") ? 5 : 0);
+};
+// with a bayonet fixed, a musketeer is a spear in the line as well as a gun
+const bayonetDmg = () => 16 + (has("blades") ? 5 : 0) + (has("flintlock") ? 4 : 0);
 const torchTime = () => TORCH_TIME / ((has("defending") ? 0.7 : 1) * (has("pettraining") ? 0.75 : 1));
 const weaponDmg = () => (has("battleaxes") ? 28 : has("swords") ? 20 : has("spears") ? 14 : 8) + (has("blades") ? 5 : 0);
 const weaponIron = () => Math.max(1, 2 - (has("hilts") ? 1 : 0));
@@ -171,6 +185,11 @@ const IMAGES = {
 };
 for (const who of ["sister", "brother", "hunter"]) for (let i = 0; i < 4; i++) IMAGES[`${who}${i}`] = `assets/sprites/characters/${who}_walk_${i}.png`;
 for (let i = 0; i < 4; i++) IMAGES[`cavalry${i}`] = `assets/sprites/characters/cavalry_walk_${i % 2}.png`;   // 2-frame ride cycle
+for (let i = 0; i < 4; i++) IMAGES[`musketeer${i}`] = `assets/sprites/characters/musketeer_walk_${i % 2}.png`;
+for (let i = 0; i < 4; i++) {                       // aim, flash, smoke, lower — then powder, ball, ramrod, shoulder
+  IMAGES[`mfire${i}`] = `assets/sprites/characters/musket_fire_${i}.png`;
+  IMAGES[`mload${i}`] = `assets/sprites/characters/musket_load_${i}.png`;
+}
 for (let i = 0; i < 4; i++) {
   IMAGES[`ragged${i}`] = `assets/sprites/characters/ragged_walk_${i}.png`;
   IMAGES[`atksword${i}`] = `assets/sprites/characters/attack_sword_${i}.png`;
@@ -215,12 +234,12 @@ const keys = {};
 const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
 const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [], corpses = [], graves = [];
-const arrows = [];   // archer shots in flight
+const balls = [];   // musket shot in flight — it goes where it was pointed, and no further
 const chunks = new Map();
 
 let selected = null, selectedBldg = null, selectedCamp = null, selectedGrave = null, buildMode = null;
 let selGroup = [];   // soldier multi-select: click several soldiers, order them as one
-const groupable = c => c.profession === "soldier" || c.profession === "cavalry" || c.profession === "archer";
+const groupable = c => c.profession === "soldier" || c.profession === "cavalry" || c.profession === "musketeer";
 const soldierGroup = () =>
   (selected && groupable(selected) && selGroup.includes(selected))
     ? selGroup.filter(s => civs.includes(s) && groupable(s))
@@ -273,14 +292,15 @@ function mkCiv(name, who, x, y, gender) {
            hunger: 100, hp: 100, maxHp: 100, happiness: 75, rebel: false, armed: false, tool: false,
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
            age: 20 + Math.floor(Math.random() * 26),
-           autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true };
+           autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true,
+           loaded: true, reloadT: 0, fireT: 0 };
 }
 
 function float(x, y, text, color) { floaters.push({ x, y, text, color, t: 1.4 }); }
 // hunters keep their own look; everyone else wears the family's spare clothes
 function refreshAvatar(c) {
   c.who = c.profession === "hunter" ? c.nativeWho :
-          c.profession === "archer" ? "hunter" :
+          c.profession === "musketeer" ? "musketeer" :
           c.profession === "cavalry" ? "cavalry" : (c.gender === "f" ? "sister" : "brother");
 }
 function onScreen(x, y) {
@@ -960,7 +980,7 @@ function worldClick(clientX, clientY) {
   for (const cp of camps)
     if (Math.abs(mouse.wx - cp.x) < BLDG_SIZE / 2 && mouse.wy < cp.y && mouse.wy > cp.y - BLDG_SIZE) {
       if (selected && (selected.profession === "soldier" || selected.profession === "cavalry") && has("raiding")) {
-        const grp = soldierGroup().filter(s => s.profession !== "archer");
+        const grp = soldierGroup().filter(s => s.profession !== "musketeer");
         grp.forEach((s, i) => order(s, { kind: "siege", target: cp, x: cp.x + 40 + (i % 3) * 16, y: cp.y + 14 + Math.floor(i / 3) * 14 }));
         toast(grp.length > 1 ? `${grp.length} fighters march on the ${cp.type} camp.` : `${selected.name} marches on the ${cp.type} camp.`);
       } else {
@@ -1485,8 +1505,8 @@ function rebelAI(c) {
 
 function forceAI(c) {
   if (c.state !== "idle") return;
-  // arm up from the armoury once Defending is known (archers carry their own bows)
-  if (c.profession !== "archer" && !c.armed && has("defending") && forgeBuilt() && res.weapons > 0) {
+  // arm up from the armoury once Defending is known (musketeers bring their own gun)
+  if (c.profession !== "musketeer" && !c.armed && has("defending") && forgeBuilt() && res.weapons > 0) {
     res.weapons--; c.armed = true;
     toast(`${c.name} takes a weapon at the forge.`);
   }
@@ -1834,16 +1854,18 @@ document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
       selected.maxHp = 130 + (has("cavalry") ? 50 : 0);
       selected.hp = Math.min(selected.hp + 30, selected.maxHp);
       toast(`${selected.name} takes the colony's coin as a soldier. Click a camp to send them raiding.`);
-    } else if (prof === "archer") {
-      if (!has("archery")) return toast("Archers require the Archery technology.");
-      if (res.dm - ARCHER_COST < treasuryFloor()) return toast(`An archer costs ${ARCHER_COST} DM. Treasury: ${res.dm} DM.`);
-      if (!selected.home) return toast("Only housed civilians may take up the bow.");
-      if (selected.profession === "archer") return toast(`${selected.name} already serves with the bow.`);
-      res.dm -= ARCHER_COST;
+    } else if (prof === "musketeer") {
+      if (!has("matchlock")) return toast("Musketeers require the Matchlock Muskets technology.");
+      if (res.dm - MUSKET_COST < treasuryFloor()) return toast(`A musketeer costs ${MUSKET_COST} DM. Treasury: ${res.dm} DM.`);
+      if (!selected.home) return toast("Only housed civilians may shoulder a musket.");
+      if (selected.profession === "musketeer") return toast(`${selected.name} already carries a musket.`);
+      res.dm -= MUSKET_COST;
       dropPolice();
-      selected.profession = "archer";
+      selected.profession = "musketeer";
+      selected.loaded = true; selected.reloadT = 0; selected.fireT = 0;
       selected.maxHp = 90 + (has("cavalry") ? 50 : 0);
-      toast(`${selected.name} takes up the bow for the colony. They loose arrows at raiders from afar.`);
+      toast(`${selected.name} shoulders a ${has("flintlock") ? "flintlock" : "matchlock"} musket for the colony` +
+            (has("bayonets") ? ", bayonet fixed." : ". Slow to load — keep them behind the walls."));
     } else if (prof === "cavalry") {
       if (!has("cavalry")) return toast("Cavalry requires the Cavalry technology (through War Horse).");
       if (res.dm - CAV_COST < treasuryFloor()) return toast(`A cavalry mount and rider cost ${CAV_COST} DM. Treasury: ${res.dm} DM.`);
@@ -2819,6 +2841,7 @@ function loadGame() {
     hunterTimer = d.hunterTimer; raidTimer = d.raidTimer; campRespawnTimer = d.campRespawnTimer;
     worldT = d.worldT || 80;
     for (const [id, done] of Object.entries(d.tech)) if (TECH[id]) TECH[id].done = done;
+    if (d.tech.archery) TECH.matchlock.done = true;   // the bows of older colonies became muskets
     TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;
     research = d.research;
     usedNames.clear(); for (const n of d.usedNames) usedNames.add(n);
@@ -2826,9 +2849,11 @@ function loadGame() {
     for (const cd of d.civs) {
       const c = mkCiv(cd.name, cd.nativeWho || cd.who, cd.x, cd.y, cd.gender || (cd.name === "Sister" ? "f" : "m"));
       c.who = cd.who;
-      Object.assign(c, { profession: cd.profession, hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
+      Object.assign(c, { profession: cd.profession === "archer" ? "musketeer" : cd.profession,
+        hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
         happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool,
         child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20 });
+      if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
       Object.assign(c.inv, cd.inv);
       civs.push(c);
     }
@@ -2851,7 +2876,7 @@ function loadGame() {
                    workers: fd.workers.map(i => civs[i]).filter(Boolean) });
     camps.length = 0;
     for (const cd of d.camps) camps.push({ ...cd });
-    raiders.length = 0; visitors.length = 0; floaters.length = 0; arrows.length = 0;
+    raiders.length = 0; visitors.length = 0; floaters.length = 0; balls.length = 0;
     selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null; selGroup = [];
     chunks.clear();
     for (const [k, ch] of (d.chunks || [])) {
@@ -3159,7 +3184,7 @@ function syncUI() {
   {
     const counts = {};
     for (const c of civs) counts[c.child ? "child" : (c.profession || "no trade")] = (counts[c.child ? "child" : (c.profession || "no trade")] || 0) + 1;
-    const orderProfs = ["farmer", "hunter", "lumberjack", "quarryman", "forager", "blacksmith", "police", "soldier", "archer", "cavalry", "child", "no trade"];
+    const orderProfs = ["farmer", "hunter", "lumberjack", "quarryman", "forager", "blacksmith", "police", "soldier", "musketeer", "cavalry", "child", "no trade"];
     const parts = orderProfs.filter(p => counts[p]).map(p => `${p.charAt(0).toUpperCase() + p.slice(1)}: <b style="color:#c9a86a">${counts[p]}</b>`);
     for (const p of Object.keys(counts)) if (!orderProfs.includes(p)) parts.push(`${p}: <b style="color:#c9a86a">${counts[p]}</b>`);
     $("govProfs").innerHTML = parts.join(" &middot; ") || '<span style="color:#5a6b60">No one is left.</span>';
@@ -3493,19 +3518,28 @@ function update(dt) {
     }
   } else ambushT = Math.max(ambushT, 25);
   for (const r of [...raiders]) updateRaider(r, dt);
-  // arrows fly true — they track their mark and strike home or fall
-  for (let i = arrows.length - 1; i >= 0; i--) {
-    const a = arrows[i];
-    const alive = a.target && (civs.includes(a.target) || raiders.includes(a.target));
-    if (!alive) { arrows.splice(i, 1); continue; }
-    const dx = a.target.x - a.x, dy = (a.target.y - 24) - a.y, d = Math.hypot(dx, dy);
-    if (d < 14) {
-      strikeUnit(a.from && civs.includes(a.from) ? a.from : { task: null }, a.target, a.dmg);
-      arrows.splice(i, 1);
-      continue;
+  // a ball flies straight from the muzzle: it does not chase, and it can miss.
+  // it moves faster than a frame is long, so test the whole path it swept, not
+  // just where it landed — otherwise a point-blank shot passes clean through.
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const b = balls[i];
+    const x0 = b.x, y0 = b.y, step = BALL_SPEED * dt;
+    b.x += b.vx * step; b.y += b.vy * step;
+    b.travel = (b.travel || 0) + step;
+    const t = b.target, live = t && (civs.includes(t) || raiders.includes(t));
+    if (live) {
+      const tx = t.x, ty = t.y - CHAR_SIZE * 0.45;          // chest height
+      const sx = b.x - x0, sy = b.y - y0, len2 = sx * sx + sy * sy;
+      let u = len2 ? ((tx - x0) * sx + (ty - y0) * sy) / len2 : 0;
+      u = Math.max(0, Math.min(1, u));
+      const near = Math.hypot(x0 + sx * u - tx, y0 + sy * u - ty);
+      if (near < 17) {
+        strikeUnit(b.from && civs.includes(b.from) ? b.from : { task: null }, t, b.dmg);
+        balls.splice(i, 1);
+        continue;
+      }
     }
-    a.vx = dx / d; a.vy = dy / d;
-    a.x += a.vx * 420 * dt; a.y += a.vy * 420 * dt;
+    if (b.travel > MUSKET_RANGE + 120) balls.splice(i, 1);   // spent
   }
   // the watchtower sounds the war-drums — until the raiders leave, or die
   const towers = buildings.filter(b => b.type === "watchtower" && !b.fire && !b.site);
@@ -3519,6 +3553,20 @@ function update(dt) {
       c.hp -= STARVE_DPS * dt;
       if (c.hp <= 0) { killCiv(c, "starved to death"); continue; }
     }
+
+    // the shot and the loading run wherever he is — leave the fight mid-reload and
+    // the ramrod still comes out, so he is never frozen in a pose he has left behind
+    if (c.fireT > 0) c.fireT = Math.max(0, c.fireT - dt);
+    if (c.reloadT > 0) {
+      c.reloadT -= dt;
+      if (c.reloadT <= 0) {
+        c.reloadT = 0; c.loaded = true;
+        const onScreen = c.x > cam.x - 100 && c.x < cam.x + canvas.width / zoom + 100 &&
+                         c.y > cam.y - 100 && c.y < cam.y + canvas.height / zoom + 100;
+        if (onScreen) SFX.ramrod();
+      }
+    }
+    if (c.profession !== "musketeer" && (c.reloadT || c.fireT)) { c.reloadT = 0; c.fireT = 0; c.loaded = true; }
 
     if (c.age === undefined) c.age = 20 + Math.floor(Math.random() * 26);
     if (c.child) {
@@ -3869,19 +3917,40 @@ function update(dt) {
       const foeAlive = foe && (civs.includes(foe) || raiders.includes(foe));
       if (!foeAlive) { c.state = "idle"; c.task = null; continue; }
       const d = Math.hypot(foe.x - c.x, foe.y - c.y);
-      if (c.profession === "archer") {
-        // archers stand off and loose arrows
-        if (d > ARCHER_RANGE + 60) { c.state = "walking"; c.tx = foe.x; c.ty = foe.y; continue; }
-        if (d > ARCHER_RANGE) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt);
+      if (c.profession === "musketeer") {
         c.facing = foe.x < c.x ? -1 : 1;
-        c.anim += dt * 3;
-        c.atkT -= dt;
-        if (c.atkT <= 0 && d <= ARCHER_RANGE + 10) {
-          c.atkT = ARCHER_INTERVAL;
-          let dmg = archerDmg();
+        // with a bayonet fixed they hold their ground and stab; without one they keep their distance
+        const bayonet = has("bayonets");
+        if (bayonet && d < 52) {
+          c.anim += dt * 9;
+          c.atkT -= dt;
+          if (c.atkT <= 0) {
+            c.atkT = ATK_INTERVAL;
+            let dmg = bayonetDmg();
+            if (nearWatchtower(c.x, c.y)) dmg += 5;
+            SFX.swing();
+            strikeUnit(c, foe, dmg);
+          }
+          continue;
+        }
+        // loading a musket takes both hands and every bit of attention: he stands
+        // rooted until it is done, whatever is coming toward him
+        if (c.reloadT > 0) continue;
+        if (d > MUSKET_RANGE + 70) { c.state = "walking"; c.tx = foe.x; c.ty = foe.y; continue; }
+        if (d > MUSKET_RANGE) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt);
+        c.anim += dt * 2;
+        if (c.loaded && c.fireT <= 0 && d <= MUSKET_RANGE + 10) {
+          let dmg = musketDmg(d);            // struck harder the nearer the muzzle
           if (nearWatchtower(c.x, c.y)) dmg += 5;
-          SFX.arrow();
-          arrows.push({ x: c.x, y: c.y - 26, target: foe, from: c, dmg });
+          SFX.musket();
+          // the muzzle sits on the barrel line of the sprite, not at the man's waist
+          const mx = c.x + c.facing * MUZZLE_X, my = c.y - MUZZLE_Y;
+          const tx = foe.x, ty = foe.y - CHAR_SIZE * 0.45;
+          const md = Math.max(1, Math.hypot(tx - mx, ty - my));
+          balls.push({ x: mx, y: my, target: foe, from: c, dmg, vx: (tx - mx) / md, vy: (ty - my) / md });
+          smokes.push({ x: mx + c.facing * 6, y: my, r: 5 + Math.random() * 3,
+                        vx: c.facing * 26, t: 1.2, max: 1.2 });
+          c.loaded = false; c.fireT = MUSKET_FIRE_T; c.reloadT = reloadTime();
         }
         continue;
       }
@@ -4135,15 +4204,28 @@ function render(dt) {
       ctx.beginPath(); ctx.ellipse(c.x, c.y - 2, 18, 7, 0, 0, Math.PI * 2); ctx.stroke();
     }
     let frame;
-    if ((c.state === "fighting" || c.state === "sieging") && c.profession !== "cavalry" && c.profession !== "archer")
+    if (c.profession === "musketeer" && (c.fireT > 0 || c.reloadT > 0)) {
+      // the shot, then the long business of loading again
+      if (c.fireT > 0) {
+        // the shot itself: flash, then the smoke hanging, then the musket coming down
+        const k = 1 - c.fireT / MUSKET_FIRE_T;
+        frame = img["mfire" + (k < 0.30 ? 1 : k < 0.62 ? 2 : 3)];
+      } else {
+        const k = 1 - c.reloadT / reloadTime();                // powder → ball → ramrod → shoulder
+        frame = img["mload" + Math.min(3, Math.floor(k * 4))];
+      }
+    }
+    else if (c.profession === "musketeer" && c.state === "fighting") frame = img.mfire0;   // levelled, waiting
+    else if ((c.state === "fighting" || c.state === "sieging") && c.profession !== "cavalry" && c.profession !== "musketeer")
       frame = img[(isForce(c) || c.armed ? "atksword" : "atkfist") + (Math.floor(c.anim) % 4)];
     else frame = img[c.who + (Math.floor(c.anim) % 4)];
     drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
+    // the flash is painted into the firing sprite itself — nothing is drawn over it
     ctx.fillStyle = c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" :
                     c.profession === "police" ? "#8aa0c9" : isForce(c) ? "#b58a5a" : "#7da083";
     ctx.font = "10px monospace"; ctx.textAlign = "center";
     const tag = c.rebel ? " [REBEL]" : c.child ? " (child)" :
-                ["police", "soldier", "archer", "cavalry"].includes(c.profession) ? ` [${c.profession}]` : "";
+                ["police", "soldier", "musketeer", "cavalry"].includes(c.profession) ? ` [${c.profession}]` : "";
     if (settings.labels) ctx.fillText(c.name + tag, c.x, c.y - CHAR_SIZE - 4);
     if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
     if (c.state === "crafting" || c.state === "buildingFarm" || c.state === "smithing" || c.state === "hunting") {
@@ -4156,11 +4238,12 @@ function render(dt) {
   drawables.sort((a, b) => a.y - b.y);
   for (const d of drawables) d.draw();
 
-  for (const a of arrows) {
-    if (!inView(a.x, a.y)) continue;
-    const vx = a.vx || 1, vy = a.vy || 0;
-    ctx.strokeStyle = "#d8cba0"; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(a.x - vx * 7, a.y - vy * 7); ctx.lineTo(a.x + vx * 7, a.y + vy * 7); ctx.stroke();
+  for (const b of balls) {
+    if (!inView(b.x, b.y)) continue;
+    ctx.strokeStyle = "rgba(228,214,178,0.55)"; ctx.lineWidth = 1;      // the streak it leaves
+    ctx.beginPath(); ctx.moveTo(b.x - b.vx * 16, b.y - b.vy * 16); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.fillStyle = "#f0e6c8";
+    ctx.fillRect(Math.round(b.x) - 1, Math.round(b.y) - 1, 2, 2);
   }
 
   for (const sm of smokes) {
