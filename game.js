@@ -1002,6 +1002,15 @@ addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 canvas.addEventListener("mousemove", e => {
   mouse.x = e.clientX; mouse.y = e.clientY;
   if (roadDrag) roadStretch(e.clientX, e.clientY);
+  if (lineStart) {
+    if (!lineDrag && Math.hypot(e.clientX - lineStart.sx, e.clientY - lineStart.sy) > 14) lineDrag = true;
+    if (lineDrag) {
+      const grp = soldierGroup();
+      const ax = grp.reduce((s, c) => s + c.x, 0) / grp.length, ay = grp.reduce((s, c) => s + c.y, 0) / grp.length;
+      lineGhost = lineSlots(grp.length, lineStart.wx, lineStart.wy,
+                            cam.x + e.clientX / zoom, cam.y + e.clientY / zoom, ax, ay);
+    }
+  }
 });
 function zoomAt(sx, sy, factor) {
   const wx = cam.x + sx / zoom, wy = cam.y + sy / zoom;
@@ -1016,6 +1025,7 @@ canvas.addEventListener("wheel", e => {
 function cancelAll() {
   buildMode = null; selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null;
   selGroup = []; roadMode = false; roadDrag = false; roadGhost = []; roadStart = null;
+  lineStart = null; lineDrag = false; lineGhost = null;
   syncUI();
 }
 
@@ -1093,12 +1103,59 @@ function roadCommit() {
       : "Roads can only be laid on your own land.");
   }
 }
+// --- the battle line: with a group selected, press and DRAG to draw the front
+// you want them to stand on — they spread along it, extra ranks forming behind,
+// in the manner of the old line-battle games. A plain click still marches the
+// column to a point.
+let lineStart = null, lineDrag = false, lineGhost = null, lineJustLaid = false;
+const LINE_SPACE = 26, RANK_DEPTH = 30;
+function lineSlots(n, x1, y1, x2, y2, backX, backY) {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+  if (len < 30 || n < 2) return null;
+  const ux = dx / len, uy = dy / len;
+  let px = -uy, py = ux;
+  // extra ranks stack on the side the troops are coming from — behind the front
+  if ((backX - x1) * px + (backY - y1) * py < 0) { px = -px; py = -py; }
+  const perRank = Math.min(n, Math.max(2, Math.floor(len / LINE_SPACE) + 1));
+  const ranks = Math.ceil(n / perRank);
+  const slots = [];
+  for (let r = 0; r < ranks; r++) {
+    const inRank = Math.min(perRank, n - r * perRank);
+    const gap = inRank > 1 ? (r === 0 ? len / (inRank - 1) : Math.min(LINE_SPACE, len / (inRank - 1))) : 0;
+    const lead = r === 0 ? 0 : (len - gap * (inRank - 1)) / 2;   // rear ranks centre up behind the front
+    for (let k = 0; k < inRank; k++) {
+      const a = lead + k * gap;
+      slots.push({ x: x1 + ux * a + px * r * RANK_DEPTH, y: y1 + uy * a + py * r * RANK_DEPTH });
+    }
+  }
+  return { slots, ranks, ux, uy };
+}
+function lineCommit() {
+  if (!lineStart) return;
+  const laid = lineDrag && lineGhost && lineGhost.slots.length;
+  const plan = lineGhost;
+  lineStart = null; lineDrag = false; lineGhost = null;
+  if (!laid) return;                            // no real drag: the click event will handle it
+  const grp = soldierGroup();
+  if (grp.length !== plan.slots.length) return; // the selection changed mid-drag
+  // walk the line in drag order so files do not cross each other on the way
+  const sorted = [...grp].sort((a, b) => (a.x * plan.ux + a.y * plan.uy) - (b.x * plan.ux + b.y * plan.uy));
+  sorted.forEach((s, i) => {
+    order(s, { kind: "walk", x: plan.slots[i].x, y: plan.slots[i].y });
+    s.post = { x: plan.slots[i].x, y: plan.slots[i].y };
+  });
+  convoyT = 4;
+  try { MUSIC.march(true); } catch (e) {}
+  toast(`${grp.length} form line${plan.ranks > 1 ? ` in ${plan.ranks} ranks` : ""} — and will hold it.`);
+  lineJustLaid = true;                          // swallow the click that follows this mouseup
+}
 canvas.addEventListener("mousedown", e => {
-  if (e.button !== 0 || !roadMode || gameState !== "playing" || paused) return;
-  roadBegin(e.clientX, e.clientY);
-  e.preventDefault();
+  if (e.button !== 0 || gameState !== "playing" || paused) return;
+  if (roadMode) { roadBegin(e.clientX, e.clientY); e.preventDefault(); return; }
+  if (!buildMode && soldierGroup().length > 1)
+    lineStart = { sx: e.clientX, sy: e.clientY, wx: cam.x + e.clientX / zoom, wy: cam.y + e.clientY / zoom };
 });
-addEventListener("mouseup", roadCommit);
+addEventListener("mouseup", () => { roadCommit(); lineCommit(); });
 canvas.addEventListener("contextmenu", e => { e.preventDefault(); cancelAll(); });
 
 // --- touch: drag to look about, pinch to zoom, tap to act, hold to cancel ---
@@ -1195,7 +1252,10 @@ $("tbHome").addEventListener("click", () => {
 });
 $("tbMenu").addEventListener("click", () => { if (gameState === "playing" || pauseOpen) setPause(!pauseOpen); });
 
-canvas.addEventListener("click", e => worldClick(e.clientX, e.clientY));
+canvas.addEventListener("click", e => {
+  if (lineJustLaid) { lineJustLaid = false; return; }   // the drag already gave the order
+  worldClick(e.clientX, e.clientY);
+});
 function worldClick(clientX, clientY) {
   if (gameState !== "playing") return;
   mouse.x = clientX; mouse.y = clientY;
@@ -4703,6 +4763,14 @@ function render(dt) {
       }
       ctx.globalAlpha = 1;
     }
+  }
+  if (lineDrag && lineGhost) {                                // the battle line being drawn
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1.5 / zoom;
+    for (const p of lineGhost.slots) {
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, 10, 4.5, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // territory overlay: cubic cells, custom colours
