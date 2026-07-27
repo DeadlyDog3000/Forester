@@ -22,6 +22,8 @@ const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
 const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, MUSKET_COST = 25, CAV_COST = 50, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
 // the musket's bargain: it outranges and outhits a bow, and takes an age to load
 const MUSKET_RANGE = 250, MUSKET_FIRE_T = 0.55, BALL_SPEED = 900;
+// the watch on the tower: further than a man on the ground, slower to load
+const TOWER_RANGE = 340, TOWER_RELOAD = 3.2;
 const MUSKET_KEEP_AWAY = 110;   // closer than this, an unbayoneted musketeer gives ground
 // where the muzzle sits in world units: sprite row 4, column 28 of a 32px frame drawn at CHAR_SIZE
 const MUZZLE_X = 24, MUZZLE_Y = 56;
@@ -4414,7 +4416,7 @@ function syncUI() {
     $("bpInfo").textContent = isFarm ? `${b.workers.length} farmer(s) assigned; ${b.ready ? "crop is ripe" : "crop growing"}.` :
       b.type === "burned" ? "Select a civilian and click the ruin to order its repair (20 logs + 1 door)." :
       b.fire ? "IT IS ON FIRE." :
-      b.type === "watchtower" ? "Warns of raids; nearby police & soldiers fight harder." :
+      b.type === "watchtower" ? "Warns of raids and shoots at raiders that come near; nearby police & soldiers fight harder." :
       b.type === "bakery" ? "Bakes town wheat into bread over time." :
       b.type === "well" ? "Fresh water. The colony is happier for it." :
       b.type === "forge" ? `Blacksmith's shop. On the racks: ${(b.shop || []).filter(i => i.kind === "tool").length} tool(s). Civilians buy tools with their own coin; forged weapons go straight to the armoury.` :
@@ -4680,6 +4682,30 @@ function update(dt) {
   }
   // the watchtower sounds the war-drums — until the raiders leave, or die
   const towers = buildings.filter(b => b.type === "watchtower" && !b.fire && !b.site);
+  // and the watch does more than watch: a musket rests on the rail, and from that
+  // height it reaches further than any man on the ground
+  for (const tw of towers) {
+    tw.reloadT = (tw.reloadT === undefined ? Math.random() * TOWER_RELOAD : tw.reloadT) - dt;
+    if (tw.reloadT > 0) continue;
+    let mark = null, md = TOWER_RANGE;
+    for (const r of raiders) {
+      if (r.garrison) continue;                       // a distant town's guard is not our quarrel
+      const d = Math.hypot(r.x - tw.x, r.y - tw.y);
+      if (d < md) { md = d; mark = r; }
+    }
+    if (!mark) { tw.reloadT = 0.4; continue; }        // nothing in the sights: look again shortly
+    tw.reloadT = TOWER_RELOAD;
+    const mx = tw.x + (mark.x < tw.x ? -10 : 10), my = tw.y - BLDG_SIZE * 0.72;
+    const tx = mark.x, ty = mark.y - CHAR_SIZE * 0.45;
+    const d2 = Math.max(1, Math.hypot(tx - mx, ty - my));
+    balls.push({ x: mx, y: my, target: mark, from: tw, dmg: Math.round(musketDmg(md) * 0.8),
+                 vx: (tx - mx) / d2, vy: (ty - my) / d2 });
+    if (onScreen(tw.x, tw.y)) {
+      SFX.musket();
+      smokes.push({ x: mx + (mark.x < tw.x ? -6 : 6), y: my, r: 5 + Math.random() * 3,
+                    vx: (mark.x < tw.x ? -22 : 22), t: 1.2, max: 1.2 });
+    }
+  }
   const threat = towers.length > 0 && raiders.some(r => r.state !== "patrol" &&
     towers.some(tw => Math.hypot(tw.x - r.x, tw.y - r.y) < 750));
   MUSIC.battle(threat && gameState === "playing");
@@ -5555,6 +5581,24 @@ function render(dt) {
     else ctx.strokeRect(gx - gs / 2, gy - gs, gs, gs);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  // a name floating over every town you hold, so you always know where you are
+  {
+    const named = settlements.filter(s => s.x !== undefined)
+      .map(s => ({ x: s.x, y: s.y, name: s.name, cap: false }));
+    named.push({ x: CAPITAL_X, y: CAPITAL_Y, name: settlementName || "Neu Hamburg", cap: true });
+    for (const ft of foreignTowns) named.push({ x: ft.x, y: ft.y, name: ft.name, foe: true });
+    ctx.textAlign = "center";
+    for (const t of named) {
+      const sx = (t.x - cam.x) * zoom, sy = (t.y - cam.y) * zoom - 40 * zoom;
+      if (sx < -60 || sx > canvas.width + 60 || sy < 14 || sy > canvas.height + 40) continue;
+      ctx.font = (t.cap ? "bold " : "") + Math.max(11, Math.round(13 * Math.min(1.3, zoom))) + "px monospace";
+      ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(4,7,5,0.85)";
+      ctx.strokeText(t.name, sx, sy);
+      ctx.fillStyle = t.foe ? "#d86a5a" : t.cap ? "#e8d9b8" : "#c9a86a";
+      ctx.fillText(t.name, sx, sy);
+    }
+  }
 
   // edge-of-screen markers for towns that are out of view
   const towns = settlements.filter(s => s.x !== undefined).map(s => ({ x: s.x, y: s.y, name: s.name }));
