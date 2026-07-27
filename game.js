@@ -1226,7 +1226,7 @@ function worldClick(clientX, clientY) {
       // group led by a musketeer no longer swallows the order silently
       const grp = has("raiding") ? soldierGroup().filter(s => s.profession === "soldier" || s.profession === "cavalry") : [];
       if (grp.length) {
-        grp.forEach((s, i) => order(s, { kind: "siege", target: cp, x: cp.x + 40 + (i % 3) * 16, y: cp.y + 14 + Math.floor(i / 3) * 14 }));
+        grp.forEach((s, i) => { s.post = null; order(s, { kind: "siege", target: cp, x: cp.x + 40 + (i % 3) * 16, y: cp.y + 14 + Math.floor(i / 3) * 14 }); });
         toast(grp.length > 1 ? `${grp.length} fighters march on the ${cp.type} camp.` : `${grp[0].name} marches on the ${cp.type} camp.`);
       } else if (selected && isForce(selected)) {
         // a force unit is selected but none of them can sack — say why, keep the selection
@@ -1347,7 +1347,7 @@ function worldClick(clientX, clientY) {
   if (selected) {
     const grp = soldierGroup();
     if (grp.length > 1) marchColumn(grp, mouse.wx, mouse.wy);
-    else grp.forEach(s => order(s, { kind: "walk", x: mouse.wx, y: mouse.wy }));
+    else grp.forEach(s => { s.post = null; order(s, { kind: "walk", x: mouse.wx, y: mouse.wy }); });
   }
 }
 
@@ -1364,10 +1364,11 @@ function marchColumn(grp, tx, ty) {
     const ox = -fx * rank * 30 + sx * file * 17;
     const oy = -fy * rank * 30 + sy * file * 17;
     order(s, { kind: "walk", x: tx + ox, y: ty + oy });
+    s.post = { x: tx + ox, y: ty + oy };          // the ground they take, they hold
   });
   convoyT = 4;                                    // kept alive while the column is on the road
   try { MUSIC.march(true); } catch (e) {}
-  toast(`${grp.length} soldiers form column and march out.`);
+  toast(`${grp.length} soldiers form column and march out. They will hold that ground.`);
 }
 function updateConvoy(dt) {
   const marching = selGroup.length > 1 &&
@@ -1825,17 +1826,25 @@ function forceAI(c) {
     res.weapons--; c.armed = true;
     toast(`${c.name} takes a weapon at the forge.`);
   }
-  const range = 450 + (has("guarddogs") ? 250 : 0);
+  // a posted soldier watches from where he was told to stand — threats are
+  // measured from the post, and he neither buries the dead nor walks the beat
+  const post = c.post;
+  const range = post ? 380 : 450 + (has("guarddogs") ? 250 : 0);
+  const fx = post ? post.x : c.x, fy = post ? post.y : c.y;
   let best = null, bd = range;
   for (const r of civs) if (r.rebel) {
-    const d = Math.hypot(r.x - c.x, r.y - c.y);
+    const d = Math.hypot(r.x - fx, r.y - fy);
     if (d < bd) { bd = d; best = r; }
   }
   for (const r of raiders) {
-    const d = Math.hypot(r.x - c.x, r.y - c.y);
+    const d = Math.hypot(r.x - fx, r.y - fy);
     if (d < bd) { bd = d; best = r; }
   }
   if (best) { order(c, { kind: "attack", target: best, x: best.x, y: best.y }); return; }
+  if (post) {
+    if (Math.hypot(post.x - c.x, post.y - c.y) > 26) order(c, { kind: "walk", x: post.x, y: post.y });
+    return;
+  }
   // no threats: soldiers see the dead to their rest before walking the beat
   if (c.profession === "soldier") {
     const corpse = corpses.find(cp => !cp.bearer || !civs.includes(cp.bearer));
@@ -3298,6 +3307,7 @@ function saveGame() {
         name: c.name, who: c.who, nativeWho: c.nativeWho, gender: c.gender, child: !!c.child, growT: r1(c.growT || 0), age: c.age || 20, x: r1(c.x), y: r1(c.y), home: bi(c.home),
         profession: c.profession, hunger: r1(c.hunger), hp: r1(c.hp), maxHp: c.maxHp,
         happiness: r1(c.happiness), rebel: c.rebel, armed: c.armed, tool: c.tool,
+        post: c.post ? { x: r1(c.post.x), y: r1(c.post.y) } : undefined,
         inv: { ...c.inv },
       })),
       buildings: buildings.map(b => ({
@@ -3376,7 +3386,7 @@ function loadGame() {
       Object.assign(c, { profession: cd.profession === "archer" ? "musketeer" : cd.profession,
         hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
         happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool,
-        child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20 });
+        child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20, post: cd.post || null });
       if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
       Object.assign(c.inv, cd.inv);
       civs.push(c);

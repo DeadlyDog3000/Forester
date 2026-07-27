@@ -378,15 +378,48 @@ const MUSIC = (() => {
         g.gain.exponentialRampToValueAtTime(0.0001, t + step * 1.4);
         o.connect(g); g.connect(mGain); o.start(t); o.stop(t + step * 1.6);
       }
-      if (tune.snare[i]) {                                  // side drum: a rap and a roll
-        const hard = tune.snare[i] === 2;
+      // the side drum: crack of the head plus the knock of the shell, so it
+      // reads as a field drum and not as hiss
+      const rap = (tt, vol, hp) => {
         const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
         s.buffer = window.__foresterNoise; s.loop = true;
-        f.type = "highpass"; f.frequency.value = hard ? 1800 : 2600;
-        g.gain.setValueAtTime(hard ? 0.075 : 0.035, t);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + (hard ? 0.11 : 0.06));
+        f.type = "highpass"; f.frequency.value = hp;
+        g.gain.setValueAtTime(vol, tt);
+        g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.09);
         s.connect(f); f.connect(g); g.connect(mGain);
-        s.start(t); s.stop(t + 0.14);
+        s.start(tt); s.stop(tt + 0.12);
+        const k = a.createBufferSource(), kf = a.createBiquadFilter(), kg = a.createGain();
+        k.buffer = window.__foresterNoise; k.loop = true;
+        kf.type = "bandpass"; kf.frequency.value = 330; kf.Q.value = 1.6;
+        kg.gain.setValueAtTime(vol * 0.8, tt);
+        kg.gain.exponentialRampToValueAtTime(0.0001, tt + 0.07);
+        k.connect(kf); kf.connect(kg); kg.connect(mGain);
+        k.start(tt); k.stop(tt + 0.1);
+      };
+      if (tune.snare[i]) {
+        const hard = tune.snare[i] === 2;
+        if (hard) { rap(t - 0.052, 0.024, 2400); rap(t - 0.026, 0.034, 2400); }   // the ruff rolling into the beat
+        rap(t, hard ? 0.10 : 0.045, hard ? 1700 : 2500);
+      }
+      if (i % 4 === 0) {                                    // the regiment's great drum
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(88, t);
+        o.frequency.exponentialRampToValueAtTime(46, t + 0.11);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(i % 8 === 0 ? 0.24 : 0.15, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+        o.connect(g); g.connect(mGain); o.start(t); o.stop(t + 0.27);
+      }
+      if (i % 8 === 6) {                                    // the war-tom answering off the beat
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(150, t);
+        o.frequency.exponentialRampToValueAtTime(96, t + 0.08);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.11, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        o.connect(g); g.connect(mGain); o.start(t); o.stop(t + 0.19);
       }
     }
     return t0 + 32 * step;
