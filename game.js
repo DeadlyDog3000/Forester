@@ -283,7 +283,7 @@ const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
 const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [], corpses = [], graves = [];
 // enemy ground: a foreign crown's border town, standing in the world to be stormed
-const foreign = [], foreignTowns = [];
+const foreign = [], foreignTowns = [], foreignFolk = [];
 const balls = [];   // musket shot in flight — it goes where it was pointed, and no further
 // dirt paths: a set of small cells the colony has worn smooth, a fifth of a mark each
 const ROAD = 32, ROAD_COST = 0.2;      // one dirt tile of lane, a fifth of a mark apiece
@@ -1302,6 +1302,17 @@ function worldClick(clientX, clientY) {
       return;
     }
 
+  // their townsfolk: soldiers may run them down and take them
+  for (const f of foreignFolk)
+    if (Math.abs(mouse.wx - f.x) < 26 && mouse.wy < f.y && mouse.wy > f.y - CHAR_SIZE) {
+      const grp = soldierGroup().filter(isForce);
+      if (grp.length) {
+        grp.forEach(s => { s.post = null; order(s, { kind: "seize", target: f, x: f.x, y: f.y + 6 }); });
+        toast(`${grp.length > 1 ? grp.length + " give" : grp[0].name + " gives"} chase to ${f.name} of ${f.town.name}.`);
+      } else toast(`${f.name}, of ${f.town.name}. Send soldiers to take them.`);
+      return;
+    }
+
   // enemy ground: any fighting man can be sent against a foreign wall or roof
   for (const fb of foreign)
     if (pointInRect(mouse.wx, mouse.wy, bldgRect(fb))) {
@@ -1673,6 +1684,14 @@ function arrive(c) {
     const standing = t.target && t.target.foreign ? foreign.includes(t.target) : camps.includes(t.target);
     if (!standing) { c.state = "idle"; c.task = null; return; }
     c.state = "sieging"; c.workT = 0;
+  } else if (t.kind === "seize") {
+    // run them down: the chase only ends in hand's reach
+    const f = t.target;
+    if (!foreignFolk.includes(f)) { c.state = "idle"; c.task = null; return; }
+    if (Math.hypot(f.x - c.x, f.y - c.y) > 34) { c.tx = f.x; c.ty = f.y + 6; c.state = "walking"; return; }
+    captureFolk(f);
+    SFX.pickup();
+    c.state = "idle"; c.task = null;
   } else if (t.kind === "torch") {
     const there = t.target && t.target.foreign ? foreign.includes(t.target) : buildings.includes(t.target);
     if (!there || t.target.fire) { c.state = "idle"; c.task = null; return; }
@@ -1884,7 +1903,8 @@ function autonomy(c, dt) {
 
 // --- happiness & rebellion ---
 function happinessTarget(c) {
-  let t = 78 - taxRate * 6
+  // the conquered do not love a new flag on the day it is raised
+  let t = 78 - taxRate * 6 - (c.conquered || 0) * 34
         - (laws.forced ? 20 : 0)
         - (has("slavemarket") ? 8 : 0)
         + (has("taming") ? 3 : 0) + (has("pets") ? 4 : 0) + (has("pettoys") ? 4 : 0)
@@ -3193,6 +3213,24 @@ function landForeignTown(id) {
     const w = put(tier >= 4 ? "stonewall" : "wall", wx, wy, wallHp);
     w.rot = Math.abs(Math.cos(a)) > 0.6 ? 1 : 0;
   }
+  // the townsfolk: no soldiers, only people, who scatter when your line comes on
+  const FOLK_M = ["Anders", "Bertil", "Ewald", "Hark", "Joris", "Klaus", "Mikkel", "Peder", "Rutger", "Sten"];
+  const FOLK_F = ["Birgit", "Dorothea", "Elke", "Gisela", "Karin", "Maren", "Sofie", "Trine"];
+  const TRADES = ["farmer", "forager", "lumberjack", "quarryman", "blacksmith", null];
+  const folkN = 4 + Math.floor(tier / 2) + Math.floor(Math.random() * 3);
+  for (let i = 0; i < folkN; i++) {
+    const female = Math.random() < 0.45;
+    const pool = female ? FOLK_F : FOLK_M;
+    const a = Math.random() * Math.PI * 2, rr = 40 + Math.random() * 210;
+    foreignFolk.push({
+      name: pool[Math.floor(Math.random() * pool.length)], gender: female ? "f" : "m",
+      who: female ? "sister" : "brother", trade: TRADES[Math.floor(Math.random() * TRADES.length)],
+      age: 17 + Math.floor(Math.random() * 40), town,
+      x: site.x + Math.cos(a) * rr, y: site.y + Math.sin(a) * rr * 0.8,
+      wpx: site.x + Math.cos(a) * rr, wpy: site.y + Math.sin(a) * rr * 0.8,
+      state: "idle", anim: 0, facing: 1, fleeT: 0,
+    });
+  }
   // the garrison: they hold the town and do not march on your colony
   const garrison = 4 + Math.floor(tier / 2);
   for (let i = 0; i < garrison; i++) {
@@ -3204,6 +3242,26 @@ function landForeignTown(id) {
                    wpx: site.x + Math.cos(a) * rr, wpy: site.y + Math.sin(a) * rr });
   }
   return town;
+}
+// A taken townsman joins your people — but not gladly. The conquered carry their
+// resentment for a long while, and it shows in the colony's mood.
+function captureFolk(f, quiet) {
+  const i = foreignFolk.indexOf(f);
+  if (i >= 0) foreignFolk.splice(i, 1);
+  const name = usedNames.has(f.name) ? nextName(f.gender) : f.name;
+  usedNames.add(name);
+  const c = mkCiv(name, f.who, f.x, f.y, f.gender);
+  c.age = f.age;
+  c.profession = f.trade;
+  c.happiness = 28;
+  c.conquered = 1;                 // wears off as the years pass under your flag
+  c.hunger = 70;
+  refreshAvatar(c);
+  civs.push(c);
+  houseCiv(c, f.x, f.y);
+  float(c.x, c.y - 70, "captured", "#c9a86a");
+  if (!quiet) toast(`${c.name} of ${f.town.name} is taken — they will serve your empire, sullenly at first.`);
+  return c;
 }
 // the town falls when its hall burns — and what still stands becomes yours
 function foreignTownFalls(town) {
@@ -3229,8 +3287,11 @@ function foreignTownFalls(town) {
     taken++;
   }
   for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].garrison === town) raiders.splice(i, 1);
+  // whoever did not flee the town is now yours
+  let folk = 0;
+  for (const f of [...foreignFolk]) if (f.town === town) { captureFolk(f, true); folk++; }
   for (let i = foreignTowns.length - 1; i >= 0; i--) if (foreignTowns[i] === town) foreignTowns.splice(i, 1);
-  town.taken = taken;
+  town.taken = taken; town.folk = folk;
   res.dm += town.dm; res.weapons += town.weapons;
   // the settlement joins your empire under its own name, and its roofs take your folk
   settlements.push({ name: town.name, pop: 0, x: town.x, y: town.y,
@@ -3246,7 +3307,8 @@ function foreignTownFalls(town) {
   float(town.x, town.y - 90, `+${town.dm} DM +${town.weapons} wpn`, "#7da083");
   eventCard(`${town.name} has fallen to ${empireName || "your empire"}!`,
             "event_conquest",
-            `+${town.dm} DM plunder, ${town.taken} building(s) taken intact — ${town.name} is yours`);
+            `+${town.dm} DM plunder, ${town.taken} building(s) taken intact` +
+            (town.folk ? `, ${town.folk} of its people now yours` : "") + ` — ${town.name} is yours`);
   checkDefeated(town.nation);
   mapGrid = null; renderMap(); syncUI();
 }
@@ -3610,6 +3672,7 @@ function saveGame() {
         profession: c.profession, hunger: r1(c.hunger), hp: r1(c.hp), maxHp: c.maxHp,
         happiness: r1(c.happiness), rebel: c.rebel, armed: c.armed, tool: c.tool,
         post: c.post ? { x: r1(c.post.x), y: r1(c.post.y) } : undefined,
+        conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
         inv: { ...c.inv },
       })),
       buildings: buildings.map(b => ({
@@ -3635,6 +3698,8 @@ function saveGame() {
                                    rot: b.rot, keep: !!b.keep, town: foreignTowns.indexOf(b.town) })),
       garrisons: raiders.filter(r => r.garrison).map(r => ({ x: r1(r.x), y: r1(r.y), hp: r1(r.hp), maxHp: r.maxHp,
                                    dmg: r.dmg, nation: r.nation, town: foreignTowns.indexOf(r.garrison) })),
+      foreignFolk: foreignFolk.map(f => ({ name: f.name, gender: f.gender, who: f.who, trade: f.trade,
+                                   age: f.age, x: r1(f.x), y: r1(f.y), town: foreignTowns.indexOf(f.town) })),
       wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated, trade: !!n.trade }])),
     };
     const json = JSON.stringify(data);
@@ -3694,7 +3759,8 @@ function loadGame() {
       Object.assign(c, { profession: cd.profession === "archer" ? "musketeer" : cd.profession,
         hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
         happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool,
-        child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20, post: cd.post || null });
+        child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20, post: cd.post || null,
+        conquered: cd.conquered || 0 });
       if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
       Object.assign(c.inv, cd.inv);
       civs.push(c);
@@ -3753,7 +3819,7 @@ function loadGame() {
     // settlements were founded before their clearing was claimed
     for (const st of settlements) if (st.x !== undefined) expandAround(st.x, st.y, 5);
     conquests.length = 0; for (const cq of (d.conquests || [])) conquests.push(cq);
-    foreignTowns.length = 0; foreign.length = 0;
+    foreignTowns.length = 0; foreign.length = 0; foreignFolk.length = 0;
     for (const t of (d.foreignTowns || [])) foreignTowns.push({ ...t, fallen: false });
     for (const b of (d.foreign || [])) {
       const town = foreignTowns[b.town];
@@ -3761,6 +3827,11 @@ function loadGame() {
       const fb = { ...b, town, foreign: true, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
       foreign.push(fb);
       if (fb.keep) town.keep = fb;
+    }
+    for (const f of (d.foreignFolk || [])) {
+      const town = foreignTowns[f.town];
+      if (!town) continue;
+      foreignFolk.push({ ...f, town, wpx: f.x, wpy: f.y, state: "idle", anim: 0, facing: 1, fleeT: 0 });
     }
     for (const g of (d.garrisons || [])) {
       const town = foreignTowns[g.town];
@@ -4322,6 +4393,39 @@ function update(dt) {
   }
   for (const f of farms) if (!f.ready && season() !== "winter" && (f.growT += dt) >= farmRipen()) f.ready = true;
   SFX.fireLoop(buildings.some(b => b.fire > 0) || foreign.some(b => b.fire > 0));
+  // the townsfolk: about their business until soldiers come, then they run
+  for (const f of foreignFolk) {
+    const sp = BASE_WALK * snowPace();
+    let flee = null, fd = 220;
+    for (const c of civs) if (isForce(c)) {
+      const d = Math.hypot(c.x - f.x, c.y - f.y);
+      if (d < fd) { fd = d; flee = c; }
+    }
+    if (flee) {
+      const d = Math.max(1, fd);
+      f.x += (f.x - flee.x) / d * sp * 0.75 * dt;
+      f.y += (f.y - flee.y) / d * sp * 0.75 * dt;
+      f.facing = flee.x < f.x ? 1 : -1;
+      f.anim += dt * 9;
+      f.fleeT = 2;
+      // driven far enough from home and they simply scatter into the woods
+      if (Math.hypot(f.x - f.town.x, f.y - f.town.y) > 900) f.gone = true;
+      continue;
+    }
+    f.fleeT = Math.max(0, (f.fleeT || 0) - dt);
+    const wd = Math.hypot(f.wpx - f.x, f.wpy - f.y);
+    if (wd < 8) {
+      const a = Math.random() * Math.PI * 2, rr = 40 + Math.random() * 200;
+      f.wpx = f.town.x + Math.cos(a) * rr; f.wpy = f.town.y + Math.sin(a) * rr * 0.8;
+      f.anim = 1;
+    } else {
+      f.x += (f.wpx - f.x) / wd * sp * 0.32 * dt;
+      f.y += (f.wpy - f.y) / wd * sp * 0.32 * dt;
+      f.facing = f.wpx < f.x ? -1 : 1;
+      f.anim += dt * 5;
+    }
+  }
+  for (let i = foreignFolk.length - 1; i >= 0; i--) if (foreignFolk[i].gone) foreignFolk.splice(i, 1);
   // enemy timber burns down to nothing — the town has no one left to rebuild it
   for (const fb of [...foreign]) {
     if (!fb.fire) continue;
@@ -4482,6 +4586,8 @@ function update(dt) {
       c.growT = (c.growT || 0) + dt;
       if (c.growT >= 300) { c.child = false; toast(`${c.name} has come of age and joins the working colony.`); }
     }
+    // a conquered soul makes its peace slowly — a quarter hour under your flag
+    if (c.conquered) c.conquered = Math.max(0, c.conquered - dt / 900);
     const target = happinessTarget(c);
     c.happiness += Math.sign(target - c.happiness) * Math.min(Math.abs(target - c.happiness), 2.5 * dt);
     maybeRebel(c);
@@ -4559,11 +4665,17 @@ function update(dt) {
         if (!civs.includes(t) && !raiders.includes(t)) { c.state = "idle"; c.task = null; continue; }
         c.tx = t.x; c.ty = t.y;
       }
+      if (c.task && c.task.kind === "seize" && c.task.target) {
+        const t = c.task.target;
+        if (!foreignFolk.includes(t)) { c.state = "idle"; c.task = null; continue; }
+        c.tx = t.x; c.ty = t.y + 6;      // they are running: keep after them
+      }
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
       // a musketeer closes only to firing range and lets the piece do the rest;
       // everyone else must get to arm's length
       const reach = c.task && c.task.kind === "attack"
         ? (c.profession === "musketeer" ? MUSKET_RANGE - 40 : 34)
+        : c.task && c.task.kind === "seize" ? 30
         : (c.path && c.path.length ? 10 : 5);
       if (d < reach) {
         if (c.path && c.path.length) {
@@ -5093,6 +5205,15 @@ function render(dt) {
     if (selectedCamp === cp) {
       ctx.strokeStyle = "#d86a5a"; ctx.lineWidth = 1;
       ctx.strokeRect(cp.x - BLDG_SIZE / 2, cp.y - BLDG_SIZE, BLDG_SIZE, BLDG_SIZE);
+    }
+  }});
+  // their townsfolk, going about their lives until your line comes over the hill
+  for (const f of foreignFolk) if (inView(f.x, f.y)) drawables.push({ y: f.y, draw: () => {
+    drawSprite(img[f.who + (Math.floor(f.anim) % 4)], f.x, f.y, CHAR_SIZE, f.facing < 0);
+    if (settings.labels) {
+      ctx.fillStyle = f.fleeT > 0 ? "#d8b45a" : "#9ab0a2";
+      ctx.font = "10px monospace"; ctx.textAlign = "center";
+      ctx.fillText(f.name + (f.fleeT > 0 ? " !" : ""), f.x, f.y - CHAR_SIZE - 4);
     }
   }});
   // a foreign crown's town: their roofs and walls, drawn in their own colours
