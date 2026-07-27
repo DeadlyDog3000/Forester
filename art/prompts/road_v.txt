@@ -1,0 +1,4 @@
+A single 32x32 pixel art terrain tile: a straight stretch of dirt footpath running vertically, top to bottom.
+
+COMPOSITION — CRITICAL FOR TILING:
+Perfectly square 1:1 image. A vertical band of bare packed dirt crosses the whole frame from the very top edge to the very bottom edge, touching both edges completely so that copies of this tile stacked above and below join with no seam. The band is centred horizontally and about two thirds of the frame wide. Left and right of the band, the frame is the flat magenta keying colour. The side boundaries of the dirt are slightly ragged and hand-worn, but they must stay at the same width where they meet the top edge and the bottom edge so neighbouring copies line up. The cart ruts run vertically, along the direction of travel.

@@ -8,3 +8,6 @@
 # Editors
 .vscode/
 *.code-workspace
+
+# Raw model output — the sprites in assets/ are what the game ships
+art/raw/

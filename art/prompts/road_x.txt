@@ -1,0 +1,4 @@
+A single 32x32 pixel art terrain tile: a crossroads where two dirt footpaths cross.
+
+COMPOSITION — CRITICAL FOR TILING:
+Perfectly square 1:1 image. Dirt reaches the middle of all four edges — left, right, top and bottom — meeting in a well-trodden crossing at the centre. Each arm is a band about two thirds of the frame wide where it meets its edge, the same width as a straight path tile. Only the four diagonal corners of the frame are the flat magenta keying colour, and each of those corners is a small square notch with a hard pixel edge. The crossing is the most worn part, the ruts breaking up into scuffed earth where the tracks meet.

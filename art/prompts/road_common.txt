@@ -1,0 +1,13 @@
+SHARED STYLE BLOCK — appended to every road tile prompt.
+
+STYLE:
+True low-resolution pixel art tile for a 17th-century woodland colony game, viewed from directly above (straight top-down). Enormous chunky square pixels, hard edges, no anti-aliasing, no gradients, no soft shadows, no outlines around the whole tile. Authentic 16-bit era tile work.
+
+COLOUR — strictly 4 flat shades of earth only:
+A mid warm-brown packed dirt base, a slightly darker brown for the worn ruts and pressed hollows, a paler dusty tan for the raised crown of the path where boots have polished it, and a few near-black brown pixels for scattered pebbles and cart-wheel grooves. Muted and cold-lit to sit in a dark spruce forest. No green, no grass, no moss, no yellow, no red, no bright colours.
+
+THE SURFACE:
+Bare trodden earth of a country lane: faint parallel cart ruts running along the direction of travel, a scatter of tiny stones, a slightly uneven, hand-worn edge. No plants, no puddles, no snow, no wood, no planks, no cobbles, no bricks, no paving stones, no text, no numbers, no border frame, no vignette.
+
+BACKGROUND:
+Every part of the frame that is NOT the dirt path must be one completely flat, uniform, solid pure magenta (255, 0, 255) — a single unbroken keying colour with no texture, no shading, no gradient and no speckles. The dirt must never fade into the magenta: the boundary is a hard pixel edge.

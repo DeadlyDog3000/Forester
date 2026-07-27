@@ -1,0 +1,4 @@
+A single 32x32 pixel art terrain tile: the blunt end of a dirt footpath, where the lane simply stops.
+
+COMPOSITION — CRITICAL FOR TILING:
+Perfectly square 1:1 image. Dirt reaches the middle of the LEFT edge only, in a band about two thirds of the frame wide, and runs rightwards to about three quarters across the tile, where it finishes in a rounded, trodden, slightly frayed end — as if the path peters out into the grass. It must NOT touch the right, top or bottom edges. All the rest of the frame is the flat magenta keying colour.

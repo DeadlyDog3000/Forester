@@ -1,0 +1,4 @@
+A single 32x32 pixel art terrain tile: a straight stretch of dirt footpath running horizontally, left to right.
+
+COMPOSITION — CRITICAL FOR TILING:
+Perfectly square 1:1 image. A horizontal band of bare packed dirt crosses the whole frame from the very left edge to the very right edge, touching both edges completely so that copies of this tile placed side by side join with no seam. The band is centred vertically and about two thirds of the frame tall. Above and below the band, the frame is the flat magenta keying colour. The top and bottom boundaries of the dirt are slightly ragged and hand-worn, but they must stay at the same height where they meet the left edge and the right edge so neighbouring copies line up.

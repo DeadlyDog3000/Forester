@@ -1,0 +1,4 @@
+A single 32x32 pixel art terrain tile: a corner of a dirt footpath, an elbow bend.
+
+COMPOSITION — CRITICAL FOR TILING:
+Perfectly square 1:1 image. The dirt enters at the middle of the LEFT edge and leaves at the middle of the BOTTOM edge, turning through a right angle in the centre of the tile with a softly rounded, trodden inside curve. The dirt touches the left edge and the bottom edge completely, in a band about two thirds of the frame wide, exactly as wide where it meets each edge as a straight path tile. The top-right two thirds of the frame, and the small inner corner at the bottom-left, are the flat magenta keying colour. The ruts curve around the bend.

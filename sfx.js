@@ -100,6 +100,8 @@ const SFX = (() => {
       noise(0.75, 0.13, 500, 70, 0.6, "lowpass", 0.06);
     },
     ramrod:   () => { tone("square", 420, 300, 0.05, 0.08); noise(0.07, 0.1, 2200, 800, 2, "bandpass", 0.05); },
+    // a soft two-note chime when word arrives — enough to look up, not to startle
+    popup:    () => { tone("sine", 784, 784, 0.16, 0.10); tone("sine", 1175, 1175, 0.26, 0.085, 0.11); },
     chop:     () => { noise(0.06, 0.3, 700, 250, 1, "lowpass"); tone("triangle", 220, 90, 0.07, 0.2); },
     treeFall: () => { noise(0.5, 0.3, 500, 80, 1, "lowpass"); tone("triangle", 110, 40, 0.5, 0.25); },
     quarry:   () => { tone("square", 1900, 1500, 0.04, 0.1); noise(0.06, 0.28, 2600, 900, 3); },
@@ -287,7 +289,99 @@ const MUSIC = (() => {
     bTimer = setTimeout(bPump, 200);
   }
 
+  // ===== marches: a column on the road deserves a band =====
+  // Three tunes in the old style, written out as note numbers — nothing sampled.
+  const MARCHES = {
+    grenadier: {
+      name: "The Grenadier's March", bpm: 108,
+      lead: [72,0,72,72, 76,0,74,72, 79,0,0,0, 76,0,74,72,
+             77,0,77,76, 74,0,72,74, 76,0,0,0, 72,0,0,0],
+      bass: [48,0,55,0, 48,0,55,0, 53,0,60,0, 53,0,60,0,
+             50,0,57,0, 50,0,57,0, 48,0,55,0, 48,0,0,0],
+      snare:[2,0,1,1, 2,0,1,0, 2,0,1,1, 2,0,1,0,
+             2,0,1,1, 2,0,1,0, 2,0,1,1, 2,1,1,1],
+    },
+    hussar: {
+      name: "Hussars of the Line", bpm: 122,
+      lead: [69,0,71,72, 74,0,72,71, 69,0,67,0, 65,0,67,69,
+             71,0,72,74, 76,0,74,72, 71,0,69,0, 69,0,0,0],
+      bass: [45,0,52,0, 45,0,52,0, 41,0,48,0, 41,0,48,0,
+             43,0,50,0, 43,0,50,0, 45,0,52,0, 45,0,0,0],
+      snare:[2,0,1,0, 1,0,1,0, 2,0,1,0, 1,0,1,1,
+             2,0,1,0, 1,0,1,0, 2,0,1,1, 2,1,1,1],
+    },
+    oldguard: {
+      name: "March of the Old Guard", bpm: 96,
+      lead: [64,0,0,64, 67,0,0,69, 71,0,0,0, 69,0,67,0,
+             64,0,0,64, 67,0,0,71, 72,0,0,0, 71,0,0,0],
+      bass: [40,0,47,0, 40,0,47,0, 45,0,52,0, 45,0,52,0,
+             40,0,47,0, 40,0,47,0, 43,0,50,0, 43,0,0,0],
+      snare:[2,0,0,1, 2,0,0,1, 2,0,1,1, 2,0,0,0,
+             2,0,0,1, 2,0,0,1, 2,0,1,1, 2,1,1,1],
+    },
+  };
+  let mWanted = false, mNext = 0, mTimer = null, mGain = null, mTune = "grenadier", mPhrase = 0;
+
+  function marchLoop(a, t0, tune) {
+    const step = 60 / tune.bpm / 2;
+    for (let i = 0; i < 32; i++) {
+      const t = t0 + i * step;
+      if (tune.lead[i]) {                                   // fifes, doubled an octave up
+        for (const [mul, vol, type] of [[1, 0.075, "square"], [2, 0.032, "triangle"]]) {
+          const o = a.createOscillator(), g = a.createGain();
+          o.type = type; o.frequency.setValueAtTime(N(tune.lead[i]) * mul, t);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + step * 1.7);
+          o.connect(g); g.connect(mGain); o.start(t); o.stop(t + step * 1.9);
+        }
+      }
+      if (tune.bass[i]) {                                   // the bass drum walking underneath
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "triangle"; o.frequency.setValueAtTime(N(tune.bass[i]), t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.10, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + step * 1.4);
+        o.connect(g); g.connect(mGain); o.start(t); o.stop(t + step * 1.6);
+      }
+      if (tune.snare[i]) {                                  // side drum: a rap and a roll
+        const hard = tune.snare[i] === 2;
+        const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+        s.buffer = window.__foresterNoise; s.loop = true;
+        f.type = "highpass"; f.frequency.value = hard ? 1800 : 2600;
+        g.gain.setValueAtTime(hard ? 0.075 : 0.035, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + (hard ? 0.11 : 0.06));
+        s.connect(f); f.connect(g); g.connect(mGain);
+        s.start(t); s.stop(t + 0.14);
+      }
+    }
+    return t0 + 32 * step;
+  }
+  function marchPump() {
+    if (!mWanted) return;
+    const a = window.__foresterAC;
+    if (!a || a.state !== "running") { mTimer = setTimeout(marchPump, 300); return; }
+    if (!mGain) { mGain = a.createGain(); mGain.gain.value = 1; mGain.connect(window.__foresterMaster); }
+    if (mNext < a.currentTime + 0.15) mNext = a.currentTime + 0.15;
+    while (mNext < a.currentTime + 2.2) mNext = marchLoop(a, mNext, MARCHES[mTune] || MARCHES.grenadier);
+    mTimer = setTimeout(marchPump, 220);
+  }
+
   return {
+    marches: () => Object.entries(MARCHES).map(([id, m]) => ({ id, name: m.name })),
+    setMarch(id) { if (MARCHES[id]) mTune = id; },
+    currentMarch: () => mTune,
+    march(on) {
+      if ((window.FSET || {}).march === false) on = false;
+      if (on && !mWanted) { mWanted = true; mNext = 0; if (mGain) mGain.gain.value = 1; marchPump(); }
+      else if (!on && mWanted) {
+        mWanted = false;
+        clearTimeout(mTimer);
+        const a = window.__foresterAC;
+        if (mGain && a) mGain.gain.setTargetAtTime(0.0001, a.currentTime, 0.4);
+        setTimeout(() => { if (mGain) { try { mGain.disconnect(); } catch (e) {} mGain = null; } }, 1600);
+      }
+    },
     battle(on) {
       if ((window.FSET || {}).battle === false) on = false;
       if (on && !bWanted) { bWanted = true; bNext = 0; if (bg) bg.gain.value = 0.9; bPump(); }

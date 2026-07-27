@@ -1,0 +1,4 @@
+A single 32x32 pixel art terrain tile: a T junction where a dirt footpath meets another.
+
+COMPOSITION — CRITICAL FOR TILING:
+Perfectly square 1:1 image. Dirt reaches the middle of the LEFT edge, the middle of the RIGHT edge and the middle of the BOTTOM edge, meeting in a trodden junction at the centre of the tile. It does NOT reach the top edge. Each of the three arms is a band about two thirds of the frame wide where it meets its edge, the same width as a straight path tile. The whole top strip of the frame, and the two lower outer corners, are the flat magenta keying colour. The junction itself is a little more worn and scuffed than the arms.

@@ -1,0 +1,4 @@
+A single 32x32 pixel art terrain tile: a small isolated patch of bare trodden earth, a single worn stepping spot with no path leading anywhere.
+
+COMPOSITION:
+Perfectly square 1:1 image. One rounded, irregular patch of packed dirt centred in the frame, filling roughly the middle two thirds, with a hand-worn frayed outline. It must not touch any edge of the frame. All the rest of the frame is the flat magenta keying colour.

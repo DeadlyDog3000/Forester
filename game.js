@@ -183,9 +183,16 @@ const IMAGES = {
   gate: "assets/sprites/buildings/gate_32.png",
   thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
 };
+// road pieces, indexed by which neighbours they join: 1 north, 2 east, 4 south, 8 west
+for (let i = 0; i < 16; i++) {
+  IMAGES[`road${i}`] = `assets/sprites/env/road_${i}.png`;
+  IMAGES[`road_w${i}`] = `assets/sprites/env/road_w_${i}.png`;
+}
 for (const who of ["sister", "brother", "hunter"]) for (let i = 0; i < 4; i++) IMAGES[`${who}${i}`] = `assets/sprites/characters/${who}_walk_${i}.png`;
 for (let i = 0; i < 4; i++) IMAGES[`cavalry${i}`] = `assets/sprites/characters/cavalry_walk_${i % 2}.png`;   // 2-frame ride cycle
 for (let i = 0; i < 4; i++) IMAGES[`musketeer${i}`] = `assets/sprites/characters/musketeer_walk_${i % 2}.png`;
+for (let i = 0; i < 4; i++) IMAGES[`soldierU${i}`] = `assets/sprites/characters/soldier_walk_${i % 2}.png`;
+for (let i = 0; i < 4; i++) IMAGES[`atkuni${i}`] = `assets/sprites/characters/soldier_atk_${i % 3}.png`;
 for (let i = 0; i < 4; i++) {                       // aim, flash, smoke, lower — then powder, ball, ramrod, shoulder
   IMAGES[`mfire${i}`] = `assets/sprites/characters/musket_fire_${i}.png`;
   IMAGES[`mload${i}`] = `assets/sprites/characters/musket_load_${i}.png`;
@@ -193,8 +200,12 @@ for (let i = 0; i < 4; i++) {                       // aim, flash, smoke, lower 
 // The regimental coat is painted a strong blue so it can be picked out and dyed
 // to whatever colour the colony chooses; boots, hat, hands and musket are left alone.
 const UNIFORM_KEYS = ["musketeer0", "musketeer1", "musketeer2", "musketeer3",
-                      "mfire0", "mfire1", "mfire2", "mfire3", "mload0", "mload1", "mload2", "mload3"];
+                      "mfire0", "mfire1", "mfire2", "mfire3", "mload0", "mload1", "mload2", "mload3",
+                      "soldierU0", "soldierU1", "soldierU2", "soldierU3",
+                      "atkuni0", "atkuni1", "atkuni2", "atkuni3"];
 let uniformColor = "#2f52a8";
+// who wears the regimental coat on foot (a rider at this size is mostly horse)
+const UNIFORMED = new Set(["musketeer", "police", "soldier"]);
 const dyed = {};                                    // recoloured copies, rebuilt when the dye changes
 function isCoat(r, g, b) { return b > r + 28 && b > g + 18; }
 function reDye() {
@@ -257,8 +268,8 @@ const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: 
 const cam = { x: 0, y: 0 };
 let zoom = 1;
 const settings = Object.assign(
-  { master: 0.5, music: true, battle: true, sfx: true, ambient: true,
-    floaters: true, labels: true, smoke: true, night: true, camSpeed: 1 },
+  { master: 0.5, music: true, battle: true, sfx: true, ambient: true, march: true,
+    floaters: true, labels: true, smoke: true, night: true, camSpeed: 1, marchTune: "grenadier" },
   JSON.parse(localStorage.getItem("forester_settings") || "{}"));
 window.FSET = settings;
 function saveSettings() { localStorage.setItem("forester_settings", JSON.stringify(settings)); }
@@ -267,6 +278,11 @@ const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 
 const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [], corpses = [], graves = [];
 const balls = [];   // musket shot in flight — it goes where it was pointed, and no further
+// dirt paths: a set of small cells the colony has worn smooth, half a mark each
+const ROAD = 32, ROAD_COST = 0.5;      // one dirt tile of lane, half a mark apiece
+const roads = new Set();
+const rkey = (rx, ry) => rx + "," + ry;
+const roadCellOf = (wx, wy) => [Math.floor(wx / ROAD), Math.floor(wy / ROAD)];
 const chunks = new Map();
 
 let selected = null, selectedBldg = null, selectedCamp = null, selectedGrave = null, buildMode = null;
@@ -333,7 +349,9 @@ function float(x, y, text, color) { floaters.push({ x, y, text, color, t: 1.4 })
 function refreshAvatar(c) {
   c.who = c.profession === "hunter" ? c.nativeWho :
           c.profession === "musketeer" ? "musketeer" :
-          c.profession === "cavalry" ? "cavalry" : (c.gender === "f" ? "sister" : "brother");
+          c.profession === "cavalry" ? "cavalry" :
+          (c.profession === "police" || c.profession === "soldier") ? "soldierU" :
+          (c.gender === "f" ? "sister" : "brother");
 }
 function onScreen(x, y) {
   return x > cam.x && x < cam.x + canvas.width / zoom && y > cam.y && y < cam.y + canvas.height / zoom;
@@ -717,8 +735,26 @@ function lineBlocked(x1, y1, x2, y2) {
     if (cellBlocked(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)) return true;
   return false;
 }
-function findPath(sx, sy, gx, gy) {
-  // bounded A* over a coarse grid; gates are open cells, walls are not
+// --- roads underfoot: a beaten path is quicker than the long grass ---
+const ROAD_SPEED = 1.45;              // how much ground a road saves you
+const ROAD_PATH_COST = 0.6;           // what a road step costs the pathfinder
+const onRoad = (wx, wy) => roads.has(rkey(Math.floor(wx / ROAD), Math.floor(wy / ROAD)));
+function roadInCell(cx, cy) {         // any road dirt inside this pathfinding cell
+  const h = PATH_CELL / 2;
+  for (let x = cx - h; x <= cx + h; x += ROAD)
+    for (let y = cy - h; y <= cy + h; y += ROAD)
+      if (onRoad(x, y)) return true;
+  return onRoad(cx, cy);
+}
+function findPath(sx, sy, gx, gy, roadAware) {
+  // bounded A* over a coarse grid; gates are open cells, walls are not.
+  // With roads laid, a step on the dirt costs less, so the route bends onto the path.
+  const roadMemo = new Map();
+  const isRoadCell = (cx, cy) => {
+    const k = cx + "," + cy;
+    if (!roadMemo.has(k)) roadMemo.set(k, roadInCell(cx, cy));
+    return roadMemo.get(k);
+  };
   const minX = Math.floor(Math.min(sx, gx) / PATH_CELL) - 12, maxX = Math.floor(Math.max(sx, gx) / PATH_CELL) + 12;
   const minY = Math.floor(Math.min(sy, gy) / PATH_CELL) - 12, maxY = Math.floor(Math.max(sy, gy) / PATH_CELL) + 12;
   if ((maxX - minX) * (maxY - minY) > 4600) return null;   // too far to bother — walk straight
@@ -741,8 +777,10 @@ function findPath(sx, sy, gx, gy) {
       if (cellBlocked(cx2, cy2)) { seen.set(k, null); continue; }
       if (dx && dy && (cellBlocked(n.x * PATH_CELL + PATH_CELL / 2 + dx * PATH_CELL, n.y * PATH_CELL + PATH_CELL / 2) &&
                        cellBlocked(n.x * PATH_CELL + PATH_CELL / 2, n.y * PATH_CELL + PATH_CELL / 2 + dy * PATH_CELL))) continue;
-      const g = n.g + (dx && dy ? 1.4 : 1);
-      const node = { x: nx2, y: ny2, g, f: g + Math.hypot(goal[0] - nx2, goal[1] - ny2), from: n };
+      const step = (dx && dy ? 1.4 : 1) * (roadAware && isRoadCell(cx2, cy2) ? ROAD_PATH_COST : 1);
+      const g = n.g + step;
+      const h = Math.hypot(goal[0] - nx2, goal[1] - ny2) * (roadAware ? ROAD_PATH_COST : 1);
+      const node = { x: nx2, y: ny2, g, f: g + h, from: n };
       seen.set(k, node);
       open.push(node);
     }
@@ -757,7 +795,10 @@ function findPath(sx, sy, gx, gy) {
   let ax = sx, ay = sy;
   for (let i = 0; i < pts.length; i++) {
     const last = i === pts.length - 1;
-    if (!last && !lineBlocked(ax, ay, pts[i + 1][0], pts[i + 1][1])) continue;
+    // never straighten a corner off the road — that is the whole point of building one
+    const keepForRoad = roadAware && (isRoadCell(pts[i][0], pts[i][1]) ||
+                                      (!last && isRoadCell(pts[i + 1][0], pts[i + 1][1])));
+    if (!last && !keepForRoad && !lineBlocked(ax, ay, pts[i + 1][0], pts[i + 1][1])) continue;
     out.push(pts[i]); ax = pts[i][0]; ay = pts[i][1];
   }
   return out;
@@ -820,9 +861,21 @@ function toast(text) { msgEl.textContent = text; toastTimer = 5; }
 // Work is paid for out of the stores of whichever town you are standing in —
 // the same ledger the HUD is showing you, so what you see is what you spend.
 const LEDGER_KEYS = ["logs", "seeds", "stone", "iron", "wheat", "bread", "meat", "dm", "doors", "weapons"];
-function townAt(wx, wy) {
-  return settlements.find(s => s.x !== undefined && Math.hypot(s.x - wx, s.y - wy) < 700) || null;
+// The capital's heart is the burned house you started beside. A daughter town only
+// claims a spot if its own clearing is nearer than the capital's — otherwise goods
+// dropped in the capital would be carted off to a town half the map away.
+const CAPITAL_X = 0, CAPITAL_Y = 0;
+function nearerTown(wx, wy, radius) {
+  let best = null, bd = radius;
+  for (const s of settlements) {
+    if (s.x === undefined) continue;
+    const d = Math.hypot(s.x - wx, s.y - wy);
+    if (d < bd) { bd = d; best = s; }
+  }
+  if (best && Math.hypot(CAPITAL_X - wx, CAPITAL_Y - wy) <= bd) return null;   // the capital is closer
+  return best;
 }
+function townAt(wx, wy) { return nearerTown(wx, wy, 700); }
 function ledgerAt(wx, wy) {
   const t = townAt(wx, wy);
   if (!t) return res;
@@ -923,7 +976,10 @@ addEventListener("keydown", e => {
   }
 });
 addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
-canvas.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+canvas.addEventListener("mousemove", e => {
+  mouse.x = e.clientX; mouse.y = e.clientY;
+  if (roadDrag) roadStretch(e.clientX, e.clientY);
+});
 function zoomAt(sx, sy, factor) {
   const wx = cam.x + sx / zoom, wy = cam.y + sy / zoom;
   zoom = Math.max(0.45, Math.min(2.4, zoom * factor));
@@ -936,9 +992,87 @@ canvas.addEventListener("wheel", e => {
 }, { passive: false });
 function cancelAll() {
   buildMode = null; selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null;
-  selGroup = [];
+  selGroup = []; roadMode = false; roadDrag = false; roadGhost = []; roadStart = null;
   syncUI();
 }
+
+// --- roads: drag a straight dirt lane across the grass, half a mark the cell ---
+let roadMode = false, roadDrag = false, roadSpent = 0;
+let roadStart = null, roadGhost = [];
+function layRoad(rx, ry) {
+  if (roads.has(rkey(rx, ry))) return false;
+  const wx = rx * ROAD + ROAD / 2, wy = ry * ROAD + ROAD / 2;
+  const led = ledgerAt(wx, wy);
+  if ((led.dm || 0) + (led === res ? 0 : res.dm || 0) < ROAD_COST) return false;
+  if (!nearTerritoryWide(wx, wy, 6)) return false;            // roads keep near your own country
+  if ((led.dm || 0) >= ROAD_COST) led.dm -= ROAD_COST; else res.dm -= ROAD_COST;
+  roads.add(rkey(rx, ry));
+  roadSpent += ROAD_COST;
+  return true;
+}
+// which neighbours a piece joins: 1 north, 2 east, 4 south, 8 west
+function roadBits(rx, ry, also) {
+  const on = (x, y) => roads.has(rkey(x, y)) || (also && also.some(p => p[0] === x && p[1] === y));
+  return (on(rx, ry - 1) ? 1 : 0) | (on(rx + 1, ry) ? 2 : 0) | (on(rx, ry + 1) ? 4 : 0) | (on(rx - 1, ry) ? 8 : 0);
+}
+// a dragged road snaps to the grid and runs in straight legs — along the longer
+// axis first, then the turn — so a lane comes out tidy instead of scribbled
+function roadLine(a, b) {
+  const out = [];
+  const [ax, ay] = a, [bx, by] = b;
+  const horizFirst = Math.abs(bx - ax) >= Math.abs(by - ay);
+  const stepTo = (from, to) => from === to ? 0 : (to > from ? 1 : -1);
+  let x = ax, y = ay;
+  out.push([x, y]);
+  if (horizFirst) {
+    while (x !== bx) { x += stepTo(x, bx); out.push([x, y]); }
+    while (y !== by) { y += stepTo(y, by); out.push([x, y]); }
+  } else {
+    while (y !== by) { y += stepTo(y, by); out.push([x, y]); }
+    while (x !== bx) { x += stepTo(x, bx); out.push([x, y]); }
+  }
+  return out;
+}
+$("roadToggle").addEventListener("click", () => {
+  roadMode = !roadMode;
+  if (roadMode) { buildMode = null; toast("Road builder: press and drag — the lane snaps to straight legs (½ DM a tile). Release to build it. Click ROADS again to stop."); }
+  else if (roadSpent > 0) { toast(`Road laid — ${roadSpent % 1 ? roadSpent.toFixed(1) : roadSpent} DM spent.`); roadSpent = 0; }
+  syncUI();
+});
+// press to set one end, drag to stretch the lane, release to build it
+function roadBegin(clientX, clientY) {
+  roadDrag = true;
+  roadStart = roadCellOf(cam.x + clientX / zoom, cam.y + clientY / zoom);
+  roadGhost = [roadStart];
+}
+function roadStretch(clientX, clientY) {
+  if (!roadDrag || !roadStart) return;
+  roadGhost = roadLine(roadStart, roadCellOf(cam.x + clientX / zoom, cam.y + clientY / zoom));
+}
+function roadCommit() {
+  if (!roadDrag) return;
+  roadDrag = false;
+  const plan = roadGhost;
+  roadGhost = []; roadStart = null;
+  let laid = 0, blocked = 0;
+  for (const [rx, ry] of plan) {
+    if (roads.has(rkey(rx, ry))) continue;
+    if (layRoad(rx, ry)) laid++; else blocked++;
+  }
+  if (laid) { SFX.step(false); syncUI(); }
+  if (blocked) {
+    const [rx, ry] = plan[plan.length - 1];
+    toast(nearTerritoryWide(rx * ROAD + ROAD / 2, ry * ROAD + ROAD / 2, 6)
+      ? `Not enough DM — ${blocked} stretch(es) of road went unbuilt.`
+      : "Roads can only be laid on your own land.");
+  }
+}
+canvas.addEventListener("mousedown", e => {
+  if (e.button !== 0 || !roadMode || gameState !== "playing" || paused) return;
+  roadBegin(e.clientX, e.clientY);
+  e.preventDefault();
+});
+addEventListener("mouseup", roadCommit);
 canvas.addEventListener("contextmenu", e => { e.preventDefault(); cancelAll(); });
 
 // --- touch: drag to look about, pinch to zoom, tap to act, hold to cancel ---
@@ -951,6 +1085,12 @@ canvas.addEventListener("touchstart", e => {
     tPan = { x, y, sx: x, sy: y, t: performance.now() };
     tMoved = 0; tHandled = false;
     mouse.x = x; mouse.y = y;                    // no hover on a touchscreen: the finger is the cursor
+    if (roadMode && gameState === "playing" && !paused) {   // a finger lays road instead of dragging the view
+      tHandled = true;
+      roadBegin(x, y);
+      e.preventDefault();
+      return;
+    }
     clearTimeout(tHoldTimer);
     tHoldTimer = setTimeout(() => {              // press and hold stands in for a right-click
       if (tPan && tMoved < TAP_SLOP && gameState === "playing" && !paused) {
@@ -975,6 +1115,11 @@ canvas.addEventListener("touchmove", e => {
     cam.x -= (cx - tPinch.cx) / zoom; cam.y -= (cy - tPinch.cy) / zoom;   // two fingers also carry the view
     if (tPinch.d > 0) zoomAt(cx, cy, Math.max(0.5, Math.min(2, d / tPinch.d)));
     tPinch = { d, cx, cy };
+  } else if (e.touches.length === 1 && roadDrag) {
+    const [x, y] = touchXY(e.touches[0]);
+    roadStretch(x, y);
+    mouse.x = x; mouse.y = y;
+    if (tPan) { tPan.x = x; tPan.y = y; }
   } else if (e.touches.length === 1 && tPan) {
     const [x, y] = touchXY(e.touches[0]);
     const dx = x - tPan.x, dy = y - tPan.y;
@@ -992,6 +1137,7 @@ canvas.addEventListener("touchmove", e => {
 }, { passive: false });
 canvas.addEventListener("touchend", e => {
   clearTimeout(tHoldTimer);
+  if (roadDrag) { roadCommit(); tHandled = true; }
   if (tPan && !tHandled) {
     // in build mode, lifting the finger sets the stake wherever the ghost rests
     if (buildMode) worldClick(tPan.x, tPan.y);
@@ -1000,7 +1146,7 @@ canvas.addEventListener("touchend", e => {
   if (!e.touches.length) { tPan = null; tPinch = null; }
   e.preventDefault();
 }, { passive: false });
-canvas.addEventListener("touchcancel", () => { clearTimeout(tHoldTimer); tPan = null; tPinch = null; });
+canvas.addEventListener("touchcancel", () => { clearTimeout(tHoldTimer); tPan = null; tPinch = null; roadDrag = false; roadGhost = []; roadStart = null; });
 
 // --- on-screen controls, for hands that have no keyboard ---
 const IS_TOUCH = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
@@ -1029,6 +1175,7 @@ function worldClick(clientX, clientY) {
   mouse.x = clientX; mouse.y = clientY;
   mouse.wx = cam.x + mouse.x / zoom; mouse.wy = cam.y + mouse.y / zoom;
   if (paused) return;
+  if (roadMode) return;                    // the road builder works on press and release, not on click
 
   if (buildMode) { tryPlace(buildMode, mouse.wx, mouse.wy); return; }
 
@@ -1166,11 +1313,35 @@ function worldClick(clientX, clientY) {
   if (selectedGrave) { selectedGrave = null; syncUI(); }
   if (selected) {
     const grp = soldierGroup();
-    grp.forEach((s, i) => {
-      const ox = grp.length > 1 ? ((i % 3) - 1) * 26 : 0, oy = grp.length > 1 ? Math.floor(i / 3) * 24 : 0;
-      order(s, { kind: "walk", x: mouse.wx + ox, y: mouse.wy + oy });
-    });
+    if (grp.length > 1) marchColumn(grp, mouse.wx, mouse.wy);
+    else grp.forEach(s => order(s, { kind: "walk", x: mouse.wx, y: mouse.wy }));
   }
+}
+
+// A band of soldiers sent somewhere forms a column and steps off together,
+// two abreast, in the order they were picked — and the drums strike up.
+let convoyT = 0;
+function marchColumn(grp, tx, ty) {
+  const lead = grp[0];
+  const dx = tx - lead.x, dy = ty - lead.y, d = Math.max(1, Math.hypot(dx, dy));
+  const fx = dx / d, fy = dy / d;                 // along the line of march
+  const sx = -fy, sy = fx;                        // and across it
+  grp.forEach((s, i) => {
+    const rank = Math.floor(i / 2), file = (i % 2) ? 1 : -1;
+    const ox = -fx * rank * 30 + sx * file * 17;
+    const oy = -fy * rank * 30 + sy * file * 17;
+    order(s, { kind: "walk", x: tx + ox, y: ty + oy });
+  });
+  convoyT = 4;                                    // kept alive while the column is on the road
+  try { MUSIC.march(true); } catch (e) {}
+  toast(`${grp.length} soldiers form column and march out.`);
+}
+function updateConvoy(dt) {
+  const marching = selGroup.length > 1 &&
+    selGroup.filter(s => civs.includes(s) && s.state === "walking" &&
+                         s.task && s.task.kind === "walk").length > 1;
+  if (marching) convoyT = 4; else convoyT = Math.max(0, convoyT - dt);
+  try { MUSIC.march(convoyT > 0 && gameState === "playing"); } catch (e) {}
 }
 
 // heal anyone wedged inside a footprint — legacy saves, edge cases, anything
@@ -1299,9 +1470,15 @@ function order(c, task) {
   c.task = task; c.tx = task.x; c.ty = task.y;
   c.state = "walking"; c.workT = 0;
   c.path = null; c.viaGate = false; c.replanned = false;
-  if (c.isCiv && task.kind !== "attack" && lineBlocked(c.x, c.y, task.x, task.y)) {
-    const route = findPath(c.x, c.y, task.x, task.y);
-    if (route && route.length) { c.path = route; c.tx = route[0][0]; c.ty = route[0][1]; }
+  if (c.isCiv && task.kind !== "attack") {
+    const blocked = lineBlocked(c.x, c.y, task.x, task.y);
+    // walls force a detour; roads invite one, so long walks look for the dirt path
+    const seekRoad = !blocked && roads.size > 0 && Math.hypot(task.x - c.x, task.y - c.y) > 170;
+    if (blocked || seekRoad) {
+      const route = findPath(c.x, c.y, task.x, task.y, roads.size > 0);
+      const usesRoad = route && route.some(p => onRoad(p[0], p[1]));
+      if (route && route.length && (blocked || usesRoad)) { c.path = route; c.tx = route[0][0]; c.ty = route[0][1]; }
+    }
   }
 }
 
@@ -1368,6 +1545,16 @@ function arrive(c) {
   }
 }
 
+// A hungry soul eats from the larder they are standing beside; if that town has
+// nothing, the capital's stores feed them.
+function eatFromStores(c) {
+  const led = ledgerAt(c.x, c.y);
+  for (const l of (led === res ? [res] : [led, res]))
+    for (const k of ["bread", "meat"])
+      if ((l[k] || 0) > 0) { l[k]--; eat(c, k); return true; }
+  return false;
+}
+
 // --- autonomy ---
 function wander(c, base, minD, maxD) {
   for (let i = 0; i < 6; i++) {
@@ -1386,8 +1573,7 @@ function autonomy(c, dt) {
     if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); return; }
     if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); return; }
     if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); return; }
-    if (res.bread > 0 && c.home) { res.bread--; eat(c, "bread"); return; }
-    if (res.meat > 0 && c.home) { res.meat--; eat(c, "meat"); return; }
+    if (c.home && eatFromStores(c)) return;
   }
   if (c.child) {
     if (Math.random() < 0.7) wander(c, c.home || c, 40, 130);   // children actually play
@@ -1874,14 +2060,10 @@ $("craftToggle").addEventListener("click", () => $("craftDrop").classList.toggle
 $("recruitToggle").addEventListener("click", () => $("recruitDrop").classList.toggle("open"));
 $("moveToggle").addEventListener("click", () => $("moveDrop").classList.toggle("open"));
 // move a civilian to another town (or back to the capital) any time after founding
-function townOf(b) { return settlements.find(s => s.x !== undefined && Math.hypot(b.x - s.x, b.y - s.y) < 500) || null; }
-function ledgerOf(c) {   // where this civ's goods belong: their town's stores, or the capital's
-  const t = c.home && townOf(c.home);
-  if (!t) return res;
-  t.res = t.res || {};
-  for (const k of ["logs", "seeds", "stone", "iron", "wheat", "bread", "meat", "dm", "doors", "weapons"]) t.res[k] = t.res[k] || 0;
-  return t.res;
-}
+function townOf(b) { return nearerTown(b.x, b.y, 500); }
+// Goods belong to the storehouse they are set down in, not to whichever roof the
+// carrier sleeps under — hand a crate over in the capital and the capital keeps it.
+function ledgerOf(c) { return ledgerAt(c.x, c.y); }
 function sendToTown(c, target) {   // target: settlement object, or null for the capital
   const cab = buildings.find(b => b.type === "cabin" && !b.fire && !b.site &&
                                   b.occupants.length < cabinCapacity() &&
@@ -2352,6 +2534,7 @@ function eventCard(title, image, sub) {
   $("eventText").textContent = title;
   $("eventSub").textContent = (sub || "") + " — click to dismiss";
   card.classList.add("show");
+  try { SFX.popup(); } catch (e) {}
   clearTimeout(eventCardT);
   eventCardT = setTimeout(() => card.classList.remove("show"), 8000);
 }
@@ -2806,6 +2989,7 @@ document.getElementById("settleGo").addEventListener("click", () => {
     const dist = 1800 + Math.random() * 600;
     const x = Math.round(Math.cos(angle) * dist), y = Math.round(Math.sin(angle) * dist);
     if (camps.every(cp => Math.hypot(cp.x - x, cp.y - y) > 800) &&
+        Math.hypot(x - CAPITAL_X, y - CAPITAL_Y) > 1400 &&           // never crowd the capital's own clearing
         settlements.every(s => s.x === undefined || Math.hypot(s.x - x, s.y - y) > 1200)) site = { x, y };
   }
   if (!site) site = { x: Math.round(Math.cos(angle) * 2500), y: Math.round(Math.sin(angle) * 2500) };
@@ -2839,6 +3023,68 @@ document.getElementById("settleGo").addEventListener("click", () => {
   toast(`${chosen.length} settler(s) set out to found ${name} — follow them, or watch for its marker at the screen's edge.`);
   setTimeout(() => vignette("firstSettlement"), 400);
 });
+// --- the wagon: pick out exactly what travels between the capital and a town ---
+const CARGO_KINDS = ["logs", "stone", "iron", "seeds", "wheat", "bread", "meat", "weapons", "doors", "dm"];
+let cargoTown = null, cargoDir = 1;      // 1: capital -> town, -1: town -> capital
+function cargoLedgers() {
+  cargoTown.res = cargoTown.res || {};
+  for (const k of CARGO_KINDS) cargoTown.res[k] = cargoTown.res[k] || 0;
+  return cargoDir > 0 ? [res, cargoTown.res] : [cargoTown.res, res];
+}
+function openCargo(s, dir) {
+  cargoTown = s; cargoDir = dir;
+  renderCargo();
+  $("cargoModal").style.display = "block";
+  SFX.popup();
+}
+function renderCargo() {
+  const [from, to] = cargoLedgers();
+  const fromName = cargoDir > 0 ? settlementName : cargoTown.name;
+  const toName = cargoDir > 0 ? cargoTown.name : settlementName;
+  $("cargoRoute").innerHTML = `<b style="color:#c9a86a">${fromName}</b> &rarr; <b style="color:#c9a86a">${toName}</b> &mdash; set how much of each good rides along.`;
+  const rows = $("cargoRows");
+  rows.innerHTML = "";
+  let any = false;
+  for (const k of CARGO_KINDS) {
+    const have = Math.floor(from[k] || 0);
+    if (have <= 0) continue;
+    any = true;
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:6px;align-items:center;margin:3px 0;font-size:11px";
+    row.innerHTML = `<span style="flex:1;text-transform:capitalize">${k}</span><span style="color:#5a6b60">of ${have}</span>`;
+    const inp = document.createElement("input");
+    inp.type = "number"; inp.min = "0"; inp.max = String(have); inp.value = "0";
+    inp.dataset.kind = k;
+    inp.style.cssText = "width:62px;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:3px 4px";
+    const max = document.createElement("button");
+    max.className = "btn"; max.style.fontSize = "9px"; max.textContent = "All";
+    max.addEventListener("click", () => { inp.value = String(have); });
+    row.appendChild(inp); row.appendChild(max);
+    rows.appendChild(row);
+  }
+  if (!any) rows.innerHTML = `<div style="padding:6px;color:#5a6b60;font-size:11px">${fromName}'s stores are empty.</div>`;
+}
+$("cargoSwap").addEventListener("click", () => { cargoDir = -cargoDir; renderCargo(); });
+$("cargoNo").addEventListener("click", () => { $("cargoModal").style.display = "none"; cargoTown = null; });
+$("cargoGo").addEventListener("click", () => {
+  if (!cargoTown) return;
+  const [from, to] = cargoLedgers();
+  let moved = 0, parts = [];
+  for (const inp of document.querySelectorAll("#cargoRows input")) {
+    const k = inp.dataset.kind;
+    const n = Math.max(0, Math.min(Math.floor(+inp.value || 0), Math.floor(from[k] || 0)));
+    if (!n) continue;
+    from[k] -= n; to[k] = (to[k] || 0) + n;
+    moved += n; parts.push(`${n} ${k}`);
+  }
+  if (!moved) return toast("Nothing was loaded onto the wagon.");
+  const toName = cargoDir > 0 ? cargoTown.name : settlementName;
+  SFX.coin();
+  toast(`The wagon leaves for ${toName} with ${parts.join(", ")}.`);
+  $("cargoModal").style.display = "none"; cargoTown = null;
+  syncUI();
+});
+
 function emigrate(c) {
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
   if (c.profession === "police") policeCount--;
@@ -2883,7 +3129,49 @@ document.getElementById("empireGo").addEventListener("click", () => {
 document.getElementById("empireInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("empireGo").click(); e.stopPropagation(); });
 document.getElementById("terrColor").addEventListener("input", e => { territoryColor = e.target.value; });
 document.getElementById("bordColor").addEventListener("input", e => { borderColor = e.target.value; });
-document.getElementById("uniColor").addEventListener("input", e => { uniformColor = e.target.value; reDye(); });
+document.getElementById("uniColor").addEventListener("input", e => { setUniform(e.target.value); });
+
+// --- the Military office: uniform and march, reachable from the main menu ---
+const COAT_SWATCHES = ["#2f52a8", "#8a2f2f", "#2f6b45", "#5a4a8a", "#8a6a2f", "#3a3f47", "#7a2f6b", "#2f7a8a"];
+function setUniform(hex) {
+  uniformColor = hex;
+  $("uniColor").value = hex;
+  $("milColor").value = hex;
+  reDye();
+}
+function openMilitary() {
+  const sel = $("milMarch");
+  if (!sel.options.length) {
+    for (const m of MUSIC.marches()) {
+      const o = document.createElement("option");
+      o.value = m.id; o.textContent = m.name;
+      sel.appendChild(o);
+    }
+    const sw = $("milSwatches");
+    for (const hex of COAT_SWATCHES) {
+      const b = document.createElement("button");
+      b.style.cssText = `flex:1;height:22px;border:1px solid #3a5243;background:${hex};cursor:pointer`;
+      b.title = hex;
+      b.addEventListener("click", () => setUniform(hex));
+      sw.appendChild(b);
+    }
+  }
+  sel.value = MUSIC.currentMarch();
+  $("milColor").value = uniformColor;
+  $("milEnabled").checked = settings.march !== false;
+  $("militaryPanel").style.display = "block";
+}
+$("menuMilitary").addEventListener("click", openMilitary);
+$("milClose").addEventListener("click", () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); });
+$("milColor").addEventListener("input", e => setUniform(e.target.value));
+$("milMarch").addEventListener("change", e => { MUSIC.setMarch(e.target.value); settings.marchTune = e.target.value; saveSettings(); });
+$("milPreview").addEventListener("click", () => { MUSIC.setMarch($("milMarch").value); MUSIC.march(true); });
+$("milStop").addEventListener("click", () => MUSIC.march(false));
+$("milEnabled").addEventListener("change", e => {
+  settings.march = e.target.checked;
+  if (!settings.march) MUSIC.march(false);
+  saveSettings();
+});
 
 // --- save / load ---
 const SAVE_KEY = "forester_save";
@@ -2938,6 +3226,7 @@ function saveGame() {
       chunks: [...chunks.entries()].filter(([k, ch]) => ch.dirty).map(([k, ch]) => chunkDelta(k, ch)).filter(Boolean),
       empireName, territoryColor, borderColor, uniformColor,
       territory: [...territory],
+      roads: [...roads],
       sackedCamps, playT: r1(playT), nextSettleAt: r1(nextSettleAt), tutStep, colonyYear, vigSeen,
       corpses: corpses.map(cp => ({ x: r1(cp.x), y: r1(cp.y), who: cp.who, deceased: cp.deceased })),
       graves: graves.map(gv => ({ x: r1(gv.x), y: r1(gv.y), stone: gv.stone, deceased: gv.deceased })),
@@ -3046,6 +3335,7 @@ function loadGame() {
     $("terrColor").value = territoryColor; $("bordColor").value = borderColor;
     $("uniColor").value = uniformColor; reDye();
     territory.clear(); for (const k of (d.territory || [])) territory.add(k);
+    roads.clear(); for (const k of (d.roads || [])) roads.add(k);
     if (!territory.size) { expandAround(0, -40, 2); for (const b of buildings) expandAround(b.x, b.y, 1); }
     sackedCamps = d.sackedCamps || 0; playT = d.playT || 0;
     nextSettleAt = d.nextSettleAt === undefined ? SETTLE_FIRST : d.nextSettleAt;
@@ -3317,10 +3607,11 @@ function gameOver() {
 
 function syncUI() {
   $("buildToggle").classList.toggle("active", !!buildMode);
+  $("roadToggle").classList.toggle("active", roadMode);
   $("tbRotate").classList.toggle("hot", WALLLIKE.has(buildMode));
   // in a daughter town's clearing, the HUD shows that town's ledger instead of the capital's
   const hudCx = cam.x + canvas.width / 2 / zoom, hudCy = cam.y + canvas.height / 2 / zoom;
-  const hudTown = settlements.find(s => s.x !== undefined && Math.hypot(s.x - hudCx, s.y - hudCy) < 700);
+  const hudTown = townAt(hudCx, hudCy);
   const hr = hudTown ? (hudTown.res || {}) : res;
   $("rName").textContent = (hudTown ? hudTown.name : settlementName).toUpperCase();
   $("rLogs").textContent = hr.logs || 0; $("rSeeds").textContent = hr.seeds || 0;
@@ -3343,6 +3634,15 @@ function syncUI() {
   $("govTitle").textContent = "GOVERNMENT OF " + (hudTown ? hudTown.name : settlementName).toUpperCase();
   $("govHappy").textContent = govAvg + "%";
   $("govDM").textContent = (hudTown ? (hr.dm || 0) : res.dm) + " DM";
+  {
+    const homeless = govFolk.filter(c => !c.home).length;
+    const spare = buildings.filter(b => b.type === "cabin" && !b.site && !b.fire &&
+                                        (!hudTown || townOf(b) === hudTown))
+                           .reduce((n, b) => n + Math.max(0, cabinCapacity() - b.occupants.length), 0);
+    $("govHomes").innerHTML = homeless
+      ? `<b style="color:#d86a5a">${homeless} homeless</b> · ${spare} bed(s) free`
+      : `all housed · ${spare} bed(s) free`;
+  }
   {
     const counts = {};
     for (const c of govFolk) counts[c.child ? "child" : (c.profession || "no trade")] = (counts[c.child ? "child" : (c.profession || "no trade")] || 0) + 1;
@@ -3389,26 +3689,13 @@ function syncUI() {
         row.style.cssText = "display:flex;gap:6px;align-items:center;margin:4px 0;font-size:11px";
         row.innerHTML = `<span style="flex:1">${s.name} (pop ${s.pop})</span>`;
         const send = document.createElement("button");
-        send.className = "btn"; send.style.fontSize = "10px"; send.textContent = "Send crate ▶";
-        send.title = "10 logs, 4 bread, 2 meat from the capital";
-        send.addEventListener("click", () => {
-          if (res.logs < 10 || res.bread < 4 || res.meat < 2) return toast("A supply crate takes 10 logs, 4 bread and 2 meat from the capital stores.");
-          res.logs -= 10; res.bread -= 4; res.meat -= 2;
-          s.res = s.res || {}; s.res.logs = (s.res.logs || 0) + 10; s.res.bread = (s.res.bread || 0) + 4; s.res.meat = (s.res.meat || 0) + 2;
-          SFX.pickup(); toast(`A wagon sets out for ${s.name} with a supply crate.`);
-          syncUI();
-        });
+        send.className = "btn"; send.style.fontSize = "10px"; send.textContent = "Load wagon ▶";
+        send.title = "Choose exactly what the capital sends to this town";
+        send.addEventListener("click", () => openCargo(s, 1));
         const take = document.createElement("button");
-        take.className = "btn"; take.style.fontSize = "10px"; take.textContent = "◀ Fetch stores";
-        take.title = "Bring everything in this town's storage back to the capital";
-        take.addEventListener("click", () => {
-          const r = s.res || {};
-          const total = Object.values(r).reduce((a, b) => a + (b || 0), 0);
-          if (!total) return toast(`${s.name}'s stores are empty.`);
-          for (const k of Object.keys(r)) { res[k] = (res[k] || 0) + (r[k] || 0); r[k] = 0; }
-          SFX.coin(); toast(`A wagon returns from ${s.name} with ${total} goods for the capital.`);
-          syncUI();
-        });
+        take.className = "btn"; take.style.fontSize = "10px"; take.textContent = "◀ Fetch";
+        take.title = "Choose what this town sends back to the capital";
+        take.addEventListener("click", () => openCargo(s, -1));
         row.appendChild(send); row.appendChild(take);
         rows.appendChild(row);
       }
@@ -3528,6 +3815,7 @@ function update(dt) {
   // the tutorial keeps its own time: several steps ask you to open a panel or
   // the map, and those pause the world. Ticking it here lets those steps finish.
   updateTutorial(dt);
+  updateConvoy(dt);
 
   if (paused) return;
 
@@ -3616,7 +3904,8 @@ function update(dt) {
       b.bakeT = (b.bakeT || 0) + dt;
       if (b.bakeT >= 20) {
         b.bakeT = 0;
-        if (res.wheat >= 2) { res.wheat -= 2; res.bread++; float(b.x, b.y - 100, "+1 bread", "#c9a86a"); }
+        const bl = ledgerAt(b.x, b.y);      // an oven bakes with the wheat of its own town
+        if ((bl.wheat || 0) >= 2) { bl.wheat -= 2; bl.bread = (bl.bread || 0) + 1; float(b.x, b.y - 100, "+1 bread", "#c9a86a"); }
       }
     }
   }
@@ -3797,9 +4086,7 @@ function update(dt) {
           if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); }
           else if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); }
           else if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); }
-          else if (res.bread > 0) { res.bread--; eat(c, "bread"); }
-          else if (res.meat > 0) { res.meat--; eat(c, "meat"); }
-          else { c.state = "idle"; toast(`${c.name} has no food left to heal with — the larders are bare.`); }
+          else if (!eatFromStores(c)) { c.state = "idle"; toast(`${c.name} has no food left to heal with — the larders are bare.`); }
           if (c.state === "healing" && c.hp >= c.maxHp) { c.state = "idle"; toast(`${c.name} is eaten back to full health.`); }
         }
         continue;
@@ -3811,7 +4098,7 @@ function update(dt) {
     if (c.rebel) rebelAI(c);
     if (isForce(c) && !c.rebel) forceAI(c);
 
-    const speed = walkSpeed(c);
+    const speed = walkSpeed(c) * (onRoad(c.x, c.y) ? ROAD_SPEED : 1);   // quicker going on the dirt
     if (c.state === "walking") {
       if (c.task && c.task.kind === "attack" && c.task.target) {
         const t = c.task.target;
@@ -4214,6 +4501,25 @@ function render(dt) {
     for (let x = x0; x < cam.x + vw; x += TILE)
       ctx.drawImage(wimg("grass"), x, y, TILE, TILE);
 
+  // dirt paths worn into the grass, drawn under everything else
+  {
+    const r0 = roadCellOf(cam.x - ROAD, cam.y - ROAD), r1 = roadCellOf(cam.x + vw, cam.y + vh);
+    const winter = season() === "winter";
+    for (let ry = r0[1]; ry <= r1[1]; ry++) for (let rx = r0[0]; rx <= r1[0]; rx++) {
+      if (!roads.has(rkey(rx, ry))) continue;
+      const im = img[(winter ? "road_w" : "road") + roadBits(rx, ry)];
+      if (im) ctx.drawImage(im, rx * ROAD, ry * ROAD, ROAD, ROAD);
+    }
+    if (roadMode && roadGhost.length) {                       // the stretch you are about to buy
+      ctx.globalAlpha = 0.55;
+      for (const [gx, gy] of roadGhost) {
+        const im = img[(winter ? "road_w" : "road") + roadBits(gx, gy, roadGhost)];
+        if (im) ctx.drawImage(im, gx * ROAD, gy * ROAD, ROAD, ROAD);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
   // territory overlay: cubic cells, custom colours
   const tc0 = tcellOf(cam.x, cam.y), tc1 = tcellOf(cam.x + vw, cam.y + vh);
   ctx.fillStyle = territoryColor + "22";
@@ -4384,9 +4690,12 @@ function render(dt) {
     }
     else if (c.profession === "musketeer" && c.state === "fighting") frame = coatOf("mfire0");   // levelled, waiting
     else if ((c.state === "fighting" || c.state === "sieging") && c.profession !== "cavalry" && c.profession !== "musketeer")
-      frame = img[(isForce(c) || c.armed ? "atksword" : "atkfist") + (Math.floor(c.anim) % 4)];
-    else frame = c.profession === "musketeer" ? coatOf(c.who + (Math.floor(c.anim) % 4))
-                                              : img[c.who + (Math.floor(c.anim) % 4)];
+      // uniformed troops swing in their coats; everyone else in what they own
+      frame = (c.profession === "police" || c.profession === "soldier")
+        ? coatOf("atkuni" + (Math.floor(c.anim) % 4))
+        : img[(isForce(c) || c.armed ? "atksword" : "atkfist") + (Math.floor(c.anim) % 4)];
+    else frame = UNIFORMED.has(c.profession) ? coatOf(c.who + (Math.floor(c.anim) % 4))
+                                             : img[c.who + (Math.floor(c.anim) % 4)];
     drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
     // the flash is painted into the firing sprite itself — nothing is drawn over it
     ctx.fillStyle = c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" :
