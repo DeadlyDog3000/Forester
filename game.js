@@ -775,8 +775,41 @@ function lineBlocked(x1, y1, x2, y2) {
   return false;
 }
 // --- roads underfoot: a beaten path is quicker than the long grass ---
-const ROAD_SPEED = 1.45;              // how much ground a road saves you
-const ROAD_PATH_COST = 0.6;           // what a road step costs the pathfinder
+const ROAD_SPEED = 1.85;              // how much ground a road saves you
+// What a road step costs the pathfinder. Well below the speed saving on purpose:
+// folk should go out of their way to reach a lane, the way people really do,
+// rather than only taking one that happens to lie dead ahead. At 0.32 a walker
+// will accept roughly two thirds again as much ground to travel on dirt.
+const ROAD_PATH_COST = 0.32;
+// A* over open country needs a heap; re-sorting the frontier every step was
+// costing more than the search itself.
+function mkHeap() {
+  const a = [];
+  const swap = (i, j) => { const t = a[i]; a[i] = a[j]; a[j] = t; };
+  return {
+    size: () => a.length,
+    push(n) {
+      a.push(n);
+      let i = a.length - 1;
+      while (i > 0) { const p = (i - 1) >> 1; if (a[p].f <= a[i].f) break; swap(p, i); i = p; }
+    },
+    pop() {
+      const top = a[0], last = a.pop();
+      if (a.length) {
+        a[0] = last;
+        for (let i = 0; ;) {
+          const l = 2 * i + 1, r = l + 1;
+          let s = i;
+          if (l < a.length && a[l].f < a[s].f) s = l;
+          if (r < a.length && a[r].f < a[s].f) s = r;
+          if (s === i) break;
+          swap(s, i); i = s;
+        }
+      }
+      return top;
+    },
+  };
+}
 const onRoad = (wx, wy) => roads.has(rkey(Math.floor(wx / ROAD), Math.floor(wy / ROAD)));
 function roadInCell(cx, cy) {         // any road dirt inside this pathfinding cell
   const h = PATH_CELL / 2;
@@ -786,42 +819,85 @@ function roadInCell(cx, cy) {         // any road dirt inside this pathfinding c
   return onRoad(cx, cy);
 }
 function findPath(sx, sy, gx, gy, roadAware) {
-  // bounded A* over a coarse grid; gates are open cells, walls are not.
-  // With roads laid, a step on the dirt costs less, so the route bends onto the path.
+  // Bounded A* over a coarse grid; gates are open cells, walls are not.
+  // With roads laid, a step on the dirt costs a third of open ground, so a walker
+  // will leave the straight line, get onto the lane, run along it, and come off
+  // again near the door — which is what a road is for.
   const roadMemo = new Map();
   const isRoadCell = (cx, cy) => {
     const k = cx + "," + cy;
-    if (!roadMemo.has(k)) roadMemo.set(k, roadInCell(cx, cy));
-    return roadMemo.get(k);
+    let v = roadMemo.get(k);
+    if (v === undefined) { v = roadInCell(cx, cy); roadMemo.set(k, v); }
+    return v;
   };
-  const minX = Math.floor(Math.min(sx, gx) / PATH_CELL) - 12, maxX = Math.floor(Math.max(sx, gx) / PATH_CELL) + 12;
-  const minY = Math.floor(Math.min(sy, gy) / PATH_CELL) - 12, maxY = Math.floor(Math.max(sy, gy) / PATH_CELL) + 12;
-  if ((maxX - minX) * (maxY - minY) > 4600) return null;   // too far to bother — walk straight
+  // gather the walls ONCE. Rebuilding the structure list per cell test was the
+  // real cost of this search, and why it used to give up on any long journey.
+  const walls = [];
+  for (const b of allStructures())
+    if ((b.type === "wall" || b.type === "stonewall") && !b.site) walls.push(inflate(bldgRect(b), 10));
+  const blockedAt = (px, py) => {
+    for (let i = 0; i < walls.length; i++) {
+      const r = walls[i];
+      if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return true;
+    }
+    return false;
+  };
+  const seeThrough = (x1, y1, x2, y2) => {
+    const d = Math.hypot(x2 - x1, y2 - y1), steps = Math.max(1, Math.ceil(d / 22));
+    for (let i = 1; i <= steps; i++)
+      if (blockedAt(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)) return false;
+    return true;
+  };
+  // room to swing wide of the straight line — a road worth taking is often well
+  // off the direct route
+  const pad = roadAware && roads.size ? 22 : 12;
+  const minX = Math.floor(Math.min(sx, gx) / PATH_CELL) - pad, maxX = Math.floor(Math.max(sx, gx) / PATH_CELL) + pad;
+  const minY = Math.floor(Math.min(sy, gy) / PATH_CELL) - pad, maxY = Math.floor(Math.max(sy, gy) / PATH_CELL) + pad;
+  if ((maxX - minX) * (maxY - minY) > 30000) return null;   // the other side of the world — walk straight
   const key = (x, y) => x + "," + y;
   const start = [Math.floor(sx / PATH_CELL), Math.floor(sy / PATH_CELL)];
   const goal = [Math.floor(gx / PATH_CELL), Math.floor(gy / PATH_CELL)];
-  const open = [{ x: start[0], y: start[1], g: 0, f: 0, from: null }];
-  const seen = new Map([[key(start[0], start[1]), open[0]]]);
+  const hw = roadAware ? ROAD_PATH_COST : 1;               // admissible: no step is cheaper than this
+  const heap = mkHeap();
+  const startNode = { x: start[0], y: start[1], g: 0, f: 0, from: null, done: false };
+  heap.push(startNode);
+  const seen = new Map([[key(start[0], start[1]), startNode]]);
+  const blockedCells = new Set();
+  const isBlocked = (cx, cy, wx, wy) => {
+    const k = key(cx, cy);
+    let v = blockedCells.has(k);
+    if (!v && !seen.has(k + "|b")) {
+      v = blockedAt(wx, wy);
+      if (v) blockedCells.add(k);
+      seen.set(k + "|b", true);
+    }
+    return v;
+  };
   let goalNode = null, guard = 0;
-  while (open.length && guard++ < 4000) {
-    open.sort((a, b) => a.f - b.f);
-    const n = open.shift();
+  while (heap.size() && guard++ < 20000) {
+    const n = heap.pop();
+    if (n.done) continue;                                  // a cheaper way here was already taken
+    n.done = true;
     if (n.x === goal[0] && n.y === goal[1]) { goalNode = n; break; }
+    const bx = n.x * PATH_CELL + PATH_CELL / 2, by = n.y * PATH_CELL + PATH_CELL / 2;
     for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
       const nx2 = n.x + dx, ny2 = n.y + dy;
       if (nx2 < minX || ny2 < minY || nx2 > maxX || ny2 > maxY) continue;
-      const k = key(nx2, ny2);
-      if (seen.has(k)) continue;
       const cx2 = nx2 * PATH_CELL + PATH_CELL / 2, cy2 = ny2 * PATH_CELL + PATH_CELL / 2;
-      if (cellBlocked(cx2, cy2)) { seen.set(k, null); continue; }
-      if (dx && dy && (cellBlocked(n.x * PATH_CELL + PATH_CELL / 2 + dx * PATH_CELL, n.y * PATH_CELL + PATH_CELL / 2) &&
-                       cellBlocked(n.x * PATH_CELL + PATH_CELL / 2, n.y * PATH_CELL + PATH_CELL / 2 + dy * PATH_CELL))) continue;
+      if (isBlocked(nx2, ny2, cx2, cy2)) continue;
+      // no cutting a diagonal through the corner of a wall
+      if (dx && dy && isBlocked(n.x + dx, n.y, bx + dx * PATH_CELL, by) &&
+                      isBlocked(n.x, n.y + dy, bx, by + dy * PATH_CELL)) continue;
       const step = (dx && dy ? 1.4 : 1) * (roadAware && isRoadCell(cx2, cy2) ? ROAD_PATH_COST : 1);
       const g = n.g + step;
-      const h = Math.hypot(goal[0] - nx2, goal[1] - ny2) * (roadAware ? ROAD_PATH_COST : 1);
-      const node = { x: nx2, y: ny2, g, f: g + h, from: n };
+      const k = key(nx2, ny2);
+      const prev = seen.get(k);
+      if (prev && prev.g <= g) continue;                   // already reached more cheaply
+      const h = Math.hypot(goal[0] - nx2, goal[1] - ny2) * hw;
+      const node = { x: nx2, y: ny2, g, f: g + h, from: n, done: false };
+      if (prev) prev.done = true;                          // supersede the costlier entry
       seen.set(k, node);
-      open.push(node);
+      heap.push(node);
     }
   }
   if (!goalNode) return null;
@@ -837,7 +913,7 @@ function findPath(sx, sy, gx, gy, roadAware) {
     // never straighten a corner off the road — that is the whole point of building one
     const keepForRoad = roadAware && (isRoadCell(pts[i][0], pts[i][1]) ||
                                       (!last && isRoadCell(pts[i + 1][0], pts[i + 1][1])));
-    if (!last && !keepForRoad && !lineBlocked(ax, ay, pts[i + 1][0], pts[i + 1][1])) continue;
+    if (!last && !keepForRoad && seeThrough(ax, ay, pts[i + 1][0], pts[i + 1][1])) continue;
     out.push(pts[i]); ax = pts[i][0]; ay = pts[i][1];
   }
   return out;
@@ -1330,17 +1406,16 @@ function worldClick(clientX, clientY) {
   // camps: soldiers can be ordered to sack them
   for (const cp of camps)
     if (Math.abs(mouse.wx - cp.x) < BLDG_SIZE / 2 && mouse.wy < cp.y && mouse.wy > cp.y - BLDG_SIZE) {
-      // any selection that CONTAINS soldiers or cavalry marches them — a mixed
-      // group led by a musketeer no longer swallows the order silently
-      const grp = has("raiding") ? soldierGroup().filter(s => s.profession === "soldier" || s.profession === "cavalry") : [];
+      // any selection that CONTAINS fighting men marches them — muskets included:
+      // a volley into a stockade is siege work as surely as an axe is
+      const grp = has("raiding") ? soldierGroup().filter(s => ["soldier", "cavalry", "musketeer"].includes(s.profession)) : [];
       if (grp.length) {
         grp.forEach((s, i) => { s.post = null; order(s, { kind: "siege", target: cp, x: cp.x + 40 + (i % 3) * 16, y: cp.y + 14 + Math.floor(i / 3) * 14 }); });
         toast(grp.length > 1 ? `${grp.length} fighters march on the ${cp.type} camp.` : `${grp[0].name} marches on the ${cp.type} camp.`);
       } else if (selected && isForce(selected)) {
         // a force unit is selected but none of them can sack — say why, keep the selection
         toast(!has("raiding") ? "Sacking camps requires the Raiding technology."
-              : selected.profession === "musketeer" ? "Muskets are no siege tools — send soldiers or cavalry."
-              : "The police guard the town — only soldiers and cavalry march on camps.");
+              : "The police guard the town — soldiers, musketeers and cavalry march on camps.");
       } else {
         selectedCamp = cp; selectedBldg = null; selected = null;
         toast(cp.type === "thief" ? "A thief camp. Soldiers could sack it." : "A raider war-camp. Soldiers could sack it — carefully.");
@@ -1620,8 +1695,9 @@ function order(c, task) {
   c.path = null; c.viaGate = false; c.replanned = false;
   if (c.isCiv && task.kind !== "attack") {
     const blocked = lineBlocked(c.x, c.y, task.x, task.y);
-    // walls force a detour; roads invite one, so long walks look for the dirt path
-    const seekRoad = !blocked && roads.size > 0 && Math.hypot(task.x - c.x, task.y - c.y) > 170;
+    // walls force a detour; roads invite one, so any walk worth the name goes
+    // looking for the dirt first
+    const seekRoad = !blocked && roads.size > 0 && Math.hypot(task.x - c.x, task.y - c.y) > 90;
     if (blocked || seekRoad) {
       const route = findPath(c.x, c.y, task.x, task.y, roads.size > 0);
       const usesRoad = route && route.some(p => onRoad(p[0], p[1]));
@@ -5061,7 +5137,11 @@ function update(dt) {
       if (c.atkT <= 0) {
         c.atkT = ATK_INTERVAL;
         const dmg = forceDmg(c);
-        SFX.swing();
+        // a musket fires into the stockade rather than hacking at it
+        if (c.profession === "musketeer") {
+          SFX.musket();
+          smokes.push({ x: c.x + c.facing * 14, y: c.y - 34, r: 6, vx: c.facing * 24, t: 1.1, max: 1.1 });
+        } else SFX.swing();
         cp.hp -= dmg;
         float(cp.x, cp.y - 100, "-" + dmg, "#d86a5a");
         SFX.hit();
@@ -5354,6 +5434,8 @@ function render(dt) {
       }
     }
     else if (c.profession === "musketeer" && c.state === "fighting") frame = coatOf("mfire0");   // levelled, waiting
+    else if (c.profession === "musketeer" && c.state === "sieging")                              // volleying into the walls
+      frame = coatOf("mfire" + (Math.floor(c.anim) % 4));
     else if ((c.state === "fighting" || c.state === "sieging") && c.profession !== "cavalry" && c.profession !== "musketeer")
       // uniformed troops swing in their coats; everyone else in what they own
       frame = (c.profession === "police" || c.profession === "soldier")
@@ -5466,6 +5548,79 @@ function render(dt) {
     ctx.fillText(t.name, tx2, my2 + (sy > canvas.height - 70 ? -16 : 22));
   }
 
+  // --- the alarm: where they are coming from, and what they are coming for ---
+  // Every raider on the move — thieves out of the woods or a crown's war party —
+  // is called out: an arrow at the edge pointing the way they come, and a ring
+  // around the roof they mean to reach.
+  const attackers = raiders.filter(r => !r.garrison && r.state !== "patrol");
+  if (attackers.length) {
+    const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 260);
+    // the roofs they are making for
+    const marks = new Map();
+    for (const r of attackers) {
+      const t = r.wallTarget || r.target;
+      if (t && buildings.includes(t)) marks.set(t, (marks.get(t) || 0) + 1);
+    }
+    for (const [b, n] of marks) {
+      const sx = (b.x - cam.x) * zoom, sy = (b.y - cam.y) * zoom;
+      const war = attackers.some(r => r.nation && (r.wallTarget || r.target) === b);
+      const col = war ? "#e08a4a" : "#d86a5a";
+      if (sx > -60 && sx < canvas.width + 60 && sy > -60 && sy < canvas.height + 60) {
+        ctx.save();
+        ctx.globalAlpha = 0.35 + 0.5 * pulse;
+        ctx.strokeStyle = col; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(sx, sy - 8 * zoom, (30 + 5 * pulse) * zoom, (14 + 3 * pulse) * zoom, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = col; ctx.font = "10px monospace"; ctx.textAlign = "center";
+        ctx.fillText(n > 1 ? `▼ ${n} raiders` : "▼ raider", sx, sy - 30 * zoom - 12);
+        ctx.restore();
+      }
+    }
+    // and the arrows at the screen's edge, one for each band still out of sight
+    const bands = [];
+    for (const r of attackers) {
+      const sx = (r.x - cam.x) * zoom, sy = (r.y - cam.y) * zoom;
+      if (sx > 0 && sx < canvas.width && sy > 0 && sy < canvas.height) continue;   // already in plain view
+      const band = bands.find(bd => Math.hypot(bd.x - r.x, bd.y - r.y) < 420 && bd.war === !!r.nation);
+      if (band) { band.n++; band.x = (band.x * (band.n - 1) + r.x) / band.n; band.y = (band.y * (band.n - 1) + r.y) / band.n; }
+      else bands.push({ x: r.x, y: r.y, n: 1, war: !!r.nation, target: r.wallTarget || r.target });
+    }
+    for (const bd of bands) {
+      const cxs = canvas.width / 2, cys = canvas.height / 2;
+      const sx = (bd.x - cam.x) * zoom, sy = (bd.y - cam.y) * zoom;
+      const ang = Math.atan2(sy - cys, sx - cxs);
+      const m = 46;
+      // slide out from the middle until the arrow meets the edge of the screen
+      const tX = Math.abs(Math.cos(ang)) < 1e-3 ? Infinity : (cxs - m) / Math.abs(Math.cos(ang));
+      const tY = Math.abs(Math.sin(ang)) < 1e-3 ? Infinity : (cys - m) / Math.abs(Math.sin(ang));
+      const t2 = Math.min(tX, tY);
+      const ax = cxs + Math.cos(ang) * t2, ay = cys + Math.sin(ang) * t2;
+      const col = bd.war ? "#e08a4a" : "#d86a5a";
+      ctx.save();
+      ctx.translate(ax, ay);
+      ctx.globalAlpha = 0.55 + 0.45 * pulse;
+      ctx.rotate(ang);
+      ctx.fillStyle = col;
+      ctx.beginPath();                       // a chevron pointing the way they come
+      ctx.moveTo(15, 0); ctx.lineTo(-9, -10); ctx.lineTo(-4, 0); ctx.lineTo(-9, 10);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = col; ctx.font = "10px monospace"; ctx.textAlign = "center";
+      const label = (bd.war ? "WAR PARTY" : "RAIDERS") + (bd.n > 1 ? ` ×${bd.n}` : "");
+      const ly = ay + (ay > canvas.height - 70 ? -22 : 26);
+      ctx.fillText(label, Math.max(52, Math.min(canvas.width - 52, ax)), ly);
+      // and what they are making for, so you know where to stand
+      const t = bd.target;
+      if (t && buildings.includes(t)) {
+        ctx.fillStyle = "#9ab0a2"; ctx.font = "9px monospace";
+        ctx.fillText("→ " + (BLDG_NAMES[t.type] || t.type),
+                     Math.max(52, Math.min(canvas.width - 52, ax)), ly + 11);
+      }
+    }
+  }
 }
 
 // --- loop ---
