@@ -295,11 +295,9 @@ function markChunkDirty(wx, wy) {
   const ch = chunks.get(chunkKey(...chunkOf(wx, wy)));
   if (ch) ch.dirty = true;
 }
-function getChunk(cx, cy) {
-  const key = chunkKey(cx, cy);
-  let ch = chunks.get(key);
-  if (ch) return ch;
-  ch = { trees: [], stones: [], patches: [] };
+// terrain is a pure function of the chunk coordinates — never stored, always regrown
+function genChunk(cx, cy) {
+  const ch = { trees: [], stones: [], patches: [] };
   let seed = ((cx * 73856093) ^ (cy * 19349663) ^ 0x5f3759df) >>> 0;
   const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
   for (let i = 0; i < 21; i++) {
@@ -320,8 +318,47 @@ function getChunk(cx, cy) {
     if (Math.hypot(x, y) < 150 || rnd() < 0.3) continue;
     ch.patches.push({ x, y, alive: true, progress: -1 });
   }
+  ch.wild = { t: ch.trees.length, s: ch.stones.length, p: ch.patches.length };   // where planted growth begins
+  return ch;
+}
+function getChunk(cx, cy) {
+  const key = chunkKey(cx, cy);
+  let ch = chunks.get(key);
+  if (ch) return ch;
+  ch = genChunk(cx, cy);
   chunks.set(key, ch);
   return ch;
+}
+
+// --- chunk deltas: save only what the colony changed, not the whole forest ---
+const r1 = n => Math.round(n * 10) / 10;   // one decimal is finer than a pixel at max zoom
+function chunkDelta(key, ch) {
+  const wild = ch.wild || { t: ch.trees.length, s: ch.stones.length, p: ch.patches.length };
+  const d = {};
+  const deadIdx = (arr, n) => { const out = []; for (let i = 0; i < Math.min(n, arr.length); i++) if (!arr[i].alive) out.push(i); return out; };
+  const td = deadIdx(ch.trees, wild.t), sd = deadIdx(ch.stones, wild.s), pd = deadIdx(ch.patches, wild.p);
+  if (td.length) d.td = td;
+  if (sd.length) d.sd = sd;
+  if (pd.length) d.pd = pd;
+  const tg = [];
+  for (let i = 0; i < Math.min(wild.t, ch.trees.length); i++)
+    if (ch.trees[i].alive && ch.trees[i].growth < 1) tg.push([i, r1(ch.trees[i].growth)]);
+  if (tg.length) d.tg = tg;
+  // saplings the colony planted: these are not in the generated forest, so they must be kept
+  const planted = ch.trees.slice(wild.t).filter(t => t.alive).map(t => [r1(t.x), r1(t.y), r1(t.growth)]);
+  if (planted.length) d.tp = planted;
+  return Object.keys(d).length ? [key, d] : null;
+}
+function applyChunkDelta(key, d) {
+  const [cx, cy] = key.split(",").map(Number);
+  const ch = genChunk(cx, cy);
+  for (const i of d.td || []) if (ch.trees[i]) ch.trees[i].alive = false;
+  for (const i of d.sd || []) if (ch.stones[i]) ch.stones[i].alive = false;
+  for (const i of d.pd || []) if (ch.patches[i]) ch.patches[i].alive = false;
+  for (const [i, g] of d.tg || []) if (ch.trees[i]) ch.trees[i].growth = g;
+  for (const [x, y, g] of d.tp || []) ch.trees.push({ x, y, alive: true, progress: -1, growth: g });
+  ch.dirty = true;
+  chunks.set(key, ch);
 }
 
 function visibleChunks(pad = CHUNK) {
@@ -1802,7 +1839,11 @@ for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","
 $("pmResume").addEventListener("click", () => setPause(false));
 $("pmSave").addEventListener("click", () => {
   setPause(false);
-  toast(saveGame() ? "The colony ledger is written. Game saved." : "⚠ The save failed — the ledger is too heavy for this browser.");
+  saveTrimmed = false;
+  const ok = saveGame();
+  toast(!ok ? "⚠ The save failed — this browser will not take the ledger. Try clearing site data for other games." :
+        saveTrimmed ? `Game saved (${lastSaveKB} KB). Room was short, so the record of felled trees was let go — the colony itself is safe.` :
+        `The colony ledger is written. Game saved (${lastSaveKB} KB).`);
 });
 $("pmMenu").addEventListener("click", () => { saveGame(); location.reload(); });
 $("govToggle").addEventListener("click", () => {
@@ -2589,6 +2630,7 @@ try {
     history.replaceState(null, "", location.pathname);
   }
 } catch (e) { console.error("save surgery failed", e); }
+let lastSaveKB = 0, saveTrimmed = false;
 function saveGame() {
   if (gameState !== "playing") return;
   const bi = b => buildings.indexOf(b), ci = c => civs.indexOf(c), cpi = c => camps.indexOf(c);
@@ -2602,40 +2644,58 @@ function saveGame() {
       research: research ? { ...research } : null,
       usedNames: [...usedNames],
       civs: civs.map(c => ({
-        name: c.name, who: c.who, nativeWho: c.nativeWho, gender: c.gender, child: !!c.child, growT: c.growT || 0, age: c.age || 20, x: c.x, y: c.y, home: bi(c.home),
-        profession: c.profession, hunger: c.hunger, hp: c.hp, maxHp: c.maxHp,
-        happiness: c.happiness, rebel: c.rebel, armed: c.armed, tool: c.tool,
+        name: c.name, who: c.who, nativeWho: c.nativeWho, gender: c.gender, child: !!c.child, growT: r1(c.growT || 0), age: c.age || 20, x: r1(c.x), y: r1(c.y), home: bi(c.home),
+        profession: c.profession, hunger: r1(c.hunger), hp: r1(c.hp), maxHp: c.maxHp,
+        happiness: r1(c.happiness), rebel: c.rebel, armed: c.armed, tool: c.tool,
         inv: { ...c.inv },
       })),
       buildings: buildings.map(b => ({
-        type: b.type, x: b.x, y: b.y, fire: b.fire, placed: b.placed,
-        hp: b.hp, maxHp: b.maxHp, rot: b.rot, shop: b.shop || [], site: !!b.site,
+        type: b.type, x: r1(b.x), y: r1(b.y), fire: r1(b.fire), placed: b.placed,
+        hp: r1(b.hp), maxHp: b.maxHp, rot: b.rot, shop: b.shop || [], site: !!b.site,
         occupants: b.occupants.map(ci),
       })),
-      farms: farms.map(f => ({ x: f.x, y: f.y, ready: f.ready, growT: f.growT, workers: f.workers.map(ci) })),
-      camps: camps.map(c => ({ ...c })),
-      chunks: [...chunks.entries()].filter(([k, ch]) => ch.dirty).map(([k, ch]) => [k, {
-        dirty: true,
-        trees: ch.trees.map(t => ({ ...t, progress: -1 })),
-        stones: ch.stones.map(t => ({ ...t, progress: -1 })),
-        patches: ch.patches.map(t => ({ ...t, progress: -1 })),
-      }]),
+      farms: farms.map(f => ({ x: r1(f.x), y: r1(f.y), ready: f.ready, growT: r1(f.growT), workers: f.workers.map(ci) })),
+      camps: camps.map(c => ({ ...c, x: r1(c.x), y: r1(c.y) })),
+      chunks: [...chunks.entries()].filter(([k, ch]) => ch.dirty).map(([k, ch]) => chunkDelta(k, ch)).filter(Boolean),
       empireName, territoryColor, borderColor,
       territory: [...territory],
-      sackedCamps, playT, nextSettleAt, tutStep, colonyYear, vigSeen,
-      corpses: corpses.map(cp => ({ x: cp.x, y: cp.y, who: cp.who, deceased: cp.deceased })),
-      graves: graves.map(gv => ({ x: gv.x, y: gv.y, stone: gv.stone, deceased: gv.deceased })),
+      sackedCamps, playT: r1(playT), nextSettleAt: r1(nextSettleAt), tutStep, colonyYear, vigSeen,
+      corpses: corpses.map(cp => ({ x: r1(cp.x), y: r1(cp.y), who: cp.who, deceased: cp.deceased })),
+      graves: graves.map(gv => ({ x: r1(gv.x), y: r1(gv.y), stone: gv.stone, deceased: gv.deceased })),
       settlements: settlements.map(st => ({ ...st })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
       wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated, trade: !!n.trade }])),
     };
-    // keep the previous good save as a rolling backup before overwriting
+    const json = JSON.stringify(data);
+    lastSaveKB = Math.round(json.length / 1024);
+    // The colony's ledger comes first: write it, and give up the luxuries if the
+    // browser is short of room. Never let a full disk cost the player their game.
     const prev = localStorage.getItem(SAVE_KEY);
-    if (prev && prev !== "null") localStorage.setItem(SAVE_KEY + "_backup", prev);
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    try {
+      localStorage.setItem(SAVE_KEY, json);
+    } catch (e) {
+      localStorage.removeItem(SAVE_KEY + "_backup");     // the spare copy is the first thing overboard
+      localStorage.removeItem(SAVE_KEY + "_broken");
+      try {
+        localStorage.setItem(SAVE_KEY, json);
+      } catch (e2) {
+        // still no room: keep the colony, drop the forest's memory of felled trees
+        data.chunks = [];
+        const lean = JSON.stringify(data);
+        lastSaveKB = Math.round(lean.length / 1024);
+        localStorage.setItem(SAVE_KEY, lean);            // if this throws too, the outer catch reports honestly
+        saveTrimmed = true;
+      }
+      return true;
+    }
+    // only once the real save is safe do we keep a spare, and never at its expense
+    if (prev && prev !== "null" && prev !== json) {
+      try { localStorage.setItem(SAVE_KEY + "_backup", prev); }
+      catch (e) { localStorage.removeItem(SAVE_KEY + "_backup"); }
+    }
     return true;
-  } catch (e) { return false; }
+  } catch (e) { console.error("save failed", e); return false; }
 }
 
 function loadGame() {
@@ -2686,7 +2746,16 @@ function loadGame() {
     for (const cd of d.camps) camps.push({ ...cd });
     raiders.length = 0; visitors.length = 0; floaters.length = 0;
     chunks.clear();
-    for (const [k, ch] of d.chunks) chunks.set(k, ch);
+    for (const [k, ch] of (d.chunks || [])) {
+      if (ch && ch.trees) {
+        // legacy save: whole forests were written out. Keep them, but mark where
+        // the wild growth ends so this chunk saves as a slim delta from now on.
+        const base = genChunk(...k.split(",").map(Number));
+        ch.wild = { t: Math.min(base.trees.length, ch.trees.length), s: ch.stones.length, p: ch.patches.length };
+        ch.dirty = true;
+        chunks.set(k, ch);
+      } else if (ch) applyChunkDelta(k, ch);
+    }
     empireName = d.empireName || "";
     territoryColor = d.territoryColor || "#7da083";
     borderColor = d.borderColor || "#c9a86a";
