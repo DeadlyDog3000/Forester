@@ -159,6 +159,9 @@ const IMAGES = {
   townhall: "assets/sprites/buildings/townhall_32.png",
   stonewall: "assets/sprites/buildings/stonewall_32.png",
   stonewallv: "assets/sprites/buildings/stonewallv_32.png",
+  stonegatev: "assets/sprites/buildings/stonegatev_32.png",
+  gatev: "assets/sprites/buildings/gatev_32.png",
+  gatev_w: "assets/sprites/buildings/gatev_w_32.png",
   stonegate: "assets/sprites/buildings/stonegate_32.png",
   moat: "assets/sprites/buildings/moat_32.png",
   ditch: "assets/sprites/buildings/ditch_32.png",
@@ -543,8 +546,8 @@ function spawnRaid() {
   SFX.warHorn();
   if (buildings.some(b => b.type === "watchtower" && !b.fire)) {
     const dir = Math.abs(camp.x) > Math.abs(camp.y) ? (camp.x > 0 ? "east" : "west") : (camp.y > 0 ? "south" : "north");
-    toast(`⚠ The watchtower sounds the alarm — enemy soldiers approach from the ${dir}${town ? ", making for " + town.name : ""}!`);
-  } else toast(`⚠ Enemy soldiers have been sighted near ${town ? town.name : "the colony"}!`);
+    toast(`⚠ The watchtower sounds the alarm — raiders approach from the ${dir}${town ? ", making for " + town.name : ""}!`);
+  } else toast(`⚠ Raiders have been sighted near ${town ? town.name : "the colony"}!`);
 }
 
 function updateRaider(r, dt) {
@@ -715,7 +718,7 @@ function updateRaider(r, dt) {
       led.dm -= take; r.carry = take;
       SFX.coinLoss();
       float(r.x, r.y - 70, "-" + take + " DM", "#d86a5a");
-      toast(`⚠ An enemy soldier makes off with ${take} DM${town ? " from " + town.name : ""}!`);
+      toast(`⚠ A raider makes off with ${take} DM${town ? " from " + town.name : ""}!`);
       r.state = "flee";
     }
   } else if (r.state === "flee") {
@@ -736,7 +739,7 @@ function strikeUnit(a, b, dmg) {
       raiders.splice(raiders.indexOf(b), 1);
       SFX.death();
       if (b.carry) { res.dm += b.carry; float(b.x, b.y - 50, "+" + b.carry + " DM", "#7da083"); }
-      toast("An enemy soldier has been cut down.");
+      toast(b.nation && NATIONS[b.nation] ? `A soldier of ${NATIONS[b.nation].name} has been cut down.` : "A raider has been cut down.");
     } else if (civs.includes(b)) {
       if (b.rebel && has("court") && Math.random() < 0.5) {
         b.rebel = false; b.armed = false; b.hp = 30; b.happiness = 60;
@@ -805,6 +808,10 @@ function nearTerritoryWide(wx, wy, pad) {
   return false;
 }
 function legalToBuild(type, wx, wy, rot) {
+  // A run already begun may always be continued: if the piece locked onto a wall
+  // of yours, nothing but the cost may refuse it — the builders fell what is in
+  // the way. (snapWallPos is always called immediately before this.)
+  if (WALLLIKE.has(type) && wallSnapped) return true;
   if (WALLLIKE.has(type)) {
     if (!nearTerritoryWide(wx, wy, 5)) return false;                       // not too far from home
     for (const cp of camps) if (Math.hypot(cp.x - wx, cp.y - wy) < 520) return false;   // not at their door
@@ -1439,7 +1446,7 @@ function worldClick(clientX, clientY) {
         const grp = soldierGroup().filter(isForce);
         for (const s of grp) order(s, { kind: "attack", target: r, x: r.x, y: r.y });
         toast(grp.length > 1 ? `${grp.length} soldiers move to intercept the enemy.` : `${selected.name} moves to intercept the enemy.`);
-      } else toast("Only police or soldiers can be ordered against enemy soldiers.");
+      } else toast("Only police or soldiers can be ordered against raiders.");
       return;
     }
 
@@ -1656,7 +1663,11 @@ function evictFromFootprint(b) {
   for (const u of [...civs, ...visitors, ...raiders])
     if (pointInRect(u.x, u.y, r)) { u.y = r.y + r.h + 14; u.x += (u.x < b.x ? -18 : 18); }
 }
+// true when the piece just placed locked onto a wall already standing. A run you
+// have started may always be continued — the builders clear whatever is in the way.
+let wallSnapped = false;
 function snapWallPos(type, wx, wy) {
+  wallSnapped = false;
   if (!WALLLIKE.has(type)) return [wx, wy];
   let best = null, bd = 110;
   for (const b of buildings) {
@@ -1666,6 +1677,7 @@ function snapWallPos(type, wx, wy) {
     if (d < bd) { bd = d; best = b; }
   }
   if (best) {
+    wallSnapped = true;
     const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 6;    // a hand's overlap: the run never shows daylight
     if (wallRot) return [best.x, best.y + (wy > best.y ? span : -span)];
     return [best.x + (wx > best.x ? span : -span), best.y];
@@ -1680,6 +1692,7 @@ function snapWallPos(type, wx, wy) {
   }
   if (!perp) return [wx, wy];
   const Ln = SMALL_BLDG[perp.type], Ls = SMALL_BLDG[type];
+  wallSnapped = true;
   if (wallRot) {
     // placing upright against a flat run: hug its end, rising above or hanging below the line
     const x = perp.x + (wx > perp.x ? 1 : -1) * (Ln / 2 + 8);
@@ -1718,6 +1731,22 @@ function tryPlace(type, wx, wy) {
                              : "That land is outside your territory. Build and grow to claim more."); return; }
   pay(cost, led);
   SFX.build();
+  // a wall continuing a run takes the ground it needs: saplings and boulders in
+  // the line of the wall are cleared, and their timber and stone go to the stores
+  if (WALLLIKE.has(type) && wallSnapped) {
+    const foot = inflate(bldgRect({ type, x: wx, y: wy, rot: wallRot }), 8);
+    let logs = 0, rock = 0;
+    for (const t of nearThings("trees", wx, wy, 160))
+      if (t.alive && pointInRect(t.x, t.y, foot)) { t.alive = false; markChunkDirty(t.x, t.y); logs++; }
+    for (const st of nearThings("stones", wx, wy, 160))
+      if (st.alive && pointInRect(st.x, st.y, foot)) { st.alive = false; markChunkDirty(st.x, st.y); rock++; }
+    if (logs || rock) {
+      led.logs = (led.logs || 0) + logs * 2;
+      led.stone = (led.stone || 0) + rock * 2;
+      if (logs) SFX.treeFall(); else SFX.quarry();
+      float(wx, wy - 60, `cleared +${logs * 2} logs +${rock * 2} stone`, "#7da083");
+    }
+  }
   if (type === "sapling") {
     const [cx, cy] = chunkOf(wx, wy);
     getChunk(cx, cy).trees.push({ x: wx, y: wy, alive: true, progress: -1, growth: 0 });
@@ -4818,7 +4847,7 @@ function update(dt) {
           raiders.push(r);
         }
         SFX.warHorn();
-        toast("⚠ Enemy soldiers pour out of the dark — the town is unwalled and they know it!");
+        toast("⚠ Raiders pour out of the dark — the town is unwalled and they know it!");
       }
     }
   } else ambushT = Math.max(ambushT, 25);
@@ -5594,16 +5623,12 @@ function render(dt) {
     const wos = WALLLIKE.has(b.type) ? 10 : 0;   // walls draw oversized so chained segments visually fuse
     if (b.type === "wall" && b.rot) drawSprite(wimg("wallv"), b.x, b.y + wos / 2, SMALL_BLDG.wall + wos, false);
     else if (b.type === "stonewall" && b.rot) drawSprite(img.stonewallv, b.x, b.y + wos / 2, SMALL_BLDG.stonewall + wos, false);
-    else if ((b.type === "stonegate" || b.type === "moat" || b.type === "ditch") && b.rot) {
+    else if (b.type === "stonegate" && b.rot) drawSprite(img.stonegatev, b.x, b.y + wos / 2, SMALL_BLDG.stonegate + wos, false);
+    else if (b.type === "gate" && b.rot) drawSprite(wimg("gatev"), b.x, b.y + wos / 2, SMALL_BLDG.gate + wos, false);
+    else if ((b.type === "moat" || b.type === "ditch") && b.rot) {
       const L = SMALL_BLDG[b.type] + wos;
       ctx.save(); ctx.translate(b.x, b.y - SMALL_BLDG[b.type] / 2); ctx.rotate(Math.PI / 2);
       ctx.drawImage(img[b.type], -L / 2, -L / 2, L, L);
-      ctx.restore();
-    }
-    else if (b.type === "gate" && b.rot) {
-      const L = SMALL_BLDG.gate + wos;
-      ctx.save(); ctx.translate(b.x, b.y - SMALL_BLDG.gate / 2); ctx.rotate(Math.PI / 2);
-      ctx.drawImage(wimg("gate"), -L / 2, -L / 2, L, L);
       ctx.restore();
     } else drawSprite(wimg(b.type), b.x, b.y + wos / 2, (SMALL_BLDG[b.type] || BLDG_SIZE) + wos, false);
     if (b.fire > 0) {
@@ -5627,17 +5652,18 @@ function render(dt) {
     ctx.fillStyle = "#c98a6a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
     if (settings.labels) ctx.fillText(v.name + " (visitor)", v.x, v.y - CHAR_SIZE - 4);
   }});
-  // enemy soldiers: every hostile in the field wears a coat of its own crown's
-  // colour — a red one where no crown stands behind them
+  // A crown's troops march in its regimentals and are named for what they are.
+  // The woods' own thieves are no army: they come as they always did, in rags.
   for (const r of raiders) if (inView(r.x, r.y)) drawables.push({ y: r.y, draw: () => {
-    const hex = (r.nation && NATIONS[r.nation] && NATIONS[r.nation].color) || RAIDER_COAT;
     const i = Math.floor(r.anim) % 4;
-    const frame = foeCoat(hex, r.foe ? "atkuni" + i : "soldierU" + i);
+    const crown = r.nation && NATIONS[r.nation];
+    const frame = crown ? foeCoat(crown.color, r.foe ? "atkuni" + i : "soldierU" + i)
+                        : img[(r.foe ? "atksword" : "hunter") + i];
     drawSprite(frame, r.x, r.y, CHAR_SIZE, r.facing < 0);
     if (settings.labels) {
       ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-      const nat = r.nation && NATIONS[r.nation] ? NATIONS[r.nation].name + " " : "";
-      ctx.fillText(nat + "Enemy Soldier", r.x, r.y - CHAR_SIZE - 4);
+      ctx.fillText(crown ? crown.name + " Enemy Soldier" : (r.state === "patrol" ? "thief" : "RAIDER"),
+                   r.x, r.y - CHAR_SIZE - 4);
     }
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
@@ -5742,6 +5768,8 @@ function render(dt) {
     const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : (SMALL_BLDG[buildMode] || (buildMode === "farm" ? FARM_SIZE : BLDG_SIZE));
     if (buildMode === "wall" && wallRot) drawSprite(img.wallv, gx, gy, gs, false);
     else if (buildMode === "stonewall" && wallRot) drawSprite(img.stonewallv, gx, gy, gs, false);
+    else if (buildMode === "stonegate" && wallRot) drawSprite(img.stonegatev, gx, gy, gs, false);
+    else if (buildMode === "gate" && wallRot) drawSprite(img.gatev, gx, gy, gs, false);
     else if (WALLLIKE.has(buildMode) && wallRot) {
       // gates, moats, ditches: same quarter-turn the placed building gets
       ctx.save(); ctx.translate(gx, gy - gs / 2); ctx.rotate(Math.PI / 2);
