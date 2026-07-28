@@ -268,7 +268,8 @@ function ruin(b, how) {
 // deep snow slows every traveller by a fifth — the road's packed lane still helps
 const snowPace = () => season() === "winter" ? 0.8 : 1;
 const walkSpeed = c => BASE_WALK * snowPace() * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1) * (c && c.profession === "cavalry" ? 1.45 : 1);
-const workMul = c => (c && c.tool ? 0.65 : 1) * (has("stables") ? 0.8 : 1) * (laws.forced ? 0.75 : 1);
+const workMul = c => (c && c.tool ? 0.65 : 1) * (has("stables") ? 0.8 : 1) * (laws.forced ? 0.75 : 1)
+                     * (c && c.sick > 0 ? 1.8 : 1);   // a man abed is slow at everything
 
 // ===== what a pair of hands has learned =====
 // Technology is what the colony knows; a skill is what one man is good at. Every
@@ -654,7 +655,7 @@ function mkCiv(name, who, x, y, gender) {
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
            age: 20 + Math.floor(Math.random() * 26),
            autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true,
-           sk: freshSkills(), sx: {},
+           sick: 0, sk: freshSkills(), sx: {},
            loaded: true, reloadT: 0, fireT: 0 };
 }
 
@@ -2492,6 +2493,8 @@ function happinessTarget(c) {
   if (c.hunger > 60) t += 4;
   if (c.hunger < 30) t -= 12;
   if (!c.home) t -= 8;
+  if (c.sick > 0) t -= 18;                 // his own sickness
+  else if (plagueActive > 0) t -= 7;       // and the fear of it in the street
   return Math.max(0, Math.min(100, t));
 }
 
@@ -2698,6 +2701,7 @@ function openTalk(talk) {
   renderDialogueOptions();
 }
 function openDialogue(v) {
+  tutSeen.talked = true;   // they have met a wanderer, whether or not they keep them
   dlg.visitor = v;
   if (v.meter === null) v.meter = Math.max(10, 55 - taxRate * 3.5) + (v.goodwill || 0);
   openTalk({
@@ -3529,6 +3533,84 @@ function updateRefugees(dt) {
   }
 }
 let calamityT = 240;
+
+// ===== the plague does not check your borders =====
+// Every crown in Europe can be laid low; there was no reason yours could not be,
+// and a colony that watches its neighbours sicken while it never so much as
+// coughs is only half a seventeenth century. It comes rarely, it takes a while
+// to pass, and it is survivable: the sick work slowly and lose strength, and a
+// few of them will not get up again. A well helps, as a well always did.
+// ===== the woodpile =====
+// A colony in winter burns wood simply to stay alive: one log every thirty
+// seconds out of the common store. While the hearths are lit the cabins smoke
+// without pause and a roof keeps the frost off whoever is under it. When the
+// pile runs out the chimneys go quiet — you can see winter arrive at the
+// woodpile before you feel it in the people.
+const FUEL_INTERVAL = 30;
+let fuelT = FUEL_INTERVAL, hearthsLit = true, fuelWarned = false;
+function updateFuel(dt) {
+  if (season() !== "winter") { fuelT = FUEL_INTERVAL; hearthsLit = true; fuelWarned = false; return; }
+  hearthsLit = res.logs > 0;
+  fuelT -= dt;
+  if (fuelT > 0) return;
+  fuelT = FUEL_INTERVAL;
+  if (res.logs > 0) {
+    res.logs--;
+    fuelWarned = false;
+    if (res.logs === 0) toast("❄ The last log goes on the fire.");
+    else if (res.logs <= 5) toast(`❄ The woodpile is down to ${res.logs} log${res.logs === 1 ? "" : "s"}.`);
+  } else if (!fuelWarned) {
+    fuelWarned = true;
+    toast("❄ The woodpile is empty — the hearths are cold, and a roof alone will not keep the frost out.");
+  }
+}
+
+const PLAGUE_MIN = 900, PLAGUE_MAX = 1500;   // 15 to 25 minutes between visitations
+const PLAGUE_LEN = 200;                      // how long a stricken man is abed
+let plagueT = 600 + Math.random() * 600;     // never in the first minutes of a new colony
+let plagueActive = 0;                        // seconds left in the outbreak itself
+const isSick = c => (c.sick || 0) > 0;
+const wells = () => buildings.filter(b => b.type === "well" && !b.fire && !b.site).length;
+function strikePlague() {
+  const well = Object.values(civs).filter(c => !c.child);
+  if (well.length < 3) return;                       // too few souls to call it an outbreak
+  // clean water keeps some of them standing
+  const share = Math.max(0.15, 0.42 - wells() * 0.07);
+  const n = Math.max(1, Math.round(well.length * share));
+  const pool = well.slice().sort(() => Math.random() - 0.5);
+  let struck = 0;
+  for (const c of pool.slice(0, n)) { c.sick = PLAGUE_LEN * (0.7 + Math.random() * 0.6); struck++; }
+  plagueActive = PLAGUE_LEN * 1.4;
+  eventCard(`Plague walks your own streets.`, "event_war",
+            `${struck} have taken to their beds — they work poorly and sicken. It will pass.`);
+  toast(`☠ Plague breaks out in the colony — ${struck} are stricken.`);
+}
+function updatePlague(dt) {
+  if (plagueActive > 0) plagueActive -= dt;
+  let anySick = false;
+  for (const c of civs) {
+    if (!isSick(c)) continue;
+    anySick = true;
+    c.sick -= dt;
+    // it wastes a man slowly; the fed and the housed weather it better
+    // Preparation should move the odds, not decide them. At a heavier drain this
+    // was binary — the unprepared lost every stricken soul and the prepared lost
+    // none, so neither outcome carried any suspense. Half that, and a fed man
+    // under a roof usually rises again while a hungry homeless one often does
+    // not. Ordering the sick to sit and eat is the lever that saves them.
+    const care = (c.home ? 0.6 : 1) * (c.hunger > 50 ? 0.7 : 1.2);
+    c.hp -= 0.45 * care * dt;
+    if (Math.random() < dt * 0.35) float(c.x, c.y - 74, "☠", "#9a8fb0");
+    if (c.hp <= 0) { killCiv(c, "was taken by the plague"); continue; }
+    if (c.sick <= 0) { c.sick = 0; toast(`${c.name} rises from the sickbed.`); }
+  }
+  if (!anySick && plagueActive <= 0 && plagueT <= 0) plagueT = PLAGUE_MIN + Math.random() * (PLAGUE_MAX - PLAGUE_MIN);
+  plagueT -= dt;
+  if (plagueT <= 0 && plagueActive <= 0) {
+    plagueT = PLAGUE_MIN + Math.random() * (PLAGUE_MAX - PLAGUE_MIN);
+    if (civs.length >= 4) strikePlague();
+  }
+}
 function updateCalamities(dt) {
   // wounds heal: a crown climbs back toward its old strength as the years pass
   for (const [id, n] of Object.entries(NATIONS)) {
@@ -4667,6 +4749,7 @@ function saveGame() {
         happiness: r1(c.happiness), rebel: c.rebel, armed: c.armed, tool: c.tool,
         post: c.post ? { x: r1(c.post.x), y: r1(c.post.y) } : undefined,
         state: c.state === "inside" ? "inside" : undefined, shelter: bi(c.shelter),
+        sick: c.sick ? r1(c.sick) : undefined,
         sk: skSave(c), sx: sxSave(c),
         conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
         inv: { ...c.inv },
@@ -4683,6 +4766,7 @@ function saveGame() {
       territory: [...territory],
       roads: [...roads],
       sackedCamps, playT: r1(playT), nextSettleAt: r1(nextSettleAt), tutStep, colonyYear, vigSeen,
+      plagueT: r1(plagueT), plagueActive: r1(plagueActive), fuelT: r1(fuelT),
       corpses: corpses.map(cp => ({ x: r1(cp.x), y: r1(cp.y), who: cp.who, deceased: cp.deceased })),
       graves: graves.map(gv => ({ x: r1(gv.x), y: r1(gv.y), stone: gv.stone, deceased: gv.deceased })),
       settlements: settlements.map(st => ({ ...st })),
@@ -4758,6 +4842,7 @@ function loadGame() {
         happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool,
         child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20, post: cd.post || null,
         conquered: cd.conquered || 0 });
+      c.sick = cd.sick || 0;
       c.sk = Object.assign(freshSkills(), cd.sk || {});
       c.sx = Object.assign({}, cd.sx || {});
       if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
@@ -4815,6 +4900,9 @@ function loadGame() {
     nextSettleAt = d.nextSettleAt === undefined ? SETTLE_FIRST : d.nextSettleAt;
     tutStep = d.tutStep === undefined ? -1 : d.tutStep;
     colonyYear = d.colonyYear || 1683;
+    plagueT = d.plagueT !== undefined ? d.plagueT : 600 + Math.random() * 600;
+    plagueActive = d.plagueActive || 0;
+    fuelT = d.fuelT !== undefined ? d.fuelT : FUEL_INTERVAL;
     vigSeen = d.vigSeen || {};
     corpses.length = 0; for (const cp of (d.corpses || [])) corpses.push({ ...cp, bearer: null, carried: null });
     graves.length = 0; for (const gv of (d.graves || [])) graves.push({ ...gv, mason: null });
@@ -4990,7 +5078,7 @@ $("cutscene").addEventListener("click", () => {
 // timer, and nothing here depends on an overlay being open at this instant —
 // panels pause the game, and a paused game used to freeze the tutorial solid.
 let tutStep = -1;
-const tutSeen = { map: false, gov: false, tech: false };
+const tutSeen = { map: false, gov: false, tech: false, talked: false };
 const TUT_STEPS = [
   { text: () => "That burnt cabin was here long before you were — whoever raised it is gone. Start by clicking your Brother or Sister to select them.",
     done: () => !!selected },
@@ -5010,6 +5098,13 @@ const TUT_STEPS = [
     done: () => farms.length > 0 },
   { text: () => "Fields need hands. Select someone, use Recruit ▾ to make them a Farmer, then click the farm to assign them — they will tend it from then on.",
     done: () => farms.some(f => f.workers.length > 0) },
+  { text: () => "Two hands will not build a colony. Open BUILD ▾ and lay out a Recruitment Center — wanderers come out of the woods to any colony that has one, and it is the only way your numbers grow beyond the children born here.",
+    done: () => buildings.some(b => b.type === "recruit") },
+  { text: () => "When a wanderer arrives, click them and talk. Win them over and they stay; press too hard and they walk back into the trees. Every soul you keep is another pair of hands.",
+    done: () => civs.length > 2 || tutSeen.talked },
+  { text: () => "Open BUILD ▾ again and raise a Market Center. It sells your surplus for DM, and DM pays for research, recruits and training.",
+    done: () => buildings.some(b => b.type === "market") },
+  { note: true, text: () => "A Well is cheap and the colony is happier for it — and when plague comes, clean water keeps more of them on their feet. A Bakery turns your wheat into bread, and a Town Hall lets folk stock the stores without being told. Raise them when you can spare the logs." },
   { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
     done: () => tutSeen.gov },
   { text: () => "In that panel, press Open Tech Tree and begin any research. Two trees run from sharper axes to battle steel, paid for in DM and time.",
@@ -5019,6 +5114,7 @@ const TUT_STEPS = [
   { note: true, text: () => "On that map you can send an envoy to a peaceful neighbour and talk their court into a trade route — gifts help, threats do not. Caravans then bring coin and goods to your gate." },
   { note: true, text: () => "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches." },
   { note: true, text: () => "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming." },
+  { note: true, text: () => "☠ Plague walks the towns of Europe — and it does not check your borders. It will come here too. The stricken work badly, sicken, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. Every civilian carries their own skills, and a skilled hand lost to fever is not quickly replaced." },
   { note: true, text: () => "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. The woods are yours." },
 ];
 function tutAdvance() {
@@ -5228,7 +5324,8 @@ function syncUI() {
     if (NARROW()) $("govPanel").style.display = "none";   // one sheet at a time on a phone
     $("cpName").textContent = selected.name.toUpperCase() + (selected.rebel ? " — REBEL" : "") +
       (selGroup.length > 1 && selGroup.includes(selected) ? ` (+${selGroup.length - 1} MORE)` : "");
-    $("cpProf").textContent = (selected.profession || "none") + (selected.age !== undefined ? ` · age ${selected.age}` : "");
+    $("cpProf").textContent = (selected.profession || "none") + (selected.age !== undefined ? ` · age ${selected.age}` : "") +
+                              (selected.sick > 0 ? " · ☠ PLAGUE-STRICKEN" : "");
     $("cpHome").textContent = selected.home ? "housed" : "homeless";
     $("cpHpN").textContent = Math.round(selected.hp) + "/" + selected.maxHp;
     $("cpHp").style.width = Math.max(0, selected.hp / selected.maxHp * 100) + "%";
@@ -5368,6 +5465,8 @@ function update(dt) {
   updateNationWars(dt);
   updateNationTrade(dt);
   updateCalamities(dt);
+  updatePlague(dt);
+  updateFuel(dt);
   updateRefugees(dt);
   if (civs.length >= 10) vignette("village");
   if (difficulty() > lastTier) {
@@ -5496,10 +5595,18 @@ function update(dt) {
   }
   for (const b of [...buildings]) {
     igniteCheck(b, dt);
-    if (settings.smoke && !b.fire && (b.type === "bakery" || (b.type === "cabin" && b.occupants.length))) {
+    // In winter every chimney in the colony draws on the same woodpile: while
+    // there are logs in store they all smoke without pause, and when the last
+    // one is burnt they all stop — an occupied cabin included. Out of winter,
+    // a lived-in cabin and the bakery put up a puff now and then as they always did.
+    const winterNow = season() === "winter";
+    const hearth = !b.site && (winterNow ? hearthsLit
+                                         : (b.type === "bakery" || (b.type === "cabin" && b.occupants.length)));
+    if (settings.smoke && !b.fire && hearth && (b.type === "cabin" || b.type === "bakery")) {
+      const steady = winterNow;
       b.smokeT = (b.smokeT === undefined ? Math.random() * 8 : b.smokeT) - dt;
       if (b.smokeT <= 0) {
-        b.smokeT = 8 + Math.random() * 14;
+        b.smokeT = steady ? 0.5 + Math.random() * 0.4 : 8 + Math.random() * 14;
         const sx = b.x + (b.type === "bakery" ? 6 : -16), sy = b.y - BLDG_SIZE + 10;
         for (let i = 0; i < 4; i++)
           smokes.push({ x: sx + Math.random() * 4 - 2, y: sy, r: 3 + Math.random() * 2,
@@ -5689,20 +5796,25 @@ function update(dt) {
 
     // winter cold: five minutes in the open kills (guards last seven)
     if (season() === "winter") {
-      if (INDOORS.has(c.state)) {
+      // A roof is only worth having with a fire under it. The colony burns one
+      // log from the common store every thirty seconds of winter; when the last
+      // one goes, the chimneys stop smoking and a house warms nobody — the folk
+      // inside freeze exactly as if they were standing in the snow.
+      if (INDOORS.has(c.state) && hearthsLit) {
         c.coldT = Math.max(0, c.coldT - dt * 8);
       } else {
         c.coldT = (c.coldT || 0) + dt;
         const limit = isForce(c) ? 210 : 150;
         if (c.coldT > limit - 60 && !c.coldWarned) {
           c.coldWarned = true;
-          toast(c.home ? `❄ ${c.name} is freezing — they need to get indoors.` :
+          toast(!hearthsLit ? `❄ ${c.name} is freezing — the hearths are out. Fell wood, or they die indoors.` :
+                c.home ? `❄ ${c.name} is freezing — they need to get indoors.` :
                          `❄ ${c.name} is freezing in the open — without a roof, the cold will take them.`);
         }
         if (c.coldT > limit) {
           c.hp -= 2 * dt;
           if (Math.random() < dt * 1.5) float(c.x, c.y - 74, "❄", "#bcd8e8");
-          if (c.hp <= 0) { killCiv(c, "froze to death in the open"); continue; }
+          if (c.hp <= 0) { killCiv(c, hearthsLit ? "froze to death in the open" : "froze to death beside a cold hearth"); continue; }
         }
       }
     } else { c.coldT = 0; c.coldWarned = false; }
@@ -6492,12 +6604,12 @@ function render(dt) {
                                              : img[c.who + (Math.floor(c.anim) % 4)];
     drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
     // the flash is painted into the firing sprite itself — nothing is drawn over it
-    ctx.fillStyle = c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" :
+    ctx.fillStyle = c.sick > 0 ? "#a99ec4" : c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" :
                     c.profession === "police" ? "#8aa0c9" : isForce(c) ? "#b58a5a" : "#7da083";
     ctx.font = "10px monospace"; ctx.textAlign = "center";
     const tag = c.rebel ? " [REBEL]" : c.child ? " (child)" :
                 ["police", "soldier", "musketeer", "cavalry"].includes(c.profession) ? ` [${c.profession}]` : "";
-    if (settings.labels) ctx.fillText(c.name + tag, c.x, c.y - CHAR_SIZE - 4);
+    if (settings.labels) ctx.fillText((c.sick > 0 ? "☠ " : "") + c.name + tag, c.x, c.y - CHAR_SIZE - 4);
     if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
     if (c.state === "crafting" || c.state === "buildingFarm" || c.state === "smithing" || c.state === "hunting") {
       const tot = c.state === "crafting" ? craftTime(c) : c.state === "smithing" ? smithTime(c) :
