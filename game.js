@@ -787,9 +787,20 @@ function updateRaider(r, dt) {
       r.x = nx; r.y = ny; r.facing = dx < 0 ? -1 : 1; r.anim += dt * 8;
     }
   } else if (r.state === "occupy") {
-    // they stand in your streets, breaking what they please, and will not leave
-    // until they are driven out — or the town is theirs
+    // They stand in your streets, breaking what they please, and will not leave
+    // until they are driven out — or the town is theirs, or the campaign season
+    // ends under them. That last was missing: an occupation with no way out sat
+    // there for the rest of the game, and every party that followed it stacked
+    // on top, until the field was full of men who had nowhere to be but here.
+    // OCCUPY_HOLD is comfortably longer than SIEGE_HOLD, so a company that is
+    // genuinely taking the town still gets to finish.
     r.anim += dt * 4;
+    r.holdT = (r.holdT || 0) + dt;
+    if (r.holdT > OCCUPY_HOLD) {
+      r.state = "flee";
+      if (onScreen(r.x, r.y)) toast(`The ${NATIONS[r.nation] ? NATIONS[r.nation].name : "enemy"} company withdraws.`);
+      return;
+    }
     r.workT += dt;
     if (r.workT > 1.6) {
       r.workT = 0;
@@ -3760,6 +3771,9 @@ function landForeignTown(id) {
 // An enemy column left standing in a town of yours, with no one alive to contest
 // it, holds that ground. Leave them there long enough and the town changes hands.
 const SIEGE_HOLD = 45;                       // seconds of unopposed occupation
+// and how long a company will stand on ground it has failed to take before it
+// gives up and marches home. Longer than SIEGE_HOLD, so a real capture lands.
+const OCCUPY_HOLD = 150;
 function townCentre(t) { return t ? { x: t.x, y: t.y } : { x: CAPITAL_X, y: CAPITAL_Y }; }
 function updateOccupation(dt) {
   const towns = [null, ...settlements.filter(s => s.x !== undefined)];
@@ -3906,7 +3920,8 @@ function foreignTownFalls(town) {
 // its own time and none of them aware of the others — which is how a colony ends
 // up facing hundreds. They share one field now.
 function warPartyCap() { return Math.max(6, Math.min(20, Math.round(4 + menace() * 0.7))); }
-const warPartiesAfield = () => raiders.filter(r => r.nation).length;
+// a town's own garrison never marches on you — it must not eat the field either
+const warPartiesAfield = () => raiders.filter(r => r.nation && !r.garrison).length;
 
 function updateWars(dt) {
   const atWar = Object.values(NATIONS).filter(n => n.atWar && !n.defeated).length;
