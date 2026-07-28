@@ -2400,10 +2400,21 @@ function autonomy(c, dt) {
       const a = Math.random() * Math.PI * 2;
       order(c, { kind: "hunt", x: c.x + Math.cos(a) * 350, y: c.y + Math.sin(a) * 350 });
     } else {
-      // keep to the town borders
+      // Keep to the town borders — but a colony can hold no ground at all: burn
+      // every roof and the territory empties. Picking a random cell out of an
+      // empty set gave undefined, and calling .split on it threw. autonomy() is
+      // called from inside the per-civ loop with no catch of its own, so that
+      // one hungry hunter aborted the WHOLE remaining frame — every civ after
+      // him, the raiders, the wars — on every frame, for as long as it held.
+      // The colony simply stopped moving. He hunts around the hearth instead.
       const cells = [...territory];
-      const [cx2, cy2] = cells[Math.floor(Math.random() * cells.length)].split(",").map(Number);
-      order(c, { kind: "hunt", x: cx2 * TCELL + TCELL / 2 + (Math.random() * 80 - 40), y: cy2 * TCELL + TCELL / 2 + (Math.random() * 80 - 40) });
+      if (cells.length) {
+        const [cx2, cy2] = cells[Math.floor(Math.random() * cells.length)].split(",").map(Number);
+        order(c, { kind: "hunt", x: cx2 * TCELL + TCELL / 2 + (Math.random() * 80 - 40), y: cy2 * TCELL + TCELL / 2 + (Math.random() * 80 - 40) });
+      } else {
+        const a = Math.random() * Math.PI * 2, base = c.home || c;
+        order(c, { kind: "hunt", x: base.x + Math.cos(a) * 260, y: base.y + Math.sin(a) * 260 });
+      }
     }
     return;
   }
