@@ -479,7 +479,23 @@ function menace() {
 // it simply stops doubling, so an empire is hard-pressed and not merely drowned.
 function difficulty() { return Math.max(1, Math.min(20, Math.round(menace()))); }
 // how many may come at once, and how many camps the woods can hold
-function maxRaiders() { return Math.max(4, Math.min(18, Math.round(2 + menace() * 0.8))); }
+// ===== how many may come for you at once =====
+// A hard ceiling of seven, and never more than two more than you have men to
+// answer with. The reckoning still decides how OFTEN they come, how big a camp
+// grows and how hard each man hits — it no longer decides how many of them are
+// standing in your street, because that was the number that made the game
+// unplayable. Two soldiers means four attackers, not eighteen.
+const HARD_ATTACKER_CAP = 7;
+function attackerCap() {
+  const army = civs.filter(isForce).length;
+  return Math.max(1, Math.min(HARD_ATTACKER_CAP, army + 2));
+}
+// Everyone actually coming for you — camp raiders and crowns' men counted
+// together, since two separate caps of seven is a street with fourteen men in
+// it. Camp patrols and a foreign town's garrison never march on you, so they
+// are not in this number.
+const attackersAfield = () => raiders.filter(r => r.state !== "patrol" && !r.garrison).length;
+function maxRaiders() { return attackerCap(); }
 function campCap() { return Math.max(1, Math.min(MAX_CAMPS, 1 + Math.floor(menace() / 4))); }
 const settlements = [];               // {name, pop, mx, my} on the Europe map
 const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false, civBuild: false };
@@ -703,8 +719,7 @@ function mkRaider(camp, state) {
            state, anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, wpx: camp.x, wpy: camp.y };
 }
 function spawnRaid() {
-  const attackers = raiders.filter(r => r.state !== "patrol").length;
-  if (!camps.length || attackers >= maxRaiders()) return;
+  if (!camps.length || attackersAfield() >= attackerCap()) return;
   // raiders go where the coin is — an empty chest is not worth the walk
   const towns = townsWithBuildings().filter(t => townCoin(t) >= 5);
   if (!towns.length) return;
@@ -713,14 +728,15 @@ function spawnRaid() {
   let n = (camp.type === "raid" ? 3 : 2) + Math.floor(menace() / 5);
   const targets = raidTargetsIn(town);
   if (!targets.length) return;
-  // the patrol decides it is a good time to strike
+  // the patrol decides it is a good time to strike — but a watchman who steps
+  // off to attack is an attacker, and counts against the field like any other
   for (const pr of raiders.filter(r => r.camp === camp && r.state === "patrol")) {
-    if (n <= 0) break;
+    if (n <= 0 || attackersAfield() >= attackerCap()) break;
     pr.state = "approach";
     pr.target = targets[Math.floor(Math.random() * targets.length)];
     n--;
   }
-  for (let i = 0; i < n && raiders.filter(r => r.state !== "patrol").length < maxRaiders(); i++) {
+  for (let i = 0; i < n && attackersAfield() < attackerCap(); i++) {
     const r = mkRaider(camp, "approach");
     r.target = targets[Math.floor(Math.random() * targets.length)];
     raiders.push(r);
@@ -778,10 +794,14 @@ function updateRaider(r, dt) {
     // circle the camp, watchful, until the strike
     const d = Math.hypot(r.wpx - r.x, r.wpy - r.y);
     if (d < 8 || !camps.includes(r.camp)) {
-      if (!camps.includes(r.camp)) {   // camp sacked: vengeance
+      if (!camps.includes(r.camp)) {   // camp sacked: vengeance, if there is room for it
         const targets = buildings.filter(b => b.type !== "burned");
-        if (targets.length) { r.state = "approach"; r.target = targets[Math.floor(Math.random() * targets.length)]; }
-        else { raiders.splice(raiders.indexOf(r), 1); }
+        // a watchman stepping off to avenge his camp is one more man coming for
+        // you, and the field's ceiling counts him like any other. With no room,
+        // he melts into the woods instead of making the street eight deep.
+        if (targets.length && attackersAfield() < attackerCap()) {
+          r.state = "approach"; r.target = targets[Math.floor(Math.random() * targets.length)];
+        } else { raiders.splice(raiders.indexOf(r), 1); }
         return;
       }
       const a = Math.random() * Math.PI * 2, rad = 70 + Math.random() * 110;
@@ -4071,7 +4091,7 @@ function foreignTownFalls(town) {
 // together. Four crowns at war used to mean four separate streams, each keeping
 // its own time and none of them aware of the others — which is how a colony ends
 // up facing hundreds. They share one field now.
-function warPartyCap() { return Math.max(6, Math.min(20, Math.round(4 + menace() * 0.7))); }
+function warPartyCap() { return attackerCap(); }
 // a town's own garrison never marches on you — it must not eat the field either
 const warPartiesAfield = () => raiders.filter(r => r.nation && !r.garrison).length;
 
@@ -4082,12 +4102,15 @@ function updateWars(dt) {
     n.warT -= dt;
     if (n.warT <= 0) {
       // Every crown that joins the war lengthens each crown's own turn, so a
-      // second enemy makes the war wider rather than twice as fast.
-      n.warT = (330 + Math.random() * 210) * Math.max(1, atWar * 0.7);
+      // second enemy makes the war wider rather than twice as fast. It is capped
+      // now: with the field itself limited to attackerCap(), stretching this too
+      // far bought nothing but silence — six crowns at war meant a quarter of an
+      // hour between one crown's parties and no attack landing at all.
+      n.warT = (330 + Math.random() * 210) * Math.min(1.8, Math.max(1, atWar * 0.5));
       if (season() === "winter") continue;   // armies do not march in the snow
       // a war party marches on ONE town — settlements are not spared the war
       const towns = townsWithBuildings();
-      if (!towns.length || warPartiesAfield() >= warPartyCap()) continue;
+      if (!towns.length || attackersAfield() >= attackerCap()) continue;
       const town = towns[Math.floor(Math.random() * towns.length)];
       const targets = raidTargetsIn(town);
       if (!targets.length) continue;
@@ -4098,7 +4121,7 @@ function updateWars(dt) {
       let sent = 0;
       for (let i = 0; i < partySize; i++) {
         // the cap is a wall, not a suggestion: test it for every man sent
-        if (warPartiesAfield() >= warPartyCap()) break;
+        if (attackersAfield() >= attackerCap()) break;
         const t = targets[Math.floor(Math.random() * targets.length)];
         const whp = 90 + (difficulty() - 1) * 6 + st * 3;
         raiders.push({ x: cx + Math.cos(a) * 1300 + i * 30, y: cy + Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
@@ -5333,7 +5356,7 @@ function update(dt) {
       patrolT = 20;
       for (const cp of camps) {
         const onWatch = raiders.filter(r => r.camp === cp && r.state === "patrol").length;
-        if (onWatch < 2 && raiders.length < maxRaiders() + 8) raiders.push(mkRaider(cp, "patrol"));
+        if (onWatch < 2 && raiders.length < attackerCap() + 6) raiders.push(mkRaider(cp, "patrol"));
       }
     }
   }
@@ -5348,19 +5371,25 @@ function update(dt) {
       const town = openTowns.length ? openTowns[Math.floor(Math.random() * openTowns.length)] : undefined;
       const guards = civs.filter(c => isForce(c) && c.state !== "sleeping" && townAt(c.x, c.y) === town);
       const targets = town === undefined ? [] : raidTargetsIn(town).filter(b => !b.fire);
-      if (targets.length && raiders.filter(r => r.state !== "patrol").length < maxRaiders() + 2) {
+      if (targets.length && attackersAfield() < attackerCap()) {
         const tx = town ? town.x : 0, ty = town ? town.y : 0;
         let camp = camps[0], bd = Infinity;
         for (const cp of camps) { const d = Math.hypot(cp.x - tx, cp.y - ty); if (d < bd) { bd = d; camp = cp; } }
-        for (let i = 0; i < 3; i++) {
+        let sent = 0;
+        // three come out of the dark — but never past the field's ceiling. Testing
+        // it once and then pushing three was how a cap of two became three men.
+        for (let i = 0; i < 3 && attackersAfield() < attackerCap(); i++) {
           const r = mkRaider(camp, "approach");
           r.target = targets[Math.floor(Math.random() * targets.length)];
           r.arsonist = Math.random() < 0.5;   // half come to burn, half to steal
           if (guards.length && i === 0) r.foe = guards[Math.floor(Math.random() * guards.length)];
           raiders.push(r);
+          sent++;
         }
-        SFX.warHorn();
-        toast("⚠ Raiders pour out of the dark — the town is unwalled and they know it!");
+        if (sent) {
+          SFX.warHorn();
+          toast("⚠ Raiders pour out of the dark — the town is unwalled and they know it!");
+        }
       }
     }
   } else ambushT = Math.max(ambushT, 25);
