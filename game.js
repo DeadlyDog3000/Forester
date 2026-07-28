@@ -296,6 +296,22 @@ const armSkill  = (c, id) => 1 + 0.55 * (skillLvl(c, id) - 1) / (SKILL_MAX - 1);
 const skillXpNeeded = lvl => Math.round(6 + lvl * 2.6);
 const trainCost = lvl => 3 + Math.floor(lvl * 0.8);
 function freshSkills() { const s = {}; for (const k of SKILLS) s[k.id] = 1; return s; }
+// Write only what a man has actually learned. Every soul carries all ten, and
+// most of them carry ten ones — writing those out cost better than a quarter of
+// a typical colony's save for no information at all. The loader fills the rest
+// back in from freshSkills(), so a partial record reads exactly the same.
+function skSave(c) {
+  if (!c.sk) return undefined;
+  const o = {};
+  for (const s of SKILLS) if (c.sk[s.id] > 1) o[s.id] = c.sk[s.id];
+  return Object.keys(o).length ? o : undefined;
+}
+function sxSave(c) {
+  if (!c.sx) return undefined;
+  const o = {};
+  for (const s of SKILLS) if (c.sx[s.id]) o[s.id] = Math.round(c.sx[s.id]);
+  return Object.keys(o).length ? o : undefined;
+}
 // Work teaches. Called wherever a task is actually finished, never per frame.
 function gainSkill(c, id, amount) {
   if (!c || !c.sk) return;
@@ -4651,7 +4667,7 @@ function saveGame() {
         happiness: r1(c.happiness), rebel: c.rebel, armed: c.armed, tool: c.tool,
         post: c.post ? { x: r1(c.post.x), y: r1(c.post.y) } : undefined,
         state: c.state === "inside" ? "inside" : undefined, shelter: bi(c.shelter),
-        sk: c.sk, sx: c.sx,
+        sk: skSave(c), sx: sxSave(c),
         conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
         inv: { ...c.inv },
       })),
