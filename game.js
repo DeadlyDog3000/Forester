@@ -1279,7 +1279,21 @@ function setPause(open) {
            $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
   try { SFX.pauseAll(pauseOpen); } catch (e) {}
 }
+// Typing is not driving. While the caret sits in a text field, the keyboard
+// belongs to that field: naming a settlement "Waldheim" should not walk the
+// camera halfway across the map on the W and the A. A handful of fields used to
+// stop the event themselves, and every field added since forgot to.
+const typingInto = e => {
+  const t = e.target;
+  if (!t || t === document.body) return false;
+  return t.isContentEditable === true || t.tagName === "INPUT" ||
+         t.tagName === "TEXTAREA" || t.tagName === "SELECT";
+};
 addEventListener("keydown", e => {
+  if (typingInto(e)) {
+    if (e.key === "Escape") e.target.blur();   // a way out that never traps the caret
+    return;
+  }
   keys[e.key.toLowerCase()] = true;
   if (e.key.toLowerCase() === "r" && WALLLIKE.has(buildMode)) {
     wallRot = wallRot ? 0 : 1;
@@ -1291,7 +1305,10 @@ addEventListener("keydown", e => {
     else if (gameState === "playing" || pauseOpen) setPause(!pauseOpen);
   }
 });
+// A key is always released, wherever it was pressed — never leave one stuck down.
 addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+// and a key still held when the caret enters a field must not go on driving
+addEventListener("focusin", e => { if (typingInto(e)) for (const k in keys) keys[k] = false; });
 canvas.addEventListener("mousemove", e => {
   mouse.x = e.clientX; mouse.y = e.clientY;
   if (roadDrag) roadStretch(e.clientX, e.clientY);
@@ -4599,6 +4616,7 @@ function endCutscene() {
   syncUI();
 }
 addEventListener("keydown", e => {
+  if (typingInto(e)) return;   // a space in a settlement's name is not "skip"
   if (gameState === "cutscene" && (e.code === "Space" || e.key === "Enter")) { e.preventDefault(); advanceCutscene(); }
   if (gameState === "vignette" && (e.code === "Space" || e.key === "Enter")) { e.preventDefault(); advanceVignette(); }
 });
