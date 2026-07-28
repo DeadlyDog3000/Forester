@@ -181,10 +181,15 @@ function volleyReady(line, c) {
 // inside the loop instead and the first man updated fires alone, then everyone
 // else spends their patience waiting on the ramrod he is already working — which
 // is a straggling shot followed by a volley of seven, over and over.
+// A civilian's mark lives in c.task.target — `c.foe` is the raiders' field and no
+// civ ever sets one. Matching on it here meant the line was always empty, nobody
+// was ever given leave to fire, and the muskets fell silent altogether.
+const inTheLine = c => c.profession === "musketeer" && !c.rebel &&
+                       c.state === "fighting" && c.task && c.task.target;
 function planVolleys() {
   const line = [];
-  for (const c of civs) if (c.profession === "musketeer" && !c.rebel && c.foe) line.push(c);
-  for (const c of line) c.mayFire = volleyReady(line, c);
+  for (const c of civs) if (inTheLine(c)) line.push(c);
+  for (const c of civs) c.mayFire = inTheLine(c) ? volleyReady(line, c) : true;
 }
 
 // Black powder makes a great deal of smoke and it is in no hurry to leave. A
@@ -5873,7 +5878,10 @@ function update(dt) {
         if (c.loaded && c.fireT <= 0 && d <= MUSKET_RANGE + 10) {
           // shouldered, mark taken — now wait on the men beside him
           c.volleyT = (c.volleyT || 0) + dt;
-          if (!c.mayFire) { c.anim += dt * 2; continue; }   // shouldered, waiting on the line
+          // fail open: only an explicit `false` holds a man back. If the planner
+          // ever misses him, he shoots — a musket that will not fire is a worse
+          // bug than a ragged volley, and that is exactly how this broke.
+          if (c.mayFire === false) { c.anim += dt * 2; continue; }
           c.volleyT = 0;
           let dmg = musketDmg(d);            // struck harder the nearer the muzzle
           if (nearWatchtower(c.x, c.y)) dmg += 5;
