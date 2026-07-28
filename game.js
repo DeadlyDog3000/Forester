@@ -3167,6 +3167,7 @@ function openSkills(c) {
   if (!c) return;
   skillCiv = c;
   $("skillPanel").style.display = "block";
+  $("skTree").dataset.sig = "";   // a fresh open always paints, whatever was left behind
   SFX.popup();
   syncSkills();
 }
@@ -3181,7 +3182,16 @@ function syncSkills() {
     `${c.child ? "child" : profLabel(c.profession)}, ${c.age !== undefined ? c.age : "?"} yrs` +
     ` · ${total} levels in all of ${SKILLS.length * SKILL_MAX} · treasury ${Math.round(res.dm)} DM`;
 
+  // Rebuild only when there is something new to show. syncUI runs four times a
+  // second, and tearing the whole tree down that often is not just waste: a
+  // button the player is pressing is destroyed under their finger, so the click
+  // lands on nothing and the training silently fails. Hover and focus died with
+  // it too. The signature is everything the tree actually draws.
+  const sig = c.name + "|" + Math.round(res.dm) + "|" +
+              SKILLS.map(s => skillLvl(c, s.id) + ":" + Math.floor((c.sx && c.sx[s.id]) || 0)).join(",");
   const tree = $("skTree");
+  if (tree.dataset.sig === sig) return;
+  tree.dataset.sig = sig;
   tree.innerHTML = "";
   for (const branch of SKILL_BRANCHES) {
     const col = document.createElement("div");
@@ -4214,9 +4224,13 @@ function foreignTownFalls(town) {
     if (b.town !== town) continue;
     foreign.splice(i, 1);
     if (b.keep) {
-      // the hall itself burns down to a charred ruin you may rebuild
-      buildings.push({ type: "burned", x: b.x, y: b.y, progress: -1, occupants: [], fire: 0,
-                       torchP: -1, placed: true, bakeT: 0 });
+      // The hall itself burns down to a charred ruin you may rebuild. It is a
+      // town hall's ruin, and rebuilds into a town hall: without `was` it fell
+      // back to the generic cabin wreck and a storming party's prize turned into
+      // somebody's cottage.
+      buildings.push({ type: "burned", was: "townhall", x: b.x, y: b.y, progress: -1,
+                       occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0,
+                       hp: 100, maxHp: 100 });
       continue;
     }
     // roofs, walls and workshops left standing change hands, damage and all
