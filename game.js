@@ -158,6 +158,27 @@ function emptyShelter(b, reason) {
   if (inside.length && reason) toast(`${inside.length} driven out of the ${BLDG_NAMES[b.type] || b.type} — ${reason}.`);
 }
 
+// ===== stone is climbed, not broken =====
+// Timber can be hacked apart or set alight. Dressed stone can be neither, and a
+// besieger who stands in front of it swinging is wasting his afternoon. He goes
+// over it instead: slow, both hands occupied, and no use to anyone until he is
+// down the far side — but the wall is still standing when he gets there.
+const CLIMB_TIME = 6;
+const STONE = new Set(["stonewall", "stonegate"]);
+// set a climber down on the far side, on the line from the wall to what they want
+function overTheWall(u, w, goal) {
+  const gx = goal && goal.x !== undefined ? goal.x : w.x;
+  const gy = goal && goal.y !== undefined ? goal.y : w.y + 60;
+  let dx = gx - w.x, dy = gy - w.y;
+  let d = Math.hypot(dx, dy);
+  if (d < 1) { dx = 0; dy = 1; d = 1; }        // no goal worth the name: just drop inside
+  const rect = bldgRect(w);
+  const clear = Math.max(rect.w, rect.h) / 2 + 30;
+  u.x = w.x + dx / d * clear;
+  u.y = w.y + dy / d * clear;
+  w.climbP = 0;
+}
+
 // ===== ruins =====
 // What a fire leaves behind. Everything with a charred sprite drawn for it stays
 // on the map as a wreck that can be rebuilt; earthworks are not burned down, so
@@ -670,7 +691,8 @@ function updateRaider(r, dt) {
     if (b.type === "ditch" && pointInRect(r.x, r.y, inflate(bldgRect(b), 4))) { speed *= 0.6; break; }
   }
   // fight anyone who is fighting us, or any force unit close by
-  if (!r.foe || (!civs.includes(r.foe))) {
+  if (r.state === "climbWall") r.foe = null;      // both hands on the stone
+  else if (!r.foe || (!civs.includes(r.foe))) {
     r.foe = null;
     for (const c of civs) if (isForce(c) && !INDOORS.has(c.state) && Math.hypot(c.x - r.x, c.y - r.y) < 90) { r.foe = c; break; }
   }
@@ -742,10 +764,26 @@ function updateRaider(r, dt) {
     }
     return;
   }
+  // Stone is not hacked down and it is not burned. It is got over, and getting
+  // over it takes both hands and a long moment with your back to the town — the
+  // wall is not spent to let a man in, but the man is helpless while he is on it.
+  if (r.state === "climbWall") {
+    const w = r.wallTarget;
+    if (!buildings.includes(w)) { r.state = "approach"; r.wallTarget = null; r.workT = 0; return; }
+    r.workT += dt;
+    w.climbP = Math.max(w.climbP || 0, r.workT / CLIMB_TIME);
+    r.anim += dt * 3;
+    r.facing = w.x < r.x ? -1 : 1;
+    if (r.workT >= CLIMB_TIME) {
+      overTheWall(r, w, r.target);
+      r.state = "approach"; r.wallTarget = null; r.workT = 0;
+    }
+    return;
+  }
   if (r.state === "torchWall") {
     const w = r.wallTarget;
     if (!buildings.includes(w) || w.fire) { r.state = "approach"; r.wallTarget = null; return; }
-    if (w.type === "stonewall" || w.type === "stonegate") { r.state = "axeWall"; r.atkT = ATK_INTERVAL; return; }   // stone doesn't burn
+    if (STONE.has(w.type)) { r.state = "climbWall"; r.workT = 0; return; }   // stone neither burns nor splinters
     r.workT += dt; w.torchP = r.workT / (torchTime() * 0.8); r.anim += dt * 9;
     if (r.workT >= torchTime() * 0.8) {
       w.torchP = -1; w.fire = FIRE_TIME * 0.7;
@@ -761,7 +799,7 @@ function updateRaider(r, dt) {
     if (d < 30) {
       // a crown's soldiers are not thieves: they take the ground and hold it
       if (r.nation) { r.state = "occupy"; r.workT = 0; r.holdX = r.x; r.holdY = r.y; }
-      else if (r.arsonist && t.type !== "stonewall" && t.type !== "stonegate") { r.state = "torchWall"; r.wallTarget = t; r.workT = 0; }
+      else if (r.arsonist && !STONE.has(t.type)) { r.state = "torchWall"; r.wallTarget = t; r.workT = 0; }
       else { r.state = "steal"; r.workT = 0; }
     }
     else {
@@ -780,7 +818,7 @@ function updateRaider(r, dt) {
           r.y += (weakest.y + 26 - r.y) / Math.max(1, Math.hypot(weakest.x - r.x, weakest.y + 26 - r.y)) * speed * dt;
           if (Math.hypot(weakest.x - r.x, weakest.y - r.y) > 40) { r.anim += dt * 8; return; }
         }
-        r.state = (weakest.type === "stonewall" || weakest.type === "stonegate") ? "axeWall" : (Math.random() < 0.5 ? "torchWall" : "axeWall");
+        r.state = STONE.has(weakest.type) ? "climbWall" : (Math.random() < 0.5 ? "torchWall" : "axeWall");
         r.wallTarget = weakest; r.workT = 0;
         return;
       }
@@ -2026,6 +2064,11 @@ function arrive(c) {
     c.state = "digging"; c.workT = 0;
     return;
   }
+  if (t.kind === "climb") {
+    if (!t.target || !foreign.includes(t.target)) { c.state = "idle"; c.task = null; return; }
+    c.state = "climbing"; c.workT = 0;
+    return;
+  }
   if (t.kind === "repair") {
     // `b` was never declared here: every repair order has thrown on arrival since
     // the day it was written, swallowed by the frame guard, and no ruin was ever
@@ -2293,9 +2336,21 @@ function happinessTarget(c) {
   return Math.max(0, Math.min(100, t));
 }
 
-function maybeRebel(c) {
+// A wretched man turns against the colony now and then. He does not turn within
+// a fifth of a second, and neither does everyone else he has ever met.
+//
+// This roll was a flat 8% and it ran once per FRAME, so at sixty frames a second
+// it was better than a 99% chance every second: the instant colony happiness dipped
+// under 25 the ENTIRE population went rebel at once, armed itself from the armoury
+// and started burning the town. Sixty people is sixty hostiles, and the bigger the
+// colony the bigger the mob — which is why it looked like an endless raider horde
+// and why it got worse the better you were doing. It is a rate per second now, and
+// the wretched turn sooner than the merely miserable.
+const REBEL_RATE = 0.015;                      // ~1 in 67 seconds at the very bottom
+function maybeRebel(c, dt) {
   if (c.rebel || isForce(c) || c.child || civs.length < 2) return;
-  if (c.happiness < 25 && Math.random() < 0.08) {
+  const bite = REBEL_RATE * (1 + (25 - c.happiness) / 25);
+  if (c.happiness < 25 && Math.random() < bite * (dt || 0)) {
     c.rebel = true;
     const lawAllows = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
     if (lawAllows && forgeBuilt() && res.weapons > 0) { res.weapons--; c.armed = true; }
@@ -3700,7 +3755,6 @@ document.getElementById("miAssault").addEventListener("click", () => {
 });
 
 // --- axe or fire: how a wall, gate or roof of theirs is to come down ---
-const STONE = new Set(["stonewall", "stonegate"]);
 let siegeTarget = null;
 function siegeOrder(fb, kind) {
   const grp = soldierGroup().filter(isForce);
@@ -3708,15 +3762,20 @@ function siegeOrder(fb, kind) {
   grp.forEach((s, i) => { s.post = null; order(s, { kind, target: fb,
     x: fb.x + (i % 3 - 1) * 30, y: fb.y + 22 + Math.floor(i / 3) * 16 }); });
   const what = fb.keep ? `the town hall of ${fb.town.name}` : (BLDG_NAMES[fb.type] || fb.type);
-  toast(kind === "torch" ? `${grp.length} carry fire to ${what}!` : `${grp.length} set about ${what} with axes.`);
+  toast(kind === "torch" ? `${grp.length} carry fire to ${what}!`
+        : kind === "climb" ? `${grp.length} go up ${what} — it will not be broken, only crossed.`
+        : `${grp.length} set about ${what} with axes.`);
   closeSiegeMenu();
 }
 function openSiegeMenu(fb, clientX, clientY) {
   siegeTarget = fb;
   const m = $("siegeMenu");
   $("siegeWhat").textContent = (BLDG_NAMES[fb.type] || fb.type).toUpperCase() + " — " + fb.town.name;
-  // stone does not burn: the axe is the only way through
-  $("siegeTorch").style.display = STONE.has(fb.type) ? "none" : "block";
+  // Stone neither burns nor splinters. It is crossed, and only crossed.
+  const stone = STONE.has(fb.type);
+  $("siegeTorch").style.display = stone ? "none" : "block";
+  $("siegeChop").style.display = stone ? "none" : "block";
+  $("siegeClimb").style.display = stone ? "block" : "none";
   m.style.display = "block";
   m.style.left = Math.min(window.innerWidth - 190, Math.max(8, clientX + 12)) + "px";
   m.style.top = Math.min(window.innerHeight - 110, Math.max(8, clientY - 20)) + "px";
@@ -3726,6 +3785,7 @@ function openSiegeMenu(fb, clientX, clientY) {
 function closeSiegeMenu() { siegeTarget = null; $("siegeMenu").style.display = "none"; }
 $("siegeChop").addEventListener("click", () => { if (siegeTarget) siegeOrder(siegeTarget, "siege"); });
 $("siegeTorch").addEventListener("click", () => { if (siegeTarget) siegeOrder(siegeTarget, "torch"); });
+$("siegeClimb").addEventListener("click", () => { if (siegeTarget) siegeOrder(siegeTarget, "climb"); });
 
 // ===== foreign border towns: real ground to be taken, not a roll of dice =====
 // A crown at war plants a walled town within a march of your colony. Its keep is
@@ -5242,6 +5302,8 @@ function update(dt) {
       }
     }
   } else ambushT = Math.max(ambushT, 25);
+  for (const b of buildings) if (b.climbP) b.climbP = 0;   // climbers re-assert it below
+  for (const f of foreign) if (f.climbP) f.climbP = 0;
   for (const r of [...raiders]) updateRaider(r, dt);
   // a ball flies straight from the muzzle: it does not chase, and it can miss.
   // it moves faster than a frame is long, so test the whole path it swept, not
@@ -5329,7 +5391,7 @@ function update(dt) {
     if (c.conquered) c.conquered = Math.max(0, c.conquered - dt / 900);
     const target = happinessTarget(c);
     c.happiness += Math.sign(target - c.happiness) * Math.min(Math.abs(target - c.happiness), 2.5 * dt);
-    maybeRebel(c);
+    maybeRebel(c, dt);
 
     // winter cold: five minutes in the open kills (guards last seven)
     if (season() === "winter") {
@@ -5745,6 +5807,20 @@ function update(dt) {
         if (isForce(c) || c.armed) SFX.swing(); else SFX.swingFist();
         strikeUnit(c, foe, dmg);
       }
+    } else if (c.state === "climbing") {
+      // over an enemy's stone, the same slow business: both hands on the wall,
+      // no use to anyone until they are down inside it, and the wall unharmed
+      const w = c.task && c.task.target;
+      if (!w || !foreign.includes(w)) { c.state = "idle"; c.task = null; continue; }
+      c.workT += dt; c.anim += dt * 3;
+      w.climbP = Math.max(w.climbP || 0, c.workT / CLIMB_TIME);
+      if (c.workT >= CLIMB_TIME) {
+        const keep = foreign.find(f => f.keep && f.town === w.town) ||
+                     foreign.find(f => f.town === w.town && !STONE.has(f.type));
+        overTheWall(c, w, keep);
+        toast(`${c.name} is over the wall.`);
+        c.state = "idle"; c.task = null; c.workT = 0;
+      }
     } else if (c.state === "sieging") {
       const cp = c.task.target;
       // enemy town: the same storming, but the walls and roofs of a foreign crown
@@ -6044,6 +6120,7 @@ function render(dt) {
     ctx.globalAlpha = 1;
     if (b.progress >= 0) bar(b.x, b.y - BLDG_SIZE - 12, b.progress, "#7da083");
     if (b.torchP >= 0) bar(b.x, b.y - BLDG_SIZE - 12, b.torchP, "#d86a3a");
+    if (b.climbP > 0) bar(b.x, b.y - BLDG_SIZE - 12, Math.min(1, b.climbP), "#9ab0a2");   // someone is on it
     if (b.maxHp && b.hp < b.maxHp) bar(b.x, b.y - (SMALL_BLDG[b.type] || BLDG_SIZE) - 10, b.hp / b.maxHp, "#a05252");
     if (selectedBldg === b) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1;
