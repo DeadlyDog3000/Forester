@@ -50,7 +50,7 @@ const STATIC_COSTS = {
   recruit: { logs: 30, dm: 10 }, market: { logs: 25, dm: 8 }, sapling: { logs: 1, dm: 1 },
   watchtower: { logs: 15, stone: 5, dm: 6 }, bakery: { logs: 20, stone: 3, dm: 8 }, well: { logs: 10, stone: 8, dm: 4 },
   forge: { logs: 20, stone: 6, iron: 2, dm: 12 },
-  wall: { logs: 3, dm: 1 }, gate: { logs: 6, stone: 2, dm: 1 },
+  wall: { stone: 2, dm: 1 }, gate: { logs: 6, stone: 2, dm: 1 },
   townhall: { logs: 40, stone: 10, dm: 20 },
   stonewall: { stone: 4, dm: 1 }, stonegate: { stone: 7, logs: 2, dm: 2 },
   moat: { stone: 4, logs: 2, dm: 3 }, ditch: { logs: 2, dm: 1 },
@@ -2778,13 +2778,22 @@ document.addEventListener("click", e => {
     if ($(id) && !$(id).contains(e.target)) $(id).classList.remove("open");
 });
 
+// The government panel is the government of whichever town you are standing over
+// — its title has always said so, and its ledger has always shown that town's
+// stores. Only the rename box disagreed, and proclaimed the capital's name
+// wherever you were standing. It renames what the panel says it is renaming now.
+function govTown() {
+  return townAt(cam.x + canvas.width / 2 / zoom, cam.y + canvas.height / 2 / zoom);
+}
 $("renameBtn").addEventListener("click", () => {
   const v = $("renameInput").value.trim();
   if (!v) return toast("A settlement needs a name.");
-  settlementName = v;
+  const t = govTown();
+  const was = t ? t.name : settlementName;
+  if (t) t.name = v; else settlementName = v;
   $("renameInput").value = "";
-  toast(`The settlement is proclaimed: ${settlementName}.`);
-  syncUI();
+  toast(`${was} is proclaimed anew: ${v}.`);
+  renderMap(); syncUI();
 });
 $("renameInput").addEventListener("keydown", e => { if (e.key === "Enter") $("renameBtn").click(); e.stopPropagation(); });
 $("kingdomBtn").addEventListener("click", () => {
@@ -2891,15 +2900,24 @@ $("cpDeposit").addEventListener("click", () => {
   toast(moved ? `${selected.name} hands ${moved} item(s) to ${town ? town.name + "'s" : "the town"} storage.` : `${selected.name} has nothing to hand over.`);
   syncUI();
 });
+// An order given to a picked army is given to the army: a company that has just
+// come off a camp does not want its wounds mended one man at a time.
 $("cpHeal").addEventListener("click", () => {
-  const c = selected;
-  if (!c) return;
-  if (c.hp >= c.maxHp) return toast(`${c.name} is already hale and whole.`);
-  if (foodWithinReach(c) <= 0)
-    return toast(isForce(c) ? "No food anywhere in the empire — bake bread or hunt before ordering a heal."
-                            : "No food to hand — bake bread or hunt before ordering a heal.");
-  c.task = null; c.state = "healing"; c.workT = 0;
-  toast(`${c.name} sits down to eat until their wounds mend.`);
+  if (!selected) return;
+  const grp = soldierGroup();
+  const band = grp.length > 1 ? grp : [selected];
+  const hurt = band.filter(c => c.hp < c.maxHp);
+  if (!hurt.length)
+    return toast(band.length > 1 ? "They are all hale and whole." : `${selected.name} is already hale and whole.`);
+  const fed = hurt.filter(c => foodWithinReach(c) > 0);
+  if (!fed.length)
+    return toast(isForce(selected) ? "No food anywhere in the empire — bake bread or hunt before ordering a heal."
+                                   : "No food to hand — bake bread or hunt before ordering a heal.");
+  for (const c of fed) { c.task = null; c.state = "healing"; c.workT = 0; }
+  const short = hurt.length - fed.length;
+  toast(fed.length > 1
+    ? `${fed.length} sit down to eat until their wounds mend.${short ? ` ${short} can reach no food.` : ""}`
+    : `${fed[0].name} sits down to eat until their wounds mend.`);
   syncUI();
 });
 $("cpGiveWeapon").addEventListener("click", () => {
@@ -2959,8 +2977,14 @@ $("bpDismantle").addEventListener("click", () => {
     toast("The farm is dismantled — 1 log recovered.");
   } else {
     if (b.fire) return toast("It is on fire — no one is dismantling that.");
-    const base = b.type === "burned" ? 10 : (costOf(b.type === "cabin" ? "cabin" : b.type) || { logs: 10 }).logs;
-    const refund = Math.floor(base * dismantleRefund());
+    // refund whatever it was actually built from — a stone wall gives back stone,
+    // and a logs-only rule quietly paid nothing at all for anything stone-built
+    const built = b.type === "burned" ? { logs: 10 } : (costOf(b.type === "cabin" ? "cabin" : b.type) || { logs: 10 });
+    const rate = dismantleRefund();
+    const back = {};
+    for (const k of ["logs", "stone", "iron", "seeds"])
+      if (built[k]) { const n = Math.floor(built[k] * rate); if (n > 0) back[k] = n; }
+    const refund = back.logs || 0;
     for (const o of b.occupants) {
       o.home = null;
       if (INDOORS.has(o.state)) { o.state = "idle"; o.y = b.y + 24; }
@@ -2968,8 +2992,9 @@ $("bpDismantle").addEventListener("click", () => {
     emptyShelter(b, "it is being pulled down");
     const dl = ledgerAt(b.x, b.y);
     buildings.splice(buildings.indexOf(b), 1);
-    dl.logs = (dl.logs || 0) + refund;
-    toast(`Dismantled — ${refund} logs recovered.`);
+    for (const k in back) dl[k] = (dl[k] || 0) + back[k];
+    const parts = Object.entries(back).map(([k, n]) => `${n} ${k}`);
+    toast(parts.length ? `Dismantled — ${parts.join(", ")} recovered.` : "Dismantled — nothing worth keeping.");
   }
   selectedBldg = null;
   syncUI();
@@ -4919,6 +4944,8 @@ function syncUI() {
     $("bpInfo").textContent = `${d.name}, ${d.profession}, ${d.cause} in the year ${d.year}, aged ${d.age}.` +
       (selectedGrave.stone ? " The stone stands." : " Awaiting a gravestone.");
     $("bpOcc").textContent = "at rest";
+    $("bpOccList").style.display = "none";
+    $("bpTurnOut").style.display = "none";
     $("bpDismantle").style.display = "none";
     $("bpBuyWeapon").style.display = "none";
     return;
@@ -4930,6 +4957,8 @@ function syncUI() {
     $("bpName").textContent = cp.type === "thief" ? "THIEF CAMP" : "RAID CAMP";
     $("bpInfo").textContent = `Hostile. Strength ${Math.round(cp.hp)}/${cp.maxHp}. Rumoured loot: DM and weapons. Send soldiers to sack it.`;
     $("bpOcc").textContent = "—";
+    $("bpOccList").style.display = "none";
+    $("bpTurnOut").style.display = "none";
     $("bpDismantle").style.display = "none";
   } else {
     bp.style.display = "block";
@@ -4948,9 +4977,29 @@ function syncUI() {
       b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
       b.type === "gate" ? "Your people pass freely; raiders must burn it down." : "Standing.";
     const inside = isFarm ? [] : sheltering(b);
-    const lives = isFarm ? "" : (b.occupants.length ? b.occupants.map(o => o.name).join(", ") : "none");
     $("bpOcc").textContent = isFarm ? "—"
-      : lives + (inside.length ? ` · inside: ${inside.map(o => o.name).join(", ")}` : "");
+      : `${b.occupants.length} living here${inside.length ? `, ${inside.length} indoors` : ""}`;
+    // Everyone under this roof, by name and pickable. Someone standing inside is
+    // not on the map to be clicked, so without this there is no way to reach them.
+    const roll = [];
+    for (const o of (isFarm ? [] : b.occupants)) roll.push({ c: o, note: "lives here" });
+    for (const o of inside) if (!roll.some(r => r.c === o)) roll.push({ c: o, note: "sheltering" });
+    for (const r of roll) if (inside.includes(r.c) && r.note === "lives here") r.note = "lives here, indoors";
+    const list = $("bpOccList");
+    list.innerHTML = "";
+    list.style.display = roll.length ? "block" : "none";
+    for (const { c, note } of roll) {
+      const row = document.createElement("button");
+      row.className = "btn menu-item";
+      row.style.fontSize = "11px";
+      row.textContent = `${c.name} — ${c.child ? "child" : profLabel(c.profession)} (${note})`;
+      row.addEventListener("click", () => {
+        selected = c; selectedBldg = null; selectedCamp = null; selectedGrave = null;
+        selGroup = groupable(c) ? [c] : [];
+        syncUI();
+      });
+      list.appendChild(row);
+    }
     $("bpTurnOut").style.display = inside.length ? "block" : "none";
     $("bpTurnOut").textContent = inside.length > 1 ? `Turn out all ${inside.length}` : "Turn them out";
     $("bpBuyWeapon").style.display = (!isFarm && b.type === "forge" && (b.shop || []).some(i => i.kind === "weapon")) ? "block" : "none";
