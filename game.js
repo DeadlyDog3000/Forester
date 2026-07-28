@@ -3965,8 +3965,12 @@ function updateOccupation(dt) {
       if (t) t.siegeT = v; else capitalSiegeT = v;
       continue;
     }
-    // anyone of yours still fighting for it keeps the flag flying
-    const defended = civs.some(d => !d.rebel && d.hp > 0 && Math.hypot(d.x - c.x, d.y - c.y) < 420);
+    // Anyone of yours still fighting for it keeps the flag flying — but a man
+    // under a roof is hiding, not holding. Indoor folk stand at the building's
+    // own coordinates, so without this the whole town could shelter inside and
+    // hold the ground forever without a soul in the street to contest it.
+    const defended = civs.some(d => !d.rebel && d.hp > 0 && !INDOORS.has(d.state) &&
+                                    Math.hypot(d.x - c.x, d.y - c.y) < 420);
     const cur = (t ? t.siegeT : capitalSiegeT) || 0;
     if (defended) { const v = Math.max(0, cur - dt * 2); if (t) t.siegeT = v; else capitalSiegeT = v; continue; }
     const next = cur + dt;
