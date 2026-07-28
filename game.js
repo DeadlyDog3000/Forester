@@ -28,6 +28,15 @@ const MUSKET_KEEP_AWAY = 110;   // closer than this, an unbayoneted musketeer gi
 // where the muzzle sits in world units: sprite row 4, column 28 of a 32px frame drawn at CHAR_SIZE
 const MUZZLE_X = 24, MUZZLE_Y = 56;
 const reloadTime = () => has("flintlock") ? 4.5 : 7.5;   // powder, ball, ramrod — it takes what it takes
+// The loading drill, pinned to the four poses the sprite already cycles through
+// (mload0..3 change at a quarter, a half and three quarters of the way through),
+// so the man is heard doing the thing he is visibly doing.
+const RELOAD_DRILL = [
+  [0.01, () => SFX.powder()],   // cartridge torn, charge down the barrel
+  [0.25, () => SFX.seat()],     // ball and wad thumbed in
+  [0.50, () => SFX.ramrod()],   // the rod drawn and driven home
+  [1.00, () => SFX.cock()],     // shouldered, lock drawn back — ready
+];
 const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8, DODGE_CHANCE = 0.15;
 const EAT_HEAL = 15;
 const RAID_MIN = 240, RAID_MAX = 420, MAX_RAIDERS = 4, MAX_CAMPS = 6;
@@ -118,6 +127,68 @@ const isForce = c => c.profession === "police" || c.profession === "soldier" || 
 const PROF_LABEL = { musketeer: "line infantry" };
 const profLabel = p => (p ? (PROF_LABEL[p] || p) : "no trade");
 const profTitle = p => profLabel(p).replace(/\b\w/g, ch => ch.toUpperCase());
+
+// ===== going indoors =====
+// Not a fortification and not a home: a roof, and the right to stand under it.
+// A wall has no inside, a ruin has no roof left, and a staked-out plot is not
+// a building yet — everything else can simply be walked into.
+// The three ways of being under a roof: asleep in your own bed, warming yourself
+// at your own hearth, and simply having gone indoors because you were told to.
+// None of them can be seen, shot at, or snowed on.
+const INDOORS = new Set(["sleeping", "warming", "inside"]);
+const SHELTER_CAP = 4;
+const canShelter = b => !b.site && b.type !== "burned" && !WALLLIKE.has(b.type) && b.type !== "farm";
+const sheltering = b => civs.filter(c => c.shelter === b);
+// Turned out: back into the open, wherever the building happens to be standing.
+function turnOut(c, quiet) {
+  const b = c.shelter;
+  if (!b) return;
+  c.shelter = null;
+  if (c.state === "inside") {
+    c.state = "idle";
+    c.x = b.x + (Math.random() * 40 - 20); c.y = b.y + 24;
+  }
+  if (c.task && c.task.kind === "enter") c.task = null;
+  if (!quiet) toast(`${c.name} comes back outside.`);
+  syncUI();
+}
+function emptyShelter(b, reason) {
+  const inside = sheltering(b);
+  for (const c of inside) turnOut(c, true);
+  if (inside.length && reason) toast(`${inside.length} driven out of the ${BLDG_NAMES[b.type] || b.type} — ${reason}.`);
+}
+
+// ===== ruins =====
+// What a fire leaves behind. Everything with a charred sprite drawn for it stays
+// on the map as a wreck that can be rebuilt; earthworks are not burned down, so
+// a moat or a ditch simply goes. A ruin remembers what it was in `was`, and a
+// repair puts that back — losing a forge is a setback, not an erasure.
+const RUINS = new Set(["cabin", "recruit", "market", "watchtower", "bakery", "well",
+                       "forge", "townhall", "farm", "wall", "gate", "stonewall", "stonegate"]);
+// A ruin keeps the footprint of what it was: burnt wall, wall-shaped rubble.
+const baseType = b => (b.type === "burned" && b.was) ? b.was : b.type;
+const ruinKey = b => {
+  const was = b.was || "cabin";
+  const k = "burned_" + was + (b.rot && IMAGES["burned_" + was + "v"] ? "v" : "");
+  return IMAGES[k] ? k : "burned";
+};
+// A ruin is named for what it was: "Burned Forge", not a nameless heap.
+function bldgName(b) {
+  if (b.type === "burned" && b.was) return "Burned " + (BLDG_NAMES[b.was] || b.was);
+  return BLDG_NAMES[b.type] || b.type;
+}
+function ruin(b, how) {
+  const was = b.type;
+  if (!RUINS.has(was)) {
+    buildings.splice(buildings.indexOf(b), 1);
+    toast(`The ${BLDG_NAMES[was] || was} has ${how}.`);
+    return;
+  }
+  b.type = "burned"; b.was = was;
+  b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
+  b.fire = 0; b.torchP = -1;
+  toast(`The ${BLDG_NAMES[was] || was} has ${how}. It can be repaired by order.`);
+}
 // deep snow slows every traveller by a fifth — the road's packed lane still helps
 const snowPace = () => season() === "winter" ? 0.8 : 1;
 const walkSpeed = c => BASE_WALK * snowPace() * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1) * (c && c.profession === "cavalry" ? 1.45 : 1);
@@ -200,6 +271,12 @@ const IMAGES = {
   gate: "assets/sprites/buildings/gate_32.png",
   thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
 };
+// every structure a torch can reach, drawn once more as a cold wreck
+for (const k of ["recruit", "market", "watchtower", "bakery", "well", "forge", "townhall",
+                 "farm", "wall", "wallv", "gate", "gatev", "stonewall", "stonewallv",
+                 "stonegate", "stonegatev"])
+  IMAGES["burned_" + k] = `assets/sprites/buildings/burned_${k}_32.png`;
+IMAGES.burned_cabin = "assets/sprites/buildings/burned_house_32.png";   // the ruin that was always here
 // road pieces, indexed by which neighbours they join: 1 north, 2 east, 4 south, 8 west
 for (let i = 0; i < 16; i++) {
   IMAGES[`road${i}`] = `assets/sprites/env/road_${i}.png`;
@@ -595,7 +672,7 @@ function updateRaider(r, dt) {
   // fight anyone who is fighting us, or any force unit close by
   if (!r.foe || (!civs.includes(r.foe))) {
     r.foe = null;
-    for (const c of civs) if (isForce(c) && c.state !== "sleeping" && c.state !== "warming" && Math.hypot(c.x - r.x, c.y - r.y) < 90) { r.foe = c; break; }
+    for (const c of civs) if (isForce(c) && !INDOORS.has(c.state) && Math.hypot(c.x - r.x, c.y - r.y) < 90) { r.foe = c; break; }
   }
   if (r.foe) {
     const d = Math.hypot(r.foe.x - r.x, r.foe.y - r.y);
@@ -726,9 +803,11 @@ function updateRaider(r, dt) {
         float(b.x, b.y - 74, "-7", "#d86a5a");
         SFX.chop();
         if (b.hp <= 0) {
-          if (b.type === "cabin") { b.type = "burned"; b.hp = b.maxHp; for (const o of b.occupants) o.home = null; b.occupants = []; }
-          else buildings.splice(buildings.indexOf(b), 1);
+          for (const o of b.occupants) o.home = null;
+          b.occupants = [];
+          emptyShelter(b, "enemy soldiers are pulling it down");
           toast(`⚠ Enemy soldiers have wrecked a ${BLDG_NAMES[b.type] || b.type}!`);
+          ruin(b, "been wrecked");
         }
       } else {
         // nothing left standing here: mill about the ground they hold, but never
@@ -795,12 +874,13 @@ function strikeUnit(a, b, dmg) {
 // --- geometry ---
 const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72, stonewall: 64, stonegate: 76, moat: 64, ditch: 64 };
 function bldgRect(b) {
-  if (WALLLIKE.has(b.type)) {
-    const L = SMALL_BLDG[b.type];
+  const bt = baseType(b);
+  if (WALLLIKE.has(bt)) {
+    const L = SMALL_BLDG[bt];
     return b.rot ? { x: b.x - 11, y: b.y - L, w: 22, h: L }
                  : { x: b.x - L / 2, y: b.y - 22, w: L, h: 22 };
   }
-  const s = SMALL_BLDG[b.type] || BLDG_SIZE;
+  const s = SMALL_BLDG[bt] || BLDG_SIZE;
   return { x: b.x - s / 2, y: b.y - s, w: s, h: s };
 }
 let wallRot = 0;
@@ -1531,6 +1611,9 @@ function worldClick(clientX, clientY) {
     }
 
   for (const c of civs) {
+    // whoever is under a roof is not on the map to be clicked: they stand at the
+    // building's own coordinates, and would otherwise swallow every click on it
+    if (INDOORS.has(c.state)) continue;
     if (Math.abs(mouse.wx - c.x) < 24 && mouse.wy < c.y && mouse.wy > c.y - CHAR_SIZE) {
       if (selected && selected !== c && isForce(selected) && c.rebel) {
         const grp = soldierGroup().filter(isForce);
@@ -1594,6 +1677,19 @@ function worldClick(clientX, clientY) {
         } else { selectedBldg = f; f.type = "farm"; selected = null; syncUI(); }
         return;
       }
+    // stakes in the ground are an invitation: point anyone at them and they go
+    // and raise it, without waiting to be asked by their own town's rota
+    for (const b of buildings)
+      if (b.site && pointInRect(mouse.wx, mouse.wy, bldgRect(b))) {
+        if (selected.child) return toast("Children do not raise buildings.");
+        if (b.builder && b.builder !== selected && civs.includes(b.builder)) {
+          b.builder.task = null; b.builder.state = "idle";   // relieved of the work
+        }
+        b.builder = selected;
+        order(selected, { kind: "construct", target: b, x: b.x + 20, y: b.y + 14 });
+        toast(`${selected.name} goes to raise the ${BLDG_NAMES[b.type] || b.type}.`);
+        return;
+      }
     for (const b of buildings)
       if (b.type === "burned" && pointInRect(mouse.wx, mouse.wy, bldgRect(b))) {
         if (!canPay(REPAIR_COST, ledgerAt(b.x, b.y))) {
@@ -1603,6 +1699,17 @@ function worldClick(clientX, clientY) {
         }
         order(selected, { kind: "repair", target: b, x: b.x, y: b.y + 16 });
         toast(`${selected.name} goes to rebuild the ruin.`);
+        return;
+      }
+    // and any roof still standing can simply be gone into — out of the snow,
+    // out of the weather, out of sight of whoever is coming up the road
+    for (const b of buildings)
+      if (canShelter(b) && pointInRect(mouse.wx, mouse.wy, bldgRect(b))) {
+        if (selected.shelter === b) return turnOut(selected);   // click again to come back out
+        if (sheltering(b).length >= SHELTER_CAP)
+          return toast(`The ${BLDG_NAMES[b.type] || b.type} is full — ${SHELTER_CAP} may shelter in it.`);
+        order(selected, { kind: "enter", target: b, x: b.x, y: b.y + 14 });
+        toast(`${selected.name} goes inside the ${BLDG_NAMES[b.type] || b.type}.`);
         return;
       }
   }
@@ -1839,6 +1946,20 @@ function arrive(c) {
   if (t && t.kind === "emigrate") { emigrate(c); return; }
   if (t && t.kind === "goHome") { c.state = "sleeping"; c.task = null; return; }
   if (t && t.kind === "warmUp") { c.state = "warming"; c.workT = 0; c.task = null; return; }
+  if (t && t.kind === "enter") {
+    const b = t.target;
+    c.task = null;
+    // the roof may have burned or been pulled down while they were walking to it
+    if (!buildings.includes(b) || !canShelter(b) || b.fire) { c.state = "idle"; return; }
+    if (sheltering(b).length >= SHELTER_CAP) {
+      c.state = "idle";
+      toast(`No room left inside the ${BLDG_NAMES[b.type] || b.type} — ${c.name} waits outside.`);
+      return;
+    }
+    c.shelter = b; c.state = "inside";
+    syncUI();
+    return;
+  }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
                    buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping", construct: "raising", gravestone: "masonry" };
@@ -1878,6 +1999,11 @@ function arrive(c) {
     return;
   }
   if (t.kind === "repair") {
+    // `b` was never declared here: every repair order has thrown on arrival since
+    // the day it was written, swallowed by the frame guard, and no ruin was ever
+    // rebuilt. It matters now that every burnt building leaves one.
+    const b = t.target;
+    if (!buildings.includes(b)) { c.state = "idle"; c.task = null; return; }
     const rled = ledgerAt(b.x, b.y);
     if (!canPay(REPAIR_COST, rled)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
     pay(REPAIR_COST, rled);
@@ -2159,7 +2285,7 @@ function rebelAI(c) {
     for (const b of targets) { const d = Math.hypot(b.x - c.x, b.y - c.y); if (d < bd) { bd = d; best = b; } }
     order(c, { kind: "torch", target: best, x: best.x, y: best.y + 14 });
   } else {
-    const prey = civs.filter(o => o !== c && !o.rebel && o.state !== "sleeping" && o.state !== "warming");
+    const prey = civs.filter(o => o !== c && !o.rebel && !INDOORS.has(o.state));
     if (prey.length) {
       const p = prey[Math.floor(Math.random() * prey.length)];
       order(c, { kind: "attack", target: p, x: p.x, y: p.y });
@@ -2254,11 +2380,11 @@ function igniteCheck(b, dt) {
     b.fire = 0;
     for (const o of b.occupants) {
       o.home = null;
-      if (o.state === "sleeping" || o.state === "warming") { o.state = "idle"; o.x = b.x + (Math.random() * 40 - 20); o.y = b.y + 24; }
+      if (INDOORS.has(o.state)) { o.state = "idle"; o.x = b.x + (Math.random() * 40 - 20); o.y = b.y + 24; }
     }
     b.occupants = [];
-    if (b.type === "cabin") { b.type = "burned"; toast("A cabin has burned to a charred ruin. It can be repaired by order."); }
-    else { buildings.splice(buildings.indexOf(b), 1); toast(`The ${BLDG_NAMES[b.type] || b.type} has burned to the ground.`); }
+    emptyShelter(b, "the roof is burning");
+    ruin(b, "burned to a charred ruin");
     if (selectedBldg === b) selectedBldg = null;
     syncUI();
   }
@@ -2789,6 +2915,13 @@ $("bpBuyWeapon").addEventListener("click", () => {
   toast(`A weapon is bought off ${item.by}'s racks for the armoury. Police and soldiers may now equip it.`);
   syncUI();
 });
+$("bpTurnOut").addEventListener("click", () => {
+  if (!selectedBldg) return;
+  const inside = sheltering(selectedBldg);
+  if (!inside.length) return;
+  for (const c of inside) turnOut(c, true);
+  toast(inside.length > 1 ? `${inside.length} come back outside.` : `${inside[0].name} comes back outside.`);
+});
 $("bpDismantle").addEventListener("click", () => {
   const b = selectedBldg;
   if (!b) return;
@@ -2802,8 +2935,9 @@ $("bpDismantle").addEventListener("click", () => {
     const refund = Math.floor(base * dismantleRefund());
     for (const o of b.occupants) {
       o.home = null;
-      if (o.state === "sleeping" || o.state === "warming") { o.state = "idle"; o.y = b.y + 24; }
+      if (INDOORS.has(o.state)) { o.state = "idle"; o.y = b.y + 24; }
     }
+    emptyShelter(b, "it is being pulled down");
     const dl = ledgerAt(b.x, b.y);
     buildings.splice(buildings.indexOf(b), 1);
     dl.logs = (dl.logs || 0) + refund;
@@ -4144,11 +4278,12 @@ function saveGame() {
         profession: c.profession, hunger: r1(c.hunger), hp: r1(c.hp), maxHp: c.maxHp,
         happiness: r1(c.happiness), rebel: c.rebel, armed: c.armed, tool: c.tool,
         post: c.post ? { x: r1(c.post.x), y: r1(c.post.y) } : undefined,
+        state: c.state === "inside" ? "inside" : undefined, shelter: bi(c.shelter),
         conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
         inv: { ...c.inv },
       })),
       buildings: buildings.map(b => ({
-        type: b.type, x: r1(b.x), y: r1(b.y), fire: r1(b.fire), placed: b.placed,
+        type: b.type, was: b.was || undefined, x: r1(b.x), y: r1(b.y), fire: r1(b.fire), placed: b.placed,
         hp: r1(b.hp), maxHp: b.maxHp, rot: b.rot, shop: b.shop || [], site: !!b.site,
         occupants: b.occupants.map(ci),
       })),
@@ -4240,11 +4375,17 @@ function loadGame() {
     }
     buildings.length = 0;
     for (const bd of d.buildings)
-      buildings.push({ type: bd.type, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
+      buildings.push({ type: bd.type, was: bd.was || null, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
                        torchP: -1, placed: bd.placed, bakeT: 0, occupants: [],
                        rot: bd.rot || 0, shop: bd.shop || [], site: !!bd.site, buildP: 0,
                        hp: bd.type === "wall" ? Math.min(bd.hp ?? 100, 100) : bd.type === "gate" ? Math.min(bd.hp ?? 60, 60) : bd.hp,
                        maxHp: bd.type === "wall" ? 100 : bd.type === "gate" ? 60 : bd.maxHp });
+    d.civs.forEach((cd, i) => {
+      if (cd.state === "inside" && cd.shelter !== undefined && buildings[cd.shelter] && civs[i]) {
+        civs[i].shelter = buildings[cd.shelter];
+        civs[i].state = "inside";
+      }
+    });
     d.buildings.forEach((bd, i) => {
       for (const cidx of bd.occupants) if (civs[cidx]) {
         buildings[i].occupants.push(civs[cidx]);
@@ -4762,7 +4903,7 @@ function syncUI() {
     $("bpDismantle").style.display = "block";
     const b = selectedBldg;
     const isFarm = farms.includes(b);
-    $("bpName").textContent = isFarm ? "WHEAT FARM" : (BLDG_NAMES[b.type] || b.type).toUpperCase();
+    $("bpName").textContent = isFarm ? "WHEAT FARM" : bldgName(b).toUpperCase();
     $("bpInfo").textContent = isFarm ? `${b.workers.length} farmer(s) assigned; ${b.ready ? "crop is ripe" : "crop growing"}.` :
       b.type === "burned" ? "Select a civilian and click the ruin to order its repair (20 logs + 1 door)." :
       b.fire ? "IT IS ON FIRE." :
@@ -4773,7 +4914,12 @@ function syncUI() {
       b.type === "townhall" ? "Civilians bring their goods here on their own — no more asking." :
       b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
       b.type === "gate" ? "Your people pass freely; raiders must burn it down." : "Standing.";
-    $("bpOcc").textContent = isFarm ? "—" : (b.occupants.length ? b.occupants.map(o => o.name).join(", ") : "none");
+    const inside = isFarm ? [] : sheltering(b);
+    const lives = isFarm ? "" : (b.occupants.length ? b.occupants.map(o => o.name).join(", ") : "none");
+    $("bpOcc").textContent = isFarm ? "—"
+      : lives + (inside.length ? ` · inside: ${inside.map(o => o.name).join(", ")}` : "");
+    $("bpTurnOut").style.display = inside.length ? "block" : "none";
+    $("bpTurnOut").textContent = inside.length > 1 ? `Turn out all ${inside.length}` : "Turn them out";
     $("bpBuyWeapon").style.display = (!isFarm && b.type === "forge" && (b.shop || []).some(i => i.kind === "weapon")) ? "block" : "none";
   }
 }
@@ -5079,13 +5225,16 @@ function update(dt) {
     // the ramrod still comes out, so he is never frozen in a pose he has left behind
     if (c.fireT > 0) c.fireT = Math.max(0, c.fireT - dt);
     if (c.reloadT > 0) {
+      const rt = reloadTime();
+      const kWas = 1 - c.reloadT / rt;              // where his hands were last frame
       c.reloadT -= dt;
-      if (c.reloadT <= 0) {
-        c.reloadT = 0; c.loaded = true;
-        const onScreen = c.x > cam.x - 100 && c.x < cam.x + canvas.width / zoom + 100 &&
-                         c.y > cam.y - 100 && c.y < cam.y + canvas.height / zoom + 100;
-        if (onScreen) SFX.ramrod();
-      }
+      const kNow = c.reloadT > 0 ? 1 - c.reloadT / rt : 1;
+      const onScreen = c.x > cam.x - 100 && c.x < cam.x + canvas.width / zoom + 100 &&
+                       c.y > cam.y - 100 && c.y < cam.y + canvas.height / zoom + 100;
+      // the loading drill is heard where it is seen: each stage announces itself
+      // as he reaches it, so a whole line reloading sounds like a line reloading
+      if (onScreen) for (const [mark, snd] of RELOAD_DRILL) if (kWas < mark && kNow >= mark) snd();
+      if (c.reloadT <= 0) { c.reloadT = 0; c.loaded = true; }
     }
     if (c.profession !== "musketeer" && (c.reloadT || c.fireT)) { c.reloadT = 0; c.fireT = 0; c.loaded = true; }
 
@@ -5102,7 +5251,7 @@ function update(dt) {
 
     // winter cold: five minutes in the open kills (guards last seven)
     if (season() === "winter") {
-      if (c.state === "sleeping" || c.state === "warming") {
+      if (INDOORS.has(c.state)) {
         c.coldT = Math.max(0, c.coldT - dt * 8);
       } else {
         c.coldT = (c.coldT || 0) + dt;
@@ -5123,7 +5272,7 @@ function update(dt) {
     // housed folk duck inside to warm up before the cold turns deadly —
     // dropping their work if the frost is close on their heels
     if (season() === "winter" && c.home && !c.rebel &&
-        !["warming", "sleeping", "fighting", "sieging"].includes(c.state) &&
+        !["warming", "sleeping", "inside", "fighting", "sieging"].includes(c.state) &&
         (!c.task || c.task.kind !== "warmUp")) {
       const danger = c.coldT > (isForce(c) ? 210 : 150) - 70;   // freezing starts at 150/210: leave a real margin
       const idleChill = c.state === "idle" && c.coldT > 60;
@@ -5144,6 +5293,12 @@ function update(dt) {
         c.state = "idle"; c.coldT = 0; c.coldWarned = false;
         c.x = c.home ? c.home.x : c.x; c.y = c.home ? c.home.y + 18 : c.y;
       } else continue;
+    }
+    // Someone sent indoors stays indoors. They do no work and take no orders
+    // until they are turned out — or until the roof over them stops being one.
+    if (c.state === "inside") {
+      if (!c.shelter || !buildings.includes(c.shelter) || c.shelter.fire || !canShelter(c.shelter)) turnOut(c, true);
+      else { c.x = c.shelter.x; c.y = c.shelter.y + 18; continue; }
     }
     if (c.state === "healing") {
       if (c.hp >= c.maxHp) { c.state = "idle"; toast(`${c.name} is eaten back to full health.`); }
@@ -5288,8 +5443,10 @@ function update(dt) {
       c.workT += dt; b.progress = c.workT / (REPAIR_TIME * workMul(c)); c.anim += dt * 10;
       if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= REPAIR_TIME * workMul(c)) {
-        b.type = "cabin"; b.progress = -1; b.placed = false;
-        toast(`The ruin stands whole again. ${c.name} rebuilt it.`);
+        const back = b.was && RUINS.has(b.was) ? b.was : "cabin";
+        b.type = back; b.was = null; b.progress = -1; b.placed = false;
+        b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
+        toast(`The ${BLDG_NAMES[back] || back} stands whole again. ${c.name} rebuilt it.`);
         vignette("cabinDone");
         c.state = "idle"; c.task = null;
         for (const cc of civs) if (!cc.home) houseCiv(cc);
@@ -5783,8 +5940,10 @@ function render(dt) {
   }});
   for (const b of buildings) if (inView(b.x, b.y)) drawables.push({ y: b.y, draw: () => {
     if (b.site) ctx.globalAlpha = 0.45;
-    const wos = WALLLIKE.has(b.type) ? 10 : 0;   // walls draw oversized so chained segments visually fuse
-    if (b.type === "wall" && b.rot) drawSprite(wimg("wallv"), b.x, b.y + wos / 2, SMALL_BLDG.wall + wos, false);
+    const bt = baseType(b);                      // a ruin is drawn at the size of what it was
+    const wos = WALLLIKE.has(bt) ? 10 : 0;       // walls draw oversized so chained segments visually fuse
+    if (b.type === "burned") drawSprite(wimg(ruinKey(b)), b.x, b.y + wos / 2, (SMALL_BLDG[bt] || BLDG_SIZE) + wos, false);
+    else if (b.type === "wall" && b.rot) drawSprite(wimg("wallv"), b.x, b.y + wos / 2, SMALL_BLDG.wall + wos, false);
     else if (b.type === "stonewall" && b.rot) drawSprite(img.stonewallv, b.x, b.y + wos / 2, SMALL_BLDG.stonewall + wos, false);
     else if (b.type === "stonegate" && b.rot) drawSprite(img.stonegatev, b.x, b.y + wos / 2, SMALL_BLDG.stonegate + wos, false);
     else if (b.type === "gate" && b.rot) drawSprite(wimg("gatev"), b.x, b.y + wos / 2, SMALL_BLDG.gate + wos, false);
@@ -5830,7 +5989,7 @@ function render(dt) {
     }
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
-  for (const c of civs) if (c.state !== "sleeping" && c.state !== "warming" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
+  for (const c of civs) if (!INDOORS.has(c.state) && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
     const grouped = selGroup.length > 1 && selected && selGroup.includes(selected) && selGroup.includes(c);
     if (c === selected || grouped) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 2;
