@@ -269,7 +269,62 @@ function ruin(b, how) {
 const snowPace = () => season() === "winter" ? 0.8 : 1;
 const walkSpeed = c => BASE_WALK * snowPace() * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1) * (c && c.profession === "cavalry" ? 1.45 : 1);
 const workMul = c => (c && c.tool ? 0.65 : 1) * (has("stables") ? 0.8 : 1) * (laws.forced ? 0.75 : 1);
-const chopTime = c => BASE_CHOP * (has("axing") ? 0.65 : has("treecutting") ? 0.8 : 1) * workMul(c);
+
+// ===== what a pair of hands has learned =====
+// Technology is what the colony knows; a skill is what one man is good at. Every
+// soul carries all ten from the day they arrive, at one, and climbs to a
+// hundred — by doing the work, or by being trained out of the treasury.
+const SKILLS = [
+  { id: "woodcutting",  name: "Woodcutting",  branch: "Field",  desc: "Fells trees faster" },
+  { id: "quarrying",    name: "Quarrying",    branch: "Field",  desc: "Breaks stone faster" },
+  { id: "foraging",     name: "Foraging",     branch: "Field",  desc: "Gathers wild seed faster" },
+  { id: "farming",      name: "Farming",      branch: "Field",  desc: "Raises and reaps crops faster" },
+  { id: "hunting",      name: "Hunting",      branch: "Field",  desc: "Takes game faster" },
+  { id: "building",     name: "Building",     branch: "Craft",  desc: "Raises and repairs faster" },
+  { id: "smithing",     name: "Smithing",     branch: "Craft",  desc: "Works the forge faster" },
+  { id: "crafting",     name: "Crafting",     branch: "Craft",  desc: "Makes doors faster" },
+  { id: "fighting",     name: "Fighting",     branch: "Arms",   desc: "Strikes harder hand to hand" },
+  { id: "marksmanship", name: "Marksmanship", branch: "Arms",   desc: "Shoots harder" },
+];
+const SKILL_BRANCHES = ["Field", "Craft", "Arms"];
+const SKILL_MAX = 100;
+const skillLvl = (c, id) => Math.max(1, Math.min(SKILL_MAX, (c && c.sk && c.sk[id]) || 1));
+// A master works in a little under half the time, and hits half again as hard.
+const workSkill = (c, id) => 1 - 0.55 * (skillLvl(c, id) - 1) / (SKILL_MAX - 1);
+const armSkill  = (c, id) => 1 + 0.55 * (skillLvl(c, id) - 1) / (SKILL_MAX - 1);
+// the climb steepens: cheap to make a passable hand, dear to make a master
+const skillXpNeeded = lvl => Math.round(6 + lvl * 2.6);
+const trainCost = lvl => 3 + Math.floor(lvl * 0.8);
+function freshSkills() { const s = {}; for (const k of SKILLS) s[k.id] = 1; return s; }
+// Work teaches. Called wherever a task is actually finished, never per frame.
+function gainSkill(c, id, amount) {
+  if (!c || !c.sk) return;
+  if (c.sk[id] >= SKILL_MAX) return;
+  c.sx = c.sx || {};
+  c.sx[id] = (c.sx[id] || 0) + amount;
+  while (c.sk[id] < SKILL_MAX && c.sx[id] >= skillXpNeeded(c.sk[id])) {
+    c.sx[id] -= skillXpNeeded(c.sk[id]);
+    c.sk[id]++;
+    if (c.sk[id] % 10 === 0 || c.sk[id] === SKILL_MAX) {
+      const nm = (SKILLS.find(s => s.id === id) || {}).name || id;
+      toast(`${c.name} reaches ${nm} ${c.sk[id]}${c.sk[id] === SKILL_MAX ? " — a master of it" : ""}.`);
+    }
+  }
+  if (c.sk[id] >= SKILL_MAX) c.sx[id] = 0;
+  if (selected === c) syncUI();
+}
+const chopTime = c => BASE_CHOP * (has("axing") ? 0.65 : has("treecutting") ? 0.8 : 1) * workMul(c) * workSkill(c, "woodcutting");
+// One name per job, so the progress bar and the moment the work finishes can
+// never drift apart — they were the same expression written twice before.
+const quarryTime    = c => QUARRY_TIME * workMul(c) * workSkill(c, "quarrying");
+const forageTime    = c => PATCH_TIME * (has("foraging") ? 0.5 : 1) * workMul(c) * workSkill(c, "foraging");
+const craftTime     = c => CRAFT_TIME * workMul(c) * workSkill(c, "crafting");
+const smithTime     = c => SMITH_TIME * workMul(c) * workSkill(c, "smithing");
+const repairTime    = c => REPAIR_TIME * workMul(c) * workSkill(c, "building");
+const farmBuildTime = c => BASE_FARM_BUILD * workMul(c) * workSkill(c, "farming");
+const harvestTime   = c => HARVEST_TIME * workMul(c) * workSkill(c, "farming");
+const raiseTime     = (c, t) => (BUILD_TIMES[t] || 8) * workMul(c) * workSkill(c, "building");
+const huntTime      = c => 6 * workSkill(c, "hunting");
 const logsPerTree = () => BASE_LOGS_PER_TREE + (has("sawing") ? 2 : 0) + (has("sawmills") ? 3 : 0);
 const doorCost = () => has("sawmills") ? 3 : 5;
 const farmSeedCost = () => has("seeding") ? 4 : 6;
@@ -583,6 +638,7 @@ function mkCiv(name, who, x, y, gender) {
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
            age: 20 + Math.floor(Math.random() * 26),
            autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true,
+           sk: freshSkills(), sx: {},
            loaded: true, reloadT: 0, fireT: 0 };
 }
 
@@ -1368,6 +1424,7 @@ function killCiv(c, why) {
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
   if (selected === c) selected = null;
+  if (skillCiv === c) closeSkills();
   selGroup = selGroup.filter(s => s !== c);
   civs.splice(civs.indexOf(c), 1);
   SFX.death();
@@ -3091,6 +3148,95 @@ $("bpBuyWeapon").addEventListener("click", () => {
   toast(`A weapon is bought off ${item.by}'s racks for the armoury. Police and soldiers may now equip it.`);
   syncUI();
 });
+// ===== the skill tree, one man at a time =====
+// The tech panel is what the colony knows and never changes hands; this is what
+// THIS pair of hands has learned, and it walks out of the gate with them.
+let skillCiv = null;
+function openSkills(c) {
+  if (!c) return;
+  skillCiv = c;
+  $("skillPanel").style.display = "block";
+  SFX.popup();
+  syncSkills();
+}
+function closeSkills() { skillCiv = null; $("skillPanel").style.display = "none"; }
+function syncSkills() {
+  if ($("skillPanel").style.display !== "block") return;
+  const c = skillCiv;
+  if (!c || !civs.includes(c)) return closeSkills();
+  $("skName").textContent = c.name.toUpperCase() + " — SKILLS";
+  const total = SKILLS.reduce((n, s) => n + skillLvl(c, s.id), 0);
+  $("skSub").textContent =
+    `${c.child ? "child" : profLabel(c.profession)}, ${c.age !== undefined ? c.age : "?"} yrs` +
+    ` · ${total} levels in all of ${SKILLS.length * SKILL_MAX} · treasury ${Math.round(res.dm)} DM`;
+
+  const tree = $("skTree");
+  tree.innerHTML = "";
+  for (const branch of SKILL_BRANCHES) {
+    const col = document.createElement("div");
+    col.style.cssText = "flex:1 1 200px;min-width:190px;border:1px solid #24352b;background:#0f1713;padding:8px";
+    const head = document.createElement("div");
+    head.style.cssText = "font-size:11px;color:#7da083;letter-spacing:2px;margin-bottom:6px";
+    head.textContent = branch.toUpperCase();
+    col.appendChild(head);
+
+    for (const sk of SKILLS.filter(s => s.branch === branch)) {
+      const lvl = skillLvl(c, sk.id);
+      const maxed = lvl >= SKILL_MAX;
+      const cost = trainCost(lvl);
+      const xp = (c.sx && c.sx[sk.id]) || 0;
+      const need = skillXpNeeded(lvl);
+
+      const row = document.createElement("div");
+      row.style.cssText = "border:1px solid " + (maxed ? "#7da083" : "#24352b") + ";padding:6px;margin-bottom:6px";
+      const title = document.createElement("div");
+      title.style.cssText = "display:flex;justify-content:space-between;font-size:11px;color:#cfd8d3";
+      title.innerHTML = `<span>${sk.name}</span><b style="color:${maxed ? "#7da083" : "#c9a86a"}">${lvl}</b>`;
+      row.appendChild(title);
+
+      const bar = document.createElement("div");
+      bar.className = "barwrap"; bar.style.cssText = "height:6px;margin:4px 0";
+      const fill = document.createElement("div");
+      fill.className = "barfill";
+      fill.style.width = (maxed ? 100 : Math.round(100 * Math.min(1, xp / need))) + "%";
+      bar.appendChild(fill); row.appendChild(bar);
+
+      const note = document.createElement("div");
+      note.style.cssText = "font-size:10px;color:#5a6b60";
+      note.textContent = maxed ? sk.desc + " — mastered"
+        : `${sk.desc} · ${Math.floor(xp)}/${need} xp`;
+      row.appendChild(note);
+
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.style.cssText = "width:100%;margin-top:5px;font-size:10px;padding:4px";
+      btn.textContent = maxed ? "Mastered" : `Train to ${lvl + 1} — ${cost} DM`;
+      btn.disabled = maxed || res.dm - cost < treasuryFloor();
+      btn.addEventListener("click", () => trainSkill(c, sk.id));
+      row.appendChild(btn);
+      col.appendChild(row);
+    }
+    tree.appendChild(col);
+  }
+}
+function trainSkill(c, id) {
+  if (!c || !civs.includes(c)) return;
+  const lvl = skillLvl(c, id);
+  if (lvl >= SKILL_MAX) return toast(`${c.name} has nothing left to learn of it.`);
+  const cost = trainCost(lvl);
+  if (res.dm - cost < treasuryFloor())
+    return toast(`Training costs ${cost} DM. The treasury holds ${Math.round(res.dm)} DM.`);
+  res.dm -= cost;
+  c.sk[id] = lvl + 1;
+  if (c.sx) c.sx[id] = 0;                        // the lesson replaces the practice
+  const nm = (SKILLS.find(s => s.id === id) || {}).name || id;
+  SFX.coin();
+  toast(`${c.name} is trained: ${nm} ${c.sk[id]}.`);
+  syncSkills(); syncUI();
+}
+$("cpSkills").addEventListener("click", () => openSkills(selected));
+$("skClose").addEventListener("click", closeSkills);
+
 $("bpTurnOut").addEventListener("click", () => {
   if (!selectedBldg) return;
   const inside = sheltering(selectedBldg);
@@ -4289,6 +4435,7 @@ function emigrate(c) {
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
   if (selected === c) selected = null;
+  if (skillCiv === c) closeSkills();
   selGroup = selGroup.filter(s => s !== c);
   civs.splice(civs.indexOf(c), 1);
   toast(`${c.name} has left for the new settlement.`);
@@ -4388,6 +4535,7 @@ function renderMilitary() {
     const nm = document.createElement("span");
     nm.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
     nm.textContent = `${c.name} — ${profLabel(c.profession)}`;
+    if (skillCiv && skillCiv !== c) closeSkills();   // the panel follows the selection
     row.appendChild(nm);
     for (const [p, , label, cost] of open) {
       if (c.profession === p) continue;
@@ -4478,6 +4626,7 @@ function saveGame() {
         happiness: r1(c.happiness), rebel: c.rebel, armed: c.armed, tool: c.tool,
         post: c.post ? { x: r1(c.post.x), y: r1(c.post.y) } : undefined,
         state: c.state === "inside" ? "inside" : undefined, shelter: bi(c.shelter),
+        sk: c.sk, sx: c.sx,
         conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
         inv: { ...c.inv },
       })),
@@ -4568,6 +4717,8 @@ function loadGame() {
         happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool,
         child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20, post: cd.post || null,
         conquered: cd.conquered || 0 });
+      c.sk = Object.assign(freshSkills(), cd.sk || {});
+      c.sx = Object.assign({}, cd.sx || {});
       if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
       Object.assign(c.inv, cd.inv);
       civs.push(c);
@@ -5146,6 +5297,7 @@ function syncUI() {
     $("bpTurnOut").textContent = inside.length > 1 ? `Turn out all ${inside.length}` : "Turn them out";
     $("bpBuyWeapon").style.display = (!isFarm && b.type === "forge" && (b.shop || []).some(i => i.kind === "weapon")) ? "block" : "none";
   }
+  syncSkills();   // an open tree keeps pace with the work and the treasury
 }
 
 // --- simulation ---
@@ -5621,6 +5773,7 @@ function update(dt) {
       c.workT += dt; t.progress = c.workT / chopTime(c); c.anim += dt * 10;
       if ((c.workT % 0.5) < dt) SFX.chop();
       if (c.workT >= chopTime(c)) {
+        gainSkill(c, "woodcutting", 3);
         t.alive = false; t.progress = -1;
         markChunkDirty(t.x, t.y);
         SFX.treeFall();
@@ -5631,9 +5784,10 @@ function update(dt) {
     } else if (c.state === "quarrying") {
       const s = c.task.target;
       if (!s.alive) { c.state = "idle"; c.task = null; continue; }
-      c.workT += dt; s.progress = c.workT / (QUARRY_TIME * workMul(c)); c.anim += dt * 10;
+      c.workT += dt; s.progress = c.workT / quarryTime(c); c.anim += dt * 10;
       if ((c.workT % 0.55) < dt) SFX.quarry();
-      if (c.workT >= QUARRY_TIME * workMul(c)) {
+      if (c.workT >= quarryTime(c)) {
+        gainSkill(c, "quarrying", 3);
         s.alive = false; s.progress = -1;
         markChunkDirty(s.x, s.y);
         c.inv.stone += 3; c.inv.iron += 1;
@@ -5643,10 +5797,11 @@ function update(dt) {
     } else if (c.state === "gathering") {
       const p = c.task.target;
       if (!p.alive) { c.state = "idle"; c.task = null; continue; }
-      const need = PATCH_TIME * (has("foraging") ? 0.5 : 1) * workMul(c);
+      const need = forageTime(c);
       c.workT += dt; p.progress = c.workT / need; c.anim += dt * 8;
       if ((c.workT % 0.4) < dt) SFX.rustle();
       if (c.workT >= need) {
+        gainSkill(c, "foraging", 3);
         p.alive = false; p.progress = -1;
         markChunkDirty(p.x, p.y);
         const got = 2 + (has("foraging") ? 1 : 0);
@@ -5658,7 +5813,8 @@ function update(dt) {
     } else if (c.state === "crafting") {
       c.workT += dt; c.anim += dt * 6;
       if ((c.workT % 0.6) < dt) SFX.hammer();
-      if (c.workT >= CRAFT_TIME * workMul(c)) {
+      if (c.workT >= craftTime(c)) {
+        gainSkill(c, "crafting", 3);
         res.doors++;
         toast(`${c.name} finished a rough plank door. Doors: ${res.doors}.`);
         c.state = "idle"; c.task = null;
@@ -5666,7 +5822,8 @@ function update(dt) {
     } else if (c.state === "smithing") {
       c.workT += dt; c.anim += dt * 6;
       if ((c.workT % 0.55) < dt) SFX.hammer();
-      if (c.workT >= SMITH_TIME * workMul(c)) {
+      if (c.workT >= smithTime(c)) {
+        gainSkill(c, "smithing", 4);
         if (c.task.make === "weapon") {
           // the colony's own iron, forged at the colony's forge, for the colony's
           // armoury: no coin changes hands, and no civilian touches the treasury
@@ -5685,9 +5842,10 @@ function update(dt) {
     } else if (c.state === "repairing") {
       const b = c.task.target;
       if (!buildings.includes(b)) { c.state = "idle"; c.task = null; continue; }
-      c.workT += dt; b.progress = c.workT / (REPAIR_TIME * workMul(c)); c.anim += dt * 10;
+      c.workT += dt; b.progress = c.workT / repairTime(c); c.anim += dt * 10;
       if ((c.workT % 0.55) < dt) SFX.hammer();
-      if (c.workT >= REPAIR_TIME * workMul(c)) {
+      if (c.workT >= repairTime(c)) {
+        gainSkill(c, "building", 4);
         const back = b.was && RUINS.has(b.was) ? b.was : "cabin";
         b.type = back; b.was = null; b.progress = -1; b.placed = false;
         b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
@@ -5699,7 +5857,8 @@ function update(dt) {
     } else if (c.state === "buildingFarm") {
       c.workT += dt; c.anim += dt * 8;
       if ((c.workT % 0.6) < dt) SFX.hammer();
-      if (c.workT >= BASE_FARM_BUILD * workMul(c)) {
+      if (c.workT >= farmBuildTime(c)) {
+        gainSkill(c, "farming", 3);
         const t = c.task;
         if (legalToBuild("farm", t.fx, t.fy)) {
           const f = { x: t.fx, y: t.fy, ready: false, growT: 0, workers: [], progress: -1 };
@@ -5713,9 +5872,10 @@ function update(dt) {
     } else if (c.state === "harvesting") {
       const f = c.task.target;
       if (!f.ready || !farms.includes(f)) { c.state = "idle"; c.task = null; continue; }
-      c.workT += dt; f.progress = c.workT / (HARVEST_TIME * workMul(c)); c.anim += dt * 8;
+      c.workT += dt; f.progress = c.workT / harvestTime(c); c.anim += dt * 8;
       if ((c.workT % 0.45) < dt) SFX.rustle();
-      if (c.workT >= HARVEST_TIME * workMul(c)) {
+      if (c.workT >= harvestTime(c)) {
+        gainSkill(c, "farming", 3);
         f.ready = false; f.growT = 0; f.progress = -1;
         // the harvest feeds the whole colony: bread goes to the common store at once,
         // where any hungry soul can reach it, rather than sitting in one farmer's pack
@@ -5753,10 +5913,11 @@ function update(dt) {
       const b = c.task.target;
       const isFarmSite = farms.includes(b);
       if ((!buildings.includes(b) && !isFarmSite) || !b.site) { c.state = "idle"; c.task = null; continue; }
-      const need = (BUILD_TIMES[isFarmSite ? "farm" : b.type] || 8) * workMul(c);
+      const need = raiseTime(c, isFarmSite ? "farm" : b.type);
       c.workT += dt; b.progress = c.workT / need; c.anim += dt * 8;
       if ((c.workT % 0.6) < dt) SFX.hammer();
       if (c.workT >= need) {
+        gainSkill(c, "building", 5);
         if (isFarmSite) {
           b.site = false; b.progress = -1;
           if (c.profession === "farmer" && !b.workers.includes(c)) b.workers.push(c);
@@ -5845,7 +6006,8 @@ function update(dt) {
       }
     } else if (c.state === "hunting") {
       c.workT += dt; c.anim = 1;
-      if (c.workT >= 6) { c.inv.meat += 2; float(c.x, c.y - 70, "+2 meat", "#7da083"); c.state = "idle"; c.task = null; }
+      if (c.workT >= huntTime(c)) { c.inv.meat += 2; float(c.x, c.y - 70, "+2 meat", "#7da083");
+        gainSkill(c, "hunting", 3); c.state = "idle"; c.task = null; }
     } else if (c.state === "fighting") {
       const foe = c.task && c.task.target;
       const foeAlive = foe && (civs.includes(foe) || raiders.includes(foe));
@@ -5860,10 +6022,11 @@ function update(dt) {
           c.atkT -= dt;
           if (c.atkT <= 0) {
             c.atkT = ATK_INTERVAL;
-            let dmg = bayonetDmg();
+            let dmg = Math.round(bayonetDmg() * armSkill(c, "fighting"));
             if (nearWatchtower(c.x, c.y)) dmg += 5;
             SFX.swing();
             strikeUnit(c, foe, dmg);
+            gainSkill(c, "fighting", 1);
           }
           continue;
         }
@@ -5887,7 +6050,7 @@ function update(dt) {
           // bug than a ragged volley, and that is exactly how this broke.
           if (c.mayFire === false) { c.anim += dt * 2; continue; }
           c.volleyT = 0;
-          let dmg = musketDmg(d);            // struck harder the nearer the muzzle
+          let dmg = Math.round(musketDmg(d) * armSkill(c, "marksmanship"));   // nearer the muzzle, and steadier the hand
           if (nearWatchtower(c.x, c.y)) dmg += 5;
           // a dozen muskets in one frame is one crack, not a dozen stacked reports
           if (volleySounds++ < VOLLEY_SOUNDS) SFX.musket();
@@ -5897,6 +6060,7 @@ function update(dt) {
           const md = Math.max(1, Math.hypot(tx - mx, ty - my));
           balls.push({ x: mx, y: my, target: foe, from: c, dmg, vx: (tx - mx) / md, vy: (ty - my) / md });
           musketSmoke(mx, my, c.facing);
+          gainSkill(c, "marksmanship", 2);
           c.loaded = false; c.fireT = MUSKET_FIRE_T; c.reloadT = reloadTime();
         }
         continue;
@@ -5910,10 +6074,11 @@ function update(dt) {
       c.atkT -= dt;
       if (c.atkT <= 0 && d < reach) {
         c.atkT = ATK_INTERVAL;
-        let dmg = isForce(c) ? forceDmg(c) : (c.armed ? weaponDmg() : FIST_DMG);
+        let dmg = Math.round((isForce(c) ? forceDmg(c) : (c.armed ? weaponDmg() : FIST_DMG)) * armSkill(c, "fighting"));
         if (isForce(c) && nearWatchtower(c.x, c.y)) dmg += 5;
         if (isForce(c) || c.armed) SFX.swing(); else SFX.swingFist();
         strikeUnit(c, foe, dmg);
+        gainSkill(c, "fighting", 1);
       }
     } else if (c.state === "climbing") {
       // over an enemy's stone, the same slow business: both hands on the wall,
@@ -6294,8 +6459,8 @@ function render(dt) {
     if (settings.labels) ctx.fillText(c.name + tag, c.x, c.y - CHAR_SIZE - 4);
     if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
     if (c.state === "crafting" || c.state === "buildingFarm" || c.state === "smithing" || c.state === "hunting") {
-      const tot = c.state === "crafting" ? CRAFT_TIME * workMul(c) : c.state === "smithing" ? SMITH_TIME * workMul(c) :
-                  c.state === "buildingFarm" ? BASE_FARM_BUILD * workMul(c) : 6;
+      const tot = c.state === "crafting" ? craftTime(c) : c.state === "smithing" ? smithTime(c) :
+                  c.state === "buildingFarm" ? farmBuildTime(c) : huntTime(c);
       bar(c.x, c.y - CHAR_SIZE - (c.hp < c.maxHp ? 26 : 16), c.workT / tot, "#c9a86a");
     }
   }});

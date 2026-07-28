@@ -395,6 +395,7 @@
     </div>
     <button class="btn" id="cpBuyTool" style="width:100%;margin-top:6px">Buy tool from smithy (gov funds, 10 DM)</button>
     <button class="btn" id="cpGiveWeapon" style="width:100%;margin-top:6px">Give weapon from armoury</button>
+    <button class="btn" id="cpSkills" style="width:100%;margin-top:6px">&#9876; Skills</button>
     <div id="cpFarms" style="font-size:11px;color:#5a6b60;margin-top:6px"></div>
   </div>
 
@@ -443,6 +444,19 @@
     <h4>RESEARCH</h4>
     <button class="btn" id="techToggle" style="width:100%">Open Tech Tree</button>
     <div id="researchNow" style="font-size:11px;color:#7da083;margin-top:6px">No research underway.</div>
+  </div>
+
+  <div class="panel" id="skillPanel" style="left:50%;top:50%;transform:translate(-50%,-50%);width:min(680px,calc(100vw - 40px));padding:14px;display:none;z-index:141;max-height:86vh;overflow-y:auto">
+    <h3 style="color:#c9a86a;letter-spacing:2px;margin-bottom:2px">
+      <span id="skName">SKILLS</span>
+      <span id="skClose" style="float:right;cursor:pointer;color:#5a6b60">[close]</span>
+    </h3>
+    <div id="skSub" style="font-size:11px;color:#7da083;margin-bottom:10px"></div>
+    <div id="skTree" style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"></div>
+    <div style="font-size:10px;color:#5a6b60;margin-top:10px;border-top:1px solid #24352b;padding-top:8px">
+      Skills rise on their own with the work &mdash; a man who chops all season gets better at chopping.
+      Training buys a level outright from the treasury. A master works in a little under half the time, and strikes half again as hard.
+    </div>
   </div>
 
   <div class="panel" id="techPanel">
