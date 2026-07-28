@@ -31,6 +31,10 @@ const reloadTime = () => has("flintlock") ? 4.5 : 7.5;   // powder, ball, ramrod
 const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8, DODGE_CHANCE = 0.15;
 const EAT_HEAL = 15;
 const RAID_MIN = 240, RAID_MAX = 420, MAX_RAIDERS = 4, MAX_CAMPS = 6;
+// The drum never beats faster than this, however grand the colony grows: five
+// minutes of quiet are owed between raids. The reckoning is paid in the size of
+// the wave that comes, not in the space between them.
+const RAID_FLOOR = 300;
 
 const REPAIR_COST = { logs: 20, doors: 1, dm: 5 };
 const STATIC_COSTS = {
@@ -92,8 +96,8 @@ T("blades", "Blades", "military", ["hilts"], 7, "All weapons +5 damage; the secr
 T("swords", "Swords", "military", ["blades"], 8, "Blacksmiths may forge swords (20 dmg)");
 T("battleaxes", "Battle Axes", "military", ["swords"], 9, "Blacksmiths may forge battle axes (28 dmg)");
 T("lances", "Lances", "military", ["swords"], 9, "Distance cavalry: riders strike from lance reach; all forces +10 damage (requires War Horse)");
-T("matchlock", "Matchlock Muskets", "military", ["defending"], 5, "Unlocks Musketeers — deadly (40 dmg far, 88 point-blank), but desperately slow to load");
-T("bayonets", "Bayonets", "military", ["matchlock"], 6, "A blade at every muzzle: musketeers fight hand-to-hand as well as at range");
+T("matchlock", "Matchlock Muskets", "military", ["defending"], 5, "Unlocks Line Infantry — deadly (40 dmg far, 88 point-blank), but desperately slow to load");
+T("bayonets", "Bayonets", "military", ["matchlock"], 6, "A blade at every muzzle: line infantry fight hand-to-hand as well as at range");
 T("flintlock", "Flintlock Muskets", "military", ["bayonets"], 7, "No more smouldering cord: muskets load in 4.5s instead of 7.5, and hit harder still");
 T("defending", "Defending", "military", ["policing"], 4, "Unlocks Town Walls & Gates; police take weapons from the armoury; torching 30% slower — but the camps take notice");
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
@@ -109,6 +113,11 @@ let research = null;
 
 // --- derived stats ---
 const isForce = c => c.profession === "police" || c.profession === "soldier" || c.profession === "musketeer" || c.profession === "cavalry";
+// The rank is called Line Infantry. The save files still say "musketeer", and
+// they will keep saying it — a colony loaded from last week must still muster.
+const PROF_LABEL = { musketeer: "line infantry" };
+const profLabel = p => (p ? (PROF_LABEL[p] || p) : "no trade");
+const profTitle = p => profLabel(p).replace(/\b\w/g, ch => ch.toUpperCase());
 // deep snow slows every traveller by a fifth — the road's packed lane still helps
 const snowPace = () => season() === "winter" ? 0.8 : 1;
 const walkSpeed = c => BASE_WALK * snowPace() * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1) * (c && c.profession === "cavalry" ? 1.45 : 1);
@@ -128,7 +137,7 @@ const musketDmg = (d) => {
   const t = Math.max(0, Math.min(1, (d === undefined ? MUSKET_RANGE : d) / MUSKET_RANGE));
   return Math.round(near + (far - near) * t) + (has("hussars") ? 5 : 0);
 };
-// with a bayonet fixed, a musketeer is a spear in the line as well as a gun
+// with a bayonet fixed, a line infantryman is a spear in the line as well as a gun
 const bayonetDmg = () => 16 + (has("blades") ? 5 : 0) + (has("flintlock") ? 4 : 0);
 const torchTime = () => TORCH_TIME / ((has("defending") ? 0.7 : 1) * (has("pettraining") ? 0.75 : 1));
 const weaponDmg = () => (has("battleaxes") ? 28 : has("swords") ? 20 : has("spears") ? 14 : 8) + (has("blades") ? 5 : 0);
@@ -305,21 +314,25 @@ let lastTier = 1;
 function menace() {
   const army = civs.filter(isForce).length;
   const built = buildings.filter(b => b.type !== "burned" && !b.site).length;
-  return 1
-    + playT / 1800                      // the years themselves
-    + civs.length * 0.18                // mouths, hands, and rumours
-    + army * 0.3                        // a standing army is a provocation
-    + settlements.length * 0.9          // every town is another prize
-    + Math.max(0, res.dm) / 700         // a full treasury is a story that travels
-    + built * 0.03
-    + sackedCamps * 0.3                 // they remember what you did to the last camp
-    + conquests.length * 1.2;           // and a conqueror is everyone's problem
+  const raw =
+      playT / 2400                      // the years themselves
+    + civs.length * 0.10                // mouths, hands, and rumours
+    + army * 0.16                       // a standing army is a provocation
+    + settlements.length * 0.5          // every town is another prize
+    + Math.max(0, res.dm) / 1200        // a full treasury is a story that travels
+    + built * 0.015
+    + sackedCamps * 0.15                // they remember what you did to the last camp
+    + conquests.length * 0.7;           // and a conqueror is everyone's problem
+  // The woods can raise their fury, but they cannot raise men out of nothing.
+  // A colony twice the size does not face twice the woods — it faces half again.
+  return 1 + Math.pow(Math.max(0, raw), 0.72) * 2.2;
 }
-// No ceiling worth the name: the reckoning keeps climbing as long as you do.
+// No ceiling worth the name: the reckoning keeps climbing as long as you do —
+// it simply stops doubling, so an empire is hard-pressed and not merely drowned.
 function difficulty() { return Math.max(1, Math.min(20, Math.round(menace()))); }
 // how many may come at once, and how many camps the woods can hold
-function maxRaiders() { return Math.max(4, Math.min(26, Math.round(2 + menace() * 1.2))); }
-function campCap() { return Math.max(1, Math.min(MAX_CAMPS, 1 + Math.floor(menace() / 3))); }
+function maxRaiders() { return Math.max(4, Math.min(18, Math.round(2 + menace() * 0.8))); }
+function campCap() { return Math.max(1, Math.min(MAX_CAMPS, 1 + Math.floor(menace() / 4))); }
 const settlements = [];               // {name, pop, mx, my} on the Europe map
 const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false, civBuild: false };
 
@@ -536,9 +549,9 @@ function spawnCamps(n) {
 
 function mkRaider(camp, state) {
   const tier = difficulty();
-  const hp = 60 + (tier - 1) * 12;
+  const hp = 60 + (tier - 1) * 8;
   return { x: camp.x + Math.random() * 60 - 30, y: camp.y + 20 + Math.random() * 30, hp, maxHp: hp,
-           dmg: (camp.type === "raid" ? 14 : 10) + (tier - 1) * 2, camp, target: null,
+           dmg: (camp.type === "raid" ? 14 : 10) + (tier - 1) * 1.2, camp, target: null,
            state, anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, wpx: camp.x, wpy: camp.y };
 }
 function spawnRaid() {
@@ -549,7 +562,7 @@ function spawnRaid() {
   if (!towns.length) return;
   const town = towns[Math.floor(Math.random() * towns.length)];
   const camp = camps[Math.floor(Math.random() * camps.length)];
-  let n = (camp.type === "raid" ? 3 : 2) + Math.floor(menace() / 3);
+  let n = (camp.type === "raid" ? 3 : 2) + Math.floor(menace() / 5);
   const targets = raidTargetsIn(town);
   if (!targets.length) return;
   // the patrol decides it is a good time to strike
@@ -1491,7 +1504,7 @@ function worldClick(clientX, clientY) {
         // the choice is the player's — axe it apart, or set it alight
         if (fb.keep) siegeOrder(fb, "torch");
         else openSiegeMenu(fb, clientX, clientY);
-      } else if (selected) toast("Only soldiers, musketeers, cavalry or police can be sent against enemy ground.");
+      } else if (selected) toast("Only soldiers, line infantry, cavalry or police can be sent against enemy ground.");
       else toast(`${fb.town.name} — a town of ${NATIONS[fb.town.nation].name}. Select your soldiers, then click here.`);
       return;
     }
@@ -1508,7 +1521,7 @@ function worldClick(clientX, clientY) {
       } else if (selected && isForce(selected)) {
         // a force unit is selected but none of them can sack — say why, keep the selection
         toast(!has("raiding") ? "Sacking camps requires the Raiding technology."
-              : "The police guard the town — soldiers, musketeers and cavalry march on camps.");
+              : "The police guard the town — soldiers, line infantry and cavalry march on camps.");
       } else {
         selectedCamp = cp; selectedBldg = null; selected = null;
         toast(cp.type === "thief" ? "A thief camp. Soldiers could sack it." : "A raider war-camp. Soldiers could sack it — carefully.");
@@ -2156,7 +2169,7 @@ function rebelAI(c) {
 
 function forceAI(c) {
   if (c.state !== "idle") return;
-  // arm up from the armoury once Defending is known (musketeers bring their own gun)
+  // arm up from the armoury once Defending is known (line infantry bring their own gun)
   if (c.profession !== "musketeer" && !c.armed && has("defending") && forgeBuilt() && res.weapons > 0) {
     res.weapons--; c.armed = true;
     toast(`${c.name} takes a weapon at the forge.`);
@@ -2560,8 +2573,8 @@ function recruitAs(selected, prof) {
       selected.hp = Math.min(selected.hp + 30, selected.maxHp);
       toast(`${selected.name} takes the colony's coin as a soldier. Click a camp to send them raiding.`);
     } else if (prof === "musketeer") {
-      if (!has("matchlock")) return toast("Musketeers require the Matchlock Muskets technology.");
-      if (res.dm - MUSKET_COST < treasuryFloor()) return toast(`A musketeer costs ${MUSKET_COST} DM. Treasury: ${res.dm} DM.`);
+      if (!has("matchlock")) return toast("Line Infantry require the Matchlock Muskets technology.");
+      if (res.dm - MUSKET_COST < treasuryFloor()) return toast(`A line infantryman costs ${MUSKET_COST} DM. Treasury: ${res.dm} DM.`);
       if (!selected.home) return toast("Only housed civilians may shoulder a musket.");
       if (selected.profession === "musketeer") return toast(`${selected.name} already carries a musket.`);
       res.dm -= MUSKET_COST;
@@ -3316,7 +3329,7 @@ function mapInfoSync() {
   const woe = n.calT ? ` Stricken by ${n.calName} — weakened, and slow to answer.` : "";
   document.getElementById("miDetail").textContent =
     `Strength ${natStrength(n)}/10${n.calT ? " (stricken)" : natStrength(n) > n.strength ? " (grown with the years)" : ""}.${woe} ` + (n.atWar ?
-      `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 fighting men — soldiers, musketeers or cavalry; unarmed soldiers draw a weapon from the armoury. (You have ${soldiers} fighting man/men, ${res.weapons} weapon(s).)` :
+      `AT WAR with ${empireName || "your empire"}. Their war parties will keep coming. Assaulting a settlement needs 4 fighting men — soldiers, line infantry or cavalry; unarmed soldiers draw a weapon from the armoury. (You have ${soldiers} fighting man/men, ${res.weapons} weapon(s).)` :
       adj ? "At peace, and your borders touch theirs. Declaring war will bring their war parties to your gates — and put their settlements within your soldiers' reach." :
             "At peace — and far from your borders. No quarrel can reach a nation your territory does not touch. Expand toward them first.");
   w.style.display = n.atWar ? "none" : adj ? "block" : "none";
@@ -3488,7 +3501,7 @@ document.getElementById("miAssault").addEventListener("click", () => {
     return;
   }
   const party = civs.filter(c => ["soldier", "musketeer", "cavalry"].includes(c.profession));
-  if (party.length < 4) return toast("An assault needs at least 4 fighting men — soldiers, musketeers or cavalry.");
+  if (party.length < 4) return toast("An assault needs at least 4 fighting men — soldiers, line infantry or cavalry.");
   const town = landForeignTown(id);
   cam.x = town.x - canvas.width / 2 / zoom;
   cam.y = town.y - canvas.height / 2 / zoom;
@@ -3754,29 +3767,46 @@ function foreignTownFalls(town) {
   checkDefeated(town.nation);
   mapGrid = null; renderMap(); syncUI();
 }
+// How many of a crown's men may stand on your ground at once, all wars counted
+// together. Four crowns at war used to mean four separate streams, each keeping
+// its own time and none of them aware of the others — which is how a colony ends
+// up facing hundreds. They share one field now.
+function warPartyCap() { return Math.max(6, Math.min(20, Math.round(4 + menace() * 0.7))); }
+const warPartiesAfield = () => raiders.filter(r => r.nation).length;
+
 function updateWars(dt) {
+  const atWar = Object.values(NATIONS).filter(n => n.atWar && !n.defeated).length;
   for (const [id, n] of Object.entries(NATIONS)) {
     if (!n.atWar || n.defeated) continue;
     n.warT -= dt;
     if (n.warT <= 0) {
-      n.warT = 110 + Math.random() * 70;
+      // Every crown that joins the war lengthens each crown's own turn, so a
+      // second enemy makes the war wider rather than twice as fast.
+      n.warT = (330 + Math.random() * 210) * Math.max(1, atWar * 0.7);
       if (season() === "winter") continue;   // armies do not march in the snow
       // a war party marches on ONE town — settlements are not spared the war
       const towns = townsWithBuildings();
-      if (!towns.length || raiders.length >= maxRaiders() + 4) continue;
+      if (!towns.length || warPartiesAfield() >= warPartyCap()) continue;
       const town = towns[Math.floor(Math.random() * towns.length)];
       const targets = raidTargetsIn(town);
+      if (!targets.length) continue;
       const cx = town ? town.x : 0, cy = town ? town.y : 0;
       const a = Math.random() * Math.PI * 2;
       const st = natStrength(n);
-      const partySize = 3 + (st >= 8 ? 1 : 0) + Math.floor(menace() / 2.5);
+      const partySize = 3 + (st >= 8 ? 1 : 0) + Math.floor(menace() / 6);
+      let sent = 0;
       for (let i = 0; i < partySize; i++) {
+        // the cap is a wall, not a suggestion: test it for every man sent
+        if (warPartiesAfield() >= warPartyCap()) break;
         const t = targets[Math.floor(Math.random() * targets.length)];
-        const whp = 90 + (difficulty() - 1) * 12 + st * 3;
+        const whp = 90 + (difficulty() - 1) * 6 + st * 3;
         raiders.push({ x: cx + Math.cos(a) * 1300 + i * 30, y: cy + Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
-                       dmg: 16 + (difficulty() - 1) * 2 + Math.floor(st / 3), camp: { x: cx + Math.cos(a) * 1600, y: cy + Math.sin(a) * 1600 }, target: t,
-                       state: "approach", anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, nation: id });
+                       dmg: 16 + (difficulty() - 1) * 1.2 + Math.floor(st / 3), target: t,
+                       state: "approach", anim: 0, facing: 1, atkT: 0, foe: null,
+                       camp: { x: cx + Math.cos(a) * 1600, y: cy + Math.sin(a) * 1600 }, carry: 0, nation: id });
+        sent++;
       }
+      if (!sent) continue;   // no horn for an army that never came
       SFX.warHorn();
       eventCard(`A war party of ${n.name} marches on ${town ? town.name : "the colony"}!`, "event_warparty", "Arm yourselves");
     }
@@ -3796,7 +3826,7 @@ function maybeOfferSettlement() {
     civs.forEach((c, i) => {
       const row = document.createElement("label");
       row.style.cssText = "display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer;font-size:12px";
-      row.innerHTML = `<input type="checkbox" data-idx="${i}"> ${c.name} — ${c.profession || "no trade"}${c.home ? "" : " (homeless)"}`;
+      row.innerHTML = `<input type="checkbox" data-idx="${i}"> ${c.name} — ${profLabel(c.profession)}${c.home ? "" : " (homeless)"}`;
       list.appendChild(row);
     });
     document.getElementById("settleName").value = SETTLE_NAMES[settlements.length % SETTLE_NAMES.length];
@@ -4005,12 +4035,12 @@ function renderMilitary() {
   for (const f of forces) counts[f.profession] = (counts[f.profession] || 0) + 1;
   $("milRoster").innerHTML = forces.length
     ? ["soldier", "musketeer", "cavalry", "police"].filter(p => counts[p])
-        .map(p => `${p.charAt(0).toUpperCase() + p.slice(1)}${counts[p] > 1 ? "s" : ""}: <b style="color:#c9a86a">${counts[p]}</b>`).join(" &middot; ")
+        .map(p => `${profTitle(p)}${counts[p] > 1 && p !== "musketeer" ? "s" : ""}: <b style="color:#c9a86a">${counts[p]}</b>`).join(" &middot; ")
     : '<span style="color:#5a6b60">The colony has no army yet.</span>';
   const list = $("milRecruits");
   list.innerHTML = "";
   const OPTS = [["police", "policing", "Pol", POLICE_COST], ["soldier", "raiding", "Sol", SOLDIER_COST],
-                ["musketeer", "matchlock", "Msk", MUSKET_COST], ["cavalry", "cavalry", "Cav", CAV_COST]];
+                ["musketeer", "matchlock", "Line", MUSKET_COST], ["cavalry", "cavalry", "Cav", CAV_COST]];
   const open = OPTS.filter(([, t]) => has(t));
   if (!open.length) {
     list.innerHTML = '<div style="padding:4px;color:#5a6b60;font-size:11px">No military professions researched yet — Policing, Raiding, Matchlock Muskets or Cavalry open them.</div>';
@@ -4024,7 +4054,7 @@ function renderMilitary() {
     row.style.cssText = "display:flex;align-items:center;gap:4px;margin:3px 0;font-size:11px";
     const nm = document.createElement("span");
     nm.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
-    nm.textContent = `${c.name} — ${c.profession || "no trade"}`;
+    nm.textContent = `${c.name} — ${profLabel(c.profession)}`;
     row.appendChild(nm);
     for (const [p, , label, cost] of open) {
       if (c.profession === p) continue;
@@ -4044,7 +4074,7 @@ function renderMilitary() {
 $("milSearch").addEventListener("input", renderMilitary);
 $("milSelectAll").addEventListener("click", () => {
   const army = civs.filter(groupable);
-  if (!army.length) return toast("No soldiers, musketeers or cavalry to muster.");
+  if (!army.length) return toast("No soldiers, line infantry or cavalry to muster.");
   selGroup = [...army];
   selected = army[0];
   MUSIC.march(false);
@@ -4052,7 +4082,7 @@ $("milSelectAll").addEventListener("click", () => {
   toast(`The army musters — ${army.length} under one order. Click the ground to march them out.`);
   syncUI();
 });
-$("menuMilitary").addEventListener("click", openMilitary);
+// The lobby offers no muster: the army is a thing of the colony, not the title card.
 $("milToggle").addEventListener("click", openMilitary);
 $("milClose").addEventListener("click", () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); });
 $("milColor").addEventListener("input", e => setUniform(e.target.value));
@@ -4612,7 +4642,7 @@ function syncUI() {
       const b = document.createElement("button");
       b.className = "btn menu-item";
       b.style.fontSize = "11px";
-      b.textContent = `${c.name} — ${c.child ? "child" : (c.profession || "no trade")}, ${c.age !== undefined ? c.age : "?"} yrs — ${Math.round(c.happiness)}% happy` + (c.rebel ? " ⚠" : "");
+      b.textContent = `${c.name} — ${c.child ? "child" : profLabel(c.profession)}, ${c.age !== undefined ? c.age : "?"} yrs — ${Math.round(c.happiness)}% happy` + (c.rebel ? " ⚠" : "");
       b.addEventListener("click", () => {
         selected = c; selectedBldg = null; selectedCamp = null;
         selGroup = groupable(c) ? [c] : [];
@@ -4927,14 +4957,14 @@ function update(dt) {
     if (campRespawnTimer <= 0) {
       // the woods fill in faster as the colony grows, and while they are far
       // below what your wealth warrants, more than one band moves in at once
-      campRespawnTimer = Math.max(70, 300 * Math.pow(0.85, difficulty() - 1));
+      campRespawnTimer = Math.max(150, 300 * Math.pow(0.93, difficulty() - 1));
       spawnCamps(camps.length + 1 < campCap() ? 2 : 1);
     }
   }
   if (camps.length) {
     raidTimer -= dt;
     if (raidTimer <= 0) {
-      raidTimer = Math.max(50, (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.88, difficulty() - 1));
+      raidTimer = Math.max(RAID_FLOOR, (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.95, difficulty() - 1));
       if (season() !== "winter") spawnRaid();   // raiders overwinter in their camps
     }
     for (const cp of camps) {
@@ -4960,7 +4990,7 @@ function update(dt) {
   if (season() !== "winter" && nightAmt() > 0.9 && camps.length) {
     ambushT -= dt;
     if (ambushT <= 0) {
-      ambushT = (140 + Math.random() * 90) * Math.pow(0.9, difficulty() - 1);
+      ambushT = Math.max(90, (140 + Math.random() * 90) * Math.pow(0.95, difficulty() - 1));
       // the night ambush falls on any town left unwalled with coin in the chest —
       // the capital's walls do not shelter a settlement half the map away
       const openTowns = townsWithBuildings().filter(t => townCoin(t) >= 5 &&

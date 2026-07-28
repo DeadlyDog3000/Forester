@@ -137,6 +137,27 @@ const SFX = (() => {
       burst(0.55, 0.16, 900, 90, 0.7, "lowpass", 0.27);
     },
     ramrod:   () => { tone("square", 420, 300, 0.05, 0.08); noise(0.07, 0.1, 2200, 800, 2, "bandpass", 0.05); },
+    // ===== loading a musket, in the order a man actually does it =====
+    // The cartridge torn open in the teeth, then the charge tipped down the barrel:
+    // a papery rip and a dry granular hiss, both quiet — this is work, not spectacle.
+    powder:   () => {
+      noise(0.09, 0.075, 3400, 1500, 1.1, "bandpass");            // the paper torn
+      noise(0.17, 0.045, 5200, 2600, 0.7, "highpass", 0.10);      // grains down the muzzle
+      tone("triangle", 300, 210, 0.05, 0.035, 0.24);              // the flask knocked shut
+    },
+    // The ball and wad seated, then the rod drawn and driven home twice — the
+    // scrape of steel in a steel barrel, ringing a little at the bottom.
+    seat:     () => {
+      noise(0.05, 0.06, 1800, 900, 1.6, "bandpass");              // the wad thumbed in
+      tone("square", 240, 190, 0.045, 0.05, 0.05);
+    },
+    // The lock drawn back to full cock: two hard mechanical clicks, and done.
+    cock:     () => {
+      tone("square", 900, 620, 0.028, 0.075);
+      noise(0.03, 0.07, 4200, 2200, 3, "bandpass", 0.005);
+      tone("square", 1050, 700, 0.03, 0.085, 0.10);
+      noise(0.032, 0.08, 4800, 2400, 3, "bandpass", 0.105);
+    },
     // a soft two-note chime when word arrives — enough to look up, not to startle
     popup:    () => { tone("sine", 784, 784, 0.16, 0.10); tone("sine", 1175, 1175, 0.26, 0.085, 0.11); },
     // the war horn: brazen blasts from the treeline — raiders are coming

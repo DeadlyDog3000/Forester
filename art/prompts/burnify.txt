@@ -1,0 +1,12 @@
+Redraw this exact pixel art sprite as a burnt-out ruin. Keep the IDENTICAL composition, footprint, viewpoint, framing and pixel-art style — the same structure standing in the same place in the frame, at the same width and the same base height, so it can be swapped in for the original. Enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading.
+
+WHAT THE FIRE DID:
+The structure has already burned and gone cold. It still reads unmistakably as the same building — the silhouette is recognisable — but it is wrecked. Bite two or three obvious square notches out of the roofline where it has burned through and collapsed. Sag or part-collapse the roof. Leave the walls standing but charred, with a couple of chunky gaps where boards have burned away, showing solid near-black voids behind. Any door or window opening becomes a flat near-black hole. Timber posts become stubby blackened stumps. Stonework survives better than wood: it cracks and blackens but keeps its shape.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Bold, blocky, essential shapes only. NO fine detail, NO thin lines, NO small texture, NO intricate linework. Do not draw individual planks, splinters, or debris specks. The damage is expressed in a handful of large chunky pixel masses, not in fine detail.
+
+COLOUR — COLD, DEAD ASH:
+The fire is long out. Strictly five flat colours, all deep desaturated blue-green spruce and charcoal tones. Near-black for the voids, the burn scars and the outline. Very dark spruce for shadow. Mid dark spruce-grey for the surviving wall mass. A slightly lighter greyish sage-spruce for the lit top edges. ABSOLUTELY NO warm colours — no brown, no orange, no red, no yellow, no fire, no flame, no embers, no glowing coals, no smoke. Any warm or bright colour in the original (glowing forge coals, gold trim, painted signs, ripe wheat) must become cold charcoal. The charring reads as cold green-black patches, heaviest around the openings and the broken roofline.
+
+DO NOT add any new objects, figures, scenery, ground, grass or shadow. Do not shrink the structure or move it in the frame. Keep the background the exact same flat uniform colour as the original so it can be keyed out.
