@@ -22,6 +22,15 @@ const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
 const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, MUSKET_COST = 25, CAV_COST = 50, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
 // the musket's bargain: it outranges and outhits a bow, and takes an age to load
 const MUSKET_RANGE = 250, MUSKET_FIRE_T = 0.55, BALL_SPEED = 900;
+// ===== the volley =====
+// Line infantry do not fire as they please. A man who is loaded and has his mark
+// shoulders his piece and waits on the men beside him; the line lets go together,
+// in one rolling crack, rather than in a scatter of pops down the field. He will
+// not wait forever for a straggler, and a man on his own fires at will.
+const VOLLEY_SPREAD = 190;     // how far along the line he looks for his neighbours
+const VOLLEY_PATIENCE = 3.2;   // seconds shouldered before he gives up on the line
+const VOLLEY_SOUNDS = 3;       // muskets voiced per frame — past this it is one crack
+let volleySounds = 0;          // reset each frame
 // the watch on the tower: further than a man on the ground, slower to load
 const TOWER_RANGE = 340, TOWER_RELOAD = 3.2;
 const MUSKET_KEEP_AWAY = 110;   // closer than this, an unbayoneted musketeer gives ground
@@ -156,6 +165,47 @@ function emptyShelter(b, reason) {
   const inside = sheltering(b);
   for (const c of inside) turnOut(c, true);
   if (inside.length && reason) toast(`${inside.length} driven out of the ${BLDG_NAMES[b.type] || b.type} — ${reason}.`);
+}
+
+// Is the line ready, or has this man waited long enough to stop caring?
+function volleyReady(line, c) {
+  if ((c.volleyT || 0) >= VOLLEY_PATIENCE) return true;
+  for (const o of line) {
+    if (o === c) continue;
+    if (Math.hypot(o.x - c.x, o.y - c.y) > VOLLEY_SPREAD) continue;
+    if (!o.loaded || o.fireT > 0) return false;   // a neighbour is still working the ramrod
+  }
+  return true;                                    // alone, or every piece is up
+}
+// The whole line's permission is settled before any man in it moves. Judge it
+// inside the loop instead and the first man updated fires alone, then everyone
+// else spends their patience waiting on the ramrod he is already working — which
+// is a straggling shot followed by a volley of seven, over and over.
+function planVolleys() {
+  const line = [];
+  for (const c of civs) if (c.profession === "musketeer" && !c.rebel && c.foe) line.push(c);
+  for (const c of line) c.mayFire = volleyReady(line, c);
+}
+
+// Black powder makes a great deal of smoke and it is in no hurry to leave. A
+// shot throws a bank of it off the muzzle that spreads, slows, and hangs.
+function musketSmoke(mx, my, facing) {
+  const n = 5 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) {
+    const along = i / n;                          // further from the muzzle, slower and fatter
+    const life = 3.4 + Math.random() * 2.2;
+    smokes.push({
+      x: mx + facing * (3 + along * 30) + (Math.random() * 9 - 4.5),
+      y: my + (Math.random() * 11 - 5.5),
+      r: 6 + Math.random() * 6 + along * 6,
+      vx: facing * (46 - along * 24) + (Math.random() * 14 - 7),
+      vy: -7 - Math.random() * 9,
+      grow: 5.5 + Math.random() * 4,
+      dense: 0.34,
+      t: life, max: life,
+    });
+  }
+  if (smokes.length > 420) smokes.splice(0, smokes.length - 420);   // the field only holds so much
 }
 
 // ===== stone is climbed, not broken =====
@@ -5087,6 +5137,7 @@ function update(dt) {
 
   if (paused) return;
 
+  volleySounds = 0;      // the frame's ration of musket reports
   worldT += dt;
   rescueStuck(dt);
   updateNationWars(dt);
@@ -5107,7 +5158,18 @@ function update(dt) {
 
   for (const f of floaters) { f.t -= dt; f.y -= 26 * dt; }
   for (let i = floaters.length - 1; i >= 0; i--) if (floaters[i].t <= 0) floaters.splice(i, 1);
-  for (const sm of smokes) { sm.t -= dt; sm.y -= 16 * dt; sm.x += sm.vx * dt * 0.4; sm.r += 2.4 * dt; }
+  for (const sm of smokes) {
+    sm.t -= dt;
+    if (sm.grow !== undefined) {          // powder smoke: it spreads, slows, and hangs
+      sm.x += sm.vx * dt; sm.y += sm.vy * dt;
+      const drag = Math.pow(0.3, dt);     // the bank loses its push almost at once
+      sm.vx *= drag; sm.vy *= drag;
+      sm.vy -= 4.5 * dt;                  // what is left of it lifts away
+      sm.r += sm.grow * dt;
+    } else {                              // hearths and housefires, as they always were
+      sm.y -= 16 * dt; sm.x += sm.vx * dt * 0.4; sm.r += 2.4 * dt;
+    }
+  }
   for (let i = smokes.length - 1; i >= 0; i--) if (smokes[i].t <= 0) smokes.splice(i, 1);
 
   // global tax clock
@@ -5358,6 +5420,7 @@ function update(dt) {
     towers.some(tw => Math.hypot(tw.x - r.x, tw.y - r.y) < 750));
   MUSIC.battle(threat && gameState === "playing");
 
+  planVolleys();          // settle the line's volley before anyone in it moves
   for (const c of [...civs]) {
     c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * (season() === "winter" ? 1.15 : 1) * dt);
     if (c.hunger <= 0) {
@@ -5779,16 +5842,20 @@ function update(dt) {
         if (d > MUSKET_RANGE) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt);
         c.anim += dt * 2;
         if (c.loaded && c.fireT <= 0 && d <= MUSKET_RANGE + 10) {
+          // shouldered, mark taken — now wait on the men beside him
+          c.volleyT = (c.volleyT || 0) + dt;
+          if (!c.mayFire) { c.anim += dt * 2; continue; }   // shouldered, waiting on the line
+          c.volleyT = 0;
           let dmg = musketDmg(d);            // struck harder the nearer the muzzle
           if (nearWatchtower(c.x, c.y)) dmg += 5;
-          SFX.musket();
+          // a dozen muskets in one frame is one crack, not a dozen stacked reports
+          if (volleySounds++ < VOLLEY_SOUNDS) SFX.musket();
           // the muzzle sits on the barrel line of the sprite, not at the man's waist
           const mx = c.x + c.facing * MUZZLE_X, my = c.y - MUZZLE_Y;
           const tx = foe.x, ty = foe.y - CHAR_SIZE * 0.45;
           const md = Math.max(1, Math.hypot(tx - mx, ty - my));
           balls.push({ x: mx, y: my, target: foe, from: c, dmg, vx: (tx - mx) / md, vy: (ty - my) / md });
-          smokes.push({ x: mx + c.facing * 6, y: my, r: 5 + Math.random() * 3,
-                        vx: c.facing * 26, t: 1.2, max: 1.2 });
+          musketSmoke(mx, my, c.facing);
           c.loaded = false; c.fireT = MUSKET_FIRE_T; c.reloadT = reloadTime();
         }
         continue;
@@ -6205,7 +6272,7 @@ function render(dt) {
 
   for (const sm of smokes) {
     if (!inView(sm.x, sm.y)) continue;
-    ctx.globalAlpha = 0.28 * Math.min(1, sm.t / sm.max);
+    ctx.globalAlpha = (sm.dense || 0.28) * Math.min(1, sm.t / sm.max);
     ctx.fillStyle = "#b8bcb8";
     ctx.beginPath(); ctx.arc(sm.x, sm.y, sm.r, 0, Math.PI * 2); ctx.fill();
   }
