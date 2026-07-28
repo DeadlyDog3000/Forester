@@ -655,7 +655,8 @@ function mkCiv(name, who, x, y, gender) {
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
            age: 20 + Math.floor(Math.random() * 26),
            autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true,
-           sick: 0, sk: freshSkills(), sx: {},
+           sick: 0, op: {}, feudWith: null, feudT: 0, socT: 2 + Math.random() * 6,
+           sk: freshSkills(), sx: {},
            loaded: true, reloadT: 0, fireT: 0 };
 }
 
@@ -1040,6 +1041,12 @@ function updateRaider(r, dt) {
 
 // generic strike between any two units (civ or raider)
 function strikeUnit(a, b, dmg) {
+  // A blow between two of your own is remembered on both sides — but not when
+  // they are already feuding. Counting the quarrel's own punches drove opinion
+  // down without limit, which started fresh quarrels, which threw more punches:
+  // a colony of two dozen wiped itself out inside a quarter of an hour.
+  if (a && b && a.isCiv && b.isCiv && a.feudWith !== b.name && b.feudWith !== a.name)
+    fallOut(b, a, -14);
   if (Math.random() < DODGE_CHANCE) { float(b.x, b.y - 70, "Dodged!", "#cfd8d3"); SFX.dodge(); return; }
   b.hp -= dmg;
   float(b.x, b.y - 70, "-" + dmg, "#d86a5a");
@@ -1442,6 +1449,7 @@ function killCiv(c, why) {
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
   if (selected === c) selected = null;
   if (skillCiv === c) closeSkills();
+  for (const o of civs) { if (o.op) delete o.op[c.name]; if (o.feudWith === c.name) endFeud(o); }
   selGroup = selGroup.filter(s => s !== c);
   civs.splice(civs.indexOf(c), 1);
   SFX.death();
@@ -2518,6 +2526,137 @@ function maybeRebel(c, dt) {
     if (lawAllows && forgeBuilt() && res.weapons > 0) { res.weapons--; c.armed = true; }
     c.task = null; c.state = "idle";
     toast(`⚠ ${c.name} has turned against the colony${c.armed ? " — and took a weapon" : ""}!`);
+  }
+}
+
+// ===== what they think of each other =====
+// A colony is not a single mood. Everyone forms a view of the people they
+// actually live and work beside, and it moves for reasons they could name: a
+// crowded roof, a neighbour who has turned on the colony, a man who struck them.
+// Let a view sour far enough and it stops being an opinion and becomes a feud —
+// and a feud in a forest settlement is settled with an axe or a torch.
+//
+// Opinions are kept sparsely and by name, not by index: the roll shifts every
+// time somebody dies, and a grudge that silently re-points at a stranger would
+// be worse than no grudge at all.
+const OP_MIN = -100, OP_MAX = 100;
+const FEUD_AT = -70;              // where dislike becomes intent
+const FEUD_LEN = 240;             // how long the blood stays up
+const OP_KNOWN = 260;             // near enough to have a view of at all
+// what people in a forest settlement actually fall out over
+const GRIEVANCES = [
+  "over a debt", "over a boundary stake", "over a woman", "over a borrowed axe",
+  "over whose turn it was at the well", "over a share of the harvest",
+  "over an insult at the fire", "over a dog", "over a place at the table",
+  "over an old score from Hamburg", "over the price of a door", "over a lie told about them",
+];
+const MAX_FEUDS = 2;              // how many quarrels the colony can be running at once
+const BEATEN = 25;                // hp at which a man has had the worst of it
+const opinionOf = (c, o) => (c.op && c.op[o.name]) || 0;
+function nudgeOpinion(c, o, by) {
+  if (!c || !o || c === o) return;
+  c.op = c.op || {};
+  const was = c.op[o.name] || 0;
+  const now = Math.max(OP_MIN, Math.min(OP_MAX, was + by));
+  if (now === 0) delete c.op[o.name]; else c.op[o.name] = now;
+  if (was > FEUD_AT && now <= FEUD_AT) startFeud(c, o);
+}
+// Whatever passes between two people, both of them remember it.
+function fallOut(a, b, by) { nudgeOpinion(a, b, by); nudgeOpinion(b, a, by * 0.6); }
+
+function startFeud(c, o) {
+  if (c.rebel || c.child || !civs.includes(o) || o.child) return;
+  if (c.feudWith) return;                       // one quarrel at a time
+  // and the colony as a whole only carries so many before it is just a massacre
+  if (civs.filter(x => x.feudWith).length >= MAX_FEUDS) return;
+  c.feudWith = o.name; c.feudT = FEUD_LEN; c.feudLethal = undefined;
+  c.task = null; c.state = "idle";
+  toast(`⚠ ${c.name} has fallen out with ${o.name} for good — and means to settle it.`);
+}
+function endFeud(c, why) {
+  if (!c.feudWith) return;
+  const name = c.feudWith;
+  c.feudWith = null; c.feudT = 0; c.feudLethal = undefined;
+  if (c.task && (c.task.kind === "attack" || c.task.kind === "torch")) { c.task = null; c.state = "idle"; }
+  if (why) toast(`${c.name} lets the quarrel with ${name} go.`);
+}
+// A man with blood up goes for the person, or for the roof over their head.
+function feudAI(c) {
+  const foe = civs.find(o => o.name === c.feudWith);
+  if (!foe) return endFeud(c);
+  if (c.state !== "idle") return;
+  const home = foe.home && buildings.includes(foe.home) && !foe.home.fire ? foe.home : null;
+  // fire is the coward's way and the likelier one when the man is out of reach
+  const reachable = !INDOORS.has(foe.state);
+  if (reachable && (c.feudLethal || !home || Math.random() < 0.6)) {
+    order(c, { kind: "attack", target: foe, x: foe.x, y: foe.y });
+  } else if (home) {
+    order(c, { kind: "torch", target: home, x: home.x, y: home.y + 14 });
+  }
+}
+// The slow drift: every so often a civilian takes stock of whoever is at hand.
+function socialTick(c, dt) {
+  c.socT = (c.socT || 2 + Math.random() * 6) - dt;
+  if (c.socT > 0) return;
+  c.socT = 6 + Math.random() * 8;
+  if (c.child || c.rebel) return;
+  const near = civs.filter(o => o !== c && !o.child && Math.hypot(o.x - c.x, o.y - c.y) < OP_KNOWN);
+  if (!near.length) return;
+  const o = near[Math.floor(Math.random() * near.length)];
+
+  // A falling-out between two particular people, owing nothing to how the colony
+  // is run. Without this a quarrel could only ever break out somewhere already
+  // collapsing into rebellion, which made the whole thing invisible in a colony
+  // worth playing — people fall out over nothing in the best-run places.
+  if (Math.random() < 0.035) {
+    const over = GRIEVANCES[Math.floor(Math.random() * GRIEVANCES.length)];
+    // bad blood compounds: a quarrel between two who already dislike each
+    // other cuts deeper than one between friends
+    const bitter = opinionOf(c, o) < -25 ? 1.5 : 1;
+    nudgeOpinion(c, o, -(14 + Math.random() * 12) * bitter);
+    nudgeOpinion(o, c, -(4 + Math.random() * 8) * bitter);
+    if (opinionOf(c, o) < -35 && Math.random() < 0.5)
+      toast(`${c.name} and ${o.name} have words ${over}.`);
+    return;
+  }
+
+  let by = 0;
+  // living well together mends fences; misery looks for someone to blame
+  by += c.happiness > 60 ? 3 : c.happiness < 30 ? -1.5 : 0;
+  // and goodwill does not simply wash a real grudge away
+  if (by > 0 && opinionOf(c, o) < -15) by *= 0.15;
+  if (c.home && c.home === o.home) {
+    const crowded = c.home.occupants.length >= cabinCapacity();
+    by += crowded ? -1 : 4;                       // a shared roof is a friend or a grievance
+  }
+  if (o.rebel) by -= 3;                           // nobody loves a man who turned on the colony
+  if (c.hunger < 30 && (o.inv.bread > 0 || o.inv.meat > 0)) by -= 2;   // he eats while I starve
+  if (isForce(o) && laws.forced) by -= 2;         // the man who enforces the edict
+  if (c.sick > 0 && !o.sick) by -= 1;
+  nudgeOpinion(c, o, by);
+}
+function updateFeuds(dt) {
+  for (const c of civs) {
+    if (!c.feudWith) continue;
+    c.feudT -= dt;
+    const foe = civs.find(o => o.name === c.feudWith);
+    if (!foe) { endFeud(c); continue; }
+    if (c.feudT <= 0) { endFeud(c, true); nudgeOpinion(c, foe, 45); continue; }   // it burns itself out
+    // Once a man is properly beaten, is that satisfaction or is it not enough?
+    // Decide it ONCE and hold to it. Rolled fresh every frame — as this was — a
+    // three-in-four chance of stopping becomes a certainty within a few frames,
+    // and nobody was ever killed at all: forty feuds run to the end, forty
+    // beatings, no graves. The same mistake as a per-frame rebellion roll.
+    if (foe.hp <= BEATEN && c.feudLethal === undefined) {
+      c.feudLethal = Math.random() < 0.3;
+      if (!c.feudLethal) {
+        endFeud(c);
+        nudgeOpinion(c, foe, 55);
+        toast(`${foe.name} is beaten bloody. ${c.name} considers the matter settled.`);
+      } else {
+        toast(`⚠ ${c.name} is not finished with ${foe.name}.`);
+      }
+    }
   }
 }
 
@@ -4559,6 +4698,7 @@ function emigrate(c) {
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
   if (selected === c) selected = null;
   if (skillCiv === c) closeSkills();
+  for (const o of civs) { if (o.op) delete o.op[c.name]; if (o.feudWith === c.name) endFeud(o); }
   selGroup = selGroup.filter(s => s !== c);
   civs.splice(civs.indexOf(c), 1);
   toast(`${c.name} has left for the new settlement.`);
@@ -4750,6 +4890,8 @@ function saveGame() {
         post: c.post ? { x: r1(c.post.x), y: r1(c.post.y) } : undefined,
         state: c.state === "inside" ? "inside" : undefined, shelter: bi(c.shelter),
         sick: c.sick ? r1(c.sick) : undefined,
+        op: (c.op && Object.keys(c.op).length) ? c.op : undefined,
+        feudWith: c.feudWith || undefined, feudT: c.feudT ? r1(c.feudT) : undefined,
         sk: skSave(c), sx: sxSave(c),
         conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
         inv: { ...c.inv },
@@ -4843,6 +4985,7 @@ function loadGame() {
         child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20, post: cd.post || null,
         conquered: cd.conquered || 0 });
       c.sick = cd.sick || 0;
+      c.op = cd.op || {}; c.feudWith = cd.feudWith || null; c.feudT = cd.feudT || 0;
       c.sk = Object.assign(freshSkills(), cd.sk || {});
       c.sx = Object.assign({}, cd.sx || {});
       if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
@@ -5325,7 +5468,8 @@ function syncUI() {
     $("cpName").textContent = selected.name.toUpperCase() + (selected.rebel ? " — REBEL" : "") +
       (selGroup.length > 1 && selGroup.includes(selected) ? ` (+${selGroup.length - 1} MORE)` : "");
     $("cpProf").textContent = (selected.profession || "none") + (selected.age !== undefined ? ` · age ${selected.age}` : "") +
-                              (selected.sick > 0 ? " · ☠ PLAGUE-STRICKEN" : "");
+                              (selected.sick > 0 ? " · ☠ PLAGUE-STRICKEN" : "") +
+                              (selected.feudWith ? ` · ⚔ FEUDING WITH ${selected.feudWith.toUpperCase()}` : "");
     $("cpHome").textContent = selected.home ? "housed" : "homeless";
     $("cpHpN").textContent = Math.round(selected.hp) + "/" + selected.maxHp;
     $("cpHp").style.width = Math.max(0, selected.hp / selected.maxHp * 100) + "%";
@@ -5339,6 +5483,17 @@ function syncUI() {
     $("cpWheat").textContent = selected.inv.wheat; $("cpBread").textContent = selected.inv.bread;
     $("cpMeat").textContent = selected.inv.meat; $("cpDM").textContent = selected.inv.dm;
     const assigned = farms.filter(f => f.workers.includes(selected)).length;
+    // who they think well of, and who they cannot abide
+    {
+      const op = Object.entries(selected.op || {}).filter(([, v]) => Math.abs(v) >= 12)
+        .sort((a, b) => a[1] - b[1]);
+      const word = v => v <= FEUD_AT ? "hates" : v <= -40 ? "loathes" : v <= -12 ? "dislikes"
+                      : v >= 60 ? "is devoted to" : v >= 40 ? "is fond of" : "likes";
+      const worst = op.slice(0, 2), best = op.slice(-2).reverse().filter(e => e[1] > 0);
+      const say = [...worst.filter(e => e[1] < 0), ...best]
+        .map(([n, v]) => `${word(v)} ${n}`).slice(0, 3);
+      $("cpOpinions").textContent = say.length ? say.join(" · ") : "";
+    }
     $("cpFarms").textContent = selected.profession === "farmer" ?
       `Tends ${assigned} farm(s). Click a farm to assign or unassign.` :
       selected.profession === "soldier" ? "Click a thief or raid camp to send them to sack it." : "";
@@ -5467,6 +5622,7 @@ function update(dt) {
   updateCalamities(dt);
   updatePlague(dt);
   updateFuel(dt);
+  updateFeuds(dt);
   updateRefugees(dt);
   if (civs.length >= 10) vignette("village");
   if (difficulty() > lastTier) {
@@ -5868,6 +6024,8 @@ function update(dt) {
     if (nightNow > 0.5 && !isForce(c) && !c.rebel && c.home && c.state === "idle")
       order(c, { kind: "goHome", x: c.home.x, y: c.home.y + 12 });
 
+    socialTick(c, dt);
+    if (c.feudWith) feudAI(c);
     if (c.rebel) rebelAI(c);
     if (isForce(c) && !c.rebel) forceAI(c);
 
@@ -6604,10 +6762,10 @@ function render(dt) {
                                              : img[c.who + (Math.floor(c.anim) % 4)];
     drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
     // the flash is painted into the firing sprite itself — nothing is drawn over it
-    ctx.fillStyle = c.sick > 0 ? "#a99ec4" : c.rebel ? "#d86a5a" : c === selected ? "#c9a86a" :
+    ctx.fillStyle = c.sick > 0 ? "#a99ec4" : c.rebel ? "#d86a5a" : c.feudWith ? "#d8a05a" : c === selected ? "#c9a86a" :
                     c.profession === "police" ? "#8aa0c9" : isForce(c) ? "#b58a5a" : "#7da083";
     ctx.font = "10px monospace"; ctx.textAlign = "center";
-    const tag = c.rebel ? " [REBEL]" : c.child ? " (child)" :
+    const tag = c.rebel ? " [REBEL]" : c.feudWith ? ` [feud: ${c.feudWith}]` : c.child ? " (child)" :
                 ["police", "soldier", "musketeer", "cavalry"].includes(c.profession) ? ` [${c.profession}]` : "";
     if (settings.labels) ctx.fillText((c.sick > 0 ? "☠ " : "") + c.name + tag, c.x, c.y - CHAR_SIZE - 4);
     if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
