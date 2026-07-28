@@ -60,12 +60,13 @@ const STATIC_COSTS = {
   watchtower: { logs: 15, stone: 5, dm: 6 }, bakery: { logs: 20, stone: 3, dm: 8 }, well: { logs: 10, stone: 8, dm: 4 },
   forge: { logs: 20, stone: 6, iron: 2, dm: 12 },
   wall: { stone: 2, dm: 1 }, gate: { logs: 6, stone: 2, dm: 1 },
+  jail: { logs: 18, stone: 6, dm: 10 },
   townhall: { logs: 40, stone: 10, dm: 20 },
   stonewall: { stone: 4, dm: 1 }, stonegate: { stone: 7, logs: 2, dm: 2 },
   moat: { stone: 4, logs: 2, dm: 3 }, ditch: { logs: 2, dm: 1 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
-  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall",
+  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall", jail: "Jail",
   stonewall: "Stone Wall", stonegate: "Stone Gate", moat: "Moat", ditch: "Ditch" };
 const WALLLIKE = new Set(["wall", "gate", "stonewall", "stonegate", "moat", "ditch"]);
 const forgeBuilt = () => buildings.some(b => b.type === "forge" && !b.fire && !b.site);
@@ -144,7 +145,7 @@ const profTitle = p => profLabel(p).replace(/\b\w/g, ch => ch.toUpperCase());
 // The three ways of being under a roof: asleep in your own bed, warming yourself
 // at your own hearth, and simply having gone indoors because you were told to.
 // None of them can be seen, shot at, or snowed on.
-const INDOORS = new Set(["sleeping", "warming", "inside"]);
+const INDOORS = new Set(["sleeping", "warming", "inside", "jailed"]);
 const SHELTER_CAP = 4;
 const canShelter = b => !b.site && b.type !== "burned" && !WALLLIKE.has(b.type) && b.type !== "farm";
 const sheltering = b => civs.filter(c => c.shelter === b);
@@ -240,7 +241,7 @@ function overTheWall(u, w, goal) {
 // a moat or a ditch simply goes. A ruin remembers what it was in `was`, and a
 // repair puts that back — losing a forge is a setback, not an erasure.
 const RUINS = new Set(["cabin", "recruit", "market", "watchtower", "bakery", "well",
-                       "forge", "townhall", "farm", "wall", "gate", "stonewall", "stonegate"]);
+                       "forge", "townhall", "farm", "wall", "gate", "stonewall", "stonegate", "jail"]);
 // A ruin keeps the footprint of what it was: burnt wall, wall-shaped rubble.
 const baseType = b => (b.type === "burned" && b.was) ? b.was : b.type;
 const ruinKey = b => {
@@ -418,9 +419,10 @@ const IMAGES = {
   wallv: "assets/sprites/buildings/wall_v_32.png",
   gate: "assets/sprites/buildings/gate_32.png",
   thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
+  jail: "assets/sprites/buildings/jail_32.png", jail_w: "assets/sprites/buildings/jail_w_32.png",
 };
 // every structure a torch can reach, drawn once more as a cold wreck
-for (const k of ["recruit", "market", "watchtower", "bakery", "well", "forge", "townhall",
+for (const k of ["recruit", "market", "watchtower", "bakery", "well", "forge", "townhall", "jail",
                  "farm", "wall", "wallv", "gate", "gatev", "stonewall", "stonewallv",
                  "stonegate", "stonegatev"])
   IMAGES["burned_" + k] = `assets/sprites/buildings/burned_${k}_32.png`;
@@ -655,7 +657,7 @@ function mkCiv(name, who, x, y, gender) {
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
            age: 20 + Math.floor(Math.random() * 26),
            autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true,
-           sick: 0, op: {}, feudWith: null, feudT: 0, socT: 2 + Math.random() * 6,
+           sick: 0, op: {}, feudWith: null, feudT: 0, socT: 2 + Math.random() * 6, jail: null, jailT: 0,
            sk: freshSkills(), sx: {},
            loaded: true, reloadT: 0, fireT: 0 };
 }
@@ -2014,7 +2016,7 @@ function rescueStuck(dt) {
   }
 }
 const BUILD_TIMES = { cabin: 10, recruit: 12, market: 10, watchtower: 8, bakery: 10, well: 7, forge: 12, townhall: 16,
-                      wall: 1.5, gate: 2.5, stonewall: 3, stonegate: 5, moat: 6, ditch: 4, farm: 5 };
+                      wall: 1.5, gate: 2.5, stonewall: 3, stonegate: 5, moat: 6, ditch: 4, farm: 5, jail: 13 };
 function finishConstruction(b) {
   b.site = false; b.progress = -1;
   if (!WALLLIKE.has(b.type)) expandAround(b.x, b.y, 1);
@@ -2242,6 +2244,18 @@ function arrive(c) {
     const standing = t.target && t.target.foreign ? foreign.includes(t.target) : camps.includes(t.target);
     if (!standing) { c.state = "idle"; c.task = null; return; }
     c.state = "sieging"; c.workT = 0;
+  } else if (t.kind === "arrest") {
+    // a man with blood up does not stand still to be arrested: run him down,
+    // and the arrest only lands in hand's reach
+    const p2 = t.target;
+    if (!civs.includes(p2) || !p2.feudWith || isJailed(p2)) { c.state = "idle"; c.task = null; return; }
+    const jail = jails().sort((a, b) =>
+      Math.hypot(a.x - p2.x, a.y - p2.y) - Math.hypot(b.x - p2.x, b.y - p2.y))[0];
+    if (!jail) { c.state = "idle"; c.task = null; return; }
+    if (Math.hypot(p2.x - c.x, p2.y - c.y) > 34) { c.tx = p2.x; c.ty = p2.y + 6; c.state = "walking"; return; }
+    jailCiv(p2, jail, c);
+    SFX.pickup();
+    c.state = "idle"; c.task = null;
   } else if (t.kind === "seize") {
     // run them down: the chase only ends in hand's reach
     const f = t.target;
@@ -2580,6 +2594,41 @@ function endFeud(c, why) {
   if (c.task && (c.task.kind === "attack" || c.task.kind === "torch")) { c.task = null; c.state = "idle"; }
   if (why) toast(`${c.name} lets the quarrel with ${name} go.`);
 }
+// ===== the law =====
+// A quarrel is the colony's business, not just the two men in it. Where there is
+// a jail and someone to walk the beat, the constable takes the one who started
+// it and locks him up until the blood goes out of him. No jail, or no police,
+// and the feud runs its course the old way.
+const SENTENCE = 220;
+const jails = () => buildings.filter(b => b.type === "jail" && !b.fire && !b.site);
+const isJailed = c => (c.jailT || 0) > 0;
+function jailCiv(c, jail, byWhom) {
+  endFeud(c);
+  c.jail = jail; c.jailT = SENTENCE;
+  c.state = "jailed"; c.task = null;
+  c.x = jail.x; c.y = jail.y + 18;
+  c.happiness = Math.max(0, c.happiness - 12);
+  toast(`⚖ ${byWhom ? byWhom.name + " takes " : ""}${c.name} is put in the jail to cool off.`);
+  syncUI();
+}
+function updateJail(dt) {
+  for (const c of civs) {
+    if (!isJailed(c)) continue;
+    // a jail that burns down or is pulled apart lets its prisoner walk
+    if (!c.jail || !buildings.includes(c.jail) || c.jail.fire || c.jail.type !== "jail") {
+      c.jailT = 0; c.jail = null; c.state = "idle";
+      toast(`${c.name} walks out of the ruined jail.`);
+      continue;
+    }
+    c.jailT -= dt;
+    if (c.jailT <= 0) {
+      c.jailT = 0; c.jail = null; c.state = "idle";
+      c.x += Math.random() * 40 - 20; c.y += 24;
+      toast(`${c.name} is let out of the jail.`);
+    }
+  }
+}
+
 // A man with blood up goes for the person, or for the roof over their head.
 function feudAI(c) {
   const foe = civs.find(o => o.name === c.feudWith);
@@ -2699,6 +2748,21 @@ function forceAI(c) {
     if (d < bd) { bd = d; best = r; }
   }
   if (best) { order(c, { kind: "attack", target: best, x: best.x, y: best.y }); return; }
+  // Before anything quieter: a constable near a quarrel goes and takes the man
+  // who started it. This is the law's business and not a fight — he is seized,
+  // not fought, and walked to the lock-up.
+  // A quarrel carries. A constable answers one anywhere in the settlement, not
+  // only inside his own eyeline — feuds are over in seconds, so a beat range
+  // meant the law arrived after the funeral and never made a single arrest.
+  if (c.profession === "police" && jails().length) {
+    let culprit = null, cd = post ? range : 1600;
+    for (const o of civs) {
+      if (!o.feudWith || isJailed(o) || o === c) continue;
+      const d = Math.hypot(o.x - fx, o.y - fy);
+      if (d < cd) { cd = d; culprit = o; }
+    }
+    if (culprit) { order(c, { kind: "arrest", target: culprit, x: culprit.x, y: culprit.y }); return; }
+  }
   if (post) {
     if (Math.hypot(post.x - c.x, post.y - c.y) > 26) order(c, { kind: "walk", x: post.x, y: post.y });
     return;
@@ -2908,7 +2972,7 @@ function rejectColony(v) { closeDialogue(); sendAway(v, `${v.name} shakes his he
 // --- tech research ---
 function techAvailable(t) { return !t.done && t.req.every(r => TECH[r].done) && (!research || research.id !== t.id); }
 // which menu entries hide until their technology is researched
-const BUILD_GATES = { forge: "forging", townhall: "township", wall: "defending", gate: "defending",
+const BUILD_GATES = { forge: "forging", townhall: "township", wall: "defending", gate: "defending", jail: "policing",
                       stonewall: "defplus", stonegate: "defplus", moat: "defplus", ditch: "defplus" };
 const PROF_GATES = { lumberjack: "township", quarryman: "township", forager: "township",
                      police: "policing", blacksmith: "forging", soldier: "raiding",
@@ -4892,6 +4956,7 @@ function saveGame() {
         sick: c.sick ? r1(c.sick) : undefined,
         op: (c.op && Object.keys(c.op).length) ? c.op : undefined,
         feudWith: c.feudWith || undefined, feudT: c.feudT ? r1(c.feudT) : undefined,
+        jail: bi(c.jail), jailT: c.jailT ? r1(c.jailT) : undefined,
         sk: skSave(c), sx: sxSave(c),
         conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
         inv: { ...c.inv },
@@ -4986,6 +5051,7 @@ function loadGame() {
         conquered: cd.conquered || 0 });
       c.sick = cd.sick || 0;
       c.op = cd.op || {}; c.feudWith = cd.feudWith || null; c.feudT = cd.feudT || 0;
+      c.jailT = cd.jailT || 0;
       c.sk = Object.assign(freshSkills(), cd.sk || {});
       c.sx = Object.assign({}, cd.sx || {});
       if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
@@ -5004,6 +5070,11 @@ function loadGame() {
         civs[i].shelter = buildings[cd.shelter];
         civs[i].state = "inside";
       }
+      // a sentence is served in a particular building, so point them back at it
+      if (cd.jailT && cd.jail !== undefined && buildings[cd.jail] && civs[i]) {
+        civs[i].jail = buildings[cd.jail];
+        civs[i].state = "jailed";
+      } else if (civs[i]) { civs[i].jailT = 0; civs[i].jail = null; }
     });
     d.buildings.forEach((bd, i) => {
       for (const cidx of bd.occupants) if (civs[cidx]) {
@@ -5469,7 +5540,8 @@ function syncUI() {
       (selGroup.length > 1 && selGroup.includes(selected) ? ` (+${selGroup.length - 1} MORE)` : "");
     $("cpProf").textContent = (selected.profession || "none") + (selected.age !== undefined ? ` · age ${selected.age}` : "") +
                               (selected.sick > 0 ? " · ☠ PLAGUE-STRICKEN" : "") +
-                              (selected.feudWith ? ` · ⚔ FEUDING WITH ${selected.feudWith.toUpperCase()}` : "");
+                              (selected.feudWith ? ` · ⚔ FEUDING WITH ${selected.feudWith.toUpperCase()}` : "") +
+                              (isJailed(selected) ? ` · ⚖ JAILED (${Math.ceil(selected.jailT)}s)` : "");
     $("cpHome").textContent = selected.home ? "housed" : "homeless";
     $("cpHpN").textContent = Math.round(selected.hp) + "/" + selected.maxHp;
     $("cpHp").style.width = Math.max(0, selected.hp / selected.maxHp * 100) + "%";
@@ -5561,13 +5633,17 @@ function syncUI() {
       b.type === "forge" ? `Blacksmith's shop. On the racks: ${(b.shop || []).filter(i => i.kind === "tool").length} tool(s). Civilians buy tools with their own coin; forged weapons go straight to the armoury.` :
       b.type === "townhall" ? "Civilians bring their goods here on their own — no more asking." :
       b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
-      b.type === "gate" ? "Your people pass freely; raiders must burn it down." : "Standing.";
+      b.type === "gate" ? "Your people pass freely; raiders must burn it down." :
+      b.type === "jail" ? "Police put the aggressor of a feud in here to cool off. Burn it down or pull it apart and the prisoners walk." : "Standing.";
     const inside = isFarm ? [] : sheltering(b);
+    const held = (!isFarm && b.type === "jail") ? civs.filter(o => isJailed(o) && o.jail === b) : [];
     $("bpOcc").textContent = isFarm ? "—"
+      : b.type === "jail" ? (held.length ? `${held.length} held` : "empty")
       : `${b.occupants.length} living here${inside.length ? `, ${inside.length} indoors` : ""}`;
     // Everyone under this roof, by name and pickable. Someone standing inside is
     // not on the map to be clicked, so without this there is no way to reach them.
     const roll = [];
+    for (const o of held) roll.push({ c: o, note: `held, ${Math.ceil(o.jailT)}s left` });
     for (const o of (isFarm ? [] : b.occupants)) roll.push({ c: o, note: "lives here" });
     for (const o of inside) if (!roll.some(r => r.c === o)) roll.push({ c: o, note: "sheltering" });
     for (const r of roll) if (inside.includes(r.c) && r.note === "lives here") r.note = "lives here, indoors";
@@ -5623,6 +5699,7 @@ function update(dt) {
   updatePlague(dt);
   updateFuel(dt);
   updateFeuds(dt);
+  updateJail(dt);
   updateRefugees(dt);
   if (civs.length >= 10) vignette("village");
   if (difficulty() > lastTier) {
@@ -6002,6 +6079,10 @@ function update(dt) {
     }
     // Someone sent indoors stays indoors. They do no work and take no orders
     // until they are turned out — or until the roof over them stops being one.
+    if (c.state === "jailed") {
+      if (isJailed(c) && c.jail) { c.x = c.jail.x; c.y = c.jail.y + 18; continue; }
+      c.state = "idle";
+    }
     if (c.state === "inside") {
       if (!c.shelter || !buildings.includes(c.shelter) || c.shelter.fire || !canShelter(c.shelter)) turnOut(c, true);
       else { c.x = c.shelter.x; c.y = c.shelter.y + 18; continue; }
