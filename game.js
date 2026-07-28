@@ -2652,6 +2652,38 @@ function lawTick(c) {
   if (culprit) order(c, { kind: "arrest", target: culprit, x: culprit.x, y: culprit.y });
 }
 
+// A man with blood up still knows a constable when he sees one, and he runs.
+// He breaks off whatever he was about — the victim, the torch — and puts ground
+// between himself and the law. The constable is the faster of the two, so it
+// ends in a hand on the shoulder sooner or later, but it is a chase and not a
+// formality, and a long enough one that a quarrel can still finish first.
+const FLEE_SIGHT = 260;              // how close the law gets before he bolts
+const FLEE_HASTE = 1.45;             // fear is quick, but not as quick as duty
+function runFromTheLaw(c, dt) {
+  if (!c.feudWith || isJailed(c) || INDOORS.has(c.state)) return false;
+  let cop = null, best = FLEE_SIGHT;
+  for (const p of civs) {
+    if (p.profession !== "police" || p.rebel || isJailed(p) || INDOORS.has(p.state)) continue;
+    const d = Math.hypot(p.x - c.x, p.y - c.y);
+    if (d < best) { best = d; cop = p; }
+  }
+  if (!cop) { if (c.task && c.task.kind === "bolt") { c.task = null; c.state = "idle"; } return false; }
+  if (!c.task || c.task.kind !== "bolt") {
+    if (c.task && c.task.kind !== "bolt") toast(`${c.name} bolts — the law is on him.`);
+    c.task = { kind: "bolt" };
+  }
+  // straight away from the constable, and keep going as he closes
+  const dx = c.x - cop.x, dy = c.y - cop.y, d = Math.max(1, Math.hypot(dx, dy));
+  c.state = "walking";
+  c.tx = c.x + (dx / d) * 300;
+  c.ty = c.y + (dy / d) * 300;
+  c.facing = dx < 0 ? -1 : 1;
+  collideMove(c, c.x + (dx / d) * walkSpeed(c) * FLEE_HASTE * dt,
+                 c.y + (dy / d) * walkSpeed(c) * FLEE_HASTE * dt);
+  c.anim += dt * 11;
+  return true;
+}
+
 // A man with blood up goes for the person, or for the roof over their head.
 function feudAI(c) {
   const foe = civs.find(o => o.name === c.feudWith);
@@ -6130,6 +6162,8 @@ function update(dt) {
 
     socialTick(c, dt);
     lawTick(c);
+    // running from the law comes before the quarrel that started it
+    if (c.feudWith && runFromTheLaw(c, dt)) continue;
     if (c.feudWith) feudAI(c);
     if (c.rebel) rebelAI(c);
     if (isForce(c) && !c.rebel) forceAI(c);
