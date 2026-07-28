@@ -2600,6 +2600,7 @@ function endFeud(c, why) {
 // it and locks him up until the blood goes out of him. No jail, or no police,
 // and the feud runs its course the old way.
 const SENTENCE = 220;
+const ARREST_HASTE = 1.9;         // a constable answering a disturbance runs
 const jails = () => buildings.filter(b => b.type === "jail" && !b.fire && !b.site);
 const isJailed = c => (c.jailT || 0) > 0;
 function jailCiv(c, jail, byWhom) {
@@ -2627,6 +2628,28 @@ function updateJail(dt) {
       toast(`${c.name} is let out of the jail.`);
     }
   }
+}
+
+// The law does not wait to be at leisure. forceAI only ever runs on a man who is
+// already idle, so a constable halfway through an errand would walk past a
+// killing happening across the street — half of all quarrels were settled before
+// anyone in a uniform so much as turned round. A disturbance interrupts whatever
+// he was doing, and he does not stop for a fight he is not already in.
+function lawTick(c) {
+  if (c.profession !== "police" || c.rebel || isJailed(c)) return;
+  if (c.task && c.task.kind === "arrest") return;          // already on his way
+  if (c.state === "fighting" || INDOORS.has(c.state)) return;
+  if (!jails().length) return;
+  let culprit = null, best = Infinity;
+  for (const o of civs) {
+    if (!o.feudWith || isJailed(o) || o === c) continue;
+    // don't let two constables converge on the same man
+    if (civs.some(p => p !== c && p.profession === "police" &&
+                  p.task && p.task.kind === "arrest" && p.task.target === o)) continue;
+    const d = Math.hypot(o.x - c.x, o.y - c.y);
+    if (d < best) { best = d; culprit = o; }
+  }
+  if (culprit) order(c, { kind: "arrest", target: culprit, x: culprit.x, y: culprit.y });
 }
 
 // A man with blood up goes for the person, or for the roof over their head.
@@ -6106,11 +6129,14 @@ function update(dt) {
       order(c, { kind: "goHome", x: c.home.x, y: c.home.y + 12 });
 
     socialTick(c, dt);
+    lawTick(c);
     if (c.feudWith) feudAI(c);
     if (c.rebel) rebelAI(c);
     if (isForce(c) && !c.rebel) forceAI(c);
 
-    const speed = walkSpeed(c) * (onRoad(c.x, c.y) ? ROAD_SPEED : 1);   // quicker going on the dirt
+    // a constable answering a disturbance runs; he is not strolling to it
+    const speed = walkSpeed(c) * (onRoad(c.x, c.y) ? ROAD_SPEED : 1)
+                  * (c.task && c.task.kind === "arrest" ? ARREST_HASTE : 1);
     if (c.state === "walking") {
       if (c.task && c.task.kind === "attack" && c.task.target) {
         const t = c.task.target;
@@ -6121,6 +6147,15 @@ function update(dt) {
         const t = c.task.target;
         if (!foreignFolk.includes(t)) { c.state = "idle"; c.task = null; continue; }
         c.tx = t.x; c.ty = t.y + 6;      // they are running: keep after them
+      }
+      // A man being arrested does not wait where he was standing. Without this
+      // the constable sprinted to the spot the quarrel had been, stopped dead,
+      // and watched his man walk away — he arrived every time and made an arrest
+      // half the time.
+      if (c.task && c.task.kind === "arrest" && c.task.target) {
+        const t = c.task.target;
+        if (!civs.includes(t) || !t.feudWith || isJailed(t)) { c.state = "idle"; c.task = null; continue; }
+        c.tx = t.x; c.ty = t.y + 6;
       }
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
       // a musketeer closes only to firing range and lets the piece do the rest;
