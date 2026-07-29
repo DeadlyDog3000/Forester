@@ -666,10 +666,13 @@ function clockHours() {
   }
   return 6;
 }
+// Read the way a person reads a clock, not the way an army does: 7:00 PM, not
+// 19:00. Midnight and noon are twelve, never zero.
 function clockText() {
   const t = clockHours();
-  const h = Math.floor(t), m = Math.floor((t - h) * 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const h24 = Math.floor(t), m = Math.floor((t - h24) * 60);
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h}:${String(m).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
 }
 let raidTimer = 60, campRespawnTimer = 300, patrolT = 5, ambushT = 30;
 let techTab = "growth";
