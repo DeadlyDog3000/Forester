@@ -173,6 +173,15 @@
     #hud::-webkit-scrollbar { display: none; }
     #hud span { flex: 0 0 auto; white-space: nowrap; }
     #hud .spacer { flex: 0 0 10px; }
+    /* On a phone the bar is half a metre wide and the screen is not: five
+       hundred pixels of it sit off the right edge. It scrolls, but a player has
+       to guess that a status bar can be swiped — and the things pushed off were
+       exactly the ones you glance at rather than look up: how many souls, how
+       happy, how long to tax day, what season, what hour. Those come first now;
+       the stores are what you scroll for, and only when you are about to build. */
+    #hud #rName { order: -3; }
+    #hud .st { order: -1; }
+    #hud .clk { order: -2; }   /* the hour is the most glanced-at thing of all */
     #hint { display: none; }
 
     #actions {
@@ -291,12 +300,12 @@
     <span>TOOLS <b id="rTools">0</b></span>
     <span>DM <b id="rDM">0</b></span>
     <span class="spacer"></span>
-    <span>POP <b id="rPop">2</b></span>
-    <span>HAPPY <b id="rHappy">–</b></span>
-    <span>TAX <b id="rTax">2</b></span>
-    <span>TAXES IN <b id="rTaxT">4:00</b></span>
-    <span><b id="rSeason">SUMMER</b></span>
-    <span><b id="rClock">&#9728; 6:00 AM</b></span>
+    <span class="st">POP <b id="rPop">2</b></span>
+    <span class="st">HAPPY <b id="rHappy">–</b></span>
+    <span class="st">TAX <b id="rTax">2</b></span>
+    <span class="st">TAXES IN <b id="rTaxT">4:00</b></span>
+    <span class="st"><b id="rSeason">SUMMER</b></span>
+    <span class="st clk"><b id="rClock">&#9728; 6:00 AM</b></span>
   </div>
 
   <div id="hint">WASD / arrows: camera &middot; H: send the hurt to hospital &middot; G: hand goods to storage &middot; right-click: cancel &amp; deselect &middot; click buildings to inspect</div>
