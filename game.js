@@ -1524,6 +1524,18 @@ addEventListener("keydown", e => {
     wallRot = wallRot ? 0 : 1;
     toast(`Wall turned ${wallRot ? "upright (north-south)" : "flat (east-west)"}.`);
   }
+  // ===== orders from the keyboard =====
+  // The two orders you give oftenest, and both of them were four clicks deep:
+  // pick the man, find the panel, find the button, press it. H sends the hurt to
+  // a bed, G hands what they are carrying to the town. Both obey the same rule
+  // as the buttons — a picked company is ordered as a company.
+  if (gameState === "playing" && !paused) {
+    const k = e.key.toLowerCase();
+    if (k === "h" || k === "g") {
+      if (!selected) toast("Select a civilian first — then H to send them to the hospital, G to hand their goods over.");
+      else $(k === "h" ? "cpHeal" : "cpDeposit").click();
+    }
+  }
   if (e.key === "Escape") {
     if ($("settingsPanel").style.display === "block") { $("settingsPanel").style.display = "none"; saveSettings(); }
     else if (buildMode) { buildMode = null; syncUI(); }
@@ -3459,15 +3471,23 @@ $("settleSearch").addEventListener("input", () => {
 $("tabGrowth").addEventListener("click", () => { techTab = "growth"; $("tabGrowth").classList.add("active"); $("tabMilitary").classList.remove("active"); renderTech(); });
 $("tabMilitary").addEventListener("click", () => { techTab = "military"; $("tabMilitary").classList.add("active"); $("tabGrowth").classList.remove("active"); renderTech(); });
 
+// Like the heal order, this is given to whoever is picked: one man alone, or a
+// whole company that has just come back loaded.
 $("cpDeposit").addEventListener("click", () => {
   if (!selected) return;
-  const inv = selected.inv, led = ledgerOf(selected);
-  const moved = inv.logs + inv.seeds + inv.stone + inv.iron + inv.wheat + inv.bread + inv.meat;
-  led.logs += inv.logs; led.seeds += inv.seeds; led.stone += inv.stone; led.iron += inv.iron;
-  led.wheat += inv.wheat; led.bread += inv.bread; led.meat += inv.meat;
-  inv.logs = inv.seeds = inv.stone = inv.iron = inv.wheat = inv.bread = inv.meat = 0;
+  const band = soldierGroup();
+  let moved = 0;
+  for (const c of band) {
+    const inv = c.inv, led = ledgerOf(c);
+    moved += inv.logs + inv.seeds + inv.stone + inv.iron + inv.wheat + inv.bread + inv.meat;
+    led.logs += inv.logs; led.seeds += inv.seeds; led.stone += inv.stone; led.iron += inv.iron;
+    led.wheat += inv.wheat; led.bread += inv.bread; led.meat += inv.meat;
+    inv.logs = inv.seeds = inv.stone = inv.iron = inv.wheat = inv.bread = inv.meat = 0;
+  }
   const town = selected.home && townOf(selected.home);
-  toast(moved ? `${selected.name} hands ${moved} item(s) to ${town ? town.name + "'s" : "the town"} storage.` : `${selected.name} has nothing to hand over.`);
+  const who = band.length > 1 ? `${band.length} hand` : `${selected.name} hands`;
+  toast(moved ? `${who} ${moved} item(s) to ${town ? town.name + "'s" : "the town"} storage.`
+              : (band.length > 1 ? "They are carrying nothing to hand over." : `${selected.name} has nothing to hand over.`));
   syncUI();
 });
 // An order given to a picked army is given to the army: a company that has just
