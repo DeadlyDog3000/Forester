@@ -290,6 +290,10 @@ function bldgName(b) {
 }
 function ruin(b, how) {
   const was = b.type;
+  // A wreck cannot burn down twice. Left unguarded this was quietly destructive:
+  // "burned" is not in RUINS, so a second call spliced the ruin off the map
+  // altogether — and with it the player's right to rebuild what stood there.
+  if (was === "burned") { b.fire = 0; b.torchP = -1; return; }
   if (!RUINS.has(was)) {
     buildings.splice(buildings.indexOf(b), 1);
     toast(`The ${BLDG_NAMES[was] || was} has ${how}.`);
@@ -1013,8 +1017,21 @@ function updateRaider(r, dt) {
     return;
   }
   if (r.state === "approach") {
-    const t = r.target;
-    if (!buildings.includes(t)) { r.state = "flee"; return; }
+    let t = r.target;
+    // A raider whose mark is already a ruin, or already ablaze, walks back to it
+    // and sets about it again. He is throwing a torch at a heap of charcoal —
+    // and the second burning used to delete the heap. He looks for something
+    // still standing instead, and goes home if there is nothing.
+    if (t && (t.type === "burned" || t.fire > 0 || t.site)) {
+      let best = null, bd = Infinity;
+      for (const b of buildings) {
+        if (b.type === "burned" || b.fire > 0 || b.site || WALLLIKE.has(b.type)) continue;
+        const d = Math.hypot(b.x - r.x, b.y - r.y);
+        if (d < bd) { bd = d; best = b; }
+      }
+      t = r.target = best;
+    }
+    if (!t || !buildings.includes(t)) { r.state = "flee"; return; }
     const dx = t.x - r.x, dy = t.y + 20 - r.y, d = Math.hypot(dx, dy);
     if (d < 30) {
       // a crown's soldiers are not thieves: they take the ground and hold it
@@ -2460,7 +2477,12 @@ function autonomy(c, dt) {
     if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); return; }
     if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); return; }
     if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); return; }
-    if (c.home && eatFromStores(c)) return;
+    // The common store feeds whoever is standing in the colony, roof or no roof.
+    // Gated on owning a home, a man burnt out of his cabin could not eat from a
+    // larder twenty paces away and starved beside five hundred loaves — and a
+    // raid that takes the roofs then quietly takes the people too. Homelessness
+    // already costs happiness, and kills in the snow; it need not also starve.
+    if (eatFromStores(c)) return;
   }
   // A man on post keeps it. He eats what he carries (above) and fights what
   // comes (forceAI), but runs no errands — no felling, no deposits, no market,
