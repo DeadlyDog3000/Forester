@@ -303,13 +303,13 @@ function ruin(b, how) {
   if (was === "burned") { b.fire = 0; b.torchP = -1; return; }
   if (!RUINS.has(was)) {
     buildings.splice(buildings.indexOf(b), 1);
-    toast(`The ${BLDG_NAMES[was] || was} has ${how}.`);
+    tell("build", `The ${BLDG_NAMES[was] || was} has ${how}.`);
     return;
   }
   b.type = "burned"; b.was = was;
   b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
   b.fire = 0; b.torchP = -1;
-  toast(`The ${BLDG_NAMES[was] || was} has ${how}. It can be repaired by order.`);
+  tell("build", `The ${BLDG_NAMES[was] || was} has ${how}. It can be repaired by order.`);
 }
 // deep snow slows every traveller by a fifth — the road's packed lane still helps
 const snowPace = () => season() === "winter" ? 0.8 : 1;
@@ -1464,6 +1464,40 @@ function collideMove(c, nx, ny) {
 }
 
 // --- helpers ---
+// ===== the chronicle =====
+// This game keeps a great deal in its head — who is skilled at what, who cannot
+// stand whom, who was arrested and why, which winter emptied the woodpile — and
+// told the player none of it except through a line of text that lasted six
+// seconds and was then gone for good. Four and a half of those a minute, for a
+// dozen simulated systems. Nobody could answer "why did Anka kill Bo?" or
+// "what happened while I was reading the map?", and a colonist who starved in a
+// corner left no record that he had ever been hungry.
+//
+// Everything of consequence is written down here instead, with the year and the
+// hour it happened, and the player can go back and read it.
+const CHRON_MAX = 400;                 // what the running game remembers
+const CHRON_SAVED = 90;                // what survives a reload, to keep saves small
+const CHRON_KINDS = {
+  life:  { label: "Life",     icon: "☙" },   // births, arrivals, coming of age
+  death: { label: "Deaths",   icon: "†" },
+  build: { label: "Building", icon: "⌂" },
+  war:   { label: "War",      icon: "⚔" },
+  law:   { label: "Law",      icon: "⚖" },   // feuds, arrests, rebellion
+  ill:   { label: "Sickness", icon: "☤" },
+  land:  { label: "Land",     icon: "❄" },   // seasons, settlements, weather
+  work:  { label: "Work",     icon: "⚒" },   // research, trade, taxes
+};
+let chronicle = [];
+function chron(kind, text) {
+  const e = { y: colonyYear, c: clockText(), k: kind, t: String(text) };
+  chronicle.push(e);
+  if (chronicle.length > CHRON_MAX) chronicle.splice(0, chronicle.length - CHRON_MAX);
+  if ($("chronPanel") && $("chronPanel").style.display === "block") renderChronicle();
+}
+// Most things worth remembering are already announced. This says both at once,
+// so the call sites stay honest: what the player is told is what is written down.
+function tell(kind, text) { chron(kind, text); toast(text); }
+
 function toast(text) {
   msgEl.textContent = text; toastTimer = 5;
   // with the map open, a message belongs beside the button that caused it
@@ -1560,7 +1594,7 @@ function killCiv(c, why) {
   selGroup = selGroup.filter(s => s !== c);
   civs.splice(civs.indexOf(c), 1);
   SFX.death();
-  toast(`${c.name} ${why}. The colony numbers ${civs.length}.`);
+  tell("death", `${c.name} ${why}. The colony numbers ${civs.length}.`);
   if (civs.length === 0) gameOver();
   syncUI();
 }
@@ -1609,13 +1643,17 @@ addEventListener("keydown", e => {
   // as the buttons — a picked company is ordered as a company.
   if (gameState === "playing" && !paused) {
     const k = e.key.toLowerCase();
+    if (k === "c") openChronicle();
+    if (k === "p") openFolk();
     if (k === "h" || k === "g") {
       if (!selected) toast("Select a civilian first — then H to send them to the hospital, G to hand their goods over.");
       else $(k === "h" ? "cpHeal" : "cpDeposit").click();
     }
   }
   if (e.key === "Escape") {
-    if ($("settingsPanel").style.display === "block") { $("settingsPanel").style.display = "none"; saveSettings(); }
+    if ($("chronPanel").style.display === "block") { $("chronPanel").style.display = "none"; syncUI(); }
+    else if ($("folkPanel").style.display === "block") { $("folkPanel").style.display = "none"; syncUI(); }
+    else if ($("settingsPanel").style.display === "block") { $("settingsPanel").style.display = "none"; saveSettings(); }
     else if (buildMode) { buildMode = null; syncUI(); }
     else if (gameState === "playing" || pauseOpen) setPause(!pauseOpen);
   }
@@ -2140,7 +2178,7 @@ function finishConstruction(b) {
   b.site = false; b.progress = -1;
   const claims = !WALLLIKE.has(b.type) && !isProp(b.type);   // a lamp claims no ground
   if (claims) expandAround(b.x, b.y, 1);
-  toast(`${BLDG_NAMES[b.type]} raised.${claims ? " The territory grows." : ""}`);
+  tell("build", `${BLDG_NAMES[b.type]} raised.${claims ? " The territory grows." : ""}`);
   SFX.build();
   if (b.type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
 }
@@ -2711,7 +2749,7 @@ function maybeRebel(c, dt) {
     const lawAllows = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
     if (lawAllows && forgeBuilt() && res.weapons > 0) { res.weapons--; c.armed = true; }
     c.task = null; c.state = "idle";
-    toast(`⚠ ${c.name} has turned against the colony${c.armed ? " — and took a weapon" : ""}!`);
+    tell("law", `⚠ ${c.name} has turned against the colony${c.armed ? " — and took a weapon" : ""}!`);
   }
 }
 
@@ -2757,7 +2795,7 @@ function startFeud(c, o) {
   if (civs.filter(x => x.feudWith).length >= MAX_FEUDS) return;
   c.feudWith = o.name; c.feudT = FEUD_LEN; c.feudLethal = undefined;
   c.task = null; c.state = "idle";
-  toast(`⚠ ${c.name} has fallen out with ${o.name} for good — and means to settle it.`);
+  tell("law", `⚠ ${c.name} has fallen out with ${o.name} for good — and means to settle it.`);
 }
 function endFeud(c, why) {
   if (!c.feudWith) return;
@@ -2781,7 +2819,7 @@ function jailCiv(c, jail, byWhom) {
   c.state = "jailed"; c.task = null;
   c.x = jail.x; c.y = jail.y + 18;
   c.happiness = Math.max(0, c.happiness - 12);
-  toast(`⚖ ${byWhom ? byWhom.name + " takes " : ""}${c.name} is put in the jail to cool off.`);
+  tell("law", `⚖ ${byWhom ? byWhom.name + " takes " : ""}${c.name} is put in the jail to cool off.`);
   syncUI();
 }
 function updateJail(dt) {
@@ -2797,7 +2835,7 @@ function updateJail(dt) {
     if (c.jailT <= 0) {
       c.jailT = 0; c.jail = null; c.state = "idle";
       c.x += Math.random() * 40 - 20; c.y += 24;
-      toast(`${c.name} is let out of the jail.`);
+      tell("law", `${c.name} is let out of the jail.`);
     }
   }
 }
@@ -3201,7 +3239,7 @@ function joinColony(v) {
   expandFrontier(3);
   const housed = houseCiv(c, v.x, v.y);
   vignette("firstRecruit");
-  toast(`${v.name} signs on — a civilian certificate slides out through the slot. ` +
+  tell("life", `${v.name} signs on — a civilian certificate slides out through the slot. ` +
         (housed ? `${v.gender === "f" ? "She" : "He"} moves into a cabin and will pay taxes.` : `Build ${v.gender === "f" ? "her" : "him"} a cabin: no taxes until there is a roof.`));
   syncUI();
 }
@@ -3233,12 +3271,12 @@ function updateResearch(dt) {
   if (research.t >= techTime(t)) {
     t.done = true;
     SFX.research();
-    toast(`Research complete: ${t.name} — ${t.desc}.`);
+    tell("work", `Research complete: ${t.name} — ${t.desc}.`);
     research = null;
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
     if ((t.id === "defending" || t.id === "raiding") && camps.length === 0) {
       spawnCamps(1);
-      toast(`Research complete: ${t.name}. Word spreads of your colony's strength — thief and raid camps stir in the deep woods.`);
+      tell("work", `Research complete: ${t.name}. Word spreads of your colony's strength — thief and raid camps stir in the deep woods.`);
     }
     renderTech(); syncUI();
   }
@@ -4063,7 +4101,7 @@ function updateFuel(dt) {
     else if (res.logs <= 5) toast(`❄ The woodpile is down to ${res.logs} log${res.logs === 1 ? "" : "s"}.`);
   } else if (!fuelWarned) {
     fuelWarned = true;
-    toast("❄ The woodpile is empty — the hearths are cold, and a roof alone will not keep the frost out.");
+    tell("land", "❄ The woodpile is empty — the hearths are cold, and a roof alone will not keep the frost out.");
   }
 }
 
@@ -4085,7 +4123,7 @@ function strikePlague() {
   plagueActive = PLAGUE_LEN * 1.4;
   eventCard(`Plague walks your own streets.`, "event_war",
             `${struck} have taken to their beds — they work poorly and sicken. It will pass.`);
-  toast(`☠ Plague breaks out in the colony — ${struck} are stricken.`);
+  tell("ill", `☠ Plague breaks out in the colony — ${struck} are stricken.`);
 }
 function updatePlague(dt) {
   if (plagueActive > 0) plagueActive -= dt;
@@ -4108,7 +4146,7 @@ function updatePlague(dt) {
       if (Math.random() < dt * 0.35) float(c.x, c.y - 74, "☠", "#9a8fb0");
       if (c.hp <= 0) { killCiv(c, "was taken by the plague"); continue; }
     }
-    if (c.sick <= 0) { c.sick = 0; toast(`${c.name} rises from the sickbed.`); }
+    if (c.sick <= 0) { c.sick = 0; tell("ill", `${c.name} rises from the sickbed.`); }
   }
   if (!anySick && plagueActive <= 0 && plagueT <= 0) plagueT = PLAGUE_MIN + Math.random() * (PLAGUE_MAX - PLAGUE_MIN);
   plagueT -= dt;
@@ -4202,7 +4240,7 @@ function updateWards(dt) {
     const cared = p.hunger > 30;                 // a ward with nothing to feed them heals badly
     if (isSick(p)) {
       p.sick -= dt * HOSP_CURE * rate * (cared ? 1 : 0.5);
-      if (p.sick <= 0) { p.sick = 0; toast(`☤ ${p.name} is over the fever.`); }
+      if (p.sick <= 0) { p.sick = 0; tell("ill", `☤ ${p.name} is over the fever.`); }
     } else if (p.hp < p.maxHp) {
       p.hp = Math.min(p.maxHp, p.hp + HOSP_HEAL * rate * (cared ? 1 : 0.4) * dt);
       if (Math.random() < dt * 0.4) float(p.x, p.y - 70, "+", "#7da083");
@@ -4310,6 +4348,10 @@ function nationNeighbours(id) {
 // small text that scrolls past unread. Click it away, or let it go on its own.
 let eventCardT = null;
 function eventCard(title, image, sub) {
+  // Word from afar is exactly the sort of thing a player wants to look up later:
+  // which crown declared war, which winter starved which kingdom. Every card
+  // writes itself into the chronicle, so nothing that got a picture is lost.
+  chron("war", sub ? `${title} ${sub}` : title);
   const card = $("eventCard");
   $("eventImg").src = `assets/sprites/ui/${image}.png`;
   $("eventText").textContent = title;
@@ -5128,7 +5170,7 @@ document.getElementById("settleGo").addEventListener("click", () => {
   settlePending = false; setPause(pauseOpen);
   nextSettleAt = playT + SETTLE_AGAIN;   // the scouts rest 20 minutes before looking again
   expandFrontier(6);
-  toast(`${chosen.length} settler(s) set out to found ${name} — follow them, or watch for its marker at the screen's edge.`);
+  tell("land", `${chosen.length} settler(s) set out to found ${name} — follow them, or watch for its marker at the screen's edge.`);
   setTimeout(() => vignette("firstSettlement"), 400);
 });
 // --- the wagon: pick out exactly what travels between the capital and a town ---
@@ -5322,6 +5364,167 @@ $("milSelectAll").addEventListener("click", () => {
   syncUI();
 });
 // The lobby offers no muster: the army is a thing of the colony, not the title card.
+// ===== reading the chronicle =====
+// Filters are chips rather than a dropdown: the player wants "show me the
+// deaths" in one press, and wants to see at a glance that a category exists at
+// all. Newest first — the question is almost always "what just happened?".
+let chronFilter = new Set();          // empty means everything
+function renderChronicle() {
+  const filters = $("chronFilters");
+  if (!filters.dataset.built) {
+    filters.dataset.built = "1";
+    const all = document.createElement("button");
+    all.className = "chip on"; all.textContent = "all"; all.dataset.kind = "";
+    filters.appendChild(all);
+    for (const [k, v] of Object.entries(CHRON_KINDS)) {
+      const b = document.createElement("button");
+      b.className = "chip"; b.dataset.kind = k;
+      b.textContent = `${v.icon} ${v.label}`;
+      filters.appendChild(b);
+    }
+    filters.addEventListener("click", e => {
+      const b = e.target.closest(".chip"); if (!b) return;
+      const k = b.dataset.kind;
+      if (!k) chronFilter.clear();
+      else if (chronFilter.has(k)) chronFilter.delete(k);
+      else chronFilter.add(k);
+      renderChronicle();
+    });
+  }
+  for (const b of filters.querySelectorAll(".chip"))
+    b.classList.toggle("on", b.dataset.kind ? chronFilter.has(b.dataset.kind) : chronFilter.size === 0);
+
+  const q = ($("chronSearch").value || "").trim().toLowerCase();
+  const rows = chronicle.filter(e => (!chronFilter.size || chronFilter.has(e.k)) &&
+                                     (!q || e.t.toLowerCase().includes(q) || String(e.y).includes(q)));
+  const list = $("chronList");
+  list.innerHTML = "";
+  if (!rows.length) {
+    list.innerHTML = `<div style="padding:10px;color:#5a6b60;font-size:11px">${
+      chronicle.length ? "Nothing in the record answers to that." :
+      "The record is empty — the colony's history begins the moment something happens."}</div>`;
+  } else {
+    let lastYear = null;
+    for (let i = rows.length - 1; i >= 0; i--) {          // newest first
+      const e = rows[i];
+      if (e.y !== lastYear) {
+        lastYear = e.y;
+        const h = document.createElement("div");
+        h.className = "chronYear"; h.textContent = `— ${e.y} —`;
+        list.appendChild(h);
+      }
+      const kind = CHRON_KINDS[e.k] || { icon: "·" };
+      const row = document.createElement("div");
+      row.className = "chronRow " + e.k;
+      row.innerHTML = `<span class="chronWhen">${esc(e.c)}</span>` +
+                      `<span class="chronIcon">${kind.icon}</span>` +
+                      `<span class="chronWhat">${esc(e.t)}</span>`;
+      list.appendChild(row);
+    }
+  }
+  $("chronCount").textContent = `${rows.length} of ${chronicle.length} entries` +
+    (chronicle.length >= CHRON_MAX ? ` — the oldest are forgotten past ${CHRON_MAX}` : "");
+}
+function openChronicle() {
+  const p = $("chronPanel");
+  const show = p.style.display !== "block";
+  p.style.display = show ? "flex" : "none";
+  if (show) { $("folkPanel").style.display = "none"; renderChronicle(); }
+  syncUI();
+}
+$("chronToggle").addEventListener("click", openChronicle);
+$("chronClose").addEventListener("click", () => { $("chronPanel").style.display = "none"; syncUI(); });
+$("chronSearch").addEventListener("input", renderChronicle);
+$("chronSearch").addEventListener("keydown", e => e.stopPropagation());
+
+// ===== the roll of the colony =====
+// Everything the game knows about a person, for every person, on one screen —
+// and clicking a row takes you to them. Without this the only way to find out
+// who was sick or who was feuding was to click each figure in turn and hope.
+const FOLK_SORTS = ["name", "health", "hunger", "mood", "trade"];
+let folkSort = 0;
+function doingWhat(c) {
+  if (c.state === "abed") return "in a hospital bed";
+  if (c.state === "borne") return "carried on a stretcher";
+  if (c.state === "jailed") return `in the jail (${Math.ceil(c.jailT)}s)`;
+  if (c.state === "sleeping") return "asleep";
+  if (c.state === "warming") return "warming by the hearth";
+  if (c.state === "inside") return "indoors";
+  if (c.rebel) return "IN REVOLT";
+  if (c.feudWith) return `hunting ${c.feudWith}`;
+  if (c.bearing) return `bearing ${c.bearing.name} to the ward`;
+  if (c.task && c.task.kind === "fetch") return `going to a case`;
+  if (c.task && c.task.kind === "arrest") return "making an arrest";
+  if (c.state === "fighting" || c.state === "sieging") return "fighting";
+  const busy = { chopping: "felling a tree", quarrying: "breaking stone", gathering: "gathering seed",
+                 harvesting: "reaping", buildingFarm: "raising a farm", raising: "raising a building",
+                 repairing: "repairing", crafting: "hewing a door", smithing: "at the forge",
+                 hunting: "hunting", selling: "at the market", trading: "trading", peddling: "peddling",
+                 depositing: "carrying goods to store", shopping: "buying at the forge",
+                 digging: "digging a grave", masonry: "cutting a headstone", walking: "on the move" };
+  return busy[c.state] || "idle";
+}
+function renderFolk() {
+  const q = ($("folkSearch").value || "").trim().toLowerCase();
+  const key = FOLK_SORTS[folkSort];
+  const rows = civs.filter(c => !q || c.name.toLowerCase().includes(q) ||
+                                profLabel(c.profession).toLowerCase().includes(q));
+  rows.sort((a, b) => key === "name" ? a.name.localeCompare(b.name)
+                    : key === "health" ? a.hp / a.maxHp - b.hp / b.maxHp
+                    : key === "hunger" ? a.hunger - b.hunger
+                    : key === "mood" ? a.happiness - b.happiness
+                    : profLabel(a.profession).localeCompare(profLabel(b.profession)));
+  const sick = civs.filter(isSick).length, hurt = civs.filter(c => c.hp < c.maxHp * 0.6).length;
+  const hungry = civs.filter(c => c.hunger < 30).length, homeless = civs.filter(c => !c.home).length;
+  const feuding = civs.filter(c => c.feudWith).length;
+  $("folkSum").textContent =
+    `${civs.length} souls · ${civs.filter(c => c.child).length} children · ${homeless} without a roof` +
+    (hungry ? ` · ${hungry} hungry` : "") + (sick ? ` · ${sick} stricken` : "") +
+    (hurt ? ` · ${hurt} badly hurt` : "") + (feuding ? ` · ${feuding} at feud` : "");
+  const list = $("folkList");
+  const scroll = list.scrollTop;          // the roll refreshes as the world turns; don't yank the reader back to the top
+  list.innerHTML = "";
+  for (const c of rows) {
+    const row = document.createElement("div");
+    row.className = "folkRow" + (c.hp < c.maxHp * 0.6 || isSick(c) ? " hurt" : "");
+    const tags = (isSick(c) ? "☠" : "") + (c.feudWith ? "⚔" : "") + (isJailed(c) ? "⚖" : "") +
+                 (c.rebel ? "⚑" : "") + (!c.home ? "⌂̸" : "");
+    row.innerHTML =
+      `<span class="folkName">${esc(c.name)}</span>` +
+      `<span class="folkTrade">${esc(c.child ? "child" : profLabel(c.profession))}</span>` +
+      `<span class="folkDoing">${esc(doingWhat(c))}</span>` +
+      `<span class="folkBars">` +
+        `<span class="barwrap"><span class="barfill red" style="width:${Math.round(100 * c.hp / c.maxHp)}%"></span></span>` +
+        `<span class="barwrap"><span class="barfill" style="width:${Math.round(c.hunger)}%"></span></span>` +
+      `</span>` +
+      `<span class="folkTags">${tags}</span>`;
+    row.addEventListener("click", () => {
+      selected = c; selectedBldg = null; selectedCamp = null; selectedGrave = null;
+      selGroup = groupable(c) ? [c] : [];
+      cam.x = c.x - canvas.width / zoom / 2; cam.y = c.y - canvas.height / zoom / 2;
+      syncUI();
+    });
+    list.appendChild(row);
+  }
+  list.scrollTop = scroll;
+}
+function openFolk() {
+  const p = $("folkPanel");
+  const show = p.style.display !== "block";
+  p.style.display = show ? "flex" : "none";
+  if (show) { $("chronPanel").style.display = "none"; renderFolk(); }
+  syncUI();
+}
+$("folkToggle").addEventListener("click", openFolk);
+$("folkClose").addEventListener("click", () => { $("folkPanel").style.display = "none"; syncUI(); });
+$("folkSearch").addEventListener("input", renderFolk);
+$("folkSearch").addEventListener("keydown", e => e.stopPropagation());
+$("folkSort").addEventListener("click", () => {
+  folkSort = (folkSort + 1) % FOLK_SORTS.length;
+  $("folkSort").textContent = "sort: " + FOLK_SORTS[folkSort];
+  renderFolk();
+});
+
 $("milToggle").addEventListener("click", openMilitary);
 $("milClose").addEventListener("click", () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); });
 $("milColor").addEventListener("input", e => setUniform(e.target.value));
@@ -5372,6 +5575,8 @@ function saveGame() {
   try {
     const data = {
       v: 1,
+      // the recent tail only: a history worth reading, at a size worth keeping
+      chron: chronicle.slice(-CHRON_SAVED),
       res: { ...res }, taxRate, taxTimer, policeCount, laws: { ...laws }, zoom, settlementName,
       cam: { x: cam.x, y: cam.y },
       hunterTimer, raidTimer, campRespawnTimer, worldT,
@@ -5585,6 +5790,7 @@ function loadGame() {
                      camp: { x: town.x, y: town.y }, target: null, state: "patrol", anim: 0, facing: 1,
                      atkT: 0, foe: null, carry: 0, wpx: g.x, wpy: g.y });
     }
+    chronicle = Array.isArray(d.chron) ? d.chron.slice(-CHRON_MAX) : [];
     natWars = d.natWars || [];
     mapGrid = null;   // rebuilt with conquests on next use
     if (d.wars) {
@@ -5920,6 +6126,7 @@ function syncUI() {
   // the entry appears the moment the hospital is raised.
   const docItem = document.querySelector('#recruitMenu [data-prof="doctor"]');
   if (docItem) docItem.style.display = hospitals().length ? "" : "none";
+  if ($("folkPanel").style.display === "block") renderFolk();
   if ($("govPanel").style.display === "block" && $("civDrop").classList.contains("open")) {
     const list = $("civList");
     // only the rows are rebuilt — the search box (first child) keeps its focus
@@ -6200,7 +6407,7 @@ function update(dt) {
       c.inv.dm -= paid; res.dm += paid; total += paid;
       if (paid > 0) float(c.x, c.y - 70, "-" + paid + " DM", "#c9a86a");
     }
-    toast(total > 0 ? `Tax day: the colony collects ${total} DM.` : "Tax day — but the people's pockets are empty.");
+    tell("work", total > 0 ? `Tax day: the colony collects ${total} DM.` : "Tax day — but the people's pockets are empty.");
     if (total > 0) SFX.coin();
   }
 
@@ -6211,7 +6418,7 @@ function update(dt) {
     lastSeason = season();
     if (lastSeason === "winter") {
       colonyYear++;
-      toast(`❄ Winter falls over the woods — the year turns to ${colonyYear}. The fields sleep; keep the larders full.`);
+      tell("land", `❄ Winter falls over the woods — the year turns to ${colonyYear}. The fields sleep; keep the larders full.`);
       vignette("firstWinter");
       for (const c of [...civs]) {
         c.age = (c.age || 20) + 1;
@@ -6219,7 +6426,7 @@ function update(dt) {
           killCiv(c, `died peacefully of old age, aged ${c.age}`);
       }
     } else {
-      toast("The thaw comes — the fields wake, and the woods turn green again.");
+      tell("land", "The thaw comes — the fields wake, and the woods turn green again.");
       // spring births: each woman has a 26% chance of a child after every winter
       for (const m of civs.filter(c => c.gender === "f" && !c.child)) {
         if (Math.random() < 0.26) {
@@ -6229,7 +6436,7 @@ function update(dt) {
           kid.home = m.home;
           if (m.home) m.home.occupants.push(kid);
           civs.push(kid);
-          toast(`A child is born to ${m.name}: a ${g === "f" ? "daughter" : "son"}, ${kid.name}.`);
+          tell("life", `A child is born to ${m.name}: a ${g === "f" ? "daughter" : "son"}, ${kid.name}.`);
           SFX.pickup();
           vignette("firstChild");
         }
@@ -6390,7 +6597,7 @@ function update(dt) {
         }
         if (sent) {
           SFX.warHorn();
-          toast("⚠ Raiders pour out of the dark — the town is unwalled and they know it!");
+          tell("war", "⚠ Raiders pour out of the dark — the town is unwalled and they know it!");
         }
       }
     }
@@ -7065,7 +7272,7 @@ function update(dt) {
           SFX.coin();
           float(cp.x, cp.y - 80, `+${cp.dm} DM +${cp.weapons} wpn`, "#7da083");
           sackedCamps++;
-          toast(`${c.name} sacks the ${cp.type} camp — ${cp.dm} DM and ${cp.weapons} weapon(s) seized! (${sackedCamps} camps sacked)`);
+          tell("war", `${c.name} sacks the ${cp.type} camp — ${cp.dm} DM and ${cp.weapons} weapon(s) seized! (${sackedCamps} camps sacked)`);
           if (selectedCamp === cp) selectedCamp = null;
           c.state = "idle"; c.task = null;
         }
