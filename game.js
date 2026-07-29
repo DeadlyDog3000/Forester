@@ -574,7 +574,7 @@ const territory = new Set();          // "cx,cy" world cells, 96px each
 const TCELL = 96;
 const SETTLE_FIRST = 1500, SETTLE_AGAIN = 1500;   // 25 minutes to the first offer, and 25 more after each
 let sackedCamps = 0, playT = 0, nextSettleAt = SETTLE_FIRST, settlePending = false;
-let lastTier = 1;
+let lastTier = 1, lastTierToldT = -999;
 // the woods grow bolder as your colony grows older and larger
 // ===== the reckoning: how much the woods and the crowns fear you =====
 // A colony that grows strong does not grow safe. Every soldier you raise, every
@@ -5885,6 +5885,11 @@ function syncUI() {
     const el = document.querySelector(`#recruitMenu [data-prof="${p}"]`);
     if (el) el.style.display = has(t) ? "" : "none";
   }
+  // The doctor is not gated on a technology but on a place to work: no ward, no
+  // trade. Same rule as everything else — what you cannot do is not offered, and
+  // the entry appears the moment the hospital is raised.
+  const docItem = document.querySelector('#recruitMenu [data-prof="doctor"]');
+  if (docItem) docItem.style.display = hospitals().length ? "" : "none";
   if ($("govPanel").style.display === "block" && $("civDrop").classList.contains("open")) {
     const list = $("civList");
     // only the rows are rebuilt — the search box (first child) keeps its focus
@@ -6119,9 +6124,17 @@ function update(dt) {
   updateJail(dt);
   updateRefugees(dt);
   if (civs.length >= 10) vignette("village");
+  // The reckoning climbs a step at a time and each step used to announce itself,
+  // so a good afternoon at market — three tiers at once — meant the same warning
+  // three times in a row, and a growing colony heard it every minute or so. It
+  // is the most frequent line in the game by a distance and it says nothing new.
+  // The tier still rises the moment it rises; the town crier is given a rest.
   if (difficulty() > lastTier) {
     lastTier = difficulty();
-    toast("⚠ Word of your colony's wealth spreads. The woods grow bolder…");
+    if (playT - lastTierToldT > 240) {
+      lastTierToldT = playT;
+      toast("⚠ Word of your colony's wealth spreads. The woods grow bolder…");
+    }
   }
   updateResearch(dt);
   playT += dt;
