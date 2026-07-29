@@ -3898,6 +3898,34 @@ function buildMapGrid() {
   n_wars_init();
 }
 function n_wars_init() { for (const n of Object.values(NATIONS)) { if (n.atWar === undefined) { n.atWar = false; n.warT = 0; n.lost = 0; } } }
+// ===== what is worth writing down about a crown =====
+// The save wrote all eleven war fields for all thirty-three nations whether or
+// not anything had ever happened to them. On a fresh colony that is three
+// hundred and sixty-three values, every one of them a default, and it came to
+// two thirds of the entire save file — more than every civilian and every
+// building put together. Only what actually befell a crown is written now; the
+// rest is filled in from these defaults on the way back. The skills already
+// worked this way, and for the same reason.
+const WAR_DEFAULTS = { atWar: false, warT: 0, lost: 0, defeated: false, trade: false,
+                       mod: 0, calT: 0, hungry: false, revolt: false, refugees: 0 };
+function warSave(n) {
+  const o = {};
+  for (const k of Object.keys(WAR_DEFAULTS)) {
+    const v = typeof WAR_DEFAULTS[k] === "boolean" ? !!n[k] : r1(n[k] || 0);
+    if (v !== WAR_DEFAULTS[k]) o[k] = v;
+  }
+  if (n.captured && n.captured.length) o.captured = n.captured;
+  if (n.calName) o.calName = n.calName;
+  return Object.keys(o).length ? o : null;
+}
+// A crown left at war in memory must not stay at war through a load that never
+// mentions it — silence in the save means peace, not "leave it as you found it".
+function warsReset() {
+  for (const n of Object.values(NATIONS)) {
+    Object.assign(n, WAR_DEFAULTS);
+    n.captured = []; n.calName = undefined;
+  }
+}
 
 function empireCells() {
   // main settlement + founded ones, sized by population
@@ -5391,8 +5419,8 @@ function saveGame() {
                                    dmg: r.dmg, nation: r.nation, town: foreignTowns.indexOf(r.garrison) })),
       foreignFolk: foreignFolk.map(f => ({ name: f.name, gender: f.gender, who: f.who, trade: f.trade,
                                    age: f.age, x: r1(f.x), y: r1(f.y), town: foreignTowns.indexOf(f.town) })),
-      wars: Object.fromEntries(Object.entries(NATIONS).map(([id, n]) => [id, { atWar: !!n.atWar, warT: n.warT || 0, lost: n.lost || 0, captured: n.captured || [], defeated: !!n.defeated, trade: !!n.trade,
-                             mod: n.mod || 0, calT: r1(n.calT || 0), calName: n.calName, hungry: !!n.hungry, revolt: !!n.revolt, refugees: n.refugees || 0 }])),
+      wars: Object.fromEntries(Object.entries(NATIONS)
+                                     .map(([id, n]) => [id, warSave(n)]).filter(([, w]) => w)),
     };
     const json = JSON.stringify(data);
     lastSaveKB = Math.round(json.length / 1024);
@@ -5561,6 +5589,7 @@ function loadGame() {
     mapGrid = null;   // rebuilt with conquests on next use
     if (d.wars) {
       n_wars_init();
+      warsReset();                       // silence in the save means peace
       for (const [id, w] of Object.entries(d.wars)) if (NATIONS[id]) {
         Object.assign(NATIONS[id], w);
         if (NATIONS[id].atWar && !NATIONS[id].warT) NATIONS[id].warT = 60 + Math.random() * 60;
