@@ -17,7 +17,17 @@ const CHUNK = 512;
 const BASE_CHOP = 3, CRAFT_TIME = 4, REPAIR_TIME = 6, BASE_FARM_BUILD = 5;
 const HARVEST_TIME = 3, PATCH_TIME = 2, QUARRY_TIME = 4, SMITH_TIME = 8;
 const BASE_LOGS_PER_TREE = 5;
-const HUNGER_DECAY = 0.35, STARVE_DPS = 2;
+// Hunger is an appetite for a day, not for a number of seconds. When the day was
+// stretched from five real minutes to twenty-four, this rate was not — so a man
+// who lay down at seven had eaten his last meal by ten and was dead by eleven,
+// every night, because nobody eats in their sleep. It is stated per day now and
+// divided into the day, so a night costs exactly the share of a belly it always
+// did however long the light takes to come round.
+const HOUR = 60;                              // one game hour, in real seconds
+const DAY = 24 * HOUR;                        // 1440s — a full turn of the light
+const HUNGER_PER_DAY = 105;                   // what 0.35 a second came to over the old 300s day
+const HUNGER_DECAY = HUNGER_PER_DAY / DAY;
+const STARVE_DPS = 2;
 const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
 const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, MUSKET_COST = 25, CAV_COST = 50, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
 // the musket's bargain: it outranges and outhits a bow, and takes an age to load
@@ -637,8 +647,18 @@ const soldierGroup = () =>
     ? selGroup.filter(s => civs.includes(s) && groupable(s))
     : (selected ? [selected] : []);
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
-let worldT = 80;   // clock of the world; night falls late in each cycle
-const YEAR = 640, WINTER_AT = 400;   // 240s winters — long enough to kill
+// ===== the clock of the world =====
+// An hour is a minute. The day is twenty-four of them: twelve hours of working
+// light from six in the morning, the sun going down through six, full dark from
+// seven until five, and an hour of grey to lift it. Everything about the light
+// is stated in hours below, so the sky and the clock face can never disagree.
+//
+// This stretched the day from five real minutes to twenty-four, so the year was
+// stretched with it by exactly the same factor: the colony still sees a winter
+// every two days or so, and still spends the same share of its life in one. In
+// real time that is a year of about fifty minutes with nineteen of winter in it.
+let worldT = 3 * HOUR;               // the game opens at nine in the morning
+const YEAR = Math.round(DAY * 2.133), WINTER_AT = Math.round(YEAR * 0.625);
 function season() { return (worldT % YEAR) >= WINTER_AT ? "winter" : "summer"; }
 let lastSeason = "summer";
 let colonyYear = 1683;
@@ -647,24 +667,16 @@ function wimg(key) {
   const w = img[key + "_w"];
   return (w && w.complete && w.naturalWidth) ? w : img[key];
 }
+// The hour of the day, 0 to 24. The world's second zero is six in the morning.
+function clockHours() { return (6 + (worldT % DAY) / HOUR) % 24; }
+// The light, read straight off that hour — no second timetable to drift from it.
+const DUSK = 18, DARK = 19, FIRST_LIGHT = 5, SUNUP = 6;
 function nightAmt() {
-  const ph = worldT % 300;
-  return ph < 180 ? 0 : ph < 210 ? (ph - 180) / 30 : ph < 275 ? 1 : Math.max(0, 1 - (ph - 275) / 25);
-}
-// ===== the clock =====
-// The world turns on a 300-second cycle and always has. The clock hangs the
-// hours on the light rather than running evenly through it, so that what you
-// see agrees with what it says: the sun starts going down at six, it is full
-// dark by seven, and it lifts again at five. The hours race in the small ones
-// and crawl through the working day — which is how a day feels anyway.
-const CLOCK_MARKS = [[0, 6], [180, 18], [210, 19], [275, 29], [300, 30]];
-function clockHours() {
-  const ph = worldT % 300;
-  for (let i = 1; i < CLOCK_MARKS.length; i++) {
-    const [p0, h0] = CLOCK_MARKS[i - 1], [p1, h1] = CLOCK_MARKS[i];
-    if (ph <= p1) return (h0 + (h1 - h0) * (ph - p0) / (p1 - p0)) % 24;
-  }
-  return 6;
+  const h = clockHours();
+  if (h >= SUNUP && h < DUSK) return 0;                       // the working day
+  if (h >= DUSK && h < DARK) return h - DUSK;                 // the sun going down
+  if (h >= DARK || h < FIRST_LIGHT) return 1;                 // dark
+  return Math.max(0, 1 - (h - FIRST_LIGHT));                  // five to six: grey, then day
 }
 // Read the way a person reads a clock, not the way an army does: 7:00 PM, not
 // 19:00. Midnight and noon are twelve, never zero.
@@ -5383,7 +5395,7 @@ function loadGame() {
     zoom = d.zoom || 1;
     cam.x = d.cam.x; cam.y = d.cam.y;
     hunterTimer = d.hunterTimer; raidTimer = d.raidTimer; campRespawnTimer = d.campRespawnTimer;
-    worldT = d.worldT || 80;
+    worldT = d.worldT || 3 * HOUR;
     for (const [id, done] of Object.entries(d.tech)) if (TECH[id]) TECH[id].done = done;
     if (d.tech.archery) TECH.matchlock.done = true;   // the bows of older colonies became muskets
     TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;
@@ -6357,6 +6369,16 @@ function update(dt) {
   planVolleys();          // settle the line's volley before anyone in it moves
   for (const c of [...civs]) {
     c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * (season() === "winter" ? 1.15 : 1) * dt);
+    // Nobody eats in their sleep, and nobody starves in it either. A man whose
+    // belly is truly empty gets up, eats whatever is in the house or the stores,
+    // and lies back down. Without this the only thing standing between the
+    // colony and a night of quiet deaths is the exact length of the night.
+    if (c.hunger < 20 && (c.state === "sleeping" || c.state === "warming")) {
+      if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); }
+      else if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); }
+      else if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); }
+      else eatFromStores(c);
+    }
     if (c.hunger <= 0) {
       c.hp -= STARVE_DPS * dt;
       if (c.hp <= 0) { killCiv(c, "starved to death"); continue; }
