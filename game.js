@@ -56,6 +56,7 @@ const HOSP_BEDS = 4;         // beds to a ward
 const HOSP_HEAL = 5;         // health mended each second abed
 const HOSP_CURE = 4;         // the fever burns out this much faster under care
 const HOSP_MEAL = 8;         // seconds between the meals a patient is fed
+const REST_HEAL = 0.35;      // health knit back each second asleep in your own bed
 const STRETCHER = 0.78;      // a man on a stretcher is a man off your pace
 const DOCTOR_COST = 30;
 const DOCTOR_SIGHT = 900;    // how far a doctor will walk to a case
@@ -2230,7 +2231,8 @@ function arrive(c) {
     c.task = null; c.state = "idle";
     if (p) {
       c.bearing = null; p.bearer = null;
-      if (!civs.includes(p)) return;
+      // the player may have pulled them off the stretcher on the way over
+      if (!civs.includes(p) || p.state !== "borne") return;
       if (!buildings.includes(b) || b.fire || b.site || bedsFree(b) <= 0) {
         p.state = "idle";
         toast(`No bed free — ${p.name} is set down outside.`);
@@ -3255,6 +3257,15 @@ function recruitAs(selected, prof) {
     if (!selected) return;
     if (selected.child) return toast(`${selected.name} is a child — give them a few more springs.`);
     const dropPolice = () => { if (selected.profession === "police") policeCount--; };
+    // A man who takes another trade puts the stretcher down. Without this the
+    // patient stayed "borne" for good — carried about by a blacksmith, never
+    // laid in a bed, never able to be picked up by anyone else.
+    if (selected.bearing && prof !== "doctor") {
+      const p = selected.bearing;
+      selected.bearing = null; p.bearer = null;
+      if (p.state === "borne") p.state = "idle";
+      toast(`${selected.name} sets ${p.name} down.`);
+    }
     if (prof === "police") {
       if (!has("policing")) return toast("Recruiting police requires the Policing technology.");
       if (res.dm - POLICE_COST < treasuryFloor()) return toast(`An officer costs ${POLICE_COST} DM. Treasury: ${res.dm} DM.`);
@@ -3974,7 +3985,14 @@ function updatePlague(dt) {
 const hospitals = () => buildings.filter(b => b.type === "hospital" && !b.fire && !b.site);
 const isDoc = c => c.profession === "doctor";
 const abed = b => civs.filter(c => c.state === "abed" && c.ward === b);
-const bedsFree = b => HOSP_BEDS - abed(b).length;
+// A bed is taken the moment someone sets out for it. Counting only the people
+// already lying in one meant a company of eight ordered to the hospital at once
+// all saw four beds free, all walked over, and half of them were turned away at
+// the door for a bed that had never been theirs.
+const boundFor = b => civs.filter(c => c.task &&
+                                  ((c.task.kind === "hospital" && c.task.target === b) ||
+                                   (c.task.kind === "ward" && c.task.target === b && c.bearing))).length;
+const bedsFree = b => HOSP_BEDS - abed(b).length - boundFor(b);
 // laid on a stretcher, or already on the way to one on somebody else's orders
 const spokenFor = p => p.state === "borne" || p.state === "abed" ||
                        civs.some(d => d !== p && d.bearing === p) ||
@@ -5606,7 +5624,7 @@ const TUT_STEPS = [
   { note: true, text: () => "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches." },
   { note: true, text: () => "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming." },
   { note: true, text: () => "☠ Plague walks the towns of Europe — and it does not check your borders. It will come here too. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. Every civilian carries their own skills, and a skilled hand lost to fever is not quickly replaced." },
-  { note: true, text: () => "☤ The answer to it is a Hospital (BUILD ▾ — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. Bread no longer heals anyone where they stand — to mend a wounded soldier, select them and press Heal, and they will walk to a bed." },
+  { note: true, text: () => "☤ The answer to it is a Hospital (BUILD ▾ — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. Bread no longer heals anyone where they stand — to mend a wounded soldier, select them and press Heal, and they will walk to a bed. A housed, fed man does knit a little back together sleeping in his own bed, but it is slow, and it will not touch a fever." },
   { note: true, text: () => "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. The woods are yours." },
 ];
 function tutAdvance() {
@@ -6350,6 +6368,13 @@ function update(dt) {
 
     const nightNow = nightAmt();
     if (c.state === "sleeping") {
+      // A night in your own bed knits a little back together — a fed man under
+      // his own roof wakes better than he lay down. It is a fourteenth of what
+      // a hospital does and it will not touch a fever, so a colony still needs
+      // a ward; it only means a scratch does not follow a man to his grave for
+      // want of one. The hungry get nothing: sleep is not supper.
+      if (!isSick(c) && c.hp < c.maxHp && c.hunger > 30 && c.home && !c.home.fire)
+        c.hp = Math.min(c.maxHp, c.hp + REST_HEAL * dt);
       if (nightNow < 0.05) { c.state = "idle"; c.x = c.home ? c.home.x : c.x; c.y = c.home ? c.home.y + 18 : c.y; }
       else continue;
     }
