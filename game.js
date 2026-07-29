@@ -76,14 +76,19 @@ const STATIC_COSTS = {
   wall: { stone: 2, dm: 1 }, gate: { logs: 6, stone: 2, dm: 1 },
   jail: { logs: 18, stone: 6, dm: 10 },
   hospital: { logs: 25, stone: 8, dm: 14 },
+  lamp: { logs: 2, dm: 1 },
   townhall: { logs: 40, stone: 10, dm: 20 },
   stonewall: { stone: 4, dm: 1 }, stonegate: { stone: 7, logs: 2, dm: 2 },
   moat: { stone: 4, logs: 2, dm: 3 }, ditch: { logs: 2, dm: 1 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
   burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall", jail: "Jail", hospital: "Hospital",
-  stonewall: "Stone Wall", stonegate: "Stone Gate", moat: "Moat", ditch: "Ditch" };
+  stonewall: "Stone Wall", stonegate: "Stone Gate", moat: "Moat", ditch: "Ditch", lamp: "Lamppost" };
 const WALLLIKE = new Set(["wall", "gate", "stonewall", "stonegate", "moat", "ditch"]);
+// A lamppost is furniture, not a building: it takes no ground, claims no
+// territory, has no inside, and is set down as close to its neighbours as you
+// like. It costs almost nothing and it does exactly one thing after dark.
+const isProp = t => t === "lamp";
 const forgeBuilt = () => buildings.some(b => b.type === "forge" && !b.fire && !b.site);
 
 // --- tech tree ---
@@ -164,7 +169,8 @@ const profTitle = p => profLabel(p).replace(/\b\w/g, ch => ch.toUpperCase());
 // out of the fight, and not to be found standing in the street.
 const INDOORS = new Set(["sleeping", "warming", "inside", "jailed", "abed"]);
 const SHELTER_CAP = 4;
-const canShelter = b => !b.site && b.type !== "burned" && !WALLLIKE.has(b.type) && b.type !== "farm";
+const canShelter = b => !b.site && b.type !== "burned" && !WALLLIKE.has(b.type) &&
+                        b.type !== "farm" && !isProp(b.type);
 const sheltering = b => civs.filter(c => c.shelter === b);
 // Turned out: back into the open, wherever the building happens to be standing.
 function turnOut(c, quiet) {
@@ -440,6 +446,7 @@ const IMAGES = {
   thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
   jail: "assets/sprites/buildings/jail_32.png", jail_w: "assets/sprites/buildings/jail_w_32.png",
   hospital: "assets/sprites/buildings/hospital_32.png", hospital_w: "assets/sprites/buildings/hospital_w_32.png",
+  lamp: "assets/sprites/buildings/lamp_32.png", lamp_w: "assets/sprites/buildings/lamp_w_32.png",
 };
 // every structure a torch can reach, drawn once more as a cold wreck
 for (const k of ["recruit", "market", "watchtower", "bakery", "well", "forge", "townhall", "jail", "hospital",
@@ -643,6 +650,26 @@ function wimg(key) {
 function nightAmt() {
   const ph = worldT % 300;
   return ph < 180 ? 0 : ph < 210 ? (ph - 180) / 30 : ph < 275 ? 1 : Math.max(0, 1 - (ph - 275) / 25);
+}
+// ===== the clock =====
+// The world turns on a 300-second cycle and always has. The clock hangs the
+// hours on the light rather than running evenly through it, so that what you
+// see agrees with what it says: the sun starts going down at six, it is full
+// dark by seven, and it lifts again at five. The hours race in the small ones
+// and crawl through the working day — which is how a day feels anyway.
+const CLOCK_MARKS = [[0, 6], [180, 18], [210, 19], [275, 29], [300, 30]];
+function clockHours() {
+  const ph = worldT % 300;
+  for (let i = 1; i < CLOCK_MARKS.length; i++) {
+    const [p0, h0] = CLOCK_MARKS[i - 1], [p1, h1] = CLOCK_MARKS[i];
+    if (ph <= p1) return (h0 + (h1 - h0) * (ph - p0) / (p1 - p0)) % 24;
+  }
+  return 6;
+}
+function clockText() {
+  const t = clockHours();
+  const h = Math.floor(t), m = Math.floor((t - h) * 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 let raidTimer = 60, campRespawnTimer = 300, patrolT = 5, ambushT = 30;
 let techTab = "growth";
@@ -1101,7 +1128,12 @@ function strikeUnit(a, b, dmg) {
 }
 
 // --- geometry ---
-const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72, stonewall: 64, stonegate: 76, moat: 64, ditch: 64 };
+const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72, stonewall: 64, stonegate: 76, moat: 64, ditch: 64, lamp: 26 };
+// What a thing occupies and what it looks like are not the same measurement. A
+// lamppost stands about as tall as the man beneath it but takes up almost no
+// ground, so you can line a street with them without them refusing each other.
+const DRAW_SIZE = { lamp: 58 };
+const drawSizeOf = t => DRAW_SIZE[t] || SMALL_BLDG[t] || BLDG_SIZE;
 function bldgRect(b) {
   const bt = baseType(b);
   if (WALLLIKE.has(bt)) {
@@ -1164,11 +1196,15 @@ function legalToBuild(type, wx, wy, rot) {
     ? bldgRect({ type, x: wx, y: wy, rot: rot === undefined ? wallRot : rot })
     : { x: wx - s / 2, y: wy - s, w: s, h: s };
   const placingWall = WALLLIKE.has(type);
+  // A lamppost keeps a wall's manners: it butts up close to whatever it lights,
+  // and nothing has to leave room for its doorway, because it has not got one.
+  const placingProp = isProp(type);
   for (const b of allStructures()) {
     const bWall = WALLLIKE.has(b.type);
-    const margin = placingWall && bWall ? -10 : placingWall || bWall || b.type === "farm" ? 2 : 12;
+    const margin = placingWall && bWall ? -10
+                 : placingWall || placingProp || bWall || isProp(b.type) || b.type === "farm" ? 2 : 12;
     const r = inflate(bldgRect(b), margin);
-    if (!bWall && b.type !== "farm" && !placingWall) r.h += 26;
+    if (!bWall && !isProp(b.type) && b.type !== "farm" && !placingWall && !placingProp) r.h += 26;
     if (rectsOverlap(cand, r)) return false;
   }
   for (const c of camps) if (Math.hypot(c.x - wx, c.y - wy) < 200) return false;
@@ -2057,11 +2093,12 @@ function rescueStuck(dt) {
 }
 const BUILD_TIMES = { cabin: 10, recruit: 12, market: 10, watchtower: 8, bakery: 10, well: 7, forge: 12, townhall: 16,
                       wall: 1.5, gate: 2.5, stonewall: 3, stonegate: 5, moat: 6, ditch: 4, farm: 5, jail: 13,
-                      hospital: 15 };
+                      hospital: 15, lamp: 2 };
 function finishConstruction(b) {
   b.site = false; b.progress = -1;
-  if (!WALLLIKE.has(b.type)) expandAround(b.x, b.y, 1);
-  toast(`${BLDG_NAMES[b.type]} raised.${WALLLIKE.has(b.type) ? "" : " The territory grows."}`);
+  const claims = !WALLLIKE.has(b.type) && !isProp(b.type);   // a lamp claims no ground
+  if (claims) expandAround(b.x, b.y, 1);
+  toast(`${BLDG_NAMES[b.type]} raised.${claims ? " The territory grows." : ""}`);
   SFX.build();
   if (b.type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
 }
@@ -5748,6 +5785,7 @@ function syncUI() {
   $("rPop").textContent = hudTown ? hudTown.pop : civs.length;
   $("rTax").textContent = taxRate;
   $("rSeason").textContent = (season() === "winter" ? "❄ WINTER " : "SUMMER ") + colonyYear;
+  $("rClock").textContent = (nightAmt() > 0.5 ? "☾ " : "☀ ") + clockText();
   const mm = Math.floor(taxTimer / 60), ss = Math.floor(taxTimer % 60);
   $("rTaxT").textContent = mm + ":" + String(ss).padStart(2, "0");
   const avg = civs.length ? Math.round(civs.reduce((s, c) => s + c.happiness, 0) / civs.length) : 0;
@@ -5951,6 +5989,7 @@ function syncUI() {
       b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
       b.type === "gate" ? "Your people pass freely; raiders must burn it down." :
       b.type === "jail" ? "Police put the aggressor of a feud in here to cool off. Burn it down or pull it apart and the prisoners walk." :
+      b.type === "lamp" ? "Burns from dusk to dawn and lights the ground around it. Cheap enough to line a street with." :
       b.type === "hospital" ? `${HOSP_BEDS} beds. Doctors carry the sick and the badly hurt here on a stretcher; wounds close and the plague burns out much faster in a bed. Patients are fed from the stores.` : "Standing.";
     const inside = isFarm ? [] : sheltering(b);
     const held = (!isFarm && b.type === "jail") ? civs.filter(o => isJailed(o) && o.jail === b) : [];
@@ -7130,7 +7169,7 @@ function render(dt) {
       ctx.save(); ctx.translate(b.x, b.y - SMALL_BLDG[b.type] / 2); ctx.rotate(Math.PI / 2);
       ctx.drawImage(img[b.type], -L / 2, -L / 2, L, L);
       ctx.restore();
-    } else drawSprite(wimg(b.type), b.x, b.y + wos / 2, (SMALL_BLDG[b.type] || BLDG_SIZE) + wos, false);
+    } else drawSprite(wimg(b.type), b.x, b.y + wos / 2, drawSizeOf(b.type) + wos, false);
     if (b.fire > 0) {
       const f = img["fire" + (Math.floor(fireAnim) % 4)];
       drawSprite(f, b.x - 20, b.y - 8, 56, false);
@@ -7262,14 +7301,21 @@ function render(dt) {
     for (const b of buildings) {
       if (b.fire || b.type === "burned" || b.type === "wall" || b.type === "gate" || b.type === "watchtower" || b.type === "well") continue;
       if (!inView(b.x, b.y)) continue;
+      const lamp = isProp(b.type);
+      if (b.site) continue;                       // an unraised lamp is a hole in the ground
       const lit = b.type === "cabin" ? b.occupants.length > 0 : true;
       if (!lit) continue;
+      // A lamppost is there for nothing else: it throws twice the pool a lit
+      // window does, from the lantern at the top of the post rather than a door.
+      // the light is added, not painted over, so a close-packed row must be
+      // gentler per lamp than one standing alone or the street turns to milk
+      const rad = lamp ? 100 : 46, up = lamp ? 46 : 14, str = lamp ? 0.42 : 0.34;
       const flick = 0.72 + 0.18 * Math.sin(worldT * 11 + b.x * 0.7) + 0.10 * Math.sin(worldT * 23 + b.y);
-      const g = ctx.createRadialGradient(b.x, b.y - 14, 2, b.x, b.y - 14, 46);
-      g.addColorStop(0, `rgba(255, 196, 92, ${0.34 * night * flick})`);
+      const g = ctx.createRadialGradient(b.x, b.y - up, 2, b.x, b.y - up, rad);
+      g.addColorStop(0, `rgba(255, 196, 92, ${str * night * flick})`);
       g.addColorStop(1, "rgba(255, 196, 92, 0)");
       ctx.fillStyle = g;
-      ctx.fillRect(b.x - 48, b.y - 62, 96, 72);
+      ctx.fillRect(b.x - rad - 2, b.y - up - rad - 2, rad * 2 + 4, rad * 2 + 4);
     }
     ctx.globalCompositeOperation = "source-over";
   }
@@ -7288,7 +7334,7 @@ function render(dt) {
     const ok = legalToBuild(buildMode, gx, gy) && canPay(costOf(buildMode), ledgerAt(gx, gy));
     ctx.globalAlpha = 0.55;
     const ghost = buildMode === "sapling" ? img.tree : buildMode === "farm" ? img.farm : img[buildMode];
-    const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : (SMALL_BLDG[buildMode] || (buildMode === "farm" ? FARM_SIZE : BLDG_SIZE));
+    const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : drawSizeOf(buildMode);
     if (buildMode === "wall" && wallRot) drawSprite(img.wallv, gx, gy, gs, false);
     else if (buildMode === "stonewall" && wallRot) drawSprite(img.stonewallv, gx, gy, gs, false);
     else if (buildMode === "stonegate" && wallRot) drawSprite(img.stonegatev, gx, gy, gs, false);

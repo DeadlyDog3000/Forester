@@ -1,0 +1,22 @@
+A single 32x32 pixel game sprite of a lit street lamp — a wooden lamppost with an iron lantern burning at the top. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework. The whole object is a handful of chunky rectangular pixel masses. Crude and bold, not delicate.
+
+COMPOSITION:
+Perfectly square 1:1 image. The lamp stands centred, tall and narrow, filling the full height of the frame from the very bottom edge to within a pixel or two of the top. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG prop. Not isometric, not angled, not in perspective. Most of the frame either side of the post is empty background — the post is thin, the lantern is wide.
+
+THE SHAPE, bottom to top:
+1. A small square stone base block at the very bottom, two or three pixels tall and wider than the post.
+2. A straight vertical wooden post, only two or three pixels wide, running most of the height. Perfectly straight, no taper, no ornament, no crossbars.
+3. At the top, an IRON LANTERN, much wider than the post — a squat box roughly ten pixels wide and eight tall, with a flat dark cap on top and a dark frame around it.
+
+THE ONE THING THAT MATTERS:
+The lantern must read as BURNING. Its glass panel is a solid block of bright warm amber-yellow, the brightest thing in the sprite by far, with one small near-white block at its centre for the flame itself. Surround the glass with a near-black iron frame so the light punches out against it. Make the glowing panel bigger and brighter than looks sensible.
+Nothing else. No text, no lettering, no people, no ground, no rope, no banner, no bird.
+
+COLOUR — dark spruce with one fire, 5 shades only:
+Strictly five flat colours. Near-black for the outline and the lantern's iron frame. Very dark spruce-grey for the post's shadowed side. Mid spruce-grey for the lit side of the post and the stone base. Bright warm amber-yellow for the lantern glass. One near-white for the flame at its centre. The amber and the white appear ONLY inside the lantern — everything else is cold, dark and desaturated.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no glow halo around the lantern, no trees, no border, no frame, no text.
