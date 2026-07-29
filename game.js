@@ -3115,8 +3115,19 @@ const DLG_OPTIONS = [
   { text: "Offer him a cut of meat from the town storage. (1 meat)", d: +16, needs: () => res.meat >= 1, use: () => res.meat-- },
   { text: "\"Our taxes are fair. A man keeps what he earns here.\"", d: 0, dyn: () => (taxRate <= 2 ? +15 : -14) },
   { text: "\"The forest here is rich with game. A hunter would eat well.\"", d: +10 },
-  { text: "\"Join us or starve alone out there. Your choice.\"", d: -20 },
-  { text: "\"We could use another back to break for the colony.\"", d: -8 },
+  // ===== the two ways to lose a wanderer =====
+  // The talk could not be lost. Two hundred of them played through with the
+  // options picked at random ended two hundred to nil: the meter opens at 48,
+  // the pool holds fifty-nine points of goodwill against twenty-eight of
+  // offence, and nothing that shrinking pool can deal you reaches zero. The
+  // tutorial has always promised that pressing too hard sends them back into
+  // the trees, and it simply never happened.
+  // A threat is now nearly fatal on its own — which is what it should be, said
+  // to an armed free man standing outside your gate — and following it with
+  // contempt for his labour finishes it. Both are plainly the wrong thing to
+  // say, so a player who reads them will never see the inside of this rule.
+  { text: "\"Join us or starve alone out there. Your choice.\"", d: -45 },
+  { text: "\"We could use another back to break for the colony.\"", d: -16 },
   { text: "Say nothing and slide a Deutsche Mark under the slot. (5 DM)", d: +9, needs: () => res.dm >= 5, use: () => res.dm -= 5 },
   { text: "\"Winter is coming. Alone, it will bury you.\"", d: +8 },
   { text: "\"We have a market — your pelts would fetch real coin.\"", d: 0, dyn: () => buildings.some(b => b.type === "market") ? +13 : -10 },
