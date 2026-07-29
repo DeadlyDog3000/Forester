@@ -616,7 +616,6 @@ function attackerCap() {
 // it. Camp patrols and a foreign town's garrison never march on you, so they
 // are not in this number.
 const attackersAfield = () => raiders.filter(r => r.state !== "patrol" && !r.garrison).length;
-function maxRaiders() { return attackerCap(); }
 function campCap() { return Math.max(1, Math.min(MAX_CAMPS, 1 + Math.floor(menace() / 4))); }
 const settlements = [];               // {name, pop, mx, my} on the Europe map
 const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: false, civBuild: false };
@@ -2282,7 +2281,6 @@ function order(c, task) {
 
 function arrive(c) {
   const t = c.task;
-  if (t && t.kind === "emigrate") { emigrate(c); return; }
   if (t && t.kind === "goHome") { c.state = "sleeping"; c.task = null; return; }
   if (t && t.kind === "warmUp") { c.state = "warming"; c.workT = 0; c.task = null; return; }
   if (t && t.kind === "enter") {
@@ -3832,7 +3830,6 @@ const LABELS = [
 const EMPIRE_HOME = { mx: 37, my: 11 };   // the woods beyond Hamburg
 
 let mapGrid = null;
-const cellHash = (c, r) => ((c * 73856093) ^ (r * 19349663)) >>> 0;
 function hexRGB(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -4970,9 +4967,6 @@ function foreignTownFalls(town) {
 // together. Four crowns at war used to mean four separate streams, each keeping
 // its own time and none of them aware of the others — which is how a colony ends
 // up facing hundreds. They share one field now.
-function warPartyCap() { return attackerCap(); }
-// a town's own garrison never marches on you — it must not eat the field either
-const warPartiesAfield = () => raiders.filter(r => r.nation && !r.garrison).length;
 
 function updateWars(dt) {
   const atWar = Object.values(NATIONS).filter(n => n.atWar && !n.defeated).length;
@@ -5153,23 +5147,12 @@ $("cargoGo").addEventListener("click", () => {
   syncUI();
 });
 
-function emigrate(c) {
-  if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
-  if (c.profession === "police") policeCount--;
-  if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
-  for (const f of farms) f.workers = f.workers.filter(w => w !== c);
-  if (selected === c) selected = null;
-  if (skillCiv === c) closeSkills();
-  for (const o of civs) { if (o.op) delete o.op[c.name]; if (o.feudWith === c.name) endFeud(o); }
-  // a doctor who goes drops his stretcher; a patient on it is let go of
-  if (c.bearing) { c.bearing.bearer = null; if (c.bearing.state === "borne") c.bearing.state = "idle"; c.bearing = null; }
-  if (c.bearer) { c.bearer.bearing = null; c.bearer = null; }
-  c.ward = null;
-  selGroup = selGroup.filter(s => s !== c);
-  civs.splice(civs.indexOf(c), 1);
-  toast(`${c.name} has left for the new settlement.`);
-  syncUI();
-}
+// Settlers used to leave the world entirely — a daughter settlement was a name
+// on the map, so anyone sent to one walked off the edge and was deleted. Towns
+// have been real places on the ground since, with real cabins to walk to, and
+// nothing has issued an "emigrate" order since the day that changed. The whole
+// path — the order, the handler, and a movement branch that let an emigrant
+// walk through walls — sat unreachable behind it. Removed.
 
 // settlements slowly grow — physical towns count their real residents and work their stores
 let stGrowT = 0;
@@ -6631,11 +6614,6 @@ function update(dt) {
           if (reach === 5) { c.x = c.tx; c.y = c.ty; }
           arrive(c);
         }
-      }
-      else if (c.task && c.task.kind === "emigrate") {
-        // leaving the world: nothing on the map may hold them back
-        c.x += (dx / d) * speed * dt; c.y += (dy / d) * speed * dt;
-        c.facing = dx < 0 ? -1 : 1; c.anim += dt * 8;
       }
       else {
         collideMove(c, c.x + (dx / d) * speed * dt, c.y + (dy / d) * speed * dt);
