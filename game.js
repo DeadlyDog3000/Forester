@@ -8,6 +8,13 @@ function resize() { canvas.width = innerWidth; canvas.height = innerHeight; ctx.
 addEventListener("resize", resize); resize();
 
 const $ = id => document.getElementById(id);
+// Names are typed by the player, and a few panels build their rows as HTML.
+// Left raw, a town called "Jack & Jill <Home>" lost half its name the moment it
+// was shown — the browser read <Home> as a tag and swallowed it — and a name
+// made of markup was rendered as markup. Anything player-written goes through
+// here before it is written into innerHTML.
+const esc = s => String(s).replace(/[&<>"']/g,
+  ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 const msgEl = $("msg");
 
 // --- tuning ---
@@ -5023,7 +5030,7 @@ function maybeOfferSettlement() {
     civs.forEach((c, i) => {
       const row = document.createElement("label");
       row.style.cssText = "display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer;font-size:12px";
-      row.innerHTML = `<input type="checkbox" data-idx="${i}"> ${c.name} — ${profLabel(c.profession)}${c.home ? "" : " (homeless)"}`;
+      row.innerHTML = `<input type="checkbox" data-idx="${i}"> ${esc(c.name)} — ${esc(profLabel(c.profession))}${c.home ? "" : " (homeless)"}`;
       list.appendChild(row);
     });
     document.getElementById("settleName").value = SETTLE_NAMES[settlements.length % SETTLE_NAMES.length];
@@ -5103,7 +5110,7 @@ function renderCargo() {
   const [from, to] = cargoLedgers();
   const fromName = cargoDir > 0 ? settlementName : cargoTown.name;
   const toName = cargoDir > 0 ? cargoTown.name : settlementName;
-  $("cargoRoute").innerHTML = `<b style="color:#c9a86a">${fromName}</b> &rarr; <b style="color:#c9a86a">${toName}</b> &mdash; set how much of each good rides along.`;
+  $("cargoRoute").innerHTML = `<b style="color:#c9a86a">${esc(fromName)}</b> &rarr; <b style="color:#c9a86a">${esc(toName)}</b> &mdash; set how much of each good rides along.`;
   const rows = $("cargoRows");
   rows.innerHTML = "";
   let any = false;
@@ -5124,7 +5131,7 @@ function renderCargo() {
     row.appendChild(inp); row.appendChild(max);
     rows.appendChild(row);
   }
-  if (!any) rows.innerHTML = `<div style="padding:6px;color:#5a6b60;font-size:11px">${fromName}'s stores are empty.</div>`;
+  if (!any) rows.innerHTML = `<div style="padding:6px;color:#5a6b60;font-size:11px">${esc(fromName)}'s stores are empty.</div>`;
 }
 $("cargoSwap").addEventListener("click", () => { cargoDir = -cargoDir; renderCargo(); });
 $("cargoNo").addEventListener("click", () => { $("cargoModal").style.display = "none"; cargoTown = null; });
@@ -5909,7 +5916,7 @@ function syncUI() {
       for (const s of phys) {
         const row = document.createElement("div");
         row.style.cssText = "display:flex;gap:6px;align-items:center;margin:4px 0;font-size:11px";
-        row.innerHTML = `<span style="flex:1">${s.name} (pop ${s.pop})</span>`;
+        row.innerHTML = `<span style="flex:1">${esc(s.name)} (pop ${s.pop})</span>`;
         const send = document.createElement("button");
         send.className = "btn"; send.style.fontSize = "10px"; send.textContent = "Load wagon ▶";
         send.title = "Choose exactly what the capital sends to this town";
