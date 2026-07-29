@@ -47,7 +47,20 @@ const RELOAD_DRILL = [
   [1.00, () => SFX.cock()],     // shouldered, lock drawn back — ready
 ];
 const TORCH_TIME = 6, FIRE_TIME = 10, ATK_INTERVAL = 0.9, FIST_DMG = 8, DODGE_CHANCE = 0.15;
-const EAT_HEAL = 15;
+// ===== the sick and the hurt =====
+// Food fills a belly; it does not close a wound. Bread used to mend a man where
+// he stood, which turned every larder into an infirmary and left nothing for a
+// hospital to be. The hurt and the fever-struck are carried to a bed now and
+// physicked there — the food a colony spends on healing is spent at the bedside.
+const HOSP_BEDS = 4;         // beds to a ward
+const HOSP_HEAL = 5;         // health mended each second abed
+const HOSP_CURE = 4;         // the fever burns out this much faster under care
+const HOSP_MEAL = 8;         // seconds between the meals a patient is fed
+const STRETCHER = 0.78;      // a man on a stretcher is a man off your pace
+const DOCTOR_COST = 30;
+const DOCTOR_SIGHT = 900;    // how far a doctor will walk to a case
+const DOCTOR_HASTE = 1.35;   // a doctor going to a case does not stroll — and the sick keep walking
+const HURT_ENOUGH = 0.55;    // below this share of health, a doctor comes for you
 const RAID_MIN = 240, RAID_MAX = 420, MAX_RAIDERS = 4, MAX_CAMPS = 6;
 // The drum never beats faster than this, however grand the colony grows: five
 // minutes of quiet are owed between raids. The reckoning is paid in the size of
@@ -61,12 +74,13 @@ const STATIC_COSTS = {
   forge: { logs: 20, stone: 6, iron: 2, dm: 12 },
   wall: { stone: 2, dm: 1 }, gate: { logs: 6, stone: 2, dm: 1 },
   jail: { logs: 18, stone: 6, dm: 10 },
+  hospital: { logs: 25, stone: 8, dm: 14 },
   townhall: { logs: 40, stone: 10, dm: 20 },
   stonewall: { stone: 4, dm: 1 }, stonegate: { stone: 7, logs: 2, dm: 2 },
   moat: { stone: 4, logs: 2, dm: 3 }, ditch: { logs: 2, dm: 1 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
-  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall", jail: "Jail",
+  burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall", jail: "Jail", hospital: "Hospital",
   stonewall: "Stone Wall", stonegate: "Stone Gate", moat: "Moat", ditch: "Ditch" };
 const WALLLIKE = new Set(["wall", "gate", "stonewall", "stonegate", "moat", "ditch"]);
 const forgeBuilt = () => buildings.some(b => b.type === "forge" && !b.fire && !b.site);
@@ -145,7 +159,9 @@ const profTitle = p => profLabel(p).replace(/\b\w/g, ch => ch.toUpperCase());
 // The three ways of being under a roof: asleep in your own bed, warming yourself
 // at your own hearth, and simply having gone indoors because you were told to.
 // None of them can be seen, shot at, or snowed on.
-const INDOORS = new Set(["sleeping", "warming", "inside", "jailed"]);
+// A man in a hospital bed is under a roof like any other: out of the weather,
+// out of the fight, and not to be found standing in the street.
+const INDOORS = new Set(["sleeping", "warming", "inside", "jailed", "abed"]);
 const SHELTER_CAP = 4;
 const canShelter = b => !b.site && b.type !== "burned" && !WALLLIKE.has(b.type) && b.type !== "farm";
 const sheltering = b => civs.filter(c => c.shelter === b);
@@ -241,7 +257,8 @@ function overTheWall(u, w, goal) {
 // a moat or a ditch simply goes. A ruin remembers what it was in `was`, and a
 // repair puts that back — losing a forge is a setback, not an erasure.
 const RUINS = new Set(["cabin", "recruit", "market", "watchtower", "bakery", "well",
-                       "forge", "townhall", "farm", "wall", "gate", "stonewall", "stonegate", "jail"]);
+                       "forge", "townhall", "farm", "wall", "gate", "stonewall", "stonegate", "jail",
+                       "hospital"]);
 // A ruin keeps the footprint of what it was: burnt wall, wall-shaped rubble.
 const baseType = b => (b.type === "burned" && b.was) ? b.was : b.type;
 const ruinKey = b => {
@@ -285,6 +302,7 @@ const SKILLS = [
   { id: "building",     name: "Building",     branch: "Craft",  desc: "Raises and repairs faster" },
   { id: "smithing",     name: "Smithing",     branch: "Craft",  desc: "Works the forge faster" },
   { id: "crafting",     name: "Crafting",     branch: "Craft",  desc: "Makes doors faster" },
+  { id: "physicking",   name: "Physicking",   branch: "Craft",  desc: "Mends and cures faster at the bedside" },
   { id: "fighting",     name: "Fighting",     branch: "Arms",   desc: "Strikes harder hand to hand" },
   { id: "marksmanship", name: "Marksmanship", branch: "Arms",   desc: "Shoots harder" },
 ];
@@ -420,9 +438,10 @@ const IMAGES = {
   gate: "assets/sprites/buildings/gate_32.png",
   thiefcamp: "assets/sprites/buildings/thief_camp_32.png", raidcamp: "assets/sprites/buildings/raid_camp_32.png",
   jail: "assets/sprites/buildings/jail_32.png", jail_w: "assets/sprites/buildings/jail_w_32.png",
+  hospital: "assets/sprites/buildings/hospital_32.png", hospital_w: "assets/sprites/buildings/hospital_w_32.png",
 };
 // every structure a torch can reach, drawn once more as a cold wreck
-for (const k of ["recruit", "market", "watchtower", "bakery", "well", "forge", "townhall", "jail",
+for (const k of ["recruit", "market", "watchtower", "bakery", "well", "forge", "townhall", "jail", "hospital",
                  "farm", "wall", "wallv", "gate", "gatev", "stonewall", "stonewallv",
                  "stonegate", "stonegatev"])
   IMAGES["burned_" + k] = `assets/sprites/buildings/burned_${k}_32.png`;
@@ -435,6 +454,7 @@ for (let i = 0; i < 16; i++) {
 for (const who of ["sister", "brother", "hunter"]) for (let i = 0; i < 4; i++) IMAGES[`${who}${i}`] = `assets/sprites/characters/${who}_walk_${i}.png`;
 for (let i = 0; i < 4; i++) IMAGES[`cavalry${i}`] = `assets/sprites/characters/cavalry_walk_${i}.png`;   // 4-frame gallop: stride, gather, and the rise
 for (let i = 0; i < 4; i++) IMAGES[`musketeer${i}`] = `assets/sprites/characters/musketeer_walk_${i}.png`;
+for (let i = 0; i < 4; i++) IMAGES[`doctor${i}`] = `assets/sprites/characters/doctor_walk_${i}.png`;   // beak, brim and waxed coat
 for (let i = 0; i < 4; i++) IMAGES[`soldierU${i}`] = `assets/sprites/characters/soldier_walk_${i}.png`;
 for (let i = 0; i < 4; i++) IMAGES[`atkuni${i}`] = `assets/sprites/characters/soldier_atk_${i % 3}.png`;
 for (let i = 0; i < 4; i++) {                       // aim, flash, smoke, lower — then powder, ball, ramrod, shoulder
@@ -658,6 +678,7 @@ function mkCiv(name, who, x, y, gender) {
            age: 20 + Math.floor(Math.random() * 26),
            autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true,
            sick: 0, op: {}, feudWith: null, feudT: 0, socT: 2 + Math.random() * 6, jail: null, jailT: 0,
+           ward: null, wardT: 0, bearing: null, bearer: null,
            sk: freshSkills(), sx: {},
            loaded: true, reloadT: 0, fireT: 0 };
 }
@@ -666,6 +687,7 @@ function float(x, y, text, color) { floaters.push({ x, y, text, color, t: 1.4 })
 // hunters keep their own look; everyone else wears the family's spare clothes
 function refreshAvatar(c) {
   c.who = c.profession === "hunter" ? c.nativeWho :
+          c.profession === "doctor" ? "doctor" :
           c.profession === "musketeer" ? "musketeer" :
           c.profession === "cavalry" ? "cavalry" :
           (c.profession === "police" || c.profession === "soldier") ? "soldierU" :
@@ -1452,6 +1474,10 @@ function killCiv(c, why) {
   if (selected === c) selected = null;
   if (skillCiv === c) closeSkills();
   for (const o of civs) { if (o.op) delete o.op[c.name]; if (o.feudWith === c.name) endFeud(o); }
+  // a doctor who goes drops his stretcher; a patient on it is let go of
+  if (c.bearing) { c.bearing.bearer = null; if (c.bearing.state === "borne") c.bearing.state = "idle"; c.bearing = null; }
+  if (c.bearer) { c.bearer.bearing = null; c.bearer = null; }
+  c.ward = null;
   selGroup = selGroup.filter(s => s !== c);
   civs.splice(civs.indexOf(c), 1);
   SFX.death();
@@ -1460,11 +1486,12 @@ function killCiv(c, why) {
   syncUI();
 }
 
+// A meal fills a belly and does nothing else. It used to close wounds as well,
+// which meant a colony with bread never needed anything more — no bed, no
+// doctor, no reason to build either. Mending happens in a hospital now.
 function eat(c, kind) {
   SFX.eat();
-  const heal = Math.min(EAT_HEAL, c.maxHp - c.hp);
   c.hunger = Math.min(100, c.hunger + (kind === "wheat" ? 15 : 35));
-  if (heal > 0) { c.hp += heal; float(c.x, c.y - 70, "+" + Math.round(heal), "#7da083"); }
 }
 
 // --- input ---
@@ -2016,7 +2043,8 @@ function rescueStuck(dt) {
   }
 }
 const BUILD_TIMES = { cabin: 10, recruit: 12, market: 10, watchtower: 8, bakery: 10, well: 7, forge: 12, townhall: 16,
-                      wall: 1.5, gate: 2.5, stonewall: 3, stonegate: 5, moat: 6, ditch: 4, farm: 5, jail: 13 };
+                      wall: 1.5, gate: 2.5, stonewall: 3, stonegate: 5, moat: 6, ditch: 4, farm: 5, jail: 13,
+                      hospital: 15 };
 function finishConstruction(b) {
   b.site = false; b.progress = -1;
   if (!WALLLIKE.has(b.type)) expandAround(b.x, b.y, 1);
@@ -2185,6 +2213,43 @@ function arrive(c) {
     syncUI();
     return;
   }
+  // ===== the three ways into a hospital bed =====
+  // A doctor reaching his case: the man goes onto the stretcher here, and the
+  // doctor turns for the ward on his next idle tick.
+  if (t && t.kind === "fetch") {
+    const p = t.target;
+    c.task = null; c.state = "idle";
+    if (!civs.includes(p) || !needsBed(p) || spokenFor(p) || INDOORS.has(p.state)) return;
+    p.task = null; p.state = "borne"; p.bearer = c; c.bearing = p;
+    toast(`☤ ${c.name} lifts ${p.name} onto the stretcher.`);
+    return;
+  }
+  // the same doctor arriving at the ward with someone on his shoulders
+  if (t && t.kind === "ward") {
+    const b = t.target, p = c.bearing;
+    c.task = null; c.state = "idle";
+    if (p) {
+      c.bearing = null; p.bearer = null;
+      if (!civs.includes(p)) return;
+      if (!buildings.includes(b) || b.fire || b.site || bedsFree(b) <= 0) {
+        p.state = "idle";
+        toast(`No bed free — ${p.name} is set down outside.`);
+        return;
+      }
+      admit(p, b);
+      toast(`☤ ${p.name} is laid in a bed at the hospital.`);
+    }
+    return;
+  }
+  // and a man who walked himself in, on the player's order
+  if (t && t.kind === "hospital") {
+    const b = t.target;
+    c.task = null; c.state = "idle";
+    if (!buildings.includes(b) || b.fire || b.site) return;
+    if (bedsFree(b) <= 0) { toast(`The hospital is full — ${c.name} waits outside.`); return; }
+    admit(c, b);
+    return;
+  }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
                    buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping", construct: "raising", gravestone: "masonry" };
@@ -2298,12 +2363,6 @@ function eatFromStores(c) {
       if ((l[k] || 0) > 0) { l[k]--; eat(c, k); return true; }
   return false;
 }
-// what a given soul could actually eat right now, wherever it is stored
-function foodWithinReach(c) {
-  return (c.inv.bread || 0) + (c.inv.meat || 0) + (c.inv.wheat || 0) +
-         (isForce(c) ? ledgersNear(c) : [ledgerAt(c.x, c.y), res])
-           .reduce((n, l) => n + ((l.bread || 0) + (l.meat || 0)), 0);
-}
 
 // --- autonomy ---
 function wander(c, base, minD, maxD) {
@@ -2318,6 +2377,12 @@ function autonomy(c, dt) {
   c.autoT -= dt;
   if (c.autoT > 0 || c.state !== "idle" || c.rebel) return;
   c.autoT = 4 + Math.random() * 5;
+  // A doctor with a case waiting does not wander off to fell a tree. doctorAI
+  // gets first refusal every frame, but the ordinary errands below run on a
+  // timer — without this he would be halfway to the woods when the fever broke.
+  if (isDoc(c) && c.bearing) return;
+  if (isDoc(c) && hospitals().length &&
+      civs.some(p => p !== c && needsBed(p) && !spokenFor(p) && !INDOORS.has(p.state))) return;
 
   if (c.hunger < 60) {
     if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); return; }
@@ -2530,8 +2595,16 @@ function happinessTarget(c) {
 // colony the bigger the mob — which is why it looked like an endless raider horde
 // and why it got worse the better you were doing. It is a rate per second now, and
 // the wretched turn sooner than the merely miserable.
+//
+// Nor does anyone turn before there is a state to turn against. A settlement of
+// six people with no constable and no jail has quarrels, not rebellions — and a
+// player who has not yet reached Policing has nothing whatever to answer one
+// with, so an early rising was only a punishment for being early. Unrest waits
+// on Policing: from the day you raise a police force, the discontented have
+// something to rise against, and you have something to put them down with.
 const REBEL_RATE = 0.015;                      // ~1 in 67 seconds at the very bottom
 function maybeRebel(c, dt) {
+  if (!has("policing")) return;
   if (c.rebel || isForce(c) || c.child || civs.length < 2) return;
   const bite = REBEL_RATE * (1 + (25 - c.happiness) / 25);
   if (c.happiness < 25 && Math.random() < bite * (dt || 0)) {
@@ -3225,6 +3298,16 @@ function recruitAs(selected, prof) {
       selected.maxHp = 160 + (has("hussars") ? 40 : 0);
       selected.hp = Math.min(selected.hp + 40, selected.maxHp);
       toast(`${selected.name} mounts up as cavalry${has("lances") ? " — lance in hand" : ""}. Fast, hard-hitting, and fearless.`);
+    } else if (prof === "doctor") {
+      // No technology gates the trade — a hospital does. There is no such thing
+      // as a doctor with nowhere to carry anyone.
+      if (!hospitals().length) return toast("Raise a Hospital first — a doctor needs somewhere to carry the sick.");
+      if (res.dm - DOCTOR_COST < treasuryFloor()) return toast(`A doctor costs ${DOCTOR_COST} DM. Treasury: ${res.dm} DM.`);
+      if (selected.profession === "doctor") return toast(`${selected.name} already keeps the ward.`);
+      res.dm -= DOCTOR_COST;
+      dropPolice();
+      selected.profession = "doctor";
+      toast(`${selected.name} takes the beak and the cane. They will fetch the sick to the hospital on their own.`);
     } else if (prof === "blacksmith") {
       if (!has("forging")) return toast("Blacksmiths require the Forging technology.");
       dropPolice();
@@ -3382,18 +3465,25 @@ $("cpHeal").addEventListener("click", () => {
   if (!selected) return;
   const grp = soldierGroup();
   const band = grp.length > 1 ? grp : [selected];
-  const hurt = band.filter(c => c.hp < c.maxHp);
+  const hurt = band.filter(c => (c.hp < c.maxHp || isSick(c)) && c.state !== "abed");
   if (!hurt.length)
     return toast(band.length > 1 ? "They are all hale and whole." : `${selected.name} is already hale and whole.`);
-  const fed = hurt.filter(c => foodWithinReach(c) > 0);
-  if (!fed.length)
-    return toast(isForce(selected) ? "No food anywhere in the empire — bake bread or hunt before ordering a heal."
-                                   : "No food to hand — bake bread or hunt before ordering a heal.");
-  for (const c of fed) { c.task = null; c.state = "healing"; c.workT = 0; }
-  const short = hurt.length - fed.length;
-  toast(fed.length > 1
-    ? `${fed.length} sit down to eat until their wounds mend.${short ? ` ${short} can reach no food.` : ""}`
-    : `${fed[0].name} sits down to eat until their wounds mend.`);
+  if (!hospitals().length)
+    return toast("There is no hospital to carry them to — raise one (25 logs, 8 stone, 14 DM) and recruit a doctor.");
+  // Beds are the constraint now, not bread. Whoever finds one walks there and
+  // lies down; the rest are told plainly that they are waiting on a bed.
+  let sent = 0, nobed = 0;
+  for (const c of hurt) {
+    const b = nearestWard(c.x, c.y, true);
+    if (!b) { nobed++; continue; }
+    if (c.bearer) { c.bearer.bearing = null; c.bearer = null; }
+    order(c, { kind: "hospital", target: b, x: b.x, y: b.y + 22 });
+    sent++;
+  }
+  if (!sent) return toast(`Every bed is full — ${HOSP_BEDS} to a hospital. Raise another, or wait for one to be discharged.`);
+  toast(sent > 1
+    ? `${sent} make for the hospital.${nobed ? ` ${nobed} wait — no bed free.` : ""}`
+    : `${hurt[0].name} makes for the hospital.`);
   syncUI();
 });
 $("cpGiveWeapon").addEventListener("click", () => {
@@ -3856,10 +3946,14 @@ function updatePlague(dt) {
     // none, so neither outcome carried any suspense. Half that, and a fed man
     // under a roof usually rises again while a hungry homeless one often does
     // not. Ordering the sick to sit and eat is the lever that saves them.
-    const care = (c.home ? 0.6 : 1) * (c.hunger > 50 ? 0.7 : 1.2);
-    c.hp -= 0.45 * care * dt;
-    if (Math.random() < dt * 0.35) float(c.x, c.y - 74, "☠", "#9a8fb0");
-    if (c.hp <= 0) { killCiv(c, "was taken by the plague"); continue; }
+    // A bed in a hospital stops the wasting outright — updateWards burns the
+    // fever out from there. Everyone else takes it standing up.
+    if (c.state !== "abed") {
+      const care = (c.home ? 0.6 : 1) * (c.hunger > 50 ? 0.7 : 1.2);
+      c.hp -= 0.45 * care * dt;
+      if (Math.random() < dt * 0.35) float(c.x, c.y - 74, "☠", "#9a8fb0");
+      if (c.hp <= 0) { killCiv(c, "was taken by the plague"); continue; }
+    }
     if (c.sick <= 0) { c.sick = 0; toast(`${c.name} rises from the sickbed.`); }
   }
   if (!anySick && plagueActive <= 0 && plagueT <= 0) plagueT = PLAGUE_MIN + Math.random() * (PLAGUE_MAX - PLAGUE_MIN);
@@ -3868,6 +3962,123 @@ function updatePlague(dt) {
     plagueT = PLAGUE_MIN + Math.random() * (PLAGUE_MAX - PLAGUE_MIN);
     if (civs.length >= 4) strikePlague();
   }
+}
+// ===== the hospital =====
+// A plague you can only wait out is weather, not a crisis: nothing the player
+// does between the first cough and the last grave changes the count of graves.
+// The hospital is the answer to it. Raise one, put a doctor in it, and the
+// fever-struck are fetched off the street, carried in on a stretcher and
+// physicked in a bed: the sickness burns out four times faster under care, the
+// wasting stops, and wounds close there too — which is where healing lives now
+// that bread has stopped mending men where they stand.
+const hospitals = () => buildings.filter(b => b.type === "hospital" && !b.fire && !b.site);
+const isDoc = c => c.profession === "doctor";
+const abed = b => civs.filter(c => c.state === "abed" && c.ward === b);
+const bedsFree = b => HOSP_BEDS - abed(b).length;
+// laid on a stretcher, or already on the way to one on somebody else's orders
+const spokenFor = p => p.state === "borne" || p.state === "abed" ||
+                       civs.some(d => d !== p && d.bearing === p) ||
+                       (p.task && p.task.kind === "hospital");
+// Who a doctor comes for: the fevered first, then the badly hurt — but nobody
+// is stretchered out of a fight they are still standing in. A man swinging at a
+// raider has not asked to be carried off, and taking him off the line mid-melee
+// would lose the wall while the ward gained a patient.
+const needsBed = c => !c.child && !c.rebel &&
+                      c.state !== "fighting" && c.state !== "sieging" &&
+                      !(c.task && c.task.kind === "attack") &&
+                      (isSick(c) || c.hp < c.maxHp * HURT_ENOUGH);
+function nearestWard(x, y, needBed) {
+  let best = null, bd = Infinity;
+  for (const b of hospitals()) {
+    if (needBed && bedsFree(b) <= 0) continue;
+    const d = Math.hypot(b.x - x, b.y - y);
+    if (d < bd) { bd = d; best = b; }
+  }
+  return best;
+}
+// A patient laid in a bed. Called from the doctor's arrival and from a man who
+// walked himself in — both ways in go through here, so both ways out are alike.
+function admit(p, b) {
+  p.task = null; p.bearer = null;
+  p.ward = b; p.state = "abed"; p.wardT = 0;
+  p.x = b.x + (Math.random() * 26 - 13); p.y = b.y + 18;
+  syncUI();
+}
+function discharge(p, why) {
+  const b = p.ward;
+  p.ward = null; p.wardT = 0;
+  if (p.state === "abed") {
+    p.state = "idle";
+    if (b) { p.x = b.x + (Math.random() * 40 - 20); p.y = b.y + 26; }
+  }
+  if (why) toast(`${p.name} ${why}.`);
+  syncUI();
+}
+// The ward's own hour: it mends, it feeds, and it empties when the roof goes.
+let wardWarned = false;
+function updateWards(dt) {
+  let fedAny = false, starved = false;
+  for (const p of civs) {
+    if (p.state !== "abed") continue;
+    const b = p.ward;
+    if (!b || !buildings.includes(b) || b.fire || b.site || b.type !== "hospital") {
+      discharge(p, "is turned out of the ruined hospital");
+      continue;
+    }
+    // a doctor at the bedside works faster than an empty ward
+    const doc = civs.find(d => isDoc(d) && !isJailed(d) && Math.hypot(d.x - b.x, d.y - b.y) < 90);
+    const skill = doc ? armSkill(doc, "physicking") : 1;
+    const rate = (doc ? 1 : 0.55) * skill;
+    // the sick are fed at the bedside — this is what healing costs now
+    p.wardT = (p.wardT || 0) + dt;
+    if (p.wardT >= HOSP_MEAL) {
+      p.wardT = 0;
+      if (p.inv.bread > 0) { p.inv.bread--; eat(p, "bread"); fedAny = true; }
+      else if (p.inv.meat > 0) { p.inv.meat--; eat(p, "meat"); fedAny = true; }
+      else if (eatFromStores(p)) fedAny = true;
+      else starved = true;
+    }
+    const cared = p.hunger > 30;                 // a ward with nothing to feed them heals badly
+    if (isSick(p)) {
+      p.sick -= dt * HOSP_CURE * rate * (cared ? 1 : 0.5);
+      if (p.sick <= 0) { p.sick = 0; toast(`☤ ${p.name} is over the fever.`); }
+    } else if (p.hp < p.maxHp) {
+      p.hp = Math.min(p.maxHp, p.hp + HOSP_HEAL * rate * (cared ? 1 : 0.4) * dt);
+      if (Math.random() < dt * 0.4) float(p.x, p.y - 70, "+", "#7da083");
+    }
+    if (doc && Math.random() < dt * 0.5) gainSkill(doc, "physicking", 1);
+    if (!isSick(p) && p.hp >= p.maxHp) discharge(p, "is discharged, whole again");
+  }
+  if (starved && !wardWarned) { wardWarned = true; toast("☤ The hospital has nothing to feed its patients — they mend badly."); }
+  if (fedAny) wardWarned = false;
+}
+// A doctor's round: find the worst case that nobody has claimed, walk to it,
+// shoulder the stretcher, and carry them in. He does his own fetching — the
+// player never has to drive him.
+function doctorAI(c) {
+  if (c.state !== "idle" || isJailed(c) || c.feudWith) return false;
+  // already bearing someone: the ward, and nothing else
+  if (c.bearing) {
+    const p = c.bearing;
+    if (!civs.includes(p) || p.state !== "borne") { c.bearing = null; return false; }
+    const b = nearestWard(c.x, c.y, true) || nearestWard(c.x, c.y, false);
+    if (!b) { p.state = "idle"; p.bearer = null; c.bearing = null; return false; }
+    order(c, { kind: "ward", target: b, x: b.x, y: b.y + 22 });
+    return true;
+  }
+  if (!hospitals().length) return false;
+  let worst = null, wd = Infinity;
+  for (const p of civs) {
+    if (p === c || !needsBed(p) || spokenFor(p) || INDOORS.has(p.state) || p.rebel) continue;
+    const d = Math.hypot(p.x - c.x, p.y - c.y);
+    if (d > DOCTOR_SIGHT) continue;
+    // fever before wounds, then whoever is nearest
+    const rank = (isSick(p) ? 0 : 100000) + d;
+    if (rank < wd) { wd = rank; worst = p; }
+  }
+  if (!worst) return false;
+  order(c, { kind: "fetch", target: worst, x: worst.x, y: worst.y });
+  return true;
 }
 function updateCalamities(dt) {
   // wounds heal: a crown climbs back toward its old strength as the years pass
@@ -4818,6 +5029,10 @@ function emigrate(c) {
   if (selected === c) selected = null;
   if (skillCiv === c) closeSkills();
   for (const o of civs) { if (o.op) delete o.op[c.name]; if (o.feudWith === c.name) endFeud(o); }
+  // a doctor who goes drops his stretcher; a patient on it is let go of
+  if (c.bearing) { c.bearing.bearer = null; if (c.bearing.state === "borne") c.bearing.state = "idle"; c.bearing = null; }
+  if (c.bearer) { c.bearer.bearing = null; c.bearer = null; }
+  c.ward = null;
   selGroup = selGroup.filter(s => s !== c);
   civs.splice(civs.indexOf(c), 1);
   toast(`${c.name} has left for the new settlement.`);
@@ -5007,7 +5222,8 @@ function saveGame() {
         profession: c.profession, hunger: r1(c.hunger), hp: r1(c.hp), maxHp: c.maxHp,
         happiness: r1(c.happiness), rebel: c.rebel, armed: c.armed, tool: c.tool,
         post: c.post ? { x: r1(c.post.x), y: r1(c.post.y) } : undefined,
-        state: c.state === "inside" ? "inside" : undefined, shelter: bi(c.shelter),
+        state: c.state === "inside" ? "inside" : c.state === "abed" ? "abed" : undefined,
+        shelter: bi(c.shelter), ward: bi(c.ward),
         sick: c.sick ? r1(c.sick) : undefined,
         op: (c.op && Object.keys(c.op).length) ? c.op : undefined,
         feudWith: c.feudWith || undefined, feudT: c.feudT ? r1(c.feudT) : undefined,
@@ -5125,6 +5341,12 @@ function loadGame() {
         civs[i].shelter = buildings[cd.shelter];
         civs[i].state = "inside";
       }
+      // a bed is a bed in a particular ward; if that ward is gone, they are up
+      if (cd.state === "abed" && cd.ward !== undefined && buildings[cd.ward] &&
+          buildings[cd.ward].type === "hospital" && civs[i]) {
+        civs[i].ward = buildings[cd.ward];
+        civs[i].state = "abed";
+      } else if (civs[i]) { civs[i].ward = null; }
       // a sentence is served in a particular building, so point them back at it
       if (cd.jailT && cd.jail !== undefined && buildings[cd.jail] && civs[i]) {
         civs[i].jail = buildings[cd.jail];
@@ -5383,7 +5605,8 @@ const TUT_STEPS = [
   { note: true, text: () => "On that map you can send an envoy to a peaceful neighbour and talk their court into a trade route — gifts help, threats do not. Caravans then bring coin and goods to your gate." },
   { note: true, text: () => "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches." },
   { note: true, text: () => "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming." },
-  { note: true, text: () => "☠ Plague walks the towns of Europe — and it does not check your borders. It will come here too. The stricken work badly, sicken, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. Every civilian carries their own skills, and a skilled hand lost to fever is not quickly replaced." },
+  { note: true, text: () => "☠ Plague walks the towns of Europe — and it does not check your borders. It will come here too. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. Every civilian carries their own skills, and a skilled hand lost to fever is not quickly replaced." },
+  { note: true, text: () => "☤ The answer to it is a Hospital (BUILD ▾ — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. Bread no longer heals anyone where they stand — to mend a wounded soldier, select them and press Heal, and they will walk to a bed." },
   { note: true, text: () => "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. The woods are yours." },
 ];
 function tutAdvance() {
@@ -5510,7 +5733,7 @@ function syncUI() {
   {
     const counts = {};
     for (const c of govFolk) counts[c.child ? "child" : (c.profession || "no trade")] = (counts[c.child ? "child" : (c.profession || "no trade")] || 0) + 1;
-    const orderProfs = ["farmer", "hunter", "lumberjack", "quarryman", "forager", "blacksmith", "police", "soldier", "musketeer", "cavalry", "child", "no trade"];
+    const orderProfs = ["farmer", "hunter", "lumberjack", "quarryman", "forager", "blacksmith", "doctor", "police", "soldier", "musketeer", "cavalry", "child", "no trade"];
     const parts = orderProfs.filter(p => counts[p]).map(p => `${p.charAt(0).toUpperCase() + p.slice(1)}: <b style="color:#c9a86a">${counts[p]}</b>`);
     for (const p of Object.keys(counts)) if (!orderProfs.includes(p)) parts.push(`${p}: <b style="color:#c9a86a">${counts[p]}</b>`);
     $("govProfs").innerHTML = parts.join(" &middot; ") || '<span style="color:#5a6b60">No one is left.</span>';
@@ -5689,16 +5912,20 @@ function syncUI() {
       b.type === "townhall" ? "Civilians bring their goods here on their own — no more asking." :
       b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
       b.type === "gate" ? "Your people pass freely; raiders must burn it down." :
-      b.type === "jail" ? "Police put the aggressor of a feud in here to cool off. Burn it down or pull it apart and the prisoners walk." : "Standing.";
+      b.type === "jail" ? "Police put the aggressor of a feud in here to cool off. Burn it down or pull it apart and the prisoners walk." :
+      b.type === "hospital" ? `${HOSP_BEDS} beds. Doctors carry the sick and the badly hurt here on a stretcher; wounds close and the plague burns out much faster in a bed. Patients are fed from the stores.` : "Standing.";
     const inside = isFarm ? [] : sheltering(b);
     const held = (!isFarm && b.type === "jail") ? civs.filter(o => isJailed(o) && o.jail === b) : [];
+    const lying = (!isFarm && b.type === "hospital") ? abed(b) : [];
     $("bpOcc").textContent = isFarm ? "—"
       : b.type === "jail" ? (held.length ? `${held.length} held` : "empty")
+      : b.type === "hospital" ? `${lying.length}/${HOSP_BEDS} beds taken`
       : `${b.occupants.length} living here${inside.length ? `, ${inside.length} indoors` : ""}`;
     // Everyone under this roof, by name and pickable. Someone standing inside is
     // not on the map to be clicked, so without this there is no way to reach them.
     const roll = [];
     for (const o of held) roll.push({ c: o, note: `held, ${Math.ceil(o.jailT)}s left` });
+    for (const o of lying) roll.push({ c: o, note: isSick(o) ? `abed, fever ${Math.ceil(o.sick)}s` : `abed, ${Math.round(o.hp)}/${o.maxHp} health` });
     for (const o of (isFarm ? [] : b.occupants)) roll.push({ c: o, note: "lives here" });
     for (const o of inside) if (!roll.some(r => r.c === o)) roll.push({ c: o, note: "sheltering" });
     for (const r of roll) if (inside.includes(r.c) && r.note === "lives here") r.note = "lives here, indoors";
@@ -5752,6 +5979,7 @@ function update(dt) {
   updateNationTrade(dt);
   updateCalamities(dt);
   updatePlague(dt);
+  updateWards(dt);
   updateFuel(dt);
   updateFeuds(dt);
   updateJail(dt);
@@ -6142,21 +6370,20 @@ function update(dt) {
       if (!c.shelter || !buildings.includes(c.shelter) || c.shelter.fire || !canShelter(c.shelter)) turnOut(c, true);
       else { c.x = c.shelter.x; c.y = c.shelter.y + 18; continue; }
     }
-    if (c.state === "healing") {
-      if (c.hp >= c.maxHp) { c.state = "idle"; toast(`${c.name} is eaten back to full health.`); }
-      else {
-        c.workT = (c.workT || 0) + dt;
-        if (c.workT >= 1.4) {
-          c.workT = 0;
-          if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); }
-          else if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); }
-          else if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); }
-          else if (!eatFromStores(c)) { c.state = "idle"; toast(`${c.name} has no food left to heal with — the larders are bare.`); }
-          if (c.state === "healing" && c.hp >= c.maxHp) { c.state = "idle"; toast(`${c.name} is eaten back to full health.`); }
-        }
-        continue;
-      }
+    // A man in a bed does nothing but mend — updateWards keeps him there and
+    // lets him up when he is whole. He takes no orders and runs no errands.
+    if (c.state === "abed") continue;
+    // A man on a stretcher rides where his bearer goes. If the bearer is gone,
+    // dead, or has been sent somewhere else, he is set down where he lies.
+    if (c.state === "borne") {
+      const d = c.bearer;
+      if (!d || !civs.includes(d) || d.bearing !== c) { c.state = "idle"; c.bearer = null; continue; }
+      c.x = d.x - d.facing * 30; c.y = d.y - 6;
+      continue;
     }
+    // "healing" was the old eat-until-mended state. Anyone still in it from an
+    // older save simply stands up: there is a hospital for this now.
+    if (c.state === "healing") c.state = "idle";
     if (nightNow > 0.5 && !isForce(c) && !c.rebel && c.home && c.state === "idle")
       order(c, { kind: "goHome", x: c.home.x, y: c.home.y + 12 });
 
@@ -6167,10 +6394,14 @@ function update(dt) {
     if (c.feudWith) feudAI(c);
     if (c.rebel) rebelAI(c);
     if (isForce(c) && !c.rebel) forceAI(c);
+    if (isDoc(c) && !c.rebel) doctorAI(c);
 
-    // a constable answering a disturbance runs; he is not strolling to it
+    // a constable answering a disturbance runs; he is not strolling to it,
+    // and a man carrying another on a stretcher does not run at all
     const speed = walkSpeed(c) * (onRoad(c.x, c.y) ? ROAD_SPEED : 1)
-                  * (c.task && c.task.kind === "arrest" ? ARREST_HASTE : 1);
+                  * (c.task && c.task.kind === "arrest" ? ARREST_HASTE : 1)
+                  * (c.task && c.task.kind === "fetch" ? DOCTOR_HASTE : 1)
+                  * (c.bearing ? STRETCHER : 1);
     if (c.state === "walking") {
       if (c.task && c.task.kind === "attack" && c.task.target) {
         const t = c.task.target;
@@ -6191,12 +6422,22 @@ function update(dt) {
         if (!civs.includes(t) || !t.feudWith || isJailed(t)) { c.state = "idle"; c.task = null; continue; }
         c.tx = t.x; c.ty = t.y + 6;
       }
+      // The sick keep walking about until someone stops them, so a doctor
+      // follows his case the way a constable follows his man — an errand aimed
+      // at where somebody used to be standing is an errand that never arrives.
+      if (c.task && c.task.kind === "fetch" && c.task.target) {
+        const t = c.task.target;
+        if (!civs.includes(t) || !needsBed(t) || t.state === "borne" || t.state === "abed" ||
+            (t.bearer && t.bearer !== c)) { c.state = "idle"; c.task = null; continue; }
+        c.tx = t.x; c.ty = t.y + 6;
+      }
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
       // a musketeer closes only to firing range and lets the piece do the rest;
       // everyone else must get to arm's length
       const reach = c.task && c.task.kind === "attack"
         ? (c.profession === "musketeer" ? MUSKET_RANGE - 40 : 34)
         : c.task && c.task.kind === "seize" ? 30
+        : c.task && c.task.kind === "fetch" ? 26      // near enough to get a shoulder under him
         : (c.path && c.path.length ? 10 : 5);
       if (d < reach) {
         if (c.path && c.path.length) {
@@ -6882,7 +7123,8 @@ function render(dt) {
     }
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
   }});
-  for (const c of civs) if (!INDOORS.has(c.state) && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
+  // A man on a stretcher is painted by whoever is carrying him, not by himself
+  for (const c of civs) if (!INDOORS.has(c.state) && c.state !== "borne" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
     const grouped = selGroup.length > 1 && selected && selGroup.includes(selected) && selGroup.includes(c);
     if (c === selected || grouped) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 2;
@@ -6910,6 +7152,27 @@ function render(dt) {
         : img[(isForce(c) || c.armed ? "atksword" : "atkfist") + (Math.floor(c.anim) % 4)];
     else frame = UNIFORMED.has(c.profession) ? coatOf(c.who + (Math.floor(c.anim) % 4))
                                              : img[c.who + (Math.floor(c.anim) % 4)];
+    // A man on a stretcher is drawn lying on two poles behind his bearer: the
+    // poles first, then the body across them, so the load reads at a glance.
+    if (c.bearing && civs.includes(c.bearing) && c.bearing.state === "borne") {
+      const p = c.bearing, sx = c.x - c.facing * 30, sy = c.y - 6;
+      ctx.strokeStyle = "#6b5636"; ctx.lineWidth = 3;          // the two poles
+      for (const off of [0, 9]) {
+        ctx.beginPath();
+        ctx.moveTo(sx - 21, sy + off); ctx.lineTo(sx + 21, sy + off);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#8e8778";                                // the body under a blanket
+      ctx.fillRect(sx - 16, sy - 6, 32, 12);
+      ctx.fillStyle = "#c2a98c";                                // and the head, at the bearer's end
+      ctx.beginPath(); ctx.arc(sx + c.facing * 16, sy, 5, 0, Math.PI * 2); ctx.fill();
+      if (p.hp < p.maxHp) bar(sx, sy - 16, p.hp / p.maxHp, "#a05252", 28);
+      if (settings.labels) {
+        ctx.fillStyle = isSick(p) ? "#a99ec4" : "#7da083";
+        ctx.font = "10px monospace"; ctx.textAlign = "center";
+        ctx.fillText((isSick(p) ? "☠ " : "") + p.name, sx, sy - 22);
+      }
+    }
     drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
     // the flash is painted into the firing sprite itself — nothing is drawn over it
     ctx.fillStyle = c.sick > 0 ? "#a99ec4" : c.rebel ? "#d86a5a" : c.feudWith ? "#d8a05a" : c === selected ? "#c9a86a" :

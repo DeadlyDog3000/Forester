@@ -38,6 +38,8 @@ TARGETS = {
     "well":        "well_32.png",
     "forge":       "forge_32.png",
     "townhall":    "townhall_32.png",
+    "jail":        "jail_32.png",
+    "hospital":    "hospital_32.png",
     "farm":        "farm_32.png",
     "wall":        "wall_32.png",
     "wallv":       "wall_v_32.png",
