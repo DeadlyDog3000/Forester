@@ -2288,7 +2288,9 @@ function arrive(c) {
   if (t && t.kind === "fetch") {
     const p = t.target;
     c.task = null; c.state = "idle";
-    if (!civs.includes(p) || !needsBed(p) || spokenFor(p) || INDOORS.has(p.state)) return;
+    if (!civs.includes(p) || !needsBed(p) || spokenFor(p)) return;
+    if (INDOORS.has(p.state) && !nightCall(p)) return;
+    if (p.shelter) turnOut(p, true);              // fetched out of whatever roof they were under
     p.task = null; p.state = "borne"; p.bearer = c; c.bearing = p;
     toast(`☤ ${c.name} lifts ${p.name} onto the stretcher.`);
     return;
@@ -4149,7 +4151,20 @@ function updateWards(dt) {
 // A doctor's round: find the worst case that nobody has claimed, walk to it,
 // shoulder the stretcher, and carry them in. He does his own fetching — the
 // player never has to drive him.
+// A fever is worth knocking on a door for, and worth being got out of bed for.
+// The night is ten hours long and an outbreak burns itself out in three, so with
+// the doctor asleep and the sick tucked up indoors and out of his reach, a
+// plague that broke after dark was slept straight through: it took its toll, the
+// ward stood empty all night, and there was nothing whatever the player could do
+// about it. Fevers reach through a closed door in both directions now — wounds
+// still wait for morning.
+const nightCall = p => isSick(p) && !isJailed(p) &&
+                       (INDOORS.has(p.state) ? p.state !== "abed" : true);
 function doctorAI(c) {
+  const roused = (c.state === "sleeping" || c.state === "warming" || c.state === "inside") &&
+                 !c.bearing && hospitals().length &&
+                 civs.some(p => p !== c && nightCall(p) && needsBed(p) && !spokenFor(p));
+  if (roused) { if (c.shelter) turnOut(c, true); c.state = "idle"; c.task = null; }
   if (c.state !== "idle" || isJailed(c) || c.feudWith) return false;
   // already bearing someone: the ward, and nothing else
   if (c.bearing) {
@@ -4163,7 +4178,8 @@ function doctorAI(c) {
   if (!hospitals().length) return false;
   let worst = null, wd = Infinity;
   for (const p of civs) {
-    if (p === c || !needsBed(p) || spokenFor(p) || INDOORS.has(p.state) || p.rebel) continue;
+    if (p === c || !needsBed(p) || spokenFor(p) || p.rebel) continue;
+    if (INDOORS.has(p.state) && !nightCall(p)) continue;      // a scratch may wait for morning
     const d = Math.hypot(p.x - c.x, p.y - c.y);
     if (d > DOCTOR_SIGHT) continue;
     // fever before wounds, then whoever is nearest
@@ -6455,6 +6471,10 @@ function update(dt) {
     }
 
     const nightNow = nightAmt();
+    // The doctor's night call is settled before the sleepers are skipped over —
+    // a man asleep never reaches doctorAI further down, and a doctor who cannot
+    // be woken is no use at all during the ten hours the colony spends in bed.
+    if (isDoc(c) && !c.rebel && INDOORS.has(c.state) && c.state !== "abed") doctorAI(c);
     if (c.state === "sleeping") {
       // A night in your own bed knits a little back together — a fed man under
       // his own roof wakes better than he lay down. It is a fourteenth of what
@@ -6490,14 +6510,26 @@ function update(dt) {
     // dead, or has been sent somewhere else, he is set down where he lies.
     if (c.state === "borne") {
       const d = c.bearer;
-      if (!d || !civs.includes(d) || d.bearing !== c) { c.state = "idle"; c.bearer = null; continue; }
+      // and if the bearer somehow ends up under a roof — asleep, jailed, driven
+      // indoors — the man on the stretcher is set down rather than carried into
+      // the furniture and left there until morning
+      if (!d || !civs.includes(d) || d.bearing !== c || INDOORS.has(d.state)) {
+        if (d) d.bearing = null;
+        c.state = "idle"; c.bearer = null; continue;
+      }
       c.x = d.x - d.facing * 30; c.y = d.y - 6;
       continue;
     }
     // "healing" was the old eat-until-mended state. Anyone still in it from an
     // older save simply stands up: there is a hospital for this now.
     if (c.state === "healing") c.state = "idle";
-    if (nightNow > 0.5 && !isForce(c) && !c.rebel && c.home && c.state === "idle")
+    // The doctor's round is settled BEFORE the colony is sent to its beds. Left
+    // until after, a doctor who had just got a man onto the stretcher was idle
+    // for exactly one frame — long enough for nightfall to send him home, where
+    // he slept until morning with a fever case still lying on his shoulders. It
+    // showed as four minutes of carrying and one admission all night.
+    if (isDoc(c) && !c.rebel) doctorAI(c);
+    if (nightNow > 0.5 && !isForce(c) && !c.rebel && c.home && c.state === "idle" && !c.bearing)
       order(c, { kind: "goHome", x: c.home.x, y: c.home.y + 12 });
 
     socialTick(c, dt);
@@ -6507,7 +6539,6 @@ function update(dt) {
     if (c.feudWith) feudAI(c);
     if (c.rebel) rebelAI(c);
     if (isForce(c) && !c.rebel) forceAI(c);
-    if (isDoc(c) && !c.rebel) doctorAI(c);
 
     // a constable answering a disturbance runs; he is not strolling to it,
     // and a man carrying another on a stretcher does not run at all
