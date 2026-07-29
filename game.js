@@ -670,7 +670,11 @@ function wimg(key) {
 // The hour of the day, 0 to 24. The world's second zero is six in the morning.
 function clockHours() { return (6 + (worldT % DAY) / HOUR) % 24; }
 // The light, read straight off that hour — no second timetable to drift from it.
-const DUSK = 18, DARK = 19, FIRST_LIGHT = 5, SUNUP = 6;
+// Dark from seven in the evening until four in the morning, grey for an hour
+// after that, and a working day from five. An early dawn is worth an hour of
+// labour a day: at first light at five the colony slept through nearly half its
+// own clock, which is a long time to watch nothing happen.
+const DUSK = 18, DARK = 19, FIRST_LIGHT = 4, SUNUP = 5;
 function nightAmt() {
   const h = clockHours();
   if (h >= SUNUP && h < DUSK) return 0;                       // the working day
