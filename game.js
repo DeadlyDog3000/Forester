@@ -2707,19 +2707,35 @@ function autonomy(c, dt) {
 }
 
 // --- happiness & rebellion ---
-function happinessTarget(c) {
+// ===== why a man is as content as he is =====
+// Happiness was a number with no account behind it. A player watching the mood
+// fall had nothing to act on: taxes? hunger? no roof? the plague two streets
+// away? Every reason is itemised here, and happinessTarget is nothing but the
+// sum of this list — so the panel cannot tell one story while the simulation
+// runs on another. Change a rule and both change together.
+function moodReasons(c) {
+  const r = [["a roof, work and quiet", 78]];
+  if (taxRate) r.push([`taxes at ${taxRate}`, -taxRate * 6]);
   // the conquered do not love a new flag on the day it is raised
-  let t = 78 - taxRate * 6 - (c.conquered || 0) * 34
-        - (laws.forced ? 20 : 0)
-        - (has("slavemarket") ? 8 : 0)
-        + (has("taming") ? 3 : 0) + (has("pets") ? 4 : 0) + (has("pettoys") ? 4 : 0)
-        + Math.min(2, buildings.filter(b => b.type === "well" && !b.fire && !b.site).length) * 3;
-  if (c.hunger > 60) t += 4;
-  if (c.hunger < 30) t -= 12;
-  if (!c.home) t -= 8;
-  if (c.sick > 0) t -= 18;                 // his own sickness
-  else if (plagueActive > 0) t -= 7;       // and the fear of it in the street
-  return Math.max(0, Math.min(100, t));
+  // the exact value, never a rounded one — happinessTarget is the sum of this
+  // list, so rounding here for the sake of a tidy label would change the game
+  if (c.conquered) r.push(["lately conquered", -(c.conquered || 0) * 34]);
+  if (laws.forced) r.push(["the forced labour edict", -20]);
+  if (has("slavemarket")) r.push(["the slave market", -8]);
+  if (has("taming")) r.push(["beasts of the forest", 3]);
+  if (has("pets")) r.push(["pets about the place", 4]);
+  if (has("pettoys")) r.push(["pet toys", 4]);
+  const nw = wells();
+  if (nw) r.push(["clean water", Math.min(2, nw) * 3]);
+  if (c.hunger > 60) r.push(["well fed", 4]);
+  if (c.hunger < 30) r.push(["hungry", -12]);
+  if (!c.home) r.push(["no roof of their own", -8]);
+  if (c.sick > 0) r.push(["stricken with the plague", -18]);
+  else if (plagueActive > 0) r.push(["plague in the streets", -7]);
+  return r;
+}
+function happinessTarget(c) {
+  return Math.max(0, Math.min(100, moodReasons(c).reduce((n, [, v]) => n + v, 0)));
 }
 
 // A wretched man turns against the colony now and then. He does not turn within
@@ -6351,6 +6367,24 @@ function syncUI() {
     $("cpHunger").style.width = Math.max(0, selected.hunger) + "%";
     $("cpHappyN").textContent = Math.round(selected.happiness);
     $("cpHappy").style.width = Math.max(0, selected.happiness) + "%";
+    // the account behind the number: what is lifting them and what is grinding
+    // them down, worst first, so the thing worth fixing is the thing on top
+    {
+      const rs = moodReasons(selected).slice(1).sort((a, b) => a[1] - b[1]);
+      const bad = rs.filter(r => r[1] < 0), good = rs.filter(r => r[1] > 0);
+      $("cpMood").innerHTML = (bad.length || good.length)
+        ? bad.concat(good.reverse()).map(([why, n]) =>
+            `<span class="moodBit ${n < 0 ? "down" : "up"}">${n > 0 ? "+" : ""}${Math.round(n)} ${esc(why)}</span>`).join("")
+        : `<span class="moodBit up">nothing troubles them</span>`;
+    }
+    // what this person is doing at this moment, in words
+    $("cpDoing").textContent = doingWhat(selected);
+    // the trades they are actually good at
+    {
+      const best = SKILLS.map(s => [s.name, skillLvl(selected, s.id)])
+                         .filter(([, l]) => l > 1).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      $("cpBest").textContent = best.length ? best.map(([n, l]) => `${n} ${l}`).join(" · ") : "no trade practised yet";
+    }
     $("cpTool").textContent = (selected.tool ? "good tool" : "none") + (selected.armed ? " · armed" : "");
     $("cpLogs").textContent = selected.inv.logs; $("cpSeeds").textContent = selected.inv.seeds;
     $("cpStone").textContent = selected.inv.stone; $("cpIron").textContent = selected.inv.iron;

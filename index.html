@@ -75,6 +75,12 @@
   .barfill { background: #7da083; height: 100%; }
   .barfill.red { background: #a05252; }
   #civPanel hr { border: none; border-top: 1px solid #24352b; margin: 7px 0; }
+  /* the account behind the mood: every reason, worst first */
+  #cpMood { display: flex; flex-wrap: wrap; gap: 3px 5px; margin: 2px 0 7px; }
+  .moodBit { font-size: 10.5px; line-height: 1.45; padding: 1px 5px; border: 1px solid #24352b; white-space: nowrap; }
+  .moodBit.down { color: #d8a0a0; border-color: #4a2f2f; background: #1d1414; }
+  .moodBit.up { color: #9ecf9a; border-color: #2c4030; background: #141d16; }
+  #civPanel .row #cpDoing, #civPanel .row #cpBest { color: #a8bcae; text-align: right; }
 
   #govPanel { top: 48px; left: 10px; width: 280px; padding: 12px; display: none; max-height: 80vh; overflow-y: auto; }
   #govPanel h3 { font-size: 13px; color: #c9a86a; margin-bottom: 8px; letter-spacing: 1px; }
@@ -435,6 +441,9 @@
     <div class="barwrap"><div class="barfill" id="cpHunger" style="width:100%"></div></div>
     <div class="row"><span>Happiness</span><span id="cpHappyN">80</span></div>
     <div class="barwrap"><div class="barfill" id="cpHappy" style="width:80%"></div></div>
+    <div id="cpMood"></div>
+    <div class="row"><span>Doing</span><span id="cpDoing">—</span></div>
+    <div class="row"><span>Best trades</span><span id="cpBest">—</span></div>
     <div class="row"><span>Tool</span><span id="cpTool">none</span></div>
     <hr>
     <div style="color:#7da083;margin-bottom:4px">INVENTORY</div>
