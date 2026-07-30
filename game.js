@@ -5364,6 +5364,155 @@ $("milSelectAll").addEventListener("click", () => {
   syncUI();
 });
 // The lobby offers no muster: the army is a thing of the colony, not the title card.
+// ===== what a building is for, and what it actually does =====
+// Half the buildings said nothing but "Standing." A player had no way to learn
+// what a Well is worth, how fast an oven bakes, or how far a watchtower shoots
+// short of reading the source. Every structure now explains itself in a line,
+// and then states its numbers — read live out of the same constants and
+// technologies the simulation uses, so a figure here can never drift from the
+// figure in play. Research that changes a rate changes this text with it.
+const BLDG_ABOUT = {
+  cabin: {
+    what: "A roof, a bed and a hearth. Housed folk pay tax, sleep through the night, warm themselves in winter and mend a little while they sleep. The homeless do none of it, and freeze.",
+    stats: b => [
+      ["Houses", `${b.occupants.length} of ${cabinCapacity()}` + (has("landownership") ? " (Land Ownership)" : "")],
+      ["Shelter on order", `up to ${SHELTER_CAP} may duck inside`],
+      ["Mends while asleep", `${REST_HEAL}/s — fed and housed only`],
+      ["Winter warmth", hearthsLit ? "hearth lit" : "hearth COLD — no logs"],
+    ],
+  },
+  recruit: {
+    what: "Wanderers come out of the woods to any colony that has one, and it is the only way your numbers grow beyond the children born here. Talk them round at the slot.",
+    stats: () => [
+      ["A wanderer every", "100–180s"],
+      ["Waiting now", `${visitors.length}`],
+      ["At once, at most", `${Math.max(2, buildings.filter(x => x.type === "recruit" && !x.fire && !x.site).length + 1)}`],
+    ],
+  },
+  market: {
+    what: "Sells the colony's surplus bread and meat for coin. Civilians carry their own goods here and pocket the price themselves — that coin comes back to you as tax.",
+    stats: () => [
+      ["Price per bread or meat", `${sellPrice()} DM` +
+        (has("marketing") ? " (Trading + Marketing)" : has("trading") ? " (Trading)" : "")],
+      ["Tax day every", `${TAX_PERIOD}s — next in ${Math.ceil(taxTimer)}s`],
+    ],
+  },
+  bakery: {
+    what: "Turns the town's wheat into bread on its own, without anyone being told to work it. Bread feeds better than raw wheat and sells for the same as meat.",
+    stats: b => [
+      ["Bakes", "1 bread from 2 wheat"],
+      ["Every", "20s, endlessly"],
+      ["Next loaf in", `${Math.max(0, Math.ceil(20 - (b.bakeT || 0)))}s`],
+      ["Town wheat", `${Math.floor(ledgerAt(b.x, b.y).wheat || 0)}`],
+    ],
+  },
+  well: {
+    what: "Clean water. The colony is happier for it, and when plague comes fewer of them take to their beds — the single cheapest thing you can do about an outbreak before it happens.",
+    stats: () => {
+      const n = wells();
+      return [
+        ["Wells standing", `${n}`],
+        ["Happiness", `+${Math.min(2, n) * 3} (up to +6 from 2 wells)`],
+        ["Struck by plague", `${Math.round(Math.max(0.15, 0.42 - n * 0.07) * 100)}% of adults (42% with none)`],
+      ];
+    },
+  },
+  forge: {
+    what: "A blacksmith's shop. He forges tools that make every kind of work faster, and weapons that go to the armoury. Civilians buy tools out of their own pockets.",
+    stats: b => [
+      ["Tools on the racks", `${(b.shop || []).filter(i => i.kind === "tool").length}`],
+      ["Weapons on the racks", `${(b.shop || []).filter(i => i.kind === "weapon").length}`],
+      ["A tool makes work", "35% faster, for life"],
+      ["Tool price", `${TOOL_PRICE_SELF} DM to a civilian · ${TOOL_PRICE_GOV} DM from the treasury`],
+    ],
+  },
+  townhall: {
+    what: "Civilians carry what they gather here on their own instead of hoarding it in their pockets. One hall to a town; without one, goods sit in cabins until you ask for them.",
+    stats: () => [["Serves", "its own town only"], ["Halls standing", `${buildings.filter(x => x.type === "townhall" && !x.fire && !x.site).length}`]],
+  },
+  watchtower: {
+    what: "Cries the alarm when raiders come, and shoots at whatever comes within range. Soldiers and police fighting in its shadow strike harder.",
+    stats: () => [
+      ["Shoots to", `${TOWER_RANGE} paces`],
+      ["A shot every", `${TOWER_RELOAD}s`],
+      ["Hits for", "80% of a musket ball"],
+      ["Steadies your men within", "400 paces (+5 damage)"],
+    ],
+  },
+  jail: {
+    what: "Where the constable puts the man who started a feud, until the blood goes out of him. No jail, or no police, and a quarrel simply runs its course.",
+    stats: b => [
+      ["Sentence", `${SENTENCE}s`],
+      ["Held here now", `${civs.filter(o => isJailed(o) && o.jail === b).length}`],
+      ["Constables", `${civs.filter(c => c.profession === "police").length}`],
+      ["If it burns", "the prisoners walk"],
+    ],
+  },
+  hospital: {
+    what: "Beds for the fever-struck and the badly hurt. Doctors fetch them off the street on a stretcher — even out of their own beds at night for a fever. This is the only place wounds close.",
+    stats: b => {
+      const doc = civs.filter(isDoc).length;
+      return [
+        ["Beds", `${abed(b).length} of ${HOSP_BEDS} taken`],
+        ["Mends wounds", `${HOSP_HEAL}/s with a doctor at the bedside`],
+        ["Burns out a fever", `${HOSP_CURE}× faster, and the wasting stops`],
+        ["Without a doctor", "just over half as fast"],
+        ["Doctors on the rolls", `${doc}${doc ? "" : " — recruit one"}`],
+        ["Patients eat", `1 meal every ${HOSP_MEAL}s from the stores`],
+      ];
+    },
+  },
+  lamp: {
+    what: "A lantern on a post, burning from dusk to dawn. It lights the ground around it and nothing else — two logs and a mark to line a street with.",
+    stats: () => [
+      ["Lights", "a pool twice a lit window's"],
+      ["Burning", `${DUSK}:00 to ${String(FIRST_LIGHT).padStart(2, "0")}:00`],
+      ["Standing", `${buildings.filter(x => x.type === "lamp" && !x.site).length}`],
+      ["Claims territory", "no — it is furniture"],
+    ],
+  },
+  wall: { what: "Timber. Keeps raiders out until they put a torch to it — and they will try.",
+    stats: b => [["Strength", `${Math.round(b.hp)}/${b.maxHp}`], ["Burns", "yes — leaves a repairable ruin"]] },
+  gate: { what: "Your people pass freely; raiders must burn it down or climb it.",
+    stats: b => [["Strength", `${Math.round(b.hp)}/${b.maxHp}`], ["Weaker than wall", "60 against 100"]] },
+  stonewall: { what: "Stone neither burns nor splinters. A raider must climb it, and he is helpless while he does.",
+    stats: b => [["Strength", `${Math.round(b.hp)}/${b.maxHp}`], ["Fire", "no effect"], ["Climbing takes", `${CLIMB_TIME}s, back turned`]] },
+  stonegate: { what: "A stone gate: your people through, theirs over the top and slowly.",
+    stats: b => [["Strength", `${Math.round(b.hp)}/${b.maxHp}`], ["Fire", "no effect"]] },
+  moat: { what: "Water in a ditch. Anything wading it crawls, and crawls under your muskets.",
+    stats: () => [["Attackers move at", "35% speed"], ["Burns", "no — it is water"]] },
+  ditch: { what: "A dry trench. Cheaper than a moat and slows them less, but it slows them.",
+    stats: () => [["Attackers move at", "60% speed"], ["Burns", "no — it is earth"]] },
+};
+function renderBldgInfo(b, isFarm) {
+  const info = $("bpInfo");
+  const line = (what, rows) => {
+    let html = `<div class="bpWhat">${esc(what)}</div>`;
+    if (rows && rows.length) {
+      html += `<div class="bpStats">`;
+      for (const [k, v] of rows) html += `<div class="bpStat"><span>${esc(k)}</span><b>${esc(v)}</b></div>`;
+      html += `</div>`;
+    }
+    info.innerHTML = html;
+  };
+  if (isFarm) {
+    return line("Wheat, grown by whoever you assign to it. A farmer works it through summer; the fields sleep all winter.",
+      [["Farmers assigned", `${b.workers.length}`],
+       ["Crop", b.ready ? "RIPE — ready to reap" : `growing (${Math.round(100 * Math.min(1, (b.growT || 0) / farmRipen()))}%)`],
+       ["Ripens in", `${farmRipen()}s` + (has("agriculture") ? " (Agriculture)" : "")],
+       ["A reaping gives", "2 wheat"],
+       ["In winter", "nothing grows"]]);
+  }
+  if (b.fire) return line("IT IS ON FIRE. When the flames go out there will be a ruin here, and a ruin can be repaired.",
+    [["Burns down in", `${Math.ceil(b.fire)}s`]]);
+  if (b.type === "burned") return line(
+    `A ruin of what was a ${BLDG_NAMES[b.was] || "building"}. Select a civilian and click it to order the repair — it comes back as exactly what it was.`,
+    [["Repair costs", costText(REPAIR_COST)], ["Comes back as", BLDG_NAMES[b.was] || "a cabin"]]);
+  const about = BLDG_ABOUT[b.type];
+  if (!about) return line("Standing.", []);
+  line(about.what, about.stats ? about.stats(b) : []);
+}
+
 // ===== reading the chronicle =====
 // Filters are chips rather than a dropdown: the player wants "show me the
 // deaths" in one press, and wants to see at a glance that a category exists at
@@ -6277,19 +6426,7 @@ function syncUI() {
     const b = selectedBldg;
     const isFarm = farms.includes(b);
     $("bpName").textContent = isFarm ? "WHEAT FARM" : bldgName(b).toUpperCase();
-    $("bpInfo").textContent = isFarm ? `${b.workers.length} farmer(s) assigned; ${b.ready ? "crop is ripe" : "crop growing"}.` :
-      b.type === "burned" ? "Select a civilian and click the ruin to order its repair (20 logs + 1 door)." :
-      b.fire ? "IT IS ON FIRE." :
-      b.type === "watchtower" ? "Warns of raids and shoots at raiders that come near; nearby police & soldiers fight harder." :
-      b.type === "bakery" ? "Bakes town wheat into bread over time." :
-      b.type === "well" ? "Fresh water. The colony is happier for it." :
-      b.type === "forge" ? `Blacksmith's shop. On the racks: ${(b.shop || []).filter(i => i.kind === "tool").length} tool(s). Civilians buy tools with their own coin; forged weapons go straight to the armoury.` :
-      b.type === "townhall" ? "Civilians bring their goods here on their own — no more asking." :
-      b.type === "wall" ? "Keeps raiders out — until they put a torch to it." :
-      b.type === "gate" ? "Your people pass freely; raiders must burn it down." :
-      b.type === "jail" ? "Police put the aggressor of a feud in here to cool off. Burn it down or pull it apart and the prisoners walk." :
-      b.type === "lamp" ? "Burns from dusk to dawn and lights the ground around it. Cheap enough to line a street with." :
-      b.type === "hospital" ? `${HOSP_BEDS} beds. Doctors carry the sick and the badly hurt here on a stretcher; wounds close and the plague burns out much faster in a bed. Patients are fed from the stores.` : "Standing.";
+    renderBldgInfo(b, isFarm);
     const inside = isFarm ? [] : sheltering(b);
     const held = (!isFarm && b.type === "jail") ? civs.filter(o => isJailed(o) && o.jail === b) : [];
     const lying = (!isFarm && b.type === "hospital") ? abed(b) : [];
