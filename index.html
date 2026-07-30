@@ -176,9 +176,30 @@
   .folkTags { flex: 0 0 auto; color: #e0ac63; font-size: 12px; }
   #folkSum { font-size: 12.5px; line-height: 1.5; color: #a8bcae; margin-bottom: 8px; }
   @media (max-width: 820px), (pointer: coarse) and (max-width: 1100px) {
-    #chronPanel, #folkPanel { top: 34px; max-height: calc(100vh - 96px); padding: 8px; }
-    .chronWhen { flex: 0 0 74px; }
+    /* These two were built for a desk and left covering nearly the whole phone.
+       They are bottom sheets like every other panel now: the woods stay in view
+       above them, and the type comes back down to the size the rest uses. */
+    #chronPanel, #folkPanel {
+      top: auto; bottom: 52px; left: 8px; right: 8px; transform: none;
+      width: auto; max-height: 42vh; padding: 8px 9px; z-index: 30;
+    }
+    #chronPanel h3, #folkPanel h3 { font-size: 11px; margin-bottom: 5px; letter-spacing: 0.5px; }
+    .panelHead { gap: 5px; margin-bottom: 5px; }
+    .panelHead input[type=text] { font-size: 11px; padding: 5px 6px; }
+    .panelHead .btn { padding: 5px 8px !important; font-size: 10px !important; min-height: 30px; }
+    .chip { font-size: 10px; padding: 4px 7px; }
+    .chronRow, .folkRow { font-size: 11px; padding: 4px 2px; gap: 7px; line-height: 1.45; }
+    .chronWhen { flex: 0 0 66px; }
+    .chronIcon { flex: 0 0 13px; font-size: 11px; }
+    .chronYear { font-size: 11px; padding: 6px 2px 3px; }
+    .folkName { flex: 0 0 82px; }
     .folkTrade, .folkBars { display: none; }
+    #folkSum { font-size: 10.5px; margin-bottom: 5px; }
+    /* the control pad keeps its lane here too */
+    body.touch #chronPanel, body.touch #folkPanel { right: 58px; }
+    /* the mood chips: readable, but they must not eat the sheet */
+    .moodBit { font-size: 9.5px; padding: 1px 4px; }
+    #cpMood { gap: 2px 4px; margin: 1px 0 5px; }
   }
 
   #dialogue {

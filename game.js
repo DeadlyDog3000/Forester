@@ -1921,6 +1921,43 @@ canvas.addEventListener("click", e => {
   if (lineJustLaid) { lineJustLaid = false; return; }   // the drag already gave the order
   worldClick(e.clientX, e.clientY);
 });
+// ===== picking a person out of a crowd =====
+// A finger is not a mouse pointer. The old test asked whether the tap landed
+// inside a box 48 world-pixels wide and stopped at the first man it found in
+// list order — so a tap two pixels wide of someone fell straight through to the
+// ground beneath him and was read as "walk over there". On a phone that is what
+// usually happened: tapping the person you wanted to select sent the person you
+// already had selected marching across the map at him.
+//
+// It is a radius now, it takes the NEAREST candidate rather than the first, and
+// on a touchscreen it is as generous as a fingertip actually is.
+// Distance to the figure's own body, not to a point at its middle: anywhere on
+// the man counts as a direct hit, and the radius below is then a true margin
+// around him rather than a guess at where his centre might be.
+function figureDist(f, wx, wy) {
+  const halfW = 15, top = f.y - CHAR_SIZE * 0.82, bot = f.y + 4;
+  const dx = Math.max(0, Math.abs(wx - f.x) - halfW);
+  const dy = wy < top ? top - wy : wy > bot ? wy - bot : 0;
+  return Math.hypot(dx, dy);
+}
+// The margin is measured on the SCREEN and converted to world units, so a man is
+// the same size to tap however far the camera is pulled back — a fixed world
+// margin shrinks to nothing the moment you zoom out to look at the whole town.
+const PICK_R = () => Math.min(90, (IS_TOUCH ? 30 : 16) / Math.max(0.2, zoom));
+function nearestFigure(list, wx, wy, skipIndoors) {
+  const r = PICK_R();
+  let best = null, bd = Infinity;
+  for (const f of list) {
+    // whoever is under a roof is not on the map to be clicked: they stand at the
+    // building's own coordinates, and would otherwise swallow every click on it
+    if (skipIndoors && INDOORS.has(f.state)) continue;
+    const d = figureDist(f, wx, wy);
+    if (d < bd && d <= r) { bd = d; best = f; }
+  }
+  return best;
+}
+const pickCiv = (wx, wy) => nearestFigure(civs, wx, wy, true);
+const pickFigure = (list, wx, wy) => nearestFigure(list, wx, wy, false);
 function worldClick(clientX, clientY) {
   if (gameState !== "playing") return;
   mouse.x = clientX; mouse.y = clientY;
@@ -1931,12 +1968,15 @@ function worldClick(clientX, clientY) {
 
   if (buildMode) { tryPlace(buildMode, mouse.wx, mouse.wy); return; }
 
-  for (const v of visitors)
-    if (Math.abs(mouse.wx - v.x) < 26 && mouse.wy < v.y && mouse.wy > v.y - CHAR_SIZE) return openDialogue(v);
+  {
+    const v = pickFigure(visitors, mouse.wx, mouse.wy);
+    if (v) return openDialogue(v);
+  }
 
   // raiders: force units can be ordered onto them
-  for (const r of raiders)
-    if (Math.abs(mouse.wx - r.x) < 26 && mouse.wy < r.y && mouse.wy > r.y - CHAR_SIZE) {
+  {
+    const r = pickFigure(raiders, mouse.wx, mouse.wy);
+    if (r) {
       if (selected && isForce(selected)) {
         const grp = soldierGroup().filter(isForce);
         for (const s of grp) order(s, { kind: "attack", target: r, x: r.x, y: r.y });
@@ -1944,10 +1984,12 @@ function worldClick(clientX, clientY) {
       } else toast("Only police or soldiers can be ordered against raiders.");
       return;
     }
+  }
 
   // their townsfolk: soldiers may run them down and take them
-  for (const f of foreignFolk)
-    if (Math.abs(mouse.wx - f.x) < 26 && mouse.wy < f.y && mouse.wy > f.y - CHAR_SIZE) {
+  {
+    const f = pickFigure(foreignFolk, mouse.wx, mouse.wy);
+    if (f) {
       const grp = soldierGroup().filter(isForce);
       if (grp.length) {
         grp.forEach(s => { s.post = null; order(s, { kind: "seize", target: f, x: f.x, y: f.y + 6 }); });
@@ -1955,6 +1997,7 @@ function worldClick(clientX, clientY) {
       } else toast(`${f.name}, of ${f.town.name}. Send soldiers to take them.`);
       return;
     }
+  }
 
   // enemy ground: any fighting man can be sent against a foreign wall or roof
   for (const fb of foreign)
@@ -1991,11 +2034,9 @@ function worldClick(clientX, clientY) {
       return;
     }
 
-  for (const c of civs) {
-    // whoever is under a roof is not on the map to be clicked: they stand at the
-    // building's own coordinates, and would otherwise swallow every click on it
-    if (INDOORS.has(c.state)) continue;
-    if (Math.abs(mouse.wx - c.x) < 24 && mouse.wy < c.y && mouse.wy > c.y - CHAR_SIZE) {
+  {
+    const c = pickCiv(mouse.wx, mouse.wy);
+    if (c) {
       if (selected && selected !== c && isForce(selected) && c.rebel) {
         const grp = soldierGroup().filter(isForce);
         for (const s of grp) order(s, { kind: "attack", target: c, x: c.x, y: c.y });
@@ -5652,8 +5693,13 @@ function renderFolk() {
   for (const c of rows) {
     const row = document.createElement("div");
     row.className = "folkRow" + (c.hp < c.maxHp * 0.6 || isSick(c) ? " hurt" : "");
+    // plain single characters only: the crossed-out house was a combining slash
+    // that never composed, and rendered as a house followed by a stray mark
     const tags = (isSick(c) ? "☠" : "") + (c.feudWith ? "⚔" : "") + (isJailed(c) ? "⚖" : "") +
-                 (c.rebel ? "⚑" : "") + (!c.home ? "⌂̸" : "");
+                 (c.rebel ? "⚑" : "") + (!c.home ? "◇" : "");
+    const tagHelp = [isSick(c) && "☠ stricken", c.feudWith && "⚔ at feud",
+                     isJailed(c) && "⚖ jailed", c.rebel && "⚑ in revolt",
+                     !c.home && "◇ no roof"].filter(Boolean).join(" · ");
     row.innerHTML =
       `<span class="folkName">${esc(c.name)}</span>` +
       `<span class="folkTrade">${esc(c.child ? "child" : profLabel(c.profession))}</span>` +
@@ -5662,7 +5708,7 @@ function renderFolk() {
         `<span class="barwrap"><span class="barfill red" style="width:${Math.round(100 * c.hp / c.maxHp)}%"></span></span>` +
         `<span class="barwrap"><span class="barfill" style="width:${Math.round(c.hunger)}%"></span></span>` +
       `</span>` +
-      `<span class="folkTags">${tags}</span>`;
+      `<span class="folkTags" title="${esc(tagHelp)}">${tags}</span>`;
     row.addEventListener("click", () => {
       selected = c; selectedBldg = null; selectedCamp = null; selectedGrave = null;
       selGroup = groupable(c) ? [c] : [];
