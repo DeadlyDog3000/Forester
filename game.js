@@ -1958,6 +1958,116 @@ function nearestFigure(list, wx, wy, skipIndoors) {
 }
 const pickCiv = (wx, wy) => nearestFigure(civs, wx, wy, true);
 const pickFigure = (list, wx, wy) => nearestFigure(list, wx, wy, false);
+// ===== pointing a worker at a thing =====
+// Work orders were given by asking, target by target, whether the tap landed
+// inside that target's own box, and taking the first that said yes. That is
+// fine with a mouse on a spruce. With a finger it is miserable: a tree is
+// twenty pixels of trunk, a stake in the ground is a few pixels of outline, and
+// a miss does not fall back to the nearest thing — it falls through to the dirt
+// and becomes "walk over there". Half the taps did nothing you asked for.
+//
+// Every candidate within reach is gathered now, measured to its own body, and
+// the NEAREST one wins — with the same screen-sized margin the people-picking
+// uses, so a target is as big to tap as it looks however far you are zoomed
+// out. Where two overlap, the smaller wins: it is the harder one to hit, so it
+// is the one you must have meant.
+function rectDist(wx, wy, r) {
+  const dx = wx < r.x ? r.x - wx : wx > r.x + r.w ? wx - (r.x + r.w) : 0;
+  const dy = wy < r.y ? r.y - wy : wy > r.y + r.h ? wy - (r.y + r.h) : 0;
+  return Math.hypot(dx, dy);
+}
+function orderAtPoint(wx, wy) {
+  const c = selected;
+  if (!c) return false;
+  const reach = PICK_R();
+  // The world is full of spruces. A stake driven in among them sat at the same
+  // distance as the trees overlapping it, and the smaller body won — so ordering
+  // a cabin raised in the woods chopped a tree instead, over and over. What the
+  // player placed themselves outranks what merely grows there: a tap INSIDE a
+  // body beats a tap merely near one, and among bodies you are standing in, the
+  // stake and the ruin come first.
+  const PRI = { site: 0, ruin: 0, farm: 1, roof: 2, scenery: 3 };
+  const cands = [];
+  const add = (rect, run, what) => {
+    const d = rectDist(wx, wy, rect);
+    if (d <= reach) cands.push({ d, pri: PRI[what], area: rect.w * rect.h, run });
+  };
+  for (const t of nearThings("trees", wx, wy, 200))
+    if (t.alive && t.growth >= 1)
+      add({ x: t.x - 17, y: t.y - TREE_SIZE * 0.72, w: 34, h: TREE_SIZE * 0.72 }, () => {
+        order(c, { kind: "chop", target: t, x: t.x + 26, y: t.y + 6 });
+        toast(`${c.name} heads out to fell a spruce.`);
+      }, "scenery");
+  for (const s of nearThings("stones", wx, wy, 200))
+    if (s.alive)
+      add({ x: s.x - 19, y: s.y - NODE_SIZE * 0.62, w: 38, h: NODE_SIZE * 0.62 }, () => {
+        order(c, { kind: "quarry", target: s, x: s.x + 26, y: s.y + 6 });
+        toast(`${c.name} goes to break stone.`);
+      }, "scenery");
+  for (const p of nearThings("patches", wx, wy, 160))
+    if (p.alive)
+      add({ x: p.x - 15, y: p.y - NODE_SIZE * 0.5, w: 30, h: NODE_SIZE * 0.5 }, () => {
+        order(c, { kind: "gather", target: p, x: p.x + 16, y: p.y + 4 });
+        toast(`${c.name} gathers seeds from the wild grass.`);
+      }, "scenery");
+  for (const f of farms)
+    add(bldgRect({ type: "farm", x: f.x, y: f.y }), () => {
+      if (c.profession === "farmer") {
+        if (f.workers.includes(c)) {
+          f.workers = f.workers.filter(w => w !== c);
+          toast(`${c.name} no longer tends this farm.`);
+        } else {
+          f.workers.push(c);
+          toast(`${c.name} assigned to this farm (${f.workers.length} farmer(s) on it).`);
+        }
+        syncUI();
+      } else if (f.ready) {
+        order(c, { kind: "harvest", target: f, x: f.x, y: f.y + 10 });
+        toast(`${c.name} goes to bring in the crop.`);
+      } else { selectedBldg = f; f.type = "farm"; selected = null; syncUI(); }
+    }, "farm");
+  for (const b of buildings) {
+    // stakes in the ground are an invitation: point anyone at them and they go
+    // and raise it, without waiting to be asked by their own town's rota
+    if (b.site) {
+      add(bldgRect(b), () => {
+        if (c.child) return toast("Children do not raise buildings.");
+        if (b.builder && b.builder !== c && civs.includes(b.builder)) {
+          b.builder.task = null; b.builder.state = "idle";   // relieved of the work
+        }
+        b.builder = c;
+        order(c, { kind: "construct", target: b, x: b.x + 20, y: b.y + 14 });
+        toast(`${c.name} goes to raise the ${BLDG_NAMES[b.type] || b.type}.`);
+      }, "site");
+    } else if (b.type === "burned") {
+      add(bldgRect(b), () => {
+        if (!canPay(REPAIR_COST, ledgerAt(b.x, b.y))) {
+          const rl = ledgerAt(b.x, b.y);
+          return toast(`Repair needs ${costText(REPAIR_COST)} in town storage. Stored: ${rl.logs || 0} logs, ${rl.doors || 0} door(s).`);
+        }
+        order(c, { kind: "repair", target: b, x: b.x, y: b.y + 16 });
+        toast(`${c.name} goes to rebuild the ruin.`);
+      }, "ruin");
+    } else if (canShelter(b)) {
+      // and any roof still standing can simply be gone into — out of the snow,
+      // out of the weather, out of sight of whoever is coming up the road
+      add(bldgRect(b), () => {
+        if (c.shelter === b) return turnOut(c);              // tap again to come back out
+        if (sheltering(b).length >= SHELTER_CAP)
+          return toast(`The ${BLDG_NAMES[b.type] || b.type} is full — ${SHELTER_CAP} may shelter in it.`);
+        order(c, { kind: "enter", target: b, x: b.x, y: b.y + 14 });
+        toast(`${c.name} goes inside the ${BLDG_NAMES[b.type] || b.type}.`);
+      }, "roof");
+    }
+  }
+  if (!cands.length) return false;
+  // inside beats near; among the bodies you are inside, intent beats scenery
+  cands.sort((a, b) => (a.d === 0) !== (b.d === 0) ? (a.d === 0 ? -1 : 1)
+                     : a.d === 0 ? (a.pri - b.pri || a.area - b.area)
+                     : (a.d - b.d || a.pri - b.pri));
+  cands[0].run();
+  return true;
+}
 function worldClick(clientX, clientY) {
   if (gameState !== "playing") return;
   mouse.x = clientX; mouse.y = clientY;
@@ -2063,78 +2173,7 @@ function worldClick(clientX, clientY) {
     }
   }
 
-  if (selected) {
-    for (const t of nearThings("trees", mouse.wx, mouse.wy, 80))
-      if (t.alive && t.growth >= 1 && Math.abs(mouse.wx - t.x) < 26 && mouse.wy < t.y && mouse.wy > t.y - TREE_SIZE) {
-        order(selected, { kind: "chop", target: t, x: t.x + 26, y: t.y + 6 });
-        toast(`${selected.name} heads out to fell a spruce.`);
-        return;
-      }
-    for (const s of nearThings("stones", mouse.wx, mouse.wy, 80))
-      if (s.alive && Math.abs(mouse.wx - s.x) < 26 && mouse.wy < s.y && mouse.wy > s.y - NODE_SIZE) {
-        order(selected, { kind: "quarry", target: s, x: s.x + 26, y: s.y + 6 });
-        toast(`${selected.name} goes to break stone.`);
-        return;
-      }
-    for (const p of nearThings("patches", mouse.wx, mouse.wy, 60))
-      if (p.alive && Math.abs(mouse.wx - p.x) < 20 && mouse.wy < p.y && mouse.wy > p.y - NODE_SIZE) {
-        order(selected, { kind: "gather", target: p, x: p.x + 16, y: p.y + 4 });
-        toast(`${selected.name} gathers seeds from the wild grass.`);
-        return;
-      }
-    for (const f of farms)
-      if (pointInRect(mouse.wx, mouse.wy, bldgRect({ type: "farm", x: f.x, y: f.y }))) {
-        if (selected.profession === "farmer") {
-          if (f.workers.includes(selected)) {
-            f.workers = f.workers.filter(w => w !== selected);
-            toast(`${selected.name} no longer tends this farm.`);
-          } else {
-            f.workers.push(selected);
-            toast(`${selected.name} assigned to this farm (${f.workers.length} farmer(s) on it).`);
-          }
-          syncUI();
-        } else if (f.ready) {
-          order(selected, { kind: "harvest", target: f, x: f.x, y: f.y + 10 });
-          toast(`${selected.name} goes to bring in the crop.`);
-        } else { selectedBldg = f; f.type = "farm"; selected = null; syncUI(); }
-        return;
-      }
-    // stakes in the ground are an invitation: point anyone at them and they go
-    // and raise it, without waiting to be asked by their own town's rota
-    for (const b of buildings)
-      if (b.site && pointInRect(mouse.wx, mouse.wy, bldgRect(b))) {
-        if (selected.child) return toast("Children do not raise buildings.");
-        if (b.builder && b.builder !== selected && civs.includes(b.builder)) {
-          b.builder.task = null; b.builder.state = "idle";   // relieved of the work
-        }
-        b.builder = selected;
-        order(selected, { kind: "construct", target: b, x: b.x + 20, y: b.y + 14 });
-        toast(`${selected.name} goes to raise the ${BLDG_NAMES[b.type] || b.type}.`);
-        return;
-      }
-    for (const b of buildings)
-      if (b.type === "burned" && pointInRect(mouse.wx, mouse.wy, bldgRect(b))) {
-        if (!canPay(REPAIR_COST, ledgerAt(b.x, b.y))) {
-          const rl = ledgerAt(b.x, b.y);
-          toast(`Repair needs ${costText(REPAIR_COST)} in town storage. Stored: ${rl.logs || 0} logs, ${rl.doors || 0} door(s).`);
-          return;
-        }
-        order(selected, { kind: "repair", target: b, x: b.x, y: b.y + 16 });
-        toast(`${selected.name} goes to rebuild the ruin.`);
-        return;
-      }
-    // and any roof still standing can simply be gone into — out of the snow,
-    // out of the weather, out of sight of whoever is coming up the road
-    for (const b of buildings)
-      if (canShelter(b) && pointInRect(mouse.wx, mouse.wy, bldgRect(b))) {
-        if (selected.shelter === b) return turnOut(selected);   // click again to come back out
-        if (sheltering(b).length >= SHELTER_CAP)
-          return toast(`The ${BLDG_NAMES[b.type] || b.type} is full — ${SHELTER_CAP} may shelter in it.`);
-        order(selected, { kind: "enter", target: b, x: b.x, y: b.y + 14 });
-        toast(`${selected.name} goes inside the ${BLDG_NAMES[b.type] || b.type}.`);
-        return;
-      }
-  }
+  if (selected && orderAtPoint(mouse.wx, mouse.wy)) return;
 
   // a bury order: point a civilian at the fallen and they will see it done
   if (selected && !selected.child)

@@ -34,6 +34,7 @@
   #hud .spacer { flex: 1; }
 
   #actions { bottom: 0; left: 0; right: 0; display: flex; gap: 8px; padding: 8px 14px; border-width: 1px 0 0 0; align-items: center; }
+  #actions .ico { font-style: normal; margin-right: 5px; }
 
   .btn {
     background: #1c2a21; color: #cfd8d3; border: 1px solid #3a5243;
@@ -179,27 +180,35 @@
     /* These two were built for a desk and left covering nearly the whole phone.
        They are bottom sheets like every other panel now: the woods stay in view
        above them, and the type comes back down to the size the rest uses. */
+    /* As compact as it can be and still be read. Every sheet is a third of the
+       screen, the chrome around the content is cut to the bone, and the type
+       stops shrinking at 11px — below that it is small print, not a game. */
     #chronPanel, #folkPanel {
-      top: auto; bottom: 52px; left: 8px; right: 8px; transform: none;
-      width: auto; max-height: 42vh; padding: 8px 9px; z-index: 30;
+      top: auto; bottom: 50px; left: 6px; right: 6px; transform: none;
+      width: auto; max-height: 33vh; padding: 6px 7px; z-index: 30;
     }
-    #chronPanel h3, #folkPanel h3 { font-size: 11px; margin-bottom: 5px; letter-spacing: 0.5px; }
-    .panelHead { gap: 5px; margin-bottom: 5px; }
-    .panelHead input[type=text] { font-size: 11px; padding: 5px 6px; }
-    .panelHead .btn { padding: 5px 8px !important; font-size: 10px !important; min-height: 30px; }
-    .chip { font-size: 10px; padding: 4px 7px; }
-    .chronRow, .folkRow { font-size: 11px; padding: 4px 2px; gap: 7px; line-height: 1.45; }
-    .chronWhen { flex: 0 0 66px; }
-    .chronIcon { flex: 0 0 13px; font-size: 11px; }
-    .chronYear { font-size: 11px; padding: 6px 2px 3px; }
-    .folkName { flex: 0 0 82px; }
+    #chronPanel h3, #folkPanel h3 { font-size: 10px; margin-bottom: 4px; letter-spacing: 0.5px; }
+    .panelHead { gap: 4px; margin-bottom: 4px; }
+    .panelHead input[type=text] { font-size: 11px; padding: 4px 6px; }
+    .panelHead .btn { padding: 4px 7px !important; font-size: 10px !important; min-height: 28px; }
+    .chip { font-size: 10px; padding: 3px 6px; }
+    .chronRow, .folkRow { font-size: 11px; padding: 3px 2px; gap: 6px; line-height: 1.35; }
+    .chronWhen { flex: 0 0 60px; }
+    .chronIcon { flex: 0 0 12px; font-size: 11px; }
+    .chronYear { font-size: 10px; padding: 4px 2px 2px; letter-spacing: 1px; }
+    .folkName { flex: 0 0 76px; }
     .folkTrade, .folkBars { display: none; }
-    #folkSum { font-size: 10.5px; margin-bottom: 5px; }
+    #folkSum { font-size: 10px; line-height: 1.35; margin-bottom: 4px; }
+    #chronCount { font-size: 10px !important; margin-top: 4px !important; }
     /* the control pad keeps its lane here too */
-    body.touch #chronPanel, body.touch #folkPanel { right: 58px; }
+    body.touch #chronPanel, body.touch #folkPanel { right: 56px; }
     /* the mood chips: readable, but they must not eat the sheet */
-    .moodBit { font-size: 9.5px; padding: 1px 4px; }
-    #cpMood { gap: 2px 4px; margin: 1px 0 5px; }
+    .moodBit { font-size: 9.5px; padding: 0 4px; line-height: 1.4; }
+    #cpMood { gap: 2px 3px; margin: 1px 0 4px; }
+    /* the building's account of itself, tightened to fit a sheet */
+    .bpWhat { font-size: 10.5px; line-height: 1.4; margin-bottom: 5px; }
+    .bpStats { padding-top: 4px; margin-bottom: 5px; }
+    .bpStat { font-size: 10.5px; line-height: 1.35; padding: 0; gap: 8px; }
   }
 
   #dialogue {
@@ -278,8 +287,14 @@
     #actions > * { flex: 0 0 auto; }
     #actions span[style*="flex:1"] { display: none; }
     #actions span:last-child { display: none; }          /* the 'FORESTER beta' mark */
-    /* the bar you steer with stays comfortably tappable */
-    #actions .btn { padding: 9px 12px; font-size: 12px; min-height: 38px; }
+    /* Eight buttons at full width need nine hundred pixels and a phone has
+       three hundred and seventy-five: half the bar sat off the edge, reachable
+       only by a sideways swipe nobody thinks to try on a row of buttons. Icons
+       alone on a phone — every one of them visible at once, and each still a
+       comfortable finger's width. */
+    #actions .btn .txt { display: none; }
+    #actions .btn .ico { margin-right: 0; font-size: 15px; }
+    #actions .btn { padding: 8px 10px; font-size: 12px; min-height: 38px; min-width: 40px; text-align: center; }
     .menu-item { min-height: 34px; }
 
     .dropdown-menu {
@@ -294,9 +309,9 @@
     /* Side panels become slim bottom sheets: everything legible, the woods still
        in view above them. Dense type, tight rows, small controls. */
     #civPanel, #bldgPanel, #govPanel {
-      top: auto; bottom: 52px; left: 8px; right: 8px; width: auto;
-      max-height: 34vh; overflow-y: auto; z-index: 30;
-      padding: 7px 9px; font-size: 10px; line-height: 1.25;
+      top: auto; bottom: 50px; left: 6px; right: 6px; width: auto;
+      max-height: 33vh; overflow-y: auto; z-index: 30;
+      padding: 6px 8px; font-size: 10.5px; line-height: 1.3;
     }
     #civPanel h3, #bldgPanel h3, #govPanel h3 { font-size: 11px; margin-bottom: 4px; letter-spacing: 0.5px; }
     #govPanel h4 { font-size: 10px; margin: 6px 0 2px; }
@@ -411,7 +426,7 @@
 
   <div class="panel" id="actions">
     <div class="dropdown" id="buildDrop">
-      <button class="btn" id="buildToggle">BUILD &#9662;</button>
+      <button class="btn" id="buildToggle"><i class="ico">&#127959;</i><span class="txt">BUILD &#9662;</span></button>
       <div class="dropdown-menu" id="buildMenu">
         <button class="btn menu-item" data-build="cabin" id="miCabin">Log Cabin</button>
         <button class="btn menu-item" data-build="recruit">Civilian Recruitment Center &mdash; 30 logs, 10 DM</button>
@@ -435,17 +450,17 @@
       </div>
     </div>
     <div class="dropdown" id="craftDrop">
-      <button class="btn" id="craftToggle">CRAFT &#9662;</button>
+      <button class="btn" id="craftToggle"><i class="ico">&#9874;</i><span class="txt">CRAFT &#9662;</span></button>
       <div class="dropdown-menu" id="craftMenu">
         <button class="btn menu-item" data-craft="door" id="miDoor">Door &mdash; 5 logs (selected civilian)</button>
       </div>
     </div>
-    <button class="btn" id="roadToggle">&#128739; ROADS</button>
-    <button class="btn" id="govToggle">GOVERNMENT</button>
-    <button class="btn" id="milToggle">&#9876; MILITARY</button>
-    <button class="btn" id="folkToggle">&#128101; PEOPLE</button>
-    <button class="btn" id="chronToggle">&#128220; CHRONICLE</button>
-    <button class="btn" id="mapToggle">&#128506; MAP</button>
+    <button class="btn" id="roadToggle"><i class="ico">&#128739;</i><span class="txt">ROADS</span></button>
+    <button class="btn" id="govToggle"><i class="ico">&#127963;</i><span class="txt">GOVERNMENT</span></button>
+    <button class="btn" id="milToggle"><i class="ico">&#9876;</i><span class="txt">MILITARY</span></button>
+    <button class="btn" id="folkToggle"><i class="ico">&#128101;</i><span class="txt">PEOPLE</span></button>
+    <button class="btn" id="chronToggle"><i class="ico">&#128220;</i><span class="txt">CHRONICLE</span></button>
+    <button class="btn" id="mapToggle"><i class="ico">&#128506;</i><span class="txt">MAP</span></button>
     <span style="flex:1"></span>
     <span style="font-size:11px;color:#5a6b60">FORESTER beta</span>
   </div>
