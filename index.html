@@ -36,6 +36,28 @@
   #actions { bottom: 0; left: 0; right: 0; display: flex; gap: 8px; padding: 8px 14px; border-width: 1px 0 0 0; align-items: center; }
   #actions .ico { font-style: normal; margin-right: 5px; }
 
+  /* the colonies you have going, on the front door */
+  .saveRow {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    background: rgba(20, 32, 26, 0.9); border: 1px solid #3a5243;
+    padding: 8px 10px; margin-bottom: 6px; cursor: pointer; text-align: left;
+    font-family: inherit; color: #cfd8d3;
+  }
+  .saveRow:hover { background: #24352b; border-color: #7da083; }
+  .saveRow .slotNo { flex: 0 0 auto; color: #7a8f83; font-size: 11px; }
+  .saveRow .slotName { flex: 1; color: #e6ece8; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .saveRow .slotWhen { flex: 0 0 auto; color: #8fa397; font-size: 10.5px; text-align: right; line-height: 1.35; }
+  .saveDel {
+    flex: 0 0 auto; background: #1d1414; border: 1px solid #4a2f2f; color: #d8a0a0;
+    font-family: inherit; font-size: 11px; padding: 5px 8px; cursor: pointer;
+  }
+  .saveDel:hover { background: #2a1a1a; border-color: #7a4040; }
+  @media (max-width: 820px), (pointer: coarse) and (max-width: 1100px) {
+    .saveRow { padding: 7px 8px; gap: 7px; }
+    .saveRow .slotName { font-size: 12px; }
+    .saveRow .slotWhen { font-size: 9.5px; }
+  }
+
   .btn {
     background: #1c2a21; color: #cfd8d3; border: 1px solid #3a5243;
     padding: 7px 12px; font-family: inherit; font-size: 12px; cursor: pointer;
@@ -710,8 +732,10 @@
     <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px">
       <div style="font-size:52px;letter-spacing:14px;color:#cfd8d3;text-shadow:0 3px 0 #000">FORESTER</div>
       <div style="font-size:13px;color:#9ab0a2;text-shadow:0 1px 2px #000">Hamburg, 1683. They took everything. Build it back.</div>
+      <div id="menuSaves" style="display:none;width:min(460px,calc(100vw - 32px));margin-top:10px"></div>
       <button class="btn" id="menuContinue" style="font-size:16px;padding:12px 40px;margin-top:14px;display:none">CONTINUE GAME</button>
       <button class="btn" id="menuNew" style="font-size:16px;padding:12px 40px">NEW GAME</button>
+      <div id="menuSlotNote" style="font-size:11px;color:#7a8f83;text-align:center;max-width:420px"></div>
       <button class="btn" id="menuSettings" style="font-size:13px;padding:8px 30px">SETTINGS</button>
       <div style="font-size:11px;color:#5a6b60">beta &mdash; DeadlyDog Productions</div>
     </div>
@@ -737,6 +761,8 @@
     <h3 style="color:#c9a86a;letter-spacing:3px;margin-bottom:12px">PAUSED</h3>
     <button class="btn" id="pmResume" style="width:100%;margin-bottom:6px">Resume</button>
     <button class="btn" id="pmSave" style="width:100%;margin-bottom:6px">Save Game</button>
+    <button class="btn" id="pmSaveAs" style="width:100%;margin-bottom:6px">Save to a new slot</button>
+    <div id="pmSlot" style="font-size:10.5px;color:#7a8f83;margin-bottom:8px"></div>
     <button class="btn" id="pmSettings" style="width:100%;margin-bottom:6px">Settings</button>
     <button class="btn" id="pmMenu" style="width:100%">Save &amp; Return to Main Menu</button>
     <div style="font-size:10px;color:#5a6b60;margin-top:8px">Esc to resume</div>

@@ -1629,6 +1629,13 @@ let pauseOpen = false;
 function setPause(open) {
   pauseOpen = open;
   $("pauseMenu").style.display = open ? "block" : "none";
+  // which colony you are playing, so "Save Game" is never a guess
+  if (open && $("pmSlot")) {
+    const free = firstFreeSlot();
+    $("pmSlot").textContent = `Slot ${saveSlot} of ${SAVE_SLOTS} — ${settlementName}` +
+      (free ? "" : " · every slot is full");
+    $("pmSaveAs").disabled = !free;
+  }
   paused = pauseOpen || dlg.open || $("mapOverlay").style.display === "block" ||
            $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
   try { SFX.pauseAll(pauseOpen); } catch (e) {}
@@ -3671,6 +3678,19 @@ $("pmSave").addEventListener("click", () => {
   toast(!ok ? "⚠ The save failed — this browser will not take the ledger. Try clearing site data for other games." :
         saveTrimmed ? `Game saved (${lastSaveKB} KB). Room was short, so the record of felled trees was let go — the colony itself is safe.` :
         `The colony ledger is written. Game saved (${lastSaveKB} KB).`);
+});
+// Branch a colony: copy this moment into a free slot and go on playing there,
+// leaving the old slot exactly as it was. The way to keep a winter you are
+// proud of while trying something reckless.
+$("pmSaveAs").addEventListener("click", () => {
+  const free = firstFreeSlot();
+  if (!free) return toast(`All ${SAVE_SLOTS} slots are full. Return to the main menu to burn one.`);
+  useSlot(free);
+  saveTrimmed = false;
+  const ok = saveGame();
+  syncUI();
+  toast(ok ? `Copied into slot ${free}. You are playing that one now — the other is untouched.`
+           : "⚠ The save failed — this browser will not take another ledger.");
 });
 $("pmMenu").addEventListener("click", () => { saveGame(); location.reload(); });
 // on a phone the panels are bottom sheets sharing one patch of glass: only one at a time
@@ -5827,7 +5847,46 @@ $("milEnabled").addEventListener("change", e => {
 });
 
 // --- save / load ---
-const SAVE_KEY = "forester_save";
+// ===== more than one colony at a time =====
+// There was one save and one only: starting a new colony threw the old one
+// away, and there was no way to keep a winter you were proud of while trying
+// something reckless. Six slots now. The first is the original key, so anybody
+// who was already playing finds their colony exactly where they left it, as
+// slot one — nothing to migrate and nothing to lose.
+//
+// SAVE_KEY is not a constant any more: it names whichever slot is in hand.
+// Everything else — the backup copy, the trimming, the surgery on the way in —
+// hangs off it and needed no changing.
+const SAVE_SLOTS = 6;
+const slotKey = i => (i === 1 ? "forester_save" : `forester_save${i}`);
+const ACTIVE_SLOT_KEY = "forester_slot";
+let saveSlot = Math.min(SAVE_SLOTS, Math.max(1, +(localStorage.getItem(ACTIVE_SLOT_KEY) || 1) || 1));
+let SAVE_KEY = slotKey(saveSlot);
+function useSlot(i) {
+  saveSlot = Math.min(SAVE_SLOTS, Math.max(1, i | 0));
+  SAVE_KEY = slotKey(saveSlot);
+  try { localStorage.setItem(ACTIVE_SLOT_KEY, String(saveSlot)); } catch (e) {}
+}
+// What each slot holds, read cheaply enough to draw a menu from: the name of
+// the place, the year it had reached, how many souls, and how long it was played.
+function slotInfo(i) {
+  try {
+    const raw = localStorage.getItem(slotKey(i));
+    if (!raw || raw === "null") return null;
+    const d = JSON.parse(raw);
+    return { i, name: d.settlementName || "Neu Hamburg", empire: d.empireName || "",
+             year: d.colonyYear || 1683, pop: (d.civs || []).length,
+             played: Math.round((d.playT || 0) / 60), savedAt: d.savedAt || 0,
+             kb: Math.round(raw.length / 1024 * 10) / 10 };
+  } catch (e) { return { i, name: "damaged save", year: 0, pop: 0, played: 0, savedAt: 0, broken: true }; }
+}
+const listSaves = () => Array.from({ length: SAVE_SLOTS }, (_, n) => slotInfo(n + 1)).filter(Boolean);
+const firstFreeSlot = () => { for (let i = 1; i <= SAVE_SLOTS; i++) if (!slotInfo(i)) return i; return 0; };
+function deleteSlot(i) {
+  for (const suffix of ["", "_backup", "_broken"]) {
+    try { localStorage.removeItem(slotKey(i) + suffix); } catch (e) {}
+  }
+}
 
 // founder's tools: one-shot save surgery via URL params, then the URL is scrubbed
 // ?scout=now — the scouts offer a new settlement immediately on Continue
@@ -5864,6 +5923,7 @@ function saveGame() {
   try {
     const data = {
       v: 1,
+      savedAt: Date.now(),          // so the menu can say when you were last here
       // the recent tail only: a history worth reading, at a size worth keeping
       chron: chronicle.slice(-CHRON_SAVED),
       res: { ...res }, taxRate, taxTimer, laws: { ...laws }, zoom, settlementName, arrears,
@@ -6313,14 +6373,71 @@ function assetsReady() {
   else {
     gameState = "menu";
     $("menu").style.display = "block";
-    if (localStorage.getItem(SAVE_KEY)) $("menuContinue").style.display = "inline-block";
+    renderSaveList();
     MUSIC.play();
   }
 }
-$("menuNew").addEventListener("click", () => { localStorage.removeItem(SAVE_KEY); doLoading(false); });
+// how long ago, in words a person would use
+function agoText(ms) {
+  if (!ms) return "";
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+// The front door lists the colonies you have going. Clicking one takes you back
+// to it; the cross beside it burns it, and asks first.
+function renderSaveList() {
+  const box = $("menuSaves"), saves = listSaves();
+  box.innerHTML = "";
+  box.style.display = saves.length ? "block" : "none";
+  $("menuContinue").style.display = "none";       // the list has replaced it
+  for (const s of saves) {
+    const row = document.createElement("div");
+    row.className = "saveRow";
+    row.innerHTML =
+      `<span class="slotNo">${s.i}</span>` +
+      `<span class="slotName">${esc(s.broken ? "damaged save" : s.name)}` +
+      (s.empire ? `<span style="color:#7a8f83"> · ${esc(s.empire)}</span>` : "") + `</span>` +
+      `<span class="slotWhen">${s.broken ? "cannot be read" :
+          `${s.year} · ${s.pop} soul${s.pop === 1 ? "" : "s"} · ${s.played} min<br>${esc(agoText(s.savedAt))}`}</span>`;
+    row.addEventListener("click", () => { useSlot(s.i); doLoading(true); });
+    const del = document.createElement("button");
+    del.className = "saveDel"; del.textContent = "✕";
+    del.title = "Burn this colony's record";
+    del.addEventListener("click", e => {
+      e.stopPropagation();                        // the cross is not the row
+      if (del.dataset.sure !== "1") {
+        del.dataset.sure = "1"; del.textContent = "sure?";
+        setTimeout(() => { if (del.dataset.sure === "1") { del.dataset.sure = ""; del.textContent = "✕"; } }, 3000);
+        return;
+      }
+      deleteSlot(s.i);
+      renderSaveList();
+    });
+    row.appendChild(del);
+    box.appendChild(row);
+  }
+  const free = firstFreeSlot();
+  $("menuSlotNote").textContent = free
+    ? `${saves.length} of ${SAVE_SLOTS} slots used — a new colony takes slot ${free}.`
+    : `All ${SAVE_SLOTS} slots are full. Burn one to begin another.`;
+}
+$("menuNew").addEventListener("click", () => {
+  const free = firstFreeSlot();
+  if (!free) return renderSaveList();             // the note already says why nothing happened
+  useSlot(free);
+  localStorage.removeItem(SAVE_KEY);              // a fresh slot starts empty
+  doLoading(false);
+});
 $("menuContinue").addEventListener("click", () => doLoading(true));
-$("goNew").addEventListener("click", () => { localStorage.removeItem(SAVE_KEY); sessionStorage.setItem("forester_skip", "new"); location.reload(); });
-$("goMenu").addEventListener("click", () => { localStorage.removeItem(SAVE_KEY); location.reload(); });
+// a colony that died frees its slot outright — spare copy and all, or the
+// wreck could be resurrected by the recovery path on some later load
+$("goNew").addEventListener("click", () => { deleteSlot(saveSlot); sessionStorage.setItem("forester_skip", "new"); location.reload(); });
+$("goMenu").addEventListener("click", () => { deleteSlot(saveSlot); location.reload(); });
 
 const LOAD_LINES = ["Felling trees…", "Warming the hearth…", "Counting Deutsche Marks…", "Waking the chickens…", "Sharpening axes…"];
 function doLoading(fromSave) {
