@@ -1568,6 +1568,11 @@ function freeHome(nearX, nearY) {
 function houseCiv(c, nearX, nearY) {
   const home = freeHome(nearX, nearY);
   if (!home) return false;
+  // Never leave them on the roll of a roof they are moving out of. Every caller
+  // today hands in someone with nowhere to live, so this never fires — but one
+  // that did not would make a phantom occupant, and a cabin carrying a phantom
+  // looks full to the next family that needs it.
+  if (c.home && c.home !== home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   home.occupants.push(c); c.home = home;
   const partner = home.occupants.find(o => o !== c);
   const provided = partner && (partner.profession === "farmer" || partner.profession === "hunter");
@@ -5077,6 +5082,13 @@ function townLostTo(t, natId) {
     r.camp = { x: t.x, y: t.y }; r.wpx = r.x; r.wpy = r.y;
   }
   for (const d of civs) if (Math.hypot(d.x - c.x, d.y - c.y) < 420) {
+    // Take them off the roll of whatever roof they had as well as clearing it.
+    // Every other place a home is lost does both; this one only did half, and
+    // the half it left behind was a phantom: the cabin still counted them among
+    // its occupants, so it looked full to the next family that needed it, and a
+    // save reloaded put them back under a roof they had been driven out of.
+    if (d.home) d.home.occupants = d.home.occupants.filter(o => o !== d);
+    if (d.shelter) turnOut(d, true);
     d.home = null; d.task = null; d.state = "idle";
     d.x = CAPITAL_X + (Math.random() * 120 - 60); d.y = CAPITAL_Y + 90 + Math.random() * 60;
     d.happiness = Math.max(0, d.happiness - 20);
@@ -5866,7 +5878,11 @@ function saveGame() {
         hp: r1(b.hp), maxHp: b.maxHp, rot: b.rot, shop: b.shop || [], site: !!b.site,
         occupants: b.occupants.map(ci),
       })),
-      farms: farms.map(f => ({ x: r1(f.x), y: r1(f.y), ready: f.ready, growT: r1(f.growT), workers: f.workers.map(ci) })),
+      // `site` has to travel with a farm. Left out, a staked-but-unbuilt farm
+      // came back from a reload fully raised — three logs and six seeds bought a
+      // finished field, and any half-dug one finished itself, if you saved.
+      farms: farms.map(f => ({ x: r1(f.x), y: r1(f.y), ready: f.ready, growT: r1(f.growT),
+                               site: !!f.site, workers: f.workers.map(ci) })),
       camps: camps.map(c => ({ ...c, x: r1(c.x), y: r1(c.y) })),
       chunks: [...chunks.entries()].filter(([k, ch]) => ch.dirty).map(([k, ch]) => chunkDelta(k, ch)).filter(Boolean),
       empireName, territoryColor, borderColor, uniformColor,
@@ -5991,6 +6007,7 @@ function loadGame() {
     farms.length = 0;
     for (const fd of d.farms)
       farms.push({ x: fd.x, y: fd.y, ready: fd.ready, growT: fd.growT, progress: -1,
+                   site: !!fd.site, buildP: 0,          // a save that predates this reads as built, as it always did
                    workers: fd.workers.map(i => civs[i]).filter(Boolean) });
     camps.length = 0;
     for (const cd of d.camps) camps.push({ ...cd });
