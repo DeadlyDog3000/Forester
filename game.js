@@ -5867,6 +5867,10 @@ function saveGame() {
       // the recent tail only: a history worth reading, at a size worth keeping
       chron: chronicle.slice(-CHRON_SAVED),
       res: { ...res }, taxRate, taxTimer, laws: { ...laws }, zoom, settlementName, arrears,
+      // which season the world was last seen in, and how bold the woods had grown.
+      // A fresh page starts both at their opening values; without carrying them, a
+      // colony saved in winter came back and was told winter had just fallen.
+      lastSeason, lastTier,
       cam: { x: cam.x, y: cam.y },
       hunterTimer, raidTimer, campRespawnTimer, worldT,
       tech: Object.fromEntries(Object.values(TECH).map(t => [t.id, t.done])),
@@ -6084,6 +6088,11 @@ function loadGame() {
                      camp: { x: town.x, y: town.y }, target: null, state: "patrol", anim: 0, facing: 1,
                      atkT: 0, foe: null, carry: 0, wpx: g.x, wpy: g.y });
     }
+    // These two must be read AFTER the clock, the people and the buildings are in
+    // place: the fallback for an older save computes them from the world itself,
+    // and computing them from the world we are about to replace is worthless.
+    lastSeason = d.lastSeason || season();
+    lastTier = d.lastTier || Math.max(1, difficulty());
     chronicle = Array.isArray(d.chron) ? d.chron.slice(-CHRON_MAX) : [];
     natWars = d.natWars || [];
     mapGrid = null;   // rebuilt with conquests on next use
