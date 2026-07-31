@@ -2012,6 +2012,19 @@ function orderAtPoint(wx, wy) {
       }, "scenery");
   for (const f of farms)
     add(bldgRect({ type: "farm", x: f.x, y: f.y }), () => {
+      // A staked farm is a building site like any other, and could not be
+      // ordered raised — tapping it only opened its panel, and a farmer who
+      // tapped it was signed on to tend a field that had not been dug yet. The
+      // raising code has always known how to build one; nothing could ask it to.
+      if (f.site) {
+        if (c.child) return toast("Children do not raise buildings.");
+        if (f.builder && f.builder !== c && civs.includes(f.builder)) {
+          f.builder.task = null; f.builder.state = "idle";
+        }
+        f.builder = c;
+        order(c, { kind: "construct", target: f, x: f.x + 20, y: f.y + 14 });
+        return toast(`${c.name} goes to break ground for the farm.`);
+      }
       if (c.profession === "farmer") {
         if (f.workers.includes(c)) {
           f.workers = f.workers.filter(w => w !== c);
