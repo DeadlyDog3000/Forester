@@ -410,6 +410,19 @@ const weaponDmg = () => (has("battleaxes") ? 28 : has("swords") ? 20 : has("spea
 const weaponIron = () => Math.max(1, 2 - (has("hilts") ? 1 : 0));
 const canForgeWeapons = () => has("spears") || has("swords") || has("battleaxes");
 const treasuryFloor = () => has("lordship") ? -50 : 0;
+// ===== what a colony costs to keep =====
+// Wages for the men under arms, upkeep for the works that need tending. Cabins,
+// walls, lamps, farms and saplings are free — you built them, they stand. What
+// costs is what employs somebody or must be maintained. Both bills fall on tax
+// day, out of the same purse the taxes go into, so the ledger reads as one
+// account: what came in, what went out, what is left.
+const WAGE = 2;                 // a soldier, constable, musketeer or rider, per tax day
+const CIVIC_UPKEEP = 1;         // per tended work, per tax day
+const CIVIC = new Set(["hospital", "jail", "watchtower", "market", "townhall", "forge", "bakery", "recruit", "well"]);
+const wageBill = () => civs.filter(isForce).length * WAGE;
+const upkeepBill = () => buildings.filter(b => !b.site && !b.fire && CIVIC.has(b.type)).length * CIVIC_UPKEEP;
+const civicWorks = () => buildings.filter(b => !b.site && !b.fire && CIVIC.has(b.type)).length;
+let arrears = 0;                // what last tax day could not pay, and who resents it
 const cabinCapacity = () => has("landownership") ? 3 : 2;
 const dismantleRefund = () => has("ownership") ? 0.75 : 0.5;
 const nearWatchtower = (x, y) => buildings.some(b => b.type === "watchtower" && !b.fire && !b.site && Math.hypot(b.x - x, b.y - y) < 400);
@@ -2830,6 +2843,8 @@ function moodReasons(c) {
   if (!c.home) r.push(["no roof of their own", -8]);
   if (c.sick > 0) r.push(["stricken with the plague", -18]);
   else if (plagueActive > 0) r.push(["plague in the streets", -7]);
+  // a bill the colony could not meet is felt hardest by the man it was owed to
+  if (arrears > 0) r.push(isForce(c) ? ["wages in arrears", -14] : ["the works go untended", -5]);
   return r;
 }
 function happinessTarget(c) {
@@ -5508,6 +5523,7 @@ const BLDG_ABOUT = {
       ["A wanderer every", "100–180s"],
       ["Waiting now", `${visitors.length}`],
       ["At once, at most", `${Math.max(2, buildings.filter(x => x.type === "recruit" && !x.fire && !x.site).length + 1)}`],
+      ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
     ],
   },
   market: {
@@ -5516,6 +5532,7 @@ const BLDG_ABOUT = {
       ["Price per bread or meat", `${sellPrice()} DM` +
         (has("marketing") ? " (Trading + Marketing)" : has("trading") ? " (Trading)" : "")],
       ["Tax day every", `${TAX_PERIOD}s — next in ${Math.ceil(taxTimer)}s`],
+      ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
     ],
   },
   bakery: {
@@ -5525,6 +5542,7 @@ const BLDG_ABOUT = {
       ["Every", "20s, endlessly"],
       ["Next loaf in", `${Math.max(0, Math.ceil(20 - (b.bakeT || 0)))}s`],
       ["Town wheat", `${Math.floor(ledgerAt(b.x, b.y).wheat || 0)}`],
+      ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
     ],
   },
   well: {
@@ -5535,6 +5553,7 @@ const BLDG_ABOUT = {
         ["Wells standing", `${n}`],
         ["Happiness", `+${Math.min(2, n) * 3} (up to +6 from 2 wells)`],
         ["Struck by plague", `${Math.round(Math.max(0.15, 0.42 - n * 0.07) * 100)}% of adults (42% with none)`],
+        ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
       ];
     },
   },
@@ -5545,11 +5564,13 @@ const BLDG_ABOUT = {
       ["Weapons on the racks", `${(b.shop || []).filter(i => i.kind === "weapon").length}`],
       ["A tool makes work", "35% faster, for life"],
       ["Tool price", `${TOOL_PRICE_SELF} DM to a civilian · ${TOOL_PRICE_GOV} DM from the treasury`],
+      ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
     ],
   },
   townhall: {
     what: "Civilians carry what they gather here on their own instead of hoarding it in their pockets. One hall to a town; without one, goods sit in cabins until you ask for them.",
-    stats: () => [["Serves", "its own town only"], ["Halls standing", `${buildings.filter(x => x.type === "townhall" && !x.fire && !x.site).length}`]],
+    stats: () => [["Serves", "its own town only"], ["Halls standing", `${buildings.filter(x => x.type === "townhall" && !x.fire && !x.site).length}`],
+                  ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`]],
   },
   watchtower: {
     what: "Cries the alarm when raiders come, and shoots at whatever comes within range. Soldiers and police fighting in its shadow strike harder.",
@@ -5558,6 +5579,7 @@ const BLDG_ABOUT = {
       ["A shot every", `${TOWER_RELOAD}s`],
       ["Hits for", "80% of a musket ball"],
       ["Steadies your men within", "400 paces (+5 damage)"],
+      ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
     ],
   },
   jail: {
@@ -5567,6 +5589,7 @@ const BLDG_ABOUT = {
       ["Held here now", `${civs.filter(o => isJailed(o) && o.jail === b).length}`],
       ["Constables", `${civs.filter(c => c.profession === "police").length}`],
       ["If it burns", "the prisoners walk"],
+      ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
     ],
   },
   hospital: {
@@ -5580,6 +5603,7 @@ const BLDG_ABOUT = {
         ["Without a doctor", "just over half as fast"],
         ["Doctors on the rolls", `${doc}${doc ? "" : " — recruit one"}`],
         ["Patients eat", `1 meal every ${HOSP_MEAL}s from the stores`],
+        ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
       ];
     },
   },
@@ -5852,7 +5876,7 @@ function saveGame() {
       v: 1,
       // the recent tail only: a history worth reading, at a size worth keeping
       chron: chronicle.slice(-CHRON_SAVED),
-      res: { ...res }, taxRate, taxTimer, policeCount, laws: { ...laws }, zoom, settlementName,
+      res: { ...res }, taxRate, taxTimer, policeCount, laws: { ...laws }, zoom, settlementName, arrears,
       cam: { x: cam.x, y: cam.y },
       hunterTimer, raidTimer, campRespawnTimer, worldT,
       tech: Object.fromEntries(Object.values(TECH).map(t => [t.id, t.done])),
@@ -5944,7 +5968,7 @@ function loadGame() {
     const d = JSON.parse(raw);
     Object.assign(res, d.res);
     res.dm = Math.round((res.dm || 0) * 10) / 10;   // scrub float drift out of older saves
-    taxRate = d.taxRate; taxTimer = d.taxTimer; policeCount = d.policeCount;
+    taxRate = d.taxRate; taxTimer = d.taxTimer; arrears = d.arrears || 0; policeCount = d.policeCount;
     settlementName = d.settlementName || "Neu Hamburg";
     Object.assign(laws, d.laws);
     zoom = d.zoom || 1;
@@ -6244,6 +6268,7 @@ const TUT_STEPS = [
   { text: () => "Open BUILD ▾ again and raise a Market Center. It sells your surplus for DM, and DM pays for research, recruits and training.",
     done: () => buildings.some(b => b.type === "market") },
   { note: true, text: () => "A Well is cheap and the colony is happier for it — and when plague comes, clean water keeps more of them on their feet. A Bakery turns your wheat into bread, and a Town Hall lets folk stock the stores without being told. Raise them when you can spare the logs." },
+  { note: true, text: () => `⚖ Nothing you raise is free to keep. On every tax day the treasury pays ${WAGE} DM to each man under arms and ${CIVIC_UPKEEP} DM to each work that must be tended — the market, the bakery, the well, the forge, the recruitment center, the watchtower, the jail, the hospital, the town hall. Cabins, walls, lamps and farms cost nothing once they stand. An army is a standing choice against a hospital. If the treasury cannot pay, unpaid men lose heart and the works go untended: disband someone, pull something down, or raise the tax. The GOVERNMENT panel shows the whole bill.` },
   { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
     done: () => tutSeen.gov },
   { text: () => "In that panel, press Open Tech Tree and begin any research. Two trees run from sharper axes to battle steel, paid for in DM and time.",
@@ -6370,6 +6395,16 @@ function syncUI() {
   $("govTitle").textContent = "GOVERNMENT OF " + (hudTown ? hudTown.name : settlementName).toUpperCase();
   $("govHappy").textContent = govAvg + "%";
   $("govDM").textContent = Math.round((hudTown ? (hr.dm || 0) : res.dm) * 10) / 10 + " DM";
+  // the running cost of everything standing, before the next tax day asks for it
+  {
+    const men = civs.filter(isForce).length, works = civicWorks();
+    const bill = wageBill() + upkeepBill();
+    $("govBill").textContent = `${bill} DM a tax day` + (arrears > 0 ? ` · ${arrears} UNPAID` : "");
+    $("govBill").style.color = arrears > 0 ? "#d8a0a0" : "";
+    $("govLedger").innerHTML =
+      `${men} under arms × ${WAGE} = ${wageBill()} DM · ${works} works × ${CIVIC_UPKEEP} = ${upkeepBill()} DM` +
+      (arrears > 0 ? `<br><span style="color:#d8a0a0">Unpaid men lose heart. Disband, pull something down, or raise the tax.</span>` : "");
+  }
   {
     const homeless = govFolk.filter(c => !c.home).length;
     const spare = buildings.filter(b => b.type === "cabin" && !b.site && !b.fire &&
@@ -6693,7 +6728,26 @@ function update(dt) {
       c.inv.dm -= paid; res.dm += paid; total += paid;
       if (paid > 0) float(c.x, c.y - 70, "-" + paid + " DM", "#c9a86a");
     }
-    tell("work", total > 0 ? `Tax day: the colony collects ${total} DM.` : "Tax day — but the people's pockets are empty.");
+    // ===== and then the colony pays what it owes =====
+    // Nothing the player built ever cost anything to keep. A soldier raised was
+    // a soldier for life, free; a hospital raised was free forever after. So a
+    // grown colony had no running costs at all, the treasury only climbed, and
+    // by the fifteenth minute there was nothing left to decide. An army is a
+    // standing choice against a hospital now, and sprawl is a bill.
+    const wages = wageBill(), upkeep = upkeepBill(), owed = wages + upkeep;
+    const canPayNow = Math.max(0, res.dm - treasuryFloor());
+    const paidOut = Math.min(owed, canPayNow);
+    res.dm -= paidOut;
+    arrears = owed - paidOut;
+    const acct = [`${total} DM collected`];
+    if (wages) acct.push(`${wages} in wages`);
+    if (upkeep) acct.push(`${upkeep} in upkeep`);
+    if (arrears > 0) acct.push(`${arrears} UNPAID`);
+    tell("work", total > 0 || owed > 0
+      ? `Tax day: ${acct.join(", ")} — ${Math.max(0, res.dm)} DM in the treasury.`
+      : "Tax day — but the people's pockets are empty.");
+    if (arrears > 0)
+      tell("work", `⚠ The treasury cannot meet its bills: ${arrears} DM short. Men go unpaid and the works go untended.`);
     if (total > 0) SFX.coin();
   }
 
