@@ -18,7 +18,10 @@ const SFX = (() => {
       noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      window.__foresterAC = ac; window.__foresterMaster = master; window.__foresterNoise = noiseBuf;
+      // handles for measuring the mix from the console: the bus carries every
+      // game sound BEFORE the master gain, so it can be metered while muted
+      window.__foresterAC = ac; window.__foresterMaster = master;
+      window.__foresterNoise = noiseBuf; window.__foresterBus = sfxBus;
     }
     if (ac.state === "suspended") ac.resume();
     return ac;
@@ -55,7 +58,7 @@ const SFX = (() => {
     s.start(t); s.stop(t + dur + 0.02);
   }
 
-  let windNode = null;
+  let windNode = null, bugNode = null;
   return {
     setMaster: (v) => { ctx(); master.gain.value = v; },
     pauseAll: (on) => { if (!ac) return; sfxBus.gain.setTargetAtTime(on ? 0.0001 : 1, ac.currentTime, 0.04); },
@@ -79,7 +82,7 @@ const SFX = (() => {
         });
         f.connect(g); g.connect(sfxBus);
         lfo.start(t);
-        windNode = { srcs, lfo, g };
+        windNode = { srcs, lfo, g, f };   // the filter is kept so winter can weigh it down
       } else if (!on && windNode) {
         const a = ctx(), t = a.currentTime;
         windNode.g.gain.setTargetAtTime(0.0001, t, 0.5);
@@ -262,6 +265,117 @@ const SFX = (() => {
         setTimeout(() => { try { fn.s.stop(); fn.lfo.stop(); } catch (e) {} }, 900);
       }
     },
+
+    // ===== the voices of the woods =====
+    // Wind was the only thing you could hear standing in a forest, and only when
+    // the camera was high enough to be looking at the whole valley. Down among
+    // the cabins it was silent — no birds by day, nothing at night, nothing to
+    // tell you it was winter but the colour of the ground. These are the sounds
+    // that fill that silence, and they answer to the season and the hour.
+
+    // A rook, harsh and unmusical: bandpassed noise, two or three caws.
+    crow: () => {
+      if (FSET().ambient === false) return;
+      const a = ctx(), t0 = a.currentTime;
+      const n = 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < n; i++) {
+        const t = t0 + i * (0.22 + Math.random() * 0.12);
+        const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+        s.buffer = noiseBuf; s.playbackRate.value = 0.7 + Math.random() * 0.3;
+        f.type = "bandpass"; f.frequency.setValueAtTime(1500 + Math.random() * 400, t);
+        f.frequency.exponentialRampToValueAtTime(700, t + 0.16); f.Q.value = 5;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.07, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.19);
+        s.connect(f); f.connect(g); g.connect(sfxBus);
+        s.start(t, Math.random()); s.stop(t + 0.22);
+      }
+    },
+    // Two low hoots, a pause, and one more. Sine with a slow vibrato.
+    owl: () => {
+      if (FSET().ambient === false) return;
+      const a = ctx(), t0 = a.currentTime;
+      const hoot = (t, f, dur, vol) => {
+        const o = a.createOscillator(), g = a.createGain(), vib = a.createOscillator(), vg = a.createGain();
+        o.type = "sine"; o.frequency.setValueAtTime(f, t);
+        o.frequency.exponentialRampToValueAtTime(f * 0.94, t + dur);
+        vib.type = "sine"; vib.frequency.value = 11; vg.gain.value = f * 0.012;
+        vib.connect(vg); vg.connect(o.frequency);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.25);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g); g.connect(sfxBus);
+        o.start(t); o.stop(t + dur + 0.05); vib.start(t); vib.stop(t + dur + 0.05);
+      };
+      hoot(t0, 392, 0.34, 0.055);
+      hoot(t0 + 0.46, 349, 0.30, 0.05);
+      hoot(t0 + 1.25, 330, 0.42, 0.04);
+    },
+    // Frost in a trunk: a dry crack and the low thump that follows it.
+    timberCrack: () => {
+      if (FSET().ambient === false) return;
+      noise(0.05, 0.10, 2600, 900, 3);
+      tone("triangle", 90, 52, 0.30, 0.06, 0.03);
+    },
+    // A bell over the trees: bells are inharmonic, so the partials are not
+    // multiples — that ratio set is what stops it sounding like an organ.
+    bell: (strikes = 1) => {
+      if (FSET().ambient === false) return;
+      const a = ctx(), t0 = a.currentTime;
+      const PARTIALS = [[1, 0.16], [2.0, 0.10], [2.42, 0.07], [3.0, 0.05], [4.5, 0.03]];
+      for (let s = 0; s < strikes; s++) {
+        const t = t0 + s * 2.4, f0 = 262;
+        for (const [mul, vol] of PARTIALS) {
+          const o = a.createOscillator(), g = a.createGain();
+          o.type = "sine"; o.frequency.value = f0 * mul * (1 + (Math.random() - 0.5) * 0.004);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 2.6 / Math.sqrt(mul));
+          o.connect(g); g.connect(sfxBus);
+          o.start(t); o.stop(t + 2.8);
+        }
+      }
+    },
+    // A summer night's insects: a high band of noise, breathing.
+    insectLoop: (on) => {
+      if (FSET().ambient === false) on = false;
+      if (on && !bugNode) {
+        const a = ctx(), t = a.currentTime;
+        const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+        const lfo = a.createOscillator(), lg = a.createGain();
+        s.buffer = noiseBuf; s.loop = true; s.playbackRate.value = 1.4;
+        f.type = "bandpass"; f.frequency.value = 4600; f.Q.value = 9;
+        g.gain.value = 0.0001;
+        g.gain.setTargetAtTime(0.022, t, 1.4);
+        lfo.type = "sine"; lfo.frequency.value = 6.4;      // the chorus pulses
+        lg.gain.value = 0.012;
+        lfo.connect(lg); lg.connect(g.gain);
+        s.connect(f); f.connect(g); g.connect(sfxBus);
+        s.start(t, Math.random() * 1.5); lfo.start(t);
+        bugNode = { s, lfo, g };
+      } else if (!on && bugNode) {
+        const a = ctx(), t = a.currentTime;
+        bugNode.g.gain.setTargetAtTime(0.0001, t, 0.9);
+        const bn = bugNode; bugNode = null;
+        setTimeout(() => { try { bn.s.stop(); bn.lfo.stop(); } catch (e) {} }, 2600);
+      }
+    },
+    // The wind is always there; only its weight changes. Winter is lower and
+    // heavier, night is gustier, and standing high above it you hear more of it.
+    // Winter wind is meant to be HEAVIER, and measuring it said the opposite: a
+    // bandpass passes energy in proportion to its bandwidth, and bandwidth is
+    // centre over Q — so dropping the centre from 620 to 340 halved the noise
+    // getting through and swallowed the gain increase whole. The cold filter is
+    // opened up as it is lowered, so the weight goes where it was aimed.
+    windWeight: (w, cold) => {
+      if (!windNode) return;
+      const a = ctx(), t = a.currentTime;
+      windNode.g.gain.setTargetAtTime(Math.max(0.0001, w), t, 1.2);
+      if (windNode.f) {
+        windNode.f.frequency.setTargetAtTime(cold ? 360 : 620, t, 1.5);
+        windNode.f.Q.setTargetAtTime(cold ? 0.24 : 0.5, t, 1.5);
+      }
+    },
   };
 })();
 
@@ -269,6 +383,57 @@ const SFX = (() => {
 document.addEventListener("click", e => {
   if (e.target.closest && e.target.closest(".btn")) SFX.click();
 }, true);
+
+// ===== AMBIENCE — the sound of standing where you are standing =====
+// The game knows the season, the hour, whether the woods are on fire and whether
+// plague is in the streets. All of that was on screen and none of it was audible.
+// This is one bed that answers to it: wind under everything, birds in a summer
+// day, insects on a summer night, an owl, crows when the sickness is about, and
+// in winter nothing alive at all — only the wind gone heavy and the frost
+// cracking a trunk somewhere out in the dark.
+//
+// It is still synthesis. If recorded loops are ever dropped in, this is the shape
+// they slot into: one update() a frame, told what the world is doing.
+const AMBIENCE = (() => {
+  let t = 0, nextBird = 4, nextOwl = 30, nextCrack = 25, nextCrow = 40, lastBellHour = -1;
+  return {
+    update(dt, w) {
+      if (!w || !w.playing) { SFX.windLoop(false); SFX.insectLoop(false); return; }
+      t += dt;
+      const winter = w.season === "winter", night = w.night > 0.55;
+      // wind: always there, heavier in winter, and stronger the higher you stand
+      SFX.windLoop(true);
+      SFX.windWeight(winter ? 0.10 : 0.03 + (w.high ? 0.02 : 0), winter);
+      // a summer night has a chorus in it; a winter one has nothing
+      SFX.insectLoop(!winter && night);
+
+      if (!winter && !night && (nextBird -= dt) <= 0) {
+        nextBird = 5 + Math.random() * 11;
+        SFX.bird();
+      }
+      if (!winter && night && (nextOwl -= dt) <= 0) {
+        nextOwl = 34 + Math.random() * 50;
+        SFX.owl();
+      }
+      if (winter && (nextCrack -= dt) <= 0) {
+        nextCrack = 26 + Math.random() * 44;
+        SFX.timberCrack();
+      }
+      // rooks gather where there is dying — the sickness, or a burning roof
+      if ((w.plague || w.fire) && (nextCrow -= dt) <= 0) {
+        nextCrow = 18 + Math.random() * 26;
+        SFX.crow();
+      }
+      // the bell marks the two hours that matter: first light and the sun going down
+      const h = Math.floor(w.hour);
+      if (h !== lastBellHour) {
+        if (lastBellHour !== -1 && (h === 5 || h === 18)) SFX.bell(h === 18 ? 2 : 1);
+        lastBellHour = h;
+      }
+    },
+    silence() { SFX.windLoop(false); SFX.insectLoop(false); },
+  };
+})();
 
 // ===== MUSIC — original looping chiptune, synthesized like everything else =====
 const MUSIC = (() => {

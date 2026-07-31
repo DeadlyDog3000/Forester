@@ -6776,7 +6776,19 @@ function update(dt) {
   if (rt) cam.x += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
-  SFX.windLoop(gameState === "playing" && zoom < 0.62);   // high in the sky, only wind
+  // The woods have a voice now, and it answers to the season, the hour, the
+  // sickness and the fires. Wind used to be the only ambient sound, and only
+  // while the camera was high enough to see the whole valley — down among the
+  // cabins the world was silent.
+  try {
+    AMBIENCE.update(dt, {
+      playing: gameState === "playing" && !paused,
+      season: season(), night: nightAmt(), hour: clockHours(),
+      high: zoom < 0.62,
+      plague: plagueActive > 0 || civs.some(isSick),
+      fire: buildings.some(b => b.fire > 0),
+    });
+  } catch (e) {}
 
   // the tutorial keeps its own time: several steps ask you to open a panel or
   // the map, and those pause the world. Ticking it here lets those steps finish.
