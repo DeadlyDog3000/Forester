@@ -303,12 +303,14 @@ function ruin(b, how) {
   if (was === "burned") { b.fire = 0; b.torchP = -1; return; }
   if (!RUINS.has(was)) {
     buildings.splice(buildings.indexOf(b), 1);
+    tally.burned++;
     tell("build", `The ${BLDG_NAMES[was] || was} has ${how}.`);
     return;
   }
   b.type = "burned"; b.was = was;
   b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
   b.fire = 0; b.torchP = -1;
+  tally.burned++;
   tell("build", `The ${BLDG_NAMES[was] || was} has ${how}. It can be repaired by order.`);
 }
 // deep snow slows every traveller by a fifth — the road's packed lane still helps
@@ -1488,6 +1490,16 @@ function collideMove(c, nx, ny) {
 //
 // Everything of consequence is written down here instead, with the year and the
 // hour it happened, and the player can go back and read it.
+// ===== what the colony has done, all told =====
+// The chronicle remembers the last four hundred things that happened and forgets
+// the rest, which is right for reading and useless for reckoning. These are the
+// running totals of a whole reign — kept from the first day, carried in the save,
+// and never trimmed. They are what the ambitions are judged against and what the
+// final accounting is written from.
+const FRESH_TALLY = () => ({ born: 0, arrived: 0, died: 0, raised: 0, burned: 0, rebuilt: 0,
+                             cured: 0, plagues: 0, arrests: 0, feuds: 0, raids: 0, camps: 0, townsTaken: 0,
+                             winters: 0, taxDays: 0, billsPaid: 0, arrearDays: 0 });
+let tally = FRESH_TALLY();
 const CHRON_MAX = 400;                 // what the running game remembers
 const CHRON_SAVED = 90;                // what survives a reload, to keep saves small
 const CHRON_KINDS = {
@@ -1611,6 +1623,7 @@ function killCiv(c, why) {
   selGroup = selGroup.filter(s => s !== c);
   civs.splice(civs.indexOf(c), 1);
   SFX.death();
+  tally.died++;
   tell("death", `${c.name} ${why}. The colony numbers ${civs.length}.`);
   if (civs.length === 0) gameOver();
   syncUI();
@@ -1635,6 +1648,8 @@ function setPause(open) {
     $("pmSlot").textContent = `Slot ${saveSlot} of ${SAVE_SLOTS} — ${settlementName}` +
       (free ? "" : " · every slot is full");
     $("pmSaveAs").disabled = !free;
+    // the way out is offered, never forced, and only once there is something to read
+    $("pmReign").style.display = ambitionsDone() >= AMBITIONS_TO_END ? "block" : "none";
   }
   paused = pauseOpen || dlg.open || $("mapOverlay").style.display === "block" ||
            $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
@@ -2295,6 +2310,7 @@ function finishConstruction(b) {
   b.site = false; b.progress = -1;
   const claims = !WALLLIKE.has(b.type) && !isProp(b.type);   // a lamp claims no ground
   if (claims) expandAround(b.x, b.y, 1);
+  tally.raised++;
   tell("build", `${BLDG_NAMES[b.type]} raised.${claims ? " The territory grows." : ""}`);
   SFX.build();
   if (b.type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
@@ -2930,6 +2946,7 @@ function startFeud(c, o) {
   if (civs.filter(x => x.feudWith).length >= MAX_FEUDS) return;
   c.feudWith = o.name; c.feudT = FEUD_LEN; c.feudLethal = undefined;
   c.task = null; c.state = "idle";
+  tally.feuds++;
   tell("law", `⚠ ${c.name} has fallen out with ${o.name} for good — and means to settle it.`);
 }
 function endFeud(c, why) {
@@ -2954,6 +2971,7 @@ function jailCiv(c, jail, byWhom) {
   c.state = "jailed"; c.task = null;
   c.x = jail.x; c.y = jail.y + 18;
   c.happiness = Math.max(0, c.happiness - 12);
+  tally.arrests++;
   tell("law", `⚖ ${byWhom ? byWhom.name + " takes " : ""}${c.name} is put in the jail to cool off.`);
   syncUI();
 }
@@ -3374,6 +3392,7 @@ function joinColony(v) {
   expandFrontier(3);
   const housed = houseCiv(c, v.x, v.y);
   vignette("firstRecruit");
+  tally.arrived++;
   tell("life", `${v.name} signs on — a civilian certificate slides out through the slot. ` +
         (housed ? `${v.gender === "f" ? "She" : "He"} moves into a cabin and will pay taxes.` : `Build ${v.gender === "f" ? "her" : "him"} a cabin: no taxes until there is a roof.`));
   syncUI();
@@ -3692,6 +3711,7 @@ $("pmSaveAs").addEventListener("click", () => {
   toast(ok ? `Copied into slot ${free}. You are playing that one now — the other is untouched.`
            : "⚠ The save failed — this browser will not take another ledger.");
 });
+$("pmReign").addEventListener("click", openReckoning);
 $("pmMenu").addEventListener("click", () => { saveGame(); location.reload(); });
 // on a phone the panels are bottom sheets sharing one patch of glass: only one at a time
 const NARROW = () => innerWidth <= 820 || (matchMedia("(pointer: coarse)").matches && innerWidth <= 1100);
@@ -4262,6 +4282,7 @@ function strikePlague() {
   plagueActive = PLAGUE_LEN * 1.4;
   eventCard(`Plague walks your own streets.`, "event_war",
             `${struck} have taken to their beds — they work poorly and sicken. It will pass.`);
+  tally.plagues++;
   tell("ill", `☠ Plague breaks out in the colony — ${struck} are stricken.`);
 }
 function updatePlague(dt) {
@@ -4379,7 +4400,7 @@ function updateWards(dt) {
     const cared = p.hunger > 30;                 // a ward with nothing to feed them heals badly
     if (isSick(p)) {
       p.sick -= dt * HOSP_CURE * rate * (cared ? 1 : 0.5);
-      if (p.sick <= 0) { p.sick = 0; tell("ill", `☤ ${p.name} is over the fever.`); }
+      if (p.sick <= 0) { p.sick = 0; tally.cured++; tell("ill", `☤ ${p.name} is over the fever.`); }
     } else if (p.hp < p.maxHp) {
       p.hp = Math.min(p.maxHp, p.hp + HOSP_HEAL * rate * (cared ? 1 : 0.4) * dt);
       if (Math.random() < dt * 0.4) float(p.x, p.y - 70, "+", "#7da083");
@@ -5147,6 +5168,7 @@ function captureFolk(f, quiet) {
 // the town falls when its hall burns — and what still stands becomes yours
 function foreignTownFalls(town) {
   town.fallen = true;
+  tally.townsTaken = (tally.townsTaken || 0) + 1;
   const n = NATIONS[town.nation];
   let taken = 0;
   for (let i = foreign.length - 1; i >= 0; i--) {
@@ -5668,12 +5690,151 @@ function renderBldgInfo(b, isFarm) {
   line(about.what, about.stats ? about.stats(b) : []);
 }
 
+// ===== ambitions =====
+// The chronicle recorded a story with no last page. Nothing in the game was
+// worth aiming at: you survived, and then you went on surviving, and the only
+// thing that ever changed was the size of the pile. These are the things a
+// colony can set out to do — plainly stated, checked against what actually
+// happened, and stamped with the year they were achieved. Six of them opens the
+// reckoning: the option to lay the ledger down and read what your reign was.
+const AMBITIONS = [
+  { id: "roots",    name: "Roots",              want: "Ten souls under your own roofs",
+    test: () => civs.filter(c => c.home).length >= 10 },
+  { id: "endure",   name: "Endure",             want: "Live through five winters",
+    test: () => tally.winters >= 5 },
+  { id: "village",  name: "A Village",          want: "Twenty-five souls in the colony",
+    test: () => civs.length >= 25 },
+  { id: "physic",   name: "The Physician's Art", want: "Twenty brought back from the fever",
+    test: () => tally.cured >= 20 },
+  { id: "master",   name: "A Master of a Trade", want: "Someone at the top of a skill",
+    test: () => civs.some(c => SKILLS.some(s => skillLvl(c, s.id) >= SKILL_MAX)) },
+  { id: "quiet",    name: "The Woods Are Quiet", want: "Eight camps burned out",
+    test: () => tally.camps >= 8 },
+  { id: "twotowns", name: "Two Towns",          want: "Found a second settlement",
+    test: () => settlements.length >= 1 },
+  { id: "learned",  name: "Learned",            want: "Twenty technologies known",
+    test: () => Object.values(TECH).filter(t => t.done).length >= 20 },
+  { id: "solvent",  name: "Well Kept",          want: "Meet the colony's bills ten tax days running",
+    test: () => tally.billsPaid >= 10 && arrears === 0 },
+  { id: "walled",   name: "Walled",             want: "Twenty lengths of wall or gate standing",
+    test: () => buildings.filter(b => !b.site && !b.fire && WALLLIKE.has(b.type)).length >= 20 },
+  { id: "kept",     name: "No One Left Behind", want: "Fifteen souls, all housed, none hungry, none sick",
+    test: () => civs.length >= 15 && civs.every(c => c.home && c.hunger > 30 && !isSick(c)) },
+  // `conquests` is the record of map cells changing hands BETWEEN the crowns of
+  // Europe — Castile taking a province off Portugal, and nothing to do with you.
+  // Testing it handed this out for free: forty-four of them inside half an hour
+  // of wars the player never touched. It counts towns the player has taken.
+  { id: "crowned",  name: "A Crown Humbled",    want: "Storm a foreign town and take it",
+    test: () => (tally.townsTaken || 0) >= 1 },
+];
+const AMBITIONS_TO_END = 6;
+let achieved = {};                 // id -> the year it was done
+let ambT = 3;
+function checkAmbitions(dt) {
+  ambT -= dt;
+  if (ambT > 0) return;
+  ambT = 2.5;
+  for (const a of AMBITIONS) {
+    if (achieved[a.id]) continue;
+    let ok = false;
+    try { ok = !!a.test(); } catch (e) { ok = false; }
+    if (!ok) continue;
+    achieved[a.id] = colonyYear;
+    tell("work", `✦ Ambition achieved — ${a.name}: ${a.want.toLowerCase()}.`);
+    try { SFX.popup(); } catch (e) {}
+    if (Object.keys(achieved).length === AMBITIONS_TO_END)
+      tell("work", "✦ Six ambitions stand achieved. You may lay the ledger down whenever you choose — the reckoning is in the pause menu.");
+  }
+}
+const ambitionsDone = () => Object.keys(achieved).length;
+
+// ===== the reckoning =====
+// What a reign amounted to, in the colony's own terms. Reachable once six
+// ambitions stand — never forced, and it does not end the game unless the
+// player says so.
+function reignReport() {
+  const years = Math.max(0, colonyYear - 1683);
+  const rows = [
+    ["Years held", `${years} — ${1683} to ${colonyYear}`],
+    ["Winters endured", tally.winters],
+    ["Souls at the end", civs.length],
+    ["Born here", tally.born],
+    ["Came out of the woods", tally.arrived],
+    ["Buried", tally.died],
+    ["Raised", `${tally.raised} building${tally.raised === 1 ? "" : "s"}`],
+    ["Lost to fire", tally.burned],
+    ["Rebuilt from ruin", tally.rebuilt],
+    ["Plagues weathered", tally.plagues],
+    ["Brought back from fever", tally.cured],
+    ["Raids answered", tally.raids],
+    ["Camps burned out", tally.camps],
+    ["Foreign towns taken", tally.townsTaken || 0],
+    ["Quarrels come to blood", tally.feuds],
+    ["Arrests made", tally.arrests],
+    ["Tax days met in full", `${tally.billsPaid} of ${tally.taxDays}`],
+    ["Technologies known", Object.values(TECH).filter(t => t.done).length],
+    ["Towns founded", settlements.length],
+    ["Ambitions achieved", `${ambitionsDone()} of ${AMBITIONS.length}`],
+  ];
+  return rows;
+}
+function openReckoning() {
+  const p = $("reignPanel");
+  const list = $("reignRows");
+  list.innerHTML = "";
+  for (const [k, v] of reignReport()) {
+    const row = document.createElement("div");
+    row.className = "bpStat";
+    row.innerHTML = `<span>${esc(k)}</span><b>${esc(String(v))}</b>`;
+    list.appendChild(row);
+  }
+  const got = AMBITIONS.filter(a => achieved[a.id]);
+  $("reignAmb").innerHTML = got.length
+    ? got.map(a => `<div class="ambRow done"><span class="ambName">✦ ${esc(a.name)}</span><span class="ambYear">${achieved[a.id]}</span></div>`).join("")
+    : `<div style="color:#7a8f83;font-size:11px">Nothing yet set down.</div>`;
+  $("reignName").textContent = `${(empireName || settlementName || "The colony").toUpperCase()}, ${1683}–${colonyYear}`;
+  p.style.display = "flex";
+  setPause(false);
+  paused = true;
+}
+$("reignClose").addEventListener("click", () => { $("reignPanel").style.display = "none"; paused = pauseOpen; });
+$("reignEnd").addEventListener("click", () => {
+  // laying it down is a choice, and it is final for that slot
+  tell("work", `The ledger of ${settlementName} is closed in the year ${colonyYear}.`);
+  saveGame();
+  $("reignPanel").style.display = "none";
+  gameOver(true);
+});
+
 // ===== reading the chronicle =====
 // Filters are chips rather than a dropdown: the player wants "show me the
 // deaths" in one press, and wants to see at a glance that a category exists at
 // all. Newest first — the question is almost always "what just happened?".
 let chronFilter = new Set();          // empty means everything
+let chronShowing = "log";          // "log" or "ambitions"
+function renderAmbitions() {
+  const list = $("chronList");
+  $("chronFilters").style.display = "none";
+  list.innerHTML = "";
+  const done = ambitionsDone();
+  for (const a of AMBITIONS) {
+    const year = achieved[a.id];
+    const row = document.createElement("div");
+    row.className = "ambRow " + (year ? "done" : "todo");
+    row.innerHTML = `<span class="ambName">${year ? "✦" : "○"} ${esc(a.name)}</span>` +
+                    `<span class="ambWant">${esc(a.want)}</span>` +
+                    `<span class="ambYear">${year ? year : ""}</span>`;
+    list.appendChild(row);
+  }
+  $("chronCount").textContent =
+    `${done} of ${AMBITIONS.length} achieved` +
+    (done >= AMBITIONS_TO_END
+      ? " — the reckoning is open to you in the pause menu."
+      : ` — ${AMBITIONS_TO_END - done} more opens the reckoning.`);
+}
 function renderChronicle() {
+  if (chronShowing === "ambitions") return renderAmbitions();
+  $("chronFilters").style.display = "";
   const filters = $("chronFilters");
   if (!filters.dataset.built) {
     filters.dataset.built = "1";
@@ -5738,6 +5899,12 @@ function openChronicle() {
 }
 $("chronToggle").addEventListener("click", openChronicle);
 $("chronClose").addEventListener("click", () => { $("chronPanel").style.display = "none"; syncUI(); });
+$("chronView").addEventListener("click", () => {
+  chronShowing = chronShowing === "log" ? "ambitions" : "log";
+  $("chronView").textContent = chronShowing === "log" ? "✦ Ambitions" : "☰ The record";
+  $("chronSearch").style.display = chronShowing === "log" ? "" : "none";
+  renderChronicle();
+});
 $("chronSearch").addEventListener("input", renderChronicle);
 $("chronSearch").addEventListener("keydown", e => e.stopPropagation());
 
@@ -5931,6 +6098,8 @@ function saveGame() {
       // A fresh page starts both at their opening values; without carrying them, a
       // colony saved in winter came back and was told winter had just fallen.
       lastSeason, lastTier,
+      // the reign's running totals and what it has set down
+      tally, achieved,
       cam: { x: cam.x, y: cam.y },
       hunterTimer, raidTimer, campRespawnTimer, worldT,
       tech: Object.fromEntries(Object.values(TECH).map(t => [t.id, t.done])),
@@ -6151,6 +6320,8 @@ function loadGame() {
     // These two must be read AFTER the clock, the people and the buildings are in
     // place: the fallback for an older save computes them from the world itself,
     // and computing them from the world we are about to replace is worthless.
+    tally = Object.assign(FRESH_TALLY(), d.tally || {});
+    achieved = d.achieved || {};
     lastSeason = d.lastSeason || season();
     lastTier = d.lastTier || Math.max(1, difficulty());
     chronicle = Array.isArray(d.chron) ? d.chron.slice(-CHRON_MAX) : [];
@@ -6467,10 +6638,19 @@ function doLoading(fromSave) {
     }
   }, 90);
 }
-function gameOver() {
+// `chosen` is true when the player laid the ledger down themselves rather than
+// losing everyone: the same ending, but it is theirs, and the screen says so.
+function gameOver(chosen) {
   if (gameState === "over") return;
   gameState = "over";
-  localStorage.removeItem(SAVE_KEY);
+  const head = $("goTitle"), sub = $("goSub");
+  if (head && sub) {
+    head.textContent = chosen ? "THE LEDGER IS CLOSED" : "THE COLONY IS GONE";
+    sub.textContent = chosen
+      ? `${settlementName} stood from 1683 to ${colonyYear} — ${tally.winters} winter${tally.winters === 1 ? "" : "s"}, ${ambitionsDone()} ambition${ambitionsDone() === 1 ? "" : "s"} achieved.`
+      : "Every soul is dead. The woods take it back.";
+  }
+  deleteSlot(saveSlot);
   MUSIC.battle(false);
   SFX.fireLoop(false);
   SFX.gameOver();
@@ -6805,6 +6985,7 @@ function update(dt) {
   updateCalamities(dt);
   updatePlague(dt);
   updateWards(dt);
+  checkAmbitions(dt);
   updateFuel(dt);
   updateFeuds(dt);
   updateJail(dt);
@@ -6867,6 +7048,8 @@ function update(dt) {
     const paidOut = Math.min(owed, canPayNow);
     res.dm -= paidOut;
     arrears = owed - paidOut;
+    tally.taxDays++;
+    if (arrears > 0) tally.arrearDays++; else if (owed > 0) tally.billsPaid++;
     const acct = [`${total} DM collected`];
     if (wages) acct.push(`${wages} in wages`);
     if (upkeep) acct.push(`${upkeep} in upkeep`);
@@ -6886,6 +7069,7 @@ function update(dt) {
     lastSeason = season();
     if (lastSeason === "winter") {
       colonyYear++;
+      tally.winters++;
       tell("land", `❄ Winter falls over the woods — the year turns to ${colonyYear}. The fields sleep; keep the larders full.`);
       vignette("firstWinter");
       for (const c of [...civs]) {
@@ -6904,6 +7088,7 @@ function update(dt) {
           kid.home = m.home;
           if (m.home) m.home.occupants.push(kid);
           civs.push(kid);
+          tally.born++;
           tell("life", `A child is born to ${m.name}: a ${g === "f" ? "daughter" : "son"}, ${kid.name}.`);
           SFX.pickup();
           vignette("firstChild");
@@ -7015,7 +7200,7 @@ function update(dt) {
     raidTimer -= dt;
     if (raidTimer <= 0) {
       raidTimer = Math.max(RAID_FLOOR, (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.95, difficulty() - 1));
-      if (season() !== "winter") spawnRaid();   // raiders overwinter in their camps
+      if (season() !== "winter") { tally.raids++; spawnRaid(); }   // raiders overwinter in their camps
     }
     for (const cp of camps) {
       cp.fortT = (cp.fortT === undefined ? 200 : cp.fortT) - dt;
@@ -7430,7 +7615,8 @@ function update(dt) {
         const back = b.was && RUINS.has(b.was) ? b.was : "cabin";
         b.type = back; b.was = null; b.progress = -1; b.placed = false;
         b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
-        toast(`The ${BLDG_NAMES[back] || back} stands whole again. ${c.name} rebuilt it.`);
+        tally.rebuilt++;
+        tell("build", `The ${BLDG_NAMES[back] || back} stands whole again. ${c.name} rebuilt it.`);
         vignette("cabinDone");
         c.state = "idle"; c.task = null;
         for (const cc of civs) if (!cc.home) houseCiv(cc);
@@ -7740,6 +7926,7 @@ function update(dt) {
           SFX.coin();
           float(cp.x, cp.y - 80, `+${cp.dm} DM +${cp.weapons} wpn`, "#7da083");
           sackedCamps++;
+          tally.camps++;
           tell("war", `${c.name} sacks the ${cp.type} camp — ${cp.dm} DM and ${cp.weapons} weapon(s) seized! (${sackedCamps} camps sacked)`);
           if (selectedCamp === cp) selectedCamp = null;
           c.state = "idle"; c.task = null;
