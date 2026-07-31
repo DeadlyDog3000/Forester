@@ -368,10 +368,53 @@ function sxSave(c) {
   return Object.keys(o).length ? o : undefined;
 }
 // Work teaches. Called wherever a task is actually finished, never per frame.
+// ===== the value of a life =====
+// Everyone in this colony has a name, an age, eleven skills and opinions about
+// their neighbours — and losing one cost you nothing that losing any other would
+// not have cost. A master of a trade was thirty minutes of somebody's work and
+// the game shrugged when they died. Three things change that: skill is now
+// taught by the living rather than only ground out alone, the dead are named
+// for what they knew, and the people who knew them feel it.
+const MASTER_AT = 40;              // where a hand becomes worth learning from
+const TEACH_RANGE = 190;           // near enough to watch and be corrected
+const TEACH_BONUS = 1.6;
+// The best in the colony at a thing, and whether anyone could take their place.
+function bestAt(id, except) {
+  let best = null, lvl = 0;
+  for (const c of civs) {
+    if (c === except || c.child) continue;
+    const l = skillLvl(c, id);
+    if (l > lvl) { lvl = l; best = c; }
+  }
+  return { who: best, lvl };
+}
+// A trade this person holds alone: they are a master of it, and the next best
+// hand in the colony is not half of them.
+function soleMasteries(c) {
+  const out = [];
+  for (const s of SKILLS) {
+    const mine = skillLvl(c, s.id);
+    if (mine < MASTER_AT) continue;
+    const next = bestAt(s.id, c);
+    if (next.lvl * 2 <= mine) out.push({ id: s.id, name: s.name, lvl: mine, next: next.lvl });
+  }
+  return out;
+}
 function gainSkill(c, id, amount) {
   if (!c || !c.sk) return;
   if (c.sk[id] >= SKILL_MAX) return;
   c.sx = c.sx || {};
+  // A master at your elbow is worth more than an hour alone with the work. This
+  // is the only way expertise spreads, so a master is not just a good worker —
+  // they are the colony's ability to make more good workers.
+  if (skillLvl(c, id) < MASTER_AT) {
+    for (const o of civs) {
+      if (o === c || o.child || skillLvl(o, id) < MASTER_AT) continue;
+      if (Math.hypot(o.x - c.x, o.y - c.y) > TEACH_RANGE) continue;
+      amount *= TEACH_BONUS;
+      break;
+    }
+  }
   c.sx[id] = (c.sx[id] || 0) + amount;
   while (c.sk[id] < SKILL_MAX && c.sx[id] >= skillXpNeeded(c.sk[id])) {
     c.sx[id] -= skillXpNeeded(c.sk[id]);
@@ -755,7 +798,7 @@ function mkCiv(name, who, x, y, gender) {
            age: 20 + Math.floor(Math.random() * 26),
            autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true,
            sick: 0, op: {}, feudWith: null, feudT: 0, socT: 2 + Math.random() * 6, jail: null, jailT: 0,
-           ward: null, wardT: 0, bearing: null, bearer: null,
+           ward: null, wardT: 0, bearing: null, bearer: null, grief: null,
            sk: freshSkills(), sx: {},
            loaded: true, reloadT: 0, fireT: 0 };
 }
@@ -1502,7 +1545,7 @@ function collideMove(c, nx, ny) {
 // and never trimmed. They are what the ambitions are judged against and what the
 // final accounting is written from.
 const FRESH_TALLY = () => ({ born: 0, arrived: 0, died: 0, raised: 0, burned: 0, rebuilt: 0,
-                             cured: 0, plagues: 0, arrests: 0, feuds: 0, raids: 0, camps: 0, townsTaken: 0,
+                             cured: 0, plagues: 0, arrests: 0, feuds: 0, raids: 0, camps: 0, townsTaken: 0, mastersLost: 0,
                              winters: 0, taxDays: 0, billsPaid: 0, arrearDays: 0 });
 let tally = FRESH_TALLY();
 const CHRON_MAX = 400;                 // what the running game remembers
@@ -1616,6 +1659,20 @@ function killCiv(c, why) {
   corpses.push({ x: c.x, y: c.y, who: c.who, bearer: null,
                  deceased: { name: c.name, age: c.age || 20, profession: c.profession || "no trade",
                              cause: why, year: colonyYear } });
+  // What the colony has just lost, said plainly — read BEFORE they are taken off
+  // the rolls, or they no longer count among the living for the comparison.
+  const lost = soleMasteries(c).sort((a, b) => b.lvl - a.lvl)[0];
+  // And who feels it. Everyone who had a view of them takes it to heart in
+  // proportion to that view: a friend grieves, an enemy is merely unsettled.
+  // Grief is the reason a name is worth something beyond the work it did.
+  for (const o of civs) {
+    if (o === c || o.child) continue;
+    const view = (o.op && o.op[c.name]) || 0;
+    const near = Math.hypot(o.x - c.x, o.y - c.y) < 420;
+    if (view <= 5 && !near) continue;
+    const weight = view > 5 ? Math.min(1, view / 60) : 0.35;   // strangers nearby still saw it
+    o.grief = { who: c.name, t: Math.max(o.grief ? o.grief.t : 0, 90 + 130 * weight), w: weight };
+  }
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
   if (selected === c) selected = null;
@@ -1629,7 +1686,12 @@ function killCiv(c, why) {
   civs.splice(civs.indexOf(c), 1);
   SFX.death();
   tally.died++;
-  tell("death", `${c.name} ${why}. The colony numbers ${civs.length}.`);
+  tell("death", `${c.name}${c.age !== undefined ? `, ${c.age},` : ""} ${why}. The colony numbers ${civs.length}.`);
+  // the eulogy: a trade nobody else can carry dies with the person who held it
+  if (lost) {
+    tally.mastersLost = (tally.mastersLost || 0) + 1;
+    tell("death", `${c.name} was the colony's finest hand at ${lost.name.toLowerCase()} — ${lost.lvl} against the next hand's ${lost.next}. That knowledge goes into the ground.`);
+  }
   if (civs.length === 0) gameOver();
   syncUI();
 }
@@ -2873,6 +2935,7 @@ function moodReasons(c) {
   else if (plagueActive > 0) r.push(["plague in the streets", -7]);
   // a bill the colony could not meet is felt hardest by the man it was owed to
   if (arrears > 0) r.push(isForce(c) ? ["wages in arrears", -14] : ["the works go untended", -5]);
+  if (c.grief && c.grief.t > 0) r.push([`grieving for ${c.grief.who}`, -Math.round(6 + 16 * (c.grief.w || 0.5))]);
   return r;
 }
 function happinessTarget(c) {
@@ -5770,6 +5833,7 @@ function reignReport() {
     ["Born here", tally.born],
     ["Came out of the woods", tally.arrived],
     ["Buried", tally.died],
+    ["Masters lost with no equal", tally.mastersLost || 0],
     ["Raised", `${tally.raised} building${tally.raised === 1 ? "" : "s"}`],
     ["Lost to fire", tally.burned],
     ["Rebuilt from ruin", tally.rebuilt],
@@ -5968,11 +6032,16 @@ function renderFolk() {
     row.className = "folkRow" + (c.hp < c.maxHp * 0.6 || isSick(c) ? " hurt" : "");
     // plain single characters only: the crossed-out house was a combining slash
     // that never composed, and rendered as a house followed by a stray mark
+    const sole = soleMasteries(c);
     const tags = (isSick(c) ? "☠" : "") + (c.feudWith ? "⚔" : "") + (isJailed(c) ? "⚖" : "") +
-                 (c.rebel ? "⚑" : "") + (!c.home ? "◇" : "");
+                 (c.rebel ? "⚑" : "") + (!c.home ? "◇" : "") +
+                 (c.grief && c.grief.t > 0 ? "†" : "") + (sole.length ? "✦" : "");
     const tagHelp = [isSick(c) && "☠ stricken", c.feudWith && "⚔ at feud",
                      isJailed(c) && "⚖ jailed", c.rebel && "⚑ in revolt",
-                     !c.home && "◇ no roof"].filter(Boolean).join(" · ");
+                     !c.home && "◇ no roof",
+                     c.grief && c.grief.t > 0 && `† grieving for ${c.grief.who}`,
+                     sole.length && `✦ the colony's only ${sole[0].name.toLowerCase()} (${sole[0].lvl})`]
+                    .filter(Boolean).join(" · ");
     row.innerHTML =
       `<span class="folkName">${esc(c.name)}</span>` +
       `<span class="folkTrade">${esc(c.child ? "child" : profLabel(c.profession))}</span>` +
@@ -6121,6 +6190,7 @@ function saveGame() {
         state: c.state === "inside" ? "inside" : c.state === "abed" ? "abed" : undefined,
         shelter: bi(c.shelter), ward: bi(c.ward),
         sick: c.sick ? r1(c.sick) : undefined,
+        grief: (c.grief && c.grief.t > 0) ? { who: c.grief.who, t: r1(c.grief.t), w: r1(c.grief.w || 0.5) } : undefined,
         op: (c.op && Object.keys(c.op).length) ? c.op : undefined,
         feudWith: c.feudWith || undefined, feudT: c.feudT ? r1(c.feudT) : undefined,
         jail: bi(c.jail), jailT: c.jailT ? r1(c.jailT) : undefined,
@@ -6223,6 +6293,7 @@ function loadGame() {
       c.sick = cd.sick || 0;
       c.op = cd.op || {}; c.feudWith = cd.feudWith || null; c.feudT = cd.feudT || 0;
       c.jailT = cd.jailT || 0;
+      c.grief = cd.grief || null;
       c.sk = Object.assign(freshSkills(), cd.sk || {});
       c.sx = Object.assign({}, cd.sx || {});
       if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
@@ -6838,6 +6909,12 @@ function syncUI() {
       const best = SKILLS.map(s => [s.name, skillLvl(selected, s.id)])
                          .filter(([, l]) => l > 1).sort((a, b) => b[1] - a[1]).slice(0, 3);
       $("cpBest").textContent = best.length ? best.map(([n, l]) => `${n} ${l}`).join(" · ") : "no trade practised yet";
+      // whether this is a person the colony cannot simply replace
+      const sole = soleMasteries(selected);
+      $("cpSole").textContent = sole.length
+        ? `✦ the colony's only ${sole.map(m => m.name.toLowerCase()).join(" and ")} — next hand ${sole[0].next}`
+        : "";
+      $("cpSole").style.display = sole.length ? "block" : "none";
     }
     $("cpTool").textContent = (selected.tool ? "good tool" : "none") + (selected.armed ? " · armed" : "");
     $("cpLogs").textContent = selected.inv.logs; $("cpSeeds").textContent = selected.inv.seeds;
@@ -7321,6 +7398,8 @@ function update(dt) {
 
   planVolleys();          // settle the line's volley before anyone in it moves
   for (const c of [...civs]) {
+    // grief wears off; it does not have to be tended, only outlived
+    if (c.grief) { c.grief.t -= dt; if (c.grief.t <= 0) c.grief = null; }
     c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * (season() === "winter" ? 1.15 : 1) * dt);
     // Nobody eats in their sleep, and nobody starves in it either. A man whose
     // belly is truly empty gets up, eats whatever is in the house or the stores,
