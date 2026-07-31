@@ -8,6 +8,11 @@ function resize() { canvas.width = innerWidth; canvas.height = innerHeight; ctx.
 addEventListener("resize", resize); resize();
 
 const $ = id => document.getElementById(id);
+// These panels are flex containers, and three places asked whether their display
+// was "block" — which it never is. Escape did not close the chronicle or the
+// roll, and the chronicle did not redraw when something happened while it was
+// open. Ask whether it is hidden, not which way it is laid out.
+const isOpen = id => { const el = $(id); return !!el && el.style.display !== "none" && el.style.display !== ""; };
 // Names are typed by the player, and a few panels build their rows as HTML.
 // Left raw, a town called "Jack & Jill <Home>" lost half its name the moment it
 // was shown — the browser read <Home> as a tag and swallowed it — and a name
@@ -1517,7 +1522,7 @@ function chron(kind, text) {
   const e = { y: colonyYear, c: clockText(), k: kind, t: String(text) };
   chronicle.push(e);
   if (chronicle.length > CHRON_MAX) chronicle.splice(0, chronicle.length - CHRON_MAX);
-  if ($("chronPanel") && $("chronPanel").style.display === "block") renderChronicle();
+  if (isOpen("chronPanel")) renderChronicle();
 }
 // Most things worth remembering are already announced. This says both at once,
 // so the call sites stay honest: what the player is told is what is written down.
@@ -1690,8 +1695,9 @@ addEventListener("keydown", e => {
     }
   }
   if (e.key === "Escape") {
-    if ($("chronPanel").style.display === "block") { $("chronPanel").style.display = "none"; syncUI(); }
-    else if ($("folkPanel").style.display === "block") { $("folkPanel").style.display = "none"; syncUI(); }
+    if (isOpen("reignPanel")) { $("reignPanel").style.display = "none"; paused = pauseOpen; }
+    else if (isOpen("chronPanel")) { $("chronPanel").style.display = "none"; syncUI(); }
+    else if (isOpen("folkPanel")) { $("folkPanel").style.display = "none"; syncUI(); }
     else if ($("settingsPanel").style.display === "block") { $("settingsPanel").style.display = "none"; saveSettings(); }
     else if (buildMode) { buildMode = null; syncUI(); }
     else if (gameState === "playing" || pauseOpen) setPause(!pauseOpen);
@@ -5746,7 +5752,10 @@ function checkAmbitions(dt) {
       tell("work", "✦ Six ambitions stand achieved. You may lay the ledger down whenever you choose — the reckoning is in the pause menu.");
   }
 }
-const ambitionsDone = () => Object.keys(achieved).length;
+// Count only ambitions that still exist. A save carrying an id from a list that
+// has since changed would otherwise inflate the total, and could open the
+// reckoning on the strength of something the game no longer knows how to earn.
+const ambitionsDone = () => AMBITIONS.filter(a => achieved[a.id]).length;
 
 // ===== the reckoning =====
 // What a reign amounted to, in the colony's own terms. Reachable once six
@@ -5801,8 +5810,7 @@ $("reignClose").addEventListener("click", () => { $("reignPanel").style.display 
 $("reignEnd").addEventListener("click", () => {
   // laying it down is a choice, and it is final for that slot
   tell("work", `The ledger of ${settlementName} is closed in the year ${colonyYear}.`);
-  saveGame();
-  $("reignPanel").style.display = "none";
+  $("reignPanel").style.display = "none";   // no save: gameOver frees this slot on the next line
   gameOver(true);
 });
 
@@ -6737,7 +6745,7 @@ function syncUI() {
   // the entry appears the moment the hospital is raised.
   const docItem = document.querySelector('#recruitMenu [data-prof="doctor"]');
   if (docItem) docItem.style.display = hospitals().length ? "" : "none";
-  if ($("folkPanel").style.display === "block") renderFolk();
+  if (isOpen("folkPanel")) renderFolk();
   if ($("govPanel").style.display === "block" && $("civDrop").classList.contains("open")) {
     const list = $("civList");
     // only the rows are rebuilt — the search box (first child) keeps its focus
