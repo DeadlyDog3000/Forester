@@ -576,21 +576,79 @@ const MUSIC = (() => {
       snare:[2,0,0,1, 2,0,0,1, 2,0,1,1, 2,0,0,0,
              2,0,0,1, 2,0,0,1, 2,0,1,1, 2,1,1,1],
     },
+    // ===== The British Grenadiers =====
+    // The one real tune here, and the only thing in the game not written for it.
+    // Traditional English, in print by the middle of the eighteenth century and
+    // long out of copyright. Transcribed from the ABC in Paul Hardy's Session
+    // Tunebook (Creative Commons, www.paulhardy.net): G major, four-four, played
+    // here as two eight-bar strains — "Some talk of Alexander" and the chorus —
+    // and converted from quarter-notes into this engine's eighth-note steps.
+    // The anacrusis rides in the tail of the closing bar, so the loop comes back
+    // round onto its own pickup without a seam.
+    british: {
+      name: "The British Grenadiers", bpm: 116, hold: true,
+      lead: [
+        // Some talk of Alexander, and some of Hercules
+        67,0, 62,0, 67,0, 69,0,      71,0,0,0, 69,0, 71,72,
+        74,0, 67,0, 71,69, 67,66,    67,0,0,0,0,0, 62,0,
+        // Of Hector and Lysander, and such great names as these
+        67,0, 62,0, 67,0, 69,0,      71,0,0,0, 69,0, 71,72,
+        74,0, 67,0, 71,69, 67,66,    67,0,0,0,0,0, 71,72,
+        // But of all the world's brave heroes there's none that can compare
+        74,0,0,76, 74,0, 72,0,       71,0, 72,0, 74,0, 74,0,
+        76,0, 76,0, 74,72, 71,69,    67,0,0,0, 66,0, 62,62,
+        // With a tow, row, row, row, row, row, to the British Grenadiers
+        67,0, 66,67, 69,0, 67,69,    71,0, 69,71, 72,0, 71,72,
+        74,0, 67,0, 71,69, 67,66,    67,0,0,0,0,0, 62,0,
+      ],
+      bass: [
+        43,0,0,0, 50,0,0,0,   43,0,0,0, 50,0,0,0,
+        43,0,0,0, 50,0,0,0,   43,0,0,0, 43,0,50,0,
+        43,0,0,0, 50,0,0,0,   43,0,0,0, 50,0,0,0,
+        43,0,0,0, 50,0,0,0,   43,0,0,0, 43,0,50,0,
+        43,0,0,0, 50,0,0,0,   43,0,0,0, 50,0,0,0,
+        48,0,0,0, 45,0,0,0,   43,0,0,0, 50,0,0,0,
+        43,0,0,0, 50,0,0,0,   43,0,0,0, 48,0,0,0,
+        43,0,0,0, 50,0,0,0,   43,0,0,0, 43,0,50,0,
+      ],
+      snare: [
+        2,0,1,1, 2,0,1,0,   2,0,1,1, 2,0,1,0,
+        2,0,1,1, 2,0,1,0,   2,0,1,1, 2,0,1,0,
+        2,0,1,1, 2,0,1,0,   2,0,1,1, 2,0,1,0,
+        2,0,1,1, 2,0,1,0,   2,0,1,1, 2,0,1,0,
+        2,0,1,1, 2,0,1,0,   2,0,1,1, 2,0,1,0,
+        2,0,1,1, 2,0,1,0,   2,0,1,1, 2,0,1,0,
+        2,0,1,1, 2,0,1,0,   2,0,1,1, 2,0,1,0,
+        2,0,1,1, 2,0,1,0,   2,0,1,1, 2,1,1,1,
+      ],
+    },
   };
-  let mWanted = false, mNext = 0, mTimer = null, mGain = null, mTune = "grenadier", mPhrase = 0;
+  let mWanted = false, mNext = 0, mTimer = null, mGain = null, mTune = "grenadier";
 
+  // A phrase was assumed to be thirty-two eighth-notes because all three tunes
+  // were. A real march is longer than that, so the loop follows the tune.
   function marchLoop(a, t0, tune) {
-    const step = 60 / tune.bpm / 2;
-    for (let i = 0; i < 32; i++) {
+    const step = 60 / tune.bpm / 2, len = tune.lead.length;
+    for (let i = 0; i < len; i++) {
       const t = t0 + i * step;
       if (tune.lead[i]) {                                   // fifes, doubled an octave up
+        // How long the note may ring. In a tune marked `hold`, the zeros after
+        // a note sustain it instead of cutting it off — without that a dotted
+        // half note sounds like a quaver followed by a second of silence. The
+        // older tunes are all short notes, so they keep the flat 1.7 steps.
+        let ring = step * 1.7;
+        if (tune.hold) {
+          let n = 1;
+          while (i + n < len && !tune.lead[i + n]) n++;
+          ring = step * (n - 0.1);
+        }
         for (const [mul, vol, type] of [[1, 0.075, "square"], [2, 0.032, "triangle"]]) {
           const o = a.createOscillator(), g = a.createGain();
           o.type = type; o.frequency.setValueAtTime(N(tune.lead[i]) * mul, t);
           g.gain.setValueAtTime(0.0001, t);
           g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
-          g.gain.exponentialRampToValueAtTime(0.0001, t + step * 1.7);
-          o.connect(g); g.connect(mGain); o.start(t); o.stop(t + step * 1.9);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + ring);
+          o.connect(g); g.connect(mGain); o.start(t); o.stop(t + ring * 1.12);
         }
       }
       if (tune.bass[i]) {                                   // the bass drum walking underneath
@@ -645,13 +703,15 @@ const MUSIC = (() => {
         o.connect(g); g.connect(mGain); o.start(t); o.stop(t + 0.19);
       }
     }
-    return t0 + 32 * step;
+    return t0 + len * step;
   }
   function marchPump() {
     if (!mWanted) return;
     const a = window.__foresterAC;
     if (!a || a.state !== "running") { mTimer = setTimeout(marchPump, 300); return; }
-    if (!mGain) { mGain = a.createGain(); mGain.gain.value = 1; mGain.connect(window.__foresterMaster); }
+    // The music deliberately skips sfxBus, so it needs its own handle if the
+    // march is ever to be metered with the master silenced.
+    if (!mGain) { mGain = a.createGain(); mGain.gain.value = 1; mGain.connect(window.__foresterMaster); window.__foresterMusic = mGain; }
     if (mNext < a.currentTime + 0.15) mNext = a.currentTime + 0.15;
     while (mNext < a.currentTime + 2.2) mNext = marchLoop(a, mNext, MARCHES[mTune] || MARCHES.grenadier);
     mTimer = setTimeout(marchPump, 220);
