@@ -586,7 +586,7 @@ for (const key of imageNames) {
 // --- state ---
 let gameState = "boot"; // boot -> menu | loading -> playing -> over
 const res = { logs: 0, seeds: 0, stone: 0, iron: 0, doors: 0, wheat: 0, bread: 0, meat: 0, dm: 60, weapons: 0, tools: 0 };
-let taxRate = 2, policeCount = 0, taxTimer = TAX_PERIOD;
+let taxRate = 2, taxTimer = TAX_PERIOD;
 let settlementName = "Neu Hamburg";
 let empireName = "";
 let territoryColor = "#7da083", borderColor = "#c9a86a";
@@ -1599,7 +1599,6 @@ function killCiv(c, why) {
   corpses.push({ x: c.x, y: c.y, who: c.who, bearer: null,
                  deceased: { name: c.name, age: c.age || 20, profession: c.profession || "no trade",
                              cause: why, year: colonyYear } });
-  if (c.profession === "police") policeCount--;
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
   for (const f of farms) f.workers = f.workers.filter(w => w !== c);
   if (selected === c) selected = null;
@@ -3531,7 +3530,6 @@ document.querySelectorAll("#craftMenu .menu-item").forEach(item =>
 function recruitAs(selected, prof) {
     if (!selected) return;
     if (selected.child) return toast(`${selected.name} is a child — give them a few more springs.`);
-    const dropPolice = () => { if (selected.profession === "police") policeCount--; };
     // A man who takes another trade puts the stretcher down. Without this the
     // patient stayed "borne" for good — carried about by a blacksmith, never
     // laid in a bed, never able to be picked up by anyone else.
@@ -3547,7 +3545,7 @@ function recruitAs(selected, prof) {
       if (!selected.home) return toast("Only housed civilians may join the police.");
       if (selected.profession === "police") return toast(`${selected.name} already serves.`);
       res.dm -= POLICE_COST;
-      selected.profession = "police"; policeCount++;
+      selected.profession = "police";
       selected.maxHp = 100 + (has("petarmour") ? 25 : 0) + (has("cavalry") ? 50 : 0);
       toast(`${selected.name} joins the police force of the colony.`);
     } else if (prof === "soldier") {
@@ -3556,7 +3554,6 @@ function recruitAs(selected, prof) {
       if (!selected.home) return toast("Only housed civilians may soldier.");
       if (selected.profession === "soldier") return toast(`${selected.name} already soldiers for the colony.`);
       res.dm -= SOLDIER_COST;
-      dropPolice();
       selected.profession = "soldier";
       selected.maxHp = 130 + (has("cavalry") ? 50 : 0);
       selected.hp = Math.min(selected.hp + 30, selected.maxHp);
@@ -3567,7 +3564,6 @@ function recruitAs(selected, prof) {
       if (!selected.home) return toast("Only housed civilians may shoulder a musket.");
       if (selected.profession === "musketeer") return toast(`${selected.name} already carries a musket.`);
       res.dm -= MUSKET_COST;
-      dropPolice();
       selected.profession = "musketeer";
       selected.loaded = true; selected.reloadT = 0; selected.fireT = 0;
       selected.maxHp = 90 + (has("cavalry") ? 50 : 0);
@@ -3579,7 +3575,6 @@ function recruitAs(selected, prof) {
       if (!selected.home) return toast("Only housed civilians may ride for the colony.");
       if (selected.profession === "cavalry") return toast(`${selected.name} already rides for the colony.`);
       res.dm -= CAV_COST;
-      dropPolice();
       selected.profession = "cavalry";
       selected.maxHp = 160 + (has("hussars") ? 40 : 0);
       selected.hp = Math.min(selected.hp + 40, selected.maxHp);
@@ -3591,25 +3586,20 @@ function recruitAs(selected, prof) {
       if (res.dm - DOCTOR_COST < treasuryFloor()) return toast(`A doctor costs ${DOCTOR_COST} DM. Treasury: ${res.dm} DM.`);
       if (selected.profession === "doctor") return toast(`${selected.name} already keeps the ward.`);
       res.dm -= DOCTOR_COST;
-      dropPolice();
       selected.profession = "doctor";
       toast(`${selected.name} takes the beak and the cane. They will fetch the sick to the hospital on their own.`);
     } else if (prof === "blacksmith") {
       if (!has("forging")) return toast("Blacksmiths require the Forging technology.");
-      dropPolice();
       selected.profession = "blacksmith";
       toast(`${selected.name} takes up the hammer as blacksmith.`);
     } else if (prof === "hunter") {
-      dropPolice();
       selected.profession = "hunter";
       toast(`${selected.name} takes up the hunter's life.`);
     } else if (prof === "lumberjack" || prof === "quarryman" || prof === "forager") {
       if (!has("township")) return toast("Organized town jobs require the Township technology.");
-      dropPolice();
       selected.profession = prof;
       toast(`${selected.name} takes up the ${prof}'s work. They will keep at it on their own.`);
     } else {
-      dropPolice();
       selected.profession = "farmer";
       toast(`${selected.name} takes up farming. Assign them to a farm by clicking it.`);
     }
@@ -5876,7 +5866,7 @@ function saveGame() {
       v: 1,
       // the recent tail only: a history worth reading, at a size worth keeping
       chron: chronicle.slice(-CHRON_SAVED),
-      res: { ...res }, taxRate, taxTimer, policeCount, laws: { ...laws }, zoom, settlementName, arrears,
+      res: { ...res }, taxRate, taxTimer, laws: { ...laws }, zoom, settlementName, arrears,
       cam: { x: cam.x, y: cam.y },
       hunterTimer, raidTimer, campRespawnTimer, worldT,
       tech: Object.fromEntries(Object.values(TECH).map(t => [t.id, t.done])),
@@ -5968,7 +5958,7 @@ function loadGame() {
     const d = JSON.parse(raw);
     Object.assign(res, d.res);
     res.dm = Math.round((res.dm || 0) * 10) / 10;   // scrub float drift out of older saves
-    taxRate = d.taxRate; taxTimer = d.taxTimer; arrears = d.arrears || 0; policeCount = d.policeCount;
+    taxRate = d.taxRate; taxTimer = d.taxTimer; arrears = d.arrears || 0;
     settlementName = d.settlementName || "Neu Hamburg";
     Object.assign(laws, d.laws);
     zoom = d.zoom || 1;
