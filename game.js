@@ -3397,7 +3397,12 @@ const DLG_OPTIONS = [
   { text: "\"There is a warm cabin and a certificate with your name on it.\"", d: +12 },
   { text: "Offer him fresh bread from the town storage. (1 bread)", d: +18, needs: () => res.bread >= 1, use: () => res.bread-- },
   { text: "Offer him a cut of meat from the town storage. (1 meat)", d: +16, needs: () => res.meat >= 1, use: () => res.meat-- },
-  { text: "\"Our taxes are fair. A man keeps what he earns here.\"", d: 0, dyn: () => (taxRate <= 2 ? +15 : -14) },
+  // Graded, not a switch. As a straight +15/-14 this line swung twenty-nine
+  // points on a single step of the tax dial, so a colony at tax 3 both lost its
+  // best card and carried a landmine — recruiting at tax 3 came out harder than
+  // recruiting with no bed to offer, which is nonsense.
+  { text: "\"Our taxes are fair. A man keeps what he earns here.\"", d: 0,
+    dyn: () => (taxRate <= 2 ? +15 : taxRate === 3 ? +4 : taxRate === 4 ? -6 : -16) },
   { text: "\"The forest here is rich with game. A hunter would eat well.\"", d: +10 },
   // ===== the two ways to lose a wanderer =====
   // The talk could not be lost. Two hundred of them played through with the
@@ -3419,22 +3424,49 @@ const DLG_OPTIONS = [
 
 function openTalk(talk) {
   dlg.open = true; dlg.talk = talk; paused = true;
+  talk.lines = 0;                    // how much of their patience has been spent
   $("dlgFace").src = `assets/sprites/ui/${talk.face}.png`;
   $("dlgName").textContent = talk.title;
   $("dlgText").textContent = talk.opening;
   $("dialogue").style.display = "block";
   renderDialogueOptions();
 }
+// ===== what a stranger can see from the gate =====
+// The opening meter was the tax rate and nothing else, which made recruiting a
+// formality at tax 2 and near-impossible at tax 5 — a cliff, and one the rest
+// of the colony had no say in. Played out four thousand times, a player picking
+// the best of the three lines on offer won every single talk.
+//
+// A wanderer at the window can see rather more than the tithe: whether there is
+// a roof going spare, whether the larder is full, how the people already inside
+// carry themselves. Recruiting is now the reward for running the place well
+// rather than for clicking well.
+function gateStanding() {
+  let m = 34;
+  m += taxRate <= 2 ? 8 : taxRate <= 4 ? 0 : -16;
+  const larder = (res.bread || 0) + (res.meat || 0);
+  m += larder >= 25 ? 8 : larder >= 8 ? 3 : -9;
+  m += freeHome() ? 6 : -18;        // nowhere to sleep is the loudest thing about a place
+  const mood = civs.length ? civs.reduce((s, c) => s + c.happiness, 0) / civs.length : 60;
+  m += mood >= 70 ? 8 : mood >= 45 ? 0 : -9;
+  return Math.max(6, Math.min(70, m));
+}
 function openDialogue(v) {
   tutSeen.talked = true;   // they have met a wanderer, whether or not they keep them
   dlg.visitor = v;
-  if (v.meter === null) v.meter = Math.max(10, 55 - taxRate * 3.5) + (v.goodwill || 0);
+  if (v.meter === null) v.meter = gateStanding() + (v.goodwill || 0);
   openTalk({
     face: v.face,
     title: `${v.name}, wandering ${v.gender === "f" ? "huntress" : "hunter"}`,
-    opening: "The hunter eyes the barred window and the little slot beneath it. \"So. What is this place, then?\"",
+    opening: freeHome()
+      ? "The hunter eyes the barred window and the little slot beneath it. \"So. What is this place, then?\""
+      : "The hunter counts your cabins through the palings, and every chimney has smoke. \"No bed spare, by the look of it. Talk fast.\"",
     pool: DLG_OPTIONS,
     used: v.used,
+    // A man at a gate does not stand through nine sales pitches. Four lines and
+    // he makes up his mind — which is also what stops a player grinding down a
+    // twelve-option pool until something sticks.
+    patience: 4,
     get meter() { return v.meter; }, set meter(x) { v.meter = x; },
     onWin: () => joinColony(v),
     onLose: () => rejectColony(v),
@@ -3448,7 +3480,8 @@ function renderDialogueOptions() {
   opts.innerHTML = "";
   const winAt = talk.winAt || 100, passAt = talk.passAt || 60;
   const pool = talk.pool.filter(o => !talk.used.has(o.text) && (!o.needs || o.needs()));
-  if (!pool.length) return talk.meter >= passAt ? talk.onWin() : talk.onLose();
+  if (!pool.length || (talk.patience && talk.lines >= talk.patience))
+    return talk.meter >= passAt ? talk.onWin() : talk.onLose();
   const picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   for (const o of picks) {
@@ -3457,15 +3490,19 @@ function renderDialogueOptions() {
     b.textContent = o.text;
     b.addEventListener("click", () => {
       talk.used.add(o.text);
+      talk.lines++;
       if (o.use) o.use();
       const delta = (o.dyn ? o.dyn() : o.d) + (Math.random() * 6 - 3);
       talk.meter = Math.max(0, Math.min(100, talk.meter + delta));
       $("dlgMeter").style.width = talk.meter + "%";
       if (talk.meter >= winAt) return talk.onWin();
       if (talk.meter <= 0) return talk.onLose();
-      $("dlgText").textContent = delta >= 8 ? "A slow nod. You are getting through." :
-                                 delta >= 0 ? "A grunt, noncommittal. But the door stays open." :
-                                 "Eyes narrow. That was the wrong thing to say.";
+      const left = talk.patience ? talk.patience - talk.lines : 99;
+      $("dlgText").textContent =
+        (delta >= 8 ? "A slow nod. You are getting through." :
+         delta >= 0 ? "A grunt, noncommittal. But the door stays open." :
+         "Eyes narrow. That was the wrong thing to say.") +
+        (left === 1 ? " He is half turned to go — one more word is all you get." : "");
       renderDialogueOptions();
     });
     opts.appendChild(b);
