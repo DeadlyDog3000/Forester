@@ -639,6 +639,8 @@
     <div id="govLedger" style="font-size:10.5px;color:#7a8f83;line-height:1.5;margin:2px 0 6px"></div>
     <div class="row"><span>Colony happiness</span><span id="govHappy">–</span></div>
     <div class="row"><span>Housing</span><span id="govHomes">–</span></div>
+    <div class="row" id="govWorldRow" style="display:none"><span>This country</span><span id="govWorld" style="color:#c9a86a">–</span></div>
+    <div id="govWorldTell" style="font-size:10.5px;color:#7a8f83;margin:-2px 0 6px"></div>
     <h4>PROFESSIONS</h4>
     <div id="govProfs" style="font-size:11px;line-height:1.7"></div>
     <h4>TERRITORY</h4>
@@ -932,7 +934,13 @@
   <div class="panel" id="empireModal" style="left:50%;top:50%;transform:translate(-50%,-50%);width:380px;padding:18px;display:none;z-index:130">
     <h3 style="color:#c9a86a;margin-bottom:8px">NAME YOUR EMPIRE</h3>
     <div style="font-size:12px;color:#9ab0a2;margin-bottom:10px">Hamburg cast you out. What rises from the forest will bear a name of your choosing.</div>
-    <input type="text" id="empireInput" maxlength="28" placeholder="e.g. The Falkenwald Compact" style="width:100%;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:13px;padding:8px;margin-bottom:10px">
+    <input type="text" id="empireInput" maxlength="28" placeholder="e.g. The Falkenwald Compact" style="width:100%;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:13px;padding:8px;margin-bottom:12px">
+    <div style="font-size:11px;color:#7a8f83;margin-bottom:5px">THE COUNTRY <span style="color:#5a6b60">— leave it be for a forest drawn at random, or write a word and get that same forest every time.</span></div>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input type="text" id="seedInput" maxlength="14" placeholder="seed" style="flex:1;min-width:0;background:#101813;border:1px solid #3a5243;color:#c9a86a;font-family:inherit;font-size:13px;padding:8px;text-transform:uppercase">
+      <button class="btn" id="seedRoll" title="Draw another country">Draw</button>
+    </div>
+    <div id="seedTell" style="font-size:11px;color:#7da083;margin-bottom:12px;min-height:14px"></div>
     <button class="btn" id="empireGo" style="width:100%">Proclaim it</button>
   </div>
 

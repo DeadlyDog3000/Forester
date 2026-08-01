@@ -718,6 +718,74 @@ const rkey = (rx, ry) => rx + "," + ry;
 const roadCellOf = (wx, wy) => [Math.floor(wx / ROAD), Math.floor(wy / ROAD)];
 const chunks = new Map();
 
+// ===== the world's own seed =====
+// genChunk hashed the chunk's coordinates and a fixed constant, and nothing
+// else. Every colony ever begun — every player, every slot, every restart —
+// stood in the same forest, with the same spruces and the same stones in the
+// same places. A colony builder with one map has one run in it.
+//
+// The seed now moves the trees AND rolls the country's character: how thick the
+// woods are, how much stone lies under them, how much grows wild. A run in a
+// stone-poor thicket asks different questions than one in an open valley, which
+// is the point — a different map is a screenshot, a different country is a game.
+// The ranges are bounded so that no seed is a colony that cannot be built.
+//
+// Labels are the source of truth, not the number: whatever you type is hashed,
+// so a world can be handed to someone else as a word. A save from before all
+// this carries no label, and gets the original constant and a flat character —
+// an existing colony's woods must not rearrange themselves under its feet.
+const LEGACY_SEED = 0x5f3759df;
+const SEED_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // no I/O/0/1 to mistype
+let worldLabel = "", worldSeed = LEGACY_SEED;
+let WORLD = { trees: 1, stone: 1, forage: 1 };
+function seedFrom(text) {                                // FNV-1a over the label
+  let h = 2166136261 >>> 0;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+function randomSeedLabel() {
+  let s = "";
+  for (let i = 0; i < 6; i++) s += SEED_CHARS[Math.floor(Math.random() * SEED_CHARS.length)];
+  return s;
+}
+function worldCharacter(seed) {
+  let s = (seed ^ 0x9e3779b9) >>> 0;
+  const r = () => (s = (s * 1103515245 + 12345) >>> 0) / 4294967296;
+  const w = { trees: 0.70 + r() * 0.66, stone: 0.70 + r() * 0.80, forage: 0.72 + r() * 0.70 };
+  // Stone gets the higher floor of the three because it is the one thing the
+  // woods never grow back — a country thin on spruce recovers, a country with
+  // no rock in it just means longer and longer walks for the rest of the game.
+  //
+  // And the three roll independently, so about one country in twenty-seven came
+  // out poor in all of them at once. Poor in one thing is the interest of the
+  // draw; poor in two is a hard country; poor in three is only a bad afternoon,
+  // and it would land on someone's first game. The leanest is lifted until the
+  // country as a whole can carry a colony.
+  const FLOOR = 2.75;
+  const total = w.trees + w.stone + w.forage;
+  if (total < FLOOR) {
+    const k = w.trees <= w.stone && w.trees <= w.forage ? "trees"
+            : w.stone <= w.forage ? "stone" : "forage";
+    w[k] += FLOOR - total;
+  }
+  return w;
+}
+function setWorld(label) {
+  worldLabel = String(label || "").trim().toUpperCase();
+  worldSeed = worldLabel ? seedFrom(worldLabel) : LEGACY_SEED;
+  WORLD = worldLabel ? worldCharacter(worldSeed) : { trees: 1, stone: 1, forage: 1 };
+  chunks.clear();                                        // the old forest is not this one
+}
+// how the country reads, for the player who wants to know what they drew
+function worldTell() {
+  const band = (v, lo, hi) => (v < lo ? 0 : v > hi ? 2 : 1);
+  const woods = ["thin woods", "steady woods", "deep woods"][band(WORLD.trees, 0.85, 1.15)];
+  const rock  = ["little stone", "some stone", "rich in stone"][band(WORLD.stone, 0.8, 1.2)];
+  const wild  = ["poor forage", "fair forage", "good forage"][band(WORLD.forage, 0.9, 1.2)];
+  return `${woods} · ${rock} · ${wild}`;
+}
+
 let selected = null, selectedBldg = null, selectedCamp = null, selectedGrave = null, buildMode = null;
 let selGroup = [];   // soldier multi-select: click several soldiers, order them as one
 const groupable = c => c.profession === "soldier" || c.profession === "cavalry" || c.profession === "musketeer";
@@ -834,24 +902,28 @@ function markChunkDirty(wx, wy) {
 // terrain is a pure function of the chunk coordinates — never stored, always regrown
 function genChunk(cx, cy) {
   const ch = { trees: [], stones: [], patches: [] };
-  let seed = ((cx * 73856093) ^ (cy * 19349663) ^ 0x5f3759df) >>> 0;
+  let seed = ((cx * 73856093) ^ (cy * 19349663) ^ worldSeed) >>> 0;
   const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
-  for (let i = 0; i < 21; i++) {
+  // The attempt counts and the near-clearing limit scale together, so thin
+  // woods are thin everywhere rather than only out past the treeline.
+  const nTree = Math.max(6, Math.round(21 * WORLD.trees));
+  const nearCap = Math.max(3, Math.round(7 * WORLD.trees));
+  for (let i = 0; i < nTree; i++) {
     const x = cx * CHUNK + rnd() * CHUNK, y = cy * CHUNK + rnd() * CHUNK;
     const d = Math.hypot(x, y);
     if (d < 190) continue;
-    if (!(d < 430) && i >= 7) continue;
+    if (!(d < 430) && i >= nearCap) continue;
     if (ch.trees.some(t => Math.hypot(t.x - x, t.y - y) < 46)) continue;
     ch.trees.push({ x, y, alive: true, progress: -1, growth: 1 });
   }
   for (let i = 0; i < 2; i++) {
     const x = cx * CHUNK + rnd() * CHUNK, y = cy * CHUNK + rnd() * CHUNK;
-    if (Math.hypot(x, y) < 210 || rnd() < 0.45) continue;
+    if (Math.hypot(x, y) < 210 || rnd() >= 0.55 * WORLD.stone) continue;
     ch.stones.push({ x, y, alive: true, progress: -1 });
   }
   for (let i = 0; i < 3; i++) {
     const x = cx * CHUNK + rnd() * CHUNK, y = cy * CHUNK + rnd() * CHUNK;
-    if (Math.hypot(x, y) < 150 || rnd() < 0.3) continue;
+    if (Math.hypot(x, y) < 150 || rnd() >= 0.7 * WORLD.forage) continue;
     ch.patches.push({ x, y, alive: true, progress: -1 });
   }
   ch.wild = { t: ch.trees.length, s: ch.stones.length, p: ch.patches.length };   // where planted growth begins
@@ -5644,8 +5716,19 @@ function updateSettlements(dt) {
 }
 
 // --- empire naming & colour pickers ---
+// The country is drawn before the first word is spoken, and redrawn as often as
+// the player likes — nothing has been built yet, so nothing is lost by it.
+function showSeed() {
+  setWorld($("seedInput").value);
+  $("seedTell").textContent = worldLabel ? worldTell() : "";
+}
+$("seedInput").addEventListener("input", showSeed);
+$("seedInput").addEventListener("keydown", e => { if (e.key === "Enter") $("empireGo").click(); e.stopPropagation(); });
+$("seedRoll").addEventListener("click", () => { $("seedInput").value = randomSeedLabel(); showSeed(); });
 document.getElementById("empireGo").addEventListener("click", () => {
   empireName = document.getElementById("empireInput").value.trim() || "The Forester Realm";
+  // whatever is in the box is the country; an empty box still gets a real one
+  setWorld($("seedInput").value.trim() || randomSeedLabel());
   document.getElementById("empireModal").style.display = "none";
   setPause(pauseOpen);
   // now the map is theirs to look at, the first instruction can be seen
@@ -6279,6 +6362,7 @@ function slotInfo(i) {
              year: d.colonyYear || 1683, pop: (d.civs || []).length,
              played: Math.round((d.playT || 0) / 60), savedAt: d.savedAt || 0,
              future: (d.v || 1) > SAVE_V,     // saved by a newer build than this one
+             world: d.worldLabel || "",
              kb: Math.round(raw.length / 1024 * 10) / 10 };
   } catch (e) { return { i, name: "damaged save", year: 0, pop: 0, played: 0, savedAt: 0, broken: true }; }
 }
@@ -6376,6 +6460,7 @@ function saveGame() {
       sackedCamps, playT: r1(playT), nextSettleAt: r1(nextSettleAt), tutStep, colonyYear, vigSeen,
       // without these a reload re-teaches winter, plague and the rest from scratch
       lessonSeen, lessonQueue, lessonsOff,
+      worldLabel,                   // the country itself; absent means the original forest
       plagueT: r1(plagueT), plagueActive: r1(plagueActive), fuelT: r1(fuelT),
       corpses: corpses.map(cp => ({ x: r1(cp.x), y: r1(cp.y), who: cp.who, deceased: cp.deceased })),
       graves: graves.map(gv => ({ x: r1(gv.x), y: r1(gv.y), stone: gv.stone, deceased: gv.deceased })),
@@ -6437,6 +6522,11 @@ function loadGame() {
   } catch (e) { /* unparseable — the recovery path below is the right one */ }
   try {
     const d = JSON.parse(raw);
+    // FIRST, before anything can touch a chunk: the deltas below are applied on
+    // top of freshly generated ground, and ground generated under the wrong seed
+    // is the wrong ground. A save with no label predates seeding and must get
+    // the original forest back, exactly.
+    setWorld(d.worldLabel || "");
     Object.assign(res, d.res);
     res.dm = Math.round((res.dm || 0) * 10) / 10;   // scrub float drift out of older saves
     taxRate = d.taxRate; taxTimer = d.taxTimer; arrears = d.arrears || 0;
@@ -6709,6 +6799,10 @@ function endCutscene() {
   // a fresh colony is taught from scratch — these outlive a load otherwise,
   // since starting a new game does not reload the page
   lessonSeen = {}; lessonQueue = []; lessonsOff = false;
+  // a country is already drawn behind the modal, so the woods the player is
+  // looking at are the woods they will get
+  $("seedInput").value = randomSeedLabel();
+  showSeed();
   $("empireModal").style.display = "block";
   paused = true;
   syncUI();
@@ -6884,7 +6978,8 @@ function renderSaveList() {
     row.innerHTML =
       `<span class="slotNo">${s.i}</span>` +
       `<span class="slotName">${esc(s.broken ? "damaged save" : s.name)}` +
-      (s.empire ? `<span style="color:#7a8f83"> · ${esc(s.empire)}</span>` : "") + `</span>` +
+      (s.empire ? `<span style="color:#7a8f83"> · ${esc(s.empire)}</span>` : "") +
+      (s.world ? `<span style="color:#5a6b60"> · ${esc(s.world)}</span>` : "") + `</span>` +
       `<span class="slotWhen">${when}</span>`;
     if (s.future) row.classList.add("stale");
     row.addEventListener("click", () => { useSlot(s.i); doLoading(true); });
@@ -7031,6 +7126,10 @@ function syncUI() {
     $("govHomes").innerHTML = homeless
       ? `<b style="color:#d86a5a">${homeless} homeless</b> · ${spare} bed(s) free`
       : `all housed · ${spare} bed(s) free`;
+    // the word that draws this forest, so a good one can be written down
+    $("govWorldRow").style.display = worldLabel ? "" : "none";
+    if (worldLabel) { $("govWorld").textContent = worldLabel; $("govWorldTell").textContent = worldTell(); }
+    else $("govWorldTell").textContent = "";
   }
   {
     const counts = {};
