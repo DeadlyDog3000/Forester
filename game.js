@@ -694,12 +694,18 @@ const cam = { x: 0, y: 0 };
 let zoom = 1;
 const settings = Object.assign(
   { master: 0.5, music: true, battle: true, sfx: true, ambient: true, march: true,
-    floaters: true, labels: true, smoke: true, night: true, camSpeed: 1, marchTune: "grenadier" },
+    floaters: true, labels: true, smoke: true, night: true, camSpeed: 1, edgePan: true,
+    marchTune: "grenadier" },
   JSON.parse(localStorage.getItem("forester_settings") || "{}"));
 window.FSET = settings;
 function saveSettings() { localStorage.setItem("forester_settings", JSON.stringify(settings)); }
 const keys = {};
 const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
+// Edge scrolling needs its own idea of where the pointer is, because `mouse`
+// only hears from the canvas and goes stale the moment the pointer crosses
+// onto the chrome — and a stale position parked in the edge band would scroll
+// the map forever. `on` is whether the map should take the shove at all.
+const edge = { x: 0, y: 0, on: false };
 
 const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [], corpses = [], graves = [];
 // enemy ground: a foreign crown's border town, standing in the world to be stormed
@@ -1782,6 +1788,24 @@ canvas.addEventListener("mousemove", e => {
     }
   }
 });
+// The top bar and the action bar both lie across the edge band, so tracking
+// the pointer on the canvas alone would leave the map unable to scroll up or
+// down at all. Instead: the map takes the shove unless the pointer is over
+// something a player can actually click. The top bar only reads out the
+// ledger, so the scroll passes straight through it; the action bar's buttons
+// stop it, though the bare strip beside them does not. Every other overlay —
+// panels, menus, the pause screen — stops it outright.
+const PAN_THROUGH = "#hud, #actions";
+const PAN_BLOCKING = "button, input, select, textarea, a, label, [role=button]";
+addEventListener("mousemove", e => {
+  edge.x = e.clientX; edge.y = e.clientY;
+  const t = e.target;
+  edge.on = !!t && !!t.closest &&
+    (t === canvas || (!!t.closest(PAN_THROUGH) && !t.closest(PAN_BLOCKING)));
+});
+// out of the window, or away to another tab: the map stops
+document.addEventListener("mouseleave", () => { edge.on = false; });
+addEventListener("blur", () => { edge.on = false; });
 function zoomAt(sx, sy, factor) {
   const wx = cam.x + sx / zoom, wy = cam.y + sy / zoom;
   // far enough out to see a whole march of country, close enough to read a face
@@ -3739,7 +3763,8 @@ function openSettings() {
   $("setMaster").value = Math.round(settings.master * 100);
   $("setCam").value = Math.round(settings.camSpeed * 100);
   for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
-                           ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"]])
+                           ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"],
+                           ["setEdgePan","edgePan"]])
     $(id).checked = settings[key];
   $("settingsPanel").style.display = "block";
 }
@@ -3749,7 +3774,8 @@ $("setClose").addEventListener("click", () => { $("settingsPanel").style.display
 $("setMaster").addEventListener("input", e => { settings.master = e.target.value / 100; SFX.setMaster(settings.master); saveSettings(); });
 $("setCam").addEventListener("input", e => { settings.camSpeed = e.target.value / 100; saveSettings(); });
 for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
-                         ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"]])
+                         ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"],
+                         ["setEdgePan","edgePan"]])
   $(id).addEventListener("change", e => {
     settings[key] = e.target.checked;
     if (key === "music" && !settings.music) MUSIC.stop();
@@ -7066,6 +7092,28 @@ function syncUI() {
   syncSkills();   // an open tree keeps pace with the work and the treasury
 }
 
+// ===== shoving the map with the pointer =====
+// Put the cursor against the edge of the screen and the country slides that
+// way, the way every RTS since Dune II has done it. The speed ramps with how
+// far into the band the pointer has gone, so a glancing pass along the edge
+// drifts and a cursor pinned to the very rim runs.
+//
+// A finger has no hover, so this is for a mouse only.
+const EDGE_BAND = 24;          // px of screen edge that pushes
+const EDGE_FLOOR = 0.35;       // the gentlest shove, at the inner lip of the band
+function edgePan(dt, fast) {
+  if (!settings.edgePan || IS_TOUCH || !edge.on) return;
+  const w = canvas.width, h = canvas.height;
+  // how hard each edge is pushing: 0 outside the band, 1 hard against the rim
+  const push = d => (d >= EDGE_BAND ? 0 : EDGE_FLOOR + (1 - EDGE_FLOOR) * (1 - Math.max(0, d) / EDGE_BAND));
+  const l = push(edge.x), r = push(w - edge.x), u = push(edge.y), d2 = push(h - edge.y);
+  const v = CAM_SPEED * settings.camSpeed * fast / zoom * dt;
+  if (l) cam.x -= v * l;
+  if (r) cam.x += v * r;
+  if (u) cam.y -= v * u;
+  if (d2) cam.y += v * d2;
+}
+
 // --- simulation ---
 function update(dt) {
   if (toastTimer > 0 && (toastTimer -= dt) <= 0) msgEl.textContent = "";
@@ -7076,6 +7124,7 @@ function update(dt) {
   if (dn) cam.y += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   if (lf) cam.x -= CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   if (rt) cam.x += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
+  edgePan(dt, fast);
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
   // The woods have a voice now, and it answers to the season, the hour, the
