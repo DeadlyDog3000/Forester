@@ -1958,7 +1958,12 @@ addEventListener("mouseup", () => { roadCommit(); lineCommit(); });
 canvas.addEventListener("contextmenu", e => { e.preventDefault(); cancelAll(); });
 
 // --- touch: drag to look about, pinch to zoom, tap to act, hold to cancel ---
-const TAP_SLOP = 14, HOLD_MS = 520;
+// 520ms was fine when a held finger only ever meant "cancel". Now a finger put
+// down also raises the plaque that says what letting go will do, and the whole
+// point of it is that you may take a moment to read — at 520ms, reading "Rebuild
+// this ruin — needs 20 logs, 1 door, 5 DM" cost you your selection. The hold is
+// longer than a glance now, and ✕ clears in one tap for anyone who wants it fast.
+const TAP_SLOP = 14, HOLD_MS = 850;
 let tPan = null, tPinch = null, tHoldTimer = null, tMoved = 0, tHandled = false;
 function touchXY(t) { return [t.clientX, t.clientY]; }
 canvas.addEventListener("touchstart", e => {
@@ -2031,7 +2036,11 @@ canvas.addEventListener("touchend", e => {
 canvas.addEventListener("touchcancel", () => { clearTimeout(tHoldTimer); tPan = null; tPinch = null; roadDrag = false; roadGhost = []; roadStart = null; });
 
 // --- on-screen controls, for hands that have no keyboard ---
-const IS_TOUCH = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+// ?touch — one more founder's tool: forces the touchscreen build on a desktop,
+// so the phone layout and the press-to-read plaque can be checked without a
+// phone in hand. Nothing reads it but this line.
+const IS_TOUCH = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window ||
+                 new URLSearchParams(location.search).has("touch");
 if (IS_TOUCH) {
   document.body.classList.add("touch");
   $("cutHint").textContent = "TAP ▸";
@@ -3862,7 +3871,16 @@ function openSettings() {
 }
 $("pmSettings").addEventListener("click", openSettings);
 $("menuSettings").addEventListener("click", openSettings);
-function openHelp() { $("helpPanel").style.display = "block"; }
+// A phone has no click and no right-click. The panel carries both wordings and
+// puts on the one that fits the hands holding it — once, the first time it opens.
+let helpDressed = false;
+function openHelp() {
+  if (IS_TOUCH && !helpDressed) {
+    helpDressed = true;
+    for (const el of $("helpPanel").querySelectorAll("[data-touch]")) el.textContent = el.dataset.touch;
+  }
+  $("helpPanel").style.display = "block";
+}
 $("helpClose").addEventListener("click", () => { $("helpPanel").style.display = "none"; });
 $("pmHelp").addEventListener("click", openHelp);
 $("menuHelp").addEventListener("click", openHelp);
@@ -6715,7 +6733,9 @@ const tutSeen = { map: false, gov: false, tech: false, talked: false };
 const TUT_STEPS = [
   { text: () => "That burnt cabin was here long before you were — whoever raised it is gone. Start by clicking your Brother or Sister to select them.",
     done: () => !!selected },
-  { text: () => "That is how every order is given: pick someone, then click the thing you want done. Right-click cancels. With them still selected, click a spruce tree to fell it.",
+  { text: () => IS_TOUCH
+      ? "That is how every order is given: pick someone, then tap the thing you want done. Press and hold a moment before letting go and a plaque tells you what the tap will do. With them still picked, tap a spruce tree to fell it."
+      : "That is how every order is given: pick someone, then click the thing you want done. Right-click cancels. With them still selected, click a spruce tree to fell it.",
     done: () => civs.some(c => c.inv.logs > 0) || res.logs > 0 },
   { text: () => "Logs ride in their pack, where the town cannot use them. Select the woodcutter and press \"Deposit goods to town storage\".",
     done: () => res.logs > 0 },
@@ -6764,8 +6784,13 @@ const LESSONS = {
   raid: "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming.",
   plague: "☠ Plague walks the towns of Europe — and it does not check your borders. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. A skilled hand lost to fever is not quickly replaced.",
   hospital: "☤ The answer to it is a Hospital (BUILD ▾ — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. To mend a wounded soldier, select them and press Heal and they will walk to a bed. A housed, fed man knits a little back together sleeping in his own bed, but it is slow, and it will not touch a fever.",
-  soldiers: "⚔ You have men under arms. Click one, then click another, and they gather into a band — keep clicking to raise a company. Send the band at bare ground and they march there in column and hold it; send them at a raider and they go for him. With two or more picked, DRAG across the ground instead of clicking and they form a line of battle, as long as you drag it, and they will keep that line.",
-  closing: "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. Press ? at any time for every control. The woods are yours.",
+  soldiers: () => "⚔ You have men under arms. " +
+    (IS_TOUCH ? "Tap one, then tap another" : "Click one, then click another") +
+    ", and they gather into a band — keep going to raise a company. Send the band at bare ground and they march there in column and hold it; send them at a raider and they go for him." +
+    (IS_TOUCH ? "" : " With two or more picked, DRAG across the ground instead of clicking and they form a line of battle, as long as you drag it, and they will keep that line."),
+  closing: () => "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. " +
+    (IS_TOUCH ? "How to Play is in the ☰ menu whenever you want it." : "Press ? at any time for every control.") +
+    " The woods are yours.",
 };
 let lessonSeen = {}, lessonQueue = [], lessonsOff = false;
 // Raise a lesson the first time the world earns it. Queued rather than shown,
@@ -8778,27 +8803,41 @@ function render(dt) {
   drawCursorHint();
 }
 
-// The plaque at the cursor that says what a click will do. A finger has no
-// hover, so this is for a mouse; and anyone who finds it fussy can put it away
-// in the settings.
+// The plaque that says what a click will do.
+//
+// With a mouse it follows the hover. A finger has no hover, but it has
+// something a mouse does not: a moment between touching down and letting go.
+// The plaque appears the instant a finger lands and says what lifting will do
+// — so a tap becomes press, read, lift. Slide away and it turns into a pan and
+// the plaque goes with it, having promised nothing; hold and it becomes the
+// cancel. It shows only while the lift would still act, so it never claims an
+// order that is not going to happen.
+//
+// Either way, anyone who finds it fussy can put it away in the settings.
 function drawCursorHint() {
-  if (!settings.hints || IS_TOUCH || !edge.on) return;
+  if (!settings.hints) return;
+  const touching = IS_TOUCH && tPan && !tHandled;
+  if (IS_TOUCH ? !touching : !edge.on) return;
   const text = hintAt(cam.x + mouse.x / zoom, cam.y + mouse.y / zoom);
   if (!text) return;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.font = "11px monospace";
+  ctx.font = (IS_TOUCH ? "13px" : "11px") + " monospace";
   ctx.textAlign = "left";
-  const pad = 6, w = ctx.measureText(text).width + pad * 2, h = 19;
-  // below-right of the cursor by default, but never off the glass
-  let x = mouse.x + 16, y = mouse.y + 20;
-  if (x + w > canvas.width - 4) x = mouse.x - 16 - w;
-  if (y + h > canvas.height - 4) y = mouse.y - 12 - h;
+  const pad = IS_TOUCH ? 8 : 6, w = ctx.measureText(text).width + pad * 2, h = IS_TOUCH ? 25 : 19;
+  // A fingertip covers what it is pointing at, so the plaque stands well clear
+  // above it; a cursor does not, so it sits just below-right. Never off-glass.
+  let x = IS_TOUCH ? mouse.x - w / 2 : mouse.x + 16;
+  let y = IS_TOUCH ? mouse.y - 52 : mouse.y + 20;
+  x = Math.max(4, Math.min(canvas.width - w - 4, x));
+  if (!IS_TOUCH && x + w > canvas.width - 4) x = mouse.x - 16 - w;
+  if (y < 4) y = mouse.y + 40;
+  if (y + h > canvas.height - 4) y = IS_TOUCH ? mouse.y - 52 : mouse.y - 12 - h;
   ctx.fillStyle = "rgba(13,18,16,0.90)";
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = "rgba(201,168,106,0.65)"; ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   ctx.fillStyle = "#e8d9b8";
-  ctx.fillText(text, x + pad, y + 13);
+  ctx.fillText(text, x + pad, y + h - (IS_TOUCH ? 8 : 6));
 }
 
 // --- loop ---
