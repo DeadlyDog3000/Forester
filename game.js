@@ -6102,6 +6102,19 @@ $("milEnabled").addEventListener("change", e => {
 // Everything else — the backup copy, the trimming, the surgery on the way in —
 // hangs off it and needed no changing.
 const SAVE_SLOTS = 6;
+// The format's own number. A `v` was written into every save from the start and
+// then never read and never raised, which is worse than none at all: it looks
+// like the question has been asked. It is asked now.
+//
+// A save older than this build loads as it always did — every field added since
+// is read through a default, so an old ledger simply lacks the new columns. A
+// save NEWER than this build is refused outright and left untouched, because
+// the alternative is the autosave writing over a colony this build cannot read.
+// That happens when a browser serves a stale copy of the game to someone whose
+// save is current, which is exactly when losing the colony would be least
+// forgivable. Raise this only when a field CHANGES MEANING; adding one is free.
+const SAVE_V = 2;
+const FROM_FUTURE = "future";
 const slotKey = i => (i === 1 ? "forester_save" : `forester_save${i}`);
 const ACTIVE_SLOT_KEY = "forester_slot";
 let saveSlot = Math.min(SAVE_SLOTS, Math.max(1, +(localStorage.getItem(ACTIVE_SLOT_KEY) || 1) || 1));
@@ -6121,6 +6134,7 @@ function slotInfo(i) {
     return { i, name: d.settlementName || "Neu Hamburg", empire: d.empireName || "",
              year: d.colonyYear || 1683, pop: (d.civs || []).length,
              played: Math.round((d.playT || 0) / 60), savedAt: d.savedAt || 0,
+             future: (d.v || 1) > SAVE_V,     // saved by a newer build than this one
              kb: Math.round(raw.length / 1024 * 10) / 10 };
   } catch (e) { return { i, name: "damaged save", year: 0, pop: 0, played: 0, savedAt: 0, broken: true }; }
 }
@@ -6143,6 +6157,8 @@ try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw && raw !== "null") {
       const d = JSON.parse(raw);
+      // don't operate on a ledger this build cannot read
+      if ((d.v || 1) > SAVE_V) throw new Error("save is from a newer build; surgery refused");
       if (qp.has("disband")) {
         const name = (qp.get("disband") || "").toLowerCase();
         const before = (d.settlements || []).length;
@@ -6166,7 +6182,7 @@ function saveGame() {
   const bi = b => buildings.indexOf(b), ci = c => civs.indexOf(c), cpi = c => camps.indexOf(c);
   try {
     const data = {
-      v: 1,
+      v: SAVE_V,
       savedAt: Date.now(),          // so the menu can say when you were last here
       // the recent tail only: a history worth reading, at a size worth keeping
       chron: chronicle.slice(-CHRON_SAVED),
@@ -6265,6 +6281,14 @@ function saveGame() {
 function loadGame() {
   const raw = localStorage.getItem(SAVE_KEY);
   if (!raw) return false;
+  // Read the stamp before a single field is touched. A colony from a newer
+  // build is left exactly as it lies — not stashed, not replaced by the spare,
+  // not deleted. The caller must then refuse to start a game in this slot, or
+  // the autosave would bury it ten seconds later.
+  try {
+    const stamp = JSON.parse(raw);
+    if ((stamp.v || 1) > SAVE_V) { console.warn("save is from a newer build", stamp.v, ">", SAVE_V); return FROM_FUTURE; }
+  } catch (e) { /* unparseable — the recovery path below is the right one */ }
   try {
     const d = JSON.parse(raw);
     Object.assign(res, d.res);
@@ -6648,12 +6672,15 @@ function renderSaveList() {
   for (const s of saves) {
     const row = document.createElement("div");
     row.className = "saveRow";
+    const when = s.broken ? "cannot be read"
+      : s.future ? "saved by a newer version —<br>reload the page"
+      : `${s.year} · ${s.pop} soul${s.pop === 1 ? "" : "s"} · ${s.played} min<br>${esc(agoText(s.savedAt))}`;
     row.innerHTML =
       `<span class="slotNo">${s.i}</span>` +
       `<span class="slotName">${esc(s.broken ? "damaged save" : s.name)}` +
       (s.empire ? `<span style="color:#7a8f83"> · ${esc(s.empire)}</span>` : "") + `</span>` +
-      `<span class="slotWhen">${s.broken ? "cannot be read" :
-          `${s.year} · ${s.pop} soul${s.pop === 1 ? "" : "s"} · ${s.played} min<br>${esc(agoText(s.savedAt))}`}</span>`;
+      `<span class="slotWhen">${when}</span>`;
+    if (s.future) row.classList.add("stale");
     row.addEventListener("click", () => { useSlot(s.i); doLoading(true); });
     const del = document.createElement("button");
     del.className = "saveDel"; del.textContent = "✕";
@@ -6706,6 +6733,16 @@ function doLoading(fromSave) {
         $("loading").style.display = "none";
         MUSIC.stop();
         const restored = fromSave && loadGame();
+        // A colony this build is too old to read: go back to the front door and
+        // say so. Never fall through to a new game — the slot is still theirs.
+        if (restored === FROM_FUTURE) {
+          gameState = "menu";
+          $("menu").style.display = "block";
+          renderSaveList();
+          MUSIC.play();
+          toast("That colony was saved by a newer version of Forester. Reload the page to get it.");
+          return;
+        }
         gameState = "playing";
         if (!restored) {
           cam.x = -canvas.width / 2; cam.y = -canvas.height / 2 - 60;

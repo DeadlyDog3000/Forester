@@ -44,6 +44,10 @@
     font-family: inherit; color: #cfd8d3;
   }
   .saveRow:hover { background: #24352b; border-color: #7da083; }
+  /* a colony this build is too old to read: still listed, still theirs, but
+     plainly not something clicking will open */
+  .saveRow.stale { opacity: 0.62; }
+  .saveRow.stale .slotWhen { color: #c9a86a; }
   .saveRow .slotNo { flex: 0 0 auto; color: #7a8f83; font-size: 11px; }
   .saveRow .slotName { flex: 1; color: #e6ece8; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .saveRow .slotWhen { flex: 0 0 auto; color: #8fa397; font-size: 10.5px; text-align: right; line-height: 1.35; }
