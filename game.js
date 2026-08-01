@@ -970,6 +970,7 @@ function spawnRaid() {
     r.target = targets[Math.floor(Math.random() * targets.length)];
     raiders.push(r);
   }
+  lesson("raid");                       // the first horn is the moment to explain walls
   SFX.warHorn();
   if (buildings.some(b => b.type === "watchtower" && !b.fire)) {
     const dir = Math.abs(camp.x) > Math.abs(camp.y) ? (camp.x > 0 ? "east" : "west") : (camp.y > 0 ? "south" : "north");
@@ -2405,6 +2406,9 @@ function finishConstruction(b) {
   tally.raised++;
   tell("build", `${BLDG_NAMES[b.type]} raised.${claims ? " The territory grows." : ""}`);
   SFX.build();
+  // once the market stands they have a colony rather than a camp, and the
+  // comforts are worth mentioning
+  if (b.type === "market") lesson("comfort");
   if (b.type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
 }
 function evictFromFootprint(b) {
@@ -4414,6 +4418,7 @@ function strikePlague() {
   plagueActive = PLAGUE_LEN * 1.4;
   eventCard(`Plague walks your own streets.`, "event_war",
             `${struck} have taken to their beds — they work poorly and sicken. It will pass.`);
+  lesson("plague"); lesson("hospital");   // what it is, then what answers it
   tally.plagues++;
   tell("ill", `☠ Plague breaks out in the colony — ${struck} are stricken.`);
 }
@@ -4842,6 +4847,7 @@ document.getElementById("mapToggle").addEventListener("click", () => {
   document.getElementById("mapOverlay").style.display = "block";
   paused = true;
   tutSeen.map = true;
+  lesson("trade");                      // they are looking at the neighbours now
   // on a phone the map is wider than the glass: open it looking at your own lands
   const frame = document.getElementById("euromap").parentElement;
   if (frame && frame.scrollWidth > frame.clientWidth) {
@@ -5569,6 +5575,8 @@ document.getElementById("empireGo").addEventListener("click", () => {
   empireName = document.getElementById("empireInput").value.trim() || "The Forester Realm";
   document.getElementById("empireModal").style.display = "none";
   setPause(pauseOpen);
+  // now the map is theirs to look at, the first instruction can be seen
+  if (tutStep < 0 && !lessonsOff && !Object.keys(lessonSeen).length) tutStep = 0;
   toast(`Let it be written: this is ${empireName}.`);
 });
 document.getElementById("empireInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("empireGo").click(); e.stopPropagation(); });
@@ -6293,6 +6301,8 @@ function saveGame() {
       territory: [...territory],
       roads: [...roads],
       sackedCamps, playT: r1(playT), nextSettleAt: r1(nextSettleAt), tutStep, colonyYear, vigSeen,
+      // without these a reload re-teaches winter, plague and the rest from scratch
+      lessonSeen, lessonQueue, lessonsOff,
       plagueT: r1(plagueT), plagueActive: r1(plagueActive), fuelT: r1(fuelT),
       corpses: corpses.map(cp => ({ x: r1(cp.x), y: r1(cp.y), who: cp.who, deceased: cp.deceased })),
       graves: graves.map(gv => ({ x: r1(gv.x), y: r1(gv.y), stone: gv.stone, deceased: gv.deceased })),
@@ -6454,6 +6464,9 @@ function loadGame() {
     plagueActive = d.plagueActive || 0;
     fuelT = d.fuelT !== undefined ? d.fuelT : FUEL_INTERVAL;
     vigSeen = d.vigSeen || {};
+    lessonSeen = d.lessonSeen || {};
+    lessonQueue = Array.isArray(d.lessonQueue) ? d.lessonQueue.filter(k => LESSONS[k]) : [];
+    lessonsOff = !!d.lessonsOff;
     corpses.length = 0; for (const cp of (d.corpses || [])) corpses.push({ ...cp, bearer: null, carried: null });
     graves.length = 0; for (const gv of (d.graves || [])) graves.push({ ...gv, mason: null });
     settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
@@ -6616,7 +6629,13 @@ function endCutscene() {
   clearInterval(birdTimer);
   $("cutscene").style.display = "none";
   gameState = "playing";
-  tutStep = 0;
+  // The tutorial used to open here, so its first instruction — click your
+  // Brother or Sister — was printed across a modal that covered them and
+  // wanted a name first. It waits for the naming now.
+  tutStep = -1;
+  // a fresh colony is taught from scratch — these outlive a load otherwise,
+  // since starting a new game does not reload the page
+  lessonSeen = {}; lessonQueue = []; lessonsOff = false;
   $("empireModal").style.display = "block";
   paused = true;
   syncUI();
@@ -6663,39 +6682,80 @@ const TUT_STEPS = [
     done: () => civs.length > 2 || tutSeen.talked },
   { text: () => "Open BUILD ▾ again and raise a Market Center. It sells your surplus for DM, and DM pays for research, recruits and training.",
     done: () => buildings.some(b => b.type === "market") },
-  { note: true, text: () => "A Well is cheap and the colony is happier for it — and when plague comes, clean water keeps more of them on their feet. A Bakery turns your wheat into bread, and a Town Hall lets folk stock the stores without being told. Raise them when you can spare the logs." },
-  { note: true, text: () => `⚖ Nothing you raise is free to keep. On every tax day the treasury pays ${WAGE} DM to each man under arms and ${CIVIC_UPKEEP} DM to each work that must be tended — the market, the bakery, the well, the forge, the recruitment center, the watchtower, the jail, the hospital, the town hall. Cabins, walls, lamps and farms cost nothing once they stand. An army is a standing choice against a hospital. If the treasury cannot pay, unpaid men lose heart and the works go untended: disband someone, pull something down, or raise the tax. The GOVERNMENT panel shows the whole bill.` },
   { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
     done: () => tutSeen.gov },
   { text: () => "In that panel, press Open Tech Tree and begin any research. Two trees run from sharper axes to battle steel, paid for in DM and time.",
     done: () => tutSeen.tech || !!research || Object.values(TECH).filter(t => t.done).length > 3 },
   { text: () => "Press the MAP button to look at Europe, 1683. Your empire is drawn in your own colour; the nations around it grow stronger with the years and make war on each other.",
     done: () => tutSeen.map },
-  { note: true, text: () => "On that map you can send an envoy to a peaceful neighbour and talk their court into a trade route — gifts help, threats do not. Caravans then bring coin and goods to your gate." },
-  { note: true, text: () => "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches." },
-  { note: true, text: () => "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming." },
-  { note: true, text: () => "☠ Plague walks the towns of Europe — and it does not check your borders. It will come here too. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. Every civilian carries their own skills, and a skilled hand lost to fever is not quickly replaced." },
-  { note: true, text: () => "☤ The answer to it is a Hospital (BUILD ▾ — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. Bread no longer heals anyone where they stand — to mend a wounded soldier, select them and press Heal, and they will walk to a bed. A housed, fed man does knit a little back together sleeping in his own bed, but it is slow, and it will not touch a fever." },
-  { note: true, text: () => "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. The woods are yours." },
 ];
+
+// ===== the manual, delivered when the thing happens =====
+// Eight of these used to be tutorial steps: `note` entries with a Next button,
+// stacked six-deep at the end of the opening sequence. A player who had just
+// laid out a market was handed, in a row, the whole of winter, raiding, plague,
+// hospitals, doctors and trade — every one of them describing something that
+// had not happened yet and would not for another twenty minutes. Six essays is
+// where a tutorial stops being read.
+//
+// Same words, held back until the world produces the thing they explain. The
+// first frost teaches winter; the first fever teaches plague. Nothing is shown
+// twice, and a player who skipped the tutorial is not taught at all.
+const LESSONS = {
+  comfort: "A Well is cheap and the colony is happier for it — and when plague comes, clean water keeps more of them on their feet. A Bakery turns your wheat into bread, and a Town Hall lets folk stock the stores without being told. Raise them when you can spare the logs.",
+  upkeep: () => `⚖ Nothing you raise is free to keep. On every tax day the treasury pays ${WAGE} DM to each man under arms and ${CIVIC_UPKEEP} DM to each work that must be tended — the market, the bakery, the well, the forge, the recruitment center, the watchtower, the jail, the hospital, the town hall. Cabins, walls, lamps and farms cost nothing once they stand. An army is a standing choice against a hospital. If the treasury cannot pay, unpaid men lose heart and the works go untended: disband someone, pull something down, or raise the tax. The GOVERNMENT panel shows the whole bill.`,
+  trade: "On the map you can send an envoy to a peaceful neighbour and talk their court into a trade route — gifts help, threats do not. Caravans then bring coin and goods to your gate.",
+  winter: "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches.",
+  raid: "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming.",
+  plague: "☠ Plague walks the towns of Europe — and it does not check your borders. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. A skilled hand lost to fever is not quickly replaced.",
+  hospital: "☤ The answer to it is a Hospital (BUILD ▾ — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. To mend a wounded soldier, select them and press Heal and they will walk to a bed. A housed, fed man knits a little back together sleeping in his own bed, but it is slow, and it will not touch a fever.",
+  closing: "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. The woods are yours.",
+};
+let lessonSeen = {}, lessonQueue = [], lessonsOff = false;
+// Raise a lesson the first time the world earns it. Queued rather than shown,
+// so two at once (the first fever brings plague AND hospital) do not race.
+function lesson(key) {
+  if (lessonsOff || lessonSeen[key] || lessonQueue.includes(key) || !LESSONS[key]) return;
+  lessonQueue.push(key);
+}
+const lessonText = key => (typeof LESSONS[key] === "function" ? LESSONS[key]() : LESSONS[key]);
 function tutAdvance() {
   tutStep++;
   SFX.pickup();
-  if (tutStep >= TUT_STEPS.length) { tutStep = -1; $("tutBanner").style.display = "none"; }
+  if (tutStep >= TUT_STEPS.length) { tutStep = -1; $("tutBanner").style.display = "none"; lesson("closing"); }
 }
 function updateTutorial(dt) {
   const banner = $("tutBanner");
   if (tutStep >= TUT_STEPS.length) tutStep = -1;
-  if (tutStep < 0 || gameState !== "playing") { banner.style.display = "none"; return; }
+  if (gameState !== "playing") { banner.style.display = "none"; return; }
+  // The opening sequence has the floor while it lasts; lessons wait behind it.
+  if (tutStep < 0) {
+    if (!lessonQueue.length) { banner.style.display = "none"; return; }
+    banner.style.display = "block";
+    $("tutHead").textContent = "THE WOODS TEACH YOU";
+    $("tutText").textContent = lessonText(lessonQueue[0]);
+    $("tutNext").style.display = "inline-block";
+    return;
+  }
   const st = TUT_STEPS[tutStep];
   banner.style.display = "block";
   $("tutHead").textContent = `STEP ${tutStep + 1} OF ${TUT_STEPS.length}`;
   $("tutText").textContent = st.text();
-  $("tutNext").style.display = st.note ? "inline-block" : "none";
-  if (!st.note && st.done()) tutAdvance();
+  $("tutNext").style.display = "none";
+  if (st.done()) tutAdvance();
 }
-$("tutNext").addEventListener("click", () => { if (tutStep >= 0 && TUT_STEPS[tutStep].note) tutAdvance(); });
-$("tutSkip").addEventListener("click", () => { tutStep = -1; $("tutBanner").style.display = "none"; toast("The woods will teach you the rest."); });
+$("tutNext").addEventListener("click", () => {
+  if (tutStep < 0 && lessonQueue.length) {
+    lessonSeen[lessonQueue.shift()] = true;
+    SFX.pickup();
+  }
+});
+// Skipping means skipping: no opening steps, and no lessons later either.
+$("tutSkip").addEventListener("click", () => {
+  tutStep = -1; lessonsOff = true; lessonQueue.length = 0;
+  $("tutBanner").style.display = "none";
+  toast("The woods will teach you the rest.");
+});
 
 // --- menu / loading / game over ---
 addEventListener("pointerdown", () => { try { SFX.setMaster(settings.master); } catch (e) {} }, { once: true });
@@ -7257,6 +7317,7 @@ function update(dt) {
     res.dm -= paidOut;
     arrears = owed - paidOut;
     tally.taxDays++;
+    if (owed > 0) lesson("upkeep");     // the first tax day that actually costs something
     if (arrears > 0) tally.arrearDays++; else if (owed > 0) tally.billsPaid++;
     const acct = [`${total} DM collected`];
     if (wages) acct.push(`${wages} in wages`);
@@ -7280,6 +7341,7 @@ function update(dt) {
       tally.winters++;
       tell("land", `❄ Winter falls over the woods — the year turns to ${colonyYear}. The fields sleep; keep the larders full.`);
       vignette("firstWinter");
+      lesson("winter");                 // taught by the first frost, not in the first minute
       for (const c of [...civs]) {
         c.age = (c.age || 20) + 1;
         if (!c.child && c.age > 55 && Math.random() < (c.age - 55) * 0.05)
