@@ -695,7 +695,7 @@ let zoom = 1;
 const settings = Object.assign(
   { master: 0.5, music: true, battle: true, sfx: true, ambient: true, march: true,
     floaters: true, labels: true, smoke: true, night: true, camSpeed: 1, edgePan: true,
-    marchTune: "grenadier" },
+    hints: true, marchTune: "grenadier" },
   JSON.parse(localStorage.getItem("forester_settings") || "{}"));
 window.FSET = settings;
 function saveSettings() { localStorage.setItem("forester_settings", JSON.stringify(settings)); }
@@ -1758,13 +1758,15 @@ addEventListener("keydown", e => {
     const k = e.key.toLowerCase();
     if (k === "c") openChronicle();
     if (k === "p") openFolk();
+    if (k === "?" || k === "/") openHelp();
     if (k === "h" || k === "g") {
       if (!selected) toast("Select a civilian first — then H to send them to the hospital, G to hand their goods over.");
       else $(k === "h" ? "cpHeal" : "cpDeposit").click();
     }
   }
   if (e.key === "Escape") {
-    if (isOpen("reignPanel")) { $("reignPanel").style.display = "none"; paused = pauseOpen; }
+    if (isOpen("helpPanel")) { $("helpPanel").style.display = "none"; }
+    else if (isOpen("reignPanel")) { $("reignPanel").style.display = "none"; paused = pauseOpen; }
     else if (isOpen("chronPanel")) { $("chronPanel").style.display = "none"; syncUI(); }
     else if (isOpen("folkPanel")) { $("folkPanel").style.display = "none"; syncUI(); }
     else if ($("settingsPanel").style.display === "block") { $("settingsPanel").style.display = "none"; saveSettings(); }
@@ -2108,9 +2110,11 @@ function rectDist(wx, wy, r) {
   const dy = wy < r.y ? r.y - wy : wy > r.y + r.h ? wy - (r.y + r.h) : 0;
   return Math.hypot(dx, dy);
 }
-function orderAtPoint(wx, wy) {
+// Split in two: deciding what a click at this point WOULD do, and doing it.
+// The deciding half is what lets the cursor say so before you commit.
+function resolveOrder(wx, wy) {
   const c = selected;
-  if (!c) return false;
+  if (!c) return null;
   const reach = PICK_R();
   // The world is full of spruces. A stake driven in among them sat at the same
   // distance as the trees overlapping it, and the smaller body won — so ordering
@@ -2120,28 +2124,28 @@ function orderAtPoint(wx, wy) {
   // stake and the ruin come first.
   const PRI = { site: 0, ruin: 0, farm: 1, roof: 2, scenery: 3 };
   const cands = [];
-  const add = (rect, run, what) => {
+  const add = (rect, run, what, label) => {
     const d = rectDist(wx, wy, rect);
-    if (d <= reach) cands.push({ d, pri: PRI[what], area: rect.w * rect.h, run });
+    if (d <= reach) cands.push({ d, pri: PRI[what], area: rect.w * rect.h, run, label });
   };
   for (const t of nearThings("trees", wx, wy, 200))
     if (t.alive && t.growth >= 1)
       add({ x: t.x - 17, y: t.y - TREE_SIZE * 0.72, w: 34, h: TREE_SIZE * 0.72 }, () => {
         order(c, { kind: "chop", target: t, x: t.x + 26, y: t.y + 6 });
         toast(`${c.name} heads out to fell a spruce.`);
-      }, "scenery");
+      }, "scenery", () => "Fell this spruce");
   for (const s of nearThings("stones", wx, wy, 200))
     if (s.alive)
       add({ x: s.x - 19, y: s.y - NODE_SIZE * 0.62, w: 38, h: NODE_SIZE * 0.62 }, () => {
         order(c, { kind: "quarry", target: s, x: s.x + 26, y: s.y + 6 });
         toast(`${c.name} goes to break stone.`);
-      }, "scenery");
+      }, "scenery", () => "Break this stone");
   for (const p of nearThings("patches", wx, wy, 160))
     if (p.alive)
       add({ x: p.x - 15, y: p.y - NODE_SIZE * 0.5, w: 30, h: NODE_SIZE * 0.5 }, () => {
         order(c, { kind: "gather", target: p, x: p.x + 16, y: p.y + 4 });
         toast(`${c.name} gathers seeds from the wild grass.`);
-      }, "scenery");
+      }, "scenery", () => "Gather seeds");
   for (const f of farms)
     add(bldgRect({ type: "farm", x: f.x, y: f.y }), () => {
       // A staked farm is a building site like any other, and could not be
@@ -2170,7 +2174,11 @@ function orderAtPoint(wx, wy) {
         order(c, { kind: "harvest", target: f, x: f.x, y: f.y + 10 });
         toast(`${c.name} goes to bring in the crop.`);
       } else { selectedBldg = f; f.type = "farm"; selected = null; syncUI(); }
-    }, "farm");
+    }, "farm", () =>
+      f.site ? "Break ground for the farm"
+      : c.profession === "farmer" ? (f.workers.includes(c) ? "Take them off this farm" : "Set them to tend this farm")
+      : f.ready ? "Bring in the crop"
+      : "Look at this farm");
   for (const b of buildings) {
     // stakes in the ground are an invitation: point anyone at them and they go
     // and raise it, without waiting to be asked by their own town's rota
@@ -2183,7 +2191,7 @@ function orderAtPoint(wx, wy) {
         b.builder = c;
         order(c, { kind: "construct", target: b, x: b.x + 20, y: b.y + 14 });
         toast(`${c.name} goes to raise the ${BLDG_NAMES[b.type] || b.type}.`);
-      }, "site");
+      }, "site", () => `Raise the ${BLDG_NAMES[b.type] || b.type}`);
     } else if (b.type === "burned") {
       add(bldgRect(b), () => {
         if (!canPay(REPAIR_COST, ledgerAt(b.x, b.y))) {
@@ -2192,7 +2200,8 @@ function orderAtPoint(wx, wy) {
         }
         order(c, { kind: "repair", target: b, x: b.x, y: b.y + 16 });
         toast(`${c.name} goes to rebuild the ruin.`);
-      }, "ruin");
+      }, "ruin", () => canPay(REPAIR_COST, ledgerAt(b.x, b.y))
+        ? "Rebuild this ruin" : `Rebuild this ruin — needs ${costText(REPAIR_COST)}`);
     } else if (canShelter(b)) {
       // and any roof still standing can simply be gone into — out of the snow,
       // out of the weather, out of sight of whoever is coming up the road
@@ -2202,16 +2211,58 @@ function orderAtPoint(wx, wy) {
           return toast(`The ${BLDG_NAMES[b.type] || b.type} is full — ${SHELTER_CAP} may shelter in it.`);
         order(c, { kind: "enter", target: b, x: b.x, y: b.y + 14 });
         toast(`${c.name} goes inside the ${BLDG_NAMES[b.type] || b.type}.`);
-      }, "roof");
+      }, "roof", () => c.shelter === b
+        ? `Bring them out of the ${BLDG_NAMES[b.type] || b.type}`
+        : `Shelter inside the ${BLDG_NAMES[b.type] || b.type}`);
     }
   }
-  if (!cands.length) return false;
+  if (!cands.length) return null;
   // inside beats near; among the bodies you are inside, intent beats scenery
   cands.sort((a, b) => (a.d === 0) !== (b.d === 0) ? (a.d === 0 ? -1 : 1)
                      : a.d === 0 ? (a.pri - b.pri || a.area - b.area)
                      : (a.d - b.d || a.pri - b.pri));
-  cands[0].run();
+  return cands[0];
+}
+function orderAtPoint(wx, wy) {
+  const best = resolveOrder(wx, wy);
+  if (!best) return false;
+  best.run();
   return true;
+}
+
+// ===== what this click will do, said before you make it =====
+// Everything a civilian can be told to do is told the same way — pick them,
+// then click the thing — and the game never once said so. A player had to
+// click and find out. This reads the same rules the click does, in the same
+// order, so what it promises is what happens.
+function hintAt(wx, wy) {
+  if (gameState !== "playing" || paused) return null;
+  if (buildMode) return `Click to place the ${BLDG_NAMES[buildMode] || buildMode}` +
+                        (WALLLIKE.has(buildMode) ? " · R turns it" : "") + " · Esc to stop";
+  if (roadMode) return "Drag to lay a road";
+  const v = pickFigure(visitors, wx, wy);
+  if (v) return `Talk to ${v.name} — win them over and they stay`;
+  const r = pickFigure(raiders, wx, wy);
+  if (r) return selected && isForce(selected)
+    ? (soldierGroup().filter(isForce).length > 1 ? "Send the band at this raider" : "Attack this raider")
+    : "A raider — pick a soldier first";
+  const c = pickCiv(wx, wy);
+  if (c) {
+    if (selected === c) return `Let go of ${c.name}`;
+    if (c.rebel && selected && isForce(selected)) return `Put down ${c.name}`;
+    if (groupable(c) && selected && groupable(selected)) return `Add ${c.name} to the band`;
+    return `Pick ${c.name}${c.profession ? ` — ${c.profession}` : ""}`;
+  }
+  if (selected) {
+    const best = resolveOrder(wx, wy);
+    if (best && best.label) return best.label();
+    for (const cp of corpses)
+      if (!selected.child && Math.abs(wx - cp.x) < 24 && Math.abs(wy - cp.y) < 28) return "Bury the dead";
+  }
+  for (const b of buildings)
+    if (pointInRect(wx, wy, bldgRect(b))) return `Look at the ${BLDG_NAMES[b.type] || b.type}`;
+  if (selected) return soldierGroup().length > 1 ? "March the band here" : `Send ${selected.name} here`;
+  return null;
 }
 function worldClick(clientX, clientY) {
   if (gameState !== "playing") return;
@@ -3805,18 +3856,22 @@ function openSettings() {
   $("setCam").value = Math.round(settings.camSpeed * 100);
   for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
                            ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"],
-                           ["setEdgePan","edgePan"]])
+                           ["setEdgePan","edgePan"],["setHints","hints"]])
     $(id).checked = settings[key];
   $("settingsPanel").style.display = "block";
 }
 $("pmSettings").addEventListener("click", openSettings);
 $("menuSettings").addEventListener("click", openSettings);
+function openHelp() { $("helpPanel").style.display = "block"; }
+$("helpClose").addEventListener("click", () => { $("helpPanel").style.display = "none"; });
+$("pmHelp").addEventListener("click", openHelp);
+$("menuHelp").addEventListener("click", openHelp);
 $("setClose").addEventListener("click", () => { $("settingsPanel").style.display = "none"; saveSettings(); });
 $("setMaster").addEventListener("input", e => { settings.master = e.target.value / 100; SFX.setMaster(settings.master); saveSettings(); });
 $("setCam").addEventListener("input", e => { settings.camSpeed = e.target.value / 100; saveSettings(); });
 for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
                          ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"],
-                         ["setEdgePan","edgePan"]])
+                         ["setEdgePan","edgePan"],["setHints","hints"]])
   $(id).addEventListener("change", e => {
     settings[key] = e.target.checked;
     if (key === "music" && !settings.music) MUSIC.stop();
@@ -6660,7 +6715,7 @@ const tutSeen = { map: false, gov: false, tech: false, talked: false };
 const TUT_STEPS = [
   { text: () => "That burnt cabin was here long before you were — whoever raised it is gone. Start by clicking your Brother or Sister to select them.",
     done: () => !!selected },
-  { text: () => "Everything here is built from wood. With them still selected, click a spruce tree to fell it.",
+  { text: () => "That is how every order is given: pick someone, then click the thing you want done. Right-click cancels. With them still selected, click a spruce tree to fell it.",
     done: () => civs.some(c => c.inv.logs > 0) || res.logs > 0 },
   { text: () => "Logs ride in their pack, where the town cannot use them. Select the woodcutter and press \"Deposit goods to town storage\".",
     done: () => res.logs > 0 },
@@ -6709,7 +6764,8 @@ const LESSONS = {
   raid: "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming.",
   plague: "☠ Plague walks the towns of Europe — and it does not check your borders. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. A skilled hand lost to fever is not quickly replaced.",
   hospital: "☤ The answer to it is a Hospital (BUILD ▾ — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. To mend a wounded soldier, select them and press Heal and they will walk to a bed. A housed, fed man knits a little back together sleeping in his own bed, but it is slow, and it will not touch a fever.",
-  closing: "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. The woods are yours.",
+  soldiers: "⚔ You have men under arms. Click one, then click another, and they gather into a band — keep clicking to raise a company. Send the band at bare ground and they march there in column and hold it; send them at a raider and they go for him. With two or more picked, DRAG across the ground instead of clicking and they form a line of battle, as long as you drag it, and they will keep that line.",
+  closing: "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. Press ? at any time for every control. The woods are yours.",
 };
 let lessonSeen = {}, lessonQueue = [], lessonsOff = false;
 // Raise a lesson the first time the world earns it. Queued rather than shown,
@@ -6726,6 +6782,8 @@ function tutAdvance() {
 }
 function updateTutorial(dt) {
   const banner = $("tutBanner");
+  // the moment a band becomes possible is the moment to explain how to work one
+  if (!lessonSeen.soldiers && civs.filter(groupable).length >= 2) lesson("soldiers");
   if (tutStep >= TUT_STEPS.length) tutStep = -1;
   if (gameState !== "playing") { banner.style.display = "none"; return; }
   // The opening sequence has the floor while it lasts; lessons wait behind it.
@@ -8716,6 +8774,31 @@ function render(dt) {
       }
     }
   }
+
+  drawCursorHint();
+}
+
+// The plaque at the cursor that says what a click will do. A finger has no
+// hover, so this is for a mouse; and anyone who finds it fussy can put it away
+// in the settings.
+function drawCursorHint() {
+  if (!settings.hints || IS_TOUCH || !edge.on) return;
+  const text = hintAt(cam.x + mouse.x / zoom, cam.y + mouse.y / zoom);
+  if (!text) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.font = "11px monospace";
+  ctx.textAlign = "left";
+  const pad = 6, w = ctx.measureText(text).width + pad * 2, h = 19;
+  // below-right of the cursor by default, but never off the glass
+  let x = mouse.x + 16, y = mouse.y + 20;
+  if (x + w > canvas.width - 4) x = mouse.x - 16 - w;
+  if (y + h > canvas.height - 4) y = mouse.y - 12 - h;
+  ctx.fillStyle = "rgba(13,18,16,0.90)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "rgba(201,168,106,0.65)"; ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.fillStyle = "#e8d9b8";
+  ctx.fillText(text, x + pad, y + 13);
 }
 
 // --- loop ---
