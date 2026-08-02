@@ -3,7 +3,7 @@
 // ===== Forester SFX — all sounds synthesized with Web Audio, no samples =====
 
 const SFX = (() => {
-  let ac = null, master = null, sfxBus = null, noiseBuf = null, fireNode = null;
+  let ac = null, master = null, sfxBus = null, sfxLimit = null, sfxClip = null, noiseBuf = null, fireNode = null;
 
   function ctx() {
     if (!ac) {
@@ -13,7 +13,39 @@ const SFX = (() => {
       master.connect(ac.destination);
       sfxBus = ac.createGain();      // game SFX only — ducked while the pause menu is open; music bypasses it
       sfxBus.gain.value = 1;
-      sfxBus.connect(master);
+      // ===== the limiter on the game's sounds =====
+      // A musket is deliberately hot: saturated, bursts up to 1.15, and a
+      // sub-bass thump under it, because one shot ought to make you jump. A
+      // volley is ten of them inside a second, and ten of them summed went
+      // straight through full scale and clipped — measured at 0.0 dBFS with a
+      // hundred samples pinned there, fifteen decibels above the rest of the
+      // game. It was not that the muskets were wrong; it was that nothing
+      // stood between them and the ceiling.
+      //
+      // The limiter catches the stack without touching a single shot, which
+      // never comes near the threshold. Music bypasses sfxBus and so is not
+      // squashed when the shooting starts.
+      sfxLimit = ac.createDynamicsCompressor();
+      sfxLimit.threshold.value = -10;
+      sfxLimit.knee.value = 4;
+      sfxLimit.ratio.value = 12;
+      sfxLimit.attack.value = 0.001;
+      sfxLimit.release.value = 0.18;
+      // A compressor cannot catch a crack faster than its own attack, and a
+      // musket's is. Behind it sits a tanh curve, which is not a setting that
+      // can be overshot but a shape that cannot output more than ±1 — the
+      // difference between a peak that rounds over and one that clips square.
+      sfxClip = ac.createWaveShaper();
+      const cc = new Float32Array(2048);
+      // NOT normalised back to unity: tanh(1.32) is 0.867, so the loudest thing
+      // the game can emit sits about a decibel and a quarter below full scale,
+      // and anything driven past that rounds over instead of squaring off.
+      for (let i = 0; i < 2048; i++) { const x = (i / 1024) - 1; cc[i] = Math.tanh(x * 1.32); }
+      sfxClip.curve = cc;
+      sfxClip.oversample = "4x";            // no aliasing on the rounded peaks
+      sfxBus.connect(sfxLimit);
+      sfxLimit.connect(sfxClip);
+      sfxClip.connect(master);
       const len = ac.sampleRate * 2;
       noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
@@ -110,7 +142,7 @@ const SFX = (() => {
       shaper.curve = curve;
       shaper.oversample = "2x";
       const out = a.createGain();
-      out.gain.value = 0.72;        // saturated hot, then trimmed: loud, never crackling
+      out.gain.value = 0.5;         // saturated hot, then trimmed: loud, with room for a volley
       shaper.connect(out); out.connect(sfxBus);
       const burst = (dur, vol, f0, f1, q, type, delay) => {
         const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
