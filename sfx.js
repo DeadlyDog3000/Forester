@@ -90,38 +90,22 @@ const SFX = (() => {
     s.start(t); s.stop(t + dur + 0.02);
   }
 
-  let windNode = null, bugNode = null;
+  let bugNode = null;
   return {
     setMaster: (v) => { ctx(); master.gain.value = v; },
     pauseAll: (on) => { if (!ac) return; sfxBus.gain.setTargetAtTime(on ? 0.0001 : 1, ac.currentTime, 0.04); },
-    windLoop: (on) => {
-      if (FSET().ambient === false) on = false;
-      if (on && !windNode) {
-        const a = ctx(), t = a.currentTime;
-        const f = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
-        f.type = "bandpass"; f.frequency.value = 600; f.Q.value = 0.5;
-        g.gain.value = 0.0001;
-        g.gain.setTargetAtTime(0.04, t, 0.8);          // wind swells in, gently
-        lfo.type = "sine"; lfo.frequency.value = 0.23;  // slow gusting
-        lg.gain.value = 0.02;
-        lfo.connect(lg); lg.connect(g.gain);
-        // two detuned noise sources at random offsets: loop points never align, no audible repeat
-        const srcs = [1, 0.81].map(rate => {
-          const s = a.createBufferSource();
-          s.buffer = noiseBuf; s.loop = true; s.playbackRate.value = rate;
-          s.connect(f); s.start(t, Math.random() * 1.9);
-          return s;
-        });
-        f.connect(g); g.connect(sfxBus);
-        lfo.start(t);
-        windNode = { srcs, lfo, g, f };   // the filter is kept so winter can weigh it down
-      } else if (!on && windNode) {
-        const a = ctx(), t = a.currentTime;
-        windNode.g.gain.setTargetAtTime(0.0001, t, 0.5);
-        const wn = windNode; windNode = null;
-        setTimeout(() => { try { wn.srcs.forEach(s => s.stop()); wn.lfo.stop(); } catch (e) {} }, 1800);
-      }
-    },
+    // The wind is gone. It was a filtered noise bed under everything, always
+    // on, and it sat too loud under the whole game — a constant hiss is the
+    // one ambience you cannot stop hearing once you have heard it. The woods
+    // speak through crows, owls, insects and the crack of falling timber now,
+    // which are sounds with edges and silence between them.
+    //
+    // The two entry points are kept as no-ops rather than deleted: they are
+    // called from the ambience tick, from silence(), and from the settings
+    // panel, and a colony saved by an older build should not meet a missing
+    // function on the way in.
+    windLoop: () => {},
+    windWeight: () => {},
     click:    () => { tone("square", 900, 700, 0.05, 0.12); },
     swing:    () => { noise(0.14, 0.22, 2400, 500, 2); },                              // sword whoosh
     swingFist:() => { noise(0.11, 0.16, 900, 250, 1.5); },                             // duller fist whoosh
@@ -390,22 +374,6 @@ const SFX = (() => {
         bugNode.g.gain.setTargetAtTime(0.0001, t, 0.9);
         const bn = bugNode; bugNode = null;
         setTimeout(() => { try { bn.s.stop(); bn.lfo.stop(); } catch (e) {} }, 2600);
-      }
-    },
-    // The wind is always there; only its weight changes. Winter is lower and
-    // heavier, night is gustier, and standing high above it you hear more of it.
-    // Winter wind is meant to be HEAVIER, and measuring it said the opposite: a
-    // bandpass passes energy in proportion to its bandwidth, and bandwidth is
-    // centre over Q — so dropping the centre from 620 to 340 halved the noise
-    // getting through and swallowed the gain increase whole. The cold filter is
-    // opened up as it is lowered, so the weight goes where it was aimed.
-    windWeight: (w, cold) => {
-      if (!windNode) return;
-      const a = ctx(), t = a.currentTime;
-      windNode.g.gain.setTargetAtTime(Math.max(0.0001, w), t, 1.2);
-      if (windNode.f) {
-        windNode.f.frequency.setTargetAtTime(cold ? 360 : 620, t, 1.5);
-        windNode.f.Q.setTargetAtTime(cold ? 0.24 : 0.5, t, 1.5);
       }
     },
   };
