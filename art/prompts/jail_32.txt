@@ -14,8 +14,8 @@ THE TWO THINGS THAT MAKE IT A JAIL:
 2. A heavy door, centred: a dark rectangle reaching the ground, with a single bold horizontal bar or brace across it and a small pale block for a lock or bolt.
 Nothing else. No sign, no text, no lettering, no lettering of any kind, no people, no fence.
 
-COLOUR — dark spruce, 5 shades only:
-Strictly five flat colours, deep desaturated blue-green spruce and charcoal tones to match a cold northern forest palette. Near-black for the doorway, the window void and the outline. Very dark spruce for shadowed timber. Mid dark spruce-grey for the main wall mass. A slightly lighter greyish sage for the lit top edge of the roof and the stone footing. One cold pale grey used ONLY for the window bars and the door's lock, so those read instantly. No warm colours — no brown, no orange, no red. Cold and grim throughout.
+COLOUR — full brown, 5 shades only:
+Strictly limited palette of five flat warm browns, the same palette as the log cabins so this building belongs beside them. Near-black espresso brown for the doorway void and outline. Dark walnut brown for shadowed areas and the roof underside. Rich mid chestnut brown for the main timber walls. Warm honey brown for the lit top of the roof. Pale tan for the top highlights and the log-end rings. No grey, no blue-grey, no slate, no sage, no cold tones of any kind. The building is whole, healthy and sturdy.
 
 BACKGROUND:
 Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no border, no frame, no text.

@@ -7,15 +7,15 @@ COMPOSITION:
 Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective. Slightly wider than it is tall.
 
 THE SHAPE:
-A long, low, single-storey timber hall — wider and lower than a dwelling, built to hold rows of beds. Walls of pale weathered timber on a low stone footing. The roof is one SOLID unbroken flat slab of dark colour, a clean rectangle with a straight edge — no shingles, no speckling, no texture. It should look plain, clean and orderly.
+A long, low, single-storey timber hall — wider and lower than a dwelling, built to hold rows of beds. Walls of warm chestnut timber on a low footing of the same wood. The roof is one SOLID unbroken flat slab of dark walnut brown, a clean rectangle with a straight edge — no shingles, no speckling, no texture. It should look plain, clean and orderly.
 
 THE ONE THING THAT MAKES IT A HOSPITAL:
-A BOLD CROSS, and it must be the loudest thing in the sprite. A large, fat, blocky cross of pale bone-white painted flat on the wall above the door — the plague cross daubed on a sick house. Each arm of the cross at least two full pixels thick, the whole cross tall and wide enough to be instantly readable at 32 pixels. Make it bigger and bolder than looks sensible.
+A BOLD CROSS, and it must be the loudest thing in the sprite. A large, fat, blocky cross of pale bone-white painted flat on the brown wall above the door — the plague cross daubed on a sick house. Each arm of the cross at least two full pixels thick, the whole cross tall and wide enough to be instantly readable at 32 pixels. Make it bigger and bolder than looks sensible.
 Below it, a wide double door, centred: a dark rectangle reaching the ground, split down the middle by a single dark line.
 Nothing else. No sign, no text, no lettering of any kind, no people, no beds, no fence, no chimney, no smoke.
 
-COLOUR — dark spruce, 5 shades only:
-Strictly five flat colours, deep desaturated blue-green spruce and charcoal tones to match a cold northern forest palette. Near-black for the doorway and the outline. Very dark spruce for the roof slab. Mid spruce-grey for the main wall mass. A slightly lighter greyish sage for the lit top edge of the roof and the stone footing. One pale bone-white used ONLY for the cross, so it reads instantly. No warm colours — no brown, no orange, no red. Cold and clean throughout.
+COLOUR — full brown, 5 shades only:
+Strictly limited palette of five flat warm browns, the same palette as the log cabins so this building belongs beside them. Near-black espresso brown for the doorway void and outline. Dark walnut brown for shadowed areas and the roof underside. Rich mid chestnut brown for the main timber walls. Warm honey brown for the lit top of the roof. Pale tan for the top highlights and the log-end rings. No grey, no blue-grey, no slate, no sage, no cold tones of any kind. The building is whole, healthy and sturdy.
 
 BACKGROUND:
 Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no border, no frame, no text.
