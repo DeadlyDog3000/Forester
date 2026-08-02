@@ -1,0 +1,946 @@
+/* ============================================================================
+   FORESTER — forester-ui.css
+   The design system, as code. Drop-in replacement for the inline <style>
+   block in index.html.
+
+     <link rel="stylesheet" href="forester-ui.css">
+
+   Nothing here changes how the game looks. Every value was lifted out of the
+   existing stylesheet; the only difference is that each one now has a name,
+   and there is exactly one place to change it.
+
+   Layers, in order:
+     1  TOKENS        the whole palette and every measure
+     2  BASE          reset, page, canvas
+     3  SURFACES      .panel and the two docked bars
+     4  CONTROLS      buttons, menus, chips, fields
+     5  MEASURES      bars and meters
+     6  RECORDS       the chronicle and the roll
+     7  PANELS        the named panels
+     8  OVERLAYS      msg, event card, cutscene, menu, game over, map
+     9  TOUCH         the control pad
+    10  SMALL SCREENS the one breakpoint
+   ========================================================================= */
+
+
+/* ── 1 ── TOKENS ─────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- surfaces ---------------------------------------------------------- */
+  --fx-floor:        #0d1210;   /* the page, loading, theme-color            */
+  --fx-glass:        rgba(13, 18, 16, 0.93);  /* every floating panel        */
+  --fx-glass-dark:   rgba(9, 13, 11, 0.9);    /* the event card             */
+  --fx-overlay:      rgba(9, 13, 11, 0.96);   /* the map of Europe          */
+  --fx-scrim:        rgba(13, 18, 16, 0.55);  /* over a full-screen scene   */
+  --fx-scrim-heavy:  rgba(13, 18, 16, 0.6);
+  --fx-menu:         #14201a;   /* dropped menus, chips at rest, tech nodes  */
+  --fx-control:      #1c2a21;   /* the resting fill of every button          */
+  --fx-raised:       #24352b;   /* hover                                     */
+  --fx-well:         #101813;   /* sunk in: inputs, meter tracks, frames     */
+  --fx-bed:          #0f1713;   /* the tech graph field                      */
+  --fx-row-hover:    #16231b;   /* a record row under the pointer            */
+  --fx-cutscene:     #050807;   /* behind a story plate                      */
+  --fx-mood-up:      #141d16;
+  --fx-mood-down:    #1d1414;
+  --fx-danger-well:  #1d1414;
+  --fx-danger-hover: #2a1a1a;
+  --fx-map-sea:      #0d1a24;
+
+  /* ---- lines ------------------------------------------------------------- */
+  --fx-line:         #3a5243;   /* THE edge. Every panel, button, field.     */
+  --fx-line-inner:   #24352b;   /* rules inside a panel                      */
+  --fx-line-row:     #182219;   /* between rows of a record                  */
+  --fx-line-sec:     #2c3b32;   /* under a section head                      */
+  --fx-line-year:    #2e4136;   /* under a year, under a page head           */
+  --fx-line-live:    #7da083;   /* an active control                         */
+  --fx-line-gold:    #c9a86a;   /* available tech, the tutorial banner       */
+  --fx-line-up:      #2c4030;
+  --fx-line-rust:    #4a2f2f;   /* a downward mood, a delete at rest         */
+  --fx-line-danger:  #7a4040;   /* a danger button                           */
+  --fx-line-tarnish: #8a7746;   /* the event card, and only the event card   */
+  --fx-hair:         1px;       /* there is no other border width            */
+
+  /* ---- ink, brightest to quietest --------------------------------------- */
+  --fx-ink-bright:   #e6ece8;   /* a name                                    */
+  --fx-ink-prose:    #dde5df;   /* a chronicle sentence                      */
+  --fx-ink:          #cfd8d3;   /* the default                               */
+  --fx-ink-soft:     #b9c6bd;   /* what a thing is for                       */
+  --fx-ink-2:        #a8bcae;   /* a secondary value, chip text              */
+  --fx-ink-3:        #9ab0a2;   /* a subtitle under a title                  */
+  --fx-ink-4:        #8fa397;   /* a stat label                              */
+  --fx-ink-4-alt:    #93a89a;   /* the roll: what they are doing             */
+  --fx-ink-5:        #7a8f83;   /* a timestamp, a slot number                */
+  --fx-ink-5-alt:    #7d9187;   /* the chronicle: when                       */
+  --fx-ink-6:        #5a6b60;   /* the whisper. The floor.                   */
+  --fx-ink-help:     #bccdc2;   /* the right column of a help row            */
+
+  /* ---- gold: it names things -------------------------------------------- */
+  --fx-gold:         #c9a86a;   /* panel titles, HUD values, available tech  */
+  --fx-gold-bright:  #d9b878;   /* a year, an ambition's date                */
+  --fx-gold-pale:    #e0d3ac;   /* a stat's value, a reign's name            */
+  --fx-parchment:    #e8d9b8;   /* event card and tutorial prose             */
+  --fx-called-out:   #f0dcae;   /* #msg. The loudest ink in the game.        */
+  --fx-map-light:    #ffe9b0;   /* settlement marks, map only                */
+
+  /* ---- spruce: it confirms and measures --------------------------------- */
+  --fx-spruce:       #7da083;   /* section heads, meter fills, accent-color  */
+  --fx-good:         #9ecf9a;   /* an upward mood, a life event              */
+  --fx-good-icon:    #8fbf95;   /* a chronicle mark with no other meaning    */
+  --fx-selected-ink: #f0f6ee;   /* text on a lit chip                        */
+
+  /* ---- the states, one hue each ----------------------------------------- */
+  --fx-health:       #a05252;   /* the health bar. Muted, never alarming.    */
+  --fx-rust-ink:     #d8a0a0;   /* danger text, a downward mood, the hurt    */
+  --fx-blood:        #d86a5a;   /* death, war, THE COLONY IS GONE            */
+  --fx-fever:        #a99ec4;   /* illness, and nothing else                 */
+  --fx-law:          #d8a05a;   /* an edict                                  */
+  --fx-tag:          #e0ac63;   /* a trait beside a name                     */
+
+  /* ---- the player's own three (defaults only; the game overwrites them) -- */
+  --fx-territory:    #7da083;
+  --fx-border:       #c9a86a;
+  --fx-coat:         #2f52a8;
+
+  /* ---- the one gradient permitted anywhere ------------------------------ */
+  --fx-willing: linear-gradient(90deg, var(--fx-health), var(--fx-gold), var(--fx-spruce));
+
+  /* ---- type: one family, no bold --------------------------------------- */
+  --fx-font: "Courier New", monospace;
+  --fx-t-title:    52px;  /* the title card                                  */
+  --fx-t-death:    44px;  /* game over                                       */
+  --fx-t-msg:      17px;  /* a refusal over the field                        */
+  --fx-t-record:   15px;  /* a record panel's title                         */
+  --fx-t-bldg:     14px;
+  --fx-t-panel:    13px;  /* a panel title                                  */
+  --fx-t-prose:  12.5px;  /* prose to be read                               */
+  --fx-t-body:     12px;  /* the default                                    */
+  --fx-t-dense:  11.5px;  /* chips, help rows                               */
+  --fx-t-note:     11px;  /* notes, timestamps                              */
+  --fx-t-small:    10px;  /* section heads. Never smaller on a desk.        */
+  --fx-t-floor:    11px;  /* nothing in a phone sheet goes below this       */
+
+  --fx-track-1:  0.5px;
+  --fx-track-2:    1px;
+  --fx-track-3:  1.5px;
+  --fx-track-4:    2px;
+  --fx-track-5:    3px;
+  --fx-track-title: 14px;
+
+  --fx-lh-tight:  1.35;
+  --fx-lh:         1.5;
+  --fx-lh-read:   1.55;
+  --fx-lh-loose:   1.7;
+
+  /* ---- space ------------------------------------------------------------ */
+  --fx-pad-sheet:    6px 8px;
+  --fx-pad-hud:      7px 12px;
+  --fx-pad-actions:  8px 14px;
+  --fx-pad-btn:      7px 12px;
+  --fx-pad-btn-sm:   5px 8px;
+  --fx-pad-field:    6px 8px;
+  --fx-pad-panel:    12px;
+  --fx-pad-modal:    16px;
+  --fx-gap-hud:      13px;
+  --fx-gap-actions:  8px;
+  --fx-gap-row:      10px;
+  --fx-stack:        6px;   /* between stacked full-width buttons            */
+
+  /* ---- geometry: nothing is rounded, with two named exceptions ---------- */
+  --fx-radius:       0;
+  --fx-radius-node:  8px;   /* a tech node                                   */
+  --fx-radius-pad:   50%;   /* a touch button                                */
+
+  /* ---- where panels sit ------------------------------------------------- */
+  --fx-hud-h:        48px;  /* the top of every docked panel                 */
+  --fx-actions-h:    50px;  /* the bottom of every phone sheet               */
+  --fx-inset:        10px;
+  --fx-w-civ:       240px;
+  --fx-w-gov:       280px;
+  --fx-w-bldg:      318px;
+  --fx-w-talk:      470px;
+  --fx-w-help:      520px;
+  --fx-w-reign:     560px;
+  --fx-w-record:    720px;
+  --fx-w-tech:      760px;
+  --fx-w-event:     268px;
+
+  /* ---- meters ----------------------------------------------------------- */
+  --fx-bar-h:        10px;
+  --fx-bar-h-inline:  8px;
+  --fx-bar-h-sheet:   6px;
+  --fx-bar-h-willing: 12px;
+
+  /* ---- finger sizes ----------------------------------------------------- */
+  --fx-tap-pad:      46px;
+  --fx-tap-pad-sm:   38px;
+  --fx-tap-btn:      38px;
+  --fx-tap-menu:     34px;
+  --fx-tap-sheet:    30px;
+  --fx-pad-lane:     58px;  /* sheets stop short of the control pad          */
+  --fx-sheet-h:      33vh;
+
+  /* ---- shadow: there is one, and it belongs to the event card ---------- */
+  --fx-shadow-card:  0 4px 16px rgba(0, 0, 0, 0.5);
+  --fx-shadow-cut:   0 3px 0 #000;                      /* a woodcut drop   */
+  --fx-shadow-text:  0 1px 2px #000;
+  --fx-shadow-field: 0 2px 4px #000, 0 0 10px #000, 0 0 18px #000;
+
+  /* ---- the ledger of layers -------------------------------------------- */
+  --fx-z-hint:        5;
+  --fx-z-panel:      10;
+  --fx-z-tech:       15;
+  --fx-z-menu:       20;
+  --fx-z-pad:        24;
+  --fx-z-sheet:      30;
+  --fx-z-records:    40;
+  --fx-z-float:      60;   /* reckoning, event card, siege menu             */
+  --fx-z-map:        90;
+  --fx-z-modal:      95;
+  --fx-z-msg:        96;   /* a refusal must clear the pause screen         */
+  --fx-z-title:     100;
+  --fx-z-loading:   110;
+  --fx-z-gameover:  120;
+  --fx-z-cutscene:  125;
+  --fx-z-empire:    130;
+  --fx-z-cargo:     132;
+  --fx-z-talk:      135;
+  --fx-z-settings:  140;
+  --fx-z-sheetfull: 141;   /* help, skills, military                        */
+}
+
+/* The one breakpoint, written once. Every rule that answers to a small screen
+   lives in section 10 under exactly this query. */
+/* @media (max-width: 820px), (pointer: coarse) and (max-width: 1100px) */
+
+
+/* ── 2 ── BASE ───────────────────────────────────────────────────────────── */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: var(--fx-floor);
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: var(--fx-font);
+  color: var(--fx-ink);
+  user-select: none; -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+/* Emphasis is colour, never weight — but only where the original said so.
+   A global `b { font-weight: normal }` would silently un-bold every other <b>
+   in the game (the tax readout, #govLedger, #researchNow, anything game.js
+   emits into a chronicle row). New markup should reach for colour instead of
+   <b>; these three are the ones that already did. */
+
+#game {
+  position: fixed; inset: 0; width: 100vw; height: 100vh;
+  image-rendering: pixelated; cursor: crosshair;
+  touch-action: none;   /* the canvas handles its own drag, pinch and tap */
+}
+
+/* Every picture in this game is pixel art. */
+img, canvas { image-rendering: pixelated; }
+
+
+/* ── 3 ── SURFACES ───────────────────────────────────────────────────────── */
+
+/* If it floats, it is glass on a spruce hairline. */
+.panel {
+  position: fixed;
+  background: var(--fx-glass);
+  border: var(--fx-hair) solid var(--fx-line);
+  border-radius: var(--fx-radius);
+  font-size: var(--fx-t-body);
+  z-index: var(--fx-z-panel);
+}
+
+/* A docked bar keeps only the edge that faces the field. */
+#hud {
+  top: 0; left: 0; right: 0;
+  display: flex; gap: var(--fx-gap-hud); padding: var(--fx-pad-hud);
+  border-width: 0 0 var(--fx-hair) 0;
+  align-items: center; flex-wrap: wrap;
+}
+#hud b { color: var(--fx-gold); font-weight: normal; }
+#hud .spacer { flex: 1; }
+
+#actions {
+  bottom: 0; left: 0; right: 0;
+  display: flex; gap: var(--fx-gap-actions); padding: var(--fx-pad-actions);
+  border-width: var(--fx-hair) 0 0 0;
+  align-items: center;
+}
+#actions .ico { font-style: normal; margin-right: 5px; }
+
+#hint {
+  position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
+  font-size: var(--fx-t-note); color: var(--fx-ink-6);
+  z-index: var(--fx-z-hint); pointer-events: none;
+  text-shadow: var(--fx-shadow-text);
+}
+
+/* A section head inside a panel. */
+.fx-sec, #govPanel h4 {
+  font-size: var(--fx-t-body); color: var(--fx-spruce); margin: 10px 0 4px;
+}
+.helpSec {
+  color: var(--fx-spruce); letter-spacing: var(--fx-track-4);
+  font-size: var(--fx-t-small); margin: 12px 0 5px;
+  border-bottom: var(--fx-hair) solid var(--fx-line-sec); padding-bottom: 3px;
+}
+
+/* A footnote. The quietest thing on screen, and always last in its group. */
+.fx-note { font-size: var(--fx-t-note); color: var(--fx-ink-6); line-height: var(--fx-lh); }
+
+
+/* ── 4 ── CONTROLS ───────────────────────────────────────────────────────── */
+
+.btn {
+  background: var(--fx-control); color: var(--fx-ink);
+  border: var(--fx-hair) solid var(--fx-line); border-radius: var(--fx-radius);
+  padding: var(--fx-pad-btn);
+  font-family: inherit; font-size: var(--fx-t-body);
+  cursor: pointer;
+}
+.btn:hover    { background: var(--fx-raised); }
+.btn.active   { background: var(--fx-line); border-color: var(--fx-line-live); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn.danger   { border-color: var(--fx-line-danger); color: var(--fx-rust-ink); }
+.btn.danger:hover { background: var(--fx-danger-hover); }
+
+/* A full-width action inside a panel, stacked. */
+.btn.fx-block { display: block; width: 100%; text-align: left; margin-top: var(--fx-stack); }
+
+.dropdown { position: relative; }
+.dropdown-menu {
+  display: none; position: absolute; bottom: 100%; left: 0; margin-bottom: 4px;
+  background: var(--fx-menu);
+  border: var(--fx-hair) solid var(--fx-line);
+  min-width: 250px; z-index: var(--fx-z-menu);
+}
+.dropdown.open .dropdown-menu { display: block; }
+.dropdown-menu.up { bottom: auto; top: 100%; margin: 4px 0 0; }
+.menu-item {
+  display: block; width: 100%; text-align: left;
+  border: none; border-bottom: var(--fx-hair) solid var(--fx-line-inner);
+}
+.menu-item:last-child { border-bottom: none; }
+
+.chip {
+  background: var(--fx-menu); border: var(--fx-hair) solid var(--fx-line);
+  color: var(--fx-ink-2); font-family: inherit; font-size: var(--fx-t-dense);
+  padding: 5px 10px; cursor: pointer;
+}
+.chip.on {
+  background: var(--fx-line); border-color: var(--fx-line-live);
+  color: var(--fx-selected-ink);
+}
+
+/* A field is a well sunk into the glass. */
+.fx-field,
+.panelHead input[type=text],
+#govPanel input[type=text],
+#techSearch, #civSearch, #milSearch,
+#settleName, #settleSearch, #empireInput, #seedInput,
+select {
+  background: var(--fx-well);
+  border: var(--fx-hair) solid var(--fx-line);
+  color: var(--fx-ink);
+  font-family: inherit; font-size: var(--fx-t-prose);
+  padding: var(--fx-pad-field);
+}
+#seedInput { color: var(--fx-gold); text-transform: uppercase; }
+
+input[type=range]    { accent-color: var(--fx-spruce); }
+input[type=checkbox] { accent-color: var(--fx-spruce); }
+label { display: flex; gap: var(--fx-stack); align-items: center; margin: 4px 0; cursor: pointer; }
+
+/* A save row on the front door. */
+.saveRow {
+  display: flex; align-items: center; gap: var(--fx-gap-row); width: 100%;
+  background: rgba(20, 32, 26, 0.9);
+  border: var(--fx-hair) solid var(--fx-line);
+  padding: 8px 10px; margin-bottom: var(--fx-stack); cursor: pointer;
+  text-align: left; font-family: inherit; color: var(--fx-ink);
+}
+.saveRow:hover { background: var(--fx-raised); border-color: var(--fx-line-live); }
+/* a colony this build is too old to read: still listed, still theirs, but
+   plainly not something clicking will open */
+.saveRow.stale { opacity: 0.62; }
+.saveRow.stale .slotWhen { color: var(--fx-gold); }
+.saveRow .slotNo   { flex: 0 0 auto; color: var(--fx-ink-5); font-size: var(--fx-t-note); }
+.saveRow .slotName { flex: 1; color: var(--fx-ink-bright); font-size: var(--fx-t-panel);
+                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saveRow .slotWhen { flex: 0 0 auto; color: var(--fx-ink-4); font-size: 10.5px;
+                     text-align: right; line-height: var(--fx-lh-tight); }
+.saveDel {
+  flex: 0 0 auto; background: var(--fx-danger-well);
+  border: var(--fx-hair) solid var(--fx-line-rust); color: var(--fx-rust-ink);
+  font-family: inherit; font-size: var(--fx-t-note);
+  padding: var(--fx-pad-btn-sm); cursor: pointer;
+}
+.saveDel:hover { background: var(--fx-danger-hover); border-color: var(--fx-line-danger); }
+
+/* A help row: label beside its line on a desk, above it on a phone. */
+.helpRow { display: flex; gap: var(--fx-gap-row); margin: 4px 0;
+           font-size: var(--fx-t-dense); line-height: 1.4; }
+.helpRow b    { flex: 0 0 132px; color: var(--fx-gold); font-weight: normal; }
+.helpRow span { flex: 1; color: var(--fx-ink-help); }
+
+/* the panel tells you about the device you are actually holding */
+.touchOnly { display: none; }
+body.touch .touchOnly { display: flex; }
+body.touch .helpSec.touchOnly { display: block; }
+body.touch .deskOnly { display: none; }
+
+
+/* ── 5 ── MEASURES ───────────────────────────────────────────────────────── */
+
+/* A bordered well with a flat fill. No radius, no gradient, no label inside:
+   the number lives in the row above, right-aligned. */
+.barwrap {
+  background: var(--fx-well);
+  border: var(--fx-hair) solid var(--fx-line-inner);
+  height: var(--fx-bar-h); margin: 3px 0 var(--fx-stack);
+}
+.barfill { background: var(--fx-spruce); height: 100%; }
+.barfill.red { background: var(--fx-health); }
+
+/* The only gradient in the game. */
+#dlgMeterWrap {
+  background: var(--fx-well); border: var(--fx-hair) solid var(--fx-line-inner);
+  height: var(--fx-bar-h-willing); margin: var(--fx-gap-row) 0;
+}
+#dlgMeter { background: var(--fx-willing); height: 100%; transition: width 0.3s; }
+
+/* A value row: label left, number right. */
+.row, .fx-row {
+  display: flex; justify-content: space-between; margin: 3px 0;
+}
+
+
+/* ── 6 ── RECORDS ────────────────────────────────────────────────────────── */
+
+/* Prose to be read, not a status line to be glanced at. */
+#chronPanel, #folkPanel {
+  left: 50%; top: 46px; transform: translateX(-50%);
+  width: min(var(--fx-w-record), calc(100vw - 24px));
+  max-height: calc(100vh - 120px);
+  padding: var(--fx-pad-panel); display: none;
+  z-index: var(--fx-z-records); flex-direction: column;
+}
+#chronPanel h3, #folkPanel h3 {
+  font-size: var(--fx-t-record); color: var(--fx-gold);
+  letter-spacing: var(--fx-track-3); margin-bottom: var(--fx-gap-row);
+}
+.panelHead {
+  display: flex; align-items: center; gap: var(--fx-gap-actions);
+  margin-bottom: 9px; flex-wrap: wrap;
+}
+.panelHead input[type=text] { flex: 1; min-width: 120px; }
+#chronList, #folkList {
+  overflow-y: auto; flex: 1;
+  border-top: var(--fx-hair) solid var(--fx-line-inner);
+}
+
+.chronRow {
+  display: flex; gap: var(--fx-gap-row); padding: var(--fx-stack) 3px;
+  border-bottom: var(--fx-hair) solid var(--fx-line-row);
+  font-size: var(--fx-t-prose); line-height: var(--fx-lh-read);
+}
+.chronRow:hover { background: var(--fx-row-hover); }
+.chronWhen { color: var(--fx-ink-5-alt); flex: 0 0 100px; white-space: nowrap; }
+.chronIcon { flex: 0 0 16px; text-align: center; color: var(--fx-good-icon); font-size: var(--fx-t-panel); }
+.chronWhat { flex: 1; color: var(--fx-ink-prose); }
+.chronYear {
+  color: var(--fx-gold-bright); font-size: var(--fx-t-prose);
+  padding: 9px 2px 4px; border-bottom: var(--fx-hair) solid var(--fx-line-year);
+  letter-spacing: var(--fx-track-4);
+}
+/* one hue per kind of event, and no others */
+.chronRow.death .chronIcon,
+.chronRow.war   .chronIcon { color: var(--fx-blood); }
+.chronRow.ill   .chronIcon { color: var(--fx-fever); }
+.chronRow.law   .chronIcon { color: var(--fx-law); }
+.chronRow.life  .chronIcon { color: var(--fx-good); }
+
+.folkRow {
+  display: flex; gap: var(--fx-gap-row); align-items: center; padding: var(--fx-stack) 3px;
+  border-bottom: var(--fx-hair) solid var(--fx-line-row);
+  font-size: var(--fx-t-prose); line-height: var(--fx-lh); cursor: pointer;
+}
+.folkRow:hover { background: var(--fx-row-hover); }
+.folkRow.hurt  { color: #e0adad; }
+.folkName  { flex: 0 0 104px; color: var(--fx-ink-bright); white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+.folkTrade { flex: 0 0 100px; color: var(--fx-ink-2); white-space: nowrap; overflow: hidden; }
+.folkDoing { flex: 1; color: var(--fx-ink-4-alt); white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+.folkBars  { flex: 0 0 150px; display: flex; gap: 4px; align-items: center; }
+/* the rows are spans, and an inline span cannot take a height — without these
+   the health and hunger bars drew as empty outlines with nothing inside them */
+.folkBars .barwrap { flex: 1; margin: 0; height: var(--fx-bar-h-inline); display: block; }
+.folkBars .barfill { display: block; }
+.folkTags  { flex: 0 0 auto; color: var(--fx-tag); font-size: var(--fx-t-body); }
+#folkSum   { font-size: var(--fx-t-prose); line-height: var(--fx-lh);
+             color: var(--fx-ink-2); margin-bottom: var(--fx-gap-actions); }
+
+
+/* ── 7 ── PANELS ─────────────────────────────────────────────────────────── */
+
+.panel h3 {
+  font-size: var(--fx-t-panel); color: var(--fx-gold);
+  letter-spacing: var(--fx-track-2); margin-bottom: var(--fx-stack);
+}
+
+/* the person you have picked */
+#civPanel { top: var(--fx-hud-h); right: var(--fx-inset); width: var(--fx-w-civ);
+            padding: var(--fx-gap-row); display: none; }
+#civPanel hr { border: none; border-top: var(--fx-hair) solid var(--fx-line-inner); margin: 7px 0; }
+#civPanel .row #cpDoing, #civPanel .row #cpBest { color: var(--fx-ink-2); text-align: right; }
+
+/* the account behind the mood: every reason, worst first */
+#cpMood { display: flex; flex-wrap: wrap; gap: 3px 5px; margin: 2px 0 7px; }
+.moodBit {
+  font-size: 10.5px; line-height: 1.45; padding: 1px 5px;
+  border: var(--fx-hair) solid var(--fx-line-inner); white-space: nowrap;
+}
+.moodBit.down { color: var(--fx-rust-ink); border-color: var(--fx-line-rust); background: var(--fx-mood-down); }
+.moodBit.up   { color: var(--fx-good);     border-color: var(--fx-line-up);   background: var(--fx-mood-up); }
+
+/* the government */
+#govPanel {
+  top: var(--fx-hud-h); left: var(--fx-inset); width: var(--fx-w-gov);
+  padding: var(--fx-pad-panel); display: none; max-height: 80vh; overflow-y: auto;
+}
+#govPanel .row { margin: var(--fx-stack) 0; align-items: center; }
+#govPanel input[type=range] { width: 130px; }
+
+/* the tech graph */
+#techPanel {
+  top: var(--fx-hud-h); left: 300px;
+  width: min(var(--fx-w-tech), calc(100vw - 320px)); max-height: 82vh;
+  padding: var(--fx-pad-panel); display: none; z-index: var(--fx-z-tech);
+}
+#techGraphWrap {
+  overflow: auto; max-height: 64vh;
+  border: var(--fx-hair) solid var(--fx-line-inner); background: var(--fx-bed);
+}
+#techGraphWrap svg { display: block; }
+#techDesc { font-size: var(--fx-t-note); color: var(--fx-ink-3); min-height: 28px; margin-top: var(--fx-gap-actions); }
+.techTabs { display: flex; gap: var(--fx-stack); margin-bottom: var(--fx-gap-actions); }
+
+/* Four states, carried entirely by the stroke. */
+.tnode { cursor: pointer; }
+.tnode rect { fill: var(--fx-menu); stroke: var(--fx-line); rx: var(--fx-radius-node); }
+.tnode.avail rect       { stroke: var(--fx-line-gold); }
+.tnode.done rect        { fill: var(--fx-control); stroke: var(--fx-line-live); }
+.tnode.locked           { opacity: 0.42; }
+.tnode.researching rect { stroke: var(--fx-line-gold); stroke-dasharray: 4 3; }
+.tnode text     { fill: var(--fx-ink); font: var(--fx-t-note) var(--fx-font); }
+.tnode .sub     { fill: var(--fx-ink-5); font-size: 9px; }
+.tnode.done text{ fill: var(--fx-spruce); }
+.tlink { stroke: var(--fx-line); stroke-width: 1.5; fill: none; }
+
+.tech {
+  border: var(--fx-hair) solid var(--fx-line-inner); padding: var(--fx-stack) 8px;
+  margin: 4px 0; display: flex; justify-content: space-between;
+  align-items: center; gap: var(--fx-gap-actions);
+}
+.tech .nm   { color: var(--fx-ink); }
+.tech .desc { color: var(--fx-ink-6); font-size: var(--fx-t-note); }
+.tech.done  { border-color: var(--fx-line); }
+.tech.done .nm { color: var(--fx-spruce); }
+.tech.locked{ opacity: 0.45; }
+.tech .barwrap { width: 90px; margin: 0; }
+
+/* what a building is for, then what it does, in numbers */
+#bldgPanel {
+  top: var(--fx-hud-h); right: var(--fx-inset); width: var(--fx-w-bldg);
+  padding: var(--fx-pad-panel); display: none;
+  max-height: calc(100vh - 130px); overflow-y: auto;
+}
+#bldgPanel h3 { font-size: var(--fx-t-bldg); }
+.bpWhat  { font-size: var(--fx-t-body); line-height: var(--fx-lh-read);
+           color: var(--fx-ink-soft); margin-bottom: 9px; }
+.bpStats { border-top: var(--fx-hair) solid var(--fx-line-inner);
+           padding-top: var(--fx-stack); margin-bottom: var(--fx-gap-actions); }
+.bpStat  { display: flex; justify-content: space-between; gap: 12px;
+           font-size: var(--fx-t-body); line-height: var(--fx-lh); padding: 2px 0; }
+.bpStat span { color: var(--fx-ink-4); flex: 0 0 auto; white-space: nowrap; }
+.bpStat b    { color: var(--fx-gold-pale); font-weight: normal; text-align: right; }
+
+/* the reckoning of a reign, and the ambitions it set out to meet */
+#reignPanel {
+  left: 50%; top: 46px; transform: translateX(-50%);
+  width: min(var(--fx-w-reign), calc(100vw - 24px));
+  max-height: calc(100vh - 120px);
+  padding: var(--fx-pad-panel); display: none;
+  z-index: var(--fx-z-float); flex-direction: column;
+}
+#reignPanel h3 { font-size: var(--fx-t-record); letter-spacing: var(--fx-track-3); margin-bottom: 4px; }
+.ambRow {
+  display: flex; gap: var(--fx-gap-actions); align-items: baseline; padding: 3px 2px;
+  border-bottom: var(--fx-hair) solid var(--fx-line-row); font-size: var(--fx-t-body);
+}
+.ambRow .ambName { flex: 1; color: var(--fx-ink); }
+.ambRow .ambWant { flex: 1; color: var(--fx-ink-4); font-size: var(--fx-t-dense); }
+.ambRow .ambYear { flex: 0 0 auto; color: var(--fx-gold-bright); font-size: var(--fx-t-dense); }
+.ambRow.done .ambName { color: var(--fx-good); }
+.ambRow.todo .ambName { color: var(--fx-ink-5); }
+
+/* a talk */
+#dialogue {
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: var(--fx-w-talk); padding: 14px; display: none;
+  z-index: var(--fx-z-talk);   /* above the map, so leaders can speak there */
+}
+#dialogue .head { display: flex; gap: 12px; margin-bottom: var(--fx-gap-row); }
+#dialogue img   { width: 96px; height: 96px; border: var(--fx-hair) solid var(--fx-line); }
+#dlgName { color: var(--fx-gold); font-size: var(--fx-t-bldg); margin-bottom: var(--fx-stack); }
+#dlgText { font-size: var(--fx-t-body); line-height: var(--fx-lh); }
+#dlgOpts .btn { display: block; width: 100%; text-align: left; margin-top: var(--fx-stack); }
+
+/* a siege choice, at the wall */
+#siegeMenu { display: none; padding: var(--fx-stack); z-index: var(--fx-z-float); width: auto; }
+#siegeWhat { font-size: var(--fx-t-small); color: var(--fx-spruce);
+             margin: 2px 4px 5px; letter-spacing: var(--fx-track-2); }
+
+
+/* ── 8 ── OVERLAYS ───────────────────────────────────────────────────────── */
+
+/* A refusal the player cannot see reads as a broken button — so this clears
+   the map and the pause screen both. No plate: a heavy shadow alone keeps it
+   legible over grass or snow. */
+#msg {
+  position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
+  color: var(--fx-called-out); font-size: var(--fx-t-msg); line-height: var(--fx-lh-tight);
+  z-index: var(--fx-z-msg);
+  text-shadow: var(--fx-shadow-field);
+  pointer-events: none; text-align: center; max-width: 72vw;
+  letter-spacing: 0.4px;
+}
+
+/* Word from afar. The only component with a shadow, and the only one with a
+   warmer edge. It never sits between the player and their own town. */
+#eventCard {
+  position: fixed; right: var(--fx-inset); top: 46px; transform: translateX(14px);
+  width: var(--fx-w-event); z-index: var(--fx-z-float);
+  background: var(--fx-glass-dark);
+  border: var(--fx-hair) solid var(--fx-line-tarnish);
+  box-shadow: var(--fx-shadow-card);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  text-align: center; padding-bottom: var(--fx-gap-actions);
+}
+#eventCard.show { opacity: 0.96; transform: translateX(0); pointer-events: auto; cursor: pointer; }
+#eventImg  { width: 100%; display: block; border-bottom: var(--fx-hair) solid var(--fx-line); }
+#eventText { font-size: var(--fx-t-panel); line-height: 1.3; color: var(--fx-parchment);
+             letter-spacing: 0.4px; padding: 7px 10px 0; text-shadow: 0 2px 3px #000; }
+#eventSub  { font-size: 9px; color: var(--fx-ink-5); padding: 4px 10px 0; letter-spacing: 0.6px; }
+
+/* the tutorial banner: the one gold-edged panel in play */
+#tutBanner {
+  position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+  z-index: var(--fx-z-menu); display: none;
+  background: var(--fx-glass); border: var(--fx-hair) solid var(--fx-line-gold);
+  padding: 9px 16px; font-size: var(--fx-t-panel); color: var(--fx-parchment);
+  text-align: center; max-width: 600px;
+}
+#tutHead { font-size: var(--fx-t-small); color: var(--fx-spruce);
+           letter-spacing: var(--fx-track-4); margin-bottom: 4px; }
+#tutSkip { color: var(--fx-ink-6); cursor: pointer; font-size: var(--fx-t-note); }
+
+/* A full-screen card: the pixel scene, a wash over it, centred stacked text
+   with a hard woodcut drop — never a blur. */
+.fx-screen {
+  position: fixed; inset: 0; display: none;
+  background-color: var(--fx-floor);
+  background-position: center; background-size: cover; background-repeat: no-repeat;
+}
+.fx-screen-scrim { position: absolute; inset: 0; background: var(--fx-scrim); }
+.fx-screen-stack {
+  position: relative; height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+}
+.fx-screen-title {
+  font-size: var(--fx-t-title); letter-spacing: var(--fx-track-title);
+  color: var(--fx-ink); text-shadow: var(--fx-shadow-cut);
+}
+.fx-screen-sub { font-size: var(--fx-t-panel); color: var(--fx-ink-3); text-shadow: var(--fx-shadow-text); }
+
+#menu     { z-index: var(--fx-z-title); }
+#gameover { z-index: var(--fx-z-gameover); opacity: 0; transition: opacity 2.4s ease; }
+#gameover .fx-screen-scrim { background: var(--fx-scrim-heavy); }
+#goTitle {
+  font-size: var(--fx-t-death); letter-spacing: 10px;
+  color: var(--fx-blood); text-shadow: var(--fx-shadow-cut);
+}
+
+#loading {
+  position: fixed; inset: 0; z-index: var(--fx-z-loading); display: none;
+  background: var(--fx-floor); align-items: center; justify-content: center;
+  flex-direction: column; gap: 16px;
+}
+#loading > div:first-child { font-size: 22px; letter-spacing: var(--fx-gap-actions); color: var(--fx-spruce); }
+#loadText { font-size: var(--fx-t-note); color: var(--fx-ink-6); }
+
+#cutscene { position: fixed; inset: 0; z-index: var(--fx-z-cutscene); display: none;
+            background: var(--fx-cutscene); }
+#cutImg  { border: var(--fx-hair) solid var(--fx-line-inner); }
+#cutText { font-size: var(--fx-t-record); color: var(--fx-ink); max-width: 760px;
+           text-align: center; line-height: var(--fx-lh-loose); min-height: 52px;
+           text-shadow: var(--fx-shadow-text); }
+#cutHint { font-size: var(--fx-t-note); color: var(--fx-ink-6); letter-spacing: var(--fx-track-4); }
+
+#mapOverlay { position: fixed; inset: 0; z-index: var(--fx-z-map); display: none;
+              background: var(--fx-overlay); }
+#mapTitle { color: var(--fx-gold); letter-spacing: var(--fx-track-5); font-size: var(--fx-t-record); }
+#euromap  { display: block; }
+#mapInfo  { position: static; width: 250px; padding: var(--fx-pad-panel); align-self: flex-start; }
+#miNote   { font-size: var(--fx-t-note); color: var(--fx-called-out); margin-top: var(--fx-gap-actions);
+            display: none; border-left: 2px solid var(--fx-line-gold); padding-left: var(--fx-stack); }
+
+#pauseMenu { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 300px;
+             padding: 18px; display: none; z-index: var(--fx-z-msg); text-align: center; }
+#pauseMenu h3 { letter-spacing: var(--fx-track-5); margin-bottom: var(--fx-pad-panel); }
+
+#settingsPanel { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 340px;
+                 padding: var(--fx-pad-modal); display: none; z-index: var(--fx-z-settings); }
+#helpPanel, #skillPanel, #militaryPanel { z-index: var(--fx-z-sheetfull); }
+#helpPanel { left: 50%; top: 50%; transform: translate(-50%, -50%);
+             width: var(--fx-w-help); max-height: 82vh; overflow-y: auto;
+             padding: var(--fx-pad-modal); display: none; }
+#settleModal { z-index: var(--fx-z-modal); }
+#empireModal { z-index: var(--fx-z-empire); }
+#cargoModal  { z-index: var(--fx-z-cargo); }
+
+/* [close] — the quietest affordance in the game */
+.fx-close { float: right; cursor: pointer; color: var(--fx-ink-6); }
+
+
+/* ── 9 ── TOUCH ──────────────────────────────────────────────────────────── */
+
+#touchPad {
+  position: fixed; right: var(--fx-gap-actions); bottom: 62px;
+  z-index: var(--fx-z-pad); display: none; flex-direction: column; gap: 7px;
+}
+#touchPad .tbtn {
+  width: var(--fx-tap-pad); height: var(--fx-tap-pad); border-radius: var(--fx-radius-pad);
+  background: rgba(20, 32, 26, 0.92); border: var(--fx-hair) solid var(--fx-line);
+  color: var(--fx-ink); font-family: inherit; font-size: var(--fx-t-msg);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+#touchPad .tbtn:active { background: var(--fx-line); }
+#touchPad .tbtn.hot    { border-color: var(--fx-line-gold); color: var(--fx-gold); }
+body.touch #touchPad   { display: flex; }
+
+
+/* ── 10 ── SMALL SCREENS ─────────────────────────────────────────────────── */
+/* Below this line the interface is not shrunk, it is rebuilt: side panels
+   become bottom sheets, labels leave the buttons, rows that were columns
+   stack, and type stops shrinking at 11px. */
+
+@media (max-width: 820px), (pointer: coarse) and (max-width: 1100px) {
+
+  /* --- the status bar ---------------------------------------------------- */
+  /* On a phone the bar is half a metre wide and the screen is not. The things
+     pushed off the edge were exactly the ones you glance at rather than look
+     up, so those come first now; the stores are what you scroll for, and only
+     when you are about to build. */
+  #hud {
+    gap: var(--fx-gap-actions); padding: 5px 8px; font-size: var(--fx-t-small);
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; padding-top: max(5px, env(safe-area-inset-top));
+  }
+  #hud::-webkit-scrollbar { display: none; }
+  #hud span { flex: 0 0 auto; white-space: nowrap; }
+  #hud .spacer { flex: 0 0 var(--fx-gap-row); }
+  #hud #rName { order: -3; }
+  #hud .clk   { order: -2; }   /* the hour is the most glanced-at thing of all */
+  #hud .st    { order: -1; }
+  #hint { display: none; }
+
+  /* --- the action bar: icons alone --------------------------------------- */
+  /* Eight buttons at full width need 900px and a phone has 375. Every one of
+     them visible at once, and each still a comfortable finger's width. */
+  #actions {
+    gap: var(--fx-stack); padding: var(--fx-stack) 8px;
+    padding-bottom: max(var(--fx-stack), env(safe-area-inset-bottom));
+    overflow-x: auto; scrollbar-width: none;
+  }
+  #actions::-webkit-scrollbar { display: none; }
+  #actions > * { flex: 0 0 auto; }
+  #actions span[style*="flex:1"] { display: none; }
+  #actions span:last-child { display: none; }   /* the 'FORESTER beta' mark */
+  #actions .btn .txt { display: none; }
+  #actions .btn .ico { margin-right: 0; font-size: var(--fx-t-record); }
+  #actions .btn {
+    padding: 8px 10px; font-size: var(--fx-t-body);
+    min-height: var(--fx-tap-btn); min-width: 40px; text-align: center;
+  }
+  .menu-item { min-height: var(--fx-tap-menu); }
+
+  /* --- menus become fixed sheets ---------------------------------------- */
+  .dropdown-menu {
+    min-width: 0; width: calc(100vw - 16px);
+    max-height: 42vh; overflow-y: auto;
+    position: fixed; left: 8px; right: 8px; bottom: 52px; top: auto;
+    font-size: var(--fx-t-floor);
+  }
+  .dropdown-menu.up { position: fixed; top: auto; bottom: 52px; }
+  .dropdown-menu .btn { padding: 8px 10px; font-size: var(--fx-t-floor); }
+
+  /* --- side panels become bottom sheets --------------------------------- */
+  /* Everything legible, the woods still in view above them. As compact as it
+     can be and still be read: a third of the screen, chrome cut to the bone,
+     and type that stops at 11px — below that it is small print, not a game. */
+  #civPanel, #bldgPanel, #govPanel {
+    top: auto; bottom: var(--fx-actions-h); left: var(--fx-stack); right: var(--fx-stack);
+    width: auto; max-height: var(--fx-sheet-h); overflow-y: auto;
+    z-index: var(--fx-z-sheet); padding: var(--fx-pad-sheet);
+    font-size: 10.5px; line-height: 1.3;
+  }
+  #civPanel h3, #bldgPanel h3, #govPanel h3 {
+    font-size: var(--fx-t-floor); margin-bottom: 4px; letter-spacing: var(--fx-track-1);
+  }
+  #govPanel h4 { font-size: var(--fx-t-small); margin: var(--fx-stack) 0 2px; }
+  #civPanel .row, #bldgPanel .row, #govPanel .row { margin: 1px 0; }
+  #govPanel label { margin: 2px 0; gap: 5px; }
+  #civPanel hr { margin: 4px 0; }
+  .barwrap { height: var(--fx-bar-h-sheet); margin: 1px 0 3px; }
+  #civPanel .btn, #bldgPanel .btn, #govPanel .btn {
+    padding: var(--fx-stack) 8px; font-size: var(--fx-t-small);
+    min-height: var(--fx-tap-sheet); margin-top: 4px;
+  }
+  #civPanel .dropdown-menu .btn, #govPanel .dropdown-menu .btn { min-height: 32px; }
+  #govPanel input[type=text]  { padding: 4px 6px !important; font-size: var(--fx-t-small) !important; }
+  #govPanel input[type=range] { width: 96px; }
+  #govPanel input[type=color] { width: 42px; height: 22px; }
+  #civPanel .dropdown-menu, #govPanel .dropdown-menu {
+    position: absolute; left: 0; right: 0; width: auto; bottom: auto; max-height: 30vh;
+  }
+  #cpFarms, #scoutLedger, #govProfs, #townRows { font-size: 9px !important; }
+  /* the control pad always keeps a lane of its own */
+  body.touch #civPanel, body.touch #bldgPanel, body.touch #govPanel { right: var(--fx-pad-lane); }
+  body.touch #touchPad { z-index: 34; }
+
+  /* --- the records, as sheets ------------------------------------------- */
+  #chronPanel, #folkPanel {
+    top: auto; bottom: var(--fx-actions-h); left: var(--fx-stack); right: var(--fx-stack);
+    transform: none; width: auto; max-height: var(--fx-sheet-h);
+    padding: var(--fx-stack) 7px; z-index: var(--fx-z-sheet);
+  }
+  #chronPanel h3, #folkPanel h3 {
+    font-size: var(--fx-t-small); margin-bottom: 4px; letter-spacing: var(--fx-track-1);
+  }
+  .panelHead { gap: 4px; margin-bottom: 4px; }
+  .panelHead input[type=text] { font-size: var(--fx-t-floor); padding: 4px 6px; }
+  .panelHead .btn { padding: 4px 7px !important; font-size: var(--fx-t-small) !important; min-height: 28px; }
+  .chip { font-size: var(--fx-t-small); padding: 3px 6px; }
+  .chronRow, .folkRow { font-size: var(--fx-t-floor); padding: 3px 2px;
+                        gap: var(--fx-stack); line-height: var(--fx-lh-tight); }
+  .chronWhen { flex: 0 0 60px; }
+  .chronIcon { flex: 0 0 12px; font-size: var(--fx-t-floor); }
+  .chronYear { font-size: var(--fx-t-small); padding: 4px 2px 2px; letter-spacing: var(--fx-track-2); }
+  .folkName  { flex: 0 0 76px; }
+  .folkTrade, .folkBars { display: none; }
+  #folkSum    { font-size: var(--fx-t-small); line-height: var(--fx-lh-tight); margin-bottom: 4px; }
+  #chronCount { font-size: var(--fx-t-small) !important; margin-top: 4px !important; }
+  body.touch #chronPanel, body.touch #folkPanel { right: 56px; }
+
+  /* the mood chips: readable, but they must not eat the sheet */
+  .moodBit { font-size: 9.5px; padding: 0 4px; line-height: 1.4; }
+  #cpMood  { gap: 2px 3px; margin: 1px 0 4px; }
+  /* the building's account of itself, tightened to fit a sheet */
+  .bpWhat  { font-size: 10.5px; line-height: 1.4; margin-bottom: 5px; }
+  .bpStats { padding-top: 4px; margin-bottom: 5px; }
+  .bpStat  { font-size: 10.5px; line-height: var(--fx-lh-tight); padding: 0; gap: 8px; }
+
+  /* --- the reckoning ---------------------------------------------------- */
+  #reignPanel {
+    top: auto; bottom: var(--fx-actions-h); left: var(--fx-stack); right: var(--fx-stack);
+    transform: none; width: auto; max-height: 46vh;
+    padding: var(--fx-gap-actions); z-index: var(--fx-z-float);
+  }
+  #reignPanel h3 { font-size: var(--fx-t-floor); }
+  .ambRow { font-size: var(--fx-t-floor); }
+
+  /* --- help rows stack -------------------------------------------------- */
+  /* 520px of panel on a 375px phone hung off both edges and cut the labels in
+     half. Narrow glass gets the label above its line, not beside it. */
+  #helpPanel { width: calc(100vw - 20px) !important; max-height: 78vh; padding: var(--fx-t-panel); }
+  .helpRow   { flex-direction: column; gap: 1px; margin: var(--fx-gap-actions) 0; }
+  .helpRow b { flex: none; }
+  .saveRow   { padding: 7px 8px; gap: 7px; }
+  .saveRow .slotName { font-size: var(--fx-t-body); }
+  .saveRow .slotWhen { font-size: 9.5px; }
+
+  /* --- the rest --------------------------------------------------------- */
+  #techPanel     { top: 46px; left: 8px; right: 8px; width: auto;
+                   max-height: calc(100vh - 118px); z-index: var(--fx-z-records); }
+  #techGraphWrap { max-height: calc(100vh - 230px); }
+
+  #dialogue { width: calc(100vw - 16px); max-height: 62vh; overflow-y: auto;
+              padding: var(--fx-gap-row); font-size: var(--fx-t-floor); }
+  #dialogue img   { width: 52px; height: 52px; }
+  #dialogue .head { gap: var(--fx-gap-actions); margin-bottom: var(--fx-stack); }
+  #dlgName { font-size: var(--fx-t-body); margin-bottom: 3px; }
+  #dlgText { font-size: var(--fx-t-floor); line-height: var(--fx-lh-tight); }
+  #dlgMeterWrap { height: var(--fx-bar-h-inline); margin: var(--fx-stack) 0; }
+  #dlgOpts .btn { padding: 7px 9px; font-size: var(--fx-t-floor); margin-top: 4px; }
+
+  #eventCard { top: 40px; right: var(--fx-stack); width: 190px; }
+  #eventText { font-size: var(--fx-t-floor); padding: var(--fx-stack) 8px 0; }
+  #eventSub  { font-size: 8px; }
+
+  #settingsPanel { width: calc(100vw - 24px) !important; max-height: 70vh; overflow-y: auto;
+                   font-size: var(--fx-t-floor); padding: var(--fx-t-floor) !important; }
+  #settingsPanel label { margin: 3px 0 !important; }
+  #pauseMenu     { width: calc(100vw - 64px) !important; padding: var(--fx-pad-panel) !important; }
+  #pauseMenu .btn{ padding: var(--fx-gap-row) 12px; font-size: var(--fx-t-body); min-height: var(--fx-tap-btn); }
+  #settleModal .btn, #empireModal .btn { padding: 9px 12px; font-size: var(--fx-t-floor); min-height: 36px; }
+  #settleModal, #empireModal { width: calc(100vw - 24px) !important; max-height: 82vh; overflow-y: auto; }
+
+  #msg { bottom: 96px; font-size: var(--fx-t-bldg); max-width: calc(100vw - 24px); }
+
+  /* a smaller pad leaves more of the woods in view */
+  #touchPad { bottom: 56px; gap: var(--fx-stack); }
+  #touchPad .tbtn { width: var(--fx-tap-pad-sm); height: var(--fx-tap-pad-sm); font-size: var(--fx-t-record); }
+
+  /* the map of Europe: scaled to the screen rather than scrolled blindly */
+  #mapOverlay > div { flex-direction: column; padding: 8px; gap: 8px; }
+  #mapOverlay #mapInfo { width: auto !important; max-height: 30vh; overflow-y: auto; flex: 0 0 auto; }
+  #euromap { width: 900px; height: auto; max-width: none; }   /* wide enough to tell nations apart */
+  #mapOverlay > div > div:first-child { flex: 1 1 auto; min-height: 0; }
+  #mapTitle { font-size: var(--fx-t-body) !important; letter-spacing: var(--fx-track-2) !important; }
+
+  /* title cards and menus */
+  .fx-screen-title, #goTitle,
+  #menu > div > div:first-child,
+  #menu div[style*="52px"],
+  #gameover div[style*="44px"] { font-size: 34px !important; letter-spacing: var(--fx-stack) !important; }
+  #menu .btn, #gameover .btn   { font-size: var(--fx-t-record) !important; padding: var(--fx-t-panel) 34px !important; }
+  #menu div[style*="13px"], #gameover div[style*="13px"] {
+    font-size: var(--fx-t-floor) !important; padding: 0 18px; text-align: center;
+  }
+  #cutText { font-size: var(--fx-t-panel) !important; line-height: var(--fx-lh-read) !important; padding: 0 4px; }
+  #cutImg  { max-height: 46vh !important; }
+
+  #tutBanner { left: 8px; right: 8px; transform: none; max-width: none; width: auto;
+               font-size: var(--fx-t-body); top: 46px; padding: 8px 12px; }
+  #tutNext { min-height: var(--fx-tap-menu); padding: 8px 16px !important; font-size: var(--fx-t-body) !important; }
+  #tutSkip { font-size: var(--fx-t-body) !important; }
+}
+
+@media (max-width: 820px) and (orientation: portrait) {
+  #hud { font-size: 9px; gap: 7px; }
+}
