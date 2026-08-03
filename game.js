@@ -85,10 +85,12 @@ const DOCTOR_SIGHT = 900;    // how far a doctor will walk to a case
 const DOCTOR_HASTE = 1.35;   // a doctor going to a case does not stroll — and the sick keep walking
 const HURT_ENOUGH = 0.55;    // below this share of health, a doctor comes for you
 const RAID_MIN = 240, RAID_MAX = 420, MAX_RAIDERS = 4, MAX_CAMPS = 6;
-// The drum never beats faster than this, however grand the colony grows: five
-// minutes of quiet are owed between raids. The reckoning is paid in the size of
-// the wave that comes, not in the space between them.
-const RAID_FLOOR = 300;
+// Five minutes of quiet are owed between raids for as long as the colony is
+// still making its name. That floor was also the reason the last hour of a long
+// game was its quietest: past the cap, nothing else could tighten. Once the
+// reckoning is open the owed quiet is bought back a little at a time, down to
+// two minutes — enough to bury the dead and no more.
+const RAID_FLOOR = 300, RAID_FLOOR_MIN = 120;
 
 const REPAIR_COST = { logs: 20, doors: 1, dm: 5 };
 const STATIC_COSTS = {
@@ -666,9 +668,35 @@ function menace() {
   // A colony twice the size does not face twice the woods — it faces half again.
   return 1 + Math.pow(Math.max(0, raw), 0.72) * 2.2;
 }
-// No ceiling worth the name: the reckoning keeps climbing as long as you do —
-// it simply stops doubling, so an empire is hard-pressed and not merely drowned.
+// The middle of the game is not allowed to run away with itself: twenty is as
+// far as this goes, and every absolute number in the game — a garrison's size,
+// a camp's stakes — is measured against it.
 function difficulty() { return Math.max(1, Math.min(20, Math.round(menace()))); }
+
+// ===== the reckoning: the ceiling comes off =====
+// The trouble with a cap is that a colony eventually reaches it and then never
+// hears from the woods again — the last hour of a good game was the quietest.
+// Once the ambitions are in hand the colony has proved it can take whatever the
+// woods have, and from that hour the woods stop being bounded by anything but
+// how long you insist on standing there.
+//
+// This decides how OFTEN they come and how well armed they are when they do.
+// How MANY are in your street at once is still attackerCap()'s to say, and that
+// has not moved: seven, and never more than two past your own strength. An
+// endgame should be relentless, not a wall of bodies.
+let reckoningOpenedAt = -1;
+let blockade = null;          // {nation, t} — the routes closed by a crown at war
+const invested = new Set();   // towns currently ringed by a besieging column
+const reckoningOpen = () => reckoningOpenedAt >= 0;
+function reckoning() {
+  if (!reckoningOpen()) return difficulty();
+  // menace goes on rising with the colony; the hours since the ledger opened are
+  // added on top, so standing still is no longer a way to be left alone
+  return menace() + Math.max(0, playT - reckoningOpenedAt) / 200;
+}
+// how far past the old ceiling we are, which is what the endgame dials read
+const pastTheCap = () => Math.max(0, reckoning() - 20);
+const raidFloor = () => Math.max(RAID_FLOOR_MIN, RAID_FLOOR - pastTheCap() * 9);
 // how many may come at once, and how many camps the woods can hold
 // ===== how many may come for you at once =====
 // A hard ceiling of seven, and never more than two more than you have men to
@@ -1012,11 +1040,39 @@ function spawnCamps(n) {
   }
 }
 
+// ===== what a tier buys them =====
+// It used to buy hit points, and hit points are the least interesting thing a
+// man can be given. A raider with three hundred of them is not frightening, he
+// is tedious: the same fight, held for longer. So the bulk stops at a dozen
+// tiers and everything past that is equipment — mail that turns a blow aside,
+// and a better blade behind it.
+//
+// The point is that kit has an answer and bulk does not. Mail is beaten by a
+// musket, by a wall he has to climb with both hands, by a smith's tools in your
+// own men's hands. Standing there swinging for twice as long is beaten by
+// nothing but patience.
+const KIT_MAX = 3;
+const KIT_SOAK = [0, 0.14, 0.26, 0.36];        // what the mail turns aside
+const KIT_BITE = [0, 1.6, 3.2, 4.8];           // and what the better blade adds
+const KIT_NAME = ["", "leather", "mail", "plate and mail"];
+function kitFor(tier) {
+  // The first threshold sits above difficulty()'s ceiling on purpose: nothing
+  // wears mail until the reckoning is open, so the middle of the game is
+  // exactly the game it was. After that it arrives a piece at a time and slowly
+  // — the rungs were five tiers apart to begin with, which spent the whole
+  // ladder inside twenty minutes and turned a progression into a light switch.
+  return Math.max(0, Math.min(KIT_MAX, Math.floor((tier - 14) / 8)));
+}
+// bulk stops here; past it the tier is spent on kit instead
+const raiderHp = tier => 60 + Math.min(tier, 12) * 8;
+
 function mkRaider(camp, state) {
-  const tier = difficulty();
-  const hp = 60 + (tier - 1) * 8;
+  const tier = reckoning();
+  const hp = raiderHp(tier);
+  const kit = kitFor(tier);
   return { x: camp.x + Math.random() * 60 - 30, y: camp.y + 20 + Math.random() * 30, hp, maxHp: hp,
-           dmg: (camp.type === "raid" ? 14 : 10) + (tier - 1) * 1.2, camp, target: null,
+           dmg: (camp.type === "raid" ? 14 : 10) + Math.min(tier, 12) * 1.2 + KIT_BITE[kit], kit,
+           camp, target: null,
            state, anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, wpx: camp.x, wpy: camp.y };
 }
 function spawnRaid() {
@@ -1078,6 +1134,21 @@ function updateRaider(r, dt) {
   }
   r.stepT = (r.stepT || 0) - dt;
   if ((r.state === "approach" || r.state === "flee") && r.stepT <= 0 && onScreen(r.x, r.y)) { SFX.step(true); r.stepT = 0.3; }
+  // ===== the siege: a man whose whole job is to stand there =====
+  // He walks to his place in the ring and stops. He does not burn anything, does
+  // not go for the storehouse, does not come to you. He fights whatever comes
+  // within reach of him — the block above has already seen to that — and
+  // otherwise he waits, which is the entire weapon.
+  if (r.state === "invest") {
+    const dx = r.ringX - r.x, dy = r.ringY - r.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 18) {
+      r.x += dx / d * speed * dt; r.y += dy / d * speed * dt;
+      r.facing = dx < 0 ? -1 : 1;
+      r.anim += dt * 7;
+    } else r.anim += dt * 1.2;             // shifting his weight, waiting
+    return;
+  }
   if (r.state === "patrol") {
     // a town's garrison holds its own ground — it never marches on your colony
     if (r.garrison) {
@@ -1284,8 +1355,17 @@ function strikeUnit(a, b, dmg) {
   if (a && b && a.isCiv && b.isCiv && a.feudWith !== b.name && b.feudWith !== a.name)
     fallOut(b, a, -14);
   if (Math.random() < DODGE_CHANCE) { float(b.x, b.y - 70, "Dodged!", "#cfd8d3"); SFX.dodge(); return; }
+  // Mail is worn, not carried: whatever the blow was worth, this much of it
+  // stays outside. Shown as it lands, so the player can see why an axe that
+  // felled a raider last winter is now taking three swings.
+  let turned = 0;
+  if (b.kit) {
+    const soak = KIT_SOAK[Math.min(KIT_MAX, b.kit)];
+    turned = Math.round(dmg * soak);
+    dmg = Math.max(1, dmg - turned);       // no armour is proof against everything
+  }
   b.hp -= dmg;
-  float(b.x, b.y - 70, "-" + dmg, "#d86a5a");
+  float(b.x, b.y - 70, "-" + dmg + (turned ? ` (${turned} turned)` : ""), turned ? "#c9a86a" : "#d86a5a");
   SFX.hit();
   if (b.hp <= 0) {
     if (raiders.includes(b)) {
@@ -4879,6 +4959,14 @@ function updateNationTrade(dt) {
     n.tradeT = (n.tradeT === undefined ? 60 : n.tradeT) - dt;
     if (n.tradeT <= 0) {
       n.tradeT = 60;
+      // A crown that cannot break your walls can still close the water. The
+      // caravan is not late — it is not coming, and it will not come from
+      // anyone else either while the blockade holds.
+      if (blockade) {
+        if (Math.random() < 0.4)
+          toast(`The caravan from ${n.name} turns back — ${NATIONS[blockade.nation].name} holds the routes.`);
+        continue;
+      }
       const dm = 3 + Math.floor(natStrength(n) / 2);
       res.dm += dm;
       const goods = [["wheat", 2], ["iron", 1], ["stone", 2], ["bread", 1]][Math.floor(Math.random() * 4)];
@@ -4888,6 +4976,45 @@ function updateNationTrade(dt) {
     }
   }
 }
+// ===== the blockade =====
+// The cheapest thing a crown can do to you and among the worst. It costs them
+// nothing they can lose on your ground — there is no column to cut down, no
+// camp to burn — and it takes away the one part of the colony you cannot
+// replace by working harder. The answer is diplomacy or a dead enemy, which is
+// the point: not every threat should have a military answer.
+const BLOCKADE_MIN = 260, BLOCKADE_MAX = 420;
+let blockadeT = 240;
+function updateBlockade(dt) {
+  if (blockade) {
+    const n = NATIONS[blockade.nation];
+    blockade.t -= dt;
+    // peace, or their defeat, lifts it early — that is the lever the player has
+    if (!n || n.defeated || !n.atWar) {
+      toast(`The routes are open again — ${n ? n.name : "the enemy"} no longer holds them.`);
+      blockade = null;
+    } else if (blockade.t <= 0) {
+      eventCard(`${n.name} lifts the blockade.`, "event_peace", "The caravans will come again");
+      blockade = null;
+    }
+    return;
+  }
+  if (!reckoningOpen() || pastTheCap() < 1) return;
+  blockadeT -= dt;
+  if (blockadeT > 0) return;
+  blockadeT = 200 + Math.random() * 160;
+  // only a crown with a coast worth blockading, and only while the war is on
+  const foes = Object.entries(NATIONS).filter(([, n]) => n.atWar && !n.defeated);
+  if (!foes.length) return;
+  // and only if there is trade to be worth cutting
+  if (!Object.values(NATIONS).some(n => n.trade)) return;
+  if (Math.random() > 0.5) return;
+  const [id, n] = foes[Math.floor(Math.random() * foes.length)];
+  blockade = { nation: id, t: BLOCKADE_MIN + Math.random() * (BLOCKADE_MAX - BLOCKADE_MIN) };
+  eventCard(`${n.name} closes the routes.`, "event_warparty",
+            "No caravan will reach you, and no shipment you ask for will be sent");
+  SFX.warHorn();
+}
+
 function updateNationWars(dt) {
   natWarSpawnT -= dt;
   if (natWarSpawnT <= 0) {
@@ -5145,6 +5272,9 @@ $("miAmt").addEventListener("change", requestOddsText);
 $("miRequest").addEventListener("click", () => {
   const id = mapSelNation, n = NATIONS[id];
   if (!n || !n.trade) return;
+  // no cooldown is spent on a request that cannot leave harbour
+  if (blockade)
+    return toast(`${NATIONS[blockade.nation].name} holds the routes — nothing can be shipped to you until the blockade is lifted.`);
   if (n.reqCool > 0) return toast(`${n.name}'s quartermasters are still weighing the last request.`);
   const good = $("miGood").value, amt = +$("miAmt").value, price = amt * 2;
   const want = wantsOf(id), owe = barterFor(amt);
@@ -5375,6 +5505,46 @@ function updateOccupation(dt) {
   }
 }
 let capitalSiegeT = 0;
+
+// ===== investment: the siege that never assaults =====
+// Standing far enough out that the town's own walls are no use, and near enough
+// that nothing gets past. Deliberately outside updateOccupation's 420 — a ring
+// at this distance is not standing IN your town and will never capture it. The
+// two are different threats and must not be mistaken for one another.
+const INVEST_RADIUS = 560;
+const INVEST_MIN = 2;                  // fewer than this is a patrol, not a siege
+let investToldT = -999;
+function besiegersOf(t) {
+  const c = townCentre(t);
+  return raiders.filter(r => r.state === "invest" && r.investTown === (t || null) &&
+                             Math.hypot(r.x - c.x, r.y - c.y) < INVEST_RADIUS * 1.6);
+}
+function updateInvestment(dt) {
+  const towns = [null, ...settlements.filter(s => s.x !== undefined)];
+  for (const t of towns) {
+    const key = t || null;
+    const held = besiegersOf(t).length >= INVEST_MIN;
+    if (held && !invested.has(key)) {
+      invested.add(key);
+      const name = t ? t.name : (settlementName || "the capital");
+      toast(`⚠ ${name} is invested — nothing goes in or out, and the fields cannot be worked.`);
+      SFX.warHorn();
+    } else if (!held && invested.has(key)) {
+      invested.delete(key);
+      const name = t ? t.name : (settlementName || "the capital");
+      toast(`The siege of ${name} is broken.`);
+      SFX.coin();
+    }
+  }
+  // a standing reminder, because a siege is quiet and quiet is easy to miss
+  if (invested.size && playT - investToldT > 75) {
+    investToldT = playT;
+    const names = [...invested].map(t => t ? t.name : (settlementName || "the capital"));
+    toast(`⚠ Still under siege: ${names.join(", ")}. Drive them off or the stores will run out.`);
+  }
+}
+// a farm inside a ring is a field nobody dares walk into
+const townInvested = t => invested.has(t || null);
 // the flag comes down: the town, its roofs and its people pass to the crown
 function townLostTo(t, natId) {
   const n = NATIONS[natId];
@@ -5519,7 +5689,14 @@ function updateWars(dt) {
       // far bought nothing but silence — six crowns at war meant a quarter of an
       // hour between one crown's parties and no attack landing at all.
       n.warT = (330 + Math.random() * 210) * Math.min(1.8, Math.max(1, atWar * 0.5));
-      if (season() === "winter") continue;   // armies do not march in the snow
+      // Winter was a truce, and a truce is a rest. It stays one while the colony
+      // is still making its name — but a crown that has taken your measure waits
+      // for exactly this: the fields dead, the stores going down, half your
+      // people indoors warming themselves, and your soldiers wading. They come
+      // sooner in the snow now, not later.
+      const winter = season() === "winter";
+      if (winter && !reckoningOpen()) continue;
+      if (winter) n.warT *= 0.6;
       // a war party marches on ONE town — settlements are not spared the war
       const towns = townsWithBuildings();
       if (!towns.length || attackersAfield() >= attackerCap()) continue;
@@ -5530,21 +5707,41 @@ function updateWars(dt) {
       const a = Math.random() * Math.PI * 2;
       const st = natStrength(n);
       const partySize = 3 + (st >= 8 ? 1 : 0) + Math.floor(menace() / 6);
+      // Past the old ceiling a crown stops throwing itself at the walls and
+      // starts sitting outside them instead. A siege is not a bigger battle —
+      // it is the absence of one, which is the part that hurts.
+      const invest = reckoningOpen() && pastTheCap() > 2 && Math.random() < 0.45 && !invested.has(town || null);
+      const ring = { x: cx, y: cy };
       let sent = 0;
       for (let i = 0; i < partySize; i++) {
         // the cap is a wall, not a suggestion: test it for every man sent
         if (attackersAfield() >= attackerCap()) break;
         const t = targets[Math.floor(Math.random() * targets.length)];
-        const whp = 90 + (difficulty() - 1) * 6 + st * 3;
+        const tier = reckoning();
+        const kit = Math.min(KIT_MAX, kitFor(tier) + (st >= 8 ? 1 : 0));   // a strong crown outfits its men
+        const whp = 90 + Math.min(tier, 12) * 6 + st * 3;
+        const ra = (i / partySize) * Math.PI * 2;
         raiders.push({ x: cx + Math.cos(a) * 1300 + i * 30, y: cy + Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
-                       dmg: 16 + (difficulty() - 1) * 1.2 + Math.floor(st / 3), target: t,
-                       state: "approach", anim: 0, facing: 1, atkT: 0, foe: null,
+                       dmg: 16 + Math.min(tier, 12) * 1.2 + Math.floor(st / 3) + KIT_BITE[kit], kit,
+                       target: invest ? null : t,
+                       state: invest ? "invest" : "approach", anim: 0, facing: 1, atkT: 0, foe: null,
+                       // where he will stand and wait, if this is a siege
+                       ringX: ring.x + Math.cos(ra) * INVEST_RADIUS,
+                       ringY: ring.y + Math.sin(ra) * INVEST_RADIUS * 0.85,
+                       investTown: invest ? (town || null) : undefined,
                        camp: { x: cx + Math.cos(a) * 1600, y: cy + Math.sin(a) * 1600 }, carry: 0, nation: id });
         sent++;
       }
       if (!sent) continue;   // no horn for an army that never came
       SFX.warHorn();
-      eventCard(`A war party of ${n.name} marches on ${town ? town.name : "the colony"}!`, "event_warparty", "Arm yourselves");
+      const where = town ? town.name : (settlementName || "the colony");
+      if (invest)
+        eventCard(`${n.name} lays siege to ${where}.`, "event_warparty",
+                  winter ? "They will not assault it. They will wait, and it is winter"
+                         : "They will not assault it. They mean to sit there until it starves");
+      else
+        eventCard(`A war party of ${n.name} marches on ${where}!`,
+                  "event_warparty", winter ? "In the dead of winter — arm yourselves" : "Arm yourselves");
     }
   }
 }
@@ -6041,6 +6238,15 @@ function checkAmbitions(dt) {
     if (Object.keys(achieved).length === AMBITIONS_TO_END)
       tell("work", "✦ Six ambitions stand achieved. You may lay the ledger down whenever you choose — the reckoning is in the pause menu.");
   }
+  // The hour the ledger opened is the hour the ceiling came off. Set here rather
+  // than in the loop above, so a save from before this existed — or one whose
+  // ambitions were earned under an older list — still starts its clock the
+  // first time it is counted.
+  if (reckoningOpenedAt < 0 && ambitionsDone() >= AMBITIONS_TO_END) {
+    reckoningOpenedAt = playT;
+    eventCard("The woods have taken your measure.", "event_warparty",
+              "You are no longer a colony they can afford to leave alone");
+  }
 }
 // Count only ambitions that still exist. A save carrying an id from a list that
 // has since changed would otherwise inflate the total, and could open the
@@ -6513,7 +6719,7 @@ function saveGame() {
       // which season the world was last seen in, and how bold the woods had grown.
       // A fresh page starts both at their opening values; without carrying them, a
       // colony saved in winter came back and was told winter had just fallen.
-      lastSeason, lastTier,
+      lastSeason, lastTier, reckoningOpenedAt, blockade,
       // the reign's running totals and what it has set down
       tally, achieved,
       cam: { x: cam.x, y: cam.y },
@@ -6761,6 +6967,16 @@ function loadGame() {
     achieved = d.achieved || {};
     lastSeason = d.lastSeason || season();
     lastTier = d.lastTier || Math.max(1, difficulty());
+    // A save from before the ceiling came off carries no hour. If its ambitions
+    // are already in hand the clock starts now rather than backdating an
+    // escalation the player never lived through.
+    reckoningOpenedAt = typeof d.reckoningOpenedAt === "number" ? d.reckoningOpenedAt : -1;
+    blockade = d.blockade || null;
+    // Besiegers are not saved — no raider is — so no town is under siege on the
+    // hour a colony is read back in. Clearing this matters because a load does
+    // not reload the page: a stale entry here would announce a siege breaking
+    // that nobody in this world ever laid.
+    invested.clear();
     chronicle = Array.isArray(d.chron) ? d.chron.slice(-CHRON_MAX) : [];
     natWars = d.natWars || [];
     mapGrid = null;   // rebuilt with conquests on next use
@@ -6894,6 +7110,10 @@ function endCutscene() {
   // a fresh colony is taught from scratch — these outlive a load otherwise,
   // since starting a new game does not reload the page
   lessonSeen = {}; lessonQueue = []; lessonsOff = false;
+  // and for the same reason a fresh colony gets the ceiling back: without this
+  // a new game begun after a long one inherits its predecessor's reckoning and
+  // is set upon by a war it never provoked
+  reckoningOpenedAt = -1; blockade = null; invested.clear();
   // a country is already drawn behind the modal, so the woods the player is
   // looking at are the woods they will get
   $("seedInput").value = randomSeedLabel();
@@ -7225,6 +7445,15 @@ function syncUI() {
     $("govWorldRow").style.display = worldLabel ? "" : "none";
     if (worldLabel) { $("govWorld").textContent = worldLabel; $("govWorldTell").textContent = worldTell(); }
     else $("govWorldTell").textContent = "";
+    // A siege and a blockade are both quiet — nothing burns and no horn blows
+    // twice — so the ledger says plainly what is being done to you and by whom.
+    const woes = [];
+    if (blockade && NATIONS[blockade.nation])
+      woes.push(`<b style="color:#d86a5a">Routes closed by ${esc(NATIONS[blockade.nation].name)}</b> — no caravans, no shipments. Peace or their defeat lifts it.`);
+    if (invested.size)
+      woes.push(`<b style="color:#d86a5a">Under siege: ${esc([...invested].map(t => t ? t.name : (settlementName || "the capital")).join(", "))}</b> — the fields cannot be worked until they are driven off.`);
+    $("govWoes").innerHTML = woes.join("<br>");
+    $("govWoes").style.display = woes.length ? "block" : "none";
   }
   {
     const counts = {};
@@ -7563,6 +7792,8 @@ function update(dt) {
   playT += dt;
   updateWars(dt);
   updateOccupation(dt);
+  updateInvestment(dt);
+  updateBlockade(dt);
   updateSettlements(dt);
   maybeOfferSettlement();
 
@@ -7654,7 +7885,13 @@ function update(dt) {
       }
     }
   }
-  for (const f of farms) if (!f.ready && season() !== "winter" && (f.growT += dt) >= farmRipen()) f.ready = true;
+  // A crop under siege is not tended. The ring sits between the town and its
+  // fields, so the corn stands where it is until somebody drives them off — the
+  // growth is held, not lost, which is why a siege broken in time costs nothing
+  // but the waiting.
+  for (const f of farms)
+    if (!f.ready && season() !== "winter" && !townInvested(townAt(f.x, f.y)) &&
+        (f.growT += dt) >= farmRipen()) f.ready = true;
   if (alarmToldT > 0) alarmToldT -= dt;          // the alarm may be cried again in a while
   SFX.fireLoop(buildings.some(b => b.fire > 0) || foreign.some(b => b.fire > 0));
   // the townsfolk: about their business until soldiers come, then they run
@@ -7750,14 +7987,17 @@ function update(dt) {
     if (campRespawnTimer <= 0) {
       // the woods fill in faster as the colony grows, and while they are far
       // below what your wealth warrants, more than one band moves in at once
-      campRespawnTimer = Math.max(150, 300 * Math.pow(0.93, difficulty() - 1));
+      campRespawnTimer = Math.max(90, 300 * Math.pow(0.93, reckoning() - 1));
       spawnCamps(camps.length + 1 < campCap() ? 2 : 1);
     }
   }
   if (camps.length) {
     raidTimer -= dt;
     if (raidTimer <= 0) {
-      raidTimer = Math.max(RAID_FLOOR, (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.95, difficulty() - 1));
+      // The floor was the real ceiling: five minutes between raids no matter how
+      // rich the colony grew, so the woods went quiet exactly when they should
+      // have been at their worst. Past the old cap it comes down.
+      raidTimer = Math.max(raidFloor(), (RAID_MIN + Math.random() * (RAID_MAX - RAID_MIN)) * Math.pow(0.95, reckoning() - 1));
       if (season() !== "winter") { tally.raids++; spawnRaid(); }   // raiders overwinter in their camps
     }
     for (const cp of camps) {
@@ -7783,7 +8023,7 @@ function update(dt) {
   if (season() !== "winter" && nightAmt() > 0.9 && camps.length) {
     ambushT -= dt;
     if (ambushT <= 0) {
-      ambushT = Math.max(90, (140 + Math.random() * 90) * Math.pow(0.95, difficulty() - 1));
+      ambushT = Math.max(60, (140 + Math.random() * 90) * Math.pow(0.95, reckoning() - 1));
       // the night ambush falls on any town left unwalled with coin in the chest —
       // the capital's walls do not shelter a settlement half the map away
       const openTowns = townsWithBuildings().filter(t => townCoin(t) >= 5 &&
@@ -8742,12 +8982,30 @@ function render(dt) {
     const frame = crown ? foeCoat(crown.color, r.foe ? "atkuni" + i : "soldierU" + i)
                         : img[(r.foe ? "atksword" : "hunter") + i];
     drawSprite(frame, r.x, r.y, CHAR_SIZE, r.facing < 0);
+    // A man in mail has to look like one. The sprites are the sprites, so the
+    // kit is worn as a ring of pale steel at his feet — one line for leather,
+    // two for mail, three for plate — which reads at a glance and at any zoom.
+    // Without it the only way to learn he is armoured is to watch your axeman
+    // fail to kill him and not know why.
+    if (r.kit) {
+      ctx.strokeStyle = ["", "#8a7f6a", "#b9c2c8", "#e2e8ec"][Math.min(KIT_MAX, r.kit)];
+      ctx.lineWidth = 1.5;
+      for (let k = 0; k < r.kit; k++) {
+        ctx.beginPath();
+        ctx.ellipse(r.x, r.y - 2, 14 + k * 4, 5.5 + k * 1.5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
     if (settings.labels) {
       ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-      ctx.fillText(crown ? crown.name + " Enemy Soldier" : (r.state === "patrol" ? "thief" : "RAIDER"),
-                   r.x, r.y - CHAR_SIZE - 4);
+      const who = crown ? crown.name + " Enemy Soldier" : (r.state === "patrol" ? "thief" : "RAIDER");
+      ctx.fillText(r.state === "invest" ? who + " — BESIEGING" : who, r.x, r.y - CHAR_SIZE - 4);
+      if (r.kit) {
+        ctx.fillStyle = "#c9a86a"; ctx.font = "9px monospace";
+        ctx.fillText(KIT_NAME[Math.min(KIT_MAX, r.kit)], r.x, r.y - CHAR_SIZE - 14);
+      }
     }
-    if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - 14, r.hp / r.maxHp, "#a05252", 34);
+    if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - (r.kit && settings.labels ? 24 : 14), r.hp / r.maxHp, "#a05252", 34);
   }});
   // A man on a stretcher is painted by whoever is carrying him, not by himself
   for (const c of civs) if (!INDOORS.has(c.state) && c.state !== "borne" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
