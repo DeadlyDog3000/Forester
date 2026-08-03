@@ -174,8 +174,8 @@
 
   /* ---- finger sizes ----------------------------------------------------- */
   --fx-tap-pad:      46px;
-  --fx-tap-pad-sm:   38px;
-  --fx-tap-btn:      38px;
+  --fx-tap-pad-sm:   44px;   /* a finger, not a cursor: 44 is the comfortable minimum */
+  --fx-tap-btn:      44px;   /* was 38, which left the action bar short of a fingertip */
   --fx-tap-menu:     34px;
   --fx-tap-sheet:    30px;
   --fx-pad-lane:     58px;  /* sheets stop short of the control pad          */
@@ -905,12 +905,23 @@ body.touch #touchPad   { display: flex; }
   #settingsPanel { width: calc(100vw - 24px) !important; max-height: 70vh; overflow-y: auto;
                    font-size: var(--fx-t-floor); padding: var(--fx-t-floor) !important; }
   #settingsPanel label { margin: 3px 0 !important; }
-  #pauseMenu     { width: calc(100vw - 64px) !important; padding: var(--fx-pad-panel) !important; }
+  /* The pause menu grows a button when the Reckoning becomes available, and a
+     phone held sideways is only about 380 tall. Uncapped it came out 436 and
+     hung 28px off BOTH ends, so Resume at the top and Return to Main Menu at
+     the foot were each half off the glass and neither could be reached. */
+  #pauseMenu     { width: calc(100vw - 64px) !important; padding: var(--fx-pad-panel) !important;
+                   max-height: calc(100vh - 16px); overflow-y: auto; }
   #pauseMenu .btn{ padding: var(--fx-gap-row) 12px; font-size: var(--fx-t-body); min-height: var(--fx-tap-btn); }
+  /* the same trap, for the two screens that can also outgrow a short viewport */
+  #reignPanel, #gameover > div { max-height: calc(100vh - 16px); overflow-y: auto; }
   #settleModal .btn, #empireModal .btn { padding: 9px 12px; font-size: var(--fx-t-floor); min-height: 36px; }
   #settleModal, #empireModal { width: calc(100vw - 24px) !important; max-height: 82vh; overflow-y: auto; }
 
   #msg { bottom: 96px; font-size: var(--fx-t-bldg); max-width: calc(100vw - 24px); }
+  /* A bottom sheet lives exactly where the toast sits, and the two were being
+     printed over each other — neither legible. When a sheet is up the toast
+     steps above it. game.js sets .sheet-open as panels open and close. */
+  body.sheet-open #msg { bottom: calc(var(--fx-sheet-h) + 84px); }
 
   /* a smaller pad leaves more of the woods in view */
   #touchPad { bottom: 56px; gap: var(--fx-stack); }

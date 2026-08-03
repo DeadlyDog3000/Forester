@@ -7369,6 +7369,13 @@ function syncUI() {
     $("bpBuyWeapon").style.display = (!isFarm && b.type === "forge" && (b.shop || []).some(i => i.kind === "weapon")) ? "block" : "none";
   }
   syncSkills();   // an open tree keeps pace with the work and the treasury
+  // Last, once every panel above has been shown or hidden: on a phone these are
+  // bottom sheets and the toast sits in the same strip of glass, so the two were
+  // printed over each other and neither could be read. The stylesheet lifts the
+  // toast clear whenever a sheet is up. Set here rather than at the top of this
+  // function, or it reports the state of the frame before.
+  document.body.classList.toggle("sheet-open",
+    ["civPanel", "bldgPanel", "govPanel", "folkPanel", "chronPanel", "reignPanel"].some(isOpen));
 }
 
 // ===== shoving the map with the pointer =====
