@@ -6305,6 +6305,59 @@ $("folkSort").addEventListener("click", () => {
   renderFolk();
 });
 
+// ---------------------------------------------------------------------------
+// Tap a panel to be rid of it.
+//
+// Every panel used to have its own way out and no two were alike: a [close]
+// link here, a "close" button there, Escape for some, and for the civilian and
+// building sheets nothing at all — you had to know to click the man a second
+// time. Now a tap anywhere on a panel's own surface puts it away. Only the
+// things you can actually operate are spared, and a drag is not a tap, so
+// sliders, scrolling lists and selecting text all still behave.
+//
+// Closing is not always a matter of hiding the element. The civilian sheet is
+// drawn from `selected` and would be back on the next frame; the pause menu
+// holds the clock; the Reckoning hands the clock back to the pause menu.
+// ---------------------------------------------------------------------------
+
+// A tap landing on any of these is a use of the panel, not a dismissal of it.
+const PANEL_KEEP = "button,input,select,textarea,label,a,.dropdown-menu,.menu-item,.folkRow,.tnode";
+
+const PANEL_CLOSE = {
+  civPanel:  () => { selected = null; selGroup = []; syncUI(); },
+  bldgPanel: () => { selectedBldg = null; selectedCamp = null; selectedGrave = null; syncUI(); },
+  govPanel:  () => { $("govPanel").style.display = "none"; syncUI(); },
+  folkPanel: () => { $("folkPanel").style.display = "none"; syncUI(); },
+  chronPanel:() => { $("chronPanel").style.display = "none"; syncUI(); },
+  reignPanel:() => { $("reignPanel").style.display = "none"; paused = pauseOpen; },
+  helpPanel: () => { $("helpPanel").style.display = "none"; },
+  settingsPanel: () => { $("settingsPanel").style.display = "none"; saveSettings(); },
+  skillPanel: () => closeSkills(),
+  techPanel: () => { $("techPanel").style.display = "none"; $("techToggle").textContent = "Open Tech Tree"; },
+  militaryPanel: () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); },
+  pauseMenu: () => setPause(false),
+};
+
+for (const id of Object.keys(PANEL_CLOSE)) {
+  const el = $(id);
+  if (!el) continue;
+  let down = null;
+  el.addEventListener("pointerdown", e => { down = { x: e.clientX, y: e.clientY, t: e.target }; });
+  el.addEventListener("click", e => {
+    const d = down; down = null;
+    // a press that travelled is a scroll, a drag or a text selection
+    if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8) return;
+    // judge the press where it started: a dropdown that closed under the finger
+    // would otherwise leave the release landing on bare panel
+    if (d.t.closest && d.t.closest(PANEL_KEEP)) return;
+    if (e.target.closest && e.target.closest(PANEL_KEEP)) return;
+    // A tap with a menu hanging open is a change of mind about the menu. Let it
+    // shut that and nothing else — the panel goes on the next tap.
+    if (el.querySelector(".dropdown.open")) return;
+    PANEL_CLOSE[id]();
+  });
+}
+
 $("milToggle").addEventListener("click", openMilitary);
 $("milClose").addEventListener("click", () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); });
 $("milColor").addEventListener("input", e => setUniform(e.target.value));

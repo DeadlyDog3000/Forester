@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "forester",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8181", "--directory", "/Users/roanfraese/Forester"],
+      "port": 8181
+    }
+  ]
+}
