@@ -8,7 +8,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0d1210">
 <title>Forester — Beta</title>
-<link rel="stylesheet" href="forester-ui.css">
+<!-- The stylesheet carries the same per-visit stamp as the scripts below. It was
+     the one file left unversioned, and new code with an old stylesheet is the
+     mismatch that reliably breaks the layout: tap targets, sheet heights and
+     panel widths all live in here. -->
+<script>document.write('<link rel="stylesheet" href="forester-ui.css?v=' + Date.now() + '">');</script>
+<noscript><link rel="stylesheet" href="forester-ui.css"></noscript>
 </head>
 <body>
   <canvas id="game"></canvas>

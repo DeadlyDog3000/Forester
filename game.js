@@ -6358,6 +6358,48 @@ for (const id of Object.keys(PANEL_CLOSE)) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// The bottom sheets are positioned against the height of the action bar, and
+// that height was written into the stylesheet as a round 50px. The bar is
+// really 57 on a phone — and taller again on a handset with a home indicator,
+// where it grows by the safe-area inset — so the foot of every sheet sat behind
+// it. Measure the bar and let the stylesheet read the answer.
+// ---------------------------------------------------------------------------
+// Measuring it once at load is no good: the bar is hidden behind the main menu
+// until a game begins, so the only reading available then is zero. Watch it
+// instead, and take the height whenever it has one.
+let actionBarH = 0;
+function sizeActionBar() {
+  const h = Math.round($("actions").getBoundingClientRect().height);
+  if (h > 0 && h !== actionBarH) {
+    actionBarH = h;
+    document.documentElement.style.setProperty("--fx-actions-h", h + "px");
+  }
+}
+addEventListener("resize", sizeActionBar);
+addEventListener("orientationchange", () => setTimeout(sizeActionBar, 250));
+
+// A menu opened inside a bottom sheet unrolled below the fold — Recruit opened
+// 246px past the bottom of a phone screen, and the only way to reach it was to
+// scroll the sheet on faith, with nothing on screen to say a menu had opened at
+// all. Bring it into view. The action bar's own menus are already fixed sheets
+// and place themselves.
+for (const d of document.querySelectorAll(".dropdown")) {
+  new MutationObserver(() => {
+    if (!d.classList.contains("open")) return;
+    const menu = d.querySelector(".dropdown-menu");
+    if (!menu || getComputedStyle(menu).position === "fixed") return;
+    // a timer, not a frame: a menu must still find its way onto the screen in a
+    // tab the browser has stopped painting
+    setTimeout(() => {
+      if (!d.classList.contains("open")) return;
+      const r = menu.getBoundingClientRect();
+      if (r.top >= 0 && r.bottom <= innerHeight) return;
+      menu.scrollIntoView({ block: "nearest" });
+    }, 0);
+  }).observe(d, { attributes: true, attributeFilter: ["class"] });
+}
+
 $("milToggle").addEventListener("click", openMilitary);
 $("milClose").addEventListener("click", () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); });
 $("milColor").addEventListener("input", e => setUniform(e.target.value));
@@ -7429,6 +7471,10 @@ function syncUI() {
   // function, or it reports the state of the frame before.
   document.body.classList.toggle("sheet-open",
     ["civPanel", "bldgPanel", "govPanel", "folkPanel", "chronPanel", "reignPanel"].some(isOpen));
+  // The bar is hidden behind the main menu, so it cannot be measured until a
+  // game is running. This is the one place guaranteed to run once it is; the
+  // measurement is thrown away unless the height actually changed.
+  sizeActionBar();
 }
 
 // ===== shoving the map with the pointer =====

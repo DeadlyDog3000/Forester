@@ -177,7 +177,7 @@
   --fx-tap-pad-sm:   44px;   /* a finger, not a cursor: 44 is the comfortable minimum */
   --fx-tap-btn:      44px;   /* was 38, which left the action bar short of a fingertip */
   --fx-tap-menu:     34px;
-  --fx-tap-sheet:    30px;
+  --fx-tap-sheet:    36px;   /* was 30: a sheet is cramped, but not that cramped */
   --fx-pad-lane:     58px;  /* sheets stop short of the control pad          */
   --fx-sheet-h:      33vh;
 
@@ -834,11 +834,22 @@ body.touch #touchPad   { display: flex; }
   body.touch #touchPad { z-index: 34; }
 
   /* --- the records, as sheets ------------------------------------------- */
+  /* These two are for reading, not glancing, and a third of the screen is not
+     enough to read in: on a 568px phone the Chronicle came to 187px, its search
+     row and its filter chips took 180 of them, and the record itself was left
+     ONE pixel tall. The chips now run in a single scrolling row rather than
+     wrapping into three, and both panels get the height a list deserves. */
   #chronPanel, #folkPanel {
     top: auto; bottom: var(--fx-actions-h); left: var(--fx-stack); right: var(--fx-stack);
-    transform: none; width: auto; max-height: var(--fx-sheet-h);
+    transform: none; width: auto; max-height: 62vh;
     padding: var(--fx-stack) 7px; z-index: var(--fx-z-sheet);
   }
+  #chronFilters {
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; flex: 0 0 auto;
+  }
+  #chronFilters::-webkit-scrollbar { display: none; }
+  #chronFilters .chip { flex: 0 0 auto; }
   #chronPanel h3, #folkPanel h3 {
     font-size: var(--fx-t-small); margin-bottom: 4px; letter-spacing: var(--fx-track-1);
   }
@@ -916,6 +927,52 @@ body.touch #touchPad   { display: flex; }
   #reignPanel, #gameover > div { max-height: calc(100vh - 16px); overflow-y: auto; }
   #settleModal .btn, #empireModal .btn { padding: 9px 12px; font-size: var(--fx-t-floor); min-height: 36px; }
   #settleModal, #empireModal { width: calc(100vw - 24px) !important; max-height: 82vh; overflow-y: auto; }
+  /* The same fixed-width trap, in the two panels that were missed. MILITARY is
+     360px and the cargo offer 340px; a 320px phone is narrower than both, so
+     each hung off BOTH edges — 20px a side and 10px a side — with the roster's
+     numbers and the offer's price sliced off. */
+  #militaryPanel { width: min(360px, calc(100vw - 24px)) !important; }
+  #cargoModal    { width: min(340px, calc(100vw - 24px)) !important;
+                   max-height: 82vh; overflow-y: auto; }
+  /* The tech tree was capped but never told to scroll, so the line that tells
+     you to tap a lit node spilled out of the panel and floated over the woods
+     unbacked. In landscape that was the whole footer. */
+  #techPanel { overflow-y: auto; }
+
+  /* --- fingers, not cursors --------------------------------------------- */
+  /* Two problems with one cause: every control in here was drawn for a mouse.
+
+     The first belongs to Safari. A field whose text is under 16px makes iOS
+     zoom the whole page in the moment it takes focus, and this game asks for
+     no zoom at all — so the player is left staring at a magnified corner of
+     the screen. Every one of the fourteen fields was under it. Sixteen pixels
+     is the threshold and there is no other way to turn the behaviour off.
+
+     The second is that a fingertip covers about 44px and almost nothing here
+     did: the law and settings toggles were 13px square, the chronicle's
+     filter chips 19, the volume sliders 16 tall. The bottom sheets are capped
+     at a third of the screen and cannot afford a full 44 on every row, so
+     they take 36 — the modals, which have room, take the full mark. */
+  input[type=text], input[type=search], input[type=number], textarea, select,
+  #govPanel input[type=text] { font-size: 16px !important; }
+
+  input[type=checkbox] { width: 22px; height: 22px; flex: 0 0 auto; }
+  input[type=text], input[type=search], input[type=number], select, textarea { min-height: 36px; }
+  /* the uniform swatches are built in script with an inline 22px height */
+  #milSwatches button { height: 36px !important; }
+  input[type=range]    { height: 34px; }
+  input[type=color]    { min-width: 44px; min-height: 32px; }
+  #settingsPanel label { min-height: 44px; display: flex; align-items: center; }
+  #govPanel label      { min-height: 36px; display: flex; align-items: center; }
+  #govPanel input[type=color], #militaryPanel input[type=color] { width: 44px; height: 32px; }
+  .chip     { min-height: 32px; display: inline-flex; align-items: center; }
+  /* the roster's per-man buttons are built in script with a 10px inline face */
+  #militaryPanel .btn, #militaryPanel label { min-height: 36px; }
+  #militaryPanel label { display: flex; align-items: center; }
+  #reignPanel .btn, #cargoModal .btn, #siegeMenu .btn, .panelHead .btn { min-height: 36px !important; }
+  .folkRow  { min-height: 36px; }
+  #skTree .btn { min-height: 36px; }
+  #chronPanel .btn, #folkPanel .btn { min-height: 36px; }
 
   #msg { bottom: 96px; font-size: var(--fx-t-bldg); max-width: calc(100vw - 24px); }
   /* A bottom sheet lives exactly where the toast sits, and the two were being
