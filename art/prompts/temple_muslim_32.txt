@@ -1,0 +1,16 @@
+A single 32x32 pixel game sprite of a small house of worship. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework, NO lettering or text of any kind. Individual bricks, planks or shingles must NOT be picked out — suggest the walls with at most two or three broad bands of slightly different tone. The whole building is a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective.
+
+THE SHAPE:
+A small Ottoman stone mosque, the kind raised in a provincial town in 1683. A low square block of warm pale stone, wider than tall, carrying one broad shallow LEAD-GREY DOME across the whole top — a smooth low half-sphere, wide and flattened, not pointed, not bulbous. A GOLD CRESCENT, horns pointing up, on a short finial at the crown of the dome. Rising at the LEFT side, one very slender MINARET — a tall thin round tower reaching to the top edge of the frame, with a small blocky balcony ring near its top and a small pointed cap above that. A tall pointed-arch doorway centred in the front, dark, reaching the ground, with a chunky pale stone surround. Two small pointed-arch windows.
+NO star beside the crescent. No lettering, no script, no calligraphy anywhere.
+
+COLOUR — 5 flat shades only: near-black for the doorway void and outline, warm pale limestone for the lit walls and the minaret, a deeper warm stone-grey for the shadowed side, cool lead-grey for the dome and the minaret cap, and warm gold for the crescent finial.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no people, no border, no frame, no text.

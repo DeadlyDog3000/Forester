@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of one candle burning alone. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A single stubby tallow candle in a plain iron holder, one small steady flame, surrounded by empty dark space.
+COLOUR: Cream-white candle, dark iron holder, a warm orange-yellow flame with a pale hot centre. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

@@ -1,0 +1,20 @@
+A single 32x32 pixel game sprite of a small house of worship. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework, NO lettering or text of any kind. Individual bricks, planks or shingles must NOT be picked out — suggest the walls with at most two or three broad bands of slightly different tone. The whole building is a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective.
+
+
+THE SHAPE:
+A South German baroque Catholic chapel, whitewashed, curved and gilded.
+A broad white-plastered nave, wider than tall, whose front gable rolls in bold blocky S-CURVES — the top edge of the facade must visibly swell out and in again, never a straight triangle.
+Rising from the centre of the nave, one SQUAT TOWER, only a little taller than the nave, carrying one FAT BULBOUS ONION DOME: wide and ROUND at its belly, at least EIGHT pixels across, pinched to a short neck above it. It must read as a fat round bulb sitting on a stalk — NOT a cone, NOT a pyramid, NOT a thin spike, NOT a plume of smoke. Draw the widest part of the dome plainly wider than the tower beneath it.
+Standing on top of the dome, a BOLD GOLD CROSS with arms at least two pixels thick, clearly separated from the dome behind it against the background.
+A wide round-arched doorway centred, a solid near-black void reaching the ground, inside a fat pale stone surround. A big round wheel window above the door. One deep arched niche either side of the door, each a dark void holding one small pale blocky statue.
+
+COLOUR — 5 flat shades only, high contrast: near-black for the doorway and niche voids and the outline, warm cream-white for the lit plaster (the dominant colour), a soft warm grey-beige for the plaster in shadow, dull slate-green copper for the onion dome and the roofs, and bright warm gold for the cross. The gold must stay clearly gold and must not blend into the cream.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no people, no border, no frame, no text.

@@ -1,0 +1,11 @@
+A single 32x32 pixel game sprite of a religious emblem. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+CRITICAL — EXTREME SIMPLICITY: this must read clearly at 32 pixels wide. NO fine detail, NO thin lines, NO small texture, NO lettering of any kind. A handful of large chunky pixel masses. Crude and bold, not delicate.
+
+COMPOSITION: perfectly square 1:1 image, the emblem centred and filling almost the whole frame, seen flat-on face to the viewer. Not angled, not in perspective, no 3D.
+
+THE EMBLEM: the seven-branched MENORAH of the Temple — the sign the Portuguese Jews of Hamburg used, long before any star. A heavy gold lampstand standing on a broad blocky foot, one thick central stem, and three fat curved branches sweeping up on each side, all seven arms reaching the SAME height in a straight level row across the top. Seven small warm FLAMES sit in a level line on the seven arms. Count exactly seven branches and exactly seven flames. Thick chunky arms, no thin lines.
+
+COLOUR — 5 flat shades only: near-black outline, deep bronze-gold for the shadowed side of the stand, warm mid gold for the arms, pale bright gold for the lit top edges, and a warm orange-amber for the seven flames. Nothing else.
+
+BACKGROUND: completely flat uniform solid neutral mid-grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no shadow, no border, no frame, no text.

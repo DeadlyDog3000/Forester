@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a small drawstring coin sack. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A plump little leather pouch cinched shut at the neck with a drawstring tied in a simple knot, sitting upright and bulging with coin. Two or three round gold coins spill out at its foot in front of it. Humble, worn, well used — a peasant's purse, not a treasure chest.
+COLOUR: Warm tan-brown leather in three shades with a darker shadow under the cinch, dull cord drawstring, bright warm gold on the spilled coins with a white highlight on one rim, near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

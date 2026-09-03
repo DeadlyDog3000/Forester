@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a water-powered sawmill. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the sawmill centred, seen straight on from ground level, slightly wider than tall.
+
+THE SAWMILL: A small timber mill shed with a plank roof and an open side showing a tall vertical saw blade in its frame. On the left flank, a wooden undershot water wheel with visible paddles. In front, a log lying on the carriage ready for the cut and a neat stack of sawn boards beside it. Sawdust at the foot. Simple, sturdy, seventeenth-century.
+
+COLOUR: Warm brown timber in three shades, pale fresh-cut yellow-cream boards as the bright note, grey-blue water under the wheel, dull grey saw blade, near-black outline.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.

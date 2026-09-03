@@ -1,0 +1,19 @@
+A single 32x32 pixel game sprite of a small house of worship. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework, NO lettering or text of any kind. Individual bricks, planks or shingles must NOT be picked out — suggest the walls with at most two or three broad bands of slightly different tone. The whole building is a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective.
+
+
+THE SHAPE:
+A North German Lutheran brick church, built around one MASSIVE SQUARE WEST TOWER — the tower is the whole point of the sprite and must be huge. A broad, blocky, square tower of red brick standing dead centre, taking up a full THIRD of the sprite's width and rising the entire height of the frame, far taller than anything else. On top of it a short, FAT, blunt pyramid cap of dark green copper — wide at the base, at least six pixels across at its foot, never a thin needle. A small GOLD WEATHERCOCK on top of the cap.
+Low, plain brick nave roofs flank the tower on the left and the right, each only about half the tower's height, each with one simple straight dark roof slab.
+One tall narrow round-arched doorway centred at the foot of the tower, a solid near-black void. One tall narrow round-arched window in the tower above the door. One round-arched window on each flanking nave.
+NO onion dome, NO bulb, NO curved roof of any kind. No statues, no ornament. Severe, square and heavy.
+
+COLOUR — 5 flat shades only, and keep the brick and the roof FAR apart in tone: near-black for the door and window voids and the outline, deep oxblood-red for the shadowed brick, bright warm brick-red for the lit brick faces (this must be the dominant colour of the sprite), very dark slate-green for the roofs and the tower cap, and one small note of warm gold for the weathercock. No brown timber, no white or grey walls.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no people, no border, no frame, no text.

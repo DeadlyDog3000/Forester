@@ -41,7 +41,70 @@ const HUNGER_PER_DAY = 105;                   // what 0.35 a second came to over
 const HUNGER_DECAY = HUNGER_PER_DAY / DAY;
 const STARVE_DPS = 2;
 const SAPLING_GROW = 60, BASE_FARM_RIPEN = 25;
-const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, MUSKET_COST = 25, CAV_COST = 50, TOOL_PRICE_GOV = 10, TOOL_PRICE_SELF = 8;
+const TAX_PERIOD = 240, POLICE_COST = 40, SOLDIER_COST = 30, MUSKET_COST = 25, CAV_COST = 50;
+
+// --- what a thing is made of ---
+// One ladder of metals, and it runs through everything the forge turns out. Tech
+// decides the FORM a blacksmith knows how to make — a spear, a sword, a battle
+// axe — and the metal decides how well that form comes out. Stone is underfoot
+// everywhere and barely helps; the metals are not. Iron, copper and tin come out
+// of a mine and out of nothing else, so until the colony sinks one the smith has
+// only fieldstone to work. Bronze is the middle rung: copper and tin melted
+// together in a crucible, which a blacksmith can do at his own hearth the day he
+// is shown how — where iron wants a furnace built for it and nothing else.
+// `mats` is a function, not a table, because the iron recipe has to ask a tech
+// (Hilts) what it costs — and that question cannot be answered this early in the file.
+const MATERIALS = [
+  { id: "stone",  name: "Stone",
+    tool:   { bonus: 0.05, self: 4,  gov: 5,  mats: () => ({ stone: 2, logs: 1 }),
+              desc: "A knapped fieldstone head lashed to a haft with leather cord. It is barely better than bare hands, but it is what a poor colony makes out of what lies underfoot. Work goes 5% faster." },
+    weapon: { mult: 0.75, self: 8,  gov: 8,  mats: () => ({ stone: 3, logs: 1 }),
+              desc: "An edge chipped out of fieldstone and bound to a shaft. It will open a man up once, perhaps twice, and after that it is a rock again. Three quarters the bite of a forged blade — but it is what there is." } },
+  { id: "bronze", name: "Bronze",
+    tool:   { bonus: 0.10, self: 8,  gov: 10, mats: () => ({ bronze: 1, stone: 1, logs: 1 }),
+              desc: "A cast bronze head socketed clean onto the haft. It holds an edge the way stone never could, and it does not chip on the first hard knot. Work goes 10% faster." },
+    weapon: { mult: 1.00, self: 14, gov: 14, mats: () => ({ bronze: 2, stone: 1, logs: 1 }),
+              desc: "Cast bronze, poured and ground to a point. Soft enough to turn on a helmet, but it keeps its edge far longer than anything chipped from stone. This is the plain blade the colony has always made." } },
+  { id: "iron",   name: "Iron",
+    tool:   { bonus: 0.15, self: 12, gov: 15, mats: () => ({ iron: 1, stone: 1, logs: 1 }),
+              desc: "Forged iron, keen and balanced, wedged tight at the eye — the best thing the colony knows how to make. A man who owns one keeps it all his life. Work goes 15% faster." },
+    weapon: { mult: 1.25, self: 20, gov: 20, mats: () => ({ iron: weaponIron(), stone: 1, logs: 1 }),
+              desc: "Forged iron, hammered out and ground keen. Half again the reach into a man that stone has, and a quarter more than bronze. Every soul in the colony knows it on sight." } },
+];
+const matRank   = id => MATERIALS.findIndex(m => m.id === id);    // -1 is bare hands
+const matOf     = id => MATERIALS[matRank(id)] || null;
+const matsFor   = (m, kind) => Object.entries(m[kind].mats());
+const canMake   = (m, kind) => matsFor(m, kind).every(([k, q]) => (res[k] || 0) >= q);
+const spendMats = (m, kind) => { for (const [k, q] of matsFor(m, kind)) res[k] -= q; };
+const withArt   = s => (/^[aeiou]/i.test(s) ? "an " : "a ") + s;  // an iron tool, a stone one
+// what a pair of hands is holding, of this kind. Both are material ids, and both
+// are falsy when empty — so every `if (c.armed)` written before tiers still reads true.
+const heldId    = (c, kind) => c && (kind === "tool" ? c.tool : c.armed);
+// A tool saves a share of the time; a blade multiplies the damage its form does.
+// Bronze is the plain weapon the colony used to make — stone is desperation, iron
+// is the reward — so the old balance still sits in the middle of the new ladder.
+const toolBonus  = c => { const m = matOf(c && c.tool);  return m ? m.tool.bonus : 0; };
+const weaponMult = c => { const m = matOf(c && c.armed); return m ? m.weapon.mult : 1; };
+// the best rung the colony's stores can actually pay for
+const bestForgeable = kind => {
+  for (let i = MATERIALS.length - 1; i >= 0; i--) if (canMake(MATERIALS[i], kind)) return MATERIALS[i];
+  return null;
+};
+// the best thing of this kind on these racks that beats what the hands already hold
+function bestOnRacks(f, c, kind) {
+  const mine = matRank(heldId(c, kind));
+  let best = null;
+  for (const i of (f && f.shop) || []) {
+    if (i.kind !== kind) continue;
+    const r = matRank(i.tier);
+    if (r <= mine) continue;
+    if (!best || r > matRank(best.id)) best = MATERIALS[r];
+  }
+  return best;
+}
+// what could be bought for this man right now, anywhere in the colony
+const bestOffer = (c, kind) => buildings.filter(b => b.type === "forge" && !b.fire && !b.site)
+  .reduce((a, b) => { const t = bestOnRacks(b, c, kind); return t && (!a || matRank(t.id) > matRank(a.id)) ? t : a; }, null);
 // the musket's bargain: it outranges and outhits a bow, and takes an age to load
 const MUSKET_RANGE = 250, MUSKET_FIRE_T = 0.55, BALL_SPEED = 900;
 // ===== the volley =====
@@ -96,7 +159,9 @@ const REPAIR_COST = { logs: 20, doors: 1, dm: 5 };
 const STATIC_COSTS = {
   recruit: { logs: 30, dm: 10 }, market: { logs: 25, dm: 8 }, sapling: { logs: 1, dm: 1 },
   watchtower: { logs: 15, stone: 5, dm: 6 }, bakery: { logs: 20, stone: 3, dm: 8 }, well: { logs: 10, stone: 8, dm: 4 },
-  forge: { logs: 20, stone: 6, iron: 2, dm: 12 },
+  forge: { logs: 20, stone: 10, dm: 12 },
+  quarry: { logs: 18, stone: 10, dm: 10 }, mine: { logs: 30, stone: 14, dm: 16 },
+  sawmill: { logs: 35, stone: 8, dm: 14 }, smelter: { logs: 22, stone: 20, dm: 18 },
   wall: { stone: 2, dm: 1 }, gate: { logs: 6, stone: 2, dm: 1 },
   jail: { logs: 18, stone: 6, dm: 10 },
   hospital: { logs: 25, stone: 8, dm: 14 },
@@ -104,10 +169,20 @@ const STATIC_COSTS = {
   townhall: { logs: 40, stone: 10, dm: 20 },
   stonewall: { stone: 4, dm: 1 }, stonegate: { stone: 7, logs: 2, dm: 2 },
   moat: { stone: 4, logs: 2, dm: 3 }, ditch: { logs: 2, dm: 1 },
+  shrine: { logs: 10, dm: 3 }, temple: { logs: 30, stone: 8, dm: 15 },
 };
 const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: "Market Center",
   burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall", jail: "Jail", hospital: "Hospital",
-  stonewall: "Stone Wall", stonegate: "Stone Gate", moat: "Moat", ditch: "Ditch", lamp: "Lamppost" };
+  stonewall: "Stone Wall", stonegate: "Stone Gate", moat: "Moat", ditch: "Ditch", lamp: "Lamppost",
+  quarry: "Quarry", mine: "Mine", sawmill: "Sawmill", smelter: "Smelter",
+  shrine: "Shrine", temple: "House of Worship" };
+// A house of worship is named for the creed it was dedicated to, not for its
+// type: nobody in 1683 called the building at the end of the lane a "temple".
+function bldgLabel(b) {
+  if (b && (b.type === "temple" || b.type === "shrine") && FAITHS[b.faith])
+    return b.type === "temple" ? FAITHS[b.faith].house : FAITHS[b.faith].shrineName;
+  return BLDG_NAMES[b.type] || b.type;
+}
 const WALLLIKE = new Set(["wall", "gate", "stonewall", "stonegate", "moat", "ditch"]);
 // A lamppost is furniture, not a building: it takes no ground, claims no
 // territory, has no inside, and is set down as close to its neighbours as you
@@ -166,6 +241,19 @@ T("defending", "Defending", "military", ["policing"], 4, "Unlocks Town Walls & G
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
 T("defplus", "Defending II", "military", ["defending"], 5, "Stone walls & gates, and moats & ditches that mire attackers");
 T("occupation", "Occupation", "military", ["raiding"], 6, "Taxes collect +1 more DM");
+// ===== industry =====
+// The third tree, and the one that decides whether the colony stoops or builds.
+// Everything in the first two trees makes a man better at what he is already
+// doing by hand; these replace the hand with a work. They are also the only road
+// to metal: iron, copper and tin are in the ground, and nothing but a mine gets
+// them out.
+T("masonry", "Masonry", "industry", [], 1, "Unlocks the Quarry — a cut face of stone worked by a quarryman, instead of hunting boulders through the woods");
+T("millwork", "Millwork", "industry", ["masonry"], 2, "Unlocks the Sawmill — a lumberjack saws 4 logs into 2 doors, far faster than a man with an adze");
+T("mining", "Mining", "industry", ["masonry"], 2, "Unlocks the Mine and the miner's trade — iron, copper and tin ore out of the deep ground");
+T("deepshafts", "Deep Shafts", "industry", ["mining"], 3, "Quarries and mines work 30% faster, and every shift brings up more");
+T("smelting", "Smelting", "industry", ["mining"], 3, "Unlocks the Smelter — a blacksmith cooks ore down into iron or copper");
+T("blastfurnace", "Blast Furnace", "industry", ["smelting"], 4, "Smelters draw twice the metal out of the same ore");
+T("alloys", "Alloys", "industry", ["smelting"], 4, "The blacksmith melts copper and tin together into bronze, and forges it into tools and arms");
 TECH.lances.req.push("warhorse");
 TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;   // starting knowledge
 
@@ -173,6 +261,421 @@ const has = id => TECH[id].done;
 const techCost = t => 15 + t.depth * 12;
 const techTime = t => 45 + t.depth * 40;
 let research = null;
+
+// ===== the faiths =====
+// Hamburg is a Lutheran city and your family left it as Lutherans. The woods
+// are not: a Reformed weaver walking north out of the Palatinate, a Mennonite
+// ploughman from the Altona side of the wall, a Catholic mason out of Bavaria,
+// a Portuguese Jew who has been moved on from three towns already, an Orthodox
+// deserter off the Polish frontier, a Turk who did not go home from Vienna.
+//
+// A faith is not a badge. It decides what a person believes their life is FOR,
+// and so what they reach for when nobody is telling them what to do. It decides
+// who they can bear to live beside. And it decides what they will take from you:
+// a man whose creed you have proclaimed and whose church you have raised will
+// pay a tithe that would put another man back on the road.
+//
+// Everything here is what these people actually did in 1683, not what is
+// convenient. The Catholic keeps some fifty holy days and does not work them.
+// The Reformed will not have an image in the building and works the harder for
+// it. The Anabaptist will not take the weapon you hold out to him, and no order
+// of yours changes that. The Orthodox keeps the better part of two hundred fast
+// days and eats accordingly. The Jew pays a protection tax nobody asked him
+// whether he wanted. Where a rule looks like a nuisance, it was one.
+//
+// `wants` is the work a faith turns to unbidden — read by faithErrand, which is
+// offered the idle hour before any profession claims it.
+const FAITHS = {
+  lutheran: {
+    name: "Lutheran", one: "a Lutheran", tint: "#3a63a8", weight: 40,
+    house: "Lutheran Church", shrineName: "Lutheran Prayer House",
+    creed: "Faith alone, and the work in front of you is holy — a cobbler serves God by making good shoes.",
+    rule: "Obedient to the magistrate: will not rise against you, whatever the tithe.",
+    wants: [], stubborn: 0.5, meek: true,
+  },
+  catholic: {
+    name: "Roman Catholic", one: "a Catholic", tint: "#c9a03a", weight: 18,
+    house: "Catholic Chapel", shrineName: "Catholic Shrine",
+    creed: "The Church, the sacraments, and the corporal works of mercy: feed the hungry, and it is counted.",
+    rule: "Turns to the fields, and gives bread away rather than sell it. Keeps the holy days, and works 8% fewer hours for them.",
+    wants: ["farm"], stubborn: 0.7, alms: "food", workMul: 1.08,
+  },
+  reformed: {
+    name: "Reformed", one: "a Calvinist", tint: "#5c6b58", weight: 14,
+    house: "Reformed Church", shrineName: "Reformed Prayer House",
+    creed: "The plain preached Word, no image in the building, and diligence in a calling as the sign of election.",
+    rule: "Turns to the quarry and the market, and works 10% faster than anyone. Cannot abide a painted church.",
+    wants: ["stone", "market"], stubborn: 0.7, workMul: 0.90,
+  },
+  anabaptist: {
+    name: "Anabaptist", one: "a Mennonite", tint: "#6f8f5a", weight: 10,
+    house: "Mennonite Meeting House", shrineName: "Mennonite Meeting Room",
+    creed: "Baptism on confession, the community of goods, and nonresistance — the sword is outside the perfection of Christ.",
+    rule: "Will never take a weapon nor bear arms for you, and never rebels. Farms and builds, and shares what it has.",
+    wants: ["farm", "wood"], stubborn: 0.9, pacifist: true, meek: true, alms: "food",
+  },
+  jewish: {
+    name: "Jewish", one: "a Jew", tint: "#c98a2e", weight: 7,
+    house: "Synagogue", shrineName: "Prayer Room",
+    creed: "The Law and the covenant, kept whole in a foreign town under a charter that can be revoked at a month's notice.",
+    rule: "Turns to the market, and arrives with capital. Pays the Schutzgeld — 2 DM above the common tithe.",
+    wants: ["market"], stubborn: 0.95, purse: 14, tribute: 2,
+  },
+  orthodox: {
+    name: "Orthodox", one: "an Orthodox", tint: "#3f5fa8", weight: 6,
+    house: "Orthodox Church", shrineName: "Orthodox Chapel",
+    creed: "The unchanged rite, the icons, and the fast — near two hundred days of the year kept off meat and oil.",
+    rule: "Fasts: grows hungry a third more slowly than anyone else. Turns to stone and to timber.",
+    wants: ["stone", "wood"], stubborn: 0.8, fastMul: 0.66,
+  },
+  muslim: {
+    name: "Muslim", one: "a Muslim", tint: "#3f8f5a", weight: 5,
+    house: "Mosque", shrineName: "Prayer House",
+    creed: "The one God, the five prayers, and zakat — a fixed share of what you own owed to the poor, not given as a favour.",
+    rule: "Pays zakat: hands coin to the poorest in the colony unasked. Turns to stone, and to the market.",
+    wants: ["stone", "market"], stubborn: 0.85, alms: "coin",
+  },
+};
+const FAITH_IDS = Object.keys(FAITHS);
+// What each crown on the map professed in 1683, so that a town you storm gives
+// up people who believe what the people of that place actually believed. The
+// awkward ones are deliberate: Brandenburg's Hohenzollerns were Calvinist over
+// a Lutheran country and the country is what these folk are; Transylvania was
+// the one Calvinist principality east of the Rhine; and the Crimean Khanate is
+// Muslim, which is the whole reason it is drawn separately from Poland.
+const NATION_FAITH = {
+  scotland: "reformed", england: "reformed", ireland: "catholic", france: "catholic",
+  castile: "catholic", aragon: "catholic", portugal: "catholic", hre: "catholic",
+  brandenburg: "lutheran", saxony: "lutheran", bavaria: "catholic", austria: "catholic",
+  milan: "catholic", savoy: "catholic", venice: "catholic", tuscany: "catholic",
+  papal: "catholic", naples: "catholic", sicily: "catholic",
+  sweden: "lutheran", denmark: "lutheran", poland: "catholic",
+  russia: "orthodox", cossacks: "orthodox", crimea: "muslim",
+  hungary: "catholic", transylvania: "reformed", moldavia: "orthodox", wallachia: "orthodox",
+  ottoman: "muslim", algiers: "muslim", tunis: "muslim", tripoli: "muslim",
+};
+const faithOfNation = id => NATION_FAITH[id] || DEFAULT_FAITH;
+const DEFAULT_FAITH = "lutheran";                  // Hamburg, and so your family
+const faithOf = c => (c && FAITHS[c.faith]) ? c.faith : DEFAULT_FAITH;
+const F = c => FAITHS[faithOf(c)];
+const faithIcon = id => `assets/sprites/ui/faith_${id}.png`;
+let stateFaith = null;                             // null until a creed is proclaimed
+// Which creed the next shrine or house of worship is raised to. It follows the
+// state creed when there is one and the largest congregation otherwise, so the
+// common case needs no thought — and the picker in the build menu is there for
+// the uncommon one, which is a ruler quietly building a chapel for a minority
+// he has no intention of professing.
+let dedicateTo = DEFAULT_FAITH;
+function defaultDedication() {
+  if (stateFaith) return stateFaith;
+  let best = DEFAULT_FAITH, bn = -1;
+  for (const id of FAITH_IDS) { const k = flockOf(id); if (k > bn) { bn = k; best = id; } }
+  return best;
+}
+
+// ===== who hates whom, and how much =====
+// Graded by what these people had actually done to each other by 1683, not by
+// how different they look on paper. The Thirty Years' War was one generation
+// back and everybody in the woods remembers whose army came through.
+//
+// Two asymmetries are deliberate. The Anabaptists were hunted by Lutherans,
+// Reformed and Catholics alike — the one point all three agreed on — so they
+// are widely disliked; but nonresistance is a doctrine about the heart as well
+// as the hand, and a Mennonite returns none of it. And the Sephardim of Hamburg
+// had lived under the Porte within living memory, so a Jew and a Turk in the
+// same clearing find they have rather less to argue about than either has with
+// the men who burnt them out.
+const FAITH_HATE = {
+  lutheran:   { catholic: 4, reformed: 2, anabaptist: 4, jewish: 5, orthodox: 2, muslim: 6 },
+  catholic:   { lutheran: 4, reformed: 5, anabaptist: 4, jewish: 5, orthodox: 4, muslim: 6 },
+  reformed:   { lutheran: 2, catholic: 5, anabaptist: 3, jewish: 4, orthodox: 4, muslim: 5 },
+  anabaptist: {},                                   // commanded to love, and does
+  jewish:     { lutheran: 3, catholic: 4, reformed: 3, anabaptist: 1, orthodox: 3, muslim: 1 },
+  orthodox:   { lutheran: 2, catholic: 4, reformed: 4, anabaptist: 2, jewish: 3, muslim: 5 },
+  muslim:     { lutheran: 4, catholic: 5, reformed: 4, anabaptist: 2, jewish: 1, orthodox: 5 },
+};
+const faithHate = (a, b) => (FAITH_HATE[faithOf(a)] || {})[faithOf(b)] || 0;
+
+// Every standing house of the faith, anywhere in the empire — a church in a
+// daughter town still consoles a man in the capital, because it is HIS church.
+const housesOfFaith = f => buildings.filter(b => b.type === "temple" && b.faith === f && !b.fire && !b.site).length;
+const shrinesOfFaith = f => buildings.filter(b => b.type === "shrine" && b.faith === f && !b.fire && !b.site).length;
+const flockOf = f => civs.filter(c => !c.child && faithOf(c) === f).length;
+
+// ===== what the colony does for a man's soul, 0 to 1 =====
+// This is the input the tithe is judged against, and it is deliberately NOT
+// happiness: happiness is the sum of moodReasons, and feeding it back into one
+// of its own terms would be a loop that eats itself. Piety is measured from
+// things the player builds and proclaims, and nothing else.
+function faithComfort(c) {
+  const f = faithOf(c);
+  let m = 0;
+  if (stateFaith === f) m += 0.42;
+  else if (stateFaith) m -= 0.16;                   // another man's church on the hill
+  m += Math.min(2, housesOfFaith(f)) * 0.22;
+  m += Math.min(2, shrinesOfFaith(f)) * 0.08;
+  if (oneFlock() && stateFaith === f) m += 0.16;    // one faith, one flock, no argument
+  return Math.max(0, Math.min(1, m));
+}
+// True when every soul under your flag professes the state creed. Nothing is
+// stored: it is simply asked of the roll, so it breaks the moment you shake a
+// dissenter's hand at the gate — which is the whole bargain.
+function oneFlock() {
+  return !!stateFaith && civs.length > 1 && civs.every(c => c.child || faithOf(c) === stateFaith);
+}
+
+// The soul's share of moodReasons. Kept apart so the government panel can show
+// the religious account on its own without unpicking the rest.
+function faithReasons(c) {
+  const r = [], f = faithOf(c), F0 = FAITHS[f];
+  if (stateFaith === f) r.push(["the state professes their faith", 11]);
+  else if (stateFaith) r.push([`a state church not their own (${FAITHS[stateFaith].name})`, -13]);
+  const h = Math.min(2, housesOfFaith(f)), s = Math.min(2, shrinesOfFaith(f));
+  // Named properly: "a Mennonite Meeting House of their own", not a lowercased
+  // mangling of a proper noun. Churches take -es; everything else takes -s.
+  if (h) r.push([h > 1 ? `two ${F0.house}${/ch$/.test(F0.house) ? "es" : "s"} of their own`
+                       : `${withArt(F0.house)} of their own`, h * 13]);
+  else if (s) r.push(["somewhere of their own to pray", s * 6]);
+  else r.push(["nowhere of their own to pray", -7]);
+  if (oneFlock() && stateFaith === f) r.push(["one faith, one flock", 9]);
+  // Living as the only one of your creed in a strange town is its own weight,
+  // and it is not the same thing as being disliked — that is the opinions.
+  const mine = flockOf(f), grown = civs.filter(c2 => !c2.child).length;
+  if (grown >= 4 && mine === 1 && stateFaith !== f) r.push(["alone in their faith here", -8]);
+  return r;
+}
+
+// ===== the tithe a believer will bear =====
+// The oldest bargain in Europe: a crown that keeps the altar gets to keep the
+// purse. A man whose creed is proclaimed and whose church is built pays a tax
+// of five as though it were a tax of two, and says grace over it. A man whose
+// church you never raised feels every mark of it.
+const TAX_FAITH_RELIEF = 0.55;                      // at most this much of the tithe forgiven
+function taxMoodReason(c) {
+  if (!taxRate) return null;
+  const comfort = faithComfort(c);
+  const bite = -taxRate * 6 * (1 - TAX_FAITH_RELIEF * comfort);
+  const label = comfort >= 0.6 ? `taxes at ${taxRate} — borne for the faith`
+              : comfort >= 0.3 ? `taxes at ${taxRate} — the church takes the edge off`
+              : `taxes at ${taxRate}`;
+  return [label, bite];
+}
+
+// ===== a wanderer's creed =====
+// Weighted to where you are standing. Most of what walks out of a North German
+// wood in 1683 is Lutheran; the rest is rarer the further from home it started.
+function rollFaith() {
+  const total = FAITH_IDS.reduce((n, id) => n + FAITHS[id].weight, 0);
+  let roll = Math.random() * total;
+  for (const id of FAITH_IDS) { roll -= FAITHS[id].weight; if (roll <= 0) return id; }
+  return DEFAULT_FAITH;
+}
+
+// ===== conversion =====
+// The slow road, and the only one that costs nobody their home. A dissenter
+// living under a proclaimed creed, with that creed's great house standing where
+// he can see it, may in the end walk into it. He is likelier to if he is the
+// last of his own kind here and likelier still the longer it goes on — but
+// every faith resists at its own rate, and two of them resist almost entirely.
+// The Anabaptists and the Sephardim were pressed harder than anyone in Europe
+// and did not break; it would be a lie to make them cheap.
+const CONVERT_BASE = 1 / 900;                       // a quarter hour of perfect conditions
+function updateFaithDrift(c, dt) {
+  if (c.child || c.rebel || !stateFaith) return;
+  const f = faithOf(c);
+  if (f === stateFaith) { c.doubt = 0; return; }
+  if (!housesOfFaith(stateFaith)) { c.doubt = Math.max(0, (c.doubt || 0) - dt * CONVERT_BASE); return; }
+  // his own church standing is what holds him; being the last of his kind is
+  // what wears him down
+  const anchor = housesOfFaith(f) ? 0.15 : shrinesOfFaith(f) ? 0.5 : 1;
+  const alone = flockOf(f) <= 1 ? 1.6 : flockOf(f) <= 2 ? 1.15 : 0.7;
+  c.doubt = (c.doubt || 0) + dt * CONVERT_BASE * anchor * alone * (1 - FAITHS[f].stubborn);
+  if (c.doubt >= 1) {
+    c.doubt = 0;
+    const was = FAITHS[f].name;
+    c.faith = stateFaith;
+    tell("life", `${c.name} is received into the ${FAITHS[stateFaith].house} — ${was} no longer.`);
+    tally.converted = (tally.converted || 0) + 1;
+    // the ones he leaves behind do not all wish him well
+    for (const o of civs) if (o !== c && faithOf(o) === f) nudgeOpinion(o, c, -18);
+  }
+}
+
+// ===== driving a soul out =====
+// There is no gentle word for this and the game does not offer one. They walk
+// out of the territory and they do not come back; whatever they were carrying
+// goes with them, and whatever they knew goes with them too.
+function banish(c, quiet) {
+  if (!civs.includes(c)) return;
+  const f = faithOf(c);
+  if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
+  if (c.shelter) turnOut(c, true);
+  for (const fm of farms) if (fm.workers) fm.workers = fm.workers.filter(w => w !== c);
+  civs.splice(civs.indexOf(c), 1);
+  usedNames.delete(c.name);
+  tally.banished = (tally.banished || 0) + 1;
+  // Everyone left who shares the creed of the man you just put on the road
+  // draws the obvious conclusion about their own prospects.
+  for (const o of civs) if (faithOf(o) === f) o.happiness = Math.max(0, o.happiness - 14);
+  if (!quiet) tell("law", `⚠ ${c.name}, ${FAITHS[f].one}, is driven out of the colony.`);
+  syncUI();
+}
+// The edict: every dissenter at once, in an afternoon. It needs a proclaimed
+// creed to be dissenting FROM, and it does not spare the useful.
+function proclaimExpulsion() {
+  if (!stateFaith) return toast("Proclaim a state creed first — there is nothing yet to dissent from.");
+  const out = civs.filter(c => faithOf(c) !== stateFaith);
+  if (!out.length) return toast("There is not a dissenter left in the colony.");
+  const kids = out.filter(c => c.child).length;
+  for (const c of [...out]) banish(c, true);
+  tell("law", `⚠ THE EDICT OF EXPULSION: ${out.length} souls${kids ? ` (${kids} of them children)` : ""} are put out of the colony for refusing the ${FAITHS[stateFaith].name} creed.`);
+  tally.expulsions = (tally.expulsions || 0) + 1;
+  SFX.build();
+  syncUI();
+}
+
+// ===== what a faith sends a person to do =====
+// Offered the idle hour before any profession claims it, so a creed shows in
+// the streets rather than only in a panel. Returns true when it has given an
+// order and autonomy should stand down.
+function faithErrand(c) {
+  const f = F(c);
+  // ALMS. The rest of the colony peddles its surplus at two marks a loaf; these
+  // three give it away — the works of mercy, the community of goods, and zakat.
+  if (f.alms === "food" && (c.inv.bread + c.inv.meat) > 1) {
+    const poor = civs.find(o => o !== c && !o.rebel && !INDOORS.has(o.state) && o.hunger < 45 &&
+                                (o.inv.bread + o.inv.meat + o.inv.wheat) === 0 &&
+                                Math.hypot(o.x - c.x, o.y - c.y) < 520);
+    if (poor) { order(c, { kind: "peddle", target: poor, alms: true, x: poor.x + 18, y: poor.y + 6 }); return true; }
+  }
+  if (f.alms === "coin" && c.inv.dm >= 6) {
+    const poor = civs.filter(o => o !== c && !o.rebel && !INDOORS.has(o.state) && o.inv.dm <= 1 &&
+                                  Math.hypot(o.x - c.x, o.y - c.y) < 520)
+                     .sort((a, b) => a.inv.dm - b.inv.dm)[0];
+    if (poor) { order(c, { kind: "peddle", target: poor, alms: true, x: poor.x + 18, y: poor.y + 6 }); return true; }
+  }
+  // and now and then a soul simply goes to church
+  const house = buildings.filter(b => (b.type === "temple" || b.type === "shrine") &&
+                                      b.faith === faithOf(c) && !b.fire && !b.site)
+                         .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0];
+  if (house && Math.random() < 0.12) {
+    order(c, { kind: "walk", x: house.x + (Math.random() * 40 - 20), y: house.y + 18 });
+    return true;
+  }
+  return false;
+}
+// ===== the creed on the page =====
+// Both pickers are filled from FAITH_IDS, so adding an eighth faith to the table
+// adds it to the government and to the build menu without touching either.
+function fillFaithPickers() {
+  const opts = FAITH_IDS.map(id => `<option value="${id}">${esc(FAITHS[id].name)}</option>`).join("");
+  const st = $("stateFaithSel");
+  if (st) st.innerHTML = `<option value="">— none proclaimed —</option>` + opts;
+  const dd = $("dedSelect");
+  if (dd) dd.innerHTML = opts;
+}
+function renderFaithPanels() {
+  const st = $("stateFaithSel");
+  if (st && st.value !== (stateFaith || "")) st.value = stateFaith || "";
+  const gi = $("govFaithIcon");
+  if (gi) {
+    gi.style.display = stateFaith ? "inline-block" : "none";
+    if (stateFaith) gi.src = faithIcon(stateFaith);
+  }
+  const creed = $("govCreed");
+  if (creed) creed.textContent = stateFaith
+    ? FAITHS[stateFaith].creed
+    : "No creed is proclaimed. Everyone believes what they came here believing, and nobody is comforted or galled by the state for it.";
+  // the congregations, largest first, with what each one has to pray in
+  const flocks = $("govFlocks");
+  if (flocks) {
+    const rows = FAITH_IDS.map(id => [id, flockOf(id)]).filter(([, k]) => k > 0).sort((a, b) => b[1] - a[1]);
+    flocks.innerHTML = rows.length ? rows.map(([id, k]) => {
+      const f = FAITHS[id], h = housesOfFaith(id), sh = shrinesOfFaith(id);
+      const where = h ? `${h} ${h > 1 ? "houses" : "house"}` : sh ? `${sh} ${sh > 1 ? "shrines" : "shrine"}` : "nowhere to pray";
+      // A hanging indent, not a flex row of three: the panel is narrow enough that
+      // a row of separate spans breaks between the name and its own count.
+      return `<div style="display:flex;align-items:flex-start;gap:6px">
+        <img src="${faithIcon(id)}" alt="" style="width:16px;height:16px;flex:0 0 16px;margin-top:2px;image-rendering:pixelated">
+        <span><span style="color:${id === stateFaith ? "#c9a86a" : "#9ab0a2"}">${esc(f.name)}</span><span style="color:#5a6b60"> &mdash; ${k} ${k > 1 ? "souls" : "soul"}, ${where}</span></span></div>`;
+    }).join("") : '<span style="color:#5a6b60">Nobody left to believe anything.</span>';
+  }
+  // what the altar is buying you, said in the only currency a ruler counts
+  const piety = $("govPiety");
+  if (piety) {
+    if (!civs.length) piety.textContent = "";
+    else {
+      const avg = civs.reduce((t, c) => t + faithComfort(c), 0) / civs.length;
+      const forgiven = Math.round(taxRate * 6 * TAX_FAITH_RELIEF * avg);
+      piety.textContent = oneFlock()
+        ? `One flock, one creed — and it holds only until you admit a dissenter. The altar forgives about ${forgiven} points of the tithe's sting.`
+        : `The altar forgives about ${forgiven} points of the tithe's sting, on average. ` +
+          (civs.some(c => faithOf(c) !== stateFaith) && stateFaith
+            ? `${civs.filter(c => faithOf(c) !== stateFaith).length} dissent.` : "");
+    }
+  }
+  const ex = $("edictExpel");
+  if (ex) {
+    const out = stateFaith ? civs.filter(c => faithOf(c) !== stateFaith).length : 0;
+    ex.disabled = !stateFaith || !out;
+    ex.textContent = !stateFaith ? "Proclaim a creed first"
+                   : !out ? "Not a dissenter left"
+                   : `Proclaim the Edict of Expulsion — ${out} put out`;
+  }
+  const dd = $("dedSelect");
+  if (dd) {
+    if (!FAITHS[dedicateTo]) dedicateTo = defaultDedication();
+    if (dd.value !== dedicateTo) dd.value = dedicateTo;
+    const di = $("dedIcon"); if (di) di.src = faithIcon(dedicateTo);
+  }
+}
+
+// ===== the work a creed turns to =====
+// Only where no trade already claims the hour: a colony's blacksmith is its
+// blacksmith whatever he believes, and this must never pull a specialist off
+// the job he was recruited for. It is the unassigned hands — and the farmers
+// and hunters, who have slack in their day — that a faith gets to direct.
+//
+// The Lutherans have an empty list and that is the doctrine, not an oversight:
+// Beruf holds that the work already in front of you is the holy work, so a
+// Lutheran takes whatever the colony hands him and this function has nothing
+// to add.
+function faithWork(c) {
+  const wants = F(c).wants;
+  if (!wants.length) return false;
+  if (c.profession && !["farmer", "hunter"].includes(c.profession)) return false;
+  for (const tag of wants) {
+    if (tag === "farm") {
+      const ripe = farms.find(f => f.ready && !f.workers.some(w => civs.includes(w)) &&
+                                   Math.hypot(f.x - c.x, f.y - c.y) < 600);
+      if (ripe) { order(c, { kind: "harvest", target: ripe, x: ripe.x, y: ripe.y + 10 }); return true; }
+      if (res.seeds < farmSeedCost() * 4) {
+        const pt = nearThings("patches", c.x, c.y, laws.freeRoam ? 800 : 500)
+          .filter(p2 => p2.alive && (laws.freeRoam || nearTerritory(p2.x, p2.y)))[0];
+        if (pt) { order(c, { kind: "gather", target: pt, forColony: true, x: pt.x + 16, y: pt.y + 4 }); return true; }
+      }
+    }
+    if (tag === "stone" && (c.inv.stone || 0) < 8) {
+      const rk = nearThings("stones", c.x, c.y, laws.freeRoam ? 900 : 600)
+        .filter(st => st.alive && (laws.freeRoam || nearTerritory(st.x, st.y)))[0];
+      if (rk) { order(c, { kind: "quarry", target: rk, x: rk.x + 26, y: rk.y + 6 }); return true; }
+    }
+    if (tag === "wood" && (c.inv.logs || 0) < 9) {
+      const tr = nearThings("trees", c.x, c.y, laws.freeRoam ? 800 : 500)
+        .filter(t2 => t2.alive && t2.growth >= 1 && (laws.freeRoam || nearTerritory(t2.x, t2.y)))[0];
+      if (tr) { order(c, { kind: "chop", target: tr, x: tr.x + 26, y: tr.y + 6 }); return true; }
+    }
+    if (tag === "market" && (c.inv.bread + c.inv.meat) > 1) {
+      let mk = null, md = Infinity;
+      for (const b of buildings) if (b.type === "market" && !b.fire && !b.site) {
+        const d = Math.hypot(b.x - c.x, b.y - c.y);
+        if (d < md) { md = d; mk = b; }
+      }
+      if (mk) { order(c, { kind: "sell", target: mk, x: mk.x, y: mk.y + 16 }); return true; }
+    }
+  }
+  return false;
+}
 
 // --- derived stats ---
 const isForce = c => c.profession === "police" || c.profession === "soldier" || c.profession === "musketeer" || c.profession === "cavalry";
@@ -289,18 +792,21 @@ function overTheWall(u, w, goal) {
 // repair puts that back — losing a forge is a setback, not an erasure.
 const RUINS = new Set(["cabin", "recruit", "market", "watchtower", "bakery", "well",
                        "forge", "townhall", "farm", "wall", "gate", "stonewall", "stonegate", "jail",
-                       "hospital"]);
+                       "hospital", "quarry", "mine", "sawmill", "smelter", "shrine", "temple"]);
 // A ruin keeps the footprint of what it was: burnt wall, wall-shaped rubble.
 const baseType = b => (b.type === "burned" && b.was) ? b.was : b.type;
 const ruinKey = b => {
   const was = b.was || "cabin";
+  // A gutted church is a gutted church whatever was preached in it — one wreck
+  // serves every creed, and the dedication is remembered in `faith` for the rebuild.
+  if (was === "temple" || was === "shrine") return "burned_temple";
   const k = "burned_" + was + (b.rot && IMAGES["burned_" + was + "v"] ? "v" : "");
   return IMAGES[k] ? k : "burned";
 };
 // A ruin is named for what it was: "Burned Forge", not a nameless heap.
 function bldgName(b) {
-  if (b.type === "burned" && b.was) return "Burned " + (BLDG_NAMES[b.was] || b.was);
-  return BLDG_NAMES[b.type] || b.type;
+  if (b.type === "burned" && b.was) return "Burned " + bldgLabel({ type: b.was, faith: b.faith });
+  return bldgLabel(b);
 }
 function ruin(b, how) {
   const was = b.type;
@@ -314,7 +820,8 @@ function ruin(b, how) {
     tell("build", `The ${BLDG_NAMES[was] || was} has ${how}.`);
     return;
   }
-  b.type = "burned"; b.was = was;
+  b.type = "burned"; b.was = was;   // `faith` rides along, so a rebuild is the same church
+  b.workers = undefined; b.smelt = undefined;   // nobody is on the rota of a wreck
   b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
   b.fire = 0; b.torchP = -1;
   tally.burned++;
@@ -323,8 +830,10 @@ function ruin(b, how) {
 // deep snow slows every traveller by a fifth — the road's packed lane still helps
 const snowPace = () => season() === "winter" ? 0.8 : 1;
 const walkSpeed = c => BASE_WALK * snowPace() * (1 + (has("horses") ? 0.15 : 0) + (has("horsebreeding") ? 0.10 : 0) + (has("saddling") ? 0.10 : 0)) * (c && isForce(c) ? (has("warhorse") ? 1.35 : 1.15) : 1) * (c && c.profession === "cavalry" ? 1.45 : 1);
-const workMul = c => (c && c.tool ? 0.65 : 1) * (has("stables") ? 0.8 : 1) * (laws.forced ? 0.75 : 1)
-                     * (c && c.sick > 0 ? 1.8 : 1);   // a man abed is slow at everything
+const workMul = c => (1 - toolBonus(c)) * (has("stables") ? 0.8 : 1) * (laws.forced ? 0.75 : 1)
+                     * (c && c.sick > 0 ? 1.8 : 1)    // a man abed is slow at everything
+                     * (c ? (F(c).workMul || 1) : 1)  // holy days kept, or a calling worked hard
+                     * temperWork(c);                 // and an idle one is slow at everything else
 
 // ===== what a pair of hands has learned =====
 // Technology is what the colony knows; a skill is what one man is good at. Every
@@ -370,6 +879,142 @@ function sxSave(c) {
   return Object.keys(o).length ? o : undefined;
 }
 // Work teaches. Called wherever a task is actually finished, never per frame.
+// ===== what a soul is like =====
+// A skill is what a person has learned. A temperament is what they were like
+// before they had learned anything, and it does not change: a man does not stop
+// being hot-blooded because the harvest came in well.
+//
+// Everyone carries exactly one, drawn from six opposed pairs, and it is a thumb
+// on the scales of the systems already here — how fast the work goes, what
+// lifts and grinds a mood, how deep a quarrel cuts, what a fight costs, what the
+// winter takes. Not one of these is a new subsystem: every one is a multiplier
+// on a number that existed already, and every one surfaces as a line in the mood
+// panel or a figure on the sheet. A player who wonders why this man is slower,
+// angrier or colder than the man beside him can always find out.
+//
+// The sim always uses the true temperament. Only the PANEL waits until the
+// colony has seen enough to name it — a person acts like themselves from the
+// hour they arrive, whether or not you have taken their measure yet.
+const TEMPERS = [
+  { id: "industrious", name: "Industrious", opp: "idle",
+    blurb: "Works unwatched, and rests badly.",
+    does: "An eighth quicker at every kind of work, and far less apt to wander when a job ends.",
+    tell: "has not been caught standing still since the day they came" },
+  { id: "idle", name: "Idle", opp: "industrious",
+    blurb: "Works when watched, and wanders when not.",
+    does: "A seventh slower at every job, and half again as apt to wander off when one ends.",
+    tell: "is forever found leaning on something" },
+  { id: "hot", name: "Hot-tempered", opp: "even",
+    blurb: "Takes offence quickly, and keeps it warm.",
+    does: "Quarrels near twice as often as most, and half again as bitterly. A short road to a feud.",
+    tell: "has a short way with anyone who crosses them" },
+  { id: "even", name: "Even-tempered", opp: "hot",
+    blurb: "Slow to quarrel, and quick to let it go.",
+    does: "Quarrels half as often, and half as bitterly. Feuds seldom begin with this one.",
+    tell: "let an insult go by without turning round" },
+  { id: "gregarious", name: "Gregarious", opp: "solitary",
+    blurb: "Thrives in company, and pines without it.",
+    does: "Five to their mood in company, seven against it alone. Warms and sours half again as fast.",
+    tell: "is never to be found on their own" },
+  { id: "solitary", name: "Solitary", opp: "gregarious",
+    blurb: "Wants elbow room, and sours in a crowd.",
+    does: "Six off their mood in a crowd of four, four added in an empty street. Slow to judge anyone.",
+    tell: "walks the long way round to keep off the square" },
+  { id: "stout", name: "Stout-hearted", opp: "timid",
+    blurb: "Stands when others run, and strikes the harder for it.",
+    does: "Strikes a seventh harder, and a raid at the gate costs them nothing in nerve.",
+    tell: "stood their ground when there was every reason not to" },
+  { id: "timid", name: "Timid", opp: "stout",
+    blurb: "Unnerved by trouble, and slower to answer it.",
+    does: "Strikes a seventh softer, and twelve off their mood while raiders are abroad. Surviving a fight ends it.",
+    tell: "goes white at the sight of an armed stranger" },
+  { id: "generous", name: "Generous", opp: "grasping",
+    blurb: "Hands in everything they gather, and is thought well of for it.",
+    does: "Hands goods in at three in the pack rather than five, and the neighbours think the better of them.",
+    tell: "gives away a good deal more than they keep" },
+  { id: "grasping", name: "Grasping", opp: "generous",
+    blurb: "Keeps what they gather, and is known for that too.",
+    does: "Sits on twelve before handing any in, so the stores stay thin — and the neighbours notice.",
+    tell: "has never once handed in a full pack" },
+  { id: "hardy", name: "Hardy", opp: "sickly",
+    blurb: "Shrugs off the cold and the fever both.",
+    does: "The winter takes half again as long to bite, and the plague passes them over more often than not.",
+    tell: "works bare-armed in weather that lays other men up" },
+  { id: "sickly", name: "Sickly", opp: "hardy",
+    blurb: "Takes the cold and the fever before anybody else.",
+    does: "Freezes near half again as fast, and is among the first the fever takes.",
+    tell: "is first to the sickbed every time" },
+];
+// What life did to them, on top of what they were born as. A mark is earned by
+// something that actually happened in this colony and is announced by the event
+// that caused it — there is nothing to discover about a man's grief, you watched
+// him bury her. One at a time: the latest thing to happen is the thing he is.
+const MARKS = [
+  { id: "bereaved",  name: "Bereaved",  blurb: "Lost someone they were fond of.",
+    does: "Four off their mood for good, once the fresh grief wears off. Grief passes; this does not." },
+  { id: "hardened",  name: "Hardened",  blurb: "Has been in a fight and is less afraid of the next.",
+    does: "Strikes a seventh harder, like a stout heart, and never feels the dread of a raid again." },
+  { id: "bitter",    name: "Bitter",    blurb: "Came out of a feud badly, and has not forgiven it.",
+    does: "Five off their mood, and every view they take of anyone now moves a quarter faster." },
+  { id: "contented", name: "Contented", blurb: "Has been warm, fed and unbothered a long while.",
+    does: "Six added to their mood, and it holds as long as nothing goes wrong." },
+  { id: "disgraced", name: "Disgraced", blurb: "Has been in the colony's jail, and it is remembered.",
+    does: "Seven off their mood, and every neighbour thinks a little less of them." },
+];
+const TEMPER = Object.fromEntries(TEMPERS.map(t => [t.id, t]));
+const MARK   = Object.fromEntries(MARKS.map(m => [m.id, m]));
+// What a person IS, which the simulation always knows.
+const isT = (c, id) => !!c && c.temper === id;
+const isM = (c, id) => !!c && c.mark === id;
+const rollTemper = () => TEMPERS[Math.floor(Math.random() * TEMPERS.length)].id;
+
+// --- taking a person's measure ---
+// A temperament is revealed by being exercised, not by a clock and not by a
+// separate tally running quietly alongside. Every place below that bends a
+// number also reports that it bent one, so the evidence the panel needs is
+// produced by the very mechanism it describes: the two can never disagree.
+//
+// Nothing here may be called from a per-frame path. A frame is not evidence —
+// at sixty of them a second any threshold is crossed instantly, which is the
+// same mistake that once made every rebellion roll fire at once. Call it from
+// finished work, from a quarrel, from a blow struck, from a night in the cold.
+const TRAIT_REVEAL_AT = 8;
+function noteTemper(c, by) {
+  if (!c || !c.temper || c.temperSeen || c.child) return;
+  c.temperO = (c.temperO || 0) + by;
+  if (c.temperO < TRAIT_REVEAL_AT) return;
+  c.temperSeen = true;
+  const t = TEMPER[c.temper];
+  // the chronicle, not a toast: sixty people taking each other's measure would
+  // be sixty interruptions, and none of them urgent
+  chron("life", `${c.name} ${t.tell} — ${t.name.toLowerCase()}, plainly.`);
+}
+// A mark is never hidden: the thing that earned it was public.
+function setMark(c, id, why) {
+  if (!c || c.child || c.mark === id) return;
+  c.mark = id;
+  chron("life", `${c.name} — ${MARK[id].name.toLowerCase()}: ${why}`);
+}
+
+// --- the thumb on the scales ---
+// Work: the industrious lose little to the clock, the idle give a good deal back.
+const temperWork = c => isT(c, "industrious") ? 0.88 : isT(c, "idle") ? 1.15 : 1;
+// A blow struck. The stout-hearted hit harder for not flinching; the timid do
+// not — unless they have been through a fight already and found it survivable.
+const temperArm = c => isT(c, "stout") || isM(c, "hardened") ? 1.15
+                     : isT(c, "timid") ? 0.85 : 1;
+// How hard a quarrel bites, and how long the blood stays up afterwards.
+const temperTemperament = c => isT(c, "hot") ? 1.6 : isT(c, "even") ? 0.5 : 1;
+// How readily a view of somebody moves at all — good or bad.
+const temperDrift = c => isT(c, "gregarious") ? 1.4 : isT(c, "solitary") ? 0.6
+                       : isM(c, "bitter") ? 1.25 : 1;
+// The winter and the fever.
+const temperCold = c => isT(c, "hardy") ? 0.7 : isT(c, "sickly") ? 1.4 : 1;
+// How much company this person is in, counted once every socialTick and cached
+// on `nearN`. It is deliberately NOT measured where it is used: moodReasons runs
+// for every soul on every frame, so a fresh distance scan there would be the
+// whole colony measured against the whole colony sixty times a second. A mood
+// reading a count that is a few seconds stale is worth exactly nothing less.
 // ===== the value of a life =====
 // Everyone in this colony has a name, an age, eleven skills and opinions about
 // their neighbours — and losing one cost you nothing that losing any other would
@@ -404,6 +1049,10 @@ function soleMasteries(c) {
 }
 function gainSkill(c, id, amount) {
   if (!c || !c.sk) return;
+  // A finished piece of work is one observation of how this person works. This
+  // is the only place it is counted, because this is the only place the game is
+  // certain a task actually ended rather than merely being in progress.
+  if (isT(c, "industrious") || isT(c, "idle")) noteTemper(c, 0.5);
   if (c.sk[id] >= SKILL_MAX) return;
   c.sx = c.sx || {};
   // A master at your elbow is worth more than an hour alone with the work. This
@@ -447,7 +1096,7 @@ const farmSeedCost = () => has("seeding") ? 4 : 6;
 const farmRipen = () => BASE_FARM_RIPEN * (has("agriculture") ? 0.7 : 1);
 const sellPrice = () => 3 + (has("trading") ? 1 : 0) + (has("marketing") ? 1 : 0);
 const taxBonus = () => (has("currencies") ? 1 : 0) + (has("occupation") ? 1 : 0) + (has("slavemarket") ? 2 : 0);
-const forceDmg = c => (c.profession === "soldier" ? 15 : c.profession === "cavalry" ? 20 : 12) + (has("wardogs") ? 5 : 0) + (has("hussars") ? 15 : 0) + (has("lances") ? 10 : 0) + (has("raiding") ? 10 : 0) + (c.armed ? weaponDmg() : 0);
+const forceDmg = c => (c.profession === "soldier" ? 15 : c.profession === "cavalry" ? 20 : 12) + (has("wardogs") ? 5 : 0) + (has("hussars") ? 15 : 0) + (has("lances") ? 10 : 0) + (has("raiding") ? 10 : 0) + (c.armed ? weaponDmg(c) : 0);
 // A musket ball is lethal, and the closer it is fired the worse the wound:
 // 40 at the far edge of its reach, better than double that at point-blank.
 const musketDmg = (d) => {
@@ -458,10 +1107,76 @@ const musketDmg = (d) => {
 // with a bayonet fixed, a line infantryman is a spear in the line as well as a gun
 const bayonetDmg = () => 16 + (has("blades") ? 5 : 0) + (has("flintlock") ? 4 : 0);
 const torchTime = () => TORCH_TIME / ((has("defending") ? 0.7 : 1) * (has("pettraining") ? 0.75 : 1));
-const weaponDmg = () => (has("battleaxes") ? 28 : has("swords") ? 20 : has("spears") ? 14 : 8) + (has("blades") ? 5 : 0);
+// Tech says what form the smith knows how to make; the metal says how well it
+// came out. A stone spear and an iron one are the same weapon, badly and well made.
+const weaponForm = () => (has("battleaxes") ? 28 : has("swords") ? 20 : has("spears") ? 14 : 8) + (has("blades") ? 5 : 0);
+const weaponDmg = c => Math.round(weaponForm() * weaponMult(c));
 const weaponIron = () => Math.max(1, 2 - (has("hilts") ? 1 : 0));
 const canForgeWeapons = () => has("spears") || has("swords") || has("battleaxes");
 const treasuryFloor = () => has("lordship") ? -50 : 0;
+
+// ===== the works =====
+// Foraging is what a colony does before it has anything. A man walks out, finds
+// a boulder, breaks it, and comes back with what his arms will hold — and when
+// the boulders near the hearth are gone he walks further, and further, and the
+// day is spent walking. A work does not run out and does not need finding: it is
+// a face of rock with steps cut into it, a shaft with a windlass over it, a saw
+// driven by a stream. What it makes goes straight into the town's store, because
+// carrying is the part a work exists to abolish.
+// Every one of them is a building with a trade attached. Put the right pair of
+// hands on it and they keep at it without being asked again; put nobody on it
+// and it stands idle and still costs its keep on tax day.
+const INDUSTRY = {
+  quarry:  { prof: "quarryman",  skill: "quarrying",   time: 5, doing: "cutting stone" },
+  mine:    { prof: "miner",      skill: "quarrying",   time: 8, doing: "down the shaft" },
+  sawmill: { prof: "lumberjack", skill: "woodcutting", time: 6, doing: "at the saw" },
+  smelter: { prof: "blacksmith", skill: "smithing",    time: 9, doing: "at the furnace" },
+};
+const isWork = t => !!INDUSTRY[t];
+const worksOf = b => (b.workers || [])
+  .filter(w => civs.includes(w) && w.profession === INDUSTRY[b.type].prof);
+const workTime = (b, c) => INDUSTRY[b.type].time *
+  ((b.type === "quarry" || b.type === "mine") && has("deepshafts") ? 0.7 : 1) *
+  workMul(c) * workSkill(c, INDUSTRY[b.type].skill);
+// What a shift down the shaft turns up. Copper is common in these hills, iron is
+// not, and the tin is washed out of the gravel in the bottom of the workings a
+// handful at a time — which is why bronze is the metal a poor colony can afford
+// and iron is the one it waits for.
+const SEAMS = [
+  { p: 0.40, key: "copperore", n: 3 },
+  { p: 0.35, key: "ironore",   n: 2 },
+  { p: 0.25, key: "tin",       n: 2 },
+];
+// what one shift takes out of the store, and what it puts back
+function workNeeds(b) {
+  if (b.type === "sawmill") return { logs: 4 };
+  if (b.type === "smelter") return b.smelt === "copper" ? { copperore: 3 } : { ironore: 3 };
+  return {};
+}
+function workYield(b) {
+  const rich = has("deepshafts") ? 1 : 0, hot = has("blastfurnace") ? 2 : 1;
+  if (b.type === "quarry") return { stone: 4 + rich };
+  if (b.type === "sawmill") return { doors: 2 };
+  if (b.type === "smelter") return b.smelt === "copper" ? { copper: 2 * hot } : { iron: hot };
+  let r = Math.random(), seam = SEAMS[SEAMS.length - 1];
+  for (const sm of SEAMS) { if (r < sm.p) { seam = sm; break; } r -= sm.p; }
+  return { [seam.key]: seam.n + rich };
+}
+// A work draws on its own town's store first and the capital's after, the same
+// way building does — a smelter in a daughter town is not stopped by ore sitting
+// in the capital's shed.
+const haveGoods = (led, need) => Object.entries(need)
+  .every(([k, q]) => (led[k] || 0) + (led === res ? 0 : (res[k] || 0)) >= q);
+function takeGoods(led, need) {
+  for (const [k, q] of Object.entries(need)) {
+    const local = Math.min(q, led[k] || 0);
+    led[k] = (led[k] || 0) - local;
+    if (q > local && led !== res) res[k] = (res[k] || 0) - (q - local);
+  }
+}
+const workFed = b => haveGoods(ledgerAt(b.x, b.y), workNeeds(b));
+const GOOD_NAME = { ironore: "iron ore", copperore: "copper ore" };
+const goodName = k => GOOD_NAME[k] || k;
 // ===== what a colony costs to keep =====
 // Wages for the men under arms, upkeep for the works that need tending. Cabins,
 // walls, lamps, farms and saplings are free — you built them, they stand. What
@@ -470,7 +1185,8 @@ const treasuryFloor = () => has("lordship") ? -50 : 0;
 // account: what came in, what went out, what is left.
 const WAGE = 2;                 // a soldier, constable, musketeer or rider, per tax day
 const CIVIC_UPKEEP = 1;         // per tended work, per tax day
-const CIVIC = new Set(["hospital", "jail", "watchtower", "market", "townhall", "forge", "bakery", "recruit", "well"]);
+const CIVIC = new Set(["hospital", "jail", "watchtower", "market", "townhall", "forge", "bakery", "recruit", "well",
+                       "quarry", "mine", "sawmill", "smelter"]);
 const wageBill = () => civs.filter(isForce).length * WAGE;
 const upkeepBill = () => buildings.filter(b => !b.site && !b.fire && CIVIC.has(b.type)).length * CIVIC_UPKEEP;
 const civicWorks = () => buildings.filter(b => !b.site && !b.fire && CIVIC.has(b.type)).length;
@@ -533,11 +1249,19 @@ const IMAGES = {
   jail: "assets/sprites/buildings/jail_32.png", jail_w: "assets/sprites/buildings/jail_w_32.png",
   hospital: "assets/sprites/buildings/hospital_32.png", hospital_w: "assets/sprites/buildings/hospital_w_32.png",
   lamp: "assets/sprites/buildings/lamp_32.png", lamp_w: "assets/sprites/buildings/lamp_w_32.png",
+  quarry: "assets/sprites/buildings/quarry_32.png", quarry_w: "assets/sprites/buildings/quarry_w_32.png",
+  mine: "assets/sprites/buildings/mine_32.png", mine_w: "assets/sprites/buildings/mine_w_32.png",
+  sawmill: "assets/sprites/buildings/sawmill_32.png", sawmill_w: "assets/sprites/buildings/sawmill_w_32.png",
+  smelter: "assets/sprites/buildings/smelter_32.png", smelter_w: "assets/sprites/buildings/smelter_w_32.png",
+  shrine: "assets/sprites/buildings/shrine_32.png",
+  burned_temple: "assets/sprites/buildings/burned_temple_32.png",
 };
+// one great house per creed, drawn the way that creed actually built
+for (const f of FAITH_IDS) IMAGES["temple_" + f] = `assets/sprites/buildings/temple_${f}_32.png`;
 // every structure a torch can reach, drawn once more as a cold wreck
 for (const k of ["recruit", "market", "watchtower", "bakery", "well", "forge", "townhall", "jail", "hospital",
                  "farm", "wall", "wallv", "gate", "gatev", "stonewall", "stonewallv",
-                 "stonegate", "stonegatev"])
+                 "stonegate", "stonegatev", "quarry", "mine", "sawmill", "smelter"])
   IMAGES["burned_" + k] = `assets/sprites/buildings/burned_${k}_32.png`;
 IMAGES.burned_cabin = "assets/sprites/buildings/burned_house_32.png";   // the ruin that was always here
 // road pieces, indexed by which neighbours they join: 1 north, 2 east, 4 south, 8 west
@@ -637,7 +1361,33 @@ for (const key of imageNames) {
 
 // --- state ---
 let gameState = "boot"; // boot -> menu | loading -> playing -> over
-const res = { logs: 0, seeds: 0, stone: 0, iron: 0, doors: 0, wheat: 0, bread: 0, meat: 0, dm: 60, weapons: 0, tools: 0 };
+const res = { logs: 0, seeds: 0, stone: 0, ironore: 0, copperore: 0, tin: 0, copper: 0,
+              iron: 0, bronze: 0, doors: 0, wheat: 0, bread: 0, meat: 0, dm: 60, weapons: 0, tools: 0,
+              armoury: { stone: 0, bronze: 0, iron: 0 } };
+// res.weapons stays the count that raids, conquest and the war council already
+// read. The breakdown beside it only says of what. Weapons still arrive with no
+// provenance — an old save, a town taken by force — so before anything is drawn
+// out, whatever the count says is treated as real and the strays are called stone.
+function reconcileArmoury() {
+  const a = res.armoury || (res.armoury = { stone: 0, bronze: 0, iron: 0 });
+  for (const m of MATERIALS) a[m.id] = Math.max(0, Math.floor(a[m.id] || 0));
+  let known = MATERIALS.reduce((t, m) => t + a[m.id], 0);
+  if (res.weapons > known) { a.stone += res.weapons - known; known = res.weapons; }
+  for (let i = 0; i < MATERIALS.length && known > res.weapons; i++) {
+    const id = MATERIALS[i].id, drop = Math.min(a[id], known - res.weapons);
+    a[id] -= drop; known -= drop;
+  }
+}
+const armouryAdd = id => { reconcileArmoury(); res.armoury[id] = (res.armoury[id] || 0) + 1; res.weapons++; };
+// The best blade in the rack is the one handed out. Returns the material, or null.
+function armouryTake() {
+  reconcileArmoury();
+  for (let i = MATERIALS.length - 1; i >= 0; i--) {
+    const id = MATERIALS[i].id;
+    if (res.armoury[id] > 0) { res.armoury[id]--; res.weapons--; return id; }
+  }
+  return null;
+}
 let taxRate = 2, taxTimer = TAX_PERIOD;
 let settlementName = "Neu Hamburg";
 let empireName = "";
@@ -891,16 +1641,22 @@ buildings.push({ type: "burned", x: 0, y: 0, progress: -1, occupants: [], fire: 
 civs.push(mkCiv("Brother", "brother", -70, 110, "m"));
 civs.push(mkCiv("Sister", "sister", 70, 130, "f"));
 civs[0].age = 22; civs[1].age = 19;
+// Your own family are not strangers to be studied. You grew up with these two:
+// their tempers are known from the first hour and shown on the sheet at once.
+civs[0].temper = "stout";       civs[0].temperSeen = true;
+civs[1].temper = "industrious"; civs[1].temperSeen = true;
 
 function mkCiv(name, who, x, y, gender) {
   return { name, who, nativeWho: who, gender: gender || "m", x, y, tx: x, ty: y, state: "idle", anim: 0, facing: 1,
            task: null, workT: 0, home: null, profession: null,
-           hunger: 100, hp: 100, maxHp: 100, happiness: 75, rebel: false, armed: false, tool: false,
+           hunger: 100, hp: 100, maxHp: 100, happiness: 75, rebel: false, armed: false, tool: null,
            inv: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0 },
            age: 20 + Math.floor(Math.random() * 26),
            autoT: 3 + Math.random() * 4, atkT: 0, stuckT: 0, coldT: 0, coldWarned: false, isCiv: true,
            sick: 0, op: {}, feudWith: null, feudT: 0, socT: 2 + Math.random() * 6, jail: null, jailT: 0,
+           temper: rollTemper(), temperSeen: false, temperO: 0, mark: null, calmT: 0, fought: 0,
            ward: null, wardT: 0, bearing: null, bearer: null, grief: null,
+           faith: DEFAULT_FAITH, doubt: 0,
            sk: freshSkills(), sx: {},
            loaded: true, reloadT: 0, fireT: 0 };
 }
@@ -1392,12 +2148,23 @@ function strikeUnit(a, b, dmg) {
 }
 
 // --- geometry ---
-const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72, stonewall: 64, stonegate: 76, moat: 64, ditch: 64, lamp: 26 };
+const SMALL_BLDG = { farm: FARM_SIZE, wall: 64, gate: 72, stonewall: 64, stonegate: 76, moat: 64, ditch: 64, lamp: 26,
+                    shrine: 64 };
 // What a thing occupies and what it looks like are not the same measurement. A
 // lamppost stands about as tall as the man beneath it but takes up almost no
 // ground, so you can line a street with them without them refusing each other.
 const DRAW_SIZE = { lamp: 58 };
 const drawSizeOf = t => DRAW_SIZE[t] || SMALL_BLDG[t] || BLDG_SIZE;
+// Most buildings are drawn as their type. A great house is drawn as its creed —
+// the seven of them share a type and share nothing else.
+const bldgSprite = b => (b.type === "temple" && IMAGES["temple_" + b.faith]) ? "temple_" + b.faith : b.type;
+// Off every rota — the farms and the works both. A man who dies, is sent to
+// another town, or walks out as a settler must not be left on a roll he can no
+// longer answer.
+function unassignWork(c) {
+  for (const f of farms) f.workers = f.workers.filter(w => w !== c);
+  for (const b of buildings) if (b.workers) b.workers = b.workers.filter(w => w !== c);
+}
 function bldgRect(b) {
   const bt = baseType(b);
   if (WALLLIKE.has(bt)) {
@@ -1705,7 +2472,8 @@ function collideMove(c, nx, ny) {
 // final accounting is written from.
 const FRESH_TALLY = () => ({ born: 0, arrived: 0, died: 0, raised: 0, burned: 0, rebuilt: 0,
                              cured: 0, plagues: 0, arrests: 0, feuds: 0, raids: 0, camps: 0, townsTaken: 0, mastersLost: 0,
-                             winters: 0, taxDays: 0, billsPaid: 0, arrearDays: 0 });
+                             winters: 0, taxDays: 0, billsPaid: 0, arrearDays: 0,
+                             converted: 0, banished: 0, expulsions: 0 });
 let tally = FRESH_TALLY();
 const CHRON_MAX = 400;                 // what the running game remembers
 const CHRON_SAVED = 90;                // what survives a reload, to keep saves small
@@ -1720,6 +2488,18 @@ const CHRON_KINDS = {
   work:  { label: "Work",     icon: "⚒" },   // research, trade, taxes
 };
 let chronicle = [];
+// One person's nature as the roll shows it: the temperament if it has been
+// seen, and the mark beside it if they carry one. A child is not yet anything.
+function folkTemperCell(c) {
+  if (c.child) return `<span class="unknown">—</span>`;
+  const t = c.temperSeen && TEMPER[c.temper], m = c.mark && MARK[c.mark];
+  // The roll has room for a word, not a paragraph. The paragraph goes on hover.
+  const say = x => esc(`${x.name} — ${x.blurb} ${x.does}`);
+  const main = t ? `<span title="${say(t)}"><img src="assets/sprites/traits/${t.id}.png" alt="">${esc(t.name)}</span>`
+                 : `<span class="unknown">not yet known</span>`;
+  const mk = m ? `<img class="markIcon" src="assets/sprites/traits/${m.id}.png" alt="" title="${say(m)}">` : "";
+  return main + mk;
+}
 function chron(kind, text) {
   const e = { y: colonyYear, c: clockText(), k: kind, t: String(text) };
   chronicle.push(e);
@@ -1738,7 +2518,8 @@ function toast(text) {
 }
 // Work is paid for out of the stores of whichever town you are standing in —
 // the same ledger the HUD is showing you, so what you see is what you spend.
-const LEDGER_KEYS = ["logs", "seeds", "stone", "iron", "wheat", "bread", "meat", "dm", "doors", "weapons"];
+const LEDGER_KEYS = ["logs", "seeds", "stone", "ironore", "copperore", "tin", "copper",
+                     "iron", "bronze", "wheat", "bread", "meat", "dm", "doors", "weapons"];
 // The capital's heart is the burned house you started beside. A daughter town only
 // claims a spot if its own clearing is nearer than the capital's — otherwise goods
 // dropped in the capital would be carted off to a town half the map away.
@@ -1831,9 +2612,13 @@ function killCiv(c, why) {
     if (view <= 5 && !near) continue;
     const weight = view > 5 ? Math.min(1, view / 60) : 0.35;   // strangers nearby still saw it
     o.grief = { who: c.name, t: Math.max(o.grief ? o.grief.t : 0, 90 + 130 * weight), w: weight };
+    // Grief passes; having lost somebody does not. Only a real attachment leaves
+    // a mark — the whole colony is unsettled by a death, but it does not bereave
+    // everyone who happened to be standing in the street.
+    if (weight >= 0.6) setMark(o, "bereaved", `they were fond of ${c.name}, who is dead.`);
   }
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
-  for (const f of farms) f.workers = f.workers.filter(w => w !== c);
+  unassignWork(c);
   if (selected === c) selected = null;
   if (skillCiv === c) closeSkills();
   for (const o of civs) { if (o.op) delete o.op[c.name]; if (o.feudWith === c.name) endFeud(o); }
@@ -2364,17 +3149,36 @@ function resolveOrder(wx, wy) {
       }, "ruin", () => canPay(REPAIR_COST, ledgerAt(b.x, b.y))
         ? "Rebuild this ruin" : `Rebuild this ruin — needs ${costText(REPAIR_COST)}`);
     } else if (canShelter(b)) {
-      // and any roof still standing can simply be gone into — out of the snow,
-      // out of the weather, out of sight of whoever is coming up the road
+      // A work is signed on to the same way a farm is: pick the right trade and
+      // tap it. Anyone else tapping it is only looking for a roof, so both live
+      // in one branch — and when it IS an assignment it outranks the roof, or
+      // ordering a quarryman onto his quarry would put him to bed in it instead.
+      const rota = isWork(b.type) && !b.fire && c.profession === INDUSTRY[b.type].prof;
       add(bldgRect(b), () => {
+        if (rota) {
+          b.workers = b.workers || [];
+          if (b.workers.includes(c)) {
+            b.workers = b.workers.filter(w => w !== c);
+            if (c.task && c.task.target === b) { c.task = null; c.state = "idle"; b.progress = -1; }
+            toast(`${c.name} comes off the ${BLDG_NAMES[b.type].toLowerCase()}.`);
+          } else {
+            b.workers.push(c);
+            toast(`${c.name} is put on the ${BLDG_NAMES[b.type].toLowerCase()} (${worksOf(b).length} working it).`);
+          }
+          return syncUI();
+        }
         if (c.shelter === b) return turnOut(c);              // tap again to come back out
         if (sheltering(b).length >= SHELTER_CAP)
           return toast(`The ${BLDG_NAMES[b.type] || b.type} is full — ${SHELTER_CAP} may shelter in it.`);
         order(c, { kind: "enter", target: b, x: b.x, y: b.y + 14 });
         toast(`${c.name} goes inside the ${BLDG_NAMES[b.type] || b.type}.`);
-      }, "roof", () => c.shelter === b
-        ? `Bring them out of the ${BLDG_NAMES[b.type] || b.type}`
-        : `Shelter inside the ${BLDG_NAMES[b.type] || b.type}`);
+      }, rota ? "farm" : "roof", () => rota
+        ? ((b.workers || []).includes(c)
+            ? `Take them off the ${BLDG_NAMES[b.type].toLowerCase()}`
+            : `Set them to work the ${BLDG_NAMES[b.type].toLowerCase()}`)
+        : c.shelter === b
+          ? `Bring them out of the ${BLDG_NAMES[b.type] || b.type}`
+          : `Shelter inside the ${BLDG_NAMES[b.type] || b.type}`);
     }
   }
   if (!cands.length) return null;
@@ -2610,13 +3414,14 @@ function rescueStuck(dt) {
 }
 const BUILD_TIMES = { cabin: 10, recruit: 12, market: 10, watchtower: 8, bakery: 10, well: 7, forge: 12, townhall: 16,
                       wall: 1.5, gate: 2.5, stonewall: 3, stonegate: 5, moat: 6, ditch: 4, farm: 5, jail: 13,
-                      hospital: 15, lamp: 2 };
+                      hospital: 15, lamp: 2, quarry: 12, mine: 18, sawmill: 15, smelter: 15,
+                      shrine: 6, temple: 20 };
 function finishConstruction(b) {
   b.site = false; b.progress = -1;
   const claims = !WALLLIKE.has(b.type) && !isProp(b.type);   // a lamp claims no ground
   if (claims) expandAround(b.x, b.y, 1);
   tally.raised++;
-  tell("build", `${BLDG_NAMES[b.type]} raised.${claims ? " The territory grows." : ""}`);
+  tell("build", `${bldgLabel(b)} raised.${claims ? " The territory grows." : ""}`);
   SFX.build();
   // once the market stands they have a colony rather than a camp, and the
   // comforts are worth mentioning
@@ -2674,6 +3479,10 @@ function tryPlace(type, wx, wy) {
   if ((type === "wall" || type === "gate") && !has("defending")) { toast("Walls and gates require the Defending technology."); buildMode = null; syncUI(); return; }
   if (type === "townhall" && !has("township")) { toast("A town hall requires the Township technology."); buildMode = null; syncUI(); return; }
   if (["stonewall", "stonegate", "moat", "ditch"].includes(type) && !has("defplus")) { toast("Stoneworks and earthworks require Defending II."); buildMode = null; syncUI(); return; }
+  if (isWork(type) && !has(BUILD_GATES[type])) {
+    toast(`A ${BLDG_NAMES[type].toLowerCase()} requires the ${TECH[BUILD_GATES[type]].name} technology.`);
+    buildMode = null; syncUI(); return;
+  }
   if (type === "townhall") {
     // one hall per town — but every town, the capital included, may have its own
     const here = townAt(wx, wy);
@@ -2724,11 +3533,17 @@ function tryPlace(type, wx, wy) {
     toast("Farm staked out — a civilian will come and build it.");
   } else {
     const b = { type, x: wx, y: wy, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
+    // A house of worship is dedicated the day the ground is broken, not the day
+    // it opens: the creed is what the masons are being paid to build.
+    if (type === "temple" || type === "shrine") b.faith = FAITHS[dedicateTo] ? dedicateTo : defaultDedication();
     if (type === "wall") { b.hp = b.maxHp = 100; }
     if (type === "gate") { b.hp = b.maxHp = 60; }
     if (type === "stonewall") { b.hp = b.maxHp = 220; }
     if (type === "stonegate") { b.hp = b.maxHp = 140; }
     if (WALLLIKE.has(type)) b.rot = wallRot;
+    // a work is a building with a rota: nobody on it yet, and the furnace set to
+    // iron until somebody says otherwise
+    if (isWork(type)) { b.workers = []; if (type === "smelter") b.smelt = "iron"; }
     b.site = true; b.buildP = 0;
     buildings.push(b);
     evictFromFootprint(b);
@@ -2824,7 +3639,7 @@ function arrive(c) {
     return;
   }
   if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
-  const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting",
+  const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting", work: "working",
                    buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping", construct: "raising", gravestone: "masonry" };
   if (t.kind === "bury") {
     const cp = t.target;
@@ -2908,6 +3723,8 @@ function arrive(c) {
     c.state = "torching"; c.workT = 0;
   } else if (simple[t.kind]) {
     if ((t.kind === "chop" || t.kind === "quarry" || t.kind === "gather") && !t.target.alive) { c.state = "idle"; c.task = null; return; }
+    // the work may have been burned, dismantled or pulled down on the walk over
+    if (t.kind === "work" && (!buildings.includes(t.target) || t.target.fire || t.target.site)) { c.state = "idle"; c.task = null; return; }
     c.state = simple[t.kind]; c.workT = 0;
     if (t.target && t.target.x !== undefined) c.facing = t.target.x < c.x ? -1 : 1;
   }
@@ -2979,14 +3796,25 @@ function autonomy(c, dt) {
 
   const shopF = buildings.find(b => b.type === "forge" && !b.fire && !b.site && (b.shop || []).length);
   if (shopF && c.profession !== "blacksmith") {
-    const wantsTool = !c.tool && c.inv.dm >= TOOL_PRICE_SELF && shopF.shop.some(i => i.kind === "tool");
-    const mayArm = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter") || isForce(c);
-    const wantsWeapon = mayArm && !c.armed && c.inv.dm >= 12 && shopF.shop.some(i => i.kind === "weapon");
+    // He goes for a better tool than the one in his hand, not just for his first:
+    // a man with a stone axe will pay to trade up when iron reaches the racks.
+    const upgrade = bestOnRacks(shopF, c, "tool");
+    const wantsTool = !!upgrade && c.inv.dm >= upgrade.tool.self;
+    // The racks are open to anyone with the coin. The weapon laws say what the
+    // government may hand a man out of the armoury; they have never said what he
+    // may do with his own money at the village blacksmith's.
+    const better = bestOnRacks(shopF, c, "weapon");
+    const wantsWeapon = !!better && c.inv.dm >= better.weapon.self;
     if (wantsTool || wantsWeapon) {
       order(c, { kind: "shopBuy", target: shopF, x: shopF.x + 30, y: shopF.y + 14 });
       return;
     }
   }
+
+  // What a creed sends a person to do, before a profession sends them anywhere.
+  // Alms are given by people who own nothing but a roof, so this sits above the
+  // test for one — the works of mercy are not a privilege of the housed.
+  if (faithErrand(c)) return;
 
   if (!c.home) return;
   const myTown = townAt(c.home.x, c.home.y);            // null means the capital
@@ -3006,30 +3834,62 @@ function autonomy(c, dt) {
   // each town's folk use their own hall; a town without one stocks the cabins.
   const hall = buildings.find(b => b.type === "townhall" && !b.fire && !b.site && inMyTown(b));
   const drop = hall || (myTown ? c.home : null);
-  if (drop && (c.inv.logs + c.inv.seeds + c.inv.stone + c.inv.iron + c.inv.wheat) >= 5) {
+  // Five is what an ordinary man thinks is worth the walk. The generous go at
+  // three and the grasping sit on twelve — which is why a colony of hoarders can
+  // have full packs and an empty hall, and why you can watch which is which.
+  const load = isT(c, "generous") ? 3 : isT(c, "grasping") ? 12 : 5;
+  if (drop && (c.inv.logs + c.inv.seeds + c.inv.stone + c.inv.iron + c.inv.wheat) >= load) {
+    if (isT(c, "generous") || isT(c, "grasping")) noteTemper(c, 1);
     order(c, { kind: "hallDeposit", target: drop, x: drop.x, y: drop.y + 16 });
     return;
+  }
+
+  // A hand put on a work goes to it and stays on it. This sits above every trade
+  // errand below, so a quarryman with a quarry stops wandering the treeline
+  // looking for boulders, and a blacksmith set on the furnace tends the furnace
+  // instead of drifting back to the anvil. A work with nothing to feed it — a
+  // sawmill in a town out of logs — lets them go and do something else.
+  {
+    const mine = buildings.find(b => isWork(b.type) && !b.fire && !b.site &&
+                                     c.profession === INDUSTRY[b.type].prof &&
+                                     (b.workers || []).includes(c) && workFed(b));
+    if (mine) { order(c, { kind: "work", target: mine, x: mine.x + 24, y: mine.y + 20 }); return; }
   }
 
   if (c.profession === "blacksmith" && has("forging") && forgeBuilt()) {
     const shopForge = buildings.find(b => b.type === "forge" && !b.fire && !b.site);
     const stock = (shopForge && shopForge.shop) || [];
     const toolsOnSale = stock.filter(i => i.kind === "tool").length;
-    const iron = weaponIron();
-    const wantTool = toolsOnSale <= Math.min(3, res.weapons) || !canForgeWeapons();
-    if (wantTool && res.iron >= 1 && res.stone >= 1 && res.logs >= 1 && toolsOnSale < 3) {
-      res.iron--; res.stone--; res.logs--;
-      order(c, { kind: "smith", make: "tool", x: c.x, y: c.y });
+    const armsOnSale = stock.filter(i => i.kind === "weapon").length;
+    // Bronze before anything: it is made of two things the forge cannot otherwise
+    // use, and every tool and blade above fieldstone wants it. He keeps a few bars
+    // by him and no more — copper spent on bronze he will not need is copper the
+    // colony cannot sell.
+    if (has("alloys") && res.copper >= 1 && res.tin >= 1 && res.bronze < 4) {
+      res.copper--; res.tin--;
+      order(c, { kind: "smith", make: "alloy", x: c.x, y: c.y });
       return;
     }
-    if (canForgeWeapons() && res.iron >= iron && res.stone >= 1 && res.logs >= 1 && res.weapons < 3) {
-      res.iron -= iron; res.stone--; res.logs--;
-      order(c, { kind: "smith", make: "weapon", x: c.x, y: c.y });
+    const wantTool = toolsOnSale <= Math.min(3, res.weapons) || !canForgeWeapons();
+    const tier = bestForgeable("tool");
+    if (wantTool && tier && toolsOnSale < 3) {
+      spendMats(tier, "tool");
+      order(c, { kind: "smith", make: "tool", tier: tier.id, x: c.x, y: c.y });
+      return;
+    }
+    // The armoury is filled first — that is the colony's own iron, and no coin
+    // changes hands for it. Once it has its three, he keeps hammering and puts
+    // what he makes on the racks, where anyone with the money may buy it.
+    const wt = canForgeWeapons() && bestForgeable("weapon");
+    if (wt && (res.weapons < 3 || armsOnSale < 3)) {
+      spendMats(wt, "weapon");
+      order(c, { kind: "smith", make: "weapon", tier: wt.id,
+                 forRacks: res.weapons >= 3, x: c.x, y: c.y });
       return;
     }
   }
 
-  if (res.seeds < farmSeedCost() * 2 && !["lumberjack", "quarryman", "forager"].includes(c.profession)) {
+  if (res.seeds < farmSeedCost() * 2 && !["lumberjack", "quarryman", "forager", "miner"].includes(c.profession)) {
     const p = nearThings("patches", c.x, c.y, laws.freeRoam ? 800 : 450)
       .filter(p => p.alive && (laws.freeRoam || nearTerritory(p.x, p.y)))[0];
     if (p) { order(c, { kind: "gather", target: p, forColony: true, x: p.x + 16, y: p.y + 4 }); return; }
@@ -3100,6 +3960,9 @@ function autonomy(c, dt) {
     }
     return;
   }
+  // no trade of their own to answer to: what does their creed say to do?
+  if (faithWork(c)) return;
+
   // a waiting traveller pays better than the market stall
   const v = visitors.find(v => v.state === "waiting" && !v.traded && Math.hypot(v.x - c.x, v.y - c.y) < 700);
   if (v && (c.inv.bread + c.inv.meat) > 1) {
@@ -3144,7 +4007,10 @@ function autonomy(c, dt) {
 
   // nothing pressing: stretch the legs, visit a neighbour, look busy —
   // unless posted. A posted soldier stands his ground and looks like it.
-  if (!c.post && Math.random() < 0.55) wander(c, c.home || c, 60, 180);
+  // An idle man finds a reason to be elsewhere; an industrious one finds the
+  // work. Same errand ladder above — this is only what happens once it runs out.
+  const roam = isT(c, "idle") ? 0.78 : isT(c, "industrious") ? 0.34 : 0.55;
+  if (!c.post && Math.random() < roam) wander(c, c.home || c, 60, 180);
 }
 
 // --- happiness & rebellion ---
@@ -3156,7 +4022,9 @@ function autonomy(c, dt) {
 // runs on another. Change a rule and both change together.
 function moodReasons(c) {
   const r = [["a roof, work and quiet", 78]];
-  if (taxRate) r.push([`taxes at ${taxRate}`, -taxRate * 6]);
+  const tithe = taxMoodReason(c);
+  if (tithe) r.push(tithe);
+  for (const fr of faithReasons(c)) r.push(fr);
   // the conquered do not love a new flag on the day it is raised
   // the exact value, never a rounded one — happinessTarget is the sum of this
   // list, so rounding here for the sake of a tidy label would change the game
@@ -3176,6 +4044,22 @@ function moodReasons(c) {
   // a bill the colony could not meet is felt hardest by the man it was owed to
   if (arrears > 0) r.push(isForce(c) ? ["wages in arrears", -14] : ["the works go untended", -5]);
   if (c.grief && c.grief.t > 0) r.push([`grieving for ${c.grief.who}`, -Math.round(6 + 16 * (c.grief.w || 0.5))]);
+  // Company is worth different things to different people. The gregarious need
+  // it about them; the solitary want rather less of it than the square provides.
+  const near = c.nearN || 0;
+  if (isT(c, "gregarious")) r.push(near >= 2 ? ["good company", 5] : ["nobody to talk to", -7]);
+  if (isT(c, "solitary")) {
+    if (near >= 4) r.push(["too many people underfoot", -6]);
+    else if (near === 0) r.push(["blessed quiet", 4]);
+  }
+  // The timid feel a raid the stout-hearted merely answer — until they have been
+  // through one, after which it is a thing that has already happened to them.
+  if (isT(c, "timid") && !isM(c, "hardened") && raiders.some(x => x.hp > 0))
+    r.push(["frightened of the raiders", -12]);
+  if (isM(c, "contented")) r.push(["long used to peace", 6]);
+  if (isM(c, "bitter")) r.push(["nursing an old grudge", -5]);
+  if (isM(c, "disgraced")) r.push(["shamed by the jail", -7]);
+  if (isM(c, "bereaved") && !(c.grief && c.grief.t > 0)) r.push(["an old loss", -4]);
   return r;
 }
 function happinessTarget(c) {
@@ -3203,11 +4087,16 @@ const REBEL_RATE = 0.015;                      // ~1 in 67 seconds at the very b
 function maybeRebel(c, dt) {
   if (!has("policing")) return;
   if (c.rebel || isForce(c) || c.child || civs.length < 2) return;
+  // Luther told them to obey the magistrate and the Anabaptists renounced the
+  // sword outright. Neither will rise, however wretched you make them — which
+  // means a colony built on those two creeds is quiet, and pays for the quiet
+  // in everything else those creeds refuse you.
+  if (F(c).meek) return;
   const bite = REBEL_RATE * (1 + (25 - c.happiness) / 25);
   if (c.happiness < 25 && Math.random() < bite * (dt || 0)) {
     c.rebel = true;
-    const lawAllows = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
-    if (lawAllows && forgeBuilt() && res.weapons > 0) { res.weapons--; c.armed = true; }
+    const lawAllows = !F(c).pacifist && (laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter"));
+    if (lawAllows && forgeBuilt() && res.weapons > 0) c.armed = armouryTake() || false;
     c.task = null; c.state = "idle";
     tell("law", `⚠ ${c.name} has turned against the colony${c.armed ? " — and took a weapon" : ""}!`);
   }
@@ -3277,6 +4166,7 @@ const isJailed = c => (c.jailT || 0) > 0;
 function jailCiv(c, jail, byWhom) {
   endFeud(c);
   c.jail = jail; c.jailT = SENTENCE;
+  setMark(c, "disgraced", "they have been held in the colony's jail.");
   c.state = "jailed"; c.task = null;
   c.x = jail.x; c.y = jail.y + 18;
   c.happiness = Math.max(0, c.happiness - 12);
@@ -3377,6 +4267,11 @@ function socialTick(c, dt) {
   c.socT = 6 + Math.random() * 8;
   if (c.child || c.rebel) return;
   const near = civs.filter(o => o !== c && !o.child && Math.hypot(o.x - c.x, o.y - c.y) < OP_KNOWN);
+  // Taken before the early return below, or a man who is genuinely alone would
+  // keep whatever count he had when he last had company — and the solitary would
+  // never once get the quiet they are owed.
+  c.nearN = near.length;
+  if (isT(c, "gregarious") || isT(c, "solitary")) noteTemper(c, 0.4);
   if (!near.length) return;
   const o = near[Math.floor(Math.random() * near.length)];
 
@@ -3384,13 +4279,19 @@ function socialTick(c, dt) {
   // is run. Without this a quarrel could only ever break out somewhere already
   // collapsing into rebellion, which made the whole thing invisible in a colony
   // worth playing — people fall out over nothing in the best-run places.
-  if (Math.random() < 0.035) {
+  // The hot-tempered quarrel oftener as well as worse. A man who takes offence
+  // easily does not merely take it harder when it comes — it comes to him more.
+  const spark = 0.035 * (isT(c, "hot") ? 1.7 : isT(c, "even") ? 0.55 : 1);
+  if (Math.random() < spark) {
     const over = GRIEVANCES[Math.floor(Math.random() * GRIEVANCES.length)];
     // bad blood compounds: a quarrel between two who already dislike each
     // other cuts deeper than one between friends
     const bitter = opinionOf(c, o) < -25 ? 1.5 : 1;
-    nudgeOpinion(c, o, -(14 + Math.random() * 12) * bitter);
-    nudgeOpinion(o, c, -(4 + Math.random() * 8) * bitter);
+    // and a quarrel is only ever as bad as the two tempers standing in it
+    const heat = temperTemperament(c);
+    if (isT(c, "hot") || isT(c, "even")) noteTemper(c, 3);
+    nudgeOpinion(c, o, -(14 + Math.random() * 12) * bitter * heat);
+    nudgeOpinion(o, c, -(4 + Math.random() * 8) * bitter * temperTemperament(o));
     if (opinionOf(c, o) < -35 && Math.random() < 0.5)
       toast(`${c.name} and ${o.name} have words ${over}.`);
     return;
@@ -3408,8 +4309,20 @@ function socialTick(c, dt) {
   if (o.rebel) by -= 3;                           // nobody loves a man who turned on the colony
   if (c.hunger < 30 && (o.inv.bread > 0 || o.inv.meat > 0)) by -= 2;   // he eats while I starve
   if (isForce(o) && laws.forced) by -= 2;         // the man who enforces the edict
+  // and what he is, which in 1683 is the first thing anyone knows about him.
+  // A proclaimed state creed sharpens it: the dissenter is not merely wrong now,
+  // he is wrong in the face of the law.
+  const hate = faithHate(c, o);
+  if (hate) by -= hate * (stateFaith === faithOf(c) ? 1.5 : 1) * 0.5;
+  else if (faithOf(c) === faithOf(o) && faithOf(c) !== DEFAULT_FAITH) by += 1.5;   // a rarer creed binds tighter
   if (c.sick > 0 && !o.sick) by -= 1;
-  nudgeOpinion(c, o, by);
+  // A reputation is a thing the OTHER man has. What is being judged here is o,
+  // so it is o's nature that moves the needle, not c's.
+  if (isT(o, "generous")) by += 2.5;
+  if (isT(o, "grasping")) by -= 2.5;
+  if (isM(o, "disgraced")) by -= 1.5;
+  // How far any of it moves a given person is their own business, though.
+  nudgeOpinion(c, o, by * temperDrift(c));
 }
 function updateFeuds(dt) {
   for (const c of civs) {
@@ -3429,6 +4342,8 @@ function updateFeuds(dt) {
         endFeud(c);
         nudgeOpinion(c, foe, 55);
         toast(`${foe.name} is beaten bloody. ${c.name} considers the matter settled.`);
+        // Settled for the man who won it. The one on the ground keeps it.
+        setMark(foe, "bitter", `they were beaten bloody by ${c.name} and have not forgotten it.`);
       } else {
         toast(`⚠ ${c.name} is not finished with ${foe.name}.`);
       }
@@ -3457,7 +4372,7 @@ function forceAI(c) {
   if (c.state !== "idle") return;
   // arm up from the armoury once Defending is known (line infantry bring their own gun)
   if (c.profession !== "musketeer" && !c.armed && has("defending") && forgeBuilt() && res.weapons > 0) {
-    res.weapons--; c.armed = true;
+    c.armed = armouryTake() || false;
     toast(`${c.name} takes a weapon at the forge.`);
   }
   // a posted soldier watches from where he was told to stand — threats are
@@ -3579,6 +4494,7 @@ function spawnVisitor() {
     face: gender === "f" ? "hunter_face_c" : (Math.random() < 0.5 ? "hunter_face_a" : "hunter_face_b"),
     x: center.x + Math.cos(a) * 700, y: center.y + Math.sin(a) * 700,
     tx: center.x + 60, ty: center.y + 20,
+    faith: rollFaith(),
     state: "walking", anim: 0, facing: 1, waitT: 75, meter: null, leaving: false, used: new Set(),
   });
   const ctown = townAt(center.x, center.y);
@@ -3636,6 +4552,16 @@ const DLG_OPTIONS = [
   { text: "Say nothing and slide a Deutsche Mark under the slot. (5 DM)", d: +9, needs: () => res.dm >= 5, use: () => res.dm -= 5 },
   { text: "\"Winter is coming. Alone, it will bury you.\"", d: +8 },
   { text: "\"We have a market — your pelts would fetch real coin.\"", d: 0, dyn: () => buildings.some(b => b.type === "market") ? +13 : -10 },
+  // The one line whose worth depends entirely on who is standing at the slot.
+  // Said to a man of your own creed it is the best card in the deck; said to a
+  // dissenter with no roof of his own to pray under, it is the worst.
+  { text: "\"You may keep your own faith here, and we will not ask after it.\"", d: 0,
+    dyn: () => {
+      const v = dlg.visitor, f = v ? (v.faith || DEFAULT_FAITH) : DEFAULT_FAITH;
+      if (!stateFaith) return +10;
+      if (f === stateFaith) return +16;
+      return housesOfFaith(f) ? +8 : -12;
+    } },
 ];
 
 function openTalk(talk) {
@@ -3657,8 +4583,16 @@ function openTalk(talk) {
 // a roof going spare, whether the larder is full, how the people already inside
 // carry themselves. Recruiting is now the reward for running the place well
 // rather than for clicking well.
-function gateStanding() {
+function gateStanding(v) {
   let m = 34;
+  // A man at the gate can see what is preached here and whether there is any
+  // room in it for him. A colony that has proclaimed his own creed is a colony
+  // he was already walking toward; one that has proclaimed against him is a
+  // town he has been turned out of before.
+  if (v && stateFaith) {
+    const mine = (v.faith || DEFAULT_FAITH) === stateFaith;
+    m += mine ? 14 : (housesOfFaith(v.faith || DEFAULT_FAITH) ? -4 : -14);
+  }
   m += taxRate <= 2 ? 8 : taxRate <= 4 ? 0 : -16;
   const larder = (res.bread || 0) + (res.meat || 0);
   m += larder >= 25 ? 8 : larder >= 8 ? 3 : -9;
@@ -3670,7 +4604,7 @@ function gateStanding() {
 function openDialogue(v) {
   tutSeen.talked = true;   // they have met a wanderer, whether or not they keep them
   dlg.visitor = v;
-  if (v.meter === null) v.meter = gateStanding() + (v.goodwill || 0);
+  if (v.meter === null) v.meter = gateStanding(v) + (v.goodwill || 0);
   openTalk({
     face: v.face,
     title: `${v.name}, wandering ${v.gender === "f" ? "huntress" : "hunter"}`,
@@ -3731,7 +4665,10 @@ function joinColony(v) {
   visitors.splice(visitors.indexOf(v), 1);
   closeDialogue();
   const c = mkCiv(v.name, "hunter", v.x, v.y, v.gender);
-  c.inv.dm = 5 + Math.floor(Math.random() * 6);   // wanderers arrive with 5-10 DM
+  c.faith = v.faith || DEFAULT_FAITH;
+  // A Sephardi merchant walking north out of Hamburg is not carrying a hunter's
+  // pocket money, and the whole point of admitting him is that he is not.
+  c.inv.dm = (F(c).purse || 5) + Math.floor(Math.random() * 6);
   c.profession = "hunter";
   refreshAvatar(c);
   civs.push(c);
@@ -3739,6 +4676,10 @@ function joinColony(v) {
   const housed = houseCiv(c, v.x, v.y);
   vignette("firstRecruit");
   tally.arrived++;
+  // Admitting one dissenter is what breaks a pure colony, so say so plainly at
+  // the moment it happens rather than leaving the player to find the mood drop.
+  if (stateFaith && c.faith !== stateFaith)
+    tell("law", `⚠ ${v.name} is ${FAITHS[c.faith].one}, and the colony has professed the ${FAITHS[stateFaith].name} creed. The flock is no longer of one mind.`);
   tell("life", `${v.name} signs on — a civilian certificate slides out through the slot. ` +
         (housed ? `${v.gender === "f" ? "She" : "He"} moves into a cabin and will pay taxes.` : `Build ${v.gender === "f" ? "her" : "him"} a cabin: no taxes until there is a roof.`));
   syncUI();
@@ -3749,8 +4690,9 @@ function rejectColony(v) { closeDialogue(); sendAway(v, `${v.name} shakes his he
 function techAvailable(t) { return !t.done && t.req.every(r => TECH[r].done) && (!research || research.id !== t.id); }
 // which menu entries hide until their technology is researched
 const BUILD_GATES = { forge: "forging", townhall: "township", wall: "defending", gate: "defending", jail: "policing",
-                      stonewall: "defplus", stonegate: "defplus", moat: "defplus", ditch: "defplus" };
-const PROF_GATES = { lumberjack: "township", quarryman: "township", forager: "township",
+                      stonewall: "defplus", stonegate: "defplus", moat: "defplus", ditch: "defplus",
+                      quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting" };
+const PROF_GATES = { lumberjack: "township", quarryman: "township", forager: "township", miner: "mining",
                      police: "policing", blacksmith: "forging", soldier: "raiding",
                      musketeer: "matchlock", cavalry: "cavalry" };
 function startResearch(id) {
@@ -3868,7 +4810,7 @@ function sendToTown(c, target) {   // target: settlement object, or null for the
                                   (target ? Math.hypot(b.x - target.x, b.y - target.y) < 500 : !townOf(b)));
   if (!cab) return toast(`No roof free in ${target ? target.name : settlementName} — build a cabin there first.`);
   if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
-  for (const f of farms) f.workers = f.workers.filter(w => w !== c);
+  unassignWork(c);
   c.home = cab; cab.occupants.push(c);
   order(c, { kind: "walk", x: cab.x - 30 + Math.random() * 60, y: cab.y + 34 });
   toast(`${c.name} sets out to live in ${target ? target.name : settlementName}.`);
@@ -3902,6 +4844,9 @@ document.querySelectorAll("#craftMenu .menu-item").forEach(item =>
 function recruitAs(selected, prof) {
     if (!selected) return;
     if (selected.child) return toast(`${selected.name} is a child — give them a few more springs.`);
+    // and no rank in your army is worth a Mennonite's conscience
+    if (F(selected).pacifist && ["police", "soldier", "musketeer", "cavalry"].includes(prof))
+      return toast(`${selected.name} refuses the muster. ${FAITHS[faithOf(selected)].name}s will not bear arms — not for you, not for anyone.`);
     // A man who takes another trade puts the stretcher down. Without this the
     // patient stayed "borne" for good — carried about by a blacksmith, never
     // laid in a bed, never able to be picked up by anyone else.
@@ -3967,6 +4912,10 @@ function recruitAs(selected, prof) {
     } else if (prof === "hunter") {
       selected.profession = "hunter";
       toast(`${selected.name} takes up the hunter's life.`);
+    } else if (prof === "miner") {
+      if (!has("mining")) return toast("Miners require the Mining technology.");
+      selected.profession = "miner";
+      toast(`${selected.name} takes a lamp and goes down. Put them on a mine and they will keep at it.`);
     } else if (prof === "lumberjack" || prof === "quarryman" || prof === "forager") {
       if (!has("township")) return toast("Organized town jobs require the Township technology.");
       selected.profession = prof;
@@ -4106,6 +5055,45 @@ $("lawForced").addEventListener("change", e => {
   toast(laws.forced ? "The forced labour edict is proclaimed. The people will not forgive this quickly." :
                       "The forced labour edict is repealed.");
 });
+// ===== proclaiming a creed =====
+// Nothing is forced on anyone by this alone: it comforts those who already hold
+// it, galls those who do not, and opens the door to the edict. What the ruler
+// does next is the interesting part.
+fillFaithPickers();
+$("stateFaithSel").addEventListener("change", e => {
+  const v = e.target.value;
+  stateFaith = FAITHS[v] ? v : null;
+  dedicateTo = stateFaith || dedicateTo;
+  if (stateFaith) {
+    const mine = flockOf(stateFaith), out = civs.filter(c => faithOf(c) !== stateFaith).length;
+    tell("law", `The ${FAITHS[stateFaith].name} creed is proclaimed the faith of ${settlementName}. ` +
+                `${mine} ${mine === 1 ? "soul is" : "souls are"} of it; ${out} ${out === 1 ? "is" : "are"} not.`);
+  } else tell("law", "The state professes no creed. Everyone may believe as they came here believing.");
+  syncUI();
+});
+$("dedSelect").addEventListener("change", e => {
+  if (FAITHS[e.target.value]) dedicateTo = e.target.value;
+  const di = $("dedIcon"); if (di) di.src = faithIcon(dedicateTo);
+});
+// The edict, and the banishment, are the two irreversible things in this panel.
+// Both ask twice, because both take people off the map for good.
+$("edictExpel").addEventListener("click", () => {
+  if (!stateFaith) return toast("Proclaim a state creed first — there is nothing yet to dissent from.");
+  const out = civs.filter(c => faithOf(c) !== stateFaith);
+  if (!out.length) return toast("There is not a dissenter left in the colony.");
+  const kids = out.filter(c => c.child).length;
+  if (!confirm(`Put ${out.length} ${out.length === 1 ? "soul" : "souls"}${kids ? `, ${kids} of them children,` : ""} out of ${settlementName} for refusing the ${FAITHS[stateFaith].name} creed?\n\nThey walk out of the territory with what they carry, and they do not come back.`)) return;
+  proclaimExpulsion();
+});
+$("cpBanish").addEventListener("click", () => {
+  const c = selected;
+  if (!c) return;
+  if (c.child) return toast("A child is not put out of the gate alone.");
+  if (!confirm(`Drive ${c.name}, ${FAITHS[faithOf(c)].one}, out of ${settlementName}?\n\nThey take what they carry and whatever they knew how to do, and they do not come back.`)) return;
+  banish(c);
+  selected = null;
+});
+
 $("techToggle").addEventListener("click", () => {
   const p = $("techPanel");
   const opening = p.style.display !== "block";
@@ -4122,8 +5110,13 @@ $("settleSearch").addEventListener("input", () => {
   for (const row of $("settleList").children)
     row.style.display = !q || row.textContent.toLowerCase().includes(q) ? "" : "none";
 });
-$("tabGrowth").addEventListener("click", () => { techTab = "growth"; $("tabGrowth").classList.add("active"); $("tabMilitary").classList.remove("active"); renderTech(); });
-$("tabMilitary").addEventListener("click", () => { techTab = "military"; $("tabMilitary").classList.add("active"); $("tabGrowth").classList.remove("active"); renderTech(); });
+const TECH_TABS = { tabGrowth: "growth", tabMilitary: "military", tabIndustry: "industry" };
+for (const [id, tree] of Object.entries(TECH_TABS))
+  $(id).addEventListener("click", () => {
+    techTab = tree;
+    for (const other of Object.keys(TECH_TABS)) $(other).classList.toggle("active", other === id);
+    renderTech();
+  });
 
 // Like the heal order, this is given to whoever is picked: one man alone, or a
 // whole company that has just come back loaded.
@@ -4177,41 +5170,218 @@ $("cpGiveWeapon").addEventListener("click", () => {
   if (!forgeBuilt()) return toast("Weapons are handed out at the forge — build one first.");
   if (c.armed) return toast(`${c.name} is already armed.`);
   if (res.weapons < 1) return toast("The armoury is empty. Set a blacksmith to forging weapons.");
+  // Nonresistance is not a preference and it is not the player's to overrule:
+  // the Anabaptists went to the water rather than pick this up.
+  if (F(c).pacifist) return toast(`${c.name} will not take it. ${FAITHS[faithOf(c)].name}s hold the sword to be outside the perfection of Christ.`);
   const lawAllows = isForce(c) || laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
   if (!lawAllows) return toast(`The law forbids arming ${c.name}. Change the weapon laws in the government panel.`);
-  res.weapons--; c.armed = true;
-  toast(`${c.name} is handed a weapon at the forge.`);
+  const drawn = armouryTake();
+  if (!drawn) return toast("The armoury is empty. Set a blacksmith to forging weapons.");
+  c.armed = drawn;
+  toast(`${c.name} is handed ${withArt(`${matOf(drawn).name.toLowerCase()} weapon`)} at the forge.`);
   syncUI();
 });
 $("cpBuyTool").addEventListener("click", () => {
   if (!selected) return;
-  if (selected.tool) return toast(`${selected.name} already carries a good tool.`);
-  const f = buildings.find(b => b.type === "forge" && !b.fire && (b.shop || []).some(i => i.kind === "tool"));
-  if (!f) return toast("No tool on the forge racks.");
-  if (res.dm - TOOL_PRICE_GOV < treasuryFloor()) return toast(`Government purchase costs ${TOOL_PRICE_GOV} DM. Treasury: ${res.dm} DM.`);
-  const item = f.shop.splice(f.shop.findIndex(i => i.kind === "tool"), 1)[0];
-  res.dm -= TOOL_PRICE_GOV;
+  const f = buildings.find(b => b.type === "forge" && !b.fire && !b.site && bestOnRacks(b, selected, "tool"));
+  if (!f) {
+    const held = matOf(selected.tool);
+    return toast(held ? `${selected.name} already carries the best tool on the racks — ${held.name.toLowerCase()}.`
+                      : "No tool on the forge racks.");
+  }
+  const tier = bestOnRacks(f, selected, "tool");
+  if (res.dm - tier.tool.gov < treasuryFloor()) {
+    const p = withArt(`${tier.name.toLowerCase()} tool`);
+    return toast(`${p[0].toUpperCase()}${p.slice(1)} costs the treasury ${tier.tool.gov} DM. Treasury: ${res.dm} DM.`);
+  }
+  const item = f.shop.splice(f.shop.findIndex(i => i.kind === "tool" && i.tier === tier.id), 1)[0];
+  res.dm -= tier.tool.gov;
   const smith = civs.find(o => o.name === item.by && o.profession === "blacksmith");
-  if (smith) smith.inv.dm += TOOL_PRICE_GOV;
-  selected.tool = true;
-  toast(`The government buys ${selected.name} a fine tool from ${item.by}'s racks.`);
+  if (smith) smith.inv.dm += tier.tool.gov;
+  const had = matOf(selected.tool);
+  selected.tool = tier.id;
+  toast(`The government buys ${selected.name} ${withArt(`${tier.name.toLowerCase()} tool`)} from ${item.by}'s racks` +
+        (had ? `, and the old ${had.name.toLowerCase()} one is set aside.` : "."));
+  syncUI();
+});
+$("bpSmelt").addEventListener("click", () => {
+  const b = selectedBldg;
+  if (!b || b.type !== "smelter") return;
+  b.smelt = b.smelt === "copper" ? "iron" : "copper";
+  // whoever is at it drops the half-cooked charge and starts the new one
+  for (const c of civs) if (c.task && c.task.kind === "work" && c.task.target === b) { c.task = null; c.state = "idle"; }
+  b.progress = -1;
+  toast(`The furnace is banked and reset for ${b.smelt === "copper" ? "copper" : "iron"} ore.`);
   syncUI();
 });
 $("bpBuyWeapon").addEventListener("click", () => {
   const b = selectedBldg;
   if (!b || b.type !== "forge") return;
-  const idx = (b.shop || []).findIndex(i => i.kind === "weapon");
+  // the best blade on the racks, since the armoury is what the forces draw from
+  let idx = -1, best = -1;
+  (b.shop || []).forEach((i, k) => { if (i.kind === "weapon" && matRank(i.tier) > best) { best = matRank(i.tier); idx = k; } });
   if (idx < 0) return toast("No weapon on the racks. The blacksmith is still at work.");
-  if (res.dm - 12 < treasuryFloor()) return toast("The armoury purchase costs 12 DM. Treasury: " + res.dm + " DM.");
+  const mat = MATERIALS[best];
+  if (res.dm - mat.weapon.gov < treasuryFloor())
+    return toast(`A ${mat.name.toLowerCase()} weapon costs the armoury ${mat.weapon.gov} DM. Treasury: ${res.dm} DM.`);
   const item = b.shop.splice(idx, 1)[0];
-  res.dm -= 12;
+  res.dm -= mat.weapon.gov;
   const smith = civs.find(o => o.name === item.by && o.profession === "blacksmith");
-  if (smith) { smith.inv.dm += 12; float(smith.x, smith.y - 70, "+12 DM", "#c9a86a"); }
-  res.weapons++;
+  if (smith) { smith.inv.dm += mat.weapon.gov; float(smith.x, smith.y - 70, "+" + mat.weapon.gov + " DM", "#c9a86a"); }
+  armouryAdd(mat.id);
   SFX.coin();
-  toast(`A weapon is bought off ${item.by}'s racks for the armoury. Police and soldiers may now equip it.`);
+  toast(`${withArt(`${mat.name.toLowerCase()} weapon`)} is bought off ${item.by}'s racks for the armoury. Police and soldiers may now equip it.`.replace(/^./, ch => ch.toUpperCase()));
   syncUI();
 });
+// ===== what a civilian carries =====
+// The pack is built once and only ever updated after. syncUI runs four times a
+// second, and tearing the grid down that often would pull the slot out from
+// under the pointer and wipe the description mid-sentence.
+const PACK_GOODS = [
+  { id: "logs",  name: "Logs",
+    desc: "Pine felled in the woods and dragged back whole. Roofs, walls, doors, and the fire that gets a family through a winter night." },
+  { id: "seeds", name: "Seed",
+    desc: "Wild grain gathered a handful at a time off the grass patches. Nothing is sown without it, and nothing is reaped after." },
+  { id: "stone", name: "Stone",
+    desc: "Fieldstone broken out of the outcrops, or cut clean off a quarry face. It raises walls that fire cannot take, and it is the one thing this country never runs short of. There is no metal in it, whatever the old hands tell you." },
+  { id: "iron",  name: "Iron",
+    desc: "Cooked out of iron ore in a smelter, three of ore to the bar — and the ore comes out of a mine and out of nowhere else. Everything the forge makes worth having starts here. Until the colony sinks a shaft, the only iron it will ever see is what a traveller sells it." },
+  { id: "wheat", name: "Wheat",
+    desc: "Reaped from the farms and carried in. It feeds a man badly on its own — the bakery is what turns it into a meal." },
+  { id: "bread", name: "Bread",
+    desc: "Baked from the colony's own wheat. The best thing a hungry man can be handed, and the first thing a raid takes." },
+  { id: "meat",  name: "Meat",
+    desc: "Game taken in the woods by the hunters. It fills a stomach further than bread, and it does not keep." },
+  { id: "dm",    name: "Purse",
+    desc: "A drawstring sack of marks, and coin of their own — not the treasury's. It is what goes to the blacksmith's racks for a tool or a blade: the government cannot spend it, and cannot stop them spending it." },
+];
+const PACK_SLOTS = ["tool", "weapon", ...PACK_GOODS.map(g => g.id)];
+let packHover = null, packHeld = null, packWho = null, packPtr = { x: 0, y: 0 };
+
+function packSlot(c, id) {
+  if (id === "tool" || id === "weapon") {
+    const m = matOf(heldId(c, id));
+    return { gear: true, have: !!m,
+             count: !m ? "" : id === "tool" ? `+${Math.round(m.tool.bonus * 100)}%`
+                                            : `${Math.round(weaponForm() * m.weapon.mult)}`,
+             img: `assets/sprites/items/${id}_${(m || MATERIALS[0]).id}.png`,
+             name: m ? `${m.name} ${id}` : (id === "tool" ? "No tool" : "Unarmed"),
+             short: m ? m.name : (id === "tool" ? "Tool" : "Weapon"),
+             desc: m ? m[id].desc : (id === "tool"
+               ? "Bare hands. Every kind of work takes exactly as long as it takes, and it will go on doing so until there is coin enough for something off the blacksmith's racks."
+               : "Nothing to fight with but bare hands. A few marks at the blacksmith's would change that: the weapon laws govern what the armoury hands out, not what a civilian buys.") };
+  }
+  const g = PACK_GOODS.find(x => x.id === id);
+  const q = (c.inv && c.inv[id]) || 0;
+  return { have: q > 0, count: q ? String(q) : "", img: `assets/sprites/items/${id}.png`, name: g.name, desc: g.desc };
+}
+
+function packTipEl() {
+  let el = $("invTip");
+  if (!el) { el = document.createElement("div"); el.id = "invTip"; document.body.appendChild(el); }
+  return el;
+}
+function hidePackTip() { const el = $("invTip"); if (el) el.style.display = "none"; }
+
+// Shown beside the pointer, or under the slot when a finger pinned it. It flips
+// rather than runs off: a description clipped by the window edge is no use.
+function drawPackTip() {
+  const c = selected, id = packHeld || packHover;
+  if (!c || !id) return hidePackTip();
+  const s = packSlot(c, id);
+  const el = packTipEl();
+  // syncUI comes round four times a second. Only touch the DOM when the words
+  // actually change, or the tip is torn down and re-laid-out under the pointer.
+  const html = `<b>${s.name}</b> — ${s.desc}`;
+  if (el._k !== html) { el.innerHTML = html; el._k = html; }
+  el.style.display = "block";
+
+  let x = packPtr.x, y = packPtr.y;
+  if (packHeld && packHeld !== packHover) {          // pinned by a tap, no pointer on it
+    const grid = $("cpInv");
+    const cell = grid && [...grid.children].find(o => o.dataset.id === packHeld);
+    if (cell) { const r = cell.getBoundingClientRect(); x = r.left + r.width / 2; y = r.bottom - 14; }
+  }
+  // offsetWidth forces the layout that a rect read alone may not have had yet on
+  // the very first show — measuring zero there threw the tip into the wrong
+  // corner for a frame before the next repaint quietly corrected it.
+  const w = el.offsetWidth, h = el.offsetHeight, pad = 8, off = 14;
+  let left = x + off, top = y + off;
+  if (left + w > innerWidth  - pad) left = x - off - w;   // try the other side
+  if (top  + h > innerHeight - pad) top  = y - off - h;
+  // Flipping is not always enough — a slot at the lip of a phone sheet leaves no
+  // room either way. Pin it inside the window rather than let it hang off.
+  const fit = (v, size, limit) => Math.max(pad, Math.min(v, limit - size - pad));
+  el.style.left = Math.round(fit(left, w, innerWidth)) + "px";
+  el.style.top  = Math.round(fit(top, h, innerHeight)) + "px";
+}
+
+function buildPack() {
+  const grid = $("cpInv");
+  if (!grid || grid.childElementCount) return;
+  for (const id of PACK_SLOTS) {
+    const cell = document.createElement("div");
+    cell.className = "invSlot"; cell.dataset.id = id;
+    const pic = document.createElement("div"); pic.className = "pic";
+    cell._img = pic.appendChild(document.createElement("img"));
+    cell._n = document.createElement("span"); cell._n.className = "n";
+    pic.appendChild(cell._n); cell.appendChild(pic);
+    cell._nm = document.createElement("span"); cell._nm.className = "nm";
+    cell.appendChild(cell._nm);
+    cell.addEventListener("mouseenter", e => {
+      packHover = id; packPtr = { x: e.clientX, y: e.clientY }; drawPackTip();
+    });
+    cell.addEventListener("mousemove", e => {
+      if (packHover !== id) return;
+      packPtr = { x: e.clientX, y: e.clientY }; drawPackTip();
+    });
+    cell.addEventListener("mouseleave", () => { if (packHover === id) packHover = null; drawPackTip(); });
+    // A finger has no hover. Tapping pins the description; tapping again lets it go.
+    // The highlight is set here rather than left to the next repaint — a quarter
+    // second of nothing happening reads as a slot that did not take the tap.
+    cell.addEventListener("click", e => {
+      e.stopPropagation();
+      packHeld = packHeld === id ? null : id;
+      for (const o of grid.children) o.classList.toggle("on", packHeld === o.dataset.id);
+      drawPackTip();
+    });
+    grid.appendChild(cell);
+  }
+}
+
+function paintPackNote() {
+  const el = $("cpInvNote"); if (!el) return;
+  const c = selected;
+  if (!c) return void (el.textContent = "");
+  const carried = PACK_GOODS.reduce((t, g) => g.id === "dm" ? t : t + ((c.inv && c.inv[g.id]) || 0), 0);
+  el.textContent = (carried ? `Carrying ${carried} thing${carried === 1 ? "" : "s"}. ` : "Carrying nothing. ") +
+                   (IS_TOUCH ? "Tap a slot to read what it is." : "Hover a slot to read what it is.");
+}
+
+function syncPack(c) {
+  buildPack();
+  const grid = $("cpInv"); if (!grid) return;
+  if (packWho !== c) { packWho = c; packHeld = null; packHover = null; }
+  for (const cell of grid.children) {
+    const id = cell.dataset.id;
+    const s = packSlot(c, id);
+    if (cell._img.getAttribute("src") !== s.img) cell._img.setAttribute("src", s.img);
+    cell._n.textContent = s.count;
+    cell._nm.textContent = s.short || s.name;
+    // A hidden slot fires no mouseleave, so a purse spent while it was being
+    // read would leave its description stranded in the strip below.
+    if (!s.have) {
+      if (packHeld === id) packHeld = null;
+      if (packHover === id) packHover = null;
+    }
+    cell.classList.toggle("empty", !s.have);
+    cell.classList.toggle("gear", !!s.gear);
+    cell.classList.toggle("on", packHeld === id);
+  }
+  paintPackNote();
+  drawPackTip();
+}
+
 // ===== the skill tree, one man at a time =====
 // The tech panel is what the colony knows and never changes hands; this is what
 // THIS pair of hands has learned, and it walks out of the gate with them.
@@ -4335,6 +5505,7 @@ $("bpDismantle").addEventListener("click", () => {
     for (const k of ["logs", "stone", "iron", "seeds"])
       if (built[k]) { const n = Math.floor(built[k] * rate); if (n > 0) back[k] = n; }
     const refund = back.logs || 0;
+    b.workers = undefined;
     for (const o of b.occupants) {
       o.home = null;
       if (INDOORS.has(o.state)) { o.state = "idle"; o.y = b.y + 24; }
@@ -4637,9 +5808,17 @@ function strikePlague() {
   // clean water keeps some of them standing
   const share = Math.max(0.15, 0.42 - wells() * 0.07);
   const n = Math.max(1, Math.round(well.length * share));
-  const pool = well.slice().sort(() => Math.random() - 0.5);
+  // Who it takes is still mostly chance — but a constitution counts for
+  // something. Each soul draws a random ticket and the sickly draw a better one;
+  // sorting on that keeps the outbreak's SIZE exactly as it was and changes only
+  // which beds fill first.
+  const pool = well.slice()
+    .map(c => [c, Math.random() * (isT(c, "sickly") ? 0.55 : isT(c, "hardy") ? 1.7 : 1)])
+    .sort((a, b) => a[1] - b[1]).map(([c]) => c);
   let struck = 0;
   for (const c of pool.slice(0, n)) { c.sick = PLAGUE_LEN * (0.7 + Math.random() * 0.6); struck++; }
+  // Who took it and who walked through it are both evidence of a constitution.
+  for (const c of well) if (isT(c, "hardy") || isT(c, "sickly")) noteTemper(c, 3);
   plagueActive = PLAGUE_LEN * 1.4;
   eventCard(`Plague walks your own streets.`, "event_war",
             `${struck} have taken to their beds — they work poorly and sicken. It will pass.`);
@@ -5610,6 +6789,9 @@ function captureFolk(f, quiet) {
   c.profession = f.trade;
   c.happiness = 28;
   c.conquered = 1;                 // wears off as the years pass under your flag
+  // and this does not wear off at all: he believes what the country he was
+  // taken from believed, and now he lives under your steeple.
+  c.faith = faithOfNation(f.town && f.town.nation);
   c.hunger = 70;
   refreshAvatar(c);
   civs.push(c);
@@ -5809,7 +6991,7 @@ document.getElementById("settleGo").addEventListener("click", () => {
   // the settlers keep their names and trades — they walk out and live there
   chosen.forEach((c, i) => {
     if (c.home) c.home.occupants = c.home.occupants.filter(o => o !== c);
-    for (const f of farms) f.workers = f.workers.filter(w => w !== c);
+    unassignWork(c);
     const cab = newCabins[i % newCabins.length];
     c.home = cab; cab.occupants.push(c);
     order(c, { kind: "walk", x: cab.x - 40 + (i % 2) * 80, y: cab.y + 34 });
@@ -6083,14 +7265,72 @@ const BLDG_ABOUT = {
     },
   },
   forge: {
-    what: "A blacksmith's shop. He forges tools that make every kind of work faster, and weapons that go to the armoury. Civilians buy tools out of their own pockets.",
+    what: "A blacksmith's shop. He works the best metal the colony can spare into tools that make every kind of work faster, and weapons for the armoury and for the racks. Once Alloys is known he also keeps a crucible: copper and tin go in, bronze comes out, two bars at a pouring. Any civilian may buy either out of their own pocket — the weapon laws govern only what the government hands out.",
+    stats: b => {
+      const onRacks = kind => MATERIALS.map(m => `${m.name.toLowerCase()} ${(b.shop || []).filter(i => i.kind === kind && i.tier === m.id).length}`).join(" · ");
+      const rung = (m, kind, effect) => [`${m.name} ${kind}`,
+        `${effect} · ${m[kind].self} DM to a civilian, ${m[kind].gov} from the treasury · ${matsFor(m, kind).map(([k, q]) => `${q} ${k}`).join(", ")}`];
+      return [
+        ["Tools on the racks", onRacks("tool")],
+        ["Weapons on the racks", onRacks("weapon")],
+        ["In the armoury", MATERIALS.map(m => `${m.name.toLowerCase()} ${(res.armoury && res.armoury[m.id]) || 0}`).join(" · ")],
+        ["Bronze from the crucible", has("alloys") ? `1 copper + 1 tin → 2 bronze · ${Math.floor(res.copper)} copper, ${Math.floor(res.tin)} tin in store`
+                                                  : "needs Alloys, and a mine and a smelter before it"],
+        ...MATERIALS.map(m => rung(m, "tool", `work ${Math.round(m.tool.bonus * 100)}% faster`)),
+        ...MATERIALS.map(m => rung(m, "weapon", `${Math.round(weaponForm() * m.weapon.mult)} damage`)),
+        ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
+      ];
+    },
+  },
+  quarry: {
+    what: "A face of rock with steps cut into it, worked by a quarryman you put on it. It never runs out and it never needs finding — and the stone goes straight into the town's store, so nobody spends the day carrying.",
     stats: b => [
-      ["Tools on the racks", `${(b.shop || []).filter(i => i.kind === "tool").length}`],
-      ["Weapons on the racks", `${(b.shop || []).filter(i => i.kind === "weapon").length}`],
-      ["A tool makes work", "35% faster, for life"],
-      ["Tool price", `${TOOL_PRICE_SELF} DM to a civilian · ${TOOL_PRICE_GOV} DM from the treasury`],
+      ["Quarrymen on it", `${worksOf(b).length}` + (worksOf(b).length ? "" : " — nobody, it stands idle")],
+      ["A shift gives", `${workYield({ type: "quarry" }).stone} stone, into the town's store`],
+      ["A shift takes", `${INDUSTRY.quarry.time}s` + (has("deepshafts") ? " × 0.7 (Deep Shafts)" : "") + ", less as the hand learns"],
+      ["Needs", "nothing but the hands"],
       ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
     ],
+  },
+  mine: {
+    what: "A shaft with a windlass over it. Iron, copper and tin are in the ground and in nothing else — no boulder ever gave up a bar of anything. What comes up depends on the seam the miner is following that day.",
+    stats: b => [
+      ["Miners on it", `${worksOf(b).length}` + (worksOf(b).length ? "" : " — nobody, it stands idle")],
+      ["A shift takes", `${INDUSTRY.mine.time}s` + (has("deepshafts") ? " × 0.7 (Deep Shafts)" : "") + ", less as the hand learns"],
+      ...SEAMS.map(sm => [goodName(sm.key).replace(/^\w/, ch => ch.toUpperCase()),
+                          `${Math.round(sm.p * 100)}% of shifts — ${sm.n + (has("deepshafts") ? 1 : 0)} at a time`]),
+      ["Ore is not metal", "the smelter cooks it down; tin goes straight to the crucible"],
+      ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
+    ],
+  },
+  sawmill: {
+    what: "A saw driven by the stream, worked by a lumberjack you put on it. Doors by the pair out of whole logs — far better than the five logs a man with an adze spends on one.",
+    stats: b => [
+      ["Lumberjacks on it", `${worksOf(b).length}` + (worksOf(b).length ? "" : " — nobody, it stands idle")],
+      ["A shift", `${workNeeds({ type: "sawmill" }).logs} logs in, ${workYield({ type: "sawmill" }).doors} doors out`],
+      ["A shift takes", `${INDUSTRY.sawmill.time}s, less as the hand learns`],
+      ["By hand, a door costs", `${doorCost()} logs`],
+      ["Town logs", `${Math.floor(ledgerAt(b.x, b.y).logs || 0)}`],
+      ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
+    ],
+  },
+  smelter: {
+    what: "A stone stack furnace with a bellows on it, worked by a blacksmith you put on it. Ore is rock with metal in it; this is what gets the metal out. Set it to the ore you want cooked — it will not guess.",
+    stats: b => {
+      return [
+        ["Blacksmiths on it", `${worksOf(b).length}` + (worksOf(b).length ? "" : " — nobody, it stands idle")],
+        ["Furnace", has("blastfurnace") ? "blast — twice the metal from the same ore" : "a plain stack"],
+        ["Set to", (() => {
+          const need = Object.entries(workNeeds(b))[0], out = Object.entries(workYield(b))[0];
+          return `${b.smelt === "copper" ? "COPPER" : "IRON"} — ${need[1]} ${goodName(need[0])} in, ${out[1]} ${out[0]} out`;
+        })()],
+        ["A shift takes", `${INDUSTRY.smelter.time}s, less as the hand learns`],
+        ["Town iron ore", `${Math.floor(ledgerAt(b.x, b.y).ironore || 0)}`],
+        ["Town copper ore", `${Math.floor(ledgerAt(b.x, b.y).copperore || 0)}`],
+        ["Bronze", has("alloys") ? "the blacksmith melts copper and tin at the forge" : "needs Alloys"],
+        ["Upkeep", `${CIVIC_UPKEEP} DM a tax day`],
+      ];
+    },
   },
   townhall: {
     what: "Civilians carry what they gather here on their own instead of hoarding it in their pockets. One hall to a town; without one, goods sit in cabins until you ask for them.",
@@ -6140,6 +7380,32 @@ const BLDG_ABOUT = {
       ["Standing", `${buildings.filter(x => x.type === "lamp" && !x.site).length}`],
       ["Claims territory", "no — it is furniture"],
     ],
+  },
+  shrine: {
+    what: "A plain unmarked hut with a lantern by the door, dedicated to one creed and deliberately anonymous from the outside — which is how a forbidden congregation met in 1683, and why it will do for any faith at all. Small comfort, and cheap.",
+    stats: b => {
+      const f = FAITHS[b.faith] || FAITHS[DEFAULT_FAITH];
+      return [
+        ["Dedicated to", f.name],
+        ["Comforts", `+6 happiness to every ${f.name}, up to two shrines`],
+        ["Its congregation", `${flockOf(b.faith || DEFAULT_FAITH)} in the colony`],
+        ["Against the tithe", "eases it a little — a great house eases it far more"],
+      ];
+    },
+  },
+  temple: {
+    what: "The great house of one creed, built the way that creed built: a brick tower, a baroque dome, a bare preaching box, a barn, a house of arches, an onion dome, a minaret. It is the largest comfort a ruler can offer a soul, and the thing that buys consent to a tithe nobody would otherwise pay.",
+    stats: b => {
+      const fid = b.faith || DEFAULT_FAITH, f = FAITHS[fid];
+      const mine = flockOf(fid), h = housesOfFaith(fid);
+      return [
+        ["Dedicated to", f.name],
+        ["Comforts", `+13 happiness to every ${f.name}, up to two houses`],
+        ["Its congregation", `${mine} in the colony — ${h} ${h === 1 ? "house" : "houses"} standing`],
+        ["Against the tithe", `forgives up to ${Math.round(TAX_FAITH_RELIEF * 100)}% of its sting for a well-served believer`],
+        ["Draws dissenters over", stateFaith === fid ? "yes — this is the state creed" : "no — only the state creed converts"],
+      ];
+    },
   },
   wall: { what: "Timber. Keeps raiders out until they put a torch to it — and they will try.",
     stats: b => [["Strength", `${Math.round(b.hp)}/${b.maxHp}`], ["Burns", "yes — leaves a repairable ruin"]] },
@@ -6438,6 +7704,8 @@ function doingWhat(c) {
                  hunting: "hunting", selling: "at the market", trading: "trading", peddling: "peddling",
                  depositing: "carrying goods to store", shopping: "buying at the forge",
                  digging: "digging a grave", masonry: "cutting a headstone", walking: "on the move" };
+  if (c.state === "working" && c.task && c.task.target && INDUSTRY[c.task.target.type])
+    return INDUSTRY[c.task.target.type].doing;
   return busy[c.state] || "idle";
 }
 function renderFolk() {
@@ -6478,6 +7746,7 @@ function renderFolk() {
     row.innerHTML =
       `<span class="folkName">${esc(c.name)}</span>` +
       `<span class="folkTrade">${esc(c.child ? "child" : profLabel(c.profession))}</span>` +
+      `<span class="folkTemper">${folkTemperCell(c)}</span>` +
       `<span class="folkDoing">${esc(doingWhat(c))}</span>` +
       `<span class="folkBars">` +
         `<span class="barwrap"><span class="barfill red" style="width:${Math.round(100 * c.hp / c.maxHp)}%"></span></span>` +
@@ -6716,6 +7985,7 @@ function saveGame() {
       // the recent tail only: a history worth reading, at a size worth keeping
       chron: chronicle.slice(-CHRON_SAVED),
       res: { ...res }, taxRate, taxTimer, laws: { ...laws }, zoom, settlementName, arrears,
+      stateFaith, dedicateTo,
       // which season the world was last seen in, and how bold the woods had grown.
       // A fresh page starts both at their opening values; without carrying them, a
       // colony saved in winter came back and was told winter had just fallen.
@@ -6736,17 +8006,27 @@ function saveGame() {
         shelter: bi(c.shelter), ward: bi(c.ward),
         sick: c.sick ? r1(c.sick) : undefined,
         grief: (c.grief && c.grief.t > 0) ? { who: c.grief.who, t: r1(c.grief.t), w: r1(c.grief.w || 0.5) } : undefined,
+        temper: c.temper, temperSeen: c.temperSeen || undefined,
+        temperO: c.temperO ? r1(c.temperO) : undefined,
+        mark: c.mark || undefined, fought: c.fought || undefined,
         op: (c.op && Object.keys(c.op).length) ? c.op : undefined,
         feudWith: c.feudWith || undefined, feudT: c.feudT ? r1(c.feudT) : undefined,
         jail: bi(c.jail), jailT: c.jailT ? r1(c.jailT) : undefined,
         sk: skSave(c), sx: sxSave(c),
         conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
+        // A colony saved before there were any creeds comes back Lutheran to a
+        // soul, which is exactly what Hamburg exiles were, so the omission reads
+        // as the right answer rather than as missing data.
+        faith: c.faith && c.faith !== DEFAULT_FAITH ? c.faith : undefined,
+        doubt: c.doubt ? Math.round(c.doubt * 1000) / 1000 : undefined,
         inv: { ...c.inv },
       })),
       buildings: buildings.map(b => ({
-        type: b.type, was: b.was || undefined, x: r1(b.x), y: r1(b.y), fire: r1(b.fire), placed: b.placed,
+        type: b.type, was: b.was || undefined, faith: b.faith || undefined,
+        x: r1(b.x), y: r1(b.y), fire: r1(b.fire), placed: b.placed,
         hp: r1(b.hp), maxHp: b.maxHp, rot: b.rot, shop: b.shop || [], site: !!b.site,
         occupants: b.occupants.map(ci),
+        workers: b.workers ? b.workers.map(ci) : undefined, smelt: b.smelt,
       })),
       // `site` has to travel with a farm. Left out, a staked-but-unbuilt farm
       // came back from a reload fully raised — three logs and six seeds bought a
@@ -6830,7 +8110,13 @@ function loadGame() {
     setWorld(d.worldLabel || "");
     Object.assign(res, d.res);
     res.dm = Math.round((res.dm || 0) * 10) / 10;   // scrub float drift out of older saves
+    // A save from before the metals knows a weapon count but not what any of them
+    // are. Rebuild the breakdown from scratch and let reconcile call the rest stone.
+    res.armoury = Object.assign({ stone: 0, bronze: 0, iron: 0 }, (d.res && d.res.armoury) || {});
+    reconcileArmoury();
     taxRate = d.taxRate; taxTimer = d.taxTimer; arrears = d.arrears || 0;
+    stateFaith = FAITHS[d.stateFaith] ? d.stateFaith : null;
+    dedicateTo = FAITHS[d.dedicateTo] ? d.dedicateTo : defaultDedication();
     settlementName = d.settlementName || "Neu Hamburg";
     Object.assign(laws, d.laws);
     zoom = d.zoom || 1;
@@ -6848,13 +8134,27 @@ function loadGame() {
       c.who = cd.who;
       Object.assign(c, { profession: cd.profession === "archer" ? "musketeer" : cd.profession,
         hunger: cd.hunger, hp: cd.hp, maxHp: cd.maxHp,
-        happiness: cd.happiness, rebel: cd.rebel, armed: cd.armed, tool: cd.tool,
+        happiness: cd.happiness, rebel: cd.rebel,
+        armed: cd.armed === true ? "iron" : (cd.armed || false),
+        tool: cd.tool === true ? "iron" : (cd.tool || null),
         child: !!cd.child, growT: cd.growT || 0, age: cd.age || 20, post: cd.post || null,
         conquered: cd.conquered || 0 });
       c.sick = cd.sick || 0;
       c.op = cd.op || {}; c.feudWith = cd.feudWith || null; c.feudT = cd.feudT || 0;
       c.jailT = cd.jailT || 0;
       c.grief = cd.grief || null;
+      // A colony saved before temperaments existed keeps the fresh roll mkCiv
+      // just gave it, unrevealed — so an old settlement is not suddenly full of
+      // blanks, it is full of people you have simply never had the measure of.
+      // Your own brother and sister are the exception, as they always were.
+      if (cd.temper) c.temper = cd.temper;
+      else if (civs.length < 2) c.temperSeen = true;
+      if (cd.temperSeen) c.temperSeen = true;
+      c.temperO = cd.temperO || 0;
+      c.mark = cd.mark || null;
+      c.fought = cd.fought || 0;
+      c.faith = FAITHS[cd.faith] ? cd.faith : DEFAULT_FAITH;
+      c.doubt = cd.doubt || 0;
       c.sk = Object.assign(freshSkills(), cd.sk || {});
       c.sx = Object.assign({}, cd.sx || {});
       if (c.profession === "musketeer") refreshAvatar(c);   // old archers pick up the new sprite
@@ -6863,9 +8163,14 @@ function loadGame() {
     }
     buildings.length = 0;
     for (const bd of d.buildings)
-      buildings.push({ type: bd.type, was: bd.was || null, x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
+      buildings.push({ type: bd.type, was: bd.was || null, faith: bd.faith || undefined,
+                       x: bd.x, y: bd.y, progress: -1, fire: bd.fire || 0,
                        torchP: -1, placed: bd.placed, bakeT: 0, occupants: [],
-                       rot: bd.rot || 0, shop: bd.shop || [], site: !!bd.site, buildP: 0,
+                       rot: bd.rot || 0, site: !!bd.site, buildP: 0,
+                       shop: (bd.shop || []).map(i => i.kind === "tool" && !i.tier ? { ...i, tier: "iron" } : i),
+                       // the rota comes back with the work; the civs are already loaded above
+                       workers: isWork(bd.type) ? (bd.workers || []).map(i => civs[i]).filter(Boolean) : undefined,
+                       smelt: bd.type === "smelter" ? (bd.smelt || "iron") : undefined,
                        hp: bd.type === "wall" ? Math.min(bd.hp ?? 100, 100) : bd.type === "gate" ? Math.min(bd.hp ?? 60, 60) : bd.hp,
                        maxHp: bd.type === "wall" ? 100 : bd.type === "gate" ? 60 : bd.maxHp });
     d.civs.forEach((cd, i) => {
@@ -7187,7 +8492,7 @@ const TUT_STEPS = [
 // twice, and a player who skipped the tutorial is not taught at all.
 const LESSONS = {
   comfort: "A Well is cheap and the colony is happier for it — and when plague comes, clean water keeps more of them on their feet. A Bakery turns your wheat into bread, and a Town Hall lets folk stock the stores without being told. Raise them when you can spare the logs.",
-  upkeep: () => `⚖ Nothing you raise is free to keep. On every tax day the treasury pays ${WAGE} DM to each man under arms and ${CIVIC_UPKEEP} DM to each work that must be tended — the market, the bakery, the well, the forge, the recruitment center, the watchtower, the jail, the hospital, the town hall. Cabins, walls, lamps and farms cost nothing once they stand. An army is a standing choice against a hospital. If the treasury cannot pay, unpaid men lose heart and the works go untended: disband someone, pull something down, or raise the tax. The GOVERNMENT panel shows the whole bill.`,
+  upkeep: () => `⚖ Nothing you raise is free to keep. On every tax day the treasury pays ${WAGE} DM to each man under arms and ${CIVIC_UPKEEP} DM to each work that must be tended — the market, the bakery, the well, the forge, the recruitment center, the watchtower, the jail, the hospital, the town hall, and every quarry, mine, sawmill and smelter — whether or not anyone is working it. Cabins, walls, lamps and farms cost nothing once they stand. An army is a standing choice against a hospital. If the treasury cannot pay, unpaid men lose heart and the works go untended: disband someone, pull something down, or raise the tax. The GOVERNMENT panel shows the whole bill.`,
   trade: "On the map you can send an envoy to a peaceful neighbour and talk their court into a trade route — gifts help, threats do not. Caravans then bring coin and goods to your gate.",
   winter: "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches.",
   raid: "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming.",
@@ -7394,6 +8699,7 @@ function gameOver(chosen) {
 }
 
 function syncUI() {
+  renderFaithPanels();
   $("buildToggle").classList.toggle("active", !!buildMode);
   $("roadToggle").classList.toggle("active", roadMode);
   $("tbRotate").classList.toggle("hot", WALLLIKE.has(buildMode));
@@ -7404,6 +8710,14 @@ function syncUI() {
   $("rName").textContent = (hudTown ? hudTown.name : settlementName).toUpperCase();
   $("rLogs").textContent = hr.logs || 0; $("rSeeds").textContent = hr.seeds || 0;
   $("rStone").textContent = hr.stone || 0; $("rIron").textContent = hr.iron || 0;
+  // The metals only take up room on the bar once there are any. A colony with no
+  // mine should not be reading four zeroes it can do nothing about.
+  for (const [id, k] of [["rIronOre", "ironore"], ["rCopperOre", "copperore"],
+                         ["rTin", "tin"], ["rCopper", "copper"], ["rBronze", "bronze"]]) {
+    const q = Math.floor(hr[k] || 0);
+    $(id).textContent = q;
+    $(id + "Box").style.display = q > 0 ? "" : "none";
+  }
   $("rDoors").textContent = hr.doors || 0; $("rBread").textContent = hr.bread || 0;
   $("rMeat").textContent = hr.meat || 0; $("rWeapons").textContent = hr.weapons || 0;
   $("rTools").textContent = hudTown ? 0 : buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0);
@@ -7458,7 +8772,7 @@ function syncUI() {
   {
     const counts = {};
     for (const c of govFolk) counts[c.child ? "child" : (c.profession || "no trade")] = (counts[c.child ? "child" : (c.profession || "no trade")] || 0) + 1;
-    const orderProfs = ["farmer", "hunter", "lumberjack", "quarryman", "forager", "blacksmith", "doctor", "police", "soldier", "musketeer", "cavalry", "child", "no trade"];
+    const orderProfs = ["farmer", "hunter", "lumberjack", "quarryman", "miner", "forager", "blacksmith", "doctor", "police", "soldier", "musketeer", "cavalry", "child", "no trade"];
     const parts = orderProfs.filter(p => counts[p]).map(p => `${p.charAt(0).toUpperCase() + p.slice(1)}: <b style="color:#c9a86a">${counts[p]}</b>`);
     for (const p of Object.keys(counts)) if (!orderProfs.includes(p)) parts.push(`${p}: <b style="color:#c9a86a">${counts[p]}</b>`);
     $("govProfs").innerHTML = parts.join(" &middot; ") || '<span style="color:#5a6b60">No one is left.</span>';
@@ -7541,7 +8855,7 @@ function syncUI() {
   if (research && $("techPanel").style.display === "block") renderTech();
 
   const p = $("civPanel");
-  if (!selected) p.style.display = "none";
+  if (!selected) { p.style.display = "none"; hidePackTip(); }
   else {
     p.style.display = "block"; $("bldgPanel").style.display = "none";
     if (NARROW()) $("govPanel").style.display = "none";   // one sheet at a time on a phone
@@ -7552,6 +8866,18 @@ function syncUI() {
                               (selected.feudWith ? ` · ⚔ FEUDING WITH ${selected.feudWith.toUpperCase()}` : "") +
                               (isJailed(selected) ? ` · ⚖ JAILED (${Math.ceil(selected.jailT)}s)` : "");
     $("cpHome").textContent = selected.home ? "housed" : "homeless";
+    {
+      const f = F(selected), fid = faithOf(selected);
+      $("cpFaith").innerHTML = `<img src="${faithIcon(fid)}" alt="" style="width:16px;height:16px;image-rendering:pixelated">` +
+        `<span style="color:${fid === stateFaith ? "#c9a86a" : "#cfd8d3"}">${esc(f.name)}</span>` +
+        (stateFaith && fid !== stateFaith ? '<span style="color:#c98a8a">· dissenter</span>' : "") +
+        ((selected.doubt || 0) > 0.25 && stateFaith && fid !== stateFaith
+          ? `<span style="color:#7a8f83">· wavering (${Math.round(selected.doubt * 100)}%)</span>` : "");
+      $("cpCreed").textContent = f.rule;
+      const bn = $("cpBanish");
+      bn.style.display = selected.child ? "none" : "block";
+      bn.textContent = `Banish ${selected.name} from the colony`;
+    }
     $("cpHpN").textContent = Math.round(selected.hp) + "/" + selected.maxHp;
     $("cpHp").style.width = Math.max(0, selected.hp / selected.maxHp * 100) + "%";
     $("cpHungerN").textContent = Math.round(selected.hunger);
@@ -7568,6 +8894,24 @@ function syncUI() {
             `<span class="moodBit ${n < 0 ? "down" : "up"}">${n > 0 ? "+" : ""}${Math.round(n)} ${esc(why)}</span>`).join("")
         : `<span class="moodBit up">nothing troubles them</span>`;
     }
+    // Who they are, before what they can do. A temperament the colony has not
+    // yet had the measure of says so in as many words — an empty space here
+    // would read as something broken rather than as something not yet known.
+    {
+      const t = TEMPER[selected.temper], m = selected.mark && MARK[selected.mark];
+      const chip = (kind, t) =>
+        `<span class="traitChip ${kind}"><img src="assets/sprites/traits/${t.id}.png" alt="">` +
+        `<span class="tText"><span class="tName">${esc(t.name)}</span>` +
+        `<span class="tWhy">${esc(t.blurb)}</span>` +
+        `<span class="tDoes">${esc(t.does)}</span></span></span>`;
+      const out = [];
+      if (selected.child)
+        out.push(`<span class="traitChip unknown"><span class="tName">a child yet — no telling</span></span>`);
+      else if (selected.temperSeen && t) out.push(chip("", t));
+      else out.push(`<span class="traitChip unknown"><span class="tName">you have not taken their measure</span></span>`);
+      if (m) out.push(chip("mark", m));
+      $("cpTemper").innerHTML = out.join("");
+    }
     // what this person is doing at this moment, in words
     $("cpDoing").textContent = doingWhat(selected);
     // the trades they are actually good at
@@ -7582,11 +8926,10 @@ function syncUI() {
         : "";
       $("cpSole").style.display = sole.length ? "block" : "none";
     }
-    $("cpTool").textContent = (selected.tool ? "good tool" : "none") + (selected.armed ? " · armed" : "");
-    $("cpLogs").textContent = selected.inv.logs; $("cpSeeds").textContent = selected.inv.seeds;
-    $("cpStone").textContent = selected.inv.stone; $("cpIron").textContent = selected.inv.iron;
-    $("cpWheat").textContent = selected.inv.wheat; $("cpBread").textContent = selected.inv.bread;
-    $("cpMeat").textContent = selected.inv.meat; $("cpDM").textContent = selected.inv.dm;
+    const offer = bestOffer(selected, "tool");
+    $("cpBuyTool").textContent = offer ? `Buy ${offer.name.toLowerCase()} tool from blacksmith (gov funds, ${offer.tool.gov} DM)`
+                                       : "Buy tool from blacksmith (gov funds)";
+    syncPack(selected);
     const assigned = farms.filter(f => f.workers.includes(selected)).length;
     // who they think well of, and who they cannot abide
     {
@@ -7599,9 +8942,15 @@ function syncUI() {
         .map(([n, v]) => `${word(v)} ${n}`).slice(0, 3);
       $("cpOpinions").textContent = say.length ? say.join(" · ") : "";
     }
-    $("cpFarms").textContent = selected.profession === "farmer" ?
-      `Tends ${assigned} farm(s). Click a farm to assign or unassign.` :
-      selected.profession === "soldier" ? "Click a thief or raid camp to send them to sack it." : "";
+    {
+      const trade = Object.entries(INDUSTRY).find(([, w]) => w.prof === selected.profession);
+      const onWorks = trade ? buildings.filter(b => b.type === trade[0] && (b.workers || []).includes(selected)).length : 0;
+      $("cpFarms").textContent = selected.profession === "farmer"
+        ? `Tends ${assigned} farm(s). Click a farm to assign or unassign.`
+        : trade
+          ? `Works ${onWorks} ${BLDG_NAMES[trade[0]].toLowerCase()}(s). Click one to put them on it or take them off.`
+          : selected.profession === "soldier" ? "Click a thief or raid camp to send them to sack it." : "";
+    }
     // send-to-town menu: any civilian can be rehoused in another town, any time
     const phys = settlements.filter(s => s.x !== undefined);
     const md = $("moveDrop");
@@ -7639,6 +8988,7 @@ function syncUI() {
     $("bpTurnOut").style.display = "none";
     $("bpDismantle").style.display = "none";
     $("bpBuyWeapon").style.display = "none";
+    $("bpSmelt").style.display = "none";
     return;
   }
   if (!selectedBldg && !selectedCamp) bp.style.display = "none";
@@ -7691,6 +9041,10 @@ function syncUI() {
     $("bpTurnOut").style.display = inside.length ? "block" : "none";
     $("bpTurnOut").textContent = inside.length > 1 ? `Turn out all ${inside.length}` : "Turn them out";
     $("bpBuyWeapon").style.display = (!isFarm && b.type === "forge" && (b.shop || []).some(i => i.kind === "weapon")) ? "block" : "none";
+    // a furnace is set to one ore or the other, and says which
+    const furnace = !isFarm && b.type === "smelter" && !b.site && !b.fire;
+    $("bpSmelt").style.display = furnace ? "block" : "none";
+    if (furnace) $("bpSmelt").textContent = b.smelt === "copper" ? "Set the furnace to iron ore" : "Set the furnace to copper ore";
   }
   syncSkills();   // an open tree keeps pace with the work and the treasury
   // Last, once every panel above has been shown or hidden: on a phone these are
@@ -7819,7 +9173,12 @@ function update(dt) {
     taxTimer = TAX_PERIOD;
     let total = 0;
     for (const c of civs) if (c.home && !c.rebel) {
-      const due = taxRate + taxBonus();
+      // The protection tax. A charter to live in the town was sold to the Jews of
+      // Hamburg by the year and could be withdrawn by the year, and this is what
+      // it cost them — which makes them the most profitable subjects you have,
+      // and is exactly why every town in Europe kept taking them in and throwing
+      // them out again.
+      const due = taxRate + taxBonus() + (F(c).tribute || 0);
       const paid = Math.min(c.inv.dm, due);
       c.inv.dm -= paid; res.dm += paid; total += paid;
       if (paid > 0) float(c.x, c.y - 70, "-" + paid + " DM", "#c9a86a");
@@ -7874,6 +9233,7 @@ function update(dt) {
           const g = Math.random() < 0.5 ? "f" : "m";
           const kid = mkCiv(nextName(g), g === "f" ? "sister" : "brother", m.x + 14, m.y + 10, g);
           kid.child = true; kid.growT = 0; kid.age = 0;
+          kid.faith = faithOf(m);              // a child is raised in its mother's church
           kid.home = m.home;
           if (m.home) m.home.occupants.push(kid);
           civs.push(kid);
@@ -8113,7 +9473,9 @@ function update(dt) {
   for (const c of [...civs]) {
     // grief wears off; it does not have to be tended, only outlived
     if (c.grief) { c.grief.t -= dt; if (c.grief.t <= 0) c.grief = null; }
-    c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * (season() === "winter" ? 1.15 : 1) * dt);
+    // A faith that keeps two hundred fast days a year is a faith whose people
+    // have learned to be hungry, and the larder feels it.
+    c.hunger = Math.max(0, c.hunger - HUNGER_DECAY * (has("horsefeed") ? 0.8 : 1) * (F(c).fastMul || 1) * (season() === "winter" ? 1.15 : 1) * dt);
     // Nobody eats in their sleep, and nobody starves in it either. A man whose
     // belly is truly empty gets up, eats whatever is in the house or the stores,
     // and lies back down. Without this the only thing standing between the
@@ -8156,6 +9518,14 @@ function update(dt) {
     const target = happinessTarget(c);
     c.happiness += Math.sign(target - c.happiness) * Math.min(Math.abs(target - c.happiness), 2.5 * dt);
     maybeRebel(c, dt);
+    updateFaithDrift(c, dt);
+    // Contentment is not a good day; it is a long run of unremarkable ones. The
+    // clock runs only while everything is genuinely well and resets the moment
+    // it is not, so this cannot be farmed by a single good harvest.
+    if (c.happiness > 70 && c.home && !c.sick && !c.feudWith && !raiders.length) {
+      c.calmT = (c.calmT || 0) + dt;
+      if (c.calmT > 420) setMark(c, "contented", "nothing has gone wrong for them in a long while.");
+    } else c.calmT = 0;
 
     // winter cold: five minutes in the open kills (guards last seven)
     if (season() === "winter") {
@@ -8166,10 +9536,14 @@ function update(dt) {
       if (INDOORS.has(c.state) && hearthsLit) {
         c.coldT = Math.max(0, c.coldT - dt * 8);
       } else {
-        c.coldT = (c.coldT || 0) + dt;
+        // The hardy stand it; the sickly are taken by it sooner. This runs per
+        // frame, so it only ever SCALES the clock — nothing is revealed here.
+        // The reveal is hung on the warning below, which fires once.
+        c.coldT = (c.coldT || 0) + dt * temperCold(c);
         const limit = isForce(c) ? 210 : 150;
         if (c.coldT > limit - 60 && !c.coldWarned) {
           c.coldWarned = true;
+          if (isT(c, "hardy") || isT(c, "sickly")) noteTemper(c, 4);
           toast(!hearthsLit ? `❄ ${c.name} is freezing — the hearths are out. Fell wood, or they die indoors.` :
                 c.home ? `❄ ${c.name} is freezing — they need to get indoors.` :
                          `❄ ${c.name} is freezing in the open — without a roof, the cold will take them.`);
@@ -8356,8 +9730,28 @@ function update(dt) {
         gainSkill(c, "quarrying", 3);
         s.alive = false; s.progress = -1;
         markChunkDirty(s.x, s.y);
-        c.inv.stone += 3; c.inv.iron += 1;
-        float(c.x, c.y - 70, "+3 stone +1 iron", "#7da083");
+        c.inv.stone += 4;
+        float(c.x, c.y - 70, "+4 stone", "#7da083");
+        c.state = "idle"; c.task = null;
+      }
+    } else if (c.state === "working") {
+      // A shift at a work: the same loop whichever work it is. It eats out of the
+      // town's store and puts back into the town's store, and nobody carries
+      // anything anywhere — that is the whole point of having built it.
+      const w = c.task.target;
+      if (!buildings.includes(w) || w.fire || w.site || !isWork(w.type)) { c.state = "idle"; c.task = null; continue; }
+      const led = ledgerAt(w.x, w.y), need = workNeeds(w);
+      if (!haveGoods(led, need)) { w.progress = -1; c.state = "idle"; c.task = null; continue; }
+      const span = workTime(w, c);
+      c.workT += dt; w.progress = c.workT / span; c.anim += dt * 9;
+      if ((c.workT % 0.55) < dt) (w.type === "sawmill" ? SFX.chop() : w.type === "smelter" ? SFX.hammer() : SFX.quarry());
+      if (c.workT >= span) {
+        gainSkill(c, INDUSTRY[w.type].skill, 3);
+        takeGoods(led, need);
+        const got = workYield(w);
+        for (const [k, q] of Object.entries(got)) led[k] = (led[k] || 0) + q;
+        float(w.x, w.y - 100, Object.entries(got).map(([k, q]) => `+${q} ${goodName(k)}`).join(" "), "#7da083");
+        w.progress = -1;
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "gathering") {
@@ -8390,17 +9784,22 @@ function update(dt) {
       if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= smithTime(c)) {
         gainSkill(c, "smithing", 4);
-        if (c.task.make === "weapon") {
-          // the colony's own iron, forged at the colony's forge, for the colony's
+        const made = matOf(c.task.tier);
+        const what = withArt(`${made ? made.name.toLowerCase() + " " : ""}${c.task.make}`);
+        if (c.task.make === "alloy") {
+          res.bronze += 2;
+          toast(`${c.name} pours copper and tin together — 2 bronze off the crucible. (${res.bronze} in store)`);
+        } else if (c.task.make === "weapon" && !c.task.forRacks) {
+          // the colony's own metal, forged at the colony's forge, for the colony's
           // armoury: no coin changes hands, and no civilian touches the treasury
-          res.weapons++;
-          toast(`${c.name} forges a weapon for the armoury. (${res.weapons} in store)`);
+          armouryAdd(c.task.tier);
+          toast(`${c.name} forges ${what} for the armoury. (${res.weapons} in store)`);
         } else {
           const shopForge = buildings.find(b => b.type === "forge" && !b.fire && !b.site);
           if (shopForge) {
             shopForge.shop = shopForge.shop || [];
-            shopForge.shop.push({ kind: c.task.make, by: c.name });
-            toast(`${c.name} finishes a ${c.task.make} and sets it for sale at the forge.`);
+            shopForge.shop.push({ kind: c.task.make, by: c.name, tier: c.task.tier });
+            toast(`${c.name} finishes ${what} and sets it for sale at the forge.`);
           }
         }
         c.state = "idle"; c.task = null;
@@ -8416,7 +9815,7 @@ function update(dt) {
         b.type = back; b.was = null; b.progress = -1; b.placed = false;
         b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
         tally.rebuilt++;
-        tell("build", `The ${BLDG_NAMES[back] || back} stands whole again. ${c.name} rebuilt it.`);
+        tell("build", `The ${bldgLabel(b)} stands whole again. ${c.name} rebuilt it.`);
         vignette("cabinDone");
         c.state = "idle"; c.task = null;
         for (const cc of civs) if (!cc.home) houseCiv(cc);
@@ -8499,23 +9898,23 @@ function update(dt) {
       if (!buildings.includes(f) || !(f.shop || []).length) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt;
       if (c.workT >= 1.5) {
-        const mayArm = laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter") || isForce(c);
-        const wantKind = (!c.tool && f.shop.some(i => i.kind === "tool")) ? "tool" :
-                         (mayArm && !c.armed && f.shop.some(i => i.kind === "weapon")) ? "weapon" : null;
-        if (wantKind) {
-          const price = wantKind === "tool" ? TOOL_PRICE_SELF : 12;
-          if (c.inv.dm >= price) {
-            const idx = f.shop.findIndex(i => i.kind === wantKind);
-            const item = f.shop.splice(idx, 1)[0];
-            c.inv.dm -= price;
-            const smith = civs.find(o => o.name === item.by && o.profession === "blacksmith");
-            if (smith) { smith.inv.dm += price; float(smith.x, smith.y - 70, "+" + price + " DM", "#c9a86a"); }
-            else res.dm += price;
-            if (wantKind === "tool") c.tool = true; else c.armed = true;
-            float(c.x, c.y - 70, "+1 " + wantKind, "#7da083");
-            SFX.coin();
-            toast(`${c.name} buys a ${wantKind} at the forge${smith ? ` — ${item.by} pockets ${price} DM` : ""}.`);
-          }
+        // A tool he cannot afford must not crowd out the blade he can.
+        const upTool = bestOnRacks(f, c, "tool"), upArm = bestOnRacks(f, c, "weapon");
+        const kind = (upTool && c.inv.dm >= upTool.tool.self) ? "tool"
+                   : (upArm && c.inv.dm >= upArm.weapon.self) ? "weapon" : null;
+        if (kind) {
+          const mat = kind === "tool" ? upTool : upArm;
+          const price = mat[kind].self;
+          const idx = f.shop.findIndex(i => i.kind === kind && i.tier === mat.id);
+          const item = f.shop.splice(idx, 1)[0];
+          c.inv.dm -= price;
+          const smith = civs.find(o => o.name === item.by && o.profession === "blacksmith");
+          if (smith) { smith.inv.dm += price; float(smith.x, smith.y - 70, "+" + price + " DM", "#c9a86a"); }
+          else res.dm += price;
+          if (kind === "tool") c.tool = mat.id; else c.armed = mat.id;
+          float(c.x, c.y - 70, "+1 " + mat.name.toLowerCase(), "#7da083");
+          SFX.coin();
+          toast(`${c.name} buys ${withArt(`${mat.name.toLowerCase()} ${kind}`)} at the forge${smith ? ` — ${item.by} pockets ${price} DM` : ""}.`);
         }
         c.state = "idle"; c.task = null;
       }
@@ -8536,6 +9935,21 @@ function update(dt) {
       if (!civs.includes(b2) || Math.hypot(b2.x - c.x, b2.y - c.y) > 90) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt;
       if (c.workT >= 1.5) {
+        // Alms: the works of mercy, the community of goods, and zakat. No coin
+        // crosses, and the man who gives is thought better of for it.
+        if (c.task.alms) {
+          if (F(c).alms === "coin" && c.inv.dm >= 6) {
+            const gift = Math.max(2, Math.round(c.inv.dm * 0.2));
+            c.inv.dm -= gift; b2.inv.dm += gift;
+            float(b2.x, b2.y - 70, "+" + gift + " DM", "#c9a86a");
+          } else if (c.inv.bread > 0 || c.inv.meat > 0) {
+            if (c.inv.bread > 0) { c.inv.bread--; b2.inv.bread++; } else { c.inv.meat--; b2.inv.meat++; }
+            float(b2.x, b2.y - 70, "+1 food", "#7da083");
+          }
+          nudgeOpinion(b2, c, 9);
+          c.state = "idle"; c.task = null;
+          continue;
+        }
         const price = Math.min(b2.inv.dm, Math.max(1, sellPrice() - 1));
         if (price > 0 && (c.inv.bread > 0 || c.inv.meat > 0)) {
           if (c.inv.bread > 0) { c.inv.bread--; b2.inv.bread++; } else { c.inv.meat--; b2.inv.meat++; }
@@ -8589,7 +10003,7 @@ function update(dt) {
           c.atkT -= dt;
           if (c.atkT <= 0) {
             c.atkT = ATK_INTERVAL;
-            let dmg = Math.round(bayonetDmg() * armSkill(c, "fighting"));
+            let dmg = Math.round(bayonetDmg() * armSkill(c, "fighting") * temperArm(c));
             if (nearWatchtower(c.x, c.y)) dmg += 5;
             SFX.swing();
             strikeUnit(c, foe, dmg);
@@ -8617,7 +10031,7 @@ function update(dt) {
           // bug than a ragged volley, and that is exactly how this broke.
           if (c.mayFire === false) { c.anim += dt * 2; continue; }
           c.volleyT = 0;
-          let dmg = Math.round(musketDmg(d) * armSkill(c, "marksmanship"));   // nearer the muzzle, and steadier the hand
+          let dmg = Math.round(musketDmg(d) * armSkill(c, "marksmanship") * temperArm(c));   // nearer the muzzle, and steadier the hand
           if (nearWatchtower(c.x, c.y)) dmg += 5;
           // a dozen muskets in one frame is one crack, not a dozen stacked reports
           if (volleySounds++ < VOLLEY_SOUNDS) SFX.musket();
@@ -8641,7 +10055,14 @@ function update(dt) {
       c.atkT -= dt;
       if (c.atkT <= 0 && d < reach) {
         c.atkT = ATK_INTERVAL;
-        let dmg = Math.round((isForce(c) ? forceDmg(c) : (c.armed ? weaponDmg() : FIST_DMG)) * armSkill(c, "fighting"));
+        let dmg = Math.round((isForce(c) ? forceDmg(c) : (c.armed ? weaponDmg(c) : FIST_DMG)) * armSkill(c, "fighting") * temperArm(c));
+        // A blow struck in earnest is the plainest evidence there is of whether a
+        // man is stout-hearted or not, and it is a discrete event, not a frame.
+        if (c.isCiv && (isT(c, "stout") || isT(c, "timid"))) noteTemper(c, 1.2);
+        // Trading blows with a raider is the thing that hardens a person, and it
+        // takes more than one exchange. Counted per blow struck, never per frame.
+        if (c.isCiv && raiders.includes(foe) && (c.fought = (c.fought || 0) + 1) >= 4)
+          setMark(c, "hardened", "they have stood in the line and traded blows with raiders.");
         if (isForce(c) && nearWatchtower(c.x, c.y)) dmg += 5;
         if (isForce(c) || c.armed) SFX.swing(); else SFX.swingFist();
         strikeUnit(c, foe, dmg);
@@ -8951,7 +10372,7 @@ function render(dt) {
       ctx.save(); ctx.translate(b.x, b.y - SMALL_BLDG[b.type] / 2); ctx.rotate(Math.PI / 2);
       ctx.drawImage(img[b.type], -L / 2, -L / 2, L, L);
       ctx.restore();
-    } else drawSprite(wimg(b.type), b.x, b.y + wos / 2, drawSizeOf(b.type) + wos, false);
+    } else drawSprite(wimg(bldgSprite(b)), b.x, b.y + wos / 2, drawSizeOf(b.type) + wos, false);
     if (b.fire > 0) {
       const f = img["fire" + (Math.floor(fireAnim) % 4)];
       drawSprite(f, b.x - 20, b.y - 8, 56, false);

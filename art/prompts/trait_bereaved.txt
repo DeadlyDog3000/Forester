@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of white mourning flowers tied with a black ribbon. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A small upright posy of three simple white five-petalled flowers on short green stems, the stems bound near the bottom with a black ribbon tied in a bow. Clean readable flower heads, well separated from one another.
+COLOUR: Bright near-white petals with pale grey shading and small yellow centres, dark green stems, pure black ribbon. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

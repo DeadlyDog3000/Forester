@@ -1,0 +1,13 @@
+A single 32x32 pixel game sprite of an ore smelting furnace. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only. Because the finished sprite is only 32 pixels across, every feature must be LARGE and simple — no small details, no fine lines.
+
+Perfectly square 1:1 image. Flat side-on elevation, seen straight on from ground level, like a building in a 16-bit village — NOT three-quarter view, NOT a lumpy rock or a mound. The furnace occupies the middle of the frame with a clear even margin of empty background all the way around it.
+
+THE SMELTER: A furnace of squared stone, built as a broad rectangular base with a narrower rectangular stack rising straight out of the middle of it. Straight vertical sides, right angles, obvious man-made masonry with a few big blocks. A small dark square vent on top of the stack.
+THE FIRE — the most important feature: a huge arched furnace mouth taking up nearly HALF the width and half the height of the base, filled edge to edge with blazing bright orange and yellow fire. It must be the biggest, brightest, most obvious thing in the whole sprite, impossible to miss.
+Against the right side of the base, a big triangular leather bellows on two timber legs. Against the left side, a large low black heap of charcoal.
+
+OUTLINE: A very thick, heavy pure black outline around the whole furnace and around every part of it — thick enough to survive being shrunk to 32 pixels.
+
+COLOUR: Only six colours. Warm grey stone in three shades, black outline and charcoal, warm brown timber, and blazing orange-yellow fire. Nothing else.
+
+BACKGROUND: Completely flat uniform solid BRIGHT MAGENTA (#FF00FF), a colour that appears nowhere in the sprite, so it can be keyed out. No ground, no scenery, no shadow, no text.

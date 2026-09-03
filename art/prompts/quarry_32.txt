@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a stone quarry. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image. The quarry is a single solid MASS that fills almost the whole frame edge to edge, seen straight on from ground level.
+
+THE QUARRY: A cut face of rock stepped into three square benches, like a shallow open pit worked by hand, solid and heavy with no gaps of empty space through it. Standing on the top bench, a stout timber A-frame derrick with a rope and hook. On the lowest bench in front, three squared-off stone blocks stacked, and a pick leaning against them. Rubble and chippings at the foot.
+
+COLOUR: Mid grey and warm grey-brown stone in four shades, from a dark shadowed grey in the cuts to a lighter grey on the bench tops — never white and never pale. Warm brown timber derrick, dark rope, dull iron pick. Heavy near-black outline all the way around the sprite.
+
+BACKGROUND: Completely flat uniform solid BRIGHT MAGENTA (#FF00FF), a colour that appears nowhere in the sprite, so it can be keyed out. No ground, no scenery, no shadow, no text.

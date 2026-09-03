@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a cracked earthenware cup. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A squat brown clay drinking cup with a jagged crack running down from the rim and a chip missing from the lip. Empty.
+COLOUR: Dull red-brown earthenware in three shades, near-black crack line, a paler unglazed rim. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

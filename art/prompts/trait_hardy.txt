@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of an oak sprig with an acorn. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A short oak branch bearing three lobed leaves and one fat acorn in its cup, leaves still green and stiff.
+COLOUR: Deep forest green leaves in three shades, warm brown acorn with a darker textured cup, grey-brown twig. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

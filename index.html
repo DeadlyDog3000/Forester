@@ -23,6 +23,11 @@
     <span>LOGS <b id="rLogs">0</b></span>
     <span>SEEDS <b id="rSeeds">0</b></span>
     <span>STONE <b id="rStone">0</b></span>
+    <span id="rIronOreBox">IRON ORE <b id="rIronOre">0</b></span>
+    <span id="rCopperOreBox">CU ORE <b id="rCopperOre">0</b></span>
+    <span id="rTinBox">TIN <b id="rTin">0</b></span>
+    <span id="rCopperBox">COPPER <b id="rCopper">0</b></span>
+    <span id="rBronzeBox">BRONZE <b id="rBronze">0</b></span>
     <span>IRON <b id="rIron">0</b></span>
     <span>DOORS <b id="rDoors">0</b></span>
     <span>BREAD <b id="rBread">0</b></span>
@@ -65,7 +70,11 @@
         <button class="btn menu-item" data-build="watchtower">Watchtower &mdash; 15 logs, 5 stone, 6 DM</button>
         <button class="btn menu-item" data-build="bakery">Bakery &mdash; 20 logs, 3 stone, 8 DM</button>
         <button class="btn menu-item" data-build="well">Well &mdash; 10 logs, 8 stone, 4 DM</button>
-        <button class="btn menu-item" data-build="forge" id="miForge">Forge &mdash; 20 logs, 6 stone, 2 iron</button>
+        <button class="btn menu-item" data-build="forge" id="miForge">Forge &mdash; 20 logs, 10 stone, 12 DM</button>
+        <button class="btn menu-item" data-build="quarry" id="miQuarry">Quarry &mdash; 18 logs, 10 stone, 10 DM</button>
+        <button class="btn menu-item" data-build="sawmill" id="miSawmill">Sawmill &mdash; 35 logs, 8 stone, 14 DM</button>
+        <button class="btn menu-item" data-build="mine" id="miMine">Mine &mdash; 30 logs, 14 stone, 16 DM</button>
+        <button class="btn menu-item" data-build="smelter" id="miSmelter">Smelter &mdash; 22 logs, 20 stone, 18 DM</button>
         <button class="btn menu-item" data-build="jail" id="miJail">Jail &mdash; 18 logs, 6 stone, 10 DM</button>
         <button class="btn menu-item" data-build="hospital">Hospital &mdash; 25 logs, 8 stone, 14 DM</button>
         <button class="btn menu-item" data-build="townhall" id="miTownhall">Town Hall &mdash; 40 logs, 10 stone</button>
@@ -75,6 +84,13 @@
         <button class="btn menu-item" data-build="stonegate">Stone Gate &mdash; 7 stone, 2 logs, 2 DM</button>
         <button class="btn menu-item" data-build="moat">Moat &mdash; 4 stone, 2 logs, 3 DM</button>
         <button class="btn menu-item" data-build="ditch">Ditch &mdash; 2 logs, 1 DM</button>
+        <button class="btn menu-item" data-build="shrine" id="miShrine">Shrine &mdash; 10 logs, 3 DM</button>
+        <button class="btn menu-item" data-build="temple" id="miTemple">House of Worship &mdash; 30 logs, 8 stone, 15 DM</button>
+        <div class="menu-item" style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:11px;color:#7da083">
+          <img id="dedIcon" alt="" style="width:16px;height:16px;image-rendering:pixelated">
+          <span>Dedicate to</span>
+          <select id="dedSelect" style="flex:1;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:3px"></select>
+        </div>
         <button class="btn menu-item" data-build="lamp">Lamppost &mdash; 2 logs, 1 DM</button>
         <button class="btn menu-item" data-build="sapling">Replant Spruce &mdash; 1 log, 1 DM</button>
       </div>
@@ -99,8 +115,11 @@
 
   <div class="panel" id="civPanel">
     <h3 id="cpName">—</h3>
+    <div id="cpTemper" class="traitRow"></div>
     <div class="row"><span>Profession</span><span id="cpProf">none</span></div>
     <div class="row"><span>Home</span><span id="cpHome">homeless</span></div>
+    <div class="row"><span>Faith</span><span id="cpFaith" style="display:flex;align-items:center;gap:5px">&mdash;</span></div>
+    <div id="cpCreed" style="font-size:11px;color:#7da083;line-height:1.4;margin:0 0 4px"></div>
     <div class="row"><span>Health</span><span id="cpHpN">100</span></div>
     <div class="barwrap"><div class="barfill red" id="cpHp" style="width:100%"></div></div>
     <div class="row"><span>Hunger</span><span id="cpHungerN">100</span></div>
@@ -111,17 +130,10 @@
     <div class="row"><span>Doing</span><span id="cpDoing">—</span></div>
     <div class="row"><span>Best trades</span><span id="cpBest">—</span></div>
     <div id="cpSole" style="display:none;font-size:11px;color:#9ecf9a;line-height:1.4;margin:1px 0 4px"></div>
-    <div class="row"><span>Tool</span><span id="cpTool">none</span></div>
     <hr>
     <div style="color:#7da083;margin-bottom:4px">INVENTORY</div>
-    <div class="row"><span>Logs</span><span id="cpLogs">0</span></div>
-    <div class="row"><span>Seeds</span><span id="cpSeeds">0</span></div>
-    <div class="row"><span>Stone</span><span id="cpStone">0</span></div>
-    <div class="row"><span>Iron</span><span id="cpIron">0</span></div>
-    <div class="row"><span>Wheat</span><span id="cpWheat">0</span></div>
-    <div class="row"><span>Bread</span><span id="cpBread">0</span></div>
-    <div class="row"><span>Meat</span><span id="cpMeat">0</span></div>
-    <div class="row"><span>Deutsche Mark</span><span id="cpDM">0</span></div>
+    <div class="invGrid" id="cpInv"></div>
+    <div class="invNote" id="cpInvNote"></div>
     <button class="btn" id="cpHeal" style="width:100%;margin-top:6px">Heal &mdash; send to the hospital &nbsp;[H]</button>
     <button class="btn" id="cpDeposit" style="width:100%;margin-top:6px">Deposit goods to town storage &nbsp;[G]</button>
     <div class="dropdown" id="recruitDrop" style="margin-top:6px">
@@ -131,6 +143,7 @@
         <button class="btn menu-item" data-prof="hunter">as Hunter</button>
         <button class="btn menu-item" data-prof="lumberjack">as Lumberjack</button>
         <button class="btn menu-item" data-prof="quarryman">as Quarryman</button>
+        <button class="btn menu-item" data-prof="miner" id="miMinerProf">as Miner</button>
         <button class="btn menu-item" data-prof="forager">as Forager</button>
         <button class="btn menu-item" data-prof="doctor" id="miDoctor">as Doctor (30 DM)</button>
         <button class="btn menu-item" data-prof="police" id="miPolice">as Police (40 DM)</button>
@@ -144,9 +157,10 @@
       <button class="btn" id="moveToggle" style="width:100%">Send to town &#9662;</button>
       <div class="dropdown-menu up" id="moveMenu" style="width:100%"></div>
     </div>
-    <button class="btn" id="cpBuyTool" style="width:100%;margin-top:6px">Buy tool from smithy (gov funds, 10 DM)</button>
+    <button class="btn" id="cpBuyTool" style="width:100%;margin-top:6px">Buy tool from blacksmith (gov funds)</button>
     <button class="btn" id="cpGiveWeapon" style="width:100%;margin-top:6px">Give weapon from armoury</button>
     <button class="btn" id="cpSkills" style="width:100%;margin-top:6px">&#9876; Skills</button>
+    <button class="btn" id="cpBanish" style="width:100%;margin-top:6px;border-color:#8a2f2f;color:#c98a8a">Banish from the colony</button>
     <div id="cpOpinions" style="font-size:11px;color:#5a6b60;margin-top:6px"></div>
     <div id="cpFarms" style="font-size:11px;color:#5a6b60;margin-top:6px"></div>
   </div>
@@ -193,6 +207,7 @@
     <div id="bpOccList" style="display:none;max-height:150px;overflow-y:auto;border:1px solid #24352b;margin-top:4px"></div>
     <button class="btn" id="bpTurnOut" style="width:100%;margin-top:8px;display:none">Turn them out</button>
     <button class="btn" id="bpBuyWeapon" style="width:100%;margin-top:8px;display:none">Buy weapon for the armoury (12 DM)</button>
+    <button class="btn" id="bpSmelt" style="width:100%;margin-top:8px;display:none">Set the furnace to copper</button>
     <button class="btn danger" id="bpDismantle" style="width:100%;margin-top:8px">Dismantle</button>
   </div>
 
@@ -219,6 +234,18 @@
     <div class="row"><span>Territory colour</span><input type="color" id="terrColor" value="#7da083"></div>
     <div class="row"><span>Border colour</span><input type="color" id="bordColor" value="#c9a86a"></div>
     <div class="row"><span>Uniform colour</span><input type="color" id="uniColor" value="#2f52a8"></div>
+    <h4>FAITH</h4>
+    <div class="row"><span>State creed</span>
+      <span style="display:flex;align-items:center;gap:5px">
+        <img id="govFaithIcon" alt="" style="width:18px;height:18px;image-rendering:pixelated;display:none">
+        <select id="stateFaithSel" style="background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:4px"></select>
+      </span></div>
+    <div id="govCreed" style="font-size:10.5px;color:#7a8f83;line-height:1.5;margin:2px 0 6px"></div>
+    <div id="govFlocks" style="font-size:11px;line-height:1.35;margin-bottom:5px;display:flex;flex-direction:column;gap:3px"></div>
+    <div id="govPiety" style="font-size:10.5px;color:#7a8f83;line-height:1.5;margin:0 0 6px"></div>
+    <button class="btn" id="edictExpel" style="width:100%;border-color:#8a2f2f;color:#c98a8a">Proclaim the Edict of Expulsion</button>
+    <div style="font-size:11px;color:#5a6b60;margin-top:4px">A proclaimed creed comforts those who hold it and galls those who do not — and a contented believer bears a tithe that would drive another man onto the road. Houses of worship deepen it. Driving out every dissenter leaves one flock of one mind, until the day you shake a stranger's hand at the gate.</div>
+
     <h4>LAWS</h4>
     <label><input type="checkbox" id="lawCivWeapons"> Civilians may keep weapons</label>
     <label><input type="checkbox" id="lawHunterWeapons" checked> Hunters may keep weapons</label>
@@ -257,6 +284,7 @@
     <div class="techTabs">
       <button class="btn active" id="tabGrowth">Growth</button>
       <button class="btn" id="tabMilitary">Military Philosophy</button>
+      <button class="btn" id="tabIndustry">Industry</button>
     </div>
     <input type="text" id="techSearch" placeholder="Search technologies&hellip;" style="width:100%;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:12px;padding:6px 8px;margin-bottom:8px">
     <div id="techGraphWrap"><div id="techList"></div></div>

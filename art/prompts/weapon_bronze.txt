@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a cast bronze short sword. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the weapon centred, laid at a diagonal point-up, seen straight on.
+THE WEAPON: A leaf-shaped bronze short sword with a simple straight crossguard and a leather-wrapped grip, a plain round pommel. Solid and heavy, well cast but soft.
+COLOUR: Warm orange-bronze blade (three shades with near-black outline), a little dull blue-green patina near the guard, dark brown leather grip, one bright highlight down the blade. No green foliage.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

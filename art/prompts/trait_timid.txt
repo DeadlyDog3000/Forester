@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a crouching hare. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A brown hare crouched low to the ground, ears flattened back along its spine, one dark eye wide. Tense and still.
+COLOUR: Warm earth-brown fur in three shades, a paler buff belly, one black eye with a white glint. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

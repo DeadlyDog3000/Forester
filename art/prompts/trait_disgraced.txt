@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a pair of open iron manacles. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: Two open iron wrist manacles joined by a short heavy chain, hinges sprung wide, lying flat.
+COLOUR: Dark grey-black iron in three shades with bright worn highlights on the chain links, faint rust-brown pitting. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

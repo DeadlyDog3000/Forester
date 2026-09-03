@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a stone-headed hand axe, a crude working tool. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the axe centred, laid at a slight diagonal, seen straight on.
+THE TOOL: A short wooden haft with a roughly knapped grey fieldstone head lashed on with a few strips of dark leather cord. Crude, heavy, primitive — clearly the poorest tool a man could own. Chipped uneven edge, no polish.
+COLOUR: Grey stone head (three shades with near-black outline), mid-brown wooden haft, dark leather binding, one pale highlight on the stone's edge. Muted and earthy. No green.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

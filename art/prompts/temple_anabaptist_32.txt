@@ -1,0 +1,16 @@
+A single 32x32 pixel game sprite of a small house of worship. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework, NO lettering or text of any kind. Individual bricks, planks or shingles must NOT be picked out — suggest the walls with at most two or three broad bands of slightly different tone. The whole building is a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective.
+
+THE SHAPE:
+A Mennonite meeting house — the Anabaptists were forbidden to build anything that looked like a church, and would not have wanted to, so this is a plain BARN where a congregation happens to meet. A long low broad timber barn of weathered grey-brown boards, distinctly wider than it is tall, on a low fieldstone footing. One long straight thatched roof of dull straw as a solid unbroken slab, deep and heavy, low-eaved. A wide plain double barn door centred, dark, square-headed, split down the middle by one dark line. Two small plain square shuttered windows.
+ABSOLUTELY NO cross, NO tower, NO spire, NO bell, NO bell turret, NO dome, NO sign, NO emblem, NO ornament of any kind. It must be indistinguishable from a farm building.
+
+COLOUR — 5 flat shades only: near-black for the doorway void and outline, weathered grey-brown for the shadowed boards, a paler dusty grey-brown for the lit boards, dull straw-ochre for the thatched roof, and a warm pale straw for the lit top of the thatch. Humble and poor. No gold, no white plaster, no bright colour.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no people, no border, no frame, no text.

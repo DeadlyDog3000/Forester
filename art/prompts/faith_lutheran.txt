@@ -1,0 +1,11 @@
+A single 32x32 pixel game sprite of a religious emblem. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+CRITICAL — EXTREME SIMPLICITY: this must read clearly at 32 pixels wide. NO fine detail, NO thin lines, NO small texture, NO lettering of any kind. A handful of large chunky pixel masses. Crude and bold, not delicate.
+
+COMPOSITION: perfectly square 1:1 image, the emblem centred and filling almost the whole frame, seen flat-on face to the viewer. Not angled, not in perspective, no 3D.
+
+THE EMBLEM: Luther'"'"'s Rose, the seal Martin Luther designed for himself. Concentric and symmetrical, built from the middle outward: a fat blocky BLACK CROSS at the very centre; the cross sits inside a bold RED HEART; the heart sits on a WHITE five-petalled rose; the rose sits on a SKY-BLUE round field; a plain GOLD RING encircles the whole thing as a border. Each shape must be large, simple and clearly separated from the one inside it.
+
+COLOUR — 5 flat shades only: near-black for the cross and the outline, strong scarlet red for the heart, clean bone-white for the rose petals, a clear mid sky-blue for the field, warm gold for the outer ring. Nothing else.
+
+BACKGROUND: completely flat uniform solid neutral mid-grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no shadow, no border, no frame, no text.

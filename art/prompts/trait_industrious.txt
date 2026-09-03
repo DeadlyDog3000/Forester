@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a woodsman's felling axe. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A felling axe standing upright, head at the top, blade turned to the side so its full broad wedge shape is clearly readable against the background. The haft runs straight down. A small squat chopping block sits low behind the base of the haft, well clear of the axe head.
+COLOUR: Bright cold blue-grey steel head with a near-white edge, clearly separated from everything around it. Pale ash haft. Dark muted brown block, kept dull so it never competes with the steel.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

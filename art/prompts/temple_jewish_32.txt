@@ -1,0 +1,21 @@
+A single 32x32 pixel game sprite of a small house of worship. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework, NO lettering or text of any kind. Individual bricks, planks or shingles must NOT be picked out — suggest the walls with at most two or three broad bands of slightly different tone. The whole building is a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective.
+
+
+THE SHAPE:
+A 17th-century town synagogue of the kind the Portuguese Jews of Hamburg built. The law forbade them anything that rose above a church, so this is a dignified merchant's HOUSE, and everything that identifies it is in the ARCHES.
+A tall rectangular building of warm sandstone, slightly taller than wide, with a plain low hipped roof of dark slate lying flat across the top.
+FORBIDDEN, and this is the most important instruction in the prompt: there must be NO dome of any kind, NO onion dome, NO bulb, NO drum, NO spire, NO tower, NO turret, NO steeple, NO bell, NO cross, and NOTHING AT ALL standing up above the roofline. The roof is a plain flat-topped slab and the sprite ends there. This is emphatically NOT a church.
+THREE tall ROUND-ARCHED WINDOWS in a row across the upper wall, and they must be the loudest thing in the sprite: each window a big solid NEAR-BLACK void at least three pixels wide and six tall with a fat semicircular top, each ringed by a thick PALE CREAM STONE arch two pixels thick. Wide gaps of plain wall between them so all three read separately.
+Below the middle window, one tall ROUND-ARCHED DOORWAY, a solid near-black void reaching the ground, with the same fat pale cream stone arch and surround.
+Between the door and the middle window, a single bold blocky PALE CREAM carving of TWO ROUNDED-TOP TABLETS standing side by side — the tablets of the Law — at least six pixels wide altogether, completely BLANK with no writing, no letters, no marks.
+
+COLOUR — 5 flat shades only, high contrast: near-black for every window and door void and the outline, warm mid sandstone-ochre for the lit walls, a deep shadowed brown-ochre for the shaded right side, PALE CREAM STONE for the arches, the door surround and the tablets (plainly lighter than the walls), and dark charcoal-slate for the low roof. NO blue anywhere.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no people, no border, no frame, no text.

@@ -1,0 +1,16 @@
+A single 32x32 pixel game sprite of a small house of worship. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework, NO lettering or text of any kind. Individual bricks, planks or shingles must NOT be picked out — suggest the walls with at most two or three broad bands of slightly different tone. The whole building is a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective.
+
+THE SHAPE:
+A tiny, plain, unmarked timber prayer house — a conventicle hut, the kind a forbidden congregation meets in without saying so. Deliberately anonymous: it must NOT look like a church of any faith. A small square single-room cabin of warm chestnut timber, narrower than a dwelling, with a simple steep pitched roof of dark walnut brown as one SOLID unbroken slab, straight-edged, no shingles, no texture. A single plain dark doorway centred, reaching the ground. One small square shuttered window beside it. A single small iron lantern on a short bracket by the door, unlit.
+ABSOLUTELY NO cross, NO spire, NO tower, NO bell, NO dome, NO star, NO crescent, NO symbol or emblem of any kind anywhere on the building. It is bare.
+
+COLOUR — full brown, 5 shades only: the same warm brown palette as the log cabins so this belongs beside them. Near-black espresso for the doorway void and outline, dark walnut for the roof and shadow, rich mid chestnut for the timber walls, warm honey for the lit roof top, pale tan for the top highlights. One tiny dull iron-grey note on the lantern. No grey stone, no blue, no cold tones.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no people, no border, no frame, no text.

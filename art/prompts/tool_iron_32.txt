@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of an iron-headed hand axe, a fine working tool. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the axe centred, laid at a slight diagonal, seen straight on.
+THE TOOL: A straight polished wooden haft with a forged iron head, bearded blade, crisp keen edge, a small iron wedge at the eye. The best tool in the colony — clean lines, well balanced, cared for.
+COLOUR: Cold blue-grey iron head (three shades with near-black outline), a bright white-grey highlight down the sharpened edge, warm mid-brown haft. No green.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

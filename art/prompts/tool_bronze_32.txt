@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a bronze-headed hand axe, a decent working tool. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the axe centred, laid at a slight diagonal, seen straight on.
+THE TOOL: A straight wooden haft with a cast bronze head socketed cleanly onto it. Smooth curved cutting edge, well made, a step up from stone but not the finest. A little verdigris patina in the recesses.
+COLOUR: Warm orange-bronze head (three shades with near-black outline), a touch of dull blue-green patina, mid-brown wooden haft, one bright highlight along the cutting edge. No green foliage.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

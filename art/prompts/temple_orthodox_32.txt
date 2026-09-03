@@ -1,0 +1,15 @@
+A single 32x32 pixel game sprite of a small house of worship. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework, NO lettering or text of any kind. Individual bricks, planks or shingles must NOT be picked out — suggest the walls with at most two or three broad bands of slightly different tone. The whole building is a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective.
+
+THE SHAPE:
+A small Russian Orthodox church, white-walled and domed. A compact square whitewashed masonry body on a low footing. Rising from the middle of the roof, a short drum carrying one FAT BULBOUS ONION DOME, wide at the belly and drawn to a point at the top — big, round and unmistakable, the loudest shape in the sprite. On top of the dome a GOLD THREE-BAR CROSS whose lowest bar is plainly SLANTED, left end up and right end down. Two much smaller onion domes, one either side and lower down, each with a tiny gold cross. A tall round-arched doorway centred, dark, reaching the ground. Two small round-arched windows.
+
+COLOUR — 5 flat shades only: near-black for the doorway void and outline, clean bone-white for the lit plastered walls, a soft cool grey for the walls in shadow, deep royal blue for the onion domes and the roof, and warm gold for the three crosses. Blue and white and gold.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no people, no border, no frame, no text.

@@ -1,0 +1,9 @@
+A single 32x32 pixel game sprite of a mine head. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+Perfectly square 1:1 image, the mine centred, seen straight on from ground level, slightly taller than wide.
+
+THE MINE: A timber-framed adit driven into a low earth-and-rock bank: a square black mouth held open by heavy squared posts and a lintel beam. Above and beside it a stout wooden windlass headframe with a rope going down and a bucket hanging. A small spoil heap of broken rock to one side, and a wooden ore tub with iron bands. Dark, deep, hand-cut.
+
+COLOUR: Warm brown timber in three shades, grey-brown rock and spoil, a pure black shaft mouth as the darkest note, dull iron bands, near-black outline. One faint warm orange glow of a lamp deep in the mouth as the single accent.
+
+BACKGROUND: Completely flat uniform solid light grey, clearly different from every sprite colour, keyable. No ground, no scenery, no shadow, no text.

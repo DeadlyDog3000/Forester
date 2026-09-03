@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a forged sword, a colony weapon. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A plain straight-bladed arming sword laid at a diagonal, crossguard and leather-wrapped grip, a simple round pommel. Workmanlike, not ornate — a village blacksmith's work.
+COLOUR: Cold blue-grey steel blade with a bright highlight down its length, dark iron guard and pommel, oxblood leather grip. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

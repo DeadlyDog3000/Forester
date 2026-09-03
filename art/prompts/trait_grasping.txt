@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a locked wooden strongbox. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A small banded wooden chest, lid shut, a heavy iron padlock hanging closed at the front. One coin lying on the lid.
+COLOUR: Dark walnut-brown wood, black iron bands and padlock, one dull gold coin with a bright edge. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

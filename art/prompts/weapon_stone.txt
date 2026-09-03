@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a crude stone-bladed weapon. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the weapon centred, laid at a diagonal point-up, seen straight on.
+THE WEAPON: A short shaft of wood with a long chipped blade of knapped grey fieldstone bound to the end with leather cord — a killing edge made by someone with no metal at all. Uneven, brutal, primitive.
+COLOUR: Grey knapped stone blade (three shades with near-black outline), mid-brown wooden shaft, dark leather binding, one pale chipped highlight along the edge. No green.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

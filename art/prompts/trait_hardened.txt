@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a dented steel breastplate. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A soldier's cuirass seen straight from the front, a clear symmetrical torso shape narrowing at the waist with squared shoulder edges and two shoulder straps. One deep round dent low on the chest where a musket ball struck it, and a long scrape across the other side.
+COLOUR: Cold blue-grey polished steel in four clear shades with a bright vertical highlight down the centre, dark rust-brown staining in the dent, tan leather straps. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

@@ -1,0 +1,16 @@
+A single 32x32 pixel game sprite of a small house of worship. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Reduce everything to bold, blocky, essential shapes. NO fine detail, NO thin lines, NO small texture, NO intricate linework, NO lettering or text of any kind. Individual bricks, planks or shingles must NOT be picked out — suggest the walls with at most two or three broad bands of slightly different tone. The whole building is a handful of large chunky rectangular pixel masses.
+
+COMPOSITION:
+Perfectly square 1:1 image. The building is centred and fills almost the entire frame, edge to edge, leaving only a couple of pixels of margin. Seen straight on from ground level, flat front-facing elevation, like a classic top-down RPG building. Not isometric, not angled, not in perspective.
+
+THE SHAPE:
+A Reformed preaching house, severe and stripped bare — the Calvinists whitewashed their walls and broke their images, so this building is defined by what it has NOT got. A plain rectangular whitewashed box, wider than tall, on a low grey stone footing. One clean, straight, unbroken slate-grey pitched roof, a simple triangle, no ornament. A single small square BELL TURRET perched plainly on the roof ridge — a tiny open wooden frame with one small dark bell hanging in it, and NOTHING on top of it. A plain rectangular dark doorway centred, square-headed, no arch, no surround. Four small plain SQUARE clear windows in one even row, no arches, no tracery, no coloured glass.
+ABSOLUTELY NO cross anywhere. NO spire, NO dome, NO statue, NO carving, NO gold, NO decoration of any kind. Utterly plain.
+
+COLOUR — 5 flat shades only: near-black for the doorway void and outline, cool bone-white for the lit lime-washed walls, a pale cool grey for the walls in shadow, mid slate-grey for the roof, and a darker charcoal-grey for the roof shadow and the bell. Cold, clean, austere. No gold, no warm colours at all.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour background in a plain neutral grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no grass, no sky, no shadow, no trees, no people, no border, no frame, no text.

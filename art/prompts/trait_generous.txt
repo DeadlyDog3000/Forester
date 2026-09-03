@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a loaf of bread broken into two halves. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: One round peasant loaf torn cleanly into two separate halves, the two pieces pulled well apart from each other with a clear gap of background between them, each showing a pale torn crumb face turned toward the viewer. Two distinct rounded shapes, unmistakably two pieces and not one.
+COLOUR: Warm golden-brown crust in three shades on the outside, a much paler cream crumb on the torn faces so the break is obvious. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

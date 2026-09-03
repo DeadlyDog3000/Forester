@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a forged iron arming sword. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the weapon centred, laid at a diagonal point-up, seen straight on.
+THE WEAPON: A straight double-edged iron arming sword, narrow fuller down the blade, dark iron crossguard, oxblood leather-wrapped grip and a heavy round pommel. Keen, balanced, deadly.
+COLOUR: Cold blue-grey steel blade (three shades with near-black outline) with a bright white-grey highlight down its length, near-black iron guard and pommel, deep oxblood grip. No green.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

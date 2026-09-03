@@ -1,0 +1,11 @@
+A single 32x32 pixel game sprite of a religious emblem. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. Every pixel a deliberate flat block of solid colour. 16-bit era sprite work at extremely small size. Bold blocky shapes only.
+
+CRITICAL — EXTREME SIMPLICITY: this must read clearly at 32 pixels wide. NO fine detail, NO thin lines, NO small texture, NO lettering of any kind. A handful of large chunky pixel masses. Crude and bold, not delicate.
+
+COMPOSITION: perfectly square 1:1 image, the emblem centred and filling almost the whole frame, seen flat-on face to the viewer. Not angled, not in perspective, no 3D.
+
+THE EMBLEM: the crossed Keys of Saint Peter. Two large heavy keys laid across each other in an X, bows (the ring ends) at the bottom, wards (the toothed ends) up at the top left and top right. One key warm GOLD, the other pale SILVER. A single fat SCARLET CORD knotted where they cross, its two short ends hanging down. The bows are chunky squarish rings; the wards are simple blocky teeth. Big, heavy, unmistakable.
+
+COLOUR — 5 flat shades only: near-black outline, warm gold, pale silver-grey, one darker grey for the silver key'"'"'s shadow side, strong scarlet for the cord. Nothing else.
+
+BACKGROUND: completely flat uniform solid neutral mid-grey, clearly different from every colour in the sprite so it can be keyed out. No scenery, no ground, no shadow, no border, no frame, no text.

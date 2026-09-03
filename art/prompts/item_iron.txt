@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of two rough iron ingots. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: Two crude cast iron bars, one lying flat and one leaning against it, pitted and dark from the bloomery.
+COLOUR: Cold dark blue-grey iron in three shades, a faint rust-orange speckle, one cool highlight along the top edge, near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

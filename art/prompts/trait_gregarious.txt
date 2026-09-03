@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of two tankards knocked together. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: Two squat pewter tankards tilted toward each other and touching at the rim, a few drops flying off between them.
+COLOUR: Dull grey pewter with darker bands and bright rim highlights, a pale amber drink showing at the rims. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

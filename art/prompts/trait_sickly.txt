@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a bundle of dried bitter herbs. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A small bunch of drooping dried herbs tied at the stems with rough twine, hanging upside down, a few brittle leaves fallen below.
+COLOUR: Faded grey-green and dusty brown leaves, pale straw-coloured twine. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

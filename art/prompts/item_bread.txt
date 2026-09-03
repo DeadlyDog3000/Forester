@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a round rustic loaf of bread. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: One round crusty peasant loaf with a scored cross slashed across the top, sitting flat.
+COLOUR: Warm golden-brown crust in three shades, a paler crumb showing in the score marks, near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

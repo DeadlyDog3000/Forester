@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a bound sheaf of ripe wheat. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A small upright bundle of golden wheat stalks tied at the waist with twine, heavy seed heads fanning at the top.
+COLOUR: Warm golden yellow in three shades, pale straw highlights, dull brown twine, near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

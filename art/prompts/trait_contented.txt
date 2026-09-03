@@ -1,0 +1,5 @@
+A single 32x32 pixel game sprite of a small stone hearth with a low fire. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on.
+THE OBJECT: A low arched fireplace of rough stone with three burning logs inside, a small warm flame and a bed of glowing coals.
+COLOUR: Cool grey stone in three shades, dark brown logs, warm orange and yellow flame over bright red coals. Near-black outline.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.
