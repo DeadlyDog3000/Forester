@@ -479,7 +479,12 @@ function rollFaith() {
 // every faith resists at its own rate, and two of them resist almost entirely.
 // The Anabaptists and the Sephardim were pressed harder than anyone in Europe
 // and did not break; it would be a lie to make them cheap.
-const CONVERT_BASE = 1 / 900;                       // a quarter hour of perfect conditions
+// Tuned against the clock, not by feel: a lone Catholic with the state church in
+// sight comes over in about twenty minutes, a large minority holds out for the
+// better part of an hour, and the Anabaptists and the Sephardim never come over
+// at all — at their stubbornness the sum needs two hours of unbroken pressure,
+// which no colony sustains. That last is the honest answer and it is meant to be.
+const CONVERT_BASE = 1 / 600;
 function updateFaithDrift(c, dt) {
   if (c.child || c.rebel || !stateFaith) return;
   const f = faithOf(c);
@@ -5169,10 +5174,11 @@ $("cpGiveWeapon").addEventListener("click", () => {
   if (!c) return;
   if (!forgeBuilt()) return toast("Weapons are handed out at the forge — build one first.");
   if (c.armed) return toast(`${c.name} is already armed.`);
-  if (res.weapons < 1) return toast("The armoury is empty. Set a blacksmith to forging weapons.");
   // Nonresistance is not a preference and it is not the player's to overrule:
-  // the Anabaptists went to the water rather than pick this up.
+  // the Anabaptists went to the water rather than pick this up. Asked before the
+  // stores are counted, because the refusal does not depend on what is in them.
   if (F(c).pacifist) return toast(`${c.name} will not take it. ${FAITHS[faithOf(c)].name}s hold the sword to be outside the perfection of Christ.`);
+  if (res.weapons < 1) return toast("The armoury is empty. Set a blacksmith to forging weapons.");
   const lawAllows = isForce(c) || laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter");
   if (!lawAllows) return toast(`The law forbids arming ${c.name}. Change the weapon laws in the government panel.`);
   const drawn = armouryTake();
