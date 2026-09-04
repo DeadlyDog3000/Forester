@@ -290,6 +290,7 @@
       <button class="btn active" id="tabGrowth">Growth</button>
       <button class="btn" id="tabMilitary">Military Philosophy</button>
       <button class="btn" id="tabIndustry">Industry</button>
+      <button class="btn" id="tabWorld">Exploration</button>
     </div>
     <input type="text" id="techSearch" placeholder="Search technologies&hellip;" style="width:100%;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:12px;padding:6px 8px;margin-bottom:8px">
     <div id="techGraphWrap"><div id="techList"></div></div>
@@ -330,6 +331,13 @@
     <div class="helpRow deskOnly"><b>P</b><span>The Roll — every soul, what they are doing, how they are.</span></div>
     <div class="helpRow deskOnly"><b>R</b><span>Turn a wall while placing it.</span></div>
     <div class="helpRow deskOnly"><b>Esc</b><span>Close what is open, or pause.</span></div>
+    <div class="helpSec">THE WORLD BEYOND THE TREES</div>
+    <div class="helpRow"><b>One map</b><span>Zoom out far enough and the ground gives way to Europe, 1683 — the same map, not a separate screen. The MAP button takes you straight up there and straight back down.</span></div>
+    <div class="helpRow"><b>How far you can see</b><span>The Exploration tree lifts the ceiling: Cartography, Surveying, the Astrolabe, then Mercator's Projection. Each one also buys in the charts for the country it opens.</span></div>
+    <div class="helpRow"><b>Cities</b><span>Rest the pointer on one to read its size, its walls and — if you have an agent in that country — its garrison. Click it to select it and fly there.</span></div>
+    <div class="helpRow"><b>Columns</b><span>Armies march in real time along the roads of Europe. Yours are always drawn; theirs only while something of yours is near enough to see them.</span></div>
+    <div class="helpRow"><b>Scouts and agents</b><span>Surveying trains Scouts, who chart what they ride through and count what they meet. Ciphers trains Agents, who take service in a foreign city and report its strength — until the day they are caught, when everything they knew is lost with them.</span></div>
+    <div class="helpRow"><b>Word from the field</b><span>Notices stack at the lower right and carry the place they are about. Click one and the camera goes to it.</span></div>
     <div class="helpSec">STAYING ALIVE</div>
     <div class="helpRow"><b>Wood first</b><span>Everything is built from it. Fell, then deposit — logs in a pack are no use to the town.</span></div>
     <div class="helpRow"><b>Roofs before riches</b><span>The homeless freeze in winter and pay no tax.</span></div>
@@ -478,42 +486,61 @@
     <div style="font-size:10px;color:#5a6b60;margin-top:8px">Esc to resume</div>
   </div>
 
-  <div id="mapOverlay" style="position:fixed;inset:0;z-index:90;display:none;background:rgba(9,13,11,0.96)">
-    <div style="display:flex;height:100%;padding:18px;gap:14px">
-      <div style="flex:1;display:flex;flex-direction:column;min-width:0">
-        <div style="display:flex;align-items:center;margin-bottom:8px">
-          <span style="color:#c9a86a;letter-spacing:3px;font-size:15px" id="mapTitle">EUROPE — 1683</span>
-          <span style="flex:1"></span>
-          <button class="btn" id="mapClose">Close</button>
-        </div>
-        <div style="flex:1;overflow:auto;border:1px solid #3a5243;background:#0d1a24">
-          <canvas id="euromap" width="1200" height="672" style="image-rendering:pixelated;display:block"></canvas>
-        </div>
-        <div style="font-size:10px;color:#5a6b60;margin-top:4px">Stylized map. Click a nation for diplomacy. Your empire is drawn in your territory colour.</div>
+  <!-- The country is not a screen any more, it is the world you are already
+       looking at. What is left of the old map screen is this panel: it appears
+       beside the map when you pick a crown or a city out of it. -->
+  <div class="panel" id="mapInfo" style="display:none">
+    <h3 style="color:#c9a86a;font-size:13px;margin-bottom:8px">
+      <span id="miName">—</span>
+      <span id="miClose" style="float:right;cursor:pointer;color:#5a6b60;font-weight:normal">[close]</span>
+    </h3>
+    <div id="miCity" style="display:none;margin-bottom:8px"></div>
+    <div style="font-size:11px;color:#9ab0a2" id="miDetail">Click a country or a city out on the map.</div>
+    <button class="btn danger" id="miMarch" style="width:100%;margin-top:10px;display:none">March on it</button>
+    <button class="btn danger" id="miIntercept" style="width:100%;margin-top:10px;display:none">Ride to cut them off</button>
+    <button class="btn" id="miAgent" style="width:100%;margin-top:6px;display:none">Send an agent</button>
+    <button class="btn" id="miScout" style="width:100%;margin-top:6px;display:none">Send a scout</button>
+    <button class="btn" id="miRecall" style="width:100%;margin-top:6px;display:none">Order them home</button>
+    <button class="btn danger" id="miWar" style="width:100%;margin-top:10px;display:none">Declare War</button>
+    <button class="btn" id="miPeace" style="width:100%;margin-top:6px;display:none">Sue for Peace (60 DM)</button>
+    <button class="btn danger" id="miAssault" style="width:100%;margin-top:6px;display:none">Assault Settlement</button>
+    <div id="miNote" style="font-size:11px;color:#f0dcae;margin-top:8px;display:none;border-left:2px solid #c9a86a;padding-left:6px"></div>
+    <button class="btn" id="miTrade" style="width:100%;margin-top:6px;display:none">Negotiate a Trade Route</button>
+    <div id="miRequestWrap" style="display:none;margin-top:10px">
+      <div style="font-size:11px;color:#7da083;margin-bottom:4px">REQUEST A SHIPMENT</div>
+      <div style="display:flex;gap:6px">
+        <select id="miGood" style="flex:1;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:4px">
+          <option value="logs">Logs</option><option value="stone">Stone</option><option value="iron">Iron</option>
+          <option value="wheat">Wheat</option><option value="bread">Bread</option><option value="meat">Meat</option>
+        </select>
+        <select id="miAmt" style="width:64px;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:4px">
+          <option value="5">5</option><option value="10">10</option><option value="20">20</option>
+        </select>
       </div>
-      <div class="panel" id="mapInfo" style="position:static;width:250px;padding:12px;align-self:flex-start">
-        <h3 style="color:#c9a86a;font-size:13px;margin-bottom:8px" id="miName">—</h3>
-        <div style="font-size:11px;color:#9ab0a2" id="miDetail">Click a nation on the map.</div>
-        <button class="btn danger" id="miWar" style="width:100%;margin-top:10px;display:none">Declare War</button>
-        <button class="btn" id="miPeace" style="width:100%;margin-top:6px;display:none">Sue for Peace (60 DM)</button>
-        <button class="btn danger" id="miAssault" style="width:100%;margin-top:6px;display:none">Assault Settlement</button>
-        <div id="miNote" style="font-size:11px;color:#f0dcae;margin-top:8px;display:none;border-left:2px solid #c9a86a;padding-left:6px"></div>
-        <button class="btn" id="miTrade" style="width:100%;margin-top:6px;display:none">Negotiate a Trade Route</button>
-        <div id="miRequestWrap" style="display:none;margin-top:10px">
-          <div style="font-size:11px;color:#7da083;margin-bottom:4px">REQUEST A SHIPMENT</div>
-          <div style="display:flex;gap:6px">
-            <select id="miGood" style="flex:1;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:4px">
-              <option value="logs">Logs</option><option value="stone">Stone</option><option value="iron">Iron</option>
-              <option value="wheat">Wheat</option><option value="bread">Bread</option><option value="meat">Meat</option>
-            </select>
-            <select id="miAmt" style="width:64px;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:4px">
-              <option value="5">5</option><option value="10">10</option><option value="20">20</option>
-            </select>
-          </div>
-          <button class="btn" id="miRequest" style="width:100%;margin-top:6px">Send the request</button>
-          <div id="miOdds" style="font-size:10px;color:#5a6b60;margin-top:4px"></div>
-        </div>
-      </div>
+      <button class="btn" id="miRequest" style="width:100%;margin-top:6px">Send the request</button>
+      <div id="miOdds" style="font-size:10px;color:#5a6b60;margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- word from the field: it waits, and it knows where the thing happened -->
+  <div id="notifs" style="display:none"></div>
+  <!-- what a city says to a pointer resting on it -->
+  <div id="worldTip" style="display:none"></div>
+  <!-- how high the eye is, and what would lift it higher -->
+  <div id="stratBar" style="display:none">
+    <span id="sbScale"></span>
+    <button class="btn" id="sbScout">&#9672; SCOUT</button>
+    <span id="sbNext"></span>
+  </div>
+
+  <div class="panel" id="marchModal" style="left:50%;top:50%;transform:translate(-50%,-50%);width:430px;padding:16px;display:none;z-index:95">
+    <h3 style="color:#c9a86a;margin-bottom:8px" id="marchTitle">MARCH</h3>
+    <div style="font-size:12px;color:#9ab0a2;margin-bottom:8px" id="marchWhere"></div>
+    <input type="text" id="marchSearch" placeholder="Search the ranks&hellip;" style="width:100%;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:12px;padding:6px 8px;margin-bottom:8px">
+    <div id="marchList" style="max-height:200px;overflow-y:auto;border:1px solid #24352b;padding:6px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn danger" id="marchGo" style="flex:1">Send the column</button>
+      <button class="btn" id="marchNo" style="flex:1">Not yet</button>
     </div>
   </div>
 

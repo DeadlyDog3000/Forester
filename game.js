@@ -241,6 +241,20 @@ T("defending", "Defending", "military", ["policing"], 4, "Unlocks Town Walls & G
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
 T("defplus", "Defending II", "military", ["defending"], 5, "Stone walls & gates, and moats & ditches that mire attackers");
 T("occupation", "Occupation", "military", ["raiding"], 6, "Taxes collect +1 more DM");
+// ===== exploration =====
+// The fourth tree, and the only one that buys you nothing you can hold. It buys
+// distance: how far the camera may rise off your rooftops, how much of the
+// continent is drawn in rather than blank, and the two kinds of man you can send
+// out to fill in the rest. A colony with none of it is not blind — it simply
+// cannot see past its own valley, which in 1683 was the ordinary condition of
+// almost everybody.
+T("cartography", "Cartography", "world", [], 0, "Raise the eye past your own valley, and buy in the charts for seven leagues around the capital");
+T("couriers", "Couriers", "world", ["cartography"], 1, "Relays on every road: columns, scouts and agents travel a quarter faster");
+T("surveying", "Surveying", "world", ["cartography"], 1, "The chain and the plane table: see the neighbouring crowns — and train Scouts, who chart what they ride through and count what they meet");
+T("cipher", "Ciphers", "world", ["surveying"], 2, "A hand no foreign clerk can read: train Agents to take service in a rival city and send home its musters and its arts");
+T("astrolabe", "Astrolabe", "world", ["surveying"], 2, "Latitude by the stars: half the continent comes within the eye");
+T("fieldglass", "The Field Glass", "world", ["cipher"], 3, "Scouts see half again as far, and an agent is far harder to catch");
+T("mercator", "Mercator's Projection", "world", ["astrolabe"], 3, "The whole of Europe on one sheet, and an eye to match it");
 // ===== industry =====
 // The third tree, and the one that decides whether the colony stoops or builds.
 // Everything in the first two trees makes a man better at what he is already
@@ -2572,8 +2586,9 @@ function tell(kind, text) { chron(kind, text); toast(text); }
 function toast(text) {
   msgEl.textContent = text; toastTimer = 5;
   // with the map open, a message belongs beside the button that caused it
-  const ov = document.getElementById("mapOverlay"), note = document.getElementById("miNote");
-  if (ov && note && ov.style.display === "block") { note.textContent = text; note.style.display = "block"; }
+  // with the world panel open, a message belongs beside the button that caused it
+  const note = document.getElementById("miNote");
+  if (note && isOpen("mapInfo")) { note.textContent = text; note.style.display = "block"; }
 }
 // Work is paid for out of the stores of whichever town you are standing in —
 // the same ledger the HUD is showing you, so what you see is what you spend.
@@ -2721,7 +2736,7 @@ function setPause(open) {
     // the way out is offered, never forced, and only once there is something to read
     $("pmReign").style.display = ambitionsDone() >= AMBITIONS_TO_END ? "block" : "none";
   }
-  paused = pauseOpen || dlg.open || $("mapOverlay").style.display === "block" ||
+  paused = pauseOpen || dlg.open || $("marchModal").style.display === "block" ||
            $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
   try { SFX.pauseAll(pauseOpen); } catch (e) {}
 }
@@ -2777,6 +2792,7 @@ addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 addEventListener("focusin", e => { if (typingInto(e)) for (const k in keys) keys[k] = false; });
 canvas.addEventListener("mousemove", e => {
   mouse.x = e.clientX; mouse.y = e.clientY;
+  worldTipSync(e.clientX, e.clientY);      // a city under the pointer says what it is
   if (roadDrag) roadStretch(e.clientX, e.clientY);
   if (lineStart) {
     if (!lineDrag && Math.hypot(e.clientX - lineStart.sx, e.clientY - lineStart.sy) > 14) lineDrag = true;
@@ -2802,16 +2818,36 @@ addEventListener("mousemove", e => {
   const t = e.target;
   edge.on = !!t && !!t.closest &&
     (t === canvas || (!!t.closest(PAN_THROUGH) && !t.closest(PAN_BLOCKING)));
+  // a city's label must not hang about over a panel the pointer has moved on to
+  if (t !== canvas) { const tip = $("worldTip"); if (tip) tip.style.display = "none"; mapHover = null; }
 });
 // out of the window, or away to another tab: the map stops
-document.addEventListener("mouseleave", () => { edge.on = false; });
+document.addEventListener("mouseleave", () => {
+  edge.on = false;
+  const tip = $("worldTip"); if (tip) tip.style.display = "none"; mapHover = null;
+});
 addEventListener("blur", () => { edge.on = false; });
+// How far back the camera may go is not a constant any more — it is the deepest
+// chart your scholars have bought. Push against the ceiling and the game says
+// which technology would lift it, once in a while, rather than silently refusing.
+let zoomBlockedT = -999;
 function zoomAt(sx, sy, factor) {
   const wx = cam.x + sx / zoom, wy = cam.y + sy / zoom;
-  // far enough out to see a whole march of country, close enough to read a face
-  zoom = Math.max(0.18, Math.min(2.4, zoom * factor));
+  const floor = zoomFloor();
+  // close enough to read a face; far enough out to see whatever you have charted
+  const want = zoom * factor;
+  zoom = Math.max(floor, Math.min(2.4, want));
+  if (want < floor * 0.995 && zoom <= floor * 1.001) {
+    const next = nextZoomTier();
+    if (next && worldT - zoomBlockedT > 8) {
+      zoomBlockedT = worldT;
+      toast(`The eye can rise no further. Research ${TECH[next.tech].name} to see ${next.what}.`);
+    }
+  }
   cam.x = wx - sx / zoom;
   cam.y = wy - sy / zoom;
+  cancelFlight();
+  stratBarSync();
 }
 canvas.addEventListener("wheel", e => {
   e.preventDefault();
@@ -3090,6 +3126,7 @@ function nearestFigure(list, wx, wy, skipIndoors) {
   for (const f of list) {
     // whoever is under a roof is not on the map to be clicked: they stand at the
     // building's own coordinates, and would otherwise swallow every click on it
+    if (f.afield) continue;                       // he is a hundred leagues away
     if (skipIndoors && INDOORS.has(f.state)) continue;
     const d = figureDist(f, wx, wy);
     if (d < bd && d <= r) { bd = d; best = f; }
@@ -3296,6 +3333,9 @@ function worldClick(clientX, clientY) {
   closeSiegeMenu();                        // a click anywhere else drops the choice
   if (paused) return;
   if (roadMode) return;                    // the road builder works on press and release, not on click
+  // Up at map height there is nobody to select and nothing to build on: a click
+  // there is a click on the country, and belongs to the far map.
+  if (onMap() && !buildMode && worldMapClick(clientX, clientY)) return;
 
   if (buildMode) { tryPlace(buildMode, mouse.wx, mouse.wy); return; }
 
@@ -4799,6 +4839,13 @@ function updateResearch(dt) {
     tell("work", `Research complete: ${t.name} — ${t.desc}.`);
     research = null;
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
+    // a chart bought is country you have never walked and can nonetheless see
+    if (ZOOM_TIERS.some(z => z.tech === t.id)) {
+      const fresh = chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
+      const tier = ZOOM_TIERS.find(z => z.tech === t.id);
+      tell("work", `${t.name}: ${fresh} league(s) of country come onto the paper. Pull the camera back to see ${tier.what}.`);
+      stratBarSync();
+    }
     if ((t.id === "defending" || t.id === "raiding") && camps.length === 0) {
       spawnCamps(1);
       tell("work", `Research complete: ${t.name}. Word spreads of your colony's strength — thief and raid camps stir in the deep woods.`);
@@ -5193,7 +5240,7 @@ $("settleSearch").addEventListener("input", () => {
   for (const row of $("settleList").children)
     row.style.display = !q || row.textContent.toLowerCase().includes(q) ? "" : "none";
 });
-const TECH_TABS = { tabGrowth: "growth", tabMilitary: "military", tabIndustry: "industry" };
+const TECH_TABS = { tabGrowth: "growth", tabMilitary: "military", tabIndustry: "industry", tabWorld: "world" };
 for (const [id, tree] of Object.entries(TECH_TABS))
   $(id).addEventListener("click", () => {
     techTab = tree;
@@ -5609,7 +5656,11 @@ $("bpDismantle").addEventListener("click", () => {
 
 // ===== Empire: Europe map, nations, war, settlements =====
 
-const MG_W = 100, MG_H = 56, SCALE = 2, MPX = 6, FW = MG_W * SCALE, FH = MG_H * SCALE, CPX = SCALE * MPX;
+// The coarse grid is the political map — one cell to a stretch of country. The
+// fine grid is twice that in each direction, and is what the coastlines are
+// drawn on: sampling the coarse map through a noise warp turns square borders
+// into something a cartographer might have inked.
+const MG_W = 100, MG_H = 56, SCALE = 2, FW = MG_W * SCALE, FH = MG_H * SCALE;
 // stylized 1683 Europe in English, painted as rect blobs on a grid
 const NATIONS = {
   scotland:  { name: "Scotland", color: "#a0344a", strength: 1, blobs: [[19,2,6,3],[18,4,7,3]] },
@@ -5660,7 +5711,7 @@ const LABELS = [
 ];
 const EMPIRE_HOME = { mx: 37, my: 11 };   // the woods beyond Hamburg
 
-let mapGrid = null;
+let mapGrid = null, baseGrid = null;
 function hexRGB(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -5692,6 +5743,12 @@ function buildMapGrid() {
   const SEAS = [[16,15,14,2],[26,4,7,10],[43,9,4,4],[56,28,7,3],[52,32,4,4],[44,27,2,4]];
   for (const [x, y, w, h] of SEAS)
     for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++) mapGrid[r][c] = null;
+  // The map as it stood in 1683, before any war moved a border. The blobs
+  // overlap each other and the seas cut holes in them, so "which cells does
+  // Austria actually hold" is a question only the finished grid can answer —
+  // and the cities have to be laid down on THAT, or Vienna ends up in Poland or
+  // in the Baltic.
+  baseGrid = mapGrid.map(row => row.slice());
   // land taken in the wars of Europe
   for (const cq of conquests) if (mapGrid[cq.r] && mapGrid[cq.r][cq.c]) mapGrid[cq.r][cq.c] = cq.to;
 
@@ -5752,33 +5809,6 @@ function empireCells() {
   for (const st of settlements) grow(st.mx, st.my, st.pop);
   for (const n of Object.values(NATIONS)) if (n.captured) for (const key of n.captured) cells.add(key);
   return cells;
-}
-
-// A new town is raised on empty ground, not inside somebody else's kingdom and
-// certainly not in the sea: find the nearest unclaimed cell to plant its flag on.
-function freeMapCell() {
-  if (!mapGrid) buildMapGrid();
-  const ownerAt = (mx, my) => {
-    const c = mx * 2, r = my * 2;
-    if (c < 0 || r < 0 || c >= FW || r >= FH) return "off";
-    return FID[fineGrid[r * FW + c]];
-  };
-  const taken = new Set(settlements.map(s => s.mx + "," + s.my));
-  taken.add(EMPIRE_HOME.mx + "," + EMPIRE_HOME.my);
-  for (let ring = 2; ring <= 14; ring++) {
-    const spots = [];
-    for (let dy = -ring; dy <= ring; dy++) for (let dx = -ring; dx <= ring; dx++) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
-      const mx = EMPIRE_HOME.mx + dx, my = EMPIRE_HOME.my + dy;
-      if (taken.has(mx + "," + my)) continue;
-      if (ownerAt(mx, my) !== "wilds") continue;                 // unclaimed land only
-      // and elbow room from its neighbours
-      if (settlements.some(s => Math.abs(s.mx - mx) <= 1 && Math.abs(s.my - my) <= 1)) continue;
-      spots.push({ mx, my });
-    }
-    if (spots.length) return spots[Math.floor(Math.random() * spots.length)];
-  }
-  return { mx: EMPIRE_HOME.mx, my: EMPIRE_HOME.my + 1 };          // the woods will have to do
 }
 
 function natStrength(n) {
@@ -6205,7 +6235,8 @@ function resolveBattle(war) {
   if (take > 0) eventCard(`${NATIONS[winner].name} seizes land from ${NATIONS[loser].name}!`, "event_conquest", "The borders of Europe shift");
   // rebuild the pixel map so borders visibly move — live if the map is open
   buildMapGrid();
-  if (document.getElementById("mapOverlay").style.display === "block") renderMap();
+  buildCities();                       // the towns follow their borders
+  stratDirty = true;
   if (checkDefeated(loser)) return;
   if ((war.battles >= 3 && Math.random() < 0.3) || (!frontier.length && take === 0)) {
     natWars.splice(natWars.indexOf(war), 1);
@@ -6286,7 +6317,10 @@ function updateNationWars(dt) {
   }
   for (const w of [...natWars]) {
     w.t -= dt;
-    if (w.t <= 0) { w.t = 45 + Math.random() * 40; resolveBattle(w); }
+    // The wars of Europe used to be a dice roll every forty seconds, settled
+    // out of sight. The dice are still there, but somebody has to walk to the
+    // walls first — and you can watch him do it.
+    if (w.t <= 0) { w.t = 60 + Math.random() * 50; dispatchNatColumn(w); }
   }
 }
 function nationAdjacent(id) {
@@ -6301,119 +6335,41 @@ function nationAdjacent(id) {
 }
 
 let mapSelNation = null;
-function renderMap() {
-  // the map may never have been opened — build it before drawing it, or a
-  // conquest anywhere would throw and take the whole game loop down with it
-  if (!fineGrid || !mapGrid) buildMapGrid();
-  const mc = document.getElementById("euromap").getContext("2d");
-  mc.imageSmoothingEnabled = false;
-  const mine = empireCells();
-  const img = mc.createImageData(FW, FH);
-  const px = img.data;
-  const myCol = hexRGB(territoryColor);
-  const coarse = i => Math.floor(i / CPX);
-  const eidAt = (cc, rr) => {
-    if (cc < 0 || rr < 0 || cc >= FW || rr >= FH) return 0;
-    const nid = fineGrid[rr * FW + cc];
-    if (nid !== 0 && mine.has(coarse(cc) + "," + coarse(rr))) return 255;
-    return nid;
-  };
-  for (let r = 0; r < FH; r++) for (let c = 0; c < FW; c++) {
-    const i = r * FW + c;
-    const eid = eidAt(c, r);
-    const base = eid === 255 ? myCol : FID_RGB[fineGrid[i]];
-    const n = vnoise(c * 1.4, r * 1.4, 7);
-    let f = 0.92 + n * 0.12;
-    if (eid !== 0 &&
-        (eidAt(c - 1, r) !== eid || eidAt(c + 1, r) !== eid || eidAt(c, r - 1) !== eid || eidAt(c, r + 1) !== eid))
-      f *= 0.42;   // openfront border: darker shade of the territory's own colour, one block wide
-    px[i * 4] = base[0] * f; px[i * 4 + 1] = base[1] * f; px[i * 4 + 2] = base[2] * f; px[i * 4 + 3] = 255;
-  }
-  // blow the buffer up to crisp 6x6 blocks
-  if (!window.__euroBuf) {
-    window.__euroBuf = document.createElement("canvas");
-    window.__euroBuf.width = FW; window.__euroBuf.height = FH;
-  }
-  window.__euroBuf.getContext("2d").putImageData(img, 0, 0);
-  mc.imageSmoothingEnabled = false;
-  mc.drawImage(window.__euroBuf, 0, 0, FW, FH, 0, 0, FW * MPX, FH * MPX);
-  // war glow
-  for (const [id, n] of Object.entries(NATIONS)) if (n.atWar) {
-    mc.strokeStyle = "#d86a5a"; mc.lineWidth = 2;
-    for (const [x, y, w, h] of n.blobs) mc.strokeRect(x * CPX, y * CPX, w * CPX, h * CPX);
-  }
-  // labels
-  mc.textAlign = "center";
-  for (const [name, x, y] of LABELS) {
-    mc.font = "bold 11px 'Courier New', monospace";
-    mc.fillStyle = "rgba(0,0,0,0.55)";
-    name.split("\n").forEach((line, i) => mc.fillText(line, x * CPX + 1, y * CPX + 1 + i * 11));
-    mc.fillStyle = "#e8ecea";
-    name.split("\n").forEach((line, i) => mc.fillText(line, x * CPX, y * CPX + i * 11));
-  }
-  // empire label + settlement dots
-  const home = EMPIRE_HOME;
-  const dot = (mx, my, nm) => {
-    mc.fillStyle = "#0a0f0c"; mc.fillRect(mx * CPX - 2, my * CPX - 2, 6, 6);
-    mc.fillStyle = "#ffe9b0"; mc.fillRect(mx * CPX - 1, my * CPX - 1, 4, 4);
-    mc.font = "10px 'Courier New', monospace";
-    mc.fillStyle = "#0a0f0c"; mc.fillText(nm, mx * CPX + 1, my * CPX - 5 + 1);
-    mc.fillStyle = "#ffe9b0"; mc.fillText(nm, mx * CPX, my * CPX - 5);
-  };
-  dot(home.mx, home.my, settlementName);
-  for (const st of settlements) dot(st.mx, st.my, st.name);
-  mc.font = "bold 13px 'Courier New', monospace";
-  mc.fillStyle = "rgba(0,0,0,0.6)"; mc.fillText(empireName || "Your Empire", home.mx * CPX + 1, (home.my - 3) * CPX + 1);
-  mc.fillStyle = "#ffe9b0"; mc.fillText(empireName || "Your Empire", home.mx * CPX, (home.my - 3) * CPX);
-  // daughter settlements: a marker and name at each
-  mc.font = "10px 'Courier New', monospace";
-  for (const st of settlements) {
-    const sx = st.mx * CPX, sy = st.my * CPX;
-    mc.fillStyle = "#ffe9b0"; mc.fillRect(sx - 2, sy - 2, 5, 5);
-    mc.fillStyle = "rgba(0,0,0,0.6)"; mc.fillText(`${st.name} (${st.pop})`, sx + 1, sy - 5);
-    mc.fillStyle = "#ffe9b0"; mc.fillText(`${st.name} (${st.pop})`, sx, sy - 6);
-  }
-}
+// The old MAP button opened a fullscreen picture of Europe with the game paused
+// behind it. There is nothing left to open: the map IS the world, and the button
+// simply takes the camera up to the height where you can see it. Everything that
+// used to call renderMap() now only needs to say that the country has changed.
+function renderMap() { stratDirty = true; }
 
 document.getElementById("mapToggle").addEventListener("click", () => {
   if (!mapGrid) buildMapGrid();
-  renderMap();
-  document.getElementById("mapTitle").textContent = (empireName || "YOUR EMPIRE").toUpperCase() + " — EUROPE, " + colonyYear;
-  document.getElementById("mapOverlay").style.display = "block";
-  paused = true;
+  if (!CITIES.length) buildCities();
+  stratDirty = true;
   tutSeen.map = true;
   lesson("trade");                      // they are looking at the neighbours now
-  // on a phone the map is wider than the glass: open it looking at your own lands
-  const frame = document.getElementById("euromap").parentElement;
-  if (frame && frame.scrollWidth > frame.clientWidth) {
-    const mapEl = document.getElementById("euromap");
-    const scale = mapEl.getBoundingClientRect().width / mapEl.width;
-    frame.scrollLeft = Math.max(0, EMPIRE_HOME.mx * CPX * scale - frame.clientWidth / 2);
-    frame.scrollTop = Math.max(0, EMPIRE_HOME.my * CPX * scale - frame.clientHeight / 2);
+  const floor = zoomFloor();
+  if (onMap() && zoom <= floor * 1.4) {
+    // already up there: come back down to the town you came from
+    flyTo(CAPITAL_X, CAPITAL_Y, 0.85, 1.0);
+    worldPanelOpen(false);
+    toast("Back among the roofs.");
+  } else {
+    const mid = cam.x + canvas.width / 2 / zoom, midY = cam.y + canvas.height / 2 / zoom;
+    flyTo(mid, midY, floor, 1.15);
+    const next = nextZoomTier();
+    toast(next ? `The country, as far as your charts go. ${TECH[next.tech].name} would open ${next.what}.`
+               : "The whole of Europe. Click a city to look at it, or a column to follow it.");
   }
 });
-document.getElementById("mapClose").addEventListener("click", () => {
-  document.getElementById("mapOverlay").style.display = "none";
-  setPause(pauseOpen);
-});
-document.getElementById("euromap").addEventListener("click", e => {
-  const rect = e.target.getBoundingClientRect();
-  // the map may be drawn smaller than its canvas on a phone: read taps in canvas pixels
-  const sx = e.target.width / rect.width, sy = e.target.height / rect.height;
-  const c = Math.floor((e.clientX - rect.left) * sx / MPX), r = Math.floor((e.clientY - rect.top) * sy / MPX);
-  if (!fineGrid || c < 0 || r < 0 || c >= FW || r >= FH) return;
-  const id = FID[fineGrid[r * FW + c]];
-  if (!id || id === "sea" || id === "wilds") { mapSelNation = null; mapInfoSync(); return; }
-  mapSelNation = id;
-  mapInfoSync();
-});
+
 function mapInfoSync() {
   const w = document.getElementById("miWar"), pc = document.getElementById("miPeace"), as = document.getElementById("miAssault");
   const note = document.getElementById("miNote");
   if (note) { note.textContent = ""; note.style.display = "none"; }   // a fresh nation, a fresh slate
+  citySync();                                                        // the town half of the panel
   if (!mapSelNation) {
     document.getElementById("miName").textContent = "—";
-    document.getElementById("miDetail").textContent = "Click a nation on the map.";
+    document.getElementById("miDetail").textContent = "Click a country or a city out on the map.";
     w.style.display = pc.style.display = as.style.display = "none";
     return;
   }
@@ -6439,6 +6395,14 @@ function mapInfoSync() {
   const tr = document.getElementById("miTrade");
   tr.style.display = (!n.atWar && adj && !n.trade) ? "block" : "none";
   if (n.trade) document.getElementById("miDetail").textContent += " A trade route is open — caravans arrive regularly.";
+  // What a spy is actually for: the two numbers you would otherwise be guessing at
+  if (knowsArmies(mapSelNation)) {
+    const cs = nationCities(mapSelNation);
+    const men = cs.reduce((t, c) => t + c.garrison, 0);
+    document.getElementById("miDetail").textContent +=
+      ` Your agent reports ${men} men under arms across ${cs.length} city/cities` +
+      (knowsArts(mapSelNation) ? `, and these arts: ${nationArts(mapSelNation).join(", ")}.` : ".");
+  }
   $("miRequestWrap").style.display = n.trade ? "block" : "none";
   if (n.trade) requestOddsText();
 }
@@ -6449,7 +6413,7 @@ document.getElementById("miWar").addEventListener("click", () => {
   n.atWar = true; n.warT = 30;
   for (const c of civs) c.happiness = Math.max(0, c.happiness - 6);
   eventCard(`${empireName || "The colony"} declares war on ${n.name}!`, "event_war", "The people brace themselves");
-  document.getElementById("mapOverlay").style.display = "none"; setPause(pauseOpen);
+  worldPanelOpen(false);
   vignette("firstWar");
   mapInfoSync(); renderMap();
 });
@@ -6598,18 +6562,16 @@ document.getElementById("miAssault").addEventListener("click", () => {
   const id = mapSelNation, n = NATIONS[id];
   const standing = foreignTowns.find(t => t.nation === id);
   if (standing) {
-    cam.x = standing.x - canvas.width / 2 / zoom;
-    cam.y = standing.y - canvas.height / 2 / zoom;
-    document.getElementById("mapOverlay").style.display = "none"; setPause(pauseOpen);
+    worldPanelOpen(false);
+    flyTo(standing.x, standing.y, 0.55, 1.0);
     toast(`${standing.name} stands before you. Select your soldiers and click its walls, its buildings and its keep.`);
     return;
   }
   const party = civs.filter(c => ["soldier", "musketeer", "cavalry"].includes(c.profession));
   if (party.length < 4) return toast("An assault needs at least 4 fighting men — soldiers, line infantry or cavalry.");
   const town = landForeignTown(id);
-  cam.x = town.x - canvas.width / 2 / zoom;
-  cam.y = town.y - canvas.height / 2 / zoom;
-  document.getElementById("mapOverlay").style.display = "none"; setPause(pauseOpen);
+  worldPanelOpen(false);
+  flyTo(town.x, town.y, 0.55, 1.2);
   eventCard(`Scouts find ${town.name}, a border town of ${n.name}.`, "event_warparty",
             "March your army there and put its town hall to the torch");
   toast(`${town.name} lies to the ${Math.abs(town.x) > Math.abs(town.y) ? (town.x > 0 ? "east" : "west") : (town.y > 0 ? "south" : "north")} — burn its town hall and the town is yours, roofs and all. Watch for its marker at the screen's edge.`);
@@ -6660,11 +6622,15 @@ function foreignName(id, n) {
   if (pool) return pool[foreignTowns.filter(t => t.nation === id).length % pool.length];
   return n.name + " Outpost";
 }
-function landForeignTown(id) {
+// `where` lets the caller say exactly which town this is and where it stands —
+// used when your own column arrives at a named city of Europe, so that the place
+// you besiege is the place you marched to rather than a fresh outpost invented
+// somewhere behind you.
+function landForeignTown(id, where) {
   const n = NATIONS[id];
   const tier = Math.max(1, natStrength(n));
   // set it down a real march away, clear of your ground, the camps and other towns
-  let site = null;
+  let site = where && where.x !== undefined ? { x: Math.round(where.x), y: Math.round(where.y) } : null;
   for (let tries = 0; tries < 40 && !site; tries++) {
     const a = Math.random() * Math.PI * 2, d = 2600 + Math.random() * 700;
     const x = Math.round(Math.cos(a) * d), y = Math.round(Math.sin(a) * d);
@@ -6674,8 +6640,8 @@ function landForeignTown(id) {
         !inTerritory(x, y)) site = { x, y };
   }
   if (!site) { const a = Math.random() * Math.PI * 2; site = { x: Math.round(Math.cos(a) * 3000), y: Math.round(Math.sin(a) * 3000) }; }
-  const town = { nation: id, name: foreignName(id, n), x: site.x, y: site.y, fallen: false,
-                 dm: 150 + tier * 40, weapons: 2 + Math.floor(tier / 2) };
+  const town = { nation: id, name: (where && where.name) || foreignName(id, n), x: site.x, y: site.y, fallen: false,
+                 city: where && where.city, dm: 150 + tier * 40, weapons: 2 + Math.floor(tier / 2) };
   foreignTowns.push(town);
   const put = (type, dx, dy, hp) => {
     const b = { type, x: site.x + dx, y: site.y + dy, hp, maxHp: hp, town, foreign: true,
@@ -6920,9 +6886,14 @@ function foreignTownFalls(town) {
   town.taken = taken; town.folk = folk;
   res.dm += town.dm; res.weapons += town.weapons;
   // the settlement joins your empire under its own name, and its roofs take your folk
+  // Its flag goes exactly where the town stands. The two scales are one map now;
+  // a town whose dot on the continent was in a different place from the town
+  // itself would make every march to it a lie.
   settlements.push({ name: town.name, pop: 0, x: town.x, y: town.y,
                      res: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0, doors: 0, weapons: 0 },
-                     ...freeMapCell() });
+                     ...worldCell(town.x, town.y) });
+  // and if it was one of the named cities of Europe, that city has fallen
+  if (town.city) { const cc = cityById(town.city); if (cc) { cc.fallen = true; cc.siege = 0; } }
   for (const c of civs) if (!c.home) houseCiv(c);
   n.lost = (n.lost || 0) + 1;
   n.captured = n.captured || [];
@@ -6936,12 +6907,62 @@ function foreignTownFalls(town) {
             `+${town.dm} DM plunder, ${town.taken} building(s) taken intact` +
             (town.folk ? `, ${town.folk} of its people now yours` : "") + ` — ${town.name} is yours`);
   checkDefeated(town.nation);
-  mapGrid = null; renderMap(); syncUI();
+  mapGrid = null; buildMapGrid(); buildCities(); renderMap(); syncUI();
 }
 // How many of a crown's men may stand on your ground at once, all wars counted
 // together. Four crowns at war used to mean four separate streams, each keeping
 // its own time and none of them aware of the others — which is how a colony ends
 // up facing hundreds. They share one field now.
+
+// ===== the party arrives =====
+// This is what used to happen the instant a crown's clock ran out. It happens at
+// the end of a march now instead, so the men who appear at your treeline are the
+// same men you may have watched crossing Brandenburg for the last two minutes.
+function landWarParty(id, town, invest) {
+  const n = NATIONS[id];
+  if (!n || n.defeated || !n.atWar) return 0;
+  const targets = raidTargetsIn(town);
+  if (!targets.length || attackersAfield() >= attackerCap()) return 0;
+  const cx = town ? town.x : 0, cy = town ? town.y : 0;
+  const a = Math.random() * Math.PI * 2;
+  const st = natStrength(n);
+  const partySize = 3 + (st >= 8 ? 1 : 0) + Math.floor(menace() / 6);
+  const ring = { x: cx, y: cy };
+  let sent = 0;
+  for (let i = 0; i < partySize; i++) {
+    // the cap is a wall, not a suggestion: test it for every man sent
+    if (attackersAfield() >= attackerCap()) break;
+    const t = targets[Math.floor(Math.random() * targets.length)];
+    const tier = reckoning();
+    const kit = Math.min(KIT_MAX, kitFor(tier) + (st >= 8 ? 1 : 0));   // a strong crown outfits its men
+    const whp = 90 + Math.min(tier, 12) * 6 + st * 3;
+    const ra = (i / partySize) * Math.PI * 2;
+    raiders.push({ x: cx + Math.cos(a) * 1300 + i * 30, y: cy + Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
+                   dmg: 16 + Math.min(tier, 12) * 1.2 + Math.floor(st / 3) + KIT_BITE[kit], kit,
+                   target: invest ? null : t,
+                   state: invest ? "invest" : "approach", anim: 0, facing: 1, atkT: 0, foe: null,
+                   // where he will stand and wait, if this is a siege
+                   ringX: ring.x + Math.cos(ra) * INVEST_RADIUS,
+                   ringY: ring.y + Math.sin(ra) * INVEST_RADIUS * 0.85,
+                   investTown: invest ? (town || null) : undefined,
+                   camp: { x: cx + Math.cos(a) * 1600, y: cy + Math.sin(a) * 1600 }, carry: 0, nation: id });
+    sent++;
+  }
+  if (!sent) return 0;   // no horn for an army that never came
+  const winter = season() === "winter";
+  const where = town ? town.name : (settlementName || "the colony");
+  if (invest)
+    eventCard(`${n.name} lays siege to ${where}.`, "event_warparty",
+              winter ? "They will not assault it. They will wait, and it is winter"
+                     : "They will not assault it. They mean to sit there until it starves");
+  else
+    eventCard(`A war party of ${n.name} marches on ${where}!`,
+              "event_warparty", winter ? "In the dead of winter — arm yourselves" : "Arm yourselves");
+  notify({ icon: "\u2694", cls: "war", text: `${n.name} is at ${where}.`,
+           sub: invest ? "They mean to sit outside it until it starves" : "The party is at the treeline",
+           x: cx, y: cy, z: 0.55 });
+  return sent;
+}
 
 function updateWars(dt) {
   const atWar = Object.values(NATIONS).filter(n => n.atWar && !n.defeated).length;
@@ -6967,47 +6988,15 @@ function updateWars(dt) {
       const towns = townsWithBuildings();
       if (!towns.length || attackersAfield() >= attackerCap()) continue;
       const town = towns[Math.floor(Math.random() * towns.length)];
-      const targets = raidTargetsIn(town);
-      if (!targets.length) continue;
-      const cx = town ? town.x : 0, cy = town ? town.y : 0;
-      const a = Math.random() * Math.PI * 2;
-      const st = natStrength(n);
-      const partySize = 3 + (st >= 8 ? 1 : 0) + Math.floor(menace() / 6);
+      if (!raidTargetsIn(town).length) continue;
       // Past the old ceiling a crown stops throwing itself at the walls and
       // starts sitting outside them instead. A siege is not a bigger battle —
       // it is the absence of one, which is the part that hurts.
       const invest = reckoningOpen() && pastTheCap() > 2 && Math.random() < 0.45 && !invested.has(town || null);
-      const ring = { x: cx, y: cy };
-      let sent = 0;
-      for (let i = 0; i < partySize; i++) {
-        // the cap is a wall, not a suggestion: test it for every man sent
-        if (attackersAfield() >= attackerCap()) break;
-        const t = targets[Math.floor(Math.random() * targets.length)];
-        const tier = reckoning();
-        const kit = Math.min(KIT_MAX, kitFor(tier) + (st >= 8 ? 1 : 0));   // a strong crown outfits its men
-        const whp = 90 + Math.min(tier, 12) * 6 + st * 3;
-        const ra = (i / partySize) * Math.PI * 2;
-        raiders.push({ x: cx + Math.cos(a) * 1300 + i * 30, y: cy + Math.sin(a) * 1300 + i * 24, hp: whp, maxHp: whp,
-                       dmg: 16 + Math.min(tier, 12) * 1.2 + Math.floor(st / 3) + KIT_BITE[kit], kit,
-                       target: invest ? null : t,
-                       state: invest ? "invest" : "approach", anim: 0, facing: 1, atkT: 0, foe: null,
-                       // where he will stand and wait, if this is a siege
-                       ringX: ring.x + Math.cos(ra) * INVEST_RADIUS,
-                       ringY: ring.y + Math.sin(ra) * INVEST_RADIUS * 0.85,
-                       investTown: invest ? (town || null) : undefined,
-                       camp: { x: cx + Math.cos(a) * 1600, y: cy + Math.sin(a) * 1600 }, carry: 0, nation: id });
-        sent++;
-      }
-      if (!sent) continue;   // no horn for an army that never came
-      SFX.warHorn();
-      const where = town ? town.name : (settlementName || "the colony");
-      if (invest)
-        eventCard(`${n.name} lays siege to ${where}.`, "event_warparty",
-                  winter ? "They will not assault it. They will wait, and it is winter"
-                         : "They will not assault it. They mean to sit there until it starves");
-      else
-        eventCard(`A war party of ${n.name} marches on ${where}!`,
-                  "event_warparty", winter ? "In the dead of winter — arm yourselves" : "Arm yourselves");
+      // And they no longer appear a thousand pixels from your gate. The party
+      // sets out from a named city of theirs and walks — which is your warning,
+      // if you have anyone out there able to see it walking.
+      dispatchWarColumn(id, town, invest);
     }
   }
 }
@@ -7067,7 +7056,8 @@ document.getElementById("settleGo").addEventListener("click", () => {
     buildings.push(b); newCabins.push(b);
   }
   expandAround(site.x, site.y, 5);   // room enough to actually build a town there
-  const flag = freeMapCell();
+  // its dot on the continent is simply where it is — see the note at townFalls
+  const flag = worldCell(site.x, site.y);
   const st = { name, pop: chosen.length, x: site.x, y: site.y,
                res: { logs: 10, stone: 4, bread: 4, meat: 2, dm: 10 },
                mx: flag.mx, my: flag.my };
@@ -7870,6 +7860,14 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 6, date: "4 September 2026", title: "One map, from the doorstep to the Danube",
+    lines: [
+      "Europe is no longer a picture behind a button. Pull the camera back off your rooftops and the ground gives way to the country, the country to the crowns — the same map, the same coordinates, the whole way out.",
+      "How high the eye may rise is bought on a fourth technology tree, Exploration. Cartography, Surveying, the Astrolabe and Mercator's Projection each lift the ceiling and each buy in the charts to go with it. Without them you can see your own valley and no further, which in 1683 was the ordinary condition of almost everybody.",
+      "Every crown keeps real cities now — a hundred and nine of them, named, placed on their own ground, growing and arming and being ground down by whatever the century is doing to their country. Rest the pointer on one to read it; click it and the camera goes there.",
+      "Nothing crosses Europe instantly any more. A war party leaves a named city of theirs and walks; your own column leaves your gate and walks. Both are on the map the whole way, and when one arrives you are told, with the place attached — click the notice and you are taken to it.",
+      "What you cannot see, you do not know. Train a Scout to ride out and set country down on paper, and to count what he meets on the road. Train an Agent, once you have Ciphers, to take service in a foreign city and send home its musters and its arts — and lose all of it the day he is caught.",
+    ] },
   { v: 5, date: "3 September 2026", title: "Civilians have temperaments",
     lines: [
       "Everyone is born with one of twelve temperaments, drawn from six opposed pairs: Industrious or Idle, Hot or Even-tempered, Gregarious or Solitary, Stout-hearted or Timid, Generous or Grasping, Hardy or Sickly.",
@@ -8164,6 +8162,9 @@ function saveGame() {
       tally, achieved,
       cam: { x: cam.x, y: cam.y },
       hunterTimer, raidTimer, campRespawnTimer, worldT,
+      // the far map: what you have charted, how the cities of Europe stand, and
+      // who of yours is out on the roads between them
+      world: worldSave(ci),
       tech: Object.fromEntries(Object.values(TECH).map(t => [t.id, t.done])),
       research: research ? { ...research } : null,
       usedNames: [...usedNames],
@@ -8184,6 +8185,8 @@ function saveGame() {
         jail: bi(c.jail), jailT: c.jailT ? r1(c.jailT) : undefined,
         sk: skSave(c), sx: sxSave(c),
         conquered: c.conquered ? Math.round(c.conquered * 100) / 100 : undefined,
+        afield: c.afield || undefined,           // he is out on the far map
+
         // A colony saved before there were any creeds comes back Lutheran to a
         // soul, which is exactly what Hamburg exiles were, so the omission reads
         // as the right answer rather than as missing data.
@@ -8289,7 +8292,9 @@ function loadGame() {
     dedicateTo = FAITHS[d.dedicateTo] ? d.dedicateTo : defaultDedication();
     settlementName = d.settlementName || "Neu Hamburg";
     Object.assign(laws, d.laws);
-    zoom = d.zoom || 1;
+    // a colony saved while looking at half the continent must not come back
+    // still looking at it if its charts have gone (a reset tree, an old save)
+    zoom = Math.max(zoomFloor(), Math.min(2.4, d.zoom || 1));
     cam.x = d.cam.x; cam.y = d.cam.y;
     hunterTimer = d.hunterTimer; raidTimer = d.raidTimer; campRespawnTimer = d.campRespawnTimer;
     worldT = d.worldT || 3 * HOUR;
@@ -8463,6 +8468,11 @@ function loadGame() {
         if (NATIONS[id].atWar && !NATIONS[id].warT) NATIONS[id].warT = 60 + Math.random() * 60;
       }
     }
+    // The far map goes back last, because it is built on top of everything else:
+    // the borders (which the conquests have just moved), the towns, and the men
+    // themselves — a column out on the roads is a list of civilians by index.
+    buildMapGrid();
+    worldLoad(d.world);
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
     $("taxSlider").value = taxRate; $("taxVal").textContent = taxRate;
     $("lawCivWeapons").checked = laws.civWeapons;
@@ -8589,6 +8599,10 @@ function endCutscene() {
   // a new game begun after a long one inherits its predecessor's reckoning and
   // is set upon by a war it never provoked
   reckoningOpenedAt = -1; blockade = null; invested.clear();
+  // and the far map starts blank again: no charts, no columns, no agent in
+  // anybody's court. Without this a second colony begins with the first one's
+  // atlas, which would give away half of Europe for nothing.
+  worldNewGame();
   // a country is already drawn behind the modal, so the woods the player is
   // looking at are the woods they will get
   $("seedInput").value = randomSeedLabel();
@@ -8643,9 +8657,9 @@ const TUT_STEPS = [
     done: () => buildings.some(b => b.type === "market") },
   { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
     done: () => tutSeen.gov },
-  { text: () => "In that panel, press Open Tech Tree and begin any research. Two trees run from sharper axes to battle steel, paid for in DM and time.",
+  { text: () => "In that panel, press Open Tech Tree and begin any research. Four trees run from sharper axes to battle steel, and out to the far edge of the map, paid for in DM and time.",
     done: () => tutSeen.tech || !!research || Object.values(TECH).filter(t => t.done).length > 3 },
-  { text: () => "Press the MAP button to look at Europe, 1683. Your empire is drawn in your own colour; the nations around it grow stronger with the years and make war on each other.",
+  { text: () => "Press MAP, or simply scroll the wheel back. The ground gives way to the country: your land in your own colour, the crowns of Europe around it, and every column on every road between them. Cartography, on the Exploration tree, lifts the eye further.",
     done: () => tutSeen.map },
 ];
 
@@ -8875,6 +8889,8 @@ function gameOver(chosen) {
 }
 
 function syncUI() {
+  stratBarSync();                    // how high you are, and how high you may go
+
   clearFaithCensus();          // whatever just changed, the panels read it fresh
   renderFaithPanels();
   $("buildToggle").classList.toggle("active", !!buildMode);
@@ -9291,6 +9307,9 @@ function update(dt) {
   // the map, and those pause the world. Ticking it here lets those steps finish.
   updateTutorial(dt);
   updateConvoy(dt);
+  // The camera's own journey runs whether or not the world does: clicking a
+  // notification while the game is paused should still take you to the thing.
+  updateFlight(dt);
 
   if (paused) return;
 
@@ -9298,6 +9317,7 @@ function update(dt) {
   worldT += dt;
   rescueStuck(dt);
   updateNationWars(dt);
+  updateWorld(dt);
   updateNationTrade(dt);
   updateCalamities(dt);
   updatePlague(dt);
@@ -9649,6 +9669,11 @@ function update(dt) {
 
   planVolleys();          // settle the line's volley before anyone in it moves
   for (const c of [...civs]) {
+    // A man on campaign is not in the colony. He is a mark on the far map for as
+    // long as the road takes, and none of what follows — hunger, cold, work,
+    // grief, the hospital — reaches him out there. The column carries its own
+    // provisions, which is the only reason an army can leave home at all.
+    if (c.afield) { c.state = "idle"; c.task = null; continue; }
     // grief wears off; it does not have to be tended, only outlived
     if (c.grief) { c.grief.t -= dt; if (c.grief.t <= 0) c.grief = null; }
     // A faith that keeps two hundred fast days a year is a faith whose people
@@ -10354,6 +10379,1410 @@ function update(dt) {
   }
 }
 
+// ===== the world, at every distance =====
+// Europe used to live behind a button. You pressed MAP, the game stopped, and a
+// painted rectangle appeared with your colony marked on it as a dot — a picture
+// of a world you were not standing in. Everything that happened out there was
+// told to you in sentences: a war party marches on Waldheim, Sweden and Denmark
+// are at war, a town has fallen. You never saw any of it.
+//
+// There is one map now, and the doorstep and the Danube are on it. Pull the
+// camera back off your rooftops and the ground gives way to the country, the
+// country to the marches, the marches to the crowns — the same coordinates the
+// whole way out, so a column that leaves your gate is the same column you watch
+// crawl toward Torun an hour later. How far you may rise is bought with
+// cartography; what you may SEE from up there is bought with scouts and spies,
+// and can be taken away again by whoever kills them.
+//
+// The two scales are stitched together by one number: CELL_W, the world-pixel
+// width of a league-square of the old Europe grid. Your capital stands at the
+// centre of EMPIRE_HOME, and everything else follows from that.
+
+const CELL_W = 2200;                                   // world pixels to a map cell
+const MAP_X0 = (-0.5 - EMPIRE_HOME.mx) * CELL_W;
+const MAP_Y0 = (-0.5 - EMPIRE_HOME.my) * CELL_W;
+const MAP_W = MG_W * CELL_W, MAP_H = MG_H * CELL_W;
+const cellWorld = (mx, my) => ({ x: (mx - EMPIRE_HOME.mx) * CELL_W, y: (my - EMPIRE_HOME.my) * CELL_W });
+const worldCell = (x, y) => ({ mx: Math.round(x / CELL_W) + EMPIRE_HOME.mx, my: Math.round(y / CELL_W) + EMPIRE_HOME.my });
+const ckey = (mx, my) => mx + "," + my;
+
+// ===== how far the eye may rise =====
+// The first tier is free and is roughly what the camera could always do: your
+// own valley and the woods it sits in. Everything past it is a technology,
+// because a seventeenth-century colony genuinely could not picture the ground
+// it had never walked — the chart had to be bought, drawn, or stolen.
+const ZOOM_TIERS = [
+  { tech: null,          z: 0.180,  chart: 3,  what: "your own country" },
+  { tech: "cartography", z: 0.072,  chart: 7,  what: "the near marches" },
+  { tech: "surveying",   z: 0.030,  chart: 13, what: "the neighbouring crowns" },
+  { tech: "astrolabe",   z: 0.013,  chart: 22, what: "half the continent" },
+  { tech: "mercator",    z: 0.0055, chart: 34, what: "the whole of Europe" },
+];
+const tierHeld = t => !t.tech || TECH[t.tech].done;
+function zoomFloor() { let z = ZOOM_TIERS[0].z; for (const t of ZOOM_TIERS) if (tierHeld(t)) z = Math.min(z, t.z); return z; }
+function nextZoomTier() { return ZOOM_TIERS.find(t => !tierHeld(t)) || null; }
+// the atlas a technology brings with it: ground you have never walked, but that
+// somebody has, and whose charts your money can now buy
+function atlasR() { let r = 0; for (const t of ZOOM_TIERS) if (tierHeld(t)) r = Math.max(r, t.chart); return r; }
+
+// ===== where the ground ends and the map begins =====
+// Not a switch — a dissolve. The grass thins out, the country fades up through
+// it, and for a moment you can see both, which is the moment that makes the two
+// scales feel like one place instead of two screens.
+const STRAT_IN = 0.22, STRAT_FULL = 0.15;
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+function stratAmt() { return clamp01((STRAT_IN - zoom) / (STRAT_IN - STRAT_FULL)); }
+const onMap = () => stratAmt() > 0.5;                  // the map has the floor
+
+// ===== the cities of Europe =====
+// A nation used to be a coloured blob with a name floating over it. You cannot
+// march on a blob, spy on a blob, or watch a blob starve. Every crown keeps real
+// towns now — named, placed on its own ground, with a population that grows and
+// a garrison that can be counted if you can get someone close enough to count it.
+const CITY_NAMES = {
+  scotland: ["Edinburgh", "Glasgow", "Aberdeen", "Inverness"],
+  england: ["London", "York", "Bristol", "Norwich", "Newcastle"],
+  ireland: ["Dublin", "Cork", "Galway"],
+  france: ["Paris", "Lyon", "Marseille", "Bordeaux", "Rouen", "Toulouse"],
+  castile: ["Madrid", "Toledo", "Seville", "Valladolid", "Burgos"],
+  aragon: ["Zaragoza", "Barcelona", "Valencia"],
+  portugal: ["Lisbon", "Porto", "Coimbra"],
+  hre: ["Frankfurt", "Cologne", "Nuremberg", "Mainz", "Augsburg"],
+  brandenburg: ["Berlin", "Potsdam", "Küstrin"],
+  saxony: ["Dresden", "Leipzig", "Meissen"],
+  bavaria: ["Munich", "Regensburg", "Ingolstadt"],
+  austria: ["Vienna", "Graz", "Innsbruck", "Linz"],
+  milan: ["Milan", "Pavia", "Como"],
+  savoy: ["Turin", "Chambéry", "Nice"],
+  venice: ["Venice", "Padua", "Verona", "Brescia"],
+  tuscany: ["Florence", "Pisa", "Siena", "Livorno"],
+  papal: ["Rome", "Bologna", "Ancona"],
+  naples: ["Naples", "Bari", "Salerno"],
+  sicily: ["Palermo", "Messina", "Catania"],
+  sweden: ["Stockholm", "Riga", "Gothenburg", "Åbo", "Narva"],
+  denmark: ["Copenhagen", "Aarhus", "Odense"],
+  poland: ["Warsaw", "Kraków", "Vilnius", "Danzig", "Lwów"],
+  russia: ["Moscow", "Novgorod", "Arkhangelsk", "Kazan", "Astrakhan", "Smolensk"],
+  cossacks: ["Chyhyryn", "Zaporizhia"],
+  crimea: ["Bakhchysarai", "Kaffa"],
+  hungary: ["Pressburg", "Kassa", "Sopron"],
+  transylvania: ["Alba Iulia", "Kolozsvár", "Kronstadt"],
+  moldavia: ["Iași", "Suceava"],
+  wallachia: ["Bucharest", "Târgoviște"],
+  ottoman: ["Constantinople", "Adrianople", "Salonica", "Smyrna", "Belgrade", "Sofia",
+            "Buda", "Athens", "Aleppo", "Damascus"],
+  algiers: ["Algiers", "Oran", "Constantine"],
+  tunis: ["Tunis", "Kairouan"],
+  tripoli: ["Tripoli", "Benghazi"],
+};
+// a deterministic little roll, so the same world lays its cities down the same
+// way every time it is opened — a city that wandered between sessions would make
+// every scouting report a lie
+function srnd(seed) {
+  let s = (seed ^ 0x9e3779b9) >>> 0;
+  return () => (s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296;
+}
+let CITIES = [];
+// Their sites come from the crown's ORIGINAL blobs, never from the live map. A
+// city that moved when a border moved would make every scouting report, every
+// march and every spy a lie about where things are; when the ground under a city
+// changes hands the city stays exactly where it is and changes hands with it.
+function buildCities() {
+  if (!mapGrid || !baseGrid) buildMapGrid();
+  const keep = new Map(CITIES.map(c => [c.id, c]));    // whatever has already happened to them
+  CITIES = [];
+  for (const [id, n] of Object.entries(NATIONS)) {
+    const names = CITY_NAMES[id] || [n.name];
+    const own = [];
+    for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++)
+      if (baseGrid[r][c] === id) own.push([c, r]);
+    if (!own.length) continue;
+    const rnd = srnd(seedFrom(id) ^ 0x51ed27);
+    const want = Math.min(names.length, Math.max(2, 1 + n.strength));
+    // spread them out: the roomiest sites first, then relax until we have enough
+    const picked = [];
+    for (let apart = 8; apart >= 1 && picked.length < want; apart--) {
+      const pool = own.slice().sort(() => rnd() - 0.5);
+      for (const [c, r] of pool) {
+        if (picked.length >= want) break;
+        if (picked.some(p => Math.max(Math.abs(p[0] - c), Math.abs(p[1] - r)) < apart)) continue;
+        picked.push([c, r]);
+      }
+    }
+    picked.forEach(([mx, my], i) => {
+      const cid = id + ":" + i, old = keep.get(cid), cap = i === 0;
+      const base = {
+        id: cid, nation: id, owner: id, name: names[i % names.length], mx, my, cap,
+        pop: Math.round((cap ? 22 : 9) + n.strength * (cap ? 5 : 2) + rnd() * 8),
+        garrison: Math.round((cap ? 8 : 3) + n.strength * 1.4 + rnd() * 4),
+        walls: cap ? 3 : Math.min(3, Math.floor(n.strength / 2)),
+        wealth: Math.round((cap ? 260 : 90) + n.strength * 40 + rnd() * 80),
+        fallen: false, siege: 0,
+      };
+      CITIES.push(old ? Object.assign(base, {
+        pop: old.pop, garrison: old.garrison, wealth: old.wealth, walls: old.walls,
+        fallen: old.fallen, siege: old.siege,
+      }) : base);
+    });
+  }
+  cityIdx = new Map(CITIES.map(c => [c.id, c]));
+  refreshCityOwners();
+}
+// Whose flag actually flies over each one, which is a different question from
+// who built it. The wars of Europe move cells about; this reads the answer off
+// the map rather than keeping a second, disagreeing copy of it.
+function refreshCityOwners() {
+  if (!mapGrid) return;
+  const mine = empireCells();
+  for (const c of CITIES) {
+    if (mine.has(ckey(c.mx, c.my))) { c.owner = "you"; continue; }
+    const row = mapGrid[c.my];
+    c.owner = (row && row[c.mx]) || c.nation;
+  }
+}
+let cityIdx = new Map();
+const cityWorld = c => cellWorld(c.mx, c.my);
+const cityById = id => cityIdx.get(id) || null;
+function nationCities(id) { return CITIES.filter(c => c.owner === id && !c.fallen); }
+// what a city is worth in men — the number a spy brings home, and the number
+// your own column is measured against when it arrives at the gates
+const cityMight = c => Math.round(c.garrison * (1 + c.walls * 0.35));
+
+// ===== what a crown knows how to do =====
+// A spy in a foreign court comes home with two things worth having: how many men
+// they can field, and what their smiths and scholars have learned. The arts are
+// rolled from the crown's strength and the year, so a great power is genuinely
+// further along than a duchy — and finding that out before you declare war is
+// exactly what the spy is for.
+const NAT_ARTS = [
+  "Pike and Shot", "Bastion Forts", "Field Artillery", "Matchlock Drill",
+  "Flintlock Muskets", "Bayonet Drill", "Line Infantry", "Cuirassiers",
+  "Naval Stores", "Standing Army", "Siege Engineering", "Military Hospitals",
+];
+function nationArts(id) {
+  const n = NATIONS[id];
+  const rnd = srnd(seedFrom(id) ^ 0x7ea1);
+  const era = Math.floor(playT / 900);                 // the century moves on for them too
+  const many = Math.max(2, Math.min(NAT_ARTS.length, n.strength + 1 + era));
+  const pool = NAT_ARTS.slice().sort(() => rnd() - 0.5);
+  return pool.slice(0, many).sort();
+}
+
+// ===== the fog: the difference between a map and an atlas =====
+// You are not given Europe. You are given the ground your own people stand on,
+// plus whatever charts your technologies let you buy, plus whatever your scouts
+// have actually walked. Everything else is a blank on the paper — no border, no
+// name, no city — and a blank is not merely ugly: an army can cross it and you
+// will not know until it is at your gate.
+const charted = new Set();
+let fogBuf = null, fogDirty = true;
+const isCharted = (mx, my) => charted.has(ckey(mx, my));
+function chartCell(mx, my) {
+  if (mx < 0 || my < 0 || mx >= MG_W || my >= MG_H) return false;
+  const k = ckey(mx, my);
+  if (charted.has(k)) return false;
+  charted.add(k); fogDirty = true;
+  return true;
+}
+function chartAround(mx, my, rad) {
+  let fresh = 0;
+  for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++)
+    if (dx * dx + dy * dy <= rad * rad + rad && chartCell(mx + dx, my + dy)) fresh++;
+  return fresh;
+}
+// the ground you hold is charted by standing on it; the rest of the near country
+// by the atlases your cartographers have bought
+let chartT = 0;
+function updateCharting(dt) {
+  chartT -= dt;
+  if (chartT > 0) return;
+  chartT = 1.5;
+  chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
+  for (const st of settlements) if (st.x !== undefined) {
+    const cl = worldCell(st.x, st.y);
+    chartAround(cl.mx, cl.my, 2);
+  }
+  for (const m of marches) if (m.side === "you") {
+    const cl = worldCell(m.x, m.y);
+    chartAround(cl.mx, cl.my, m.kind === "scout" ? Math.round(3 * glass()) : 1);
+  }
+}
+
+// ===== what your eyes reach right now =====
+// Charting is memory — this is eyesight. A column in the field is only drawn
+// while something of yours is near enough to see it, which is the whole reason
+// a scout is worth feeding: he is a pair of eyes you can put where you are not.
+// Rebuilt at most once a frame. marchVisible() asks this question for every
+// column every time anything is drawn or stepped, and rebuilding the list each
+// time was several hundred throwaway arrays a second for an answer that cannot
+// have changed between two of them.
+let sightT = -1, sightCache = null;
+function sightPosts() {
+  if (sightCache && sightT === worldT) return sightCache;
+  sightT = worldT;
+  return sightCache = buildSightPosts();
+}
+function buildSightPosts() {
+  const out = [{ x: CAPITAL_X, y: CAPITAL_Y, r: CELL_W * 1.6 }];
+  for (const st of settlements) if (st.x !== undefined) out.push({ x: st.x, y: st.y, r: CELL_W * 1.3 });
+  for (const m of marches) if (m.side === "you")
+    out.push({ x: m.x, y: m.y, r: m.kind === "scout" ? CELL_W * 2.6 * glass() : CELL_W * 1.2 });
+  return out;
+}
+function sighted(x, y) {
+  for (const p of sightPosts()) if (Math.hypot(p.x - x, p.y - y) < p.r) return true;
+  return false;
+}
+
+// ===== the intelligence you hold, and what it costs to keep =====
+// A spy is not a purchase, he is a tenancy. While he lives in their capital you
+// can read their strength and their arts off the panel like your own; the hour
+// he is caught, the panel goes blank again. What he knew dies with him, because
+// he was the only one who knew it.
+const intel = {};                                       // nation id -> what its resident tells you
+function knowsArmies(id) { const i = intel[id]; return !!(i && i.armies); }
+function knowsArts(id) { const i = intel[id]; return !!(i && i.arts); }
+function knowsCity(c) { return isCharted(c.mx, c.my) || knowsArmies(c.owner); }
+function loseIntel(marchId) {
+  for (const [id, i] of Object.entries(intel)) if (i.by === marchId) delete intel[id];
+}
+
+// ===== columns in the field =====
+// Everything that used to happen instantly and off-screen now takes time and
+// takes ground. A war party does not appear at your walls: it leaves a named
+// city, crosses however many leagues lie between, and arrives. Your own army
+// does the same in reverse. Both are on the map the whole way, and either can be
+// intercepted, spotted, missed entirely, or watched the whole miserable distance.
+let marches = [], marchSeq = 1;
+const MARCH_SPEED = { army: 185, war: 215, field: 200, scout: 320, spy: 265 };
+const glass = () => TECH.fieldglass.done ? 1.5 : 1;    // what a good lens is worth on a hilltop
+function mkMarch(o) {
+  const m = Object.assign({
+    id: marchSeq++, side: "them", kind: "field", nation: null,
+    x: 0, y: 0, sx: 0, sy: 0, tx: 0, ty: 0,
+    men: null, str: 1, state: "march", t: 0, seen: false, told: false, name: "",
+  }, o);
+  m.sx = m.x; m.sy = m.y;
+  marches.push(m);
+  return m;
+}
+const marchById = id => marches.find(m => m.id === id) || null;
+function marchSpeed(m) {
+  let s = MARCH_SPEED[m.kind] || 200;
+  if (m.side === "you" && TECH.couriers.done) s *= 1.25;   // relays on every road
+  if (season() === "winter") s *= 0.72;                // the roads of Europe close too
+  return s;
+}
+function marchProgress(m) {
+  const total = Math.hypot(m.tx - m.sx, m.ty - m.sy);
+  if (total < 1) return 1;
+  return clamp01(Math.hypot(m.x - m.sx, m.y - m.sy) / total);
+}
+// whether this column is on your map at all: yours always, theirs only while
+// something of yours can see it, or while a spy is reading their muster rolls
+function marchVisible(m) {
+  if (m.side === "you") return true;
+  if (knowsArmies(m.nation)) return true;
+  return sighted(m.x, m.y);
+}
+
+// A crown's column, sent at another crown. The wars of Europe used to be a
+// dice roll every forty seconds; now the dice are still there but a column has
+// to reach the walls before they are thrown.
+function dispatchNatColumn(war) {
+  const sa = natStrength(NATIONS[war.a]), sb = natStrength(NATIONS[war.b]);
+  const atk = Math.random() < sa / (sa + sb) ? war.a : war.b;
+  const def = atk === war.a ? war.b : war.a;
+  const from = nationCities(atk), to = nationCities(def);
+  if (!from.length || !to.length) { resolveBattle(war); return; }
+  // the shortest quarrel it can pick: the enemy town nearest one of its own
+  let best = null, bd = Infinity;
+  for (const f of from) for (const t of to) {
+    const a = cityWorld(f), b = cityWorld(t), d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (d < bd) { bd = d; best = [f, t]; }
+  }
+  const [src, dst] = best, p = cityWorld(src), q = cityWorld(dst);
+  mkMarch({ kind: "field", side: "them", nation: atk, x: p.x, y: p.y, tx: q.x, ty: q.y,
+            str: Math.round(natStrength(NATIONS[atk]) * 3 + 4), target: dst.id,
+            name: `army of ${NATIONS[atk].name}` });
+}
+// and what happens when it gets there
+function natColumnArrives(m) {
+  const dst = cityById(m.target);
+  if (!dst || dst.fallen) return;
+  // the war is looked up rather than carried, so a column that survives a save
+  // and a load still knows which quarrel it belongs to
+  const war = natWars.find(w => (w.a === m.nation && w.b === dst.owner) ||
+                                (w.b === m.nation && w.a === dst.owner)) || null;
+  const win = Math.random() < m.str / (m.str + cityMight(dst));
+  const seen = knowsCity(dst) || sighted(m.x, m.y);
+  if (win) {
+    dst.garrison = Math.max(1, Math.round(dst.garrison * 0.55));
+    dst.pop = Math.max(2, Math.round(dst.pop * 0.88));
+    dst.wealth = Math.round(dst.wealth * 0.7);
+    dst.siege = 0;
+    if (war) resolveBattle(war);
+    if (seen) notify({ icon: "⚔", cls: "war",
+      text: `${NATIONS[m.nation].name} storms ${dst.name}.`,
+      sub: `${NATIONS[dst.owner] ? NATIONS[dst.owner].name : "The defender"} loses the field — the walls are breached`,
+      x: m.x, y: m.y, z: zoomFloor() * 3 });
+  } else {
+    dst.garrison = Math.max(1, dst.garrison - 1);
+    if (seen) notify({ icon: "⚔", cls: "war",
+      text: `${dst.name} holds against ${NATIONS[m.nation].name}.`,
+      sub: `The column is thrown back from the walls`,
+      x: m.x, y: m.y, z: zoomFloor() * 3 });
+  }
+  stratDirty = true;
+}
+
+// A crown's column, sent at YOU. The war party that used to materialise a
+// thousand pixels from your gate now leaves a real city with a real name, and
+// the walk is the warning — if you have anyone out there to see it.
+function dispatchWarColumn(id, town, invest) {
+  const n = NATIONS[id];
+  const cs = nationCities(id);
+  const dc = { x: town ? town.x : CAPITAL_X, y: town ? town.y : CAPITAL_Y };
+  let src = null, bd = Infinity;
+  for (const c of cs) { const p = cityWorld(c); const d = Math.hypot(p.x - dc.x, p.y - dc.y); if (d < bd) { bd = d; src = c; } }
+  const p = src ? cityWorld(src) : { x: dc.x + CELL_W * 2.5, y: dc.y - CELL_W * 1.5 };
+  const m = mkMarch({ kind: "war", side: "them", nation: id, x: p.x, y: p.y, tx: dc.x, ty: dc.y,
+                      str: Math.round(natStrength(n) * 2 + 3), town: town || null, invest,
+                      from: src ? src.name : n.name,
+                      name: `war party of ${n.name}` });
+  // If it sets out where you can see it, that is your warning — and it is worth
+  // more than the horn was, because it comes with a distance and a direction.
+  if (marchVisible(m))
+    notify({ icon: "⚑", cls: "war",
+      text: `A column of ${n.name} marches out of ${m.from}.`,
+      sub: `Bound for ${town ? town.name : settlementName || "the capital"} — ${leagues(m)} away`,
+      x: m.x, y: m.y, z: zoomFloor() * 2 });
+  return m;
+}
+const leagues = m => Math.max(1, Math.round(Math.hypot(m.tx - m.x, m.ty - m.y) / CELL_W)) + " league(s)";
+
+// ===== your own operations =====
+// The three things a colony can put on a road, in the order the tech tree hands
+// them to you: an army that takes ground, a scout that finds it, and a spy who
+// tells you what is standing on it.
+function afieldMen() { return civs.filter(c => c.afield); }
+// `where` is either a city, which stands still and waits to be besieged, or an
+// enemy column, which does not — a chase is aimed at where the enemy is THIS
+// second, and is re-aimed every second until contact or until he is lost.
+function sendArmy(where, men) {
+  if (!where || !men.length) return null;
+  const city = where.mx !== undefined ? where : null;
+  const foe = city ? null : where;
+  const q = city ? cityWorld(city) : { x: foe.x, y: foe.y };
+  for (const c of men) { c.afield = true; c.task = null; c.state = "idle"; c.post = null; }
+  const m = mkMarch({ kind: "army", side: "you", nation: null, x: CAPITAL_X, y: CAPITAL_Y,
+                      tx: q.x, ty: q.y, men, str: men.length * 4,
+                      target: city ? city.id : undefined, chase: foe ? foe.id : undefined,
+                      name: `your column, ${men.length} strong` });
+  // they leave from wherever most of them were standing
+  const ax = men.reduce((s, c) => s + c.x, 0) / men.length, ay = men.reduce((s, c) => s + c.y, 0) / men.length;
+  m.x = m.sx = ax; m.y = m.sy = ay;
+  notify({ icon: "⚔", cls: "you",
+           text: city ? `Your column marches on ${city.name}.` : "Your column rides to cut them off.",
+           sub: `${men.length} under arms — ${leagues(m)} of road ahead`, march: m.id,
+           x: m.x, y: m.y, z: zoomFloor() * 2.5 });
+  SFX.warHorn();
+  return m;
+}
+function sendScout(tx, ty, label) {
+  const m = mkMarch({ kind: "scout", side: "you", x: CAPITAL_X, y: CAPITAL_Y, tx, ty,
+                      str: 1, name: "your scout", home: { x: CAPITAL_X, y: CAPITAL_Y } });
+  notify({ icon: "◈", cls: "you", text: `A scout rides for ${label || "the far country"}.`,
+           sub: "He charts what he crosses and counts what he meets", march: m.id,
+           x: m.x, y: m.y, z: zoomFloor() * 2.5 });
+  return m;
+}
+function sendSpy(city) {
+  const q = cityWorld(city);
+  const m = mkMarch({ kind: "spy", side: "you", x: CAPITAL_X, y: CAPITAL_Y, tx: q.x, ty: q.y,
+                      str: 1, target: city.id, nation: city.nation, name: "your agent" });
+  notify({ icon: "✧", cls: "you", text: `An agent sets out for ${city.name}.`,
+           sub: `He will take service in ${NATIONS[city.nation].name} and write home`, march: m.id,
+           x: m.x, y: m.y, z: zoomFloor() * 2.5 });
+  return m;
+}
+// the column turns for home: whoever of yours is standing near the given point
+function recallColumn(wx, wy, r = 900) {
+  const men = civs.filter(c => !c.afield && isForce(c) && Math.hypot(c.x - wx, c.y - wy) < r);
+  if (!men.length) return null;
+  for (const c of men) { c.afield = true; c.task = null; c.state = "idle"; c.post = null; }
+  const m = mkMarch({ kind: "army", side: "you", x: wx, y: wy, tx: CAPITAL_X, ty: CAPITAL_Y,
+                      men, str: men.length * 4, homeward: true,
+                      name: `your column, ${men.length} strong` });
+  notify({ icon: "⚑", cls: "you", text: `${men.length} turn for home.`,
+           sub: `${leagues(m)} of road behind them`, march: m.id, x: wx, y: wy, z: zoomFloor() * 2.5 });
+  return m;
+}
+
+// --- the road under them, one frame at a time ---
+function landMen(m, x, y) {
+  (m.men || []).forEach((c, i) => {
+    if (!civs.includes(c)) return;
+    const a = (i / Math.max(1, m.men.length)) * Math.PI * 2;
+    c.afield = false; c.state = "idle"; c.task = null;
+    c.x = x + Math.cos(a) * (40 + (i % 3) * 26);
+    c.y = y + Math.sin(a) * (34 + (i % 3) * 22);
+    c.wpx = c.x; c.wpy = c.y;
+  });
+  m.men = null;
+}
+function arriveArmy(m) {
+  // a column that lost every man on the way is not an army arriving anywhere
+  if (m.men && !m.men.some(c => civs.includes(c))) { m.men = null; return; }
+  const city = m.target ? cityById(m.target) : null;
+  if (m.homeward || !city) {
+    landMen(m, m.tx, m.ty);
+    notify({ icon: "⚑", cls: "you", text: m.homeward ? "The column is home." : "Your column has arrived.",
+             sub: m.homeward ? "They fall out and go back to their work" : "They stand where you sent them",
+             x: m.tx, y: m.ty, z: 0.6 });
+    return;
+  }
+  let town = foreignTowns.find(t => t.city === city.id && !t.fallen);
+  if (!town) {
+    const q = cityWorld(city);
+    town = landForeignTown(city.owner, { x: q.x, y: q.y, name: city.name, city: city.id });
+  }
+  landMen(m, town.x, town.y + 480);
+  city.siege = 1;
+  notify({ icon: "⚔", cls: "you", text: `Your army stands before ${town.name}.`,
+           sub: "Burn the town hall and the town is yours — click its walls to give the order",
+           x: town.x, y: town.y + 300, z: 0.55 });
+  SFX.warHorn();
+  stratDirty = true;
+}
+// ===== two columns meet on a road =====
+// No walls, no gates, no ground worth holding — only which of them is still
+// standing at the end of it. The loser's men are simply gone, which is why
+// throwing a company at a war party is a real decision and not a free swing.
+function fieldClash(m, foe) {
+  const men = (m.men || []).filter(c => civs.includes(c));
+  // No enemy here, or he was last seen here and has since moved on — and a
+  // company with nobody left in it has no business fighting anybody.
+  if (!foe || Math.hypot(foe.x - m.x, foe.y - m.y) > CELL_W * 0.5 || !men.length) {
+    landMen(m, m.x, m.y);
+    if (men.length)
+      notify({ icon: "⚑", cls: "you", text: "The trail is cold.",
+               sub: "Whoever you were chasing has gone on without them", x: m.x, y: m.y, z: 0.55 });
+    return;
+  }
+  const mine = men.length * 4, theirs = foe.str;
+  const win = Math.random() < mine / (mine + theirs);
+  const nat = NATIONS[foe.nation];
+  if (win) {
+    // a third of the company falls even in a victory
+    const lost = Math.floor(men.length * (0.15 + Math.random() * 0.25));
+    for (let i = 0; i < lost; i++) { const c = men[i]; c.afield = false; killCiv(c, `fell fighting ${nat ? nat.name : "the enemy"} on the road`); }
+    m.men = men.slice(lost);
+    landMen(m, m.x, m.y);
+    marches.splice(marches.indexOf(foe), 1);
+    notify({ icon: "⚔", cls: "you", text: `The column of ${nat ? nat.name : "the enemy"} is broken.`,
+             sub: lost ? `${lost} of yours fell; the rest hold the road` : "Not a man of yours lost",
+             x: m.x, y: m.y, z: 0.5 });
+    SFX.warHorn();
+  } else {
+    const lost = Math.max(1, Math.floor(men.length * (0.55 + Math.random() * 0.35)));
+    for (let i = 0; i < lost; i++) { const c = men[i]; c.afield = false; killCiv(c, `fell fighting ${nat ? nat.name : "the enemy"} on the road`); }
+    m.men = men.slice(lost);
+    landMen(m, m.x, m.y);
+    foe.str = Math.max(1, foe.str - Math.round(mine / 3));
+    notify({ icon: "☠", cls: "bad", text: "Your column is thrown back.",
+             sub: `${lost} dead on the road; ${nat ? nat.name : "the enemy"} marches on`,
+             x: m.x, y: m.y, z: 0.5 });
+  }
+  stratDirty = true;
+}
+function scoutReport(m) {
+  const seen = m.spotted || 0;
+  notify({ icon: "◈", cls: "you", text: "The scout is home.",
+           sub: `${m.chartedN || 0} league(s) of country set down on paper` +
+                (seen ? `, and ${seen} column(s) counted` : ", and no army met on the road"),
+           x: CAPITAL_X, y: CAPITAL_Y, z: zoomFloor() * 3 });
+}
+function killOperative(m, why) {
+  loseIntel(m.id);
+  const where = m.kind === "spy" && m.target ? (cityById(m.target) || {}).name : null;
+  notify({ icon: "☠", cls: "bad",
+           text: m.kind === "spy" ? `Your agent in ${where || "the field"} is taken.`
+                                  : "Your scout does not come back.",
+           sub: m.kind === "spy" ? "What he knew of their strength dies with him"
+                                 : why || "Cut down somewhere on the road",
+           x: m.x, y: m.y, z: zoomFloor() * 3 });
+  marches.splice(marches.indexOf(m), 1);
+  stratDirty = true;
+}
+
+function updateMarches(dt) {
+  for (const m of [...marches]) {
+    // --- the resident agent: no longer travelling, merely at risk ---
+    if (m.state === "resident") {
+      m.t += dt;
+      const n = NATIONS[m.nation];
+      if (!n || n.defeated) { killOperative(m, "The court he served no longer exists"); continue; }
+      // a court at war with you searches its own servants far harder
+      const heat = 0.0016 * (1 + m.t / 420) * (n.atWar ? 2.4 : 1) / (TECH.fieldglass.done ? 2.2 : 1);
+      if (Math.random() < heat * dt * 60) { killOperative(m, null); continue; }
+      continue;
+    }
+    // a column chasing a column steers at where the enemy is now, not at where
+    // he was when the order was given — and loses the trail if he goes dark
+    if (m.chase) {
+      const foe = marchById(m.chase);
+      if (foe && marchVisible(foe)) { m.tx = foe.x; m.ty = foe.y; m.lost = false; }
+      else if (!foe) {
+        landMen(m, m.x, m.y);
+        notify({ icon: "⚑", cls: "you", text: "The column you were chasing is gone.",
+                 sub: "Your men stand where the trail ended — order them home", x: m.x, y: m.y, z: 0.55 });
+        marches.splice(marches.indexOf(m), 1); continue;
+      } else if (!m.lost) { m.lost = true; }
+    }
+    const dx = m.tx - m.x, dy = m.ty - m.y, d = Math.hypot(dx, dy);
+    const step = marchSpeed(m) * dt;
+    if (d > step) { m.x += dx / d * step; m.y += dy / d * step; }
+    else {
+      m.x = m.tx; m.y = m.ty;
+      if (m.kind === "field") { natColumnArrives(m); marches.splice(marches.indexOf(m), 1); continue; }
+      if (m.kind === "war") {
+        const party = landWarParty(m.nation, m.town, m.invest);
+        if (party) SFX.warHorn();
+        marches.splice(marches.indexOf(m), 1); continue;
+      }
+      if (m.kind === "army") {
+        if (m.chase) { fieldClash(m, marchById(m.chase)); marches.splice(marches.indexOf(m), 1); continue; }
+        arriveArmy(m); marches.splice(marches.indexOf(m), 1); continue;
+      }
+      if (m.kind === "scout") {
+        if (m.state === "march") {
+          const cl = worldCell(m.x, m.y);
+          m.chartedN = (m.chartedN || 0) + chartAround(cl.mx, cl.my, 4);
+          m.state = "return"; m.sx = m.x; m.sy = m.y;
+          m.tx = m.home.x; m.ty = m.home.y;
+        } else { scoutReport(m); marches.splice(marches.indexOf(m), 1); }
+        continue;
+      }
+      if (m.kind === "spy") {
+        const city = cityById(m.target);
+        if (!city) { killOperative(m, "The city he was sent to no longer stands"); continue; }
+        m.state = "resident"; m.t = 0; m.nation = city.owner;
+        intel[city.owner] = { armies: true, arts: true, by: m.id, city: city.id };
+        chartAround(city.mx, city.my, 3);
+        notify({ icon: "✧", cls: "you", text: `Your agent is established in ${city.name}.`,
+                 sub: `The musters and the arts of ${NATIONS[city.owner].name} are open to you — while he lives`,
+                 x: m.x, y: m.y, z: zoomFloor() * 3 });
+        continue;
+      }
+    }
+    // --- what the men on the road can see, and what can see them ---
+    if (m.side === "you") {
+      const eye = m.kind === "scout" ? CELL_W * 2.6 * glass() : CELL_W * 1.2;
+      for (const o of marches) {
+        if (o.side !== "them" || o.spottedBy === m.id) continue;
+        if (Math.hypot(o.x - m.x, o.y - m.y) > eye) continue;
+        o.spottedBy = m.id; m.spotted = (m.spotted || 0) + 1;
+        notify({ icon: "!", cls: "war", text: `A column of ${NATIONS[o.nation].name} is on the road.`,
+                 sub: `${o.str} under arms, ${o.kind === "war" ? "bound for your country" : "marching to war"}`,
+                 x: o.x, y: o.y, z: zoomFloor() * 2, march: o.id });
+      }
+      // and a lone rider who blunders into an army does not always ride out again
+      if (m.kind === "scout" || m.kind === "spy") {
+        for (const o of marches) {
+          if (o.side !== "them" || Math.hypot(o.x - m.x, o.y - m.y) > 340) continue;
+          if (Math.random() < 0.35 * dt) { killOperative(m, `Ridden down by a column of ${NATIONS[o.nation].name}`); break; }
+        }
+      }
+    } else if (!m.seen && marchVisible(m)) {
+      m.seen = true;
+      if (m.kind === "war")
+        notify({ icon: "⚑", cls: "war", text: `A column of ${NATIONS[m.nation].name} is sighted.`,
+                 sub: `Making for ${m.town ? m.town.name : settlementName || "the capital"} — ${leagues(m)} off`,
+                 x: m.x, y: m.y, z: zoomFloor() * 2, march: m.id });
+    }
+  }
+}
+
+// ===== the cities go on without you =====
+// Rival towns grow, arm themselves, and are ground down by whatever the century
+// is doing to their country that decade. Watch one long enough through a spy or
+// a scout's charts and you can see which neighbour is becoming a problem.
+let cityGrowT = 0;
+function updateCities(dt) {
+  cityGrowT -= dt;
+  if (cityGrowT > 0) return;
+  cityGrowT = 12;
+  for (const c of CITIES) {
+    if (c.fallen) continue;
+    const n = NATIONS[c.owner] || NATIONS[c.nation];
+    if (!n) continue;
+    let g = 0.5 + n.strength * 0.09;
+    if (n.calT) g -= 1.6;                      // plague, famine, fire: the town shrinks
+    if (n.atWar) g -= 0.4;
+    if (n.trade) g += 0.3;
+    c.pop = Math.max(1, Math.round((c.pop + g) * 10) / 10);
+    if (Math.random() < 0.22) c.garrison = Math.max(1, c.garrison + (g > 0 ? 1 : -1));
+    c.wealth = Math.max(10, Math.round(c.wealth + g * 6));
+    if (c.siege > 0) c.siege = Math.max(0, c.siege - 0.1);
+  }
+  refreshCityOwners();                  // borders move; flags follow
+  stratDirty = true;
+}
+
+// ===== notifications: the world tells you, and takes you there =====
+// Everything above happens whether or not you are looking at it. A line of text
+// that vanishes in five seconds is not good enough for an army arriving twelve
+// leagues away, so word from the field stacks up, waits, and — this is the part
+// that matters — carries the coordinates of what it is about. Click it and the
+// camera goes.
+let notifs = [];
+const NOTIF_LIFE = 60, NOTIF_MAX = 5;
+function notify(o) {
+  const n = Object.assign({ icon: "•", cls: "", sub: "", t: NOTIF_LIFE, key: notifSeq++ }, o);
+  notifs.unshift(n);
+  while (notifs.length > NOTIF_MAX) notifs.pop();
+  chron(n.cls === "war" || n.cls === "bad" ? "war" : "work", n.sub ? `${n.text} ${n.sub}` : n.text);
+  try { SFX.popup(); } catch (e) {}
+  renderNotifs();
+  return n;
+}
+let notifSeq = 1;
+function renderNotifs() {
+  const box = $("notifs");
+  if (!box) return;
+  box.innerHTML = "";
+  for (const n of notifs) {
+    const el = document.createElement("div");
+    el.className = "notif " + (n.cls || "");
+    el.innerHTML = `<span class="ni">${esc(n.icon)}</span><span class="nt"><b>${esc(n.text)}</b>` +
+                   (n.sub ? `<i>${esc(n.sub)}</i>` : "") + `</span><span class="nx">&times;</span>`;
+    el.querySelector(".nx").addEventListener("click", e => {
+      e.stopPropagation();
+      notifs = notifs.filter(o => o !== n); renderNotifs();
+    });
+    el.addEventListener("click", () => {
+      const m = n.march ? marchById(n.march) : null;      // follow the column, not the memory
+      const x = m ? m.x : n.x, y = m ? m.y : n.y;
+      if (x === undefined) return;
+      flyTo(x, y, n.z || zoomFloor() * 2);
+      notifs = notifs.filter(o => o !== n); renderNotifs();
+    });
+    box.appendChild(el);
+  }
+  box.style.display = notifs.length ? "flex" : "none";
+}
+function updateNotifs(dt) {
+  if (!notifs.length) return;
+  let drop = false;
+  for (const n of notifs) if ((n.t -= dt) <= 0) drop = true;
+  if (drop) { notifs = notifs.filter(n => n.t > 0); renderNotifs(); }
+}
+
+// ===== the camera's own journey =====
+// Auto-panning that snaps is disorienting: you arrive without knowing which way
+// you came, which defeats the point of having one continuous map. It flies, and
+// it flies through the zoom as well as across the ground, so the ascent and the
+// descent read as one movement.
+let flight = null;
+function flyTo(x, y, z, secs = 1.0) {
+  const z1 = Math.max(zoomFloor(), Math.min(2.4, z || zoom));
+  flight = { x0: cam.x + canvas.width / 2 / zoom, y0: cam.y + canvas.height / 2 / zoom, z0: zoom,
+             x1: x, y1: y, z1, t: 0, d: Math.max(0.2, secs) };
+}
+function updateFlight(dt) {
+  if (!flight) return;
+  flight.t += dt;
+  const k = clamp01(flight.t / flight.d);
+  const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;   // ease in and out
+  // interpolate the zoom in log space, or the middle of a long flight is a lurch
+  const z = Math.exp(Math.log(flight.z0) + (Math.log(flight.z1) - Math.log(flight.z0)) * e);
+  const cx = flight.x0 + (flight.x1 - flight.x0) * e;
+  const cy = flight.y0 + (flight.y1 - flight.y0) * e;
+  zoom = z;
+  cam.x = cx - canvas.width / 2 / zoom;
+  cam.y = cy - canvas.height / 2 / zoom;
+  if (k >= 1) flight = null;
+}
+const cancelFlight = () => { flight = null; };
+
+// ===== drawing the country =====
+// The same raster the old MAP screen drew, only now it is laid down in world
+// coordinates underneath the colony instead of in a window beside it. It is
+// rebuilt only when something on it actually changes — a border moving, a town
+// founded, a city sacked — because at two hundred by a hundred and twelve pixels
+// it is cheap to make and ruinous to make every frame.
+let stratBuf = null, stratDirty = true;
+function buildStratBuf() {
+  if (!fineGrid || !mapGrid) buildMapGrid();
+  if (!stratBuf) { stratBuf = document.createElement("canvas"); stratBuf.width = FW; stratBuf.height = FH; }
+  const g = stratBuf.getContext("2d");
+  const mine = empireCells();
+  const img = g.createImageData(FW, FH);
+  const px = img.data, myCol = hexRGB(territoryColor);
+  const coarse = i => Math.floor(i / SCALE);
+  const eidAt = (cc, rr) => {
+    if (cc < 0 || rr < 0 || cc >= FW || rr >= FH) return 0;
+    const nid = fineGrid[rr * FW + cc];
+    if (nid !== 0 && mine.has(coarse(cc) + "," + coarse(rr))) return 255;
+    return nid;
+  };
+  for (let r = 0; r < FH; r++) for (let c = 0; c < FW; c++) {
+    const i = r * FW + c, eid = eidAt(c, r);
+    const base = eid === 255 ? myCol : FID_RGB[fineGrid[i]];
+    let f = 0.92 + vnoise(c * 1.4, r * 1.4, 7) * 0.12;
+    if (eid !== 0 && (eidAt(c - 1, r) !== eid || eidAt(c + 1, r) !== eid ||
+                      eidAt(c, r - 1) !== eid || eidAt(c, r + 1) !== eid)) f *= 0.42;
+    px[i * 4] = base[0] * f; px[i * 4 + 1] = base[1] * f; px[i * 4 + 2] = base[2] * f; px[i * 4 + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  stratDirty = false;
+}
+function buildFogBuf() {
+  if (!fogBuf) { fogBuf = document.createElement("canvas"); fogBuf.width = MG_W; fogBuf.height = MG_H; }
+  const g = fogBuf.getContext("2d");
+  g.clearRect(0, 0, MG_W, MG_H);
+  g.fillStyle = "#080c0a";
+  for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++)
+    if (!charted.has(ckey(c, r))) g.fillRect(c, r, 1, 1);
+  fogDirty = false;
+}
+// the country itself, drawn in world space under everything
+function drawStratGround(amt) {
+  if (stratDirty) buildStratBuf();
+  if (fogDirty) buildFogBuf();
+  ctx.save();
+  ctx.globalAlpha = amt;
+  // the ocean, out past the edge of the paper
+  ctx.fillStyle = "#16303f";
+  ctx.fillRect(cam.x - 10, cam.y - 10, canvas.width / zoom + 20, canvas.height / zoom + 20);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(stratBuf, 0, 0, FW, FH, MAP_X0, MAP_Y0, MAP_W, MAP_H);
+  // the blanks on the paper: soft, because the edge of what you know is not a
+  // straight line, and because a grid of hard black squares looks like a bug
+  ctx.imageSmoothingEnabled = true;
+  ctx.globalAlpha = amt * 0.96;
+  ctx.drawImage(fogBuf, 0, 0, MG_W, MG_H, MAP_X0, MAP_Y0, MAP_W, MAP_H);
+  ctx.imageSmoothingEnabled = false;
+  ctx.restore();
+}
+
+// ===== the marks on it: names, towns, columns =====
+// Drawn in screen space, not world space, so a city's name is the same size to
+// read whether you are looking at one duchy or at the whole continent.
+const SX = wx => (wx - cam.x) * zoom, SY = wy => (wy - cam.y) * zoom;
+let mapSelCity = null, mapSelMarch = null, mapHover = null;
+function cityDotR(c) { return Math.max(2.5, Math.min(9, 2.2 + Math.sqrt(c.pop) * 0.7)); }
+function drawStratMarks(amt) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.save();
+  ctx.globalAlpha = amt;
+  ctx.textAlign = "center";
+  const W = canvas.width, H = canvas.height;
+  const vis = (x, y, pad = 70) => x > -pad && x < W + pad && y > -pad && y < H + pad;
+  const cellPx = CELL_W * zoom;                 // how many screen pixels a league-square is
+
+  // --- the names of the crowns, while there is room for them ---
+  if (cellPx < 42) {
+    ctx.font = "bold 13px 'Courier New', monospace";
+    for (const [name, mx, my] of LABELS) {
+      if (!isCharted(Math.round(mx), Math.round(my))) continue;
+      const p = cellWorld(mx, my), x = SX(p.x), y = SY(p.y);
+      if (!vis(x, y)) continue;
+      const lines = name.split("\n");
+      lines.forEach((ln, i) => {
+        ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillText(ln, x + 1, y + 1 + i * 12);
+        ctx.fillStyle = "rgba(232,236,234,0.82)"; ctx.fillText(ln, x, y + i * 12);
+      });
+      // and, once there is room under it, what the crown is actually worth
+      if (cellPx > 15) {
+        const id = mapGrid[Math.round(my)] && mapGrid[Math.round(my)][Math.round(mx)];
+        const n = id && NATIONS[id];
+        if (n && !n.defeated) {
+          const bits = [`str ${natStrength(n)}/10`];
+          if (knowsArmies(id)) bits.push(nationCities(id).reduce((t, c) => t + c.garrison, 0) + " men");
+          if (n.atWar) bits.push("AT WAR");
+          else if (n.trade) bits.push("trading");
+          if (n.calT) bits.push(String(n.calName || "stricken").toLowerCase());
+          const sy2 = y + lines.length * 12;
+          ctx.font = "9px 'Courier New', monospace";
+          ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillText(bits.join(" · "), x + 1, sy2 + 1);
+          ctx.fillStyle = n.atWar ? "rgba(216,106,90,0.9)" : "rgba(154,176,162,0.8)";
+          ctx.fillText(bits.join(" · "), x, sy2);
+          ctx.font = "bold 13px 'Courier New', monospace";
+        }
+      }
+    }
+  }
+
+  // --- the cities of Europe ---
+  // At continental height a hundred and nine names on top of each other is not
+  // a map, it is a smear. The capitals keep their names all the way out; the
+  // rest earn theirs back as you come down, and any city under the pointer or
+  // picked out of the panel is named whatever the height.
+  const NAME_ALL = 26, NAME_CAPS = 9;
+  const dotK = Math.max(0.5, Math.min(1, cellPx / NAME_ALL));
+  for (const c of CITIES) {
+    if (c.fallen || !isCharted(c.mx, c.my)) continue;
+    const p = cityWorld(c), x = SX(p.x), y = SY(p.y);
+    if (!vis(x, y, 40)) continue;
+    const showNames = cellPx > NAME_ALL || (c.cap && cellPx > NAME_CAPS);
+    const n = NATIONS[c.owner];
+    const r = cityDotR(c) * (c.cap ? 1.3 : 1) * dotK;
+    const sel = mapSelCity === c.id, hov = mapHover && mapHover.kind === "city" && mapHover.ref === c;
+    ctx.fillStyle = "#0a0f0c";
+    ctx.beginPath(); ctx.arc(x, y, r + 1.6, 0, 7); ctx.fill();
+    ctx.fillStyle = c.owner === "you" ? territoryColor : c.siege > 0 ? "#d86a5a" : (n ? n.color : "#8a8a8a");
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+    if (c.cap) { ctx.strokeStyle = "#e8d9b8"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, r + 2.6, 0, 7); ctx.stroke(); }
+    if (sel || hov) {
+      ctx.strokeStyle = sel ? "#ffe9b0" : "#9ab0a2"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(x, y, r + 5.5, 0, 7); ctx.stroke();
+    }
+    if (showNames || sel || hov) {
+      ctx.font = (c.cap ? "bold " : "") + "10px 'Courier New', monospace";
+      ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,7,5,0.9)";
+      ctx.strokeText(c.name, x, y - r - 4);
+      ctx.fillStyle = c.cap ? "#e8d9b8" : "#b9c7bd";
+      ctx.fillText(c.name, x, y - r - 4);
+      // Close enough in to read a town's books off the map itself: its size,
+      // and — only if you have an agent in that country — its garrison.
+      if (cellPx > 44 || sel || hov) {
+        const stat = `${thousands(c.pop)}` +
+          (c.owner === "you" ? " · yours" : knowsArmies(c.owner) ? ` · ${c.garrison} men` : " · ? men");
+        ctx.font = "9px 'Courier New', monospace";
+        ctx.strokeText(stat, x, y + r + 11);
+        ctx.fillStyle = c.siege > 0 ? "#d86a5a" : "#8fa397";
+        ctx.fillText(stat, x, y + r + 11);
+      }
+    }
+  }
+
+  // --- your own towns, always lit ---
+  const mine = [{ x: CAPITAL_X, y: CAPITAL_Y, name: settlementName || "Neu Hamburg", cap: true }];
+  for (const st of settlements) if (st.x !== undefined) mine.push({ x: st.x, y: st.y, name: st.name });
+  for (const t of mine) {
+    const x = SX(t.x), y = SY(t.y);
+    if (!vis(x, y, 40)) continue;
+    ctx.fillStyle = "#0a0f0c"; ctx.fillRect(x - 4, y - 4, 8, 8);
+    ctx.fillStyle = "#ffe9b0"; ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
+    ctx.font = "bold 10px 'Courier New', monospace";
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,7,5,0.9)";
+    ctx.strokeText(t.name, x, y - 8); ctx.fillStyle = "#ffe9b0"; ctx.fillText(t.name, x, y - 8);
+  }
+  // and the enemy border towns actually standing on your ground
+  for (const ft of foreignTowns) {
+    if (ft.fallen) continue;
+    const x = SX(ft.x), y = SY(ft.y);
+    if (!vis(x, y, 40)) continue;
+    ctx.fillStyle = "#0a0f0c"; ctx.fillRect(x - 4, y - 4, 8, 8);
+    ctx.fillStyle = "#d86a5a"; ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
+    ctx.font = "10px 'Courier New', monospace";
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,7,5,0.9)";
+    ctx.strokeText(ft.name, x, y - 8); ctx.fillStyle = "#d86a5a"; ctx.fillText(ft.name, x, y - 8);
+  }
+
+  // --- the columns on the road ---
+  const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 320);
+  for (const m of marches) {
+    if (m.state === "resident") continue;
+    if (!marchVisible(m)) continue;
+    const x = SX(m.x), y = SY(m.y);
+    const yours = m.side === "you";
+    const col = yours ? (m.kind === "scout" ? "#8fd3c0" : m.kind === "spy" ? "#c6a0d8" : "#ffe9b0") : "#d86a5a";
+    // the road still to walk
+    const tx = SX(m.tx), ty = SY(m.ty);
+    if (vis(x, y, 200) || vis(tx, ty, 200)) {
+      ctx.save();
+      ctx.setLineDash([4, 5]); ctx.lineWidth = 1.2;
+      ctx.strokeStyle = yours ? "rgba(255,233,176,0.5)" : "rgba(216,106,90,0.5)";
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.restore();
+    }
+    if (!vis(x, y, 30)) continue;
+    // a little pennant, leaning the way it is going
+    const a = Math.atan2(m.ty - m.y, m.tx - m.x);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    ctx.fillStyle = "#0a0f0c"; ctx.beginPath();
+    ctx.moveTo(7, 0); ctx.lineTo(-5, -5); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(5.5, 0); ctx.lineTo(-3.6, -3.6); ctx.lineTo(-3.6, 3.6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    if (!yours) { ctx.globalAlpha = amt * pulse; ctx.strokeStyle = "#d86a5a"; ctx.lineWidth = 1.2;
+                  ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke(); ctx.globalAlpha = amt; }
+    if (mapSelMarch === m.id) {
+      ctx.strokeStyle = "#ffe9b0"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.stroke();
+    }
+    if (cellPx > 14 || mapHover && mapHover.ref === m) {
+      ctx.font = "9px 'Courier New', monospace";
+      const lbl = yours ? (m.kind === "scout" ? "scout" : m.kind === "spy" ? "agent" : `${(m.men || []).length || m.str} men`)
+                        : `${m.str} men`;
+      ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,7,5,0.9)";
+      ctx.strokeText(lbl, x, y + 16); ctx.fillStyle = col; ctx.fillText(lbl, x, y + 16);
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+function renderStrategicOnly() {
+  ctx.setTransform(zoom, 0, 0, zoom, -cam.x * zoom, -cam.y * zoom);
+  ctx.imageSmoothingEnabled = false;
+  drawStratGround(1);
+  drawStratMarks(1);
+}
+
+// ===== reading the map with the pointer =====
+// A city is a five-pixel dot at continental zoom. Picking one has to be forgiving,
+// and it has to say what it found before you commit to clicking it — you should
+// never have to click a foreign capital to discover it is a foreign capital.
+function worldPick(sx, sy) {
+  let best = null, bd = 18;
+  const test = (wx, wy, o) => { const d = Math.hypot(SX(wx) - sx, SY(wy) - sy); if (d < bd) { bd = d; best = o; } };
+  for (const c of CITIES) {
+    if (c.fallen || !isCharted(c.mx, c.my)) continue;
+    const p = cityWorld(c); test(p.x, p.y, { kind: "city", ref: c });
+  }
+  for (const m of marches) {
+    if (m.state === "resident" || !marchVisible(m)) continue;
+    test(m.x, m.y, { kind: "march", ref: m });
+  }
+  test(CAPITAL_X, CAPITAL_Y, { kind: "town", ref: null, name: settlementName || "Neu Hamburg" });
+  for (const st of settlements) if (st.x !== undefined) test(st.x, st.y, { kind: "town", ref: st, name: st.name });
+  for (const ft of foreignTowns) if (!ft.fallen) test(ft.x, ft.y, { kind: "ftown", ref: ft, name: ft.name });
+  return best;
+}
+const thousands = p => (p >= 1 ? Math.round(p) : 1) + ",000";
+const WALL_WORD = ["open", "palisaded", "walled", "bastioned"];
+// what a city will tell a stranger, and what it will only tell an agent
+function cityLines(c) {
+  const n = NATIONS[c.owner], out = [];
+  out.push(c.owner === "you" ? `Yours${c.cap ? " · once their capital" : ""}`
+                             : `${n ? n.name : "—"}${c.cap ? " · capital" : ""}`);
+  if (c.owner !== c.nation && NATIONS[c.nation]) out.push(`Built by ${NATIONS[c.nation].name} — taken since`);
+  out.push(`${thousands(c.pop)} souls · ${WALL_WORD[Math.min(3, c.walls)]}`);
+  if (c.owner === "you") out.push("Its people pay your taxes now");
+  else if (knowsArmies(c.owner)) out.push(`Garrison ${c.garrison} · ${c.wealth} DM in the treasury`);
+  else out.push("Garrison unknown — no agent in their country");
+  if (knowsArts(c.owner)) out.push("Arts: " + nationArts(c.owner).join(", "));
+  if (n && n.atWar) out.push("AT WAR WITH YOU");
+  else if (n && n.trade) out.push("A trade route is open");
+  if (n && n.calT) out.push(`Stricken by ${n.calName}`);
+  if (c.siege > 0) out.push("Under siege");
+  return out;
+}
+function marchLines(m) {
+  const out = [];
+  if (m.side === "you") {
+    out.push(m.kind === "scout" ? "Your scout" : m.kind === "spy" ? "Your agent" : `Your column — ${(m.men || []).length} under arms`);
+    out.push(`${Math.round(marchProgress(m) * 100)}% of the way · ${leagues(m)} to go`);
+    if (m.state === "return") out.push("Riding home");
+  } else {
+    out.push(`Column of ${NATIONS[m.nation] ? NATIONS[m.nation].name : "?"}`);
+    out.push(knowsArmies(m.nation) ? `${m.str} under arms` : "Strength uncertain");
+    out.push(m.kind === "war" ? `Bound for ${m.town ? m.town.name : settlementName || "the capital"}`
+                              : "Marching to a war of their own");
+  }
+  return out;
+}
+function worldTipSync(sx, sy) {
+  const tip = $("worldTip");
+  if (!tip) return;
+  if (!onMap() || buildMode || roadMode) { tip.style.display = "none"; mapHover = null; return; }
+  const hit = worldPick(sx, sy);
+  mapHover = hit;
+  if (!hit) { tip.style.display = "none"; return; }
+  let title = "", lines = [];
+  if (hit.kind === "city") { title = hit.ref.name; lines = cityLines(hit.ref); }
+  else if (hit.kind === "march") { title = "On the road"; lines = marchLines(hit.ref); }
+  else if (hit.kind === "ftown") {
+    title = hit.name;
+    const n = NATIONS[hit.ref.nation];
+    lines = [`Border town of ${n ? n.name : "?"}`, "Its town hall is the prize — burn it and the town is yours"];
+  } else {
+    const st = hit.ref;
+    title = hit.name;
+    const pop = st ? st.pop : civs.filter(c => !c.afield).length;
+    lines = [st ? "A town of your empire" : "Your capital", `${pop} souls`];
+  }
+  tip.innerHTML = `<b>${esc(title)}</b>` + lines.map(l => `<i>${esc(l)}</i>`).join("");
+  tip.style.display = "block";
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(window.innerWidth - r.width - 10, sx + 16) + "px";
+  tip.style.top = Math.min(window.innerHeight - r.height - 10, Math.max(8, sy + 14)) + "px";
+}
+
+// ===== the world panel: diplomacy, and now the operations too =====
+let scoutArmed = false;
+function selectCity(c) {
+  mapSelCity = c ? c.id : null; mapSelMarch = null;
+  if (c) mapSelNation = c.owner === "you" ? null : c.owner;
+  worldPanelOpen(!!c || !!mapSelNation);
+  mapInfoSync();
+}
+function selectMarch(m) {
+  mapSelMarch = m ? m.id : null; mapSelCity = null;
+  mapSelNation = m && m.side === "them" ? m.nation : null;
+  worldPanelOpen(!!m);
+  mapInfoSync();
+}
+function worldPanelOpen(on) {
+  const p = $("mapInfo");
+  if (!p) return;
+  p.style.display = on ? "block" : "none";
+  if (!on) { mapSelCity = null; mapSelMarch = null; mapSelNation = null; }
+}
+// the extra half of the panel that the old overlay never had
+function citySync() {
+  const box = $("miCity");
+  if (!box) return;
+  const c = mapSelCity ? cityById(mapSelCity) : null;
+  const march = $("miMarch"), agent = $("miAgent"), scout = $("miScout"),
+        rec = $("miRecall"), cut = $("miIntercept");
+  if (cut) cut.style.display = "none";
+  // a column picked out of the map: the only thing to decide is whether to
+  // stand in its way, and with how many
+  const sel = mapSelMarch ? marchById(mapSelMarch) : null;
+  if (!c && sel) {
+    box.style.display = "block";
+    box.innerHTML = `<div class="miCityName">${esc(sel.side === "you" ? "Your column" : "A column on the road")}</div>` +
+                    marchLines(sel).map(l => `<div class="miCityLine">${esc(l)}</div>`).join("");
+    for (const b of [march, agent, scout, rec]) if (b) b.style.display = "none";
+    const n = sel.side === "them" ? NATIONS[sel.nation] : null;
+    const force = civs.filter(cc => !cc.afield && isForce(cc) && cc.profession !== "police").length;
+    if (cut && n && n.atWar) {
+      cut.style.display = "block";
+      cut.textContent = `Ride to cut them off (${force} ready)`;
+    }
+    return;
+  }
+  if (!c) {
+    box.style.display = "none";
+    for (const b of [march, agent, scout, rec]) if (b) b.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+  box.innerHTML = `<div class="miCityName">${esc(c.name)}</div>` +
+                  cityLines(c).map(l => `<div class="miCityLine">${esc(l)}</div>`).join("");
+  const n = NATIONS[c.owner];
+  const force = civs.filter(cc => !cc.afield && isForce(cc) && cc.profession !== "police").length;
+  if (march) {
+    march.style.display = n && n.atWar ? "block" : "none";
+    march.textContent = `March on ${c.name} (${force} ready)`;
+  }
+  if (agent) {
+    agent.style.display = TECH.cipher.done && c.owner !== "you" && !knowsArmies(c.owner) ? "block" : "none";
+    agent.textContent = `Send an agent to ${c.name} (${SPY_COST} DM)`;
+  }
+  if (scout) {
+    scout.style.display = TECH.surveying.done ? "block" : "none";
+    scout.textContent = `Send a scout toward ${c.name} (${SCOUT_COST} DM)`;
+  }
+  if (rec) {
+    // an army left standing in a foreign town is an army you have mislaid
+    const q = cityWorld(c);
+    const there = civs.filter(cc => !cc.afield && isForce(cc) && Math.hypot(cc.x - q.x, cc.y - q.y) < 1200).length;
+    rec.style.display = there ? "block" : "none";
+    rec.textContent = `Order ${there} home from ${c.name}`;
+  }
+}
+const SCOUT_COST = 10, SPY_COST = 30;
+
+// the click that lands on the country rather than on the grass
+function worldMapClick(sx, sy) {
+  if (scoutArmed) {
+    scoutArmed = false;
+    stratBarSync();
+    const wx = cam.x + sx / zoom, wy = cam.y + sy / zoom;
+    if (res.dm - SCOUT_COST < treasuryFloor()) return toast(`A scout wants ${SCOUT_COST} DM for the road.`);
+    res.dm -= SCOUT_COST;
+    sendScout(wx, wy, null);
+    syncUI();
+    return true;
+  }
+  const hit = worldPick(sx, sy);
+  if (!hit) {
+    // Through the dissolve the town is still down there and still yours to
+    // order about: a click on empty ground goes back to the world unless the
+    // country has taken the screen over completely.
+    if (stratAmt() < 0.8) return false;
+    // bare ground: whose country is it?
+    const cl = worldCell(cam.x + sx / zoom, cam.y + sy / zoom);
+    if (!isCharted(cl.mx, cl.my)) { worldPanelOpen(false); return true; }
+    const id = mapGrid && mapGrid[cl.my] ? mapGrid[cl.my][cl.mx] : null;
+    if (!id || id === "wilds") { worldPanelOpen(false); return true; }
+    mapSelCity = null; mapSelNation = id;
+    worldPanelOpen(true); mapInfoSync();
+    return true;
+  }
+  if (hit.kind === "city") {
+    selectCity(hit.ref);
+    const p = cityWorld(hit.ref);
+    flyTo(p.x, p.y, Math.max(zoomFloor(), Math.min(zoom * 2.2, 0.09)), 0.8);
+    return true;
+  }
+  if (hit.kind === "march") {
+    const m = hit.ref;
+    selectMarch(m);
+    flyTo(m.x, m.y, Math.max(zoomFloor(), Math.min(zoom * 2, 0.12)), 0.7);
+    return true;
+  }
+  // one of yours, or one of theirs standing on your ground: go and look at it
+  const t = hit.kind === "ftown" ? hit.ref : (hit.ref || { x: CAPITAL_X, y: CAPITAL_Y });
+  worldPanelOpen(false);
+  flyTo(t.x, t.y, 0.55, 1.1);
+  return true;
+}
+
+// ===== the bar along the bottom: how high you are, and how high you may go =====
+function stratBarSync() {
+  const bar = $("stratBar");
+  if (!bar) return;
+  if (!onMap()) { bar.style.display = "none"; scoutArmed = false; return; }
+  bar.style.display = "flex";
+  const cellPx = CELL_W * zoom;
+  const across = Math.round(canvas.width / cellPx);
+  const next = nextZoomTier();
+  const atFloor = zoom <= zoomFloor() * 1.02;
+  $("sbScale").textContent = `${across} league(s) across · ${charted.size} charted`;
+  $("sbNext").textContent = next
+    ? (atFloor ? `The eye can rise no further — research ${TECH[next.tech].name} to see ${next.what}.`
+               : `${TECH[next.tech].name} would open ${next.what}.`)
+    : "The whole of Europe lies open.";
+  const sb = $("sbScout");
+  if (sb) {
+    sb.style.display = TECH.surveying.done ? "inline-block" : "none";
+    sb.classList.toggle("armed", scoutArmed);
+    sb.textContent = scoutArmed ? "◈ CLICK A PLACE" : `◈ SCOUT (${SCOUT_COST} DM)`;
+  }
+}
+
+// ===== putting men on the road =====
+let marchTarget = null, marchChase = null;
+function openMarchModal(target) {
+  const men = civs.filter(c => !c.afield && isForce(c) && c.profession !== "police" && !c.rebel);
+  if (men.length < 4) return toast("A column needs at least 4 fighting men — soldiers, line infantry or cavalry.");
+  const city = target.mx !== undefined ? target : null;
+  marchTarget = city ? city.id : null;
+  marchChase = city ? null : target.id;
+  const list = $("marchList");
+  list.innerHTML = "";
+  men.forEach(c => {
+    const i = civs.indexOf(c);
+    const row = document.createElement("label");
+    row.style.cssText = "display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer;font-size:12px";
+    row.innerHTML = `<input type="checkbox" checked data-idx="${i}"> ${esc(c.name)} — ${esc(profLabel(c.profession))}` +
+                    (c.armed ? "" : " (unarmed)");
+    list.appendChild(row);
+  });
+  const q = city ? cityWorld(city) : { x: target.x, y: target.y };
+  const lg = Math.max(1, Math.round(Math.hypot(q.x - CAPITAL_X, q.y - CAPITAL_Y) / CELL_W));
+  $("marchWhere").textContent = city
+    ? `${city.name} lies ${lg} league(s) off. They will be on the road for a while, and you can watch them ` +
+      `the whole way. Nothing defends the colony while they are gone.`
+    : `They are ${lg} league(s) out and moving. Your column will steer at them as long as it can see them — ` +
+      `and if they slip out of sight, the trail goes cold where it ends.`;
+  $("marchTitle").textContent = city ? "MARCH ON " + city.name.toUpperCase() : "CUT THEM OFF";
+  $("marchModal").style.display = "block";
+  paused = true;
+}
+function closeMarchModal() {
+  $("marchModal").style.display = "none";
+  marchTarget = null; marchChase = null;
+  setPause(pauseOpen);
+}
+
+// ===== the world's own tick =====
+function updateWorld(dt) {
+  if (!CITIES.length) buildCities();
+  updateCharting(dt);
+  updateMarches(dt);
+  updateCities(dt);
+  updateNotifs(dt);
+}
+
+// ===== what the world writes down =====
+// The charted country is five and a half thousand cells; as a list of "12,7"
+// strings it was thirty kilobytes of the save all by itself. It goes down as a
+// bitmap instead — one bit a cell, seven hundred bytes, and the same answer.
+// A bitmap of it is seven hundred bytes whether you have charted three cells or
+// five thousand, and what is actually being described is a blot that grows
+// outward from one point — which is to say, a handful of long runs. It goes down
+// as run lengths instead, alternating blank and charted from the top-left
+// corner: fourteen numbers for a new colony, four hundred for the whole of
+// Europe, against a flat nine hundred and thirty-six either way.
+const CHART_BITS = MG_W * MG_H;
+function chartedPack() {
+  const runs = [];
+  let cur = 0, n = 0;
+  for (let i = 0; i < CHART_BITS; i++) {
+    const bit = charted.has(ckey(i % MG_W, Math.floor(i / MG_W))) ? 1 : 0;
+    if (bit === cur) n++;
+    else { runs.push(n); cur = bit; n = 1; }
+  }
+  runs.push(n);
+  return runs;
+}
+function chartedUnpack(packed) {
+  charted.clear(); fogDirty = true;
+  if (!packed) return;
+  if (Array.isArray(packed)) {
+    let i = 0, cur = 0;
+    for (const n of packed) {
+      if (cur) for (let k = 0; k < n && i + k < CHART_BITS; k++) {
+        const j = i + k;
+        charted.add(ckey(j % MG_W, Math.floor(j / MG_W)));
+      }
+      i += n; cur ^= 1;
+    }
+    return;
+  }
+  // a save from the bitmap draft, kept readable rather than thrown away
+  try {
+    const s = atob(packed);
+    for (let i = 0; i < CHART_BITS; i++)
+      if (s.charCodeAt(i >> 3) & (1 << (i & 7))) charted.add(ckey(i % MG_W, Math.floor(i / MG_W)));
+  } catch (e) {}
+}
+function worldSave(ci) {
+  const si = t => (t ? settlements.indexOf(t) : -1);
+  return {
+    chart: chartedPack(),
+    // A hundred and nine cities written out with their names came to a third of
+    // the whole save. They go down as bare numbers in generation order, which is
+    // deterministic, and the count is checked on the way back in: if it does not
+    // match — a new city added to some crown in a later build — the lot is
+    // discarded and Europe starts the run again rather than reading wrong.
+    cities: CITIES.map(c => [Math.round(c.pop), c.garrison, c.wealth]),
+    fallen: CITIES.map((c, i) => c.fallen ? i : -1).filter(i => i >= 0),
+    marches: marches.map(m => ({
+      id: m.id, side: m.side, kind: m.kind, nation: m.nation, state: m.state,
+      x: r1(m.x), y: r1(m.y), sx: r1(m.sx), sy: r1(m.sy), tx: r1(m.tx), ty: r1(m.ty),
+      str: m.str, t: r1(m.t || 0), target: m.target, name: m.name, seen: m.seen || undefined,
+      invest: m.invest || undefined, homeward: m.homeward || undefined, chase: m.chase || undefined,
+      town: si(m.town), home: m.home, chartedN: m.chartedN || undefined, spotted: m.spotted || undefined,
+      men: m.men ? m.men.map(ci).filter(i => i >= 0) : undefined,
+    })),
+    intel: Object.fromEntries(Object.entries(intel).map(([k, v]) => [k, { armies: v.armies, arts: v.arts, by: v.by, city: v.city }])),
+    seq: marchSeq,
+  };
+}
+// a colony begun from nothing knows nothing: only the ground it can see, plus
+// whatever atlas its technologies have already paid for (none, at the start)
+function worldNewGame() {
+  marches = []; notifs = []; flight = null; mapSelCity = null; mapSelMarch = null;
+  mapSelNation = null; scoutArmed = false; marchSeq = 1;
+  for (const k of Object.keys(intel)) delete intel[k];
+  for (const c of civs) c.afield = false;
+  CITIES = []; buildMapGrid(); buildCities();
+  charted.clear(); fogDirty = true; stratDirty = true;
+  chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
+  worldPanelOpen(false); renderNotifs(); stratBarSync();
+}
+function worldLoad(d) {
+  marches = []; notifs = []; flight = null; mapSelCity = null; mapSelMarch = null; scoutArmed = false;
+  for (const k of Object.keys(intel)) delete intel[k];
+  buildCities();
+  chartedUnpack(d && d.chart);
+  if (!charted.size) chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
+  // the numbers are positional, so a save whose Europe had a different number of
+  // cities in it — or one written before they were numbers at all — is not read
+  if (d && d.cities && d.cities.length === CITIES.length && typeof d.cities[0][0] === "number") {
+    d.cities.forEach(([pop, gar, wealth], i) => {
+      const c = CITIES[i];
+      c.pop = pop; c.garrison = gar; c.wealth = wealth; c.fallen = false;
+    });
+    for (const i of (d.fallen || [])) if (CITIES[i]) CITIES[i].fallen = true;
+  }
+  if (d && d.marches) for (const m of d.marches) {
+    const men = (m.men || []).map(i => civs[i]).filter(Boolean);
+    for (const c of men) c.afield = true;
+    marches.push(Object.assign({}, m, {
+      men: men.length ? men : null,
+      town: m.town >= 0 ? settlements[m.town] : null,
+      home: m.home || { x: CAPITAL_X, y: CAPITAL_Y },
+    }));
+  }
+  if (d && d.intel) for (const [k, v] of Object.entries(d.intel)) intel[k] = { ...v };
+  marchSeq = (d && d.seq) || marches.reduce((n, m) => Math.max(n, m.id + 1), 1);
+  // an agent whose march was lost in an old save has nobody keeping his secret
+  for (const [k, v] of Object.entries(intel)) {
+    const by = marchById(v.by);
+    if (!by || by.kind !== "spy") delete intel[k];
+  }
+  stratDirty = true; fogDirty = true;
+  renderNotifs(); stratBarSync();
+}
+// ===== the buttons that put men on the road =====
+$("miClose").addEventListener("click", () => worldPanelOpen(false));
+$("miMarch").addEventListener("click", () => {
+  const c = cityById(mapSelCity);
+  if (!c) return;
+  const n = NATIONS[c.owner];
+  if (!n || !n.atWar) return toast(`You are not at war with ${n ? n.name : "them"}.`);
+  openMarchModal(c);
+});
+$("miAgent").addEventListener("click", () => {
+  const c = cityById(mapSelCity);
+  if (!c) return;
+  if (!TECH.cipher.done) return toast("Research Ciphers before sending anyone into a foreign court.");
+  if (marches.some(m => m.kind === "spy" && m.nation === c.owner))
+    return toast(`You already have an agent bound for ${NATIONS[c.owner].name}.`);
+  if (res.dm - SPY_COST < treasuryFloor()) return toast(`An agent wants ${SPY_COST} DM for the journey and a purse to spend.`);
+  res.dm -= SPY_COST;
+  sendSpy(c);
+  worldPanelOpen(false); syncUI();
+});
+$("miScout").addEventListener("click", () => {
+  const c = cityById(mapSelCity);
+  if (!c) return;
+  if (!TECH.surveying.done) return toast("Research Surveying before training scouts.");
+  if (res.dm - SCOUT_COST < treasuryFloor()) return toast(`A scout wants ${SCOUT_COST} DM for the road.`);
+  res.dm -= SCOUT_COST;
+  const q = cityWorld(c);
+  sendScout(q.x, q.y, c.name);
+  worldPanelOpen(false); syncUI();
+});
+$("sbScout").addEventListener("click", () => {
+  if (!TECH.surveying.done) return toast("Research Surveying before training scouts.");
+  scoutArmed = !scoutArmed;
+  stratBarSync();
+  if (scoutArmed) toast("Click anywhere on the country and the scout rides for it.");
+});
+$("marchNo").addEventListener("click", closeMarchModal);
+$("marchGo").addEventListener("click", () => {
+  const target = marchTarget ? cityById(marchTarget) : marchChase ? marchById(marchChase) : null;
+  if (!target) return closeMarchModal();
+  const men = [...document.querySelectorAll("#marchList input:checked")]
+    .map(i => civs[+i.dataset.idx]).filter(c => c && !c.afield);
+  if (men.length < 4) return toast("A column needs at least 4 fighting men.");
+  closeMarchModal();
+  sendArmy(target, men);
+  worldPanelOpen(false);
+  syncUI();
+});
+$("miIntercept").addEventListener("click", () => {
+  const m = mapSelMarch ? marchById(mapSelMarch) : null;
+  if (!m) return;
+  const n = NATIONS[m.nation];
+  if (!n || !n.atWar) return toast(`You are not at war with ${n ? n.name : "them"}.`);
+  openMarchModal(m);
+});
+$("marchSearch").addEventListener("input", () => {
+  const q = ($("marchSearch").value || "").trim().toLowerCase();
+  for (const row of $("marchList").children)
+    row.style.display = !q || row.textContent.toLowerCase().includes(q) ? "" : "none";
+});
+// bringing them home again: the other half of an expedition, and the half a
+// player forgets exists until an army is standing in a burnt-out foreign town
+$("miRecall").addEventListener("click", () => {
+  const c = cityById(mapSelCity);
+  const at = c ? cityWorld(c) : { x: CAPITAL_X, y: CAPITAL_Y };
+  const m = recallColumn(at.x, at.y, 1200);
+  if (!m) return toast("Nobody of yours is standing there.");
+  worldPanelOpen(false); syncUI();
+});
+
 // --- rendering ---
 function drawSprite(image, wx, wyFeet, size, flip) {
   ctx.save(); ctx.translate(wx, wyFeet);
@@ -10373,6 +11802,12 @@ function render(dt) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = "#17251c";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Past the dissolve there is no grass left to draw and no one small enough to
+  // stand on it. Drawing three hundred chunks of forest at one pixel a tree is
+  // exactly the wrong way to spend a frame, so out here the country is the only
+  // thing there is.
+  const sAmt = stratAmt();
+  if (sAmt >= 0.999) { renderStrategicOnly(); return; }
   ctx.setTransform(zoom, 0, 0, zoom, -cam.x * zoom, -cam.y * zoom);
   ctx.imageSmoothingEnabled = false;
 
@@ -10400,6 +11835,9 @@ function render(dt) {
       ctx.globalAlpha = 1;
     }
   }
+  // the dissolve: the country fades up through the grass, and for a few notches
+  // of the wheel you can see the town and the continent it stands in at once
+  if (sAmt > 0) drawStratGround(sAmt);
   if (lineDrag && lineGhost) {                                // the battle line being drawn
     ctx.globalAlpha = 0.8;
     ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1.5 / zoom;
@@ -10440,7 +11878,11 @@ function render(dt) {
   const inView = (x, y) => x > cam.x - 140 && x < cam.x + vw + 140 && y > cam.y - 160 && y < cam.y + vh + 180;
   const drawables = [];
 
-  for (const ch of visibleChunks()) {
+  // Once the country has all but taken over, the forest is a haze of one-pixel
+  // spruces nobody can see — and there are three hundred chunks of it out there
+  // at this height. Buildings and people stay (a town is still a shape you want
+  // to recognise as it fades); the wild growth stops being drawn.
+  for (const ch of (sAmt > 0.75 ? [] : visibleChunks())) {
     for (const t of ch.trees) {
       if (!inView(t.x, t.y)) continue;
       if (t.alive) drawables.push({ y: t.y, draw: () => {
@@ -10607,7 +12049,7 @@ function render(dt) {
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - (r.kit && settings.labels ? 24 : 14), r.hp / r.maxHp, "#a05252", 34);
   }});
   // A man on a stretcher is painted by whoever is carrying him, not by himself
-  for (const c of civs) if (!INDOORS.has(c.state) && c.state !== "borne" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
+  for (const c of civs) if (!c.afield && !INDOORS.has(c.state) && c.state !== "borne" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
     const grouped = selGroup.length > 1 && selected && selGroup.includes(selected) && selGroup.includes(c);
     if (c === selected || grouped) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 2;
@@ -10861,6 +12303,10 @@ function render(dt) {
       }
     }
   }
+
+  // the far country's own marks, over everything, in screen units so a city's
+  // name is the same size to read at every height
+  if (sAmt > 0) drawStratMarks(sAmt);
 
   drawCursorHint();
 }

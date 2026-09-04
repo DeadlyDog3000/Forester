@@ -775,11 +775,8 @@ body.touch .deskOnly { display: none; }
            text-shadow: var(--fx-shadow-text); }
 #cutHint { font-size: var(--fx-t-note); color: var(--fx-ink-6); letter-spacing: var(--fx-track-4); }
 
-#mapOverlay { position: fixed; inset: 0; z-index: var(--fx-z-map); display: none;
-              background: var(--fx-overlay); }
-#mapTitle { color: var(--fx-gold); letter-spacing: var(--fx-track-5); font-size: var(--fx-t-record); }
-#euromap  { display: block; }
-#mapInfo  { position: static; width: 250px; padding: var(--fx-pad-panel); align-self: flex-start; }
+/* The fullscreen map of Europe is gone — the map is the world now. What is left
+   of it lives with the rest of the far-map furniture at the foot of this file. */
 #miNote   { font-size: var(--fx-t-note); color: var(--fx-called-out); margin-top: var(--fx-gap-actions);
             display: none; border-left: 2px solid var(--fx-line-gold); padding-left: var(--fx-stack); }
 
@@ -1060,13 +1057,6 @@ body.touch #touchPad   { display: flex; }
   #touchPad { bottom: 56px; gap: var(--fx-stack); }
   #touchPad .tbtn { width: var(--fx-tap-pad-sm); height: var(--fx-tap-pad-sm); font-size: var(--fx-t-record); }
 
-  /* the map of Europe: scaled to the screen rather than scrolled blindly */
-  #mapOverlay > div { flex-direction: column; padding: 8px; gap: 8px; }
-  #mapOverlay #mapInfo { width: auto !important; max-height: 30vh; overflow-y: auto; flex: 0 0 auto; }
-  #euromap { width: 900px; height: auto; max-width: none; }   /* wide enough to tell nations apart */
-  #mapOverlay > div > div:first-child { flex: 1 1 auto; min-height: 0; }
-  #mapTitle { font-size: var(--fx-t-body) !important; letter-spacing: var(--fx-track-2) !important; }
-
   /* title cards and menus */
   .fx-screen-title, #goTitle,
   #menu > div > div:first-child,
@@ -1175,3 +1165,88 @@ body.touch #touchPad   { display: flex; }
 .logEntry li { color: var(--fx-ink-2); font-size: 11.5px; line-height: 1.5; margin-bottom: 3px; }
 /* the mark that says there is something in there you have not read */
 .newDot { color: var(--fx-tag); font-size: 9px; vertical-align: middle; }
+
+/* ===========================================================================
+   THE FAR MAP
+   The country is not a screen any more — it is the same world, seen from
+   higher up. These are the four things that only exist at that height: the
+   panel for whatever you have picked out of it, the word that comes back from
+   the field, the label under the pointer, and the ruler along the bottom that
+   says how high you are and what would lift you higher.
+   =========================================================================== */
+
+/* The panel sits where the old fullscreen map's sidebar sat, so the hand goes
+   to the same place — but the world is still running behind it. */
+#mapInfo {
+  right: var(--fx-pad-panel); top: 64px; width: 262px;
+  padding: var(--fx-pad-panel);
+  z-index: var(--fx-z-tech);
+  max-height: calc(100vh - 150px); overflow-y: auto;
+}
+.miCityName {
+  color: var(--fx-gold-pale); font-size: var(--fx-t-body);
+  letter-spacing: 1px; margin-bottom: 3px;
+}
+.miCityLine { color: var(--fx-ink-3); font-size: var(--fx-t-small); line-height: 1.5; }
+
+/* Word from the field. It stacks, it waits a full minute, and every card knows
+   the coordinates of the thing it is about — which is the entire point of it. */
+#notifs {
+  position: fixed; right: var(--fx-pad-panel); bottom: 76px;
+  display: flex; flex-direction: column-reverse; gap: 6px;
+  width: 268px; z-index: var(--fx-z-float);
+}
+.notif {
+  display: flex; gap: 8px; align-items: flex-start;
+  background: var(--fx-glass); border: var(--fx-hair) solid var(--fx-line);
+  border-left-width: 3px; border-left-color: var(--fx-line-live);
+  padding: 7px 9px; cursor: pointer;
+  animation: notifIn 0.22s ease-out;
+}
+.notif:hover { background: var(--fx-raised); }
+.notif.war  { border-left-color: #d86a5a; }
+.notif.bad  { border-left-color: #8e5a8e; }
+.notif.you  { border-left-color: var(--fx-gold); }
+.notif .ni  { color: var(--fx-gold); font-size: 13px; line-height: 1.2; }
+.notif .nt  { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.notif .nt b { color: var(--fx-ink-bright); font-weight: normal; font-size: 11px; line-height: 1.35; }
+.notif .nt i { color: var(--fx-ink-5); font-style: normal; font-size: 10px; line-height: 1.35; }
+.notif .nx { color: var(--fx-ink-6); font-size: 13px; line-height: 1; padding: 0 2px; }
+.notif .nx:hover { color: var(--fx-ink); }
+@keyframes notifIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+
+/* What a city says to a pointer resting on it. Never in the way — it follows
+   the cursor and it never takes a click. */
+#worldTip {
+  position: fixed; z-index: var(--fx-z-tip); pointer-events: none;
+  background: var(--fx-glass); border: var(--fx-hair) solid var(--fx-line);
+  padding: 6px 9px; max-width: 260px;
+}
+#worldTip b { display: block; color: var(--fx-gold-pale); font-weight: normal;
+              font-size: 11px; letter-spacing: 1px; margin-bottom: 2px; }
+#worldTip i { display: block; color: var(--fx-ink-3); font-style: normal;
+              font-size: 10px; line-height: 1.5; }
+
+/* The ruler. It appears only once the ground has given way to the country. */
+#stratBar {
+  /* clear of the message line, which is centred at 56px and would sit on top */
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 104px;
+  display: flex; gap: 12px; align-items: center;
+  background: var(--fx-glass); border: var(--fx-hair) solid var(--fx-line);
+  padding: 5px 11px; z-index: var(--fx-z-panel);
+  font-size: var(--fx-t-small); color: var(--fx-ink-5);
+  max-width: 92vw;
+}
+#stratBar #sbScale { color: var(--fx-ink-2); white-space: nowrap; }
+#stratBar #sbNext  { color: var(--fx-ink-6); }
+#stratBar .btn { padding: 3px 8px; font-size: var(--fx-t-small); }
+#stratBar .btn.armed { background: var(--fx-line); border-color: var(--fx-gold); color: var(--fx-gold); }
+
+/* On a phone the panel is a sheet along the bottom and the word from the field
+   sits above it, because 262px of sidebar is most of the glass. */
+@media (max-width: 720px) {
+  #mapInfo { right: 8px; left: 8px; width: auto; top: auto; bottom: 74px; max-height: 46vh; }
+  #notifs  { right: 8px; left: 8px; width: auto; bottom: 74px; }
+  #stratBar { bottom: 148px; flex-wrap: wrap; justify-content: center; }
+  #stratBar #sbNext { display: none; }
+}
