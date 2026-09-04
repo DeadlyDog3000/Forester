@@ -8739,6 +8739,12 @@ function assetsReady() {
     $("menu").style.display = "block";
     renderSaveList();
     MUSIC.play();
+    // Anything unread puts itself in front of the player on the way in. A log
+    // that waits behind a button is a log nobody reads, and the button was easy
+    // to walk straight past. Only when there is genuinely something new, and
+    // only after the menu has painted — opened any earlier it would be covered
+    // by the title screen it is supposed to be sitting on top of.
+    if (logUnread()) setTimeout(openLog, 700);
   }
 }
 // how long ago, in words a person would use
