@@ -240,7 +240,7 @@
     <div class="row"><span>Border colour</span><input type="color" id="bordColor" value="#c9a86a"></div>
     <div class="row"><span>Uniform colour</span><input type="color" id="uniColor" value="#2f52a8"></div>
     <h4>FAITH</h4>
-    <div class="row"><span>State creed</span>
+    <div class="row"><span style="white-space:nowrap">State creed</span>
       <span style="display:flex;align-items:center;gap:5px">
         <img id="govFaithIcon" alt="" style="width:18px;height:18px;image-rendering:pixelated;display:none">
         <select id="stateFaithSel" style="background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:4px"></select>
@@ -406,6 +406,7 @@
       <img id="dlgFace" alt="visitor">
       <div>
         <div id="dlgName">Hunter</div>
+        <div id="dlgFaith" style="display:none;align-items:center;gap:5px;font-size:11px;margin:2px 0 3px"></div>
         <div id="dlgText"></div>
       </div>
     </div>

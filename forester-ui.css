@@ -483,6 +483,9 @@ body.touch .deskOnly { display: none; }
 .folkName  { flex: 0 0 104px; color: var(--fx-ink-bright); white-space: nowrap;
              overflow: hidden; text-overflow: ellipsis; }
 .folkTrade { flex: 0 0 100px; color: var(--fx-ink-2); white-space: nowrap; overflow: hidden; }
+/* the creed, as its own emblem: a column narrow enough to scan down at a glance */
+.folkFaith { flex: 0 0 16px; display: flex; align-items: center; justify-content: center; }
+.folkFaith img { width: 14px; height: 14px; image-rendering: pixelated; display: block; }
 .folkDoing { flex: 1; color: var(--fx-ink-4-alt); white-space: nowrap;
              overflow: hidden; text-overflow: ellipsis; }
 .folkBars  { flex: 0 0 150px; display: flex; gap: 4px; align-items: center; }
@@ -935,6 +938,8 @@ body.touch #touchPad   { display: flex; }
   .chronYear { font-size: var(--fx-t-small); padding: 4px 2px 2px; letter-spacing: var(--fx-track-2); }
   .folkName  { flex: 0 0 76px; }
   .folkTrade, .folkBars { display: none; }
+  .folkFaith { flex: 0 0 13px; }
+  .folkFaith img { width: 12px; height: 12px; }
   #folkSum    { font-size: var(--fx-t-small); line-height: var(--fx-lh-tight); margin-bottom: 4px; }
   #chronCount { font-size: var(--fx-t-small) !important; margin-top: 4px !important; }
   body.touch #chronPanel, body.touch #folkPanel { right: 56px; }
