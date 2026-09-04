@@ -2707,7 +2707,8 @@ addEventListener("keydown", e => {
     }
   }
   if (e.key === "Escape") {
-    if (isOpen("helpPanel")) { $("helpPanel").style.display = "none"; }
+    if (isOpen("logPanel")) { closeLog(); }
+    else if (isOpen("helpPanel")) { $("helpPanel").style.display = "none"; }
     else if (isOpen("reignPanel")) { $("reignPanel").style.display = "none"; paused = pauseOpen; }
     else if (isOpen("chronPanel")) { $("chronPanel").style.display = "none"; syncUI(); }
     else if (isOpen("folkPanel")) { $("folkPanel").style.display = "none"; syncUI(); }
@@ -4049,18 +4050,25 @@ function moodReasons(c) {
   // a bill the colony could not meet is felt hardest by the man it was owed to
   if (arrears > 0) r.push(isForce(c) ? ["wages in arrears", -14] : ["the works go untended", -5]);
   if (c.grief && c.grief.t > 0) r.push([`grieving for ${c.grief.who}`, -Math.round(6 + 16 * (c.grief.w || 0.5))]);
-  // Company is worth different things to different people. The gregarious need
-  // it about them; the solitary want rather less of it than the square provides.
-  const near = c.nearN || 0;
-  if (isT(c, "gregarious")) r.push(near >= 2 ? ["good company", 5] : ["nobody to talk to", -7]);
-  if (isT(c, "solitary")) {
-    if (near >= 4) r.push(["too many people underfoot", -6]);
-    else if (near === 0) r.push(["blessed quiet", 4]);
+  // A child's nature moves nothing yet — the sheet says "no telling" of them and
+  // this must agree. It is also a correctness matter and not only a tidy one:
+  // socialTick returns on c.child BEFORE it counts the company, so a child's
+  // nearN is never set, and a gregarious one read a permanent "nobody to talk
+  // to" while standing in the middle of a crowded square.
+  if (!c.child) {
+    // Company is worth different things to different people. The gregarious need
+    // it about them; the solitary want rather less than the square provides.
+    const near = c.nearN || 0;
+    if (isT(c, "gregarious")) r.push(near >= 2 ? ["good company", 5] : ["nobody to talk to", -7]);
+    if (isT(c, "solitary")) {
+      if (near >= 4) r.push(["too many people underfoot", -6]);
+      else if (near === 0) r.push(["blessed quiet", 4]);
+    }
+    // The timid feel a raid the stout-hearted merely answer — until they have been
+    // through one, after which it is a thing that has already happened to them.
+    if (isT(c, "timid") && !isM(c, "hardened") && raiders.some(x => x.hp > 0))
+      r.push(["frightened of the raiders", -12]);
   }
-  // The timid feel a raid the stout-hearted merely answer — until they have been
-  // through one, after which it is a thing that has already happened to them.
-  if (isT(c, "timid") && !isM(c, "hardened") && raiders.some(x => x.hp > 0))
-    r.push(["frightened of the raiders", -12]);
   if (isM(c, "contented")) r.push(["long used to peace", 6]);
   if (isM(c, "bitter")) r.push(["nursing an old grudge", -5]);
   if (isM(c, "disgraced")) r.push(["shamed by the jail", -7]);
@@ -7769,6 +7777,79 @@ function renderFolk() {
   }
   list.scrollTop = scroll;
 }
+// ===== the update log =====
+// What has changed in the game, newest first, told the way the rest of the game
+// talks. This is the only account of its own history a player ever sees, so it
+// lives here beside the code it describes rather than in a file that never ships.
+//
+// `v` is a plain counter, and it is the whole of the unread mechanism: the
+// highest v the player has opened is kept in localStorage and anything above it
+// is marked new. Bump it for a change worth a mark on the button and leave it
+// alone for a typo. Dates are the real ones these things landed on.
+const CHANGELOG = [
+  { v: 5, date: "3 September 2026", title: "Civilians have temperaments",
+    lines: [
+      "Everyone is born with one of twelve temperaments, drawn from six opposed pairs: Industrious or Idle, Hot or Even-tempered, Gregarious or Solitary, Stout-hearted or Timid, Generous or Grasping, Hardy or Sickly.",
+      "A temperament is not a badge. It bends how fast the work goes, what lifts and grinds a mood, how deep a quarrel cuts, what a blow is worth, and what the winter and the fever take.",
+      "You are not told what a person is. Watch them work, quarrel, fight or freeze long enough and the colony takes their measure — then it is written on their sheet and in the roll.",
+      "On top of what they were born as, what life does to them: Bereaved, Hardened, Bitter, Contented, Disgraced. These are never hidden, because the thing that earned them was public.",
+      "Your own brother and sister were never strangers. Stout-hearted and industrious, and said so from the first hour.",
+    ] },
+  { v: 4, date: "3 September 2026", title: "Tools and weapons get a material ladder",
+    lines: [
+      "Stone, bronze and iron, and a pack for a civilian to carry it all in.",
+    ] },
+  { v: 3, date: "12 August 2026", title: "Key art, and a thumbnail cut from it",
+    lines: [
+      "The game has a face at last.",
+    ] },
+  { v: 2, date: "3 August 2026", title: "The endgame loses its ceiling",
+    lines: [
+      "There is no longer a point past which the colony stops being able to grow.",
+    ] },
+  { v: 1, date: "3 August 2026", title: "The game learns to be played on a phone",
+    lines: [
+      "Eleven faults that only ever went wrong on a small screen, found by measuring the panels rather than by squinting at them.",
+      "Any panel now goes away when you tap it.",
+    ] },
+];
+const LOG_SEEN_KEY = "forester_log_seen";
+const logNewest = () => CHANGELOG.length ? CHANGELOG[0].v : 0;
+// localStorage throws outright in a few browsers rather than merely being empty,
+// so every touch of it is guarded: an unreadable store means "seen nothing".
+function logSeen() { try { return +localStorage.getItem(LOG_SEEN_KEY) || 0; } catch (e) { return 0; } }
+function markLogSeen() { try { localStorage.setItem(LOG_SEEN_KEY, String(logNewest())); } catch (e) {} }
+const logUnread = () => logNewest() > logSeen();
+function renderLog() {
+  const seen = logSeen();
+  $("logList").innerHTML = CHANGELOG.map(e =>
+    `<div class="logEntry"><div class="logHead">` +
+    `<span class="logTitle">${esc(e.title)}</span>` +
+    (e.v > seen ? `<span class="logNew">new</span>` : "") +
+    `<span class="logDate">${esc(e.date)}</span></div>` +
+    `<ul>${e.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul></div>`).join("");
+}
+// Render BEFORE marking it seen, or the entry the player opened the panel to
+// read would be the one entry never shown as new.
+function openLog() {
+  renderLog();
+  markLogSeen();
+  $("logPanel").style.display = "block";
+  refreshLogBadges();
+}
+function closeLog() { $("logPanel").style.display = "none"; refreshLogBadges(); }
+// The mark sits on whichever way in the player can actually see right now.
+function refreshLogBadges() {
+  const dot = logUnread() ? ` <span class="newDot">●</span>` : "";
+  const pm = $("pmLog"), mn = $("menuLog");
+  if (pm) pm.innerHTML = "What Has Changed" + dot;
+  if (mn) mn.innerHTML = "WHAT HAS CHANGED" + dot;
+}
+$("logClose").addEventListener("click", closeLog);
+$("pmLog").addEventListener("click", openLog);
+$("menuLog").addEventListener("click", openLog);
+refreshLogBadges();
+
 function openFolk() {
   const p = $("folkPanel");
   const show = p.style.display !== "block";

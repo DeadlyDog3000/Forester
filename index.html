@@ -189,6 +189,11 @@
     <div style="font-size:11.5px;color:#7d9187;margin-top:8px" id="chronCount"></div>
   </div>
 
+  <div class="panel" id="logPanel">
+    <h3>WHAT HAS CHANGED <span id="logClose" style="float:right;cursor:pointer;color:#5a6b60">[close]</span></h3>
+    <div id="logList"></div>
+  </div>
+
   <div class="panel" id="folkPanel">
     <h3>THE ROLL OF THE COLONY</h3>
     <div class="panelHead">
@@ -435,6 +440,7 @@
       <button class="btn" id="menuContinue" style="font-size:16px;padding:12px 40px;margin-top:14px;display:none">CONTINUE GAME</button>
       <button class="btn" id="menuNew" style="font-size:16px;padding:12px 40px">NEW GAME</button>
       <div id="menuSlotNote" style="font-size:11px;color:#7a8f83;text-align:center;max-width:420px"></div>
+      <button class="btn" id="menuLog" style="font-size:13px;padding:8px 30px">WHAT HAS CHANGED</button>
       <button class="btn" id="menuHelp" style="font-size:13px;padding:8px 30px">HOW TO PLAY</button>
       <button class="btn" id="menuSettings" style="font-size:13px;padding:8px 30px">SETTINGS</button>
       <div style="font-size:11px;color:#5a6b60">beta &mdash; DeadlyDog Productions</div>
@@ -464,6 +470,7 @@
     <button class="btn" id="pmSaveAs" style="width:100%;margin-bottom:6px">Save to a new slot</button>
     <button class="btn" id="pmReign" style="width:100%;margin-bottom:6px;display:none">The Reckoning</button>
     <div id="pmSlot" style="font-size:10.5px;color:#7a8f83;margin-bottom:8px"></div>
+    <button class="btn" id="pmLog" style="width:100%;margin-bottom:6px">What Has Changed</button>
     <button class="btn" id="pmHelp" style="width:100%;margin-bottom:6px">How to Play</button>
     <button class="btn" id="pmSettings" style="width:100%;margin-bottom:6px">Settings</button>
     <button class="btn" id="pmMenu" style="width:100%">Save &amp; Return to Main Menu</button>
