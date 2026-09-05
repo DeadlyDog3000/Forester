@@ -337,6 +337,8 @@
     <div class="helpRow"><b>Cities</b><span>Rest the pointer on one to read its size, its walls and — if you have an agent in that country — its garrison. Click it to select it and fly there.</span></div>
     <div class="helpRow"><b>Columns</b><span>Armies march in real time along the roads of Europe. Yours are always drawn; theirs only while something of yours is near enough to see them.</span></div>
     <div class="helpRow"><b>Scouts and agents</b><span>Surveying trains Scouts, who chart what they ride through and count what they meet. Ciphers trains Agents, who take service in a foreign city and report its strength — until the day they are caught, when everything they knew is lost with them.</span></div>
+    <div class="helpRow"><b>Trade</b><span>A route is a standing bargain: you send a load out every caravan and they send one back. Haggle over both halves at the table — they are rich in some goods and short of others, and price them accordingly. Your side comes out of the capital's stores, and a route you cannot pay is one they tear up.</span></div>
+    <div class="helpRow"><b>Mayors</b><span>Give a daughter town to one of your people and it runs itself — rebuilding, sending for bread, calling for hands, paying into the chest. Four bars on the appointment sheet say how good they will be at it. An idle one lets the place rot; a grasping one helps himself.</span></div>
     <div class="helpRow"><b>Word from the field</b><span>Notices stack at the lower right and carry the place they are about. Click one and the camera goes to it.</span></div>
     <div class="helpSec">STAYING ALIVE</div>
     <div class="helpRow"><b>Wood first</b><span>Everything is built from it. Fell, then deposit — logs in a pack are no use to the town.</span></div>
@@ -506,6 +508,7 @@
     <button class="btn danger" id="miAssault" style="width:100%;margin-top:6px;display:none">Assault Settlement</button>
     <div id="miNote" style="font-size:11px;color:#f0dcae;margin-top:8px;display:none;border-left:2px solid #c9a86a;padding-left:6px"></div>
     <button class="btn" id="miTrade" style="width:100%;margin-top:6px;display:none">Negotiate a Trade Route</button>
+    <button class="btn" id="miTerms" style="width:100%;margin-top:6px;display:none">Re-open the terms</button>
     <div id="miRequestWrap" style="display:none;margin-top:10px">
       <div style="font-size:11px;color:#7da083;margin-bottom:4px">REQUEST A SHIPMENT</div>
       <div style="display:flex;gap:6px">
@@ -531,6 +534,30 @@
     <span id="sbScale"></span>
     <button class="btn" id="sbScout">&#9672; SCOUT</button>
     <span id="sbNext"></span>
+  </div>
+
+  <div class="panel" id="pactModal" style="left:50%;top:50%;transform:translate(-50%,-50%);width:430px;padding:16px;display:none;z-index:95">
+    <h3 style="color:#c9a86a;margin-bottom:8px" id="pactTitle">TERMS</h3>
+    <div style="font-size:11px;color:#9ab0a2;margin-bottom:10px;line-height:1.5" id="pactRead"></div>
+    <div class="pactSides">
+      <div class="pactSide">
+        <div class="pactHead">YOU SEND</div>
+        <select id="pactGiveGood"></select>
+        <input type="number" id="pactGiveAmt" min="0" max="60" value="6">
+      </div>
+      <div class="pactSwap">&#8646;</div>
+      <div class="pactSide">
+        <div class="pactHead">THEY SEND</div>
+        <select id="pactGetGood"></select>
+        <input type="number" id="pactGetAmt" min="0" max="60" value="4">
+      </div>
+    </div>
+    <div id="pactVerdict" class="pactNo"></div>
+    <div id="pactStock"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn" id="pactPropose" style="flex:1">Sign it</button>
+      <button class="btn" id="pactNo" style="flex:1">Walk away</button>
+    </div>
   </div>
 
   <div class="panel" id="mayorModal" style="left:50%;top:50%;transform:translate(-50%,-50%);width:440px;padding:16px;display:none;z-index:95">

@@ -1283,3 +1283,29 @@ body.touch #touchPad   { display: flex; }
   content: ""; position: absolute; left: 0; right: 0; bottom: 0;
   height: 4px; background: var(--fx-line); z-index: -1;
 }
+
+/* ===========================================================================
+   THE TERMS TABLE
+   Two halves of a bargain side by side, and a line underneath saying what the
+   court makes of it. The verdict is the whole interface: you move the numbers
+   until it turns green, or you walk away.
+   =========================================================================== */
+.pactSides { display: flex; gap: 10px; align-items: stretch; }
+.pactSide {
+  flex: 1; border: var(--fx-hair) solid var(--fx-line);
+  padding: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.pactHead { color: var(--fx-gold); font-size: var(--fx-t-small); letter-spacing: 1.5px; }
+.pactSide select, .pactSide input {
+  background: #101813; border: var(--fx-hair) solid var(--fx-line);
+  color: var(--fx-ink); font-family: inherit; font-size: var(--fx-t-body); padding: 5px 6px;
+  width: 100%; box-sizing: border-box;
+}
+.pactSwap { align-self: center; color: var(--fx-ink-6); font-size: 18px; }
+#pactVerdict {
+  margin-top: 10px; padding: 7px 9px; font-size: var(--fx-t-body); line-height: 1.45;
+  border-left: 3px solid var(--fx-line);
+}
+#pactVerdict.pactYes { color: var(--fx-ink-bright); border-left-color: var(--fx-line-live); }
+#pactVerdict.pactNo  { color: var(--fx-ink-3);      border-left-color: #8e5a5a; }
+#pactStock { margin-top: 6px; font-size: var(--fx-t-small); color: var(--fx-ink-5); line-height: 1.45; }

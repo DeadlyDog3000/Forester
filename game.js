@@ -2791,7 +2791,7 @@ function setPause(open) {
     $("pmReign").style.display = ambitionsDone() >= AMBITIONS_TO_END ? "block" : "none";
   }
   paused = pauseOpen || dlg.open || $("marchModal").style.display === "block" ||
-           $("mayorModal").style.display === "block" ||
+           $("mayorModal").style.display === "block" || $("pactModal").style.display === "block" ||
            $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
   try { SFX.pauseAll(pauseOpen); } catch (e) {}
 }
@@ -5864,6 +5864,7 @@ function warSave(n) {
   }
   if (n.captured && n.captured.length) o.captured = n.captured;
   if (n.calName) o.calName = n.calName;
+  if (n.pact) o.pact = n.pact;              // the terms are the route; without them it is void
   return Object.keys(o).length ? o : null;
 }
 // A crown left at war in memory must not stay at war through a load that never
@@ -5871,7 +5872,7 @@ function warSave(n) {
 function warsReset() {
   for (const n of Object.values(NATIONS)) {
     Object.assign(n, WAR_DEFAULTS);
-    n.captured = []; n.calName = undefined;
+    n.captured = []; n.calName = undefined; n.pact = undefined;
   }
 }
 
@@ -6339,11 +6340,43 @@ function updateNationTrade(dt) {
           toast(`The caravan from ${n.name} turns back — ${NATIONS[blockade.nation].name} holds the routes.`);
         continue;
       }
-      const dm = 3 + Math.floor(natStrength(n) / 2);
-      res.dm += dm;
-      const goods = [["wheat", 2], ["iron", 1], ["stone", 2], ["bread", 1]][Math.floor(Math.random() * 4)];
-      res[goods[0]] += goods[1];
-      toast(`A caravan from ${n.name} arrives: +${dm} DM, +${goods[1]} ${goods[0]}.`);
+      // A caravan is a bargain being kept, in both directions. Yours goes out of
+      // the capital's stores whether it is convenient or not; theirs comes back
+      // only while you are keeping your half.
+      // A colony saved before there were terms has routes but no bargain behind
+      // them. Rather than voiding them silently, the court is given the deal it
+      // would have opened with — and the player is told to go and look at it.
+      let p = n.pact;
+      if (!p) {
+        p = n.pact = pactOpening(id);
+        notify({ icon: "⚑", cls: "you", text: `${n.name} sets terms at last.`,
+                 sub: `${pactLine(p)} — re-open them if they do not suit`,
+                 x: CAPITAL_X, y: CAPITAL_Y, z: 0.5 });
+      }
+      const have = Math.floor(res[p.give.good] || 0);
+      if (have < p.give.amt) {
+        n.dues = (n.dues || 0) + 1;
+        if (n.dues >= 3) {
+          n.trade = false; n.dues = 0; n.tradeCool = 150;
+          eventCard(`${n.name} tears up the agreement.`, "event_caravan",
+                    `Three caravans went home empty — they will not send a fourth`);
+        } else {
+          notify({ icon: "!", cls: "bad", text: `The caravan to ${n.name} goes home empty.`,
+                   sub: `${p.give.amt} ${p.give.good} was owed and the capital had ${have} — ` +
+                        `${3 - n.dues} more and the agreement is void`,
+                   x: CAPITAL_X, y: CAPITAL_Y, z: 0.5 });
+        }
+        continue;
+      }
+      res[p.give.good] -= p.give.amt;
+      res[p.get.good] = (res[p.get.good] || 0) + p.get.amt;
+      n.dues = 0;
+      // No coin on top. The goods ARE the trade — paying a bonus for a bargain
+      // that already favours you is the free pension this was built to remove.
+      // What you profit by is selling a crown the one thing its lands cannot
+      // grow and taking payment in the thing they are sick of the sight of.
+      toast(`A caravan from ${n.name}: ${p.give.amt} ${p.give.good} out, ` +
+            `${p.get.amt} ${p.get.good} back.`);
       SFX.coin();
     }
   }
@@ -6472,7 +6505,14 @@ function mapInfoSync() {
   as.style.display = n.atWar ? "block" : "none";
   const tr = document.getElementById("miTrade");
   tr.style.display = (!n.atWar && adj && !n.trade) ? "block" : "none";
-  if (n.trade) document.getElementById("miDetail").textContent += " A trade route is open — caravans arrive regularly.";
+  if (n.trade) document.getElementById("miDetail").textContent +=
+    ` A trade route is open on these terms: ${pactLine(n.pact)}, every caravan.` +
+    (n.dues ? ` ${n.dues} caravan(s) have gone home empty.` : "");
+  const rt = $("miTerms");
+  if (rt) {
+    rt.style.display = n.trade ? "block" : "none";
+    rt.textContent = `Re-open the terms with ${n.name}`;
+  }
   // What a spy is actually for: the two numbers you would otherwise be guessing at
   if (knowsArmies(mapSelNation)) {
     const cs = nationCities(mapSelNation);
@@ -6554,6 +6594,107 @@ function wantsOf(id) {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffff;
   return poor[h % poor.length];
 }
+// ===== the terms of a trade route =====
+// A trade route used to be a switch with a gift in front of it: win the audience,
+// hand over a load of wheat once, and from then on a caravan turned up every
+// minute with free silver and free goods forever. Nothing left your stores again.
+// That is not trade, it is a pension.
+//
+// A route is a standing bargain now. You send them something every caravan and
+// they send something back, and BOTH halves are yours to argue over before you
+// sign. What a good is worth depends on who is holding it: a crown whose lands
+// are thick with timber will not pay much for timber, and will pay handsomely
+// for the one thing it cannot grow.
+const GOOD_WORTH = { logs: 1, stone: 1.2, wheat: 1.4, bread: 2.2, meat: 2.4, iron: 3.4 };
+const worthHere = good => GOOD_WORTH[good] || 1.5;
+function worthTo(id, good) {
+  const base = worthHere(good);
+  if (goodsOf(id).includes(good)) return base * 0.55;      // their own lands are full of it
+  if (wantsOf(id) === good) return base * 1.9;             // the one thing they are short of
+  return base;
+}
+// How hard this particular court bargains. A great power drives a harder deal
+// than a duchy; a country with plague or famine in it will take what it can get.
+function pactAsk(id) {
+  const n = NATIONS[id] || {};
+  let ask = 1.12 + natStrength(n) * 0.045;
+  if (n.calT) ask -= 0.28;                                  // stricken, and knows it
+  if (n.hungry) ask -= 0.20;
+  if (n.trade) ask -= 0.10;                                 // already dealing with you
+  return Math.max(0.85, ask);
+}
+// Their side of the sum: what they gain against what it costs them to send.
+function pactBalance(id, give, get) {
+  const gain = give.amt * worthTo(id, give.good);
+  const cost = Math.max(0.01, get.amt * worthTo(id, get.good));
+  return gain / cost;
+}
+const PACT_WORDS = [
+  { at: 1.30, ok: true,  word: "They would take that gladly — you are giving away more than you need to." },
+  { at: 1.05, ok: true,  word: "The court finds it fair, and would sign." },
+  { at: 0.92, ok: true,  word: "Grudging, but they would sign it." },
+  { at: 0.78, ok: false, word: "They hesitate. A little more your side, and it would carry." },
+  { at: 0.55, ok: false, word: "The envoy is told plainly that it is not enough." },
+  { at: -99,  ok: false, word: "An insult. They will not hear it." },
+];
+function pactVerdict(id, give, get) {
+  if (!give.amt || !get.amt) return { ok: false, word: "Both sides of a bargain have to have something in them." };
+  const r = pactBalance(id, give, get) / pactAsk(id);
+  return PACT_WORDS.find(w => r >= w.at);
+}
+// What a court would propose if left to itself — the opening position you argue
+// against, rather than a blank table you have to guess at.
+function pactOpening(id) {
+  const want = wantsOf(id), rich = goodsOf(id);
+  const give = { good: want, amt: 6 };
+  // they offer whichever of their own plentiful goods you hold least of
+  const good = rich.slice().sort((a, b) => (res[a] || 0) - (res[b] || 0))[0] || rich[0];
+  const fair = give.amt * worthTo(id, want) / Math.max(0.01, worthTo(id, good) * pactAsk(id));
+  return { give, get: { good, amt: Math.max(1, Math.round(fair)) } };
+}
+const pactLine = p => p ? `${p.give.amt} ${p.give.good} out, ${p.get.amt} ${p.get.good} back` : "no terms";
+
+// --- arguing over them ---
+let pactNation = null;
+function openPactModal(id) {
+  pactNation = id;
+  const n = NATIONS[id];
+  const start = n.pact ? { give: { ...n.pact.give }, get: { ...n.pact.get } } : pactOpening(id);
+  $("pactTitle").textContent = "TERMS WITH " + n.name.toUpperCase();
+  $("pactRead").textContent =
+    `Their lands are rich in ${goodsOf(id).join(" and ")}, and short of ${wantsOf(id)}. ` +
+    (n.calT ? `${n.calName} has them at a disadvantage, and they know it. `
+            : `Strength ${natStrength(n)}/10 — they bargain accordingly. `) +
+    `A caravan runs every minute, and takes your side of it out of the capital's stores.`;
+  for (const side of ["Give", "Get"]) {
+    const sel = $("pact" + side + "Good"), amt = $("pact" + side + "Amt");
+    sel.innerHTML = TRADE_GOODS.map(g => `<option value="${g}">${g}</option>`).join("");
+    sel.value = side === "Give" ? start.give.good : start.get.good;
+    amt.value = side === "Give" ? start.give.amt : start.get.amt;
+  }
+  pactSync();
+  $("pactModal").style.display = "block";
+  paused = true;
+}
+function pactTerms() {
+  return { give: { good: $("pactGiveGood").value, amt: Math.max(0, Math.min(60, Math.floor(+$("pactGiveAmt").value || 0))) },
+           get:  { good: $("pactGetGood").value,  amt: Math.max(0, Math.min(60, Math.floor(+$("pactGetAmt").value  || 0))) } };
+}
+function pactSync() {
+  const id = pactNation; if (!id) return;
+  const t = pactTerms(), v = pactVerdict(id, t.give, t.get);
+  $("pactVerdict").textContent = v.word;
+  $("pactVerdict").className = v.ok ? "pactYes" : "pactNo";
+  const hold = Math.floor(res[t.give.good] || 0);
+  $("pactStock").textContent =
+    `The capital holds ${hold} ${t.give.good}. At ${t.give.amt} a caravan that is ` +
+    (t.give.amt > 0 ? `${Math.floor(hold / t.give.amt)} caravan(s)` : "no caravans") +
+    ` before the store runs dry — a route you cannot pay is a route they tear up.`;
+  $("pactPropose").disabled = !v.ok;
+  $("pactPropose").textContent = v.ok ? "Sign it" : "They will not sign that";
+}
+function closePactModal() { $("pactModal").style.display = "none"; pactNation = null; setPause(pauseOpen); }
+
 const barterFor = amt => Math.max(1, Math.round(amt * 0.6));
 function requestOdds(id, good, amt) {
   const n = NATIONS[id] || {};
@@ -6620,11 +6761,14 @@ document.getElementById("miTrade").addEventListener("click", () => {
     onWin: () => {
       closeDialogue();
       res[gift] = Math.max(0, (res[gift] || 0) - giftN);      // the gift is handed over
-      n.trade = true; n.tradeT = 30; n.tradeMeter = undefined; n.tradeUsed = new Set();
-      eventCard(`A trade route opens with ${n.name}.`, "event_caravan",
-                `${giftN} ${gift} given in tribute — the first caravan is on the road`);
+      n.tradeMeter = undefined; n.tradeUsed = new Set();
+      // Winning the audience buys you the table, not the deal. What each side
+      // sends the other is argued over now, and until it is agreed there is no
+      // route — the envoy has been received, and that is all.
+      toast(`${n.name} will hear terms. ${giftN} ${gift} given in tribute.`);
       SFX.coin();
-      mapInfoSync(); syncUI();
+      openPactModal(mapSelNation);
+      syncUI();
     },
     onLose: () => {
       closeDialogue();
@@ -8226,6 +8370,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 9, date: "5 September 2026", title: "A trade route is a bargain, not a pension",
+    lines: [
+      "A route used to be a switch with a gift in front of it: win the audience, hand over one load of wheat, and from then on a caravan turned up every minute with free silver and free goods forever. Nothing ever left your stores again.",
+      "Now both halves of it are yours to argue over. You send them something every caravan and they send something back, and you sit down at a table and haggle over what. Ask for too much and the envoy is told plainly that it is not enough; ask for far too much and it is an insult and they will not hear it; offer more than you need to and they will take it gladly and you will have given away the difference.",
+      "What a good is worth depends on who is holding it. A crown whose forests run to the horizon will not pay much for timber and will pay handsomely for the one thing its lands cannot grow — so the money is in selling a country what it lacks and taking payment in whatever it is sick of the sight of. A great power drives a harder bargain than a duchy, and a country with plague in it will take what it can get.",
+      "And the caravan collects. Your side goes out of the capital's stores whether it is convenient or not, and a route you cannot pay is a route they tear up — two empty caravans and a warning, and on the third the agreement is void. The terms can be re-opened at any time from the country's panel.",
+    ] },
   { v: 8, date: "5 September 2026", title: "Towns can be given to somebody to run",
     lines: [
       "A daughter town used to be a warehouse with a name on it. You founded it, the settlers walked out, and unless you personally stood over the place nothing whatever happened there — raiders burned the roofs and nobody rebuilt them, the survivors drifted back to the capital, and the town kept two hundred logs and a chest of silver in a clearing nobody visited again.",
@@ -12409,6 +12560,23 @@ $("sbScout").addEventListener("click", () => {
 });
 $("marchNo").addEventListener("click", closeMarchModal);
 $("mayorNo").addEventListener("click", closeMayorModal);
+for (const el of ["pactGiveGood", "pactGiveAmt", "pactGetGood", "pactGetAmt"])
+  for (const ev of ["change", "input"]) $(el).addEventListener(ev, pactSync);
+$("pactNo").addEventListener("click", closePactModal);
+$("miTerms").addEventListener("click", () => { if (mapSelNation) openPactModal(mapSelNation); });
+$("pactPropose").addEventListener("click", () => {
+  const id = pactNation; if (!id) return;
+  const n = NATIONS[id], t = pactTerms();
+  if (!pactVerdict(id, t.give, t.get).ok) return toast(`${n.name} will not sign that.`);
+  const fresh = !n.trade;
+  n.pact = t; n.trade = true; n.dues = 0;
+  if (fresh) n.tradeT = 30;
+  closePactModal();
+  eventCard(fresh ? `A trade route opens with ${n.name}.` : `New terms with ${n.name}.`,
+            "event_caravan", `${pactLine(n.pact)}, every caravan`);
+  SFX.coin();
+  mapInfoSync(); syncUI();
+});
 $("mayorDismiss").addEventListener("click", () => {
   if (mayorTown && mayorTown.mayor) {
     const was = mayorTown.mayor.name;
