@@ -11434,6 +11434,69 @@ function drawStratMarks(amt) {
   ctx.restore();
   ctx.globalAlpha = 1;
 }
+// ===== a column, close to =====
+// Out at map height a march is a pennant on a chart. Down among the trees it
+// ought to be what it actually is: a rider picking his way across country, or a
+// company of men on the road. The same object, drawn at the scale you happen to
+// be looking at it from — which is the whole point of there being one map.
+//
+// The figures are arranged around the column's own point and walk in the
+// direction it is travelling, so a company reads as a company and not as one man
+// standing in for five.
+const MARCH_LOOK = {
+  scout: { who: "hunter", n: 1, spread: 0 },
+  spy:   { who: "brother", n: 1, spread: 0 },
+  army:  { who: "soldierU", n: 5, spread: 46 },
+  war:   { who: "foe", n: 4, spread: 44 },
+  field: { who: "foe", n: 4, spread: 44 },
+};
+// the same coat the crown's war parties wear on your own ground
+function marchFrame(m, look, f) {
+  if (look.who === "foe") {
+    const crown = NATIONS[m.nation];
+    return crown ? foeCoat(crown.color, "soldierU" + f) : img["hunter" + f];
+  }
+  if (look.who === "soldierU") return coatOf("soldierU" + f);
+  return img[look.who + f];
+}
+function marchDrawables(out) {
+  // render()'s own inView is a local, and this runs outside it: the same test,
+  // written out, rather than reaching for something that is not in scope
+  const vw = canvas.width / zoom, vh = canvas.height / zoom;
+  const inSight = (x, y) => x > cam.x - 140 && x < cam.x + vw + 140 &&
+                            y > cam.y - 160 && y < cam.y + vh + 180;
+  for (const m of marches) {
+    if (m.state === "resident") continue;             // he is indoors, in their capital
+    if (!marchVisible(m)) continue;
+    const look = MARCH_LOOK[m.kind] || MARCH_LOOK.army;
+    // a column of yours is exactly as many men as are actually in it
+    const n = m.kind === "army" ? Math.max(1, Math.min(8, (m.men || []).length)) : look.n;
+    const ang = Math.atan2(m.ty - m.y, m.tx - m.x);
+    const face = Math.cos(ang) < 0 ? -1 : 1;
+    const step = (worldT * 6 + m.id * 1.7);
+    for (let i = 0; i < n; i++) {
+      // strung out along the line of march, two abreast
+      const back = (i >> 1) * look.spread, side = (i % 2 ? 1 : -1) * (look.spread ? 15 : 0);
+      const x = m.x - Math.cos(ang) * back - Math.sin(ang) * side;
+      const y = m.y - Math.sin(ang) * back * 0.7 + Math.cos(ang) * side * 0.7;
+      if (!inSight(x, y)) continue;
+      out.push({ y, draw: () => {
+        const f = Math.floor(step + i * 0.9) % 4;
+        const im = marchFrame(m, look, f);
+        if (im) drawSprite(im, x, y, CHAR_SIZE, face < 0);
+        if (i === 0 && settings.labels) {
+          ctx.font = "10px monospace"; ctx.textAlign = "center";
+          ctx.fillStyle = m.side === "you" ? "#ffe9b0" : "#d86a5a";
+          ctx.fillText(m.kind === "scout" ? "scout" : m.kind === "spy" ? "agent"
+                       : m.side === "you" ? `${(m.men || []).length} of yours`
+                       : `${NATIONS[m.nation] ? NATIONS[m.nation].name : "?"}`,
+                       x, y - CHAR_SIZE * 0.9);
+        }
+      }});
+    }
+  }
+}
+
 function renderStrategicOnly() {
   ctx.setTransform(zoom, 0, 0, zoom, -cam.x * zoom, -cam.y * zoom);
   ctx.imageSmoothingEnabled = false;
@@ -12126,6 +12189,9 @@ function render(dt) {
   }});
   // A crown's troops march in its regimentals and are named for what they are.
   // The woods' own thieves are no army: they come as they always did, in rags.
+  // columns on the roads of Europe, drawn as the men they are whenever the camera
+  // is low enough to make out a man at all
+  marchDrawables(drawables);
   for (const r of raiders) if (inView(r.x, r.y)) drawables.push({ y: r.y, draw: () => {
     const i = Math.floor(r.anim) % 4;
     const crown = r.nation && NATIONS[r.nation];
