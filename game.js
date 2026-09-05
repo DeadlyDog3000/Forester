@@ -6695,7 +6695,13 @@ function foreignName(id, n) {
 // somewhere behind you.
 function landForeignTown(id, where) {
   const n = NATIONS[id];
-  const tier = Math.max(1, natStrength(n));
+  const city = where && where.cityRef;
+  // A named city of Europe builds itself out of its OWN books — how many souls
+  // it holds, what its walls are made of, how many men are under arms in it,
+  // what is in its treasury. A border outpost, which has no books, falls back on
+  // the strength of the crown that planted it.
+  const tier = city ? Math.max(1, Math.min(10, 1 + city.walls * 2 + Math.floor(city.pop / 14)))
+                    : Math.max(1, natStrength(n));
   // set it down a real march away, clear of your ground, the camps and other towns
   let site = where && where.x !== undefined ? { x: Math.round(where.x), y: Math.round(where.y) } : null;
   for (let tries = 0; tries < 40 && !site; tries++) {
@@ -6708,7 +6714,9 @@ function landForeignTown(id, where) {
   }
   if (!site) { const a = Math.random() * Math.PI * 2; site = { x: Math.round(Math.cos(a) * 3000), y: Math.round(Math.sin(a) * 3000) }; }
   const town = { nation: id, name: (where && where.name) || foreignName(id, n), x: site.x, y: site.y, fallen: false,
-                 city: where && where.city, dm: 150 + tier * 40, weapons: 2 + Math.floor(tier / 2) };
+                 city: where && where.city,
+                 dm: city ? Math.round(city.wealth) : 150 + tier * 40,
+                 weapons: city ? 2 + Math.floor(city.garrison / 3) : 2 + Math.floor(tier / 2) };
   foreignTowns.push(town);
   const put = (type, dx, dy, hp) => {
     const b = { type, x: site.x + dx, y: site.y + dy, hp, maxHp: hp, town, foreign: true,
@@ -6718,27 +6726,47 @@ function landForeignTown(id, where) {
     for (const s of nearThings("stones", b.x, b.y, 80)) { s.alive = false; markChunkDirty(s.x, s.y); }
     return b;
   };
-  // the keep at the heart, the town about it, a ring of wall with one gate
+  // the keep at the heart, the town about it, a ring of wall with one gate.
+  // A real city is as big as its population: Paris does not get four cabins
+  // because a border outpost gets four cabins.
   town.keep = put("townhall", 0, 0, 260 + tier * 30);
   town.keep.keep = true;
-  put("cabin", -150, -40, 90); put("cabin", 150, -40, 90);
-  put("cabin", -110, 120, 90); put("cabin", 120, 120, 90);
-  put("market", 0, 150, 110);
-  if (tier >= 3) put("forge", -190, 90, 110);
-  if (tier >= 5) put("watchtower", 190, 90, 130);
-  const R = 300, wallHp = 90 + tier * 14, RING = 26;
-  for (let i = 0; i < RING; i++) {
-    const a = (i / RING) * Math.PI * 2;
-    const wx = Math.round(Math.cos(a) * R), wy = Math.round(Math.sin(a) * R * 0.82);
-    if (i === 6) { const g = put("gate", wx, wy, wallHp); g.rot = Math.abs(Math.cos(a)) > 0.6 ? 1 : 0; continue; }
-    const w = put(tier >= 4 ? "stonewall" : "wall", wx, wy, wallHp);
-    w.rot = Math.abs(Math.cos(a)) > 0.6 ? 1 : 0;
+  const houses = city ? Math.max(4, Math.min(16, Math.round(city.pop / 4))) : 4;
+  town.houses = houses;                   // what it was raised with, for the reckoning after
+  // the ring widens with the town, so the houses are not stacked on the keep
+  const R = city ? Math.round(260 + houses * 16) : 300;
+  for (let i = 0; i < houses; i++) {
+    const a = (i / houses) * Math.PI * 2 + 0.4;
+    const rr = R * (i % 2 ? 0.42 : 0.68);
+    put("cabin", Math.round(Math.cos(a) * rr), Math.round(Math.sin(a) * rr * 0.8), 90);
+  }
+  put("market", 0, Math.round(R * 0.5), 110);
+  if (tier >= 3) put("forge", -Math.round(R * 0.62), Math.round(R * 0.3), 110);
+  if (tier >= 5) put("watchtower", Math.round(R * 0.62), Math.round(R * 0.3), 130);
+  if (city && city.cap) put("temple", 0, -Math.round(R * 0.52), 140);
+  // and its wall is whatever the books say it is: an open town has none at all
+  const wallTier = city ? city.walls : (tier >= 4 ? 3 : 2);
+  if (wallTier > 0) {
+    const wallHp = 90 + tier * 14 + wallTier * 30, RING = Math.max(26, Math.round(R / 11.5));
+    for (let i = 0; i < RING; i++) {
+      const a = (i / RING) * Math.PI * 2;
+      const wx = Math.round(Math.cos(a) * R), wy = Math.round(Math.sin(a) * R * 0.82);
+      const upright = Math.abs(Math.cos(a)) > 0.6 ? 1 : 0;
+      // one gate on the near side, and a second on the far side of a great city
+      if (i === 6 || (RING > 34 && i === 6 + (RING >> 1))) {
+        const g = put(wallTier >= 3 ? "stonegate" : "gate", wx, wy, wallHp);
+        g.rot = upright; continue;
+      }
+      const w = put(wallTier >= 3 ? "stonewall" : "wall", wx, wy, wallHp);
+      w.rot = upright;
+    }
   }
   // the townsfolk: no soldiers, only people, who scatter when your line comes on
   const FOLK_M = ["Anders", "Bertil", "Ewald", "Hark", "Joris", "Klaus", "Mikkel", "Peder", "Rutger", "Sten"];
   const FOLK_F = ["Birgit", "Dorothea", "Elke", "Gisela", "Karin", "Maren", "Sofie", "Trine"];
   const TRADES = ["farmer", "forager", "lumberjack", "quarryman", "blacksmith", null];
-  const folkN = 4 + Math.floor(tier / 2) + Math.floor(Math.random() * 3);
+  const folkN = city ? Math.max(4, Math.min(18, Math.round(city.pop / 3)))
+                     : 4 + Math.floor(tier / 2) + Math.floor(Math.random() * 3);
   for (let i = 0; i < folkN; i++) {
     const female = Math.random() < 0.45;
     const pool = female ? FOLK_F : FOLK_M;
@@ -6752,10 +6780,14 @@ function landForeignTown(id, where) {
       state: "idle", anim: 0, facing: 1, fleeT: 0,
     });
   }
-  // the garrison: they hold the town and do not march on your colony
-  const garrison = 4 + Math.floor(tier / 2);
+  // the garrison: they hold the town and do not march on your colony. For a real
+  // city this is the number a spy would have reported to you — so what the panel
+  // said before you marched is what you meet at the gate.
+  const garrison = city ? Math.max(2, Math.min(20, Math.round(city.garrison)))
+                        : 4 + Math.floor(tier / 2);
+  town.garrisonRaised = garrison;         // how many actually stood, for the reckoning after
   for (let i = 0; i < garrison; i++) {
-    const a = (i / garrison) * Math.PI * 2, rr = 120 + Math.random() * 90;
+    const a = (i / garrison) * Math.PI * 2, rr = R * 0.38 + Math.random() * 90;
     const hp = 80 + tier * 8;
     raiders.push({ x: site.x + Math.cos(a) * rr, y: site.y + Math.sin(a) * rr, hp, maxHp: hp,
                    dmg: 13 + tier, camp: { x: site.x, y: site.y }, target: null, state: "patrol",
@@ -6960,7 +6992,7 @@ function foreignTownFalls(town) {
                      res: { logs: 0, seeds: 0, stone: 0, iron: 0, wheat: 0, bread: 0, meat: 0, dm: 0, doors: 0, weapons: 0 },
                      ...worldCell(town.x, town.y) });
   // and if it was one of the named cities of Europe, that city has fallen
-  if (town.city) { const cc = cityById(town.city); if (cc) { cc.fallen = true; cc.siege = 0; } }
+  if (town.city) { const cc = cityById(town.city); if (cc) { cc.fallen = true; cc.siege = 0; cc.town = null; } }
   for (const c of civs) if (!c.home) houseCiv(c);
   n.lost = (n.lost || 0) + 1;
   n.captured = n.captured || [];
@@ -7927,6 +7959,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 7, date: "5 September 2026", title: "Rival cities are real places now",
+    lines: [
+      "Every named city of Europe is built out of its own books when you come near enough to make out a building, and folded back into them when you leave. Its walls are what the map said its walls were; the garrison waiting at the gate is the number your agent reported. Fly to Copenhagen and there is a city there.",
+      "Which means it can be sacked, and the sacking sticks. Burn half the roofs and half the souls are gone from its books afterwards; kill the men on the walls and the next crown that counts them counts fewer. A hundred and nine towns are not all standing at once — only the one you are looking at is.",
+      "Columns are drawn as men when the camera is low enough to see a man. A scout goes as a hunter, an agent as an ordinary traveller, a crown's company in that crown's coat. Fly down to where your scout is and he is there, riding.",
+      "And the wall finally works like a wall. A piece could be built across your own gate and brick it up — silently, permanently, with the gate still drawn as a gate. That is refused now and dug out of colonies that already have one. People make for the gate that suits the journey rather than the nearest one, they make for it from the outset instead of walking into the stone first, and anyone caught outside with a war party in sight drops what they are doing and runs for it.",
+    ] },
   { v: 6, date: "4 September 2026", title: "One map, from the doorstep to the Danube",
     lines: [
       "Europe is no longer a picture behind a button. Pull the camera back off your rooftops and the ground gives way to the country, the country to the crowns — the same map, the same coordinates, the whole way out.",
@@ -10951,11 +10990,10 @@ function arriveArmy(m) {
              x: m.tx, y: m.ty, z: 0.6 });
     return;
   }
-  let town = foreignTowns.find(t => t.city === city.id && !t.fallen);
-  if (!town) {
-    const q = cityWorld(city);
-    town = landForeignTown(city.owner, { x: q.x, y: q.y, name: city.name, city: city.id });
-  }
+  // the city may already be standing because the camera is on it; if not, it is
+  // raised out of its own books, the same as if you had flown there to look
+  const town = city.town || materialiseCity(city);
+  if (!town) { landMen(m, m.tx, m.ty); return; }
   landMen(m, town.x, town.y + 480);
   city.siege = 1;
   notify({ icon: "⚔", cls: "you", text: `Your army stands before ${town.name}.`,
@@ -11139,6 +11177,123 @@ function updateCities(dt) {
   stratDirty = true;
 }
 
+// ===== a city is a place, not a number =====
+// Every crown's city has always had books — how many souls, how big a garrison,
+// what its walls are made of, what is in its treasury — and until now that was
+// all it had. Fly to Copenhagen and there was grass.
+//
+// A city is built out of its own books when something of yours comes near enough
+// to make out a building, and folded back into them when nothing is. The numbers
+// are the truth that persists; the timber is a view of them. So a spy's report
+// of eleven men in the garrison is eleven men at the gate when you get there, and
+// burning half the town down is half the town gone from the books afterwards —
+// which is the whole point of modelling it rather than drawing a dot.
+//
+// The alternative was a hundred and nine towns standing at once: four thousand
+// buildings, two thousand souls and a save file to match, nearly all of it in
+// country no one will visit this reign.
+const CITY_LOD_R = CELL_W * 1.4;          // near enough to be worth building
+const CITY_LOD_KEEP = CELL_W * 2.2;       // and how far you must go before it is struck
+
+function materialiseCity(c) {
+  if (!c || c.fallen || c.town) return c && c.town;
+  const q = cityWorld(c);
+  // Something already standing on the spot is adopted, never doubled. A town can
+  // get here without the city knowing about it — a column that arrived before
+  // the camera did, or a save written by a build that did not keep the link —
+  // and raising a second Copenhagen inside the first is not recoverable.
+  const standing = foreignTowns.find(t => !t.fallen && Math.hypot(t.x - q.x, t.y - q.y) < 60);
+  if (standing) { standing.city = c.id; c.town = standing; return standing; }
+  const t = landForeignTown(c.owner === "you" ? c.nation : c.owner,
+                            { x: q.x, y: q.y, name: c.name, city: c.id, cityRef: c });
+  c.town = t;
+  return t;
+}
+// Whoever is standing in it decides whether it may be struck: a town with your
+// soldiers in it, or a fire burning, or a siege under way, stays where it is.
+function cityBusy(c) {
+  const t = c.town;
+  if (!t) return false;
+  if (t.fallen) return false;
+  if (foreign.some(b => b.town === t && (b.fire > 0 || (b.hp !== undefined && b.hp < b.maxHp)))) return true;
+  return civs.some(u => !u.afield && !INDOORS.has(u.state) && Math.hypot(u.x - t.x, u.y - t.y) < CITY_LOD_KEEP);
+}
+function dematerialiseCity(c) {
+  const t = c.town;
+  if (!t) return;
+  // --- what happened while it stood goes back into the books ---
+  // A burned house is not of type "cabin" any more — it is of type "burned" —
+  // so the roofs have to be counted against the number the town was RAISED with,
+  // which it wrote down at the time. Counting survivors against survivors made
+  // every sacking look like nothing had happened.
+  const raised = t.houses || 1;
+  const standing = foreign.filter(b => b.town === t && b.type === "cabin" && !b.fire).length;
+  c.pop = Math.max(1, Math.round(c.pop * (0.35 + 0.65 * Math.min(1, standing / raised)) * 10) / 10);
+  // Losses, not survivors. A city of twenty-six men only ever puts twenty on the
+  // ground (a hundred men standing in one square is a slideshow, not a siege), so
+  // writing back the head count would quietly kill six of them every time the
+  // camera passed by.
+  const raisedMen = t.garrisonRaised === undefined ? c.garrison : t.garrisonRaised;
+  const lost = Math.max(0, raisedMen - raiders.filter(r => r.garrison === t).length);
+  c.garrison = Math.max(0, c.garrison - lost);
+  c.wealth = Math.max(0, Math.round(t.dm));
+  // a town whose walls came down does not have them back the next time you call
+  const wallsLeft = foreign.filter(b => b.town === t && WALLLIKE.has(b.type)).length;
+  if (c.walls > 0 && wallsLeft < 8) c.walls = Math.max(0, c.walls - 1);
+  // --- and the timber comes down ---
+  for (let i = foreign.length - 1; i >= 0; i--) if (foreign[i].town === t) foreign.splice(i, 1);
+  for (let i = foreignFolk.length - 1; i >= 0; i--) if (foreignFolk[i].town === t) foreignFolk.splice(i, 1);
+  for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].garrison === t) raiders.splice(i, 1);
+  const ti = foreignTowns.indexOf(t);
+  if (ti >= 0) foreignTowns.splice(ti, 1);
+  c.town = null;
+  stratDirty = true;
+}
+// The camera is the only thing that calls a city into being — your own towns and
+// columns are on their own errands, and a city built behind a marching scout that
+// nobody is looking at is a hundred buildings simulated for nothing.
+let cityLodT = 0;
+function updateCityLod(dt) {
+  cityLodT -= dt;
+  if (cityLodT > 0) return;
+  cityLodT = 0.75;
+  const looking = !onMap() && gameState === "playing";
+  const cx = cam.x + canvas.width / 2 / zoom, cy = cam.y + canvas.height / 2 / zoom;
+  for (const c of CITIES) {
+    if (c.fallen) { if (c.town) dematerialiseCity(c); continue; }
+    const q = cityWorld(c);
+    const d = Math.hypot(q.x - cx, q.y - cy);
+    if (!c.town) { if (looking && d < CITY_LOD_R) materialiseCity(c); continue; }
+    if ((!looking || d > CITY_LOD_KEEP) && !cityBusy(c)) dematerialiseCity(c);
+  }
+}
+// on the way back in, re-tie every standing town to the city whose books it keeps
+function relinkCityTowns() {
+  for (const c of CITIES) c.town = null;
+  // First, throw away anything standing on top of something else. Older builds
+  // could leave a second and a third town on one site; they are invisible on the
+  // map (the markers coincide) and they double the garrison at the gate.
+  for (let i = foreignTowns.length - 1; i >= 0; i--) {
+    const t = foreignTowns[i];
+    const twin = foreignTowns.find((o, j) => j < i && Math.hypot(o.x - t.x, o.y - t.y) < 60);
+    if (!twin) continue;
+    for (let k = foreign.length - 1; k >= 0; k--) if (foreign[k].town === t) foreign.splice(k, 1);
+    for (let k = foreignFolk.length - 1; k >= 0; k--) if (foreignFolk[k].town === t) foreignFolk.splice(k, 1);
+    for (let k = raiders.length - 1; k >= 0; k--) if (raiders[k].garrison === t) raiders.splice(k, 1);
+    foreignTowns.splice(i, 1);
+  }
+  for (const t of foreignTowns) {
+    let c = t.city ? cityById(t.city) : null;
+    // a town with no link is matched to whatever city it is standing on
+    if (!c) {
+      const cl = worldCell(t.x, t.y);
+      c = CITIES.find(x => !x.fallen && x.mx === cl.mx && x.my === cl.my);
+      if (c) t.city = c.id;
+    }
+    if (c && !c.town) c.town = t;
+  }
+}
+
 // ===== notifications: the world tells you, and takes you there =====
 // Everything above happens whether or not you are looking at it. A line of text
 // that vanishes in five seconds is not good enough for an army arriving twelve
@@ -11148,6 +11303,17 @@ function updateCities(dt) {
 let notifs = [];
 const NOTIF_LIFE = 60, NOTIF_MAX = 5;
 function notify(o) {
+  // Five war parties out of the same city in the same ten minutes is five
+  // identical cards, and the fifth tells you nothing the first did not. The
+  // standing one is refreshed and moved to the top instead.
+  const twin = notifs.find(p => p.text === o.text && p.sub === o.sub);
+  if (twin) {
+    twin.t = NOTIF_LIFE;
+    Object.assign(twin, { x: o.x, y: o.y, z: o.z, march: o.march });
+    notifs = [twin, ...notifs.filter(p => p !== twin)];
+    renderNotifs();
+    return twin;
+  }
   const n = Object.assign({ icon: "•", cls: "", sub: "", t: NOTIF_LIFE, key: notifSeq++ }, o);
   notifs.unshift(n);
   while (notifs.length > NOTIF_MAX) notifs.pop();
@@ -11333,6 +11499,7 @@ function drawStratMarks(amt) {
   const dotK = Math.max(0.5, Math.min(1, cellPx / NAME_ALL));
   for (const c of CITIES) {
     if (c.fallen || !isCharted(c.mx, c.my)) continue;
+    if (c.town) continue;               // it is standing in timber below; drawn as a town
     const p = cityWorld(c), x = SX(p.x), y = SY(p.y);
     if (!vis(x, y, 40)) continue;
     const showNames = cellPx > NAME_ALL || (c.cap && cellPx > NAME_CAPS);
@@ -11770,6 +11937,7 @@ function updateWorld(dt) {
   updateCharting(dt);
   updateMarches(dt);
   updateCities(dt);
+  updateCityLod(dt);
   updateNotifs(dt);
 }
 
@@ -11846,7 +12014,7 @@ function worldNewGame() {
   mapSelNation = null; scoutArmed = false; marchSeq = 1;
   for (const k of Object.keys(intel)) delete intel[k];
   for (const c of civs) c.afield = false;
-  CITIES = []; buildMapGrid(); buildCities();
+  CITIES = []; buildMapGrid(); buildCities(); relinkCityTowns();
   charted.clear(); fogDirty = true; stratDirty = true;
   chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
   worldPanelOpen(false); renderNotifs(); stratBarSync();
@@ -11876,6 +12044,7 @@ function worldLoad(d) {
     }));
   }
   if (d && d.intel) for (const [k, v] of Object.entries(d.intel)) intel[k] = { ...v };
+  relinkCityTowns();
   marchSeq = (d && d.seq) || marches.reduce((n, m) => Math.max(n, m.id + 1), 1);
   // an agent whose march was lost in an old save has nobody keeping his secret
   for (const [k, v] of Object.entries(intel)) {
@@ -12212,7 +12381,12 @@ function render(dt) {
         ctx.stroke();
       }
     }
-    if (settings.labels) {
+    // A city garrison is twenty men standing still in one square, and twenty
+    // copies of "Kingdom of Denmark Enemy Soldier" laid over each other is a
+    // smear that hides the town underneath it. They are named as a body — the
+    // garrison label goes on the town, not on each man — and only the ones
+    // actually coming for you are called out individually.
+    if (settings.labels && !(r.garrison && r.state === "patrol")) {
       ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
       const who = crown ? crown.name + " Enemy Soldier" : (r.state === "patrol" ? "thief" : "RAIDER");
       ctx.fillText(r.state === "invest" ? who + " — BESIEGING" : who, r.x, r.y - CHAR_SIZE - 4);
@@ -12223,6 +12397,17 @@ function render(dt) {
     }
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - (r.kit && settings.labels ? 24 : 14), r.hp / r.maxHp, "#a05252", 34);
   }});
+  // and the garrison's tally, once, over the town it is holding
+  if (settings.labels) for (const t of foreignTowns) {
+    if (t.fallen || !inView(t.x, t.y)) continue;
+    const n = raiders.filter(r => r.garrison === t).length;
+    if (!n) continue;
+    drawables.push({ y: t.y + 1, draw: () => {
+      ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
+      const crown = NATIONS[t.nation];
+      ctx.fillText(`${n} of ${crown ? crown.name : "the enemy"} hold ${t.name}`, t.x, t.y - CHAR_SIZE - 30);
+    }});
+  }
   // A man on a stretcher is painted by whoever is carrying him, not by himself
   for (const c of civs) if (!c.afield && !INDOORS.has(c.state) && c.state !== "borne" && inView(c.x, c.y)) drawables.push({ y: c.y, draw: () => {
     const grouped = selGroup.length > 1 && selected && selGroup.includes(selected) && selGroup.includes(c);
