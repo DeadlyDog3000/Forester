@@ -2305,6 +2305,16 @@ function legalToBuild(type, wx, wy, rot) {
   const placingProp = isProp(type);
   for (const b of allStructures()) {
     const bWall = WALLLIKE.has(b.type);
+    // Nothing is built in a doorway. Wall pieces are allowed to overlap each
+    // other by ten pixels so a run reads as one unbroken face — and that licence
+    // was enough to let a segment come to rest on top of a gate and brick it up.
+    // A sealed gate is invisible (it still draws as a gate) and permanent, and
+    // it locks every civilian in the colony out of their own town.
+    //
+    // The test is centre-in-rect rather than any overlap at all: the two pieces
+    // either side of a gate are SUPPOSED to touch it, and a plain overlap test
+    // refuses the whole run.
+    if (placingWall && (b.type === "gate" || b.type === "stonegate") && !b.site && inDoorway(cand, b)) return false;
     const margin = placingWall && bWall ? -10
                  : placingWall || placingProp || bWall || isProp(b.type) || b.type === "farm" ? 2 : 12;
     const r = inflate(bldgRect(b), margin);
@@ -2317,6 +2327,16 @@ function legalToBuild(type, wx, wy, rot) {
   return true;
 }
 
+// A wall piece is standing IN a gate — as against merely alongside it — when
+// either one's middle falls inside the other's footprint.
+function inDoorway(cand, gate) {
+  const g = bldgRect(gate);
+  const cx = cand.x + cand.w / 2, cy = cand.y + cand.h / 2;
+  const gx = g.x + g.w / 2, gy = g.y + g.h / 2;
+  return (cx >= g.x && cx <= g.x + g.w && cy >= g.y && cy <= g.y + g.h) ||
+         (gx >= cand.x && gx <= cand.x + cand.w && gy >= cand.y && gy <= cand.y + cand.h);
+}
+
 const PATH_CELL = 44;
 function cellBlocked(px, py) {
   return allStructures().some(b => (b.type === "wall" || b.type === "stonewall") && !b.site &&
@@ -2327,6 +2347,43 @@ function lineBlocked(x1, y1, x2, y2) {
   for (let i = 1; i <= steps; i++)
     if (cellBlocked(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)) return true;
   return false;
+}
+
+// ===== the gate is the way in =====
+// A wall with a gate in it is a door, not a barrier, and people treat it as one:
+// they set off toward the arch from wherever they are standing, rather than
+// walking into the stone and working it out from there. The A* search finds the
+// gap on its own when the journey is short enough to fit in its box, but it
+// gives up on long ones, and a man who has to cross four screens to get home
+// should still know where the door is. This is the answer for those: aim at the
+// gate first, and at the destination through it.
+const isGate = b => (b.type === "gate" || b.type === "stonegate") && !b.site && !b.fire;
+// The gate that costs least for THIS journey — not the nearest one, which is
+// regularly on the wrong side of the town and sends people the long way round.
+// Both legs are tested, so a gate that only opens onto one end is not offered.
+function bestGate(fx, fy, tx, ty) {
+  let best = null, bd = Infinity;
+  for (const g of buildings) {
+    if (!isGate(g)) continue;
+    const d = Math.hypot(g.x - fx, g.y - fy) + Math.hypot(tx - g.x, ty - g.y);
+    if (d >= bd) continue;
+    if (lineBlocked(fx, fy, g.x, g.y) || lineBlocked(g.x, g.y, tx, ty)) continue;
+    bd = d; best = g;
+  }
+  return best;
+}
+// Squared up to the arch on both sides. Walking at the gate's own centre from an
+// angle grazes the jamb and reads as being stuck; standing off it first, passing
+// through, then carrying on, does not.
+const GATE_STANDOFF = 36;
+function gateRoute(fx, fy, tx, ty) {
+  const g = bestGate(fx, fy, tx, ty);
+  if (!g) return null;
+  const upright = g.rot === 1;
+  const side = upright ? (Math.sign(fx - g.x) || 1) : (Math.sign(fy - g.y) || 1);
+  const outside = upright ? [g.x + side * GATE_STANDOFF, g.y] : [g.x, g.y + side * GATE_STANDOFF];
+  const inside  = upright ? [g.x - side * GATE_STANDOFF, g.y] : [g.x, g.y - side * GATE_STANDOFF];
+  return [outside, inside, [tx, ty]];
 }
 // --- roads underfoot: a beaten path is quicker than the long grass ---
 const ROAD_SPEED = 1.85;              // how much ground a road saves you
@@ -2505,17 +2562,14 @@ function collideMove(c, nx, ny) {
         const route = findPath(c.x, c.y, c.task.x, c.task.y);
         if (route && route.length) { c.path = route; c.tx = route[0][0]; c.ty = route[0][1]; return; }
       }
-      // walled in? take the gate like a sensible person
+      // walled in? take the gate like a sensible person. The nearest one used to
+      // do, which on a town with four gates was as often as not the one furthest
+      // from where they were actually going.
       if (!c.viaGate && (!c.task || c.task.kind !== "attack")) {
-        let gate = null, gd = 800;
-        for (const b of buildings) {
-          if ((b.type !== "gate" && b.type !== "stonegate") || b.fire || b.site) continue;
-          const d = Math.hypot(b.x - c.x, b.y - c.y);
-          if (d < gd) { gd = d; gate = b; }
-        }
-        if (gate) {
+        const via = gateRoute(c.x, c.y, c.task ? c.task.x : c.tx, c.task ? c.task.y : c.ty);
+        if (via) {
           c.viaGate = true;
-          c.tx = gate.x; c.ty = gate.y + 26;
+          c.path = via; c.tx = via[0][0]; c.ty = via[0][1];
           return;
         }
       }
@@ -3676,6 +3730,13 @@ function order(c, task) {
       const route = findPath(c.x, c.y, task.x, task.y, roads.size > 0);
       const usesRoad = route && route.some(p => onRoad(p[0], p[1]));
       if (route && route.length && (blocked || usesRoad)) { c.path = route; c.tx = route[0][0]; c.ty = route[0][1]; }
+      // The search box could not hold the journey, or there is no way through at
+      // all. Make for the gate anyway: it is what a person would do, and it beats
+      // walking into the stone and discovering the wall a second at a time.
+      if (!c.path && blocked) {
+        const via = gateRoute(c.x, c.y, task.x, task.y);
+        if (via) { c.path = via; c.tx = via[0][0]; c.ty = via[0][1]; c.viaGate = true; }
+      }
     }
   }
 }
@@ -3738,7 +3799,8 @@ function arrive(c) {
     admit(c, b);
     return;
   }
-  if (!t || t.kind === "walk") { c.state = "idle"; c.task = null; return; }
+  // safe behind the wall: stop there rather than wandering back out through it
+  if (!t || t.kind === "walk" || t.kind === "toGate") { c.state = "idle"; c.task = null; return; }
   const simple = { chop: "chopping", quarry: "quarrying", gather: "gathering", craft: "crafting", work: "working",
                    buildFarm: "buildingFarm", harvest: "harvesting", sell: "selling", hunt: "hunting", smith: "smithing", trade: "trading", peddle: "peddling", hallDeposit: "depositing", shopBuy: "shopping", construct: "raising", gravestone: "masonry" };
   if (t.kind === "bury") {
@@ -4328,6 +4390,11 @@ function lawTick(c) {
 // formality, and a long enough one that a quarrel can still finish first.
 const FLEE_SIGHT = 260;              // how close the law gets before he bolts
 const FLEE_HASTE = 1.45;             // fear is quick, but not as quick as duty
+// How near a raider has to be before a civilian outside the wall gives up on
+// whatever they were doing and runs for the gate. Generous: the whole point is
+// to start running while there is still time to get there.
+const RUN_FOR_GATE = 1100;
+let gateToldT = -999;
 function runFromTheLaw(c, dt) {
   if (!c.feudWith || isJailed(c) || INDOORS.has(c.state)) return false;
   let cop = null, best = FLEE_SIGHT;
@@ -8418,6 +8485,16 @@ function loadGame() {
     // every daughter town owns the ground it stands on — repairs older saves whose
     // settlements were founded before their clearing was claimed
     for (const st of settlements) if (st.x !== undefined) expandAround(st.x, st.y, 5);
+    // and any gate an older build let a wall settle on top of is dug out again:
+    // the placement rule refuses it now, but a colony that already has one is
+    // walled out of its own town and cannot tell, because it still draws a gate
+    for (const g of buildings.filter(b => b.type === "gate" || b.type === "stonegate")) {
+      for (let i = buildings.length - 1; i >= 0; i--) {
+        const b = buildings[i];
+        if (b === g || (b.type !== "wall" && b.type !== "stonewall")) continue;
+        if (inDoorway(bldgRect(b), g)) buildings.splice(i, 1);
+      }
+    }
     conquests.length = 0; for (const cq of (d.conquests || [])) conquests.push(cq);
     foreignTowns.length = 0; foreign.length = 0; foreignFolk.length = 0;
     for (const t of (d.foreignTowns || [])) foreignTowns.push({ ...t, fallen: false });
@@ -9769,6 +9846,38 @@ function update(dt) {
       if (danger || idleChill) {
         if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
         order(c, { kind: "warmUp", x: c.home.x, y: c.home.y + 12 });
+      }
+    }
+
+    // ===== when the horn goes, get behind the walls =====
+    // A colony that has built a curtain wall has built somewhere to be during a
+    // raid, and until now nobody used it: they carried on felling spruces in the
+    // open while a war party walked past them. Anyone caught outside the wall
+    // with trouble in sight now drops what they are doing and makes for the gate
+    // — which the routing above will actually send them through.
+    if (!c.rebel && !isForce(c) && !INDOORS.has(c.state) && c.state !== "borne" &&
+        (!c.task || c.task.kind !== "toGate")) {
+      const home = c.home ? { x: c.home.x, y: c.home.y + 14 } : townCentre(townAt(c.x, c.y));
+      // "outside" is not a geometry question, it is a practical one: is there a
+      // wall of ours between this person and the roofs they belong to?
+      if (lineBlocked(c.x, c.y, home.x, home.y)) {
+        let near = null, nd = RUN_FOR_GATE;
+        for (const r of raiders) {
+          if (r.state === "flee") continue;
+          const d = Math.hypot(r.x - c.x, r.y - c.y);
+          if (d < nd) { nd = d; near = r; }
+        }
+        if (near) {
+          if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
+          order(c, { kind: "toGate", x: home.x, y: home.y });
+          if (!c.gateToldT || worldT - c.gateToldT > 30) {
+            c.gateToldT = worldT;
+            if (!gateToldT || worldT - gateToldT > 12) {
+              gateToldT = worldT;
+              toast(`\u26a0 Folk caught outside the walls are running for the gate.`);
+            }
+          }
+        }
       }
     }
 
