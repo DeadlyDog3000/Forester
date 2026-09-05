@@ -1250,3 +1250,36 @@ body.touch #touchPad   { display: flex; }
   #stratBar { bottom: 148px; flex-wrap: wrap; justify-content: center; }
   #stratBar #sbNext { display: none; }
 }
+
+/* ===========================================================================
+   THE MAYOR'S OFFICE
+   Appointing one is the whole of the decision, so the sheet has to be readable
+   at a glance: who they are, what life has made of them, and four bars saying
+   what they will actually be like to have running a town.
+   =========================================================================== */
+.mayorRow {
+  border: var(--fx-hair) solid var(--fx-line);
+  padding: 7px 9px; margin-bottom: 6px; cursor: pointer;
+}
+.mayorRow:hover { background: var(--fx-raised); border-color: var(--fx-line-live); }
+.mayorRow.sitting { border-color: var(--fx-gold); }
+.mayorRow .mHead { display: flex; align-items: baseline; gap: 8px; }
+.mayorRow .mHead b { color: var(--fx-ink-bright); font-weight: normal; font-size: var(--fx-t-body); }
+.mayorRow .mRank { margin-left: auto; color: var(--fx-gold); font-size: var(--fx-t-small); letter-spacing: 1px; }
+.mayorRow .mTags { color: var(--fx-ink-5); font-size: var(--fx-t-small); margin: 2px 0 5px; }
+.mayorRow .mBars { display: flex; gap: 8px; }
+.mayorRow .mDuty { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.mayorRow .mDuty i {
+  font-style: normal; color: var(--fx-ink-4);
+  font-size: 9px; letter-spacing: 0.5px;
+}
+/* the bar is a child of a fixed-height track, so a short bar reads as short */
+.mayorRow .mDuty { position: relative; }
+.mayorRow .mDuty b {
+  display: block; height: 4px; background: var(--fx-line-live);
+  box-shadow: inset 0 0 0 99px var(--fx-line-live);
+}
+.mayorRow .mDuty::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0;
+  height: 4px; background: var(--fx-line); z-index: -1;
+}

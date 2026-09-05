@@ -2791,6 +2791,7 @@ function setPause(open) {
     $("pmReign").style.display = ambitionsDone() >= AMBITIONS_TO_END ? "block" : "none";
   }
   paused = pauseOpen || dlg.open || $("marchModal").style.display === "block" ||
+           $("mayorModal").style.display === "block" ||
            $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
   try { SFX.pauseAll(pauseOpen); } catch (e) {}
 }
@@ -3936,6 +3937,16 @@ function autonomy(c, dt) {
   if (isDoc(c) && hospitals().length &&
       civs.some(p => p !== c && needsBed(p) && !spokenFor(p) && !INDOORS.has(p.state))) return;
 
+  // A roof that came free — because it was raised, or because whoever lived in it
+  // died, or because the family it held was burned out and rehoused elsewhere —
+  // used to go unnoticed by anyone standing homeless in the street. houseCiv was
+  // called when a cabin was BUILT and at almost no other time, so a raid that
+  // took three roofs left three people homeless for good, losing a little mood
+  // every day and freezing in the winter, with empty cabins across the square.
+  if (!c.home && houseCiv(c, c.x, c.y)) {
+    toast(`${c.name} moves into an empty cabin.`);
+    return;
+  }
   if (c.hunger < 60) {
     if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); return; }
     if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); return; }
@@ -7100,6 +7111,262 @@ function updateWars(dt) {
   }
 }
 
+// ===== mayors =====
+// A daughter town used to be a warehouse with a name on it. You founded it, the
+// settlers walked out to it, and then — unless you personally stood over the
+// place — nothing whatever happened there. Raiders burned the roofs and nobody
+// rebuilt them; the people who survived drifted back to the capital; the town
+// kept two hundred logs and a chest of silver in a clearing no one visited
+// again. The map made that worse rather than better: every city you take out of
+// Europe becomes another of them.
+//
+// A mayor is one of your own people, given the town to run. The office is not a
+// switch: it is a person, and a person can be bad at it. Who you appoint is the
+// whole of the decision — an industrious mayor keeps the roofs full and the
+// fields worked, an idle one lets it rot exactly as it rots now, and a grasping
+// one sees to it that rather less silver reaches the chest than left the field.
+const MAYOR_DUTIES = [
+  { id: "care",   name: "Care",   what: "roofs over heads, and something in the larder" },
+  { id: "works",  name: "Works",  what: "the burned rebuilt, and idle hands put to a trade" },
+  { id: "order",  name: "Order",  what: "quarrels settled, and nerve when a raid comes" },
+  { id: "thrift", name: "Thrift", what: "what reaches the town chest — and what sticks to their fingers" },
+];
+// Everything here is read off what the person already is. Nothing is rolled for
+// the office itself, so the sheet you read before appointing them is the whole
+// truth about how they will govern.
+//
+// Each temperament touches TWO duties rather than one. With a single trait to a
+// person, a one-duty table left three of the four bars identical on everybody
+// and every candidate in the colony came out "adequate" — which is no decision
+// at all. A trait that reads on two duties, one strongly and one lightly, makes
+// four bars that actually differ between two people standing side by side.
+const TEMPER_OFFICE = {
+  industrious: { works:  0.28, care:   0.10 },
+  idle:        { works: -0.32, care:  -0.12 },
+  hot:         { order: -0.26, care:  -0.08 },
+  even:        { order:  0.24, thrift: 0.06 },
+  gregarious:  { care:   0.24, order:  0.08 },
+  solitary:    { care:  -0.18, works:  0.08 },
+  stout:       { order:  0.26, works:  0.08 },
+  timid:       { order: -0.24, care:   0.06 },
+  generous:    { thrift: 0.16, care:   0.16 },
+  grasping:    { thrift:-0.38, works:  0.06 },
+  hardy:       { works:  0.16, order:  0.10 },
+  sickly:      { works: -0.18, care:   0.08 },
+};
+function mayorGrade(c) {
+  if (!c) return null;
+  const sk = id => (skillLvl(c, id) - 1) / (SKILL_MAX - 1);
+  const mood = clamp01((c.happiness || 50) / 100);
+  const g = {
+    care:   0.45 + sk("farming") * 0.22 + sk("physicking") * 0.16,
+    works:  0.45 + sk("building") * 0.30,
+    order:  0.45 + sk("fighting") * 0.18,
+    thrift: 0.50,
+  };
+  const t = TEMPER_OFFICE[c.temper];
+  if (t) for (const k of Object.keys(t)) g[k] += t[k];
+  // what life has done to them weighs on the whole office, not on one duty
+  const lift = c.mark === "contented" ? 0.07 : c.mark === "hardened" ? 0.04 : 0;
+  const drag = c.mark === "disgraced" ? 0.13 : c.mark === "bitter" ? 0.10 : c.mark === "bereaved" ? 0.06 : 0;
+  for (const d of MAYOR_DUTIES) g[d.id] = clamp01(g[d.id] + lift - drag + (mood - 0.5) * 0.18);
+  g.score = MAYOR_DUTIES.reduce((n, d) => n + g[d.id], 0) / MAYOR_DUTIES.length;
+  return g;
+}
+// Calibrated to what is actually reachable: a trait lifts two duties of four, so
+// nobody scores near one, and thresholds set for a 0-to-1 scale would have called
+// the whole colony adequate.
+const mayorRank = s => s >= 0.62 ? "excellent" : s >= 0.55 ? "capable"
+                     : s >= 0.47 ? "adequate"  : s >= 0.40 ? "poor" : "hopeless";
+// Anyone grown, free, at home and not already governing somewhere else.
+function mayorCandidates() {
+  return civs.filter(c => !c.child && !c.rebel && !c.afield && !isJailed(c) &&
+                          !settlements.some(s => s.mayor === c))
+             .sort((a, b) => mayorGrade(b).score - mayorGrade(a).score);
+}
+function appointMayor(st, c) {
+  if (!st || !c) return;
+  for (const s of settlements) if (s.mayor === c) s.mayor = null;
+  st.mayor = c; st.mayorT = 2;
+  tell("work", `${c.name} is made mayor of ${st.name} — ${mayorRank(mayorGrade(c).score)}, by the look of them.`);
+  syncUI();
+}
+function loseMayor(st, why) {
+  if (!st.mayor) return;
+  const name = st.mayor.name;
+  st.mayor = null;
+  notify({ icon: "⚑", cls: "bad", text: `${st.name} has no mayor.`,
+           sub: why || `${name} can no longer hold the office`,
+           x: st.x, y: st.y, z: 0.55 });
+}
+
+// --- what the office actually does, every few seconds, out of your sight ---
+const MAYOR_TICK = 9;
+function townFolk(st) { return civs.filter(u => !u.afield && townAt(u.x, u.y) === st); }
+function runMayor(st) {
+  const c = st.mayor, g = mayorGrade(c);
+  const folk = townFolk(st);
+  st.res = st.res || {};
+  const roll = k => Math.random() < g[k];
+
+  // CARE — a roof for anyone standing without one
+  if (roll("care")) for (const u of folk) if (!u.home) houseCiv(u, st.x, st.y);
+
+  // CARE — and hands to put under those roofs. This is the duty that actually
+  // answers the thing wrong with daughter towns: settlers walk out, the town is
+  // raided or simply dull, they drift back to the capital, and the place stands
+  // empty with a chest of silver in it forever. A mayor worth the office sends
+  // to the capital for somebody, gives them a roof, and they walk out to it.
+  // Counted by distance rather than by townAt, and counted the same way as the
+  // people are: a cabin whose occupant is still two thousand pixels away walking
+  // to it is NOT spare. Mixing the two tests had one mayor send seven people to
+  // fill one roof, because each of the first six was still on the road when the
+  // next was chosen.
+  const nearTown = (x, y) => Math.hypot(x - st.x, y - st.y) < 700;
+  const roofs = buildings.filter(b => b.type === "cabin" && !b.site && !b.fire && nearTown(b.x, b.y));
+  const spare = roofs.filter(b => b.occupants.length === 0).length;
+  if (spare > 0 && roll("care")) {
+    // never strip the capital: it keeps whoever it needs to feed itself
+    // and never call somebody who already lives there, however far off they are
+    const pool = civs.filter(u => !u.afield && !u.rebel && !u.child && !isForce(u) &&
+                                  !settlements.some(x => x.mayor === u) &&
+                                  !(u.home && nearTown(u.home.x, u.home.y)));
+    if (pool.length > 4) {
+      const hand = pool[Math.floor(Math.random() * pool.length)];
+      if (hand.home) hand.home.occupants = hand.home.occupants.filter(o => o !== hand);
+      hand.home = null;
+      if (houseCiv(hand, st.x, st.y)) {
+        order(hand, { kind: "walk", x: hand.home.x, y: hand.home.y + 30 });
+        notify({ icon: "⚑", cls: "you", text: `${c.name} sends for hands.`,
+                 sub: `${hand.name} goes out to ${st.name}`, x: st.x, y: st.y, z: 0.55 });
+      } else houseCiv(hand, hand.x, hand.y);      // no room after all — put them back
+    }
+  }
+
+  // CARE — and something to eat. A mayor who notices the larder is empty sends
+  // to the capital for bread; one who does not, does not, and the town starves
+  // exactly as it would have with nobody in the office.
+  const fed = (st.res.bread || 0) + (st.res.meat || 0);
+  if (folk.length && fed < folk.length * 2) {
+    if (roll("care")) {
+      const want = Math.min(folk.length * 4, Math.floor(res.bread));
+      if (want > 0) {
+        res.bread -= want; st.res.bread = (st.res.bread || 0) + want;
+        st.mayorSaidT = worldT;
+        notify({ icon: "⚑", cls: "you", text: `${c.name} sends to the capital for bread.`,
+                 sub: `${want} loaves go out to ${st.name}`, x: st.x, y: st.y, z: 0.55 });
+      } else if (worldT - (st.mayorSaidT || -999) > 120) {
+        st.mayorSaidT = worldT;
+        notify({ icon: "!", cls: "bad", text: `${st.name} is short of bread.`,
+                 sub: `${c.name} sent for it and the capital had none`, x: st.x, y: st.y, z: 0.55 });
+      }
+    } else if (worldT - (st.mayorSaidT || -999) > 180) {
+      st.mayorSaidT = worldT;
+      notify({ icon: "!", cls: "bad", text: `${st.name} is going hungry.`,
+               sub: `${c.name} has not thought to send for anything`, x: st.x, y: st.y, z: 0.55 });
+    }
+  }
+
+  // WORKS — put idle hands to a trade the town is short of
+  if (roll("works")) {
+    const has = p => folk.some(u => u.profession === p);
+    const need = ["farmer", "lumberjack", "forager", "quarryman"].find(p => !has(p));
+    const spare = folk.find(u => !u.profession && !u.child);
+    if (need && spare) {
+      spare.profession = need; refreshAvatar(spare);
+      chron("work", `${c.name} sets ${spare.name} to ${profLabel(need)} at ${st.name}.`);
+    }
+  }
+  // WORKS — and get the burned cleared away, which nobody has ever done for you
+  if (roll("works")) {
+    const ruin = buildings.find(b => b.type === "burned" && townAt(b.x, b.y) === st);
+    const cost = 6;
+    if (ruin && (st.res.logs || 0) >= cost) {
+      st.res.logs -= cost;
+      Object.assign(ruin, { type: "cabin", hp: 90, maxHp: 90, occupants: [], fire: 0,
+                            torchP: -1, site: false, buildP: 1, progress: -1 });
+      chron("work", `${c.name} has a burned house at ${st.name} raised again.`);
+    }
+  }
+
+  // ORDER — a mayor with any nerve steadies the place
+  if (folk.length) {
+    const lift = (g.order - 0.5) * 0.9;
+    for (const u of folk) u.happiness = Math.max(0, Math.min(100, u.happiness + lift));
+  }
+
+  // and the roll says who LIVES there, not who happens to be standing in it this
+  // second — the second number swings between one and seven as people walk about
+  // their errands, which reads as a town dying and recovering every few seconds
+  st.pop = civs.filter(u => u.home && nearTown(u.home.x, u.home.y)).length;
+
+  // THRIFT — the town's own takings, and what reaches the chest
+  const take = folk.length * 0.5;
+  if (take > 0) {
+    const kept = take * g.thrift;
+    st.res.dm = (st.res.dm || 0) + Math.round(kept * 10) / 10;
+    // A grasping mayor is not caught at once. He is caught eventually.
+    if (g.thrift < 0.34 && Math.random() < 0.05) {
+      st.mayorSkim = (st.mayorSkim || 0) + Math.round((take - kept) * 10) / 10;
+      if (st.mayorSkim > 25) {
+        notify({ icon: "☠", cls: "bad", text: `${c.name} has been robbing ${st.name}.`,
+                 sub: `${Math.round(st.mayorSkim)} DM never reached the chest — dismiss them, or leave them to it`,
+                 x: st.x, y: st.y, z: 0.55 });
+        st.mayorSkim = 0;
+      }
+    }
+  }
+}
+function updateMayors(dt) {
+  for (const st of settlements) {
+    if (st.x === undefined) continue;
+    if (st.mayor && (!civs.includes(st.mayor) || st.mayor.afield || st.mayor.rebel)) {
+      loseMayor(st, `${st.mayor.name} is no longer able to hold it`);
+      continue;
+    }
+    if (!st.mayor) continue;
+    st.mayorT = (st.mayorT || 0) - dt;
+    if (st.mayorT > 0) continue;
+    st.mayorT = MAYOR_TICK;
+    runMayor(st);
+  }
+}
+
+// --- choosing one: the sheet you read before you decide ---
+let mayorTown = null;
+function openMayorModal(st) {
+  mayorTown = st;
+  const list = $("mayorList");
+  const cands = mayorCandidates();
+  $("mayorTitle").textContent = "MAYOR OF " + st.name.toUpperCase();
+  $("mayorWhere").textContent = st.mayor
+    ? `${st.mayor.name} holds the office. Pick another to replace them.`
+    : `${st.name} governs itself, which is to say it does not. Pick somebody to run it.`;
+  list.innerHTML = "";
+  if (!cands.length) {
+    list.innerHTML = '<div style="padding:8px;color:#5a6b60;font-size:11px">Nobody is free to take it.</div>';
+    return;
+  }
+  for (const c of cands) {
+    const g = mayorGrade(c);
+    const row = document.createElement("div");
+    row.className = "mayorRow" + (st.mayor === c ? " sitting" : "");
+    const bars = MAYOR_DUTIES.map(d =>
+      `<span class="mDuty" title="${esc(d.name)}: ${esc(d.what)}"><i>${esc(d.name)}</i>` +
+      `<b style="width:${Math.round(g[d.id] * 100)}%"></b></span>`).join("");
+    const tags = [TEMPER[c.temper] && TEMPER[c.temper].name, c.mark && MARK[c.mark] && MARK[c.mark].name]
+      .filter(Boolean).join(" · ");
+    row.innerHTML =
+      `<div class="mHead"><b>${esc(c.name)}</b>` +
+      `<span class="mRank">${esc(mayorRank(g.score))}</span></div>` +
+      `<div class="mTags">${esc(profTitle(c.profession))}${tags ? " · " + esc(tags) : ""}</div>` +
+      `<div class="mBars">${bars}</div>`;
+    row.addEventListener("click", () => { appointMayor(st, c); closeMayorModal(); });
+    list.appendChild(row);
+  }
+}
+function closeMayorModal() { $("mayorModal").style.display = "none"; mayorTown = null; setPause(pauseOpen); }
+
 // --- founding new settlements ---
 const SETTLE_NAMES = ["Waldheim", "Neuland", "Tannenfeld", "Ostbruck", "Hirschtal"];
 function maybeOfferSettlement() {
@@ -7959,6 +8226,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 8, date: "5 September 2026", title: "Towns can be given to somebody to run",
+    lines: [
+      "A daughter town used to be a warehouse with a name on it. You founded it, the settlers walked out, and unless you personally stood over the place nothing whatever happened there — raiders burned the roofs and nobody rebuilt them, the survivors drifted back to the capital, and the town kept two hundred logs and a chest of silver in a clearing nobody visited again.",
+      "Appoint a mayor from your own people and the town runs itself. They rebuild what was burned, send to the capital for bread when the larder is empty, call for hands to fill the empty roofs, put idle people to a trade the town is short of, and pay the takings into the chest.",
+      "The office is a person, not a switch, and a person can be bad at it. Four bars on the appointment sheet say what they will actually be like: Care, Works, Order and Thrift, all read off the temperament, the skills and the life they have had. An industrious mayor keeps the place standing; an idle one lets it rot exactly as it rots now; a hot-tempered one cannot keep the peace; and a grasping one sees to it that rather less silver reaches the chest than left the field — until somebody notices, which they eventually do.",
+      "Alongside it, a fault that had been quietly costing you people: nobody ever rehoused the homeless. A raid that took three roofs left three people homeless for good, losing a little mood every day and freezing in the winter, with empty cabins standing across the square. They move in now.",
+    ] },
   { v: 7, date: "5 September 2026", title: "Rival cities are real places now",
     lines: [
       "Every named city of Europe is built out of its own books when you come near enough to make out a building, and folded back into them when you leave. Its walls are what the map said its walls were; the garrison waiting at the gate is the number your agent reported. Fly to Copenhagen and there is a city there.",
@@ -8325,7 +8599,10 @@ function saveGame() {
       plagueT: r1(plagueT), plagueActive: r1(plagueActive), fuelT: r1(fuelT),
       corpses: corpses.map(cp => ({ x: r1(cp.x), y: r1(cp.y), who: cp.who, deceased: cp.deceased })),
       graves: graves.map(gv => ({ x: r1(gv.x), y: r1(gv.y), stone: gv.stone, deceased: gv.deceased })),
-      settlements: settlements.map(st => ({ ...st })),
+      // The mayor is a live civilian. Spread as-is he would drag his cabin and
+      // its occupant list into the JSON and throw on the cycle, so the office
+      // goes down as an index like every other person-shaped field here.
+      settlements: settlements.map(st => ({ ...st, mayor: st.mayor ? ci(st.mayor) : undefined })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
       // `city`, `houses` and `garrisonRaised` are what the reckoning is done
@@ -8528,7 +8805,9 @@ function loadGame() {
     lessonsOff = !!d.lessonsOff;
     corpses.length = 0; for (const cp of (d.corpses || [])) corpses.push({ ...cp, bearer: null, carried: null });
     graves.length = 0; for (const gv of (d.graves || [])) graves.push({ ...gv, mason: null });
-    settlements.length = 0; for (const st of (d.settlements || [])) settlements.push(st);
+    settlements.length = 0;
+    for (const st of (d.settlements || []))
+      settlements.push({ ...st, mayor: typeof st.mayor === "number" ? civs[st.mayor] || null : null });
     for (const st of settlements) if (st.res) st.res.dm = Math.round((st.res.dm || 0) * 10) / 10;
     // every daughter town owns the ground it stands on — repairs older saves whose
     // settlements were founded before their clearing was claimed
@@ -9144,14 +9423,26 @@ function syncUI() {
   {
     const phys = settlements.filter(s => s.x !== undefined);
     const rows = $("townRows");
-    const sig = phys.map(s => `${s.name}:${s.pop}`).join("|");
+    const sig = phys.map(s => `${s.name}:${s.pop}:${s.mayor ? s.mayor.name : "-"}`).join("|");
     if (rows.dataset.sig !== sig) {
       rows.dataset.sig = sig;
       rows.innerHTML = "";
       for (const s of phys) {
         const row = document.createElement("div");
-        row.style.cssText = "display:flex;gap:6px;align-items:center;margin:4px 0;font-size:11px";
-        row.innerHTML = `<span style="flex:1">${esc(s.name)} (pop ${s.pop})</span>`;
+        row.style.cssText = "display:flex;gap:6px;align-items:center;margin:4px 0;font-size:11px;flex-wrap:wrap";
+        const g = s.mayor ? mayorGrade(s.mayor) : null;
+        row.innerHTML = `<span style="flex:1 1 100%">${esc(s.name)} (pop ${s.pop})` +
+          (s.mayor ? `<span style="color:#7a8f83"> · ${esc(s.mayor.name)}, ${esc(mayorRank(g.score))}</span>`
+                   : `<span style="color:#8e5a5a"> · no mayor</span>`) + `</span>`;
+        const mayor = document.createElement("button");
+        mayor.className = "btn"; mayor.style.fontSize = "10px";
+        mayor.textContent = s.mayor ? "Mayor…" : "Appoint a mayor";
+        mayor.title = "Give this town to one of your people to run";
+        mayor.addEventListener("click", () => {
+          openMayorModal(s);
+          $("mayorModal").style.display = "block";
+          paused = true;
+        });
         const send = document.createElement("button");
         send.className = "btn"; send.style.fontSize = "10px"; send.textContent = "Load wagon ▶";
         send.title = "Choose exactly what the capital sends to this town";
@@ -9160,7 +9451,7 @@ function syncUI() {
         take.className = "btn"; take.style.fontSize = "10px"; take.textContent = "◀ Fetch";
         take.title = "Choose what this town sends back to the capital";
         take.addEventListener("click", () => openCargo(s, -1));
-        row.appendChild(send); row.appendChild(take);
+        row.appendChild(mayor); row.appendChild(send); row.appendChild(take);
         rows.appendChild(row);
       }
     }
@@ -9443,6 +9734,7 @@ function update(dt) {
   rescueStuck(dt);
   updateNationWars(dt);
   updateWorld(dt);
+  updateMayors(dt);
   updateNationTrade(dt);
   updateCalamities(dt);
   updatePlague(dt);
@@ -12116,6 +12408,15 @@ $("sbScout").addEventListener("click", () => {
   if (scoutArmed) toast("Click anywhere on the country and the scout rides for it.");
 });
 $("marchNo").addEventListener("click", closeMarchModal);
+$("mayorNo").addEventListener("click", closeMayorModal);
+$("mayorDismiss").addEventListener("click", () => {
+  if (mayorTown && mayorTown.mayor) {
+    const was = mayorTown.mayor.name;
+    mayorTown.mayor = null;
+    tell("work", `${was} is put out of the mayor's office at ${mayorTown.name}.`);
+  }
+  closeMayorModal();
+});
 $("marchGo").addEventListener("click", () => {
   const target = marchTarget ? cityById(marchTarget) : marchChase ? marchById(marchChase) : null;
   if (!target) return closeMarchModal();
