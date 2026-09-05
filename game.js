@@ -7965,6 +7965,7 @@ const CHANGELOG = [
       "Which means it can be sacked, and the sacking sticks. Burn half the roofs and half the souls are gone from its books afterwards; kill the men on the walls and the next crown that counts them counts fewer. A hundred and nine towns are not all standing at once — only the one you are looking at is.",
       "Columns are drawn as men when the camera is low enough to see a man. A scout goes as a hunter, an agent as an ordinary traveller, a crown's company in that crown's coat. Fly down to where your scout is and he is there, riding.",
       "And the wall finally works like a wall. A piece could be built across your own gate and brick it up — silently, permanently, with the gate still drawn as a gate. That is refused now and dug out of colonies that already have one. People make for the gate that suits the journey rather than the nearest one, they make for it from the outset instead of walking into the stone first, and anyone caught outside with a war party in sight drops what they are doing and runs for it.",
+      "Fixed alongside: a colony came back from a save at the opening zoom however far it had charted, because the ceiling was read before the technologies that set it; a city left standing when two foreign crowns fought was orphaned and never struck again, so its garrison sat in the save for the rest of the reign; a town with one scratched wall could never be put away at all; and a sacking done either side of a save was not charged to the city it was done to.",
     ] },
   { v: 6, date: "4 September 2026", title: "One map, from the doorstep to the Danube",
     lines: [
@@ -8327,8 +8328,13 @@ function saveGame() {
       settlements: settlements.map(st => ({ ...st })),
       conquests: conquests.map(cq => ({ ...cq })),
       natWars: natWars.map(w => ({ ...w })),
+      // `city`, `houses` and `garrisonRaised` are what the reckoning is done
+      // against when the town is folded back into its books. Without them a
+      // colony saved with a city standing came back unable to charge anybody for
+      // the sacking, and shaved men off a big garrison for nothing.
       foreignTowns: foreignTowns.map(t => ({ nation: t.nation, name: t.name, x: r1(t.x), y: r1(t.y),
-                                             dm: t.dm, weapons: t.weapons })),
+                                             dm: t.dm, weapons: t.weapons, city: t.city,
+                                             houses: t.houses, garrisonRaised: t.garrisonRaised })),
       foreign: foreign.map(b => ({ type: b.type, x: r1(b.x), y: r1(b.y), hp: r1(b.hp), maxHp: b.maxHp,
                                    rot: b.rot, keep: !!b.keep, town: foreignTowns.indexOf(b.town) })),
       garrisons: raiders.filter(r => r.garrison).map(r => ({ x: r1(r.x), y: r1(r.y), hp: r1(r.hp), maxHp: r.maxHp,
@@ -8398,13 +8404,16 @@ function loadGame() {
     dedicateTo = FAITHS[d.dedicateTo] ? d.dedicateTo : defaultDedication();
     settlementName = d.settlementName || "Neu Hamburg";
     Object.assign(laws, d.laws);
-    // a colony saved while looking at half the continent must not come back
-    // still looking at it if its charts have gone (a reset tree, an old save)
-    zoom = Math.max(zoomFloor(), Math.min(2.4, d.zoom || 1));
+    zoom = d.zoom || 1;
     cam.x = d.cam.x; cam.y = d.cam.y;
     hunterTimer = d.hunterTimer; raidTimer = d.raidTimer; campRespawnTimer = d.campRespawnTimer;
     worldT = d.worldT || 3 * HOUR;
     for (const [id, done] of Object.entries(d.tech)) if (TECH[id]) TECH[id].done = done;
+    // The ceiling on the camera is a technology, so it can only be applied once
+    // the technologies are back. Clamping four lines earlier read the PREVIOUS
+    // game's tree — on a fresh page load, an empty one — and so quietly dragged
+    // every save back down to the opening zoom however far it had been charted.
+    zoom = Math.max(zoomFloor(), Math.min(2.4, zoom));
     if (d.tech.archery) TECH.matchlock.done = true;   // the bows of older colonies became muskets
     TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;
     research = d.research;
@@ -9896,17 +9905,22 @@ function update(dt) {
     // — which the routing above will actually send them through.
     if (!c.rebel && !isForce(c) && !INDOORS.has(c.state) && c.state !== "borne" &&
         (!c.task || c.task.kind !== "toGate")) {
-      const home = c.home ? { x: c.home.x, y: c.home.y + 14 } : townCentre(townAt(c.x, c.y));
-      // "outside" is not a geometry question, it is a practical one: is there a
-      // wall of ours between this person and the roofs they belong to?
-      if (lineBlocked(c.x, c.y, home.x, home.y)) {
-        let near = null, nd = RUN_FOR_GATE;
-        for (const r of raiders) {
-          if (r.state === "flee") continue;
-          const d = Math.hypot(r.x - c.x, r.y - c.y);
-          if (d < nd) { nd = d; near = r; }
-        }
-        if (near) {
+      // Is there anybody to run from? This is a handful of hypots over a short
+      // array. The wall test below walks the line a cell at a time and rebuilds
+      // the structure list at every step, so it must never be the first question
+      // asked — it was costing a full pass over every wall in the colony, for
+      // every civilian, on every frame of an ordinary peaceful afternoon.
+      let near = null, nd = RUN_FOR_GATE;
+      for (const r of raiders) {
+        if (r.state === "flee") continue;
+        const d = Math.hypot(r.x - c.x, r.y - c.y);
+        if (d < nd) { nd = d; near = r; }
+      }
+      if (near) {
+        const home = c.home ? { x: c.home.x, y: c.home.y + 14 } : townCentre(townAt(c.x, c.y));
+        // "outside" is not a geometry question, it is a practical one: is there a
+        // wall of ours between this person and the roofs they belong to?
+        if (lineBlocked(c.x, c.y, home.x, home.y)) {
           if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
           order(c, { kind: "toGate", x: home.x, y: home.y });
           if (!c.gateToldT || worldT - c.gateToldT > 30) {
@@ -10675,6 +10689,12 @@ function buildCities() {
   }
   cityIdx = new Map(CITIES.map(c => [c.id, c]));
   refreshCityOwners();
+  // Every city object here is NEW — the run above rebuilt the list from scratch
+  // — so any town standing in timber has just lost the city that owns it. An
+  // orphan is never struck (nothing holds a reference to strike it), so it and
+  // its garrison stay on the ground and in the save for the rest of the reign.
+  // resolveBattle calls this every time any two crowns fight, which is often.
+  relinkCityTowns();
 }
 // Whose flag actually flies over each one, which is a different question from
 // who built it. The wars of Europe move cells about; this reads the answer off
@@ -10913,7 +10933,6 @@ const leagues = m => Math.max(1, Math.round(Math.hypot(m.tx - m.x, m.ty - m.y) /
 // The three things a colony can put on a road, in the order the tech tree hands
 // them to you: an army that takes ground, a scout that finds it, and a spy who
 // tells you what is standing on it.
-function afieldMen() { return civs.filter(c => c.afield); }
 // `where` is either a city, which stands still and waits to be besieged, or an
 // enemy column, which does not — a chase is aimed at where the enemy is THIS
 // second, and is re-aimed every second until contact or until he is lost.
@@ -10948,9 +10967,10 @@ function sendScout(tx, ty, label) {
 function sendSpy(city) {
   const q = cityWorld(city);
   const m = mkMarch({ kind: "spy", side: "you", x: CAPITAL_X, y: CAPITAL_Y, tx: q.x, ty: q.y,
-                      str: 1, target: city.id, nation: city.nation, name: "your agent" });
+                      str: 1, target: city.id, nation: city.owner, name: "your agent" });
+  const court = NATIONS[city.owner] || NATIONS[city.nation];
   notify({ icon: "✧", cls: "you", text: `An agent sets out for ${city.name}.`,
-           sub: `He will take service in ${NATIONS[city.nation].name} and write home`, march: m.id,
+           sub: `He will take service in ${court ? court.name : "their country"} and write home`, march: m.id,
            x: m.x, y: m.y, z: zoomFloor() * 2.5 });
   return m;
 }
@@ -11197,6 +11217,9 @@ const CITY_LOD_KEEP = CELL_W * 2.2;       // and how far you must go before it i
 
 function materialiseCity(c) {
   if (!c || c.fallen || c.town) return c && c.town;
+  // Ground your empire has grown over is yours; raising its old garrison inside
+  // your own territory would put an enemy company in your fields.
+  if (c.owner === "you") return null;
   const q = cityWorld(c);
   // Something already standing on the spot is adopted, never doubled. A town can
   // get here without the city knowing about it — a column that arrived before
@@ -11204,8 +11227,7 @@ function materialiseCity(c) {
   // and raising a second Copenhagen inside the first is not recoverable.
   const standing = foreignTowns.find(t => !t.fallen && Math.hypot(t.x - q.x, t.y - q.y) < 60);
   if (standing) { standing.city = c.id; c.town = standing; return standing; }
-  const t = landForeignTown(c.owner === "you" ? c.nation : c.owner,
-                            { x: q.x, y: q.y, name: c.name, city: c.id, cityRef: c });
+  const t = landForeignTown(c.owner, { x: q.x, y: q.y, name: c.name, city: c.id, cityRef: c });
   c.town = t;
   return t;
 }
@@ -11215,7 +11237,10 @@ function cityBusy(c) {
   const t = c.town;
   if (!t) return false;
   if (t.fallen) return false;
-  if (foreign.some(b => b.town === t && (b.fire > 0 || (b.hp !== undefined && b.hp < b.maxHp)))) return true;
+  // A fire is happening now; damage merely happened once. Buildings never heal,
+  // so testing hp meant that a single scratched wall pinned the whole town in
+  // memory — and in the save — for the rest of the game.
+  if (foreign.some(b => b.town === t && b.fire > 0)) return true;
   return civs.some(u => !u.afield && !INDOORS.has(u.state) && Math.hypot(u.x - t.x, u.y - t.y) < CITY_LOD_KEEP);
 }
 function dematerialiseCity(c) {
