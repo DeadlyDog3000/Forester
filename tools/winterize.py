@@ -32,6 +32,11 @@ TARGETS = {
     "sawmill": "sawmill_32.png",
     "smelter": "smelter_32.png",
 }
+# and every building's side view wants its own coat, or a cabin turned end-on
+# stays brown through a winter in which the one beside it is under snow
+for _k in ["cabin", "market", "bakery", "forge", "townhall",
+           "jail", "hospital", "recruit", "sawmill", "smelter"]:
+    TARGETS[_k + "v"] = f"{_k}v_32.png"
 
 
 def winterize(key, src_name, force=False):

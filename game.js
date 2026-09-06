@@ -1337,6 +1337,15 @@ for (const k of ["recruit", "market", "watchtower", "bakery", "well", "forge", "
                  "stonegate", "stonegatev", "quarry", "mine", "sawmill", "smelter"])
   IMAGES["burned_" + k] = `assets/sprites/buildings/burned_${k}_32.png`;
 IMAGES.burned_cabin = "assets/sprites/buildings/burned_house_32.png";   // the ruin that was always here
+// Every building drawn a second time from its narrow end, for the ones that have
+// been turned a quarter turn. A flat head-on elevation cannot be rotated in code
+// — the roof would end up on its side — so the side view is its own sprite.
+// Anything without one simply keeps facing front: bldgSprite falls back.
+for (const k of ["cabin", "market", "bakery", "forge", "townhall",
+                 "jail", "hospital", "recruit", "sawmill", "smelter"]) {
+  IMAGES[k + "v"] = `assets/sprites/buildings/${k}v_32.png`;
+  IMAGES[k + "v_w"] = `assets/sprites/buildings/${k}v_w_32.png`;   // under snow
+}
 // road pieces, indexed by which neighbours they join: 1 north, 2 east, 4 south, 8 west
 for (let i = 0; i < 16; i++) {
   IMAGES[`road${i}`] = `assets/sprites/env/road_${i}.png`;
@@ -2230,7 +2239,15 @@ const DRAW_SIZE = { lamp: 58 };
 const drawSizeOf = t => DRAW_SIZE[t] || SMALL_BLDG[t] || BLDG_SIZE;
 // Most buildings are drawn as their type. A great house is drawn as its creed —
 // the seven of them share a type and share nothing else.
-const bldgSprite = b => (b.type === "temple" && IMAGES["temple_" + b.faith]) ? "temple_" + b.faith : b.type;
+const bldgSprite = b => {
+  const base = (b.type === "temple" && IMAGES["temple_" + b.faith]) ? "temple_" + b.faith : b.type;
+  // turned a quarter turn, if there is a sprite for it — and simply facing front
+  // if there is not, which is how a new building type gets to exist before its
+  // side view has been drawn
+  return (b.rot && IMAGES[base + "v"]) ? base + "v" : base;
+};
+// which building types can actually be turned: the ones that have a side view
+const CAN_TURN = t => !!IMAGES[t + "v"] || WALLLIKE.has(t);
 // Off every rota — the farms and the works both. A man who dies, is sent to
 // another town, or walks out as a settler must not be left on a roll he can no
 // longer answer.
@@ -2246,6 +2263,12 @@ function bldgRect(b) {
                  : { x: b.x - L / 2, y: b.y - 22, w: L, h: 22 };
   }
   const s = SMALL_BLDG[bt] || BLDG_SIZE;
+  // Seen end-on it is a narrower building, and it takes up correspondingly less
+  // of the street — which is most of the reason to turn one in the first place.
+  if (b.rot && IMAGES[bt + "v"]) {
+    const w = Math.round(s * 0.66);
+    return { x: b.x - w / 2, y: b.y - s, w, h: s };
+  }
   return { x: b.x - s / 2, y: b.y - s, w: s, h: s };
 }
 let wallRot = 0;
@@ -2296,9 +2319,16 @@ function legalToBuild(type, wx, wy, rot, ignore) {
     for (const cp of camps) if (Math.hypot(cp.x - wx, cp.y - wy) < 520) return false;   // not at their door
   } else if (type !== "sapling" && !inTerritory(wx, wy)) return false;
   const s = type === "sapling" ? 20 : (SMALL_BLDG[type] || BLDG_SIZE);
+  const r0 = rot === undefined ? wallRot : rot;
+  // a building standing end-on takes a narrower piece of ground, exactly as
+  // bldgRect gives it once it is up — the two must agree or a building can be
+  // placed somewhere it then does not fit
+  const turnedW = Math.round(s * 0.66);
   const cand = (type === "wall" || type === "gate")
-    ? bldgRect({ type, x: wx, y: wy, rot: rot === undefined ? wallRot : rot })
-    : { x: wx - s / 2, y: wy - s, w: s, h: s };
+    ? bldgRect({ type, x: wx, y: wy, rot: r0 })
+    : (r0 && IMAGES[type + "v"])
+      ? { x: wx - turnedW / 2, y: wy - s, w: turnedW, h: s }
+      : { x: wx - s / 2, y: wy - s, w: s, h: s };
   const placingWall = WALLLIKE.has(type);
   // A lamppost keeps a wall's manners: it butts up close to whatever it lights,
   // and nothing has to leave room for its doorway, because it has not got one.
@@ -2817,9 +2847,14 @@ addEventListener("keydown", e => {
     return;
   }
   keys[e.key.toLowerCase()] = true;
-  if (e.key.toLowerCase() === "r" && WALLLIKE.has(buildMode)) {
-    wallRot = wallRot ? 0 : 1;
-    toast(`Wall turned ${wallRot ? "upright (north-south)" : "flat (east-west)"}.`);
+  if (e.key.toLowerCase() === "r") {
+    // R turns whatever you are holding — the thing you are about to build, or
+    // the building you have picked up and are looking for a spot for
+    if (buildMode && CAN_TURN(buildMode)) turnBuild();
+    else if (moveBldg && CAN_TURN(baseType(moveBldg))) {
+      moveBldg.rot = moveBldg.rot ? 0 : 1;
+      toast(`${BLDG_NAMES[baseType(moveBldg)] || baseType(moveBldg)} turned ${moveBldg.rot ? "side-on" : "front-on"}.`);
+    }
   }
   // ===== orders from the keyboard =====
   // The two orders you give oftenest, and both of them were four clicks deep:
@@ -3141,12 +3176,18 @@ if (IS_TOUCH) {
   $("cutHint").textContent = "TAP ▸";
   $("hint").textContent = "Drag to look about · pinch to zoom · hold to deselect";
 }
-$("tbRotate").addEventListener("click", () => {
-  if (!WALLLIKE.has(buildMode)) return toast("Pick a wall, gate, moat or ditch from BUILD first.");
+// One turn, whatever is being placed. A wall swings between running east-west
+// and running north-south; a building swings between showing you its front and
+// showing you its gable end.
+function turnBuild() {
+  if (!buildMode || !CAN_TURN(buildMode)) return toast("Pick something from BUILD that can be turned.");
   wallRot = wallRot ? 0 : 1;
-  toast(`Wall turned ${wallRot ? "upright (north-south)" : "flat (east-west)"}.`);
+  toast(WALLLIKE.has(buildMode)
+    ? `Wall turned ${wallRot ? "upright (north-south)" : "flat (east-west)"}.`
+    : `${BLDG_NAMES[buildMode] || buildMode} turned ${wallRot ? "side-on" : "front-on"}.`);
   syncUI();
-});
+}
+$("tbRotate").addEventListener("click", turnBuild);
 $("tbCancel").addEventListener("click", () => { cancelAll(); toast("Selection cleared."); });
 $("tbHome").addEventListener("click", () => {
   const h = buildings.find(b => b.type === "cabin") || buildings[0] || { x: 0, y: -40 };
@@ -3362,7 +3403,7 @@ function orderAtPoint(wx, wy) {
 function hintAt(wx, wy) {
   if (gameState !== "playing" || paused) return null;
   if (buildMode) return `Click to place the ${bldgLabel({ type: buildMode, faith: dedicateTo })}` +
-                        (WALLLIKE.has(buildMode) ? " · R turns it" : "") + " · Esc to stop";
+                        (CAN_TURN(buildMode) ? " · R turns it" : "") + " · Esc to stop";
   if (roadMode) return "Drag to lay a road";
   const v = pickFigure(visitors, wx, wy);
   if (v) return `Talk to ${v.name} — win them over and they stay`;
@@ -3777,7 +3818,7 @@ function tryPlace(type, wx, wy) {
     if (type === "gate") { b.hp = b.maxHp = 60; }
     if (type === "stonewall") { b.hp = b.maxHp = 220; }
     if (type === "stonegate") { b.hp = b.maxHp = 140; }
-    if (WALLLIKE.has(type)) b.rot = wallRot;
+    if (WALLLIKE.has(type) || CAN_TURN(type)) b.rot = wallRot;
     // a work is a building with a rota: nobody on it yet, and the furnace set to
     // iron until somebody says otherwise
     if (isWork(type)) { b.workers = []; if (type === "smelter") b.smelt = "iron"; }
@@ -8453,6 +8494,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 11, date: "6 September 2026", title: "Buildings can be turned side-on",
+    lines: [
+      "Every building is a flat head-on elevation, so turning one a quarter turn is not something code can do — rotate the picture and the roof ends up on its side. It needs a second drawing. Ten of them have one now: the cabin, the market, the bakery, the forge, the town hall, the gaol, the infirmary, the recruiting post, the sawmill and the smelter, each drawn again from its narrow end, and each with its own coat of snow for the winter.",
+      "Press R while placing one — the same key that has always turned a wall — and it swings between showing you its front and showing you its gable end. A building stood end-on is genuinely narrower on the ground as well as in the picture, so a turned row packs into a third less street than a facing one.",
+      "R turns a building you have picked up and are carrying, too, so you can decide which way it should face on the way to its new spot.",
+      "A building without a side view simply keeps facing front rather than breaking, which is how the next building type will get to exist before anyone has drawn it.",
+    ] },
   { v: 10, date: "6 September 2026", title: "Buildings can be picked up and put down again",
     lines: [
       "Until now the only way to change your mind about where something stood was to dismantle it and raise it again somewhere else — which lost the occupants, the stock on the shelves, the rota at the works and three quarters of the materials. So nobody ever changed their mind, and every colony was laid out the way it had been on the first afternoon, when there were four people and no idea what the place would become.",
@@ -9539,7 +9587,7 @@ function syncUI() {
   renderFaithPanels();
   $("buildToggle").classList.toggle("active", !!buildMode);
   $("roadToggle").classList.toggle("active", roadMode);
-  $("tbRotate").classList.toggle("hot", WALLLIKE.has(buildMode));
+  $("tbRotate").classList.toggle("hot", !!buildMode && CAN_TURN(buildMode));
   // in a daughter town's clearing, the HUD shows that town's ledger instead of the capital's
   const hudCx = cam.x + canvas.width / 2 / zoom, hudCy = cam.y + canvas.height / 2 / zoom;
   const hudTown = townAt(hudCx, hudCy);
@@ -13126,9 +13174,11 @@ function render(dt) {
 
   if (buildMode) {
     const [gx, gy] = snapWallPos(buildMode, mouse.wx, mouse.wy);
-    const ok = legalToBuild(buildMode, gx, gy) && canPay(costOf(buildMode), ledgerAt(gx, gy));
+    const ok = legalToBuild(buildMode, gx, gy, wallRot) && canPay(costOf(buildMode), ledgerAt(gx, gy));
     ctx.globalAlpha = 0.55;
-    const ghost = buildMode === "sapling" ? img.tree : buildMode === "farm" ? img.farm : img[buildMode];
+    const turned = wallRot && !WALLLIKE.has(buildMode) && img[buildMode + "v"];
+    const ghost = buildMode === "sapling" ? img.tree : buildMode === "farm" ? img.farm
+                : turned ? img[buildMode + "v"] : img[buildMode];
     const gs = buildMode === "sapling" ? TREE_SIZE * 0.4 : drawSizeOf(buildMode);
     if (buildMode === "wall" && wallRot) drawSprite(img.wallv, gx, gy, gs, false);
     else if (buildMode === "stonewall" && wallRot) drawSprite(img.stonewallv, gx, gy, gs, false);
@@ -13143,6 +13193,7 @@ function render(dt) {
     ctx.globalAlpha = 1;
     ctx.strokeStyle = ok ? "#7da083" : "#a05252"; ctx.lineWidth = 2;
     if (WALLLIKE.has(buildMode) && wallRot) ctx.strokeRect(gx - 11, gy - gs, 22, gs);
+    else if (turned) ctx.strokeRect(gx - gs * 0.33, gy - gs, gs * 0.66, gs);
     else ctx.strokeRect(gx - gs / 2, gy - gs, gs, gs);
   }
   // a building being carried: it rides the cursor, and the frame says whether it

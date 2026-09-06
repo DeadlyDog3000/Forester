@@ -1,0 +1,17 @@
+Redraw this exact pixel art building as the SAME building seen from its SIDE — turned a quarter turn on the spot, so you are looking at its narrow end instead of its front. Keep the identical palette, the identical pixel-art style, the identical viewpoint (straight on from ground level, not isometric, not angled, not in perspective) and the identical framing and base height, so the two sprites can be swapped for one another.
+
+WHAT CHANGES:
+This is the end elevation, not the front. The building becomes NARROWER and correspondingly taller in proportion — it occupies roughly the middle half to two thirds of the frame's width, with clear empty background either side, and stands on the same ground line at the same height as the original. A pitched or arched roof is now seen end-on: its gable end reads as a bold arch or triangle capping the wall and overhanging it slightly on both sides. A chimney, if there is one, stays and pokes up above the roof, offset to one side.
+
+THE DOOR IS GONE. The main doorway belongs to the front elevation, which is now facing away from you. The end wall has no large doorway in it.
+
+BUT THE BUILDING MUST STILL SAY WHAT IT IS — this matters more than anything else here. Whatever single feature tells you at a glance what this building is FOR, keep it, put it on this end wall, and make it big and obvious: a gaol keeps a heavy barred window; an infirmary keeps its cross; a furnace or forge keeps its glowing fire-mouth and its chimney; a mill keeps its blade or its wheel; a bakery keeps its oven arch and smoking chimney; a hall keeps its spire or its bell; a recruiting post keeps its board or banner. A plain shed that could be anything is a FAILURE. If you strip the identifying feature out, the sprite is useless — the player must be able to tell this building from a cabin at a glance.
+
+KEEP IT RECOGNISABLE: someone who knows the front view must recognise this as the same building. Same materials, same construction, same roof shape, same colours in the same proportions. Stone stays stone, timber stays timber, thatch stays thatch.
+
+CRITICAL — EXTREME SIMPLICITY:
+This must read clearly at 32 pixels wide. Bold, blocky, essential shapes only. Enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients, no soft shading. NO fine detail, NO thin lines, NO small texture. A handful of large chunky pixel masses and nothing else.
+
+COLOUR: exactly the same limited palette as the original, in the same proportions. Do not introduce a colour the original does not have. Keep the same heavy near-black outline all the way round.
+
+DO NOT add any new objects, figures, scenery, ground, grass or shadow. Keep the background the exact same flat uniform colour as the original so it can be keyed out.
