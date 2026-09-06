@@ -1478,6 +1478,8 @@ const territory = new Set();          // "cx,cy" world cells, 96px each
 const TCELL = 96;
 const SETTLE_FIRST = 1500, SETTLE_AGAIN = 1500;   // 25 minutes to the first offer, and 25 more after each
 let sackedCamps = 0, playT = 0, nextSettleAt = SETTLE_FIRST, settlePending = false;
+// where the woods stood when we last said so. Set from the colony at the start
+// of a game rather than guessed — see endCutscene.
 let lastTier = 1, lastTierToldT = -999;
 // the woods grow bolder as your colony grows older and larger
 // ===== the reckoning: how much the woods and the crowns fear you =====
@@ -9395,6 +9397,13 @@ function endCutscene() {
   // a new game begun after a long one inherits its predecessor's reckoning and
   // is set upon by a war it never provoked
   reckoningOpenedAt = -1; blockade = null; invested.clear();
+  // The woods are already at the second tier the moment two people stand in a
+  // clearing — two mouths and sixty marks is enough to be worth walking to. So
+  // a colony that opens at 1 is announcing a rise that never happened, and the
+  // first thing a new player was ever told was that word of their wealth was
+  // spreading, with nothing in the ledger but sixty marks and a burnt roof.
+  // Read the tier off the colony rather than assuming it, the way a load does.
+  lastTier = Math.max(1, difficulty()); lastTierToldT = -999;
   // and the far map starts blank again: no charts, no columns, no agent in
   // anybody's court. Without this a second colony begins with the first one's
   // atlas, which would give away half of Europe for nothing.
