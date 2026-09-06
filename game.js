@@ -2286,7 +2286,7 @@ function nearTerritoryWide(wx, wy, pad) {
     if (territory.has(tkey(cx + dx, cy + dy))) return true;
   return false;
 }
-function legalToBuild(type, wx, wy, rot) {
+function legalToBuild(type, wx, wy, rot, ignore) {
   // A run already begun may always be continued: if the piece locked onto a wall
   // of yours, nothing but the cost may refuse it — the builders fell what is in
   // the way. (snapWallPos is always called immediately before this.)
@@ -2304,6 +2304,7 @@ function legalToBuild(type, wx, wy, rot) {
   // and nothing has to leave room for its doorway, because it has not got one.
   const placingProp = isProp(type);
   for (const b of allStructures()) {
+    if (ignore && b === ignore) continue;      // a building never blocks its own new site
     const bWall = WALLLIKE.has(b.type);
     // Nothing is built in a doorway. Wall pieces are allowed to overlap each
     // other by ten pixels so a run reads as one unbroken face — and that licence
@@ -2315,8 +2316,13 @@ function legalToBuild(type, wx, wy, rot) {
     // either side of a gate are SUPPOSED to touch it, and a plain overlap test
     // refuses the whole run.
     if (placingWall && (b.type === "gate" || b.type === "stonegate") && !b.site && inDoorway(cand, b)) return false;
+    // Twelve pixels of air around every building, on top of the doorway apron,
+    // meant a town could only ever be a scatter of huts in a field — you could
+    // not put a bakery beside a market the way a street is actually built. Four
+    // is enough to keep two roofs from sharing a wall, and the apron below is
+    // what actually matters: it is the ground people walk in over.
     const margin = placingWall && bWall ? -10
-                 : placingWall || placingProp || bWall || isProp(b.type) || b.type === "farm" ? 2 : 12;
+                 : placingWall || placingProp || bWall || isProp(b.type) || b.type === "farm" ? 2 : 4;
     const r = inflate(bldgRect(b), margin);
     if (!bWall && !isProp(b.type) && b.type !== "farm" && !placingWall && !placingProp) r.h += 26;
     if (rectsOverlap(cand, r)) return false;
@@ -2909,6 +2915,7 @@ canvas.addEventListener("wheel", e => {
   zoomAt(mouse.x, mouse.y, e.deltaY < 0 ? 1.12 : 0.89);
 }, { passive: false });
 function cancelAll() {
+  cancelMove(true);
   buildMode = null; selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null;
   selGroup = []; roadMode = false; roadDrag = false; roadGhost = []; roadStart = null;
   lineStart = null; lineDrag = false; lineGhost = null;
@@ -3387,6 +3394,7 @@ function worldClick(clientX, clientY) {
   mouse.wx = cam.x + mouse.x / zoom; mouse.wy = cam.y + mouse.y / zoom;
   closeSiegeMenu();                        // a click anywhere else drops the choice
   if (paused) return;
+  if (moveBldg) { finishMove(mouse.wx, mouse.wy); return; }   // carrying something: set it down
   if (roadMode) return;                    // the road builder works on press and release, not on click
   // Up at map height there is nobody to select and nothing to build on: a click
   // there is a click on the country, and belongs to the far map.
@@ -3591,11 +3599,12 @@ function evictFromFootprint(b) {
 // true when the piece just placed locked onto a wall already standing. A run you
 // have started may always be continued — the builders clear whatever is in the way.
 let wallSnapped = false;
-function snapWallPos(type, wx, wy) {
+function snapWallPos(type, wx, wy, ignore) {
   wallSnapped = false;
   if (!WALLLIKE.has(type)) return [wx, wy];
   let best = null, bd = 110;
   for (const b of buildings) {
+    if (ignore && b === ignore) continue;      // a wall being carried does not snap to itself
     if (!WALLLIKE.has(b.type)) continue;
     if ((b.rot || 0) !== wallRot) continue;
     const d = Math.hypot(b.x - wx, b.y - wy);
@@ -3629,6 +3638,79 @@ function snapWallPos(type, wx, wy) {
   const y = wy < perp.y - Ln / 2 ? perp.y - Ln + 20 : perp.y;
   return [x, y];
 }
+// ===== picking a building up and putting it down again =====
+// The only way to change your mind about where something stood was to dismantle
+// it and raise it again — which loses the occupants, the stock on the shelves,
+// the rota at the works, and three quarters of the materials. So nobody ever
+// changed their mind, and every colony is laid out the way it was on the first
+// afternoon, when there were four people and no idea what the place would become.
+//
+// A building can be carried to a new spot instead. Its people, its stores and
+// its state come with it; what it costs is a quarter of what it cost to build,
+// which is the labour of taking it down and putting it up, and nothing else.
+let moveBldg = null;
+const MOVE_SHARE = 0.25;
+// walls are cheap and go up in a moment; a keep is not yours to shift, and a
+// ruin has nothing left to carry
+const CAN_MOVE = b => b && !b.site && !b.keep && !b.foreign && b.type !== "burned";
+function moveCost(b) {
+  const full = costOf(baseType(b)) || {};
+  const out = {};
+  for (const [k, v] of Object.entries(full)) {
+    const n = Math.ceil(v * MOVE_SHARE);
+    if (n > 0) out[k] = n;
+  }
+  return out;
+}
+function beginMove(b) {
+  if (!CAN_MOVE(b)) return toast("That cannot be moved.");
+  const cost = moveCost(b);
+  if (!canPay(cost, ledgerAt(b.x, b.y)))
+    return toast(`Moving it costs ${costText(cost)} in labour and materials.`);
+  moveBldg = b;
+  buildMode = null; roadMode = false;
+  toast(`Carrying the ${BLDG_NAMES[baseType(b)] || baseType(b)} — click where it should stand. Right-click or Esc to set it back down.`);
+  syncUI();
+}
+function cancelMove(quiet) {
+  if (!moveBldg) return;
+  moveBldg = null;
+  if (!quiet) toast("It stays where it is.");
+  syncUI();
+}
+// The same rules as raising one from nothing, minus the building itself.
+function moveLegal(b, wx, wy) {
+  return legalToBuild(baseType(b), wx, wy, b.rot, b);
+}
+function finishMove(wx, wy) {
+  const b = moveBldg;
+  if (!b || !buildings.includes(b)) { moveBldg = null; return; }
+  if (WALLLIKE.has(baseType(b))) [wx, wy] = snapWallPos(baseType(b), wx, wy, b);
+  if (!moveLegal(b, wx, wy))
+    return toast(inTerritory(wx, wy) ? "Not there — too close to another building, its doorway, or an obstacle."
+                                     : "That ground is not yours.");
+  const cost = moveCost(b);
+  const led = ledgerAt(b.x, b.y);
+  if (!canPay(cost, led)) { cancelMove(true); return toast(`Moving it costs ${costText(cost)}.`); }
+  pay(cost, led);
+  const fromX = b.x, fromY = b.y;
+  b.x = wx; b.y = wy;
+  // Anyone walking to it was walking to where it used to be, and anyone standing
+  // inside it is now standing in a field. Both are put right here rather than
+  // left to work it out, which they cannot.
+  for (const c of civs) {
+    if (c.task && c.task.target === b) { c.task.x = wx; c.task.y = wy + 24; c.tx = wx; c.ty = wy + 24; c.path = null; }
+    if (c.shelter === b || (c.home === b && INDOORS.has(c.state))) { c.x = wx; c.y = wy + 24; }
+    if (c.post && Math.hypot(c.post.x - fromX, c.post.y - fromY) < 40) c.post = { x: wx, y: wy + 24 };
+  }
+  expandAround(wx, wy, 1);                       // the ground under it is yours
+  markChunkDirty(fromX, fromY); markChunkDirty(wx, wy);
+  moveBldg = null;
+  SFX.build();
+  toast(`The ${BLDG_NAMES[baseType(b)] || baseType(b)} now stands here.`);
+  syncUI();
+}
+
 function tryPlace(type, wx, wy) {
   if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
   if ((type === "wall" || type === "gate") && !has("defending")) { toast("Walls and gates require the Defending technology."); buildMode = null; syncUI(); return; }
@@ -5697,6 +5779,7 @@ $("bpTurnOut").addEventListener("click", () => {
   for (const c of inside) turnOut(c, true);
   toast(inside.length > 1 ? `${inside.length} come back outside.` : `${inside[0].name} comes back outside.`);
 });
+$("bpMove").addEventListener("click", () => { if (selectedBldg) beginMove(selectedBldg); });
 $("bpDismantle").addEventListener("click", () => {
   const b = selectedBldg;
   if (!b) return;
@@ -8370,6 +8453,12 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 10, date: "6 September 2026", title: "Buildings can be picked up and put down again",
+    lines: [
+      "Until now the only way to change your mind about where something stood was to dismantle it and raise it again somewhere else — which lost the occupants, the stock on the shelves, the rota at the works and three quarters of the materials. So nobody ever changed their mind, and every colony was laid out the way it had been on the first afternoon, when there were four people and no idea what the place would become.",
+      "Select a building and press Move it. It rides the cursor with a thread back to where it stands, the frame goes green where it may be set down and red where it may not, and a right-click or Escape puts it back. Its people, its stores and its state come with it. The cost is a quarter of what it cost to build — the labour of taking it down and putting it up, and nothing else.",
+      "And they stand closer together. Every building used to demand twelve pixels of air on every side on top of its doorway, which meant a town could only ever be a scatter of huts in a field — you could not put a bakery beside a market the way a street is actually built. Four is enough to stop two roofs sharing a wall. The apron in front of the door is untouched, because that is the ground people walk in over.",
+    ] },
   { v: 9, date: "5 September 2026", title: "A trade route is a bargain, not a pension",
     lines: [
       "A route used to be a switch with a gift in front of it: win the audience, hand over one load of wheat, and from then on a caravan turned up every minute with free silver and free goods forever. Nothing ever left your stores again.",
@@ -9747,6 +9836,7 @@ function syncUI() {
     $("bpOccList").style.display = "none";
     $("bpTurnOut").style.display = "none";
     $("bpDismantle").style.display = "none";
+    $("bpMove").style.display = "none";
     $("bpBuyWeapon").style.display = "none";
     $("bpSmelt").style.display = "none";
     return;
@@ -9761,11 +9851,21 @@ function syncUI() {
     $("bpOccList").style.display = "none";
     $("bpTurnOut").style.display = "none";
     $("bpDismantle").style.display = "none";
+    $("bpMove").style.display = "none";
   } else {
     bp.style.display = "block";
     $("bpDismantle").style.display = "block";
     const b = selectedBldg;
     const isFarm = farms.includes(b);
+    // A farm is a staked-out field, not a thing on legs; everything else can be
+    // carried, and the button says what the carrying will cost.
+    const mv = $("bpMove");
+    if (isFarm || !CAN_MOVE(b)) mv.style.display = "none";
+    else {
+      mv.style.display = "block";
+      const cost = moveCost(b);
+      mv.textContent = "Move it" + (costText(cost) ? ` (${costText(cost)})` : "");
+    }
     $("bpName").textContent = isFarm ? "WHEAT FARM" : bldgName(b).toUpperCase();
     renderBldgInfo(b, isFarm);
     const inside = isFarm ? [] : sheltering(b);
@@ -13044,6 +13144,27 @@ function render(dt) {
     ctx.strokeStyle = ok ? "#7da083" : "#a05252"; ctx.lineWidth = 2;
     if (WALLLIKE.has(buildMode) && wallRot) ctx.strokeRect(gx - 11, gy - gs, 22, gs);
     else ctx.strokeRect(gx - gs / 2, gy - gs, gs, gs);
+  }
+  // a building being carried: it rides the cursor, and the frame says whether it
+  // may be set down where you are pointing
+  if (moveBldg && buildings.includes(moveBldg)) {
+    const bt = baseType(moveBldg);
+    const [gx, gy] = WALLLIKE.has(bt) ? snapWallPos(bt, mouse.wx, mouse.wy, moveBldg)
+                                      : [mouse.wx, mouse.wy];
+    const ok = moveLegal(moveBldg, gx, gy);
+    const gs = drawSizeOf(bt);
+    const vert = WALLLIKE.has(bt) && moveBldg.rot;
+    ctx.globalAlpha = 0.5;
+    const im = img[bt + (vert && img[bt + "v"] ? "v" : "")] || img[bt];
+    if (im) drawSprite(im, gx, gy, gs, false);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = ok ? "#7da083" : "#a05252"; ctx.lineWidth = 2;
+    if (vert) ctx.strokeRect(gx - 11, gy - gs, 22, gs);
+    else ctx.strokeRect(gx - gs / 2, gy - gs, gs, gs);
+    // and a thread back to where it is standing now, so you can see what moved
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = "rgba(201,168,106,0.6)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(moveBldg.x, moveBldg.y); ctx.lineTo(gx, gy); ctx.stroke();
+    ctx.setLineDash([]);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
