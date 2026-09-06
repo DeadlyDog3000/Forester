@@ -5352,6 +5352,16 @@ $("pmSaveAs").addEventListener("click", () => {
   toast(ok ? `Copied into slot ${free}. You are playing that one now — the other is untouched.`
            : "⚠ The save failed — this browser will not take another ledger.");
 });
+// The colony as a file the browser cannot lose. Saved first, so what reaches
+// the disk is this moment rather than the last time they thought to press save.
+$("pmExport").addEventListener("click", () => {
+  setPause(false);
+  saveTrimmed = false;
+  if (!saveGame()) return toast("⚠ The save failed, so there is nothing new to write out.");
+  const name = exportSlot(saveSlot);
+  toast(name ? `Written out as ${name}. Keep the file — it will open on any browser, on any machine.`
+             : "⚠ Nothing could be written out.");
+});
 $("pmReign").addEventListener("click", openReckoning);
 $("pmMenu").addEventListener("click", () => { saveGame(); location.reload(); });
 // on a phone the panels are bottom sheets sharing one patch of glass: only one at a time
@@ -8494,6 +8504,12 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 12, date: "6 September 2026", title: "A colony can be kept as a file",
+    lines: [
+      "Your six colonies have always lived in the browser's own store, which sounds safe and is not. It belongs to one browser at one address: clear the site data, use a different browser, or pick the game up on a different machine, and the colonies are not corrupted — they were simply never there. Hours of a reign could go without anything having gone wrong.",
+      "So a colony can be written out to a file you keep. Save to a File in the pause menu writes out the one you are playing, having saved it first; the small arrow beside any colony on the front door writes that one out without opening it. LOAD FROM A FILE brings one back into a free slot, on any browser, on any machine.",
+      "What goes into the file is exactly what the slot holds, so a colony carried this way arrives with everything — the chronicle, the charts, the agents abroad, the felled trees. A file from a newer version of the game is refused rather than half-read, and a file that is not a save at all is told so plainly.",
+    ] },
   { v: 11, date: "6 September 2026", title: "Buildings can be turned side-on",
     lines: [
       "Every building is a flat head-on elevation, so turning one a quarter turn is not something code can do — rotate the picture and the roof ends up on its side. It needs a second drawing. Ten of them have one now: the cabin, the market, the bakery, the forge, the town hall, the gaol, the infirmary, the recruiting post, the sawmill and the smelter, each drawn again from its narrow end, and each with its own coat of snow for the winter.",
@@ -8779,6 +8795,94 @@ function deleteSlot(i) {
   for (const suffix of ["", "_backup", "_broken"]) {
     try { localStorage.removeItem(slotKey(i) + suffix); } catch (e) {}
   }
+}
+
+// --- carrying a colony out of the browser ---------------------------------
+// A save lives in localStorage, which belongs to one browser at one address.
+// Clear the site data, switch browser, or move from the phone to the desk, and
+// the colony is not damaged — it is simply somewhere you no longer are. So a
+// slot can be written out to a file and read back in. What goes to the file is
+// exactly what the slot holds, byte for byte: nothing added, nothing
+// translated, so a file written by this build and a file written by the next
+// one are the same kind of thing. A file the player keeps is the only copy of a
+// colony that this browser cannot quietly throw away.
+const SAVE_EXT = ".forester.json";
+// a name they can still make sense of a year later, and a disk will accept
+function saveFileName(info) {
+  const part = s => String(s || "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const d = new Date(), p2 = n => String(n).padStart(2, "0");
+  return [part(info && info.name) || "colony", (info && info.year) || "",
+          `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`]
+         .filter(Boolean).join("-") + SAVE_EXT;
+}
+// Hand a slot's ledger to the browser as a download. Returns the file name, or
+// "" if there was nothing in that slot to write. A colony this build is too old
+// to read is written out like any other: copying it needs no understanding of
+// it, and that is exactly the colony most worth having a file of.
+function exportSlot(i) {
+  let raw = null;
+  try { raw = localStorage.getItem(slotKey(i)); } catch (e) {}
+  if (!raw || raw === "null") return "";
+  const name = saveFileName(slotInfo(i));
+  const url = URL.createObjectURL(new Blob([raw], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.style.display = "none";
+  document.body.appendChild(a); a.click(); a.remove();
+  // the browser reads the blob after the click returns, so the handle cannot be
+  // released on this tick — a minute is longer than any disk needs
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return name;
+}
+// Read a file back into a free slot. Every way this can go wrong is worth its
+// own sentence, because "import failed" tells a player nothing they can act on.
+// Nothing already in the slots is touched on any of the failing paths.
+function importSave(text) {
+  let d;
+  try { d = JSON.parse(text); }
+  catch (e) { return { err: "That is not a Forester save — there is nothing in it that can be read as one." }; }
+  if (!d || typeof d !== "object" || !Array.isArray(d.civs) || !d.res)
+    return { err: "That file can be read, but there is no colony in it." };
+  // the same refusal loadGame makes, made before the file is anywhere it could
+  // be autosaved over rather than after
+  if ((d.v || 1) > SAVE_V)
+    return { err: "That colony was saved by a NEWER version of Forester than the one you are running. Reload the page to get the new version, then bring it in." };
+  const slot = firstFreeSlot();
+  if (!slot) return { err: `All ${SAVE_SLOTS} slots are full. Burn one first, then bring this colony in.` };
+  try {
+    // a slot can be free of a save and still hold the spare copy of a colony
+    // burned out of it; leave that lying there and the recovery path could
+    // raise the wrong colony from the dead on some later load
+    localStorage.removeItem(slotKey(slot) + "_backup");
+    localStorage.removeItem(slotKey(slot) + "_broken");
+    localStorage.setItem(slotKey(slot), text);
+  } catch (e) {
+    return { err: "This browser will not take another ledger — there is no room left in its store. Burn a colony you are done with." };
+  }
+  return { slot, name: d.settlementName || "Neu Hamburg" };
+}
+// One file picker, made once and kept. A fresh input per click leaks one per
+// click, and the same element will not report the same file twice unless its
+// value is cleared first — which it is, so a player who picks the wrong file
+// can pick the right one straight afterwards.
+let savePicker = null;
+function pickSaveFile(then) {
+  if (!savePicker) {
+    savePicker = document.createElement("input");
+    savePicker.type = "file";
+    savePicker.accept = ".json,application/json";
+    savePicker.style.display = "none";
+    document.body.appendChild(savePicker);
+  }
+  savePicker.onchange = () => {
+    const f = savePicker.files && savePicker.files[0];
+    savePicker.value = "";
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => then(String(fr.result || ""));
+    fr.onerror = () => then(null);
+    fr.readAsText(f);
+  };
+  savePicker.click();
 }
 
 // founder's tools: one-shot save surgery via URL params, then the URL is scrubbed
@@ -9485,6 +9589,20 @@ function renderSaveList() {
       `<span class="slotWhen">${when}</span>`;
     if (s.future) row.classList.add("stale");
     row.addEventListener("click", () => { useSlot(s.i); doLoading(true); });
+    // A colony can be written out without being opened — the backup you take
+    // before trying something reckless, and the way a colony crosses from one
+    // browser to another.
+    const out = document.createElement("button");
+    out.className = "saveOut"; out.textContent = "↓";
+    out.title = "Write this colony out to a file you keep";
+    out.addEventListener("click", e => {
+      e.stopPropagation();                        // the arrow is not the row
+      const name = exportSlot(s.i);
+      $("menuSlotNote").textContent = name
+        ? `Written out as ${name}. Keep the file — LOAD FROM A FILE brings it back, on any browser.`
+        : "There was nothing in that slot to write out.";
+    });
+    row.appendChild(out);
     const del = document.createElement("button");
     del.className = "saveDel"; del.textContent = "✕";
     del.title = "Burn this colony's record";
@@ -9512,6 +9630,19 @@ $("menuNew").addEventListener("click", () => {
   useSlot(free);
   localStorage.removeItem(SAVE_KEY);              // a fresh slot starts empty
   doLoading(false);
+});
+// The other half: a file off the disk becomes a colony in a free slot. It is
+// not opened, only put where the player can see it and click it — so a file
+// that turns out to be the wrong one has cost them nothing but a slot.
+$("menuImport").addEventListener("click", () => {
+  pickSaveFile(text => {
+    const note = $("menuSlotNote");
+    if (text === null) { note.textContent = "That file could not be read off the disk."; return; }
+    const r = importSave(text);
+    if (r.err) { note.textContent = r.err; return; }
+    renderSaveList();                             // the new colony joins the list
+    note.textContent = `${r.name} is in slot ${r.slot}. Click it to take up where you left off.`;
+  });
 });
 $("menuContinue").addEventListener("click", () => doLoading(true));
 // a colony that died frees its slot outright — spare copy and all, or the

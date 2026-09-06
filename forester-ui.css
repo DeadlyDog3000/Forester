@@ -385,10 +385,20 @@ label { display: flex; gap: var(--fx-stack); align-items: center; margin: 4px 0;
 .saveDel {
   flex: 0 0 auto; background: var(--fx-danger-well);
   border: var(--fx-hair) solid var(--fx-line-rust); color: var(--fx-rust-ink);
-  font-family: inherit; font-size: var(--fx-t-note);
+  font-family: inherit; font-size: var(--fx-t-note); line-height: 1.15;
   padding: var(--fx-pad-btn-sm); cursor: pointer;
 }
 .saveDel:hover { background: var(--fx-danger-hover); border-color: var(--fx-line-danger); }
+/* the same size and shape as the cross beside it, but this one is a kindness.
+   line-height is pinned on both, or the taller of the two glyphs makes its own
+   button taller and the pair sits crooked in the row. */
+.saveOut {
+  flex: 0 0 auto; background: var(--fx-well);
+  border: var(--fx-hair) solid var(--fx-line); color: var(--fx-ink-4);
+  font-family: inherit; font-size: var(--fx-t-note); line-height: 1.15;
+  padding: var(--fx-pad-btn-sm); cursor: pointer;
+}
+.saveOut:hover { background: var(--fx-raised); border-color: var(--fx-line-live); color: var(--fx-ink-bright); }
 
 /* A help row: label beside its line on a desk, above it on a phone. */
 .helpRow { display: flex; gap: var(--fx-gap-row); margin: 4px 0;
