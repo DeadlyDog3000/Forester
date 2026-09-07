@@ -499,10 +499,46 @@ label { display: flex; gap: var(--fx-stack); align-items: center; margin: 4px 0;
 #hud b.tick, #hud b.tick2 { animation: fxTick 420ms ease-out; }
 
 /* Anyone who has asked their machine to stop moving things gets a still game. */
+body.noMotion .panel, body.noMotion #msg.say, body.noMotion #hud b.tick,
+body.noMotion #hud b.tick2, body.noMotion .notif { animation: none !important; }
+body.noMotion .btn, body.noMotion .menu-item, body.noMotion .bsCard,
+body.noMotion .saveRow, body.noMotion .saveDel, body.noMotion .saveOut,
+body.noMotion .chip { transition: none; }
+body.noMotion .btn:active:not(:disabled), body.noMotion .bsCard:active,
+body.noMotion .chip:active { transform: none; }
+
 @media (prefers-reduced-motion: reduce) {
   .panel, #msg.say, #hud b.tick, #hud b.tick2, .notif { animation: none !important; }
   .btn, .menu-item, .bsCard, .saveRow, .saveDel, .saveOut, .chip { transition: none; }
   .btn:active:not(:disabled), .bsCard:active, .chip:active { transform: none; }
+}
+
+/* ── the settings sheet ───────────────────────────────────────────────── */
+#settingsPanel {
+  display: none; flex-direction: column;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(400px, calc(100vw - 32px)); max-height: min(84vh, 680px);
+  padding: 14px 16px; z-index: 140;
+}
+#setBody { overflow-y: auto; flex: 1; padding-right: 4px; }
+.setSec {
+  font-family: var(--fx-font-display);
+  color: var(--fx-spruce); font-size: var(--fx-t-note); letter-spacing: 2px;
+  margin: 14px 0 6px; padding-bottom: 3px;
+  border-bottom: var(--fx-hair) solid var(--fx-line-sec);
+}
+.setSec:first-child { margin-top: 0; }
+#setBody label { display: flex; gap: 8px; margin: 5px 0; cursor: pointer; align-items: center; }
+.setRow { display: flex; justify-content: space-between; align-items: center; margin: 7px 0; gap: 10px; }
+.setVal { display: flex; align-items: center; gap: 8px; }
+.setVal input[type=range] { width: 118px; accent-color: var(--fx-spruce); }
+/* the reading is monospace and fixed-width so the row does not twitch as it moves */
+.setVal b { font-weight: normal; color: var(--fx-gold); min-width: 26px; text-align: right; }
+#setFoot { margin-top: 10px; padding-top: 10px; border-top: var(--fx-hair) solid var(--fx-line-inner); }
+#setReset { width: 100%; }
+@media (max-width: 820px) {
+  #settingsPanel { width: calc(100vw - 16px); max-height: 82vh; padding: 10px; }
+  .setVal input[type=range] { width: 96px; }
 }
 
 /* A save row on the front door. */

@@ -1625,13 +1625,23 @@ const laws = { civWeapons: false, hunterWeapons: true, forced: false, freeRoam: 
 
 const cam = { x: 0, y: 0 };
 let zoom = 1;
-const settings = Object.assign(
-  { master: 0.5, music: true, battle: true, sfx: true, ambient: true, march: true,
-    floaters: true, labels: true, smoke: true, night: true, camSpeed: 1, edgePan: true,
-    hints: true, marchTune: "grenadier" },
+// How the game shipped. Kept as its own object rather than written inline, so
+// that "put everything back" has something true to put it back to.
+const SETTINGS_DEFAULT = Object.freeze({
+  master: 0.5, musicVol: 1, sfxVol: 1,
+  music: true, battle: true, sfx: true, ambient: true, march: true,
+  floaters: true, labels: true, smoke: true, night: true, shadows: true, motion: true,
+  camSpeed: 1, edgePan: true, hints: true, marchTune: "grenadier",
+});
+const settings = Object.assign({}, SETTINGS_DEFAULT,
   JSON.parse(localStorage.getItem("forester_settings") || "{}"));
 window.FSET = settings;
 function saveSettings() { localStorage.setItem("forester_settings", JSON.stringify(settings)); }
+// One class on the body turns every transition and animation in the interface
+// off, which is the same switch prefers-reduced-motion throws — this is the
+// manual one, for people whose machine does not ask on their behalf.
+function applyMotion() { document.body.classList.toggle("noMotion", !settings.motion); }
+addEventListener("DOMContentLoaded", applyMotion);
 const keys = {};
 const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 // Edge scrolling needs its own idea of where the pointer is, because `mouse`
@@ -5607,13 +5617,32 @@ $("kingdomBtn").addEventListener("click", () => {
 });
 $("kingdomInput").addEventListener("keydown", e => { if (e.key === "Enter") $("kingdomBtn").click(); e.stopPropagation(); });
 function openSettings() {
-  $("setMaster").value = Math.round(settings.master * 100);
-  $("setCam").value = Math.round(settings.camSpeed * 100);
-  for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
-                           ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"],
-                           ["setEdgePan","edgePan"],["setHints","hints"]])
-    $(id).checked = settings[key];
-  $("settingsPanel").style.display = "block";
+  syncSettings();
+  $("settingsPanel").style.display = "flex";
+}
+// Every switch and slider in one table, so adding a setting is one line here and
+// one line of markup rather than four places that have to be kept in step.
+const SET_SLIDERS = [["setMaster", "master", 100], ["setMusicVol", "musicVol", 100],
+                     ["setSfxVol", "sfxVol", 100], ["setCam", "camSpeed", 100]];
+const SET_TOGGLES = [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
+                     ["setShadows","shadows"],["setNight","night"],["setSmoke","smoke"],["setLabels","labels"],
+                     ["setFloaters","floaters"],["setMotion","motion"],
+                     ["setEdgePan","edgePan"],["setHints","hints"]];
+function syncSettings() {
+  for (const [id, key, mul] of SET_SLIDERS) {
+    const el = $(id); if (!el) continue;
+    el.value = Math.round(settings[key] * mul);
+    const read = $(id + "N"); if (read) read.textContent = el.value;
+  }
+  for (const [id, key] of SET_TOGGLES) { const el = $(id); if (el) el.checked = settings[key]; }
+}
+// What a slider does the moment it moves — the reading beside it, and the thing
+// itself, so a volume is heard while the thumb is still under the finger.
+function applySetting(key) {
+  if (key === "master") { try { SFX.setMaster(settings.master); } catch (e) {} }
+  if (key === "musicVol") { try { MUSIC.setVolume(settings.musicVol); } catch (e) {} }
+  if (key === "sfxVol") { try { SFX.setSfxVolume(settings.sfxVol); } catch (e) {} }
+  if (key === "motion") applyMotion();
 }
 $("pmSettings").addEventListener("click", openSettings);
 $("menuSettings").addEventListener("click", openSettings);
@@ -5631,13 +5660,28 @@ $("helpClose").addEventListener("click", () => { $("helpPanel").style.display = 
 $("pmHelp").addEventListener("click", openHelp);
 $("menuHelp").addEventListener("click", openHelp);
 $("setClose").addEventListener("click", () => { $("settingsPanel").style.display = "none"; saveSettings(); });
-$("setMaster").addEventListener("input", e => { settings.master = e.target.value / 100; SFX.setMaster(settings.master); saveSettings(); });
-$("setCam").addEventListener("input", e => { settings.camSpeed = e.target.value / 100; saveSettings(); });
-for (const [id, key] of [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
-                         ["setFloaters","floaters"],["setLabels","labels"],["setSmoke","smoke"],["setNight","night"],
-                         ["setEdgePan","edgePan"],["setHints","hints"]])
+for (const [id, key, mul] of SET_SLIDERS)
+  $(id).addEventListener("input", e => {
+    settings[key] = e.target.value / mul;
+    const read = $(id + "N"); if (read) read.textContent = e.target.value;
+    applySetting(key); saveSettings();
+  });
+// Back to how it shipped, for anyone who has turned something off and cannot
+// remember what — which is the setting people actually want and rarely get.
+$("setReset").addEventListener("click", () => {
+  Object.assign(settings, SETTINGS_DEFAULT);
+  syncSettings();
+  for (const [, key] of SET_SLIDERS) applySetting(key);
+  applyMotion();
+  try { SFX.pauseAll(false); } catch (e) {}
+  if (!settings.music) MUSIC.stop();
+  saveSettings();
+  toast("Settings put back to how the game shipped.");
+});
+for (const [id, key] of SET_TOGGLES)
   $(id).addEventListener("change", e => {
     settings[key] = e.target.checked;
+    applySetting(key);
     if (key === "music" && !settings.music) MUSIC.stop();
     if (key === "music" && settings.music && (gameState === "menu" || gameState === "over")) MUSIC.play();
     if (key === "battle" && !settings.battle) MUSIC.battle(false);
@@ -8818,6 +8862,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 20, date: "7 September 2026", title: "A settings panel you can actually find things in",
+    lines: [
+      "It was one master fader and eleven switches in a single column — a list rather than a panel, and no way to find the one you came for. It is grouped now: SOUND, GRAPHICS, CONTROLS, each under its own head, and it scrolls on a phone.",
+      "Music and Effects have their own faders. Until now the only volume in the game was the master, so wanting the tune quieter and the axes loud was not a thing you could ask for. Every slider shows its number, and moving one is heard while your finger is still on it.",
+      "Two new switches for things that are a matter of taste as much as of speed: the shadows under everything, and whether panels and buttons animate at all. The second is the same switch a machine throws for you when you have asked it to stop moving things — this is the manual one.",
+      "And a Put Everything Back To Default, for anyone who has turned something off and cannot remember what. Which is the setting people always want and almost never get.",
+    ] },
   { v: 19, date: "7 September 2026", title: "You have to learn a trade before you can build it",
     lines: [
       "The market, the bakery, the hospital, the shrine and the house of worship could all be raised on the first afternoon, by anyone, knowing nothing. Half the buildings in the game were free and the other half were earned, and there was no reason for the line to fall where it did.",
@@ -13360,6 +13411,7 @@ $("miRecall").addEventListener("click", () => {
 // The alpha is multiplied into whatever is already set rather than replacing
 // it, so a half-transparent building site casts a half-transparent shadow.
 function groundShadow(wx, wyFeet, w, a = 0.26) {
+  if (!settings.shadows) return;
   const prev = ctx.globalAlpha;
   ctx.globalAlpha = prev * a;
   ctx.fillStyle = "#080d0a";

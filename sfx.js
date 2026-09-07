@@ -12,6 +12,12 @@
 const SFX = (() => {
   let ac = null, master = null, sfxBus = null, sfxLimit = null, sfxClip = null, noiseBuf = null, fireNode = null;
   let room = null, roomSend = null;
+  // The master fader used to be the only volume in the game, so wanting the
+  // music quieter and the axes loud was not a thing you could ask for. The
+  // effects bus carries its own level now, kept as a number rather than read
+  // back off the node, because the pause menu ducks that same gain to nothing
+  // and the two must not overwrite one another.
+  let sfxVol = 1;
 
   // A tail built rather than loaded: decaying noise, decorrelated per channel so
   // it has width, and low-passed as it is generated because trees and earth eat
@@ -154,7 +160,10 @@ const SFX = (() => {
     // Each caller sets its own send, because a drum wants far less of it than a
     // melody does. Returns null before the first gesture unlocks the context.
     roomIn: () => (ctx(), room),
-    pauseAll: (on) => { if (!ac) return; sfxBus.gain.setTargetAtTime(on ? 0.0001 : 1, ac.currentTime, 0.04); },
+    pauseAll: (on) => { if (!ac) return; sfxBus.gain.setTargetAtTime(on ? 0.0001 : sfxVol, ac.currentTime, 0.04); },
+    // 0..1, and it survives the duck: pausing and unpausing comes back to this
+    setSfxVolume: (v) => { sfxVol = Math.max(0, Math.min(1, v));
+                           if (ac && sfxBus) sfxBus.gain.setTargetAtTime(sfxVol, ac.currentTime, 0.04); },
     // The wind is gone. It was a filtered noise bed under everything, always
     // on, and it sat too loud under the whole game — a constant hiss is the
     // one ambience you cannot stop hearing once you have heard it. The woods
@@ -519,6 +528,13 @@ function sendToRoom(a, node, amount) {
   } catch (e) {}
 }
 
+// The three music beds each have their own resting level — the menu loop at 1,
+// the battle theme at 0.9, a march at 1 — so a single volume has to scale them
+// rather than replace them, or turning it up would flatten the balance between
+// them that was chosen by ear.
+const MUSIC_BASE = { menu: 1, battle: 0.9, march: 1 };
+let musicVol = 1;
+
 const MUSIC = (() => {
   let wanted = false, nextLoopAt = 0, timer = null, mg = null;
   const BPM = 92, STEP = 60 / BPM / 2;   // 8th notes
@@ -633,7 +649,7 @@ const MUSIC = (() => {
     if (!wanted) return;
     const a = window.__foresterAC;
     if (!a || a.state !== "running") { timer = setTimeout(pump, 300); return; }
-    if (!mg) { mg = a.createGain(); mg.gain.value = 1; mg.connect(window.__foresterMaster); sendToRoom(a, mg, 0.22); }
+    if (!mg) { mg = a.createGain(); mg.gain.value = MUSIC_BASE.menu * musicVol; mg.connect(window.__foresterMaster); sendToRoom(a, mg, 0.22); }
     const now = a.currentTime;
     if (nextLoopAt < now + 0.15) {
       const start = Math.max(nextLoopAt, now + 0.1);
@@ -694,7 +710,7 @@ const MUSIC = (() => {
     if (!bWanted) return;
     const a = window.__foresterAC;
     if (!a || a.state !== "running") { bTimer = setTimeout(bPump, 300); return; }
-    if (!bg) { bg = a.createGain(); bg.gain.value = 0.9; bg.connect(window.__foresterMaster); sendToRoom(a, bg, 0.16); }
+    if (!bg) { bg = a.createGain(); bg.gain.value = MUSIC_BASE.battle * musicVol; bg.connect(window.__foresterMaster); sendToRoom(a, bg, 0.16); }
     const now = a.currentTime;
     if (bNext < now + 0.15) {
       const start = Math.max(bNext, now + 0.08);
@@ -868,7 +884,7 @@ const MUSIC = (() => {
     if (!a || a.state !== "running") { mTimer = setTimeout(marchPump, 300); return; }
     // The music deliberately skips sfxBus, so it needs its own handle if the
     // march is ever to be metered with the master silenced.
-    if (!mGain) { mGain = a.createGain(); mGain.gain.value = 1; mGain.connect(window.__foresterMaster); window.__foresterMusic = mGain;
+    if (!mGain) { mGain = a.createGain(); mGain.gain.value = MUSIC_BASE.march * musicVol; mGain.connect(window.__foresterMaster); window.__foresterMusic = mGain;
                   // a march is played in the open air and on the move: the least of the three
                   sendToRoom(a, mGain, 0.11); }
     if (mNext < a.currentTime + 0.15) mNext = a.currentTime + 0.15;
@@ -877,6 +893,14 @@ const MUSIC = (() => {
   }
 
   return {
+    // 0..1, applied live to whichever beds are currently playing
+    setVolume: (v) => {
+      musicVol = Math.max(0, Math.min(1, v));
+      const a = window.__foresterAC;
+      const now = a ? a.currentTime : 0;
+      for (const [node, base] of [[mg, MUSIC_BASE.menu], [bg, MUSIC_BASE.battle], [mGain, MUSIC_BASE.march]])
+        if (node && a) node.gain.setTargetAtTime(base * musicVol, now, 0.05);
+    },
     marches: () => Object.entries(MARCHES).map(([id, m]) => ({ id, name: m.name })),
     setMarch(id) { if (MARCHES[id]) mTune = id; },
     currentMarch: () => mTune,
