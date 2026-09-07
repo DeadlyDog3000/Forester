@@ -1,0 +1,48 @@
+Forester
+Copyright (c) 2026 Roan Fraese, trading as DeadlyDog Productions.
+All rights reserved.
+
+WHAT YOU MAY DO
+
+Play it. Forester is free to play, and always at
+https://deadlydog3000.github.io/Forester/ — no account, no payment, no
+conditions attached to playing it.
+
+Read it. The whole game is here in plain source, and you are welcome to read
+it, learn from it, and take ideas from it. Ideas are not owned. If something
+in here is useful to you, use it.
+
+Fork it on GitHub, keep a copy, and change it for your own private amusement.
+
+WHAT YOU MAY NOT DO WITHOUT WRITTEN PERMISSION
+
+Publish it, or anything substantially derived from it, anywhere — reskinned,
+renamed, translated, bundled, wrapped in an app, or hosted at another address.
+
+Sell it, or charge for access to it, or put advertising against it, or use it
+or any part of it in anything commercial.
+
+Use the art, the sprites, the writing, the music or the name "Forester" apart
+from the game.
+
+Permission is not hard to get. Ask.
+
+THE ART
+
+The sprites and story plates were generated with Google's Gemini image models
+through the scripts in tools/, from prompts written for this game and kept in
+art/prompts/. The prompts are mine and the resulting art is used as this game's
+art; if you intend to rely on that art for something of your own, satisfy
+yourself about the terms it came under, because I make no promise about them.
+
+NO WARRANTY
+
+This software is provided "as is", without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement. In no event shall the
+author be liable for any claim, damages or other liability, whether in an
+action of contract, tort or otherwise, arising from, out of or in connection
+with the software or the use or other dealings in the software.
+
+It keeps your colonies in your own browser's storage. Browsers delete that.
+Keep a file of anything you would be sorry to lose — the game will show you how.

@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0d1210">
-<title>Forester — Beta</title>
+<title>Forester</title>
 <!-- The stylesheet carries the same per-visit stamp as the scripts below. It was
      the one file left unversioned, and new code with an old stylesheet is the
      mismatch that reliably breaks the layout: tap targets, sheet heights and
@@ -74,7 +74,7 @@
     <button class="btn" id="chronToggle"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="14" height="1"/><rect x="1" y="3" width="14" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="4" y="5" width="8" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="14" y="6" width="1" height="1"/><rect x="1" y="7" width="1" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="14" y="7" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="14" y="8" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="4" y="9" width="6" height="1"/><rect x="14" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="4" y="11" width="8" height="1"/><rect x="14" y="11" width="1" height="1"/><rect x="1" y="12" width="1" height="1"/><rect x="14" y="12" width="1" height="1"/><rect x="1" y="13" width="14" height="1"/><rect x="1" y="14" width="14" height="1"/></svg><span class="txt">CHRONICLE</span></button>
     <button class="btn" id="mapToggle"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="7" y="0" width="2" height="1"/><rect x="7" y="1" width="2" height="1"/><rect x="6" y="2" width="4" height="1"/><rect x="6" y="3" width="4" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="6" y="4" width="4" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="2" y="5" width="2" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="12" y="5" width="2" height="1"/><rect x="3" y="6" width="2" height="1"/><rect x="6" y="6" width="4" height="1"/><rect x="11" y="6" width="2" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="1" y="8" width="14" height="1"/><rect x="4" y="9" width="8" height="1"/><rect x="3" y="10" width="2" height="1"/><rect x="6" y="10" width="4" height="1"/><rect x="11" y="10" width="2" height="1"/><rect x="2" y="11" width="2" height="1"/><rect x="6" y="11" width="4" height="1"/><rect x="12" y="11" width="2" height="1"/><rect x="1" y="12" width="1" height="1"/><rect x="6" y="12" width="4" height="1"/><rect x="14" y="12" width="1" height="1"/><rect x="6" y="13" width="4" height="1"/><rect x="7" y="14" width="2" height="1"/><rect x="7" y="15" width="2" height="1"/></svg><span class="txt">MAP</span></button>
     <span style="flex:1"></span>
-    <span style="font-size:11px;color:#5a6b60">FORESTER beta</span>
+    <span style="font-size:11px;color:#5a6b60" id="verMark">FORESTER</span>
   </div>
 
   <div id="msg"></div>
@@ -440,11 +440,12 @@
       <button class="btn" id="menuContinue" style="font-size:16px;padding:12px 40px;margin-top:14px;display:none">CONTINUE GAME</button>
       <button class="btn" id="menuNew" style="font-size:16px;padding:12px 40px">NEW GAME</button>
       <div id="menuSlotNote" style="font-size:11px;color:#7a8f83;text-align:center;max-width:420px"></div>
+      <div id="menuKeepNote" style="display:none;font-size:10.5px;color:#5a6b60;text-align:center;max-width:420px;margin-top:-8px"></div>
       <button class="btn" id="menuImport" style="font-size:13px;padding:8px 30px">LOAD FROM A FILE</button>
       <button class="btn" id="menuLog" style="font-size:13px;padding:8px 30px">WHAT HAS CHANGED</button>
       <button class="btn" id="menuHelp" style="font-size:13px;padding:8px 30px">HOW TO PLAY</button>
       <button class="btn" id="menuSettings" style="font-size:13px;padding:8px 30px">SETTINGS</button>
-      <div style="font-size:11px;color:#5a6b60">beta &mdash; DeadlyDog Productions</div>
+      <div style="font-size:11px;color:#5a6b60"><span id="verFoot"></span> &mdash; DeadlyDog Productions</div>
     </div>
   </div>
 

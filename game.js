@@ -18,6 +18,23 @@ const isOpen = id => { const el = $(id); return !!el && el.style.display !== "no
 // was shown — the browser read <Home> as a tag and swallowed it — and a name
 // made of markup was rendered as markup. Anything player-written goes through
 // here before it is written into innerHTML.
+// ===== what the game calls itself =====
+// The version was written out by hand in three places — the browser tab, the
+// corner of the action bar, the foot of the front door — which is three chances
+// to ship a build whose own name disagrees with itself, and it already had:
+// the tab and the bar said beta while the README still said alpha. One string,
+// filled in everywhere at load. Raising it is a one-line change, and so is
+// dropping the word beta on the day that is true.
+const VERSION = "0.9";
+const VERSION_LABEL = `v${VERSION} beta`;
+addEventListener("DOMContentLoaded", () => {
+  document.title = `Forester — ${VERSION_LABEL}`;
+  const mark = document.getElementById("verMark");
+  if (mark) mark.textContent = `FORESTER ${VERSION_LABEL}`;
+  const foot = document.getElementById("verFoot");
+  if (foot) foot.textContent = VERSION_LABEL;
+});
+
 const esc = s => String(s).replace(/[&<>"']/g,
   ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
@@ -8746,6 +8763,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 18, date: "7 September 2026", title: "Keep a file of anything you would be sorry to lose",
+    lines: [
+      "Your colonies live in this browser's own store, and that store is not yours — it is the browser's, and browsers empty it. Clearing your site data takes them. So does switching browser, or machine. And on an iPhone or a Mac, Safari empties it by itself after about a week without a visit: you would come back to a game that had never heard of you, with nothing broken and nothing to be done about it.",
+      "The game cannot stop that. What it can do is make sure nobody meets it without having been told. Twenty minutes into a colony — long enough to have something worth losing, not so soon as to be nagging — it says so once, and then never again, and it says it whether or not you skipped the tutorial, because it is not a lesson about the woods. If you have ever written a colony out to a file, it does not say it at all.",
+      "The front door says the same thing quietly, under the list of colonies, which is the one place you are already looking at them.",
+      "Save to a File is in the pause menu, and the small arrow beside any colony on the front door writes that one out without opening it. It will open on any browser, on any machine.",
+    ] },
   { v: 17, date: "7 September 2026", title: "Things touch the ground, and the game moves",
     lines: [
       "Nothing in this world touched it. Every building and every soul was drawn standing on the grass with nothing underneath, so the whole colony floated a half-inch above its own map — which is the commonest reason a flat sprite game reads as flat. There is a soft pool of shade under everything now: people, buildings, boulders, the trees, a raiders' camp, a gravestone. A wall gets a thinner one because a wall is a low run of stone, and a moat gets none at all, being a hole.",
@@ -9115,6 +9139,7 @@ function exportSlot(i) {
   // the browser reads the blob after the click returns, so the handle cannot be
   // released on this tick — a minute is longer than any disk needs
   setTimeout(() => URL.revokeObjectURL(url), 60000);
+  lsSet(KEPT_FILE_KEY);            // they keep files; they need no lecture about it
   return name;
 }
 // Read a file back into a free slot. Every way this can go wrong is worth its
@@ -9778,15 +9803,46 @@ const LESSONS = {
     (IS_TOUCH ? "Tap one, then tap another" : "Click one, then click another") +
     ", and they gather into a band — keep going to raise a company. Send the band at bare ground and they march there in column and hold it; send them at a raider and they go for him." +
     (IS_TOUCH ? "" : " With two or more picked, DRAG across the ground instead of clicking and they form a line of battle, as long as you drag it, and they will keep that line."),
+  // Not a lesson about the woods — a warning about the browser, and the one
+  // notice here that a player who skipped the tutorial still has to see.
+  keepfile: () => "⚠ KEEP A FILE OF THIS COLONY. Your colonies live in this browser's own store, which is less safe than it sounds: it belongs to one browser on one machine, and clearing your site data — or, on an iPhone or a Mac, " +
+    (WEBKIT ? "simply not coming back for a week, which is when Safari empties it by itself" : "switching browser or machine") +
+    " — takes them with it. Nothing is broken when that happens; they were simply never there. Open the pause menu and press Save to a File. Keep the file somewhere you keep things. It will open on any browser, on any machine, and it is the only copy of this colony that this browser cannot throw away.",
   closing: () => "That is the whole of it: gather and build by day, keep bellies full and taxes fair, wall the town before dark, research toward steel, and grow cell by cell. Wanderers, raiders and wars will find you on their own. " +
     (IS_TOUCH ? "How to Play is in the ☰ menu whenever you want it." : "Press ? at any time for every control.") +
     " The woods are yours.",
 };
 let lessonSeen = {}, lessonQueue = [], lessonsOff = false;
+// Safari (and every browser on an iPhone, which is all of them) deletes
+// script-writable storage after about a week without a visit. For a game whose
+// whole emotional weight is the colony you have kept alive, that is the worst
+// failure it can have, and it is silent. We cannot stop it. We can make sure
+// nobody meets it without having been told, and told at a moment when they
+// have something worth losing.
+const WEBKIT = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
+const KEPT_FILE_KEY = "forester_kept_file";   // they have written one out, ever
+const TOLD_KEEP_KEY = "forester_told_keep";   // and we have said this, ever
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = k => { try { localStorage.setItem(k, "1"); } catch (e) {} };
+// Said once per browser rather than once per colony: the store is the browser's,
+// not the colony's, and a player who has already exported one never needs it.
+// It waits for twenty minutes of play, because the warning is worthless before
+// there is anything to lose and resented if it arrives in the first minute.
+let keepWatchDone = false;
+function keepFileWatch() {
+  // decided once a session rather than read off the disk every frame
+  if (keepWatchDone || playT < 1200) return;
+  keepWatchDone = true;
+  if (lsGet(TOLD_KEEP_KEY) || lsGet(KEPT_FILE_KEY)) return;
+  lsSet(TOLD_KEEP_KEY);
+  lessonQueue.push("keepfile");     // queued directly: this one ignores lessonsOff
+}
 // Raise a lesson the first time the world earns it. Queued rather than shown,
 // so two at once (the first fever brings plague AND hospital) do not race.
 function lesson(key) {
-  if (lessonsOff || lessonSeen[key] || lessonQueue.includes(key) || !LESSONS[key]) return;
+  // skipping the tutorial turns the teaching off; it does not turn off a
+  // warning about losing your colonies
+  if ((lessonsOff && key !== "keepfile") || lessonSeen[key] || lessonQueue.includes(key) || !LESSONS[key]) return;
   lessonQueue.push(key);
 }
 const lessonText = key => (typeof LESSONS[key] === "function" ? LESSONS[key]() : LESSONS[key]);
@@ -9810,6 +9866,7 @@ function updateTutorial(dt) {
   const banner = $("tutBanner");
   // the moment a band becomes possible is the moment to explain how to work one
   if (!lessonSeen.soldiers && civs.filter(groupable).length >= 2) lesson("soldiers");
+  keepFileWatch();                  // twenty minutes in, if they have never kept a file
   if (tutStep >= TUT_STEPS.length) tutStep = -1;
   if (gameState !== "playing") { banner.style.display = "none"; publishBannerHeight(); return; }
   // The opening sequence has the floor while it lasts; lessons wait behind it.
@@ -9932,6 +9989,17 @@ function renderSaveList() {
   $("menuSlotNote").textContent = free
     ? `${saves.length} of ${SAVE_SLOTS} slots used — a new colony takes slot ${free}.`
     : `All ${SAVE_SLOTS} slots are full. Burn one to begin another.`;
+  // Said quietly and permanently, where the colonies are actually listed: this
+  // is the one place a player looks at their saves and thinks about them.
+  const keep = $("menuKeepNote");
+  if (keep) {
+    keep.style.display = saves.length ? "block" : "none";
+    keep.textContent = lsGet(KEPT_FILE_KEY)
+      ? "These live in this browser. The arrow beside one writes it out to a file you keep."
+      : WEBKIT
+        ? "These live in this browser, and Safari empties its store after a week away. Use the arrow to keep a file of one you care about."
+        : "These live in this browser only. Use the arrow to keep a file of one you care about.";
+  }
 }
 $("menuNew").addEventListener("click", () => {
   const free = firstFreeSlot();
