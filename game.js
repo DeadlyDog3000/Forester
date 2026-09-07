@@ -3049,7 +3049,8 @@ function setPause(open) {
   }
   paused = pauseOpen || dlg.open || $("marchModal").style.display === "block" ||
            $("mayorModal").style.display === "block" || $("pactModal").style.display === "block" ||
-           $("settleModal").style.display === "block" || $("empireModal").style.display === "block";
+           $("settleModal").style.display === "block" || $("empireModal").style.display === "block" ||
+           $("keepPrompt").style.display === "flex";
   try { SFX.pauseAll(pauseOpen); } catch (e) {}
 }
 // Typing is not driving. While the caret sits in a text field, the keyboard
@@ -5774,6 +5775,19 @@ $("pmExport").addEventListener("click", () => {
   toast(name ? `Written out as ${name}. Keep the file — it will open on any browser, on any machine.`
              : "⚠ Nothing could be written out.");
 });
+$("keepYes").addEventListener("click", () => {
+  closeKeepPrompt();
+  saveTrimmed = false;
+  if (!saveGame()) return toast("⚠ The save failed, so there is nothing new to write out.");
+  const name = exportSlot(saveSlot);      // exportSlot records that a file was kept
+  toast(name ? `Written out as ${name}. Keep it — it will open on any browser, on any machine.`
+             : "⚠ Nothing could be written out.");
+});
+$("keepNo").addEventListener("click", () => {
+  closeKeepPrompt();
+  toast("Save to a File is in the pause menu whenever you want it.");
+});
+
 $("pmReign").addEventListener("click", openReckoning);
 $("pmMenu").addEventListener("click", () => { saveGame(); location.reload(); });
 // on a phone the panels are bottom sheets sharing one patch of glass: only one at a time
@@ -8916,6 +8930,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 22, date: "7 September 2026", title: "The game asks you to keep a file, instead of telling you to",
+    lines: [
+      "Twenty minutes into a colony, a banner used to explain that browsers lose things and that Save to a File is in the pause menu. Every word of it was true and it asked nothing of anybody: you read it, you thought later, and later is exactly when the browser clears its store.",
+      "So it is a question now, with the button that answers it. It comes up on the far side of a winter — the first thing in this game that feels earned, and so the first moment a colony is worth the trouble of keeping — or twenty minutes in if winter has not come yet, whichever lands first. WRITE THE FILE writes it there and then. NOT NOW says where to find it later and gets out of the way.",
+      "It asks twice at the very most, and never again once you have ever kept a file of anything. Nobody who already does this needs to be asked.",
+      "Two faults found while building it, both the sort that only show up when you actually run the thing. Stopping the clock the obvious way opened the pause MENU on top of the question, so the question was behind it: the prompt now stops time the way every other window in the game does, by being open. And it sat below the pause menu in the stack, which would have hidden it at the exact moment it mattered.",
+    ] },
   { v: 21, date: "7 September 2026", title: "A colony can no longer be spent into a corner it cannot leave",
     lines: [
       "The first player review of this game said it ran out of money with no clear way to earn any, and that the only fix was to start again. That was not a difficulty. It was a hole in the floor.",
@@ -10026,9 +10047,40 @@ function keepFileWatch() {
   // decided once a session rather than read off the disk every frame
   if (keepWatchDone || playT < 1200) return;
   keepWatchDone = true;
-  if (lsGet(TOLD_KEEP_KEY) || lsGet(KEPT_FILE_KEY)) return;
+  askKeepFile("time");
+}
+
+// ===== being asked beats being told =====
+// This used to be a banner twenty minutes in, saying that browsers lose things
+// and that Save to a File is in the pause menu. Everything in it was true and
+// it asked nothing of anybody: you read it, you thought "later", and later is
+// exactly when the browser clears its store. So it is a question now, with the
+// button that answers it, offered at the moment the colony first becomes worth
+// keeping — the far side of a winter, which is the first thing here that feels
+// earned. Asked at most twice, and never again once a file has ever been kept.
+const KEEP_ASKS_KEY = "forester_keep_asks";
+const keepAsks = () => +(lsGet(KEEP_ASKS_KEY) || 0);
+function askKeepFile(reason) {
+  if (gameState !== "playing") return;
+  if (lsGet(KEPT_FILE_KEY)) return;             // they keep files already
+  if (keepAsks() >= 2) return;                  // asked twice is enough
+  if ($("keepPrompt").style.display === "flex") return;
+  try { localStorage.setItem(KEEP_ASKS_KEY, String(keepAsks() + 1)); } catch (e) {}
   lsSet(TOLD_KEEP_KEY);
-  lessonQueue.push("keepfile");     // queued directly: this one ignores lessonsOff
+  $("keepBody").innerHTML = (reason === "winter"
+      ? `<b>${settlementName} has come through a winter.</b> That is a colony worth keeping, and it is worth knowing where it actually lives: in this browser's own store, which belongs to the browser and not to you. Clearing your site data takes it. So does changing browser or machine. On an iPhone or a Mac, Safari empties that store by itself after about a week away.`
+      : `<b>You have been at this a while.</b> ${settlementName} lives in this browser's own store, which belongs to the browser and not to you. Clearing your site data takes it. So does changing browser or machine. On an iPhone or a Mac, Safari empties that store by itself after about a week away.`)
+    + ` A file is the one copy the browser cannot lose, and it will open on any browser, on any machine.`;
+  $("keepPrompt").style.display = "flex";
+  // setPause(true) would open the pause MENU over the top of this. The clock is
+  // stopped the way every other modal stops it: by being open, and asking for
+  // the flag to be worked out again.
+  setPause(pauseOpen);
+  try { SFX.popup(); } catch (e) {}
+}
+function closeKeepPrompt() {
+  $("keepPrompt").style.display = "none";
+  setPause(pauseOpen);
 }
 // Raise a lesson the first time the world earns it. Queued rather than shown,
 // so two at once (the first fever brings plague AND hospital) do not race.
@@ -10871,6 +10923,9 @@ function update(dt) {
       }
     } else {
       tell("land", "The thaw comes — the fields wake, and the woods turn green again.");
+      // Through a winter is the first thing here that feels earned, and so the
+      // first moment a colony is worth the trouble of keeping.
+      askKeepFile("winter");
       // spring births: each woman has a 26% chance of a child after every winter
       for (const m of civs.filter(c => c.gender === "f" && !c.child)) {
         if (Math.random() < 0.26) {

@@ -61,6 +61,20 @@
     <div id="eventSub"></div>
   </div>
 
+  <!-- Offered at a moment the colony is worth keeping, not as a notice to read
+       and forget: the button here writes the file, so nobody has to go hunting
+       through the pause menu for it. -->
+  <div id="keepPrompt" style="position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(3,6,5,0.72)">
+    <div style="background:rgba(13,18,16,0.97);border:1px solid #c9a86a;padding:20px 22px;max-width:460px;margin:16px;color:#e8d9b8;font-size:13px;line-height:1.65">
+      <div id="keepHead" style="font-family:'IM Fell English',Georgia,serif;font-size:19px;color:#e8d9b8;margin-bottom:10px">Keep a file of this colony</div>
+      <div id="keepBody" style="margin-bottom:16px"></div>
+      <div style="display:flex;gap:9px;flex-wrap:wrap">
+        <button class="btn" id="keepYes" style="flex:1 1 auto;min-width:150px">WRITE THE FILE</button>
+        <button class="btn" id="keepNo" style="flex:0 1 auto">NOT NOW</button>
+      </div>
+    </div>
+  </div>
+
   <div id="touchPad">
     <button class="tbtn" id="tbRotate" title="Turn the wall">&#8635;</button>
     <button class="tbtn" id="tbCancel" title="Cancel &amp; deselect">&#10005;</button>
