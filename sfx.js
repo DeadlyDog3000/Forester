@@ -4,6 +4,24 @@
 
 const SFX = (() => {
   let ac = null, master = null, sfxBus = null, sfxLimit = null, sfxClip = null, noiseBuf = null, fireNode = null;
+  let room = null, roomSend = null;
+
+  // A tail built rather than loaded: decaying noise, decorrelated per channel so
+  // it has width, and low-passed as it is generated because trees and earth eat
+  // the top end long before they eat the bottom.
+  function makeRoom(a, seconds, decay) {
+    const rate = a.sampleRate, len = Math.max(1, Math.floor(rate * seconds));
+    const buf = a.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      let lp = 0;
+      for (let i = 0; i < len; i++) {
+        lp += 0.19 * ((Math.random() * 2 - 1) - lp);
+        d[i] = lp * Math.pow(1 - i / len, decay);
+      }
+    }
+    return buf;
+  }
 
   function ctx() {
     if (!ac) {
@@ -46,6 +64,24 @@ const SFX = (() => {
       sfxBus.connect(sfxLimit);
       sfxLimit.connect(sfxClip);
       sfxClip.connect(master);
+      // ===== the room =====
+      // Every sound went from its oscillator straight to the master, and dry
+      // sound is the whole difference between a game that sounds like a place
+      // and one that sounds like a beeper. An axe in a forest clearing has a
+      // tail; so does a hammer, a musket, a bell. One convolver puts all of
+      // them in the same clearing, and none of them has to know about it.
+      //
+      // Hung off the clipper rather than the bus, so whatever the room hears
+      // has already been limited and rounded — a volley cannot flood the tail.
+      // Dark and short: a clearing among trees, not a cathedral. The high-pass
+      // keeps the low end out of it, which is what turns a tail into mud.
+      room = ac.createConvolver();
+      room.buffer = makeRoom(ac, 1.35, 3.1);
+      roomSend = ac.createGain();
+      roomSend.gain.value = 0.17;
+      const roomHP = ac.createBiquadFilter();
+      roomHP.type = "highpass"; roomHP.frequency.value = 260;
+      sfxClip.connect(roomSend); roomSend.connect(roomHP); roomHP.connect(room); room.connect(master);
       const len = ac.sampleRate * 2;
       noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
@@ -90,9 +126,27 @@ const SFX = (() => {
     s.start(t); s.stop(t + dur + 0.02);
   }
 
+  // ===== no two swings the same =====
+  // A colony is one axe, over and over, for an hour. Played from the identical
+  // numbers every time it becomes a machine: the ear locks onto the repetition
+  // and stops hearing a forest at all. A few percent of wander in pitch and
+  // level is the whole difference, and it costs nothing.
+  //
+  // Deliberately NOT applied to everything. A bell, a war horn and a musket are
+  // meant to sound the same every time they are heard — that is what makes them
+  // signals rather than texture.
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
   let bugNode = null;
   return {
     setMaster: (v) => { ctx(); master.gain.value = v; },
+    // The room, offered to the music as well. Menu and battle music bypass the
+    // SFX bus on purpose — they must not be squashed when the shooting starts —
+    // but bypassing the bus also left them as dry as everything else was, which
+    // on a square-wave lead is the difference between a theme and a ringtone.
+    // Each caller sets its own send, because a drum wants far less of it than a
+    // melody does. Returns null before the first gesture unlocks the context.
+    roomIn: () => (ctx(), room),
     pauseAll: (on) => { if (!ac) return; sfxBus.gain.setTargetAtTime(on ? 0.0001 : 1, ac.currentTime, 0.04); },
     // The wind is gone. It was a filtered noise bed under everything, always
     // on, and it sat too loud under the whole game — a constant hiss is the
@@ -107,9 +161,10 @@ const SFX = (() => {
     windLoop: () => {},
     windWeight: () => {},
     click:    () => { tone("square", 900, 700, 0.05, 0.12); },
-    swing:    () => { noise(0.14, 0.22, 2400, 500, 2); },                              // sword whoosh
-    swingFist:() => { noise(0.11, 0.16, 900, 250, 1.5); },                             // duller fist whoosh
-    hit:      () => { tone("triangle", 160, 55, 0.14, 0.35); noise(0.08, 0.2, 300, 120, 1, "lowpass"); },
+    swing:    () => { noise(rnd(0.12, 0.16), rnd(0.19, 0.25), rnd(2100, 2700), 500, 2); },   // sword whoosh
+    swingFist:() => { noise(rnd(0.09, 0.13), rnd(0.14, 0.19), rnd(800, 1000), 250, 1.5); },  // duller fist whoosh
+    hit:      () => { tone("triangle", rnd(146, 176), 55, rnd(0.12, 0.16), rnd(0.30, 0.39));
+                      noise(0.08, rnd(0.17, 0.23), rnd(270, 330), 120, 1, "lowpass"); },
     dodge:    () => { noise(0.16, 0.18, 700, 2600, 2); },                              // rising whoosh
     // Black powder at close quarters: the flint, the crack that hurts, the boom
     // that follows it into your chest, and the report coming back off the trees.
@@ -213,19 +268,28 @@ const SFX = (() => {
       noise(0.10, 0.07, 1800, 700, 1, "bandpass", 0.85);
       noise(0.12, 0.08, 1900, 800, 1, "bandpass", 1.4);
     },
-    chop:     () => { noise(0.06, 0.3, 700, 250, 1, "lowpass"); tone("triangle", 220, 90, 0.07, 0.2); },
+    chop:     () => { noise(rnd(0.05, 0.075), rnd(0.25, 0.35), rnd(600, 810), 250, 1, "lowpass");
+                      tone("triangle", rnd(196, 248), 90, rnd(0.06, 0.085), rnd(0.17, 0.24)); },
     treeFall: () => { noise(0.5, 0.3, 500, 80, 1, "lowpass"); tone("triangle", 110, 40, 0.5, 0.25); },
-    quarry:   () => { tone("square", 1900, 1500, 0.04, 0.1); noise(0.06, 0.28, 2600, 900, 3); },
-    rustle:   () => { noise(0.1, 0.12, 4500, 2000, 1); },                              // wheat/seed rustle
-    pickup:   () => { tone("square", 660, 990, 0.07, 0.14); },
-    hammer:   () => { tone("triangle", 260, 130, 0.06, 0.22); noise(0.05, 0.16, 1800, 700, 2); },
+    quarry:   () => { tone("square", rnd(1700, 2100), 1500, 0.04, rnd(0.085, 0.115));
+                      noise(rnd(0.05, 0.075), rnd(0.24, 0.32), rnd(2300, 2900), 900, 3); },
+    rustle:   () => { noise(rnd(0.08, 0.12), rnd(0.10, 0.14), rnd(3900, 5100), 2000, 1); },   // wheat/seed rustle
+    pickup:   () => { tone("square", rnd(620, 700), 990, 0.07, rnd(0.12, 0.16)); },
+    hammer:   () => { tone("triangle", rnd(232, 292), 130, rnd(0.05, 0.075), rnd(0.19, 0.26));
+                      noise(0.05, rnd(0.13, 0.19), rnd(1600, 2050), 700, 2); },
     build:    () => { tone("triangle", 200, 100, 0.1, 0.25); tone("triangle", 300, 150, 0.1, 0.22, 0.12); tone("square", 520, 780, 0.12, 0.14, 0.26); },
     coin:     () => { tone("square", 990, 990, 0.06, 0.16); tone("square", 1320, 1320, 0.09, 0.16, 0.06); },
     coinLoss: () => { tone("square", 660, 660, 0.06, 0.16); tone("square", 440, 330, 0.12, 0.16, 0.07); },
     death:    () => { tone("sawtooth", 320, 40, 0.6, 0.3); noise(0.3, 0.14, 500, 100, 1, "lowpass", 0.1); },
-    eat:      () => { noise(0.05, 0.22, 1400, 600, 2); noise(0.05, 0.2, 1200, 500, 2, "bandpass", 0.11); noise(0.06, 0.16, 1000, 400, 2, "bandpass", 0.22); },
-    step:     (fast) => { if (FSET().ambient === false) return; noise(0.035, fast ? 0.09 : 0.06, 900, 300, 1, "lowpass"); },
-    crackle:  () => { noise(0.09, 0.2, 2600, 700, 3); noise(0.06, 0.16, 1800, 500, 3, "bandpass", 0.05); },
+    eat:      () => { noise(0.05, rnd(0.19, 0.25), rnd(1250, 1550), 600, 2);
+                      noise(0.05, rnd(0.17, 0.23), rnd(1080, 1320), 500, 2, "bandpass", rnd(0.09, 0.13));
+                      noise(0.06, rnd(0.14, 0.19), rnd(900, 1100), 400, 2, "bandpass", rnd(0.20, 0.25)); },
+    // a footfall lands on different ground every time, and never twice the same
+    step:     (fast) => { if (FSET().ambient === false) return;
+                          noise(rnd(0.03, 0.045), (fast ? 0.09 : 0.06) * rnd(0.78, 1.22),
+                                rnd(760, 1080), 300, 1, "lowpass"); },
+    crackle:  () => { noise(rnd(0.075, 0.105), rnd(0.17, 0.23), rnd(2300, 2900), 700, 3);
+                      noise(0.06, rnd(0.13, 0.19), rnd(1600, 2000), 500, 3, "bandpass", rnd(0.03, 0.08)); },
     research: () => {
       // a little eureka: rising fourth, fifth, octave with a shimmer on top
       tone("square", 523, 523, 0.09, 0.14);
@@ -436,6 +500,18 @@ const AMBIENCE = (() => {
 })();
 
 // ===== MUSIC — original looping chiptune, synthesized like everything else =====
+// Hang a music bed into the same clearing the sound effects stand in, at
+// whatever depth suits it. Silently does nothing if the room is not up yet.
+function sendToRoom(a, node, amount) {
+  try {
+    const room = SFX.roomIn();
+    if (!room) return;
+    const send = a.createGain();
+    send.gain.value = amount;
+    node.connect(send); send.connect(room);
+  } catch (e) {}
+}
+
 const MUSIC = (() => {
   let wanted = false, nextLoopAt = 0, timer = null, mg = null;
   const BPM = 92, STEP = 60 / BPM / 2;   // 8th notes
@@ -490,7 +566,7 @@ const MUSIC = (() => {
     if (!wanted) return;
     const a = window.__foresterAC;
     if (!a || a.state !== "running") { timer = setTimeout(pump, 300); return; }
-    if (!mg) { mg = a.createGain(); mg.gain.value = 1; mg.connect(window.__foresterMaster); }
+    if (!mg) { mg = a.createGain(); mg.gain.value = 1; mg.connect(window.__foresterMaster); sendToRoom(a, mg, 0.22); }
     const now = a.currentTime;
     if (nextLoopAt < now + 0.15) {
       const start = Math.max(nextLoopAt, now + 0.1);
@@ -537,7 +613,7 @@ const MUSIC = (() => {
     if (!bWanted) return;
     const a = window.__foresterAC;
     if (!a || a.state !== "running") { bTimer = setTimeout(bPump, 300); return; }
-    if (!bg) { bg = a.createGain(); bg.gain.value = 0.9; bg.connect(window.__foresterMaster); }
+    if (!bg) { bg = a.createGain(); bg.gain.value = 0.9; bg.connect(window.__foresterMaster); sendToRoom(a, bg, 0.16); }
     const now = a.currentTime;
     if (bNext < now + 0.15) {
       const start = Math.max(bNext, now + 0.08);
@@ -711,7 +787,9 @@ const MUSIC = (() => {
     if (!a || a.state !== "running") { mTimer = setTimeout(marchPump, 300); return; }
     // The music deliberately skips sfxBus, so it needs its own handle if the
     // march is ever to be metered with the master silenced.
-    if (!mGain) { mGain = a.createGain(); mGain.gain.value = 1; mGain.connect(window.__foresterMaster); window.__foresterMusic = mGain; }
+    if (!mGain) { mGain = a.createGain(); mGain.gain.value = 1; mGain.connect(window.__foresterMaster); window.__foresterMusic = mGain;
+                  // a march is played in the open air and on the move: the least of the three
+                  sendToRoom(a, mGain, 0.11); }
     if (mNext < a.currentTime + 0.15) mNext = a.currentTime + 0.15;
     while (mNext < a.currentTime + 2.2) mNext = marchLoop(a, mNext, MARCHES[mTune] || MARCHES.grenadier);
     mTimer = setTimeout(marchPump, 220);
