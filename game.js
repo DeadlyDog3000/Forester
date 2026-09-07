@@ -2783,7 +2783,14 @@ function houseCiv(c, nearX, nearY) {
   home.occupants.push(c); c.home = home;
   const partner = home.occupants.find(o => o !== c);
   const provided = partner && (partner.profession === "farmer" || partner.profession === "hunter");
-  if (!c.profession && !provided) c.profession = Math.random() < 0.6 ? "farmer" : "hunter";
+  // Not while the opening is still talking. Rebuilding the burnt cabin houses
+  // your brother, which quietly made him a farmer — and two steps later the
+  // tutorial told the player to use Recruit to make him a Farmer, which he
+  // already was. A script that instructs you to do something already done is a
+  // script you stop trusting. Once the tutorial is finished this goes back to
+  // what it was: a housed pair who would otherwise stand idle take up a trade.
+  const beingTaught = tutStep >= 0 && tutStep < TUT_STEPS.length;
+  if (!c.profession && !provided && !beingTaught) c.profession = Math.random() < 0.6 ? "farmer" : "hunter";
   return true;
 }
 
