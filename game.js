@@ -255,6 +255,12 @@ T("axing", "Axing", "growth", ["treecutting"], 2, "Chopping 35% faster in total"
 T("sawing", "Sawing", "growth", ["axing"], 3, "+2 logs per tree");
 T("sawmills", "Sawmills", "growth", ["sawing"], 4, "+3 more logs per tree; doors cost 3 logs");
 T("replanting", "Replanting", "growth", ["foraging"], 1, "Saplings grow twice as fast");
+// The care of the body: what a colony learns about feeding and mending itself.
+// Both hang off Foraging and sit early and cheap on purpose — a farm growing
+// wheat nobody can bake is a dead end, so the bakery has to be within reach of
+// a colony that has only just laid its first field.
+T("baking", "Baking", "growth", ["foraging"], 1, "Unlocks the Bakery — a baker turns your wheat into bread, and bread is what actually feeds them");
+T("physick", "Physick", "growth", ["baking"], 2, "Unlocks the Hospital and the doctor's trade — four beds, a stretcher, and a fever that burns out four times faster");
 T("seeding", "Seeding", "growth", ["replanting"], 2, "Farms need only 4 seeds");
 T("agriculture", "Agriculture", "growth", ["seeding"], 3, "Crops ripen 30% faster");
 T("taming", "Taming", "growth", ["agriculture"], 4, "Beasts of the forest; +3 colony happiness");
@@ -272,7 +278,11 @@ T("saddling", "Saddling", "growth", ["horses"], 6, "+10% more walking speed");
 T("warhorse", "War Horse", "growth", ["saddling", "stables"], 7, "Police & soldiers move 35% faster");
 T("cavalry", "Cavalry", "growth", ["warhorse"], 8, "Unlocks Cavalry riders — fast mounted force; police & soldiers +50 health");
 T("hussars", "Hussars", "growth", ["cavalry"], 9, "Better cavalry: +40 health when recruited; all forces +15 damage");
-T("trading", "Trading", "military", [], 0, "Market prices +1 DM");
+T("trading", "Trading", "military", [], 0, "Unlocks the Market Center — it sells your surplus for DM, and market prices +1 DM");
+// Faith is its own root: a colony can turn to it without first learning to
+// trade, and this tab is Military PHILOSOPHY, which is where it belongs.
+T("consecration", "Consecration", "military", [], 0, "Unlocks the Shrine — a small place to pray, and nowhere to pray costs every soul a little, every day");
+T("ministry", "Ministry", "military", ["consecration"], 1, "Unlocks the House of Worship — a creed's own house, worth far more to its flock than anyone else's");
 T("currencies", "Currencies", "military", ["trading"], 1, "Taxes collect +1 DM");
 T("marketing", "Marketing", "military", ["currencies"], 2, "Market prices +1 more DM");
 T("policing", "Policing", "military", ["marketing"], 3, "Unlocks recruiting police");
@@ -5192,6 +5202,8 @@ function rejectColony(v) { closeDialogue(); sendAway(v, `${v.name} shakes his he
 function techAvailable(t) { return !t.done && t.req.every(r => TECH[r].done) && (!research || research.id !== t.id); }
 // which menu entries hide until their technology is researched
 const BUILD_GATES = { forge: "forging", townhall: "township", wall: "defending", gate: "defending", jail: "policing",
+                      market: "trading", bakery: "baking", hospital: "physick",
+                      shrine: "consecration", temple: "ministry",
                       stonewall: "defplus", stonegate: "defplus", moat: "defplus", ditch: "defplus",
                       quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting" };
 const PROF_GATES = { lumberjack: "township", quarryman: "township", forager: "township", miner: "mining",
@@ -8806,6 +8818,15 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 19, date: "7 September 2026", title: "You have to learn a trade before you can build it",
+    lines: [
+      "The market, the bakery, the hospital, the shrine and the house of worship could all be raised on the first afternoon, by anyone, knowing nothing. Half the buildings in the game were free and the other half were earned, and there was no reason for the line to fall where it did.",
+      "Four new technologies. BAKING unlocks the Bakery, and PHYSICK after it unlocks the Hospital and the doctor's trade — both early and cheap on the Growth tree, because a farm growing wheat that nobody can bake is a dead end. CONSECRATION unlocks the Shrine and MINISTRY the House of Worship, standing as their own root on the Philosophy tree: a colony can turn to faith without first learning to trade.",
+      "And Trading, which until now only nudged the prices, unlocks the Market Center it was obviously named for.",
+      "Which changes the opening. The tutorial used to send you to build a market and only mention research two steps later, as \"begin any research\" — an errand with no purpose. Now it sends you to research Trading BECAUSE you cannot keep a market without it, and then to build the market once the scholars are done. The step reads differently while they are still working.",
+      "Nothing you have already built is affected. A colony that already has a bakery keeps it, and keeps using it, whether or not anyone there has heard of Baking.",
+      "Underneath, a real fault: the rule about what may be built was written down twice — once for the build screen and once for the placing of it — and the two had drifted. The gaol was correctly hidden from the menu and could still be built, if you had the logs for it. Both ends read one table now.",
+    ] },
   { v: 18, date: "7 September 2026", title: "Keep a file of anything you would be sorry to lose",
     lines: [
       "Your colonies live in this browser's own store, and that store is not yours — it is the browser's, and browsers empty it. Clearing your site data takes them. So does switching browser, or machine. And on an iPhone or a Mac, Safari empties it by itself after about a week without a visit: you would come back to a game that had never heard of you, with nothing broken and nothing to be done about it.",
@@ -9805,7 +9826,7 @@ const TUT_STEPS = [
     done: () => res.logs >= 20 },
   { text: () => "Now, with a civilian selected, click the burnt cabin to order the repair. That is your first roof.",
     done: () => !buildings.some(b => b.type === "burned") },
-  { text: () => "Bread next. With a civilian selected, click a tuft of wild grass to gather seeds, deposit them, then press BUILD and lay out a Wheat Farm.",
+  { text: () => "Wheat next. With a civilian selected, click a tuft of wild grass to gather seeds, deposit them, then press BUILD and lay out a Wheat Farm. Bread comes later, out of a bakery, once somebody has learned to bake.",
     done: () => farms.length > 0 },
   { text: () => "Fields need hands. Select someone, use Recruit ▾ to make them a Farmer, then click the farm to assign them — they will tend it from then on.",
     done: () => farms.some(f => f.workers.length > 0) },
@@ -9813,12 +9834,14 @@ const TUT_STEPS = [
     done: () => buildings.some(b => b.type === "recruit") },
   { text: () => "When a wanderer arrives, click them and talk. Win them over and they stay; press too hard and they walk back into the trees. Every soul you keep is another pair of hands.",
     done: () => civs.length > 2 || tutSeen.talked },
-  { text: () => "Press BUILD again and raise a Market Center. It sells your surplus for DM, and DM pays for research, recruits and training.",
+  { text: () => "You cannot raise a market until somebody knows how to keep one. Press RESEARCH on the bar along the bottom and take up Trading — every technology is paid for in DM and in time, and four trees run from sharper axes to battle steel and out to the far edge of the map.",
+    done: () => has("trading") || (research && research.id === "trading") },
+  { text: () => has("trading")
+      ? "Now press BUILD and raise a Market Center. It sells your surplus for DM, and DM is what pays for the next thing you learn."
+      : "The scholars are at it. When Trading is known the Market Center will appear on the BUILD screen — nothing that has not been researched is offered there.",
     done: () => buildings.some(b => b.type === "market") },
   { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
     done: () => tutSeen.gov },
-  { text: () => "Press RESEARCH on the bar along the bottom and begin any research. Four trees run from sharper axes to battle steel, and out to the far edge of the map, paid for in DM and time.",
-    done: () => tutSeen.tech || !!research || Object.values(TECH).filter(t => t.done).length > 3 },
   { text: () => "Press MAP, or simply scroll the wheel back. The ground gives way to the country: your land in your own colour, the crowns of Europe around it, and every column on every road between them. Cartography, on the Exploration tree, lifts the eye further.",
     done: () => tutSeen.map },
 ];
@@ -9841,7 +9864,7 @@ const LESSONS = {
   winter: "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches.",
   raid: "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming.",
   plague: "☠ Plague walks the towns of Europe — and it does not check your borders. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. A skilled hand lost to fever is not quickly replaced.",
-  hospital: "☤ The answer to it is a Hospital (on the BUILD screen — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. To mend a wounded soldier, select them and press Heal and they will walk to a bed. A housed, fed man knits a little back together sleeping in his own bed, but it is slow, and it will not touch a fever.",
+  hospital: "☤ The answer to it is a Hospital — which wants the Physick technology first, on the Growth tree — and then 25 logs, 8 stone and 14 DM and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. To mend a wounded soldier, select them and press Heal and they will walk to a bed. A housed, fed man knits a little back together sleeping in his own bed, but it is slow, and it will not touch a fever.",
   soldiers: () => "⚔ You have men under arms. " +
     (IS_TOUCH ? "Tap one, then tap another" : "Click one, then click another") +
     ", and they gather into a band — keep going to raise a company. Send the band at bare ground and they march there in column and hold it; send them at a raider and they go for him." +
