@@ -9618,15 +9618,15 @@ const TUT_STEPS = [
     done: () => res.logs >= 20 },
   { text: () => "Now, with a civilian selected, click the burnt cabin to order the repair. That is your first roof.",
     done: () => !buildings.some(b => b.type === "burned") },
-  { text: () => "Bread next. With a civilian selected, click a tuft of wild grass to gather seeds, deposit them, then open BUILD ▾ and lay out a Wheat Farm.",
+  { text: () => "Bread next. With a civilian selected, click a tuft of wild grass to gather seeds, deposit them, then press BUILD and lay out a Wheat Farm.",
     done: () => farms.length > 0 },
   { text: () => "Fields need hands. Select someone, use Recruit ▾ to make them a Farmer, then click the farm to assign them — they will tend it from then on.",
     done: () => farms.some(f => f.workers.length > 0) },
-  { text: () => "Two hands will not build a colony. Open BUILD ▾ and lay out a Recruitment Center — wanderers come out of the woods to any colony that has one, and it is the only way your numbers grow beyond the children born here.",
+  { text: () => "Two hands will not build a colony. Press BUILD and lay out a Recruitment Center — wanderers come out of the woods to any colony that has one, and it is the only way your numbers grow beyond the children born here.",
     done: () => buildings.some(b => b.type === "recruit") },
   { text: () => "When a wanderer arrives, click them and talk. Win them over and they stay; press too hard and they walk back into the trees. Every soul you keep is another pair of hands.",
     done: () => civs.length > 2 || tutSeen.talked },
-  { text: () => "Open BUILD ▾ again and raise a Market Center. It sells your surplus for DM, and DM pays for research, recruits and training.",
+  { text: () => "Press BUILD again and raise a Market Center. It sells your surplus for DM, and DM pays for research, recruits and training.",
     done: () => buildings.some(b => b.type === "market") },
   { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
     done: () => tutSeen.gov },
@@ -9654,7 +9654,7 @@ const LESSONS = {
   winter: "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches.",
   raid: "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming.",
   plague: "☠ Plague walks the towns of Europe — and it does not check your borders. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. A skilled hand lost to fever is not quickly replaced.",
-  hospital: "☤ The answer to it is a Hospital (BUILD ▾ — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. To mend a wounded soldier, select them and press Heal and they will walk to a bed. A housed, fed man knits a little back together sleeping in his own bed, but it is slow, and it will not touch a fever.",
+  hospital: "☤ The answer to it is a Hospital (on the BUILD screen — 25 logs, 8 stone, 14 DM) and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. To mend a wounded soldier, select them and press Heal and they will walk to a bed. A housed, fed man knits a little back together sleeping in his own bed, but it is slow, and it will not touch a fever.",
   soldiers: () => "⚔ You have men under arms. " +
     (IS_TOUCH ? "Tap one, then tap another" : "Click one, then click another") +
     ", and they gather into a band — keep going to raise a company. Send the band at bare ground and they march there in column and hold it; send them at a raider and they go for him." +
@@ -9671,24 +9671,36 @@ function lesson(key) {
   lessonQueue.push(key);
 }
 const lessonText = key => (typeof LESSONS[key] === "function" ? LESSONS[key]() : LESSONS[key]);
+// Anything that would otherwise open underneath the banner needs to know how
+// tall it is; CSS cannot measure wrapped text. Published as a custom property,
+// zero whenever the banner is down.
+function publishBannerHeight() {
+  const b = $("tutBanner");
+  // its BOTTOM edge, not its height: the banner hangs a little below the HUD,
+  // so height alone left the tree six pixels under it
+  const y = b.style.display === "block" ? Math.round(b.getBoundingClientRect().bottom) + 8 : 0;
+  document.documentElement.style.setProperty("--fx-tut-b", y + "px");
+}
+
 function tutAdvance() {
   tutStep++;
   SFX.pickup();
-  if (tutStep >= TUT_STEPS.length) { tutStep = -1; $("tutBanner").style.display = "none"; lesson("closing"); }
+  if (tutStep >= TUT_STEPS.length) { tutStep = -1; $("tutBanner").style.display = "none"; publishBannerHeight(); lesson("closing"); }
 }
 function updateTutorial(dt) {
   const banner = $("tutBanner");
   // the moment a band becomes possible is the moment to explain how to work one
   if (!lessonSeen.soldiers && civs.filter(groupable).length >= 2) lesson("soldiers");
   if (tutStep >= TUT_STEPS.length) tutStep = -1;
-  if (gameState !== "playing") { banner.style.display = "none"; return; }
+  if (gameState !== "playing") { banner.style.display = "none"; publishBannerHeight(); return; }
   // The opening sequence has the floor while it lasts; lessons wait behind it.
   if (tutStep < 0) {
-    if (!lessonQueue.length) { banner.style.display = "none"; return; }
+    if (!lessonQueue.length) { banner.style.display = "none"; publishBannerHeight(); return; }
     banner.style.display = "block";
     $("tutHead").textContent = "THE WOODS TEACH YOU";
     setEmph($("tutText"), lessonText(lessonQueue[0]));
     $("tutNext").style.display = "inline-block";
+    publishBannerHeight();
     return;
   }
   const st = TUT_STEPS[tutStep];
@@ -9696,6 +9708,7 @@ function updateTutorial(dt) {
   $("tutHead").textContent = `STEP ${tutStep + 1} OF ${TUT_STEPS.length}`;
   setEmph($("tutText"), st.text());
   $("tutNext").style.display = "none";
+  publishBannerHeight();
   if (st.done()) tutAdvance();
 }
 $("tutNext").addEventListener("click", () => {
@@ -9707,7 +9720,7 @@ $("tutNext").addEventListener("click", () => {
 // Skipping means skipping: no opening steps, and no lessons later either.
 $("tutSkip").addEventListener("click", () => {
   tutStep = -1; lessonsOff = true; lessonQueue.length = 0;
-  $("tutBanner").style.display = "none";
+  $("tutBanner").style.display = "none"; publishBannerHeight();
   toast("The woods will teach you the rest.");
 });
 

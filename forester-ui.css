@@ -635,12 +635,29 @@ body.touch .deskOnly { display: none; }
   top: var(--fx-hud-h); left: var(--fx-inset); width: var(--fx-w-gov);
   padding: var(--fx-pad-panel); display: none; max-height: 80vh; overflow-y: auto;
 }
+/* The same trouble the character sheet had, and worse. This panel runs to
+   1230px of content in a 606px window, and Open Tech Tree is the very last
+   thing in it — 595px below the foot of the panel and 490px below the bottom
+   of the screen. Step 14 of 15 says, in as many words, "in that panel, press
+   Open Tech Tree", and pointed at a button essentially nobody would find.
+   Pinned to the foot of the sheet, where an instruction can honestly point. */
+#govResearch {
+  position: sticky; bottom: calc(-1 * var(--fx-gap-row));
+  background: var(--fx-glass);
+  margin-top: 8px; padding: 6px 0 var(--fx-gap-row);
+  border-top: var(--fx-hair) solid var(--fx-line-inner);
+}
 #govPanel .row { margin: var(--fx-stack) 0; align-items: center; }
 #govPanel input[type=range] { width: 130px; }
 
 /* the tech graph */
+/* The tech tree opens under the tutorial banner, and step 14 of 15 is the step
+   that tells you to open it — so the one panel the instruction is about was the
+   one the instruction sat on top of, covering its title and its first row of
+   nodes. They stack now: the banner publishes its own height and the tree
+   starts below it. Zero when no banner is showing, which is most of the game. */
 #techPanel {
-  top: var(--fx-hud-h); left: 300px;
+  top: max(var(--fx-hud-h), var(--fx-tut-b, 0px)); left: 300px;
   width: min(var(--fx-w-tech), calc(100vw - 320px)); max-height: 82vh;
   padding: var(--fx-pad-panel); display: none; z-index: var(--fx-z-tech);
 }
