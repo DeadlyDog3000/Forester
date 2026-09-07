@@ -516,11 +516,56 @@ const MUSIC = (() => {
   let wanted = false, nextLoopAt = 0, timer = null, mg = null;
   const BPM = 92, STEP = 60 / BPM / 2;   // 8th notes
   const N = n => n === 0 ? 0 : 440 * Math.pow(2, (n - 69) / 12);
-  // A minor, 4 bars of 8ths (32 steps), wistful and steady
+  // ===== the menu theme, and why it is longer than it looks =====
+  // It used to be two four-bar phrases alternating: twenty-one seconds, then
+  // the exact same twenty-one seconds, for as long as anyone sat on the front
+  // door. Two phrases is not a tune, it is a loop, and the ear finds the seam
+  // in under a minute and then cannot stop hearing it.
+  //
+  // Four lead phrases now, and — the part that actually does the work — a bass
+  // that turns over on a cycle of THREE while the lead turns over on four, and
+  // an arrangement that turns over on eight. Nothing lines up with anything
+  // else until all three come round together, which is once every twenty-four
+  // phrases: four minutes and ten seconds before a bar is heard exactly as it
+  // was heard before, out of barely more material than the twenty-one seconds
+  // it used to have. The same melody keeps returning over a different bass and
+  // a different arrangement, which is what a tune does and a loop does not.
+  //
+  // The arrangement says where the pad comes in, where the hats drop away, and
+  // which phrase has no melody in it at all — a tune needs somewhere to breathe.
+  //
+  // A minor throughout, wistful and steady, which is the colony's own key.
   const LEAD = [69,0,72,0,71,69,0,0, 64,0,67,0,69,0,0,0, 65,0,69,0,67,65,0,0, 64,0,62,0,64,0,0,0];
   const LEAD2= [76,0,74,72,71,0,72,0, 69,0,0,0,64,0,67,0, 65,0,67,69,71,0,69,0, 67,0,64,0,62,0,64,0];
+  // the lift: it reaches up a fourth and comes back down the way it went
+  const LEAD3= [72,0,74,0,76,0,74,72, 71,0,69,0,71,0,0,0, 69,0,71,72,74,0,72,0, 71,0,69,0,67,0,0,0];
+  // and the settling: sparser, lower, half the notes, letting the bass speak
+  const LEAD4= [64,0,0,0,67,0,69,0, 0,0,71,0,69,0,67,0, 65,0,0,0,64,0,62,0, 60,0,0,0,64,0,0,0];
+  const LEADS = [LEAD, LEAD2, LEAD3, LEAD4];
   const BASS = [45,0,0,0,45,0,52,0, 40,0,0,0,40,0,47,0, 41,0,0,0,41,0,48,0, 43,0,0,0,40,0,43,0];
+  // the same harmony walked rather than pushed
+  const BASS2= [45,0,45,0,48,0,52,0, 40,0,40,0,43,0,47,0, 41,0,41,0,45,0,48,0, 43,0,45,0,40,0,0,0];
+  // and one that mostly stays out of the way
+  const BASS3= [45,0,0,0,0,0,0,0, 40,0,0,0,0,0,47,0, 41,0,0,0,0,0,0,0, 43,0,0,0,43,0,0,0];
+  const BASSES = [BASS, BASS2, BASS3];
   const HAT  = [0,1,0,1,0,1,0,2, 0,1,0,1,0,1,0,1, 0,1,0,1,0,1,0,2, 0,1,0,1,0,1,1,1];
+  const HAT2 = [0,0,0,1,0,0,0,2, 0,0,0,1,0,0,0,1, 0,0,0,1,0,0,0,2, 0,0,0,1,0,0,0,1];
+  // one chord to the bar, held under everything, on the phrases that want warmth
+  const PAD  = [57,0,0,0,0,0,0,0, 52,0,0,0,0,0,0,0, 53,0,0,0,0,0,0,0, 55,0,0,0,0,0,0,0];
+  // per phrase: which hats, whether the pad is in, and whether the melody rests
+  const ARRANGE = [
+    { hat: HAT,  pad: false, rest: false },
+    { hat: HAT,  pad: false, rest: false },
+    { hat: HAT,  pad: true,  rest: false },
+    { hat: HAT2, pad: true,  rest: false },
+    { hat: null, pad: false, rest: false },   // the hats step out
+    { hat: HAT,  pad: true,  rest: false },
+    { hat: HAT,  pad: false, rest: false },
+    { hat: HAT2, pad: true,  rest: true },    // and once round with no tune at all
+  ];
+  // nothing played from an exact number twice: a few percent either way on every
+  // note, which is the difference between a player and a piano roll
+  const hum = (v, amt = 0.09) => v * (1 + (Math.random() * 2 - 1) * amt);
 
   function getCtx() {
     // reuse the SFX context lazily via a played-silent call
@@ -529,30 +574,45 @@ const MUSIC = (() => {
   }
 
   function scheduleLoop(a, t0, phrase) {
-    const lead = phrase % 2 ? LEAD2 : LEAD;
+    // four against three: the melody turns over every fourth phrase, the bass
+    // every third, and the pair only come round together every twelfth
+    const arr = ARRANGE[phrase % ARRANGE.length];
+    const lead = arr.rest ? null : LEADS[phrase % LEADS.length];
+    const bass = BASSES[phrase % BASSES.length];
+    const hat = arr.hat;
     for (let i = 0; i < 32; i++) {
       const t = t0 + i * STEP;
-      if (lead[i]) {
+      if (lead && lead[i]) {
         const o = a.createOscillator(), g = a.createGain();
         o.type = "square"; o.frequency.value = N(lead[i]);
-        g.gain.setValueAtTime(0.16, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + STEP * 1.8);
+        g.gain.setValueAtTime(hum(0.16), t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + STEP * hum(1.8, 0.14));
         o.connect(g); g.connect(mg);
         o.start(t); o.stop(t + STEP * 2);
       }
-      if (BASS[i]) {
+      if (bass[i]) {
         const o = a.createOscillator(), g = a.createGain();
-        o.type = "triangle"; o.frequency.value = N(BASS[i]);
-        g.gain.setValueAtTime(0.26, t);
+        o.type = "triangle"; o.frequency.value = N(bass[i]);
+        g.gain.setValueAtTime(hum(0.26), t);
         g.gain.exponentialRampToValueAtTime(0.003, t + STEP * 3.6);
         o.connect(g); g.connect(mg);
         o.start(t); o.stop(t + STEP * 4);
       }
-      if (HAT[i]) {
+      // the pad: one soft chord a bar, swelling in rather than struck
+      if (arr.pad && PAD[i]) {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "triangle"; o.frequency.value = N(PAD[i]);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.055, t + STEP * 1.6);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + STEP * 7.4);
+        o.connect(g); g.connect(mg);
+        o.start(t); o.stop(t + STEP * 8);
+      }
+      if (hat && hat[i]) {
         const s2 = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
         s2.buffer = window.__foresterNoise; s2.loop = true;
-        f.type = "highpass"; f.frequency.value = HAT[i] === 2 ? 4500 : 7000;
-        g.gain.setValueAtTime(HAT[i] === 2 ? 0.09 : 0.05, t);
+        f.type = "highpass"; f.frequency.value = hat[i] === 2 ? 4500 : 7000;
+        g.gain.setValueAtTime(hum(hat[i] === 2 ? 0.09 : 0.05, 0.16), t);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
         s2.connect(f); f.connect(g); g.connect(mg);
         s2.start(t); s2.stop(t + 0.08);
@@ -579,22 +639,36 @@ const MUSIC = (() => {
   // battle theme: driving minor riff, plays while raiders threaten the town
   let bWanted = false, bNext = 0, bTimer = null, bg = null;
   const BSTEP = 60 / 150 / 2;
+  // One six-second riff, repeated for as long as the raiders were in the street
+  // — and a raid can run for minutes. Three riffs now, over two bass figures, so
+  // the fight develops instead of stuttering: the theme, then a tighter answer
+  // that climbs, then a bar of hammering on the one where it gets serious.
   const BLEAD = [57,0,57,60, 57,0,55,0, 57,0,57,60, 62,0,60,0, 57,0,57,60, 63,62,60,58, 57,0,60,0, 55,0,52,0];
+  const BLEAD2= [64,0,63,0, 62,0,60,0, 58,0,57,0, 60,62,63,0, 64,0,63,0, 65,0,64,0, 63,0,60,0, 58,0,57,0];
+  const BLEAD3= [57,57,0,57, 57,0,60,0, 58,58,0,58, 58,0,57,0, 55,55,0,55, 57,0,58,0, 60,0,63,0, 64,0,0,0];
+  const BLEADS = [BLEAD, BLEAD2, BLEAD, BLEAD3];
   const BBASS = [33,33,0,33, 33,33,0,33, 33,33,0,33, 36,0,34,0, 33,33,0,33, 33,33,0,33, 31,31,0,31, 28,0,31,0];
+  const BBASS2= [33,0,33,33, 0,33,33,0, 33,0,33,33, 0,36,0,34, 33,0,33,33, 0,33,33,0, 31,0,31,31, 28,28,0,0];
+  const BBASSES = [BBASS, BBASS, BBASS2];
+  let bPhrase = 0;
   function bSchedule(a, t0) {
+    // four riffs against three bass figures, the same trick the menu theme uses
+    const BLEAD = BLEADS[bPhrase % BLEADS.length];
+    const BBASS = BBASSES[bPhrase % BBASSES.length];
+    bPhrase++;
     for (let i = 0; i < 32; i++) {
       const t = t0 + i * BSTEP;
       if (BLEAD[i]) {
         const o = a.createOscillator(), g = a.createGain();
         o.type = "square"; o.frequency.value = N(BLEAD[i]);
-        g.gain.setValueAtTime(0.11, t);
+        g.gain.setValueAtTime(hum(0.11), t);
         g.gain.exponentialRampToValueAtTime(0.001, t + BSTEP * 1.6);
         o.connect(g); g.connect(bg); o.start(t); o.stop(t + BSTEP * 2);
       }
       if (BBASS[i]) {
         const o = a.createOscillator(), g = a.createGain();
         o.type = "sawtooth"; o.frequency.value = N(BBASS[i]);
-        g.gain.setValueAtTime(0.14, t);
+        g.gain.setValueAtTime(hum(0.14), t);
         g.gain.exponentialRampToValueAtTime(0.003, t + BSTEP * 1.8);
         o.connect(g); g.connect(bg); o.start(t); o.stop(t + BSTEP * 2);
       }

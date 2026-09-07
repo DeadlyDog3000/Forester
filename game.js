@@ -8835,6 +8835,10 @@ const PANEL_CLOSE = {
   settingsPanel: () => { $("settingsPanel").style.display = "none"; saveSettings(); },
   skillPanel: () => closeSkills(),
   techPanel: () => { $("techPanel").style.display = "none"; $("techToggle").classList.remove("active"); },
+  // the build screen dismisses on a tap of its own dead ground, like every
+  // other panel — the dropdown it replaced closed on an outside click, and
+  // losing that would have made it the one thing here you cannot wave away
+  buildSheet: () => closeBuildSheet(),
   militaryPanel: () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); },
   pauseMenu: () => setPause(false),
 };

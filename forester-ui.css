@@ -618,6 +618,15 @@ body.touch .deskOnly { display: none; }
    does out in the open, to leave the life story as much of the sheet as it can */
 #cpActions .btn, #cpActions .dropdown { margin-top: 4px !important; }
 #cpActions > .btn:first-child { margin-top: 0 !important; }
+/* A menu marked "up" in this game opens DOWNWARD (top: 100%) — it is named for
+   where its toggle sits, not for where it goes. That was right when these
+   buttons were halfway up a scrolling sheet. Pinned to the foot of it, a
+   Recruit list with all twelve trades unlocked ran from y457 to y854 on a
+   720px screen, and the last three trades were off the bottom of the world;
+   on a phone it overran the sheet by the same trick. From down here they open
+   upward, into the sheet above them, which is the one direction that always
+   has room. The phone keeps its own 30vh cap and scrolls within it. */
+#cpActions .dropdown-menu.up { top: auto; bottom: 100%; margin: 0 0 4px; }
 #civPanel hr { border: none; border-top: var(--fx-hair) solid var(--fx-line-inner); margin: 7px 0; }
 #civPanel .row #cpDoing, #civPanel .row #cpBest { color: var(--fx-ink-2); text-align: right; }
 
