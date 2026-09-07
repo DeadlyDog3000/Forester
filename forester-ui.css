@@ -188,7 +188,6 @@
   --fx-shadow-field: 0 2px 4px #000, 0 0 10px #000, 0 0 18px #000;
 
   /* ---- the ledger of layers -------------------------------------------- */
-  --fx-z-hint:        5;
   --fx-z-panel:      10;
   --fx-z-tech:       15;
   --fx-z-menu:       20;
@@ -281,11 +280,20 @@ img, canvas { image-rendering: pixelated; }
 }
 #actions .ico { font-style: normal; margin-right: 5px; }
 
+/* The keyboard crib. It used to float on its own at a fixed 40px from the top,
+   which was a guess about how tall the HUD is — and the HUD wraps to a second
+   row at any width below about 1500px, so on an ordinary laptop the crib was
+   underneath it, unreadable and unmentioned. It is a row OF the HUD now: it
+   cannot collide with what it hangs below, it needs no magic number, and it
+   sits on the same glass as everything else up there. Which also settles the
+   contrast — whisper ink over sunlit grass measured 2.5:1, where the readable
+   floor is 4.5; one step up the ramp, on glass, is 5.5. */
 #hint {
-  position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
-  font-size: var(--fx-t-note); color: var(--fx-ink-6);
-  z-index: var(--fx-z-hint); pointer-events: none;
-  text-shadow: var(--fx-shadow-text);
+  flex: 0 0 100%;
+  margin-top: 2px; padding-top: 3px;
+  border-top: var(--fx-hair) solid var(--fx-line-row);
+  font-size: var(--fx-t-note); color: var(--fx-ink-5);
+  pointer-events: none;
 }
 
 /* A section head inside a panel. */

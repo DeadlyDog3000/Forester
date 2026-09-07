@@ -9404,6 +9404,11 @@ function endCutscene() {
   // spreading, with nothing in the ledger but sixty marks and a burnt roof.
   // Read the tier off the colony rather than assuming it, the way a load does.
   lastTier = Math.max(1, difficulty()); lastTierToldT = -999;
+  // and the season for the same reason. It is summer at nine in the morning
+  // on the first day, so this changes nothing today — but it is an assumption
+  // rather than a reading, and the day the calendar opens somewhere else the
+  // colony would be told winter had just fallen on it.
+  lastSeason = season();
   // and the far map starts blank again: no charts, no columns, no agent in
   // anybody's court. Without this a second colony begins with the first one's
   // atlas, which would give away half of Europe for nothing.
@@ -12913,6 +12918,22 @@ function drawSprite(image, wx, wyFeet, size, flip) {
   ctx.drawImage(image, -size / 2, -size, size, size);
   ctx.restore();
 }
+// Every label over the world is read against whatever the world happens to be
+// behind it, and the world will not hold still: summer grass, winter snow, a
+// burning roof at night. Ink alone cannot survive that. A civilian's pale green
+// name measures 4.8:1 against summer grass and about 2:1 against the snow four
+// months later — and 4.5:1 is the floor for text a player is meant to read. So
+// cut every one of them out of the ground first, which is what the far map's
+// labels have always done and the colony's own never did.
+const LABEL_OUTLINE = "rgba(4,7,5,0.9)";
+function groundLabel(text, x, y, ink, px = 10) {
+  ctx.font = px + "px monospace";
+  ctx.textAlign = "center";
+  ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.strokeStyle = LABEL_OUTLINE;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = ink;
+  ctx.fillText(text, x, y);
+}
 function bar(wx, wyTop, frac, color, w = 44) {
   ctx.fillStyle = "#0a0f0c"; ctx.fillRect(wx - w / 2 - 1, wyTop - 1, w + 2, 8);
   ctx.fillStyle = "#1c2a21"; ctx.fillRect(wx - w / 2, wyTop, w, 6);
@@ -13031,8 +13052,7 @@ function render(dt) {
     if (fort >= 2) { drawSprite(img.wall, cp.x - 24, cp.y + 26, 52, false); drawSprite(img.wall, cp.x + 24, cp.y + 26, 52, false); }
     if (fort >= 3) { drawSprite(img.wallv, cp.x - 78, cp.y - 30, 52, false); drawSprite(img.wallv, cp.x + 78, cp.y - 30, 52, false); }
     drawSprite(img[cp.type === "thief" ? "thiefcamp" : "raidcamp"], cp.x, cp.y, BLDG_SIZE, false);
-    ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-    ctx.fillText(cp.type === "thief" ? "thief camp" : "raid camp", cp.x, cp.y - BLDG_SIZE - 4);
+    groundLabel(cp.type === "thief" ? "thief camp" : "raid camp", cp.x, cp.y - BLDG_SIZE - 4, "#d86a5a");
     if (cp.hp < cp.maxHp) bar(cp.x, cp.y - BLDG_SIZE - 14, cp.hp / cp.maxHp, "#a05252");
     if (selectedCamp === cp) {
       ctx.strokeStyle = "#d86a5a"; ctx.lineWidth = 1;
@@ -13043,9 +13063,8 @@ function render(dt) {
   for (const f of foreignFolk) if (inView(f.x, f.y)) drawables.push({ y: f.y, draw: () => {
     drawSprite(img[f.who + (Math.floor(f.anim) % 4)], f.x, f.y, CHAR_SIZE, f.facing < 0);
     if (settings.labels) {
-      ctx.fillStyle = f.fleeT > 0 ? "#d8b45a" : "#9ab0a2";
-      ctx.font = "10px monospace"; ctx.textAlign = "center";
-      ctx.fillText(f.name + (f.fleeT > 0 ? " !" : ""), f.x, f.y - CHAR_SIZE - 4);
+      groundLabel(f.name + (f.fleeT > 0 ? " !" : ""), f.x, f.y - CHAR_SIZE - 4,
+                 f.fleeT > 0 ? "#d8b45a" : "#9ab0a2");
     }
   }});
   // a foreign crown's town: their roofs and walls, drawn in their own colours
@@ -13056,8 +13075,7 @@ function render(dt) {
     if (im) drawSprite(im, fb.x, fb.y, SMALL_BLDG[fb.type] || BLDG_SIZE, false);
     const col = (NATIONS[fb.town.nation] || {}).color || "#d86a5a";
     if (fb.keep) {
-      ctx.fillStyle = col; ctx.font = "10px monospace"; ctx.textAlign = "center";
-      ctx.fillText(fb.town.name.toUpperCase(), fb.x, fb.y - BLDG_SIZE - 6);
+      groundLabel(fb.town.name.toUpperCase(), fb.x, fb.y - BLDG_SIZE - 6, col);
     }
     if (fb.hp < fb.maxHp) bar(fb.x, fb.y - (SMALL_BLDG[fb.type] || BLDG_SIZE) - 12, fb.hp / fb.maxHp, "#a05252", fb.keep ? 44 : 30);
   }});
@@ -13087,8 +13105,7 @@ function render(dt) {
     if (f.site) { ctx.globalAlpha = 0.45; drawSprite(wimg("farm"), f.x, f.y, FARM_SIZE, false); ctx.globalAlpha = 1; }
     if (f.progress >= 0) bar(f.x, f.y - FARM_SIZE - 12, f.progress, "#c9a86a");
     else if (f.ready) {
-      ctx.fillStyle = "#d8c26a"; ctx.font = "12px monospace"; ctx.textAlign = "center";
-      ctx.fillText("ripe", f.x, f.y - FARM_SIZE - 4);
+      groundLabel("ripe", f.x, f.y - FARM_SIZE - 4, "#d8c26a", 12);
     }
     if (selected && selected.profession === "farmer" && f.workers.includes(selected)) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1;
@@ -13135,8 +13152,7 @@ function render(dt) {
   }});
   for (const v of visitors) if (inView(v.x, v.y)) drawables.push({ y: v.y, draw: () => {
     drawSprite(img["hunter" + (Math.floor(v.anim) % 4)], v.x, v.y, CHAR_SIZE, v.facing < 0);
-    ctx.fillStyle = "#c98a6a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-    if (settings.labels) ctx.fillText(v.name + " (visitor)", v.x, v.y - CHAR_SIZE - 4);
+    if (settings.labels) groundLabel(v.name + " (visitor)", v.x, v.y - CHAR_SIZE - 4, "#c98a6a");
   }});
   // A crown's troops march in its regimentals and are named for what they are.
   // The woods' own thieves are no army: they come as they always did, in rags.
@@ -13169,13 +13185,9 @@ function render(dt) {
     // garrison label goes on the town, not on each man — and only the ones
     // actually coming for you are called out individually.
     if (settings.labels && !(r.garrison && r.state === "patrol")) {
-      ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
       const who = crown ? crown.name + " Enemy Soldier" : (r.state === "patrol" ? "thief" : "RAIDER");
-      ctx.fillText(r.state === "invest" ? who + " — BESIEGING" : who, r.x, r.y - CHAR_SIZE - 4);
-      if (r.kit) {
-        ctx.fillStyle = "#c9a86a"; ctx.font = "9px monospace";
-        ctx.fillText(KIT_NAME[Math.min(KIT_MAX, r.kit)], r.x, r.y - CHAR_SIZE - 14);
-      }
+      groundLabel(r.state === "invest" ? who + " — BESIEGING" : who, r.x, r.y - CHAR_SIZE - 4, "#d86a5a");
+      if (r.kit) groundLabel(KIT_NAME[Math.min(KIT_MAX, r.kit)], r.x, r.y - CHAR_SIZE - 14, "#c9a86a", 9);
     }
     if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - (r.kit && settings.labels ? 24 : 14), r.hp / r.maxHp, "#a05252", 34);
   }});
@@ -13185,9 +13197,9 @@ function render(dt) {
     const n = raiders.filter(r => r.garrison === t).length;
     if (!n) continue;
     drawables.push({ y: t.y + 1, draw: () => {
-      ctx.fillStyle = "#d86a5a"; ctx.font = "10px monospace"; ctx.textAlign = "center";
       const crown = NATIONS[t.nation];
-      ctx.fillText(`${n} of ${crown ? crown.name : "the enemy"} hold ${t.name}`, t.x, t.y - CHAR_SIZE - 30);
+      groundLabel(`${n} of ${crown ? crown.name : "the enemy"} hold ${t.name}`,
+                 t.x, t.y - CHAR_SIZE - 30, "#d86a5a");
     }});
   }
   // A man on a stretcher is painted by whoever is carrying him, not by himself
@@ -13235,19 +13247,17 @@ function render(dt) {
       ctx.beginPath(); ctx.arc(sx + c.facing * 16, sy, 5, 0, Math.PI * 2); ctx.fill();
       if (p.hp < p.maxHp) bar(sx, sy - 16, p.hp / p.maxHp, "#a05252", 28);
       if (settings.labels) {
-        ctx.fillStyle = isSick(p) ? "#a99ec4" : "#7da083";
-        ctx.font = "10px monospace"; ctx.textAlign = "center";
-        ctx.fillText((isSick(p) ? "☠ " : "") + p.name, sx, sy - 22);
+        groundLabel((isSick(p) ? "☠ " : "") + p.name, sx, sy - 22,
+                   isSick(p) ? "#a99ec4" : "#7da083");
       }
     }
     drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
     // the flash is painted into the firing sprite itself — nothing is drawn over it
-    ctx.fillStyle = c.sick > 0 ? "#a99ec4" : c.rebel ? "#d86a5a" : c.feudWith ? "#d8a05a" : c === selected ? "#c9a86a" :
-                    c.profession === "police" ? "#8aa0c9" : isForce(c) ? "#b58a5a" : "#7da083";
-    ctx.font = "10px monospace"; ctx.textAlign = "center";
+    const ink = c.sick > 0 ? "#a99ec4" : c.rebel ? "#d86a5a" : c.feudWith ? "#d8a05a" : c === selected ? "#c9a86a" :
+                c.profession === "police" ? "#8aa0c9" : isForce(c) ? "#b58a5a" : "#7da083";
     const tag = c.rebel ? " [REBEL]" : c.feudWith ? ` [feud: ${c.feudWith}]` : c.child ? " (child)" :
                 ["police", "soldier", "musketeer", "cavalry"].includes(c.profession) ? ` [${c.profession}]` : "";
-    if (settings.labels) ctx.fillText((c.sick > 0 ? "☠ " : "") + c.name + tag, c.x, c.y - CHAR_SIZE - 4);
+    if (settings.labels) groundLabel((c.sick > 0 ? "☠ " : "") + c.name + tag, c.x, c.y - CHAR_SIZE - 4, ink);
     if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
     if (c.state === "crafting" || c.state === "buildingFarm" || c.state === "smithing" || c.state === "hunting") {
       const tot = c.state === "crafting" ? craftTime(c) : c.state === "smithing" ? smithTime(c) :
