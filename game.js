@@ -3905,13 +3905,28 @@ function finishMove(wx, wy) {
 }
 
 function tryPlace(type, wx, wy) {
-  if (type === "forge" && !has("forging")) { toast("A forge requires the Forging technology."); buildMode = null; syncUI(); return; }
-  if ((type === "wall" || type === "gate") && !has("defending")) { toast("Walls and gates require the Defending technology."); buildMode = null; syncUI(); return; }
-  if (type === "townhall" && !has("township")) { toast("A town hall requires the Township technology."); buildMode = null; syncUI(); return; }
-  if (["stonewall", "stonegate", "moat", "ditch"].includes(type) && !has("defplus")) { toast("Stoneworks and earthworks require Defending II."); buildMode = null; syncUI(); return; }
-  if (isWork(type) && !has(BUILD_GATES[type])) {
-    toast(`A ${BLDG_NAMES[type].toLowerCase()} requires the ${TECH[BUILD_GATES[type]].name} technology.`);
-    buildMode = null; syncUI(); return;
+  // ===== one gate, read from one table =====
+  // This was five hand-written checks — the forge, walls and gates, the town
+  // hall, the stoneworks, and whatever isWork() happened to cover — while the
+  // build screen read the same fact out of BUILD_GATES. Two lists of one truth,
+  // and they had already drifted apart: the jail is in BUILD_GATES and was
+  // correctly hidden from the menu, but nothing here named it and it is not an
+  // industry, so with eighteen logs and six stone you could raise a gaol without
+  // ever researching Policing.
+  //
+  // Both ends read the table now. A gate added to BUILD_GATES hides the building
+  // AND refuses to place it, and neither half can fall behind the other again.
+  {
+    const gate = BUILD_GATES[type];
+    if (gate && !has(gate)) {
+      const name = BLDG_NAMES[type] || type;
+      // a ditch is not a "ditchs"
+      const many = name + (/[sxz]$|[cs]h$/i.test(name) ? "es" : "s");
+      toast(WALLLIKE.has(type)
+        ? `${many} require the ${TECH[gate].name} technology.`
+        : `A ${name.toLowerCase()} requires the ${TECH[gate].name} technology.`);
+      buildMode = null; syncUI(); return;
+    }
   }
   if (type === "townhall") {
     // one hall per town — but every town, the capital included, may have its own
