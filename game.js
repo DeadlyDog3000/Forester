@@ -1326,9 +1326,62 @@ const WAGE = 2;                 // a soldier, constable, musketeer or rider, per
 const CIVIC_UPKEEP = 1;         // per tended work, per tax day
 const CIVIC = new Set(["hospital", "jail", "watchtower", "market", "townhall", "forge", "bakery", "recruit", "well",
                        "quarry", "mine", "sawmill", "smelter"]);
+// ===== the pedlar, and why he exists =====
+// Every DM in the colony arrives from outside it. Taxes do not make money —
+// they move a colonist's coin into the treasury — so the only sources were the
+// market and the wanderers a recruitment center draws. Both cost DM to reach:
+// Trading is 15 and the market 8, the recruitment center 10. Spend the opening
+// 60 on anything else and there is no way left to earn a single DM. The colony
+// is not losing at that point; it is stuck, which is worse, and a player who
+// hits it can only start again.
+//
+// So a pedlar comes up the road. He calls only where there is no market, pays
+// less than one would, and takes very little — but he will buy LOGS, and logs
+// grow back for free, which means no colony can ever be worth nothing. The
+// market remains the better answer in every way: it is always open, it pays
+// more, and nobody has to wait for it.
+const PEDLAR_PERIOD = 150;      // seconds between calls, while you have no market
+const PEDLAR_PRICE = 2;         // per unit — the market pays 3 and rises with research
+const PEDLAR_TAKE = 6;          // units he has room for in one visit
+const PEDLAR_WANTS = ["bread", "meat", "wheat", "logs", "stone"];
+
 const wageBill = () => civs.filter(isForce).length * WAGE;
 const upkeepBill = () => buildings.filter(b => !b.site && !b.fire && CIVIC.has(b.type)).length * CIVIC_UPKEEP;
 const civicWorks = () => buildings.filter(b => !b.site && !b.fire && CIVIC.has(b.type)).length;
+
+// One working market anywhere in the colony and the pedlar stops coming: he is
+// the floor under a colony with nothing, not a second way to sell.
+const hasMarket = () => buildings.some(b => b.type === "market" && !b.site && !b.fire);
+
+// He buys out of the common stores, never out of anyone's pocket, and he will
+// not take food the colony still needs — a full larder is surplus, a bare one
+// is dinner. Logs are the point of him: they cost nothing but the swing of an
+// axe, so a colony that has been spent down to nothing can always chop its way
+// back to a market.
+function pedlarCall() {
+  let room = PEDLAR_TAKE, paid = 0;
+  const bought = [];
+  for (const good of PEDLAR_WANTS) {
+    if (room <= 0) break;
+    const keep = (good === "logs" || good === "stone") ? 5 : civs.length;
+    const spare = Math.max(0, Math.floor((res[good] || 0) - keep));
+    const take = Math.min(room, spare);
+    if (take <= 0) continue;
+    res[good] -= take; room -= take; paid += take * PEDLAR_PRICE;
+    bought.push(`${take} ${good}`);
+  }
+  if (!paid) {
+    toast("A pedlar calls, finds nothing he can carry, and walks on.");
+    return false;
+  }
+  res.dm += paid;
+  SFX.coin();
+  toast(`A pedlar buys ${bought.join(" and ")} for ${paid} DM.`);
+  tell("work", `A pedlar came up the road and bought ${bought.join(" and ")} for ${paid} DM. ` +
+               `A market of your own would pay more, and would not walk on.`);
+  syncUI();
+  return true;
+}
 let arrears = 0;                // what last tax day could not pay, and who resents it
 const cabinCapacity = () => has("landownership") ? 3 : 2;
 const dismantleRefund = () => has("ownership") ? 0.75 : 0.5;
@@ -1542,6 +1595,7 @@ function armouryTake() {
   return null;
 }
 let taxRate = 2, taxTimer = TAX_PERIOD;
+let pedlarTimer = PEDLAR_PERIOD * 0.6;   // the first call comes sooner than the rest
 let settlementName = "Neu Hamburg";
 let empireName = "";
 let territoryColor = "#7da083", borderColor = "#c9a86a";
@@ -8862,6 +8916,15 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 21, date: "7 September 2026", title: "A colony can no longer be spent into a corner it cannot leave",
+    lines: [
+      "The first player review of this game said it ran out of money with no clear way to earn any, and that the only fix was to start again. That was not a difficulty. It was a hole in the floor.",
+      "Every DM in the colony arrives from outside it. Taxes do not make money — they move a colonist's own coin into your treasury, and a colonist only has coin because they sold something. There were exactly two ways for money to enter: the market, which needs Trading researched at 15 DM and 8 DM to raise, and the wanderers a recruitment center draws, at 10 DM. Both cost money. Spend the opening 60 DM on anything else and no DM could ever enter the colony again — not a losing position, a stuck one, which is worse, because a losing colony is still a story and a stuck one is just a reload.",
+      "It was worse than it looked, too. A farmer pays for their own field out of their own purse, so a colony that answered a shortage by ploughing more ground was emptying the very pockets its taxes are drawn from. That is exactly what happened to the player who wrote in.",
+      "So a pedlar comes up the road. He calls every few minutes, but only where there is no market — one market anywhere and he stops coming. He pays 2 DM a unit where a market pays 3 and rising, takes six units at most, and will not touch food the colony still needs. What matters is that he buys LOGS, and logs grow back for nothing: a colony spent down to its last coin can always chop its way back to a market. He is a floor, not a living.",
+      "And the game now says so out loud. Drop under 20 DM with no market, or sit through one tax day that collects nothing, and it explains where money actually comes from, names what Trading costs, and warns you about the farms. A tax day that comes back empty no longer just says the pockets were empty — it says why they were.",
+      "The tutorial has four more steps, and a new kind of step: one you simply read and dismiss, rather than one you finish by doing a thing. It used to tell you to research Trading and raise a market without ever explaining why either mattered, which is how you can follow every instruction and still walk into the hole. Now it draws the whole circle — surplus goes to the market, the market fills a purse, tax day takes part of that purse, the treasury pays for everything else — and then names the two traps: that fields are paid for out of the farmer's own pocket, and that every civic building bills you on every tax day whether anyone works it or not. There is a step about winter, which is the test the opening is really preparing you for, and one at the end about where to look and what to do once the steps run out.",
+    ] },
   { v: 20, date: "7 September 2026", title: "A settings panel you can actually find things in",
     lines: [
       "It was one master fader and eleven switches in a single column — a list rather than a panel, and no way to find the one you came for. It is grouped now: SOUND, GRAPHICS, CONTROLS, each under its own head, and it scrolls on a phone.",
@@ -9349,7 +9412,7 @@ function saveGame() {
       savedAt: Date.now(),          // so the menu can say when you were last here
       // the recent tail only: a history worth reading, at a size worth keeping
       chron: chronicle.slice(-CHRON_SAVED),
-      res: { ...res }, taxRate, taxTimer, laws: { ...laws }, zoom, settlementName, arrears,
+      res: { ...res }, taxRate, taxTimer, pedlarTimer, laws: { ...laws }, zoom, settlementName, arrears,
       stateFaith, dedicateTo,
       // which season the world was last seen in, and how bold the woods had grown.
       // A fresh page starts both at their opening values; without carrying them, a
@@ -9493,6 +9556,7 @@ function loadGame() {
     res.armoury = Object.assign({ stone: 0, bronze: 0, iron: 0 }, (d.res && d.res.armoury) || {});
     reconcileArmoury();
     taxRate = d.taxRate; taxTimer = d.taxTimer; arrears = d.arrears || 0;
+    pedlarTimer = typeof d.pedlarTimer === "number" ? d.pedlarTimer : PEDLAR_PERIOD;
     stateFaith = FAITHS[d.stateFaith] ? d.stateFaith : null;
     dedicateTo = FAITHS[d.dedicateTo] ? d.dedicateTo : defaultDedication();
     settlementName = d.settlementName || "Neu Hamburg";
@@ -9891,10 +9955,21 @@ const TUT_STEPS = [
       ? "Now press BUILD and raise a Market Center. It sells your surplus for DM, and DM is what pays for the next thing you learn."
       : "The scholars are at it. When Trading is known the Market Center will appear on the BUILD screen — nothing that has not been researched is offered there.",
     done: () => buildings.some(b => b.type === "market") },
-  { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
+  // The single thing a new player most needs and is least likely to work out:
+  // where money actually comes from. A colony can be spent into a corner it
+  // cannot climb out of, and this is the step that stops that happening.
+  { text: () => "That is the whole circle of money, and it is worth knowing before you spend again. A colonist who has more bread or meat than they need carries the surplus to the MARKET and comes back with DM in their own purse. On tax day, part of that purse becomes your treasury. The treasury is what pays for research, buildings, training and wages. So the market is not a convenience — it is the only reason anyone in the colony has a coin at all, and a colony without one has nothing to tax however high you set the rate.",
+    ack: true, done: () => false },
+  { text: () => "Two things that catch people out. A farmer pays for their own field out of their OWN purse, so a colony of nothing but farms has empty pockets and an empty tax day. And nothing you raise is free to keep: every market, bakery, well, forge, mine and watchtower costs DM on every tax day, whether or not anyone works it. Always keep enough back to afford the next thing you actually need.",
+    ack: true, done: () => false },
+  { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels. The same panel totals what your colony costs to keep, so you can see the bill before it falls due.",
     done: () => tutSeen.gov },
+  { text: () => `Winter is the test. The fields sleep from the first frost, nothing grows, and anyone without a roof over them dies of the cold. Everything you eat in winter is what you stored before it. Keep the larder ahead of the season and keep building cabins${res.bread + res.meat > 0 ? "" : " — you have nothing in store yet"}.`,
+    ack: true, done: () => false },
   { text: () => "Press MAP, or simply scroll the wheel back. The ground gives way to the country: your land in your own colour, the crowns of Europe around it, and every column on every road between them. Cartography, on the Exploration tree, lifts the eye further.",
     done: () => tutSeen.map },
+  { text: () => "Last thing, and then the woods are yours. PEOPLE lists every soul, their trade, their mood and their health — it is the first place to look when something is wrong. CHRONICLE keeps everything that has ever happened here. And the order of business from here is roughly: keep them fed, get everyone under a roof before winter, raise a wall before the raiders find you, and push the research that opens the next trade. Nothing else is on a timer.",
+    ack: true, done: () => false },
 ];
 
 // ===== the manual, delivered when the thing happens =====
@@ -9911,6 +9986,7 @@ const TUT_STEPS = [
 const LESSONS = {
   comfort: "A Well is cheap and the colony is happier for it — and when plague comes, clean water keeps more of them on their feet. A Bakery turns your wheat into bread, and a Town Hall lets folk stock the stores without being told. Raise them when you can spare the logs.",
   upkeep: () => `⚖ Nothing you raise is free to keep. On every tax day the treasury pays ${WAGE} DM to each man under arms and ${CIVIC_UPKEEP} DM to each work that must be tended — the market, the bakery, the well, the forge, the recruitment center, the watchtower, the jail, the hospital, the town hall, and every quarry, mine, sawmill and smelter — whether or not anyone is working it. Cabins, walls, lamps and farms cost nothing once they stand. An army is a standing choice against a hospital. If the treasury cannot pay, unpaid men lose heart and the works go untended: disband someone, pull something down, or raise the tax. The GOVERNMENT panel shows the whole bill.`,
+  income: () => `\ud83e\ude99 COIN COMES FROM OUTSIDE THE COLONY. Taxes do not make money — they move a colonist's own coin into the treasury, and a colonist only has coin because they sold something. Until you raise a MARKET they have nowhere to sell, so the tax comes back empty however high you set it. Research TRADING (${techCost(TECH.trading)} DM), then build the Market (${STATIC_COSTS.market.logs} logs, ${STATIC_COSTS.market.dm} DM): your people will carry spare bread and meat to it and come back with silver you can tax. Keep enough back to afford both. And note that a farm is paid for out of the farmer's OWN purse — a colony of nothing but fields has nothing left in its pockets to tax. Meanwhile a pedlar will call every few minutes and buy what you can spare, logs included; that is a floor, not a living.`,
   trade: "On the map you can send an envoy to a peaceful neighbour and talk their court into a trade route — gifts help, threats do not. Caravans then bring coin and goods to your gate.",
   winter: "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches.",
   raid: "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming.",
@@ -10000,15 +10076,20 @@ function updateTutorial(dt) {
   banner.style.display = "block";
   $("tutHead").textContent = `STEP ${tutStep + 1} OF ${TUT_STEPS.length}`;
   setEmph($("tutText"), st.text());
-  $("tutNext").style.display = "none";
+  // Most steps are finished by doing the thing. Some are worth simply reading:
+  // those carry ack, show the button, and wait to be dismissed.
+  $("tutNext").style.display = st.ack ? "inline-block" : "none";
   publishBannerHeight();
-  if (st.done()) tutAdvance();
+  if (!st.ack && st.done()) tutAdvance();
 }
 $("tutNext").addEventListener("click", () => {
   if (tutStep < 0 && lessonQueue.length) {
     lessonSeen[lessonQueue.shift()] = true;
     SFX.pickup();
+    return;
   }
+  const st = TUT_STEPS[tutStep];
+  if (st && st.ack) tutAdvance();
 });
 // Skipping means skipping: no opening steps, and no lessons later either.
 $("tutSkip").addEventListener("click", () => {
@@ -10717,6 +10798,15 @@ function update(dt) {
   for (let i = smokes.length - 1; i >= 0; i--) if (smokes[i].t <= 0) smokes.splice(i, 1);
 
   // global tax clock
+  // The pedlar keeps his own clock, and only while there is no market.
+  if (hasMarket()) {
+    pedlarTimer = PEDLAR_PERIOD;
+  } else {
+    pedlarTimer -= dt;
+    if (pedlarTimer <= 0) { pedlarTimer = PEDLAR_PERIOD; pedlarCall(); }
+    if (res.dm < 20) lesson("income");     // before it is too late to act on it
+  }
+
   taxTimer -= dt;
   if (taxTimer <= 0) {
     taxTimer = TAX_PERIOD;
@@ -10752,7 +10842,12 @@ function update(dt) {
     if (arrears > 0) acct.push(`${arrears} UNPAID`);
     tell("work", total > 0 || owed > 0
       ? `Tax day: ${acct.join(", ")} — ${Math.max(0, res.dm)} DM in the treasury.`
-      : "Tax day — but the people's pockets are empty.");
+      : hasMarket()
+        ? "Tax day — but the people's pockets are empty."
+        : "Tax day — but the people's pockets are empty. They have nowhere to sell what they gather, so they have nothing for you to tax.");
+    // An empty tax day with no market is the clearest moment to explain where
+    // money actually comes from, so say it then.
+    if (total === 0 && !hasMarket()) lesson("income");
     if (arrears > 0)
       tell("work", `⚠ The treasury cannot meet its bills: ${arrears} DM short. Men go unpaid and the works go untended.`);
     if (total > 0) SFX.coin();
