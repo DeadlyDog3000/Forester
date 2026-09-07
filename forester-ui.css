@@ -372,6 +372,12 @@ input[type=range]    { accent-color: var(--fx-spruce); }
 input[type=checkbox] { accent-color: var(--fx-spruce); }
 label { display: flex; gap: var(--fx-stack); align-items: center; margin: 4px 0; cursor: pointer; }
 
+/* A price you cannot meet today. Still listed, still clickable — pressing it
+   tells you exactly what you are short of, which is worth knowing — but no
+   longer indistinguishable from the one thing on the menu you can afford. */
+.menu-item.cantAfford { opacity: 0.42; }
+.menu-item.cantAfford:hover { opacity: 0.72; }
+
 /* A save row on the front door. */
 .saveRow {
   display: flex; align-items: center; gap: var(--fx-gap-row); width: 100%;
@@ -532,6 +538,23 @@ body.touch .deskOnly { display: none; }
    became unreachable, with no scrollbar to say so. Cap it to the room between the
    HUD and the action bar and let it scroll when it must. */
 #civPanel { max-height: calc(100vh - var(--fx-hud-h) - 76px); overflow-y: auto; }
+/* Scrollable was not the same as reachable. The third thing the tutorial ever
+   asks of a player is to press "Deposit goods to town storage" — and on a
+   laptop that button sat 350px below the foot of the panel, behind a scroll
+   nothing advertised: the sheet appears to end at the inventory. So the orders
+   are pinned to the bottom of the sheet and the life story scrolls behind
+   them. Who someone is still comes first and reads first; what you can tell
+   them to do is now always where the hand already is. */
+#cpActions {
+  position: sticky; bottom: calc(-1 * var(--fx-gap-row));
+  background: var(--fx-glass);
+  margin-top: 7px; padding: 5px 0 var(--fx-gap-row);
+  border-top: var(--fx-hair) solid var(--fx-line-inner);
+}
+/* pinned, so it earns its height: the orders sit tighter here than a button
+   does out in the open, to leave the life story as much of the sheet as it can */
+#cpActions .btn, #cpActions .dropdown { margin-top: 4px !important; }
+#cpActions > .btn:first-child { margin-top: 0 !important; }
 #civPanel hr { border: none; border-top: var(--fx-hair) solid var(--fx-line-inner); margin: 7px 0; }
 #civPanel .row #cpDoing, #civPanel .row #cpBest { color: var(--fx-ink-2); text-align: right; }
 

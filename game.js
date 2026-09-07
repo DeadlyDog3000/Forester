@@ -2734,6 +2734,23 @@ function pay(cost, led = res) {
   }
 }
 const costText = c => [c.logs && `${c.logs} logs`, c.doors && `${c.doors} door`, c.stone && `${c.stone} stone`, c.iron && `${c.iron} iron`, c.seeds && `${c.seeds} seeds`, c.dm && `${c.dm} DM`].filter(Boolean).join(", ");
+// The same words, but only for what is actually missing, and only by how much.
+// Reads the stores exactly the way canPay spends them: a town's own shed first,
+// the capital making up the rest, and the treasury floor left untouched.
+const SHORT_WORD = { logs: "logs", doors: "doors", stone: "stone", iron: "iron", seeds: "seeds", dm: "DM" };
+function shortText(cost, led = res) {
+  const bits = [];
+  for (const k of PAY_KINDS) {
+    const need = cost[k] || 0;
+    if (!need) continue;
+    let have = led[k] || 0;
+    if (led !== res) have += (res[k] || 0) - (k === "dm" ? treasuryFloor() : 0);
+    else have -= (k === "dm" ? treasuryFloor() : 0);
+    const gap = need - Math.max(0, have);
+    if (gap > 0) bits.push(`${Math.ceil(gap)} ${SHORT_WORD[k]}`);
+  }
+  return bits.length ? bits.join(" and ") : costText(cost);
+}
 
 function freeHome(nearX, nearY) {
   const open = buildings.filter(b => b.type === "cabin" && !b.site && b.occupants.length < cabinCapacity());
@@ -3777,8 +3794,11 @@ function tryPlace(type, wx, wy) {
   }
   const led = ledgerAt(wx, wy), town = townAt(wx, wy);
   if (!canPay(cost, led)) {
-    toast(`Not enough materials: needs ${costText(cost)}` +
-          (town ? ` — ${town.name}'s stores and the capital's together fall short.` : "."));
+    // Quoting the whole price back at someone who is three logs short and has
+    // the seeds and the silver in hand tells them nothing they did not read in
+    // the menu. Name the shortfall.
+    toast(`Not enough materials: ${shortText(cost, led)} short.` +
+          (town ? ` ${town.name}'s stores and the capital's together fall short.` : ""));
     return;
   }
   if (!legalToBuild(type, wx, wy)) { toast(inTerritory(wx, wy) ? "Cannot build there — too close to another building, its entrance, or an obstacle."
@@ -9820,6 +9840,19 @@ function syncUI() {
   for (const [p, t] of Object.entries(PROF_GATES)) {
     const el = document.querySelector(`#recruitMenu [data-prof="${p}"]`);
     if (el) el.style.display = has(t) ? "" : "none";
+  }
+  // And what you cannot pay for today is dimmed rather than hidden — the price
+  // is the point of the line, and you will afford it soon enough. Judged against
+  // the ledger the HUD is showing, because that is the one that gets spent.
+  {
+    const led = ledgerAt(hudCx, hudCy);
+    for (const el of document.querySelectorAll("#buildMenu [data-build]")) {
+      if (el.style.display === "none") continue;
+      const cost = costOf(el.dataset.build);
+      if (cost) el.classList.toggle("cantAfford", !canPay(cost, led));
+    }
+    const door = document.querySelector('#craftMenu [data-craft="door"]');
+    if (door) door.classList.toggle("cantAfford", !canPay({ logs: doorCost() }, led));
   }
   // The doctor is not gated on a technology but on a place to work: no ward, no
   // trade. Same rule as everything else — what you cannot do is not offered, and
