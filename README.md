@@ -93,3 +93,12 @@ Faults and thoughts: open an issue on this repository.
 
 All rights reserved — free to play, free to read, not free to republish or
 sell. See [LICENSE](LICENSE); permission is not hard to get, just ask.
+
+Every source file carries the copyright, and the game checks where it is being
+served from: a copy put up somewhere it does not belong announces itself as one
+on its own front door, with a link back here. That is a deterrent and not a
+lock — the whole game is plain source delivered to the browser, so nothing in it
+can stop a determined person, and the licence is what actually protects it.
+
+> **Moving the game to a new address?** Add the new hostname to `HOME_HOSTS`
+> near the top of `game.js`, or the real site will call itself a copy.

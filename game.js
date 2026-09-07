@@ -1,6 +1,13 @@
 "use strict";
 
-// ===== Forester alpha 0.4 — raiders, soldiers, and the long ledger =====
+// ===========================================================================
+//  FORESTER — https://deadlydog3000.github.io/Forester/
+//  Copyright (c) 2026 Roan Fraese, trading as DeadlyDog Productions.
+//  All rights reserved. Free to play and free to read; NOT free to republish,
+//  reskin, rehost or sell. See LICENSE. Permission is not hard to get — ask.
+// ===========================================================================
+
+// ===== the game itself: the world, the people, the ledger and the map =====
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -18,6 +25,27 @@ const isOpen = id => { const el = $(id); return !!el && el.style.display !== "no
 // was shown — the browser read <Home> as a tag and swallowed it — and a name
 // made of markup was rendered as markup. Anything player-written goes through
 // here before it is written into innerHTML.
+// ===== whose copy this is =====
+// Every line of this game is delivered to the browser as plain source, so
+// nothing written here can STOP someone taking it. That is not a thing a web
+// game can do, and code that claims otherwise is theatre. What this does is
+// narrower and worth having: a copy of Forester put up somewhere it does not
+// belong says so, on its own front door, to the person playing it, with a link
+// to the real one. A reskinner has to find this and cut it out — which makes
+// the theft deliberate rather than careless, and until they bother, their
+// upload advertises the original.
+//
+// It is a notice and not a lock on purpose. A lock breaks the honest cases —
+// somebody playing from a downloaded copy on a plane, or the author testing on
+// a new address — and is removed by anyone who cares in about a minute. A
+// notice costs the honest nothing and costs the dishonest their deniability.
+//
+// IF YOU MOVE THE GAME TO A NEW ADDRESS, ADD IT HERE, or the real site will
+// call itself a copy.
+const HOME_HOSTS = ["deadlydog3000.github.io", "localhost", "127.0.0.1", "[::1]", ""];
+const atHome = () => location.protocol === "file:" || HOME_HOSTS.includes(location.hostname);
+const HOME_URL = "https://deadlydog3000.github.io/Forester/";
+
 // ===== what the game calls itself =====
 // The version was written out by hand in three places — the browser tab, the
 // corner of the action bar, the foot of the front door — which is three chances
@@ -9989,6 +10017,15 @@ function renderSaveList() {
   $("menuSlotNote").textContent = free
     ? `${saves.length} of ${SAVE_SLOTS} slots used — a new colony takes slot ${free}.`
     : `All ${SAVE_SLOTS} slots are full. Burn one to begin another.`;
+  // and if this is not where the game lives, say so plainly before anything else
+  const stolen = $("menuStolen");
+  if (stolen && !atHome()) {
+    stolen.style.display = "block";
+    stolen.innerHTML =
+      `This is an unauthorised copy of <b>Forester</b>, republished without permission ` +
+      `and possibly altered. The real game is free, and it is here:<br>` +
+      `<a href="${HOME_URL}" style="color:#e8d9b8">${esc(HOME_URL)}</a>`;
+  }
   // Said quietly and permanently, where the colonies are actually listed: this
   // is the one place a player looks at their saves and thinks about them.
   const keep = $("menuKeepNote");
