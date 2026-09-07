@@ -2294,6 +2294,23 @@ const DRAW_SIZE = { lamp: 58 };
 const drawSizeOf = t => DRAW_SIZE[t] || SMALL_BLDG[t] || BLDG_SIZE;
 // Most buildings are drawn as their type. A great house is drawn as its creed —
 // the seven of them share a type and share nothing else.
+// The HUD is rewritten four times a second and almost none of those writes
+// change anything. Compare first, and when a figure really does move, let it
+// say so once. Two class names alternating rather than one removed and re-added,
+// because restarting a CSS animation the usual way costs a forced reflow and
+// this runs on every tick of a live game.
+function setNum(el, v) {
+  if (!el) return;
+  const s = String(v);
+  if (el.textContent === s) return;
+  const first = el.textContent === "";
+  el.textContent = s;
+  if (first) return;                       // the opening reading is not a change
+  el.classList.remove(el._tk ? "tick" : "tick2");
+  el.classList.add(el._tk ? "tick2" : "tick");
+  el._tk = !el._tk;
+}
+
 const bldgSprite = b => {
   const base = (b.type === "temple" && IMAGES["temple_" + b.faith]) ? "temple_" + b.faith : b.type;
   // turned a quarter turn, if there is a sprite for it — and simply facing front
@@ -2730,6 +2747,12 @@ function tell(kind, text) { chron(kind, text); toast(text); }
 
 function toast(text) {
   setEmph(msgEl, text); toastTimer = 5;
+  // A message replacing another has to arrive again rather than sit there
+  // having already arrived. Restarting a CSS animation means dropping it and
+  // forcing a reflow before putting it back; that is fine here, because a toast
+  // is a discrete event and not something the game loop does on every tick.
+  msgEl.classList.add("say");
+  msgEl.style.animation = "none"; void msgEl.offsetHeight; msgEl.style.animation = "";
   // with the map open, a message belongs beside the button that caused it
   // with the world panel open, a message belongs beside the button that caused it
   const note = document.getElementById("miNote");
@@ -8723,6 +8746,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 17, date: "7 September 2026", title: "Things touch the ground, and the game moves",
+    lines: [
+      "Nothing in this world touched it. Every building and every soul was drawn standing on the grass with nothing underneath, so the whole colony floated a half-inch above its own map — which is the commonest reason a flat sprite game reads as flat. There is a soft pool of shade under everything now: people, buildings, boulders, the trees, a raiders' camp, a gravestone. A wall gets a thinner one because a wall is a low run of stone, and a moat gets none at all, being a hole.",
+      "The bar along the bottom was nine emoji — full-colour, modern, and drawn by whichever operating system you happened to be on, so the game looked different on every machine and none of those looks belonged to 1683. They are drawn now, as pixel grids like everything else: a house, an anvil, a road running away from you, a wax seal, a retort, crossed blades, two of your people, a page, a compass rose. They take the colour of the text beside them, so they dim and lift exactly as a word does.",
+      "And the game moves. The whole of it had three transitions in it, so panels appeared and vanished between one frame and the next, buttons did not answer the pointer, and numbers jumped. Sheets arrive now, buttons press in under the cursor, a message rises as it appears, and a figure in the top bar says so, once and quietly, when it actually changes. Nothing takes longer than a sixth of a second — motion you notice is motion that is too slow — and if you have asked your machine to stop animating things, it all holds still.",
+      "The last of it is typography. Everything was set in one typewriter face, doing every job from the title to a tooltip, which is why the whole interface read as a programmer's rather than a designer's. Titles have a second voice now — an old-style serif, the sort of face a broadside of the period would have been set in — with a hairline of gold beneath. The body stays as it was.",
+    ] },
   { v: 16, date: "7 September 2026", title: "The wood is a wood now, not one tree ten thousand times",
     lines: [
       "There was one tree. One sprite, drawn at one size, never turned around, stamped out across the whole map — and the same for the boulders. A forest of identical clones is the loudest amateur thing a game can put on a screen, because the forest is most of the screen, and it is the same fault the axe used to have in the sound: played from the same numbers every time, the eye locks onto the repetition and stops seeing a wood at all.",
@@ -10003,21 +10033,21 @@ function syncUI() {
   const hudTown = townAt(hudCx, hudCy);
   const hr = hudTown ? (hudTown.res || {}) : res;
   $("rName").textContent = (hudTown ? hudTown.name : settlementName).toUpperCase();
-  $("rLogs").textContent = hr.logs || 0; $("rSeeds").textContent = hr.seeds || 0;
-  $("rStone").textContent = hr.stone || 0; $("rIron").textContent = hr.iron || 0;
+  setNum($("rLogs"), hr.logs || 0); setNum($("rSeeds"), hr.seeds || 0);
+  setNum($("rStone"), hr.stone || 0); setNum($("rIron"), hr.iron || 0);
   // The metals only take up room on the bar once there are any. A colony with no
   // mine should not be reading four zeroes it can do nothing about.
   for (const [id, k] of [["rIronOre", "ironore"], ["rCopperOre", "copperore"],
                          ["rTin", "tin"], ["rCopper", "copper"], ["rBronze", "bronze"]]) {
     const q = Math.floor(hr[k] || 0);
-    $(id).textContent = q;
+    setNum($(id), q);
     $(id + "Box").style.display = q > 0 ? "" : "none";
   }
-  $("rDoors").textContent = hr.doors || 0; $("rBread").textContent = hr.bread || 0;
-  $("rMeat").textContent = hr.meat || 0; $("rWeapons").textContent = hr.weapons || 0;
+  setNum($("rDoors"), hr.doors || 0); setNum($("rBread"), hr.bread || 0);
+  setNum($("rMeat"), hr.meat || 0); setNum($("rWeapons"), hr.weapons || 0);
   $("rTools").textContent = hudTown ? 0 : buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0);
-  $("rDM").textContent = Math.round((hr.dm || 0) * 10) / 10;
-  $("rPop").textContent = hudTown ? hudTown.pop : civs.length;
+  setNum($("rDM"), Math.round((hr.dm || 0) * 10) / 10);
+  setNum($("rPop"), hudTown ? hudTown.pop : civs.length);
   $("rTax").textContent = taxRate;
   $("rSeason").textContent = (season() === "winter" ? "❄ WINTER " : "SUMMER ") + colonyYear;
   $("rClock").textContent = (nightAmt() > 0.5 ? "☾ " : "☀ ") + clockText();
@@ -13178,6 +13208,24 @@ $("miRecall").addEventListener("click", () => {
 });
 
 // --- rendering ---
+// ===== putting things on the ground =====
+// Nothing in this world touched it. Every building and every soul was drawn
+// bottom-anchored on the grass with nothing underneath, so the whole colony
+// floated a half-inch above its own map — the commonest reason a flat sprite
+// game reads as flat. One soft ellipse at the feet is the entire fix.
+//
+// The alpha is multiplied into whatever is already set rather than replacing
+// it, so a half-transparent building site casts a half-transparent shadow.
+function groundShadow(wx, wyFeet, w, a = 0.26) {
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = prev * a;
+  ctx.fillStyle = "#080d0a";
+  ctx.beginPath();
+  ctx.ellipse(wx, wyFeet - 1, w * 0.5, w * 0.17, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = prev;
+}
+
 function drawSprite(image, wx, wyFeet, size, flip) {
   ctx.save(); ctx.translate(wx, wyFeet);
   if (flip) ctx.scale(-1, 1);
@@ -13297,14 +13345,16 @@ function render(dt) {
       if (!inView(t.x, t.y)) continue;
       if (t.alive) drawables.push({ y: t.y, draw: () => {
         const s = TREE_SIZE * (0.35 + 0.65 * t.growth) * treeScale(t);
+        groundShadow(t.x, t.y, s * 0.34);
         drawSprite(wimg(treeKind(t)), t.x, t.y, s, treeFlip(t));
         if (t.progress >= 0) bar(t.x, t.y - s - 12, t.progress, "#c9a86a");
       }});
       // felled trees leave clean ground — no stumps
     }
     for (const s of ch.stones) if (s.alive && inView(s.x, s.y)) drawables.push({ y: s.y, draw: () => {
-      drawSprite(wimg("stone"), s.x, s.y, NODE_SIZE * (0.82 + 0.36 * groundHash(s.x, s.y, 4)),
-                  groundHash(s.x, s.y, 5) < 0.5);
+      const ss = NODE_SIZE * (0.82 + 0.36 * groundHash(s.x, s.y, 4));
+      groundShadow(s.x, s.y, ss * 0.5);
+      drawSprite(wimg("stone"), s.x, s.y, ss, groundHash(s.x, s.y, 5) < 0.5);
       if (s.progress >= 0) bar(s.x, s.y - NODE_SIZE - 10, s.progress, "#c9a86a");
     }});
     for (const p of ch.patches) if (p.alive && inView(p.x, p.y)) drawables.push({ y: p.y, draw: () => {
@@ -13318,6 +13368,7 @@ function render(dt) {
     if (fort >= 1) { drawSprite(img.wall, cp.x - 70, cp.y + 6, 52, false); drawSprite(img.wall, cp.x + 70, cp.y + 6, 52, false); }
     if (fort >= 2) { drawSprite(img.wall, cp.x - 24, cp.y + 26, 52, false); drawSprite(img.wall, cp.x + 24, cp.y + 26, 52, false); }
     if (fort >= 3) { drawSprite(img.wallv, cp.x - 78, cp.y - 30, 52, false); drawSprite(img.wallv, cp.x + 78, cp.y - 30, 52, false); }
+    groundShadow(cp.x, cp.y, BLDG_SIZE * 0.72);
     drawSprite(img[cp.type === "thief" ? "thiefcamp" : "raidcamp"], cp.x, cp.y, BLDG_SIZE, false);
     groundLabel(cp.type === "thief" ? "thief camp" : "raid camp", cp.x, cp.y - BLDG_SIZE - 4, "#d86a5a");
     if (cp.hp < cp.maxHp) bar(cp.x, cp.y - BLDG_SIZE - 14, cp.hp / cp.maxHp, "#a05252");
@@ -13328,6 +13379,7 @@ function render(dt) {
   }});
   // their townsfolk, going about their lives until your line comes over the hill
   for (const f of foreignFolk) if (inView(f.x, f.y)) drawables.push({ y: f.y, draw: () => {
+    groundShadow(f.x, f.y, CHAR_SIZE * 0.34);
     drawSprite(img[f.who + (Math.floor(f.anim) % 4)], f.x, f.y, CHAR_SIZE, f.facing < 0);
     if (settings.labels) {
       groundLabel(f.name + (f.fleeT > 0 ? " !" : ""), f.x, f.y - CHAR_SIZE - 4,
@@ -13339,7 +13391,8 @@ function render(dt) {
     const winter = season() === "winter";
     const key = (winter && img[fb.type + "_w"]) ? fb.type + "_w" : fb.type;
     const im = img[fb.rot && img[fb.type + "v"] ? fb.type + "v" : key] || img[fb.type];
-    if (im) drawSprite(im, fb.x, fb.y, SMALL_BLDG[fb.type] || BLDG_SIZE, false);
+    if (im) { const fs = SMALL_BLDG[fb.type] || BLDG_SIZE;
+      groundShadow(fb.x, fb.y, fs * 0.7); drawSprite(im, fb.x, fb.y, fs, false); }
     const col = (NATIONS[fb.town.nation] || {}).color || "#d86a5a";
     if (fb.keep) {
       groundLabel(fb.town.name.toUpperCase(), fb.x, fb.y - BLDG_SIZE - 6, col);
@@ -13360,7 +13413,7 @@ function render(dt) {
     }});
   }
   for (const gv of graves) if (inView(gv.x, gv.y)) drawables.push({ y: gv.y, draw: () => {
-    if (gv.stone) drawSprite(img.gravestone, gv.x, gv.y, 42, false);
+    if (gv.stone) { groundShadow(gv.x, gv.y, 20); drawSprite(img.gravestone, gv.x, gv.y, 42, false); }
     else { ctx.fillStyle = "#3a2c1e"; ctx.fillRect(gv.x - 12, gv.y - 8, 24, 10); }
     if (selectedGrave === gv) {
       ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1;
@@ -13389,6 +13442,13 @@ function render(dt) {
     if (b.site) ctx.globalAlpha = 0.45;
     const bt = baseType(b);                      // a ruin is drawn at the size of what it was
     const wos = WALLLIKE.has(bt) ? 10 : 0;       // walls draw oversized so chained segments visually fuse
+    // A wall is a low run of stone and a lamppost is a stick; neither throws the
+    // pool a cabin does, and a moat is a hole in the ground with nothing to cast.
+    if (bt !== "moat" && bt !== "ditch") {
+      const sw = (WALLLIKE.has(bt) ? SMALL_BLDG[bt] * 0.55 : bt === "lamp" ? 12
+                 : (SMALL_BLDG[bt] || drawSizeOf(b.type) || BLDG_SIZE) * 0.66);
+      groundShadow(b.x, b.y, sw);
+    }
     if (b.type === "burned") drawSprite(wimg(ruinKey(b)), b.x, b.y + wos / 2, (SMALL_BLDG[bt] || BLDG_SIZE) + wos, false);
     else if (b.type === "wall" && b.rot) drawSprite(wimg("wallv"), b.x, b.y + wos / 2, SMALL_BLDG.wall + wos, false);
     else if (b.type === "stonewall" && b.rot) drawSprite(img.stonewallv, b.x, b.y + wos / 2, SMALL_BLDG.stonewall + wos, false);
@@ -13418,6 +13478,7 @@ function render(dt) {
     }
   }});
   for (const v of visitors) if (inView(v.x, v.y)) drawables.push({ y: v.y, draw: () => {
+    groundShadow(v.x, v.y, CHAR_SIZE * 0.34);
     drawSprite(img["hunter" + (Math.floor(v.anim) % 4)], v.x, v.y, CHAR_SIZE, v.facing < 0);
     if (settings.labels) groundLabel(v.name + " (visitor)", v.x, v.y - CHAR_SIZE - 4, "#c98a6a");
   }});
@@ -13431,6 +13492,7 @@ function render(dt) {
     const crown = r.nation && NATIONS[r.nation];
     const frame = crown ? foeCoat(crown.color, r.foe ? "atkuni" + i : "soldierU" + i)
                         : img[(r.foe ? "atksword" : "hunter") + i];
+    groundShadow(r.x, r.y, CHAR_SIZE * 0.34);
     drawSprite(frame, r.x, r.y, CHAR_SIZE, r.facing < 0);
     // A man in mail has to look like one. The sprites are the sprites, so the
     // kit is worn as a ring of pale steel at his feet — one line for leather,
@@ -13518,6 +13580,7 @@ function render(dt) {
                    isSick(p) ? "#a99ec4" : "#7da083");
       }
     }
+    groundShadow(c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1) * 0.34);
     drawSprite(frame, c.x, c.y, CHAR_SIZE * (c.child ? 0.62 : 1), c.facing < 0);
     // the flash is painted into the firing sprite itself — nothing is drawn over it
     const ink = c.sick > 0 ? "#a99ec4" : c.rebel ? "#d86a5a" : c.feudWith ? "#d8a05a" : c === selected ? "#c9a86a" :

@@ -108,6 +108,15 @@
 
   /* ---- type: one family, no bold --------------------------------------- */
   --fx-font: "Courier New", monospace;
+  /* Everything in the game was set in one typewriter face, which is why the UI
+     read as a programmer's and not a designer's — one register, doing every job
+     from a wordmark to a tooltip. Titles get a second voice: an old-style serif,
+     which is what a 1683 broadside would have been set in, and which reaches
+     toward the painted cutscene plates instead of away from them.
+     No download — these are faces already on the machine, and the mono stays
+     underneath as the fallback, so a system with none of them loses nothing. */
+  --fx-font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+                     Georgia, "Times New Roman", serif;
   --fx-t-title:    52px;  /* the title card                                  */
   --fx-t-death:    44px;  /* game over                                       */
   --fx-t-msg:      17px;  /* a refusal over the field                        */
@@ -278,7 +287,17 @@ img, canvas { image-rendering: pixelated; }
   border-width: var(--fx-hair) 0 0 0;
   align-items: center;
 }
-#actions .ico { font-style: normal; margin-right: 5px; }
+/* The bar's icons were nine emoji: full-colour, modern, and drawn by whichever
+   operating system the player happened to be on, so the game looked different
+   on every machine and none of those looks belonged to 1683. They are pixel
+   grids now, emitted as SVG rects by tools/icons.py.
+   The reason they are SVG and not PNG is this line: currentColor. The icon
+   takes the colour of the text beside it, so it dims with a disabled button and
+   lifts on hover with no second set of images to keep in step. */
+#actions .ico {
+  width: 15px; height: 15px; margin-right: 6px;
+  vertical-align: -2px; flex: 0 0 auto;
+}
 
 /* The keyboard crib. It used to float on its own at a fixed 40px from the top,
    which was a guess about how tall the HUD is — and the HUD wraps to a second
@@ -441,6 +460,44 @@ label { display: flex; gap: var(--fx-stack); align-items: center; margin: 4px 0;
 .qty { font-weight: bold; color: var(--fx-gold-pale); }
 .bsCost .qty, #eventSub .qty { color: inherit; }
 
+/* ── motion ───────────────────────────────────────────────────────────────
+   The whole stylesheet had three transitions in it, so nothing in the game
+   ever moved: panels appeared and vanished between one frame and the next,
+   buttons did not answer the pointer, numbers jumped. That instantaneousness
+   is most of what separates a game that feels made from one that feels
+   assembled, and none of it costs anything but a duration.
+   Short throughout — 90 to 150ms. Motion you notice is motion that is too slow. */
+
+/* a sheet arrives rather than appearing. Opacity only, because half these
+   panels are centred with a transform and animating that would fight it. */
+@keyframes fxSheetIn { from { opacity: 0 } to { opacity: 1 } }
+.panel { animation: fxSheetIn 130ms ease-out; }
+/* the three that are always on screen have nothing to arrive from */
+#hud, #actions, #eventCard { animation: none; }
+
+/* a button that answers when you touch it */
+.btn, .menu-item, .bsCard, .saveRow, .saveDel, .saveOut, .chip {
+  transition: background-color 90ms ease, border-color 90ms ease,
+              color 90ms ease, opacity 90ms ease, transform 60ms ease;
+}
+.btn:active:not(:disabled), .bsCard:active, .chip:active { transform: translateY(1px); }
+
+/* the toast fades up instead of blinking into existence. The class is put back
+   on by toast() itself, because a message that replaces another must restart. */
+@keyframes fxSay { from { opacity: 0; transform: translate(-50%, 6px) } to { opacity: 1; transform: translate(-50%, 0) } }
+#msg.say { animation: fxSay 160ms ease-out; }
+
+/* a number that changes says so, once, quietly */
+@keyframes fxTick { 0% { color: var(--fx-gold-pale); } 100% { color: inherit; } }
+#hud b.tick, #hud b.tick2 { animation: fxTick 420ms ease-out; }
+
+/* Anyone who has asked their machine to stop moving things gets a still game. */
+@media (prefers-reduced-motion: reduce) {
+  .panel, #msg.say, #hud b.tick, #hud b.tick2, .notif { animation: none !important; }
+  .btn, .menu-item, .bsCard, .saveRow, .saveDel, .saveOut, .chip { transition: none; }
+  .btn:active:not(:disabled), .bsCard:active, .chip:active { transform: none; }
+}
+
 /* A save row on the front door. */
 .saveRow {
   display: flex; align-items: center; gap: var(--fx-gap-row); width: 100%;
@@ -588,9 +645,18 @@ body.touch .deskOnly { display: none; }
 /* ── 7 ── PANELS ─────────────────────────────────────────────────────────── */
 
 .panel h3 {
-  font-size: var(--fx-t-panel); color: var(--fx-gold);
+  font-family: var(--fx-font-display);
+  font-size: calc(var(--fx-t-panel) + 2px); color: var(--fx-gold);
   letter-spacing: var(--fx-track-2); margin-bottom: var(--fx-stack);
+  /* a hairline of gold under the title, which is the whole of the ornament:
+     it separates the head from the body and says the panel was designed */
+  padding-bottom: 4px;
+  border-bottom: var(--fx-hair) solid var(--fx-line-year);
 }
+/* the close mark and any control living in a title stay in the typewriter face,
+   because they are controls and not headings */
+.panel h3 span[id$="Close"], .panel h3 [style*="float:right"] { font-family: var(--fx-font); }
+h4, .fx-sec, #govPanel h4 { font-family: var(--fx-font-display); }
 
 /* the person you have picked */
 #civPanel { top: var(--fx-hud-h); right: var(--fx-inset); width: var(--fx-w-civ);
@@ -985,7 +1051,7 @@ body.touch #touchPad   { display: flex; }
   #actions span[style*="flex:1"] { display: none; }
   #actions span:last-child { display: none; }   /* the 'FORESTER beta' mark */
   #actions .btn .txt { display: none; }
-  #actions .btn .ico { margin-right: 0; font-size: var(--fx-t-record); }
+  #actions .btn .ico { margin-right: 0; width: 19px; height: 19px; vertical-align: -3px; }
   #actions .btn {
     padding: 8px 10px; font-size: var(--fx-t-body);
     min-height: var(--fx-tap-btn); min-width: 40px; text-align: center;
