@@ -20,7 +20,16 @@ const isOpen = id => { const el = $(id); return !!el && el.style.display !== "no
 // here before it is written into innerHTML.
 const esc = s => String(s).replace(/[&<>"']/g,
   ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-const msgEl = $("msg");
+
+// The numbers are the part a player has to act on — the price, the count, the
+// hours — and in a paragraph of prose they are exactly as loud as the prose.
+// Lift them out wherever the game explains itself: the crib, the lessons, the
+// notices. Escaped first and marked up second, so nothing carried in a name or
+// a settlement the player typed can ever become markup.
+const QTY = /\b(\d+(?:\.\d+)?)(\s+)(logs?|stone|iron|iron ore|copper|bronze|tin|seeds?|doors?|wheat|bread|meat|weapons?|tools?|DM|beds?|men|souls?|hands?|minutes?|min|hours?|days?|years?)\b/g;
+const emph = plain => esc(plain).replace(QTY, '<b class="qty">$1$2$3</b>');
+// set text that may want its numbers lifted, without ever setting raw markup
+const setEmph = (el, plain) => { if (el) el.innerHTML = emph(plain == null ? "" : plain); };const msgEl = $("msg");
 
 // --- tuning ---
 const CHAR_SIZE = 64, BLDG_SIZE = 96, FARM_SIZE = 64, TREE_SIZE = 64, NODE_SIZE = 48, TILE = 128;
@@ -175,7 +184,9 @@ const BLDG_NAMES = { cabin: "Log Cabin", recruit: "Recruitment Center", market: 
   burned: "Burned Ruin", watchtower: "Watchtower", bakery: "Bakery", well: "Well", forge: "Forge", wall: "Town Wall", gate: "Town Gate", townhall: "Town Hall", jail: "Jail", hospital: "Hospital",
   stonewall: "Stone Wall", stonegate: "Stone Gate", moat: "Moat", ditch: "Ditch", lamp: "Lamppost",
   quarry: "Quarry", mine: "Mine", sawmill: "Sawmill", smelter: "Smelter",
-  shrine: "Shrine", temple: "House of Worship" };
+  shrine: "Shrine", temple: "House of Worship",
+  // never needed a name until the build screen asked every trade for one
+  farm: "Wheat Farm", sapling: "Spruce Sapling" };
 // A house of worship is named for the creed it was dedicated to, not for its
 // type: nobody in 1683 called the building at the end of the lane a "temple".
 function bldgLabel(b) {
@@ -2676,11 +2687,11 @@ function chron(kind, text) {
 function tell(kind, text) { chron(kind, text); toast(text); }
 
 function toast(text) {
-  msgEl.textContent = text; toastTimer = 5;
+  setEmph(msgEl, text); toastTimer = 5;
   // with the map open, a message belongs beside the button that caused it
   // with the world panel open, a message belongs beside the button that caused it
   const note = document.getElementById("miNote");
-  if (note && isOpen("mapInfo")) { note.textContent = text; note.style.display = "block"; }
+  if (note && isOpen("mapInfo")) { setEmph(note, text); note.style.display = "block"; }
 }
 // Work is paid for out of the stores of whichever town you are standing in —
 // the same ledger the HUD is showing you, so what you see is what you spend.
@@ -2891,7 +2902,8 @@ addEventListener("keydown", e => {
     }
   }
   if (e.key === "Escape") {
-    if (isOpen("logPanel")) { closeLog(); }
+    if (buildSheetOpen()) { closeBuildSheet(); }
+    else if (isOpen("logPanel")) { closeLog(); }
     else if (isOpen("helpPanel")) { $("helpPanel").style.display = "none"; }
     else if (isOpen("reignPanel")) { $("reignPanel").style.display = "none"; paused = pauseOpen; }
     else if (isOpen("chronPanel")) { $("chronPanel").style.display = "none"; syncUI(); }
@@ -5148,7 +5160,139 @@ function describeTech(t) {
 }
 
 // --- UI wiring ---
-$("buildToggle").addEventListener("click", () => $("buildDrop").classList.toggle("open"));
+// ===== the build screen =====
+// This was a dropdown of twenty-one priced lines. A list of prices is not a
+// decision: it never showed what a thing looks like, what it is for, or whether
+// you could pay for it today — so the one building you could afford looked
+// exactly like the twenty you could not. Now every trade shows its own sprite,
+// says in a line what it does, and goes quiet when it is out of reach.
+//
+// Nothing here restates a number. Costs come from costOf(), the gates from
+// BUILD_GATES and the upkeep from CIVIC, so the screen cannot drift out of step
+// with the game the way the hand-written prices in the old markup could.
+const BUILD_SHEET = [
+  ["ROOFS AND HANDS", [
+    ["cabin",      "A roof for two. The homeless freeze in winter, and pay no tax."],
+    ["recruit",    "Wanderers come out of the woods to a colony that has one — the only way your numbers grow beyond the children born here."],
+  ]],
+  ["FIELD, FORGE AND SEAM", [
+    ["farm",       "Wheat, tended by a farmer. The fields sleep through the winter."],
+    ["bakery",     "Turns wheat into bread, which is what actually feeds them."],
+    ["market",     "Sells the surplus for DM — and DM pays for research, recruits and training."],
+    ["forge",      "Tools and weapons, at a blacksmith's hands. A better tool is faster work for the rest of their life."],
+    ["quarry",     "Stone out of the ground. Every wall and every civic work is made of it."],
+    ["sawmill",    "Takes felled timber further than an axe alone ever will."],
+    ["mine",       "Iron and copper ore, and the tin to alloy it with."],
+    ["smelter",    "Ore becomes metal here: bronze first, then iron."],
+  ]],
+  ["THE TOWN", [
+    ["townhall",   "Folk stock the stores without being told. The colony begins to run itself."],
+    ["well",       "Cheap, and they are happier for it — and when plague comes, clean water keeps more of them on their feet."],
+    ["hospital",   "Four beds. A doctor carries the fever-struck and the badly hurt here; the wasting stops and wounds close."],
+    ["jail",       "Somewhere for the police to put a rebel, instead of the alternatives."],
+    ["watchtower", "See them coming. Raiders come at night, and they come for the stores."],
+  ]],
+  ["FAITH", [
+    ["shrine",     "A small place to pray. Nowhere to pray costs every soul a little, every day."],
+    ["temple",     "The full house, dedicated to one creed — and a creed's own house is worth more to its flock than anyone else's."],
+  ]],
+  ["THE WALL", [
+    ["wall",       "Timber. They come through it or through a gate, and not over it."],
+    ["gate",       "Your people walk through; raiders have to break it."],
+    ["stonewall",  "The same line, in stone, and far harder to bring down."],
+    ["stonegate",  "A stone gate. Slower to raise, slower to fall."],
+    ["moat",       "Water, and no dry way across."],
+    ["ditch",      "Cheap, and it costs them time they do not have."],
+  ]],
+  ["GROUND", [
+    ["lamp",       "Light after dark. Furniture rather than a building — it takes no ground and claims none."],
+    ["sapling",    "Plant a spruce. The forest around you is not infinite."],
+  ]],
+];
+// A house of worship wears the creed it is about to be dedicated to.
+function buildCardSprite(type) {
+  if (type === "temple") return IMAGES["temple_" + dedicateTo] || IMAGES.shrine;
+  if (type === "sapling") return IMAGES.tree;
+  return IMAGES[type];
+}
+const buildCardName = type => type === "temple"
+  ? (FAITHS[dedicateTo] ? FAITHS[dedicateTo].house : "House of Worship")
+  : (BLDG_NAMES[type] || type);
+
+let buildSheetBuilt = false;
+function buildBuildSheet() {
+  const grid = $("bsGrid");
+  grid.innerHTML = "";
+  for (const [section, rows] of BUILD_SHEET) {
+    const head = document.createElement("div");
+    head.className = "bsSec"; head.textContent = section;
+    head.dataset.sec = section;
+    grid.appendChild(head);
+    const band = document.createElement("div");
+    band.className = "bsBand"; band.dataset.sec = section;
+    for (const [type, blurb] of rows) {
+      const card = document.createElement("button");
+      card.className = "bsCard"; card.dataset.build = type;
+      card.innerHTML =
+        `<img alt="" class="bsArt">` +
+        `<span class="bsName"></span>` +
+        `<span class="bsCost"></span>` +
+        `<span class="bsWhat">${esc(blurb)}</span>` +
+        (CIVIC.has(type) ? `<span class="bsKeep">${CIVIC_UPKEEP} DM a tax day to keep</span>` : "");
+      card.addEventListener("click", () => pickBuild(type));
+      band.appendChild(card);
+    }
+    grid.appendChild(band);
+  }
+  buildSheetBuilt = true;
+}
+// Everything that can change while the screen is open: the price of a cabin
+// climbs with the colony, the creed of a house of worship follows the selector,
+// and what you can pay for changes with every log deposited.
+function syncBuildSheet() {
+  if (!buildSheetBuilt) buildBuildSheet();
+  const cx = cam.x + canvas.width / 2 / zoom, cy = cam.y + canvas.height / 2 / zoom;
+  const town = townAt(cx, cy), led = ledgerAt(cx, cy);
+  $("bsLedger").textContent = `spending from ${(town ? town.name : settlementName)}'s stores`;
+  for (const card of $("bsGrid").querySelectorAll(".bsCard")) {
+    const type = card.dataset.build;
+    const gate = BUILD_GATES[type];
+    const known = !gate || has(gate);
+    card.style.display = known ? "" : "none";
+    if (!known) continue;
+    const cost = costOf(type) || {};
+    card.querySelector(".bsArt").src = buildCardSprite(type) || "";
+    card.querySelector(".bsName").textContent = buildCardName(type);
+    setEmph(card.querySelector(".bsCost"), costText(cost));
+    const poor = !canPay(cost, led);
+    card.classList.toggle("cantAfford", poor);
+    card.title = poor ? `${shortText(cost, led)} short` : "";
+  }
+  // a section with nothing left in it takes its heading with it
+  for (const band of $("bsGrid").querySelectorAll(".bsBand")) {
+    const empty = ![...band.children].some(c => c.style.display !== "none");
+    band.style.display = empty ? "none" : "";
+    const head = $("bsGrid").querySelector(`.bsSec[data-sec="${CSS.escape(band.dataset.sec)}"]`);
+    if (head) head.style.display = empty ? "none" : "";
+  }
+}
+function pickBuild(type) {
+  buildMode = type;
+  closeBuildSheet();
+  toast(WALLLIKE.has(type)
+    ? "Click to place. R rotates the segment. Right-click or Esc to cancel."
+    : "Click the map to place. Right-click or Esc to cancel.");
+  syncUI();
+}
+function openBuildSheet() {
+  syncBuildSheet();
+  $("buildSheet").style.display = "flex";
+}
+function closeBuildSheet() { $("buildSheet").style.display = "none"; }
+const buildSheetOpen = () => $("buildSheet").style.display === "flex";
+$("buildToggle").addEventListener("click", () =>
+  buildSheetOpen() ? closeBuildSheet() : openBuildSheet());
+$("bsClose").addEventListener("click", closeBuildSheet);
 $("craftToggle").addEventListener("click", () => $("craftDrop").classList.toggle("open"));
 $("recruitToggle").addEventListener("click", () => $("recruitDrop").classList.toggle("open"));
 $("moveToggle").addEventListener("click", () => $("moveDrop").classList.toggle("open"));
@@ -5170,15 +5314,7 @@ function sendToTown(c, target) {   // target: settlement object, or null for the
   syncUI();
 }
 $("civToggle").addEventListener("click", () => $("civDrop").classList.toggle("open"));
-document.querySelectorAll("#buildMenu .menu-item").forEach(item =>
-  item.addEventListener("click", () => {
-    buildMode = item.dataset.build;
-    $("buildDrop").classList.remove("open");
-    toast(buildMode === "wall" || buildMode === "gate"
-      ? "Click to place. R rotates the segment. Right-click or Esc to cancel."
-      : "Click the map to place. Right-click or Esc to cancel.");
-    syncUI();
-  }));
+
 document.querySelectorAll("#craftMenu .menu-item").forEach(item =>
   item.addEventListener("click", () => {
     $("craftDrop").classList.remove("open");
@@ -5283,7 +5419,7 @@ function recruitAs(selected, prof) {
 document.querySelectorAll("#recruitMenu .menu-item").forEach(item =>
   item.addEventListener("click", () => { $("recruitDrop").classList.remove("open"); recruitAs(selected, item.dataset.prof); }));
 document.addEventListener("click", e => {
-  for (const id of ["buildDrop", "craftDrop", "recruitDrop", "civDrop"])
+  for (const id of ["craftDrop", "recruitDrop", "civDrop"])
     if ($(id) && !$(id).contains(e.target)) $(id).classList.remove("open");
 });
 
@@ -6404,8 +6540,8 @@ function eventCard(title, image, sub) {
   chron("war", sub ? `${title} ${sub}` : title);
   const card = $("eventCard");
   $("eventImg").src = `assets/sprites/ui/${image}.png`;
-  $("eventText").textContent = title;
-  $("eventSub").textContent = (sub || "") + " — click to dismiss";
+  setEmph($("eventText"), title);
+  setEmph($("eventSub"), (sub || "") + " — click to dismiss");
   card.classList.add("show");
   try { SFX.popup(); } catch (e) {}
   clearTimeout(eventCardT);
@@ -9544,14 +9680,14 @@ function updateTutorial(dt) {
     if (!lessonQueue.length) { banner.style.display = "none"; return; }
     banner.style.display = "block";
     $("tutHead").textContent = "THE WOODS TEACH YOU";
-    $("tutText").textContent = lessonText(lessonQueue[0]);
+    setEmph($("tutText"), lessonText(lessonQueue[0]));
     $("tutNext").style.display = "inline-block";
     return;
   }
   const st = TUT_STEPS[tutStep];
   banner.style.display = "block";
   $("tutHead").textContent = `STEP ${tutStep + 1} OF ${TUT_STEPS.length}`;
-  $("tutText").textContent = st.text();
+  setEmph($("tutText"), st.text());
   $("tutNext").style.display = "none";
   if (st.done()) tutAdvance();
 }
@@ -9827,32 +9963,20 @@ function syncUI() {
     for (const p of Object.keys(counts)) if (!orderProfs.includes(p)) parts.push(`${p}: <b style="color:#c9a86a">${counts[p]}</b>`);
     $("govProfs").innerHTML = parts.join(" &middot; ") || '<span style="color:#5a6b60">No one is left.</span>';
   }
-  $("miCabin").textContent = `Log Cabin — ${costText(cabinCost())}`;
-  $("miFarm").textContent = `Wheat Farm — ${costText(costOf("farm"))}`;
   $("miDoor").textContent = `Door — ${doorCost()} logs (selected civilian)`;
-  $("miForge").textContent = `Forge — ${costText(STATIC_COSTS.forge)}`;
-  $("miTownhall").textContent = `Town Hall — ${costText(STATIC_COSTS.townhall)}`;
+  // the build screen keeps itself current only while somebody is looking at it
+  if (buildSheetOpen()) syncBuildSheet();
   // menus stay lean: whatever is not yet researched simply is not shown
-  for (const [b, t] of Object.entries(BUILD_GATES)) {
-    const el = document.querySelector(`#buildMenu [data-build="${b}"]`);
-    if (el) el.style.display = has(t) ? "" : "none";
-  }
   for (const [p, t] of Object.entries(PROF_GATES)) {
     const el = document.querySelector(`#recruitMenu [data-prof="${p}"]`);
     if (el) el.style.display = has(t) ? "" : "none";
   }
-  // And what you cannot pay for today is dimmed rather than hidden — the price
-  // is the point of the line, and you will afford it soon enough. Judged against
-  // the ledger the HUD is showing, because that is the one that gets spent.
+  // What you cannot pay for today goes quiet rather than disappearing — the
+  // price is the point of the line. Judged against the ledger the HUD is
+  // showing, because that is the one that gets spent.
   {
-    const led = ledgerAt(hudCx, hudCy);
-    for (const el of document.querySelectorAll("#buildMenu [data-build]")) {
-      if (el.style.display === "none") continue;
-      const cost = costOf(el.dataset.build);
-      if (cost) el.classList.toggle("cantAfford", !canPay(cost, led));
-    }
     const door = document.querySelector('#craftMenu [data-craft="door"]');
-    if (door) door.classList.toggle("cantAfford", !canPay({ logs: doorCost() }, led));
+    if (door) door.classList.toggle("cantAfford", !canPay({ logs: doorCost() }, ledgerAt(hudCx, hudCy)));
   }
   // The doctor is not gated on a technology but on a place to work: no ward, no
   // trade. Same rule as everything else — what you cannot do is not offered, and
@@ -10171,7 +10295,7 @@ function edgePan(dt, fast) {
 // --- simulation ---
 function update(dt) {
   clearFaithCensus();          // one census a frame, read by every soul in it
-  if (toastTimer > 0 && (toastTimer -= dt) <= 0) msgEl.textContent = "";
+  if (toastTimer > 0 && (toastTimer -= dt) <= 0) msgEl.innerHTML = "";
   const fast = keys["shift"] ? 2.6 : 1;
   const up = keys["w"] || keys["arrowup"], dn = keys["s"] || keys["arrowdown"];
   const lf = keys["a"] || keys["arrowleft"], rt = keys["d"] || keys["arrowright"];

@@ -59,41 +59,7 @@
   </div>
 
   <div class="panel" id="actions">
-    <div class="dropdown" id="buildDrop">
-      <button class="btn" id="buildToggle"><i class="ico">&#127959;</i><span class="txt">BUILD &#9662;</span></button>
-      <div class="dropdown-menu" id="buildMenu">
-        <button class="btn menu-item" data-build="cabin" id="miCabin">Log Cabin</button>
-        <button class="btn menu-item" data-build="recruit">Civilian Recruitment Center &mdash; 30 logs, 10 DM</button>
-        <button class="btn menu-item" data-build="market">Market Center &mdash; 25 logs, 8 DM</button>
-        <button class="btn menu-item" data-build="farm" id="miFarm">Wheat Farm &mdash; 3 logs, 6 seeds</button>
-        <button class="btn menu-item" data-build="watchtower">Watchtower &mdash; 15 logs, 5 stone, 6 DM</button>
-        <button class="btn menu-item" data-build="bakery">Bakery &mdash; 20 logs, 3 stone, 8 DM</button>
-        <button class="btn menu-item" data-build="well">Well &mdash; 10 logs, 8 stone, 4 DM</button>
-        <button class="btn menu-item" data-build="forge" id="miForge">Forge &mdash; 20 logs, 10 stone, 12 DM</button>
-        <button class="btn menu-item" data-build="quarry" id="miQuarry">Quarry &mdash; 18 logs, 10 stone, 10 DM</button>
-        <button class="btn menu-item" data-build="sawmill" id="miSawmill">Sawmill &mdash; 35 logs, 8 stone, 14 DM</button>
-        <button class="btn menu-item" data-build="mine" id="miMine">Mine &mdash; 30 logs, 14 stone, 16 DM</button>
-        <button class="btn menu-item" data-build="smelter" id="miSmelter">Smelter &mdash; 22 logs, 20 stone, 18 DM</button>
-        <button class="btn menu-item" data-build="jail" id="miJail">Jail &mdash; 18 logs, 6 stone, 10 DM</button>
-        <button class="btn menu-item" data-build="hospital">Hospital &mdash; 25 logs, 8 stone, 14 DM</button>
-        <button class="btn menu-item" data-build="townhall" id="miTownhall">Town Hall &mdash; 40 logs, 10 stone</button>
-        <button class="btn menu-item" data-build="wall">Town Wall &mdash; 2 stone, 1 DM</button>
-        <button class="btn menu-item" data-build="gate">Town Gate &mdash; 6 logs, 2 stone, 1 DM</button>
-        <button class="btn menu-item" data-build="stonewall">Stone Wall &mdash; 4 stone, 1 DM</button>
-        <button class="btn menu-item" data-build="stonegate">Stone Gate &mdash; 7 stone, 2 logs, 2 DM</button>
-        <button class="btn menu-item" data-build="moat">Moat &mdash; 4 stone, 2 logs, 3 DM</button>
-        <button class="btn menu-item" data-build="ditch">Ditch &mdash; 2 logs, 1 DM</button>
-        <button class="btn menu-item" data-build="shrine" id="miShrine">Shrine &mdash; 10 logs, 3 DM</button>
-        <button class="btn menu-item" data-build="temple" id="miTemple">House of Worship &mdash; 30 logs, 8 stone, 15 DM</button>
-        <div class="menu-item" style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:11px;color:#7da083">
-          <img id="dedIcon" alt="" style="width:16px;height:16px;image-rendering:pixelated">
-          <span>Dedicate to</span>
-          <select id="dedSelect" style="flex:1;background:#101813;border:1px solid #3a5243;color:#cfd8d3;font-family:inherit;font-size:11px;padding:3px"></select>
-        </div>
-        <button class="btn menu-item" data-build="lamp">Lamppost &mdash; 2 logs, 1 DM</button>
-        <button class="btn menu-item" data-build="sapling">Replant Spruce &mdash; 1 log, 1 DM</button>
-      </div>
-    </div>
+    <button class="btn" id="buildToggle"><i class="ico">&#127959;</i><span class="txt">BUILD</span></button>
     <div class="dropdown" id="craftDrop">
       <button class="btn" id="craftToggle"><i class="ico">&#9874;&#65039;</i><span class="txt">CRAFT &#9662;</span></button>
       <div class="dropdown-menu" id="craftMenu">
@@ -163,6 +129,23 @@
     <button class="btn" id="cpGiveWeapon" style="width:100%;margin-top:6px">Give weapon from armoury</button>
     <button class="btn" id="cpSkills" style="width:100%;margin-top:6px">&#9876; Skills</button>
     <button class="btn" id="cpBanish" style="width:100%;margin-top:6px;border-color:#8a2f2f;color:#c98a8a">Banish from the colony</button>
+    </div>
+  </div>
+
+  <!-- The build screen. It was a dropdown of twenty-one priced lines, which is a
+       list of prices, not a decision: nothing showed you what a thing looked
+       like, what it did, or whether you could pay for it. -->
+  <div class="panel" id="buildSheet">
+    <div class="panelHead">
+      <h3 style="flex:1">BUILD</h3>
+      <span id="bsLedger"></span>
+      <span id="bsClose" style="cursor:pointer;color:#5a6b60">[close]</span>
+    </div>
+    <div id="bsGrid"></div>
+    <div id="bsFoot">
+      <img id="dedIcon" alt="">
+      <span>A house of worship is dedicated to</span>
+      <select id="dedSelect"></select>
     </div>
   </div>
 

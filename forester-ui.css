@@ -378,6 +378,69 @@ label { display: flex; gap: var(--fx-stack); align-items: center; margin: 4px 0;
 .menu-item.cantAfford { opacity: 0.42; }
 .menu-item.cantAfford:hover { opacity: 0.72; }
 
+/* ── the build screen ─────────────────────────────────────────────────────
+   One sheet, every trade on it, each showing its own sprite and saying in a
+   line what it is for. The old dropdown could only ever be a column of prices. */
+#buildSheet {
+  display: none; flex-direction: column;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(940px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  padding: 14px 16px; z-index: var(--fx-z-records);
+}
+#buildSheet .panelHead { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+#bsLedger { font-size: var(--fx-t-note); color: var(--fx-ink-5); }
+#bsGrid { overflow-y: auto; flex: 1; padding-right: 4px; }
+.bsSec {
+  color: var(--fx-spruce); font-size: var(--fx-t-note); letter-spacing: 2px;
+  margin: 12px 0 6px; padding-bottom: 3px;
+  border-bottom: var(--fx-hair) solid var(--fx-line-sec);
+}
+.bsSec:first-child { margin-top: 0; }
+.bsBand { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.bsCard {
+  display: grid; grid-template-columns: 40px 1fr; grid-template-rows: auto auto auto;
+  gap: 1px 10px; align-content: start; text-align: left;
+  background: var(--fx-control); border: var(--fx-hair) solid var(--fx-line);
+  color: var(--fx-ink); font-family: inherit; padding: 8px 9px; cursor: pointer;
+}
+.bsCard:hover { background: var(--fx-raised); border-color: var(--fx-line-live); }
+.bsArt {
+  grid-row: 1 / span 2; width: 40px; height: 40px; align-self: start;
+  image-rendering: pixelated; object-fit: contain;
+}
+.bsName { color: var(--fx-ink-bright); font-size: var(--fx-t-panel); font-weight: bold; }
+.bsCost { color: var(--fx-gold); font-size: var(--fx-t-note); }
+.bsWhat {
+  grid-column: 1 / -1; color: var(--fx-ink-4); font-size: var(--fx-t-note);
+  line-height: 1.45; margin-top: 5px;
+}
+.bsKeep { grid-column: 1 / -1; color: var(--fx-ink-6); font-size: 10px; margin-top: 3px; }
+/* out of reach today: quiet, but still there, still priced, and still clickable
+   so that pressing it can tell you exactly what you are short of */
+.bsCard.cantAfford { opacity: 0.42; }
+.bsCard.cantAfford:hover { opacity: 0.8; }
+#bsFoot {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 10px; padding-top: 9px;
+  border-top: var(--fx-hair) solid var(--fx-line-inner);
+  font-size: var(--fx-t-note); color: var(--fx-ink-5);
+}
+#dedIcon { width: 16px; height: 16px; image-rendering: pixelated; }
+#dedSelect {
+  background: var(--fx-well); border: var(--fx-hair) solid var(--fx-line);
+  color: var(--fx-ink); font-family: inherit; font-size: var(--fx-t-note); padding: 3px;
+}
+@media (max-width: 820px) {
+  #buildSheet { width: calc(100vw - 16px); max-height: 78vh; padding: 10px; }
+  .bsBand { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .bsWhat { display: none; }        /* on a phone the name and the price are the decision */
+}
+
+/* a quantity lifted out of a sentence: the bit you have to act on */
+.qty { font-weight: bold; color: var(--fx-gold-pale); }
+.bsCost .qty, #eventSub .qty { color: inherit; }
+
 /* A save row on the front door. */
 .saveRow {
   display: flex; align-items: center; gap: var(--fx-gap-row); width: 100%;
