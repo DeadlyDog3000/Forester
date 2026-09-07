@@ -4966,7 +4966,6 @@ function gateStanding(v) {
   return Math.max(6, Math.min(70, m));
 }
 function openDialogue(v) {
-  tutSeen.talked = true;   // they have met a wanderer, whether or not they keep them
   dlg.visitor = v;
   if (v.meter === null) v.meter = gateStanding(v) + (v.goodwill || 0);
   openTalk({
@@ -5024,7 +5023,16 @@ function renderDialogueOptions() {
   }
 }
 
-function closeDialogue() { dlg.open = false; dlg.visitor = null; dlg.talk = null; setPause(pauseOpen); $("dialogue").style.display = "none"; }
+function closeDialogue() {
+  // The wanderer step used to tick over the moment the shutter opened, so the
+  // banner read "step 12 of 15" while the player was still mid-sentence with
+  // the man — the instruction they were following vanished out from under them.
+  // It waits for the conversation to be over now, whichever way it went: they
+  // signed, they walked off, or the player closed the shutter on them. Only a
+  // wanderer's talk counts, not an envoy's.
+  if (dlg.visitor) tutSeen.talked = true;
+  dlg.open = false; dlg.visitor = null; dlg.talk = null; setPause(pauseOpen); $("dialogue").style.display = "none";
+}
 
 function joinColony(v) {
   visitors.splice(visitors.indexOf(v), 1);
@@ -5605,10 +5613,10 @@ $("techToggle").addEventListener("click", () => {
   const opening = p.style.display !== "block";
   p.style.display = opening ? "block" : "none";
   if (opening) tutSeen.tech = true;
-  $("techToggle").textContent = opening ? "Close Tech Tree" : "Open Tech Tree";
+  $("techToggle").classList.toggle("active", opening);
   renderTech();
 });
-$("techClose").addEventListener("click", () => { $("techPanel").style.display = "none"; $("techToggle").textContent = "Open Tech Tree"; });
+$("techClose").addEventListener("click", () => { $("techPanel").style.display = "none"; $("techToggle").classList.remove("active"); });
 $("techSearch").addEventListener("input", renderTech);
 $("civSearch").addEventListener("input", () => syncUI());
 $("settleSearch").addEventListener("input", () => {
@@ -8826,7 +8834,7 @@ const PANEL_CLOSE = {
   helpPanel: () => { $("helpPanel").style.display = "none"; },
   settingsPanel: () => { $("settingsPanel").style.display = "none"; saveSettings(); },
   skillPanel: () => closeSkills(),
-  techPanel: () => { $("techPanel").style.display = "none"; $("techToggle").textContent = "Open Tech Tree"; },
+  techPanel: () => { $("techPanel").style.display = "none"; $("techToggle").classList.remove("active"); },
   militaryPanel: () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); },
   pauseMenu: () => setPause(false),
 };
@@ -9630,7 +9638,7 @@ const TUT_STEPS = [
     done: () => buildings.some(b => b.type === "market") },
   { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels.",
     done: () => tutSeen.gov },
-  { text: () => "In that panel, press Open Tech Tree and begin any research. Four trees run from sharper axes to battle steel, and out to the far edge of the map, paid for in DM and time.",
+  { text: () => "Press RESEARCH on the bar along the bottom and begin any research. Four trees run from sharper axes to battle steel, and out to the far edge of the map, paid for in DM and time.",
     done: () => tutSeen.tech || !!research || Object.values(TECH).filter(t => t.done).length > 3 },
   { text: () => "Press MAP, or simply scroll the wheel back. The ground gives way to the country: your land in your own colour, the crowns of Europe around it, and every column on every road between them. Cartography, on the Exploration tree, lifts the eye further.",
     done: () => tutSeen.map },

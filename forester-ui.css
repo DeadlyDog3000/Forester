@@ -635,12 +635,13 @@ body.touch .deskOnly { display: none; }
   top: var(--fx-hud-h); left: var(--fx-inset); width: var(--fx-w-gov);
   padding: var(--fx-pad-panel); display: none; max-height: 80vh; overflow-y: auto;
 }
-/* The same trouble the character sheet had, and worse. This panel runs to
-   1230px of content in a 606px window, and Open Tech Tree is the very last
-   thing in it — 595px below the foot of the panel and 490px below the bottom
-   of the screen. Step 14 of 15 says, in as many words, "in that panel, press
-   Open Tech Tree", and pointed at a button essentially nobody would find.
-   Pinned to the foot of the sheet, where an instruction can honestly point. */
+/* What is being researched, pinned to the foot of the sheet. The button that
+   opened the tree used to live here too, as the very last thing in 1230px of
+   content in a 606px window — 490px below the bottom of the screen, with step
+   14 of 15 telling the player in as many words to press it. It sits on the
+   action bar now, where it is one click from anywhere. What stays here is the
+   reading: which is the state of the realm, and this panel is where the state
+   of the realm is read. */
 #govResearch {
   position: sticky; bottom: calc(-1 * var(--fx-gap-row));
   background: var(--fx-glass);
@@ -962,8 +963,9 @@ body.touch #touchPad   { display: flex; }
   #hint { display: none; }
 
   /* --- the action bar: icons alone --------------------------------------- */
-  /* Eight buttons at full width need 900px and a phone has 375. Every one of
-     them visible at once, and each still a comfortable finger's width. */
+  /* Nine buttons at full width need over 900px and a phone has 375. Icons
+     only, and the bar scrolls sideways — every one of them still a comfortable
+     finger's width. */
   #actions {
     gap: var(--fx-stack); padding: var(--fx-stack) 8px;
     padding-bottom: max(var(--fx-stack), env(safe-area-inset-bottom));
