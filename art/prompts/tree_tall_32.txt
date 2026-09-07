@@ -1,0 +1,26 @@
+A single 32x32 pixel game sprite of one OLD TALL spruce pine tree, drawn to stand beside the spruce in the reference image as another tree in the same wood.
+
+True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no blur, no gradients. Every pixel a deliberate flat block of solid colour. Authentic 16-bit era sprite work at extremely small size.
+
+CRITICAL — EXTREME SIMPLICITY:
+Must read clearly at 32 pixels. Bold blocky shapes only, no fine needle detail, no thin branches.
+
+COMPOSITION:
+Perfectly square 1:1 image. One single tree, centred, seen straight on from ground level. Flat head-on view, not isometric. It stands on the same ground line as the reference and its trunk foot is at the same height in the frame, so the two sprites can stand side by side in the same wood.
+
+BACKGROUND:
+Completely flat, uniform, solid single-colour neutral grey background, clearly different from every colour in the sprite so it can be keyed out. No ground, no grass, no shadow, no sky, no other trees, no border, no text.
+
+THE TREE — TALLER AND NARROWER THAN THE REFERENCE, BUT JUST AS SOLID:
+FIRST, THE FAILURE TO AVOID: a previous attempt came back as a thin wispy
+sketch — single-pixel branch lines poking off a stick, with background showing
+through everywhere. That is not this style. This tree must be as SOLID and as
+CHUNKY as the reference: a filled, weighty mass of foliage you could not see
+through, built from blocks at least two or three pixels thick. Narrower than
+the reference, yes. Thinner in the drawing, never.
+
+
+An older, taller spruce: distinctly NARROWER and reaching HIGHER than the reference tree, filling the frame right to the top. A long spare pointed spire, then four or five shallow stacked triangular tiers of foliage, each only slightly wider than the one above, so the whole silhouette is a slim steep cone rather than a broad one. Blocky jagged bottom edges to each tier. A short stubby dark trunk visible below the lowest tier.
+
+COLOUR — exactly the palette of the reference image and nothing else:
+The same near-black green outline, the same deepest shadow green, the same mid dark spruce green for the foliage mass, the same lighter sage-spruce on the lit left edges, the same dark walnut brown for the trunk. Cold moody forest tones. No bright green, no yellow, no warm light. Do not introduce a colour the reference does not have.

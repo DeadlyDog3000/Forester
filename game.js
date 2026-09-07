@@ -1292,6 +1292,11 @@ function costOf(type) {
 // --- assets ---
 const IMAGES = {
   tree: "assets/sprites/env/spruce_tree_32.png", grass: "assets/sprites/env/grass_64.png",
+  // four more trees, so a wood is a wood and not one tree stamped out ten thousand times
+  tree_tall: "assets/sprites/env/tree_tall_32.png", tree_squat: "assets/sprites/env/tree_squat_32.png",
+  tree_dead: "assets/sprites/env/tree_dead_32.png", tree_birch: "assets/sprites/env/tree_birch_32.png",
+  tree_tall_w: "assets/sprites/env/tree_tall_w_32.png", tree_squat_w: "assets/sprites/env/tree_squat_w_32.png",
+  tree_dead_w: "assets/sprites/env/tree_dead_w_32.png", tree_birch_w: "assets/sprites/env/tree_birch_w_32.png",
   stone: "assets/sprites/env/stone_32.png", patch: "assets/sprites/env/grasspatch_32.png",
   burned: "assets/sprites/buildings/burned_house_32.png", cabin: "assets/sprites/buildings/log_cabin_32.png",
   recruit: "assets/sprites/buildings/recruitment_center_32.png", market: "assets/sprites/buildings/market_32.png",
@@ -1682,6 +1687,41 @@ const YEAR = Math.round(DAY * 2.133), WINTER_AT = Math.round(YEAR * 0.625);
 function season() { return (worldT % YEAR) >= WINTER_AT ? "winter" : "summer"; }
 let lastSeason = "summer";
 let colonyYear = 1683;
+// ===== which tree stands where =====
+// The wood was one sprite. One. Drawn at one size, never flipped, ten thousand
+// identical copies — and a forest of clones is the loudest amateur thing on the
+// screen, because the forest is most of the screen. It is the same fault the
+// axe had in the sound: played from the same numbers every time, the eye locks
+// onto the repetition and stops seeing a wood at all.
+//
+// Five trees now, and a size and a facing besides. All three are read off the
+// GROUND the tree stands on rather than stored on it: the world's trees are
+// generated from the chunk seed and only the felled ones are ever written down,
+// so a look derived from position costs nothing in the save, survives a reload
+// exactly, and never flickers between frames the way Math.random() would.
+function groundHash(x, y, salt) {
+  let h = (Math.round(x) * 374761393 + Math.round(y) * 668265263 + salt * 2147483647) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) | 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+// A spruce wood with others among it: mostly spruce, a few birch for the pale
+// trunks, and the odd dead snag, which is firewood and looks like a forest.
+const TREE_MIX = [["tree", 0.42], ["tree_tall", 0.22], ["tree_squat", 0.21],
+                  ["tree_birch", 0.10], ["tree_dead", 0.05]];
+function treeKind(t) {
+  // a sapling the colony planted is the spruce it was sold as, not a dead snag
+  if (t.planted) return "tree";
+  const r = groundHash(t.x, t.y, 1);
+  let a = 0;
+  for (const [k, w] of TREE_MIX) { a += w; if (r < a) return k; }
+  return "tree";
+}
+// and no two the same height or facing the same way
+const treeScale = t => 0.84 + 0.32 * groundHash(t.x, t.y, 2);
+const treeFlip  = t => groundHash(t.x, t.y, 3) < 0.5;
+const TREE_NAME = { tree: "spruce", tree_tall: "spruce", tree_squat: "spruce",
+                    tree_birch: "birch", tree_dead: "dead tree" };
+
 function wimg(key) {
   if (season() !== "winter") return img[key];
   const w = img[key + "_w"];
@@ -1843,7 +1883,9 @@ function applyChunkDelta(key, d) {
   for (const i of d.sd || []) if (ch.stones[i]) ch.stones[i].alive = false;
   for (const i of d.pd || []) if (ch.patches[i]) ch.patches[i].alive = false;
   for (const [i, g] of d.tg || []) if (ch.trees[i]) ch.trees[i].growth = g;
-  for (const [x, y, g] of d.tp || []) ch.trees.push({ x, y, alive: true, progress: -1, growth: g });
+  // planted, and marked so on the way in — the flag is derived from which list
+  // they came back in, so it never has to be written down
+  for (const [x, y, g] of d.tp || []) ch.trees.push({ x, y, alive: true, progress: -1, growth: g, planted: true });
   ch.dirty = true;
   chunks.set(key, ch);
 }
@@ -3314,10 +3356,14 @@ function resolveOrder(wx, wy) {
   };
   for (const t of nearThings("trees", wx, wy, 200))
     if (t.alive && t.growth >= 1)
-      add({ x: t.x - 17, y: t.y - TREE_SIZE * 0.72, w: 34, h: TREE_SIZE * 0.72 }, () => {
+    {
+      // the reach follows the tree you can actually see, now that they differ
+      const ts = treeScale(t), what = TREE_NAME[treeKind(t)] || "spruce";
+      add({ x: t.x - 17 * ts, y: t.y - TREE_SIZE * 0.72 * ts, w: 34 * ts, h: TREE_SIZE * 0.72 * ts }, () => {
         order(c, { kind: "chop", target: t, x: t.x + 26, y: t.y + 6 });
-        toast(`${c.name} heads out to fell a spruce.`);
-      }, "scenery", () => "Fell this spruce");
+        toast(`${c.name} heads out to fell a ${what}.`);
+      }, "scenery", () => `Fell this ${what}`);
+    }
   for (const s of nearThings("stones", wx, wy, 200))
     if (s.alive)
       add({ x: s.x - 19, y: s.y - NODE_SIZE * 0.62, w: 38, h: NODE_SIZE * 0.62 }, () => {
@@ -3842,7 +3888,7 @@ function tryPlace(type, wx, wy) {
   }
   if (type === "sapling") {
     const [cx, cy] = chunkOf(wx, wy);
-    getChunk(cx, cy).trees.push({ x: wx, y: wy, alive: true, progress: -1, growth: 0 });
+    getChunk(cx, cy).trees.push({ x: wx, y: wy, alive: true, progress: -1, growth: 0, planted: true });
     markChunkDirty(wx, wy);
     toast("Spruce sapling planted.");
   } else if (type === "farm") {
@@ -8677,6 +8723,13 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 16, date: "7 September 2026", title: "The wood is a wood now, not one tree ten thousand times",
+    lines: [
+      "There was one tree. One sprite, drawn at one size, never turned around, stamped out across the whole map — and the same for the boulders. A forest of identical clones is the loudest amateur thing a game can put on a screen, because the forest is most of the screen, and it is the same fault the axe used to have in the sound: played from the same numbers every time, the eye locks onto the repetition and stops seeing a wood at all.",
+      "There are five trees now. The old spruce, a taller narrower one, a squat young one, a birch with a pale trunk and a round crown, and the odd dead snag standing bare among them. Every one of them has its own coat of snow for the winter — and the birch, being a broadleaf, loses its leaves and stands in bare twigs until spring.",
+      "On top of that, no two trees are quite the same size or facing the same way, and the boulders got the same treatment out of the sprite they already had. Which tree stands where is decided by the ground it stands on rather than written down, so it costs nothing in your save, comes back exactly the same on the next load, and never flickers.",
+      "A sapling you plant is still the spruce it was sold as. And felling a birch or a dead tree now says so, rather than calling everything a spruce.",
+    ] },
   { v: 15, date: "7 September 2026", title: "The woods have a sound, and a tune that goes somewhere",
     lines: [
       "Every sound in the game went from its oscillator straight to your ears with nothing in between, and dry sound is most of the difference between a game that sounds like a place and one that sounds like a beeper. There is a room now — a short, dark tail, the size of a clearing among trees — and everything stands in it. An axe that used to stop dead after a twentieth of a second rings for most of one.",
@@ -13243,14 +13296,15 @@ function render(dt) {
     for (const t of ch.trees) {
       if (!inView(t.x, t.y)) continue;
       if (t.alive) drawables.push({ y: t.y, draw: () => {
-        const s = TREE_SIZE * (0.35 + 0.65 * t.growth);
-        drawSprite(wimg("tree"), t.x, t.y, s, false);
+        const s = TREE_SIZE * (0.35 + 0.65 * t.growth) * treeScale(t);
+        drawSprite(wimg(treeKind(t)), t.x, t.y, s, treeFlip(t));
         if (t.progress >= 0) bar(t.x, t.y - s - 12, t.progress, "#c9a86a");
       }});
       // felled trees leave clean ground — no stumps
     }
     for (const s of ch.stones) if (s.alive && inView(s.x, s.y)) drawables.push({ y: s.y, draw: () => {
-      drawSprite(wimg("stone"), s.x, s.y, NODE_SIZE, false);
+      drawSprite(wimg("stone"), s.x, s.y, NODE_SIZE * (0.82 + 0.36 * groundHash(s.x, s.y, 4)),
+                  groundHash(s.x, s.y, 5) < 0.5);
       if (s.progress >= 0) bar(s.x, s.y - NODE_SIZE - 10, s.progress, "#c9a86a");
     }});
     for (const p of ch.patches) if (p.alive && inView(p.x, p.y)) drawables.push({ y: p.y, draw: () => {
