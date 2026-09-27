@@ -1,0 +1,201 @@
+// ===========================================================================
+//  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
+// ===========================================================================
+
+// The first Forester's sound engine (../sfx.js) makes the axes, the birds and
+// the footsteps. This adds what a city has and a clearing does not: bells
+// that can grow faint, a crowd, a drum, a door being beaten at midnight — and
+// music that is a mood rather than a march. Still no audio files.
+
+/* global SFX */
+
+let ac = null, bus = null, musicBus = null, noise = null;
+function ctx() {
+  if (ac) { if (ac.state === "suspended") ac.resume(); return ac; }
+  try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
+  ac = window.__foresterAC;
+  if (!ac) return null;
+  bus = ac.createGain(); bus.gain.value = 1; bus.connect(window.__foresterMaster);
+  musicBus = ac.createGain(); musicBus.gain.value = 0.55; musicBus.connect(window.__foresterMaster);
+  noise = window.__foresterNoise;
+  return ac;
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+function noiseSrc(a, loop = true) {
+  const s = a.createBufferSource(); s.buffer = noise; s.loop = loop; return s;
+}
+
+const loops = {};
+function loop(name, on, build) {
+  const a = ctx(); if (!a) return;
+  if (on && !loops[name]) loops[name] = build(a);
+  else if (!on && loops[name]) {
+    const l = loops[name]; loops[name] = null;
+    l.g.gain.setTargetAtTime(0.0001, a.currentTime, 0.6);
+    setTimeout(() => l.stop.forEach(n => { try { n.stop(); } catch (e) {} }), 3000);
+  }
+}
+
+export const AUDIO = {
+  init: ctx,
+  setMusicVolume(v) { if (ctx()) musicBus.gain.value = 0.55 * v; },
+
+  bell(vol = 1, pitch = 1) {
+    const a = ctx(); if (!a || vol <= 0.01) return;
+    const t = a.currentTime, f0 = 196 * pitch;
+    for (const [mul, v] of [[0.5, 0.12], [1, 0.16], [2.0, 0.1], [2.4, 0.07], [3.0, 0.05], [4.2, 0.03]]) {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = "sine"; o.frequency.value = f0 * mul * (1 + (Math.random() - 0.5) * 0.003);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(v * vol, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 4.2 / Math.sqrt(mul));
+      o.connect(g); g.connect(bus); o.start(t); o.stop(t + 4.5);
+    }
+  },
+
+  knock(n = 3, vol = 1) {
+    const a = ctx(); if (!a) return;
+    for (let i = 0; i < n; i++) {
+      const t = a.currentTime + i * rnd(0.32, 0.4);
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = "sine"; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.18);
+      g.gain.setValueAtTime(0.55 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.3);
+      const s = noiseSrc(a, false), f = a.createBiquadFilter(), g2 = a.createGain();
+      f.type = "lowpass"; f.frequency.value = 900;
+      g2.gain.setValueAtTime(0.35 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      s.connect(f); f.connect(g2); g2.connect(bus); s.start(t, Math.random()); s.stop(t + 0.15);
+    }
+  },
+
+  door() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime;
+    const o = a.createOscillator(), g = a.createGain(), f = a.createBiquadFilter();
+    o.type = "sawtooth"; o.frequency.setValueAtTime(180, t); o.frequency.linearRampToValueAtTime(240, t + 0.5); o.frequency.linearRampToValueAtTime(150, t + 0.9);
+    f.type = "bandpass"; f.frequency.value = 900; f.Q.value = 6;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.1); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
+    o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 1);
+  },
+
+  drumRoll(secs = 4, vol = 0.5) {
+    const a = ctx(); if (!a) return;
+    const t0 = a.currentTime;
+    for (let t = 0; t < secs; t += 0.07) {
+      const s = noiseSrc(a, false), f = a.createBiquadFilter(), g = a.createGain();
+      f.type = "bandpass"; f.frequency.value = 260 + Math.random() * 60; f.Q.value = 1.5;
+      const v = vol * (0.35 + 0.65 * (t / secs)) * rnd(0.7, 1);
+      g.gain.setValueAtTime(v, t0 + t); g.gain.exponentialRampToValueAtTime(0.001, t0 + t + 0.09);
+      s.connect(f); f.connect(g); g.connect(bus); s.start(t0 + t, Math.random()); s.stop(t0 + t + 0.1);
+    }
+  },
+
+  shout() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime;
+    const o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain();
+    o.type = "sawtooth"; o.frequency.setValueAtTime(200, t); o.frequency.linearRampToValueAtTime(260, t + 0.15); o.frequency.linearRampToValueAtTime(170, t + 0.5);
+    f.type = "bandpass"; f.frequency.value = 700; f.Q.value = 3;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.6);
+  },
+
+  heartbeat(vol = 0.4) {
+    const a = ctx(); if (!a) return;
+    for (const d of [0, 0.22]) {
+      const t = a.currentTime + d;
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = "sine"; o.frequency.setValueAtTime(62, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.14);
+      g.gain.setValueAtTime(vol * (d ? 0.7 : 1), t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.2);
+    }
+  },
+
+  // a crowd murmuring: a handful of voice-band noises, each swelling and falling
+  murmur(on, vol = 1) {
+    loop("murmur", on, a => {
+      const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.09 * vol, a.currentTime, 1.2); g.connect(bus);
+      const stop = [];
+      for (let i = 0; i < 5; i++) {
+        const s = noiseSrc(a), f = a.createBiquadFilter(), vg = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
+        f.type = "bandpass"; f.frequency.value = rnd(300, 900); f.Q.value = 4;
+        lfo.frequency.value = rnd(0.2, 0.9); lg.gain.value = 0.5; vg.gain.value = 0.5;
+        lfo.connect(lg); lg.connect(vg.gain);
+        s.connect(f); f.connect(vg); vg.connect(g);
+        s.start(a.currentTime, Math.random()); lfo.start();
+        stop.push(s, lfo);
+      }
+      return { g, stop };
+    });
+  },
+  water(on) {
+    loop("water", on, a => {
+      const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.06, a.currentTime, 1); g.connect(bus);
+      const s = noiseSrc(a), f = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
+      f.type = "lowpass"; f.frequency.value = 420; lfo.frequency.value = 0.18; lg.gain.value = 250;
+      lfo.connect(lg); lg.connect(f.frequency); s.connect(f); f.connect(g); s.start(); lfo.start();
+      return { g, stop: [s, lfo] };
+    });
+  },
+  wind(on, vol = 1) {
+    loop("wind", on, a => {
+      const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.05 * vol, a.currentTime, 2); g.connect(bus);
+      const s = noiseSrc(a), f = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
+      s.playbackRate.value = 0.5;
+      f.type = "bandpass"; f.frequency.value = 500; f.Q.value = 0.7; lfo.frequency.value = 0.07; lg.gain.value = 300;
+      lfo.connect(lg); lg.connect(f.frequency); s.connect(f); f.connect(g); s.start(); lfo.start();
+      return { g, stop: [s, lfo] };
+    });
+  },
+
+  // ---- music: slow chords and a few plucked notes, per mood ----
+  _mood: null, _mt: null, _step: 0,
+  music(mood) {
+    if (mood === this._mood) return;
+    this._mood = mood;
+    clearTimeout(this._mt);
+    if (!mood) return;
+    this._step = 0;
+    const tick = () => { if (this._mood !== mood) return; this._play(mood); this._mt = setTimeout(tick, MOODS[mood].bar * 1000); };
+    tick();
+  },
+  _play(mood) {
+    const a = ctx(); if (!a || !window.__reckonMusic) return;
+    const M = MOODS[mood], t = a.currentTime + 0.05;
+    const chord = M.chords[this._step % M.chords.length];
+    this._step++;
+    const hz = n => 440 * Math.pow(2, (n - 69) / 12);
+    for (const n of chord) {
+      const o = a.createOscillator(), o2 = a.createOscillator(), g = a.createGain(), f = a.createBiquadFilter();
+      o.type = M.wave; o2.type = "sine"; o.frequency.value = hz(n); o2.frequency.value = hz(n) * 1.003;
+      f.type = "lowpass"; f.frequency.value = M.cut;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(M.vol, t + M.bar * 0.35);
+      g.gain.linearRampToValueAtTime(0.0001, t + M.bar * 1.15);
+      o.connect(f); o2.connect(f); f.connect(g); g.connect(musicBus);
+      o.start(t); o2.start(t); o.stop(t + M.bar * 1.2); o2.stop(t + M.bar * 1.2);
+    }
+    // a few notes on top, like someone picking at a cittern
+    if (M.pluck) for (let i = 0; i < 4; i++) {
+      if (Math.random() > M.pluck) continue;
+      const n = chord[Math.floor(Math.random() * chord.length)] + 12 * (1 + (Math.random() < 0.3 ? 1 : 0));
+      const tt = t + (i * M.bar) / 4 + Math.random() * 0.1;
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = "triangle"; o.frequency.value = hz(n);
+      g.gain.setValueAtTime(0.0001, tt); g.gain.exponentialRampToValueAtTime(0.07, tt + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, tt + 1.4);
+      o.connect(g); g.connect(musicBus); o.start(tt); o.stop(tt + 1.5);
+    }
+  },
+};
+
+const MOODS = {
+  title:  { bar: 6, wave: "triangle", cut: 900, vol: 0.05, pluck: 0.55, chords: [[50, 57, 62, 65], [46, 53, 58, 62], [48, 55, 60, 64], [45, 52, 57, 61]] },
+  home:   { bar: 5, wave: "triangle", cut: 1100, vol: 0.045, pluck: 0.7, chords: [[50, 57, 62, 66], [55, 59, 62, 67], [47, 54, 59, 62], [52, 57, 61, 64]] },
+  unease: { bar: 7, wave: "sawtooth", cut: 420, vol: 0.035, pluck: 0.2, chords: [[45, 52, 57, 60], [44, 51, 56, 59], [46, 53, 58, 61], [45, 52, 56, 60]] },
+  dread:  { bar: 8, wave: "sawtooth", cut: 320, vol: 0.05, pluck: 0, chords: [[38, 45, 50, 53], [37, 44, 49, 52], [38, 45, 50, 51]] },
+  grief:  { bar: 7, wave: "triangle", cut: 700, vol: 0.05, pluck: 0.35, chords: [[45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 58], [40, 47, 52, 55]] },
+  flight: { bar: 3, wave: "sawtooth", cut: 520, vol: 0.04, pluck: 0.1, chords: [[40, 47, 52, 55], [41, 48, 53, 56], [40, 47, 52, 55], [39, 46, 51, 54]] },
+  woods:  { bar: 6, wave: "triangle", cut: 1000, vol: 0.04, pluck: 0.5, chords: [[43, 50, 55, 59], [48, 55, 60, 64], [45, 52, 57, 60], [50, 57, 62, 66]] },
+  hope:   { bar: 5, wave: "triangle", cut: 1300, vol: 0.05, pluck: 0.8, chords: [[48, 55, 60, 64], [53, 57, 60, 65], [45, 52, 57, 60], [55, 59, 62, 67]] },
+};

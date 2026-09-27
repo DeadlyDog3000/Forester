@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!--
+  FORESTER: RECKONING
+  Copyright (c) 2026 Roan Fraese, trading as DeadlyDog Productions.
+  All rights reserved. See LICENSE in this folder.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forester: Reckoning</title>
+  <meta name="description" content="Forester: Reckoning — the story of Forester, lived in first person. Hamburg, 1683. A DeadlyDog Productions game.">
+  <link rel="icon" href="../art/thumb_a.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=IM+Fell+English:ital@0;1&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
+</head>
+<body>
+  <div id="view"></div>
+
+  <!-- ===== in play ===== -->
+  <div id="hud" class="hidden">
+    <div id="crosshair"></div>
+    <div id="holdRing" class="hidden"></div>
+    <div id="objective" class="hidden"><span class="obj-label">Objective</span><span id="objText"></span></div>
+    <div id="carry" class="hidden"></div>
+    <div id="eye" class="hidden"><div class="eye-shape"></div></div>
+    <div id="marker" class="hidden"><div class="mk-diamond"></div><div id="markerDist"></div></div>
+    <div id="prompt" class="hidden"><kbd id="promptKey">E</kbd><span id="promptText"></span></div>
+    <div id="hint" class="hidden"></div>
+    <div id="bark" class="hidden"><span id="barkName"></span> <span id="barkText"></span></div>
+    <div id="dialog" class="hidden">
+      <div id="dlgName" class="dlg-name"></div>
+      <div id="dlgText"></div>
+      <div class="dlg-more">Space ▸</div>
+    </div>
+  </div>
+
+  <div id="card" class="hidden"><div id="cardKicker"></div><div id="cardTitle"></div></div>
+  <div id="narration" class="hidden"></div>
+  <div id="fade"></div>
+
+  <!-- ===== menus ===== -->
+  <div id="menus" class="backdrop">
+    <section id="title" class="screen">
+      <div class="logo">
+        <div class="logo-top">Forester</div>
+        <div class="logo-rule"></div>
+        <div class="logo-sub">Reckoning</div>
+      </div>
+      <p class="tagline">Hamburg, 1683. Your father is taken. Your name is taken with him. Run.</p>
+      <nav class="menu">
+        <button id="btnContinue" class="btn hidden">Continue</button>
+        <button id="btnNew" class="btn primary">New Game</button>
+        <button id="btnChapters" class="btn hidden">Chapters</button>
+        <button id="btnSettings" class="btn">Settings</button>
+        <button id="btnControls" class="btn">Controls</button>
+      </nav>
+      <footer class="credit">A <strong>DeadlyDog Productions</strong> game &middot; &copy; 2026 Roan Fraese &middot; Part One: Ashes</footer>
+    </section>
+
+    <section id="choose" class="screen hidden">
+      <h2>Who are you?</h2>
+      <p class="sub">Two children ran through the marsh gate. You are one of them; the other will be beside you all the way.</p>
+      <div class="choose-row">
+        <button class="who" data-who="brother">
+          <img src="../assets/sprites/characters/brother_walk_0.png" alt="">
+          <span class="who-name">The Brother</span>
+          <span class="who-text">Quick with his hands, slow with his temper. Father's shadow at the harbour since he could walk.</span>
+        </button>
+        <button class="who" data-who="sister">
+          <img src="../assets/sprites/characters/sister_walk_0.png" alt="">
+          <span class="who-name">The Sister</span>
+          <span class="who-text">Kept the ledgers when Father's eyes grew tired. Remembers every number, and every face.</span>
+        </button>
+      </div>
+      <button class="btn ghost" data-back>Back</button>
+    </section>
+
+    <section id="chapters" class="screen hidden">
+      <h2>Part One: Ashes</h2>
+      <div id="chapterList"></div>
+      <button class="btn ghost" data-back>Back</button>
+    </section>
+
+    <section id="settings" class="screen hidden">
+      <h2>Settings</h2>
+      <div class="settings">
+        <label>Mouse sensitivity <span id="sensVal"></span><input id="setSens" type="range" min="0.2" max="3" step="0.05"></label>
+        <label>Field of view <span id="fovVal"></span><input id="setFov" type="range" min="55" max="100" step="1"></label>
+        <label>Volume <span id="volVal"></span><input id="setVol" type="range" min="0" max="1" step="0.05"></label>
+        <label class="check"><input id="setInvert" type="checkbox"> Invert mouse Y</label>
+        <label class="check"><input id="setMusic" type="checkbox"> Music</label>
+        <label class="check"><input id="setThird" type="checkbox"> Over-the-shoulder camera <em>(V switches in play)</em></label>
+      </div>
+      <button class="btn ghost" data-back>Back</button>
+    </section>
+
+    <section id="controls" class="screen hidden">
+      <h2>Controls</h2>
+      <table class="keys">
+        <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
+        <tr><td>Mouse</td><td>Look</td></tr>
+        <tr><td><kbd>Shift</kbd></td><td>Run</td></tr>
+        <tr><td><kbd>C</kbd></td><td>Crouch</td></tr>
+        <tr><td><kbd>Space</kbd></td><td>Jump &middot; move a conversation on</td></tr>
+        <tr><td><kbd>E</kbd></td><td>Talk, take, open &mdash; hold it for work that takes time</td></tr>
+        <tr><td>Left click</td><td>Swing the axe, once you have one</td></tr>
+        <tr><td><kbd>V</kbd></td><td>First person / over the shoulder</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
+      </table>
+      <button class="btn ghost" data-back>Back</button>
+    </section>
+
+    <section id="pause" class="screen hidden">
+      <h2>Paused</h2>
+      <nav class="menu">
+        <button id="btnResume" class="btn primary">Resume</button>
+        <button id="btnPauseSettings" class="btn">Settings</button>
+        <button id="btnPauseControls" class="btn">Controls</button>
+        <button id="btnRestart" class="btn">Restart chapter</button>
+        <button id="btnQuit" class="btn ghost">Quit to title</button>
+      </nav>
+      <p class="sub small">Your progress is kept at the start of every chapter, and in the clearing as you work.</p>
+    </section>
+  </div>
+
+  <div id="loading">Loading…</div>
+
+  <script src="../sfx.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
