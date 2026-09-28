@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.12", date: "28 September 2026", title: "The government: your nation, Forester's tech tree, and everyone in it",
+    items: [
+      "Press G for the government. The Nation page names your settlement and what it has become — camp, hamlet, village, town or city — with its people and beds, how content they are and why, days of food and of firewood, the treasury, what the scholars know, everything in the stores, and every building by its style.",
+      "The tech tree is the first Forester's own, node for node: Growth, Military Philosophy, Industry and Exploration, sixty-six technologies at Forester's prices, paid in Marks and researched over time. Click a lit node to begin; search for anything by name.",
+      "In free play, building waits on knowledge as it does in Forester: Baking for the bakery, Trading for the market, Township for the town hall, Masonry, Millwork, Mining and Smelting for the works, Ministry for the church. The plans say what each still needs.",
+      "What is learnt is put to work: quicker felling, more logs from every tree, saplings that grow back twice as fast, crops that ripen sooner, three to a cabin, faster walking once there are horses, busier quarries and mines, a blast furnace's double iron, better market prices, and less hunger. The trades and forces Reckoning hasn't built yet are learnt now and used when they come.",
+      "The People page lists everyone in the nation — you, your family and every settler — with their work, where they sleep, what they are doing right now and what they have, and a button to set their work.",
+      "Contentment matters: where people are unhappy — hungry, cold, or without a bed — nobody new will stay.",
+    ],
+  },
+  {
     v: "0.11", date: "28 September 2026", title: "From clearing to city: the works, and rebuilding in the style of the age",
     items: [
       "The works: a quarry for stone, a sawmill for planks, a brickworks, a mine for iron ore, a smelter for iron, and a forge whose tools make everyone a quarter quicker. Each wants a pair of hands.",

@@ -1963,6 +1963,7 @@ async function chHarvest(w) {
   town.spawnPeople(); town.sitesAll();
   const sib = spawn(sibling(), FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
   sib.settler = { job: "woodcutter" }; sib.homeBed = true; town.work(sib).catch(() => {});
+  town.sibActor = sib;           // (for the people in the government, G)
   w.lightFire(true);
   pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
   const saved = (loadSave() || {}).harvest || {};
@@ -2267,9 +2268,12 @@ async function chFree(w) {
   const town = startTown(w, Object.keys(BUILDINGS));
   const S = town.S;
   S.name ??= "Forester's Clearing";
+  // free play is Forester's: what can be built and worked waits on what is known (G, the tech tree)
+  town.techGates = true;
   town.spawnPeople(); town.sitesAll();
   const sib = spawn(sibling(), FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
   sib.settler = { job: "woodcutter" }; sib.homeBed = true; town.work(sib).catch(() => {});
+  town.sibActor = sib;
   w.lightFire(true);
   pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
   // time: the clock starts where you left it, day and season and all
@@ -2282,7 +2286,8 @@ async function chFree(w) {
   // who comes up the road: when there is a bed, and bread enough
   town.on("day", async d => {
     const pop = S.people.length + 2;
-    if (town.beds + 2 > pop && S.rye >= pop * 3) {
+    // (nobody settles where the people are miserable: contentment under 40 turns them back down the road)
+    if (town.beds + 2 > pop && S.rye >= pop * 3 && town.contentment().value >= 40) {
       const used = new Set(S.people.map(p => p.name));
       const n = NEWCOMERS.find(p => !used.has(p.name));
       if (n) {
@@ -2295,7 +2300,7 @@ async function chFree(w) {
   await wait(0.2);
   const c = card(S.name, "Free play", 2.8);
   await wait(1); fade(0, 2); await c;
-  tutor("free", "It's ours now. Build what we need — cabins bring people, fields feed them, a woodshed keeps the logs dry, a well makes the rye grow.", [["B", "plans"], ["J", "map"], ["T", "inventory"], ["1-9", "hotbar"]], 10);
+  tutor("free", "It's ours now. Build what we need — cabins bring people, fields feed them, a woodshed keeps the logs dry, a well makes the rye grow.", [["B", "plans"], ["G", "government"], ["J", "map"], ["T", "inventory"]], 10);
   // free play goes on until you leave it
   await new Promise(() => {});
 }

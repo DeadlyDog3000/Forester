@@ -337,7 +337,7 @@ export class Player {
       UI.stamina(G.stamina < 0.995 ? G.stamina : null, this.winded);
     } else UI.stamina(null);
     if (sprint && this.crouched) this.crouched = false;
-    const max = this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1;
+    const max = (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1);
     const len = Math.hypot(mx, mz);
     const c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
     let wx = 0, wz = 0;
@@ -617,7 +617,8 @@ export class Actor {
   walk(points, speed = 1.4) {
     this.follow = null;
     this.path = points.map(p => ({ x: p[0], z: p[1] }));
-    this.walkSpeed = speed;
+    // (settlers walk faster once the settlement knows horses)
+    this.walkSpeed = speed * (this.settler && G.town ? G.town.walkMul : 1);
     if (this.resolve) this.resolve();
     return new Promise(r => { this.resolve = r; });
   }

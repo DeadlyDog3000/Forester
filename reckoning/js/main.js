@@ -9,7 +9,8 @@
 import { renderer, clamp } from "./core.js";
 import { G, Player, frame, setAtmo, input, drawMap } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
-import { BUILDINGS as TOWN_BUILDINGS } from "./town.js";
+import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES } from "./town.js";
+import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -201,6 +202,7 @@ const OVERLAYS = {
   bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; } },
   buildmenu: { open: () => renderPlans(), tick: () => renderPlans(), every: 500 },
   trade: { open: () => renderTrade(), tick: () => renderTrade(), every: 400 },
+  gov: { open: () => renderGov(true), tick: () => renderGov(false), every: 500 },
 };
 function showOverlay(id, on) {
   if (on && overlay && overlay !== id) showOverlay(overlay, false);
@@ -239,8 +241,8 @@ function renderPlans() {
     return;
   }
   const list = Object.entries(TOWN_BUILDINGS).filter(([k]) => !t.unlocked || t.unlocked.has(k));
-  $("buildList").innerHTML = list.map(([k, d]) => `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.cost ? [d.cost + " logs", ...Object.entries(d.mats || {}).map(([k, n]) => `${n} ${k}`)].join(", ") : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
-  for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
+  $("buildList").innerHTML = list.map(([k, d]) => t.gated(k) ? `<button class="plan short" data-k="${k}" data-gate="1"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">Requires the ${esc(t.gated(k).name)} technology — research it in the government (G).</span></span><span class="pc">locked</span></button>` : `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.cost ? [d.cost + " logs", ...Object.entries(d.mats || {}).map(([k, n]) => `${n} ${k}`)].join(", ") : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
+  for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { if (b.dataset.gate) return; showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
 }
 // ---- trading: a list of offers from whoever you're dealing with ----
 let tradeNow = null;
@@ -260,6 +262,168 @@ function renderTrade() {
     o.do(); t.after && t.after(); renderTrade();
   };
 }
+// ---- government (G): the nation, the tech tree, the people ----
+let govTab = "nation", techTree = "growth", techQuery = "", techHover = null, govKey = "";
+for (const b of document.querySelectorAll("#govTabs .gov-tab")) b.onclick = () => { govTab = b.dataset.tab; renderGov(true); };
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+// what a settlement is called, by how many live there and how it is built
+function rankOf(t) {
+  const pop = t.S.people.length + 2;
+  if (t.tierLevel >= 4 && t.has("townhall")) return "City";
+  if (t.tierLevel >= 3 && pop >= 8) return "Town";
+  if (pop >= 7) return "Village";
+  if (pop >= 4) return "Hamlet";
+  return "Camp";
+}
+function renderGov(full) {
+  const t = G.town; if (!t) return;
+  // (a redraw every half second would steal the search box's focus and the tree's scroll: only what moves is redrawn)
+  const key = govTab + "|" + techTree;
+  for (const b of document.querySelectorAll("#govTabs .gov-tab")) b.classList.toggle("on", b.dataset.tab === govTab);
+  $("govTitle").textContent = `Government — ${t.S.name || "the clearing"}`;
+  if (govTab === "nation") $("govBody").innerHTML = govNation(t);
+  else if (govTab === "people") { $("govBody").innerHTML = govPeople(t); wirePeople(t); }
+  else if (full || key !== govKey || !$("techWrap")) { $("govBody").innerHTML = govTechFrame(t); wireTech(t); drawTech(t); }
+  else drawTech(t, true);
+  govKey = key;
+}
+function stat(k, v, n, bar, warn = true) {
+  const b = bar == null ? "" : `<div class="gov-bar${warn && bar < 0.34 ? " low" : ""}"><i style="width:${Math.round(clamp(bar, 0, 1) * 100)}%"></i></div>`;
+  return `<div class="gov-stat"><div class="k">${k}</div><div class="v">${v}</div>${n ? `<div class="n">${n}</div>` : ""}${b}</div>`;
+}
+function govNation(t) {
+  const S = t.S, pop = S.people.length + 2, beds = t.beds + 2;
+  const need = Math.max(1, Math.ceil(pop / 2 * (t.knows("horsefeed") ? 0.8 : 1)));
+  const foodDays = Math.floor((S.rye + (S.bread || 0) * 2) / need);
+  const fuelDays = Math.floor(S.store / Math.max(1, t.hearths));
+  const c = t.contentment();
+  const yearN = Math.floor(t.day / YEAR) + 1, dayN = (t.day % YEAR) + 1;
+  const r = S.tech.research, rt = r && TECH[r.id];
+  const known = S.tech.done.length, total = Object.keys(TECH).length;
+  const workers = S.people.filter(p => !p.child).length;
+  const why = c.why.map(([n, text]) => `<span class="${n < 0 ? "neg" : ""}">${n > 0 ? "+" : ""}${n} ${esc(text)}</span>`).join(" · ");
+  let h = `<div class="gov-head"><span class="gov-name">${esc(S.name || "The clearing")}</span><span class="gov-rank">${rankOf(t)}</span>
+    <span class="gov-sub">${cap(t.season)}, day ${dayN} of year ${yearN} in the woods · built ${t.tierLevel > 1 ? UPGRADES[t.tierLevel].style.split(",")[0] : "in logs"}</span></div>`;
+  h += `<div class="mc-sec">The nation</div><div class="gov-grid">`;
+  h += stat("People", `${pop} <span class="dim" style="font-size:14px">of ${beds} beds</span>`, pop > beds ? `${pop - beds} without a bed — raise cabins (B)` : `${workers} settlers at work, and your family`, pop > beds ? 0.05 : 1 - pop / Math.max(1, beds) * 0.66);
+  h += stat("Contentment", `${c.value} / 100`, c.value >= 60 ? "They are glad they came." : c.value >= 40 ? "They manage." : "Unhappy — nobody new will stay.", c.value / 100);
+  h += stat("Food", `${foodDays} day${foodDays === 1 ? "" : "s"}`, `${S.rye} rye, ${S.bread || 0} bread · ${need} a day`, foodDays / 8);
+  h += stat("Firewood", `${S.store} logs`, t.winter ? `${fuelDays} winter days at ${t.hearths} hearths` : `winter burns ${t.hearths} a day · store holds ${t.storeCap}`, t.winter ? fuelDays / 4 : S.store / Math.max(1, t.hearths * 4));
+  h += stat("Treasury", `${S.coin || 0} Mark`, t.has("market") ? `the market took ${S.soldToday || 0} Mark yesterday` : "no market yet — sell to Henning's cart");
+  h += stat("Knowledge", `${known} of ${total}`, rt ? `researching ${esc(rt.name)} — ${Math.min(99, Math.round(r.t / techTime(rt) * 100))}%` : "the scholars are idle — see the tech tree", rt ? r.t / techTime(rt) : known / total, false);
+  h += `</div><div class="mc-sec">Why they feel as they do</div><div class="gov-why">${why || "—"}</div>`;
+  // the stores
+  const mats = [["store", "logs"], ["rye", "seeds"], ["bread", "bread"], ["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["coin", "coin"]];
+  h += `<div class="mc-sec">The stores</div><div class="gov-chips">${mats.map(([k, ic]) => `<span class="gov-chip"><img src="${ICON[ic]}" alt="">${S[k] || 0} <span class="t">${k === "rye" ? "rye" : k === "bread" ? "bread" : MAT_NAME[k] || k}</span></span>`).join("")}</div>`;
+  // the buildings, by kind and by style
+  const TIER = ["", "log", "timber", "brick", "modern"];
+  const byType = {};
+  for (const b of S.buildings) { if (!b.done && b.type !== "field") { (byType[b.type] ??= { n: 0, going: 0, tiers: {} }).going++; continue; } const e = (byType[b.type] ??= { n: 0, going: 0, tiers: {} }); e.n++; e.tiers[b.tier || 1] = (e.tiers[b.tier || 1] || 0) + 1; }
+  const rows = Object.entries(byType).map(([k, e]) => {
+    const d = TOWN_BUILDINGS[k] || { name: k }, ts = Object.entries(e.tiers).filter(() => d.tiers || k === "cabin" || k === "well").map(([tr, n]) => `${n} ${TIER[tr]}`).join(", ");
+    return `<span class="gov-chip"><img src="${ICON[d.icon] || ICON.cabin}" alt="">${e.n} ${esc(d.name.toLowerCase())}${e.n === 1 || /s$/.test(d.name) ? "" : "s"}${ts ? ` <span class="t">${ts}</span>` : ""}${e.going ? ` <span class="t">+${e.going} going up</span>` : ""}</span>`;
+  });
+  h += `<div class="mc-sec">Buildings</div><div class="gov-chips">${rows.join("") || '<span class="gov-why">Only the cabin, so far.</span>'}</div>`;
+  return h;
+}
+// everyone in the nation, and what they have
+function govPeople(t) {
+  const S = t.S;
+  const cabins = S.buildings.filter(b => b.done && b.type === "cabin");
+  const adults = S.people.filter(p => !p.child);
+  const packHas = (G.pack || []).map(i => `${i.n > 1 ? i.n + " " : ""}${i.name}`);
+  const you = [G.player && G.player.axe ? "Old felling axe" : null, G.player && G.player.carryN ? `${G.player.carryN} logs in the arms` : null, ...packHas].filter(Boolean);
+  const youName = G.who === "sister" ? "Sister" : "Brother", sibName = G.who === "sister" ? "Brother" : "Sister";
+  const sibA = t.sibActor;
+  let rows = `<tr><td class="nm">${youName} <span class="dim">(you)</span></td><td>Head of the household</td><td class="dim">The cabin</td><td class="dim">—</td><td><div class="has">${you.map(x => `<span>${esc(x)}</span>`).join("") || '<span class="dim">nothing</span>'}</div></td><td></td></tr>`;
+  rows += `<tr><td class="nm">${sibName}</td><td>Woodcutter · family</td><td class="dim">The cabin, the second pallet</td><td class="dim">${esc(sibA ? cap(sibA.doing || "about the clearing") : "about the clearing")}</td><td><div class="has"><span>Axe</span></div></td><td></td></tr>`;
+  S.people.forEach((p, i) => {
+    const a = t.actors.find(x => x.settler === p);
+    const home = cabins[Math.floor(i / t.perCabin)];
+    const tool = !p.child && adults.indexOf(p) < (S.tools || 0);
+    const has = [p.job === "woodcutter" ? "Axe" : null, tool ? "Iron tools" : null, home ? "A bed" : null].filter(Boolean);
+    const gone = !a || a.gone;
+    rows += `<tr><td class="nm">${esc(p.name)}${p.child ? ' <span class="dim">(child)</span>' : ""}</td>
+      <td>${p.child ? "—" : cap(JOBS[p.job || "hauler"].name)}</td>
+      <td class="dim">${home ? `Cabin ${cabins.indexOf(home) + 1}` : "By the fire — no bed"}</td>
+      <td class="dim">${esc(gone ? "away" : cap(a.doing || "about the clearing"))}</td>
+      <td><div class="has">${has.map(x => `<span>${esc(x)}</span>`).join("") || '<span class="dim">the clothes they came in</span>'}</div></td>
+      <td>${p.child ? "" : `<button data-p="${i}">Set work</button>`}</td></tr>`;
+  });
+  return `<div class="gov-why" style="margin-bottom:8px">${S.people.length + 2} souls. Everyone who is not family came up the road.</div>
+    <table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Home</th><th>Now</th><th>Has</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function wirePeople(t) {
+  for (const b of $("govBody").querySelectorAll("button[data-p]")) b.onclick = () => { const p = t.S.people[+b.dataset.p]; showOverlay("gov", false); t.chooseJob(p); };
+}
+// the tech tree, laid out and drawn exactly as Forester lays it out
+function govTechFrame(t) {
+  return `<div class="tech-trees">${TECH_TREES.map(([id, name]) => `<button class="tech-tree${id === techTree ? " on" : ""}" data-tree="${id}">${name}</button>`).join("")}</div>
+    <div class="tech-top"><input id="techSearch" placeholder="Search technologies…" value="${esc(techQuery)}" autocomplete="off" spellcheck="false"><span class="tech-purse" id="techPurse"></span></div>
+    <div class="tech-now" id="techNow"></div>
+    <div id="techWrap"><div id="techList"></div></div>
+    <div id="techDesc">Click a lit node to research it. Hover for details.</div>`;
+}
+function wireTech(t) {
+  for (const b of $("govBody").querySelectorAll(".tech-tree")) b.onclick = () => { techTree = b.dataset.tree; renderGov(true); };
+  const q = $("techSearch");
+  q.oninput = () => { techQuery = q.value; drawTech(t); };
+  // (typing a T or a G or a J in the box must not open the inventory, or close this)
+  q.onkeydown = e => { e.stopPropagation(); if (e.key === "Escape") q.blur(); };
+  q.onkeyup = e => e.stopPropagation();
+}
+const NODE_W = 118, NODE_H = 42, COL_W = 148, ROW_H = 62;
+function drawTech(t, quiet) {
+  const S = t.S, r = S.tech.research;
+  $("techPurse").textContent = `${S.coin || 0} Mark`;
+  $("techNow").innerHTML = r ? `Researching <b>${esc(TECH[r.id].name)}</b> — ${Math.min(99, Math.round(r.t / techTime(TECH[r.id]) * 100))}%, ${Math.max(0, Math.ceil(techTime(TECH[r.id]) - r.t))} s left` : `The scholars are idle. ${S.tech.done.length} of ${Object.keys(TECH).length} known.`;
+  if (quiet && !r) return;
+  const q = techQuery.trim().toLowerCase();
+  const known = id => t.knows(id);
+  // the tree stays lean: only what is researched or ready to be taken up next is drawn (or what a search finds)
+  const frontier = x => !known(x.id) && x.req.every(k => known(k));
+  const nodes = Object.values(TECH).filter(x => x.tree === techTree)
+    .filter(x => q ? (x.name.toLowerCase().includes(q) || x.desc.toLowerCase().includes(q)) : (known(x.id) || frontier(x)));
+  const list = $("techList");
+  if (!nodes.length) { list.innerHTML = '<div class="gov-why" style="padding:10px">Nothing here matches.</div>'; return; }
+  const byDepth = new Map();
+  for (const x of nodes) { if (!byDepth.has(x.depth)) byDepth.set(x.depth, []); byDepth.get(x.depth).push(x); }
+  const pos = new Map();
+  const depths = [...byDepth.keys()].sort((a, b) => a - b);
+  const colOf = new Map(depths.map((d, i) => [d, i]));
+  for (const d of depths) {
+    const col = byDepth.get(d);
+    col.sort((a, b) => { const key = x => { const ps = x.req.map(k => pos.get(k)).filter(Boolean); return ps.length ? ps.reduce((s2, p) => s2 + p.row, 0) / ps.length : 99; }; return key(a) - key(b); });
+    col.forEach((x, i) => pos.set(x.id, { col: colOf.get(d), row: i }));
+  }
+  const maxRow = Math.max(...[...pos.values()].map(p => p.row));
+  const W = depths.length * COL_W + 30, H = (maxRow + 1) * ROW_H + 30;
+  const cx = x => 20 + pos.get(x.id).col * COL_W, cy = x => 20 + pos.get(x.id).row * ROW_H;
+  let svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`;
+  for (const x of nodes) for (const k of x.req) {
+    if (!pos.has(k)) continue;
+    const p = TECH[k], x1 = cx(p) + NODE_W, y1 = cy(p) + NODE_H / 2, x2 = cx(x), y2 = cy(x) + NODE_H / 2;
+    svg += `<path class="tlink" d="M${x1},${y1} C${x1 + 24},${y1} ${x2 - 24},${y2} ${x2},${y2}"/>`;
+  }
+  for (const x of nodes) {
+    const researching = r && r.id === x.id;
+    const cls = known(x.id) ? "done" : researching ? "researching" : t.canResearch(x.id) ? "avail" : "locked";
+    const sub = known(x.id) ? "researched" : researching ? Math.round(r.t / techTime(x) * 100) + "%" : `${techCost(x)} Mark · ${Math.round(techTime(x) / 6) / 10} min`;
+    svg += `<g class="tnode ${cls}" data-tech="${x.id}"><rect x="${cx(x)}" y="${cy(x)}" width="${NODE_W}" height="${NODE_H}" rx="9"/>
+      <text x="${cx(x) + NODE_W / 2}" y="${cy(x) + 17}" text-anchor="middle">${esc(x.name)}${known(x.id) ? " ✓" : ""}</text>
+      <text class="sub" x="${cx(x) + NODE_W / 2}" y="${cy(x) + 31}" text-anchor="middle">${sub}</text></g>`;
+  }
+  list.innerHTML = svg + "</svg>";
+  const describe = x => { const req = x.req.length ? ` — needs ${x.req.map(k => TECH[k].name + (known(k) ? " ✓" : "")).join(", ")}` : ""; $("techDesc").textContent = `${x.name}: ${x.desc}${req}`; };
+  if (techHover && TECH[techHover]) describe(TECH[techHover]);
+  list.querySelectorAll(".tnode").forEach(g => {
+    const x = TECH[g.dataset.tech];
+    g.addEventListener("click", () => { if (t.canResearch(x.id)) { t.research(x.id); drawTech(t); } else describe(x); });
+    g.addEventListener("mouseenter", () => { techHover = x.id; describe(x); });
+  });
+}
+G.showGov = (on, tab) => { if (tab) govTab = tab; showOverlay("gov", on); if (on) renderGov(true); };
+
 // the settlement at a glance
 setInterval(() => {
   const tb = $("townbar"), t = G.town;
@@ -437,6 +601,10 @@ addEventListener("keydown", e => {
     else showOverlay("bigmap", overlay !== "bigmap");
   }
   if (e.code === "KeyB" && !e.repeat && G.mode === "play" && G.town && !G.town.planning) showOverlay("buildmenu", overlay !== "buildmenu");
+  if (e.code === "KeyG" && !e.repeat && G.mode === "play") {
+    if (!G.town && overlay !== "gov") UI.hint("There is no settlement to govern yet.", 2.5);
+    else showOverlay("gov", overlay !== "gov");
+  }
   if (e.code === "Escape" && overlay) { showOverlay(overlay, false); return; }
   // M takes the mouse into the game, or gives it back
   if (e.code === "KeyM" && !e.repeat) {
