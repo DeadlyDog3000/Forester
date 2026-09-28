@@ -266,7 +266,10 @@ export class Player {
     const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
     this.reload = Math.max(0, this.reload - dt);
     // hold the right mouse button to draw; let it go to loose
-    if (free && input.rdown && (this.arrows || 0) > 0 && this.reload <= 0) {
+    if (!input.rdown) this.noDraw = false;
+    // (nor does holding right-click on something to use it, like an arrow to pull out)
+    if (input.rdown && this.draw === 0 && G.interactTarget) this.noDraw = true;
+    if (free && input.rdown && !this.noDraw && (this.arrows || 0) > 0 && this.reload <= 0) {
       if (this.draw === 0) { SFX.pickup && SFX.pickup(); this.heldFull = 0; }
       this.draw = Math.min(1, this.draw + dt / 0.85);
       if (this.draw >= 1) this.heldFull += dt;
@@ -818,7 +821,7 @@ function updateInteract(dt) {
   if (ch) {
     let k = 0;                                          // 0 yellow .. 1 green
     if (it && G.holdT > 0) k = clamp(G.holdT / (it.hold || 1), 0, 1);
-    const rUse = !(G.player && G.player.bow);
+    const rUse = true;
     if (it && (input.hit("KeyF") || (rUse && input.rclick)) && !it.hold) crossFlash = 1;
     if (G.player && G.player.swingT >= 0) crossFlash = Math.max(crossFlash, 1 - G.player.swingT / 0.62);
     crossFlash = Math.max(0, crossFlash - dt * 2.2);
@@ -846,14 +849,18 @@ function updateInteract(dt) {
   const hold = it.hold || (talk ? 1.0 : 0);
   UI.prompt(label, !!hold);
   if (hold) {
-    if (input.down("KeyF") || (input.rdown && !(G.player && G.player.bow))) {
+    if (input.down("KeyF") || (input.rdown && !(G.player && G.player.draw > 0))) {
       G.holdT += dt;
       if (it.actor) it.actor.talkUntil = G.time + 0.3;
       if (it.onHoldTick) it.onHoldTick(dt, G.holdT);
       UI.hold(G.holdT / hold);
       if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; it.use(); }
     } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / hold); }
-  } else if (input.hit("KeyF") || (input.rclick && !(G.player && G.player.bow))) it.use();
+  } else if (input.hit("KeyF") || (input.rclick && !(G.player && G.player.draw > 0))) {
+    // (a right-click that picks something up is not also the start of a draw)
+    if (input.rclick && G.player) G.player.noDraw = true;
+    it.use();
+  }
 }
 
 // ---------------------------------------------------------------------------

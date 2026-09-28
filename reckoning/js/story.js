@@ -1788,6 +1788,13 @@ function startTown(w, unlocked) {
   w.setFurniture(S.furniture || null);
   if ((loadSave() || {}).carved) w.carveBeam();
   G.player.giveAxe(true);
+  // once, a little after a settlement first exists: where to see all of it
+  const g0 = GEN;
+  setTimeout(() => {
+    if (GEN !== g0 || G.town !== town || G.mode !== "play" || tipSeen("gov")) return;
+    tutor("gov", "", [["G", "your government — the nation, the tech tree, and everyone in it"]], 8);
+    UI.hint("Press G to see your government: how the settlement is doing, what it knows, and everyone who lives here.", 7);
+  }, 16000);
   return town;
 }
 const NEWCOMERS = [
@@ -1952,7 +1959,10 @@ async function ch11(w) {
   addReap();
   town.sitesAll();
   tutor("more", "Each needs its logs at the site, then your hands. Marta carries from the stack; you carry too.", [["B", "plans: well, woodshed, field"], ["J", "map"], ["T", "inventory"]], 9);
-  const need = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2 });
+  // (the rye counts as reaped once none stands ripe, whoever reaped it — the farmers do it too)
+  const ripeNow = () => S.buildings.some(b => b.type === "field" && b.sown && (b.growth ?? 1) >= 3);
+  const need = () => { if (!T.reaped && !ripeNow()) { T.reaped = true; persistT(); } return needNow(); };
+  const needNow = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2 });
   const obj = onFrame(() => {
     const n = need(), parts = [];
     if (!n.reap) parts.push("Reap the rye");
@@ -2099,6 +2109,7 @@ async function chHarvest(w) {
   const f0 = S.buildings.find(b => b.type === "field" && b.sown);
   if (f0 && !H.reaped) { f0.growth = 3; town.show(f0); }
   town.t = (4 + 0.1) * DAY;          // the first morning of autumn
+  const stopTraders = [hennings(w, town), pedlar(w, town)];
   const stopDay = dayCycle(w, town, DAY, { onReap: () => { if (!H.reaped) { H.reaped = true; persistH(); bark(P.sib, "Twenty sacks' worth. Watch the number on the board — it goes down every day we eat.", 4); } } });
   // Jan and his sister wait by the fire until there's a roof for them
   let visitors = H.joined ? [] : [spawn(settlerLookFor(JAN), FIRE.x - 2.9, FIRE.z + 1.4, 0), spawn(settlerLookFor(LIESEL), FIRE.x - 3.3, FIRE.z + 0.2, 0)];
@@ -2135,6 +2146,11 @@ async function chHarvest(w) {
   town.on("furnished", () => { if (!H.furnished) { H.furnished = true; persistH(); bark(P.sib, "Look at that. Like people live here.", 3); } });
   let shortTold = false;
   const obj = onFrame(() => {
+    // anything already done, however it came to be done, comes off the board: the rye reaped by a farmer,
+    // a cabin with room in it already standing, furniture already made
+    if (!H.reaped && f0 && (f0.growth ?? 1) < 3) { H.reaped = true; persistH(); }
+    if (!H.joined && visitors.length && town.beds - 2 - S.people.length >= 2) join();
+    if (!H.furnished && (S.furniture || []).length) { H.furnished = true; persistH(); }
     const parts = [];
     if (!H.reaped) parts.push("Reap the rye");
     if (!H.joined) {
@@ -2162,7 +2178,7 @@ async function chHarvest(w) {
   // ---- the harvest supper ----
   G.lockMove = true;
   await fade(1, 2);
-  stopDay(); town.stop(); G.town = town;
+  stopDay(); stopTraders.forEach(f => f()); town.stop(); G.town = town;
   sib.remove();
   setAtmo("firelight"); w.lightFire(true); w.setFire(1); SFX.fireLoop(true);
   const n = S.people.length + 3;
@@ -2333,10 +2349,14 @@ async function chReckoning(w) {
   await wait(1.5);
   G.lockMove = true;
   await fade(1, 3);
-  S.days = 5.3; town.persist();          // the first frost: winter is a day off
+  S.days = 5.3;                          // the first frost: winter is a day off
+  // what the house fetched: the settlement's first real money, for research above all
+  if (!S.houseSold) { S.houseSold = true; S.coin = (S.coin || 0) + 70; }
+  town.persist();
   writeSave({ unlocked: 14, finishedTutorial: true, reckoning: choice === 0 ? "stayed" : "went" });
   if (choice === 1) await narrate("We went down the road to Hamburg, and saw his name in the rolls, in a clerk's good hand. By spring we had sold the house, and we came back up the road with a cart of seed and nails.", 6);
   else await narrate("Jakob sold the house on the Deichstraße. By spring a cart came up the road with seed, and nails, and a saw.", 5);
+  await narrate("And with it, what was left of what the house fetched: seventy Deutsche Mark, in a purse sewn into the lining.", 4.5);
   await narrate(`${S.name} is yours. Build, fell, sow — and see who comes up the road.`, 4.5);
   await card("Free play", S.name, 3.5);
   return startChapter(14);
@@ -2345,30 +2365,24 @@ async function chReckoning(w) {
 // ---------------------------------------------------------------------------
 //  Henning's cart: every third morning he comes up the road, and he trades
 // ---------------------------------------------------------------------------
-// Every Mark in the settlement comes from outside it. He buys what you have too
+// Every DM in the settlement comes from outside it. He buys what you have too
 // much of and sells what you are short of — and the odd thing that makes work go faster.
-function hennings(w, town, DAY) {
+// Traders on the road: they come up to the top of the clearing on their days, buy and sell, and go.
+// Every DM in the settlement comes from outside it — from them, or from a market.
+function trader(w, town, spec) {
   const S = town.S;
-  let here = null, told = false;
-  const offers = () => [
-    { label: "Sell 6 logs", note: "Good dry spruce for the kilns.", get: "+2 Mark", can: () => S.store >= 6, do: () => { S.store -= 6; S.coin += 2; w.setStack(Math.min(S.store, 24)); } },
-    { label: "Sell 6 loaves", note: "He knows a miller's wife who'll take them.", get: "+3 Mark", can: () => S.bread >= 6, do: () => { S.bread -= 6; S.coin += 3; } },
-    { label: "Sell 10 rye", note: "", get: "+2 Mark", can: () => S.rye >= 10, do: () => { S.rye -= 10; S.coin += 2; } },
-    { label: "Buy 10 rye", note: "For a hungry winter.", get: "4 Mark", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 10; } },
-    { label: "Buy a good saw", note: "Every tree felled gives a log more.", get: "10 Mark", can: () => S.coin >= 10 && !S.upgrades.saw, done: () => S.upgrades.saw, do: () => { S.coin -= 10; S.upgrades.saw = true; } },
-    { label: "Buy iron axe heads", note: "The woodcutters fell a third quicker.", get: "14 Mark", can: () => S.coin >= 14 && !S.upgrades.axes, done: () => S.upgrades.axes, do: () => { S.coin -= 14; S.upgrades.axes = true; } },
-    { label: "Buy a dozen arrows", note: "For the bow.", get: "2 Mark", can: () => S.coin >= 2, do: () => { S.coin -= 2; G.player.arrows = (G.player.arrows || 0) + 12; } },
-  ];
+  let here = null;
   const arrive = () => {
     const r0 = w.road[w.road.length - 30];
-    const cartB = new Builder(); PROPS.cart(cartB, 29.2, -283, 0.2); const cart = cartB.build(); cart.position.y = w.heightAt(29.2, -283); w.root.add(cart);
-    const h = spawn(HENNING, r0.x, r0.z, 0);
-    h.walkTo(30.4, -287.5, 1.4).then(() => { if (h.root.parent) { h.faceTo(CLEARING.x, CLEARING.z); h.person.setPose("armsCrossed"); } });
-    const it = w.addInteract({ get x() { return h.pos.x; }, get z() { return h.pos.z; }, get y() { return h.pos.y + 1.4; }, reach: 2.6, label: "Trade with Henning",
-      use: () => G.openTrade && G.openTrade("Henning's cart", `${S.coin} Mark in the purse`, offers(), () => { town.persist(); SFX.pickup(); }) });
+    const [cx, cz, stand] = spec.at;
+    const cartB = new Builder(); PROPS.cart(cartB, cx, cz, 0.2); const cart = cartB.build(); cart.position.y = w.heightAt(cx, cz); w.root.add(cart);
+    const h = spawn(spec.look, r0.x, r0.z, 0);
+    h.walkTo(stand[0], stand[1], 1.4).then(() => { if (h.root.parent) { h.faceTo(CLEARING.x, CLEARING.z); h.person.setPose("armsCrossed"); } });
+    const it = w.addInteract({ get x() { return h.pos.x; }, get z() { return h.pos.z; }, get y() { return h.pos.y + 1.4; }, reach: 2.6, label: `Trade with ${spec.name}`,
+      use: () => G.openTrade && G.openTrade(spec.title, `${S.coin} DM in the purse`, spec.offers(S), () => { town.persist(); town.showStore && town.showStore(); SFX.pickup(); }) });
     here = { h, cart, it };
-    UI.hint("Henning's cart is at the top of the clearing. He'll buy, and he has things to sell.", 6);
-    if (!told) { told = true; tutor("trade", "", [["F", "beside Henning: trade"]], 7); }
+    UI.hint(spec.hello, 6);
+    tutor("trade", "", [["F", "beside a trader: buy and sell"]], 7);
   };
   const leave = () => {
     const { h, cart, it } = here; here = null;
@@ -2377,10 +2391,46 @@ function hennings(w, town, DAY) {
     h.person.setPose("idle");
     h.walkTo(r0.x, r0.z, 1.4).then(() => { h.remove(); w.root.remove(cart); });
   };
-  onFrame(() => {
-    const f = town.frac, due = town.day % 3 === 1 && f > 0.1 && f < 0.6;
+  const off = onFrame(() => {
+    const f = town.frac, due = spec.due(town.day) && f > 0.1 && f < 0.6;
     if (due && !here) arrive();
     else if (!due && here) leave();
+  });
+  return () => { off(); if (here) leave(); };
+}
+// Henning, from the kiln, every third day: he buys what the settlement makes, and sells rye and good iron
+function hennings(w, town) {
+  return trader(w, town, {
+    name: "Henning", title: "Henning's cart", look: HENNING, at: [29.2, -283, [30.4, -287.5]], due: d => d % 3 === 1,
+    hello: "Henning's cart is at the top of the clearing, on the road. Sell him logs, bread and rye for DM — and he has things to sell.",
+    offers: S => [
+      { label: "Sell 6 logs", note: "Good dry spruce for the kilns.", get: "+2 DM", can: () => S.store >= 6, do: () => { S.store -= 6; S.coin += 2; } },
+      { label: "Sell 6 loaves", note: "He knows a miller's wife who'll take them.", get: "+3 DM", can: () => S.bread >= 6, do: () => { S.bread -= 6; S.coin += 3; } },
+      { label: "Sell 10 rye", note: "", get: "+2 DM", can: () => S.rye >= 10, do: () => { S.rye -= 10; S.coin += 2; } },
+      { label: "Buy 10 rye", note: "For a hungry winter.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 10; } },
+      { label: "Buy a good saw", note: "Every tree felled gives a log more.", get: "10 DM", can: () => S.coin >= 10 && !S.upgrades.saw, done: () => S.upgrades.saw, do: () => { S.coin -= 10; S.upgrades.saw = true; } },
+      { label: "Buy iron axe heads", note: "The woodcutters fell a third quicker.", get: "14 DM", can: () => S.coin >= 14 && !S.upgrades.axes, done: () => S.upgrades.axes, do: () => { S.coin -= 14; S.upgrades.axes = true; } },
+      { label: "Buy a dozen arrows", note: "For the bow.", get: "2 DM", can: () => S.coin >= 2, do: () => { S.coin -= 2; G.player.arrows = (G.player.arrows || 0) + 12; } },
+    ],
+  });
+}
+// Tobias the pedlar, out of Lübeck, every fourth day: a pack-cart of everything, dear, and he buys planks, bricks and meat
+const PEDLAR = { model: "townsman", name: "Tobias", coat: 0x5a3a2a, legs: 0x2e2a24, hair: 0x3a2a1e, hat: "tricorn", hatColor: 0x2a2420, vest: 0x9a7a3a, seed: 91 };
+function pedlar(w, town) {
+  return trader(w, town, {
+    name: "Tobias the pedlar", title: "Tobias's pack-cart", look: PEDLAR, at: [25.2, -284.5, [26.6, -288.6]], due: d => d % 4 === 3,
+    hello: "A pedlar has come up the road — Tobias, out of Lübeck. He sells arrows, tools and iron, and buys planks, bricks and meat for DM.",
+    offers: S => [
+      { label: "Buy 20 arrows", note: "Goose-fletched, and straight.", get: "3 DM", can: () => S.coin >= 3, do: () => { S.coin -= 3; G.player.arrows = (G.player.arrows || 0) + 20; } },
+      { label: "Buy iron tools", note: "A set for one pair of hands: they work a quarter faster.", get: "8 DM", can: () => S.coin >= 8, do: () => { S.coin -= 8; S.tools = (S.tools || 0) + 1; } },
+      { label: "Buy 4 iron", note: "Swedish bar iron.", get: "10 DM", can: () => S.coin >= 10, do: () => { S.coin -= 10; S.iron = (S.iron || 0) + 4; } },
+      { label: "Buy 10 stone", note: "Cut, and heavy on his poor horse.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.stone = (S.stone || 0) + 10; } },
+      { label: "Buy a barrel of salt pork", note: "Feeds the settlement like 20 rye.", get: "6 DM", can: () => S.coin >= 6, do: () => { S.coin -= 6; S.rye += 20; } },
+      { label: "Sell 6 planks", note: "", get: "+4 DM", can: () => (S.planks || 0) >= 6, do: () => { S.planks -= 6; S.coin += 4; } },
+      { label: "Sell 10 bricks", note: "", get: "+5 DM", can: () => (S.bricks || 0) >= 10, do: () => { S.bricks -= 10; S.coin += 5; } },
+      { label: "Sell your meat", note: "Venison and hare fetch a good price in town.", get: "+2 DM each", can: () => (G.pack.find(i => i.icon === "meat") || {}).n > 0,
+        do: () => { const m = G.pack.find(i => i.icon === "meat"); S.coin += 2 * (m.n || 1); G.pack.splice(G.pack.indexOf(m), 1); } },
+    ],
   });
 }
 
@@ -2406,7 +2456,7 @@ async function chFree(w) {
   town.t = (S.days ?? S.clock ?? 0.1) * DAY;
   town.day = Math.floor(town.t / DAY);
   dayCycle(w, town, DAY);
-  hennings(w, town, DAY);
+  hennings(w, town); pedlar(w, town);
   // the board says the season and the day, and what wants doing next
   onFrame(() => UI.objective(`${S.name} — ${town.season}, day ${town.day + 1} · ${town.advice()}`));
   // who comes up the road: when there is a bed, and bread enough
@@ -2424,6 +2474,9 @@ async function chFree(w) {
     } else if (S.rye < pop) bark(P.sib, "The rye's running low. Reap what's ripe, or dig another field.", 4);
   });
   await wait(0.2);
+  // (the money from the house, said once, where it will be spent)
+  if (!S.houseSold) { S.houseSold = true; S.coin = (S.coin || 0) + 70; town.persist(); }
+  if (S.houseSold && !S.houseTold) { S.houseTold = true; town.persist(); setTimeout(() => G.town === town && UI.hint("+70 DM from the sale of the house. Spend it on research: press G, then the tech tree.", 7), 7000); }
   const c = card(S.name, "Free play", 2.8);
   await wait(1); fade(0, 2); await c;
   tutor("free", "It's ours now. Build what we need — cabins bring people, fields feed them, a woodshed keeps the logs dry, a well makes the rye grow.", [["B", "plans"], ["G", "government"], ["J", "map"], ["T", "inventory"]], 10);

@@ -34,7 +34,7 @@ export const BUILDINGS = {
   mine:     { name: "Mine", cost: 20, mats: { stone: 6 }, model: "town/mine_1", w: 7, d: 8, icon: "ore", note: "A miner brings up iron ore from under the hill." },
   smelter:  { name: "Smelter", cost: 12, mats: { stone: 16, bricks: 6 }, model: "town/smelter", tiers: true, w: 8.4, d: 5.2, icon: "iron", note: "Ore and charcoal in, iron out." },
   forge:    { name: "Forge", cost: 14, mats: { stone: 10 }, model: "town/forge", tiers: true, w: 8, d: 6, icon: "tools", note: "A smith makes iron tools: everyone who has one works a quarter faster." },
-  market:   { name: "Market", cost: 20, mats: { planks: 6 }, model: "town/market", tiers: true, w: 8.6, d: 10, icon: "coin", note: "Sells what you have too much of, every day, for Marks." },
+  market:   { name: "Market", cost: 20, mats: { planks: 6 }, model: "town/market", tiers: true, w: 8.6, d: 10, icon: "coin", note: "Sells what you have too much of, every day, for DM (Deutsche Mark)." },
   townhall: { name: "Town hall", cost: 30, mats: { stone: 12, planks: 10 }, model: "town/townhall", tiers: true, w: 9.6, d: 10, icon: "cabin", note: "A seat for the town, and a charter: without one, no town builds as a city does." },
   church:   { name: "Church", cost: 24, mats: { stone: 10 }, model: "town/church", tiers: true, w: 7, d: 13, icon: "cabin", note: "Somewhere to pray, and to bury, and to be married. People are happier with one." },
 };
@@ -48,7 +48,7 @@ export const WORKS = {
   smith: { at: "forge", time: 14, need: { iron: 2, store: 1 }, give: { tools: 1 }, pose: "hammer" },
 };
 // what the materials are called, for the board and the labels
-export const MAT_NAME = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "iron ore", iron: "iron", tools: "tools", coin: "Mark" };
+export const MAT_NAME = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "iron ore", iron: "iron", tools: "tools", coin: "DM" };
 // rebuilding a building in the next style: what it costs, what it's called, and what it needs first
 export const UPGRADES = {
   2: { style: "timber and plaster, as Hamburg builds", mats: { planks: 8, stone: 6, coin: 4 } },
@@ -83,6 +83,33 @@ const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawy
 // which building a job needs, if any
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
 const SFX = () => window.SFX || { chop() {}, build() {}, pickup() {}, hammer() {}, treeFall() {}, timberCrack() {} };
+
+// ---- the sign over a building site: what it still needs, in icons and numbers ----
+const SITE_ICON = { store: "../assets/sprites/items/logs.png", stone: "../assets/sprites/items/stone.png", planks: "art/item_door.png",
+  bricks: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", tools: "../assets/sprites/items/tool_iron.png" };
+const iconImg = {};
+const loadIcon = src => iconImg[src] ??= new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+function siteSign(rows, ready) {
+  const W = 256, H = 64 * Math.max(1, rows.length) + (ready ? 0 : 0);
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+  sp.scale.set(W / 110, H / 110, 1); sp.renderOrder = 10;
+  (async () => {
+    const c = cv.getContext("2d");
+    c.fillStyle = "rgba(8,20,13,0.82)"; c.strokeStyle = ready ? "#8cc084" : "rgba(140,192,132,0.55)"; c.lineWidth = 3;
+    c.beginPath(); c.roundRect(2, 2, W - 4, H - 4, 10); c.fill(); c.stroke();
+    c.font = "600 30px 'Open Sans', system-ui, sans-serif"; c.textBaseline = "middle"; c.imageSmoothingEnabled = false;
+    for (let i = 0; i < rows.length; i++) {
+      const [k, text, done] = rows[i], y = 32 + i * 64;
+      const im = SITE_ICON[k] ? await loadIcon(SITE_ICON[k]) : null;
+      if (im) c.drawImage(im, 14, y - 22, 44, 44);
+      c.fillStyle = done ? "#8cc084" : "#f1ead8"; c.fillText(text, im ? 70 : 18, y + 1);
+    }
+    tex.needsUpdate = true;
+  })();
+  return sp;
+}
 
 // someone lying down on a bed (from w.bedSpot): on their back, head on the pillow
 export function lieOn(a, bed) {
@@ -129,7 +156,7 @@ export class Town {
     w.settled = true;
     // the trees felled before stay down (stumps), until they grow back
     for (const f of this.S.felled) { const t = w.fellable[f.i]; if (t) this.fellNow(t, true); }
-    w.setStack(Math.min(this.S.store, 24));
+    this.showStore();
     for (const b of this.S.buildings) this.show(b);
     for (const l of this.S.logs) this.dropLogs(l.x, l.z, l.a, l.n, true);
     this.setupForestry();
@@ -139,7 +166,7 @@ export class Town {
   // ---- materials: logs are the stack, the rest are kept in the stores ----
   have(k) { return this.S[k] || 0; }
   afford(mats) { return Object.entries(mats || {}).every(([k, n]) => this.have(k) >= n); }
-  pay(mats) { for (const [k, n] of Object.entries(mats || {})) this.S[k] -= n; if (mats && mats.store) this.w.setStack(Math.min(this.S.store, 24)); }
+  pay(mats) { for (const [k, n] of Object.entries(mats || {})) this.S[k] -= n; if (mats && mats.store) this.showStore(); }
   short(mats) { return Object.entries(mats || {}).filter(([k, n]) => this.have(k) < n).map(([k, n]) => `${n - this.have(k)} ${MAT_NAME[k] || k}`).join(", "); }
   costText(mats) { return Object.entries(mats || {}).map(([k, n]) => `${n} ${MAT_NAME[k] || k}`).join(", "); }
   // what a site still wants, beyond its logs
@@ -208,7 +235,7 @@ export class Town {
   // is it time? when the buildings have filled what there is
   needsRoom() { return this.S.buildings.filter(b => b.type !== "field").length >= 7 + this.S.expand * 5 && !this.toClear().length; }
 
-  // ---- knowledge: Forester's tech tree (gov.js), researched with Marks and time ----
+  // ---- knowledge: Forester's tech tree (gov.js), researched with DM and time ----
   knows(id) { return this.S.tech.done.includes(id); }
   canResearch(id) { const t = TECH[id]; return !!t && !this.knows(id) && !this.S.tech.research && t.req.every(r => this.knows(r)); }
   research(id) {
@@ -217,7 +244,7 @@ export class Town {
     if (this.S.tech.research) { UI.hint("The scholars are already busy.", 3); return false; }
     if (!t.req.every(r => this.knows(r))) { UI.hint("Its prerequisites are not yet known.", 3); return false; }
     const cost = techCost(t);
-    if (this.S.coin < cost) { UI.hint(`Research costs ${cost} Mark. The purse holds ${this.S.coin}.`, 3.5); return false; }
+    if (this.S.coin < cost) { UI.hint(`Research costs ${cost} DM. The purse holds ${this.S.coin}.`, 3.5); return false; }
     this.S.coin -= cost;
     this.S.tech.research = { id, t: 0 };
     UI.hint(`Research begun: ${t.name} (${Math.round(techTime(t) / 60 * 10) / 10} min).`, 3.5);
@@ -260,6 +287,8 @@ export class Town {
     else if (b.done) {
       const key = modelKey(b), m = modelCopy(key);
       if (m) g.add(m.scene);
+      // (the woodshed's own logs are drawn from the store, not always full)
+      if (m && b.type === "woodshed") m.scene.traverse(o => { if (o.isMesh && /log/.test(o.name)) o.visible = false; });
       else {
         const bb = new Builder(); bb.box(def.w * 0.8, 2.4, def.d * 0.8, 0, 1.2, 0, 0x7a5634); g.add(bb.build());
         // the real one is fetched, and put up in place of this when it comes
@@ -279,11 +308,23 @@ export class Town {
         const ax = x0 * def.w / 2, az = z0 * def.d / 2, bx = x1 * def.w / 2, bz = z1 * def.d / 2;
         bb.box(Math.max(0.02, Math.abs(bx - ax)), 0.02, Math.max(0.02, Math.abs(bz - az)), (ax + bx) / 2, 0.9, (az + bz) / 2, 0xd8ceb4);
       }
+      // the sign: what it still wants, or that it's ready for your hands
+      if (b.type !== "field") {
+        const want = this.wants(b), rows = [];
+        rows.push(["store", `${Math.min(b.logs || 0, def.cost)} / ${def.cost} logs`, (b.logs || 0) >= def.cost]);
+        for (const [k, n2] of Object.entries(def.mats || {})) rows.push([k, `${n2 - (want[k] || 0)} / ${n2} ${MAT_NAME[k]}`, !want[k]]);
+        const ready = this.ready(b);
+        if (ready) rows.push(["", "Raise it — hold F", true]);
+        const sign = siteSign(rows, ready);
+        sign.position.set(0, 3.4 + rows.length * 0.28, 0);
+        g.add(sign);
+      }
       const n = Math.min(b.logs || 0, def.cost);
       for (let i = 0; i < n; i++) { const row = Math.floor(i / 5), col = i % 5; bb.add(new THREE.CylinderGeometry(0.15, 0.15, 2.4, 7), 0x7a5634, (col - 2) * 0.32, 0.15 + row * 0.27, def.d / 2 + 1.2, Math.PI / 2, Math.PI / 2, 0, 1, 1, 1, 0.08); }
       g.add(bb.build(MAT.rough));
     }
     w.root.add(g); this.vis.set(b, g);
+    if (b.type === "woodshed" && b.done) this.showStore();
   }
   fieldVis(g, b) {
     const w = this.w, growth = b.growth ?? 0;
@@ -387,9 +428,10 @@ export class Town {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
         w.root.remove(ghost); this.planning = null;
         if (f) {
-          this.S.store -= d.logs || 0; this.S.rye -= d.rye || 0; w.setStack(Math.min(this.S.store, 24));
+          this.S.store -= d.logs || 0; this.S.rye -= d.rye || 0; this.showStore();
           this.S.furniture = [...w.furniture, f]; w.setFurniture(this.S.furniture);
           this.persist(); SFX().build(); this.emit("furnished", f);
+          UI.hint(`${d.name} made: ${[d.logs ? `${d.logs} logs` : "", d.rye ? `${d.rye} rye` : ""].filter(Boolean).join(" and ")} from the ${this.has("woodshed") ? "woodshed" : "stack"} (${this.S.store} left).`, 4);
         }
         res(f);
       };
@@ -435,6 +477,7 @@ export class Town {
           this.show(b); this.persist(); SFX().pickup(); return;
         }
         b.done = true; w.removeInteract(it); this.show(b); this.persist(); SFX().build(); this.emit("built", b);
+        if (b.type === "woodshed" && this.count("woodshed") === 1) UI.hint(`The woodshed is up: the logs from the stack go in under its roof (${this.S.store}), and the old stack is cleared away.`, 6);
       },
     });
     // the interact system wants hold as a number; keep it current
@@ -506,16 +549,45 @@ export class Town {
   emit(ev, x, y) { for (const [e, f] of this.hooks) if (e === ev) f(x, y); }
 
   // ---- the stack by the cabin: logs in, logs out ----
+  // where the logs are kept: the stack by the cabin, or, once there is one, in front of the woodshed
+  get stackAt() {
+    const sh = this.S.buildings.find(b => b.done && b.type === "woodshed");
+    if (!sh) return { x: STACK.x, z: STACK.z };
+    const d = BUILDINGS.woodshed.d / 2 + 1.0;
+    return { x: sh.x + Math.sin(sh.ry) * d, z: sh.z + Math.cos(sh.ry) * d };
+  }
+  // the logs, drawn as they are: the stack by the cabin fills as the store does; a woodshed takes them all in,
+  // and the old stack and its platform are gone
+  showStore() {
+    const w = this.w, sheds = this.S.buildings.filter(b => b.done && b.type === "woodshed");
+    const fill = this.storeCap ? clamp(this.S.store / this.storeCap, 0, 1) : 0;
+    if (!sheds.length) { w.stack.visible = true; w.setStack(this.S.store > 0 ? Math.max(1, Math.round(fill * 24)) : 0); return; }
+    w.stack.visible = false;
+    for (const b of sheds) {
+      const g = this.vis.get(b); if (!g) continue;
+      const n = this.S.store > 0 ? Math.max(1, Math.round(fill * 30)) : 0;
+      if (g.userData.pileN === n) continue;
+      g.userData.pileN = n;
+      if (g.userData.pile) g.remove(g.userData.pile);
+      const pb = new Builder();
+      // two stacks along the shed, five logs deep, as many rows as there are logs for
+      for (let k = 0; k < n; k++) {
+        const side = k % 2, idx = Math.floor(k / 2), row = Math.floor(idx / 5), col = idx % 5;
+        pb.add(new THREE.CylinderGeometry(0.15, 0.15, 1.5, 8), 0x7a5634, side ? 0.8 : -0.8, 0.17 + row * 0.29, -0.1 + (col - 2) * 0.31 + (row % 2) * 0.05, 0, 0, Math.PI / 2, 1, 1, 1, 0.1);
+      }
+      g.userData.pile = pb.build(MAT.rough); g.add(g.userData.pile);
+    }
+  }
   setupStack() {
-    const w = this.w, pl = G.player;
-    this.stackIt = w.addInteract({ x: STACK.x, y: w.cy + 0.8, z: STACK.z, reach: 2.6,
-      label: () => pl.carryN > 0 ? `Stack the logs (${pl.carryN})` : `Take logs from the stack (${this.S.store})`,
+    const w = this.w, pl = G.player, at = () => this.stackAt;
+    this.stackIt = w.addInteract({ get x() { return at().x; }, y: w.cy + 0.8, get z() { return at().z; }, reach: 2.6,
+      label: () => { const shed = this.has("woodshed"); return pl.carryN > 0 ? `${shed ? "Put the logs in the woodshed" : "Stack the logs"} (${pl.carryN})` : `Take logs from the ${shed ? "woodshed" : "stack"} (${this.S.store})`; },
       can: () => pl.carryN > 0 ? this.S.store < this.storeCap : this.S.store > 0,
       use: () => {
         if (pl.carryN > 0) { const n = Math.min(pl.carryN, this.storeCap - this.S.store); this.S.store += n; pl.carryN -= n; }
         else { const n = Math.min(CARRY_MAX, this.S.store); this.S.store -= n; pl.carryN += n; }
         UI.carry(pl.carryN ? `Carrying ${pl.carryN} log${pl.carryN > 1 ? "s" : ""}` : null);
-        w.setStack(Math.min(this.S.store, 24)); this.persist(); SFX().build();
+        this.showStore(); this.persist(); SFX().build();
       } });
   }
 
@@ -681,6 +753,7 @@ export class Town {
     if (this.beds + 2 <= pop) return "Every bed is taken — raise a cabin (B), and someone may come up the road";
     if (!this.has("woodshed") && S.store > this.storeCap - 8) return "The stack is nearly full — build a woodshed (B)";
     if (!this.has("well")) return "Dig a well (B): the fields will yield more";
+    if ((S.coin || 0) < 15 && !this.has("market")) return "Short of DM? Sell logs, bread and rye to the traders on the road — Henning comes every third day, Tobias the pedlar every fourth";
     return "A bed is free: keep the rye up, and someone will come up the road";
   }
 
@@ -704,7 +777,7 @@ export class Town {
       if (!clearing && job === "hauler" && matSite) {
         a.doing = `carrying stores to the ${BUILDINGS[matSite.type].name.toLowerCase()}`;
         // stone and planks and bricks from the stores, carried to the site
-        await a.walkTo(STACK.x + 1.3, STACK.z + 0.8, 1.3); alive();
+        await a.walkTo(this.stackAt.x + 1.0, this.stackAt.z + 0.6, 1.3); alive();
         a.person.setPose("hold");
         await a.walkTo(matSite.x + 1.6, matSite.z + BUILDINGS[matSite.type].d / 2 + 1.4, 1.1); alive();
         matSite.got = matSite.got || {};
@@ -736,9 +809,9 @@ export class Town {
         await sleep(1.5);
       } else if (!clearing && job === "hauler" && site && this.S.store > 0) {
         a.doing = `carrying logs to the ${BUILDINGS[site.type].name.toLowerCase()}`;
-        await a.walkTo(STACK.x + 1.3, STACK.z + 0.8, 1.3); alive();
+        await a.walkTo(this.stackAt.x + 1.0, this.stackAt.z + 0.6, 1.3); alive();
         const n = Math.min(4, this.S.store, BUILDINGS[site.type].cost - site.logs); if (n <= 0) continue;
-        this.S.store -= n; this.w.setStack(Math.min(this.S.store, 24)); a.person.setPose("hold");
+        this.S.store -= n; this.showStore(); a.person.setPose("hold");
         await a.walkTo(site.x + 1.6, site.z + BUILDINGS[site.type].d / 2 + 1.4, 1.1); alive();
         site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); SFX().pickup();
         await sleep(2);
@@ -758,9 +831,9 @@ export class Town {
         this.fell(t, -dx, -dz, false);
         await sleep(2.6); alive();
         a.person.setPose("hold");
-        await a.walkTo(STACK.x + 1.4, STACK.z + 0.6, 1.2); alive();
+        await a.walkTo(this.stackAt.x + 1.1, this.stackAt.z + 0.4, 1.2); alive();
         a.person.setPose("idle");
-        this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.w.setStack(Math.min(this.S.store, 24)); this.persist(); SFX().build();
+        this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); SFX().build();
         await sleep(3 + Math.random() * 3);
       } else if (job === "baker" && this.has("bakery") && this.S.rye >= 2) {
         a.doing = "baking";
@@ -836,14 +909,14 @@ export class Town {
         const plus = (this.knows("trading") ? 1 : 0) + (this.knows("marketing") ? 1 : 0);
         for (const [k, keep, per, price] of sell) { const n = Math.min(10, Math.floor(Math.max(0, this.have(k) - keep) / per)); this.S[k] -= n * per; got += n * (price + (n ? plus : 0)); }
         this.S.soldToday = got;
-        if (got) { this.S.coin += got; this.w.setStack(Math.min(this.S.store, 24)); this.emit("sold", got); }
+        if (got) { this.S.coin += got; this.showStore(); this.emit("sold", got); }
       }
       // in winter every hearth burns a log a day; two cold days, and someone goes
       if (winter) {
         const fire = this.hearths;
-        if (this.S.store >= fire) { this.S.store -= fire; this.S.cold = 0; this.w.setStack(Math.min(this.S.store, 24)); }
+        if (this.S.store >= fire) { this.S.store -= fire; this.S.cold = 0; this.showStore(); }
         else {
-          this.S.store = 0; this.w.setStack(0); this.S.cold = (this.S.cold || 0) + 1;
+          this.S.store = 0; this.showStore(); this.S.cold = (this.S.cold || 0) + 1;
           if (this.S.cold >= 2) { this.S.cold = 0; this.leave("cold"); } else this.emit("cold", this.day);
         }
       }

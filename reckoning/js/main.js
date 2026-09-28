@@ -289,7 +289,7 @@ G.closeTrade = () => showOverlay("trade", false);
 function renderTrade() {
   const t = tradeNow; if (!t) return;
   $("tradeTitle").textContent = t.title;
-  $("tradePurse").textContent = t.purse && !/Mark/.test(t.purse) ? t.purse : G.town ? `${G.town.S.coin} Mark` : "";
+  $("tradePurse").textContent = t.purse && !/DM/.test(t.purse) ? t.purse : G.town ? `${G.town.S.coin} DM` : "";
   $("tradeList").innerHTML = t.offers.map((o, i) => {
     const done = o.done && o.done(), ok = !done && o.can();
     return `<button class="plan${done ? " owned" : ok ? "" : " short"}" data-i="${i}"><img src="${ICON[o.icon] || (o.label.startsWith("Sell") ? ICON.coin : ICON.cart)}" alt=""><span><span class="pn">${esc(o.label)}${done ? esc(o.doneText ?? " — yours") : ""}</span><span class="pd">${esc(o.note || "")}</span></span><span class="pc">${esc(o.get)}</span></button>`;
@@ -347,7 +347,10 @@ function govNation(t) {
   h += stat("Contentment", `${c.value} / 100`, c.value >= 60 ? "They are glad they came." : c.value >= 40 ? "They manage." : "Unhappy — nobody new will stay.", c.value / 100);
   h += stat("Food", `${foodDays} day${foodDays === 1 ? "" : "s"}`, `${S.rye} rye, ${S.bread || 0} bread · ${need} a day`, foodDays / 8);
   h += stat("Firewood", `${S.store} logs`, t.winter ? `${fuelDays} winter days at ${t.hearths} hearths` : `winter burns ${t.hearths} a day · store holds ${t.storeCap}`, t.winter ? fuelDays / 4 : S.store / Math.max(1, t.hearths * 4));
-  h += stat("Treasury", `${S.coin || 0} Mark`, t.has("market") ? `the market took ${S.soldToday || 0} Mark yesterday` : "no market yet — sell to Henning's cart");
+  // where DM comes from: the traders on the road, and a market
+  const next = (every, on) => { for (let k = 0; k < every + 1; k++) if ((t.day + k) % every === on) return k; return 0; };
+  const when = k => k === 0 ? "today" : k === 1 ? "tomorrow" : `in ${k} days`;
+  h += stat("Treasury", `${S.coin || 0} DM`, `Earn DM by selling logs, bread and rye to the traders on the road — Henning ${when(next(3, 1))}, Tobias the pedlar ${when(next(4, 3))}${t.has("market") ? ` · the market took ${S.soldToday || 0} DM yesterday` : " — or build a market (research Trading) to sell every day"}.`);
   h += stat("Knowledge", `${known} of ${total}`, rt ? `researching ${esc(rt.name)} — ${Math.min(99, Math.round(r.t / techTime(rt) * 100))}%` : "the scholars are idle — see the tech tree", rt ? r.t / techTime(rt) : known / total, false);
   h += `</div><div class="mc-sec">Why they feel as they do</div><div class="gov-why">${why || "—"}</div>`;
   // the stores
@@ -413,7 +416,7 @@ function wireTech(t) {
 const NODE_W = 118, NODE_H = 42, COL_W = 148, ROW_H = 62;
 function drawTech(t, quiet) {
   const S = t.S, r = S.tech.research;
-  $("techPurse").textContent = `${S.coin || 0} Mark`;
+  $("techPurse").textContent = `${S.coin || 0} DM`;
   $("techNow").innerHTML = r ? `Researching <b>${esc(TECH[r.id].name)}</b> — ${Math.min(99, Math.round(r.t / techTime(TECH[r.id]) * 100))}%, ${Math.max(0, Math.ceil(techTime(TECH[r.id]) - r.t))} s left` : `The scholars are idle. ${S.tech.done.length} of ${Object.keys(TECH).length} known.`;
   if (quiet && !r) return;
   const q = techQuery.trim().toLowerCase();
@@ -446,7 +449,7 @@ function drawTech(t, quiet) {
   for (const x of nodes) {
     const researching = r && r.id === x.id;
     const cls = known(x.id) ? "done" : researching ? "researching" : t.canResearch(x.id) ? "avail" : "locked";
-    const sub = known(x.id) ? "researched" : researching ? Math.round(r.t / techTime(x) * 100) + "%" : `${techCost(x)} Mark · ${Math.round(techTime(x) / 6) / 10} min`;
+    const sub = known(x.id) ? "researched" : researching ? Math.round(r.t / techTime(x) * 100) + "%" : `${techCost(x)} DM · ${Math.round(techTime(x) / 6) / 10} min`;
     svg += `<g class="tnode ${cls}" data-tech="${x.id}"><rect x="${cx(x)}" y="${cy(x)}" width="${NODE_W}" height="${NODE_H}" rx="9"/>
       <text x="${cx(x) + NODE_W / 2}" y="${cy(x) + 17}" text-anchor="middle">${esc(x.name)}${known(x.id) ? " ✓" : ""}</text>
       <text class="sub" x="${cx(x) + NODE_W / 2}" y="${cy(x) + 31}" text-anchor="middle">${sub}</text></g>`;

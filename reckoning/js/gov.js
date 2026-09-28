@@ -103,7 +103,7 @@ TECH.lances.req.push("warhorse");
 // what a new settlement already knows (as in Forester)
 export const START_TECH = ["foraging", "ownership", "forging"];
 export const TECH_TREES = [["growth", "Growth"], ["military", "Military Philosophy"], ["industry", "Industry"], ["world", "Exploration"]];
-// Forester's prices: Marks here, where Forester counts DM; seconds at the desk the same
+// Forester's prices, in DM, and the same seconds at the desk
 export const techCost = t => 15 + t.depth * 12;
 export const techTime = t => 45 + t.depth * 40;
 // which buildings wait on which knowledge (Forester's BUILD_GATES, for the buildings Reckoning has;
