@@ -474,6 +474,9 @@ setInterval(() => {
   const on = !!t && G.mode === "play";
   tb.classList.toggle("hidden", !on);
   if (!on) return;
+  // just under the objective, however many lines it runs to
+  const ob = $("objective"), obOn = ob && !ob.classList.contains("hidden");
+  tb.style.top = (obOn ? ob.offsetTop + ob.offsetHeight + 8 : 24) + "px";
   const S = t.S;
   tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span><span class="tb"><img src="${ICON.coin}" alt="">${S.coin || 0}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
 }, 300);
