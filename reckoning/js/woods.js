@@ -91,6 +91,9 @@ export class Woods extends WorldBase {
     terrain.receiveShadow = true;
     root.add(terrain);
 
+    const bEnd = this.branches[3].pts, be = bEnd[bEnd.length - 1], bp = bEnd[bEnd.length - 6];
+    const bl = Math.hypot(be.x - bp.x, be.z - bp.z) || 1;
+    const burnerAt = { x: be.x + (be.x - bp.x) / bl * 6, z: be.z + (be.z - bp.z) / bl * 6 };
     // ---- the forest ----
     const list = [];
     const taken = new Map();
@@ -102,6 +105,7 @@ export class Woods extends WorldBase {
       const x = t.x + Math.cos(a) * rad, z = t.z + Math.sin(a) * rad;
       if (this.anyRoadDist(x, z).d < 4.5) continue;
       if (z > 16) continue;                            // the fields behind: open ground back to the city
+      if (Math.hypot(x - burnerAt.x, z - burnerAt.z) < 17) continue;   // the charcoal burner's clearing
       const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
       if (dc < CLEARING.r + 14) continue;             // the clearing and the ring of choppable trees
       const k = cellK(x, z);
@@ -111,6 +115,19 @@ export class Woods extends WorldBase {
       const h = kind === "spruce" ? r.range(8, 16) : kind === "pine" ? r.range(10, 17) : r.range(7, 11);
       list.push({ x, z, y: this.heightAt(x, z), h, kind, rot: r() * TAU });
       if (this.roadDist(x, z).d < 40 || dc < 70) this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
+    }
+    // and the woods close round the charcoal burner's clearing too
+    for (let i = 0; i < 900; i++) {
+      const a = r() * TAU, rad = 17 + Math.pow(r(), 0.8) * 45;
+      const x = burnerAt.x + Math.cos(a) * rad, z = burnerAt.z + Math.sin(a) * rad;
+      if (this.anyRoadDist(x, z).d < 4.5) continue;
+      const k = cellK(x, z);
+      if (taken.has(k)) continue;
+      taken.set(k, 1);
+      const kind = r() < 0.7 ? "spruce" : r() < 0.5 ? "pine" : "birch";
+      const h = kind === "spruce" ? r.range(8, 16) : kind === "pine" ? r.range(10, 17) : r.range(7, 11);
+      list.push({ x, z, y: this.heightAt(x, z), h, kind, rot: r() * TAU });
+      if (rad < 30) this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
     }
     for (const m of forestInstances(list)) root.add(m);
     this.mapTrees = list.map(t => ({ x: t.x, z: t.z, k: t.kind }));
@@ -124,6 +141,7 @@ export class Woods extends WorldBase {
       const x = t.x + Math.cos(a) * rad, z = t.z + Math.sin(a) * rad;
       if (this.anyRoadDist(x, z).d < 3) continue;
       if (Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r - 4) continue;
+      if (Math.hypot(x - burnerAt.x, z - burnerAt.z) < 13) continue;
       const y = this.heightAt(x, z);
       const k = r();
       if (k < 0.45) ub.add(TREE.blob, r.pick([0x3e5a2e, 0x4a6a34, 0x55703a]), x, y + 0.3, z, 0, r() * 3, 0, r.range(0.6, 1.3), r.range(0.4, 0.8), r.range(0.6, 1.3), 0.06);
@@ -205,6 +223,7 @@ export class Woods extends WorldBase {
         const bd = br.pts[6], bl = Math.hypot(bd.x - at.x, bd.z - at.z) || 1;
         arm((bd.x - at.x) / bl, (bd.z - at.z) / bl, 1.85, 1.0);
       }
+      if (br.n === 3) { this.buildBurner(br); continue; }
       // the dead end: a spruce fallen across the track
       const e = br.pts[br.pts.length - 4], e2 = br.pts[br.pts.length - 1];
       const ey = this.heightAt(e.x, e.z), ang = Math.atan2(e2.x - e.x, e2.z - e.z);
@@ -479,6 +498,44 @@ export class Woods extends WorldBase {
       this.fellable.push(t);
     }
   }
+  // the charcoal burner's camp, where his track ends: a kiln smoking under its turf, his hut, his wood
+  buildBurner(br) {
+    const r = rng(417), root = this.root;
+    const e = br.pts[br.pts.length - 1], e2 = br.pts[br.pts.length - 6];
+    const ang = Math.atan2(e.x - e2.x, e.z - e2.z);             // the way the track was going
+    const fx = Math.sin(ang), fz = Math.cos(ang), rx = Math.cos(ang), rz = -Math.sin(ang);
+    const at = (a, b) => [e.x + fx * a + rx * b, e.z + fz * a + rz * b];
+    const b = new Builder();
+    // a trodden patch of black earth
+    const [px, pz] = at(5, 0), py = this.heightAt(px, pz);
+    const patch = new THREE.Mesh(new THREE.CircleGeometry(9, 24), mat(0x2e2824));
+    patch.rotation.x = -Math.PI / 2; patch.position.set(px, py + 0.03, pz); patch.receiveShadow = true; root.add(patch);
+    // the kiln: a low dome of turf and earth, smoke leaking from its crown
+    const [kx, kz] = at(6, 3.5), ky = this.heightAt(kx, kz);
+    b.add(new THREE.SphereGeometry(2.4, 18, 10, 0, TAU, 0, Math.PI / 2), 0x6a6448, kx, ky - 0.1, kz, 0, 0, 0, 1, 0.75, 1, 0.08);
+    for (let i = 0; i < 26; i++) { const a = r() * TAU, d = r.range(0.4, 2.2); b.add(new THREE.DodecahedronGeometry(0.28, 0), r.pick([0x4a5230, 0x3e3a2c, 0x2a2622]), kx + Math.cos(a) * d, ky + (1 - d / 2.4) * 1.4, kz + Math.sin(a) * d, r(), r(), r(), 1.2, 0.5, 1.2, 0.08); }
+    // his hut: a lean-to of poles and bark
+    const [hx, hz] = at(9, -3.5), hy = this.heightAt(hx, hz);
+    for (let i = 0; i < 9; i++) {
+      const o = (i - 4) * 0.45;
+      b.add(new THREE.CylinderGeometry(0.06, 0.08, 2.8, 6), 0x6a5440, hx + rx * o, hy + 0.95, hz + rz * o, -0.95, ang, 0, 1, 1, 1, 0.1);
+      b.add(new THREE.BoxGeometry(0.46, 2.7, 0.05), 0x7a6650, hx + rx * o - fx * 0.12, hy + 1.0, hz + rz * o - fz * 0.12, -0.95, ang, 0, 1, 1, 1, 0.14);
+    }
+    b.add(new THREE.CylinderGeometry(0.07, 0.07, 4.4, 6), 0x6a5440, hx + fx * 0.9, hy + 1.9, hz + fz * 0.9, 0, ang, Math.PI / 2);
+    // a stack of split wood waiting to be burned, a chopping block, a rake
+    const [wx, wz] = at(3, -5.5), wy = this.heightAt(wx, wz);
+    P.logPile(b, wx, wz, 11, ang, wy);
+    const [cx2, cz2] = at(4.5, -1.2), cy2 = this.heightAt(cx2, cz2);
+    b.add(new THREE.CylinderGeometry(0.34, 0.38, 0.55, 10), 0x6a5038, cx2, cy2 + 0.27, cz2);
+    b.add(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6), 0x5a4432, kx - rx * 2.9, ky + 0.9, kz - rz * 2.9, 0.3, 0, 0.2);
+    root.add(b.build(MAT.rough));
+    this.col.addCircle(kx, kz, 2.3, 2); this.col.addCircle(hx, hz, 1.9, 3); this.col.addCircle(wx, wz, 1.2, 1.5);
+    // smoke from the kiln, thin and endless
+    const smoke = [];
+    const sm = new THREE.MeshBasicMaterial({ color: 0xb8b4ac, transparent: true, opacity: 0.25, depthWrite: false });
+    for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), sm.clone()); m.userData.t = i / 14; root.add(m); smoke.push(m); }
+    this.burner = { x: hx - fx * 1.6, z: hz - fz * 1.6, kiln: { x: kx, y: ky + 1.6, z: kz }, smoke, face: ang + Math.PI, camp: { x: px, z: pz } };
+  }
   setStack(n) {
     if (n === this.stackN) return;
     this.stackN = n;
@@ -508,6 +565,11 @@ export class Woods extends WorldBase {
   }
   update(dt) {
     this.t += dt;
+    if (this.burner) for (const m of this.burner.smoke) {
+      const u = (m.userData.t = (m.userData.t + dt * 0.06) % 1), k = this.burner.kiln;
+      m.position.set(k.x + Math.sin(u * 9 + this.t * 0.3) * u * 1.4 + u * 3, k.y + u * 14, k.z + Math.cos(u * 7) * u * 1.2);
+      m.scale.setScalar(0.6 + u * 3.2); m.material.opacity = 0.3 * (1 - u) * Math.min(1, u * 8);
+    }
     for (const t of this.fellable) {
       if (t.state === "falling") {
         t.fall = Math.min(1, t.fall + dt * (0.25 + t.fall * 2.2));

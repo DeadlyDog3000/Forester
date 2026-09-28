@@ -136,9 +136,10 @@ function buildChapters() {
   const list = $("chapterList");
   list.innerHTML = "";
   for (const c of CHAPTERS) {
+    if (c.n > u) continue;             // what you have not reached yet is not shown at all
     const b = document.createElement("button");
     b.className = "chapter" + (c.n > u ? " locked" : "");
-    b.innerHTML = `<span class="ch-n">${["I", "II", "III", "IV", "V", "VI"][c.n - 1]}</span><span class="ch-t">${c.title}</span><span class="ch-k">${c.n > u ? "Not yet reached" : c.kicker}</span>`;
+    b.innerHTML = `<span class="ch-n">${["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][c.n - 1]}</span><span class="ch-t">${c.title}</span><span class="ch-k">${c.n > u ? "Not yet reached" : c.kicker}</span>`;
     b.disabled = c.n > u;
     b.onclick = () => { G.who = s.who || "brother"; if (c.n === 6 && s.clearing && s.clearing.done) writeSave({ clearing: {} }); play(c.n); };
     list.appendChild(b);
@@ -147,7 +148,7 @@ function buildChapters() {
 
 // ---- inventory (T) ----
 const ICON = {
-  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png",
+  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", seeds: "../assets/sprites/items/seeds.png",
   axe: "../assets/sprites/items/tool_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

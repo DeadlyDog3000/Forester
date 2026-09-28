@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.5", date: "28 September 2026", title: "Part Two begins: Seed Before Frost",
+    items: [
+      "A new chapter, VII. Seed Before Frost, the first of Part Two: Roots. The morning after the cabin stands, you carry wood down the smoking track to the charcoal burner's camp and trade it for rye seed and a spade — if he will trade with a stranger who talks like Hamburg. Then dig your first field beside the cabin, and sow it before the frost.",
+      "Henning, the charcoal burner, and his camp: a kiln smoking under its turf, his lean-to, his woodpile, at the end of the fourth fork on the road.",
+      "Chapters you have not reached yet are no longer shown in the Chapters list at all.",
+    ],
+  },
+  {
     v: "0.4", date: "28 September 2026", title: "A painting on the front door",
     items: [
       "The title screen hangs a new picture: the burned cabin at dawn, painted as a Dutch landscape of the 1660s would have painted it.",
