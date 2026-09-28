@@ -47,6 +47,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 #townbar .tname { font: italic 16px var(--serif); color: var(--gold); margin-right: 6px; }
 /* the plans */
 #buildmenu, #ask { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 10, 6, 0.55); z-index: 5; }
+.plan.short { opacity: 0.45; cursor: default; }
 .plan { display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center; width: min(420px, 80vw); padding: 8px 10px; margin: 6px 0; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(140, 192, 132, 0.25); border-radius: 3px; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
 .plan:hover:not(:disabled) { border-color: var(--gold); background: rgba(46, 106, 64, 0.35); }
 .plan:disabled { opacity: 0.45; cursor: default; }

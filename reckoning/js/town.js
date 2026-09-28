@@ -19,6 +19,7 @@ import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { modelCopy, makeAxe } from "./models.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE } from "./woods.js";
+import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 
 export const BUILDINGS = {
   cabin:    { name: "Cabin", cost: 20, model: "cabin", w: 5.8, d: 6.8, beds: 2, icon: "cabin", note: "A home for two more people." },
@@ -156,6 +157,50 @@ export class Town {
         w.root.remove(ghost); this.planning = null;
         if (b) { this.S.buildings.push(b); this.show(b); this.site(b); this.persist(); SFX().build(); }
         res(b);
+      };
+      this.planning = { cancel: () => done(null) };
+      G.onFrame.push(tick);
+    });
+  }
+
+  // ---- furnishing the cabin: a ghost of the piece stands where you look, inside the walls ----
+  canAfford(type) { const d = FURNITURE[type]; return this.S.store >= (d.logs || 0) && this.S.rye >= (d.rye || 0); }
+  furnish(type) {
+    if (this.planning) this.planning.cancel();
+    const d = FURNITURE[type], w = this.w, pl = G.player, input = G.input;
+    const ghost = ghostOf(type);
+    const tint = new THREE.MeshBasicMaterial({ color: 0x7fe07a, transparent: true, opacity: 0.4, depthWrite: false });
+    ghost.traverse(o => { if (o.isMesh) o.material = tint; });
+    w.root.add(ghost);
+    let ry = 0;
+    UI.keys([["Click", "set it here"], ["R", "turn it"], ["Esc", "put the plan away"]], 9);
+    return new Promise(res => {
+      const tick = () => {
+        if (input.hit("KeyR")) ry = (ry + Math.PI / 2) % TAU;
+        const f = pl.forward();
+        const [lx, lz] = w.worldToCabin(pl.pos.x + f.x * 1.5, pl.pos.z + f.z * 1.5);
+        const cand = { type, lx, lz, ry };
+        const [hx, hz] = halfSize(cand);
+        cand.lx = clamp(lx, -ROOM.x + hx, ROOM.x - hx); cand.lz = clamp(lz, -ROOM.z + hz, ROOM.z - hz);
+        // not on your own feet
+        const [px, pz] = w.worldToCabin(pl.pos.x, pl.pos.z);
+        const onYou = Math.abs(px - cand.lx) < hx + 0.3 && Math.abs(pz - cand.lz) < hz + 0.3;
+        const ok = fitsRoom(cand, w.furniture) && !onYou && this.canAfford(type);
+        const [x, z] = w.cabinToWorld(cand.lx, cand.lz);
+        ghost.position.set(x, w.cabinY + 0.07, z); ghost.rotation.y = CABIN.ry + ry;
+        tint.color.setHex(ok ? 0x7fe07a : 0xe0503a);
+        if ((input.click || input.hit("KeyF")) && ok) done(cand);
+        else if (input.hit("Escape") || !w.insideCabin(pl.pos.x, pl.pos.z)) done(null);
+      };
+      const done = f => {
+        const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
+        w.root.remove(ghost); this.planning = null;
+        if (f) {
+          this.S.store -= d.logs || 0; this.S.rye -= d.rye || 0; w.setStack(Math.min(this.S.store, 24));
+          this.S.furniture = [...w.furniture, f]; w.setFurniture(this.S.furniture);
+          this.persist(); SFX().build();
+        }
+        res(f);
       };
       this.planning = { cancel: () => done(null) };
       G.onFrame.push(tick);

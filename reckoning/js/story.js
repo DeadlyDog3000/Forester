@@ -1051,8 +1051,8 @@ async function ch6(w) {
   look(new THREE.Vector3(FIRE.x, w.cy + 0.8, FIRE.z), 1.5);
   await say(P.sib, "Tomorrow there's seed to find. Something to plant before the frost. Something to eat that isn't blackberries.");
   await say(YOU(), "Tomorrow.");
-  await wait(2);
-  await fade(1, 3);
+  await wait(1.5);
+  await bedtime(w, sib, { line: "Come on. A roof tonight — our own." });
   SFX.fireLoop(false); SFX.insectLoop(false);
   writeSave({ unlocked: 7, finishedPartOne: true });
   await narrate("They cast us out to die. Instead, we built this.", 4.5);
@@ -1224,7 +1224,7 @@ async function ch7(w) {
   await say(P.sib, "Martinmas. A man with a cart, asking questions. That's six weeks.");
   await say(YOU(), "Then in six weeks, we keep to the trees.");
   await wait(1.5);
-  await fade(1, 3);
+  await bedtime(w, sib);
   SFX.fireLoop(false); SFX.insectLoop(false);
   writeSave({ unlocked: 8, finishedCh7: true });
   await narrate("The rye came up green in three weeks, in three crooked rows.", 4);
@@ -1253,6 +1253,33 @@ function homestead(w, { stack = 6, growth = 1 } = {}) {
   }
   return field;
 }
+// ---- the end of a day: into the cabin, and to bed, instead of sleeping out by the fire ----
+// Your brother or sister goes in first; you follow when you're ready. Resolves once you lie down.
+async function bedtime(w, sib, { line = null } = {}) {
+  const pl = G.player;
+  G.lockMove = false; pl.seated = false; look(null);
+  w.setCabinDoor(true);
+  if (sib) {
+    sib.path = []; sib.stopFollow(); sib.person.sitting = 0; sib.person.setPose("idle");
+    if (line) bark(P.sib, line, 3.5);
+    const b = w.bedSpot(1);
+    if (b) sib.walkTo(b.x, b.z, 1.2).then(() => { if (!sib.root.parent) return; sib.person.sitting = 1; sib.person.setPose("sit"); sib.faceTo(b.x - Math.sin(b.ry + Math.PI / 2), b.z - Math.cos(b.ry + Math.PI / 2)); });
+  }
+  const bed = w.bedSpot(0);
+  UI.objective("Go to bed in the cabin");
+  const pointer = onFrame(() => mark(w.insideCabin(pl.pos.x, pl.pos.z) ? [bed.x, bed.z, bed.y + 0.6] : (() => { const [x, z] = w.cabinToWorld(0, 3.3); return [x, z, w.cy + 1.6]; })()));
+  tutor("bed", "The day's done. Go in and lie down — F at the bed.", [["F", "go to bed"]]);
+  let slept = false;
+  w.onSleep = { label: "Go to bed", use: () => { slept = true; } };
+  await until(() => slept);
+  w.onSleep = null; pointer(); mark(null); UI.objective(null);
+  G.lockMove = true;
+  await fade(1, 2);
+  // lie down: the eye drops to the pallet
+  pl.place(bed.x, bed.z, bed.ry); pl.pitch = 0.6;
+  if (sib) { const b = w.bedSpot(1); if (b) { sib.path = []; sib.place(b.x, b.z, b.ry); sib.person.sitting = 1; sib.person.setPose("sit"); } }
+}
+
 // the fence of trees round the clearing's south edge, where two people could lie hidden
 const HIDE = { x: 35, z: -343 }, SIBHIDE = { x: 44, z: -339 };
 const TIPS_WOODS = ["Get into the trees and crouch with C. His lantern only reaches so far.", "Keep a trunk between you and the lantern.", "Don't move while he looks your way. Wait for him to turn.", "Crouched, you can only be seen close to."];
@@ -1361,8 +1388,9 @@ async function ch8(w, opts = {}) {
   await say(P.sib, "Why do you help us?");
   await say("Henning", "I had a daughter. She'd be your age.");
   await wait(1.5);
-  G.lockMove = true;
-  await fade(1, 3);
+  // he goes back down the road in the dark, and you go in
+  { const r0 = w.road[w.road.length - 30]; henning.walkTo(r0.x, r0.z, 1.1).then(() => henning.remove()); }
+  await bedtime(w, sib, { line: "Bed. Before I start thinking about Kessler." });
   SFX.fireLoop(false); AUDIO.wind(false);
   writeSave({ unlocked: 9 });
   await narrate("Kessler did not come back. The snow came nine days after Martinmas.", 4.5);
@@ -1450,25 +1478,36 @@ async function ch9(w, opts = {}) {
     obj(); its.forEach(i => w.removeInteract(i));
     UI.objective(null); mark(null);
     await wait(1.5);
-    bark(P.sib, "Look at the sky. Get inside the firelight — it's coming.", 3);
+    bark(P.sib, "Look at the sky. Get inside — it's coming.", 3);
     await wait(3);
   }
 
-  // ---- the blizzard night: keep the fire alive until dawn ----
+  // ---- the blizzard night: shut in the cabin, keep the hearth alive until dawn ----
   G.lockMove = true;
   await fade(1, 2);
   setAtmo("snownight"); w.setSnow(1, 1); AUDIO.wind(true, 1.5); SFX.fireLoop(true);
-  w.lightFire(true);
+  w.lightFire(false); w.lightHearth(true); w.setCabinDoor(false, true);
   let fire = 0.8, wood = 12, night = 0;
   const DAWN = 85;
   setPile(wood);
-  pl.place(FIRE.x - 1.9, FIRE.z + 0.3, Math.PI / 2 - 0.25);
-  sib.path = []; sib.person.sitting = 1; sib.person.setPose("grieve"); sib.place(FIRE.x + 1.9, FIRE.z + 0.4, -Math.PI / 2); sib.faceTo(FIRE.x, FIRE.z);
+  // the split wood came in with you, stacked by the hearth
+  const [hx, hz] = w.cabinToWorld(-1.2, -2.1), [ix, iz] = w.cabinToWorld(-0.2, -0.9);
+  const inPile = new THREE.Group(); w.root.add(inPile);
+  const setInPile = n => {
+    inPile.clear(); if (!n) return;
+    const b = new Builder(), [px, pz] = w.cabinToWorld(-2.0, -1.2);
+    for (let i = 0; i < n; i++) { const row = Math.floor(i / 4), col = i % 4; b.add(new THREE.CylinderGeometry(0.1, 0.1, 0.7, 6), 0x7a5634, px + (col - 1.5) * 0.21 * Math.cos(CABIN.ry), w.cabinY + 0.17 + row * 0.19, pz - (col - 1.5) * 0.21 * Math.sin(CABIN.ry), Math.PI / 2, CABIN.ry, 0); }
+    inPile.add(b.build(MAT.rough));
+  };
+  setInPile(wood);
+  pl.place(ix, iz, Math.atan2(-(hx - ix), -(hz - iz)));
+  const sb = w.bedSpot(1);
+  sib.path = []; sib.person.sitting = 1; sib.person.setPose("grieve"); sib.place(sb.x, sb.z); sib.faceTo(hx, hz);
   await fade(0, 2);
   G.lockMove = false;
-  tutor("feed", "Don't let it go out. Feed it before it's embers — not after.", [["F", "feed the fire"]]);
-  const feed = w.addInteract({ x: FIRE.x, y: w.cy + 0.6, z: FIRE.z, reach: 2.8, label: () => `Feed the fire (${wood} split logs)`, can: () => wood > 0,
-    use: () => { wood--; fire = Math.min(1, fire + 0.32); setPile(wood); SFX.build(); } });
+  tutor("feed", "Don't let it go out. Feed it before it's embers — not after.", [["F", "feed the hearth"]]);
+  const feed = w.addInteract({ x: hx, y: w.cabinY + 0.6, z: hz, reach: 2.4, label: () => `Feed the fire (${wood} split logs)`, can: () => wood > 0,
+    use: () => { wood--; fire = Math.min(1, fire + 0.32); setPile(wood); setInPile(wood); SFX.build(); } });
   const lines = [[12, "I can't feel my feet."], [30, "Tell me about the harbour. Anything. The smell of it."], [50, "Father used to say the winter's longest just before it turns."], [70, "It's getting lighter. Isn't it? Say it is."]];
   let gust = 6, failed = false;
   const tick = onFrame(dt => {
@@ -1476,7 +1515,7 @@ async function ch9(w, opts = {}) {
     gust -= dt; let drop = 0.043 * dt;
     if (gust <= 0) { gust = 5 + Math.random() * 7; drop += 0.08; }
     fire = Math.max(0, fire - drop);
-    w.setFire(fire);
+    w.setHearth(fire);
     while (lines.length && night > lines[0][0]) bark(P.sib, lines.shift()[1], 3.5);
     const left = Math.max(0, DAWN - night);
     UI.objective(`Keep the fire alive until dawn — ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")} · fire ${Math.round(fire * 100)}%`);
@@ -1525,6 +1564,7 @@ function startTown(w, unlocked) {
   town.unlocked = new Set(unlocked);
   G.town = town;
   w.showCabin(); w.openTracks.add(3);
+  w.setFurniture(S.furniture || null);
   G.player.giveAxe(true);
   return town;
 }
@@ -1617,8 +1657,17 @@ async function ch10(w) {
   obj(); mark(null); UI.objective(null);
   bark("Marta", "A roof. A door that shuts. Pieter — look.", 3.5);
   await wait(4);
+  // evening comes on; Marta and Pieter sleep under their own roof, and you under yours
   G.lockMove = true;
-  await fade(1, 2.4);
+  await fade(1, 1.6);
+  setAtmo("dusk"); w.lightFire(true); SFX.fireLoop(true);
+  town.stop(); G.town = town; town.stopped = true;
+  sib.remove();
+  const sib2 = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  await fade(0, 1.6);
+  tutor("furnish", "Inside the cabin, B shows what you can make for it — a bed, a table, a chest — from logs off the stack.", [["B", "inside: furnish"]], 8);
+  await bedtime(w, sib2, { line: "Two cabins. Who'd have thought it." });
+  SFX.fireLoop(false);
   SFX.insectLoop(false);
   writeSave({ unlocked: 11 });
   await narrate("They stayed. Marta could fell a tree faster than either of us, and Pieter could eat a loaf faster than all three.", 5);
@@ -1787,6 +1836,21 @@ async function ch12(w) {
       }
     } else if (S.rye < pop) bark(P.sib, "The rye's running low. Reap what's ripe, or dig another field.", 4);
   });
+  // your bed is in the cabin: at night it takes you through to morning
+  let sleeping = false, toldNight = -1;
+  const nightNow = () => { const f = (town.t / DAY) % 1; return f > 0.6 || f < 0.04; };
+  w.onSleep = { label: "Sleep until morning", can: () => nightNow() && !sleeping,
+    use: async () => {
+      sleeping = true; G.lockMove = true;
+      await fade(1, 1.6);
+      const f = (town.t / DAY) % 1;
+      town.t = (Math.floor(town.t / DAY) + (f > 0.5 ? 1 : 0) + 0.03) * DAY;
+      const bed = w.bedSpot(0); if (bed) { pl.place(bed.x + Math.sin(bed.ry) * 0.9, bed.z + Math.cos(bed.ry) * 0.9, bed.ry + Math.PI); }
+      await wait(0.8);
+      await fade(0, 1.6);
+      G.lockMove = false; sleeping = false;
+    } };
+  onFrame(() => { if (nightNow() && town.day !== toldNight && (town.t / DAY) % 1 > 0.62) { toldNight = town.day; UI.hint("Night's come. Your bed is in the cabin — sleep through to morning.", 5); } });
   await wait(0.2);
   const c = card(S.name, "Free play", 2.8);
   await wait(1); fade(0, 2); await c;

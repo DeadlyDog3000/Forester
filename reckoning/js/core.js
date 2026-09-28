@@ -125,12 +125,14 @@ const SURF_GLSL = `
 const SURF_STRENGTH = "float dStrength[8] = float[8](0.75, 0.3, 0.85, 0.8, 0.95, 0.55, 0.8, 0.85);";
 
 export const SNOW = { value: 0 };
+// a roofed room where no snow lies: (centre x, centre z, turn, on) and (half across, half deep, eaves height)
+export const ROOFED = { value: new THREE.Vector4(0, 0, 0, 0) }, ROOFSIZE = { value: new THREE.Vector3(2.8, 3.3, 0) };
 export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto" } = {}) {
   const surf = SURFACE[surface] ?? -1;
   material.onBeforeCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
-    sh.uniforms.dSnow = SNOW;
+    sh.uniforms.dSnow = SNOW; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE;
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
@@ -142,7 +144,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         #endif
         vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow;" + DETAIL_GLSL + SURF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow; uniform vec4 dRoof; uniform vec3 dRoofSize;" + DETAIL_GLSL + SURF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         {
           vec3 p = vDWorld * dScale;
@@ -165,6 +167,11 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           // snow lies on whatever faces the sky, thinner where the noise says so
           if (dSnow > 0.0) {
             float lie = smoothstep(0.25, 0.75, vDNormal.y + (dNoise(vDWorld * 1.7) - 0.5) * 0.5) * dSnow;
+            if (dRoof.w > 0.5 && vDWorld.y < dRoofSize.z) {
+              vec2 dd = vDWorld.xz - dRoof.xy; float rc = cos(dRoof.z), rs = sin(dRoof.z);
+              vec2 lp = vec2(dd.x * rc - dd.y * rs, dd.x * rs + dd.y * rc);
+              if (abs(lp.x) < dRoofSize.x && abs(lp.y) < dRoofSize.y) lie = 0.0;
+            }
             diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.96), lie);
           }
         }`)

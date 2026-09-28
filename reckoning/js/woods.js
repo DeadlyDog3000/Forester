@@ -5,11 +5,13 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, groundTexture, SNOW } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, groundTexture, SNOW, ROOFED, ROOFSIZE } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen } from "./map.js";
+import { FURNITURE, DEFAULT_HOME, ROOM } from "./furnish.js";
+import { AUDIO } from "./audio.js";
 
 // the road out of the city winds: round hills, round bogs, round other people's land
 const ROAD_PTS = [[0, 30], [0, 10], [9, -16], [24, -38], [18, -62], [-4, -78], [-24, -98], [-30, -124], [-14, -146], [10, -154], [28, -172],
@@ -443,6 +445,11 @@ export class Woods extends WorldBase {
     // a cabin made in Blender, if there is one, stands in for this one
     const cabinModel = modelCopy("cabin");
     if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); }
+    // the door hangs on its own hinge in the model, so it can be swung
+    this.cabinY = y0;
+    this.doorNode = cabinModel ? cabinModel.scene.getObjectByName("door") : null;
+    this.doorBase = this.doorNode ? this.doorNode.rotation.y : 0;
+    this.doorA = 0; this.doorOpen = false;
     // a window with light in it, for the last evening
     const win = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.06), MAT.lit);
     const [wx, wz] = place(cw / 2 + 0.2, 0.5); win.position.set(wx, y0 + 1.5, wz); win.rotation.y = CABIN.ry + Math.PI / 2;
@@ -583,6 +590,10 @@ export class Woods extends WorldBase {
       this.root.add(this.fire); this.flames.push(this.fire);
     }
   }
+  // the cabin's own frame: across (x) and back-to-door (z), to the world and back
+  cabinToWorld(lx, lz) { const { c, s } = this.cabinFrame; return [CABIN.x + lx * c + lz * s, CABIN.z - lx * s + lz * c]; }
+  worldToCabin(x, z) { const { c, s } = this.cabinFrame, dx = x - CABIN.x, dz = z - CABIN.z; return [dx * c - dz * s, dx * s + dz * c]; }
+  insideCabin(x, z) { if (!this.cabinUp) return false; const [lx, lz] = this.worldToCabin(x, z); return Math.abs(lx) < 2.35 && Math.abs(lz) < 2.9; }
   showCabin() {
     this.burned.visible = false; this.cabin.visible = true;
     // the door they hewed is hung on the cabin now, not lying by the block
@@ -590,14 +601,103 @@ export class Woods extends WorldBase {
     // the ash is swept and trodden in; the forest floor shows through again
     this.ash.visible = false;
     for (const c of this.burnedCols) c.disabled = true;
-    // the finished cabin is one solid block with its door on the front
-    const { c, s } = this.cabinFrame;
-    const pts = [[-2.7, -3.2], [2.7, -3.2], [2.7, 3.2], [-2.7, 3.2]].map(([lx, lz]) => [CABIN.x + lx * c + lz * s, CABIN.z - lx * s + lz * c]);
-    const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
-    if (!this.cabinCol) this.cabinCol = this.col.addBox(Math.min(...xs) + 0.6, Math.min(...zs) + 0.6, Math.max(...xs) - 0.6, Math.max(...zs) - 0.6, 5);
+    if (this.cabinUp) return;
+    this.cabinUp = true;
+    // no snow under the roof
+    ROOFED.value.set(CABIN.x, CABIN.z, CABIN.ry, 1); ROOFSIZE.value.z = this.cabinY + 2.7;
+    // walls of logs you can walk between: the doorway is the only way in
+    const circle = (lx, lz, r, h = 5) => { const [x, z] = this.cabinToWorld(lx, lz); return this.col.addCircle(x, z, r, h); };
+    const wall = (lx0, lz0, lx1, lz1) => {
+      const n = Math.ceil(Math.hypot(lx1 - lx0, lz1 - lz0) / 0.45);
+      for (let i = 0; i <= n; i++) circle(lx0 + (lx1 - lx0) * i / n, lz0 + (lz1 - lz0) * i / n, 0.28);
+    };
+    wall(-2.55, -3.05, 2.55, -3.05); wall(-2.55, -3.05, -2.55, 3.05); wall(2.55, -3.05, 2.55, 3.05);
+    wall(-2.55, 3.05, -0.95, 3.05); wall(0.95, 3.05, 2.55, 3.05);
+    circle(-1.2, -3.6, 0.6);                                                  // the chimney, outside
+    for (const lx of [-1.65, -1.2, -0.75]) circle(lx, -2.6, 0.32, 1.3);        // the hearth, in
+    // the door itself, when it is shut
+    this.doorCols = [-0.45, 0, 0.45].map(lx => circle(lx, 3.05, 0.26));
+    const [dx, dz] = this.cabinToWorld(0, 3.05);
+    this.addInteract({ x: dx, y: this.cabinY + 1.2, z: dz, reach: 2.1, label: () => this.doorOpen ? "Close the door" : "Open the door", use: () => this.setCabinDoor(!this.doorOpen) });
+    // a lamp's worth of light inside, and a fire in the hearth when it is lit
+    const [lx, lz] = this.cabinToWorld(0.3, -0.2);
+    this.homeLight = new THREE.PointLight(0xffc48a, 0, 7.5, 1.4); this.homeLight.position.set(lx, this.cabinY + 2.3, lz); this.root.add(this.homeLight);
+    this.setFurniture(null);
+  }
+  setCabinDoor(open, silent = false) {
+    if (open === this.doorOpen) return;
+    this.doorOpen = open;
+    for (const c of this.doorCols || []) c.disabled = open;
+    if (!silent) AUDIO.door(open);
+    if (silent) this.doorA = open ? 1 : 0;
+  }
+  lightHearth(on = true) {
+    if (!on && this.hearth) { this.root.remove(this.hearth, this.hearthLogs); this.flames.splice(this.flames.indexOf(this.hearth), 1); this.hearth = null; return; }
+    if (on && !this.hearth) {
+      const L = new THREE.PointLight(0xff8a3a, 5, 9, 1.6);
+      this.hearth = makeFlame(2.6, L);
+      const [x, z] = this.cabinToWorld(-1.2, -2.2);                 // in the mouth of the firebox
+      this.hearth.position.set(x, this.cabinY + 0.14, z);
+      // two split logs under it, crossed
+      const b = new Builder();
+      for (const a of [0.5, -0.5]) b.add(new THREE.CylinderGeometry(0.06, 0.07, 0.55, 6), 0x3a2618, x, this.cabinY + 0.13, z, Math.PI / 2, CABIN.ry + Math.PI / 2 + a, 0);
+      this.hearthLogs = b.build(MAT.rough); this.root.add(this.hearthLogs);
+      this.hearth.userData.flame.base = 5;
+      this.root.add(this.hearth); this.flames.push(this.hearth);
+    }
+  }
+  setHearth(k) {
+    if (!this.hearth) return;
+    this.hearth.scale.setScalar(0.3 + k * 0.8);
+    this.hearth.userData.flame.base = 5 * k;
+    this.hearth.visible = k > 0.02;
+  }
+  // what stands in the cabin: [{type, lx, lz, ry}]; null for the pallets they started with
+  setFurniture(list) {
+    this.furniture = list || DEFAULT_HOME();
+    if (this.furnGroup) this.root.remove(this.furnGroup);
+    for (const c of this.furnCols || []) this.col.remove(c);
+    for (const it of this.bedIts || []) this.removeInteract(it);
+    this.furnCols = []; this.bedIts = [];
+    const b = new Builder();
+    for (const f of this.furniture) {
+      const d = FURNITURE[f.type]; if (!d) continue;
+      const [x, z] = this.cabinToWorld(f.lx, f.lz), ry = CABIN.ry + f.ry;
+      d.build(b, x, z, ry);
+      // solid along its length, as a row of posts
+      const lng = Math.max(d.w, d.d), sh = Math.min(d.w, d.d), n = Math.max(1, Math.round(lng / sh));
+      const along = d.w >= d.d ? [Math.cos(ry), -Math.sin(ry)] : [Math.sin(ry), Math.cos(ry)];
+      for (let i = 0; i < n; i++) {
+        const o = (i + 0.5) / n * lng - lng / 2;
+        this.furnCols.push(this.col.addCircle(x + along[0] * o, z + along[1] * o, sh / 2 * 0.9, d.h));
+      }
+      if (d.bed) this.bedIts.push(this.addInteract({ x, y: this.cabinY + 0.5, z, reach: 2.2, label: () => (this.onSleep && this.onSleep.label) || "Go to bed",
+        can: () => !!this.onSleep && (!this.onSleep.can || this.onSleep.can()), use: () => this.onSleep.use(f) }));
+    }
+    this.furnGroup = b.build(MAT.rough);
+    this.furnGroup.position.y = this.cabinY + 0.07;
+    this.root.add(this.furnGroup);
+  }
+  // the bed nearest a spot, in world coordinates, and how it lies
+  bedSpot(i = 0) {
+    const beds = this.furniture.filter(f => FURNITURE[f.type] && FURNITURE[f.type].bed);
+    const f = beds[i % Math.max(1, beds.length)]; if (!f) return null;
+    const [x, z] = this.cabinToWorld(f.lx, f.lz);
+    return { x, z, ry: CABIN.ry + f.ry, y: this.cabinY + 0.07 + FURNITURE[f.type].h * 0.55 };
   }
   update(dt) {
     this.t += dt;
+    // the door swings to where it was sent; the lamp is lit while you are in
+    if (this.doorNode) {
+      this.doorA += ((this.doorOpen ? 1 : 0) - this.doorA) * Math.min(1, dt * 4);
+      this.doorNode.rotation.y = this.doorBase + this.doorA * 1.5;
+    }
+    if (this.homeLight) {
+      const want = this.insideCabin(G.player.pos.x, G.player.pos.z) ? 2.2 : 0;
+      this.homeLight.intensity += (want - this.homeLight.intensity) * Math.min(1, dt * 3);
+    }
+    // nor does it fall there
+    if (this.flakes) this.flakes.visible = this.flakeFall > 0 && !this.insideCabin(G.player.pos.x, G.player.pos.z);
     if (this.flakes && this.flakes.visible) {
       const p = this.flakes.geometry.attributes.position, c = G.player.pos, sp = 2 + this.flakeFall * 5;
       for (let i = 0; i < p.count; i++) {

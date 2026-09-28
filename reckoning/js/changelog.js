@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.7", date: "28 September 2026", title: "A roof over you: into the cabin, and to bed",
+    items: [
+      "The cabin can be entered: the door swings in on its hinge (F to open or shut it), and inside there's a plank floor, a stone hearth under the chimney, and two straw pallets along the wall.",
+      "Nights end in bed now, not out by the fire: after the talk at the fire, go in and lie down. The blizzard night of The First Winter is kept inside, at the hearth, with the door shut on the snow.",
+      "Furnish the cabin: press B while you're inside for a bed, a table, a bench, a chest, a shelf or a rye barrel, made from logs off the stack (a pallet costs rye). Walk it into place and turn it with R.",
+      "In free play, your bed takes you through the night to morning.",
+      "People walk round things instead of through them: tables, carts, the well, the cabin walls, and you.",
+      "Fixed: in The First Winter nothing told you what to do after splitting the firewood. The task list now shows, with a marker to the block, the nearest moss and the wall in turn. Chapter XI marks its tasks too.",
+      "Chapter numbers show beside their numerals: X (10).",
+      "The gables of the cabin sit down on the top log; no daylight between them.",
+    ],
+  },
+  {
     v: "0.6", date: "28 September 2026", title: "The settlement: X. The Stranger, XI. Forester, and free play",
     items: [
       "Chapter X, The Stranger: in spring a widow and her son come up the road. Plan them a cabin (B), and raise it with logs you fell and carry — Marta carries too.",

@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.path.expanduser("~/Forester/reckoning/tools/blender"))
 import importlib
+import bpy
 import common
 importlib.reload(common)
 from common import Kit, rgb, mat_tr, fresh_scene, export
@@ -118,16 +119,38 @@ def build(burned):
     iron = rgb(0x2a2724, 0.05, rnd)
 
     if not burned:
-        # ---- door: vertical planks, two ledges, strap hinges, a latch ----
+        # ---- door: its own piece, hung on a hinge at its left edge, so the game can swing it ----
+        # (built around the hinge; an empty named "door" stands at the hinge and carries it)
+        dk = Kit("cabin_door", seed=5)
         planks = 5
         pw = DOOR_W / planks
         for i in range(planks):
-            x = -DOOR_W / 2 + pw * (i + 0.5)
-            k.box("wood", (pw - 0.012, 0.07, DOOR_H - 0.04 - rnd.uniform(0, 0.03)), mat_tr((x, -D / 2 - 0.02, DOOR_H / 2)), wood(0x6a4a2c))
+            x = pw * (i + 0.5)
+            dk.box("wood", (pw - 0.012, 0.07, DOOR_H - 0.04 - rnd.uniform(0, 0.03)), mat_tr((x, 0, DOOR_H / 2)), wood(0x6a4a2c))
         for z in (0.4, DOOR_H - 0.4):
-            k.box("wood", (DOOR_W - 0.08, 0.05, 0.14), mat_tr((0, -D / 2 - 0.08, z)), wood(0x5a3e24))
-            k.box("iron", (DOOR_W * 0.7, 0.02, 0.05), mat_tr((-DOOR_W * 0.15, -D / 2 - 0.1, z)), iron)
-        k.box("iron", (0.05, 0.04, 0.18), mat_tr((DOOR_W / 2 - 0.16, -D / 2 - 0.1, 1.05)), iron)
+            dk.box("wood", (DOOR_W - 0.08, 0.05, 0.14), mat_tr((DOOR_W / 2, -0.06, z)), wood(0x5a3e24))
+            dk.box("wood", (DOOR_W - 0.08, 0.05, 0.14), mat_tr((DOOR_W / 2, 0.06, z)), wood(0x5a3e24))
+            dk.box("iron", (DOOR_W * 0.7, 0.02, 0.05), mat_tr((DOOR_W * 0.35, -0.08, z)), iron)
+        dk.box("iron", (0.05, 0.04, 0.18), mat_tr((DOOR_W - 0.16, -0.08, 1.05)), iron)
+        dk.box("iron", (0.05, 0.04, 0.18), mat_tr((DOOR_W - 0.16, 0.08, 1.05)), iron)
+        door_parts = dk.build(sc)
+        hinge = bpy.data.objects.new("door", None)
+        sc.collection.objects.link(hinge)
+        hinge.location = (-DOOR_W / 2, -D / 2 + 0.02, 0)
+        for ob in door_parts:
+            ob.parent = hinge
+
+        # ---- inside: a floor of split planks, and a hearth of fieldstone against the chimney ----
+        for i in range(14):
+            y = -D / 2 + 0.2 + (D - 0.4) * (i + 0.5) / 14
+            k.box("wood", (W - 0.3, (D - 0.4) / 14 - 0.015, 0.06), mat_tr((0, y, 0.04)), wood(rnd.choice([0x7a5a3a, 0x6e5034, 0x836142]), 0.08))
+        hx, hy = CHIMNEY[0], D / 2 - 0.5
+        for zz in range(5):
+            for xx in range(4):
+                k.box("stone", (0.36, 0.5, 0.2), mat_tr((hx - 0.54 + xx * 0.36 + (zz % 2) * 0.1, hy, 0.1 + zz * 0.21)), rgb(rnd.choice([0x78736a, 0x6a655d, 0x847e74]), 0.08, rnd), bevel=0.02)
+        k.box("soot", (0.8, 0.3, 0.62), mat_tr((hx, hy - 0.12, 0.42)), rgb(0x100c0a))          # the firebox
+        k.box("wood", (1.7, 0.36, 0.1), mat_tr((hx, hy - 0.05, 1.12)), wood(0x5a3e28))          # the mantle
+        k.box("stone", (1.6, 0.7, 0.06), mat_tr((hx, hy - 0.6, 0.05)), rgb(0x6a655d, 0.05, rnd), bevel=0.02)   # hearthstone
         # door frame posts and lintel
         for x in (-DOOR_W / 2 - 0.07, DOOR_W / 2 + 0.07):
             k.box("wood", (0.14, 0.34, DOOR_H + 0.1), mat_tr((x, -D / 2, DOOR_H / 2)), wood(0x5e422a))
@@ -147,6 +170,8 @@ def build(burned):
         # ---- gables: horizontal boards filling the triangles ----
         for y in (-D / 2, D / 2):
             n = 9
+            # the first board sits down on the top log, so no daylight shows between them
+            k.box("wood", (W + 0.2, 0.06, 0.24), mat_tr((0, y + (-0.02 if y < 0 else 0.02), top - 0.1)), wood(0x6a4a2e, 0.12))
             for i in range(n):
                 z0 = top + i * (ROOF_H / n)
                 half = (W / 2 + 0.1) * (1 - (i + 0.5) / n)
@@ -219,6 +244,8 @@ def build(burned):
     k.box("soot", (0.45, 0.4, 0.02), mat_tr((cx, cy, z + 0.13)), rgb(0x0e0c0b))
 
     objs = k.build(sc, smooth=("log",))
+    if not burned:
+        objs += [hinge] + door_parts
     return export(sc, f"{name}.glb", objs)
 
 

@@ -10,6 +10,7 @@ import { renderer } from "./core.js";
 import { G, Player, frame, setAtmo, input, drawMap } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
 import { BUILDINGS as TOWN_BUILDINGS } from "./town.js";
+import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave } from "./story.js";
@@ -226,6 +227,16 @@ G.showInventory = showInventory;
 // ---- the plans (B): what the settlement can build, when there is a settlement ----
 function renderPlans() {
   const t = G.town; if (!t) return;
+  // inside the cabin, the plans are for what goes in it
+  const w = G.world, pl = G.player;
+  const inside = w && w.insideCabin && w.insideCabin(pl.pos.x, pl.pos.z);
+  $("buildTitle").textContent = inside ? "Furnish the cabin" : "Plans";
+  if (inside) {
+    const cost = d => [d.logs ? d.logs + " logs" : "", d.rye ? d.rye + " rye" : ""].filter(Boolean).join(", ");
+    $("buildList").innerHTML = Object.entries(FURNITURE).map(([k, d]) => `<button class="plan${t.canAfford(k) ? "" : " short"}" data-k="${k}"><img src="${d.rye ? ICON.seeds : ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${cost(d)}</span></button>`).join("");
+    for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { if (!t.canAfford(b.dataset.k)) return; showOverlay("buildmenu", false); t.furnish(b.dataset.k); };
+    return;
+  }
   const list = Object.entries(TOWN_BUILDINGS).filter(([k]) => !t.unlocked || t.unlocked.has(k));
   $("buildList").innerHTML = list.map(([k, d]) => `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.cost ? d.cost + " logs" : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
   for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
