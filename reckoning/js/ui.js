@@ -137,8 +137,12 @@ export const UI = {
 
   objective(text) {
     const o = $("objective");
-    if (!text) { o.classList.add("hidden"); return; }
+    if (!text) { o.classList.add("hidden"); this._obj = null; return; }
     $("objText").textContent = text;
+    // set every frame with a count or a clock in it: only a new task (not a new number) pulses
+    const key = text.replace(/[\d:%]+/g, "#");
+    if (key === this._obj && !o.classList.contains("hidden")) return;
+    this._obj = key;
     o.classList.remove("hidden");
     o.classList.remove("pulse"); void o.offsetWidth; o.classList.add("pulse");
   },

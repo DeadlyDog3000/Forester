@@ -395,6 +395,111 @@ function updateCamera(dt) {
 }
 
 // ---------------------------------------------------------------------------
+//  finding a way round things
+// ---------------------------------------------------------------------------
+// People walk the way you would: round the table, not through it. A straight
+// line is taken when it is clear; otherwise a small grid search finds the way
+// and the corners are pulled tight so the walk still looks direct.
+const NPC_R = 0.3, CELL = 0.5;
+// would someone standing here be inside something? (the same height band you collide in)
+function blockedAt(w, x, z, pad = NPC_R) {
+  const y = w.heightAt(x, z);
+  for (const o of w.col.near(x, z, pad + 0.5)) {
+    if (o.disabled || y + 0.3 > o.y1 - 0.05 || y + 1.7 < o.y0) continue;
+    if (o.type === "box") { if (x > o.x0 - pad && x < o.x1 + pad && z > o.z0 - pad && z < o.z1 + pad) return true; }
+    else if ((x - o.x) ** 2 + (z - o.z) ** 2 < (o.r + pad) ** 2) return true;
+  }
+  return false;
+}
+// can one walk straight from a to b? (a start already against something is let off its first steps)
+function clearLine(w, ax, az, bx, bz) {
+  const l = Math.hypot(bx - ax, bz - az), n = Math.ceil(l / 0.25);
+  const startStuck = blockedAt(w, ax, az, NPC_R * 0.9);
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    if (startStuck && t * l < 0.7) continue;
+    if (blockedAt(w, ax + (bx - ax) * t, az + (bz - az) * t, NPC_R * 0.9)) return false;
+  }
+  return true;
+}
+// a way from (sx,sz) to (gx,gz) as a list of {x,z}; the last may be marked `near`
+// when the goal itself is inside something and only the closest free spot is reached
+function findPath(w, sx, sz, gx, gz) {
+  if (!w || !w.col) return [{ x: gx, z: gz }];
+  if (clearLine(w, sx, sz, gx, gz)) return [{ x: gx, z: gz }];
+  const M = 8;
+  const x0 = Math.min(sx, gx) - M, z0 = Math.min(sz, gz) - M;
+  const nx = Math.ceil((Math.max(sx, gx) + M - x0) / CELL), nz = Math.ceil((Math.max(sz, gz) + M - z0) / CELL);
+  if (nx * nz > 90000) return [{ x: gx, z: gz }];
+  const cx = i => x0 + (i + 0.5) * CELL, cz = j => z0 + (j + 0.5) * CELL;
+  const block = new Int8Array(nx * nz).fill(-1);
+  const isBlocked = (i, j) => {
+    if (i < 0 || j < 0 || i >= nx || j >= nz) return true;
+    const k = i + j * nx;
+    if (block[k] < 0) block[k] = blockedAt(w, cx(i), cz(j)) ? 1 : 0;
+    return block[k] === 1;
+  };
+  const cellOf = (x, z) => [clamp(Math.floor((x - x0) / CELL), 0, nx - 1), clamp(Math.floor((z - z0) / CELL), 0, nz - 1)];
+  const [si, sj] = cellOf(sx, sz);
+  let [gi, gj] = cellOf(gx, gz), goalFree = !blockedAt(w, gx, gz);
+  if (isBlocked(gi, gj)) {
+    // the goal is inside something: aim for the nearest free cell round it
+    let best = null;
+    for (let r = 1; r <= 5 && !best; r++) for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) {
+      if (Math.max(Math.abs(di), Math.abs(dj)) !== r || isBlocked(gi + di, gj + dj)) continue;
+      const d = Math.hypot(cx(gi + di) - gx, cz(gj + dj) - gz);
+      if (!best || d < best.d) best = { i: gi + di, j: gj + dj, d };
+    }
+    if (!best) return [{ x: gx, z: gz }];
+    gi = best.i; gj = best.j; goalFree = false;
+  }
+  // A* over the cells, eight ways, no cutting corners
+  const N = nx * nz, gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), shut = new Uint8Array(N);
+  const heap = [];
+  const push = (k, f) => { heap.push([f, k]); let i = heap.length - 1; while (i) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  const h = (i, j) => Math.hypot(i - gi, j - gj);
+  const sk = si + sj * nx, gk = gi + gj * nx;
+  gs[sk] = 0; push(sk, h(si, sj));
+  let found = false, iter = 0;
+  while (heap.length && iter++ < 40000) {
+    const [, k] = pop();
+    if (shut[k]) continue;
+    shut[k] = 1;
+    if (k === gk) { found = true; break; }
+    const i = k % nx, j = (k / nx) | 0;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      if (!di && !dj) continue;
+      const ni = i + di, nj = j + dj;
+      if (isBlocked(ni, nj) && !(ni === si && nj === sj)) continue;
+      if (di && dj && (isBlocked(i + di, j) || isBlocked(i, j + dj))) continue;
+      const nk = ni + nj * nx, g = gs[k] + (di && dj ? 1.414 : 1);
+      if (g < gs[nk]) { gs[nk] = g; from[nk] = k; push(nk, g + h(ni, nj)); }
+    }
+  }
+  if (!found) return [{ x: gx, z: gz }];
+  const cells = [];
+  for (let k = gk; k !== -1 && k !== sk; k = from[k]) cells.unshift({ x: cx(k % nx), z: cz((k / nx) | 0) });
+  if (goalFree) cells[cells.length - 1] = { x: gx, z: gz };
+  // pull the string tight: from each corner, go to the farthest cell still in plain sight
+  const out = [];
+  let ax = sx, az = sz, i = 0;
+  while (i < cells.length) {
+    let j = cells.length - 1;
+    while (j > i && !clearLine(w, ax, az, cells[j].x, cells[j].z)) j--;
+    out.push(cells[j]); ax = cells[j].x; az = cells[j].z; i = j + 1;
+  }
+  if (!out.length) out.push({ x: gx, z: gz, ghost: true });
+  if (!goalFree) {
+    // close enough to step the last bit (onto a bench, up to a bed) without colliding
+    const last = out[out.length - 1];
+    if (Math.hypot(last.x - gx, last.z - gz) < 1.0) out.push({ x: gx, z: gz, ghost: true });
+    else last.near = true;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 //  the people who are not you
 // ---------------------------------------------------------------------------
 export class Actor {
@@ -427,6 +532,17 @@ export class Actor {
     return new Promise(r => { this.resolve = r; });
   }
   walkTo(x, z, speed) { return this.walk([[x, z]], speed); }
+  // a walking body is pushed out of whatever it brushes, and steps round you
+  collide() {
+    const w = G.world, p = this.pos;
+    if (!w || !w.col) return;
+    w.col.resolve(p, NPC_R, w.heightAt(p.x, p.z) + 0.3, 1.4);
+    const pl = G.player;
+    if (pl && pl.pos) {
+      const dx = p.x - pl.pos.x, dz = p.z - pl.pos.z, d = Math.hypot(dx, dz), rr = NPC_R + (pl.radius || 0.3);
+      if (d < rr && d > 1e-4) { p.x = pl.pos.x + dx / d * rr; p.z = pl.pos.z + dz / d * rr; }
+    }
+  }
   faceTo(x, z) { this.faceTarget = null; this.targetYaw = Math.atan2(x - this.pos.x, z - this.pos.z); }
   facePlayer() { this.faceTarget = "player"; }
   stopFacing() { this.faceTarget = null; }
@@ -454,16 +570,35 @@ export class Actor {
         if (!target) target = { x: pl.pos.x, z: pl.pos.z };
         const dx = target.x - p.x, dz = target.z - p.z, l = Math.hypot(dx, dz);
         spd = Math.min(Math.max(1.4, pl.speed * 1.05 + (d - this.follow.dist) * 0.6), 6);
-        if (l > 0.05) { p.x += dx / l * spd * dt; p.z += dz / l * spd * dt; this.targetYaw = Math.atan2(dx, dz); moving = true; }
+        if (l > 0.05) { p.x += dx / l * spd * dt; p.z += dz / l * spd * dt; this.targetYaw = Math.atan2(dx, dz); moving = true; this.collide(); }
       } else { this.targetYaw = Math.atan2(pl.pos.x - p.x, pl.pos.z - p.z); }
     } else if (this.path.length) {
       const t = this.path[0];
-      const dx = t.x - p.x, dz = t.z - p.z, l = Math.hypot(dx, dz);
+      // plan the way to the next point the first time we head for it, or again when stuck
+      if (this.stepsFor !== t) { this.steps = findPath(G.world, p.x, p.z, t.x, t.z); this.stepsFor = t; this.stuck = 0; this.replans = this.replans && this.lastFor === t ? this.replans : 0; this.lastFor = t; this.bestD = Infinity; }
+      const st = this.steps[0];
+      const dx = st.x - p.x, dz = st.z - p.z, l = Math.hypot(dx, dz);
       spd = this.walkSpeed;
-      if (l < 0.12 + spd * dt) {
-        p.x = t.x; p.z = t.z; this.path.shift();
+      const arrive = () => {
+        this.path.shift(); this.steps = []; this.stepsFor = null; this.replans = 0;
         if (!this.path.length && this.resolve) { const r = this.resolve; this.resolve = null; r(); }
-      } else { p.x += dx / l * spd * dt; p.z += dz / l * spd * dt; this.targetYaw = Math.atan2(dx, dz); moving = true; }
+      };
+      if (l < 0.12 + spd * dt || (st.near && l < 0.45)) {
+        if (!st.near) { p.x = st.x; p.z = st.z; }
+        this.steps.shift(); this.bestD = Infinity; this.stuck = 0;
+        if (!this.steps.length) arrive();
+      } else {
+        p.x += dx / l * spd * dt; p.z += dz / l * spd * dt; this.targetYaw = Math.atan2(dx, dz); moving = true;
+        if (!st.ghost) this.collide();
+        // no headway for a while (someone in the doorway, a door just shut): look again, and in the end give up here
+        if (l < this.bestD - 0.05) { this.bestD = l; this.stuck = 0; }
+        else if (Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z) > 1.3) this.stuck += dt;
+        if (this.stuck > 1.2) {
+          this.replans = (this.replans || 0) + 1;
+          if (this.replans > 3) { moving = false; arrive(); }
+          else this.stepsFor = null;
+        }
+      }
     }
     if (!moving && this.faceTarget === "player") this.targetYaw = Math.atan2(G.player.pos.x - p.x, G.player.pos.z - p.z);
     this.yaw += angDiff(this.yaw, this.targetYaw) * Math.min(1, dt * 6);

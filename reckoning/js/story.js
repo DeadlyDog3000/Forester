@@ -436,7 +436,7 @@ async function ch3(w, opts) {
   for (let i = 0; i < 34; i++) {
     const a = -Math.PI * 0.95 + r(i, 1) * Math.PI * 0.9, d = 5.2 + r(i, 2) * 7.5;
     const x = Math.cos(a) * d * 1.1, z = 45 + Math.sin(a) * d;
-    if (z < 34.5 || Math.abs(x) > 14) continue;
+    if (z < 34.5 || Math.abs(x) > 14 || w.col.solidAt(x, 0.5, z, 0.4)) continue;   // not in the well, nor a stall
     const o = i % 3 === 0 ? { model: "townswoman", skirt: true, apron: 0xe8e0d0, hat: i % 2 ? "bonnet" : null, seed: 300 + i } : { model: "townsman", hat: ["tricorn", "cap", null, "hat"][i % 4], seed: 300 + i };
     const c = spawn(o, x, z); c.faceTo(0, 45); if (i % 5 === 0) c.person.setPose("armsCrossed");
     crowd.push(c);
@@ -1430,15 +1430,25 @@ async function ch9(w, opts = {}) {
     its.push(w.addInteract({ x: door[0], y: w.cy + 1.2, z: door[1], reach: 3, hold: 4, label: "Chink the walls with moss", can: () => S.moss.length >= 6 && !S.chinked,
       onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX.pickup(); },
       use: () => { S.chinked = true; persist(); bark(P.sib, "Listen. You can't hear the wind in the walls now."); } }));
+    let mossTold = false;
     const obj = onFrame(() => {
       const parts = [];
-      if (S.wood < 12) parts.push(`Split firewood — ${S.wood} of 12`);
-      if (!S.chinked) parts.push(S.moss.length < 6 ? `Gather moss — ${S.moss.length} of 6` : "Chink the cabin walls with the moss");
+      if (S.wood < 12 && S.stack > 0) parts.push(`Split firewood — ${S.wood} of 12`);
+      if (!S.chinked) parts.push(S.moss.length < 6 ? `Gather moss from the rocks — ${S.moss.length} of 6` : "Chink the cabin walls with the moss");
       UI.objective(parts.join(" · "));
+      // point the way: the block first, then the nearest moss, then the wall
+      if (S.wood < 12 && S.stack > 0) mark([BLOCK.x, BLOCK.z, w.cy + 1.2]);
+      else if (S.moss.length < 6) {
+        let best = null, bd = Infinity;
+        for (const m of MOSS) if (!S.moss.includes(m.i)) { const d = Math.hypot(m.x - pl.pos.x, m.z - pl.pos.z); if (d < bd) { bd = d; best = m; } }
+        mark(best ? [best.x, best.z, w.heightAt(best.x, best.z) + 1.2] : null);
+      } else if (!S.chinked) mark([door[0], door[1], w.cy + 1.6]);
+      else mark(null);
+      if (S.wood >= 12 && !S.moss.length && !mossTold) { mossTold = true; tutor("moss", "Enough wood. Now the walls — there's moss on the rocks round the edge of the clearing.", [["F", "hold at a mossy rock"]]); }
     });
-    await until(() => S.wood >= 12 && S.chinked);
+    await until(() => (S.wood >= 12 || S.stack <= 0) && S.chinked);
     obj(); its.forEach(i => w.removeInteract(i));
-    UI.objective(null);
+    UI.objective(null); mark(null);
     await wait(1.5);
     bark(P.sib, "Look at the sky. Get inside the firelight — it's coming.", 3);
     await wait(3);
