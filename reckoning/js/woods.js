@@ -136,6 +136,23 @@ export class Woods extends WorldBase {
       list.push({ x, z, y: this.heightAt(x, z), h, kind, rot: r() * TAU });
       if (rad < 30) this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
     }
+    // and all the way round the clearing, deep, so it sits in a forest and not at the edge of the world;
+    // the deer ride east of it is a glade in that forest, thinned rather than cleared
+    for (let i = 0; i < 3200; i++) {
+      const a = r() * TAU, rad = CLEARING.r + 14 + Math.pow(r(), 0.85) * 95;
+      const x = CLEARING.x + Math.cos(a) * rad, z = CLEARING.z + Math.sin(a) * rad;
+      if (this.anyRoadDist(x, z).d < 4.5) continue;
+      if (Math.hypot(x - burnerAt.x, z - burnerAt.z) < 17) continue;
+      const dh = Math.hypot(x - HUNT.x, z - HUNT.z);
+      if (dh < HUNT.r * 0.9 && r() < (dh < HUNT.r * 0.5 ? 0.9 : 0.6)) continue;
+      const k = cellK(x, z);
+      if (taken.has(k)) continue;
+      taken.set(k, 1);
+      const kind = dh < HUNT.r * 1.4 ? (r() < 0.45 ? "birch" : r() < 0.5 ? "pine" : "spruce") : r() < 0.65 ? "spruce" : r() < 0.6 ? "pine" : "birch";
+      const h = kind === "spruce" ? r.range(8, 16) : kind === "pine" ? r.range(10, 17) : r.range(7, 11);
+      list.push({ x, z, y: this.heightAt(x, z), h, kind, rot: r() * TAU });
+      if (rad < CLEARING.r + 60 || dh < HUNT.r + 6) this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
+    }
     for (const m of forestInstances(list)) root.add(m);
     this.mapTrees = list.map(t => ({ x: t.x, z: t.z, k: t.kind }));
     this.treeCount = list.length;

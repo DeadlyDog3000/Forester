@@ -187,12 +187,12 @@ export class Player {
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
       this.axeBody = makeAxe(); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
-      this.model.held.add(this.axeBody);
+      if (this.model && this.model.held) this.model.held.add(this.axeBody);
     } else if (!on && this.axe) {
       camera.remove(this.axe); this.axe = null;
       for (const a of this.arms || []) camera.remove(a.arm);
       this.arms = null; this.hands = null;
-      if (this.axeBody) this.model.held.remove(this.axeBody); this.axeBody = null;
+      if (this.axeBody && this.model && this.model.held) this.model.held.remove(this.axeBody); this.axeBody = null;
     }
   }
   // ---- the bow: held out in the left hand, the right on the string ----
@@ -986,6 +986,8 @@ export function frame(dt, skipRender) {
     for (const f of w.flames) flicker(f, dt * 0.2);
   }
   if (G.player && w) updateCamera(dt);
+  // a filming rig can take the camera over for a shot (the trailer is captured this way)
+  if (G.camOverride) G.camOverride(camera, dt);
   updateMarker(dt);
   if (G.mode === "play" && w) updateMinimap(dt);
   input.endFrame();
