@@ -110,6 +110,8 @@ function applyAtmo(a) {
   G.scene.fog.color.copy(a.fog); G.scene.fog.near = a.near * dm; G.scene.fog.far = a.far * dm;
   const far = dm < 1 ? Math.max(35, a.far * dm * 1.08) : 900;
   if (camera.far !== far) { camera.far = far; camera.updateProjectionMatrix(); }
+  // (the sky dome is 800 across: inside a short draw distance it shrinks to fit, or it would be cut away and leave black)
+  sky.scale.setScalar(Math.min(1, (far - 25) / 800));
   const u = sky.material.uniforms;
   u.top.value.copy(a.top); u.mid.value.copy(a.mid); u.bottom.value.copy(a.bot);
   u.sunDir.value.copy(G.sunDir); u.sunCol.value.copy(a.sunC).multiplyScalar(Math.min(1, a.sunI / 2));
@@ -189,7 +191,8 @@ export class Player {
         const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
         const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
         camera.add(arm);
-        return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.24 : -0.2, -0.5, 0.12) };
+        // (both arms come in from the right: the axe is held right-handed, the left hand low on the haft)
+        return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.3 : 0.12, i === 0 ? -0.5 : -0.56, 0.12) };
       });
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
@@ -262,23 +265,34 @@ export class Player {
     if (!this.bow) return;
     const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
     this.reload = Math.max(0, this.reload - dt);
-    if (free && input.mouseDown && (this.arrows || 0) > 0 && this.reload <= 0) {
-      if (this.draw === 0) SFX.pickup && SFX.pickup();
+    // hold the right mouse button to draw; let it go to loose
+    if (free && input.rdown && (this.arrows || 0) > 0 && this.reload <= 0) {
+      if (this.draw === 0) { SFX.pickup && SFX.pickup(); this.heldFull = 0; }
       this.draw = Math.min(1, this.draw + dt / 0.85);
+      if (this.draw >= 1) this.heldFull += dt;
     } else if (this.draw > 0) {
       // let go: a real shot if it was drawn enough, a let-down if not
       if (this.draw > 0.2 && free) {
         const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
+        // (the shaking goes into the shot)
+        const sh = this.shake || 0;
+        dir.x += Math.sin(G.time * 11.3) * sh * 0.05; dir.y += Math.sin(G.time * 8.7) * sh * 0.05; dir.z += Math.cos(G.time * 9.9) * sh * 0.05; dir.normalize();
         const from = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
         this.arrows--; this.reload = 0.55;
         if (G.hunt) G.hunt.loose(from, dir, this.draw);
         SFX.swingFist && SFX.swingFist();
       }
-      this.draw = 0;
+      this.draw = 0; this.heldFull = 0;
     }
-    // a little shake at full draw, held too long
+    // held at full draw, your arms begin to shake — a little at first, then worse
+    this.shake = this.draw >= 1 ? Math.min(1, 0.15 + (this.heldFull || 0) / 3) : 0;
     this.bowPose(this.draw);
-    if (this.draw >= 1) { this.bow.rotation.x += Math.sin(G.time * 9) * 0.004; this.bow.rotation.y += Math.sin(G.time * 7) * 0.003; }
+    if (this.shake > 0) {
+      const k = this.shake;
+      this.bow.rotation.x += (Math.sin(G.time * 23) * 0.6 + Math.sin(G.time * 9) * 0.4) * 0.012 * k;
+      this.bow.rotation.y += (Math.sin(G.time * 19) * 0.6 + Math.sin(G.time * 7) * 0.4) * 0.01 * k;
+      this.bow.position.x += Math.sin(G.time * 17) * 0.004 * k; this.bow.position.y += Math.sin(G.time * 13) * 0.004 * k;
+    }
     this.fitArms();
   }
   // each sleeve runs from its shoulder to its hand on the haft, however the axe is held
@@ -478,7 +492,7 @@ function updateCamera(dt) {
   }
   if (p.axe) p.axe.visible = !third;
   // hold Z to look closer
-  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : (p.draw || 0) * 0.35;
+  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : (p.draw || 0) * 0.55;
   G.zoom = (G.zoom || 0) + (zoomWant - (G.zoom || 0)) * Math.min(1, dt * 10);
   const fov = G.settings.fov + (28 - G.settings.fov) * G.zoom;
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -786,6 +800,17 @@ function pickInteract() {
 }
 const crossEl = () => document.getElementById("crosshair");
 let crossFlash = 0;
+// something that can be hunted, under the middle of the screen: a live animal, in reach of an arrow and in plain sight
+const _ray = new THREE.Raycaster();
+function huntTarget() {
+  const alive = G.hunt.animals.filter(a => a.alive && a.root.parent);
+  if (!alive.length) return null;
+  _ray.setFromCamera({ x: 0, y: 0 }, camera); _ray.far = 70;
+  const hit = _ray.intersectObjects(alive.map(a => a.root), true)[0];
+  if (!hit) return null;
+  const from = camera.getWorldPosition(new THREE.Vector3());
+  return G.world.col.lineOfSight(from, hit.point.clone().addScaledVector(_ray.ray.direction, -0.3)) ? hit : null;
+}
 function updateInteract(dt) {
   const it = pickInteract();
   // the cursor: pale at rest, yellow over something usable, turning slowly to green as you use it
@@ -793,12 +818,21 @@ function updateInteract(dt) {
   if (ch) {
     let k = 0;                                          // 0 yellow .. 1 green
     if (it && G.holdT > 0) k = clamp(G.holdT / (it.hold || 1), 0, 1);
-    if (it && (input.hit("KeyF") || input.rclick) && !it.hold) crossFlash = 1;
+    const rUse = !(G.player && G.player.bow);
+    if (it && (input.hit("KeyF") || (rUse && input.rclick)) && !it.hold) crossFlash = 1;
     if (G.player && G.player.swingT >= 0) crossFlash = Math.max(crossFlash, 1 - G.player.swingT / 0.62);
     crossFlash = Math.max(0, crossFlash - dt * 2.2);
     k = Math.max(k, crossFlash);
     ch.classList.toggle("active", !!it);
-    if (!it && k <= 0.01) ch.style.removeProperty("--cc");
+    // the cross opens wide with the bow out, and closes in as you draw
+    const pl = G.player, bow = pl && pl.bow;
+    const gap = bow ? 16 - 13 * (pl.draw || 0) + (pl.shake || 0) * 5 : 4;
+    ch.style.setProperty("--gap", gap.toFixed(1) + "px");
+    // and turns red over something you can hunt (never a person)
+    const game = G.hunt && huntTarget();
+    ch.classList.toggle("kill", !!game);
+    if (game) ch.style.setProperty("--cc", "rgb(230,64,52)");
+    else if (!it && k <= 0.01) ch.style.removeProperty("--cc");
     else {
       const r = Math.round(240 + (127 - 240) * k), g = Math.round(206 + (224 - 206) * k), b = Math.round(70 + (122 - 70) * k);
       ch.style.setProperty("--cc", `rgb(${r},${g},${b})`);
@@ -812,14 +846,14 @@ function updateInteract(dt) {
   const hold = it.hold || (talk ? 1.0 : 0);
   UI.prompt(label, !!hold);
   if (hold) {
-    if (input.down("KeyF") || input.rdown) {
+    if (input.down("KeyF") || (input.rdown && !(G.player && G.player.bow))) {
       G.holdT += dt;
       if (it.actor) it.actor.talkUntil = G.time + 0.3;
       if (it.onHoldTick) it.onHoldTick(dt, G.holdT);
       UI.hold(G.holdT / hold);
       if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; it.use(); }
     } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / hold); }
-  } else if (input.hit("KeyF") || input.rclick) it.use();
+  } else if (input.hit("KeyF") || (input.rclick && !(G.player && G.player.bow))) it.use();
 }
 
 // ---------------------------------------------------------------------------

@@ -988,6 +988,8 @@ async function ch6(w) {
   G.camp = { get logs() { return S.store; }, get door() { return S.door; }, doorCost: DOOR_COST, cabinCost: CABIN_COST, carryMax: CARRY_MAX };
   // trees already down stay down (as stumps)
   for (const i of S.felled) { const t = w.fellable[i]; if (t) { t.state = "gone"; t.g.visible = false; t.col.disabled = true; stump(w, t); } }
+  // (a tree that grows back is no longer felled)
+  w.onRegrow = i => { S.felled = S.felled.filter(j => j !== i); persist(); };
   w.setStack(S.store);
   if (S.door) w.doorProp.visible = true;
   if (S.axe) { w.blockAxe.visible = false; pl.giveAxe(true); }
@@ -1407,12 +1409,19 @@ async function huntForMeat(w, sib) {
       if (first) { first = false; bark(P.sib, "(from the clearing) Was that you? Tell me that was you!", 3.5); }
     } });
   hunt.spawn("deer", 3); hunt.spawn("hare", 4);
+  // back to the clearing first, where they are waiting: they only see the bow when you get there
+  if (Math.hypot(pl.pos.x - sib.pos.x, pl.pos.z - sib.pos.z) > 5) {
+    UI.objective(`Take the seed back to your ${P.sibLower} at the clearing`);
+    mark(sib);
+    await until(() => Math.hypot(pl.pos.x - sib.pos.x, pl.pos.z - sib.pos.z) < 4);
+    mark(null);
+  }
   pl.showBow(true);
   G.lockMove = true; lookAt(sib, 2.5); sib.facePlayer();
   await say(P.sib, "A bow? He gave you a bow?");
   await say(P.sib, "Then go on — east, into the beeches. I'll start marking out the field.");
   G.lockMove = false; look(null);
-  tutor("bow", "Creep up on them — crouch, and don't run; they hear a runner a long way off. Draw, and let go.", [["Hold mouse", "draw the bow"], ["Release", "loose"], ["C", "crouch"], ["F", "pull an arrow out"]], 10);
+  tutor("bow", "Creep up on them — crouch, and don't run; they hear a runner a long way off. Draw, and let go.", [["Hold right-click", "draw — and look closer"], ["Release", "loose"], ["C", "crouch"], ["F", "pull an arrow out"]], 10);
   const obj = onFrame(() => {
     const inRide = Math.hypot(pl.pos.x - HUNT.x, pl.pos.z - HUNT.z) < HUNT.r;
     UI.objective(meat >= NEED ? "" : `Hunt for meat in the deer ride — ${meat} of ${NEED}${pl.arrows <= 3 ? ` · ${pl.arrows} arrows left` : ""}`);

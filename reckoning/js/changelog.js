@@ -7,6 +7,22 @@
 
 export const CHANGELOG = [
   {
+    v: "0.14", date: "28 September 2026", title: "A bow you draw, a forest you can walk, and a settlement that grows",
+    items: [
+      "The bow: hold right-click to draw — the view closes in on the middle of the screen — and let go to loose. Hold it at full draw too long and your arms start to shake, and the shot with them.",
+      "A real crosshair: it opens wide with the bow out and closes in as you draw, and turns red over anything you can hunt. Never over a person.",
+      "No more fence round the deer ride or the clearing: once you live there, you can walk a long way into the forest all round it.",
+      "The settlement grows: when the buildings fill what room there is, your brother or sister says so, the edge moves out into the forest, and everyone — you too — turns to felling the trees past the old edge until the ground is clear to build on.",
+      "Felled trees grow back, in every chapter, out of sight. Cleared ground stays cleared.",
+      "After Henning gives you the bow, you have to walk back to the clearing before your brother or sister can see it.",
+      "Choosing someone's work from the list works with the mouse now — the click no longer grabs the mouse back into the game.",
+      "The view no longer turns by itself when the cursor rests near the edge of the window.",
+      "Both arms come in from the right when you hold the axe.",
+      "Conversations stay on top: the stamina bar, tips and hints no longer cover what is being said while you run.",
+      "On Balanced or Performance graphics the sky no longer goes black.",
+    ],
+  },
+  {
     v: "0.13", date: "28 September 2026", title: "The chase by night, stones to throw, and breath you can feel",
     items: [
       "The chase through Hamburg now happens that night, under the street lamps, after the square empties — and the marsh gate that follows is a misty night too.",

@@ -515,6 +515,7 @@ function renderHotbar() {
   hb.style.display = show ? "flex" : "none";
   if (!show) return;
   hb.classList.toggle("hidden-by-talk", !!UI.dialogOpen);
+  document.body.classList.toggle("talking", !!UI.dialogOpen);
   const items = hotbarItems(), pl = G.player;
   const sel = items.findIndex(i => (i.tool === "axe" && pl.axe) || (i.tool === "bow" && pl.bow));
   const sig = items.map(i => i.icon + (i.n ?? "")).join("|") + "#" + sel;
@@ -651,7 +652,7 @@ addEventListener("keydown", e => {
   }
 });
 // a click on the world while playing re-takes the mouse
-renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !input.freeLook) lock(); });
+renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !input.freeLook && !overlay) lock(); });
 
 // ---- the loop ----
 let last = performance.now();
@@ -664,13 +665,6 @@ function loop(now) {
   lastDrawn = now;
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  // free look cannot pass the window's edge, so a cursor resting near one keeps turning
-  if (input.freeLook && G.mode === "play" && input.mx >= 0) {
-    const band = Math.min(90, innerWidth * 0.12), rate = 900 * dt;
-    const edge = (p, size) => p < band ? -(1 - p / band) : p > size - band ? (p - (size - band)) / band : 0;
-    input.mdx += edge(input.mx, innerWidth) * rate;
-    input.mdy += edge(input.my, innerHeight) * rate * 0.5;
-  }
   if (!window.__manual) frame(dt);    // (tests step the game themselves)
   requestAnimationFrame(loop);
 }

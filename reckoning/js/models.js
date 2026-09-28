@@ -516,14 +516,14 @@ export function forestInstances(list) {
   for (const t of kinds.spruce) {
     const lean = Math.sin(t.rot * 3.7) * 0.03;
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(lean, t.rot, 0); dummy.scale.set(1.1, t.h * 0.55, 1.1); dummy.updateMatrix();
-    trunks.setMatrixAt(ti++, dummy.matrix);
+    trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
     const seed = t.x * 0.37 + t.z * 1.13;
     for (let i = 0; i < NT; i++) {
       const [y, wf, th] = SPRUCE_TIERS[i];
       const w = wf * t.h * 0.26 * (1 + Math.sin(seed + i * 2.1) * 0.07);
       dummy.position.set(t.x + Math.sin(t.rot) * lean * t.h * y, t.y + t.h * y, t.z + Math.cos(t.rot) * lean * t.h * y);
       dummy.scale.set(w, t.h * th, w); dummy.rotation.set(0, t.rot + i * 1.7, 0); dummy.updateMatrix();
-      spruceC.setMatrixAt(si, dummy.matrix);
+      spruceC.setMatrixAt(si, dummy.matrix); t.slots.push([spruceC, si]);
       tint(spruceC, si++, 0, seed);
     }
   }
@@ -532,14 +532,14 @@ export function forestInstances(list) {
   let pi = 0;
   for (const t of kinds.pine) {
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.85, t.h * 0.86, 0.85); dummy.updateMatrix();
-    trunks.setMatrixAt(ti++, dummy.matrix);
+    trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
     const seed = t.x * 0.53 + t.z * 0.91;
     for (let i = 0; i < 4; i++) {
       const a = t.rot + i * 1.9, rad = i === 0 ? 0 : t.h * 0.1;
       const w = t.h * (i === 0 ? 0.19 : 0.13);
       dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.84 + (i === 0 ? 0.04 : -0.03 + (i % 2) * 0.05)), t.z + Math.sin(a) * rad);
       dummy.scale.set(w, w * 0.45, w * 0.9); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
-      pineB.setMatrixAt(pi, dummy.matrix);
+      pineB.setMatrixAt(pi, dummy.matrix); t.slots.push([pineB, pi]);
       tint(pineB, pi++, 0, seed);
     }
   }
@@ -548,13 +548,13 @@ export function forestInstances(list) {
   let li = 0, bi = 0;
   for (const t of kinds.birch) {
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.5, t.h * 0.78, 0.5); dummy.updateMatrix();
-    birchTr.setMatrixAt(bi++, dummy.matrix);
+    birchTr.setMatrixAt(bi++, dummy.matrix); (t.slots ??= []).push([birchTr, bi - 1]);
     const seed = t.x * 0.71 + t.z * 0.29;
     for (let i = 0; i < 6; i++) {
       const a = t.rot + i * 2.4, rad = i === 0 ? 0 : 0.5 + (i % 3) * 0.35;
       dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.56 + (i / 6) * 0.36), t.z + Math.sin(a) * rad);
       const w = t.h * (0.15 - i * 0.008); dummy.scale.set(w, w * 0.85, w); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
-      leaves.setMatrixAt(li, dummy.matrix);
+      leaves.setMatrixAt(li, dummy.matrix); t.slots.push([leaves, li]);
       tint(leaves, li++, 0, seed, 0.09, 0.03);
     }
   }

@@ -29,7 +29,12 @@ export const FORKS = [
 export const CLEARING = { x: 34, z: -318, r: 23 };
 export const CABIN = { x: 36, z: -325, ry: 0.35 };
 // the deer ride: beech and spruce east of the clearing, where the roe graze and the hares sit out
-export const HUNT = { x: 74, z: -332, r: 24 };
+export const HUNT = { x: 74, z: -332, r: 34 };
+// how far into the forest round the clearing you may walk, once you live there
+export const ROAM = 100;
+// each ring of forest cleared as the settlement grows is this deep
+export const RING = 14;
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const STACK = { x: 28.5, z: -321.5 };
 const BLOCK = { x: 41.5, z: -316 };
 const FIRE = { x: 33.5, z: -311.5 };
@@ -115,6 +120,7 @@ export class Woods extends WorldBase {
       if (Math.hypot(x - burnerAt.x, z - burnerAt.z) < 17) continue;   // the charcoal burner's clearing
       const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
       if (dc < CLEARING.r + 14) continue;             // the clearing and the ring of choppable trees
+      if (dc < CLEARING.r + 14 + 3 * RING && r() < 0.78) continue;   // (thinner where the settlement will grow)
       const k = cellK(x, z);
       if (taken.has(k)) continue;
       taken.set(k, 1);
@@ -145,15 +151,19 @@ export class Woods extends WorldBase {
       if (Math.hypot(x - burnerAt.x, z - burnerAt.z) < 17) continue;
       const dh = Math.hypot(x - HUNT.x, z - HUNT.z);
       if (dh < HUNT.r * 0.9 && r() < (dh < HUNT.r * 0.5 ? 0.9 : 0.6)) continue;
+      // the woods thin toward the clearing: that band is where the settlement will grow, a ring at a time
+      if (rad < CLEARING.r + 14 + 3 * RING && r() < 0.78) continue;
       const k = cellK(x, z);
       if (taken.has(k)) continue;
       taken.set(k, 1);
       const kind = dh < HUNT.r * 1.4 ? (r() < 0.45 ? "birch" : r() < 0.5 ? "pine" : "spruce") : r() < 0.65 ? "spruce" : r() < 0.6 ? "pine" : "birch";
       const h = kind === "spruce" ? r.range(8, 16) : kind === "pine" ? r.range(10, 17) : r.range(7, 11);
       list.push({ x, z, y: this.heightAt(x, z), h, kind, rot: r() * TAU });
-      if (rad < CLEARING.r + 60 || dh < HUNT.r + 6) this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
+      const tree = list[list.length - 1];
+      if (rad < CLEARING.r + 60 || dh < HUNT.r + 6) tree.col = this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
     }
     for (const m of forestInstances(list)) root.add(m);
+    this.forest = list;
     this.mapTrees = list.map(t => ({ x: t.x, z: t.z, k: t.kind }));
     this.treeCount = list.length;
 
@@ -366,12 +376,11 @@ export class Woods extends WorldBase {
     const rd = this.anyRoadDist(p.x, p.z);
     // inside the clearing you go where you like; its edge holds you, except where the road leaves it
     if (dc < CLEARING.r + 10) return;
-    // and once you have a bow, into the woods east of it, where the deer are
-    if (this.huntOpen) {
-      const dh = Math.hypot(p.x - HUNT.x, p.z - HUNT.z);
-      if (dh < HUNT.r) return;
-      // its edge holds you too, the way the clearing's does
-      if (dh < HUNT.r + 4) { const k = HUNT.r / dh; p.x = HUNT.x + (p.x - HUNT.x) * k; p.z = HUNT.z + (p.z - HUNT.z) * k; return; }
+    // and once you live here (a bow, or a settlement), the whole forest round it is yours to walk, a long way out
+    if (this.huntOpen || this.settled) {
+      const R = CLEARING.r + ROAM;
+      if (dc < R) return;
+      if (dc < R + 6 && rd.d > 14) { const k = R / dc; p.x = CLEARING.x + (p.x - CLEARING.x) * k; p.z = CLEARING.z + (p.z - CLEARING.z) * k; return; }
     }
     if (dc < CLEARING.r + 12 && rd.d > 14) { const k = (CLEARING.r + 10) / dc; p.x = CLEARING.x + (p.x - CLEARING.x) * k; p.z = CLEARING.z + (p.z - CLEARING.z) * k; return; }
     const lim = 14;
@@ -538,6 +547,48 @@ export class Woods extends WorldBase {
       root.add(g);
       const t = { g, x: tx, z: tz, y: ty, h, hp: 4, state: "up", angle: a, col: this.col.addCircle(tx, tz, 0.32, 12), fall: 0, claimed: null };
       this.fellable.push(t);
+    }
+  }
+  // ---- the settlement grows: a ring of the forest past the edge becomes trees to fell ----
+  // ring k runs from CLEARING.r + 14 + (k - 1) * RING to CLEARING.r + 14 + k * RING. The same trees every time, in the same order,
+  // so a saved list of felled trees still means the same ones.
+  clearRing(k) {
+    this.ringsDone ??= new Set();
+    if (this.ringsDone.has(k)) return this.fellable.filter(t => t.ring === k);
+    this.ringsDone.add(k);
+    const r0 = CLEARING.r + 14 + (k - 1) * RING, r1 = r0 + RING, out = [];
+    const touched = new Set();
+    for (const s of this.forest) {
+      const d = Math.hypot(s.x - CLEARING.x, s.z - CLEARING.z);
+      if (d < r0 || d >= r1 || s.gone) continue;
+      if (this.anyRoadDist(s.x, s.z).d < 5) continue;
+      // the scenery tree goes, and a tree you can fell stands where it stood
+      s.gone = true;
+      for (const [m, i] of s.slots || []) { m.setMatrixAt(i, ZERO); touched.add(m); }
+      if (s.col) s.col.disabled = true;
+      const model = modelCopy(s.kind) || modelCopy("spruce");
+      let g;
+      if (model) { g = new THREE.Group(); model.scene.scale.setScalar(s.h / 10); model.scene.rotation.y = s.rot; g.add(model.scene); }
+      else g = makeSpruce(s.h, Math.floor(s.x * 7));
+      g.position.set(s.x, s.y - 0.1, s.z);
+      this.root.add(g);
+      const t = { g, x: s.x, z: s.z, y: s.y, h: s.h, hp: 4, state: "up", angle: Math.atan2(s.z - CLEARING.z, s.x - CLEARING.x), col: this.col.addCircle(s.x, s.z, 0.32, 12), fall: 0, claimed: null, ring: k };
+      this.fellable.push(t); out.push(t);
+    }
+    for (const m of touched) m.instanceMatrix.needsUpdate = true;
+    return out;
+  }
+  // a felled tree grows back after a while, out of sight (the town keeps its own count; this is for the chapters before it)
+  regrowTick(dt) {
+    if (G.town || !this.fellable) return;
+    const pl = G.player;
+    for (const t of this.fellable) {
+      if (t.state !== "gone" || t.ring) { t.goneFor = 0; continue; }
+      t.goneFor = (t.goneFor || 0) + dt;
+      if (t.goneFor < 240 || Math.hypot(pl.pos.x - t.x, pl.pos.z - t.z) < 18) continue;
+      if (t.stump) { this.root.remove(t.stump); t.stump = null; }
+      t.g.visible = true; t.g.rotation.set(0, 0, 0); t.state = "up"; t.hp = 4; t.col.disabled = false; t.claimed = null; t.goneFor = 0;
+      this.onRegrow && this.onRegrow(this.fellable.indexOf(t));
     }
   }
   // the charcoal burner's camp, where his track ends: a kiln smoking under its turf, his hut, his wood
@@ -730,6 +781,7 @@ export class Woods extends WorldBase {
     return { x, z, ry: CABIN.ry + f.ry, y: this.cabinY + 0.07 + FURNITURE[f.type].h * 0.55 };
   }
   update(dt) {
+    this.regrowTick(dt);
     this.t += dt;
     // the door swings to where it was sent; the lamp is lit while you are in
     if (this.doorNode) {

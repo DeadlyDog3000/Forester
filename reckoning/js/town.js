@@ -18,7 +18,7 @@ import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { modelCopy, makeAxe, ensureModel } from "./models.js";
-import { CLEARING, CABIN, STACK, BLOCK, FIRE } from "./woods.js";
+import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, techCost, techTime } from "./gov.js";
 
@@ -123,6 +123,10 @@ export class Town {
     this.hooks = [];
     this.t = 0;
     this.day = 0;
+    // the ground won from the forest as the settlement grew: those rings are trees to fell again, in the same order
+    this.S.expand ??= 0;
+    for (let k = 1; k <= this.S.expand; k++) w.clearRing(k);
+    w.settled = true;
     // the trees felled before stay down (stumps), until they grow back
     for (const f of this.S.felled) { const t = w.fellable[f.i]; if (t) this.fellNow(t, true); }
     w.setStack(Math.min(this.S.store, 24));
@@ -184,6 +188,25 @@ export class Town {
   get storeCap() { return 40 + this.S.buildings.filter(b => b.done && b.type === "woodshed").length * 30; }
   has(type) { return this.S.buildings.some(b => b.done && b.type === type); }
   count(type) { return this.S.buildings.filter(b => b.done && b.type === type).length; }
+
+  // ---- room: the settlement's edge, and growing it ----
+  get clearR() { return CLEARING.r + this.S.expand * RING; }
+  // trees still standing on ground marked to be cleared
+  toClear() { return this.w.fellable.filter(t => t.ring && t.ring <= this.S.expand && (t.state === "up" || t.state === "shake")); }
+  // out of room: the edge moves out a ring, and everyone turns to felling it
+  expand() {
+    if (this.S.expand >= 3) return false;
+    this.S.expand++;
+    const trees = this.w.clearRing(this.S.expand);
+    this.persist();
+    const sib = G.who === "sister" ? "Brother" : "Sister";
+    UI.bark(sib, "We're out of room. The trees past the edge come down — everyone, axes out.", 4.5);
+    UI.hint(`The settlement is growing: ${trees.length} trees to clear past the old edge. Everyone is felling — you too.`, 6);
+    this.emit("expand", this.S.expand);
+    return true;
+  }
+  // is it time? when the buildings have filled what there is
+  needsRoom() { return this.S.buildings.filter(b => b.type !== "field").length >= 7 + this.S.expand * 5 && !this.toClear().length; }
 
   // ---- knowledge: Forester's tech tree (gov.js), researched with Marks and time ----
   knows(id) { return this.S.tech.done.includes(id); }
@@ -284,7 +307,7 @@ export class Town {
   fits(type, x, z, ry) {
     const def = BUILDINGS[type], w = this.w;
     const r = Math.hypot(def.w, def.d) / 2;
-    if (Math.hypot(x - CLEARING.x, z - CLEARING.z) > CLEARING.r + 6 - r * 0.5) return false;
+    if (Math.hypot(x - CLEARING.x, z - CLEARING.z) > this.clearR + 6 - r * 0.5) return false;
     for (const b of this.S.buildings) { const d2 = BUILDINGS[b.type]; if (Math.hypot(b.x - x, b.z - z) < (Math.hypot(d2.w, d2.d) / 2 + r) * 0.8) return false; }
     for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < r) return false;
     for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.6], [STACK.x, STACK.z, 2], [BLOCK.x, BLOCK.z, 1.4], [FIRE.x, FIRE.z, 2.2]]) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
@@ -637,6 +660,8 @@ export class Town {
     const site = S.buildings.find(b => !b.done && b.type !== "field");
     const field = S.buildings.find(b => b.type === "field" && !b.sown);
     const food = S.rye + S.bread * 2;
+    const clear = this.toClear().length;
+    if (clear) return `Clear the new ground: ${clear} tree${clear > 1 ? "s" : ""} left past the old edge — everyone is felling`;
     if (this.winter && S.store < this.hearths * 2) return `Winter: every hearth burns a log a day — fell trees, the stack is at ${S.store}`;
     if (this.season === "autumn" && S.store < this.hearths * 4) return `Winter is coming — stack firewood: ${this.hearths * 4} logs will see you through`;
     if (food < need * 3) return this.harvestable().length ? "Food is low — reap the ripe field" : this.winter ? "Food is low, and nothing grows in winter — buy rye from Henning's cart" : "Food is low — dig and sow another field (B)";
@@ -668,10 +693,15 @@ export class Town {
       alive();
       if (this.isNight()) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
       const job = a.settler.job || "hauler";
+      // ground to clear: everyone who can swing an axe goes felling until it is done
+      const clearing = !a.settler.child && this.toClear().some(t => !t.claimed);
       const site = this.S.buildings.find(b => !b.done && b.type !== "field" && b.logs < BUILDINGS[b.type].cost);
       const matSite = !site && this.S.buildings.find(b => !b.done && b.type !== "field" && Object.entries(this.wants(b)).some(([k]) => this.have(k) > 0));
       const works = WORKS[job], workAt = works && this.S.buildings.find(b => b.done && b.type === works.at);
-      if (job === "hauler" && matSite) {
+      if (clearing) {
+        // (falls through to the felling below)
+      }
+      if (!clearing && job === "hauler" && matSite) {
         a.doing = `carrying stores to the ${BUILDINGS[matSite.type].name.toLowerCase()}`;
         // stone and planks and bricks from the stores, carried to the site
         await a.walkTo(STACK.x + 1.3, STACK.z + 0.8, 1.3); alive();
@@ -682,7 +712,7 @@ export class Town {
         for (const [k, n] of Object.entries(this.wants(matSite))) { const m = Math.min(n, this.have(k), left); this.S[k] -= m; matSite.got[k] = (matSite.got[k] || 0) + m; left -= m; }
         a.person.setPose("idle"); this.show(matSite); this.persist(); SFX().pickup();
         await sleep(2);
-      } else if (works && workAt) {
+      } else if (!clearing && works && workAt) {
         a.doing = `at the ${BUILDINGS[workAt.type].name.toLowerCase()}`;
         // a shift at the works: walk there, work, and if the stores had what it takes, put back what it makes
         const def = BUILDINGS[workAt.type];
@@ -704,7 +734,7 @@ export class Town {
         }
         a.person.setPose("idle");
         await sleep(1.5);
-      } else if (job === "hauler" && site && this.S.store > 0) {
+      } else if (!clearing && job === "hauler" && site && this.S.store > 0) {
         a.doing = `carrying logs to the ${BUILDINGS[site.type].name.toLowerCase()}`;
         await a.walkTo(STACK.x + 1.3, STACK.z + 0.8, 1.3); alive();
         const n = Math.min(4, this.S.store, BUILDINGS[site.type].cost - site.logs); if (n <= 0) continue;
@@ -712,9 +742,9 @@ export class Town {
         await a.walkTo(site.x + 1.6, site.z + BUILDINGS[site.type].d / 2 + 1.4, 1.1); alive();
         site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); SFX().pickup();
         await sleep(2);
-      } else if (job === "woodcutter" || (job === "hauler" && site)) {
-        a.doing = "felling trees";
-        const trees = this.w.fellable.filter(t => t.state === "up" && !t.claimed);
+      } else if (clearing || job === "woodcutter" || (job === "hauler" && site)) {
+        a.doing = clearing ? "clearing ground for the settlement" : "felling trees";
+        const trees = clearing ? this.toClear().filter(t => t.state === "up" && !t.claimed) : this.w.fellable.filter(t => t.state === "up" && !t.claimed);
         if (!trees.length) { await sleep(5); continue; }
         trees.sort((p, q) => Math.hypot(p.x - a.pos.x, p.z - a.pos.z) - Math.hypot(q.x - a.pos.x, q.z - a.pos.z));
         const t = trees[Math.floor(Math.random() * Math.min(5, trees.length))];
@@ -780,7 +810,7 @@ export class Town {
       // stumps from more than two days ago come back, a few a day
       // (Replanting: saplings grow twice as fast)
       const regrowDays = this.knows("replanting") ? 1 : 2, regrowOdds = this.knows("replanting") ? 0.7 : 0.35;
-      for (const f of this.S.felled.slice()) if (this.day - (f.day ?? -9) >= regrowDays && Math.random() < regrowOdds) { const t = this.w.fellable[f.i]; if (t && t.state === "gone") this.regrow(t); }
+      for (const f of this.S.felled.slice()) if (this.day - (f.day ?? -9) >= regrowDays && Math.random() < regrowOdds) { const t = this.w.fellable[f.i]; if (t && t.state === "gone" && !t.ring) this.regrow(t); }
       // fields grow a stage a day; ripe fields are harvested by the farmers, or by you
       // (nothing grows in winter)
       for (const b of this.S.buildings) if (b.type === "field" && b.sown && !winter) {
@@ -817,6 +847,7 @@ export class Town {
           if (this.S.cold >= 2) { this.S.cold = 0; this.leave("cold"); } else this.emit("cold", this.day);
         }
       }
+      if (this.techGates && this.needsRoom()) this.expand();
       this.persist();
       this.emit("day", this.day);
     }
