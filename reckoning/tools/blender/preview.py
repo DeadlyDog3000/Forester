@@ -31,6 +31,9 @@ pts = [ob.matrix_world @ Vector(c) for ob in sc.objects if ob.type == "MESH" for
 lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
 hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
 centre, size = (lo + hi) / 2, (hi - lo).length
+# optional: look closely at one height (a face, say) from a given distance
+if len(argv) > 5:
+    centre, size = Vector((0, 0, float(argv[4]))), float(argv[5])
 
 cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
 sc.collection.objects.link(cam)

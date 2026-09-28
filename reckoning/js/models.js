@@ -238,7 +238,7 @@ export function makePerson(o = {}) {
     },
     setPose(p) { if (p !== this.pose) { this.pose = p; this.poseT = 0; } },
   };
-  if (o.model && MODELS[o.model]) useModel(P, o.model);
+  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor });
   return P;
 }
 
@@ -248,6 +248,8 @@ export function makePerson(o = {}) {
 // Anything listed in models/manifest.json is loaded at start, and replaces the
 // shape built in code with the same name. See models/README.md.
 export const MODELS = {};
+const CLOTH_PARTS = new Set(["coat", "legs", "stockings", "linen", "vest", "skirt", "apron", "hat", "sash"]);
+const BARE_PARTS = new Set(["skin", "eyes", "hair", "metal", "leather"]);
 export async function loadModels(base = "models/") {
   let list;
   try { const r = await fetch(base + "manifest.json", { cache: "no-cache" }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
@@ -259,8 +261,16 @@ export async function loadModels(base = "models/") {
   await Promise.all(keys.map(async k => {
     try {
       MODELS[k] = await loader.loadAsync(base + list[k]);
-      // the same grain and weathering as everything built in code
-      MODELS[k].scene.traverse(o => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial && !o.material.userData.detail) { o.material.userData.detail = true; addDetail(o.material, { scale: 2, amount: 0.22, grain: 0.6 }); } });
+      // the same grain and weathering as everything built in code; a person's materials are named for
+      // what they are, so cloth gets the weave and skin gets nothing
+      MODELS[k].scene.traverse(o => {
+        if (!o.isMesh || !o.material || !o.material.isMeshStandardMaterial || o.material.userData.detail) return;
+        const m = o.material, n = (m.name || "").split("_").pop();
+        m.userData.detail = true;
+        m.userData.part = n;
+        m.userData.surface = CLOTH_PARTS.has(n) ? "cloth" : BARE_PARTS.has(n) ? "none" : "auto";
+        addDetail(m, { scale: 2, amount: 0.22, grain: 0.6, surface: m.userData.surface });
+      });
     }
     catch (e) { console.warn("Reckoning: could not load model", k, list[k], e); }
   }));
@@ -276,14 +286,23 @@ export function modelCopy(key) {
 // Swap a built person for a Blender one. The code-built skeleton keeps working
 // underneath, unseen, so held things and poses still have somewhere to hang;
 // the model plays its own Idle / Walk / Run / Sit / Chop animations if it has them.
-function useModel(P, key) {
+function useModel(P, key, colors = {}) {
   const m = modelCopy(key); if (!m) return;
   P.root.traverse(o => { if (o.isMesh) o.visible = false; });
   P.body.add(m.scene);
+  // this person's own colours on the parts that vary: one model, a varied crowd
+  const own = {};
+  m.scene.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const part = o.material.userData.part, want = colors[part];
+    if (want === undefined || want === null) return;
+    if (!own[part]) { own[part] = o.material.clone(); own[part].color.set(want); addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface }); }
+    o.material = own[part];
+  });
   const mixer = new THREE.AnimationMixer(m.scene);
-  const clip = name => m.animations.find(a => a.name.toLowerCase().includes(name));
+  const clip = name => m.animations.find(a => a.name.toLowerCase() === name) || m.animations.find(a => a.name.toLowerCase().includes(name));
   const acts = {};
-  for (const n of ["idle", "walk", "run", "sit", "chop"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
+  for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
   let cur = null;
   const play = n => { const a = acts[n] || acts.idle; if (!a || a === cur) return; a.reset().fadeIn(0.25).play(); if (cur) cur.fadeOut(0.25); cur = a; };
   // held things follow the model's right hand, if it has a bone by that name
@@ -295,7 +314,10 @@ function useModel(P, key) {
     base(dt, speed);
     // the model does its own moving, so the code-built body stands straight
     P.body.rotation.x = 0; P.hips.position.y = 0.92;
-    play(this.sitting > 0.5 ? "sit" : this.pose === "chop" ? "chop" : speed > 3 ? "run" : speed > 0.15 ? "walk" : "idle");
+    const pose = (this.pose || "idle").toLowerCase();
+    // walking and running win over a held pose, except for what the hands must keep doing
+    const keepsHands = ["torch", "lantern", "writ", "bound"].includes(pose);
+    play(this.sitting > 0.5 ? "sit" : pose === "chop" || pose === "hammer" ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle");
     if (cur && (cur === acts.walk || cur === acts.run)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run ? 5 : 1.4));
     mixer.update(dt);
   };
