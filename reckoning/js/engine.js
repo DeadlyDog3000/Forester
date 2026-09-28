@@ -652,6 +652,13 @@ export class Actor {
   update(dt) {
     const p = this.pos;
     let moving = false, spd = 0;
+    // someone you are talking to stops what they are doing and turns to you, for as long as the talk lasts
+    if (this.talkUntil && G.time < this.talkUntil && G.player) {
+      const want = Math.atan2(G.player.pos.x - p.x, G.player.pos.z - p.z);
+      this.targetYaw = want;
+      this.yaw += Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw)) * Math.min(1, dt * 6);
+      this.person.update(dt, 0); this.sync(); return;
+    }
     if (this.follow) {
       const pl = G.player, tr = pl.trail;
       const d = Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z);
@@ -780,7 +787,7 @@ function updateInteract(dt) {
   const ch = crossEl();
   if (ch) {
     let k = 0;                                          // 0 yellow .. 1 green
-    if (it && it.hold) k = clamp(G.holdT / it.hold, 0, 1);
+    if (it && G.holdT > 0) k = clamp(G.holdT / (it.hold || 1), 0, 1);
     if (it && (input.hit("KeyF") || input.rclick) && !it.hold) crossFlash = 1;
     if (G.player && G.player.swingT >= 0) crossFlash = Math.max(crossFlash, 1 - G.player.swingT / 0.62);
     crossFlash = Math.max(0, crossFlash - dt * 2.2);
@@ -795,14 +802,18 @@ function updateInteract(dt) {
   if (it !== G.interactTarget) { G.holdT = 0; G.interactTarget = it; }
   if (!it) { UI.prompt(null); UI.hold(0); return; }
   const label = typeof it.label === "function" ? it.label() : it.label;
-  UI.prompt(label, !!it.hold);
-  if (it.hold) {
+  // talking to someone is an action like any other, and takes a moment: hold F, and they stop to talk
+  const talk = /^(Talk to|Speak to|Ask) /.test(label || "");
+  const hold = it.hold || (talk ? 1.0 : 0);
+  UI.prompt(label, !!hold);
+  if (hold) {
     if (input.down("KeyF") || input.rdown) {
       G.holdT += dt;
+      if (it.actor) it.actor.talkUntil = G.time + 0.3;
       if (it.onHoldTick) it.onHoldTick(dt, G.holdT);
-      UI.hold(G.holdT / it.hold);
-      if (G.holdT >= it.hold) { G.holdT = 0; UI.hold(0); it.use(); }
-    } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / it.hold); }
+      UI.hold(G.holdT / hold);
+      if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; it.use(); }
+    } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / hold); }
   } else if (input.hit("KeyF") || input.rclick) it.use();
 }
 

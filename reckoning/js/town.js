@@ -586,7 +586,7 @@ export class Town {
     a.settler = p; this.actors.push(a);
     if (!p.child) {
       // (while a story is gathering people, it decides what talking does; otherwise it changes their work)
-      a.talkIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 1.4; }, reach: 2.4,
+      a.talkIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 1.4; }, reach: 2.4, actor: a,
         can: () => !a.gone && !a.inside && (this.onTalk ? !!(this.talkLabel && this.talkLabel(p, a)) : !a.summoned),
         label: () => (this.talkLabel && this.talkLabel(p, a)) || `Talk to ${p.name} (${JOBS[p.job || "hauler"].name}) — set their work`,
         use: () => {

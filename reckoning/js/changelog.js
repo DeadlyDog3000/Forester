@@ -14,6 +14,7 @@ export const CHANGELOG = [
       "The watchman who used to plant himself in the mouth of the alley, so nobody could get past, now races you to it from round the corner. Get there first and the way is always open.",
       "Stones in the alley: pick one up (F) and click to throw it. The nearest watchman who hears it land goes to see what it was, looks about, and goes back — leaving a gap.",
       "In tense moments — the chase, creeping past the watch, hiding from the charcoal buyer — and whenever you are out of breath, your view rises and falls with your breathing.",
+      "Talking to someone is an action now: hold F for a moment, and they stop what they are doing and turn to you while you speak.",
     ],
   },
   {
