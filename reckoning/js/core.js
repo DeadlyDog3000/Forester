@@ -387,7 +387,16 @@ export class Collision {
     const len = Math.hypot(dx, dz);
     const cand = this.near((a.x + b.x) / 2, (a.z + b.z) / 2, len / 2 + 1);
     for (const o of cand) {
-      if (o.type !== "box" || o.disabled || o.noSight) continue;
+      if (o.disabled || o.noSight) continue;
+      // a tree trunk, or anything round: closest approach of the sight line to its centre
+      if (o.type === "circle") {
+        const L2 = dx * dx + dz * dz || 1e-9;
+        const t = Math.max(0, Math.min(1, ((o.x - a.x) * dx + (o.z - a.z) * dz) / L2));
+        const cx = a.x + dx * t, cz = a.z + dz * t, cy = a.y + dy * t;
+        if (t > 0.02 && t < 0.98 && (cx - o.x) ** 2 + (cz - o.z) ** 2 < o.r * o.r && cy > o.y0 && cy < o.y1) return false;
+        continue;
+      }
+      if (o.type !== "box") continue;
       // slab test on the segment
       let t0 = 0, t1 = 1;
       const slab = (p, d, lo, hi) => {

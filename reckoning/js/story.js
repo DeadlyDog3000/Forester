@@ -339,7 +339,8 @@ async function ch2(w) {
   await say(P.sib, "Wake up. Wake up — there are men at the door. Lots of them. With torches.");
   await say(P.sib, "Father's gone down. Come on.");
   G.lockMove = false; look(null);
-  sib.walk([[15.6, -8.7], [15.4, -7.8]], 1.6);
+  // down into the hall and off to the side by the wall — out of your way, and not between you and the door
+  sib.walk([[15.6, -8.7], [16.9, -7.4]], 1.6);
   father.walk([[11.1, -8.6], [11.0, -7.6], [10.9, -4.8], [12.4, -4.3], [13, -4.2]], 1.3);
   UI.objective("Go down to the hall");
   mark([13, -6, 1.4]);
@@ -393,7 +394,8 @@ async function ch2(w) {
   await wait(1.2);
   [father, mag, ...guards].forEach(a => a.remove());
   w.pool[3].intensity = 0; w.pool[4].intensity = 0;
-  sib.walk([[13.2, -6.3]], 1.2);
+  // to the clear end of the table, beside you, not through it
+  sib.walk([[15.2, -6.4]], 1.2);
   await wait(1.4);
   lookAt(sib, 2.5); sib.facePlayer();
   await say(P.sib, "They'll come for us too. Won't they.");
@@ -569,7 +571,10 @@ async function ch3(w, opts) {
 class Watchman {
   constructor(w, seed, route, opts = {}) {
     this.w = w;
-    this.a = spawn(GUARD(seed), route[0][0], route[0][1], opts.yaw ?? 0);
+    this.a = spawn(opts.look || GUARD(seed), route[0][0], route[0][1], opts.yaw ?? 0);
+    this.lines = opts.lines || ["Who's there?", "Hm? ...Show yourself.", "Is somebody there?"];
+    this.who = opts.look ? opts.look.name : "Watchman";
+    this.range = opts.range || 9;
     this.route = route; this.i = 0; this.waitT = opts.wait ?? 2; this.pause = 0;
     this.speed = opts.speed ?? 1.05;
     this.sweep = opts.sweep || 0; this.baseYaw = opts.yaw ?? 0; this.t = Math.random() * 10;
@@ -601,7 +606,7 @@ class Watchman {
     const head = new THREE.Vector3(a.pos.x, 1.65, a.pos.z);
     const ep = pl.eyePos(); const tgt = new THREE.Vector3(ep.x, ep.y - 0.15, ep.z);
     const dx = tgt.x - head.x, dz = tgt.z - head.z, d = Math.hypot(dx, dz);
-    const range = pl.crouched ? 4.5 : 9;
+    const range = pl.crouched ? this.range / 2 : this.range;
     const ang = Math.abs(Math.atan2(Math.sin(Math.atan2(dx, dz) - a.yaw), Math.cos(Math.atan2(dx, dz) - a.yaw)));
     let seen = d < range && ang < 0.75 && this.w.col.lineOfSight(head, tgt);
     // heard: a run close by gives you away whichever way they face
@@ -609,7 +614,7 @@ class Watchman {
     if (d < 1) seen = true;
     if (seen) this.sus += dt * (0.25 + 0.9 * (1 - d / range)) * (pl.crouched ? 0.5 : 1);
     else this.sus = Math.max(0, this.sus - dt * 0.45);
-    if (this.sus > 0.35 && !this.said) { this.said = true; bark("Watchman", ["Who's there?", "Hm? ...Show yourself.", "Is somebody there?"][Math.floor(Math.random() * 3)], 2.2); }
+    if (this.sus > 0.35 && !this.said) { this.said = true; bark(this.who, this.lines[Math.floor(Math.random() * this.lines.length)], 2.2); }
     if (this.sus < 0.1) this.said = false;
   }
 }

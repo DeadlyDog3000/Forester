@@ -165,9 +165,10 @@ export class Hamburg extends WorldBase {
 
     // ---- ground ----
     // cobbles, real ones: a photographed street, about three and a half metres to a tile
-    const cob = groundTexture("cobbles", 1); cob.repeat.set(74, 66);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 230), new THREE.MeshStandardMaterial({ map: cob, roughness: 0.92, color: 0xc8c2b8 }));
-    ground.rotation.x = -Math.PI / 2; ground.position.set(0, 0, 48 - 20 + 12);
+    // the cobbles run from the quay's edge back to the wall; past the quay is the Elbe
+    const cob = groundTexture("cobbles", 1); cob.repeat.set(74, 58);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 201), new THREE.MeshStandardMaterial({ map: cob, roughness: 0.92, color: 0xc8c2b8 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(0, 0, -45.6 + 100.5);
     ground.receiveShadow = true;
     root.add(ground);
     // the marsh, outside the wall
@@ -445,7 +446,7 @@ export class Hamburg extends WorldBase {
       b.box(0.14, 2.45, 0.08, 12.33, 1.22, zz, TIMBER); b.box(0.14, 2.45, 0.08, 13.67, 1.22, zz, TIMBER);
       b.box(1.48, 0.14, 0.08, 13, 2.38, zz, TIMBER);
     }
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.28, 0.1), mat(0x8a2a1c, { roughness: 0.7 }));
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.28, 0.1), mat(0x8a2a1c, { roughness: 0.7, surface: "wood" }));
     for (const [y, h] of [[0.45, 0.08], [1.14, 0.08], [1.85, 0.08]]) { const band = new THREE.Mesh(new THREE.BoxGeometry(1.1, h, 0.12), mat(0x2a2622, { metalness: 0.6, roughness: 0.5 })); band.position.set(0, y - 1.14, 0); leaf.add(band); }
     leaf.position.set(0.6, 1.14, 0); leaf.castShadow = true;
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), mat(0x2a2a2a, { metalness: 0.8 }));
@@ -458,7 +459,7 @@ export class Hamburg extends WorldBase {
   }
   setDoor(open, silent) {
     this.doorOpen = open; this.doorCol.disabled = open;
-    if (!silent) AUDIO.door();
+    if (!silent) AUDIO.door(open);
   }
   buildWarehouse(b, props) {
     const x0 = 20, x1 = 32, z0 = -38, z1 = -28, h = 8, c = 0x7a4a36;

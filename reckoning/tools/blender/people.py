@@ -458,7 +458,7 @@ def build_person(key):
     for ob in list(sc.objects):
         ob.select_set(False)
     for ob in extra:
-        vg_assign(ob, rig, hc, J, f)
+        vg_assign(ob, rig, hc, J, f, body)
 
     animate(rig, key, f, J)
     objs = [rig, body] + extra
@@ -478,10 +478,18 @@ def build_person(key):
     return path
 
 
-def vg_assign(ob, rig, hc, J, f):
-    """Weight a piece of clothing or the head to the bones it belongs to."""
+def vg_assign(ob, rig, hc, J, f, body):
+    """Weight a piece of clothing to the bones the body under it follows: each vertex takes the skin
+    weights of the nearest point on the body, so a coat bends with the torso it covers and a cuff with
+    its forearm. Above the neck everything rides the head; skirts hang from the hips and swing with
+    the thighs rather than splitting between the legs."""
+    from mathutils.bvhtree import BVHTree
+    bm_ = body.data
+    tree = BVHTree.FromPolygons([v.co.copy() for v in bm_.vertices], [tuple(p.vertices) for p in bm_.polygons])
+    names = {g.index: g.name for g in body.vertex_groups}
+    vw = [{names[x.group]: x.weight for x in v.groups if x.group in names} for v in bm_.vertices]
     me = ob.data
-    name = ob.name.split("_", 1)[1]
+    piece = ob.name.split("_", 1)[1]
     groups = {}
     def g(n):
         if n not in groups:
@@ -491,26 +499,35 @@ def vg_assign(ob, rig, hc, J, f):
         x, y, z = v.co
         ax = abs(x)
         side = "L" if x > 0 else "R"
-        if z > 1.5:
+        if z > 1.52:
             g("head").add([v.index], 1.0, "REPLACE")
-        elif z > 1.4 and ax < 0.1:
-            g("neck").add([v.index], 1.0, "REPLACE")
-        elif ax > 0.18 and z > 0.9 and name == "coat":             # cuffs
-            g(f"forearm.{side}").add([v.index], 1.0, "REPLACE")
-        elif z > 1.2:
-            g("chest").add([v.index], 1.0, "REPLACE")
-        elif z > 0.95:
-            g("spine").add([v.index], 1.0, "REPLACE")
-        elif name in ("coat", "skirt", "apron") and z < 0.95:
-            # skirts: the hips hold the top; lower down each side follows its thigh
+            continue
+        if piece in ("skirt", "apron") or (piece == "coat" and z < 0.93 and ax < 0.3 and abs(y) < 0.3 and z > 0.35):
             k = max(0.0, min(1.0, (0.93 - z) / 0.5)) * min(1.0, ax / 0.12) * 0.75
             g("hips").add([v.index], 1 - k, "REPLACE")
             if k > 0:
                 g(f"thigh.{side}").add([v.index], k, "REPLACE")
-        elif z < 0.15:
-            g(f"foot.{side}").add([v.index], 1.0, "REPLACE")
-        else:
+            continue
+        loc, nrm, fi, dist = tree.find_nearest(v.co)
+        if fi is None:
             g("hips").add([v.index], 1.0, "REPLACE")
+            continue
+        # blend the weights of the nearest face's corners by how close each corner is
+        poly = bm_.polygons[fi]
+        acc, tot = {}, 0.0
+        for vi in poly.vertices:
+            d = (bm_.vertices[vi].co - loc).length
+            wgt = 1.0 / (d + 1e-4)
+            tot += wgt
+            for n, wv in vw[vi].items():
+                acc[n] = acc.get(n, 0.0) + wv * wgt
+        if not acc:
+            g("hips").add([v.index], 1.0, "REPLACE")
+            continue
+        s_ = sum(acc.values())
+        for n, wv in acc.items():
+            if wv / s_ > 0.02:
+                g(n).add([v.index], wv / s_, "REPLACE")
     mod = ob.modifiers.new("Armature", "ARMATURE")
     mod.object = rig
     ob.parent = rig

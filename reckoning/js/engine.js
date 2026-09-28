@@ -271,7 +271,9 @@ export class Player {
       m.root.position.set(this.pos.x, this.pos.y, this.pos.z);
       m.root.rotation.y = this.yaw + Math.PI;
       m.body.scale.y = (this.model.scaleBase ?? 1) * (this.crouched ? 0.7 : 1);
-      m.update(dt, this.speed);
+      // on a bench or a stool, your body sits too
+      m.sitting += ((this.seated ? 1 : 0) - m.sitting) * Math.min(1, dt * 6);
+      m.update(dt, this.seated ? 0 : this.speed);
       m.body.rotation.z = this.lean * 0.28;
       m.root.visible = G.settings.third || G.forceThird;
     }

@@ -69,14 +69,51 @@ export const AUDIO = {
     }
   },
 
-  door() {
+  // a wooden door on iron hinges: the hinge creaks as it swings (stick and slip, rung through the
+  // wood); shutting it, the creak is cut short by the leaf striking the frame and the latch dropping
+  door(open = true) {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime, dur = open ? rnd(0.7, 1.0) : rnd(0.35, 0.5);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = "sawtooth";
+    const f0 = rnd(26, 34);
+    o.frequency.setValueAtTime(f0, t);
+    for (let k = 1; k <= 6; k++) o.frequency.linearRampToValueAtTime(f0 * rnd(0.7, 1.6), t + dur * k / 6);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32, t + 0.06);
+    g.gain.setValueAtTime(0.3, t + dur * 0.75); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    // the wood's resonances
+    for (const [fr, q, v] of [[480, 9, 1], [1150, 12, 0.7], [2300, 14, 0.4]]) {
+      const f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = fr * rnd(0.92, 1.08); f.Q.value = q;
+      const gv = a.createGain(); gv.gain.value = v;
+      o.connect(f); f.connect(gv); gv.connect(g);
+    }
+    g.connect(bus); o.start(t); o.stop(t + dur + 0.05);
+    if (!open) {
+      // the leaf against the frame, and the latch
+      const tt = t + dur - 0.02;
+      const th = a.createOscillator(), tg = a.createGain();
+      th.type = "sine"; th.frequency.setValueAtTime(110, tt); th.frequency.exponentialRampToValueAtTime(55, tt + 0.18);
+      tg.gain.setValueAtTime(0.0001, tt); tg.gain.exponentialRampToValueAtTime(0.5, tt + 0.008); tg.gain.exponentialRampToValueAtTime(0.0001, tt + 0.25);
+      th.connect(tg); tg.connect(bus); th.start(tt); th.stop(tt + 0.3);
+      const n = noiseSrc(a, false), nf = a.createBiquadFilter(), ng = a.createGain();
+      nf.type = "bandpass"; nf.frequency.value = 2600; nf.Q.value = 3;
+      ng.gain.setValueAtTime(0.0001, tt + 0.05); ng.gain.exponentialRampToValueAtTime(0.25, tt + 0.055); ng.gain.exponentialRampToValueAtTime(0.0001, tt + 0.1);
+      n.connect(nf); nf.connect(ng); ng.connect(bus); n.start(tt + 0.05); n.stop(tt + 0.15);
+    }
+  },
+
+  // a line of dialogue arriving: a soft tick, like a page turned against a table
+  tick() {
     const a = ctx(); if (!a) return;
     const t = a.currentTime;
-    const o = a.createOscillator(), g = a.createGain(), f = a.createBiquadFilter();
-    o.type = "sawtooth"; o.frequency.setValueAtTime(180, t); o.frequency.linearRampToValueAtTime(240, t + 0.5); o.frequency.linearRampToValueAtTime(150, t + 0.9);
-    f.type = "bandpass"; f.frequency.value = 900; f.Q.value = 6;
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.1); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
-    o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 1);
+    const n = noiseSrc(a, false), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = "bandpass"; f.frequency.value = rnd(1700, 2100); f.Q.value = 2.5;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    n.connect(f); f.connect(g); g.connect(bus); n.start(t); n.stop(t + 0.08);
+    const o = a.createOscillator(), og = a.createGain();
+    o.type = "triangle"; o.frequency.setValueAtTime(620, t); o.frequency.exponentialRampToValueAtTime(420, t + 0.05);
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.05, t + 0.004); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(og); og.connect(bus); o.start(t); o.stop(t + 0.08);
   },
 
   drumRoll(secs = 4, vol = 0.5) {
@@ -213,3 +250,4 @@ const MOODS = {
   woods:  { bar: 6, wave: "triangle", cut: 1000, vol: 0.04, pluck: 0.5, chords: [[43, 50, 55, 59], [48, 55, 60, 64], [45, 52, 57, 60], [50, 57, 62, 66]] },
   hope:   { bar: 5, wave: "triangle", cut: 1300, vol: 0.05, pluck: 0.8, chords: [[48, 55, 60, 64], [53, 57, 60, 65], [45, 52, 57, 60], [55, 59, 62, 67]] },
 };
+window.__audio = AUDIO;

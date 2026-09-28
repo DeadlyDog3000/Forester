@@ -12,6 +12,13 @@ export const CHANGELOG = [
       "A new chapter, VII. Seed Before Frost, the first of Part Two: Roots. The morning after the cabin stands, you carry wood down the smoking track to the charcoal burner's camp and trade it for rye seed and a spade — if he will trade with a stranger who talks like Hamburg. Then dig your first field beside the cabin, and sow it before the frost.",
       "Henning, the charcoal burner, and his camp: a kiln smoking under its turf, his lean-to, his woodpile, at the end of the fourth fork on the road.",
       "Chapters you have not reached yet are no longer shown in the Chapters list at all.",
+      "Doors creak as they open, and shut with a thud and the click of the latch. A line of dialogue arrives with a soft tick.",
+      "Fixed: people's clothes came apart from their bodies when they twisted or bent. Coats, waistcoats and cuffs now move with the body under them.",
+      "Fixed: you stood up at the table instead of sitting on the bench.",
+      "Fixed: your brother or sister stood in your way when the men came to the door, and walked into the table afterwards.",
+      "Fixed: the red front door was made of bricks. It is painted wood again.",
+      "Fixed: cobbles covered the harbour where the water should be.",
+      "Fixed: you could not leave the clearing by the road.",
     ],
   },
   {

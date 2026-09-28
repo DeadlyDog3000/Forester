@@ -62,6 +62,7 @@ export const UI = {
     $("dlgText").classList.toggle("italic", !name);
     d.classList.remove("hidden");
     this.dialogOpen = true;
+    window.__audio && window.__audio.tick();
     const now = () => (window.G ? window.G.time : performance.now() / 1000);
     const shownAt = now();
     return new Promise(res => {
