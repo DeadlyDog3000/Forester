@@ -338,11 +338,10 @@ export class Woods extends WorldBase {
   progress(x = G.player.pos.x, z = G.player.pos.z) { return this.roadDist(x, z).t; }
   constrain(p) {
     const dc = Math.hypot(p.x - CLEARING.x, p.z - CLEARING.z);
-    if (dc < CLEARING.r + 12) {
-      if (dc > CLEARING.r + 10) { const k = (CLEARING.r + 10) / dc; p.x = CLEARING.x + (p.x - CLEARING.x) * k; p.z = CLEARING.z + (p.z - CLEARING.z) * k; }
-      return;
-    }
     const rd = this.anyRoadDist(p.x, p.z);
+    // inside the clearing you go where you like; its edge holds you, except where the road leaves it
+    if (dc < CLEARING.r + 10) return;
+    if (dc < CLEARING.r + 12 && rd.d > 14) { const k = (CLEARING.r + 10) / dc; p.x = CLEARING.x + (p.x - CLEARING.x) * k; p.z = CLEARING.z + (p.z - CLEARING.z) * k; return; }
     const lim = 14;
     if (rd.d > lim) { const k = lim / rd.d; p.x = rd.x + (p.x - rd.x) * k; p.z = rd.z + (p.z - rd.z) * k; if (!this._warned || G.time - this._warned > 8) { this._warned = G.time; this.onTooFar && this.onTooFar(); } }
     if (!rd.branch && rd.i < 3 && p.z > this.road[0].z) p.z = this.road[0].z;
