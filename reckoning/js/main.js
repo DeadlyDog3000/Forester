@@ -90,7 +90,12 @@ function setFreeLook(on) {
 function lock() {
   const el = renderer.domElement;
   try { const p = el.requestPointerLock && el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
-  setTimeout(() => { if (!document.pointerLockElement && G.mode === "play") setFreeLook(true); }, 250);
+  setTimeout(() => {
+    if (document.pointerLockElement || G.mode !== "play") return;
+    setFreeLook(true);
+    // some embedded browsers forbid the lock outright; say so once, rather than let the cursor wander off
+    if (!lock.warned) { lock.warned = true; UI.hint("This browser will not lock the mouse, so the cursor can leave the window. Open the game in Chrome or Safari to look around freely.", 8); }
+  }, 250);
 }
 // M: lock the mouse, or where the browser refuses the lock, look with a hidden free cursor
 function toggleMouse() {
