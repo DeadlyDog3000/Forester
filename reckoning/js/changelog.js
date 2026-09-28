@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.8.1", date: "28 September 2026", title: "Jakob's map, and fixes",
+    items: [
+      "Jakob gives you a map at the end of your errand — a copy of the one on the counting-house wall — and shows you how to read it. Until then there is no map.",
+      "On the map (J), the mouse wheel zooms in on whatever is under the cursor, and dragging moves the sheet.",
+      "The marker no longer points through houses: when there's no straight way, it stands on the next corner of the way there. The distance is the whole way.",
+      "Fixed: the game could stop when Father crossed the room to you on the night they came for him.",
+      "You can't sprint while the stamina bar is red. It turns red when you're winded, amber when you're getting low.",
+      "What people say while you walk now sits above the stamina bar, instead of behind it.",
+    ],
+  },
+  {
     v: "0.8", date: "28 September 2026", title: "The end of the story: Harvest Home and The Reckoning",
     items: [
       "Chapter XII, Harvest Home: two more come up the road with nowhere to sleep. Raise them a cabin, reap the rye, set someone to new work and furnish your own cabin — then the harvest supper, and Henning's news.",

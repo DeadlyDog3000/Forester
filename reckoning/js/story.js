@@ -196,6 +196,8 @@ export async function startChapter(n, opts = {}) {
   const save = loadSave() || {};
   writeSave({ who: G.who, chapter: n, unlocked: Math.max(save.unlocked || 1, n) });
   G.chapter = n;
+  // the map is Jakob's gift, at the end of the first errand; from then on you always have it
+  G.hasMap = n > 1 || !!(loadSave() || {}).map;
   G.pack = (PACK[Math.min(n, 12)] || []).map(i => ({ ...i })); G.camp = null;
   try { await ch.run(w, opts); }
   catch (e) { if (e !== ABORT) console.error(e); }
@@ -265,7 +267,7 @@ async function ch1(w) {
   const doorMark = onFrame(() => { if (w.inHome()) mark({ x: 13, z: -3.1, y: 1.6, hideWithin: 1 }); else if (!G.marker || !G.marker.actor) mark(jakob); });
   tutor("door", "The front door sticks — F, and put your shoulder in it. Out in the street you can run. Not in here.", [["F", "open the door"], ["Shift", "run"], [["Q", "E"], "lean"]]);
   let outside = false;
-  onFrame(() => { if (!outside && !w.inHome()) { outside = true; tutor("pack", "", [["T", "inventory — the ledger's in there"], ["J", "map"]], 7); } });
+  onFrame(() => { if (!outside && !w.inHome()) { outside = true; tutor("pack", "", [["T", "inventory — the ledger's in there"]], 7); } });
 
   w.addTrigger({ x0: 9, x1: 17, z0: -5.5, z1: -3.3, fn: () => bark(P.sib, `Don't let him keep you. And bring back the good news before Father eats it all.`) });
   w.addTrigger({ x: 10, z: 1, r: 4, fn: () => { albers.facePlayer(); albers.lookAtPlayer(true); bark("Frau Albers", `Evening! Tell your father to save me two of the good rye tomorrow — the dark one, mind, not the white.`); } });
@@ -284,8 +286,27 @@ async function ch1(w) {
   jakob.person.setPose("idle");
   await say("Jakob", "Tell him the Riga ship's been sighted off Cuxhaven. Tomorrow, if the wind holds. We'll need every back on this quay.");
   await say(YOU(), "He'll be pleased.");
-  await say("Jakob", "He'll be insufferable. Go on, then — your supper's getting cold, and I can smell the rain coming.");
+  await say("Jakob", "He'll be insufferable. Oh — and this is for you. Your father had it copied from the one on the counting-house wall.");
+  jakob.person.setPose("hold");
+  await say("Jakob", "Every lane from the harbour to the Alster. A merchant's child ought to know the city — and it'll know you back, the more of it you walk.");
+  jakob.person.setPose("idle"); SFX.pickup();
+  G.hasMap = true; writeSave({ map: true });
+  if (!G.pack.some(i => i.icon === "map")) G.pack.push({ icon: "map", name: "Jakob's map of the city", note: "Copied from the one on the counting-house wall. It fills in as you go." });
+  await say("Jakob", "Go on, then — your supper's getting cold, and I can smell the rain coming.");
   G.lockMove = false; look(null); jakob.stopFacing(); jakob.person.setPose("armsCrossed");
+  // how to read it: open it, look closer at something, and put it away
+  if (!tipSeen("mapuse")) {
+    writeSave({ tips: [...((loadSave() || {}).tips || []), "mapuse"] });
+    G.mapUsed = { opened: false, zoomed: false };
+    UI.objective("Open Jakob's map — press J"); UI.keys([["J", "open the map"]], 8);
+    await until(() => G.mapUsed.opened);
+    UI.objective("Look closer — scroll to zoom in on the harbour, drag to move the map"); UI.keys([["Scroll", "zoom"], ["Drag", "move"], ["J", "put it away"]], 10);
+    await until(() => G.mapUsed.zoomed);
+    UI.objective("Put the map away — J");
+    await until(() => !G.mapOpen);
+    UI.hint("The small map in the corner is the same one. The more of a place you walk, the more of it is drawn in.", 6);
+    G.mapUsed = null;
+  }
   UI.objective("Go home for supper");
   mark([13, -2.2]);
   // the evening wears on as you walk back
@@ -388,7 +409,9 @@ async function ch2(w) {
   await say("Father", `Stay by the hearth, both of you. Do nothing foolish. I will be home by the Sabbath.`);
   // he crosses the room to you, round the table, before they can stop him
   const side = pl.pos.x < 12.7 ? 10.9 : 14.6;
-  const toYou = pl.pos.z > -5.6 ? [[pl.pos.x + 0.7, pl.pos.z]] : [[side, -4.9], [side, clamp(pl.pos.z, -8.6, -4.9)], [pl.pos.x + (side < 12 ? -0.7 : 0.7), pl.pos.z]];
+  // (the last step is on his side of you, not round the far side)
+  const near = Math.sign(side - pl.pos.x) || 1;
+  const toYou = pl.pos.z > -5.6 ? [[pl.pos.x + 0.7, pl.pos.z]] : [[side, -4.9], [side, clamp(pl.pos.z, -8.6, -4.9)], [pl.pos.x + near * 0.75, pl.pos.z]];
   await father.walk(toYou, 1.3);
   father.facePlayer();
   await say(null, "He crossed the room and took us both by the shoulders, and put his mouth by my ear.");

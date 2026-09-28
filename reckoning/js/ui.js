@@ -129,10 +129,11 @@ export const UI = {
     await sleep(500);
     c.classList.add("hidden");
   },
-  stamina(v) {
+  stamina(v, winded = false) {
     const s = $("stamina");
     if (v === undefined || v === null) { s.classList.add("hidden"); return; }
-    s.classList.remove("hidden"); s.style.setProperty("--s", v); s.classList.toggle("low", v < 0.25);
+    s.classList.remove("hidden"); s.style.setProperty("--s", v);
+    s.classList.toggle("low", !!winded); s.classList.toggle("warn", !winded && v < 0.25);
   },
 
   objective(text) {

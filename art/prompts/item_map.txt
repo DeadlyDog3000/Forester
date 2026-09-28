@@ -1,0 +1,4 @@
+A single 32x32 pixel game sprite of a folded old parchment city map, half unrolled, with brown ink lines of streets and a blue river on it and a red wax seal. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work, in the style of a Minecraft inventory item icon. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on, slightly diagonal.
+COLOUR: Pale tan parchment, brown ink, a little blue, red seal, near-black outline. Five shades only.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.

@@ -150,7 +150,7 @@ function buildChapters() {
 
 // ---- inventory (T) ----
 const ICON = {
-  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", seeds: "../assets/sprites/items/seeds.png",
+  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
   axe: "../assets/sprites/items/tool_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -198,7 +198,7 @@ $("inventory").addEventListener("mouseleave", () => $("invTip").classList.add("h
 let overlay = null, overlayTimer = 0, overlayLockMove = false;
 const OVERLAYS = {
   inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
-  bigmap: { open: () => renderBigMap(), tick: () => renderBigMap(), every: 250 },
+  bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; } },
   buildmenu: { open: () => renderPlans(), tick: () => renderPlans(), every: 500 },
 };
 function showOverlay(id, on) {
@@ -311,6 +311,31 @@ addEventListener("keydown", e => {
 });
 
 // ---- the full map (J) ----
+// the wheel zooms about the point under the cursor; dragging moves the sheet
+$("bigmap").addEventListener("wheel", e => {
+  const mv = G.mapView; if (!mv || !mv.S) return;
+  e.preventDefault();
+  const r = $("bigmapCanvas").getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const wx = mv.cx + (mx - mv.W / 2) / mv.S, wz = mv.cz + (my - mv.H / 2) / mv.S;
+  const z0 = mv.zoom;
+  mv.zoom = clamp(mv.zoom * Math.exp(-e.deltaY * 0.0015), 1, 8);
+  const S1 = mv.S * mv.zoom / z0;
+  mv.ox += (wx - (mx - mv.W / 2) / S1) - mv.cx; mv.oz += (wz - (my - mv.H / 2) / S1) - mv.cz;
+  if (mv.zoom === 1) { mv.ox = 0; mv.oz = 0; }
+  if (G.mapUsed && mv.zoom > 1.6) G.mapUsed.zoomed = true;
+  renderBigMap();
+}, { passive: false });
+{
+  let drag = null;
+  $("bigmap").addEventListener("mousedown", e => { drag = { x: e.clientX, y: e.clientY }; $("bigmap").classList.add("dragging"); });
+  addEventListener("mouseup", () => { drag = null; $("bigmap").classList.remove("dragging"); });
+  addEventListener("mousemove", e => {
+    const mv = G.mapView; if (!drag || !mv || !mv.S || overlay !== "bigmap") return;
+    mv.ox -= (e.clientX - drag.x) / mv.S; mv.oz -= (e.clientY - drag.y) / mv.S;
+    drag = { x: e.clientX, y: e.clientY };
+    renderBigMap();
+  });
+}
 function renderBigMap() {
   const cv = $("bigmapCanvas"), w = G.world;
   const dpr = Math.min(2, devicePixelRatio || 1);
@@ -320,14 +345,19 @@ function renderBigMap() {
   c.setTransform(1, 0, 0, 1, 0, 0);
   const W = cv.width / dpr, H = cv.height / dpr;
   const b = w.mapBounds || { x0: -100, x1: 100, z0: -100, z1: 100 };
-  const S = Math.min((W - 60) / (b.x1 - b.x0), (H - 60) / (b.z1 - b.z0));
-  const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+  // the whole sheet at zoom 1; the wheel looks closer, a drag moves the sheet
+  const mv = G.mapView || (G.mapView = { zoom: 1, ox: 0, oz: 0 });
+  const S0 = Math.min((W - 60) / (b.x1 - b.x0), (H - 60) / (b.z1 - b.z0)), S = S0 * mv.zoom;
+  const span = Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2;
+  mv.ox = clamp(mv.ox, -span, span); mv.oz = clamp(mv.oz, -span, span);
+  const cx = (b.x0 + b.x1) / 2 + mv.ox, cz = (b.z0 + b.z1) / 2 + mv.oz;
+  mv.S = S; mv.W = W; mv.H = H; mv.cx = cx; mv.cz = cz;
   const X = x => W / 2 + (x - cx) * S, Z = z => H / 2 + (z - cz) * S;
   // draw at CSS size into a scaled context; the map code reads the canvas size, so give it one that matches
   const sub = { canvas: { width: W, height: H } };
   c.save(); c.scale(dpr, dpr);
   const proxy = new Proxy(c, { get: (t, k) => k === "canvas" ? sub.canvas : (typeof t[k] === "function" ? t[k].bind(t) : t[k]), set: (t, k, v) => { t[k] = v; return true; } });
-  drawMap(proxy, X, Z, S, true, cx, cz, Math.hypot(b.x1 - b.x0, b.z1 - b.z0));
+  drawMap(proxy, X, Z, S, true, cx, cz, Math.hypot(b.x1 - b.x0, b.z1 - b.z0) / mv.zoom);
   // burnt, darkened edges
   const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
   g.addColorStop(0, "rgba(90,55,20,0)"); g.addColorStop(1, "rgba(70,40,15,0.55)");
@@ -381,7 +411,10 @@ addEventListener("keydown", e => {
   if (e.code === "Escape" && G.mode === "play" && input.freeLook) pause();
   if (e.code === "KeyP" && G.mode === "play") { document.exitPointerLock && document.exitPointerLock(); pause(); }
   if (e.code === "KeyT" && !e.repeat && G.mode === "play") showOverlay("inventory", overlay !== "inventory");
-  if (e.code === "KeyJ" && !e.repeat && G.mode === "play") showOverlay("bigmap", overlay !== "bigmap");
+  if (e.code === "KeyJ" && !e.repeat && G.mode === "play") {
+    if (!G.hasMap && overlay !== "bigmap") UI.hint("You haven't a map.", 2.5);
+    else showOverlay("bigmap", overlay !== "bigmap");
+  }
   if (e.code === "KeyB" && !e.repeat && G.mode === "play" && G.town && !G.town.planning) showOverlay("buildmenu", overlay !== "buildmenu");
   if (e.code === "Escape" && overlay) { showOverlay(overlay, false); return; }
   // M takes the mouse into the game, or gives it back

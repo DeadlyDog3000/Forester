@@ -254,7 +254,8 @@ export class Player {
       if (G.stamina <= 0) this.winded = true;
       if (this.winded) sprint = false;
       // the bar shows while you are short of breath, and goes once you have it back
-      UI.stamina(G.stamina < 0.995 ? G.stamina : null);
+      // (red while winded, and only then: red means you cannot sprint)
+      UI.stamina(G.stamina < 0.995 ? G.stamina : null, this.winded);
     } else UI.stamina(null);
     if (sprint && this.crouched) this.crouched = false;
     const max = this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1;
@@ -427,7 +428,9 @@ function clearLine(w, ax, az, bx, bz, y) {
 // when the goal itself is inside something and only the closest free spot is reached
 export function findPath(w, sx, sz, gx, gz) {
   if (!w || !w.col) return [{ x: gx, z: gz }];
-  const y = (w.heightAt(sx, sz) + w.heightAt(gx, gz)) / 2;
+  // one ground height for the whole search is fast; between floors of a house it would be wrong, so there each cell finds its own
+  const ys = w.heightAt(sx, sz), yg = w.heightAt(gx, gz);
+  const y = Math.abs(ys - yg) < 0.8 ? (ys + yg) / 2 : undefined;
   if (clearLine(w, sx, sz, gx, gz, y)) return [{ x: gx, z: gz }];
   const M = 8;
   const x0 = Math.min(sx, gx) - M, z0 = Math.min(sz, gz) - M;
@@ -589,7 +592,10 @@ export class Actor {
         this.path.shift(); this.steps = []; this.stepsFor = null; this.replans = 0;
         if (!this.path.length && this.resolve) { const r = this.resolve; this.resolve = null; r(); }
       };
-      if (l < 0.12 + spd * dt || (st.near && l < 0.45)) {
+      // a walk that ends beside you is done once they are there: you are in the way of the last step
+      const pd = Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z);
+      const byYou = this.path.length === 1 && this.steps.length === 1 && Math.hypot(G.player.pos.x - st.x, G.player.pos.z - st.z) < 1.5 && pd < 1.15;
+      if (l < 0.12 + spd * dt || (st.near && l < 0.45) || byYou) {
         if (!st.near) { p.x = st.x; p.z = st.z; }
         this.steps.shift(); this.bestD = Infinity; this.stuck = 0;
         if (!this.steps.length) arrive();
@@ -598,7 +604,8 @@ export class Actor {
         if (!st.ghost) this.collide();
         // no headway for a while (someone in the doorway, a door just shut): look again, and in the end give up here
         if (l < this.bestD - 0.05) { this.bestD = l; this.stuck = 0; }
-        else if (Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z) > 1.3) this.stuck += dt;
+        // (waiting on you in a doorway counts, only more patiently: nothing waits forever)
+        else this.stuck += Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z) > 1.3 ? dt : dt * 0.35;
         if (this.stuck > 1.2) {
           this.replans = (this.replans || 0) + 1;
           if (this.replans > 3) { moving = false; arrive(); }
@@ -696,12 +703,32 @@ function updateInteract(dt) {
 //  the objective marker
 // ---------------------------------------------------------------------------
 const _mv = new THREE.Vector3();
-function updateMarker() {
+// the way to the marker, when a straight line would run into a house: [{x,z}], refreshed now and then
+let markerWay = null, markerWayT = 0, markerWayFor = null;
+function updateMarker(dt = 0) {
   const m = G.marker;
-  if (!m || G.mode !== "play" || G.cine) { UI.marker(0, 0, 0, false); return; }
+  if (!m || G.mode !== "play" || G.cine) { UI.marker(0, 0, 0, false); markerWay = null; return; }
   const target = m.actor ? m.actor.headPos().add(new THREE.Vector3(0, 0.35, 0)) : new THREE.Vector3(m.x, m.y ?? 1.8, m.z);
-  const dist = Math.hypot(target.x - G.player.pos.x, target.z - G.player.pos.z);
+  const pl = G.player, w = G.world;
+  let dist = Math.hypot(target.x - pl.pos.x, target.z - pl.pos.z);
   if (dist < (m.hideWithin ?? 2.5)) { UI.marker(0, 0, 0, false); return; }
+  // a marker you can't walk straight to stands on the next corner of the way there; the distance is the whole way
+  markerWayT -= dt;
+  if (!m.actor && w && w.col && dist < 160 && (markerWayT <= 0 || markerWayFor !== m)) {
+    markerWayT = 0.6; markerWayFor = m;
+    const way = findPath(w, pl.pos.x, pl.pos.z, target.x, target.z);
+    markerWay = way.length > 1 ? way : null;
+  } else if (m.actor) markerWay = null;
+  if (markerWay) {
+    while (markerWay.length > 1 && Math.hypot(markerWay[0].x - pl.pos.x, markerWay[0].z - pl.pos.z) < 1.6) markerWay.shift();
+    if (markerWay.length > 1) {
+      const c0 = markerWay[0];
+      let whole = Math.hypot(c0.x - pl.pos.x, c0.z - pl.pos.z);
+      for (let i = 1; i < markerWay.length; i++) whole += Math.hypot(markerWay[i].x - markerWay[i - 1].x, markerWay[i].z - markerWay[i - 1].z);
+      dist = whole;
+      target.set(c0.x, (w.heightAt ? w.heightAt(c0.x, c0.z) : 0) + 1.6, c0.z);
+    }
+  }
   _mv.copy(target).project(camera);
   let behind = _mv.z > 1;
   let sx = _mv.x, sy = _mv.y;
@@ -808,6 +835,9 @@ export function drawMap(c, X, Z, S, big, cx, cz, radius) {
 function updateMinimap(dt) {
   mmT -= dt; if (mmT > 0) return; mmT = 1 / 15;
   const cv = document.getElementById("minimap"); if (!cv) return;
+  const wrap = document.getElementById("minimapWrap");
+  if (wrap) wrap.classList.toggle("hidden", !G.hasMap);
+  if (!G.hasMap) return;
   const c = mmCtx || (mmCtx = cv.getContext("2d"));
   const W = cv.width, R = W / 2, S = R / 40;      // pixels per metre
   const p = G.player.pos;
@@ -860,7 +890,7 @@ export function frame(dt, skipRender) {
     for (const f of w.flames) flicker(f, dt * 0.2);
   }
   if (G.player && w) updateCamera(dt);
-  updateMarker();
+  updateMarker(dt);
   if (G.mode === "play" && w) updateMinimap(dt);
   input.endFrame();
   if (!skipRender) renderer.render(G.scene, camera);

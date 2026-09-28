@@ -1,0 +1,4 @@
+A single 32x32 pixel game sprite of a plain wooden hunting longbow with a taut pale string, drawn diagonally from corner to corner, with a leather grip in the middle. True low-resolution pixel art: enormous chunky square pixels, hard edges, no anti-aliasing, no gradients. 16-bit era sprite work, in the style of a Minecraft inventory item icon. Bold blocky shapes only.
+Perfectly square 1:1 image, the object centred and filling most of the frame, seen straight on, diagonal.
+COLOUR: Warm brown wood, dark leather grip, cream string, near-black outline. Four shades only.
+BACKGROUND: Completely flat uniform solid warm light grey clearly different from the sprite, keyable. No scenery, no shadow, no text.
