@@ -188,6 +188,20 @@ export const AUDIO = {
     }
   },
 
+  // a blade or a haft through the air: noise that swells and falls away, its pitch rising with the stroke's speed
+  whoosh(vol = 0.5, heavy = true) {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime, dur = heavy ? rnd(0.3, 0.36) : rnd(0.2, 0.25), peak = t + dur * 0.45;
+    const s = noiseSrc(a), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g = a.createGain();
+    f.type = "bandpass"; f.Q.value = 0.9;
+    const lo = heavy ? 260 : 420, hi = heavy ? rnd(900, 1150) : rnd(1500, 1900);
+    f.frequency.setValueAtTime(lo, t); f.frequency.exponentialRampToValueAtTime(hi, peak); f.frequency.exponentialRampToValueAtTime(lo * 0.8, t + dur);
+    f2.type = "lowpass"; f2.frequency.value = 2600;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol * 0.35, peak);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(f2); f2.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+  },
+
   shout() {
     const a = ctx(); if (!a) return;
     const t = a.currentTime;

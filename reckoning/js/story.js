@@ -18,7 +18,7 @@ import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { Raids } from "./raid.js";
-import { makeTorch, makeLantern, makeScroll, makeHalberd, P as PROPS } from "./models.js";
+import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, P as PROPS } from "./models.js";
 import { Town, BUILDINGS, lieOn, YEAR } from "./town.js";
 
 /* global SFX */
@@ -130,6 +130,93 @@ function mark(m) { G.marker = m ? (m.person ? { actor: m } : Array.isArray(m) ? 
 function spawn(opts, x, z, yaw = 0) { const a = new Actor(opts, x, z, yaw); if (opts === LOOKS.brother || opts === LOOKS.sister) a.isSibling = true; return a; }
 
 // ---------------------------------------------------------------------------
+//  your brother or sister, with a word now and then
+// ---------------------------------------------------------------------------
+// When you have been at one task a good while, they say how it's done (the
+// first matching line for the first unfinished part of the objective). When
+// something is wrong that you may not have noticed — hurt, out of arrows, a
+// raid and your hands empty — they say so. In the settlement they pass on what
+// it needs, every few minutes. Only when they are near enough to say it.
+const SIB_HINTS = [
+  [/Speak to Father/, "Father's in the counting room, at the back. He hates being kept waiting."],
+  [/ledger to Jakob/, "The warehouse is down on the harbour — follow the marker. Jakob's always in the doorway."],
+  [/Open Jakob's map/, "Press J. Jakob's map is better than mine."],
+  [/scroll to zoom|drag to move/, "Scroll to look closer. Drag it about with the mouse."],
+  [/Put the map away/, "J again to put it away."],
+  [/Go home for supper|Sit down to supper/, "Supper's on the table. The bench by the window."],
+  [/Go down to the hall/, "Down the stairs. Quietly."],
+  [/Go to the square/, "Follow the crowd. The square's up the street."],
+  [/alley|Run —|don't stop/, "Shift to run! Up the alley — don't look back!"],
+  [/marsh gate/, "Crouch with C and stay out of the lantern light. Wait for him to look away, then go."],
+  [/Follow the road/, "Keep to the road. At the forks, go the way the marker points."],
+  [/clearing|Look at the ruin/, "In there. That's where we'll be."],
+  [/old axe/, "The axe is on the chopping block. F to take it."],
+  [/Stack the logs/, "Take them to the stack by the cabin. F by the stack."],
+  [/Take the logs/, "Pick up the logs where the tree fell. F."],
+  [/Fell spruces|Fell .*logs/, "Left-click to swing. Stand close to a spruce, facing it — three or four strokes and it's down."],
+  [/Hew a door/, "The sawhorse, by the block. Hold F."],
+  [/Rebuild the cabin/, "We have the logs. Hold F at the cabin."],
+  [/Sit by the fire/, "Come and sit. F by the fire."],
+  [/Take six logs/, "Six from the stack. F by it."],
+  [/charcoal burner/, "Down the track with the smoke. You'll smell it before you see it."],
+  [/Dig|Sow/, "The spade — hold F where the marker is, strip by strip."],
+  [/Hunt for meat/, "Crouch with C and walk — don't run, they hear it. Hold right-click to draw, let go to loose."],
+  [/seed back|meat back|Take the meat/, "Bring it home — the marker shows the way."],
+  [/Go to bed/, "The pallet in the cabin. F."],
+  [/Put the fire out/, "Quick — the fire. Hold F on it."],
+  [/Hide in the trees|Stay hidden/, "Get into the trees and crouch — C. Don't move till the lantern's gone."],
+  [/Keep the fire alive/, "Feed it! Logs from the stack onto the fire, before it goes down."],
+  [/Split firewood/, "Split them at the block. Hold F."],
+  [/moss|Chink/, "The moss grows on the rocks, in the shade. Six handfuls, then press it into the walls."],
+  [/Plan a cabin|Plan /, "Press B for the plans, pick a cabin and put it where the ground's clear."],
+  [/Raise .*cabin/, "Everyone will carry logs to the site. Help them, and hold F at the site when it's ready."],
+  [/Reap the rye/, "Reap the rye in the field — hold F on it."],
+  [/Build a well|Build a woodshed|Dig a second field/, "B for the plans. It all needs logs — keep felling."],
+  [/new work/, "Walk up to someone and press F — you can give them work."],
+  [/Furnish/, "Go inside the cabin and press B there."],
+  [/Bring everyone to the fire/, "Go to each of them — F — and ask them to come."],
+  [/Carve Father's name/, "The beam — hold F."],
+];
+function sibHints() {
+  let key = "", since = 0, lastSaid = -40, saidFor = "", advT = 0, lastAdv = "";
+  const once = new Set();
+  const sibNear = () => {
+    const a = G.world && G.world.actors && G.world.actors.find(x => x.isSibling && x.root.parent && x.root.visible !== false);
+    return a && Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 40 ? a : null;
+  };
+  const say1 = (line, secs = 4) => { bark(P.sib, line, secs); lastSaid = G.time; };
+  return dt => {
+    if (G.mode !== "play" || !G.player) return;
+    since += dt; advT += dt;
+    const o = document.getElementById("objective"), text = o && !o.classList.contains("hidden") ? (document.getElementById("objText").textContent || "") : "";
+    const k = text.replace(/[\d:%]+/g, "#");
+    if (k !== key) { key = k; since = 0; }
+    if (G.cine || UI.dialogOpen || G.lockMove || G.time - lastSaid < 25) return;
+    const bark0 = document.getElementById("bark");
+    if (bark0 && !bark0.classList.contains("hidden") && +bark0.style.opacity > 0.1) return;
+    if (!sibNear()) return;
+    const pl = G.player, raid = G.town && G.town.raids && G.town.raids.active;
+    // what's wrong right now
+    if (raid && !pl.axe && !pl.bow && !once.has("arm" + G.town.S.raid.count)) { once.add("arm" + G.town.S.raid.count); return say1("Get your axe out — press 1! They're at the stores!", 3); }
+    if (raid && G.health < 0.5 && !once.has("guard" + G.town.S.raid.count)) { once.add("guard" + G.town.S.raid.count); return say1("Hold right-click to raise your guard! Catch his swing just as it comes!", 3.5); }
+    if (!raid && G.health !== undefined && G.health < 0.35 && !once.has("hurt")) { once.add("hurt"); return say1("You're hurt. Keep out of trouble a while — it'll mend.", 3.5); }
+    if (pl.hasBow && pl.bow && (pl.arrows || 0) === 0 && !once.has("arrows")) { once.add("arrows"); return say1("You're out of arrows. Pull them out where they landed — F — or buy more when a trader comes.", 4.5); }
+    // the settlement's needs, every few minutes, when they've changed
+    if (G.chapter === 14 && G.town && advT > 180) {
+      const adv = G.town.advice();
+      advT = 0;
+      if (adv && adv !== lastAdv) { lastAdv = adv; return say1(adv.replace(/ \(.*?\)/g, "") + ".", 5); }
+    }
+    // stuck on the same task a good while: how it's done
+    if (text && since > 75 && saidFor !== key + Math.floor(since / 150)) {
+      const part = text.split(" · ").find(Boolean) || text;
+      const hit = SIB_HINTS.find(([re]) => re.test(part));
+      if (hit) { saidFor = key + Math.floor(since / 150); return say1(hit[1], Math.max(3.2, hit[1].length * 0.06)); }
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
 //  saving
 // ---------------------------------------------------------------------------
 const SAVE_KEY = "reckoning.save.v1";
@@ -184,7 +271,7 @@ export async function startChapter(n, opts = {}) {
   GEN++;
   G.onFrame.length = 0;
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
-  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0;   // running always costs breath
+  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0; G.health = 1; G.downed = false; G.onDowned = null; G.showHealth = false;   // running always costs breath
   if (G.town) { G.town.stop(); G.town = null; }
   G.bugs.setKind(null);
   AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false);
@@ -205,6 +292,7 @@ export async function startChapter(n, opts = {}) {
   // the map is Jakob's gift, at the end of the first errand; from then on you always have it
   G.hasMap = n > 1 || !!(loadSave() || {}).map;
   G.pack = (PACK[Math.min(n, 12)] || []).map(i => ({ ...i })); G.camp = null;
+  G.onFrame.push(sibHints());
   try { await ch.run(w, opts); }
   catch (e) { if (e !== ABORT) console.error(e); }
 }
@@ -1032,6 +1120,7 @@ async function ch6(w) {
   // ---- felling ----
   const bundles = [];
   G.onSwing = () => {
+    w.adoptNear(pl);
     const f = pl.forward();
     let best = null, bd = 2.4;
     for (const t of w.fellable) {
@@ -1055,7 +1144,7 @@ async function ch6(w) {
     t.onDown = () => {
       SFX.treeFall();
       const i = w.fellable.indexOf(t);
-      if (!S.felled.includes(i)) S.felled.push(i);
+      if (!t.wild && !S.felled.includes(i)) S.felled.push(i);
       persist();
       if (by === "you") dropBundle(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), LOGS_PER_TREE);
       // the trunk lies a while, then the logs are all there is of it
@@ -1070,12 +1159,8 @@ async function ch6(w) {
     if (dc > reach) { x = CLEARING.x + (x - CLEARING.x) * reach / dc; z = CLEARING.z + (z - CLEARING.z) * reach / dc; }
     const y = w.heightAt(x, z), dx = Math.sin(a), dz = Math.cos(a);
     const g = new THREE.Group();
-    for (let i = 0; i < 3; i++) {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.8, 8), new THREE.MeshStandardMaterial({ color: 0x7a5634, roughness: 1 }));
-      m.rotation.z = Math.PI / 2; m.rotation.y = a + Math.PI / 2;
-      m.position.set((i - 1) * 0.3 * dz, 0.15 + (i === 1 ? 0.24 : 0), -(i - 1) * 0.3 * dx);
-      m.castShadow = true; g.add(m);
-    }
+    const pile = makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.3, y: 0.15 + (i === 1 ? 0.24 : 0), z: 0, len: 1.8, r: 0.15, dir: "z" })), Math.floor(x * 13 + z));
+    pile.rotation.y = a; g.add(pile);
     g.position.set(x, y, z);
     w.root.add(g);
     const b = { g, x, z, a, n };

@@ -7,6 +7,26 @@
 
 export const CHANGELOG = [
   {
+    v: "0.16", date: "28 September 2026", title: "Blades, guards and a health bar",
+    items: [
+      "Health: a bar of its own above your breath — ten red segments and a heart, with a pale trail showing what the last blow took. It mends slowly once nothing has hit you for a while. Run out and you go down, and come to by the fire with the raiders gone and some of the stores with them.",
+      "Raiders come armed — knives, clubs, axes, now and then a sword — and carrying torches against the dusk.",
+      "Parry: hold right-click with the axe or a weapon out to raise your guard. Raise it just as a raider swings and you turn the blow aside and leave him off balance; hold it up all along and you block most of it, at the cost of breath. Raiders and settlers parry too.",
+      "Every grown settler fights: with a sword or a spear if the smith has made them, an axe if they fell trees, and their fists if not. Children hide by the fire. A settler beaten down gets up again when it's over.",
+      "Swords, as in the first Forester's tree: once the settlement knows Spears, Swords or Battle Axes, the smith forges them, turn and turn about with tools, until there's one for every pair of hands. Hilts make them cheaper, Blades makes them bite harder. Take the best one from the hotbar.",
+      "Your brother or sister gives you a hint when you've been at one thing a good while, and speaks up when you're hurt, out of arrows, or empty-handed in a raid — and in the settlement, now and then, says what it needs.",
+      "Any tree can be felled now, not just the big ones by the clearing.",
+      "Every action takes a moment and fills the little wheel — hold F. Let go before the next.",
+      "Hewing the door shows the saw going; building, raising and making furniture show the hammer; carving and dressing game show the knife.",
+      "Swinging an axe makes a whoosh, not a click.",
+      "Logs look like logs: bark round the sides and growth rings on the sawn ends — on the stack, in the woodshed, at the building sites and where a tree fell.",
+      "No more chins standing out on everyone's faces.",
+      "The front door of the house in Hamburg is an old, weathered oxblood rather than bright red.",
+      "The objective in the corner is bigger.",
+      "Fixed: sprinting while your brother or sister talked on the road could hide what they were saying while the voice went on.",
+    ],
+  },
+  {
     v: "0.15", date: "28 September 2026", title: "Raiders on the road",
     items: [
       "Raiders: from the second week a band comes up the road at dusk, every week or so and bigger as the settlement grows. They make for the stores and run back down the road with logs, rye and money.",

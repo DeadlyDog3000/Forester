@@ -442,12 +442,12 @@ export class Hamburg extends WorldBase {
     props.box(0.5, 0.5, 0.4, 17.3, 0.25, -9.6, 0x5a3e28);
     // the front door, on a hinge
     const door = new THREE.Group();
-    // a door painted red in a dark frame, so it reads from across the hall
+    // a door in old oxblood paint, weathered dark, in a darker frame
     for (const zz of [H.z1 - 0.33, H.z1 + 0.03]) {
       b.box(0.14, 2.45, 0.08, 12.33, 1.22, zz, TIMBER); b.box(0.14, 2.45, 0.08, 13.67, 1.22, zz, TIMBER);
       b.box(1.48, 0.14, 0.08, 13, 2.38, zz, TIMBER);
     }
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.28, 0.1), mat(0x8a2a1c, { roughness: 0.7, surface: "wood" }));
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.28, 0.1), mat(0x5a2c24, { roughness: 0.85, surface: "wood" }));
     for (const [y, h] of [[0.45, 0.08], [1.14, 0.08], [1.85, 0.08]]) { const band = new THREE.Mesh(new THREE.BoxGeometry(1.1, h, 0.12), mat(0x2a2622, { metalness: 0.6, roughness: 0.5 })); band.position.set(0, y - 1.14, 0); leaf.add(band); }
     leaf.position.set(0.6, 1.14, 0); leaf.castShadow = true;
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), mat(0x2a2a2a, { metalness: 0.8 }));

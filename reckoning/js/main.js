@@ -17,6 +17,7 @@ import { AUDIO } from "./audio.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { loadModels } from "./models.js";
+import { ARMS } from "./raid.js";
 
 /* global SFX */
 
@@ -190,7 +191,7 @@ function buildChapters() {
 // ---- inventory (T) ----
 const ICON = {
   key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
-  axe: "../assets/sprites/items/tool_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
+  axe: "../assets/sprites/items/tool_iron.png", weapon: "../assets/sprites/items/weapon_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let invItems = [];
@@ -354,7 +355,7 @@ function govNation(t) {
   h += stat("Knowledge", `${known} of ${total}`, rt ? `researching ${esc(rt.name)} — ${Math.min(99, Math.round(r.t / techTime(rt) * 100))}%` : "the scholars are idle — see the tech tree", rt ? r.t / techTime(rt) : known / total, false);
   h += `</div><div class="mc-sec">Why they feel as they do</div><div class="gov-why">${why || "—"}</div>`;
   // the stores
-  const mats = [["store", "logs"], ["rye", "seeds"], ["bread", "bread"], ["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["coin", "coin"]];
+  const mats = [["store", "logs"], ["rye", "seeds"], ["bread", "bread"], ["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"], ["coin", "coin"]];
   h += `<div class="mc-sec">The stores</div><div class="gov-chips">${mats.map(([k, ic]) => `<span class="gov-chip"><img src="${ICON[ic]}" alt="">${S[k] || 0} <span class="t">${k === "rye" ? "rye" : k === "bread" ? "bread" : MAT_NAME[k] || k}</span></span>`).join("")}</div>`;
   // the buildings, by kind and by style
   const TIER = ["", "log", "timber", "brick", "modern"];
@@ -382,7 +383,8 @@ function govPeople(t) {
     const a = t.actors.find(x => x.settler === p);
     const home = cabins[Math.floor(i / t.perCabin)];
     const tool = !p.child && adults.indexOf(p) < (S.tools || 0);
-    const has = [p.job === "woodcutter" ? "Axe" : null, tool ? "Iron tools" : null, home ? "A bed" : null].filter(Boolean);
+    const arm = t.armFor ? t.armFor(p) : null;
+    const has = [p.job === "woodcutter" ? "Axe" : null, arm && arm !== "axe" && arm !== "fists" ? ARMS[arm].name : null, tool ? "Iron tools" : null, home ? "A bed" : null].filter(Boolean);
     const gone = !a || a.gone;
     rows += `<tr><td class="nm">${esc(p.name)}${p.child ? ' <span class="dim">(child)</span>' : ""}</td>
       <td>${p.child ? "—" : cap(JOBS[p.job || "hauler"].name)}</td>
@@ -473,7 +475,7 @@ setInterval(() => {
   tb.classList.toggle("hidden", !on);
   if (!on) return;
   const S = t.S;
-  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span><span class="tb"><img src="${ICON.coin}" alt="">${S.coin || 0}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
+  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span><span class="tb"><img src="${ICON.coin}" alt="">${S.coin || 0}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
 }, 300);
 // a question with set answers; resolves with the index of the one chosen
 G.choose = (title, options) => new Promise(res => {
@@ -505,6 +507,9 @@ G.ask = (title, value = "") => new Promise(res => {
 function hotbarItems() {
   const pl = G.player, out = [];
   if (pl.hasAxe) out.push({ icon: "axe", name: "Old felling axe", tool: "axe" });
+  // the best weapon the smith has made, if there is one: yours to take up
+  const arm = G.town && G.town.playerArm && G.town.playerArm();
+  if (arm) out.push({ icon: "weapon", name: ARMS[arm].name, tool: "arm", kind: arm });
   if (pl.hasBow) { out.push({ icon: "bow", name: "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
@@ -520,7 +525,7 @@ function renderHotbar() {
   hb.classList.toggle("hidden-by-talk", !!UI.dialogOpen);
   document.body.classList.toggle("talking", !!UI.dialogOpen);
   const items = hotbarItems(), pl = G.player;
-  const sel = items.findIndex(i => (i.tool === "axe" && pl.axe) || (i.tool === "bow" && pl.bow));
+  const sel = items.findIndex(i => (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "bow" && pl.bow));
   const sig = items.map(i => i.icon + (i.n ?? "")).join("|") + "#" + sel;
   if (sig === hbSig) return;
   hbSig = sig;
@@ -533,7 +538,9 @@ setInterval(renderHotbar, 200);
 addEventListener("keydown", e => {
   if (G.mode !== "play" || overlay || !/^Digit[1-9]$/.test(e.code)) return;
   const it = hotbarItems()[+e.code.slice(5) - 1];
-  if (it && it.tool === "axe") G.player.holsterAxe(!!G.player.axe);
+  const pl = G.player, blade = pl.blade || "axe";
+  if (it && it.tool === "axe") { if (pl.axe && blade !== "axe") pl.wield("axe"); else { pl.blade = "axe"; pl.holsterAxe(!!pl.axe); } }
+  if (it && it.tool === "arm") { if (pl.axe && blade === it.kind) { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield(it.kind); }
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
 });
 

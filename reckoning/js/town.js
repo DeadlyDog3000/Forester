@@ -17,7 +17,8 @@
 import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
-import { modelCopy, makeAxe, ensureModel } from "./models.js";
+import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel } from "./models.js";
+import { ARMS, ARM_KINDS } from "./raid.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, techCost, techTime } from "./gov.js";
@@ -49,7 +50,7 @@ export const WORKS = {
   smith: { at: "forge", time: 14, need: { iron: 2, store: 1 }, give: { tools: 1 }, pose: "hammer" },
 };
 // what the materials are called, for the board and the labels
-export const MAT_NAME = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "iron ore", iron: "iron", tools: "tools", coin: "DM" };
+export const MAT_NAME = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "iron ore", iron: "iron", tools: "tools", coin: "DM", spears: "spears", swords: "swords", battleaxes: "battle axes" };
 // rebuilding a building in the next style: what it costs, what it's called, and what it needs first
 export const UPGRADES = {
   2: { style: "timber and plaster, as Hamburg builds", mats: { planks: 8, stone: 6, coin: 4 } },
@@ -169,6 +170,32 @@ export class Town {
 
   // ---- materials: logs are the stack, the rest are kept in the stores ----
   have(k) { return this.S[k] || 0; }
+  // ---- arms ----
+  // (Blades: every weapon strikes harder; fists stay fists)
+  armDmg(kind) { return ARMS[kind].dmg + (kind !== "fists" && this.knows("blades") ? 5 : 0); }
+  armsKnown() { return ARM_KINDS.filter(k => this.techGates ? this.knows(ARMS[k].tech) : k === "sword"); }
+  armsCount() { return ARM_KINDS.reduce((n, k) => n + (this.S[ARMS[k].key] || 0), 0); }
+  // the best weapon in the stores for you (you choose first)
+  playerArm() { return ARM_KINDS.find(k => this.S[ARMS[k].key] > 0) || null; }
+  // who gets what, best first: you, then the watch, then everyone else in turn; woodcutters have their axes, the rest their fists
+  armFor(p) {
+    const pool = [];
+    for (const k of ARM_KINDS) for (let i = 0; i < (this.S[ARMS[k].key] || 0); i++) pool.push(k);
+    const pb = G.player && G.player.blade;
+    if (pb && pb !== "axe" && G.player.axe) { const i = pool.indexOf(pb); if (i >= 0) pool.splice(i, 1); }
+    const order = this.S.people.filter(q => !q.child).sort((x, y) => (y.job === "watch") - (x.job === "watch"));
+    return pool[order.indexOf(p)] || (p.job === "woodcutter" ? "axe" : "fists");
+  }
+  // the smith: tools, and — once the settlement knows how, and while there are fewer arms than hands to hold them — arms, by turns
+  smithWork() {
+    const W = WORKS.smith, adults = this.S.people.filter(p => !p.child).length;
+    const known = this.armsKnown();
+    if (!known.length || this.armsCount() >= adults + 1) return W;
+    this._forgeArm = !this._forgeArm;
+    if (!this._forgeArm && (this.S.tools || 0) < adults) return W;
+    // (Hilts: a weapon takes an iron less)
+    return { ...W, time: 18, need: { iron: this.knows("hilts") ? 2 : 3, store: 1 }, give: { [ARMS[known[0]].key]: 1 } };
+  }
   afford(mats) { return Object.entries(mats || {}).every(([k, n]) => this.have(k) >= n); }
   pay(mats) { for (const [k, n] of Object.entries(mats || {})) this.S[k] -= n; if (mats && mats.store) this.showStore(); }
   short(mats) { return Object.entries(mats || {}).filter(([k, n]) => this.have(k) < n).map(([k, n]) => `${n - this.have(k)} ${MAT_NAME[k] || k}`).join(", "); }
@@ -342,8 +369,8 @@ export class Town {
         g.add(sign);
       }
       const n = Math.min(b.logs || 0, def.cost);
-      for (let i = 0; i < n; i++) { const row = Math.floor(i / 5), col = i % 5; bb.add(new THREE.CylinderGeometry(0.15, 0.15, 2.4, 7), 0x7a5634, (col - 2) * 0.32, 0.15 + row * 0.27, def.d / 2 + 1.2, Math.PI / 2, Math.PI / 2, 0, 1, 1, 1, 0.08); }
       g.add(bb.build(MAT.rough));
+      if (n) g.add(makeLogs(Array.from({ length: n }, (_, i) => ({ x: (i % 5 - 2) * 0.32, y: 0.15 + Math.floor(i / 5) * 0.27, z: def.d / 2 + 1.2, len: 2.4, r: 0.15, dir: "x" })), n + 5));
     }
     w.root.add(g); this.vis.set(b, g);
     if (b.type === "woodshed" && b.done) this.showStore();
@@ -462,6 +489,8 @@ export class Town {
           this.S.store -= d.logs || 0; this.S.rye -= d.rye || 0; this.showStore();
           this.S.furniture = [...w.furniture, f]; w.setFurniture(this.S.furniture);
           this.persist(); SFX().build(); this.emit("furnished", f);
+          // made on the spot: a moment's hammering
+          pl.workFor && pl.workFor("hammer", 1.8);
           UI.hint(`${d.name} made: ${[d.logs ? `${d.logs} logs` : "", d.rye ? `${d.rye} rye` : ""].filter(Boolean).join(" and ")} from the ${this.has("woodshed") ? "woodshed" : "stack"} (${this.S.store} left).`, 4);
         }
         res(f);
@@ -601,13 +630,13 @@ export class Town {
       if (g.userData.pileN === n) continue;
       g.userData.pileN = n;
       if (g.userData.pile) g.remove(g.userData.pile);
-      const pb = new Builder();
       // two stacks along the shed, five logs deep, as many rows as there are logs for
+      const L = [];
       for (let k = 0; k < n; k++) {
         const side = k % 2, idx = Math.floor(k / 2), row = Math.floor(idx / 5), col = idx % 5;
-        pb.add(new THREE.CylinderGeometry(0.15, 0.15, 1.5, 8), 0x7a5634, side ? 0.8 : -0.8, 0.17 + row * 0.29, -0.1 + (col - 2) * 0.31 + (row % 2) * 0.05, 0, 0, Math.PI / 2, 1, 1, 1, 0.1);
+        L.push({ x: side ? 0.8 : -0.8, y: 0.17 + row * 0.29, z: -0.1 + (col - 2) * 0.31 + (row % 2) * 0.05, len: 1.5, r: 0.15, dir: "x" });
       }
-      g.userData.pile = pb.build(MAT.rough); g.add(g.userData.pile);
+      g.userData.pile = n ? makeLogs(L, n) : new THREE.Group(); g.add(g.userData.pile);
     }
   }
   setupStack() {
@@ -628,6 +657,8 @@ export class Town {
     const w = this.w, pl = G.player;
     G.onSwing = () => {
       if (this.raids && this.raids.swing(pl)) return;
+      if (!(pl.blade && pl.blade !== "axe")) w.adoptNear && w.adoptNear(pl);
+      if (pl.blade && pl.blade !== "axe") { if (!this._bladeTip) { this._bladeTip = true; UI.hint(`A ${ARMS[pl.blade].name.toLowerCase()} won't fell a tree. Take the axe for that.`, 3); } return; }
       const f = pl.forward();
       let best = null, bd = 2.4;
       for (const t of w.fellable) {
@@ -653,7 +684,7 @@ export class Town {
     t.onDown = () => {
       SFX().treeFall();
       const i = this.w.fellable.indexOf(t);
-      if (!this.S.felled.some(f => f.i === i)) this.S.felled.push({ i, day: this.day });
+      if (!t.wild && !this.S.felled.some(f => f.i === i)) this.S.felled.push({ i, day: this.day });
       if (dropLogs) this.dropLogs(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), this.logsPerTree);
       this.persist();
       setTimeout(() => this.fellNow(t), 1500);
@@ -683,12 +714,9 @@ export class Town {
     if (dc > reach) { x = CLEARING.x + (x - CLEARING.x) * reach / dc; z = CLEARING.z + (z - CLEARING.z) * reach / dc; }
     const y = w.heightAt(x, z), dx = Math.sin(a), dz = Math.cos(a);
     const g = new THREE.Group();
-    for (let i = 0; i < 3; i++) {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.8, 8), mat(0x7a5634, { surface: "bark" }));
-      m.rotation.z = Math.PI / 2; m.rotation.y = a + Math.PI / 2;
-      m.position.set((i - 1) * 0.3 * dz, 0.15 + (i === 1 ? 0.24 : 0), -(i - 1) * 0.3 * dx);
-      m.castShadow = true; g.add(m);
-    }
+    // three logs, two side by side and one on top, across the line the tree fell along
+    const pile = makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.3, y: 0.15 + (i === 1 ? 0.24 : 0), z: 0, len: 1.8, r: 0.15, dir: "z" })), Math.floor(x * 13 + z));
+    pile.rotation.y = a; g.add(pile);
     g.position.set(x, y, z); w.root.add(g);
     const b = { g, x, z, a, n };
     b.it = w.addInteract({ x, y: y + 0.4, z, reach: 2.4, label: () => `Take the logs (${b.n})`,
@@ -800,20 +828,31 @@ export class Town {
       alive();
       if (this.isNight() && !(this.raids && this.raids.active)) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
       const job = a.settler.job || "hauler";
-      // raiders in the settlement: the watch goes for them; everyone else takes cover by the fire
+      // raiders in the settlement: every grown settler fights — with what the smith has made, an axe, or their fists;
+      // the children hide by the fire
       const raid = this.raids && this.raids.active;
-      if (raid && job === "watch") {
+      if (a.knocked) {
+        if (raid && G.time < a.knocked) { a.doing = "knocked down"; await sleep(1); alive(); continue; }
+        a.knocked = 0; a.lying = false; a.yOff = 0; a.hp = 50;
+      }
+      if (!raid && a.fighting) { a.fighting = false; if (a.armKind) { a.person.held.clear(); a.armKind = null; } a.hp = 50; }
+      if (raid && !a.settler.child) {
         const r = this.raids.nearest(a.pos);
         if (r) {
-          a.doing = "fighting the raiders";
+          const arm = this.armFor(a.settler);
+          if (a.armKind !== arm) { a.person.held.clear(); if (arm !== "fists") a.hold(makeArm(arm)); a.armKind = arm; }
+          a.fighting = true;
+          a.doing = arm === "fists" ? "fighting the raiders with bare fists" : `fighting the raiders with ${arm === "axe" ? "an" : "a"} ${ARMS[arm].name.toLowerCase()}`;
           const d = Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z);
-          if (d > 1.6) { await Promise.race([a.walkTo(r.pos.x, r.pos.z, 3.0), sleep(0.8)]); alive(); continue; }
-          a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.5); alive(); a.person.setPose("idle");
-          if (r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 2) { r.hit(0.5); SFX().chop(); }
-          await sleep(0.7); continue;
+          if (d > 1.5) { await Promise.race([a.walkTo(r.pos.x, r.pos.z, 3.0), sleep(0.8)]); alive(); continue; }
+          // thrown off by a parry: a moment to find their feet
+          if (a.stagger && G.time < a.stagger) { await sleep(a.stagger - G.time); alive(); continue; }
+          a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
+          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm), a); arm === "fists" ? SFX().swingFist() : SFX().chop(); }
+          await sleep(arm === "fists" ? 0.55 : 0.9); continue;
         }
       }
-      if (raid && !a.settler.child ? job !== "watch" : raid) {
+      if (raid) {
         a.doing = "taking cover from the raiders";
         await a.walkTo(FIRE.x + Math.cos(a.settler.seed || 0) * 3, FIRE.z + Math.sin(a.settler.seed || 0) * 3, 2.6); alive();
         a.person.setPose("armsCrossed"); await sleep(2); alive(); a.person.setPose("idle");
@@ -823,7 +862,7 @@ export class Town {
       const clearing = !a.settler.child && this.toClear().some(t => !t.claimed);
       const site = this.S.buildings.find(b => !b.done && b.type !== "field" && b.logs < BUILDINGS[b.type].cost);
       const matSite = !site && this.S.buildings.find(b => !b.done && b.type !== "field" && Object.entries(this.wants(b)).some(([k]) => this.have(k) > 0));
-      const works = WORKS[job], workAt = works && this.S.buildings.find(b => b.done && b.type === works.at);
+      const works = job === "smith" ? this.smithWork() : WORKS[job], workAt = works && this.S.buildings.find(b => b.done && b.type === works.at);
       if (clearing) {
         // (falls through to the felling below)
       }

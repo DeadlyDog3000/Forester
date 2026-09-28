@@ -104,12 +104,13 @@ export const UI = {
     $("barkText").classList.toggle("italic", !name);
     b.classList.remove("hidden");
     b.style.opacity = 1;
-    clearTimeout(this._barkTimer);
+    // (a new line cancels the last one's fade-out too — or, following close behind it, it would be hidden while it was still being spoken)
+    clearTimeout(this._barkTimer); clearTimeout(this._barkHide);
     const t = (secs ?? Math.max(2.6, text.length * 0.065)) * 1000;
-    this._barkTimer = setTimeout(() => { b.style.opacity = 0; setTimeout(() => b.classList.add("hidden"), 400); }, t);
+    this._barkTimer = setTimeout(() => { b.style.opacity = 0; this._barkHide = setTimeout(() => b.classList.add("hidden"), 400); }, t);
     return sleep(t + 300);
   },
-  clearBark() { clearTimeout(this._barkTimer); $("bark").classList.add("hidden"); },
+  clearBark() { clearTimeout(this._barkTimer); clearTimeout(this._barkHide); $("bark").classList.add("hidden"); },
 
   // the red screen: a headline, what happened, and a quote that writes itself in
   async caught(head, line, quote, by, tip) {
@@ -134,6 +135,22 @@ export const UI = {
     if (v === undefined || v === null) { s.classList.add("hidden"); return; }
     s.classList.remove("hidden"); s.style.setProperty("--s", v);
     s.classList.toggle("low", !!winded); s.classList.toggle("warn", !winded && v < 0.25);
+  },
+
+  health(v) {
+    const h = $("health"); if (!h) return;
+    if (v === undefined || v === null) { h.classList.add("hidden"); this._hp = null; return; }
+    h.classList.remove("hidden"); h.style.setProperty("--h", v);
+    // the pale trail waits at the old mark, then follows down (and jumps up with a heal)
+    if (this._hp == null || v > this._hp) h.style.setProperty("--t", v);
+    else if (v < this._hp - 0.001) requestAnimationFrame(() => h.style.setProperty("--t", v));
+    this._hp = v;
+    h.classList.toggle("low", v < 0.3);
+  },
+  hurt(k = 0.6) {
+    const f = $("hurtFx"); if (!f) return;
+    f.style.transition = "none"; f.style.opacity = k;
+    requestAnimationFrame(() => { f.style.transition = "opacity 0.6s ease-out"; f.style.opacity = 0; });
   },
 
   objective(text) {
@@ -173,14 +190,14 @@ export const UI = {
     const k = $("keys");
     k.innerHTML = parts.map(([keys, what]) => `<span class="kp">${[].concat(keys).map(x => `<kbd>${x}</kbd>`).join("")}<span>${what}</span></span>`).join("");
     k.classList.remove("hidden"); k.style.opacity = 1;
-    clearTimeout(this._keysT);
-    this._keysT = setTimeout(() => { k.style.opacity = 0; setTimeout(() => k.classList.add("hidden"), 500); }, secs * 1000);
+    clearTimeout(this._keysT); clearTimeout(this._keysHide);
+    this._keysT = setTimeout(() => { k.style.opacity = 0; this._keysHide = setTimeout(() => k.classList.add("hidden"), 500); }, secs * 1000);
   },
   hint(text, secs = 5) {
     const h = $("hint");
     h.textContent = text; h.classList.remove("hidden"); h.style.opacity = 1;
-    clearTimeout(this._hintT);
-    this._hintT = setTimeout(() => { h.style.opacity = 0; setTimeout(() => h.classList.add("hidden"), 500); }, secs * 1000);
+    clearTimeout(this._hintT); clearTimeout(this._hintHide);
+    this._hintT = setTimeout(() => { h.style.opacity = 0; this._hintHide = setTimeout(() => h.classList.add("hidden"), 500); }, secs * 1000);
   },
   eye(v) {
     const e = $("eye");

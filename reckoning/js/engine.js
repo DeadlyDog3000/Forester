@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT } from "./core.js";
-import { makePerson, makeAxe, modelCopy } from "./models.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, modelCopy } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
@@ -164,6 +164,13 @@ export class Player {
     if (away && this.axe) { this.giveAxe(false); this.hasAxe = true; }
     else if (!away && this.hasAxe && !this.axe) this.giveAxe(true);
   }
+  // take up a weapon in place of the axe (or the axe again): the same two-handed swing
+  wield(kind) {
+    const owned = this.hasAxe;
+    if (this.axe) this.giveAxe(false);
+    this.blade = kind; this.giveAxe(true);
+    if (kind !== "axe") this.hasAxe = owned;
+  }
   giveAxe(on) {
     this.hasAxe = on;
     if (on && this.bow) this.showBow(false);
@@ -171,7 +178,7 @@ export class Player {
       // the hands are a pivot; inside it the haft points forward and the blade leads to the left
       this.axe = new THREE.Group();
       this.axe.rotation.order = "YXZ";
-      const a = makeAxe();
+      const a = makeArm(this.blade || "axe");
       a.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0)));
       this.axe.add(a);
       camera.add(this.axe);
@@ -185,7 +192,9 @@ export class Player {
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); fist.rotation.z = Math.PI / 2; h.add(fist);
         a.add(h); return h;
       };
-      this.hands = [hand(0.07), hand(0.3)];
+      // (a sword's grip is short: the second hand close under the guard)
+      const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5] }[this.blade] || [0.07, 0.3];
+      this.hands = [hand(grips[0]), hand(grips[1])];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
         const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
@@ -196,7 +205,7 @@ export class Player {
       });
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
-      this.axeBody = makeAxe(); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
+      this.axeBody = makeArm(this.blade || "axe"); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
       if (this.model && this.model.held) this.model.held.add(this.axeBody);
     } else if (!on && this.axe) {
       camera.remove(this.axe); this.axe = null;
@@ -313,12 +322,76 @@ export class Player {
       cuff.position.y = Math.max(0.05, L - 0.12);
     }
   }
+  // ---- work in your hands: a saw drawn back and forth, a hammer striking, a knife whittling ----
+  // G.working = { kind, until } while a held action goes on (or workFor, for a moment's work after something is made)
+  workFor(kind, secs) { G.working = { kind, until: G.time + secs }; }
+  updateWork(dt) {
+    const wk = G.working && G.time < G.working.until && G.working.kind ? G.working : null;
+    const kind = wk ? wk.kind : null;
+    if (kind !== this.workKind) {
+      if (this.workRig) { camera.remove(this.workRig); this.workRig = null; }
+      if (this.workBody && this.model && this.model.held) this.model.held.remove(this.workBody); this.workBody = null;
+      this.workKind = kind; this.workT = 0; this.workBeat = 0;
+      // the axe or the bow goes aside while your hands are busy
+      const show = !kind;
+      for (const a of this.arms || []) a.arm.visible = show;
+      if (this.bow) this.bow.visible = show;
+      if (this.model) this.model.setPose(kind ? "hammer" : "idle");
+      if (kind) {
+        const look = this.model && this.model.look || {};
+        const g = new THREE.Group();
+        const hand = new THREE.Group(); g.add(hand);
+        const skin = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
+        const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skin); fist.rotation.z = Math.PI / 2; hand.add(fist);
+        const tool = kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer();
+        // (blades turned flat to the eye, not edge on)
+        if (kind !== "hammer") tool.rotation.y = Math.PI / 2;
+        hand.add(tool);
+        // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
+        const arm = new THREE.Group(); g.add(arm);
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 })); arm.add(sleeve);
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 })); arm.add(cuff);
+        g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
+        camera.add(g); this.workRig = g;
+        // and the same tool in the hand of your body, for when the camera is behind you
+        if (this.model && this.model.held) { this.workBody = kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
+      }
+    }
+    if (!this.workRig) return;
+    const t = (this.workT += dt), h = this.workRig.userData.hand;
+    const beat = n => { const b = Math.floor(t * n); if (b !== this.workBeat) { this.workBeat = b; return true; } return false; };
+    if (kind === "saw") {
+      // long strokes, forward and back, the blade pointing away and down into the cut
+      const k = Math.sin(t * Math.PI * 2 * 1.3);
+      h.position.set(0.16, -0.28 + k * 0.012, -0.5 - k * 0.13);
+      h.rotation.set(-1.25, 0, 0.12);
+      if (beat(2.6) && !wk.quiet) AUDIO.whoosh(0.18, false);
+    } else if (kind === "hammer") {
+      // raise it slowly, bring it down fast
+      const p = (t * 1.7) % 1, e = x => x * x * (3 - 2 * x);
+      const a = p < 0.7 ? e(p / 0.7) * 1.2 : 1.2 - e((p - 0.7) / 0.3) * 1.35;
+      h.position.set(0.24, -0.34 + a * 0.06, -0.46);
+      h.rotation.set(-0.35 + a * 0.9, 0.2, 0.1);
+      if (beat(1.7) && !wk.quiet) SFX.hammer && SFX.hammer();
+    } else {
+      // short quick strokes of the knife toward you
+      const p = (t * 3) % 1;
+      h.position.set(0.13, -0.27 - p * 0.03, -0.42 + p * 0.07);
+      h.rotation.set(-0.9 + p * 0.3, -0.3, 0.3);
+    }
+    // the sleeve, shoulder to hand
+    const { arm, sleeve, cuff } = this.workRig.userData.arm, sh = new THREE.Vector3(0.3, -0.62, 0.1);
+    const d = new THREE.Vector3().subVectors(h.position, sh), L = d.length();
+    arm.position.copy(sh); arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    sleeve.scale.set(1, Math.max(0.05, L - 0.08), 1); cuff.position.y = Math.max(0.05, L - 0.12);
+  }
   // held low on the right, head up, ready
   axeRest() { this.axe.position.set(0.34, -0.5, -0.42); this.axe.rotation.set(1.05, -0.35, -0.5); }
   swing(onHit) {
     if (this.swingT >= 0) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
-    SFX.swingFist();
+    // the stroke through the air (the heavier the thing swung, the lower it sounds)
+    AUDIO.whoosh(0.55, (this.blade || "axe") !== "sword");
   }
   update(dt) {
     const w = G.world;
@@ -360,6 +433,12 @@ export class Player {
       // (red while winded, and only then: red means you cannot sprint)
       UI.stamina(G.stamina < 0.995 ? G.stamina : null, this.winded);
     } else UI.stamina(null);
+    // health: blows take it, and it comes back slowly once nothing has hit you for a while
+    if (G.health !== undefined) {
+      G.hurtT = (G.hurtT || 0) + dt;
+      if (G.hurtT > 6 && G.health < 1 && !G.downed) G.health = Math.min(1, G.health + dt / 70);
+      UI.health(G.health < 0.999 || G.showHealth ? G.health : null);
+    } else UI.health(null);
     if (sprint && this.crouched) this.crouched = false;
     const max = (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1);
     const len = Math.hypot(mx, mz);
@@ -429,6 +508,19 @@ export class Player {
       m.root.visible = !!G.forceThird;
     }
 
+    // the guard: right mouse held with the axe or a weapon out (and nothing in front of you to use) —
+    // the haft brought up across you. Raised just as a blow comes, it turns it aside: a parry.
+    const guard = !!this.axe && input.rdown && !G.interactTarget && this.swingT < 0 && G.mode === "play" && !G.lockMove && !G.downed;
+    if (guard && !this.guard) this.guardAt = G.time;
+    this.guard = guard;
+    const gk = this.guardK = (this.guardK || 0) + ((guard ? 1 : 0) - (this.guardK || 0)) * Math.min(1, dt * 16);
+    if (this.axe && this.swingT < 0 && (gk > 0.001 || this._guarded)) {
+      const R = [1.05, -0.35, -0.5, 0.34, -0.5, -0.42], U = [0.15, 1.35, 0.2, 0.3, -0.2, -0.6];
+      const jolt = Math.max(0, (this.parryJolt || 0) - G.time) * 0.3;
+      this.axe.rotation.set(R[0] + (U[0] - R[0]) * gk, R[1] + (U[1] - R[1]) * gk, R[2] + (U[2] - R[2]) * gk);
+      this.axe.position.set(R[3] + (U[3] - R[3]) * gk, R[4] + (U[4] - R[4]) * gk + jolt, R[5] + (U[5] - R[5]) * gk + jolt);
+      this._guarded = gk > 0.001;
+    }
     // the axe
     if (this.swingT >= 0) {
       this.swingT += dt;
@@ -450,6 +542,7 @@ export class Player {
     // the sleeves follow wherever the hands have gone this frame
     if (this.axe) this.fitArms();
     this.updateBow(dt);
+    this.updateWork(dt);
   }
   // where your eyes are, leaning included
   eyePos() {
@@ -493,7 +586,8 @@ function updateCamera(dt) {
     // too close and the body would fill the lens
     if (p.model) p.model.root.visible = dist > 0.7;
   }
-  if (p.axe) p.axe.visible = !third;
+  if (p.axe) p.axe.visible = !third && !p.workKind;
+  if (p.workRig) p.workRig.visible = !third;
   // hold Z to look closer
   const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : (p.draw || 0) * 0.55;
   G.zoom = (G.zoom || 0) + (zoomWant - (G.zoom || 0)) * Math.min(1, dt * 10);
@@ -620,6 +714,14 @@ export function findPath(w, sx, sz, gx, gz) {
 // ---------------------------------------------------------------------------
 //  the people who are not you
 // ---------------------------------------------------------------------------
+// a blow to you: dmg in points of a hundred. At nothing, you go down (what happens then is the chapter's to say)
+G.hurt = (dmg, from) => {
+  if (G.health === undefined || G.downed || G.mode !== "play") return;
+  G.health = Math.max(0, G.health - dmg / 100); G.hurtT = 0;
+  UI.hurt(Math.min(1, 0.35 + dmg / 30));
+  if (G.health <= 0) { G.downed = true; if (G.onDowned) G.onDowned(from); else { G.health = 0.25; G.downed = false; } }
+};
+
 export class Actor {
   constructor(opts, x, z, yaw = 0) {
     this.person = makePerson(opts);
@@ -818,6 +920,13 @@ function huntTarget() {
   const from = camera.getWorldPosition(new THREE.Vector3());
   return G.world.col.lineOfSight(from, hit.point.clone().addScaledVector(_ray.ray.direction, -0.3)) ? hit : null;
 }
+// what a held action is done with, and so what your hands are seen doing: judged from what it is
+export function workOf(label) {
+  if (/\b(Hew|Saw|plank)/i.test(label)) return "saw";
+  if (/\b(Carve|Dress|Whittle|Skin)/i.test(label)) return "craft";
+  if (/\b(Rebuild|Raise|Build|Chink|Mend|Repair|Make|Nail|Frame|Furnish)/i.test(label)) return "hammer";
+  return null;
+}
 function updateInteract(dt) {
   const it = pickInteract();
   // the cursor: pale at rest, yellow over something usable, turning slowly to green as you use it
@@ -850,21 +959,23 @@ function updateInteract(dt) {
   const label = typeof it.label === "function" ? it.label() : it.label;
   // talking to someone is an action like any other, and takes a moment: hold F, and they stop to talk
   const talk = /^(Talk to|Speak to|Ask) /.test(label || "");
-  const hold = it.hold || (talk ? 1.0 : 0);
-  UI.prompt(label, !!hold);
-  if (hold) {
-    if (input.down("KeyF") || (input.rdown && !(G.player && G.player.draw > 0))) {
-      G.holdT += dt;
-      if (it.actor) it.actor.talkUntil = G.time + 0.3;
-      if (it.onHoldTick) it.onHoldTick(dt, G.holdT);
-      UI.hold(G.holdT / hold);
-      if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; it.use(); }
-    } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / hold); }
-  } else if (input.hit("KeyF") || (input.rclick && !(G.player && G.player.draw > 0))) {
-    // (a right-click that picks something up is not also the start of a draw)
-    if (input.rclick && G.player) G.player.noDraw = true;
-    it.use();
-  }
+  // every action fills the wheel: a quick one in a moment, talking in a second, real work as long as it takes
+  const hold = it.hold || (talk ? 1.0 : 0.4);
+  UI.prompt(label, hold >= 1);
+  const pressing = input.down("KeyF") || (input.rdown && !(G.player && G.player.draw > 0));
+  // (once done, let go before the next: holding F doesn't open and shut a door over and over)
+  if (!pressing) G.holdLatch = false;
+  if (pressing && !G.holdLatch) {
+    // (a right-click that uses something is not also the start of a draw)
+    if (input.rdown && G.player) G.player.noDraw = true;
+    G.holdT += dt;
+    if (it.actor) it.actor.talkUntil = G.time + 0.3;
+    if (it.onHoldTick) it.onHoldTick(dt, G.holdT);
+    UI.hold(G.holdT / hold);
+    // real work: your hands are seen doing it
+    if (hold >= 1 && !talk) G.working = { kind: it.anim || workOf(label || ""), until: G.time + 0.15, quiet: !!it.onHoldTick };
+    if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); G.holdLatch = true; if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; it.use(); }
+  } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / hold); }
 }
 
 // ---------------------------------------------------------------------------

@@ -104,8 +104,7 @@ export function makePerson(o = {}) {
   add(neck, GEO("stock", () => new THREE.CylinderGeometry(0.058, 0.07, 0.05, 12)), M(o.collar ?? 0xe6e0d4), 0, 0.01);
   if (o.collar === 0xffffff || o.bands) add(neck, GEO("bands", () => new THREE.BoxGeometry(0.07, 0.1, 0.01)), M(0xffffff), 0, -0.04, 0.09);
   const head = add(neck, GEO("head", () => { const g = new THREE.SphereGeometry(0.118, 18, 14); g.scale(0.9, 1.08, 0.98); return g; }), skinM, 0, 0.17);
-  if (skirt) add(neck, GEO("jaw", () => { const g = new THREE.SphereGeometry(0.085, 12, 8); g.scale(1, 0.8, 1); return g; }), skinM, 0, 0.11, 0.02);
-  else add(neck, GEO("jawM", () => { const g = new THREE.BoxGeometry(0.15, 0.09, 0.15, 3, 2, 3); const p = g.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); v.x *= 1 - Math.max(0, -v.y) * 1.6; p.setXYZ(i, v.x, v.y, v.z); } g.computeVertexNormals(); return g; }), skinM, 0, 0.115, 0.02);
+  // (no separate jaw: the head is one smooth shape, with no chin standing out)
   for (const sx of [-1, 1]) {
     add(neck, GEO("ear", () => { const g = new THREE.SphereGeometry(0.026, 8, 6); g.scale(0.5, 1, 0.8); return g; }), skinM, sx * 0.105, 0.165, -0.005);
     add(neck, GEO("eyeWhite", () => { const g = new THREE.SphereGeometry(0.014, 8, 6); g.scale(1.2, 0.75, 0.6); return g; }), mat(0xe8e2d8, { roughness: 0.3 }), sx * 0.04, 0.185, 0.103);
@@ -385,6 +384,57 @@ export function makeAxe() {
   edge.position.set(0, 0.62, 0.15); g.add(edge);
   return g;
 }
+// arms: each held by the grip at the origin, pointing up +Y (as the axe is)
+const STEEL = () => mat(0xc4c9cf, { metalness: 0.45, roughness: 0.35 });
+export function makeSword() {
+  const g = new THREE.Group();
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.24, 6), mat(0x3a2418)); grip.position.y = 0.1; g.add(grip);
+  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), mat(0x8a7040, { metalness: 0.7, roughness: 0.4 })); pommel.position.y = -0.03; g.add(pommel);
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.24), mat(0x8a7040, { metalness: 0.7, roughness: 0.4 })); guard.position.y = 0.23; g.add(guard);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.8, 0.05), STEEL()); blade.position.y = 0.64; g.add(blade);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.1, 4), STEEL()); tip.scale.x = 0.25; tip.position.y = 1.09; g.add(tip);
+  return g;
+}
+export function makeSpear() {
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 1.9, 6), mat(0x6a4a30)); shaft.position.y = 0.5; g.add(shaft);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.26, 4), STEEL()); head.scale.x = 0.35; head.position.y = 1.57; g.add(head);
+  return g;
+}
+export function makeBattleAxe() {
+  const g = makeAxe(); g.scale.set(1.15, 1.2, 1.15);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.2, 0.08), STEEL()); back.position.set(0, 0.62, -0.06); g.add(back);
+  return g;
+}
+export function makeClub() {
+  const g = new THREE.Group();
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.022, 0.7, 7), mat(0x5a4230)); c.position.y = 0.3; g.add(c);
+  for (let i = 0; i < 4; i++) { const k = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.03), mat(0x3a2a1e)); k.position.set(Math.sin(i * 1.6) * 0.05, 0.45 + i * 0.05, Math.cos(i * 1.6) * 0.05); g.add(k); }
+  return g;
+}
+export function makeKnife() {
+  const g = new THREE.Group();
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.12, 6), mat(0x3a2418)); grip.position.y = 0.05; g.add(grip);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.22, 0.035), STEEL()); blade.position.y = 0.22; g.add(blade);
+  return g;
+}
+// tools for work in the hands: gripped at the origin, pointing +Y
+export function makeSaw() {
+  const g = new THREE.Group();
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.13, 0.09), mat(0x6a4a2e, { surface: "wood" })); handle.position.y = 0.03; g.add(handle);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.62, 0.11), STEEL()); blade.position.set(0, 0.4, -0.01); g.add(blade);
+  // the teeth along the lower edge
+  const teeth = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.6, 0.012), mat(0x707478, { metalness: 0.5, roughness: 0.5 })); teeth.position.set(0, 0.41, -0.068); g.add(teeth);
+  return g;
+}
+export function makeHammer() {
+  const g = new THREE.Group();
+  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.017, 0.34, 6), mat(0x7a5a3a, { surface: "wood" })); haft.position.y = 0.12; g.add(haft);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.045, 0.13), mat(0x55595e, { metalness: 0.6, roughness: 0.45 })); head.position.set(0, 0.29, 0.02); g.add(head);
+  return g;
+}
+export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife })[kind]?.() || makeAxe();
+
 export function makeScroll() {
   const g = new THREE.Group();
   const p = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.005), mat(0xe8dcc0)); g.add(p);
@@ -623,16 +673,80 @@ export const P = {
     b.box(0.1, 0.1, 1.6, x + 1.9 * s + 0.3 * c, 0.6, z + 1.9 * c - 0.3 * s, 0x5a4030, ry);
     b.box(0.1, 0.1, 1.6, x + 1.9 * s - 0.3 * c, 0.6, z + 1.9 * c + 0.3 * s, 0x5a4030, ry);
   },
-  logPile(b, x, z, n = 6, ry = 0, y = 0) {
-    const c = Math.cos(ry), s = Math.sin(ry);
+  // a pile of logs, rows of four and three laid alternately, as high as it takes — real logs, bark and sawn ends
+  logPile(x, z, n = 6, ry = 0, y = 0) {
+    const L = [];
     let k = 0;
-    // rows of four and three, laid alternately, as high as it takes
     for (let row = 0; k < n; row++) for (let i = 0, per = row % 2 ? 3 : 4; i < per && k < n; i++, k++) {
       const ox = (i - (per - 1) / 2) * 0.34;
-      b.add(new THREE.CylinderGeometry(0.16, 0.16, 2.2, 8), 0x7a5634, x + ox * c, y + 0.16 + row * 0.29, z - ox * s, Math.PI / 2, ry, 0, 1, 1, 1, 0.1);
+      L.push({ x: ox, y: y + 0.16 + row * 0.29, z: 0, len: 2.2, r: 0.16, dir: "z" });
     }
+    const m = makeLogs(L, k * 7 + 3); m.position.set(x, 0, z); m.rotation.y = ry;
+    return m;
   },
 };
+
+// ---------------------------------------------------------------------------
+//  logs: bark round the sides, sawn ends with their growth rings
+// ---------------------------------------------------------------------------
+// Both painted once, in code. A log is a cylinder whose side takes the bark
+// (the furrows run along its length) and whose two ends take the end grain.
+let _logMats = null;
+function paint(size, fn) { const c = document.createElement("canvas"); c.width = c.height = size; fn(c.getContext("2d"), size); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
+export function logMats() {
+  if (_logMats) return _logMats;
+  const r = rng(77);
+  const bark = paint(256, (g, S) => {
+    g.fillStyle = "#5e422c"; g.fillRect(0, 0, S, S);
+    // furrows along the log, lighter ridges between, and here and there a crack across
+    for (let i = 0; i < 70; i++) {
+      const x = r() * S, w = 2 + r() * 7, l = r() < 0.5 ? 0.28 : 0.1;
+      g.fillStyle = r() < 0.55 ? `rgba(30,18,10,${0.25 + r() * 0.35})` : `rgba(150,118,84,${l})`;
+      g.beginPath(); g.moveTo(x, 0);
+      for (let y = 0; y <= S; y += 16) g.lineTo(x + Math.sin(y * 0.05 + i) * 3 + (r() - 0.5) * 3, y);
+      for (let y = S; y >= 0; y -= 16) g.lineTo(x + w + Math.sin(y * 0.05 + i) * 3, y);
+      g.fill();
+    }
+    for (let i = 0; i < 26; i++) { g.fillStyle = `rgba(25,15,8,${0.3 + r() * 0.3})`; g.fillRect(r() * S, r() * S, 6 + r() * 16, 1.5 + r() * 1.5); }
+    for (let i = 0; i < 1800; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "0,0,0" : "200,170,130"},${r() * 0.12})`; g.fillRect(r() * S, r() * S, 1, 2 + r() * 3); }
+  });
+  bark.wrapS = bark.wrapT = THREE.RepeatWrapping; bark.repeat.set(2, 2);
+  const end = paint(256, (g, S) => {
+    const c = S / 2;
+    const grd = g.createRadialGradient(c, c, 4, c, c, c);
+    grd.addColorStop(0, "#c49a64"); grd.addColorStop(0.75, "#d9b47e"); grd.addColorStop(0.88, "#c79a60"); grd.addColorStop(0.9, "#4a3322"); grd.addColorStop(1, "#3a281a");
+    g.fillStyle = grd; g.fillRect(0, 0, S, S);
+    // growth rings, a little off round, closer toward the bark
+    for (let k = 1; k < 22; k++) {
+      const rad = c * 0.86 * Math.pow(k / 22, 0.8);
+      g.strokeStyle = `rgba(120,78,40,${0.25 + r() * 0.3})`; g.lineWidth = 1 + r() * 1.4;
+      g.beginPath(); for (let a = 0; a <= 64; a++) { const t = a / 64 * Math.PI * 2, q = rad * (1 + Math.sin(t * 3 + k) * 0.02); a ? g.lineTo(c + Math.cos(t) * q, c + Math.sin(t) * q) : g.moveTo(c + Math.cos(t) * q, c + Math.sin(t) * q); } g.stroke();
+    }
+    // the pith, and a check or two splitting out from it
+    g.fillStyle = "#7a5230"; g.beginPath(); g.arc(c, c, 3, 0, 7); g.fill();
+    g.strokeStyle = "rgba(60,36,18,0.7)"; g.lineWidth = 1.5;
+    for (let i = 0; i < 2; i++) { const t = r() * 7; g.beginPath(); g.moveTo(c, c); g.lineTo(c + Math.cos(t) * c * 0.6, c + Math.sin(t) * c * 0.6); g.stroke(); }
+  });
+  const side = new THREE.MeshStandardMaterial({ map: bark, roughness: 0.95 });
+  const cap = new THREE.MeshStandardMaterial({ map: end, roughness: 0.85 });
+  return (_logMats = [side, cap, cap]);
+}
+const LOG_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1);
+// many logs in one draw: [{x,y,z,len,r,dir:"x"|"z"}], each a touch uneven
+export function makeLogs(list, seed = 1) {
+  const r = rng(seed), m = new THREE.InstancedMesh(LOG_GEO, logMats(), list.length);
+  const o = new THREE.Object3D();
+  list.forEach((l, i) => {
+    o.position.set(l.x, l.y, l.z);
+    o.rotation.set(l.dir === "z" ? Math.PI / 2 : 0, l.ry || 0, l.dir === "x" ? Math.PI / 2 : 0);
+    o.rotateY(r() * Math.PI * 2);   // (each turned about its own length)
+    const rr = l.r * (0.88 + r() * 0.24);
+    o.scale.set(rr, l.len * (0.94 + r() * 0.1), rr);
+    o.updateMatrix(); m.setMatrixAt(i, o.matrix);
+  });
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
 
 // ---------------------------------------------------------------------------
 //  a moored ship: a hull, two masts, furled sails

@@ -560,35 +560,66 @@ export class Woods extends WorldBase {
     const touched = new Set();
     for (const s of this.forest) {
       const d = Math.hypot(s.x - CLEARING.x, s.z - CLEARING.z);
-      if (d < r0 || d >= r1 || s.gone) continue;
+      if (d < r0 || d >= r1) continue;
+      // one already taken for felling by hand: it belongs to the ring now
+      if (s.adopted) { if (s.adopted.state !== "gone") { s.adopted.ring = k; out.push(s.adopted); } continue; }
+      if (s.gone) continue;
       if (this.anyRoadDist(s.x, s.z).d < 5) continue;
-      // the scenery tree goes, and a tree you can fell stands where it stood
-      s.gone = true;
-      for (const [m, i] of s.slots || []) { m.setMatrixAt(i, ZERO); touched.add(m); }
-      if (s.col) s.col.disabled = true;
-      const model = modelCopy(s.kind) || modelCopy("spruce");
-      let g;
-      if (model) { g = new THREE.Group(); model.scene.scale.setScalar(s.h / 10); model.scene.rotation.y = s.rot; g.add(model.scene); }
-      else g = makeSpruce(s.h, Math.floor(s.x * 7));
-      g.position.set(s.x, s.y - 0.1, s.z);
-      this.root.add(g);
-      const t = { g, x: s.x, z: s.z, y: s.y, h: s.h, hp: 4, state: "up", angle: Math.atan2(s.z - CLEARING.z, s.x - CLEARING.x), col: this.col.addCircle(s.x, s.z, 0.32, 12), fall: 0, claimed: null, ring: k };
-      this.fellable.push(t); out.push(t);
+      const t = this.adopt(s, touched); t.ring = k; out.push(t);
     }
     for (const m of touched) m.instanceMatrix.needsUpdate = true;
     return out;
   }
+  // a scenery tree becomes one you can fell: the instance goes, and a tree of its own stands where it stood
+  adopt(s, touched) {
+    s.gone = true;
+    for (const [m, i] of s.slots || []) { m.setMatrixAt(i, ZERO); if (touched) touched.add(m); else m.instanceMatrix.needsUpdate = true; }
+    if (s.col) s.col.disabled = true;
+    const model = modelCopy(s.kind) || modelCopy("spruce");
+    let g;
+    if (model) { g = new THREE.Group(); model.scene.scale.setScalar(s.h / 10); model.scene.rotation.y = s.rot; g.add(model.scene); }
+    else g = makeSpruce(s.h, Math.floor(s.x * 7));
+    g.position.set(s.x, s.y - 0.1, s.z);
+    this.root.add(g);
+    const t = { g, x: s.x, z: s.z, y: s.y, h: s.h, hp: s.kind === "birch" ? 3 : 4, state: "up", angle: Math.atan2(s.z - CLEARING.z, s.x - CLEARING.x), col: this.col.addCircle(s.x, s.z, s.kind === "birch" ? 0.24 : 0.32, 12), fall: 0, claimed: null, src: s };
+    s.adopted = t;
+    this.fellable.push(t);
+    return t;
+  }
+  // any tree in the forest can be felled: the one in front of you, within an axe's reach, is taken up
+  // for felling as you swing at it (it isn't saved as felled — it grows back in time, out of sight)
+  adoptNear(pl, reach = 2.4) {
+    if (!this.forest) return null;
+    const f = pl.forward();
+    let best = null, bd = reach;
+    for (const t of this.fellable) {
+      if (t.state !== "up" && t.state !== "shake") continue;
+      const dx = t.x - pl.pos.x, dz = t.z - pl.pos.z, d = Math.hypot(dx, dz);
+      if (d < bd && (dx * f.x + dz * f.z) / d > 0.45) bd = d;
+    }
+    for (const s of this.forest) {
+      if (s.gone) continue;
+      const dx = s.x - pl.pos.x, dz = s.z - pl.pos.z;
+      if (Math.abs(dx) > bd || Math.abs(dz) > bd) continue;
+      const d = Math.hypot(dx, dz);
+      if (d < bd && (dx * f.x + dz * f.z) / d > 0.45) { bd = d; best = s; }
+    }
+    if (!best) return null;
+    const t = this.adopt(best); t.wild = true;
+    return t;
+  }
   // a felled tree grows back after a while, out of sight (the town keeps its own count; this is for the chapters before it)
   regrowTick(dt) {
-    if (G.town || !this.fellable) return;
+    if (!this.fellable) return;
     const pl = G.player;
     for (const t of this.fellable) {
-      if (t.state !== "gone" || t.ring) { t.goneFor = 0; continue; }
+      // (the town keeps its own count of its trees; a wild one grows back the same everywhere)
+      if (t.state !== "gone" || t.ring || (G.town && !t.wild)) { t.goneFor = 0; continue; }
       t.goneFor = (t.goneFor || 0) + dt;
       if (t.goneFor < 240 || Math.hypot(pl.pos.x - t.x, pl.pos.z - t.z) < 18) continue;
       if (t.stump) { this.root.remove(t.stump); t.stump = null; }
       t.g.visible = true; t.g.rotation.set(0, 0, 0); t.state = "up"; t.hp = 4; t.col.disabled = false; t.claimed = null; t.goneFor = 0;
-      this.onRegrow && this.onRegrow(this.fellable.indexOf(t));
+      if (!t.wild) this.onRegrow && this.onRegrow(this.fellable.indexOf(t));
     }
   }
   // the charcoal burner's camp, where his track ends: a kiln smoking under its turf, his hut, his wood
@@ -617,7 +648,7 @@ export class Woods extends WorldBase {
     b.add(new THREE.CylinderGeometry(0.07, 0.07, 4.4, 6), 0x6a5440, hx + fx * 0.9, hy + 1.9, hz + fz * 0.9, 0, ang, Math.PI / 2);
     // a stack of split wood waiting to be burned, a chopping block, a rake
     const [wx, wz] = at(3, -5.5), wy = this.heightAt(wx, wz);
-    P.logPile(b, wx, wz, 11, ang, wy);
+    root.add(P.logPile(wx, wz, 11, ang, wy));
     const [cx2, cz2] = at(4.5, -1.2), cy2 = this.heightAt(cx2, cz2);
     b.add(new THREE.CylinderGeometry(0.34, 0.38, 0.55, 10), 0x6a5038, cx2, cy2 + 0.27, cz2);
     b.add(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6), 0x5a4432, kx - rx * 2.9, ky + 0.9, kz - rz * 2.9, 0.3, 0, 0.2);
@@ -635,8 +666,8 @@ export class Woods extends WorldBase {
     this.stack.clear();
     const b = new Builder();
     b.box(1.8, 0.12, 2.6, STACK.x, 0.06, STACK.z, 0x4a3a2a);
-    if (n > 0) P.logPile(b, STACK.x, STACK.z, Math.min(n, 24), Math.PI / 2, 0.12);
     const m = b.build(); m.position.y = this.cy; this.stack.add(m);
+    if (n > 0) { const p = P.logPile(STACK.x, STACK.z, Math.min(n, 24), 0, 0.12); p.position.y = this.cy; this.stack.add(p); }
   }
   // let it snow: k is how much lies on the ground, fall is how hard it is still coming down
   setSnow(k, fall = 0) {

@@ -250,20 +250,17 @@ def build_person(key):
     hy = stoop * 0.8
     head_h = 0.23
     hc = Vector((0, hy - 0.005, hz + 0.105))             # centre of the head
-    # ---- the head: skull and jaw as two ellipsoids, every feature set on their surface ----
-    jaw_w = 0.066 if f else 0.075
+    # ---- the head: one smooth ellipsoid (no separate jaw, so no chin standing out), every feature set on its surface ----
     SK = (hc, Vector((0.088, 0.1, 0.112)))
-    JW = (hc + Vector((0, -0.028, -0.056 if f else -0.064)), Vector((jaw_w, 0.07 if f else 0.072, 0.05 if f else 0.064)))
     def front(x, z):
         """how far forward (most negative y) the face is at (x, z)"""
         best = 1.0
-        for c, r in (SK, JW):
+        for c, r in (SK,):
             u = 1 - ((x - c.x) / r.x) ** 2 - ((z - c.z) / r.z) ** 2
             if u > 0:
                 best = min(best, c.y - r.y * math.sqrt(u))
         return best
     P.sphere("skin", skin, SK[0], SK[1], segs=28, rings=18)
-    P.sphere("skin", skin, JW[0], JW[1], segs=22, rings=14)
     # a slight brow over the eyes (no cheek bumps: faces are smooth there)
     P.sphere("skin", skin, Vector((0, front(0, hc.z + 0.03) + 0.011, hc.z + 0.03)), (0.062, 0.013, 0.011), segs=16, rings=8)
     # the nose: a bridge and a tip
