@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.10", date: "28 September 2026", title: "The year goes round: night, winter, bread and Henning's cart",
+    items: [
+      "At dusk everyone stops work and goes home — two to each cabin, and anyone without a bed lies down by the fire. Your brother or sister sleeps on the other pallet in your own cabin.",
+      "An eight-day year: spring, summer, autumn and winter. In winter the snow comes in, nothing grows, and every hearth burns a log a day; two cold nights with the stack empty, and someone goes back down the road.",
+      "The bakery: a baker turns two rye into three loaves, and a loaf feeds twice what grain does. Everyone eats bread first.",
+      "Henning's cart comes up the road every third morning. Sell him logs, bread and rye for Marks, and buy rye, arrows, a better saw (a log more from every tree) or iron axe heads (quicker felling).",
+      "The board at the top names the season and says what the settlement needs next, firewood before winter included.",
+      "The blizzard night in The First Winter has three more logs to burn.",
+      "Buildings are drawn in the style of their age: the models for timber-frame, brick and modern houses are made, ready for upgrading.",
+    ],
+  },
+  {
     v: "0.9", date: "28 September 2026", title: "Hunting, footsteps, and a sharper watch",
     items: [
       "Before you dig, you hunt: Henning gives you his old bow and a dozen arrows, and the woods east of the clearing open. Creep up on the roe and the hares, draw, and let go; pull your arrows back out of wherever they land.",

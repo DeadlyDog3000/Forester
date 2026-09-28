@@ -255,25 +255,39 @@ export async function loadModels(base = "models/") {
   try { const r = await fetch(base + "manifest.json", { cache: "no-cache" }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
   const keys = Object.keys(list).filter(k => !k.startsWith("_") && list[k]);
   if (!keys.length) return;
-  const [{ GLTFLoader }, SU] = await Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js")]);
-  _clone = SU.clone;
-  const loader = new GLTFLoader();
-  await Promise.all(keys.map(async k => {
-    try {
-      MODELS[k] = await loader.loadAsync(base + list[k]);
-      // the same grain and weathering as everything built in code; a person's materials are named for
-      // what they are, so cloth gets the weave and skin gets nothing
-      MODELS[k].scene.traverse(o => {
-        if (!o.isMesh || !o.material || !o.material.isMeshStandardMaterial || o.material.userData.detail) return;
-        const m = o.material, n = (m.name || "").split("_").pop();
-        m.userData.detail = true;
-        m.userData.part = n;
-        m.userData.surface = CLOTH_PARTS.has(n) ? "cloth" : BARE_PARTS.has(n) ? "none" : "auto";
-        addDetail(m, { scale: 2, amount: 0.22, grain: 0.6, surface: m.userData.surface });
-      });
-    }
-    catch (e) { console.warn("Reckoning: could not load model", k, list[k], e); }
-  }));
+  await loaderReady();
+  await Promise.all(keys.map(k => fetchModel(k, base + list[k])));
+}
+// the loader, fetched once
+let _loader = null, _loaderP = null;
+function loaderReady() {
+  return _loaderP || (_loaderP = Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js")]).then(([{ GLTFLoader }, SU]) => { _clone = SU.clone; _loader = new GLTFLoader(); }));
+}
+// what a model's material is named for decides its grain: a building's plaster, brick and tiles get their own
+const SURF_BY_NAME = { plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "wood", wood: "wood", log: "wood", glass: "none", iron: "none", soot: "none", horn: "none" };
+const _loading = {};
+async function fetchModel(k, url) {
+  try {
+    MODELS[k] = await _loader.loadAsync(url);
+    // the same grain and weathering as everything built in code; a person's materials are named for
+    // what they are, so cloth gets the weave and skin gets nothing
+    MODELS[k].scene.traverse(o => {
+      if (!o.isMesh || !o.material || !o.material.isMeshStandardMaterial || o.material.userData.detail) return;
+      const m = o.material, n = (m.name || "").split("_").pop();
+      m.userData.detail = true;
+      m.userData.part = n;
+      m.userData.surface = CLOTH_PARTS.has(n) ? "cloth" : BARE_PARTS.has(n) ? "none" : SURF_BY_NAME[n] || "auto";
+      if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
+      addDetail(m, { scale: 2, amount: 0.22, grain: 0.6, surface: m.userData.surface });
+    });
+  }
+  catch (e) { console.warn("Reckoning: could not load model", k, url, e); }
+}
+// a model that is only fetched when first wanted (the town's buildings, in every style):
+// resolves once it is there; until then modelCopy(key) is null
+export function ensureModel(key) {
+  if (MODELS[key]) return Promise.resolve(true);
+  return _loading[key] || (_loading[key] = loaderReady().then(() => fetchModel(key, `models/${key}.glb`)).then(() => !!MODELS[key]));
 }
 let _clone = null;
 // a fresh copy of a loaded model, shadows on, or null if there is none

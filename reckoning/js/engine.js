@@ -607,7 +607,10 @@ export class Actor {
     const w = G.world;
     this.pos.y = (w ? w.heightAt(this.pos.x, this.pos.z) : 0) + (this.yOff || 0);
     this.root.position.copy(this.pos);
+    this.root.rotation.order = "YXZ";
     this.root.rotation.y = this.yaw;
+    // asleep: on their back, the head toward where the back of the head was
+    this.root.rotation.x = this.lying ? -Math.PI / 2 : 0;
   }
   place(x, z, yaw) { this.pos.x = x; this.pos.z = z; if (yaw !== undefined) { this.yaw = this.targetYaw = yaw; } this.path = []; this.sync(); }
   // walk a list of [x,z] points; resolves on arrival

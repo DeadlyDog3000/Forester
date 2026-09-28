@@ -17,7 +17,7 @@
 import { THREE, Builder, MAT, mat, clamp, TAU } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
-import { modelCopy, makeAxe } from "./models.js";
+import { modelCopy, makeAxe, ensureModel } from "./models.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 
@@ -26,17 +26,34 @@ export const BUILDINGS = {
   woodshed: { name: "Woodshed", cost: 8, model: "woodshed", w: 4.0, d: 2.6, store: 30, icon: "logs", note: "Keeps thirty more logs dry." },
   well:     { name: "Well", cost: 6, model: "well", w: 2.4, d: 2.4, icon: "key", note: "Water close by: the fields yield more." },
   field:    { name: "Field", cost: 0, w: 6.6, d: 7.4, dig: 3, icon: "seeds", note: "Three strips of rye. Dug, not built." },
+  bakery:   { name: "Bakery", cost: 14, model: "town/bakery", tiers: true, w: 7.6, d: 5.8, icon: "bread", note: "A baker turns rye into bread — a loaf goes twice as far as the grain." },
 };
+// the model a building wears: a tiered one by its tier (1 the log original, 4 a city street), the cabin as the first house
+export function modelKey(b) {
+  const def = BUILDINGS[b.type];
+  if (b.type === "cabin") return (b.tier || 1) > 1 ? `town/house_${b.tier}` : "cabin";
+  return def.tiers ? `${def.model}_${b.tier || 1}` : def.model;
+}
+// the year: eight days, and the last two of them winter
+export const YEAR = 8, SEASONS = ["spring", "spring", "summer", "summer", "autumn", "autumn", "winter", "winter"];
 export const LOGS_PER_TREE = 3, CARRY_MAX = 6;
 // the work a settler can be set to; talking to them (F) moves them on to the next
 export const JOBS = {
   woodcutter: { name: "woodcutter", ask: "fell trees", reply: "Trees it is. Mind your heads." },
   hauler: { name: "hauler", ask: "carry logs to the sites", reply: "I'll carry. Somebody has to." },
   farmer: { name: "farmer", ask: "work the fields", reply: "The fields, then. Good." },
+  baker: { name: "baker", ask: "bake bread", reply: "Bread it is. Somebody keep that oven fed." },
 };
-const JOB_ORDER = ["woodcutter", "hauler", "farmer"];
+const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker"];
 const SFX = () => window.SFX || { chop() {}, build() {}, pickup() {}, hammer() {}, treeFall() {}, timberCrack() {} };
 
+// someone lying down on a bed (from w.bedSpot): on their back, head on the pillow
+export function lieOn(a, bed) {
+  a.place(bed.x + Math.sin(bed.ry) * 0.85, bed.z + Math.cos(bed.ry) * 0.85, bed.ry);
+  a.person.sitting = 0; a.person.setPose("idle");
+  // (rolled on to the back about the feet, the back is ~0.13 below them: lift by that, and by the pallet)
+  a.lying = true; a.yOff = Math.max(0.05, bed.y - G.world.heightAt(bed.x, bed.z)) + 0.13;
+}
 // a settler's look, from a seed: townsman or townswoman, in their own colours
 function settlerLook(p) {
   const r = p.seed;
@@ -51,6 +68,8 @@ export class Town {
   constructor(w, state, persist, opts = {}) {
     this.w = w; this.S = state; this.persist = persist;
     this.S.store ??= 0; this.S.rye ??= 0; this.S.buildings ??= []; this.S.people ??= []; this.S.felled ??= []; this.S.logs ??= [];
+    this.S.bread ??= 0; this.S.coin ??= 0; this.S.upgrades ??= {};
+    this.dayLen = 300; this.nightly = false;
     this.opts = opts;
     this.vis = new Map();         // building -> its group in the world
     this.actors = [];
@@ -68,8 +87,41 @@ export class Town {
     this.setupStack();
   }
 
+  // ---- the time of day and of year ----
+  get frac() { return (this.t / this.dayLen) % 1; }
+  get season() { return SEASONS[((this.day % YEAR) + YEAR) % YEAR]; }
+  get winter() { return this.season === "winter"; }
+  isNight() { return this.nightly && (this.frac > 0.74 || this.frac < 0.03); }
+  // where someone sleeps: two to a cabin, in the order they came; the rest by the fire
+  homeOf(a) {
+    const cabins = this.S.buildings.filter(b => b.done && b.type === "cabin");
+    const i = this.S.people.indexOf(a.settler);
+    const b = i >= 0 ? cabins[Math.floor(i / 2)] : null;
+    if (b) return { door: [b.x + Math.sin(b.ry) * (BUILDINGS.cabin.d / 2 + 0.6), b.z + Math.cos(b.ry) * (BUILDINGS.cabin.d / 2 + 0.6)], inside: true };
+    const k = i < 0 ? 0 : i;
+    return { door: [FIRE.x + Math.cos(k * 1.3) * 2.4, FIRE.z + Math.sin(k * 1.3) * 2.4], inside: false };
+  }
+  // the day's work ends at dark: home, and indoors, until the morning
+  async nightFall(a, sleep, alive) {
+    a.person.held.clear(); a.person.setPose("idle");
+    if (a.homeBed) {
+      // your brother or sister sleeps in your own cabin, on the second pallet
+      const bed = this.w.bedSpot && this.w.bedSpot(1);
+      if (bed) { await a.walkTo(bed.x, bed.z, 1.2); alive(); lieOn(a, bed); }
+    } else {
+      const h = this.homeOf(a);
+      await a.walkTo(h.door[0], h.door[1], 1.2); alive();
+      if (h.inside) { a.root.visible = false; a.inside = true; }
+      else { a.faceTo(FIRE.x, FIRE.z); a.lying = true; a.yOff = 0.05; }
+    }
+    while (this.isNight()) { await sleep(1.5); alive(); }
+    a.root.visible = true; a.inside = false; a.lying = false; a.yOff = 0;
+  }
+
   // ---- what the settlement can hold ----
+  get hearths() { return 1 + this.count("cabin"); }
   get beds() { return 2 + this.S.buildings.filter(b => b.done && b.type === "cabin").length * 2; }
+  get logsPerTree() { return LOGS_PER_TREE + (this.S.upgrades.saw ? 1 : 0); }
   get storeCap() { return 40 + this.S.buildings.filter(b => b.done && b.type === "woodshed").length * 30; }
   has(type) { return this.S.buildings.some(b => b.done && b.type === type); }
   count(type) { return this.S.buildings.filter(b => b.done && b.type === type).length; }
@@ -82,9 +134,13 @@ export class Town {
     g = new THREE.Group(); g.position.set(b.x, w.heightAt(b.x, b.z), b.z); g.rotation.y = b.ry;
     if (b.type === "field") this.fieldVis(g, b);
     else if (b.done) {
-      const m = modelCopy(def.model);
+      const key = modelKey(b), m = modelCopy(key);
       if (m) g.add(m.scene);
-      else { const bb = new Builder(); bb.box(def.w, 2.4, def.d, 0, 1.2, 0, 0x7a5634); g.add(bb.build()); }
+      else {
+        const bb = new Builder(); bb.box(def.w * 0.8, 2.4, def.d * 0.8, 0, 1.2, 0, 0x7a5634); g.add(bb.build());
+        // the real one is fetched, and put up in place of this when it comes
+        ensureModel(key).then(ok => { if (ok && this.vis.get(b) === g && !this.stopped) this.show(b); });
+      }
       // solid: an axis-aligned box round the turned footprint, a little inside it
       const c = Math.abs(Math.cos(b.ry)), s = Math.abs(Math.sin(b.ry));
       const hx = (def.w * c + def.d * s) / 2 - 0.5, hz = (def.w * s + def.d * c) / 2 - 0.5;
@@ -251,7 +307,7 @@ export class Town {
   sitesAll() { for (const b of this.S.buildings) if (!b.done || (b.type === "field" && !b.sown)) this.site(b); }
 
   on(ev, f) { this.hooks.push([ev, f]); }
-  emit(ev, x) { for (const [e, f] of this.hooks) if (e === ev) f(x); }
+  emit(ev, x, y) { for (const [e, f] of this.hooks) if (e === ev) f(x, y); }
 
   // ---- the stack by the cabin: logs in, logs out ----
   setupStack() {
@@ -296,7 +352,7 @@ export class Town {
       SFX().treeFall();
       const i = this.w.fellable.indexOf(t);
       if (!this.S.felled.some(f => f.i === i)) this.S.felled.push({ i, day: this.day });
-      if (dropLogs) this.dropLogs(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), LOGS_PER_TREE);
+      if (dropLogs) this.dropLogs(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), this.logsPerTree);
       this.persist();
       setTimeout(() => this.fellNow(t), 1500);
     };
@@ -357,7 +413,7 @@ export class Town {
     if (!p.child) {
       // (while a story is gathering people, it decides what talking does; otherwise it changes their work)
       a.talkIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 1.4; }, reach: 2.4,
-        can: () => !a.gone && (this.onTalk ? !!(this.talkLabel && this.talkLabel(p, a)) : !a.summoned),
+        can: () => !a.gone && !a.inside && (this.onTalk ? !!(this.talkLabel && this.talkLabel(p, a)) : !a.summoned),
         label: () => (this.talkLabel && this.talkLabel(p, a)) || `Ask ${p.name} (${JOBS[p.job || "hauler"].name}) to ${JOBS[this.nextJob(p)].ask}`,
         use: () => {
           if (this.onTalk && this.onTalk(p, a)) return;
@@ -371,14 +427,15 @@ export class Town {
   }
   spawnPeople() { this.S.people.forEach((p, i) => this.addPerson(p, CLEARING.x - 6 + (i % 4) * 3, CLEARING.z + 8 + Math.floor(i / 4) * 2)); }
   stop() { this.stopped = true; for (const a of this.actors) { if (a.talkIt) this.w.removeInteract(a.talkIt); a.remove(); } this.actors = []; if (this.planning) this.planning.cancel(); G.onSwing = null; }
-  nextJob(p) { return JOB_ORDER[(JOB_ORDER.indexOf(p.job) + 1) % JOB_ORDER.length]; }
+  // (baking only once there is a bakery)
+  nextJob(p) { const jobs = JOB_ORDER.filter(j => j !== "baker" || this.has("bakery")); return jobs[(jobs.indexOf(p.job) + 1) % jobs.length]; }
   // called away from their work, to stand somewhere (the fire, for a gathering)
   summon(a, x, z) {
     a.summoned = true; a.person.held.clear(); a.person.setPose("idle");
     return a.walkTo(x, z, 1.3).then(() => { if (a.root.parent) a.faceTo(FIRE.x, FIRE.z); });
   }
   // the newest to come goes back down the road (hunger does this)
-  leave() {
+  leave(why = "hunger") {
     const p = [...this.S.people].reverse().find(q => !q.child); if (!p) return;
     this.S.people.splice(this.S.people.indexOf(p), 1);
     const a = this.actors.find(x => x.settler === p);
@@ -387,14 +444,19 @@ export class Town {
       const r0 = this.w.road[this.w.road.length - 30];
       a.walkTo(r0.x, r0.z, 1.2).then(() => { a.remove(); const i = this.actors.indexOf(a); if (i >= 0) this.actors.splice(i, 1); });
     }
-    this.persist(); this.emit("left", p);
+    this.persist(); this.emit("left", p, why);
   }
   // what wants doing next, in a word to the player
   advice() {
     const S = this.S, pop = S.people.length + 2, need = Math.ceil(pop / 2);
     const site = S.buildings.find(b => !b.done && b.type !== "field");
     const field = S.buildings.find(b => b.type === "field" && !b.sown);
-    if (S.rye < need * 3) return this.harvestable().length ? "Rye is low — reap the ripe field" : "Rye is low — dig and sow another field (B)";
+    const food = S.rye + S.bread * 2;
+    if (this.winter && S.store < this.hearths * 2) return `Winter: every hearth burns a log a day — fell trees, the stack is at ${S.store}`;
+    if (this.season === "autumn" && S.store < this.hearths * 4) return `Winter is coming — stack firewood: ${this.hearths * 4} logs will see you through`;
+    if (food < need * 3) return this.harvestable().length ? "Food is low — reap the ripe field" : this.winter ? "Food is low, and nothing grows in winter — buy rye from Henning's cart" : "Food is low — dig and sow another field (B)";
+    if (!this.has("bakery") && S.people.length >= 4) return "Build a bakery (B): a loaf goes twice as far as the grain";
+    if (this.has("bakery") && !S.people.some(p => p.job === "baker")) return "The bakery stands idle — talk to someone (F) and set them to baking";
     if (site) return `Bring logs to the ${BUILDINGS[site.type].name.toLowerCase()} (${site.logs} of ${BUILDINGS[site.type].cost})`;
     if (field) return "Finish digging the new field";
     if (!S.people.some(p => p.job === "farmer")) return "No one is farming — talk to someone (F) and set them to the fields";
@@ -407,10 +469,11 @@ export class Town {
   // each settler's day: their job, over and over
   async work(a) {
     const sleep = s => new Promise(r => setTimeout(r, s * 1000));
-    const alive = () => { if (this.stopped || a.gone || a.summoned || !G.world || G.world !== this.w) throw "stop"; };
+    const alive = () => { if (this.stopped || a.gone || a.summoned || !G.world || G.world !== this.w) { a.root.visible = true; a.lying = false; throw "stop"; } };
     await sleep(Math.random() * 3);
     while (true) {
       alive();
+      if (this.isNight()) { await this.nightFall(a, sleep, alive); continue; }
       const job = a.settler.job || "hauler";
       const site = this.S.buildings.find(b => !b.done && b.type !== "field" && b.logs < BUILDINGS[b.type].cost);
       if (job === "hauler" && site && this.S.store > 0) {
@@ -430,15 +493,25 @@ export class Town {
         await a.walkTo(t.x + dx / l * 1.1, t.z + dz / l * 1.1, 1.3); alive();
         a.faceTo(t.x, t.z); a.person.setPose("chop");
         const axe = a.hold(makeAxe());
-        for (let i = 0; i < 6; i++) { await sleep(0.8); alive(); if (Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 24) SFX().chop(); }
+        for (let i = 0; i < (this.S.upgrades.axes ? 4 : 6); i++) { await sleep(0.8); alive(); if (Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 24) SFX().chop(); }
         a.person.setPose("idle"); a.person.held.remove(axe);
         this.fell(t, -dx, -dz, false);
         await sleep(2.6); alive();
         a.person.setPose("hold");
         await a.walkTo(STACK.x + 1.4, STACK.z + 0.6, 1.2); alive();
         a.person.setPose("idle");
-        this.S.store = Math.min(this.storeCap, this.S.store + LOGS_PER_TREE); this.w.setStack(Math.min(this.S.store, 24)); this.persist(); SFX().build();
+        this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.w.setStack(Math.min(this.S.store, 24)); this.persist(); SFX().build();
         await sleep(3 + Math.random() * 3);
+      } else if (job === "baker" && this.has("bakery") && this.S.rye >= 2) {
+        const bk = this.S.buildings.find(b => b.done && b.type === "bakery");
+        // at the oven, on the bakery's right-hand side
+        const ox = bk.x + Math.cos(bk.ry) * 3.2 - Math.sin(bk.ry) * 1.6, oz = bk.z - Math.sin(bk.ry) * 3.2 - Math.cos(bk.ry) * 1.6;
+        await a.walkTo(ox, oz, 1.2); alive();
+        a.faceTo(bk.x + Math.cos(bk.ry) * 3.6, bk.z - Math.sin(bk.ry) * 3.6); a.person.setPose("hammer");
+        await sleep(9); alive();
+        if (this.S.rye >= 2) { this.S.rye -= 2; this.S.bread += 3; this.persist(); SFX().pickup(); }
+        a.person.setPose("idle");
+        await sleep(2);
       } else if (job === "farmer") {
         const fields = this.S.buildings.filter(b => b.type === "field" && b.done);
         const f = fields.length ? fields[Math.floor(Math.random() * fields.length)] : null;
@@ -455,23 +528,36 @@ export class Town {
 
   // ---- time: days pass; the forest grows back, fields ripen, people eat ----
   update(dt, dayLength = 300) {
-    this.t += dt;
+    this.t += dt; this.dayLen = dayLength;
     const day = Math.floor(this.t / dayLength);
     if (day !== this.day) {
       this.day = day;
+      const winter = this.winter;
       // stumps from more than two days ago come back, a few a day
       for (const f of this.S.felled.slice()) if (this.day - (f.day ?? -9) >= 2 && Math.random() < 0.35) { const t = this.w.fellable[f.i]; if (t && t.state === "gone") this.regrow(t); }
       // fields grow a stage a day; ripe fields are harvested by the farmers, or by you
-      for (const b of this.S.buildings) if (b.type === "field" && b.sown) {
+      // (nothing grows in winter)
+      for (const b of this.S.buildings) if (b.type === "field" && b.sown && !winter) {
         if ((b.growth ?? 1) < 3) { b.growth = (b.growth ?? 1) + 1; this.show(b); }
         else if (this.S.people.some(p => p.job === "farmer")) { this.S.rye += 10 + (this.has("well") ? 5 : 0); b.growth = 1; this.show(b); }
       }
-      // everyone eats; two days with nothing to eat, and the newest to come leaves again
-      const need = Math.ceil((this.S.people.length + 2) / 2);
+      // everyone eats, bread first (a loaf goes twice as far); two days with nothing, and the newest to come leaves
+      let need = Math.ceil((this.S.people.length + 2) / 2);
+      const loaves = Math.min(this.S.bread, Math.ceil(need / 2));
+      this.S.bread -= loaves; need = Math.max(0, need - loaves * 2);
       if (this.S.rye >= need) { this.S.rye -= need; this.S.hungry = 0; }
       else {
         this.S.rye = 0; this.S.hungry = (this.S.hungry || 0) + 1;
-        if (this.S.hungry >= 2) { this.S.hungry = 0; this.leave(); } else this.emit("hungry", this.day);
+        if (this.S.hungry >= 2) { this.S.hungry = 0; this.leave("hunger"); } else this.emit("hungry", this.day);
+      }
+      // in winter every hearth burns a log a day; two cold days, and someone goes
+      if (winter) {
+        const fire = this.hearths;
+        if (this.S.store >= fire) { this.S.store -= fire; this.S.cold = 0; this.w.setStack(Math.min(this.S.store, 24)); }
+        else {
+          this.S.store = 0; this.w.setStack(0); this.S.cold = (this.S.cold || 0) + 1;
+          if (this.S.cold >= 2) { this.S.cold = 0; this.leave("cold"); } else this.emit("cold", this.day);
+        }
       }
       this.persist();
       this.emit("day", this.day);

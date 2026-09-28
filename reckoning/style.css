@@ -216,3 +216,8 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); }
 
 #bigmap { cursor: grab; }
 #bigmap.dragging { cursor: grabbing; }
+
+/* a trader's goods: laid out like the plans */
+#trade { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); z-index: 6; }
+#trade.hidden { display: none; }
+#trade .plan.owned { opacity: 0.4; cursor: default; }

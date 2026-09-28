@@ -150,7 +150,7 @@ function buildChapters() {
 
 // ---- inventory (T) ----
 const ICON = {
-  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", meat: "../assets/sprites/items/meat.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
+  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
   axe: "../assets/sprites/items/tool_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -200,6 +200,7 @@ const OVERLAYS = {
   inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
   bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; } },
   buildmenu: { open: () => renderPlans(), tick: () => renderPlans(), every: 500 },
+  trade: { open: () => renderTrade(), tick: () => renderTrade(), every: 400 },
 };
 function showOverlay(id, on) {
   if (on && overlay && overlay !== id) showOverlay(overlay, false);
@@ -241,6 +242,23 @@ function renderPlans() {
   $("buildList").innerHTML = list.map(([k, d]) => `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.cost ? d.cost + " logs" : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
   for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
 }
+// ---- trading: a list of offers from whoever you're dealing with ----
+let tradeNow = null;
+G.openTrade = (title, purse, offers, after) => { tradeNow = { title, purse, offers, after }; showOverlay("trade", true); };
+function renderTrade() {
+  const t = tradeNow; if (!t) return;
+  $("tradeTitle").textContent = t.title;
+  $("tradePurse").textContent = G.town ? `${G.town.S.coin} Mark` : "";
+  $("tradeList").innerHTML = t.offers.map((o, i) => {
+    const done = o.done && o.done(), ok = !done && o.can();
+    return `<button class="plan${done ? " owned" : ok ? "" : " short"}" data-i="${i}"><img src="${o.label.startsWith("Sell") ? ICON.coin : ICON.cart}" alt=""><span><span class="pn">${esc(o.label)}${done ? " — yours" : ""}</span><span class="pd">${esc(o.note || "")}</span></span><span class="pc">${esc(o.get)}</span></button>`;
+  }).join("");
+  for (const b of $("tradeList").querySelectorAll(".plan")) b.onclick = () => {
+    const o = t.offers[+b.dataset.i];
+    if ((o.done && o.done()) || !o.can()) return;
+    o.do(); t.after && t.after(); renderTrade();
+  };
+}
 // the settlement at a glance
 setInterval(() => {
   const tb = $("townbar"), t = G.town;
@@ -249,7 +267,7 @@ setInterval(() => {
   tb.classList.toggle("hidden", !on);
   if (!on) return;
   const S = t.S;
-  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
+  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span><span class="tb"><img src="${ICON.coin}" alt="">${S.coin || 0}</span><span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
 }, 300);
 // a question with set answers; resolves with the index of the one chosen
 G.choose = (title, options) => new Promise(res => {

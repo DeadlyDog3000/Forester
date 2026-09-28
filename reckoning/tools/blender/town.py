@@ -176,7 +176,8 @@ def shell_timber(k, W, D, floors, rnd, door=True, windows=True):
                 u0 = sd * (L / 2 - bw / 2)
                 ang = math.atan2(FH - 0.3, bw) * (1 if sd > 0 else -1)
                 loc, rot = on_wall(W, D, side, u0, f * FH + FH / 2, 0.165)
-                k.box("wood", (math.hypot(bw, FH - 0.3) - 0.1, 0.04, 0.12), mat_tr(loc, (rot[0], ang if side in ("front", "back") else 0, rot[2])) if side in ("front", "back") else mat_tr(loc, rot), oak())
+                # (tilted in the wall's own plane first, then turned with the wall)
+                k.box("wood", (math.hypot(bw, FH - 0.3) - 0.1, 0.04, 0.12), mat_tr(loc, (0, ang, rot[2])), oak())
         # windows in the middle bays, small and leaded
         if windows:
             for f in range(floors):

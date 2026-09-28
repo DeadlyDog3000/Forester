@@ -18,7 +18,7 @@ import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, P as PROPS } from "./models.js";
-import { Town, BUILDINGS } from "./town.js";
+import { Town, BUILDINGS, lieOn, YEAR } from "./town.js";
 
 /* global SFX */
 
@@ -1354,7 +1354,7 @@ async function bedtime(w, sib, { line = null } = {}) {
     sib.path = []; sib.stopFollow(); sib.person.sitting = 0; sib.person.setPose("idle");
     if (line) bark(P.sib, line, 3.5);
     const b = w.bedSpot(1);
-    if (b) sib.walkTo(b.x, b.z, 1.2).then(() => { if (!sib.root.parent) return; sib.person.sitting = 1; sib.person.setPose("sit"); sib.faceTo(b.x - Math.sin(b.ry + Math.PI / 2), b.z - Math.cos(b.ry + Math.PI / 2)); });
+    if (b) sib.walkTo(b.x, b.z, 1.2).then(() => { if (sib.root.parent) lieOn(sib, b); });
   }
   const bed = w.bedSpot(0);
   UI.objective("Go to bed in the cabin");
@@ -1368,7 +1368,7 @@ async function bedtime(w, sib, { line = null } = {}) {
   await fade(1, 2);
   // lie down: the eye drops to the pallet
   pl.place(bed.x, bed.z, bed.ry); pl.pitch = 0.6;
-  if (sib) { const b = w.bedSpot(1); if (b) { sib.path = []; sib.place(b.x, b.z, b.ry); sib.person.sitting = 1; sib.person.setPose("sit"); } }
+  if (sib) { const b = w.bedSpot(1); if (b) { sib.path = []; lieOn(sib, b); } }
 }
 
 // the fence of trees round the clearing's south edge, where two people could lie hidden
@@ -1516,9 +1516,12 @@ async function ch9(w, opts = {}) {
   const MOSS = [0.4, 1.3, 2.2, 3.4, 4.3, 5.4].map((a, i) => ({ i, x: CLEARING.x + Math.cos(a) * 19, z: CLEARING.z + Math.sin(a) * 19 }));
   const mossObjs = {};
   for (const m of MOSS) {
+    // the rock stays where it is; only the moss comes away
+    const y = w.heightAt(m.x, m.z), rock = new Builder();
+    rock.add(new THREE.DodecahedronGeometry(0.7, 0), 0x6a665e, m.x, y + 0.2, m.z, 0.3, m.i, 0.2, 1.3, 0.6, 1.1, 0.06);
+    w.root.add(rock.build(MAT.rough));
     if (S.moss.includes(m.i)) continue;
-    const y = w.heightAt(m.x, m.z), b = new Builder();
-    b.add(new THREE.DodecahedronGeometry(0.7, 0), 0x6a665e, m.x, y + 0.2, m.z, 0.3, m.i, 0.2, 1.3, 0.6, 1.1, 0.06);
+    const b = new Builder();
     b.add(new THREE.SphereGeometry(0.4, 8, 6), 0x4e6a30, m.x + 0.3, y + 0.5, m.z, 0, 0, 0, 1.2, 0.35, 1, 0.1);
     const o = b.build(MAT.rough); w.root.add(o); mossObjs[m.i] = o;
   }
@@ -1578,7 +1581,7 @@ async function ch9(w, opts = {}) {
   await fade(1, 2);
   setAtmo("snownight"); w.setSnow(1, 1); AUDIO.wind(true, 1.5); SFX.fireLoop(true);
   w.lightFire(false); w.lightHearth(true); w.setCabinDoor(false, true);
-  let fire = 0.8, wood = 12, night = 0;
+  let fire = 0.8, wood = 15, night = 0;      // (the twelve you split, and three kept dry under the bench)
   const DAWN = 85;
   setPile(wood);
   // the split wood came in with you, stacked by the hearth
@@ -1881,16 +1884,28 @@ async function ch11(w) {
 // ===========================================================================
 // the day goes round: [fraction of the day, atmosphere]
 const DAYCYCLE = [[0, "dawn"], [0.08, "morning"], [0.3, "afternoon"], [0.55, "evening"], [0.7, "dusk"], [0.8, "night"], [0.95, "night"], [1, "dawn"]];
+// winter wears the same hours, in snow
+const WINTER_ATMO = { dawn: "snowday", morning: "snowday", afternoon: "snowday", evening: "snowday", dusk: "snownight", night: "snownight" };
 function dayCycle(w, town, DAY, { onReap } = {}) {
   const S = town.S, pl = G.player, ripe = new Map();
+  town.nightly = true; town.dayLen = DAY;
+  let snow = town.winter ? 1 : 0, hearth = false;
   const tick = onFrame(dt => {
     town.update(dt, DAY);
     const f = (town.t / DAY) % 1;
-    S.clock = f;
+    S.clock = f; S.days = town.t / DAY;
+    // snow comes in with winter and goes with it, over half a day
+    const wantSnow = town.winter ? 1 : 0;
+    snow += clamp(wantSnow - snow, -dt / (DAY * 0.5), dt / (DAY * 0.5));
+    w.setSnow(snow, town.winter && (f > 0.2 && f < 0.5) ? 0.4 : 0);
     let i = 0; while (i < DAYCYCLE.length - 2 && f >= DAYCYCLE[i + 1][0]) i++;
-    const [f0, a] = DAYCYCLE[i], [f1, b] = DAYCYCLE[i + 1];
+    const [f0, a0] = DAYCYCLE[i], [f1, b0] = DAYCYCLE[i + 1];
+    const a = snow > 0.5 ? WINTER_ATMO[a0] || a0 : a0, b = snow > 0.5 ? WINTER_ATMO[b0] || b0 : b0;
     blendAtmo(a, b, clamp((f - f0) / (f1 - f0), 0, 1));
     w.setFire(f > 0.6 || f < 0.1 ? 1 : 0.35);
+    // on a winter night your own hearth is lit
+    const wantHearth = town.winter && (f > 0.66 || f < 0.08);
+    if (wantHearth !== hearth) { hearth = wantHearth; w.lightHearth(hearth); if (hearth) w.setHearth(0.9); }
     // ripe fields can be reaped by hand, as well as by the farmers
     for (const fl of S.buildings) if (fl.type === "field" && fl.sown && (fl.growth ?? 1) >= 3 && !ripe.has(fl)) {
       const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3,
@@ -1917,8 +1932,17 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
   const told = onFrame(() => { if (nightNow() && town.day !== toldNight && (town.t / DAY) % 1 > 0.62) { toldNight = town.day; UI.hint("Night's come. Your bed is in the cabin — sleep through to morning.", 5); } });
   // what hunger does, said out loud
   town.on("hungry", () => bark(P.sib, "There's no rye left. Reap something — tomorrow with nothing, and someone will go.", 4.5));
-  town.on("left", p => UI.hint(`${p.name} went back down the road. There wasn't bread enough.`, 6));
-  return () => { tick(); told(); w.onSleep = null; for (const it of ripe.values()) w.removeInteract(it); };
+  town.on("left", (p, why) => UI.hint(why === "cold" ? `${p.name} went back down the road. There wasn't wood enough to keep a fire.` : `${p.name} went back down the road. There wasn't bread enough.`, 6));
+  town.on("cold", () => bark(P.sib, "The stack's empty and the hearths are cold. Fell something — another night like this and someone will go.", 4.5));
+  // the turn of the seasons, said once each
+  let lastSeason = town.season;
+  const seasons = onFrame(() => {
+    if (town.season === lastSeason) return;
+    lastSeason = town.season;
+    const say1 = { spring: "Spring. The ground's soft again — the fields will grow.", summer: "Summer. Long days; get the logs in while it's dry.", autumn: "Autumn. Winter's two days off — stack firewood, and bread.", winter: "Winter. Nothing grows now, and every hearth burns a log a day." }[lastSeason];
+    UI.hint(say1, 6);
+  });
+  return () => { tick(); told(); seasons(); w.onSleep = null; town.nightly = false; if (hearth) w.lightHearth(false); for (const it of ripe.values()) w.removeInteract(it); };
 }
 const sibling = () => LOOKS[G.who === "brother" ? "sister" : "brother"];
 // places round the fire, for a gathering
@@ -1937,7 +1961,7 @@ async function chHarvest(w) {
   S.name ??= "Forester's Clearing";
   town.spawnPeople(); town.sitesAll();
   const sib = spawn(sibling(), FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
-  sib.settler = { job: "woodcutter" }; town.work(sib).catch(() => {});
+  sib.settler = { job: "woodcutter" }; sib.homeBed = true; town.work(sib).catch(() => {});
   w.lightFire(true);
   pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
   const saved = (loadSave() || {}).harvest || {};
@@ -1946,7 +1970,7 @@ async function chHarvest(w) {
   // the rye stands ripe on the first field
   const f0 = S.buildings.find(b => b.type === "field" && b.sown);
   if (f0 && !H.reaped) { f0.growth = 3; town.show(f0); }
-  town.t = 0.1 * DAY;
+  town.t = (4 + 0.1) * DAY;          // the first morning of autumn
   const stopDay = dayCycle(w, town, DAY, { onReap: () => { if (!H.reaped) { H.reaped = true; persistH(); bark(P.sib, "Twenty sacks' worth. Watch the number on the board — it goes down every day we eat.", 4); } } });
   // Jan and his sister wait by the fire until there's a roof for them
   let visitors = H.joined ? [] : [spawn(settlerLookFor(JAN), FIRE.x - 2.9, FIRE.z + 1.4, 0), spawn(settlerLookFor(LIESEL), FIRE.x - 3.3, FIRE.z + 0.2, 0)];
@@ -2181,12 +2205,55 @@ async function chReckoning(w) {
   await wait(1.5);
   G.lockMove = true;
   await fade(1, 3);
+  S.days = 5.3; town.persist();          // the first frost: winter is a day off
   writeSave({ unlocked: 14, finishedTutorial: true, reckoning: choice === 0 ? "stayed" : "went" });
   if (choice === 1) await narrate("We went down the road to Hamburg, and saw his name in the rolls, in a clerk's good hand. By spring we had sold the house, and we came back up the road with a cart of seed and nails.", 6);
   else await narrate("Jakob sold the house on the Deichstraße. By spring a cart came up the road with seed, and nails, and a saw.", 5);
   await narrate(`${S.name} is yours. Build, fell, sow — and see who comes up the road.`, 4.5);
   await card("Free play", S.name, 3.5);
   return startChapter(14);
+}
+
+// ---------------------------------------------------------------------------
+//  Henning's cart: every third morning he comes up the road, and he trades
+// ---------------------------------------------------------------------------
+// Every Mark in the settlement comes from outside it. He buys what you have too
+// much of and sells what you are short of — and the odd thing that makes work go faster.
+function hennings(w, town, DAY) {
+  const S = town.S;
+  let here = null, told = false;
+  const offers = () => [
+    { label: "Sell 6 logs", note: "Good dry spruce for the kilns.", get: "+2 Mark", can: () => S.store >= 6, do: () => { S.store -= 6; S.coin += 2; w.setStack(Math.min(S.store, 24)); } },
+    { label: "Sell 6 loaves", note: "He knows a miller's wife who'll take them.", get: "+3 Mark", can: () => S.bread >= 6, do: () => { S.bread -= 6; S.coin += 3; } },
+    { label: "Sell 10 rye", note: "", get: "+2 Mark", can: () => S.rye >= 10, do: () => { S.rye -= 10; S.coin += 2; } },
+    { label: "Buy 10 rye", note: "For a hungry winter.", get: "4 Mark", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 10; } },
+    { label: "Buy a good saw", note: "Every tree felled gives a log more.", get: "10 Mark", can: () => S.coin >= 10 && !S.upgrades.saw, done: () => S.upgrades.saw, do: () => { S.coin -= 10; S.upgrades.saw = true; } },
+    { label: "Buy iron axe heads", note: "The woodcutters fell a third quicker.", get: "14 Mark", can: () => S.coin >= 14 && !S.upgrades.axes, done: () => S.upgrades.axes, do: () => { S.coin -= 14; S.upgrades.axes = true; } },
+    { label: "Buy a dozen arrows", note: "For the bow.", get: "2 Mark", can: () => S.coin >= 2, do: () => { S.coin -= 2; G.player.arrows = (G.player.arrows || 0) + 12; } },
+  ];
+  const arrive = () => {
+    const r0 = w.road[w.road.length - 30];
+    const cartB = new Builder(); PROPS.cart(cartB, 29.2, -283, 0.2); const cart = cartB.build(); cart.position.y = w.heightAt(29.2, -283); w.root.add(cart);
+    const h = spawn(HENNING, r0.x, r0.z, 0);
+    h.walkTo(30.4, -287.5, 1.4).then(() => { if (h.root.parent) { h.faceTo(CLEARING.x, CLEARING.z); h.person.setPose("armsCrossed"); } });
+    const it = w.addInteract({ get x() { return h.pos.x; }, get z() { return h.pos.z; }, get y() { return h.pos.y + 1.4; }, reach: 2.6, label: "Trade with Henning",
+      use: () => G.openTrade && G.openTrade("Henning's cart", `${S.coin} Mark in the purse`, offers(), () => { town.persist(); SFX.pickup(); }) });
+    here = { h, cart, it };
+    UI.hint("Henning's cart is at the top of the clearing. He'll buy, and he has things to sell.", 6);
+    if (!told) { told = true; tutor("trade", "", [["F", "beside Henning: trade"]], 7); }
+  };
+  const leave = () => {
+    const { h, cart, it } = here; here = null;
+    w.removeInteract(it);
+    const r0 = w.road[w.road.length - 30];
+    h.person.setPose("idle");
+    h.walkTo(r0.x, r0.z, 1.4).then(() => { h.remove(); w.root.remove(cart); });
+  };
+  onFrame(() => {
+    const f = town.frac, due = town.day % 3 === 1 && f > 0.1 && f < 0.6;
+    if (due && !here) arrive();
+    else if (!due && here) leave();
+  });
 }
 
 // ===========================================================================
@@ -2201,14 +2268,16 @@ async function chFree(w) {
   S.name ??= "Forester's Clearing";
   town.spawnPeople(); town.sitesAll();
   const sib = spawn(sibling(), FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
-  sib.settler = { job: "woodcutter" }; town.work(sib).catch(() => {});
+  sib.settler = { job: "woodcutter" }; sib.homeBed = true; town.work(sib).catch(() => {});
   w.lightFire(true);
   pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
-  // time: the clock starts where you left it
-  town.t = (S.clock || 0.1) * DAY;
+  // time: the clock starts where you left it, day and season and all
+  town.t = (S.days ?? S.clock ?? 0.1) * DAY;
+  town.day = Math.floor(town.t / DAY);
   dayCycle(w, town, DAY);
-  // the board says what day it is, and what wants doing next
-  onFrame(() => UI.objective(`${S.name} — day ${town.day + 1} · ${town.advice()}`));
+  hennings(w, town, DAY);
+  // the board says the season and the day, and what wants doing next
+  onFrame(() => UI.objective(`${S.name} — ${town.season}, day ${town.day + 1} · ${town.advice()}`));
   // who comes up the road: when there is a bed, and bread enough
   town.on("day", async d => {
     const pop = S.people.length + 2;
