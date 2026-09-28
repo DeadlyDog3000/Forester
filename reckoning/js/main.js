@@ -7,7 +7,7 @@
 // Boot, the front door, the pause menu, and the loop.
 
 import { renderer, clamp } from "./core.js";
-import { G, Player, frame, setAtmo, input, drawMap } from "./engine.js";
+import { G, Player, frame, setAtmo, input, drawMap, setGraphics } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
 import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES } from "./town.js";
 import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
@@ -33,21 +33,59 @@ function applySettings() {
   AUDIO.setMusicVolume(s.music ? 1 : 0);
   $("setSens").value = s.sens; $("setFov").value = s.fov; $("setVol").value = s.volume;
   $("setInvert").checked = s.invert; $("setMusic").checked = s.music;
+  // the graphics preset fills in the boosters; touching any booster makes it Custom
+  if (s.quality === "low") s.quality = "performance";      // (the old two-way setting)
+  const P = PRESETS[s.quality];
+  if (P) Object.assign(s, P);
   $("setQuality").value = s.quality || "high";
-  const low = s.quality === "low";
-  if (renderer.shadowMap.enabled === low) {
-    // shadows on or off: every material has to be rebuilt to match
-    renderer.shadowMap.enabled = !low;
-    G.scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
-  }
-  renderer.setPixelRatio(low ? Math.min(devicePixelRatio, 1) * 0.8 : Math.min(devicePixelRatio, 1.75));
-  renderer.setSize(innerWidth, innerHeight);
+  $("setScale").value = s.scale ?? 1; $("scaleVal").textContent = Math.round((s.scale ?? 1) * 100) + "%";
+  $("setDynres").checked = !!s.dynres; $("setShadows").value = s.shadows || "high"; $("setDraw").value = String(s.draw ?? 1);
+  $("setCap").value = String(s.cap || 0); $("setFps").checked = !!s.showFps;
+  $("fpsMeter").classList.toggle("hidden", !s.showFps);
+  setGraphics({ shadows: s.shadows || "high", drawMul: +(s.draw ?? 1) });
+  if (!s.dynres) dynScale = 1;
+  applyScale();
   $("sensVal").textContent = (+s.sens).toFixed(2); $("fovVal").textContent = s.fov + "°"; $("volVal").textContent = Math.round(s.volume * 100) + "%";
 }
 for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true], ["setVol", "volume", true]]) {
   $(id).addEventListener("input", e => { G.settings[key] = num ? +e.target.value : e.target.value; applySettings(); G.saveSettings(); });
 }
 $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.value; applySettings(); G.saveSettings(); });
+// ---- FPS boosters ----
+const PRESETS = {
+  high: { scale: 1, dynres: false, shadows: "high", draw: 1 },
+  balanced: { scale: 0.85, dynres: true, shadows: "low", draw: 0.75 },
+  performance: { scale: 0.65, dynres: true, shadows: "off", draw: 0.55 },
+};
+let dynScale = 1;
+function applyScale() {
+  const s = G.settings;
+  const pr = Math.min(devicePixelRatio, 1.75) * (s.scale ?? 1) * dynScale;
+  if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) renderer.setPixelRatio(pr);
+  renderer.setSize(innerWidth, innerHeight);
+}
+const custom = (key, val) => { G.settings[key] = val; G.settings.quality = "custom"; applySettings(); G.saveSettings(); };
+$("setScale").addEventListener("input", e => custom("scale", +e.target.value));
+$("setDynres").addEventListener("change", e => custom("dynres", e.target.checked));
+$("setShadows").addEventListener("change", e => custom("shadows", e.target.value));
+$("setDraw").addEventListener("change", e => custom("draw", +e.target.value));
+$("setCap").addEventListener("change", e => { G.settings.cap = +e.target.value; G.saveSettings(); });
+$("setFps").addEventListener("change", e => { G.settings.showFps = e.target.checked; applySettings(); G.saveSettings(); });
+// the frame rate, measured each half second: shown if asked, and used by auto resolution
+let fpsN = 0, fpsT = 0, lowFor = 0;
+function meterFps(dtReal) {
+  fpsN++; fpsT += dtReal;
+  if (fpsT < 0.5) return;
+  const fps = fpsN / fpsT; fpsN = 0; fpsT = 0;
+  const s = G.settings, m = $("fpsMeter");
+  if (s.showFps) { m.textContent = `${Math.round(fps)} FPS${dynScale < 1 ? ` · ${Math.round((s.scale ?? 1) * dynScale * 100)}%` : ""}`; m.classList.toggle("slow", fps < 30); }
+  if (s.dynres && G.mode === "play") {
+    const aim = s.cap ? s.cap * 0.92 : 50;
+    if (fps < aim) lowFor++; else lowFor = 0;
+    if (lowFor >= 2 && dynScale > 0.5) { dynScale = Math.max(0.5, dynScale - 0.1); lowFor = 0; applyScale(); }
+    else if (fps > aim + 8 && dynScale < 1) { dynScale = Math.min(1, dynScale + 0.05); applyScale(); }
+  }
+}
 for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"]]) {
   $(id).addEventListener("change", e => { G.settings[key] = e.target.checked; applySettings(); G.saveSettings(); });
 }
@@ -617,7 +655,13 @@ renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !
 
 // ---- the loop ----
 let last = performance.now();
+let lastDrawn = 0;
 function loop(now) {
+  // (a frame cap skips frames that come too soon, and the time they would have had goes to the next)
+  const cap = G.settings.cap || 0;
+  if (cap && now - lastDrawn < 1000 / cap - 1.5) { requestAnimationFrame(loop); return; }
+  meterFps((now - (lastDrawn || now)) / 1000);
+  lastDrawn = now;
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   // free look cannot pass the window's edge, so a cursor resting near one keeps turning

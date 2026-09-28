@@ -35,6 +35,7 @@
         <div id="buildList"></div>
       </div>
     </div>
+    <div id="fpsMeter" class="hidden"></div>
     <div id="gov" class="hidden">
       <div class="mc-win gov-win">
         <div class="mc-label"><span id="govTitle">Government</span> <span class="mc-hint"><kbd>G</kbd> close</span></div>
@@ -147,8 +148,26 @@
         <label>Field of view <span id="fovVal"></span><input id="setFov" type="range" min="55" max="100" step="1"></label>
         <label>Volume <span id="volVal"></span><input id="setVol" type="range" min="0" max="1" step="0.05"></label>
         <label>Graphics
-          <select id="setQuality"><option value="high">High — soft shadows, full resolution</option><option value="low">Low — no shadows, faster on older laptops</option></select>
+          <select id="setQuality">
+            <option value="high">High — soft shadows, full resolution, far</option>
+            <option value="balanced">Balanced — hard shadows, a little less resolution</option>
+            <option value="performance">Performance — no shadows, near fog, for older laptops</option>
+            <option value="custom">Custom — set below</option>
+          </select>
         </label>
+        <div class="set-sec">FPS boosters</div>
+        <label>Render scale <span id="scaleVal"></span><input id="setScale" type="range" min="0.5" max="1" step="0.05"></label>
+        <label class="check"><input id="setDynres" type="checkbox"> Auto resolution — drops the render scale when the frame rate falls, and brings it back</label>
+        <label>Shadows
+          <select id="setShadows"><option value="high">Soft</option><option value="low">Hard — cheaper, redrawn every other frame</option><option value="off">Off — the biggest boost</option></select>
+        </label>
+        <label>Draw distance
+          <select id="setDraw"><option value="1">Far</option><option value="0.75">Medium</option><option value="0.55">Near — the fog comes in, less to draw</option></select>
+        </label>
+        <label>Frame cap
+          <select id="setCap"><option value="0">Unlimited</option><option value="60">60 FPS</option><option value="30">30 FPS — cooler and quieter, saves battery</option></select>
+        </label>
+        <label class="check"><input id="setFps" type="checkbox"> Show FPS</label>
         <label class="check"><input id="setInvert" type="checkbox"> Invert mouse Y</label>
         <label class="check"><input id="setMusic" type="checkbox"> Music</label>
       </div>

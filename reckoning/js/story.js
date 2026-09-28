@@ -653,6 +653,7 @@ class Watchman {
     this.speed = opts.speed ?? 1.05;
     this.sweep = opts.sweep || 0; this.baseYaw = opts.yaw ?? 0; this.t = Math.random() * 10;
     this.sus = 0; this.said = false;
+    this.glance = opts.glance || null;
     const lan = makeLantern(false);
     this.a.hold(lan); this.a.person.setPose("lantern");
     if (opts.light) { const L = opts.light; L.intensity = 4; L.distance = 11; L.color.set(0xffc27a); L.position.set(0, -0.1, 0); lan.add(L); }
@@ -681,7 +682,12 @@ class Watchman {
         else if (this.pause > 0) { this.pause -= dt; if (this.sweep) a.targetYaw = this.baseYaw + Math.sin(this.t * 0.8) * this.sweep; }
         else { this.i = (this.i + 1) % this.route.length; a.walk([this.route[this.i]], this.speed); this.pause = this.waitT; }
       }
+    } else if (this.glance && (this.t % (this.glance.every + this.glance.for)) > this.glance.every) {
+      // turned away to look at something behind him (the gate): he sees nothing in front
+      a.targetYaw = this.glance.yaw;
+      if (!this.glanced) { this.glanced = true; if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 16) bark(this.who, ["...Is that bar holding?", "*yawns*", "Cold enough to freeze the Alster."][Math.floor(this.t) % 3], 1.8); }
     } else if (this.sweep) {
+      this.glanced = false;
       a.targetYaw = this.baseYaw + Math.sin(this.t * 0.45) * this.sweep;
     }
     // nobody is spotted in the middle of a conversation
@@ -781,7 +787,8 @@ async function ch4(w, opts) {
     const guards = [
       // his beat runs from just past the cart (it stands at -35.6, 46) up to the gate, never through it
       new Watchman(w, 91, [[-34.4, 49], [-35.4, 59.6]], { wait: 3, speed: 0.95, light: w.pool[3] }),
-      new Watchman(w, 92, [[-36.5, 64.6]], { yaw: Math.PI - 0.35, sweep: 0.8, light: w.pool[4] }),
+      // the gate watchman: he sweeps the lane, but every so often turns to check the gate behind him — that is your moment
+      new Watchman(w, 92, [[-36.5, 64.6]], { yaw: Math.PI - 0.35, sweep: 0.5, range: 6.5, glance: { every: 10, for: 6, yaw: 0.2 }, light: w.pool[4] }),
       // and further out, the streets that lead away from the gate are walked too
       new Watchman(w, 94, [[-35.2, 38], [-35.2, 24]], { wait: 2.5, speed: 1.0, light: w.pool[5] }),
       new Watchman(w, 95, [[-18, 40], [-12, 40]], { wait: 3, speed: 0.9, yaw: -Math.PI / 2 }),

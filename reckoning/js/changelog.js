@@ -15,6 +15,8 @@ export const CHANGELOG = [
       "Stones in the alley: pick one up (F) and click to throw it. The nearest watchman who hears it land goes to see what it was, looks about, and goes back — leaving a gap.",
       "In tense moments — the chase, creeping past the watch, hiding from the charcoal buyer — and whenever you are out of breath, your view rises and falls with your breathing.",
       "Talking to someone is an action now: hold F for a moment, and they stop what they are doing and turn to you while you speak.",
+      "The watchman by the marsh gate is easier to pass: he sees less far, sweeps a narrower arc, and every so often turns to check the gate behind him — that's your moment.",
+      "FPS boosters in Settings: graphics presets (High, Balanced, Performance), render scale, auto resolution that drops when the frame rate falls, soft, hard or no shadows, draw distance, a frame cap, and an FPS counter.",
     ],
   },
   {

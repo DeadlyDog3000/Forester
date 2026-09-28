@@ -280,3 +280,9 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); }
 .tnode.done text { fill: #cfe8c6; }
 .tlink { stroke: rgba(140, 192, 132, 0.35); stroke-width: 1.5; fill: none; }
 #techDesc { font: italic 15px/1.35 var(--serif); color: var(--ink); min-height: 40px; margin-top: 10px; }
+
+/* ---- FPS boosters ---- */
+.set-sec { font: 600 10px/1 var(--sans); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin: 14px 0 2px; }
+#fpsMeter { position: fixed; right: 12px; top: 10px; z-index: 9; font: 600 12px var(--sans); color: var(--ink); background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(140, 192, 132, 0.3); border-radius: 3px; padding: 3px 8px; pointer-events: none; font-variant-numeric: tabular-nums; }
+#fpsMeter.hidden { display: none; }
+#fpsMeter.slow { color: #e8a07a; }

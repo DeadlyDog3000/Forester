@@ -100,11 +100,16 @@ export const ATMO = {
   firelight: { sun: [0.3, 0.6, -0.4], sunC: 0x7a8ac0, sunI: 0.45, hemiS: 0x46507a, hemiG: 0x241c14, hemiI: 0.65, fog: 0x0c0e16, near: 12, far: 100, top: 0x060812, mid: 0x1a1e34, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.35, fill: 0.42 },
 };
 function applyAtmo(a) {
+  G.atmoNow = a;
   sun.color.copy(a.sunC); sun.intensity = a.sunI;
   G.sunDir = a.sun.clone ? a.sun.clone().normalize() : new THREE.Vector3(...a.sun).normalize();
   hemi.color.copy(a.hemiS); hemi.groundColor.copy(a.hemiG); hemi.intensity = a.hemiI;
   fill.intensity = a.fill ?? 0.1;
-  G.scene.fog.color.copy(a.fog); G.scene.fog.near = a.near; G.scene.fog.far = a.far;
+  // (the draw distance booster pulls the fog in, and the camera stops drawing just beyond it)
+  const dm = G.drawMul ?? 1;
+  G.scene.fog.color.copy(a.fog); G.scene.fog.near = a.near * dm; G.scene.fog.far = a.far * dm;
+  const far = dm < 1 ? Math.max(35, a.far * dm * 1.08) : 900;
+  if (camera.far !== far) { camera.far = far; camera.updateProjectionMatrix(); }
   const u = sky.material.uniforms;
   u.top.value.copy(a.top); u.mid.value.copy(a.mid); u.bottom.value.copy(a.bot);
   u.sunDir.value.copy(G.sunDir); u.sunCol.value.copy(a.sunC).multiplyScalar(Math.min(1, a.sunI / 2));
@@ -1012,7 +1017,23 @@ export function frame(dt, skipRender) {
   updateMarker(dt);
   if (G.mode === "play" && w) updateMinimap(dt);
   input.endFrame();
+  // (hard shadows, the cheaper kind, are only redrawn every other frame)
+  if (G.shadowEvery > 1) renderer.shadowMap.needsUpdate = (G.frameN = (G.frameN || 0) + 1) % G.shadowEvery === 0;
   if (!skipRender) renderer.render(G.scene, camera);
+}
+
+// ---- graphics: the FPS boosters in the settings ----
+// shadows: "high" soft and sharp, "low" hard-edged, smaller and redrawn every other frame, "off" none at all
+export function setGraphics({ shadows = "high", drawMul = 1 } = {}) {
+  const want = shadows !== "off", type = shadows === "low" ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap, size = shadows === "low" ? 1024 : 2048;
+  const changed = renderer.shadowMap.enabled !== want || renderer.shadowMap.type !== type;
+  renderer.shadowMap.enabled = want; renderer.shadowMap.type = type;
+  renderer.shadowMap.autoUpdate = shadows !== "low";
+  G.shadowEvery = shadows === "low" ? 2 : 1;
+  if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+  // shadows on or off, or soft or hard: every material has to be rebuilt to match
+  if (changed) G.scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
+  if (G.drawMul !== drawMul) { G.drawMul = drawMul; if (G.atmoNow) applyAtmo(G.atmoNow); }
 }
 
 // Base for a map: the root group, its collision, and what lives in it.
