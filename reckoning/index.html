@@ -28,6 +28,20 @@
     <div id="objective" class="hidden"><span class="obj-label">Objective</span><span id="objText"></span></div>
     <div id="carry" class="hidden"></div>
     <div id="hotbar"></div>
+    <div id="townbar" class="hidden"></div>
+    <div id="buildmenu" class="hidden">
+      <div class="mc-win">
+        <div class="mc-label">Plans <span class="mc-hint"><kbd>B</kbd> close</span></div>
+        <div id="buildList"></div>
+      </div>
+    </div>
+    <div id="ask" class="hidden">
+      <div class="mc-win ask-win">
+        <div class="mc-label" id="askTitle"></div>
+        <input id="askInput" maxlength="28" autocomplete="off" spellcheck="false">
+        <button class="btn" id="askOk">So be it</button>
+      </div>
+    </div>
     <div id="bigmap" class="hidden">
       <canvas id="bigmapCanvas"></canvas>
       <div class="bm-close"><kbd>J</kbd> close</div>
@@ -130,6 +144,7 @@
         <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
         <tr><td>Mouse</td><td>Look</td></tr>
         <tr><td><kbd>J</kbd></td><td>Map</td></tr>
+        <tr><td><kbd>B</kbd></td><td>Plans &mdash; what you can build, once there is somewhere to build it</td></tr>
         <tr><td><kbd>T</kbd></td><td>Inventory &mdash; what you have, and what you carry</td></tr>
         <tr><td><kbd>M</kbd></td><td>Lock the mouse to look around / let it go</td></tr>
         <tr><td><kbd>Shift</kbd></td><td>Run</td></tr>

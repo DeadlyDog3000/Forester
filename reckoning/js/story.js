@@ -10,13 +10,14 @@
 // time, so pausing pauses the story, and starting a chapter over bumps a
 // generation counter that makes every script from the old run fall silent.
 
-import { THREE, clamp, mat, Builder, MAT } from "./core.js";
+import { THREE, clamp, mat, Builder, MAT, TAU } from "./core.js";
 import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS } from "./woods.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, P as PROPS } from "./models.js";
+import { Town, BUILDINGS } from "./town.js";
 
 /* global SFX */
 
@@ -153,6 +154,9 @@ export const CHAPTERS = [
   { n: 7, title: "Seed Before Frost", kicker: "Part Two: Roots", world: "woods", run: ch7 },
   { n: 8, title: "Martinmas", kicker: "Six weeks later", world: "woods", run: ch8 },
   { n: 9, title: "The First Winter", kicker: "Nine days after", world: "woods", run: ch9 },
+  { n: 10, title: "The Stranger", kicker: "Spring", world: "woods", run: ch10 },
+  { n: 11, title: "Forester", kicker: "High summer", world: "woods", run: ch11 },
+  { n: 12, title: "Free Play", kicker: "The settlement is yours", world: "woods", run: ch12 },
 ];
 
 // what is in your pockets in each chapter — the inventory (T) lists it
@@ -166,6 +170,9 @@ const PACK = {
   7: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }],
   8: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }, { icon: "spade", name: "Henning's spade", note: "The handle split and bound with twine." }],
   9: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }, { icon: "spade", name: "Henning's spade", note: "The handle split and bound with twine." }],
+  10: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }, { icon: "spade", name: "Henning's spade", note: "The handle split and bound with twine, twice now." }],
+  11: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }, { icon: "spade", name: "Henning's spade", note: "The handle split and bound with twine, twice now." }],
+  12: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }, { icon: "spade", name: "Henning's spade", note: "The handle split and bound with twine, twice now." }],
 };
 
 export async function startChapter(n, opts = {}) {
@@ -173,6 +180,7 @@ export async function startChapter(n, opts = {}) {
   G.onFrame.length = 0;
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
   G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined;   // running always costs breath
+  if (G.town) { G.town.stop(); G.town = null; }
   G.bugs.setKind(null);
   AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false);
   SFX.fireLoop(false); SFX.insectLoop(false);
@@ -1175,7 +1183,8 @@ async function ch7(w) {
     mark(null);
     const its = [];
     for (const st of strips) {
-      its.push(w.addInteract({ x: st.x, y: w.heightAt(st.x, st.z) + 0.5, z: st.z, reach: 3.2, hold: 3,
+      its.push(w.addInteract({ x: st.x, y: w.heightAt(st.x, st.z) + 0.3, z: st.z, reach: 2.6, hold: 3,
+        seg: [st.x - s2 * 3.3, st.z - c2 * 3.3, st.x + s2 * 3.3, st.z + c2 * 3.3],
         label: () => S.dug.includes(st.i) ? "Sow the rye" : "Dig the strip",
         can: () => !S.sown.includes(st.i),
         onHoldTick: (dt, t) => { if (Math.floor(t * 2.4) !== Math.floor((t - dt) * 2.4)) (S.dug.includes(st.i) ? SFX.pickup : SFX.hammer)(); },
@@ -1486,6 +1495,289 @@ async function ch9(w, opts = {}) {
   await narrate("It was a long winter. We ate the turnips, and then we ate less.", 4.5);
   await narrate("But when the snow went, we were still there. And so was the rye.", 4.5);
   return startChapter(10);
+}
+
+// ---------------------------------------------------------------------------
+//  the settlement, carried from chapter to chapter
+// ---------------------------------------------------------------------------
+function loadTown() {
+  const s = loadSave() || {};
+  const t = s.town || { store: (s.winter && s.winter.stack) ?? 6, rye: 12, people: [], felled: [], logs: [],
+    // the first field, the one they dug with Henning's spade
+    buildings: [{ type: "field", x: FIELD.x, z: FIELD.z, ry: FIELD.ry, dug: 3, sown: true, growth: 2, done: true }] };
+  // the felled ring from the cabin's rebuilding carries over
+  if (!s.town) for (const i of (s.clearing || {}).felled || []) t.felled.push({ i, day: -99 });
+  return t;
+}
+function startTown(w, unlocked) {
+  const S = loadTown();
+  const town = new Town(w, S, () => writeSave({ town: S }), { keepClear: [[FIELD.x, FIELD.z, 5]] });
+  town.unlocked = new Set(unlocked);
+  G.town = town;
+  w.showCabin(); w.openTracks.add(3);
+  G.player.giveAxe(true);
+  return town;
+}
+const NEWCOMERS = [
+  { name: "Tomas", sex: "m", job: "woodcutter" }, { name: "Grete", sex: "f", job: "farmer" }, { name: "Jan", sex: "m", job: "hauler" },
+  { name: "Liesel", sex: "f", job: "farmer" }, { name: "Hinrich", sex: "m", job: "woodcutter" }, { name: "Anna", sex: "f", job: "hauler" },
+  { name: "Claus", sex: "m", job: "farmer" }, { name: "Margarethe", sex: "f", job: "woodcutter" }, { name: "Peter", sex: "m", job: "hauler" },
+  { name: "Elsabe", sex: "f", job: "farmer" }, { name: "Jochim", sex: "m", job: "woodcutter" }, { name: "Trine", sex: "f", job: "hauler" },
+];
+// someone comes up the road and joins you
+async function arrival(town, p, say1) {
+  const w = town.w, r0 = w.road[w.road.length - 30];
+  const a = town.addPerson(p, r0.x, r0.z);
+  if (say1) bark(p.name, say1, 3.5);
+  return a;
+}
+
+// ===========================================================================
+//  X. THE STRANGER
+// ===========================================================================
+async function ch10(w) {
+  setAtmo("morning"); G.bugs.setKind("flies");
+  AUDIO.music("woods"); SFX.insectLoop(true);
+  const pl = G.player;
+  const town = startTown(w, ["cabin"]);
+  const S = town.S;
+  const f0 = S.buildings.find(b => b.type === "field"); if (f0) { f0.growth = 2; town.show(f0); }
+  const door = [CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2];
+  pl.place(door[0], door[1], CABIN.ry + Math.PI);
+  const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  const birds = onFrame((() => { let t = 2; return dt => { t -= dt; if (t <= 0) { t = 2 + Math.random() * 5; Math.random() < 0.85 ? SFX.bird() : SFX.crow(); } }; })());
+  void birds;
+  const day = onFrame(dt => town.update(dt, 400));
+  void day;
+  const MARTA = { name: "Marta", sex: "f", seed: 301, job: "hauler" }, PIETER = { name: "Pieter", sex: "m", seed: 302, child: true, job: "idle" };
+  const already = S.people.some(p => p.name === "Marta");
+
+  await wait(0.2);
+  const c = card("Spring", "X. The Stranger", 3.2);
+  await wait(1.2); fade(0, 2.4); await c;
+
+  if (!already) {
+    await wait(1.5);
+    const r0 = w.road[w.road.length - 26];
+    const marta = spawn(settlerLookFor(MARTA), r0.x, r0.z, 0), pieter = spawn(settlerLookFor(PIETER), r0.x + 0.8, r0.z + 0.6, 0);
+    marta.walkTo(FIRE.x - 2.5, FIRE.z - 3.2, 1.1); pieter.walkTo(FIRE.x - 1.6, FIRE.z - 3.6, 1.1);
+    G.lockMove = true; lookAt(sib, 3); sib.facePlayer();
+    await say(P.sib, "Someone's on the road. Two of them — a woman, and a boy.");
+    look(new THREE.Vector3(r0.x, w.cy + 1.4, r0.z), 1.2);
+    await wait(4);
+    lookAt(marta, 2.5); marta.facePlayer(); pieter.facePlayer();
+    await say("Marta", "God keep you. We saw your smoke from the road. We've walked from the marshes, Wilster way.");
+    await say("Marta", "Our village burned in the winter. Soldiers — Danes, or Swedes; by the end it didn't matter which. My husband...");
+    await wait(1);
+    await say("Pieter", "Have you got any bread?");
+    lookAt(sib, 2); sib.facePlayer();
+    await wait(0.8);
+    await say(YOU(), "No bread. But there's rye in the field, and turnips, and a fire.");
+    await say(P.sib, "We were strangers on a road once.");
+    lookAt(marta, 2);
+    await say("Marta", "One night. We'll be gone in the morning.");
+    lookAt(sib, 2);
+    await say(P.sib, "(quietly) They won't be. And they shouldn't be.");
+    await say(P.sib, "They'll need a roof of their own. We know how to raise one now.");
+    marta.remove(); pieter.remove();
+    town.addPerson(MARTA, FIRE.x - 2.5, FIRE.z - 3.2); town.addPerson(PIETER, FIRE.x - 1.6, FIRE.z - 3.6);
+    G.lockMove = false; look(null);
+  } else town.spawnPeople();
+  // your sibling fells trees and stacks the logs
+  sib.settler = { job: "woodcutter" }; town.work(sib).catch(() => {});
+
+  // ---- plan a cabin ----
+  let site = S.buildings.find(b => b.type === "cabin" && !b.done && !b.done);
+  if (!site && !S.buildings.some(b => b.type === "cabin")) {
+    UI.objective("Plan a cabin for Marta and Pieter — press B");
+    tutor("plans", "Press B for the plans. Choose the cabin, then walk it round till it sits right — green where it fits, red where it won't.", [["B", "plans"], ["R", "turn it"], ["Click", "set it down"]], 10);
+    await until(() => S.buildings.some(b => b.type === "cabin"));
+    site = S.buildings.find(b => b.type === "cabin");
+  } else if (site) town.site(site);
+  town.sitesAll();
+  // ---- raise it ----
+  tutor("raise", "Marta will carry logs from the stack to the site. Fell trees to keep the stack full, and bring logs yourself — F at the site.", [["Click", "fell a tree"], ["F", "take logs, add them to the site"]], 9);
+  const obj = onFrame(() => {
+    const b = S.buildings.find(b => b.type === "cabin" && !b.done);
+    if (!b) return;
+    UI.objective(b.logs < BUILDINGS.cabin.cost ? `Raise Marta's cabin — ${b.logs} of ${BUILDINGS.cabin.cost} logs at the site · ${S.store} on the stack` : "Hold F at the site to raise the cabin");
+    mark([b.x, b.z, w.cy + 1.5]);
+  });
+  await until(() => S.buildings.some(b => b.type === "cabin" && b.done));
+  obj(); mark(null); UI.objective(null);
+  bark("Marta", "A roof. A door that shuts. Pieter — look.", 3.5);
+  await wait(4);
+  G.lockMove = true;
+  await fade(1, 2.4);
+  SFX.insectLoop(false);
+  writeSave({ unlocked: 11 });
+  await narrate("They stayed. Marta could fell a tree faster than either of us, and Pieter could eat a loaf faster than all three.", 5);
+  await narrate("By midsummer, two more had come up the road.", 3.5);
+  return startChapter(11);
+}
+// a settler's look, for a scene before they have joined
+function settlerLookFor(p) {
+  const r = p.seed || 7;
+  return p.sex === "f" ? { model: "townswoman", name: p.name, skirt: true, apron: 0xe6dcc8, hat: "bonnet", seed: r, coat: 0x5a3b32, skirtColor: 0x3e4a5c, scale: p.child ? 0.72 : 1 }
+    : { model: "townsman", name: p.name, hat: "cap", seed: r, coat: 0x4d5a3c, legs: 0x3a3028, scale: p.child ? 0.72 : 1 };
+}
+
+// ===========================================================================
+//  XI. FORESTER — the last of the tutorial
+// ===========================================================================
+async function ch11(w) {
+  setAtmo("afternoon"); G.bugs.setKind("flies");
+  AUDIO.music("hope"); SFX.insectLoop(true);
+  const pl = G.player;
+  const town = startTown(w, ["cabin", "woodshed", "well", "field"]);
+  const S = town.S;
+  // the rye stands ripe in high summer
+  for (const b of S.buildings) if (b.type === "field" && b.sown) { b.growth = 3; town.show(b); }
+  // two more have come: a woodcutter and a farmer
+  for (const p of [{ name: "Tomas", sex: "m", seed: 311, job: "woodcutter" }, { name: "Grete", sex: "f", seed: 312, job: "farmer" }])
+    if (!S.people.some(q => q.name === p.name)) S.people.push(p);
+  town.spawnPeople();
+  const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  sib.settler = { job: "woodcutter" }; town.work(sib).catch(() => {});
+  onFrame(dt => town.update(dt, 400));
+  pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
+  const saved = (loadSave() || {}).summer || {};
+  const T = { reaped: !!saved.reaped };
+  const persistT = () => writeSave({ summer: { ...T } });
+
+  await wait(0.2);
+  const c = card("High summer", "XI. Forester", 3.2);
+  await wait(1.2); fade(0, 2.4); await c;
+  if (!saved.started) {
+    G.lockMove = true; lookAt(sib, 3); sib.facePlayer();
+    await say(P.sib, "Look at it. Six of us. Seven, when Henning comes up for his supper, which is most days now.");
+    await say(P.sib, "The rye's ready. Reap it before the birds do. And we need water nearer than the stream, and somewhere dry to keep the wood, and more ground under the spade.");
+    await say(P.sib, "Tomas fells, Grete farms, Marta carries. We just have to plan it.");
+    G.lockMove = false; look(null);
+    writeSave({ summer: { ...T, started: true } });
+  }
+  // reaping, by hand
+  const reapIts = [];
+  const addReap = () => {
+    for (const b of S.buildings) if (b.type === "field" && b.sown && (b.growth ?? 1) >= 3 && !b._reap) {
+      b._reap = w.addInteract({ x: b.x, y: w.heightAt(b.x, b.z) + 0.5, z: b.z, reach: 4.2, hold: 3, label: "Reap the rye",
+        seg: [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4],
+        can: () => (b.growth ?? 1) >= 3,
+        onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.chop(); },
+        use: () => { S.rye += 20; b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.build(); } });
+      reapIts.push(b._reap);
+    }
+  };
+  addReap();
+  town.sitesAll();
+  tutor("more", "Each needs its logs at the site, then your hands. Marta carries from the stack; you carry too.", [["B", "plans: well, woodshed, field"], ["J", "map"], ["T", "inventory"]], 9);
+  const need = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2 });
+  const obj = onFrame(() => {
+    const n = need(), parts = [];
+    if (!n.reap) parts.push("Reap the rye");
+    if (!n.well) parts.push("Build a well");
+    if (!n.shed) parts.push("Build a woodshed");
+    if (!n.field) parts.push("Dig a second field");
+    UI.objective(parts.length ? parts.join(" · ") : null);
+  });
+  await until(() => { const n = need(); return n.reap && n.well && n.shed && n.field; });
+  obj(); UI.objective(null);
+  await wait(1.5);
+  bark(P.sib, "That's the lot. Come to the fire tonight — everyone.", 3.5);
+  await wait(3);
+
+  // ---- the naming ----
+  G.lockMove = true;
+  await fade(1, 2);
+  setAtmo("firelight"); w.lightFire(true); SFX.fireLoop(true);
+  town.stop();
+  const ring = (i, n, r = 3.2) => [FIRE.x + Math.cos(i / n * TAU) * r, FIRE.z + Math.sin(i / n * TAU) * r];
+  const folk = S.people.map((p, i) => { const [x, z] = ring(i + 2, S.people.length + 3); const a = spawn(settlerLookFor(p), x, z, 0); a.faceTo(FIRE.x, FIRE.z); a.person.sitting = p.child ? 0 : 1; a.person.setPose(p.child ? "idle" : "sit"); return a; });
+  const [hx, hz] = ring(S.people.length + 2, S.people.length + 3);
+  const henning = spawn(HENNING, hx, hz, 0); henning.faceTo(FIRE.x, FIRE.z);
+  pl.place(...ring(0, S.people.length + 3, 3.4), 0); pl.seated = true;
+  const [sx, sz] = ring(1, S.people.length + 3);
+  sib.path = []; sib.stopFollow(); sib.place(sx, sz); sib.faceTo(FIRE.x, FIRE.z); sib.person.sitting = 1; sib.person.setPose("sit");
+  look(new THREE.Vector3(FIRE.x, w.cy + 0.9, FIRE.z), 2);
+  await fade(0, 2);
+  await wait(1.2);
+  lookAt(sib, 2);
+  await say(P.sib, "They struck Father's name from the rolls. From the books. As if he'd never been.");
+  await say(P.sib, "But this place can have a name. You say it.");
+  const name = await G.ask("What will you call this place?", "Forester's Clearing");
+  S.name = name; town.persist();
+  await say(YOU(), `${name}.`);
+  lookAt(henning, 2);
+  await say("Henning", `${name}. It'll be on no map for a while. Then one day it will be, and they'll wonder who you were.`);
+  lookAt(sib, 2);
+  await say(P.sib, "Let them wonder.");
+  await wait(1.5);
+  await fade(1, 3);
+  SFX.fireLoop(false); SFX.insectLoop(false);
+  writeSave({ unlocked: 12, finishedTutorial: true });
+  await narrate("Here the story leaves you — for now.", 3.5);
+  await narrate(`${name} is yours. Build, fell, sow, and see who comes up the road.`, 4.5);
+  await card("Free play", name, 3.5);
+  return startChapter(12);
+}
+
+// ===========================================================================
+//  XII. FREE PLAY — the settlement, open-ended
+// ===========================================================================
+// the day goes round: [fraction of the day, atmosphere]
+const DAYCYCLE = [[0, "dawn"], [0.08, "morning"], [0.3, "afternoon"], [0.55, "evening"], [0.7, "dusk"], [0.8, "night"], [0.95, "night"], [1, "dawn"]];
+async function ch12(w) {
+  const DAY = 480;
+  G.bugs.setKind("flies"); AUDIO.music("woods"); SFX.insectLoop(true);
+  const pl = G.player;
+  const town = startTown(w, Object.keys(BUILDINGS));
+  const S = town.S;
+  S.name ??= "Forester's Clearing";
+  town.spawnPeople(); town.sitesAll();
+  const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  sib.settler = { job: "woodcutter" }; town.work(sib).catch(() => {});
+  w.lightFire(true);
+  pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
+  // time: the clock starts where you left it
+  town.t = (S.clock || 0.1) * DAY;
+  const ripe = new Set();
+  onFrame(dt => {
+    town.update(dt, DAY);
+    const f = (town.t / DAY) % 1;
+    S.clock = f;
+    let i = 0; while (i < DAYCYCLE.length - 2 && f >= DAYCYCLE[i + 1][0]) i++;
+    const [f0, a] = DAYCYCLE[i], [f1, b] = DAYCYCLE[i + 1];
+    blendAtmo(a, b, clamp((f - f0) / (f1 - f0), 0, 1));
+    w.setFire(f > 0.6 || f < 0.1 ? 1 : 0.35);
+    // ripe fields can be reaped by hand too
+    for (const b of S.buildings) if (b.type === "field" && b.sown && (b.growth ?? 1) >= 3 && !ripe.has(b)) {
+      ripe.add(b);
+      const it = w.addInteract({ x: b.x, y: w.heightAt(b.x, b.z) + 0.5, z: b.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (b.growth ?? 1) >= 3,
+        seg: [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4],
+        onHoldTick: (dt2, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt2) * 3)) SFX.chop(); },
+        use: () => { S.rye += 20; b.growth = 1; town.show(b); w.removeInteract(it); ripe.delete(b); town.persist(); SFX.build(); } });
+    }
+    UI.objective(`${S.name} — day ${town.day + 1}`);
+  });
+  // who comes up the road: when there is a bed, and bread enough
+  town.on("day", async d => {
+    const pop = S.people.length + 2;
+    if (town.beds + 2 > pop && S.rye >= pop * 3) {
+      const used = new Set(S.people.map(p => p.name));
+      const n = NEWCOMERS.find(p => !used.has(p.name));
+      if (n) {
+        const p = { ...n, seed: 400 + S.people.length * 11 };
+        await arrival(town, p, ["God keep you. Is there room for one more?", "I heard there was a place up here. Is it true?", "I can work. I only need a roof.", "Henning at the kiln sent me."][S.people.length % 4]);
+        UI.hint(`${p.name} has come up the road, and stays. (${p.job})`, 5);
+      }
+    } else if (S.rye < pop) bark(P.sib, "The rye's running low. Reap what's ripe, or dig another field.", 4);
+  });
+  await wait(0.2);
+  const c = card(S.name, "Free play", 2.8);
+  await wait(1); fade(0, 2); await c;
+  tutor("free", "It's ours now. Build what we need — cabins bring people, fields feed them, a woodshed keeps the logs dry, a well makes the rye grow.", [["B", "plans"], ["J", "map"], ["T", "inventory"], ["1-9", "hotbar"]], 10);
+  // free play goes on until you leave it
+  await new Promise(() => {});
 }
 
 function makeSibAxe() {

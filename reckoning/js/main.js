@@ -9,6 +9,7 @@
 import { renderer } from "./core.js";
 import { G, Player, frame, setAtmo, input, drawMap } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
+import { BUILDINGS as TOWN_BUILDINGS } from "./town.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave } from "./story.js";
@@ -197,6 +198,7 @@ let overlay = null, overlayTimer = 0, overlayLockMove = false;
 const OVERLAYS = {
   inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
   bigmap: { open: () => renderBigMap(), tick: () => renderBigMap(), every: 250 },
+  buildmenu: { open: () => renderPlans(), tick: () => renderPlans(), every: 500 },
 };
 function showOverlay(id, on) {
   if (on && overlay && overlay !== id) showOverlay(overlay, false);
@@ -220,6 +222,35 @@ function showOverlay(id, on) {
 }
 function showInventory(on) { showOverlay("inventory", on); }
 G.showInventory = showInventory;
+
+// ---- the plans (B): what the settlement can build, when there is a settlement ----
+function renderPlans() {
+  const t = G.town; if (!t) return;
+  const list = Object.entries(TOWN_BUILDINGS).filter(([k]) => !t.unlocked || t.unlocked.has(k));
+  $("buildList").innerHTML = list.map(([k, d]) => `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.cost ? d.cost + " logs" : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
+  for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
+}
+// the settlement at a glance
+setInterval(() => {
+  const tb = $("townbar"), t = G.town;
+  if (!tb) return;
+  const on = !!t && G.mode === "play";
+  tb.classList.toggle("hidden", !on);
+  if (!on) return;
+  const S = t.S;
+  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
+}, 300);
+// a question with a written answer; resolves with the text
+G.ask = (title, value = "") => new Promise(res => {
+  $("askTitle").textContent = title; $("askInput").value = value;
+  UI.show("ask", true);
+  if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); }
+  setFreeLook(false);
+  setTimeout(() => { $("askInput").focus(); $("askInput").select(); }, 50);
+  const done = () => { const v = $("askInput").value.trim() || value; UI.show("ask", false); $("askOk").onclick = null; $("askInput").onkeydown = null; if (G.mode === "play") lock(); res(v); };
+  $("askOk").onclick = done;
+  $("askInput").onkeydown = e => { e.stopPropagation(); if (e.key === "Enter") done(); };
+});
 
 // ---- the hotbar: nine slots along the bottom; 1-9 picks one; the axe's slot takes it out or puts it away ----
 function hotbarItems() {
@@ -326,6 +357,7 @@ addEventListener("keydown", e => {
   if (e.code === "KeyP" && G.mode === "play") { document.exitPointerLock && document.exitPointerLock(); pause(); }
   if (e.code === "KeyT" && !e.repeat && G.mode === "play") showOverlay("inventory", overlay !== "inventory");
   if (e.code === "KeyJ" && !e.repeat && G.mode === "play") showOverlay("bigmap", overlay !== "bigmap");
+  if (e.code === "KeyB" && !e.repeat && G.mode === "play" && G.town && !G.town.planning) showOverlay("buildmenu", overlay !== "buildmenu");
   if (e.code === "Escape" && overlay) { showOverlay(overlay, false); return; }
   // M takes the mouse into the game, or gives it back
   if (e.code === "KeyM" && !e.repeat) {

@@ -499,10 +499,17 @@ function pickInteract() {
   let best = null, bestScore = Infinity;
   for (const it of w.interact) {
     if (it.can && !it.can()) continue;
-    const dx = it.x - p.pos.x, dz = it.z - p.pos.z, d = Math.hypot(dx, dz);
+    // a long thing (a strip of field) can be used from anywhere along it: aim at its nearest point
+    let ix = it.x, iz = it.z;
+    if (it.seg) {
+      const [x0, z0, x1, z1] = it.seg, ex = x1 - x0, ez = z1 - z0;
+      const t = Math.max(0, Math.min(1, ((p.pos.x - x0) * ex + (p.pos.z - z0) * ez) / (ex * ex + ez * ez || 1)));
+      ix = x0 + ex * t; iz = z0 + ez * t;
+    }
+    const dx = ix - p.pos.x, dz = iz - p.pos.z, d = Math.hypot(dx, dz);
     const reach = it.reach ?? 2.3;
     if (d > reach) continue;
-    const to = new THREE.Vector3(it.x - eye.x, (it.y ?? 1) - eye.y, it.z - eye.z).normalize();
+    const to = new THREE.Vector3(ix - eye.x, (it.y ?? 1) - eye.y, iz - eye.z).normalize();
     const dot = to.dot(fwd);
     if (dot < (d < 1 ? 0.2 : 0.72)) continue;
     const score = d * (2 - dot);
@@ -704,7 +711,7 @@ export function frame(dt, skipRender) {
     for (const f of G.onFrame.slice()) f(dt);
     updateInteract(dt);
     // the axe swings on a click, when there is an axe
-    if (input.click && G.player.axe && !UI.dialogOpen && !G.cine && G.onSwing) G.player.swing(G.onSwing);
+    if (input.click && G.player.axe && !UI.dialogOpen && !G.cine && G.onSwing && !(G.town && G.town.planning)) G.player.swing(G.onSwing);
     // move dialogue on
     if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();
     if (input.hit("KeyV")) { G.settings.third = !G.settings.third; UI.hint(G.settings.third ? "Camera: over the shoulder" : "Camera: first person", 1.6); G.saveSettings && G.saveSettings(); }

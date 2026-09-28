@@ -167,8 +167,9 @@ export class Town {
     const def = BUILDINGS[b.type], w = this.w, pl = G.player;
     if (b.done && b.type !== "field") return;
     const at = () => ({ x: b.x, z: b.z });
+    const along = b.type === "field" ? [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4] : null;
     const it = w.addInteract({
-      x: b.x, y: w.heightAt(b.x, b.z) + 0.9, z: b.z, reach: Math.max(def.w, def.d) / 2 + 1.6,
+      x: b.x, y: w.heightAt(b.x, b.z) + (along ? 0.3 : 0.9), z: b.z, reach: along ? 4.2 : Math.max(def.w, def.d) / 2 + 1.6, seg: along,
       hold: () => b.type === "field" || (b.logs >= def.cost) ? 3 : 0,
       label: () => {
         if (b.type === "field") return (b.dug || 0) < 3 ? `Dig the field — strip ${(b.dug || 0) + 1} of 3` : !b.sown ? "Sow the rye" : "The rye is growing";

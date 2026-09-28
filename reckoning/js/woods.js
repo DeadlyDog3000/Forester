@@ -361,7 +361,7 @@ export class Woods extends WorldBase {
     const y0 = this.heightAt(C.x, C.z);
     this.cy = y0;
     // a patch of ash where the cabin burned
-    const ash = new THREE.Mesh(new THREE.CircleGeometry(5.5, 20), mat(0x3a3530));
+    const ash = new THREE.Mesh(new THREE.CircleGeometry(5.5, 20), mat(0x3a3530, { surface: "none" }));
     ash.rotation.x = -Math.PI / 2; ash.position.set(CABIN.x, y0 + 0.03, CABIN.z); ash.receiveShadow = true;
     root.add(ash); this.ash = ash;
 
@@ -587,7 +587,8 @@ export class Woods extends WorldBase {
     this.burned.visible = false; this.cabin.visible = true;
     // the door they hewed is hung on the cabin now, not lying by the block
     if (this.doorProp) this.doorProp.visible = false;
-    this.ash.material = mat(0x5a4e3e);
+    // the ash is swept and trodden in; the forest floor shows through again
+    this.ash.visible = false;
     for (const c of this.burnedCols) c.disabled = true;
     // the finished cabin is one solid block with its door on the front
     const { c, s } = this.cabinFrame;

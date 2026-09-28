@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.6", date: "28 September 2026", title: "The settlement: X. The Stranger, XI. Forester, and free play",
+    items: [
+      "Chapter X, The Stranger: in spring a widow and her son come up the road. Plan them a cabin (B), and raise it with logs you fell and carry — Marta carries too.",
+      "Chapter XI, Forester: high summer, six of you. Reap the rye, build a well and a woodshed, dig a second field — then name the place, at the fire, with everyone there. The tutorial ends here.",
+      "Free play: the settlement is yours. Days turn to night and back; stumps grow back into trees; fields ripen; people come up the road when there are beds and bread.",
+      "Plans (B): cabins, a woodshed, a well, fields. A building follows your eye as a green ghost (red where it won't fit); R turns it.",
+      "Settlers work: woodcutters fell and stack, haulers carry logs from the stack to building sites, farmers keep the fields.",
+      "Fixed: you could only dig a strip of the field from its very middle. Now anywhere along it will do.",
+      "Fixed: the ground round the rebuilt cabin looked like planks.",
+      "The stamina bar sits just above the hotbar.",
+    ],
+  },
+  {
     v: "0.5", date: "28 September 2026", title: "Part Two begins: Seed Before Frost",
     items: [
       "Chapter VIII, Martinmas: a cart comes up the road at dusk. Put out the fire, get into the trees, and keep out of the charcoal buyer's lantern while he counts everything you have. Then Henning comes to the fire with a name, and a warning.",
