@@ -11,3 +11,4 @@
 
 # Raw model output — the sprites in assets/ are what the game ships
 art/raw/
+__pycache__/
