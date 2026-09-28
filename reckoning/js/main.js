@@ -6,7 +6,7 @@
 
 // Boot, the front door, the pause menu, and the loop.
 
-import { renderer } from "./core.js";
+import { renderer, clamp } from "./core.js";
 import { G, Player, frame, setAtmo, input, drawMap } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
 import { BUILDINGS as TOWN_BUILDINGS } from "./town.js";
