@@ -2,11 +2,17 @@
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
 
-// Voices. Every line anyone says is spoken by the browser's own speech
-// synthesis, each character with their own voice, pitch and pace — so the
-// whole cast costs no audio files, the same way the first Forester costs no
-// music files. Which voices exist depends on the computer; this picks the
-// best English ones it can find and gives the same character the same voice.
+// Voices. Every line written into the story is recorded, acted, in voice/
+// (tools/voice_gen.py makes them; an actor's take can replace any file). A
+// line built in play — a count, a cost — has no recording, and falls back to
+// the browser's own speech synthesis, each character with their own voice,
+// pitch and pace.
+import { speakerOf, voiceKey } from "./voicekey.js";
+
+let recorded = new Set();
+fetch("voice/index.json").then(r => r.ok ? r.json() : []).then(k => { recorded = new Set(k); }).catch(() => {});
+const clip = new Audio();
+clip.preload = "auto";
 
 const CAST = {
   "Father":          { g: "m", pitch: 0.78, rate: 0.9 },
@@ -43,9 +49,17 @@ export const VOICE = {
   enabled: true,
   narratorGender: "m",
   speak(name, text) {
-    if (!this.enabled || !window.speechSynthesis) return;
+    if (!this.enabled) return;
+    this.stop();
+    const key = voiceKey(speakerOf(name, this.narratorGender), text);
+    if (recorded.has(key)) {
+      clip.src = `voice/${key}.mp3`;
+      clip.volume = window.G ? Math.min(1, window.G.settings.volume * 1.3) : 1;
+      clip.play().catch(() => {});
+      return;
+    }
+    if (!window.speechSynthesis) return;
     try {
-      speechSynthesis.cancel();
       let who = (name || "").replace(/\s*\(you\)\s*/, "");
       let c = CAST[who];
       if (!c) c = name ? { g: /frau|woman|girl/i.test(who) ? "f" : "m", pitch: 1, rate: 1 } : { g: this.narratorGender, pitch: 0.95, rate: 0.88 };
@@ -57,6 +71,9 @@ export const VOICE = {
       speechSynthesis.speak(u);
     } catch (e) {}
   },
-  stop() { try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {} },
+  stop() {
+    clip.pause();
+    try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {}
+  },
 };
 window.__voice = VOICE;

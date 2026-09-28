@@ -142,6 +142,16 @@ export const CHAPTERS = [
   { n: 6, title: "The Clearing", kicker: "The old woods", world: "woods", run: ch6 },
 ];
 
+// what is in your pockets in each chapter — the inventory (T) lists it
+const PACK = {
+  1: [{ name: "The house key", note: "Iron, warm from your pocket. The house by the harbour." }],
+  2: [{ name: "The house key", note: "Iron, warm from your pocket. The house by the harbour." }],
+  3: [{ name: "The house key", note: "You kept it. You do not know why." }],
+  4: [{ name: "The house key", note: "To a door that is not yours any more." }],
+  5: [{ name: "The house key", note: "To a door that is not yours any more." }, { name: "Blackberries", note: "A handful, squashed. Three days of them." }],
+  6: [{ name: "The house key", note: "To a door that is not yours any more." }, { name: "Blackberries", note: "A handful, squashed. Three days of them." }],
+};
+
 export async function startChapter(n, opts = {}) {
   GEN++;
   G.onFrame.length = 0;
@@ -160,6 +170,7 @@ export async function startChapter(n, opts = {}) {
   const save = loadSave() || {};
   writeSave({ who: G.who, chapter: n, unlocked: Math.max(save.unlocked || 1, n) });
   G.chapter = n;
+  G.pack = (PACK[n] || []).map(i => ({ ...i })); G.camp = null;
   try { await ch.run(w, opts); }
   catch (e) { if (e !== ABORT) console.error(e); }
 }
@@ -762,6 +773,7 @@ async function ch6(w) {
   const saved = (loadSave() || {}).clearing || {};
   const S = { axe: !!saved.axe, store: saved.store || 0, carry: saved.carry || 0, door: !!saved.door, felled: saved.felled || [], first: !!saved.first, sibHelping: !!saved.sibHelping };
   const persist = () => writeSave({ clearing: { ...S } });
+  G.camp = { get logs() { return S.store; }, get door() { return S.door; }, doorCost: DOOR_COST, cabinCost: CABIN_COST, carryMax: CARRY_MAX };
   // trees already down stay down (as stumps)
   for (const i of S.felled) { const t = w.fellable[i]; if (t) { t.state = "gone"; t.g.visible = false; t.col.disabled = true; stump(w, t); } }
   w.setStack(S.store);

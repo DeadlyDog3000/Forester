@@ -38,6 +38,17 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 #minimap { width: 100%; height: 100%; display: block; }
 .mm-n { position: absolute; left: 50%; top: 3px; transform: translateX(-50%); font: 700 11px var(--sans); color: var(--gold); text-shadow: 0 1px 2px #000; }
 @media (max-width: 640px) { #minimapWrap { width: 120px; height: 120px; right: 12px; top: 12px; } }
+#inventory { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; padding: 18px 22px 20px; background: linear-gradient(180deg, rgba(12, 30, 20, 0.95), rgba(6, 16, 10, 0.97)); border: 1px solid var(--edge); border-top: 2px solid var(--gold); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); z-index: 5; }
+.inv-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.inv-title { font: 600 20px var(--display); letter-spacing: 0.08em; }
+.inv-close { font: 12px var(--sans); color: var(--ink-dim); }
+.inv-close kbd { min-width: 20px; padding: 2px 5px; font-size: 11px; }
+.inv-sec { font: 600 10px/1 var(--sans); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin: 16px 0 6px; }
+.inv-item { display: flex; gap: 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid rgba(140, 192, 132, 0.12); }
+.inv-name { font: 17px var(--serif); flex: 1; }
+.inv-n { font: 600 13px var(--sans); color: var(--ink-dim); white-space: nowrap; }
+.inv-note { display: block; font: italic 14px var(--serif); color: var(--ink-dim); margin-top: 2px; }
+.inv-empty { font: italic 15px var(--serif); color: var(--ink-dim); padding: 6px 0; }
 #carry { position: absolute; right: 28px; bottom: 28px; padding: 8px 14px; background: var(--panel); border: 1px solid var(--edge); font: 16px var(--serif); }
 #prompt { position: absolute; left: 50%; top: calc(50% + 48px); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; font: 16px var(--serif); white-space: nowrap; }
 kbd { display: inline-block; min-width: 26px; padding: 3px 7px; border: 1px solid var(--gold); border-bottom-width: 3px; border-radius: 4px; background: var(--moss); color: var(--ink); font: 600 13px/1.1 var(--sans); text-align: center; }

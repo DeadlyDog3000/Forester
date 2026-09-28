@@ -59,6 +59,8 @@ export const G = {
   time: 0,
   onFrame: [],
   interactTarget: null, holdT: 0,
+  pack: [],             // what you have on you that is not in your hands: [{name, note}]
+  camp: null,           // at the clearing: what is stacked and built there
 };
 G.input = input;
 G.bugs = new Bugs(G.scene);

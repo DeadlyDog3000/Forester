@@ -68,6 +68,7 @@ function refreshTitle() {
 }
 function toTitle() {
   G.mode = "title";
+  showInventory(false);
   setFreeLook(false);
   document.exitPointerLock && document.exitPointerLock();
   UI.show("hud", false);
@@ -141,11 +142,42 @@ function buildChapters() {
   }
 }
 
+// ---- inventory (T) ----
+const esc = t => String(t).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+function invItem(name, note, n) {
+  return `<div class="inv-item"><span class="inv-name">${esc(name)}${note ? `<span class="inv-note">${esc(note)}</span>` : ""}</span>${n != null ? `<span class="inv-n">${esc(n)}</span>` : ""}</div>`;
+}
+function renderInventory() {
+  const pl = G.player, camp = G.camp;
+  const hands = [];
+  if (pl.axe) hands.push(invItem("Old felling axe", "Grey haft, good head. Click to swing."));
+  if (pl.carryN > 0) hands.push(invItem("Spruce logs", camp ? `Your arms hold ${camp.carryMax}. Stack them by the cabin.` : "", `× ${pl.carryN}`));
+  else if (UI.carrying) hands.push(invItem(UI.carrying));
+  const pack = G.pack.map(i => invItem(i.name, i.note, i.n != null ? `× ${i.n}` : null));
+  let html = `<div class="inv-sec">In your hands</div>${hands.join("") || `<div class="inv-empty">Nothing.</div>`}`;
+  html += `<div class="inv-sec">On you</div>${pack.join("") || `<div class="inv-empty">Empty pockets.</div>`}`;
+  if (camp) {
+    html += `<div class="inv-sec">At the clearing</div>`;
+    html += invItem("Logs on the stack", null, camp.logs);
+    html += invItem("Door", camp.door ? "Hewn. Crooked, and perfect." : `Needs ${camp.doorCost} logs from the stack.`, camp.door ? "made" : "—");
+    html += invItem("Cabin", `Needs ${camp.cabinCost} logs and the door.`, `${Math.min(camp.logs, camp.cabinCost)} / ${camp.cabinCost}`);
+  }
+  $("invBody").innerHTML = html;
+}
+let invTimer = 0;
+function showInventory(on) {
+  UI.show("inventory", on);
+  clearInterval(invTimer);
+  if (on) { renderInventory(); invTimer = setInterval(renderInventory, 250); }
+}
+G.showInventory = showInventory;
+
 // ---- pause ----
 function pause() {
   if (G.mode !== "play") return;
   G.mode = "pause";
   setFreeLook(false);
+  showInventory(false);
   VOICE.stop();
   SFX.pauseAll && SFX.pauseAll(true);
   back = "pause";
@@ -171,6 +203,7 @@ addEventListener("keydown", e => {
   // with no lock to lose, Escape has to pause by hand
   if (e.code === "Escape" && G.mode === "play" && input.freeLook) pause();
   if (e.code === "KeyP" && G.mode === "play") { document.exitPointerLock && document.exitPointerLock(); pause(); }
+  if (e.code === "KeyT" && !e.repeat && G.mode === "play") showInventory($("inventory").classList.contains("hidden"));
   // M takes the mouse into the game, or gives it back
   if (e.code === "KeyM" && !e.repeat) {
     if (G.mode === "pause") resume();

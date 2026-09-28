@@ -145,6 +145,7 @@ export const UI = {
     h.style.setProperty("--p", Math.min(1, frac) * 360 + "deg");
   },
   carry(text) {
+    this.carrying = text || null;
     const c = $("carry");
     if (!text) { c.classList.add("hidden"); return; }
     c.textContent = text; c.classList.remove("hidden");
