@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.4", date: "28 September 2026", title: "A painting on the front door",
+    items: [
+      "The title screen hangs a new picture: the burned cabin at dawn, painted as a Dutch landscape of the 1660s would have painted it.",
+      "Press M to take the mouse into the game and look around, and M again to let it go without pausing. Where the browser will not lock the mouse, M looks around with the cursor hidden instead.",
+    ],
+  },
+  {
     v: "0.3", date: "28 September 2026", title: "On the website, and ready for Blender",
     items: [
       "Forester: Reckoning now has its own page on the DeadlyDog Productions website, and the early build can be played from there.",

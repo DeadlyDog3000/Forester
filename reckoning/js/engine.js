@@ -19,6 +19,7 @@ import { AUDIO } from "./audio.js";
 // ---------------------------------------------------------------------------
 export const input = {
   keys: new Set(), pressed: new Set(), mdx: 0, mdy: 0, click: false, mouseDown: false,
+  freeLook: false,     // looking with a free cursor, where the browser will not lock it
   down(code) { return this.keys.has(code); },
   hit(code) { return this.pressed.has(code); },
   endFrame() { this.pressed.clear(); this.mdx = 0; this.mdy = 0; this.click = false; this.rclick = false; },
@@ -32,7 +33,7 @@ addEventListener("keydown", e => {
 addEventListener("keyup", e => input.keys.delete(e.code));
 addEventListener("blur", () => input.keys.clear());
 addEventListener("mousemove", e => {
-  if (document.pointerLockElement) { input.mdx += e.movementX; input.mdy += e.movementY; }
+  if (document.pointerLockElement || (input.freeLook && G.mode === "play")) { input.mdx += e.movementX; input.mdy += e.movementY; }
 });
 addEventListener("mousedown", e => { if (e.button === 0) { input.click = true; input.mouseDown = true; } if (e.button === 2) { input.rclick = true; input.rdown = true; } });
 addEventListener("mouseup", e => { if (e.button === 2) input.rdown = false; });

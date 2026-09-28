@@ -7,7 +7,7 @@
 // Boot, the front door, the pause menu, and the loop.
 
 import { renderer } from "./core.js";
-import { G, Player, frame, setAtmo } from "./engine.js";
+import { G, Player, frame, setAtmo, input } from "./engine.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave } from "./story.js";
@@ -68,6 +68,7 @@ function refreshTitle() {
 }
 function toTitle() {
   G.mode = "title";
+  setFreeLook(false);
   document.exitPointerLock && document.exitPointerLock();
   UI.show("hud", false);
   UI.fadeNow(0);
@@ -78,9 +79,22 @@ function toTitle() {
 }
 G.toTitle = toTitle;
 
+// M lets go of the mouse without pausing, so that release must not pause
+let freeMouse = false;
+function setFreeLook(on) {
+  input.freeLook = on;
+  document.body.style.cursor = on ? "none" : "";
+}
 function lock() {
   const el = renderer.domElement;
   try { const p = el.requestPointerLock && el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+}
+// M: lock the mouse, or where the browser refuses the lock, look with a hidden free cursor
+function toggleMouse() {
+  if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); return; }
+  if (input.freeLook) { setFreeLook(false); return; }
+  lock();
+  setTimeout(() => { if (!document.pointerLockElement && G.mode === "play") setFreeLook(true); }, 250);
 }
 function play(chapter, opts) {
   AUDIO.init();
@@ -130,6 +144,7 @@ function buildChapters() {
 function pause() {
   if (G.mode !== "play") return;
   G.mode = "pause";
+  setFreeLook(false);
   VOICE.stop();
   SFX.pauseAll && SFX.pauseAll(true);
   back = "pause";
@@ -147,11 +162,17 @@ $("btnPauseControls").onclick = () => { back = "pause"; screen("controls"); };
 $("btnRestart").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock(); startChapter(G.chapter || 1); };
 $("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); toTitle(); };
 document.addEventListener("pointerlockchange", () => {
-  if (!document.pointerLockElement && G.mode === "play") pause();
+  if (document.pointerLockElement) freeMouse = false;
+  else if (G.mode === "play" && !freeMouse) pause();
 });
 addEventListener("keydown", e => {
   if (e.code === "Escape" && G.mode === "pause" && !document.pointerLockElement) { /* the browser ate the first Escape */ }
   if (e.code === "KeyP" && G.mode === "play") { document.exitPointerLock && document.exitPointerLock(); pause(); }
+  // M takes the mouse into the game, or gives it back
+  if (e.code === "KeyM" && !e.repeat) {
+    if (G.mode === "pause") resume();
+    else if (G.mode === "play") toggleMouse();
+  }
 });
 // a click on the world while playing re-takes the mouse
 renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement) lock(); });
