@@ -585,6 +585,8 @@ export class Woods extends WorldBase {
   }
   showCabin() {
     this.burned.visible = false; this.cabin.visible = true;
+    // the door they hewed is hung on the cabin now, not lying by the block
+    if (this.doorProp) this.doorProp.visible = false;
     this.ash.material = mat(0x5a4e3e);
     for (const c of this.burnedCols) c.disabled = true;
     // the finished cabin is one solid block with its door on the front
