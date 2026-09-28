@@ -159,11 +159,50 @@ export class Player {
       a.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0)));
       this.axe.add(a);
       camera.add(this.axe);
+      // your two hands on the haft, and your sleeves back to your shoulders, so hands and axe are one
+      const look = this.model && this.model.look || {};
+      const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
+      const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
+      const cuffM = new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 });
+      const hand = y => {
+        const h = new THREE.Group(); h.position.set(0, y, 0);
+        const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); fist.rotation.z = Math.PI / 2; h.add(fist);
+        const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.03, 3, 6), skinM); thumb.position.set(0.02, 0.03, 0.03); thumb.rotation.x = 0.8; h.add(thumb);
+        a.add(h); return h;
+      };
+      this.hands = [hand(0.07), hand(0.3)];
+      this.arms = this.hands.map((h, i) => {
+        const arm = new THREE.Group();
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
+        camera.add(arm);
+        return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.24 : -0.2, -0.5, 0.12) };
+      });
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
       this.axeBody = makeAxe(); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
       this.model.held.add(this.axeBody);
-    } else if (!on && this.axe) { camera.remove(this.axe); this.axe = null; if (this.axeBody) this.model.held.remove(this.axeBody); this.axeBody = null; }
+    } else if (!on && this.axe) {
+      camera.remove(this.axe); this.axe = null;
+      for (const a of this.arms || []) camera.remove(a.arm);
+      this.arms = null; this.hands = null;
+      if (this.axeBody) this.model.held.remove(this.axeBody); this.axeBody = null;
+    }
+  }
+  // each sleeve runs from its shoulder to its hand on the haft, however the axe is held
+  fitArms() {
+    if (!this.arms) return;
+    this.axe.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(camera.matrixWorld).invert();
+    for (let i = 0; i < 2; i++) {
+      const { arm, sleeve, cuff, shoulder } = this.arms[i];
+      const hp = new THREE.Vector3().setFromMatrixPosition(this.hands[i].matrixWorld).applyMatrix4(inv);
+      const d = new THREE.Vector3().subVectors(hp, shoulder), L = d.length();
+      arm.position.copy(shoulder);
+      arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+      sleeve.scale.set(1, Math.max(0.05, L - 0.08), 1);
+      cuff.position.y = Math.max(0.05, L - 0.12);
+    }
   }
   // held low on the right, head up, ready
   axeRest() { this.axe.position.set(0.34, -0.5, -0.42); this.axe.rotation.set(1.05, -0.35, -0.5); }
@@ -287,16 +326,19 @@ export class Player {
       if (this.axe) {
         // (pitch, yaw, roll) of the hands, and where they are: a level swing from right to left
         const e = x => x * x * (3 - 2 * x), L = (a, b, k) => a + (b - a) * k;
-        const REST = [1.05, -0.35, -0.5, 0.34, -0.5, -0.42], BACK = [0.45, -1.7, -0.35, 0.55, -0.22, -0.2], THRU = [0.3, 1.0, 0.25, -0.2, -0.3, -0.42];
+        const REST = [1.05, -0.35, -0.5, 0.3, -0.42, -0.4], BACK = [0.25, -1.25, 0.0, 0.42, -0.24, -0.26], HIT = [0.18, 0.75, 0.0, 0.1, -0.3, -0.46], THRU = [0.2, 1.6, 0.0, -0.12, -0.34, -0.36];
         const pose = (A, B, k) => { k = e(k); this.axe.rotation.set(L(A[0], B[0], k), L(A[1], B[1], k), L(A[2], B[2], k)); this.axe.position.set(L(A[3], B[3], k), L(A[4], B[4], k), L(A[5], B[5], k)); };
-        if (T < 0.18) pose(REST, BACK, T / 0.18);
-        else if (T < 0.32) { const k = (T - 0.18) / 0.14; pose(BACK, THRU, k * k); }
-        else pose(THRU, REST, Math.min(1, (T - 0.32) / 0.3));
+        if (T < 0.2) pose(REST, BACK, T / 0.2);
+        else if (T < 0.29) pose(BACK, HIT, (T - 0.2) / 0.09);
+        else if (T < 0.36) pose(HIT, THRU, (T - 0.29) / 0.07);
+        else pose(THRU, REST, Math.min(1, (T - 0.36) / 0.3));
       }
       if (this.model) { this.model.setPose("chop"); this.model.poseT = T / 1.25 * 1; }
       if (T > 0.29 && !this._hitDone) { this._hitDone = true; this.onSwingHit && this.onSwingHit(); }
       if (T > 0.62) { this.swingT = -1; if (this.axe) this.axeRest(); if (this.model) this.model.setPose("idle"); }
     }
+    // the sleeves follow wherever the hands have gone this frame
+    if (this.axe) this.fitArms();
   }
   // where your eyes are, leaning included
   eyePos() {
@@ -462,8 +504,26 @@ function pickInteract() {
   }
   return best;
 }
+const crossEl = () => document.getElementById("crosshair");
+let crossFlash = 0;
 function updateInteract(dt) {
   const it = pickInteract();
+  // the cursor: pale at rest, yellow over something usable, turning slowly to green as you use it
+  const ch = crossEl();
+  if (ch) {
+    let k = 0;                                          // 0 yellow .. 1 green
+    if (it && it.hold) k = clamp(G.holdT / it.hold, 0, 1);
+    if (it && (input.hit("KeyF") || input.rclick) && !it.hold) crossFlash = 1;
+    if (G.player && G.player.swingT >= 0) crossFlash = Math.max(crossFlash, 1 - G.player.swingT / 0.62);
+    crossFlash = Math.max(0, crossFlash - dt * 2.2);
+    k = Math.max(k, crossFlash);
+    ch.classList.toggle("active", !!it);
+    if (!it && k <= 0.01) ch.style.removeProperty("--cc");
+    else {
+      const r = Math.round(240 + (127 - 240) * k), g = Math.round(206 + (224 - 206) * k), b = Math.round(70 + (122 - 70) * k);
+      ch.style.setProperty("--cc", `rgb(${r},${g},${b})`);
+    }
+  }
   if (it !== G.interactTarget) { G.holdT = 0; G.interactTarget = it; }
   if (!it) { UI.prompt(null); UI.hold(0); return; }
   const label = typeof it.label === "function" ? it.label() : it.label;

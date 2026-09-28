@@ -23,7 +23,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; }
-#crosshair { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgba(255, 245, 225, 0.8); box-shadow: 0 0 3px #000; }
+/* the cursor: a small hollow square — pale at rest, yellow over something you can use, turning green as you use it */
+#crosshair { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border: 1.6px solid var(--cc, rgba(255, 245, 225, 0.85)); background: transparent; box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 0 1px rgba(0, 0, 0, 0.6); transition: transform 0.12s; }
+#crosshair.active { transform: scale(1.15); }
 #holdRing { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%;
   background: conic-gradient(var(--gold) var(--p, 0deg), rgba(255, 255, 255, 0.12) 0);
   -webkit-mask: radial-gradient(circle, transparent 14px, #000 15px); mask: radial-gradient(circle, transparent 14px, #000 15px); }

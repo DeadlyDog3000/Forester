@@ -11,6 +11,8 @@ export const CHANGELOG = [
     items: [
       "Chapter VIII, Martinmas: a cart comes up the road at dusk. Put out the fire, get into the trees, and keep out of the charcoal buyer's lantern while he counts everything you have. Then Henning comes to the fire with a name, and a warning.",
       "Chapter IX, The First Winter: snow on the clearing, on the roof and on every bough. Split firewood, pull moss from under the snow to chink the walls — and then keep the fire alive through a blizzard night until dawn.",
+      "The cursor is a small hollow square: yellow over something you can use, turning slowly green as you use it.",
+      "The axe is in your own two hands, your sleeves running back to your shoulders, and it swings across in front of you, side-on, the head leading.",
       "Snow: it lies on whatever faces the sky, and falls, lightly or in a blizzard.",
       "The map is explored as you go: what you have not seen is blank parchment, and the ink spreads as you walk. What you have seen is remembered.",
       "Wrong turns on the road are barred a few steps in; your brother or sister still tells you why.",
