@@ -145,6 +145,14 @@ export const UI = {
     if (!text) { c.classList.add("hidden"); return; }
     c.textContent = text; c.classList.remove("hidden");
   },
+  // a strip of keys and what they do: [["W","A","S","D"], "walk"], ["Shift", "run"] ...
+  keys(parts, secs = 7) {
+    const k = $("keys");
+    k.innerHTML = parts.map(([keys, what]) => `<span class="kp">${[].concat(keys).map(x => `<kbd>${x}</kbd>`).join("")}<span>${what}</span></span>`).join("");
+    k.classList.remove("hidden"); k.style.opacity = 1;
+    clearTimeout(this._keysT);
+    this._keysT = setTimeout(() => { k.style.opacity = 0; setTimeout(() => k.classList.add("hidden"), 500); }, secs * 1000);
+  },
   hint(text, secs = 5) {
     const h = $("hint");
     h.textContent = text; h.classList.remove("hidden"); h.style.opacity = 1;

@@ -101,6 +101,16 @@ function until(cond) {
     const off = onFrame(() => { if (g !== GEN) { off(); rej(ABORT); return; } if (cond()) { off(); res(); } });
   });
 }
+// Your brother or sister teaches you the controls, in their own words, the first time each is needed;
+// the keys themselves show underneath. Once learned, never again on this save.
+const tipSeen = key => ((loadSave() || {}).tips || []).includes(key);
+function tutor(key, line, keys, secs = 8) {
+  const s = loadSave() || {}, seen = s.tips || [];
+  if (seen.includes(key)) return;
+  writeSave({ tips: [...seen, key] });
+  if (line) bark(P.sib, line, Math.max(3.2, line.length * 0.06));
+  if (keys) UI.keys(keys, secs);
+}
 async function say(name, text) {
   const g = GEN;
   await UI.say(name, text);
@@ -216,6 +226,8 @@ async function ch1(w) {
   await title;
   UI.objective("Speak to Father in the counting room");
   mark(father);
+  tutor("walk", `Father's asking for you. The counting room — go on, he's been pacing.`, [[["W", "A", "S", "D"], "walk"], ["Mouse", "look"], ["M", "lock the mouse"]]);
+  onFrame((() => { let t = 0; return dt => { t += dt; if (t > 9 && t < 9.1) tutor("talk", "He won't bite. Walk up to him and say something.", [["F", "talk, take, open"]]); }; })());
 
   let talked = false;
   const fIt = w.addInteract({ x: father.pos.x, y: 1.5, z: father.pos.z + 0.4, reach: 2.6, label: "Talk to Father", use: () => { talked = true; } });
@@ -235,7 +247,9 @@ async function ch1(w) {
   mark(jakob);
   // while you are still indoors the marker shows the way out
   const doorMark = onFrame(() => { if (w.inHome()) mark({ x: 13, z: -3.1, y: 1.6, hideWithin: 1 }); else if (!G.marker || !G.marker.actor) mark(jakob); });
-  UI.hint("Press F to open the door. WASD to walk, Shift to run, Q and E to lean.", 6);
+  tutor("door", "The front door sticks — F, and put your shoulder in it. Out in the street you can run. Not in here.", [["F", "open the door"], ["Shift", "run"], [["Q", "E"], "lean"]]);
+  let outside = false;
+  onFrame(() => { if (!outside && !w.inHome()) { outside = true; tutor("pack", "", [["T", "inventory — the ledger's in there"], ["J", "map"]], 7); } });
 
   w.addTrigger({ x0: 9, x1: 17, z0: -5.5, z1: -3.3, fn: () => bark(P.sib, `Don't let him keep you. And bring back the good news before Father eats it all.`) });
   w.addTrigger({ x: 10, z: 1, r: 4, fn: () => { albers.facePlayer(); albers.lookAtPlayer(true); bark("Frau Albers", `Evening! Tell your father to save me two of the good rye tomorrow — the dark one, mind, not the white.`); } });
@@ -500,7 +514,9 @@ async function ch3(w, opts) {
   bell();
   UI.objective("Run — lose them in the lanes to the west");
   mark(SPOTS.alley);
-  UI.hint("Hold Shift to run — but your breath won't last. Dodge the watchman in the street.", 4);
+  const ranBefore = tipSeen("sprint");
+  tutor("sprint", "Run! Shift — and mind your breath, it won't last. Round the watchman, not past him!", [["Shift", "run — watch your breath"]], 5);
+  if (ranBefore) UI.hint("Hold Shift to run — but your breath won't last. Dodge the watchman in the street.", 4);
   sib.followPlayer(1.6);
   G.sprintSpeed = 6.2;
   G.stamina = 1;                 // running costs breath now
@@ -624,7 +640,8 @@ async function ch4(w, opts) {
     await say(P.sib, "Keep low. Keep out of the lantern light. Don't run unless you have to.");
     G.lockMove = false; look(null);
     sib.walk([[-24.8, 42], [-24, 39.5], [-10, 39]], 2.8).then(() => sib.remove());
-    UI.hint("C to crouch, Q and E to lean round a corner. A crouched figure is harder to see, and nobody sees through a crate.", 8);
+    tutor("sneak", "", [["C", "crouch — harder to see"], [["Q", "E"], "lean round a corner"]], 9);
+    UI.hint("A crouched figure is harder to see, and nobody sees through a crate.", 7);
   } else {
     sib.remove();
     fade(0, 1);
@@ -701,7 +718,10 @@ async function ch5(w) {
   const forks = onFrame(() => {
     const on = w.anyRoadDist(pl.pos.x, pl.pos.z), t = w.progress();
     FORKS.forEach((f, n) => {
-      if (!told.has(n) && !on.branch && t > f.t - 0.03 && t < f.t) { told.add(n); barkQ(P.sib, fillFork(FORK_LINES[n][0], f)); }
+      if (!told.has(n) && !on.branch && t > f.t - 0.03 && t < f.t) {
+        told.add(n); barkQ(P.sib, fillFork(FORK_LINES[n][0], f));
+        if (n === 0) tutor("map", "", [["J", "the map — every fork is on it"]], 7);
+      }
       if (on.branch && on.branch.n === n && on.i > 8 && (!called[n] || G.time - called[n] > 9)) { called[n] = G.time; bark(P.sib, fillFork(FORK_LINES[n][1], f), 3.2); }
     });
   });
@@ -820,7 +840,10 @@ async function ch6(w) {
 
   // ---- things in the clearing you can use ----
   w.addInteract({ x: BLOCK.x, y: 0.9 + w.cy, z: BLOCK.z, reach: 2.2, label: "Take the old axe", can: () => !S.axe,
-    use: () => { S.axe = true; w.blockAxe.visible = false; pl.giveAxe(true); SFX.pickup(); persist(); UI.hint("Click to swing. Stand close to a trunk and face it.", 6); } });
+    use: () => { S.axe = true; w.blockAxe.visible = false; pl.giveAxe(true); SFX.pickup(); persist();
+      const choppedBefore = tipSeen("axe");
+      tutor("axe", "Get close, face the trunk, and swing — level, from the shoulder. Four good strokes and it's down.", [["Click", "swing the axe"]]);
+      if (choppedBefore) UI.hint("Click to swing. Stand close to a trunk and face it.", 6); } });
   w.addInteract({ x: STACK.x, y: w.cy + 0.8, z: STACK.z, reach: 2.6, label: () => `Stack the logs (${pl.carryN})`, can: () => pl.carryN > 0,
     use: () => { S.store += pl.carryN; pl.carryN = 0; S.carry = 0; w.setStack(S.store); SFX.build(); persist(); } });
   w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, hold: 4, label: `Hew a door (${DOOR_COST} logs from the stack)`,
@@ -885,9 +908,10 @@ async function ch6(w) {
     const b = { g, x, z, a, n };
     b.it = w.addInteract({ x, y: y + 0.4, z, reach: 2.4, label: () => `Take the logs (${b.n})`,
       use: () => {
-        if (pl.carryN >= CARRY_MAX) { UI.hint("Your arms are full. Stack what you carry by the cabin first.", 3.5); return; }
+        if (pl.carryN >= CARRY_MAX) { bark(P.sib, "You'll drop the lot. Six is all anyone can carry — stack them by the cabin, then come back.", 4); return; }
         const take = Math.min(b.n, CARRY_MAX - pl.carryN);
         pl.carryN += take; b.n -= take; S.carry = pl.carryN; SFX.pickup();
+        tutor("stack", "Good. Now the stack, by the cabin — we'll need twenty for walls and five for a door.", [["F", "stack the logs by the cabin"], ["T", "see what you carry"]]);
         if (b.n <= 0) { w.removeInteract(b.it); w.root.remove(g); bundles.splice(bundles.indexOf(b), 1); }
         saveLogs();
       } });
