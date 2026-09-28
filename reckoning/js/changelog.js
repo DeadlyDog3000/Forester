@@ -11,6 +11,7 @@ export const CHANGELOG = [
     items: [
       "Chapter VIII, Martinmas: a cart comes up the road at dusk. Put out the fire, get into the trees, and keep out of the charcoal buyer's lantern while he counts everything you have. Then Henning comes to the fire with a name, and a warning.",
       "Chapter IX, The First Winter: snow on the clearing, on the roof and on every bough. Split firewood, pull moss from under the snow to chink the walls — and then keep the fire alive through a blizzard night until dawn.",
+      "A hotbar along the bottom of the screen: what you have to hand, in nine slots. Press 1 to 9 to pick one — the axe's slot takes it out or puts it away.",
       "The cursor is a small hollow square: yellow over something you can use, turning slowly green as you use it.",
       "The axe is in your own two hands, your sleeves running back to your shoulders, and it swings across in front of you, side-on, the head leading.",
       "Snow: it lies on whatever faces the sky, and falls, lightly or in a blizzard.",

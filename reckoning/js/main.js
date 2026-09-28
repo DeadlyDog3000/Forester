@@ -221,6 +221,39 @@ function showOverlay(id, on) {
 function showInventory(on) { showOverlay("inventory", on); }
 G.showInventory = showInventory;
 
+// ---- the hotbar: nine slots along the bottom; 1-9 picks one; the axe's slot takes it out or puts it away ----
+function hotbarItems() {
+  const pl = G.player, out = [];
+  if (pl.hasAxe) out.push({ icon: "axe", name: "Old felling axe", tool: "axe" });
+  if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
+  else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
+  for (const i of G.pack) out.push(i);
+  return out.slice(0, 9);
+}
+let hbSig = "";
+function renderHotbar() {
+  const hb = $("hotbar"); if (!hb) return;
+  const show = G.mode === "play";
+  hb.style.display = show ? "flex" : "none";
+  if (!show) return;
+  hb.classList.toggle("hidden-by-talk", !!UI.dialogOpen);
+  const items = hotbarItems(), pl = G.player;
+  const sel = items.findIndex(i => i.tool === "axe" && pl.axe);
+  const sig = items.map(i => i.icon + (i.n ?? "")).join("|") + "#" + sel;
+  if (sig === hbSig) return;
+  hbSig = sig;
+  hb.innerHTML = Array.from({ length: 9 }, (_, k) => {
+    const it = items[k];
+    return `<div class="hb${k === sel ? " sel" : ""}"><span class="k">${k + 1}</span>${it ? `<img src="${ICON[it.icon]}" alt="${esc(it.name)}" title="${esc(it.name)}">${it.n != null && it.n !== 1 ? `<span class="n">${esc(it.n)}</span>` : ""}` : ""}</div>`;
+  }).join("");
+}
+setInterval(renderHotbar, 200);
+addEventListener("keydown", e => {
+  if (G.mode !== "play" || overlay || !/^Digit[1-9]$/.test(e.code)) return;
+  const it = hotbarItems()[+e.code.slice(5) - 1];
+  if (it && it.tool === "axe") G.player.holsterAxe(!!G.player.axe);
+});
+
 // ---- the full map (J) ----
 function renderBigMap() {
   const cv = $("bigmapCanvas"), w = G.world;

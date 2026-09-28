@@ -150,7 +150,13 @@ export class Player {
     this.trail = [{ x, z }];
   }
   forward() { return new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); }
+  // put the axe away (still yours) or take it out again
+  holsterAxe(away) {
+    if (away && this.axe) { this.giveAxe(false); this.hasAxe = true; }
+    else if (!away && this.hasAxe && !this.axe) this.giveAxe(true);
+  }
   giveAxe(on) {
+    this.hasAxe = on;
     if (on && !this.axe) {
       // the hands are a pivot; inside it the haft points forward and the blade leads to the left
       this.axe = new THREE.Group();
