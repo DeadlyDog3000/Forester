@@ -7,7 +7,8 @@
 // Boot, the front door, the pause menu, and the loop.
 
 import { renderer } from "./core.js";
-import { G, Player, frame, setAtmo, input } from "./engine.js";
+import { G, Player, frame, setAtmo, input, drawMap } from "./engine.js";
+import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave } from "./story.js";
@@ -66,7 +67,7 @@ function refreshTitle() {
 }
 function toTitle() {
   G.mode = "title";
-  showInventory(false);
+  if (overlay) showOverlay(overlay, false);
   setFreeLook(false);
   document.exitPointerLock && document.exitPointerLock();
   UI.show("hud", false);
@@ -190,32 +191,81 @@ function showTip(e) {
 }
 $("inventory").addEventListener("mousemove", showTip);
 $("inventory").addEventListener("mouseleave", () => $("invTip").classList.add("hidden"));
-let invTimer = 0, invLockMove = false;
-function showInventory(on) {
-  const open = !$("inventory").classList.contains("hidden");
+// ---- overlays (inventory, map): one at a time; the cursor comes back and you stand still ----
+let overlay = null, overlayTimer = 0, overlayLockMove = false;
+const OVERLAYS = {
+  inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
+  bigmap: { open: () => renderBigMap(), tick: () => renderBigMap(), every: 250 },
+};
+function showOverlay(id, on) {
+  if (on && overlay && overlay !== id) showOverlay(overlay, false);
+  const open = overlay === id;
   if (on === open) return;
-  UI.show("inventory", on);
-  $("invTip").classList.add("hidden");
-  clearInterval(invTimer);
+  const o = OVERLAYS[id];
+  UI.show(id, on);
+  clearInterval(overlayTimer);
   if (on) {
-    renderInventory(); invTimer = setInterval(renderInventory, 300);
-    // the cursor comes back to point at things, and you stand still while you look
+    overlay = id;
+    o.open(); overlayTimer = setInterval(o.tick, o.every);
     if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); }
     setFreeLook(false);
-    invLockMove = G.lockMove; G.lockMove = true;
+    overlayLockMove = G.lockMove; G.lockMove = true;
   } else {
-    G.lockMove = invLockMove;
+    overlay = null;
+    o.close && o.close();
+    G.lockMove = overlayLockMove;
     if (G.mode === "play") lock();
   }
 }
+function showInventory(on) { showOverlay("inventory", on); }
 G.showInventory = showInventory;
+
+// ---- the full map (J) ----
+function renderBigMap() {
+  const cv = $("bigmapCanvas"), w = G.world;
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  const cssW = Math.min(innerWidth - 40, (innerHeight - 40) * 1.45), cssH = Math.min(innerHeight - 40, cssW / 1.45);
+  if (cv.width !== Math.round(cssW * dpr)) { cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); cv.style.width = cssW + "px"; cv.style.height = cssH + "px"; }
+  const c = cv.getContext("2d");
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  const W = cv.width / dpr, H = cv.height / dpr;
+  const b = w.mapBounds || { x0: -100, x1: 100, z0: -100, z1: 100 };
+  const S = Math.min((W - 60) / (b.x1 - b.x0), (H - 60) / (b.z1 - b.z0));
+  const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+  const X = x => W / 2 + (x - cx) * S, Z = z => H / 2 + (z - cz) * S;
+  // draw at CSS size into a scaled context; the map code reads the canvas size, so give it one that matches
+  const sub = { canvas: { width: W, height: H } };
+  c.save(); c.scale(dpr, dpr);
+  const proxy = new Proxy(c, { get: (t, k) => k === "canvas" ? sub.canvas : (typeof t[k] === "function" ? t[k].bind(t) : t[k]), set: (t, k, v) => { t[k] = v; return true; } });
+  drawMap(proxy, X, Z, S, true, cx, cz, Math.hypot(b.x1 - b.x0, b.z1 - b.z0));
+  // burnt, darkened edges
+  const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
+  g.addColorStop(0, "rgba(90,55,20,0)"); g.addColorStop(1, "rgba(70,40,15,0.55)");
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  // a double ruled border
+  c.strokeStyle = MAPINK; c.lineWidth = 2; c.strokeRect(10, 10, W - 20, H - 20); c.lineWidth = 0.8; c.strokeRect(15, 15, W - 30, H - 30);
+  // the cartouche: the map's title in a scroll
+  const t = w.mapTitle || "";
+  c.font = `italic 26px ${MAPSERIF}`; const tw = c.measureText(t).width;
+  c.fillStyle = "rgba(236,222,186,0.95)"; c.strokeStyle = MAPINK; c.lineWidth = 1.5;
+  c.beginPath(); c.roundRect(30, 28, tw + 56, 50, 8); c.fill(); c.stroke();
+  c.beginPath(); c.roundRect(35, 33, tw + 46, 40, 5); c.stroke();
+  c.fillStyle = MAPINK; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText(t, 58, 54);
+  mapCompass(c, W - 70, 80, 42);
+  // a scale bar: fifty paces
+  const px = 50 * 0.75 * S;
+  c.fillStyle = MAPINK; c.fillRect(34, H - 42, px, 4); c.fillStyle = "#e9dcb8"; c.fillRect(34 + px / 2, H - 41, px / 2 - 1, 2);
+  c.font = `italic 12px ${MAPSERIF}`; c.fillStyle = MAPINK; c.textAlign = "left"; c.fillText("fifty paces", 34, H - 52);
+  c.restore();
+}
+G.showMap = on => showOverlay("bigmap", on);
 
 // ---- pause ----
 function pause() {
   if (G.mode !== "play") return;
   G.mode = "pause";
   setFreeLook(false);
-  showInventory(false);
+  if (overlay) showOverlay(overlay, false);
   SFX.pauseAll && SFX.pauseAll(true);
   back = "pause";
   screen("pause");
@@ -240,8 +290,9 @@ addEventListener("keydown", e => {
   // with no lock to lose, Escape has to pause by hand
   if (e.code === "Escape" && G.mode === "play" && input.freeLook) pause();
   if (e.code === "KeyP" && G.mode === "play") { document.exitPointerLock && document.exitPointerLock(); pause(); }
-  if (e.code === "KeyT" && !e.repeat && G.mode === "play") showInventory($("inventory").classList.contains("hidden"));
-  if (e.code === "Escape" && !$("inventory").classList.contains("hidden")) { showInventory(false); return; }
+  if (e.code === "KeyT" && !e.repeat && G.mode === "play") showOverlay("inventory", overlay !== "inventory");
+  if (e.code === "KeyJ" && !e.repeat && G.mode === "play") showOverlay("bigmap", overlay !== "bigmap");
+  if (e.code === "Escape" && overlay) { showOverlay(overlay, false); return; }
   // M takes the mouse into the game, or gives it back
   if (e.code === "KeyM" && !e.repeat) {
     if (G.mode === "pause") resume();

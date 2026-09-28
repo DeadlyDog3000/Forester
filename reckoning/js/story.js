@@ -156,7 +156,7 @@ export async function startChapter(n, opts = {}) {
   GEN++;
   G.onFrame.length = 0;
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
-  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = undefined; G.sprintSpeed = undefined;
+  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined;   // running always costs breath
   G.bugs.setKind(null);
   AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false);
   SFX.fireLoop(false); SFX.insectLoop(false);
@@ -533,7 +533,6 @@ async function ch3(w, opts) {
     until(() => caught).then(() => false),
   ]);
   chase();
-  G.stamina = undefined;
   if (!ok) {
     G.lockMove = true;
     AUDIO.shout();

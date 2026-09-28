@@ -12,6 +12,7 @@ import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU } fr
 import { WorldBase, G } from "./engine.js";
 import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
+import { water, label, INK } from "./map.js";
 
 // ---------------------------------------------------------------------------
 //  ground textures, painted at load
@@ -533,11 +534,20 @@ export class Hamburg extends WorldBase {
   }
 
   // on the minimap: cobbles, and the harbour water
-  minimap(c, X, Z, S) {
-    c.fillStyle = "#6a655c"; c.fillRect(0, 0, 999, 999);
-    c.fillStyle = "#2f607a"; c.fillRect(0, 0, 999, Math.max(0, Z(-46)));
-    c.fillStyle = "#4a5a3a"; c.fillRect(0, Z(70.4), 999, 999);
+  // on the map: cobbles as bare parchment, the Elbe hatched to the north, fields past the wall
+  minimap(c, X, Z, S, big) {
+    const W = c.canvas.width, H = c.canvas.height;
+    c.fillStyle = "rgba(170,150,110,0.35)"; c.fillRect(0, 0, W, H);
+    const wz = Z(-46); if (wz > 0) water(c, 0, 0, W, Math.min(H, wz));
+    const gz = Z(70.4); if (gz < H) { c.fillStyle = "rgba(120,140,80,0.35)"; c.fillRect(0, Math.max(0, gz), W, H); }
   }
+  mapLabels(c, X, Z) {
+    label(c, "The Elbe", X(0), Z(-70), 20);
+    label(c, "the harbour", X(-20), Z(-49), 12);
+    label(c, "fields", X(0), Z(80), 14);
+  }
+  get mapTitle() { return "Hamburg, 1683"; }
+  get mapBounds() { const b = this.col.bounds ? this.col.bounds() : null; return b || { x0: -90, x1: 90, z0: -80, z1: 90 }; }
   ceilingAt(x, z) {
     return (x > HOME.x0 && x < HOME.x1 && z > HOME.z0 && z < HOME.z1) ? 3.2 : Infinity;
   }

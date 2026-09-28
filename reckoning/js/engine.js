@@ -8,6 +8,7 @@
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT } from "./core.js";
 import { makePerson, makeAxe } from "./models.js";
+import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
@@ -202,7 +203,8 @@ export class Player {
       else G.stamina = Math.min(1, G.stamina + dt / (sprint ? 9 : 3.5));
       if (G.stamina <= 0) this.winded = true;
       if (this.winded) sprint = false;
-      UI.stamina(G.stamina);
+      // the bar shows while you are short of breath, and goes once you have it back
+      UI.stamina(G.stamina < 0.995 ? G.stamina : null);
     } else UI.stamina(null);
     if (sprint && this.crouched) this.crouched = false;
     const max = this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1;
@@ -496,52 +498,54 @@ function updateMarker() {
 //  the minimap: north up, you in the middle, forty metres each way
 // ---------------------------------------------------------------------------
 let mmT = 0, mmCtx = null;
+// the map, at any size: the world's own drawing, then buildings, people, the objective, and you
+export function drawMap(c, X, Z, S, big, cx, cz, radius) {
+  const W = c.canvas.width, H = c.canvas.height, w = G.world, p = G.player.pos;
+  fillPaper(c, W, H);
+  if (w.minimap) w.minimap(c, X, Z, S, big);
+  // buildings and walls: everything solid and taller than a person, in red with an ink edge
+  c.fillStyle = TOWN; c.strokeStyle = INK; c.lineWidth = 0.8;
+  for (const o of w.col.near(cx, cz, radius)) {
+    if (o.disabled || o.type !== "box" || o.x1 - o.x0 > 400) continue;
+    const x = X(o.x0), y = Z(o.z0), ww = (o.x1 - o.x0) * S, hh = (o.z1 - o.z0) * S;
+    if (o.y1 >= 1.5) { c.fillRect(x, y, ww, hh); c.strokeRect(x, y, ww, hh); }
+    else { c.fillStyle = "rgba(90,70,50,0.55)"; c.fillRect(x, y, ww, hh); c.fillStyle = TOWN; }
+  }
+  if (big && w.mapLabels) w.mapLabels(c, X, Z, S);
+  // people
+  for (const a of w.actors) {
+    if (!big && Math.hypot(a.pos.x - p.x, a.pos.z - p.z) > radius) continue;
+    const guard = a.name === "Watchman";
+    c.fillStyle = guard ? "#b3261e" : a.isSibling ? "#2e6a40" : "#6a5a48";
+    c.strokeStyle = "#f3e7c6"; c.lineWidth = 1;
+    c.beginPath(); c.arc(X(a.pos.x), Z(a.pos.z), guard || a.isSibling ? 3.6 : 2.4, 0, Math.PI * 2); c.fill(); c.stroke();
+    if (guard) {    // which way they are looking
+      c.strokeStyle = "rgba(179,38,30,0.55)"; c.lineWidth = 1.5; c.beginPath();
+      c.moveTo(X(a.pos.x), Z(a.pos.z)); c.lineTo(X(a.pos.x + Math.sin(a.yaw) * 7), Z(a.pos.z + Math.cos(a.yaw) * 7)); c.stroke();
+    }
+  }
+  // the objective: a gold diamond, held to the edge of the minimap when it is further
+  const m = G.marker;
+  if (m) {
+    const t = m.actor ? m.actor.pos : m;
+    let mx = X(t.x), mz = Z(t.z);
+    if (!big) { const R = W / 2, dx = mx - R, dz = mz - R, d = Math.hypot(dx, dz); if (d > R - 9) { mx = R + dx / d * (R - 9); mz = R + dz / d * (R - 9); } }
+    c.fillStyle = "#c8962e"; c.strokeStyle = INK; c.lineWidth = 1.2;
+    c.save(); c.translate(mx, mz); c.rotate(Math.PI / 4); c.fillRect(-4.5, -4.5, 9, 9); c.strokeRect(-4.5, -4.5, 9, 9); c.restore();
+  }
+  you(c, X(p.x), Z(p.z), G.player.yaw, big ? 1.3 : 1);
+}
 function updateMinimap(dt) {
   mmT -= dt; if (mmT > 0) return; mmT = 1 / 15;
   const cv = document.getElementById("minimap"); if (!cv) return;
   const c = mmCtx || (mmCtx = cv.getContext("2d"));
   const W = cv.width, R = W / 2, S = R / 40;      // pixels per metre
-  const p = G.player.pos, w = G.world;
+  const p = G.player.pos;
   const X = x => R + (x - p.x) * S, Z = z => R + (z - p.z) * S;
-  c.clearRect(0, 0, W, W);
-  c.fillStyle = w.mapGround || "#3a3d36"; c.fillRect(0, 0, W, W);
-  if (w.minimap) w.minimap(c, X, Z, S);
-  // buildings and walls: everything solid and taller than a person
-  c.fillStyle = w.mapBuild || "#1c1f1a";
-  for (const o of w.col.near(p.x, p.z, 58)) {
-    if (o.disabled || o.y1 < 1.5) continue;
-    if (o.type === "box") c.fillRect(X(o.x0), Z(o.z0), (o.x1 - o.x0) * S, (o.z1 - o.z0) * S);
-  }
-  // cover and small things
-  c.fillStyle = "#5a5446";
-  for (const o of w.col.near(p.x, p.z, 45)) {
-    if (o.disabled || o.y1 >= 1.5 || o.type !== "box") continue;
-    c.fillRect(X(o.x0), Z(o.z0), (o.x1 - o.x0) * S, (o.z1 - o.z0) * S);
-  }
-  // people
-  for (const a of w.actors) {
-    const d = Math.hypot(a.pos.x - p.x, a.pos.z - p.z); if (d > 45) continue;
-    c.fillStyle = a.name === "Watchman" ? "#e0503a" : a.isSibling ? "#8cf08a" : "#c8c0b0";
-    c.beginPath(); c.arc(X(a.pos.x), Z(a.pos.z), a.name === "Watchman" || a.isSibling ? 3.2 : 2.2, 0, Math.PI * 2); c.fill();
-    if (a.name === "Watchman") {    // which way they are looking
-      c.strokeStyle = "rgba(224,80,58,0.5)"; c.lineWidth = 1.5; c.beginPath();
-      c.moveTo(X(a.pos.x), Z(a.pos.z)); c.lineTo(X(a.pos.x + Math.sin(a.yaw) * 7), Z(a.pos.z + Math.cos(a.yaw) * 7)); c.stroke();
-    }
-  }
-  // the objective
-  const m = G.marker;
-  if (m) {
-    const t = m.actor ? m.actor.pos : m;
-    let mx = X(t.x), mz = Z(t.z);
-    const dx = mx - R, dz = mz - R, d = Math.hypot(dx, dz);
-    if (d > R - 8) { mx = R + dx / d * (R - 8); mz = R + dz / d * (R - 8); }
-    c.fillStyle = "#8cc084"; c.save(); c.translate(mx, mz); c.rotate(Math.PI / 4); c.fillRect(-4, -4, 8, 8); c.restore();
-  }
-  // you: an arrow the way you face
-  c.save(); c.translate(R, R); c.rotate(-G.player.yaw);
-  c.fillStyle = "#f1e8d6"; c.strokeStyle = "#000"; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(0, -7); c.lineTo(5, 5); c.lineTo(0, 2.5); c.lineTo(-5, 5); c.closePath(); c.fill(); c.stroke();
-  c.restore();
+  drawMap(c, X, Z, S, false, p.x, p.z, 58);
+  // an inked rim
+  c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.arc(R, R, R - 1.5, 0, Math.PI * 2); c.stroke();
+  c.strokeStyle = "rgba(59,42,26,0.5)"; c.lineWidth = 1; c.beginPath(); c.arc(R, R, R - 6, 0, Math.PI * 2); c.stroke();
 }
 
 // ---------------------------------------------------------------------------

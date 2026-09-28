@@ -5,10 +5,11 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
 import { grassTexture } from "./hamburg.js";
+import { INK, TREEC, TOWN, tree, road, label } from "./map.js";
 
 // the road out of the city winds: round hills, round bogs, round other people's land
 const ROAD_PTS = [[0, 30], [0, 10], [9, -16], [24, -38], [18, -62], [-4, -78], [-24, -98], [-30, -124], [-14, -146], [10, -154], [28, -172],
@@ -79,7 +80,7 @@ export class Woods extends WorldBase {
       pos.setY(i, this.heightAt(x, z));
       const d = this.anyRoadDist(x, z).d;
       const c = cA.clone().lerp(cB, (Math.sin(x * 0.05) * Math.cos(z * 0.04) + 1) / 2);
-      if (d < 4) c.lerp(cRoad, clamp((4 - d) / 2.5, 0, 1) * 0.9);
+      if (d < 2.5) c.lerp(cRoad, clamp((2.5 - d) / 1.5, 0, 1) * 0.35);
       colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
     }
     tg.setAttribute("color", new THREE.BufferAttribute(colors, 3));
@@ -111,6 +112,7 @@ export class Woods extends WorldBase {
       if (this.roadDist(x, z).d < 40 || dc < 70) this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
     }
     for (const m of forestInstances(list)) root.add(m);
+    this.mapTrees = list.map(t => ({ x: t.x, z: t.z, k: t.kind }));
     this.treeCount = list.length;
 
     // undergrowth: bushes, ferns, stones
@@ -129,29 +131,64 @@ export class Woods extends WorldBase {
     }
     root.add(ub.build(MAT.rough, { shadow: false }));
 
-    // ---- the road, and its forks narrowing away into the trees ----
-    const rb = [];
-    const strip = (R, W0, W1) => {
-      for (let i = 0; i < R.length - 1; i++) {
-        const a = R[i], b = R[i + 1];
-        const W = W0 + (W1 - W0) * (i / (R.length - 1));
+    // ---- the road: a narrow cart track, two ruts and grass up the middle; the forks fainter still ----
+    const rPos = [], rCol = [], rIdx = [];
+    const C = h => new THREE.Color(h);
+    const GRASS = C(0x7c8a5c), EDGE = C(0x8a7a5a), DIRT = C(0x7a6848), RUT = C(0x4e4232), MID = C(0x6c7448);
+    // across the track, from the grass on one side to the grass on the other: [offset in half-widths, colour, height]
+    const XS = [[-1.5, GRASS, 0.015], [-1.0, EDGE, 0.03], [-0.66, RUT, 0.0], [-0.4, DIRT, 0.03], [0, MID, 0.05], [0.4, DIRT, 0.03], [0.66, RUT, 0.0], [1.0, EDGE, 0.03], [1.5, GRASS, 0.015]];
+    const tc = new THREE.Color();
+    const track = (R, W0, W1, seed) => {
+      const base = rPos.length / 3, n = XS.length;
+      for (let i = 0; i < R.length; i++) {
+        const a = R[Math.max(0, i - 1)], b = R[Math.min(R.length - 1, i + 1)];
         const dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1;
-        const nx = -dz / l * W, nz = dx / l * W;
-        const p = (x, z) => [x, this.heightAt(x, z) + 0.04, z];
-        rb.push(...p(a.x + nx, a.z + nz), ...p(a.x - nx, a.z - nz), ...p(b.x + nx, b.z + nz));
-        rb.push(...p(a.x - nx, a.z - nz), ...p(b.x - nx, b.z - nz), ...p(b.x + nx, b.z + nz));
+        const nx = -dz / l, nz = dx / l;
+        const f = i / (R.length - 1);
+        // the width wanders, as a track worn by carts and weather does
+        const W = (W0 + (W1 - W0) * f) * (1 + 0.2 * Math.sin(i * 0.31 + seed) + 0.1 * Math.sin(i * 1.7 + seed * 3));
+        for (let j = 0; j < n; j++) {
+          const [o, c, h] = XS[j];
+          const edge = Math.abs(o) >= 1;
+          const jit = edge ? (r() - 0.5) * 0.3 : (r() - 0.5) * 0.06;
+          const x = R[i].x + nx * (o * W + jit), z = R[i].z + nz * (o * W + jit);
+          rPos.push(x, this.heightAt(x, z) + h + (r() - 0.5) * 0.02, z);
+          tc.copy(c).offsetHSL(0, 0, (r() - 0.5) * 0.06);
+          // fainter towards the end of a fork: the grass takes it back
+          if (W1 < W0) tc.lerp(GRASS, f * f * 0.8);
+          rCol.push(tc.r, tc.g, tc.b);
+        }
+        if (i > 0) for (let j = 0; j < n - 1; j++) {
+          const p0 = base + (i - 1) * n + j, p1 = p0 + 1, q0 = base + i * n + j, q1 = q0 + 1;
+          rIdx.push(p0, q0, p1, p1, q0, q1);
+        }
       }
     };
-    strip(this.road, 1.6, 1.6);
-    for (const br of this.branches) strip(br.pts, 1.3, 0.35);
+    track(this.road, 0.95, 0.95, 1.3);
+    this.branches.forEach((br, n) => track(br.pts, 0.75, 0.3, n * 2.7));
     const rg = new THREE.BufferGeometry();
-    rg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(rb), 3));
+    rg.setAttribute("position", new THREE.Float32BufferAttribute(rPos, 3));
+    rg.setAttribute("color", new THREE.Float32BufferAttribute(rCol, 3));
+    rg.setIndex(rIdx);
     rg.computeVertexNormals();
     // wound the other way round: flip if it faces down
-    if (rg.attributes.normal.getY(0) < 0) { const a = rg.attributes.position.array; for (let i = 0; i < a.length; i += 9) for (let k = 0; k < 3; k++) { const t = a[i + 3 + k]; a[i + 3 + k] = a[i + 6 + k]; a[i + 6 + k] = t; } rg.computeVertexNormals(); }
-    const roadMesh = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ color: 0x7a6a52, roughness: 1 }));
+    if (rg.attributes.normal.getY(0) < 0) { const ix = rg.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } rg.computeVertexNormals(); }
+    const roadMesh = new THREE.Mesh(rg, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 4, amount: 0.35, grain: 0.8 }));
     roadMesh.receiveShadow = true;
     root.add(roadMesh);
+    // stones kicked to the sides, tufts in the middle
+    const sb2 = new Builder();
+    const strew = (R, W, every) => {
+      for (let i = 0; i < R.length; i += every) {
+        const a = R[i], b = R[Math.min(R.length - 1, i + 1)];
+        const dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+        if (r() < 0.7) { const o = (r() < 0.5 ? -1 : 1) * W * (0.9 + r() * 0.5); const x = a.x + nx * o, z = a.z + nz * o; sb2.add(new THREE.DodecahedronGeometry(0.12, 0), r.pick([0x7a7870, 0x8a857a, 0x6a665e]), x, this.heightAt(x, z) + 0.04, z, r(), r(), r(), r.range(0.6, 1.8), r.range(0.4, 0.8), r.range(0.6, 1.5), 0.08); }
+        if (r() < 0.5) { const x = a.x + nx * (r() - 0.5) * 0.3, z = a.z + nz * (r() - 0.5) * 0.3; for (let k = 0; k < 3; k++) sb2.add(TREE.cone, 0x6a7a3a, x + (r() - 0.5) * 0.2, this.heightAt(x, z) + 0.02, z + (r() - 0.5) * 0.2, (r() - 0.5) * 0.6, 0, (r() - 0.5) * 0.6, 0.05, 0.22, 0.05); }
+      }
+    };
+    strew(this.road, 0.95, 3);
+    for (const br of this.branches) strew(br.pts, 0.6, 2);
+    root.add(sb2.build(MAT.rough, { shadow: false }));
 
     // ---- at the forks: signposts near the city, and every track ends at a fallen tree ----
     const sb = new Builder();
@@ -206,17 +243,42 @@ export class Woods extends WorldBase {
     this.t = 0;
   }
 
-  // on the minimap: the forest floor, the road, the clearing
-  minimap(c, X, Z, S) {
-    c.fillStyle = "#23331f"; c.fillRect(0, 0, 999, 999);
-    c.fillStyle = "#4a5a3a"; c.beginPath(); c.arc(X(CLEARING.x), Z(CLEARING.z), CLEARING.r * S, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = "#8a7a60"; c.lineWidth = 3.2 * S; c.lineCap = "round"; c.beginPath();
-    this.road.forEach((p, i) => i ? c.lineTo(X(p.x), Z(p.z)) : c.moveTo(X(p.x), Z(p.z))); c.stroke();
-    c.lineWidth = 2 * S;
-    for (const b of this.branches) { c.beginPath(); b.pts.forEach((p, i) => i ? c.lineTo(X(p.x), Z(p.z)) : c.moveTo(X(p.x), Z(p.z))); c.stroke(); }
-    c.fillStyle = "#2c4a2e";
-    for (const t of this.fellable) if (t.state === "up" || t.state === "shake") { c.beginPath(); c.arc(X(t.x), Z(t.z), 1.6, 0, 7); c.fill(); }
+  // on the map: stamped forest, the road and its forks, the clearing, and the city behind
+  minimap(c, X, Z, S, big) {
+    const W = c.canvas.width, H = c.canvas.height, pad = 12;
+    const vis = (x, z) => { const px = X(x), pz = Z(z); return px > -pad && px < W + pad && pz > -pad && pz < H + pad; };
+    // the fields behind, towards the city, a paler wash
+    const fz = Z(16);
+    if (fz < H) { c.fillStyle = "rgba(200,190,120,0.35)"; c.fillRect(0, Math.max(0, fz), W, H); }
+    // the forest, tree by tree
+    const ts = Math.max(2.2, Math.min(4.2, S * 1.6));
+    c.fillStyle = TREEC;
+    const step = big && S < 1.2 ? 2 : 1;
+    for (let i = 0; i < this.mapTrees.length; i += step) { const t = this.mapTrees[i]; if (vis(t.x, t.z)) tree(c, X(t.x), Z(t.z), ts, t.k); }
+    // the clearing
+    c.fillStyle = "rgba(214,200,150,0.9)"; c.beginPath(); c.arc(X(CLEARING.x), Z(CLEARING.z), CLEARING.r * S, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]);
+    c.fillStyle = TREEC;
+    for (const t of this.fellable) if (t.state === "up" || t.state === "shake") tree(c, X(t.x), Z(t.z), ts * 1.1, "spruce");
+    // the cabin
+    c.fillStyle = this.cabin && this.cabin.visible ? TOWN : "#3a3530";
+    c.save(); c.translate(X(CABIN.x), Z(CABIN.z)); c.rotate(-CABIN.ry); c.fillRect(-2.5 * S, -3 * S, 5 * S, 6 * S); c.strokeStyle = INK; c.strokeRect(-2.5 * S, -3 * S, 5 * S, 6 * S); c.restore();
+    // the road and the tracks off it
+    const rw = Math.max(2.2, Math.min(4.5, S * 1.9));
+    for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
+    road(c, this.road, X, Z, rw);
   }
+  mapLabels(c, X, Z, S) {
+    {
+      label(c, "The Clearing", X(CLEARING.x), Z(CLEARING.z) + CLEARING.r * S + 14, 15);
+      label(c, "the road north-east", X(-40), Z(-120), 13);
+      label(c, "The old woods", X(70), Z(-200), 18);
+      label(c, "to Hamburg", X(0), Z(40), 14);
+      for (const br of this.branches) if (br.fork.sign) { const e = br.pts[br.pts.length - 1]; label(c, "to " + br.fork.sign[1], X(e.x), Z(e.z) + 11, 11); }
+    }
+  }
+  get mapTitle() { return "The Road North-East"; }
+  get mapBounds() { return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
   // gentle hills, flattened where the road runs and in the clearing
   heightAt(x, z) {
     let h = Math.sin(x * 0.021) * 2.2 + Math.cos(z * 0.017) * 2.6 + Math.sin((x + z) * 0.043) * 0.9 + Math.cos(x * 0.09 - z * 0.07) * 0.35;

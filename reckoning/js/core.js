@@ -266,6 +266,16 @@ export class Collision {
   }
   // a box given by centre and size
   addRect(cx, cz, w, d, y1 = 10, y0 = -5, tag) { return this.addBox(cx - w / 2, cz - d / 2, cx + w / 2, cz + d / 2, y1, y0, tag); }
+  // the extent of everything solid, for fitting a map to it
+  bounds() {
+    if (!this.all.length) return null;
+    const b = { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
+    for (const o of this.all) {
+      if (o.type !== "box" || o.x1 - o.x0 > 400 || o.z1 - o.z0 > 400) continue;
+      b.x0 = Math.min(b.x0, o.x0); b.x1 = Math.max(b.x1, o.x1); b.z0 = Math.min(b.z0, o.z0); b.z1 = Math.max(b.z1, o.z1);
+    }
+    return isFinite(b.x0) ? b : null;
+  }
   addCircle(x, z, r, y1 = 10, tag) { return this.insert({ type: "circle", x, z, r, y0: -5, y1, tag }); }
   near(x, z, rad = 2) {
     const c = this.cell, out = new Set();

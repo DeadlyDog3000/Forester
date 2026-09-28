@@ -34,10 +34,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 #objective.pulse { animation: pulse 1.2s ease; }
 @keyframes pulse { 0% { transform: translateX(-12px); opacity: 0; } 100% { transform: none; opacity: 1; } }
 
-#minimapWrap { position: absolute; right: 22px; top: 22px; width: 180px; height: 180px; border-radius: 50%; overflow: hidden; border: 2px solid var(--edge); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6); background: rgba(7, 20, 13, 0.8); }
+#minimapWrap { position: absolute; right: 22px; top: 22px; width: 180px; height: 180px; border-radius: 50%; overflow: hidden; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(220, 203, 159, 0.35); background: #dccb9f; }
 #minimap { width: 100%; height: 100%; display: block; }
-.mm-n { position: absolute; left: 50%; top: 3px; transform: translateX(-50%); font: 700 11px var(--sans); color: var(--gold); text-shadow: 0 1px 2px #000; }
+.mm-n { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); font: italic 700 13px var(--serif); color: #9a2e22; text-shadow: 0 0 3px #dccb9f; }
 @media (max-width: 640px) { #minimapWrap { width: 120px; height: 120px; right: 12px; top: 12px; } }
+/* the full map: parchment on the table, in a dark frame */
+#bigmap { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 8, 5, 0.72); z-index: 5; cursor: default; }
+#bigmapCanvas { box-shadow: 0 16px 60px rgba(0, 0, 0, 0.8), 0 0 0 6px #2a1d12, 0 0 0 7px rgba(200, 160, 90, 0.4); border-radius: 2px; }
+.bm-close { position: absolute; right: 22px; top: 18px; font: 12px var(--sans); color: var(--ink-dim); }
 /* the inventory: a grid of slots, as block games lay one out, in the woods' own colours */
 #inventory { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 10, 6, 0.55); z-index: 5; cursor: default; }
 .mc-win { --s: 48px; padding: 16px 20px 20px; background: linear-gradient(180deg, rgba(14, 34, 22, 0.97), rgba(6, 16, 10, 0.98)); border: 1px solid var(--edge); border-top: 2px solid var(--gold); box-shadow: 0 12px 44px rgba(0, 0, 0, 0.7); max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; }
@@ -82,7 +86,7 @@ kbd { display: inline-block; min-width: 26px; padding: 3px 7px; border: 1px soli
 #markerDist { position: absolute; left: -30px; top: 12px; width: 60px; text-align: center; font: 600 11px var(--sans); color: var(--ink); text-shadow: 0 1px 2px #000; }
 #marker.edge .mk-diamond { opacity: 0.6; }
 
-#stamina { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); width: min(460px, 70vw); height: 9px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--edge); overflow: hidden; }
+#stamina { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); width: 220px; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--edge); overflow: hidden; }
 #stamina .st-fill { height: 100%; width: calc(var(--s, 1) * 100%); background: var(--gold); transition: width 0.1s linear; }
 #stamina.low .st-fill { background: #e0503a; }
 
