@@ -14,7 +14,7 @@
 
 import { G, Actor, setAtmo, blendAtmo, input } from "../js/engine.js";
 import { THREE, MAT } from "../js/core.js";
-import { startChapter, writeSave, loadSave } from "../js/story.js";
+import { startChapter, writeSave, loadSave, LOOKS } from "../js/story.js";
 import { CABIN, CLEARING, FIRE, HUNT, STACK } from "../js/woods.js";
 import { Hunt } from "../js/hunt.js";
 import { BUILDINGS } from "../js/town.js";
@@ -93,12 +93,17 @@ export const SHOTS = {
   gate: {
     secs: 5,
     async stage() { await chapter(4); setAtmo("mist"); },
-    cam: (t, c) => rig.look(c, L(V(-38, 1.4, 38), V(-37.6, 1.35, 45), E(t)), V(-35, 3.0, 67), 50),
+    cam: (t, c) => rig.look(c, L(V(-37.6, 1.4, 42), V(-37.2, 1.35, 47.5), E(t)), V(-35, 3.0, 67), 50),
   },
   road: {
     secs: 6.5,
-    async stage() { await chapter(5); setAtmo("afternoon"); G.player.place(0, -40, 0); },
-    cam: (t, c) => rig.look(c, L(V(1.5, 1.7, -8), V(0.4, 1.9, 8), E(t)), V(0, 12, 205), 45),
+    // walking the road north-east, the forks and the woods closing in ahead
+    async stage() { await chapter(5); setAtmo("afternoon"); G.player.place(24, -38, 0); },
+    cam(t, c) {
+      const x = L([0, 26], [2.2, 4], E(t)), from = [x[0], gy(x[0], x[1]) + 1.75, x[1]];
+      const a = L([9, -16], [18, -34], E(t));
+      rig.look(c, from, [a[0], gy(a[0], a[1]) + 2.4, a[1]], 50);
+    },
   },
   clearing: {
     secs: 5.5,
@@ -108,39 +113,56 @@ export const SHOTS = {
   felling: {
     secs: 5,
     hands: true,
+    // first person, as you play it: one last swing, and a spruce at the edge of the clearing comes down
     async stage() {
       await chapter(6, {}, { clearing: { axe: true, first: true } });
-      setAtmo("morning");
-      // stand at arm's length from a tree near the clearing, facing it
+      setAtmo("afternoon");
       const w = G.world, pl = G.player;
-      const tr = w.fellable.filter(f => f.state === "up").sort((a, b) => Math.hypot(a.x - CLEARING.x, a.z - CLEARING.z) - Math.hypot(b.x - CLEARING.x, b.z - CLEARING.z))[3];
+      const tr = w.fellable.filter(f => f.state === "up").sort((a, b) => Math.hypot(a.x - CLEARING.x, a.z - CLEARING.z) - Math.hypot(b.x - CLEARING.x, b.z - CLEARING.z))[0];
       const dx = CLEARING.x - tr.x, dz = CLEARING.z - tr.z, l = Math.hypot(dx, dz);
-      pl.place(tr.x + dx / l * 1.7, tr.z + dz / l * 1.7, Math.atan2(dx, dz));
-      pl.pitch = 0.05;
+      // a spruce's skirts reach nearly four metres, so stand clear of them, facing the trunk
+      pl.place(tr.x + dx / l * 7.5, tr.z + dz / l * 7.5, Math.atan2(dx, dz));
       pl.giveAxe(true);
-      G.forceThird = true;       // your own body, seen from the side
       this.tree = tr; this.dir = [dx / l, dz / l];
     },
-    cam(t, c) {
-      const tr = this.tree, [ux, uz] = this.dir, sx = -uz, sz = ux;          // across the line from you to the tree
-      const mx = tr.x + ux * 0.9, mz = tr.z + uz * 0.9, y = gy(mx, mz);
-      rig.look(c, [mx + sx * (5.2 - t * 0.8) + ux * 1.2, y + 1.5, mz + sz * (5.2 - t * 0.8) + uz * 1.2], [mx, y + 1.6 + t * 1.2, mz], 55);
+    tick(t, i) {
+      const pl = G.player, tr = this.tree;
+      pl.yaw = Math.atan2(pl.pos.x - tr.x, pl.pos.z - tr.z);
+      // eyes on the crown, then following it down as it goes
+      pl.pitch = i < 30 ? 0.2 : 0.2 - Math.min(1, (i - 30) / 60) * 0.3;
+      // the last swing lands, and the tree goes over away from you, as the game's own fell() has it
+      if (i === 8) pl.swing(() => {
+        const dx = -this.dir[0], dz = -this.dir[1];
+        tr.state = "falling"; tr.fall = 0; tr.col.disabled = true;
+        tr.dir = { x: dx, z: dz }; tr.axis = new THREE.Vector3(dz, 0, -dx);
+      });
     },
-    tick(t, i) { G.forceThird = true; if ([4, 38, 72, 106].includes(i)) G.player.swing(G.onSwing); },
-    done() { G.forceThird = false; },
   },
   deer: {
-    secs: 5,
+    secs: 8,
     async stage() {
       await chapter(6, {}, { clearing: { axe: true } });
       setAtmo("evening");
       const w = G.world; w.huntOpen = true;
       G.player.place(CLEARING.x, CLEARING.z, 0);
-      this.hunt = new Hunt(w, { x: HUNT.x, z: HUNT.z, r: 8 });
+      this.hunt = new Hunt(w, { x: HUNT.x, z: HUNT.z, r: 6 });
       this.hunt.spawn("deer", 3); this.hunt.spawn("hare", 2);
       rig.run(2);
+      // a place to watch from with nothing in the way: round the glade until the line to its middle is clear
+      const col = w.col, at = (x, z) => new THREE.Vector3(x, gy(x, z) + 0.9, z);
+      this.eye = null;
+      for (let a = Math.PI; a < Math.PI * 3 && !this.eye; a += 0.2) {
+        const x = HUNT.x + Math.cos(a) * 11, z = HUNT.z + Math.sin(a) * 11;
+        if (!col.solidAt(x, gy(x, z) + 1, z, 0.8) && col.lineOfSight(at(x, z), at(HUNT.x, HUNT.z))) this.eye = [x, z];
+      }
+      this.eye = this.eye || [HUNT.x - 11, HUNT.z];
     },
-    cam(t, c) { const a = this.hunt.animals[0]; const p = a ? a.pos : { x: HUNT.x, z: HUNT.z }; rig.look(c, L(V(p.x - 7, gy(p.x - 7, p.z + 3) + 0.7, p.z + 3), V(p.x - 6, gy(p.x - 6, p.z + 1.5) + 0.75, p.z + 1.5), E(t)), V(p.x, gy(p.x, p.z) + 0.8, p.z), 40); },
+    cam(t, c) {
+      const [x, z] = this.eye, alive = this.hunt.animals.filter(a => a.alive);
+      const cx = alive.reduce((s, a) => s + a.pos.x, 0) / (alive.length || 1), cz = alive.reduce((s, a) => s + a.pos.z, 0) / (alive.length || 1);
+      const k = 0.15 + 0.1 * t;
+      rig.look(c, [x + (cx - x) * k, gy(x, z) + 0.75, z + (cz - z) * k], [cx, gy(cx, cz) + 0.7, cz], 38);
+    },
   },
   bow: {
     secs: 4.5,
@@ -152,7 +174,14 @@ export const SHOTS = {
       this.hunt = new Hunt(w, { x: HUNT.x, z: HUNT.z, r: 4 });
       this.hunt.spawn("deer", 1);
       const d = this.hunt.animals[0]; d.state = "graze"; d.t = 99;
-      pl.place(d.pos.x - 11, d.pos.z - 3, 0); pl.crouched = true; pl.hasBow = true; pl.arrows = 12; pl.showBow(true);
+      const at = (x, z) => new THREE.Vector3(x, gy(x, z) + 1.0, z);
+      let spot = null;
+      for (let a = Math.PI; a < Math.PI * 3 && !spot; a += 0.15) {
+        const x = d.pos.x + Math.cos(a) * 10, z = d.pos.z + Math.sin(a) * 10;
+        if (!w.col.solidAt(x, gy(x, z) + 1, z, 1.2) && w.col.lineOfSight(at(x, z), at(d.pos.x, d.pos.z))) spot = [x, z];
+      }
+      spot = spot || [d.pos.x - 10, d.pos.z];
+      pl.place(spot[0], spot[1], 0); pl.crouched = true; pl.hasBow = true; pl.arrows = 12; pl.showBow(true);
       this.deer = d;
     },
     cam: null,
@@ -180,7 +209,7 @@ export const SHOTS = {
       G.player.place(34, -318, 0);
       this.k = k;
     },
-    cam(t, c) { const k = this.k; rig.look(c, L(V(33, 1.2 + gy(33, -324), -324), V(34, 1.1 + gy(34, -326), -326), t), [k.pos.x, k.pos.y + 1.4, k.pos.z], 38); },
+    cam(t, c) { const k = this.k; rig.look(c, L(V(27, 1.2 + gy(27, -323), -323), V(28, 1.1 + gy(28, -325), -325), t), [k.pos.x, k.pos.y + 1.4, k.pos.z], 24); },
   },
   hearth: {
     secs: 5,
@@ -200,17 +229,17 @@ export const SHOTS = {
   town2: {
     secs: 5,
     async stage() { await chapter(14, {}, TOWNSAVE(), 2); await preloadTown(2); showcaseTown(2); setAtmo("afternoon"); rig.run(2); },
-    cam: (t, c) => { const a = 2.55 + t * 0.35; rig.look(c, [FIRE.x + Math.cos(a) * 30, gy(FIRE.x, FIRE.z) + 12, FIRE.z + Math.sin(a) * 30], [FIRE.x, gy(FIRE.x, FIRE.z) + 3, FIRE.z], 50); },
+    cam: (t, c) => { const a = 2.55 + t * 0.35; rig.look(c, [FIRE.x + Math.cos(a) * 36, gy(FIRE.x, FIRE.z) + 19, FIRE.z + Math.sin(a) * 30], [FIRE.x, gy(FIRE.x, FIRE.z) + 3, FIRE.z], 50); },
   },
   town3: {
     secs: 5,
     async stage() { await chapter(14, {}, TOWNSAVE(), 2); await preloadTown(3); showcaseTown(3); setAtmo("evening"); rig.run(2); },
-    cam: (t, c) => { const a = 2.9 + t * 0.35; rig.look(c, [FIRE.x + Math.cos(a) * 28, gy(FIRE.x, FIRE.z) + 10, FIRE.z + Math.sin(a) * 28], [FIRE.x, gy(FIRE.x, FIRE.z) + 4, FIRE.z], 50); },
+    cam: (t, c) => { const a = 2.9 + t * 0.35; rig.look(c, [FIRE.x + Math.cos(a) * 36, gy(FIRE.x, FIRE.z) + 14, FIRE.z + Math.sin(a) * 28], [FIRE.x, gy(FIRE.x, FIRE.z) + 4, FIRE.z], 50); },
   },
   city: {
     secs: 7,
     async stage() { await chapter(14, {}, TOWNSAVE(), 2); await preloadTown(4); showcaseTown(4); blendAtmo("dusk", "night", 0.5); rig.run(2); },
-    cam: (t, c) => { const a = 3.3 + t * 0.9, r = 26 - t * 6, h = 5 + t * 10; rig.look(c, [FIRE.x + Math.cos(a) * r, gy(FIRE.x, FIRE.z) + h, FIRE.z + Math.sin(a) * r], [FIRE.x, gy(FIRE.x, FIRE.z) + 5, FIRE.z], 55); },
+    cam: (t, c) => { const a = 3.3 + t * 0.9, r = 34 - t * 6, h = 9 + t * 11; rig.look(c, [FIRE.x + Math.cos(a) * r, gy(FIRE.x, FIRE.z) + h, FIRE.z + Math.sin(a) * r], [FIRE.x, gy(FIRE.x, FIRE.z) + 5, FIRE.z], 55); },
   },
 };
 // a settlement to stage the town shots in: people, a field, and the clock at a quiet hour
