@@ -173,7 +173,6 @@ export class Player {
       const hand = y => {
         const h = new THREE.Group(); h.position.set(0, y, 0);
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); fist.rotation.z = Math.PI / 2; h.add(fist);
-        const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.03, 3, 6), skinM); thumb.position.set(0.02, 0.03, 0.03); thumb.rotation.x = 0.8; h.add(thumb);
         a.add(h); return h;
       };
       this.hands = [hand(0.07), hand(0.3)];
@@ -323,7 +322,7 @@ export class Player {
       m.sitting += ((this.seated ? 1 : 0) - m.sitting) * Math.min(1, dt * 6);
       m.update(dt, this.seated ? 0 : this.speed);
       m.body.rotation.z = this.lean * 0.28;
-      m.root.visible = G.settings.third || G.forceThird;
+      m.root.visible = !!G.forceThird;
     }
 
     // the axe
@@ -360,7 +359,7 @@ export class Player {
 const _cam = new THREE.Vector3();
 function updateCamera(dt) {
   const p = G.player;
-  const third = G.settings.third || G.forceThird;
+  const third = !!G.forceThird;   // first person always; only a scene may step the camera back
   const bobY = third ? 0 : Math.sin(p.bob * 2) * 0.035 * Math.min(1, p.speed / 3);
   const bobX = third ? 0 : Math.cos(p.bob) * 0.025 * Math.min(1, p.speed / 3);
   camera.rotation.set(p.pitch, p.yaw, third ? 0 : -p.lean * 0.18);
@@ -885,7 +884,6 @@ export function frame(dt, skipRender) {
     if (input.click && G.player.axe && !UI.dialogOpen && !G.cine && G.onSwing && !(G.town && G.town.planning)) G.player.swing(G.onSwing);
     // move dialogue on
     if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();
-    if (input.hit("KeyV")) { G.settings.third = !G.settings.third; UI.hint(G.settings.third ? "Camera: over the shoulder" : "Camera: first person", 1.6); G.saveSettings && G.saveSettings(); }
   } else if (w) {
     for (const f of w.flames) flicker(f, dt * 0.2);
   }

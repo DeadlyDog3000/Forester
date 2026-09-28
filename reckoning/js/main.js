@@ -31,7 +31,7 @@ function applySettings() {
   window.__reckonMusic = s.music;
   AUDIO.setMusicVolume(s.music ? 1 : 0);
   $("setSens").value = s.sens; $("setFov").value = s.fov; $("setVol").value = s.volume;
-  $("setInvert").checked = s.invert; $("setMusic").checked = s.music; $("setThird").checked = s.third;
+  $("setInvert").checked = s.invert; $("setMusic").checked = s.music;
   $("setQuality").value = s.quality || "high";
   const low = s.quality === "low";
   if (renderer.shadowMap.enabled === low) {
@@ -47,7 +47,7 @@ for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true]
   $(id).addEventListener("input", e => { G.settings[key] = num ? +e.target.value : e.target.value; applySettings(); G.saveSettings(); });
 }
 $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.value; applySettings(); G.saveSettings(); });
-for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setThird", "third"]]) {
+for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"]]) {
   $(id).addEventListener("change", e => { G.settings[key] = e.target.checked; applySettings(); G.saveSettings(); });
 }
 

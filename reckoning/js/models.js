@@ -85,7 +85,7 @@ export function makePerson(o = {}) {
   }
   add(hips, GEO("belt", () => { const g = new THREE.CylinderGeometry(0.172, 0.172, 0.05, 14); g.scale(1, 1, 0.7); return g; }), M(0x2a1f16), 0, 0.04);
 
-  // arms: shoulder, sleeve, forearm, a deep cuff, a hand with a thumb
+  // arms: shoulder, sleeve, forearm, a deep cuff, a hand
   const mkArm = side => {
     const p = new THREE.Group(); p.position.set(side * 0.235, 0.53, 0); hips.add(p);
     add(p, GEO("shoulderBall", () => new THREE.SphereGeometry(0.066, 10, 8)), M(coat), 0, 0);
@@ -93,7 +93,6 @@ export function makePerson(o = {}) {
     add(p, GEO("forearm", () => new THREE.CylinderGeometry(0.05, 0.043, 0.24, 10)), M(coat), 0, -0.38);
     add(p, GEO("cuff", () => new THREE.CylinderGeometry(0.064, 0.058, 0.08, 10)), M(o.cuff ?? 0xd9d2c3), 0, -0.47);
     const h = add(p, GEO("hand", () => { const g = new THREE.SphereGeometry(0.046, 10, 8); g.scale(0.8, 1.15, 0.55); return g; }), skinM, 0, -0.56);
-    add(h, GEO("thumb", () => { const g = new THREE.CapsuleGeometry(0.014, 0.03, 3, 6); return g; }), skinM, side * -0.028, 0.01, 0.02, 0.3, 0, side * 0.5);
     p.userData.hand = h;
     return p;
   };
