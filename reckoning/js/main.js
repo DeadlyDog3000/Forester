@@ -143,32 +143,68 @@ function buildChapters() {
 }
 
 // ---- inventory (T) ----
-const esc = t => String(t).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-function invItem(name, note, n) {
-  return `<div class="inv-item"><span class="inv-name">${esc(name)}${note ? `<span class="inv-note">${esc(note)}</span>` : ""}</span>${n != null ? `<span class="inv-n">${esc(n)}</span>` : ""}</div>`;
+const ICON = {
+  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png",
+  axe: "../assets/sprites/items/tool_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
+};
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let invItems = [];
+function slot(it, cap) {
+  if (!it) return `<div class="mc-slot"></div>`;
+  invItems.push(it);
+  const i = invItems.length - 1;
+  return `<div class="mc-slot${it.dim ? " dim" : ""}" data-i="${i}"><img src="${ICON[it.icon]}" alt="">${it.n != null && it.n !== 1 ? `<span class="mc-n">${esc(it.n)}</span>` : ""}${cap ? `<span class="mc-cap">${esc(cap)}</span>` : ""}</div>`;
 }
 function renderInventory() {
   const pl = G.player, camp = G.camp;
-  const hands = [];
-  if (pl.axe) hands.push(invItem("Old felling axe", "Grey haft, good head. Click to swing."));
-  if (pl.carryN > 0) hands.push(invItem("Spruce logs", camp ? `Your arms hold ${camp.carryMax}. Stack them by the cabin.` : "", `× ${pl.carryN}`));
-  else if (UI.carrying) hands.push(invItem(UI.carrying));
-  const pack = G.pack.map(i => invItem(i.name, i.note, i.n != null ? `× ${i.n}` : null));
-  let html = `<div class="inv-sec">In your hands</div>${hands.join("") || `<div class="inv-empty">Nothing.</div>`}`;
-  html += `<div class="inv-sec">On you</div>${pack.join("") || `<div class="inv-empty">Empty pockets.</div>`}`;
+  invItems = [];
+  // the two hands: the tool, and whatever else you hold
+  const hands = [null, null];
+  if (pl.axe) hands[0] = { icon: "axe", name: "Old felling axe", note: "Grey haft, good head.", use: "Click to swing" };
+  if (pl.carryN > 0) hands[1] = { icon: "logs", n: pl.carryN, name: "Spruce logs", note: camp ? `Your arms hold ${camp.carryMax}.` : "", use: "Stack them by the cabin" };
+  else if (UI.carrying) hands[/ledger/i.test(UI.carrying) ? 0 : 1] = { icon: /ledger/i.test(UI.carrying) ? "ledger" : "logs", name: UI.carrying, note: /ledger/i.test(UI.carrying) ? "The tally of the Baltic grain, for Jakob to sign." : "" };
+  let html = `<div class="mc-sec">Hands</div><div class="mc-row hands">${slot(hands[0])}${slot(hands[1])}</div>`;
+  // what is on you: three rows of nine
+  const pack = G.pack.slice(0, 27);
+  html += `<div class="mc-sec">On you</div>`;
+  for (let r = 0; r < 3; r++) html += `<div class="mc-row">${Array.from({ length: 9 }, (_, c) => slot(pack[r * 9 + c])).join("")}</div>`;
   if (camp) {
-    html += `<div class="inv-sec">At the clearing</div>`;
-    html += invItem("Logs on the stack", null, camp.logs);
-    html += invItem("Door", camp.door ? "Hewn. Crooked, and perfect." : `Needs ${camp.doorCost} logs from the stack.`, camp.door ? "made" : "—");
-    html += invItem("Cabin", `Needs ${camp.cabinCost} logs and the door.`, `${Math.min(camp.logs, camp.cabinCost)} / ${camp.cabinCost}`);
+    html += `<div class="mc-sec">At the clearing</div><div class="mc-row">`;
+    html += slot({ icon: "logs", n: camp.logs, name: "Logs on the stack", note: `${camp.logs} stacked by the cabin.`, dim: camp.logs === 0 });
+    html += slot({ icon: "door", name: "Door", note: camp.door ? "Hewn. Crooked, and perfect." : `Hew it at the block: ${camp.doorCost} logs from the stack.`, dim: !camp.door });
+    html += slot({ icon: "cabin", n: `${Math.min(camp.logs, camp.cabinCost)}/${camp.cabinCost}`, name: "The cabin", note: `Needs ${camp.cabinCost} logs and the door.`, dim: !(camp.door && camp.logs >= camp.cabinCost) });
+    html += `${"<div class=\"mc-slot\"></div>".repeat(6)}</div>`;
   }
   $("invBody").innerHTML = html;
 }
-let invTimer = 0;
+function showTip(e) {
+  const tip = $("invTip"), el = e.target.closest && e.target.closest(".mc-slot[data-i]");
+  if (!el) { tip.classList.add("hidden"); return; }
+  const it = invItems[+el.dataset.i];
+  tip.innerHTML = `${esc(it.name)}${it.note ? `<span class="tip-note">${esc(it.note)}</span>` : ""}${it.use ? `<span class="tip-use">${esc(it.use)}</span>` : ""}`;
+  tip.classList.remove("hidden");
+  tip.style.left = Math.min(e.clientX + 16, innerWidth - tip.offsetWidth - 8) + "px";
+  tip.style.top = Math.max(8, e.clientY - 30) + "px";
+}
+$("inventory").addEventListener("mousemove", showTip);
+$("inventory").addEventListener("mouseleave", () => $("invTip").classList.add("hidden"));
+let invTimer = 0, invLockMove = false;
 function showInventory(on) {
+  const open = !$("inventory").classList.contains("hidden");
+  if (on === open) return;
   UI.show("inventory", on);
+  $("invTip").classList.add("hidden");
   clearInterval(invTimer);
-  if (on) { renderInventory(); invTimer = setInterval(renderInventory, 250); }
+  if (on) {
+    renderInventory(); invTimer = setInterval(renderInventory, 300);
+    // the cursor comes back to point at things, and you stand still while you look
+    if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); }
+    setFreeLook(false);
+    invLockMove = G.lockMove; G.lockMove = true;
+  } else {
+    G.lockMove = invLockMove;
+    if (G.mode === "play") lock();
+  }
 }
 G.showInventory = showInventory;
 
@@ -204,6 +240,7 @@ addEventListener("keydown", e => {
   if (e.code === "Escape" && G.mode === "play" && input.freeLook) pause();
   if (e.code === "KeyP" && G.mode === "play") { document.exitPointerLock && document.exitPointerLock(); pause(); }
   if (e.code === "KeyT" && !e.repeat && G.mode === "play") showInventory($("inventory").classList.contains("hidden"));
+  if (e.code === "Escape" && !$("inventory").classList.contains("hidden")) { showInventory(false); return; }
   // M takes the mouse into the game, or gives it back
   if (e.code === "KeyM" && !e.repeat) {
     if (G.mode === "pause") resume();

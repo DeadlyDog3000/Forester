@@ -144,12 +144,12 @@ export const CHAPTERS = [
 
 // what is in your pockets in each chapter — the inventory (T) lists it
 const PACK = {
-  1: [{ name: "The house key", note: "Iron, warm from your pocket. The house by the harbour." }],
-  2: [{ name: "The house key", note: "Iron, warm from your pocket. The house by the harbour." }],
-  3: [{ name: "The house key", note: "You kept it. You do not know why." }],
-  4: [{ name: "The house key", note: "To a door that is not yours any more." }],
-  5: [{ name: "The house key", note: "To a door that is not yours any more." }, { name: "Blackberries", note: "A handful, squashed. Three days of them." }],
-  6: [{ name: "The house key", note: "To a door that is not yours any more." }, { name: "Blackberries", note: "A handful, squashed. Three days of them." }],
+  1: [{ icon: "key", name: "The house key", note: "Iron, warm from your pocket. The house by the harbour." }],
+  2: [{ icon: "key", name: "The house key", note: "Iron, warm from your pocket. The house by the harbour." }],
+  3: [{ icon: "key", name: "The house key", note: "You kept it. You do not know why." }],
+  4: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more." }],
+  5: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more." }, { icon: "blackberries", n: 12, name: "Blackberries", note: "A handful, squashed. Three days of them." }],
+  6: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more." }, { icon: "blackberries", n: 12, name: "Blackberries", note: "A handful, squashed. Three days of them." }],
 };
 
 export async function startChapter(n, opts = {}) {
