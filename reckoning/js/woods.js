@@ -5,11 +5,11 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, groundTexture } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, groundTexture, SNOW } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
 import { grassTexture } from "./hamburg.js";
-import { INK, TREEC, TOWN, tree, road, label } from "./map.js";
+import { INK, TREEC, TOWN, tree, road, label, seen } from "./map.js";
 
 // the road out of the city winds: round hills, round bogs, round other people's land
 const ROAD_PTS = [[0, 30], [0, 10], [9, -16], [24, -38], [18, -62], [-4, -78], [-24, -98], [-30, -124], [-14, -146], [10, -154], [28, -172],
@@ -34,6 +34,7 @@ export class Woods extends WorldBase {
   constructor() {
     super(Collision);
     this.col = new Collision(6);
+    this.openTracks = new Set();       // forks you may walk down; the rest are barred
     this.name = "woods";
     const root = this.root, r = rng(3071);
 
@@ -87,7 +88,9 @@ export class Woods extends WorldBase {
     tg.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     tg.computeVertexNormals();
     const gt = groundTexture("forestfloor", 150);
-    const terrain = new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ map: gt, vertexColors: true, roughness: 1 }));
+    this.terrainMat = addDetail(new THREE.MeshStandardMaterial({ map: gt, vertexColors: true, roughness: 1 }), { scale: 1, amount: 0.12, grain: 0.2, surface: "none" });
+    const terrain = new THREE.Mesh(tg, this.terrainMat);
+    SNOW.value = 0;
     terrain.receiveShadow = true;
     root.add(terrain);
 
@@ -288,14 +291,14 @@ export class Woods extends WorldBase {
     for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
     road(c, this.road, X, Z, rw);
   }
-  mapLabels(c, X, Z, S) {
-    {
-      label(c, "The Clearing", X(CLEARING.x), Z(CLEARING.z) + CLEARING.r * S + 14, 15);
-      label(c, "the road north-east", X(-40), Z(-120), 13);
-      label(c, "The old woods", X(70), Z(-200), 18);
-      label(c, "to Hamburg", X(0), Z(40), 14);
-      for (const br of this.branches) if (br.fork.sign) { const e = br.pts[br.pts.length - 1]; label(c, "to " + br.fork.sign[1], X(e.x), Z(e.z) + 11, 11); }
-    }
+  mapLabels(c, X, Z, S, set) {
+    const L = (text, wx, wz, dy, size) => { if (seen(set, wx, wz)) label(c, text, X(wx), Z(wz) + dy, size); };
+    L("The Clearing", CLEARING.x, CLEARING.z, CLEARING.r * S + 14, 15);
+    L("the road north-east", -40, -120, 0, 13);
+    L("The old woods", 70, -200, 0, 18);
+    L("to Hamburg", 0, 40, 0, 14);
+    for (const br of this.branches) { const e = br.pts[br.pts.length - 1]; if (br.fork.sign) L("to " + br.fork.sign[1], e.x, e.z, 11, 11); }
+    if (this.burner) L("the charcoal burner", this.burner.camp.x, this.burner.camp.z, 14, 12);
   }
   get mapTitle() { return "The Road North-East"; }
   get mapBounds() { return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
@@ -345,6 +348,12 @@ export class Woods extends WorldBase {
     const lim = 14;
     if (rd.d > lim) { const k = lim / rd.d; p.x = rd.x + (p.x - rd.x) * k; p.z = rd.z + (p.z - rd.z) * k; if (!this._warned || G.time - this._warned > 8) { this._warned = G.time; this.onTooFar && this.onTooFar(); } }
     if (!rd.branch && rd.i < 3 && p.z > this.road[0].z) p.z = this.road[0].z;
+    // a wrong track is barred a few steps in, unseen; only the ones the story opens can be walked
+    if (rd.branch && !this.openTracks.has(rd.branch.n) && rd.i > 5) {
+      const q = rd.branch.pts[5];
+      p.x = q.x + (p.x - rd.x); p.z = q.z + (p.z - rd.z);
+      if (!this._barred || G.time - this._barred > 6) { this._barred = G.time; this.onBarred && this.onBarred(rd.branch.n); }
+    }
   }
 
   buildClearing() {
@@ -544,7 +553,29 @@ export class Woods extends WorldBase {
     if (n > 0) P.logPile(b, STACK.x, STACK.z, Math.min(n, 24), Math.PI / 2, 0.12);
     const m = b.build(); m.position.y = this.cy; this.stack.add(m);
   }
+  // let it snow: k is how much lies on the ground, fall is how hard it is still coming down
+  setSnow(k, fall = 0) {
+    SNOW.value = k;
+    if (this.terrainMat) this.terrainMat.color.setRGB(1, 1, 1).lerp(new THREE.Color(1.7, 1.75, 1.85), k);
+    if (fall > 0 && !this.flakes) {
+      const n = 4000, p = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { p[i * 3] = (Math.random() - 0.5) * 60; p[i * 3 + 1] = Math.random() * 30; p[i * 3 + 2] = (Math.random() - 0.5) * 60; }
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(p, 3));
+      this.flakes = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.09, transparent: true, opacity: 0.85, depthWrite: false }));
+      this.flakes.frustumCulled = false;
+      this.root.add(this.flakes);
+    }
+    if (this.flakes) { this.flakes.visible = fall > 0; this.flakeFall = fall; }
+  }
+  // the fire's strength, 0 (out) to 1 (roaring)
+  setFire(k) {
+    if (!this.fire) return;
+    this.fire.scale.setScalar(0.25 + k * 0.85);
+    this.fire.userData.flame.base = 9 * k;
+    this.fire.visible = k > 0.02;
+  }
   lightFire(on = true) {
+    if (!on && this.fire) { this.root.remove(this.fire); this.flames.splice(this.flames.indexOf(this.fire), 1); this.lightPool[0].intensity = 0; this.fire = null; return; }
     if (on && !this.fire) {
       const L = this.lightPool[0]; L.intensity = 9; L.distance = 18;
       this.fire = makeFlame(5, L); this.fire.position.set(FIRE.x, this.cy + 0.05, FIRE.z);
@@ -564,6 +595,18 @@ export class Woods extends WorldBase {
   }
   update(dt) {
     this.t += dt;
+    if (this.flakes && this.flakes.visible) {
+      const p = this.flakes.geometry.attributes.position, c = G.player.pos, sp = 2 + this.flakeFall * 5;
+      for (let i = 0; i < p.count; i++) {
+        let x = p.getX(i) + Math.sin(this.t * 0.7 + i) * dt * (0.3 + this.flakeFall * 2.5) + this.flakeFall * dt * 3, y = p.getY(i) - dt * sp, z = p.getZ(i);
+        if (y < 0) y += 30;
+        if (x - c.x > 30) x -= 60; else if (x - c.x < -30) x += 60;
+        if (z - c.z > 30) z -= 60; else if (z - c.z < -30) z += 60;
+        p.setXYZ(i, x, y, z);
+      }
+      p.needsUpdate = true;
+      this.flakes.position.y = c.y - 4;
+    }
     if (this.burner) for (const m of this.burner.smoke) {
       const u = (m.userData.t = (m.userData.t + dt * 0.06) % 1), k = this.burner.kiln;
       m.position.set(k.x + Math.sin(u * 9 + this.t * 0.3) * u * 1.4 + u * 3, k.y + u * 14, k.z + Math.cos(u * 7) * u * 1.2);

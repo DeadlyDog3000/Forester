@@ -71,16 +71,16 @@ export const AUDIO = {
 
   // a wooden door on iron hinges: the hinge creaks as it swings (stick and slip, rung through the
   // wood); shutting it, the creak is cut short by the leaf striking the frame and the latch dropping
-  door(open = true) {
-    const a = ctx(); if (!a) return;
+  door(open = true, vol = 1) {
+    const a = ctx(); if (!a || vol < 0.01) return;
     const t = a.currentTime, dur = open ? rnd(0.7, 1.0) : rnd(0.35, 0.5);
     const o = a.createOscillator(), g = a.createGain();
     o.type = "sawtooth";
     const f0 = rnd(26, 34);
     o.frequency.setValueAtTime(f0, t);
     for (let k = 1; k <= 6; k++) o.frequency.linearRampToValueAtTime(f0 * rnd(0.7, 1.6), t + dur * k / 6);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32, t + 0.06);
-    g.gain.setValueAtTime(0.3, t + dur * 0.75); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32 * vol, t + 0.06);
+    g.gain.setValueAtTime(0.3 * vol, t + dur * 0.75); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     // the wood's resonances
     for (const [fr, q, v] of [[480, 9, 1], [1150, 12, 0.7], [2300, 14, 0.4]]) {
       const f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = fr * rnd(0.92, 1.08); f.Q.value = q;
@@ -100,6 +100,17 @@ export const AUDIO = {
       ng.gain.setValueAtTime(0.0001, tt + 0.05); ng.gain.exponentialRampToValueAtTime(0.25, tt + 0.055); ng.gain.exponentialRampToValueAtTime(0.0001, tt + 0.1);
       n.connect(nf); nf.connect(ng); ng.connect(bus); n.start(tt + 0.05); n.stop(tt + 0.15);
     }
+  },
+
+  // one letter of dialogue: the smallest click, a little different each time
+  letter(vol = 1) {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime;
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = "square"; o.frequency.setValueAtTime(rnd(1500, 1900), t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.018 * vol, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
+    const f = a.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 3200;
+    o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.03);
   },
 
   // a line of dialogue arriving: a soft tick, like a page turned against a table

@@ -124,11 +124,13 @@ const SURF_GLSL = `
 `;
 const SURF_STRENGTH = "float dStrength[8] = float[8](0.75, 0.3, 0.85, 0.8, 0.95, 0.55, 0.8, 0.85);";
 
+export const SNOW = { value: 0 };
 export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto" } = {}) {
   const surf = SURFACE[surface] ?? -1;
   material.onBeforeCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
+    sh.uniforms.dSnow = SNOW;
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
@@ -140,7 +142,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         #endif
         vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround;" + DETAIL_GLSL + SURF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow;" + DETAIL_GLSL + SURF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         {
           vec3 p = vDWorld * dScale;
@@ -160,6 +162,11 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           // grime gathers low on walls and in the undersides
           float low = 1.0 - smoothstep(0.0, 1.4, vDWorld.y - dGround);
           diffuseColor.rgb *= 1.0 - low * 0.12 * (1.0 - an.y) - max(-vDNormal.y, 0.0) * 0.12;
+          // snow lies on whatever faces the sky, thinner where the noise says so
+          if (dSnow > 0.0) {
+            float lie = smoothstep(0.25, 0.75, vDNormal.y + (dNoise(vDWorld * 1.7) - 0.5) * 0.5) * dSnow;
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.96), lie);
+          }
         }`)
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);

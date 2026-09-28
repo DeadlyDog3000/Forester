@@ -93,6 +93,8 @@ export const ATMO = {
   mist:      { sun: [-0.2, 0.22, 0.9], sunC: 0xd0d0d8, sunI: 0.9, hemiS: 0xa4aebe, hemiG: 0x55504c, hemiI: 1.05, fog: 0x7a808a, near: 6, far: 70, top: 0x5a6472, mid: 0x8a909a, bot: 0x6a6c70, stars: 0, win: 0.9, exp: 1.3 },
   afternoon: { sun: [0.4, 0.62, 0.35], sunC: 0xfff0d0, sunI: 2.6, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.85, fog: 0xa8b8b0, near: 30, far: 200, top: 0x4a78b5, mid: 0xc9d6e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
   morning:   { sun: [-0.5, 0.42, 0.5], sunC: 0xffe6c0, sunI: 2.3, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.8, fog: 0xb8c4c0, near: 30, far: 200, top: 0x5a88c0, mid: 0xdde4e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
+  snowday:   { sun: [-0.3, 0.35, 0.6], sunC: 0xe8eef8, sunI: 1.2, hemiS: 0xd8e2f0, hemiG: 0x9098a0, hemiI: 1.1, fog: 0xc8d0da, near: 15, far: 130, top: 0x9aa8b8, mid: 0xd4dae2, bot: 0xb8c0c8, stars: 0, win: 0.6, exp: 1.1 },
+  snownight: { sun: [0.3, 0.7, -0.4], sunC: 0x9aaad0, sunI: 0.35, hemiS: 0x5a6890, hemiG: 0x2a3040, hemiI: 0.7, fog: 0x3a4458, near: 6, far: 45, top: 0x10141e, mid: 0x2a3244, bot: 0x1a1e28, stars: 0, win: 2.2, exp: 1.35, fill: 0.35 },
   firelight: { sun: [0.3, 0.6, -0.4], sunC: 0x7a8ac0, sunI: 0.45, hemiS: 0x46507a, hemiG: 0x241c14, hemiI: 0.65, fog: 0x0c0e16, near: 12, far: 100, top: 0x060812, mid: 0x1a1e34, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.35, fill: 0.42 },
 };
 function applyAtmo(a) {
@@ -503,6 +505,53 @@ function updateMarker() {
 //  the minimap: north up, you in the middle, forty metres each way
 // ---------------------------------------------------------------------------
 let mmT = 0, mmCtx = null;
+// ---- exploration: the map only shows what you have been near ----
+const EXPLORE_CELL = 6, EXPLORE_R = 30;
+let explored = {}, exploreDirty = false, exploreT = 0, exploreSaveT = 0;
+try { explored = Object.fromEntries(Object.entries(JSON.parse(localStorage.getItem("reckoning.explored.v1") || "{}")).map(([k, v]) => [k, new Set(v)])); } catch (e) { explored = {}; }
+function exploredSet() { const k = G.world && G.world.name; if (!k) return null; return explored[k] || (explored[k] = new Set()); }
+function updateExplore(dt) {
+  exploreT -= dt; exploreSaveT -= dt;
+  if (exploreT <= 0 && G.world && G.player) {
+    exploreT = 0.3;
+    const s = exploredSet(), p = G.player.pos, C = EXPLORE_CELL, n = Math.ceil(EXPLORE_R / C);
+    const cx = Math.floor(p.x / C), cz = Math.floor(p.z / C);
+    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+      if ((i * i + j * j) * C * C > EXPLORE_R * EXPLORE_R) continue;
+      const k = (cx + i) + "," + (cz + j);
+      if (!s.has(k)) { s.add(k); exploreDirty = true; }
+    }
+  }
+  if (exploreDirty && exploreSaveT <= 0) {
+    exploreSaveT = 3; exploreDirty = false;
+    try { localStorage.setItem("reckoning.explored.v1", JSON.stringify(Object.fromEntries(Object.entries(explored).map(([k, v]) => [k, [...v]])))); } catch (e) {}
+  }
+}
+G.forgetExplored = () => { explored = {}; try { localStorage.removeItem("reckoning.explored.v1"); } catch (e) {} };
+// cover what has not been seen with blank parchment, its edge soft as if the ink ran out
+let fogCv = null;
+function drawFog(c, X, Z, S) {
+  const s = exploredSet(); if (!s) return;
+  const W = c.canvas.width, H = c.canvas.height;
+  if (!fogCv) fogCv = document.createElement("canvas");
+  if (fogCv.width !== W || fogCv.height !== H) { fogCv.width = W; fogCv.height = H; }
+  const f = fogCv.getContext("2d");
+  f.globalCompositeOperation = "source-over"; f.filter = "none";
+  f.clearRect(0, 0, W, H);
+  fillPaper(f, W, H);
+  f.globalCompositeOperation = "destination-out";
+  f.filter = `blur(${Math.max(2, EXPLORE_CELL * S * 0.6)}px)`;
+  f.fillStyle = "#000";
+  const C = EXPLORE_CELL, r = C * S * 0.95;
+  for (const k of s) {
+    const [i, j] = k.split(",").map(Number);
+    const x = X((i + 0.5) * C), y = Z((j + 0.5) * C);
+    if (x < -r || y < -r || x > W + r || y > H + r) continue;
+    f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.fill();
+  }
+  c.drawImage(fogCv, 0, 0, W, H);
+}
+
 // the map, at any size: the world's own drawing, then buildings, people, the objective, and you
 export function drawMap(c, X, Z, S, big, cx, cz, radius) {
   const W = c.canvas.width, H = c.canvas.height, w = G.world, p = G.player.pos;
@@ -516,7 +565,9 @@ export function drawMap(c, X, Z, S, big, cx, cz, radius) {
     if (o.y1 >= 1.5) { c.fillRect(x, y, ww, hh); c.strokeRect(x, y, ww, hh); }
     else { c.fillStyle = "rgba(90,70,50,0.55)"; c.fillRect(x, y, ww, hh); c.fillStyle = TOWN; }
   }
-  if (big && w.mapLabels) w.mapLabels(c, X, Z, S);
+  // what you have not seen is still blank parchment
+  drawFog(c, X, Z, S);
+  if (big && w.mapLabels) w.mapLabels(c, X, Z, S, exploredSet());
   // people
   for (const a of w.actors) {
     if (!big && Math.hypot(a.pos.x - p.x, a.pos.z - p.z) > radius) continue;
@@ -567,6 +618,7 @@ export function setWorld(w) {
 //  the frame
 // ---------------------------------------------------------------------------
 export function frame(dt, skipRender) {
+  updateExplore(dt);
   window.__frame = frame;
   G.time += dt;
   const w = G.world;

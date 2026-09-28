@@ -10,13 +10,13 @@
 // time, so pausing pauses the story, and starting a chapter over bumps a
 // generation counter that makes every script from the old run fall silent.
 
-import { THREE, clamp, mat } from "./core.js";
+import { THREE, clamp, mat, Builder, MAT } from "./core.js";
 import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS } from "./woods.js";
-import { makeTorch, makeLantern, makeScroll, makeHalberd } from "./models.js";
+import { makeTorch, makeLantern, makeScroll, makeHalberd, P as PROPS } from "./models.js";
 
 /* global SFX */
 
@@ -151,6 +151,8 @@ export const CHAPTERS = [
   { n: 5, title: "Far, Far Away", kicker: "The road north-east", world: "woods", run: ch5 },
   { n: 6, title: "The Clearing", kicker: "The old woods", world: "woods", run: ch6 },
   { n: 7, title: "Seed Before Frost", kicker: "Part Two: Roots", world: "woods", run: ch7 },
+  { n: 8, title: "Martinmas", kicker: "Six weeks later", world: "woods", run: ch8 },
+  { n: 9, title: "The First Winter", kicker: "Nine days after", world: "woods", run: ch9 },
 ];
 
 // what is in your pockets in each chapter — the inventory (T) lists it
@@ -162,6 +164,8 @@ const PACK = {
   5: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more." }, { icon: "blackberries", n: 12, name: "Blackberries", note: "A handful, squashed. Three days of them." }],
   6: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more." }, { icon: "blackberries", n: 12, name: "Blackberries", note: "A handful, squashed. Three days of them." }],
   7: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }],
+  8: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }, { icon: "spade", name: "Henning's spade", note: "The handle split and bound with twine." }],
+  9: [{ icon: "key", name: "The house key", note: "To a door that is not yours any more. You keep it anyway." }, { icon: "spade", name: "Henning's spade", note: "The handle split and bound with twine." }],
 };
 
 export async function startChapter(n, opts = {}) {
@@ -575,6 +579,7 @@ class Watchman {
     this.lines = opts.lines || ["Who's there?", "Hm? ...Show yourself.", "Is somebody there?"];
     this.who = opts.look ? opts.look.name : "Watchman";
     this.range = opts.range || 9;
+    this.once = !!opts.once; this.onArrive = opts.onArrive; this.done = false;
     this.route = route; this.i = 0; this.waitT = opts.wait ?? 2; this.pause = 0;
     this.speed = opts.speed ?? 1.05;
     this.sweep = opts.sweep || 0; this.baseYaw = opts.yaw ?? 0; this.t = Math.random() * 10;
@@ -592,9 +597,11 @@ class Watchman {
     if (this.sus > 0.35) {
       a.path = [];
       a.targetYaw = Math.atan2(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z);
-    } else if (this.route.length > 1) {
+    } else if (this.route.length > 1 && !this.done) {
       if (!a.path.length) {
-        if (this.pause > 0) { this.pause -= dt; }
+        if (this.arrivedAt !== this.i) { this.arrivedAt = this.i; this.onArrive && this.onArrive(this.i); }
+        if (this.once && this.i === this.route.length - 1) this.done = true;
+        else if (this.pause > 0) { this.pause -= dt; }
         else { this.i = (this.i + 1) % this.route.length; a.walk([this.route[this.i]], this.speed); this.pause = this.waitT; }
       }
     } else if (this.sweep) {
@@ -627,7 +634,8 @@ async function ch4(w, opts) {
   const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], -24.6, 46.2, 0);
   const setup = () => {
     const guards = [
-      new Watchman(w, 91, [[-35.6, 45], [-35.6, 60]], { wait: 3, speed: 0.95, light: w.pool[3] }),
+      // his beat runs from just past the cart (it stands at -35.6, 46) up to the gate, never through it
+      new Watchman(w, 91, [[-34.4, 49], [-35.4, 59.6]], { wait: 3, speed: 0.95, light: w.pool[3] }),
       new Watchman(w, 92, [[-36.5, 64.6]], { yaw: Math.PI - 0.35, sweep: 0.8, light: w.pool[4] }),
       // and further out, the streets that lead away from the gate are walked too
       new Watchman(w, 94, [[-35.2, 38], [-35.2, 24]], { wait: 2.5, speed: 1.0, light: w.pool[5] }),
@@ -729,7 +737,7 @@ async function ch5(w) {
         told.add(n); barkQ(P.sib, fillFork(FORK_LINES[n][0], f));
         if (n === 0) tutor("map", "", [["J", "the map — every fork is on it"]], 7);
       }
-      if (on.branch && on.branch.n === n && on.i > 8 && (!called[n] || G.time - called[n] > 9)) { called[n] = G.time; bark(P.sib, fillFork(FORK_LINES[n][1], f), 3.2); }
+      if (on.branch && on.branch.n === n && on.i > 4 && (!called[n] || G.time - called[n] > 9)) { called[n] = G.time; bark(P.sib, fillFork(FORK_LINES[n][1], f), 3.2); }
     });
   });
   // bells behind you, fainter every time
@@ -1062,6 +1070,7 @@ async function ch7(w) {
   const door = [CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2];
   pl.place(door[0], door[1], CABIN.ry + Math.PI);
   const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  w.openTracks.add(3);
   const B = w.burner;
   const henning = spawn(HENNING, B.x, B.z, B.face);
   henning.person.setPose("armsCrossed");
@@ -1208,12 +1217,275 @@ async function ch7(w) {
   await wait(1.5);
   await fade(1, 3);
   SFX.fireLoop(false); SFX.insectLoop(false);
-  writeSave({ unlocked: 7, finishedCh7: true });
+  writeSave({ unlocked: 8, finishedCh7: true });
   await narrate("The rye came up green in three weeks, in three crooked rows.", 4);
-  await narrate("The first frost came a week after. We were ready for it — nearly.", 4.5);
-  await card("Next: VIII. The First Winter", "Forester: Reckoning", 4.5);
-  await narrate("The story continues. Thank you for playing.", 3.5);
-  G.toTitle && G.toTitle();
+  await narrate("And on Martinmas, a cart came up the road.", 3.5);
+  return startChapter(8);
+}
+
+// ---------------------------------------------------------------------------
+//  the homestead as it stands, for every chapter after the seed is sown
+// ---------------------------------------------------------------------------
+// growth: 0 bare earth, 1 green shoots, 2 knee-high, 3 ripe and gold
+function homestead(w, { stack = 6, growth = 1 } = {}) {
+  w.showCabin(); w.setStack(stack); w.openTracks.add(3);
+  for (const i of ((loadSave() || {}).clearing || {}).felled || []) { const t = w.fellable[i]; if (t) { t.state = "gone"; t.g.visible = false; t.col.disabled = true; stump(w, t); } }
+  const c = Math.cos(FIELD.ry), sn = Math.sin(FIELD.ry);
+  const field = new THREE.Group(); w.root.add(field);
+  const H = [0.12, 0.12, 0.45, 0.95][growth], C = [0x6a8a3a, 0x6a8a3a, 0x7a9a3e, 0xc8a850][growth];
+  for (const o of [-2.2, 0, 2.2]) {
+    const x = FIELD.x + o * c, z = FIELD.z - o * sn, y = w.heightAt(x, z);
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 7), mat(0x3e2e22, { surface: "stone" }));
+    soil.position.set(x, y + 0.02, z); soil.rotation.y = FIELD.ry; soil.receiveShadow = true; field.add(soil);
+    if (growth > 0) for (const f of [-0.5, 0, 0.5]) for (let k = -3; k <= 3; k += growth > 1 ? 0.3 : 0.5) {
+      const m = new THREE.Mesh(new THREE.ConeGeometry(growth > 1 ? 0.05 : 0.03, H, 4), mat(C, { surface: "needles" }));
+      m.position.set(x + f * c + k * sn, y + 0.08 + H / 2, z - f * sn + k * c); m.rotation.z = (Math.random() - 0.5) * 0.2; field.add(m);
+    }
+  }
+  return field;
+}
+// the fence of trees round the clearing's south edge, where two people could lie hidden
+const HIDE = { x: 35, z: -343 }, SIBHIDE = { x: 44, z: -339 };
+const TIPS_WOODS = ["Get into the trees and crouch with C. His lantern only reaches so far.", "Keep a trunk between you and the lantern.", "Don't move while he looks your way. Wait for him to turn.", "Crouched, you can only be seen close to."];
+
+// ===========================================================================
+//  VIII. MARTINMAS
+// ===========================================================================
+const KESSLER = { model: "townsman", name: "The charcoal buyer", coat: 0x4a4a52, legs: 0x2a2a2e, hat: "hat", hatColor: 0x1e1a18, seed: 88 };
+async function ch8(w, opts = {}) {
+  setAtmo("dusk"); G.bugs.setKind(null);
+  AUDIO.music(null); AUDIO.wind(true, 0.5);
+  const pl = G.player;
+  homestead(w, { stack: 6, growth: 1 });
+  w.lightFire(true);
+  pl.place(BLOCK.x - 1.2, BLOCK.z + 1, -Math.PI / 2);
+  const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIELD.x + 1.5, FIELD.z + 4, Math.PI);
+  sib.person.setPose("hammer");
+  // his cart, left where the road meets the clearing
+  const cartB = new Builder(); PROPS.cart(cartB, 29.2, -283, 0.2); const cart = cartB.build(); cart.position.y = w.heightAt(29.2, -283); cart.visible = false; w.root.add(cart);
+
+  if (!opts.retry) {
+    await wait(0.2);
+    const c = card("Martinmas", "VIII. Martinmas", 3.2);
+    await wait(1.2); fade(0, 2.4); await c;
+    await wait(2.5);
+    AUDIO.door(true, 0.25);
+    await wait(1.4);
+    sib.person.setPose("idle");
+    G.lockMove = true; lookAt(sib, 3); sib.facePlayer();
+    await say(P.sib, "Listen.");
+    AUDIO.door(true, 0.35);
+    await wait(1.2);
+    await say(P.sib, "A cart. On the road — coming this way. It's Martinmas. Henning said.");
+    await say(P.sib, "Put the fire out — kick earth over it. Then into the trees on the far side, and keep low. Don't move till he's gone.");
+    G.lockMove = false; look(null);
+  } else { fade(0, 1); }
+
+  // ---- the fire out ----
+  UI.objective("Put the fire out");
+  mark([FIRE.x, FIRE.z, w.cy + 0.6]);
+  let out = false;
+  const fi = w.addInteract({ x: FIRE.x, y: w.cy + 0.5, z: FIRE.z, reach: 2.4, hold: 1.4, label: "Kick earth over the fire",
+    onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.pickup(); }, use: () => { out = true; } });
+  await until(() => out);
+  w.removeInteract(fi); w.lightFire(false);
+  // ---- into the trees ----
+  UI.objective("Hide in the trees on the far side — keep out of the lantern light");
+  mark([HIDE.x, HIDE.z, w.cy + 0.8]);
+  sib.stopFollow(); sib.walkTo(SIBHIDE.x, SIBHIDE.z, 2.4);
+  tutor("hide", "", [["C", "crouch — only seen close to"], ["M", "keep the mouse"]], 7);
+  const t0 = G.time;
+  await until(() => Math.hypot(pl.pos.x - HIDE.x, pl.pos.z - HIDE.z) < 7 || G.time - t0 > 35);
+  mark(null);
+  UI.objective("Stay hidden until he goes");
+  // ---- the charcoal buyer ----
+  cart.visible = true;
+  const door = [CABIN.x + Math.sin(CABIN.ry) * 4, CABIN.z + Math.cos(CABIN.ry) * 4];
+  const route = [[30.5, -289], [31, -298], door, [FIELD.x + 2.5, FIELD.z + 1], [FIRE.x + 1.2, FIRE.z - 0.5], [STACK.x + 1.5, STACK.z + 1.5], [31, -298], [30, -284]];
+  const remarks = { 2: "Empty, the old man said. Somebody's mended it, though.", 3: "Rye. Somebody has sown rye.", 4: "...Still warm.", 5: "Fresh-cut, this." };
+  let creak = 0;
+  const k = new Watchman(w, 88, route, { look: KESSLER, once: true, wait: 3.2, speed: 1.0, range: 11, light: w.lightPool[1],
+    lines: ["Who's there?", "Someone there? Come out — I don't bite.", "Hm. A fox, is it?"],
+    onArrive: i => { if (remarks[i]) bark("The charcoal buyer", remarks[i], 3.2); } });
+  let caught = false;
+  const watch = onFrame(dt => {
+    UI.eye(Math.min(1, k.sus));
+    if (k.sus > 1 && !caught) caught = true;
+    creak -= dt; if (creak <= 0 && k.i < 2) { creak = 2.6; AUDIO.door(true, clamp(0.4 - Math.hypot(k.a.pos.x - pl.pos.x, k.a.pos.z - pl.pos.z) / 80, 0.05, 0.4)); }
+  });
+  const ok = await Promise.race([until(() => k.done).then(() => true), until(() => caught).then(() => false)]);
+  watch(); UI.eye(0);
+  if (!ok) {
+    G.lockMove = true;
+    bark("The charcoal buyer", "There. Two of you. Just as they said.", 2.5);
+    await wait(1.4);
+    await caughtScreen(TIPS_WOODS);
+    return startChapter(8, { retry: true });
+  }
+  k.a.remove(); cart.visible = false;
+  UI.objective(null);
+  await wait(2);
+  sib.walkTo(pl.pos.x + 1.2, pl.pos.z + 0.8, 1.4);
+  await wait(2.2);
+  G.lockMove = true; lookAt(sib, 2.5); sib.facePlayer();
+  await say(P.sib, "He counted everything. The cabin, the rye, the stack. Like a bailiff.");
+  await say(YOU(), "He said 'somebody'. He didn't say who.");
+  await say(P.sib, "Not yet.");
+  G.lockMove = false; look(null);
+
+  // ---- night: Henning comes up the road ----
+  await fade(1, 2);
+  setAtmo("firelight"); w.lightFire(true); SFX.fireLoop(true);
+  pl.place(FIRE.x - 1.9, FIRE.z + 0.3, Math.PI / 2 - 0.25); pl.seated = true;
+  sib.path = []; sib.person.sitting = 1; sib.person.setPose("sit"); sib.place(FIRE.x + 1.9, FIRE.z + 0.4, -Math.PI / 2); sib.faceTo(FIRE.x, FIRE.z);
+  const henning = spawn(HENNING, FIRE.x + 0.4, FIRE.z - 2.6, 0);
+  henning.faceTo(FIRE.x, FIRE.z);
+  look(new THREE.Vector3(henning.pos.x, w.cy + 1.5, henning.pos.z), 2);
+  await fade(0, 2);
+  await wait(1);
+  await say("Henning", "His name's Kessler. He buys charcoal for the smiths in Hamburg, and he sells what he hears to whoever pays for it.");
+  await say("Henning", "This year he asked about two children from the harbour. A grain merchant's two. There's money on them, he said.");
+  await say(YOU(), "What did you tell him?");
+  await say("Henning", "I told him the forester's cabin is empty. It is — as far as I know.");
+  await wait(1);
+  await say("Henning", "Now listen. Winter will be hard; the geese went over early. Get wood in — more than you think. And chink those walls with moss, or the wind will walk straight in and sit by your fire.");
+  await say(P.sib, "Why do you help us?");
+  await say("Henning", "I had a daughter. She'd be your age.");
+  await wait(1.5);
+  G.lockMove = true;
+  await fade(1, 3);
+  SFX.fireLoop(false); AUDIO.wind(false);
+  writeSave({ unlocked: 9 });
+  await narrate("Kessler did not come back. The snow came nine days after Martinmas.", 4.5);
+  return startChapter(9);
+}
+
+// ===========================================================================
+//  IX. THE FIRST WINTER
+// ===========================================================================
+async function ch9(w, opts = {}) {
+  setAtmo("snowday"); G.bugs.setKind(null);
+  AUDIO.music("woods"); AUDIO.wind(true, 0.9);
+  const pl = G.player;
+  const saved = (loadSave() || {}).winter || {};
+  const S = { stack: saved.stack ?? 12, wood: saved.wood || 0, moss: saved.moss || [], chinked: !!saved.chinked };
+  const persist = () => writeSave({ winter: { ...S } });
+  homestead(w, { stack: S.stack, growth: 1 });
+  w.setSnow(1, 0.35);
+  pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.5, CABIN.z + Math.cos(CABIN.ry) * 4.5, CABIN.ry + Math.PI);
+  const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  // split firewood, stacked against the cabin
+  const pile = new THREE.Group(); w.root.add(pile);
+  const setPile = n => {
+    pile.clear(); if (!n) return;
+    const b = new Builder(), c = Math.cos(CABIN.ry), sn = Math.sin(CABIN.ry);
+    const px = CABIN.x + 3.3 * c, pz = CABIN.z - 3.3 * sn;
+    for (let i = 0; i < n; i++) { const row = Math.floor(i / 4), col = i % 4; b.add(new THREE.CylinderGeometry(0.1, 0.1, 0.9, 6), 0x7a5634, px + (col - 1.5) * 0.22 * sn, w.cy + 0.1 + row * 0.19, pz + (col - 1.5) * 0.22 * c, Math.PI / 2, CABIN.ry, 0); }
+    pile.add(b.build(MAT.rough));
+  };
+  setPile(S.wood);
+  // moss under the snow on the rocks round the edge
+  const MOSS = [0.4, 1.3, 2.2, 3.4, 4.3, 5.4].map((a, i) => ({ i, x: CLEARING.x + Math.cos(a) * 19, z: CLEARING.z + Math.sin(a) * 19 }));
+  const mossObjs = {};
+  for (const m of MOSS) {
+    if (S.moss.includes(m.i)) continue;
+    const y = w.heightAt(m.x, m.z), b = new Builder();
+    b.add(new THREE.DodecahedronGeometry(0.7, 0), 0x6a665e, m.x, y + 0.2, m.z, 0.3, m.i, 0.2, 1.3, 0.6, 1.1, 0.06);
+    b.add(new THREE.SphereGeometry(0.4, 8, 6), 0x4e6a30, m.x + 0.3, y + 0.5, m.z, 0, 0, 0, 1.2, 0.35, 1, 0.1);
+    const o = b.build(MAT.rough); w.root.add(o); mossObjs[m.i] = o;
+  }
+
+  if (!opts.night) {
+    await wait(0.2);
+    const c = card("Nine days after Martinmas", "IX. The First Winter", 3.2);
+    await wait(1.2); fade(0, 2.4); await c;
+    if (!S.wood && !S.moss.length) {
+      G.lockMove = true; lookAt(sib, 3); sib.facePlayer();
+      await say(P.sib, "Henning was right. Look at it.");
+      await say(P.sib, "We need firewood — a lot of it. Split what's left on the stack, at the block.");
+      await say(P.sib, "And the walls. The wind comes through the gaps between the logs like they aren't there. There's moss on the rocks round the edge, under the snow. Stuff it into the chinks.");
+      G.lockMove = false; look(null);
+      tutor("split", "Put your back into it. Each log splits in two, and each half is an hour of warmth.", [["F", "hold at the block to split a log"]]);
+    }
+    const its = [];
+    its.push(w.addInteract({ x: BLOCK.x, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, hold: 2.2, label: () => `Split a log (${S.stack} on the stack)`, can: () => S.stack > 0 && S.wood < 12,
+      onHoldTick: (dt, t) => { if (Math.floor(t * 1.4) !== Math.floor((t - dt) * 1.4)) SFX.chop(); },
+      use: () => { S.stack--; S.wood = Math.min(12, S.wood + 2); w.setStack(S.stack); setPile(S.wood); SFX.build(); persist(); } }));
+    for (const m of MOSS) {
+      if (S.moss.includes(m.i)) continue;
+      const it = w.addInteract({ x: m.x, y: w.heightAt(m.x, m.z) + 0.5, z: m.z, reach: 2.4, hold: 1, label: "Pull the moss from under the snow",
+        use: () => { S.moss.push(m.i); w.root.remove(mossObjs[m.i]); w.removeInteract(it); SFX.pickup(); persist(); if (S.moss.length === 1) bark(P.sib, "Frozen stiff, but it'll soften by the fire."); } });
+      its.push(it);
+    }
+    const door = [CABIN.x + Math.sin(CABIN.ry) * 3.4, CABIN.z + Math.cos(CABIN.ry) * 3.4];
+    its.push(w.addInteract({ x: door[0], y: w.cy + 1.2, z: door[1], reach: 3, hold: 4, label: "Chink the walls with moss", can: () => S.moss.length >= 6 && !S.chinked,
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX.pickup(); },
+      use: () => { S.chinked = true; persist(); bark(P.sib, "Listen. You can't hear the wind in the walls now."); } }));
+    const obj = onFrame(() => {
+      const parts = [];
+      if (S.wood < 12) parts.push(`Split firewood — ${S.wood} of 12`);
+      if (!S.chinked) parts.push(S.moss.length < 6 ? `Gather moss — ${S.moss.length} of 6` : "Chink the cabin walls with the moss");
+      UI.objective(parts.join(" · "));
+    });
+    await until(() => S.wood >= 12 && S.chinked);
+    obj(); its.forEach(i => w.removeInteract(i));
+    UI.objective(null);
+    await wait(1.5);
+    bark(P.sib, "Look at the sky. Get inside the firelight — it's coming.", 3);
+    await wait(3);
+  }
+
+  // ---- the blizzard night: keep the fire alive until dawn ----
+  G.lockMove = true;
+  await fade(1, 2);
+  setAtmo("snownight"); w.setSnow(1, 1); AUDIO.wind(true, 1.5); SFX.fireLoop(true);
+  w.lightFire(true);
+  let fire = 0.8, wood = 12, night = 0;
+  const DAWN = 85;
+  setPile(wood);
+  pl.place(FIRE.x - 1.9, FIRE.z + 0.3, Math.PI / 2 - 0.25);
+  sib.path = []; sib.person.sitting = 1; sib.person.setPose("grieve"); sib.place(FIRE.x + 1.9, FIRE.z + 0.4, -Math.PI / 2); sib.faceTo(FIRE.x, FIRE.z);
+  await fade(0, 2);
+  G.lockMove = false;
+  tutor("feed", "Don't let it go out. Feed it before it's embers — not after.", [["F", "feed the fire"]]);
+  const feed = w.addInteract({ x: FIRE.x, y: w.cy + 0.6, z: FIRE.z, reach: 2.8, label: () => `Feed the fire (${wood} split logs)`, can: () => wood > 0,
+    use: () => { wood--; fire = Math.min(1, fire + 0.32); setPile(wood); SFX.build(); } });
+  const lines = [[12, "I can't feel my feet."], [30, "Tell me about the harbour. Anything. The smell of it."], [50, "Father used to say the winter's longest just before it turns."], [70, "It's getting lighter. Isn't it? Say it is."]];
+  let gust = 6, failed = false;
+  const tick = onFrame(dt => {
+    night += dt;
+    gust -= dt; let drop = 0.043 * dt;
+    if (gust <= 0) { gust = 5 + Math.random() * 7; drop += 0.08; }
+    fire = Math.max(0, fire - drop);
+    w.setFire(fire);
+    while (lines.length && night > lines[0][0]) bark(P.sib, lines.shift()[1], 3.5);
+    const left = Math.max(0, DAWN - night);
+    UI.objective(`Keep the fire alive until dawn — ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")} · fire ${Math.round(fire * 100)}%`);
+    if (fire <= 0.001) failed = true;
+  });
+  await until(() => failed || night >= DAWN);
+  tick(); w.removeInteract(feed); UI.objective(null);
+  if (failed) {
+    G.lockMove = true;
+    await fade(1, 2);
+    await narrate("The fire went out. The cold came in, and it did not leave.", 4);
+    writeSave({ winter: { ...S, wood: 12 } });
+    return startChapter(9, { night: true });
+  }
+  // ---- dawn ----
+  G.lockMove = true;
+  setAtmo("snowday"); w.setSnow(1, 0.1); AUDIO.wind(true, 0.4);
+  look(new THREE.Vector3(sib.pos.x, w.cy + 1.1, sib.pos.z), 2);
+  await wait(1.5);
+  await say(P.sib, "...It's light.");
+  await say(YOU(), "It's light.");
+  await wait(1.5);
+  await fade(1, 3);
+  SFX.fireLoop(false); AUDIO.wind(false);
+  writeSave({ unlocked: 10, winter: { ...S, done: true } });
+  await narrate("It was a long winter. We ate the turnips, and then we ate less.", 4.5);
+  await narrate("But when the snow went, we were still there. And so was the rye.", 4.5);
+  return startChapter(10);
 }
 
 function makeSibAxe() {

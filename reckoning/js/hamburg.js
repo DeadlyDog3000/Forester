@@ -8,11 +8,11 @@
 // the houses along them are generated, from a fixed seed, so it is the same
 // city every time.
 
-import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture, SNOW } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
-import { water, label, INK } from "./map.js";
+import { water, label, INK, seen } from "./map.js";
 
 // ---------------------------------------------------------------------------
 //  ground textures, painted at load
@@ -158,6 +158,7 @@ export class Hamburg extends WorldBase {
   constructor() {
     super(Collision);
     this.name = "hamburg";
+    SNOW.value = 0;
     this.bounds = { x0: -61.5, x1: 61.5, z0: -45.4, z1: 67.4 };
     const root = this.root;
     const r = rng(1683);
@@ -542,10 +543,11 @@ export class Hamburg extends WorldBase {
     const wz = Z(-46); if (wz > 0) water(c, 0, 0, W, Math.min(H, wz));
     const gz = Z(70.4); if (gz < H) { c.fillStyle = "rgba(120,140,80,0.35)"; c.fillRect(0, Math.max(0, gz), W, H); }
   }
-  mapLabels(c, X, Z) {
+  mapLabels(c, X, Z, S, set) {
+    // the river is known to everyone; the rest only once you have been there
     label(c, "The Elbe", X(0), Z(-70), 20);
-    label(c, "the harbour", X(-20), Z(-49), 12);
-    label(c, "fields", X(0), Z(80), 14);
+    if (seen(set, -20, -44)) label(c, "the harbour", X(-20), Z(-49), 12);
+    if (seen(set, 0, 70)) label(c, "fields", X(0), Z(80), 14);
   }
   get mapTitle() { return "Hamburg, 1683"; }
   get mapBounds() { const b = this.bounds; return { x0: b.x0 - 8, x1: b.x1 + 8, z0: b.z0 - 22, z1: b.z1 + 14 }; }

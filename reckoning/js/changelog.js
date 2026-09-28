@@ -9,6 +9,14 @@ export const CHANGELOG = [
   {
     v: "0.5", date: "28 September 2026", title: "Part Two begins: Seed Before Frost",
     items: [
+      "Chapter VIII, Martinmas: a cart comes up the road at dusk. Put out the fire, get into the trees, and keep out of the charcoal buyer's lantern while he counts everything you have. Then Henning comes to the fire with a name, and a warning.",
+      "Chapter IX, The First Winter: snow on the clearing, on the roof and on every bough. Split firewood, pull moss from under the snow to chink the walls — and then keep the fire alive through a blizzard night until dawn.",
+      "Snow: it lies on whatever faces the sky, and falls, lightly or in a blizzard.",
+      "The map is explored as you go: what you have not seen is blank parchment, and the ink spreads as you walk. What you have seen is remembered.",
+      "Wrong turns on the road are barred a few steps in; your brother or sister still tells you why.",
+      "Dialogue and narration write themselves out a letter at a time, each with a small click. Press Space once to finish a line, again to move on.",
+      "Trees now hide you from anyone looking for you.",
+      "Fixed: the watchman at the marsh gate walked straight into the cart.",
       "A new chapter, VII. Seed Before Frost, the first of Part Two: Roots. The morning after the cabin stands, you carry wood down the smoking track to the charcoal burner's camp and trade it for rye seed and a spade — if he will trade with a stranger who talks like Hamburg. Then dig your first field beside the cabin, and sow it before the frost.",
       "Henning, the charcoal burner, and his camp: a kiln smoking under its turf, his lean-to, his woodpile, at the end of the fourth fork on the road.",
       "Chapters you have not reached yet are no longer shown in the Chapters list at all.",

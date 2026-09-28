@@ -43,7 +43,7 @@ export const UI = {
   // A line of narration on black, the way the first game told its opening.
   async narrate(text, secs) {
     const n = $("narration");
-    n.textContent = text;
+    this.typeInto(n, text, { cps: 34, click: 0.7 });
     n.classList.remove("hidden");
     n.style.opacity = 0; void n.offsetWidth;
     n.style.transition = "opacity 1s ease"; n.style.opacity = 1;
@@ -54,20 +54,37 @@ export const UI = {
   },
 
   // Blocking dialogue: resolves when the player moves it on.
+  // write text into an element a letter at a time, with a small click for each, a breath after
+  // commas and full stops; returns { done() finishes it at once, typing }
+  typeInto(el, text, { cps = 42, click = 1 } = {}) {
+    clearTimeout(el._typer);
+    el.textContent = "";
+    let i = 0;
+    const next = () => {
+      if (i >= text.length) return;
+      const ch = text[i++];
+      el.textContent = text.slice(0, i);
+      if (click && ch.trim() && window.__audio) window.__audio.letter(click);
+      el._typer = setTimeout(next, (1000 / cps) * (/[.!?]/.test(ch) ? 7 : /[,;:—]/.test(ch) ? 3.5 : 1));
+    };
+    next();
+    return { done() { clearTimeout(el._typer); el.textContent = text; i = text.length; }, get typing() { return i < text.length; } };
+  },
   say(name, text, cls = "") {
     const d = $("dialog");
     $("dlgName").textContent = name || "";
     $("dlgName").className = "dlg-name " + cls;
-    $("dlgText").textContent = text;
     $("dlgText").classList.toggle("italic", !name);
     d.classList.remove("hidden");
     this.dialogOpen = true;
-    window.__audio && window.__audio.tick();
+    const typer = this.typeInto($("dlgText"), text);
     const now = () => (window.G ? window.G.time : performance.now() / 1000);
     const shownAt = now();
     return new Promise(res => {
       this._advance = () => {
         if (now() - shownAt < 0.25) return false;   // no skipping by a held key
+        // the first press finishes the line; the next moves on
+        if (typer.typing) { typer.done(); return false; }
         d.classList.add("hidden");
         this.dialogOpen = false;
         this._advance = null;
@@ -77,13 +94,13 @@ export const UI = {
     });
   },
   advance() { return this._advance ? this._advance() : false; },
-  closeDialog() { if (this._advance) { $("dialog").classList.add("hidden"); this.dialogOpen = false; const a = this._advance; this._advance = null; } },
+  closeDialog() { clearTimeout($("dlgText")._typer); if (this._advance) { $("dialog").classList.add("hidden"); this.dialogOpen = false; const a = this._advance; this._advance = null; } },
 
   // Non-blocking subtitle: things said while you walk.
   bark(name, text, secs) {
     const b = $("bark");
     $("barkName").textContent = name ? name + ":" : "";
-    $("barkText").textContent = text;
+    this.typeInto($("barkText"), text, { cps: 48, click: 0.55 });
     $("barkText").classList.toggle("italic", !name);
     b.classList.remove("hidden");
     b.style.opacity = 1;

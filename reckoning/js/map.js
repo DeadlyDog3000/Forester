@@ -54,6 +54,8 @@ export function water(c, x, y, w, h) {
   for (let yy = y + 4; yy < y + h; yy += 6) for (let xx = x + ((yy / 6) % 2) * 5; xx < x + w; xx += 12) { c.beginPath(); c.moveTo(xx, yy); c.quadraticCurveTo(xx + 2.5, yy - 2, xx + 5, yy); c.stroke(); }
 }
 
+// has this spot been seen? (the explored set holds 6 m cells as "i,j")
+export const seen = (set, x, z) => !set || set.has(Math.floor(x / 6) + "," + Math.floor(z / 6));
 export function label(c, text, x, y, size = 13, color = INK, italic = true) {
   c.font = `${italic ? "italic " : ""}${size}px ${SERIF}`;
   c.textAlign = "center"; c.textBaseline = "middle";
