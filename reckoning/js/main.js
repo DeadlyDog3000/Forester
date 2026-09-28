@@ -85,16 +85,17 @@ function setFreeLook(on) {
   input.freeLook = on;
   document.body.style.cursor = on ? "none" : "";
 }
+// take the mouse; where the browser refuses the lock, look with a hidden free cursor instead
 function lock() {
   const el = renderer.domElement;
   try { const p = el.requestPointerLock && el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  setTimeout(() => { if (!document.pointerLockElement && G.mode === "play") setFreeLook(true); }, 250);
 }
 // M: lock the mouse, or where the browser refuses the lock, look with a hidden free cursor
 function toggleMouse() {
   if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); return; }
   if (input.freeLook) { setFreeLook(false); return; }
   lock();
-  setTimeout(() => { if (!document.pointerLockElement && G.mode === "play") setFreeLook(true); }, 250);
 }
 function play(chapter, opts) {
   AUDIO.init();
@@ -167,6 +168,8 @@ document.addEventListener("pointerlockchange", () => {
 });
 addEventListener("keydown", e => {
   if (e.code === "Escape" && G.mode === "pause" && !document.pointerLockElement) { /* the browser ate the first Escape */ }
+  // with no lock to lose, Escape has to pause by hand
+  if (e.code === "Escape" && G.mode === "play" && input.freeLook) pause();
   if (e.code === "KeyP" && G.mode === "play") { document.exitPointerLock && document.exitPointerLock(); pause(); }
   // M takes the mouse into the game, or gives it back
   if (e.code === "KeyM" && !e.repeat) {
@@ -175,7 +178,7 @@ addEventListener("keydown", e => {
   }
 });
 // a click on the world while playing re-takes the mouse
-renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement) lock(); });
+renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !input.freeLook) lock(); });
 
 // ---- the loop ----
 let last = performance.now();
