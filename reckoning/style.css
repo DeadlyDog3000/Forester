@@ -82,7 +82,7 @@ kbd { display: inline-block; min-width: 26px; padding: 3px 7px; border: 1px soli
 #markerDist { position: absolute; left: -30px; top: 12px; width: 60px; text-align: center; font: 600 11px var(--sans); color: var(--ink); text-shadow: 0 1px 2px #000; }
 #marker.edge .mk-diamond { opacity: 0.6; }
 
-#stamina { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); width: 220px; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--edge); overflow: hidden; }
+#stamina { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); width: min(460px, 70vw); height: 9px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--edge); overflow: hidden; }
 #stamina .st-fill { height: 100%; width: calc(var(--s, 1) * 100%); background: var(--gold); transition: width 0.1s linear; }
 #stamina.low .st-fill { background: #e0503a; }
 

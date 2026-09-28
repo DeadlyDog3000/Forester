@@ -11,7 +11,6 @@ import { G, Player, frame, setAtmo, input } from "./engine.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave } from "./story.js";
-import { VOICE } from "./voice.js";
 import { CHANGELOG } from "./changelog.js";
 import { loadModels } from "./models.js";
 
@@ -39,14 +38,13 @@ function applySettings() {
   }
   renderer.setPixelRatio(low ? Math.min(devicePixelRatio, 1) * 0.8 : Math.min(devicePixelRatio, 1.75));
   renderer.setSize(innerWidth, innerHeight);
-  $("setVoices").checked = s.voices !== false; VOICE.enabled = s.voices !== false; if (!VOICE.enabled) VOICE.stop();
   $("sensVal").textContent = (+s.sens).toFixed(2); $("fovVal").textContent = s.fov + "°"; $("volVal").textContent = Math.round(s.volume * 100) + "%";
 }
 for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true], ["setVol", "volume", true]]) {
   $(id).addEventListener("input", e => { G.settings[key] = num ? +e.target.value : e.target.value; applySettings(); G.saveSettings(); });
 }
 $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.value; applySettings(); G.saveSettings(); });
-for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setThird", "third"], ["setVoices", "voices"]]) {
+for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setThird", "third"]]) {
   $(id).addEventListener("change", e => { G.settings[key] = e.target.checked; applySettings(); G.saveSettings(); });
 }
 
@@ -110,7 +108,6 @@ function play(chapter, opts) {
   screen(null);
   $("menus").classList.remove("backdrop");
   UI.show("hud", true);
-  VOICE.narratorGender = G.who === "brother" ? "m" : "f";
   G.player.setModel(LOOKS[G.who]);
   G.player.model.scaleBase = LOOKS[G.who].scale;
   lock();
@@ -219,7 +216,6 @@ function pause() {
   G.mode = "pause";
   setFreeLook(false);
   showInventory(false);
-  VOICE.stop();
   SFX.pauseAll && SFX.pauseAll(true);
   back = "pause";
   screen("pause");

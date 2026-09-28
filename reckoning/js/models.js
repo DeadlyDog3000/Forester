@@ -228,7 +228,11 @@ export async function loadModels(base = "models/") {
   _clone = SU.clone;
   const loader = new GLTFLoader();
   await Promise.all(keys.map(async k => {
-    try { MODELS[k] = await loader.loadAsync(base + list[k]); }
+    try {
+      MODELS[k] = await loader.loadAsync(base + list[k]);
+      // the same grain and weathering as everything built in code
+      MODELS[k].scene.traverse(o => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial && !o.material.userData.detail) { o.material.userData.detail = true; addDetail(o.material, { scale: 2, amount: 0.22, grain: 0.6 }); } });
+    }
     catch (e) { console.warn("Reckoning: could not load model", k, list[k], e); }
   }));
 }

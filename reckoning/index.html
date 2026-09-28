@@ -113,7 +113,6 @@
         </label>
         <label class="check"><input id="setInvert" type="checkbox"> Invert mouse Y</label>
         <label class="check"><input id="setMusic" type="checkbox"> Music</label>
-        <label class="check"><input id="setVoices" type="checkbox"> Voices <em>(spoken by your browser)</em></label>
         <label class="check"><input id="setThird" type="checkbox"> Over-the-shoulder camera <em>(V switches in play)</em></label>
       </div>
       <button class="btn ghost" data-back>Back</button>
@@ -162,7 +161,7 @@
   <div id="loading">Loading…</div>
 
   <script>
-    // ?mute: no sound at all — effects, music and voices — for testing without waking the house
+    // ?mute: no sound at all — effects and music — for testing without waking the house
     if (/[?&]mute\b/.test(location.search)) {
       const A = window.AudioContext || window.webkitAudioContext;
       if (A) { class Silent extends A { constructor(o) { super(o); super.suspend(); } resume() { return Promise.resolve(); } } window.AudioContext = window.webkitAudioContext = Silent; }
