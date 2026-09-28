@@ -28,6 +28,7 @@ export const CHANGELOG = [
       "The log stack by the cabin shows how full the store really is, and making furniture says what it cost.",
       "Tasks already done come off the board: rye reaped by the farmers counts as reaped, and a cabin with room already standing takes Jan and Liesel in.",
       "Press G for the government — the game tells you so, once you have a settlement.",
+      "Paths: choose Path in the plans (B) and lay a trodden way between the houses a strip at a time, free — the plan stays up for the next strip until you press Esc. They turn to cobbles once the town is brick, and you hear the difference underfoot.",
       "Right-click picks things up again with the bow out (arrows too); it only draws when you are not looking at something to take.",
     ],
   },

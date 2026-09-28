@@ -674,6 +674,7 @@ export class Woods extends WorldBase {
   // what is underfoot, for the sound of it
   surfaceAt(x, z) {
     if (this.insideCabin(x, z)) return "wood";
+    if (G.town && G.town.pathAt && G.town.pathAt(x, z)) return G.town.tierLevel >= 3 ? "stone" : "dirt";
     if (SNOW.value > 0.4) return "snow";
     if (this.anyRoadDist(x, z).d < 1.6) return "dirt";
     if (Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 3) return "grass";

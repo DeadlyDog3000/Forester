@@ -36,6 +36,7 @@ export const BUILDINGS = {
   forge:    { name: "Forge", cost: 14, mats: { stone: 10 }, model: "town/forge", tiers: true, w: 8, d: 6, icon: "tools", note: "A smith makes iron tools: everyone who has one works a quarter faster." },
   market:   { name: "Market", cost: 20, mats: { planks: 6 }, model: "town/market", tiers: true, w: 8.6, d: 10, icon: "coin", note: "Sells what you have too much of, every day, for DM (Deutsche Mark)." },
   townhall: { name: "Town hall", cost: 30, mats: { stone: 12, planks: 10 }, model: "town/townhall", tiers: true, w: 9.6, d: 10, icon: "cabin", note: "A seat for the town, and a charter: without one, no town builds as a city does." },
+  path:     { name: "Path", cost: 0, w: 2.2, d: 3.4, path: true, icon: "stone", note: "A trodden way between the houses, laid a strip at a time — free. Cobbled once the town is brick." },
   church:   { name: "Church", cost: 24, mats: { stone: 10 }, model: "town/church", tiers: true, w: 7, d: 13, icon: "cabin", note: "Somewhere to pray, and to bury, and to be married. People are happier with one." },
 };
 // what each work does with a shift: where, how long, what it takes from the stores and what it puts back
@@ -84,6 +85,8 @@ const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawy
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
 const SFX = () => window.SFX || { chop() {}, build() {}, pickup() {}, hammer() {}, treeFall() {}, timberCrack() {} };
 
+// the stuff of a path: trodden earth, then cobbles
+const PATH_MAT = {};
 // ---- the sign over a building site: what it still needs, in icons and numbers ----
 const SITE_ICON = { store: "../assets/sprites/items/logs.png", stone: "../assets/sprites/items/stone.png", planks: "art/item_door.png",
   bricks: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", tools: "../assets/sprites/items/tool_iron.png" };
@@ -216,6 +219,16 @@ export class Town {
   has(type) { return this.S.buildings.some(b => b.done && b.type === type); }
   count(type) { return this.S.buildings.filter(b => b.done && b.type === type).length; }
 
+  // on a path? (for footsteps)
+  pathAt(x, z) {
+    for (const b of this.S.buildings) {
+      if (b.type !== "path") continue;
+      const dx = x - b.x, dz = z - b.z, c = Math.cos(b.ry), s2 = Math.sin(b.ry);
+      const lx = dx * c - dz * s2, lz = dx * s2 + dz * c;
+      if (Math.abs(lx) < 1.15 && Math.abs(lz) < 1.9) return true;
+    }
+    return false;
+  }
   // ---- room: the settlement's edge, and growing it ----
   get clearR() { return CLEARING.r + this.S.expand * RING; }
   // trees still standing on ground marked to be cleared
@@ -233,7 +246,7 @@ export class Town {
     return true;
   }
   // is it time? when the buildings have filled what there is
-  needsRoom() { return this.S.buildings.filter(b => b.type !== "field").length >= 7 + this.S.expand * 5 && !this.toClear().length; }
+  needsRoom() { return this.S.buildings.filter(b => b.type !== "field" && b.type !== "path").length >= 7 + this.S.expand * 5 && !this.toClear().length; }
 
   // ---- knowledge: Forester's tech tree (gov.js), researched with DM and time ----
   knows(id) { return this.S.tech.done.includes(id); }
@@ -284,7 +297,14 @@ export class Town {
     if (g) { w.root.remove(g); if (g.userData.col) g.userData.col.disabled = true; }
     g = new THREE.Group(); g.position.set(b.x, w.heightAt(b.x, b.z), b.z); g.rotation.y = b.ry;
     if (b.type === "field") this.fieldVis(g, b);
-    else if (b.done) {
+    else if (b.type === "path") {
+      const cob = this.tierLevel >= 3;
+      PATH_MAT.dirt ??= new THREE.MeshStandardMaterial({ map: groundTexture("dirt", 1), color: 0xb8a48c, roughness: 1 });
+      PATH_MAT.cob ??= new THREE.MeshStandardMaterial({ map: groundTexture("cobbles", 1), roughness: 0.95 });
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(def.w, 0.06, def.d + 0.4), cob ? PATH_MAT.cob : PATH_MAT.dirt);
+      strip.position.y = 0.02; strip.receiveShadow = true; g.add(strip);
+      g.userData.cob = cob;
+    } else if (b.done) {
       const key = modelKey(b), m = modelCopy(key);
       if (m) g.add(m.scene);
       // (the woodshed's own logs are drawn from the store, not always full)
@@ -349,7 +369,13 @@ export class Town {
     const def = BUILDINGS[type], w = this.w;
     const r = Math.hypot(def.w, def.d) / 2;
     if (Math.hypot(x - CLEARING.x, z - CLEARING.z) > this.clearR + 6 - r * 0.5) return false;
-    for (const b of this.S.buildings) { const d2 = BUILDINGS[b.type]; if (Math.hypot(b.x - x, b.z - z) < (Math.hypot(d2.w, d2.d) / 2 + r) * 0.8) return false; }
+    if (def.path) {
+      // a path strip: anywhere open — up to a door, beside a field, onto another strip — but not through a building or a tree
+      for (const b of this.S.buildings) { if (b.type === "path" || b.type === "field") continue; const d2 = BUILDINGS[b.type]; if (Math.hypot(b.x - x, b.z - z) < Math.hypot(d2.w, d2.d) / 2 * 0.75) return false; }
+      for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < 1.1) return false;
+      return Math.hypot(FIRE.x - x, FIRE.z - z) > 1.8 && Math.hypot(CABIN.x - x, CABIN.z - z) > 3.2;
+    }
+    for (const b of this.S.buildings) { if (b.type === "path") continue; const d2 = BUILDINGS[b.type]; if (Math.hypot(b.x - x, b.z - z) < (Math.hypot(d2.w, d2.d) / 2 + r) * 0.8) return false; }
     for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < r) return false;
     for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.6], [STACK.x, STACK.z, 2], [BLOCK.x, BLOCK.z, 1.4], [FIRE.x, FIRE.z, 2.2]]) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
     if (this.opts.keepClear) for (const [px, pz, pr] of this.opts.keepClear) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
@@ -371,24 +397,27 @@ export class Town {
     edge.position.y = 0.05; ghost.add(edge);
     w.root.add(ghost);
     let ry = CABIN.ry, x = 0, z = 0, ok = false;
-    UI.keys([["Click", "set it here"], ["R", "turn it"], ["Esc", "put the plan away"]], 9);
+    if (!def.path || !this._pathKeys) UI.keys(def.path ? [["Click", "lay a strip"], ["R", "turn it"], ["Esc", "done"]] : [["Click", "set it here"], ["R", "turn it"], ["Esc", "put the plan away"]], 9);
+    if (def.path) this._pathKeys = true;
     return new Promise(res => {
       const input = G.input;
       const tick = () => {
-        const f = pl.forward(), d = 4 + Math.max(def.w, def.d) / 2;
+        const f = pl.forward(), d = def.path ? 3 : 4 + Math.max(def.w, def.d) / 2;
         x = pl.pos.x + f.x * d; z = pl.pos.z + f.z * d;
         if (input.hit("KeyR")) ry += Math.PI / 4;
         ok = this.fits(type, x, z, ry);
         ghost.position.set(x, w.heightAt(x, z), z); ghost.rotation.y = ry;
         const col = ok ? 0x7fe07a : 0xe0503a; tint.color.setHex(col); edge.material.color.setHex(col);
-        if ((input.click || input.hit("KeyF")) && ok) { done({ type, x, z, ry, logs: 0, dug: 0, done: type === "field" ? false : false }); }
+        if ((input.click || input.hit("KeyF")) && ok) { done({ type, x, z, ry, logs: 0, dug: 0, done: !!def.path }); }
         if (input.hit("Escape")) done(null);
       };
       const done = b => {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
         w.root.remove(ghost); this.planning = null;
-        if (b) { this.S.buildings.push(b); this.show(b); this.site(b); this.persist(); SFX().build(); }
+        if (b) { this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.persist(); SFX().build(); }
         res(b);
+        // (a path goes on: the next strip is ready to lay until you put the plan away)
+        if (b && def.path) setTimeout(() => { if (!this.planning && !this.stopped) this.plan("path"); }, 0);
       };
       this.planning = { cancel: () => done(null) };
       G.onFrame.push(tick);
@@ -519,6 +548,7 @@ export class Town {
     const lvl = this.tierLevel, w = this.w;
     if (this.streetLvl === lvl) return;
     this.streetLvl = lvl;
+    for (const b of this.S.buildings) if (b.type === "path" && this.vis.get(b) && this.vis.get(b).userData.cob !== (lvl >= 3)) this.show(b);
     if (this.streets) { w.root.remove(this.streets); this.streets = null; }
     if (lvl < 3) return;
     const g = new THREE.Group(), R = CLEARING.r - 2;
