@@ -207,3 +207,8 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); }
   #dlgText { font-size: 18px; }
   .btn { min-width: 220px; }
 }
+
+/* a choice with no typing: one button for each answer */
+#askChoices { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+#askChoices:empty { display: none; }
+#askChoices .btn { width: 100%; }

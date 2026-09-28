@@ -141,7 +141,7 @@ function buildChapters() {
     if (c.n > u) continue;             // what you have not reached yet is not shown at all
     const b = document.createElement("button");
     b.className = "chapter" + (c.n > u ? " locked" : "");
-    b.innerHTML = `<span class="ch-n">${["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"][c.n - 1]}<small>(${c.n})</small></span><span class="ch-t">${c.title}</span><span class="ch-k">${c.n > u ? "Not yet reached" : c.kicker}</span>`;
+    b.innerHTML = `<span class="ch-n">${["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV"][c.n - 1]}<small>(${c.n})</small></span><span class="ch-t">${c.title}</span><span class="ch-k">${c.n > u ? "Not yet reached" : c.kicker}</span>`;
     b.disabled = c.n > u;
     b.onclick = () => { G.who = s.who || "brother"; if (c.n === 6 && s.clearing && s.clearing.done) writeSave({ clearing: {} }); play(c.n); };
     list.appendChild(b);
@@ -251,6 +251,20 @@ setInterval(() => {
   const S = t.S;
   tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
 }, 300);
+// a question with set answers; resolves with the index of the one chosen
+G.choose = (title, options) => new Promise(res => {
+  $("askTitle").textContent = title;
+  $("askInput").style.display = "none"; $("askOk").style.display = "none";
+  $("askChoices").innerHTML = options.map((o, i) => `<button class="btn" data-i="${i}">${esc(o)}</button>`).join("");
+  UI.show("ask", true);
+  if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); }
+  setFreeLook(false);
+  for (const b of $("askChoices").querySelectorAll("button")) b.onclick = () => {
+    UI.show("ask", false); $("askChoices").innerHTML = ""; $("askInput").style.display = ""; $("askOk").style.display = "";
+    if (G.mode === "play") lock();
+    res(+b.dataset.i);
+  };
+});
 // a question with a written answer; resolves with the text
 G.ask = (title, value = "") => new Promise(res => {
   $("askTitle").textContent = title; $("askInput").value = value;

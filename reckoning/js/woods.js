@@ -624,6 +624,15 @@ export class Woods extends WorldBase {
     this.homeLight = new THREE.PointLight(0xffc48a, 0, 7.5, 1.4); this.homeLight.position.set(lx, this.cabinY + 2.3, lz); this.root.add(this.homeLight);
     this.setFurniture(null);
   }
+  // his name, cut into the charred beam they kept at the corner
+  carveBeam() {
+    if (this.carved) return;
+    this.carved = true;
+    const b = new Builder(), [x, z] = this.cabinToWorld(-2.55, 3.22), c = Math.cos(CABIN.ry), s = Math.sin(CABIN.ry);
+    b.box(0.22, 0.6, 0.02, x, this.cabinY + 1.35, z, 0xb8925e, CABIN.ry);
+    for (let i = 0; i < 6; i++) b.box(0.14 - (i % 3) * 0.03, 0.022, 0.02, x + s * 0.012 + (i % 2 ? 0.02 : -0.01) * c, this.cabinY + 1.14 + i * 0.075, z + c * 0.012 - (i % 2 ? 0.02 : -0.01) * s, 0x3a2616, CABIN.ry);
+    this.root.add(b.build(MAT.rough));
+  }
   setCabinDoor(open, silent = false) {
     if (open === this.doorOpen) return;
     this.doorOpen = open;

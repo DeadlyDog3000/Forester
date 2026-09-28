@@ -156,7 +156,9 @@ export const CHAPTERS = [
   { n: 9, title: "The First Winter", kicker: "Nine days after", world: "woods", run: ch9 },
   { n: 10, title: "The Stranger", kicker: "Spring", world: "woods", run: ch10 },
   { n: 11, title: "Forester", kicker: "High summer", world: "woods", run: ch11 },
-  { n: 12, title: "Free Play", kicker: "The settlement is yours", world: "woods", run: ch12 },
+  { n: 12, title: "Harvest Home", kicker: "Autumn", world: "woods", run: chHarvest },
+  { n: 13, title: "The Reckoning", kicker: "The first frost", world: "woods", run: chReckoning },
+  { n: 14, title: "Free Play", kicker: "The settlement is yours", world: "woods", run: chFree },
 ];
 
 // what is in your pockets in each chapter — the inventory (T) lists it
@@ -194,7 +196,7 @@ export async function startChapter(n, opts = {}) {
   const save = loadSave() || {};
   writeSave({ who: G.who, chapter: n, unlocked: Math.max(save.unlocked || 1, n) });
   G.chapter = n;
-  G.pack = (PACK[n] || []).map(i => ({ ...i })); G.camp = null;
+  G.pack = (PACK[Math.min(n, 12)] || []).map(i => ({ ...i })); G.camp = null;
   try { await ch.run(w, opts); }
   catch (e) { if (e !== ABORT) console.error(e); }
 }
@@ -1565,6 +1567,7 @@ function startTown(w, unlocked) {
   G.town = town;
   w.showCabin(); w.openTracks.add(3);
   w.setFurniture(S.furniture || null);
+  if ((loadSave() || {}).carved) w.carveBeam();
   G.player.giveAxe(true);
   return town;
 }
@@ -1776,36 +1779,22 @@ async function ch11(w) {
   lookAt(sib, 2);
   await say(P.sib, "Let them wonder.");
   await wait(1.5);
-  await fade(1, 3);
+  await bedtime(w, sib, { line: `${name}. Say it again in the morning — I want to hear how it sounds.` });
   SFX.fireLoop(false); SFX.insectLoop(false);
-  writeSave({ unlocked: 12, finishedTutorial: true });
-  await narrate("Here the story leaves you — for now.", 3.5);
-  await narrate(`${name} is yours. Build, fell, sow, and see who comes up the road.`, 4.5);
-  await card("Free play", name, 3.5);
+  writeSave({ unlocked: 12 });
+  await narrate(`${name}. We said it over and over that summer, as if it might wear out.`, 4.5);
+  await narrate("Then the rye turned gold on the old field, and two more came up the road.", 4);
   return startChapter(12);
 }
 
 // ===========================================================================
-//  XII. FREE PLAY — the settlement, open-ended
+//  the settlement's day: light, the fire, ripe rye to reap, and a bed for the night
 // ===========================================================================
 // the day goes round: [fraction of the day, atmosphere]
 const DAYCYCLE = [[0, "dawn"], [0.08, "morning"], [0.3, "afternoon"], [0.55, "evening"], [0.7, "dusk"], [0.8, "night"], [0.95, "night"], [1, "dawn"]];
-async function ch12(w) {
-  const DAY = 480;
-  G.bugs.setKind("flies"); AUDIO.music("woods"); SFX.insectLoop(true);
-  const pl = G.player;
-  const town = startTown(w, Object.keys(BUILDINGS));
-  const S = town.S;
-  S.name ??= "Forester's Clearing";
-  town.spawnPeople(); town.sitesAll();
-  const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
-  sib.settler = { job: "woodcutter" }; town.work(sib).catch(() => {});
-  w.lightFire(true);
-  pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
-  // time: the clock starts where you left it
-  town.t = (S.clock || 0.1) * DAY;
-  const ripe = new Set();
-  onFrame(dt => {
+function dayCycle(w, town, DAY, { onReap } = {}) {
+  const S = town.S, pl = G.player, ripe = new Map();
+  const tick = onFrame(dt => {
     town.update(dt, DAY);
     const f = (town.t / DAY) % 1;
     S.clock = f;
@@ -1813,16 +1802,324 @@ async function ch12(w) {
     const [f0, a] = DAYCYCLE[i], [f1, b] = DAYCYCLE[i + 1];
     blendAtmo(a, b, clamp((f - f0) / (f1 - f0), 0, 1));
     w.setFire(f > 0.6 || f < 0.1 ? 1 : 0.35);
-    // ripe fields can be reaped by hand too
-    for (const b of S.buildings) if (b.type === "field" && b.sown && (b.growth ?? 1) >= 3 && !ripe.has(b)) {
-      ripe.add(b);
-      const it = w.addInteract({ x: b.x, y: w.heightAt(b.x, b.z) + 0.5, z: b.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (b.growth ?? 1) >= 3,
-        seg: [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4],
+    // ripe fields can be reaped by hand, as well as by the farmers
+    for (const fl of S.buildings) if (fl.type === "field" && fl.sown && (fl.growth ?? 1) >= 3 && !ripe.has(fl)) {
+      const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3,
+        seg: [fl.x - Math.sin(fl.ry) * 3.4, fl.z - Math.cos(fl.ry) * 3.4, fl.x + Math.sin(fl.ry) * 3.4, fl.z + Math.cos(fl.ry) * 3.4],
         onHoldTick: (dt2, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt2) * 3)) SFX.chop(); },
-        use: () => { S.rye += 20; b.growth = 1; town.show(b); w.removeInteract(it); ripe.delete(b); town.persist(); SFX.build(); } });
+        use: () => { S.rye += 20; fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
+      ripe.set(fl, it);
     }
-    UI.objective(`${S.name} — day ${town.day + 1}`);
   });
+  // your bed is in the cabin: at night it takes you through to morning
+  let sleeping = false, toldNight = -1;
+  const nightNow = () => { const f = (town.t / DAY) % 1; return f > 0.6 || f < 0.04; };
+  w.onSleep = { label: "Sleep until morning", can: () => nightNow() && !sleeping,
+    use: async () => {
+      sleeping = true; G.lockMove = true;
+      await fade(1, 1.6);
+      const f = (town.t / DAY) % 1;
+      town.t = (Math.floor(town.t / DAY) + (f > 0.5 ? 1 : 0) + 0.03) * DAY;
+      const bed = w.bedSpot(0); if (bed) pl.place(bed.x + Math.sin(bed.ry) * 0.9, bed.z + Math.cos(bed.ry) * 0.9, bed.ry + Math.PI);
+      await wait(0.8);
+      await fade(0, 1.6);
+      G.lockMove = false; sleeping = false;
+    } };
+  const told = onFrame(() => { if (nightNow() && town.day !== toldNight && (town.t / DAY) % 1 > 0.62) { toldNight = town.day; UI.hint("Night's come. Your bed is in the cabin — sleep through to morning.", 5); } });
+  // what hunger does, said out loud
+  town.on("hungry", () => bark(P.sib, "There's no rye left. Reap something — tomorrow with nothing, and someone will go.", 4.5));
+  town.on("left", p => UI.hint(`${p.name} went back down the road. There wasn't bread enough.`, 6));
+  return () => { tick(); told(); w.onSleep = null; for (const it of ripe.values()) w.removeInteract(it); };
+}
+const sibling = () => LOOKS[G.who === "brother" ? "sister" : "brother"];
+// places round the fire, for a gathering
+const ringAt = (i, n, r = 3.2) => [FIRE.x + Math.cos(i / n * TAU) * r, FIRE.z + Math.sin(i / n * TAU) * r];
+
+// ===========================================================================
+//  XII. HARVEST HOME — how the settlement lives: beds, bread and work
+// ===========================================================================
+const JAN = { name: "Jan", sex: "m", seed: 321, job: "hauler" }, LIESEL = { name: "Liesel", sex: "f", seed: 322, job: "farmer" };
+async function chHarvest(w) {
+  const DAY = 360;
+  G.bugs.setKind("flies"); AUDIO.music("hope"); SFX.insectLoop(true);
+  const pl = G.player;
+  const town = startTown(w, Object.keys(BUILDINGS));
+  const S = town.S;
+  S.name ??= "Forester's Clearing";
+  town.spawnPeople(); town.sitesAll();
+  const sib = spawn(sibling(), FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  sib.settler = { job: "woodcutter" }; town.work(sib).catch(() => {});
+  w.lightFire(true);
+  pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
+  const saved = (loadSave() || {}).harvest || {};
+  const H = { joined: !!saved.joined || S.people.some(p => p.name === JAN.name), job: !!saved.job, furnished: !!saved.furnished, reaped: !!saved.reaped, told: !!saved.told };
+  const persistH = () => writeSave({ harvest: { ...H } });
+  // the rye stands ripe on the first field
+  const f0 = S.buildings.find(b => b.type === "field" && b.sown);
+  if (f0 && !H.reaped) { f0.growth = 3; town.show(f0); }
+  town.t = 0.1 * DAY;
+  const stopDay = dayCycle(w, town, DAY, { onReap: () => { if (!H.reaped) { H.reaped = true; persistH(); bark(P.sib, "Twenty sacks' worth. Watch the number on the board — it goes down every day we eat.", 4); } } });
+  // Jan and his sister wait by the fire until there's a roof for them
+  let visitors = H.joined ? [] : [spawn(settlerLookFor(JAN), FIRE.x - 2.9, FIRE.z + 1.4, 0), spawn(settlerLookFor(LIESEL), FIRE.x - 3.3, FIRE.z + 0.2, 0)];
+  for (const v of visitors) v.faceTo(FIRE.x, FIRE.z);
+
+  await wait(0.2);
+  const c = card("Autumn", "XII. Harvest Home", 3.2);
+  await wait(1.2); fade(0, 2.4); await c;
+  if (!H.told && visitors.length) {
+    G.lockMove = true; lookAt(sib, 3); sib.facePlayer();
+    await say(P.sib, "The rye's ripe on the old field. And look who came up the road at first light.");
+    lookAt(visitors[0], 2); visitors[0].facePlayer(); visitors[1].facePlayer();
+    await say("Jan", "Jan Petersen, and my sister Liesel. From Pinneberg. The fever took our mother, and the landlord took the rest.");
+    await say("Liesel", "Henning at the kiln said there was a place up here where nobody asks who your father was.");
+    lookAt(sib, 2);
+    await say(P.sib, "Nobody does. But every bed we have has somebody in it.");
+    await say(P.sib, "A cabin is two beds. Raise one for them, and they stay. And every mouth here eats rye, every day — that's the sacks on the board, at the top. The harvest has to see us through.");
+    await say(P.sib, "And people work at what they're set to. If there's no one in the fields, ask someone. They'll listen to you.");
+    G.lockMove = false; look(null);
+    H.told = true; persistH();
+  }
+  tutor("economy", "", [["B", "plans"], ["F", "talk to a settler: change their work"], ["T", "inventory"]], 9);
+  // ---- the four things to learn, in any order ----
+  const join = () => {
+    H.joined = true; persistH();
+    for (const v of visitors) v.remove(); visitors = [];
+    const b = S.buildings.filter(q => q.type === "cabin" && q.done).pop();
+    const [x, z] = b ? [b.x + 1.5, b.z + 4] : [FIRE.x - 3, FIRE.z];
+    town.addPerson({ ...JAN }, x, z); town.addPerson({ ...LIESEL }, x + 1, z + 0.5);
+    bark("Liesel", "Our own door. We'll not forget this.", 3.5);
+  };
+  town.on("built", b => { if (b.type === "cabin" && !H.joined) join(); });
+  town.on("job", () => { if (!H.job) { H.job = true; persistH(); } });
+  town.on("furnished", () => { if (!H.furnished) { H.furnished = true; persistH(); bark(P.sib, "Look at that. Like people live here.", 3); } });
+  let shortTold = false;
+  const obj = onFrame(() => {
+    const parts = [];
+    if (!H.reaped) parts.push("Reap the rye");
+    if (!H.joined) {
+      const site = S.buildings.find(b => b.type === "cabin" && !b.done);
+      parts.push(site ? `Raise Jan and Liesel's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs` : "Plan a cabin for Jan and Liesel (B)");
+    }
+    if (!H.job) parts.push("Set someone to new work (F by them)");
+    if (!H.furnished) parts.push("Furnish your cabin (B inside)");
+    UI.objective(parts.join(" · "));
+    // the marker: the first thing still to do
+    let m = null;
+    if (!H.reaped && f0) m = [f0.x, f0.z, w.heightAt(f0.x, f0.z) + 1.4];
+    else if (!H.joined) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); if (site) m = [site.x, site.z, w.cy + 1.5]; }
+    else if (!H.job) { let best = null, bd = Infinity; for (const a of town.actors) if (!a.settler.child && !a.gone) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } } m = best; }
+    else if (!H.furnished && !w.insideCabin(pl.pos.x, pl.pos.z)) { const [x, z] = w.cabinToWorld(0, 3.4); m = [x, z, w.cy + 1.6]; }
+    mark(m);
+    if (!H.furnished && w.insideCabin(pl.pos.x, pl.pos.z) && S.store < 2 && !shortTold) { shortTold = true; bark(P.sib, "You'll want logs for that. Two for a bench — fell a tree, or wait for the stack.", 4); }
+  });
+  await until(() => H.reaped && H.joined && H.job && H.furnished);
+  obj(); mark(null); UI.objective(null);
+  await wait(1.5);
+  bark(P.sib, "That's the harvest in. Come to the fire tonight — Henning says he's bringing ale.", 4);
+  await wait(3.5);
+
+  // ---- the harvest supper ----
+  G.lockMove = true;
+  await fade(1, 2);
+  stopDay(); town.stop(); G.town = town;
+  sib.remove();
+  setAtmo("firelight"); w.lightFire(true); w.setFire(1); SFX.fireLoop(true);
+  const n = S.people.length + 3;
+  const folk = S.people.map((p, i) => { const [x, z] = ringAt(i + 2, n); const a = spawn(settlerLookFor(p), x, z, 0); a.faceTo(FIRE.x, FIRE.z); a.person.sitting = p.child ? 0 : 1; a.person.setPose(p.child ? "idle" : "sit"); return a; });
+  void folk;
+  const [hx, hz] = ringAt(S.people.length + 2, n);
+  const henning = spawn(HENNING, hx, hz, 0); henning.faceTo(FIRE.x, FIRE.z);
+  pl.place(...ringAt(0, n, 3.4), 0); pl.seated = true;
+  const [sx, sz] = ringAt(1, n);
+  const sib2 = spawn(sibling(), sx, sz, 0); sib2.faceTo(FIRE.x, FIRE.z); sib2.person.sitting = 1; sib2.person.setPose("sit");
+  look(new THREE.Vector3(FIRE.x, w.cy + 0.9, FIRE.z), 2);
+  await fade(0, 2);
+  await wait(1.2);
+  lookAt(henning, 2);
+  await say("Henning", "To the harvest. Thin, and late, and ours.");
+  await say("Marta", "To the ones who aren't here to eat it.");
+  await wait(1.5);
+  await say("Henning", "There's another thing. I was in Bergedorf on Tuesday, with the charcoal.");
+  await say("Henning", "Kessler has been at the Amtmann's door. He has a paper from Hamburg with your father's name on it, and forty thaler for the pair of you.");
+  await say(YOU(), "Then he knows where we are.");
+  await say("Henning", "He's always known. Now he has men to bring. A day, or two.");
+  lookAt(sib2, 2);
+  await say(P.sib, "...Then we'll be here when they come.");
+  await wait(1.5);
+  henning.remove();
+  await bedtime(w, sib2, { line: "Sleep. Whatever comes, it comes in the morning." });
+  SFX.fireLoop(false); SFX.insectLoop(false);
+  writeSave({ unlocked: 13, harvest: { ...H, done: true } });
+  await narrate("Nobody slept much. In the morning there was frost on the stack, and on the rye stubble, and on the road.", 5);
+  return startChapter(13);
+}
+
+// ===========================================================================
+//  XIII. THE RECKONING — they come for you, and the reckoning is not theirs
+// ===========================================================================
+const AMTMANN = { model: "magistrate", name: "The Amtmann", coat: 0x2a2630, legs: 0x1e1c22, hair: 0x6a5a4a, hat: "hat", collar: 0xf0ebe0, beard: 0x5a4a3a, seed: 33 };
+const KESSLER2 = { ...KESSLER, name: "Kessler" };
+async function chReckoning(w) {
+  setAtmo("morning"); G.bugs.setKind(null); AUDIO.music(null); AUDIO.wind(true, 0.35);
+  const pl = G.player;
+  const town = startTown(w, Object.keys(BUILDINGS));
+  const S = town.S;
+  S.name ??= "Forester's Clearing";
+  town.spawnPeople(); town.sitesAll();
+  w.lightFire(true); w.setFire(0.6);
+  const sib = spawn(sibling(), FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
+  const n = S.people.length + 4;
+
+  await wait(0.2);
+  const c = card("The first frost", "XIII. The Reckoning", 3.4);
+  await wait(1.2); fade(0, 2.4); await c;
+  G.lockMove = true; lookAt(sib, 3); sib.facePlayer();
+  await say(P.sib, "Henning said today, or tomorrow. The Amtmann, and Kessler, and whoever they could hire.");
+  await say(YOU(), "We could go into the trees. Like at Martinmas.");
+  await say(P.sib, "And leave Marta, and Pieter, and all of them to answer for us? No.");
+  await say(P.sib, "Not this time. We stand at the fire, all of us, and let them look.");
+  G.lockMove = false; look(null);
+
+  // ---- gather everyone at the fire ----
+  const adults = () => town.actors.filter(a => !a.settler.child && !a.gone);
+  const lines = ["I'll come.", "About time somebody asked.", "At the fire? Right.", "If they want you, they'll have to ask us first.", "I'll bring the axe. Just to hold."];
+  let said = 0;
+  const call = a => {
+    town.summon(a, ...ringAt(S.people.indexOf(a.settler) + 2, n));
+    bark(a.settler.name, lines[said++ % lines.length], 2.6);
+    // the children come with the first grown-up called
+    for (const k of town.actors) if (k.settler.child && !k.summoned) town.summon(k, ...ringAt(S.people.indexOf(k.settler) + 2, n));
+  };
+  town.talkLabel = (p, a) => a.summoned ? null : `Ask ${p.name} to come to the fire`;
+  town.onTalk = (p, a) => { if (!a.summoned) call(a); return true; };
+  sib.walkTo(...ringAt(1, n)).then(() => sib.faceTo(FIRE.x, FIRE.z));
+  tutor("gather", "", [["F", "beside someone: ask them to the fire"]], 7);
+  const obj = onFrame(() => {
+    const all = adults(), k = all.filter(a => a.summoned).length;
+    UI.objective(k < all.length ? `Bring everyone to the fire — ${k} of ${all.length}` : "Stand at the fire with them");
+    let best = null, bd = Infinity;
+    for (const a of all) if (!a.summoned) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } }
+    mark(best || [FIRE.x, FIRE.z, w.cy + 1]);
+  });
+  await until(() => adults().every(a => a.summoned) && Math.hypot(pl.pos.x - FIRE.x, pl.pos.z - FIRE.z) < 4.5);
+  obj(); mark(null); UI.objective(null);
+  town.onTalk = null; town.talkLabel = null;
+
+  // ---- they come up the road ----
+  const r0 = w.road[w.road.length - 30];
+  const cartB = new Builder(); PROPS.cart(cartB, 29.2, -283, 0.2); const cart = cartB.build(); cart.position.y = w.heightAt(29.2, -283); w.root.add(cart);
+  AUDIO.door(true, 0.3);
+  await wait(1.5);
+  bark(P.sib, "There. On the road.", 2.5);
+  const amt = spawn(AMTMANN, r0.x, r0.z, 0), kes = spawn(KESSLER2, r0.x + 1, r0.z + 0.6, 0), wm = spawn(GUARD(95), r0.x - 1, r0.z + 0.4, 0);
+  const stand = [[33.2, -304.6], [35.4, -305.2], [31.2, -305.4]];
+  [amt, kes, wm].forEach((a, i) => a.walkTo(...stand[i], 1.1).then(() => a.faceTo(FIRE.x, FIRE.z)));
+  G.lockMove = true;
+  lookAt(amt, 1.5);
+  await until(() => !amt.path.length && !kes.path.length);
+  await wait(0.8);
+  pl.faceTarget = null;
+  await say("The Amtmann", "Which of you is master here?");
+  await say(YOU(), "Nobody's master. We built it together.");
+  lookAt(kes, 2);
+  await say("Kessler", "Those two, Herr Amtmann. The merchant's two — you see? Just as I said. Forty thaler, and I'll take half for the finding.");
+  lookAt(amt, 2);
+  const scroll = amt.hold(makeScroll()); void scroll;
+  await say("The Amtmann", "By warrant of the Honourable Council of Hamburg: the children of the grain merchant, whose name is struck from the rolls, to be returned to the city, to answer —");
+  await say("Marta", "Then you'll return us with them. We're all of us from somewhere.");
+  await say("Tomas", "There's forty thaler of timber on that stack. Go and fell your own.");
+  await say("The Amtmann", "...I did not come here for a quarrel with honest people.");
+  await say("Kessler", "Honest! Harbour thieves and runaways, the lot of them —");
+  await wait(0.6);
+  // someone else on the road, running
+  const jak = spawn(JAKOB, r0.x, r0.z, 0), hen = spawn(HENNING, r0.x + 0.8, r0.z - 0.5, 0);
+  jak.walkTo(34.2, -303.2, 2.6).then(() => jak.faceTo(amt.pos.x, amt.pos.z)); hen.walkTo(36.4, -303.8, 2.2).then(() => hen.faceTo(FIRE.x, FIRE.z));
+  bark("Jakob", "Wait — wait! Herr Amtmann! In the Council's name!", 3);
+  lookAt(jak, 1.5);
+  await until(() => !jak.path.length);
+  await wait(0.6);
+  jak.hold(makeScroll());
+  await say("Jakob", "The merchant's ledger. You carried it to me yourself, the night before they came.");
+  await say("Jakob", "Two hundred and twelve sacks, and not one short. And the Council's tithe-book wrote them down as two hundred and sixty.");
+  await say("Jakob", "Councillor Brandt took the difference, three years running. When your father's books showed it, Brandt called it malice, and the Council believed him.");
+  await say("Jakob", "The Riga master swore to it before the Council in August. Brandt is in the cells. The sentence is struck — and your father's name is written back in the rolls. They read it out in the square. The same square.");
+  lookAt(amt, 2);
+  await say("The Amtmann", "Then this paper is worth nothing.");
+  await say("Kessler", "And my forty thaler?");
+  await say("The Amtmann", "Go home, Kessler.");
+  kes.walkTo(r0.x, r0.z, 1.3).then(() => kes.remove());
+  amt.walkTo(r0.x + 1, r0.z, 1.1).then(() => amt.remove()); wm.walkTo(r0.x - 1, r0.z, 1.1).then(() => wm.remove());
+  await wait(2);
+  lookAt(jak, 2); jak.facePlayer();
+  await say("Jakob", "Your father's house stands empty on the Deichstraße. The Council owes you that much, at least. Come home.");
+  lookAt(sib, 2); sib.facePlayer();
+  await say(P.sib, "...It's yours to say. You carried the ledger.");
+  look(null);
+  const choice = await G.choose("Where is home?", [`Stay — ${S.name} is home now`, "Go back to Hamburg"]);
+  lookAt(sib, 2);
+  if (choice === 0) {
+    await say(YOU(), "We stay.");
+    await say(P.sib, "Father said the city is good to those it loves. I'd rather live somewhere that's good to everyone.");
+    lookAt(jak, 2);
+    await say("Jakob", "...Then I'll sell the house, and send you what it fetches. Seed, and nails, and a saw that isn't older than I am.");
+  } else {
+    await say(YOU(), "We go back. For a while.");
+    await say(P.sib, "To see his name written. And then we come back up this road, with a cart.");
+    lookAt(jak, 2);
+    await say("Jakob", "Then come in the morning, and ride with me. I'll wait.");
+  }
+  lookAt(hen, 2);
+  await say("Henning", "There's one more thing wants doing. That black beam you kept at the corner of the cabin.");
+  lookAt(sib, 2);
+  await say(P.sib, "So we remember what they took. Now we can put back what they struck out.");
+  G.lockMove = false; look(null);
+
+  // ---- carve his name ----
+  const [bx, bz] = w.cabinToWorld(-2.55, 3.55);
+  let carved = false;
+  const it = w.addInteract({ x: bx, y: w.cabinY + 1.3, z: bz, reach: 2.2, hold: 4, label: "Carve Father's name into the charred beam",
+    onHoldTick: (dt, t) => { if (Math.floor(t * 2.2) !== Math.floor((t - dt) * 2.2)) SFX.chop(); }, use: () => { carved = true; } });
+  UI.objective("Carve Father's name into the beam they kept");
+  mark([bx, bz, w.cabinY + 1.6]);
+  await until(() => carved);
+  w.removeInteract(it); mark(null); UI.objective(null);
+  w.carveBeam(); writeSave({ carved: true });
+  SFX.build();
+  await wait(1.5);
+  lookAt(sib, 2);
+  await say(P.sib, "There. Now it's written somewhere they can't strike it out.");
+  await wait(1.5);
+  G.lockMove = true;
+  await fade(1, 3);
+  writeSave({ unlocked: 14, finishedTutorial: true, reckoning: choice === 0 ? "stayed" : "went" });
+  if (choice === 1) await narrate("We went down the road to Hamburg, and saw his name in the rolls, in a clerk's good hand. By spring we had sold the house, and we came back up the road with a cart of seed and nails.", 6);
+  else await narrate("Jakob sold the house on the Deichstraße. By spring a cart came up the road with seed, and nails, and a saw.", 5);
+  await narrate(`${S.name} is yours. Build, fell, sow — and see who comes up the road.`, 4.5);
+  await card("Free play", S.name, 3.5);
+  return startChapter(14);
+}
+
+// ===========================================================================
+//  XIV. FREE PLAY — the settlement, open-ended
+// ===========================================================================
+async function chFree(w) {
+  const DAY = 480;
+  G.bugs.setKind("flies"); AUDIO.music("woods"); SFX.insectLoop(true);
+  const pl = G.player;
+  const town = startTown(w, Object.keys(BUILDINGS));
+  const S = town.S;
+  S.name ??= "Forester's Clearing";
+  town.spawnPeople(); town.sitesAll();
+  const sib = spawn(sibling(), FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  sib.settler = { job: "woodcutter" }; town.work(sib).catch(() => {});
+  w.lightFire(true);
+  pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
+  // time: the clock starts where you left it
+  town.t = (S.clock || 0.1) * DAY;
+  dayCycle(w, town, DAY);
+  // the board says what day it is, and what wants doing next
+  onFrame(() => UI.objective(`${S.name} — day ${town.day + 1} · ${town.advice()}`));
   // who comes up the road: when there is a bed, and bread enough
   town.on("day", async d => {
     const pop = S.people.length + 2;
@@ -1836,21 +2133,6 @@ async function ch12(w) {
       }
     } else if (S.rye < pop) bark(P.sib, "The rye's running low. Reap what's ripe, or dig another field.", 4);
   });
-  // your bed is in the cabin: at night it takes you through to morning
-  let sleeping = false, toldNight = -1;
-  const nightNow = () => { const f = (town.t / DAY) % 1; return f > 0.6 || f < 0.04; };
-  w.onSleep = { label: "Sleep until morning", can: () => nightNow() && !sleeping,
-    use: async () => {
-      sleeping = true; G.lockMove = true;
-      await fade(1, 1.6);
-      const f = (town.t / DAY) % 1;
-      town.t = (Math.floor(town.t / DAY) + (f > 0.5 ? 1 : 0) + 0.03) * DAY;
-      const bed = w.bedSpot(0); if (bed) { pl.place(bed.x + Math.sin(bed.ry) * 0.9, bed.z + Math.cos(bed.ry) * 0.9, bed.ry + Math.PI); }
-      await wait(0.8);
-      await fade(0, 1.6);
-      G.lockMove = false; sleeping = false;
-    } };
-  onFrame(() => { if (nightNow() && town.day !== toldNight && (town.t / DAY) % 1 > 0.62) { toldNight = town.day; UI.hint("Night's come. Your bed is in the cabin — sleep through to morning.", 5); } });
   await wait(0.2);
   const c = card(S.name, "Free play", 2.8);
   await wait(1); fade(0, 2); await c;

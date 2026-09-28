@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.8", date: "28 September 2026", title: "The end of the story: Harvest Home and The Reckoning",
+    items: [
+      "Chapter XII, Harvest Home: two more come up the road with nowhere to sleep. Raise them a cabin, reap the rye, set someone to new work and furnish your own cabin — then the harvest supper, and Henning's news.",
+      "Chapter XIII, The Reckoning: they come for you with a warrant. Bring everyone to the fire, and stand there with them. Jakob comes up the road with your father's ledger — and the choice of where home is. Then carve his name into the beam you kept.",
+      "Free play is now chapter XIV. The board at the top says what the settlement needs next.",
+      "Talk to a settler (F) to change their work: felling, carrying, or the fields.",
+      "Hunger: everyone eats rye every day. A day with none and you're warned; two, and the newest to come goes back down the road.",
+      "Every night of the story now ends in bed in the cabin, the naming night of chapter XI included.",
+    ],
+  },
+  {
     v: "0.7", date: "28 September 2026", title: "A roof over you: into the cabin, and to bed",
     items: [
       "The cabin can be entered: the door swings in on its hinge (F to open or shut it), and inside there's a plank floor, a stone hearth under the chimney, and two straw pallets along the wall.",

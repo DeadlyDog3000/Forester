@@ -28,6 +28,13 @@ export const BUILDINGS = {
   field:    { name: "Field", cost: 0, w: 6.6, d: 7.4, dig: 3, icon: "seeds", note: "Three strips of rye. Dug, not built." },
 };
 export const LOGS_PER_TREE = 3, CARRY_MAX = 6;
+// the work a settler can be set to; talking to them (F) moves them on to the next
+export const JOBS = {
+  woodcutter: { name: "woodcutter", ask: "fell trees", reply: "Trees it is. Mind your heads." },
+  hauler: { name: "hauler", ask: "carry logs to the sites", reply: "I'll carry. Somebody has to." },
+  farmer: { name: "farmer", ask: "work the fields", reply: "The fields, then. Good." },
+};
+const JOB_ORDER = ["woodcutter", "hauler", "farmer"];
 const SFX = () => window.SFX || { chop() {}, build() {}, pickup() {}, hammer() {}, treeFall() {}, timberCrack() {} };
 
 // a settler's look, from a seed: townsman or townswoman, in their own colours
@@ -198,7 +205,7 @@ export class Town {
         if (f) {
           this.S.store -= d.logs || 0; this.S.rye -= d.rye || 0; w.setStack(Math.min(this.S.store, 24));
           this.S.furniture = [...w.furniture, f]; w.setFurniture(this.S.furniture);
-          this.persist(); SFX().build();
+          this.persist(); SFX().build(); this.emit("furnished", f);
         }
         res(f);
       };
@@ -347,17 +354,60 @@ export class Town {
     if (!this.S.people.includes(p)) this.S.people.push(p);
     const a = new Actor(settlerLook(p), x ?? CLEARING.x + 2, z ?? CLEARING.z + 6, 0);
     a.settler = p; this.actors.push(a);
+    if (!p.child) {
+      // (while a story is gathering people, it decides what talking does; otherwise it changes their work)
+      a.talkIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 1.4; }, reach: 2.4,
+        can: () => !a.gone && (this.onTalk ? !!(this.talkLabel && this.talkLabel(p, a)) : !a.summoned),
+        label: () => (this.talkLabel && this.talkLabel(p, a)) || `Ask ${p.name} (${JOBS[p.job || "hauler"].name}) to ${JOBS[this.nextJob(p)].ask}`,
+        use: () => {
+          if (this.onTalk && this.onTalk(p, a)) return;
+          p.job = this.nextJob(p); this.persist();
+          UI.bark(p.name, JOBS[p.job].reply, 3); this.emit("job", p);
+        } });
+    }
     this.work(a).catch(e => { if (e !== "stop") console.error(e); });
     this.persist();
     return a;
   }
   spawnPeople() { this.S.people.forEach((p, i) => this.addPerson(p, CLEARING.x - 6 + (i % 4) * 3, CLEARING.z + 8 + Math.floor(i / 4) * 2)); }
-  stop() { this.stopped = true; for (const a of this.actors) a.remove(); this.actors = []; if (this.planning) this.planning.cancel(); G.onSwing = null; }
+  stop() { this.stopped = true; for (const a of this.actors) { if (a.talkIt) this.w.removeInteract(a.talkIt); a.remove(); } this.actors = []; if (this.planning) this.planning.cancel(); G.onSwing = null; }
+  nextJob(p) { return JOB_ORDER[(JOB_ORDER.indexOf(p.job) + 1) % JOB_ORDER.length]; }
+  // called away from their work, to stand somewhere (the fire, for a gathering)
+  summon(a, x, z) {
+    a.summoned = true; a.person.held.clear(); a.person.setPose("idle");
+    return a.walkTo(x, z, 1.3).then(() => { if (a.root.parent) a.faceTo(FIRE.x, FIRE.z); });
+  }
+  // the newest to come goes back down the road (hunger does this)
+  leave() {
+    const p = [...this.S.people].reverse().find(q => !q.child); if (!p) return;
+    this.S.people.splice(this.S.people.indexOf(p), 1);
+    const a = this.actors.find(x => x.settler === p);
+    if (a) {
+      a.gone = true; if (a.talkIt) this.w.removeInteract(a.talkIt);
+      const r0 = this.w.road[this.w.road.length - 30];
+      a.walkTo(r0.x, r0.z, 1.2).then(() => { a.remove(); const i = this.actors.indexOf(a); if (i >= 0) this.actors.splice(i, 1); });
+    }
+    this.persist(); this.emit("left", p);
+  }
+  // what wants doing next, in a word to the player
+  advice() {
+    const S = this.S, pop = S.people.length + 2, need = Math.ceil(pop / 2);
+    const site = S.buildings.find(b => !b.done && b.type !== "field");
+    const field = S.buildings.find(b => b.type === "field" && !b.sown);
+    if (S.rye < need * 3) return this.harvestable().length ? "Rye is low — reap the ripe field" : "Rye is low — dig and sow another field (B)";
+    if (site) return `Bring logs to the ${BUILDINGS[site.type].name.toLowerCase()} (${site.logs} of ${BUILDINGS[site.type].cost})`;
+    if (field) return "Finish digging the new field";
+    if (!S.people.some(p => p.job === "farmer")) return "No one is farming — talk to someone (F) and set them to the fields";
+    if (this.beds + 2 <= pop) return "Every bed is taken — raise a cabin (B), and someone may come up the road";
+    if (!this.has("woodshed") && S.store > this.storeCap - 8) return "The stack is nearly full — build a woodshed (B)";
+    if (!this.has("well")) return "Dig a well (B): the fields will yield more";
+    return "A bed is free: keep the rye up, and someone will come up the road";
+  }
 
   // each settler's day: their job, over and over
   async work(a) {
     const sleep = s => new Promise(r => setTimeout(r, s * 1000));
-    const alive = () => { if (this.stopped || !G.world || G.world !== this.w) throw "stop"; };
+    const alive = () => { if (this.stopped || a.gone || a.summoned || !G.world || G.world !== this.w) throw "stop"; };
     await sleep(Math.random() * 3);
     while (true) {
       alive();
@@ -416,8 +466,13 @@ export class Town {
         if ((b.growth ?? 1) < 3) { b.growth = (b.growth ?? 1) + 1; this.show(b); }
         else if (this.S.people.some(p => p.job === "farmer")) { this.S.rye += 10 + (this.has("well") ? 5 : 0); b.growth = 1; this.show(b); }
       }
-      // everyone eats
-      this.S.rye = Math.max(0, this.S.rye - Math.ceil((this.S.people.length + 2) / 2));
+      // everyone eats; two days with nothing to eat, and the newest to come leaves again
+      const need = Math.ceil((this.S.people.length + 2) / 2);
+      if (this.S.rye >= need) { this.S.rye -= need; this.S.hungry = 0; }
+      else {
+        this.S.rye = 0; this.S.hungry = (this.S.hungry || 0) + 1;
+        if (this.S.hungry >= 2) { this.S.hungry = 0; this.leave(); } else this.emit("hungry", this.day);
+      }
       this.persist();
       this.emit("day", this.day);
     }
