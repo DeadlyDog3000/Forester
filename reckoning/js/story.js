@@ -60,7 +60,7 @@ const CAUGHT = [
   "They drag you back toward the square. Not like this.",
   "You were seen. In this city, being seen is enough.",
 ];
-const TIPS_CHASE = ["Hold Shift and make for the narrow alley west of the square.", "Don't stop to look back. The alley is on the left, past the cart.", "Run west along the street, then into the gap between the houses."];
+const TIPS_CHASE = ["Hold Shift and make for the narrow alley west of the square — and don't stop until you're out the far end.", "The watchman in the street lunges for where you're going: swing wide round him, along the far side.", "Save your breath for the alley: let go of Shift for a moment when nobody is close.", "A fourth comes down the north street — don't dawdle in the square."];
 const TIPS_STEALTH = ["Crouch with C, and wait for the lantern to swing away.", "Keep a crate between you and the watch. Nobody sees through wood.", "Lean round a corner with Q and E before you step out.", "Watch the eye at the top of the screen — when it opens, get out of sight.", "The watch at the gate looks west and east in turn. Move when he looks away.", "Walking is quiet. Running is heard."];
 const QUOTES = [
   ["The city is good to those it loves.", "Father"],
@@ -183,7 +183,7 @@ export async function startChapter(n, opts = {}) {
   GEN++;
   G.onFrame.length = 0;
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
-  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined;   // running always costs breath
+  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0;   // running always costs breath
   if (G.town) { G.town.stop(); G.town = null; }
   G.bugs.setKind(null);
   AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false);
@@ -533,19 +533,30 @@ async function ch3(w, opts) {
     await fade(0, 1.6);
     AUDIO.murmur(true, 0.6);
     await wait(1.4);
+    look(null);
+    await fade(1, 1.4);
   }
-  // ---- the chase ----
+  // ---- that night: the two of you, in the empty square, and the watch come back for you ----
   G.lockMove = true;
+  crowd.forEach(c => c.remove());
+  setAtmo("night"); w.streetsAtNight(); G.bugs.setKind("moths");
+  AUDIO.murmur(false);
+  pl.place(-2.5, 32.5, Math.PI * 0.62);
+  sib.place(-1.4, 32.2, Math.PI);
+  if (!opts.chase) {
+    const c = card("That night", "", 2.6);
+    await wait(1); fade(0, 1.8); await c;
+    lookAt(sib, 3); sib.facePlayer();
+    await say(P.sib, "The whole city's asleep. If we're going, it has to be now — before the bells.");
+    look(null);
+  } else fade(0, 1);
+  // ---- the chase ----
   const cg1 = spawn(GUARD(81), -1.2, 39.4, Math.PI), cg2 = spawn(GUARD(82), 1.6, 39.8, Math.PI);
-  cg1.hold(makeHalberd()); cg2.hold(makeHalberd());
-  // and one already in the street you must run down, who will try to cut you off
-  const cg3 = spawn(GUARD(83), -21, 40.2, Math.PI / 2); cg3.hold(makeHalberd());
-  if (opts.chase) {
-    pl.place(-2.5, 32.5, Math.PI * 0.62);
-    sib.place(-1.4, 32.2, Math.PI);
-    crowd.forEach((c, i) => { if (i % 2) c.place(c.pos.x * 1.8, 52 - (i % 5)); });
-    fade(0, 1);
-  }
+  cg1.hold(makeHalberd()); cg2.hold(makeLantern());
+  // and one round the corner at the far end of the street, who will run to cut you off from the alley — a race
+  const cg3 = spawn(GUARD(83), -35, 40.5, Math.PI / 2); cg3.hold(makeLantern());
+  // and one who hears the bell up the north street, and comes down into the square after you
+  const cg4 = spawn(GUARD(84), 0.5, 63, Math.PI); cg4.hold(makeLantern());
   look(cg1, 3);
   cg1.person.setPose("point");
   AUDIO.shout();
@@ -558,7 +569,7 @@ async function ch3(w, opts) {
   AUDIO.music("flight"); AUDIO.murmur(false);
   AUDIO.shout();
   bell();
-  UI.objective("Run — lose them in the lanes to the west");
+  UI.objective("Run — into the narrow alley west of the square, and all the way up it");
   mark(SPOTS.alley);
   const ranBefore = tipSeen("sprint");
   tutor("sprint", "Run! Shift — and mind your breath, it won't last. Round the watchman, not past him!", [["Shift", "run — watch your breath"]], 5);
@@ -566,35 +577,54 @@ async function ch3(w, opts) {
   sib.followPlayer(1.6);
   G.sprintSpeed = 6.2;
   G.stamina = 1;                 // running costs breath now
+  G.staminaMul = 0.72;           // (fear keeps you going: breath lasts a little longer in the chase)
+  G.tension = 1;                 // (and you can hear yourself breathing)
   // they come on, around what is in their way, faster the longer it goes
-  const chasers = [cg1, cg2, cg3];
-  let caught = false, grace = 0.6, elapsed = 0, cutOff = false;
+  const chasers = [cg1, cg2, cg3, cg4];
+  G.chasers = chasers;           // (for the chase bot in tools/)
+  // the mouth of the alley, and where it comes out at the far end
+  const MOUTH = [-24.8, 43.2], END_Z = 52.5;
+  const inAlley = () => pl.pos.x < -23 && pl.pos.x > -26.4 && pl.pos.z > 42.6;
+  let caught = false, grace = 0.6, elapsed = 0, cutOff = false, north = false, entered = false;
   const chase = onFrame(dt => {
     grace -= dt; elapsed += dt;
+    if (!entered && inAlley()) { entered = true; mark([-24.8, END_Z + 1]); UI.objective("Up the alley — don't stop"); }
     for (const g of chasers) {
       if (grace > 0) continue;
       const dx = pl.pos.x - g.pos.x, dz = pl.pos.z - g.pos.z, d = Math.hypot(dx, dz);
-      let spd = Math.min(5.9, 5.0 + elapsed * 0.08);
+      let spd = Math.min(6.0, 5.1 + elapsed * 0.11);
       let tx = dx, tz = dz;
       if (g === cg3) {
-        // he waits in the street until you come, then goes for where you are heading
-        if (!cutOff && d > 16) { g.targetYaw = Math.atan2(dx, dz); continue; }
-        if (!cutOff) { cutOff = true; AUDIO.shout(); bark("Watchman", "Stop! Stop there!", 1.6); }
-        tx = dx + pl.vel.x * 0.7; tz = dz + pl.vel.z * 0.7;
-        spd = 4.9;
+        // he waits in the street until you come, then lunges for where you are going
+        // he hears you coming, and runs for the alley to cut you off; you have to get there first
+        if (!cutOff && pl.pos.x > -9) { g.targetYaw = Math.atan2(dx, dz); continue; }
+        if (!cutOff) { cutOff = true; g.react = 0.25; AUDIO.shout(); bark("Watchman", "Stop! Stop there!", 1.6); }
+        if ((g.react -= dt) > 0) continue;
+        spd = 5.3;
+      }
+      if (g === cg4) {
+        if (elapsed < 2.2) continue;
+        if (!north) { north = true; AUDIO.shout(); bark("Watchman", "Down here! Cut them off!", 1.8); }
+        spd = Math.min(5.9, 5.4 + elapsed * 0.05);
       }
       const l = Math.hypot(tx, tz) || 1;
       g.pos.x += tx / l * spd * dt; g.pos.z += tz / l * spd * dt;
       w.col.resolve(g.pos, 0.35, 0.3, 1.6);
+      // (nobody plants himself in the mouth of the alley before you reach it: the way in is always open, if you go round them)
+      if (!entered) {
+        const mx = g.pos.x - MOUTH[0], mz = g.pos.z - MOUTH[1], md = Math.hypot(mx, mz);
+        if (md < 3.2) { g.pos.x = MOUTH[0] + mx / (md || 1) * 3.2; g.pos.z = MOUTH[1] + mz / (md || 1) * 3.2; }
+      }
       g.targetYaw = Math.atan2(dx, dz); g.forcedSpeed = spd;
-      if (d < 1.15) caught = true;
+      if (d < 1.3) caught = true;
     }
   });
   const ok = await Promise.race([
-    until(() => pl.pos.x < -22 && pl.pos.z > 43.2 && pl.pos.z < 47).then(() => true),
+    until(() => entered && pl.pos.z > END_Z).then(() => true),
     until(() => caught).then(() => false),
   ]);
   chase();
+  G.staminaMul = undefined; G.tension = 0;
   if (!ok) {
     G.lockMove = true;
     AUDIO.shout();
@@ -636,6 +666,14 @@ class Watchman {
     if (this.sus > 0.35) {
       a.path = [];
       a.targetYaw = Math.atan2(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z);
+    } else if (this.inv) {
+      // a noise: go and see, look about, and go back to the beat
+      const v = this.inv;
+      if (v.phase === "go" && (!a.path.length || Math.hypot(a.pos.x - v.x, a.pos.z - v.z) < 1.2)) { a.path = []; v.phase = "look"; v.t = 4; v.yaw = a.yaw; }
+      else if (v.phase === "look") {
+        v.t -= dt; a.targetYaw = v.yaw + Math.sin(this.t * 1.3) * 1.3;
+        if (v.t <= 0) { v.phase = "back"; a.walk([this.route[this.i]], this.speed); if (Math.random() < 0.6) bark(this.who, ["Rats.", "...Nothing.", "Cats, most like.", "Hm."][Math.floor(Math.random() * 4)], 1.8); }
+      } else if (v.phase === "back" && !a.path.length) { this.inv = null; this.pause = this.waitT; if (this.route.length === 1) a.targetYaw = this.baseYaw; }
     } else if (this.route.length > 1 && !this.done) {
       if (!a.path.length) {
         if (this.arrivedAt !== this.i) { this.arrivedAt = this.i; this.onArrive && this.onArrive(this.i); }
@@ -664,10 +702,77 @@ class Watchman {
     if (this.sus > 0.35 && !this.said) { this.said = true; bark(this.who, this.lines[Math.floor(Math.random() * this.lines.length)], 2.2); }
     if (this.sus < 0.1) this.said = false;
   }
+  // a stone lands near enough to hear: he goes to look (unless he is already onto you)
+  hear(x, z) {
+    const a = this.a;
+    if (this.sus > 0.35 || Math.hypot(a.pos.x - x, a.pos.z - z) > 14) return false;
+    this.inv = { phase: "go", x, z };
+    a.walk([[x, z]], 1.35);
+    bark(this.who, ["What was that?", "Who's there? ...Hm.", "Something in the lane.", "Hello?"][Math.floor(Math.random() * 4)], 2);
+    return true;
+  }
+}
+
+// stones in the alley: pick one up (F), click to throw it; a watchman who hears it land goes to see
+let alleyStones = [];
+function stones(w, spots) {
+  const pl = G.player;
+  for (const st of alleyStones) { w.root.remove(st.m); if (st.it) w.removeInteract(st.it); }
+  alleyStones = [];
+  pl.stones = 0; UI.carry(null);
+  const stoneMat = mat(0x77736a, { surface: "stone" });
+  const show = () => UI.carry(pl.stones ? `${pl.stones} stone${pl.stones > 1 ? "s" : ""} — click to throw` : null);
+  spots.forEach(([x, z], i) => {
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09 + (i % 2) * 0.02), stoneMat);
+    m.position.set(x, w.heightAt(x, z) + 0.07, z); m.rotation.set(i, i * 2, 0); m.castShadow = true;
+    w.root.add(m);
+    const st = { m };
+    st.it = w.addInteract({ x, y: m.position.y + 0.2, z, reach: 2.0, label: "Pick up a stone", can: () => pl.stones < 3,
+      use: () => { w.root.remove(m); w.removeInteract(st.it); st.it = null; pl.stones++; show(); SFX.pickup(); tutor("stone", "A stone thrown makes a noise where it lands — and a watchman will go and look.", [["F", "pick up a stone"], ["Click", "throw it"]], 6); } });
+    alleyStones.push(st);
+  });
+  const flying = [];
+  return {
+    // (called every frame by the chapter, with its watchmen)
+    tick(dt, guards) {
+      if (input.click && pl.stones > 0 && !G.lockMove && !UI.dialogOpen) {
+        pl.stones--; show();
+        const f = pl.forward(), up = Math.sin(pl.pitch) + 0.28, c = Math.cos(pl.pitch);
+        const ep = pl.eyePos();
+        const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.1), stoneMat); m.castShadow = true;
+        w.root.add(m);
+        flying.push({ m, p: new THREE.Vector3(ep.x + f.x * 0.4, ep.y - 0.15, ep.z + f.z * 0.4), v: new THREE.Vector3(f.x * c * 13, up * 13, f.z * c * 13) });
+      }
+      for (const st of flying.slice()) {
+        st.v.y -= 9.8 * dt;
+        const nx = st.p.x + st.v.x * dt, nz = st.p.z + st.v.z * dt, ny = st.p.y + st.v.y * dt;
+        // (a wall stops it dead and drops it; the ground stops it where it falls)
+        const wall = w.col.solidAt(nx, ny, nz, 0.08);
+        if (wall) { st.v.x *= -0.2; st.v.z *= -0.2; } else { st.p.x = nx; st.p.z = nz; }
+        st.p.y = ny;
+        st.m.position.copy(st.p); st.m.rotation.x += dt * 9;
+        const gy = w.heightAt(st.p.x, st.p.z) + 0.07;
+        if (st.p.y <= gy) {
+          st.p.y = gy; st.m.position.copy(st.p);
+          flying.splice(flying.indexOf(st), 1);
+          AUDIO.step("stone", 1.0, { heavy: true }); setTimeout(() => AUDIO.step("stone", 0.5), 110);
+          // whoever is nearest and hears it goes to look; only one — the others hold their posts
+          const g = guards.slice().sort((p, q) => Math.hypot(p.a.pos.x - st.p.x, p.a.pos.z - st.p.z) - Math.hypot(q.a.pos.x - st.p.x, q.a.pos.z - st.p.z)).find(g => !g.inv);
+          if (g) g.hear(st.p.x, st.p.z);
+          // and it can be picked up again
+          const s2 = { m: st.m };
+          s2.it = w.addInteract({ x: st.p.x, y: st.p.y + 0.2, z: st.p.z, reach: 2.0, label: "Pick up the stone", can: () => pl.stones < 3,
+            use: () => { w.root.remove(st.m); w.removeInteract(s2.it); s2.it = null; pl.stones++; show(); SFX.pickup(); } });
+          alleyStones.push(s2);
+        }
+      }
+    },
+  };
 }
 
 async function ch4(w, opts) {
-  setAtmo("mist"); w.setChapter(4);
+  setAtmo("nightmist"); w.setChapter(4); w.streetsAtNight(2.4);
+  G.tension = 0.6;             // (creeping past the watch: you can hear your own breath)
   AUDIO.music("flight");
   const pl = G.player;
   pl.place(SPOTS.alley[0], SPOTS.alley[1] - 0.2, Math.PI);
@@ -696,15 +801,18 @@ async function ch4(w, opts) {
     G.lockMove = false; look(null);
     sib.walk([[-24.8, 42], [-24, 39.5], [-10, 39]], 2.8).then(() => sib.remove());
     tutor("sneak", "", [["C", "crouch — harder to see"], [["Q", "E"], "lean round a corner"]], 9);
-    UI.hint("A crouched figure is harder to see, and nobody sees through a crate.", 7);
+    UI.hint("A crouched figure is harder to see, and nobody sees through a crate. There are stones in the alley — throw one, and a watchman will go to see.", 8);
   } else {
     sib.remove();
     fade(0, 1);
   }
   UI.objective("Reach the small door beside the marsh gate, unseen");
   mark([SPOTS.postern[0], SPOTS.postern[1], 1.3]);
+  // stones in the alley, to throw: the noise draws a watchman away
+  const rocks = stones(w, [[-24.2, 47.6], [-25.3, 49.9], [-24.5, 51.8]]);
   let hb = 0;
   const watch = onFrame(dt => {
+    rocks.tick(dt, guards);
     const s = Math.max(...guards.map(g => g.sus));
     UI.eye(Math.min(1, s));
     hb -= dt;
@@ -714,7 +822,7 @@ async function ch4(w, opts) {
     until(() => guards.some(g => g.sus >= 1)).then(() => "caught"),
     until(() => Math.hypot(pl.pos.x - SPOTS.postern[0], pl.pos.z - SPOTS.postern[1]) < 2.5).then(() => "made"),
   ]);
-  watch(); UI.eye(0);
+  watch(); UI.eye(0); UI.carry(null);
   if (res === "caught") {
     G.lockMove = true;
     const g = guards.find(g => g.sus >= 1);
@@ -1419,6 +1527,7 @@ async function ch8(w, opts = {}) {
   w.removeInteract(fi); w.lightFire(false);
   // ---- into the trees ----
   UI.objective("Hide in the trees on the far side — keep out of the lantern light");
+  G.tension = 0.8;
   mark([HIDE.x, HIDE.z, w.cy + 0.8]);
   sib.stopFollow(); sib.walkTo(SIBHIDE.x, SIBHIDE.z, 2.4);
   tutor("hide", "", [["C", "crouch — only seen close to"], ["M", "keep the mouse"]], 7);
@@ -1442,6 +1551,7 @@ async function ch8(w, opts = {}) {
     creak -= dt; if (creak <= 0 && k.i < 2) { creak = 2.6; AUDIO.door(true, clamp(0.4 - Math.hypot(k.a.pos.x - pl.pos.x, k.a.pos.z - pl.pos.z) / 80, 0.05, 0.4)); }
   });
   const ok = await Promise.race([until(() => k.done).then(() => true), until(() => caught).then(() => false)]);
+  G.tension = 0;
   watch(); UI.eye(0);
   if (!ok) {
     G.lockMove = true;

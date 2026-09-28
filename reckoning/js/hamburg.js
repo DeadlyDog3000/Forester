@@ -595,6 +595,11 @@ export class Hamburg extends WorldBase {
   }
 
   // which props exist depends on the day
+  // the street lamps lit, as at night, whatever the chapter
+  streetsAtNight(level = 3.2) {
+    this.lampLevel = level; this.glowMat.opacity = 1;
+    this.lampHeadMat.color.set(0xffd48a);
+  }
   setChapter(ch) {
     const market = ch === 1;
     this.stalls.visible = market;

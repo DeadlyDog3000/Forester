@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "0.13", date: "28 September 2026", title: "The chase by night, stones to throw, and breath you can feel",
+    items: [
+      "The chase through Hamburg now happens that night, under the street lamps, after the square empties — and the marsh gate that follows is a misty night too.",
+      "The chase is longer and harder: four of the watch now, one coming down the north street after the bell, and you have to run the whole length of the narrow alley with them on your heels.",
+      "The watchman who used to plant himself in the mouth of the alley, so nobody could get past, now races you to it from round the corner. Get there first and the way is always open.",
+      "Stones in the alley: pick one up (F) and click to throw it. The nearest watchman who hears it land goes to see what it was, looks about, and goes back — leaving a gap.",
+      "In tense moments — the chase, creeping past the watch, hiding from the charcoal buyer — and whenever you are out of breath, your view rises and falls with your breathing.",
+    ],
+  },
+  {
     v: "0.12", date: "28 September 2026", title: "The government: your nation, Forester's tech tree, and everyone in it",
     items: [
       "Press G for the government. The Nation page names your settlement and what it has become — camp, hamlet, village, town or city — with its people and beds, how content they are and why, days of food and of firewood, the treasury, what the scholars know, everything in the stores, and every building by its style.",

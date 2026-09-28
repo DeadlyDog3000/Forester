@@ -93,6 +93,8 @@ export const ATMO = {
   mist:      { sun: [-0.2, 0.22, 0.9], sunC: 0xd0d0d8, sunI: 0.9, hemiS: 0xa4aebe, hemiG: 0x55504c, hemiI: 1.05, fog: 0x7a808a, near: 6, far: 70, top: 0x5a6472, mid: 0x8a909a, bot: 0x6a6c70, stars: 0, win: 0.9, exp: 1.3 },
   afternoon: { sun: [0.4, 0.62, 0.35], sunC: 0xfff0d0, sunI: 2.6, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.85, fog: 0xa8b8b0, near: 30, far: 200, top: 0x4a78b5, mid: 0xc9d6e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
   morning:   { sun: [-0.5, 0.42, 0.5], sunC: 0xffe6c0, sunI: 2.3, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.8, fog: 0xb8c4c0, near: 30, far: 200, top: 0x5a88c0, mid: 0xdde4e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
+  // night, with the marsh mist come in off the Elbe: the escape through the city
+  nightmist: { sun: [0.3, 0.7, -0.4], sunC: 0x8fa0c8, sunI: 0.42, hemiS: 0x4a5878, hemiG: 0x1a1a22, hemiI: 0.62, fog: 0x1c2230, near: 5, far: 60, top: 0x070a12, mid: 0x1a2032, bot: 0x0c0c12, stars: 0.4, win: 2.2, exp: 1.35 },
   snowday:   { sun: [-0.3, 0.35, 0.6], sunC: 0xe8eef8, sunI: 1.2, hemiS: 0xd8e2f0, hemiG: 0x9098a0, hemiI: 1.1, fog: 0xc8d0da, near: 15, far: 130, top: 0x9aa8b8, mid: 0xd4dae2, bot: 0xb8c0c8, stars: 0, win: 0.6, exp: 1.1 },
   snownight: { sun: [0.3, 0.7, -0.4], sunC: 0x9aaad0, sunI: 0.35, hemiS: 0x5a6890, hemiG: 0x2a3040, hemiI: 0.7, fog: 0x3a4458, near: 6, far: 45, top: 0x10141e, mid: 0x2a3244, bot: 0x1a1e28, stars: 0, win: 2.2, exp: 1.35, fill: 0.35 },
   firelight: { sun: [0.3, 0.6, -0.4], sunC: 0x7a8ac0, sunI: 0.45, hemiS: 0x46507a, hemiG: 0x241c14, hemiI: 0.65, fog: 0x0c0e16, near: 12, far: 100, top: 0x060812, mid: 0x1a1e34, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.35, fill: 0.42 },
@@ -328,7 +330,7 @@ export class Player {
     // in a chase, breath runs out: a spent runner can only jog until it comes back
     if (G.stamina !== undefined) {
       if (this.winded && G.stamina > 0.35) this.winded = false;
-      if (sprint && !this.winded && this.speed > 1) G.stamina = Math.max(0, G.stamina - dt / 5.5);
+      if (sprint && !this.winded && this.speed > 1) G.stamina = Math.max(0, G.stamina - dt / 5.5 * (G.staminaMul ?? 1));
       else G.stamina = Math.min(1, G.stamina + dt / (sprint ? 9 : 3.5));
       if (G.stamina <= 0) this.winded = true;
       if (this.winded) sprint = false;
@@ -445,8 +447,15 @@ function updateCamera(dt) {
   const bobX = third ? 0 : Math.cos(p.bob) * 0.025 * Math.min(1, p.speed / 3);
   camera.rotation.set(p.pitch, p.yaw, third ? 0 : -p.lean * 0.18);
   const eye = p.eyePos();
+  // breathing: out of breath, or in a tense moment (G.tension, set by the story), the view rises and falls with it —
+  // slow and shallow when you are only afraid, quicker and deeper when you have been running
+  const winded = clamp((0.75 - (G.stamina ?? 1)) / 0.75, 0, 1), tense = G.tension || 0;
+  const heave = Math.max(winded, tense * 0.6);
+  G.breathT = (G.breathT || 0) + dt * (1.5 + 2.6 * winded + 0.6 * tense);
+  const breath = third ? 0 : Math.sin(G.breathT) * 0.026 * heave;
+  if (!third) camera.rotation.x += breath * 0.3;
   if (!third) {
-    camera.position.set(eye.x + bobX * Math.cos(p.yaw), eye.y + bobY, eye.z - bobX * Math.sin(p.yaw));
+    camera.position.set(eye.x + bobX * Math.cos(p.yaw), eye.y + bobY + breath, eye.z - bobX * Math.sin(p.yaw));
   } else {
     const back = new THREE.Vector3(0, 0, 1).applyEuler(camera.rotation);
     const right = new THREE.Vector3(1, 0, 0).applyEuler(camera.rotation);
