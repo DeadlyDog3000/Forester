@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.11", date: "28 September 2026", title: "From clearing to city: the works, and rebuilding in the style of the age",
+    items: [
+      "The works: a quarry for stone, a sawmill for planks, a brickworks, a mine for iron ore, a smelter for iron, and a forge whose tools make everyone a quarter quicker. Each wants a pair of hands.",
+      "A market that sells your surplus for Marks every day, a town hall, and a church.",
+      "Rebuild what you've built, in the style of its age: F at the front of a cabin, bakery or any works to rebuild it in timber and plaster as Hamburg does, then in red brick as the Hanse does, then — once the town hall is brick and you hold a charter — in stucco and glass, as a city builds now. The well becomes a fountain.",
+      "As the town grows grander the ground between the houses is cobbled, and then paved, with street lamps round the square.",
+      "Talk to someone (F) and choose their work from a list: every trade open to them, what it takes in and puts out, and how many are at it already.",
+      "Buildings can want stone, planks or bricks as well as logs; haulers bring them from the stores, or you can.",
+      "The board tells you the next step: open a quarry, build a sawmill, rebuild a cabin in timber, raise a town hall.",
+    ],
+  },
+  {
     v: "0.10", date: "28 September 2026", title: "The year goes round: night, winter, bread and Henning's cart",
     items: [
       "At dusk everyone stops work and goes home — two to each cabin, and anyone without a bed lies down by the fire. Your brother or sister sleeps on the other pallet in your own cabin.",

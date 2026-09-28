@@ -357,15 +357,217 @@ def anvil_yard(k, W, D, style, rnd):
     k.cylinder("wood", 0.35, 0.35, 0.5, mat_tr((x - 0.9, 0.9, 0.25)), rgb(0x5a4030, 0.05, rnd), segs=12)
 
 
+def saw_yard(k, W, D, style, rnd):
+    """Logs waiting, a saw-horse and a long frame saw; from the timber age on, a waterwheel turning it."""
+    x = -W / 2 - 1.3
+    for i in range(9):
+        row, col = divmod(i, 3)
+        k.cylinder("log", 0.17, 0.16, 3.2, mat_tr((x - 0.2 + (row % 2) * 0.17, -0.9 + col * 0.36, 0.17 + row * 0.3), (PI / 2, 0, 0)), rgb(0x7a5634, 0.08, rnd), segs=9, end_color=rgb(0xc9a878))
+    for y in (1.0, 1.9):
+        for sx in (-0.3, 0.3):
+            k.box("wood", (0.08, 0.08, 0.9), mat_tr((x + sx, y, 0.45), (0, sx * 0.6, 0)), rgb(0x5a4030))
+    k.box("wood", (0.9, 1.4, 0.06), mat_tr((x, 1.45, 1.4), (0, 0, 0)), rgb(0x6a4a2e, 0.05, rnd))
+    if style in ("timber", "brick"):
+        # the wheel, on the right-hand wall
+        cx = W / 2 + 0.35
+        k.cylinder("wood", 1.6, 1.6, 0.12, mat_tr((cx, 0, 1.7), (0, PI / 2, 0)), rgb(0x5a4030, 0.05, rnd), segs=20)
+        k.cylinder("wood", 1.3, 1.3, 0.14, mat_tr((cx, 0, 1.7), (0, PI / 2, 0)), rgb(0x3a2a1e), segs=20)
+        for i in range(12):
+            a = i / 12 * 2 * PI
+            k.box("wood", (0.5, 0.06, 0.34), mat_tr((cx + 0.1, math.cos(a) * 1.55, 1.7 + math.sin(a) * 1.55), (a, 0, 0)), rgb(0x6a4a2e, 0.05, rnd))
+        k.cylinder("iron", 0.12, 0.12, 0.6, mat_tr((cx - 0.2, 0, 1.7), (0, PI / 2, 0)), rgb(0x2a2a2e), segs=8)
+
+
+def kiln(k, W, D, style, rnd):
+    """A beehive kiln with a tall chimney, and stacks of bricks drying."""
+    x = W / 2 + 1.6
+    brick = rgb(0x8a3a2a, 0.04, rnd)
+    k.cylinder("brick", 1.25, 1.0, 1.8, mat_tr((x, 0.3, 0.9)), brick, segs=16)
+    k.rock("brick", 1.0, mat_tr((x, 0.3, 1.8), (0, 0, 0), (1, 1, 0.55)), brick)
+    k.box("soot", (0.6, 0.2, 0.7), mat_tr((x, -0.93, 0.5)), rgb(0x100c0a))
+    k.cylinder("brick", 0.35, 0.28, 5.5, mat_tr((x + 0.6, 1.2, 2.75)), rgb(0x7e3626, 0.04, rnd), segs=10)
+    for j in range(3):
+        for i in range(12):
+            row, col = divmod(i, 4)
+            k.box("brick", (0.24, 0.11, 0.07), mat_tr((-W / 2 - 0.9 + col * 0.26, -1.2 + j * 0.9, 0.05 + row * 0.08)), rgb(0xa0503a, 0.08, rnd))
+
+
+def furnace(k, W, D, style, rnd):
+    """A stone blast furnace, taller than the shed, with the bellows beside it."""
+    x = W / 2 + 1.5
+    stone = rgb(0x6e6860, 0.05, rnd)
+    for i in range(6):
+        w = 2.0 - i * 0.2
+        k.box("stone", (w, w, 0.7), mat_tr((x, 0, 0.35 + i * 0.7)), stone, bevel=0.03)
+    k.box("soot", (0.6, 0.2, 0.6), mat_tr((x, -1.0, 0.6)), rgb(0x1a0c06))
+    k.box("glass", (0.4, 0.16, 0.3), mat_tr((x, -1.02, 0.5)), rgb(0xd86a20))          # the glow of the tap hole
+    k.box("wood", (1.0, 0.6, 0.35), mat_tr((x - 1.4, -0.8, 0.8), (0, 0.2, 0)), rgb(0x5a4030))   # the bellows
+    k.box("cloth", (0.9, 0.55, 0.25), mat_tr((x - 1.4, -0.8, 1.05), (0, 0.35, 0)), rgb(0x5a3a26))
+
+
+def stalls(k, W, D, style, rnd):
+    """Stalls out in front: trestles, crates and bright awnings."""
+    for i, u in enumerate((-W / 3, 0, W / 3)):
+        y = -D / 2 - 2.0
+        c = rgb(AWNING[(i + rnd.randint(0, 3)) % len(AWNING)], 0.05, rnd)
+        k.box("wood", (1.8, 0.8, 0.08), mat_tr((u, y, 0.85)), rgb(0x6a4a2e, 0.05, rnd))
+        for sx in (-0.8, 0.8):
+            for sy in (-0.35, 0.35):
+                k.box("wood", (0.06, 0.06, 0.85), mat_tr((u + sx, y + sy, 0.42)), rgb(0x4a3422))
+            k.box("wood", (0.06, 0.06, 2.1), mat_tr((u + sx, y - 0.45, 1.05)), rgb(0x4a3422))
+        k.box("cloth", (2.0, 1.4, 0.04), mat_tr((u, y - 0.1, 2.05), (0.2, 0, 0)), c)
+        for j in range(3):
+            k.box("wood", (0.4, 0.3, 0.25), mat_tr((u - 0.5 + j * 0.5, y, 1.02)), rgb(rnd.choice([0x8a6a45, 0xc8a050, 0x7a8a3a, 0xa04a30]), 0.08, rnd))
+
+
+def tower(k, W, D, style, rnd, top=8.0):
+    """A clock tower at the front of the town hall, rising above the roof."""
+    th = top + 4.5
+    y = -D / 2 - 0.2
+    col = {"log": 0x7a5634, "timber": 0xe6dcc4, "brick": 0x8c3c2c, "modern": 0xe8e0d0}[style]
+    key = {"log": "wood", "timber": "plaster", "brick": "brick", "modern": "plaster"}[style]
+    k.box(key, (2.4, 2.4, th), mat_tr((0, y, th / 2)), rgb(col, 0.03, rnd))
+    for side_y in (y - 1.22,):
+        k.cylinder("stone", 0.6, 0.6, 0.08, mat_tr((0, side_y, th - 1.4), (PI / 2, 0, 0)), rgb(0xf0ece0), segs=20)   # the clock face
+        k.box("iron", (0.05, 0.03, 0.45), mat_tr((0, side_y - 0.06, th - 1.25)), rgb(0x1a1a1e))
+        k.box("iron", (0.32, 0.03, 0.05), mat_tr((0.12, side_y - 0.06, th - 1.4)), rgb(0x1a1a1e))
+    spire = {"log": 0x4e3e30, "timber": 0x8e4a34, "brick": 0x5a8a78, "modern": 0x5a8a78}[style]
+    k.cylinder("tiles", 1.8, 0.02, 3.2, mat_tr((0, y, th + 1.6)), rgb(spire, 0.03, rnd), segs=4)
+    k.cylinder("iron", 0.03, 0.03, 0.8, mat_tr((0, y, th + 3.4)), rgb(0xc8a040), segs=6)
+
+
+def church(k, style, rnd):
+    """A nave and a west tower with its spire — St. Nikolai in little, when it is brick."""
+    W, D = 6.0, 11.0
+    wall = {"log": 0x8a6440, "timber": 0xe6dcc4, "brick": 0x8c3c2c, "modern": 0xe8e2d6}[style]
+    key = {"log": "wood", "timber": "plaster", "brick": "brick", "modern": "plaster"}[style]
+    H = 5.5 if style != "log" else 4.0
+    k.box(key, (W, D, H), mat_tr((0, 1.0, H / 2)), rgb(wall, 0.03, rnd))
+    # tall pointed windows along the nave
+    for sd in (-1, 1):
+        for i in range(4):
+            y = -2.5 + i * 2.6
+            k.box("glass", (0.06, 0.9, 2.4), mat_tr((sd * (W / 2 + 0.02), y, H * 0.55)), rgb(0x3a4a6a))
+            k.cylinder("glass", 0.45, 0.02, 0.6, mat_tr((sd * (W / 2 + 0.02), y, H * 0.55 + 1.5), (0, 0, 0), (0.12, 1, 1)), rgb(0x3a4a6a), segs=4)
+    rise = W * 0.75
+    gable_roof(k, "tiles", W, D, H, rise, {"log": 0x4e3e30, "timber": 0x8e4a34, "brick": 0x4a3632, "modern": 0x4a4a52}[style], over=0.3, rnd=rnd, boards=18)
+    for y in (1.0 - D / 2, 1.0 + D / 2):
+        gable_end(k, key, W, D, y - 1.0, H, rise, rgb(wall, 0.03, rnd))
+    # the tower, at the west end, and its spire
+    T = H + rise + (3 if style == "log" else 6)
+    k.box(key, (3.0, 3.0, T), mat_tr((0, -D / 2 + 0.5, T / 2)), rgb(wall, 0.03, rnd))
+    k.box("wood", (1.3, 0.1, 2.4), mat_tr((0, -D / 2 - 1.02, 1.2)), rgb(0x3a2a1e))
+    k.cylinder("glass", 0.5, 0.5, 0.08, mat_tr((0, -D / 2 - 1.02, T - 2.0), (PI / 2, 0, 0)), rgb(0x2a2a30), segs=16)
+    spire = {"log": 0x4e3e30, "timber": 0x3a2a1e, "brick": 0x5a8a78, "modern": 0x5a8a78}[style]
+    sh = 3.5 if style == "log" else 8.0
+    k.cylinder("tiles", 2.2, 0.03, sh, mat_tr((0, -D / 2 + 0.5, T + sh / 2), (0, 0, PI / 4)), rgb(spire, 0.03, rnd), segs=8)
+    k.cylinder("iron", 0.03, 0.03, 1.0, mat_tr((0, -D / 2 + 0.5, T + sh + 0.4)), rgb(0xc8a040), segs=6)
+    k.box("iron", (0.5, 0.03, 0.03), mat_tr((0, -D / 2 + 0.5, T + sh + 0.6)), rgb(0xc8a040))
+
+
+def quarry(k, rnd):
+    """A face cut into a knoll of rock, blocks squared off, a wooden crane to lift them."""
+    for i in range(14):
+        a = PI * 0.15 + i / 13 * PI * 0.7
+        r = 4.2 + rnd.uniform(-0.3, 0.4)
+        k.rock("stone", rnd.uniform(1.1, 1.8), mat_tr((math.cos(a) * r, math.sin(a) * r * 0.8 + 1.5, rnd.uniform(0.6, 1.4)), (0, 0, rnd.uniform(0, 3)), (1, 1, 0.8)), rgb(rnd.choice([0x8a857c, 0x7a756c, 0x958e82]), 0.06, rnd), lumps=0.3)
+    for i in range(8):
+        x, y = rnd.uniform(-2.5, 2.5), rnd.uniform(-2.5, 0.5)
+        k.box("stone", (0.8, 0.5, 0.45), mat_tr((x, y, 0.23), (0, 0, rnd.uniform(0, 1))), rgb(0x9a948a, 0.06, rnd), bevel=0.03)
+    # the crane: an A-frame, a jib, a rope and a block on it
+    for sx in (-0.9, 0.9):
+        k.box("wood", (0.14, 0.14, 4.4), mat_tr((sx * 0.8 + 2.4, -1.4, 2.1), (0, sx * 0.2, 0)), rgb(0x5a4030))
+    k.box("wood", (0.14, 3.2, 0.14), mat_tr((2.4, -2.6, 4.1), (0.35, 0, 0)), rgb(0x5a4030))
+    k.cylinder("rope", 0.02, 0.02, 2.4, mat_tr((2.4, -3.9, 2.9)), rgb(0x8a7a5a), segs=5)
+    k.box("stone", (0.7, 0.5, 0.45), mat_tr((2.4, -3.9, 1.5)), rgb(0x9a948a))
+
+
+def mine(k, rnd):
+    """A timbered adit into a hump of rock, a windlass, and an ore cart on its rails."""
+    for i in range(12):
+        a = rnd.uniform(0, 2 * PI)
+        r = rnd.uniform(1.0, 3.2)
+        k.rock("stone", rnd.uniform(1.2, 2.2), mat_tr((math.cos(a) * r, math.sin(a) * r * 0.7 + 1.6, rnd.uniform(0.4, 1.8)), (0, 0, rnd.uniform(0, 3)), (1, 1, 0.75)), rgb(rnd.choice([0x6a655d, 0x5f5a53, 0x77706a]), 0.06, rnd), lumps=0.3)
+    k.box("soot", (1.6, 1.0, 2.1), mat_tr((0, -0.8, 1.05)), rgb(0x0a0908))
+    for sx in (-0.95, 0.95):
+        k.box("wood", (0.2, 0.2, 2.4), mat_tr((sx, -1.4, 1.2)), rgb(0x5a4030))
+    k.box("wood", (2.3, 0.25, 0.25), mat_tr((0, -1.4, 2.45)), rgb(0x5a4030))
+    for sx in (-0.35, 0.35):
+        k.box("iron", (0.06, 4.0, 0.06), mat_tr((sx, -3.2, 0.03)), rgb(0x3a3a3e))
+    for i in range(8):
+        k.box("wood", (1.0, 0.12, 0.06), mat_tr((0, -1.6 - i * 0.5, 0.02)), rgb(0x4a3422))
+    k.box("wood", (0.8, 1.1, 0.55), mat_tr((0, -3.6, 0.5)), rgb(0x5a4030))
+    for i in range(5):
+        k.rock("stone", 0.18, mat_tr((rnd.uniform(-0.25, 0.25), -3.6 + rnd.uniform(-0.35, 0.35), 0.85)), rgb(0x6a4a3a, 0.1, rnd))
+    for sx in (-0.4, 0.4):
+        for sy in (-3.25, -3.95):
+            k.cylinder("iron", 0.14, 0.14, 0.06, mat_tr((sx, sy, 0.16), (0, PI / 2, 0)), rgb(0x2a2a2e), segs=10)
+
+
+def fountain(k, style, rnd):
+    """The well grown up: a stone basin and a column in the square, or a modern fountain."""
+    if style == "brick":
+        for i in range(16):
+            a = i / 16 * 2 * PI
+            k.box("stone", (0.9, 0.35, 0.6), mat_tr((math.cos(a) * 1.8, math.sin(a) * 1.8, 0.3), (0, 0, a + PI / 2)), rgb(0x9a948a, 0.05, rnd), bevel=0.03)
+        k.cylinder("glass", 1.65, 1.65, 0.05, mat_tr((0, 0, 0.45)), rgb(0x3a5a6a), segs=24)
+        k.cylinder("stone", 0.28, 0.35, 2.4, mat_tr((0, 0, 1.2)), rgb(0x9a948a, 0.04, rnd), segs=12)
+        k.cylinder("stone", 0.6, 0.3, 0.3, mat_tr((0, 0, 2.5)), rgb(0x9a948a), segs=12)
+        k.rock("stone", 0.35, mat_tr((0, 0, 2.9)), rgb(0xc8a040))
+    else:
+        k.cylinder("stone", 2.4, 2.4, 0.5, mat_tr((0, 0, 0.25)), rgb(0xd8d4cc, 0.02, rnd), segs=32)
+        k.cylinder("glass", 2.2, 2.2, 0.05, mat_tr((0, 0, 0.47)), rgb(0x4a7a8a), segs=32)
+        k.cylinder("stone", 0.9, 1.1, 0.5, mat_tr((0, 0, 0.75)), rgb(0xd8d4cc), segs=24)
+        k.cylinder("glass", 0.8, 0.8, 0.05, mat_tr((0, 0, 1.0)), rgb(0x4a7a8a), segs=24)
+        k.cylinder("iron", 0.08, 0.05, 1.8, mat_tr((0, 0, 1.9)), rgb(0x8a8a8e), segs=10)
+        k.rock("glass", 0.25, mat_tr((0, 0, 2.8), (0, 0, 0), (1, 1, 1.4)), rgb(0xb8d8e8))
+
+
+def lamp(k, style, rnd):
+    if style == "modern":
+        k.cylinder("iron", 0.08, 0.06, 4.2, mat_tr((0, 0, 2.1)), rgb(0x26262a), segs=10)
+        k.box("iron", (0.1, 1.0, 0.08), mat_tr((0, -0.5, 4.2)), rgb(0x26262a))
+        k.box("glass", (0.34, 0.5, 0.12), mat_tr((0, -0.95, 4.12)), rgb(0xfff0c0))
+    else:
+        k.box("wood", (0.14, 0.14, 2.8), mat_tr((0, 0, 1.4)), rgb(0x3a2a1e))
+        k.box("iron", (0.05, 0.6, 0.05), mat_tr((0, -0.3, 2.7)), rgb(0x26262a))
+        k.box("glass", (0.24, 0.24, 0.34), mat_tr((0, -0.55, 2.45)), rgb(0xffd88a))
+        k.cylinder("iron", 0.2, 0.02, 0.18, mat_tr((0, -0.55, 2.7)), rgb(0x26262a), segs=4)
+
+
 # type: (width, depth, floors per tier, what it adds, sign colour, emblem)
 TYPES = {
-    "house":  (5.0, 6.0, {1: 1, 2: 2, 3: 3, 4: 4}, None, None, None),
-    "bakery": (5.0, 5.2, {1: 1, 2: 2, 3: 2, 4: 3}, oven, 0xc89a3a, "pretzel"),
-    "forge":  (5.4, 5.0, {1: 1, 2: 1, 3: 2, 4: 3}, anvil_yard, 0x5a5a60, "anvil"),
+    "house":    (5.0, 6.0, {1: 1, 2: 2, 3: 3, 4: 4}, None, None, None),
+    "bakery":   (5.0, 5.2, {1: 1, 2: 2, 3: 2, 4: 3}, oven, 0xc89a3a, "pretzel"),
+    "forge":    (5.4, 5.0, {1: 1, 2: 1, 3: 2, 4: 3}, anvil_yard, 0x5a5a60, "anvil"),
+    "sawmill":  (6.0, 5.0, {1: 1, 2: 1, 3: 2, 4: 2}, saw_yard, 0x7a5634, None),
+    "brickworks": (4.6, 4.0, {1: 1, 2: 1, 3: 1, 4: 2}, kiln, 0x8a3a2a, None),
+    "smelter":  (5.0, 4.4, {1: 1, 2: 1, 3: 2, 4: 2}, furnace, 0x3a3a40, None),
+    "market":   (8.0, 6.0, {1: 1, 2: 2, 3: 3, 4: 3}, stalls, 0x2a4a6a, None),
+    "townhall": (9.0, 7.0, {1: 1, 2: 2, 3: 3, 4: 4}, "tower", 0x7a2a2a, None),
+}
+# built whole, not as a shell: (builder, which tiers exist)
+SPECIAL = {
+    "church": (lambda k, st, rnd: church(k, st, rnd), (1, 2, 3, 4)),
+    "quarry": (lambda k, st, rnd: quarry(k, rnd), (1,)),
+    "mine": (lambda k, st, rnd: mine(k, rnd), (1,)),
+    "fountain": (lambda k, st, rnd: fountain(k, st, rnd), (3, 4)),
+    "lamp": (lambda k, st, rnd: lamp(k, st, rnd), (1, 4)),
 }
 
 
+def build_special(tp, tier):
+    fn, _ = SPECIAL[tp]
+    sc = fresh_scene(f"Reckoning {tp} {tier}")
+    k = Kit(f"{tp}{tier}", seed=hash((tp, tier)) & 0xffff)
+    fn(k, STYLES[tier], k.rnd)
+    objs = k.build(sc, smooth=("clay",))
+    return export(sc, os.path.join("town", f"{tp}_{tier}.glb"), objs)
+
+
 def build(tp, tier):
+    if tp in SPECIAL:
+        return build_special(tp, tier)
     W, D, floors, extra, sign_c, emblem = TYPES[tp]
     style = STYLES[tier]
     sc = fresh_scene(f"Reckoning {tp} {tier}")
@@ -375,7 +577,10 @@ def build(tp, tier):
         shell_modern(k, W, D, floors[tier], rnd, shop=tp != "house")
     else:
         SHELLS[style](k, W, D, floors[tier], rnd)
-    if extra:
+    if extra == "tower":
+        top = {"log": 4.0, "timber": floors[tier] * 2.8, "brick": floors[tier] * 3.0, "modern": floors[tier] * 3.1}[style]
+        tower(k, W, D, style, rnd, top)
+    elif extra:
         extra(k, W, D, style, rnd)
     if sign_c is not None and style != "log":
         sign(k, W, D, sign_c, rnd, emblem, z=2.9 if style != "modern" else 3.6)
@@ -385,9 +590,9 @@ def build(tp, tier):
 
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    kinds = args or list(TYPES)
+    kinds = args or list(TYPES) + list(SPECIAL)
     for tp in kinds:
-        for tier in (1, 2, 3, 4):
+        for tier in (SPECIAL[tp][1] if tp in SPECIAL else (1, 2, 3, 4)):
             if tp == "house" and tier == 1:
                 continue        # the first house is the cabin itself
             print("wrote", build(tp, tier))

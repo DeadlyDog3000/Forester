@@ -137,7 +137,8 @@ export function loadSave() {
 }
 export function writeSave(patch) {
   const s = { ...(loadSave() || {}), ...patch, at: Date.now() };
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch (e) {}
+  // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(s, (k, v) => k[0] === "_" ? undefined : v)); } catch (e) {}
   return s;
 }
 export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
