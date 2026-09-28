@@ -1689,9 +1689,14 @@ async function ch11(w) {
     if (!n.shed) parts.push("Build a woodshed");
     if (!n.field) parts.push("Dig a second field");
     UI.objective(parts.length ? parts.join(" · ") : null);
+    // the marker: the ripe rye first, then the nearest site waiting on you
+    const ripe = !n.reap && S.buildings.find(b => b.type === "field" && b._reap);
+    let tgt = ripe || null, bd = Infinity;
+    if (!tgt) for (const b of S.buildings) if (!b.done) { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; tgt = b; } }
+    mark(tgt ? [tgt.x, tgt.z, w.heightAt(tgt.x, tgt.z) + 1.5] : null);
   });
   await until(() => { const n = need(); return n.reap && n.well && n.shed && n.field; });
-  obj(); UI.objective(null);
+  obj(); UI.objective(null); mark(null);
   await wait(1.5);
   bark(P.sib, "That's the lot. Come to the fire tonight — everyone.", 3.5);
   await wait(3);

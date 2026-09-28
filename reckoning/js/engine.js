@@ -401,9 +401,10 @@ function updateCamera(dt) {
 // line is taken when it is clear; otherwise a small grid search finds the way
 // and the corners are pulled tight so the walk still looks direct.
 const NPC_R = 0.3, CELL = 0.5;
+let planFrame = -1;
 // would someone standing here be inside something? (the same height band you collide in)
-function blockedAt(w, x, z, pad = NPC_R) {
-  const y = w.heightAt(x, z);
+// (y is the ground height, found once per search: sampling the terrain for every cell is the slow part)
+function blockedAt(w, x, z, pad = NPC_R, y = w.heightAt(x, z)) {
   for (const o of w.col.near(x, z, pad + 0.5)) {
     if (o.disabled || y + 0.3 > o.y1 - 0.05 || y + 1.7 < o.y0) continue;
     if (o.type === "box") { if (x > o.x0 - pad && x < o.x1 + pad && z > o.z0 - pad && z < o.z1 + pad) return true; }
@@ -412,36 +413,37 @@ function blockedAt(w, x, z, pad = NPC_R) {
   return false;
 }
 // can one walk straight from a to b? (a start already against something is let off its first steps)
-function clearLine(w, ax, az, bx, bz) {
+function clearLine(w, ax, az, bx, bz, y) {
   const l = Math.hypot(bx - ax, bz - az), n = Math.ceil(l / 0.25);
-  const startStuck = blockedAt(w, ax, az, NPC_R * 0.9);
+  const startStuck = blockedAt(w, ax, az, NPC_R * 0.9, y);
   for (let i = 1; i <= n; i++) {
     const t = i / n;
     if (startStuck && t * l < 0.7) continue;
-    if (blockedAt(w, ax + (bx - ax) * t, az + (bz - az) * t, NPC_R * 0.9)) return false;
+    if (blockedAt(w, ax + (bx - ax) * t, az + (bz - az) * t, NPC_R * 0.9, y)) return false;
   }
   return true;
 }
 // a way from (sx,sz) to (gx,gz) as a list of {x,z}; the last may be marked `near`
 // when the goal itself is inside something and only the closest free spot is reached
-function findPath(w, sx, sz, gx, gz) {
+export function findPath(w, sx, sz, gx, gz) {
   if (!w || !w.col) return [{ x: gx, z: gz }];
-  if (clearLine(w, sx, sz, gx, gz)) return [{ x: gx, z: gz }];
+  const y = (w.heightAt(sx, sz) + w.heightAt(gx, gz)) / 2;
+  if (clearLine(w, sx, sz, gx, gz, y)) return [{ x: gx, z: gz }];
   const M = 8;
   const x0 = Math.min(sx, gx) - M, z0 = Math.min(sz, gz) - M;
   const nx = Math.ceil((Math.max(sx, gx) + M - x0) / CELL), nz = Math.ceil((Math.max(sz, gz) + M - z0) / CELL);
-  if (nx * nz > 90000) return [{ x: gx, z: gz }];
+  if (nx * nz > 40000) return [{ x: gx, z: gz }];
   const cx = i => x0 + (i + 0.5) * CELL, cz = j => z0 + (j + 0.5) * CELL;
   const block = new Int8Array(nx * nz).fill(-1);
   const isBlocked = (i, j) => {
     if (i < 0 || j < 0 || i >= nx || j >= nz) return true;
     const k = i + j * nx;
-    if (block[k] < 0) block[k] = blockedAt(w, cx(i), cz(j)) ? 1 : 0;
+    if (block[k] < 0) block[k] = blockedAt(w, cx(i), cz(j), NPC_R, y) ? 1 : 0;
     return block[k] === 1;
   };
   const cellOf = (x, z) => [clamp(Math.floor((x - x0) / CELL), 0, nx - 1), clamp(Math.floor((z - z0) / CELL), 0, nz - 1)];
   const [si, sj] = cellOf(sx, sz);
-  let [gi, gj] = cellOf(gx, gz), goalFree = !blockedAt(w, gx, gz);
+  let [gi, gj] = cellOf(gx, gz), goalFree = !blockedAt(w, gx, gz, NPC_R, y);
   if (isBlocked(gi, gj)) {
     // the goal is inside something: aim for the nearest free cell round it
     let best = null;
@@ -462,7 +464,7 @@ function findPath(w, sx, sz, gx, gz) {
   const sk = si + sj * nx, gk = gi + gj * nx;
   gs[sk] = 0; push(sk, h(si, sj));
   let found = false, iter = 0;
-  while (heap.length && iter++ < 40000) {
+  while (heap.length && iter++ < 6000) {
     const [, k] = pop();
     if (shut[k]) continue;
     shut[k] = 1;
@@ -482,11 +484,12 @@ function findPath(w, sx, sz, gx, gz) {
   for (let k = gk; k !== -1 && k !== sk; k = from[k]) cells.unshift({ x: cx(k % nx), z: cz((k / nx) | 0) });
   if (goalFree) cells[cells.length - 1] = { x: gx, z: gz };
   // pull the string tight: from each corner, go to the farthest cell still in plain sight
+  // (one pass forward: keep going while the next cell is still in sight of the last corner)
   const out = [];
   let ax = sx, az = sz, i = 0;
   while (i < cells.length) {
-    let j = cells.length - 1;
-    while (j > i && !clearLine(w, ax, az, cells[j].x, cells[j].z)) j--;
+    let j = i;
+    while (j + 1 < cells.length && clearLine(w, ax, az, cells[j + 1].x, cells[j + 1].z, y)) j++;
     out.push(cells[j]); ax = cells[j].x; az = cells[j].z; i = j + 1;
   }
   if (!out.length) out.push({ x: gx, z: gz, ghost: true });
@@ -575,7 +578,10 @@ export class Actor {
     } else if (this.path.length) {
       const t = this.path[0];
       // plan the way to the next point the first time we head for it, or again when stuck
-      if (this.stepsFor !== t) { this.steps = findPath(G.world, p.x, p.z, t.x, t.z); this.stepsFor = t; this.stuck = 0; this.replans = this.replans && this.lastFor === t ? this.replans : 0; this.lastFor = t; this.bestD = Infinity; }
+      // (one search a frame between everyone, so a crowd setting off at once doesn't stutter)
+      if (this.stepsFor !== t && planFrame === G.time) { this.person.update(dt, 0); this.sync(); return; }
+      if (this.stepsFor !== t) {
+        planFrame = G.time; this.steps = findPath(G.world, p.x, p.z, t.x, t.z); this.stepsFor = t; this.stuck = 0; this.replans = this.replans && this.lastFor === t ? this.replans : 0; this.lastFor = t; this.bestD = Infinity; }
       const st = this.steps[0];
       const dx = st.x - p.x, dz = st.z - p.z, l = Math.hypot(dx, dz);
       spd = this.walkSpeed;
