@@ -303,8 +303,15 @@ function useModel(P, key, colors = {}) {
   const clip = name => m.animations.find(a => a.name.toLowerCase() === name) || m.animations.find(a => a.name.toLowerCase().includes(name));
   const acts = {};
   for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
-  let cur = null;
+  // the legs of a walk without its arms, and the arms of a held pose without its legs, so a man can
+  // carry a lantern and walk at the same time
+  const ARM = /shoulder|arm|elbow|wrist|hand|finger|thumb/i;
+  const part = (c, arms) => { if (!c) return null; const k = c.clone(); k.tracks = k.tracks.filter(t => ARM.test(t.name.split(".")[0]) === arms); k.name = c.name + (arms ? "·arms" : "·legs"); return mixer.clipAction(k); };
+  for (const n of ["walk", "run"]) if (acts[n]) acts[n + "Legs"] = part(clip(n), false);
+  for (const n of ["torch", "lantern", "writ", "bound"]) if (acts[n]) acts[n + "Arms"] = part(clip(n), true);
+  let cur = null, curArms = null;
   const play = n => { const a = acts[n] || acts.idle; if (!a || a === cur) return; a.reset().fadeIn(0.25).play(); if (cur) cur.fadeOut(0.25); cur = a; };
+  const playArms = n => { const a = n ? acts[n] : null; if (a === curArms) return; if (a) a.reset().fadeIn(0.25).play(); if (curArms) curArms.fadeOut(0.25); curArms = a; };
   // held things follow the model's right hand, if it has a bone by that name
   let hand = null;
   m.scene.traverse(o => { if (!hand && o.isBone && /(hand.*(\.r|_r|right))|(right.*hand)/i.test(o.name)) hand = o; });
@@ -317,8 +324,15 @@ function useModel(P, key, colors = {}) {
     const pose = (this.pose || "idle").toLowerCase();
     // walking and running win over a held pose, except for what the hands must keep doing
     const keepsHands = ["torch", "lantern", "writ", "bound"].includes(pose);
-    play(this.sitting > 0.5 ? "sit" : pose === "chop" || pose === "hammer" ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle");
-    if (cur && (cur === acts.walk || cur === acts.run)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run ? 5 : 1.4));
+    const moving = speed > 0.15 && this.sitting <= 0.5;
+    if (keepsHands && moving && acts[pose + "Arms"] && acts.walkLegs) {
+      // walking with something held: the legs walk, the arms keep hold
+      play(speed > 3 && acts.runLegs ? "runLegs" : "walkLegs"); playArms(pose + "Arms");
+    } else {
+      playArms(null);
+      play(this.sitting > 0.5 ? "sit" : pose === "chop" || pose === "hammer" ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle");
+    }
+    if (cur && (cur === acts.walk || cur === acts.run || cur === acts.walkLegs || cur === acts.runLegs)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run || cur === acts.runLegs ? 5 : 1.4));
     mixer.update(dt);
   };
 }

@@ -554,6 +554,8 @@ export class Hamburg extends WorldBase {
   ceilingAt(x, z) {
     return (x > HOME.x0 && x < HOME.x1 && z > HOME.z0 && z < HOME.z1) ? 3.2 : Infinity;
   }
+  // what is underfoot: floorboards at home, the marsh past the wall, cobbles everywhere else
+  surfaceAt(x, z) { return this.inHome(x, z) ? "wood" : z > 70.5 ? "marsh" : "stone"; }
   inHome(x = G.player.pos.x, z = G.player.pos.z) { return x > HOME.x0 && x < HOME.x1 && z > HOME.z0 && z < HOME.z1; }
 
   update(dt) {

@@ -603,6 +603,14 @@ export class Woods extends WorldBase {
   // the cabin's own frame: across (x) and back-to-door (z), to the world and back
   cabinToWorld(lx, lz) { const { c, s } = this.cabinFrame; return [CABIN.x + lx * c + lz * s, CABIN.z - lx * s + lz * c]; }
   worldToCabin(x, z) { const { c, s } = this.cabinFrame, dx = x - CABIN.x, dz = z - CABIN.z; return [dx * c - dz * s, dx * s + dz * c]; }
+  // what is underfoot, for the sound of it
+  surfaceAt(x, z) {
+    if (this.insideCabin(x, z)) return "wood";
+    if (SNOW.value > 0.4) return "snow";
+    if (this.anyRoadDist(x, z).d < 1.6) return "dirt";
+    if (Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 3) return "grass";
+    return "leaves";
+  }
   insideCabin(x, z) { if (!this.cabinUp) return false; const [lx, lz] = this.worldToCabin(x, z); return Math.abs(lx) < 2.35 && Math.abs(lz) < 2.9; }
   showCabin() {
     this.burned.visible = false; this.cabin.visible = true;

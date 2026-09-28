@@ -37,8 +37,57 @@ function loop(name, on, build) {
   }
 }
 
+// a short burst of filtered noise, the stuff most footfalls are made of
+function burst(a, t, dur, vol, f0, f1, q = 1, type = "bandpass") {
+  const s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
+  f.type = type; f.Q.value = q;
+  f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.008, dur / 4));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02);
+}
+
 export const AUDIO = {
   init: ctx,
+  // a footfall on whatever is underfoot: grass, leaves, dirt, stone, wood, snow, marsh.
+  // vol is how loud (distance already taken off); heavy is a big man in boots
+  step(surface = "grass", vol = 0.6, { fast = false, heavy = false } = {}) {
+    const a = ctx(); if (!a || vol <= 0.01) return;
+    const t = a.currentTime, k = vol * (fast ? 1.25 : 1) * (heavy ? 1.6 : 1), low = heavy ? 0.7 : 1;
+    // the weight of it, under everything
+    burst(a, t, 0.05 * (heavy ? 1.4 : 1), 0.05 * k, 220 * low, 90, 0.8, "lowpass");
+    switch (surface) {
+      case "grass":
+        burst(a, t, rnd(0.08, 0.12), 0.05 * k, rnd(2600, 3400), 1400, 0.7);
+        break;
+      case "leaves":
+        burst(a, t, rnd(0.07, 0.1), 0.04 * k, rnd(2200, 2800), 1200, 0.8);
+        for (let i = 0; i < 3; i++) burst(a, t + rnd(0.005, 0.07), 0.015, 0.04 * k * rnd(0.5, 1), rnd(3500, 5500), 3000, 4);
+        break;
+      case "dirt":
+        burst(a, t, rnd(0.05, 0.07), 0.07 * k, rnd(900, 1300) * low, 500, 1.2);
+        burst(a, t + 0.01, 0.04, 0.025 * k, rnd(2500, 3200), 2000, 2);
+        break;
+      case "stone":
+        // heel, then toe: two hard little knocks
+        burst(a, t, 0.025, 0.09 * k, rnd(1700, 2300) * low, 1200, 3);
+        burst(a, t + rnd(0.05, 0.08), 0.02, 0.05 * k, rnd(2200, 2800), 1600, 3);
+        burst(a, t, 0.04, 0.05 * k, 420 * low, 200, 2, "lowpass");
+        break;
+      case "wood":
+        burst(a, t, 0.09, 0.09 * k, rnd(260, 360) * low, 180, 5);
+        burst(a, t, 0.02, 0.04 * k, 1800, 1200, 3);
+        if (Math.random() < 0.12) { const o = a.createOscillator(), g = a.createGain(); o.type = "sawtooth"; o.frequency.setValueAtTime(rnd(160, 220), t); o.frequency.linearRampToValueAtTime(rnd(120, 160), t + 0.25); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.012 * k, t + 0.05); g.gain.linearRampToValueAtTime(0.0001, t + 0.28); const f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 600; f.Q.value = 4; o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.3); }
+        break;
+      case "snow":
+        for (let i = 0; i < 4; i++) burst(a, t + i * rnd(0.012, 0.025), 0.05, 0.035 * k, rnd(2600, 3600), 1100, 1.5);
+        break;
+      case "marsh":
+        burst(a, t, rnd(0.12, 0.18), 0.06 * k, rnd(900, 1300), 300, 1, "lowpass");
+        burst(a, t + 0.03, 0.08, 0.03 * k, rnd(1800, 2400), 900, 2);
+        break;
+    }
+  },
   setMusicVolume(v) { if (ctx()) musicBus.gain.value = 0.55 * v; },
 
   bell(vol = 1, pitch = 1) {

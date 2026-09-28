@@ -109,11 +109,7 @@ def build(burned):
                 log_y(W / 2, zs, -D / 2 - OVER, D / 2 + OVER)
     top = R + (COURSES - 1) * COURSE + COURSE / 2 + R
 
-    # sill logs under everything
-    for y in (-D / 2, D / 2):
-        k.box("stone", (W + 0.9, 0.35, 0.4), mat_tr((0, y, -0.05)), rgb(0x6f6a62, 0.1, rnd))
-    for x in (-W / 2, W / 2):
-        k.box("stone", (0.4, D + 0.9, 0.35), mat_tr((x, 0, -0.05)), rgb(0x6f6a62, 0.1, rnd))
+    # (no stone sill round the foot: the logs sit on the ground, with nothing sticking out to stand on)
 
     wood = lambda h=0x6e4e30, j=0.1: rgb(h, j, rnd)
     iron = rgb(0x2a2724, 0.05, rnd)

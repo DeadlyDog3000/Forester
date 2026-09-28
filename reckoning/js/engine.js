@@ -370,7 +370,7 @@ export class Player {
     if (this.onGround && this.speed > 0.4) {
       this.stride += this.speed * dt;
       const every = sprint ? 1.6 : 1.25;
-      if (this.stride > every) { this.stride = 0; if (!this.crouched) SFX.step(sprint); }
+      if (this.stride > every) { this.stride = 0; AUDIO.step(w && w.surfaceAt ? w.surfaceAt(this.pos.x, this.pos.z) : "grass", this.crouched ? 0.25 : sprint ? 0.75 : 0.55, { fast: sprint }); }
       this.bob += dt * this.speed * 2.2;
     }
     // breadcrumbs, so the one following you goes round corners rather than through them
@@ -482,6 +482,7 @@ function updateCamera(dt) {
 // line is taken when it is clear; otherwise a small grid search finds the way
 // and the corners are pulled tight so the walk still looks direct.
 const NPC_R = 0.3, CELL = 0.5;
+const stepClock = { t: 0 };
 let planFrame = -1;
 // would someone standing here be inside something? (the same height band you collide in)
 // (y is the ground height, found once per search: sampling the terrain for every cell is the slow part)
@@ -701,6 +702,19 @@ export class Actor {
       this.person.look = clamp(angDiff(this.yaw, a), -1, 1);
     } else this.person.look = 0;
     this.speed = moving ? spd : (this.forcedSpeed || 0);
+    // their footsteps, if you are near enough to hear them (a few at a time, however many are walking)
+    if (moving && spd > 0.3) {
+      this.stepD = (this.stepD || 0) + spd * dt;
+      if (this.stepD > (spd > 3 ? 1.5 : 0.75)) {
+        this.stepD = 0;
+        const d = Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z), hear = this.heavy ? 26 : 16;
+        if (d < hear && G.time - (stepClock.t) > 0.09) {
+          stepClock.t = G.time;
+          const w = G.world, k = (1 - d / hear) ** 2;
+          AUDIO.step(w && w.surfaceAt ? w.surfaceAt(p.x, p.z) : "grass", 0.5 * k, { fast: spd > 3, heavy: !!this.heavy });
+        }
+      }
+    }
     this.person.update(dt, this.speed);
     if (this.onUpdate) this.onUpdate(dt);
     this.sync();

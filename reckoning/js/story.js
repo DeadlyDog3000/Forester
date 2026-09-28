@@ -613,6 +613,7 @@ class Watchman {
   constructor(w, seed, route, opts = {}) {
     this.w = w;
     this.a = spawn(opts.look || GUARD(seed), route[0][0], route[0][1], opts.yaw ?? 0);
+    this.a.heavy = opts.heavy ?? true;       // the watch walks in boots, and you hear it coming
     this.lines = opts.lines || ["Who's there?", "Hm? ...Show yourself.", "Is somebody there?"];
     this.who = opts.look ? opts.look.name : "Watchman";
     this.range = opts.range || 9;
@@ -638,7 +639,7 @@ class Watchman {
       if (!a.path.length) {
         if (this.arrivedAt !== this.i) { this.arrivedAt = this.i; this.onArrive && this.onArrive(this.i); }
         if (this.once && this.i === this.route.length - 1) this.done = true;
-        else if (this.pause > 0) { this.pause -= dt; }
+        else if (this.pause > 0) { this.pause -= dt; if (this.sweep) a.targetYaw = this.baseYaw + Math.sin(this.t * 0.8) * this.sweep; }
         else { this.i = (this.i + 1) % this.route.length; a.walk([this.route[this.i]], this.speed); this.pause = this.waitT; }
       }
     } else if (this.sweep) {
@@ -650,14 +651,15 @@ class Watchman {
     const head = new THREE.Vector3(a.pos.x, 1.65, a.pos.z);
     const ep = pl.eyePos(); const tgt = new THREE.Vector3(ep.x, ep.y - 0.15, ep.z);
     const dx = tgt.x - head.x, dz = tgt.z - head.z, d = Math.hypot(dx, dz);
-    const range = pl.crouched ? this.range / 2 : this.range;
+    const range = pl.crouched ? this.range / 1.6 : this.range;
     const ang = Math.abs(Math.atan2(Math.sin(Math.atan2(dx, dz) - a.yaw), Math.cos(Math.atan2(dx, dz) - a.yaw)));
-    let seen = d < range && ang < 0.75 && this.w.col.lineOfSight(head, tgt);
-    // heard: a run close by gives you away whichever way they face
-    if (!seen && d < 3 && pl.speed > 4 && !pl.crouched) seen = true;
+    let seen = d < range && ang < 1.0 && this.w.col.lineOfSight(head, tgt);
+    // heard: a run gives you away whichever way they face, and so does walking right up behind them
+    if (!seen && d < 6 && pl.speed > 4 && !pl.crouched) seen = true;
+    if (!seen && d < 2.2 && pl.speed > 0.5 && !pl.crouched) seen = true;
     if (d < 1) seen = true;
-    if (seen) this.sus += dt * (0.25 + 0.9 * (1 - d / range)) * (pl.crouched ? 0.5 : 1);
-    else this.sus = Math.max(0, this.sus - dt * 0.45);
+    if (seen) this.sus += dt * (0.4 + 1.2 * (1 - Math.min(1, d / range))) * (pl.crouched ? 0.65 : 1);
+    else this.sus = Math.max(0, this.sus - dt * 0.35);
     if (this.sus > 0.35 && !this.said) { this.said = true; bark(this.who, this.lines[Math.floor(Math.random() * this.lines.length)], 2.2); }
     if (this.sus < 0.1) this.said = false;
   }
@@ -1426,12 +1428,12 @@ async function ch8(w, opts = {}) {
   // ---- the charcoal buyer ----
   cart.visible = true;
   const door = [CABIN.x + Math.sin(CABIN.ry) * 4, CABIN.z + Math.cos(CABIN.ry) * 4];
-  const route = [[30.5, -289], [31, -298], door, [FIELD.x + 2.5, FIELD.z + 1], [FIRE.x + 1.2, FIRE.z - 0.5], [STACK.x + 1.5, STACK.z + 1.5], [31, -298], [30, -284]];
-  const remarks = { 2: "Empty, the old man said. Somebody's mended it, though.", 3: "Rye. Somebody has sown rye.", 4: "...Still warm.", 5: "Fresh-cut, this." };
+  const route = [[30.5, -289], [31, -298], door, [FIELD.x + 2.5, FIELD.z + 1], [FIRE.x + 1.2, FIRE.z - 0.5], [STACK.x + 1.5, STACK.z + 1.5], [HIDE.x - 1, HIDE.z + 10], [31, -298], [30, -284]];
+  const remarks = { 2: "Empty, the old man said. Somebody's mended it, though.", 3: "Rye. Somebody has sown rye.", 4: "...Still warm.", 5: "Fresh-cut, this.", 6: "And where would I go, if I'd a cabin to hide from? ...The trees." };
   let creak = 0;
-  const k = new Watchman(w, 88, route, { look: KESSLER, once: true, wait: 3.2, speed: 1.0, range: 11, light: w.lightPool[1],
+  const k = new Watchman(w, 88, route, { look: KESSLER, once: true, wait: 2.4, speed: 1.5, range: 14, light: w.lightPool[1],
     lines: ["Who's there?", "Someone there? Come out — I don't bite.", "Hm. A fox, is it?"],
-    onArrive: i => { if (remarks[i]) bark("The charcoal buyer", remarks[i], 3.2); } });
+    onArrive: i => { if (remarks[i]) bark("The charcoal buyer", remarks[i], 3.2); if (i === 6) { k.sweep = 0.9; k.baseYaw = Math.atan2(HIDE.x - k.a.pos.x, HIDE.z - k.a.pos.z); k.pause = 5; } else k.sweep = 0; } });
   let caught = false;
   const watch = onFrame(dt => {
     UI.eye(Math.min(1, k.sus));

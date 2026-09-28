@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.9", date: "28 September 2026", title: "Hunting, footsteps, and a sharper watch",
+    items: [
+      "Before you dig, you hunt: Henning gives you his old bow and a dozen arrows, and the woods east of the clearing open. Creep up on the roe and the hares, draw, and let go; pull your arrows back out of wherever they land.",
+      "Footsteps sound like what you're walking on: grass, leaves and needles, the dirt of the track, cobbles, floorboards, snow, the marsh. You hear other people's too, and the watch walks heavy.",
+      "People carrying a lantern or a torch walk properly now, instead of gliding. The charcoal buyer walks faster.",
+      "The watch sees you more easily: a wider eye, farther even when you crouch, and they hear you walk up behind them.",
+      "Martinmas is harder: the charcoal buyer is quicker and sharper, and before he goes he stands at the edge of the trees and swings his lantern across them.",
+      "No more stone ledge round the foot of the cabin.",
+      "The hands have no thumbs sticking out, and the camera is first person only.",
+    ],
+  },
+  {
     v: "0.8.1", date: "28 September 2026", title: "Jakob's map, and fixes",
     items: [
       "Jakob gives you a map at the end of your errand — a copy of the one on the counting-house wall — and shows you how to read it. Until then there is no map.",

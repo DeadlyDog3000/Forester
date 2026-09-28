@@ -144,8 +144,6 @@ def shell_log(k, W, D, floors, rnd, door=True, windows=True):
     gable_roof(k, "roof", W, D, top, rise, 0x4e3e30, over=0.5, rnd=rnd, boards=12)
     k.cylinder("log", 0.12, 0.12, D + 1.1, mat_tr((0, 0, top + rise + 0.12), (PI / 2, 0, 0)), logc(), segs=9, end_color=endc)
     chimney(k, -W / 2 + 1.1, D / 2 - 0.2, top + rise + 0.6, 0x6e6860, rnd)
-    for x in (-W / 2, W / 2):
-        k.box("stone", (0.4, D + 0.8, 0.3), mat_tr((x, 0, -0.05)), rgb(0x6f6a62, 0.1, rnd))
     return top + rise
 
 
@@ -156,7 +154,7 @@ def shell_timber(k, W, D, floors, rnd, door=True, windows=True):
     oak = lambda: rgb(0x3a2a1e, 0.08, rnd)
     t = 0.3
     # stone plinth, plaster walls
-    k.box("stone", (W + 0.1, D + 0.1, 0.45), mat_tr((0, 0, 0.2)), rgb(0x7a746a, 0.06, rnd))
+    k.box("stone", (W + 0.02, D + 0.02, 0.45), mat_tr((0, 0, 0.2)), rgb(0x7a746a, 0.06, rnd))
     k.box("plaster", (W, t, H), mat_tr((0, -D / 2, H / 2)), plaster)
     k.box("plaster", (W, t, H), mat_tr((0, D / 2, H / 2)), plaster)
     for sd in (-1, 1):
@@ -214,7 +212,7 @@ def shell_brick(k, W, D, floors, rnd, door=True, windows=True):
     brick = rgb(rnd.choice([0x8c3c2c, 0x7e3a2a, 0x94442e]), 0.04, rnd)
     white = rgb(0xdcd4c4, 0.03, rnd)
     t = 0.34
-    k.box("stone", (W + 0.12, D + 0.12, 0.5), mat_tr((0, 0, 0.22)), rgb(0x6e6a64, 0.05, rnd))
+    k.box("stone", (W + 0.02, D + 0.02, 0.5), mat_tr((0, 0, 0.22)), rgb(0x6e6a64, 0.05, rnd))
     k.box("brick", (W, t, H), mat_tr((0, -D / 2, H / 2)), brick)
     k.box("brick", (W, t, H), mat_tr((0, D / 2, H / 2)), brick)
     for sd in (-1, 1):
@@ -264,7 +262,7 @@ def shell_modern(k, W, D, floors, rnd, door=True, windows=True, shop=True):
     wallc = rgb(rnd.choice(MODERN_WALLS), 0.03, rnd)
     trim = rgb(0xf0ece4, 0.02, rnd)
     t = 0.34
-    k.box("stone", (W + 0.14, D + 0.14, FH * 0.95), mat_tr((0, 0, FH * 0.95 / 2)), rgb(0x8a847a, 0.04, rnd))
+    k.box("stone", (W + 0.02, D + 0.02, FH * 0.95), mat_tr((0, 0, FH * 0.95 / 2)), rgb(0x8a847a, 0.04, rnd))
     k.box("plaster", (W, t, H - FH * 0.95), mat_tr((0, -D / 2, FH * 0.95 + (H - FH * 0.95) / 2)), wallc)
     k.box("plaster", (W, t, H), mat_tr((0, D / 2, H / 2)), wallc)
     for sd in (-1, 1):
