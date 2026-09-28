@@ -10,7 +10,7 @@
 
 import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU } from "./core.js";
 import { WorldBase, G } from "./engine.js";
-import { P, makeShip, makeScroll } from "./models.js";
+import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
 
 // ---------------------------------------------------------------------------
@@ -192,7 +192,8 @@ export class Hamburg extends WorldBase {
     // ships
     this.ships = [];
     for (const [x, len, s] of [[-34, 22, 4], [4, 18, 7], [44, 26, 9]]) {
-      const sh = makeShip(len, s);
+      const sm = modelCopy("ship");
+      const sh = sm ? (() => { const g = new THREE.Group(); sm.scene.scale.setScalar(len / 20); g.add(sm.scene); g.userData.bob = s; return g; })() : makeShip(len, s);
       sh.position.set(x, -1.3, -53.5); sh.rotation.y = Math.PI / 2 + (r() - 0.5) * 0.04;
       root.add(sh); this.ships.push(sh);
     }

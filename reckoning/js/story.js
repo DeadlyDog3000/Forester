@@ -24,14 +24,14 @@ import { makeTorch, makeLantern, makeScroll, makeHalberd } from "./models.js";
 //  who is who
 // ---------------------------------------------------------------------------
 export const LOOKS = {
-  brother: { name: "Brother", coat: 0x4d5a3c, legs: 0x3a3028, hair: 0x5a3d25, skin: 0xe8c4a0, hat: "cap", hatColor: 0x5a4a38, vest: 0x8a7a5a, scale: 0.95, seed: 11 },
-  sister: { name: "Sister", coat: 0x6a3b32, skirt: true, skirtColor: 0x4a3a50, apron: 0xe6dcc8, hair: 0x5a3d25, skin: 0xe8c4a0, longHair: true, scale: 0.93, seed: 12 },
+  brother: { model: "brother", name: "Brother", coat: 0x4d5a3c, legs: 0x3a3028, hair: 0x5a3d25, skin: 0xe8c4a0, hat: "cap", hatColor: 0x5a4a38, vest: 0x8a7a5a, scale: 0.95, seed: 11 },
+  sister: { model: "sister", name: "Sister", coat: 0x6a3b32, skirt: true, skirtColor: 0x4a3a50, apron: 0xe6dcc8, hair: 0x5a3d25, skin: 0xe8c4a0, longHair: true, scale: 0.93, seed: 12 },
 };
-const FATHER = { name: "Father", coat: 0x2e2a34, vest: 0x7a3a2a, legs: 0x2a2626, hair: 0x6b5a48, longHair: "short", skin: 0xd9ab84, collar: 0xf0ebe0, seed: 21 };
-const MAGISTRATE = { name: "The magistrate", coat: 0x18181c, legs: 0x18181c, hair: 0xd8d4cc, longHair: true, hat: "hat", collar: 0xffffff, chain: true, beard: 0xb8b4ac, seed: 31 };
-const GUARD = s => ({ name: "Watchman", coat: 0x7a2a26, legs: 0x2a2a30, vest: 0xc8b890, hat: "helmet", sash: 0xe0d8c0, seed: s });
-const JAKOB = { name: "Jakob", coat: 0x5a4a3a, legs: 0x3a3028, hair: 0x9a9a9a, hat: "cap", hatColor: 0x3a3a40, beard: 0xa8a8a8, seed: 41 };
-const ALBERS = { name: "Frau Albers", coat: 0x5a4a3a, skirt: true, skirtColor: 0x3e4a5c, apron: 0xf0ebe0, hat: "bonnet", hair: 0x8a6a3c, seed: 51 };
+const FATHER = { model: "father", name: "Father", coat: 0x2e2a34, vest: 0x7a3a2a, legs: 0x2a2626, hair: 0x6b5a48, longHair: "short", skin: 0xd9ab84, collar: 0xf0ebe0, seed: 21 };
+const MAGISTRATE = { model: "magistrate", name: "The magistrate", coat: 0x18181c, legs: 0x18181c, hair: 0xd8d4cc, longHair: true, hat: "hat", collar: 0xffffff, chain: true, beard: 0xb8b4ac, seed: 31 };
+const GUARD = s => ({ model: "watchman", name: "Watchman", coat: 0x7a2a26, legs: 0x2a2a30, vest: 0xc8b890, hat: "helmet", sash: 0xe0d8c0, seed: s });
+const JAKOB = { model: "jakob", name: "Jakob", coat: 0x5a4a3a, legs: 0x3a3028, hair: 0x9a9a9a, hat: "cap", hatColor: 0x3a3a40, beard: 0xa8a8a8, seed: 41 };
+const ALBERS = { model: "albers", name: "Frau Albers", coat: 0x5a4a3a, skirt: true, skirtColor: 0x3e4a5c, apron: 0xf0ebe0, hat: "bonnet", hair: 0x8a6a3c, seed: 51 };
 
 export const P = {
   get you() { return G.who === "brother" ? "Brother" : "Sister"; },
@@ -168,8 +168,8 @@ export function currentGen() { return GEN; }
 // A townsperson who walks a loop until the chapter ends.
 function wanderer(route, seed, speed = 1.2) {
   const o = seed % 3 === 0
-    ? { skirt: true, apron: seed % 2 ? 0xf0ebe0 : undefined, hat: seed % 2 ? "bonnet" : null, seed }
-    : { hat: ["tricorn", "cap", null, "hat"][seed % 4], seed };
+    ? { model: "townswoman", skirt: true, apron: seed % 2 ? 0xf0ebe0 : undefined, hat: seed % 2 ? "bonnet" : null, seed }
+    : { model: "townsman", hat: ["tricorn", "cap", null, "hat"][seed % 4], seed };
   const a = spawn(o, route[0][0], route[0][1]);
   const k = (seed * 0.37) % 1;
   // start somewhere along the loop, not all at the first corner
@@ -396,7 +396,7 @@ async function ch3(w, opts) {
     const a = -Math.PI * 0.95 + r(i, 1) * Math.PI * 0.9, d = 5.2 + r(i, 2) * 7.5;
     const x = Math.cos(a) * d * 1.1, z = 45 + Math.sin(a) * d;
     if (z < 34.5 || Math.abs(x) > 14) continue;
-    const o = i % 3 === 0 ? { skirt: true, apron: 0xe8e0d0, hat: i % 2 ? "bonnet" : null, seed: 300 + i } : { hat: ["tricorn", "cap", null, "hat"][i % 4], seed: 300 + i };
+    const o = i % 3 === 0 ? { model: "townswoman", skirt: true, apron: 0xe8e0d0, hat: i % 2 ? "bonnet" : null, seed: 300 + i } : { model: "townsman", hat: ["tricorn", "cap", null, "hat"][i % 4], seed: 300 + i };
     const c = spawn(o, x, z); c.faceTo(0, 45); if (i % 5 === 0) c.person.setPose("armsCrossed");
     crowd.push(c);
   }

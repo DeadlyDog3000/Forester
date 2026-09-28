@@ -7,7 +7,7 @@
 
 import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp } from "./core.js";
 import { WorldBase, G } from "./engine.js";
-import { P, forestInstances, makeSpruce, TREE } from "./models.js";
+import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 
 const ROAD_PTS = [[0, 30], [0, 10], [8, -40], [-12, -100], [6, -160], [-8, -220], [14, -262], [30, -290]];
@@ -215,6 +215,8 @@ export class Woods extends WorldBase {
     // the stone chimney, which fire does not take
     const [chx, chz] = place(-1.2, -3.3); bb.box(1.2, 4.2, 0.9, chx, 2.1, chz, 0x6a6660, CABIN.ry, 0.06);
     const bm = bb.build(); bm.position.y = y0; this.burned.add(bm);
+    const ruinModel = modelCopy("cabin_burned");
+    if (ruinModel) { bm.visible = false; ruinModel.scene.position.set(CABIN.x, y0, CABIN.z); ruinModel.scene.rotation.y = CABIN.ry; this.burned.add(ruinModel.scene); }
     root.add(this.burned);
     this.burnedCols = [];
     {
@@ -259,6 +261,9 @@ export class Woods extends WorldBase {
     cb.box(1.1, 2.1, 0.12, dx, 1.05, dz, 0x6a4a2e, CABIN.ry);
     for (const yy of [0.4, 1.7]) cb.box(1.1, 0.12, 0.05, dx + Math.sin(CABIN.ry) * 0.07, yy, dz + Math.cos(CABIN.ry) * 0.07, 0x4a3420, CABIN.ry);
     const cm = cb.build(); cm.position.y = y0; this.cabin.add(cm);
+    // a cabin made in Blender, if there is one, stands in for this one
+    const cabinModel = modelCopy("cabin");
+    if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); }
     // a window with light in it, for the last evening
     const win = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.06), MAT.lit);
     const [wx, wz] = place(cw / 2 + 0.2, 0.5); win.position.set(wx, y0 + 1.5, wz); win.rotation.y = CABIN.ry + Math.PI / 2;
@@ -311,7 +316,10 @@ export class Woods extends WorldBase {
       // leave the road's mouth open
       if (this.roadDist(tx, tz).d < 5) continue;
       const h = r.range(8, 12);
-      const g = makeSpruce(h, i * 7 + 1);
+      const sm = modelCopy("spruce");
+      let g;
+      if (sm) { g = new THREE.Group(); sm.scene.scale.setScalar(h / 10); sm.scene.rotation.y = r() * TAU; g.add(sm.scene); }
+      else g = makeSpruce(h, i * 7 + 1);
       const ty = this.heightAt(tx, tz);
       g.position.set(tx, ty - 0.1, tz);
       root.add(g);

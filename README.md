@@ -12,6 +12,11 @@ cabin. Everything after that is yours.
 
 ---
 
+> **New: [Forester: Reckoning](reckoning/)** — the same story lived in first
+> person, in 3D. Its code lives in `reckoning/`; see `reckoning/models/README.md`
+> for replacing its models with ones made in Blender, and
+> `reckoning/tools/export_site.py` for copying it onto the studio website.
+
 ## What the game is
 
 A colony sim that cares more about people than about production lines. Everyone

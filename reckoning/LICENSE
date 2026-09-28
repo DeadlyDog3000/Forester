@@ -1,0 +1,17 @@
+Forester: Reckoning
+Copyright (c) 2026 Roan Fraese, trading as DeadlyDog Productions.
+All rights reserved.
+
+Forester: Reckoning is a commercial game. The early build is offered to play
+for free while the game is in development; that is a permission to play it,
+not to copy it.
+
+You may not copy, publish, host, rehost, reskin, sell, or distribute this
+game, its code, its writing, its art or its sound, in whole or in part,
+without written permission from DeadlyDog Productions.
+
+lib/three.module.min.js and the files in lib/loaders and lib/utils are
+three.js, by the three.js authors, used under the MIT licence; see
+lib/THREE-LICENSE. They are not covered by the paragraph above.
+
+Contact: deadlydogdev@gmail.com

@@ -66,6 +66,7 @@
         <button id="btnChapters" class="btn hidden">Chapters</button>
         <button id="btnSettings" class="btn">Settings</button>
         <button id="btnControls" class="btn">Controls</button>
+        <button id="btnUpdates" class="btn ghost-sm">What has changed</button>
       </nav>
       <footer class="credit">A <strong>DeadlyDog Productions</strong> game &middot; &copy; 2026 Roan Fraese &middot; Part One: Ashes</footer>
     </section>
@@ -100,6 +101,9 @@
         <label>Mouse sensitivity <span id="sensVal"></span><input id="setSens" type="range" min="0.2" max="3" step="0.05"></label>
         <label>Field of view <span id="fovVal"></span><input id="setFov" type="range" min="55" max="100" step="1"></label>
         <label>Volume <span id="volVal"></span><input id="setVol" type="range" min="0" max="1" step="0.05"></label>
+        <label>Graphics
+          <select id="setQuality"><option value="high">High — soft shadows, full resolution</option><option value="low">Low — no shadows, faster on older laptops</option></select>
+        </label>
         <label class="check"><input id="setInvert" type="checkbox"> Invert mouse Y</label>
         <label class="check"><input id="setMusic" type="checkbox"> Music</label>
         <label class="check"><input id="setVoices" type="checkbox"> Voices <em>(spoken by your browser)</em></label>
@@ -124,6 +128,12 @@
         <tr><td><kbd>V</kbd></td><td>First person / over the shoulder</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
       </table>
+      <button class="btn ghost" data-back>Back</button>
+    </section>
+
+    <section id="updates" class="screen hidden">
+      <h2>What has changed</h2>
+      <div id="updateList"></div>
       <button class="btn ghost" data-back>Back</button>
     </section>
 

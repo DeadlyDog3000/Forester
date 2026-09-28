@@ -149,7 +149,11 @@ export function makePerson(o = {}) {
     add(neck, GEO("morionBrim", () => { const g = new THREE.TorusGeometry(0.17, 0.035, 4, 20); g.rotateX(Math.PI / 2); g.scale(1, 1, 1.3); return g; }), steel, 0, 0.215);
     add(neck, GEO("morionComb", () => { const g = new THREE.CylinderGeometry(0.13, 0.13, 0.015, 16, 1, false, 0, Math.PI); g.rotateZ(Math.PI / 2); return g; }), steel, 0, 0.3, 0);
   }
-  if (o.sash) add(hips, GEO("sash", () => { const g = new THREE.TorusGeometry(0.2, 0.025, 6, 20); g.scale(1, 1, 0.66); return g; }), M(o.sash), 0, 0.3, 0, Math.PI / 2 - 0.1, 0, 0.75);
+  if (o.sash) {
+    // a baldric, shoulder to hip, front and back
+    add(hips, GEO("sashF", () => new THREE.BoxGeometry(0.07, 0.62, 0.015)), M(o.sash), 0, 0.3, 0.135, 0, 0, 0.62);
+    add(hips, GEO("sashB", () => new THREE.BoxGeometry(0.07, 0.62, 0.015)), M(o.sash), 0, 0.3, -0.135, 0, 0, -0.62);
+  }
   if (o.chain) add(hips, GEO("chain", () => new THREE.TorusGeometry(0.1, 0.012, 6, 16)), mat(0xd4af37, { metalness: 0.9, roughness: 0.3 }), 0, 0.46, 0.08, 1.15);
 
   root.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = false; } });
@@ -203,7 +207,63 @@ export function makePerson(o = {}) {
     },
     setPose(p) { if (p !== this.pose) { this.pose = p; this.poseT = 0; } },
   };
+  if (o.model && MODELS[o.model]) useModel(P, o.model);
   return P;
+}
+
+// ---------------------------------------------------------------------------
+//  models from Blender
+// ---------------------------------------------------------------------------
+// Anything listed in models/manifest.json is loaded at start, and replaces the
+// shape built in code with the same name. See models/README.md.
+export const MODELS = {};
+export async function loadModels(base = "models/") {
+  let list;
+  try { const r = await fetch(base + "manifest.json", { cache: "no-cache" }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
+  const keys = Object.keys(list).filter(k => !k.startsWith("_") && list[k]);
+  if (!keys.length) return;
+  const [{ GLTFLoader }, SU] = await Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js")]);
+  _clone = SU.clone;
+  const loader = new GLTFLoader();
+  await Promise.all(keys.map(async k => {
+    try { MODELS[k] = await loader.loadAsync(base + list[k]); }
+    catch (e) { console.warn("Reckoning: could not load model", k, list[k], e); }
+  }));
+}
+let _clone = null;
+// a fresh copy of a loaded model, shadows on, or null if there is none
+export function modelCopy(key) {
+  const g = MODELS[key]; if (!g) return null;
+  const scene = _clone ? _clone(g.scene) : g.scene.clone(true);
+  scene.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  return { scene, animations: g.animations || [] };
+}
+// Swap a built person for a Blender one. The code-built skeleton keeps working
+// underneath, unseen, so held things and poses still have somewhere to hang;
+// the model plays its own Idle / Walk / Run / Sit / Chop animations if it has them.
+function useModel(P, key) {
+  const m = modelCopy(key); if (!m) return;
+  P.root.traverse(o => { if (o.isMesh) o.visible = false; });
+  P.body.add(m.scene);
+  const mixer = new THREE.AnimationMixer(m.scene);
+  const clip = name => m.animations.find(a => a.name.toLowerCase().includes(name));
+  const acts = {};
+  for (const n of ["idle", "walk", "run", "sit", "chop"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
+  let cur = null;
+  const play = n => { const a = acts[n] || acts.idle; if (!a || a === cur) return; a.reset().fadeIn(0.25).play(); if (cur) cur.fadeOut(0.25); cur = a; };
+  // held things follow the model's right hand, if it has a bone by that name
+  let hand = null;
+  m.scene.traverse(o => { if (!hand && o.isBone && /(hand.*(\.r|_r|right))|(right.*hand)/i.test(o.name)) hand = o; });
+  if (hand) { hand.add(P.held); P.held.position.set(0, 0, 0); }
+  const base = P.update.bind(P);
+  P.update = function (dt, speed = 0) {
+    base(dt, speed);
+    // the model does its own moving, so the code-built body stands straight
+    P.body.rotation.x = 0; P.hips.position.y = 0.92;
+    play(this.sitting > 0.5 ? "sit" : this.pose === "chop" ? "chop" : speed > 3 ? "run" : speed > 0.15 ? "walk" : "idle");
+    if (cur && (cur === acts.walk || cur === acts.run)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run ? 5 : 1.4));
+    mixer.update(dt);
+  };
 }
 
 // things for hands
