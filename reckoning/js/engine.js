@@ -77,7 +77,7 @@ sun.shadow.camera.left = -45; sun.shadow.camera.right = 45; sun.shadow.camera.to
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
 const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x4a3f30, 0.8);
-G.scene.add(sky, sun, sun.target, hemi);
+G.scene.add(sky, sun, sun.target, hemi, camera);   // the camera too, so what it carries (the axe) is drawn
 G.scene.fog = new THREE.Fog(0xc9d6e0, 30, 260);
 G.sun = sun; G.hemi = hemi; G.sky = sky;
 
@@ -146,8 +146,12 @@ export class Player {
   forward() { return new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); }
   giveAxe(on) {
     if (on && !this.axe) {
-      this.axe = makeAxe();
-      this.axe.scale.setScalar(1);
+      // the hands are a pivot; inside it the haft points forward and the blade leads to the left
+      this.axe = new THREE.Group();
+      this.axe.rotation.order = "YXZ";
+      const a = makeAxe();
+      a.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0)));
+      this.axe.add(a);
       camera.add(this.axe);
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
@@ -155,7 +159,8 @@ export class Player {
       this.model.held.add(this.axeBody);
     } else if (!on && this.axe) { camera.remove(this.axe); this.axe = null; if (this.axeBody) this.model.held.remove(this.axeBody); this.axeBody = null; }
   }
-  axeRest() { this.axe.position.set(0.32, -0.62, -0.55); this.axe.rotation.set(-0.35, -0.25, -0.15); }
+  // held low on the right, head up, ready
+  axeRest() { this.axe.position.set(0.34, -0.5, -0.42); this.axe.rotation.set(1.05, -0.35, -0.5); }
   swing(onHit) {
     if (this.swingT >= 0) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
@@ -271,12 +276,16 @@ export class Player {
       this.swingT += dt;
       const T = this.swingT;
       if (this.axe) {
-        if (T < 0.16) { const k = T / 0.16; this.axe.rotation.set(-0.35 + k * 1.3, -0.25, -0.15 - k * 0.2); this.axe.position.set(0.32, -0.62 + k * 0.25, -0.55); }
-        else if (T < 0.3) { const k = (T - 0.16) / 0.14; this.axe.rotation.set(0.95 - k * 2.3, -0.25 + k * 0.2, -0.35); this.axe.position.set(0.32 - k * 0.18, -0.37 - k * 0.2, -0.55 - k * 0.2); }
-        else { const k = Math.min(1, (T - 0.3) / 0.3); this.axe.rotation.set(-1.35 + k, -0.05 - k * 0.2, -0.35 + k * 0.2); this.axe.position.set(0.14 + k * 0.18, -0.57 - k * 0.05, -0.75 + k * 0.2); }
+        // (pitch, yaw, roll) of the hands, and where they are: a level swing from right to left
+        const e = x => x * x * (3 - 2 * x), L = (a, b, k) => a + (b - a) * k;
+        const REST = [1.05, -0.35, -0.5, 0.34, -0.5, -0.42], BACK = [0.45, -1.7, -0.35, 0.55, -0.22, -0.2], THRU = [0.3, 1.0, 0.25, -0.2, -0.3, -0.42];
+        const pose = (A, B, k) => { k = e(k); this.axe.rotation.set(L(A[0], B[0], k), L(A[1], B[1], k), L(A[2], B[2], k)); this.axe.position.set(L(A[3], B[3], k), L(A[4], B[4], k), L(A[5], B[5], k)); };
+        if (T < 0.18) pose(REST, BACK, T / 0.18);
+        else if (T < 0.32) { const k = (T - 0.18) / 0.14; pose(BACK, THRU, k * k); }
+        else pose(THRU, REST, Math.min(1, (T - 0.32) / 0.3));
       }
       if (this.model) { this.model.setPose("chop"); this.model.poseT = T / 1.25 * 1; }
-      if (T > 0.26 && !this._hitDone) { this._hitDone = true; this.onSwingHit && this.onSwingHit(); }
+      if (T > 0.29 && !this._hitDone) { this._hitDone = true; this.onSwingHit && this.onSwingHit(); }
       if (T > 0.62) { this.swingT = -1; if (this.axe) this.axeRest(); if (this.model) this.model.setPose("idle"); }
     }
   }

@@ -39,6 +39,13 @@ export function makePerson(o = {}) {
   };
   const brass = mat(0xb8913a, { metalness: 0.8, roughness: 0.35 });
   const hips = new THREE.Group(); hips.position.y = 0.92; body.add(hips);
+  // skirts and coat-tails: each person's own copy of the shape, so it can be pushed about by the legs
+  const cloth = [];
+  const addCloth = (geo, material, y) => {
+    const m = add(hips, geo, material, 0, y);
+    cloth.push({ m, base: Float32Array.from(geo.attributes.position.array), y });
+    return m;
+  };
 
   // legs: breeches to the knee, stockings, buckled shoes
   const mkLeg = side => {
@@ -65,16 +72,16 @@ export function makePerson(o = {}) {
   if (skirt) {
     // bodice laced, a full skirt with a darker hem, an apron tied at the waist
     add(hips, GEO("lace", () => new THREE.BoxGeometry(0.04, 0.3, 0.012)), M(o.apron ?? 0xe6dcc8), 0, 0.34, 0.13);
-    add(hips, GEO("skirt", () => new THREE.CylinderGeometry(0.19, 0.37, 0.86, 18, 3)), M(o.skirtColor ?? coat), 0, -0.4);
-    add(hips, GEO("hem", () => new THREE.CylinderGeometry(0.372, 0.378, 0.08, 18)), M(shade(o.skirtColor ?? coat, -0.08)), 0, -0.8);
+    addCloth(new THREE.CylinderGeometry(0.19, 0.37, 0.86, 18, 6), M(o.skirtColor ?? coat), -0.4);
+    addCloth(new THREE.CylinderGeometry(0.372, 0.378, 0.08, 18), M(shade(o.skirtColor ?? coat, -0.08)), -0.8);
     if (o.apron) {
-      add(hips, GEO("apron", () => { const g = new THREE.CylinderGeometry(0.2, 0.37, 0.72, 12, 1, true, -0.75, 1.5); return g; }), mat(o.apron, { roughness: 0.95, side: THREE.DoubleSide }), 0, -0.33, 0.012);
+      const ap = addCloth(new THREE.CylinderGeometry(0.2, 0.37, 0.72, 12, 5, true, -0.75, 1.5), mat(o.apron, { roughness: 0.95, side: THREE.DoubleSide }), -0.33); ap.position.z = 0.012;
       add(hips, GEO("waistband", () => new THREE.CylinderGeometry(0.172, 0.172, 0.05, 14)), mat(o.apron), 0, 0.03);
     }
     add(hips, GEO("shawl", () => { const g = new THREE.CylinderGeometry(0.13, 0.23, 0.14, 14, 1, true); return g; }), mat(o.shawl ?? shade(coat, 0.12), { roughness: 1, side: THREE.DoubleSide }), 0, 0.56);
   } else if (o.longCoat !== false) {
     // the skirts of the coat, open at the front
-    add(hips, GEO("coattail", () => new THREE.CylinderGeometry(0.17, 0.25, 0.46, 14, 1, true, 0.55, TAU - 1.1)), mat(coat, { roughness: 0.95, side: THREE.DoubleSide }), 0, -0.2);
+    addCloth(new THREE.CylinderGeometry(0.17, 0.25, 0.46, 14, 4, true, 0.55, TAU - 1.1), mat(coat, { roughness: 0.95, side: THREE.DoubleSide }), -0.2);
   }
   add(hips, GEO("belt", () => { const g = new THREE.CylinderGeometry(0.172, 0.172, 0.05, 14); g.scale(1, 1, 0.7); return g; }), M(0x2a1f16), 0, 0.04);
 
@@ -178,6 +185,7 @@ export function makePerson(o = {}) {
       legR.rotation.x = -sw * (0.55 + run * 0.35) * w;
       hips.position.y = 0.92 + Math.abs(Math.cos(this.phase)) * 0.04 * w - this.sitting * 0.42;
       body.rotation.x = run * 0.18;
+      body.rotation.y = 0;
       const breathe = Math.sin(this.poseT * 1.6) * 0.02;
       let aL = -sw * 0.45 * w * (1 + run * 0.6), aR = sw * 0.45 * w * (1 + run * 0.6), zL = 0.06, zR = -0.06;
       armL.rotation.set(aL + breathe, 0, zL);
@@ -192,10 +200,13 @@ export function makePerson(o = {}) {
         case "armsCrossed": armR.rotation.set(-1.1, -0.9, 0); armL.rotation.set(-1.1, 0.9, 0); break;
         case "reach": armR.rotation.set(-1.4, 0, 0); armL.rotation.set(-1.4, 0, 0); break;
         case "chop": {
+          // a felling swing: wind back to the right, sweep through level, follow round to the left
           const c = (t * 1.25) % 1;
-          const a = c < 0.55 ? -2.7 * (c / 0.55) : -2.7 + 2.7 * Math.min(1, (c - 0.55) / 0.15);
-          armR.rotation.set(a, 0, -0.1); armL.rotation.set(a, 0, 0.1);
-          body.rotation.x = c > 0.55 && c < 0.8 ? 0.25 : 0.05;
+          const e = x => x * x * (3 - 2 * x);
+          const twist = c < 0.45 ? -0.95 * e(c / 0.45) : c < 0.62 ? -0.95 + 1.75 * e((c - 0.45) / 0.17) : 0.8 - 0.8 * e(Math.min(1, (c - 0.62) / 0.38));
+          body.rotation.y = twist;
+          armR.rotation.set(-1.35, 0, -0.35 + twist * 0.3); armL.rotation.set(-1.3, 0, 0.45 + twist * 0.3);
+          body.rotation.x = 0.08;
           break;
         }
         case "hammer": { const c = (t * 2.2) % 1; armR.rotation.set(-1.0 - Math.sin(c * Math.PI) * 1.2, 0, -0.1); armL.rotation.set(-0.8, 0, 0.1); body.rotation.x = 0.35; break; }
@@ -204,6 +215,24 @@ export function makePerson(o = {}) {
         case "bound": armR.rotation.set(0.35, -0.5, 0.2); armL.rotation.set(0.35, 0.5, -0.2); break;
       }
       if (this.pose !== "grieve") neck.rotation.x += ((this.pose === "sit" ? 0.1 : 0) - neck.rotation.x) * Math.min(1, dt * 6);
+      // the cloth follows the legs: each point swings with the leg on its side, more the lower it hangs
+      if (cloth.length && root.visible) {
+        const aL = legL.rotation.x, aR = legR.rotation.x;
+        for (const c of cloth) {
+          const pos = c.m.geometry.attributes.position, b = c.base;
+          for (let i = 0; i < pos.count; i++) {
+            const x = b[i * 3], y = b[i * 3 + 1], z = b[i * 3 + 2];
+            const depth = Math.max(0, -(y + c.y) - 0.05);
+            if (depth <= 0) { pos.setXYZ(i, x, y, z); continue; }
+            // left of the middle follows the left leg, right the right, blended across the front and back
+            const k = Math.min(1, Math.max(0, (x / 0.16 + 1) / 2));
+            const a = (aL * (1 - k) + aR * k) * 0.8;
+            pos.setXYZ(i, x, y + depth * (1 - Math.cos(a)), z - depth * Math.sin(a));
+          }
+          pos.needsUpdate = true;
+          c.m.geometry.computeVertexNormals();
+        }
+      }
       neck.rotation.y += (this.look - neck.rotation.y) * Math.min(1, dt * 5);
       if (this.sitting > 0.01) { legL.rotation.x = -1.45 * this.sitting; legR.rotation.x = -1.45 * this.sitting; }
     },

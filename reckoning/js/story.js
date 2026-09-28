@@ -15,7 +15,7 @@ import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
-import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE } from "./woods.js";
+import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS } from "./woods.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd } from "./models.js";
 
 /* global SFX */
@@ -683,7 +683,29 @@ async function ch5(w) {
   await wait(0.2);
   const c = card("The road north-east", "V. Far, Far Away", 3.2);
   await wait(1.2); fade(0, 2.4); await c;
-  UI.objective("Follow the road into the woods");
+  UI.objective(`Follow the road north-east — your ${P.sibLower} knows the way at the forks`);
+  // one voice at a time: lines wait for the last to finish
+  let voiceLine = Promise.resolve();
+  const barkQ = (who, text) => (voiceLine = voiceLine.then(() => bark(who, text)));
+  // at every fork, which way — and a call back from the wrong one
+  const FORK_LINES = [
+    ["{Keep} here. The {track} road goes round to Altona — they'll have riders on it.", "Not that way! That's the Altona road. Every rider out of the city uses it."],
+    ["Keep {keep}. The {track} one's just a cart track to someone's fields.", "That's a field track. Farmers ask questions. Come back."],
+    ["{Keep} again. North-east, towards Lübeck. Keep the sun at our backs.", "Wrong way — that bends back south. Back towards the city."],
+    ["Stay {keep}. There's a charcoal burner down that track — I can smell the smoke.", "There's a charcoal burner down there. A stranger is something he'd remember."],
+    ["Keep {keep}. The {track} one runs down to the river — a toll ferry, and a toll-keeper.", "The ferry has a toll-keeper. Toll-keepers keep lists. Back."],
+    ["{Keep}. The deer go this way, and the deer know where it's quiet.", "It only gets thicker that way. Come on — follow the deer."],
+    ["{Keep}, I think. ...Yes. {Keep}.", "No — {keep}. I'm sure of it."],
+  ];
+  const told = new Set(), called = {};
+  const fillFork = (text, f) => { const keep = f.side === 1 ? "left" : "right", track = f.side === 1 ? "right" : "left"; return text.replace(/\{Keep\}/g, keep[0].toUpperCase() + keep.slice(1)).replace(/\{keep\}/g, keep).replace(/\{track\}/g, track); };
+  const forks = onFrame(() => {
+    const on = w.anyRoadDist(pl.pos.x, pl.pos.z), t = w.progress();
+    FORKS.forEach((f, n) => {
+      if (!told.has(n) && !on.branch && t > f.t - 0.03 && t < f.t) { told.add(n); barkQ(P.sib, fillFork(FORK_LINES[n][0], f)); }
+      if (on.branch && on.branch.n === n && on.i > 8 && (!called[n] || G.time - called[n] > 9)) { called[n] = G.time; bark(P.sib, fillFork(FORK_LINES[n][1], f), 3.2); }
+    });
+  });
   // bells behind you, fainter every time
   let bellT = 2;
   const birds = onFrame((() => { let t = 3; return dt => { t -= dt; if (t <= 0) { t = 2 + Math.random() * 4; if (Math.random() < 0.7) SFX.bird(); else if (Math.random() < 0.3) SFX.crow(); } }; })());
@@ -711,7 +733,7 @@ async function ch5(w) {
     [0.78, P.sib, "Nobody comes this deep. No tracks but deer. No one to know us."],
     [0.86, P.sib, "Wait — through the trees. Is that a clearing?"],
   ];
-  const run = async list => { for (const [at, who, text] of list) { await until(() => w.progress() > at); await bark(who, text); } };
+  const run = async list => { for (const [at, who, text] of list) { await until(() => w.progress() > at); await barkQ(who, text); } };
   await run(lines);
   AUDIO.music("woods");
   await until(() => w.progress() > 0.48);
@@ -730,6 +752,7 @@ async function ch5(w) {
   UI.objective("Go into the clearing");
   mark([CLEARING.x, CLEARING.z, 2]);
   await until(() => Math.hypot(pl.pos.x - CLEARING.x, pl.pos.z - CLEARING.z) < CLEARING.r - 4);
+  forks();
   mark(null);
   G.lockMove = true;
   look(new THREE.Vector3(CABIN.x, w.cy + 1.2, CABIN.z), 1.4);
@@ -771,7 +794,7 @@ async function ch6(w) {
   AUDIO.music("woods"); SFX.insectLoop(true);
   const pl = G.player;
   const saved = (loadSave() || {}).clearing || {};
-  const S = { axe: !!saved.axe, store: saved.store || 0, carry: saved.carry || 0, door: !!saved.door, felled: saved.felled || [], first: !!saved.first, sibHelping: !!saved.sibHelping };
+  const S = { axe: !!saved.axe, store: saved.store || 0, carry: saved.carry || 0, door: !!saved.door, felled: saved.felled || [], first: !!saved.first, sibHelping: !!saved.sibHelping, logs: saved.logs || [] };
   const persist = () => writeSave({ clearing: { ...S } });
   G.camp = { get logs() { return S.store; }, get door() { return S.door; }, doorCost: DOOR_COST, cabinCost: CABIN_COST, carryMax: CARRY_MAX };
   // trees already down stay down (as stumps)
@@ -839,32 +862,41 @@ async function ch6(w) {
       const i = w.fellable.indexOf(t);
       if (!S.felled.includes(i)) S.felled.push(i);
       persist();
-      if (by === "you") dropBundle(t);
+      if (by === "you") dropBundle(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), LOGS_PER_TREE);
       // the trunk lies a while, then the logs are all there is of it
       setTimeout(() => { t.g.visible = false; stump(w, t); t.state = "gone"; }, 1500);
     };
   }
-  function dropBundle(t) {
-    const x = t.x + t.dir.x * 1.6, z = t.z + t.dir.z * 1.6, y = w.heightAt(x, z);
+  // logs on the ground, where a tree came down; kept in the save so a reload cannot lose them
+  const saveLogs = () => { S.logs = bundles.map(b => ({ x: b.x, z: b.z, a: b.a, n: b.n })); persist(); };
+  function dropBundle(x, z, a, n) {
+    // never beyond where you can walk: a tree on the edge that falls outward leaves its logs just inside
+    const reach = CLEARING.r + 7.5, dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
+    if (dc > reach) { x = CLEARING.x + (x - CLEARING.x) * reach / dc; z = CLEARING.z + (z - CLEARING.z) * reach / dc; }
+    const y = w.heightAt(x, z), dx = Math.sin(a), dz = Math.cos(a);
     const g = new THREE.Group();
     for (let i = 0; i < 3; i++) {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.8, 8), new THREE.MeshStandardMaterial({ color: 0x7a5634, roughness: 1 }));
-      m.rotation.z = Math.PI / 2; m.rotation.y = Math.atan2(t.dir.x, t.dir.z) + Math.PI / 2;
-      m.position.set((i - 1) * 0.3 * t.dir.z, 0.15 + (i === 1 ? 0.24 : 0), -(i - 1) * 0.3 * t.dir.x);
+      m.rotation.z = Math.PI / 2; m.rotation.y = a + Math.PI / 2;
+      m.position.set((i - 1) * 0.3 * dz, 0.15 + (i === 1 ? 0.24 : 0), -(i - 1) * 0.3 * dx);
       m.castShadow = true; g.add(m);
     }
     g.position.set(x, y, z);
     w.root.add(g);
-    const b = { g, x, z, n: LOGS_PER_TREE };
+    const b = { g, x, z, a, n };
     b.it = w.addInteract({ x, y: y + 0.4, z, reach: 2.4, label: () => `Take the logs (${b.n})`,
       use: () => {
         if (pl.carryN >= CARRY_MAX) { UI.hint("Your arms are full. Stack what you carry by the cabin first.", 3.5); return; }
         const take = Math.min(b.n, CARRY_MAX - pl.carryN);
-        pl.carryN += take; b.n -= take; S.carry = pl.carryN; SFX.pickup(); persist();
+        pl.carryN += take; b.n -= take; S.carry = pl.carryN; SFX.pickup();
         if (b.n <= 0) { w.removeInteract(b.it); w.root.remove(g); bundles.splice(bundles.indexOf(b), 1); }
+        saveLogs();
       } });
     bundles.push(b);
+    saveLogs();
   }
+  // logs left lying from last time
+  for (const l of S.logs.slice()) { S.logs = []; dropBundle(l.x, l.z, l.a || 0, l.n); }
 
   // ---- your sibling works the far side of the clearing ----
   const sibState = { mode: "idle", t: 0, tree: null };

@@ -2,8 +2,8 @@
   "_help": "Put a .glb exported from Blender in this folder, then name it here, e.g. \"cabin\": \"cabin.glb\". Anything left out keeps the model built in code. See README.md in this folder for every name and how to export.",
   "cabin": "cabin.glb",
   "cabin_burned": "cabin_burned.glb",
-  "spruce": "",
-  "ship": "",
+  "spruce": "spruce.glb",
+  "ship": "ship.glb",
   "brother": "",
   "sister": "",
   "father": "",
@@ -12,5 +12,6 @@
   "watchman": "",
   "albers": "",
   "townsman": "",
-  "townswoman": ""
+  "townswoman": "",
+  "hamburg_skyline": "hamburg_skyline.glb"
 }
