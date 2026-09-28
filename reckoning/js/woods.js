@@ -28,6 +28,8 @@ export const FORKS = [
 ];
 export const CLEARING = { x: 34, z: -318, r: 23 };
 export const CABIN = { x: 36, z: -325, ry: 0.35 };
+// the deer ride: beech and spruce east of the clearing, where the roe graze and the hares sit out
+export const HUNT = { x: 74, z: -332, r: 24 };
 const STACK = { x: 28.5, z: -321.5 };
 const BLOCK = { x: 41.5, z: -316 };
 const FIRE = { x: 33.5, z: -311.5 };
@@ -301,6 +303,7 @@ export class Woods extends WorldBase {
     L("to Hamburg", 0, 40, 0, 14);
     for (const br of this.branches) { const e = br.pts[br.pts.length - 1]; if (br.fork.sign) L("to " + br.fork.sign[1], e.x, e.z, 11, 11); }
     if (this.burner) L("the charcoal burner", this.burner.camp.x, this.burner.camp.z, 14, 12);
+    if (this.huntOpen) L("the deer ride", HUNT.x, HUNT.z, 0, 12);
   }
   get mapTitle() { return "The Road North-East"; }
   get mapBounds() { return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
@@ -346,6 +349,13 @@ export class Woods extends WorldBase {
     const rd = this.anyRoadDist(p.x, p.z);
     // inside the clearing you go where you like; its edge holds you, except where the road leaves it
     if (dc < CLEARING.r + 10) return;
+    // and once you have a bow, into the woods east of it, where the deer are
+    if (this.huntOpen) {
+      const dh = Math.hypot(p.x - HUNT.x, p.z - HUNT.z);
+      if (dh < HUNT.r) return;
+      // its edge holds you too, the way the clearing's does
+      if (dh < HUNT.r + 4) { const k = HUNT.r / dh; p.x = HUNT.x + (p.x - HUNT.x) * k; p.z = HUNT.z + (p.z - HUNT.z) * k; return; }
+    }
     if (dc < CLEARING.r + 12 && rd.d > 14) { const k = (CLEARING.r + 10) / dc; p.x = CLEARING.x + (p.x - CLEARING.x) * k; p.z = CLEARING.z + (p.z - CLEARING.z) * k; return; }
     const lim = 14;
     if (rd.d > lim) { const k = lim / rd.d; p.x = rd.x + (p.x - rd.x) * k; p.z = rd.z + (p.z - rd.z) * k; if (!this._warned || G.time - this._warned > 8) { this._warned = G.time; this.onTooFar && this.onTooFar(); } }

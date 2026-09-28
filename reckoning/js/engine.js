@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT } from "./core.js";
-import { makePerson, makeAxe } from "./models.js";
+import { makePerson, makeAxe, modelCopy } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
@@ -157,6 +157,7 @@ export class Player {
   }
   giveAxe(on) {
     this.hasAxe = on;
+    if (on && this.bow) this.showBow(false);
     if (on && !this.axe) {
       // the hands are a pivot; inside it the haft points forward and the blade leads to the left
       this.axe = new THREE.Group();
@@ -194,10 +195,89 @@ export class Player {
       if (this.axeBody) this.model.held.remove(this.axeBody); this.axeBody = null;
     }
   }
+  // ---- the bow: held out in the left hand, the right on the string ----
+  // (the axe goes on your back while the bow is out, and the other way round)
+  showBow(on) {
+    if (on && !this.bow) {
+      if (this.axe) this.holsterAxe(true);
+      const g = new THREE.Group(); g.rotation.order = "YXZ";
+      const m = modelCopy("bow");
+      const limbs = m ? m.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a }));
+      limbs.rotation.y = Math.PI;                    // its belly toward you, the tips drawn back toward you
+      limbs.traverse(o => { if (o.isMesh) o.castShadow = false; });
+      g.add(limbs);
+      const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
+      this.bowString = new THREE.Line(sg, new THREE.LineBasicMaterial({ color: 0xe8e0c8 }));
+      g.add(this.bowString);
+      const am = modelCopy("arrow");
+      this.nocked = new THREE.Group();
+      if (am) { am.scene.rotation.y = Math.PI; am.scene.position.z = -0.37; this.nocked.add(am.scene); }
+      g.add(this.nocked);
+      camera.add(g); this.bow = g;
+      const look = this.model && this.model.look || {};
+      const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
+      const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
+      const cuffM = new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 });
+      const fist = parent => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); h.add(f); parent.add(h); return h; };
+      const grip = fist(g); grip.position.set(0, 0, 0.02);
+      this.nockHand = fist(g);
+      this.hands = [this.nockHand, grip];
+      this.arms = this.hands.map((h, i) => {
+        const arm = new THREE.Group();
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
+        camera.add(arm);
+        return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.24 : -0.22, -0.5, 0.12) };
+      });
+      this.draw = 0; this.reload = 0;
+      this.bowPose(0);
+    } else if (!on && this.bow) {
+      camera.remove(this.bow); this.bow = null;
+      for (const a of this.arms || []) camera.remove(a.arm);
+      this.arms = null; this.hands = null; this.draw = 0;
+    }
+  }
+  // the bow at rest, or drawn by k (0..1): the string comes back to your cheek and the bow comes up to your eye
+  bowPose(k) {
+    const g = this.bow; if (!g) return;
+    const e = k * k * (3 - 2 * k);
+    g.position.set(-0.07 + 0.05 * e, -0.22 + 0.13 * e, -0.55 + 0.04 * e);
+    g.rotation.set(0.05 * (1 - e), 0.06 * e, 0.28 * (1 - e) + 0.1);
+    const back = 0.15, L = 0.66, nockZ = back + 0.02 + e * 0.4;
+    const a = this.bowString.geometry.attributes.position;
+    a.setXYZ(0, 0, L, back); a.setXYZ(1, 0, 0.012, nockZ); a.setXYZ(2, 0, -L, back); a.needsUpdate = true;
+    this.bowString.geometry.computeBoundingSphere();
+    this.nocked.position.set(0.012, 0.012, nockZ);
+    this.nocked.visible = (this.arrows || 0) > 0 && this.reload <= 0;
+    this.nockHand.position.set(0.02, 0.0, nockZ + 0.03);
+  }
+  updateBow(dt) {
+    if (!this.bow) return;
+    const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
+    this.reload = Math.max(0, this.reload - dt);
+    if (free && input.mouseDown && (this.arrows || 0) > 0 && this.reload <= 0) {
+      if (this.draw === 0) SFX.pickup && SFX.pickup();
+      this.draw = Math.min(1, this.draw + dt / 0.85);
+    } else if (this.draw > 0) {
+      // let go: a real shot if it was drawn enough, a let-down if not
+      if (this.draw > 0.2 && free) {
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
+        const from = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
+        this.arrows--; this.reload = 0.55;
+        if (G.hunt) G.hunt.loose(from, dir, this.draw);
+        SFX.swingFist && SFX.swingFist();
+      }
+      this.draw = 0;
+    }
+    // a little shake at full draw, held too long
+    this.bowPose(this.draw);
+    if (this.draw >= 1) { this.bow.rotation.x += Math.sin(G.time * 9) * 0.004; this.bow.rotation.y += Math.sin(G.time * 7) * 0.003; }
+    this.fitArms();
+  }
   // each sleeve runs from its shoulder to its hand on the haft, however the axe is held
   fitArms() {
     if (!this.arms) return;
-    this.axe.updateMatrixWorld(true);
+    (this.axe || this.bow).updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(camera.matrixWorld).invert();
     for (let i = 0; i < 2; i++) {
       const { arm, sleeve, cuff, shoulder } = this.arms[i];
@@ -345,6 +425,7 @@ export class Player {
     }
     // the sleeves follow wherever the hands have gone this frame
     if (this.axe) this.fitArms();
+    this.updateBow(dt);
   }
   // where your eyes are, leaning included
   eyePos() {
@@ -383,7 +464,7 @@ function updateCamera(dt) {
   }
   if (p.axe) p.axe.visible = !third;
   // hold Z to look closer
-  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : 0;
+  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : (p.draw || 0) * 0.35;
   G.zoom = (G.zoom || 0) + (zoomWant - (G.zoom || 0)) * Math.min(1, dt * 10);
   const fov = G.settings.fov + (28 - G.settings.fov) * G.zoom;
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }

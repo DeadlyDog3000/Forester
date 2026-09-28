@@ -15,7 +15,8 @@ import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
-import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS } from "./woods.js";
+import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods.js";
+import { Hunt } from "./hunt.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, P as PROPS } from "./models.js";
 import { Town, BUILDINGS } from "./town.js";
 
@@ -192,7 +193,10 @@ export async function startChapter(n, opts = {}) {
   const w = ch.world === "hamburg" ? new Hamburg() : new Woods();
   setWorld(w);
   const pl = G.player;
-  pl.giveAxe(false); pl.crouched = false; pl.seated = false; pl.frozen = false; pl.carryN = 0;
+  pl.giveAxe(false); pl.showBow(false); pl.crouched = false;
+  // Henning's bow, once he has given it, and the deer ride it opens
+  { const sv = loadSave() || {}; pl.hasBow = !!sv.bow; pl.arrows = 12; w.huntOpen = !!sv.bow; }
+  pl.seated = false; pl.frozen = false; pl.carryN = 0;
   const save = loadSave() || {};
   writeSave({ who: G.who, chapter: n, unlocked: Math.max(save.unlocked || 1, n) });
   G.chapter = n;
@@ -1095,7 +1099,7 @@ async function ch7(w) {
   AUDIO.music("woods"); SFX.insectLoop(true);
   const pl = G.player;
   const saved = (loadSave() || {}).seed || {};
-  const S = { stage: saved.stage || 0, dug: saved.dug || [], sown: saved.sown || [] };   // 0 fetch logs, 1 trade, 2 field, 3 done
+  const S = { stage: saved.stage || 0, dug: saved.dug || [], sown: saved.sown || [], hunted: !!saved.hunted };   // 0 fetch logs, 1 trade, 2 hunt and field, 3 done
   const persist = () => writeSave({ seed: { ...S } });
   w.showCabin(); w.setStack(8);
   // the trees felled for the cabin are stumps still
@@ -1166,9 +1170,22 @@ async function ch7(w) {
     await say("Henning", "And listen. A man comes through at Martinmas, buying charcoal for the city. He asks questions, that one.");
     await say("Henning", "When you hear a cart on the road — you keep to the trees. Both of you.");
     await say(YOU(), "Why would you tell us that?");
-    await say("Henning", "Because nobody asked me, once. Go on. Plant your rye before the frost does it for you.");
+    await say("Henning", "Because nobody asked me, once.");
+    await wait(0.8);
+    await say("Henning", "One more thing. That rye won't feed you before next summer, and turnips won't see you through a winter.");
+    henning.person.setPose("hold");
+    await say("Henning", "Here — my old bow, and a dozen arrows. My shoulder's gone; I can't draw it any more. There's roe in the beeches east of your clearing, and hares out on the ride.");
+    await say("Henning", "Get meat in before you dig. Hungry hands dig crooked rows.");
+    SFX.pickup(); henning.person.setPose("idle");
+    pl.hasBow = true; pl.arrows = 12; w.huntOpen = true; writeSave({ bow: true });
     G.lockMove = false; look(null); henning.stopFacing(); henning.person.setPose("armsCrossed");
     S.stage = 2; persist();
+  }
+
+  // ---- the hunt: meat in before the digging ----
+  if (S.stage === 2 && !S.hunted && !S.dug.length) {
+    await huntForMeat(w, sib);
+    S.hunted = true; persist();
   }
 
   // ---- the field: three strips, dug and sown ----
@@ -1255,6 +1272,53 @@ async function ch7(w) {
   await narrate("The rye came up green in three weeks, in three crooked rows.", 4);
   await narrate("And on Martinmas, a cart came up the road.", 3.5);
   return startChapter(8);
+}
+
+// ---------------------------------------------------------------------------
+//  hunting with Henning's bow, in the deer ride east of the clearing
+// ---------------------------------------------------------------------------
+async function huntForMeat(w, sib) {
+  const pl = G.player, NEED = 3;
+  let meat = 0, first = true;
+  const hunt = new Hunt(w, HUNT, {
+    onDown: a => bark(YOU(), a.kind === "deer" ? "...Down. Go to it — hold F to dress it." : "Got it. Hold F to take it.", 3),
+    onDress: (a, m) => {
+      meat += m; SFX.build();
+      const have = G.pack.find(i => i.icon === "meat");
+      if (have) have.n = (have.n || 1) + m; else G.pack.push({ icon: "meat", name: "Meat", note: "Venison and hare, wrapped in a bit of sacking.", n: m });
+      if (first) { first = false; bark(P.sib, "(from the clearing) Was that you? Tell me that was you!", 3.5); }
+    } });
+  hunt.spawn("deer", 3); hunt.spawn("hare", 4);
+  pl.showBow(true);
+  G.lockMove = true; lookAt(sib, 2.5); sib.facePlayer();
+  await say(P.sib, "A bow? He gave you a bow?");
+  await say(P.sib, "Then go on — east, into the beeches. I'll start marking out the field.");
+  G.lockMove = false; look(null);
+  tutor("bow", "Creep up on them — crouch, and don't run; they hear a runner a long way off. Draw, and let go.", [["Hold mouse", "draw the bow"], ["Release", "loose"], ["C", "crouch"], ["F", "pull an arrow out"]], 10);
+  const obj = onFrame(() => {
+    const inRide = Math.hypot(pl.pos.x - HUNT.x, pl.pos.z - HUNT.z) < HUNT.r;
+    UI.objective(meat >= NEED ? "" : `Hunt for meat in the deer ride — ${meat} of ${NEED}${pl.arrows <= 3 ? ` · ${pl.arrows} arrows left` : ""}`);
+    // the way there, and then the kill to dress; the living you find for yourself
+    const down = hunt.animals.find(a => !a.alive);
+    mark(down ? [down.pos.x, down.pos.z, down.pos.y + 0.8] : !inRide ? [HUNT.x, HUNT.z, w.heightAt(HUNT.x, HUNT.z) + 1.5] : null);
+    // no arrows in the quiver and none left to pull out: the ones that flew into the thicket are found again
+    if (!pl.arrows && !hunt.arrows.some(a => !a.in)) { pl.arrows = 6; bark(YOU(), "(searching the undergrowth) ...There's six of them.", 3); }
+    // more beasts wander in when the ride is empty
+    if (hunt.animals.filter(a => a.alive).length < 2) hunt.spawn(Math.random() < 0.5 ? "deer" : "hare", 1);
+  });
+  await until(() => meat >= NEED);
+  obj(); mark(null); UI.objective(null);
+  await wait(1);
+  UI.objective("Take the meat back to the cabin");
+  mark(sib);
+  await until(() => Math.hypot(pl.pos.x - sib.pos.x, pl.pos.z - sib.pos.z) < 3.5);
+  mark(null); UI.objective(null);
+  G.lockMove = true; lookAt(sib, 2.5); sib.facePlayer();
+  await say(P.sib, "Meat. Real meat. When did we last —");
+  await say(P.sib, "We'll smoke it over the fire; it'll keep for weeks. Henning's a better friend than he lets on.");
+  G.lockMove = false; look(null);
+  pl.showBow(false);
+  hunt.stop();
 }
 
 // ---------------------------------------------------------------------------
