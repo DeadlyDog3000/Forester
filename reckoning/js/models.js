@@ -32,8 +32,8 @@ export function makePerson(o = {}) {
   const s = o.scale ?? 1;
   body.scale.setScalar(s);
 
-  const M = c => mat(c, { roughness: 0.95 });
-  const skinM = mat(skin, { roughness: 0.62 });
+  const M = c => mat(c, { roughness: 0.95, surface: "cloth" });
+  const skinM = mat(skin, { roughness: 0.62, surface: "none" });
   const add = (parent, geo, material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => {
     const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m;
   };
@@ -117,7 +117,7 @@ export function makePerson(o = {}) {
   add(neck, GEO("nose", () => { const g = new THREE.ConeGeometry(0.018, 0.05, 6); g.rotateX(Math.PI / 2 + 0.35); return g; }), skinM, 0, 0.16, 0.115);
   add(neck, GEO("mouth", () => new THREE.BoxGeometry(0.038, 0.008, 0.01)), mat(0x8a4a42), 0, 0.118, 0.1);
   // hair
-  const hairM = mat(hair, { roughness: 0.85 });
+  const hairM = mat(hair, { roughness: 0.85, surface: "none" });
   add(neck, GEO("hairCap", () => { const g = new THREE.SphereGeometry(0.126, 16, 10, 0, TAU, 0, Math.PI * 0.5); g.scale(0.94, 1.08, 1.02); return g; }), hairM, 0, 0.182, -0.012, -0.25);
   add(neck, GEO("hairBack", () => { const g = new THREE.SphereGeometry(0.12, 12, 8); g.scale(0.92, 0.9, 0.7); return g; }), hairM, 0, 0.15, -0.04);
   if (o.longHair === "short") add(neck, GEO("queue", () => new THREE.CapsuleGeometry(0.035, 0.08, 4, 6)), hairM, 0, 0.06, -0.1, 0.25);
@@ -415,11 +415,11 @@ export const TREE = {
   trunk: trunkGeo(),
   cone: spruceTierGeo(),
   blob: leafClumpGeo(2, 0.22),
-  trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x5a4332, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.35, grain: 0.9 }),
-  birchMat: addDetail(new THREE.MeshStandardMaterial({ color: 0xe0dccf, roughness: 0.9, vertexColors: true }), { scale: 2.2, amount: 0.5, grain: 0.3 }),
-  spruceMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.3, grain: 0.6 }),
-  pineMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x3f6334, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.3, grain: 0.6 }),
-  leafMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6a8a40, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.3, grain: 0.6 }),
+  trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x5a4332, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
+  birchMat: addDetail(new THREE.MeshStandardMaterial({ color: 0xe0dccf, roughness: 0.9, vertexColors: true }), { scale: 2.2, amount: 0.5, grain: 0.3, surface: "bark" }),
+  spruceMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles" }),
+  pineMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x3f6334, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles" }),
+  leafMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6a8a40, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles" }),
 };
 for (const k of ["trunk", "cone", "blob"]) TREE[k]._shared = true;
 

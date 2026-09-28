@@ -5,7 +5,7 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, groundTexture } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
 import { grassTexture } from "./hamburg.js";
@@ -74,7 +74,8 @@ export class Woods extends WorldBase {
     tg.translate(10, 0, -150);
     const pos = tg.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const cA = new THREE.Color(0x9aa876), cB = new THREE.Color(0x7c8a5c), cRoad = new THREE.Color(0x8a7a60);
+    // tints over the photographed forest floor: a little greener in the hollows, a little paler on the rises
+    const cA = new THREE.Color(0xe6e8d4), cB = new THREE.Color(0xc4ccb0), cRoad = new THREE.Color(0xc8b89a);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
       pos.setY(i, this.heightAt(x, z));
@@ -85,7 +86,7 @@ export class Woods extends WorldBase {
     }
     tg.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     tg.computeVertexNormals();
-    const gt = grassTexture("#8a8a7a", 9); gt.repeat.set(120, 120);
+    const gt = groundTexture("forestfloor", 150);
     const terrain = new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ map: gt, vertexColors: true, roughness: 1 }));
     terrain.receiveShadow = true;
     root.add(terrain);

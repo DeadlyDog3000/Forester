@@ -62,7 +62,7 @@ addEventListener("resize", () => {
 // ---------------------------------------------------------------------------
 //  surface detail: every material gets grain, mottling and wear from a noise
 //  in world space, so a painted box reads as timber, plaster or stone rather
-//  than as flat colour. No textures to load; it costs a few shader lines.
+//  than as flat colour.
 // ---------------------------------------------------------------------------
 const DETAIL_GLSL = `
   float dHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -73,10 +73,63 @@ const DETAIL_GLSL = `
   }
   float dFbm(vec3 p) { return dNoise(p) * 0.5 + dNoise(p * 2.03) * 0.28 + dNoise(p * 4.1) * 0.14 + dNoise(p * 8.3) * 0.08; }
 `;
-export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0 } = {}) {
+// Real surfaces: photographs of wood, plaster, stone, brick, bark, cloth,
+// needles and roof tiles, reduced to their grain (tools/make_textures.py) and
+// packed three to an image. Each surface picks one — named, or, for the
+// vertex-coloured town, judged from its colour and slope — and it is laid
+// on in world space from three sides, so nothing needs texture coordinates.
+const texLoader = new THREE.TextureLoader();
+const detailTex = ["a", "b", "c"].map(k => {
+  const t = texLoader.load(`art/tex/detail_${k}.png`);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4;
+  return t;
+});
+export const SURFACE = { auto: -1, none: -2, wood: 0, plaster: 1, stone: 2, brick: 3, bark: 4, cloth: 5, needles: 6, tiles: 7 };
+export function groundTexture(name, repeat) {
+  const t = texLoader.load(`art/tex/${name}.jpg`);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  t.repeat.set(repeat, repeat);
+  return t;
+}
+const SURF_GLSL = `
+  uniform sampler2D dTexA, dTexB, dTexC;
+  // the grain of surface s at world point p, seen from the three axes and blended by the normal
+  float dTri(sampler2D t, int ch, vec3 p, vec3 w) {
+    vec4 a = texture2D(t, p.zy), b = texture2D(t, p.xz), c = texture2D(t, p.xy);
+    return dot(vec3(a[ch], b[ch], c[ch]), w);
+  }
+  float dSurf(int s, vec3 p, vec3 w) {
+    if (s == 0) return dTri(dTexA, 0, p * 0.9, w);
+    if (s == 1) return dTri(dTexA, 1, p * 0.55, w);
+    if (s == 2) return dTri(dTexA, 2, p * 0.7, w);
+    if (s == 3) return dTri(dTexB, 0, p * 0.9, w);
+    if (s == 4) return dTri(dTexB, 1, p * 1.1, w);
+    if (s == 5) return dTri(dTexB, 2, p * 3.0, w);
+    if (s == 6) return dTri(dTexC, 0, p * 0.8, w);
+    return dTri(dTexC, 1, p * 0.6, w);
+  }
+  // for the town, painted in vertex colours: what is it made of, judged by its colour and its slope
+  int dClassify(vec3 lin, vec3 n) {
+    vec3 c = pow(max(lin, vec3(0.0)), vec3(1.0 / 2.2));                          // judge colour as the eye sees it
+    float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
+    float sat = (mx - mn) / max(mx, 1e-3), lum = dot(c, vec3(0.3, 0.59, 0.11));
+    bool slope = abs(n.y) > 0.3 && abs(n.y) < 0.97;
+    if (c.g > c.r * 1.03 && c.g > c.b * 1.04 && sat > 0.12) return 6;            // green: foliage
+    if (lum > 0.5 && sat < 0.5) return 1;                                         // pale, warm or cool: plaster
+    if (slope && lum < 0.5) return 7;                                             // a dark slope: a roof of tiles or slate
+    if (c.r > c.g * 1.65 && sat > 0.45) return 3;                                   // red, upright: brick
+    if (sat < 0.15) return 2;                                                     // grey: stone
+    return 0;                                                                     // browns and the rest: timber
+  }
+`;
+const SURF_STRENGTH = "float dStrength[8] = float[8](0.75, 0.3, 0.85, 0.8, 0.95, 0.55, 0.8, 0.85);";
+
+export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto" } = {}) {
+  const surf = SURFACE[surface] ?? -1;
   material.onBeforeCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
+    sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
       .replace("#include <begin_vertex>", `#include <begin_vertex>
@@ -87,17 +140,23 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         #endif
         vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround;" + DETAIL_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround;" + DETAIL_GLSL + SURF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         {
           vec3 p = vDWorld * dScale;
           vec3 an = abs(vDNormal);
-          // broad mottling, then a fine grain that runs along the surface
+          // the real surface first
+          int s = ${surf};
+          if (s == -1) s = dClassify(diffuseColor.rgb, vDNormal);
+          if (s >= 0) {
+            ${SURF_STRENGTH}
+            vec3 w = pow(an, vec3(4.0)); w /= (w.x + w.y + w.z);
+            float g = dSurf(s, vDWorld, w);
+            diffuseColor.rgb *= 1.0 + (g - 0.5) * 1.6 * dStrength[s];
+          }
+          // then broad mottling, so no two walls are quite the same
           float broad = dFbm(p * 0.35);
-          vec3 gp = an.y > 0.7 ? p.xzy * vec3(1.0, 6.0, 1.0) : (an.x > an.z ? p.zyx : p) * vec3(6.0, 0.9, 1.0);
-          float fine = dNoise(gp * 3.0) * 0.6 + dNoise(p * 9.0) * 0.4;
-          float d = (broad - 0.5) * 1.3 + (fine - 0.5) * dGrain;
-          diffuseColor.rgb *= 1.0 + d * dAmount;
+          diffuseColor.rgb *= 1.0 + (broad - 0.5) * 1.1 * dAmount;
           // grime gathers low on walls and in the undersides
           float low = 1.0 - smoothstep(0.0, 1.4, vDWorld.y - dGround);
           diffuseColor.rgb *= 1.0 - low * 0.12 * (1.0 - an.y) - max(-vDNormal.y, 0.0) * 0.12;
@@ -105,7 +164,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);
   };
-  material.customProgramCacheKey = () => "detail";
+  material.customProgramCacheKey = () => "detail" + surf;
   material.needsUpdate = true;
   return material;
 }
@@ -130,8 +189,9 @@ const _mc = {};
 export function mat(hex, opts = {}) {
   const key = hex + JSON.stringify(opts);
   if (!_mc[key]) {
-    _mc[key] = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, ...opts });
-    if (!opts.metalness) addDetail(_mc[key], { scale: 3, amount: 0.16, grain: 0.4 });
+    const { surface, ...o } = opts;
+    _mc[key] = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, ...o });
+    if (!o.metalness) addDetail(_mc[key], { scale: 3, amount: 0.16, grain: 0.4, surface: surface || "auto" });
   }
   return _mc[key];
 }

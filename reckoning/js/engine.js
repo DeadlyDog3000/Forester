@@ -78,25 +78,28 @@ sun.shadow.camera.left = -45; sun.shadow.camera.right = 45; sun.shadow.camera.to
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
 const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x4a3f30, 0.8);
-G.scene.add(sky, sun, sun.target, hemi, camera);   // the camera too, so what it carries (the axe) is drawn
+// a low fill, so a room lit by one candle is dim rather than black
+const fill = new THREE.AmbientLight(0xffdcb8, 0.1);
+G.scene.add(sky, sun, sun.target, hemi, camera, fill);   // the camera too, so what it carries (the axe) is drawn
 G.scene.fog = new THREE.Fog(0xc9d6e0, 30, 260);
 G.sun = sun; G.hemi = hemi; G.sky = sky;
 
 const C = h => new THREE.Color(h);
 export const ATMO = {
-  evening:   { sun: [0.55, 0.28, 0.4], sunC: 0xffb070, sunI: 2.4, hemiS: 0xa6b4d8, hemiG: 0x5a4632, hemiI: 0.75, fog: 0xd8a888, near: 40, far: 240, top: 0x3d5b93, mid: 0xf0b48a, bot: 0x8a6f60, stars: 0, win: 0.9, exp: 1.0 },
-  dusk:      { sun: [-0.5, 0.08, 0.6], sunC: 0xff8050, sunI: 1.4, hemiS: 0x7a80b0, hemiG: 0x4a3e34, hemiI: 0.8, fog: 0x7a6a78, near: 25, far: 180, top: 0x1e2850, mid: 0xc0705a, bot: 0x40353a, stars: 0.25, win: 1.6, exp: 1.05 },
-  night:     { sun: [0.3, 0.7, -0.4], sunC: 0x7f95c8, sunI: 0.35, hemiS: 0x33406a, hemiG: 0x121014, hemiI: 0.28, fog: 0x0e121e, near: 10, far: 90, top: 0x05070f, mid: 0x141b30, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.1 },
-  dawn:      { sun: [-0.2, 0.18, 0.9], sunC: 0xffc6a0, sunI: 0.9, hemiS: 0x9aa4b8, hemiG: 0x4a4440, hemiI: 0.6, fog: 0xa8a8b0, near: 8, far: 110, top: 0x5a6a88, mid: 0xc8b4b0, bot: 0x7a7478, stars: 0, win: 0.4, exp: 1.0 },
-  mist:      { sun: [-0.2, 0.22, 0.9], sunC: 0xd0d0d8, sunI: 0.75, hemiS: 0x9aa4b4, hemiG: 0x4a4644, hemiI: 0.85, fog: 0x7a808a, near: 6, far: 70, top: 0x5a6472, mid: 0x8a909a, bot: 0x6a6c70, stars: 0, win: 0.9, exp: 1.15 },
+  evening:   { sun: [0.55, 0.28, 0.4], sunC: 0xffb070, sunI: 2.4, hemiS: 0xa6b4d8, hemiG: 0x5a4632, hemiI: 0.9, fog: 0xd8a888, near: 40, far: 240, top: 0x3d5b93, mid: 0xf0b48a, bot: 0x8a6f60, stars: 0, win: 0.9, exp: 1.1 },
+  dusk:      { sun: [-0.5, 0.08, 0.6], sunC: 0xff8050, sunI: 1.4, hemiS: 0x8a90c0, hemiG: 0x4e4238, hemiI: 1.0, fog: 0x7a6a78, near: 25, far: 180, top: 0x1e2850, mid: 0xc0705a, bot: 0x40353a, stars: 0.25, win: 1.6, exp: 1.2, fill: 0.3 },
+  night:     { sun: [0.3, 0.7, -0.4], sunC: 0x8fa5d8, sunI: 0.5, hemiS: 0x46558a, hemiG: 0x1a1820, hemiI: 0.6, fog: 0x121828, near: 12, far: 100, top: 0x05070f, mid: 0x141b30, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.35, fill: 0.42 },
+  dawn:      { sun: [-0.2, 0.18, 0.9], sunC: 0xffc6a0, sunI: 1.1, hemiS: 0x9aa4b8, hemiG: 0x4e4844, hemiI: 0.85, fog: 0xa8a8b0, near: 8, far: 110, top: 0x5a6a88, mid: 0xc8b4b0, bot: 0x7a7478, stars: 0, win: 0.4, exp: 1.15 },
+  mist:      { sun: [-0.2, 0.22, 0.9], sunC: 0xd0d0d8, sunI: 0.9, hemiS: 0xa4aebe, hemiG: 0x55504c, hemiI: 1.05, fog: 0x7a808a, near: 6, far: 70, top: 0x5a6472, mid: 0x8a909a, bot: 0x6a6c70, stars: 0, win: 0.9, exp: 1.3 },
   afternoon: { sun: [0.4, 0.62, 0.35], sunC: 0xfff0d0, sunI: 2.6, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.85, fog: 0xa8b8b0, near: 30, far: 200, top: 0x4a78b5, mid: 0xc9d6e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
   morning:   { sun: [-0.5, 0.42, 0.5], sunC: 0xffe6c0, sunI: 2.3, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.8, fog: 0xb8c4c0, near: 30, far: 200, top: 0x5a88c0, mid: 0xdde4e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
-  firelight: { sun: [0.3, 0.6, -0.4], sunC: 0x6a7ab0, sunI: 0.35, hemiS: 0x3a4468, hemiG: 0x1c1610, hemiI: 0.45, fog: 0x0c0e16, near: 12, far: 100, top: 0x060812, mid: 0x1a1e34, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.15 },
+  firelight: { sun: [0.3, 0.6, -0.4], sunC: 0x7a8ac0, sunI: 0.45, hemiS: 0x46507a, hemiG: 0x241c14, hemiI: 0.65, fog: 0x0c0e16, near: 12, far: 100, top: 0x060812, mid: 0x1a1e34, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.35, fill: 0.42 },
 };
 function applyAtmo(a) {
   sun.color.copy(a.sunC); sun.intensity = a.sunI;
   G.sunDir = a.sun.clone ? a.sun.clone().normalize() : new THREE.Vector3(...a.sun).normalize();
   hemi.color.copy(a.hemiS); hemi.groundColor.copy(a.hemiG); hemi.intensity = a.hemiI;
+  fill.intensity = a.fill ?? 0.1;
   G.scene.fog.color.copy(a.fog); G.scene.fog.near = a.near; G.scene.fog.far = a.far;
   const u = sky.material.uniforms;
   u.top.value.copy(a.top); u.mid.value.copy(a.mid); u.bottom.value.copy(a.bot);
@@ -105,7 +108,7 @@ function applyAtmo(a) {
   MAT.lit.emissiveIntensity = a.win;
   renderer.toneMappingExposure = a.exp;
 }
-const toLive = p => ({ ...p, sun: new THREE.Vector3(...p.sun), sunC: C(p.sunC), hemiS: C(p.hemiS), hemiG: C(p.hemiG), fog: C(p.fog), top: C(p.top), mid: C(p.mid), bot: C(p.bot) });
+const toLive = p => ({ fill: 0.1, ...p, sun: new THREE.Vector3(...p.sun), sunC: C(p.sunC), hemiS: C(p.hemiS), hemiG: C(p.hemiG), fog: C(p.fog), top: C(p.top), mid: C(p.mid), bot: C(p.bot) });
 export function setAtmo(name) { applyAtmo(toLive(ATMO[name])); G.atmoName = name; }
 // halfway between two presets — the long walk out of the city goes from
 // afternoon to dusk a step at a time

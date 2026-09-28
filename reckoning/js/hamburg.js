@@ -8,7 +8,7 @@
 // the houses along them are generated, from a fixed seed, so it is the same
 // city every time.
 
-import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
@@ -164,15 +164,15 @@ export class Hamburg extends WorldBase {
     const b = new Builder(), win = new Builder(), lit = new Builder(), props = new Builder();
 
     // ---- ground ----
-    const cob = stoneTexture("#817a70", 3);
-    cob.repeat.set(70, 60);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 230), new THREE.MeshStandardMaterial({ map: cob, roughness: 0.95, color: 0xb0aaa0 }));
+    // cobbles, real ones: a photographed street, about three and a half metres to a tile
+    const cob = groundTexture("cobbles", 1); cob.repeat.set(74, 66);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 230), new THREE.MeshStandardMaterial({ map: cob, roughness: 0.92, color: 0xc8c2b8 }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(0, 0, 48 - 20 + 12);
     ground.receiveShadow = true;
     root.add(ground);
     // the marsh, outside the wall
-    const marsh = new THREE.Mesh(new THREE.PlaneGeometry(400, 200), new THREE.MeshStandardMaterial({ map: grassTexture("#4a5a3a", 5), roughness: 1 }));
-    marsh.material.map.repeat.set(60, 30);
+    const marsh = new THREE.Mesh(new THREE.PlaneGeometry(400, 200), new THREE.MeshStandardMaterial({ map: groundTexture("meadow", 1), roughness: 1, color: 0xb8bca8 }));
+    marsh.material.map.repeat.set(80, 40);
     marsh.rotation.x = -Math.PI / 2; marsh.position.set(0, 0.02, 172); marsh.receiveShadow = true;
     root.add(marsh);
 
@@ -547,7 +547,7 @@ export class Hamburg extends WorldBase {
     label(c, "fields", X(0), Z(80), 14);
   }
   get mapTitle() { return "Hamburg, 1683"; }
-  get mapBounds() { const b = this.col.bounds ? this.col.bounds() : null; return b || { x0: -90, x1: 90, z0: -80, z1: 90 }; }
+  get mapBounds() { const b = this.bounds; return { x0: b.x0 - 8, x1: b.x1 + 8, z0: b.z0 - 22, z1: b.z1 + 14 }; }
   ceilingAt(x, z) {
     return (x > HOME.x0 && x < HOME.x1 && z > HOME.z0 && z < HOME.z1) ? 3.2 : Infinity;
   }

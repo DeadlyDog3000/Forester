@@ -15,6 +15,8 @@ export const CHANGELOG = [
       "Press T for your inventory: a grid of slots showing what is in your hands, what is on you, and at the clearing what is stacked and built. Hover a slot to read it.",
       "No more voices: every line is read, not spoken, and the Voices setting is gone.",
       "The cabin and the burned ruin are now models made in Blender: round logs crossing at the corners, a plank door with iron straps, a boarded roof, and a stone chimney that outlasted the fire.",
+      "Real textures everywhere: photographed wood grain, lime plaster, fieldstone, brick, clay roof tiles, bark, spruce needles and woven cloth, laid over every building, tree, model and piece of clothing. Hamburg's streets are real cobbles; the woods have a forest floor of needles and moss; the marsh is a meadow.",
+      "Nights, dusk and mist are no longer too dark to see: a candle-lit room is dim, not black.",
       "Your brother or sister teaches you the game as you go: how to walk and look, open doors, run, crouch and lean, use the map and inventory, swing the axe and stack the logs — each the first time you need it, in their own words, with the keys shown underneath. Once you have learned a thing they do not say it again.",
       "A new map, drawn as a map of 1683 would be: ink on parchment, the forest stamped tree by tree, roads in brown, water hatched, the town in red. Press J for the whole map, with its title, compass rose and scale.",
       "The road is a real country road now: a narrow cart track, two wheel ruts with grass up the middle, stones kicked to the sides, its edges ragged. The forks are fainter tracks that the grass is taking back.",
