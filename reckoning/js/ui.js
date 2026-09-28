@@ -147,6 +147,16 @@ export const UI = {
     this._hp = v;
     h.classList.toggle("low", v < 0.3);
   },
+  // the fight's three directions: yours, where his blow is coming, and which side he guards
+  stance(st) {
+    const el = $("stance"); if (!el) return;
+    if (!st) { el.classList.add("hidden"); return; }
+    el.classList.remove("hidden");
+    for (const d of ["up", "left", "right"]) {
+      const c = el.querySelector("." + d);
+      c.classList.toggle("on", st.mine === d); c.classList.toggle("threat", st.threat === d); c.classList.toggle("foe", st.foe === d);
+    }
+  },
   hurt(k = 0.6) {
     const f = $("hurtFx"); if (!f) return;
     f.style.transition = "none"; f.style.opacity = k;

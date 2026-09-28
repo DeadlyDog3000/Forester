@@ -21,6 +21,7 @@ function ctx() {
   return ac;
 }
 const rnd = (a, b) => a + Math.random() * (b - a);
+const r2 = l => l[Math.floor(Math.random() * l.length)];
 
 function noiseSrc(a, loop = true) {
   const s = a.createBufferSource(); s.buffer = noise; s.loop = loop; return s;
@@ -46,6 +47,22 @@ function burst(a, t, dur, vol, f0, f1, q = 1, type = "bandpass") {
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02);
 }
+
+// where a sound comes from: quieter with distance, and to the left or right of where you're looking
+// ({x, z} in the world, or nothing for right beside you). Returns the node to connect into, and how loud.
+function placed(a, at, reach = 45) {
+  if (!at || !window.__G || !window.__G.player) return { node: bus, k: 1 };
+  const G = window.__G, p = G.player.pos, dx = at.x - p.x, dz = at.z - p.z, d = Math.hypot(dx, dz);
+  const k = Math.max(0, 1 - d / reach) ** 1.5;
+  const yaw = G.player.yaw, rx = Math.cos(yaw), rz = -Math.sin(yaw);        // your right, along the ground
+  const pan = a.createStereoPanner(); pan.pan.value = Math.max(-0.85, Math.min(0.85, (dx * rx + dz * rz) / (d || 1)));
+  // far off, the top of it is lost in the trees
+  const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 9000 - Math.min(1, d / reach) * 7000;
+  pan.connect(lp); lp.connect(bus);
+  return { node: pan, k };
+}
+// vowels as their first three formants (Hz, and how strong)
+const VOWELS = { a: [[800, 1], [1200, 0.5], [2600, 0.2]], ae: [[660, 1], [1700, 0.45], [2400, 0.2]], o: [[500, 1], [900, 0.4], [2400, 0.12]], e: [[450, 1], [2000, 0.4], [2700, 0.2]], u: [[350, 1], [800, 0.3], [2300, 0.08]] };
 
 export const AUDIO = {
   init: ctx,
@@ -200,6 +217,75 @@ export const AUDIO = {
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol * 0.35, peak);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     s.connect(f); f.connect(f2); f2.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+  },
+
+  // a human voice raised: a buzzing throat through the mouth's shape (a vowel), the pitch bending as a cry does.
+  //   kind: "war" (a charging yell, low and long), "pain" (cut short, breaking), "fear" (high, a scream), "grunt" (the effort of a blow)
+  //   high: a woman's or a boy's voice. at: where in the world it comes from.
+  voice(kind = "war", { high = false, at = null, vol = 1 } = {}) {
+    const a = ctx(); if (!a) return;
+    const { node, k } = placed(a, at); if (k * vol < 0.02) return;
+    const t = a.currentTime;
+    const P = { war: [rnd(150, 190), rnd(0.9, 1.4), "a", 1.35, 0.8], pain: [rnd(220, 290), rnd(0.35, 0.6), r2(["ae", "a"]), 1.5, 0.55], fear: [rnd(330, 420), rnd(0.8, 1.3), r2(["ae", "e"]), 1.25, 0.75], grunt: [rnd(120, 160), rnd(0.16, 0.24), r2(["u", "o"]), 1.1, 1.6] }[kind];
+    let [f0, dur, vw, rise, gain] = P;
+    if (high) f0 *= 1.75;
+    // the throat: a sawtooth and a square a little apart, for roughness, with a shake of vibrato
+    const src = a.createGain(); src.gain.value = 1;
+    const oscs = [["sawtooth", 1], ["square", 1.006]].map(([type, m]) => {
+      const o = a.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(f0 * m * 0.85, t);
+      o.frequency.linearRampToValueAtTime(f0 * m * rise, t + dur * 0.25);
+      o.frequency.linearRampToValueAtTime(f0 * m * (kind === "pain" ? 0.7 : 0.92), t + dur);
+      const og = a.createGain(); og.gain.value = type === "square" ? 0.25 : 0.6; o.connect(og); og.connect(src);
+      return o;
+    });
+    const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = rnd(5, 7.5); vg.gain.value = f0 * (kind === "fear" ? 0.045 : 0.025);
+    vib.connect(vg); for (const o of oscs) vg.connect(o.frequency);
+    // and breath in it, rasping
+    const br = noiseSrc(a), bf = a.createBiquadFilter(), bg = a.createGain(); bf.type = "bandpass"; bf.frequency.value = 1800; bf.Q.value = 0.7; bg.gain.value = kind === "grunt" ? 0.5 : 0.22;
+    br.connect(bf); bf.connect(bg); bg.connect(src);
+    // the mouth: three formants in parallel
+    const out = a.createGain();
+    for (const [f, g] of VOWELS[vw]) { const bp = a.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f * (high ? 1.15 : 1) * rnd(0.95, 1.05); bp.Q.value = 6; const fg = a.createGain(); fg.gain.value = g * 2.2; src.connect(bp); bp.connect(fg); fg.connect(out); }
+    // the envelope: in fast, held, falling away (a pain cry breaks off)
+    const env = a.createGain(), v = 0.3 * gain * vol * k;
+    env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(v, t + (kind === "war" ? 0.08 : 0.03));
+    env.gain.setValueAtTime(v * 0.85, t + dur * 0.6); env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    // a little grit on top, as a voice cracks when it's pushed
+    const sh = a.createWaveShaper(), c = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 128 - 1; c[i] = Math.tanh(x * 2.5); } sh.curve = c;
+    out.connect(sh); sh.connect(env); env.connect(node);
+    for (const o of oscs) { o.start(t); o.stop(t + dur + 0.05); }
+    vib.start(t); vib.stop(t + dur + 0.05); br.start(t, Math.random() * 1.5); br.stop(t + dur + 0.05);
+  },
+
+  // your own breath: air through the mouth — in (rising, thinner) or out (falling, fuller)
+  breath(inhale, vol = 0.6, period = 1.2, high = false) {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime, dur = period * (inhale ? 0.36 : 0.5);
+    const s = noiseSrc(a), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g = a.createGain();
+    f.type = "bandpass"; f.Q.value = 1.2;
+    const base = (inhale ? 1300 : 900) * (high ? 1.25 : 1);
+    f.frequency.setValueAtTime(base * (inhale ? 0.8 : 1.15), t); f.frequency.exponentialRampToValueAtTime(base * (inhale ? 1.25 : 0.75), t + dur);
+    f2.type = "lowpass"; f2.frequency.value = 3200;
+    const v = 0.05 * vol * (inhale ? 0.8 : 1);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + dur * (inhale ? 0.55 : 0.2)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(f2); f2.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+  },
+
+  // steel on steel: a bright strike and a ring of partials that don't quite agree, dying away
+  clang(vol = 1, at = null) {
+    const a = ctx(); if (!a) return;
+    const { node, k } = placed(a, at, 55); if (k * vol < 0.02) return;
+    const t = a.currentTime, f = rnd(430, 620), v = 0.2 * vol * k;
+    for (const [m, g, d] of [[1, 1, 0.9], [2.76, 0.6, 0.7], [5.40, 0.4, 0.45], [8.93, 0.25, 0.3], [13.3, 0.14, 0.2], [1.51, 0.3, 1.1]]) {
+      const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.value = f * m * rnd(0.995, 1.005);
+      og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(v * g, t + 0.003); og.gain.exponentialRampToValueAtTime(0.0001, t + d * rnd(0.8, 1.3));
+      o.connect(og); og.connect(node); o.start(t); o.stop(t + 1.6);
+    }
+    // the hit itself: a hard click of noise, high
+    const n = noiseSrc(a), hp = a.createBiquadFilter(), ng = a.createGain(); hp.type = "highpass"; hp.frequency.value = 3000;
+    ng.gain.setValueAtTime(v * 1.4, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    n.connect(hp); hp.connect(ng); ng.connect(node); n.start(t, Math.random()); n.stop(t + 0.08);
   },
 
   shout() {

@@ -63,6 +63,8 @@ export const G = {
   pack: [],             // what you have on you that is not in your hands: [{name, note}]
   camp: null,           // at the clearing: what is stacked and built there
 };
+window.__G = G;   // (for the sound, to know where you stand and which way you face)
+
 G.input = input;
 G.bugs = new Bugs(G.scene);
 window.G = G; window.__renderer = renderer; window.__camera = camera;
@@ -390,6 +392,7 @@ export class Player {
   swing(onHit) {
     if (this.swingT >= 0) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
+    this.swingDir = this.stance || "right";
     // the stroke through the air (the heavier the thing swung, the lower it sounds)
     AUDIO.whoosh(0.55, (this.blade || "axe") !== "sword");
   }
@@ -402,6 +405,10 @@ export class Player {
       this.yaw -= input.mdx * 0.0022 * s.sens * zs;
       this.pitch -= input.mdy * 0.0022 * s.sens * zs * (s.invert ? -1 : 1);
       this.pitch = clamp(this.pitch, -1.45, 1.45);
+      // the stance, for a stroke or a guard: looking up at all is from above; otherwise the way the view last turned
+      this.turnAcc = (this.turnAcc || 0) * Math.pow(0.05, dt) + input.mdx;
+      if (this.turnAcc < -14) this.side = "left"; else if (this.turnAcc > 14) this.side = "right";
+      this.stance = this.pitch > 0.04 ? "up" : (this.side || "right");
     } else if (G.cine && G.cine.look) {
       // steer the view toward whatever the scene wants seen
       const d = G.cine.look.clone().sub(this.eyePos());
@@ -433,6 +440,21 @@ export class Player {
       // (red while winded, and only then: red means you cannot sprint)
       UI.stamina(G.stamina < 0.995 ? G.stamina : null, this.winded);
     } else UI.stamina(null);
+    // out of breath, you hear it: in and out, faster and louder the more spent you are (and when badly hurt)
+    {
+      const spent = Math.max(G.stamina !== undefined ? clamp((0.75 - G.stamina) / 0.75, 0, 1) * (this.winded ? 1.2 : 1) : 0, G.health !== undefined && G.health < 0.35 ? (0.35 - G.health) * 2 : 0);
+      this.breathT = (this.breathT ?? 0) - dt;
+      if (spent > 0.15 || (this.breathTail || 0) > 0) {
+        if (spent > 0.15) this.breathTail = 3;        // a few breaths more after you have it back
+        else this.breathTail -= dt;
+        if (this.breathT <= 0) {
+          const k = Math.max(spent, 0.2), period = 1.9 - k * 1.1;
+          AUDIO.breath && AUDIO.breath(true, 0.35 + k * 0.65, period, G.who === "sister");
+          setTimeout(() => AUDIO.breath && AUDIO.breath(false, 0.35 + k * 0.65, period, G.who === "sister"), period * 420);
+          this.breathT = period;
+        }
+      }
+    }
     // health: blows take it, and it comes back slowly once nothing has hit you for a while
     if (G.health !== undefined) {
       G.hurtT = (G.hurtT || 0) + dt;
@@ -511,16 +533,23 @@ export class Player {
     // the guard: right mouse held with the axe or a weapon out (and nothing in front of you to use) —
     // the haft brought up across you. Raised just as a blow comes, it turns it aside: a parry.
     const guard = !!this.axe && input.rdown && !G.interactTarget && this.swingT < 0 && G.mode === "play" && !G.lockMove && !G.downed;
-    if (guard && !this.guard) this.guardAt = G.time;
-    this.guard = guard;
-    const gk = this.guardK = (this.guardK || 0) + ((guard ? 1 : 0) - (this.guardK || 0)) * Math.min(1, dt * 16);
-    if (this.axe && this.swingT < 0 && (gk > 0.001 || this._guarded)) {
-      const R = [1.05, -0.35, -0.5, 0.34, -0.5, -0.42], U = [0.15, 1.35, 0.2, 0.3, -0.2, -0.6];
-      const jolt = Math.max(0, (this.parryJolt || 0) - G.time) * 0.3;
-      this.axe.rotation.set(R[0] + (U[0] - R[0]) * gk, R[1] + (U[1] - R[1]) * gk, R[2] + (U[2] - R[2]) * gk);
-      this.axe.position.set(R[3] + (U[3] - R[3]) * gk, R[4] + (U[4] - R[4]) * gk + jolt, R[5] + (U[5] - R[5]) * gk + jolt);
-      this._guarded = gk > 0.001;
-    }
+    // (raised, or moved to another side, just now: that is what makes a parry)
+    if (guard && (!this.guard || this.stance !== this._gs)) this.guardAt = G.time;
+    this.guard = guard; this._gs = this.stance;
+    // the guard where the blow will come: across above you, or upright on the left or the right;
+    // the hands move there (and from one side to another) quickly, but not in no time
+    const R = [1.05, -0.35, -0.5, 0.34, -0.5, -0.42];
+    const U = { up: [0.15, 1.35, 0.2, 0.3, -0.12, -0.6], right: [1.45, 0.1, 0.0, 0.3, -0.34, -0.52], left: [1.45, -0.1, 0.0, -0.2, -0.34, -0.52] }[this.stance || "right"];
+    const want = guard ? U : R;
+    if (!this.gp) this.gp = R.slice();
+    const k = Math.min(1, dt * 16);
+    let off = 0;
+    for (let i = 0; i < 6; i++) { this.gp[i] += (want[i] - this.gp[i]) * k; off += Math.abs(this.gp[i] - R[i]); }
+    if (this.axe && this.swingT < 0 && (guard || off > 0.002)) {
+      const jolt = Math.max(0, (this.parryJolt || 0) - G.time) * 0.3, P = this.gp;
+      this.axe.rotation.set(P[0], P[1], P[2]);
+      this.axe.position.set(P[3], P[4] + jolt, P[5] + jolt);
+    } else if (this.swingT >= 0) this.gp = R.slice();
     // the axe
     if (this.swingT >= 0) {
       this.swingT += dt;
@@ -528,7 +557,13 @@ export class Player {
       if (this.axe) {
         // (pitch, yaw, roll) of the hands, and where they are: a level swing from right to left
         const e = x => x * x * (3 - 2 * x), L = (a, b, k) => a + (b - a) * k;
-        const REST = [1.05, -0.35, -0.5, 0.3, -0.42, -0.4], BACK = [0.25, -1.25, 0.0, 0.42, -0.24, -0.26], HIT = [0.18, 0.75, 0.0, 0.1, -0.3, -0.46], THRU = [0.2, 1.6, 0.0, -0.12, -0.34, -0.36];
+        // (pitch, yaw, roll, x, y, z) — from the right (a level stroke leftward), from the left (backhand, rightward), or from above
+        const REST = [1.05, -0.35, -0.5, 0.3, -0.42, -0.4];
+        const [BACK, HIT, THRU] = {
+          right: [[0.25, -1.25, 0.0, 0.42, -0.24, -0.26], [0.18, 0.75, 0.0, 0.1, -0.3, -0.46], [0.2, 1.6, 0.0, -0.12, -0.34, -0.36]],
+          left: [[0.25, 1.2, 0.0, -0.3, -0.22, -0.3], [0.18, -0.7, 0.0, 0.02, -0.3, -0.46], [0.2, -1.5, 0.0, 0.3, -0.36, -0.36]],
+          up: [[2.2, -0.1, 1.57, 0.14, 0.02, -0.18], [0.2, 0.0, 1.57, 0.06, -0.18, -0.5], [-0.5, 0.0, 1.57, 0.06, -0.44, -0.42]],
+        }[this.swingDir || "right"];
         const pose = (A, B, k) => { k = e(k); this.axe.rotation.set(L(A[0], B[0], k), L(A[1], B[1], k), L(A[2], B[2], k)); this.axe.position.set(L(A[3], B[3], k), L(A[4], B[4], k), L(A[5], B[5], k)); };
         if (T < 0.2) pose(REST, BACK, T / 0.2);
         else if (T < 0.29) pose(BACK, HIT, (T - 0.2) / 0.09);
@@ -1211,8 +1246,8 @@ export class WorldBase {
     // free what this map made for itself; the shared shapes and colours stay
     this.root.traverse(o => {
       if (o.geometry && !o.geometry._shared) o.geometry.dispose();
-      const m = o.material;
-      if (m && m.map) m.map.dispose();
+      // (a mesh can have a list of materials; and textures shared between maps, like the logs', stay)
+      for (const m of [].concat(o.material || [])) if (m && m.map && m.map.isTexture && !m.map.userData.shared) m.map.dispose();
     });
   }
 }

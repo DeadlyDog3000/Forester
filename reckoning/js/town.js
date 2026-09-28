@@ -17,6 +17,7 @@
 import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
+import { AUDIO } from "./audio.js";
 import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel } from "./models.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
@@ -803,6 +804,9 @@ export class Town {
     if (this.has("bakery") && !S.people.some(p => p.job === "baker")) return "The bakery stands idle — talk to someone (F) and set them to baking";
     if (site) return `Bring logs to the ${BUILDINGS[site.type].name.toLowerCase()} (${site.logs} of ${BUILDINGS[site.type].cost})`;
     if (field) return "Finish digging the new field";
+    // nobody yet but the two of you: there is no one to ask, so the first thing is somewhere for people to live
+    const hands = S.people.filter(p => !p.child).length;
+    if (!hands) return this.beds + 2 > pop ? "It's only the two of you — keep the rye up, and settlers will come up the road to the free beds" : "It's only the two of you — raise a cabin (B), and settlers will come up the road";
     if (!S.people.some(p => p.job === "farmer")) return "No one is farming — talk to someone (F) and set them to the fields";
     // the works, each standing idle without a pair of hands
     for (const [j, wk] of Object.entries(WORKS)) if (this.has(wk.at) && !S.people.some(p => p.job === j)) return `The ${BUILDINGS[wk.at].name.toLowerCase()} stands idle — set someone to work as a ${JOBS[j].name} (F by them)`;
@@ -848,7 +852,7 @@ export class Town {
           // thrown off by a parry: a moment to find their feet
           if (a.stagger && G.time < a.stagger) { await sleep(a.stagger - G.time); alive(); continue; }
           a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
-          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm), a); arm === "fists" ? SFX().swingFist() : SFX().chop(); }
+          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm), a); arm === "fists" ? SFX().swingFist() : Math.random() < 0.35 ? AUDIO.clang(0.7, a.pos) : SFX().chop(); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
           await sleep(arm === "fists" ? 0.55 : 0.9); continue;
         }
       }

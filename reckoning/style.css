@@ -311,3 +311,14 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); }
 /* while someone is talking, the tips and hints stand above the conversation, not over it */
 body.talking #keys { bottom: 250px; }
 body.talking #hint { bottom: 298px; }
+
+/* the three directions of a fight, round the crosshair: white is yours, red where his blow is coming, a grey bracket the side he guards */
+#stance { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+#stance .sd { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border: solid rgba(255, 245, 225, 0.22); border-width: 3px 3px 0 0; transition: border-color 0.1s, transform 0.1s; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9)); }
+#stance .up { transform: translate(0, -40px) rotate(-45deg); }
+#stance .left { transform: translate(-40px, 0) rotate(-135deg); }
+#stance .right { transform: translate(40px, 0) rotate(45deg); }
+#stance .sd.on { border-color: rgba(255, 250, 235, 0.95); }
+#stance .sd.foe { outline: 2px solid rgba(190, 190, 190, 0.55); outline-offset: 4px; }
+#stance .sd.threat { border-color: #ff3b2e; animation: threat 0.25s ease-in-out infinite alternate; }
+@keyframes threat { from { filter: drop-shadow(0 0 2px #000); } to { filter: drop-shadow(0 0 8px #ff3b2e); } }

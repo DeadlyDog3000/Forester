@@ -32,6 +32,7 @@ import { CLEARING, FIRE } from "./woods.js";
 const LOOK = s => ({ model: "townsman", name: "Raider", coat: [0x3a3228, 0x2e3228, 0x40302a][s % 3], legs: 0x2a2620, hat: ["cap", "hat", null][s % 3], hatColor: 0x241e1a, beard: 0x3e3226, seed: 500 + s });
 const WALK = 2.9, FLEE = 2.7;
 const HP = 40;
+const DIRS = ["up", "left", "right"];
 
 // what fights with what: damage in points (you have a hundred, a raider forty, a settler fifty).
 // Spears, swords and battle axes are forged by the smith, as in the first Forester's tree.
@@ -56,6 +57,7 @@ class Raider {
     this.a.hold(makeTorch(n < 3), true);
     this.a.heavy = true;
     this.hp = HP; this.state = "come"; this.loot = null; this.cool = 1; this.stun = 0; this.wind = 0; this.t = 0;
+    this.dir = "right"; this.guardDir = DIRS[n % 3]; this.guardT = 1;
     this.K = { r: 0.45, h: 1.05, len: 0.18, name: "raider" };
   }
   // (what the hunt's arrows and the crosshair ask of a target)
@@ -71,23 +73,26 @@ class Raider {
   // a stroke at him, from you or a settler (an arrow has no `from`, and can't be parried)
   damage(d, from) {
     if (!this.alive) return;
-    if (from && this.stun <= 0 && this.wind <= 0 && this.state !== "flee" && Math.random() < 0.22) {
+    // a stroke that comes where he is guarding, he turns aside (yours, by the side you struck from; a settler's, now and then)
+    if (from && this.stun <= 0 && this.wind <= 0 && this.state !== "flee") {
       const dx = from.pos.x - this.pos.x, dz = from.pos.z - this.pos.z;
-      if ((dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) > 0.3) return this.parry(from);
+      const facing = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) > 0.3;
+      const guarded = from === G.player ? this.guardDir === (G.player.swingDir || "right") : Math.random() < 0.22;
+      if (facing && guarded) return this.parry(from);
     }
     this.hp -= d;
-    AUDIO.shout && Math.random() < 0.4 && AUDIO.shout();
-    if (this.hp <= 0) return this.down();
+    if (this.hp <= 0) { AUDIO.voice("pain", { at: this.pos, vol: 1.1 }); return this.down(); }
+    AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos });
     this.stun = 0.45; this.wind = 0; this.a.path = [];
   }
   // he turns the blow aside, and is quick to answer it
   parry(from) {
-    SFX.hammer && SFX.hammer();
+    AUDIO.clang(0.9, this.pos);
     this.a.person.setPose("chop"); setTimeout(() => { if (this.alive) this.a.person.setPose("idle"); }, 300);
     this.cool = Math.min(this.cool, 0.35);
     if (from === G.player) {
       G.player.parryJolt = G.time + 0.3;
-      if ((this.raid.parried = (this.raid.parried || 0) + 1) <= 2) UI.hint("He caught that on his blade. Watch him — and raise your guard as he swings.", 3);
+      if ((this.raid.parried = (this.raid.parried || 0) + 1) <= 2) UI.hint("He was guarding that side — the grey mark by the crosshair. Strike from another: look up for an overhead, or turn left or right.", 5);
     } else from.stagger = G.time + 0.9;
   }
   down() {
@@ -145,6 +150,9 @@ export class Raids {
     setTimeout(() => AUDIO.bell && AUDIO.bell(1.1, 0.85), 700);
     const sib = G.who === "sister" ? "Brother" : "Sister";
     UI.bark(sib, `Raiders — ${n} of them, on the road! They're after the stores!`, 4);
+    // they come up the road yelling, to frighten; and the settlement cries out
+    this.band.forEach((r, i) => setTimeout(() => r.alive && AUDIO.voice("war", { at: r.pos, vol: 1.2 }), 300 + i * 380 + Math.random() * 300));
+    setTimeout(() => { const s = this.town.actors[0]; if (s) AUDIO.voice("fear", { at: s.pos, high: true }); }, 1400);
     UI.hint("Raiders! Drive them off with the axe or the bow before they carry off the stores. Mind your health — they hit back.", 7);
     t.emit("raid", n);
   }
@@ -195,17 +203,20 @@ export class Raids {
   strikePlayer(r, W, d) {
     const pl = G.player, a = r.a, f = pl.forward();
     const dx = a.pos.x - pl.pos.x, dz = a.pos.z - pl.pos.z, facing = (dx * f.x + dz * f.z) / (Math.hypot(dx, dz) || 1) > 0.25;
-    // raised just as he swung: a parry — nothing lands, and he is thrown off his stroke
-    if (pl.guard && facing && G.time - pl.guardAt < 0.45) {
-      SFX.hammer && SFX.hammer(); setTimeout(() => SFX.hammer && SFX.hammer(), 60);
+    // a guard on the wrong side catches nothing
+    const side = (pl.stance || "right") === r.dir;
+    if (pl.guard && facing && !side && !this.sideTip) { this.sideTip = true; UI.hint("Wrong side! Put your guard where the red mark is — look up for a blow from above, turn left or right for the sides.", 5); }
+    // raised just as he swung, on his side: a parry — nothing lands, and he is thrown off his stroke
+    if (pl.guard && facing && side && G.time - pl.guardAt < 0.45) {
+      AUDIO.clang(1.2);
       pl.parryJolt = G.time + 0.25; r.stun = 1.3; r.cool = Math.max(r.cool, 1.6); a.path = [];
       if ((this.youParried = (this.youParried || 0) + 1) <= 3) UI.hint("Parried! He's off balance — strike now.", 1.8);
       return;
     }
     // held up all along: a block — most of the blow taken on the haft, and it costs breath
     let dmg = W.dmg * (0.8 + Math.random() * 0.4);
-    if (pl.guard && facing && (G.stamina ?? 1) > 0.15) {
-      SFX.hammer && SFX.hammer(); pl.parryJolt = G.time + 0.2;
+    if (pl.guard && facing && side && (G.stamina ?? 1) > 0.15) {
+      AUDIO.clang(0.7); pl.parryJolt = G.time + 0.2;
       G.stamina = Math.max(0, (G.stamina ?? 1) - 0.3);
       dmg *= 0.25;
       if (!this.blockTip) { this.blockTip = true; UI.hint("Blocked — but it cost you. Raise your guard just as he swings to parry instead.", 3.5); }
@@ -216,15 +227,20 @@ export class Raids {
       G.stamina = Math.max(0, (G.stamina ?? 1) - 0.4);
       if (pl.carryN) { pl.carryN = 0; UI.carry(null); }
     }
+    if (dmg > 4) AUDIO.voice(dmg > 9 ? "pain" : "grunt", { high: G.who === "sister", vol: 0.8 });
     G.hurt(dmg, r);
   }
+  // a woman's or a child's voice
+  highVoice(s) { const p = s.settler || {}; return p.sex === "f" || !!p.child; }
   strikeSettler(s, dmg, r) {
     // settlers parry too: now and then, better with a weapon than bare-handed
     if (Math.random() < (s.armKind && s.armKind !== "fists" ? 0.3 : 0.1)) {
-      SFX.hammer && SFX.hammer(); if (r) { r.stun = 1; r.cool = Math.max(r.cool, 1.2); }
+      if (s.armKind && s.armKind !== "fists") AUDIO.clang(0.8, s.pos); else AUDIO.voice("grunt", { at: s.pos, high: this.highVoice(s) });
+      if (r) { r.stun = 1; r.cool = Math.max(r.cool, 1.2); }
       return;
     }
     s.hp = (s.hp ?? 50) - dmg;
+    AUDIO.voice(s.hp > 0 ? "pain" : "fear", { at: s.pos, high: this.highVoice(s) });
     if (s.hp > 0) return;
     // down in the grass for a while; they get up again when it's over
     s.knocked = G.time + 18; s.path = []; s.lying = true; s.yOff = 0.05; s.person.held.clear(); s.armKind = null;
@@ -245,6 +261,8 @@ export class Raids {
       if (r.stun > 0) { r.stun -= dt; continue; }
       // whoever is in his way — you, or a settler standing up to him — he fights
       // (unless he is running off with his arms full)
+      // his guard moves: to a side at random, or to the side you're on
+      if ((r.guardT -= dt) <= 0) { r.guardT = 1.1 + Math.random() * 1.5; r.guardDir = Math.random() < 0.45 && pl.stance ? pl.stance : DIRS[Math.floor(Math.random() * 3)]; }
       const foe = r.state !== "flee" && this.foeOf(r);
       if (foe) {
         const fp = foe === pl ? pl.pos : foe.pos, d = Math.hypot(fp.x - a.pos.x, fp.z - a.pos.z);
@@ -261,7 +279,8 @@ export class Raids {
         } else if (d > 1.3) { a.walkTo(fp.x, fp.z, WALK); }
         else if (r.cool <= 0) {
           r.cool = W.cool * (0.85 + Math.random() * 0.3);
-          r.wind = 0.5; a.person.setPose("reach");
+          r.wind = 0.6; r.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose("reach");
+          if (Math.random() < 0.45) AUDIO.voice(Math.random() < 0.5 ? "grunt" : "war", { at: a.pos, vol: 0.8 });
         }
         continue;
       }
@@ -287,6 +306,28 @@ export class Raids {
     // the raid over: every one of them down in the grass, or away down the road
     const act = this.active;
     G.showHealth = act;
+    // round the crosshair: your side; his blow coming (the nearest winding up at you); the guard of the one in front of you
+    if (act && pl.axe) {
+      let threat = null, td = 99, foe = null, fd = 4;
+      const f = pl.forward();
+      for (const r of this.band) {
+        if (!r.alive) continue;
+        const dx = r.pos.x - pl.pos.x, dz = r.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
+        if (r.wind > 0 && d < 2.2 && d < td) { td = d; threat = r.dir; }
+        if (d < fd && (dx * f.x + dz * f.z) / (d || 1) > 0.5) { fd = d; foe = r.guardDir; }
+      }
+      UI.stance({ mine: pl.stance || "right", threat, foe });
+    } else UI.stance(null);
+    // the noise of it: yells, the settlers shouting and screaming, someone always crying out somewhere
+    if (act && (this.din = (this.din ?? 1) - dt) <= 0) {
+      this.din = 0.45 + Math.random() * 1.1;
+      const alive = this.band.filter(r => r.alive), folk = t.actors.filter(s => !s.gone && s.root.visible !== false);
+      if (alive.length && Math.random() < 0.45) { const r = alive[Math.floor(Math.random() * alive.length)]; AUDIO.voice(Math.random() < 0.75 ? "war" : "grunt", { at: r.pos, vol: 0.9 }); }
+      else if (folk.length) {
+        const s = folk[Math.floor(Math.random() * folk.length)], high = this.highVoice(s);
+        AUDIO.voice(s.settler && s.settler.child ? "fear" : s.fighting ? (Math.random() < 0.6 ? "war" : "grunt") : (high && Math.random() < 0.7 ? "fear" : "war"), { at: s.pos, high, vol: 0.85 });
+      }
+    }
     if (this.wasActive && !act) {
       const sib = G.who === "sister" ? "Brother" : "Sister";
       UI.bark(sib, this.band.some(r => r.state === "down") ? "They're done. Nobody takes from us twice." : "Gone. We'll be readier next time.", 3.5);

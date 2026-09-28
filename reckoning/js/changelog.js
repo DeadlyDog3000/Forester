@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.17", date: "28 September 2026", title: "From above, from the left, from the right",
+    items: [
+      "Fixed: starting a chapter after playing one in the woods could leave the screen black.",
+      "Strokes and guards have a direction. Look even slightly up and you strike from above; turn your view left or right and you swing from that side. Your guard goes the same way.",
+      "Round the crosshair in a fight: a white mark for your side, a red one flashing where a raider's blow is about to come from, and a grey bracket on the side the raider in front of you is guarding.",
+      "Parry by having your guard on his side as he swings — raise it, or move it there, just in time. A guard on the wrong side catches nothing. Strike where he isn't guarding, or he turns it aside.",
+      "Raids are loud: war cries up the road, yelling and screaming through the settlement, a cry for every blow — and a ringing clang when steel meets steel.",
+      "Out of breath, you hear yourself breathing, faster and harder the more spent you are.",
+      "Fixed: on the first day the board told you to set someone to farming when there was nobody to ask.",
+    ],
+  },
+  {
     v: "0.16", date: "28 September 2026", title: "Blades, guards and a health bar",
     items: [
       "Health: a bar of its own above your breath — ten red segments and a heart, with a pale trail showing what the last blow took. It mends slowly once nothing has hit you for a while. Run out and you go down, and come to by the fire with the raiders gone and some of the stores with them.",

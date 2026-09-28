@@ -729,9 +729,10 @@ export function logMats() {
   });
   const side = new THREE.MeshStandardMaterial({ map: bark, roughness: 0.95 });
   const cap = new THREE.MeshStandardMaterial({ map: end, roughness: 0.85 });
+  bark.userData.shared = end.userData.shared = true;
   return (_logMats = [side, cap, cap]);
 }
-const LOG_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1);
+const LOG_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1); LOG_GEO._shared = true;
 // many logs in one draw: [{x,y,z,len,r,dir:"x"|"z"}], each a touch uneven
 export function makeLogs(list, seed = 1) {
   const r = rng(seed), m = new THREE.InstancedMesh(LOG_GEO, logMats(), list.length);
