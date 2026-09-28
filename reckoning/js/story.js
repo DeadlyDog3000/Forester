@@ -17,6 +17,7 @@ import { AUDIO } from "./audio.js";
 import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
+import { Raids } from "./raid.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, P as PROPS } from "./models.js";
 import { Town, BUILDINGS, lieOn, YEAR } from "./town.js";
 
@@ -2270,6 +2271,8 @@ async function chReckoning(w) {
   await wait(1.5);
   bark(P.sib, "There. On the road.", 2.5);
   const amt = spawn(AMTMANN, r0.x, r0.z, 0), kes = spawn(KESSLER2, r0.x + 1, r0.z + 0.6, 0), wm = spawn(GUARD(95), r0.x - 1, r0.z + 0.4, 0);
+  // every head at the fire turns to the road, and follows them up it
+  for (const a of [...town.actors, sib]) a.watch = amt;
   const stand = [[33.2, -304.6], [35.4, -305.2], [31.2, -305.4]];
   [amt, kes, wm].forEach((a, i) => a.walkTo(...stand[i], 1.1).then(() => a.faceTo(FIRE.x, FIRE.z)));
   G.lockMove = true;
@@ -2308,6 +2311,7 @@ async function chReckoning(w) {
   kes.walkTo(r0.x, r0.z, 1.3).then(() => kes.remove());
   amt.walkTo(r0.x + 1, r0.z, 1.1).then(() => amt.remove()); wm.walkTo(r0.x - 1, r0.z, 1.1).then(() => wm.remove());
   await wait(2);
+  for (const a of [...town.actors, sib]) a.watch = null;
   lookAt(jak, 2); jak.facePlayer();
   await say("Jakob", "Your father's house stands empty on the Deichstraße. The Council owes you that much, at least. Come home.");
   lookAt(sib, 2); sib.facePlayer();
@@ -2457,10 +2461,22 @@ async function chFree(w) {
   town.day = Math.floor(town.t / DAY);
   dayCycle(w, town, DAY);
   hennings(w, town); pedlar(w, town);
+  // the deer ride and the woods round it: game to hunt, that comes back as it is taken
+  w.huntOpen = true;
+  const hunt = new Hunt(w, HUNT, {
+    onDown: a => bark(YOU(), a.kind === "deer" ? "Down. Hold F to dress it." : "Got it. Hold F to take it.", 2.5),
+    onDress: (a, m) => { const have = G.pack.find(i => i.icon === "meat"); if (have) have.n = (have.n || 1) + m; else G.pack.push({ icon: "meat", name: "Meat", note: "Venison and hare. Tobias the pedlar pays well for it.", n: m }); town.persist(); },
+  });
+  const restock = () => { const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; if (n("deer") < 3) hunt.spawn("deer", 3 - n("deer")); if (n("hare") < 4) hunt.spawn("hare", 4 - n("hare")); };
+  restock();
+  // and, from the second year, raiders
+  const raids = new Raids(w, town);
+  onFrame(dt => raids.update(dt));
   // the board says the season and the day, and what wants doing next
   onFrame(() => UI.objective(`${S.name} — ${town.season}, day ${town.day + 1} · ${town.advice()}`));
   // who comes up the road: when there is a bed, and bread enough
   town.on("day", async d => {
+    restock();
     const pop = S.people.length + 2;
     // (nobody settles where the people are miserable: contentment under 40 turns them back down the road)
     if (town.beds + 2 > pop && S.rye >= pop * 3 && town.contentment().value >= 40) {

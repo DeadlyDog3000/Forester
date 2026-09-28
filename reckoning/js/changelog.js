@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.15", date: "28 September 2026", title: "Raiders on the road",
+    items: [
+      "Raiders: from the second week a band comes up the road at dusk, every week or so and bigger as the settlement grows. They make for the stores and run back down the road with logs, rye and money.",
+      "Stop them with the axe — three strokes — or a couple of good arrows, and whatever they were carrying goes back in the stores. They fight back: a blow knocks you back, winded, and drops what you're carrying.",
+      "While they're about, settlers take cover by the fire, and nobody goes to bed. A settlement that has been robbed is less content for days.",
+      "The watch: once the settlement knows Policing, a settler can be put on watch, and goes after raiders with you.",
+      "Free play has the deer and hares back in the forest, every day.",
+      "The Reckoning: when the men come up the road, everyone at the fire turns to look, and watches them all the way up.",
+    ],
+  },
+  {
     v: "0.14", date: "28 September 2026", title: "A bow you draw, a forest you can walk, and a settlement that grows",
     items: [
       "The bow: hold right-click to draw — the view closes in on the middle of the screen — and let go to loose. Hold it at full draw too long and your arms start to shake, and the shot with them.",

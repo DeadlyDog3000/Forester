@@ -79,8 +79,9 @@ export const JOBS = {
   miner: { name: "miner", ask: "work the mine", reply: "Down the hole, then." },
   smelter: { name: "smelter", ask: "work the smelter", reply: "I'll keep the furnace hot." },
   smith: { name: "smith", ask: "work the forge", reply: "Tools, then. Good ones." },
+  watch: { name: "watchman", ask: "keep the watch against raiders", reply: "I'll keep my eyes on the road." },
 };
-const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith"];
+const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "watch"];
 // which building a job needs, if any
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
 const SFX = () => window.SFX || { chop() {}, build() {}, pickup() {}, hammer() {}, treeFall() {}, timberCrack() {} };
@@ -207,7 +208,7 @@ export class Town {
       if (h.inside) { a.root.visible = false; a.inside = true; }
       else { a.faceTo(FIRE.x, FIRE.z); a.lying = true; a.yOff = 0.05; }
     }
-    while (this.isNight()) { await sleep(1.5); alive(); }
+    while (this.isNight() && !(this.raids && this.raids.active)) { await sleep(1.5); alive(); }
     a.root.visible = true; a.inside = false; a.lying = false; a.yOff = 0;
   }
 
@@ -281,6 +282,7 @@ export class Town {
     if (this.winter) v += add(S.cold ? -20 : 8, S.cold ? "cold" : "warm by the hearth");
     const homeless = Math.max(0, S.people.length - this.count("cabin") * this.perCabin);
     v += add(-Math.min(20, homeless * 3), `no bed for ${homeless}`);
+    if (S.lootedDay != null && this.day - S.lootedDay < 3) v += add(-12, "raiders took from the stores");
     if (this.has("church")) v += add(10, "a church");
     if (this.has("well")) v += add(4, "a well");
     if (this.has("market")) v += add(4, "a market");
@@ -625,6 +627,7 @@ export class Town {
   setupForestry() {
     const w = this.w, pl = G.player;
     G.onSwing = () => {
+      if (this.raids && this.raids.swing(pl)) return;
       const f = pl.forward();
       let best = null, bd = 2.4;
       for (const t of w.fellable) {
@@ -762,6 +765,7 @@ export class Town {
     const site = S.buildings.find(b => !b.done && b.type !== "field");
     const field = S.buildings.find(b => b.type === "field" && !b.sown);
     const food = S.rye + S.bread * 2;
+    if (this.raids && this.raids.active) return `Raiders! ${this.raids.band.filter(r => r.alive).length} in the settlement — drive them off with the axe or the bow before they carry off the stores`;
     const clear = this.toClear().length;
     if (clear) return `Clear the new ground: ${clear} tree${clear > 1 ? "s" : ""} left past the old edge — everyone is felling`;
     if (this.winter && S.store < this.hearths * 2) return `Winter: every hearth burns a log a day — fell trees, the stack is at ${S.store}`;
@@ -794,8 +798,27 @@ export class Town {
     await sleep(Math.random() * 3);
     while (true) {
       alive();
-      if (this.isNight()) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
+      if (this.isNight() && !(this.raids && this.raids.active)) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
       const job = a.settler.job || "hauler";
+      // raiders in the settlement: the watch goes for them; everyone else takes cover by the fire
+      const raid = this.raids && this.raids.active;
+      if (raid && job === "watch") {
+        const r = this.raids.nearest(a.pos);
+        if (r) {
+          a.doing = "fighting the raiders";
+          const d = Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z);
+          if (d > 1.6) { await Promise.race([a.walkTo(r.pos.x, r.pos.z, 3.0), sleep(0.8)]); alive(); continue; }
+          a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.5); alive(); a.person.setPose("idle");
+          if (r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 2) { r.hit(0.5); SFX().chop(); }
+          await sleep(0.7); continue;
+        }
+      }
+      if (raid && !a.settler.child ? job !== "watch" : raid) {
+        a.doing = "taking cover from the raiders";
+        await a.walkTo(FIRE.x + Math.cos(a.settler.seed || 0) * 3, FIRE.z + Math.sin(a.settler.seed || 0) * 3, 2.6); alive();
+        a.person.setPose("armsCrossed"); await sleep(2); alive(); a.person.setPose("idle");
+        continue;
+      }
       // ground to clear: everyone who can swing an axe goes felling until it is done
       const clearing = !a.settler.child && this.toClear().some(t => !t.claimed);
       const site = this.S.buildings.find(b => !b.done && b.type !== "field" && b.logs < BUILDINGS[b.type].cost);

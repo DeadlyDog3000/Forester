@@ -737,9 +737,13 @@ export class Actor {
       }
     }
     if (!moving && this.faceTarget === "player") this.targetYaw = Math.atan2(G.player.pos.x - p.x, G.player.pos.z - p.z);
-    this.yaw += angDiff(this.yaw, this.targetYaw) * Math.min(1, dt * 6);
+    // watching someone (who may be moving): turned to them while standing, and the head after them always
+    const wt = this.watch && this.watch.pos;
+    if (wt && !moving) this.targetYaw = Math.atan2(wt.x - p.x, wt.z - p.z);
+    this.yaw += angDiff(this.yaw, this.targetYaw) * Math.min(1, dt * (wt ? 3 : 6));
+    if (wt) this.person.look = clamp(angDiff(this.yaw, Math.atan2(wt.x - p.x, wt.z - p.z)), -1, 1);
     // a head turned toward whoever is talking to them
-    if (this.lookP) {
+    else if (this.lookP) {
       const a = Math.atan2(G.player.pos.x - p.x, G.player.pos.z - p.z);
       this.person.look = clamp(angDiff(this.yaw, a), -1, 1);
     } else this.person.look = 0;

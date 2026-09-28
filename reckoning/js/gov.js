@@ -111,4 +111,4 @@ export const techTime = t => 45 + t.depth * 40;
 export const BUILD_GATES = { bakery: "baking", market: "trading", townhall: "township", forge: "forging",
   quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting", church: "ministry" };
 // which jobs wait on which knowledge (Forester's PROF_GATES, for the jobs Reckoning has)
-export const JOB_GATES = { quarryman: "township", miner: "mining", smith: "forging" };
+export const JOB_GATES = { quarryman: "township", miner: "mining", smith: "forging", watch: "policing" };
