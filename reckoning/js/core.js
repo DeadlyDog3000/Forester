@@ -60,6 +60,57 @@ addEventListener("resize", () => {
 });
 
 // ---------------------------------------------------------------------------
+//  surface detail: every material gets grain, mottling and wear from a noise
+//  in world space, so a painted box reads as timber, plaster or stone rather
+//  than as flat colour. No textures to load; it costs a few shader lines.
+// ---------------------------------------------------------------------------
+const DETAIL_GLSL = `
+  float dHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float dNoise(vec3 x) {
+    vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(dHash(i), dHash(i + vec3(1,0,0)), f.x), mix(dHash(i + vec3(0,1,0)), dHash(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(dHash(i + vec3(0,0,1)), dHash(i + vec3(1,0,1)), f.x), mix(dHash(i + vec3(0,1,1)), dHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+  }
+  float dFbm(vec3 p) { return dNoise(p) * 0.5 + dNoise(p * 2.03) * 0.28 + dNoise(p * 4.1) * 0.14 + dNoise(p * 8.3) * 0.08; }
+`;
+export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0 } = {}) {
+  material.onBeforeCompile = sh => {
+    sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount };
+    sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
+      .replace("#include <begin_vertex>", `#include <begin_vertex>
+        vec4 dwp = vec4(transformed, 1.0);
+        vec3 dn = objectNormal;
+        #ifdef USE_INSTANCING
+          dwp = instanceMatrix * dwp; dn = mat3(instanceMatrix) * dn;
+        #endif
+        vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround;" + DETAIL_GLSL)
+      .replace("#include <color_fragment>", `#include <color_fragment>
+        {
+          vec3 p = vDWorld * dScale;
+          vec3 an = abs(vDNormal);
+          // broad mottling, then a fine grain that runs along the surface
+          float broad = dFbm(p * 0.35);
+          vec3 gp = an.y > 0.7 ? p.xzy * vec3(1.0, 6.0, 1.0) : (an.x > an.z ? p.zyx : p) * vec3(6.0, 0.9, 1.0);
+          float fine = dNoise(gp * 3.0) * 0.6 + dNoise(p * 9.0) * 0.4;
+          float d = (broad - 0.5) * 1.3 + (fine - 0.5) * dGrain;
+          diffuseColor.rgb *= 1.0 + d * dAmount;
+          // grime gathers low on walls and in the undersides
+          float low = 1.0 - smoothstep(0.0, 1.4, vDWorld.y - dGround);
+          diffuseColor.rgb *= 1.0 - low * 0.12 * (1.0 - an.y) - max(-vDNormal.y, 0.0) * 0.12;
+        }`)
+      .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
+        roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);
+  };
+  material.customProgramCacheKey = () => "detail";
+  material.needsUpdate = true;
+  return material;
+}
+
+// ---------------------------------------------------------------------------
 //  materials — vertex coloured, so one material paints a whole town
 // ---------------------------------------------------------------------------
 export const MAT = {
@@ -71,11 +122,17 @@ export const MAT = {
   flame: new THREE.MeshBasicMaterial({ color: 0xffb347 }),
   ember: new THREE.MeshBasicMaterial({ color: 0xff6a1a }),
 };
+addDetail(MAT.solid, { scale: 1.4, amount: 0.26 });
+addDetail(MAT.rough, { scale: 1.1, amount: 0.3, grain: 0.7 });
+addDetail(MAT.lit, { scale: 1.4, amount: 0.12, grain: 0.2 });
 
 const _mc = {};
 export function mat(hex, opts = {}) {
   const key = hex + JSON.stringify(opts);
-  if (!_mc[key]) _mc[key] = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, ...opts });
+  if (!_mc[key]) {
+    _mc[key] = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, ...opts });
+    if (!opts.metalness) addDetail(_mc[key], { scale: 3, amount: 0.16, grain: 0.4 });
+  }
   return _mc[key];
 }
 

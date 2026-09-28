@@ -10,6 +10,8 @@ export const CHANGELOG = [
     v: "0.4", date: "28 September 2026", title: "A painting on the front door",
     items: [
       "The title screen hangs a new picture: the burned cabin at dawn, painted as a Dutch landscape of the 1660s would have painted it.",
+      "Father looks like the grain merchant he is: a beard going grey, a heavier brow and jaw. The round cheeks are gone from everyone's faces.",
+      "The trees are rebuilt: spruces with ragged, drooping tiers, pines with flat broken crowns, birches with loose clumps of leaves, and no two quite the same green. Walls, timber, stone and bark have grain and weathering instead of flat colour.",
       "Press T for your inventory: a grid of slots showing what is in your hands, what is on you, and at the clearing what is stacked and built. Hover a slot to read it.",
       "The cast now speak in recorded, acted voices instead of the browser's own. Only a line built in play, like a count of logs, still falls back to the old voice.",
       "Press M to take the mouse into the game and look around, and M again to let it go without pausing. Where the browser will not lock the mouse, M looks around with the cursor hidden instead, and resting the cursor at the edge of the screen keeps turning.",

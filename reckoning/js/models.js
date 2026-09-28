@@ -5,7 +5,8 @@
 // People, trees, and the furniture of a life: all built from primitives at
 // load, the way the first Forester built its sounds instead of loading them.
 
-import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU } from "./core.js";
+import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail } from "./core.js";
+import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
 
 // ---------------------------------------------------------------------------
 //  people
@@ -97,13 +98,14 @@ export function makePerson(o = {}) {
   add(neck, GEO("stock", () => new THREE.CylinderGeometry(0.058, 0.07, 0.05, 12)), M(o.collar ?? 0xe6e0d4), 0, 0.01);
   if (o.collar === 0xffffff || o.bands) add(neck, GEO("bands", () => new THREE.BoxGeometry(0.07, 0.1, 0.01)), M(0xffffff), 0, -0.04, 0.09);
   const head = add(neck, GEO("head", () => { const g = new THREE.SphereGeometry(0.118, 18, 14); g.scale(0.9, 1.08, 0.98); return g; }), skinM, 0, 0.17);
-  add(neck, GEO("jaw", () => { const g = new THREE.SphereGeometry(0.085, 12, 8); g.scale(1, 0.8, 1); return g; }), skinM, 0, 0.11, 0.02);
+  if (skirt) add(neck, GEO("jaw", () => { const g = new THREE.SphereGeometry(0.085, 12, 8); g.scale(1, 0.8, 1); return g; }), skinM, 0, 0.11, 0.02);
+  else add(neck, GEO("jawM", () => { const g = new THREE.BoxGeometry(0.15, 0.09, 0.15, 3, 2, 3); const p = g.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); v.x *= 1 - Math.max(0, -v.y) * 1.6; p.setXYZ(i, v.x, v.y, v.z); } g.computeVertexNormals(); return g; }), skinM, 0, 0.115, 0.02);
   for (const sx of [-1, 1]) {
     add(neck, GEO("ear", () => { const g = new THREE.SphereGeometry(0.026, 8, 6); g.scale(0.5, 1, 0.8); return g; }), skinM, sx * 0.105, 0.165, -0.005);
     add(neck, GEO("eyeWhite", () => { const g = new THREE.SphereGeometry(0.014, 8, 6); g.scale(1.2, 0.75, 0.6); return g; }), mat(0xe8e2d8, { roughness: 0.3 }), sx * 0.04, 0.185, 0.103);
     add(neck, GEO("pupil", () => new THREE.SphereGeometry(0.009, 6, 4)), mat(o.eyes ?? r.pick([0x3a2a1a, 0x2e4a6a, 0x3e5a3a, 0x4a3a2a]), { roughness: 0.2 }), sx * 0.04, 0.185, 0.111);
-    add(neck, GEO("brow", () => new THREE.BoxGeometry(0.042, 0.009, 0.012)), M(shade(hair, -0.05)), sx * 0.041, 0.212, 0.108, 0, 0, sx * -0.12);
-    add(neck, GEO("cheek", () => new THREE.SphereGeometry(0.02, 6, 4)), mat(shade(skin, -0.03), { roughness: 0.7 }), sx * 0.055, 0.145, 0.088);
+    if (skirt) add(neck, GEO("brow", () => new THREE.BoxGeometry(0.042, 0.009, 0.012)), M(shade(hair, -0.05)), sx * 0.041, 0.212, 0.108, 0, 0, sx * -0.12);
+    else add(neck, GEO("browM", () => new THREE.BoxGeometry(0.048, 0.015, 0.016)), M(shade(hair, -0.1)), sx * 0.041, 0.209, 0.108, 0, 0, sx * -0.05);
   }
   add(neck, GEO("nose", () => { const g = new THREE.ConeGeometry(0.018, 0.05, 6); g.rotateX(Math.PI / 2 + 0.35); return g; }), skinM, 0, 0.16, 0.115);
   add(neck, GEO("mouth", () => new THREE.BoxGeometry(0.038, 0.008, 0.01)), mat(0x8a4a42), 0, 0.118, 0.1);
@@ -318,31 +320,90 @@ export function makeHalberd() {
 //  trees
 // ---------------------------------------------------------------------------
 // Geometries shared by the instanced forest and by the single choppable trees.
+// Their vertex colours are shading, not colour: light where the sun finds the
+// tips, dark in the hollows and undersides, multiplied by each material's hue.
+
+// one tier of spruce boughs: a cone whose skirt is ragged and droops at the tips
+function spruceTierGeo() {
+  const r = rng(11), N = 16;
+  const pos = [], col = [], idx = [];
+  const v = (x, y, z, c) => { pos.push(x, y, z); col.push(c, c, c); return pos.length / 3 - 1; };
+  const apex = v(0, 1, 0, 1.15);
+  const mid = [], rim = [];
+  for (let i = 0; i < N; i++) {
+    const a = i / N * TAU, tip = i % 2 === 0;
+    const rm = 0.5 + r() * 0.06;
+    mid.push(v(Math.cos(a) * rm, 0.5 + r() * 0.05, Math.sin(a) * rm, 0.95));
+    const rr = tip ? 1.0 + r() * 0.08 : 0.74 + r() * 0.06;
+    rim.push(v(Math.cos(a) * rr, tip ? -0.04 - r() * 0.05 : 0.1, Math.sin(a) * rr, tip ? 1.05 : 0.6));
+  }
+  const under = v(0, 0.3, 0, 0.35);
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    idx.push(apex, mid[j], mid[i]);
+    idx.push(mid[i], mid[j], rim[j], mid[i], rim[j], rim[i]);
+    idx.push(under, rim[i], rim[j]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+// a clump of leaves: a lumpy ball, dark underneath
+function leafClumpGeo(detail = 2, lump = 0.22) {
+  let g = new THREE.IcosahedronGeometry(1, detail);
+  g.deleteAttribute("normal"); g.deleteAttribute("uv");
+  g = mergeVertices(g);
+  const p = g.attributes.position, c = new Float32Array(p.count * 3), v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const n = Math.sin(v.x * 5.1 + v.y * 2.3) * 0.5 + Math.sin(v.z * 4.7 - v.x * 3.1) * 0.35 + Math.sin(v.y * 7.9 + v.z * 1.7) * 0.25;
+    v.multiplyScalar(1 + n * lump);
+    p.setXYZ(i, v.x, v.y, v.z);
+    const k = 0.5 + (v.y * 0.5 + 0.5) * 0.6 + n * 0.12;
+    c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = k;
+  }
+  g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+  g.computeVertexNormals();
+  return g;
+}
+// a trunk, darker and damper at its foot
+function trunkGeo() {
+  const g = new THREE.CylinderGeometry(0.16, 0.3, 1, 9, 4).translate(0, 0.5, 0);
+  const p = g.attributes.position, c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) { const k = 0.62 + p.getY(i) * 0.45; c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = k; }
+  g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+  return g;
+}
+
 export const TREE = {
-  trunk: new THREE.CylinderGeometry(0.16, 0.28, 1, 7).translate(0, 0.5, 0),
-  cone: new THREE.ConeGeometry(1, 1, 8).translate(0, 0.5, 0),
-  blob: new THREE.IcosahedronGeometry(1, 1),
-  trunkMat: new THREE.MeshStandardMaterial({ color: 0x4a3526, roughness: 1 }),
-  birchMat: new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.9 }),
-  spruceMat: new THREE.MeshStandardMaterial({ color: 0x2c4a2e, roughness: 1, flatShading: true }),
-  pineMat: new THREE.MeshStandardMaterial({ color: 0x3b5a30, roughness: 1, flatShading: true }),
-  leafMat: new THREE.MeshStandardMaterial({ color: 0x5d7a3a, roughness: 1, flatShading: true }),
+  trunk: trunkGeo(),
+  cone: spruceTierGeo(),
+  blob: leafClumpGeo(2, 0.22),
+  trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x5a4332, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.35, grain: 0.9 }),
+  birchMat: addDetail(new THREE.MeshStandardMaterial({ color: 0xe0dccf, roughness: 0.9, vertexColors: true }), { scale: 2.2, amount: 0.5, grain: 0.3 }),
+  spruceMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.3, grain: 0.6 }),
+  pineMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x3f6334, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.3, grain: 0.6 }),
+  leafMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6a8a40, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.3, grain: 0.6 }),
 };
 for (const k of ["trunk", "cone", "blob"]) TREE[k]._shared = true;
+
+// a spruce's tiers, low and wide to high and narrow: [height fraction, width fraction, tier height]
+const SPRUCE_TIERS = [[0.14, 1.0, 0.3], [0.26, 0.86, 0.28], [0.38, 0.72, 0.26], [0.5, 0.58, 0.24], [0.62, 0.44, 0.22], [0.73, 0.3, 0.2], [0.83, 0.17, 0.17]];
 
 // A single tree as its own group, pivoted at the base so it can fall.
 export function makeSpruce(h = 9, seed = 1) {
   const r = rng(seed);
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(TREE.trunk, TREE.trunkMat); trunk.scale.set(1.1, h * 0.45, 1.1); g.add(trunk);
-  const tiers = 4;
-  for (let i = 0; i < tiers; i++) {
-    const t = i / tiers;
+  const trunk = new THREE.Mesh(TREE.trunk, TREE.trunkMat); trunk.scale.set(1.1, h * 0.55, 1.1); g.add(trunk);
+  for (const [y, wf, th] of SPRUCE_TIERS) {
     const c = new THREE.Mesh(TREE.cone, TREE.spruceMat);
-    const w = (1 - t * 0.75) * h * 0.24 * r.range(0.9, 1.1);
-    c.scale.set(w, h * 0.34, w);
-    c.position.y = h * (0.18 + t * 0.2);
-    c.rotation.y = r() * TAU;
+    const w = wf * h * 0.26 * r.range(0.9, 1.1);
+    c.scale.set(w, h * th, w);
+    c.position.y = h * y;
+    c.rotation.set(r.range(-0.05, 0.05), r() * TAU, r.range(-0.05, 0.05));
     g.add(c);
   }
   g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
@@ -355,45 +416,66 @@ export function forestInstances(list) {
   const kinds = { spruce: [], pine: [], birch: [] };
   for (const t of list) kinds[t.kind].push(t);
   const out = [];
+  const col = new THREE.Color();
+  // no two trees quite the same green
+  const tint = (m, i, hex, seed, dl = 0.07, dh = 0.02) => {
+    const a = Math.sin(seed * 12.9898) * 43758.5453, f = a - Math.floor(a);
+    const b = Math.sin(seed * 78.233) * 12543.123, g = b - Math.floor(b);
+    col.set(0xffffff).offsetHSL((g - 0.5) * dh, 0, (f - 0.5) * dl * 2);
+    m.setColorAt(i, col);
+  };
   const trunks = new THREE.InstancedMesh(TREE.trunk, TREE.trunkMat, kinds.spruce.length + kinds.pine.length);
   const birchTr = new THREE.InstancedMesh(TREE.trunk, TREE.birchMat, kinds.birch.length);
   let ti = 0;
-  const spruceC = new THREE.InstancedMesh(TREE.cone, TREE.spruceMat, kinds.spruce.length * 4);
+  const NT = SPRUCE_TIERS.length;
+  const spruceC = new THREE.InstancedMesh(TREE.cone, TREE.spruceMat, kinds.spruce.length * NT);
   let si = 0;
   for (const t of kinds.spruce) {
-    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(1.1, t.h * 0.45, 1.1); dummy.updateMatrix();
+    const lean = Math.sin(t.rot * 3.7) * 0.03;
+    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(lean, t.rot, 0); dummy.scale.set(1.1, t.h * 0.55, 1.1); dummy.updateMatrix();
     trunks.setMatrixAt(ti++, dummy.matrix);
-    for (let i = 0; i < 4; i++) {
-      const f = i / 4, w = (1 - f * 0.75) * t.h * 0.24;
-      dummy.position.set(t.x, t.y + t.h * (0.18 + f * 0.2), t.z); dummy.scale.set(w, t.h * 0.34, w); dummy.rotation.y = t.rot + i; dummy.updateMatrix();
-      spruceC.setMatrixAt(si++, dummy.matrix);
+    const seed = t.x * 0.37 + t.z * 1.13;
+    for (let i = 0; i < NT; i++) {
+      const [y, wf, th] = SPRUCE_TIERS[i];
+      const w = wf * t.h * 0.26 * (1 + Math.sin(seed + i * 2.1) * 0.07);
+      dummy.position.set(t.x + Math.sin(t.rot) * lean * t.h * y, t.y + t.h * y, t.z + Math.cos(t.rot) * lean * t.h * y);
+      dummy.scale.set(w, t.h * th, w); dummy.rotation.set(0, t.rot + i * 1.7, 0); dummy.updateMatrix();
+      spruceC.setMatrixAt(si, dummy.matrix);
+      tint(spruceC, si++, 0, seed);
     }
   }
-  const pineB = new THREE.InstancedMesh(TREE.blob, TREE.pineMat, kinds.pine.length * 2);
+  // Scots pine: a tall bare trunk and a flat, broken crown
+  const pineB = new THREE.InstancedMesh(TREE.blob, TREE.pineMat, kinds.pine.length * 4);
   let pi = 0;
   for (const t of kinds.pine) {
-    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.9, t.h * 0.8, 0.9); dummy.updateMatrix();
+    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.85, t.h * 0.86, 0.85); dummy.updateMatrix();
     trunks.setMatrixAt(ti++, dummy.matrix);
-    for (let i = 0; i < 2; i++) {
-      dummy.position.set(t.x + (i ? 0.5 : -0.3), t.y + t.h * (0.78 + i * 0.12), t.z + (i ? -0.2 : 0.3));
-      const w = t.h * (0.2 - i * 0.05);
-      dummy.scale.set(w, w * 0.55, w); dummy.rotation.set(0, t.rot + i, 0); dummy.updateMatrix();
-      pineB.setMatrixAt(pi++, dummy.matrix);
+    const seed = t.x * 0.53 + t.z * 0.91;
+    for (let i = 0; i < 4; i++) {
+      const a = t.rot + i * 1.9, rad = i === 0 ? 0 : t.h * 0.1;
+      const w = t.h * (i === 0 ? 0.19 : 0.13);
+      dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.84 + (i === 0 ? 0.04 : -0.03 + (i % 2) * 0.05)), t.z + Math.sin(a) * rad);
+      dummy.scale.set(w, w * 0.45, w * 0.9); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
+      pineB.setMatrixAt(pi, dummy.matrix);
+      tint(pineB, pi++, 0, seed);
     }
   }
-  const leaves = new THREE.InstancedMesh(TREE.blob, TREE.leafMat, kinds.birch.length * 3);
+  // birch: a pale trunk and a loose, many-clumped crown
+  const leaves = new THREE.InstancedMesh(TREE.blob, TREE.leafMat, kinds.birch.length * 6);
   let li = 0, bi = 0;
   for (const t of kinds.birch) {
-    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.55, t.h * 0.75, 0.55); dummy.updateMatrix();
+    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.5, t.h * 0.78, 0.5); dummy.updateMatrix();
     birchTr.setMatrixAt(bi++, dummy.matrix);
-    for (let i = 0; i < 3; i++) {
-      const a = t.rot + i * 2.1;
-      dummy.position.set(t.x + Math.cos(a) * 0.6, t.y + t.h * (0.62 + i * 0.1), t.z + Math.sin(a) * 0.6);
-      const w = t.h * 0.17; dummy.scale.set(w, w * 0.9, w); dummy.updateMatrix();
-      leaves.setMatrixAt(li++, dummy.matrix);
+    const seed = t.x * 0.71 + t.z * 0.29;
+    for (let i = 0; i < 6; i++) {
+      const a = t.rot + i * 2.4, rad = i === 0 ? 0 : 0.5 + (i % 3) * 0.35;
+      dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.56 + (i / 6) * 0.36), t.z + Math.sin(a) * rad);
+      const w = t.h * (0.15 - i * 0.008); dummy.scale.set(w, w * 0.85, w); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
+      leaves.setMatrixAt(li, dummy.matrix);
+      tint(leaves, li++, 0, seed, 0.09, 0.03);
     }
   }
-  for (const m of [trunks, birchTr, spruceC, pineB, leaves]) { m.castShadow = m !== trunks && m !== birchTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
+  for (const m of [trunks, birchTr, spruceC, pineB, leaves]) { m.castShadow = m !== trunks && m !== birchTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
   return out;
 }
 
