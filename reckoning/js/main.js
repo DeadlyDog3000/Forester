@@ -682,3 +682,14 @@ requestAnimationFrame(loop);
 loadModels().finally(() => $("loading").remove());
 // for testing from the console: __play(3) starts the third chapter
 window.__play = (n, who = "brother", opts) => { G.who = who; play(n, opts); };
+// ?raid: straight into free play with the bow, and a band of raiders on the road in a few seconds
+if (/[?&]raid\b/.test(location.search)) loadModels().finally(() => {
+  G.who = "brother"; play(14);
+  const iv = setInterval(() => {
+    const t = G.town, pl = G.player;
+    if (!t || !t.raids || !pl || G.lockMove) return;
+    clearInterval(iv);
+    pl.hasBow = true; pl.arrows = Math.max(pl.arrows || 0, 24); G.world.huntOpen = true;
+    t.S.raid.next = t.day; t.t = (Math.floor(t.t / t.dayLen) + 0.595) * t.dayLen;
+  }, 500);
+});
