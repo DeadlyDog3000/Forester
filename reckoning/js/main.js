@@ -11,6 +11,7 @@ import { G, Player, frame, setAtmo } from "./engine.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave } from "./story.js";
+import { VOICE } from "./voice.js";
 
 /* global SFX */
 
@@ -27,12 +28,13 @@ function applySettings() {
   AUDIO.setMusicVolume(s.music ? 1 : 0);
   $("setSens").value = s.sens; $("setFov").value = s.fov; $("setVol").value = s.volume;
   $("setInvert").checked = s.invert; $("setMusic").checked = s.music; $("setThird").checked = s.third;
+  $("setVoices").checked = s.voices !== false; VOICE.enabled = s.voices !== false; if (!VOICE.enabled) VOICE.stop();
   $("sensVal").textContent = (+s.sens).toFixed(2); $("fovVal").textContent = s.fov + "°"; $("volVal").textContent = Math.round(s.volume * 100) + "%";
 }
 for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true], ["setVol", "volume", true]]) {
   $(id).addEventListener("input", e => { G.settings[key] = num ? +e.target.value : e.target.value; applySettings(); G.saveSettings(); });
 }
-for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setThird", "third"]]) {
+for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setThird", "third"], ["setVoices", "voices"]]) {
   $(id).addEventListener("change", e => { G.settings[key] = e.target.checked; applySettings(); G.saveSettings(); });
 }
 
@@ -75,6 +77,7 @@ function play(chapter, opts) {
   screen(null);
   $("menus").classList.remove("backdrop");
   UI.show("hud", true);
+  VOICE.narratorGender = G.who === "brother" ? "m" : "f";
   G.player.setModel(LOOKS[G.who]);
   G.player.model.scaleBase = LOOKS[G.who].scale;
   lock();
@@ -113,6 +116,7 @@ function buildChapters() {
 function pause() {
   if (G.mode !== "play") return;
   G.mode = "pause";
+  VOICE.stop();
   SFX.pauseAll && SFX.pauseAll(true);
   back = "pause";
   screen("pause");
@@ -143,7 +147,7 @@ let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  frame(dt);
+  if (!window.__manual) frame(dt);    // (tests step the game themselves)
   requestAnimationFrame(loop);
 }
 

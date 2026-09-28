@@ -55,11 +55,11 @@ export class Woods extends WorldBase {
     // ---- the forest ----
     const list = [];
     const taken = new Map();
-    const cellK = (x, z) => Math.floor(x / 3) + "," + Math.floor(z / 3);
-    const tries = 16000;
+    const cellK = (x, z) => Math.floor(x / 3.4) + "," + Math.floor(z / 3.4);
+    const tries = 6500;
     for (let i = 0; i < tries; i++) {
       const t = this.road[Math.floor(r() * this.road.length)];
-      const a = r() * TAU, rad = 5 + Math.pow(r(), 0.8) * 115;
+      const a = r() * TAU, rad = 5 + Math.pow(r(), 0.9) * 70;
       const x = t.x + Math.cos(a) * rad, z = t.z + Math.sin(a) * rad;
       if (this.roadDist(x, z).d < 4.5) continue;
       const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
@@ -77,7 +77,7 @@ export class Woods extends WorldBase {
 
     // undergrowth: bushes, ferns, stones
     const ub = new Builder();
-    for (let i = 0; i < 1400; i++) {
+    for (let i = 0; i < 900; i++) {
       const t = this.road[Math.floor(r() * this.road.length)];
       const a = r() * TAU, rad = 3.5 + r() * 45;
       const x = t.x + Math.cos(a) * rad, z = t.z + Math.sin(a) * rad;
@@ -131,6 +131,15 @@ export class Woods extends WorldBase {
     this.t = 0;
   }
 
+  // on the minimap: the forest floor, the road, the clearing
+  minimap(c, X, Z, S) {
+    c.fillStyle = "#23331f"; c.fillRect(0, 0, 999, 999);
+    c.fillStyle = "#4a5a3a"; c.beginPath(); c.arc(X(CLEARING.x), Z(CLEARING.z), CLEARING.r * S, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = "#8a7a60"; c.lineWidth = 3.2 * S; c.lineCap = "round"; c.beginPath();
+    this.road.forEach((p, i) => i ? c.lineTo(X(p.x), Z(p.z)) : c.moveTo(X(p.x), Z(p.z))); c.stroke();
+    c.fillStyle = "#2c4a2e";
+    for (const t of this.fellable) if (t.state === "up" || t.state === "shake") { c.beginPath(); c.arc(X(t.x), Z(t.z), 1.6, 0, 7); c.fill(); }
+  }
   // gentle hills, flattened where the road runs and in the clearing
   heightAt(x, z) {
     let h = Math.sin(x * 0.021) * 2.2 + Math.cos(z * 0.017) * 2.6 + Math.sin((x + z) * 0.043) * 0.9 + Math.cos(x * 0.09 - z * 0.07) * 0.35;
@@ -316,7 +325,7 @@ export class Woods extends WorldBase {
     this.stack.clear();
     const b = new Builder();
     b.box(1.8, 0.12, 2.6, STACK.x, 0.06, STACK.z, 0x4a3a2a);
-    if (n > 0) P.logPile(b, STACK.x, STACK.z, Math.min(n, 14), Math.PI / 2, 0.12);
+    if (n > 0) P.logPile(b, STACK.x, STACK.z, Math.min(n, 24), Math.PI / 2, 0.12);
     const m = b.build(); m.position.y = this.cy; this.stack.add(m);
   }
   lightFire(on = true) {

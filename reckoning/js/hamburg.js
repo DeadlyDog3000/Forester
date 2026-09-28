@@ -66,7 +66,7 @@ const BLOCKS = [
   [3, -28, 8, -3], [8, -28, 18, -15], [18, -28, 32, -3], [3, -38, 20, -28],
   [38, -38, 62, -3],
   [-62, 3, -38, 66], [-32, 3, -15, 37], [-15, 3, -3, 30], [3, 3, 32, 30],
-  [-32, 43, -26, 53.5], [-23.5, 43, -15, 66], [-32, 56, -23.5, 66],
+  [-32, 43, -26, 53.5], [-23.5, 43, -15, 64], [-32, 56, -23.5, 64],
   [-15, 56, -8.5, 66], [8.5, 56, 15, 66],
   [15, 30, 32, 66], [38, 3, 62, 66],
 ];
@@ -176,8 +176,9 @@ export class Hamburg extends WorldBase {
     root.add(marsh);
 
     // ---- the harbour ----
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(420, 160, 60, 20), new THREE.MeshStandardMaterial({ color: 0x2c4550, roughness: 0.18, metalness: 0.35 }));
-    water.rotation.x = -Math.PI / 2; water.position.set(0, -1.1, -126);
+    // the Elbe, wide as a sea here, out past the ships to the horizon
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(1400, 900, 110, 60), new THREE.MeshStandardMaterial({ color: 0x2f607a, roughness: 0.12, metalness: 0.45 }));
+    water.rotation.x = -Math.PI / 2; water.position.set(0, -1.1, -496);
     water.receiveShadow = true;
     root.add(water);
     this.water = water;
@@ -233,7 +234,7 @@ export class Hamburg extends WorldBase {
     // ---- St. Nikolai ----
     this.buildChurch(b, lit);
     // ---- the wall and the marsh gate ----
-    this.buildWall(b, props);
+    this.buildWall(b, props, lit);
 
     // ---- the square: a well, stalls, and (on the morning it is needed) the scaffold ----
     props.add(new THREE.CylinderGeometry(1.1, 1.2, 0.9, 14), 0x6e685e, -9, 0.45, 36);
@@ -266,14 +267,42 @@ export class Hamburg extends WorldBase {
     root.add(this.scaffold);
     this.scaffoldCol = this.col.addRect(0, 45, 6.2, 6.2, 2); this.scaffoldCol.disabled = true;
 
-    // ---- street lamps (brackets on walls) ----
-    const lampB = new Builder();
-    for (const [x, z] of [[-3.3, -20], [3.3, 10], [-3.3, 22], [-32, 20], [-32, 50], [-38, 30], [32, -20], [-15.3, 40], [15.3, 40], [-20, 43], [20, 3], [-20, -3], [45, 3], [-50, -3]]) {
-      lampB.box(0.1, 0.1, 0.5, x, 3.2, z, TIMBER);
-      lampB.box(0.24, 0.34, 0.24, x, 2.95, z, 0xffd48a);
+    // ---- street lamps: a post, an arm, a lantern, and a pool of light under it ----
+    const lampB = new Builder(), headB = new Builder();
+    this.lampSpots = [[-2.4, -20], [2.4, -8], [-2.4, 12], [2.4, 24], [-20, 2.4], [6, 2.4], [22, -2.4], [45, 2.4], [-50, -2.4],
+      [-32.6, 20], [-37.4, 50], [-32.6, -20], [-20, 37.6], [-14.4, 40], [14.4, 40], [-20, -38.6], [10, -38.6], [40, -38.6], [32.6, -20], [37.4, 30]];
+    const glowTex = (() => {
+      const c = document.createElement("canvas"); c.width = c.height = 64;
+      const x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+      g.addColorStop(0, "rgba(255,190,110,0.55)"); g.addColorStop(1, "rgba(255,190,110,0)");
+      x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    this.glowMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
+    const glowGeo = new THREE.PlaneGeometry(7, 7).rotateX(-Math.PI / 2);
+    for (const [x, z] of this.lampSpots) {
+      lampB.add(new THREE.CylinderGeometry(0.08, 0.11, 3.4, 8), 0x3e3a36, x, 1.7, z);
+      lampB.box(0.14, 0.3, 0.14, x, 0.15, z, 0x3a3632);
+      lampB.box(0.06, 0.06, 0.6, x, 3.3, z, 0x2a2622, Math.atan2(-x, -z));
+      const hx = x + Math.sin(Math.atan2(-x, -z)) * 0.3, hz = z + Math.cos(Math.atan2(-x, -z)) * 0.3;
+      lampB.add(new THREE.ConeGeometry(0.2, 0.16, 4), 0x2a2622, hx, 3.28, hz, 0, Math.PI / 4, 0);
+      headB.box(0.3, 0.38, 0.3, hx, 3.02, hz, 0xffffff);
+      lampB.box(0.26, 0.04, 0.26, hx, 2.89, hz, 0x2a2622);
+      this.col.addCircle(x, z, 0.12, 3.4);
+      const gl = new THREE.Mesh(glowGeo, this.glowMat); gl.position.set(hx, 0.03, hz); gl.renderOrder = 1; root.add(gl);
     }
-    const lamps = lampB.build(MAT.lit, { shadow: false });
-    root.add(lamps);
+    root.add(lampB.build(MAT.solid));
+    this.lampHeadMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: 0x4a4038 });
+    root.add(headB.build(this.lampHeadMat, { shadow: false }));
+
+    // ---- candles: a holder, the wax, and (added below) the flame ----
+    this.candleSpots = [[10.3, 0.82, -13.6], [12.2, 0.82, -6.35], [13.2, 0.82, -6.05], [8.75, 1.32, -5.65], [8.75, 1.32, -6.75], [14.3, 1.55, -3.52]];
+    for (const [x, y, z] of this.candleSpots) {
+      props.add(new THREE.CylinderGeometry(0.055, 0.065, 0.03, 10), 0xb08a3a, x, y + 0.015, z);
+      props.add(new THREE.CylinderGeometry(0.024, 0.024, 0.17, 8), 0xf0e6cc, x, y + 0.115, z);
+    }
+    props.box(0.14, 0.3, 0.04, 14.3, 1.65, -3.34, 0x6a4a2e);     // the sconce by the door
+    props.box(0.16, 0.03, 0.16, 14.3, 1.535, -3.46, 0x6a4a2e);
 
     // ---- stealth cover along the west lane and the south-west street ----
     this.cover = [];
@@ -295,21 +324,35 @@ export class Hamburg extends WorldBase {
     const lm = lit.build(MAT.lit, { shadow: false }); root.add(lm);
 
     // lights — a fixed pool, switched on and off, so no scene ever recompiles
+    // 0 hearth · 1 desk candle · 2 table candles · 3-5 torches and lanterns · 6 the door sconce · 7-8 the nearest street lamps
     this.pool = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 9; i++) {
       const L = new THREE.PointLight(0xff9a4a, 0, 12, 1.7);
       L.castShadow = false;
       root.add(L); this.pool.push(L);
     }
-    // hearth and desk candle
     this.hearthFire = makeFlame(3.2, this.pool[0]); this.hearthFire.position.set(9.05, 0.25, -6.2);
-    this.pool[0].intensity = 5; this.pool[0].distance = 10; this.hearthFire.userData.flame.base = 5;
+    this.pool[0].distance = 10;
     root.add(this.hearthFire); this.flames.push(this.hearthFire);
-    this.candle = makeFlame(0.5, this.pool[1]); this.candle.position.set(10.3, 0.98, -13.6);
-    this.pool[1].color.set(0xffc27a); this.pool[1].intensity = 2.2; this.pool[1].distance = 6; this.candle.userData.flame.base = 2.2;
-    root.add(this.candle); this.flames.push(this.candle);
-    const c2 = makeFlame(0.5); c2.position.set(12.3, 0.92, -6.4); root.add(c2); this.flames.push(c2);
-    this.pool[2].color.set(0xffb070); this.pool[2].position.set(12.5, 1.6, -6.2);
+    this.candles = this.candleSpots.map(([x, y, z], i) => {
+      const L = i === 0 ? this.pool[1] : i === 1 ? this.pool[2] : i === 5 ? this.pool[6] : null;
+      const f = makeFlame(0.55, L); f.position.set(x, y + 0.2, z);
+      if (L) { L.color.set(0xffc27a); L.distance = i === 5 ? 7 : 6; L.position.y = 0.1; }
+      root.add(f); this.flames.push(f);
+      return f;
+    });
+    for (const i of [7, 8]) { this.pool[i].color.set(0xffc27a); this.pool[i].distance = 13; }
+    this.lampLevel = 0; this._lampT = 0;
+
+    // the small door by the marsh gate, drawn over everything while you are making for it
+    this.posternGlow = new THREE.Group();
+    const pgFill = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.3), new THREE.MeshBasicMaterial({ color: 0x8cf08a, transparent: true, opacity: 0.2, depthTest: false, depthWrite: false, fog: false }));
+    const pgEdge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.3, 2.3, 0.05)), new THREE.LineBasicMaterial({ color: 0xa8ffa0, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false, fog: false }));
+    pgFill.rotation.y = Math.PI; this.posternGlow.add(pgFill, pgEdge);
+    this.posternGlow.position.set(-27.5, 1.1, 67.7);
+    this.posternGlow.renderOrder = 999; pgFill.renderOrder = 999; pgEdge.renderOrder = 1000;
+    this.posternGlow.visible = false;
+    root.add(this.posternGlow);
 
     this.t = 0;
   }
@@ -365,7 +408,10 @@ export class Hamburg extends WorldBase {
     b.box(W - 0.62, ih, 0.02, cx, ih / 2, H.z0 + 0.31, inner);
     b.box(0.02, ih, D - 0.62, H.x0 + 0.31, ih / 2, cz, inner);
     b.box(0.02, ih, D - 0.62, H.x1 - 0.31, ih / 2, cz, inner);
-    b.box(W - 0.62, ih, 0.02, cx, ih / 2, H.z1 - 0.31, inner);
+    // (the front one stops either side of the door)
+    b.box(12.4 - (H.x0 + 0.31), ih, 0.02, (H.x0 + 0.31 + 12.4) / 2, ih / 2, H.z1 - 0.31, inner);
+    b.box((H.x1 - 0.31) - 13.6, ih, 0.02, (13.6 + H.x1 - 0.31) / 2, ih / 2, H.z1 - 0.31, inner);
+    b.box(1.2, ih - 2.3, 0.02, 13, 2.3 + (ih - 2.3) / 2, H.z1 - 0.31, inner);
     for (const x of [9.5, 12, 14.5, 17]) b.box(0.18, 0.22, D - 0.6, x, ih - 0.1, cz, 0x4a3626);   // beams
     // the hall
     P.table(props, 12.7, -6.2, 2.4, 1.0);
@@ -392,7 +438,13 @@ export class Hamburg extends WorldBase {
     props.box(0.5, 0.5, 0.4, 17.3, 0.25, -9.6, 0x5a3e28);
     // the front door, on a hinge
     const door = new THREE.Group();
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.28, 0.1), mat(0x4a3020));
+    // a door painted red in a dark frame, so it reads from across the hall
+    for (const zz of [H.z1 - 0.33, H.z1 + 0.03]) {
+      b.box(0.14, 2.45, 0.08, 12.33, 1.22, zz, TIMBER); b.box(0.14, 2.45, 0.08, 13.67, 1.22, zz, TIMBER);
+      b.box(1.48, 0.14, 0.08, 13, 2.38, zz, TIMBER);
+    }
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.28, 0.1), mat(0x8a2a1c, { roughness: 0.7 }));
+    for (const [y, h] of [[0.45, 0.08], [1.14, 0.08], [1.85, 0.08]]) { const band = new THREE.Mesh(new THREE.BoxGeometry(1.1, h, 0.12), mat(0x2a2622, { metalness: 0.6, roughness: 0.5 })); band.position.set(0, y - 1.14, 0); leaf.add(band); }
     leaf.position.set(0.6, 1.14, 0); leaf.castShadow = true;
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), mat(0x2a2a2a, { metalness: 0.8 }));
     knob.position.set(1.05, 1.05, 0.07); leaf.add(knob.clone()); leaf.add(knob);
@@ -443,7 +495,7 @@ export class Hamburg extends WorldBase {
     b.box(2.2, 3.6, 0.2, 0, 1.8, 54.2, 0x3a2418);
     this.col.addBox(-8, 57.5, 8, 66.5, 20); this.col.addBox(-3.3, 54.2, 3.3, 61, 40);
   }
-  buildWall(b, props) {
+  buildWall(b, props, lit) {
     const stone = 0x7d7468, top = 7;
     const seg = (x0, x1) => {
       b.box(x1 - x0, top, 2.4, (x0 + x1) / 2, top / 2, 69.2, stone, 0, 0.03);
@@ -463,8 +515,14 @@ export class Hamburg extends WorldBase {
     b.box(4, 7.8, 0.3, -35, 3.9, 67.2, 0x4a3020);
     for (const y of [1.5, 4, 6.5]) b.box(4, 0.15, 0.1, -35, y, 67.02, 0x2a2622);
     // the postern: a small door in the wall beside the gate
-    b.box(1.1, 2.1, 0.15, -27.5, 1.05, 67.95, 0x3a2418);
-    b.box(1.4, 0.2, 0.2, -27.5, 2.2, 67.95, 0x5a5048);
+    // pale dressed stone round it, so it shows against the rubble of the wall
+    b.box(1.7, 2.7, 0.12, -27.5, 1.35, 67.9, 0xc8bca8);
+    b.box(1.15, 2.15, 0.1, -27.5, 1.08, 67.8, 0x8a5a30);
+    for (const y of [0.4, 1.1, 1.8]) b.box(1.1, 0.08, 0.06, -27.5, y, 67.73, 0x2a2622);
+    b.add(new THREE.SphereGeometry(0.05, 6, 4), 0x2a2622, -27.1, 1.1, 67.72);
+    // a watch-lantern on a hook above it, burning low
+    b.box(0.06, 0.06, 0.4, -27.5, 2.95, 67.7, 0x2a2622);
+    lit.box(0.2, 0.28, 0.2, -27.5, 2.7, 67.55, 0xffd48a);
     // a brazier where the gate watch keeps warm
     props.add(new THREE.CylinderGeometry(0.4, 0.25, 0.6, 8), 0x2a2622, -40.5, 0.9, 64.2);
     props.box(0.1, 0.9, 0.1, -40.5, 0.45, 64.2, 0x2a2622);
@@ -473,6 +531,12 @@ export class Hamburg extends WorldBase {
     this.col.addCircle(-40.5, 64.2, 0.45, 1.3);
   }
 
+  // on the minimap: cobbles, and the harbour water
+  minimap(c, X, Z, S) {
+    c.fillStyle = "#6a655c"; c.fillRect(0, 0, 999, 999);
+    c.fillStyle = "#2f607a"; c.fillRect(0, 0, 999, Math.max(0, Z(-46)));
+    c.fillStyle = "#4a5a3a"; c.fillRect(0, Z(70.4), 999, 999);
+  }
   ceilingAt(x, z) {
     return (x > HOME.x0 && x < HOME.x1 && z > HOME.z0 && z < HOME.z1) ? 3.2 : Infinity;
   }
@@ -480,6 +544,14 @@ export class Hamburg extends WorldBase {
 
   update(dt) {
     this.t += dt;
+    // the two street lamps nearest you actually light the street
+    this._lampT -= dt;
+    if (this._lampT <= 0 && this.lampLevel > 0 && G.player) {
+      this._lampT = 0.4;
+      const p = G.player.pos;
+      const near = this.lampSpots.map(([x, z]) => [x, z, (x - p.x) ** 2 + (z - p.z) ** 2]).sort((a, b) => a[2] - b[2]);
+      for (let k = 0; k < 2; k++) { const L = this.pool[7 + k]; L.position.set(near[k][0], 3.0, near[k][1]); L.intensity = this.lampLevel; }
+    }
     // the door swings toward where it should be
     const want = this.doorOpen ? 1.55 : 0;
     this.doorAngle += (want - this.doorAngle) * Math.min(1, dt * 5);
@@ -495,6 +567,11 @@ export class Hamburg extends WorldBase {
       a.needsUpdate = true;
       this.water.geometry.computeVertexNormals();
     }
+    if (this.posternGlow.visible) {
+      const k = 0.55 + Math.sin(this.t * 3) * 0.45;
+      this.posternGlow.children[0].material.opacity = 0.1 + k * 0.18;
+      this.posternGlow.children[1].material.opacity = 0.45 + k * 0.5;
+    }
     for (const s of this.ships) {
       s.position.y = -1.3 + Math.sin(this.t * 0.7 + s.userData.bob) * 0.1;
       s.rotation.z = Math.sin(this.t * 0.5 + s.userData.bob) * 0.02;
@@ -508,14 +585,24 @@ export class Hamburg extends WorldBase {
     for (const c of this.stallCols) c.disabled = !market;
     this.scaffold.visible = ch >= 3;
     this.scaffoldCol.disabled = ch < 3;
-    const night = ch === 2;
     this.brazier.visible = ch >= 2;
-    this.hearthFire.visible = ch <= 2;
-    this.pool[0].intensity = ch <= 2 ? 5 : 0; this.hearthFire.userData.flame.base = ch <= 2 ? (ch === 2 ? 3 : 5) : 0;
-    this.candle.visible = ch <= 2; this.candle.userData.flame.base = ch <= 2 ? 2.2 : 0; this.pool[1].intensity = this.candle.userData.flame.base;
-    this.pool[2].intensity = ch === 1 ? 1.2 : 0;
+    this.posternGlow.visible = ch === 4;
+    // the fire and the candles burn in the evening and the night; by dawn they are out
+    const lit = ch <= 2;
+    this.hearthFire.visible = lit;
+    this.hearthFire.userData.flame.base = lit ? (ch === 2 ? 3 : 5) : 0; this.pool[0].intensity = this.hearthFire.userData.flame.base;
+    this.candles.forEach((c, i) => {
+      c.visible = lit;
+      const L = c.userData.flame.light;
+      if (L) { c.userData.flame.base = lit ? (i === 5 ? 1.6 : 2.2) : 0; L.intensity = c.userData.flame.base; }
+    });
     for (let i = 3; i < 6; i++) this.pool[i].intensity = 0;
-    void night;
+    // street lamps: lit at dusk and through the night, still burning in the morning mist
+    this.lampLevel = { 1: 1.6, 2: 3.2, 3: 0, 4: 1.8 }[ch] ?? 0;
+    this.glowMat.opacity = { 1: 0.6, 2: 1, 3: 0, 4: 0.7 }[ch] ?? 0;
+    this.lampHeadMat.color.set(this.lampLevel > 0 ? 0xffd48a : 0x4a4038);
+    for (const i of [7, 8]) this.pool[i].intensity = 0;
+    this._lampT = 0;
   }
 }
 

@@ -44,6 +44,7 @@ export const UI = {
   async narrate(text, secs) {
     const n = $("narration");
     n.textContent = text;
+    window.__voice && window.__voice.speak(null, text);
     n.classList.remove("hidden");
     n.style.opacity = 0; void n.offsetWidth;
     n.style.transition = "opacity 1s ease"; n.style.opacity = 1;
@@ -62,6 +63,7 @@ export const UI = {
     $("dlgText").classList.toggle("italic", !name);
     d.classList.remove("hidden");
     this.dialogOpen = true;
+    window.__voice && window.__voice.speak(name, text);
     const now = () => (window.G ? window.G.time : performance.now() / 1000);
     const shownAt = now();
     return new Promise(res => {
@@ -70,13 +72,14 @@ export const UI = {
         d.classList.add("hidden");
         this.dialogOpen = false;
         this._advance = null;
+        window.__voice && window.__voice.stop();
         res();
         return true;
       };
     });
   },
   advance() { return this._advance ? this._advance() : false; },
-  closeDialog() { if (this._advance) { $("dialog").classList.add("hidden"); this.dialogOpen = false; const a = this._advance; this._advance = null; } },
+  closeDialog() { window.__voice && window.__voice.stop(); if (this._advance) { $("dialog").classList.add("hidden"); this.dialogOpen = false; const a = this._advance; this._advance = null; } },
 
   // Non-blocking subtitle: things said while you walk.
   bark(name, text, secs) {
@@ -86,12 +89,38 @@ export const UI = {
     $("barkText").classList.toggle("italic", !name);
     b.classList.remove("hidden");
     b.style.opacity = 1;
+    if (!this.dialogOpen) window.__voice && window.__voice.speak(name, text);
     clearTimeout(this._barkTimer);
     const t = (secs ?? Math.max(2.6, text.length * 0.065)) * 1000;
     this._barkTimer = setTimeout(() => { b.style.opacity = 0; setTimeout(() => b.classList.add("hidden"), 400); }, t);
     return sleep(t + 300);
   },
   clearBark() { clearTimeout(this._barkTimer); $("bark").classList.add("hidden"); },
+
+  // the red screen: a headline, what happened, and a quote that writes itself in
+  async caught(head, line, quote, by, tip) {
+    const c = $("caught");
+    $("caughtHead").textContent = head; $("caughtLine").textContent = line;
+    $("caughtQuote").textContent = ""; $("caughtBy").textContent = by; $("caughtTip").textContent = tip;
+    $("caughtBy").style.opacity = 0; $("caughtTip").style.opacity = 0;
+    c.classList.remove("hidden"); c.style.opacity = 0; void c.offsetWidth; c.style.opacity = 1;
+    window.__voice && window.__voice.speak(null, line + " " + quote);
+    await sleep(900);
+    for (let i = 1; i <= quote.length; i++) { $("caughtQuote").textContent = quote.slice(0, i); await sleep(38); }
+    $("caughtBy").style.opacity = 1;
+    await sleep(900);
+    $("caughtTip").style.opacity = 1;
+    await sleep(2600);
+    this.fadeNow(1);
+    c.style.opacity = 0;
+    await sleep(500);
+    c.classList.add("hidden");
+  },
+  stamina(v) {
+    const s = $("stamina");
+    if (v === undefined || v === null) { s.classList.add("hidden"); return; }
+    s.classList.remove("hidden"); s.style.setProperty("--s", v); s.classList.toggle("low", v < 0.25);
+  },
 
   objective(text) {
     const o = $("objective");
@@ -105,7 +134,7 @@ export const UI = {
   prompt(text, hold = false) {
     const p = $("prompt");
     if (!text) { p.classList.add("hidden"); return; }
-    $("promptKey").textContent = "E";
+    $("promptKey").textContent = "F";
     $("promptText").textContent = (hold ? "Hold — " : "") + text;
     p.classList.remove("hidden");
   },

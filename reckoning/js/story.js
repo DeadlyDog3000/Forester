@@ -44,6 +44,44 @@ export const P = {
 };
 const YOU = () => `${P.you} (you)`;
 
+// Every capture says something different — nobody wants to read the same
+// line twice while they try the same lane a third time.
+const CAUGHT = [
+  "A hand on your collar. The watch has you.",
+  "\"Got one!\" The lantern swings up into your face.",
+  "Too slow. The halberd shaft comes down across your path.",
+  "They know your face now. Every one of them.",
+  "Caught — and somewhere, your {sib} is still waiting at the gate.",
+  "The watchman's grip is iron. Father's name is spat in your ear.",
+  "A whistle, boots on stone, and nowhere left to run.",
+  "\"The merchant's brat!\" Half the lane turns to look.",
+  "They drag you back toward the square. Not like this.",
+  "You were seen. In this city, being seen is enough.",
+];
+const TIPS_CHASE = ["Hold Shift and make for the narrow alley west of the square.", "Don't stop to look back. The alley is on the left, past the cart.", "Run west along the street, then into the gap between the houses."];
+const TIPS_STEALTH = ["Crouch with C, and wait for the lantern to swing away.", "Keep a crate between you and the watch. Nobody sees through wood.", "Lean round a corner with Q and E before you step out.", "Watch the eye at the top of the screen — when it opens, get out of sight.", "The watch at the gate looks west and east in turn. Move when he looks away.", "Walking is quiet. Running is heard."];
+const QUOTES = [
+  ["The city is good to those it loves.", "Father"],
+  ["A good name is rather to be chosen than great riches.", "Proverbs 22:1"],
+  ["It is not for me to show you anything, merchant. It is for me to read.", "The magistrate"],
+  ["The wicked flee when no man pursueth: but the righteous are bold as a lion.", "Proverbs 28:1"],
+  ["Stadtluft macht frei. — City air makes you free.", "a Hanseatic saying"],
+  ["Take your {sib} and go, and do not come looking for me.", "Father"],
+  ["Keep low. Keep out of the lantern light.", "{Sib}"],
+  ["Whoso diggeth a pit shall fall therein.", "Proverbs 26:27"],
+  ["We go. We see. And then we decide.", "{Sib}"],
+  ["Hamburg stands open to all who trade honestly.", "words over the Börse door"],
+];
+// Every capture: a red screen, CAUGHT, a line of what happened, and slowly, a quote.
+async function caughtScreen(tips) {
+  let n = 0; try { n = +localStorage.getItem("reckoning.caught") || 0; localStorage.setItem("reckoning.caught", n + 1); } catch (e) { n = (G._caught = (G._caught || 0) + 1); }
+  const fill = t => t.replace("{sib}", P.sibLower).replace("{Sib}", P.sib);
+  const [q, by] = QUOTES[n % QUOTES.length];
+  const g = GEN;
+  await UI.caught("Caught", fill(CAUGHT[n % CAUGHT.length]), `“${fill(q)}”`, "— " + fill(by), tips[n % tips.length]);
+  if (g !== GEN) throw ABORT;
+}
+
 // ---------------------------------------------------------------------------
 //  script plumbing
 // ---------------------------------------------------------------------------
@@ -76,7 +114,7 @@ async function card(k, t, s) { const g = GEN; await UI.card(k, t, s); if (g !== 
 function look(target, speed = 2.5) { G.cine = target ? { look: target.isVector3 ? target : target.headPos(), speed } : null; }
 function lookAt(actor, speed) { G.cine = { speed: speed ?? 2.5, get look() { return actor.headPos(); } }; }
 function mark(m) { G.marker = m ? (m.person ? { actor: m } : Array.isArray(m) ? { x: m[0], z: m[1], y: m[2] ?? 1.6 } : m) : null; }
-function spawn(opts, x, z, yaw = 0) { return new Actor(opts, x, z, yaw); }
+function spawn(opts, x, z, yaw = 0) { const a = new Actor(opts, x, z, yaw); if (opts === LOOKS.brother || opts === LOOKS.sister) a.isSibling = true; return a; }
 
 // ---------------------------------------------------------------------------
 //  saving
@@ -108,7 +146,8 @@ export async function startChapter(n, opts = {}) {
   GEN++;
   G.onFrame.length = 0;
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
-  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false;
+  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = undefined; G.sprintSpeed = undefined;
+  G.bugs.setKind(null);
   AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false);
   SFX.fireLoop(false); SFX.insectLoop(false);
   const ch = CHAPTERS[n - 1];
@@ -145,7 +184,7 @@ function wanderer(route, seed, speed = 1.2) {
 //  I. THE HOUSE BY THE HARBOUR
 // ===========================================================================
 async function ch1(w) {
-  setAtmo("evening"); w.setChapter(1);
+  setAtmo("evening"); w.setChapter(1); G.bugs.setKind("moths");
   AUDIO.music("home"); AUDIO.water(true);
   const pl = G.player;
   pl.place(15.9, -10.8, Math.PI);   // the bedroom doorway, facing the hall
@@ -183,28 +222,29 @@ async function ch1(w) {
   G.lockMove = false; look(null); father.stopFacing(); father.faceTo(11, -10); father.person.setPose("hold");
   UI.objective("Take the ledger to Jakob at the harbour warehouse");
   mark(jakob);
-  UI.hint("Press E to open the door. WASD to walk, Shift to run.", 6);
+  // while you are still indoors the marker shows the way out
+  const doorMark = onFrame(() => { if (w.inHome()) mark({ x: 13, z: -3.1, y: 1.6, hideWithin: 1 }); else if (!G.marker || !G.marker.actor) mark(jakob); });
+  UI.hint("Press F to open the door. WASD to walk, Shift to run, Q and E to lean.", 6);
 
   w.addTrigger({ x0: 9, x1: 17, z0: -5.5, z1: -3.3, fn: () => bark(P.sib, `Don't let him keep you. And bring back the good news before Father eats it all.`) });
   w.addTrigger({ x: 10, z: 1, r: 4, fn: () => { albers.facePlayer(); albers.lookAtPlayer(true); bark("Frau Albers", `Evening! Tell your father to save me two of the good rye tomorrow — the dark one, mind, not the white.`); } });
   w.addTrigger({ x: 0, z: -30, r: 6, fn: () => bark("A dock hand", "Mind yourself — rope! ...Ah, it's the merchant's. Evening.") });
 
   let delivered = false;
+  void doorMark;
   const jIt = w.addInteract({ x: jakob.pos.x, y: 1.5, z: jakob.pos.z, reach: 2.6, label: "Give Jakob the ledger", use: () => { delivered = true; } });
   await until(() => delivered);
+  doorMark();
   w.removeInteract(jIt);
   G.lockMove = true; lookAt(jakob); jakob.facePlayer(); jakob.lookAtPlayer(true); jakob.person.setPose("hold");
   mark(null); UI.objective(null);
   await say("Jakob", `Ah — the merchant's ${P.child}! Give it here, give it here. Hm. Hm. Two hundred and twelve, and not a sack short. He's a marvel, your father.`);
   UI.carry(null); SFX.pickup();
-  await say("Jakob", "...");
   jakob.person.setPose("idle");
-  await say("Jakob", "Listen. Two men came by this afternoon, asking after his books. Not customs men. They had the magistrate's seal on their papers.");
-  await say(YOU(), "What did they want?");
-  await say("Jakob", "To know who he sells to. Who he owes. Whether he ever sold to the Swedes. I told them nothing, because there's nothing to tell — he's the most honest man on this quay.");
-  await say("Jakob", "Still. Tell him, would you? Quietly. Not in front of your " + P.sibLower + ".");
+  await say("Jakob", "Tell him the Riga ship's been sighted off Cuxhaven. Tomorrow, if the wind holds. We'll need every back on this quay.");
+  await say(YOU(), "He'll be pleased.");
+  await say("Jakob", "He'll be insufferable. Go on, then — your supper's getting cold, and I can smell the rain coming.");
   G.lockMove = false; look(null); jakob.stopFacing(); jakob.person.setPose("armsCrossed");
-  AUDIO.music("unease");
   UI.objective("Go home for supper");
   mark([13, -2.2]);
   // the evening wears on as you walk back
@@ -228,20 +268,14 @@ async function ch1(w) {
   lookAt(father, 4);
   await fade(0, 0.8);
   await wait(0.6);
-  await say(YOU(), "Jakob says two men came asking after your books today. With the magistrate's seal.");
-  await say(null, "Father set down his spoon.");
-  await say("Father", "Did they.");
+  await say(YOU(), "Jakob signed the tally. Not a sack short. And the Riga ship's been sighted — tomorrow, if the wind holds.");
+  await say("Father", "Tomorrow! Then we'll be rich men by Friday, and poor again by Sunday, once the Council has had its tithe.");
   lookAt(sib, 3);
-  await say(P.sib, "Father?");
+  await say(P.sib, "Frau Albers wants two of the dark rye. She says the white is for people with no teeth.");
   lookAt(father, 3);
-  await say("Father", "Then they will find columns that add up, and go home to their suppers. Every sack I have sold in this city was weighed in front of the man who bought it.");
-  lookAt(sib, 3);
-  await say(P.sib, "Men with seals don't come to look at columns.");
-  lookAt(father, 3);
-  await say("Father", "Hush. Eat.");
+  await say("Father", "Frau Albers has four teeth, and opinions on all of them.");
   await wait(1.2);
-  await say("Father", "The city is good to those it loves. It has loved this house for three generations. It will not stop over one bad harvest and a jealous neighbour.");
-  await say(null, "He smiled when he said it. It is the last time I remember him smiling.");
+  await say("Father", "Your grandfather came into this city with a handcart. Now half the harbour eats our bread. The city is good to those it loves — remember that. It has loved this house a long time.");
   await say("Father", "Bed, both of you. The Riga ship comes in tomorrow, and I'll need every pair of hands I have.");
   await fade(1, 2.2);
   pl.seated = false; look(null);
@@ -254,7 +288,7 @@ async function ch1(w) {
 //  II. PAPERS AND TORCHES
 // ===========================================================================
 async function ch2(w) {
-  setAtmo("night"); w.setChapter(2);
+  setAtmo("night"); w.setChapter(2); G.bugs.setKind("moths");
   AUDIO.music("dread");
   const pl = G.player;
   pl.place(16.9, -10.9, Math.PI);
@@ -351,7 +385,7 @@ async function ch2(w) {
 //  III. THE SQUARE AT DAWN
 // ===========================================================================
 async function ch3(w, opts) {
-  setAtmo("dawn"); w.setChapter(3);
+  setAtmo("dawn"); w.setChapter(3); G.bugs.setKind("flies");
   AUDIO.music("grief");
   const pl = G.player;
   const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], 12, -1.2, Math.PI / 2);
@@ -431,8 +465,10 @@ async function ch3(w, opts) {
   }
   // ---- the chase ----
   G.lockMove = true;
-  const cg1 = spawn(GUARD(81), -1.2, 41.2, Math.PI), cg2 = spawn(GUARD(82), 1.6, 41.6, Math.PI);
+  const cg1 = spawn(GUARD(81), -1.2, 39.4, Math.PI), cg2 = spawn(GUARD(82), 1.6, 39.8, Math.PI);
   cg1.hold(makeHalberd()); cg2.hold(makeHalberd());
+  // and one already in the street you must run down, who will try to cut you off
+  const cg3 = spawn(GUARD(83), -21, 40.2, Math.PI / 2); cg3.hold(makeHalberd());
   if (opts.chase) {
     pl.place(-2.5, 32.5, Math.PI * 0.62);
     sib.place(-1.4, 32.2, Math.PI);
@@ -453,22 +489,32 @@ async function ch3(w, opts) {
   bell();
   UI.objective("Run — lose them in the lanes to the west");
   mark(SPOTS.alley);
-  UI.hint("Hold Shift to run.", 3);
+  UI.hint("Hold Shift to run — but your breath won't last. Dodge the watchman in the street.", 4);
   sib.followPlayer(1.6);
-  G.sprintSpeed = 6.0;
-  // they come on, around what is in their way
-  const chasers = [cg1, cg2];
-  let caught = false, grace = 1.2;
+  G.sprintSpeed = 6.2;
+  G.stamina = 1;                 // running costs breath now
+  // they come on, around what is in their way, faster the longer it goes
+  const chasers = [cg1, cg2, cg3];
+  let caught = false, grace = 0.6, elapsed = 0, cutOff = false;
   const chase = onFrame(dt => {
-    grace -= dt;
+    grace -= dt; elapsed += dt;
     for (const g of chasers) {
       if (grace > 0) continue;
       const dx = pl.pos.x - g.pos.x, dz = pl.pos.z - g.pos.z, d = Math.hypot(dx, dz);
-      const spd = 4.55;
-      g.pos.x += dx / d * spd * dt; g.pos.z += dz / d * spd * dt;
+      let spd = Math.min(5.9, 5.0 + elapsed * 0.08);
+      let tx = dx, tz = dz;
+      if (g === cg3) {
+        // he waits in the street until you come, then goes for where you are heading
+        if (!cutOff && d > 16) { g.targetYaw = Math.atan2(dx, dz); continue; }
+        if (!cutOff) { cutOff = true; AUDIO.shout(); bark("Watchman", "Stop! Stop there!", 1.6); }
+        tx = dx + pl.vel.x * 0.7; tz = dz + pl.vel.z * 0.7;
+        spd = 4.9;
+      }
+      const l = Math.hypot(tx, tz) || 1;
+      g.pos.x += tx / l * spd * dt; g.pos.z += tz / l * spd * dt;
       w.col.resolve(g.pos, 0.35, 0.3, 1.6);
       g.targetYaw = Math.atan2(dx, dz); g.forcedSpeed = spd;
-      if (d < 1.1) caught = true;
+      if (d < 1.15) caught = true;
     }
   });
   const ok = await Promise.race([
@@ -476,11 +522,11 @@ async function ch3(w, opts) {
     until(() => caught).then(() => false),
   ]);
   chase();
+  G.stamina = undefined;
   if (!ok) {
     G.lockMove = true;
-    await say("Watchman", "Got you!");
-    await fade(1, 0.8);
-    await narrate("Caught. Try again — keep running, and make for the narrow alleys west of the square.", 3.5);
+    AUDIO.shout();
+    await caughtScreen(TIPS_CHASE);
     return startChapter(3, { chase: true });
   }
   mark(null);
@@ -521,18 +567,20 @@ class Watchman {
     } else if (this.sweep) {
       a.targetYaw = this.baseYaw + Math.sin(this.t * 0.45) * this.sweep;
     }
+    // nobody is spotted in the middle of a conversation
+    if (G.lockMove) { this.sus = 0; return; }
     // what they see
     const head = new THREE.Vector3(a.pos.x, 1.65, a.pos.z);
-    const tgt = new THREE.Vector3(pl.pos.x, pl.pos.y + (pl.crouched ? 0.85 : 1.45), pl.pos.z);
+    const ep = pl.eyePos(); const tgt = new THREE.Vector3(ep.x, ep.y - 0.15, ep.z);
     const dx = tgt.x - head.x, dz = tgt.z - head.z, d = Math.hypot(dx, dz);
-    const range = pl.crouched ? 6.5 : 12.5;
+    const range = pl.crouched ? 4.5 : 9;
     const ang = Math.abs(Math.atan2(Math.sin(Math.atan2(dx, dz) - a.yaw), Math.cos(Math.atan2(dx, dz) - a.yaw)));
-    let seen = d < range && ang < 0.92 && this.w.col.lineOfSight(head, tgt);
+    let seen = d < range && ang < 0.75 && this.w.col.lineOfSight(head, tgt);
     // heard: a run close by gives you away whichever way they face
-    if (!seen && d < 4.5 && pl.speed > 4 && !pl.crouched) seen = true;
-    if (d < 1.3) seen = true;
-    if (seen) this.sus += dt * (0.45 + 1.6 * (1 - d / range)) * (pl.crouched ? 0.65 : 1);
-    else this.sus = Math.max(0, this.sus - dt * 0.28);
+    if (!seen && d < 3 && pl.speed > 4 && !pl.crouched) seen = true;
+    if (d < 1) seen = true;
+    if (seen) this.sus += dt * (0.25 + 0.9 * (1 - d / range)) * (pl.crouched ? 0.5 : 1);
+    else this.sus = Math.max(0, this.sus - dt * 0.45);
     if (this.sus > 0.35 && !this.said) { this.said = true; bark("Watchman", ["Who's there?", "Hm? ...Show yourself.", "Is somebody there?"][Math.floor(Math.random() * 3)], 2.2); }
     if (this.sus < 0.1) this.said = false;
   }
@@ -546,9 +594,11 @@ async function ch4(w, opts) {
   const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], -24.6, 46.2, 0);
   const setup = () => {
     const guards = [
-      new Watchman(w, 91, [[-35.2, 45], [-35.2, 61]], { wait: 2.6, speed: 1.0, light: w.pool[3] }),
-      new Watchman(w, 92, [[-35, 64.6]], { yaw: Math.PI, sweep: 1.15, light: w.pool[4] }),
-      new Watchman(w, 93, [[-30.5, 55], [-26.5, 55]], { wait: 3.5, speed: 0.8, light: w.pool[5] }),
+      new Watchman(w, 91, [[-35.6, 45], [-35.6, 60]], { wait: 3, speed: 0.95, light: w.pool[3] }),
+      new Watchman(w, 92, [[-36.5, 64.6]], { yaw: Math.PI - 0.35, sweep: 0.8, light: w.pool[4] }),
+      // and further out, the streets that lead away from the gate are walked too
+      new Watchman(w, 94, [[-35.2, 38], [-35.2, 24]], { wait: 2.5, speed: 1.0, light: w.pool[5] }),
+      new Watchman(w, 95, [[-18, 40], [-12, 40]], { wait: 3, speed: 0.9, yaw: -Math.PI / 2 }),
     ];
     return guards;
   };
@@ -564,7 +614,7 @@ async function ch4(w, opts) {
     await say(P.sib, "Keep low. Keep out of the lantern light. Don't run unless you have to.");
     G.lockMove = false; look(null);
     sib.walk([[-24.8, 42], [-24, 39.5], [-10, 39]], 2.8).then(() => sib.remove());
-    UI.hint("Press C to crouch. A crouched figure is harder to see, and nobody sees through a crate.", 7);
+    UI.hint("C to crouch, Q and E to lean round a corner. A crouched figure is harder to see, and nobody sees through a crate.", 8);
   } else {
     sib.remove();
     fade(0, 1);
@@ -580,16 +630,15 @@ async function ch4(w, opts) {
   });
   const res = await Promise.race([
     until(() => guards.some(g => g.sus >= 1)).then(() => "caught"),
-    until(() => Math.hypot(pl.pos.x - SPOTS.postern[0], pl.pos.z - SPOTS.postern[1]) < 1.8).then(() => "made"),
+    until(() => Math.hypot(pl.pos.x - SPOTS.postern[0], pl.pos.z - SPOTS.postern[1]) < 2.5).then(() => "made"),
   ]);
   watch(); UI.eye(0);
   if (res === "caught") {
     G.lockMove = true;
     const g = guards.find(g => g.sus >= 1);
     lookAt(g.a, 5); AUDIO.shout();
-    await say("Watchman", "You! Stop there — in the name of the Council!");
-    await fade(1, 0.8);
-    await narrate("Caught. Try again — crouch, wait for the lanterns to turn away, and keep crates between you and the watch.", 4);
+    await wait(0.6);
+    await caughtScreen(TIPS_STEALTH);
     return startChapter(4, { retry: true });
   }
   guards.forEach(g => g.a.remove());
@@ -613,7 +662,7 @@ async function ch4(w, opts) {
 //  V. FAR, FAR AWAY
 // ===========================================================================
 async function ch5(w) {
-  setAtmo("afternoon");
+  setAtmo("afternoon"); G.bugs.setKind("flies");
   AUDIO.music("grief"); AUDIO.wind(true, 0.8);
   const pl = G.player;
   pl.place(0, 22, 0);
@@ -631,6 +680,7 @@ async function ch5(w) {
     const t = w.progress();
     blendAtmo("afternoon", "dusk", clamp((t - 0.05) / 0.95, 0, 1));
     w.city.visible = t < 0.3;
+    G.bugs.setKind(t > 0.75 ? "fireflies" : "flies");
     bellT -= dt;
     if (bellT <= 0 && t < 0.32) { bellT = 7; AUDIO.bell(clamp(0.8 - t * 2.6, 0, 0.8), 0.9); }
   });
@@ -706,7 +756,7 @@ async function ch5(w) {
 // ===========================================================================
 const CARRY_MAX = 6, DOOR_COST = 5, CABIN_COST = 20, LOGS_PER_TREE = 3;
 async function ch6(w) {
-  setAtmo("morning");
+  setAtmo("morning"); G.bugs.setKind("flies");
   AUDIO.music("woods"); SFX.insectLoop(true);
   const pl = G.player;
   const saved = (loadSave() || {}).clearing || {};
@@ -883,7 +933,7 @@ async function ch6(w) {
   pl.pitch = 0.05;
   sib.path = []; sib.stopFollow(); sib.person.setPose("idle");
   sib.place(FIRE.x + 1.9, FIRE.z + 0.4, -Math.PI / 2);
-  w.lightFire(true); SFX.fireLoop(true);
+  w.lightFire(true); SFX.fireLoop(true); G.bugs.setKind("fireflies");
   AUDIO.music("hope");
   await fade(0, 2);
   await wait(1.5);

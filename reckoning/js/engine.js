@@ -9,6 +9,8 @@
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT } from "./core.js";
 import { makePerson, makeAxe } from "./models.js";
 import { UI } from "./ui.js";
+import { Bugs } from "./bugs.js";
+import { AUDIO } from "./audio.js";
 
 /* global SFX */
 
@@ -19,7 +21,7 @@ export const input = {
   keys: new Set(), pressed: new Set(), mdx: 0, mdy: 0, click: false, mouseDown: false,
   down(code) { return this.keys.has(code); },
   hit(code) { return this.pressed.has(code); },
-  endFrame() { this.pressed.clear(); this.mdx = 0; this.mdy = 0; this.click = false; },
+  endFrame() { this.pressed.clear(); this.mdx = 0; this.mdy = 0; this.click = false; this.rclick = false; },
 };
 addEventListener("keydown", e => {
   if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "SELECT")) return;
@@ -32,7 +34,9 @@ addEventListener("blur", () => input.keys.clear());
 addEventListener("mousemove", e => {
   if (document.pointerLockElement) { input.mdx += e.movementX; input.mdy += e.movementY; }
 });
-addEventListener("mousedown", e => { if (e.button === 0) { input.click = true; input.mouseDown = true; } });
+addEventListener("mousedown", e => { if (e.button === 0) { input.click = true; input.mouseDown = true; } if (e.button === 2) { input.rclick = true; input.rdown = true; } });
+addEventListener("mouseup", e => { if (e.button === 2) input.rdown = false; });
+addEventListener("contextmenu", e => { if (G.mode === "play") e.preventDefault(); });
 addEventListener("mouseup", e => { if (e.button === 0) input.mouseDown = false; });
 
 // ---------------------------------------------------------------------------
@@ -52,6 +56,8 @@ export const G = {
   onFrame: [],
   interactTarget: null, holdT: 0,
 };
+G.input = input;
+G.bugs = new Bugs(G.scene);
 window.G = G; window.__renderer = renderer; window.__camera = camera;
 
 // ---------------------------------------------------------------------------
@@ -72,13 +78,13 @@ G.sun = sun; G.hemi = hemi; G.sky = sky;
 const C = h => new THREE.Color(h);
 export const ATMO = {
   evening:   { sun: [0.55, 0.28, 0.4], sunC: 0xffb070, sunI: 2.4, hemiS: 0xa6b4d8, hemiG: 0x5a4632, hemiI: 0.75, fog: 0xd8a888, near: 40, far: 240, top: 0x3d5b93, mid: 0xf0b48a, bot: 0x8a6f60, stars: 0, win: 0.9, exp: 1.0 },
-  dusk:      { sun: [-0.5, 0.08, 0.6], sunC: 0xff8050, sunI: 1.2, hemiS: 0x6a70a0, hemiG: 0x3a2e28, hemiI: 0.5, fog: 0x7a6a78, near: 25, far: 180, top: 0x1e2850, mid: 0xc0705a, bot: 0x40353a, stars: 0.25, win: 1.6, exp: 1.05 },
+  dusk:      { sun: [-0.5, 0.08, 0.6], sunC: 0xff8050, sunI: 1.4, hemiS: 0x7a80b0, hemiG: 0x4a3e34, hemiI: 0.8, fog: 0x7a6a78, near: 25, far: 180, top: 0x1e2850, mid: 0xc0705a, bot: 0x40353a, stars: 0.25, win: 1.6, exp: 1.05 },
   night:     { sun: [0.3, 0.7, -0.4], sunC: 0x7f95c8, sunI: 0.35, hemiS: 0x33406a, hemiG: 0x121014, hemiI: 0.28, fog: 0x0e121e, near: 10, far: 90, top: 0x05070f, mid: 0x141b30, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.1 },
   dawn:      { sun: [-0.2, 0.18, 0.9], sunC: 0xffc6a0, sunI: 0.9, hemiS: 0x9aa4b8, hemiG: 0x4a4440, hemiI: 0.6, fog: 0xa8a8b0, near: 8, far: 110, top: 0x5a6a88, mid: 0xc8b4b0, bot: 0x7a7478, stars: 0, win: 0.4, exp: 1.0 },
-  mist:      { sun: [-0.2, 0.22, 0.9], sunC: 0xc8c8d0, sunI: 0.45, hemiS: 0x7a8494, hemiG: 0x3a3634, hemiI: 0.45, fog: 0x6a707a, near: 4, far: 55, top: 0x4a5462, mid: 0x7a808a, bot: 0x5a5c60, stars: 0, win: 0.9, exp: 1.0 },
+  mist:      { sun: [-0.2, 0.22, 0.9], sunC: 0xd0d0d8, sunI: 0.75, hemiS: 0x9aa4b4, hemiG: 0x4a4644, hemiI: 0.85, fog: 0x7a808a, near: 6, far: 70, top: 0x5a6472, mid: 0x8a909a, bot: 0x6a6c70, stars: 0, win: 0.9, exp: 1.15 },
   afternoon: { sun: [0.4, 0.62, 0.35], sunC: 0xfff0d0, sunI: 2.6, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.85, fog: 0xa8b8b0, near: 30, far: 200, top: 0x4a78b5, mid: 0xc9d6e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
   morning:   { sun: [-0.5, 0.42, 0.5], sunC: 0xffe6c0, sunI: 2.3, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.8, fog: 0xb8c4c0, near: 30, far: 200, top: 0x5a88c0, mid: 0xdde4e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
-  firelight: { sun: [0.3, 0.6, -0.4], sunC: 0x6a7ab0, sunI: 0.28, hemiS: 0x2a3050, hemiG: 0x14100c, hemiI: 0.3, fog: 0x0c0e16, near: 12, far: 100, top: 0x060812, mid: 0x1a1e34, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.15 },
+  firelight: { sun: [0.3, 0.6, -0.4], sunC: 0x6a7ab0, sunI: 0.35, hemiS: 0x3a4468, hemiG: 0x1c1610, hemiI: 0.45, fog: 0x0c0e16, near: 12, far: 100, top: 0x060812, mid: 0x1a1e34, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.15 },
 };
 function applyAtmo(a) {
   sun.color.copy(a.sunC); sun.intensity = a.sunI;
@@ -119,7 +125,7 @@ export class Player {
     this.stride = 0; this.bob = 0; this.speed = 0;
     this.model = null; this.trail = [];
     this.axe = null; this.swingT = -1; this.onSwingHit = null;
-    this.carryN = 0;
+    this.carryN = 0; this.lean = 0;
   }
   setModel(opts) {
     if (this.model) G.scene.remove(this.model.root);
@@ -154,8 +160,9 @@ export class Player {
     const s = G.settings;
     const look = !G.cine && G.mode === "play";
     if (look) {
-      this.yaw -= input.mdx * 0.0022 * s.sens;
-      this.pitch -= input.mdy * 0.0022 * s.sens * (s.invert ? -1 : 1);
+      const zs = 1 - (G.zoom || 0) * 0.6;
+      this.yaw -= input.mdx * 0.0022 * s.sens * zs;
+      this.pitch -= input.mdy * 0.0022 * s.sens * zs * (s.invert ? -1 : 1);
       this.pitch = clamp(this.pitch, -1.45, 1.45);
     } else if (G.cine && G.cine.look) {
       // steer the view toward whatever the scene wants seen
@@ -176,7 +183,16 @@ export class Player {
       if (input.down("KeyD") || input.down("ArrowRight")) mx += 1;
     }
     if (input.hit("KeyC") || input.hit("ControlLeft")) this.crouched = !this.crouched;
-    const sprint = (input.down("ShiftLeft") || input.down("ShiftRight")) && !this.crouched;
+    let sprint = (input.down("ShiftLeft") || input.down("ShiftRight")) && !this.crouched;
+    // in a chase, breath runs out: a spent runner can only jog until it comes back
+    if (G.stamina !== undefined) {
+      if (this.winded && G.stamina > 0.35) this.winded = false;
+      if (sprint && !this.winded && this.speed > 1) G.stamina = Math.max(0, G.stamina - dt / 5.5);
+      else G.stamina = Math.min(1, G.stamina + dt / (sprint ? 9 : 3.5));
+      if (G.stamina <= 0) this.winded = true;
+      if (this.winded) sprint = false;
+      UI.stamina(G.stamina);
+    } else UI.stamina(null);
     if (sprint && this.crouched) this.crouched = false;
     const max = this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1;
     const len = Math.hypot(mx, mz);
@@ -221,6 +237,15 @@ export class Player {
       if (this.trail.length > 200) this.trail.shift();
     }
 
+    // leaning: Q to the left, E to the right — the head goes, the feet stay
+    let leanWant = 0;
+    if (canMove && !sprint) { if (input.down("KeyQ")) leanWant -= 1; if (input.down("KeyE")) leanWant += 1; }
+    if (leanWant && w) {
+      // no leaning your head into a wall
+      const rx = Math.cos(this.yaw) * leanWant, rz = -Math.sin(this.yaw) * leanWant;
+      for (let d = 0.2; d <= 0.5; d += 0.15) if (w.col.solidAt(this.pos.x + rx * d, this.pos.y + this.eye, this.pos.z + rz * d, 0.12)) { leanWant *= (d - 0.2) / 0.3; break; }
+    }
+    this.lean += (leanWant - this.lean) * Math.min(1, dt * 9);
     const targetEye = this.seated ? 1.2 : this.crouched ? 1.05 : 1.62;
     this.eye += (targetEye - this.eye) * Math.min(1, dt * 10);
 
@@ -231,6 +256,7 @@ export class Player {
       m.root.rotation.y = this.yaw + Math.PI;
       m.body.scale.y = (this.model.scaleBase ?? 1) * (this.crouched ? 0.7 : 1);
       m.update(dt, this.speed);
+      m.body.rotation.z = this.lean * 0.28;
       m.root.visible = G.settings.third || G.forceThird;
     }
 
@@ -248,7 +274,11 @@ export class Player {
       if (T > 0.62) { this.swingT = -1; if (this.axe) this.axeRest(); if (this.model) this.model.setPose("idle"); }
     }
   }
-  eyePos() { return new THREE.Vector3(this.pos.x, this.pos.y + this.eye, this.pos.z); }
+  // where your eyes are, leaning included
+  eyePos() {
+    const l = this.lean * 0.5;
+    return new THREE.Vector3(this.pos.x + Math.cos(this.yaw) * l, this.pos.y + this.eye - Math.abs(this.lean) * 0.08, this.pos.z - Math.sin(this.yaw) * l);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +290,7 @@ function updateCamera(dt) {
   const third = G.settings.third || G.forceThird;
   const bobY = third ? 0 : Math.sin(p.bob * 2) * 0.035 * Math.min(1, p.speed / 3);
   const bobX = third ? 0 : Math.cos(p.bob) * 0.025 * Math.min(1, p.speed / 3);
-  camera.rotation.set(p.pitch, p.yaw, 0);
+  camera.rotation.set(p.pitch, p.yaw, third ? 0 : -p.lean * 0.18);
   const eye = p.eyePos();
   if (!third) {
     camera.position.set(eye.x + bobX * Math.cos(p.yaw), eye.y + bobY, eye.z - bobX * Math.sin(p.yaw));
@@ -280,7 +310,11 @@ function updateCamera(dt) {
     if (p.model) p.model.root.visible = dist > 0.7;
   }
   if (p.axe) p.axe.visible = !third;
-  if (camera.fov !== G.settings.fov) { camera.fov = G.settings.fov; camera.updateProjectionMatrix(); }
+  // hold Z to look closer
+  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : 0;
+  G.zoom = (G.zoom || 0) + (zoomWant - (G.zoom || 0)) * Math.min(1, dt * 10);
+  const fov = G.settings.fov + (28 - G.settings.fov) * G.zoom;
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   // the sun's shadow follows the player
   const sd = G.sunDir || new THREE.Vector3(0, 1, 0);
   sun.position.set(p.pos.x + sd.x * 90, p.pos.y + sd.y * 90, p.pos.z + sd.z * 90);
@@ -411,13 +445,13 @@ function updateInteract(dt) {
   const label = typeof it.label === "function" ? it.label() : it.label;
   UI.prompt(label, !!it.hold);
   if (it.hold) {
-    if (input.down("KeyE")) {
+    if (input.down("KeyF") || input.rdown) {
       G.holdT += dt;
       if (it.onHoldTick) it.onHoldTick(dt, G.holdT);
       UI.hold(G.holdT / it.hold);
       if (G.holdT >= it.hold) { G.holdT = 0; UI.hold(0); it.use(); }
     } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / it.hold); }
-  } else if (input.hit("KeyE")) it.use();
+  } else if (input.hit("KeyF") || input.rclick) it.use();
 }
 
 // ---------------------------------------------------------------------------
@@ -444,6 +478,58 @@ function updateMarker() {
 }
 
 // ---------------------------------------------------------------------------
+//  the minimap: north up, you in the middle, forty metres each way
+// ---------------------------------------------------------------------------
+let mmT = 0, mmCtx = null;
+function updateMinimap(dt) {
+  mmT -= dt; if (mmT > 0) return; mmT = 1 / 15;
+  const cv = document.getElementById("minimap"); if (!cv) return;
+  const c = mmCtx || (mmCtx = cv.getContext("2d"));
+  const W = cv.width, R = W / 2, S = R / 40;      // pixels per metre
+  const p = G.player.pos, w = G.world;
+  const X = x => R + (x - p.x) * S, Z = z => R + (z - p.z) * S;
+  c.clearRect(0, 0, W, W);
+  c.fillStyle = w.mapGround || "#3a3d36"; c.fillRect(0, 0, W, W);
+  if (w.minimap) w.minimap(c, X, Z, S);
+  // buildings and walls: everything solid and taller than a person
+  c.fillStyle = w.mapBuild || "#1c1f1a";
+  for (const o of w.col.near(p.x, p.z, 58)) {
+    if (o.disabled || o.y1 < 1.5) continue;
+    if (o.type === "box") c.fillRect(X(o.x0), Z(o.z0), (o.x1 - o.x0) * S, (o.z1 - o.z0) * S);
+  }
+  // cover and small things
+  c.fillStyle = "#5a5446";
+  for (const o of w.col.near(p.x, p.z, 45)) {
+    if (o.disabled || o.y1 >= 1.5 || o.type !== "box") continue;
+    c.fillRect(X(o.x0), Z(o.z0), (o.x1 - o.x0) * S, (o.z1 - o.z0) * S);
+  }
+  // people
+  for (const a of w.actors) {
+    const d = Math.hypot(a.pos.x - p.x, a.pos.z - p.z); if (d > 45) continue;
+    c.fillStyle = a.name === "Watchman" ? "#e0503a" : a.isSibling ? "#8cf08a" : "#c8c0b0";
+    c.beginPath(); c.arc(X(a.pos.x), Z(a.pos.z), a.name === "Watchman" || a.isSibling ? 3.2 : 2.2, 0, Math.PI * 2); c.fill();
+    if (a.name === "Watchman") {    // which way they are looking
+      c.strokeStyle = "rgba(224,80,58,0.5)"; c.lineWidth = 1.5; c.beginPath();
+      c.moveTo(X(a.pos.x), Z(a.pos.z)); c.lineTo(X(a.pos.x + Math.sin(a.yaw) * 7), Z(a.pos.z + Math.cos(a.yaw) * 7)); c.stroke();
+    }
+  }
+  // the objective
+  const m = G.marker;
+  if (m) {
+    const t = m.actor ? m.actor.pos : m;
+    let mx = X(t.x), mz = Z(t.z);
+    const dx = mx - R, dz = mz - R, d = Math.hypot(dx, dz);
+    if (d > R - 8) { mx = R + dx / d * (R - 8); mz = R + dz / d * (R - 8); }
+    c.fillStyle = "#8cc084"; c.save(); c.translate(mx, mz); c.rotate(Math.PI / 4); c.fillRect(-4, -4, 8, 8); c.restore();
+  }
+  // you: an arrow the way you face
+  c.save(); c.translate(R, R); c.rotate(-G.player.yaw);
+  c.fillStyle = "#f1e8d6"; c.strokeStyle = "#000"; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(0, -7); c.lineTo(5, 5); c.lineTo(0, 2.5); c.lineTo(-5, 5); c.closePath(); c.fill(); c.stroke();
+  c.restore();
+}
+
+// ---------------------------------------------------------------------------
 //  worlds
 // ---------------------------------------------------------------------------
 export function setWorld(w) {
@@ -456,7 +542,7 @@ export function setWorld(w) {
 // ---------------------------------------------------------------------------
 //  the frame
 // ---------------------------------------------------------------------------
-export function frame(dt) {
+export function frame(dt, skipRender) {
   window.__frame = frame;
   G.time += dt;
   const w = G.world;
@@ -465,6 +551,7 @@ export function frame(dt) {
     for (const a of w.actors.slice()) a.update(dt);
     if (w.update) w.update(dt);
     for (const f of w.flames) flicker(f, dt);
+    G.bugs.update(dt, G.player, () => AUDIO.buzz());
     // triggers
     for (const t of w.triggers.slice()) {
       if (t.done) continue;
@@ -477,15 +564,16 @@ export function frame(dt) {
     // the axe swings on a click, when there is an axe
     if (input.click && G.player.axe && !UI.dialogOpen && !G.cine && G.onSwing) G.player.swing(G.onSwing);
     // move dialogue on
-    if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyE") || input.click)) UI.advance();
+    if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();
     if (input.hit("KeyV")) { G.settings.third = !G.settings.third; UI.hint(G.settings.third ? "Camera: over the shoulder" : "Camera: first person", 1.6); G.saveSettings && G.saveSettings(); }
   } else if (w) {
     for (const f of w.flames) flicker(f, dt * 0.2);
   }
   if (G.player && w) updateCamera(dt);
   updateMarker();
+  if (G.mode === "play" && w) updateMinimap(dt);
   input.endFrame();
-  renderer.render(G.scene, camera);
+  if (!skipRender) renderer.render(G.scene, camera);
 }
 
 // Base for a map: the root group, its collision, and what lives in it.
@@ -504,6 +592,11 @@ export class WorldBase {
   dispose() {
     for (const a of this.actors.slice()) a.remove();
     G.scene.remove(this.root);
-    this.root.traverse(o => { if (o.geometry && !o.geometry._shared) o.geometry.dispose(); });
+    // free what this map made for itself; the shared shapes and colours stay
+    this.root.traverse(o => {
+      if (o.geometry && !o.geometry._shared) o.geometry.dispose();
+      const m = o.material;
+      if (m && m.map) m.map.dispose();
+    });
   }
 }

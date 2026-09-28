@@ -23,12 +23,14 @@
   <!-- ===== in play ===== -->
   <div id="hud" class="hidden">
     <div id="crosshair"></div>
+    <div id="minimapWrap"><canvas id="minimap" width="180" height="180"></canvas><div class="mm-n">N</div></div>
     <div id="holdRing" class="hidden"></div>
     <div id="objective" class="hidden"><span class="obj-label">Objective</span><span id="objText"></span></div>
     <div id="carry" class="hidden"></div>
+    <div id="stamina" class="hidden"><div class="st-fill"></div></div>
     <div id="eye" class="hidden"><div class="eye-shape"></div></div>
     <div id="marker" class="hidden"><div class="mk-diamond"></div><div id="markerDist"></div></div>
-    <div id="prompt" class="hidden"><kbd id="promptKey">E</kbd><span id="promptText"></span></div>
+    <div id="prompt" class="hidden"><kbd id="promptKey">F</kbd><span id="promptText"></span></div>
     <div id="hint" class="hidden"></div>
     <div id="bark" class="hidden"><span id="barkName"></span> <span id="barkText"></span></div>
     <div id="dialog" class="hidden">
@@ -38,6 +40,13 @@
     </div>
   </div>
 
+  <div id="caught" class="hidden">
+    <div id="caughtHead"></div>
+    <div id="caughtLine"></div>
+    <div id="caughtQuote"></div>
+    <div id="caughtBy"></div>
+    <div id="caughtTip"></div>
+  </div>
   <div id="card" class="hidden"><div id="cardKicker"></div><div id="cardTitle"></div></div>
   <div id="narration" class="hidden"></div>
   <div id="fade"></div>
@@ -50,7 +59,7 @@
         <div class="logo-rule"></div>
         <div class="logo-sub">Reckoning</div>
       </div>
-      <p class="tagline">Hamburg, 1683. Your father is taken. Your name is taken with him. Run.</p>
+      <p class="tagline">Hamburg, 1683. A house by the harbour, a family with a good name, and bread on every table on the quay.</p>
       <nav class="menu">
         <button id="btnContinue" class="btn hidden">Continue</button>
         <button id="btnNew" class="btn primary">New Game</button>
@@ -93,6 +102,7 @@
         <label>Volume <span id="volVal"></span><input id="setVol" type="range" min="0" max="1" step="0.05"></label>
         <label class="check"><input id="setInvert" type="checkbox"> Invert mouse Y</label>
         <label class="check"><input id="setMusic" type="checkbox"> Music</label>
+        <label class="check"><input id="setVoices" type="checkbox"> Voices <em>(spoken by your browser)</em></label>
         <label class="check"><input id="setThird" type="checkbox"> Over-the-shoulder camera <em>(V switches in play)</em></label>
       </div>
       <button class="btn ghost" data-back>Back</button>
@@ -106,8 +116,11 @@
         <tr><td><kbd>Shift</kbd></td><td>Run</td></tr>
         <tr><td><kbd>C</kbd></td><td>Crouch</td></tr>
         <tr><td><kbd>Space</kbd></td><td>Jump &middot; move a conversation on</td></tr>
-        <tr><td><kbd>E</kbd></td><td>Talk, take, open &mdash; hold it for work that takes time</td></tr>
-        <tr><td>Left click</td><td>Swing the axe, once you have one</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Talk, take, open &mdash; hold it for work that takes time</td></tr>
+        <tr><td><kbd>Q</kbd><kbd>E</kbd></td><td>Lean left / right</td></tr>
+        <tr><td>Left click</td><td>Attack</td></tr>
+        <tr><td>Right click</td><td>Use item</td></tr>
+        <tr><td><kbd>Z</kbd></td><td>Hold to zoom in</td></tr>
         <tr><td><kbd>V</kbd></td><td>First person / over the shoulder</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
       </table>

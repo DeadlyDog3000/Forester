@@ -101,6 +101,20 @@ export const AUDIO = {
     o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.6);
   },
 
+  // a fly past the ear: a thin whine that swells and pans across
+  buzz() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime, o = a.createOscillator(), g = a.createGain(), f = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
+    const pan = a.createStereoPanner ? a.createStereoPanner() : null;
+    o.type = "sawtooth"; o.frequency.value = 190 + Math.random() * 60;
+    lfo.frequency.value = 23; lg.gain.value = 14; lfo.connect(lg); lg.connect(o.frequency);
+    f.type = "bandpass"; f.frequency.value = 1400; f.Q.value = 1.2;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+    o.connect(f); f.connect(g);
+    if (pan) { const s = Math.random() < 0.5 ? -1 : 1; pan.pan.setValueAtTime(s, t); pan.pan.linearRampToValueAtTime(-s, t + 1.5); g.connect(pan); pan.connect(bus); } else g.connect(bus);
+    o.start(t); lfo.start(t); o.stop(t + 1.6); lfo.stop(t + 1.6);
+  },
+
   heartbeat(vol = 0.4) {
     const a = ctx(); if (!a) return;
     for (const d of [0, 0.22]) {
