@@ -20,7 +20,7 @@ import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
-import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the } from "./europe.js";
+import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT } from "./europe.js";
 
 /* global SFX */
 
@@ -539,7 +539,7 @@ const pplOpen = new Set();
 // ---- Europe: the map, and each crown's view of you ----
 let euSel = null, euHover = null, euPanelHtml = "";
 function govEuropeFrame() {
-  return `<div class="eu"><div class="eu-map"><canvas id="euMap" width="800" height="448"></canvas><div class="dim eu-key">Your clearing is the gold mark in the woods beyond Hamburg. ⚔ a war (red: with you) · ☠ plague. Click a crown.</div></div><div class="eu-side" id="euSide"></div></div>`;
+  return `<div class="eu"><div class="eu-map"><canvas id="euMap" width="1300" height="${Math.round(1300 * MAP_ASPECT)}"></canvas><div class="dim eu-key">Your clearing is the red mark in the woods north-east of Hamburg. ⚔ a war (red: with you) · ☠ plague. Click a crown.</div></div><div class="eu-side" id="euSide"></div></div>`;
 }
 function drawEuropeTab(t) {
   const cv = $("euMap"); if (!cv) return;
@@ -570,8 +570,7 @@ function euSide(t, E) {
                  ${near ? `<button data-eu="war" class="danger">Declare war<span class="sub">its soldiers will come up your road, every few days, until one of you gives in</span></button>` : ""}`}
       </div>`;
   } else h += `<div class="gov-why" style="margin-top:10px">Click a crown on the map to see how it stands with you.</div>`;
-  h += `<div class="mc-sec">Word from afar</div><ul class="eu-news">${news || '<li class="dim">Nothing yet.</li>'}</ul>`;
-  return h;
+  return `<div class="eu-col">${h}</div><div class="eu-col"><div class="mc-sec">Word from afar</div><ul class="eu-news">${news || '<li class="dim">Nothing yet.</li>'}</ul></div>`;
 }
 function wireEurope(t) {
   const cv = $("euMap");
