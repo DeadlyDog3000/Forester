@@ -20,7 +20,7 @@ import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
-import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT } from "./europe.js";
+import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf } from "./europe.js";
 
 /* global SFX */
 
@@ -561,6 +561,7 @@ function euSide(t, E) {
       <div><span class="k">Strength</span>${"■".repeat(strengthOf(E, id))}${E.plague[id] ? " · plague" : ""}${E.famine[id] ? " · famine" : ""}</div>
       <div><span class="k">Towards you</span>${relWord(rel)} (${rel > 0 ? "+" : ""}${rel})</div>
       <div><span class="k">Reach</span>${near ? "near enough to march on you, and you on it" : "too far to fight you"}</div>
+      ${(() => { const cs = citiesOf(E, id); return cs.length ? `<div><span class="k">Cities</span>${cs.slice(0, 8).map(ct => ct[3] === 3 ? `<b>${esc(ct[0])}</b>` : esc(ct[0])).join(", ")}${cs.length > 8 ? ` and ${cs.length - 8} more` : ""}</div>` : ""; })()}
       ${wars.length ? `<div><span class="k">At war with</span>${esc(wars.join(", "))}</div>` : ""}
       ${war ? `<div class="warn">At war with you${E.beaten[id] ? ` — beaten at your gate ${E.beaten[id]} time${E.beaten[id] > 1 ? "s" : ""}` : ""}.</div>` : ""}</div>
       <div class="eu-acts">

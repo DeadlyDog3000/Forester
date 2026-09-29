@@ -11,7 +11,9 @@ export const CHANGELOG = [
     items: [
       "Europe (G) is the real Europe now: the true coasts, and each piece of land given to the crown that held it in 1683 — Denmark with Norway and Holstein, Sweden round the Baltic from Finland to Pomerania, the Spanish Netherlands, Royal Hungary and the Ottoman rest, Podolia lost to the Turk, the Cossacks on the Dnieper. The Dutch Republic and Morocco join the crowns.",
       "And it is drawn as a map of the time was drawn: engraved in sepia on old paper, the coasts water-lined, each crown coloured by hand along its borders, hills in profile, rivers, the great towns, the names in Latin — GALLIA, SUECIA, MOSCOVIA, OCEANUS GERMANICUS — a compass rose with its rhumb lines, a ship, a sea serpent, a cartouche, a scale of German miles, and the degrees round the frame counted from Ferro.",
-      "Wars between the crowns take a province at a time, and the borders visibly move. A saved game's old conquests, drawn on the old map, are cleared.",
+      "Cities on the map: a hundred of them under their names of 1683 — Wien, Kiøbenhavn, Constantinopolis, Danzig, Chyhyryn — each a dot, the crowns' seats ringed in the colour of whoever holds them. Click a crown to see its cities.",
+      "Wars between the crowns take a province at a time, and the borders visibly move; a city in a province taken changes hands, and word comes of it — \"The Austrian Empire takes München and Augsburg from Bavaria!\" A saved game's old conquests, drawn on the old map, are cleared.",
+      "The borders of 1683 put right: Stettin Swedish, Silesia the Habsburgs', Pomerania and Ducal Prussia Brandenburg's, Leipzig and Dresden Saxony's.",
     ],
   },
   {

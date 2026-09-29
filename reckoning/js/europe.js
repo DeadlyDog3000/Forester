@@ -73,6 +73,7 @@ export const the = id => (/^(Kingdom|Tsardom|Holy|Papal|Swedish|Austrian|Ottoman
 export const The = id => { const n = the(id); return n[0].toUpperCase() + n.slice(1); };
 // (the Cossacks are many: "the Cossacks seize", not "seizes")
 const seizes = id => id === "cossacks" ? "seize" : "seizes";
+const id2take = id => id === "cossacks" ? "take" : "takes";
 
 // ---- the sheet: longitude and latitude to the grid, and back ----
 const K = Math.cos(BOUNDS.latRef * Math.PI / 180), SPAN_X = (BOUNDS.lon1 - BOUNDS.lon0) * K, SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
@@ -110,6 +111,17 @@ function neighbours(g, id) {
   }
   return [...out];
 }
+export function cityOwner(g, city) {
+  const [fx, fy] = gridOf(city[1], city[2]), x = Math.floor(fx), y = Math.floor(fy);
+  // (a harbour's own square is often counted as sea, and Lübeck stands in the free woods: the nearest crown's land is theirs)
+  for (let rad = 0; rad <= 4; rad++) for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== rad) continue;
+    const id = g[y + dy] && g[y + dy][x + dx];
+    if (id && NATIONS[id]) return id;
+  }
+  return null;
+}
+export function citiesOf(E, id) { const g = buildGrid(E); return CITIES.filter(ct => cityOwner(g, ct) === id).sort((a, b) => b[3] - a[3]); }
 const hexRGB = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 
 // ---- the state of Europe, kept with the settlement ----
@@ -136,12 +148,13 @@ export function europeDay(S, day) {
   const E = ensureEurope(S), news = [], ids = Object.keys(NATIONS);
   const say = (title, sub, img) => { news.push({ title, sub, img }); E.news.unshift({ day, title, sub }); E.news.length = Math.min(E.news.length, 30); };
   const g = buildGrid(E);
-  if (E.wars.length < 3 && Math.random() < 0.18) {
+  if (E.wars.length < 3 && Math.random() < 0.1) {
     const a = ids[Math.floor(Math.random() * ids.length)], nb = neighbours(g, a).filter(b => !E.wars.some(w => (w.a === a && w.b === b) || (w.a === b && w.b === a)));
     if (nb.length) { const b = nb[Math.floor(Math.random() * nb.length)]; E.wars.push({ a, b, battles: 0 }); say(`${The(a)} and ${the(b)} are at war!`, "Word arrives from afar", "event_war"); }
   }
   for (const w of E.wars.slice()) {
-    if (Math.random() > 0.45) continue;
+    if (Math.random() > 0.25) continue;
+    const before = g.map(row => row.slice());
     const sa = strengthOf(E, w.a), sb = strengthOf(E, w.b), aWins = Math.random() < sa / (sa + sb);
     const win = aWins ? w.a : w.b, lose = aWins ? w.b : w.a;
     const front = [];
@@ -152,7 +165,7 @@ export function europeDay(S, day) {
     // a province: the loser's land within a few leagues of a point on the front
     let took = 0;
     if (front.length) {
-      const [c0, r0] = front[Math.floor(Math.random() * front.length)], want = 60 + Math.floor(Math.random() * 100);
+      const [c0, r0] = front[Math.floor(Math.random() * front.length)], want = 40 + Math.floor(Math.random() * 60);
       const q = [[c0, r0]], seen = new Set([c0 + "," + r0]);
       while (q.length && took < want) {
         const [c, r] = q.shift();
@@ -163,7 +176,10 @@ export function europeDay(S, day) {
       }
     }
     w.battles++;
-    if (took) say(`${The(win)} ${seizes(win)} land from ${the(lose)}!`, "The borders of Europe shift", "event_conquest");
+    // a city in the province taken is the news; land alone, less so
+    const fell = took ? CITIES.filter(ct => ct[3] >= 2 && cityOwner(g, ct) === win && cityOwner(before, ct) === lose) : [];
+    if (fell.length) say(`${The(win)} ${id2take(win)} ${fell.map(ct => ct[0]).join(" and ")} from ${the(lose)}!`, fell.some(ct => ct[3] === 3) ? "A seat of the crown has fallen" : "The borders of Europe shift", "event_conquest");
+    else if (took) say(`${The(win)} ${seizes(win)} land from ${the(lose)}!`, "The borders of Europe shift", "event_conquest");
     if ((w.battles >= 3 && Math.random() < 0.35) || !front.length) { E.wars.splice(E.wars.indexOf(w), 1); say(`${The(w.a)} and ${the(w.b)} make peace.`, "A weary truce is signed", "event_peace"); }
   }
   for (const id of ids) {
@@ -216,10 +232,28 @@ const HILLS = [
   [-4.5, 57], [-5, 57.5], [-4, 57.2], [13, 50.5], [15.5, 50.7], [14, 49], [16, 44], [17.5, 43.5], [18.8, 43], [21, 39.8], [21.5, 39], [30, 38], [33, 37.3], [36, 38], [39, 39],
   [-3.5, 37.1], [-4.5, 40.4], [-6, 40.3], [3.2, 45.3], [2.9, 44.5], [-3.9, 52.6], [-3.4, 54.5],
 ];
-// towns worth a mark
-const TOWNS = [["Hamburg", 10, 53.55], ["Lübeck", 10.7, 53.87], ["London", -0.12, 51.5], ["Paris", 2.35, 48.85], ["Wien", 16.37, 48.21], ["Roma", 12.5, 41.9], ["Madrid", -3.7, 40.4], ["Lisboa", -9.14, 38.72],
-  ["Amsterdam", 4.9, 52.37], ["Stockholm", 18.07, 59.33], ["Kiøbenhavn", 12.57, 55.68], ["Warszawa", 21, 52.23], ["Moskva", 37.6, 55.75], ["Constantinopolis", 28.97, 41.01], ["Venezia", 12.33, 45.44],
-  ["Napoli", 14.25, 40.85], ["Berlin", 13.4, 52.52], ["Dresden", 13.74, 51.05], ["München", 11.58, 48.14], ["Praha", 14.42, 50.08], ["Kraków", 19.94, 50.06], ["Kyiv", 30.52, 50.45], ["Alger", 3.06, 36.75], ["Edinburgh", -3.19, 55.95], ["Dublin", -6.26, 53.35]];
+// the cities of 1683, as the map-makers named them: rank 3 a crown's seat (drawn walled, with its flag), 2 a great town, 1 a town
+export const CITIES = [
+  ["London", -0.12, 51.5, 3], ["Paris", 2.35, 48.85, 3], ["Madrid", -3.7, 40.4, 3], ["Lisboa", -9.14, 38.72, 3], ["Wien", 16.37, 48.21, 3], ["Roma", 12.5, 41.9, 3],
+  ["Stockholm", 18.07, 59.33, 3], ["Kiøbenhavn", 12.57, 55.68, 3], ["Warszawa", 21, 52.23, 3], ["Moskva", 37.6, 55.75, 3], ["Constantinopolis", 28.97, 41.01, 3], ["Amsterdam", 4.9, 52.37, 3],
+  ["Edinburgh", -3.19, 55.95, 3], ["Dublin", -6.26, 53.35, 3], ["Berlin", 13.4, 52.52, 3], ["Dresden", 13.74, 51.05, 3], ["München", 11.58, 48.14, 3], ["Venezia", 12.33, 45.44, 3],
+  ["Napoli", 14.25, 40.85, 3], ["Firenze", 11.25, 43.77, 3], ["Torino", 7.68, 45.07, 3], ["Milano", 9.19, 45.46, 3], ["Palermo", 13.36, 38.12, 3], ["Pressburg", 17.1, 48.15, 3],
+  ["Alger", 3.06, 36.75, 3], ["Tunis", 10.18, 36.8, 3], ["Tripoli", 13.19, 32.89, 3], ["Fès", -5, 34.03, 3], ["Iaşi", 27.6, 47.16, 3], ["Târgovişte", 25.45, 44.92, 3],
+  ["Weissenburg", 23.58, 46.07, 3], ["Bakhchisaray", 33.86, 44.75, 3], ["Chyhyryn", 32.66, 49.08, 3], ["Zaragoza", -0.88, 41.65, 3], ["Regensburg", 12.1, 49.02, 2],
+  ["Hamburg", 10, 53.55, 2], ["Lübeck", 10.7, 53.87, 2], ["Danzig", 18.65, 54.35, 2], ["Königsberg", 20.5, 54.7, 2], ["Riga", 24.1, 56.95, 2], ["Reval", 24.75, 59.44, 2],
+  ["Åbo", 22.27, 60.45, 2], ["Bergen", 5.32, 60.39, 2], ["Christiania", 10.75, 59.91, 2], ["Göteborg", 11.97, 57.7, 2], ["Stettin", 14.55, 53.43, 2], ["Köln", 6.96, 50.94, 2],
+  ["Frankfurt", 8.68, 50.11, 2], ["Nürnberg", 11.08, 49.45, 2], ["Augsburg", 10.9, 48.37, 2], ["Leipzig", 12.37, 51.34, 2], ["Prag", 14.42, 50.08, 2], ["Breslau", 17.04, 51.11, 2],
+  ["Kraków", 19.94, 50.06, 2], ["Wilna", 25.28, 54.69, 2], ["Kiev", 30.52, 50.45, 2], ["Smolensk", 32.05, 54.78, 2], ["Novgorod", 31.27, 58.52, 2], ["Lyon", 4.84, 45.76, 2],
+  ["Marseille", 5.37, 43.3, 2], ["Bordeaux", -0.58, 44.84, 2], ["Rouen", 1.1, 49.44, 2], ["Sevilla", -5.98, 37.39, 2], ["Barcelona", 2.17, 41.39, 2], ["Valencia", -0.38, 39.47, 2],
+  ["Genova", 8.93, 44.41, 2], ["Bologna", 11.34, 44.49, 2], ["Belgrad", 20.46, 44.8, 2], ["Buda", 19.04, 47.5, 2], ["Sofia", 23.32, 42.7, 2], ["Athenae", 23.73, 37.98, 2],
+  ["Thessalonica", 22.94, 40.64, 2], ["Smyrna", 27.14, 38.42, 2], ["Ankara", 32.86, 39.93, 2], ["Bristol", -2.6, 51.45, 2], ["York", -1.08, 53.96, 2], ["Antwerpen", 4.4, 51.22, 2],
+  ["Brussel", 4.35, 50.85, 2], ["Strassburg", 7.75, 48.58, 2], ["Zürich", 8.54, 47.37, 2], ["Graz", 15.44, 47.07, 2], ["Lemberg", 24.03, 49.84, 2], ["Kamieniec", 26.58, 48.68, 2],
+  ["Azov", 39.42, 47.1, 2], ["Kaffa", 35.38, 45.03, 2], ["Oran", -0.63, 35.7, 2], ["Candia", 25.13, 35.34, 2], ["Bremen", 8.8, 53.08, 2], ["Hannover", 9.73, 52.37, 2],
+  ["Nantes", -1.55, 47.22, 1], ["Toulouse", 1.44, 43.6, 1], ["Brest", -4.49, 48.39, 1], ["Cádiz", -6.29, 36.53, 1], ["Porto", -8.61, 41.15, 1], ["Glasgow", -4.25, 55.86, 1],
+  ["Cork", -8.47, 51.9, 1], ["Norwich", 1.3, 52.63, 1], ["Magdeburg", 11.63, 52.13, 1], ["Posen", 16.93, 52.41, 1], ["Sarajevo", 18.41, 43.86, 1],
+  ["Ragusa", 18.09, 42.65, 1], ["Ancona", 13.52, 43.62, 1], ["Messina", 15.55, 38.19, 1], ["Tula", 37.62, 54.19, 1], ["Poltava", 34.55, 49.59, 1],
+];
+
 
 const lonlat = (lon, lat, S) => { const [x, y] = gridOf(lon, lat); return [x * S, y * S]; };
 // the coast as a reusable path, at a scale
@@ -328,14 +362,32 @@ function drawSheet(W, H, E, g, homePop) {
   c.restore();
   // ---- the coast itself, inked ----
   landPath(c, S); c.strokeStyle = INK; c.lineWidth = Math.max(1.2, S * 0.42); c.lineJoin = "round"; c.stroke();
-  // ---- towns: a small ring with a dot, and the name in italic ----
+  // ---- the cities: a dot each, and the name where it finds room (right, left, above, below) — clear of the crowns'
+  // and the seas' names, and of each other; a town whose name can't be fitted keeps its dot ----
   c.textBaseline = "middle";
-  for (const [n, lo, la] of TOWNS) {
-    const [x, y] = lonlat(lo, la, S);
-    c.strokeStyle = INK; c.fillStyle = INK; c.lineWidth = 0.9;
-    c.beginPath(); c.arc(x, y, S * 0.6, 0, 7); c.stroke(); c.beginPath(); c.arc(x, y, S * 0.22, 0, 7); c.fill();
-    c.font = `italic ${Math.round(S * 3)}px ${FELL}`; c.textAlign = "left"; c.fillStyle = INK_SOFT + "0.85)";
-    c.fillText(n, x + S * 1, y + 1);
+  const taken = [];
+  const hit = b => taken.some(t => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
+  const boxOf = (lines, x, y, px, sp, ang) => {
+    if (ang) return [x - px, y - px * 5, x + px, y + px * 5];
+    const w = Math.max(...lines.map(l => c.measureText(l).width + sp * (l.length - 1))), h = px * 1.1 * lines.length;
+    return [x - w / 2, y - h / 2, x + w / 2, y + h / 2];
+  };
+  for (const [n, lo, la, size, ang = 0] of NAMES) { const [x, y] = lonlat(lo, la, S), px = Math.round(S * [3.9, 4.5, 5.3, 6.6, 8][size + 1]); c.font = `${size >= 2 ? "" : "italic "}${px}px ${FELL}`; taken.push(boxOf(n.split("\n"), x, y, px, size >= 2 ? px * 0.3 : size >= 1 ? px * 0.2 : px * 0.08, ang)); }
+  for (const [n, lo, la, ang = 0] of SEAS) { const [x, y] = lonlat(lo, la, S), px = Math.round(S * 4); c.font = `italic ${px}px ${FELL}`; taken.push(boxOf(n.split("\n"), x, y, px, px * 0.26, ang)); }
+  // the seats first, then the great towns, then the rest: the important names get the room
+  for (const ct of [...CITIES].sort((a, b) => b[3] - a[3])) {
+    const [n, lo, la, rank] = ct, [x, y] = lonlat(lo, la, S), own = cityOwner(g, ct);
+    townSign(c, x, y, S, rank, own);
+    c.font = rank === 3 ? `${Math.round(S * 2.9)}px ${FELL}` : `italic ${Math.round(S * (rank === 2 ? 2.7 : 2.4))}px ${FELL}`;
+    const w = c.measureText(n).width, h = S * 2.8, d = S * (rank === 3 ? 1.6 : 0.9);
+    const tries = [[x + d, y, "left"], [x - d, y, "right"], [x, y - h * 0.9, "center"], [x, y + h * 0.9, "center"], [x + d * 0.6, y - h * 0.8, "left"], [x + d * 0.6, y + h * 0.8, "left"]];
+    for (const [tx, ty, al] of tries) {
+      const x0 = al === "left" ? tx : al === "right" ? tx - w : tx - w / 2, b = [x0, ty - h / 2, x0 + w, ty + h / 2];
+      if (hit(b)) continue;
+      taken.push(b, [x - S, y - S, x + S, y + S]);
+      c.textAlign = al; c.fillStyle = INK_SOFT + (rank === 1 ? "0.7)" : "0.9)"); c.fillText(n, tx, ty + S * 0.1);
+      break;
+    }
   }
   // ---- the crowns' names ----
   c.textAlign = "center";
@@ -364,6 +416,14 @@ function drawSheet(W, H, E, g, homePop) {
   // the paper's grain, over everything
   for (let i = 0; i < W * H / 60; i++) { c.fillStyle = `rgba(${r() < 0.5 ? "60,40,20" : "255,250,235"},${(r() * 0.08).toFixed(3)})`; c.fillRect(r() * W, r() * H, 1, 1); }
   return cv;
+}
+// a city's mark: a dot — a larger one ringed in its crown's colour for a seat, a middling one for a great town, a small one for a town
+function townSign(c, x, y, S, rank, own) {
+  const r = S * (rank === 3 ? 0.62 : rank === 2 ? 0.46 : 0.32);
+  c.save();
+  if (rank === 3) { c.beginPath(); c.arc(x, y, r * 1.9, 0, 7); c.fillStyle = own ? NATIONS[own].color : "#b0281a"; c.fill(); c.lineWidth = Math.max(0.6, S * 0.12); c.strokeStyle = INK; c.stroke(); }
+  c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = INK; c.fill();
+  c.restore();
 }
 // letters drawn one by one, with space between, centred on x
 function spaced(c, t, x, y, sp) {
