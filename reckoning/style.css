@@ -397,3 +397,6 @@ body.talking #hint { bottom: 298px; }
 .eu-news { list-style: none; padding: 0; margin: 4px 0; font: 12px/1.45 var(--sans); max-height: 220px; overflow: auto; }
 .eu-news li { margin: 0 0 5px; }
 @media (max-width: 900px) { .eu { grid-template-columns: 1fr; } }
+.recruit select { width: auto; max-width: 340px; flex: 0 1 auto; }
+.recruit button { padding: 5px 10px; font: 600 12px var(--sans); color: var(--ink); background: rgba(140, 192, 132, 0.22); border: 1px solid var(--edge); border-radius: 4px; cursor: pointer; }
+.recruit button:hover:not(:disabled) { background: rgba(140, 192, 132, 0.36); }

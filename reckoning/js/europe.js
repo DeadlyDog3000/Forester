@@ -190,10 +190,10 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2 }
     for (let r = 0; r < MG_H; r++) for (let cc = 0; cc < MG_W; cc++) if (g[r][cc] === id) c.fillRect(cc * SCALE * k, r * SCALE * k, SCALE * k, SCALE * k);
   }
   // crowns at war with you: crossed swords over them; crowns at war with each other: a red line between
-  c.font = `600 ${Math.max(9, Math.round(k * 4.2))}px "Open Sans", sans-serif`; c.textAlign = "center";
+  c.font = `600 ${Math.max(9, Math.round(k * 3.3))}px "Open Sans", sans-serif`; c.textAlign = "center";
   for (const [txt, x, y] of LABELS) {
     const lines = txt.split("\n"), [px, py] = at(x, y);
-    lines.forEach((t, i) => { c.fillStyle = "rgba(0,0,0,0.55)"; c.fillText(t, px + 1, py + 1 + i * k * 4.6); c.fillStyle = "rgba(245,236,214,0.92)"; c.fillText(t, px, py + i * k * 4.6); });
+    lines.forEach((t, i) => { c.fillStyle = "rgba(0,0,0,0.55)"; c.fillText(t, px + 1, py + 1 + i * k * 3.6); c.fillStyle = "rgba(245,236,214,0.92)"; c.fillText(t, px, py + i * k * 3.6); });
   }
   const mark = (id, glyph, col) => {
     let sx = 0, sy = 0, n = 0;
@@ -206,7 +206,7 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2 }
   for (const w of E.wars) { mark(w.a, "⚔", "rgba(255,210,160,0.8)"); mark(w.b, "⚔", "rgba(255,210,160,0.8)"); }
   for (const id of Object.keys(E.plague)) mark(id, "☠", "rgba(230,230,210,0.9)");
   // your clearing, growing with it
-  const [hx, hy] = at(HOME.mx, HOME.my), rad = k * (2.5 + Math.min(4, homePop / 3));
+  const [hx, hy] = at(HOME.mx, HOME.my), rad = k * (1.5 + Math.min(2, homePop / 6));
   c.fillStyle = "#e8c860"; c.strokeStyle = "#1a1208"; c.lineWidth = 2;
   c.beginPath(); c.arc(hx, hy, rad, 0, Math.PI * 2); c.fill(); c.stroke();
   // (to the left of it: Brandenburg's name is on the right)
