@@ -49,6 +49,7 @@ export const BUILDINGS = {
   church:   { name: "Church", cost: 24, mats: { stone: 10 }, model: "town/church", tiers: true, w: 7, d: 13, icon: "cabin", note: "Somewhere to pray, and to bury, and to be married. People are happier with one." },
   shrine:   { name: "Shrine", cost: 10, mats: { coin: 3 }, model: "town/shrine_1", w: 2.4, d: 2.2, icon: "cabin", note: "A wayside shrine, raised to one faith: somewhere of its own to pray, for those who hold it." },
   jail:     { name: "Jail", cost: 18, mats: { stone: 6 }, model: "town/jail", tiers: true, w: 5, d: 5, icon: "cabin", note: "With a watchman on the job, a thief is caught in the night and held here a day — and what they took comes back." },
+  hospital: { name: "Hospital", cost: 20, mats: { stone: 6 }, model: "town/hospital", tiers: true, w: 7, d: 5.4, icon: "cabin", note: "Beds for the sick. With a doctor at work in it, the ill are up in a day or two instead of most of a week." },
 };
 // what each work does with a shift: where, how long, what it takes from the stores and what it puts back
 export const WORKS = {
@@ -90,9 +91,10 @@ export const JOBS = {
   miner: { name: "miner", ask: "work the mine", reply: "Down the hole, then." },
   smelter: { name: "smelter", ask: "work the smelter", reply: "I'll keep the furnace hot." },
   smith: { name: "smith", ask: "work the forge", reply: "Tools, then. Good ones." },
+  doctor: { name: "doctor", ask: "tend the sick", reply: "Show me who's ailing." },
   watch: { name: "watchman", ask: "keep the watch against raiders", reply: "I'll keep my eyes on the road." },
 };
-const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "watch"];
+const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "doctor", "watch"];
 // which building a job needs, if any
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
 // (the sound engine is a page global; with it missing, as in a test, everything is quiet rather than broken)
@@ -616,6 +618,23 @@ export class Town {
     E.war[id] = false; E.beaten[id] = 0; E.rel[id] = Math.max(E.rel[id], -20);
     UI.news({ title: `Peace with ${the(id)}.`, sub: why, img: "event_peace" }); this.persist();
   }
+  // ---- sickness: some fall ill, day by day; the hospital and a doctor get them up again quickly ----
+  sickness() {
+    const S = this.S, E = S.europe, near = E ? [...NEAR].some(id => E.plague && E.plague[id]) : false;
+    const cure = this.has("hospital") && S.people.some(p => p.job === "doctor" && !(p.sick > 0)) ? 3 : 1;
+    for (const p of S.people) {
+      if (p.sick > 0) {
+        p.sick -= cure;
+        if (p.sick <= 0) { p.sick = 0; UI.hint(`${p.name} is well again.`, 3); }
+        continue;
+      }
+      let k = 0.02 * (near ? 4 : 1) * (this.winter && S.cold ? 2 : 1) * (p.temper === "sickly" ? 1.6 : p.temper === "hardy" ? 0.5 : 1) * (this.has("well") ? 0.8 : 1);
+      if (Math.random() < k) {
+        p.sick = 3 + Math.floor(Math.random() * 3);
+        UI.hint(`${p.name} has fallen ill${near ? " — the plague is in the country round about" : ""}.${cure > 1 ? " The doctor will see to them." : this.has("hospital") ? " The hospital wants a doctor (F by someone)." : " A hospital and a doctor (Physick) would have them up sooner."}`, 6);
+      }
+    }
+  }
   // ---- the law: in the night, a miserable settler may take from the stores ----
   // (Lutherans and Mennonites won't; a jail and a watchman catch the thief, who is held a day and disgraced)
   nightCrime() {
@@ -1064,6 +1083,17 @@ export class Town {
         else this.setMark(a.settler, "hardened", "stood up to the raiders, and is less afraid of the next");
         a.wasKnocked = false;
       }
+      // sick: in bed — the hospital's, if there is one — until it passes
+      if (a.settler.sick > 0) {
+        const hos = this.S.buildings.find(b => b.done && b.type === "hospital");
+        a.doing = hos ? "sick, in the hospital" : "sick in bed";
+        if (hos) { await a.walkTo(hos.x + Math.sin(hos.ry) * 3.6, hos.z + Math.cos(hos.ry) * 3.6, 0.9); alive(); a.root.visible = false; a.inside = true; }
+        else { const h = this.homeOf(a); await a.walkTo(h.door[0], h.door[1], 0.9); alive(); if (h.inside) { a.root.visible = false; a.inside = true; } }
+        await sleep(8); alive();
+        if (!(a.settler.sick > 0)) { a.root.visible = true; a.inside = false; }
+        continue;
+      }
+      if (a.inside && !this.isNight()) { a.root.visible = true; a.inside = false; }
       // held in the jail until the next day
       if (a.settler.jailedDay != null) {
         if (a.settler.jailedDay === this.day && this.has("jail")) {
@@ -1170,6 +1200,15 @@ export class Town {
         a.person.setPose("idle");
         this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); this.sfxAt(a, "build");
         await sleep(3 + Math.random() * 3);
+      } else if (job === "doctor" && this.has("hospital")) {
+        const hos = this.S.buildings.find(b => b.done && b.type === "hospital");
+        const sick = this.S.people.filter(q => q.sick > 0);
+        a.doing = sick.length ? `tending ${sick.map(q => q.name).join(", ")}` : "at the hospital, with nobody ill";
+        await a.walkTo(hos.x + Math.sin(hos.ry) * 3.4 + 1, hos.z + Math.cos(hos.ry) * 3.4, 1.2); alive();
+        a.faceTo(hos.x, hos.z); a.person.setPose(sick.length ? "hammer" : "armsCrossed");
+        await sleep(8 * this.pace(a, "physicking")); alive(); a.person.setPose("idle");
+        if (sick.length) { this.S.tended = this.day; this.learn(a, "physicking", 1); }
+        await sleep(2);
       } else if (job === "baker" && this.has("bakery") && this.S.rye >= 2) {
         a.doing = "baking";
         const bk = this.S.buildings.find(b => b.done && b.type === "bakery");
@@ -1262,6 +1301,7 @@ export class Town {
         for (const p of dailyConversion(this)) UI.hint(`${p.name} is received into the ${FAITHS[p.faith].house} — ${FAITHS[p.was].name} no longer.`, 6);
         this.nightCrime();
         this.europeTick();
+        this.sickness();
       }
       // each person's own mood, day by day: two miserable days and they go; four good ones and they settle in for good
       if (this.techGates) for (const p of this.S.people.slice()) {

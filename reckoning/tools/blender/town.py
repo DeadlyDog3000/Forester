@@ -326,6 +326,9 @@ def sign(k, W, D, color, rnd, emblem=None, z=2.9):
     if emblem == "pretzel":
         for a in (-0.5, 0.5):
             k.cylinder("wood", 0.14, 0.14, 0.04, mat_tr((x - 0.05, -D / 2 - 0.6 + a * 0.2, z), (0, PI / 2, 0)), rgb(0xc8903a), segs=12)
+    if emblem == "cross":
+        k.box("wood", (0.03, 0.44, 0.12), mat_tr((x - 0.04, -D / 2 - 0.6, z)), rgb(0xb8342c))
+        k.box("wood", (0.03, 0.12, 0.38), mat_tr((x - 0.04, -D / 2 - 0.6, z)), rgb(0xb8342c))
     if emblem == "anvil":
         k.box("iron", (0.04, 0.4, 0.12), mat_tr((x - 0.05, -D / 2 - 0.6, z + 0.05)), rgb(0x2a2a2e))
         k.box("iron", (0.04, 0.16, 0.18), mat_tr((x - 0.05, -D / 2 - 0.6, z - 0.1)), rgb(0x2a2a2e))
@@ -576,6 +579,7 @@ TYPES = {
     "market":   (8.0, 6.0, {1: 1, 2: 2, 3: 3, 4: 3}, stalls, 0x2a4a6a, None),
     "townhall": (9.0, 7.0, {1: 1, 2: 2, 3: 3, 4: 4}, "tower", 0x7a2a2a, None),
     "jail":     (5.0, 5.0, {1: 1, 2: 1, 3: 2, 4: 2}, bars, 0x3a3a40, None),
+    "hospital": (7.0, 5.4, {1: 1, 2: 2, 3: 2, 4: 3}, None, 0xe8e0d0, "cross"),
 }
 # built whole, not as a shell: (builder, which tiers exist)
 SPECIAL = {

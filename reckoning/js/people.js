@@ -29,7 +29,7 @@ export const SKILLS = [
 export const SKILL_NAME = Object.fromEntries(SKILLS.map(s => [s.id, s.name]));
 export const SKILL_MAX = 100;
 // what each work teaches, and is done with
-export const JOB_SKILL = { woodcutter: "woodcutting", hauler: "building", farmer: "farming", baker: "crafting", quarryman: "quarrying", sawyer: "crafting", brickmaker: "crafting", miner: "quarrying", smelter: "smithing", smith: "smithing", watch: "fighting" };
+export const JOB_SKILL = { woodcutter: "woodcutting", hauler: "building", farmer: "farming", baker: "crafting", quarryman: "quarrying", sawyer: "crafting", brickmaker: "crafting", miner: "quarrying", smelter: "smithing", smith: "smithing", watch: "fighting", doctor: "physicking" };
 export const skillLvl = (p, id) => Math.max(1, Math.min(SKILL_MAX, (p && p.sk && p.sk[id]) || 1));
 // a master works in a little under half the time, and strikes half again as hard
 export const workSkill = (p, id) => 1 - 0.55 * (skillLvl(p, id) - 1) / (SKILL_MAX - 1);
@@ -135,6 +135,7 @@ export function moodOf(town, p) {
     if (q === p || q.child) continue;
     if (faithOf(q) === "catholic" && town.S.bread > 0) { v += add(2, `alms from ${q.name}`); break; }
   }
+  if (p.sick > 0) v += add(-10, "sick");
   if (p.mark === "disgraced") v += add(-7, "disgraced: the jail");
   if (p.mark === "contented") v += add(6, "contented");
   if (p.mark === "bitter") v += add(-5, "bitter");

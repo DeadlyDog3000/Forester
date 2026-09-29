@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.22", date: "29 September 2026", title: "The sick, and the hospital",
+    items: [
+      "Settlers fall ill now and then — more often when a crown near you has the plague, in a cold winter, or if they're sickly; less if they're hardy, or there's a well. A sick settler keeps to their bed and can't work, and feels it (−10).",
+      "The Hospital (Physick): with a doctor at work in it — a new trade, and Physicking the skill of it — the ill are up in a day or two instead of most of a week.",
+    ],
+  },
+  {
     v: "0.21", date: "29 September 2026", title: "Walls, and Europe",
     items: [
       "Europe, in G: the first Forester's map of 1683 — thirty-three crowns, their coastlines inked — with your clearing in the woods beyond Hamburg. It lives: the crowns go to war with each other and the borders move, plague and famine fall on them, and word of it reaches you on a card.",
