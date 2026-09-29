@@ -157,6 +157,23 @@ export const UI = {
       c.classList.toggle("on", st.mine === d); c.classList.toggle("threat", st.threat === d); c.classList.toggle("foe", st.foe === d);
     }
   },
+  // word from afar: one card at a time, each for a while
+  news(n) {
+    (this._newsQ ??= []).push(n);
+    if (!this._newsOn) this._nextNews();
+  },
+  _nextNews() {
+    const el = $("news"), n = this._newsQ.shift();
+    if (!n) { this._newsOn = false; el.classList.add("hidden"); return; }
+    this._newsOn = true;
+    $("newsImg").src = `../assets/sprites/ui/${n.img || "event_war"}.png`;
+    $("newsTitle").textContent = n.title; $("newsSub").textContent = n.sub || "";
+    el.classList.remove("hidden"); el.style.opacity = 1;
+    clearTimeout(this._newsT);
+    const next = () => { el.style.opacity = 0; this._newsT = setTimeout(() => this._nextNews(), 400); };
+    el.onclick = () => { clearTimeout(this._newsT); next(); };
+    this._newsT = setTimeout(next, 7000);
+  },
   hurt(k = 0.6) {
     const f = $("hurtFx"); if (!f) return;
     f.style.transition = "none"; f.style.opacity = k;

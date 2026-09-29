@@ -22,6 +22,7 @@ import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel } from "./models.js"
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
+import { NATIONS, NEAR, ensureEurope, europeDay, strengthOf, the, The } from "./europe.js";
 import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
@@ -593,6 +594,28 @@ export class Town {
     b._it = it;
   }
   sitesAll() { for (const b of this.S.buildings) { if (!b.done || (b.type === "field" && !b.sown)) this.site(b); else this.upgradeSpot(b); } }
+  // ---- Europe: its day, word of it, and what it means for you ----
+  europeTick() {
+    const S = this.S, E = ensureEurope(S);
+    // a fortnight's news at most: the biggest first
+    for (const n of europeDay(S, this.day).slice(0, 2)) UI.news(n);
+    // a crown that hates you, near enough to march, may declare war
+    for (const id of NEAR) if (!E.war[id] && E.rel[id] <= -60 && Math.random() < 0.05) {
+      E.war[id] = true; E.pact[id] = false;
+      UI.news({ title: `${The(id)} declares war on ${S.name || "the settlement"}!`, sub: "Its soldiers will come up the road", img: "event_warparty" });
+    }
+    // trade pacts: customs, a DM a day each
+    const pacts = Object.keys(E.pact).filter(id => E.pact[id] && !E.war[id]).length;
+    if (pacts) { S.coin = (S.coin || 0) + pacts; this.showStore(); }
+    this.persist();
+  }
+  // at war with one near enough to reach you? (its soldiers come instead of bandits)
+  get enemy() { const E = this.S.europe; if (!E) return null; return [...NEAR].find(id => E.war[id]) || null; }
+  makePeace(id, why) {
+    const E = ensureEurope(this.S);
+    E.war[id] = false; E.beaten[id] = 0; E.rel[id] = Math.max(E.rel[id], -20);
+    UI.news({ title: `Peace with ${the(id)}.`, sub: why, img: "event_peace" }); this.persist();
+  }
   // ---- the law: in the night, a miserable settler may take from the stores ----
   // (Lutherans and Mennonites won't; a jail and a watchman catch the thief, who is held a day and disgraced)
   nightCrime() {
@@ -1238,6 +1261,7 @@ export class Town {
         // the slow road to the state church
         for (const p of dailyConversion(this)) UI.hint(`${p.name} is received into the ${FAITHS[p.faith].house} — ${FAITHS[p.was].name} no longer.`, 6);
         this.nightCrime();
+        this.europeTick();
       }
       // each person's own mood, day by day: two miserable days and they go; four good ones and they settle in for good
       if (this.techGates) for (const p of this.S.people.slice()) {

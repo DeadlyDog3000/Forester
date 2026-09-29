@@ -26,10 +26,14 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { makeArm, makeTorch } from "./models.js";
 import { CLEARING, FIRE } from "./woods.js";
+import { NATIONS, strengthOf, the } from "./europe.js";
 
 /* global SFX */
 
-const LOOK = s => ({ model: "townsman", name: "Raider", coat: [0x3a3228, 0x2e3228, 0x40302a][s % 3], legs: 0x2a2620, hat: ["cap", "hat", null][s % 3], hatColor: 0x241e1a, beard: 0x3e3226, seed: 500 + s });
+const LOOK = (s, enemy) => enemy
+  // a crown's soldiers: its colours, a hat each
+  ? { model: "townsman", name: "Soldier", coat: parseInt(NATIONS[enemy].color.slice(1), 16), legs: 0x2a2620, hat: "hat", hatColor: 0x1a1a1a, beard: 0x3e3226, seed: 500 + s }
+  : { model: "townsman", name: "Raider", coat: [0x3a3228, 0x2e3228, 0x40302a][s % 3], legs: 0x2a2620, hat: ["cap", "hat", null][s % 3], hatColor: 0x241e1a, beard: 0x3e3226, seed: 500 + s };
 const WALK = 2.9, FLEE = 2.7, WALL_SPEED = 2.2;
 const HP = 40;
 const DIRS = ["up", "left", "right"];
@@ -48,11 +52,11 @@ export const ARM_KINDS = ["battleaxe", "sword", "spear"];   // best first
 const THEIRS = { knife: { dmg: 7, cool: 1.1 }, club: { dmg: 10, cool: 1.6 }, axe: { dmg: 12, cool: 1.8 }, sword: { dmg: 14, cool: 1.4 } };
 
 class Raider {
-  constructor(raid, x, z, i, n) {
+  constructor(raid, x, z, i, n, enemy) {
     this.raid = raid; this.i = i;
-    this.a = new Actor(LOOK(i), x, z, 0);
-    // his own weapon, and a torch in the other hand (the first few throw real light)
-    this.arm = ["club", "axe", "knife", "sword", "axe", "club"][n % 6];
+    this.a = new Actor(LOOK(i, enemy), x, z, 0);
+    // his own weapon, and a torch in the other hand (the first few throw real light); soldiers carry swords
+    this.arm = enemy ? ["sword", "sword", "axe"][n % 3] : ["club", "axe", "knife", "sword", "axe", "club"][n % 6];
     this.a.hold(makeArm(this.arm));
     this.a.hold(makeTorch(n < 3), true);
     this.a.heavy = true;
@@ -135,21 +139,23 @@ export class Raids {
   // the road they come up and go back down
   get roadEnd() { const r = this.w.road[this.w.road.length - 30]; return { x: r.x, z: r.z }; }
   start() {
-    const t = this.town, S = t.S, pop = S.people.length + 2;
-    const n = Math.min(6, 2 + Math.floor(pop / 5) + Math.floor(S.raid.count / 3));
+    const t = this.town, S = t.S, pop = S.people.length + 2, enemy = t.enemy;
+    // at war: a crown's soldiers, more of them the stronger it is
+    const n = enemy ? Math.min(8, 3 + strengthOf(S.europe, enemy)) : Math.min(6, 2 + Math.floor(pop / 5) + Math.floor(S.raid.count / 3));
+    this.enemy = enemy;
     const e = this.roadEnd;
     for (let i = 0; i < n; i++) {
-      const r = new Raider(this, e.x + (i % 3 - 1) * 1.4, e.z + Math.floor(i / 3) * 1.6, S.raid.count * 7 + i, i);
+      const r = new Raider(this, e.x + (i % 3 - 1) * 1.4, e.z + Math.floor(i / 3) * 1.6, S.raid.count * 7 + i, i, enemy);
       this.band.push(r);
       // the hunt's arrows can strike them, and the crosshair knows them
       if (G.hunt) G.hunt.animals.push(r);
     }
-    S.raid.count++; S.raid.next = t.day + 6 + Math.floor(Math.random() * 4);
+    S.raid.count++; S.raid.next = t.day + (enemy ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 4));
     t.persist();
     AUDIO.bell && AUDIO.bell(1.1, 0.85);
     setTimeout(() => AUDIO.bell && AUDIO.bell(1.1, 0.85), 700);
     const sib = G.who === "sister" ? "Brother" : "Sister";
-    UI.bark(sib, `Raiders — ${n} of them, on the road! They're after the stores!`, 4);
+    UI.bark(sib, enemy ? `Soldiers — ${n} of them, from ${the(enemy)}, on the road!` : `Raiders — ${n} of them, on the road! They're after the stores!`, 4);
     // they come up the road yelling, to frighten; and the settlement cries out
     this.band.forEach((r, i) => setTimeout(() => r.alive && AUDIO.voice("war", { at: r.pos, vol: 1.2 }), 300 + i * 380 + Math.random() * 300));
     setTimeout(() => { const s = this.town.actors[0]; if (s) AUDIO.voice("fear", { at: s.pos, high: true }); }, 1400);
@@ -350,6 +356,11 @@ export class Raids {
         const s = folk[Math.floor(Math.random() * folk.length)], high = this.highVoice(s);
         AUDIO.voice(s.settler && s.settler.child ? "fear" : s.fighting ? (Math.random() < 0.6 ? "war" : "grunt") : (high && Math.random() < 0.7 ? "fear" : "war"), { at: s.pos, high, vol: 0.85 });
       }
+    }
+    if (this.wasActive && !act && this.enemy && this.band.length && this.band.every(r => r.state === "down" || r.state === "gone") && this.band.filter(r => r.state === "down").length >= this.band.length / 2) {
+      const E = S.europe, id = this.enemy;
+      E.beaten[id] = (E.beaten[id] || 0) + 1;
+      if (E.beaten[id] >= 2) { const pay = 10 + strengthOf(E, id) * 5; S.coin = (S.coin || 0) + pay; t.makePeace(id, `Beaten at your gate twice, it sues for peace — and pays ${pay} DM`); }
     }
     if (this.wasActive && !act) {
       const sib = G.who === "sister" ? "Brother" : "Sister";

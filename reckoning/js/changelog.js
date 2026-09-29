@@ -7,8 +7,11 @@
 
 export const CHANGELOG = [
   {
-    v: "0.21", date: "29 September 2026", title: "Walls",
+    v: "0.21", date: "29 September 2026", title: "Walls, and Europe",
     items: [
+      "Europe, in G: the first Forester's map of 1683 — thirty-three crowns, their coastlines inked — with your clearing in the woods beyond Hamburg. It lives: the crowns go to war with each other and the borders move, plague and famine fall on them, and word of it reaches you on a card.",
+      "Each crown has a view of you, set by its faith and yours. Send an envoy to warm it; once it's friendly, a trade pact brings a DM a day in customs. The crowns near enough to march — Denmark, Sweden, Brandenburg, the Empire, Saxony, Poland, England, France, Bavaria — can be at war with you: declare it, or have it declared on you if they come to hate you.",
+      "At war, it isn't bandits that come up your road but a crown's soldiers — more of them, with swords, in its colours, every few days. Beat them at your gate twice and it sues for peace and pays for it; or buy peace yourself.",
       "Walls, as the first Forester's Defending gives them: a palisade of sharpened logs, laid a length at a time (three logs each) — each new length joins on where the last one ends — and gates in it. With Defending II, stone walls.",
       "Gates stand open, and are shut when raiders come. Raiders can't walk through a wall: they hack at it, and a length that's taken enough is broken through — rubble, and a way in. Look at it and press V to mend it.",
       "Fixed: the settlement's buildings could be walked straight through — by you, the settlers and the raiders. So could the burned cabin's walls, the fire, the log stack, the chopping block and the furniture in the cabin.",

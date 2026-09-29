@@ -20,6 +20,7 @@ import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
+import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the } from "./europe.js";
 
 /* global SFX */
 
@@ -427,6 +428,11 @@ function renderGov(full) {
   for (const b of document.querySelectorAll("#govTabs .gov-tab")) b.classList.toggle("on", b.dataset.tab === govTab);
   $("govTitle").textContent = `Government — ${t.S.name || "the clearing"}`;
   if (govTab === "nation") $("govBody").innerHTML = govNation(t);
+  else if (govTab === "europe") {
+    // the map is drawn once and redrawn when something moves; the side panel when its words change
+    if (full || key !== govKey || !$("euMap")) { $("govBody").innerHTML = govEuropeFrame(); wireEurope(t); }
+    drawEuropeTab(t);
+  }
   else if (govTab === "faith") {
     const html = govFaith(t);
     if (full || html !== govPeopleHtml || key !== govKey) { const top = $("govBody").scrollTop; $("govBody").innerHTML = html; govPeopleHtml = html; wireFaith(t); $("govBody").scrollTop = top; }
@@ -530,6 +536,61 @@ function govPeople(t) {
     <table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Mood</th><th>Best at</th><th>Now</th><th>Has</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 const pplOpen = new Set();
+// ---- Europe: the map, and each crown's view of you ----
+let euSel = null, euHover = null, euPanelHtml = "";
+function govEuropeFrame() {
+  return `<div class="eu"><div class="eu-map"><canvas id="euMap" width="800" height="448"></canvas><div class="dim eu-key">Your clearing is the gold mark in the woods beyond Hamburg. ⚔ a war (red: with you) · ☠ plague. Click a crown.</div></div><div class="eu-side" id="euSide"></div></div>`;
+}
+function drawEuropeTab(t) {
+  const cv = $("euMap"); if (!cv) return;
+  const E = ensureEurope(t.S);
+  drawEurope(cv, E, { hover: euHover, selected: euSel, homePop: t.S.people.length + 2 });
+  const html = euSide(t, E);
+  if (html !== euPanelHtml) { $("euSide").innerHTML = html; euPanelHtml = html; wireEuSide(t); }
+}
+const ENVOY = 10, PACT = 15;
+function euSide(t, E) {
+  const S = t.S, news = (E.news || []).slice(0, 8).map(n => `<li><span class="dim">day ${n.day + 1}</span> ${esc(n.title)}</li>`).join("");
+  const atWar = Object.keys(E.war).filter(id => E.war[id]);
+  let h = `<div class="mc-sec">Your standing</div><div class="gov-why">${atWar.length ? `At war with ${atWar.map(id => esc(the(id))).join(", ")}.` : "At peace with every crown."} ${Object.keys(E.pact).filter(id => E.pact[id]).length ? `Trade pacts: ${Object.keys(E.pact).filter(id => E.pact[id]).map(id => esc(NATIONS[id].name)).join(", ")} (a DM a day each).` : "No trade pacts."}</div>`;
+  if (euSel) {
+    const id = euSel, n = NATIONS[id], rel = Math.round(E.rel[id]), near = NEAR.has(id), war = !!E.war[id];
+    const wars = E.wars.filter(w => w.a === id || w.b === id).map(w => NATIONS[w.a === id ? w.b : w.a].name);
+    h += `<div class="mc-sec">${esc(n.name)}</div><div class="eu-facts">
+      <div><span class="k">Faith</span>${esc(FAITHS[NATION_FAITH[id]].name)}${t.S.stateFaith === NATION_FAITH[id] ? " — as yours" : ""}</div>
+      <div><span class="k">Strength</span>${"■".repeat(strengthOf(E, id))}${E.plague[id] ? " · plague" : ""}${E.famine[id] ? " · famine" : ""}</div>
+      <div><span class="k">Towards you</span>${relWord(rel)} (${rel > 0 ? "+" : ""}${rel})</div>
+      <div><span class="k">Reach</span>${near ? "near enough to march on you, and you on it" : "too far to fight you"}</div>
+      ${wars.length ? `<div><span class="k">At war with</span>${esc(wars.join(", "))}</div>` : ""}
+      ${war ? `<div class="warn">At war with you${E.beaten[id] ? ` — beaten at your gate ${E.beaten[id]} time${E.beaten[id] > 1 ? "s" : ""}` : ""}.</div>` : ""}</div>
+      <div class="eu-acts">
+        ${war ? `<button data-eu="peace">Sue for peace — ${10 * strengthOf(E, id)} DM</button>`
+              : `<button data-eu="envoy"${rel >= 60 ? " disabled" : ""}>Send an envoy — ${ENVOY} DM<span class="sub">they think better of you (+12)</span></button>
+                 <button data-eu="pact"${E.pact[id] || rel < 40 ? " disabled" : ""}>${E.pact[id] ? "A trade pact stands" : `A trade pact — ${PACT} DM`}<span class="sub">${E.pact[id] ? "a DM a day in customs" : rel < 40 ? "they must be friendly first (40)" : "a DM a day in customs, for as long as it lasts"}</span></button>
+                 ${near ? `<button data-eu="war" class="danger">Declare war<span class="sub">its soldiers will come up your road, every few days, until one of you gives in</span></button>` : ""}`}
+      </div>`;
+  } else h += `<div class="gov-why" style="margin-top:10px">Click a crown on the map to see how it stands with you.</div>`;
+  h += `<div class="mc-sec">Word from afar</div><ul class="eu-news">${news || '<li class="dim">Nothing yet.</li>'}</ul>`;
+  return h;
+}
+function wireEurope(t) {
+  const cv = $("euMap");
+  const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+  cv.onmousemove = e => { const id = nationAt(ensureEurope(t.S), cv, ...pos(e)); if (id !== euHover) { euHover = id; drawEuropeTab(t); } };
+  cv.onmouseleave = () => { euHover = null; drawEuropeTab(t); };
+  cv.onclick = e => { euSel = nationAt(ensureEurope(t.S), cv, ...pos(e)); euPanelHtml = ""; drawEuropeTab(t); };
+}
+function wireEuSide(t) {
+  for (const b of $("euSide").querySelectorAll("button[data-eu]")) b.onclick = () => {
+    const S = t.S, E = ensureEurope(S), id = euSel, act = b.dataset.eu, n = NATIONS[id];
+    const pay = c => { if ((S.coin || 0) < c) { UI.hint(`That costs ${c} DM.`, 3); return false; } S.coin -= c; return true; };
+    if (act === "envoy" && pay(ENVOY)) { E.rel[id] = Math.min(100, E.rel[id] + 12); UI.hint(`Your envoy is received at the court of ${the(id)}.`, 4); }
+    if (act === "pact" && pay(PACT)) { E.pact[id] = true; UI.news({ title: `A trade pact with ${the(id)}.`, sub: "A DM a day in customs", img: "event_caravan" }); }
+    if (act === "war") { E.war[id] = true; E.pact[id] = false; E.rel[id] = -80; S.raid.next = Math.min(S.raid.next, t.day + 1); UI.news({ title: `${S.name || "The settlement"} declares war on ${the(id)}!`, sub: "Its soldiers will come up the road", img: "event_warparty" }); }
+    if (act === "peace" && pay(10 * strengthOf(E, id))) t.makePeace(id, "Bought, and signed");
+    t.persist(); euPanelHtml = ""; drawEuropeTab(t);
+  };
+}
 // ---- faith and law: the state creed, who believes what and what stands for them; the jail; the edict ----
 let edictArmed = false;
 function govFaith(t) {
