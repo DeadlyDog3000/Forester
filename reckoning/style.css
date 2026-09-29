@@ -372,3 +372,5 @@ body.talking #hint { bottom: 298px; }
 .recruit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 10px; background: rgba(140, 192, 132, 0.08); border: 1px solid rgba(140, 192, 132, 0.2); border-radius: 4px; font: 13px var(--sans); }
 .recruit select { font: 13px var(--sans); background: rgba(0, 0, 0, 0.4); color: var(--ink); border: 1px solid var(--edge); padding: 3px 6px; }
 .recruit button:disabled { opacity: 0.45; }
+.ppl .tag.faith { color: #c8d4ee; background: rgba(110, 140, 200, 0.2); }
+.recruit button.armed { background: rgba(200, 70, 50, 0.5); }

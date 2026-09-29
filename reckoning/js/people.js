@@ -10,6 +10,7 @@
 // few systems Reckoning has. Every one bends a number that was already there.
 
 import { rng } from "./core.js";
+import { FAITHS, faithOf, rollFaith, faithReasons } from "./faith.js";
 
 // ---- what a pair of hands has learned ----
 export const SKILLS = [
@@ -58,6 +59,7 @@ export const TEMPER = Object.fromEntries(TEMPERS.map(t => [t.id, t]));
 export const MARKS = {
   hardened: { name: "Hardened", blurb: "Has stood in a fight, and is less afraid of the next.", does: "Strikes a seventh harder, and never feels the dread of a raid again." },
   contented: { name: "Contented", blurb: "Has been warm, fed and unbothered a long while.", does: "Six to their mood, as long as nothing goes badly wrong." },
+  disgraced: { name: "Disgraced", blurb: "Has been in the jail, and it is remembered.", does: "Seven off their mood." },
   bitter: { name: "Bitter", blurb: "Was beaten down in a raid and left lying.", does: "Five off their mood." },
 };
 export const temperWork = p => p.temper === "industrious" ? 0.88 : p.temper === "idle" ? 1.15 : 1;
@@ -66,7 +68,7 @@ export const temperArm = p => p.temper === "stout" || p.mark === "hardened" ? 1.
 // Everyone from before there were skills gets them on first sight, the same every time (from their seed):
 // all eleven at one, the skill of their work already a little way up, a temperament for life.
 export function ensurePerson(p) {
-  if (p.sk && p.temper) return p;
+  if (p.sk && p.temper && p.faith) return p;
   const r = rng((p.seed || p.name.length * 97) + 17);
   p.sk ??= {};
   if (!p.child) {
@@ -77,6 +79,7 @@ export function ensurePerson(p) {
     if (!p.sk[other]) p.sk[other] = 2 + Math.floor(r() * 6);
   }
   p.temper ??= TEMPERS[Math.floor(r() * TEMPERS.length)].id;
+  p.faith ??= rollFaith(p.seed || 1);
   return p;
 }
 
@@ -124,11 +127,22 @@ export function moodOf(town, p) {
     if (q.temper === "generous") v += add(2, `${q.name} is generous`);
     if (q.temper === "grasping") v += add(-2, `${q.name} is grasping`);
   }
+  // faith: the state creed, a house or a shrine of their own, being alone in it
+  for (const [n, w] of faithReasons(town, p)) v += add(n, w);
+  const f = faithOf(p);
+  if (FAITHS[f].fast && town.S.hungry) v += add(10, "fasting: hunger is nothing new");
+  for (const q of town.S.people) {
+    if (q === p || q.child) continue;
+    if (faithOf(q) === "catholic" && town.S.bread > 0) { v += add(2, `alms from ${q.name}`); break; }
+  }
+  if (p.mark === "disgraced") v += add(-7, "disgraced: the jail");
   if (p.mark === "contented") v += add(6, "contented");
   if (p.mark === "bitter") v += add(-5, "bitter");
   // their own bed, and work they are good at
   if (!p.child && town.bedOf && !town.bedOf(p)) v += add(-8, "no bed of their own");
   const main = JOB_SKILL[p.job || "hauler"];
   if (main && !p.child) { const best = topSkills(p, 1)[0]; if (best && best.id === main && best.lvl >= 10) v += add(3, "work they're good at"); }
+  // zakat: the unhappiest are helped by the Muslim among them
+  if (v < 40 && town.S.people.some(q => q !== p && !q.child && faithOf(q) === "muslim")) v += add(2, "zakat");
   return { value: Math.max(0, Math.min(100, Math.round(v))), why };
 }

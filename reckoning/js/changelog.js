@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.20", date: "29 September 2026", title: "Faith and law",
+    items: [
+      "The seven faiths of 1683, as the first Forester has them, in the proportions they walked out of a North German wood: Lutheran, Catholic, Reformed, Mennonite, Jewish, Orthodox, Muslim. Each settler holds one, and it shows: Catholics keep the holy days and give alms, the Reformed work harder, Mennonites won't take up a weapon, a Jewish settler arrives with capital, the Orthodox fast.",
+      "A state creed, proclaimed in G, Faith & law: its own are glad of it, everyone else resents a state church not their own. Under it, with its church standing, dissenters may slowly come over — some never do.",
+      "A church or a shrine is raised to one faith: the state creed, or the biggest congregation. A new building, the Shrine (Consecration): somewhere of their own to pray. Having nowhere weighs on a village; being the only one of a faith weighs on a person.",
+      "The law: a miserable settler may take from the stores in the night (never a Lutheran or a Mennonite). A new building, the Jail (Policing): with a watchman on the job the thief is caught, what they took comes back, and they're held a day and disgraced.",
+      "The Edict of Expulsion: every dissenter from the state creed out on the road at once. It asks twice.",
+      "Faith shows in the People tab too, beside temperament and mark.",
+    ],
+  },
+  {
     v: "0.19", date: "29 September 2026", title: "People, as the first Forester has them",
     items: [
       "Skills: every settler has the first Forester's eleven — Woodcutting, Quarrying, Farming, Building, Smithing, Crafting, Fighting and the rest — from 1 to 100. They come knowing their trade a little, and learn by doing it: a master works in a little under half the time, and a master working nearby teaches faster.",

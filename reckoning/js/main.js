@@ -19,6 +19,7 @@ import { CHANGELOG } from "./changelog.js";
 import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
+import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
 
 /* global SFX */
 
@@ -334,6 +335,7 @@ function renderInspect() {
     b.done ? (style ? ["Built in", esc(style)] : null) : ["Building", `not finished — ${b.logs || 0} of ${def.cost} logs${Object.keys(def.mats || {}).length ? `, and ${esc(t.costText(def.mats))}` : ""}`],
     b.type === "field" ? ["The rye", b.sown ? ((b.growth ?? 1) >= 3 ? "ripe — reap it" : "growing") : `${b.dug || 0} of 3 strips dug`] : null,
     b.type === "cabin" && b.done ? ["Sleeps", `${t.perCabin}`] : null,
+    (b.type === "church" || b.type === "shrine") && b.done ? ["Dedicated to", esc(FAITHS[b.faith || "lutheran"].name) + ` — ${b.type === "church" ? FAITHS[b.faith || "lutheran"].house : FAITHS[b.faith || "lutheran"].shrine}`] : null,
     b.type === "woodshed" && b.done ? ["Holds", `30 more logs (the store holds ${t.storeCap})`] : null,
     works.length ? ["Who works here", who.length ? esc(who.join(", ")) : '<span class="warn">no one — set someone to it (F by them)</span>'] : null,
     ["Upkeep", keep ? `${keep === 0.5 ? "½" : keep} DM a day${t.untended ? ' <span class="warn">— unpaid today: it stands idle</span>' : ""}` : "nothing — once it stands, it stands"],
@@ -421,6 +423,10 @@ function renderGov(full) {
   for (const b of document.querySelectorAll("#govTabs .gov-tab")) b.classList.toggle("on", b.dataset.tab === govTab);
   $("govTitle").textContent = `Government — ${t.S.name || "the clearing"}`;
   if (govTab === "nation") $("govBody").innerHTML = govNation(t);
+  else if (govTab === "faith") {
+    const html = govFaith(t);
+    if (full || html !== govPeopleHtml || key !== govKey) { const top = $("govBody").scrollTop; $("govBody").innerHTML = html; govPeopleHtml = html; wireFaith(t); $("govBody").scrollTop = top; }
+  }
   else if (govTab === "people") {
     // (redrawn only when something in it changed, and the trade picked to send for is kept)
     const html = govPeople(t);
@@ -500,7 +506,7 @@ function govPeople(t) {
     const tp = TEMPER[p.temper], mk = p.mark && MARKS[p.mark];
     const skills = topSkills(p, 3), main = JOB_SKILL[p.job || "hauler"], lvl = skillLvl(p, main);
     const open = pplOpen.has(p.name);
-    rows += `<tr class="${open ? "open" : ""}"><td class="nm"><a data-open="${esc(p.name)}">${esc(p.name)}</a>${p.child ? ' <span class="dim">(child)</span>' : ""}${tp ? `<span class="tag" title="${esc(tp.blurb + " " + tp.does)}">${esc(tp.name)}</span>` : ""}${mk ? `<span class="tag mark" title="${esc(mk.blurb + " " + mk.does)}">${esc(mk.name)}</span>` : ""}</td>
+    rows += `<tr class="${open ? "open" : ""}"><td class="nm"><a data-open="${esc(p.name)}">${esc(p.name)}</a>${p.child ? ' <span class="dim">(child)</span>' : ""}${tp ? `<span class="tag" title="${esc(tp.blurb + " " + tp.does)}">${esc(tp.name)}</span>` : ""}${p.child ? "" : `<span class="tag faith" title="${esc(FAITHS[faithOf(p)].creed + " " + FAITHS[faithOf(p)].rule)}">${esc(FAITHS[faithOf(p)].name)}</span>`}${mk ? `<span class="tag mark" title="${esc(mk.blurb + " " + mk.does)}">${esc(mk.name)}</span>` : ""}</td>
       <td>${p.child ? "—" : cap(JOBS[p.job || "hauler"].name)}</td>
       <td>${p.child ? '<span class="dim">—</span>' : moodCell(m)}</td>
       <td class="dim">${skills.map(k => `${k.name} ${k.lvl}`).join(" · ") || "—"}</td>
@@ -520,6 +526,44 @@ function govPeople(t) {
     <table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Mood</th><th>Best at</th><th>Now</th><th>Has</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 const pplOpen = new Set();
+// ---- faith and law: the state creed, who believes what and what stands for them; the jail; the edict ----
+let edictArmed = false;
+function govFaith(t) {
+  const S = t.S, c = census(t), st = S.stateFaith;
+  const opts = `<option value="">None — no state creed</option>` + FAITH_IDS.map(id => `<option value="${id}"${st === id ? " selected" : ""}>${esc(FAITHS[id].name)}</option>`).join("");
+  const rows = FAITH_IDS.filter(id => c.flock[id] || c.house[id] || c.shrine[id] || id === st).map(id => {
+    const F = FAITHS[id], who = S.people.filter(p => !p.child && faithOf(p) === id).map(p => p.name);
+    if (id === "lutheran") who.unshift("your family");
+    return `<tr><td class="nm">${esc(F.name)}${st === id ? ' <span class="tag mark">state creed</span>' : ""}</td><td>${c.flock[id]}</td><td class="dim">${esc(who.join(", "))}</td><td>${c.house[id] ? `${c.house[id]} ${esc(F.house)}` : c.shrine[id] ? `${c.shrine[id]} ${esc(F.shrine)}` : '<span class="dim">nowhere of their own</span>'}</td><td class="dim" title="${esc(F.creed)}">${esc(F.rule)}</td></tr>`;
+  }).join("");
+  const next = dedication(t), dissent = S.people.filter(p => !p.child && st && faithOf(p) !== st);
+  const jail = t.has("jail"), watch = S.people.some(p => p.job === "watch"), held = S.people.filter(p => p.jailedDay === t.day);
+  return `<div class="gov-why" style="margin-bottom:8px">A church or a shrine is raised to one faith, not to faith in general — the state creed, or else the biggest congregation. The next will be <b>${esc(FAITHS[next].name)}</b>.</div>
+    <div class="recruit"><span>State creed:</span><select id="stateFaith">${opts}</select><button id="stateGo">Proclaim</button><span class="dim">${st ? `Those of the ${esc(FAITHS[st].name)} creed are glad of it (+11); everyone else resents a state church not their own (−13). With its church standing, dissenters may slowly come over.` : "Proclaiming a creed lifts its own and weighs on everyone else."}</span></div>
+    <table class="ppl"><thead><tr><th>Faith</th><th>Souls</th><th>Who</th><th>Their house</th><th>What it means</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="mc-sec" style="margin-top:14px">The law</div>
+    <div class="gov-why">${jail ? `A jail stands.` : "No jail."} ${watch ? "A watchman keeps the night." : "No watchman."} ${jail && watch ? "A thief is likely caught, held a day and disgraced, and what they took comes back." : "A miserable settler may steal from the stores in the night, and get away with it."} Lutherans and Mennonites never steal. Thefts so far: ${S.thefts || 0}${S.caught ? `, ${S.caught} caught` : ""}.${held.length ? ` In the jail today: ${esc(held.map(p => p.name).join(", "))}.` : ""}</div>
+    ${st ? `<div class="recruit"><button id="edictGo" class="${edictArmed ? "armed" : ""}"${dissent.length ? "" : " disabled"}>${edictArmed ? `Click again — ${dissent.length} put out on the road` : "The Edict of Expulsion"}</button><span class="dim">${dissent.length ? `Every dissenter from the ${esc(FAITHS[st].name)} creed out of the settlement at once: ${esc(dissent.map(p => p.name).join(", "))}. It does not spare the useful, and everyone left who shares their faith draws the obvious conclusion.` : "Not a dissenter left."}</span></div>` : ""}`;
+}
+function wireFaith(t) {
+  const go = $("stateGo");
+  if (go) go.onclick = () => {
+    const v = $("stateFaith").value || null;
+    if (v === (t.S.stateFaith || null)) return;
+    t.S.stateFaith = v; t.persist();
+    UI.hint(v ? `The ${FAITHS[v].name} creed is proclaimed the faith of ${t.S.name || "the settlement"}.` : "No creed is the state's any more.", 5);
+    edictArmed = false; renderGov(true);
+  };
+  const ed = $("edictGo");
+  if (ed) ed.onclick = () => {
+    if (!edictArmed) { edictArmed = true; renderGov(true); return; }
+    edictArmed = false;
+    const st = t.S.stateFaith, out = t.S.people.filter(p => !p.child && faithOf(p) !== st);
+    for (const p of out) t.leave("expelled", p);
+    UI.hint(`THE EDICT OF EXPULSION: ${out.length} put out of the settlement for refusing the ${FAITHS[st].name} creed.`, 7);
+    renderGov(true);
+  };
+}
 function wirePeople(t) {
   for (const b of $("govBody").querySelectorAll("button[data-p]")) b.onclick = () => { const p = t.S.people[+b.dataset.p]; showOverlay("gov", false); t.chooseJob(p); };
   for (const b of $("govBody").querySelectorAll("button[data-train]")) b.onclick = () => { const msg = t.train(t.S.people[+b.dataset.train]); if (msg) UI.hint(msg, 3); renderGov(true); };

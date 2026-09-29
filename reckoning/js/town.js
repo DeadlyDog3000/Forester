@@ -20,6 +20,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel } from "./models.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
+import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
@@ -41,6 +42,8 @@ export const BUILDINGS = {
   townhall: { name: "Town hall", cost: 30, mats: { stone: 12, planks: 10 }, model: "town/townhall", tiers: true, w: 9.6, d: 10, icon: "cabin", note: "A seat for the town, and a charter: without one, no town builds as a city does." },
   path:     { name: "Path", cost: 0, w: 2.2, d: 3.4, path: true, icon: "stone", note: "A trodden way between the houses, laid a strip at a time — free. Cobbled once the town is brick." },
   church:   { name: "Church", cost: 24, mats: { stone: 10 }, model: "town/church", tiers: true, w: 7, d: 13, icon: "cabin", note: "Somewhere to pray, and to bury, and to be married. People are happier with one." },
+  shrine:   { name: "Shrine", cost: 10, mats: { coin: 3 }, model: "town/shrine_1", w: 2.4, d: 2.2, icon: "cabin", note: "A wayside shrine, raised to one faith: somewhere of its own to pray, for those who hold it." },
+  jail:     { name: "Jail", cost: 18, mats: { stone: 6 }, model: "town/jail", tiers: true, w: 5, d: 5, icon: "cabin", note: "With a watchman on the job, a thief is caught in the night and held here a day — and what they took comes back." },
 };
 // what each work does with a shift: where, how long, what it takes from the stores and what it puts back
 export const WORKS = {
@@ -541,7 +544,10 @@ export class Town {
           for (const [k, n] of Object.entries(want)) { const m = Math.min(n, this.have(k)); this.S[k] -= m; b.got[k] = (b.got[k] || 0) + m; }
           this.show(b); this.persist(); SFX().pickup(); return;
         }
-        b.done = true; w.removeInteract(it); this.show(b); this.persist(); SFX().build(); this.emit("built", b);
+        b.done = true; w.removeInteract(it);
+        // a church or a shrine is raised to one faith: the state creed, or the biggest congregation
+        if ((b.type === "church" || b.type === "shrine") && !b.faith) { b.faith = dedication(this); UI.hint(`The ${b.type} is dedicated: ${b.type === "church" ? FAITHS[b.faith].house : FAITHS[b.faith].shrine}.`, 5); }
+        this.show(b); this.persist(); SFX().build(); this.emit("built", b);
         if (b.type === "woodshed" && this.count("woodshed") === 1) UI.hint(`The woodshed is up: the logs from the stack go in under its roof (${this.S.store}), and the old stack is cleared away.`, 6);
       },
     });
@@ -550,6 +556,24 @@ export class Town {
     b._it = it;
   }
   sitesAll() { for (const b of this.S.buildings) { if (!b.done || (b.type === "field" && !b.sown)) this.site(b); else this.upgradeSpot(b); } }
+  // ---- the law: in the night, a miserable settler may take from the stores ----
+  // (Lutherans and Mennonites won't; a jail and a watchman catch the thief, who is held a day and disgraced)
+  nightCrime() {
+    const S = this.S;
+    const thief = S.people.find(p => !p.child && p.jailedDay == null && !FAITHS[faithOf(p)].meek && this.mood(p).value < 30 && Math.random() < 0.35);
+    if (!thief) return;
+    const coin = Math.min(S.coin || 0, 3 + Math.floor(Math.random() * 4)), rye = coin ? 0 : Math.min(S.rye, 6);
+    if (!coin && !rye) return;
+    S.coin -= coin; S.rye -= rye; S.thefts = (S.thefts || 0) + 1;
+    const what = coin ? `${coin} DM` : `${rye} rye`;
+    const watch = S.people.some(p => p.job === "watch" && p !== thief), jail = this.has("jail");
+    if (jail && watch && Math.random() < 0.85) {
+      S.coin += coin; S.rye += rye; thief.jailedDay = this.day; S.caught = (S.caught || 0) + 1;
+      this.setMark(thief, "disgraced", `caught taking ${what} from the stores, and held in the jail`);
+      UI.hint(`In the night ${thief.name} took ${what} from the stores. The watch caught them: it's back, and they're in the jail for the day.`, 7);
+    } else UI.hint(`In the night someone took ${what} from the stores. ${!jail ? "There's no jail" : "There's no watchman"} — nobody was caught. (Research Policing for a jail and the watch.)`, 7);
+    this.persist(); this.showStore();
+  }
   // ---- keeping and pulling down ----
   upkeepOf(b) { return b.done && CIVIC.has(b.type) ? CIVIC_UPKEEP : 0; }
   upkeepBill() { return this.S.buildings.reduce((n, b) => n + this.upkeepOf(b), 0); }
@@ -831,7 +855,7 @@ export class Town {
   }
   // ---- people: how quick they are at a thing, what they learn by it, where they sleep ----
   // (skill and temperament both: a master industrious hand is quick; an idle novice slow)
-  pace(a, id) { const p = a.settler || {}; return id ? workSkill(p, id) * temperWork(p) : temperWork(p); }
+  pace(a, id) { const p = a.settler || {}, fm = (p.name && FAITHS[faithOf(p)].workMul) || 1; return (id ? workSkill(p, id) * temperWork(p) : temperWork(p)) * fm; }
   learn(a, id, amount = 1) {
     const p = a.settler; if (!p || !p.name || !id) return;
     // a master working nearby teaches faster
@@ -929,7 +953,18 @@ export class Town {
         else this.setMark(a.settler, "hardened", "stood up to the raiders, and is less afraid of the next");
         a.wasKnocked = false;
       }
-      if (raid && !a.settler.child) {
+      // held in the jail until the next day
+      if (a.settler.jailedDay != null) {
+        if (a.settler.jailedDay === this.day && this.has("jail")) {
+          const j = this.S.buildings.find(b => b.done && b.type === "jail");
+          a.doing = "held in the jail";
+          await a.walkTo(j.x + Math.sin(j.ry) * 4.2, j.z + Math.cos(j.ry) * 4.2, 1.0); alive();
+          a.person.setPose("armsCrossed"); await sleep(8); alive(); a.person.setPose("idle");
+          continue;
+        }
+        a.settler.jailedDay = null;
+      }
+      if (raid && !a.settler.child && !(a.settler.name && FAITHS[faithOf(a.settler)].pacifist)) {
         const r = this.raids.nearest(a.pos);
         if (r) {
           const arm = this.armFor(a.settler);
@@ -1110,6 +1145,11 @@ export class Town {
         }
       }
       if (this.techGates && this.needsRoom()) this.expand();
+      if (this.techGates) {
+        // the slow road to the state church
+        for (const p of dailyConversion(this)) UI.hint(`${p.name} is received into the ${FAITHS[p.faith].house} — ${FAITHS[p.was].name} no longer.`, 6);
+        this.nightCrime();
+      }
       // each person's own mood, day by day: two miserable days and they go; four good ones and they settle in for good
       if (this.techGates) for (const p of this.S.people.slice()) {
         if (p.child) continue;

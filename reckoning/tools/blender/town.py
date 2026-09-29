@@ -465,6 +465,36 @@ def church(k, style, rnd):
     k.box("iron", (0.5, 0.03, 0.03), mat_tr((0, -D / 2 + 0.5, T + sh + 0.6)), rgb(0xc8a040))
 
 
+def shrine(k, style, rnd):
+    """A wayside shrine: a stone plinth, a little gabled house of timber over a niche, a cross on the ridge."""
+    k.box("stone", (1.8, 1.4, 0.5), mat_tr((0, 0, 0.25)), rgb(0x8a857c, 0.05, rnd), bevel=0.04)
+    k.box("stone", (1.3, 1.0, 1.6), mat_tr((0, 0.1, 1.3)), rgb(0x9a948a, 0.05, rnd), bevel=0.03)
+    # the niche, dark, with a candle in it
+    k.box("soot", (0.7, 0.1, 0.9), mat_tr((0, -0.42, 1.35)), rgb(0x1a1612))
+    k.cylinder("wax", 0.04, 0.04, 0.2, mat_tr((0, -0.42, 1.0)), rgb(0xeee4c8), segs=6)
+    k.rock("glass", 0.05, mat_tr((0, -0.42, 1.14)), rgb(0xffc060))
+    # a little roof, boards over it
+    for sd in (-1, 1):
+        k.box("wood", (0.95, 1.5, 0.06), mat_tr((sd * 0.38, 0.1, 2.35), (0, sd * 0.72, 0)), rgb(0x4e3e30, 0.05, rnd))
+    k.box("wood", (0.08, 0.08, 0.9), mat_tr((0, 0.1, 3.0)), rgb(0x3a2a1e))
+    k.box("wood", (0.45, 0.08, 0.08), mat_tr((0, 0.1, 3.18)), rgb(0x3a2a1e))
+    # flowers someone left
+    for i in range(5):
+        k.rock("cloth", 0.06, mat_tr((rnd.uniform(-0.5, 0.5), -0.62, 0.55)), rgb(rnd.choice([0xc83a3a, 0xe8d04a, 0xe8e8f0])))
+
+
+def bars(k, W, D, style, rnd):
+    """The jail: an iron grille over the front windows, a heavy door band, and a walled yard behind."""
+    for u in (-W / 2 + 1.0, W / 2 - 1.0):
+        for i in range(5):
+            plate(k, "iron", W, D, "front", u - 0.3 + i * 0.15, 1.6, 0.03, 0.9, 0.09, rgb(0x26262a), th=0.03)
+    plate(k, "iron", W, D, "front", 0, 1.1, 1.05, 0.08, 0.1, rgb(0x26262a), th=0.03)
+    wall = rgb(0x8a857c, 0.05, rnd)
+    for sx in (-1, 1):
+        k.box("stone", (0.3, 3.0, 2.0), mat_tr((sx * (W / 2 - 0.15), D / 2 + 1.5, 1.0)), wall, bevel=0.02)
+    k.box("stone", (W, 0.3, 2.0), mat_tr((0, D / 2 + 2.9, 1.0)), wall, bevel=0.02)
+
+
 def quarry(k, rnd):
     """A face cut into a knoll of rock, blocks squared off, a wooden crane to lift them."""
     for i in range(14):
@@ -545,11 +575,13 @@ TYPES = {
     "smelter":  (5.0, 4.4, {1: 1, 2: 1, 3: 2, 4: 2}, furnace, 0x3a3a40, None),
     "market":   (8.0, 6.0, {1: 1, 2: 2, 3: 3, 4: 3}, stalls, 0x2a4a6a, None),
     "townhall": (9.0, 7.0, {1: 1, 2: 2, 3: 3, 4: 4}, "tower", 0x7a2a2a, None),
+    "jail":     (5.0, 5.0, {1: 1, 2: 1, 3: 2, 4: 2}, bars, 0x3a3a40, None),
 }
 # built whole, not as a shell: (builder, which tiers exist)
 SPECIAL = {
     "church": (lambda k, st, rnd: church(k, st, rnd), (1, 2, 3, 4)),
     "quarry": (lambda k, st, rnd: quarry(k, rnd), (1,)),
+    "shrine": (lambda k, st, rnd: shrine(k, st, rnd), (1,)),
     "mine": (lambda k, st, rnd: mine(k, rnd), (1,)),
     "fountain": (lambda k, st, rnd: fountain(k, st, rnd), (3, 4)),
     "lamp": (lambda k, st, rnd: lamp(k, st, rnd), (1, 4)),

@@ -19,6 +19,7 @@ import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods
 import { Hunt } from "./hunt.js";
 import { Raids } from "./raid.js";
 import { JOB_SKILL, SKILL_NAME } from "./people.js";
+import { FAITHS, faithOf } from "./faith.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, P as PROPS } from "./models.js";
 import { Town, BUILDINGS, JOBS, lieOn, YEAR } from "./town.js";
 
@@ -1908,6 +1909,9 @@ async function arrival(town, p, say1) {
   const w = town.w, r0 = w.road[w.road.length - 30];
   const a = town.addPerson(p, r0.x, r0.z);
   if (say1) bark(p.name, say1, 3.5);
+  // (some come with money of their own)
+  const F = FAITHS[faithOf(p)];
+  if (F.purse && town.techGates) { town.S.coin = (town.S.coin || 0) + F.purse; town.persist(); setTimeout(() => UI.hint(`${p.name} brings ${F.purse} DM of their own into the treasury.`, 4), 4000); }
   return a;
 }
 
