@@ -15,14 +15,14 @@
 //              the stack to building sites, farmers keep the fields
 
 import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture } from "./core.js";
-import { G, Actor } from "./engine.js";
+import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel } from "./models.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
-import { TECH, START_TECH, BUILD_GATES, JOB_GATES, techCost, techTime } from "./gov.js";
+import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
 
 export const BUILDINGS = {
   cabin:    { name: "Cabin", cost: 20, model: "cabin", w: 5.8, d: 6.8, beds: 2, icon: "cabin", note: "A home for two more people." },
@@ -86,7 +86,9 @@ export const JOBS = {
 const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "watch"];
 // which building a job needs, if any
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
-const SFX = () => window.SFX || { chop() {}, build() {}, pickup() {}, hammer() {}, treeFall() {}, timberCrack() {} };
+// (the sound engine is a page global; with it missing, as in a test, everything is quiet rather than broken)
+const QUIET = new Proxy({}, { get: () => () => {} });
+const SFX = () => sfxEngine() || QUIET;
 
 // the stuff of a path: trodden earth, then cobbles
 const PATH_MAT = {};
@@ -336,10 +338,11 @@ export class Town {
       g.userData.cob = cob;
     } else if (b.done) {
       const key = modelKey(b), m = modelCopy(key);
-      if (m) g.add(m.scene);
-      // (the woodshed's own logs are drawn from the store, not always full)
-      if (m && b.type === "woodshed") m.scene.traverse(o => { if (o.isMesh && /log/.test(o.name)) o.visible = false; });
-      else {
+      if (m) {
+        g.add(m.scene);
+        // (the woodshed's own logs are drawn from the store, not always full)
+        if (b.type === "woodshed") m.scene.traverse(o => { if (o.isMesh && /log/.test(o.name)) o.visible = false; });
+      } else {
         const bb = new Builder(); bb.box(def.w * 0.8, 2.4, def.d * 0.8, 0, 1.2, 0, 0x7a5634); g.add(bb.build());
         // the real one is fetched, and put up in place of this when it comes
         ensureModel(key).then(ok => { if (ok && this.vis.get(b) === g && !this.stopped) this.show(b); });
@@ -546,6 +549,54 @@ export class Town {
     b._it = it;
   }
   sitesAll() { for (const b of this.S.buildings) { if (!b.done || (b.type === "field" && !b.sown)) this.site(b); else this.upgradeSpot(b); } }
+  // ---- keeping and pulling down ----
+  upkeepOf(b) { return b.done && CIVIC.has(b.type) ? CIVIC_UPKEEP : 0; }
+  upkeepBill() { return this.S.buildings.reduce((n, b) => n + this.upkeepOf(b), 0); }
+  get untended() { return this.techGates && this.S.unpaidDay === this.day; }
+  // the building you are looking at: the nearest whose footprint the view points into, within a stone's throw
+  buildingAt(pl = G.player, far = 16) {
+    const f = pl.forward();
+    let best = null, bs = Infinity;
+    for (const b of this.S.buildings) {
+      const def = BUILDINGS[b.type], dx = b.x - pl.pos.x, dz = b.z - pl.pos.z, d = Math.hypot(dx, dz);
+      const r = Math.max(def.w, def.d) / 2;
+      if (d > far + r) continue;
+      // how far the line of sight passes from its middle, at its distance
+      const along = dx * f.x + dz * f.z; if (along < -r) continue;
+      const off = Math.abs(dx * f.z - dz * f.x);
+      if (off > r + 0.5 && d > r) continue;
+      const score = d + off * 2;
+      if (score < bs) { bs = score; best = b; }
+    }
+    return best;
+  }
+  // what pulling it down gives back: half (three quarters, knowing Ownership); an unfinished site gives back all it was given
+  refundOf(b) {
+    const def = BUILDINGS[b.type];
+    if (!b.done) return { store: b.logs || 0, ...(b.got || {}) };
+    const k = this.knows("ownership") ? 0.75 : 0.5, out = {};
+    if (def.cost) out.store = Math.floor(def.cost * k);
+    for (const [m, n] of Object.entries(def.mats || {})) out[m] = Math.floor(n * k);
+    return out;
+  }
+  dismantle(b) {
+    const w = this.w, def = BUILDINGS[b.type];
+    if (this.raids && this.raids.active) { UI.hint("Not with raiders in the settlement.", 3); return false; }
+    const back = this.refundOf(b);
+    const g = this.vis.get(b);
+    if (g) { w.root.remove(g); if (g.userData.col) g.userData.col.disabled = true; this.vis.delete(b); }
+    if (b._it) { w.removeInteract(b._it); b._it = null; }
+    if (this.ups && this.ups.has(b)) { w.removeInteract(this.ups.get(b)); this.ups.delete(b); }
+    this.S.buildings.splice(this.S.buildings.indexOf(b), 1);
+    // what comes back goes in the stores (logs as far as there is room for them)
+    for (const [k, n] of Object.entries(back)) this.S[k] = (this.S[k] || 0) + n;
+    this.S.store = Math.min(this.S.store, this.storeCap);
+    this.showStore(); this.updateStreets(); this.persist(); SFX().treeFall && SFX().treeFall(0.3);
+    UI.hint(`The ${def.name.toLowerCase()} is pulled down${Object.keys(back).length ? ` — back in the stores: ${this.costText(back)}` : ""}.`, 5);
+    this.emit("dismantled", b);
+    return true;
+  }
+
   // ---- rebuilding in the next style: log, then Hamburg timber, then Hanseatic brick, then a city's stucco ----
   canUpgrade(b) { const def = BUILDINGS[b.type]; return b.done && (def.tiers || b.type === "cabin" || b.type === "well") && (b.tier || 1) < 4; }
   upgradeSpot(b) {
@@ -681,9 +732,11 @@ export class Town {
     t.state = "falling"; t.fall = 0; t.col.disabled = true;
     t.dir = { x: dx / l, z: dz / l };
     t.axis = new THREE.Vector3(dz / l, 0, -dx / l);
-    SFX().timberCrack();
+    // (heard across the clearing, but not from the far side of the forest)
+    const heard = () => !G.player || Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 45;
+    if (heard()) SFX().timberCrack();
     t.onDown = () => {
-      SFX().treeFall();
+      if (heard()) SFX().treeFall();
       const i = this.w.fellable.indexOf(t);
       if (!t.wild && !this.S.felled.some(f => f.i === i)) this.S.felled.push({ i, day: this.day });
       if (dropLogs) this.dropLogs(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), this.logsPerTree);
@@ -824,6 +877,8 @@ export class Town {
   }
 
   // each settler's day: their job, over and over
+  // a settler's sound: only heard near them (the engine's sounds have no distance of their own)
+  sfxAt(a, name) { const p = G.player && G.player.pos; if (!p || Math.hypot(a.pos.x - p.x, a.pos.z - p.z) < 22) SFX()[name](); }
   async work(a) {
     const sleep = s => new Promise(r => setTimeout(r, s * 1000));
     const alive = () => { if (this.stopped || a.gone || a.summoned || !G.world || G.world !== this.w) { a.root.visible = true; a.lying = false; throw "stop"; } };
@@ -852,7 +907,7 @@ export class Town {
           // thrown off by a parry: a moment to find their feet
           if (a.stagger && G.time < a.stagger) { await sleep(a.stagger - G.time); alive(); continue; }
           a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
-          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm), a); arm === "fists" ? SFX().swingFist() : Math.random() < 0.35 ? AUDIO.clang(0.7, a.pos) : SFX().chop(); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
+          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm), a); arm === "fists" ? AUDIO.whoosh(0.3, false) : Math.random() < 0.35 ? AUDIO.clang(0.7, a.pos) : this.sfxAt(a, "chop"); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
           await sleep(arm === "fists" ? 0.55 : 0.9); continue;
         }
       }
@@ -879,8 +934,11 @@ export class Town {
         matSite.got = matSite.got || {};
         let left = 4;
         for (const [k, n] of Object.entries(this.wants(matSite))) { const m = Math.min(n, this.have(k), left); this.S[k] -= m; matSite.got[k] = (matSite.got[k] || 0) + m; left -= m; }
-        a.person.setPose("idle"); this.show(matSite); this.persist(); SFX().pickup();
+        a.person.setPose("idle"); this.show(matSite); this.persist(); this.sfxAt(a, "pickup");
         await sleep(2);
+      } else if (!clearing && works && workAt && this.untended) {
+        a.doing = `waiting at the ${BUILDINGS[workAt.type].name.toLowerCase()} — the keep isn't paid`;
+        a.person.setPose("armsCrossed"); await sleep(6); alive(); a.person.setPose("idle");
       } else if (!clearing && works && workAt) {
         a.doing = `at the ${BUILDINGS[workAt.type].name.toLowerCase()}`;
         // a shift at the works: walk there, work, and if the stores had what it takes, put back what it makes
@@ -899,7 +957,7 @@ export class Town {
         if (this.afford(works.need)) {
           this.pay(works.need);
           for (const [k, n] of Object.entries(works.give)) this.S[k] = (this.S[k] || 0) + n * (works.at === "smelter" && this.knows("blastfurnace") ? 2 : 1) + (deep ? 1 : 0);
-          this.persist(); SFX().build();
+          this.persist(); this.sfxAt(a, "build");
         }
         a.person.setPose("idle");
         await sleep(1.5);
@@ -909,7 +967,7 @@ export class Town {
         const n = Math.min(4, this.S.store, BUILDINGS[site.type].cost - site.logs); if (n <= 0) continue;
         this.S.store -= n; this.showStore(); a.person.setPose("hold");
         await a.walkTo(site.x + 1.6, site.z + BUILDINGS[site.type].d / 2 + 1.4, 1.1); alive();
-        site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); SFX().pickup();
+        site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); this.sfxAt(a, "pickup");
         await sleep(2);
       } else if (clearing || job === "woodcutter" || (job === "hauler" && site)) {
         a.doing = clearing ? "clearing ground for the settlement" : "felling trees";
@@ -922,14 +980,14 @@ export class Town {
         await a.walkTo(t.x + dx / l * 1.1, t.z + dz / l * 1.1, 1.3); alive();
         a.faceTo(t.x, t.z); a.person.setPose("chop");
         const axe = a.hold(makeAxe());
-        for (let i = 0; i < (this.S.upgrades.axes ? 4 : 6); i++) { await sleep(0.8 * this.chopMul); alive(); if (Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 24) SFX().chop(); }
+        for (let i = 0; i < (this.S.upgrades.axes ? 4 : 6); i++) { await sleep(0.8 * this.chopMul); alive(); if (Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 24) this.sfxAt(a, "chop"); }
         a.person.setPose("idle"); a.person.held.remove(axe);
         this.fell(t, -dx, -dz, false);
         await sleep(2.6); alive();
         a.person.setPose("hold");
         await a.walkTo(this.stackAt.x + 1.1, this.stackAt.z + 0.4, 1.2); alive();
         a.person.setPose("idle");
-        this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); SFX().build();
+        this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); this.sfxAt(a, "build");
         await sleep(3 + Math.random() * 3);
       } else if (job === "baker" && this.has("bakery") && this.S.rye >= 2) {
         a.doing = "baking";
@@ -939,7 +997,7 @@ export class Town {
         await a.walkTo(ox, oz, 1.2); alive();
         a.faceTo(bk.x + Math.cos(bk.ry) * 3.6, bk.z - Math.sin(bk.ry) * 3.6); a.person.setPose("hammer");
         await sleep(9); alive();
-        if (this.S.rye >= 2) { this.S.rye -= 2; this.S.bread += 3; this.persist(); SFX().pickup(); }
+        if (this.S.rye >= 2) { this.S.rye -= 2; this.S.bread += 3; this.persist(); this.sfxAt(a, "pickup"); }
         a.person.setPose("idle");
         await sleep(2);
       } else if (job === "farmer") {
@@ -1017,6 +1075,19 @@ export class Town {
         }
       }
       if (this.techGates && this.needsRoom()) this.expand();
+      // the day's keep: a DM for every work that must be tended, out of the treasury; short, and they go untended
+      if (this.techGates) {
+        // (the halves are owed until they make a whole DM)
+        const owe = (this.S.keepOwed || 0) + this.upkeepBill(), bill = Math.floor(owe);
+        this.S.keepOwed = owe - bill;
+        if (bill) {
+          const paid = Math.min(bill, Math.max(0, this.S.coin || 0));
+          this.S.coin = (this.S.coin || 0) - paid;
+          this.S.unpaidDay = paid < bill ? this.day : null;
+          if (paid < bill) UI.hint(`The treasury is ${bill - paid} DM short of the day's keep (${bill} DM): the works stand untended until it's paid. Sell to the traders, or pull something down (V).`, 7);
+          this.showStore();
+        }
+      }
       this.persist();
       this.emit("day", this.day);
     }

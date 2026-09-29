@@ -90,6 +90,8 @@ async function caughtScreen(tips) {
 // ---------------------------------------------------------------------------
 let GEN = 0;
 const ABORT = new Error("abort");
+// (a chapter left half-way leaves its waits to fail with ABORT; that is how it stops, not an error worth reporting)
+addEventListener("unhandledrejection", e => { if (e.reason === ABORT) e.preventDefault(); });
 function onFrame(f) { G.onFrame.push(f); return () => { const i = G.onFrame.indexOf(f); if (i >= 0) G.onFrame.splice(i, 1); }; }
 function wait(s) {
   const g = GEN;
@@ -2580,7 +2582,7 @@ async function chFree(w) {
   if (S.houseSold && !S.houseTold) { S.houseTold = true; town.persist(); setTimeout(() => G.town === town && UI.hint("+70 DM from the sale of the house. Spend it on research: press G, then the tech tree.", 7), 7000); }
   const c = card(S.name, "Free play", 2.8);
   await wait(1); fade(0, 2); await c;
-  tutor("free", "It's ours now. Build what we need — cabins bring people, fields feed them, a woodshed keeps the logs dry, a well makes the rye grow.", [["B", "plans"], ["G", "government"], ["J", "map"], ["T", "inventory"]], 10);
+  tutor("free", "It's ours now. Build what we need — cabins bring people, fields feed them, a woodshed keeps the logs dry, a well makes the rye grow.", [["B", "plans"], ["G", "government"], ["V", "a building up close"], ["J", "map"], ["T", "inventory"]], 10);
   // free play goes on until you leave it
   await new Promise(() => {});
 }

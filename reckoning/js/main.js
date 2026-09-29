@@ -9,7 +9,7 @@
 import { renderer, clamp } from "./core.js";
 import { G, Player, frame, setAtmo, input, drawMap, setGraphics } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
-import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES } from "./town.js";
+import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES, WORKS } from "./town.js";
 import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
@@ -242,6 +242,7 @@ const OVERLAYS = {
   buildmenu: { open: () => renderPlans(), tick: () => renderPlans(), every: 500 },
   trade: { open: () => renderTrade(), tick: () => renderTrade(), every: 400 },
   gov: { open: () => renderGov(true), tick: () => renderGov(false), every: 500 },
+  inspect: { open: () => { inspArmed = false; renderInspect(); }, tick: () => renderInspect(), every: 400, close: () => { inspB = null; } },
 };
 function showOverlay(id, on) {
   if (on && overlay && overlay !== id) showOverlay(overlay, false);
@@ -263,6 +264,49 @@ function showOverlay(id, on) {
     if (G.mode === "play") lock();
   }
 }
+// ---- a building up close (V): what it is, who works it, what it costs to keep; rebuild it, or pull it down ----
+let inspB = null, inspArmed = false, inspSig = "";
+function renderInspect() {
+  const t = G.town, b = inspB;
+  if (!t || !b || !t.S.buildings.includes(b)) { if (overlay === "inspect") showOverlay("inspect", false); return; }
+  const def = TOWN_BUILDINGS[b.type], S = t.S;
+  const style = b.type === "field" || b.type === "path" ? null : (b.tier || 1) > 1 ? UPGRADES[b.tier].style : "logs, as the forest gives them";
+  const works = Object.entries(WORKS).filter(([, w]) => w.at === b.type).map(([j]) => j).concat(b.type === "bakery" ? ["baker"] : b.type === "field" ? ["farmer"] : []);
+  const who = S.people.filter(p => works.includes(p.job)).map(p => p.name);
+  const keep = t.upkeepOf(b);
+  const rows = [
+    ["What it is", esc(def.note || "")],
+    b.done ? (style ? ["Built in", esc(style)] : null) : ["Building", `not finished — ${b.logs || 0} of ${def.cost} logs${Object.keys(def.mats || {}).length ? `, and ${esc(t.costText(def.mats))}` : ""}`],
+    b.type === "field" ? ["The rye", b.sown ? ((b.growth ?? 1) >= 3 ? "ripe — reap it" : "growing") : `${b.dug || 0} of 3 strips dug`] : null,
+    b.type === "cabin" && b.done ? ["Sleeps", `${t.perCabin}`] : null,
+    b.type === "woodshed" && b.done ? ["Holds", `30 more logs (the store holds ${t.storeCap})`] : null,
+    works.length ? ["Who works here", who.length ? esc(who.join(", ")) : '<span class="warn">no one — set someone to it (F by them)</span>'] : null,
+    ["Upkeep", keep ? `${keep === 0.5 ? "½" : keep} DM a day${t.untended ? ' <span class="warn">— unpaid today: it stands idle</span>' : ""}` : "nothing — once it stands, it stands"],
+  ].filter(Boolean);
+  // the two things to do with it
+  const acts = [];
+  if (t.canUpgrade(b)) {
+    const u = UPGRADES[(b.tier || 1) + 1], need = u.needs && u.needs(t), can = !need && t.afford(u.mats);
+    acts.push(`<button data-act="up"${can ? "" : " disabled"}>Rebuild in ${esc(u.style.split(",")[0])}<span class="sub">${esc(t.costText(u.mats))}${need ? ` — first, ${esc(need)}` : !can ? ` — ${esc(t.short(u.mats))} short` : ""}</span></button>`);
+  } else if (b.done && b.type !== "field" && b.type !== "path") acts.push(`<button disabled>Rebuild<span class="sub">${(b.tier || 1) >= 4 ? "built as well as it can be" : "this kind isn't rebuilt"}</span></button>`);
+  const back = t.refundOf(b);
+  acts.push(`<button data-act="down" class="danger${inspArmed ? " armed" : ""}">${inspArmed ? "Click again to pull it down" : b.done ? "Dismantle" : "Give up the site"}<span class="sub">${Object.keys(back).length ? `back in the stores: ${esc(t.costText(back))}` : "nothing comes back"}${b.type === "woodshed" && b.done ? " — logs past what the stack holds are lost" : ""}${b.type === "cabin" && b.done ? " — whoever sleeps there loses their bed" : ""}</span></button>`);
+  const sig = JSON.stringify([rows, acts]);
+  if (sig === inspSig) return;
+  inspSig = sig;
+  $("inspTitle").textContent = def.name + ((b.tier || 1) > 1 ? ` — ${UPGRADES[b.tier].style.split(",")[0]}` : "");
+  $("inspBody").innerHTML = `<div class="insp-rows">${rows.map(([k, v]) => `<span class="k">${k}</span><span>${v}</span>`).join("")}</div>`;
+  $("inspActs").innerHTML = acts.join("");
+}
+$("inspActs").addEventListener("click", e => {
+  const bt = e.target.closest("button[data-act]"); if (!bt || bt.disabled) return;
+  const t = G.town, b = inspB; if (!t || !b) return;
+  if (bt.dataset.act === "up") { if (t.upgrade(b)) showOverlay("inspect", false); else renderInspect(); }
+  if (bt.dataset.act === "down") {
+    if (!inspArmed) { inspArmed = true; inspSig = ""; renderInspect(); return; }
+    t.dismantle(b); showOverlay("inspect", false);
+  }
+});
 function showInventory(on) { showOverlay("inventory", on); }
 G.showInventory = showInventory;
 
@@ -351,7 +395,7 @@ function govNation(t) {
   // where DM comes from: the traders on the road, and a market
   const next = (every, on) => { for (let k = 0; k < every + 1; k++) if ((t.day + k) % every === on) return k; return 0; };
   const when = k => k === 0 ? "today" : k === 1 ? "tomorrow" : `in ${k} days`;
-  h += stat("Treasury", `${S.coin || 0} DM`, `Earn DM by selling logs, bread and rye to the traders on the road — Henning ${when(next(3, 1))}, Tobias the pedlar ${when(next(4, 3))}${t.has("market") ? ` · the market took ${S.soldToday || 0} DM yesterday` : " — or build a market (research Trading) to sell every day"}.`);
+  h += stat("Treasury", `${S.coin || 0} DM`, `${t.upkeepBill && t.techGates && t.upkeepBill() ? `Keeping the works costs ${String(t.upkeepBill()).replace(/\.5$/, "½").replace(/^0½/, "½")} DM a day${t.untended ? " — unpaid today, so they stand idle" : ""} (V at a building shows its share). ` : ""}Earn DM by selling logs, bread and rye to the traders on the road — Henning ${when(next(3, 1))}, Tobias the pedlar ${when(next(4, 3))}${t.has("market") ? ` · the market took ${S.soldToday || 0} DM yesterday` : " — or build a market (research Trading) to sell every day"}.`);
   h += stat("Knowledge", `${known} of ${total}`, rt ? `researching ${esc(rt.name)} — ${Math.min(99, Math.round(r.t / techTime(rt) * 100))}%` : "the scholars are idle — see the tech tree", rt ? r.t / techTime(rt) : known / total, false);
   h += `</div><div class="mc-sec">Why they feel as they do</div><div class="gov-why">${why || "—"}</div>`;
   // the stores
@@ -653,6 +697,14 @@ addEventListener("keydown", e => {
     else showOverlay("bigmap", overlay !== "bigmap");
   }
   if (e.code === "KeyB" && !e.repeat && G.mode === "play" && G.town && !G.town.planning) showOverlay("buildmenu", overlay !== "buildmenu");
+  if (e.code === "KeyV" && !e.repeat && G.mode === "play") {
+    if (overlay === "inspect") showOverlay("inspect", false);
+    else if (G.town && !G.town.planning && !overlay) {
+      const b = G.town.buildingAt();
+      if (!b) UI.hint("Look at a building and press V to see it up close.", 2.5);
+      else { inspB = b; inspSig = ""; showOverlay("inspect", true); }
+    }
+  }
   if (e.code === "KeyG" && !e.repeat && G.mode === "play") {
     if (!G.town && overlay !== "gov") UI.hint("There is no settlement to govern yet.", 2.5);
     else showOverlay("gov", overlay !== "gov");

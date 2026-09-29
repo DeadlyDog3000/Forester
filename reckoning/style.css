@@ -322,3 +322,18 @@ body.talking #hint { bottom: 298px; }
 #stance .sd.foe { outline: 2px solid rgba(190, 190, 190, 0.55); outline-offset: 4px; }
 #stance .sd.threat { border-color: #ff3b2e; animation: threat 0.25s ease-in-out infinite alternate; }
 @keyframes threat { from { filter: drop-shadow(0 0 2px #000); } to { filter: drop-shadow(0 0 8px #ff3b2e); } }
+
+/* V: a building up close — what it is, what it costs to keep, and what can be done with it */
+#inspect { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); z-index: 6; pointer-events: auto; }
+#inspect.hidden { display: none; }
+.insp-win { width: min(520px, 92vw); }
+.insp-rows { display: grid; grid-template-columns: 130px 1fr; gap: 8px 14px; margin: 10px 0 14px; font: 15px/1.4 var(--sans); }
+.insp-rows .k { color: var(--gold); font: 600 11px/1.9 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; }
+.insp-rows .warn { color: #e0903a; }
+.insp-acts { display: flex; gap: 10px; flex-wrap: wrap; }
+.insp-acts button { flex: 1 1 200px; padding: 10px 14px; font: 600 13px var(--sans); color: var(--ink); background: rgba(140, 192, 132, 0.14); border: 1px solid var(--edge); border-radius: 4px; cursor: pointer; text-align: left; }
+.insp-acts button:hover:not(:disabled) { background: rgba(140, 192, 132, 0.28); }
+.insp-acts button:disabled { opacity: 0.45; cursor: default; }
+.insp-acts button .sub { display: block; font-weight: 400; font-size: 12px; opacity: 0.8; margin-top: 3px; }
+.insp-acts button.danger { background: rgba(200, 70, 50, 0.14); border-color: rgba(220, 110, 90, 0.45); }
+.insp-acts button.danger.armed { background: rgba(200, 70, 50, 0.45); }

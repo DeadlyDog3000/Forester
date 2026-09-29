@@ -108,7 +108,13 @@ export const techCost = t => 15 + t.depth * 12;
 export const techTime = t => 45 + t.depth * 40;
 // which buildings wait on which knowledge (Forester's BUILD_GATES, for the buildings Reckoning has;
 // the church is Forester's House of Worship)
+// Reckoning's own few: the woodshed wants Tree Cutting, the well Replanting, the brickworks Masonry —
+// so a new settlement starts with cabins, fields and paths, and learns the rest.)
 export const BUILD_GATES = { bakery: "baking", market: "trading", townhall: "township", forge: "forging",
-  quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting", church: "ministry" };
+  quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting", church: "ministry",
+  woodshed: "treecutting", well: "replanting", brickworks: "masonry" };
+// what costs DM to keep, every day (Forester's CIVIC: the works that must be tended; cabins, fields, paths, sheds are free)
+export const CIVIC = new Set(["market", "townhall", "forge", "bakery", "well", "quarry", "mine", "sawmill", "smelter", "brickworks", "church"]);
+export const CIVIC_UPKEEP = 0.5;   // (low: half a DM a day for each; a settlement of a dozen works pays six)
 // which jobs wait on which knowledge (Forester's PROF_GATES, for the jobs Reckoning has)
 export const JOB_GATES = { quarryman: "township", miner: "mining", smith: "forging", watch: "policing" };

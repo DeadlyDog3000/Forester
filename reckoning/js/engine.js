@@ -63,7 +63,10 @@ export const G = {
   pack: [],             // what you have on you that is not in your hands: [{name, note}]
   camp: null,           // at the clearing: what is stacked and built there
 };
-window.__G = G;   // (for the sound, to know where you stand and which way you face)
+window.__G = G;
+// the first Forester's sound engine (../sfx.js) is a global of the page, not a property of window: this reaches it
+// for a module that has a name of its own in the way
+export const sfxEngine = () => (typeof SFX !== "undefined" ? SFX : null);   // (for the sound, to know where you stand and which way you face)
 
 G.input = input;
 G.bugs = new Bugs(G.scene);
