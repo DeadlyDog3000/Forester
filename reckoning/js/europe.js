@@ -77,6 +77,7 @@ const id2take = id => id === "cossacks" ? "take" : "takes";
 
 // ---- the sheet: longitude and latitude to the grid, and back ----
 const K = Math.cos(BOUNDS.latRef * Math.PI / 180), SPAN_X = (BOUNDS.lon1 - BOUNDS.lon0) * K, SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
+export const llOf = (gx, gy) => [BOUNDS.lon0 + gx / GW * SPAN_X / K, BOUNDS.lat1 - gy / GH * SPAN_Y];
 export const gridOf = (lon, lat) => [(lon - BOUNDS.lon0) * K / SPAN_X * GW, (BOUNDS.lat1 - lat) / SPAN_Y * GH];
 // your clearing, in the woods north-east of Hamburg on the Lübeck road
 const HOME_LL = [10.75, 53.72];
@@ -202,12 +203,12 @@ export function europeDay(S, day) {
 const INK = "#3a2a1a", INK_SOFT = "rgba(58,42,26,", PAPER = "#efe4c6", FELL = '"IM Fell English", "Cormorant Garamond", Georgia, serif';
 // the crowns' names, as the engraver lettered them (large for the great, small for the rest), placed by longitude and latitude
 const NAMES = [
-  ["SCOTIA", -4.2, 57.1, 1], ["ANGLIA", -1.4, 52.5, 2], ["HIBERNIA", -8.5, 52.8, 1], ["GALLIA", 2.2, 46.9, 3], ["CASTILIA", -3.9, 39.9, 2], ["ARAGONIA", -0.4, 41.5, 0], ["LUSITANIA", -8.1, 39.6, -1, -90],
-  ["IMPERIUM\nROMANUM", 8.4, 49.9, 1], ["BRANDENBURG", 13.4, 52.7, -1], ["SAXONIA", 13.5, 51.1, -1], ["BAVARIA", 11.6, 48.9, -1], ["AUSTRIA", 14.6, 47.6, 0], ["MEDIOL.", 9.4, 45.5, -1],
-  ["SABAUDIA", 6.9, 44.9, -1], ["VENETIA", 12.1, 46.1, -1], ["TUSCIA", 11.1, 43.4, -1], ["STATUS\nECCLESIAE", 13, 42.7, -1], ["NEAPOLIS", 15.9, 40.9, -1], ["SICILIA", 14.1, 37.5, -1],
-  ["SUECIA", 15.4, 60.8, 2], ["FINLANDIA", 26.5, 62.6, 0], ["DANIA", 9.2, 56.1, 0], ["NORVEGIA", 8.4, 61.6, 1], ["POLONIA", 19.6, 52, 2], ["LITHUANIA", 25.4, 54.6, 1], ["MOSCOVIA", 36.5, 57, 3],
-  ["COSACCI", 32.8, 49.8, 0], ["TARTARIA\nCRIMEA", 34.6, 46.3, -1], ["HUNGARIA", 19.4, 48.7, -1], ["TRANSYLVANIA", 24, 46.6, -1], ["MOLDAVIA", 27.6, 47.4, -1], ["VALACHIA", 25, 44.4, -1],
-  ["IMPERIUM\nTURCICUM", 22.4, 42.2, 2], ["NATOLIA", 33.5, 39, 1], ["ALGERIA", 2.4, 34.4, 1], ["TUNETUM", 9.6, 34.1, -1], ["TRIPOLIS", 15.5, 32.6, -1], ["HOLLANDIA", 5.4, 52.9, -1], ["MAROCCO", -6.2, 33.4, 1],
+  ["SCOTLAND", -4.2, 57.1, 1], ["ENGLAND", -1.4, 52.5, 2], ["IRELAND", -8.5, 52.8, 1], ["FRANCE", 2.2, 46.9, 3], ["CASTILE", -3.9, 39.9, 2], ["ARAGON", -0.4, 41.5, 0], ["PORTUGAL", -8.1, 39.6, -1, -90],
+  ["HOLY ROMAN\nEMPIRE", 8.4, 49.9, 1], ["BRANDENBURG", 13.4, 52.7, -1], ["SAXONY", 13.5, 51.1, -1], ["BAVARIA", 11.6, 48.9, -1], ["AUSTRIA", 14.6, 47.6, 0], ["MILAN", 9.4, 45.5, -1],
+  ["SAVOY", 6.9, 44.9, -1], ["VENICE", 12.1, 46.1, -1], ["TUSCANY", 11.1, 43.4, -1], ["PAPAL\nSTATES", 13, 42.7, -1], ["NAPLES", 15.9, 40.9, -1], ["SICILY", 14.1, 37.5, -1],
+  ["SWEDEN", 15.4, 60.8, 2], ["FINLAND", 26.5, 62.6, 0], ["DENMARK", 9.2, 56.1, 0], ["NORWAY", 8.4, 61.6, 1], ["POLAND", 19.6, 52, 2], ["LITHUANIA", 25.4, 54.6, 1], ["RUSSIA", 36.5, 57, 3],
+  ["COSSACKS", 32.8, 49.8, 0], ["CRIMEAN\nKHANATE", 34.6, 46.3, -1], ["HUNGARY", 19.4, 48.7, -1], ["TRANSYLVANIA", 24, 46.6, -1], ["MOLDAVIA", 27.6, 47.4, -1], ["WALLACHIA", 25, 44.4, -1],
+  ["OTTOMAN\nEMPIRE", 22.4, 42.2, 2], ["ANATOLIA", 33.5, 39, 1], ["ALGIERS", 2.4, 34.4, 1], ["TUNIS", 9.6, 34.1, -1], ["TRIPOLI", 15.5, 32.6, -1], ["HOLLAND", 5.4, 52.9, -1], ["MOROCCO", -6.2, 33.4, 1],
 ];
 const SEAS = [["OCEANUS\nATLANTICUS", -8.9, 48.9], ["OCEANUS\nGERMANICUS", 3, 55.4], ["MARE BALTICUM", 18.4, 56.5], ["MARE MEDITERRANEUM", 5.2, 38.8], ["MARE ADRIATICUM", 15.4, 43.1, 36], ["PONTUS EUXINUS", 34.4, 43.4], ["MARE\nAEGAEUM", 25, 38.4], ["SINUS\nBOTHNICUS", 20.6, 62.6]];
 // rivers, as the engraver would have traced them: a few points each, from the mouth up
@@ -362,33 +363,6 @@ function drawSheet(W, H, E, g, homePop) {
   c.restore();
   // ---- the coast itself, inked ----
   landPath(c, S); c.strokeStyle = INK; c.lineWidth = Math.max(1.2, S * 0.42); c.lineJoin = "round"; c.stroke();
-  // ---- the cities: a dot each, and the name where it finds room (right, left, above, below) — clear of the crowns'
-  // and the seas' names, and of each other; a town whose name can't be fitted keeps its dot ----
-  c.textBaseline = "middle";
-  const taken = [];
-  const hit = b => taken.some(t => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
-  const boxOf = (lines, x, y, px, sp, ang) => {
-    if (ang) return [x - px, y - px * 5, x + px, y + px * 5];
-    const w = Math.max(...lines.map(l => c.measureText(l).width + sp * (l.length - 1))), h = px * 1.1 * lines.length;
-    return [x - w / 2, y - h / 2, x + w / 2, y + h / 2];
-  };
-  for (const [n, lo, la, size, ang = 0] of NAMES) { const [x, y] = lonlat(lo, la, S), px = Math.round(S * [3.9, 4.5, 5.3, 6.6, 8][size + 1]); c.font = `${size >= 2 ? "" : "italic "}${px}px ${FELL}`; taken.push(boxOf(n.split("\n"), x, y, px, size >= 2 ? px * 0.3 : size >= 1 ? px * 0.2 : px * 0.08, ang)); }
-  for (const [n, lo, la, ang = 0] of SEAS) { const [x, y] = lonlat(lo, la, S), px = Math.round(S * 4); c.font = `italic ${px}px ${FELL}`; taken.push(boxOf(n.split("\n"), x, y, px, px * 0.26, ang)); }
-  // the seats first, then the great towns, then the rest: the important names get the room
-  for (const ct of [...CITIES].sort((a, b) => b[3] - a[3])) {
-    const [n, lo, la, rank] = ct, [x, y] = lonlat(lo, la, S), own = cityOwner(g, ct);
-    townSign(c, x, y, S, rank, own);
-    c.font = rank === 3 ? `${Math.round(S * 2.9)}px ${FELL}` : `italic ${Math.round(S * (rank === 2 ? 2.7 : 2.4))}px ${FELL}`;
-    const w = c.measureText(n).width, h = S * 2.8, d = S * (rank === 3 ? 1.6 : 0.9);
-    const tries = [[x + d, y, "left"], [x - d, y, "right"], [x, y - h * 0.9, "center"], [x, y + h * 0.9, "center"], [x + d * 0.6, y - h * 0.8, "left"], [x + d * 0.6, y + h * 0.8, "left"]];
-    for (const [tx, ty, al] of tries) {
-      const x0 = al === "left" ? tx : al === "right" ? tx - w : tx - w / 2, b = [x0, ty - h / 2, x0 + w, ty + h / 2];
-      if (hit(b)) continue;
-      taken.push(b, [x - S, y - S, x + S, y + S]);
-      c.textAlign = al; c.fillStyle = INK_SOFT + (rank === 1 ? "0.7)" : "0.9)"); c.fillText(n, tx, ty + S * 0.1);
-      break;
-    }
-  }
   // ---- the crowns' names ----
   c.textAlign = "center";
   for (const [n, lo, la, size, ang = 0] of NAMES) {
@@ -416,6 +390,41 @@ function drawSheet(W, H, E, g, homePop) {
   // the paper's grain, over everything
   for (let i = 0; i < W * H / 60; i++) { c.fillStyle = `rgba(${r() < 0.5 ? "60,40,20" : "255,250,235"},${(r() * 0.08).toFixed(3)})`; c.fillRect(r() * W, r() * H, 1, 1); }
   return cv;
+}
+function nameBoxes(c, S) {
+  const out = [];
+  const boxOf = (lines, x, y, px, sp, ang) => {
+    if (ang) return [x - px, y - px * 5, x + px, y + px * 5];
+    const w = Math.max(...lines.map(l => c.measureText(l).width + sp * (l.length - 1))), h = px * 1.1 * lines.length;
+    return [x - w / 2, y - h / 2, x + w / 2, y + h / 2];
+  };
+  for (const [n, lo, la, size, ang = 0] of NAMES) { const [x, y] = lonlat(lo, la, S), px = Math.round(S * [3.9, 4.5, 5.3, 6.6, 8][size + 1]); c.font = `${size >= 2 ? "" : "italic "}${px}px ${FELL}`; out.push(boxOf(n.split("\n"), x, y, px, size >= 2 ? px * 0.3 : size >= 1 ? px * 0.2 : px * 0.08, ang)); }
+  for (const [n, lo, la, ang = 0] of SEAS) { const [x, y] = lonlat(lo, la, S), px = Math.round(S * 4); c.font = `italic ${px}px ${FELL}`; out.push(boxOf(n.split("\n"), x, y, px, px * 0.26, ang)); }
+  return out;
+}
+// the cities, over the sheet at whatever zoom: a dot each, the same size on screen at any zoom, and the name where it
+// finds room (right, left, above, below) — so zooming in makes room, and more of the towns' names appear
+function drawCities(c, g, S, v, W, H) {
+  const k = W / 1300, taken = nameBoxes(c, S).map(b => [(b[0] - v.ox) * v.z, (b[1] - v.oy) * v.z, (b[2] - v.ox) * v.z, (b[3] - v.oy) * v.z]);
+  const hit = b => taken.some(t => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
+  c.textBaseline = "middle";
+  const sorted = [...CITIES].sort((a, b) => b[3] - a[3]);
+  // the dots first, so no name is written over one
+  const at = sorted.map(ct => { const [x, y] = lonlat(ct[1], ct[2], S); return [ct, (x - v.ox) * v.z, (y - v.oy) * v.z]; }).filter(([, x, y]) => x > -40 && y > -40 && x < W + 40 && y < H + 40);
+  for (const [ct, x, y] of at) { townSign(c, x, y, k * 4.2, ct[3], cityOwner(g, ct)); taken.push([x - 5 * k, y - 5 * k, x + 5 * k, y + 5 * k]); }
+  for (const [ct, x, y] of at) {
+    const [n, , , rank] = ct;
+    c.font = rank === 3 ? `${Math.round(k * 15)}px ${FELL}` : `italic ${Math.round(k * (rank === 2 ? 14 : 13))}px ${FELL}`;
+    const w = c.measureText(n).width, h = k * 15, d = k * (rank === 3 ? 9 : 6);
+    const tries = [[x + d, y, "left"], [x - d, y, "right"], [x, y - h * 0.9, "center"], [x, y + h * 0.9, "center"], [x + d * 0.6, y - h * 0.8, "left"], [x + d * 0.6, y + h * 0.8, "left"]];
+    for (const [tx, ty, al] of tries) {
+      const x0 = al === "left" ? tx : al === "right" ? tx - w : tx - w / 2, b = [x0, ty - h / 2, x0 + w, ty + h / 2];
+      if (hit(b)) continue;
+      taken.push(b);
+      c.textAlign = al; c.fillStyle = INK_SOFT + (rank === 1 ? "0.75)" : "0.92)"); c.fillText(n, tx, ty + k);
+      break;
+    }
+  }
 }
 // a city's mark: a dot — a larger one ringed in its crown's colour for a seat, a middling one for a great town, a small one for a town
 function townSign(c, x, y, S, rank, own) {
@@ -522,12 +531,17 @@ function frame(c, W, H, S) {
 }
 
 // the sheet, and over it what changes: the crown under the pointer and the one chosen, the wars, the plague, your clearing
-export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2 } = {}) {
-  const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW;
+// view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
+export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null } = {}) {
+  const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
-  if (!sheet || key !== sheetKey) { sheet = drawSheet(W, H, E, g, homePop); sheetKey = key; }
+  // (drawn at twice the size, so it stays sharp when zoomed)
+  if (!sheet || key !== sheetKey) { sheet = drawSheet(W * 2, H * 2, E, g, homePop); sheetKey = key; }
   const c = cv.getContext("2d");
-  c.drawImage(sheet, 0, 0);
+  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = "#1a1510"; c.fillRect(0, 0, W, H);
+  c.setTransform(v.z, 0, 0, v.z, -v.ox * v.z, -v.oy * v.z);
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+  c.drawImage(sheet, 0, 0, W, H);
   // the lit crowns: a warm wash over them
   for (const [id, a] of [[hover, 0.16], [selected, 0.28]]) {
     if (!id || !NATIONS[id]) continue;
@@ -546,8 +560,25 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2 }
   c.beginPath(); c.arc(hx, hy, S * (0.9 + Math.min(1.2, homePop / 10)), 0, 7); c.fill(); c.stroke();
   c.font = `italic 600 ${Math.round(S * 3.6)}px ${FELL}`; c.textAlign = "right"; c.textBaseline = "middle"; c.fillStyle = "#6a1a10";
   c.fillText("Forester's Clearing", hx - S * 1.6, hy - S * 1.8);
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  drawCities(c, g, S, v, W, H);
+  // the chosen city's ring, over its dot
+  for (const [ct, strong] of [[hoverCity, false], [city, true]]) {
+    if (!ct) continue;
+    const [cx, cy] = lonlat(ct[1], ct[2], S), sx = (cx - v.ox) * v.z, sy = (cy - v.oy) * v.z, k = W / 1300;
+    c.beginPath(); c.arc(sx, sy, k * (strong ? 11 : 9), 0, 7); c.lineWidth = strong ? 2.4 : 1.5; c.strokeStyle = strong ? "#b0281a" : "rgba(176,40,26,0.6)"; c.stroke();
+  }
   return g;
 }
+// the city under a point on the drawn map (within a little of its dot), if any
+export function cityAt(cv, x, y, z = 1) {
+  const S = cv.width / GW;
+  let best = null, bd = (cv.width / 1300) * 10 / z;
+  for (const ct of CITIES) { const [cx, cy] = lonlat(ct[1], ct[2], S), d = Math.hypot(cx - x, cy - y); if (d < bd) { bd = d; best = ct; } }
+  return best;
+}
+// the crown that held a city's ground in 1683
+export function cityFirstOwner(city) { return cityOwner(baseGrid(), city); }
 // which crown is under a point on the drawn map
 export function nationAt(E, cv, x, y) {
   const g = buildGrid(E), S = cv.width / GW, c = Math.floor(x / S), r = Math.floor(y / S);

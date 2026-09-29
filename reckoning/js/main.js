@@ -20,7 +20,8 @@ import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
-import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf } from "./europe.js";
+import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf, cityAt, cityOwner, cityFirstOwner, buildGrid, CITIES, gridOf, llOf, MG_W } from "./europe.js";
+import { EuropeView3D } from "./europe3d.js";
 
 /* global SFX */
 
@@ -537,14 +538,24 @@ function govPeople(t) {
 }
 const pplOpen = new Set();
 // ---- Europe: the map, and each crown's view of you ----
-let euSel = null, euHover = null, euPanelHtml = "";
+let euSel = null, euHover = null, euPanelHtml = "", euCity = null, euHoverCity = null;
+// the view of the map: zoom and where it looks (in the canvas's units at zoom 1); past ZOOM_3D it becomes the land itself
+let euView = { z: 1, ox: 0, oy: 0 }, eu3d = null, eu3dOn = false, euRaf = 0;
+const ZOOM_3D = 3.4, DIST_2D = 110;
 function govEuropeFrame() {
-  return `<div class="eu"><div class="eu-map"><canvas id="euMap" width="1300" height="${Math.round(1300 * MAP_ASPECT)}"></canvas><div class="dim eu-key">Your clearing is the red mark in the woods north-east of Hamburg. ⚔ a war (red: with you) · ☠ plague. Click a crown.</div></div><div class="eu-side" id="euSide"></div></div>`;
+  return `<div class="eu"><div class="eu-map"><canvas id="euMap" width="1300" height="${Math.round(1300 * MAP_ASPECT)}"></canvas><div class="eu-zoom"><button data-z="in">+</button><button data-z="out">−</button></div><div class="eu-mode" id="euMode"></div></div><div class="dim eu-key">Scroll to zoom, drag to move. Zoom far in and the map becomes the land itself. Your clearing is the red mark north-east of Hamburg. ⚔ a war (red: with you) · ☠ plague. Click a city to see who holds it, or a crown to deal with it.</div><div class="eu-side" id="euSide"></div></div>`;
+}
+function clampView(cv) {
+  const W = cv.width, H = cv.height;
+  euView.z = Math.max(1, Math.min(ZOOM_3D + 0.01, euView.z));
+  euView.ox = Math.max(0, Math.min(W - W / euView.z, euView.ox)); euView.oy = Math.max(0, Math.min(H - H / euView.z, euView.oy));
 }
 function drawEuropeTab(t) {
   const cv = $("euMap"); if (!cv) return;
   const E = ensureEurope(t.S);
-  drawEurope(cv, E, { hover: euHover, selected: euSel, homePop: t.S.people.length + 2 });
+  if (eu3dOn && eu3d) { eu3d.setMap(E, t.S.people.length + 2); }
+  else drawEurope(cv, E, { hover: euHover, selected: euSel, homePop: t.S.people.length + 2, city: euCity, hoverCity: euHoverCity, view: euView });
+  $("euMode").textContent = eu3dOn ? "the land · scroll out for the map" : euView.z > 1.05 ? `×${euView.z.toFixed(1)} · scroll in for the land` : "";
   const html = euSide(t, E);
   if (html !== euPanelHtml) { $("euSide").innerHTML = html; euPanelHtml = html; wireEuSide(t); }
 }
@@ -553,6 +564,15 @@ function euSide(t, E) {
   const S = t.S, news = (E.news || []).slice(0, 8).map(n => `<li><span class="dim">day ${n.day + 1}</span> ${esc(n.title)}</li>`).join("");
   const atWar = Object.keys(E.war).filter(id => E.war[id]);
   let h = `<div class="mc-sec">Your standing</div><div class="gov-why">${atWar.length ? `At war with ${atWar.map(id => esc(the(id))).join(", ")}.` : "At peace with every crown."} ${Object.keys(E.pact).filter(id => E.pact[id]).length ? `Trade pacts: ${Object.keys(E.pact).filter(id => E.pact[id]).map(id => esc(NATIONS[id].name)).join(", ")} (a DM a day each).` : "No trade pacts."}</div>`;
+  // a city chosen: whose it is, and whose it was
+  if (euCity) {
+    const g = buildGrid(E), own = cityOwner(g, euCity), first = cityFirstOwner(euCity), rank = ["a town", "a town", "a great town", "a seat of the crown"][euCity[3]];
+    h += `<div class="mc-sec">${esc(euCity[0])}</div><div class="eu-facts">
+      <div><span class="k">Held by</span>${own ? `<b>${esc(NATIONS[own].name)}</b>` : "nobody"}</div>
+      <div><span class="k">What it is</span>${rank}${euCity[3] === 3 && own === first ? ` — the seat of ${esc(the(own))}` : ""}</div>
+      ${own && first && own !== first ? `<div class="warn">Taken from ${esc(the(first))}, who held it in 1683.</div>` : ""}
+      ${own && E.war[own] ? `<div class="warn">Its masters are at war with you.</div>` : ""}</div>`;
+  }
   if (euSel) {
     const id = euSel, n = NATIONS[id], rel = Math.round(E.rel[id]), near = NEAR.has(id), war = !!E.war[id];
     const wars = E.wars.filter(w => w.a === id || w.b === id).map(w => NATIONS[w.a === id ? w.b : w.a].name);
@@ -574,11 +594,80 @@ function euSide(t, E) {
   return `<div class="eu-col">${h}</div><div class="eu-col"><div class="mc-sec">Word from afar</div><ul class="eu-news">${news || '<li class="dim">Nothing yet.</li>'}</ul></div>`;
 }
 function wireEurope(t) {
-  const cv = $("euMap");
-  const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
-  cv.onmousemove = e => { const id = nationAt(ensureEurope(t.S), cv, ...pos(e)); if (id !== euHover) { euHover = id; drawEuropeTab(t); } };
-  cv.onmouseleave = () => { euHover = null; drawEuropeTab(t); };
-  cv.onclick = e => { euSel = nationAt(ensureEurope(t.S), cv, ...pos(e)); euPanelHtml = ""; drawEuropeTab(t); };
+  const cv = $("euMap"), wrap = cv.parentElement;
+  // canvas pixels to the sheet's own units (at zoom 1)
+  const pos = e => { const r = cv.getBoundingClientRect(); const px = (e.clientX - r.left) * cv.width / r.width, py = (e.clientY - r.top) * cv.height / r.height; return [euView.ox + px / euView.z, euView.oy + py / euView.z]; };
+  const choose = (ct, id) => { euCity = ct || null; euSel = ct ? cityOwner(buildGrid(ensureEurope(t.S)), ct) : id; euPanelHtml = ""; drawEuropeTab(t); };
+  // ---- into the land, and back out to the map ----
+  const enter3d = () => {
+    if (!eu3d) {
+      eu3d = new EuropeView3D(wrap);
+      eu3d.el.addEventListener("wheel", e => { e.preventDefault(); eu3d.dist *= Math.exp(e.deltaY * 0.0015); eu3d.dist = Math.max(2.2, eu3d.dist); if (eu3d.dist > DIST_2D) leave3d(); }, { passive: false });
+      let drag = null;
+      eu3d.el.addEventListener("mousedown", e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; });
+      addEventListener("mousemove", e => { if (!drag || !eu3dOn) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY; eu3d.pan(dx, dy); });
+      addEventListener("mouseup", e => {
+        if (!drag || !eu3dOn) { drag = null; return; }
+        const moved = drag.moved; drag = null;
+        if (moved > 5) return;
+        const r = eu3d.el.getBoundingClientRect(), hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top);
+        if (!hit) return;
+        if (hit.city) choose(CITIES.find(c => c[0] === hit.city), null);
+        else { const [gx, gy] = gridOf(...hit.ll), g = buildGrid(ensureEurope(t.S)), id = g[Math.floor(gy)] && g[Math.floor(gy)][Math.floor(gx)]; choose(null, id && NATIONS[id] ? id : null); }
+      });
+    }
+    // the centre of the map's view, as a place
+    const S = cv.width / MG_W, cx = euView.ox + cv.width / euView.z / 2, cy = euView.oy + cv.height / euView.z / 2;
+    const [lon, lat] = llOf(cx / S, cy / S);
+    eu3d.look(lon, lat, DIST_2D - 12);
+    eu3dOn = true; eu3d.visible = true; eu3d.el.style.display = "block"; cv.style.visibility = "hidden";
+    const r = cv.getBoundingClientRect(); eu3d.size(Math.round(r.width), Math.round(r.height));
+    drawEuropeTab(t);
+    cancelAnimationFrame(euRaf);
+    // (drawn only while the map is in front of you: the government closed, or another tab, and it rests)
+    const loop = () => { if (!eu3dOn || !$("euMap") || $("gov").classList.contains("hidden")) { if (eu3d) eu3d.visible = false; euRaf = 0; return; } eu3d.visible = true; const rr = $("euMap").getBoundingClientRect(); if (Math.round(rr.width) !== eu3d.w) eu3d.size(Math.round(rr.width), Math.round(rr.height)); eu3d.frame(); euRaf = requestAnimationFrame(loop); };
+    loop();
+  };
+  const leave3d = () => {
+    const [lon, lat] = eu3d.centreLL(), [gx, gy] = gridOf(lon, lat), S = cv.width / MG_W;
+    eu3dOn = false; eu3d.visible = false; eu3d.el.style.display = "none"; cv.style.visibility = "visible";
+    euView.z = ZOOM_3D - 0.4; euView.ox = gx * S - cv.width / euView.z / 2; euView.oy = gy * S - cv.height / euView.z / 2; clampView(cv);
+    drawEuropeTab(t);
+  };
+  // (a view left open in the land stays there when the tab is shown again)
+  if (eu3d && eu3dOn) { wrap.appendChild(eu3d.el); enter3d(); }
+  // ---- the map: zoom about the pointer, drag to move ----
+  const zoomAt = (px, py, f) => {
+    const [bx, by] = [euView.ox + px / euView.z, euView.oy + py / euView.z];
+    euView.z *= f;
+    if (euView.z > ZOOM_3D) { euView.z = ZOOM_3D; clampView(cv); euView.ox = bx - px / euView.z; euView.oy = by - py / euView.z; clampView(cv); return enter3d(); }
+    clampView(cv); euView.ox = bx - px / euView.z; euView.oy = by - py / euView.z; clampView(cv); drawEuropeTab(t);
+  };
+  cv.addEventListener("wheel", e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoomAt((e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+  for (const b of wrap.querySelectorAll(".eu-zoom button")) b.onclick = () => {
+    if (eu3dOn) { eu3d.dist = Math.max(2.2, eu3d.dist * (b.dataset.z === "in" ? 0.6 : 1.6)); if (eu3d.dist > DIST_2D) leave3d(); return; }
+    zoomAt(cv.width / 2, cv.height / 2, b.dataset.z === "in" ? 1.5 : 1 / 1.5);
+  };
+  let drag = null;
+  cv.onmousedown = e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; };
+  cv.onmousemove = e => {
+    if (drag && e.buttons & 1) {
+      const r = cv.getBoundingClientRect(), dx = (e.clientX - drag.x) * cv.width / r.width, dy = (e.clientY - drag.y) * cv.height / r.height;
+      drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
+      if (drag.moved > 5) { euView.ox -= dx / euView.z; euView.oy -= dy / euView.z; clampView(cv); cv.style.cursor = "grabbing"; drawEuropeTab(t); return; }
+    }
+    const p = pos(e), E = ensureEurope(t.S), ct = cityAt(cv, ...p, euView.z), id = nationAt(E, cv, ...p);
+    cv.style.cursor = ct || id ? "pointer" : "grab";
+    if (id !== euHover || ct !== euHoverCity) { euHover = id; euHoverCity = ct; drawEuropeTab(t); }
+  };
+  cv.onmouseleave = () => { drag = null; euHover = null; euHoverCity = null; drawEuropeTab(t); };
+  // a click (not a drag) on a city's dot chooses the city (and its crown); anywhere else, the crown there
+  cv.onmouseup = e => {
+    const moved = drag ? drag.moved : 0; drag = null;
+    if (moved > 5) return;
+    const p = pos(e), ct = cityAt(cv, ...p, euView.z);
+    choose(ct, ct ? null : nationAt(ensureEurope(t.S), cv, ...p));
+  };
 }
 function wireEuSide(t) {
   for (const b of $("euSide").querySelectorAll("button[data-eu]")) b.onclick = () => {

@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.24", date: "29 September 2026", title: "Closer",
+    items: [
+      "The map of Europe zooms: scroll, or the + and −, and drag to move about. The cities' names keep their size as you come in, so more of the towns find room.",
+      "Zoom far enough and the parchment gives way to the land itself, in three dimensions: the true coasts, the mountains where the ranges run — the Alps, Pyrenees, Carpathians, the Scandinavian fells, the Apennines, the Balkans, the Atlas, the Caucasus, the Anatolian plateau — and the country as it grows: tundra in the far north, taiga and pine through Scandinavia and Muscovy, oak and beech woods among the fields of the middle, olive and cypress round the Mediterranean, grass steppe on the Pontic and Hungarian plains, desert beyond the Atlas, rock and snow on the heights. Come right down and the woods are trees.",
+      "The cities stand on it — houses and a church, named, in their masters' colours — and the borders are drawn on the ground. Click a city or a stretch of country there as on the map. Scroll out again and you're back on the parchment, where you were.",
+      "Click a city on the map to see who holds it — and who held it in 1683, if it has changed hands. The crowns are named in English on the map now; the seas and the title keep their Latin.",
+    ],
+  },
+  {
     v: "0.23", date: "29 September 2026", title: "A map of 1683",
     items: [
       "Europe (G) is the real Europe now: the true coasts, and each piece of land given to the crown that held it in 1683 — Denmark with Norway and Holstein, Sweden round the Baltic from Finland to Pomerania, the Spanish Netherlands, Royal Hungary and the Ottoman rest, Podolia lost to the Turk, the Cossacks on the Dnieper. The Dutch Republic and Morocco join the crowns.",

@@ -382,7 +382,10 @@ body.talking #hint { bottom: 298px; }
 #newsSub { font: 12px var(--sans); color: var(--gold); margin-top: 3px; letter-spacing: 0.04em; }
 
 /* Europe */
-.eu { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; }
+/* (the map has the whole width: a chart wants room; the crown and the news sit under it, side by side) */
+.eu { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.eu-side { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; align-items: start; }
+.eu-side .eu-col { min-width: 0; }
 .eu-map canvas { width: 100%; height: auto; border: 1px solid var(--edge); border-radius: 4px; cursor: pointer; background: #16303f; display: block; }
 .eu-key { font-size: 12px; margin-top: 6px; }
 .eu-side .mc-sec:first-child { margin-top: 0; }
@@ -396,7 +399,15 @@ body.talking #hint { bottom: 298px; }
 .eu-acts .sub { display: block; font-weight: 400; opacity: 0.8; margin-top: 2px; }
 .eu-news { list-style: none; padding: 0; margin: 4px 0; font: 12px/1.45 var(--sans); max-height: 220px; overflow: auto; }
 .eu-news li { margin: 0 0 5px; }
-@media (max-width: 900px) { .eu { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .eu-side { grid-template-columns: 1fr; } }
 .recruit select { width: auto; max-width: 340px; flex: 0 1 auto; }
 .recruit button { padding: 5px 10px; font: 600 12px var(--sans); color: var(--ink); background: rgba(140, 192, 132, 0.22); border: 1px solid var(--edge); border-radius: 4px; cursor: pointer; }
 .recruit button:hover:not(:disabled) { background: rgba(140, 192, 132, 0.36); }
+
+/* the map's zoom, and the land under it */
+.eu-map { position: relative; }
+.eu-map canvas.eu3d { position: absolute; inset: 0; width: 100%; height: 100%; display: none; border-radius: 4px; cursor: grab; }
+.eu-zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; z-index: 2; }
+.eu-zoom button { width: 30px; height: 30px; font: 600 18px/1 var(--sans); color: #3a2a1a; background: rgba(239, 228, 198, 0.92); border: 1px solid #3a2a1a; border-radius: 4px; cursor: pointer; }
+.eu-mode { position: absolute; left: 10px; bottom: 10px; z-index: 2; font: italic 13px var(--serif); color: #3a2a1a; background: rgba(239, 228, 198, 0.85); padding: 2px 8px; border-radius: 3px; pointer-events: none; }
+.eu-mode:empty { display: none; }
