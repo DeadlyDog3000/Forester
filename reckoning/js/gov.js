@@ -112,7 +112,8 @@ export const techTime = t => 45 + t.depth * 40;
 // so a new settlement starts with cabins, fields and paths, and learns the rest.)
 export const BUILD_GATES = { bakery: "baking", market: "trading", townhall: "township", forge: "forging",
   quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting", church: "ministry",
-  woodshed: "treecutting", well: "replanting", brickworks: "masonry", shrine: "consecration", jail: "policing" };
+  woodshed: "treecutting", well: "replanting", brickworks: "masonry", shrine: "consecration", jail: "policing",
+  palisade: "defending", gate: "defending", stonewall: "defplus" };
 // what costs DM to keep, every day (Forester's CIVIC: the works that must be tended; cabins, fields, paths, sheds are free)
 export const CIVIC = new Set(["market", "townhall", "forge", "bakery", "well", "quarry", "mine", "sawmill", "smelter", "brickworks", "church", "jail"]);
 export const CIVIC_UPKEEP = 0.5;   // (low: half a DM a day for each; a settlement of a dozen works pays six)

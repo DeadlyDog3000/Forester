@@ -739,6 +739,7 @@ export function makeLogs(list, seed = 1) {
   const o = new THREE.Object3D();
   list.forEach((l, i) => {
     o.position.set(l.x, l.y, l.z);
+    // (a log lies along x or z, or stands up: "y")
     o.rotation.set(l.dir === "z" ? Math.PI / 2 : 0, l.ry || 0, l.dir === "x" ? Math.PI / 2 : 0);
     o.rotateY(r() * Math.PI * 2);   // (each turned about its own length)
     const rr = l.r * (0.88 + r() * 0.24);

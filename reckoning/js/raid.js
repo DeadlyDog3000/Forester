@@ -30,7 +30,7 @@ import { CLEARING, FIRE } from "./woods.js";
 /* global SFX */
 
 const LOOK = s => ({ model: "townsman", name: "Raider", coat: [0x3a3228, 0x2e3228, 0x40302a][s % 3], legs: 0x2a2620, hat: ["cap", "hat", null][s % 3], hatColor: 0x241e1a, beard: 0x3e3226, seed: 500 + s });
-const WALK = 2.9, FLEE = 2.7;
+const WALK = 2.9, FLEE = 2.7, WALL_SPEED = 2.2;
 const HP = 40;
 const DIRS = ["up", "left", "right"];
 
@@ -131,7 +131,7 @@ export class Raids {
     const sib = G.who === "sister" ? "Brother" : "Sister";
     UI.bark(sib, "You're awake. They're gone — and half the stores with them. Don't ever do that to me again.", 4.5);
   }
-  get active() { return this.band.some(r => r.state === "come" || r.state === "steal" || r.state === "flee"); }
+  get active() { return this.band.some(r => r.state === "come" || r.state === "steal" || r.state === "flee" || r.state === "breach"); }
   // the road they come up and go back down
   get roadEnd() { const r = this.w.road[this.w.road.length - 30]; return { x: r.x, z: r.z }; }
   start() {
@@ -285,6 +285,29 @@ export class Raids {
         continue;
       }
       const st = t.stackAt, e = this.roadEnd;
+      // a wall in the way: no headway toward where he's going, and a length of it close by — he hacks through
+      if (r.state === "breach") {
+        const b = r.wall && r.wall.b;
+        if (!b || b.broken || (b.type === "gate" && b.open)) { r.state = r.loot ? "flee" : "come"; r.wall = null; r.best = Infinity; a.path = []; continue; }
+        const d = Math.hypot(a.pos.x - r.wall.x, a.pos.z - r.wall.z);
+        if (d > 1.3) { if (!a.path.length) a.walkTo(r.wall.x + (a.pos.x - r.wall.x) / (d || 1) * 0.9, r.wall.z + (a.pos.z - r.wall.z) / (d || 1) * 0.9, WALL_SPEED); }
+        else if (r.cool <= 0) {
+          a.path = []; a.faceTo(r.wall.x, r.wall.z); r.cool = 1.2; a.person.setPose("chop");
+          setTimeout(() => { if (r.alive) a.person.setPose("idle"); }, 400);
+          t.hitWall(b, THEIRS[r.arm].dmg);
+          if (Math.random() < 0.3) AUDIO.voice("grunt", { at: a.pos, vol: 0.7 });
+        }
+        continue;
+      }
+      if (r.state === "come" || r.state === "flee") {
+        const gx = r.state === "come" ? st.x : e.x, gz = r.state === "come" ? st.z : e.z, dg = Math.hypot(a.pos.x - gx, a.pos.z - gz);
+        if (dg < (r.best ?? Infinity) - 0.4) { r.best = dg; r.stuckT = 0; }
+        else if ((r.stuckT = (r.stuckT || 0) + dt) > 2) {
+          r.stuckT = 0; r.best = Infinity;
+          const wl = t.wallNear && t.wallNear(a.pos, 4.5);
+          if (wl) { r.state = "breach"; r.wall = wl; a.path = []; if (!this.breachTold) { this.breachTold = true; UI.bark(G.who === "sister" ? "Brother" : "Sister", "They're at the wall — they're hacking through it!", 3); } continue; }
+        }
+      }
       if (r.state === "come") {
         if (Math.hypot(a.pos.x - st.x, a.pos.z - st.z) < 1.8) { r.state = "steal"; r.t = 0; a.path = []; a.person.setPose("reach"); }
         else if (!a.path.length) a.walkTo(st.x + (r.i % 3 - 1) * 0.8, st.z + 0.6, WALK);

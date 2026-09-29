@@ -335,6 +335,7 @@ function renderInspect() {
     b.done ? (style ? ["Built in", esc(style)] : null) : ["Building", `not finished — ${b.logs || 0} of ${def.cost} logs${Object.keys(def.mats || {}).length ? `, and ${esc(t.costText(def.mats))}` : ""}`],
     b.type === "field" ? ["The rye", b.sown ? ((b.growth ?? 1) >= 3 ? "ripe — reap it" : "growing") : `${b.dug || 0} of 3 strips dug`] : null,
     b.type === "cabin" && b.done ? ["Sleeps", `${t.perCabin}`] : null,
+    def.wall ? ["Stands", b.broken ? '<span class="warn">broken through — a way in for anyone, until it is mended</span>' : `${b.hp ?? def.hp} of ${def.hp}${def.wall === "gate" ? (b.open ? " · open" : " · shut") : ""}`] : null,
     (b.type === "church" || b.type === "shrine") && b.done ? ["Dedicated to", esc(FAITHS[b.faith || "lutheran"].name) + ` — ${b.type === "church" ? FAITHS[b.faith || "lutheran"].house : FAITHS[b.faith || "lutheran"].shrine}`] : null,
     b.type === "woodshed" && b.done ? ["Holds", `30 more logs (the store holds ${t.storeCap})`] : null,
     works.length ? ["Who works here", who.length ? esc(who.join(", ")) : '<span class="warn">no one — set someone to it (F by them)</span>'] : null,
@@ -345,6 +346,8 @@ function renderInspect() {
   if (t.canUpgrade(b)) {
     const u = UPGRADES[(b.tier || 1) + 1], need = u.needs && u.needs(t), can = !need && t.afford(u.mats);
     acts.push(`<button data-act="up"${can ? "" : " disabled"}>Rebuild in ${esc(u.style.split(",")[0])}<span class="sub">${esc(t.costText(u.mats))}${need ? ` — first, ${esc(need)}` : !can ? ` — ${esc(t.short(u.mats))} short` : ""}</span></button>`);
+  } else if (def.wall) {
+    if (b.broken || (b.hp ?? def.hp) < def.hp) { const c = t.repairCost(b), can = t.afford(c); acts.push(`<button data-act="mend"${can ? "" : " disabled"}>Mend it<span class="sub">${esc(t.costText(c))}${can ? "" : ` — ${esc(t.short(c))} short`}</span></button>`); }
   } else if (b.done && b.type !== "field" && b.type !== "path") acts.push(`<button disabled>Rebuild<span class="sub">${(b.tier || 1) >= 4 ? "built as well as it can be" : "this kind isn't rebuilt"}</span></button>`);
   const back = t.refundOf(b);
   acts.push(`<button data-act="down" class="danger${inspArmed ? " armed" : ""}">${inspArmed ? "Click again to pull it down" : b.done ? "Dismantle" : "Give up the site"}<span class="sub">${Object.keys(back).length ? `back in the stores: ${esc(t.costText(back))}` : "nothing comes back"}${b.type === "woodshed" && b.done ? " — logs past what the stack holds are lost" : ""}${b.type === "cabin" && b.done ? " — whoever sleeps there loses their bed" : ""}</span></button>`);
@@ -358,6 +361,7 @@ function renderInspect() {
 $("inspActs").addEventListener("click", e => {
   const bt = e.target.closest("button[data-act]"); if (!bt || bt.disabled) return;
   const t = G.town, b = inspB; if (!t || !b) return;
+  if (bt.dataset.act === "mend") { const msg = t.repair(b); if (msg) UI.hint(msg, 3); inspSig = ""; renderInspect(); return; }
   if (bt.dataset.act === "up") { if (t.upgrade(b)) showOverlay("inspect", false); else renderInspect(); }
   if (bt.dataset.act === "down") {
     if (!inspArmed) { inspArmed = true; inspSig = ""; renderInspect(); return; }

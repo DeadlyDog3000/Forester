@@ -263,7 +263,7 @@ export class Woods extends WorldBase {
       const ey = this.heightAt(e.x, e.z), ang = Math.atan2(e2.x - e.x, e2.z - e.z);
       sb.add(new THREE.CylinderGeometry(0.22, 0.3, 9, 8), 0x4e3a2a, e.x, ey + 0.28, e.z, Math.PI / 2, ang + Math.PI / 2, 0.05);
       for (let j = 0; j < 4; j++) sb.add(TREE.blob, 0x2f4a2c, e.x + Math.sin(ang + Math.PI / 2) * (2 + j * 1.2), ey + 0.7, e.z + Math.cos(ang + Math.PI / 2) * (2 + j * 1.2), 0, j, 0, 1.1, 0.8, 1.1, 0.08);
-      this.col.addCircle(e.x, e.z, 1.6, 2);
+      this.col.addCircle(e.x, e.z, 1.6, this.heightAt(e.x, e.z) + 2);
     }
     root.add(sb.build(MAT.rough));
 
@@ -442,7 +442,7 @@ export class Woods extends WorldBase {
         const n = Math.ceil(Math.hypot(lx1 - lx0, lz1 - lz0) / 0.5);
         for (let i = 0; i <= n; i++) {
           const lx = lx0 + (lx1 - lx0) * i / n, lz = lz0 + (lz1 - lz0) * i / n;
-          this.burnedCols.push(this.col.addCircle(CABIN.x + lx * c + lz * s, CABIN.z - lx * s + lz * c, 0.28, h));
+          this.burnedCols.push(this.col.addCircle(CABIN.x + lx * c + lz * s, CABIN.z - lx * s + lz * c, 0.28, y0 + h));
         }
       };
       wall(-2.5, -3, 2.5, -3, 3); wall(-2.5, -3, -2.5, 3, 3); wall(2.5, -3, 2.5, 3, 3); wall(-2.5, 3, -0.7, 3, 3); wall(0.7, 3, 2.5, 3, 3);
@@ -501,8 +501,9 @@ export class Woods extends WorldBase {
     for (const s of [-0.7, 0.7]) { blk.box(0.08, 0.9, 0.08, BLOCK.x + 1.3 + s, 0.45, BLOCK.z + 0.35, 0x5a4030); blk.box(0.08, 0.9, 0.08, BLOCK.x + 1.3 + s, 0.45, BLOCK.z - 0.35, 0x5a4030); }
     blk.box(1.8, 0.1, 0.12, BLOCK.x + 1.3, 0.9, BLOCK.z, 0x6a4a30);
     const bm2 = blk.build(); bm2.position.y = y0; root.add(bm2);
-    this.col.addCircle(BLOCK.x, BLOCK.z, 0.5, 0.6);
-    this.col.addRect(BLOCK.x + 1.3, BLOCK.z, 1.8, 0.8, 0.9);
+    // (collider tops are heights in the world, and the clearing stands well above nought)
+    this.col.addCircle(BLOCK.x, BLOCK.z, 0.5, this.heightAt(BLOCK.x, BLOCK.z) + 0.6);
+    this.col.addRect(BLOCK.x + 1.3, BLOCK.z, 1.8, 0.8, this.heightAt(BLOCK.x + 1.3, BLOCK.z) + 0.9);
     this.blockAxe = new THREE.Group();
     const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.75, 6), mat(0x6a4a30)); haft.position.y = 0.3; this.blockAxe.add(haft);
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.12, 0.17), mat(0x4d4f52, { metalness: 0.7, roughness: 0.6 })); head.position.set(0, -0.05, 0.05); this.blockAxe.add(head);
@@ -516,7 +517,7 @@ export class Woods extends WorldBase {
     // ---- the stack, which grows as logs are carried to it ----
     this.stack = new THREE.Group(); root.add(this.stack);
     this.stackN = -1; this.setStack(0);
-    this.col.addRect(STACK.x, STACK.z, 1.6, 2.6, 0.5);
+    this.col.addRect(STACK.x, STACK.z, 1.6, 2.6, this.heightAt(STACK.x, STACK.z) + 0.5);
 
     // ---- a fire ring ----
     const fr = new Builder();
@@ -526,7 +527,7 @@ export class Woods extends WorldBase {
     fr.add(new THREE.CylinderGeometry(0.2, 0.2, 1.8, 8), 0x7a5634, FIRE.x - 1.9, 0.2, FIRE.z + 0.3, Math.PI / 2, 0.3, 0);
     fr.add(new THREE.CylinderGeometry(0.2, 0.2, 1.8, 8), 0x7a5634, FIRE.x + 1.9, 0.2, FIRE.z + 0.4, Math.PI / 2, -0.3, 0);
     const fm = fr.build(); fm.position.y = y0; root.add(fm);
-    this.col.addCircle(FIRE.x, FIRE.z, 0.7, 0.4);
+    this.col.addCircle(FIRE.x, FIRE.z, 0.7, this.heightAt(FIRE.x, FIRE.z) + 0.4);
     this.fire = null;
 
     // ---- the ring of trees you can fell ----
@@ -653,7 +654,7 @@ export class Woods extends WorldBase {
     b.add(new THREE.CylinderGeometry(0.34, 0.38, 0.55, 10), 0x6a5038, cx2, cy2 + 0.27, cz2);
     b.add(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6), 0x5a4432, kx - rx * 2.9, ky + 0.9, kz - rz * 2.9, 0.3, 0, 0.2);
     root.add(b.build(MAT.rough));
-    this.col.addCircle(kx, kz, 2.3, 2); this.col.addCircle(hx, hz, 1.9, 3); this.col.addCircle(wx, wz, 1.2, 1.5);
+    this.col.addCircle(kx, kz, 2.3, this.heightAt(kx, kz) + 2); this.col.addCircle(hx, hz, 1.9, this.heightAt(hx, hz) + 3); this.col.addCircle(wx, wz, 1.2, this.heightAt(wx, wz) + 1.5);
     // smoke from the kiln, thin and endless
     const smoke = [];
     const sm = new THREE.MeshBasicMaterial({ color: 0xb8b4ac, transparent: true, opacity: 0.25, depthWrite: false });
@@ -724,7 +725,7 @@ export class Woods extends WorldBase {
     // no snow under the roof
     ROOFED.value.set(CABIN.x, CABIN.z, CABIN.ry, 1); ROOFSIZE.value.z = this.cabinY + 2.7;
     // walls of logs you can walk between: the doorway is the only way in
-    const circle = (lx, lz, r, h = 5) => { const [x, z] = this.cabinToWorld(lx, lz); return this.col.addCircle(x, z, r, h); };
+    const circle = (lx, lz, r, h = 3) => { const [x, z] = this.cabinToWorld(lx, lz); return this.col.addCircle(x, z, r, this.cabinY + h); };
     const wall = (lx0, lz0, lx1, lz1) => {
       const n = Math.ceil(Math.hypot(lx1 - lx0, lz1 - lz0) / 0.45);
       for (let i = 0; i <= n; i++) circle(lx0 + (lx1 - lx0) * i / n, lz0 + (lz1 - lz0) * i / n, 0.28);
@@ -796,7 +797,7 @@ export class Woods extends WorldBase {
       const along = d.w >= d.d ? [Math.cos(ry), -Math.sin(ry)] : [Math.sin(ry), Math.cos(ry)];
       for (let i = 0; i < n; i++) {
         const o = (i + 0.5) / n * lng - lng / 2;
-        this.furnCols.push(this.col.addCircle(x + along[0] * o, z + along[1] * o, sh / 2 * 0.9, d.h));
+        this.furnCols.push(this.col.addCircle(x + along[0] * o, z + along[1] * o, sh / 2 * 0.9, this.cabinY + d.h));
       }
       if (d.bed) this.bedIts.push(this.addInteract({ x, y: this.cabinY + 0.5, z, reach: 2.2, label: () => (this.onSleep && this.onSleep.label) || "Go to bed",
         can: () => !!this.onSleep && (!this.onSleep.can || this.onSleep.can()), use: () => this.onSleep.use(f) }));

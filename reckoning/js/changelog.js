@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.21", date: "29 September 2026", title: "Walls",
+    items: [
+      "Walls, as the first Forester's Defending gives them: a palisade of sharpened logs, laid a length at a time (three logs each) — each new length joins on where the last one ends — and gates in it. With Defending II, stone walls.",
+      "Gates stand open, and are shut when raiders come. Raiders can't walk through a wall: they hack at it, and a length that's taken enough is broken through — rubble, and a way in. Look at it and press V to mend it.",
+      "Fixed: the settlement's buildings could be walked straight through — by you, the settlers and the raiders. So could the burned cabin's walls, the fire, the log stack, the chopping block and the furniture in the cabin.",
+    ],
+  },
+  {
     v: "0.20", date: "29 September 2026", title: "Faith and law",
     items: [
       "The seven faiths of 1683, as the first Forester has them, in the proportions they walked out of a North German wood: Lutheran, Catholic, Reformed, Mennonite, Jewish, Orthodox, Muslim. Each settler holds one, and it shows: Catholics keep the holy days and give alms, the Reformed work harder, Mennonites won't take up a weapon, a Jewish settler arrives with capital, the Orthodox fast.",

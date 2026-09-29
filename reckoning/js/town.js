@@ -19,6 +19,7 @@ import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel } from "./models.js";
+import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
@@ -41,6 +42,9 @@ export const BUILDINGS = {
   market:   { name: "Market", cost: 20, mats: { planks: 6 }, model: "town/market", tiers: true, w: 8.6, d: 10, icon: "coin", note: "Sells what you have too much of, every day, for DM (Deutsche Mark)." },
   townhall: { name: "Town hall", cost: 30, mats: { stone: 12, planks: 10 }, model: "town/townhall", tiers: true, w: 9.6, d: 10, icon: "cabin", note: "A seat for the town, and a charter: without one, no town builds as a city does." },
   path:     { name: "Path", cost: 0, w: 2.2, d: 3.4, path: true, icon: "stone", note: "A trodden way between the houses, laid a strip at a time — free. Cobbled once the town is brick." },
+  palisade: { name: "Palisade", cost: 3, w: 3.2, d: 0.7, wall: "log", hp: 60, icon: "logs", note: "A length of sharpened logs, laid a length at a time and joined end to end. Raiders must hack through it. Three logs a length." },
+  gate:     { name: "Gate", cost: 8, w: 3.6, d: 0.8, wall: "gate", hp: 90, icon: "logs", note: "A way through the palisade: it stands open, and is shut when raiders come." },
+  stonewall: { name: "Stone wall", cost: 0, mats: { stone: 4 }, w: 3.2, d: 0.9, wall: "stone", hp: 150, icon: "stone", note: "A length of stone wall, laid like the palisade — and much harder to break." },
   church:   { name: "Church", cost: 24, mats: { stone: 10 }, model: "town/church", tiers: true, w: 7, d: 13, icon: "cabin", note: "Somewhere to pray, and to bury, and to be married. People are happier with one." },
   shrine:   { name: "Shrine", cost: 10, mats: { coin: 3 }, model: "town/shrine_1", w: 2.4, d: 2.2, icon: "cabin", note: "A wayside shrine, raised to one faith: somewhere of its own to pray, for those who hold it." },
   jail:     { name: "Jail", cost: 18, mats: { stone: 6 }, model: "town/jail", tiers: true, w: 5, d: 5, icon: "cabin", note: "With a watchman on the job, a thief is caught in the night and held here a day — and what they took comes back." },
@@ -330,9 +334,17 @@ export class Town {
   show(b) {
     const w = this.w, def = BUILDINGS[b.type];
     let g = this.vis.get(b);
-    if (g) { w.root.remove(g); if (g.userData.col) g.userData.col.disabled = true; }
+    if (g) { w.root.remove(g); if (g.userData.col) g.userData.col.disabled = true; for (const c of g.userData.cols || []) c.disabled = true; }
     g = new THREE.Group(); g.position.set(b.x, w.heightAt(b.x, b.z), b.z); g.rotation.y = b.ry;
-    if (b.type === "field") this.fieldVis(g, b);
+    if (def.wall) {
+      // a length of wall (or its rubble), with colliders along it, since the boxes can only lie square to the map
+      wallVis(g, b, def);
+      g.userData.cols = [];
+      if (!b.broken && !(def.wall === "gate" && b.open)) {
+        const [e0, e1] = wallEnds(b, def), n = Math.ceil(def.w / 0.45);
+        for (let i = 0; i <= n; i++) { const k = i / n, cx = e0.x + (e1.x - e0.x) * k, cz = e0.z + (e1.z - e0.z) * k; g.userData.cols.push(w.col.addCircle(cx, cz, def.d / 2 + 0.05, w.heightAt(cx, cz) + WALL_H + 0.5)); }   // (the height is the world's, not above the ground)
+      }
+    } else if (b.type === "field") this.fieldVis(g, b);
     else if (b.type === "path") {
       const cob = this.tierLevel >= 3;
       PATH_MAT.dirt ??= new THREE.MeshStandardMaterial({ map: groundTexture("dirt", 1), color: 0xb8a48c, roughness: 1 });
@@ -354,7 +366,8 @@ export class Town {
       // solid: an axis-aligned box round the turned footprint, a little inside it
       const c = Math.abs(Math.cos(b.ry)), s = Math.abs(Math.sin(b.ry));
       const hx = (def.w * c + def.d * s) / 2 - 0.5, hz = (def.w * s + def.d * c) / 2 - 0.5;
-      g.userData.col = w.col.addBox(b.x - hx, b.z - hz, b.x + hx, b.z + hz, 4);
+      // (the top is a height in the world, not above the ground: the clearing stands nearly four metres up)
+      g.userData.col = w.col.addBox(b.x - hx, b.z - hz, b.x + hx, b.z + hz, w.heightAt(b.x, b.z) + 8);
       this.upgradeSpot(b);
       if (this.streets !== undefined || b.tier > 2) this.updateStreets();
     } else {
@@ -406,13 +419,25 @@ export class Town {
     const def = BUILDINGS[type], w = this.w;
     const r = Math.hypot(def.w, def.d) / 2;
     if (Math.hypot(x - CLEARING.x, z - CLEARING.z) > this.clearR + 6 - r * 0.5) return false;
+    if (def.wall) {
+      // a length of wall: out to the edge of the ground won, not through a building, a tree, or the same place twice
+      if (Math.hypot(x - CLEARING.x, z - CLEARING.z) > this.clearR + 10) return false;
+      for (const b of this.S.buildings) {
+        const d2 = BUILDINGS[b.type];
+        if (b.type === "path" || b.type === "field") continue;
+        if (d2.wall) { if (Math.hypot(b.x - x, b.z - z) < 1.2) return false; continue; }
+        if (Math.hypot(b.x - x, b.z - z) < Math.hypot(d2.w, d2.d) / 2 * 0.8 + 0.6) return false;
+      }
+      for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < 1.3) return false;
+      return Math.hypot(FIRE.x - x, FIRE.z - z) > 3 && Math.hypot(CABIN.x - x, CABIN.z - z) > 4.5 && Math.hypot(STACK.x - x, STACK.z - z) > 2.5;
+    }
     if (def.path) {
       // a path strip: anywhere open — up to a door, beside a field, onto another strip — but not through a building or a tree
       for (const b of this.S.buildings) { if (b.type === "path" || b.type === "field") continue; const d2 = BUILDINGS[b.type]; if (Math.hypot(b.x - x, b.z - z) < Math.hypot(d2.w, d2.d) / 2 * 0.75) return false; }
       for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < 1.1) return false;
       return Math.hypot(FIRE.x - x, FIRE.z - z) > 1.8 && Math.hypot(CABIN.x - x, CABIN.z - z) > 3.2;
     }
-    for (const b of this.S.buildings) { if (b.type === "path") continue; const d2 = BUILDINGS[b.type]; if (Math.hypot(b.x - x, b.z - z) < (Math.hypot(d2.w, d2.d) / 2 + r) * 0.8) return false; }
+    for (const b of this.S.buildings) { if (b.type === "path") continue; const d2 = BUILDINGS[b.type]; if (Math.hypot(b.x - x, b.z - z) < (d2.wall ? 1.4 + r * 0.8 : (Math.hypot(d2.w, d2.d) / 2 + r) * 0.8)) return false; }
     for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < r) return false;
     for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.6], [STACK.x, STACK.z, 2], [BLOCK.x, BLOCK.z, 1.4], [FIRE.x, FIRE.z, 2.2]]) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
     if (this.opts.keepClear) for (const [px, pz, pr] of this.opts.keepClear) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
@@ -434,27 +459,39 @@ export class Town {
     edge.position.y = 0.05; ghost.add(edge);
     w.root.add(ghost);
     let ry = CABIN.ry, x = 0, z = 0, ok = false;
-    if (!def.path || !this._pathKeys) UI.keys(def.path ? [["Click", "lay a strip"], ["R", "turn it"], ["Esc", "done"]] : [["Click", "set it here"], ["R", "turn it"], ["Esc", "put the plan away"]], 9);
-    if (def.path) this._pathKeys = true;
+    const strip = def.path || (def.wall && def.wall !== "gate");
+    if (!strip || !this._pathKeys) UI.keys(strip ? [["Click", def.wall ? "lay a length" : "lay a strip"], ["R", "turn it"], ["Esc", "done"]] : [["Click", "set it here"], ["R", "turn it"], ["Esc", "put the plan away"]], 9);
+    if (strip) this._pathKeys = true;
+    if (def.wall && this._wallRy != null) ry = this._wallRy;
     return new Promise(res => {
       const input = G.input;
       const tick = () => {
-        const f = pl.forward(), d = def.path ? 3 : 4 + Math.max(def.w, def.d) / 2;
+        const f = pl.forward(), d = def.path ? 3 : def.wall ? 3.5 : 4 + Math.max(def.w, def.d) / 2;
         x = pl.pos.x + f.x * d; z = pl.pos.z + f.z * d;
-        if (input.hit("KeyR")) ry += Math.PI / 4;
+        if (input.hit("KeyR")) ry += def.wall ? Math.PI / 8 : Math.PI / 4;
+        // a length of wall joins on where the last one ends
+        if (def.wall) { const sn = this.snapWall(def, x, z, ry); x = sn.x; z = sn.z; }
         ok = this.fits(type, x, z, ry);
         ghost.position.set(x, w.heightAt(x, z), z); ghost.rotation.y = ry;
         const col = ok ? 0x7fe07a : 0xe0503a; tint.color.setHex(col); edge.material.color.setHex(col);
-        if ((input.click || input.hit("KeyF")) && ok) { done({ type, x, z, ry, logs: 0, dug: 0, done: !!def.path }); }
+        if ((input.click || input.hit("KeyF")) && ok) {
+          if (def.wall) {
+            // paid for as it's laid, out of the stores
+            const cost = { ...(def.cost ? { store: def.cost } : {}), ...(def.mats || {}) };
+            if (!this.afford(cost)) { UI.hint(`Not enough for a ${def.name.toLowerCase()}: ${this.short(cost)} short.`, 3); }
+            else { this.pay(cost); this.showStore(); this._wallRy = ry; done({ type, x, z, ry, logs: def.cost, dug: 0, done: true }); }
+          } else done({ type, x, z, ry, logs: 0, dug: 0, done: !!def.path });
+        }
         if (input.hit("Escape")) done(null);
       };
       const done = b => {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
         w.root.remove(ghost); this.planning = null;
-        if (b) { this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.persist(); SFX().build(); }
+        if (b) { this.S.buildings.push(b); this.show(b); if (!def.path && !def.wall) this.site(b); this.persist(); SFX().build(); }
         res(b);
-        // (a path goes on: the next strip is ready to lay until you put the plan away)
-        if (b && def.path) setTimeout(() => { if (!this.planning && !this.stopped) this.plan("path"); }, 0);
+        // (a path or a wall goes on: the next length is ready to lay until you put the plan away)
+        if (b && strip) setTimeout(() => { if (!this.planning && !this.stopped) this.plan(type); }, 0);
+        if (!b) this._wallRy = null;
       };
       this.planning = { cancel: () => done(null) };
       G.onFrame.push(tick);
@@ -574,6 +611,57 @@ export class Town {
     } else UI.hint(`In the night someone took ${what} from the stores. ${!jail ? "There's no jail" : "There's no watchman"} — nobody was caught. (Research Policing for a jail and the watch.)`, 7);
     this.persist(); this.showStore();
   }
+  // ---- walls ----
+  // a new length's ends meet an old one's where they are near: the nearer end is moved onto it
+  snapWall(def, x, z, ry) {
+    const ux = Math.cos(ry), uz = -Math.sin(ry), h = def.w / 2;
+    let best = null, bd = 1.4;
+    for (const b of this.S.buildings) {
+      const d2 = BUILDINGS[b.type]; if (!d2.wall) continue;
+      for (const e of wallEnds(b, d2)) for (const s of [-1, 1]) {
+        const ax = x + ux * h * s, az = z + uz * h * s, d = Math.hypot(ax - e.x, az - e.z);
+        if (d < bd) { bd = d; best = { x: x + (e.x - ax), z: z + (e.z - az) }; }
+      }
+    }
+    return best || { x, z };
+  }
+  // a blow at a length of wall; at nothing it's breached — rubble, and a way through, until it's mended
+  hitWall(b, dmg) {
+    const def = BUILDINGS[b.type];
+    if (b.broken) return;
+    b.hp = (b.hp ?? def.hp) - dmg;
+    AUDIO.clang && Math.random() < 0.3 && AUDIO.clang(0.3, { x: b.x, z: b.z });
+    SFX().chop();
+    if (b.hp <= 0) { b.broken = true; b.hp = 0; this.show(b); this.persist(); SFX().treeFall(0.5); UI.hint(`The raiders have broken through the ${def.name.toLowerCase()}!`, 4); }
+  }
+  // the nearest standing length of wall (or a shut gate) to a point, and the nearest spot on it
+  wallNear(p, within = 4) {
+    let best = null, bd = within;
+    for (const b of this.S.buildings) {
+      const def = BUILDINGS[b.type]; if (!def.wall || b.broken || (def.wall === "gate" && b.open)) continue;
+      const [e0, e1] = wallEnds(b, def), ex = e1.x - e0.x, ez = e1.z - e0.z;
+      const k = Math.max(0, Math.min(1, ((p.x - e0.x) * ex + (p.z - e0.z) * ez) / (ex * ex + ez * ez)));
+      const x = e0.x + ex * k, z = e0.z + ez * k, d = Math.hypot(p.x - x, p.z - z);
+      if (d < bd) { bd = d; best = { b, x, z, d }; }
+    }
+    return best;
+  }
+  repairCost(b) { const def = BUILDINGS[b.type], k = b.broken ? 0.6 : 0.3; return { ...(def.cost ? { store: Math.max(1, Math.ceil(def.cost * k)) } : {}), ...Object.fromEntries(Object.entries(def.mats || {}).map(([m, n]) => [m, Math.max(1, Math.ceil(n * k))])) }; }
+  repair(b) {
+    const cost = this.repairCost(b);
+    if (!this.afford(cost)) return `Mending it takes ${this.costText(cost)} — ${this.short(cost)} short.`;
+    this.pay(cost); b.broken = false; b.hp = BUILDINGS[b.type].hp; this.show(b); this.showStore(); this.persist(); SFX().build();
+    return null;
+  }
+  // gates stand open, and are shut while raiders are about
+  updateGates() {
+    const shut = !!(this.raids && this.raids.active);
+    for (const b of this.S.buildings) {
+      if (b.type !== "gate" || b.broken) continue;
+      const open = !shut;
+      if (!!b.open !== open) { b.open = open; this.show(b); SFX().timberCrack && SFX().timberCrack(); }
+    }
+  }
   // ---- keeping and pulling down ----
   upkeepOf(b) { return b.done && CIVIC.has(b.type) ? CIVIC_UPKEEP : 0; }
   upkeepBill() { return this.S.buildings.reduce((n, b) => n + this.upkeepOf(b), 0); }
@@ -609,7 +697,7 @@ export class Town {
     if (this.raids && this.raids.active) { UI.hint("Not with raiders in the settlement.", 3); return false; }
     const back = this.refundOf(b);
     const g = this.vis.get(b);
-    if (g) { w.root.remove(g); if (g.userData.col) g.userData.col.disabled = true; this.vis.delete(b); }
+    if (g) { w.root.remove(g); if (g.userData.col) g.userData.col.disabled = true; for (const c of g.userData.cols || []) c.disabled = true; this.vis.delete(b); }
     if (b._it) { w.removeInteract(b._it); b._it = null; }
     if (this.ups && this.ups.has(b)) { w.removeInteract(this.ups.get(b)); this.ups.delete(b); }
     this.S.buildings.splice(this.S.buildings.indexOf(b), 1);
@@ -1089,6 +1177,7 @@ export class Town {
   // ---- time: days pass; the forest grows back, fields ripen, people eat ----
   update(dt, dayLength = 300) {
     this.t += dt; this.dayLen = dayLength;
+    this.updateGates();
     // the scholars at their desk
     const r = this.S.tech.research;
     if (r) {
