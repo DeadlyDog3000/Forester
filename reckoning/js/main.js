@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave } from "./story.js";
+import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
@@ -95,7 +95,7 @@ for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"]]) {
 G.player = new Player();
 
 // ---- screens ----
-const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates"];
+const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates", "slots"];
 let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
@@ -104,7 +104,7 @@ function screen(id) {
 function refreshTitle() {
   const s = loadSave();
   UI.show("btnContinue", !!s);
-  $("btnContinue").textContent = s ? `Continue — ${CHAPTERS[(s.chapter || 1) - 1].title}` : "Continue";
+  $("btnContinue").textContent = s ? `Continue — ${CHAPTERS[(s.chapter || 1) - 1].title}${getSlot() > 1 ? ` (save ${getSlot()})` : ""}` : "Continue";
   UI.show("btnChapters", !!s);
 }
 function toTitle() {
@@ -157,7 +157,9 @@ function play(chapter, opts) {
   startChapter(chapter, opts);
 }
 
-$("btnNew").onclick = () => { back = "title"; screen("choose"); };
+// a new game: first, which of the six saves it goes in
+$("btnNew").onclick = () => { back = "title"; slotMode = "new"; buildSlots(); screen("slots"); };
+$("btnSlots").onclick = () => { back = "title"; slotMode = "play"; buildSlots(); screen("slots"); };
 $("btnContinue").onclick = () => { const s = loadSave(); G.who = s.who || "brother"; play(s.chapter || 1); };
 $("btnChapters").onclick = () => { buildChapters(); back = "title"; screen("chapters"); };
 $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
@@ -173,6 +175,58 @@ for (const b of document.querySelectorAll("[data-who]")) b.onclick = () => {
   writeSave({ who: G.who, chapter: 1, unlocked: s.unlocked || 1 });
   play(1);
 };
+// ---- the six saves ----
+let slotMode = "play", slotArmed = null, slotImportTo = 0;
+const slotWhen = at => { if (!at) return ""; const d = new Date(at), m = (Date.now() - at) / 60000; return m < 1 ? "just now" : m < 60 ? `${Math.round(m)} min ago` : m < 60 * 24 ? `${Math.round(m / 60)} h ago` : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); };
+function slotDesc(s) {
+  if (!s) return { t: "Empty", d: "" };
+  const c = CHAPTERS[(s.chapter || 1) - 1] || CHAPTERS[0], who = s.who === "sister" ? "The Sister" : "The Brother";
+  const town = s.town && s.chapter >= 11 ? `${s.town.name || "The clearing"} — ${(s.town.people || []).length + 2} souls${s.town.days != null ? `, day ${Math.floor(s.town.days) + 1}` : ""}` : c.kicker;
+  return { t: `${c.title}`, d: `${who} · ${esc(town)}<br>Played ${slotWhen(s.at)}` };
+}
+function buildSlots() {
+  $("slotsTitle").textContent = slotMode === "new" ? "A new game — which save?" : "Saves";
+  $("slotsSub").textContent = slotMode === "new" ? "Pick an empty save, or one to start over (the game in it will be gone)." : "Six games, side by side. Export one to keep it safe or to carry it to another computer; import it back into any save.";
+  const cur = getSlot();
+  $("slotList").innerHTML = Array.from({ length: SLOTS }, (_, i) => {
+    const n = i + 1, s = readSlot(n), d = slotDesc(s), armed = slotArmed && slotArmed.n === n ? slotArmed.act : null;
+    const acts = slotMode === "new"
+      ? [`<button data-slot="${n}" data-act="new" class="primary${s ? " danger" : ""}${armed === "new" ? " armed" : ""}">${!s ? "Start here" : armed === "new" ? "Click again — this game will be gone" : "Start over here"}</button>`]
+      : [s ? `<button data-slot="${n}" data-act="play" class="primary">Continue</button>` : `<button data-slot="${n}" data-act="new">New game</button>`,
+         s ? `<button data-slot="${n}" data-act="export">Export</button>` : "",
+         `<button data-slot="${n}" data-act="import">Import</button>`,
+         s ? `<button data-slot="${n}" data-act="delete" class="danger${armed === "delete" ? " armed" : ""}">${armed === "delete" ? "Click again to delete" : "Delete"}</button>` : ""];
+    return `<div class="slot${n === cur && s ? " cur" : ""}"><div class="sl-n">Save ${n}${n === cur && s ? " · last played" : ""}</div><div class="sl-t">${d.t}</div><div class="sl-d">${d.d}</div><div class="sl-acts">${acts.join("")}</div></div>`;
+  }).join("");
+}
+$("slotList").addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const n = +b.dataset.slot, act = b.dataset.act, s = readSlot(n);
+  // (the two that lose a game ask twice)
+  if ((act === "delete" || (act === "new" && s && slotMode === "new")) && !(slotArmed && slotArmed.n === n && slotArmed.act === act)) { slotArmed = { n, act }; buildSlots(); return; }
+  slotArmed = null;
+  if (act === "play") { setSlot(n); G.who = s.who || "brother"; play(s.chapter || 1); }
+  else if (act === "new") { setSlot(n); back = "slots"; slotMode = "new"; screen("choose"); }
+  else if (act === "delete") { clearSlot(n); if (n === getSlot()) refreshTitle(); buildSlots(); }
+  else if (act === "export") {
+    const blob = new Blob([JSON.stringify({ game: "forester-reckoning", version: CHANGELOG[0].v, save: n, data: s }, null, 1)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = `forester-reckoning-save${n}-${(CHAPTERS[(s.chapter || 1) - 1].title || "").toLowerCase().replace(/[^a-z]+/g, "-")}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  } else if (act === "import") { slotImportTo = n; $("slotFile").value = ""; $("slotFile").click(); }
+});
+$("slotFile").addEventListener("change", async () => {
+  const f = $("slotFile").files[0]; if (!f || !slotImportTo) return;
+  let ok = false;
+  try {
+    const j = JSON.parse(await f.text()), d = j && j.game === "forester-reckoning" ? j.data : j;
+    // a save is an object with a chapter it has reached and who is playing; anything else is not one of ours
+    if (d && typeof d === "object" && d.chapter >= 1 && d.chapter <= CHAPTERS.length && (d.who === "brother" || d.who === "sister")) ok = writeSlot(slotImportTo, { ...d, at: Date.now() });
+  } catch (e) { ok = false; }
+  buildSlots(); refreshTitle();
+  // (after the list is redrawn, which puts the usual words back)
+  $("slotsSub").textContent = ok ? `Imported into save ${slotImportTo}.` : "That file isn't a Forester: Reckoning save.";
+});
 function buildChapters() {
   const s = loadSave() || {}, u = s.unlocked || 1;
   const list = $("chapterList");

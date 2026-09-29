@@ -9,6 +9,7 @@ export const CHANGELOG = [
   {
     v: "0.18", date: "28 September 2026", title: "Look closer, and learn to build",
     items: [
+      "Six saves, as in the first Forester: Saves on the title screen shows each one — who, how far, the settlement and its day, when you last played — to continue, start over, delete, or export to a file and import back (into any save, or on another computer). New Game asks which save to use. The game you had already is save 1.",
       "Fixed: a settlement with buildings in it could freeze the game solid a moment after starting — every building kept putting itself up again, over and over.",
       "V: look at a building and press V to see it up close — what it's for, who works there, what it costs to keep — and rebuild it in the next style or pull it down, for half its logs and stone back (three quarters, knowing Ownership). An unfinished site gives back all it was given.",
       "Upkeep, as in the first Forester but lighter: every work that must be tended — the well, the bakery, the forge, the market, the quarry, mine, sawmill, smelter, brickworks, the town hall and the church — costs half a DM a day. Cabins, fields, paths and the woodshed cost nothing. Short of it, the works stand idle until it's paid.",

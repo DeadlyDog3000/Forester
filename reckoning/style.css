@@ -337,3 +337,17 @@ body.talking #hint { bottom: 298px; }
 .insp-acts button .sub { display: block; font-weight: 400; font-size: 12px; opacity: 0.8; margin-top: 3px; }
 .insp-acts button.danger { background: rgba(200, 70, 50, 0.14); border-color: rgba(220, 110, 90, 0.45); }
 .insp-acts button.danger.armed { background: rgba(200, 70, 50, 0.45); }
+
+/* the six saves */
+#slotList { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; width: min(940px, 92vw); margin: 6px auto 18px; }
+.slot { position: relative; padding: 14px 16px 12px; background: rgba(9, 24, 16, 0.72); border: 1px solid var(--edge); border-radius: 6px; text-align: left; }
+.slot.cur { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.slot .sl-n { font: 600 11px var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+.slot .sl-t { font: 20px/1.25 var(--serif); margin: 4px 0 2px; }
+.slot .sl-d { font: 13px/1.4 var(--sans); opacity: 0.8; min-height: 36px; }
+.slot .sl-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.slot .sl-acts button { padding: 6px 10px; font: 600 12px var(--sans); color: var(--ink); background: rgba(140, 192, 132, 0.14); border: 1px solid var(--edge); border-radius: 4px; cursor: pointer; }
+.slot .sl-acts button:hover { background: rgba(140, 192, 132, 0.3); }
+.slot .sl-acts button.primary { background: rgba(140, 192, 132, 0.35); }
+.slot .sl-acts button.danger { border-color: rgba(220, 110, 90, 0.5); background: rgba(200, 70, 50, 0.14); }
+.slot .sl-acts button.danger.armed { background: rgba(200, 70, 50, 0.5); }

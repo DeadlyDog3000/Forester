@@ -120,6 +120,7 @@
         <button id="btnContinue" class="btn hidden">Continue</button>
         <button id="btnNew" class="btn primary">New Game</button>
         <button id="btnChapters" class="btn hidden">Chapters</button>
+        <button id="btnSlots" class="btn">Saves</button>
         <button id="btnSettings" class="btn">Settings</button>
         <button id="btnControls" class="btn">Controls</button>
         <button id="btnUpdates" class="btn ghost-sm">What has changed</button>
@@ -142,6 +143,14 @@
           <span class="who-text">Kept the ledgers when Father's eyes grew tired. Remembers every number, and every face.</span>
         </button>
       </div>
+      <button class="btn ghost" data-back>Back</button>
+    </section>
+
+    <section id="slots" class="screen hidden">
+      <h2 id="slotsTitle">Saves</h2>
+      <p class="sub" id="slotsSub">Six games, side by side. Export one to keep it safe or to carry it to another computer; import it back into any slot.</p>
+      <div id="slotList"></div>
+      <input id="slotFile" type="file" accept=".json,application/json" hidden>
       <button class="btn ghost" data-back>Back</button>
     </section>
 

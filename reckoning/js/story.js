@@ -221,17 +221,25 @@ function sibHints() {
 // ---------------------------------------------------------------------------
 //  saving
 // ---------------------------------------------------------------------------
-const SAVE_KEY = "reckoning.save.v1";
-export function loadSave() {
-  try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || null; } catch (e) { return null; }
-}
+// Six games side by side, as in the first Forester. The first slot is where a single save always
+// lived, so a game from before there were slots is simply slot 1. Which slot is being played is remembered.
+export const SLOTS = 6;
+const slotKey = n => n === 1 ? "reckoning.save.v1" : `reckoning.save.v1.s${n}`;
+let slot = 1;
+try { slot = Math.min(SLOTS, Math.max(1, +localStorage.getItem("reckoning.slot") || 1)); } catch (e) {}
+export const getSlot = () => slot;
+export function setSlot(n) { slot = n; try { localStorage.setItem("reckoning.slot", String(n)); } catch (e) {} }
+export function readSlot(n) { try { return JSON.parse(localStorage.getItem(slotKey(n))) || null; } catch (e) { return null; } }
+export function writeSlot(n, s) { try { localStorage.setItem(slotKey(n), JSON.stringify(s, (k, v) => k[0] === "_" ? undefined : v)); return true; } catch (e) { return false; } }
+export function clearSlot(n) { try { localStorage.removeItem(slotKey(n)); } catch (e) {} }
+export function loadSave() { return readSlot(slot); }
 export function writeSave(patch) {
   const s = { ...(loadSave() || {}), ...patch, at: Date.now() };
   // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(s, (k, v) => k[0] === "_" ? undefined : v)); } catch (e) {}
+  writeSlot(slot, s);
   return s;
 }
-export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+export function clearSave() { clearSlot(slot); }
 
 // ---------------------------------------------------------------------------
 //  chapters
