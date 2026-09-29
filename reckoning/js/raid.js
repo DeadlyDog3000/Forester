@@ -243,7 +243,7 @@ export class Raids {
     AUDIO.voice(s.hp > 0 ? "pain" : "fear", { at: s.pos, high: this.highVoice(s) });
     if (s.hp > 0) return;
     // down in the grass for a while; they get up again when it's over
-    s.knocked = G.time + 18; s.path = []; s.lying = true; s.yOff = 0.05; s.person.held.clear(); s.armKind = null;
+    s.knocked = G.time + 18; s.wasKnocked = true; s.path = []; s.lying = true; s.yOff = 0.05; s.person.held.clear(); s.armKind = null;
     UI.bark(s.settler.name, ["Ah—!", "I'm down—", "Get him off me!"][Math.floor(Math.random() * 3)], 1.8);
   }
   nearest(p, alive = true) {

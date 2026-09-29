@@ -18,6 +18,7 @@ import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, g
 import { CHANGELOG } from "./changelog.js";
 import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
+import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 
 /* global SFX */
 
@@ -412,6 +413,7 @@ function rankOf(t) {
   if (pop >= 4) return "Hamlet";
   return "Camp";
 }
+let govPeopleHtml = "";
 function renderGov(full) {
   const t = G.town; if (!t) return;
   // (a redraw every half second would steal the search box's focus and the tree's scroll: only what moves is redrawn)
@@ -419,7 +421,16 @@ function renderGov(full) {
   for (const b of document.querySelectorAll("#govTabs .gov-tab")) b.classList.toggle("on", b.dataset.tab === govTab);
   $("govTitle").textContent = `Government — ${t.S.name || "the clearing"}`;
   if (govTab === "nation") $("govBody").innerHTML = govNation(t);
-  else if (govTab === "people") { $("govBody").innerHTML = govPeople(t); wirePeople(t); }
+  else if (govTab === "people") {
+    // (redrawn only when something in it changed, and the trade picked to send for is kept)
+    const html = govPeople(t);
+    if (full || html !== govPeopleHtml || key !== govKey) {
+      const pick = $("recJob") && $("recJob").value, top = $("govBody").scrollTop;
+      $("govBody").innerHTML = html; govPeopleHtml = html; wirePeople(t);
+      if (pick && $("recJob")) $("recJob").value = pick;
+      $("govBody").scrollTop = top;
+    }
+  }
   else if (full || key !== govKey || !$("techWrap")) { $("govBody").innerHTML = govTechFrame(t); wireTech(t); drawTech(t); }
   else drawTech(t, true);
   govKey = key;
@@ -475,8 +486,9 @@ function govPeople(t) {
   const you = [G.player && G.player.axe ? "Old felling axe" : null, G.player && G.player.carryN ? `${G.player.carryN} logs in the arms` : null, ...packHas].filter(Boolean);
   const youName = G.who === "sister" ? "Sister" : "Brother", sibName = G.who === "sister" ? "Brother" : "Sister";
   const sibA = t.sibActor;
-  let rows = `<tr><td class="nm">${youName} <span class="dim">(you)</span></td><td>Head of the household</td><td class="dim">The cabin</td><td class="dim">—</td><td><div class="has">${you.map(x => `<span>${esc(x)}</span>`).join("") || '<span class="dim">nothing</span>'}</div></td><td></td></tr>`;
-  rows += `<tr><td class="nm">${sibName}</td><td>Woodcutter · family</td><td class="dim">The cabin, the second pallet</td><td class="dim">${esc(sibA ? cap(sibA.doing || "about the clearing") : "about the clearing")}</td><td><div class="has"><span>Axe</span></div></td><td></td></tr>`;
+  const moodCell = m => `<div class="mood" title="${esc(m.why.map(([n, w]) => `${n > 0 ? "+" : ""}${n} ${w}`).join("\n"))}"><div class="mood-bar"><i style="width:${m.value}%;background:${m.value < 25 ? "#d0503a" : m.value < 45 ? "#d6a03a" : "var(--gold)"}"></i></div><span>${m.value}</span></div>`;
+  let rows = `<tr><td class="nm">${youName} <span class="dim">(you)</span></td><td>Head of the household</td><td class="dim">—</td><td class="dim">—</td><td class="dim">The cabin</td><td><div class="has">${you.map(x => `<span>${esc(x)}</span>`).join("") || '<span class="dim">nothing</span>'}</div></td><td></td></tr>`;
+  rows += `<tr><td class="nm">${sibName}</td><td>Woodcutter · family</td><td class="dim">—</td><td class="dim">—</td><td class="dim">${esc(sibA ? cap(sibA.doing || "about the clearing") : "about the clearing")}</td><td><div class="has"><span>Axe</span></div></td><td></td></tr>`;
   S.people.forEach((p, i) => {
     const a = t.actors.find(x => x.settler === p);
     const home = cabins[Math.floor(i / t.perCabin)];
@@ -484,18 +496,35 @@ function govPeople(t) {
     const arm = t.armFor ? t.armFor(p) : null;
     const has = [p.job === "woodcutter" ? "Axe" : null, arm && arm !== "axe" && arm !== "fists" ? ARMS[arm].name : null, tool ? "Iron tools" : null, home ? "A bed" : null].filter(Boolean);
     const gone = !a || a.gone;
-    rows += `<tr><td class="nm">${esc(p.name)}${p.child ? ' <span class="dim">(child)</span>' : ""}</td>
+    const m = t.mood ? t.mood(p) : { value: 50, why: [] };
+    const tp = TEMPER[p.temper], mk = p.mark && MARKS[p.mark];
+    const skills = topSkills(p, 3), main = JOB_SKILL[p.job || "hauler"], lvl = skillLvl(p, main);
+    const open = pplOpen.has(p.name);
+    rows += `<tr class="${open ? "open" : ""}"><td class="nm"><a data-open="${esc(p.name)}">${esc(p.name)}</a>${p.child ? ' <span class="dim">(child)</span>' : ""}${tp ? `<span class="tag" title="${esc(tp.blurb + " " + tp.does)}">${esc(tp.name)}</span>` : ""}${mk ? `<span class="tag mark" title="${esc(mk.blurb + " " + mk.does)}">${esc(mk.name)}</span>` : ""}</td>
       <td>${p.child ? "—" : cap(JOBS[p.job || "hauler"].name)}</td>
-      <td class="dim">${home ? `Cabin ${cabins.indexOf(home) + 1}` : "By the fire — no bed"}</td>
+      <td>${p.child ? '<span class="dim">—</span>' : moodCell(m)}</td>
+      <td class="dim">${skills.map(k => `${k.name} ${k.lvl}`).join(" · ") || "—"}</td>
       <td class="dim">${esc(gone ? "away" : cap(a.doing || "about the clearing"))}</td>
       <td><div class="has">${has.map(x => `<span>${esc(x)}</span>`).join("") || '<span class="dim">the clothes they came in</span>'}</div></td>
-      <td>${p.child ? "" : `<button data-p="${i}">Set work</button>`}</td></tr>`;
+      <td class="acts">${p.child ? "" : `<button data-p="${i}">Set work</button>${lvl < 100 ? `<button data-train="${i}" title="One level of ${SKILL_NAME[main]}, out of the treasury">Train ${esc(SKILL_NAME[main])} ${lvl}→${lvl + 1} · ${trainCost(lvl)} DM</button>` : ""}`}</td></tr>`;
+    if (open && !p.child) rows += `<tr class="sheet"><td colspan="7"><div class="sheet-grid">
+      <div><div class="k">Skills</div>${SKILLS.map(k => `<div class="sk"><span>${k.name}</span><div class="sk-bar"><i style="width:${skillLvl(p, k.id)}%"></i></div><b>${skillLvl(p, k.id)}</b></div>`).join("")}</div>
+      <div>${tp ? `<div class="k">${esc(tp.name)}</div><p>${esc(tp.blurb)} ${esc(tp.does)}</p>` : ""}${mk ? `<div class="k">${esc(mk.name)}</div><p>${esc(mk.blurb)} ${esc(mk.does)}</p>` : ""}
+        <div class="k">Why they feel as they do — ${m.value}</div><p>${m.why.map(([n, w]) => `<span class="${n > 0 ? "up" : "down"}">${n > 0 ? "+" : ""}${n}</span> ${esc(w)}`).join("<br>")}</p></div></div></td></tr>`;
   });
-  return `<div class="gov-why" style="margin-bottom:8px">${S.people.length + 2} souls. Everyone who is not family came up the road.</div>
-    <table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Home</th><th>Now</th><th>Has</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  // sending for someone new
+  const pop = S.people.length + 2, free = t.beds + 2 - pop - (t.sentFor || 0);
+  const trades = Object.keys(JOBS).filter(j => !(t.jobGated && t.jobGated(j)));
+  const recruit = t.recruit ? `<div class="recruit"><span>Send for someone:</span><select id="recJob">${trades.map(j => `<option value="${j}">${cap(JOBS[j].name)} — ${SKILL_NAME[JOB_SKILL[j]]}</option>`).join("")}</select><button id="recGo"${free > 0 ? "" : " disabled"}>Send — 12 DM</button><span class="dim">${free > 0 ? `${free} bed${free > 1 ? "s" : ""} free. They come up the road with the trade already in their hands.` : "No bed free — raise a cabin first."}${t.sentFor ? ` ${t.sentFor} on the way.` : ""}</span></div>` : "";
+  return `<div class="gov-why" style="margin-bottom:8px">${pop} souls. Everyone who is not family came up the road. Click a name for their whole sheet; the bar is how they feel (hover for why). Two miserable days and they leave.</div>${recruit}
+    <table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Mood</th><th>Best at</th><th>Now</th><th>Has</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
+const pplOpen = new Set();
 function wirePeople(t) {
   for (const b of $("govBody").querySelectorAll("button[data-p]")) b.onclick = () => { const p = t.S.people[+b.dataset.p]; showOverlay("gov", false); t.chooseJob(p); };
+  for (const b of $("govBody").querySelectorAll("button[data-train]")) b.onclick = () => { const msg = t.train(t.S.people[+b.dataset.train]); if (msg) UI.hint(msg, 3); renderGov(true); };
+  for (const b of $("govBody").querySelectorAll("a[data-open]")) b.onclick = () => { const n = b.dataset.open; pplOpen.has(n) ? pplOpen.delete(n) : pplOpen.add(n); renderGov(true); };
+  const go = $("recGo"); if (go) go.onclick = () => { const msg = t.recruit($("recJob").value); UI.hint(msg || "Word is sent down the road. Someone will come.", 4); renderGov(true); };
 }
 // the tech tree, laid out and drawn exactly as Forester lays it out
 function govTechFrame(t) {

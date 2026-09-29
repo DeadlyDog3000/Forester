@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.19", date: "29 September 2026", title: "People, as the first Forester has them",
+    items: [
+      "Skills: every settler has the first Forester's eleven — Woodcutting, Quarrying, Farming, Building, Smithing, Crafting, Fighting and the rest — from 1 to 100. They come knowing their trade a little, and learn by doing it: a master works in a little under half the time, and a master working nearby teaches faster.",
+      "Training: pay out of the treasury to raise someone a level in the skill of their work (G, People).",
+      "Temperaments, one each for life, from the first Forester's six pairs: industrious or idle, hot- or even-tempered, gregarious or solitary, stout-hearted or timid, generous or grasping, hardy or sickly. Each bends their work, their fighting, their mood or how the winter takes them.",
+      "Marks, for what happened to them here: hardened for standing up to raiders, bitter for being beaten down and left lying, contented after a long run of good days.",
+      "A mood of their own: the settlement's contentment, and then their own — temperament, mark, a bed of their own, work they're good at. Two miserable days and they go back down the road; you're warned the day before.",
+      "Send for someone: pick a trade in G, People, pay 12 DM, and if there's a bed free they come up the road with the trade already in their hands.",
+      "The People tab shows it all: temperament and mark, a mood bar (hover for why), what each is best at. Click a name for their whole sheet.",
+    ],
+  },
+  {
     v: "0.18", date: "28 September 2026", title: "Look closer, and learn to build",
     items: [
       "Six saves, as in the first Forester: Saves on the title screen shows each one — who, how far, the settlement and its day, when you last played — to continue, start over, delete, or export to a file and import back (into any save, or on another computer). New Game asks which save to use. The game you had already is save 1.",

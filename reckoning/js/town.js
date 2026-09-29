@@ -20,6 +20,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel } from "./models.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
+import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
@@ -791,6 +792,7 @@ export class Town {
 
   // ---- people ----
   addPerson(p, x, z) {
+    ensurePerson(p);
     if (!this.S.people.includes(p)) this.S.people.push(p);
     const a = new Actor(settlerLook(p), x ?? CLEARING.x + 2, z ?? CLEARING.z + 6, 0);
     a.settler = p; this.actors.push(a);
@@ -827,9 +829,35 @@ export class Town {
     a.summoned = true; a.person.held.clear(); a.person.setPose("idle");
     return a.walkTo(x, z, 1.3).then(() => { if (a.root.parent) a.faceTo(FIRE.x, FIRE.z); });
   }
-  // the newest to come goes back down the road (hunger does this)
-  leave(why = "hunger") {
-    const p = [...this.S.people].reverse().find(q => !q.child); if (!p) return;
+  // ---- people: how quick they are at a thing, what they learn by it, where they sleep ----
+  // (skill and temperament both: a master industrious hand is quick; an idle novice slow)
+  pace(a, id) { const p = a.settler || {}; return id ? workSkill(p, id) * temperWork(p) : temperWork(p); }
+  learn(a, id, amount = 1) {
+    const p = a.settler; if (!p || !p.name || !id) return;
+    // a master working nearby teaches faster
+    const near = skillLvl(p, id) < MASTER_AT && this.actors.some(o => o !== a && o.settler && skillLvl(o.settler, id) >= MASTER_AT && Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z) < 14);
+    const lvl = gainSkill(p, id, amount, near);
+    if (lvl) UI.hint(`${p.name} reaches ${SKILL_NAME[id]} ${lvl}${lvl >= 100 ? " — a master of it" : ""}.`, 4);
+  }
+  // training out of the treasury: a level in the skill of their work, the dearer the better they are already
+  train(p) {
+    const id = JOB_SKILL[p.job || "hauler"], lvl = skillLvl(p, id), cost = trainCost(lvl);
+    if (lvl >= 100) return `${p.name} is already a master.`;
+    if ((this.S.coin || 0) < cost) return `Training ${p.name} costs ${cost} DM.`;
+    this.S.coin -= cost; p.sk ??= {}; p.sk[id] = lvl + 1; p.sx && (p.sx[id] = 0);
+    this.persist(); SFX().coin && SFX().coin();
+    return null;
+  }
+  bedOf(p) { const i = this.S.people.indexOf(p); return i >= 0 && i < this.count("cabin") * this.perCabin; }
+  mood(p) { return moodOf(this, p); }
+  setMark(p, id, why) {
+    if (!p || !p.name || p.child || p.mark === id) return;
+    p.mark = id; this.persist();
+    UI.hint(`${p.name} — ${MARKS[id].name.toLowerCase()}: ${why}`, 5);
+  }
+  // the newest to come goes back down the road (hunger does this) — or, named, someone who can't bear it here
+  leave(why = "hunger", who = null) {
+    const p = who || [...this.S.people].reverse().find(q => !q.child); if (!p) return;
     this.S.people.splice(this.S.people.indexOf(p), 1);
     const a = this.actors.find(x => x.settler === p);
     if (a) {
@@ -894,7 +922,13 @@ export class Town {
         if (raid && G.time < a.knocked) { a.doing = "knocked down"; await sleep(1); alive(); continue; }
         a.knocked = 0; a.lying = false; a.yOff = 0; a.hp = 50;
       }
-      if (!raid && a.fighting) { a.fighting = false; if (a.armKind) { a.person.held.clear(); a.armKind = null; } a.hp = 50; }
+      if (!raid && a.fighting) {
+        a.fighting = false; if (a.armKind) { a.person.held.clear(); a.armKind = null; } a.hp = 50;
+        // stood in the fight and came through: hardened; beaten down and left lying: bitter
+        if (a.wasKnocked) { if (a.settler.mark !== "hardened") this.setMark(a.settler, "bitter", "beaten down in the raid, and hasn't forgotten it"); }
+        else this.setMark(a.settler, "hardened", "stood up to the raiders, and is less afraid of the next");
+        a.wasKnocked = false;
+      }
       if (raid && !a.settler.child) {
         const r = this.raids.nearest(a.pos);
         if (r) {
@@ -907,7 +941,7 @@ export class Town {
           // thrown off by a parry: a moment to find their feet
           if (a.stagger && G.time < a.stagger) { await sleep(a.stagger - G.time); alive(); continue; }
           a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
-          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm), a); arm === "fists" ? AUDIO.whoosh(0.3, false) : Math.random() < 0.35 ? AUDIO.clang(0.7, a.pos) : this.sfxAt(a, "chop"); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
+          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm) * armSkill(a.settler, "fighting") * temperArm(a.settler), a); this.learn(a, "fighting", 0.5); arm === "fists" ? AUDIO.whoosh(0.3, false) : Math.random() < 0.35 ? AUDIO.clang(0.7, a.pos) : this.sfxAt(a, "chop"); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
           await sleep(arm === "fists" ? 0.55 : 0.9); continue;
         }
       }
@@ -934,7 +968,7 @@ export class Town {
         matSite.got = matSite.got || {};
         let left = 4;
         for (const [k, n] of Object.entries(this.wants(matSite))) { const m = Math.min(n, this.have(k), left); this.S[k] -= m; matSite.got[k] = (matSite.got[k] || 0) + m; left -= m; }
-        a.person.setPose("idle"); this.show(matSite); this.persist(); this.sfxAt(a, "pickup");
+        a.person.setPose("idle"); this.show(matSite); this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "building", 0.6);
         await sleep(2);
       } else if (!clearing && works && workAt && this.untended) {
         a.doing = `waiting at the ${BUILDINGS[workAt.type].name.toLowerCase()} — the keep isn't paid`;
@@ -950,14 +984,15 @@ export class Town {
         a.person.setPose(works.pose);
         // (Deep Shafts: quarries and mines work 30% faster, and bring up more; Blast Furnace: twice the iron)
         const deep = this.knows("deepshafts") && (works.at === "quarry" || works.at === "mine");
-        const time = works.time * this.toolFactor * (deep ? 0.7 : 1);
+        const skill = JOB_SKILL[job];
+        const time = works.time * this.toolFactor * (deep ? 0.7 : 1) * this.pace(a, skill);
         if (works.pose === "chop") { const axe = a.hold(makeAxe()); await sleep(time); a.person.held.remove(axe); }
         else await sleep(time);
         alive();
         if (this.afford(works.need)) {
           this.pay(works.need);
           for (const [k, n] of Object.entries(works.give)) this.S[k] = (this.S[k] || 0) + n * (works.at === "smelter" && this.knows("blastfurnace") ? 2 : 1) + (deep ? 1 : 0);
-          this.persist(); this.sfxAt(a, "build");
+          this.persist(); this.sfxAt(a, "build"); this.learn(a, skill, 1);
         }
         a.person.setPose("idle");
         await sleep(1.5);
@@ -967,7 +1002,7 @@ export class Town {
         const n = Math.min(4, this.S.store, BUILDINGS[site.type].cost - site.logs); if (n <= 0) continue;
         this.S.store -= n; this.showStore(); a.person.setPose("hold");
         await a.walkTo(site.x + 1.6, site.z + BUILDINGS[site.type].d / 2 + 1.4, 1.1); alive();
-        site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); this.sfxAt(a, "pickup");
+        site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "building", 0.6);
         await sleep(2);
       } else if (clearing || job === "woodcutter" || (job === "hauler" && site)) {
         a.doing = clearing ? "clearing ground for the settlement" : "felling trees";
@@ -980,9 +1015,9 @@ export class Town {
         await a.walkTo(t.x + dx / l * 1.1, t.z + dz / l * 1.1, 1.3); alive();
         a.faceTo(t.x, t.z); a.person.setPose("chop");
         const axe = a.hold(makeAxe());
-        for (let i = 0; i < (this.S.upgrades.axes ? 4 : 6); i++) { await sleep(0.8 * this.chopMul); alive(); if (Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 24) this.sfxAt(a, "chop"); }
+        for (let i = 0; i < (this.S.upgrades.axes ? 4 : 6); i++) { await sleep(0.8 * this.chopMul * this.pace(a, "woodcutting")); alive(); if (Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 24) this.sfxAt(a, "chop"); }
         a.person.setPose("idle"); a.person.held.remove(axe);
-        this.fell(t, -dx, -dz, false);
+        this.fell(t, -dx, -dz, false); this.learn(a, "woodcutting", 1);
         await sleep(2.6); alive();
         a.person.setPose("hold");
         await a.walkTo(this.stackAt.x + 1.1, this.stackAt.z + 0.4, 1.2); alive();
@@ -996,8 +1031,8 @@ export class Town {
         const ox = bk.x + Math.cos(bk.ry) * 3.2 - Math.sin(bk.ry) * 1.6, oz = bk.z - Math.sin(bk.ry) * 3.2 - Math.cos(bk.ry) * 1.6;
         await a.walkTo(ox, oz, 1.2); alive();
         a.faceTo(bk.x + Math.cos(bk.ry) * 3.6, bk.z - Math.sin(bk.ry) * 3.6); a.person.setPose("hammer");
-        await sleep(9); alive();
-        if (this.S.rye >= 2) { this.S.rye -= 2; this.S.bread += 3; this.persist(); this.sfxAt(a, "pickup"); }
+        await sleep(9 * this.pace(a, "crafting")); alive();
+        if (this.S.rye >= 2) { this.S.rye -= 2; this.S.bread += 3; this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "crafting", 1); }
         a.person.setPose("idle");
         await sleep(2);
       } else if (job === "farmer") {
@@ -1006,7 +1041,7 @@ export class Town {
         const f = fields.length ? fields[Math.floor(Math.random() * fields.length)] : null;
         if (!f) { await a.walkTo(FIRE.x + (Math.random() - 0.5) * 6, FIRE.z + 3 + Math.random() * 2, 1); await sleep(6); continue; }
         await a.walkTo(f.x + (Math.random() - 0.5) * 4, f.z + (Math.random() - 0.5) * 5, 1.1); alive();
-        a.person.setPose("hammer"); await sleep((6 + Math.random() * 4) * this.workMul); alive(); a.person.setPose("idle");
+        a.person.setPose("hammer"); await sleep((6 + Math.random() * 4) * this.workMul * this.pace(a, "farming")); alive(); a.person.setPose("idle"); this.learn(a, "farming", 0.7);
       } else {
         // nothing to do: idle about the fire and the cabins
         a.doing = "idle";
@@ -1075,6 +1110,16 @@ export class Town {
         }
       }
       if (this.techGates && this.needsRoom()) this.expand();
+      // each person's own mood, day by day: two miserable days and they go; four good ones and they settle in for good
+      if (this.techGates) for (const p of this.S.people.slice()) {
+        if (p.child) continue;
+        const m = this.mood(p).value;
+        p.low = m < 25 ? (p.low || 0) + 1 : 0;
+        p.good = m >= 75 ? (p.good || 0) + 1 : 0;
+        if (p.good >= 4 && !p.mark) this.setMark(p, "contented", "warm, fed and unbothered a good while now");
+        if (p.low >= 2) { UI.hint(`${p.name} can't bear it here any longer, and goes back down the road. (G, People, shows how everyone feels.)`, 7); this.leave("unhappy", p); }
+        else if (p.low === 1) UI.hint(`${p.name} is miserable (${m}). Another day like this and they'll leave — see G, People, for why.`, 6);
+      }
       // the day's keep: a DM for every work that must be tended, out of the treasury; short, and they go untended
       if (this.techGates) {
         // (the halves are owed until they make a whole DM)

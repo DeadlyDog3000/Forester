@@ -18,8 +18,9 @@ import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { Raids } from "./raid.js";
+import { JOB_SKILL, SKILL_NAME } from "./people.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, P as PROPS } from "./models.js";
-import { Town, BUILDINGS, lieOn, YEAR } from "./town.js";
+import { Town, BUILDINGS, JOBS, lieOn, YEAR } from "./town.js";
 
 /* global SFX */
 
@@ -1899,6 +1900,9 @@ const NEWCOMERS = [
   { name: "Claus", sex: "m", job: "farmer" }, { name: "Margarethe", sex: "f", job: "woodcutter" }, { name: "Peter", sex: "m", job: "hauler" },
   { name: "Elsabe", sex: "f", job: "farmer" }, { name: "Jochim", sex: "m", job: "woodcutter" }, { name: "Trine", sex: "f", job: "hauler" },
 ];
+// more names, for when the list above has all come (sending for people can run through it)
+const SPARE_NAMES = ["Hans", "Gesche", "Detlef", "Metta", "Berend", "Wiebke", "Harmen", "Abelke", "Lüder", "Tibbe", "Carsten", "Ilsabe", "Marten", "Beke", "Reimer", "Taleke"];
+const RECRUIT_COST = 12;
 // someone comes up the road and joins you
 async function arrival(town, p, say1) {
   const w = town.w, r0 = w.road[w.road.length - 30];
@@ -2569,6 +2573,24 @@ async function chFree(w) {
   onFrame(dt => raids.update(dt));
   // the board says the season and the day, and what wants doing next
   onFrame(() => UI.objective(`${S.name} — ${town.season}, day ${town.day + 1} · ${town.advice()}`));
+  // sending for someone: a trade chosen, a few DM for the letter and the road, a bed for them — and they come up it
+  town.recruit = job => {
+    const pop = S.people.length + 2;
+    if (town.beds + 2 <= pop + (town.sentFor || 0)) return "There's no bed free for anyone new — raise a cabin first.";
+    if ((S.coin || 0) < RECRUIT_COST) return `Sending for someone costs ${RECRUIT_COST} DM.`;
+    S.coin -= RECRUIT_COST; town.sentFor = (town.sentFor || 0) + 1; town.persist();
+    const used = new Set(S.people.map(q => q.name));
+    const base = NEWCOMERS.find(q => !used.has(q.name)) || { name: SPARE_NAMES.find(n => !used.has(n)) || `${SPARE_NAMES[S.people.length % SPARE_NAMES.length]} the younger`, sex: S.people.length % 2 ? "f" : "m" };
+    const r = Math.random, main = JOB_SKILL[job];
+    const p = { name: base.name, sex: base.sex, job, seed: 400 + S.people.length * 11 + Math.floor(r() * 7), sk: { [main]: 16 + Math.floor(r() * 12) } };
+    setTimeout(async () => {
+      town.sentFor = Math.max(0, (town.sentFor || 1) - 1);
+      if (G.town !== town) return;
+      await arrival(town, p, `You sent for a ${JOBS[job].name}? I'm ${p.name}. I've done this work before.`);
+      UI.hint(`${p.name} has come up the road — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}.`, 5);
+    }, 9000);
+    return null;
+  };
   // who comes up the road: when there is a bed, and bread enough
   town.on("day", async d => {
     restock();
