@@ -374,11 +374,11 @@ export function makeLantern(light = true) {
   if (light) { const L = new THREE.PointLight(0xffc27a, 5, 12, 1.6); L.position.y = -0.1; g.add(L); g.userData.light = L; }
   return g;
 }
-export function makeAxe() {
+export function makeAxe(tier) {
   const g = new THREE.Group();
   const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.72, 6), mat(0x7a5a3a));
   haft.position.y = 0.3; g.add(haft);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.16), mat(0x5d6166, { metalness: 0.8, roughness: 0.45 }));
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.16), (tier === 3 ? mat(0xf0a060, { metalness: 0.08, roughness: 0.3 }) : mat(tier === 4 ? 0x9aa0a8 : 0x5d6166, { metalness: 0.8, roughness: 0.45 })));
   head.position.set(0, 0.62, 0.06); g.add(head);
   const edge = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.14, 0.04), mat(0xb8bcc2, { metalness: 0.9, roughness: 0.3 }));
   edge.position.set(0, 0.62, 0.15); g.add(edge);
@@ -386,13 +386,15 @@ export function makeAxe() {
 }
 // arms: each held by the grip at the origin, pointing up +Y (as the axe is)
 const STEEL = () => mat(0xc4c9cf, { metalness: 0.45, roughness: 0.35 });
-export function makeSword() {
+// the blade's stuff by its making: wood, copper, or steel (the smith's, and iron)
+const BLADE_OF = t => t === 1 ? mat(0x7a5a38, { surface: "wood" }) : t === 3 ? mat(0xf0a060, { metalness: 0.08, roughness: 0.3 }) : STEEL();
+export function makeSword(tier) {
   const g = new THREE.Group();
   const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.24, 6), mat(0x3a2418)); grip.position.y = 0.1; g.add(grip);
   const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), mat(0x8a7040, { metalness: 0.7, roughness: 0.4 })); pommel.position.y = -0.03; g.add(pommel);
   const guard = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.24), mat(0x8a7040, { metalness: 0.7, roughness: 0.4 })); guard.position.y = 0.23; g.add(guard);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.8, 0.05), STEEL()); blade.position.y = 0.64; g.add(blade);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.1, 4), STEEL()); tip.scale.x = 0.25; tip.position.y = 1.09; g.add(tip);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(tier === 1 ? 0.024 : 0.012, 0.8, 0.05), BLADE_OF(tier)); blade.position.y = 0.64; g.add(blade);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.1, 4), BLADE_OF(tier)); tip.scale.x = 0.25; tip.position.y = 1.09; g.add(tip);
   return g;
 }
 export function makeSpear() {
@@ -449,11 +451,11 @@ export function makeFood(kind) {
   return g;
 }
 // a pickaxe: haft pointing +Y, the head across it at the top, in its making's colour
-const PICK_HEAD = [0x9a7448, 0x9a7448, 0x8a867e, 0xc8763e, 0xaab0b8];
+const PICK_HEAD = [0x9a7448, 0x9a7448, 0x8a867e, 0xe0904e, 0xaab0b8];
 export function makePick(tier = 1) {
   const g = new THREE.Group();
   const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.72, 6), mat(0x6a4a30, { surface: "wood" })); haft.position.y = 0.3; g.add(haft);
-  const metal = tier >= 3, head = mat(PICK_HEAD[tier] || PICK_HEAD[1], metal ? { metalness: 0.55, roughness: 0.45 } : { surface: tier === 2 ? "stone" : "wood" });
+  const metal = tier >= 3, head = mat(PICK_HEAD[tier] || PICK_HEAD[1], metal ? { metalness: tier === 3 ? 0.25 : 0.55, roughness: 0.4 } : { surface: tier === 2 ? "stone" : "wood" });
   // the head: two arms from the haft's top, bending down to points, like a bird's wings folded
   const hub = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.06), head); hub.position.y = 0.66; g.add(hub);
   for (const s of [-1, 1]) {
@@ -463,6 +465,14 @@ export function makePick(tier = 1) {
     tip.position.set(0, 0.6, s * 0.225); tip.rotation.x = s * (Math.PI / 2 + 0.55); g.add(tip);
   }
   return g;
+}
+// what is in your own hands: your own sword and axe by their making, the rest as anyone's
+export function makeOwnArm(kind, smithSword = false) {
+  const t = G_TOOLS();
+  // (a wooden sword of your own gives way to the smith's steel one, as on the hotbar)
+  if (kind === "sword" && t && t.sword > 0 && (!smithSword || t.sword >= 3)) return makeSword(t.sword);
+  if ((kind || "axe") === "axe" && t && t.axe >= 3) return makeAxe(t.axe);
+  return makeArm(kind);
 }
 export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
 // (the pick's making is the player's, read from the game at the moment it is made)

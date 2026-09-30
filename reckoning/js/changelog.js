@@ -26,6 +26,8 @@ export const CHANGELOG = [
       "Nothing in the game speaks of the clearing before you reach it. The old axe stays yours once you take it. The charred beam is gone.",
       "The minimap draws five times quicker. There's a Quit button on the front screen of the app.",
       "Fixed: you could end up boxed in with no way out. Now you step out to the nearest clear ground.",
+      "Your own sword and axe show their making: a wooden blade, a copper one, iron.",
+      "Fixed: grass showed between the cabin's floorboards.",
     ],
   },
   {

@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
-import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, modelCopy, setToolSource } from "./models.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, modelCopy, setToolSource, makeOwnArm } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
@@ -184,7 +184,7 @@ export class Player {
       // the hands are a pivot; inside it the haft points forward and the blade leads to the left
       this.axe = new THREE.Group();
       this.axe.rotation.order = "YXZ";
-      const a = makeArm(this.blade || "axe");
+      const a = (G.town ? k => makeOwnArm(k, !!(G.town.playerArm && G.town.playerArm() === "sword")) : makeArm)(this.blade || "axe");
       a.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0)));
       this.axe.add(a);
       camera.add(this.axe);
@@ -211,7 +211,7 @@ export class Player {
       });
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
-      this.axeBody = makeArm(this.blade || "axe"); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
+      this.axeBody = (G.town ? k => makeOwnArm(k, !!(G.town.playerArm && G.town.playerArm() === "sword")) : makeArm)(this.blade || "axe"); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
       if (this.model && this.model.held) this.model.held.add(this.axeBody);
     } else if (!on && this.axe) {
       camera.remove(this.axe); this.axe = null;
