@@ -121,10 +121,22 @@ const SURF_GLSL = `
     if (sat < 0.15) return 2;                                                     // grey: stone
     return 0;                                                                     // browns and the rest: timber
   }
+  // everywhere but the city's houses, only what can be told for certain by colour: grey is stone,
+  // a warm brown is wood; the rest (cloth, paint, food, foliage) is left its own plain colour
+  int dClassifySimple(vec3 lin) {
+    vec3 c = pow(max(lin, vec3(0.0)), vec3(1.0 / 2.2));
+    float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
+    float sat = (mx - mn) / max(mx, 1e-3), lum = dot(c, vec3(0.3, 0.59, 0.11));
+    if (sat < 0.14 && lum > 0.2 && lum < 0.75) return 2;
+    if (c.r >= c.g && c.g >= c.b * 0.95 && sat > 0.2 && sat < 0.75 && lum < 0.6 && lum > 0.08) return 0;
+    return -2;
+  }
 `;
 const SURF_STRENGTH = "float dStrength[8] = float[8](0.75, 0.3, 0.85, 0.8, 0.95, 0.55, 0.8, 0.85);";
 
 export const SNOW = { value: 0 };
+// the colour-guessed grain in full (plaster, brick, tiles) only among the city's houses
+export const AUTO_FULL = { value: 1 };
 // a roofed room where no snow lies: (centre x, centre z, turn, on) and (half across, half deep, eaves height)
 export const ROOFED = { value: new THREE.Vector4(0, 0, 0, 0) }, ROOFSIZE = { value: new THREE.Vector3(2.8, 3.3, 0) };
 export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto" } = {}) {
@@ -132,7 +144,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
   material.onBeforeCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
-    sh.uniforms.dSnow = SNOW; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE;
+    sh.uniforms.dSnow = SNOW; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE;
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
@@ -144,14 +156,14 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         #endif
         vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow; uniform vec4 dRoof; uniform vec3 dRoofSize;" + DETAIL_GLSL + SURF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull; uniform vec4 dRoof; uniform vec3 dRoofSize;" + DETAIL_GLSL + SURF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         {
           vec3 p = vDWorld * dScale;
           vec3 an = abs(vDNormal);
           // the real surface first
           int s = ${surf};
-          if (s == -1) s = dClassify(diffuseColor.rgb, vDNormal);
+          if (s == -1) s = dAutoFull > 0.5 ? dClassify(diffuseColor.rgb, vDNormal) : dClassifySimple(diffuseColor.rgb);
           if (s >= 0) {
             ${SURF_STRENGTH}
             vec3 w = pow(an, vec3(4.0)); w /= (w.x + w.y + w.z);

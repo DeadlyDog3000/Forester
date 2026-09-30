@@ -55,6 +55,7 @@ class Animal {
   hit(power) {
     if (!this.alive) return;
     this.hp -= power > 0.7 ? 2 : 1;
+    G.practise && G.practise("archery", 3);
     if (this.hp <= 0) { this.state = "dead"; this.fall = 0; this.speed = 0; this.hunt.onDown(this); SFX.treeFall && SFX.treeFall(0.3); return; }
     this.startle(G.player.pos, 1.5);
   }

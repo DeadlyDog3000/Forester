@@ -23,6 +23,7 @@
   <!-- ===== in play ===== -->
   <div id="hud" class="hidden">
     <div id="crosshair"><i></i><b></b></div>
+    <div id="swingArrow" class="hidden"><span class="sa left"><svg viewBox="0 0 64 24" aria-hidden="true"><g class="sa-ink"><path class="sa-fletch" d="M2 5 L12 12 L2 19 L8 12 Z M9 5 L19 12 L9 19 L15 12 Z"/><path class="sa-shaft" d="M13 11 H44 V13 H13 Z"/><path class="sa-curl" d="M44 12 C40 5 34 6 35 10 C36 12 39 11 38 9 M44 12 C40 19 34 18 35 14 C36 12 39 13 38 15"/><path class="sa-head" d="M42 12 C46 6 52 5 62 12 C52 19 46 18 42 12 Z"/></g></svg></span><span class="sa right"><svg viewBox="0 0 64 24" aria-hidden="true"><g class="sa-ink"><path class="sa-fletch" d="M2 5 L12 12 L2 19 L8 12 Z M9 5 L19 12 L9 19 L15 12 Z"/><path class="sa-shaft" d="M13 11 H44 V13 H13 Z"/><path class="sa-curl" d="M44 12 C40 5 34 6 35 10 C36 12 39 11 38 9 M44 12 C40 19 34 18 35 14 C36 12 39 13 38 15"/><path class="sa-head" d="M42 12 C46 6 52 5 62 12 C52 19 46 18 42 12 Z"/></g></svg></span><span class="sa up"><svg viewBox="0 0 64 24" aria-hidden="true"><g class="sa-ink"><path class="sa-fletch" d="M2 5 L12 12 L2 19 L8 12 Z M9 5 L19 12 L9 19 L15 12 Z"/><path class="sa-shaft" d="M13 11 H44 V13 H13 Z"/><path class="sa-curl" d="M44 12 C40 5 34 6 35 10 C36 12 39 11 38 9 M44 12 C40 19 34 18 35 14 C36 12 39 13 38 15"/><path class="sa-head" d="M42 12 C46 6 52 5 62 12 C52 19 46 18 42 12 Z"/></g></svg></span></div>
     <div id="stance" class="hidden"><span class="sd up"></span><span class="sd left"></span><span class="sd right"></span></div>
     <div id="minimapWrap"><canvas id="minimap" width="180" height="180"></canvas><div class="mm-n">N</div></div>
     <div id="holdRing" class="hidden"></div>
@@ -75,6 +76,44 @@
       <canvas id="bigmapCanvas"></canvas>
       <div class="bm-close"><kbd>J</kbd> close</div>
     </div>
+    <div id="lesson" class="hidden">
+      <div class="ls-card">
+        <div class="ls-kicker">Henning's old bow</div>
+        <h3 class="ls-title">How to shoot</h3>
+        <div class="ls-body">
+          <svg class="ls-mouse" viewBox="0 0 200 260" aria-hidden="true">
+            <defs><linearGradient id="lsBody" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#efe3c4"/><stop offset="1" stop-color="#cdbb90"/></linearGradient></defs>
+            <path d="M100 20 C45 20 30 70 30 120 V170 C30 220 60 245 100 245 C140 245 170 220 170 170 V120 C170 70 155 20 100 20 Z" fill="url(#lsBody)" stroke="#2a1a0c" stroke-width="4"/>
+            <path d="M100 20 V112 M30 112 H170" stroke="#2a1a0c" stroke-width="3" fill="none"/>
+            <path class="ls-rmb" d="M102 22 C150 24 168 66 168 110 H102 Z"/>
+            <rect x="93" y="46" width="14" height="34" rx="7" fill="#8a7a5a" stroke="#2a1a0c" stroke-width="2.5"/>
+            <path d="M100 245 C100 255 96 258 90 258" stroke="#2a1a0c" stroke-width="3" fill="none"/>
+          </svg>
+          <ol class="ls-steps">
+            <li><b>Hold right-click</b> to draw the string back. Hold it until the bow is fully drawn.</li>
+            <li><b>Aim</b> with the crosshair. It closes in as you draw.</li>
+            <li><b>Let go</b> of the button to shoot.</li>
+            <li>Don't hold full draw too long: <b>your arms start to shake</b>, and the arrow goes with them.</li>
+            <li><b>Crouch with C</b> and walk. Deer hear you running.</li>
+            <li>Arrows stay where they land. <b>Pull them out with F.</b></li>
+          </ol>
+        </div>
+        <button id="lessonOk" class="btn primary">Understood</button>
+        <div class="ls-hint">Space or click to go on</div>
+      </div>
+    </div>
+    <div id="chest" class="hidden">
+      <div class="mc-win">
+        <div class="mc-label">The chest <span class="mc-hint">click to move a thing in or out &middot; <kbd>Esc</kbd> close</span></div>
+        <div id="chestBody"></div>
+      </div>
+    </div>
+    <div id="skills" class="hidden">
+      <div class="mc-win sk-win">
+        <div class="mc-label">Skills <span class="mc-hint"><kbd>P</kbd> close</span></div>
+        <div id="skillsBody"></div>
+      </div>
+    </div>
     <div id="inventory" class="hidden">
       <div class="mc-win">
         <div class="mc-label">Inventory <span class="mc-hint"><kbd>T</kbd> close</span></div>
@@ -82,7 +121,10 @@
       </div>
       <div id="invTip" class="hidden"></div>
     </div>
-    <div id="health" class="hidden"><svg class="hp-heart" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 21 2.6 11.6A5.6 5.6 0 0 1 12 4.3a5.6 5.6 0 0 1 9.4 7.3Z"/></svg><div class="hp-bar"><div class="hp-trail"></div><div class="hp-fill"></div><div class="hp-ticks"></div></div></div>
+    <div id="vitals" class="hidden">
+      <div id="health"><svg class="hp-heart" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 21 2.6 11.6A5.6 5.6 0 0 1 12 4.3a5.6 5.6 0 0 1 9.4 7.3Z"/></svg><div class="hp-bar"><div class="hp-trail"></div><div class="hp-fill"></div><div class="hp-ticks"></div></div></div>
+      <div id="hunger"><svg class="hg-loaf" viewBox="0 0 24 20" aria-hidden="true"><path d="M3 12c0-5 4-8 9-8s9 3 9 8v5H3z"/><path d="M8 7l1.5 4M12 6v4.5M16 7l-1.5 4" fill="none"/></svg><div class="hg-bar"><div class="hg-fill"></div><div class="hg-ticks"></div></div></div>
+    </div>
     <div id="stamina" class="hidden"><div class="st-fill"></div></div>
     <div id="hurtFx"></div>
     <div id="news" class="hidden"><img id="newsImg" alt=""><div><div id="newsTitle"></div><div id="newsSub"></div></div></div>
@@ -127,6 +169,7 @@
         <button id="btnSettings" class="btn">Settings</button>
         <button id="btnControls" class="btn">Controls</button>
         <button id="btnUpdates" class="btn ghost-sm">What has changed</button>
+        <button id="btnQuitGame" class="btn hidden">Quit</button>
       </nav>
       <footer class="credit">A <strong>DeadlyDog Productions</strong> game &middot; &copy; 2026 Roan Fraese &middot; Part One: Ashes</footer>
     </section>
@@ -204,6 +247,8 @@
         <tr><td><kbd>J</kbd></td><td>Map</td></tr>
         <tr><td><kbd>B</kbd></td><td>Plans &mdash; what you can build, once there is somewhere to build it</td></tr>
         <tr><td><kbd>T</kbd></td><td>Inventory &mdash; what you have, and what you carry</td></tr>
+        <tr><td><kbd>P</kbd></td><td>Skills &mdash; strength, toughness, healing, endurance, archery</td></tr>
+        <tr><td><kbd>1</kbd>&ndash;<kbd>9</kbd></td><td>Take out a tool &middot; eat what is in that slot</td></tr>
         <tr><td><kbd>M</kbd></td><td>Lock the mouse to look around / let it go</td></tr>
         <tr><td><kbd>Shift</kbd></td><td>Run</td></tr>
         <tr><td><kbd>C</kbd></td><td>Crouch</td></tr>
@@ -233,7 +278,7 @@
         <button id="btnRestart" class="btn">Restart chapter</button>
         <button id="btnQuit" class="btn ghost">Quit to title</button>
       </nav>
-      <p class="sub small">Your progress is kept at the start of every chapter, and in the clearing as you work.</p>
+      <p class="sub small">Your progress is kept at the start of every chapter, and as you work.</p>
     </section>
   </div>
 

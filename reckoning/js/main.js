@@ -14,6 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { loadModels } from "./models.js";
@@ -169,6 +170,8 @@ $("btnChapters").onclick = () => { buildChapters(); back = "title"; screen("chap
 $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
 $("btnControls").onclick = () => { back = "title"; screen("controls"); };
 $("btnUpdates").onclick = () => { back = "title"; screen("updates"); };
+// quit: in the desktop app, closing the window ends the game (a browser tab cannot be closed by its page, so there it isn't offered)
+if (/Electron/.test(navigator.userAgent)) { $("btnQuitGame").classList.remove("hidden"); $("btnQuitGame").onclick = () => window.close(); }
 $("updateList").innerHTML = CHANGELOG.map(u => `<article class="upd"><div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");
 for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => screen(back);
 for (const b of document.querySelectorAll("[data-who]")) b.onclick = () => {
@@ -292,9 +295,64 @@ function showTip(e) {
 }
 $("inventory").addEventListener("mousemove", showTip);
 $("inventory").addEventListener("mouseleave", () => $("invTip").classList.add("hidden"));
+// ---- the chest in the cabin: nine places, one long row; click a thing to put it in or take it out ----
+const CHEST_SLOTS = 9;
+let chestNote = "";
+function renderChest() {
+  const box = G.chest || (G.chest = []);
+  invItems = [];
+  let h = `<div class="mc-sec">In the chest</div><div class="mc-row">`;
+  for (let i = 0; i < CHEST_SLOTS; i++) h += box[i] ? slot(box[i]).replace('class="mc-slot', `data-chest="${i}" class="mc-slot`) : `<div class="mc-slot"></div>`;
+  h += `</div><div class="mc-sec">On you</div><div class="mc-row">`;
+  const pack = G.pack.slice(0, 9);
+  for (let i = 0; i < 9; i++) h += pack[i] ? slot(pack[i]).replace('class="mc-slot', `data-pack="${i}" class="mc-slot`) : `<div class="mc-slot"></div>`;
+  h += `</div><div class="ch-note">${esc(chestNote)}</div>`;
+  $("chestBody").innerHTML = h;
+}
+$("chestBody").addEventListener("click", e => {
+  const el = e.target.closest(".mc-slot"); if (!el) return;
+  const box = G.chest || (G.chest = []);
+  // the same kind of thing goes on the same pile
+  const put = (list, it, max) => {
+    const same = list.find(x => x && x.icon === it.icon && x.name === it.name && it.n != null);
+    if (same) { same.n = (same.n || 1) + (it.n || 1); return true; }
+    const free = list.findIndex(x => !x);
+    if (free >= 0 && free < max) { list[free] = it; return true; }
+    if (list.length < max) { list.push(it); return true; }
+    return false;
+  };
+  if (el.dataset.pack != null) {
+    const it = G.pack[+el.dataset.pack]; if (!it) return;
+    if (it.icon === "key" || it.icon === "map") { chestNote = "You keep that on you."; renderChest(); return; }
+    if (put(box, it, CHEST_SLOTS)) { G.pack.splice(G.pack.indexOf(it), 1); chestNote = ""; SFX.pickup && SFX.pickup(); }
+    else chestNote = "The chest is full.";
+  } else if (el.dataset.chest != null) {
+    const i = +el.dataset.chest, it = box[i]; if (!it) return;
+    box[i] = null;
+    const same = G.pack.find(x => x.icon === it.icon && x.name === it.name && it.n != null);
+    if (same) same.n = (same.n || 1) + (it.n || 1); else G.pack.push(it);
+    chestNote = ""; SFX.pickup && SFX.pickup();
+  }
+  writeSave({ chest: box.map(x => x || null) });
+  renderChest();
+});
+G.openChest = () => { chestNote = ""; AUDIO.door && AUDIO.door(true, 0.2); showOverlay("chest", true); };
+// ---- skills (P): each from 1 to 100, and what the next level wants ----
+function renderSkills() {
+  const b = G.body; if (!b) return;
+  const rows = BODY_SKILLS.map(sk => {
+    const v = b.skills[sk.id], max = v.lv >= SKILL_MAX, k = max ? 1 : v.xp / xpFor(v.lv);
+    return `<div class="sk-row"><div class="sk-name">${sk.name}</div><div class="sk-lv">${v.lv}<small> / ${SKILL_MAX}</small></div>
+      <div class="sk-bar"><div style="width:${Math.round(k * 100)}%"></div></div>
+      <div class="sk-does">${sk.does}</div><div class="sk-grows">${max ? "As good as anyone has ever been." : sk.grows}</div></div>`;
+  }).join("");
+  $("skillsBody").innerHTML = `<div class="sk-sub">You grow better at what you do. Hunger: ${Math.round(b.hunger * 100)}% fed.</div>${rows}`;
+}
 // ---- overlays (inventory, map): one at a time; the cursor comes back and you stand still ----
 let overlay = null, overlayTimer = 0, overlayLockMove = false;
 const OVERLAYS = {
+  chest: { open: () => renderChest(), tick: () => {}, every: 1000 },
+  skills: { open: () => renderSkills(), tick: () => renderSkills(), every: 500 },
   inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
   bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; } },
   buildmenu: { open: () => renderPlans(), tick: () => renderPlans(), every: 500 },
@@ -842,6 +900,8 @@ function hotbarItems() {
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
   for (const i of G.pack) out.push(i);
+  // the settlement's bread: yours to eat from the store
+  if (G.town && G.town.S.bread > 0) out.push({ icon: "bread", name: "Bread, from the store", n: G.town.S.bread, fromStore: true });
   return out.slice(0, 9);
 }
 let hbSig = "";
@@ -870,7 +930,24 @@ addEventListener("keydown", e => {
   if (it && it.tool === "axe") { if (pl.axe && blade !== "axe") pl.wield("axe"); else { pl.blade = "axe"; pl.holsterAxe(!!pl.axe); } }
   if (it && it.tool === "arm") { if (pl.axe && blade === it.kind) { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield(it.kind); }
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
+  if (it && FOOD[it.icon]) eat(it);
 });
+// eating: the number of something you can eat puts it to your mouth
+function eat(it) {
+  const f = FOOD[it.icon], b = G.body;
+  if (!f || !b || (G.working && G.time < G.working.until)) return;
+  if (b.hunger > 0.97) { UI.hint("You're not hungry.", 1.6); return; }
+  G.working = { kind: "eat", food: it.icon, until: G.time + f.secs };
+  const g0 = G.time;
+  const done = setInterval(() => {
+    if (!G.working || G.working.kind !== "eat") { clearInterval(done); return; }
+    if (G.time < g0 + f.secs - 0.05) return;
+    clearInterval(done);
+    b.hunger = Math.min(1, b.hunger + f.fill); b.dirty = true;
+    if (it.fromStore) { if (G.town.S.bread > 0) { G.town.S.bread--; G.town.persist && G.town.persist(); } }
+    else { it.n = (it.n || 1) - 1; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }
+  }, 60);
+}
 
 // ---- the full map (J) ----
 // the wheel zooms about the point under the cursor; dragging moves the sheet
@@ -898,6 +975,18 @@ $("bigmap").addEventListener("wheel", e => {
     renderBigMap();
   });
 }
+// the context, but reporting the size the map is drawn at (its methods bound once, not on every call)
+let _bigProxy = null;
+function bigProxy(c, sub) {
+  if (_bigProxy && _bigProxy.c === c) { _bigProxy.box.sub = sub; return _bigProxy.p; }
+  const bound = new Map(), box = { sub };
+  const p = new Proxy(c, {
+    get: (t, k) => { if (k === "canvas") return box.sub.canvas; const v = t[k]; if (typeof v !== "function") return v; let f = bound.get(k); if (!f) bound.set(k, f = v.bind(t)); return f; },
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  _bigProxy = { c, p, box };
+  return p;
+}
 function renderBigMap() {
   const cv = $("bigmapCanvas"), w = G.world;
   const dpr = Math.min(2, devicePixelRatio || 1);
@@ -918,7 +1007,7 @@ function renderBigMap() {
   // draw at CSS size into a scaled context; the map code reads the canvas size, so give it one that matches
   const sub = { canvas: { width: W, height: H } };
   c.save(); c.scale(dpr, dpr);
-  const proxy = new Proxy(c, { get: (t, k) => k === "canvas" ? sub.canvas : (typeof t[k] === "function" ? t[k].bind(t) : t[k]), set: (t, k, v) => { t[k] = v; return true; } });
+  const proxy = bigProxy(c, sub);
   drawMap(proxy, X, Z, S, true, cx, cz, Math.hypot(b.x1 - b.x0, b.z1 - b.z0) / mv.zoom);
   // burnt, darkened edges
   const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
@@ -943,6 +1032,25 @@ function renderBigMap() {
 G.showMap = on => showOverlay("bigmap", on);
 
 // ---- pause ----
+// a lesson: everything stops, the world goes grey behind a card, and on it goes when you have read it
+G.lesson = () => new Promise(res => {
+  if (overlay) showOverlay(overlay, false);
+  const was = G.mode; G.mode = "lesson";
+  if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); }
+  setFreeLook(false);
+  SFX.pauseAll && SFX.pauseAll(true);
+  const el = $("lesson"); el.classList.remove("hidden");
+  const done = () => {
+    removeEventListener("keydown", key); $("lessonOk").onclick = null;
+    el.classList.add("hidden");
+    G.mode = was === "lesson" ? "play" : was; SFX.pauseAll && SFX.pauseAll(false);
+    if (G.mode === "play") lock();
+    res();
+  };
+  const key = e => { if (e.code === "Space" || e.code === "Enter" || e.code === "Escape") { e.preventDefault(); done(); } };
+  setTimeout(() => addEventListener("keydown", key), 300);
+  $("lessonOk").onclick = done;
+});
 function pause() {
   if (G.mode !== "play") return;
   G.mode = "pause";
@@ -971,8 +1079,8 @@ addEventListener("keydown", e => {
   if (e.code === "Escape" && G.mode === "pause" && !document.pointerLockElement) { /* the browser ate the first Escape */ }
   // with no lock to lose, Escape has to pause by hand
   if (e.code === "Escape" && G.mode === "play" && input.freeLook) pause();
-  if (e.code === "KeyP" && G.mode === "play") { document.exitPointerLock && document.exitPointerLock(); pause(); }
   if (e.code === "KeyT" && !e.repeat && G.mode === "play") showOverlay("inventory", overlay !== "inventory");
+  if (e.code === "KeyP" && !e.repeat && G.mode === "play") showOverlay("skills", overlay !== "skills");
   if (e.code === "KeyJ" && !e.repeat && G.mode === "play") {
     if (!G.hasMap && overlay !== "bigmap") UI.hint("You haven't a map.", 2.5);
     else showOverlay("bigmap", overlay !== "bigmap");

@@ -5,12 +5,12 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, groundTexture, SNOW, ROOFED, ROOFSIZE } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen } from "./map.js";
-import { FURNITURE, DEFAULT_HOME, ROOM } from "./furnish.js";
+import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM } from "./furnish.js";
 import { AUDIO } from "./audio.js";
 
 // the road out of the city winds: round hills, round bogs, round other people's land
@@ -82,23 +82,45 @@ export class Woods extends WorldBase {
     const tg = new THREE.PlaneGeometry(size, size, seg, seg);
     tg.rotateX(-Math.PI / 2);
     tg.translate(10, 0, -150);
-    const pos = tg.attributes.position;
-    const colors = new Float32Array(pos.count * 3);
-    // tints over the photographed forest floor: a little greener in the hollows, a little paler on the rises
-    const cA = new THREE.Color(0xe6e8d4), cB = new THREE.Color(0xc4ccb0), cRoad = new THREE.Color(0xc8b89a);
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i);
-      pos.setY(i, this.heightAt(x, z));
+    const pos0 = tg.attributes.position;
+    for (let i = 0; i < pos0.count; i++) pos0.setY(i, this.heightAt(pos0.getX(i), pos0.getZ(i)));
+    // low-poly, like everything else: every facet flat and of one colour — needle-brown litter, moss,
+    // dark bare earth and old leaves, laid in slow drifts, a little grassier out in the clearing
+    const geo = tg.toNonIndexed(); tg.dispose();
+    const pos = geo.attributes.position, colors = new Float32Array(pos.count * 3);
+    const PAL = { litter: new THREE.Color(0x5b4533), leaf: new THREE.Color(0x87603a), moss: new THREE.Color(0x4a5d2a), earth: new THREE.Color(0x3f3022), grass: new THREE.Color(0x6c7f38), road: new THREE.Color(0x7d6548),
+      fern: new THREE.Color(0x3d5a28), dry: new THREE.Color(0x8c8248), stone: new THREE.Color(0x6e6b62) };
+    const hash = (x, z) => { const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return h - Math.floor(h); };
+    const vn = (x, z) => { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+      return (hash(i, j) * (1 - u) + hash(i + 1, j) * u) * (1 - v) + (hash(i, j + 1) * (1 - u) + hash(i + 1, j + 1) * u) * v; };
+    const c = new THREE.Color();
+    for (let t = 0; t < pos.count; t += 3) {
+      const x = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, z = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
+      const moss = vn(x * 0.09, z * 0.09), bare = vn(x * 0.12 + 31, z * 0.12 + 17), leaf = vn(x * 0.16 + 9, z * 0.16 + 4);
+      const fern = vn(x * 0.07 + 51, z * 0.07 + 77), dry = vn(x * 0.05 + 13, z * 0.05 + 91);
+      // how steep this facet is: stone shows through on the banks
+      const ax = pos.getX(t + 1) - pos.getX(t), ay = pos.getY(t + 1) - pos.getY(t), az = pos.getZ(t + 1) - pos.getZ(t);
+      const bx = pos.getX(t + 2) - pos.getX(t), by = pos.getY(t + 2) - pos.getY(t), bz = pos.getZ(t + 2) - pos.getZ(t);
+      const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, steep = 1 - Math.abs(ny) / (Math.hypot(nx, ny, nz) || 1);
+      c.copy(PAL.litter);
+      if (dry > 0.6) c.lerp(PAL.dry, Math.min(1, (dry - 0.6) * 3.5));          // sunny drifts of old dry grass
+      if (leaf > 0.6) c.lerp(PAL.leaf, Math.min(0.8, (leaf - 0.6) * 4));       // beech leaves under the broadleaves
+      if (moss > 0.55) c.lerp(PAL.moss, Math.min(1, (moss - 0.55) * 4));
+      if (fern > 0.64) c.lerp(PAL.fern, Math.min(0.9, (fern - 0.64) * 4));     // bracken in the damp
+      if (bare > 0.66) c.lerp(PAL.earth, Math.min(0.85, (bare - 0.66) * 4));
+      if (steep > 0.12) c.lerp(PAL.stone, Math.min(0.9, (steep - 0.12) * 5));
+      const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
+      if (dc < CLEARING.r + 8) c.lerp(PAL.grass, clamp((CLEARING.r + 8 - dc) / 10, 0, 1) * 0.75);
       const d = this.anyRoadDist(x, z).d;
-      const c = cA.clone().lerp(cB, (Math.sin(x * 0.05) * Math.cos(z * 0.04) + 1) / 2);
-      if (d < 2.5) c.lerp(cRoad, clamp((2.5 - d) / 1.5, 0, 1) * 0.35);
-      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+      if (d < 3) c.lerp(PAL.road, clamp((3 - d) / 2, 0, 1) * 0.7);
+      c.multiplyScalar(0.84 + hash(x * 0.37, z * 0.53) * 0.32);       // each facet a shade apart from its neighbours
+      for (let k = 0; k < 3; k++) { colors[(t + k) * 3] = c.r; colors[(t + k) * 3 + 1] = c.g; colors[(t + k) * 3 + 2] = c.b; }
     }
-    tg.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    tg.computeVertexNormals();
-    const gt = groundTexture("forestfloor", 150);
-    this.terrainMat = addDetail(new THREE.MeshStandardMaterial({ map: gt, vertexColors: true, roughness: 1 }), { scale: 1, amount: 0.12, grain: 0.2, surface: "none" });
-    const terrain = new THREE.Mesh(tg, this.terrainMat);
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    const tg2 = geo;
+    this.terrainMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "none" });
+    const terrain = new THREE.Mesh(tg2, this.terrainMat);
     SNOW.value = 0;
     terrain.receiveShadow = true;
     root.add(terrain);
@@ -466,8 +488,6 @@ export class Woods extends WorldBase {
     wallLogs(1.9, 8, -1.55, cd / 2, true); wallLogs(1.9, 8, 1.55, cd / 2, true);
     const [lx, lz] = place(0, cd / 2); cb.add(new THREE.CylinderGeometry(0.18, 0.18, 1.4, 8), 0x8a6440, lx, 2.35, lz, Math.PI / 2, CABIN.ry + Math.PI / 2, 0);
     cb.add(new THREE.CylinderGeometry(0.18, 0.18, 1.4, 8), 0x8a6440, lx, 2.68, lz, Math.PI / 2, CABIN.ry + Math.PI / 2, 0);
-    // the charred beam they kept, at the front corner
-    const [kx, kz] = place(-2.5, 3); cb.box(0.3, 2.7, 0.3, kx, 1.35, kz, 0x161210, CABIN.ry);
     // roof
     const roof = prismGeo(cw + 0.2, 2.2, cd + 0.2, 0.55);
     cb.add(roof, 0x5a4636, CABIN.x, 2.72, CABIN.z, 0, CABIN.ry, 0);
@@ -743,15 +763,6 @@ export class Woods extends WorldBase {
     this.homeLight = new THREE.PointLight(0xffc48a, 0, 7.5, 1.4); this.homeLight.position.set(lx, this.cabinY + 2.3, lz); this.root.add(this.homeLight);
     this.setFurniture(null);
   }
-  // his name, cut into the charred beam they kept at the corner
-  carveBeam() {
-    if (this.carved) return;
-    this.carved = true;
-    const b = new Builder(), [x, z] = this.cabinToWorld(-2.55, 3.22), c = Math.cos(CABIN.ry), s = Math.sin(CABIN.ry);
-    b.box(0.22, 0.6, 0.02, x, this.cabinY + 1.35, z, 0xb8925e, CABIN.ry);
-    for (let i = 0; i < 6; i++) b.box(0.14 - (i % 3) * 0.03, 0.022, 0.02, x + s * 0.012 + (i % 2 ? 0.02 : -0.01) * c, this.cabinY + 1.14 + i * 0.075, z + c * 0.012 - (i % 2 ? 0.02 : -0.01) * s, 0x3a2616, CABIN.ry);
-    this.root.add(b.build(MAT.rough));
-  }
   setCabinDoor(open, silent = false) {
     if (open === this.doorOpen) return;
     this.doorOpen = open;
@@ -783,6 +794,8 @@ export class Woods extends WorldBase {
   // what stands in the cabin: [{type, lx, lz, ry}]; null for the pallets they started with
   setFurniture(list) {
     this.furniture = list || DEFAULT_HOME();
+    // every cabin has its chest, even one furnished before there was such a thing
+    if (!this.furniture.some(f => f.type === "chest")) this.furniture = [...this.furniture, { ...DEFAULT_CHEST }];
     if (this.furnGroup) this.root.remove(this.furnGroup);
     for (const c of this.furnCols || []) this.col.remove(c);
     for (const it of this.bedIts || []) this.removeInteract(it);
@@ -799,6 +812,7 @@ export class Woods extends WorldBase {
         const o = (i + 0.5) / n * lng - lng / 2;
         this.furnCols.push(this.col.addCircle(x + along[0] * o, z + along[1] * o, sh / 2 * 0.9, this.cabinY + d.h));
       }
+      if (f.type === "chest") this.bedIts.push(this.addInteract({ x, y: this.cabinY + 0.6, z, reach: 2, label: "Open the chest", use: () => G.openChest && G.openChest() }));
       if (d.bed) this.bedIts.push(this.addInteract({ x, y: this.cabinY + 0.5, z, reach: 2.2, label: () => (this.onSleep && this.onSleep.label) || "Go to bed",
         can: () => !!this.onSleep && (!this.onSleep.can || this.onSleep.can()), use: () => this.onSleep.use(f) }));
     }

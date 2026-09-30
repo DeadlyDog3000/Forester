@@ -6,12 +6,13 @@
 // people who walk around with you, the camera over (or behind) your eyes, and
 // the one thing in front of you that E would do something to.
 
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT } from "./core.js";
-import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, modelCopy } from "./models.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, modelCopy } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
+import { freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS } from "./body.js";
 
 /* global SFX */
 
@@ -297,12 +298,13 @@ export class Player {
         const from = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
         this.arrows--; this.reload = 0.55;
         if (G.hunt) G.hunt.loose(from, dir, this.draw);
+        G.practise("archery", 0.5);
         SFX.swingFist && SFX.swingFist();
       }
       this.draw = 0; this.heldFull = 0;
     }
     // held at full draw, your arms begin to shake — a little at first, then worse
-    this.shake = this.draw >= 1 ? Math.min(1, 0.15 + (this.heldFull || 0) / 3) : 0;
+    this.shake = this.draw >= 1 ? Math.min(1, 0.15 + (this.heldFull || 0) / 3) * aimSteady(G.body) : 0;
     this.bowPose(this.draw);
     if (this.shake > 0) {
       const k = this.shake;
@@ -348,9 +350,9 @@ export class Player {
         const hand = new THREE.Group(); g.add(hand);
         const skin = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skin); fist.rotation.z = Math.PI / 2; hand.add(fist);
-        const tool = kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer();
+        const tool = kind === "eat" ? makeFood(G.working.food) : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer();
         // (blades turned flat to the eye, not edge on)
-        if (kind !== "hammer") tool.rotation.y = Math.PI / 2;
+        if (kind !== "hammer" && kind !== "eat") tool.rotation.y = Math.PI / 2;
         hand.add(tool);
         // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
         const arm = new THREE.Group(); g.add(arm);
@@ -359,7 +361,7 @@ export class Player {
         g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
         camera.add(g); this.workRig = g;
         // and the same tool in the hand of your body, for when the camera is behind you
-        if (this.model && this.model.held) { this.workBody = kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
+        if (this.model && this.model.held && kind !== "eat") { this.workBody = kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
       }
     }
     if (!this.workRig) return;
@@ -378,6 +380,12 @@ export class Player {
       h.position.set(0.24, -0.34 + a * 0.06, -0.46);
       h.rotation.set(-0.35 + a * 0.9, 0.2, 0.1);
       if (beat(1.7) && !wk.quiet) SFX.hammer && SFX.hammer();
+    } else if (kind === "eat") {
+      // up to the mouth, and a bite, and a bite; the view dips a little with each
+      const up = Math.min(1, t / 0.35), bite = Math.max(0, Math.sin(t * Math.PI * 2 * 1.6));
+      h.position.set(0.2 - up * 0.13, -0.36 + up * 0.2 - bite * 0.015, -0.46 + up * 0.2 + bite * 0.03);
+      h.rotation.set(-0.3 + up * 0.5, 0.4, 0.3);
+      if (t > 0.35 && beat(1.6)) AUDIO.chew && AUDIO.chew();
     } else {
       // short quick strokes of the knife toward you
       const p = (t * 3) % 1;
@@ -396,6 +404,7 @@ export class Player {
     if (this.swingT >= 0) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
     this.swingDir = this.stance || "right";
+    G.practise("strength", 0.3);
     // the stroke through the air (the heavier the thing swung, the lower it sounds)
     AUDIO.whoosh(0.55, (this.blade || "axe") !== "sword");
   }
@@ -403,6 +412,7 @@ export class Player {
     const w = G.world;
     const s = G.settings;
     const look = !G.cine && G.mode === "play";
+    if (!look) UI.swingArrow(null);
     if (look) {
       const zs = 1 - (G.zoom || 0) * 0.6;
       this.yaw -= input.mdx * 0.0022 * s.sens * zs;
@@ -412,6 +422,8 @@ export class Player {
       this.turnAcc = (this.turnAcc || 0) * Math.pow(0.05, dt) + input.mdx;
       if (this.turnAcc < -14) this.side = "left"; else if (this.turnAcc > 14) this.side = "right";
       this.stance = this.pitch > 0.04 ? "up" : (this.side || "right");
+      // with a blade or the axe out and not already swinging, an arrow shows which way the next stroke comes
+      UI.swingArrow(this.axe && this.swingT < 0 && !this.workKind && !UI.dialogOpen && G.mode === "play" ? this.stance : null);
     } else if (G.cine && G.cine.look) {
       // steer the view toward whatever the scene wants seen
       const d = G.cine.look.clone().sub(this.eyePos());
@@ -435,8 +447,9 @@ export class Player {
     // in a chase, breath runs out: a spent runner can only jog until it comes back
     if (G.stamina !== undefined) {
       if (this.winded && G.stamina > 0.35) this.winded = false;
-      if (sprint && !this.winded && this.speed > 1) G.stamina = Math.max(0, G.stamina - dt / 5.5 * (G.staminaMul ?? 1));
-      else G.stamina = Math.min(1, G.stamina + dt / (sprint ? 9 : 3.5));
+      const hungry = G.body && G.body.hunger < 0.2 ? 0.5 : 1;
+      if (sprint && !this.winded && this.speed > 1) { G.stamina = Math.max(0, G.stamina - dt / 5.5 * (G.staminaMul ?? 1) * staminaDrain(G.body)); if (G.stamina < 0.5) G.practise("endurance", dt * 0.5); }
+      else G.stamina = Math.min(1, G.stamina + dt / (sprint ? 9 : 3.5) * hungry * (2 - staminaDrain(G.body)));
       if (G.stamina <= 0) this.winded = true;
       if (this.winded) sprint = false;
       // the bar shows while you are short of breath, and goes once you have it back
@@ -445,7 +458,8 @@ export class Player {
     } else UI.stamina(null);
     // out of breath, you hear it: in and out, faster and louder the more spent you are (and when badly hurt)
     {
-      const spent = Math.max(G.stamina !== undefined ? clamp((0.75 - G.stamina) / 0.75, 0, 1) * (this.winded ? 1.2 : 1) : 0, G.health !== undefined && G.health < 0.35 ? (0.35 - G.health) * 2 : 0);
+      const spent = Math.max(G.stamina !== undefined ? clamp((0.75 - G.stamina) / 0.75, 0, 1) * (this.winded ? 1.2 : 1) : 0, G.health !== undefined && G.health < 0.35 ? (0.35 - G.health) * 2 : 0, G.panting > 0 ? Math.min(1, G.panting / 4) : 0);
+      if (G.panting > 0) G.panting = Math.max(0, G.panting - dt);
       this.breathT = (this.breathT ?? 0) - dt;
       if (spent > 0.15 || (this.breathTail || 0) > 0) {
         if (spent > 0.15) this.breathTail = 3;        // a few breaths more after you have it back
@@ -461,9 +475,16 @@ export class Player {
     // health: blows take it, and it comes back slowly once nothing has hit you for a while
     if (G.health !== undefined) {
       G.hurtT = (G.hurtT || 0) + dt;
-      if (G.hurtT > 6 && G.health < 1 && !G.downed) G.health = Math.min(1, G.health + dt / 70);
-      UI.health(G.health < 0.999 || G.showHealth ? G.health : null);
-    } else UI.health(null);
+      const b = G.body, starving = b && b.hunger <= 0, hungry = b && b.hunger < 0.2;
+      if (G.hurtT > healDelay(b) && G.health < 1 && !G.downed && !hungry) {
+        const h0 = G.health; G.health = Math.min(1, G.health + dt * healRate(b));
+        G.practise("healing", (G.health - h0) * 40);
+      }
+      // with nothing in you at all, you weaken (though hunger alone will not put you down)
+      if (starving && G.health > 0.25 && !G.downed) G.health = Math.max(0.25, G.health - dt / 240);
+      if (G.mode === "play") hungerTick(b, dt, sprint && this.speed > 1);
+      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap);
+    } else UI.vitals(null);
     if (sprint && this.crouched) this.crouched = false;
     const max = (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1);
     const len = Math.hypot(mx, mz);
@@ -607,6 +628,15 @@ function updateCamera(dt) {
   G.breathT = (G.breathT || 0) + dt * (1.5 + 2.6 * winded + 0.6 * tense);
   const breath = third ? 0 : Math.sin(G.breathT) * 0.026 * heave;
   if (!third) camera.rotation.x += breath * 0.3;
+  // shaken: a blow jolts the view hard and dies away quickly; gasping for breath, it trembles
+  if (!third) {
+    const hs = G.hitShake || 0, pant = G.panting > 0 ? Math.min(1, G.panting / 5) : 0, gasp = Math.max(pant, winded > 0.6 ? (winded - 0.6) * 1.5 : 0) * 0.35;
+    const tt = G.time;
+    camera.rotation.x += (Math.sin(tt * 37) * 0.6 + Math.sin(tt * 23.3) * 0.4) * 0.05 * hs + Math.sin(tt * 13.1) * 0.006 * gasp;
+    camera.rotation.y += (Math.sin(tt * 31.7) * 0.6 + Math.sin(tt * 19.1) * 0.4) * 0.05 * hs + Math.sin(tt * 11.3) * 0.006 * gasp;
+    camera.rotation.z += Math.sin(tt * 27.1) * 0.04 * hs;
+    G.hitShake = Math.max(0, hs - dt * 2.2);
+  }
   if (!third) {
     camera.position.set(eye.x + bobX * Math.cos(p.yaw), eye.y + bobY + breath, eye.z - bobX * Math.sin(p.yaw));
   } else {
@@ -753,10 +783,23 @@ export function findPath(w, sx, sz, gx, gz) {
 //  the people who are not you
 // ---------------------------------------------------------------------------
 // a blow to you: dmg in points of a hundred. At nothing, you go down (what happens then is the chapter's to say)
+// practice at something: a word when it rises
+G.body = freshBody();
+G.practise = (id, xp) => {
+  const up = practise(G.body, id, xp);
+  if (up) { const sk = BODY_SKILLS.find(s => s.id === id); UI.hint(`${sk.name} rose to ${up}.${up === 100 ? " No one could be better." : ""}`, 3); }
+};
 G.hurt = (dmg, from) => {
   if (G.health === undefined || G.downed || G.mode !== "play") return;
+  dmg = damageTaken(G.body, dmg);
   G.health = Math.max(0, G.health - dmg / 100); G.hurtT = 0;
-  UI.hurt(Math.min(1, 0.35 + dmg / 30));
+  // the blow lands: red, a jolt of the view, and you gasp for a while after (less, the tougher you are)
+  const k = rattle(G.body);
+  UI.hurt(Math.min(1, (0.45 + dmg / 25) * (0.4 + 0.6 * k)));
+  G.hitShake = Math.min(1.2, (G.hitShake || 0) + (0.5 + dmg / 20) * k);
+  G.panting = Math.max(G.panting || 0, 4 + 4 * k);
+  AUDIO.breath && AUDIO.breath(true, 1, 0.6, G.who === "sister");
+  G.practise("toughness", dmg * 0.6);
   if (G.health <= 0) { G.downed = true; if (G.onDowned) G.onDowned(from); else { G.health = 0.25; G.downed = false; } }
 };
 
@@ -1086,27 +1129,39 @@ function updateExplore(dt) {
   }
 }
 G.forgetExplored = () => { explored = {}; try { localStorage.removeItem("reckoning.explored.v1"); } catch (e) {} };
-// cover what has not been seen with blank parchment, its edge soft as if the ink ran out
-let fogCv = null;
+// cover what has not been seen with blank parchment, its edge soft as if the ink ran out.
+// The holes are cut in a small mask (a quarter of the size, so the blur costs little) that is
+// stretched over a sheet of paper drawn once; and only the cells in view are looked at.
+let fogCv = null, maskCv = null, paperCv = null;
+const FOG_K = 4;
 function drawFog(c, X, Z, S) {
   const s = exploredSet(); if (!s) return;
-  const W = c.canvas.width, H = c.canvas.height;
-  if (!fogCv) fogCv = document.createElement("canvas");
-  if (fogCv.width !== W || fogCv.height !== H) { fogCv.width = W; fogCv.height = H; }
-  const f = fogCv.getContext("2d");
-  f.globalCompositeOperation = "source-over"; f.filter = "none";
-  f.clearRect(0, 0, W, H);
-  fillPaper(f, W, H);
-  f.globalCompositeOperation = "destination-out";
-  f.filter = `blur(${Math.max(2, EXPLORE_CELL * S * 0.6)}px)`;
-  f.fillStyle = "#000";
-  const C = EXPLORE_CELL, r = C * S * 0.95;
-  for (const k of s) {
-    const [i, j] = k.split(",").map(Number);
-    const x = X((i + 0.5) * C), y = Z((j + 0.5) * C);
-    if (x < -r || y < -r || x > W + r || y > H + r) continue;
-    f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.fill();
+  const W = c.canvas.width, H = c.canvas.height, mw = Math.ceil(W / FOG_K), mh = Math.ceil(H / FOG_K);
+  if (!fogCv) { fogCv = document.createElement("canvas"); maskCv = document.createElement("canvas"); paperCv = document.createElement("canvas"); }
+  if (fogCv.width !== W || fogCv.height !== H) {
+    fogCv.width = paperCv.width = W; fogCv.height = paperCv.height = H;
+    fillPaper(paperCv.getContext("2d"), W, H);
   }
+  if (maskCv.width !== mw || maskCv.height !== mh) { maskCv.width = mw; maskCv.height = mh; }
+  // the mask: opaque where unseen
+  const m = maskCv.getContext("2d");
+  m.globalCompositeOperation = "source-over"; m.filter = "none";
+  m.clearRect(0, 0, mw, mh); m.fillStyle = "#000"; m.fillRect(0, 0, mw, mh);
+  m.globalCompositeOperation = "destination-out";
+  m.filter = `blur(${Math.max(1, EXPLORE_CELL * S * 0.6 / FOG_K)}px)`;
+  const C = EXPLORE_CELL, r = C * S * 0.95, k = 1 / FOG_K;
+  // the cells the view covers (X and Z are straight lines, so they turn back easily)
+  const x0 = X(0), z0 = Z(0);
+  const i0 = Math.floor((-r - x0) / S / C) - 1, i1 = Math.ceil((W + r - x0) / S / C) + 1;
+  const j0 = Math.floor((-r - z0) / S / C) - 1, j1 = Math.ceil((H + r - z0) / S / C) + 1;
+  const hole = (i, j) => { const x = X((i + 0.5) * C), y = Z((j + 0.5) * C); m.beginPath(); m.arc(x * k, y * k, r * k, 0, Math.PI * 2); m.fill(); };
+  if ((i1 - i0) * (j1 - j0) <= s.size) { for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (s.has(i + "," + j)) hole(i, j); }
+  else for (const key of s) { const n = key.indexOf(","), i = +key.slice(0, n), j = +key.slice(n + 1); if (i >= i0 && i <= i1 && j >= j0 && j <= j1) hole(i, j); }
+  // paper, kept only where the mask is
+  const f = fogCv.getContext("2d");
+  f.globalCompositeOperation = "source-over"; f.clearRect(0, 0, W, H); f.drawImage(paperCv, 0, 0);
+  f.globalCompositeOperation = "destination-in"; f.imageSmoothingEnabled = true; f.drawImage(maskCv, 0, 0, mw, mh, 0, 0, W, H);
+  f.globalCompositeOperation = "source-over";
   c.drawImage(fogCv, 0, 0, W, H);
 }
 
@@ -1171,6 +1226,7 @@ function updateMinimap(dt) {
 export function setWorld(w) {
   if (G.world) G.world.dispose();
   G.world = w;
+  AUTO_FULL.value = w.name === "hamburg" ? 1 : 0;
   G.scene.add(w.root);
   G.interactTarget = null;
 }

@@ -20,6 +20,7 @@
 // A raider is a target the hunt's arrows can strike (the same shape as an
 // animal to it), so the crosshair turns red over them and arrows stick in them.
 
+import { blowMul } from "./body.js";
 import { THREE } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
@@ -191,7 +192,7 @@ export class Raids {
     }
     if (!best) return false;
     SFX.chop && SFX.chop();
-    best.damage(this.town.armDmg(pl.blade && pl.blade !== "axe" ? pl.blade : "axe"), pl);
+    best.damage(this.town.armDmg(pl.blade && pl.blade !== "axe" ? pl.blade : "axe") * blowMul(G.body), pl); G.practise("strength", 1.5);
     return true;
   }
   // the nearest one standing up to him: you (unless you're down), or a settler in the fight, within a few steps

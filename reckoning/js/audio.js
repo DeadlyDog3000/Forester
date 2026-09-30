@@ -262,14 +262,29 @@ export const AUDIO = {
   breath(inhale, vol = 0.6, period = 1.2, high = false) {
     const a = ctx(); if (!a) return;
     const t = a.currentTime, dur = period * (inhale ? 0.36 : 0.5);
-    const s = noiseSrc(a), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g = a.createGain();
-    f.type = "bandpass"; f.Q.value = 1.2;
+    // air through the mouth: two bands of noise — the throat's low rush and the lips' hiss — so it
+    // reads as breath, close to the ear, and not as wind
     const base = (inhale ? 1300 : 900) * (high ? 1.25 : 1);
-    f.frequency.setValueAtTime(base * (inhale ? 0.8 : 1.15), t); f.frequency.exponentialRampToValueAtTime(base * (inhale ? 1.25 : 0.75), t + dur);
-    f2.type = "lowpass"; f2.frequency.value = 3200;
-    const v = 0.05 * vol * (inhale ? 0.8 : 1);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + dur * (inhale ? 0.55 : 0.2)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(f2); f2.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+    const v = 0.13 * vol * (inhale ? 0.85 : 1);
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + dur * (inhale ? 0.5 : 0.18)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.connect(bus);
+    for (const [fm, q, lv] of [[1, 1.4, 1], [2.6, 2.2, 0.55]]) {
+      const s = noiseSrc(a), f = a.createBiquadFilter(), lg = a.createGain();
+      f.type = "bandpass"; f.Q.value = q;
+      f.frequency.setValueAtTime(base * fm * (inhale ? 0.8 : 1.15), t); f.frequency.exponentialRampToValueAtTime(base * fm * (inhale ? 1.25 : 0.75), t + dur);
+      lg.gain.value = lv;
+      s.connect(f); f.connect(lg); lg.connect(g); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+    }
+  },
+
+  // a bite, chewed: a soft crunch of noise, low
+  chew() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = "bandpass"; f.frequency.value = rnd(700, 1100); f.Q.value = 1.6;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 0.2);
   },
 
   // steel on steel: a bright strike and a ring of partials that don't quite agree, dying away

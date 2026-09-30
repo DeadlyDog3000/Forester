@@ -433,6 +433,21 @@ export function makeHammer() {
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.045, 0.13), mat(0x55595e, { metalness: 0.6, roughness: 0.45 })); head.position.set(0, 0.29, 0.02); g.add(head);
   return g;
 }
+// something to eat, held at the origin: a heel of bread, a joint of meat, a few berries in the palm
+export function makeFood(kind) {
+  const g = new THREE.Group();
+  if (kind === "meat") {
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.05, 0), mat(0x8a3a2a, { surface: "none" })); m.scale.set(1.3, 0.8, 1); m.position.y = 0.05; g.add(m);
+    const fat = new THREE.Mesh(new THREE.DodecahedronGeometry(0.03, 0), mat(0xe8d0b0, { surface: "none" })); fat.position.set(0.03, 0.07, 0.02); g.add(fat);
+    const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.09, 5), mat(0xe8e0cc, { surface: "none" })); bone.position.set(-0.05, 0.02, 0); bone.rotation.z = 1.2; g.add(bone);
+  } else if (kind === "blackberries") {
+    for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.013, 0), mat(0x2a1430, { surface: "none", roughness: 0.4 })); b.position.set(Math.sin(i * 2.1) * 0.02, 0.03 + (i % 2) * 0.012, Math.cos(i * 2.1) * 0.02); g.add(b); }
+  } else {
+    const loaf = new THREE.Mesh(new THREE.SphereGeometry(0.055, 7, 5, 0, Math.PI * 2, 0, Math.PI * 0.6), mat(0xb07a3a, { surface: "none" })); loaf.scale.set(1.2, 0.8, 0.9); loaf.position.y = 0.02; g.add(loaf);
+    const crumb = new THREE.Mesh(new THREE.CircleGeometry(0.05, 7), mat(0xe8d8b0, { surface: "none" })); crumb.rotation.y = Math.PI / 2; crumb.position.set(0.066, 0.035, 0); crumb.scale.set(0.9, 0.7, 1); g.add(crumb);
+  }
+  return g;
+}
 export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife })[kind]?.() || makeAxe();
 
 export function makeScroll() {

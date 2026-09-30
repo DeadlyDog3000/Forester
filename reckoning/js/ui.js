@@ -137,15 +137,31 @@ export const UI = {
     s.classList.toggle("low", !!winded); s.classList.toggle("warn", !winded && v < 0.25);
   },
 
+  // health and hunger, always in sight while you play (v null hides them both)
+  vitals(hp, food, nomap) {
+    const el = $("vitals"); if (!el) return;
+    if (hp === undefined || hp === null) { el.classList.add("hidden"); this._hp = null; return; }
+    el.classList.remove("hidden"); el.classList.toggle("nomap", !!nomap);
+    this.health(hp);
+    const g = $("hunger"); g.style.setProperty("--f", food ?? 1); g.classList.toggle("low", (food ?? 1) < 0.25);
+  },
   health(v) {
     const h = $("health"); if (!h) return;
-    if (v === undefined || v === null) { h.classList.add("hidden"); this._hp = null; return; }
-    h.classList.remove("hidden"); h.style.setProperty("--h", v);
+    if (v === undefined || v === null) { this._hp = null; return; }
+    h.style.setProperty("--h", v);
     // the pale trail waits at the old mark, then follows down (and jumps up with a heal)
     if (this._hp == null || v > this._hp) h.style.setProperty("--t", v);
     else if (v < this._hp - 0.001) requestAnimationFrame(() => h.style.setProperty("--t", v));
     this._hp = v;
     h.classList.toggle("low", v < 0.3);
+  },
+  // the arrow for the stroke you are about to make (null: none)
+  swingArrow(dir) {
+    if (dir === this._sa) return;
+    this._sa = dir;
+    const el = $("swingArrow"); if (!el) return;
+    el.classList.toggle("hidden", !dir);
+    for (const d of ["up", "left", "right"]) el.querySelector("." + d).classList.toggle("on", d === dir);
   },
   // the fight's three directions: yours, where his blow is coming, and which side he guards
   stance(st) {

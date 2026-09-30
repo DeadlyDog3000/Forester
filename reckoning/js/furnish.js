@@ -68,7 +68,10 @@ export function fitsRoom(f, list) {
 export const DEFAULT_HOME = () => [
   { type: "pallet", lx: 1.7, lz: -1.75, ry: 0 },
   { type: "pallet", lx: 1.7, lz: 0.35, ry: 0 },
+  { type: "chest", lx: -1.95, lz: 0.9, ry: Math.PI / 2 },
 ];
+// where the chest stands in a cabin that was furnished before there was one
+export const DEFAULT_CHEST = { type: "chest", lx: -1.95, lz: 0.9, ry: Math.PI / 2 };
 
 // a ghost of a piece, for planning
 export function ghostOf(type) {

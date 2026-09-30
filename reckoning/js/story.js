@@ -10,6 +10,7 @@
 // time, so pausing pauses the story, and starting a chapter over bumps a
 // generation counter that makes every script from the old run fall silent.
 
+import { restoreBody, bodyToSave, skillK } from "./body.js";
 import { THREE, clamp, mat, Builder, MAT, TAU } from "./core.js";
 import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
@@ -144,16 +145,13 @@ function spawn(opts, x, z, yaw = 0) { const a = new Actor(opts, x, z, yaw); if (
 const SIB_HINTS = [
   [/Speak to Father/, "Father's in the counting room, at the back. He hates being kept waiting."],
   [/ledger to Jakob/, "The warehouse is down on the harbour — follow the marker. Jakob's always in the doorway."],
-  [/Open Jakob's map/, "Press J. Jakob's map is better than mine."],
-  [/scroll to zoom|drag to move/, "Scroll to look closer. Drag it about with the mouse."],
-  [/Put the map away/, "J again to put it away."],
   [/Go home for supper|Sit down to supper/, "Supper's on the table. The bench by the window."],
   [/Go down to the hall/, "Down the stairs. Quietly."],
   [/Go to the square/, "Follow the crowd. The square's up the street."],
   [/alley|Run —|don't stop/, "Shift to run! Up the alley — don't look back!"],
   [/marsh gate/, "Crouch with C and stay out of the lantern light. Wait for him to look away, then go."],
   [/Follow the road/, "Keep to the road. At the forks, go the way the marker points."],
-  [/clearing|Look at the ruin/, "In there. That's where we'll be."],
+  [/towards the light|clearing|Look at the ruin/, "In there. That's where we'll be."],
   [/old axe/, "The axe is on the chopping block. F to take it."],
   [/Stack the logs/, "Take them to the stack by the cabin. F by the stack."],
   [/Take the logs/, "Pick up the logs where the tree fell. F."],
@@ -179,7 +177,6 @@ const SIB_HINTS = [
   [/new work/, "Walk up to someone and press F — you can give them work."],
   [/Furnish/, "Go inside the cabin and press B there."],
   [/Bring everyone to the fire/, "Go to each of them — F — and ask them to come."],
-  [/Carve Father's name/, "The beam — hold F."],
 ];
 function sibHints() {
   let key = "", since = 0, lastSaid = -40, saidFor = "", advT = 0, lastAdv = "";
@@ -204,6 +201,11 @@ function sibHints() {
     if (raid && !pl.axe && !pl.bow && !once.has("arm" + G.town.S.raid.count)) { once.add("arm" + G.town.S.raid.count); return say1("Get your axe out — press 1! They're at the stores!", 3); }
     if (raid && G.health < 0.5 && !once.has("guard" + G.town.S.raid.count)) { once.add("guard" + G.town.S.raid.count); return say1("Hold right-click to raise your guard! Catch his swing just as it comes!", 3.5); }
     if (!raid && G.health !== undefined && G.health < 0.35 && !once.has("hurt")) { once.add("hurt"); return say1("You're hurt. Keep out of trouble a while — it'll mend.", 3.5); }
+    if (G.body && G.body.hunger < 0.22 && !raid && (!once.has("hungry") || G.time - (once.hungryAt || 0) > 240)) {
+      once.add("hungry"); once.hungryAt = G.time;
+      const food = (G.pack || []).find(i => i.icon === "meat" || i.icon === "blackberries") || (G.town && G.town.S.bread > 0 ? { icon: "bread" } : null);
+      return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "meat" ? "meat" : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
+    }
     if (pl.hasBow && pl.bow && (pl.arrows || 0) === 0 && !once.has("arrows")) { once.add("arrows"); return say1("You're out of arrows. Pull them out where they landed — F — or buy more when a trader comes.", 4.5); }
     // the settlement's needs, every few minutes, when they've changed
     if (G.chapter === 14 && G.town && advT > 180) {
@@ -235,6 +237,8 @@ export function readSlot(n) { try { return JSON.parse(localStorage.getItem(slotK
 export function writeSlot(n, s) { try { localStorage.setItem(slotKey(n), JSON.stringify(s, (k, v) => k[0] === "_" ? undefined : v)); return true; } catch (e) { return false; } }
 export function clearSlot(n) { try { localStorage.removeItem(slotKey(n)); } catch (e) {} }
 export function loadSave() { return readSlot(slot); }
+// the body is written to the save now and then, when it has changed
+setInterval(() => { if (G.body && G.body.dirty && G.mode === "play") { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
 export function writeSave(patch) {
   const s = { ...(loadSave() || {}), ...patch, at: Date.now() };
   // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)
@@ -282,8 +286,11 @@ const PACK = {
 export async function startChapter(n, opts = {}) {
   GEN++;
   G.onFrame.length = 0;
+  // your body comes with you from the save; time passes between chapters, and you have eaten in it
+  G.body = restoreBody((loadSave() || {}).body); G.body.hunger = Math.max(G.body.hunger, 0.6);
+  G.chest = ((loadSave() || {}).chest || []).slice(0, 9);
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
-  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0; G.health = 1; G.downed = false; G.onDowned = null; G.showHealth = false; UI.stance && UI.stance(null);   // running always costs breath
+  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0; G.health = 1; G.downed = false; G.hitShake = 0; G.panting = 0; G.onDowned = null; G.showHealth = false; UI.stance && UI.stance(null);   // running always costs breath
   if (G.town) { G.town.stop(); G.town = null; }
   G.bugs.setKind(null);
   AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false);
@@ -400,19 +407,8 @@ async function ch1(w) {
   if (!G.pack.some(i => i.icon === "map")) G.pack.push({ icon: "map", name: "Jakob's map of the city", note: "Copied from the one on the counting-house wall. It fills in as you go." });
   await say("Jakob", "Go on, then — your supper's getting cold, and I can smell the rain coming.");
   G.lockMove = false; look(null); jakob.stopFacing(); jakob.person.setPose("armsCrossed");
-  // how to read it: open it, look closer at something, and put it away
-  if (!tipSeen("mapuse")) {
-    writeSave({ tips: [...((loadSave() || {}).tips || []), "mapuse"] });
-    G.mapUsed = { opened: false, zoomed: false };
-    UI.objective("Open Jakob's map — press J"); UI.keys([["J", "open the map"]], 8);
-    await until(() => G.mapUsed.opened);
-    UI.objective("Look closer — scroll to zoom in on the harbour, drag to move the map"); UI.keys([["Scroll", "zoom"], ["Drag", "move"], ["J", "put it away"]], 10);
-    await until(() => G.mapUsed.zoomed);
-    UI.objective("Put the map away — J");
-    await until(() => !G.mapOpen);
-    UI.hint("The small map in the corner is the same one. The more of a place you walk, the more of it is drawn in.", 6);
-    G.mapUsed = null;
-  }
+  // (no lesson in it: a word on how to open it, and on with the errand)
+  UI.keys([["J", "Jakob's map"]], 6);
   UI.objective("Go home for supper");
   mark([13, -2.2]);
   // the evening wears on as you walk back
@@ -748,7 +744,9 @@ class Watchman {
     this.a.heavy = opts.heavy ?? true;       // the watch walks in boots, and you hear it coming
     this.lines = opts.lines || ["Who's there?", "Hm? ...Show yourself.", "Is somebody there?"];
     this.who = opts.look ? opts.look.name : "Watchman";
-    this.range = opts.range || 9;
+    this.range = opts.range || 15;
+    this.crouchDiv = opts.crouchDiv || 2.2;   // how much nearer you must be to be seen, crouched
+    this.post = !!opts.post;        // (keeps his place: turns to look, but does not leave it)
     this.once = !!opts.once; this.onArrive = opts.onArrive; this.done = false;
     this.route = route; this.i = 0; this.waitT = opts.wait ?? 2; this.pause = 0;
     this.speed = opts.speed ?? 1.05;
@@ -766,16 +764,25 @@ class Watchman {
     this.t += dt;
     // where they are going
     if (this.sus > 0.35) {
-      a.path = [];
+      // onto you: turn to you and come to where you were seen (and, losing you, go on and look there)
       a.targetYaw = Math.atan2(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z);
+      const at = this.seenAt;
+      this.chaseT = (this.chaseT || 0) - dt;
+      if (at && this.chaseT <= 0 && !this.post) {
+        this.chaseT = 0.6;
+        if (Math.hypot(at.x - a.pos.x, at.z - a.pos.z) > 1.5) a.walk([[at.x, at.z]], 1.25); else a.path = [];
+        this.inv = { phase: "go", x: at.x, z: at.z };
+      }
     } else if (this.inv) {
       // a noise: go and see, look about, and go back to the beat
       const v = this.inv;
-      if (v.phase === "go" && (!a.path.length || Math.hypot(a.pos.x - v.x, a.pos.z - v.z) < 1.2)) { a.path = []; v.phase = "look"; v.t = 4; v.yaw = a.yaw; }
+      v.gone = (v.gone || 0) + dt;
+      // (and if the way there is blocked, he looks from where he got to)
+      if (v.phase === "go" && (!a.path.length || Math.hypot(a.pos.x - v.x, a.pos.z - v.z) < 1.2 || v.gone > 7)) { a.path = []; v.phase = "look"; v.t = 4; v.yaw = a.yaw; }
       else if (v.phase === "look") {
         v.t -= dt; a.targetYaw = v.yaw + Math.sin(this.t * 1.3) * 1.3;
         if (v.t <= 0) { v.phase = "back"; a.walk([this.route[this.i]], this.speed); if (Math.random() < 0.6) bark(this.who, ["Rats.", "...Nothing.", "Cats, most like.", "Hm."][Math.floor(Math.random() * 4)], 1.8); }
-      } else if (v.phase === "back" && !a.path.length) { this.inv = null; this.pause = this.waitT; if (this.route.length === 1) a.targetYaw = this.baseYaw; }
+      } else if (v.phase === "back" && (!a.path.length || v.gone > 20)) { if (a.path.length) { a.path = []; a.place(this.route[this.i][0], this.route[this.i][1], a.yaw); } this.inv = null; this.pause = this.waitT; if (this.route.length === 1) a.targetYaw = this.baseYaw; }
     } else if (this.route.length > 1 && !this.done) {
       if (!a.path.length) {
         if (this.arrivedAt !== this.i) { this.arrivedAt = this.i; this.onArrive && this.onArrive(this.i); }
@@ -797,14 +804,23 @@ class Watchman {
     const head = new THREE.Vector3(a.pos.x, 1.65, a.pos.z);
     const ep = pl.eyePos(); const tgt = new THREE.Vector3(ep.x, ep.y - 0.15, ep.z);
     const dx = tgt.x - head.x, dz = tgt.z - head.z, d = Math.hypot(dx, dz);
-    const range = pl.crouched ? this.range / 1.6 : this.range;
+    const range = pl.crouched ? this.range / this.crouchDiv : this.range;
     const ang = Math.abs(Math.atan2(Math.sin(Math.atan2(dx, dz) - a.yaw), Math.cos(Math.atan2(dx, dz) - a.yaw)));
     let seen = d < range && ang < 1.0 && this.w.col.lineOfSight(head, tgt);
     // heard: a run gives you away whichever way they face, and so does walking right up behind them
-    if (!seen && d < 6 && pl.speed > 4 && !pl.crouched) seen = true;
+    if (!seen && d < 8 && pl.speed > 4 && !pl.crouched) seen = true;
     if (!seen && d < 2.2 && pl.speed > 0.5 && !pl.crouched) seen = true;
     if (d < 1) seen = true;
-    if (seen) this.sus += dt * (0.4 + 1.2 * (1 - Math.min(1, d / range))) * (pl.crouched ? 0.65 : 1);
+    if (seen) {
+      this.sus += dt * (0.4 + 1.2 * (1 - Math.min(1, d / range))) * (pl.crouched ? 0.65 : 1);
+      this.seenAt = { x: pl.pos.x, z: pl.pos.z };
+      // a glimpse of something: not sure what, so go over and look
+      if (this.sus > 0.15 && this.sus <= 0.35 && !this.inv && !this.post) {
+        this.inv = { phase: "go", x: pl.pos.x, z: pl.pos.z };
+        a.walk([[pl.pos.x, pl.pos.z]], 1.15);
+        bark(this.who, ["Hm? What's that?", "Something moved.", "...Who's over there?"][Math.floor(Math.random() * 3)], 1.8);
+      }
+    }
     else this.sus = Math.max(0, this.sus - dt * 0.35);
     if (this.sus > 0.35 && !this.said) { this.said = true; bark(this.who, this.lines[Math.floor(Math.random() * this.lines.length)], 2.2); }
     if (this.sus < 0.1) this.said = false;
@@ -889,7 +905,7 @@ async function ch4(w, opts) {
       // his beat runs from just past the cart (it stands at -35.6, 46) up to the gate, never through it
       new Watchman(w, 91, [[-34.4, 49], [-35.4, 59.6]], { wait: 3, speed: 0.95, light: w.pool[3] }),
       // the gate watchman: he sweeps the lane, but every so often turns to check the gate behind him — that is your moment
-      new Watchman(w, 92, [[-36.5, 64.6]], { yaw: Math.PI - 0.35, sweep: 0.5, range: 6.5, glance: { every: 10, for: 6, yaw: 0.2 }, light: w.pool[4] }),
+      new Watchman(w, 92, [[-36.5, 64.6]], { yaw: Math.PI - 0.35, sweep: 0.5, range: 6.5, crouchDiv: 1.6, post: true, glance: { every: 10, for: 6, yaw: 0.2 }, light: w.pool[4] }),
       // and further out, the streets that lead away from the gate are walked too
       new Watchman(w, 94, [[-35.2, 38], [-35.2, 24]], { wait: 2.5, speed: 1.0, light: w.pool[5] }),
       new Watchman(w, 95, [[-18, 40], [-12, 40]], { wait: 3, speed: 0.9, yaw: -Math.PI / 2 }),
@@ -1021,7 +1037,7 @@ async function ch5(w) {
     [0.66, YOU(), "Jakob would have said it was going to rain."],
     [0.68, P.sib, "Jakob would have been right. He always was, about the rain."],
     [0.78, P.sib, "Nobody comes this deep. No tracks but deer. No one to know us."],
-    [0.86, P.sib, "Wait — through the trees. Is that a clearing?"],
+    [0.86, P.sib, "Wait — through the trees. There's light."],
   ];
   const run = async list => { for (const [at, who, text] of list) { await until(() => w.progress() > at); await barkQ(who, text); } };
   await run(lines);
@@ -1039,7 +1055,7 @@ async function ch5(w) {
   G.lockMove = false;
   await fade(0, 1.8);
   await run(later);
-  UI.objective("Go into the clearing");
+  UI.objective("Leave the road and go towards the light");
   mark([CLEARING.x, CLEARING.z, 2]);
   await until(() => Math.hypot(pl.pos.x - CLEARING.x, pl.pos.z - CLEARING.z) < CLEARING.r - 4);
   forks();
@@ -1143,7 +1159,9 @@ async function ch6(w) {
     }
     if (!best) return;
     SFX.chop();
-    best.hp--;
+    // the stronger you are, the more often one stroke does the work of two
+    best.hp -= Math.random() < skillK(G.body, "strength") * 0.8 ? 2 : 1;
+    G.practise("strength", 0.6);
     if (best.hp > 0) { best.state = "shake"; best.shake = 0.25; return; }
     fell(best, best.x - pl.pos.x, best.z - pl.pos.z, "you");
   };
@@ -1261,7 +1279,7 @@ async function ch6(w) {
   G.lockMove = true;
   await fade(1, 1.6);
   for (const b of bundles) w.root.remove(b.g);
-  pl.giveAxe(false);
+  pl.holsterAxe(true);
   await narrate("By the last of the light, the cabin stood again.", 3.6);
   w.showCabin();
   setAtmo("dusk");
@@ -1291,9 +1309,7 @@ async function ch6(w) {
   await fade(0, 1.4);
   await wait(1.5);
   SFX.owl();
-  await say(null, `The cabin stands again. We kept one charred beam at the corner — ${P.sib} insisted.`);
-  lookAt(sib, 2);
-  await say(P.sib, "So we remember what they took. And what we took back.");
+  await say(null, "The cabin stands again.");
   await wait(1);
   look(new THREE.Vector3(FIRE.x, w.cy + 0.8, FIRE.z), 1.5);
   await say(P.sib, "Tomorrow there's seed to find. Something to plant before the frost. Something to eat that isn't blackberries.");
@@ -1320,6 +1336,8 @@ async function ch7(w) {
   const S = { stage: saved.stage || 0, dug: saved.dug || [], sown: saved.sown || [], hunted: !!saved.hunted };   // 0 fetch logs, 1 trade, 2 hunt and field, 3 done
   const persist = () => writeSave({ seed: { ...S } });
   w.showCabin(); w.setStack(8);
+  if (w.blockAxe) w.blockAxe.visible = false;
+  if (!G.player.axe) G.player.hasAxe = true;
   // the trees felled for the cabin are stumps still
   for (const i of ((loadSave() || {}).clearing || {}).felled || []) { const t = w.fellable[i]; if (t) { t.state = "gone"; t.g.visible = false; t.col.disabled = true; stump(w, t); } }
   const door = [CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2];
@@ -1332,7 +1350,7 @@ async function ch7(w) {
   const birds = onFrame((() => { let t = 2; return dt => { t -= dt; if (t <= 0) { t = 2 + Math.random() * 5; Math.random() < 0.85 ? SFX.bird() : SFX.crow(); } }; })());
   void birds;
   const addPack = (icon, name, note, n) => { if (!G.pack.some(i => i.name === name)) G.pack.push({ icon, name, note, n }); };
-  if (S.stage >= 2) { addPack("seeds", "Rye seed", "A sack of it, heavy as a child. And a few turnips wrapped in a rag.", 1); addPack("spade", "Henning's spade", "The handle split and bound with twine. It will do."); }
+  if (S.stage >= 2) { if (S.stage === 2 && !(G.chest || []).some(i => i && i.icon === "seeds")) addPack("seeds", "Rye seed", "A sack of it, heavy as a child. And a few turnips wrapped in a rag.", 1); addPack("spade", "Henning's spade", "The handle split and bound with twine. It will do."); }
 
   await wait(0.2);
   const c = card("Part Two: Roots", "VII. Seed Before Frost", 3.4);
@@ -1396,6 +1414,7 @@ async function ch7(w) {
     await say("Henning", "Get meat in before you dig. Hungry hands dig crooked rows.");
     SFX.pickup(); henning.person.setPose("idle");
     pl.hasBow = true; pl.arrows = 12; w.huntOpen = true; writeSave({ bow: true });
+    if (!tipSeen("bowlesson")) { writeSave({ tips: [...((loadSave() || {}).tips || []), "bowlesson"] }); pl.showBow(true); await G.lesson(); }
     G.lockMove = false; look(null); henning.stopFacing(); henning.person.setPose("armsCrossed");
     S.stage = 2; persist();
   }
@@ -1463,6 +1482,10 @@ async function ch7(w) {
     });
     await until(() => S.sown.length >= 3);
     done(); its.forEach(i => w.removeInteract(i)); w.root.remove(outline);
+    if (G.pack.some(i => i.icon === "seeds")) {
+      bark(P.sib, "That's the field sown. Put what's left of the seed in the chest in the cabin — we'll want it in spring.", 5);
+      await stowInChest(w, "seeds", "Put the rest of the seed in the chest in the cabin");
+    }
     S.stage = 3; persist();
   }
 
@@ -1495,13 +1518,24 @@ async function ch7(w) {
 // ---------------------------------------------------------------------------
 //  hunting with Henning's bow, in the deer ride east of the clearing
 // ---------------------------------------------------------------------------
+// into the chest: into the cabin, open the chest, put the thing in it
+async function stowInChest(w, icon, objective) {
+  if (!G.pack.some(i => i.icon === icon)) return;
+  const f = (w.furniture || []).find(x => x.type === "chest");
+  UI.objective(objective);
+  if (f) { const [x, z] = w.cabinToWorld(f.lx, f.lz); mark([x, z, w.cabinY + 0.9]); }
+  tutor("chest", "F at the chest opens it. Click a thing to put it in, and click it again to take it out.", [["F", "open the chest"]], 6);
+  await until(() => !G.pack.some(i => i.icon === icon));
+  mark(null); UI.objective(null);
+}
 async function huntForMeat(w, sib) {
-  const pl = G.player, NEED = 3;
-  let meat = 0, first = true;
+  const pl = G.player, NEED = 3;          // three beasts brought down and dressed, whatever each gives
+  let meat = 0, kills = 0, first = true;
   const hunt = new Hunt(w, HUNT, {
     onDown: a => bark(YOU(), a.kind === "deer" ? "...Down. Go to it — hold F to dress it." : "Got it. Hold F to take it.", 3),
     onDress: (a, m) => {
-      meat += m; SFX.build();
+      meat += m; kills++; SFX.build();
+      if (kills < NEED) bark(YOU(), ["One.", "Two. One more."][kills - 1] || "", 2.2);
       const have = G.pack.find(i => i.icon === "meat");
       if (have) have.n = (have.n || 1) + m; else G.pack.push({ icon: "meat", name: "Meat", note: "Venison and hare, wrapped in a bit of sacking.", n: m });
       if (first) { first = false; bark(P.sib, "(from the clearing) Was that you? Tell me that was you!", 3.5); }
@@ -1522,7 +1556,7 @@ async function huntForMeat(w, sib) {
   tutor("bow", "Creep up on them — crouch, and don't run; they hear a runner a long way off. Draw, and let go.", [["Hold right-click", "draw — and look closer"], ["Release", "loose"], ["C", "crouch"], ["F", "pull an arrow out"]], 10);
   const obj = onFrame(() => {
     const inRide = Math.hypot(pl.pos.x - HUNT.x, pl.pos.z - HUNT.z) < HUNT.r;
-    UI.objective(meat >= NEED ? "" : `Hunt for meat in the deer ride — ${meat} of ${NEED}${pl.arrows <= 3 ? ` · ${pl.arrows} arrows left` : ""}`);
+    UI.objective(kills >= NEED ? "" : `Hunt in the deer ride — ${kills} of ${NEED} animals${pl.arrows <= 3 ? ` · ${pl.arrows} arrows left` : ""}`);
     // the way there, and then the kill to dress; the living you find for yourself
     const down = hunt.animals.find(a => !a.alive);
     mark(down ? [down.pos.x, down.pos.z, down.pos.y + 0.8] : !inRide ? [HUNT.x, HUNT.z, w.heightAt(HUNT.x, HUNT.z) + 1.5] : null);
@@ -1531,7 +1565,7 @@ async function huntForMeat(w, sib) {
     // more beasts wander in when the ride is empty
     if (hunt.animals.filter(a => a.alive).length < 2) hunt.spawn(Math.random() < 0.5 ? "deer" : "hare", 1);
   });
-  await until(() => meat >= NEED);
+  await until(() => kills >= NEED);
   obj(); mark(null); UI.objective(null);
   await wait(1);
   UI.objective("Take the meat back to the cabin");
@@ -1541,9 +1575,11 @@ async function huntForMeat(w, sib) {
   G.lockMove = true; lookAt(sib, 2.5); sib.facePlayer();
   await say(P.sib, "Meat. Real meat. When did we last —");
   await say(P.sib, "We'll smoke it over the fire; it'll keep for weeks. Henning's a better friend than he lets on.");
+  await say(P.sib, "Put it in the chest in the cabin for now. Out of reach of the foxes.");
   G.lockMove = false; look(null);
   pl.showBow(false);
   hunt.stop();
+  await stowInChest(w, "meat", "Put the meat in the chest in the cabin");
 }
 
 // ---------------------------------------------------------------------------
@@ -1552,6 +1588,9 @@ async function huntForMeat(w, sib) {
 // growth: 0 bare earth, 1 green shoots, 2 knee-high, 3 ripe and gold
 function homestead(w, { stack = 6, growth = 1 } = {}) {
   w.showCabin(); w.setStack(stack); w.openTracks.add(3);
+  // the old axe is yours now: on you, put away (1 takes it out), and no longer in the block
+  if (w.blockAxe) w.blockAxe.visible = false;
+  if (!G.player.axe) G.player.hasAxe = true;
   for (const i of ((loadSave() || {}).clearing || {}).felled || []) { const t = w.fellable[i]; if (t) { t.state = "gone"; t.g.visible = false; t.col.disabled = true; stump(w, t); } }
   const c = Math.cos(FIELD.ry), sn = Math.sin(FIELD.ry);
   const field = new THREE.Group(); w.root.add(field);
@@ -1653,9 +1692,9 @@ async function ch8(w, opts = {}) {
   cart.visible = true;
   const door = [CABIN.x + Math.sin(CABIN.ry) * 4, CABIN.z + Math.cos(CABIN.ry) * 4];
   const route = [[30.5, -289], [31, -298], door, [FIELD.x + 2.5, FIELD.z + 1], [FIRE.x + 1.2, FIRE.z - 0.5], [STACK.x + 1.5, STACK.z + 1.5], [HIDE.x - 1, HIDE.z + 10], [31, -298], [30, -284]];
-  const remarks = { 2: "Empty, the old man said. Somebody's mended it, though.", 3: "Rye. Somebody has sown rye.", 4: "...Still warm.", 5: "Fresh-cut, this.", 6: "And where would I go, if I'd a cabin to hide from? ...The trees." };
+  const remarks = { 2: "Empty, I was told. Somebody's mended it, though.", 3: "Rye. Somebody has sown rye.", 4: "...Still warm.", 5: "Fresh-cut, this.", 6: "And where would I go, if I'd a cabin to hide from? ...The trees." };
   let creak = 0;
-  const k = new Watchman(w, 88, route, { look: KESSLER, once: true, wait: 2.4, speed: 1.5, range: 14, light: w.lightPool[1],
+  const k = new Watchman(w, 88, route, { look: KESSLER, once: true, wait: 2.4, speed: 1.5, range: 22, crouchDiv: 2.5, light: w.lightPool[1],
     lines: ["Who's there?", "Someone there? Come out — I don't bite.", "Hm. A fox, is it?"],
     onArrive: i => { if (remarks[i]) bark("The charcoal buyer", remarks[i], 3.2); if (i === 6) { k.sweep = 0.9; k.baseYaw = Math.atan2(HIDE.x - k.a.pos.x, HIDE.z - k.a.pos.z); k.pause = 5; } else k.sweep = 0; } });
   let caught = false;
@@ -1884,8 +1923,7 @@ function startTown(w, unlocked) {
   G.town = town;
   w.showCabin(); w.openTracks.add(3);
   w.setFurniture(S.furniture || null);
-  if ((loadSave() || {}).carved) w.carveBeam();
-  G.player.giveAxe(true);
+  G.player.giveAxe(true); if (w.blockAxe) w.blockAxe.visible = false;
   // once, a little after a settlement first exists: where to see all of it
   const g0 = GEN;
   setTimeout(() => {
@@ -2433,28 +2471,8 @@ async function chReckoning(w) {
     lookAt(jak, 2);
     await say("Jakob", "Then come in the morning, and ride with me. I'll wait.");
   }
-  lookAt(hen, 2);
-  await say("Henning", "There's one more thing wants doing. That black beam you kept at the corner of the cabin.");
-  lookAt(sib, 2);
-  await say(P.sib, "So we remember what they took. Now we can put back what they struck out.");
-  G.lockMove = false; look(null);
-
-  // ---- carve his name ----
-  const [bx, bz] = w.cabinToWorld(-2.55, 3.55);
-  let carved = false;
-  const it = w.addInteract({ x: bx, y: w.cabinY + 1.3, z: bz, reach: 2.2, hold: 4, label: "Carve Father's name into the charred beam",
-    onHoldTick: (dt, t) => { if (Math.floor(t * 2.2) !== Math.floor((t - dt) * 2.2)) SFX.chop(); }, use: () => { carved = true; } });
-  UI.objective("Carve Father's name into the beam they kept");
-  mark([bx, bz, w.cabinY + 1.6]);
-  await until(() => carved);
-  w.removeInteract(it); mark(null); UI.objective(null);
-  w.carveBeam(); writeSave({ carved: true });
-  SFX.build();
   await wait(1.5);
-  lookAt(sib, 2);
-  await say(P.sib, "There. Now it's written somewhere they can't strike it out.");
-  await wait(1.5);
-  G.lockMove = true;
+  look(null);
   await fade(1, 3);
   S.days = 5.3;                          // the first frost: winter is a day off
   // what the house fetched: the settlement's first real money, for research above all

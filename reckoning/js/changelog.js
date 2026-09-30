@@ -35,7 +35,7 @@ export const CHANGELOG = [
   {
     v: "0.21", date: "29 September 2026", title: "Walls, and Europe",
     items: [
-      "Europe, in G: the first Forester's map of 1683 — thirty-three crowns, their coastlines inked — with your clearing in the woods beyond Hamburg. It lives: the crowns go to war with each other and the borders move, plague and famine fall on them, and word of it reaches you on a card.",
+      "Europe, in G: the first Forester's map of 1683 — thirty-three crowns, their coastlines inked — with your home in the woods beyond Hamburg. It lives: the crowns go to war with each other and the borders move, plague and famine fall on them, and word of it reaches you on a card.",
       "Each crown has a view of you, set by its faith and yours. Send an envoy to warm it; once it's friendly, a trade pact brings a DM a day in customs. The crowns near enough to march — Denmark, Sweden, Brandenburg, the Empire, Saxony, Poland, England, France, Bavaria — can be at war with you: declare it, or have it declared on you if they come to hate you.",
       "At war, it isn't bandits that come up your road but a crown's soldiers — more of them, with swords, in its colours, every few days. Beat them at your gate twice and it sues for peace and pays for it; or buy peace yourself.",
       "Walls, as the first Forester's Defending gives them: a palisade of sharpened logs, laid a length at a time (three logs each) — each new length joins on where the last one ends — and gates in it. With Defending II, stone walls.",
@@ -98,7 +98,7 @@ export const CHANGELOG = [
       "Every grown settler fights: with a sword or a spear if the smith has made them, an axe if they fell trees, and their fists if not. Children hide by the fire. A settler beaten down gets up again when it's over.",
       "Swords, as in the first Forester's tree: once the settlement knows Spears, Swords or Battle Axes, the smith forges them, turn and turn about with tools, until there's one for every pair of hands. Hilts make them cheaper, Blades makes them bite harder. Take the best one from the hotbar.",
       "Your brother or sister gives you a hint when you've been at one thing a good while, and speaks up when you're hurt, out of arrows, or empty-handed in a raid — and in the settlement, now and then, says what it needs.",
-      "Any tree can be felled now, not just the big ones by the clearing.",
+      "Any tree can be felled now, not just the big ones by the cabin.",
       "Every action takes a moment and fills the little wheel — hold F. Let go before the next.",
       "Hewing the door shows the saw going; building, raising and making furniture show the hammer; carving and dressing game show the knife.",
       "Swinging an axe makes a whoosh, not a click.",
@@ -125,10 +125,10 @@ export const CHANGELOG = [
     items: [
       "The bow: hold right-click to draw — the view closes in on the middle of the screen — and let go to loose. Hold it at full draw too long and your arms start to shake, and the shot with them.",
       "A real crosshair: it opens wide with the bow out and closes in as you draw, and turns red over anything you can hunt. Never over a person.",
-      "No more fence round the deer ride or the clearing: once you live there, you can walk a long way into the forest all round it.",
+      "No more fence round the deer ride or the cabin: once you live there, you can walk a long way into the forest all round it.",
       "The settlement grows: when the buildings fill what room there is, your brother or sister says so, the edge moves out into the forest, and everyone — you too — turns to felling the trees past the old edge until the ground is clear to build on.",
       "Felled trees grow back, in every chapter, out of sight. Cleared ground stays cleared.",
-      "After Henning gives you the bow, you have to walk back to the clearing before your brother or sister can see it.",
+      "After Henning gives you the bow, you have to walk back to the cabin before your brother or sister can see it.",
       "Choosing someone's work from the list works with the mouse now — the click no longer grabs the mouse back into the game.",
       "The view no longer turns by itself when the cursor rests near the edge of the window.",
       "Both arms come in from the right when you hold the axe.",
@@ -171,7 +171,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    v: "0.11", date: "28 September 2026", title: "From clearing to city: the works, and rebuilding in the style of the age",
+    v: "0.11", date: "28 September 2026", title: "From cabin to city: the works, and rebuilding in the style of the age",
     items: [
       "The works: a quarry for stone, a sawmill for planks, a brickworks, a mine for iron ore, a smelter for iron, and a forge whose tools make everyone a quarter quicker. Each wants a pair of hands.",
       "A market that sells your surplus for Marks every day, a town hall, and a church.",
@@ -197,7 +197,7 @@ export const CHANGELOG = [
   {
     v: "0.9", date: "28 September 2026", title: "Hunting, footsteps, and a sharper watch",
     items: [
-      "Before you dig, you hunt: Henning gives you his old bow and a dozen arrows, and the woods east of the clearing open. Creep up on the roe and the hares, draw, and let go; pull your arrows back out of wherever they land.",
+      "Before you dig, you hunt: Henning gives you his old bow and a dozen arrows, and the woods east of the cabin open. Creep up on the roe and the hares, draw, and let go; pull your arrows back out of wherever they land.",
       "Footsteps sound like what you're walking on: grass, leaves and needles, the dirt of the track, cobbles, floorboards, snow, the marsh. You hear other people's too, and the watch walks heavy.",
       "People carrying a lantern or a torch walk properly now, instead of gliding. The charcoal buyer walks faster.",
       "The watch sees you more easily: a wider eye, farther even when you crouch, and they hear you walk up behind them.",
@@ -221,7 +221,7 @@ export const CHANGELOG = [
     v: "0.8", date: "28 September 2026", title: "The end of the story: Harvest Home and The Reckoning",
     items: [
       "Chapter XII, Harvest Home: two more come up the road with nowhere to sleep. Raise them a cabin, reap the rye, set someone to new work and furnish your own cabin — then the harvest supper, and Henning's news.",
-      "Chapter XIII, The Reckoning: they come for you with a warrant. Bring everyone to the fire, and stand there with them. Jakob comes up the road with your father's ledger — and the choice of where home is. Then carve his name into the beam you kept.",
+      "Chapter XIII, The Reckoning: they come for you with a warrant. Bring everyone to the fire, and stand there with them. Jakob comes up the road with your father's ledger — and the choice of where home is.",
       "Free play is now chapter XIV. The board at the top says what the settlement needs next.",
       "Talk to a settler (F) to change their work: felling, carrying, or the fields.",
       "Hunger: everyone eats rye every day. A day with none and you're warned; two, and the newest to come goes back down the road.",
@@ -258,7 +258,7 @@ export const CHANGELOG = [
     v: "0.5", date: "28 September 2026", title: "Part Two begins: Seed Before Frost",
     items: [
       "Chapter VIII, Martinmas: a cart comes up the road at dusk. Put out the fire, get into the trees, and keep out of the charcoal buyer's lantern while he counts everything you have. Then Henning comes to the fire with a name, and a warning.",
-      "Chapter IX, The First Winter: snow on the clearing, on the roof and on every bough. Split firewood, pull moss from under the snow to chink the walls — and then keep the fire alive through a blizzard night until dawn.",
+      "Chapter IX, The First Winter: snow on the ground, on the roof and on every bough. Split firewood, pull moss from under the snow to chink the walls — and then keep the fire alive through a blizzard night until dawn.",
       "A hotbar along the bottom of the screen: what you have to hand, in nine slots. Press 1 to 9 to pick one — the axe's slot takes it out or puts it away.",
       "The cursor is a small hollow square: yellow over something you can use, turning slowly green as you use it.",
       "The axe is in your own two hands, your sleeves running back to your shoulders, and it swings across in front of you, side-on, the head leading.",
@@ -277,7 +277,7 @@ export const CHANGELOG = [
       "Fixed: your brother or sister stood in your way when the men came to the door, and walked into the table afterwards.",
       "Fixed: the red front door was made of bricks. It is painted wood again.",
       "Fixed: cobbles covered the harbour where the water should be.",
-      "Fixed: you could not leave the clearing by the road.",
+      "Fixed: you could not leave the cabin by the road.",
     ],
   },
   {
@@ -286,7 +286,7 @@ export const CHANGELOG = [
       "The title screen hangs a new picture: the burned cabin at dawn, painted as a Dutch landscape of the 1660s would have painted it.",
       "Father looks like the grain merchant he is: a beard going grey, a heavier brow and jaw. The round cheeks are gone from everyone's faces.",
       "The trees are rebuilt: spruces with ragged, drooping tiers, pines with flat broken crowns, birches with loose clumps of leaves, and no two quite the same green. Walls, timber, stone and bark have grain and weathering instead of flat colour.",
-      "Press T for your inventory: a grid of slots showing what is in your hands, what is on you, and at the clearing what is stacked and built. Hover a slot to read it.",
+      "Press T for your inventory: a grid of slots showing what is in your hands, what is on you, and at the cabin what is stacked and built. Hover a slot to read it.",
       "No more voices: every line is read, not spoken, and the Voices setting is gone.",
       "The cabin and the burned ruin are now models made in Blender: round logs crossing at the corners, a plank door with iron straps, a boarded roof, and a stone chimney that outlasted the fire.",
       "Everyone is new, made in Blender: you, your brother or sister, Father, Jakob, the magistrate, the watch, Frau Albers and the people of Hamburg. Each has a real face (eyes, brows, nose, lips, a beard where they wear one), clothes of 1683 — long coats with deep cuffs and a cravat, or a laced bodice, full skirt and apron — and a skeleton that walks, runs, sits, swings an axe, and holds a torch, a lantern or the magistrate's writ. The crowd is still varied: each townsperson wears their own colours.",
@@ -301,7 +301,7 @@ export const CHANGELOG = [
       "The fellable spruces and the ships in the harbour are Blender models now.",
       "You can see the axe in your hands, and it swings the way a felling axe does: back over the shoulder and level through the trunk.",
       "Skirts and coat-tails swing with the legs when people walk.",
-      "Fixed: a tree felled on the edge of the clearing could drop its logs where you could not reach them. Logs now always land within reach, and logs left on the ground are kept in the save.",
+      "Fixed: a tree felled on the edge of the cabin's ground could drop its logs where you could not reach them. Logs now always land within reach, and logs left on the ground are kept in the save.",
       "Press M to take the mouse into the game and look around, and M again to let it go without pausing. Where the browser will not lock the mouse, M looks around with the cursor hidden instead, and resting the cursor at the edge of the screen keeps turning.",
     ],
   },
@@ -333,8 +333,8 @@ export const CHANGELOG = [
       "The menus and the HUD are dark green.",
       "Better-made people: shaped bodies, faces with eyes and brows, hands, buttons and buckles, coats with tails, skirts with hems, hats that look like hats.",
       "The harbour opens onto water that goes to the horizon.",
-      "Fixed: the log stack in the clearing froze the game once it held more than ten logs.",
-      "Fixed: the misty morning at the marsh gate and the dusk in the clearing were too dark to see by.",
+      "Fixed: the log stack by the cabin froze the game once it held more than ten logs.",
+      "Fixed: the misty morning at the marsh gate and the dusk at the cabin were too dark to see by.",
     ],
   },
   {
@@ -346,9 +346,9 @@ export const CHANGELOG = [
       "III. The Square at Dawn — the crowd that had bought our bread, watching in silence.",
       "IV. The Marsh Gate — through the lanes, past the watch, to the small door in the wall.",
       "V. Far, Far Away — the long road into the old woods, until the bells fade.",
-      "VI. The Clearing — an old axe, twenty logs, a door, and the burned cabin raised again.",
+      "VI. — what waits at the end of the road, and the work of making it home.",
       "Play as the Brother or the Sister; the other is beside you all the way.",
-      "First person or over the shoulder (V). Progress kept at every chapter and as you work in the clearing.",
+      "First person or over the shoulder (V). Progress kept at every chapter and as you work.",
       "Music and sound built at runtime, with the first Forester's sound engine underneath.",
     ],
   },
