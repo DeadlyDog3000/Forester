@@ -262,6 +262,131 @@ export const SHOTS = {
       rig.look(c, [fx, gy(fx, fz) + 2.0, fz], [this.cx + ux * 9, gy(this.cx, this.cz) + 1.3, this.cz + uz * 9], 55);
     },
   },
+  raise: {
+    secs: 6,
+    // a cabin going up: the stakes and the line, the logs piling, then the walls and the roof — the camera circling
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); setAtmo("morning");
+      const t = G.town;
+      let spot = null;
+      for (let r = 12; r < 30 && !spot; r += 0.8) for (let a = 0.3; a < 6.3 && !spot; a += 0.2) { const x = FIRE.x + Math.cos(a) * r, z = FIRE.z + Math.sin(a) * r, ry = Math.atan2(FIRE.x - x, FIRE.z - z); if (t.fits("cabin", x, z, ry)) spot = { x, z, ry }; }
+      const b = { type: "cabin", x: spot.x, z: spot.z, ry: spot.ry, logs: 0, dug: 0, done: false, door: true };
+      t.S.buildings.push(b); t.show(b); this.b = b;
+      rig.run(1);
+    },
+    tick(t, i) {
+      const b = this.b, T = G.town, cost = BUILDINGS.cabin.cost;
+      if (i % 4 === 0 && b.logs < cost && i < 110) { b.logs = Math.min(cost, b.logs + 1); T.show(b); }
+      if (i === 120 && !b.done) { b.done = true; T.show(b); }
+    },
+    cam(t, c) { const b = this.b, a = b.ry + 0.6 + t * 1.3, r = 11 - t * 2; rig.look(c, [b.x + Math.sin(a) * r, gy(b.x, b.z) + 3.2 + t * 1.5, b.z + Math.cos(a) * r], [b.x, gy(b.x, b.z) + 1.6, b.z], 55); },
+  },
+  ride: {
+    secs: 6,
+    // at a gallop down the road through the forest, the camera riding alongside
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); setAtmo("afternoon");
+      const w = G.world, pl = G.player, R = w.road;
+      const i0 = Math.floor(R.length * 0.55);
+      pl.place(R[i0].x, R[i0].z, 0); pl.mount(); this.i = i0;
+      // a rider in the saddle (you, as others see you)
+      const { makePerson } = await import("../js/models.js");
+      const rider = this.rider = makePerson({ ...LOOKS[G.who === "sister" ? "sister" : "brother"], seed: 7 });
+      rider.sitting = 1; rider.root.position.set(0, 1.02, 0.05); pl.horse.root.add(rider.root);
+      rig.run(0.5);
+    },
+    cam(t, c) {
+      const pl = G.player, fx = -Math.sin(pl.yaw), fz = -Math.cos(pl.yaw), sx = Math.cos(pl.yaw), sz = -Math.sin(pl.yaw);
+      if (this.rider) this.rider.update(1 / 30, 0);
+      const side = 2.2 - t * 3.2, x = pl.pos.x - fx * 5.2 + sx * side, z = pl.pos.z - fz * 5.2 + sz * side;
+      rig.look(c, [x, gy(x, z) + 2.6, z], [pl.pos.x + fx * 5, pl.pos.y + 1.6, pl.pos.z + fz * 5], 55);
+    },
+    tick(t, i) {
+      const pl = G.player, R = G.world.road;
+      // (along the road, toward the clearing, looking a little ahead)
+      let best = 0, bd = 1e9; for (let k = 0; k < R.length; k++) { const d = Math.hypot(R[k].x - pl.pos.x, R[k].z - pl.pos.z); if (d < bd) { bd = d; best = k; } }
+      const q = R[Math.min(R.length - 1, best + 14)];
+      pl.yaw = Math.atan2(-(q.x - pl.pos.x), -(q.z - pl.pos.z)); pl.pitch = -0.08;
+      input.keys.add("KeyW"); input.keys.add("ShiftLeft");
+    },
+    done() { input.keys.delete("KeyW"); input.keys.delete("ShiftLeft"); G.player.dismount(); },
+  },
+  cavefight: {
+    secs: 6,
+    // deep in the caves: a raiders' fire in a far hall, and them rising to come for you
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2);
+      const c = G.world.cave, orig = Math.random; Math.random = () => 0.2;
+      c.enter(); await wait(1500); Math.random = orig;
+      const b = c.band[0], h = c.halls.find(h => Math.hypot(h.x - b.a.pos.x, h.z - b.a.pos.z) < h.r + 3);
+      this.h = h; this.c = c;
+      G.hurt = () => {};
+      // stand at the hall's edge, facing its fire
+      const a = Math.atan2(c.halls[0].z - h.z, c.halls[0].x - h.x);
+      this.from = [h.x + Math.cos(a) * (h.r - 2.5), h.z + Math.sin(a) * (h.r - 2.5)];
+      G.player.place(this.from[0], this.from[1], 0);
+      rig.run(0.3);
+    },
+    cam(t, c) {
+      // (backing away down the tunnel as they come for you — they stay just ahead of the lens)
+      const h = this.h, [fx, fz] = this.from, dx = fx - h.x, dz = fz - h.z, l = Math.hypot(dx, dz) || 1;
+      let k = t < 0.3 ? 0 : E((t - 0.3) / 0.7) * 6;
+      // (never back into the rock)
+      while (k > 0 && this.c.sd(fx + dx / l * k, fz + dz / l * k) < 1.8) k -= 0.2;
+      const x = fx + dx / l * k, z = fz + dz / l * k;
+      G.player.place(x + dx / l * 3, z + dz / l * 3, 0);
+      rig.look(c, [x, gy(x, z) + 1.9, z], [h.x, gy(h.x, h.z) + 1.0, h.z], 60);
+    },
+    done() { this.c.leave(); },
+  },
+  rising: {
+    secs: 6,
+    // the settlement risen: red rags against the rest, fighting in the square at dusk
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); setAtmo("evening");
+      const R = await import("../js/rebellion.js"), t = G.town;
+      G.player.place(FIRE.x + 40, FIRE.z + 40, 0); G.hurt = () => {};
+      const om = t.mood.bind(t); let n = 0; t.mood = () => ({ value: [20, 60][n++ % 2], why: [] });
+      R.startRevolt(t); t.mood = om;
+      for (const a of t.actors) if (a.settler && !a.settler.child) a.place(FIRE.x + (Math.random() - 0.5) * 8, FIRE.z + (Math.random() - 0.5) * 8);
+      // (the fighting goes on in its own time: let it get going before the camera turns over)
+      for (let i = 0; i < 40; i++) { rig.run(0.1); await wait(100); }
+    },
+    cam(t, c) {
+      // (from the side of the fire away from the cabin, where nothing stands in the way)
+      const a0 = Math.atan2(FIRE.z - CABIN.z, FIRE.x - CABIN.x), a = a0 - 0.5 + t * 1.0;
+      rig.look(c, [FIRE.x + Math.cos(a) * 6, gy(FIRE.x, FIRE.z) + 2.0, FIRE.z + Math.sin(a) * 6], [FIRE.x, gy(FIRE.x, FIRE.z) + 1.1, FIRE.z], 58);
+    },
+  },
+  snowtown: {
+    secs: 6,
+    // the settlement under snow, smoke going up, the light going
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); await preloadTown(2); showcaseTown(2);
+      // (the middle of a winter's day: the season lays the snow itself)
+      const t = G.town; t.day = 6; t.t = t.dayLen * 6.3; rig.run(2); setAtmo("snowday");
+    },
+    tick() { G.world.setSnow(1, 0.7); },
+    cam: (t, c) => { const a = 4.1 + t * 0.45; rig.look(c, [FIRE.x + Math.cos(a) * 40, gy(FIRE.x, FIRE.z) + 12 + t * 3, FIRE.z + Math.sin(a) * 40], [FIRE.x, gy(FIRE.x, FIRE.z) + 2, FIRE.z], 48); },
+  },
+  newroad: {
+    secs: 6.5,
+    // the new road cut through the forest, and the clearing at the end of it
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); setAtmo("morning");
+      const t = G.town; G.ask = () => Promise.resolve("Neuhof"); t.S.playSecs = 2500; t.S.colonyAsked = false; t._colT = 0; G.lockMove = false; G.cine = null;
+      t.update(0.1); await wait(300);
+      const btn = document.querySelector("#tradeList .plan"); if (btn) btn.click();
+      await wait(2500);
+      this.col = t.S.colonies[0];
+      rig.run(1);
+    },
+    cam(t, c) {
+      const R = this.col.road, k = Math.min(R.length - 2, Math.floor(E(t) * (R.length - 2))), f = E(t) * (R.length - 2) - k;
+      const x = R[k][0] + (R[k + 1][0] - R[k][0]) * f, z = R[k][1] + (R[k + 1][1] - R[k][1]) * f;
+      rig.look(c, [x, gy(x, z) + 4.5, z], [this.col.x, gy(this.col.x, this.col.z) + 1, this.col.z], 55);
+    },
+  },
   cave: {
     secs: 5,
     // down in the caves: along a tunnel by lantern light, toward a torch in the next hall
