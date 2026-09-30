@@ -378,7 +378,7 @@ export function makeAxe(tier) {
   const g = new THREE.Group();
   const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.72, 6), mat(0x7a5a3a));
   haft.position.y = 0.3; g.add(haft);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.16), (tier === 3 ? mat(0xf0a060, { metalness: 0.08, roughness: 0.3 }) : mat(tier === 4 ? 0x9aa0a8 : 0x5d6166, { metalness: 0.8, roughness: 0.45 })));
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.16), (tier === 3 ? mat(0xf0a060, { metalness: 0.08, roughness: 0.3 }) : tier === 4 ? mat(0xd4a650, { metalness: 0.12, roughness: 0.3 }) : mat(tier === 5 ? 0x9aa0a8 : 0x5d6166, { metalness: 0.8, roughness: 0.45 })));
   head.position.set(0, 0.62, 0.06); g.add(head);
   const edge = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.14, 0.04), mat(0xb8bcc2, { metalness: 0.9, roughness: 0.3 }));
   edge.position.set(0, 0.62, 0.15); g.add(edge);
@@ -387,7 +387,7 @@ export function makeAxe(tier) {
 // arms: each held by the grip at the origin, pointing up +Y (as the axe is)
 const STEEL = () => mat(0xc4c9cf, { metalness: 0.45, roughness: 0.35 });
 // the blade's stuff by its making: wood, copper, or steel (the smith's, and iron)
-const BLADE_OF = t => t === 1 ? mat(0x7a5a38, { surface: "wood" }) : t === 3 ? mat(0xf0a060, { metalness: 0.08, roughness: 0.3 }) : STEEL();
+const BLADE_OF = t => t === 1 ? mat(0x7a5a38, { surface: "wood" }) : t === 3 ? mat(0xf0a060, { metalness: 0.08, roughness: 0.3 }) : t === 4 ? mat(0xd4a650, { metalness: 0.12, roughness: 0.3 }) : STEEL();
 export function makeSword(tier) {
   const g = new THREE.Group();
   const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.24, 6), mat(0x3a2418)); grip.position.y = 0.1; g.add(grip);
@@ -451,11 +451,11 @@ export function makeFood(kind) {
   return g;
 }
 // a pickaxe: haft pointing +Y, the head across it at the top, in its making's colour
-const PICK_HEAD = [0x9a7448, 0x9a7448, 0x8a867e, 0xe0904e, 0xaab0b8];
+const PICK_HEAD = [0x9a7448, 0x9a7448, 0x8a867e, 0xe0904e, 0xc49a48, 0xaab0b8];
 export function makePick(tier = 1) {
   const g = new THREE.Group();
   const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.72, 6), mat(0x6a4a30, { surface: "wood" })); haft.position.y = 0.3; g.add(haft);
-  const metal = tier >= 3, head = mat(PICK_HEAD[tier] || PICK_HEAD[1], metal ? { metalness: tier === 3 ? 0.25 : 0.55, roughness: 0.4 } : { surface: tier === 2 ? "stone" : "wood" });
+  const metal = tier >= 3, head = mat(PICK_HEAD[tier] || PICK_HEAD[1], metal ? { metalness: tier === 5 ? 0.55 : 0.2, roughness: 0.4 } : { surface: tier === 2 ? "stone" : "wood" });
   // the head: two arms from the haft's top, bending down to points, like a bird's wings folded
   const hub = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.06), head); hub.position.y = 0.66; g.add(hub);
   for (const s of [-1, 1]) {

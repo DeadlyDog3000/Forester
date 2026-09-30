@@ -861,21 +861,39 @@ export class Town {
   }
   setupStack() {
     const w = this.w, pl = G.player, at = () => this.stackAt;
-    // the chopping block: make tools; the fire: smelt ore
+    // the chopping block: make tools; the forge (once there is one): smelt ore, and cast bronze
+    // (at the side of whichever forge is nearest you, out of the way of its door)
+    const forge = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "forge") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
+    const side = () => { const b = forge(); if (!b) return { x: 1e6, z: 1e6 }; const def = BUILDINGS.forge, o = def.w / 2 + 0.9; return { x: b.x + Math.cos(b.ry) * o, z: b.z - Math.sin(b.ry) * o }; };
     if (this.craftIt) w.removeInteract(this.craftIt);
     this.craftIt = w.addInteract({ x: BLOCK.x, y: w.cy + 0.8, z: BLOCK.z, reach: 2.0, label: "Make tools", use: () => G.openCraft && G.openCraft() });
     if (this.smeltIt) w.removeInteract(this.smeltIt);
-    const ore = () => G.pack.find(i => i.icon === "copperore" || i.icon === "ironore");
-    this.smeltIt = w.addInteract({ x: FIRE.x, y: w.cy + 0.5, z: FIRE.z, reach: 2.6, hold: 3,
-      label: () => { const o = ore(); return o ? `Smelt the ${o.icon === "copperore" ? "copper" : "iron"} ore (${o.n})` : "Smelt ore"; },
-      can: () => !!ore(),
+    const METAL = { copperore: "copper", tinore: "tin", ironore: "iron" };
+    const ore = () => G.pack.find(i => METAL[i.icon]);
+    this.smeltIt = w.addInteract({ get x() { return side().x; }, get z() { return side().z; }, get y() { return w.heightAt(side().x, side().z) + 1; }, reach: 2.8, hold: 3, anim: "hammer",
+      label: () => { const o = ore(); return o ? `Smelt the ${METAL[o.icon]} ore at the forge (${o.n})` : "Smelt ore"; },
+      can: () => !!ore() && !!forge(),
       onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().chop(); },
       use: () => {
         const o = ore(); if (!o) return;
-        const to = o.icon === "copperore" ? "copper" : "iron", have = G.pack.find(i => i.icon === to);
+        const to = METAL[o.icon], have = G.pack.find(i => i.icon === to);
         if (have) have.n = (have.n || 1) + o.n; else G.pack.push({ icon: to, name: ITEM[to].name, note: ITEM[to].note, n: o.n });
         G.pack.splice(G.pack.indexOf(o), 1);
         UI.hint(`${o.n} ${ITEM[to].name.toLowerCase()}, smelted.`, 3); SFX().build();
+      } });
+    // bronze, as the first Forester makes it: copper and tin melted together in the smith's crucible, one of each for two
+    if (this.alloyIt) w.removeInteract(this.alloyIt);
+    const packN = k => (G.pack.find(i => i.icon === k) || {}).n || 0;
+    this.alloyIt = w.addInteract({ get x() { return side().x; }, get z() { return side().z; }, get y() { return w.heightAt(side().x, side().z) + 1.1; }, reach: 2.8, hold: 3, anim: "hammer",
+      label: () => `Cast bronze at the forge: copper and tin (${Math.min(packN("copper"), packN("tin"))})`,
+      can: () => !!forge() && !ore() && packN("copper") > 0 && packN("tin") > 0,
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().chop(); },
+      use: () => {
+        const n = Math.min(packN("copper"), packN("tin"));
+        for (const k of ["copper", "tin"]) { const it = G.pack.find(i => i.icon === k); it.n -= n; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }
+        const have = G.pack.find(i => i.icon === "bronze");
+        if (have) have.n = (have.n || 1) + n * 2; else G.pack.push({ icon: "bronze", name: ITEM.bronze.name, note: ITEM.bronze.note, n: n * 2 });
+        UI.hint(`${n * 2} bronze, cast.`, 3); SFX().build();
       } });
     // the sawhorse by the block: a door for each new cabin, hewn from logs off the stack
     if (this.sawIt) w.removeInteract(this.sawIt);

@@ -802,7 +802,7 @@ function mineSwing() {
   const R = ROCKS[k.kind];
   if ((tools.pick || 0) < R.need) {
     AUDIO.clang(0.25, { x: k.x, y: k.y + 0.6, z: k.z });
-    UI.hint(`Too hard for a ${TIER_NAME[tools.pick]} pick — ${k.kind === "copper" ? "copper wants a stone pickaxe" : "iron wants a copper pickaxe"}.`, 3);
+    UI.hint(`Too hard for a ${TIER_NAME[tools.pick]} pick — ${k.kind === "iron" ? "iron wants a bronze pickaxe" : `${k.kind} wants a stone pickaxe`}.`, 3);
     return;
   }
   AUDIO.clang(0.4, { x: k.x, y: k.y + 0.6, z: k.z }); SFX.chop && SFX.chop();

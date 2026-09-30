@@ -1949,18 +1949,21 @@ const RECRUIT_COST = 12;
 G.emitCraft = r => {
   const line = {
     pick1: "A pickaxe! Now the grey rocks round the clearing — swing at them. Stone makes a better one.",
-    pick2: "Stone. That'll break the green-flecked copper rock — there's some out to the west. Melt the ore in the fire.",
-    pick3: "Copper! Now the red rock deep in the woods to the south: iron. Smelt it the same way.",
-    pick4: "Iron. There's nothing in these woods that pick won't break.",
+    pick2: "Stone. That'll break the green-flecked copper rock out west, and the pale tin rock south of it. The ore wants smelting at a forge.",
+    pick3: "Copper. It's soft, mind. Cast it with tin at the forge and you'll have bronze.",
+    pick4: "Bronze! Now the red rock deep in the woods to the south: iron. Smelt it at the forge the same way.",
+    pick5: "Iron. There's nothing in these woods that pick won't break.",
     axe3: "A copper head on the axe. You'll fell twice as fast. Well — faster.",
-    axe4: "An iron axe. Tomas will want to borrow it.",
+    axe4: "Bronze. That'll hold an edge.",
+    axe5: "An iron axe. Tomas will want to borrow it.",
     spade3: "A copper spade. Grete will want that one.",
-    spade4: "Iron. The fields will dig themselves. Nearly.",
+    spade5: "Iron. The fields will dig themselves. Nearly.",
     hammer1: "A mallet. We'll have the next cabin up by supper.",
     hammer2: "A stone hammer — mind your thumbs.",
     sword1: "A wooden sword. Well. It's better than your fists.",
     sword3: "A copper sword. Let them come up the road now.",
-    sword4: "Iron. Father would have laughed to see you with that.",
+    sword4: "Bronze. That's a proper blade.",
+    sword5: "Iron. Father would have laughed to see you with that.",
   }[r.tool + r.tier];
   const sib = (G.world && G.world.actors || []).find(a => a.isSibling);
   if (line && sib) bark(P.sib, line, 4.5);
@@ -2116,7 +2119,8 @@ async function ch11(w) {
     await say(P.sib, "The rye's ready. Reap it before the birds do. And we need water nearer than the stream, and somewhere dry to keep the wood, and more ground under the spade.");
     await say(P.sib, "Tomas fells, Grete farms, Marta carries. We just have to plan it.");
     await say(P.sib, "And make yourself a pickaxe — two logs at the chopping block will do for a wooden one. There's grey stone in rocks all round the clearing.");
-    await say(P.sib, "Stone makes a better pick. A stone pick breaks the green copper rock out west; a copper one breaks the red iron rock deep in the woods to the south. Melt the ore in the fire.");
+    await say(P.sib, "Stone makes a better pick. A stone pick breaks the green copper rock out west, and the pale tin rock south of it. The ore wants a forge to smelt it — and copper and tin cast together there make bronze.");
+    await say(P.sib, "A bronze pick breaks the red iron rock, deep in the woods to the south.");
     G.lockMove = false; look(null);
     writeSave({ summer: { ...T, started: true } });
   }

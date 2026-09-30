@@ -326,7 +326,7 @@ export class Woods extends WorldBase {
     this.rocks = [];
     const rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
     // a boulder: a rough ball of facets, each a slightly different grey
-    const boulder = size => {
+    const boulder = (size, pale = false) => {
       let geo = new THREE.IcosahedronGeometry(size, 1); if (geo.index) geo = geo.toNonIndexed(); const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
       const seen = new Map();
       for (let i = 0; i < pos.count; i++) {
@@ -334,11 +334,11 @@ export class Woods extends WorldBase {
         if (!seen.has(key)) seen.set(key, 0.82 + r() * 0.3);
         const k = seen.get(key); pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.72, pos.getZ(i) * k);
       }
-      for (let t = 0; t < pos.count; t += 3) { const g = 0.44 + r() * 0.12; for (let j = 0; j < 3; j++) col.set([g, g * 0.99, g * 0.95], (t + j) * 3); }
+      for (let t = 0; t < pos.count; t += 3) { const g = (pale ? 0.6 : 0.44) + r() * 0.12; for (let j = 0; j < 3; j++) col.set([g, g * 0.99, g * (pale ? 1.02 : 0.95)], (t + j) * 3); }
       geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
       return geo;
     };
-    const FLECK = { copper: [mat(0x3aa878, { surface: "none" }), mat(0xc87a3e, { surface: "none" })], iron: [mat(0xa0442a, { surface: "none" }), mat(0x7a3420, { surface: "none" })] };
+    const FLECK = { copper: [mat(0x3aa878, { surface: "none" }), mat(0xc87a3e, { surface: "none" })], tin: [mat(0x3c4048, { surface: "none" }), mat(0xc8ccd6, { surface: "none", metalness: 0.4, roughness: 0.4 })], iron: [mat(0xa0442a, { surface: "none" }), mat(0x7a3420, { surface: "none" })] };
     const place = (kind, n, r0, r1, a0 = 0, a1 = TAU) => {
       for (let tries = 0, k = 0; k < n && tries < n * 40; tries++) {
         const a = a0 + r() * (a1 - a0), rad = r0 + r() * (r1 - r0);
@@ -348,7 +348,7 @@ export class Woods extends WorldBase {
         const y = this.heightAt(x, z), g = new THREE.Group(); g.position.set(x, y, z);
         const big = 0.7 + r() * 0.35;
         for (let j = 0; j < 3; j++) {
-          const m = new THREE.Mesh(boulder(big * (j ? 0.5 : 1)), rockMat);
+          const m = new THREE.Mesh(boulder(big * (j ? 0.5 : 1), kind === "tin"), rockMat);
           m.position.set(j ? (r() - 0.5) * 1.3 : 0, big * (j ? 0.18 : 0.4), j ? (r() - 0.5) * 1.3 : 0); m.rotation.y = r() * 3;
           m.castShadow = m.receiveShadow = true; g.add(m);
         }
@@ -365,7 +365,8 @@ export class Woods extends WorldBase {
     };
     place("stone", 12, CLEARING.r + 6, CLEARING.r + 34);
     place("copper", 6, 70, 115, Math.PI * 0.6, Math.PI * 1.3);       // off to the west, past the clearing
-    place("iron", 5, 120, 170, Math.PI * 1.35, Math.PI * 1.9);       // deep in the forest to the south
+    place("tin", 5, 60, 105, Math.PI * 1.0, Math.PI * 1.45);        // pale rock, south-west, not far from the copper
+    place("iron", 5, 95, CLEARING.r + ROAM - 6, Math.PI * 1.35, Math.PI * 1.9);   // deep in the forest to the south, as far as you may go
   }
   // the rock in front of you, within reach of a pick
   rockAhead(p, fwd) {
@@ -406,7 +407,7 @@ export class Woods extends WorldBase {
     for (const t of this.fellable) if (t.state === "up" || t.state === "shake") tree(c, X(t.x), Z(t.z), ts * 1.1, "spruce");
     // rocks you can break: grey stone, copper green, iron red
     for (const k of this.rocks || []) if (!k.gone && vis(k.x, k.z)) {
-      c.fillStyle = k.kind === "copper" ? "#3a9a70" : k.kind === "iron" ? "#a8442a" : "#7a766c";
+      c.fillStyle = k.kind === "copper" ? "#3a9a70" : k.kind === "iron" ? "#a8442a" : k.kind === "tin" ? "#b4bcc8" : "#7a766c";
       c.beginPath(); c.arc(X(k.x), Z(k.z), Math.max(2.2, S * 0.9), 0, Math.PI * 2); c.fill();
       c.strokeStyle = INK; c.lineWidth = 0.8; c.stroke();
     }

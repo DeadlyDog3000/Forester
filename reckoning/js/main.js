@@ -252,9 +252,10 @@ function buildChapters() {
 // ---- inventory (T) ----
 const ICON = {
   key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
-  hammer1: "../assets/sprites/items/tool_stone.png", hammer2: "../assets/sprites/items/tool_stone.png", hammer3: "../assets/sprites/items/tool_bronze.png", hammer4: "../assets/sprites/items/tool_iron.png",
-  sword1: "../assets/sprites/items/weapon_stone.png", sword3: "../assets/sprites/items/weapon_bronze.png", sword4: "../assets/sprites/items/weapon_iron.png",
-  pick1: "../assets/sprites/items/pick_wood.png", pick2: "../assets/sprites/items/pick_stone.png", pick3: "../assets/sprites/items/pick_copper.png", pick4: "../assets/sprites/items/pick_iron.png",
+  hammer1: "../assets/sprites/items/tool_stone.png", hammer2: "../assets/sprites/items/tool_stone.png", hammer3: "../assets/sprites/items/tool_bronze.png", hammer4: "../assets/sprites/items/tool_bronze.png", hammer5: "../assets/sprites/items/tool_iron.png",
+  sword1: "../assets/sprites/items/weapon_stone.png", sword3: "../assets/sprites/items/weapon_bronze.png", sword4: "../assets/sprites/items/weapon_bronze.png", sword5: "../assets/sprites/items/weapon_iron.png",
+  pick5: "../assets/sprites/items/pick_iron.png", tinore: "../assets/sprites/items/tin_ore.png", tin: "../assets/sprites/items/tin.png", bronze: "../assets/sprites/items/bronze.png",
+  pick1: "../assets/sprites/items/pick_wood.png", pick2: "../assets/sprites/items/pick_stone.png", pick3: "../assets/sprites/items/pick_copper.png", pick4: "../assets/sprites/items/pick_bronze.png",
   copperore: "../assets/sprites/items/copper_ore.png", ironore: "../assets/sprites/items/iron_ore.png", copper: "../assets/sprites/items/copper.png", ironbar: "../assets/sprites/items/iron_bar.png",
   axe: "../assets/sprites/items/tool_iron.png", weapon: "../assets/sprites/items/weapon_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
@@ -354,7 +355,7 @@ function renderCraft() {
     return `<div class="cr-row${done ? " done" : ""}"><img src="${icon}" alt=""><div><div class="sk-name">${r.name}</div><div class="sk-does">${r.note}</div><div class="cr-cost">${cost}</div></div>
       <button class="btn${can ? " primary" : ""}" data-r="${i}" ${can ? "" : "disabled"}>${done ? "Made" : next ? "Make" : "Not yet"}</button></div>`;
   }).join("");
-  $("craftBody").innerHTML = `<div class="sk-sub">Stone from the grey rocks. Copper and iron: break the ore with a good enough pick, then smelt it at the fire.</div>${rows}`;
+  $("craftBody").innerHTML = `<div class="sk-sub">Stone from the grey rocks. Copper, tin and iron: break the ore with a good enough pick, then smelt it at a forge (research Forging to build one). Copper and tin cast together at the forge make bronze.</div>${rows}`;
 }
 $("craftBody").addEventListener("click", e => {
   const b = e.target.closest("button[data-r]"); if (!b || b.disabled) return;
