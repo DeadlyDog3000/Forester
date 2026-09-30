@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { loadModels } from "./models.js";
@@ -252,6 +252,8 @@ function buildChapters() {
 // ---- inventory (T) ----
 const ICON = {
   key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
+  hammer1: "../assets/sprites/items/tool_stone.png", hammer2: "../assets/sprites/items/tool_stone.png", hammer3: "../assets/sprites/items/tool_bronze.png", hammer4: "../assets/sprites/items/tool_iron.png",
+  sword1: "../assets/sprites/items/weapon_stone.png", sword3: "../assets/sprites/items/weapon_bronze.png", sword4: "../assets/sprites/items/weapon_iron.png",
   pick1: "../assets/sprites/items/pick_wood.png", pick2: "../assets/sprites/items/pick_stone.png", pick3: "../assets/sprites/items/pick_copper.png", pick4: "../assets/sprites/items/pick_iron.png",
   copperore: "../assets/sprites/items/copper_ore.png", ironore: "../assets/sprites/items/iron_ore.png", copper: "../assets/sprites/items/copper.png", ironbar: "../assets/sprites/items/iron_bar.png",
   axe: "../assets/sprites/items/tool_iron.png", weapon: "../assets/sprites/items/weapon_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
@@ -345,10 +347,10 @@ const haveFor = (k, n) => k === "logs" ? (G.town ? G.town.S.store : 0) >= n : pa
 function renderCraft() {
   const tl = G.body.tools;
   const rows = TOOL_RECIPES.map((r, i) => {
-    const cur = tl[r.tool] || 0, done = cur >= r.tier, next = r.tier === Math.max(cur + 1, r.tool === "axe" ? 3 : 1);
-    const cost = Object.entries(r.cost).map(([k, n]) => `<span class="${haveFor(k, n) ? "" : "short"}">${n} ${k === "logs" ? "logs from the stack" : ITEM[k].name.toLowerCase()}</span>`).join(", ");
+    const cur = tl[r.tool] || 0, done = cur >= r.tier, next = r.tier === nextTier(tl, r.tool);
+    const cost = Object.entries(r.cost).map(([k, n]) => `<span class="${haveFor(k, n) ? "" : "short"}">${n} ${k === "logs" ? (n === 1 ? "log" : "logs") + " from the stack" : ITEM[k].name.toLowerCase()}</span>`).join(", ");
     const can = next && Object.entries(r.cost).every(([k, n]) => haveFor(k, n));
-    const icon = r.tool === "pick" ? ICON["pick" + r.tier] : ICON.axe;
+    const icon = r.tool === "axe" ? ICON.axe : r.tool === "spade" ? ICON.spade : ICON[r.tool + r.tier];
     return `<div class="cr-row${done ? " done" : ""}"><img src="${icon}" alt=""><div><div class="sk-name">${r.name}</div><div class="sk-does">${r.note}</div><div class="cr-cost">${cost}</div></div>
       <button class="btn${can ? " primary" : ""}" data-r="${i}" ${can ? "" : "disabled"}>${done ? "Made" : next ? "Make" : "Not yet"}</button></div>`;
   }).join("");
@@ -363,7 +365,7 @@ $("craftBody").addEventListener("click", e => {
   }
   G.body.tools[r.tool] = r.tier; G.body.dirty = true;
   // the new one in your hands
-  if (r.tool === "pick") G.player.wield("pick"); else if (G.player.axe && (G.player.blade || "axe") === "axe") { G.player.giveAxe(false); G.player.giveAxe(true); }
+  if (r.tool === "pick") G.player.wield("pick"); else if (r.tool === "sword") G.player.wield("sword"); else if (G.player.axe && (G.player.blade || "axe") === "axe") { G.player.giveAxe(false); G.player.giveAxe(true); }
   G.player.workFor && G.player.workFor("hammer", 1.6);
   UI.hint(`${r.name} made.`, 3);
   G.emitCraft && G.emitCraft(r);
@@ -931,11 +933,14 @@ function hotbarItems() {
   if (tl && tl.pick > 0 && G.town) out.push({ icon: "pick" + tl.pick, name: `${cap(TIER_NAME[tl.pick])} pickaxe`, tool: "pick" });
   // the best weapon the smith has made, if there is one: yours to take up
   const arm = G.town && G.town.playerArm && G.town.playerArm();
-  if (arm) out.push({ icon: "weapon", name: ARMS[arm].name, tool: "arm", kind: arm });
+  // a sword of your own making, when it is the better blade (or there is no other)
+  const own = G.town && tl && tl.sword > 0 && (!arm || arm !== "sword" || tl.sword >= 3) ? tl.sword : 0;
+  if (arm && !(own && arm === "sword")) out.push({ icon: "weapon", name: ARMS[arm].name, tool: "arm", kind: arm });
+  if (own) out.push({ icon: "sword" + own, name: `${cap(TIER_NAME[own])} sword, your own`, tool: "arm", kind: "sword" });
   if (pl.hasBow) { out.push({ icon: "bow", name: "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
-  for (const i of G.pack) out.push(i);
+  for (const i of G.pack) out.push(i.icon === "spade" && tl && tl.spade >= 3 && G.town ? { ...i, name: `${cap(TIER_NAME[tl.spade])} spade` } : i);
   // the settlement's bread: yours to eat from the store
   if (G.town && G.town.S.bread > 0) out.push({ icon: "bread", name: "Bread, from the store", n: G.town.S.bread, fromStore: true });
   return out.slice(0, 9);

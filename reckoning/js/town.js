@@ -14,7 +14,7 @@
 //   people     settlers take jobs: woodcutters fell and stack, haulers carry from
 //              the stack to building sites, farmers keep the fields
 
-import { axeBonus, skillK, ITEM } from "./body.js";
+import { axeBonus, skillK, ITEM, digMul, buildMul } from "./body.js";
 import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture } from "./core.js";
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
@@ -605,7 +605,7 @@ export class Town {
       },
     });
     // the interact system wants hold as a number; keep it current
-    Object.defineProperty(it, "hold", { get: () => (b.type === "field" ? 3 : (this.ready(b) ? 4 : 0)) * this.workMul });
+    Object.defineProperty(it, "hold", { get: () => (b.type === "field" ? 3 * digMul(G.body) : (this.ready(b) ? 4 * buildMul(G.body) : 0)) * this.workMul });
     b._it = it;
   }
   sitesAll() { for (const b of this.S.buildings) { if (!b.done || (b.type === "field" && !b.sown)) this.site(b); else this.upgradeSpot(b); } }
@@ -880,7 +880,7 @@ export class Town {
     // the sawhorse by the block: a door for each new cabin, hewn from logs off the stack
     if (this.sawIt) w.removeInteract(this.sawIt);
     this.sawIt = w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, anim: "saw",
-      get hold() { return 4; },
+      get hold() { return 4 * buildMul(G.body); },
       label: () => `Hew a door (${DOOR_LOGS} logs from the ${this.has("woodshed") ? "woodshed" : "stack"})`,
       can: () => this.doorWanted() && this.S.store >= DOOR_LOGS,
       onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },

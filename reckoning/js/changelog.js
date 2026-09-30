@@ -13,6 +13,7 @@ export const CHANGELOG = [
       "Skills, on P: Strength, Toughness, Healing, Endurance and Archery, each from 1 to 100, and each grows by doing it. The tougher you are, the less a blow takes from you and the less it rattles you.",
       "A blow now lands: a red flash, a hard jolt of the view, and then you gasp for breath a while, the view trembling with it. Your breathing is louder and clearer.",
       "Tools: make a wooden pickaxe at the chopping block from two logs, and break the grey rocks round the clearing for stone. Stone makes a stone pick, which breaks the green copper rock out west; smelt the ore at the fire, make a copper pick, and go after the red iron rock deep in the woods. Copper and iron axes fell quicker. Your brother or sister shows you how.",
+      "More to make at the block: copper and iron spades dig the fields quicker; a mallet, then stone, copper and iron hammers raise buildings and hew doors quicker; and a sword of your own — wooden, copper, iron — for when they come up the road.",
       "Every new cabin wants a door hewn for it at the sawhorse, as the first one did.",
       "A chest in the cabin: nine places to keep things. After the hunt, and after the sowing, you're asked to put the meat and the seed away in it.",
       "When Henning hands you the bow, the game stops and a picture shows how to shoot.",

@@ -35,7 +35,18 @@ export const TOOL_RECIPES = [
   { tool: "pick", tier: 4, name: "Iron pickaxe", cost: { logs: 2, iron: 3 }, note: "Breaks anything, and quickly." },
   { tool: "axe", tier: 3, name: "Copper axe", cost: { logs: 2, copper: 3 }, note: "Fells a tree in fewer strokes than the old axe." },
   { tool: "axe", tier: 4, name: "Iron axe", cost: { logs: 2, iron: 3 }, note: "The best felling axe there is." },
+  { tool: "spade", tier: 3, name: "Copper spade", cost: { logs: 1, copper: 3 }, note: "Turns a field quicker than Henning's old one." },
+  { tool: "spade", tier: 4, name: "Iron spade", cost: { logs: 1, iron: 3 }, note: "Cuts through roots and all. Fields dug in half the time." },
+  { tool: "hammer", tier: 1, name: "Wooden mallet", cost: { logs: 2 }, note: "Raising a building goes quicker with something to knock it together." },
+  { tool: "hammer", tier: 2, name: "Stone hammer", cost: { logs: 1, stone: 3 }, note: "Quicker again — for raising buildings and hewing doors." },
+  { tool: "hammer", tier: 3, name: "Copper hammer", cost: { logs: 1, copper: 3 }, note: "Quicker again." },
+  { tool: "hammer", tier: 4, name: "Iron hammer", cost: { logs: 1, iron: 3 }, note: "A building raised in half the time." },
+  { tool: "sword", tier: 1, name: "Wooden sword", cost: { logs: 2 }, note: "Better than your fists when they come up the road. Not much better." },
+  { tool: "sword", tier: 3, name: "Copper sword", cost: { logs: 1, copper: 4 }, note: "A real blade, of your own." },
+  { tool: "sword", tier: 4, name: "Iron sword", cost: { logs: 1, iron: 4 }, note: "The best blade in the settlement." },
 ];
+// the tool a making replaces: the lowest one above what you have
+export const nextTier = (tools, tool) => Math.min(...TOOL_RECIPES.filter(r => r.tool === tool && r.tier > (tools[tool] || 0)).map(r => r.tier));
 // what each kind of rock gives, and the pick it wants
 export const ROCKS = {
   stone: { need: 1, hp: 4, gives: "stone", n: 2, name: "grey stone" },
@@ -53,13 +64,13 @@ export const ITEM = {
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, skills, tools: { pick: 0, axe: 2 } };
+  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0 } };
 }
 export function restoreBody(saved) {
   const b = freshBody();
   if (saved && typeof saved === "object") {
     if (typeof saved.hunger === "number") b.hunger = Math.min(1, Math.max(0, saved.hunger));
-    if (saved.tools) b.tools = { pick: Math.min(4, saved.tools.pick | 0), axe: Math.min(4, Math.max(2, saved.tools.axe | 0)) };
+    if (saved.tools) for (const k of Object.keys(b.tools)) if (saved.tools[k] != null) b.tools[k] = Math.min(4, Math.max(b.tools[k], saved.tools[k] | 0));
     for (const s of BODY_SKILLS) {
       const v = saved.skills && saved.skills[s.id];
       if (v) b.skills[s.id] = { lv: Math.min(SKILL_MAX, Math.max(1, v.lv | 0)), xp: Math.max(0, +v.xp || 0) };
@@ -86,6 +97,11 @@ export function practise(b, id, xp) {
 
 // a better axe head: now and then a stroke that does the work of two (a copper head a quarter of the time, iron half)
 export const axeBonus = b => { const t = (b && b.tools && b.tools.axe) || 2; return t >= 4 ? 0.5 : t >= 3 ? 0.25 : 0; };
+// how long the spade and the hammer take, as a share of the time with bare hands and the old spade
+export const digMul = b => [1, 1, 1, 0.75, 0.55][(b && b.tools && b.tools.spade) || 2];
+export const buildMul = b => [1, 0.85, 0.75, 0.62, 0.5][(b && b.tools && b.tools.hammer) || 0];
+// your own sword: how hard it strikes against a smith's blade (wood a good deal less; iron more)
+export const SWORD_MUL = [0, 0.55, 0.8, 1, 1.3];
 // ---- what the skills do ----
 export const damageTaken = (b, dmg) => dmg * (1 - 0.5 * skillK(b, "toughness"));
 // how hard a blow rattles you: the flash, the shake, the gasping (a hardened body hardly notices)

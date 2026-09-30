@@ -1954,6 +1954,13 @@ G.emitCraft = r => {
     pick4: "Iron. There's nothing in these woods that pick won't break.",
     axe3: "A copper head on the axe. You'll fell twice as fast. Well — faster.",
     axe4: "An iron axe. Tomas will want to borrow it.",
+    spade3: "A copper spade. Grete will want that one.",
+    spade4: "Iron. The fields will dig themselves. Nearly.",
+    hammer1: "A mallet. We'll have the next cabin up by supper.",
+    hammer2: "A stone hammer — mind your thumbs.",
+    sword1: "A wooden sword. Well. It's better than your fists.",
+    sword3: "A copper sword. Let them come up the road now.",
+    sword4: "Iron. Father would have laughed to see you with that.",
   }[r.tool + r.tier];
   const sib = (G.world && G.world.actors || []).find(a => a.isSibling);
   if (line && sib) bark(P.sib, line, 4.5);
