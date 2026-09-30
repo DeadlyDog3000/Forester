@@ -435,6 +435,13 @@ export function makeHammer() {
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.045, 0.13), mat(0x55595e, { metalness: 0.6, roughness: 0.45 })); head.position.set(0, 0.29, 0.02); g.add(head);
   return g;
 }
+// a spade, gripped at the origin, pointing +Y: a long haft, a T-grip, and the blade at the far end
+export function makeSpade() {
+  const g = new THREE.Group();
+  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.8, 6), mat(0x7a5a3a, { surface: "wood" })); haft.position.y = 0.36; g.add(haft);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.24, 0.17), mat(0x5d6166, { metalness: 0.6, roughness: 0.5 })); blade.position.y = 0.86; g.add(blade);
+  return g;
+}
 // something to eat, held at the origin: a heel of bread, a joint of meat, a few berries in the palm
 export function makeFood(kind) {
   const g = new THREE.Group();

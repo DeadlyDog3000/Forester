@@ -114,6 +114,20 @@ export const digMul = b => [1, 1, 1, 0.75, 0.65, 0.55][(b && b.tools && b.tools.
 export const buildMul = b => [1, 0.85, 0.75, 0.65, 0.57, 0.5][(b && b.tools && b.tools.hammer) || 0];
 // your own sword: how hard it strikes against a smith's blade (wood a good deal less; iron more)
 export const SWORD_MUL = [0, 0.55, 0.8, 0.9, 1.05, 1.3];
+// dying: a share of every skill's points gone (all the points it took to reach its level, and those since)
+export function loseSkills(b, frac = 0.15) {
+  const lost = {};
+  for (const sk of BODY_SKILLS) {
+    const v = b.skills[sk.id];
+    let total = v.xp; for (let l = 1; l < v.lv; l++) total += xpFor(l);
+    let left = total * (1 - frac), lv = 1;
+    while (lv < SKILL_MAX && left >= xpFor(lv)) { left -= xpFor(lv); lv++; }
+    if (lv < v.lv) lost[sk.id] = v.lv - lv;
+    v.lv = lv; v.xp = left;
+  }
+  b.dirty = true;
+  return lost;
+}
 // ---- what the skills do ----
 export const damageTaken = (b, dmg) => dmg * (1 - 0.5 * skillK(b, "toughness"));
 // how hard a blow rattles you: the flash, the shake, the gasping (a hardened body hardly notices)

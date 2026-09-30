@@ -7,12 +7,12 @@
 // the one thing in front of you that E would do something to.
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
-import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, modelCopy, setToolSource, makeOwnArm } from "./models.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, modelCopy, setToolSource, makeOwnArm } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
-import { freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK } from "./body.js";
+import { freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills } from "./body.js";
 
 /* global SFX */
 
@@ -350,7 +350,7 @@ export class Player {
         const hand = new THREE.Group(); g.add(hand);
         const skin = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skin); fist.rotation.z = Math.PI / 2; hand.add(fist);
-        const tool = kind === "eat" ? makeFood(G.working.food) : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer();
+        const tool = kind === "eat" ? makeFood(G.working.food) : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer();
         // (blades turned flat to the eye, not edge on)
         if (kind !== "hammer" && kind !== "eat") tool.rotation.y = Math.PI / 2;
         hand.add(tool);
@@ -361,7 +361,7 @@ export class Player {
         g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
         camera.add(g); this.workRig = g;
         // and the same tool in the hand of your body, for when the camera is behind you
-        if (this.model && this.model.held && kind !== "eat") { this.workBody = kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
+        if (this.model && this.model.held && kind !== "eat" && kind !== "sow") { this.workBody = kind === "dig" ? makeSpade() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
       }
     }
     if (!this.workRig) return;
@@ -380,6 +380,20 @@ export class Player {
       h.position.set(0.24, -0.34 + a * 0.06, -0.46);
       h.rotation.set(-0.35 + a * 0.9, 0.2, 0.1);
       if (beat(1.7) && !wk.quiet) SFX.hammer && SFX.hammer();
+    } else if (kind === "dig") {
+      // the spade: driven down with the foot, levered back, the earth thrown aside
+      const p = (t * 0.9) % 1, e = x => x * x * (3 - 2 * x);
+      const down = p < 0.35 ? e(p / 0.35) : p < 0.6 ? 1 : 1 - e((p - 0.6) / 0.4);
+      const lever = p > 0.35 && p < 0.75 ? Math.sin((p - 0.35) / 0.4 * Math.PI) : 0;
+      // (held in the right hand, low; the haft runs forward, left and down, the blade in the ground ahead)
+      h.position.set(0.2, -0.04 - down * 0.1 + lever * 0.04, -0.5 - down * 0.04);
+      h.quaternion.setFromUnitVectors(_UP, _dig.set(-0.25 + lever * 0.05, -0.8 - down * 0.2 + lever * 0.35, -1.1).normalize());
+      if (beat(0.9) && !wk.quiet) SFX.chop && SFX.chop();
+    } else if (kind === "sow") {
+      // a handful out of the sack, cast wide in an arc
+      const p = (t * 1.3) % 1;
+      h.position.set(0.28 - Math.sin(p * Math.PI) * 0.22, -0.3 + Math.sin(p * Math.PI) * 0.08, -0.4 - Math.sin(p * Math.PI) * 0.06);
+      h.rotation.set(-0.4, 0.3 - p * 0.8, 0.2);
     } else if (kind === "eat") {
       // up to the mouth, and a bite, and a bite; the view dips a little with each
       const up = Math.min(1, t / 0.35), bite = Math.max(0, Math.sin(t * Math.PI * 2 * 1.6));
@@ -480,8 +494,8 @@ export class Player {
         const h0 = G.health; G.health = Math.min(1, G.health + dt * healRate(b));
         G.practise("healing", (G.health - h0) * 40);
       }
-      // with nothing in you at all, you weaken (though hunger alone will not put you down)
-      if (starving && G.health > 0.25 && !G.downed) G.health = Math.max(0.25, G.health - dt / 240);
+      // with nothing in you at all, you weaken, and in the end it kills you
+      if (starving && !G.downed) { G.health = Math.max(0, G.health - dt / 240); if (G.health <= 0) G.die("hunger"); }
       if (G.mode === "play") hungerTick(b, dt, sprint && this.speed > 1);
       UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap);
     } else UI.vitals(null);
@@ -624,7 +638,7 @@ export class Player {
 // ---------------------------------------------------------------------------
 //  the camera: over the eyes, or over the shoulder
 // ---------------------------------------------------------------------------
-const _cam = new THREE.Vector3();
+const _cam = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0), _dig = new THREE.Vector3();
 function updateCamera(dt) {
   const p = G.player;
   const third = !!G.forceThird;   // first person always; only a scene may step the camera back
@@ -823,6 +837,25 @@ G.practise = (id, xp) => {
   const up = practise(G.body, id, xp);
   if (up) { const sk = BODY_SKILLS.find(s => s.id === id); UI.hint(`${sk.name} rose to ${up}.${up === 100 ? " No one could be better." : ""}`, 3); }
 };
+// dying: whatever killed you, a share of every skill goes (15%), and you wake in your own bed if you have one
+G.die = (from) => {
+  if (G.downed) return;
+  G.downed = true; G.health = 0;
+  const lost = loseSkills(G.body, 0.15);
+  if (G.onDowned) G.onDowned(from, lost); else G.wakeUp(from, lost);
+};
+G.lostText = lost => { const n = Object.values(lost).reduce((a, b) => a + b, 0); return n ? ` Every skill is down by a sixth or so (${n} level${n === 1 ? "" : "s"} lost in all — P to see).` : " Your skills are down a little (P to see)."; };
+G.wakeUp = async (from, lost) => {
+  const pl = G.player, w = G.world;
+  G.lockMove = true; UI.fade(1, 0.8);
+  await new Promise(r => setTimeout(r, 1400));
+  if (w && w.bedSpot && w.cabin && w.cabin.visible) { const b = w.bedSpot(0); if (b) pl.place(b.x + 0.6, b.z + 0.6, b.ry); }
+  G.health = 0.5; G.downed = false; G.hurtT = 0; G.stamina = 0.5; G.panting = 0; G.hitShake = 0;
+  if (G.body) G.body.hunger = Math.max(G.body.hunger, 0.35);
+  await new Promise(r => setTimeout(r, 900));
+  UI.fade(0, 1.4); G.lockMove = false;
+  UI.hint((from === "hunger" ? "You died of hunger, and woke in your bed as if from a fever." : "You died, and woke in your bed.") + G.lostText(lost || {}), 7);
+};
 G.hurt = (dmg, from) => {
   if (G.health === undefined || G.downed || G.mode !== "play") return;
   dmg = damageTaken(G.body, dmg);
@@ -834,7 +867,7 @@ G.hurt = (dmg, from) => {
   G.panting = Math.max(G.panting || 0, 4 + 4 * k);
   AUDIO.breath && AUDIO.breath(true, 1, 0.6, G.who === "sister");
   G.practise("toughness", dmg * 0.6);
-  if (G.health <= 0) { G.downed = true; if (G.onDowned) G.onDowned(from); else { G.health = 0.25; G.downed = false; } }
+  if (G.health <= 0) G.die(from);
 };
 
 export class Actor {
@@ -1037,6 +1070,8 @@ function huntTarget() {
 }
 // what a held action is done with, and so what your hands are seen doing: judged from what it is
 export function workOf(label) {
+  if (/\b(Dig|Turn the earth)/i.test(label)) return "dig";
+  if (/\b(Sow|Reap)/i.test(label)) return "sow";
   if (/\b(Hew|Saw|plank)/i.test(label)) return "saw";
   if (/\b(Carve|Dress|Whittle|Skin)/i.test(label)) return "craft";
   if (/\b(Rebuild|Raise|Build|Chink|Mend|Repair|Make|Nail|Frame|Furnish)/i.test(label)) return "hammer";

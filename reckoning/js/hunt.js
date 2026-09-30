@@ -145,6 +145,9 @@ export class Hunt {
     for (let i = 0; i < 40; i++) {
       const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * h.r;
       const x = h.x + Math.sin(a) * r, z = h.z + Math.cos(a) * r;
+      // (never where you would see it appear: well away from you, when there is room)
+      const p = G.player && G.player.pos;
+      if (p && i < 30 && Math.hypot(p.x - x, p.z - z) < 28) continue;
       if (!this.w.col.solidAt(x, this.w.heightAt(x, z) + 0.5, z, 0.6)) return [x, z];
     }
     return [h.x, h.z];

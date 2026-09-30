@@ -23,7 +23,7 @@
   <!-- ===== in play ===== -->
   <div id="hud" class="hidden">
     <div id="crosshair"><i></i><b></b></div>
-    <div id="swingArrow" class="hidden"><span class="sa left"><svg viewBox="0 0 64 24" aria-hidden="true"><g class="sa-ink"><path class="sa-fletch" d="M2 5 L12 12 L2 19 L8 12 Z M9 5 L19 12 L9 19 L15 12 Z"/><path class="sa-shaft" d="M13 11 H44 V13 H13 Z"/><path class="sa-curl" d="M44 12 C40 5 34 6 35 10 C36 12 39 11 38 9 M44 12 C40 19 34 18 35 14 C36 12 39 13 38 15"/><path class="sa-head" d="M42 12 C46 6 52 5 62 12 C52 19 46 18 42 12 Z"/></g></svg></span><span class="sa right"><svg viewBox="0 0 64 24" aria-hidden="true"><g class="sa-ink"><path class="sa-fletch" d="M2 5 L12 12 L2 19 L8 12 Z M9 5 L19 12 L9 19 L15 12 Z"/><path class="sa-shaft" d="M13 11 H44 V13 H13 Z"/><path class="sa-curl" d="M44 12 C40 5 34 6 35 10 C36 12 39 11 38 9 M44 12 C40 19 34 18 35 14 C36 12 39 13 38 15"/><path class="sa-head" d="M42 12 C46 6 52 5 62 12 C52 19 46 18 42 12 Z"/></g></svg></span><span class="sa up"><svg viewBox="0 0 64 24" aria-hidden="true"><g class="sa-ink"><path class="sa-fletch" d="M2 5 L12 12 L2 19 L8 12 Z M9 5 L19 12 L9 19 L15 12 Z"/><path class="sa-shaft" d="M13 11 H44 V13 H13 Z"/><path class="sa-curl" d="M44 12 C40 5 34 6 35 10 C36 12 39 11 38 9 M44 12 C40 19 34 18 35 14 C36 12 39 13 38 15"/><path class="sa-head" d="M42 12 C46 6 52 5 62 12 C52 19 46 18 42 12 Z"/></g></svg></span></div>
+    <div id="swingArrow" class="hidden"><span class="sa left"></span><span class="sa right"></span><span class="sa up"></span></div>
     <div id="stance" class="hidden"><span class="sd up"></span><span class="sd left"></span><span class="sd right"></span></div>
     <div id="minimapWrap"><canvas id="minimap" width="180" height="180"></canvas><div class="mm-n">N</div></div>
     <div id="holdRing" class="hidden"></div>
@@ -33,23 +33,24 @@
     <div id="townbar" class="hidden"></div>
     <div id="buildmenu" class="hidden">
       <div class="mc-win">
-        <div class="mc-label"><span id="buildTitle">Plans</span> <span class="mc-hint"><kbd>B</kbd> close</span></div>
+        <div class="mc-label"><span id="buildTitle">Plans</span> <span class="mc-hint"><kbd>B</kbd> or <kbd>F</kbd> close</span></div>
         <div id="buildList"></div>
       </div>
     </div>
     <div id="fpsMeter" class="hidden"></div>
     <div id="inspect" class="hidden">
       <div class="mc-win insp-win">
-        <div class="mc-label"><span id="inspTitle">Building</span> <span class="mc-hint"><kbd>V</kbd> close</span></div>
+        <div class="mc-label"><span id="inspTitle">Building</span> <span class="mc-hint"><kbd>V</kbd> or <kbd>F</kbd> close</span></div>
         <div id="inspBody"></div>
         <div class="insp-acts" id="inspActs"></div>
       </div>
     </div>
     <div id="gov" class="hidden">
       <div class="mc-win gov-win">
-        <div class="mc-label"><span id="govTitle">Government</span> <span class="mc-hint"><kbd>G</kbd> close</span></div>
+        <div class="mc-label"><span id="govTitle">Government</span> <span class="mc-hint"><kbd>G</kbd> or <kbd>F</kbd> close</span></div>
         <div class="gov-tabs" id="govTabs">
           <button class="gov-tab" data-tab="nation">Nation</button>
+          <button class="gov-tab" data-tab="ambitions">Ambitions</button>
           <button class="gov-tab" data-tab="tech">Tech tree</button>
           <button class="gov-tab" data-tab="people">People</button>
           <button class="gov-tab" data-tab="faith">Faith &amp; law</button>
@@ -60,7 +61,7 @@
     </div>
     <div id="trade" class="hidden">
       <div class="mc-win">
-        <div class="mc-label"><span id="tradeTitle">Trade</span> <span class="mc-hint" id="tradePurse"></span> <span class="mc-hint"><kbd>Esc</kbd> done</span></div>
+        <div class="mc-label"><span id="tradeTitle">Trade</span> <span class="mc-hint" id="tradePurse"></span> <span class="mc-hint"><kbd>F</kbd> done</span></div>
         <div id="tradeList"></div>
       </div>
     </div>
@@ -99,30 +100,30 @@
           </ol>
         </div>
         <button id="lessonOk" class="btn primary">Understood</button>
-        <div class="ls-hint">Space or click to go on</div>
+        <div class="ls-hint">F, Space or click to go on</div>
       </div>
     </div>
     <div id="chest" class="hidden">
       <div class="mc-win">
-        <div class="mc-label">The chest <span class="mc-hint">click to move a thing in or out &middot; <kbd>Esc</kbd> close</span></div>
+        <div class="mc-label">The chest <span class="mc-hint">click to move a thing in or out &middot; <kbd>F</kbd> close</span></div>
         <div id="chestBody"></div>
       </div>
     </div>
     <div id="craft" class="hidden">
       <div class="mc-win sk-win">
-        <div class="mc-label">Tools <span class="mc-hint"><kbd>Esc</kbd> close</span></div>
+        <div class="mc-label">Tools <span class="mc-hint"><kbd>F</kbd> close</span></div>
         <div id="craftBody"></div>
       </div>
     </div>
     <div id="skills" class="hidden">
       <div class="mc-win sk-win">
-        <div class="mc-label">Skills <span class="mc-hint"><kbd>P</kbd> close</span></div>
+        <div class="mc-label">Skills <span class="mc-hint"><kbd>P</kbd> or <kbd>F</kbd> close</span></div>
         <div id="skillsBody"></div>
       </div>
     </div>
     <div id="inventory" class="hidden">
       <div class="mc-win">
-        <div class="mc-label">Inventory <span class="mc-hint"><kbd>T</kbd> close</span></div>
+        <div class="mc-label">Inventory <span class="mc-hint"><kbd>T</kbd> or <kbd>F</kbd> close</span></div>
         <div id="invBody"></div>
       </div>
       <div id="invTip" class="hidden"></div>

@@ -532,7 +532,7 @@ function frame(c, W, H, S) {
 
 // the sheet, and over it what changes: the crown under the pointer and the one chosen, the wars, the plague, your clearing
 // view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
-export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null } = {}) {
+export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing" } = {}) {
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
   // (drawn at twice the size, so it stays sharp when zoomed)
@@ -559,7 +559,7 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
   c.fillStyle = "#b0281a"; c.strokeStyle = INK; c.lineWidth = 1.2;
   c.beginPath(); c.arc(hx, hy, S * (0.9 + Math.min(1.2, homePop / 10)), 0, 7); c.fill(); c.stroke();
   c.font = `italic 600 ${Math.round(S * 3.6)}px ${FELL}`; c.textAlign = "right"; c.textBaseline = "middle"; c.fillStyle = "#6a1a10";
-  c.fillText("Forester's Clearing", hx - S * 1.6, hy - S * 1.8);
+  c.fillText(homeName, hx - S * 1.6, hy - S * 1.8);
   c.setTransform(1, 0, 0, 1, 0, 0);
   drawCities(c, g, S, v, W, H);
   // the chosen city's ring, over its dot

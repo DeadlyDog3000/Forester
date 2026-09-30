@@ -1922,7 +1922,7 @@ function loadTown() {
 function startTown(w, unlocked) {
   const S = loadTown();
   const town = new Town(w, S, () => writeSave({ town: S }), { keepClear: [[FIELD.x, FIELD.z, 5]] });
-  town.unlocked = new Set(unlocked);
+  town.unlocked = new Set([...unlocked, "path"]);           // (paths can always be laid)
   G.town = town;
   w.showCabin(); w.openTracks.add(3);
   w.setFurniture(S.furniture || null);
@@ -2636,6 +2636,8 @@ async function chFree(w) {
   });
   const restock = () => { const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; if (n("deer") < 3) hunt.spawn("deer", 3 - n("deer")); if (n("hare") < 4) hunt.spawn("hare", 4 - n("hare")); };
   restock();
+  // (and through the day too, a beast at a time, so the ride is never long empty)
+  { let rt = 40; onFrame(dt => { if ((rt -= dt) > 0) return; rt = 40; const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; if (n("deer") < 3) hunt.spawn("deer", 1); else if (n("hare") < 4) hunt.spawn("hare", 1); }); }
   // and, from the second year, raiders
   const raids = new Raids(w, town);
   onFrame(dt => raids.update(dt));

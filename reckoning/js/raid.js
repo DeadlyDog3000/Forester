@@ -120,12 +120,12 @@ export class Raids {
     S.raid ??= { next: 9, count: 0 };
     town.raids = this;
     // beaten down: you come to by the fire, and they are gone with what they could carry
-    G.onDowned = () => this.knockedOut();
+    G.onDowned = (from, lost) => this.active && from !== "hunger" ? this.knockedOut(lost) : G.wakeUp(from, lost);
   }
-  async knockedOut() {
+  async knockedOut(lost = {}) {
     const pl = G.player, t = this.town;
     G.lockMove = true; UI.fade(1, 0.8);
-    UI.hint("You went down.", 2.5);
+    UI.hint("You were killed.", 2.5);
     await new Promise(r => setTimeout(r, 1500));
     for (const r of this.band) if (r.alive) { if (!r.loot) r.loot = this.take(); r.state = "gone"; r.a.remove(); }
     this.band = this.band.filter(r => r.state === "down");
@@ -136,7 +136,8 @@ export class Raids {
     await new Promise(r => setTimeout(r, 1200));
     UI.fade(0, 1.5); G.lockMove = false;
     const sib = G.who === "sister" ? "Brother" : "Sister";
-    UI.bark(sib, "You're awake. They're gone — and half the stores with them. Don't ever do that to me again.", 4.5);
+    UI.bark(sib, "You're breathing. I thought — they left you for dead. They're gone, and half the stores with them. Don't ever do that to me again.", 5);
+    setTimeout(() => UI.hint("You came back from it, but not whole." + G.lostText(lost), 7), 5200);
   }
   get active() { return this.band.some(r => r.state === "come" || r.state === "steal" || r.state === "flee" || r.state === "breach"); }
   // the road they come up and go back down
@@ -251,6 +252,8 @@ export class Raids {
     s.hp = (s.hp ?? 50) - dmg;
     AUDIO.voice(s.hp > 0 ? "pain" : "fear", { at: s.pos, high: this.highVoice(s) });
     if (s.hp > 0) return;
+    // cut down by a blade, sometimes they do not get up again
+    if (r && r.arm && r.arm !== "fists" && Math.random() < 0.3 && this.town.killSettler) { this.town.killSettler(s); return; }
     // down in the grass for a while; they get up again when it's over
     s.knocked = G.time + 18; s.wasKnocked = true; s.path = []; s.lying = true; s.yOff = 0.05; s.person.held.clear(); s.armKind = null;
     UI.bark(s.settler.name, ["Ah—!", "I'm down—", "Get him off me!"][Math.floor(Math.random() * 3)], 1.8);
@@ -363,6 +366,7 @@ export class Raids {
     if (this.wasActive && !act && this.enemy && this.band.length && this.band.every(r => r.state === "down" || r.state === "gone") && this.band.filter(r => r.state === "down").length >= this.band.length / 2) {
       const E = S.europe, id = this.enemy;
       E.beaten[id] = (E.beaten[id] || 0) + 1;
+      S.crownsBeaten = (S.crownsBeaten || 0) + 1;
       if (E.beaten[id] >= 2) { const pay = 10 + strengthOf(E, id) * 5; S.coin = (S.coin || 0) + pay; t.makePeace(id, `Beaten at your gate twice, it sues for peace — and pays ${pay} DM`); }
     }
     if (this.wasActive && !act) {
