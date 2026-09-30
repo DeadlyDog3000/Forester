@@ -127,6 +127,8 @@ function applyAtmo(a) {
   MAT.lit.emissiveIntensity = a.win;
   renderer.toneMappingExposure = a.exp;
 }
+// (put the sky and light back as they were, after somewhere that overrode them — a cave)
+G.reAtmo = () => { if (G.atmoNow) applyAtmo(G.atmoNow); };
 const toLive = p => ({ fill: 0.1, ...p, sun: new THREE.Vector3(...p.sun), sunC: C(p.sunC), hemiS: C(p.hemiS), hemiG: C(p.hemiG), fog: C(p.fog), top: C(p.top), mid: C(p.mid), bot: C(p.bot) });
 export function setAtmo(name) { applyAtmo(toLive(ATMO[name])); G.atmoName = name; }
 // halfway between two presets — the long walk out of the city goes from
@@ -1474,6 +1476,8 @@ export function frame(dt, skipRender) {
       if (inside && (!t.cond || t.cond())) { if (t.once !== false) t.done = true; t.fn(); }
     }
     for (const f of G.onFrame.slice()) f(dt);
+    // (after everything else has set the sky: under the ground, it is dark)
+    if (G.world && G.world.cave && G.world.cave.inside) G.world.cave.dark();
     updateInteract(dt);
     // the axe swings on a click, when there is an axe
     if (input.click && G.player.axe && !G.player.horse && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);

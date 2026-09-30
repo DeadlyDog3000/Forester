@@ -10,6 +10,7 @@
 // time, so pausing pauses the story, and starting a chapter over bumps a
 // generation counter that makes every script from the old run fall silent.
 
+import { Caves } from "./cave.js";
 import { BUILD_GATES } from "./gov.js";
 import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME, SELL_PRICE } from "./body.js";
 import { THREE, clamp, mat, Builder, MAT, TAU } from "./core.js";
@@ -1948,6 +1949,19 @@ function loadTown() {
   if (!s.town) for (const i of (s.clearing || {}).felled || []) t.felled.push({ i, day: -99 });
   return t;
 }
+// the cave's mouth: the steepest bit of hillside a good way out, off the roads, facing back towards the clearing
+function caveMouthSpot(w) {
+  let best = null;
+  for (let i = 0; i < 90; i++) {
+    const a = i / 90 * Math.PI * 2, d = 62 + (i % 5) * 7, x = CLEARING.x + Math.cos(a) * d, z = CLEARING.z + Math.sin(a) * d;
+    if (w.anyRoadDist(x, z).d < 12 || Math.hypot(x - HUNT.x, z - HUNT.z) < HUNT.r) continue;
+    if ((w.rocks || []).some(k => Math.hypot(k.x - x, k.z - z) < 8)) continue;
+    const toward = Math.atan2(CLEARING.x - x, CLEARING.z - z);
+    const behind = w.heightAt(x - Math.sin(toward) * 6, z - Math.cos(toward) * 6) - w.heightAt(x, z);
+    if (!best || behind > best.s) best = { x, z, ry: toward, s: behind };
+  }
+  return best || { x: CLEARING.x + 70, z: CLEARING.z, ry: -Math.PI / 2 };
+}
 function startTown(w, unlocked, needed = []) {
   const S = loadTown();
   const town = new Town(w, S, () => writeSave({ town: S }), { keepClear: [[FIELD.x, FIELD.z, 5]] });
@@ -1960,6 +1974,12 @@ function startTown(w, unlocked, needed = []) {
   w.setFurniture(S.furniture || null);
   if ((S.homeTier || 1) >= 2) w.setHomeTier(S.homeTier);
   G.player.giveAxe(true); if (w.blockAxe) w.blockAxe.visible = false;
+  // the caves, and their mouth in a hillside out in the forest
+  if (!w.cave) {
+    w.cave = new Caves(w);
+    const m = caveMouthSpot(w); w.cave.mouth(m.x, m.z, m.ry);
+  }
+  onFrame(dt => w.cave && w.cave.tick(dt));
   // once, a little after a settlement first exists: where to see all of it
   const g0 = GEN;
   setTimeout(() => {

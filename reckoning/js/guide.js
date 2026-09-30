@@ -163,6 +163,25 @@ export const GUIDE = {
       "You make the laws: forbid businesses altogether, or make everyone ask your leave first. They come to you and show you where they want to build.",
     ],
   },
+  revolt: {
+    kicker: "Danger", title: "A rising",
+    steps: [
+      "Keep your people miserable too long (contentment under 35, <kbd>G</kbd>, <i>Nation</i>), and after twenty minutes of play they <b>rise against you</b>.",
+      "The unhappiest take up arms. They wear a <b style=\"color:#b01e14\">red rag on the arm</b>. The rest stay loyal and fight them in the streets.",
+      "Fight beside the loyal: strike the rebels as you would a raider.",
+      "Put them down, and they are driven out (a jail keeps the ringleader). Lose, and they <b>take most of the treasury and strike down every tax</b>.",
+      "Food, warmth, beds, a church, low taxes and shops keep people content.",
+    ],
+  },
+  cave: {
+    kicker: "The caves", title: "Under the hill",
+    steps: [
+      "The cave runs a long way back: hall after hall, with tunnels between them. Your lantern lights a little way ahead, and the old torches a little more.",
+      "The rock down here is thick with <b>copper, tin and iron</b>, and the deeper halls hold more of it. Break it with a good enough pickaxe, as you would outside.",
+      "Sometimes <b>raiders</b> have made a camp in one of the far halls. They come for you as soon as they see you. Beaten, they leave their purse behind.",
+      "To leave, go back to the first hall and climb out where the daylight comes down (<kbd>F</kbd>).",
+    ],
+  },
   horse: {
     kicker: "Horses", title: "Riding",
     steps: [
@@ -183,4 +202,4 @@ export const GUIDE = {
   },
 };
 // the order the book lists them in
-export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "business", "horse", "raid"];
+export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "business", "horse", "cave", "revolt", "raid"];

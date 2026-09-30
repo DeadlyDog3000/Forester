@@ -368,12 +368,8 @@ export class Woods extends WorldBase {
       return geo;
     };
     const FLECK = { copper: [mat(0x3aa878, { surface: "none" }), mat(0xc87a3e, { surface: "none" })], tin: [mat(0x3c4048, { surface: "none" }), mat(0xc8ccd6, { surface: "none", metalness: 0.4, roughness: 0.4 })], iron: [mat(0xa0442a, { surface: "none" }), mat(0x7a3420, { surface: "none" })] };
-    const place = (kind, n, r0, r1, a0 = 0, a1 = TAU) => {
-      for (let tries = 0, k = 0; k < n && tries < n * 40; tries++) {
-        const a = a0 + r() * (a1 - a0), rad = r0 + r() * (r1 - r0);
-        const x = CLEARING.x + Math.cos(a) * rad, z = CLEARING.z + Math.sin(a) * rad;
-        if (this.anyRoadDist(x, z).d < 4 || Math.hypot(x - HUNT.x, z - HUNT.z) < HUNT.r * 0.6) continue;
-        if (this.rocks.some(o => Math.hypot(o.x - x, o.z - z) < 7)) continue;
+    // a rock of a kind, at a spot (the caves put theirs down with this too)
+    const makeAt = (kind, x, z) => {
         const y = this.heightAt(x, z), g = new THREE.Group(); g.position.set(x, y, z);
         const big = 0.7 + r() * 0.35;
         for (let j = 0; j < 3; j++) {
@@ -389,7 +385,18 @@ export class Woods extends WorldBase {
         }
         this.root.add(g);
         const rock = { kind, x, z, y, g, hp: ROCKS[kind].hp, gone: 0, col: this.col.addCircle(x, z, big * 0.9, y + 1.4) };
-        this.rocks.push(rock); k++;
+        rock.col.y0 = Math.min(rock.col.y0, y - 5);
+        this.rocks.push(rock);
+        return rock;
+    };
+    this.makeRock = makeAt;
+    const place = (kind, n, r0, r1, a0 = 0, a1 = TAU) => {
+      for (let tries = 0, k = 0; k < n && tries < n * 40; tries++) {
+        const a = a0 + r() * (a1 - a0), rad = r0 + r() * (r1 - r0);
+        const x = CLEARING.x + Math.cos(a) * rad, z = CLEARING.z + Math.sin(a) * rad;
+        if (this.anyRoadDist(x, z).d < 4 || Math.hypot(x - HUNT.x, z - HUNT.z) < HUNT.r * 0.6) continue;
+        if (this.rocks.some(o => Math.hypot(o.x - x, o.z - z) < 7)) continue;
+        makeAt(kind, x, z); k++;
       }
     };
     place("stone", 12, CLEARING.r + 6, CLEARING.r + 34);
@@ -506,6 +513,7 @@ export class Woods extends WorldBase {
   get mapBounds() { return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
   // gentle hills, flattened where the road runs and in the clearing
   heightAt(x, z) {
+    if (this.cave && this.cave.holds(x, z)) return this.cave.floorAt(x, z);
     let h = this.rawAt(x, z);
     const rd = this.road ? (this.branches ? this.anyRoadDist(x, z) : this.roadDist(x, z)) : null;
     const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
@@ -549,6 +557,7 @@ export class Woods extends WorldBase {
   // how far along the road you are, 0 to 1
   progress(x = G.player.pos.x, z = G.player.pos.z) { return this.roadDist(x, z).t; }
   constrain(p) {
+    if (this.cave && this.cave.holds(p.x, p.z)) return;
     const dc = Math.hypot(p.x - CLEARING.x, p.z - CLEARING.z);
     const rd = this.anyRoadDist(p.x, p.z);
     // inside the clearing you go where you like; its edge holds you, except where the road leaves it
@@ -762,6 +771,21 @@ export class Woods extends WorldBase {
     for (const t of this.fellable) if (!t.lobe && !t.wild && (t.state === "up" || t.state === "shake") && inPoly(poly, t.x, t.z) && !out.includes(t)) { t.lobe = tag; out.push(t); }
     for (const m of touched) m.instanceMatrix.needsUpdate = true;
     return out;
+  }
+  // the forest taken away round a spot, for good (a cave's mouth, a new clearing): no trees, no stumps
+  clearScenery(x, z, r, road = null) {
+    const touched = new Set();
+    for (const s of this.forest) {
+      if (s.gone) continue;
+      if (Math.hypot(s.x - x, s.z - z) > r && !(road && road(s.x, s.z))) continue;
+      s.gone = true;
+      for (const [m, i] of s.slots || []) { m.setMatrixAt(i, ZERO); touched.add(m); }
+      if (s.col) s.col.disabled = true;
+      if (s._mi != null && this.mapTrees[s._mi]) this.mapTrees[s._mi].gone = true;
+    }
+    for (const t of this.fellable) if ((t.state === "up" || t.state === "shake") && (Math.hypot(t.x - x, t.z - z) <= r || (road && road(t.x, t.z)))) { t.g.visible = false; t.state = "gone"; t.col.disabled = true; t.dug = true; }
+    for (const m of touched) m.instanceMatrix.needsUpdate = true;
+    this._mapDirty = this._gridDirty = true;
   }
   // a scenery tree becomes one you can fell: the instance goes, and a tree of its own stands where it stood
   adopt(s, touched) {

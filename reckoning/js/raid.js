@@ -37,8 +37,8 @@ const LOOK = (s, enemy) => enemy
   // a crown's soldiers: its colours, a hat each
   ? { model: "townsman", name: "Soldier", coat: parseInt(NATIONS[enemy].color.slice(1), 16), legs: 0x2a2620, hat: "hat", hatColor: 0x1a1a1a, beard: 0x3e3226, seed: 500 + s }
   : { model: "townsman", name: "Raider", coat: [0x3a3228, 0x2e3228, 0x40302a][s % 3], legs: 0x2a2620, hat: ["cap", "hat", null][s % 3], hatColor: 0x241e1a, beard: 0x3e3226, seed: 500 + s };
-const WALK = 2.9, FLEE = 2.7, WALL_SPEED = 2.2;
-const HP = 40;
+const WALK = 3.4, FLEE = 3.1, WALL_SPEED = 2.6;
+const HP = 60;                    // (harder than they were: a raider takes a good few blows now)
 const DIRS = ["up", "left", "right"];
 
 // what fights with what: damage in points (you have a hundred, a raider forty, a settler fifty).
@@ -52,7 +52,7 @@ export const ARMS = {
 };
 export const ARM_KINDS = ["battleaxe", "sword", "spear"];   // best first
 // what a raider carries: how hard, and how often
-const THEIRS = { knife: { dmg: 7, cool: 1.1 }, club: { dmg: 10, cool: 1.6 }, axe: { dmg: 12, cool: 1.8 }, sword: { dmg: 14, cool: 1.4 } };
+const THEIRS = { knife: { dmg: 10, cool: 0.95 }, club: { dmg: 14, cool: 1.35 }, axe: { dmg: 17, cool: 1.55 }, sword: { dmg: 19, cool: 1.2 } };
 
 class Raider {
   constructor(raid, x, z, i, n, enemy) {
@@ -145,7 +145,7 @@ export class Raids {
   start() {
     const t = this.town, S = t.S, pop = S.people.length + 2, enemy = t.enemy;
     // at war: a crown's soldiers, more of them the stronger it is
-    const n = enemy ? Math.min(8, 3 + strengthOf(S.europe, enemy)) : Math.min(6, 2 + Math.floor(pop / 5) + Math.floor(S.raid.count / 3));
+    const n = enemy ? Math.min(10, 4 + strengthOf(S.europe, enemy)) : Math.min(8, 3 + Math.floor(pop / 4) + Math.floor(S.raid.count / 2));
     this.enemy = enemy;
     const e = this.roadEnd;
     for (let i = 0; i < n; i++) {
@@ -220,7 +220,7 @@ export class Raids {
     // raised just as he swung, on his side: a parry — nothing lands, and he is thrown off his stroke
     if (pl.guard && facing && side && G.time - pl.guardAt < 0.45) {
       AUDIO.clang(1.2);
-      pl.parryJolt = G.time + 0.25; r.stun = 1.3; r.cool = Math.max(r.cool, 1.6); a.path = [];
+      pl.parryJolt = G.time + 0.25; r.stun = 0.9; r.cool = Math.max(r.cool, 1.2); a.path = [];
       if ((this.youParried = (this.youParried || 0) + 1) <= 3) UI.hint("Parried! He's off balance — strike now.", 1.8);
       return;
     }

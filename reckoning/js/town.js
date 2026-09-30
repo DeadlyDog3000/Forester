@@ -30,6 +30,7 @@ import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING, HUNT, inPoly } from "./woods
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
 import { economyDay, shopVisual, shopOffers, lawsOf, KINDS } from "./economy.js";
+import { revoltCheck, revoltShift, revoltSwing, checkEnd } from "./rebellion.js";
 
 // what wants a door hewn for it before it can be raised, and what a door takes
 const NEEDS_DOOR = new Set(["cabin"]), DOOR_LOGS = 2;
@@ -1362,6 +1363,8 @@ export class Town {
     const w = this.w, pl = G.player;
     G.onSwing = () => {
       if (this.raids && this.raids.swing(pl)) return;
+      if (revoltSwing(this, pl)) return;
+      if (w.cave && w.cave.swing(pl)) return;
       if (!(pl.blade && pl.blade !== "axe")) w.adoptNear && w.adoptNear(pl);
       if (pl.blade && pl.blade !== "axe" && ARMS[pl.blade]) { if (!this._bladeTip) { this._bladeTip = true; UI.hint(`A ${ARMS[pl.blade].name.toLowerCase()} won't fell a tree. Take the axe for that.`, 3); } return; }
       const f = pl.forward();
@@ -1609,11 +1612,13 @@ export class Town {
     await sleep(Math.random() * 3);
     while (true) {
       alive();
-      if (this.isNight() && !(this.raids && this.raids.active)) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
+      if (this.isNight() && !(this.raids && this.raids.active) && !(this.S.revolt && this.S.revolt.active)) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
       const job = a.settler.job || "hauler";
       // raiders in the settlement: every grown settler fights — with what the smith has made, an axe, or their fists;
       // the children hide by the fire
       const raid = this.raids && this.raids.active;
+      // the settlement risen against you: everyone takes a side
+      if (this.S.revolt && this.S.revolt.active && await revoltShift(this, a, sleep, alive)) continue;
       if (a.knocked) {
         if (raid && G.time < a.knocked) { a.doing = "knocked down"; await sleep(1); alive(); continue; }
         a.knocked = 0; a.lying = false; a.yOff = 0; a.hp = 50;
@@ -1836,6 +1841,9 @@ export class Town {
   // ---- time: days pass; the forest grows back, fields ripen, people eat ----
   update(dt, dayLength = 300) {
     this.t += dt; this.dayLen = dayLength;
+    // how long it has been played (free play): some things wait on it
+    if (G.mode === "play" && this.techGates) this.S.playSecs = (this.S.playSecs || 0) + dt;
+    if (this.S.revolt && this.S.revolt.active && (this._revT = (this._revT || 0) - dt) <= 0) { this._revT = 1; checkEnd(this); }
     this.updateGates();
     // the scholars at their desk
     const r = this.S.tech.research;
@@ -1935,8 +1943,8 @@ export class Town {
           this.showStore();
         }
       }
-      // wages sold to the pedlar, taxes, and the companies' trade
-      if (this.techGates) economyDay(this);
+      // wages sold to the pedlar, taxes, and the companies' trade; and whether they will stand for it any longer
+      if (this.techGates) { economyDay(this); revoltCheck(this); }
       this.persist();
       this.emit("day", this.day);
     }
