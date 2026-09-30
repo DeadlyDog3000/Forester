@@ -9,7 +9,7 @@
 import { renderer, clamp } from "./core.js";
 import { G, Player, frame, setAtmo, input, drawMap, setGraphics } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
-import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES, WORKS } from "./town.js";
+import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES, WORKS, SHED_BAYS } from "./town.js";
 import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
@@ -488,12 +488,16 @@ function renderInspect() {
     b.type === "cabin" && b.done ? ["Sleeps", `${t.perCabin}`] : null,
     def.wall ? ["Stands", b.broken ? '<span class="warn">broken through — a way in for anyone, until it is mended</span>' : `${b.hp ?? def.hp} of ${def.hp}${def.wall === "gate" ? (b.open ? " · open" : " · shut") : ""}`] : null,
     (b.type === "church" || b.type === "shrine") && b.done ? ["Dedicated to", esc(FAITHS[b.faith || "lutheran"].name) + ` — ${b.type === "church" ? FAITHS[b.faith || "lutheran"].house : FAITHS[b.faith || "lutheran"].shrine}`] : null,
-    b.type === "woodshed" && b.done ? ["Holds", `30 more logs (the store holds ${t.storeCap})`] : null,
+    b.type === "woodshed" && b.done ? ["Holds", `${SHED_BAYS[b.bays || 1].holds} logs in ${(b.bays || 1) === 1 ? "one bay" : (b.bays === 2 ? "two bays" : "three bays")} (the store holds ${t.storeCap} in all)`] : null,
     works.length ? ["Who works here", who.length ? esc(who.join(", ")) : '<span class="warn">no one — set someone to it (F by them)</span>'] : null,
     ["Upkeep", keep ? `${keep === 0.5 ? "½" : keep} DM a day${t.untended ? ' <span class="warn">— unpaid today: it stands idle</span>' : ""}` : "nothing — once it stands, it stands"],
   ].filter(Boolean);
   // the two things to do with it
   const acts = [];
+  if (t.canEnlarge && t.canEnlarge(b)) {
+    const u = SHED_BAYS[(b.bays || 1) + 1], room = t.enlargeRoom(b), can = !room && t.afford(u.mats, true);
+    acts.push(`<button data-act="bay"${can ? "" : " disabled"}>Build on ${esc(u.name)} — holds ${u.holds} logs<span class="sub">${esc(t.costText(u.mats))}${room ? ` — no room: ${esc(room)}` : !can ? ` — ${esc(t.short(u.mats, true))} short` : ""}</span></button>`);
+  }
   if (t.canUpgrade(b)) {
     const u = UPGRADES[(b.tier || 1) + 1], need = u.needs && u.needs(t), can = !need && t.afford(u.mats, true);
     acts.push(`<button data-act="up"${can ? "" : " disabled"}>Rebuild in ${esc(u.style.split(",")[0])}<span class="sub">${esc(t.costText(u.mats))}${need ? ` — first, ${esc(need)}` : !can ? ` — ${esc(t.short(u.mats, true))} short` : ""}</span></button>`);
@@ -514,6 +518,7 @@ $("inspActs").addEventListener("click", e => {
   const t = G.town, b = inspB; if (!t || !b) return;
   if (bt.dataset.act === "mend") { const msg = t.repair(b); if (msg) UI.hint(msg, 3); inspSig = ""; renderInspect(); return; }
   if (bt.dataset.act === "up") { if (t.upgrade(b)) showOverlay("inspect", false); else renderInspect(); }
+  if (bt.dataset.act === "bay") { if (t.enlarge(b)) showOverlay("inspect", false); else renderInspect(); }
   if (bt.dataset.act === "down") {
     if (!inspArmed) { inspArmed = true; inspSig = ""; renderInspect(); return; }
     t.dismantle(b); showOverlay("inspect", false);

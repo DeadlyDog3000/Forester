@@ -114,6 +114,7 @@ export const GUIDE = {
     steps: [
       "Look at a building and press <kbd>V</kbd> to see it up close: what it does, its upkeep, and its condition.",
       "From there you can <b>mend</b> it, <b>rebuild</b> it in a better style (this costs materials, not money), or <b>pull it down</b>.",
+      "A <b>woodshed</b> is made bigger there too: build on a second bay, then a third, and it holds more logs.",
     ],
   },
   research: {

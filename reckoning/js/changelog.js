@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.29", date: "30 September 2026", title: "More room for logs",
+    items: [
+      "Woodsheds can be made bigger. Look at one (V) and build on a second bay (holds 70 logs), then a third (120). Each bay is the shed again, built on beside it, and the logs fill all of them.",
+      "You can walk all around the quarry, and into its pit. Only the rock face round the back and the crane's post are solid.",
+    ],
+  },
+  {
     v: "0.28", date: "30 September 2026", title: "Room to grow",
     items: [
       "Fixed: F (and Space, Enter and Escape) stopped working after the first guide card. It works again.",

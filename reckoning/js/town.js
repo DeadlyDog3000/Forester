@@ -34,7 +34,7 @@ import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost
 const NEEDS_DOOR = new Set(["cabin"]), DOOR_LOGS = 2;
 export const BUILDINGS = {
   cabin:    { name: "Cabin", cost: 20, model: "cabin", w: 5.8, d: 6.8, beds: 2, icon: "cabin", note: "A home for two more people." },
-  woodshed: { name: "Woodshed", cost: 8, model: "woodshed", w: 4.0, d: 2.6, store: 30, icon: "logs", note: "Keeps thirty more logs dry." },
+  woodshed: { name: "Woodshed", cost: 8, model: "woodshed", w: 4.0, d: 2.6, store: 30, icon: "logs", note: "Keeps thirty more logs dry. Look at it (V) to build on a second and a third bay: seventy, then a hundred and twenty." },
   well:     { name: "Well", cost: 6, model: "well", w: 2.4, d: 2.4, icon: "key", note: "Water close by: the fields yield more." },
   field:    { name: "Field", cost: 0, w: 6.6, d: 7.4, dig: 3, icon: "seeds", note: "Three strips of rye. Dug, not built." },
   bakery:   { name: "Bakery", cost: 14, model: "town/bakery", tiers: true, w: 7.6, d: 5.8, icon: "bread", note: "A baker turns rye into bread — a loaf goes twice as far as the grain." },
@@ -69,6 +69,17 @@ export const WORKS = {
 export const MAT_NAME = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "iron ore", iron: "iron", copperore: "copper ore", tinore: "tin ore", copper: "copper", tin: "tin", bronze: "bronze", tools: "tools", coin: "DM", spears: "spears", swords: "swords", battleaxes: "battle axes" };
 // the store key for each thing you can carry in your pack
 const PACK_ICON = { stone: "stone", planks: "planks", bricks: "bricks", ore: "ironore", copperore: "copperore", tinore: "tinore", copper: "copper", tin: "tin", bronze: "bronze", iron: "iron" };
+// buildings you can walk about in, solid only where something stands: the quarry is its rock face round the back
+// (a horseshoe, open to the front) and the crane's post; the pit and the cut blocks in it are open ground
+const SOLID = {
+  quarry: [[-4.2, -4.4, 1.2], [-2.4, -4.9, 1.2], [-0.6, -5.2, 1.1], [1.2, -5.1, 1.2], [3, -4.8, 1.2], [4.3, -4.2, 1.1], [-4.4, -3.1, 0.9], [4.4, -3, 0.9], [2.6, 1.5, 0.6], [2.5, 3.2, 0.35]],
+};
+// a woodshed grows by bays: the same shed again, built on beside it; what each size holds, and what the next bay costs
+export const SHED_BAYS = {
+  1: { holds: 30 },
+  2: { holds: 70, name: "a second bay", mats: { store: 14, stone: 6 } },
+  3: { holds: 120, name: "a third bay", mats: { store: 20, stone: 10, planks: 6 } },
+};
 // rebuilding a building in the next style: what it costs, what it's called, and what it needs first
 // rebuilding costs what it is built of — a great deal of it — and no money
 export const UPGRADES = {
@@ -310,7 +321,7 @@ export class Town {
   get hearths() { return 1 + this.count("cabin"); }
   get beds() { return 2 + this.S.buildings.filter(b => b.done && b.type === "cabin").length * this.perCabin; }
   get logsPerTree() { return LOGS_PER_TREE + (this.S.upgrades.saw ? 1 : 0) + (this.knows("sawing") ? 2 : 0) + (this.knows("sawmills") ? 3 : 0); }
-  get storeCap() { return 40 + this.S.buildings.filter(b => b.done && b.type === "woodshed").length * 30; }
+  get storeCap() { return 40 + this.S.buildings.filter(b => b.done && b.type === "woodshed").reduce((a, b) => a + SHED_BAYS[b.bays || 1].holds, 0); }
   has(type) { return this.S.buildings.some(b => b.done && b.type === type); }
   count(type) { return this.S.buildings.filter(b => b.done && b.type === type).length; }
 
@@ -429,6 +440,11 @@ export class Town {
   }
 
   // a turned rectangle (w along the building's width, d its depth) as circles: rows of them along the longer side
+  // a building whose solid parts are only some of it: circles where they stand, [x, z, r] in its own frame
+  solidAt(b, parts, top) {
+    const col = this.w.col, c = Math.cos(b.ry), s = Math.sin(b.ry);
+    return parts.map(([lx, lz, r]) => col.addCircle(b.x + lx * c + lz * s, b.z - lx * s + lz * c, r, top));
+  }
   footprint(b, w, d, top) {
     const col = this.w.col, c = Math.cos(b.ry), s = Math.sin(b.ry), out = [];
     const long = Math.max(w, d), short = Math.max(0.4, Math.min(w, d)), r = short / 2;
@@ -492,8 +508,12 @@ export class Town {
       const key = modelKey(b), m = modelCopy(key);
       if (m) {
         g.add(m.scene);
-        // (the woodshed's own logs are drawn from the store, not always full)
-        if (b.type === "woodshed") m.scene.traverse(o => { if (o.isMesh && /log/.test(o.name)) o.visible = false; });
+        // (the woodshed's own logs are drawn from the store, not always full; a bigger one is more bays of it, side by side)
+        if (b.type === "woodshed") {
+          const n = b.bays || 1, bays = [m.scene];
+          for (let i = 1; i < n; i++) { const m2 = modelCopy(key); if (m2) { g.add(m2.scene); bays.push(m2.scene); } }
+          bays.forEach((o, i) => { o.position.x += (i - (bays.length - 1) / 2) * def.w; o.traverse(q => { if (q.isMesh && /log/.test(q.name)) q.visible = false; }); });
+        }
       } else {
         const bb = new Builder(); bb.box(def.w * 0.8, 2.4, def.d * 0.8, 0, 1.2, 0, 0x7a5634); g.add(bb.build());
         // the real one is fetched, and put up in place of this when it comes
@@ -501,7 +521,8 @@ export class Town {
       }
       // solid: the building's own turned footprint, filled with a row of circles a little inside its walls —
       // a square box round a turned building stood out past its corners, and caught you walking round it
-      g.userData.cols = this.footprint(b, def.w - 1.2, def.d - 1.2, w.heightAt(b.x, b.z) + 8);   // (well inside the walls: you slip round a corner)
+      g.userData.cols = SOLID[b.type] ? this.solidAt(b, SOLID[b.type], w.heightAt(b.x, b.z) + 8)
+        : this.footprint(b, def.w * (b.type === "woodshed" ? b.bays || 1 : 1) - 1.2, def.d - 1.2, w.heightAt(b.x, b.z) + 8);   // (well inside the walls: you slip round a corner)
       this.upgradeSpot(b);
       if (this.streets !== undefined || b.tier > 2) this.updateStreets();
     } else {
@@ -940,6 +961,34 @@ export class Town {
   }
 
   // ---- rebuilding in the next style: log, then Hamburg timber, then Hanseatic brick, then a city's stucco ----
+  // ---- a woodshed made bigger: a bay built on beside it, if there is room ----
+  canEnlarge(b) { return b.done && b.type === "woodshed" && (b.bays || 1) < 3; }
+  enlargeRoom(b) {
+    const n = (b.bays || 1) + 1, def = BUILDINGS.woodshed, hw = def.w * n / 2, hd = def.d / 2, c = Math.cos(b.ry), s = Math.sin(b.ry);
+    for (const o of this.S.buildings) {
+      if (o === b || o.type === "path" || o.type === "field") continue;
+      const d2 = BUILDINGS[o.type], r = d2.wall ? 0.6 : Math.min(d2.w, d2.d) / 2;
+      const dx = o.x - b.x, dz = o.z - b.z, lx = dx * c - dz * s, lz = dx * s + dz * c;
+      if (Math.abs(lx) < hw + r && Math.abs(lz) < hd + r) return `the ${d2.name.toLowerCase()} beside it is in the way`;
+    }
+    for (const [px, pz, pr, what] of [[CABIN.x, CABIN.z, 4, "the cabin"], [FIRE.x, FIRE.z, 1.5, "the fire"], [BLOCK.x, BLOCK.z, 1, "the chopping block"]]) {
+      const dx = px - b.x, dz = pz - b.z, lx = dx * c - dz * s, lz = dx * s + dz * c;
+      if (Math.abs(lx) < hw + pr && Math.abs(lz) < hd + pr) return `${what} is in the way`;
+    }
+    return null;
+  }
+  enlarge(b) {
+    const u = SHED_BAYS[(b.bays || 1) + 1]; if (!u) return false;
+    const blocked = this.enlargeRoom(b);
+    if (blocked) { UI.hint(`No room for another bay: ${blocked}.`, 4); return false; }
+    if (!this.afford(u.mats, true)) { UI.hint(`Not yet — ${this.short(u.mats, true)} short.`, 4); return false; }
+    this.pay(u.mats, true);
+    b.bays = (b.bays || 1) + 1;
+    this.show(b); this.showStore(); this.persist(); SFX().build();
+    UI.hint(`The woodshed has ${b.bays === 2 ? "a second" : "a third"} bay: the store holds ${this.storeCap} logs now.`, 5);
+    this.emit("upgraded", b);
+    return true;
+  }
   canUpgrade(b) { const def = BUILDINGS[b.type]; return b.done && (def.tiers || b.type === "cabin" || b.type === "well") && (b.tier || 1) < 4; }
   // (rebuilding is offered only when you inspect a building — V — not by walking up to it)
   upgradeSpot() {}
@@ -1008,9 +1057,9 @@ export class Town {
     w.stack.visible = false;
     for (const b of sheds) {
       const g = this.vis.get(b); if (!g) continue;
-      const n = this.S.store > 0 ? Math.max(1, Math.round(fill * 30)) : 0;
-      if (g.userData.pileN === n) continue;
-      g.userData.pileN = n;
+      const bays = b.bays || 1, n = this.S.store > 0 ? Math.max(1, Math.round(fill * 30)) : 0;
+      if (g.userData.pileN === n && g.userData.pileBays === bays) continue;
+      g.userData.pileN = n; g.userData.pileBays = bays;
       if (g.userData.pile) g.remove(g.userData.pile);
       // two stacks along the shed, five logs deep, as many rows as there are logs for
       const L = [];
@@ -1018,7 +1067,10 @@ export class Town {
         const side = k % 2, idx = Math.floor(k / 2), row = Math.floor(idx / 5), col = idx % 5;
         L.push({ x: side ? 0.8 : -0.8, y: 0.17 + row * 0.29, z: -0.1 + (col - 2) * 0.31 + (row % 2) * 0.05, len: 1.5, r: 0.15, dir: "x" });
       }
-      g.userData.pile = n ? makeLogs(L, n) : new THREE.Group(); g.add(g.userData.pile);
+      // (each bay filled alike)
+      const pile = new THREE.Group();
+      if (n) for (let i = 0; i < bays; i++) { const p = makeLogs(L, n); p.position.x = (i - (bays - 1) / 2) * BUILDINGS.woodshed.w; pile.add(p); }
+      g.userData.pile = pile; g.add(pile);
     }
   }
   setupStack() {
