@@ -898,6 +898,9 @@ function mineSwing() {
   UI.hint(`${got} ${item.name.toLowerCase()}.`, 2);
   G.emitMine && G.emitMine(k.kind);
 }
+// money as it is written: whole marks, or a mark and a tenth — never 0.30000000000000004
+export const dm = n => { const v = Math.round((+n || 0) * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
+G.dm = dm;
 // something put in your pack, as much as there is room for (a dozen to a slot); how many went in
 G.packAdd = (icon, n, name, note) => {
   const put = Math.min(n, roomFor(G.pack, G.body, icon));

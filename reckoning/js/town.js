@@ -462,7 +462,7 @@ export class Town {
     if (this.S.tech.research) { UI.hint("The scholars are already busy.", 3); return false; }
     if (!t.req.every(r => this.knows(r))) { UI.hint("Its prerequisites are not yet known.", 3); return false; }
     const cost = techCost(t);
-    if (this.S.coin < cost) { UI.hint(`Research costs ${cost} DM. The purse holds ${this.S.coin}.`, 3.5); return false; }
+    if (this.S.coin < cost) { UI.hint(`Research costs ${cost} DM. The treasury holds ${G.dm(this.S.coin)}.`, 3.5); return false; }
     this.S.coin -= cost;
     this.S.tech.research = { id, t: 0 };
     UI.hint(`Research begun: ${t.name} (${Math.round(techTime(t) / 60 * 10) / 10} min).`, 3.5);
@@ -1095,7 +1095,7 @@ export class Town {
     const it = w.addInteract({ x: fx, y: w.heightAt(fx, fz) + 1.2, z: fz, reach: 2.4,
       label: () => c.built ? `Buy at ${c.name} (${c.stock || 0} in stock)` : `${c.name} — ${c.owner} is building it (${Math.min(10, c.logs || 0)} of 10 logs)`,
       can: () => !!c.built,
-      use: () => G.openTrade && G.openTrade(c.name, () => `Your purse ${Math.floor(G.body.purse || 0)} DM · ${c.owner}'s shop`, shopOffers(this, c), () => { this.persist(); this.showShop(c); }) });
+      use: () => G.openTrade && G.openTrade(c.name, () => `Your purse ${G.dm(G.body.purse)} DM · ${c.owner}'s shop`, shopOffers(this, c), () => { this.persist(); this.showShop(c); }) });
     this.shopVis.set(c, { g, cols, it });
   }
   // a shift for a company's owner: asking leave, gathering timber, building, or keeping shop; false to do their usual work

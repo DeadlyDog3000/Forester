@@ -2614,7 +2614,7 @@ function trader(w, town, spec) {
     glance(town.actors, h, 7);
     h.walkTo(stand[0], stand[1], 1.4).then(() => { if (h.root.parent) { h.faceTo(CLEARING.x, CLEARING.z); h.person.setPose("armsCrossed"); } });
     const it = w.addInteract({ get x() { return h.pos.x; }, get z() { return h.pos.z; }, get y() { return h.pos.y + 1.4; }, reach: 2.6, label: `Trade with ${spec.name}`,
-      use: () => (G.guide && G.guide("trade"), G.openTrade && G.openTrade(spec.title, () => `Your purse ${G.body.purse || 0} DM · the treasury ${S.coin} DM`, spec.offers(S), () => { town.persist(); town.showStore && town.showStore(); SFX.pickup(); })) });
+      use: () => (G.guide && G.guide("trade"), G.openTrade && G.openTrade(spec.title, () => `Your purse ${G.dm(G.body.purse)} DM · the treasury ${G.dm(S.coin)} DM`, spec.offers(S), () => { town.persist(); town.showStore && town.showStore(); SFX.pickup(); })) });
     here = { h, cart, it };
     UI.hint(spec.hello, 6);
     tutor("trade", "", [["F", "beside a trader: buy and sell"]], 7);

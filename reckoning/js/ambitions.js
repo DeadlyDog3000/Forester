@@ -46,7 +46,7 @@ export const AMBITIONS = [
     reward: "50 DM, and a name the crowns know", give: t => { t.S.coin = (t.S.coin || 0) + 50; },
     news: "Soldiers of a crown came up your road, and went back down it." },
   { id: "name", name: "His name, written again", aim: "A town hall in brick, and 150 DM to send to Hamburg with a petition",
-    progress: t => `town hall in brick ${t.S.buildings.some(b => b.done && b.type === "townhall" && (b.tier || 1) >= 3) ? "yes" : "not yet"} · ${t.S.coin || 0} of 150 DM`,
+    progress: t => `town hall in brick ${t.S.buildings.some(b => b.done && b.type === "townhall" && (b.tier || 1) >= 3) ? "yes" : "not yet"} · ${G.dm(t.S.coin)} of 150 DM`,
     met: t => t.S.buildings.some(b => b.done && b.type === "townhall" && (b.tier || 1) >= 3) && (t.S.coin || 0) >= 150,
     reward: "Father's name is written back into the rolls of Hamburg", give: t => { t.S.coin -= 150; t.S.nameRestored = t.day; },
     news: "A letter from Jakob, in his careful hand: the Rath has read your petition. Your father's name stands in the rolls again, where they struck it out.", last: true },

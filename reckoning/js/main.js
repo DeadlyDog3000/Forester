@@ -7,7 +7,7 @@
 // Boot, the front door, the pause menu, and the loop.
 
 import { renderer, clamp } from "./core.js";
-import { G, Player, frame, setAtmo, input, drawMap, setGraphics } from "./engine.js";
+import { G, Player, frame, setAtmo, input, drawMap, setGraphics, dm } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
 import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES, WORKS, SHED_BAYS } from "./town.js";
 import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
@@ -279,7 +279,7 @@ function renderInventory() {
   if (pl.axe) hands[0] = { icon: "axe", name: "Old felling axe", note: "Grey haft, good head.", use: "Click to swing" };
   if (pl.carryN > 0) hands[1] = { icon: "logs", n: pl.carryN, name: "Spruce logs", note: camp ? `Your arms hold ${camp.carryMax}.` : "", use: "Stack them by the cabin" };
   else if (UI.carrying) hands[/ledger/i.test(UI.carrying) ? 0 : 1] = { icon: /ledger/i.test(UI.carrying) ? "ledger" : "logs", name: UI.carrying, note: /ledger/i.test(UI.carrying) ? "The tally of the Baltic grain, for Jakob to sign." : "" };
-  let html = `<div class="mc-sec">Hands <span class="mc-hint" style="float:right">your own purse: ${(G.body && G.body.purse) || 0} DM</span></div><div class="mc-row hands">${slot(hands[0])}${slot(hands[1])}</div>`;
+  let html = `<div class="mc-sec">Hands <span class="mc-hint" style="float:right">your own purse: ${dm(G.body && G.body.purse)} DM</span></div><div class="mc-row hands">${slot(hands[0])}${slot(hands[1])}</div>`;
   // what is on you: three rows of nine
   const pack = G.pack.slice(0, 27), cap = packSlots(G.body), tl = G.body && G.body.tools;
   const bag = tl && tl.pack ? ["", "a hide backpack", "a stitched pack", "a pedlar's frame pack"][tl.pack] : "no backpack — four hides make one";
@@ -560,7 +560,7 @@ G.closeTrade = () => showOverlay("trade", false);
 function renderTrade() {
   const t = tradeNow; if (!t) return;
   $("tradeTitle").textContent = t.title;
-  $("tradePurse").textContent = typeof t.purse === "function" ? t.purse() : t.purse && !/DM/.test(t.purse) ? t.purse : G.town ? `${G.town.S.coin} DM` : "";
+  $("tradePurse").textContent = typeof t.purse === "function" ? t.purse() : t.purse && !/DM/.test(t.purse) ? t.purse : G.town ? `${dm(G.town.S.coin)} DM` : "";
   $("tradeList").innerHTML = t.offers.map((o, i) => {
     const done = o.done && o.done(), ok = !done && o.can();
     return `<button class="plan${done ? " owned" : ok ? "" : " short"}" data-i="${i}"><img src="${ICON[o.icon] || (o.label.startsWith("Sell") ? ICON.coin : ICON.cart)}" alt=""><span><span class="pn">${esc(o.label)}${done ? esc(o.doneText ?? " — yours") : ""}</span><span class="pd">${esc(o.note || "")}</span></span><span class="pc">${esc(o.get)}</span></button>`;
@@ -605,7 +605,7 @@ function govLaws(t) {
       <div class="law-note">Everyone who works sells what they make to the pedlar, and pays this share of it. The higher it is, the unhappier they are — though the contented mind it less. A tenth of what the taxes bring in is yours.</div></div>
     <div class="law-row"><label>Business tax <b id="lawBizV">${Math.round(S.bizTax * 100)}%</b></label><input type="range" id="lawBiz" min="0" max="40" step="5" value="${Math.round(S.bizTax * 100)}">
       <div class="law-note">Paid by every company on what it sells. Past a quarter, the owners grumble.</div></div>
-    <div class="law-note">${today ? `Yesterday: ${today.taxed} DM in taxes, ${today.biz} DM from the businesses — ${today.yours} DM of it to your own purse.` : "The first taxes come in at the end of the day."}</div>
+    <div class="law-note">${today ? `Yesterday: ${dm(today.taxed)} DM in taxes, ${dm(today.biz)} DM from the businesses — ${dm(today.yours)} DM of it to your own purse.` : "The first taxes come in at the end of the day."}</div>
     <div class="mc-sec">Trade</div>
     <label class="law-tog"><input type="checkbox" id="lawBiz1"${S.laws.business ? " checked" : ""}> Settlers may start businesses of their own</label>
     <div class="law-note">Businesses bring in taxes and cheer the place up, and you can buy at their shops for less. But an owner gives part of their time to it, so less goes into the settlement's stores. They fell their own timber for the shop. Forbid it, and those with savings resent it.</div>
@@ -613,7 +613,7 @@ function govLaws(t) {
     <div class="law-note">With this law, whoever wants to open a shop comes to you first and shows you where. Refuse them, and they take it hard.</div>
     <div class="mc-sec">Companies</div>`;
   const list = S.companies.filter(c => !c.refused);
-  h += list.length ? `<table class="gov-people"><tr><th>Company</th><th>Owner</th><th>Trade</th><th>State</th><th>Stock</th><th>Taken</th></tr>${list.map(c => `<tr><td class="nm">${esc(c.name)}</td><td>${esc(c.owner)}</td><td>${esc(KINDS[c.kind].name)}</td><td>${c.waiting ? "asking your leave" : c.built ? "open" : `building (${Math.min(10, c.logs || 0)}/10 logs)`}</td><td>${c.stock || 0}</td><td>${c.earned || 0} DM</td></tr>`).join("")}</table>` : `<div class="law-note">No one has started a business yet. Someone who has saved twelve DM, and is doing well, may.</div>`;
+  h += list.length ? `<table class="gov-people"><tr><th>Company</th><th>Owner</th><th>Trade</th><th>State</th><th>Stock</th><th>Taken</th></tr>${list.map(c => `<tr><td class="nm">${esc(c.name)}</td><td>${esc(c.owner)}</td><td>${esc(KINDS[c.kind].name)}</td><td>${c.waiting ? "asking your leave" : c.built ? "open" : `building (${Math.min(10, c.logs || 0)}/10 logs)`}</td><td>${c.stock || 0}</td><td>${dm(c.earned)} DM</td></tr>`).join("")}</table>` : `<div class="law-note">No one has started a business yet. Someone who has saved twelve DM, and is doing well, may.</div>`;
   return h;
 }
 function wireLaws(t) {
@@ -684,7 +684,7 @@ function govNation(t) {
   // where DM comes from: the traders on the road, and a market
   const next = (every, on) => { for (let k = 0; k < every + 1; k++) if ((t.day + k) % every === on) return k; return 0; };
   const when = k => k === 0 ? "today" : k === 1 ? "tomorrow" : `in ${k} days`;
-  h += stat("Treasury", `${S.coin || 0} DM`, `${t.upkeepBill && t.techGates && t.upkeepBill() ? `Keeping the works costs ${String(t.upkeepBill()).replace(/\.5$/, "½").replace(/^0½/, "½")} DM a day${t.untended ? " — unpaid today, so they stand idle" : ""} (V at a building shows its share). ` : ""}Earn DM by selling logs, bread and rye to the traders on the road — Henning ${when(next(3, 1))}, Tobias the pedlar ${when(next(4, 3))}${t.has("market") ? ` · the market took ${S.soldToday || 0} DM yesterday` : " — or build a market (research Trading) to sell every day"}.`);
+  h += stat("Treasury", `${dm(S.coin)} DM`, `${t.upkeepBill && t.techGates && t.upkeepBill() ? `Keeping the works costs ${String(t.upkeepBill()).replace(/\.5$/, "½").replace(/^0½/, "½")} DM a day${t.untended ? " — unpaid today, so they stand idle" : ""} (V at a building shows its share). ` : ""}Earn DM by selling logs, bread and rye to the traders on the road — Henning ${when(next(3, 1))}, Tobias the pedlar ${when(next(4, 3))}${t.has("market") ? ` · the market took ${S.soldToday || 0} DM yesterday` : " — or build a market (research Trading) to sell every day"}.`);
   h += stat("Knowledge", `${known} of ${total}`, rt ? `researching ${esc(rt.name)} — ${Math.min(99, Math.round(r.t / techTime(rt) * 100))}%` : "the scholars are idle — see the tech tree", rt ? r.t / techTime(rt) : known / total, false);
   h += `</div><div class="mc-sec">Why they feel as they do</div><div class="gov-why">${why || "—"}</div>`;
   // the stores
@@ -951,7 +951,7 @@ function wireTech(t) {
 const NODE_W = 118, NODE_H = 42, COL_W = 148, ROW_H = 62;
 function drawTech(t, quiet) {
   const S = t.S, r = S.tech.research;
-  $("techPurse").textContent = `${S.coin || 0} DM`;
+  $("techPurse").textContent = `${dm(S.coin)} DM`;
   $("techNow").innerHTML = r ? `Researching <b>${esc(TECH[r.id].name)}</b> — ${Math.min(99, Math.round(r.t / techTime(TECH[r.id]) * 100))}%, ${Math.max(0, Math.ceil(techTime(TECH[r.id]) - r.t))} s left` : `The scholars are idle. ${S.tech.done.length} of ${Object.keys(TECH).length} known.`;
   if (quiet && !r) return;
   const q = techQuery.trim().toLowerCase();
@@ -1011,7 +1011,7 @@ setInterval(() => {
   const ob = $("objective"), obOn = ob && !ob.classList.contains("hidden");
   tb.style.top = (obOn ? ob.offsetTop + ob.offsetHeight + 8 : 24) + "px";
   const S = t.S;
-  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span><span class="tb"><img src="${ICON.coin}" alt="">${S.coin || 0}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
+  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span><span class="tb"><img src="${ICON.coin}" alt="">${dm(S.coin)}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
 }, 300);
 // a question with set answers; resolves with the index of the one chosen
 G.choose = (title, options) => new Promise(res => {
