@@ -598,10 +598,16 @@ export class Player {
       m.root.rotation.y = this.yaw + Math.PI;
       m.body.scale.y = (this.model.scaleBase ?? 1) * (this.crouched ? 0.7 : 1);
       // on a bench or a stool, your body sits too
-      m.sitting += ((this.seated ? 1 : 0) - m.sitting) * Math.min(1, dt * 6);
-      m.update(dt, this.seated ? 0 : this.speed);
+      m.sitting += ((this.seated || this.horse ? 1 : 0) - m.sitting) * Math.min(1, dt * 6);
+      m.update(dt, this.seated || this.horse ? 0 : this.speed);
       m.body.rotation.z = this.lean * 0.28;
-      m.root.visible = !!G.forceThird;
+      // first person, your own body is there when you look down: all of you but the head (the camera is in it)
+      // and the right arm (the one on the screen, holding what you hold), set a little back so none of it is in the lens
+      const fp = !G.forceThird && !G.freecam;
+      if (this.horse) m.root.position.y += 1.02;
+      if (fp) { const bk = G.fpBack ?? 0.12; m.root.position.x += Math.sin(this.yaw) * bk; m.root.position.z += Math.cos(this.yaw) * bk; m.root.position.y -= G.fpDown ?? 0.05; }
+      firstPersonBones(m, fp);
+      m.root.visible = true;
     }
 
     // the guard: right mouse held with the axe or a weapon out (and nothing in front of you to use) —
@@ -904,6 +910,18 @@ function mineSwing() {
 // money as it is written: whole marks, or a mark and a tenth — never 0.30000000000000004
 export const dm = n => { const v = Math.round((+n || 0) * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
 G.dm = dm;
+// your own body in first person: the head and the right arm folded away to nothing (a bone scaled to a speck
+// takes everything hung from it), and back again for anyone else's view
+function firstPersonBones(m, fp) {
+  if (m._fpOn === fp) { if (fp && m._fp) for (const b of m._fp) b.scale.setScalar(0.001); return; }
+  m._fpOn = fp;
+  if (!m._fp) {
+    m._fp = []; m.root.traverse(o => { if (o.isBone && /^(neck|shoulderR)$/i.test(o.name)) m._fp.push(o); });
+    // (the body built in code, if the model never came: its neck group carries the head and hat)
+    if (!m._fp.length) m._fp = [m.neck, m.armR].filter(Boolean);
+  }
+  for (const b of m._fp) b.scale.setScalar(fp ? 0.001 : 1);
+}
 // something put in your pack, as much as there is room for (a dozen to a slot); how many went in
 G.packAdd = (icon, n, name, note) => {
   const put = Math.min(n, roomFor(G.pack, G.body, icon));

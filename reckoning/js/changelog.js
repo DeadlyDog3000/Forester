@@ -24,6 +24,8 @@ export const CHANGELOG = [
       "A building on a slope has its ground dug out for it: a level pad cut into the hill, with a bank of bare earth round it.",
       "Watchmen can be asked to follow you (F beside one, Follow me). They go wherever you go, down into the caves too, and fight at your side.",
       "Once you've found the cave, it's on your map. Inside, the map (J) and minimap show the halls you've been in, and the ore in them.",
+      "Fixed: what people held (axes, torches, lanterns, spades) wasn't in their hands at all, but hung beside them. It's gripped in the fist now.",
+      "In first person your own body is there: look down and you see your chest, your coat and your other arm, joined up with the arm that holds your axe.",
       "Fixed: the ore in the caves was invisible. Fixed: coming back from the free camera left you crouched and slow.",
       "Paths are a quarter quicker to walk on. Settlers no longer clip through walls.",
       "Harder raiders: tougher, quicker, harder-hitting, more of them, and a parry stuns them for less time. Once Policing is known, only the watch fights them; everyone else takes cover.",

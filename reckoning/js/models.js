@@ -326,9 +326,17 @@ function useModel(P, key, colors = {}) {
   const play = n => { const a = acts[n] || acts.idle; if (!a || a === cur) return; a.reset().fadeIn(0.25).play(); if (cur) cur.fadeOut(0.25); cur = a; };
   const playArms = n => { const a = n ? acts[n] : null; if (a === curArms) return; if (a) a.reset().fadeIn(0.25).play(); if (curArms) curArms.fadeOut(0.25); curArms = a; };
   // held things follow the model's right hand, if it has a bone by that name
-  let hand = null;
-  m.scene.traverse(o => { if (!hand && o.isBone && /(hand.*(\.r|_r|right))|(right.*hand)/i.test(o.name)) hand = o; });
-  if (hand) { hand.add(P.held); P.held.position.set(0, 0, 0); }
+  // (the rig's own names: handR / handL, or hand.R, hand_R, RightHand)
+  let hand = null, handL = null;
+  m.scene.traverse(o => {
+    if (!o.isBone) return;
+    if (!hand && /^hand[._]?r$|(hand.*(\.r|_r|right))|(right.*hand)/i.test(o.name)) hand = o;
+    if (!handL && /^hand[._]?l$|(hand.*(\.l|_l|left))|(left.*hand)/i.test(o.name)) handL = o;
+  });
+  // (a bone runs out along the fingers; what is held stands up out of the fist, square to them — a quarter turn —
+  // and sits in the palm, a little past the wrist)
+  if (hand) { hand.add(P.held); P.held.position.set(0, 0.07, 0); P.held.rotation.set(-Math.PI / 2, 0, 0); }
+  if (handL) { handL.add(P.heldL); P.heldL.position.set(0, 0.07, 0); P.heldL.rotation.set(-Math.PI / 2, 0, 0); }
   const base = P.update.bind(P);
   P.update = function (dt, speed = 0) {
     base(dt, speed);
