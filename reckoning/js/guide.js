@@ -10,7 +10,7 @@ export const GUIDE = {
       "Press <kbd>B</kbd> for the plans and <b>choose a building</b>. Only what your people know how to build is shown; research teaches them more (<kbd>G</kbd>).",
       "Walk the outline to where you want it. <b>Hold <kbd>R</kbd> to turn it.</b> Green means it fits; red means something is in the way.",
       "<b>Click</b> to lay it out as a building site. <kbd>B</kbd> again puts the plans away without building.",
-      "Every site wants <b>logs</b> first. Take them from the stack (<kbd>F</kbd>) and carry them to the site (<kbd>F</kbd> again). Settlers whose job is <b>hauler</b> carry logs and stone to the sites for you. Nobody else does. With no hauler, it is all on you.",
+      "Every site wants <b>logs</b> first. Take them from the stack (<kbd>F</kbd>) and carry them to the site (<kbd>F</kbd> again). Settlers whose job is <b>hauler</b> carry logs and stone to the sites for you, and gather up logs left lying about.",
       "Some want <b>stone, planks or bricks</b> as well. You can put them in from the stores and your own pack, or your haulers bring them from the stores.",
       "A cabin or house also wants a <b>door</b>. Hew one at the sawhorse.",
       "When the site has everything, <b>hold <kbd>F</kbd> at it</b> to raise it.",

@@ -25,7 +25,7 @@ export const CHANGELOG = [
       "Harder raiders: tougher, quicker, harder-hitting, more of them, and a parry stuns them for less time. Once Policing is known, only the watch fights them; everyone else takes cover.",
       "Everything yields less: fields give 4 rye (5 with a well), a loaf takes 2.5 rye, trees give fewer logs, and works and ore rocks make less. Food fills you less.",
       "No reaping or sowing in winter, and nobody tells you to. Your sibling only worries about food when the bread is short too.",
-      "Only haulers stack the woodshed: what you bring is left beside it. Logs from a tree felled far out stay where it fell.",
+      "Logs from a tree felled far out stay where it fell, and haulers gather up logs left lying about. You still stack the woodshed yourself.",
       "Research advice names the whole path (\"Research Land Ownership, then Township, for a town hall\"), so it can always be done.",
       "; flies a free camera, with no HUD. Right-click is no longer a second F.",
       "Your breathing is softer, like breath and not like grass.",

@@ -1347,17 +1347,9 @@ export class Town {
       onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
       use: () => { this.S.store -= DOOR_LOGS; this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4); } });
     this.stackIt = w.addInteract({ get x() { return at().x; }, y: w.cy + 0.8, get z() { return at().z; }, reach: 2.6,
-      label: () => { const shed = this.has("woodshed"); return pl.carryN > 0 ? `${shed ? "Leave the logs by the woodshed — a hauler stacks them" : "Stack the logs"} (${pl.carryN})` : `Take logs from the ${shed ? "woodshed" : "stack"} (${this.S.store})`; },
-      can: () => pl.carryN > 0 ? this.has("woodshed") || this.S.store < this.storeCap : this.S.store > 0,
+      label: () => { const shed = this.has("woodshed"); return pl.carryN > 0 ? `${shed ? "Put the logs in the woodshed" : "Stack the logs"} (${pl.carryN})` : `Take logs from the ${shed ? "woodshed" : "stack"} (${this.S.store})`; },
+      can: () => pl.carryN > 0 ? this.S.store < this.storeCap : this.S.store > 0,
       use: () => {
-        // (a woodshed is stacked by the settlers: what you bring is left in front of it, for a hauler to put in)
-        if (pl.carryN > 0 && this.has("woodshed")) {
-          const a = at(), near = this.bundles.find(b => Math.hypot(b.x - a.x, b.z - a.z) < 2.5);
-          if (near) { near.n += pl.carryN; this.saveLogs(); } else this.dropLogs(a.x + (Math.random() - 0.5) * 1.5, a.z + 0.8 + Math.random(), Math.random() * 3, pl.carryN);
-          pl.carryN = 0; UI.carry(null); SFX().pickup();
-          if (!this.S.people.some(p => p.job === "hauler")) UI.hint("Nobody is hauling: the logs lie there until someone is set to it (F beside a settler).", 5);
-          return;
-        }
         if (pl.carryN > 0) { const n = Math.min(pl.carryN, this.storeCap - this.S.store); this.S.store += n; pl.carryN -= n; }
         else { const n = Math.min(CARRY_MAX, this.S.store); this.S.store -= n; pl.carryN += n; }
         UI.carry(pl.carryN ? `Carrying ${pl.carryN} log${pl.carryN > 1 ? "s" : ""}` : null);
