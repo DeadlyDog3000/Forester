@@ -673,7 +673,7 @@ export function forestInstances(list, far = false) {
       tint(leaves, li++, 0, seed, 0.09, 0.03);
     }
   }
-  for (const m of [trunks, birchTr, spruceC, pineB, leaves]) { m.castShadow = !far && m !== trunks && m !== birchTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
+  for (const m of [trunks, birchTr, spruceC, pineB, leaves]) { m.userData.far = far; m.castShadow = !far && m !== trunks && m !== birchTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
   return out;
 }
 

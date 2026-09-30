@@ -794,17 +794,39 @@ export class Woods extends WorldBase {
     for (const m of touched) m.instanceMatrix.needsUpdate = true;
     this._mapDirty = this._gridDirty = true;
   }
+  // a scenery tree, as a group of its own: each of its pieces in the forest (the near, full ones) copied out as a
+  // one-tree instance of the same shape, stuff and tint — so when it becomes a tree you can fell, it doesn't change
+  pieces(s) {
+    const near = (s.slots || []).filter(([m]) => !m.userData.far);
+    if (!near.length) return null;
+    const g = new THREE.Group(), M = new THREE.Matrix4(), C = new THREE.Color();
+    const inv = new THREE.Matrix4().makeTranslation(-s.x, -(s.y - 0.1), -s.z);
+    for (const [m, i] of near) {
+      m.getMatrixAt(i, M);
+      if (M.elements[0] === 0 && M.elements[5] === 0) continue;       // (already gone)
+      const one = new THREE.InstancedMesh(m.geometry, m.material, 1);
+      one.setMatrixAt(0, M.clone().premultiply(inv));
+      if (m.instanceColor) { m.getColorAt(i, C); one.setColorAt(0, C); }
+      one.castShadow = true; one.receiveShadow = true; one.frustumCulled = false;
+      g.add(one);
+    }
+    return g.children.length ? g : null;
+  }
   // a scenery tree becomes one you can fell: the instance goes, and a tree of its own stands where it stood
   adopt(s, touched) {
+    // (read the tree out of the forest before it goes: its own pieces, placed and tinted as they were)
+    const same = this.pieces(s);
     s.gone = true;
     // (on the map it's drawn as a tree of its own now, while it stands)
     if (s._mi != null && this.mapTrees[s._mi]) { this.mapTrees[s._mi].gone = true; this._mapDirty = this._gridDirty = true; }
     for (const [m, i] of s.slots || []) { m.setMatrixAt(i, ZERO); if (touched) touched.add(m); else m.instanceMatrix.needsUpdate = true; }
     if (s.col) s.col.disabled = true;
-    const model = modelCopy(s.kind) || modelCopy("spruce");
-    let g;
-    if (model) { g = new THREE.Group(); model.scene.scale.setScalar(s.h / 10); model.scene.rotation.y = s.rot; g.add(model.scene); }
-    else g = makeSpruce(s.h, Math.floor(s.x * 7));
+    let g = same;
+    if (!g) {
+      const model = modelCopy(s.kind) || modelCopy("spruce");
+      if (model) { g = new THREE.Group(); model.scene.scale.setScalar(s.h / 10); model.scene.rotation.y = s.rot; g.add(model.scene); }
+      else g = makeSpruce(s.h, Math.floor(s.x * 7));
+    }
     g.position.set(s.x, s.y - 0.1, s.z);
     this.root.add(g);
     const t = { g, x: s.x, z: s.z, y: s.y, h: s.h, hp: s.kind === "birch" ? 3 : 4, state: "up", angle: Math.atan2(s.z - CLEARING.z, s.x - CLEARING.x), col: this.col.addCircle(s.x, s.z, s.kind === "birch" ? 0.24 : 0.32, 12), fall: 0, claimed: null, src: s };
@@ -1103,12 +1125,20 @@ export class Woods extends WorldBase {
       m.scale.setScalar(0.6 + u * 3.2); m.material.opacity = 0.3 * (1 - u) * Math.min(1, u * 8);
     }
     for (const t of this.fellable) {
-      if (t.state === "falling") {
-        t.fall = Math.min(1, t.fall + dt * (0.25 + t.fall * 2.2));
-        const a = t.fall * t.fall * (Math.PI / 2 - 0.08);
+      if (t.state === "falling" || t.state === "settle") {
+        // every tree its own fall: a tall one slower, a birch quicker; a twist as it goes, a roll to one side,
+        // where it comes to rest, and a little bounce when it hits the ground
+        const F = t.fx || (t.fx = fallOf(t));
+        if (t.state === "falling") {
+          t.fall = Math.min(1, t.fall + dt * (0.25 + t.fall * 2.2) * F.speed);
+          if (t.fall >= 1) { t.state = "settle"; t.settle = 0; t.onDown && t.onDown(); }
+        } else if ((t.settle += dt * 2.2) >= 1) t.state = "down";
+        const bounce = t.state === "settle" ? Math.sin(Math.min(1, t.settle) * Math.PI) * F.bounce * (1 - Math.min(1, t.settle)) : 0;
+        const k = t.fall * t.fall, a = k * F.rest - bounce;
         t.g.rotation.set(0, 0, 0);
         t.g.rotateOnWorldAxis(t.axis, a);
-        if (t.fall >= 1) { t.state = "down"; t.onDown && t.onDown(); }
+        t.g.rotateOnWorldAxis(UP_AXIS, F.twist * k);
+        if (F.roll) t.g.rotateOnWorldAxis(t.dir ? new THREE.Vector3(t.dir.x, 0, t.dir.z) : UP_AXIS, F.roll * k);
       } else if (t.state === "shake") {
         t.shake -= dt;
         t.g.rotation.z = Math.sin(t.shake * 60) * 0.01 * Math.max(0, t.shake) * 8;
@@ -1118,4 +1148,17 @@ export class Woods extends WorldBase {
   }
 }
 export { STACK, BLOCK, FIRE };
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+// how a tree falls, from where it stands (the same tree always falls the same way)
+function fallOf(t) {
+  const h = (x => x - Math.floor(x))(Math.sin(t.x * 12.9898 + t.z * 78.233) * 43758.5453), h2 = (x => x - Math.floor(x))(Math.sin(t.x * 39.3468 + t.z * 11.135) * 24634.634);
+  const kind = t.src && t.src.kind, tall = Math.max(5, t.h || 9);
+  return {
+    speed: (0.8 + h * 0.45) * Math.pow(9 / tall, 0.35) * (kind === "birch" ? 1.2 : 1),
+    rest: Math.PI / 2 - 0.05 - h2 * 0.16,
+    twist: (h - 0.5) * 0.7,
+    roll: (h2 - 0.5) * 0.25,
+    bounce: 0.035 + h * 0.05,
+  };
+}
 void prismGeo;

@@ -763,7 +763,7 @@ export class Town {
       const done = b => {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
         w.root.remove(ghost); this.planning = null;
-        if (b) { this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.persist(); SFX().build(); }
+        if (b) { this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.clearStumps(b); this.persist(); SFX().build(); }
         res(b);
         // (a path or a wall goes on: the next length is ready to lay until you put the plan away)
         if (b && strip) setTimeout(() => { if (!this.planning && !this.stopped) this.plan(type); }, 0);
@@ -1431,8 +1431,30 @@ export class Town {
     }
   }
   // a stump grows back into a young tree, then a tree
+  // is there anything of ours where a tree would come up? (buildings, paths, fields, walls, shops, the roads out)
+  builtNear(x, z) {
+    for (const b of this.S.buildings) {
+      const d = BUILDINGS[b.type], r = d.path ? 2.6 : d.wall ? 1.6 : Math.hypot(d.w, d.d) / 2 + 2;
+      if (Math.hypot(b.x - x, b.z - z) < r) return true;
+    }
+    for (const c of this.S.companies || []) if (Math.hypot(c.x - x, c.z - z) < 5) return true;
+    for (const c of this.S.colonies || []) { if (Math.hypot(c.x - x, c.z - z) < c.r + 2) return true; if (c.road.some((p, i) => i < c.road.length - 1 && segDist(x, z, p, c.road[i + 1]) < 3.5)) return true; }
+    if (Math.hypot(STACK.x - x, STACK.z - z) < 3 || Math.hypot(FIRE.x - x, FIRE.z - z) < 4 || Math.hypot(CABIN.x - x, CABIN.z - z) < 6) return true;
+    return false;
+  }
+  // stumps under something newly laid out are grubbed up with it, and nothing grows there again
+  clearStumps(b) {
+    const d = BUILDINGS[b.type], r = d.path ? 2.4 : Math.hypot(d.w, d.d) / 2 + 0.5;
+    for (const [t, m] of [...this.stumps]) {
+      if (Math.hypot(t.x - b.x, t.z - b.z) > r) continue;
+      this.w.root.remove(m); this.stumps.delete(t); if (m.userData.it) this.w.removeInteract(m.userData.it);
+      t.dug = true; const f = this.S.felled.find(q => q.i === this.w.fellable.indexOf(t)); if (f) f.dug = true;
+    }
+  }
   regrow(t) {
     if (t.dug) return;
+    // (nothing comes up through a path, or against a wall)
+    if (this.builtNear(t.x, t.z)) return;
     const m = this.stumps.get(t); if (m) { this.w.root.remove(m); this.stumps.delete(t); if (m.userData.it) this.w.removeInteract(m.userData.it); }
     t.g.visible = true; t.state = "up"; t.col.disabled = false; t.hp = 4; t.claimed = null;
     t.g.rotation.set(0, 0, 0);

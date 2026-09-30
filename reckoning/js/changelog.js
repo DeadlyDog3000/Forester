@@ -29,6 +29,8 @@ export const CHANGELOG = [
       "Research advice names the whole path (\"Research Land Ownership, then Township, for a town hall\"), so it can always be done.",
       "; flies a free camera, with no HUD. Right-click is no longer a second F.",
       "Your breathing is softer, like breath and not like grass.",
+      "Trees keep their own shape when you start felling them (no more turning into a fir the moment you swing), and every tree falls its own way: taller ones slower, birches quicker, with a twist, a roll and a bounce as it lands.",
+      "Trees don't grow back where you've built: not through paths, fields, walls, shops or roads. Stumps under anything you lay out are grubbed up with it.",
     ],
   },
   {
