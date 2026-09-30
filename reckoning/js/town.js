@@ -20,7 +20,7 @@ import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng } fr
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse } from "./models.js";
+import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade } from "./models.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
@@ -1434,6 +1434,11 @@ export class Town {
     if (Math.hypot(STACK.x - x, STACK.z - z) < 3 || Math.hypot(FIRE.x - x, FIRE.z - z) < 4 || Math.hypot(CABIN.x - x, CABIN.z - z) < 6) return true;
     return false;
   }
+  // a stump on the settlement's own ground that nobody is at yet (out in the forest they're left to grow again)
+  stumpToDig() {
+    for (const t of this.stumps.keys()) if (!t.claimed && this.onGround(t.x, t.z, 0)) return t;
+    return null;
+  }
   // stumps under something newly laid out are grubbed up with it, and nothing grows there again
   clearStumps(b) {
     const d = BUILDINGS[b.type], r = d.path ? 2.4 : Math.hypot(d.w, d.d) / 2 + 0.5;
@@ -1701,7 +1706,7 @@ export class Town {
       if (own && await this.companyShift(a, own, sleep, alive)) continue;
       // ground to clear: everyone who can swing an axe goes felling until it is done
       // (everyone clears ground for the settlement when it wants room — except the farmers, who have their fields)
-      let loose = null;
+      let loose = null, stump = null;
       const clearing = !a.settler.child && job !== "farmer" && this.toClear().some(t => !t.claimed);
       const site = this.S.buildings.find(b => !b.done && b.type !== "field" && b.logs < BUILDINGS[b.type].cost);
       const matSite = !site && this.S.buildings.find(b => !b.done && b.type !== "field" && Object.entries(this.wants(b)).some(([k]) => this.have(k) > 0));
@@ -1767,6 +1772,20 @@ export class Town {
         await a.walkTo(site.x + 1.6, site.z + BUILDINGS[site.type].d / 2 + 1.4, 1.1); alive();
         site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "building", 0.6);
         await sleep(2);
+      } else if (!clearing && job === "hauler" && !site && (stump = this.stumpToDig())) {
+        // nothing to carry: the stumps left in the settlement, grubbed out one by one
+        stump.claimed = a; a.doing = "digging out an old stump";
+        await a.walkTo(stump.x + 0.9, stump.z + 0.5, 1.2); alive();
+        if (!this.stumps.has(stump)) { stump.claimed = null; continue; }
+        a.faceTo(stump.x, stump.z); a.person.setPose("reach");
+        const sp = a.hold(makeSpade());
+        for (let i = 0; i < 5; i++) { await sleep(1.1 * this.pace(a, "building")); alive(); this.sfxAt(a, "chop"); }
+        a.person.held.remove(sp); a.person.setPose("idle");
+        const m = this.stumps.get(stump);
+        if (m) { this.w.root.remove(m); this.stumps.delete(stump); if (m.userData.it) this.w.removeInteract(m.userData.it); }
+        stump.dug = true; stump.claimed = null; const f = this.S.felled.find(q => q.i === this.w.fellable.indexOf(stump)); if (f) f.dug = true;
+        this.persist(); this.learn(a, "building", 0.4);
+        await sleep(1.5);
       } else if (clearing || job === "woodcutter" || (job === "hauler" && site)) {
         a.doing = clearing ? "clearing ground for the settlement" : "felling trees";
         const trees = clearing ? this.toClear().filter(t => t.state === "up" && !t.claimed) : this.w.fellable.filter(t => t.state === "up" && !t.claimed);

@@ -262,6 +262,48 @@ export const SHOTS = {
       rig.look(c, [fx, gy(fx, fz) + 2.0, fz], [this.cx + ux * 9, gy(this.cx, this.cz) + 1.3, this.cz + uz * 9], 55);
     },
   },
+  cave: {
+    secs: 5,
+    // down in the caves: along a tunnel by lantern light, toward a torch in the next hall
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); setAtmo("afternoon");
+      const c = G.world.cave; c.enter(); await wait(1500);
+      this.a = c.halls[0]; this.b = c.halls[1];
+      rig.run(0.5);
+    },
+    cam(t, c) {
+      const a = this.a, b = this.b, k = 0.15 + E(t) * 0.5;
+      const x = a.x + (b.x - a.x) * k, z = a.z + (b.z - a.z) * k;
+      const y = G.world.heightAt(x, z) + 1.7 + Math.sin(t * 9) * 0.03;
+      rig.look(c, [x, y, z], [b.x, G.world.heightAt(b.x, b.z) + 3.4, b.z], 62);
+    },
+    done() { G.world.cave && G.world.cave.leave(); },
+  },
+  shops: {
+    secs: 5.5,
+    // the settlers' own shops in a row, each with its colours and its banner, in the evening light
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); setAtmo("evening");
+      const econ = await import("../js/economy.js"), t = G.town;
+      const kinds = ["bread", "meats", "lumber", "iron", "stone"], owners = ["Marta", "Tomas", "Grete", "Jan", "Liesel"];
+      this.row = [];
+      // (a line of open ground for them, on the far side of the fire from the cabin)
+      let z0 = CLEARING.z + 8;
+      for (let dz = 0; dz < 16; dz += 0.5) { const z = CLEARING.z + 8 + dz; if ([0, 1, 2, 3, 4].every(i => t.fits("shop", CLEARING.x - 13 + i * 6.2, z, Math.PI))) { z0 = z; break; } }
+      kinds.forEach((k, i) => {
+        const x = CLEARING.x - 13 + i * 6.2, z = z0;
+        const c = { owner: owners[i], kind: k, x, z, ry: Math.PI, built: true, stock: 5, logs: 10 };
+        c.brand = econ.makeBrand(k, c.owner, 4000 + i * 1777); c.name = c.brand.name;
+        t.S.companies.push(c); t.showShop(c); this.row.push(c);
+      });
+      rig.run(1);
+    },
+    cam(t, c) {
+      const a = this.row[0], b = this.row[this.row.length - 1], k = E(t);
+      const x = a.x - 3 + (b.x - a.x + 6) * k, z = a.z - 8.5;
+      rig.look(c, [x, gy(x, z) + 2.1, z], [x + 2.5, gy(x, a.z) + 2.2, a.z], 55);
+    },
+  },
   mine: {
     secs: 6,
     hands: true,

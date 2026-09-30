@@ -156,7 +156,7 @@ export class Caves {
     UI.fade(1, 0.5).then(() => {
       pl.place(this.start.x, this.start.z, Math.PI); this._entering = false;
       if (pl.horse) pl.dismount();
-      this.lantern = this.lantern || new THREE.PointLight(0xffc48a, 14, 22, 1.3);
+      this.lantern = this.lantern || new THREE.PointLight(0xffc48a, 9, 20, 1.7);
       camera.add(this.lantern);
       this.bandits();
       UI.fade(0, 0.8);
