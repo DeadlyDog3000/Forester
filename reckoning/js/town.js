@@ -31,6 +31,7 @@ import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
 import { economyDay, shopVisual, shopOffers, lawsOf, KINDS } from "./economy.js";
 import { revoltCheck, revoltShift, revoltSwing, checkEnd } from "./rebellion.js";
+import { colonyCheck, lay as layColony } from "./colony.js";
 
 // what wants a door hewn for it before it can be raised, and what a door takes
 const NEEDS_DOOR = new Set(["cabin"]), DOOR_LOGS = 2;
@@ -207,6 +208,9 @@ export class Town {
     this.S.lobes ??= [];
     this.S.lobes.forEach((l, i) => w.clearArea(l.poly, i + 1));
     w.lobes = this.S.lobes;
+    // the other settlements you have founded, and the roads to them
+    this.S.colonies ??= [];
+    for (const c of this.S.colonies) layColony(this, c);
     if ((this.S.homeTier || 1) >= 2 && w.setHomeTier) w.setHomeTier(this.S.homeTier);
     w.settled = true;
     // the trees felled before stay down (stumps), until they grow back
@@ -377,6 +381,7 @@ export class Town {
   // is a point on the settlement's ground, near enough? (the old clearing out to the trees, or a claim, or within `pad` of one)
   inTerritory(x, z, pad = 0) {
     if (Math.hypot(x - CLEARING.x, z - CLEARING.z) <= this.treeline + pad) return true;
+    if ((this.S.colonies || []).some(c => Math.hypot(x - c.x, z - c.z) <= c.r + pad)) return true;
     return this.S.lobes.some(l => inPoly(l.poly, x, z) || (pad > 0 && l.poly.some((p, i) => segDist(x, z, p, l.poly[(i + 1) % l.poly.length]) < pad)));
   }
   // a line drawn by hand ([[x, z], ...]) out from the settlement's ground and back to it: the ground it rings is claimed
@@ -419,6 +424,8 @@ export class Town {
   // is this spot on the settlement's ground? (the old circle, or a claim, with room for something r across)
   onGround(x, z, r) {
     if (Math.hypot(x - CLEARING.x, z - CLEARING.z) <= this.clearR + 6 - r * 0.5) return true;
+    // (a settlement founded out in the forest)
+    if ((this.S.colonies || []).some(c => Math.hypot(x - c.x, z - c.z) <= c.r + 2 - r * 0.5)) return true;
     for (const l of this.S.lobes) {
       if (!inPoly(l.poly, x, z)) continue;
       // (clear of the claim's outer edges by half its size: the edge on the circle is open to the old ground)
@@ -1844,6 +1851,7 @@ export class Town {
     // how long it has been played (free play): some things wait on it
     if (G.mode === "play" && this.techGates) this.S.playSecs = (this.S.playSecs || 0) + dt;
     if (this.S.revolt && this.S.revolt.active && (this._revT = (this._revT || 0) - dt) <= 0) { this._revT = 1; checkEnd(this); }
+    if (this.techGates && (this._colT = (this._colT || 0) - dt) <= 0) { this._colT = 2; colonyCheck(this); }
     this.updateGates();
     // the scholars at their desk
     const r = this.S.tech.research;

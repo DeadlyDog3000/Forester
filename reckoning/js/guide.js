@@ -173,6 +173,14 @@ export const GUIDE = {
       "Food, warmth, beds, a church, low taxes and shops keep people content.",
     ],
   },
+  colony: {
+    kicker: "The settlement", title: "A second settlement",
+    steps: [
+      "After forty minutes of play, you're asked once whether to <b>found a new settlement</b>.",
+      "Say yes and name it. A <b>road is cut through the forest</b> to a new clearing, with a fire ring and a signpost. It's on the map (<kbd>J</kbd>).",
+      "Build there just as you do at home (<kbd>B</kbd>). It shares the same stores, treasury and people, so your haulers and builders work both.",
+    ],
+  },
   cave: {
     kicker: "The caves", title: "Under the hill",
     steps: [
@@ -202,4 +210,4 @@ export const GUIDE = {
   },
 };
 // the order the book lists them in
-export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "business", "horse", "cave", "revolt", "raid"];
+export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "colony", "business", "horse", "cave", "revolt", "raid"];

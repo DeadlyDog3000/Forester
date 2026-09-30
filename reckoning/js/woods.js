@@ -448,6 +448,12 @@ export class Woods extends WorldBase {
       for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
       road(c, this.road, X, Z, rw);
     }
+    // the other settlements, and their roads
+    for (const col of this.colonies || []) {
+      road(c, col.road.map(([x, z]) => ({ x, z })), X, Z, Math.max(2.2, Math.min(4.5, S * 1.9)) * 0.8);
+      c.fillStyle = "rgba(214,200,150,0.9)"; c.beginPath(); c.arc(X(col.x), Z(col.z), col.r * S, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]);
+    }
     // the ground won from the forest beyond the old edge
     if (this.lobes && this.lobes.length) {
       c.fillStyle = "rgba(214,200,150,0.9)"; c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]);
@@ -502,6 +508,7 @@ export class Woods extends WorldBase {
   mapLabels(c, X, Z, S, set) {
     const L = (text, wx, wz, dy, size) => { if (seen(set, wx, wz)) label(c, text, X(wx), Z(wz) + dy, size); };
     L("The Clearing", CLEARING.x, CLEARING.z, CLEARING.r * S + 14, 15);
+    for (const col of this.colonies || []) label(c, col.name, X(col.x), Z(col.z) + col.r * S + 12, 14);
     L("the road north-east", -40, -120, 0, 13);
     L("The old woods", 70, -200, 0, 18);
     L("to Hamburg", 0, 40, 0, 14);

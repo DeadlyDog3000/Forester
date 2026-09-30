@@ -7,6 +7,31 @@
 
 export const CHANGELOG = [
   {
+    v: "0.30", date: "30 September 2026", title: "A country of its own",
+    items: [
+      "Caves: a mouth in a hillside out in the forest, and behind it hall after hall of dark rock, thick with copper, tin and iron. Your lantern and a few old torches light the way. Sometimes raiders have made their camp down there.",
+      "A second settlement: after forty minutes of play you're asked whether to found one. Say yes and a road is cut through the forest to a new clearing, with its name on a signpost.",
+      "Settlers earn wages selling their wares to the pedlar, and you tax them (G, Taxes & trade). A tenth of every tax is yours. High taxes make them unhappy, though the contented mind less.",
+      "Companies: a settler who has saved enough may start one (Bread, Meats, Lumber, Stone, Ironmongers or Goods). Each has its own name, colours, pattern, emblem and banner. They fell their own timber and build a shop, and you can buy there cheaply. There's a business tax, and laws: forbid businesses, or make them ask your leave and show you the spot.",
+      "A rising: keep the settlement miserable (under 35) and, after twenty minutes of play, the unhappiest take up arms with red rags on their arms. The loyal fight them in the streets. Lose, and they take the treasury and strike down the taxes.",
+      "Horses: research Horses, build a Stable, and ride at more than twice walking speed. X gets you down.",
+      "A backpack: prey drop hides, and four make a Hide backpack at the chopping block. Your pack holds 6 slots to start, 12 with the backpack, then 18 and 27 as you stitch better ones.",
+      "Hunters: a new trade. They go out to the deer ride and bring back meat and hides.",
+      "A cabin rebuilt in timber and plaster is a House, and sleeps 3. Your own cabin can be rebuilt as one too (B, inside), with plastered walls, a boarded floor and room for settlers in the spare beds.",
+      "Claim new ground by drawing: hold the left button on the map and draw out from the settlement's edge round the ground you want, and back.",
+      "The land rolls: hills, ridges and hollows. Paths and fields lie along the slope, and buildings are dug into it.",
+      "Stumps can be dug up (hold F), and nothing grows there again.",
+      "Paths are a quarter quicker to walk on. Settlers no longer clip through walls.",
+      "Harder raiders: tougher, quicker, harder-hitting, more of them, and a parry stuns them for less time. Once Policing is known, only the watch fights them; everyone else takes cover.",
+      "Everything yields less: fields give 4 rye (5 with a well), a loaf takes 2.5 rye, trees give fewer logs, and works and ore rocks make less. Food fills you less.",
+      "No reaping or sowing in winter, and nobody tells you to. Your sibling only worries about food when the bread is short too.",
+      "Only haulers stack the woodshed: what you bring is left beside it. Logs from a tree felled far out stay where it fell.",
+      "Research advice names the whole path (\"Research Land Ownership, then Township, for a town hall\"), so it can always be done.",
+      "; flies a free camera, with no HUD. Right-click is no longer a second F.",
+      "Your breathing is softer, like breath and not like grass.",
+    ],
+  },
+  {
     v: "0.29", date: "30 September 2026", title: "More room for logs",
     items: [
       "Woodsheds can be made bigger. Look at one (V) and build on a second bay (holds 70 logs), then a third (120). Each bay is the shed again, built on beside it, and the logs fill all of them.",
