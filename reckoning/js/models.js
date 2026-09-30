@@ -842,3 +842,51 @@ export function makeShip(len = 18, seed = 3) {
   g.userData.bob = r() * 10;
   return g;
 }
+
+// ---- a horse, low-poly: body, neck and head, four legs that swing from the shoulder and hip, a mane and a tail ----
+// facing +Z, standing on y = 0; { root, legs: [fl, fr, bl, br], neck, gait(t, k) } — gait swings the legs (k: 0 still, 1 gallop)
+export function makeHorse(coat = 0x6a4428, seed = 1) {
+  const root = new THREE.Group();
+  const hide = mat(coat, { roughness: 0.9 }), dark = mat(0x2a1c12, { roughness: 0.9 }), hoof = mat(0x1a1410, { roughness: 0.8 });
+  const bx = (w, h, d, x, y, z, m, p = root) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; };
+  // the barrel, a little rounder at the chest and the rump
+  bx(0.5, 0.52, 1.5, 0, 1.18, 0, hide);
+  bx(0.46, 0.5, 0.36, 0, 1.2, 0.72, hide);
+  bx(0.48, 0.5, 0.34, 0, 1.22, -0.72, hide);
+  // neck and head, from the withers forward and up
+  const neck = new THREE.Group(); neck.position.set(0, 1.36, 0.82); neck.rotation.x = -0.75; root.add(neck);
+  bx(0.26, 0.3, 0.75, 0, 0, 0.3, hide, neck);
+  bx(0.06, 0.14, 0.7, 0, 0.19, 0.28, dark, neck);                   // the mane
+  const head = new THREE.Group(); head.position.set(0, 0.02, 0.66); head.rotation.x = 1.25; neck.add(head);
+  bx(0.22, 0.2, 0.55, 0, 0, 0.22, hide, head);
+  bx(0.18, 0.16, 0.12, 0, -0.02, 0.5, dark, head);                  // the muzzle
+  for (const s of [-1, 1]) bx(0.05, 0.12, 0.05, s * 0.08, 0.15, 0.02, hide, head);   // ears
+  // the saddle and the blanket under it
+  bx(0.56, 0.05, 0.62, 0, 1.46, 0.05, mat(0x6a2a20, { roughness: 0.9 }));
+  bx(0.4, 0.1, 0.48, 0, 1.51, 0.05, mat(0x3a2414, { roughness: 0.7 }));
+  // the tail
+  const tail = new THREE.Group(); tail.position.set(0, 1.35, -0.9); tail.rotation.x = 0.5; root.add(tail);
+  bx(0.1, 0.1, 0.62, 0, 0, -0.3, dark, tail);
+  // the legs: an upper and a lower, hung from the shoulder or hip
+  const legs = [];
+  for (const [x, z] of [[-0.17, 0.62], [0.17, 0.62], [-0.17, -0.62], [0.17, -0.62]]) {
+    const l = new THREE.Group(); l.position.set(x, 1.0, z); root.add(l);
+    bx(0.13, 0.52, 0.15, 0, -0.26, 0, hide, l);
+    const low = new THREE.Group(); low.position.y = -0.5; l.add(low);
+    bx(0.09, 0.46, 0.1, 0, -0.23, 0, hide, low);
+    bx(0.12, 0.06, 0.13, 0, -0.47, 0.01, hoof, low);
+    l.userData.low = low; legs.push(l);
+  }
+  const gait = (t, k) => {
+    // a gallop: the fore pair and the hind pair each a little apart, fore and hind half a stride apart
+    const ph = [0, 0.18, 0.5, 0.68];
+    legs.forEach((l, i) => {
+      const a = Math.sin((t + ph[i]) * Math.PI * 2);
+      l.rotation.x = a * 0.7 * k;
+      l.userData.low.rotation.x = (i < 2 ? 1 : -1) * Math.max(0, -a) * 0.9 * k;
+    });
+    neck.rotation.x = -0.75 + Math.sin(t * Math.PI * 2) * 0.08 * k;
+    tail.rotation.x = 0.5 + k * 0.4 + Math.sin(t * Math.PI * 4) * 0.1 * k;
+  };
+  return { root, legs, neck, gait };
+}

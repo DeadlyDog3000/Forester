@@ -7,12 +7,12 @@
 // the one thing in front of you that E would do something to.
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
-import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, modelCopy, setToolSource, makeOwnArm } from "./models.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
-import { freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills } from "./body.js";
+import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills } from "./body.js";
 
 /* global SFX */
 
@@ -48,6 +48,8 @@ addEventListener("mouseup", e => { if (e.button === 0) input.mouseDown = false; 
 // ---------------------------------------------------------------------------
 //  the game object everything shares
 // ---------------------------------------------------------------------------
+// how much quicker a path is to walk on, for you and for everyone
+const PATH_SPEED = 1.25;
 export const G = {
   mode: "title",        // title | play | pause
   scene: new THREE.Scene(),
@@ -283,7 +285,6 @@ export class Player {
     // hold the right mouse button to draw; let it go to loose
     if (!input.rdown) this.noDraw = false;
     // (nor does holding right-click on something to use it, like an arrow to pull out)
-    if (input.rdown && this.draw === 0 && G.interactTarget) this.noDraw = true;
     if (free && input.rdown && !this.noDraw && (this.arrows || 0) > 0 && this.reload <= 0) {
       if (this.draw === 0) { SFX.pickup && SFX.pickup(); this.heldFull = 0; }
       this.draw = Math.min(1, this.draw + dt / 0.85);
@@ -425,7 +426,7 @@ export class Player {
   update(dt) {
     const w = G.world;
     const s = G.settings;
-    const look = !G.cine && G.mode === "play";
+    const look = !G.cine && G.mode === "play" && !G.freecam;
     if (!look) UI.swingArrow(null);
     if (look) {
       const zs = 1 - (G.zoom || 0) * 0.6;
@@ -449,7 +450,7 @@ export class Player {
 
     // movement
     let mx = 0, mz = 0;
-    const canMove = G.mode === "play" && !G.lockMove && !UI.dialogOpenBlocking;
+    const canMove = G.mode === "play" && !G.lockMove && !UI.dialogOpenBlocking && !G.freecam;
     if (canMove) {
       if (input.down("KeyW") || input.down("ArrowUp")) mz -= 1;
       if (input.down("KeyS") || input.down("ArrowDown")) mz += 1;
@@ -510,7 +511,10 @@ export class Player {
       UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick);
     } else UI.vitals(null);
     if (sprint && this.crouched) this.crouched = false;
-    const max = (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1);
+    // (a path is quicker going: a quarter faster along it; looked for a few times a second)
+    if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.15; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(this.pos.x, this.pos.z)); }
+    const max = (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1);
+    if (this.horse) this.crouched = false;
     const len = Math.hypot(mx, mz);
     const c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
     let wx = 0, wz = 0;
@@ -550,8 +554,16 @@ export class Player {
     }
     this.speed = Math.hypot(this.pos.x - ox, this.pos.z - oz) / Math.max(dt, 1e-4);
 
+    // on horseback: the horse under you, its legs going with the pace, and its hooves on the ground
+    if (this.horse) {
+      const h = this.horse;
+      h.root.position.set(this.pos.x, this.pos.y, this.pos.z); h.root.rotation.y = this.yaw + Math.PI;
+      h.phase = (h.phase || 0) + this.speed * dt / 3.2;
+      h.gait(h.phase, Math.min(1, this.speed / 5));
+      if (this.onGround && this.speed > 0.6 && Math.floor(h.phase * 2) !== h.lastBeat) { h.lastBeat = Math.floor(h.phase * 2); AUDIO.step("dirt", 0.9, { fast: true }); AUDIO.step("dirt", 0.7, { fast: true }); }
+    }
     // footsteps
-    if (this.onGround && this.speed > 0.4) {
+    if (this.onGround && this.speed > 0.4 && !this.horse) {
       this.stride += this.speed * dt;
       const every = sprint ? 1.6 : 1.25;
       if (this.stride > every) { this.stride = 0; AUDIO.step(w && w.surfaceAt ? w.surfaceAt(this.pos.x, this.pos.z) : "grass", this.crouched ? 0.25 : sprint ? 0.75 : 0.55, { fast: sprint }); }
@@ -573,7 +585,7 @@ export class Player {
       for (let d = 0.2; d <= 0.5; d += 0.15) if (w.col.solidAt(this.pos.x + rx * d, this.pos.y + this.eye, this.pos.z + rz * d, 0.12)) { leanWant *= (d - 0.2) / 0.3; break; }
     }
     this.lean += (leanWant - this.lean) * Math.min(1, dt * 9);
-    const targetEye = this.seated ? 1.2 : this.crouched ? 1.05 : 1.62;
+    const targetEye = this.horse ? 2.35 : this.seated ? 1.2 : this.crouched ? 1.05 : 1.62;
     this.eye += (targetEye - this.eye) * Math.min(1, dt * 10);
 
     // body
@@ -639,6 +651,17 @@ export class Player {
     this.updateWork(dt);
   }
   // where your eyes are, leaning included
+  // up on a horse from the stable, and down again (it goes back there by itself)
+  mount() {
+    if (this.horse) return;
+    this.horse = makeHorse(0x6a4428); G.scene.add(this.horse.root);
+    this.radius = 0.55; if (this.axe) this.giveAxe(false);
+    AUDIO.step("dirt", 0.8);
+  }
+  dismount() {
+    if (!this.horse) return;
+    G.scene.remove(this.horse.root); this.horse = null; this.radius = 0.32;
+  }
   eyePos() {
     const l = this.lean * 0.5;
     return new THREE.Vector3(this.pos.x + Math.cos(this.yaw) * l, this.pos.y + this.eye - Math.abs(this.lean) * 0.08, this.pos.z - Math.sin(this.yaw) * l);
@@ -649,8 +672,36 @@ export class Player {
 //  the camera: over the eyes, or over the shoulder
 // ---------------------------------------------------------------------------
 const _cam = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0), _dig = new THREE.Vector3();
+// the free camera (;): the view leaves your body and goes where you steer it — WASD, Space up, C down, Shift quicker
+function freeCamera(dt) {
+  const f = G.freecam;
+  if (G.mode === "play") {
+    const s = G.settings;
+    f.yaw -= input.mdx * 0.0022 * s.sens; f.pitch = clamp(f.pitch - input.mdy * 0.0022 * s.sens * (s.invert ? -1 : 1), -1.5, 1.5);
+    const sp = (input.down("ShiftLeft") || input.down("ShiftRight") ? 22 : 7) * dt;
+    const fx = -Math.sin(f.yaw) * Math.cos(f.pitch), fy = Math.sin(f.pitch), fz = -Math.cos(f.yaw) * Math.cos(f.pitch);
+    const rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);
+    const k = (a, b) => (input.down(a) ? 1 : 0) - (input.down(b) ? 1 : 0);
+    const fw = k("KeyW", "KeyS"), st = k("KeyD", "KeyA"), up = k("Space", "KeyC");
+    f.x += (fx * fw + rx * st) * sp; f.y += (fy * fw + up) * sp; f.z += (fz * fw + rz * st) * sp;
+    const w = G.world; if (w && w.heightAt) f.y = Math.max(f.y, w.heightAt(f.x, f.z) + 0.3);
+  }
+  camera.rotation.set(f.pitch, f.yaw, 0, "YXZ");
+  camera.position.set(f.x, f.y, f.z);
+  const p = G.player;
+  if (p.axe) p.axe.visible = false;
+  if (p.workRig) p.workRig.visible = false;
+  if (p.model) p.model.root.visible = true;
+}
+G.toggleFreecam = () => {
+  if (G.freecam) { G.freecam = null; camera.rotation.order = "YXZ"; if (G.player.model) G.player.model.root.visible = false; return false; }
+  const p = G.player, e = p.eyePos();
+  G.freecam = { x: e.x, y: e.y, z: e.z, yaw: p.yaw, pitch: p.pitch };
+  return true;
+};
 function updateCamera(dt) {
   const p = G.player;
+  if (G.freecam) { freeCamera(dt); return; }
   const third = !!G.forceThird;   // first person always; only a scene may step the camera back
   const bobY = third ? 0 : Math.sin(p.bob * 2) * 0.035 * Math.min(1, p.speed / 3);
   const bobX = third ? 0 : Math.cos(p.bob) * 0.025 * Math.min(1, p.speed / 3);
@@ -715,10 +766,10 @@ let planFrame = -1;
 // would someone standing here be inside something? (the same height band you collide in)
 // (y is the ground height, found once per search: sampling the terrain for every cell is the slow part)
 function blockedAt(w, x, z, pad = NPC_R, y = w.heightAt(x, z)) {
-  for (const o of w.col.near(x, z, pad + 0.5)) {
+  for (const o of w.col.near(x, z, pad + 1.3)) {
     if (o.disabled || y + 0.3 > o.y1 - 0.05 || y + 1.7 < o.y0) continue;
     if (o.type === "box") { if (x > o.x0 - pad && x < o.x1 + pad && z > o.z0 - pad && z < o.z1 + pad) return true; }
-    else if ((x - o.x) ** 2 + (z - o.z) ** 2 < (o.r + pad) ** 2) return true;
+    else if ((x - o.x) ** 2 + (z - o.z) ** 2 < (o.r + pad + (o.npcPad || 0)) ** 2) return true;
   }
   return false;
 }
@@ -829,17 +880,29 @@ function mineSwing() {
     UI.hint(`Too hard for a ${TIER_NAME[tools.pick]} pick — ${k.kind === "iron" ? "iron wants a bronze pickaxe" : `${k.kind} wants a stone pickaxe`}.`, 3);
     return;
   }
+  // (a full pack: nothing more to put it in)
+  if (roomFor(G.pack, G.body, R.gives) <= 0) { UI.hint("Your pack is full. Put things in a chest — or make a backpack from hides at the chopping block.", 3.5); return; }
   AUDIO.clang(0.4, { x: k.x, y: k.y + 0.6, z: k.z }); SFX.chop && SFX.chop();
   k.hp -= 1 + ((tools.pick - R.need) * 0.5) + (Math.random() < skillK(G.body, "strength") * 0.6 ? 1 : 0);
   G.practise("strength", 0.5);
   if (k.hp > 0) { k.g.position.x += (Math.random() - 0.5) * 0.02; return; }
   w.breakRock(k);
   SFX.treeFall && SFX.treeFall(0.2);
-  const item = ITEM[R.gives], have = G.pack.find(i => i.icon === R.gives);
-  if (have) have.n = (have.n || 1) + R.n; else G.pack.push({ icon: R.gives, name: item.name, note: item.note, n: R.n });
-  UI.hint(`${R.n} ${item.name.toLowerCase()}.`, 2);
+  const item = ITEM[R.gives], got = G.packAdd(R.gives, R.n);
+  UI.hint(`${got} ${item.name.toLowerCase()}.`, 2);
   G.emitMine && G.emitMine(k.kind);
 }
+// something put in your pack, as much as there is room for (a dozen to a slot); how many went in
+G.packAdd = (icon, n, name, note) => {
+  const put = Math.min(n, roomFor(G.pack, G.body, icon));
+  if (put > 0) {
+    const have = G.pack.find(i => i.icon === icon);
+    if (have) have.n = (have.n || 1) + put;
+    else G.pack.push({ icon, name: name || (ITEM[icon] || {}).name || icon, note: note || (ITEM[icon] || {}).note || "", n: put });
+  }
+  if (put < n) UI.hint(`Your pack is full${put ? ` — only ${put} went in` : ""}. Put things in a chest, or make a bigger backpack from hides.`, 4);
+  return put;
+};
 // practice at something: a word when it rises
 G.body = freshBody();
 setToolSource(() => G.body && G.body.tools);
@@ -921,7 +984,7 @@ export class Actor {
   collide() {
     const w = G.world, p = this.pos;
     if (!w || !w.col) return;
-    w.col.resolve(p, NPC_R, w.heightAt(p.x, p.z) + 0.3, 1.4);
+    w.col.resolve(p, NPC_R, w.heightAt(p.x, p.z) + 0.3, 1.4, true);
     const pl = G.player;
     if (pl && pl.pos) {
       const dx = p.x - pl.pos.x, dz = p.z - pl.pos.z, d = Math.hypot(dx, dz), rr = NPC_R + (pl.radius || 0.3);
@@ -973,7 +1036,8 @@ export class Actor {
         planFrame = G.time; this.steps = findPath(G.world, p.x, p.z, t.x, t.z); this.stepsFor = t; this.stuck = 0; this.replans = this.replans && this.lastFor === t ? this.replans : 0; this.lastFor = t; this.bestD = Infinity; }
       const st = this.steps[0];
       const dx = st.x - p.x, dz = st.z - p.z, l = Math.hypot(dx, dz);
-      spd = this.walkSpeed;
+      if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.25; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(p.x, p.z)); }
+      spd = this.walkSpeed * (this.onPath ? PATH_SPEED : 1);
       const arrive = () => {
         this.path.shift(); this.steps = []; this.stepsFor = null; this.replans = 0;
         if (!this.path.length && this.resolve) { const r = this.resolve; this.resolve = null; r(); }
@@ -1097,8 +1161,7 @@ function updateInteract(dt) {
   if (ch) {
     let k = 0;                                          // 0 yellow .. 1 green
     if (it && G.holdT > 0) k = clamp(G.holdT / (it.hold || 1), 0, 1);
-    const rUse = true;
-    if (it && (input.hit("KeyF") || (rUse && input.rclick)) && !it.hold) crossFlash = 1;
+    if (it && input.hit("KeyF") && !it.hold) crossFlash = 1;
     if (G.player && G.player.swingT >= 0) crossFlash = Math.max(crossFlash, 1 - G.player.swingT / 0.62);
     crossFlash = Math.max(0, crossFlash - dt * 2.2);
     k = Math.max(k, crossFlash);
@@ -1125,12 +1188,11 @@ function updateInteract(dt) {
   // every action fills the wheel: a quick one in a moment, talking in a second, real work as long as it takes
   const hold = it.hold || (talk ? 1.0 : 0.4);
   UI.prompt(label, hold >= 1);
-  const pressing = input.down("KeyF") || (input.rdown && !(G.player && G.player.draw > 0));
+  // (F only: the right button is the bow and the guard, never a second F)
+  const pressing = input.down("KeyF");
   // (once done, let go before the next: holding F doesn't open and shut a door over and over)
   if (!pressing) G.holdLatch = false;
   if (pressing && !G.holdLatch) {
-    // (a right-click that uses something is not also the start of a draw)
-    if (input.rdown && G.player) G.player.noDraw = true;
     G.holdT += dt;
     if (it.actor) it.actor.talkUntil = G.time + 0.3;
     if (it.onHoldTick) it.onHoldTick(dt, G.holdT);
@@ -1377,6 +1439,8 @@ function updateMinimap(dt) {
 //  worlds
 // ---------------------------------------------------------------------------
 export function setWorld(w) {
+  if (G.player && G.player.horse) G.player.dismount();
+  if (G.freecam) G.freecam = null;
   if (G.world) G.world.dispose();
   G.world = w;
   AUTO_FULL.value = w.name === "hamburg" ? 1 : 0;
@@ -1408,7 +1472,7 @@ export function frame(dt, skipRender) {
     for (const f of G.onFrame.slice()) f(dt);
     updateInteract(dt);
     // the axe swings on a click, when there is an axe
-    if (input.click && G.player.axe && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);
+    if (input.click && G.player.axe && !G.player.horse && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);
     // move dialogue on
     if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();
   } else if (w) {

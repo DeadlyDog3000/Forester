@@ -34,7 +34,7 @@ T("pettraining", "Pet Training", "growth", ["pets"], 6, "Guard animals: torching
 T("petarmour", "Pet Armour", "growth", ["pettraining"], 7, "Police +25 health");
 T("guarddogs", "Guard Dogs", "growth", ["pettraining"], 7, "Police spot enemies much farther away");
 T("wardogs", "War Dogs", "growth", ["guarddogs"], 8, "Police +5 damage");
-T("horses", "Horses", "growth", ["taming"], 5, "Everyone walks 15% faster");
+T("horses", "Horses", "growth", ["taming"], 5, "Everyone walks 15% faster; unlocks the Stable, and a horse of your own to ride");
 T("horsebreeding", "Horse Breeding", "growth", ["horses"], 6, "+10% more walking speed");
 T("horsefeed", "Horse Feed", "growth", ["horses"], 6, "Hunger fades 20% slower");
 T("stables", "Stables", "growth", ["horses"], 6, "Building & farm work 20% faster");
@@ -51,7 +51,7 @@ T("currencies", "Currencies", "military", ["trading"], 1, "Taxes collect +1 DM")
 T("marketing", "Marketing", "military", ["currencies"], 2, "Market prices +1 more DM");
 T("policing", "Policing", "military", ["marketing"], 3, "Unlocks recruiting police");
 T("court", "Court", "military", ["policing"], 4, "Half of beaten rebels are subdued alive");
-T("landownership", "Land Ownership", "military", ["currencies"], 2, "Cabins house 3");
+T("landownership", "Land Ownership", "military", ["currencies"], 2, "Every cabin and house sleeps one more");
 T("ownership", "Ownership", "military", ["landownership"], 3, "Dismantling refunds 75%");
 T("township", "Township", "military", ["landownership"], 3, "Unlocks the Town Hall — civilians deposit their goods there on their own");
 T("lordship", "Lordship", "military", ["ownership"], 4, "Lords underwrite the treasury: it may borrow to -50 DM");
@@ -110,7 +110,7 @@ export const techTime = t => 45 + t.depth * 40;
 // the church is Forester's House of Worship)
 // Reckoning's own few: the woodshed wants Tree Cutting, the well Replanting, the brickworks Masonry —
 // so a new settlement starts with cabins, fields and paths, and learns the rest.)
-export const BUILD_GATES = { bakery: "baking", market: "trading", townhall: "township", forge: "forging",
+export const BUILD_GATES = { stable: "horses", bakery: "baking", market: "trading", townhall: "township", forge: "forging",
   quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting", church: "ministry",
   woodshed: "treecutting", well: "replanting", brickworks: "masonry", shrine: "consecration", jail: "policing",
   palisade: "defending", gate: "defending", stonewall: "defplus", hospital: "physick" };

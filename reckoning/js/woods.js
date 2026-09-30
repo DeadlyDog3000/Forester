@@ -955,6 +955,33 @@ export class Woods extends WorldBase {
     this.hearth.userData.flame.base = 5 * k;
     this.hearth.visible = k > 0.02;
   }
+  // the cabin rebuilt as a house, inside: whitewashed plaster between dark timbers, a boarded floor, a beam overhead
+  setHomeTier(tier) {
+    if (this.homeRemodel) { this.root.remove(this.homeRemodel); this.homeRemodel = null; }
+    if (!this.cabinUp || (tier || 1) < 2) return;
+    const b = new Builder(), PL = 0xe8e0cc, TB = 0x3e2a1a, FL = 0x8a6440;
+    const box = (w, h, d, lx, y, lz, col) => { const [x, z] = this.cabinToWorld(lx, lz); b.box(w, h, d, x, y, z, col, CABIN.ry); };
+    const H = 2.35, X = 2.28, Zb = -2.82, Zf = 2.82;
+    // the floor: boards, lengthwise, a little apart
+    for (let i = 0; i < 9; i++) box(0.5, 0.03, 5.5, -2.0 + i * 0.5, 0.02, 0, i % 2 ? FL : 0x7e5a38);
+    // plaster on the side walls, and the back (round the hearth) and the front (round the door)
+    box(0.04, H, 5.5, -X, H / 2, 0, PL); box(0.04, H, 5.5, X, H / 2, 0, PL);
+    box(1.9, H, 0.04, 1.3, H / 2, Zb, PL); box(0.28, H, 0.04, -2.1, H / 2, Zb, PL); box(1.6, H - 1.3, 0.04, -1.2, 1.3 + (H - 1.3) / 2, Zb, PL);
+    box(1.35, H, 0.04, -1.62, H / 2, Zf, PL); box(1.35, H, 0.04, 1.62, H / 2, Zf, PL);
+    // the timbers: posts along the walls, a rail at the middle, a plate at the top, braces in the corners
+    for (const lz of [-2.7, -1.35, 0, 1.35, 2.7]) for (const s of [-1, 1]) box(0.12, H, 0.12, s * (X - 0.05), H / 2, lz, TB);
+    for (const s of [-1, 1]) { box(0.1, 0.12, 5.5, s * (X - 0.05), 1.15, 0, TB); box(0.12, 0.14, 5.6, s * (X - 0.05), H, 0, TB); }
+    for (const lx of [-2.2, 0.35, 2.2]) box(0.12, H, 0.12, lx, H / 2, Zb + 0.05, TB);
+    for (const lx of [-2.2, -1.0, 1.0, 2.2]) box(0.12, H, 0.12, lx, H / 2, Zf - 0.05, TB);
+    box(4.6, 0.12, 0.1, 0, 1.15, Zf - 0.05, TB); box(4.6, 0.14, 0.12, 0, H, Zb + 0.05, TB); box(4.6, 0.14, 0.12, 0, H, Zf - 0.05, TB);
+    // a tie-beam across, and a lantern hung from it
+    box(4.6, 0.18, 0.18, 0, H + 0.05, 0, TB);
+    box(0.02, 0.4, 0.02, 0.3, H - 0.2, 0, 0x2a2420); box(0.2, 0.26, 0.2, 0.3, H - 0.5, 0, 0xd9a24a);
+    this.homeRemodel = b.build(MAT.rough);
+    this.homeRemodel.position.y = this.cabinY + 0.07;
+    this.root.add(this.homeRemodel);
+    if (this.homeLight) this.homeLight.distance = 9;
+  }
   // what stands in the cabin: [{type, lx, lz, ry}]; null for the pallets they started with
   setFurniture(list) {
     this.furniture = list || DEFAULT_HOME();

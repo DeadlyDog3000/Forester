@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
@@ -253,6 +253,7 @@ function buildChapters() {
 
 // ---- inventory (T) ----
 const ICON = {
+  hide: "art/item_hide.png", pack1: "art/item_pack.png", pack2: "art/item_pack.png", pack3: "art/item_pack.png",
   key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", cookedmeat: "../assets/sprites/items/meat_cooked.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
   hammer1: "../assets/sprites/items/tool_stone.png", hammer2: "../assets/sprites/items/tool_stone.png", hammer3: "../assets/sprites/items/tool_bronze.png", hammer4: "../assets/sprites/items/tool_bronze.png", hammer5: "../assets/sprites/items/tool_iron.png",
   sword1: "../assets/sprites/items/weapon_stone.png", sword3: "../assets/sprites/items/weapon_bronze.png", sword4: "../assets/sprites/items/weapon_bronze.png", sword5: "../assets/sprites/items/weapon_iron.png",
@@ -279,9 +280,11 @@ function renderInventory() {
   else if (UI.carrying) hands[/ledger/i.test(UI.carrying) ? 0 : 1] = { icon: /ledger/i.test(UI.carrying) ? "ledger" : "logs", name: UI.carrying, note: /ledger/i.test(UI.carrying) ? "The tally of the Baltic grain, for Jakob to sign." : "" };
   let html = `<div class="mc-sec">Hands <span class="mc-hint" style="float:right">your own purse: ${(G.body && G.body.purse) || 0} DM</span></div><div class="mc-row hands">${slot(hands[0])}${slot(hands[1])}</div>`;
   // what is on you: three rows of nine
-  const pack = G.pack.slice(0, 27);
-  html += `<div class="mc-sec">On you</div>`;
-  for (let r = 0; r < 3; r++) html += `<div class="mc-row">${Array.from({ length: 9 }, (_, c) => slot(pack[r * 9 + c])).join("")}</div>`;
+  const pack = G.pack.slice(0, 27), cap = packSlots(G.body), tl = G.body && G.body.tools;
+  const bag = tl && tl.pack ? ["", "a hide backpack", "a stitched pack", "a pedlar's frame pack"][tl.pack] : "no backpack — four hides make one";
+  html += `<div class="mc-sec">On you <span class="mc-hint" style="float:right">${slotsUsed(G.pack)} of ${cap} slots · ${bag}</span></div>`;
+  // (the slots past what you can carry are shut: a bigger pack opens them)
+  for (let r = 0; r < 3; r++) html += `<div class="mc-row">${Array.from({ length: 9 }, (_, c) => r * 9 + c >= cap && !pack[r * 9 + c] ? '<div class="mc-slot locked" title="A bigger backpack carries more"></div>' : slot(pack[r * 9 + c])).join("")}</div>`;
   if (camp) {
     html += `<div class="mc-sec">At the clearing</div><div class="mc-row">`;
     html += slot({ icon: "logs", n: camp.logs, name: "Logs on the stack", note: `${camp.logs} stacked by the cabin.`, dim: camp.logs === 0 });
@@ -343,7 +346,7 @@ $("chestBody").addEventListener("click", e => {
   if (el.dataset.store != null && G.town) {
     // out of the stores and into your hands: five at a time
     const k = el.dataset.store, S = G.town.S, n = Math.min(5, S[k] || 0), [, icon, name] = STORE_ITEMS.find(x => x[0] === k);
-    if (n > 0) { S[k] -= n; const have = G.pack.find(i => i.icon === icon); if (have) have.n = (have.n || 1) + n; else G.pack.push({ icon, name, note: (ITEM[icon] || {}).note || "", n }); G.town.persist(); chestNote = `Took ${n} ${name.toLowerCase()} from the stores.`; SFX.pickup && SFX.pickup(); }
+    if (n > 0) { const got = G.packAdd(icon, n, name); S[k] -= got; G.town.persist(); chestNote = got ? `Took ${got} ${name.toLowerCase()} from the stores.` : "Your pack is full."; if (got) SFX.pickup && SFX.pickup(); }
     renderChest(); return;
   }
   if (el.dataset.pack != null && chestMode === "stores" && G.town) {
@@ -360,6 +363,7 @@ $("chestBody").addEventListener("click", e => {
     else chestNote = "The chest is full.";
   } else if (el.dataset.chest != null) {
     const i = +el.dataset.chest, it = box[i]; if (!it) return;
+    if (it.n != null && roomFor(G.pack, G.body, it.icon) < (it.n || 1)) { chestNote = "Your pack hasn't room for all of that."; renderChest(); return; }
     box[i] = null;
     const same = G.pack.find(x => x.icon === it.icon && x.name === it.name && it.n != null);
     if (same) same.n = (same.n || 1) + (it.n || 1); else G.pack.push(it);
@@ -384,8 +388,8 @@ function renderCraft() {
   // only what can be made now: the next making of each tool, when everything it takes is to hand
   const rows = TOOL_RECIPES.map((r, i) => {
     if (r.tier !== nextTier(tl, r.tool) || !Object.entries(r.cost).every(([k, n]) => haveFor(k, n))) return "";
-    const cost = Object.entries(r.cost).map(([k, n]) => `${n} ${k === "logs" ? (n === 1 ? "log" : "logs") + " from the stack" : ITEM[k].name.toLowerCase()}`).join(", ");
-    const icon = r.tool === "axe" ? ICON.axe : r.tool === "spade" ? ICON.spade : ICON[r.tool + r.tier];
+    const cost = Object.entries(r.cost).map(([k, n]) => `${n} ${k === "logs" ? (n === 1 ? "log" : "logs") + " from the stack" : ITEM[k].name.toLowerCase() + (n > 1 && k === "hide" ? "s" : "")}`).join(", ");
+    const icon = r.tool === "axe" ? ICON.axe : r.tool === "spade" ? ICON.spade : ICON[r.tool + r.tier] || ICON.logs;
     return `<div class="cr-row"><img src="${icon}" alt=""><div><div class="sk-name">${r.name}</div><div class="sk-does">${r.note}</div><div class="cr-cost">${cost}</div></div>
       <button class="btn primary" data-r="${i}">Make</button></div>`;
   }).join("");
@@ -418,7 +422,7 @@ function renderKeys() {
   const sec = t => `<div class="kr-sec">${t}</div>`;
   let h = sec("Moving") + K(["W", "A", "S", "D"], "Walk") + K(["Shift"], "Run") + K(["C"], "Crouch") + K(["Space"], "Jump · move a conversation on") + K(["Q", "E"], "Lean") + K(["Z"], "Hold to look closer") + K(["M"], "Lock or free the mouse");
   h += sec("Doing") + K(["F"], "Take, open, talk — hold it for work that takes time · close a menu") + K(["Left click"], "Swing what you hold — the way you look is the way it comes") + K(["Right click"], "Draw the bow · raise your guard") + K(["1", "–", "9"], "Take out a tool · eat food in that slot");
-  h += sec("Seeing") + K(["J"], "The map") + K(["T"], "Inventory") + K(["P"], "Skills") + K(["H"], "The guide: how everything works") + K(["Tab"], "These keys");
+  h += sec("Seeing") + K(["J"], "The map") + K(["T"], "Inventory") + K(["P"], "Skills") + K(["H"], "The guide: how everything works") + K([";"], "Free camera — fly the view loose, ; again to come back") + K(["X"], "Get down off your horse") + K(["Tab"], "These keys");
   if (G.town) h += sec("The settlement") + K(["B"], "Plans — what you can build") + K(["V"], "Inspect a building: upkeep, mend, rebuild, pull down") + K(["G"], "Government: the nation, research, people, faith, Europe, ambitions");
   h += sec("") + K(["Esc"], "Pause");
   $("keysBody").innerHTML = `<div class="kr-grid">${h}</div>`;
@@ -485,7 +489,7 @@ function renderInspect() {
     ["What it is", esc(def.note || "")],
     b.done ? (style ? ["Built in", esc(style)] : null) : ["Building", `not finished — ${b.logs || 0} of ${def.cost} logs${Object.keys(def.mats || {}).length ? `, and ${esc(t.costText(def.mats))}` : ""}`],
     b.type === "field" ? ["The rye", b.sown ? ((b.growth ?? 1) >= 3 ? "ripe — reap it" : "growing") : `${b.dug || 0} of 3 strips dug`] : null,
-    b.type === "cabin" && b.done ? ["Sleeps", `${t.perCabin}`] : null,
+    b.type === "cabin" && b.done ? ["Sleeps", `${t.sleeps(b)}${(b.tier || 1) < 2 ? " — three, rebuilt as a house" : ""}`] : null,
     def.wall ? ["Stands", b.broken ? '<span class="warn">broken through — a way in for anyone, until it is mended</span>' : `${b.hp ?? def.hp} of ${def.hp}${def.wall === "gate" ? (b.open ? " · open" : " · shut") : ""}`] : null,
     (b.type === "church" || b.type === "shrine") && b.done ? ["Dedicated to", esc(FAITHS[b.faith || "lutheran"].name) + ` — ${b.type === "church" ? FAITHS[b.faith || "lutheran"].house : FAITHS[b.faith || "lutheran"].shrine}`] : null,
     b.type === "woodshed" && b.done ? ["Holds", `${SHED_BAYS[b.bays || 1].holds} logs in ${(b.bays || 1) === 1 ? "one bay" : (b.bays === 2 ? "two bays" : "three bays")} (the store holds ${t.storeCap} in all)`] : null,
@@ -509,7 +513,7 @@ function renderInspect() {
   const sig = JSON.stringify([rows, acts]);
   if (sig === inspSig) return;
   inspSig = sig;
-  $("inspTitle").textContent = def.name + ((b.tier || 1) > 1 ? ` — ${UPGRADES[b.tier].style.split(",")[0]}` : "");
+  $("inspTitle").textContent = t.nameOf(b) + ((b.tier || 1) > 1 ? ` — ${UPGRADES[b.tier].style.split(",")[0]}` : "");
   $("inspBody").innerHTML = `<div class="insp-rows">${rows.map(([k, v]) => `<span class="k">${k}</span><span>${v}</span>`).join("")}</div>`;
   $("inspActs").innerHTML = acts.join("");
 }
@@ -536,13 +540,16 @@ function renderPlans() {
   $("buildTitle").textContent = inside ? "Furnish the cabin" : "Plans";
   if (inside) {
     const cost = d => [d.logs ? d.logs + " logs" : "", d.rye ? d.rye + " rye" : ""].filter(Boolean).join(", ");
-    $("buildList").innerHTML = Object.entries(FURNITURE).map(([k, d]) => `<button class="plan${t.canAfford(k) ? "" : " short"}" data-k="${k}"><img src="${d.rye ? ICON.seeds : ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${cost(d)}</span></button>`).join("");
-    for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { if (!t.canAfford(b.dataset.k)) return; showOverlay("buildmenu", false); t.furnish(b.dataset.k); };
+    const home = (t.S.homeTier || 1) < 2 ? (() => { const u = UPGRADES[2], can = t.afford(u.mats, true); return `<button class="plan${can ? "" : " short"}" data-home="1"><img src="${ICON.cabin}" alt=""><span><span class="pn">Rebuild it as a house</span><span class="pd">Timber and plaster inside, boards on the floor. Settlers can sleep here then: one for every bed past your own two (three at most).${can ? "" : ` — ${esc(t.short(u.mats, true))} short`}</span></span><span class="pc">${esc(t.costText(u.mats))}</span></button>`; })() : "";
+    $("buildList").innerHTML = home + Object.entries(FURNITURE).map(([k, d]) => `<button class="plan${t.canAfford(k) ? "" : " short"}" data-k="${k}"><img src="${d.rye ? ICON.seeds : ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${cost(d)}</span></button>`).join("");
+    for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => {
+      if (b.dataset.home) { if (t.upgradeHome()) showOverlay("buildmenu", false); return; }
+      if (!t.canAfford(b.dataset.k)) return; showOverlay("buildmenu", false); t.furnish(b.dataset.k); };
     return;
   }
   // (what hasn't been researched isn't shown at all)
   const list = Object.entries(TOWN_BUILDINGS).filter(([k]) => (!t.unlocked || t.unlocked.has(k)) && !t.gated(k));
-  $("buildList").innerHTML = list.map(([k, d]) => t.gated(k) ? `<button class="plan short" data-k="${k}" data-gate="1"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">Requires the ${esc(t.gated(k).name)} technology — research it in the government (G).</span></span><span class="pc">locked</span></button>` : `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.path ? "free" : d.cost ? [d.cost + " logs", ...Object.entries(d.mats || {}).map(([k, n]) => `${n} ${k}`)].join(", ") : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
+  $("buildList").innerHTML = list.map(([k, d]) => t.gated(k) ? `<button class="plan short" data-k="${k}" data-gate="1"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(t.researchAdvice(t.gated(k).id, "it"))}.</span></span><span class="pc">locked</span></button>` : `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.path ? "free" : d.cost ? [d.cost + " logs", ...Object.entries(d.mats || {}).map(([k, n]) => `${n} ${k}`)].join(", ") : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
   for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { if (b.dataset.gate) return; showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
 }
 // ---- trading: a list of offers from whoever you're dealing with ----
@@ -675,7 +682,7 @@ function govPeople(t) {
   rows += `<tr><td class="nm">${sibName}</td><td>Woodcutter · family</td><td class="dim">—</td><td class="dim">—</td><td class="dim">${esc(sibA ? cap(sibA.doing || "about the clearing") : "about the clearing")}</td><td><div class="has"><span>Axe</span></div></td><td></td></tr>`;
   S.people.forEach((p, i) => {
     const a = t.actors.find(x => x.settler === p);
-    const home = cabins[Math.floor(i / t.perCabin)];
+    const home = t.bedFor(i);
     const tool = !p.child && adults.indexOf(p) < (S.tools || 0);
     const arm = t.armFor ? t.armFor(p) : null;
     const has = [p.job === "woodcutter" ? "Axe" : null, arm && arm !== "axe" && arm !== "fists" ? ARMS[arm].name : null, tool ? "Iron tools" : null, home ? "A bed" : null].filter(Boolean);
@@ -1072,13 +1079,13 @@ function eat(it) {
 // ---- the full map (J) ----
 // the wheel zooms about the point under the cursor; dragging moves the sheet
 // ---- marking out new ground on the map: a line dragged through the trees, and the ground behind it claimed ----
-const grow = { mode: false, a: null, b: null, drawing: false, check: null };
+const grow = { mode: false, pts: null, drawing: false, check: null };
 function mapWorldAt(e) {
   const mv = G.mapView; if (!mv || !mv.S) return null;
   const r = $("bigmapCanvas").getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
   return [mv.cx + (mx - mv.W / 2) / mv.S, mv.cz + (my - mv.H / 2) / mv.S];
 }
-function growReset() { grow.mode = false; grow.a = grow.b = null; grow.drawing = false; grow.check = null; $("bigmap").classList.remove("drawing"); }
+function growReset() { grow.mode = false; grow.pts = null; grow.drawing = false; grow.check = null; $("bigmap").classList.remove("drawing"); }
 function growBar() {
   const t = G.town, bar = $("bmGrow");
   const due = t && t.roomDue && t.S.lobes ? t.roomDue() : 0;
@@ -1088,14 +1095,14 @@ function growBar() {
   cancel.classList.toggle("hidden", !grow.mode);
   if (!grow.mode) { txt.textContent = `Room to grow (${t.pop} of you) — ${due > 1 ? `${due} claims` : "one claim"} to make.`; btn.textContent = "Mark out new ground"; btn.disabled = false; return; }
   const c = grow.check;
-  if (!c || !grow.a || Math.hypot(grow.b[0] - grow.a[0], grow.b[1] - grow.a[1]) < 1) { txt.textContent = "Drag a line across the trees beyond the edge."; btn.textContent = "Claim it"; btn.disabled = true; return; }
-  txt.innerHTML = c.ok ? `${c.trees} trees to fell · ${c.area} square paces · a line of ${c.len} paces` : `<span class="bad">${esc(c.why)}</span>`;
+  if (!c || !grow.pts || grow.pts.length < 2) { txt.textContent = "Hold the left button and draw from the settlement's edge out round the ground you want, and back to the edge."; btn.textContent = "Claim it"; btn.disabled = true; return; }
+  txt.innerHTML = grow.drawing ? `Drawing… ${c.area} square paces so far — bring it back to the edge` : c.ok ? `${c.trees} trees to fell · ${c.area} square paces of new ground` : `<span class="bad">${esc(c.why)}</span>`;
   btn.textContent = "Claim it"; btn.disabled = !c.ok || grow.drawing;
 }
 $("bmGrowBtn").onclick = () => {
   const t = G.town; if (!t) return;
   if (!grow.mode) { grow.mode = true; $("bigmap").classList.add("drawing"); bigMapSoon(); return; }
-  if (grow.check && grow.check.ok && t.claim(grow.a, grow.b)) { growReset(); showOverlay("bigmap", false); }
+  if (grow.check && grow.check.ok && t.claim(grow.pts)) { growReset(); showOverlay("bigmap", false); }
 };
 $("bmGrowCancel").onclick = () => { growReset(); bigMapSoon(); };
 // (a drag or a turn of the wheel asks for a redraw; it is drawn once, on the next frame, however many came)
@@ -1119,12 +1126,13 @@ $("bigmap").addEventListener("wheel", e => {
   $("bigmap").addEventListener("mousedown", e => {
     if (e.target.closest && e.target.closest(".bm-grow")) return;
     // marking out ground: a drag draws the line instead of moving the sheet
-    if (grow.mode) { const p = mapWorldAt(e); if (p) { grow.a = p; grow.b = p; grow.drawing = true; bigMapSoon(); } return; }
+    if (grow.mode) { const p = mapWorldAt(e); if (p) { grow.pts = [p]; grow.drawing = true; bigMapSoon(); } return; }
     drag = { x: e.clientX, y: e.clientY }; $("bigmap").classList.add("dragging");
   });
   addEventListener("mouseup", () => { drag = null; $("bigmap").classList.remove("dragging"); if (grow.drawing) { grow.drawing = false; bigMapSoon(); } });
   addEventListener("mousemove", e => {
-    if (grow.drawing && overlay === "bigmap") { const p = mapWorldAt(e); if (p) { grow.b = p; bigMapSoon(); } return; }
+    // (a point every pace or so, as the pen goes)
+    if (grow.drawing && overlay === "bigmap") { const p = mapWorldAt(e), l = grow.pts[grow.pts.length - 1]; if (p && Math.hypot(p[0] - l[0], p[1] - l[1]) > 1.2) { grow.pts.push(p); bigMapSoon(); } return; }
     const mv = G.mapView; if (!drag || !mv || !mv.S || overlay !== "bigmap") return;
     mv.ox -= (e.clientX - drag.x) / mv.S; mv.oz -= (e.clientY - drag.y) / mv.S;
     drag = { x: e.clientX, y: e.clientY };
@@ -1166,13 +1174,15 @@ function renderBigMap() {
   const proxy = bigProxy(c, sub);
   drawMap(proxy, X, Z, S, true, cx, cz, Math.hypot(b.x1 - b.x0, b.z1 - b.z0) / mv.zoom);
   // the ground being marked out: shaded, the line staked, green if it will do and red if not
-  grow.check = grow.mode && grow.a && G.town ? G.town.claimFor(grow.a, grow.b) : null;
-  if (grow.check && Math.hypot(grow.b[0] - grow.a[0], grow.b[1] - grow.a[1]) >= 1) {
-    const q = grow.check, col = q.ok ? "46,120,60" : "170,50,35";
-    c.fillStyle = `rgba(${col},0.28)`; c.beginPath(); q.poly.forEach(([x, z], i) => i ? c.lineTo(X(x), Z(z)) : c.moveTo(X(x), Z(z))); c.closePath(); c.fill();
-    c.strokeStyle = `rgba(${col},0.9)`; c.lineWidth = 1.5; c.setLineDash([5, 4]); c.stroke(); c.setLineDash([]);
-    c.strokeStyle = MAPINK; c.lineWidth = 3; c.beginPath(); c.moveTo(X(grow.a[0]), Z(grow.a[1])); c.lineTo(X(grow.b[0]), Z(grow.b[1])); c.stroke();
-    for (const [x, z] of [grow.a, grow.b]) { c.fillStyle = `rgb(${col})`; c.beginPath(); c.arc(X(x), Z(z), 5, 0, Math.PI * 2); c.fill(); c.strokeStyle = MAPINK; c.lineWidth = 1.5; c.stroke(); }
+  grow.check = grow.mode && grow.pts && G.town ? G.town.claimFor(grow.pts) : null;
+  if (grow.check && grow.pts.length >= 2) {
+    const q = grow.check, col = grow.drawing ? "120,90,40" : q.ok ? "46,120,60" : "170,50,35";
+    c.fillStyle = `rgba(${col},0.25)`; c.beginPath(); q.poly.forEach(([x, z], i) => i ? c.lineTo(X(x), Z(z)) : c.moveTo(X(x), Z(z))); c.closePath(); c.fill();
+    // the line as drawn, in ink; the join back to the start (through the settlement) dotted
+    c.strokeStyle = MAPINK; c.lineWidth = 2.5; c.lineJoin = "round"; c.beginPath(); grow.pts.forEach(([x, z], i) => i ? c.lineTo(X(x), Z(z)) : c.moveTo(X(x), Z(z))); c.stroke();
+    const a = grow.pts[0], b = grow.pts[grow.pts.length - 1];
+    c.strokeStyle = `rgba(${col},0.9)`; c.lineWidth = 1.5; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(X(b[0]), Z(b[1])); c.lineTo(X(a[0]), Z(a[1])); c.stroke(); c.setLineDash([]);
+    for (const [x, z] of [a, b]) { c.fillStyle = `rgb(${col})`; c.beginPath(); c.arc(X(x), Z(z), 4, 0, Math.PI * 2); c.fill(); c.strokeStyle = MAPINK; c.lineWidth = 1.2; c.stroke(); }
   }
   growBar();
   // burnt, darkened edges
@@ -1300,6 +1310,13 @@ addEventListener("keydown", e => {
   if (e.code === "KeyP" && !e.repeat && G.mode === "play") showOverlay("skills", overlay !== "skills");
   if (e.code === "Tab" && !e.repeat && G.mode === "play") { e.preventDefault(); showOverlay("keysRef", overlay !== "keysRef"); }
   if (e.code === "KeyH" && !e.repeat && G.mode === "play") showOverlay("guideBook", overlay !== "guideBook");
+  // X: down off the horse, wherever you are; it goes home to the stable by itself
+  if (e.code === "KeyX" && !e.repeat && G.mode === "play" && G.player && G.player.horse) {
+    G.player.dismount(); const st = G.town && G.town.S.buildings.find(b => b.type === "stable" && b.done); if (st) G.town.show(st);
+    UI.hint("You get down. The horse trots home to the stable.", 3);
+  }
+  // ; : the free camera — the view flies loose of you (WASD, Space up, C down, Shift quicker); ; again to come back
+  if (e.code === "Semicolon" && !e.repeat && G.mode === "play" && !overlay) { const on = G.toggleFreecam(); UI.hint(on ? "Free camera: WASD to fly, Space up, C down, Shift quicker. ; to come back." : "Back in yourself.", on ? 4 : 1.5); }
   if (e.code === "KeyJ" && !e.repeat && G.mode === "play") {
     if (!G.hasMap && overlay !== "bigmap") UI.hint("You haven't a map.", 2.5);
     else showOverlay("bigmap", overlay !== "bigmap");

@@ -21,10 +21,10 @@ export const xpFor = lv => Math.round(12 + lv * 3 + lv * lv * 0.06);
 
 // what can be eaten, and how much of your hunger each takes away
 export const FOOD = {
-  blackberries: { fill: 0.06, secs: 1.1, name: "a handful of blackberries" },
-  bread: { fill: 0.35, secs: 2.2, name: "bread" },
-  meat: { fill: 0.45, secs: 2.6, name: "raw meat", raw: true },
-  cookedmeat: { fill: 0.5, secs: 2.6, name: "roast meat" },
+  blackberries: { fill: 0.04, secs: 1.1, name: "a handful of blackberries" },
+  bread: { fill: 0.2, secs: 2.2, name: "bread" },
+  meat: { fill: 0.22, secs: 2.6, name: "raw meat", raw: true },
+  cookedmeat: { fill: 0.28, secs: 2.6, name: "roast meat" },
 };
 
 // tools you make yourself, in their makings: 0 none, 1 wood, 2 stone, 3 copper, 4 bronze, 5 iron.
@@ -49,6 +49,9 @@ export const TOOL_RECIPES = [
   { tool: "hammer", tier: 3, name: "Copper hammer", cost: { logs: 1, copper: 3 }, note: "Quicker again." },
   { tool: "hammer", tier: 4, name: "Bronze hammer", cost: { logs: 1, bronze: 3 }, note: "Quicker again." },
   { tool: "hammer", tier: 5, name: "Iron hammer", cost: { logs: 1, iron: 3 }, note: "A building raised in half the time." },
+  { tool: "pack", tier: 1, name: "Hide backpack", cost: { hide: 4 }, note: "Four hides, laced. Twelve slots on your back instead of six." },
+  { tool: "pack", tier: 2, name: "Stitched pack", cost: { hide: 6, logs: 1 }, note: "Doubled hide on a bent-wood frame: eighteen slots." },
+  { tool: "pack", tier: 3, name: "Pedlar's frame pack", cost: { hide: 8, logs: 2, iron: 1 }, note: "A wooden frame with an iron buckle, as the pedlars carry: twenty-seven slots." },
   { tool: "sword", tier: 1, name: "Wooden sword", cost: { logs: 2 }, note: "Better than your fists when they come up the road. Not much better." },
   { tool: "sword", tier: 3, name: "Copper sword", cost: { logs: 1, copper: 4 }, note: "A real blade, of your own. It bends." },
   { tool: "sword", tier: 4, name: "Bronze sword", cost: { logs: 1, bronze: 4 }, note: "Cast bronze, ground to a point: the plain blade of the age." },
@@ -59,9 +62,9 @@ export const nextTier = (tools, tool) => Math.min(...TOOL_RECIPES.filter(r => r.
 // what each kind of rock gives, and the pick it wants
 export const ROCKS = {
   stone: { need: 1, hp: 4, gives: "stone", n: 2, name: "grey stone" },
-  copper: { need: 2, hp: 6, gives: "copperore", n: 2, name: "copper rock" },
-  tin: { need: 2, hp: 6, gives: "tinore", n: 2, name: "tin rock" },
-  iron: { need: 4, hp: 8, gives: "ironore", n: 2, name: "iron rock" },
+  copper: { need: 2, hp: 6, gives: "copperore", n: 1, name: "copper rock" },
+  tin: { need: 2, hp: 6, gives: "tinore", n: 1, name: "tin rock" },
+  iron: { need: 4, hp: 8, gives: "ironore", n: 1, name: "iron rock" },
 };
 export const ITEM = {
   stone: { name: "Stone", note: "Broken from the grey rocks. For a stone pickaxe — and the settlement builds with it." },
@@ -72,12 +75,13 @@ export const ITEM = {
   tin: { name: "Tin", note: "Smelted from the ore. Cast it with copper at a forge: one of each makes two of bronze." },
   bronze: { name: "Bronze", note: "Copper and tin melted together. For bronze tools and a bronze sword." },
   iron: { name: "Iron", note: "Smelted from the ore. For an iron pickaxe or axe." },
+  hide: { name: "Hide", note: "A skin off something you hunted. Four make a backpack, at the chopping block." },
 };
 
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0 }, plague: 0, purse: 0 };
+  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0 }, plague: 0, purse: 0 };
 }
 export function restoreBody(saved) {
   const b = freshBody();
@@ -152,4 +156,17 @@ export function hungerTick(b, dt, running) {
   const before = b.hunger;
   b.hunger = Math.max(0, b.hunger - dt / 1500 * (running ? 1.8 : 1));
   if (Math.floor(before * 50) !== Math.floor(b.hunger * 50)) b.dirty = true;
+}
+
+// ---- what you can carry: slots on your back, a dozen of a thing to a slot; a backpack gives more ----
+export const PACK_SLOTS = [6, 12, 18, 27], STACK = 12;
+// (a key, a map, a spade take a slot of their own and don't stack)
+const LOOSE = new Set(["key", "map", "spade", "ledger", "door"]);
+export function packSlots(body) { return PACK_SLOTS[Math.min(3, (body && body.tools && body.tools.pack) || 0)]; }
+export function slotsUsed(pack) { return pack.reduce((a, i) => a + (LOOSE.has(i.icon) || i.n == null ? 1 : Math.ceil((i.n || 1) / STACK)), 0); }
+// how many more of a thing fit
+export function roomFor(pack, body, icon) {
+  const free = Math.max(0, packSlots(body) - slotsUsed(pack)) * STACK;
+  const have = pack.find(i => i.icon === icon), part = have && have.n ? (STACK - (have.n % STACK)) % STACK : 0;
+  return free + part;
 }

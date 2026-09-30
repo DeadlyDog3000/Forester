@@ -586,3 +586,6 @@ body.talking #hint { bottom: 298px; }
 .bm-grow .btn { padding: 5px 12px; font-size: 14px; }
 .bm-grow .bad { color: #8a2a1a; }
 #bigmap.drawing { cursor: crosshair; }
+
+/* a pack slot you can't use yet */
+.mc-slot.locked { opacity: 0.35; background: repeating-linear-gradient(45deg, rgba(59, 38, 18, 0.18) 0 4px, transparent 4px 8px); }

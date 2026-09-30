@@ -1958,6 +1958,7 @@ function startTown(w, unlocked, needed = []) {
   G.town = town;
   w.showCabin(); w.openTracks.add(3);
   w.setFurniture(S.furniture || null);
+  if ((S.homeTier || 1) >= 2) w.setHomeTier(S.homeTier);
   G.player.giveAxe(true); if (w.blockAxe) w.blockAxe.visible = false;
   // once, a little after a settlement first exists: where to see all of it
   const g0 = GEN;
@@ -1994,6 +1995,9 @@ G.emitCraft = r => {
     spade5: "Iron. The fields will dig themselves. Nearly.",
     hammer1: "A mallet. We'll have the next cabin up by supper.",
     hammer2: "A stone hammer — mind your thumbs.",
+    pack1: "A backpack! You'll carry twice what you did. More hides and you could stitch a bigger one.",
+    pack2: "That'll hold a fair load.",
+    pack3: "A pedlar's frame. You could walk to Lübeck with that.",
     sword1: "A wooden sword. Well. It's better than your fists.",
     sword3: "A copper sword. Let them come up the road now.",
     sword4: "Bronze. That's a proper blade.",
@@ -2683,7 +2687,8 @@ async function chFree(w) {
   w.huntOpen = true;
   const hunt = new Hunt(w, HUNT, {
     onDown: a => bark(YOU(), a.kind === "deer" ? "Down. Hold F to dress it." : "Got it. Hold F to take it.", 2.5),
-    onDress: (a, m) => { const have = G.pack.find(i => i.icon === "meat"); if (have) have.n = (have.n || 1) + m; else G.pack.push({ icon: "meat", name: "Meat", note: "Venison and hare. Tobias the pedlar pays well for it.", n: m }); town.persist(); },
+    // (the meat, and the hide off it: four hides make a backpack)
+    onDress: (a, m) => { G.packAdd("meat", m, "Meat", "Venison and hare. Tobias the pedlar pays well for it."); G.packAdd("hide", 1); town.persist(); },
   });
   const restock = () => { const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; if (n("deer") < 3) hunt.spawn("deer", 3 - n("deer")); if (n("hare") < 4) hunt.spawn("hare", 4 - n("hare")); };
   restock();
@@ -2717,7 +2722,7 @@ async function chFree(w) {
     restock();
     const pop = S.people.length + 2;
     // (nobody settles where the people are miserable: contentment under 40 turns them back down the road)
-    if (town.beds + 2 > pop && S.rye >= pop * 3 && town.contentment().value >= 40) {
+    if (town.beds + 2 > pop && S.rye + (S.bread || 0) * 3 >= pop * 3 && town.contentment().value >= 40) {
       const used = new Set(S.people.map(p => p.name));
       const n = NEWCOMERS.find(p => !used.has(p.name));
       if (n) {
@@ -2725,7 +2730,7 @@ async function chFree(w) {
         await arrival(town, p, ["God keep you. Is there room for one more?", "I heard there was a place up here. Is it true?", "I can work. I only need a roof.", "Henning at the kiln sent me."][S.people.length % 4]);
         UI.hint(`${p.name} has come up the road, and stays. (${p.job})`, 5);
       }
-    } else if (S.rye < pop) bark(P.sib, "The rye's running low. Reap what's ripe, or dig another field.", 4);
+    } else if (S.rye < pop && (S.bread || 0) < pop) bark(P.sib, town.winter ? "We're short of food, and nothing grows till spring. Henning's cart sells rye." : "We're short of food — the rye and the bread both. Reap what's ripe, or dig another field.", 4);
   });
   await wait(0.2);
   // (the money from the house, said once, where it will be spent)

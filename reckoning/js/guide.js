@@ -147,10 +147,19 @@ export const GUIDE = {
     steps: [
       "The settlement earns more ground as it grows: at <b>8 people</b> (you and yours counted), then at 13, 19, 26 and 34.",
       "When it does, open the map (<kbd>J</kbd>) and click <b>Mark out new ground</b>.",
-      "<b>Drag a line</b> across the trees beyond the edge. The ground between your line and the settlement is what you claim. The map shows it, with how many trees stand on it.",
-      "It can't be too big: a line of 10 to 45 paces, not too far out, and no more than 1000 square paces at once. Red means it won't do, and says why.",
+      "<b>Hold the left button and draw</b>: start on the settlement's edge, draw out round the ground you want, and bring the line back to the edge. What your line rings is what you claim. The map shows it, with how many trees stand on it.",
+      "It can't be too big: not too far out, and no more than 1000 square paces at once. Red means it won't do, and says why.",
       "Click <b>Claim it</b>. Everyone but the farmers starts felling the trees on it, and you can help. Once the trees are down, you can build there.",
       "The road stays open. Newcomers still walk up it into the settlement.",
+    ],
+  },
+  horse: {
+    kicker: "Horses", title: "Riding",
+    steps: [
+      "Once your people know <b>Horses</b> (research, <kbd>G</kbd>), you can build a <b>Stable</b> (<kbd>B</kbd>).",
+      "At the stable's open front, <kbd>F</kbd> takes a horse out. You ride it as you walk: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, and <kbd>Shift</kbd> to gallop. It is more than twice as fast.",
+      "On horseback you can't swing an axe or crouch.",
+      "<kbd>X</kbd> gets you down anywhere, and the horse finds its own way back to the stable.",
     ],
   },
   raid: {
@@ -164,4 +173,4 @@ export const GUIDE = {
   },
 };
 // the order the book lists them in
-export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "raid"];
+export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "horse", "raid"];

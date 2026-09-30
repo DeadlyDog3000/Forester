@@ -376,8 +376,10 @@ export class Collision {
     return out;
   }
   // push a circle of radius r at height band [y, y+h] out of everything
-  resolve(p, r, y = 0, h = 1.7) {
-    for (let pass = 0; pass < 2; pass++) for (const o of this.near(p.x, p.z, r + 1)) {
+  // (npc: people other than you keep the margin a building asks of them — its walls are a little inside its looks,
+  // so that you slip round a corner, but they don't clip through one)
+  resolve(p, r, y = 0, h = 1.7, npc = false) {
+    for (let pass = 0; pass < 2; pass++) for (const o of this.near(p.x, p.z, r + (npc ? 1.8 : 1))) {
       if (o.disabled || y > o.y1 - 0.05 || y + h < o.y0) continue;
       if (o.type === "box") {
         const cx = clamp(p.x, o.x0, o.x1), cz = clamp(p.z, o.z0, o.z1);
@@ -396,7 +398,7 @@ export class Collision {
           }
         }
       } else {
-        const dx = p.x - o.x, dz = p.z - o.z, rr = r + o.r, d2 = dx * dx + dz * dz;
+        const dx = p.x - o.x, dz = p.z - o.z, rr = r + o.r + (npc && o.npcPad || 0), d2 = dx * dx + dz * dz;
         if (d2 < rr * rr && d2 > 1e-8) { const d = Math.sqrt(d2); p.x = o.x + dx / d * rr; p.z = o.z + dz / d * rr; }
       }
     }

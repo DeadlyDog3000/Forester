@@ -23,6 +23,20 @@ function ctx() {
 const rnd = (a, b) => a + Math.random() * (b - a);
 const r2 = l => l[Math.floor(Math.random() * l.length)];
 
+// pink noise (Paul Kellet's filter): the soft hush of air, where white noise crackles; made once
+let pink = null;
+function pinkNoise(a) {
+  if (pink) return pink;
+  const n = a.sampleRate * 2, buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < n; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
+    b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
+    d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
+  }
+  return pink = buf;
+}
 function noiseSrc(a, loop = true) {
   const s = a.createBufferSource(); s.buffer = noise; s.loop = loop; return s;
 }
@@ -258,23 +272,43 @@ export const AUDIO = {
     vib.start(t); vib.stop(t + dur + 0.05); br.start(t, Math.random() * 1.5); br.stop(t + dur + 0.05);
   },
 
-  // your own breath: air through the mouth — in (rising, thinner) or out (falling, fuller)
+  // your own breath: air through an open mouth — pink noise (soft, no crackle) shaped by the mouth's resonances,
+  // "haa" going out and a thinner "hih" coming in, swelling and fading smoothly; winded, a little voice comes into it
   breath(inhale, vol = 0.6, period = 1.2, high = false) {
     const a = ctx(); if (!a) return;
-    const t = a.currentTime, dur = period * (inhale ? 0.36 : 0.5);
-    // air through the mouth: two bands of noise — the throat's low rush and the lips' hiss — so it
-    // reads as breath, close to the ear, and not as wind
-    const base = (inhale ? 1300 : 900) * (high ? 1.25 : 1);
-    const v = 0.13 * vol * (inhale ? 0.85 : 1);
+    const t = a.currentTime, dur = period * (inhale ? 0.42 : 0.55);
+    const pk = pinkNoise(a);
+    const v = 0.22 * vol * (inhale ? 0.7 : 1);
     const g = a.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + dur * (inhale ? 0.5 : 0.18)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    g.connect(bus);
-    for (const [fm, q, lv] of [[1, 1.4, 1], [2.6, 2.2, 0.55]]) {
-      const s = noiseSrc(a), f = a.createBiquadFilter(), lg = a.createGain();
+    // a smooth swell and a longer fall: no sharp edges, which is what made it rustle
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(v * 0.6, t + dur * (inhale ? 0.35 : 0.2));
+    g.gain.linearRampToValueAtTime(v, t + dur * (inhale ? 0.6 : 0.35));
+    g.gain.setTargetAtTime(0.0001, t + dur * (inhale ? 0.65 : 0.45), dur * 0.22);
+    const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = inhale ? 3400 : 2600; lp.Q.value = 0.5;
+    g.connect(lp); lp.connect(bus);
+    // the mouth: three soft resonances (the vowel), drifting a little over the breath
+    const k = high ? 1.12 : 1;
+    const F = inhale ? [[420, 3, 0.8], [1900, 4, 0.55], [2900, 5, 0.25]] : [[680, 2.5, 1], [1150, 3, 0.7], [2450, 4, 0.3]];
+    for (const [fr, q, lv] of F) {
+      const s = a.createBufferSource(); s.buffer = pk; s.loop = true;
+      const f = a.createBiquadFilter(), lg = a.createGain();
       f.type = "bandpass"; f.Q.value = q;
-      f.frequency.setValueAtTime(base * fm * (inhale ? 0.8 : 1.15), t); f.frequency.exponentialRampToValueAtTime(base * fm * (inhale ? 1.25 : 0.75), t + dur);
+      f.frequency.setValueAtTime(fr * k * (inhale ? 0.92 : 1.04), t); f.frequency.linearRampToValueAtTime(fr * k * (inhale ? 1.06 : 0.94), t + dur);
       lg.gain.value = lv;
-      s.connect(f); f.connect(lg); lg.connect(g); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+      s.connect(f); f.connect(lg); lg.connect(g); s.start(t, Math.random() * 1.5); s.stop(t + dur * 2 + 0.1);
+    }
+    // the chest: a low, breathy rush under it
+    const c = a.createBufferSource(); c.buffer = pk; c.loop = true;
+    const cf = a.createBiquadFilter(), cg = a.createGain(); cf.type = "lowpass"; cf.frequency.value = 380; cg.gain.value = inhale ? 0.25 : 0.45;
+    c.connect(cf); cf.connect(cg); cg.connect(g); c.start(t, Math.random()); c.stop(t + dur * 2 + 0.1);
+    // winded (loud and quick): the voice catches on the way out — a soft "huh"
+    if (!inhale && vol > 0.75 && period < 1.1) {
+      const o = a.createOscillator(), og = a.createGain(), of = a.createBiquadFilter();
+      o.type = "sawtooth"; o.frequency.setValueAtTime(high ? 190 : 125, t); o.frequency.linearRampToValueAtTime(high ? 160 : 105, t + dur * 0.5);
+      of.type = "bandpass"; of.frequency.value = 700; of.Q.value = 2;
+      og.gain.setValueAtTime(0.0001, t); og.gain.linearRampToValueAtTime(0.018 * vol, t + dur * 0.12); og.gain.setTargetAtTime(0.0001, t + dur * 0.25, dur * 0.08);
+      o.connect(of); of.connect(og); og.connect(g); o.start(t); o.stop(t + dur);
     }
   },
 
