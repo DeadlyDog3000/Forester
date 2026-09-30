@@ -26,9 +26,10 @@ import { ARMS, ARM_KINDS } from "./raid.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { NATIONS, NEAR, ensureEurope, europeDay, strengthOf, the, The } from "./europe.js";
 import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
-import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING, inPoly } from "./woods.js";
+import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING, HUNT, inPoly } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
+import { economyDay, shopVisual, shopOffers, lawsOf, KINDS } from "./economy.js";
 
 // what wants a door hewn for it before it can be raised, and what a door takes
 const NEEDS_DOOR = new Set(["cabin"]), DOOR_LOGS = 2;
@@ -46,6 +47,7 @@ export const BUILDINGS = {
   forge:    { name: "Forge", cost: 14, mats: { stone: 10 }, model: "town/forge", tiers: true, w: 8, d: 6, icon: "tools", note: "A smith makes iron tools: everyone who has one works a quarter faster." },
   market:   { name: "Market", cost: 20, mats: { planks: 6 }, model: "town/market", tiers: true, w: 8.6, d: 10, icon: "coin", note: "Sells what you have too much of, every day, for DM (Deutsche Mark)." },
   townhall: { name: "Town hall", cost: 30, mats: { stone: 12, planks: 10 }, model: "town/townhall", tiers: true, w: 9.6, d: 10, icon: "cabin", note: "A seat for the town, and a charter: without one, no town builds as a city does." },
+  shop:     { name: "Shop", cost: 10, w: 4.2, d: 3.4, icon: "cabin", settlers: true, note: "A settler's own business." },
   stable:   { name: "Stable", cost: 14, mats: { stone: 4 }, w: 6.4, d: 4.2, icon: "cabin", note: "Stalls for two horses. Take one out (F at the stable) and ride — more than twice as fast as walking. X gets you down, and it finds its own way home." },
   path:     { name: "Path", cost: 0, w: 2.2, d: 3.4, path: true, icon: "stone", note: "A trodden way between the houses, laid a strip at a time — free. Cobbled once the town is brick." },
   storehouse: { name: "Store chest", cost: 6, w: 2.4, d: 2.0, icon: "logs", note: "The settlement's stores kept in one place, a big chest under a little roof: take what the settlement has, or put things in. The chest in your cabin is your own." },
@@ -104,6 +106,7 @@ const RYE_HARVEST = 4, LOAF_RYE = 2.5, LOAF_FEEDS = 3;
 // the work a settler can be set to; talking to them (F) moves them on to the next
 export const JOBS = {
   woodcutter: { name: "woodcutter", ask: "fell trees", reply: "Trees it is. Mind your heads." },
+  hunter: { name: "hunter", ask: "hunt the deer ride for meat and hides", reply: "I'll bring back what I can carry." },
   hauler: { name: "hauler", ask: "carry logs and stone to the building sites (nobody else does)", reply: "I'll carry. Somebody has to." },
   farmer: { name: "farmer", ask: "work the fields", reply: "The fields, then. Good." },
   baker: { name: "baker", ask: "bake bread", reply: "Bread it is. Somebody keep that oven fed." },
@@ -121,7 +124,7 @@ const GROW_AT = [8, 13, 19, 26, 34];
 const MAX_CLAIM = 1000;
 // the distance from a point to a segment
 const segDist = (x, z, [ax, az], [bx, bz]) => { const dx = bx - ax, dz = bz - az, l = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l)); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
-const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "doctor", "watch"];
+const JOB_ORDER = ["woodcutter", "hauler", "farmer", "hunter", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "doctor", "watch"];
 // which building a job needs, if any
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
 // (the sound engine is a page global; with it missing, as in a test, everything is quiet rather than broken)
@@ -214,6 +217,9 @@ export class Town {
     }
     this.showStore();
     for (const b of this.S.buildings) this.show(b);
+    // the settlers' own shops
+    lawsOf(this.S); this.shopVis = new Map();
+    for (const c of this.S.companies) if (!c.waiting) this.showShop(c);
     for (const l of this.S.logs) this.dropLogs(l.x, l.z, l.a, l.n, true);
     this.setupForestry();
     this.setupStack();
@@ -689,6 +695,7 @@ export class Town {
     for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < r) return false;
     for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.6], [STACK.x, STACK.z, 2], [BLOCK.x, BLOCK.z, 1.4], [FIRE.x, FIRE.z, 2.2]]) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
     if (this.opts.keepClear) for (const [px, pz, pr] of this.opts.keepClear) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
+    for (const c of this.S.companies || []) if (!c.waiting && !c.refused && Math.hypot(c.x - x, c.z - z) < 2.8 + r * 0.8) return false;
     return true;
   }
 
@@ -1067,6 +1074,76 @@ export class Town {
         G.guide && G.guide("horse");
         UI.hint("Up you go. Walk and run as ever — far quicker. X to get down (it finds its own way home).", 5);
       } });
+  }
+  // ---- the settlers' companies: a shop staked out, built from timber the owner fells, then kept ----
+  startShop(c) { c.waiting = false; this.showShop(c); this.persist(); }
+  showShop(c) {
+    const w = this.w, old = this.shopVis.get(c);
+    if (old) { w.root.remove(old.g); for (const o of old.cols) w.col.remove(o); if (old.it) w.removeInteract(old.it); }
+    const g = shopVisual(c), fake = { x: c.x, z: c.z, ry: c.ry, type: "shop" };
+    g.position.set(c.x, this.baseY(fake), c.z); g.rotation.y = c.ry; w.root.add(g);
+    const cols = c.built ? this.solidAt(fake, [[-1.2, -1.2, 0.5], [0, -1.2, 0.5], [1.2, -1.2, 0.5], [-1.75, 0.1, 0.45], [1.75, 0.1, 0.45], [0, 1.05, 0.4], [-1.1, 1.05, 0.4], [1.1, 1.05, 0.4]], w.heightAt(c.x, c.z) + 3) : [];
+    const fx = c.x + Math.sin(c.ry) * 2.6, fz = c.z + Math.cos(c.ry) * 2.6;
+    const it = w.addInteract({ x: fx, y: w.heightAt(fx, fz) + 1.2, z: fz, reach: 2.4,
+      label: () => c.built ? `Buy at ${c.name} (${c.stock || 0} in stock)` : `${c.name} — ${c.owner} is building it (${Math.min(10, c.logs || 0)} of 10 logs)`,
+      can: () => !!c.built,
+      use: () => G.openTrade && G.openTrade(c.name, () => `Your purse ${Math.floor(G.body.purse || 0)} DM · ${c.owner}'s shop`, shopOffers(this, c), () => { this.persist(); this.showShop(c); }) });
+    this.shopVis.set(c, { g, cols, it });
+  }
+  // a shift for a company's owner: asking leave, gathering timber, building, or keeping shop; false to do their usual work
+  async companyShift(a, c, sleep, alive) {
+    const pl = G.player, S = this.S;
+    if (c.refused) return false;
+    if (c.waiting) {
+      // with the law, they come and ask you first — and show you where
+      if (c.asking || !pl || Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) > 70) return false;
+      a.doing = `looking for you, to ask leave to open ${c.name}`;
+      await Promise.race([a.walkTo(pl.pos.x + 1.2, pl.pos.z + 1.2, 1.4), sleep(8)]); alive();
+      if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) > 4 || UI.dialogOpen || G.mode !== "play") return true;
+      c.asking = true; a.faceTo(pl.pos.x, pl.pos.z);
+      const prev = G.marker; G.marker = { x: c.x, z: c.z, y: 2 };
+      UI.bark(a.settler.name, `I've a mind to open a shop — ${c.name}. There, where the marker is. Will you allow it?`, 6);
+      G.openTrade && G.openTrade(`${a.settler.name} asks leave`, `${c.name} · ${KINDS[c.kind].name.toLowerCase()}`, [
+        { icon: "cabin", label: "Yes — build it there", note: "They gather the timber themselves, and pay the business tax on what they sell.", get: "", can: () => true, do: () => { c.waiting = false; a.settler.purse = (a.settler.purse || 0) - 10; this.startShop(c); UI.bark(a.settler.name, "Thank you. You'll not regret it.", 3); G.marker = prev; G.closeTrade && G.closeTrade(); } },
+        { icon: "cabin", label: "No", note: "They'll take it hard.", get: "", can: () => true, do: () => { c.refused = true; c.waiting = false; this.persist(); UI.bark(a.settler.name, "...As you say.", 3); G.marker = prev; G.closeTrade && G.closeTrade(); } },
+      ], null);
+      await sleep(10); alive(); c.asking = false; if (G.marker && G.marker.x === c.x) G.marker = prev;
+      return true;
+    }
+    // they give their own business half their time at most: the settlement's work is mainly up to you
+    if (Math.random() < 0.5) return false;
+    if (!c.built) {
+      if ((c.logs || 0) >= 10) {
+        a.doing = `raising the shop for ${c.name}`;
+        await a.walkTo(c.x + Math.sin(c.ry) * 2.6, c.z + Math.cos(c.ry) * 2.6, 1.2); alive();
+        a.faceTo(c.x, c.z); a.person.setPose("hammer"); await sleep(8); alive(); a.person.setPose("idle");
+        c.built = true; c.stock = 3; this.showShop(c); this.persist(); this.sfxAt(a, "build");
+        UI.hint(`${c.name} is open for trade. You can buy there for less than the pedlar asks.`, 5);
+        return true;
+      }
+      // the timber for it, felled and carried by the owner
+      const trees = this.w.fellable.filter(t => t.state === "up" && !t.claimed && Math.hypot(t.x - c.x, t.z - c.z) < 60);
+      if (!trees.length) return false;
+      trees.sort((p, q) => Math.hypot(p.x - a.pos.x, p.z - a.pos.z) - Math.hypot(q.x - a.pos.x, q.z - a.pos.z));
+      const t = trees[0]; t.claimed = "company";
+      a.doing = `felling timber for ${c.name}`;
+      await a.walkTo(t.x + 1.1, t.z + 0.4, 1.3); alive();
+      a.faceTo(t.x, t.z); a.person.setPose("chop");
+      const axe = a.hold(makeAxe()); axe.rotation.y = Math.PI / 2;
+      await sleep(5 * this.chopMul); alive();
+      a.person.setPose("idle"); a.person.held.remove(axe);
+      this.fell(t, t.x - a.pos.x, t.z - a.pos.z, false);
+      await sleep(2.5); alive();
+      a.person.setPose("hold"); await a.walkTo(c.x + 2.4, c.z, 1.1); alive(); a.person.setPose("idle");
+      c.logs = (c.logs || 0) + 3; this.showShop(c); this.persist();
+      return true;
+    }
+    a.doing = `keeping shop at ${c.name}`;
+    await a.walkTo(c.x + Math.sin(c.ry) * 0.2, c.z + Math.cos(c.ry) * 0.2 - 0.3 * Math.cos(c.ry), 1.2); alive();
+    a.faceTo(c.x + Math.sin(c.ry) * 3, c.z + Math.cos(c.ry) * 3); a.person.setPose("armsCrossed");
+    await sleep(12); alive(); a.person.setPose("idle");
+    c.stock = Math.min(12, (c.stock || 0) + 2); this.showShop(c); this.persist();
+    return true;
   }
   canEnlarge(b) { return b.done && b.type === "woodshed" && (b.bays || 1) < 3; }
   enlargeRoom(b) {
@@ -1593,6 +1670,9 @@ export class Town {
         a.person.setPose("armsCrossed"); await sleep(2); alive(); a.person.setPose("idle");
         continue;
       }
+      // their own business, if they have one: part of their time goes to it
+      const own = !raid && !a.settler.child && this.S.companies && this.S.companies.find(c => c.owner === a.settler.name);
+      if (own && await this.companyShift(a, own, sleep, alive)) continue;
       // ground to clear: everyone who can swing an axe goes felling until it is done
       // (everyone clears ground for the settlement when it wants room — except the farmers, who have their fields)
       let loose = null;
@@ -1681,6 +1761,18 @@ export class Town {
         a.person.setPose("idle");
         this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); this.sfxAt(a, "build");
         await sleep(3 + Math.random() * 3);
+      } else if (job === "hunter") {
+        // out to the deer ride, a long wait in cover, and home with what they took: meat for the stores and a hide
+        a.doing = "hunting in the deer ride";
+        const ang = Math.random() * Math.PI * 2;
+        await a.walkTo(HUNT.x + Math.cos(ang) * HUNT.r * 0.5, HUNT.z + Math.sin(ang) * HUNT.r * 0.5, 1.3); alive();
+        a.person.setPose("armsCrossed"); await sleep(14 * this.pace(a, "hunting")); alive(); a.person.setPose("idle");
+        const got = Math.random() < 0.55 + skillLvl(a.settler, "hunting") / 200;
+        if (got) {
+          a.person.setPose("hold"); await a.walkTo(this.stackAt.x + 1.4, this.stackAt.z - 0.6, 1.2); alive(); a.person.setPose("idle");
+          this.S.meat = (this.S.meat || 0) + 2; this.S.hide = (this.S.hide || 0) + 1; this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "hunting", 1);
+        } else a.doing = "coming back from the hunt with nothing";
+        await sleep(2);
       } else if (job === "doctor" && this.has("hospital")) {
         const hos = this.S.buildings.find(b => b.done && b.type === "hospital");
         const sick = this.S.people.filter(q => q.sick > 0);
@@ -1776,6 +1868,8 @@ export class Town {
       let need = Math.ceil((this.S.people.length + 2) / 2 * (this.knows("horsefeed") ? 0.8 : 1));
       const loaves = Math.min(this.S.bread, Math.ceil(need / LOAF_FEEDS));
       this.S.bread -= loaves; need = Math.max(0, need - loaves * LOAF_FEEDS);
+      // (then the roast meat the hunters brought in, a mouthful each)
+      const meats = Math.min(this.S.meat || 0, need); this.S.meat = (this.S.meat || 0) - meats; need -= meats;
       if (this.S.rye >= need) { this.S.rye -= need; this.S.hungry = 0; }
       else {
         this.S.rye = 0; this.S.hungry = (this.S.hungry || 0) + 1;
@@ -1841,6 +1935,8 @@ export class Town {
           this.showStore();
         }
       }
+      // wages sold to the pedlar, taxes, and the companies' trade
+      if (this.techGates) economyDay(this);
       this.persist();
       this.emit("day", this.day);
     }

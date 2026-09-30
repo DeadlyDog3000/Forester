@@ -36,6 +36,13 @@ export const ROAM = 100;
 // each ring of forest cleared as the settlement grows is this deep
 export const RING = 14;
 const MAP_K = 5;
+// smooth value noise, 0..1: a lattice of fixed random heights, eased between
+function hash2(i, j) { let h = (i * 374761393 + j * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+function vnoise(x, z) {
+  const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+  const a = hash2(i, j), b = hash2(i + 1, j), c = hash2(i, j + 1), d = hash2(i + 1, j + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
 // is a point inside a polygon ([[x, z], ...])?
 export function inPoly(poly, x, z) {
   let inside = false;
@@ -499,7 +506,7 @@ export class Woods extends WorldBase {
   get mapBounds() { return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
   // gentle hills, flattened where the road runs and in the clearing
   heightAt(x, z) {
-    let h = Math.sin(x * 0.021) * 2.2 + Math.cos(z * 0.017) * 2.6 + Math.sin((x + z) * 0.043) * 0.9 + Math.cos(x * 0.09 - z * 0.07) * 0.35;
+    let h = this.rawAt(x, z);
     const rd = this.road ? (this.branches ? this.anyRoadDist(x, z) : this.roadDist(x, z)) : null;
     const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
     const flatC = clamp((dc - CLEARING.r + 4) / 14, 0, 1);
@@ -511,7 +518,14 @@ export class Woods extends WorldBase {
     }
     return clearingH + (h - clearingH) * flatC;
   }
-  rawAt(x, z) { return Math.sin(x * 0.021) * 2.2 + Math.cos(z * 0.017) * 2.6 + Math.sin((x + z) * 0.043) * 0.9 + Math.cos(x * 0.09 - z * 0.07) * 0.35; }
+  // the lie of the land: the long swells, and over them rounded hills, a few sharp ridges and hollows, and small humps
+  rawAt(x, z) {
+    const swell = Math.sin(x * 0.021) * 2.2 + Math.cos(z * 0.017) * 2.6 + Math.sin((x + z) * 0.043) * 0.9 + Math.cos(x * 0.09 - z * 0.07) * 0.35;
+    const hills = (vnoise(x / 55, z / 55) - 0.5) * 7.5;
+    const ridge = (1 - Math.abs(vnoise(x / 38 + 11, z / 38 - 7) * 2 - 1)) ** 2 * 3.2 - 1.2;
+    const bumps = (vnoise(x / 12 - 3, z / 12 + 5) - 0.5) * 1.1;
+    return swell + hills + ridge + bumps;
+  }
   roadDist(x, z) {
     let best = Infinity, bi = 0;
     const R = this.road;

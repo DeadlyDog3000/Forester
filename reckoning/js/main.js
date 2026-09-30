@@ -18,6 +18,7 @@ import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nex
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
+import { KINDS } from "./economy.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
 import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
@@ -548,7 +549,7 @@ function renderPlans() {
     return;
   }
   // (what hasn't been researched isn't shown at all)
-  const list = Object.entries(TOWN_BUILDINGS).filter(([k]) => (!t.unlocked || t.unlocked.has(k)) && !t.gated(k));
+  const list = Object.entries(TOWN_BUILDINGS).filter(([k, d]) => !d.settlers && (!t.unlocked || t.unlocked.has(k)) && !t.gated(k));
   $("buildList").innerHTML = list.map(([k, d]) => t.gated(k) ? `<button class="plan short" data-k="${k}" data-gate="1"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(t.researchAdvice(t.gated(k).id, "it"))}.</span></span><span class="pc">locked</span></button>` : `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.path ? "free" : d.cost ? [d.cost + " logs", ...Object.entries(d.mats || {}).map(([k, n]) => `${n} ${k}`)].join(", ") : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
   for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { if (b.dataset.gate) return; showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
 }
@@ -595,6 +596,33 @@ function rankOf(t) {
   return "Camp";
 }
 let govPeopleHtml = "";
+// ---- taxes & trade: what you take, and what the settlers may do on their own account ----
+function govLaws(t) {
+  const S = t.S; S.laws ??= { business: true, approval: false }; S.tax ??= 0.1; S.bizTax ??= 0.1; S.companies ??= [];
+  const today = S.taxToday;
+  let h = `<div class="mc-sec">Taxes</div>
+    <div class="law-row"><label>Tax on wages <b id="lawTaxV">${Math.round(S.tax * 100)}%</b></label><input type="range" id="lawTax" min="0" max="50" step="5" value="${Math.round(S.tax * 100)}">
+      <div class="law-note">Everyone who works sells what they make to the pedlar, and pays this share of it. The higher it is, the unhappier they are — though the contented mind it less. A tenth of what the taxes bring in is yours.</div></div>
+    <div class="law-row"><label>Business tax <b id="lawBizV">${Math.round(S.bizTax * 100)}%</b></label><input type="range" id="lawBiz" min="0" max="40" step="5" value="${Math.round(S.bizTax * 100)}">
+      <div class="law-note">Paid by every company on what it sells. Past a quarter, the owners grumble.</div></div>
+    <div class="law-note">${today ? `Yesterday: ${today.taxed} DM in taxes, ${today.biz} DM from the businesses — ${today.yours} DM of it to your own purse.` : "The first taxes come in at the end of the day."}</div>
+    <div class="mc-sec">Trade</div>
+    <label class="law-tog"><input type="checkbox" id="lawBiz1"${S.laws.business ? " checked" : ""}> Settlers may start businesses of their own</label>
+    <div class="law-note">Businesses bring in taxes and cheer the place up, and you can buy at their shops for less. But an owner gives part of their time to it, so less goes into the settlement's stores. They fell their own timber for the shop. Forbid it, and those with savings resent it.</div>
+    <label class="law-tog"><input type="checkbox" id="lawAsk"${S.laws.approval ? " checked" : ""}> A shop may only be built with your leave</label>
+    <div class="law-note">With this law, whoever wants to open a shop comes to you first and shows you where. Refuse them, and they take it hard.</div>
+    <div class="mc-sec">Companies</div>`;
+  const list = S.companies.filter(c => !c.refused);
+  h += list.length ? `<table class="gov-people"><tr><th>Company</th><th>Owner</th><th>Trade</th><th>State</th><th>Stock</th><th>Taken</th></tr>${list.map(c => `<tr><td class="nm">${esc(c.name)}</td><td>${esc(c.owner)}</td><td>${esc(KINDS[c.kind].name)}</td><td>${c.waiting ? "asking your leave" : c.built ? "open" : `building (${Math.min(10, c.logs || 0)}/10 logs)`}</td><td>${c.stock || 0}</td><td>${c.earned || 0} DM</td></tr>`).join("")}</table>` : `<div class="law-note">No one has started a business yet. Someone who has saved twelve DM, and is doing well, may.</div>`;
+  return h;
+}
+function wireLaws(t) {
+  const S = t.S;
+  $("lawTax").oninput = e => { S.tax = +e.target.value / 100; $("lawTaxV").textContent = e.target.value + "%"; t.persist(); };
+  $("lawBiz").oninput = e => { S.bizTax = +e.target.value / 100; $("lawBizV").textContent = e.target.value + "%"; t.persist(); };
+  $("lawBiz1").onchange = e => { S.laws.business = e.target.checked; t.persist(); };
+  $("lawAsk").onchange = e => { S.laws.approval = e.target.checked; t.persist(); };
+}
 function renderGov(full) {
   const t = G.town; if (!t) return;
   // (a redraw every half second would steal the search box's focus and the tree's scroll: only what moves is redrawn)
@@ -607,6 +635,11 @@ function renderGov(full) {
     // the map is drawn once and redrawn when something moves; the side panel when its words change
     if (full || key !== govKey || !$("euMap")) { $("govBody").innerHTML = govEuropeFrame(); wireEurope(t); }
     drawEuropeTab(t);
+  }
+  else if (govTab === "laws") {
+    const html = govLaws(t);
+    // (not redrawn while a slider is being dragged)
+    if ((full || html !== govPeopleHtml || key !== govKey) && !(document.activeElement && document.activeElement.type === "range")) { const top = $("govBody").scrollTop; $("govBody").innerHTML = html; govPeopleHtml = html; wireLaws(t); $("govBody").scrollTop = top; }
   }
   else if (govTab === "faith") {
     const html = govFaith(t);

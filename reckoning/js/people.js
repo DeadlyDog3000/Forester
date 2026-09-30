@@ -9,6 +9,7 @@
 // hundred, the same six pairs of temperaments, the same marks — fitted to the
 // few systems Reckoning has. Every one bends a number that was already there.
 
+import { economyMood } from "./economy.js";
 import { rng } from "./core.js";
 import { FAITHS, faithOf, rollFaith, faithReasons } from "./faith.js";
 
@@ -29,7 +30,7 @@ export const SKILLS = [
 export const SKILL_NAME = Object.fromEntries(SKILLS.map(s => [s.id, s.name]));
 export const SKILL_MAX = 100;
 // what each work teaches, and is done with
-export const JOB_SKILL = { woodcutter: "woodcutting", hauler: "building", farmer: "farming", baker: "crafting", quarryman: "quarrying", sawyer: "crafting", brickmaker: "crafting", miner: "quarrying", smelter: "smithing", smith: "smithing", watch: "fighting", doctor: "physicking" };
+export const JOB_SKILL = { hunter: "hunting", woodcutter: "woodcutting", hauler: "building", farmer: "farming", baker: "crafting", quarryman: "quarrying", sawyer: "crafting", brickmaker: "crafting", miner: "quarrying", smelter: "smithing", smith: "smithing", watch: "fighting", doctor: "physicking" };
 export const skillLvl = (p, id) => Math.max(1, Math.min(SKILL_MAX, (p && p.sk && p.sk[id]) || 1));
 // a master works in a little under half the time, and strikes half again as hard
 export const workSkill = (p, id) => 1 - 0.55 * (skillLvl(p, id) - 1) / (SKILL_MAX - 1);
@@ -143,6 +144,8 @@ export function moodOf(town, p) {
   if (!p.child && town.bedOf && !town.bedOf(p)) v += add(-8, "no bed of their own");
   const main = JOB_SKILL[p.job || "hauler"];
   if (main && !p.child) { const best = topSkills(p, 1)[0]; if (best && best.id === main && best.lvl >= 10) v += add(3, "work they're good at"); }
+  // taxes, shops, and the laws on trade
+  for (const [n, w] of economyMood(town, p, v)) v += add(n, w);
   // zakat: the unhappiest are helped by the Muslim among them
   if (v < 40 && town.S.people.some(q => q !== p && !q.child && faithOf(q) === "muslim")) v += add(2, "zakat");
   return { value: Math.max(0, Math.min(100, Math.round(v))), why };

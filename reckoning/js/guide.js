@@ -153,6 +153,16 @@ export const GUIDE = {
       "The road stays open. Newcomers still walk up it into the settlement.",
     ],
   },
+  business: {
+    kicker: "Your people", title: "Taxes and companies",
+    steps: [
+      "Settlers sell what they make to the pedlar and keep the money. You tax it: <kbd>G</kbd>, <b>Taxes &amp; trade</b>. <b>A tenth of every tax is yours</b>, and the rest goes to the treasury.",
+      "Higher taxes make people unhappier, though the contented mind them less.",
+      "A settler who has saved enough may <b>start a company</b>: Bread, Meats, Lumber, Stone, Ironmongers or Goods. Each has its own name, colours and banner. They fell their own timber and build a shop, usually beside a path.",
+      "Shops pay a <b>business tax</b>, cheer everyone up, and sell to you for less than the pedlar (<kbd>F</kbd> at the counter). But owners give part of their time to their own trade, so the settlement's stores fill more slowly.",
+      "You make the laws: forbid businesses altogether, or make everyone ask your leave first. They come to you and show you where they want to build.",
+    ],
+  },
   horse: {
     kicker: "Horses", title: "Riding",
     steps: [
@@ -173,4 +183,4 @@ export const GUIDE = {
   },
 };
 // the order the book lists them in
-export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "horse", "raid"];
+export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "business", "horse", "raid"];

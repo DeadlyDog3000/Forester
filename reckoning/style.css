@@ -589,3 +589,13 @@ body.talking #hint { bottom: 298px; }
 
 /* a pack slot you can't use yet */
 .mc-slot.locked { opacity: 0.35; background: repeating-linear-gradient(45deg, rgba(59, 38, 18, 0.18) 0 4px, transparent 4px 8px); }
+
+/* the free camera: the view alone, no HUD */
+body.freecam #hud > *:not(#hint) { visibility: hidden; }
+
+/* taxes & trade */
+.law-row { margin: 6px 0 12px; }
+.law-row label { display: flex; justify-content: space-between; font: 16px var(--serif, Georgia); }
+.law-row input[type=range] { width: 100%; accent-color: #8a2a1a; }
+.law-note { font: 13px/1.45 var(--sans); color: #5a4630; margin: 2px 0 8px; }
+.law-tog { display: flex; gap: 8px; align-items: center; font: 15px var(--serif, Georgia); margin-top: 6px; }

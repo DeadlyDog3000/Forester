@@ -689,14 +689,18 @@ function freeCamera(dt) {
   camera.rotation.set(f.pitch, f.yaw, 0, "YXZ");
   camera.position.set(f.x, f.y, f.z);
   const p = G.player;
-  if (p.axe) p.axe.visible = false;
-  if (p.workRig) p.workRig.visible = false;
+  // (nothing held in front of the lens: your arms stay with you)
+  for (const c of camera.children) c.visible = false;
   if (p.model) p.model.root.visible = true;
 }
 G.toggleFreecam = () => {
-  if (G.freecam) { G.freecam = null; camera.rotation.order = "YXZ"; if (G.player.model) G.player.model.root.visible = false; return false; }
+  if (G.freecam) {
+    for (const [c, v] of G.freecam.shown) c.visible = v;
+    G.freecam = null; if (G.player.model) G.player.model.root.visible = false; document.body.classList.remove("freecam"); return false;
+  }
   const p = G.player, e = p.eyePos();
-  G.freecam = { x: e.x, y: e.y, z: e.z, yaw: p.yaw, pitch: p.pitch };
+  G.freecam = { x: e.x, y: e.y, z: e.z, yaw: p.yaw, pitch: p.pitch, shown: camera.children.map(c => [c, c.visible]) };
+  document.body.classList.add("freecam");
   return true;
 };
 function updateCamera(dt) {
