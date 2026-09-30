@@ -25,15 +25,41 @@ export const FOOD = {
   meat: { fill: 0.45, secs: 2.6, name: "meat" },
 };
 
+// tools you make yourself, each in four makings: 0 none, 1 wood, 2 stone, 3 copper, 4 iron.
+// The old axe from the block counts as stone: it cuts, but a better head cuts quicker.
+export const TIER_NAME = ["", "wooden", "stone", "copper", "iron"];
+export const TOOL_RECIPES = [
+  { tool: "pick", tier: 1, name: "Wooden pickaxe", cost: { logs: 2 }, note: "Breaks the grey stone round the clearing." },
+  { tool: "pick", tier: 2, name: "Stone pickaxe", cost: { logs: 2, stone: 3 }, note: "Hard enough for the green-flecked copper rock, out in the woods." },
+  { tool: "pick", tier: 3, name: "Copper pickaxe", cost: { logs: 2, copper: 3 }, note: "Hard enough for the rust-red iron rock, deep in the forest." },
+  { tool: "pick", tier: 4, name: "Iron pickaxe", cost: { logs: 2, iron: 3 }, note: "Breaks anything, and quickly." },
+  { tool: "axe", tier: 3, name: "Copper axe", cost: { logs: 2, copper: 3 }, note: "Fells a tree in fewer strokes than the old axe." },
+  { tool: "axe", tier: 4, name: "Iron axe", cost: { logs: 2, iron: 3 }, note: "The best felling axe there is." },
+];
+// what each kind of rock gives, and the pick it wants
+export const ROCKS = {
+  stone: { need: 1, hp: 4, gives: "stone", n: 2, name: "grey stone" },
+  copper: { need: 2, hp: 6, gives: "copperore", n: 2, name: "copper rock" },
+  iron: { need: 3, hp: 8, gives: "ironore", n: 2, name: "iron rock" },
+};
+export const ITEM = {
+  stone: { name: "Stone", note: "Broken from the grey rocks. For a stone pickaxe — and the settlement builds with it." },
+  copperore: { name: "Copper ore", note: "Green-flecked rock. Smelt it at the fire (hold F) to get copper." },
+  ironore: { name: "Iron ore", note: "Rust-red rock. Smelt it at the fire (hold F) to get iron." },
+  copper: { name: "Copper", note: "Smelted from the ore. For a copper pickaxe or axe." },
+  iron: { name: "Iron", note: "Smelted from the ore. For an iron pickaxe or axe." },
+};
+
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, skills };
+  return { hunger: 1, skills, tools: { pick: 0, axe: 2 } };
 }
 export function restoreBody(saved) {
   const b = freshBody();
   if (saved && typeof saved === "object") {
     if (typeof saved.hunger === "number") b.hunger = Math.min(1, Math.max(0, saved.hunger));
+    if (saved.tools) b.tools = { pick: Math.min(4, saved.tools.pick | 0), axe: Math.min(4, Math.max(2, saved.tools.axe | 0)) };
     for (const s of BODY_SKILLS) {
       const v = saved.skills && saved.skills[s.id];
       if (v) b.skills[s.id] = { lv: Math.min(SKILL_MAX, Math.max(1, v.lv | 0)), xp: Math.max(0, +v.xp || 0) };
@@ -41,7 +67,7 @@ export function restoreBody(saved) {
   }
   return b;
 }
-export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills });
+export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: b.tools });
 
 // a skill's level as a fraction of the way from nothing to the most there is (0 at 1, 1 at 100)
 export function skillK(b, id) { return b ? (b.skills[id].lv - 1) / (SKILL_MAX - 1) : 0; }
@@ -58,6 +84,8 @@ export function practise(b, id, xp) {
   return up;
 }
 
+// a better axe head: now and then a stroke that does the work of two (a copper head a quarter of the time, iron half)
+export const axeBonus = b => { const t = (b && b.tools && b.tools.axe) || 2; return t >= 4 ? 0.5 : t >= 3 ? 0.25 : 0; };
 // ---- what the skills do ----
 export const damageTaken = (b, dmg) => dmg * (1 - 0.5 * skillK(b, "toughness"));
 // how hard a blow rattles you: the flash, the shake, the gasping (a hardened body hardly notices)

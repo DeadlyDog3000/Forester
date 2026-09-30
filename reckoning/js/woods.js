@@ -11,6 +11,7 @@ import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM } from "./furnish.js";
+import { ROCKS } from "./body.js";
 import { AUDIO } from "./audio.js";
 
 // the road out of the city winds: round hills, round bogs, round other people's land
@@ -313,10 +314,77 @@ export class Woods extends WorldBase {
 
     // ---- the clearing ----
     this.buildClearing();
+    this.buildRocks(r);
 
     this.lightPool = [];
     for (let i = 0; i < 2; i++) { const L = new THREE.PointLight(0xff8a3a, 0, 16, 1.6); root.add(L); this.lightPool.push(L); }
     this.t = 0;
+  }
+
+  // ---- rocks to break with a pick: grey stone near the clearing, copper farther out, iron deep in ----
+  buildRocks(r) {
+    this.rocks = [];
+    const rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
+    // a boulder: a rough ball of facets, each a slightly different grey
+    const boulder = size => {
+      let geo = new THREE.IcosahedronGeometry(size, 1); if (geo.index) geo = geo.toNonIndexed(); const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+      const seen = new Map();
+      for (let i = 0; i < pos.count; i++) {
+        const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
+        if (!seen.has(key)) seen.set(key, 0.82 + r() * 0.3);
+        const k = seen.get(key); pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.72, pos.getZ(i) * k);
+      }
+      for (let t = 0; t < pos.count; t += 3) { const g = 0.44 + r() * 0.12; for (let j = 0; j < 3; j++) col.set([g, g * 0.99, g * 0.95], (t + j) * 3); }
+      geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
+      return geo;
+    };
+    const FLECK = { copper: [mat(0x3aa878, { surface: "none" }), mat(0xc87a3e, { surface: "none" })], iron: [mat(0xa0442a, { surface: "none" }), mat(0x7a3420, { surface: "none" })] };
+    const place = (kind, n, r0, r1, a0 = 0, a1 = TAU) => {
+      for (let tries = 0, k = 0; k < n && tries < n * 40; tries++) {
+        const a = a0 + r() * (a1 - a0), rad = r0 + r() * (r1 - r0);
+        const x = CLEARING.x + Math.cos(a) * rad, z = CLEARING.z + Math.sin(a) * rad;
+        if (this.anyRoadDist(x, z).d < 4 || Math.hypot(x - HUNT.x, z - HUNT.z) < HUNT.r * 0.6) continue;
+        if (this.rocks.some(o => Math.hypot(o.x - x, o.z - z) < 7)) continue;
+        const y = this.heightAt(x, z), g = new THREE.Group(); g.position.set(x, y, z);
+        const big = 0.7 + r() * 0.35;
+        for (let j = 0; j < 3; j++) {
+          const m = new THREE.Mesh(boulder(big * (j ? 0.5 : 1)), rockMat);
+          m.position.set(j ? (r() - 0.5) * 1.3 : 0, big * (j ? 0.18 : 0.4), j ? (r() - 0.5) * 1.3 : 0); m.rotation.y = r() * 3;
+          m.castShadow = m.receiveShadow = true; g.add(m);
+        }
+        // the ore shows in the rock: flecks set into its faces all round
+        if (FLECK[kind]) for (let j = 0; j < 14; j++) {
+          const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09 + r() * 0.05, 0), FLECK[kind][j % 2]);
+          const u = r() * TAU, v = r() * 1.1;
+          f.position.set(Math.cos(u) * Math.cos(v) * big * 0.92, big * 0.4 + Math.sin(v) * big * 0.62, Math.sin(u) * Math.cos(v) * big * 0.92); g.add(f);
+        }
+        this.root.add(g);
+        const rock = { kind, x, z, y, g, hp: ROCKS[kind].hp, gone: 0, col: this.col.addCircle(x, z, big * 0.9, y + 1.4) };
+        this.rocks.push(rock); k++;
+      }
+    };
+    place("stone", 12, CLEARING.r + 6, CLEARING.r + 34);
+    place("copper", 6, 70, 115, Math.PI * 0.6, Math.PI * 1.3);       // off to the west, past the clearing
+    place("iron", 5, 120, 170, Math.PI * 1.35, Math.PI * 1.9);       // deep in the forest to the south
+  }
+  // the rock in front of you, within reach of a pick
+  rockAhead(p, fwd) {
+    let best = null, bd = 2.6;
+    for (const k of this.rocks || []) {
+      if (k.gone > 0) continue;
+      const dx = k.x - p.x, dz = k.z - p.z, d = Math.hypot(dx, dz);
+      if (d < bd && (dx * fwd.x + dz * fwd.z) / (d || 1) > 0.35) { bd = d; best = k; }
+    }
+    return best;
+  }
+  // a broken rock lies as rubble, and is whole again after a while, when no one is looking
+  breakRock(k) { k.gone = 240; k.g.visible = false; k.col.disabled = true; }
+  tickRocks(dt) {
+    for (const k of this.rocks || []) if (k.gone > 0 && (k.gone -= dt) <= 0) {
+      const p = G.player && G.player.pos;
+      if (p && Math.hypot(p.x - k.x, p.z - k.z) < 25) { k.gone = 20; continue; }
+      k.gone = 0; k.hp = ROCKS[k.kind].hp; k.g.visible = true; k.col.disabled = false;
+    }
   }
 
   // on the map: stamped forest, the road and its forks, the clearing, and the city behind
@@ -336,6 +404,12 @@ export class Woods extends WorldBase {
     c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]);
     c.fillStyle = TREEC;
     for (const t of this.fellable) if (t.state === "up" || t.state === "shake") tree(c, X(t.x), Z(t.z), ts * 1.1, "spruce");
+    // rocks you can break: grey stone, copper green, iron red
+    for (const k of this.rocks || []) if (!k.gone && vis(k.x, k.z)) {
+      c.fillStyle = k.kind === "copper" ? "#3a9a70" : k.kind === "iron" ? "#a8442a" : "#7a766c";
+      c.beginPath(); c.arc(X(k.x), Z(k.z), Math.max(2.2, S * 0.9), 0, Math.PI * 2); c.fill();
+      c.strokeStyle = INK; c.lineWidth = 0.8; c.stroke();
+    }
     // the cabin
     c.fillStyle = this.cabin && this.cabin.visible ? TOWN : "#3a3530";
     c.save(); c.translate(X(CABIN.x), Z(CABIN.z)); c.rotate(-CABIN.ry); c.fillRect(-2.5 * S, -3 * S, 5 * S, 6 * S); c.strokeStyle = INK; c.strokeRect(-2.5 * S, -3 * S, 5 * S, 6 * S); c.restore();
@@ -828,6 +902,7 @@ export class Woods extends WorldBase {
     return { x, z, ry: CABIN.ry + f.ry, y: this.cabinY + 0.07 + FURNITURE[f.type].h * 0.55 };
   }
   update(dt) {
+    this.tickRocks(dt);
     this.regrowTick(dt);
     this.t += dt;
     // the door swings to where it was sent; the lamp is lit while you are in

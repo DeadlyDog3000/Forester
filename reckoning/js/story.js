@@ -10,7 +10,7 @@
 // time, so pausing pauses the story, and starting a chapter over bumps a
 // generation counter that makes every script from the old run fall silent.
 
-import { restoreBody, bodyToSave, skillK } from "./body.js";
+import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME } from "./body.js";
 import { THREE, clamp, mat, Builder, MAT, TAU } from "./core.js";
 import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
@@ -169,6 +169,8 @@ const SIB_HINTS = [
   [/Hide in the trees|Stay hidden/, "Get into the trees and crouch — C. Don't move till the lantern's gone."],
   [/Keep the fire alive/, "Feed it! Logs from the stack onto the fire, before it goes down."],
   [/Split firewood/, "Split them at the block. Hold F."],
+  [/wooden pickaxe/, "The chopping block — F. Two logs off the stack make a wooden pick."],
+  [/grey rocks/, "Take the pick out with its number, and swing at a grey rock. The map shows where they are."],
   [/moss|Chink/, "The moss grows on the rocks, in the shade. Six handfuls, then press it into the walls."],
   [/Plan a cabin|Plan /, "Press B for the plans, pick a cabin and put it where the ground's clear."],
   [/Raise .*cabin/, "Everyone will carry logs to the site. Help them, and hold F at the site when it's ready."],
@@ -207,6 +209,7 @@ function sibHints() {
       return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "meat" ? "meat" : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
     }
     if (pl.hasBow && pl.bow && (pl.arrows || 0) === 0 && !once.has("arrows")) { once.add("arrows"); return say1("You're out of arrows. Pull them out where they landed — F — or buy more when a trader comes.", 4.5); }
+    if (G.town && G.body && !raid && !G.body.tools.pick && G.chapter >= 12 && !once.has("pick")) { once.add("pick"); return say1("You could make yourself a pickaxe at the chopping block — two logs. There's stone in the grey rocks round the clearing.", 5); }
     // the settlement's needs, every few minutes, when they've changed
     if (G.chapter === 14 && G.town && advT > 180) {
       const adv = G.town.advice();
@@ -301,7 +304,7 @@ export async function startChapter(n, opts = {}) {
   const w = ch.world === "hamburg" ? new Hamburg() : new Woods();
   setWorld(w);
   const pl = G.player;
-  pl.giveAxe(false); pl.showBow(false); pl.crouched = false;
+  pl.giveAxe(false); pl.blade = "axe"; pl.showBow(false); pl.crouched = false;
   // Henning's bow, once he has given it, and the deer ride it opens
   { const sv = loadSave() || {}; pl.hasBow = !!sv.bow; pl.arrows = 12; w.huntOpen = !!sv.bow; }
   pl.seated = false; pl.frozen = false; pl.carryN = 0;
@@ -1942,10 +1945,30 @@ const NEWCOMERS = [
 // more names, for when the list above has all come (sending for people can run through it)
 const SPARE_NAMES = ["Hans", "Gesche", "Detlef", "Metta", "Berend", "Wiebke", "Harmen", "Abelke", "Lüder", "Tibbe", "Carsten", "Ilsabe", "Marten", "Beke", "Reimer", "Taleke"];
 const RECRUIT_COST = 12;
+// what they say when you make a tool: what it is for, and what to go after next
+G.emitCraft = r => {
+  const line = {
+    pick1: "A pickaxe! Now the grey rocks round the clearing — swing at them. Stone makes a better one.",
+    pick2: "Stone. That'll break the green-flecked copper rock — there's some out to the west. Melt the ore in the fire.",
+    pick3: "Copper! Now the red rock deep in the woods to the south: iron. Smelt it the same way.",
+    pick4: "Iron. There's nothing in these woods that pick won't break.",
+    axe3: "A copper head on the axe. You'll fell twice as fast. Well — faster.",
+    axe4: "An iron axe. Tomas will want to borrow it.",
+  }[r.tool + r.tier];
+  const sib = (G.world && G.world.actors || []).find(a => a.isSibling);
+  if (line && sib) bark(P.sib, line, 4.5);
+};
+// someone coming: the people about turn and watch them come, for a while, then go back to what they were at
+function glance(watchers, target, secs = 8) {
+  const who = watchers.filter(a => a && a !== target && a.root && a.root.parent && Math.hypot(a.pos.x - target.pos.x, a.pos.z - target.pos.z) < 45);
+  for (const a of who) a.watch = target;
+  setTimeout(() => { for (const a of who) if (a.watch === target) a.watch = null; }, secs * 1000);
+}
 // someone comes up the road and joins you
 async function arrival(town, p, say1) {
   const w = town.w, r0 = w.road[w.road.length - 30];
   const a = town.addPerson(p, r0.x, r0.z);
+  glance([...town.actors, ...(G.world.actors || []).filter(x => x.isSibling)], a, 9);
   if (say1) bark(p.name, say1, 3.5);
   // (some come with money of their own)
   const F = FAITHS[faithOf(p)];
@@ -1982,7 +2005,7 @@ async function ch10(w) {
     const r0 = w.road[w.road.length - 26];
     const marta = spawn(settlerLookFor(MARTA), r0.x, r0.z, 0), pieter = spawn(settlerLookFor(PIETER), r0.x + 0.8, r0.z + 0.6, 0);
     marta.walkTo(FIRE.x - 2.5, FIRE.z - 3.2, 1.1); pieter.walkTo(FIRE.x - 1.6, FIRE.z - 3.6, 1.1);
-    G.lockMove = true; lookAt(sib, 3); sib.facePlayer();
+    G.lockMove = true; lookAt(sib, 3); sib.watch = marta;
     await say(P.sib, "Someone's on the road. Two of them — a woman, and a boy.");
     look(new THREE.Vector3(r0.x, w.cy + 1.4, r0.z), 1.2);
     await wait(4);
@@ -1991,7 +2014,7 @@ async function ch10(w) {
     await say("Marta", "Our village burned in the winter. Soldiers — Danes, or Swedes; by the end it didn't matter which. My husband...");
     await wait(1);
     await say("Pieter", "Have you got any bread?");
-    lookAt(sib, 2); sib.facePlayer();
+    lookAt(sib, 2); sib.watch = null; sib.facePlayer();
     await wait(0.8);
     await say(YOU(), "No bread. But there's rye in the field, and turnips, and a fire.");
     await say(P.sib, "We were strangers on a road once.");
@@ -2000,7 +2023,7 @@ async function ch10(w) {
     lookAt(sib, 2);
     await say(P.sib, "(quietly) They won't be. And they shouldn't be.");
     await say(P.sib, "They'll need a roof of their own. We know how to raise one now.");
-    marta.remove(); pieter.remove();
+    sib.watch = null; marta.remove(); pieter.remove();
     town.addPerson(MARTA, FIRE.x - 2.5, FIRE.z - 3.2); town.addPerson(PIETER, FIRE.x - 1.6, FIRE.z - 3.6);
     G.lockMove = false; look(null);
   } else town.spawnPeople();
@@ -2021,8 +2044,10 @@ async function ch10(w) {
   const obj = onFrame(() => {
     const b = S.buildings.find(b => b.type === "cabin" && !b.done);
     if (!b) return;
-    UI.objective(b.logs < BUILDINGS.cabin.cost ? `Raise Marta's cabin — ${b.logs} of ${BUILDINGS.cabin.cost} logs at the site · ${S.store} on the stack` : "Hold F at the site to raise the cabin");
-    mark([b.x, b.z, w.cy + 1.5]);
+    const needDoor = b.logs >= BUILDINGS.cabin.cost && !b.door;
+    if (needDoor && !S.doors && !obj.told) { obj.told = true; bark(P.sib, "The walls are all there — it wants a door, like ours did. The sawhorse, by the block. Hold F.", 4.5); }
+    UI.objective(b.logs < BUILDINGS.cabin.cost ? `Raise Marta's cabin — ${b.logs} of ${BUILDINGS.cabin.cost} logs at the site · ${S.store} on the stack` : needDoor ? ((S.doors || 0) > 0 ? "Hang the door on Marta's cabin" : "Hew a door at the sawhorse for Marta's cabin") : "Hold F at the site to raise the cabin");
+    mark(needDoor && !(S.doors > 0) ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : [b.x, b.z, w.cy + 1.5]);
   });
   await until(() => S.buildings.some(b => b.type === "cabin" && b.done));
   obj(); mark(null); UI.objective(null);
@@ -2083,6 +2108,8 @@ async function ch11(w) {
     await say(P.sib, "Look at it. Six of us. Seven, when Henning comes up for his supper, which is most days now.");
     await say(P.sib, "The rye's ready. Reap it before the birds do. And we need water nearer than the stream, and somewhere dry to keep the wood, and more ground under the spade.");
     await say(P.sib, "Tomas fells, Grete farms, Marta carries. We just have to plan it.");
+    await say(P.sib, "And make yourself a pickaxe — two logs at the chopping block will do for a wooden one. There's grey stone in rocks all round the clearing.");
+    await say(P.sib, "Stone makes a better pick. A stone pick breaks the green copper rock out west; a copper one breaks the red iron rock deep in the woods to the south. Melt the ore in the fire.");
     G.lockMove = false; look(null);
     writeSave({ summer: { ...T, started: true } });
   }
@@ -2104,21 +2131,28 @@ async function ch11(w) {
   // (the rye counts as reaped once none stands ripe, whoever reaped it — the farmers do it too)
   const ripeNow = () => S.buildings.some(b => b.type === "field" && b.sown && (b.growth ?? 1) >= 3);
   const need = () => { if (!T.reaped && !ripeNow()) { T.reaped = true; persistT(); } return needNow(); };
-  const needNow = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2 });
+  T.stone = saved.stone || 0;
+  G.emitMine = kind => { if (kind === "stone") { T.stone++; persistT(); } };
+  const needNow = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2, pick: G.body.tools.pick >= 1, stone: T.stone >= 3 || G.body.tools.pick >= 2 });
   const obj = onFrame(() => {
     const n = need(), parts = [];
     if (!n.reap) parts.push("Reap the rye");
     if (!n.well) parts.push("Build a well");
     if (!n.shed) parts.push("Build a woodshed");
     if (!n.field) parts.push("Dig a second field");
+    if (!n.pick) parts.push("Make a wooden pickaxe at the chopping block (2 logs)");
+    else if (!n.stone) parts.push(`Break the grey rocks for stone — ${Math.min(T.stone, 3)} of 3`);
     UI.objective(parts.length ? parts.join(" · ") : null);
     // the marker: the ripe rye first, then the nearest site waiting on you
     const ripe = !n.reap && S.buildings.find(b => b.type === "field" && b._reap);
     let tgt = ripe || null, bd = Infinity;
     if (!tgt) for (const b of S.buildings) if (!b.done) { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; tgt = b; } }
+    if (!tgt && !n.pick) tgt = { x: BLOCK.x, z: BLOCK.z };
+    else if (!tgt && !n.stone) for (const k of w.rocks || []) if (k.kind === "stone" && !k.gone) { const d = Math.hypot(k.x - pl.pos.x, k.z - pl.pos.z); if (d < bd) { bd = d; tgt = k; } }
     mark(tgt ? [tgt.x, tgt.z, w.heightAt(tgt.x, tgt.z) + 1.5] : null);
   });
-  await until(() => { const n = need(); return n.reap && n.well && n.shed && n.field; });
+  await until(() => { const n = need(); return n.reap && n.well && n.shed && n.field && n.pick && n.stone; });
+  G.emitMine = null;
   obj(); UI.objective(null); mark(null);
   await wait(1.5);
   bark(P.sib, "That's the lot. Come to the fire tonight — everyone.", 3.5);
@@ -2297,7 +2331,7 @@ async function chHarvest(w) {
     if (!H.reaped) parts.push("Reap the rye");
     if (!H.joined) {
       const site = S.buildings.find(b => b.type === "cabin" && !b.done);
-      parts.push(site ? `Raise Jan and Liesel's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs` : "Plan a cabin for Jan and Liesel (B)");
+      parts.push(site ? (site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Jan and Liesel's cabin" : "Hew a door at the sawhorse for Jan and Liesel's cabin") : `Raise Jan and Liesel's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`) : "Plan a cabin for Jan and Liesel (B)");
     }
     if (!H.job) parts.push("Set someone to new work (F by them)");
     if (!H.furnished) parts.push("Furnish your cabin (B inside)");
@@ -2502,6 +2536,7 @@ function trader(w, town, spec) {
     const [cx, cz, stand] = spec.at;
     const cartB = new Builder(); PROPS.cart(cartB, cx, cz, 0.2); const cart = cartB.build(); cart.position.y = w.heightAt(cx, cz); w.root.add(cart);
     const h = spawn(spec.look, r0.x, r0.z, 0);
+    glance(town.actors, h, 7);
     h.walkTo(stand[0], stand[1], 1.4).then(() => { if (h.root.parent) { h.faceTo(CLEARING.x, CLEARING.z); h.person.setPose("armsCrossed"); } });
     const it = w.addInteract({ get x() { return h.pos.x; }, get z() { return h.pos.z; }, get y() { return h.pos.y + 1.4; }, reach: 2.6, label: `Trade with ${spec.name}`,
       use: () => G.openTrade && G.openTrade(spec.title, `${S.coin} DM in the purse`, spec.offers(S), () => { town.persist(); town.showStore && town.showStore(); SFX.pickup(); }) });

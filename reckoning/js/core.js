@@ -344,8 +344,11 @@ export class Collision {
     return o;
   }
   remove(o) {
-    this.all.splice(this.all.indexOf(o), 1);
-    for (const k of o._cells || []) { const a = this.grid.get(k); if (a) a.splice(a.indexOf(o), 1); }
+    if (!o) return;
+    o.disabled = true;                 // (anything still holding it finds it gone)
+    const i = this.all.indexOf(o); if (i >= 0) this.all.splice(i, 1);
+    for (const k of o._cells || []) { const a = this.grid.get(k); const j = a ? a.indexOf(o) : -1; if (j >= 0) a.splice(j, 1); }
+    o._cells = [];
   }
   addBox(x0, z0, x1, z1, y1 = 10, y0 = -5, tag) {
     return this.insert({ type: "box", x0: Math.min(x0, x1), x1: Math.max(x0, x1), z0: Math.min(z0, z1), z1: Math.max(z0, z1), y0, y1, tag });

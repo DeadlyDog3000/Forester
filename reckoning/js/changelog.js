@@ -7,6 +7,27 @@
 
 export const CHANGELOG = [
   {
+    v: "0.25", date: "29 September 2026", title: "Flesh and iron",
+    items: [
+      "Hunger: a bar under your health, below the map, and both always in sight. Eat by pressing the number of what you carry — bread from the store, meat, berries — and you raise it to your mouth and chew. Go too long without and your breath won't come back and your wounds won't close.",
+      "Skills, on P: Strength, Toughness, Healing, Endurance and Archery, each from 1 to 100, and each grows by doing it. The tougher you are, the less a blow takes from you and the less it rattles you.",
+      "A blow now lands: a red flash, a hard jolt of the view, and then you gasp for breath a while, the view trembling with it. Your breathing is louder and clearer.",
+      "Tools: make a wooden pickaxe at the chopping block from two logs, and break the grey rocks round the clearing for stone. Stone makes a stone pick, which breaks the green copper rock out west; smelt the ore at the fire, make a copper pick, and go after the red iron rock deep in the woods. Copper and iron axes fell quicker. Your brother or sister shows you how.",
+      "Every new cabin wants a door hewn for it at the sawhorse, as the first one did.",
+      "A chest in the cabin: nine places to keep things. After the hunt, and after the sowing, you're asked to put the meat and the seed away in it.",
+      "When Henning hands you the bow, the game stops and a picture shows how to shoot.",
+      "An arrow by the crosshair shows which way your next stroke will come: left, right or overhead.",
+      "The hunt wants three beasts brought down, not one.",
+      "Guards see further, and when they catch a glimpse of something they come over to look. The watchman at the marsh gate keeps his post.",
+      "When someone comes up the road, the people about turn to watch them come.",
+      "Rebuilding in timber, brick or stucco costs a great deal of what it's built of, and no money.",
+      "The forest floor is low-poly now, like everything else: needle litter, moss, bracken, dry grass, bare earth and stone on the banks. Things only take a grain — wood, stone — where it fits; cloth and paint keep their own colour.",
+      "Nothing in the game speaks of the clearing before you reach it. The old axe stays yours once you take it. The charred beam is gone.",
+      "The minimap draws five times quicker. There's a Quit button on the front screen of the app.",
+      "Fixed: you could end up boxed in with no way out. Now you step out to the nearest clear ground.",
+    ],
+  },
+  {
     v: "0.24", date: "29 September 2026", title: "Closer",
     items: [
       "The map of Europe zooms: scroll, or the + and −, and drag to move about. The cities' names keep their size as you come in, so more of the towns find room.",

@@ -14,6 +14,7 @@
 //   people     settlers take jobs: woodcutters fell and stack, haulers carry from
 //              the stack to building sites, farmers keep the fields
 
+import { axeBonus, skillK, ITEM } from "./body.js";
 import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture } from "./core.js";
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
@@ -28,6 +29,8 @@ import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
 
+// what wants a door hewn for it before it can be raised, and what a door takes
+const NEEDS_DOOR = new Set(["cabin"]), DOOR_LOGS = 2;
 export const BUILDINGS = {
   cabin:    { name: "Cabin", cost: 20, model: "cabin", w: 5.8, d: 6.8, beds: 2, icon: "cabin", note: "A home for two more people." },
   woodshed: { name: "Woodshed", cost: 8, model: "woodshed", w: 4.0, d: 2.6, store: 30, icon: "logs", note: "Keeps thirty more logs dry." },
@@ -63,10 +66,11 @@ export const WORKS = {
 // what the materials are called, for the board and the labels
 export const MAT_NAME = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "iron ore", iron: "iron", tools: "tools", coin: "DM", spears: "spears", swords: "swords", battleaxes: "battle axes" };
 // rebuilding a building in the next style: what it costs, what it's called, and what it needs first
+// rebuilding costs what it is built of — a great deal of it — and no money
 export const UPGRADES = {
-  2: { style: "timber and plaster, as Hamburg builds", mats: { planks: 8, stone: 6, coin: 4 } },
-  3: { style: "red brick, as the Hanse builds", mats: { bricks: 24, stone: 10, coin: 12 } },
-  4: { style: "stucco and glass, as a city builds now", mats: { bricks: 30, iron: 10, coin: 40 }, needs: t => t.S.buildings.some(b => b.done && b.type === "townhall" && (b.tier || 1) >= 3) ? null : "a town hall in brick first (the city's charter)" },
+  2: { style: "timber and plaster, as Hamburg builds", mats: { store: 10, planks: 16, stone: 12 } },
+  3: { style: "red brick, as the Hanse builds", mats: { planks: 12, bricks: 45, stone: 20 } },
+  4: { style: "stucco and glass, as a city builds now", mats: { planks: 20, bricks: 60, stone: 25, iron: 18 }, needs: t => t.S.buildings.some(b => b.done && b.type === "townhall" && (b.tier || 1) >= 3) ? null : "a town hall in brick first (the city's charter)" },
 };
 // the model a building wears: a tiered one by its tier (1 the log original, 4 a city street), the cabin as the first house
 export function modelKey(b) {
@@ -216,7 +220,9 @@ export class Town {
   costText(mats) { return Object.entries(mats || {}).map(([k, n]) => `${n} ${MAT_NAME[k] || k}`).join(", "); }
   // what a site still wants, beyond its logs
   wants(b) { const def = BUILDINGS[b.type], got = b.got || {}; return Object.fromEntries(Object.entries(def.mats || {}).map(([k, n]) => [k, n - (got[k] || 0)]).filter(([, n]) => n > 0)); }
-  ready(b) { return b.logs >= BUILDINGS[b.type].cost && !Object.keys(this.wants(b)).length; }
+  ready(b) { return b.logs >= BUILDINGS[b.type].cost && !Object.keys(this.wants(b)).length && (!NEEDS_DOOR.has(b.type) || !!b.door); }
+  // a cabin wants a door hewn for it at the sawhorse, as the first one did
+  doorWanted() { return this.S.buildings.filter(b => NEEDS_DOOR.has(b.type) && !b.done && !b.door).length > (this.S.doors || 0); }
   // tools in hand make every job quicker, as far as they go round
   get toolFactor() { const workers = this.S.people.filter(p => !p.child).length || 1; return 1 - 0.25 * Math.min(1, this.S.tools / workers); }
   // the grandest style anything stands in: the streets follow it
@@ -337,7 +343,7 @@ export class Town {
   show(b) {
     const w = this.w, def = BUILDINGS[b.type];
     let g = this.vis.get(b);
-    if (g) { w.root.remove(g); if (g.userData.col) g.userData.col.disabled = true; for (const c of g.userData.cols || []) c.disabled = true; }
+    if (g) { w.root.remove(g); if (g.userData.col) w.col.remove(g.userData.col); for (const c of g.userData.cols || []) w.col.remove(c); }
     g = new THREE.Group(); g.position.set(b.x, w.heightAt(b.x, b.z), b.z); g.rotation.y = b.ry;
     if (def.wall) {
       // a length of wall (or its rubble), with colliders along it, since the boxes can only lie square to the map
@@ -387,6 +393,7 @@ export class Town {
         rows.push(["store", `${Math.min(b.logs || 0, def.cost)} / ${def.cost} logs`, (b.logs || 0) >= def.cost]);
         for (const [k, n2] of Object.entries(def.mats || {})) rows.push([k, `${n2 - (want[k] || 0)} / ${n2} ${MAT_NAME[k]}`, !want[k]]);
         const ready = this.ready(b);
+        if (NEEDS_DOOR.has(b.type)) rows.push(["", b.door ? "Door hung" : (this.S.doors || 0) > 0 ? "A door is hewn — hang it (F)" : "Needs a door — hew one at the sawhorse", !!b.door]);
         if (ready) rows.push(["", "Raise it — hold F", true]);
         const sign = siteSign(rows, ready);
         sign.position.set(0, 3.4 + rows.length * 0.28, 0);
@@ -562,9 +569,10 @@ export class Town {
         if (b.logs < def.cost) return pl.carryN > 0 ? `Add ${Math.min(pl.carryN, def.cost - b.logs)} logs (${b.logs} of ${def.cost})` : `Bring logs — ${b.logs} of ${def.cost}`;
         const want = this.wants(b);
         if (Object.keys(want).length) return this.afford(want) ? `Bring ${this.costText(want)} from the stores` : `Needs ${this.costText(want)} — ${this.short(want)} short`;
+        if (NEEDS_DOOR.has(b.type) && !b.door) return (this.S.doors || 0) > 0 ? "Hang the door" : "Needs a door — hew one at the sawhorse";
         return `Raise the ${def.name.toLowerCase()}`;
       },
-      can: () => b.type === "field" ? !b.sown : (b.logs < def.cost ? pl.carryN > 0 : true),
+      can: () => b.type === "field" ? !b.sown : (b.logs < def.cost ? pl.carryN > 0 : !(NEEDS_DOOR.has(b.type) && !b.door && !Object.keys(this.wants(b)).length && !(this.S.doors > 0))),
       onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
       use: () => {
         if (b.type === "field") {
@@ -583,6 +591,11 @@ export class Town {
           b.got = b.got || {};
           for (const [k, n] of Object.entries(want)) { const m = Math.min(n, this.have(k)); this.S[k] -= m; b.got[k] = (b.got[k] || 0) + m; }
           this.show(b); this.persist(); SFX().pickup(); return;
+        }
+        if (NEEDS_DOOR.has(b.type) && !b.door) {
+          if (!(this.S.doors > 0)) return;
+          this.S.doors--; b.door = true; pl.workFor && pl.workFor("hammer", 1.2);
+          this.show(b); this.persist(); SFX().build(); return;
         }
         b.done = true; w.removeInteract(it);
         // a church or a shrine is raised to one faith: the state creed, or the biggest congregation
@@ -739,7 +752,7 @@ export class Town {
     if (this.raids && this.raids.active) { UI.hint("Not with raiders in the settlement.", 3); return false; }
     const back = this.refundOf(b);
     const g = this.vis.get(b);
-    if (g) { w.root.remove(g); if (g.userData.col) g.userData.col.disabled = true; for (const c of g.userData.cols || []) c.disabled = true; this.vis.delete(b); }
+    if (g) { w.root.remove(g); if (g.userData.col) w.col.remove(g.userData.col); for (const c of g.userData.cols || []) w.col.remove(c); this.vis.delete(b); }
     if (b._it) { w.removeInteract(b._it); b._it = null; }
     if (this.ups && this.ups.has(b)) { w.removeInteract(this.ups.get(b)); this.ups.delete(b); }
     this.S.buildings.splice(this.S.buildings.indexOf(b), 1);
@@ -848,6 +861,30 @@ export class Town {
   }
   setupStack() {
     const w = this.w, pl = G.player, at = () => this.stackAt;
+    // the chopping block: make tools; the fire: smelt ore
+    if (this.craftIt) w.removeInteract(this.craftIt);
+    this.craftIt = w.addInteract({ x: BLOCK.x, y: w.cy + 0.8, z: BLOCK.z, reach: 2.0, label: "Make tools", use: () => G.openCraft && G.openCraft() });
+    if (this.smeltIt) w.removeInteract(this.smeltIt);
+    const ore = () => G.pack.find(i => i.icon === "copperore" || i.icon === "ironore");
+    this.smeltIt = w.addInteract({ x: FIRE.x, y: w.cy + 0.5, z: FIRE.z, reach: 2.6, hold: 3,
+      label: () => { const o = ore(); return o ? `Smelt the ${o.icon === "copperore" ? "copper" : "iron"} ore (${o.n})` : "Smelt ore"; },
+      can: () => !!ore(),
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().chop(); },
+      use: () => {
+        const o = ore(); if (!o) return;
+        const to = o.icon === "copperore" ? "copper" : "iron", have = G.pack.find(i => i.icon === to);
+        if (have) have.n = (have.n || 1) + o.n; else G.pack.push({ icon: to, name: ITEM[to].name, note: ITEM[to].note, n: o.n });
+        G.pack.splice(G.pack.indexOf(o), 1);
+        UI.hint(`${o.n} ${ITEM[to].name.toLowerCase()}, smelted.`, 3); SFX().build();
+      } });
+    // the sawhorse by the block: a door for each new cabin, hewn from logs off the stack
+    if (this.sawIt) w.removeInteract(this.sawIt);
+    this.sawIt = w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, anim: "saw",
+      get hold() { return 4; },
+      label: () => `Hew a door (${DOOR_LOGS} logs from the ${this.has("woodshed") ? "woodshed" : "stack"})`,
+      can: () => this.doorWanted() && this.S.store >= DOOR_LOGS,
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
+      use: () => { this.S.store -= DOOR_LOGS; this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4); } });
     this.stackIt = w.addInteract({ get x() { return at().x; }, y: w.cy + 0.8, get z() { return at().z; }, reach: 2.6,
       label: () => { const shed = this.has("woodshed"); return pl.carryN > 0 ? `${shed ? "Put the logs in the woodshed" : "Stack the logs"} (${pl.carryN})` : `Take logs from the ${shed ? "woodshed" : "stack"} (${this.S.store})`; },
       can: () => pl.carryN > 0 ? this.S.store < this.storeCap : this.S.store > 0,
@@ -865,7 +902,7 @@ export class Town {
     G.onSwing = () => {
       if (this.raids && this.raids.swing(pl)) return;
       if (!(pl.blade && pl.blade !== "axe")) w.adoptNear && w.adoptNear(pl);
-      if (pl.blade && pl.blade !== "axe") { if (!this._bladeTip) { this._bladeTip = true; UI.hint(`A ${ARMS[pl.blade].name.toLowerCase()} won't fell a tree. Take the axe for that.`, 3); } return; }
+      if (pl.blade && pl.blade !== "axe" && ARMS[pl.blade]) { if (!this._bladeTip) { this._bladeTip = true; UI.hint(`A ${ARMS[pl.blade].name.toLowerCase()} won't fell a tree. Take the axe for that.`, 3); } return; }
       const f = pl.forward();
       let best = null, bd = 2.4;
       for (const t of w.fellable) {
@@ -877,7 +914,8 @@ export class Town {
       if (!best) return;
       SFX().chop();
       // (Tree Cutting and Axing: a stroke that bites deeper, now and then — a fifth, then a third, quicker)
-      best.hp = (best.hp ?? 4) - 1 - (Math.random() < 1 / this.chopMul - 1 ? 1 : 0);
+      best.hp = (best.hp ?? 4) - 1 - (Math.random() < 1 / this.chopMul - 1 + axeBonus(G.body) + skillK(G.body, "strength") * 0.6 ? 1 : 0);
+      G.practise && G.practise("strength", 0.6);
       if (best.hp > 0) { best.state = "shake"; best.shake = 0.25; return; }
       this.fell(best, best.x - pl.pos.x, best.z - pl.pos.z, true);
     };

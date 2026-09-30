@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { loadModels } from "./models.js";
@@ -252,6 +252,8 @@ function buildChapters() {
 // ---- inventory (T) ----
 const ICON = {
   key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
+  pick1: "../assets/sprites/items/pick_wood.png", pick2: "../assets/sprites/items/pick_stone.png", pick3: "../assets/sprites/items/pick_copper.png", pick4: "../assets/sprites/items/pick_iron.png",
+  copperore: "../assets/sprites/items/copper_ore.png", ironore: "../assets/sprites/items/iron_ore.png", copper: "../assets/sprites/items/copper.png", ironbar: "../assets/sprites/items/iron_bar.png",
   axe: "../assets/sprites/items/tool_iron.png", weapon: "../assets/sprites/items/weapon_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -337,6 +339,37 @@ $("chestBody").addEventListener("click", e => {
   renderChest();
 });
 G.openChest = () => { chestNote = ""; AUDIO.door && AUDIO.door(true, 0.2); showOverlay("chest", true); };
+// ---- tools, made at the chopping block: logs from the stack, the rest from what you carry ----
+const packN = k => (G.pack.find(i => i.icon === k) || {}).n || 0;
+const haveFor = (k, n) => k === "logs" ? (G.town ? G.town.S.store : 0) >= n : packN(k) >= n;
+function renderCraft() {
+  const tl = G.body.tools;
+  const rows = TOOL_RECIPES.map((r, i) => {
+    const cur = tl[r.tool] || 0, done = cur >= r.tier, next = r.tier === Math.max(cur + 1, r.tool === "axe" ? 3 : 1);
+    const cost = Object.entries(r.cost).map(([k, n]) => `<span class="${haveFor(k, n) ? "" : "short"}">${n} ${k === "logs" ? "logs from the stack" : ITEM[k].name.toLowerCase()}</span>`).join(", ");
+    const can = next && Object.entries(r.cost).every(([k, n]) => haveFor(k, n));
+    const icon = r.tool === "pick" ? ICON["pick" + r.tier] : ICON.axe;
+    return `<div class="cr-row${done ? " done" : ""}"><img src="${icon}" alt=""><div><div class="sk-name">${r.name}</div><div class="sk-does">${r.note}</div><div class="cr-cost">${cost}</div></div>
+      <button class="btn${can ? " primary" : ""}" data-r="${i}" ${can ? "" : "disabled"}>${done ? "Made" : next ? "Make" : "Not yet"}</button></div>`;
+  }).join("");
+  $("craftBody").innerHTML = `<div class="sk-sub">Stone from the grey rocks. Copper and iron: break the ore with a good enough pick, then smelt it at the fire.</div>${rows}`;
+}
+$("craftBody").addEventListener("click", e => {
+  const b = e.target.closest("button[data-r]"); if (!b || b.disabled) return;
+  const r = TOOL_RECIPES[+b.dataset.r];
+  for (const [k, n] of Object.entries(r.cost)) {
+    if (k === "logs") { G.town.S.store -= n; G.town.showStore && G.town.showStore(); G.town.persist(); }
+    else { const it = G.pack.find(i => i.icon === k); it.n -= n; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }
+  }
+  G.body.tools[r.tool] = r.tier; G.body.dirty = true;
+  // the new one in your hands
+  if (r.tool === "pick") G.player.wield("pick"); else if (G.player.axe && (G.player.blade || "axe") === "axe") { G.player.giveAxe(false); G.player.giveAxe(true); }
+  G.player.workFor && G.player.workFor("hammer", 1.6);
+  UI.hint(`${r.name} made.`, 3);
+  G.emitCraft && G.emitCraft(r);
+  renderCraft();
+});
+G.openCraft = () => showOverlay("craft", true);
 // ---- skills (P): each from 1 to 100, and what the next level wants ----
 function renderSkills() {
   const b = G.body; if (!b) return;
@@ -352,6 +385,7 @@ function renderSkills() {
 let overlay = null, overlayTimer = 0, overlayLockMove = false;
 const OVERLAYS = {
   chest: { open: () => renderChest(), tick: () => {}, every: 1000 },
+  craft: { open: () => renderCraft(), tick: () => renderCraft(), every: 700 },
   skills: { open: () => renderSkills(), tick: () => renderSkills(), every: 500 },
   inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
   bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; } },
@@ -892,7 +926,9 @@ G.ask = (title, value = "") => new Promise(res => {
 // ---- the hotbar: nine slots along the bottom; 1-9 picks one; the axe's slot takes it out or puts it away ----
 function hotbarItems() {
   const pl = G.player, out = [];
-  if (pl.hasAxe) out.push({ icon: "axe", name: "Old felling axe", tool: "axe" });
+  const tl = G.body && G.body.tools;
+  if (pl.hasAxe) out.push({ icon: "axe", name: tl && tl.axe >= 3 && G.town ? `${cap(TIER_NAME[tl.axe])} axe` : "Old felling axe", tool: "axe" });
+  if (tl && tl.pick > 0 && G.town) out.push({ icon: "pick" + tl.pick, name: `${cap(TIER_NAME[tl.pick])} pickaxe`, tool: "pick" });
   // the best weapon the smith has made, if there is one: yours to take up
   const arm = G.town && G.town.playerArm && G.town.playerArm();
   if (arm) out.push({ icon: "weapon", name: ARMS[arm].name, tool: "arm", kind: arm });
@@ -913,7 +949,7 @@ function renderHotbar() {
   hb.classList.toggle("hidden-by-talk", !!UI.dialogOpen);
   document.body.classList.toggle("talking", !!UI.dialogOpen);
   const items = hotbarItems(), pl = G.player;
-  const sel = items.findIndex(i => (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "bow" && pl.bow));
+  const sel = items.findIndex(i => (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow));
   const sig = items.map(i => i.icon + (i.n ?? "")).join("|") + "#" + sel;
   if (sig === hbSig) return;
   hbSig = sig;
@@ -929,6 +965,7 @@ addEventListener("keydown", e => {
   const pl = G.player, blade = pl.blade || "axe";
   if (it && it.tool === "axe") { if (pl.axe && blade !== "axe") pl.wield("axe"); else { pl.blade = "axe"; pl.holsterAxe(!!pl.axe); } }
   if (it && it.tool === "arm") { if (pl.axe && blade === it.kind) { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield(it.kind); }
+  if (it && it.tool === "pick") { if (pl.axe && blade === "pick") { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield("pick"); }
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
   if (it && FOOD[it.icon]) eat(it);
 });

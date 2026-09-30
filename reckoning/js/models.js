@@ -448,7 +448,27 @@ export function makeFood(kind) {
   }
   return g;
 }
-export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife })[kind]?.() || makeAxe();
+// a pickaxe: haft pointing +Y, the head across it at the top, in its making's colour
+const PICK_HEAD = [0x9a7448, 0x9a7448, 0x8a867e, 0xc8763e, 0xaab0b8];
+export function makePick(tier = 1) {
+  const g = new THREE.Group();
+  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.72, 6), mat(0x6a4a30, { surface: "wood" })); haft.position.y = 0.3; g.add(haft);
+  const metal = tier >= 3, head = mat(PICK_HEAD[tier] || PICK_HEAD[1], metal ? { metalness: 0.55, roughness: 0.45 } : { surface: tier === 2 ? "stone" : "wood" });
+  // the head: two arms from the haft's top, bending down to points, like a bird's wings folded
+  const hub = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.06), head); hub.position.y = 0.66; g.add(hub);
+  for (const s of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.045, 0.19), head);
+    arm.position.set(0, 0.645, s * 0.11); arm.rotation.x = -s * 0.28; g.add(arm);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.1, 4), head);
+    tip.position.set(0, 0.6, s * 0.225); tip.rotation.x = s * (Math.PI / 2 + 0.55); g.add(tip);
+  }
+  return g;
+}
+export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
+// (the pick's making is the player's, read from the game at the moment it is made)
+let _toolsOf = () => null;
+export const setToolSource = f => { _toolsOf = f; };
+const G_TOOLS = () => _toolsOf();
 
 export function makeScroll() {
   const g = new THREE.Group();

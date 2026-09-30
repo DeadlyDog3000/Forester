@@ -99,6 +99,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 #chestBody .mc-slot { cursor: pointer; }
 #chestBody .mc-slot:hover { outline: 2px solid var(--gold); outline-offset: -2px; }
 .ch-note { font: italic 13px var(--sans); color: var(--ink-dim); margin: 8px 0 0; min-height: 1em; }
+/* making tools at the block */
+#craft { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 10, 6, 0.55); z-index: 5; cursor: default; }
+.cr-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 4px 12px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(200, 180, 120, 0.18); }
+.cr-row img { width: 40px; height: 40px; image-rendering: pixelated; }
+.cr-row.done { opacity: 0.45; }
+.cr-cost { font: 12px var(--sans); color: var(--ink-dim); }
+.cr-cost .short { color: #e0806a; }
+.cr-row button { min-width: 84px; }
 /* skills (P): what you have grown good at, each out of a hundred */
 #skills { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 10, 6, 0.55); z-index: 5; cursor: default; }
 .sk-win { width: 520px; }

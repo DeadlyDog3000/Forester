@@ -7,12 +7,12 @@
 // the one thing in front of you that E would do something to.
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
-import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, modelCopy } from "./models.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, modelCopy, setToolSource } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
-import { freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS } from "./body.js";
+import { freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK } from "./body.js";
 
 /* global SFX */
 
@@ -503,6 +503,17 @@ export class Player {
     this.pos.y += this.vy * dt;
     if (w) {
       w.col.resolve(this.pos, this.radius, this.pos.y + 0.3, this.crouched ? 1.1 : 1.7);
+      // boxed in on every side (a building finished round you, a crowd, a bad spawn): step out to the nearest clear ground
+      if ((this.unstickT = (this.unstickT || 0) - dt) <= 0) {
+        this.unstickT = 0.5;
+        const y = this.pos.y + 0.9, free = (x, z) => !w.col.solidAt(x, y, z, this.radius);
+        let open = 0;
+        for (let k = 0; k < 8; k++) if (free(this.pos.x + Math.cos(k * Math.PI / 4) * 0.35, this.pos.z + Math.sin(k * Math.PI / 4) * 0.35)) open++;
+        if (!open) for (let r = 0.6, found = false; r <= 6 && !found; r += 0.4) for (let k = 0; k < 16 && !found; k++) {
+          const x = this.pos.x + Math.cos(k * Math.PI / 8) * r, z = this.pos.z + Math.sin(k * Math.PI / 8) * r;
+          if (free(x, z)) { this.pos.x = x; this.pos.z = z; found = true; }
+        }
+      }
       if (w.bounds) {
         const b = w.bounds;
         this.pos.x = clamp(this.pos.x, b.x0, b.x1); this.pos.z = clamp(this.pos.z, b.z0, b.z1);
@@ -783,8 +794,31 @@ export function findPath(w, sx, sz, gx, gz) {
 //  the people who are not you
 // ---------------------------------------------------------------------------
 // a blow to you: dmg in points of a hundred. At nothing, you go down (what happens then is the chapter's to say)
+// a stroke of the pick: at the rock in front, if the pick is hard enough for it
+function mineSwing() {
+  const pl = G.player, w = G.world, tools = G.body && G.body.tools;
+  const k = w && w.rockAhead && w.rockAhead(pl.pos, pl.forward());
+  if (!k || !tools) return;
+  const R = ROCKS[k.kind];
+  if ((tools.pick || 0) < R.need) {
+    AUDIO.clang(0.25, { x: k.x, y: k.y + 0.6, z: k.z });
+    UI.hint(`Too hard for a ${TIER_NAME[tools.pick]} pick — ${k.kind === "copper" ? "copper wants a stone pickaxe" : "iron wants a copper pickaxe"}.`, 3);
+    return;
+  }
+  AUDIO.clang(0.4, { x: k.x, y: k.y + 0.6, z: k.z }); SFX.chop && SFX.chop();
+  k.hp -= 1 + ((tools.pick - R.need) * 0.5) + (Math.random() < skillK(G.body, "strength") * 0.6 ? 1 : 0);
+  G.practise("strength", 0.5);
+  if (k.hp > 0) { k.g.position.x += (Math.random() - 0.5) * 0.02; return; }
+  w.breakRock(k);
+  SFX.treeFall && SFX.treeFall(0.2);
+  const item = ITEM[R.gives], have = G.pack.find(i => i.icon === R.gives);
+  if (have) have.n = (have.n || 1) + R.n; else G.pack.push({ icon: R.gives, name: item.name, note: item.note, n: R.n });
+  UI.hint(`${R.n} ${item.name.toLowerCase()}.`, 2);
+  G.emitMine && G.emitMine(k.kind);
+}
 // practice at something: a word when it rises
 G.body = freshBody();
+setToolSource(() => G.body && G.body.tools);
 G.practise = (id, xp) => {
   const up = practise(G.body, id, xp);
   if (up) { const sk = BODY_SKILLS.find(s => s.id === id); UI.hint(`${sk.name} rose to ${up}.${up === 100 ? " No one could be better." : ""}`, 3); }
@@ -1255,7 +1289,7 @@ export function frame(dt, skipRender) {
     for (const f of G.onFrame.slice()) f(dt);
     updateInteract(dt);
     // the axe swings on a click, when there is an axe
-    if (input.click && G.player.axe && !UI.dialogOpen && !G.cine && G.onSwing && !(G.town && G.town.planning)) G.player.swing(G.onSwing);
+    if (input.click && G.player.axe && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);
     // move dialogue on
     if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();
   } else if (w) {
