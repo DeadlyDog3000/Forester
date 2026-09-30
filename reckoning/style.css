@@ -580,3 +580,9 @@ body.talking #hint { bottom: 298px; }
 .gd-page li { margin: 0 0 7px; }
 .gd-empty { font: italic 15px var(--serif); color: #6b5234; }
 @media (max-width: 640px) { .gd-grid { grid-template-columns: 1fr; } .gd-list { flex-direction: row; flex-wrap: wrap; } }
+
+/* marking out new ground on the map */
+.bm-grow { position: fixed; top: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: #efe3c4; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); font: 15px var(--serif, Georgia); max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; z-index: 6; }
+.bm-grow .btn { padding: 5px 12px; font-size: 14px; }
+.bm-grow .bad { color: #8a2a1a; }
+#bigmap.drawing { cursor: crosshair; }

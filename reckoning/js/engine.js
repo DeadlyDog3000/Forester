@@ -1216,6 +1216,35 @@ G.forgetExplored = () => { explored = {}; try { localStorage.removeItem("reckoni
 // stretched over a sheet of paper drawn once; and only the cells in view are looked at.
 let fogCv = null, maskCv = null, paperCv = null;
 const FOG_K = 4;
+// the unseen, for a whole country: opaque where not yet seen, a pixel to FOG_M metres; kept until more is seen
+const FOG_M = 1.5;
+let wFog = null;
+function worldFog(s) {
+  const w = G.world, mb = w.mapBounds;
+  if (wFog && wFog.w === w && wFog.n === s.size) return wFog;
+  const k = 1 / FOG_M;
+  // (the same country, more seen: only the new cells are cut; then the whole small sheet is softened once)
+  if (!(wFog && wFog.w === w && s.size > wFog.n)) {
+    const b = { x0: mb.x0 - 60, x1: mb.x1 + 60, z0: mb.z0 - 60, z1: mb.z1 + 60 };
+    const mk = () => { const cv = document.createElement("canvas"); cv.width = Math.ceil((b.x1 - b.x0) * k); cv.height = Math.ceil((b.z1 - b.z0) * k); return cv; };
+    const sharp = mk(), sc = sharp.getContext("2d"); sc.fillStyle = "#000"; sc.fillRect(0, 0, sharp.width, sharp.height);
+    wFog = { w, n: 0, cv: mk(), sharp, b, cut: new Set() };
+  }
+  const sc = wFog.sharp.getContext("2d"), b = wFog.b, C = EXPLORE_CELL, r = C * 0.95 * k;
+  sc.globalCompositeOperation = "destination-out";
+  for (const key of s) {
+    if (wFog.cut.has(key)) continue;
+    wFog.cut.add(key);
+    const n = key.indexOf(","), i = +key.slice(0, n), j = +key.slice(n + 1);
+    sc.beginPath(); sc.arc(((i + 0.5) * C - b.x0) * k, ((j + 0.5) * C - b.z0) * k, r, 0, Math.PI * 2); sc.fill();
+  }
+  sc.globalCompositeOperation = "source-over";
+  const m = wFog.cv.getContext("2d");
+  m.clearRect(0, 0, wFog.cv.width, wFog.cv.height);
+  m.filter = `blur(${Math.max(1, EXPLORE_CELL * 0.6 * k)}px)`; m.drawImage(wFog.sharp, 0, 0); m.filter = "none";
+  wFog.n = s.size;
+  return wFog;
+}
 function drawFog(c, X, Z, S) {
   const s = exploredSet(); if (!s) return;
   const W = c.canvas.width, H = c.canvas.height, mw = Math.ceil(W / FOG_K), mh = Math.ceil(H / FOG_K);
@@ -1225,6 +1254,20 @@ function drawFog(c, X, Z, S) {
     fillPaper(paperCv.getContext("2d"), W, H);
   }
   if (maskCv.width !== mw || maskCv.height !== mh) { maskCv.width = mw; maskCv.height = mh; }
+  // a country with a map: its holes are cut once, onto a sheet of its own, and cut again only when more is seen
+  const wf = G.world && G.world.mapBounds && worldFog(s);
+  if (wf) {
+    const m = maskCv.getContext("2d"), k = 1 / FOG_K;
+    m.globalCompositeOperation = "source-over"; m.filter = "none";
+    m.fillStyle = "#000"; m.fillRect(0, 0, mw, mh);
+    m.globalCompositeOperation = "copy";
+    const dx = X(wf.b.x0) * k, dy = Z(wf.b.z0) * k, dw = (wf.b.x1 - wf.b.x0) * S * k, dh = (wf.b.z1 - wf.b.z0) * S * k;
+    m.drawImage(wf.cv, dx, dy, dw, dh);
+    // (beyond the sheet, all unseen)
+    m.globalCompositeOperation = "source-over"; m.fillStyle = "#000";
+    if (dx > 0) m.fillRect(0, 0, dx, mh); if (dy > 0) m.fillRect(0, 0, mw, dy);
+    if (dx + dw < mw) m.fillRect(dx + dw, 0, mw, mh); if (dy + dh < mh) m.fillRect(0, dy + dh, mw, mh);
+  } else {
   // the mask: opaque where unseen
   const m = maskCv.getContext("2d");
   m.globalCompositeOperation = "source-over"; m.filter = "none";
@@ -1239,6 +1282,7 @@ function drawFog(c, X, Z, S) {
   const hole = (i, j) => { const x = X((i + 0.5) * C), y = Z((j + 0.5) * C); m.beginPath(); m.arc(x * k, y * k, r * k, 0, Math.PI * 2); m.fill(); };
   if ((i1 - i0) * (j1 - j0) <= s.size) { for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (s.has(i + "," + j)) hole(i, j); }
   else for (const key of s) { const n = key.indexOf(","), i = +key.slice(0, n), j = +key.slice(n + 1); if (i >= i0 && i <= i1 && j >= j0 && j <= j1) hole(i, j); }
+  }
   // paper, kept only where the mask is
   const f = fogCv.getContext("2d");
   f.globalCompositeOperation = "source-over"; f.clearRect(0, 0, W, H); f.drawImage(paperCv, 0, 0);

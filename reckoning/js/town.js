@@ -26,7 +26,7 @@ import { ARMS, ARM_KINDS } from "./raid.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { NATIONS, NEAR, ensureEurope, europeDay, strengthOf, the, The } from "./europe.js";
 import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
-import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING } from "./woods.js";
+import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING, inPoly } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
 
@@ -102,6 +102,11 @@ export const JOBS = {
   doctor: { name: "doctor", ask: "tend the sick", reply: "Show me who's ailing." },
   watch: { name: "watchman", ask: "keep the watch against raiders", reply: "I'll keep my eyes on the road." },
 };
+// the settlement earns room to grow at these many people (you and yours counted), and a claim can't be bigger than this
+const GROW_AT = [8, 13, 19, 26, 34];
+const MAX_CLAIM = 1000;
+// the distance from a point to a segment
+const segDist = (x, z, [ax, az], [bx, bz]) => { const dx = bx - ax, dz = bz - az, l = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l)); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
 const JOB_ORDER = ["woodcutter", "hauler", "farmer", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "doctor", "watch"];
 // which building a job needs, if any
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
@@ -180,9 +185,18 @@ export class Town {
     // the ground won from the forest as the settlement grew: those rings are trees to fell again, in the same order
     this.S.expand ??= 0;
     for (let k = 1; k <= this.S.expand; k++) w.clearRing(k);
+    // and the ground you marked out yourself, claim by claim, in the order you marked it
+    this.S.lobes ??= [];
+    this.S.lobes.forEach((l, i) => w.clearArea(l.poly, i + 1));
+    w.lobes = this.S.lobes;
     w.settled = true;
     // the trees felled before stay down (stumps), until they grow back
-    for (const f of this.S.felled) { const t = w.fellable[f.i]; if (t) this.fellNow(t, true); }
+    // (by where it stood, if the list has shifted since)
+    for (const f of this.S.felled) {
+      let t = w.fellable[f.i];
+      if (f.x != null && (!t || Math.hypot(t.x - f.x, t.z - f.z) > 0.5)) { t = w.fellable.find(q => Math.hypot(q.x - f.x, q.z - f.z) < 0.5); if (t) f.i = w.fellable.indexOf(t); }
+      if (t) this.fellNow(t, true);
+    }
     this.showStore();
     for (const b of this.S.buildings) this.show(b);
     for (const l of this.S.logs) this.dropLogs(l.x, l.z, l.a, l.n, true);
@@ -313,21 +327,60 @@ export class Town {
   // ---- room: the settlement's edge, and growing it ----
   get clearR() { return CLEARING.r + this.S.expand * RING; }
   // trees still standing on ground marked to be cleared
-  toClear() { return this.w.fellable.filter(t => t.ring && t.ring <= this.S.expand && (t.state === "up" || t.state === "shake")); }
-  // out of room: the edge moves out a ring, and everyone turns to felling it
-  expand() {
-    if (this.S.expand >= 3) return false;
-    this.S.expand++;
-    const trees = this.w.clearRing(this.S.expand);
+  toClear() { return this.w.fellable.filter(t => ((t.ring && t.ring <= this.S.expand) || t.lobe) && (t.state === "up" || t.state === "shake")); }
+  // ---- growing: every so many people, room to push the forest back — where you mark it out on the map ----
+  get pop() { return this.S.people.length + 2; }
+  // how many claims the settlement has earned and not yet made
+  roomDue() { return GROW_AT.filter(n => this.pop >= n).length - this.S.lobes.length - this.S.expand; }
+  nextGrowAt() { return GROW_AT.find(n => n > this.pop) || null; }
+  // where the trees stand now: the old edge of the forest
+  get treeline() { return CLEARING.r + 14 + this.S.expand * RING; }
+  // a line from a to b ([x, z]) beyond the edge: the ground between it and the settlement, and whether it will do
+  claimFor(a, b) {
+    const C = CLEARING, R = this.clearR, T = this.treeline;
+    const rad = p => Math.hypot(p[0] - C.x, p[1] - C.z);
+    const onEdge = p => { const d = rad(p) || 1; return [C.x + (p[0] - C.x) / d * R, C.z + (p[1] - C.z) / d * R]; };
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const poly = [onEdge(a), a, b, onEdge(b)];
+    let area = 0; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) area += (poly[j][0] + poly[i][0]) * (poly[j][1] - poly[i][1]);
+    area = Math.abs(area) / 2;
+    // (the ground already won doesn't count against it)
+    const trees = this.w.fellable.filter(t => (t.state === "up" || t.state === "shake") && !t.lobe && inPoly(poly, t.x, t.z)).length
+      + this.w.forest.filter(s => !s.gone && inPoly(poly, s.x, s.z)).length;
+    const far = T + 26 + this.S.lobes.length * 10;
+    let why = null;
+    if (this.roomDue() <= 0) why = this.nextGrowAt() ? `No room to grow until there are ${this.nextGrowAt()} of you` : "The settlement has grown as far as it can";
+    else if (len < 10) why = "Draw a longer line — ten paces at the least";
+    else if (len > 45) why = "Too long — no more than forty-five paces";
+    else if (rad(a) < T - 3 || rad(b) < T - 3) why = "Draw it out in the trees, beyond the edge of the clearing";
+    else if (rad(a) > far || rad(b) > far) why = "Too far out — keep it closer to the settlement";
+    else if (area > MAX_CLAIM) why = `Too much ground at once (${Math.round(area)} of ${MAX_CLAIM} square paces)`;
+    return { poly, area: Math.round(area), trees, len: Math.round(len), ok: !why, why };
+  }
+  claim(a, b) {
+    const c = this.claimFor(a, b); if (!c.ok) return false;
+    this.S.lobes.push({ poly: c.poly.map(p => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]), day: this.day });
+    const trees = this.w.clearArea(this.S.lobes[this.S.lobes.length - 1].poly, this.S.lobes.length);
+    this.w._mapDirty = true;
     this.persist();
     const sib = G.who === "sister" ? "Brother" : "Sister";
-    UI.bark(sib, "We're out of room. The trees past the edge come down — everyone, axes out.", 4.5);
-    UI.hint(`The settlement is growing: ${trees.length} trees to clear past the old edge. Everyone is felling — you too.`, 6);
-    this.emit("expand", this.S.expand);
+    UI.bark(sib, trees.length ? "Right — that ground's ours. Axes out, everyone: the trees on it come down." : "That ground's ours now.", 4.5);
+    UI.hint(`The settlement is growing: ${trees.length} trees to fell on the new ground. Everyone but the farmers is felling them — you too. Build there once it's clear.`, 7);
+    this.emit("expand", this.S.lobes.length);
     return true;
   }
-  // is it time? when the buildings have filled what there is
-  needsRoom() { return this.S.buildings.filter(b => b.type !== "field" && b.type !== "path").length >= 7 + this.S.expand * 5 && !this.toClear().length; }
+  // is this spot on the settlement's ground? (the old circle, or a claim, with room for something r across)
+  onGround(x, z, r) {
+    if (Math.hypot(x - CLEARING.x, z - CLEARING.z) <= this.clearR + 6 - r * 0.5) return true;
+    for (const l of this.S.lobes) {
+      if (!inPoly(l.poly, x, z)) continue;
+      // (clear of the claim's outer edges by half its size: the edge on the circle is open to the old ground)
+      let near = Infinity;
+      for (let i = 0; i < l.poly.length - 1; i++) near = Math.min(near, segDist(x, z, l.poly[i], l.poly[i + 1]));
+      if (near >= r * 0.45) return true;
+    }
+    return false;
+  }
 
   // ---- knowledge: Forester's tech tree (gov.js), researched with DM and time ----
   knows(id) { return this.S.tech.done.includes(id); }
@@ -500,10 +553,10 @@ export class Town {
   fits(type, x, z, ry) {
     const def = BUILDINGS[type], w = this.w;
     const r = Math.hypot(def.w, def.d) / 2;
-    if (Math.hypot(x - CLEARING.x, z - CLEARING.z) > this.clearR + 6 - r * 0.5) return false;
+    if (!def.wall && !this.onGround(x, z, r)) return false;
     if (def.wall) {
       // a length of wall: out to the edge of the ground won, not through a building, a tree, or the same place twice
-      if (Math.hypot(x - CLEARING.x, z - CLEARING.z) > this.clearR + 10) return false;
+      if (Math.hypot(x - CLEARING.x, z - CLEARING.z) > this.clearR + 10 && !this.S.lobes.some(l => inPoly(l.poly, x, z) || l.poly.some((p, i) => i < l.poly.length - 1 && segDist(x, z, p, l.poly[i + 1]) < 4))) return false;
       for (const b of this.S.buildings) {
         const d2 = BUILDINGS[b.type];
         if (b.type === "path" || b.type === "field") continue;
@@ -1083,7 +1136,7 @@ export class Town {
     t.onDown = () => {
       if (heard()) SFX().treeFall();
       const i = this.w.fellable.indexOf(t);
-      if (!t.wild && !this.S.felled.some(f => f.i === i)) this.S.felled.push({ i, day: this.day });
+      if (!t.wild && !this.S.felled.some(f => f.i === i)) this.S.felled.push({ i, day: this.day, x: Math.round(t.x * 10) / 10, z: Math.round(t.z * 10) / 10 });
       if (dropLogs) this.dropLogs(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), this.logsPerTree);
       this.persist();
       setTimeout(() => this.fellNow(t), 1500);
@@ -1252,6 +1305,7 @@ export class Town {
     if (this.raids && this.raids.active) return `Raiders! ${this.raids.band.filter(r => r.alive).length} in the settlement — drive them off with the axe or the bow before they carry off the stores`;
     const clear = this.toClear().length;
     if (clear) return `Clear the new ground: ${clear} tree${clear > 1 ? "s" : ""} left past the old edge — everyone is felling`;
+    if (S.lobes && this.roomDue() > 0) return `Room to grow — ${this.pop} of you now: open the map (J) and mark out new ground beyond the edge`;
     if (this.winter && S.store < this.hearths * 2) return `Winter: every hearth burns a log a day — fell trees, the stack is at ${S.store}`;
     if (this.season === "autumn" && S.store < this.hearths * 4) return `Winter is coming — stack firewood: ${this.hearths * 4} logs will see you through`;
     if (food < need * 3) return this.harvestable().length ? "Food is low — reap the ripe field" : this.winter ? "Food is low, and nothing grows in winter — buy rye from Henning's cart" : "Food is low — dig and sow another field (B)";
@@ -1503,7 +1557,7 @@ export class Town {
       // stumps from more than two days ago come back, a few a day
       // (Replanting: saplings grow twice as fast)
       const regrowDays = this.knows("replanting") ? 1 : 2, regrowOdds = this.knows("replanting") ? 0.7 : 0.35;
-      for (const f of this.S.felled.slice()) if (this.day - (f.day ?? -9) >= regrowDays && Math.random() < regrowOdds) { const t = this.w.fellable[f.i]; if (t && t.state === "gone" && !t.ring) this.regrow(t); }
+      for (const f of this.S.felled.slice()) if (this.day - (f.day ?? -9) >= regrowDays && Math.random() < regrowOdds) { const t = this.w.fellable[f.i]; if (t && t.state === "gone" && !t.ring && !t.lobe) this.regrow(t); }
       // fields grow a stage a day; a ripe field waits for someone to reap it — the farmers, or you
       // (nothing grows in winter)
       for (const b of this.S.buildings) if (b.type === "field" && b.sown && !winter) {
@@ -1541,7 +1595,15 @@ export class Town {
           if (this.S.cold >= 2) { this.S.cold = 0; this.leave("cold"); } else this.emit("cold", this.day);
         }
       }
-      if (this.techGates && this.needsRoom()) this.expand();
+      // room to grow: said once for each claim earned
+      const due = this.roomDue();
+      if (due > 0 && this.S.growTold !== this.S.lobes.length + this.S.expand + due) {
+        this.S.growTold = this.S.lobes.length + this.S.expand + due;
+        const sib = G.who === "sister" ? "Brother" : "Sister";
+        UI.bark(sib, `There's ${this.pop} of us now. We could push the forest back — open the map and mark out where.`, 5);
+        UI.hint("Room to grow: open the map (J) and draw a line through the trees beyond the edge. The ground between it and the settlement is cleared for building.", 8);
+        G.guide && G.guide("expand");
+      }
       if (this.techGates) {
         // the slow road to the state church
         for (const p of dailyConversion(this)) UI.hint(`${p.name} is received into the ${FAITHS[p.faith].house} — ${FAITHS[p.was].name} no longer.`, 6);

@@ -141,6 +141,17 @@ export const GUIDE = {
       "Fell trees before the snow and fill the woodshed. Nothing can be sown until spring.",
     ],
   },
+  expand: {
+    kicker: "The settlement", title: "Room to grow",
+    steps: [
+      "The settlement earns more ground as it grows: at <b>8 people</b> (you and yours counted), then at 13, 19, 26 and 34.",
+      "When it does, open the map (<kbd>J</kbd>) and click <b>Mark out new ground</b>.",
+      "<b>Drag a line</b> across the trees beyond the edge. The ground between your line and the settlement is what you claim. The map shows it, with how many trees stand on it.",
+      "It can't be too big: a line of 10 to 45 paces, not too far out, and no more than 1000 square paces at once. Red means it won't do, and says why.",
+      "Click <b>Claim it</b>. Everyone but the farmers starts felling the trees on it, and you can help. Once the trees are down, you can build there.",
+      "The road stays open. Newcomers still walk up it into the settlement.",
+    ],
+  },
   raid: {
     kicker: "Danger", title: "Raiders",
     steps: [
@@ -152,4 +163,4 @@ export const GUIDE = {
   },
 };
 // the order the book lists them in
-export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "raid"];
+export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "raid"];

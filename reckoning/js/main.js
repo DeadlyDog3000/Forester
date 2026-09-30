@@ -445,7 +445,7 @@ const OVERLAYS = {
   guideBook: { open: () => renderGuide(), tick: () => {}, every: 5000 },
   skills: { open: () => renderSkills(), tick: () => renderSkills(), every: 500 },
   inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
-  bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; } },
+  bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; growReset(); } },
   buildmenu: { open: () => renderPlans(), tick: () => renderPlans(), every: 500 },
   trade: { open: () => renderTrade(), tick: () => renderTrade(), every: 400 },
   gov: { open: () => renderGov(true), tick: () => renderGov(false), every: 500 },
@@ -1066,6 +1066,36 @@ function eat(it) {
 
 // ---- the full map (J) ----
 // the wheel zooms about the point under the cursor; dragging moves the sheet
+// ---- marking out new ground on the map: a line dragged through the trees, and the ground behind it claimed ----
+const grow = { mode: false, a: null, b: null, drawing: false, check: null };
+function mapWorldAt(e) {
+  const mv = G.mapView; if (!mv || !mv.S) return null;
+  const r = $("bigmapCanvas").getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  return [mv.cx + (mx - mv.W / 2) / mv.S, mv.cz + (my - mv.H / 2) / mv.S];
+}
+function growReset() { grow.mode = false; grow.a = grow.b = null; grow.drawing = false; grow.check = null; $("bigmap").classList.remove("drawing"); }
+function growBar() {
+  const t = G.town, bar = $("bmGrow");
+  const due = t && t.roomDue && t.S.lobes ? t.roomDue() : 0;
+  if (!t || !t.S.lobes || (!due && !grow.mode)) { bar.classList.add("hidden"); return; }
+  bar.classList.remove("hidden");
+  const btn = $("bmGrowBtn"), txt = $("bmGrowText"), cancel = $("bmGrowCancel");
+  cancel.classList.toggle("hidden", !grow.mode);
+  if (!grow.mode) { txt.textContent = `Room to grow (${t.pop} of you) — ${due > 1 ? `${due} claims` : "one claim"} to make.`; btn.textContent = "Mark out new ground"; btn.disabled = false; return; }
+  const c = grow.check;
+  if (!c || !grow.a || Math.hypot(grow.b[0] - grow.a[0], grow.b[1] - grow.a[1]) < 1) { txt.textContent = "Drag a line across the trees beyond the edge."; btn.textContent = "Claim it"; btn.disabled = true; return; }
+  txt.innerHTML = c.ok ? `${c.trees} trees to fell · ${c.area} square paces · a line of ${c.len} paces` : `<span class="bad">${esc(c.why)}</span>`;
+  btn.textContent = "Claim it"; btn.disabled = !c.ok || grow.drawing;
+}
+$("bmGrowBtn").onclick = () => {
+  const t = G.town; if (!t) return;
+  if (!grow.mode) { grow.mode = true; $("bigmap").classList.add("drawing"); bigMapSoon(); return; }
+  if (grow.check && grow.check.ok && t.claim(grow.a, grow.b)) { growReset(); showOverlay("bigmap", false); }
+};
+$("bmGrowCancel").onclick = () => { growReset(); bigMapSoon(); };
+// (a drag or a turn of the wheel asks for a redraw; it is drawn once, on the next frame, however many came)
+let bigMapQueued = false;
+function bigMapSoon() { if (bigMapQueued) return; bigMapQueued = true; requestAnimationFrame(() => { bigMapQueued = false; if (overlay === "bigmap") renderBigMap(); }); }
 $("bigmap").addEventListener("wheel", e => {
   const mv = G.mapView; if (!mv || !mv.S) return;
   e.preventDefault();
@@ -1077,17 +1107,23 @@ $("bigmap").addEventListener("wheel", e => {
   mv.ox += (wx - (mx - mv.W / 2) / S1) - mv.cx; mv.oz += (wz - (my - mv.H / 2) / S1) - mv.cz;
   if (mv.zoom === 1) { mv.ox = 0; mv.oz = 0; }
   if (G.mapUsed && mv.zoom > 1.6) G.mapUsed.zoomed = true;
-  renderBigMap();
+  bigMapSoon();
 }, { passive: false });
 {
   let drag = null;
-  $("bigmap").addEventListener("mousedown", e => { drag = { x: e.clientX, y: e.clientY }; $("bigmap").classList.add("dragging"); });
-  addEventListener("mouseup", () => { drag = null; $("bigmap").classList.remove("dragging"); });
+  $("bigmap").addEventListener("mousedown", e => {
+    if (e.target.closest && e.target.closest(".bm-grow")) return;
+    // marking out ground: a drag draws the line instead of moving the sheet
+    if (grow.mode) { const p = mapWorldAt(e); if (p) { grow.a = p; grow.b = p; grow.drawing = true; bigMapSoon(); } return; }
+    drag = { x: e.clientX, y: e.clientY }; $("bigmap").classList.add("dragging");
+  });
+  addEventListener("mouseup", () => { drag = null; $("bigmap").classList.remove("dragging"); if (grow.drawing) { grow.drawing = false; bigMapSoon(); } });
   addEventListener("mousemove", e => {
+    if (grow.drawing && overlay === "bigmap") { const p = mapWorldAt(e); if (p) { grow.b = p; bigMapSoon(); } return; }
     const mv = G.mapView; if (!drag || !mv || !mv.S || overlay !== "bigmap") return;
     mv.ox -= (e.clientX - drag.x) / mv.S; mv.oz -= (e.clientY - drag.y) / mv.S;
     drag = { x: e.clientX, y: e.clientY };
-    renderBigMap();
+    bigMapSoon();
   });
 }
 // the context, but reporting the size the map is drawn at (its methods bound once, not on every call)
@@ -1124,6 +1160,16 @@ function renderBigMap() {
   c.save(); c.scale(dpr, dpr);
   const proxy = bigProxy(c, sub);
   drawMap(proxy, X, Z, S, true, cx, cz, Math.hypot(b.x1 - b.x0, b.z1 - b.z0) / mv.zoom);
+  // the ground being marked out: shaded, the line staked, green if it will do and red if not
+  grow.check = grow.mode && grow.a && G.town ? G.town.claimFor(grow.a, grow.b) : null;
+  if (grow.check && Math.hypot(grow.b[0] - grow.a[0], grow.b[1] - grow.a[1]) >= 1) {
+    const q = grow.check, col = q.ok ? "46,120,60" : "170,50,35";
+    c.fillStyle = `rgba(${col},0.28)`; c.beginPath(); q.poly.forEach(([x, z], i) => i ? c.lineTo(X(x), Z(z)) : c.moveTo(X(x), Z(z))); c.closePath(); c.fill();
+    c.strokeStyle = `rgba(${col},0.9)`; c.lineWidth = 1.5; c.setLineDash([5, 4]); c.stroke(); c.setLineDash([]);
+    c.strokeStyle = MAPINK; c.lineWidth = 3; c.beginPath(); c.moveTo(X(grow.a[0]), Z(grow.a[1])); c.lineTo(X(grow.b[0]), Z(grow.b[1])); c.stroke();
+    for (const [x, z] of [grow.a, grow.b]) { c.fillStyle = `rgb(${col})`; c.beginPath(); c.arc(X(x), Z(z), 5, 0, Math.PI * 2); c.fill(); c.strokeStyle = MAPINK; c.lineWidth = 1.5; c.stroke(); }
+  }
+  growBar();
   // burnt, darkened edges
   const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
   g.addColorStop(0, "rgba(90,55,20,0)"); g.addColorStop(1, "rgba(70,40,15,0.55)");
@@ -1174,13 +1220,15 @@ function showGuideCard(id) {
   SFX.pauseAll && SFX.pauseAll(true);
   const el = $("guideCard"); el.classList.remove("hidden");
   const done = () => {
-    removeEventListener("keydown", key); $("guideOk").onclick = null;
+    if (closed) return; closed = true;
+    removeEventListener("keydown", key, true); $("guideOk").onclick = null;
     el.classList.add("hidden"); guideShowing = false;
     G.mode = was === "lesson" ? "play" : was; SFX.pauseAll && SFX.pauseAll(false);
     if (G.mode === "play") lock();
   };
   const key = e => { if (e.code === "Space" || e.code === "Enter" || e.code === "Escape" || e.code === "KeyF") { e.preventDefault(); e.stopImmediatePropagation(); G.holdLatch = true; done(); } };
-  setTimeout(() => addEventListener("keydown", key, true), 350);
+  let closed = false;
+  setTimeout(() => { if (!closed) addEventListener("keydown", key, true); }, 350);
   $("guideOk").onclick = done;
 }
 function renderGuide() {
@@ -1203,6 +1251,7 @@ G.lesson = () => new Promise(res => {
   SFX.pauseAll && SFX.pauseAll(true);
   const el = $("lesson"); el.classList.remove("hidden");
   const done = () => {
+    if (closed) return; closed = true;
     removeEventListener("keydown", key); $("lessonOk").onclick = null;
     el.classList.add("hidden");
     G.mode = was === "lesson" ? "play" : was; SFX.pauseAll && SFX.pauseAll(false);
@@ -1210,7 +1259,8 @@ G.lesson = () => new Promise(res => {
     res();
   };
   const key = e => { if (e.code === "Space" || e.code === "Enter" || e.code === "Escape" || e.code === "KeyF") { e.preventDefault(); done(); } };
-  setTimeout(() => addEventListener("keydown", key), 300);
+  let closed = false;
+  setTimeout(() => { if (!closed) addEventListener("keydown", key); }, 300);
   $("lessonOk").onclick = done;
 });
 function pause() {

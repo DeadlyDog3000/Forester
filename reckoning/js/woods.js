@@ -35,6 +35,16 @@ export const HUNT = { x: 74, z: -332, r: 34 };
 export const ROAM = 100;
 // each ring of forest cleared as the settlement grows is this deep
 export const RING = 14;
+const MAP_K = 5;
+// is a point inside a polygon ([[x, z], ...])?
+export function inPoly(poly, x, z) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}                 // the map's sheet: pixels to the metre
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const STACK = { x: 28.5, z: -321.5 };
 const BLOCK = { x: 41.5, z: -316 };
@@ -199,7 +209,7 @@ export class Woods extends WorldBase {
         root.add(g, gf); gf.visible = false;
       } }
     this.forest = list;
-    this.mapTrees = list.map(t => ({ x: t.x, z: t.z, k: t.kind }));
+    this.mapTrees = list.map((t, i) => (t._mi = i, { x: t.x, z: t.z, k: t.kind }));
     this.treeCount = list.length;
 
     // undergrowth: bushes, ferns, stones
@@ -404,17 +414,33 @@ export class Woods extends WorldBase {
   minimap(c, X, Z, S, big) {
     const W = c.canvas.width, H = c.canvas.height, pad = 12;
     const vis = (x, z) => { const px = X(x), pz = Z(z); return px > -pad && px < W + pad && pz > -pad && pz < H + pad; };
-    // the fields behind, towards the city, a paler wash
-    const fz = Z(16);
-    if (fz < H) { c.fillStyle = "rgba(200,190,120,0.35)"; c.fillRect(0, Math.max(0, fz), W, H); }
-    // the forest, tree by tree
     const ts = Math.max(2.2, Math.min(4.2, S * 1.6));
-    c.fillStyle = TREEC;
-    const step = big && S < 1.2 ? 2 : 1;
-    for (let i = 0; i < this.mapTrees.length; i += step) { const t = this.mapTrees[i]; if (vis(t.x, t.z)) tree(c, X(t.x), Z(t.z), ts, t.k); }
-    // the clearing
-    c.fillStyle = "rgba(214,200,150,0.9)"; c.beginPath(); c.arc(X(CLEARING.x), Z(CLEARING.z), CLEARING.r * S, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]);
+    // the wash, the forest, the clearing and the road never change: drawn once onto a sheet the size of the country,
+    // and only the piece in view copied out (looked at closer than the sheet holds, the trees in view are drawn as before)
+    const dev = S * (c.getTransform ? Math.abs(c.getTransform().a) || 1 : 1);
+    if (dev <= MAP_K * 1.35) {
+      const L = this.mapLayer(), lb = L.b;
+      c.drawImage(L.cv, X(lb.x0), Z(lb.z0), (lb.x1 - lb.x0) * S, (lb.z1 - lb.z0) * S);
+    } else {
+      const fz = Z(16);
+      if (fz < H) { c.fillStyle = "rgba(200,190,120,0.35)"; c.fillRect(0, Math.max(0, fz), W, H); }
+      c.fillStyle = TREEC;
+      // (only the cells in view)
+      const g = this.mapTreeGrid(), x0 = Math.floor((CLEARING.x + (0 - pad - X(CLEARING.x)) / S) / 20), x1 = Math.floor((CLEARING.x + (W + pad - X(CLEARING.x)) / S) / 20);
+      const z0 = Math.floor((CLEARING.z + (0 - pad - Z(CLEARING.z)) / S) / 20), z1 = Math.floor((CLEARING.z + (H + pad - Z(CLEARING.z)) / S) / 20);
+      for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) for (const t of g.get(i + "," + j) || []) tree(c, X(t.x), Z(t.z), ts, t.k);
+      this.mapClearing(c, X, Z, S);
+      const rw = Math.max(2.2, Math.min(4.5, S * 1.9));
+      for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
+      road(c, this.road, X, Z, rw);
+    }
+    // the ground won from the forest beyond the old edge
+    if (this.lobes && this.lobes.length) {
+      c.fillStyle = "rgba(214,200,150,0.9)"; c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]);
+      for (const l of this.lobes) { c.beginPath(); l.poly.forEach(([x, z], i) => i ? c.lineTo(X(x), Z(z)) : c.moveTo(X(x), Z(z))); c.closePath(); c.fill(); }
+      for (const l of this.lobes) { c.beginPath(); for (let i = 1; i < l.poly.length - 1; i++) { const [ax, az] = l.poly[i - 1], [bx, bz] = l.poly[i]; if (i === 1) c.moveTo(X(ax), Z(az)); c.lineTo(X(bx), Z(bz)); } c.lineTo(X(l.poly[l.poly.length - 1][0]), Z(l.poly[l.poly.length - 1][1])); c.stroke(); }
+      c.setLineDash([]);
+    }
     c.fillStyle = TREEC;
     for (const t of this.fellable) if (t.state === "up" || t.state === "shake") tree(c, X(t.x), Z(t.z), ts * 1.1, "spruce");
     // rocks you can break: grey stone, copper green, iron red
@@ -426,10 +452,38 @@ export class Woods extends WorldBase {
     // the cabin
     c.fillStyle = this.cabin && this.cabin.visible ? TOWN : "#3a3530";
     c.save(); c.translate(X(CABIN.x), Z(CABIN.z)); c.rotate(-CABIN.ry); c.fillRect(-2.5 * S, -3 * S, 5 * S, 6 * S); c.strokeStyle = INK; c.strokeRect(-2.5 * S, -3 * S, 5 * S, 6 * S); c.restore();
-    // the road and the tracks off it
-    const rw = Math.max(2.2, Math.min(4.5, S * 1.9));
+  }
+  // the clearing on the map: the old ground, and what has been won from the forest since
+  mapClearing(c, X, Z, S) {
+    c.fillStyle = "rgba(214,200,150,0.9)"; c.beginPath(); c.arc(X(CLEARING.x), Z(CLEARING.z), CLEARING.r * S, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]);
+  }
+  // the sheet: MAP_K pixels to the metre, over the map and a margin round it; drawn again only when told to
+  mapLayer() {
+    if (this._mapLayer && !this._mapDirty) return this._mapLayer;
+    const mb = this.mapBounds, b = { x0: mb.x0 - 60, x1: mb.x1 + 60, z0: mb.z0 - 60, z1: mb.z1 + 60 }, K = MAP_K;
+    const cv = (this._mapLayer && this._mapLayer.cv) || document.createElement("canvas");
+    cv.width = Math.round((b.x1 - b.x0) * K); cv.height = Math.round((b.z1 - b.z0) * K);
+    const c = cv.getContext("2d"), X = x => (x - b.x0) * K, Z = z => (z - b.z0) * K;
+    c.clearRect(0, 0, cv.width, cv.height);
+    const fz = Z(16);
+    if (fz < cv.height) { c.fillStyle = "rgba(200,190,120,0.35)"; c.fillRect(0, Math.max(0, fz), cv.width, cv.height); }
+    // (a tree a metre and a half across, as the minimap has always shown them)
+    c.fillStyle = TREEC;
+    for (const t of this.mapTrees) if (!t.gone) tree(c, X(t.x), Z(t.z), 1.6 * K, t.k);
+    this.mapClearing(c, X, Z, K);
+    const rw = 1.9 * K;
     for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
     road(c, this.road, X, Z, rw);
+    this._mapLayer = { cv, b }; this._mapDirty = false;
+    return this._mapLayer;
+  }
+  mapTreeGrid() {
+    if (this._treeGrid && !this._gridDirty) return this._treeGrid;
+    this._gridDirty = false;
+    const g = new Map();
+    for (const t of this.mapTrees) { if (t.gone) continue; const k = Math.floor(t.x / 20) + "," + Math.floor(t.z / 20); let l = g.get(k); if (!l) g.set(k, l = []); l.push(t); }
+    return this._treeGrid = g;
   }
   mapLabels(c, X, Z, S, set) {
     const L = (text, wx, wz, dy, size) => { if (seen(set, wx, wz)) label(c, text, X(wx), Z(wz) + dy, size); };
@@ -678,9 +732,28 @@ export class Woods extends WorldBase {
     for (const m of touched) m.instanceMatrix.needsUpdate = true;
     return out;
   }
+  // ground marked out beyond the edge (a polygon, [[x, z], ...]): every tree on it becomes one to fell, tagged with the claim
+  clearArea(poly, tag) {
+    const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+    const out = [], touched = new Set();
+    for (const s of this.forest) {
+      if (s.x < x0 || s.x > x1 || s.z < z0 || s.z > z1 || !inPoly(poly, s.x, s.z)) continue;
+      if (s.adopted) { if (s.adopted.state !== "gone") { s.adopted.lobe = tag; out.push(s.adopted); } continue; }
+      if (s.gone) continue;
+      if (this.anyRoadDist(s.x, s.z).d < 5) continue;
+      const t = this.adopt(s, touched); t.lobe = tag; out.push(t);
+    }
+    // (and the trees already standing in the clearing's own ring that fall inside it)
+    for (const t of this.fellable) if (!t.lobe && !t.wild && (t.state === "up" || t.state === "shake") && inPoly(poly, t.x, t.z) && !out.includes(t)) { t.lobe = tag; out.push(t); }
+    for (const m of touched) m.instanceMatrix.needsUpdate = true;
+    return out;
+  }
   // a scenery tree becomes one you can fell: the instance goes, and a tree of its own stands where it stood
   adopt(s, touched) {
     s.gone = true;
+    // (on the map it's drawn as a tree of its own now, while it stands)
+    if (s._mi != null && this.mapTrees[s._mi]) { this.mapTrees[s._mi].gone = true; this._mapDirty = this._gridDirty = true; }
     for (const [m, i] of s.slots || []) { m.setMatrixAt(i, ZERO); if (touched) touched.add(m); else m.instanceMatrix.needsUpdate = true; }
     if (s.col) s.col.disabled = true;
     const model = modelCopy(s.kind) || modelCopy("spruce");

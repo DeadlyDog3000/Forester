@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.28", date: "30 September 2026", title: "Room to grow",
+    items: [
+      "Fixed: F (and Space, Enter and Escape) stopped working after the first guide card. It works again.",
+      "You choose where the settlement grows. At 8 people, then 13, 19, 26 and 34, you earn a claim. Open the map (J), click Mark out new ground, and drag a line through the trees beyond the edge. The ground between your line and the settlement is yours to clear and build on. The map shades it green if it will do, red if not and why, and counts the trees on it. A claim can't be too big: 10 to 45 paces of line, and 1000 square paces at most.",
+      "The settlement no longer grows by itself in rings. Everyone but the farmers fells the trees on new ground, and the road is always left open for newcomers.",
+      "The map is fast: the forest, roads and fog are drawn once and only the piece in view is copied out, so the minimap no longer stutters as you walk, and the big map drags and zooms smoothly.",
+    ],
+  },
+  {
     v: "0.27", date: "30 September 2026", title: "The guide",
     items: [
       "A guide: the first time you meet each part of the game (building, stone, tools, the forge, the stores, settlers, fields, research, trade, hunger, wounds, skills, winter, raiders), the world stops and a page explains how it works, step by step. H opens the guide book to read any of them again.",
