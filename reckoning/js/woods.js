@@ -138,7 +138,7 @@ export class Woods extends WorldBase {
     geo.computeVertexNormals();
     const tg2 = geo;
     this.terrainMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "none" });
-    const terrain = new THREE.Mesh(tg2, this.terrainMat);
+    const terrain = this.terrain = new THREE.Mesh(tg2, this.terrainMat);
     SNOW.value = 0;
     terrain.receiveShadow = true;
     root.add(terrain);
@@ -519,7 +519,51 @@ export class Woods extends WorldBase {
   get mapTitle() { return "The Road North-East"; }
   get mapBounds() { return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
   // gentle hills, flattened where the road runs and in the clearing
+  // the ground, and the pads dug level into it for buildings: inside a pad its own height, and round it a bank
+  // sloping back up (or down) to the ground as it was
   heightAt(x, z) {
+    const h = this.groundAt(x, z);
+    const P = this.pads; if (!P || !P.length) return h;
+    let out = h;
+    for (const p of P) {
+      if (x < p.x0 || x > p.x1 || z < p.z0 || z > p.z1) continue;
+      const dx = x - p.x, dz = z - p.z, lx = Math.abs(dx * p.c - dz * p.s), lz = Math.abs(dx * p.s + dz * p.c);
+      const d = Math.max(lx - p.hw, lz - p.hd);
+      if (d <= 0) return p.y;
+      if (d < p.bank) { const k = d / p.bank, e = k * k * (3 - 2 * k); out = p.y + (out - p.y) * e; }
+    }
+    return out;
+  }
+  // a building's pad: the ground under it cut (or made up) to one level, y, with a bank a couple of metres wide round it
+  addPad(key, x, z, ry, w, d, y, bank = 2.2) {
+    this.pads ??= []; this.padKeys ??= new Map();
+    if (this.padKeys.has(key)) { const o = this.padKeys.get(key); if (Math.abs(o.y - y) < 0.01 && o.x === x && o.z === z && o.ry === ry && o.hw === w / 2) return; this.pads.splice(this.pads.indexOf(o), 1); }
+    const hw = w / 2, hd = d / 2, r = Math.hypot(hw, hd) + bank;
+    const p = { key, x, z, ry, c: Math.cos(ry), s: Math.sin(ry), hw, hd, y, bank, x0: x - r, x1: x + r, z0: z - r, z1: z + r };
+    this.pads.push(p); this.padKeys.set(key, p);
+    this.dirtyGround = this.dirtyGround ? { x0: Math.min(this.dirtyGround.x0, p.x0), x1: Math.max(this.dirtyGround.x1, p.x1), z0: Math.min(this.dirtyGround.z0, p.z0), z1: Math.max(this.dirtyGround.z1, p.z1) } : { x0: p.x0, x1: p.x1, z0: p.z0, z1: p.z1 };
+  }
+  // the terrain made again where pads have been dug: its points lowered (or raised) to them, the cut faces bare earth
+  reshapeGround() {
+    const D = this.dirtyGround; if (!D || !this.terrain) return; this.dirtyGround = null;
+    const geo = this.terrain.geometry, pos = geo.attributes.position, col = geo.attributes.color;
+    const earth = new THREE.Color(0x4a3a2a), c = new THREE.Color();
+    for (let t = 0; t < pos.count; t += 3) {
+      let inside = false;
+      for (let k = 0; k < 3; k++) { const x = pos.getX(t + k), z = pos.getZ(t + k); if (x >= D.x0 && x <= D.x1 && z >= D.z0 && z <= D.z1) { inside = true; break; } }
+      if (!inside) continue;
+      let moved = 0;
+      for (let k = 0; k < 3; k++) {
+        const x = pos.getX(t + k), z = pos.getZ(t + k), y0 = pos.getY(t + k), y = this.heightAt(x, z);
+        if (Math.abs(y - y0) > 0.01) { pos.setY(t + k, y); moved = Math.max(moved, Math.abs(y - this.groundAt(x, z))); }
+      }
+      // (a face dug more than a hand's depth shows the earth)
+      if (moved > 0.15) for (let k = 0; k < 3; k++) { c.setRGB(col.getX(t + k), col.getY(t + k), col.getZ(t + k)).lerp(earth, Math.min(0.75, moved * 0.5)); col.setXYZ(t + k, c.r, c.g, c.b); }
+    }
+    pos.needsUpdate = true; col.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
+  }
+  // the ground as it lies, before anyone dug into it
+  groundAt(x, z) {
     if (this.cave && this.cave.holds(x, z)) return this.cave.floorAt(x, z);
     let h = this.rawAt(x, z);
     const rd = this.road ? (this.branches ? this.anyRoadDist(x, z) : this.roadDist(x, z)) : null;
@@ -1087,6 +1131,7 @@ export class Woods extends WorldBase {
   }
   update(dt) {
     this.tickRocks(dt);
+    if (this.dirtyGround) this.reshapeGround();
     // tiles of forest past the haze are not drawn at all
     if ((this.tileT = (this.tileT || 0) - dt) <= 0 && this.forestTiles && G.player) {
       this.tileT = 0.4;

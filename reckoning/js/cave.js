@@ -36,6 +36,8 @@ export class Caves {
     const xs = this.halls.map(h => [h.x - h.r - 4, h.x + h.r + 4]).flat(), zs = this.halls.map(h => [h.z - h.r - 4, h.z + h.r + 4]).flat();
     this.b = { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
     this.r = r;
+    // (the forest asks the cave for its floor from here on: the rocks laid in it must stand on that floor)
+    w.cave = this;
     this.build();
   }
   holds(x, z) { return x > this.b.x0 && x < this.b.x1 && z > this.b.z0 && z < this.b.z1; }

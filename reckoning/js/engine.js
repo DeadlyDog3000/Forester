@@ -459,7 +459,8 @@ export class Player {
       if (input.down("KeyA") || input.down("ArrowLeft")) mx -= 1;
       if (input.down("KeyD") || input.down("ArrowRight")) mx += 1;
     }
-    if (input.hit("KeyC") || input.hit("ControlLeft")) this.crouched = !this.crouched;
+    // (not while the camera flies free: there C takes the camera down, not you)
+    if (!G.freecam && (input.hit("KeyC") || input.hit("ControlLeft"))) this.crouched = !this.crouched;
     let sprint = (input.down("ShiftLeft") || input.down("ShiftRight")) && !this.crouched;
     // in a chase, breath runs out: a spent runner can only jog until it comes back
     if (G.stamina !== undefined) {
@@ -698,10 +699,12 @@ function freeCamera(dt) {
 G.toggleFreecam = () => {
   if (G.freecam) {
     for (const [c, v] of G.freecam.shown) c.visible = v;
+    // (back in yourself standing, as you went out)
+    G.player.crouched = !!G.freecam.crouched;
     G.freecam = null; if (G.player.model) G.player.model.root.visible = false; document.body.classList.remove("freecam"); return false;
   }
   const p = G.player, e = p.eyePos();
-  G.freecam = { x: e.x, y: e.y, z: e.z, yaw: p.yaw, pitch: p.pitch, shown: camera.children.map(c => [c, c.visible]) };
+  G.freecam = { x: e.x, y: e.y, z: e.z, yaw: p.yaw, pitch: p.pitch, shown: camera.children.map(c => [c, c.visible]), crouched: !!p.crouched };
   document.body.classList.add("freecam");
   return true;
 };

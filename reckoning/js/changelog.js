@@ -21,6 +21,8 @@ export const CHANGELOG = [
       "Claim new ground by drawing: hold the left button on the map and draw out from the settlement's edge round the ground you want, and back.",
       "The land rolls: hills, ridges and hollows. Paths and fields lie along the slope, and buildings are dug into it.",
       "Stumps can be dug up (hold F), and nothing grows there again.",
+      "A building on a slope has its ground dug out for it: a level pad cut into the hill, with a bank of bare earth round it.",
+      "Fixed: the ore in the caves was invisible. Fixed: coming back from the free camera left you crouched and slow.",
       "Paths are a quarter quicker to walk on. Settlers no longer clip through walls.",
       "Harder raiders: tougher, quicker, harder-hitting, more of them, and a parry stuns them for less time. Once Policing is known, only the watch fights them; everyone else takes cover.",
       "Everything yields less: fields give 4 rye (5 with a well), a loaf takes 2.5 rye, trees give fewer logs, and works and ore rocks make less. Food fills you less.",

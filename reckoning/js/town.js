@@ -522,6 +522,11 @@ export class Town {
     const w = this.w, def = BUILDINGS[b.type];
     let g = this.vis.get(b);
     if (g) { w.root.remove(g); if (g.userData.col) w.col.remove(g.userData.col); for (const c of g.userData.cols || []) w.col.remove(c); }
+    // (a building's ground is dug level for it: a pad cut into the slope, with a bank round it)
+    if (!def.path && b.type !== "field" && !def.wall && w.addPad) {
+      const bays = b.type === "woodshed" ? b.bays || 1 : 1;
+      w.addPad(b, b.x, b.z, b.ry, def.w * bays + 0.8, def.d + 0.8, this.baseY(b) + 0.05);
+    }
     g = new THREE.Group(); g.position.set(b.x, this.baseY(b), b.z); g.rotation.y = b.ry;
     if (def.wall && !b.done) {
       // a length not yet raised: stakes at its ends and a line between, the logs piling beside it
@@ -1089,6 +1094,7 @@ export class Town {
     const w = this.w, old = this.shopVis.get(c);
     if (old) { w.root.remove(old.g); for (const o of old.cols) w.col.remove(o); if (old.it) w.removeInteract(old.it); }
     const g = shopVisual(c), fake = { x: c.x, z: c.z, ry: c.ry, type: "shop" };
+    if (w.addPad) w.addPad(c, c.x, c.z, c.ry, BUILDINGS.shop.w + 0.8, BUILDINGS.shop.d + 0.8, this.baseY(fake) + 0.05);
     g.position.set(c.x, this.baseY(fake), c.z); g.rotation.y = c.ry; w.root.add(g);
     const cols = c.built ? this.solidAt(fake, [[-1.2, -1.2, 0.5], [0, -1.2, 0.5], [1.2, -1.2, 0.5], [-1.75, 0.1, 0.45], [1.75, 0.1, 0.45], [0, 1.05, 0.4], [-1.1, 1.05, 0.4], [1.1, 1.05, 0.4]], w.heightAt(c.x, c.z) + 3) : [];
     const fx = c.x + Math.sin(c.ry) * 2.6, fz = c.z + Math.cos(c.ry) * 2.6;
