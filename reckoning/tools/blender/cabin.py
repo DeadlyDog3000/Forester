@@ -194,8 +194,6 @@ def build(burned):
                 k.box("wood", (run, 0.06, 0.24), mat_tr((sd * (W / 2 + over_eave) / 2, y, top + ROOF_H - (ROOF_H + over_eave * math.tan(slope)) / 2 + 0.02), (0, sd * slope, 0)), wood(0x4a3422))
         k.cylinder("log", 0.13, 0.13, D + 2 * over_gable + 0.1, mat_tr((0, 0, top + ROOF_H + 0.12), (PI / 2, 0, 0)), logc(), segs=10, end_color=endc)
 
-        # the charred beam they kept, at the front left corner
-        k.box("char", (0.32, 0.32, top), mat_tr((-W / 2 - 0.05, -D / 2 - 0.05, top / 2), (0, 0, 0.04)), rgb(0x171210, 0.05, rnd), bevel=0.03)
     else:
         # ---- the fallen roof: charred rafters leaning into the ruin, and more on the floor ----
         for i in range(7):

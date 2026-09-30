@@ -559,3 +559,24 @@ body.talking #hint { bottom: 298px; }
 .mc-links { display: inline-flex; gap: 4px; margin-left: 10px; font-variant: normal; }
 .mc-links button { font: 13px var(--serif) !important; font-variant: small-caps !important; padding: 2px 10px !important; min-width: 0 !important; cursor: pointer; }
 .mc-links button.on { color: #f6ecd0 !important; background: #7a2216 !important; }
+
+/* the guide: a card the first time, a book after */
+#guideCard { position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: rgba(60, 60, 60, 0.5); backdrop-filter: grayscale(0.85) blur(1.5px); -webkit-backdrop-filter: grayscale(0.85) blur(1.5px); pointer-events: auto; cursor: default; }
+#guideCard.hidden, #guideBook.hidden { display: none; }
+.gd-card { text-align: left; }
+.gd-card .ls-kicker, .gd-card .ls-hint, .gd-card #guideOk { text-align: center; display: block; margin-left: auto; margin-right: auto; }
+.gd-card .ls-steps { margin: 0 22px; }
+.gd-card #guideOk { margin-top: 14px; }
+#guideBook { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; pointer-events: auto; background: rgba(3, 10, 6, 0.55); cursor: default; }
+.gd-win { width: min(820px, calc(100vw - 32px)); max-height: calc(100vh - 60px); display: flex; flex-direction: column; }
+.gd-grid { display: grid; grid-template-columns: 190px 1fr; gap: 16px; min-height: 0; overflow: hidden; padding: 0 22px 16px; }
+.gd-list { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+.gd-list button { text-align: left; font: 16px var(--serif); background: none; border: 1px solid transparent; color: #3b2612; padding: 4px 8px; cursor: pointer; }
+.gd-list button.on { border-color: rgba(59, 38, 18, 0.5); background: rgba(59, 38, 18, 0.1); font-weight: 600; }
+.gd-list button.new::after { content: " •"; color: #8a2a1a; }
+.gd-page { overflow-y: auto; }
+.gd-page h4 { font: 22px var(--serif); font-variant: small-caps; margin: 0 0 8px; color: #3b2612; }
+.gd-page ol { margin: 0; padding-left: 20px; font: 15px/1.5 var(--sans); }
+.gd-page li { margin: 0 0 7px; }
+.gd-empty { font: italic 15px var(--serif); color: #6b5234; }
+@media (max-width: 640px) { .gd-grid { grid-template-columns: 1fr; } .gd-list { flex-direction: row; flex-wrap: wrap; } }

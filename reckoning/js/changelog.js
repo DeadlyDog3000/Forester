@@ -7,6 +7,22 @@
 
 export const CHANGELOG = [
   {
+    v: "0.27", date: "30 September 2026", title: "The guide",
+    items: [
+      "A guide: the first time you meet each part of the game (building, stone, tools, the forge, the stores, settlers, fields, research, trade, hunger, wounds, skills, winter, raiders), the world stops and a page explains how it works, step by step. H opens the guide book to read any of them again.",
+      "Stone, ore and metal in your own pack count towards a building, a repair or a rebuild. You no longer need to put them in the stores first.",
+      "Path strips snap together end to end. Nearly in line, they run straight on. At an angle, they meet in a clean corner with rounded ends and no gap.",
+      "A quarry can be staffed as soon as it stands. The quarryman's work no longer waits on Township. Any work building you can build, you can put someone to.",
+      "Only haulers carry logs and stone to building sites, and the game now says so. A site tells you when nobody is hauling.",
+      "The settlement's stores are kept outside now, in a store chest under a little roof, built as one of the summer's tasks. The chest in your cabin is yours: what you put in it you can sell, and that DM goes into your own purse. Arrows cost 4 DM a dozen, from your purse.",
+      "Your sibling asks you to raise a cabin for Tomas and Grete.",
+      "Farmers really farm: they reap, sow and weed the strips, and you can reap and sow by hand beside them.",
+      "B puts the plans away. Buildings turn smoothly while R is held, with no snapping. Paths are low-poly strips of trodden earth.",
+      "It's much easier to walk around cabins and buildings. The charred beams are gone from the cabin.",
+      "The map of Europe shows your settlement by the name you gave it.",
+    ],
+  },
+  {
     v: "0.26", date: "30 September 2026", title: "What it costs",
     items: [
       "Dying costs you now: whatever killed you — a raider, the plague, hunger — you wake in your bed with every skill a sixth down (15% of all your skill points). Hunger can kill, in the end.",

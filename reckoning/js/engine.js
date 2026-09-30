@@ -490,6 +490,7 @@ export class Player {
     if (G.health !== undefined) {
       G.hurtT = (G.hurtT || 0) + dt;
       const b = G.body, starving = b && b.hunger <= 0, hungry = b && b.hunger < 0.2;
+      if (b && b.hunger < 0.5 && G.guide) G.guide("hunger");
       // the plague: it eats at you, and nothing mends while you have it; left alone it passes, or it kills you
       const sick = b && b.plague > 0;
       if (sick && G.mode === "play" && !G.downed) {
@@ -844,6 +845,7 @@ G.body = freshBody();
 setToolSource(() => G.body && G.body.tools);
 G.practise = (id, xp) => {
   const up = practise(G.body, id, xp);
+  if (up && G.guide) G.guide("skills");
   if (up) { const sk = BODY_SKILLS.find(s => s.id === id); UI.hint(`${sk.name} rose to ${up}.${up === 100 ? " No one could be better." : ""}`, 3); }
 };
 // dying: whatever killed you, a share of every skill goes (15%), and you wake in your own bed if you have one
@@ -870,6 +872,7 @@ G.hurt = (dmg, from) => {
   if (G.health === undefined || G.downed || G.mode !== "play") return;
   dmg = damageTaken(G.body, dmg);
   G.health = Math.max(0, G.health - dmg / 100); G.hurtT = 0;
+  G.guide && G.guide("hurt");
   // the blow lands: red, a jolt of the view, and you gasp for a while after (less, the tougher you are)
   const k = rattle(G.body);
   UI.hurt(Math.min(1, (0.45 + dmg / 25) * (0.4 + 0.6 * k)));

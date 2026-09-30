@@ -17,6 +17,7 @@ import { AUDIO } from "./audio.js";
 import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
+import { GUIDE, GUIDE_ORDER } from "./guide.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
 import { loadModels } from "./models.js";
 import { ARMS } from "./raid.js";
@@ -276,7 +277,7 @@ function renderInventory() {
   if (pl.axe) hands[0] = { icon: "axe", name: "Old felling axe", note: "Grey haft, good head.", use: "Click to swing" };
   if (pl.carryN > 0) hands[1] = { icon: "logs", n: pl.carryN, name: "Spruce logs", note: camp ? `Your arms hold ${camp.carryMax}.` : "", use: "Stack them by the cabin" };
   else if (UI.carrying) hands[/ledger/i.test(UI.carrying) ? 0 : 1] = { icon: /ledger/i.test(UI.carrying) ? "ledger" : "logs", name: UI.carrying, note: /ledger/i.test(UI.carrying) ? "The tally of the Baltic grain, for Jakob to sign." : "" };
-  let html = `<div class="mc-sec">Hands</div><div class="mc-row hands">${slot(hands[0])}${slot(hands[1])}</div>`;
+  let html = `<div class="mc-sec">Hands <span class="mc-hint" style="float:right">your own purse: ${(G.body && G.body.purse) || 0} DM</span></div><div class="mc-row hands">${slot(hands[0])}${slot(hands[1])}</div>`;
   // what is on you: three rows of nine
   const pack = G.pack.slice(0, 27);
   html += `<div class="mc-sec">On you</div>`;
@@ -306,22 +307,26 @@ const CHEST_SLOTS = 9;
 // what the stores keep that can be carried: the store's key, the thing in your pack, its name
 const STORE_ITEMS = [["bread", "bread", "Bread"], ["meat", "cookedmeat", "Roast meat"], ["stone", "stone", "Stone"], ["planks", "planks", "Planks"], ["bricks", "bricks", "Bricks"], ["ore", "ironore", "Iron ore"], ["copperore", "copperore", "Copper ore"], ["tinore", "tinore", "Tin ore"], ["copper", "copper", "Copper"], ["tin", "tin", "Tin"], ["bronze", "bronze", "Bronze"], ["iron", "iron", "Iron"], ["tools", "tools", "Tools"]];
 let chestNote = "";
+let chestMode = "own";
 function renderChest() {
   const box = G.chest || (G.chest = []);
   invItems = [];
-  let h = `<div class="mc-sec">In the chest</div><div class="mc-row">`;
-  for (let i = 0; i < CHEST_SLOTS; i++) h += box[i] ? slot(box[i]).replace('class="mc-slot', `data-chest="${i}" class="mc-slot`) : `<div class="mc-slot"></div>`;
+  let h = "";
+  if (chestMode === "stores" && G.town) {
+    // the settlement's store chest: everything the stores hold, and what you carry to put in
+    const S = G.town.S, list = STORE_ITEMS.filter(([k]) => (S[k] || 0) > 0);
+    h += `<div class="mc-sec">The settlement's stores <span class="mc-hint">click to take five · click what you carry to put it in</span></div><div class="mc-row wrap">`;
+    h += list.length ? list.map(([k, icon, name]) => slot({ icon, name, n: S[k], note: "In the stores. Click to take up to five." }).replace('class="mc-slot', `data-store="${k}" class="mc-slot`)).join("") : `<span class="ch-note">The stores are empty.</span>`;
+  } else {
+    h += `<div class="mc-sec">Your own chest <span class="mc-hint">yours to keep — or to sell to the traders for your purse</span></div><div class="mc-row">`;
+    for (let i = 0; i < CHEST_SLOTS; i++) h += box[i] ? slot(box[i]).replace('class="mc-slot', `data-chest="${i}" class="mc-slot`) : `<div class="mc-slot"></div>`;
+  }
   h += `</div><div class="mc-sec">On you</div><div class="mc-row">`;
   const pack = G.pack.slice(0, 9);
   for (let i = 0; i < 9; i++) h += pack[i] ? slot(pack[i]).replace('class="mc-slot', `data-pack="${i}" class="mc-slot`) : `<div class="mc-slot"></div>`;
-  // the settlement's stores, all of them, from here too
-  if (G.town) {
-    const S = G.town.S, list = STORE_ITEMS.filter(([k]) => (S[k] || 0) > 0);
-    h += `</div><div class="mc-sec">The settlement's stores <span class="mc-hint">click to take five · shift-click what you carry to put it in</span></div><div class="mc-row wrap">`;
-    h += list.length ? list.map(([k, icon, name]) => slot({ icon, name, n: S[k], note: `In the stores. Click to take up to five.` }).replace('class="mc-slot', `data-store="${k}" class="mc-slot`)).join("") : `<span class="ch-note">The stores are empty.</span>`;
-  }
   h += `</div><div class="ch-note">${esc(chestNote)}</div>`;
   $("chestBody").innerHTML = h;
+  $("chestTitle").textContent = chestMode === "stores" ? "The store chest" : "Your chest";
 }
 $("chestBody").addEventListener("click", e => {
   const el = e.target.closest(".mc-slot"); if (!el) return;
@@ -341,7 +346,7 @@ $("chestBody").addEventListener("click", e => {
     if (n > 0) { S[k] -= n; const have = G.pack.find(i => i.icon === icon); if (have) have.n = (have.n || 1) + n; else G.pack.push({ icon, name, note: (ITEM[icon] || {}).note || "", n }); G.town.persist(); chestNote = `Took ${n} ${name.toLowerCase()} from the stores.`; SFX.pickup && SFX.pickup(); }
     renderChest(); return;
   }
-  if (el.dataset.pack != null && e.shiftKey && G.town) {
+  if (el.dataset.pack != null && chestMode === "stores" && G.town) {
     // into the stores, if the stores keep such a thing
     const it = G.pack[+el.dataset.pack], row = it && STORE_ITEMS.find(x => x[1] === it.icon);
     if (row) { G.town.S[row[0]] = (G.town.S[row[0]] || 0) + (it.n || 1); G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores.`; SFX.pickup && SFX.pickup(); }
@@ -363,7 +368,12 @@ $("chestBody").addEventListener("click", e => {
   writeSave({ chest: box.map(x => x || null) });
   renderChest();
 });
-G.openChest = () => { chestNote = ""; AUDIO.door && AUDIO.door(true, 0.2); showOverlay("chest", true); };
+G.openChest = (mode = "own") => {
+  if (G.guide && G.town) G.guide(mode === "own" ? "chest" : "stores");
+  chestMode = mode; chestNote = ""; AUDIO.door && AUDIO.door(true, 0.2); showOverlay("chest", true); renderChest();
+  // (the first time: whose chest this is)
+  if (mode === "own" && !G._toldOwnChest) { G._toldOwnChest = true; UI.hint("This chest is yours, not the settlement's. What you put in it you can sell to Henning or the pedlar — the DM goes in your own purse. The settlement's things are in its store chest.", 8); }
+};
 // ---- tools, made at the chopping block: logs from the stack, the rest from what you carry ----
 const packN = k => (G.pack.find(i => i.icon === k) || {}).n || 0;
 // what the settlement's stores hold of a thing (logs are the stack; iron ore is "ore" in the stores)
@@ -408,7 +418,7 @@ function renderKeys() {
   const sec = t => `<div class="kr-sec">${t}</div>`;
   let h = sec("Moving") + K(["W", "A", "S", "D"], "Walk") + K(["Shift"], "Run") + K(["C"], "Crouch") + K(["Space"], "Jump · move a conversation on") + K(["Q", "E"], "Lean") + K(["Z"], "Hold to look closer") + K(["M"], "Lock or free the mouse");
   h += sec("Doing") + K(["F"], "Take, open, talk — hold it for work that takes time · close a menu") + K(["Left click"], "Swing what you hold — the way you look is the way it comes") + K(["Right click"], "Draw the bow · raise your guard") + K(["1", "–", "9"], "Take out a tool · eat food in that slot");
-  h += sec("Seeing") + K(["J"], "The map") + K(["T"], "Inventory") + K(["P"], "Skills") + K(["Tab"], "These keys");
+  h += sec("Seeing") + K(["J"], "The map") + K(["T"], "Inventory") + K(["P"], "Skills") + K(["H"], "The guide: how everything works") + K(["Tab"], "These keys");
   if (G.town) h += sec("The settlement") + K(["B"], "Plans — what you can build") + K(["V"], "Inspect a building: upkeep, mend, rebuild, pull down") + K(["G"], "Government: the nation, research, people, faith, Europe, ambitions");
   h += sec("") + K(["Esc"], "Pause");
   $("keysBody").innerHTML = `<div class="kr-grid">${h}</div>`;
@@ -432,6 +442,7 @@ const OVERLAYS = {
   chest: { open: () => renderChest(), tick: () => {}, every: 1000 },
   craft: { open: () => renderCraft(), tick: () => renderCraft(), every: 700 },
   keysRef: { open: () => renderKeys(), tick: () => {}, every: 2000 },
+  guideBook: { open: () => renderGuide(), tick: () => {}, every: 5000 },
   skills: { open: () => renderSkills(), tick: () => renderSkills(), every: 500 },
   inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
   bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; } },
@@ -484,10 +495,10 @@ function renderInspect() {
   // the two things to do with it
   const acts = [];
   if (t.canUpgrade(b)) {
-    const u = UPGRADES[(b.tier || 1) + 1], need = u.needs && u.needs(t), can = !need && t.afford(u.mats);
-    acts.push(`<button data-act="up"${can ? "" : " disabled"}>Rebuild in ${esc(u.style.split(",")[0])}<span class="sub">${esc(t.costText(u.mats))}${need ? ` — first, ${esc(need)}` : !can ? ` — ${esc(t.short(u.mats))} short` : ""}</span></button>`);
+    const u = UPGRADES[(b.tier || 1) + 1], need = u.needs && u.needs(t), can = !need && t.afford(u.mats, true);
+    acts.push(`<button data-act="up"${can ? "" : " disabled"}>Rebuild in ${esc(u.style.split(",")[0])}<span class="sub">${esc(t.costText(u.mats))}${need ? ` — first, ${esc(need)}` : !can ? ` — ${esc(t.short(u.mats, true))} short` : ""}</span></button>`);
   } else if (def.wall) {
-    if (b.broken || (b.hp ?? def.hp) < def.hp) { const c = t.repairCost(b), can = t.afford(c); acts.push(`<button data-act="mend"${can ? "" : " disabled"}>Mend it<span class="sub">${esc(t.costText(c))}${can ? "" : ` — ${esc(t.short(c))} short`}</span></button>`); }
+    if (b.broken || (b.hp ?? def.hp) < def.hp) { const c = t.repairCost(b), can = t.afford(c, true); acts.push(`<button data-act="mend"${can ? "" : " disabled"}>Mend it<span class="sub">${esc(t.costText(c))}${can ? "" : ` — ${esc(t.short(c, true))} short`}</span></button>`); }
   } else if (b.done && b.type !== "field" && b.type !== "path") acts.push(`<button disabled>Rebuild<span class="sub">${(b.tier || 1) >= 4 ? "built as well as it can be" : "this kind isn't rebuilt"}</span></button>`);
   const back = t.refundOf(b);
   acts.push(`<button data-act="down" class="danger${inspArmed ? " armed" : ""}">${inspArmed ? "Click again to pull it down" : b.done ? "Dismantle" : "Give up the site"}<span class="sub">${Object.keys(back).length ? `back in the stores: ${esc(t.costText(back))}` : "nothing comes back"}${b.type === "woodshed" && b.done ? " — logs past what the stack holds are lost" : ""}${b.type === "cabin" && b.done ? " — whoever sleeps there loses their bed" : ""}</span></button>`);
@@ -536,7 +547,7 @@ G.closeTrade = () => showOverlay("trade", false);
 function renderTrade() {
   const t = tradeNow; if (!t) return;
   $("tradeTitle").textContent = t.title;
-  $("tradePurse").textContent = t.purse && !/DM/.test(t.purse) ? t.purse : G.town ? `${G.town.S.coin} DM` : "";
+  $("tradePurse").textContent = typeof t.purse === "function" ? t.purse() : t.purse && !/DM/.test(t.purse) ? t.purse : G.town ? `${G.town.S.coin} DM` : "";
   $("tradeList").innerHTML = t.offers.map((o, i) => {
     const done = o.done && o.done(), ok = !done && o.can();
     return `<button class="plan${done ? " owned" : ok ? "" : " short"}" data-i="${i}"><img src="${ICON[o.icon] || (o.label.startsWith("Sell") ? ICON.coin : ICON.cart)}" alt=""><span><span class="pn">${esc(o.label)}${done ? esc(o.doneText ?? " — yours") : ""}</span><span class="pd">${esc(o.note || "")}</span></span><span class="pc">${esc(o.get)}</span></button>`;
@@ -704,8 +715,9 @@ function clampView(cv) {
 function drawEuropeTab(t) {
   const cv = $("euMap"); if (!cv) return;
   const E = ensureEurope(t.S);
-  if (eu3dOn && eu3d) { eu3d.setMap(E, t.S.people.length + 2); }
-  else drawEurope(cv, E, { hover: euHover, selected: euSel, homePop: t.S.people.length + 2, city: euCity, hoverCity: euHoverCity, view: euView, homeName: (t.S.isTown ? "the Town of " : "") + (t.S.name || "Forester's Clearing") });
+  const homeName = (t.S.isTown ? "the Town of " : "") + (t.S.name || "Forester's Clearing");
+  if (eu3dOn && eu3d) { eu3d.setMap(E, t.S.people.length + 2, homeName); }
+  else drawEurope(cv, E, { hover: euHover, selected: euSel, homePop: t.S.people.length + 2, city: euCity, hoverCity: euHoverCity, view: euView, homeName });
   $("euMode").textContent = eu3dOn ? "the land · scroll out for the map" : euView.z > 1.05 ? `×${euView.z.toFixed(1)} · scroll in for the land` : "";
   const html = euSide(t, E);
   if (html !== euPanelHtml) { $("euSide").innerHTML = html; euPanelHtml = html; wireEuSide(t); }
@@ -1134,6 +1146,53 @@ function renderBigMap() {
 }
 G.showMap = on => showOverlay("bigmap", on);
 
+// ---- the guide: the first time you meet a thing, a card that says how it works; H, the book of them all ----
+const guideSeen = () => { const s = loadSave() || {}; return s.tips || []; };
+const guideQ = [];
+let guidePage = null, guideShowing = false;
+G.guide = id => {
+  if (!GUIDE[id] || guideQ.includes(id) || window.__noGuide) return;
+  if (guideSeen().includes("guide:" + id)) return;
+  guideQ.push(id);
+};
+// (shown only when nothing else has the screen: no talk, no menu, no cutscene)
+setInterval(() => {
+  if (window.__manual && !window.__guideOn) return;     // (tests step the game themselves, and a card would stop them)
+  if (!guideQ.length || guideShowing || G.mode !== "play" || overlay || UI.dialogOpen || G.cine || G.lockMove) return;
+  const id = guideQ.shift();
+  if (guideSeen().includes("guide:" + id)) return;
+  writeSave({ tips: [...guideSeen(), "guide:" + id] });
+  showGuideCard(id);
+}, 400);
+function guideSteps(g) { return g.steps.map(t => `<li>${t}</li>`).join(""); }
+function showGuideCard(id) {
+  const g = GUIDE[id]; guideShowing = true; guidePage = id;
+  $("gdKicker").textContent = g.kicker; $("gdTitle").textContent = g.title; $("gdSteps").innerHTML = guideSteps(g);
+  const was = G.mode; G.mode = "lesson";
+  if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); }
+  setFreeLook(false);
+  SFX.pauseAll && SFX.pauseAll(true);
+  const el = $("guideCard"); el.classList.remove("hidden");
+  const done = () => {
+    removeEventListener("keydown", key); $("guideOk").onclick = null;
+    el.classList.add("hidden"); guideShowing = false;
+    G.mode = was === "lesson" ? "play" : was; SFX.pauseAll && SFX.pauseAll(false);
+    if (G.mode === "play") lock();
+  };
+  const key = e => { if (e.code === "Space" || e.code === "Enter" || e.code === "Escape" || e.code === "KeyF") { e.preventDefault(); e.stopImmediatePropagation(); G.holdLatch = true; done(); } };
+  setTimeout(() => addEventListener("keydown", key, true), 350);
+  $("guideOk").onclick = done;
+}
+function renderGuide() {
+  const seen = guideSeen(), known = GUIDE_ORDER.filter(id => seen.includes("guide:" + id));
+  if (!known.includes(guidePage)) guidePage = known[known.length - 1] || null;
+  if (!known.length) { $("guideBody").innerHTML = `<div class="gd-grid"><div class="gd-empty">Nothing yet. As you meet each part of the game, how it works is written down here.</div></div>`; return; }
+  const g = GUIDE[guidePage];
+  $("guideBody").innerHTML = `<div class="gd-grid"><div class="gd-list">${known.map(id => `<button data-gd="${id}"${id === guidePage ? ' class="on"' : ""}>${esc(GUIDE[id].title)}</button>`).join("")}</div>
+    <div class="gd-page"><div class="ls-kicker">${esc(g.kicker)}</div><h4>${esc(g.title)}</h4><ol>${guideSteps(g)}</ol></div></div>`;
+  for (const b of $("guideBody").querySelectorAll("[data-gd]")) b.onclick = () => { guidePage = b.dataset.gd; renderGuide(); };
+}
+
 // ---- pause ----
 // a lesson: everything stops, the world goes grey behind a card, and on it goes when you have read it
 G.lesson = () => new Promise(res => {
@@ -1185,11 +1244,12 @@ addEventListener("keydown", e => {
   if (e.code === "KeyT" && !e.repeat && G.mode === "play") showOverlay("inventory", overlay !== "inventory");
   if (e.code === "KeyP" && !e.repeat && G.mode === "play") showOverlay("skills", overlay !== "skills");
   if (e.code === "Tab" && !e.repeat && G.mode === "play") { e.preventDefault(); showOverlay("keysRef", overlay !== "keysRef"); }
+  if (e.code === "KeyH" && !e.repeat && G.mode === "play") showOverlay("guideBook", overlay !== "guideBook");
   if (e.code === "KeyJ" && !e.repeat && G.mode === "play") {
     if (!G.hasMap && overlay !== "bigmap") UI.hint("You haven't a map.", 2.5);
     else showOverlay("bigmap", overlay !== "bigmap");
   }
-  if (e.code === "KeyB" && !e.repeat && G.mode === "play" && G.town && !G.town.planning) showOverlay("buildmenu", overlay !== "buildmenu");
+  if (e.code === "KeyB" && !e.repeat && G.mode === "play" && G.town && !G.town.planning) showOverlay("buildmenu", overlay !== "buildmenu");   // (while a plan is out, B puts it away instead: the town sees that itself)
   if (e.code === "KeyV" && !e.repeat && G.mode === "play") {
     if (overlay === "inspect") showOverlay("inspect", false);
     else if (G.town && !G.town.planning && !overlay) {

@@ -158,10 +158,10 @@ export class EuropeView3D {
     this.visible = false;
   }
   // the political map changed (a conquest) or first shown: rebuild what depends on it
-  setMap(E, homePop = 2) {
-    const g = buildGrid(E), key = E.conq.length;
+  setMap(E, homePop = 2, homeName = "Forester's Clearing") {
+    const g = buildGrid(E), key = E.conq.length + "|" + homeName;
     if (this.g && this.mapKey === key) return;
-    this.g = g; this.mapKey = key; this.E = E;
+    this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName;
     this.buildBase(); this.buildBorders(); this.buildCities(homePop);
     if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; }
     for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
@@ -304,7 +304,7 @@ export class EuropeView3D {
     };
     for (const ct of CITIES) place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false);
     const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL);
-    place("Forester's Clearing", hlon, hlat, 1, null, true);
+    place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true);
     this.scene.add(grp);
   }
   // look at a place: lon, lat, and how far off

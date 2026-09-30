@@ -241,6 +241,42 @@ export const SHOTS = {
     async stage() { await chapter(14, {}, TOWNSAVE(), 2); await preloadTown(4); showcaseTown(4); blendAtmo("dusk", "night", 0.5); rig.run(2); },
     cam: (t, c) => { const a = 3.3 + t * 0.9, r = 34 - t * 6, h = 9 + t * 11; rig.look(c, [FIRE.x + Math.cos(a) * r, gy(FIRE.x, FIRE.z) + h, FIRE.z + Math.sin(a) * r], [FIRE.x, gy(FIRE.x, FIRE.z) + 5, FIRE.z], 55); },
   },
+  raid: {
+    secs: 4.5,
+    // night, and the raiders coming down the road with their torches, toward the houses and the fire
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); await preloadTown(2); showcaseTown(2);
+      const t = G.town; t.t = t.dayLen * (Math.floor(t.t / t.dayLen) + 0.83); rig.run(1.5);
+      t.S.raid = { next: 0, count: 1 }; if (t.raids) t.raids.start();
+      this.band = t.raids ? t.raids.band.length : 0; this.cx = this.cz = null;
+      rig.run(1.2);
+    },
+    // (behind the band, low, following them down into the settlement toward the fire)
+    cam(t, c) {
+      const band = (G.town.raids ? G.town.raids.band : []).filter(r => r.alive);
+      let x = 0, z = 0; for (const r of band) { x += r.pos.x; z += r.pos.z; }
+      if (band.length) { x /= band.length; z /= band.length; } else { x = FIRE.x; z = FIRE.z + 20; }
+      this.cx = this.cx == null ? x : this.cx + (x - this.cx) * 0.08; this.cz = this.cz == null ? z : this.cz + (z - this.cz) * 0.08;
+      const dx = FIRE.x - this.cx, dz = FIRE.z - this.cz, l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l;
+      const fx = this.cx - ux * 5.5 + uz * 1.6, fz = this.cz - uz * 5.5 - ux * 1.6;
+      rig.look(c, [fx, gy(fx, fz) + 2.0, fz], [this.cx + ux * 9, gy(this.cx, this.cz) + 1.3, this.cz + uz * 9], 55);
+    },
+  },
+  mine: {
+    secs: 6,
+    hands: true,
+    // your own pick at a copper rock out in the woods, the ore breaking loose
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); setAtmo("afternoon");
+      const k = G.world.rocks.find(r => r.kind === "copper");
+      G.player.place(k.x + 2.5, k.z + 0.6, 0); G.player.yaw = Math.atan2(-(k.x - G.player.pos.x), -(k.z - G.player.pos.z)); G.player.pitch = -0.2;
+      rig.run(1);
+      G.body.tools.pick = 4; G.player.wield("pick");
+    },
+    tick(t, i) { input.click = i % 24 === 2; },
+    // (the hands are fixed to the view, so for a tall frame this is filmed wide and large, and cut down)
+    done() { input.click = false; },
+  },
 };
 // a settlement to stage the town shots in: people, a field, and the clock at a quiet hour
 function TOWNSAVE() {
@@ -252,7 +288,7 @@ export const film = {
   // stage a shot and keep its first, middle and last frames, to judge the framing
   async scout(name, shape = "wide") {
     const S = SHOTS[name];
-    const [w, h] = shape === "tall" ? [1080, 1920] : [1920, 1080];
+    const [w, h] = shape === "tall" ? [1080, 1920] : shape === "big" ? [2880, 1620] : [1920, 1080];   // ("big": filmed wide and large, to be cut down to a tall frame)
     rig.setup(w, h);
     await S.stage.call(S);
     rig.hands(!!S.hands); rig.setup(w, h);
@@ -269,7 +305,7 @@ export const film = {
   },
   async take(name, shape = "wide", { from = 0 } = {}) {
     const S = SHOTS[name];
-    const [w, h] = shape === "tall" ? [1080, 1920] : [1920, 1080];
+    const [w, h] = shape === "tall" ? [1080, 1920] : shape === "big" ? [2880, 1620] : [1920, 1080];   // ("big": filmed wide and large, to be cut down to a tall frame)
     rig.setup(w, h);
     await S.stage.call(S);
     rig.hands(!!S.hands);

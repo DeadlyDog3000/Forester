@@ -11,7 +11,7 @@
 // generation counter that makes every script from the old run fall silent.
 
 import { BUILD_GATES } from "./gov.js";
-import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME } from "./body.js";
+import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME, SELL_PRICE } from "./body.js";
 import { THREE, clamp, mat, Builder, MAT, TAU } from "./core.js";
 import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
@@ -174,7 +174,7 @@ const SIB_HINTS = [
   [/grey rocks/, "Take the pick out with its number, and swing at a grey rock. The map shows where they are."],
   [/moss|Chink/, "The moss grows on the rocks, in the shade. Six handfuls, then press it into the walls."],
   [/Plan a cabin|Plan /, "Press B for the plans, pick a cabin and put it where the ground's clear."],
-  [/Raise .*cabin/, "Everyone will carry logs to the site. Help them, and hold F at the site when it's ready."],
+  [/Raise .*cabin/, "The haulers carry logs to the site — nobody else does. Help them, and hold F at the site when it's ready."],
   [/Reap the rye/, "Reap the rye in the field — hold F on it."],
   [/Build a well|Build a woodshed|Dig a second field/, "B for the plans. It all needs logs — keep felling."],
   [/new work/, "Walk up to someone and press F — you can give them work."],
@@ -243,14 +243,19 @@ export function setSlot(n) { slot = n; try { localStorage.setItem("reckoning.slo
 // copy is used instead of losing the game.
 const _slotCache = new Map();
 let _prevAt = 0;
-export function readSlot(n) {
-  if (_slotCache.has(n)) return _slotCache.get(n);
+// (everyone else gets a copy of their own to change as they like; only writeSave merges into the kept one)
+export function readSlot(n) { const s = readSlotKept(n); return s ? structuredClone(s) : null; }
+function readSlotKept(n) {
+  // (kept only while what is stored is still the very text it was read from: changed elsewhere, it is read afresh)
+  let raw = null; try { raw = localStorage.getItem(slotKey(n)); } catch (e) {}
+  const c = _slotCache.get(n);
+  if (c && c.raw === raw) return c.s;
   let s = null;
-  try { s = JSON.parse(localStorage.getItem(slotKey(n))) || null; }
+  try { s = JSON.parse(raw) || null; }
   catch (e) {
     try { s = JSON.parse(localStorage.getItem(slotKey(n) + ".prev")) || null; if (s) console.warn("Reckoning: save", n, "could not be read; its last good copy was used"); } catch (e2) { s = null; }
   }
-  _slotCache.set(n, s);
+  _slotCache.set(n, { raw, s });
   return s;
 }
 export function writeSlot(n, s) {
@@ -258,7 +263,7 @@ export function writeSlot(n, s) {
     const text = JSON.stringify(s, (k, v) => k[0] === "_" ? undefined : v);
     if (Date.now() - _prevAt > 60000) { const old = localStorage.getItem(slotKey(n)); if (old) localStorage.setItem(slotKey(n) + ".prev", old); _prevAt = Date.now(); }
     localStorage.setItem(slotKey(n), text);
-    _slotCache.set(n, JSON.parse(text));
+    _slotCache.set(n, { raw: text, s: JSON.parse(text) });
     return true;
   } catch (e) { return false; }
 }
@@ -267,7 +272,7 @@ export function loadSave() { return readSlot(slot); }
 // the body is written to the save now and then, when it has changed
 setInterval(() => { if (G.body && G.body.dirty && G.mode === "play") { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
 export function writeSave(patch) {
-  const s = { ...(loadSave() || {}), ...patch, at: Date.now() };
+  const s = { ...(readSlotKept(slot) || {}), ...patch, at: Date.now() };
   // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)
   writeSlot(slot, s);
   return s;
@@ -1959,6 +1964,7 @@ function startTown(w, unlocked, needed = []) {
   setTimeout(() => {
     if (GEN !== g0 || G.town !== town || G.mode !== "play" || tipSeen("gov")) return;
     tutor("gov", "", [["G", "your government — the nation, the tech tree, and everyone in it"]], 8);
+    if (town.researchGates && G.guide) G.guide("research");
     UI.hint("Press G to see your government: how the settlement is doing, what it knows, and everyone who lives here.", 7);
   }, 16000);
   return town;
@@ -1974,6 +1980,7 @@ const SPARE_NAMES = ["Hans", "Gesche", "Detlef", "Metta", "Berend", "Wiebke", "H
 const RECRUIT_COST = 12;
 // what they say when you make a tool: what it is for, and what to go after next
 G.emitCraft = r => {
+  if (G.guide) G.guide("tools");
   const line = {
     pick1: "A pickaxe! Now the grey rocks round the clearing — swing at them. Stone makes a better one.",
     pick2: "Stone. That'll break the green-flecked copper rock out west, and the pale tin rock south of it. The ore wants smelting at a forge.",
@@ -2005,6 +2012,7 @@ function glance(watchers, target, secs = 8) {
 async function arrival(town, p, say1) {
   const w = town.w, r0 = w.road[w.road.length - 30];
   const a = town.addPerson(p, r0.x, r0.z);
+  if (G.guide) setTimeout(() => G.guide("settlers"), 12000);
   glance([...town.actors, ...(G.world.actors || []).filter(x => x.isSibling)], a, 9);
   if (say1) bark(p.name, say1, 3.5);
   // (some come with money of their own)
@@ -2121,7 +2129,7 @@ async function ch11(w) {
   setAtmo("afternoon"); G.bugs.setKind("flies");
   AUDIO.music("hope"); SFX.insectLoop(true);
   const pl = G.player;
-  const town = startTown(w, ["cabin", "woodshed", "well", "field"], ["woodshed", "well"]);
+  const town = startTown(w, ["cabin", "woodshed", "well", "field", "storehouse"], ["woodshed", "well"]);
   const S = town.S;
   // the rye stands ripe in high summer
   for (const b of S.buildings) if (b.type === "field" && b.sown) { b.growth = 3; town.show(b); }
@@ -2145,10 +2153,13 @@ async function ch11(w) {
     await say(P.sib, "Look at it. Six of us. Seven, when Henning comes up for his supper, which is most days now.");
     await say(P.sib, "The rye's ready. Reap it before the birds do. And we need water nearer than the stream, and somewhere dry to keep the wood, and more ground under the spade.");
     await say(P.sib, "Tomas fells, Grete farms, Marta carries. We just have to plan it.");
+    await say(P.sib, "And Tomas and Grete are sleeping in the woodpile. They'll want a cabin of their own — logs, and a door, like Marta's.");
+    await say(P.sib, "And the settlement's things want a place of their own, out of our cabin — a big chest under a bit of roof, by the fire. What's in our chest is ours: sell it to Henning and keep the DM.");
     await say(P.sib, "And make yourself a pickaxe — two logs at the chopping block will do for a wooden one. There's grey stone in rocks all round the clearing.");
     await say(P.sib, "Stone makes a better pick. A stone pick breaks the green copper rock out west, and the pale tin rock south of it. The ore wants a forge to smelt it — and copper and tin cast together there make bronze.");
     await say(P.sib, "A bronze pick breaks the red iron rock, deep in the woods to the south.");
     G.lockMove = false; look(null);
+    G.guide && G.guide("tools");
     writeSave({ summer: { ...T, started: true } });
   }
   // reaping, by hand
@@ -2171,13 +2182,15 @@ async function ch11(w) {
   const need = () => { if (!T.reaped && !ripeNow()) { T.reaped = true; persistT(); } return needNow(); };
   T.stone = saved.stone || 0;
   G.emitMine = kind => { if (kind === "stone") { T.stone++; persistT(); } };
-  const needNow = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2, pick: G.body.tools.pick >= 1, stone: T.stone >= 3 || G.body.tools.pick >= 2 });
+  const needNow = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), store: town.has("storehouse"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2, cabin: S.buildings.filter(b => b.type === "cabin" && b.done).length >= 2, pick: G.body.tools.pick >= 1, stone: T.stone >= 3 || G.body.tools.pick >= 2 });
   const obj = onFrame(() => {
     const n = need(), parts = [];
     if (!n.reap) parts.push("Reap the rye");
     if (!n.well) parts.push("Build a well");
     if (!n.shed) parts.push("Build a woodshed");
+    if (!n.cabin) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); parts.push(!site ? "Plan a cabin for Tomas and Grete (B)" : site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Tomas and Grete's cabin" : "Hew a door at the sawhorse for Tomas and Grete's cabin") : `Raise Tomas and Grete's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`); }
     if (!n.field) parts.push("Dig a second field");
+    if (!n.store) parts.push("Build a store chest for the settlement (B)");
     if (!n.pick) parts.push("Make a wooden pickaxe at the chopping block (2 logs)");
     else if (!n.stone) parts.push(`Break the grey rocks for stone — ${Math.min(T.stone, 3)} of 3`);
     UI.objective(parts.length ? parts.join(" · ") : null);
@@ -2189,7 +2202,7 @@ async function ch11(w) {
     else if (!tgt && !n.stone) for (const k of w.rocks || []) if (k.kind === "stone" && !k.gone) { const d = Math.hypot(k.x - pl.pos.x, k.z - pl.pos.z); if (d < bd) { bd = d; tgt = k; } }
     mark(tgt ? [tgt.x, tgt.z, w.heightAt(tgt.x, tgt.z) + 1.5] : null);
   });
-  await until(() => { const n = need(); return n.reap && n.well && n.shed && n.field && n.pick && n.stone; });
+  await until(() => { const n = need(); return n.reap && n.well && n.shed && n.field && n.cabin && n.store && n.pick && n.stone; });
   G.emitMine = null;
   obj(); UI.objective(null); mark(null);
   await wait(1.5);
@@ -2577,7 +2590,7 @@ function trader(w, town, spec) {
     glance(town.actors, h, 7);
     h.walkTo(stand[0], stand[1], 1.4).then(() => { if (h.root.parent) { h.faceTo(CLEARING.x, CLEARING.z); h.person.setPose("armsCrossed"); } });
     const it = w.addInteract({ get x() { return h.pos.x; }, get z() { return h.pos.z; }, get y() { return h.pos.y + 1.4; }, reach: 2.6, label: `Trade with ${spec.name}`,
-      use: () => G.openTrade && G.openTrade(spec.title, `${S.coin} DM in the purse`, spec.offers(S), () => { town.persist(); town.showStore && town.showStore(); SFX.pickup(); }) });
+      use: () => (G.guide && G.guide("trade"), G.openTrade && G.openTrade(spec.title, () => `Your purse ${G.body.purse || 0} DM · the treasury ${S.coin} DM`, spec.offers(S), () => { town.persist(); town.showStore && town.showStore(); SFX.pickup(); })) });
     here = { h, cart, it };
     UI.hint(spec.hello, 6);
     tutor("trade", "", [["F", "beside a trader: buy and sell"]], 7);
@@ -2596,6 +2609,19 @@ function trader(w, town, spec) {
   });
   return () => { off(); if (here) leave(); };
 }
+// your own trade with a trader: arrows bought out of your own purse, and what you have put in your chest
+// sold into it. The treasury is the settlement's, and only the settlement's trades draw on it.
+function ownOffers(arrows, price) {
+  const b = G.body, out = [];
+  out.push({ label: `Buy ${arrows} arrows — your purse`, note: "For the bow.", get: `${price} DM`, can: () => (b.purse || 0) >= price, do: () => { b.purse -= price; b.dirty = true; G.player.arrows = (G.player.arrows || 0) + arrows; } });
+  for (const it of (G.chest || []).filter(Boolean)) {
+    const per = SELL_PRICE[it.icon]; if (!per) continue;
+    const n = it.n || 1, pay = Math.floor(n * per); if (pay < 1) continue;
+    out.push({ label: `Sell your ${it.name.toLowerCase()} (${n}) from your chest`, note: "What you gathered yourself: the DM is yours.", get: `+${pay} DM`, can: () => (G.chest || []).includes(it),
+      do: () => { const i = G.chest.indexOf(it); if (i < 0) return; G.chest[i] = null; b.purse = (b.purse || 0) + pay; b.dirty = true; writeSave({ chest: G.chest.map(x => x || null) }); } });
+  }
+  return out;
+}
 // Henning, from the kiln, every third day: he buys what the settlement makes, and sells rye and good iron
 function hennings(w, town) {
   return trader(w, town, {
@@ -2608,7 +2634,7 @@ function hennings(w, town) {
       { label: "Buy 10 rye", note: "For a hungry winter.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 10; } },
       { label: "Buy a good saw", note: "Every tree felled gives a log more.", get: "10 DM", can: () => S.coin >= 10 && !S.upgrades.saw, done: () => S.upgrades.saw, do: () => { S.coin -= 10; S.upgrades.saw = true; } },
       { label: "Buy iron axe heads", note: "The woodcutters fell a third quicker.", get: "14 DM", can: () => S.coin >= 14 && !S.upgrades.axes, done: () => S.upgrades.axes, do: () => { S.coin -= 14; S.upgrades.axes = true; } },
-      { label: "Buy a dozen arrows", note: "For the bow.", get: "2 DM", can: () => S.coin >= 2, do: () => { S.coin -= 2; G.player.arrows = (G.player.arrows || 0) + 12; } },
+      ...ownOffers(12, 4),
     ],
   });
 }
@@ -2619,15 +2645,13 @@ function pedlar(w, town) {
     name: "Tobias the pedlar", title: "Tobias's pack-cart", look: PEDLAR, at: [25.2, -284.5, [26.6, -288.6]], due: d => d % 4 === 3,
     hello: "A pedlar has come up the road — Tobias, out of Lübeck. He sells arrows, tools and iron, and buys planks, bricks and meat for DM.",
     offers: S => [
-      { label: "Buy 20 arrows", note: "Goose-fletched, and straight.", get: "3 DM", can: () => S.coin >= 3, do: () => { S.coin -= 3; G.player.arrows = (G.player.arrows || 0) + 20; } },
       { label: "Buy iron tools", note: "A set for one pair of hands: they work a quarter faster.", get: "8 DM", can: () => S.coin >= 8, do: () => { S.coin -= 8; S.tools = (S.tools || 0) + 1; } },
       { label: "Buy 4 iron", note: "Swedish bar iron.", get: "10 DM", can: () => S.coin >= 10, do: () => { S.coin -= 10; S.iron = (S.iron || 0) + 4; } },
       { label: "Buy 10 stone", note: "Cut, and heavy on his poor horse.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.stone = (S.stone || 0) + 10; } },
       { label: "Buy a barrel of salt pork", note: "Feeds the settlement like 20 rye.", get: "6 DM", can: () => S.coin >= 6, do: () => { S.coin -= 6; S.rye += 20; } },
       { label: "Sell 6 planks", note: "", get: "+4 DM", can: () => (S.planks || 0) >= 6, do: () => { S.planks -= 6; S.coin += 4; } },
       { label: "Sell 10 bricks", note: "", get: "+5 DM", can: () => (S.bricks || 0) >= 10, do: () => { S.bricks -= 10; S.coin += 5; } },
-      { label: "Sell your meat", note: "Venison and hare fetch a good price in town.", get: "+2 DM each", can: () => (G.pack.find(i => i.icon === "meat") || {}).n > 0,
-        do: () => { const m = G.pack.find(i => i.icon === "meat"); S.coin += 2 * (m.n || 1); G.pack.splice(G.pack.indexOf(m), 1); } },
+      ...ownOffers(20, 7),
     ],
   });
 }

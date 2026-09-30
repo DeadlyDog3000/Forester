@@ -77,13 +77,14 @@ export const ITEM = {
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0 }, plague: 0 };
+  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0 }, plague: 0, purse: 0 };
 }
 export function restoreBody(saved) {
   const b = freshBody();
   if (saved && typeof saved === "object") {
     if (typeof saved.hunger === "number") b.hunger = Math.min(1, Math.max(0, saved.hunger));
     if (saved.plague > 0) b.plague = Math.min(PLAGUE_SECS, saved.plague);
+    if (saved.purse > 0) b.purse = Math.floor(saved.purse);
     // (before bronze there were four makings, and 4 was iron: those are 5 now)
     if (saved.tools) for (const k of Object.keys(b.tools)) if (saved.tools[k] != null) { let v = saved.tools[k] | 0; if (!saved.tools.v && v >= 4) v = 5; b.tools[k] = Math.min(TOP_TIER, Math.max(b.tools[k], v)); }
     for (const s of BODY_SKILLS) {
@@ -93,7 +94,9 @@ export function restoreBody(saved) {
   }
   return b;
 }
-export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 }, plague: Math.round(b.plague || 0) });
+export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 }, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
+// what the traders give for what you have gathered yourself and put in your chest, a piece
+export const SELL_PRICE = { meat: 2, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
 // the plague, from meat eaten raw: how long it lasts if nobody tends you
 export const PLAGUE_SECS = 300;
 

@@ -103,9 +103,24 @@
         <div class="ls-hint">F, Space or click to go on</div>
       </div>
     </div>
+    <div id="guideCard" class="hidden">
+      <div class="ls-card gd-card">
+        <div class="ls-kicker" id="gdKicker"></div>
+        <h3 class="ls-title" id="gdTitle"></h3>
+        <ol class="ls-steps" id="gdSteps"></ol>
+        <button id="guideOk" class="btn primary">Understood</button>
+        <div class="ls-hint">F, Space or click to go on &middot; <kbd>H</kbd> the guide, to read it again</div>
+      </div>
+    </div>
+    <div id="guideBook" class="hidden">
+      <div class="mc-win gd-win">
+        <div class="mc-label">The guide <span class="mc-hint"><kbd>H</kbd> or <kbd>F</kbd> close</span></div>
+        <div id="guideBody"></div>
+      </div>
+    </div>
     <div id="chest" class="hidden">
       <div class="mc-win">
-        <div class="mc-label">The chest <span class="mc-hint">click to move a thing in or out &middot; <kbd>F</kbd> close</span></div>
+        <div class="mc-label"><span id="chestTitle">Your chest</span> <span class="mc-hint">click to move a thing in or out &middot; <kbd>F</kbd> close</span></div>
         <div id="chestBody"></div>
       </div>
     </div>

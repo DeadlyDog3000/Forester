@@ -163,6 +163,7 @@ export class Raids {
     // they come up the road yelling, to frighten; and the settlement cries out
     this.band.forEach((r, i) => setTimeout(() => r.alive && AUDIO.voice("war", { at: r.pos, vol: 1.2 }), 300 + i * 380 + Math.random() * 300));
     setTimeout(() => { const s = this.town.actors[0]; if (s) AUDIO.voice("fear", { at: s.pos, high: true }); }, 1400);
+    G.guide && G.guide("raid");
     UI.hint("Raiders! Drive them off with the axe or the bow before they carry off the stores. Mind your health — they hit back.", 7);
     t.emit("raid", n);
   }
