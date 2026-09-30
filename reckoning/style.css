@@ -482,3 +482,80 @@ body.talking #hint { bottom: 298px; }
 .amb-rew { font: italic 12px var(--sans); color: var(--ink-dim); }
 .amb.done { opacity: 0.55; }
 .amb.last .amb-name { color: #f0d890; }
+/* the plague: the health bar gone a sickly green, and a word beside it */
+#vitals.sick #health .hp-fill { background: linear-gradient(180deg, #a8b85a, #6a7a2a); }
+#vitals.sick #health .hp-heart { fill: #8a9a3a; }
+#vitals.sick::after { content: "Plague"; font: italic 600 13px var(--serif, Georgia); color: #c8d08a; text-shadow: 0 1px 2px #000; margin-right: 30px; }
+
+/* ===========================================================================
+   The look of an age: every menu a sheet of laid paper, ruled in ink, with a
+   printer's fleuron at the corners, the text in iron-gall black and the
+   heads in rubric red — as a book or a broadsheet of the 1600s is set.
+   (The HUD over the world keeps its own dark, quiet look.)
+   =========================================================================== */
+.mc-win, .ls-card, .gov-win {
+  --ink: #2b1d10; --ink-dim: #6b5234; --gold: #9a2b1c; --edge: rgba(59, 38, 18, 0.45);
+  --paper: #eadbb6;
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse at 20% 15%, rgba(255, 250, 230, 0.55), transparent 55%),
+    radial-gradient(ellipse at 85% 90%, rgba(150, 110, 60, 0.28), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(120, 90, 50, 0.035) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #efe2bf, #e2cf9f) !important;
+  border: 4px double #3b2612 !important; border-top: 4px double #3b2612 !important;
+  box-shadow: inset 0 0 0 5px #efe2bf, inset 0 0 0 6px rgba(59, 38, 18, 0.55), inset 0 0 60px rgba(120, 80, 30, 0.35), 0 16px 50px rgba(0, 0, 0, 0.7) !important;
+  position: relative; border-radius: 1px;
+}
+.mc-win::before, .mc-win::after, .ls-card::before, .ls-card::after {
+  content: "❦"; position: absolute; top: 5px; font: 18px/1 var(--serif); color: #6a2a18; pointer-events: none;
+}
+.mc-win::before, .ls-card::before { left: 9px; }
+.mc-win::after, .ls-card::after { right: 9px; transform: scaleX(-1); }
+.mc-label, .ls-title { font: 28px/1.1 var(--serif) !important; font-variant: small-caps; letter-spacing: 0.04em !important; color: var(--gold) !important; border-bottom: 1px solid rgba(59, 38, 18, 0.45); padding-bottom: 6px; margin: 0 22px 10px !important; }
+.mc-label .mc-hint, .mc-hint { font: italic 13px var(--serif) !important; color: var(--ink-dim) !important; font-variant: normal; }
+.mc-hint kbd, .ls-card kbd { background: #f6ecd0; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 1px 0 #6b5234; font-family: var(--serif); }
+.mc-sec { font: 15px var(--serif) !important; font-variant: small-caps; letter-spacing: 0.08em; color: var(--gold) !important; text-transform: none !important; }
+.mc-slot { background: rgba(110, 78, 40, 0.13) !important; border: 1px solid rgba(59, 38, 18, 0.35) !important; box-shadow: inset 0 1px 3px rgba(80, 50, 20, 0.35) !important; border-radius: 1px !important; }
+.mc-slot[data-i]:hover, #chestBody .mc-slot:hover { outline: 2px solid var(--gold) !important; background: rgba(154, 43, 28, 0.1) !important; }
+.mc-n { color: #2b1d10 !important; text-shadow: 0 0 2px #f6ecd0, 0 0 2px #f6ecd0 !important; }
+#invTip { background: #f3e7c6; color: #2b1d10; border: 1px solid #3b2612; font-family: var(--serif); }
+/* the plates you press */
+.mc-win .btn, .ls-card .btn, .gov-win .btn, .mc-win button.plan, .gov-win button {
+  font-family: var(--serif) !important; font-variant: small-caps; letter-spacing: 0.06em; text-transform: none !important;
+  color: #2b1d10 !important; background: linear-gradient(180deg, #f6ecd0, #e3d0a2) !important; border: 1px solid #3b2612 !important;
+  box-shadow: inset 0 0 0 2px #f6ecd0, inset 0 0 0 3px rgba(59, 38, 18, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3) !important; border-radius: 1px !important;
+}
+.mc-win .btn.primary, .ls-card .btn.primary, .gov-win .btn.primary { color: #f6ecd0 !important; background: linear-gradient(180deg, #a8392a, #7a2216) !important; box-shadow: inset 0 0 0 2px #c4574a, 0 1px 2px rgba(0, 0, 0, 0.35) !important; }
+.mc-win .btn:hover, .gov-win button:hover, .mc-win button.plan:hover { filter: brightness(1.05); transform: translateY(-1px); }
+.mc-win .btn:disabled, .gov-win button:disabled { opacity: 0.45; }
+.gov-tab, .tech-tree { color: #6b5234 !important; background: rgba(110, 78, 40, 0.1) !important; border: 1px solid rgba(59, 38, 18, 0.4) !important; }
+.gov-tab.on, .tech-tree.on { color: #f6ecd0 !important; background: #7a2216 !important; border-color: #3b2612 !important; }
+.gov-rank { background: #7a2216 !important; color: #f6ecd0 !important; font-family: var(--serif) !important; font-variant: small-caps; }
+.gov-name, .sk-name, .amb-name, .ls-kicker { color: var(--ink) !important; font-family: var(--serif) !important; font-variant: small-caps; }
+.gov-stat, .gov-chip { background: rgba(110, 78, 40, 0.08) !important; border: 1px solid rgba(59, 38, 18, 0.3) !important; }
+.gov-stat .k { color: var(--gold) !important; font-family: var(--serif) !important; font-variant: small-caps; letter-spacing: 0.1em !important; }
+.sk-row, .cr-row, .amb { border-top: 1px solid rgba(59, 38, 18, 0.25) !important; }
+.sk-bar { background: rgba(110, 78, 40, 0.18) !important; border-color: rgba(59, 38, 18, 0.4) !important; }
+.sk-bar div { background: linear-gradient(90deg, #7a2216, #a8392a) !important; }
+.sk-lv, .amb-mark, .amb-prog { color: var(--gold) !important; }
+.sk-does, .amb-aim, .ls-steps { color: var(--ink) !important; }
+.ls-steps b { color: #7a2216 !important; }
+.cr-cost, .sk-grows, .amb-rew, .sk-sub, .amb-intro, .ch-note, .cr-none, .ls-hint { color: var(--ink-dim) !important; }
+.cr-row img, .mc-slot img { filter: drop-shadow(0 1px 1px rgba(60, 40, 20, 0.45)) !important; }
+.gov-win input, .gov-win select { background: #f6ecd0 !important; color: #2b1d10 !important; border: 1px solid #6b5234 !important; font-family: var(--serif); }
+/* the front of the game: plates of paper on the painted scene */
+.screen .btn { font-family: var(--serif); font-variant: small-caps; letter-spacing: 0.08em; text-transform: none; font-size: 18px; color: #2b1d10; background: linear-gradient(180deg, rgba(246, 236, 208, 0.94), rgba(227, 208, 162, 0.94)); border: 1px solid #3b2612; box-shadow: inset 0 0 0 2px rgba(246, 236, 208, 0.9), inset 0 0 0 3px rgba(59, 38, 18, 0.35), 0 2px 8px rgba(0, 0, 0, 0.45); border-radius: 1px; }
+.screen .btn.primary { color: #f6ecd0; background: linear-gradient(180deg, #a8392a, #7a2216); box-shadow: inset 0 0 0 2px #c4574a, 0 2px 8px rgba(0, 0, 0, 0.45); }
+.screen .btn:hover { filter: brightness(1.06); }
+.screen .btn.ghost, .screen .btn.ghost-sm { background: rgba(246, 236, 208, 0.18); color: #f6ecd0; border-color: rgba(246, 236, 208, 0.4); box-shadow: none; }
+.screen h2 { font-family: var(--serif); font-variant: small-caps; letter-spacing: 0.06em; }
+
+/* the key reference (Tab), and the little tabs between inventory and skills */
+#keysRef { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 10, 6, 0.55); z-index: 5; cursor: default; }
+.kr-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; align-items: center; font: 15px var(--serif); color: var(--ink); }
+.kr-grid .kr-k { text-align: right; white-space: nowrap; }
+.kr-grid kbd { background: #f6ecd0; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 1px 0 #6b5234; padding: 1px 6px; font: 13px var(--serif); border-radius: 2px; }
+.kr-sec { grid-column: 1 / -1; font: 15px var(--serif); font-variant: small-caps; letter-spacing: 0.08em; color: var(--gold); margin-top: 8px; border-bottom: 1px solid rgba(59, 38, 18, 0.25); }
+.mc-links { display: inline-flex; gap: 4px; margin-left: 10px; font-variant: normal; }
+.mc-links button { font: 13px var(--serif) !important; font-variant: small-caps !important; padding: 2px 10px !important; min-width: 0 !important; cursor: pointer; }
+.mc-links button.on { color: #f6ecd0 !important; background: #7a2216 !important; }

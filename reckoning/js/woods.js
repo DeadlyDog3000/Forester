@@ -185,7 +185,19 @@ export class Woods extends WorldBase {
       const tree = list[list.length - 1];
       if (rad < CLEARING.r + 60 || dh < HUNT.r + 6) tree.col = this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
     }
-    for (const m of forestInstances(list)) root.add(m);
+    // the forest in tiles of eighty metres, so what is behind you or past the haze is never drawn
+    // (as one piece, every tree was drawn every frame, and twice over for the shadows)
+    this.forestTiles = [];
+    { const TILE = 80, tiles = new Map();
+      for (const t of list) { const k = Math.floor(t.x / TILE) + "," + Math.floor(t.z / TILE); if (!tiles.has(k)) tiles.set(k, []); tiles.get(k).push(t); }
+      for (const [k, trees] of tiles) {
+        const g = new THREE.Group(), gf = new THREE.Group();
+        for (const m of forestInstances(trees)) g.add(m);
+        for (const m of forestInstances(trees, true)) gf.add(m);
+        const [i, j] = k.split(",").map(Number);
+        this.forestTiles.push({ g, gf, x: (i + 0.5) * TILE, z: (j + 0.5) * TILE });
+        root.add(g, gf); gf.visible = false;
+      } }
     this.forest = list;
     this.mapTrees = list.map(t => ({ x: t.x, z: t.z, k: t.kind }));
     this.treeCount = list.length;
@@ -760,10 +772,8 @@ export class Woods extends WorldBase {
     if (n === this.stackN) return;
     this.stackN = n;
     this.stack.clear();
-    const b = new Builder();
-    b.box(1.8, 0.12, 2.6, STACK.x, 0.06, STACK.z, 0x4a3a2a);
-    const m = b.build(); m.position.y = this.cy; this.stack.add(m);
-    if (n > 0) { const p = P.logPile(STACK.x, STACK.z, Math.min(n, 24), 0, 0.12); p.position.y = this.cy; this.stack.add(p); }
+    // (straight on the ground, with no boards under it)
+    if (n > 0) { const p = P.logPile(STACK.x, STACK.z, Math.min(n, 24), 0, 0); p.position.y = this.cy; this.stack.add(p); }
   }
   // let it snow: k is how much lies on the ground, fall is how hard it is still coming down
   setSnow(k, fall = 0) {
@@ -910,6 +920,13 @@ export class Woods extends WorldBase {
   }
   update(dt) {
     this.tickRocks(dt);
+    // tiles of forest past the haze are not drawn at all
+    if ((this.tileT = (this.tileT || 0) - dt) <= 0 && this.forestTiles && G.player) {
+      this.tileT = 0.4;
+      const p = G.player.pos, far = (G.scene && G.scene.fog && G.scene.fog.far ? G.scene.fog.far : 220) + 70;
+      // near: every facet, and shadows; further: the plainer trees; past the haze: nothing
+      for (const t of this.forestTiles) { const d = Math.hypot(t.x - p.x, t.z - p.z); t.g.visible = d < 95; t.gf.visible = d >= 95 && d < far; }
+    }
     this.regrowTick(dt);
     this.t += dt;
     // the door swings to where it was sent; the lamp is lit while you are in

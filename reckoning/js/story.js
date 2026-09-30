@@ -10,6 +10,7 @@
 // time, so pausing pauses the story, and starting a chapter over bumps a
 // generation counter that makes every script from the old run fall silent.
 
+import { BUILD_GATES } from "./gov.js";
 import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME } from "./body.js";
 import { THREE, clamp, mat, Builder, MAT, TAU } from "./core.js";
 import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
@@ -203,10 +204,11 @@ function sibHints() {
     if (raid && !pl.axe && !pl.bow && !once.has("arm" + G.town.S.raid.count)) { once.add("arm" + G.town.S.raid.count); return say1("Get your axe out — press 1! They're at the stores!", 3); }
     if (raid && G.health < 0.5 && !once.has("guard" + G.town.S.raid.count)) { once.add("guard" + G.town.S.raid.count); return say1("Hold right-click to raise your guard! Catch his swing just as it comes!", 3.5); }
     if (!raid && G.health !== undefined && G.health < 0.35 && !once.has("hurt")) { once.add("hurt"); return say1("You're hurt. Keep out of trouble a while — it'll mend.", 3.5); }
+    if (G.town && (G.pack || []).some(i => i.icon === "meat") && !once.has("cook")) { once.add("cook"); return say1("Don't eat that raw — cook it over the fire first. Hold F at the fire. Raw meat brings the plague.", 5); }
     if (G.body && G.body.hunger < 0.22 && !raid && (!once.has("hungry") || G.time - (once.hungryAt || 0) > 240)) {
       once.add("hungry"); once.hungryAt = G.time;
-      const food = (G.pack || []).find(i => i.icon === "meat" || i.icon === "blackberries") || (G.town && G.town.S.bread > 0 ? { icon: "bread" } : null);
-      return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "meat" ? "meat" : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
+      const food = (G.pack || []).find(i => i.icon === "cookedmeat" || i.icon === "blackberries") || (G.town && G.town.S.bread > 0 ? { icon: "bread" } : null);
+      return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "cookedmeat" ? "roast meat" : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
     }
     if (pl.hasBow && pl.bow && (pl.arrows || 0) === 0 && !once.has("arrows")) { once.add("arrows"); return say1("You're out of arrows. Pull them out where they landed — F — or buy more when a trader comes.", 4.5); }
     if (G.town && G.body && !raid && !G.body.tools.pick && G.chapter >= 12 && !once.has("pick")) { once.add("pick"); return say1("You could make yourself a pickaxe at the chopping block — two logs. There's stone in the grey rocks round the clearing.", 5); }
@@ -236,9 +238,31 @@ let slot = 1;
 try { slot = Math.min(SLOTS, Math.max(1, +localStorage.getItem("reckoning.slot") || 1)); } catch (e) {}
 export const getSlot = () => slot;
 export function setSlot(n) { slot = n; try { localStorage.setItem("reckoning.slot", String(n)); } catch (e) {} }
-export function readSlot(n) { try { return JSON.parse(localStorage.getItem(slotKey(n))) || null; } catch (e) { return null; } }
-export function writeSlot(n, s) { try { localStorage.setItem(slotKey(n), JSON.stringify(s, (k, v) => k[0] === "_" ? undefined : v)); return true; } catch (e) { return false; } }
-export function clearSlot(n) { try { localStorage.removeItem(slotKey(n)); } catch (e) {} }
+// Saves: read once and kept in memory (the game writes often, and reading the whole of it back each time
+// was slow); every minute or so the last good copy is put by beside it, and if a save can't be read, that
+// copy is used instead of losing the game.
+const _slotCache = new Map();
+let _prevAt = 0;
+export function readSlot(n) {
+  if (_slotCache.has(n)) return _slotCache.get(n);
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(slotKey(n))) || null; }
+  catch (e) {
+    try { s = JSON.parse(localStorage.getItem(slotKey(n) + ".prev")) || null; if (s) console.warn("Reckoning: save", n, "could not be read; its last good copy was used"); } catch (e2) { s = null; }
+  }
+  _slotCache.set(n, s);
+  return s;
+}
+export function writeSlot(n, s) {
+  try {
+    const text = JSON.stringify(s, (k, v) => k[0] === "_" ? undefined : v);
+    if (Date.now() - _prevAt > 60000) { const old = localStorage.getItem(slotKey(n)); if (old) localStorage.setItem(slotKey(n) + ".prev", old); _prevAt = Date.now(); }
+    localStorage.setItem(slotKey(n), text);
+    _slotCache.set(n, JSON.parse(text));
+    return true;
+  } catch (e) { return false; }
+}
+export function clearSlot(n) { _slotCache.delete(n); try { localStorage.removeItem(slotKey(n)); localStorage.removeItem(slotKey(n) + ".prev"); } catch (e) {} }
 export function loadSave() { return readSlot(slot); }
 // the body is written to the save now and then, when it has changed
 setInterval(() => { if (G.body && G.body.dirty && G.mode === "play") { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
@@ -1919,10 +1943,13 @@ function loadTown() {
   if (!s.town) for (const i of (s.clearing || {}).felled || []) t.felled.push({ i, day: -99 });
   return t;
 }
-function startTown(w, unlocked) {
+function startTown(w, unlocked, needed = []) {
   const S = loadTown();
   const town = new Town(w, S, () => writeSave({ town: S }), { keepClear: [[FIELD.x, FIELD.z, 5]] });
   town.unlocked = new Set([...unlocked, "path"]);           // (paths can always be laid)
+  // what hasn't been researched can't be built — except what the chapter itself asks for, which it teaches
+  town.researchGates = true;
+  for (const k of needed) { const g = BUILD_GATES[k]; if (g && !town.knows(g)) S.tech.done.push(g); }
   G.town = town;
   w.showCabin(); w.openTracks.add(3);
   w.setFurniture(S.furniture || null);
@@ -2094,7 +2121,7 @@ async function ch11(w) {
   setAtmo("afternoon"); G.bugs.setKind("flies");
   AUDIO.music("hope"); SFX.insectLoop(true);
   const pl = G.player;
-  const town = startTown(w, ["cabin", "woodshed", "well", "field"]);
+  const town = startTown(w, ["cabin", "woodshed", "well", "field"], ["woodshed", "well"]);
   const S = town.S;
   // the rye stands ripe in high summer
   for (const b of S.buildings) if (b.type === "field" && b.sown) { b.growth = 3; town.show(b); }
@@ -2691,9 +2718,10 @@ function makeSibAxe() {
   const g = new THREE.Group();
   const h = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.75, 6), new THREE.MeshStandardMaterial({ color: 0x8a6a45 }));
   h.position.y = 0; g.add(h);
-  const hd = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.12, 0.17), new THREE.MeshStandardMaterial({ color: 0x5d6166, metalness: 0.7, roughness: 0.5 }));
-  hd.position.set(0, -0.34, 0.06); g.add(hd);
-  g.rotation.x = Math.PI / 2;
+  // (the head across the haft sideways, the blade leading to the left as the stroke comes round from the right)
+  const hd = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.12, 0.035), new THREE.MeshStandardMaterial({ color: 0x5d6166, metalness: 0.7, roughness: 0.5 }));
+  hd.position.set(0.06, -0.34, 0); g.add(hd);
+  // (held level, the haft forward from the hands, so the stroke goes into the trunk from the side)
   return g;
 }
 function stump(w, t) {

@@ -115,15 +115,21 @@
         <div id="craftBody"></div>
       </div>
     </div>
+    <div id="keysRef" class="hidden">
+      <div class="mc-win sk-win">
+        <div class="mc-label">The keys <span class="mc-hint"><kbd>Tab</kbd> or <kbd>F</kbd> close</span></div>
+        <div id="keysBody"></div>
+      </div>
+    </div>
     <div id="skills" class="hidden">
       <div class="mc-win sk-win">
-        <div class="mc-label">Skills <span class="mc-hint"><kbd>P</kbd> or <kbd>F</kbd> close</span></div>
+        <div class="mc-label">Skills <span class="mc-links"><button data-go="inventory">Inventory</button><button data-go="skills" class="on">Skills</button></span> <span class="mc-hint"><kbd>P</kbd> or <kbd>F</kbd> close</span></div>
         <div id="skillsBody"></div>
       </div>
     </div>
     <div id="inventory" class="hidden">
       <div class="mc-win">
-        <div class="mc-label">Inventory <span class="mc-hint"><kbd>T</kbd> or <kbd>F</kbd> close</span></div>
+        <div class="mc-label">Inventory <span class="mc-links"><button data-go="inventory" class="on">Inventory</button><button data-go="skills">Skills</button></span> <span class="mc-hint"><kbd>T</kbd> or <kbd>F</kbd> close</span></div>
         <div id="invBody"></div>
       </div>
       <div id="invTip" class="hidden"></div>
@@ -265,6 +271,7 @@
         <tr><td>Left click</td><td>Attack</td></tr>
         <tr><td>Right click</td><td>Use item</td></tr>
         <tr><td><kbd>Z</kbd></td><td>Hold to zoom in</td></tr>
+        <tr><td><kbd>Tab</kbd></td><td>All the keys, in the game</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
       </table>
       <button class="btn ghost" data-back>Back</button>

@@ -138,10 +138,10 @@ export const UI = {
   },
 
   // health and hunger, always in sight while you play (v null hides them both)
-  vitals(hp, food, nomap) {
+  vitals(hp, food, nomap, sick) {
     const el = $("vitals"); if (!el) return;
     if (hp === undefined || hp === null) { el.classList.add("hidden"); this._hp = null; return; }
-    el.classList.remove("hidden"); el.classList.toggle("nomap", !!nomap);
+    el.classList.remove("hidden"); el.classList.toggle("nomap", !!nomap); el.classList.toggle("sick", !!sick);
     this.health(hp);
     const g = $("hunger"); g.style.setProperty("--f", food ?? 1); g.classList.toggle("low", (food ?? 1) < 0.25);
   },

@@ -7,6 +7,26 @@
 
 export const CHANGELOG = [
   {
+    v: "0.26", date: "30 September 2026", title: "What it costs",
+    items: [
+      "Dying costs you now: whatever killed you — a raider, the plague, hunger — you wake in your bed with every skill a sixth down (15% of all your skill points). Hunger can kill, in the end.",
+      "Settlers can die in a raid. The dead are buried in a row of crosses at the edge of the clearing, and everyone mourns for three days.",
+      "Cook your meat: hold F at the fire. Eat it raw and you take the plague — the health bar goes green, nothing mends, and it can kill you. A hospital cures it.",
+      "Skills are much harder to raise: the first levels come in an afternoon, the last take a lifetime.",
+      "Ambitions, in G: eight long aims for the settlement — a village, walls, an age of iron, a market town, brick, standing against a crown — each with a reward. The last is Father's name, written back into the rolls in Hamburg.",
+      "The settlers work the metals too: miners bring up copper and tin as well as iron, the smelter smelts them, and the smith casts bronze. Your own tools can take what they need from the stores.",
+      "Everything in the stores is to hand from the chest in your cabin: take five at a click, and shift-click to put things in.",
+      "Research gates what you can build in every chapter, not only in free play — and what isn't known yet isn't shown at all.",
+      "Walls are laid out as sites now: stakes and a line, logs carried to them, then raised. The plans show the building itself as you place it, not lines on the ground.",
+      "Rebuilding is offered only when you inspect a building (V). Paths can be laid from the start. F closes any menu. Tab shows every key.",
+      "The menus are set like a book of the age: laid paper, a double rule in ink, fleurons at the corners, rubric red.",
+      "A digging animation, and one for sowing. The swing mark is a short, pale bracket. A better pickaxe. The sister holds her axe level, and the settlers turn their blades into the trunk.",
+      "The deer ride is restocked through the day. The log stack sits on the bare ground.",
+      "Much quicker: the forest is drawn in tiles, with plainer trees in the distance and none past the haze — about six times faster on the same machine. The minimap slides smoothly under you.",
+      "Your saves are safer: the app puts a copy by before every update (Help, Show save backups), keeps a log of errors, and a save that can't be read falls back on its last good copy.",
+    ],
+  },
+  {
     v: "0.25", date: "29 September 2026", title: "Flesh and iron",
     items: [
       "Hunger: a bar under your health, below the map, and both always in sight. Eat by pressing the number of what you carry — bread from the store, meat, berries — and you raise it to your mouth and chew. Go too long without and your breath won't come back and your wounds won't close.",

@@ -16,7 +16,7 @@
 
 import { ambitionsTick } from "./ambitions.js";
 import { axeBonus, skillK, ITEM, digMul, buildMul } from "./body.js";
-import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture } from "./core.js";
+import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo } from "./core.js";
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -193,7 +193,7 @@ export class Town {
   // ---- arms ----
   // (Blades: every weapon strikes harder; fists stay fists)
   armDmg(kind) { return ARMS[kind].dmg + (kind !== "fists" && this.knows("blades") ? 5 : 0); }
-  armsKnown() { return ARM_KINDS.filter(k => this.techGates ? this.knows(ARMS[k].tech) : k === "sword"); }
+  armsKnown() { return ARM_KINDS.filter(k => this.techGates || this.researchGates ? this.knows(ARMS[k].tech) : k === "sword"); }
   armsCount() { return ARM_KINDS.reduce((n, k) => n + (this.S[ARMS[k].key] || 0), 0); }
   // the best weapon in the stores for you (you choose first)
   playerArm() { return ARM_KINDS.find(k => this.S[ARMS[k].key] > 0) || null; }
@@ -326,8 +326,9 @@ export class Town {
     return true;
   }
   // (in free play the plans and the trades wait on what is known, as in Forester; the story chapters teach their own)
-  gated(type) { const g = this.techGates && BUILD_GATES[type]; return g && !this.knows(g) ? TECH[g] : null; }
-  jobGated(job) { const g = this.techGates && JOB_GATES[job]; return g && !this.knows(g) ? TECH[g] : null; }
+  // (research gates what can be built and worked in every chapter with a settlement, not only in free play)
+  gated(type) { const g = (this.researchGates || this.techGates) && BUILD_GATES[type]; return g && !this.knows(g) ? TECH[g] : null; }
+  jobGated(job) { const g = (this.researchGates || this.techGates) && JOB_GATES[job]; return g && !this.knows(g) ? TECH[g] : null; }
   // what the knowledge does here
   get chopMul() { return this.knows("axing") ? 0.65 : this.knows("treecutting") ? 0.8 : 1; }
   get walkMul() { return (this.knows("horses") ? 1.15 : 1) + (this.knows("horsebreeding") ? 0.1 : 0) + (this.knows("saddling") ? 0.1 : 0); }
@@ -359,7 +360,15 @@ export class Town {
     let g = this.vis.get(b);
     if (g) { w.root.remove(g); if (g.userData.col) w.col.remove(g.userData.col); for (const c of g.userData.cols || []) w.col.remove(c); }
     g = new THREE.Group(); g.position.set(b.x, w.heightAt(b.x, b.z), b.z); g.rotation.y = b.ry;
-    if (def.wall) {
+    if (def.wall && !b.done) {
+      // a length not yet raised: stakes at its ends and a line between, the logs piling beside it
+      const stake = mat(0x8a6a44, { surface: "wood" }), line = mat(0xe8dcc0, { surface: "none" });
+      for (const sx of [-def.w / 2, def.w / 2]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.7, 0.07), stake); m.position.set(sx, 0.35, 0); g.add(m); }
+      const cord = new THREE.Mesh(new THREE.BoxGeometry(def.w, 0.015, 0.015), line); cord.position.y = 0.55; g.add(cord);
+      const n = Math.min(b.logs || 0, def.cost || 0);
+      if (n) g.add(makeLogs(Array.from({ length: n }, (_, i) => ({ x: -def.w / 2 + 0.5 + (i % 4) * 0.15, y: 0.1 + Math.floor(i / 4) * 0.2, z: 0.6, len: 2.2, r: 0.1, dir: "x" })), n));
+      g.userData.cols = [];
+    } else if (def.wall) {
       // a length of wall (or its rubble), with colliders along it, since the boxes can only lie square to the map
       wallVis(g, b, def);
       g.userData.cols = [];
@@ -475,10 +484,21 @@ export class Town {
     if (this.planning) this.planning.cancel();
     const def = BUILDINGS[type], w = this.w, pl = G.player;
     const ghost = new THREE.Group();
-    const m = def.model ? modelCopy(def.model) : null;
-    const tint = new THREE.MeshBasicMaterial({ color: 0x7fe07a, transparent: true, opacity: 0.35, depthWrite: false });
-    if (m) { m.scene.traverse(o => { if (o.isMesh) { o.material = tint; o.castShadow = false; } }); ghost.add(m.scene); }
-    else { const box = new THREE.Mesh(new THREE.BoxGeometry(def.w, 0.1, def.d), tint); box.position.y = 0.05; ghost.add(box); }
+    const tint = new THREE.MeshStandardMaterial({ color: 0x7fe07a, transparent: true, opacity: 0.42, depthWrite: false, roughness: 0.8, emissive: 0x2a5a26, emissiveIntensity: 0.5 });
+    const dress = obj => { obj.traverse(o => { if (o.isMesh || o.isInstancedMesh) { o.material = tint; o.castShadow = false; o.receiveShadow = false; } }); return obj; };
+    // what it will look like: the building itself, pale green — its model when it has come, a block and a roof till then
+    const body = new THREE.Group(); ghost.add(body);
+    const standIn = () => {
+      body.clear();
+      if (def.wall) { wallVis(body, { x: 0, z: 0, ry: 0, open: false }, def); dress(body); return; }
+      if (def.path || type === "field") { const flat = new THREE.Mesh(new THREE.BoxGeometry(def.w, 0.08, def.d), tint); flat.position.y = 0.04; body.add(flat); return; }
+      const h = Math.min(5, 2.4 + Math.max(def.w, def.d) * 0.25);
+      const walls = new THREE.Mesh(new THREE.BoxGeometry(def.w * 0.9, h, def.d * 0.9), tint); walls.position.y = h / 2; body.add(walls);
+      const roof = new THREE.Mesh(prismGeo(def.w * 0.96, h * 0.55, def.d * 0.96, 0.5), tint); roof.position.y = h; body.add(roof);
+    };
+    standIn();
+    const key = def.model ? modelKey({ type, tier: 1 }) : null;
+    if (key) ensureModel(key).then(ok => { if (!ok || !ghost.parent) return; const m = modelCopy(key); if (m) { body.clear(); body.add(dress(m.scene)); } });
     const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(def.w, 0.05, def.d)), new THREE.LineBasicMaterial({ color: 0x7fe07a }));
     edge.position.y = 0.05; ghost.add(edge);
     w.root.add(ghost);
@@ -499,19 +519,16 @@ export class Town {
         ghost.position.set(x, w.heightAt(x, z), z); ghost.rotation.y = ry;
         const col = ok ? 0x7fe07a : 0xe0503a; tint.color.setHex(col); edge.material.color.setHex(col);
         if ((input.click || input.hit("KeyF")) && ok) {
-          if (def.wall) {
-            // paid for as it's laid, out of the stores
-            const cost = { ...(def.cost ? { store: def.cost } : {}), ...(def.mats || {}) };
-            if (!this.afford(cost)) { UI.hint(`Not enough for a ${def.name.toLowerCase()}: ${this.short(cost)} short.`, 3); }
-            else { this.pay(cost); this.showStore(); this._wallRy = ry; done({ type, x, z, ry, logs: def.cost, dug: 0, done: true }); }
-          } else done({ type, x, z, ry, logs: 0, dug: 0, done: !!def.path });
+          // (a wall is laid out a length at a time, each a site of its own: its logs brought, then raised)
+          if (def.wall) { this._wallRy = ry; done({ type, x, z, ry, logs: 0, dug: 0, done: false }); }
+          else done({ type, x, z, ry, logs: 0, dug: 0, done: !!def.path });
         }
         if (input.hit("Escape")) done(null);
       };
       const done = b => {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
         w.root.remove(ghost); this.planning = null;
-        if (b) { this.S.buildings.push(b); this.show(b); if (!def.path && !def.wall) this.site(b); this.persist(); SFX().build(); }
+        if (b) { this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.persist(); SFX().build(); }
         res(b);
         // (a path or a wall goes on: the next length is ready to lay until you put the plan away)
         if (b && strip) setTimeout(() => { if (!this.planning && !this.stopped) this.plan(type); }, 0);
@@ -707,7 +724,7 @@ export class Town {
   wallNear(p, within = 4) {
     let best = null, bd = within;
     for (const b of this.S.buildings) {
-      const def = BUILDINGS[b.type]; if (!def.wall || b.broken || (def.wall === "gate" && b.open)) continue;
+      const def = BUILDINGS[b.type]; if (!def.wall || !b.done || b.broken || (def.wall === "gate" && b.open)) continue;
       const [e0, e1] = wallEnds(b, def), ex = e1.x - e0.x, ez = e1.z - e0.z;
       const k = Math.max(0, Math.min(1, ((p.x - e0.x) * ex + (p.z - e0.z) * ez) / (ex * ex + ez * ez)));
       const x = e0.x + ex * k, z = e0.z + ez * k, d = Math.hypot(p.x - x, p.z - z);
@@ -726,7 +743,7 @@ export class Town {
   updateGates() {
     const shut = !!(this.raids && this.raids.active);
     for (const b of this.S.buildings) {
-      if (b.type !== "gate" || b.broken) continue;
+      if (b.type !== "gate" || b.broken || !b.done) continue;
       const open = !shut;
       if (!!b.open !== open) { b.open = open; this.show(b); SFX().timberCrack && SFX().timberCrack(); }
     }
@@ -896,6 +913,26 @@ export class Town {
         if (have) have.n = (have.n || 1) + n * 2; else G.pack.push({ icon: "bronze", name: ITEM.bronze.name, note: ITEM.bronze.note, n: n * 2 });
         UI.hint(`${n * 2} bronze, cast.`, 3); SFX().build();
       } });
+    // the fire: meat roasted over it (raw, it brings the plague)
+    if (this.cookIt) w.removeInteract(this.cookIt);
+    this.cookIt = w.addInteract({ x: FIRE.x, y: w.cy + 0.4, z: FIRE.z, reach: 2.6, hold: 3, anim: "craft",
+      label: () => `Cook the meat over the fire (${(G.pack.find(i => i.icon === "meat") || {}).n || 0})`,
+      can: () => G.pack.some(i => i.icon === "meat"),
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().pickup && SFX().pickup(); },
+      use: () => {
+        const m = G.pack.find(i => i.icon === "meat"); if (!m) return;
+        const have = G.pack.find(i => i.icon === "cookedmeat");
+        if (have) have.n = (have.n || 1) + (m.n || 1); else G.pack.push({ icon: "cookedmeat", name: "Roast meat", note: "Cooked over the fire. Safe to eat — and better for it.", n: m.n || 1 });
+        G.pack.splice(G.pack.indexOf(m), 1);
+        UI.hint("Roasted. It smells like a feast day.", 3); SFX().build();
+      } });
+    // the hospital: the plague cured, if you go to it
+    if (this.cureIt) w.removeInteract(this.cureIt);
+    const hosp = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "hospital") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
+    const hdoor = () => { const b = hosp(); if (!b) return { x: 1e6, z: 1e6 }; const o = BUILDINGS.hospital.d / 2 + 1; return { x: b.x + Math.sin(b.ry) * o, z: b.z + Math.cos(b.ry) * o }; };
+    this.cureIt = w.addInteract({ get x() { return hdoor().x; }, get z() { return hdoor().z; }, get y() { return w.heightAt(hdoor().x, hdoor().z) + 1.2; }, reach: 3, hold: 2,
+      label: "Be tended for the plague", can: () => !!hosp() && G.body && G.body.plague > 0,
+      use: () => { G.body.plague = 0; G.body.dirty = true; UI.hint("They bled you, and fed you broth, and sat by you through the night. The fever's gone.", 5); } });
     // the sawhorse by the block: a door for each new cabin, hewn from logs off the stack
     if (this.sawIt) w.removeInteract(this.sawIt);
     this.sawIt = w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, anim: "saw",
@@ -1249,7 +1286,7 @@ export class Town {
         const deep = this.knows("deepshafts") && (works.at === "quarry" || works.at === "mine");
         const skill = JOB_SKILL[job];
         const time = works.time * this.toolFactor * (deep ? 0.7 : 1) * this.pace(a, skill);
-        if (works.pose === "chop") { const axe = a.hold(makeAxe()); await sleep(time); a.person.held.remove(axe); }
+        if (works.pose === "chop") { const axe = a.hold(makeAxe()); axe.rotation.y = Math.PI / 2; await sleep(time); a.person.held.remove(axe); }
         else await sleep(time);
         alive();
         if (this.afford(works.need)) {
@@ -1277,7 +1314,7 @@ export class Town {
         const dx = CLEARING.x - t.x, dz = CLEARING.z - t.z, l = Math.hypot(dx, dz);
         await a.walkTo(t.x + dx / l * 1.1, t.z + dz / l * 1.1, 1.3); alive();
         a.faceTo(t.x, t.z); a.person.setPose("chop");
-        const axe = a.hold(makeAxe());
+        const axe = a.hold(makeAxe()); axe.rotation.y = Math.PI / 2;   // (the blade sideways, into the trunk)
         for (let i = 0; i < (this.S.upgrades.axes ? 4 : 6); i++) { await sleep(0.8 * this.chopMul * this.pace(a, "woodcutting")); alive(); if (Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 24) this.sfxAt(a, "chop"); }
         a.person.setPose("idle"); a.person.held.remove(axe);
         this.fell(t, -dx, -dz, false); this.learn(a, "woodcutting", 1);

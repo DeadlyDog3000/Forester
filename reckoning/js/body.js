@@ -16,13 +16,15 @@ export const BODY_SKILLS = [
 ];
 export const SKILL_MAX = 100;
 // what it takes to go from one level to the next: a little more every time
-export const xpFor = lv => Math.round(6 + lv * 1.4);
+// (steep: the first few come in an afternoon, the last take a lifetime)
+export const xpFor = lv => Math.round(12 + lv * 3 + lv * lv * 0.06);
 
 // what can be eaten, and how much of your hunger each takes away
 export const FOOD = {
   blackberries: { fill: 0.06, secs: 1.1, name: "a handful of blackberries" },
   bread: { fill: 0.35, secs: 2.2, name: "bread" },
-  meat: { fill: 0.45, secs: 2.6, name: "meat" },
+  meat: { fill: 0.45, secs: 2.6, name: "raw meat", raw: true },
+  cookedmeat: { fill: 0.5, secs: 2.6, name: "roast meat" },
 };
 
 // tools you make yourself, in their makings: 0 none, 1 wood, 2 stone, 3 copper, 4 bronze, 5 iron.
@@ -75,12 +77,13 @@ export const ITEM = {
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0 } };
+  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0 }, plague: 0 };
 }
 export function restoreBody(saved) {
   const b = freshBody();
   if (saved && typeof saved === "object") {
     if (typeof saved.hunger === "number") b.hunger = Math.min(1, Math.max(0, saved.hunger));
+    if (saved.plague > 0) b.plague = Math.min(PLAGUE_SECS, saved.plague);
     // (before bronze there were four makings, and 4 was iron: those are 5 now)
     if (saved.tools) for (const k of Object.keys(b.tools)) if (saved.tools[k] != null) { let v = saved.tools[k] | 0; if (!saved.tools.v && v >= 4) v = 5; b.tools[k] = Math.min(TOP_TIER, Math.max(b.tools[k], v)); }
     for (const s of BODY_SKILLS) {
@@ -90,7 +93,9 @@ export function restoreBody(saved) {
   }
   return b;
 }
-export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 } });
+export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 }, plague: Math.round(b.plague || 0) });
+// the plague, from meat eaten raw: how long it lasts if nobody tends you
+export const PLAGUE_SECS = 300;
 
 // a skill's level as a fraction of the way from nothing to the most there is (0 at 1, 1 at 100)
 export function skillK(b, id) { return b ? (b.skills[id].lv - 1) / (SKILL_MAX - 1) : 0; }

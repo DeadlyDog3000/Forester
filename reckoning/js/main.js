@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
@@ -252,7 +252,7 @@ function buildChapters() {
 
 // ---- inventory (T) ----
 const ICON = {
-  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
+  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", cookedmeat: "../assets/sprites/items/meat_cooked.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
   hammer1: "../assets/sprites/items/tool_stone.png", hammer2: "../assets/sprites/items/tool_stone.png", hammer3: "../assets/sprites/items/tool_bronze.png", hammer4: "../assets/sprites/items/tool_bronze.png", hammer5: "../assets/sprites/items/tool_iron.png",
   sword1: "../assets/sprites/items/weapon_stone.png", sword3: "../assets/sprites/items/weapon_bronze.png", sword4: "../assets/sprites/items/weapon_bronze.png", sword5: "../assets/sprites/items/weapon_iron.png",
   pick5: "../assets/sprites/items/pick_iron.png", tinore: "../assets/sprites/items/tin_ore.png", tin: "../assets/sprites/items/tin.png", bronze: "../assets/sprites/items/bronze.png",
@@ -304,7 +304,7 @@ $("inventory").addEventListener("mouseleave", () => $("invTip").classList.add("h
 // ---- the chest in the cabin: nine places, one long row; click a thing to put it in or take it out ----
 const CHEST_SLOTS = 9;
 // what the stores keep that can be carried: the store's key, the thing in your pack, its name
-const STORE_ITEMS = [["bread", "bread", "Bread"], ["stone", "stone", "Stone"], ["planks", "planks", "Planks"], ["bricks", "bricks", "Bricks"], ["ore", "ironore", "Iron ore"], ["copperore", "copperore", "Copper ore"], ["tinore", "tinore", "Tin ore"], ["copper", "copper", "Copper"], ["tin", "tin", "Tin"], ["bronze", "bronze", "Bronze"], ["iron", "iron", "Iron"], ["tools", "tools", "Tools"]];
+const STORE_ITEMS = [["bread", "bread", "Bread"], ["meat", "cookedmeat", "Roast meat"], ["stone", "stone", "Stone"], ["planks", "planks", "Planks"], ["bricks", "bricks", "Bricks"], ["ore", "ironore", "Iron ore"], ["copperore", "copperore", "Copper ore"], ["tinore", "tinore", "Tin ore"], ["copper", "copper", "Copper"], ["tin", "tin", "Tin"], ["bronze", "bronze", "Bronze"], ["iron", "iron", "Iron"], ["tools", "tools", "Tools"]];
 let chestNote = "";
 function renderChest() {
   const box = G.chest || (G.chest = []);
@@ -402,6 +402,19 @@ $("craftBody").addEventListener("click", e => {
   renderCraft();
 });
 G.openCraft = () => showOverlay("craft", true);
+// ---- the keys (Tab): all of them in one place, what each does now ----
+function renderKeys() {
+  const K = (keys, what) => `<div class="kr-k">${keys.map(k => `<kbd>${k}</kbd>`).join(" ")}</div><div>${what}</div>`;
+  const sec = t => `<div class="kr-sec">${t}</div>`;
+  let h = sec("Moving") + K(["W", "A", "S", "D"], "Walk") + K(["Shift"], "Run") + K(["C"], "Crouch") + K(["Space"], "Jump · move a conversation on") + K(["Q", "E"], "Lean") + K(["Z"], "Hold to look closer") + K(["M"], "Lock or free the mouse");
+  h += sec("Doing") + K(["F"], "Take, open, talk — hold it for work that takes time · close a menu") + K(["Left click"], "Swing what you hold — the way you look is the way it comes") + K(["Right click"], "Draw the bow · raise your guard") + K(["1", "–", "9"], "Take out a tool · eat food in that slot");
+  h += sec("Seeing") + K(["J"], "The map") + K(["T"], "Inventory") + K(["P"], "Skills") + K(["Tab"], "These keys");
+  if (G.town) h += sec("The settlement") + K(["B"], "Plans — what you can build") + K(["V"], "Inspect a building: upkeep, mend, rebuild, pull down") + K(["G"], "Government: the nation, research, people, faith, Europe, ambitions");
+  h += sec("") + K(["Esc"], "Pause");
+  $("keysBody").innerHTML = `<div class="kr-grid">${h}</div>`;
+}
+// the inventory's and the skills' little tabs: from one to the other
+for (const b of document.querySelectorAll(".mc-links button")) b.onclick = () => showOverlay(b.dataset.go, true);
 // ---- skills (P): each from 1 to 100, and what the next level wants ----
 function renderSkills() {
   const b = G.body; if (!b) return;
@@ -418,6 +431,7 @@ let overlay = null, overlayTimer = 0, overlayLockMove = false;
 const OVERLAYS = {
   chest: { open: () => renderChest(), tick: () => {}, every: 1000 },
   craft: { open: () => renderCraft(), tick: () => renderCraft(), every: 700 },
+  keysRef: { open: () => renderKeys(), tick: () => {}, every: 2000 },
   skills: { open: () => renderSkills(), tick: () => renderSkills(), every: 500 },
   inventory: { open: () => renderInventory(), tick: () => renderInventory(), every: 300, close: () => $("invTip").classList.add("hidden") },
   bigmap: { open: () => { G.mapView = { zoom: 1, ox: 0, oz: 0 }; G.mapOpen = true; if (G.mapUsed) G.mapUsed.opened = true; renderBigMap(); }, tick: () => renderBigMap(), every: 250, close: () => { G.mapOpen = false; } },
@@ -1022,6 +1036,9 @@ function eat(it) {
   const f = FOOD[it.icon], b = G.body;
   if (!f || !b || (G.working && G.time < G.working.until)) return;
   if (b.hunger > 0.97) { UI.hint("You're not hungry.", 1.6); return; }
+  // raw meat: a warning first; press again and you eat it anyway, and take the plague with it
+  if (f.raw && !(eat.armed && eat.armed > performance.now())) { eat.armed = performance.now() + 3000; UI.hint("That's raw. Cook it at the fire first (hold F there) — raw meat brings the plague. Press again to eat it anyway.", 4); return; }
+  eat.armed = 0;
   G.working = { kind: "eat", food: it.icon, until: G.time + f.secs };
   const g0 = G.time;
   const done = setInterval(() => {
@@ -1029,6 +1046,7 @@ function eat(it) {
     if (G.time < g0 + f.secs - 0.05) return;
     clearInterval(done);
     b.hunger = Math.min(1, b.hunger + f.fill); b.dirty = true;
+    if (f.raw && !(b.plague > 0)) { b.plague = PLAGUE_SECS; UI.hint("You ate it raw. By evening you're shaking with fever — the plague. Nothing mends while you have it; a hospital could cure it.", 7); }
     if (it.fromStore) { if (G.town.S.bread > 0) { G.town.S.bread--; G.town.persist && G.town.persist(); } }
     else { it.n = (it.n || 1) - 1; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }
   }, 60);
@@ -1166,6 +1184,7 @@ addEventListener("keydown", e => {
   if (e.code === "Escape" && G.mode === "play" && input.freeLook) pause();
   if (e.code === "KeyT" && !e.repeat && G.mode === "play") showOverlay("inventory", overlay !== "inventory");
   if (e.code === "KeyP" && !e.repeat && G.mode === "play") showOverlay("skills", overlay !== "skills");
+  if (e.code === "Tab" && !e.repeat && G.mode === "play") { e.preventDefault(); showOverlay("keysRef", overlay !== "keysRef"); }
   if (e.code === "KeyJ" && !e.repeat && G.mode === "play") {
     if (!G.hasMap && overlay !== "bigmap") UI.hint("You haven't a map.", 2.5);
     else showOverlay("bigmap", overlay !== "bigmap");

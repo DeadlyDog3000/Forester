@@ -463,7 +463,7 @@ export class Player {
       if (this.winded && G.stamina > 0.35) this.winded = false;
       const hungry = G.body && G.body.hunger < 0.2 ? 0.5 : 1;
       if (sprint && !this.winded && this.speed > 1) { G.stamina = Math.max(0, G.stamina - dt / 5.5 * (G.staminaMul ?? 1) * staminaDrain(G.body)); if (G.stamina < 0.5) G.practise("endurance", dt * 0.5); }
-      else G.stamina = Math.min(1, G.stamina + dt / (sprint ? 9 : 3.5) * hungry * (2 - staminaDrain(G.body)));
+      else G.stamina = Math.min(1, G.stamina + dt / (sprint ? 9 : 3.5) * hungry * (G.body && G.body.plague > 0 ? 0.5 : 1) * (2 - staminaDrain(G.body)));
       if (G.stamina <= 0) this.winded = true;
       if (this.winded) sprint = false;
       // the bar shows while you are short of breath, and goes once you have it back
@@ -490,14 +490,23 @@ export class Player {
     if (G.health !== undefined) {
       G.hurtT = (G.hurtT || 0) + dt;
       const b = G.body, starving = b && b.hunger <= 0, hungry = b && b.hunger < 0.2;
-      if (G.hurtT > healDelay(b) && G.health < 1 && !G.downed && !hungry) {
+      // the plague: it eats at you, and nothing mends while you have it; left alone it passes, or it kills you
+      const sick = b && b.plague > 0;
+      if (sick && G.mode === "play" && !G.downed) {
+        b.plague = Math.max(0, b.plague - dt); b.dirty = true;
+        G.health = Math.max(0, G.health - dt / 330);
+        if (G.health <= 0) G.die("plague");
+        else if (b.plague <= 0) UI.hint("The fever breaks. You've come through the plague.", 5);
+        if ((this.coughT = (this.coughT || 4) - dt) <= 0) { this.coughT = 5 + Math.random() * 6; AUDIO.voice && AUDIO.voice("pain", { high: G.who === "sister", vol: 0.5 }); }
+      }
+      if (G.hurtT > healDelay(b) && G.health < 1 && !G.downed && !hungry && !sick) {
         const h0 = G.health; G.health = Math.min(1, G.health + dt * healRate(b));
         G.practise("healing", (G.health - h0) * 40);
       }
       // with nothing in you at all, you weaken, and in the end it kills you
       if (starving && !G.downed) { G.health = Math.max(0, G.health - dt / 240); if (G.health <= 0) G.die("hunger"); }
       if (G.mode === "play") hungerTick(b, dt, sprint && this.speed > 1);
-      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap);
+      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick);
     } else UI.vitals(null);
     if (sprint && this.crouched) this.crouched = false;
     const max = (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1);
@@ -854,7 +863,8 @@ G.wakeUp = async (from, lost) => {
   if (G.body) G.body.hunger = Math.max(G.body.hunger, 0.35);
   await new Promise(r => setTimeout(r, 900));
   UI.fade(0, 1.4); G.lockMove = false;
-  UI.hint((from === "hunger" ? "You died of hunger, and woke in your bed as if from a fever." : "You died, and woke in your bed.") + G.lostText(lost || {}), 7);
+  if (G.body) G.body.plague = 0;
+  UI.hint((from === "hunger" ? "You died of hunger, and woke in your bed as if from a fever." : from === "plague" ? "The plague took you — and yet you woke, in your bed, the fever gone." : "You died, and woke in your bed.") + G.lostText(lost || {}), 7);
 };
 G.hurt = (dmg, from) => {
   if (G.health === undefined || G.downed || G.mode !== "play") return;
@@ -1174,7 +1184,7 @@ function updateMarker(dt = 0) {
 // ---------------------------------------------------------------------------
 //  the minimap: north up, you in the middle, forty metres each way
 // ---------------------------------------------------------------------------
-let mmT = 0, mmCtx = null;
+let mmT = null, mmCtx = null;
 // ---- exploration: the map only shows what you have been near ----
 const EXPLORE_CELL = 6, EXPLORE_R = 30;
 let explored = {}, exploreDirty = false, exploreT = 0, exploreSaveT = 0;
@@ -1236,7 +1246,12 @@ function drawFog(c, X, Z, S) {
 
 // the map, at any size: the world's own drawing, then buildings, people, the objective, and you
 export function drawMap(c, X, Z, S, big, cx, cz, radius) {
-  const W = c.canvas.width, H = c.canvas.height, w = G.world, p = G.player.pos;
+  drawMapGround(c, X, Z, S, big, cx, cz, radius);
+  drawMapLive(c, X, Z, S, big, radius);
+}
+// what hardly changes: the forest and roads, the buildings, and the parchment over what you haven't seen
+function drawMapGround(c, X, Z, S, big, cx, cz, radius) {
+  const W = c.canvas.width, H = c.canvas.height, w = G.world;
   fillPaper(c, W, H);
   if (w.minimap) w.minimap(c, X, Z, S, big);
   // buildings and walls: everything solid and taller than a person, in red with an ink edge
@@ -1250,6 +1265,10 @@ export function drawMap(c, X, Z, S, big, cx, cz, radius) {
   // what you have not seen is still blank parchment
   drawFog(c, X, Z, S);
   if (big && w.mapLabels) w.mapLabels(c, X, Z, S, exploredSet());
+}
+// what moves: people, the objective, and you
+function drawMapLive(c, X, Z, S, big, radius) {
+  const W = c.canvas.width, w = G.world, p = G.player.pos;
   // people
   for (const a of w.actors) {
     if (!big && Math.hypot(a.pos.x - p.x, a.pos.z - p.z) > radius) continue;
@@ -1273,17 +1292,35 @@ export function drawMap(c, X, Z, S, big, cx, cz, radius) {
   }
   you(c, X(p.x), Z(p.z), G.player.yaw, big ? 1.3 : 1);
 }
+// The minimap every frame, smoothly: the ground is drawn once into a sheet twice the map's reach and only
+// slid under it as you walk (drawn again when you near its edge, or every few seconds for what has changed),
+// and only people, the marker and you are drawn fresh.
+let mmSheet = null, mmSheetAt = null, mmSheetT = 0, mmWorld = null;
+const MM_REACH = 40, MM_SHEET = 2.2;               // metres from you to the map's rim; the sheet's size against the map
 function updateMinimap(dt) {
-  mmT -= dt; if (mmT > 0) return; mmT = 1 / 15;
   const cv = document.getElementById("minimap"); if (!cv) return;
   const wrap = document.getElementById("minimapWrap");
-  if (wrap) wrap.classList.toggle("hidden", !G.hasMap);
-  if (!G.hasMap) return;
+  const want = !!G.hasMap;
+  if (mmT !== want) { mmT = want; if (wrap) wrap.classList.toggle("hidden", !want); }
+  if (!want) return;
   const c = mmCtx || (mmCtx = cv.getContext("2d"));
-  const W = cv.width, R = W / 2, S = R / 40;      // pixels per metre
-  const p = G.player.pos;
+  const W = cv.width, R = W / 2, S = R / MM_REACH;
+  const p = G.player.pos, w = G.world;
+  // the sheet under it
+  const SW = Math.round(W * MM_SHEET);
+  if (!mmSheet) { mmSheet = document.createElement("canvas"); }
+  if (mmSheet.width !== SW) { mmSheet.width = mmSheet.height = SW; mmSheetAt = null; }
+  mmSheetT -= dt;
+  const off = mmSheetAt ? Math.max(Math.abs(p.x - mmSheetAt.x), Math.abs(p.z - mmSheetAt.z)) * S : Infinity;
+  if (mmWorld !== w || off > (SW - W) / 2 - 4 || mmSheetT <= 0) {
+    mmWorld = w; mmSheetAt = { x: p.x, z: p.z }; mmSheetT = 3;
+    const sc = mmSheet.getContext("2d"), SR = SW / 2, ax = p.x, az = p.z;
+    drawMapGround(sc, x => SR + (x - ax) * S, z => SR + (z - az) * S, S, false, ax, az, MM_REACH * MM_SHEET * 0.75);
+  }
+  const SR = SW / 2;
+  c.drawImage(mmSheet, R - SR - (p.x - mmSheetAt.x) * S, R - SR - (p.z - mmSheetAt.z) * S);
   const X = x => R + (x - p.x) * S, Z = z => R + (z - p.z) * S;
-  drawMap(c, X, Z, S, false, p.x, p.z, 58);
+  drawMapLive(c, X, Z, S, false, MM_REACH * 1.45);
   // an inked rim
   c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.arc(R, R, R - 1.5, 0, Math.PI * 2); c.stroke();
   c.strokeStyle = "rgba(59,42,26,0.5)"; c.lineWidth = 1; c.beginPath(); c.arc(R, R, R - 6, 0, Math.PI * 2); c.stroke();

@@ -461,16 +461,23 @@ export function makeFood(kind) {
 const PICK_HEAD = [0x9a7448, 0x9a7448, 0x8a867e, 0xe0904e, 0xc49a48, 0xaab0b8];
 export function makePick(tier = 1) {
   const g = new THREE.Group();
-  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.72, 6), mat(0x6a4a30, { surface: "wood" })); haft.position.y = 0.3; g.add(haft);
+  const wood = mat(0x6e4c30, { surface: "wood" }), dark = mat(0x3a2818, { surface: "none" });
   const metal = tier >= 3, head = mat(PICK_HEAD[tier] || PICK_HEAD[1], metal ? { metalness: tier === 5 ? 0.55 : 0.2, roughness: 0.4 } : { surface: tier === 2 ? "stone" : "wood" });
-  // the head: two arms from the haft's top, bending down to points, like a bird's wings folded
-  const hub = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.06), head); hub.position.y = 0.66; g.add(hub);
-  for (const s of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.045, 0.19), head);
-    arm.position.set(0, 0.645, s * 0.11); arm.rotation.x = -s * 0.28; g.add(arm);
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.1, 4), head);
-    tip.position.set(0, 0.6, s * 0.225); tip.rotation.x = s * (Math.PI / 2 + 0.55); g.add(tip);
-  }
+  // the haft: a little thicker toward the head, with a leather wrap where the hands go
+  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.023, 0.74, 8), wood); haft.position.y = 0.31; g.add(haft);
+  const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.16, 8), dark); wrap.position.y = 0.04; g.add(wrap);
+  // the eye: a collar round the top of the haft
+  const eye = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.075, 0.07), head); eye.position.y = 0.66; g.add(eye);
+  // the head: one crescent, thick over the haft and drawn down to a point either side
+  const sh = new THREE.Shape();
+  sh.moveTo(-0.27, -0.075);
+  sh.quadraticCurveTo(-0.13, 0.045, 0, 0.05);
+  sh.quadraticCurveTo(0.13, 0.045, 0.27, -0.075);
+  sh.quadraticCurveTo(0.12, -0.005, 0, -0.012);
+  sh.quadraticCurveTo(-0.12, -0.005, -0.27, -0.075);
+  const hg = new THREE.ExtrudeGeometry(sh, { depth: 0.032, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.006, bevelSegments: 1, curveSegments: 10 });
+  hg.translate(0, 0, -0.016);
+  const hm = new THREE.Mesh(hg, head); hm.position.y = 0.655; hm.rotation.y = Math.PI / 2; hm.castShadow = true; g.add(hm);
   return g;
 }
 // what is in your own hands: your own sword and axe by their making, the rest as anyone's
@@ -509,8 +516,8 @@ export function makeHalberd() {
 // tips, dark in the hollows and undersides, multiplied by each material's hue.
 
 // one tier of spruce boughs: a cone whose skirt is ragged and droops at the tips
-function spruceTierGeo() {
-  const r = rng(11), N = 16;
+function spruceTierGeo(N = 16) {
+  const r = rng(11);
   const pos = [], col = [], idx = [];
   const v = (x, y, z, c) => { pos.push(x, y, z); col.push(c, c, c); return pos.length / 3 - 1; };
   const apex = v(0, 1, 0, 1.15);
@@ -567,6 +574,9 @@ export const TREE = {
   trunk: trunkGeo(),
   cone: spruceTierGeo(),
   blob: leafClumpGeo(2, 0.22),
+  // (far off, the same trees with fewer facets: nobody can count them at a hundred metres)
+  coneFar: spruceTierGeo(8),
+  blobFar: leafClumpGeo(1, 0.22),
   trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x5a4332, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
   birchMat: addDetail(new THREE.MeshStandardMaterial({ color: 0xe0dccf, roughness: 0.9, vertexColors: true }), { scale: 2.2, amount: 0.5, grain: 0.3, surface: "bark" }),
   spruceMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles" }),
@@ -596,7 +606,10 @@ export function makeSpruce(h = 9, seed = 1) {
 }
 
 // Instanced forest: returns meshes to add; `list` is [{x,y,z,h,kind,rot}]
-export function forestInstances(list) {
+export function forestInstances(list, far = false) {
+  const CONE = far ? TREE.coneFar : TREE.cone, BLOB = far ? TREE.blobFar : TREE.blob;
+  // (far off, a spruce is four tiers rather than seven, each a little deeper)
+  const TIERS = far ? [0, 2, 4, 6].map(i => { const [y, w, th] = SPRUCE_TIERS[i]; return [y, w, th * 1.55]; }) : SPRUCE_TIERS;
   const dummy = new THREE.Object3D();
   const kinds = { spruce: [], pine: [], birch: [] };
   for (const t of list) kinds[t.kind].push(t);
@@ -612,8 +625,8 @@ export function forestInstances(list) {
   const trunks = new THREE.InstancedMesh(TREE.trunk, TREE.trunkMat, kinds.spruce.length + kinds.pine.length);
   const birchTr = new THREE.InstancedMesh(TREE.trunk, TREE.birchMat, kinds.birch.length);
   let ti = 0;
-  const NT = SPRUCE_TIERS.length;
-  const spruceC = new THREE.InstancedMesh(TREE.cone, TREE.spruceMat, kinds.spruce.length * NT);
+  const NT = TIERS.length;
+  const spruceC = new THREE.InstancedMesh(CONE, TREE.spruceMat, kinds.spruce.length * NT);
   let si = 0;
   for (const t of kinds.spruce) {
     const lean = Math.sin(t.rot * 3.7) * 0.03;
@@ -621,7 +634,7 @@ export function forestInstances(list) {
     trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
     const seed = t.x * 0.37 + t.z * 1.13;
     for (let i = 0; i < NT; i++) {
-      const [y, wf, th] = SPRUCE_TIERS[i];
+      const [y, wf, th] = TIERS[i];
       const w = wf * t.h * 0.26 * (1 + Math.sin(seed + i * 2.1) * 0.07);
       dummy.position.set(t.x + Math.sin(t.rot) * lean * t.h * y, t.y + t.h * y, t.z + Math.cos(t.rot) * lean * t.h * y);
       dummy.scale.set(w, t.h * th, w); dummy.rotation.set(0, t.rot + i * 1.7, 0); dummy.updateMatrix();
@@ -630,7 +643,7 @@ export function forestInstances(list) {
     }
   }
   // Scots pine: a tall bare trunk and a flat, broken crown
-  const pineB = new THREE.InstancedMesh(TREE.blob, TREE.pineMat, kinds.pine.length * 4);
+  const pineB = new THREE.InstancedMesh(BLOB, TREE.pineMat, kinds.pine.length * 4);
   let pi = 0;
   for (const t of kinds.pine) {
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.85, t.h * 0.86, 0.85); dummy.updateMatrix();
@@ -646,7 +659,7 @@ export function forestInstances(list) {
     }
   }
   // birch: a pale trunk and a loose, many-clumped crown
-  const leaves = new THREE.InstancedMesh(TREE.blob, TREE.leafMat, kinds.birch.length * 6);
+  const leaves = new THREE.InstancedMesh(BLOB, TREE.leafMat, kinds.birch.length * 6);
   let li = 0, bi = 0;
   for (const t of kinds.birch) {
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.5, t.h * 0.78, 0.5); dummy.updateMatrix();
@@ -660,7 +673,7 @@ export function forestInstances(list) {
       tint(leaves, li++, 0, seed, 0.09, 0.03);
     }
   }
-  for (const m of [trunks, birchTr, spruceC, pineB, leaves]) { m.castShadow = m !== trunks && m !== birchTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
+  for (const m of [trunks, birchTr, spruceC, pineB, leaves]) { m.castShadow = !far && m !== trunks && m !== birchTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
   return out;
 }
 
