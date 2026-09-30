@@ -187,6 +187,8 @@ export const GUIDE = {
       "The cave runs a long way back: hall after hall, with tunnels between them. Your lantern lights a little way ahead, and the old torches a little more.",
       "The rock down here is thick with <b>copper, tin and iron</b>, and the deeper halls hold more of it. Break it with a good enough pickaxe, as you would outside.",
       "Sometimes <b>raiders</b> have made a camp in one of the far halls. They come for you as soon as they see you. Beaten, they leave their purse behind.",
+      "Take a <b>watchman</b> with you: <kbd>F</kbd> beside one, <i>Follow me</i>. They go wherever you go, down into the caves too, and fight at your side.",
+      "Once you've found the cave, its mouth is on your map (<kbd>J</kbd>). Inside, the map shows the halls you've been in, and the ore in them.",
       "To leave, go back to the first hall and climb out where the daylight comes down (<kbd>F</kbd>).",
     ],
   },

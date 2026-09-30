@@ -1159,6 +1159,36 @@ export class Town {
     c.stock = Math.min(12, (c.stock || 0) + 2); this.showShop(c); this.persist();
     return true;
   }
+  // a shift at your side
+  async followShift(a, sleep, alive) {
+    const pl = G.player, cave = this.w.cave;
+    if (a.knocked && G.time < a.knocked) { a.doing = "knocked down"; a.lying = true; await sleep(1); alive(); return true; }
+    if (a.knocked) { a.knocked = 0; a.lying = false; a.hp = 50; }
+    a.root.visible = true; a.inside = false;
+    // (down into the caves with you, and out again)
+    if (cave) {
+      const youIn = cave.inside, heIn = cave.holds(a.pos.x, a.pos.z);
+      if (youIn !== heIn) { a.place(pl.pos.x + 1.4, pl.pos.z + 1.2); await sleep(0.3); return true; }
+    }
+    // a bandit awake and near: at him
+    const foe = cave && cave.inside ? (cave.band || []).filter(b => !b.down && b.woke).sort((p, q) => Math.hypot(p.a.pos.x - a.pos.x, p.a.pos.z - a.pos.z) - Math.hypot(q.a.pos.x - a.pos.x, q.a.pos.z - a.pos.z))[0] : null;
+    if (foe && Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z) < 18) {
+      const arm = this.armFor(a.settler);
+      if (a.armKind !== arm) { a.person.held.clear(); if (arm !== "fists") a.hold(makeArm(arm)); a.armKind = arm; }
+      a.doing = "fighting at your side";
+      const d = Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z);
+      if (d > 1.6) { await Promise.race([a.walkTo(foe.a.pos.x, foe.a.pos.z, 3.2), sleep(0.7)]); alive(); return true; }
+      a.faceTo(foe.a.pos.x, foe.a.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
+      if (!foe.down && Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z) < 2) { foe.hurt(this.armDmg(arm) * armSkill(a.settler, "fighting")); this.learn(a, "fighting", 0.5); AUDIO.clang(0.5, a.pos); }
+      await sleep(0.8); return true;
+    }
+    // otherwise, close behind you
+    a.doing = "following you";
+    const d = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z);
+    if (d > 3.2) { await Promise.race([a.walkTo(pl.pos.x + 1.2, pl.pos.z + 1.0, d > 10 ? 4.2 : 3.0), sleep(0.6)]); alive(); }
+    else { a.faceTo(pl.pos.x, pl.pos.z); await sleep(0.5); alive(); }
+    return true;
+  }
   canEnlarge(b) { return b.done && b.type === "woodshed" && (b.bays || 1) < 3; }
   enlargeRoom(b) {
     const n = (b.bays || 1) + 1, def = BUILDINGS.woodshed, hw = def.w * n / 2, hd = def.d / 2, c = Math.cos(b.ry), s = Math.sin(b.ry);
@@ -1519,10 +1549,13 @@ export class Town {
   chooseJob(p) {
     if (!G.openTrade) { p.job = this.nextJob(p); this.persist(); return; }
     const count = j => this.S.people.filter(q => q.job === j).length;
-    G.openTrade(`${p.name}'s work`, `now a ${JOBS[p.job || "hauler"].name}`, this.jobsOpen().map(j => ({
+    // a watchman can be asked to come with you — into the woods, into the caves — and fight at your side
+    const follow = p.job === "watch" ? [{ icon: "weapon", label: p.follow ? "Go back to your watch" : "Follow me", note: p.follow ? "Back to guarding the settlement." : "Stay at my side and fight with me — anywhere, even down in the caves.", get: "", can: () => true, done: () => false,
+      do: () => { p.follow = !p.follow; this.persist(); UI.bark(p.name, p.follow ? "Lead on. I'm right behind you." : "Back to the road, then.", 3); G.closeTrade && G.closeTrade(); } }] : [];
+    G.openTrade(`${p.name}'s work`, `now a ${JOBS[p.job || "hauler"].name}`, follow.concat(this.jobsOpen().map(j => ({
       icon: "axe", label: JOBS[j].name[0].toUpperCase() + JOBS[j].name.slice(1), note: `${JOBS[j].ask[0].toUpperCase() + JOBS[j].ask.slice(1)}${WORKS[j] ? ` — ${this.costText(WORKS[j].need) || "nothing"} in, ${this.costText(WORKS[j].give)} out` : ""}`,
       get: `${count(j)} at it`, can: () => p.job !== j, done: () => p.job === j, doneText: " — now",
-      do: () => { p.job = j; this.persist(); UI.bark(p.name, JOBS[j].reply, 3); this.emit("job", p); G.closeTrade && G.closeTrade(); } })), null);
+      do: () => { p.job = j; if (j !== "watch") p.follow = false; this.persist(); UI.bark(p.name, JOBS[j].reply, 3); this.emit("job", p); G.closeTrade && G.closeTrade(); } }))), null);
   }
   // called away from their work, to stand somewhere (the fire, for a gathering)
   summon(a, x, z) {
@@ -1644,13 +1677,15 @@ export class Town {
     await sleep(Math.random() * 3);
     while (true) {
       alive();
-      if (this.isNight() && !(this.raids && this.raids.active) && !(this.S.revolt && this.S.revolt.active)) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
+      if (this.isNight() && !(this.raids && this.raids.active) && !(this.S.revolt && this.S.revolt.active) && !a.settler.follow) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
       const job = a.settler.job || "hauler";
       // raiders in the settlement: every grown settler fights — with what the smith has made, an axe, or their fists;
       // the children hide by the fire
       const raid = this.raids && this.raids.active;
       // the settlement risen against you: everyone takes a side
       if (this.S.revolt && this.S.revolt.active && await revoltShift(this, a, sleep, alive)) continue;
+      // a watchman at your side: with you wherever you go, and at your enemies
+      if (a.settler.follow && !raid && await this.followShift(a, sleep, alive)) continue;
       if (a.knocked) {
         if (raid && G.time < a.knocked) { a.doing = "knocked down"; await sleep(1); alive(); continue; }
         a.knocked = 0; a.lying = false; a.yOff = 0; a.hp = 50;

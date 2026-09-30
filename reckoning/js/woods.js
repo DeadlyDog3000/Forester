@@ -427,6 +427,15 @@ export class Woods extends WorldBase {
   // on the map: stamped forest, the road and its forks, the clearing, and the city behind
   minimap(c, X, Z, S, big) {
     const W = c.canvas.width, H = c.canvas.height, pad = 12;
+    // down in the cave: the cave's own map, and its ore
+    if (this.cave && this.cave.inside) {
+      this.cave.drawMap(c, X, Z, S);
+      for (const k of this.cave.rocks) if (!k.gone && this.cave.seen.some(i => { const h = this.cave.halls[i]; return Math.hypot(k.x - h.x, k.z - h.z) < h.r + 1; })) {
+        c.fillStyle = k.kind === "copper" ? "#3a9a70" : k.kind === "iron" ? "#a8442a" : k.kind === "tin" ? "#b4bcc8" : "#7a766c";
+        c.beginPath(); c.arc(X(k.x), Z(k.z), Math.max(2.2, S * 0.9), 0, Math.PI * 2); c.fill(); c.strokeStyle = INK; c.lineWidth = 0.8; c.stroke();
+      }
+      return;
+    }
     const vis = (x, z) => { const px = X(x), pz = Z(z); return px > -pad && px < W + pad && pz > -pad && pz < H + pad; };
     const ts = Math.max(2.2, Math.min(4.2, S * 1.6));
     // the wash, the forest, the clearing and the road never change: drawn once onto a sheet the size of the country,
@@ -447,6 +456,14 @@ export class Woods extends WorldBase {
       const rw = Math.max(2.2, Math.min(4.5, S * 1.9));
       for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
       road(c, this.road, X, Z, rw);
+    }
+    // the cave's mouth, once found: a dark arch in the hillside
+    const cv = this.cave;
+    if (cv && cv.found && cv.mouthAt && vis(cv.mouthAt.x, cv.mouthAt.z)) {
+      const mx = X(cv.mouthAt.x), mz = Z(cv.mouthAt.z), r = Math.max(5, S * 2.4);
+      c.fillStyle = "#6a665e"; c.beginPath(); c.arc(mx, mz, r * 1.3, Math.PI, 0); c.lineTo(mx + r * 1.3, mz + r * 0.5); c.lineTo(mx - r * 1.3, mz + r * 0.5); c.closePath(); c.fill();
+      c.fillStyle = "#15110c"; c.beginPath(); c.arc(mx, mz + r * 0.1, r * 0.65, Math.PI, 0); c.lineTo(mx + r * 0.65, mz + r * 0.5); c.lineTo(mx - r * 0.65, mz + r * 0.5); c.closePath(); c.fill();
+      c.strokeStyle = INK; c.lineWidth = 1; c.stroke();
     }
     // the other settlements, and their roads
     for (const col of this.colonies || []) {
@@ -509,6 +526,7 @@ export class Woods extends WorldBase {
     const L = (text, wx, wz, dy, size) => { if (seen(set, wx, wz)) label(c, text, X(wx), Z(wz) + dy, size); };
     L("The Clearing", CLEARING.x, CLEARING.z, CLEARING.r * S + 14, 15);
     for (const col of this.colonies || []) label(c, col.name, X(col.x), Z(col.z) + col.r * S + 12, 14);
+    if (this.cave && this.cave.found && this.cave.mouthAt && !this.cave.inside) label(c, "the cave", X(this.cave.mouthAt.x), Z(this.cave.mouthAt.z) + 16, 12);
     L("the road north-east", -40, -120, 0, 13);
     L("The old woods", 70, -200, 0, 18);
     L("to Hamburg", 0, 40, 0, 14);
@@ -516,8 +534,8 @@ export class Woods extends WorldBase {
     if (this.burner) L("the charcoal burner", this.burner.camp.x, this.burner.camp.z, 14, 12);
     if (this.huntOpen) L("the deer ride", HUNT.x, HUNT.z, 0, 12);
   }
-  get mapTitle() { return "The Road North-East"; }
-  get mapBounds() { return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
+  get mapTitle() { return this.cave && this.cave.inside ? "The Cave" : "The Road North-East"; }
+  get mapBounds() { if (this.cave && this.cave.inside) { const b = this.cave.b; return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1 }; } return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
   // gentle hills, flattened where the road runs and in the clearing
   // the ground, and the pads dug level into it for buildings: inside a pad its own height, and round it a bank
   // sloping back up (or down) to the ground as it was

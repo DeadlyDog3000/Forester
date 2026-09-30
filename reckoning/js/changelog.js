@@ -22,6 +22,8 @@ export const CHANGELOG = [
       "The land rolls: hills, ridges and hollows. Paths and fields lie along the slope, and buildings are dug into it.",
       "Stumps can be dug up (hold F), and nothing grows there again.",
       "A building on a slope has its ground dug out for it: a level pad cut into the hill, with a bank of bare earth round it.",
+      "Watchmen can be asked to follow you (F beside one, Follow me). They go wherever you go, down into the caves too, and fight at your side.",
+      "Once you've found the cave, it's on your map. Inside, the map (J) and minimap show the halls you've been in, and the ore in them.",
       "Fixed: the ore in the caves was invisible. Fixed: coming back from the free camera left you crouched and slow.",
       "Paths are a quarter quicker to walk on. Settlers no longer clip through walls.",
       "Harder raiders: tougher, quicker, harder-hitting, more of them, and a parry stuns them for less time. Once Policing is known, only the watch fights them; everyone else takes cover.",

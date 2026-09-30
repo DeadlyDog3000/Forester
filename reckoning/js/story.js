@@ -1979,6 +1979,7 @@ function startTown(w, unlocked, needed = []) {
     w.cave = new Caves(w);
     const m = caveMouthSpot(w); w.cave.mouth(m.x, m.z, m.ry);
   }
+  w.cave.found = !!(loadTown().caveFound);
   onFrame(dt => w.cave && w.cave.tick(dt));
   // once, a little after a settlement first exists: where to see all of it
   const g0 = GEN;

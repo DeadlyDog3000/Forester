@@ -152,8 +152,32 @@ export class Caves {
     this.inIt = w.addInteract({ x: fx, y: y + 1.3, z: fz, reach: 2.6, label: "Go down into the cave", use: () => this.enter() });
     return g;
   }
+  markFound() {
+    this.found = true;
+    if (G.town) { G.town.S.caveFound = true; G.town.persist(); }
+    UI.hint("You've found a cave. It's on your map now (J).", 4);
+  }
+  // what has been seen of it, from the save
+  get seen() { return (G.town && G.town.S.caveSeen) || []; }
+  // on the map, inside: the halls you've stood in, and the tunnels between them, in ink on the parchment
+  drawMap(c, X, Z, S) {
+    const seen = new Set(this.seen);
+    c.fillStyle = "rgba(60,48,36,0.92)"; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
+    const floor = "rgba(214,196,150,0.95)";
+    c.strokeStyle = floor; c.lineCap = "round";
+    for (const t of this.tunnels) {
+      const ia = this.halls.indexOf(t.a), ib = this.halls.indexOf(t.b);
+      if (!seen.has(ia) && !seen.has(ib)) continue;
+      c.lineWidth = t.r * 2 * S; c.beginPath(); c.moveTo(X(t.a.x), Z(t.a.z)); c.lineTo(X(t.b.x), Z(t.b.z)); c.stroke();
+    }
+    c.fillStyle = floor;
+    this.halls.forEach((h, i) => { if (!seen.has(i)) return; c.beginPath(); c.arc(X(h.x), Z(h.z), h.r * S, 0, Math.PI * 2); c.fill(); });
+    // the way out, a pale mark
+    const h0 = this.halls[0]; c.fillStyle = "#f3e7c6"; c.beginPath(); c.arc(X(h0.x), Z(h0.z - h0.r + 2.5), Math.max(3, S * 1.2), 0, Math.PI * 2); c.fill();
+  }
   enter() {
     const pl = G.player; if (this.inside) return;
+    if (!this.found) this.markFound();
     this.inside = true; this.root.visible = true; this._entering = true;
     UI.fade(1, 0.5).then(() => {
       pl.place(this.start.x, this.start.z, Math.PI); this._entering = false;
@@ -174,12 +198,23 @@ export class Caves {
       if (this.lantern && this.lantern.parent) this.lantern.parent.remove(this.lantern);
       for (const b of this.band || []) b.a.remove(); this.band = [];
       const m = this.mouthAt; pl.place(m.x + Math.sin(m.ry) * 1.2, m.z + Math.cos(m.ry) * 1.2, m.ry + Math.PI);
+      // those with you come up too — carried up, if they were beaten down
+      if (G.town) for (const a of G.town.actors) if (a.settler && a.settler.follow && this.holds(a.pos.x, a.pos.z)) {
+        a.place(m.x + Math.sin(m.ry) * 2.4 + 1, m.z + Math.cos(m.ry) * 2.4); a.knocked = 0; a.lying = false; a.hp = Math.max(a.hp || 0, 25);
+      }
       if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
       UI.fade(0, 0.8);
     });
   }
   // the dark: every frame down here, whatever the time of day outside
   tick(dt) {
+    // found: once you've come near the mouth (or been in), it's on the map, and so is every hall you've stood in
+    const pl = G.player, S = G.town && G.town.S;
+    if (!this.inside && !this.found && this.mouthAt && pl && Math.hypot(pl.pos.x - this.mouthAt.x, pl.pos.z - this.mouthAt.z) < 14) this.markFound();
+    if (this.inside && S && pl) {
+      S.caveSeen ??= [];
+      this.halls.forEach((h, i) => { if (!S.caveSeen.includes(i) && Math.hypot(pl.pos.x - h.x, pl.pos.z - h.z) < h.r + 3) { S.caveSeen.push(i); G.town.persist(); } });
+    }
     if (!this.inside) return;
     // (brought out some other way — beaten down, and woken in your bed): the cave lets you go
     if (!this.holds(G.player.pos.x, G.player.pos.z) && !this._entering) {
@@ -230,19 +265,23 @@ class Bandit {
   }
   tick(dt) {
     if (this.down) return;
-    const pl = G.player, a = this.a, d = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z);
+    const pl = G.player, a = this.a;
+    // whoever is nearest of you and those with you
+    const mates = G.town ? G.town.actors.filter(o => o.settler && o.settler.follow && !o.knocked && this.cave.holds(o.pos.x, o.pos.z)) : [];
+    let foe = null, d = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z);
+    for (const o of mates) { const e = Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z); if (e < d) { d = e; foe = o; } }
+    const tp = foe ? foe.pos : pl.pos;
     if (!this.woke && d < 15) { this.woke = true; AUDIO.voice && AUDIO.voice("war", { at: a.pos }); UI.hint("Raiders — they've made their camp down here!", 3); }
     if (!this.woke) return;
     this.cool -= dt;
-    if (d > 1.6) { if (!a.path.length || (this.re = (this.re || 0) - dt) <= 0) { this.re = 0.6; a.walkTo(pl.pos.x, pl.pos.z, 3.4); } return; }
-    a.path = []; a.faceTo(pl.pos.x, pl.pos.z);
+    if (d > 1.6) { if (!a.path.length || (this.re = (this.re || 0) - dt) <= 0) { this.re = 0.6; a.walkTo(tp.x, tp.z, 3.4); } return; }
+    a.path = []; a.faceTo(tp.x, tp.z);
     if (this.cool <= 0) {
       this.cool = 1.2 + Math.random() * 0.5;
       a.person.setPose("chop"); setTimeout(() => a.person && a.person.setPose("idle"), 350);
-      if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2.1) {
-        const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
-        G.hurt(pl.guard ? dmg * 0.3 : dmg, "raider");
-      }
+      const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
+      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp <= 0) { foe.knocked = G.time + 25; foe.lying = true; } } }
+      else if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2.1) G.hurt(pl.guard ? dmg * 0.3 : dmg, "raider");
       AUDIO.whoosh && AUDIO.whoosh(0.4, true);
     }
   }

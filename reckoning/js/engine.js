@@ -1320,6 +1320,8 @@ function worldFog(s) {
   return wFog;
 }
 function drawFog(c, X, Z, S) {
+  // (the cave keeps its own map of what you've seen)
+  if (G.world && G.world.cave && G.world.cave.inside) return;
   const s = exploredSet(); if (!s) return;
   const W = c.canvas.width, H = c.canvas.height, mw = Math.ceil(W / FOG_K), mh = Math.ceil(H / FOG_K);
   if (!fogCv) { fogCv = document.createElement("canvas"); maskCv = document.createElement("canvas"); paperCv = document.createElement("canvas"); }
