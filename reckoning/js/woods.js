@@ -1136,6 +1136,9 @@ export class Woods extends WorldBase {
     for (const c of this.kitchenCols || []) this.col.remove(c);
     if (this.kitchenIt) this.removeInteract(this.kitchenIt);
     if (this.kitchen && this.kitchen.rig) this.root.remove(this.kitchen.rig.g);
+    this.kitchenCols = []; this.kitchenIt = null; this.kitchen = null;
+    // (the kitchen comes with the house: a cabin that hasn't been rebuilt has only its hearth)
+    if ((this.homeTier || 1) < 2) return;
     const y0 = this.cabinY + 0.07, at = (lx, y, lz) => { const [x, z] = this.cabinToWorld(lx, lz); return new THREE.Vector3(x, y0 + y, z); };
     const top = this.cabinY + 0.9;
     this.kitchenCols = [[-1.98, -1.78, 0.32], [-1.98, -1.22, 0.32], [-1.98, -0.7, 0.3], [-1.98, -0.2, 0.3]].map(([lx, lz, r]) => { const [x, z] = this.cabinToWorld(lx, lz); return this.col.addCircle(x, z, r, top); });

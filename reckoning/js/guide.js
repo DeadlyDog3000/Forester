@@ -157,7 +157,7 @@ export const GUIDE = {
     kicker: "Your house", title: "Cooking",
     steps: [
       "Every beast gives its own meat. <b>Venison</b> is rich but lean, so it dries out if it's left on. <b>Hare</b> is delicate and quick. <b>Boar</b> is fat and filling, and must be cooked through. Hover over any meat in your pack (<kbd>T</kbd>) to see its stats.",
-      "Rebuild your cabin as a house and it gets a <b>kitchen</b>. <kbd>F</kbd> at the range opens the recipes. Better recipes need a higher <b>Cooking</b> skill, and some want rye from the stores, bread or blackberries.",
+      "The kitchen is <b>locked until you rebuild your cabin as a house</b> (<kbd>B</kbd>, inside the cabin). Then there's a range by the hearth. <kbd>F</kbd> at the range opens the recipes. Better recipes need a higher <b>Cooking</b> skill, and some want rye from the stores, bread or blackberries.",
       "The gauge shows how done it is. <b>Take it off the heat (<kbd>Space</kbd>) in the green.</b> Too soon and it's underdone, or raw; too late and it's overdone, or burnt.",
       "A pan wants <b>turning once (<kbd>F</kbd>), about halfway</b>. A pot wants <b>stirring (<kbd>F</kbd>) before it catches</b> on the bottom.",
       "Your eye for it isn't perfect at first: the gauge can be off a little. It gets truer, and the green wider, as your Cooking rises.",

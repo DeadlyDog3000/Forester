@@ -1233,7 +1233,7 @@ export class Town {
     this.pay(u.mats, true);
     this.S.homeTier = 2; this.persist(); SFX().build();
     this.w.setHomeTier && this.w.setHomeTier(2);
-    UI.hint("Your cabin is a house now: timber and plaster inside, boards on the floor. Every bed past your own two sleeps a settler — make more beds here (B).", 7);
+    UI.hint("Your cabin is a house now: timber and plaster inside, boards on the floor, and a kitchen by the hearth (F at the range to cook). Every bed past your own two sleeps a settler — make more beds here (B).", 8);
     return true;
   }
   canUpgrade(b) { const def = BUILDINGS[b.type]; return b.done && (def.tiers || b.type === "cabin" || b.type === "well") && (b.tier || 1) < 4; }
@@ -1375,7 +1375,8 @@ export class Town {
         UI.hint("Roasted. It smells like a feast day.", 3); SFX().build();
       } });
     // the kitchen in your house (once it is a house): dishes, judged
-    G.openKitchen = () => openKitchen(this); G.cooking = cooking;
+    // (only once your cabin has been rebuilt as a house: until then there is only the fire)
+    G.openKitchen = () => ((this.S.homeTier || 1) >= 2 ? openKitchen(this) : UI.hint("There's no kitchen yet — rebuild your cabin as a house first (B, inside).", 4)); G.cooking = cooking;
     // the hospital: the plague cured, if you go to it
     if (this.cureIt) w.removeInteract(this.cureIt);
     const hosp = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "hospital") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
