@@ -910,8 +910,11 @@ export class Town {
   sickness() {
     const S = this.S, E = S.europe, near = E ? [...NEAR].some(id => E.plague && E.plague[id]) : false;
     const cure = this.has("hospital") && S.people.some(p => p.job === "doctor" && !(p.sick > 0)) ? 3 : 1;
-    for (const p of S.people) {
+    for (const p of [...S.people]) {
       if (p.sick > 0) {
+        // a fever can kill: rarely with a doctor, more often without, and most of all with the plague about
+        const die = (cure > 1 ? 0.01 : 0.05) * (near ? 2 : 1) * (p.temper === "sickly" ? 1.5 : p.temper === "hardy" ? 0.5 : 1) * (p.child ? 1.5 : 1);
+        if (Math.random() < die) { this.killSettler(p, "sick"); continue; }
         p.sick -= cure;
         if (p.sick <= 0) { p.sick = 0; UI.hint(`${p.name} is well again.`, 3); }
         continue;
@@ -1588,20 +1591,30 @@ export class Town {
     p.mark = id; this.persist();
     UI.hint(`${p.name} — ${MARKS[id].name.toLowerCase()}: ${why}`, 5);
   }
-  // killed: cut down in a raid. They are buried at the edge of the clearing, and everyone mourns a few days
-  killSettler(a) {
+  // dead: cut down in a raid or in the streets, starved, frozen, or taken by a fever. They are buried at the edge
+  // of the clearing, and everyone mourns a few days
+  killSettler(a, why = "raid") {
+    if (!a) return;
+    if (a && !a.settler && !a.root) a = this.actors.find(x => x.settler === a) || { settler: a };
     const p = a.settler; if (!p || a.dead) return;
     a.dead = true;
     const i = this.S.people.indexOf(p); if (i >= 0) this.S.people.splice(i, 1);
-    if (a.talkIt) this.w.removeInteract(a.talkIt);
-    a.lying = true; a.path = []; a.person.held.clear(); a.onUpdate = null; a.knocked = Infinity;
-    AUDIO.voice("fear", { at: a.pos, high: p.sex === "f" || !!p.child });
-    // (the body lies where it fell until the raid is over)
-    setTimeout(() => { a.remove(); const j = this.actors.indexOf(a); if (j >= 0) this.actors.splice(j, 1); }, 30000);
+    if (a.root) {
+      if (a.talkIt) this.w.removeInteract(a.talkIt);
+      a.lying = true; a.path = []; a.person.held.clear(); a.onUpdate = null; a.knocked = Infinity; a.yOff = 0.05;
+      const violent = why === "raid" || why === "revolt" || why === "cave";
+      if (violent) AUDIO.voice("fear", { at: a.pos, high: p.sex === "f" || !!p.child });
+      // (a body cut down lies where it fell for a while; one that died abed is carried out quietly)
+      setTimeout(() => { a.remove(); const j = this.actors.indexOf(a); if (j >= 0) this.actors.splice(j, 1); }, violent ? 30000 : 1500);
+    }
     (this.S.graves ??= []).push({ name: p.name, day: this.day });
     this.S.mournUntil = this.day + 3;
-    this.showGraves(); this.persist(); this.emit("died", p);
-    UI.news({ title: `${p.name} is dead`, sub: "Cut down in the raid. Buried at the edge of the clearing, by the ones who were left.", img: "event_war" });
+    this.showGraves(); this.persist(); this.emit("died", p, why);
+    const how = {
+      raid: "Cut down in the raid.", revolt: "Killed in the fighting in the streets.", cave: "Killed down in the caves, in the dark.",
+      hunger: "Starved: there was nothing left in the stores.", cold: "Froze in the night, with no wood for the hearth.", sick: "The fever took them.",
+    }[why] || "";
+    UI.news({ title: `${p.name} is dead`, sub: `${how} Buried at the edge of the clearing, by the ones who were left.`, img: "event_war" });
   }
   // the graves: a row of wooden crosses at the north-west edge of the clearing, each with its name
   showGraves() {
@@ -1619,6 +1632,12 @@ export class Town {
     w.root.add(g);
   }
   // the newest to come goes back down the road (hunger does this) — or, named, someone who can't bear it here
+  // the first to go when there isn't enough: the sick, the sickly and the children, then anyone
+  weakest() {
+    const P = this.S.people; if (!P.length) return null;
+    const w = q => (q.sick > 0 ? 3 : 0) + (q.temper === "sickly" ? 2 : 0) + (q.child ? 1 : 0) - (q.temper === "hardy" ? 2 : 0) + Math.random();
+    return P.reduce((b, q) => (w(q) > w(b) ? q : b));
+  }
   leave(why = "hunger", who = null) {
     const p = who || [...this.S.people].reverse().find(q => !q.child); if (!p) return;
     this.S.people.splice(this.S.people.indexOf(p), 1);
@@ -1673,7 +1692,7 @@ export class Town {
   sfxAt(a, name) { const p = G.player && G.player.pos; if (!p || Math.hypot(a.pos.x - p.x, a.pos.z - p.z) < 22) SFX()[name](); }
   async work(a) {
     const sleep = s => new Promise(r => setTimeout(r, s * 1000));
-    const alive = () => { if (this.stopped || a.gone || a.summoned || !G.world || G.world !== this.w) { a.root.visible = true; a.lying = false; throw "stop"; } };
+    const alive = () => { if (a.dead) throw "stop"; if (this.stopped || a.gone || a.summoned || !G.world || G.world !== this.w) { a.root.visible = true; a.lying = false; throw "stop"; } };
     await sleep(Math.random() * 3);
     while (true) {
       alive();
@@ -1963,7 +1982,9 @@ export class Town {
       if (this.S.rye >= need) { this.S.rye -= need; this.S.hungry = 0; }
       else {
         this.S.rye = 0; this.S.hungry = (this.S.hungry || 0) + 1;
-        if (this.S.hungry >= 2) { this.S.hungry = 0; this.leave("hunger"); } else this.emit("hungry", this.day);
+        if (this.S.hungry === 2) this.leave("hunger");
+        else if (this.S.hungry > 2) this.killSettler(this.weakest(), "hunger");
+        else this.emit("hungry", this.day);
       }
       // the market sells what there is too much of
       if (this.has("market")) {
@@ -1982,7 +2003,9 @@ export class Town {
         if (this.S.store >= fire) { this.S.store -= fire; this.S.cold = 0; this.showStore(); }
         else {
           this.S.store = 0; this.showStore(); this.S.cold = (this.S.cold || 0) + 1;
-          if (this.S.cold >= 2) { this.S.cold = 0; this.leave("cold"); } else this.emit("cold", this.day);
+          if (this.S.cold === 2) this.leave("cold");
+          else if (this.S.cold > 2) this.killSettler(this.weakest(), "cold");
+          else this.emit("cold", this.day);
         }
       }
       // room to grow: said once for each claim earned

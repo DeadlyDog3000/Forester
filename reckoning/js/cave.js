@@ -199,7 +199,7 @@ export class Caves {
       for (const b of this.band || []) b.a.remove(); this.band = [];
       const m = this.mouthAt; pl.place(m.x + Math.sin(m.ry) * 1.2, m.z + Math.cos(m.ry) * 1.2, m.ry + Math.PI);
       // those with you come up too — carried up, if they were beaten down
-      if (G.town) for (const a of G.town.actors) if (a.settler && a.settler.follow && this.holds(a.pos.x, a.pos.z)) {
+      if (G.town) for (const a of G.town.actors) if (a.settler && a.settler.follow && !a.dead && this.holds(a.pos.x, a.pos.z)) {
         a.place(m.x + Math.sin(m.ry) * 2.4 + 1, m.z + Math.cos(m.ry) * 2.4); a.knocked = 0; a.lying = false; a.hp = Math.max(a.hp || 0, 25);
       }
       if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
@@ -280,7 +280,7 @@ class Bandit {
       this.cool = 1.2 + Math.random() * 0.5;
       a.person.setPose("chop"); setTimeout(() => a.person && a.person.setPose("idle"), 350);
       const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
-      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp <= 0) { foe.knocked = G.time + 25; foe.lying = true; } } }
+      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; } } } }
       else if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2.1) G.hurt(pl.guard ? dmg * 0.3 : dmg, "raider");
       AUDIO.whoosh && AUDIO.whoosh(0.4, true);
     }

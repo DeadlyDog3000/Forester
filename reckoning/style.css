@@ -599,3 +599,7 @@ body.freecam #hud > *:not(#hint) { visibility: hidden; }
 .law-row input[type=range] { width: 100%; accent-color: #8a2a1a; }
 .law-note { font: 13px/1.45 var(--sans); color: #5a4630; margin: 2px 0 8px; }
 .law-tog { display: flex; gap: 8px; align-items: center; font: 15px var(--serif, Georgia); margin-top: 6px; }
+
+/* Dark Fantasy: big hard pixels, the colour drained and the corners in shadow */
+body.dark-fantasy #view canvas { image-rendering: pixelated; filter: saturate(0.6) contrast(1.15) sepia(0.12); }
+body.dark-fantasy #view::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.6) 100%); }

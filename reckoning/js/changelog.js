@@ -9,6 +9,9 @@ export const CHANGELOG = [
   {
     v: "0.30", date: "30 September 2026", title: "A country of its own",
     items: [
+      "Settlers can die now, and not only in raids: a fever left untreated, days on end with nothing to eat or no wood for the hearth, the fighting in a rising, or the dark in the caves. The weakest go first. Each is buried by the graves, and the settlement mourns.",
+      "A raider's victim no longer gets up and goes back to work once the raid is over.",
+      "Dark Fantasy (Settings): a darker, colder, greyer world with the mist in close, drawn at low resolution in big hard pixels.",
       "Hares hop now, instead of walking like little deer: a bound, a pause, and another bound, long low leaps when they bolt.",
       "Caves: a mouth in a hillside out in the forest, and behind it hall after hall of dark rock, thick with copper, tin and iron. Your lantern and a few old torches light the way. Sometimes raiders have made their camp down there.",
       "A second settlement: after forty minutes of play you're asked whether to found one. Say yes and a road is cut through the forest to a new clearing, with its name on a signpost.",

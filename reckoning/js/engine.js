@@ -107,8 +107,13 @@ export const ATMO = {
   snownight: { sun: [0.3, 0.7, -0.4], sunC: 0x9aaad0, sunI: 0.35, hemiS: 0x5a6890, hemiG: 0x2a3040, hemiI: 0.7, fog: 0x3a4458, near: 6, far: 45, top: 0x10141e, mid: 0x2a3244, bot: 0x1a1e28, stars: 0, win: 2.2, exp: 1.35, fill: 0.35 },
   firelight: { sun: [0.3, 0.6, -0.4], sunC: 0x7a8ac0, sunI: 0.45, hemiS: 0x46507a, hemiG: 0x241c14, hemiI: 0.65, fog: 0x0c0e16, near: 12, far: 100, top: 0x060812, mid: 0x1a1e34, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.35, fill: 0.42 },
 };
-function applyAtmo(a) {
-  G.atmoNow = a;
+// Dark Fantasy (a setting): the same hour, darker, colder and greyer, with the mist in closer
+const GRIM = new THREE.Color(0x2a2c30);
+const grim = c => G.settings.dark ? c.clone().lerp(GRIM, 0.35).multiplyScalar(0.55) : c;
+function applyAtmo(a0) {
+  G.atmoNow = a0;
+  const dk = !!G.settings.dark;
+  const a = dk ? { ...a0, fog: grim(a0.fog), top: grim(a0.top), mid: grim(a0.mid), bot: grim(a0.bot), sunC: grim(a0.sunC).multiplyScalar(1.5), sunI: a0.sunI * 0.7, hemiI: a0.hemiI * 0.7, near: a0.near * 0.6, far: a0.far * 0.7, exp: a0.exp * 0.8, stars: a0.stars * 0.5 } : a0;
   sun.color.copy(a.sunC); sun.intensity = a.sunI;
   G.sunDir = a.sun.clone ? a.sun.clone().normalize() : new THREE.Vector3(...a.sun).normalize();
   hemi.color.copy(a.hemiS); hemi.groundColor.copy(a.hemiG); hemi.intensity = a.hemiI;

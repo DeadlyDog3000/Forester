@@ -79,6 +79,8 @@ export async function revoltShift(town, a, sleep, alive) {
 }
 function hit(town, a, dmg) {
   a.hp = (a.hp ?? 50) - dmg;
+  // (a blow that brings them down sometimes kills)
+  if (a.hp <= 0 && Math.random() < 0.3 && town.killSettler) { town.killSettler(a, "revolt"); checkEnd(town); return; }
   if (a.hp <= 0) { a.knocked = Infinity; a.lying = true; a.path = []; AUDIO.voice && AUDIO.voice("fear", { at: a.pos, high: a.settler.sex === "f" }); checkEnd(town); }
 }
 // your stroke: a rebel in front of you takes it
@@ -102,7 +104,7 @@ export function checkEnd(town) {
 export function endRevolt(town, winner) {
   const S = town.S, rebels = S.people.filter(p => p.rebel);
   S.revolt.active = false; S.lastRevolt = town.day;
-  for (const a of town.actors) { if (a.knocked === Infinity) { a.knocked = 0; a.lying = false; a.hp = 50; } armband(a, false); }
+  for (const a of town.actors) { if (a.knocked === Infinity && !a.dead) { a.knocked = 0; a.lying = false; a.hp = 50; } armband(a, false); }
   if (winner === "loyal") {
     // the rebels are put out of the settlement (the jail keeps one, if there is a jail)
     const jail = town.has && town.has("jail");

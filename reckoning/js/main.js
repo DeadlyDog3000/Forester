@@ -50,6 +50,8 @@ function applySettings() {
   $("setScale").value = s.scale ?? 1; $("scaleVal").textContent = Math.round((s.scale ?? 1) * 100) + "%";
   $("setDynres").checked = !!s.dynres; $("setShadows").value = s.shadows || "high"; $("setDraw").value = String(s.draw ?? 1);
   $("setCap").value = String(s.cap || 0); $("setFps").checked = !!s.showFps;
+  $("setDark").checked = !!s.dark; document.body.classList.toggle("dark-fantasy", !!s.dark);
+  G.reAtmo && G.reAtmo();
   $("fpsMeter").classList.toggle("hidden", !s.showFps);
   setGraphics({ shadows: s.shadows || "high", drawMul: +(s.draw ?? 1) });
   if (!s.dynres) dynScale = 1;
@@ -69,7 +71,8 @@ const PRESETS = {
 let dynScale = 1;
 function applyScale() {
   const s = G.settings;
-  const pr = Math.min(devicePixelRatio, 1.75) * (s.scale ?? 1) * dynScale;
+  // (Dark Fantasy draws at a fraction of the resolution, in big hard-edged pixels)
+  const pr = s.dark ? 0.42 * dynScale : Math.min(devicePixelRatio, 1.75) * (s.scale ?? 1) * dynScale;
   if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) renderer.setPixelRatio(pr);
   renderer.setSize(innerWidth, innerHeight);
 }
@@ -95,7 +98,7 @@ function meterFps(dtReal) {
     else if (fps > aim + 8 && dynScale < 1) { dynScale = Math.min(1, dynScale + 0.05); applyScale(); }
   }
 }
-for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"]]) {
+for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setDark", "dark"]]) {
   $(id).addEventListener("change", e => { G.settings[key] = e.target.checked; applySettings(); G.saveSettings(); });
 }
 
