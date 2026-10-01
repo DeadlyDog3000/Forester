@@ -13,6 +13,7 @@ export const BODY_SKILLS = [
   { id: "healing", name: "Healing", icon: "✚", does: "Wounds close sooner after a fight.", grows: "Mend: every point of health that comes back." },
   { id: "endurance", name: "Endurance", icon: "🏃", does: "Longer sprints, and breath back sooner.", grows: "Run until you are winded." },
   { id: "archery", name: "Archery", icon: "🏹", does: "Steadier arms at full draw.", grows: "Loose arrows, and hit what you aim at." },
+  { id: "cooking", name: "Cooking", icon: "🍲", does: "A truer eye for when a dish is done, a wider moment to take it off, better dishes — and new recipes.", grows: "Cook at the kitchen in your house. A good dish teaches more than a burnt one." },
 ];
 export const SKILL_MAX = 100;
 // what it takes to go from one level to the next: a little more every time
@@ -25,6 +26,10 @@ export const FOOD = {
   bread: { fill: 0.2, secs: 2.2, name: "bread" },
   meat: { fill: 0.22, secs: 2.6, name: "raw meat", raw: true },
   cookedmeat: { fill: 0.28, secs: 2.6, name: "roast meat" },
+  venison: { fill: 0.22, secs: 2.6, name: "raw venison", raw: true },
+  hare: { fill: 0.14, secs: 2.2, name: "raw hare", raw: true },
+  boar: { fill: 0.26, secs: 2.8, name: "raw boar", raw: true },
+  dish: { fill: 0.4, secs: 3.2, name: "a dish" },
 };
 
 // tools you make yourself, in their makings: 0 none, 1 wood, 2 stone, 3 copper, 4 bronze, 5 iron.
@@ -75,6 +80,9 @@ export const ITEM = {
   tin: { name: "Tin", note: "Smelted from the ore. Cast it with copper at a forge: one of each makes two of bronze." },
   bronze: { name: "Bronze", note: "Copper and tin melted together. For bronze tools and a bronze sword." },
   iron: { name: "Iron", note: "Smelted from the ore. For an iron pickaxe or axe." },
+  venison: { name: "Venison", note: "From a roe deer. Lean, dark and rich: taste 4, tenderness 3/4, fills 30%. Dries out fast if overcooked. Cook it in the kitchen, or roast it at the fire." },
+  hare: { name: "Hare", note: "Sweet and delicate: taste 3, tenderness 4/4, fills 18%. Quick to cook and quicker to ruin." },
+  boar: { name: "Boar", note: "Fat and strong: taste 4.5, tenderness 1/4, fills 36%. Forgiving if left on — dangerous if taken off too soon." },
   hide: { name: "Hide", note: "A skin off something you hunted. Four make a backpack, at the chopping block." },
 };
 
@@ -100,7 +108,7 @@ export function restoreBody(saved) {
 }
 export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 }, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
 // what the traders give for what you have gathered yourself and put in your chest, a piece
-export const SELL_PRICE = { meat: 2, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
+export const SELL_PRICE = { meat: 2, venison: 3, hare: 2, boar: 4, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
 // the plague, from meat eaten raw: how long it lasts if nobody tends you
 export const PLAGUE_SECS = 300;
 

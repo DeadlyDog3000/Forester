@@ -10,6 +10,7 @@
 // few systems Reckoning has. Every one bends a number that was already there.
 
 import { economyMood } from "./economy.js";
+import { feudMood } from "./feud.js";
 import { rng } from "./core.js";
 import { FAITHS, faithOf, rollFaith, faithReasons } from "./faith.js";
 
@@ -26,6 +27,7 @@ export const SKILLS = [
   { id: "physicking", name: "Physicking", desc: "Mends and cures faster" },
   { id: "fighting", name: "Fighting", desc: "Strikes harder hand to hand" },
   { id: "marksmanship", name: "Marksmanship", desc: "Shoots harder" },
+  { id: "cooking", name: "Cooking", desc: "Cooks better meals (an eatery's are as good as its cook)" },
 ];
 export const SKILL_NAME = Object.fromEntries(SKILLS.map(s => [s.id, s.name]));
 export const SKILL_MAX = 100;
@@ -146,6 +148,13 @@ export function moodOf(town, p) {
   if (main && !p.child) { const best = topSkills(p, 1)[0]; if (best && best.id === main && best.lvl >= 10) v += add(3, "work they're good at"); }
   // taxes, shops, and the laws on trade
   for (const [n, w] of economyMood(town, p, v)) v += add(n, w);
+  // what they ate: a good dish lifts the day, a bad one sours it
+  if (p.meal && town.day - p.meal.day <= 1 && !p.child) {
+    const n = Math.round((p.meal.stars - 2.5) * 3), st = p.meal.stars;
+    if (n) v += add(n, `${n > 0 ? "ate well" : "ate badly"}: ${p.meal.name} (${"★".repeat(Math.floor(st))}${st % 1 ? "½" : ""}) ${p.meal.where}`);
+  }
+  // family, and feuds
+  for (const [n, w] of feudMood(town, p)) v += add(n, w);
   // zakat: the unhappiest are helped by the Muslim among them
   if (v < 40 && town.S.people.some(q => q !== p && !q.child && faithOf(q) === "muslim")) v += add(2, "zakat");
   return { value: Math.max(0, Math.min(100, Math.round(v))), why };

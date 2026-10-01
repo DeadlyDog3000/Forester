@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
-import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
@@ -358,7 +358,7 @@ export class Player {
         const hand = new THREE.Group(); g.add(hand);
         const skin = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skin); fist.rotation.z = Math.PI / 2; hand.add(fist);
-        const tool = kind === "eat" ? makeFood(G.working.food) : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer();
+        const tool = kind === "eat" ? makeFood(G.working.food) : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer();
         // (blades turned flat to the eye, not edge on)
         if (kind !== "hammer" && kind !== "eat") tool.rotation.y = Math.PI / 2;
         hand.add(tool);
@@ -369,7 +369,7 @@ export class Player {
         g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
         camera.add(g); this.workRig = g;
         // and the same tool in the hand of your body, for when the camera is behind you
-        if (this.model && this.model.held && kind !== "eat" && kind !== "sow") { this.workBody = kind === "dig" ? makeSpade() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
+        if (this.model && this.model.held && kind !== "eat" && kind !== "sow") { this.workBody = kind === "dig" ? makeSpade() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
       }
     }
     if (!this.workRig) return;
@@ -402,6 +402,17 @@ export class Player {
       const p = (t * 1.3) % 1;
       h.position.set(0.28 - Math.sin(p * Math.PI) * 0.22, -0.3 + Math.sin(p * Math.PI) * 0.08, -0.4 - Math.sin(p * Math.PI) * 0.06);
       h.rotation.set(-0.4, 0.3 - p * 0.8, 0.2);
+    } else if (kind === "stir") {
+      // the ladle down in the pot: going round slowly while it simmers, hard and fast when you stir
+      const busy = wk.busy && G.time < wk.busy, sp = busy ? 7 : 1.2, r = busy ? 0.05 : 0.018;
+      this.stirA = (this.stirA || 0) + dt * sp;
+      h.position.set(0.04 + Math.cos(this.stirA) * r, -0.3 + Math.sin(this.stirA * 2) * 0.006, -0.52 + Math.sin(this.stirA) * r * 0.8);
+      h.rotation.set(-1.9, 0, 0.25 + Math.cos(this.stirA) * 0.15);
+    } else if (kind === "toss") {
+      // the spatula over the pan, ready; a flick under and over when you turn it
+      const busy = wk.busy && G.time < wk.busy, p = busy ? 1 - (wk.busy - G.time) / 0.5 : 0, flick = Math.sin(p * Math.PI);
+      h.position.set(0.12 - flick * 0.05, -0.3 + flick * 0.09 + Math.sin(t * 2) * 0.004, -0.5 - flick * 0.05);
+      h.rotation.set(-1.6 + flick * 1.1, 0.2, 0.35 - flick * 0.6);
     } else if (kind === "eat") {
       // up to the mouth, and a bite, and a bite; the view dips a little with each
       const up = Math.min(1, t / 0.35), bite = Math.max(0, Math.sin(t * Math.PI * 2 * 1.6));

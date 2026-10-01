@@ -409,6 +409,96 @@ export const AUDIO = {
     });
   },
 
+  // ---- the kitchen ----
+  // fat in a hot pan: a bright hiss, and the crackle and spit of it, louder the hotter (k, 0 to 1)
+  sizzle(on, k = 0.5) {
+    const a = ctx(); if (!a) return;
+    if (on && loops.sizzle) { loops.sizzle.g.gain.setTargetAtTime(0.05 + k * 0.09, a.currentTime, 0.2); loops.sizzle.k = k; return; }
+    loop("sizzle", on, a => {
+      const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.05 + k * 0.09, a.currentTime, 0.3); g.connect(bus);
+      const s = noiseSrc(a), hp = a.createBiquadFilter(), pk = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
+      hp.type = "highpass"; hp.frequency.value = 2600; pk.type = "peaking"; pk.frequency.value = 5200; pk.gain.value = 6;
+      lfo.frequency.value = 7; lg.gain.value = 0.25; const am = a.createGain(); am.gain.value = 0.75; lfo.connect(lg); lg.connect(am.gain);
+      s.connect(hp); hp.connect(pk); pk.connect(am); am.connect(g); s.start(); lfo.start();
+      // the spitting: little pops, more of them as it gets hotter
+      const self = { g, stop: [s, lfo], k };
+      const spit = () => { if (loops.sizzle !== self) return; const t = a.currentTime; if (Math.random() < 0.3 + self.k * 0.6) burst(a, t, rnd(0.008, 0.025), rnd(0.03, 0.09) * (0.5 + self.k), rnd(3000, 7000), rnd(1500, 3000), 2); setTimeout(spit, rnd(30, 140)); };
+      setTimeout(spit, 50);
+      return self;
+    });
+  },
+  // a pot at the simmer: a low wash, and bubbles that rise in pitch as they burst, more of them as it boils
+  bubble(on, k = 0.5) {
+    const a = ctx(); if (!a) return;
+    if (on && loops.bubble) { loops.bubble.k = k; loops.bubble.g.gain.setTargetAtTime(0.04 + k * 0.05, a.currentTime, 0.3); return; }
+    loop("bubble", on, a => {
+      const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.04 + k * 0.05, a.currentTime, 0.4); g.connect(bus);
+      const s = noiseSrc(a), lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 380; s.playbackRate.value = 0.6;
+      s.connect(lp); lp.connect(g); s.start();
+      const self = { g, stop: [s], k };
+      const pop = () => {
+        if (loops.bubble !== self) return;
+        const t = a.currentTime, o = a.createOscillator(), og = a.createGain(), f = rnd(180, 420);
+        o.type = "sine"; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * rnd(2.2, 3.4), t + 0.06);
+        og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.05 * (0.4 + self.k), t + 0.01); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+        o.connect(og); og.connect(bus); o.start(t); o.stop(t + 0.1);
+        setTimeout(pop, rnd(60, 380) / (0.4 + self.k));
+      };
+      setTimeout(pop, 100);
+      return self;
+    });
+  },
+  // a knife through meat onto the board: the cut, and the knock of the board under it
+  knife() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime;
+    burst(a, t, 0.05, 0.08, 2400, 900, 1.5);
+    const o = a.createOscillator(), g = a.createGain(); o.type = "triangle"; o.frequency.setValueAtTime(230, t + 0.02); o.frequency.exponentialRampToValueAtTime(120, t + 0.09);
+    g.gain.setValueAtTime(0.0001, t + 0.02); g.gain.exponentialRampToValueAtTime(0.14, t + 0.025); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    o.connect(g); g.connect(bus); o.start(t + 0.02); o.stop(t + 0.14);
+  },
+  // a wooden spoon round an iron pot: a scrape, and a knock against the side
+  stir() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime;
+    burst(a, t, 0.32, 0.05, 700, 1100, 3);
+    burst(a, t + 0.35, 0.28, 0.04, 1000, 650, 3);
+    const o = a.createOscillator(), g = a.createGain(); o.type = "sine"; o.frequency.value = rnd(520, 640);
+    g.gain.setValueAtTime(0.0001, t + 0.62); g.gain.exponentialRampToValueAtTime(0.05, t + 0.625); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    o.connect(g); g.connect(bus); o.start(t + 0.6); o.stop(t + 0.95);
+  },
+  // the pan given a shake and what's in it turned: a rattle of iron, a whoosh, and the slap of it landing
+  toss() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime;
+    this.clang(0.18); this.whoosh(0.22, false);
+    burst(a, t + 0.32, 0.06, 0.14, 900, 300, 1);
+    if (loops.sizzle) burst(a, t + 0.34, 0.4, 0.08, 5000, 3000, 0.7, "highpass");
+  },
+  // a plate set down: a clean ceramic tick and its ring
+  plate() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime;
+    for (const [f, v, d] of [[2100, 0.06, 0.25], [3350, 0.04, 0.18], [5200, 0.025, 0.12]]) {
+      const o = a.createOscillator(), g = a.createGain(); o.type = "sine"; o.frequency.value = f * rnd(0.98, 1.02);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(bus); o.start(t); o.stop(t + d + 0.02);
+    }
+    burst(a, t, 0.03, 0.06, 4000, 2000, 1);
+  },
+  // two men at it with their fists: a dull thump, and the breath knocked out
+  punch(at = null) {
+    const a = ctx(); if (!a) return;
+    const { node, k } = placed(a, at, 40); if (k < 0.02) return;
+    const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.type = "sine"; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35 * k, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(g); g.connect(node); o.start(t); o.stop(t + 0.18);
+    const n = noiseSrc(a), f = a.createBiquadFilter(), ng = a.createGain(); f.type = "lowpass"; f.frequency.value = 900;
+    ng.gain.setValueAtTime(0.2 * k, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    n.connect(f); f.connect(ng); ng.connect(node); n.start(t, Math.random()); n.stop(t + 0.08);
+  },
+
   // ---- music: slow chords and a few plucked notes, per mood ----
   _mood: null, _mt: null, _step: 0,
   music(mood) {

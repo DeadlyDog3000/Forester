@@ -443,6 +443,19 @@ export function makeHammer() {
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.045, 0.13), mat(0x55595e, { metalness: 0.6, roughness: 0.45 })); head.position.set(0, 0.29, 0.02); g.add(head);
   return g;
 }
+// kitchen tools, gripped at the origin, pointing +Y: a wooden ladle, and a flat wooden spatula for turning
+export function makeLadle() {
+  const g = new THREE.Group(), wood = mat(0x9a7448, { surface: "wood" });
+  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.36, 6), wood); h.position.y = 0.16; g.add(h);
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), wood); b.position.y = 0.34; b.rotation.x = Math.PI / 2; g.add(b);
+  return g;
+}
+export function makeSpatula() {
+  const g = new THREE.Group(), wood = mat(0x9a7448, { surface: "wood" });
+  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.26, 6), wood); h.position.y = 0.11; g.add(h);
+  const b = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.11, 0.07), wood); b.position.y = 0.29; g.add(b);
+  return g;
+}
 // a spade, gripped at the origin, pointing +Y: a long haft, a T-grip, and the blade at the far end
 export function makeSpade() {
   const g = new THREE.Group();
@@ -453,8 +466,14 @@ export function makeSpade() {
 // something to eat, held at the origin: a heel of bread, a joint of meat, a few berries in the palm
 export function makeFood(kind) {
   const g = new THREE.Group();
-  if (kind === "meat") {
-    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.05, 0), mat(0x8a3a2a, { surface: "none" })); m.scale.set(1.3, 0.8, 1); m.position.y = 0.05; g.add(m);
+  if (kind === "dish") {
+    // a wooden bowl with something hot in it
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.045, 0.045, 10), mat(0x8a6440, { surface: "wood" })); bowl.position.y = 0.02; g.add(bowl);
+    const stew = new THREE.Mesh(new THREE.CircleGeometry(0.062, 10), mat(0x6a3a22, { surface: "none", roughness: 0.35 })); stew.rotation.x = -Math.PI / 2; stew.position.y = 0.04; g.add(stew);
+    return g;
+  }
+  if (kind === "meat" || kind === "venison" || kind === "hare" || kind === "boar") {
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.05, 0), mat(kind === "boar" ? 0xb06a5a : kind === "hare" ? 0xa04a3a : 0x8a3a2a, { surface: "none" })); m.scale.set(1.3, 0.8, 1); m.position.y = 0.05; g.add(m);
     const fat = new THREE.Mesh(new THREE.DodecahedronGeometry(0.03, 0), mat(0xe8d0b0, { surface: "none" })); fat.position.set(0.03, 0.07, 0.02); g.add(fat);
     const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.09, 5), mat(0xe8e0cc, { surface: "none" })); bone.position.set(-0.05, 0.02, 0); bone.rotation.z = 1.2; g.add(bone);
   } else if (kind === "blackberries") {

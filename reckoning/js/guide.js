@@ -153,6 +153,37 @@ export const GUIDE = {
       "The road stays open. Newcomers still walk up it into the settlement.",
     ],
   },
+  kitchen: {
+    kicker: "Your house", title: "Cooking",
+    steps: [
+      "Every beast gives its own meat. <b>Venison</b> is rich but lean, so it dries out if it's left on. <b>Hare</b> is delicate and quick. <b>Boar</b> is fat and filling, and must be cooked through. Hover over any meat in your pack (<kbd>T</kbd>) to see its stats.",
+      "Rebuild your cabin as a house and it gets a <b>kitchen</b>. <kbd>F</kbd> at the range opens the recipes. Better recipes need a higher <b>Cooking</b> skill, and some want rye from the stores, bread or blackberries.",
+      "The gauge shows how done it is. <b>Take it off the heat (<kbd>Space</kbd>) in the green.</b> Too soon and it's underdone, or raw; too late and it's overdone, or burnt.",
+      "A pan wants <b>turning once (<kbd>F</kbd>), about halfway</b>. A pot wants <b>stirring (<kbd>F</kbd>) before it catches</b> on the bottom.",
+      "Your eye for it isn't perfect at first: the gauge can be off a little. It gets truer, and the green wider, as your Cooking rises.",
+      "Each dish gets <b>stars</b>, and the card says why: the meat, how well it's cooked, and how you handled it. Eat it, sell it to Tobias the pedlar (he decides what it's worth), or put it in the <b>store chest</b> to feed your people. A good meal makes them happier.",
+    ],
+  },
+  eatery: {
+    kicker: "Your people", title: "Eateries",
+    steps: [
+      "Now and then a settler opens an <b>eatery</b> instead of a shop: a booth with tables and benches, and a pot on the fire.",
+      "The owner buys meat and bread from the other businesses, or goes out hunting and fetches rye themselves, then cooks. <b>The meals are as good as the cook</b>: their Cooking grows as they work.",
+      "At midday, settlers with money in their purse go and eat there. <b>A good meal makes them happier</b>, and a bad one sours their day.",
+      "You can buy a meal too (<kbd>F</kbd> at the counter).",
+    ],
+  },
+  feud: {
+    kicker: "Your people", title: "Families and feuds",
+    steps: [
+      "Everyone has a family name, and some who come up the road are <b>kin</b> to someone already here. Family nearby cheers people up.",
+      "People form views of each other: a quarrel, another creed, a generous or a grasping neighbour. Hot tempers quarrel more often.",
+      "Let it sour far enough and it becomes a <b>feud</b>. Both families take it up and <b>come to blows on sight</b>. Sometimes someone is killed, and then it runs on longer.",
+      "With <b>Policing</b>, a <b>jail</b> and a watchman, the watch pulls them apart and locks up whoever started it.",
+      "Or end it yourself: talk to anyone in the feud (<kbd>F</kbd>) and <b>pay blood money</b> from the treasury. After a death it costs more, and they may refuse.",
+      "Left alone, a feud burns itself out in a few days.",
+    ],
+  },
   business: {
     kicker: "Your people", title: "Taxes and companies",
     steps: [
@@ -212,4 +243,4 @@ export const GUIDE = {
   },
 };
 // the order the book lists them in
-export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "colony", "business", "horse", "cave", "revolt", "raid"];
+export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "colony", "business", "eatery", "kitchen", "feud", "horse", "cave", "revolt", "raid"];

@@ -12,6 +12,7 @@
 
 import { Caves } from "./cave.js";
 import { BUILD_GATES } from "./gov.js";
+import { dishOffers, isRawMeat } from "./cook.js";
 import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME, SELL_PRICE } from "./body.js";
 import { THREE, clamp, mat, Builder, MAT, TAU } from "./core.js";
 import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
@@ -205,11 +206,11 @@ function sibHints() {
     if (raid && !pl.axe && !pl.bow && !once.has("arm" + G.town.S.raid.count)) { once.add("arm" + G.town.S.raid.count); return say1("Get your axe out — press 1! They're at the stores!", 3); }
     if (raid && G.health < 0.5 && !once.has("guard" + G.town.S.raid.count)) { once.add("guard" + G.town.S.raid.count); return say1("Hold right-click to raise your guard! Catch his swing just as it comes!", 3.5); }
     if (!raid && G.health !== undefined && G.health < 0.35 && !once.has("hurt")) { once.add("hurt"); return say1("You're hurt. Keep out of trouble a while — it'll mend.", 3.5); }
-    if (G.town && (G.pack || []).some(i => i.icon === "meat") && !once.has("cook")) { once.add("cook"); return say1("Don't eat that raw — cook it over the fire first. Hold F at the fire. Raw meat brings the plague.", 5); }
+    if (G.town && (G.pack || []).some(i => isRawMeat(i.icon)) && !once.has("cook")) { once.add("cook"); return say1("Don't eat that raw — cook it over the fire first. Hold F at the fire. Raw meat brings the plague.", 5); }
     if (G.body && G.body.hunger < 0.22 && !raid && (!once.has("hungry") || G.time - (once.hungryAt || 0) > 240)) {
       once.add("hungry"); once.hungryAt = G.time;
-      const food = (G.pack || []).find(i => i.icon === "cookedmeat" || i.icon === "blackberries") || (G.town && G.town.S.bread > 0 ? { icon: "bread" } : null);
-      return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "cookedmeat" ? "roast meat" : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
+      const food = (G.pack || []).find(i => i.icon === "cookedmeat" || i.icon === "dish" || i.icon === "blackberries") || (G.town && G.town.S.bread > 0 ? { icon: "bread" } : null);
+      return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "cookedmeat" ? "roast meat" : food.icon === "dish" ? food.base.toLowerCase() : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
     }
     if (pl.hasBow && pl.bow && (pl.arrows || 0) === 0 && !once.has("arrows")) { once.add("arrows"); return say1("You're out of arrows. Pull them out where they landed — F — or buy more when a trader comes.", 4.5); }
     if (G.town && G.body && !raid && !G.body.tools.pick && G.chapter >= 12 && !once.has("pick")) { once.add("pick"); return say1("You could make yourself a pickaxe at the chopping block — two logs. There's stone in the grey rocks round the clearing.", 5); }
@@ -2635,6 +2636,7 @@ function trader(w, town, spec) {
   });
   return () => { off(); if (here) leave(); };
 }
+G.saveChest = () => writeSave({ chest: (G.chest || []).map(x => x || null) });
 // your own trade with a trader: arrows bought out of your own purse, and what you have put in your chest
 // sold into it. The treasury is the settlement's, and only the settlement's trades draw on it.
 function ownOffers(arrows, price) {
@@ -2669,7 +2671,7 @@ const PEDLAR = { model: "townsman", name: "Tobias", coat: 0x5a3a2a, legs: 0x2e2a
 function pedlar(w, town) {
   return trader(w, town, {
     name: "Tobias the pedlar", title: "Tobias's pack-cart", look: PEDLAR, at: [25.2, -284.5, [26.6, -288.6]], due: d => d % 4 === 3,
-    hello: "A pedlar has come up the road — Tobias, out of Lübeck. He sells arrows, tools and iron, and buys planks, bricks and meat for DM.",
+    hello: "A pedlar has come up the road — Tobias, out of Lübeck. He sells arrows, tools and iron, and buys planks, bricks, meat — and any dish you've cooked, for what he thinks it's worth.",
     offers: S => [
       { label: "Buy iron tools", note: "A set for one pair of hands: they work a quarter faster.", get: "8 DM", can: () => S.coin >= 8, do: () => { S.coin -= 8; S.tools = (S.tools || 0) + 1; } },
       { label: "Buy 4 iron", note: "Swedish bar iron.", get: "10 DM", can: () => S.coin >= 10, do: () => { S.coin -= 10; S.iron = (S.iron || 0) + 4; } },
@@ -2677,6 +2679,7 @@ function pedlar(w, town) {
       { label: "Buy a barrel of salt pork", note: "Feeds the settlement like 20 rye.", get: "6 DM", can: () => S.coin >= 6, do: () => { S.coin -= 6; S.rye += 20; } },
       { label: "Sell 6 planks", note: "", get: "+4 DM", can: () => (S.planks || 0) >= 6, do: () => { S.planks -= 6; S.coin += 4; } },
       { label: "Sell 10 bricks", note: "", get: "+5 DM", can: () => (S.bricks || 0) >= 10, do: () => { S.bricks -= 10; S.coin += 5; } },
+      ...dishOffers(),
       ...ownOffers(20, 7),
     ],
   });
@@ -2708,14 +2711,15 @@ async function chFree(w) {
   // the deer ride and the woods round it: game to hunt, that comes back as it is taken
   w.huntOpen = true;
   const hunt = new Hunt(w, HUNT, {
-    onDown: a => bark(YOU(), a.kind === "deer" ? "Down. Hold F to dress it." : "Got it. Hold F to take it.", 2.5),
-    // (the meat, and the hide off it: four hides make a backpack)
-    onDress: (a, m) => { G.packAdd("meat", m, "Meat", "Venison and hare. Tobias the pedlar pays well for it."); G.packAdd("hide", 1); town.persist(); },
+    onDown: a => bark(YOU(), a.kind === "deer" ? "Down. Hold F to dress it." : a.kind === "boar" ? "...It's down. Careful — hold F to dress it." : "Got it. Hold F to take it.", 2.5),
+    // (its own meat — venison, hare or boar — and the hide off it: four hides make a backpack)
+    onDress: (a, m) => { const k = a.K.meatKind || "meat"; G.packAdd(k, m, ITEM[k] ? ITEM[k].name : "Meat", ITEM[k] ? ITEM[k].note : ""); G.packAdd("hide", a.kind === "boar" ? 2 : 1); town.persist(); },
   });
-  const restock = () => { const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; if (n("deer") < 3) hunt.spawn("deer", 3 - n("deer")); if (n("hare") < 4) hunt.spawn("hare", 4 - n("hare")); };
+  const WANT = { deer: 3, hare: 4, boar: 2 };
+  const restock = () => { const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; for (const k in WANT) if (n(k) < WANT[k]) hunt.spawn(k, WANT[k] - n(k)); };
   restock();
   // (and through the day too, a beast at a time, so the ride is never long empty)
-  { let rt = 40; onFrame(dt => { if ((rt -= dt) > 0) return; rt = 40; const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; if (n("deer") < 3) hunt.spawn("deer", 1); else if (n("hare") < 4) hunt.spawn("hare", 1); }); }
+  { let rt = 40; onFrame(dt => { if ((rt -= dt) > 0) return; rt = 40; const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; const k = Object.keys(WANT).find(k => n(k) < WANT[k]); if (k) hunt.spawn(k, 1); }); }
   // and, from the second year, raiders
   const raids = new Raids(w, town);
   onFrame(dt => raids.update(dt));

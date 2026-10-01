@@ -258,7 +258,7 @@ function buildChapters() {
 // ---- inventory (T) ----
 const ICON = {
   hide: "art/item_hide.png", pack1: "art/item_pack.png", pack2: "art/item_pack.png", pack3: "art/item_pack.png",
-  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", cookedmeat: "../assets/sprites/items/meat_cooked.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
+  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", venison: "../assets/sprites/items/meat.png", hare: "../assets/sprites/items/meat.png", boar: "../assets/sprites/items/meat.png", dish: "../assets/sprites/items/meat_cooked.png", cookedmeat: "../assets/sprites/items/meat_cooked.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
   hammer1: "../assets/sprites/items/tool_stone.png", hammer2: "../assets/sprites/items/tool_stone.png", hammer3: "../assets/sprites/items/tool_bronze.png", hammer4: "../assets/sprites/items/tool_bronze.png", hammer5: "../assets/sprites/items/tool_iron.png",
   sword1: "../assets/sprites/items/weapon_stone.png", sword3: "../assets/sprites/items/weapon_bronze.png", sword4: "../assets/sprites/items/weapon_bronze.png", sword5: "../assets/sprites/items/weapon_iron.png",
   pick5: "../assets/sprites/items/pick_iron.png", tinore: "../assets/sprites/items/tin_ore.png", tin: "../assets/sprites/items/tin.png", bronze: "../assets/sprites/items/bronze.png",
@@ -356,6 +356,13 @@ $("chestBody").addEventListener("click", e => {
   if (el.dataset.pack != null && chestMode === "stores" && G.town) {
     // into the stores, if the stores keep such a thing
     const it = G.pack[+el.dataset.pack], row = it && STORE_ITEMS.find(x => x[1] === it.icon);
+    // a dish you cooked goes to feed the settlement: the best are eaten first, and whoever eats one is the happier for it
+    if (it && it.icon === "dish") {
+      const S = G.town.S; S.feast ??= [];
+      for (let i = 0; i < (it.n || 1); i++) S.feast.push({ name: it.base, stars: it.stars });
+      G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores: tomorrow it feeds someone, and ${it.stars >= 3.5 ? "they'll be glad of it" : it.stars >= 2 ? "they'll eat it" : "they'll grumble"}.`; SFX.pickup && SFX.pickup();
+      renderChest(); return;
+    }
     if (row) { G.town.S[row[0]] = (G.town.S[row[0]] || 0) + (it.n || 1); G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores.`; SFX.pickup && SFX.pickup(); }
     else chestNote = "The stores don't keep that.";
     renderChest(); return;
@@ -1093,7 +1100,7 @@ addEventListener("keydown", e => {
 });
 // eating: the number of something you can eat puts it to your mouth
 function eat(it) {
-  const f = FOOD[it.icon], b = G.body;
+  const f = it.icon === "dish" ? { ...FOOD.dish, fill: it.fill || FOOD.dish.fill, raw: false, half: !!it.raw } : FOOD[it.icon], b = G.body;
   if (!f || !b || (G.working && G.time < G.working.until)) return;
   if (b.hunger > 0.97) { UI.hint("You're not hungry.", 1.6); return; }
   // raw meat: a warning first; press again and you eat it anyway, and take the plague with it
@@ -1106,6 +1113,8 @@ function eat(it) {
     if (G.time < g0 + f.secs - 0.05) return;
     clearInterval(done);
     b.hunger = Math.min(1, b.hunger + f.fill); b.dirty = true;
+    if (it.icon === "dish" && it.stars >= 4) { G.health = Math.min(1, (G.health ?? 1) + 0.12 * (it.stars - 3)); UI.hint(it.stars >= 5 ? "That was a meal fit for a burgher. You feel it in your bones." : "A good meal. It puts heart in you.", 3); }
+    if (f.half && Math.random() < 0.5 && !(b.plague > 0)) { b.plague = PLAGUE_SECS; UI.hint("It was raw in the middle. By evening you're shaking with fever — the plague.", 6); }
     if (f.raw && !(b.plague > 0)) { b.plague = PLAGUE_SECS; UI.hint("You ate it raw. By evening you're shaking with fever — the plague. Nothing mends while you have it; a hospital could cure it.", 7); }
     if (it.fromStore) { if (G.town.S.bread > 0) { G.town.S.bread--; G.town.persist && G.town.persist(); } }
     else { it.n = (it.n || 1) - 1; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }

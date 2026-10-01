@@ -8,7 +8,10 @@
 import { THREE, Builder, MAT, mat } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
-import { CLEARING, FIRE } from "./woods.js";
+import { CLEARING, FIRE, HUNT } from "./woods.js";
+import { makeFood } from "./models.js";
+import { starText } from "./cook.js";
+import { AUDIO } from "./audio.js";
 
 // what the settlers make of each trade when it is their own business: its name, its colours, what it sells you
 export const KINDS = {
@@ -18,7 +21,10 @@ export const KINDS = {
   stone:  { name: "Stone",   colour: 0x6a6a72, jobs: ["quarryman", "brickmaker"],     sells: [["stone", "two stone", 2, 1]] },
   iron:   { name: "Ironmongers", colour: 0x2a3440, jobs: ["smith", "smelter", "miner"], sells: [["iron", "a bar of iron", 1, 3], ["copperore", "copper ore", 1, 1]] },
   goods:  { name: "Goods",   colour: 0x3a4a8a, jobs: [],                              sells: [["hide", "a hide", 1, 2], ["bread", "a loaf", 1, 1]] },
+  // an eatery: tables outside, a pot on the fire, and meals as good as whoever cooks them
+  eatery: { name: "Eatery",  colour: 0x9a4a2a, jobs: [],                              sells: [] },
 };
+export const MEAL_PRICE = 1.5;
 export const kindFor = job => Object.keys(KINDS).find(k => KINDS[k].jobs.includes(job)) || "goods";
 // what a day's work earns a settler, sold to the pedlar
 const WAGE = { hunter: 3, smith: 3, miner: 3, quarryman: 2, sawyer: 2, brickmaker: 2, baker: 2, farmer: 2, woodcutter: 2, smelter: 3, doctor: 3, watch: 2, hauler: 1 };
@@ -47,6 +53,14 @@ export function economyDay(town) {
   // the companies: what they sold today, and the business tax on it
   for (const c of S.companies) {
     if (!c.built) continue;
+    // an eatery's takings are the meals it served today
+    if (c.kind === "eatery") {
+      const takings = c.till || 0; c.till = 0;
+      const t = Math.round(takings * S.bizTax * 10) / 10, owner = S.people.find(p => p.name === c.owner);
+      if (owner) owner.purse = Math.round(((owner.purse || 0) + takings - t) * 10) / 10;
+      c.earned = Math.round(((c.earned || 0) + takings) * 10) / 10; biz += t;
+      continue;
+    }
     const sold = Math.min(c.stock || 0, 2 + Math.floor(S.people.length / 4));
     c.stock = (c.stock || 0) - sold; const takings = sold * 1.5;
     const t = Math.round(takings * S.bizTax * 10) / 10;
@@ -69,10 +83,11 @@ export function economyDay(town) {
       const p = cand[Math.floor(Math.random() * cand.length)];
       const spot = shopSpot(town);
       if (spot) {
-        const kind = kindFor(p.job);
+        const eats = S.companies.filter(c => c.kind === "eatery").length, cookSk = (p.sk && p.sk.cooking) || 1;
+        const kind = eats < 1 + Math.floor(S.people.length / 12) && S.people.length >= 5 && (cookSk >= 6 || Math.random() < 0.35) ? "eatery" : kindFor(p.job);
         const brand = makeBrand(kind, p.name, Math.floor(Math.random() * 1e9));
         const c = { owner: p.name, kind, name: brand.name, brand, x: spot.x, z: spot.z, ry: spot.ry, logs: 0, built: false, stock: 0, asked: false, day: town.day };
-        G.guide && G.guide("business");
+        G.guide && G.guide(kind === "eatery" ? "eatery" : "business");
         if (S.laws.approval) { c.waiting = true; S.companies.push(c); UI.hint(`${p.name} wants to open a shop — ${c.name}. They'll come and ask you.`, 6); }
         else { S.companies.push(c); p.purse -= 10; town.startShop(c); UI.hint(`${p.name} has started a business: ${c.name}. They're gathering the timber for a shop.`, 6); }
       }
@@ -133,9 +148,10 @@ export function shopVisual(c) {
   const h1 = parseInt(c.brand.c1.slice(1), 16), h2 = parseInt(c.brand.c2.slice(1), 16);
   b.box(3.8, 0.06, 1.2, 0, 2.05, 1.8, h1);
   for (let i = -3; i <= 3; i += 2) b.box(0.5, 0.065, 1.21, i * 0.5, 2.05, 1.8, h2);
+  if (c.kind === "eatery") eateryParts(b, c);
   // wares on the counter
-  const ware = { bread: 0xc8962e, meats: 0x8a3a2a, lumber: 0x7a5634, stone: 0x8a8a90, iron: 0x5a6068, goods: 0x9a7a5a }[c.kind];
-  for (let i = 0; i < Math.min(5, Math.max(1, c.stock || 0)); i++) b.box(0.3, 0.2, 0.25, -1.2 + i * 0.6, 1.0, 1.05, ware);
+  const ware = { bread: 0xc8962e, meats: 0x8a3a2a, lumber: 0x7a5634, stone: 0x8a8a90, iron: 0x5a6068, goods: 0x9a7a5a, eatery: 0xe8e0cc }[c.kind];
+  for (let i = 0; i < Math.min(5, Math.max(1, c.kind === "eatery" ? c.meals || 0 : c.stock || 0)); i++) b.box(0.3, 0.2, 0.25, -1.2 + i * 0.6, 1.0, 1.05, ware);
   g.add(b.build(MAT.rough));
   g.add(banner(c, 2.9));
   return g;
@@ -144,7 +160,7 @@ export function shopVisual(c) {
 const PALETTE = [["#8a1e1e", "red"], ["#1e3a6a", "blue"], ["#2a5a2a", "green"], ["#c8962e", "gold"], ["#e8dcc0", "white"], ["#2a1a0c", "black"], ["#5a2a6a", "purple"], ["#b85a1a", "orange"], ["#6a4a2e", "brown"], ["#3a6a6a", "teal"]];
 const PATTERNS = ["plain", "pale", "fess", "bend", "chevron", "quartered", "saltire", "border", "chequy", "stripes", "cross", "wavy"];
 const SHAPES = ["square", "swallowtail", "pennant", "banneret", "gonfalon"];
-const EMBLEMS = { bread: ["loaf", "sheaf", "mill", "pretzel"], meats: ["antler", "boar", "hare", "knife"], lumber: ["tree", "axe", "saw", "logs"], stone: ["hammer", "tower", "pick", "block"], iron: ["anvil", "hammer", "key", "horseshoe"], goods: ["star", "crown", "ship", "wheel", "key", "fish"] };
+const EMBLEMS = { bread: ["loaf", "sheaf", "mill", "pretzel"], meats: ["antler", "boar", "hare", "knife"], lumber: ["tree", "axe", "saw", "logs"], stone: ["hammer", "tower", "pick", "block"], iron: ["anvil", "hammer", "key", "horseshoe"], goods: ["star", "crown", "ship", "wheel", "key", "fish"], eatery: ["pot", "goose", "spoon", "boar"] };
 const NAMEWORDS = {
   bread: [["Golden", "Sheaf"], ["White", "Loaf"], ["Morning", "Oven"], ["Honest", "Crust"], ["Three", "Pretzels"], ["Old", "Mill"]],
   meats: [["Red", "Hart"], ["Wild", "Boar"], ["Hunter's", "Horn"], ["Silver", "Hare"], ["Twelve", "Tines"]],
@@ -152,6 +168,7 @@ const NAMEWORDS = {
   stone: [["Grey", "Tower"], ["True", "Mason"], ["Hard", "Rock"], ["Square", "Block"]],
   iron: [["Black", "Anvil"], ["Iron", "Key"], ["Lucky", "Shoe"], ["Hot", "Forge"]],
   goods: [["Blue", "Star"], ["Crowned", "Ship"], ["Wandering", "Wheel"], ["Golden", "Key"], ["Silver", "Fish"]],
+  eatery: [["Golden", "Goose"], ["Boar's", "Head"], ["Merry", "Kettle"], ["Three", "Spoons"], ["Hungry", "Huntsman"], ["Smoking", "Pot"]],
 };
 const rngOf = seed => () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
 export function makeBrand(kind, owner, seed) {
@@ -207,6 +224,9 @@ function emblem(x, B, cx, cy, s) {
     case "crown": P([[-0.6, 0.4], [-0.6, -0.3], [-0.3, 0.05], [0, -0.45], [0.3, 0.05], [0.6, -0.3], [0.6, 0.4]]); break;
     case "ship": P([[-0.7, 0.2], [0.7, 0.2], [0.45, 0.55], [-0.45, 0.55]]); x.fillRect(-0.04, -0.7, 0.08, 0.9); P([[0.05, -0.65], [0.5, 0.1], [0.05, 0.1]]); break;
     case "wheel": x.lineWidth = 0.1; x.beginPath(); x.arc(0, 0, 0.55, 0, Math.PI * 2); x.stroke(); for (let i = 0; i < 6; i++) { x.beginPath(); x.moveTo(0, 0); x.lineTo(Math.cos(i * Math.PI / 3) * 0.55, Math.sin(i * Math.PI / 3) * 0.55); x.stroke(); } C(0, 0, 0.12); break;
+    case "pot": x.beginPath(); x.ellipse(0, 0.15, 0.6, 0.45, 0, 0, Math.PI); x.lineTo(-0.6, 0.15); x.fill(); x.fillRect(-0.7, 0.05, 1.4, 0.12); for (const l of [-0.4, 0.4]) x.fillRect(l - 0.05, 0.5, 0.1, 0.25); x.lineWidth = 0.07; for (const sx of [-0.25, 0, 0.25]) { x.beginPath(); x.moveTo(sx, -0.05); x.quadraticCurveTo(sx + 0.12, -0.3, sx, -0.5); x.quadraticCurveTo(sx - 0.12, -0.65, sx, -0.8); x.stroke(); } break;
+    case "goose": x.beginPath(); x.ellipse(0.1, 0.25, 0.55, 0.3, 0, 0, Math.PI * 2); x.fill(); x.lineWidth = 0.16; x.beginPath(); x.moveTo(-0.3, 0.15); x.quadraticCurveTo(-0.55, -0.2, -0.35, -0.55); x.stroke(); C(-0.35, -0.6, 0.15); P([[-0.48, -0.62], [-0.78, -0.55], [-0.48, -0.5]]); break;
+    case "spoon": x.save(); x.rotate(-0.6); x.beginPath(); x.ellipse(0, -0.45, 0.22, 0.3, 0, 0, Math.PI * 2); x.fill(); x.fillRect(-0.06, -0.2, 0.12, 0.95); x.restore(); break;
     case "fish": x.beginPath(); x.ellipse(-0.1, 0, 0.55, 0.28, 0, 0, Math.PI * 2); x.fill(); P([[0.4, 0], [0.8, -0.3], [0.8, 0.3]]); break;
   }
   x.restore();
@@ -262,6 +282,15 @@ function banner(c, y) {
 // what the shop sells you, out of its stock, for your own purse
 export function shopOffers(town, c) {
   const K = KINDS[c.kind], pl = G.player;
+  if (c.kind === "eatery") {
+    const q = c.quality || 2.5, dish = c.dish || "the pot of the day", cap = dish[0].toUpperCase() + dish.slice(1), cook = town.S.people.find(p => p.name === c.owner);
+    return [{ icon: "dish", label: `Buy a meal: ${dish} ${starText(q)}`, note: `Cooked by ${c.owner}${cook ? ` (Cooking ${(cook.sk && cook.sk.cooking) || 1})` : ""}. ${c.meals || 0} left in the pot. Eat it, or put it in the stores for someone else.`, get: "2 DM",
+      can: () => (G.body.purse || 0) >= 2 && (c.meals || 0) > 0,
+      do: () => {
+        G.pack.push({ icon: "dish", dish: "eatery", name: `${cap} ${starText(q)}`, base: cap, stars: q, fill: Math.round((0.3 + q * 0.04) * 100) / 100, uid: Math.floor(Math.random() * 1e9), n: 1, note: `Bought at ${c.name}, cooked by ${c.owner}` });
+        G.body.purse -= 2; G.body.dirty = true; c.meals -= 1; c.till = (c.till || 0) + 2; town.persist();
+      } }];
+  }
   return K.sells.map(([icon, what, n, price]) => ({
     icon: icon === "logs" ? "logs" : icon, label: `Buy ${what}`, note: `${c.name} — cheaper than the pedlar. ${c.stock || 0} in stock.`, get: `${price} DM`,
     can: () => (G.body.purse || 0) >= price && (c.stock || 0) > 0 && (icon !== "logs" || pl.carryN + n <= 6),
@@ -273,4 +302,125 @@ export function shopOffers(town, c) {
       town.persist();
     },
   }));
+}
+
+// ---- the eateries ----
+// beside the booth: a trestle table each side with a bench along both its sides, and behind the counter a pot on a tripod
+const SEATS = [[-2.3, 0.15], [-2.3, 0.85], [-3.5, 0.15], [-3.5, 0.85], [2.3, 0.15], [2.3, 0.85], [3.5, 0.15], [3.5, 0.85]];
+function eateryParts(b, c) {
+  for (const s of [-1, 1]) {
+    b.box(0.75, 0.06, 1.7, s * 2.9, 0.75, 0.5, 0x8a6440);
+    for (const dz of [-0.2, 1.2]) b.box(0.6, 0.72, 0.08, s * 2.9, 0.36, dz, 0x6a4a2e);
+    for (const bx of [2.3, 3.5]) { b.box(0.3, 0.05, 1.7, s * bx, 0.45, 0.5, 0x7a5634); for (const dz of [-0.2, 1.2]) b.box(0.25, 0.42, 0.06, s * bx, 0.21, dz, 0x5a3e28); }
+    for (const dz of [0.15, 0.85]) b.box(0.18, 0.04, 0.18, s * 2.9, 0.8, dz, 0xe8e0cc);              // trenchers laid out
+  }
+  // the pot on its tripod, over a little fire, inside the booth
+  for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2; b.box(0.05, 1.3, 0.05, 0.9 + Math.cos(a) * 0.3, 0.62, -0.4 + Math.sin(a) * 0.3, 0x4e3a28, a); }
+  b.box(0.42, 0.32, 0.42, 0.9, 0.42, -0.4, 0x2a2a2c);
+  b.box(0.36, 0.04, 0.36, 0.9, 0.6, -0.4, 0x6a4a32);
+  b.box(0.5, 0.08, 0.5, 0.9, 0.04, -0.4, 0x3a1a0a);
+}
+const local = (c, lx, lz) => ({ x: c.x + lx * Math.cos(c.ry) + lz * Math.sin(c.ry), z: c.z - lx * Math.sin(c.ry) + lz * Math.cos(c.ry) });
+export const eaterySolids = () => [[-2.9, 0.1, 0.42], [-2.9, 0.9, 0.42], [2.9, 0.1, 0.42], [2.9, 0.9, 0.42], [0.9, -0.4, 0.3]];
+
+// midday, with money in their purse and an eatery open: a meal, sat at its table
+export async function dineShift(town, a, sleep, alive) {
+  const S = town.S, p = a.settler; lawsOf(S);
+  if (!p || p.child || p.jailedDay != null || p.dined === town.day || a.settler.follow) return false;
+  const f = town.frac; if (f < 0.38 || f > 0.62) return false;
+  const open = S.companies.filter(c => c.kind === "eatery" && c.built && (c.meals || 0) > 0);
+  if (!open.length || (p.purse || 0) < MEAL_PRICE || Math.random() < 0.3) return false;
+  const c = open.sort((x, y) => Math.hypot(x.x - a.pos.x, x.z - a.pos.z) - Math.hypot(y.x - a.pos.x, y.z - a.pos.z))[0];
+  c._seat ??= {};
+  const si = SEATS.findIndex((_, i) => !c._seat[i]); if (si < 0) return false;
+  p.dined = town.day; c._seat[si] = p.name;
+  try {
+    a.doing = `going for a meal at ${c.name}`;
+    const front = local(c, 0, 2.4);
+    await a.walkTo(front.x, front.z, 1.3); alive();
+    a.faceTo(c.x, c.z); a.person.setPose("reach"); await sleep(1.2); alive(); a.person.setPose("hold");
+    if ((c.meals || 0) <= 0) return true;
+    c.meals--; p.purse = Math.round((p.purse - MEAL_PRICE) * 10) / 10; c.till = (c.till || 0) + MEAL_PRICE;
+    const [lx, lz] = SEATS[si], seat = local(c, lx, lz), side = lx < 0 ? -1 : 1, table = local(c, side * 2.9, lz);
+    const near = local(c, lx, 1.8);
+    await a.walkTo(near.x, near.z, 1.1); alive();
+    a.place(seat.x, seat.z); a.faceTo(table.x, table.z);
+    a.person.setPose("sit"); a.person.sitting = 1;
+    const bowl = a.hold(makeFood("dish"));
+    a.doing = `eating at ${c.name}`;
+    for (let i = 0; i < 6; i++) {
+      await sleep(1.2); alive();
+      if (G.player && Math.hypot(G.player.pos.x - a.pos.x, G.player.pos.z - a.pos.z) < 7 && Math.random() < 0.6) AUDIO.chew && AUDIO.chew();
+    }
+    a.person.held.remove(bowl); a.person.sitting = 0; a.person.setPose("idle");
+    p.meal = { day: town.day, stars: c.quality || 2.5, name: c.dish || "a hot meal", where: `at ${c.name}` };
+    town.persist(); town.showShop && town.showShop(c);
+    if (Math.random() < 0.3) UI.bark(p.name, (c.quality || 2.5) >= 4 ? "Now that's cooking." : (c.quality || 2.5) >= 2.5 ? "Not bad at all." : "Hm. I've had better.", 2.5);
+    return true;
+  } finally { delete c._seat[si]; if (a.person) a.person.sitting = 0; }
+}
+
+// the owner of an eatery: cooks when there is food in the larder, buys from the other businesses when there isn't
+// (or goes out and gets it), and otherwise keeps the counter
+export async function eateryShift(town, a, c, sleep, alive) {
+  const S = town.S, owner = a.settler; c.larder ??= { meat: 1, grain: 1 };
+  const L = c.larder, at = (lx, lz) => local(c, lx, lz), half = x => Math.round(x * 2) / 2;
+  if ((c.meals || 0) < 6 && L.meat > 0) {
+    a.doing = `cooking at ${c.name}`;
+    const st = at(0.9, 0.35), pot = at(0.9, -0.4);
+    await a.walkTo(st.x, st.z, 1.2); alive();
+    a.faceTo(pot.x, pot.z); a.person.setPose("hammer");
+    for (let i = 0; i < 4; i++) { await sleep(2.2); alive(); if (G.player && Math.hypot(G.player.pos.x - a.pos.x, G.player.pos.z - a.pos.z) < 8) AUDIO.stir && AUDIO.stir(); }
+    a.person.setPose("idle");
+    L.meat--; const grain = L.grain > 0 ? (L.grain--, 1) : 0;
+    const lv = (owner.sk && owner.sk.cooking) || 1;
+    c.quality = Math.max(1, Math.min(5, half(1.5 + lv / 22 + grain * 0.5 + (Math.random() - 0.5) * 0.8)));
+    c.dish = grain ? ["a thick stew", "pottage", "meat and dumplings", "a hotpot"][Math.floor(Math.random() * 4)] : ["roast meat", "a fry of meat", "chops"][Math.floor(Math.random() * 3)];
+    c.meals = (c.meals || 0) + 4;
+    town.learn ? town.learn(a, "cooking", 2) : null;
+    town.showShop(c); town.persist();
+    return true;
+  }
+  if (L.meat < 2 || L.grain < 2) {
+    const want = L.meat < 2 ? "meats" : "bread";
+    // from another business, if one has it to sell
+    const sup = S.companies.find(o => o !== c && o.built && o.kind === want && (o.stock || 0) > 0);
+    if (sup && (owner.purse || 0) >= 1.5) {
+      a.doing = `buying ${want === "meats" ? "meat" : "bread"} for ${c.name} from ${sup.name}`;
+      const fr = local(sup, 0, 2.4);
+      await a.walkTo(fr.x, fr.z, 1.2); alive();
+      a.faceTo(sup.x, sup.z); a.person.setPose("reach"); await sleep(2); alive(); a.person.setPose("hold");
+      if ((sup.stock || 0) > 0) {
+        sup.stock--; owner.purse = Math.round((owner.purse - 1.5) * 10) / 10;
+        const so = S.people.find(p => p.name === sup.owner); if (so) so.purse = Math.round(((so.purse || 0) + 1.5) * 10) / 10;
+        if (want === "meats") L.meat += 2; else L.grain += 2;
+        town.showShop(sup);
+      }
+      const back = at(0.9, 0.6); await a.walkTo(back.x, back.z, 1.1); alive(); a.person.setPose("idle");
+      town.persist(); return true;
+    }
+    // or they get it themselves: out to the deer ride for meat, or rye from the stores, paid for
+    if (want === "meats") {
+      a.doing = `out hunting for ${c.name}'s pot`;
+      await a.walkTo(HUNT.x + (Math.random() - 0.5) * 10, HUNT.z + (Math.random() - 0.5) * 10, 1.3); alive();
+      a.person.setPose("reach"); await sleep(9); alive(); a.person.setPose("hold");
+      L.meat += 1;
+      const back = at(0.9, 0.6); await a.walkTo(back.x, back.z, 1.1); alive(); a.person.setPose("idle");
+      town.persist(); return true;
+    }
+    if ((S.rye || 0) > 8 && (owner.purse || 0) >= 1) {
+      a.doing = `fetching rye for ${c.name}`;
+      const st = town.stackAt || { x: FIRE.x + 3, z: FIRE.z };
+      await a.walkTo(st.x + 1, st.z + 0.5, 1.2); alive();
+      a.person.setPose("hold"); S.rye -= 2; owner.purse -= 1; S.coin = (S.coin || 0) + 1; L.grain += 2;
+      const back = at(0.9, 0.6); await a.walkTo(back.x, back.z, 1.1); alive(); a.person.setPose("idle");
+      town.persist(); town.showStore && town.showStore(); return true;
+    }
+  }
+  a.doing = `serving at ${c.name}`;
+  const ctr = at(0, 0.3);
+  await a.walkTo(ctr.x, ctr.z, 1.2); alive();
+  const out = at(0, 3); a.faceTo(out.x, out.z); a.person.setPose("armsCrossed");
+  await sleep(10); alive(); a.person.setPose("idle");
+  return true;
 }

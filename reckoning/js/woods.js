@@ -1088,6 +1088,7 @@ export class Woods extends WorldBase {
   setHomeTier(tier) {
     if (this.homeRemodel) { this.root.remove(this.homeRemodel); this.homeRemodel = null; }
     if (!this.cabinUp || (tier || 1) < 2) return;
+    this.homeTier = tier;
     const b = new Builder(), PL = 0xe8e0cc, TB = 0x3e2a1a, FL = 0x8a6440;
     const box = (w, h, d, lx, y, lz, col) => { const [x, z] = this.cabinToWorld(lx, lz); b.box(w, h, d, x, y, z, col, CABIN.ry); };
     const H = 2.35, X = 2.28, Zb = -2.82, Zf = 2.82;
@@ -1106,10 +1107,43 @@ export class Woods extends WorldBase {
     // a tie-beam across, and a lantern hung from it
     box(4.6, 0.18, 0.18, 0, H + 0.05, 0, TB);
     box(0.02, 0.4, 0.02, 0.3, H - 0.2, 0, 0x2a2420); box(0.2, 0.26, 0.2, 0.3, H - 0.5, 0, 0xd9a24a);
+    // the kitchen, along the wall beside the hearth: a brick range with an iron top and its fire in the front, a hood
+    // up to the chimney, a work table with a board and a knife, a shelf of crocks, a pan on the wall, herbs drying
+    const BR = 0x8a4a3a, IR = 0x2a2a2c, WD = 0x8a6440;
+    box(0.55, 0.8, 1.05, -1.98, 0.4, -1.5, BR);
+    for (const y of [0.2, 0.4, 0.6]) box(0.56, 0.015, 1.06, -1.98, y, -1.5, 0x6a3a2c);
+    box(0.6, 0.045, 1.1, -1.98, 0.82, -1.5, IR);
+    box(0.03, 0.3, 0.55, -1.7, 0.25, -1.5, 0x120a06);                          // the firebox mouth
+    box(0.03, 0.05, 0.6, -1.69, 0.42, -1.5, IR);
+    box(0.45, 0.85, 1.0, -2.04, 1.88, -1.5, PL); box(0.08, 0.08, 1.05, -1.8, 1.45, -1.5, TB);
+    box(0.55, 0.06, 0.85, -1.98, 0.82, -0.45, WD);
+    for (const [ax, az] of [[-1.75, -0.82], [-1.75, -0.08], [-2.2, -0.82], [-2.2, -0.08]]) box(0.06, 0.8, 0.06, ax, 0.4, az, 0x6a4a2e);
+    box(0.5, 0.03, 0.8, -1.98, 0.2, -0.45, WD);
+    box(0.3, 0.03, 0.4, -1.95, 0.865, -0.6, 0xb08a5a);                         // the board
+    box(0.02, 0.012, 0.16, -1.88, 0.885, -0.62, 0xb8b8bc); box(0.025, 0.02, 0.08, -1.88, 0.885, -0.48, 0x3a2a1c);   // the knife
+    box(0.24, 0.03, 0.85, -2.13, 1.5, -0.45, WD);                               // a shelf, and crocks on it
+    for (const [cz, h, col] of [[-0.75, 0.16, 0xa07a50], [-0.55, 0.12, 0x6a5a48], [-0.32, 0.2, 0xb88a5a], [-0.12, 0.1, 0x8a6a4a]]) box(0.13, h, 0.13, -2.12, 1.515 + h / 2, cz, col);
+    box(0.12, 0.12, 0.12, -1.98, 0.29, -0.6, 0x9a7a4a); box(0.14, 0.1, 0.14, -1.98, 0.27, -0.3, 0xc8a878);   // sacks and a crock below
+    for (const cz of [-0.85, -0.6, -0.35, -0.1]) box(0.04, 0.2, 0.06, -2.22, 1.9, cz, 0x5a7a3a);              // herbs hung to dry
+    box(0.02, 0.26, 0.26, -2.25, 1.15, -0.98, IR); box(0.02, 0.2, 0.03, -2.25, 1.38, -0.98, IR);               // a pan on its nail
     this.homeRemodel = b.build(MAT.rough);
     this.homeRemodel.position.y = this.cabinY + 0.07;
     this.root.add(this.homeRemodel);
     if (this.homeLight) this.homeLight.distance = 9;
+    this.makeKitchen();
+  }
+  makeKitchen() {
+    for (const c of this.kitchenCols || []) this.col.remove(c);
+    if (this.kitchenIt) this.removeInteract(this.kitchenIt);
+    if (this.kitchen && this.kitchen.rig) this.root.remove(this.kitchen.rig.g);
+    const y0 = this.cabinY + 0.07, at = (lx, y, lz) => { const [x, z] = this.cabinToWorld(lx, lz); return new THREE.Vector3(x, y0 + y, z); };
+    const top = this.cabinY + 0.9;
+    this.kitchenCols = [[-1.98, -1.78, 0.32], [-1.98, -1.22, 0.32], [-1.98, -0.7, 0.3], [-1.98, -0.2, 0.3]].map(([lx, lz, r]) => { const [x, z] = this.cabinToWorld(lx, lz); return this.col.addCircle(x, z, r, top); });
+    const [sx, sz] = this.cabinToWorld(-0.95, -1.5), [tx, tz] = this.cabinToWorld(-1.98, -1.5);
+    this.kitchen = { at, ry: CABIN.ry, stand: [sx, sz], yaw: Math.atan2(-(tx - sx), -(tz - sz)),
+      pot: [-1.98, 0.85, -1.78], pan: [-1.98, 0.85, -1.22], plate: [-1.93, 0.87, -0.22], embers: [-1.8, 0.14, -1.5] };
+    this.kitchenIt = this.addInteract({ x: tx, y: this.cabinY + 1.0, z: tz, reach: 1.9, label: "Cook at the kitchen",
+      can: () => !!G.openKitchen && !(G.cooking && G.cooking()), use: () => G.openKitchen() });
   }
   // what stands in the cabin: [{type, lx, lz, ry}]; null for the pallets they started with
   setFurniture(list) {

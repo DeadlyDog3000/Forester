@@ -15,12 +15,15 @@ import { THREE, clamp } from "./core.js";
 import { G } from "./engine.js";
 import { modelCopy } from "./models.js";
 import { UI } from "./ui.js";
+import { AUDIO } from "./audio.js";
 
 /* global SFX */
 
 const KINDS = {
-  deer: { name: "roe deer", r: 0.34, h: 0.8, len: 0.42, walk: 0.9, run: 8.5, hp: 2, meat: 3, hearRun: 30, hearWalk: 15, hearCreep: 5.5, stride: 1.6 },
-  hare: { name: "hare", r: 0.16, h: 0.2, len: 0.12, walk: 0.6, run: 7.5, hp: 1, meat: 1, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 0.7 },
+  deer: { name: "roe deer", r: 0.34, h: 0.8, len: 0.42, walk: 0.9, run: 8.5, hp: 2, meat: 3, hearRun: 30, hearWalk: 15, hearCreep: 5.5, stride: 1.6, meatKind: "venison" },
+  hare: { name: "hare", r: 0.16, h: 0.2, len: 0.12, walk: 0.6, run: 7.5, hp: 1, meat: 1, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 0.7, meatKind: "hare" },
+  // a boar: heavy, slow to frighten, hard to bring down — and, wounded, it comes for you
+  boar: { name: "wild boar", r: 0.42, h: 0.55, len: 0.5, walk: 0.7, run: 6.8, hp: 4, meat: 3, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 1.2, meatKind: "boar" },
 };
 const GRAVITY = 9.8;
 
@@ -57,6 +60,13 @@ class Animal {
     this.hp -= power > 0.7 ? 2 : 1;
     G.practise && G.practise("archery", 3);
     if (this.hp <= 0) { this.state = "dead"; this.fall = 0; this.speed = 0; this.hunt.onDown(this); SFX.treeFall && SFX.treeFall(0.3); return; }
+    // a wounded boar turns on whoever did it, if they are near enough to reach
+    const pl = G.player;
+    if (this.kind === "boar" && pl && Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z) < 14) {
+      this.state = "charge"; this.t = 5; this.gore = 0; this.fear = 1;
+      AUDIO.voice && AUDIO.voice("grunt", { at: this.pos, vol: 1.3 });
+      return;
+    }
     this.startle(G.player.pos, 1.5);
   }
   startle(from, k = 1) {
@@ -67,7 +77,7 @@ class Animal {
     this.target = { x: this.pos.x + Math.sin(a) * 40, z: this.pos.z + Math.cos(a) * 40 };
     this.state = "flee"; this.t = 5 + Math.random() * 3 * k; this.fear = 1;
     // the others see it go
-    for (const o of this.hunt.animals) if (o !== this && o.alive && o.state !== "flee" && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 14) o.startle(from, 0.8);
+    for (const o of this.hunt.animals) if (o !== this && o.alive && o.state !== "flee" && o.state !== "charge" && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 14) o.startle(from, 0.8);
   }
   update(dt) {
     const K = this.K, pl = G.player, home = this.hunt.home;
@@ -82,7 +92,7 @@ class Animal {
     // what it hears of you
     const d = Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z);
     const loud = pl.speed > 4 ? K.hearRun : pl.speed > 0.4 ? (pl.crouched ? K.hearCreep : K.hearWalk) : 2.2;
-    if (d < loud && this.state !== "flee") this.startle(pl.pos);
+    if (d < loud && this.state !== "flee" && this.state !== "charge") this.startle(pl.pos);
     this.t -= dt;
     let want = 0;
     if (this.state === "graze") {
@@ -98,12 +108,22 @@ class Animal {
       this.head += (1 - this.head) * Math.min(1, dt * 3);
       want = K.walk;
       if (!this.target || this.t <= 0 || Math.hypot(this.target.x - this.pos.x, this.target.z - this.pos.z) < 0.6) { this.state = "graze"; this.t = 3 + Math.random() * 7; }
+    } else if (this.state === "charge") {
+      // head down, straight at you; a blow from the tusks, and it breaks away
+      this.head = 1; want = K.run * 0.95; this.target = { x: pl.pos.x, z: pl.pos.z };
+      this.gore -= dt;
+      if (d < 1.3 && this.gore <= 0 && !G.downed) {
+        G.hurt && G.hurt(pl.guard ? 5 : 15, "boar"); this.gore = 1.8;
+        AUDIO.voice && AUDIO.voice("grunt", { at: this.pos, vol: 1.2 });
+        if (Math.random() < 0.65) { this.startle(pl.pos, 1); }
+      }
+      if (this.t <= 0 || d > 30) this.startle(pl.pos, 1);
     } else if (this.state === "flee") {
       this.head = 1;
       want = K.run * (this.t > 1.5 ? 1 : 0.5);
       if (this.t <= 0) { this.state = "walk"; this.t = 6; this.target = { x: home.x + (Math.random() - 0.5) * home.r, z: home.z + (Math.random() - 0.5) * home.r }; }
     }
-    this.speed += (want - this.speed) * Math.min(1, dt * (this.state === "flee" ? 4 : 2));
+    this.speed += (want - this.speed) * Math.min(1, dt * (this.state === "flee" || this.state === "charge" ? 4 : 2));
     // a hare goes in hops: it covers its ground in the air and sits a moment between them (less, the faster it goes)
     const hare = this.kind === "hare", runK = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1);
     let hop = -1, hopK = 1;
@@ -114,7 +134,7 @@ class Animal {
     if (this.target && this.speed > 0.05) {
       const dx = this.target.x - this.pos.x, dz = this.target.z - this.pos.z;
       const turn = Math.atan2(dx, dz) - this.yaw;
-      this.yaw += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * (this.state === "flee" ? 5 : 2));
+      this.yaw += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * (this.state === "flee" || this.state === "charge" ? 5 : 2));
       this.pos.x += Math.sin(this.yaw) * this.speed * hopK * dt; this.pos.z += Math.cos(this.yaw) * this.speed * hopK * dt;
       // round the trunks, not through them
       const before = this.pos.clone();
@@ -132,7 +152,7 @@ class Animal {
       const air = hop >= 0 ? Math.sin(hop * Math.PI) : 0, kick = hop >= 0 ? Math.sin(hop * Math.PI * 2) : 0;
       this.legs.forEach((l, i) => { if (l) l.rotation.x = i < 2 ? -air * 0.9 : kick * 0.8 + air * 0.3; });
     } else this.legs.forEach((l, i) => { if (l) l.rotation.x = Math.sin(this.phase + off[i]) * amp; });
-    if (this.neck) this.neck.rotation.x = this.neck0 + (1 - this.head) * (this.kind === "deer" ? 1.1 : 0.4) + Math.sin(G.time * 3 + this.phase) * 0.03 * (1 - this.head);
+    if (this.neck) this.neck.rotation.x = this.neck0 + (1 - this.head) * (this.kind === "deer" ? 1.1 : this.kind === "boar" ? 0.6 : 0.4) + Math.sin(G.time * 3 + this.phase) * 0.03 * (1 - this.head);
     // a hare bounds; a deer lifts at the gallop
     if (hare) {
       const air = hop >= 0 ? Math.sin(hop * Math.PI) : 0;

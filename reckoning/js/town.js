@@ -30,6 +30,9 @@ import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING, HUNT, inPoly } from "./woods
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
 import { economyDay, shopVisual, shopOffers, lawsOf, KINDS } from "./economy.js";
+import { openKitchen, cooking, isRawMeat } from "./cook.js";
+import { feudTick, feudShift, peaceOffer, ensureFamilies, kinFor, fullName } from "./feud.js";
+import { dineShift, eateryShift, eaterySolids } from "./economy.js";
 import { revoltCheck, revoltShift, revoltSwing, checkEnd } from "./rebellion.js";
 import { colonyCheck, lay as layColony } from "./colony.js";
 
@@ -1099,7 +1102,7 @@ export class Town {
     const g = shopVisual(c), fake = { x: c.x, z: c.z, ry: c.ry, type: "shop" };
     if (w.addPad) w.addPad(c, c.x, c.z, c.ry, BUILDINGS.shop.w + 0.8, BUILDINGS.shop.d + 0.8, this.baseY(fake) + 0.05);
     g.position.set(c.x, this.baseY(fake), c.z); g.rotation.y = c.ry; w.root.add(g);
-    const cols = c.built ? this.solidAt(fake, [[-1.2, -1.2, 0.5], [0, -1.2, 0.5], [1.2, -1.2, 0.5], [-1.75, 0.1, 0.45], [1.75, 0.1, 0.45], [0, 1.05, 0.4], [-1.1, 1.05, 0.4], [1.1, 1.05, 0.4]], w.heightAt(c.x, c.z) + 3) : [];
+    const cols = c.built ? this.solidAt(fake, [[-1.2, -1.2, 0.5], [0, -1.2, 0.5], [1.2, -1.2, 0.5], [-1.75, 0.1, 0.45], [1.75, 0.1, 0.45], [0, 1.05, 0.4], [-1.1, 1.05, 0.4], [1.1, 1.05, 0.4]].concat(c.kind === "eatery" ? eaterySolids() : []), w.heightAt(c.x, c.z) + 3) : [];
     const fx = c.x + Math.sin(c.ry) * 2.6, fz = c.z + Math.cos(c.ry) * 2.6;
     const it = w.addInteract({ x: fx, y: w.heightAt(fx, fz) + 1.2, z: fz, reach: 2.4,
       label: () => c.built ? `Buy at ${c.name} (${c.stock || 0} in stock)` : `${c.name} — ${c.owner} is building it (${Math.min(10, c.logs || 0)} of 10 logs)`,
@@ -1155,6 +1158,7 @@ export class Town {
       c.logs = (c.logs || 0) + 3; this.showShop(c); this.persist();
       return true;
     }
+    if (c.kind === "eatery") return eateryShift(this, a, c, sleep, alive);
     a.doing = `keeping shop at ${c.name}`;
     await a.walkTo(c.x + Math.sin(c.ry) * 0.2, c.z + Math.cos(c.ry) * 0.2 - 0.3 * Math.cos(c.ry), 1.2); alive();
     a.faceTo(c.x + Math.sin(c.ry) * 3, c.z + Math.cos(c.ry) * 3); a.person.setPose("armsCrossed");
@@ -1360,16 +1364,18 @@ export class Town {
     // the fire: meat roasted over it (raw, it brings the plague)
     if (this.cookIt) w.removeInteract(this.cookIt);
     this.cookIt = w.addInteract({ x: FIRE.x, y: w.cy + 0.4, z: FIRE.z, reach: 2.6, hold: 3, anim: "craft",
-      label: () => `Cook the meat over the fire (${(G.pack.find(i => i.icon === "meat") || {}).n || 0})`,
-      can: () => G.pack.some(i => i.icon === "meat"),
+      label: () => `Roast your meat over the fire (${G.pack.filter(i => isRawMeat(i.icon)).reduce((s, i) => s + (i.n || 1), 0)})${(this.S.homeTier || 1) >= 2 ? " — or cook it properly in the kitchen" : ""}`,
+      can: () => G.pack.some(i => isRawMeat(i.icon)),
       onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().pickup && SFX().pickup(); },
       use: () => {
-        const m = G.pack.find(i => i.icon === "meat"); if (!m) return;
+        const m = G.pack.find(i => isRawMeat(i.icon)); if (!m) return;
         const have = G.pack.find(i => i.icon === "cookedmeat");
         if (have) have.n = (have.n || 1) + (m.n || 1); else G.pack.push({ icon: "cookedmeat", name: "Roast meat", note: "Cooked over the fire. Safe to eat — and better for it.", n: m.n || 1 });
         G.pack.splice(G.pack.indexOf(m), 1);
         UI.hint("Roasted. It smells like a feast day.", 3); SFX().build();
       } });
+    // the kitchen in your house (once it is a house): dishes, judged
+    G.openKitchen = () => openKitchen(this); G.cooking = cooking;
     // the hospital: the plague cured, if you go to it
     if (this.cureIt) w.removeInteract(this.cureIt);
     const hosp = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "hospital") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
@@ -1526,14 +1532,17 @@ export class Town {
   // ---- people ----
   addPerson(p, x, z) {
     ensurePerson(p);
+    // a family name: someone new may be kin to a family already here
+    if (!p.family && this.S.people.length && !this.S.people.includes(p)) { const k = kinFor(this.S, p); if (k) setTimeout(() => UI.hint(`${p.name} is kin to ${k.name} — another of the ${p.family}s.`, 5), 4000); }
     if (!this.S.people.includes(p)) this.S.people.push(p);
+    if (!p.family) ensureFamilies(this.S);
     const a = new Actor(settlerLook(p), x ?? CLEARING.x + 2, z ?? CLEARING.z + 6, 0);
     a.settler = p; this.actors.push(a);
     if (!p.child) {
       // (while a story is gathering people, it decides what talking does; otherwise it changes their work)
       a.talkIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 1.4; }, reach: 2.4, actor: a,
         can: () => !a.gone && !a.inside && (this.onTalk ? !!(this.talkLabel && this.talkLabel(p, a)) : !a.summoned),
-        label: () => (this.talkLabel && this.talkLabel(p, a)) || `Talk to ${p.name} (${JOBS[p.job || "hauler"].name}) — set their work`,
+        label: () => (this.talkLabel && this.talkLabel(p, a)) || `Talk to ${fullName(p)} (${JOBS[p.job || "hauler"].name}) — set their work`,
         use: () => {
           if (this.onTalk && this.onTalk(p, a)) return;
           this.chooseJob(p);
@@ -1543,7 +1552,7 @@ export class Town {
     this.persist();
     return a;
   }
-  spawnPeople() { this.S.people.forEach((p, i) => this.addPerson(p, CLEARING.x - 6 + (i % 4) * 3, CLEARING.z + 8 + Math.floor(i / 4) * 2)); }
+  spawnPeople() { ensureFamilies(this.S); this.S.people.forEach((p, i) => this.addPerson(p, CLEARING.x - 6 + (i % 4) * 3, CLEARING.z + 8 + Math.floor(i / 4) * 2)); }
   stop() { this.stopped = true; for (const a of this.actors) { if (a.talkIt) this.w.removeInteract(a.talkIt); a.remove(); } this.actors = []; if (this.planning) this.planning.cancel(); G.onSwing = null; }
   // (baking only once there is a bakery)
   jobsOpen() { return JOB_ORDER.filter(j => (!JOB_AT[j] || this.has(JOB_AT[j])) && !this.jobGated(j)); }
@@ -1555,7 +1564,8 @@ export class Town {
     // a watchman can be asked to come with you — into the woods, into the caves — and fight at your side
     const follow = p.job === "watch" ? [{ icon: "weapon", label: p.follow ? "Go back to your watch" : "Follow me", note: p.follow ? "Back to guarding the settlement." : "Stay at my side and fight with me — anywhere, even down in the caves.", get: "", can: () => true, done: () => false,
       do: () => { p.follow = !p.follow; this.persist(); UI.bark(p.name, p.follow ? "Lead on. I'm right behind you." : "Back to the road, then.", 3); G.closeTrade && G.closeTrade(); } }] : [];
-    G.openTrade(`${p.name}'s work`, `now a ${JOBS[p.job || "hauler"].name}`, follow.concat(this.jobsOpen().map(j => ({
+    const peace = peaceOffer(this, p);
+    G.openTrade(`${fullName(p)}'s work`, `now a ${JOBS[p.job || "hauler"].name}`, (peace ? [peace] : []).concat(follow).concat(this.jobsOpen().map(j => ({
       icon: "axe", label: JOBS[j].name[0].toUpperCase() + JOBS[j].name.slice(1), note: `${JOBS[j].ask[0].toUpperCase() + JOBS[j].ask.slice(1)}${WORKS[j] ? ` — ${this.costText(WORKS[j].need) || "nothing"} in, ${this.costText(WORKS[j].give)} out` : ""}`,
       get: `${count(j)} at it`, can: () => p.job !== j, done: () => p.job === j, doneText: " — now",
       do: () => { p.job = j; if (j !== "watch") p.follow = false; this.persist(); UI.bark(p.name, JOBS[j].reply, 3); this.emit("job", p); G.closeTrade && G.closeTrade(); } }))), null);
@@ -1612,7 +1622,7 @@ export class Town {
     this.showGraves(); this.persist(); this.emit("died", p, why);
     const how = {
       raid: "Cut down in the raid.", revolt: "Killed in the fighting in the streets.", cave: "Killed down in the caves, in the dark.",
-      hunger: "Starved: there was nothing left in the stores.", cold: "Froze in the night, with no wood for the hearth.", sick: "The fever took them.",
+      hunger: "Starved: there was nothing left in the stores.", feud: "Beaten to death in the feud between the families.", cold: "Froze in the night, with no wood for the hearth.", sick: "The fever took them.",
     }[why] || "";
     UI.news({ title: `${p.name} is dead`, sub: `${how} Buried at the edge of the clearing, by the ones who were left.`, img: "event_war" });
   }
@@ -1761,6 +1771,10 @@ export class Town {
         a.person.setPose("armsCrossed"); await sleep(2); alive(); a.person.setPose("idle");
         continue;
       }
+      // a feud: one of the other family about, and they go for them
+      if (!raid && this.techGates && await feudShift(this, a, sleep, alive)) continue;
+      // midday, with money in their purse: a meal at an eatery
+      if (!raid && await dineShift(this, a, sleep, alive)) continue;
       // their own business, if they have one: part of their time goes to it
       const own = !raid && !a.settler.child && this.S.companies && this.S.companies.find(c => c.owner === a.settler.name);
       if (own && await this.companyShift(a, own, sleep, alive)) continue;
@@ -1945,6 +1959,7 @@ export class Town {
     if (G.mode === "play" && this.techGates) this.S.playSecs = (this.S.playSecs || 0) + dt;
     if (this.S.revolt && this.S.revolt.active && (this._revT = (this._revT || 0) - dt) <= 0) { this._revT = 1; checkEnd(this); }
     if (this.techGates && (this._colT = (this._colT || 0) - dt) <= 0) { this._colT = 2; colonyCheck(this); }
+    if (this.techGates) feudTick(this, dt);
     this.updateGates();
     // the scholars at their desk
     const r = this.S.tech.research;
@@ -1975,6 +1990,14 @@ export class Town {
       // everyone eats, bread first (a loaf goes twice as far); two days with nothing, and the newest to come leaves
       // (Horse Feed: hunger fades 20% slower)
       let need = Math.ceil((this.S.people.length + 2) / 2 * (this.knows("horsefeed") ? 0.8 : 1));
+      // first the dishes you cooked and put in the stores, the best first: whoever gets one is glad of it
+      if (this.S.feast && this.S.feast.length) {
+        const dishes = this.S.feast.sort((p, q) => q.stars - p.stars), eaters = this.S.people.filter(p => !p.child).sort(() => Math.random() - 0.5);
+        let fed = 0;
+        for (const p of eaters) { const d = dishes.shift(); if (!d) break; p.meal = { day: this.day, stars: d.stars, name: d.name, where: "from your kitchen" }; fed++; }
+        need = Math.max(0, need - Math.floor(fed / 2));
+        if (fed) UI.hint(`${fed} of your people ate your cooking today${fed > 1 ? "" : ""} — ${dishes.length ? `${dishes.length} dish${dishes.length > 1 ? "es" : ""} left in the stores` : "the dishes are all gone"}.`, 4);
+      }
       const loaves = Math.min(this.S.bread, Math.ceil(need / LOAF_FEEDS));
       this.S.bread -= loaves; need = Math.max(0, need - loaves * LOAF_FEEDS);
       // (then the roast meat the hunters brought in, a mouthful each)

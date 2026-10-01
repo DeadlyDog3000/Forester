@@ -7,6 +7,23 @@
 
 export const CHANGELOG = [
   {
+    v: "0.31", date: "1 October 2026", title: "The kitchen",
+    items: [
+      "A kitchen in your house: rebuild your cabin in timber and plaster, and there's a brick range beside the hearth with a pot and a pan on it, a work table with a board and a knife, crocks on a shelf and herbs drying. F at the range opens the recipes.",
+      "Cooking, properly: the meat is cut up on the board, then into the pan or the pot. Watch the gauge and take it off the heat (Space) in the green. Too soon and it's underdone or raw; too late and it's dry, or burnt black. Turn what's in the pan once, about halfway (F); keep the pot stirred (F) or it catches on the bottom.",
+      "Eight dishes, from roast venison and fried hare to venison stew, boar with blackberries and wild boar stew. Some want rye or bread from the stores, or blackberries.",
+      "Every dish is judged when it's plated: stars out of five, and the reasons. Good meat badly overcooked might be two stars, and the card tells you why.",
+      "A meat for every beast: venison from the deer (rich, but dries fast), hare (delicate, quick to ruin) and boar (fat and filling; it must be cooked through). Each has its own taste, tenderness and filling.",
+      "Wild boar in the woods: heavy, hard to bring down, worth two hides. Wound one when you're close and it comes for you.",
+      "A Cooking skill (P): a truer eye for when a dish is done, a wider moment to take it off, better dishes, and new recipes as it rises.",
+      "Tobias the pedlar buys your dishes. He tastes each one and decides what he'll pay.",
+      "Put dishes in the store chest and your people eat them, the best first. Settlers who eat well are happier, and a bad meal sours their day.",
+      "Eateries: a settler may open one instead of a shop, with tables and benches outside and a pot on a tripod. The owner buys meat and bread from the other businesses, or goes hunting and fetches rye, then cooks. The meals are as good as the cook. At midday settlers go and eat there, sitting down at the tables. You can buy a meal too.",
+      "Families and feuds, as in the first Forester: everyone has a family name, and some newcomers are kin. People form views of each other. Let one sour far enough and the two families take up a feud and come to blows on sight; sometimes someone dies. The watch can lock up whoever starts it, or you can pay blood money to end it (F by anyone in it). Left alone, it burns out.",
+      "New sounds: the sizzle and spit of a pan, a pot bubbling, the knife on the board, a spoon round the pot, a pan tossed, a plate set down, fists landing. New hand animations: stirring with a ladle, and turning with a spatula.",
+    ],
+  },
+  {
     v: "0.30", date: "30 September 2026", title: "A country of its own",
     items: [
       "Settlers can die now, and not only in raids: a fever left untreated, days on end with nothing to eat or no wood for the hearth, the fighting in a rising, or the dark in the caves. The weakest go first. Each is buried by the graves, and the settlement mourns.",

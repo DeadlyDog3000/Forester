@@ -128,6 +128,50 @@ def hare():
     return export(sc, "hare.glb", out)
 
 
+def boar():
+    """A wild boar: a heavy dark body high at the shoulder, a long wedge of a head carried low, tusks, short legs."""
+    sc = fresh_scene("Reckoning boar")
+    root = bpy.data.objects.new("boar", None)
+    sc.collection.objects.link(root)
+    coat, bristle, belly, snout, dark, tusk = 0x3e3128, 0x2a211c, 0x52443a, 0x5a4440, 0x15110e, 0xe8dcc0
+    out = [root]
+    k = Kit("boar", seed=61)
+    ellipsoid(k, "fur", (0, 0.04, 0.55), (0.22, 0.5, 0.25), rgb(coat, 0.03, k.rnd))
+    ellipsoid(k, "fur", (0, -0.24, 0.6), (0.24, 0.26, 0.28), rgb(coat, 0.03, k.rnd))          # the heavy shoulders
+    ellipsoid(k, "fur", (0, 0.36, 0.53), (0.2, 0.2, 0.22), rgb(coat, 0.03, k.rnd))            # the haunches
+    ellipsoid(k, "fur", (0, 0.02, 0.4), (0.17, 0.4, 0.1), rgb(belly, 0.03, k.rnd))
+    for i in range(7):                                                                       # the bristled ridge down the back
+        y = -0.36 + i * 0.12
+        ellipsoid(k, "fur", (0, y, 0.82 - i * 0.025), (0.05, 0.07, 0.07), rgb(bristle, 0.03, k.rnd))
+    for o in k.build(sc, smooth=("fur",)):
+        o.parent = root; out.append(o)
+
+    def head(k):
+        ellipsoid(k, "fur", (0, -0.14, -0.04), (0.15, 0.2, 0.16), rgb(coat, 0.03, k.rnd), rot=(0.35, 0, 0))
+        ellipsoid(k, "fur", (0, -0.32, -0.14), (0.09, 0.15, 0.09), rgb(coat, 0.03, k.rnd), rot=(0.45, 0, 0))
+        k.cylinder("horn", 0.06, 0.06, 0.04, mat_tr((0, -0.45, -0.2), (PI / 2 - 0.4, 0, 0)), rgb(snout), segs=10)   # the disc of the snout
+        for s in (-1, 1):
+            ellipsoid(k, "horn", (s * 0.09, -0.2, 0.04), (0.016, 0.016, 0.016), rgb(dark))                          # an eye
+            ellipsoid(k, "fur", (s * 0.1, -0.04, 0.12), (0.05, 0.02, 0.08), rgb(bristle, 0.03, k.rnd), rot=(-0.3, s * 0.5, 0))   # an ear
+            k.cylinder("horn", 0.014, 0.004, 0.11, mat_tr((s * 0.07, -0.38, -0.16), (-0.9, 0, s * 0.5)), rgb(tusk), segs=6)       # a tusk, curling up
+    out += joint(sc, "neck", (0, -0.42, 0.62), root, head, 62)
+
+    def leg(front):
+        def b(k):
+            c = rgb(coat, 0.03, k.rnd)
+            ellipsoid(k, "fur", (0, 0.0, -0.05), (0.08, 0.1, 0.13), c)
+            k.cylinder("fur", 0.04, 0.032, 0.26, mat_tr((0, 0, -0.2)), c, segs=8)
+            k.box("horn", (0.05, 0.06, 0.05), mat_tr((0, -0.01, -0.36)), rgb(dark))     # the cloven hoof
+        return b
+    for name, x, y, front in (("legFL", 0.13, -0.3, True), ("legFR", -0.13, -0.3, True), ("legHL", 0.12, 0.36, False), ("legHR", -0.12, 0.36, False)):
+        out += joint(sc, name, (x, y, 0.38), root, leg(front), 63)
+    k2 = Kit("tail", seed=64)
+    k2.cylinder("fur", 0.012, 0.006, 0.16, mat_tr((0, 0.58, 0.5), (0.5, 0, 0)), rgb(bristle), segs=5)
+    for o in k2.build(sc):
+        o.parent = root; out.append(o)
+    return export(sc, "boar.glb", out)
+
+
 def bow():
     """A plain self bow of yew, strung: the grip at the origin, the tips drawn back toward the archer (+Y).
     The string is the game's to draw, from tip to tip through the nock."""
@@ -161,4 +205,6 @@ def arrow():
     return export(sc, "arrow.glb", k.build(sc))
 
 
-print("wrote", deer(), hare(), bow(), arrow())
+only = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+makers = {"deer": deer, "hare": hare, "boar": boar, "bow": bow, "arrow": arrow}
+print("wrote", *[f() for n, f in makers.items() if not only or n in only])
