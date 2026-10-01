@@ -966,7 +966,8 @@ async function ch4(w, opts) {
   UI.objective("Reach the small door beside the marsh gate, unseen");
   mark([SPOTS.postern[0], SPOTS.postern[1], 1.3]);
   // stones in the alley, to throw: the noise draws a watchman away
-  const rocks = stones(w, [[-24.2, 47.6], [-25.3, 49.9], [-24.5, 51.8]]);
+  // (ten of them, along the alley's length, and two where it opens out at the far end)
+  const rocks = stones(w, [[-24.3, 44.6], [-25.2, 45.9], [-24.3, 47.2], [-25.2, 48.5], [-24.4, 49.8], [-25.3, 51.1], [-24.3, 52.4], [-25.1, 53.6], [-26.6, 55.0], [-28.2, 55.3]]);
   let hb = 0;
   const watch = onFrame(dt => {
     rocks.tick(dt, guards);
