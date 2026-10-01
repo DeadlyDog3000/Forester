@@ -139,10 +139,10 @@ export const SNOW = { value: 0 };
 export const AUTO_FULL = { value: 1 };
 // a roofed room where no snow lies: (centre x, centre z, turn, on) and (half across, half deep, eaves height)
 export const ROOFED = { value: new THREE.Vector4(0, 0, 0, 0) }, ROOFSIZE = { value: new THREE.Vector3(2.8, 3.3, 0) };
-export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto" } = {}) {
+export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0 } = {}) {
   const surf = SURFACE[surface] ?? -1;
   material.onBeforeCompile = sh => {
-    sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount };
+    sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount }; sh.uniforms.dNear = { value: seeThrough };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
     sh.uniforms.dSnow = SNOW; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE;
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
@@ -156,8 +156,14 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         #endif
         vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull; uniform vec4 dRoof; uniform vec3 dRoofSize;" + DETAIL_GLSL + SURF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize;" + DETAIL_GLSL + SURF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
+        // leaves and needles right up against the eye (standing inside a tree) thin away in a fine dither,
+        // so you can see out through them and still be in among them
+        if (dNear > 0.0) {
+          float dd = distance(vDWorld, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.3, dNear, dd);
+          if (kNear > 0.0) { float n = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453); if (n < kNear * 0.9) discard; }
+        }
         {
           vec3 p = vDWorld * dScale;
           vec3 an = abs(vDNormal);

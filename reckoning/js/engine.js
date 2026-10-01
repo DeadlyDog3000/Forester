@@ -572,9 +572,15 @@ export class Player {
       }
       if (w.constrain) w.constrain(this.pos);
       const gy = w.heightAt(this.pos.x, this.pos.z);
+      const was = this.onGround, fall = this.vy;
       if (this.pos.y <= gy) { this.pos.y = gy; this.vy = 0; this.onGround = true; }
       else if (this.pos.y - gy < 0.25 && this.vy <= 0) { this.pos.y = gy; this.vy = 0; this.onGround = true; }
       else this.onGround = false;
+      // landing: the knees take it — the view drops and comes back, harder the further you fell, and a thud underfoot
+      if (!was && this.onGround && fall < -2.5) {
+        G.landDip = Math.max(G.landDip || 0, Math.min(0.2, -fall * 0.022));
+        AUDIO.step(this.surface || "grass", Math.min(1.2, -fall * 0.12), { heavy: true });
+      }
     }
     this.speed = Math.hypot(this.pos.x - ox, this.pos.z - oz) / Math.max(dt, 1e-4);
 
@@ -759,8 +765,13 @@ function updateCamera(dt) {
     camera.rotation.z += Math.sin(tt * 27.1) * 0.04 * hs;
     G.hitShake = Math.max(0, hs - dt * 2.2);
   }
+  // (the landing: down quickly, and back up more slowly)
+  const land = G.landDip || 0;
+  if (land > 0) { G.landPhase = (G.landPhase || 0) + dt * 7; G.landDip = Math.max(0, land - dt * 0.55); if (G.landDip === 0) G.landPhase = 0; }
+  const landY = land > 0 ? -land * Math.min(1, (G.landPhase || 0) * 3) : 0;
+  if (!third && land > 0) camera.rotation.x -= land * 0.35 * Math.min(1, (G.landPhase || 0) * 3);
   if (!third) {
-    camera.position.set(eye.x + bobX * Math.cos(p.yaw), eye.y + bobY + breath, eye.z - bobX * Math.sin(p.yaw));
+    camera.position.set(eye.x + bobX * Math.cos(p.yaw), eye.y + bobY + breath + landY, eye.z - bobX * Math.sin(p.yaw));
   } else {
     const back = new THREE.Vector3(0, 0, 1).applyEuler(camera.rotation);
     const right = new THREE.Vector3(1, 0, 0).applyEuler(camera.rotation);

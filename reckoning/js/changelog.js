@@ -9,6 +9,10 @@ export const CHANGELOG = [
   {
     v: "0.31", date: "1 October 2026", title: "The kitchen",
     items: [
+      "The app updates itself now: when a new version of the game is out, it downloads in the background and asks whether to restart into it. There's no need to install the app again. Help → Check for updates looks straight away.",
+      "Better animation all round. People walk and run with knees that fold as the leg comes through, feet that push off and lift, hips and shoulders turning against each other and the head held level. Standing, they breathe and shift their weight, and glance about. Felling has a real wind-up, a fast stroke and a follow-through, and hammering lifts slowly and comes down hard. Every held pose breathes instead of standing frozen.",
+      "Deer and boar rock as they gallop, nod their heads as they walk, and look up from grazing to glance about. Shot running, they carry on a stride or two before going down, legs kicking.",
+      "Landing from a jump or a drop: the view dips as your knees take it, harder the further you fell, with a thud underfoot.",
       "The cave is where a fork in the road runs out now: the track that used to stop at a fallen spruce goes on to the cave mouth.",
       "A couple of days into free play, your sister tells you about the cave and asks you to dig ore there to sell to Henning and Tobias. Until you have a forge, she warns you can't use it yourselves: neither of you knows how to forge yet. It's marked until you get there.",
       "The charcoal burner's camp, rebuilt: a proper beehive clamp under its turf with the fire glowing through its vents, a ladder up it and a wattle windbreak, the next clamp half stacked, a cone hut of poles and bark, his fire with a kettle on a crane, heaps and baskets and sacks of charcoal, and soot trodden into the ground. The smoke drifts up soft now.",

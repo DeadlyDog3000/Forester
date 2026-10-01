@@ -578,45 +578,100 @@ def animate(rig, key, f, J):
             d[k.replace("_L", ".L").replace("_R", ".R")] = v
         return d
 
-    # Idle: breathing, a little weight shift
-    act("Idle", {1: P(chest=(0.02, 0, 0)), 30: P(chest=(-0.015, 0, 0), spine=(0, 0, 0.02)), 60: P(chest=(0.02, 0, 0))})
-    # Walk: a stride of 32 frames; thighs swing, knees bend on the pass, arms counter
-    def stride(amp, knee, arm, lift):
-        a = {}
-        for i, t in enumerate((0, 0.25, 0.5, 0.75, 1.0)):
-            s = math.sin(t * 2 * PI)
-            c = math.cos(t * 2 * PI)
-            pose = P(thigh_L=(-amp * s, 0, 0), thigh_R=(amp * s, 0, 0),
-                     shin_L=(knee * max(0, c) if s < 0 else knee * 0.2, 0, 0), shin_R=(knee * max(0, -c) if s > 0 else knee * 0.2, 0, 0),
-                     upper_arm_L=(arm * s, 0, 0.08), upper_arm_R=(-arm * s, 0, -0.08),
-                     forearm_L=(-0.25 - max(0, arm * s) * 0.6, 0, 0), forearm_R=(-0.25 - max(0, -arm * s) * 0.6, 0, 0),
-                     spine=(0.04 * lift, 0, 0.06 * s), chest=(0, 0, -0.08 * s))
-            a[1 + round(t * 32 / (1 if lift < 2 else 1.6))] = pose
+    def linear(a):
+        """cycles play at an even pace: no easing in and out at every key (it made the walk stop and start)"""
+        bags = []
+        try:
+            bags = [a.fcurves]
+        except AttributeError:
+            pass
+        try:
+            for layer in a.layers:
+                for st in layer.strips:
+                    for cb in st.channelbags:
+                        bags.append(cb.fcurves)
+        except AttributeError:
+            pass
+        for fcs in bags:
+            for fc in fcs:
+                for kp in fc.keyframe_points:
+                    kp.interpolation = "LINEAR"
+
+    def cycle(name, n_frames, pose_at, bob, steps=16):
+        frames, loc = {}, {}
+        for i in range(steps + 1):
+            t = i / steps
+            fr = 1 + round(t * n_frames)
+            frames[fr] = pose_at(t)
+            loc[fr] = bob(t)
+        a = act(name, frames, loc)
+        linear(a)
         return a
-    walk = stride(0.42, 0.55, 0.32, 1)
-    act("Walk", walk, {k: (0, 0, 0.018 * abs(math.cos((k - 1) / 32 * 2 * PI))) for k in walk})
-    run = {}
-    for i, t in enumerate((0, 0.25, 0.5, 0.75, 1.0)):
-        s = math.sin(t * 2 * PI); c = math.cos(t * 2 * PI)
-        run[1 + round(t * 20)] = P(thigh_L=(-0.75 * s - 0.15, 0, 0), thigh_R=(0.75 * s - 0.15, 0, 0),
-                                   shin_L=(1.0 * max(0, c) + 0.3, 0, 0), shin_R=(1.0 * max(0, -c) + 0.3, 0, 0),
-                                   upper_arm_L=(0.6 * s, 0, 0.12), upper_arm_R=(-0.6 * s, 0, -0.12),
-                                   forearm_L=(-1.2, 0, 0), forearm_R=(-1.2, 0, 0), spine=(0.18, 0, 0.08 * s), chest=(0.05, 0, -0.1 * s))
-    act("Run", run, {k: (0, 0, 0.04 * abs(math.cos((k - 1) / 20 * 2 * PI))) for k in run})
-    # Sit: on a bench, hands on the knees
-    sit = P(thigh_L=(-1.5, 0, 0.05), thigh_R=(-1.5, 0, -0.05), shin_L=(1.5, 0, 0), shin_R=(1.5, 0, 0), upper_arm_L=(-0.5, 0, 0.1), upper_arm_R=(-0.5, 0, -0.1), forearm_L=(-0.6, 0, 0), forearm_R=(-0.6, 0, 0), spine=(0.08, 0, 0))
-    act("Sit", {1: sit, 30: sit}, {1: (0, 0, -0.44), 30: (0, 0, -0.44)})
-    # Chop: wind back to the right, sweep level, follow round to the left; 30 frames
+
+    # Idle: four seconds of breathing — the chest and shoulders rise and settle — a slow shift of the weight from one
+    # foot to the other, and a glance aside
+    def idle_at(t):
+        br = math.sin(t * 2 * PI * 3)               # three breaths
+        sw = math.sin(t * 2 * PI)                   # one shift of weight
+        return P(chest=(0.025 * br, 0, 0), spine=(0.01 * br, 0.015 * sw, 0.01 * sw), hips=(0, 0.02 * sw, 0),
+                 neck=(-0.015 * br, 0.04 * math.sin(t * 2 * PI * 2 + 1), 0.06 * math.sin(t * 2 * PI + 2)),
+                 shoulder_L=(0, 0, -0.02 * br), shoulder_R=(0, 0, 0.02 * br),
+                 upper_arm_L=(0.03 * sw, 0, 0.08 + 0.01 * br), upper_arm_R=(-0.03 * sw, 0, -0.08 - 0.01 * br),
+                 thigh_L=(0, 0, 0.02 * sw), thigh_R=(0, 0, 0.02 * sw), shin_L=(0.04 * max(0, sw), 0, 0), shin_R=(0.04 * max(0, -sw), 0, 0))
+    a = cycle("Idle", 120, idle_at, lambda t: (0.006 * math.sin(t * 2 * PI), 0, -0.004 * abs(math.sin(t * 2 * PI))), 24)
+
+    # Walk and run, sampled sixteen times a stride: the thigh swings; the knee folds while the leg comes through and
+    # takes the weight as the foot lands; the foot pushes off and lifts its toe; the hips turn with the leg, the chest
+    # turns against them, the head stays level; the arms swing with the forearm following a beat behind
+    def gait(amp, knee, arm, lean, fore, foot, sway):
+        def leg(p):
+            s, c = math.sin(p * 2 * PI), math.cos(p * 2 * PI)
+            th = -amp * s
+            kn = knee * max(0.0, c) ** 1.3 + 0.12 * knee * max(0.0, math.sin(p * 2 * PI - 0.9)) ** 2 + 0.06
+            ft = foot * (0.6 * max(0.0, -math.sin(p * 2 * PI + 0.9)) - 0.5 * max(0.0, c) ** 2)
+            return th, kn, ft
+        def at(t):
+            s = math.sin(t * 2 * PI)
+            thL, knL, ftL = leg(t)
+            thR, knR, ftR = leg(t + 0.5)
+            lagL = math.sin((t - 0.08) * 2 * PI); lagR = -lagL
+            return P(thigh_L=(thL - lean * 0.5, 0, 0.02), thigh_R=(thR - lean * 0.5, 0, -0.02),
+                     shin_L=(knL, 0, 0), shin_R=(knR, 0, 0), foot_L=(ftL, 0, 0), foot_R=(ftR, 0, 0),
+                     upper_arm_L=(arm * s, 0, 0.08 + 0.02 * abs(s)), upper_arm_R=(-arm * s, 0, -0.08 - 0.02 * abs(s)),
+                     forearm_L=(-fore - 0.45 * arm * max(0.0, lagL), 0, 0), forearm_R=(-fore - 0.45 * arm * max(0.0, lagR), 0, 0),
+                     hips=(0, sway * math.cos(t * 2 * PI), 0.07 * s), spine=(lean, 0, 0.02 * s), chest=(0.02 * lean, 0, -0.11 * s),
+                     neck=(-lean * 0.6, 0, 0.05 * s))
+        return at
+    walk_at = gait(amp=0.45, knee=0.75, arm=0.3, lean=0.03, fore=0.22, foot=0.35, sway=0.035)
+    cycle("Walk", 32, walk_at, lambda t: (0, 0, 0.022 * abs(math.cos(t * 2 * PI)) - 0.008))
+    run_at = gait(amp=0.8, knee=1.35, arm=0.62, lean=0.2, fore=1.15, foot=0.5, sway=0.02)
+    cycle("Run", 20, run_at, lambda t: (0, 0, 0.055 * abs(math.cos(t * 2 * PI)) - 0.02))
+
+    # Sit: on a bench, hands on the knees, still breathing
+    def sit_at(t):
+        br = math.sin(t * 2 * PI * 2)
+        return P(thigh_L=(-1.5, 0, 0.05), thigh_R=(-1.5, 0, -0.05), shin_L=(1.5, 0, 0), shin_R=(1.5, 0, 0), upper_arm_L=(-0.5, 0, 0.1), upper_arm_R=(-0.5, 0, -0.1),
+                 forearm_L=(-0.6, 0, 0), forearm_R=(-0.6, 0, 0), spine=(0.08 + 0.01 * br, 0, 0), chest=(0.02 * br, 0, 0), neck=(0, 0.05 * math.sin(t * 2 * PI + 1), 0))
+    cycle("Sit", 100, sit_at, lambda t: (0, 0, -0.44), 8)
+
+    # Chop: a slow wind-up to the right, the weight back on the back foot; a fast level sweep through; the follow-through
+    # carrying round to the left; and back to the guard
     arms_up = dict(upper_arm_L=(-1.35, 0, -0.35), upper_arm_R=(-1.35, 0, 0.35), forearm_L=(-0.25, 0, 0), forearm_R=(-0.25, 0, 0))
-    act("Chop", {
-        1: P(**arms_up, spine=(0.08, 0, 0), chest=(0, 0, 0)),
-        12: P(**arms_up, spine=(0.08, 0, -0.55), chest=(0, 0, -0.45)),
-        18: P(**arms_up, spine=(0.12, 0, 0.45), chest=(0, 0, 0.35)),
-        30: P(**arms_up, spine=(0.08, 0, 0), chest=(0, 0, 0)),
-    })
-    # the story's poses: held, so each is two identical keys
+    def chop(spz, chz, sx=0.08, kL=0.1, kR=0.1, up=0.0):
+        a2 = dict(arms_up); a2["upper_arm_L"] = (-1.35 - up, 0, -0.35); a2["upper_arm_R"] = (-1.35 - up, 0, 0.35)
+        return P(**a2, spine=(sx, 0, spz), chest=(0, 0, chz), shin_L=(kL, 0, 0), shin_R=(kR, 0, 0), thigh_L=(-kL * 0.5, 0, 0), thigh_R=(-kR * 0.5, 0, 0), neck=(0, 0, -chz * 0.4))
+    act("Chop", {1: chop(0, 0), 10: chop(-0.5, -0.4, kR=0.25, up=0.15), 13: chop(-0.6, -0.5, kR=0.3, up=0.2),
+                 16: chop(0.35, 0.3, sx=0.14, kL=0.3), 19: chop(0.55, 0.42, sx=0.12, kL=0.25), 30: chop(0, 0)})
+
+    # the story's poses: held, but breathing — never quite still
     def hold(name, **kw):
-        p = P(**kw); act(name, {1: p, 20: p})
+        base = P(**kw)
+        def at(t):
+            p = dict(base); br = math.sin(t * 2 * PI * 2)
+            c = p.get("chest", (0, 0, 0)); p["chest"] = (c[0] + 0.02 * br, c[1], c[2])
+            nk = p.get("neck", (0, 0, 0)); p["neck"] = (nk[0] - 0.012 * br, nk[1] + 0.03 * math.sin(t * 2 * PI + 0.5), nk[2])
+            return p
+        cycle(name, 90, at, lambda t: (0, 0, -0.003 * abs(math.sin(t * 2 * PI * 2))), 8)
     hold("Torch", upper_arm_R=(-1.25, 0, -0.15), forearm_R=(-0.3, 0, 0))
     hold("Lantern", upper_arm_R=(-0.35, 0, -0.1), forearm_R=(-0.4, 0, 0))
     hold("Hold", upper_arm_L=(-0.5, 0, 0.15), upper_arm_R=(-0.5, 0, -0.15), forearm_L=(-1.0, 0, 0), forearm_R=(-1.0, 0, 0))
@@ -626,9 +681,10 @@ def animate(rig, key, f, J):
     hold("Bound", upper_arm_L=(0.45, 0, 0.2), upper_arm_R=(0.45, 0, -0.2), forearm_L=(-0.6, 0, 0.5), forearm_R=(-0.6, 0, -0.5), neck=(0.2, 0, 0))
     hold("Grieve", upper_arm_L=(-1.2, 0, 0.5), upper_arm_R=(-1.2, 0, -0.5), forearm_L=(-1.9, 0, 0), forearm_R=(-1.9, 0, 0), neck=(0.45, 0, 0), spine=(0.2, 0, 0))
     hold("Reach", upper_arm_L=(-1.4, 0, 0.1), upper_arm_R=(-1.4, 0, -0.1))
-    act("Hammer", {1: P(upper_arm_R=(-1.0, 0, -0.1), forearm_R=(-1.2, 0, 0), spine=(0.35, 0, 0)),
-                   7: P(upper_arm_R=(-2.1, 0, -0.1), forearm_R=(-0.6, 0, 0), spine=(0.35, 0, 0)),
-                   13: P(upper_arm_R=(-1.0, 0, -0.1), forearm_R=(-1.2, 0, 0), spine=(0.35, 0, 0))})
+    # Hammer: lift it slowly, bring it down fast, a little bounce off the work, and the body leaning into it
+    def ham(ua, fa, sp=0.35, kn=0.08):
+        return P(upper_arm_R=(ua, 0, -0.1), forearm_R=(fa, 0, 0), upper_arm_L=(-0.6, 0, 0.12), forearm_L=(-0.9, 0, 0), spine=(sp, 0, 0), shin_L=(kn, 0, 0), shin_R=(kn, 0, 0), thigh_L=(-kn * 0.5, 0, 0), thigh_R=(-kn * 0.5, 0, 0))
+    act("Hammer", {1: ham(-1.0, -1.2), 8: ham(-2.15, -0.55, 0.3, 0.04), 10: ham(-0.95, -1.25, 0.42, 0.14), 11: ham(-1.08, -1.15, 0.4, 0.12), 16: ham(-1.0, -1.2)})
     # stand in the rest pose when nothing plays
     for b in pb:
         b.rotation_euler = Euler((0, 0, 0))

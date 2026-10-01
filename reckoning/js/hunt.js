@@ -59,7 +59,7 @@ class Animal {
     if (!this.alive) return;
     this.hp -= power > 0.7 ? 2 : 1;
     G.practise && G.practise("archery", 3);
-    if (this.hp <= 0) { this.state = "dead"; this.fall = 0; this.speed = 0; this.hunt.onDown(this); SFX.treeFall && SFX.treeFall(0.3); return; }
+    if (this.hp <= 0) { this.state = "dead"; this.slide = Math.min(6, this.speed || 0); this.fall = 0; this.speed = 0; this.hunt.onDown(this); SFX.treeFall && SFX.treeFall(0.3); return; }
     // a wounded boar turns on whoever did it, if they are near enough to reach
     const pl = G.player;
     if (this.kind === "boar" && pl && Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z) < 14) {
@@ -82,11 +82,18 @@ class Animal {
   update(dt) {
     const K = this.K, pl = G.player, home = this.hunt.home;
     if (this.state === "dead") {
-      this.fall = Math.min(1, this.fall + dt * 2.2);
-      const e = this.fall * this.fall;
-      this.root.rotation.z = e * Math.PI / 2; this.root.rotation.x *= 0.85;
+      // it carries on a stride or two with what speed it had, stumbles, goes down on its side, and the legs kick
+      this.slide ??= 0;
+      this.slide = Math.max(0, this.slide - dt * 9);
+      if (this.slide > 0.05) { this.pos.x += Math.sin(this.yaw) * this.slide * dt; this.pos.z += Math.cos(this.yaw) * this.slide * dt; this.pos.y = this.hunt.w.heightAt(this.pos.x, this.pos.z); this.root.position.x = this.pos.x; this.root.position.z = this.pos.z; }
+      this.fall = Math.min(1, this.fall + dt * (this.slide > 0.5 ? 1.2 : 2.2));
+      const e = this.fall * this.fall * (3 - 2 * this.fall);
+      this.root.rotation.z = e * Math.PI / 2; this.root.rotation.x += ((this.slide > 0.5 ? 0.25 : 0) - this.root.rotation.x) * Math.min(1, dt * 6);
       this.root.position.y = this.pos.y + e * K.r * 0.55;
-      for (const l of this.legs) if (l) l.rotation.x *= 0.9;
+      this.kick = (this.kick || 0) + dt;
+      const k = Math.max(0, 1 - this.kick / 2.2);
+      this.legs.forEach((l, i) => { if (l) l.rotation.x = Math.sin(this.kick * 16 + i * 1.7) * 0.5 * k * k; });
+      if (this.neck) this.neck.rotation.x += (this.neck0 - 0.3 - this.neck.rotation.x) * Math.min(1, dt * 3);
       return;
     }
     // what it hears of you
@@ -96,7 +103,10 @@ class Animal {
     this.t -= dt;
     let want = 0;
     if (this.state === "graze") {
-      this.head += (0 - this.head) * Math.min(1, dt * 2);
+      // head down to the grass — and now and then up, ears forward, looking about
+      this.lookT = (this.lookT ?? 2 + Math.random() * 5) - dt;
+      if (this.lookT < 0) { this.looking = this.looking ? 0 : 1.2 + Math.random() * 1.5; this.lookT = this.looking || 3 + Math.random() * 6; this.lookYaw = (Math.random() - 0.5) * 1.1; }
+      this.head += ((this.looking ? 1 : 0) - this.head) * Math.min(1, dt * (this.looking ? 4 : 2));
       if (this.t <= 0) {
         // a few steps to fresh grass, never far from home
         const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 8;
@@ -152,14 +162,23 @@ class Animal {
       const air = hop >= 0 ? Math.sin(hop * Math.PI) : 0, kick = hop >= 0 ? Math.sin(hop * Math.PI * 2) : 0;
       this.legs.forEach((l, i) => { if (l) l.rotation.x = i < 2 ? -air * 0.9 : kick * 0.8 + air * 0.3; });
     } else this.legs.forEach((l, i) => { if (l) l.rotation.x = Math.sin(this.phase + off[i]) * amp; });
-    if (this.neck) this.neck.rotation.x = this.neck0 + (1 - this.head) * (this.kind === "deer" ? 1.1 : this.kind === "boar" ? 0.6 : 0.4) + Math.sin(G.time * 3 + this.phase) * 0.03 * (1 - this.head);
+    // the head nods with each step at a walk; while it looks about, it turns
+    const nod = Math.sin(this.phase * 2) * 0.07 * clamp(this.speed / K.walk, 0, 1) * (1 - run * 0.6);
+    if (this.neck) {
+      this.neck.rotation.x = this.neck0 + (1 - this.head) * (this.kind === "deer" ? 1.1 : this.kind === "boar" ? 0.6 : 0.4) + Math.sin(G.time * 3 + this.phase) * 0.03 * (1 - this.head) + nod;
+      this.neck.rotation.y += (((this.state === "graze" && this.looking) ? this.lookYaw || 0 : 0) - this.neck.rotation.y) * Math.min(1, dt * 3);
+    }
     // a hare bounds; a deer lifts at the gallop
     if (hare) {
       const air = hop >= 0 ? Math.sin(hop * Math.PI) : 0;
       this.root.position.y = this.pos.y + air * (0.07 + runK * 0.28);
       // nose up as it leaves the ground, down as it lands
       this.root.rotation.x += ((hop >= 0 ? -Math.cos(hop * Math.PI) * (0.25 + runK * 0.15) : 0) - this.root.rotation.x) * Math.min(1, dt * 18);
-    } else this.root.position.y = this.pos.y + Math.abs(Math.sin(this.phase)) * run * 0.08;
+    } else {
+      // a gallop rocks the body, nose down and up, as the fore and hind legs take it in turn
+      this.root.position.y = this.pos.y + Math.abs(Math.sin(this.phase)) * run * 0.08;
+      this.root.rotation.x += (Math.sin(this.phase + 0.6) * 0.09 * run - this.root.rotation.x) * Math.min(1, dt * 12);
+    }
     this.root.position.x = this.pos.x; this.root.position.z = this.pos.z;
     this.root.rotation.y = this.yaw;
     this.pos.y = this.hunt.w.heightAt(this.pos.x, this.pos.z);
