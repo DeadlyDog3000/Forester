@@ -9,6 +9,7 @@ export const CHANGELOG = [
   {
     v: "0.30", date: "30 September 2026", title: "A country of its own",
     items: [
+      "Hares hop now, instead of walking like little deer: a bound, a pause, and another bound, long low leaps when they bolt.",
       "Caves: a mouth in a hillside out in the forest, and behind it hall after hall of dark rock, thick with copper, tin and iron. Your lantern and a few old torches light the way. Sometimes raiders have made their camp down there.",
       "A second settlement: after forty minutes of play you're asked whether to found one. Say yes and a road is cut through the forest to a new clearing, with its name on a signpost.",
       "Settlers earn wages selling their wares to the pedlar, and you tax them (G, Taxes & trade). A tenth of every tax is yours. High taxes make them unhappy, though the contented mind less.",

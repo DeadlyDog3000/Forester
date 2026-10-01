@@ -164,6 +164,21 @@ export const SHOTS = {
       rig.look(c, [x + (cx - x) * k, gy(x, z) + 0.75, z + (cz - z) * k], [cx, gy(cx, cz) + 0.7, cz], 38);
     },
   },
+  hare: {
+    secs: 4,
+    async stage() {
+      await chapter(6, {}, { clearing: { axe: true } });
+      setAtmo("evening");
+      const w = G.world; w.huntOpen = true;
+      G.player.place(CLEARING.x, CLEARING.z, 0);
+      this.hunt = new Hunt(w, { x: HUNT.x, z: HUNT.z, r: 6 });
+      this.hunt.spawn("hare", 1);
+      const h = this.hunt.animals[0]; this.h = h;
+      h.state = "walk"; h.t = 99; h.yaw = 0; h.target = { x: h.pos.x, z: h.pos.z + 40 };
+    },
+    tick(t) { const h = this.h; h.t = 99; if (t > 0.45 && h.state !== "flee") h.startle({ x: h.pos.x, z: h.pos.z - 3 }); },
+    cam(t, c) { const h = this.h; rig.look(c, [h.pos.x + 2.6, gy(h.pos.x, h.pos.z) + 0.5, h.pos.z - 0.6], [h.pos.x, h.pos.y + 0.2, h.pos.z], 40); },
+  },
   bow: {
     secs: 4.5,
     hands: true,
