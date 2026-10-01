@@ -634,3 +634,10 @@ body.dark-fantasy #view::after { content: ""; position: fixed; inset: 0; pointer
 .credits .cr-role { font: 600 12px var(--sans); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-top: 18px; }
 .credits .cr-name { font-size: 26px; color: var(--ink); margin-top: 4px; }
 .credits .cr-note { font: italic 15px var(--sans); color: var(--ink-dim); margin-top: 30px; }
+
+/* the map's key: a card of parchment beside the minimap (K), and in the corner of the big map */
+#mmKeyTab { position: absolute; right: 22px; top: 204px; padding: 1px 7px; font: 600 10px var(--sans); letter-spacing: 1px; color: #3b2a1a; background: rgba(220, 203, 159, 0.85); border-radius: 0 0 6px 6px; pointer-events: none; }
+#mmLegend { position: absolute; right: 214px; top: 22px; z-index: 3; pointer-events: none; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55); border-radius: 4px; overflow: hidden; }
+#mmLegend canvas, .bigmap-key canvas { display: block; }
+.bigmap-key { position: absolute; left: 16px; bottom: 16px; pointer-events: none; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5); border-radius: 4px; overflow: hidden; }
+@media (max-width: 640px) { #mmLegend { right: 140px; top: 12px; transform: scale(0.8); transform-origin: top right; } #mmKeyTab { display: none; } }

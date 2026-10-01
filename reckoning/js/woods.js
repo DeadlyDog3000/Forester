@@ -9,7 +9,7 @@ import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, cla
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
 import { grassTexture } from "./hamburg.js";
-import { INK, TREEC, TOWN, tree, road, label, seen } from "./map.js";
+import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM } from "./furnish.js";
 import { ROCKS } from "./body.js";
 import { AUDIO } from "./audio.js";
@@ -449,10 +449,7 @@ export class Woods extends WorldBase {
     // down in the cave: the cave's own map, and its ore
     if (this.cave && this.cave.inside) {
       this.cave.drawMap(c, X, Z, S);
-      for (const k of this.cave.rocks) if (!k.gone && this.cave.seen.some(i => { const h = this.cave.halls[i]; return Math.hypot(k.x - h.x, k.z - h.z) < h.r + 1; })) {
-        c.fillStyle = k.kind === "copper" ? "#3a9a70" : k.kind === "iron" ? "#a8442a" : k.kind === "tin" ? "#b4bcc8" : "#7a766c";
-        c.beginPath(); c.arc(X(k.x), Z(k.z), Math.max(2.2, S * 0.9), 0, Math.PI * 2); c.fill(); c.strokeStyle = INK; c.lineWidth = 0.8; c.stroke();
-      }
+      for (const k of this.cave.rocks) if (!k.gone && this.cave.seen.some(i => { const h = this.cave.halls[i]; return Math.hypot(k.x - h.x, k.z - h.z) < h.r + 1; })) oreIcon(c, X(k.x), Z(k.z), k.kind, Math.max(3.6, S * 1.2));
       return;
     }
     const vis = (x, z) => { const px = X(x), pz = Z(z); return px > -pad && px < W + pad && pz > -pad && pz < H + pad; };
@@ -478,12 +475,7 @@ export class Woods extends WorldBase {
     }
     // the cave's mouth, once found: a dark arch in the hillside
     const cv = this.cave;
-    if (cv && cv.found && cv.mouthAt && vis(cv.mouthAt.x, cv.mouthAt.z)) {
-      const mx = X(cv.mouthAt.x), mz = Z(cv.mouthAt.z), r = Math.max(5, S * 2.4);
-      c.fillStyle = "#6a665e"; c.beginPath(); c.arc(mx, mz, r * 1.3, Math.PI, 0); c.lineTo(mx + r * 1.3, mz + r * 0.5); c.lineTo(mx - r * 1.3, mz + r * 0.5); c.closePath(); c.fill();
-      c.fillStyle = "#15110c"; c.beginPath(); c.arc(mx, mz + r * 0.1, r * 0.65, Math.PI, 0); c.lineTo(mx + r * 0.65, mz + r * 0.5); c.lineTo(mx - r * 0.65, mz + r * 0.5); c.closePath(); c.fill();
-      c.strokeStyle = INK; c.lineWidth = 1; c.stroke();
-    }
+    if (cv && cv.found && cv.mouthAt && vis(cv.mouthAt.x, cv.mouthAt.z)) caveIcon(c, X(cv.mouthAt.x), Z(cv.mouthAt.z), Math.max(5.5, S * 2.2));
     // the other settlements, and their roads
     for (const col of this.colonies || []) {
       road(c, col.road.map(([x, z]) => ({ x, z })), X, Z, Math.max(2.2, Math.min(4.5, S * 1.9)) * 0.8);
@@ -500,11 +492,7 @@ export class Woods extends WorldBase {
     c.fillStyle = TREEC;
     for (const t of this.fellable) if (t.state === "up" || t.state === "shake") tree(c, X(t.x), Z(t.z), ts * 1.1, "spruce");
     // rocks you can break: grey stone, copper green, iron red
-    for (const k of this.rocks || []) if (!k.gone && vis(k.x, k.z)) {
-      c.fillStyle = k.kind === "copper" ? "#3a9a70" : k.kind === "iron" ? "#a8442a" : k.kind === "tin" ? "#b4bcc8" : "#7a766c";
-      c.beginPath(); c.arc(X(k.x), Z(k.z), Math.max(2.2, S * 0.9), 0, Math.PI * 2); c.fill();
-      c.strokeStyle = INK; c.lineWidth = 0.8; c.stroke();
-    }
+    for (const k of this.rocks || []) if (!k.gone && vis(k.x, k.z)) oreIcon(c, X(k.x), Z(k.z), k.kind, Math.max(4.4, S * 1.2));
     // the cabin
     c.fillStyle = this.cabin && this.cabin.visible ? TOWN : "#3a3530";
     c.save(); c.translate(X(CABIN.x), Z(CABIN.z)); c.rotate(-CABIN.ry); c.fillRect(-2.5 * S, -3 * S, 5 * S, 6 * S); c.strokeStyle = INK; c.strokeRect(-2.5 * S, -3 * S, 5 * S, 6 * S); c.restore();

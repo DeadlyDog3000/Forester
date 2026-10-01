@@ -15,6 +15,8 @@ export const CHANGELOG = [
       "Landing from a jump or a drop: the view dips as your knees take it, harder the further you fell, with a thud underfoot.",
       "The cave is where a fork in the road runs out now: the track that used to stop at a fallen spruce goes on to the cave mouth.",
       "A couple of days into free play, your sister tells you about the cave and asks you to dig ore there to sell to Henning and Tobias. Until you have a forge, she warns you can't use it yourselves: neither of you knows how to forge yet. It's marked until you get there.",
+      "A key to the map: press K for it beside the minimap, and it's always in the corner of the big map (J).",
+      "Ore and caves are drawn properly on the map now: a lump of rock with copper's green flecks, tin's pale crystals or iron's rust streaks, and a cave as a hillside with its timbered mouth.",
       "Step into a tree and its branches thin away around you, so you can see out through them while you stand hidden in among them.",
       "The mouse lock in the app: the game waits longer for the lock, asks for it again at your next click, and the moment it comes, turning no longer stops at the edge of the screen.",
       "The charcoal burner's camp, rebuilt: a proper beehive clamp under its turf with the fire glowing through its vents, a ladder up it and a wattle windbreak, the next clamp half stacked, a cone hut of poles and bark, his fire with a kettle on a crane, heaps and baskets and sacks of charcoal, and soot trodden into the ground. The smoke drifts up soft now.",

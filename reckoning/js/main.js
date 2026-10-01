@@ -1438,3 +1438,24 @@ if (/[?&]raid\b/.test(location.search)) loadModels().finally(() => {
     t.S.raid.next = t.day; t.t = (Math.floor(t.t / t.dayLen) + 0.595) * t.dayLen;
   }, 500);
 });
+
+// ---- the key to the map: beside the minimap (K), and always in the corner of the big map ----
+import { drawLegend, LEGEND } from "./map.js";
+function legendCanvas() {
+  const cv = document.createElement("canvas"), d = Math.min(2, devicePixelRatio || 1), w = 228, h = 28 + LEGEND.length * 17;
+  cv.width = w * d; cv.height = h * d; cv.style.width = w + "px"; cv.style.height = h + "px";
+  const c = cv.getContext("2d"); c.scale(d, d); drawLegend(c, 0, 0);
+  return cv;
+}
+// (drawn when the fonts are in, so the words are in the map's own hand)
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
+  $("mmLegend").appendChild(legendCanvas());
+  const big = document.createElement("div"); big.className = "bigmap-key"; big.appendChild(legendCanvas());
+  $("bigmap").appendChild(big);
+});
+let legendOn = false;
+addEventListener("keydown", e => {
+  if (e.code !== "KeyK" || e.repeat || G.mode !== "play" || (overlay && overlay !== "bigmap")) return;
+  legendOn = !legendOn; $("mmLegend").classList.toggle("hidden", !legendOn);
+});
+setInterval(() => { const on = G.mode === "play" && !!G.hasMap; $("mmKeyTab").classList.toggle("hidden", !on || legendOn); if (!on) $("mmLegend").classList.add("hidden"); else $("mmLegend").classList.toggle("hidden", !legendOn); }, 400);

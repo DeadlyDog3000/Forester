@@ -91,3 +91,60 @@ export function you(c, x, y, yaw, s = 1) {
   c.beginPath(); c.moveTo(0, -8); c.lineTo(5.5, 6); c.lineTo(0, 3); c.lineTo(-5.5, 6); c.closePath(); c.fill(); c.stroke();
   c.restore();
 }
+
+// ---- the map's own symbols, in ink on the parchment ----
+// a lump of rock, faceted, with what is in it showing: plain grey stone with a crack; copper's green and orange flecks;
+// tin's pale crystals; iron's rust-red streaks
+const ROCK_SHAPE = [[-1, 0.15], [-0.7, -0.7], [0.05, -1], [0.8, -0.6], [1, 0.25], [0.55, 0.85], [-0.45, 0.9]];
+export function oreIcon(c, x, y, kind, s = 5) {
+  c.save(); c.translate(x, y);
+  c.fillStyle = kind === "stone" || !kind ? "#8e897d" : "#6e6a60";
+  c.beginPath(); ROCK_SHAPE.forEach(([a, b], i) => i ? c.lineTo(a * s, b * s) : c.moveTo(a * s, b * s)); c.closePath(); c.fill();
+  c.fillStyle = "rgba(255,248,230,0.28)"; c.beginPath(); c.moveTo(-0.7 * s, -0.7 * s); c.lineTo(0.05 * s, -1 * s); c.lineTo(0.8 * s, -0.6 * s); c.lineTo(0.1 * s, -0.25 * s); c.closePath(); c.fill();
+  if (kind === "copper") { c.fillStyle = "#3aa878"; for (const [a, b] of [[-0.35, 0.1], [0.35, 0.35], [0.1, -0.35]]) { c.beginPath(); c.arc(a * s, b * s, s * 0.2, 0, Math.PI * 2); c.fill(); } c.fillStyle = "#d0803e"; c.beginPath(); c.arc(0.55 * s, -0.15 * s, s * 0.16, 0, Math.PI * 2); c.fill(); }
+  else if (kind === "tin") { c.fillStyle = "#e6ebf2"; for (const [a, b] of [[-0.3, 0.15], [0.35, 0.3], [0.2, -0.35]]) { c.beginPath(); c.moveTo(a * s, (b - 0.24) * s); c.lineTo((a + 0.14) * s, b * s); c.lineTo(a * s, (b + 0.24) * s); c.lineTo((a - 0.14) * s, b * s); c.closePath(); c.fill(); } }
+  else if (kind === "iron") { c.strokeStyle = "#b2482c"; c.lineWidth = Math.max(1.2, s * 0.24); c.lineCap = "round"; c.beginPath(); c.moveTo(-0.55 * s, 0.4 * s); c.lineTo(0.1 * s, -0.25 * s); c.moveTo(-0.05 * s, 0.6 * s); c.lineTo(0.55 * s, 0.05 * s); c.stroke(); }
+  else { c.strokeStyle = "rgba(59,42,26,0.6)"; c.lineWidth = 0.9; c.beginPath(); c.moveTo(-0.3 * s, -0.5 * s); c.lineTo(0, 0.05 * s); c.lineTo(-0.15 * s, 0.6 * s); c.stroke(); }
+  c.strokeStyle = INK; c.lineWidth = Math.max(0.8, s * 0.16); c.lineJoin = "round";
+  c.beginPath(); ROCK_SHAPE.forEach(([a, b], i) => i ? c.lineTo(a * s, b * s) : c.moveTo(a * s, b * s)); c.closePath(); c.stroke();
+  c.restore();
+}
+// a cave: a shoulder of hillside, the dark mouth in it, and the old timbers propping it
+export function caveIcon(c, x, y, s = 6) {
+  c.save(); c.translate(x, y);
+  c.fillStyle = "#8a7a62"; c.beginPath(); c.moveTo(-1.6 * s, 0.8 * s); c.quadraticCurveTo(-1.2 * s, -1.1 * s, 0, -1.25 * s); c.quadraticCurveTo(1.2 * s, -1.1 * s, 1.6 * s, 0.8 * s); c.closePath(); c.fill();
+  c.strokeStyle = INK; c.lineWidth = Math.max(0.9, s * 0.15); c.stroke();
+  c.fillStyle = "#15110c"; c.beginPath(); c.moveTo(-0.6 * s, 0.8 * s); c.lineTo(-0.6 * s, -0.05 * s); c.quadraticCurveTo(0, -0.75 * s, 0.6 * s, -0.05 * s); c.lineTo(0.6 * s, 0.8 * s); c.closePath(); c.fill();
+  c.strokeStyle = "#7a5634"; c.lineWidth = Math.max(1, s * 0.18); c.lineCap = "round";
+  c.beginPath(); c.moveTo(-0.62 * s, 0.8 * s); c.lineTo(-0.62 * s, -0.2 * s); c.moveTo(0.62 * s, 0.8 * s); c.lineTo(0.62 * s, -0.2 * s); c.moveTo(-0.82 * s, -0.25 * s); c.lineTo(0.82 * s, -0.25 * s); c.stroke();
+  c.restore();
+}
+// what the map's marks mean: [draw(c, x, y), words]
+export const LEGEND = [
+  [(c, x, y) => you(c, x, y + 1, 0, 0.75), "You"],
+  [(c, x, y) => { c.save(); c.translate(x, y); c.rotate(Math.PI / 4); c.fillStyle = "#c8962e"; c.strokeStyle = INK; c.lineWidth = 1.2; c.fillRect(-4, -4, 8, 8); c.strokeRect(-4, -4, 8, 8); c.restore(); }, "Where to go"],
+  [(c, x, y) => dot(c, x, y, "#2e6a40", 3.6), "Your brother or sister"],
+  [(c, x, y) => dot(c, x, y, "#6a5a48", 2.6), "Settlers, and other folk"],
+  [(c, x, y) => { c.strokeStyle = "rgba(179,38,30,0.55)"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 9, y - 4); c.stroke(); dot(c, x, y, "#b3261e", 3.6); }, "The watch, and where they look"],
+  [(c, x, y) => { c.fillStyle = TOWN; c.strokeStyle = INK; c.lineWidth = 1; c.fillRect(x - 4, y - 5, 8, 10); c.strokeRect(x - 4, y - 5, 8, 10); }, "Buildings"],
+  [(c, x, y) => { c.fillStyle = TREEC; tree(c, x, y + 2, 4.2, "spruce"); }, "Trees"],
+  [(c, x, y) => road(c, [{ x: x - 9, z: y + 3 }, { x: x + 9, z: y - 3 }], v => v, v => v, 3.4), "Roads and tracks"],
+  [(c, x, y) => { c.fillStyle = "rgba(214,200,150,0.95)"; c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([2, 2]); c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill(); c.stroke(); c.setLineDash([]); }, "Your land"],
+  [(c, x, y) => oreIcon(c, x, y, "stone", 5.5), "Stone"],
+  [(c, x, y) => oreIcon(c, x, y, "copper", 5.5), "Copper ore"],
+  [(c, x, y) => oreIcon(c, x, y, "tin", 5.5), "Tin ore"],
+  [(c, x, y) => oreIcon(c, x, y, "iron", 5.5), "Iron ore"],
+  [(c, x, y) => caveIcon(c, x, y + 1, 5), "A cave"],
+];
+function dot(c, x, y, col, r) { c.fillStyle = col; c.strokeStyle = "#f3e7c6"; c.lineWidth = 1; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.stroke(); }
+// the key, as a block of parchment in the corner of the big map
+export function drawLegend(c, x, y) {
+  const rowH = 17, w = 228, h = 28 + LEGEND.length * rowH;
+  c.save();
+  c.fillStyle = "rgba(228,214,176,0.94)"; c.strokeStyle = INK; c.lineWidth = 1.2; c.fillRect(x, y, w, h); c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  c.fillStyle = INK; c.font = `italic 15px ${SERIF}`; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText("Key", x + 10, y + 13);
+  c.font = `13px ${SERIF}`;
+  LEGEND.forEach(([draw, words], i) => { const ry = y + 32 + i * rowH; draw(c, x + 20, ry); c.fillStyle = INK; c.fillText(words, x + 38, ry + 1); });
+  c.restore();
+  return { w, h };
+}
