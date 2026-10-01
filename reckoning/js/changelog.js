@@ -9,6 +9,7 @@ export const CHANGELOG = [
   {
     v: "0.31", date: "1 October 2026", title: "The kitchen",
     items: [
+      "The road no longer looks like wooden planks: its brown was being mistaken for timber and given wood grain. It has the plain earthy grain of the ground now.",
       "The roads melt into the ground now: their edges fade out over a wider band, and the grass along them and up the middle takes the colour of the ground there (litter, moss, dry grass, stone) instead of one green everywhere. The roads to new settlements fade in the same way.",
       "Two new settings: Saturation (from washed out to vivid) and Pixelation (from off up to 8×, for big hard pixels).",
       "Everyone's shoulders are joined on properly now: a broad shoulder line across the top of the chest that the arms grow out of, instead of arms hanging off a narrow neck. The arms hang closer to the body too.",

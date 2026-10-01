@@ -293,7 +293,7 @@ export class Woods extends WorldBase {
     rg.computeVertexNormals();
     // wound the other way round: flip if it faces down
     if (rg.attributes.normal.getY(0) < 0) { const ix = rg.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } rg.computeVertexNormals(); }
-    const roadMesh = new THREE.Mesh(rg, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 4, amount: 0.2, grain: 0.6 }));
+    const roadMesh = new THREE.Mesh(rg, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 2, amount: 0.12, grain: 0.4, surface: "none" }));
     roadMesh.receiveShadow = true;
     root.add(roadMesh);
     // stones kicked to the sides, tufts in the middle
