@@ -11,6 +11,9 @@ export const CHANGELOG = [
     items: [
       "The cave is where a fork in the road runs out now: the track that used to stop at a fallen spruce goes on to the cave mouth.",
       "A couple of days into free play, your sister tells you about the cave and asks you to dig ore there to sell to Henning and Tobias. Until you have a forge, she warns you can't use it yourselves: neither of you knows how to forge yet. It's marked until you get there.",
+      "The charcoal burner's camp, rebuilt: a proper beehive clamp under its turf with the fire glowing through its vents, a ladder up it and a wattle windbreak, the next clamp half stacked, a cone hut of poles and bark, his fire with a kettle on a crane, heaps and baskets and sacks of charcoal, and soot trodden into the ground. The smoke drifts up soft now.",
+      "A miss that lands near game sends it bolting away from where the arrow came from.",
+      "An arrow that strikes a beast is spent: it breaks, and doesn't come back to the quiver. You can still pull your misses out of the ground.",
       "Blackberry brambles round the clearing and along the road: hold F to pick a handful. They fruit again a few days later, and stand bare in the winter.",
       "Jumping costs breath. Winded, you can't jump at all, and when you're nearly spent it's only a hop.",
       "Every tree gives two logs. A good saw, and Sawing and Sawmills, now make felling quicker instead of giving extra logs.",

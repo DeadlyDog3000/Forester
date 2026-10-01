@@ -198,8 +198,10 @@ export class Hunt {
         this.w.removeInteract(it);
         this.w.root.remove(a.root);
         this.animals.splice(this.animals.indexOf(a), 1);
-        // the arrows that were in it come back to the quiver
-        for (const ar of this.arrows.filter(r => r.in === a)) { G.player.arrows = (G.player.arrows || 0) + 1; this.arrows.splice(this.arrows.indexOf(ar), 1); }
+        // the arrows that went into it are spent: snapped off, the heads lost in the meat
+        const spent = this.arrows.filter(r => r.in === a);
+        for (const ar of spent) this.arrows.splice(this.arrows.indexOf(ar), 1);
+        if (spent.length) UI.hint && UI.hint(`The arrow${spent.length > 1 ? "s" : ""} that struck it ${spent.length > 1 ? "are" : "is"} broken — no good again.`, 3);
         this._onDress && this._onDress(a, a.K.meat);
       } });
     this._onDown && this._onDown(a);
@@ -208,7 +210,7 @@ export class Hunt {
     const m = modelCopy("arrow");
     const mesh = m ? m.scene : new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.74).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xb89a6a }));
     this.w.root.add(mesh);
-    const ar = { mesh, pos: from.clone(), vel: dir.clone().multiplyScalar(14 + 32 * power), power, t: 0, stuck: false };
+    const ar = { mesh, pos: from.clone(), from: from.clone(), vel: dir.clone().multiplyScalar(14 + 32 * power), power, t: 0, stuck: false };
     this.arrows.push(ar);
     this.orient(ar);
   }
@@ -220,6 +222,13 @@ export class Hunt {
       // carried along with the animal
       into.root.attach(ar.mesh);
       return;
+    }
+    // a miss that thuds into the ground or a trunk near them: they bolt — away from where it came from, not from
+    // where it landed (the nearer it falls, the surer they are)
+    for (const a of this.animals) {
+      if (!a.alive || a.state === "charge") continue;
+      const d = Math.hypot(a.pos.x - ar.pos.x, a.pos.z - ar.pos.z);
+      if (d < 14 && (d < 7 || Math.random() < 0.7)) a.startle(ar.from, d < 7 ? 1.3 : 1);
     }
     ar.it = this.w.addInteract({ x: ar.pos.x, y: ar.pos.y, z: ar.pos.z, reach: 2.0, label: "Pull the arrow out",
       use: () => { this.w.removeInteract(ar.it); this.w.root.remove(ar.mesh); this.arrows.splice(this.arrows.indexOf(ar), 1); G.player.arrows = (G.player.arrows || 0) + 1; SFX.pickup && SFX.pickup(); } });
