@@ -145,7 +145,9 @@ function setFreeLook(on) {
   input.freeLook = on;
   document.body.style.cursor = on ? "none" : "";
 }
-// take the mouse; where the browser refuses the lock, look with a hidden free cursor instead
+// take the mouse; where the browser refuses the lock, look with a hidden free cursor instead. (A lock can take a moment
+// to come — longer in the app than in a browser — so it is waited for, and asked for again at the next click; the
+// moment it does come, the free cursor gives way to it, so turning never stops at the edge of the screen.)
 function lock() {
   const el = renderer.domElement;
   try { const p = el.requestPointerLock && el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
@@ -153,9 +155,10 @@ function lock() {
     if (document.pointerLockElement || G.mode !== "play") return;
     setFreeLook(true);
     // some embedded browsers forbid the lock outright; say so once, rather than let the cursor wander off
-    if (!lock.warned) { lock.warned = true; UI.hint("This browser will not lock the mouse, so the cursor can leave the window. Open the game in Chrome or Safari to look around freely.", 8); }
-  }, 250);
+    if (!lock.warned && location.protocol !== "app:") { lock.warned = true; UI.hint("This browser will not lock the mouse, so the cursor can leave the window. Open the game in Chrome or Safari to look around freely.", 8); }
+  }, 1200);
 }
+document.addEventListener("pointerlockchange", () => { if (document.pointerLockElement && input.freeLook) setFreeLook(false); });
 // M: lock the mouse, or where the browser refuses the lock, look with a hidden free cursor
 function toggleMouse() {
   if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); return; }
@@ -1397,7 +1400,7 @@ addEventListener("keydown", e => {
   }
 });
 // a click on the world while playing re-takes the mouse
-renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !input.freeLook && !overlay) lock(); });
+renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !overlay) lock(); });
 
 // ---- the loop ----
 let last = performance.now();

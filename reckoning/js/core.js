@@ -161,8 +161,8 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         // leaves and needles right up against the eye (standing inside a tree) thin away in a fine dither,
         // so you can see out through them and still be in among them
         if (dNear > 0.0) {
-          float dd = distance(vDWorld, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.3, dNear, dd);
-          if (kNear > 0.0) { float n = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453); if (n < kNear * 0.9) discard; }
+          float dd = distance(vDWorld, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.6, dNear, dd);
+          if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear * 0.92) discard; }
         }
         {
           vec3 p = vDWorld * dScale;
