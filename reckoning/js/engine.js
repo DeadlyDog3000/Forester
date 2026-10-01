@@ -1254,21 +1254,34 @@ function updateInteract(dt) {
 // ---------------------------------------------------------------------------
 const _mv = new THREE.Vector3();
 // the way to the marker, when a straight line would run into a house: [{x,z}], refreshed now and then
-let markerWay = null, markerWayT = 0, markerWayFor = null;
+let markerWay = null, markerWayT = 0, markerWayFor = null, markerShown = null;
+// the same objective, even when a chapter hands over a fresh marker every frame: the same person, or the same spot
+const sameMark = (a, b) => !!a && !!b && (a.actor || b.actor ? a.actor === b.actor : Math.hypot(a.x - b.x, a.z - b.z) < 0.6);
 function updateMarker(dt = 0) {
   const m = G.marker;
-  if (!m || G.mode !== "play" || G.cine) { UI.marker(0, 0, 0, false); markerWay = null; return; }
+  if (!m || G.mode !== "play" || G.cine) { UI.marker(0, 0, 0, false); markerWay = null; markerShown = null; return; }
   const target = m.actor ? m.actor.headPos().add(new THREE.Vector3(0, 0.35, 0)) : new THREE.Vector3(m.x, m.y ?? 1.8, m.z);
   const pl = G.player, w = G.world;
   let dist = Math.hypot(target.x - pl.pos.x, target.z - pl.pos.z);
-  if (dist < (m.hideWithin ?? 2.5)) { UI.marker(0, 0, 0, false); return; }
-  // a marker you can't walk straight to stands on the next corner of the way there; the distance is the whole way
+  if (dist < (m.hideWithin ?? 2.5)) { UI.marker(0, 0, 0, false); markerShown = null; return; }
+  // a marker you can't walk straight to stands on the next corner of the way there; the distance is the whole way.
+  // The way is worked out again now and then, not every frame, and kept unless it really changed — so the marker
+  // doesn't hop between a corner and the goal while you stand at the edge of seeing it
+  const fresh = !sameMark(m, markerWayFor);
   markerWayT -= dt;
-  if (!m.actor && w && w.col && dist < 160 && (markerWayT <= 0 || markerWayFor !== m)) {
-    markerWayT = 0.6; markerWayFor = m;
-    const way = findPath(w, pl.pos.x, pl.pos.z, target.x, target.z);
-    markerWay = way.length > 1 ? way : null;
-  } else if (m.actor) markerWay = null;
+  if (m.actor) markerWay = null;
+  else if (w && w.col && dist < 160 && (markerWayT <= 0 || fresh)) {
+    markerWayT = 0.8; markerWayFor = m.actor ? m : { x: m.x, z: m.z };
+    const eye = new THREE.Vector3(pl.pos.x, pl.pos.y + 1.2, pl.pos.z), to = new THREE.Vector3(target.x, Math.max(target.y, pl.pos.y + 1.2), target.z);
+    const clear = w.col.lineOfSight ? w.col.lineOfSight(eye, to) : false;
+    if (clear) markerWay = null;
+    else {
+      const way = findPath(w, pl.pos.x, pl.pos.z, target.x, target.z);
+      const next = way.length > 1 ? way : null;
+      // (a new way only replaces the old if its next corner is somewhere else)
+      if (!next || !markerWay || fresh || markerWay.length < 2 || Math.hypot(next[0].x - markerWay[0].x, next[0].z - markerWay[0].z) > 1.5) markerWay = next;
+    }
+  }
   if (markerWay) {
     while (markerWay.length > 1 && Math.hypot(markerWay[0].x - pl.pos.x, markerWay[0].z - pl.pos.z) < 1.6) markerWay.shift();
     if (markerWay.length > 1) {
@@ -1279,17 +1292,21 @@ function updateMarker(dt = 0) {
       target.set(c0.x, (w.heightAt ? w.heightAt(c0.x, c0.z) : 0) + 1.6, c0.z);
     }
   }
+  camera.updateMatrixWorld();
   _mv.copy(target).project(camera);
-  let behind = _mv.z > 1;
+  const behind = _mv.z > 1;
   let sx = _mv.x, sy = _mv.y;
-  if (behind) { sx = -sx; sy = -sy; }
+  if (behind) { sx = -sx; sy = -sy; sy = Math.min(sy, -0.5); }
   const edge = behind || Math.abs(sx) > 0.92 || Math.abs(sy) > 0.88;
   if (edge) {
-    if (behind) sy = Math.min(sy, -0.5);
     const k = Math.max(Math.abs(sx) / 0.92, Math.abs(sy) / 0.88);
     sx /= k; sy /= k;
   }
-  UI.marker((sx * 0.5 + 0.5) * innerWidth, (-sy * 0.5 + 0.5) * innerHeight, dist, true, edge);
+  // and on screen it glides to where it should be, rather than jumping
+  const px = (sx * 0.5 + 0.5) * innerWidth, py = (-sy * 0.5 + 0.5) * innerHeight;
+  if (!markerShown) markerShown = { x: px, y: py };
+  else { const k = Math.min(1, dt * 14); markerShown.x += (px - markerShown.x) * k; markerShown.y += (py - markerShown.y) * k; }
+  UI.marker(markerShown.x, markerShown.y, dist, true, edge);
 }
 
 // ---------------------------------------------------------------------------
