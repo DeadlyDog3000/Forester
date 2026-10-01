@@ -626,3 +626,11 @@ body.dark-fantasy #view::after { content: ""; position: fixed; inset: 0; pointer
 .dishcard li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-top: 1px solid rgba(138,106,58,0.3); }
 .dishcard li b { font-weight: 600; } .dishcard li.up b { color: #8cc084; } .dishcard li.down b { color: #e07a5a; }
 .dishcard .dc-foot { margin-top: 10px; font: italic 13px var(--sans); color: #b8a07a; }
+
+/* the credits */
+.credits { text-align: center; font-family: var(--serif); margin: 10px auto 26px; max-width: 520px; }
+.credits .cr-game { font-size: 34px; color: #f3e7c6; }
+.credits .cr-by { font: italic 16px var(--sans); color: var(--ink-dim); margin-bottom: 26px; }
+.credits .cr-role { font: 600 12px var(--sans); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-top: 18px; }
+.credits .cr-name { font-size: 26px; color: var(--ink); margin-top: 4px; }
+.credits .cr-note { font: italic 15px var(--sans); color: var(--ink-dim); margin-top: 30px; }

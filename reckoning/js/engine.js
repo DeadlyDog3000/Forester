@@ -545,7 +545,12 @@ export class Player {
     this.pos.x += this.vel.x * dt; this.pos.z += this.vel.z * dt;
 
     // jumping and gravity
-    if (canMove && input.hit("Space") && this.onGround && !UI.dialogOpen) { this.vy = 4.6; this.onGround = false; }
+    // (a jump costs breath: winded, you can't jump at all; tired, it's only a hop)
+    if (canMove && input.hit("Space") && this.onGround && !UI.dialogOpen && !(this.winded && G.stamina !== undefined)) {
+      const st = G.stamina ?? 1;
+      this.vy = 4.6 * (st < 0.2 ? 0.7 : 1); this.onGround = false;
+      if (G.stamina !== undefined) { G.stamina = Math.max(0, G.stamina - 0.12 * (G.staminaMul ?? 1) * staminaDrain(G.body)); if (G.stamina <= 0) this.winded = true; }
+    }
     this.vy -= 16 * dt;
     this.pos.y += this.vy * dt;
     if (w) {

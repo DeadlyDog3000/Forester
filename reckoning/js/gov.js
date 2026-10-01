@@ -16,8 +16,8 @@ function T(id, name, tree, req, depth, desc) { TECH[id] = { id, name, tree, req,
 T("foraging", "Foraging", "growth", [], 0, "Grass patches give +1 seed, gathered twice as fast");
 T("treecutting", "Tree Cutting", "growth", ["foraging"], 1, "Chopping 20% faster");
 T("axing", "Axing", "growth", ["treecutting"], 2, "Chopping 35% faster in total");
-T("sawing", "Sawing", "growth", ["axing"], 3, "+2 logs per tree");
-T("sawmills", "Sawmills", "growth", ["sawing"], 4, "+3 more logs per tree; doors cost 3 logs");
+T("sawing", "Sawing", "growth", ["axing"], 3, "trees felled quicker");
+T("sawmills", "Sawmills", "growth", ["sawing"], 4, "trees felled quicker again; doors cost 3 logs");
 T("replanting", "Replanting", "growth", ["foraging"], 1, "Saplings grow twice as fast");
 // The care of the body: what a colony learns about feeding and mending itself.
 // Both hang off Foraging and sit early and cheap on purpose — a farm growing

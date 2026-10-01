@@ -113,7 +113,7 @@ for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setDa
 G.player = new Player();
 
 // ---- screens ----
-const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates", "slots"];
+const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits"];
 let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
@@ -183,6 +183,7 @@ $("btnChapters").onclick = () => { buildChapters(); back = "title"; screen("chap
 $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
 $("btnControls").onclick = () => { back = "title"; screen("controls"); };
 $("btnUpdates").onclick = () => { back = "title"; screen("updates"); };
+$("btnCredits").onclick = () => { back = "title"; screen("credits"); };
 // quit: in the desktop app, closing the window ends the game (a browser tab cannot be closed by its page, so there it isn't offered)
 if (/Electron/.test(navigator.userAgent)) { $("btnQuitGame").classList.remove("hidden"); $("btnQuitGame").onclick = () => window.close(); }
 $("updateList").innerHTML = CHANGELOG.map(u => `<article class="upd"><div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");

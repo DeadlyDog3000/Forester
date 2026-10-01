@@ -1129,7 +1129,7 @@ async function ch5(w) {
 // ===========================================================================
 //  VI. THE CLEARING
 // ===========================================================================
-const CARRY_MAX = 6, DOOR_COST = 5, CABIN_COST = 20, LOGS_PER_TREE = 3;
+const CARRY_MAX = 6, DOOR_COST = 5, CABIN_COST = 20, LOGS_PER_TREE = 2;
 async function ch6(w) {
   setAtmo("morning"); G.bugs.setKind("flies");
   AUDIO.music("woods"); SFX.insectLoop(true);
@@ -2660,7 +2660,7 @@ function hennings(w, town) {
       { label: "Sell 6 loaves", note: "He knows a miller's wife who'll take them.", get: "+3 DM", can: () => S.bread >= 6, do: () => { S.bread -= 6; S.coin += 3; } },
       { label: "Sell 10 rye", note: "", get: "+2 DM", can: () => S.rye >= 10, do: () => { S.rye -= 10; S.coin += 2; } },
       { label: "Buy 10 rye", note: "For a hungry winter.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 10; } },
-      { label: "Buy a good saw", note: "Every tree felled gives a log more.", get: "10 DM", can: () => S.coin >= 10 && !S.upgrades.saw, done: () => S.upgrades.saw, do: () => { S.coin -= 10; S.upgrades.saw = true; } },
+      { label: "Buy a good saw", note: "Trees come down quicker — for you and the woodcutters.", get: "10 DM", can: () => S.coin >= 10 && !S.upgrades.saw, done: () => S.upgrades.saw, do: () => { S.coin -= 10; S.upgrades.saw = true; } },
       { label: "Buy iron axe heads", note: "The woodcutters fell a third quicker.", get: "14 DM", can: () => S.coin >= 14 && !S.upgrades.axes, done: () => S.upgrades.axes, do: () => { S.coin -= 14; S.upgrades.axes = true; } },
       ...ownOffers(12, 4),
     ],

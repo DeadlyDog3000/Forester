@@ -9,6 +9,11 @@ export const CHANGELOG = [
   {
     v: "0.31", date: "1 October 2026", title: "The kitchen",
     items: [
+      "Blackberry brambles round the clearing and along the road: hold F to pick a handful. They fruit again a few days later, and stand bare in the winter.",
+      "Jumping costs breath. Winded, you can't jump at all, and when you're nearly spent it's only a hop.",
+      "Every tree gives two logs. A good saw, and Sawing and Sawmills, now make felling quicker instead of giving extra logs.",
+      "The waypoint marker holds steady: one route to each objective, kept unless it really changes, and it glides across the screen instead of jumping between spots.",
+      "Credits, on the main menu.",
       "The road no longer looks like wooden planks: its brown was being mistaken for timber and given wood grain. It has the plain earthy grain of the ground now.",
       "The roads melt into the ground now: their edges fade out over a wider band, and the grass along them and up the middle takes the colour of the ground there (litter, moss, dry grass, stone) instead of one green everywhere. The roads to new settlements fade in the same way.",
       "Two new settings: Saturation (from washed out to vivid) and Pixelation (from off up to 8×, for big hard pixels).",

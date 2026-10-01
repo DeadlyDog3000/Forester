@@ -13,6 +13,7 @@ import { INK, TREEC, TOWN, tree, road, label, seen } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM } from "./furnish.js";
 import { ROCKS } from "./body.js";
 import { AUDIO } from "./audio.js";
+import { UI } from "./ui.js";
 
 // the road out of the city winds: round hills, round bogs, round other people's land
 const ROAD_PTS = [[0, 30], [0, 10], [9, -16], [24, -38], [18, -62], [-4, -78], [-24, -98], [-30, -124], [-14, -146], [10, -154], [28, -172],
@@ -246,6 +247,7 @@ export class Woods extends WorldBase {
       else ub.add(new THREE.DodecahedronGeometry(0.5, 0), 0x7a7870, x, y + 0.1, z, r(), r(), r(), r.range(0.5, 1.4), r.range(0.3, 0.7), r.range(0.5, 1.2), 0.08);
     }
     root.add(ub.build(MAT.rough, { shadow: false }));
+    this.makeBerryBushes();
 
     // ---- the road: a narrow cart track, two ruts and grass up the middle; the forks fainter still ----
     const rPos = [], rCol = [], rIdx = [];
@@ -1146,6 +1148,43 @@ export class Woods extends WorldBase {
     this.root.add(this.homeRemodel);
     if (this.homeLight) this.homeLight.distance = 9;
     this.makeKitchen();
+  }
+  // Brambles round the clearing and along the road, heavy with blackberries: hold F to pick a handful. They fruit
+  // again in a few days' time, and stand bare through the winter.
+  makeBerryBushes() {
+    const r = rng(733), leafB = new Builder();
+    this.bushes = [];
+    for (let i = 0, tries = 0; i < 30 && tries < 400; tries++) {
+      let x, z;
+      if (r() < 0.6) { const a = r() * TAU, d = CLEARING.r + 3 + r() * 30; x = CLEARING.x + Math.cos(a) * d; z = CLEARING.z + Math.sin(a) * d; }
+      else { const t = this.road[Math.floor(r() * this.road.length)], a = r() * TAU, d = 4 + r() * 10; x = t.x + Math.cos(a) * d; z = t.z + Math.sin(a) * d; }
+      if (this.anyRoadDist(x, z).d < 3.2 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 1) continue;
+      const y = this.heightAt(x, z);
+      if (this.col.solidAt(x, y + 0.5, z, 0.9) || this.bushes.some(b => Math.hypot(b.x - x, b.z - z) < 4)) continue;
+      // the bramble: a low tangle of dark leaves
+      for (let j = 0; j < 4; j++) leafB.add(TREE.blob, r.pick([0x2e4a24, 0x35522a, 0x3a5a2c]), x + r.range(-0.45, 0.45), y + 0.25 + r() * 0.2, z + r.range(-0.45, 0.45), 0, r() * 3, 0, r.range(0.45, 0.75), r.range(0.35, 0.55), r.range(0.45, 0.75), 0.08);
+      // and the fruit on it: ripe black, a few still red
+      const fb = new Builder();
+      for (let j = 0; j < 16; j++) { const a = r() * TAU, d = 0.3 + r() * 0.45; fb.add(new THREE.IcosahedronGeometry(0.035, 0), r() < 0.8 ? 0x241030 : 0x9a2a2a, x + Math.cos(a) * d, y + 0.3 + r() * 0.45, z + Math.sin(a) * d, 0, 0, 0, 1, 1, 1, 0); }
+      const fruit = fb.build(MAT.rough, { shadow: false }); this.root.add(fruit);
+      const bush = { x, z, fruit, ripeAt: 0 };
+      const ripe = () => G.time >= bush.ripeAt && !(G.town && G.town.winter);
+      bush.it = this.addInteract({ x, y: y + 0.6, z, reach: 2, hold: 1.4, anim: "sow",
+        label: () => { fruit.visible = ripe(); return (G.town && G.town.winter) ? "A bramble, bare for the winter" : ripe() ? "Pick blackberries" : "A bramble — picked clean; it'll fruit again in a few days"; },
+        can: () => ripe(),
+        use: () => {
+          const n = 3 + Math.floor(Math.random() * 3), got = G.packAdd ? G.packAdd("blackberries", n, "Blackberries", "Picked off the brambles. A mouthful each — eat them (their number), or cook them into a dish.") : 0;
+          if (!got) return;
+          bush.ripeAt = G.time + 300 + Math.random() * 120; fruit.visible = false;
+          UI.hint(`${got} blackberries${got < n ? " (your pack is full)" : ""}. Your fingers are purple.`, 2.5);
+          window.SFX && window.SFX.pickup && window.SFX.pickup();
+        } });
+      this.bushes.push(bush); i++;
+    }
+    this.root.add(leafB.build(MAT.rough, { shadow: false }));
+    // (the fruit comes back on its own time, and goes in the winter)
+    this.bushTick = () => { for (const b of this.bushes) b.fruit.visible = G.time >= b.ripeAt && !(G.town && G.town.winter); };
+    G.onFrame.push(dt => { if (G.world === this && (this._bushT = (this._bushT || 0) - dt) <= 0) { this._bushT = 2; this.bushTick(); } });
   }
   makeKitchen() {
     for (const c of this.kitchenCols || []) this.col.remove(c);

@@ -105,7 +105,7 @@ export function modelKey(b) {
 }
 // the year: eight days, and the last two of them winter
 export const YEAR = 8, SEASONS = ["spring", "spring", "summer", "summer", "autumn", "autumn", "winter", "winter"];
-export const LOGS_PER_TREE = 3, CARRY_MAX = 6;
+export const LOGS_PER_TREE = 2, CARRY_MAX = 6;
 // a harvest: four rye from a field, five with a well; a loaf takes two and a half rye (five make two), and feeds as three
 const RYE_HARVEST = 4, LOAF_RYE = 2.5, LOAF_FEEDS = 3;
 // the work a settler can be set to; talking to them (F) moves them on to the next
@@ -355,7 +355,8 @@ export class Town {
   // ---- what the settlement can hold ----
   get hearths() { return 1 + this.count("cabin"); }
   get beds() { return 2 + this.ownBeds + this.S.buildings.filter(b => b.done && b.type === "cabin").reduce((a, b) => a + this.sleeps(b), 0); }
-  get logsPerTree() { return LOGS_PER_TREE - 1 + (this.S.upgrades.saw ? 1 : 0) + (this.knows("sawing") ? 1 : 0) + (this.knows("sawmills") ? 1 : 0); }
+  // every tree gives two logs; a good saw and the sawing crafts make the felling quicker instead
+  get logsPerTree() { return LOGS_PER_TREE; }
   get storeCap() { return 40 + this.S.buildings.filter(b => b.done && b.type === "woodshed").reduce((a, b) => a + SHED_BAYS[b.bays || 1].holds, 0); }
   has(type) { return this.S.buildings.some(b => b.done && b.type === type); }
   count(type) { return this.S.buildings.filter(b => b.done && b.type === type).length; }
@@ -478,7 +479,7 @@ export class Town {
   // (a work done at a building needs only the building: whatever let you build it lets you staff it)
   jobGated(job) { const g = (this.researchGates || this.techGates) && JOB_GATES[job]; return g && !this.knows(g) && !(JOB_AT[job] && this.has(JOB_AT[job])) ? TECH[g] : null; }
   // what the knowledge does here
-  get chopMul() { return this.knows("axing") ? 0.65 : this.knows("treecutting") ? 0.8 : 1; }
+  get chopMul() { return (this.knows("axing") ? 0.65 : this.knows("treecutting") ? 0.8 : 1) * (this.S.upgrades.saw ? 0.9 : 1) * (this.knows("sawing") ? 0.85 : 1) * (this.knows("sawmills") ? 0.85 : 1); }
   get walkMul() { return (this.knows("horses") ? 1.15 : 1) + (this.knows("horsebreeding") ? 0.1 : 0) + (this.knows("saddling") ? 0.1 : 0); }
   get workMul() { return this.knows("stables") ? 0.8 : 1; }
   get perCabin() { return this.knows("landownership") ? 3 : 2; }
