@@ -112,14 +112,11 @@ export class Woods extends WorldBase {
     const vn = (x, z) => { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
       return (hash(i, j) * (1 - u) + hash(i + 1, j) * u) * (1 - v) + (hash(i, j + 1) * (1 - u) + hash(i + 1, j + 1) * u) * v; };
     const c = new THREE.Color();
-    for (let t = 0; t < pos.count; t += 3) {
-      const x = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, z = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
+    // the colour of the ground at a point: litter, drifts of dry grass and leaves, moss, bracken, bare earth, stone on
+    // the banks, grass in the clearing, the road's dust. (The road itself takes its edges from this, so it melts in.)
+    const groundAt = (x, z, steep, c) => {
       const moss = vn(x * 0.09, z * 0.09), bare = vn(x * 0.12 + 31, z * 0.12 + 17), leaf = vn(x * 0.16 + 9, z * 0.16 + 4);
       const fern = vn(x * 0.07 + 51, z * 0.07 + 77), dry = vn(x * 0.05 + 13, z * 0.05 + 91);
-      // how steep this facet is: stone shows through on the banks
-      const ax = pos.getX(t + 1) - pos.getX(t), ay = pos.getY(t + 1) - pos.getY(t), az = pos.getZ(t + 1) - pos.getZ(t);
-      const bx = pos.getX(t + 2) - pos.getX(t), by = pos.getY(t + 2) - pos.getY(t), bz = pos.getZ(t + 2) - pos.getZ(t);
-      const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, steep = 1 - Math.abs(ny) / (Math.hypot(nx, ny, nz) || 1);
       c.copy(PAL.litter);
       if (dry > 0.6) c.lerp(PAL.dry, Math.min(1, (dry - 0.6) * 3.5));          // sunny drifts of old dry grass
       if (leaf > 0.6) c.lerp(PAL.leaf, Math.min(0.8, (leaf - 0.6) * 4));       // beech leaves under the broadleaves
@@ -131,6 +128,20 @@ export class Woods extends WorldBase {
       if (dc < CLEARING.r + 8) c.lerp(PAL.grass, clamp((CLEARING.r + 8 - dc) / 10, 0, 1) * 0.75);
       const d = this.anyRoadDist(x, z).d;
       if (d < 3) c.lerp(PAL.road, clamp((3 - d) / 2, 0, 1) * 0.7);
+      return c;
+    };
+    this.groundColour = (x, z, out = new THREE.Color()) => {
+      // (the slope from the ground either side)
+      const e = 0.8, sx = this.heightAt(x + e, z) - this.heightAt(x - e, z), sz = this.heightAt(x, z + e) - this.heightAt(x, z - e);
+      return groundAt(x, z, 1 - 1 / Math.hypot(sx / (2 * e), 1, sz / (2 * e)), out);
+    };
+    for (let t = 0; t < pos.count; t += 3) {
+      const x = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, z = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
+      // how steep this facet is: stone shows through on the banks
+      const ax = pos.getX(t + 1) - pos.getX(t), ay = pos.getY(t + 1) - pos.getY(t), az = pos.getZ(t + 1) - pos.getZ(t);
+      const bx = pos.getX(t + 2) - pos.getX(t), by = pos.getY(t + 2) - pos.getY(t), bz = pos.getZ(t + 2) - pos.getZ(t);
+      const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, steep = 1 - Math.abs(ny) / (Math.hypot(nx, ny, nz) || 1);
+      groundAt(x, z, steep, c);
       c.multiplyScalar(0.84 + hash(x * 0.37, z * 0.53) * 0.32);       // each facet a shade apart from its neighbours
       for (let k = 0; k < 3; k++) { colors[(t + k) * 3] = c.r; colors[(t + k) * 3 + 1] = c.g; colors[(t + k) * 3 + 2] = c.b; }
     }
@@ -241,8 +252,11 @@ export class Woods extends WorldBase {
     const C = h => new THREE.Color(h);
     const GRASS = C(0x7c8a5c), EDGE = C(0x8a7a5a), DIRT = C(0x7a6848), RUT = C(0x4e4232), MID = C(0x6c7448);
     // across the track, from the grass on one side to the grass on the other: [offset in half-widths, colour, height]
-    const XS = [[-1.5, GRASS, 0.015], [-1.0, EDGE, 0.03], [-0.66, RUT, 0.0], [-0.4, DIRT, 0.03], [0, MID, 0.05], [0.4, DIRT, 0.03], [0.66, RUT, 0.0], [1.0, EDGE, 0.03], [1.5, GRASS, 0.015]];
-    const tc = new THREE.Color();
+    // [offset, colour, height, how much of the ground's own colour shows]: the edges fade out into whatever the ground is
+    // there — litter, moss, dry grass, stone — and the grass up the middle is that ground's own green, not one green everywhere
+    const XS = [[-1.85, EDGE, 0.006, 1], [-1.4, EDGE, 0.016, 0.7], [-1.0, EDGE, 0.03, 0.35], [-0.66, RUT, 0.0, 0.12], [-0.4, DIRT, 0.03, 0.15], [0, MID, 0.05, 0.6],
+      [0.4, DIRT, 0.03, 0.15], [0.66, RUT, 0.0, 0.12], [1.0, EDGE, 0.03, 0.35], [1.4, EDGE, 0.016, 0.7], [1.85, EDGE, 0.006, 1]];
+    const tc = new THREE.Color(), gc = new THREE.Color();
     const track = (R, W0, W1, seed) => {
       const base = rPos.length / 3, n = XS.length;
       for (let i = 0; i < R.length; i++) {
@@ -253,14 +267,15 @@ export class Woods extends WorldBase {
         // the width wanders, as a track worn by carts and weather does
         const W = (W0 + (W1 - W0) * f) * (1 + 0.2 * Math.sin(i * 0.31 + seed) + 0.1 * Math.sin(i * 1.7 + seed * 3));
         for (let j = 0; j < n; j++) {
-          const [o, c, h] = XS[j];
+          const [o, c, h, mix] = XS[j];
           const edge = Math.abs(o) >= 1;
           const jit = edge ? (r() - 0.5) * 0.3 : (r() - 0.5) * 0.06;
           const x = R[i].x + nx * (o * W + jit), z = R[i].z + nz * (o * W + jit);
-          rPos.push(x, this.heightAt(x, z) + h + (r() - 0.5) * 0.02, z);
-          tc.copy(c).offsetHSL(0, 0, (r() - 0.5) * 0.06);
-          // fainter towards the end of a fork: the grass takes it back
-          if (W1 < W0) tc.lerp(GRASS, f * f * 0.8);
+          rPos.push(x, this.heightAt(x, z) + h + (r() - 0.5) * (mix >= 1 ? 0 : 0.02), z);
+          this.groundColour(x, z, gc);
+          tc.copy(c).offsetHSL(0, 0, (r() - 0.5) * 0.06).lerp(gc, mix);
+          // fainter towards the end of a fork: the ground takes it back
+          if (W1 < W0) tc.lerp(gc, f * f * 0.8);
           rCol.push(tc.r, tc.g, tc.b);
         }
         if (i > 0) for (let j = 0; j < n - 1; j++) {
@@ -278,7 +293,7 @@ export class Woods extends WorldBase {
     rg.computeVertexNormals();
     // wound the other way round: flip if it faces down
     if (rg.attributes.normal.getY(0) < 0) { const ix = rg.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } rg.computeVertexNormals(); }
-    const roadMesh = new THREE.Mesh(rg, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 4, amount: 0.35, grain: 0.8 }));
+    const roadMesh = new THREE.Mesh(rg, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 4, amount: 0.2, grain: 0.6 }));
     roadMesh.receiveShadow = true;
     root.add(roadMesh);
     // stones kicked to the sides, tufts in the middle

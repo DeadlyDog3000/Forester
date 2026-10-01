@@ -601,7 +601,7 @@ body.freecam #hud > *:not(#hint) { visibility: hidden; }
 .law-tog { display: flex; gap: 8px; align-items: center; font: 15px var(--serif, Georgia); margin-top: 6px; }
 
 /* Dark Fantasy: big hard pixels, the colour drained and the corners in shadow */
-body.dark-fantasy #view canvas { image-rendering: pixelated; filter: saturate(0.6) contrast(1.15) sepia(0.12); }
+/* (its filter and pixels are set from the settings, with the saturation and pixelation sliders) */
 body.dark-fantasy #view::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.6) 100%); }
 
 /* the kitchen: the gauge of how done it is, and the card a finished dish is judged on */

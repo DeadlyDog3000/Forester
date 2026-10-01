@@ -51,6 +51,13 @@ function applySettings() {
   $("setDynres").checked = !!s.dynres; $("setShadows").value = s.shadows || "high"; $("setDraw").value = String(s.draw ?? 1);
   $("setCap").value = String(s.cap || 0); $("setFps").checked = !!s.showFps;
   $("setDark").checked = !!s.dark; document.body.classList.toggle("dark-fantasy", !!s.dark);
+  // saturation and pixelation: the colour turned up or down, and the picture drawn in bigger, harder pixels
+  const sat = s.sat ?? 1, pix = s.pix ?? 1;
+  $("setSat").value = sat; $("satVal").textContent = Math.round(sat * 100) + "%";
+  $("setPix").value = pix; $("pixVal").textContent = pix > 1 ? `${pix}×` : "off";
+  const cv = renderer.domElement;
+  cv.style.filter = [s.dark ? "saturate(0.6) contrast(1.15) sepia(0.12)" : "", Math.abs(sat - 1) > 0.01 ? `saturate(${sat})` : ""].filter(Boolean).join(" ");
+  cv.style.imageRendering = s.dark || pix > 1 ? "pixelated" : "";
   G.reAtmo && G.reAtmo();
   $("fpsMeter").classList.toggle("hidden", !s.showFps);
   setGraphics({ shadows: s.shadows || "high", drawMul: +(s.draw ?? 1) });
@@ -58,7 +65,7 @@ function applySettings() {
   applyScale();
   $("sensVal").textContent = (+s.sens).toFixed(2); $("fovVal").textContent = s.fov + "°"; $("volVal").textContent = Math.round(s.volume * 100) + "%";
 }
-for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true], ["setVol", "volume", true]]) {
+for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true], ["setVol", "volume", true], ["setSat", "sat", true], ["setPix", "pix", true]]) {
   $(id).addEventListener("input", e => { G.settings[key] = num ? +e.target.value : e.target.value; applySettings(); G.saveSettings(); });
 }
 $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.value; applySettings(); G.saveSettings(); });
@@ -72,7 +79,7 @@ let dynScale = 1;
 function applyScale() {
   const s = G.settings;
   // (Dark Fantasy draws at a fraction of the resolution, in big hard-edged pixels)
-  const pr = s.dark ? 0.42 * dynScale : Math.min(devicePixelRatio, 1.75) * (s.scale ?? 1) * dynScale;
+  const pr = (s.dark ? 0.42 * dynScale : Math.min(devicePixelRatio, 1.75) * (s.scale ?? 1) * dynScale) / (s.pix ?? 1);
   if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) renderer.setPixelRatio(pr);
   renderer.setSize(innerWidth, innerHeight);
 }

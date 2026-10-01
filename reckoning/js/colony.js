@@ -79,13 +79,22 @@ export function lay(town, c) {
   w.clearScenery && w.clearScenery(c.x, c.z, c.r + 4, (x, z) => onRoad(c, x, z));
   const g = new THREE.Group();
   // the road: a strip of trodden earth, laid over the ground as it lies
-  const dirt = new THREE.MeshStandardMaterial({ color: 0x8a6e4e, roughness: 1, flatShading: true });
+  // (its edges take the colour of the ground they run over, so the road fades into the forest floor)
+  const dirt = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true });
+  const DUST = new THREE.Color(0x8a6e4e), RUT = new THREE.Color(0x6a5438), gc = new THREE.Color(), tc = new THREE.Color();
   for (let i = 0; i < c.road.length - 1; i++) {
     const [ax, az] = c.road[i], [bx, bz] = c.road[i + 1], len = Math.hypot(bx - ax, bz - az);
-    const geo = new THREE.PlaneGeometry(3.6, len + 1.2, 3, Math.ceil(len / 1.5)); geo.rotateX(-Math.PI / 2);
+    const geo = new THREE.PlaneGeometry(5.4, len + 1.2, 6, Math.ceil(len / 1.5)); geo.rotateX(-Math.PI / 2);
     const ry = Math.atan2(bx - ax, bz - az), cx = (ax + bx) / 2, cz = (az + bz) / 2, co = Math.cos(ry), si = Math.sin(ry);
-    const p = geo.attributes.position;
-    for (let k = 0; k < p.count; k++) { const lx = p.getX(k), lz = p.getZ(k); p.setY(k, w.heightAt(cx + lx * co + lz * si, cz - lx * si + lz * co) + 0.05); }
+    const p = geo.attributes.position, col = new Float32Array(p.count * 3);
+    for (let k = 0; k < p.count; k++) {
+      const lx = p.getX(k), lz = p.getZ(k), x = cx + lx * co + lz * si, z = cz - lx * si + lz * co, a = Math.abs(lx) / 2.7;
+      p.setY(k, w.heightAt(x, z) + 0.05 - Math.max(0, a - 0.6) * 0.1);
+      w.groundColour ? w.groundColour(x, z, gc) : gc.copy(DUST);
+      tc.copy(a > 0.25 && a < 0.5 ? RUT : DUST).lerp(gc, Math.min(1, Math.max(0, (a - 0.45) / 0.55)) + 0.12);
+      col[k * 3] = tc.r; col[k * 3 + 1] = tc.g; col[k * 3 + 2] = tc.b;
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, dirt); m.position.set(cx, 0, cz); m.rotation.y = ry; m.receiveShadow = true; g.add(m);
   }

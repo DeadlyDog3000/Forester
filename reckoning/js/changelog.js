@@ -9,6 +9,8 @@ export const CHANGELOG = [
   {
     v: "0.31", date: "1 October 2026", title: "The kitchen",
     items: [
+      "The roads melt into the ground now: their edges fade out over a wider band, and the grass along them and up the middle takes the colour of the ground there (litter, moss, dry grass, stone) instead of one green everywhere. The roads to new settlements fade in the same way.",
+      "Two new settings: Saturation (from washed out to vivid) and Pixelation (from off up to 8×, for big hard pixels).",
       "Everyone's shoulders are joined on properly now: a broad shoulder line across the top of the chest that the arms grow out of, instead of arms hanging off a narrow neck. The arms hang closer to the body too.",
       "The kitchen stays locked until you rebuild your cabin as a house (B, inside the cabin). Until then there's only the fire.",
       "A kitchen in your house: rebuild your cabin in timber and plaster, and there's a brick range beside the hearth with a pot and a pan on it, a work table with a board and a knife, crocks on a shelf and herbs drying. F at the range opens the recipes.",
