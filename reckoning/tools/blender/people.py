@@ -168,22 +168,26 @@ def build_person(key):
     stoop = o.get("stoop", 0.0)
     J = {
         "pelvis": (0, 0, 0.93), "spine": (0, 0.0, 1.10), "chest": (0, stoop * 0.3, 1.30), "neck": (0, stoop * 0.6, 1.49), "head": (0, stoop * 0.8, 1.56),
-        "shoulder.L": (sh, stoop * 0.4, 1.43), "elbow.L": (sh + 0.05, 0.02, 1.16), "wrist.L": (sh + 0.075, -0.01, 0.93), "hand.L": (sh + 0.08, -0.02, 0.84),
-        "shoulder.R": (-sh, stoop * 0.4, 1.43), "elbow.R": (-sh - 0.05, 0.02, 1.16), "wrist.R": (-sh - 0.075, -0.01, 0.93), "hand.R": (-sh - 0.08, -0.02, 0.84),
+        # the yoke: the breadth across the top of the chest that the shoulders grow out of, so the arms don't hang off a
+        # narrow neck like a doll's
+        "yoke": (0, stoop * 0.45, 1.405),
+        "shoulder.L": (sh, stoop * 0.4, 1.42), "elbow.L": (sh + 0.03, 0.02, 1.16), "wrist.L": (sh + 0.045, -0.01, 0.93), "hand.L": (sh + 0.05, -0.02, 0.84),
+        "shoulder.R": (-sh, stoop * 0.4, 1.42), "elbow.R": (-sh - 0.03, 0.02, 1.16), "wrist.R": (-sh - 0.045, -0.01, 0.93), "hand.R": (-sh - 0.05, -0.02, 0.84),
         "hip.L": (hp, 0, 0.90), "knee.L": (hp + 0.005, -0.015, 0.50), "ankle.L": (hp + 0.01, 0.02, 0.085), "toe.L": (hp + 0.01, -0.13, 0.035),
         "hip.R": (-hp, 0, 0.90), "knee.R": (-hp - 0.005, -0.015, 0.50), "ankle.R": (-hp - 0.01, 0.02, 0.085), "toe.R": (-hp - 0.01, -0.13, 0.035),
     }
     # radii: (across, front-to-back)
     wide = o.get("wide", 0.0)
     R = {
-        "pelvis": ((0.17 if f else 0.155) + wide, 0.115 + wide * 0.6), "spine": (0.14 + wide * 0.8, 0.1 + wide * 0.6), "chest": ((0.155 if f else 0.175) + wide * 0.5, 0.11),
+        "pelvis": ((0.17 if f else 0.155) + wide, 0.115 + wide * 0.6), "spine": (0.15 + wide * 0.8, 0.1 + wide * 0.6), "chest": ((0.16 if f else 0.18) + wide * 0.5, 0.11),
+        "yoke": ((0.15 if f else 0.175) + wide * 0.4, 0.1),
         "neck": (0.052, 0.055), "head": (0.058, 0.06),
-        "shoulder": (0.062, 0.062), "elbow": (0.046, 0.046), "wrist": (0.034, 0.03), "hand": (0.042, 0.02),
+        "shoulder": (0.07, 0.068), "elbow": (0.048, 0.048), "wrist": (0.034, 0.03), "hand": (0.042, 0.02),
         "hip": (0.088 if f else 0.085, 0.09), "knee": (0.056, 0.058), "ankle": (0.04, 0.042), "toe": (0.045, 0.03),
     }
-    edges = [("pelvis", "spine"), ("spine", "chest"), ("chest", "neck"), ("neck", "head")]
+    edges = [("pelvis", "spine"), ("spine", "chest"), ("chest", "yoke"), ("yoke", "neck"), ("neck", "head")]
     for s in "LR":
-        edges += [("chest", f"shoulder.{s}"), (f"shoulder.{s}", f"elbow.{s}"), (f"elbow.{s}", f"wrist.{s}"), (f"wrist.{s}", f"hand.{s}"),
+        edges += [("yoke", f"shoulder.{s}"), (f"shoulder.{s}", f"elbow.{s}"), (f"elbow.{s}", f"wrist.{s}"), (f"wrist.{s}", f"hand.{s}"),
                   ("pelvis", f"hip.{s}"), (f"hip.{s}", f"knee.{s}"), (f"knee.{s}", f"ankle.{s}"), (f"ankle.{s}", f"toe.{s}")]
     names = list(J)
     me = bpy.data.meshes.new(f"{key}_body")
@@ -343,7 +347,7 @@ def build_person(key):
                 P.sphere("metal", WHITE, (s * 0.075, -0.118, 1.34 - i * 0.07), (0.01, 0.007, 0.01), segs=8, rings=6)
         # deep turned-back cuffs
         for s in (-1, 1):
-            x0 = s * (sh + 0.068)
+            x0 = s * (sh + 0.04)
             P.cyl("coat", WHITE, (x0, 0.0, 0.97), (x0, -0.005, 1.07), 0.052, 0.058, segs=14)
         # a belt of leather under the coat's waist? (the sash, for the watch)
         if o.get("sash"):

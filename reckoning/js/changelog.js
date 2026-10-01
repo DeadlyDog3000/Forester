@@ -9,6 +9,7 @@ export const CHANGELOG = [
   {
     v: "0.31", date: "1 October 2026", title: "The kitchen",
     items: [
+      "Everyone's shoulders are joined on properly now: a broad shoulder line across the top of the chest that the arms grow out of, instead of arms hanging off a narrow neck. The arms hang closer to the body too.",
       "The kitchen stays locked until you rebuild your cabin as a house (B, inside the cabin). Until then there's only the fire.",
       "A kitchen in your house: rebuild your cabin in timber and plaster, and there's a brick range beside the hearth with a pot and a pan on it, a work table with a board and a knife, crocks on a shelf and herbs drying. F at the range opens the recipes.",
       "Cooking, properly: the meat is cut up on the board, then into the pan or the pot. Watch the gauge and take it off the heat (Space) in the green. Too soon and it's underdone or raw; too late and it's dry, or burnt black. Turn what's in the pan once, about halfway (F); keep the pot stirred (F) or it catches on the bottom.",
