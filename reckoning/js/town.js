@@ -1670,6 +1670,7 @@ export class Town {
     const field = S.buildings.find(b => b.type === "field" && !b.sown);
     const food = S.rye + S.bread * LOAF_FEEDS;
     if (this.raids && this.raids.active) return `Raiders! ${this.raids.band.filter(r => r.alive).length} in the settlement — drive them off with the axe or the bow before they carry off the stores`;
+    if (S.caveAsked && !S.caveDone) return `${G.who === "sister" ? "Brother" : "Sister"} wants you to dig ore in the cave where the fork in the road runs out (marked). Sell it to Henning or Tobias${this.has("forge") ? "" : " — you can't forge it yourselves yet"}`;
     const clear = this.toClear().length;
     if (clear) return `Clear the new ground: ${clear} tree${clear > 1 ? "s" : ""} left past the old edge — everyone is felling`;
     if (S.lobes && this.roomDue() > 0) return `Room to grow — ${this.pop} of you now: open the map (J) and mark out new ground beyond the edge`;

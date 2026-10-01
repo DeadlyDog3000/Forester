@@ -9,6 +9,8 @@ export const CHANGELOG = [
   {
     v: "0.31", date: "1 October 2026", title: "The kitchen",
     items: [
+      "The cave is where a fork in the road runs out now: the track that used to stop at a fallen spruce goes on to the cave mouth.",
+      "A couple of days into free play, your sister tells you about the cave and asks you to dig ore there to sell to Henning and Tobias. Until you have a forge, she warns you can't use it yourselves: neither of you knows how to forge yet. It's marked until you get there.",
       "Blackberry brambles round the clearing and along the road: hold F to pick a handful. They fruit again a few days later, and stand bare in the winter.",
       "Jumping costs breath. Winded, you can't jump at all, and when you're nearly spent it's only a hop.",
       "Every tree gives two logs. A good saw, and Sawing and Sawmills, now make felling quicker instead of giving extra logs.",

@@ -327,6 +327,8 @@ export class Woods extends WorldBase {
         arm((bd.x - at.x) / bl, (bd.z - at.z) / bl, 1.85, 1.0);
       }
       if (br.n === 3) { this.buildBurner(br); continue; }
+      // (the track to the cave runs on to its mouth: nothing fallen across it)
+      if (br.n === this.caveBranch().n) continue;
       // the dead end: a spruce fallen across the track
       const e = br.pts[br.pts.length - 4], e2 = br.pts[br.pts.length - 1];
       const ey = this.heightAt(e.x, e.z), ang = Math.atan2(e2.x - e.x, e2.z - e.z);
@@ -629,6 +631,21 @@ export class Woods extends WorldBase {
     return { d: Math.sqrt(best), i: bi, t: bi / (R.length - 1), x: R[bi].x, z: R[bi].z };
   }
   // the nearest of the road and its forks: {d, x, z, branch} (branch is null on the road itself)
+  // which fork leads to the cave, and where its mouth is: at the end of the track nearest the clearing that isn't the
+  // charcoal burner's, well off the main road and clear of the deer ride
+  caveBranch() {
+    if (this._caveBr !== undefined) return this._caveBr;
+    let best = null;
+    for (const br of this.branches || []) {
+      if (br.n === 3) continue;
+      const pts = br.pts, e = pts[pts.length - 1], p = pts[pts.length - 7], l = Math.hypot(e.x - p.x, e.z - p.z) || 1, dx = (e.x - p.x) / l, dz = (e.z - p.z) / l;
+      const x = e.x + dx * 6, z = e.z + dz * 6;
+      if (Math.hypot(x - HUNT.x, z - HUNT.z) < HUNT.r + 6 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 14 || this.roadDist(x, z).d < 14) continue;
+      const score = Math.hypot(br.at.x - CLEARING.x, br.at.z - CLEARING.z);
+      if (!best || score < best.score) best = { x, z, ry: Math.atan2(-dx, -dz), n: br.n, score };
+    }
+    return (this._caveBr = best || { x: CLEARING.x + 70, z: CLEARING.z, ry: -Math.PI / 2, n: -1 });
+  }
   anyRoadDist(x, z) {
     const m = this.roadDist(x, z);
     let best = { d: m.d, x: m.x, z: m.z, branch: null, i: m.i };

@@ -1952,18 +1952,9 @@ function loadTown() {
   return t;
 }
 // the cave's mouth: the steepest bit of hillside a good way out, off the roads, facing back towards the clearing
-function caveMouthSpot(w) {
-  let best = null;
-  for (let i = 0; i < 90; i++) {
-    const a = i / 90 * Math.PI * 2, d = 62 + (i % 5) * 7, x = CLEARING.x + Math.cos(a) * d, z = CLEARING.z + Math.sin(a) * d;
-    if (w.anyRoadDist(x, z).d < 12 || Math.hypot(x - HUNT.x, z - HUNT.z) < HUNT.r) continue;
-    if ((w.rocks || []).some(k => Math.hypot(k.x - x, k.z - z) < 8)) continue;
-    const toward = Math.atan2(CLEARING.x - x, CLEARING.z - z);
-    const behind = w.heightAt(x - Math.sin(toward) * 6, z - Math.cos(toward) * 6) - w.heightAt(x, z);
-    if (!best || behind > best.s) best = { x, z, ry: toward, s: behind };
-  }
-  return best || { x: CLEARING.x + 70, z: CLEARING.z, ry: -Math.PI / 2 };
-}
+// the cave: at the end of one of the forks off the road (the woods know which) — a track that used to peter out in
+// the trees now leads to it
+function caveMouthSpot(w) { return w.caveBranch(); }
 function startTown(w, unlocked, needed = []) {
   const S = loadTown();
   const town = new Town(w, S, () => writeSave({ town: S }), { keepClear: [[FIELD.x, FIELD.z, 5]] });
@@ -1980,6 +1971,8 @@ function startTown(w, unlocked, needed = []) {
   if (!w.cave) {
     w.cave = new Caves(w);
     const m = caveMouthSpot(w); w.cave.mouth(m.x, m.z, m.ry);
+    // and its fork is open to walk down
+    if (m.n >= 0) { w.openTracks.add(m.n); w.caveFork = m.n; }
   }
   w.cave.found = !!(loadTown().caveFound);
   onFrame(dt => w.cave && w.cave.tick(dt));
@@ -2720,6 +2713,24 @@ async function chFree(w) {
   restock();
   // (and through the day too, a beast at a time, so the ride is never long empty)
   { let rt = 40; onFrame(dt => { if ((rt -= dt) > 0) return; rt = 40; const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; const k = Object.keys(WANT).find(k => n(k) < WANT[k]); if (k) hunt.spawn(k, 1); }); }
+  // the cave where the fork in the road runs out: a couple of days in, your sibling has an idea about it — ore to sell,
+  // though it's no use to you yet, with nobody who knows how to forge it
+  onFrame(() => {
+    const cave = w.cave; if (!cave || !cave.mouthAt || G.mode !== "play") return;
+    if (!S.caveAsked) {
+      if (town.day < 2 || town.frac < 0.15 || town.frac > 0.6 || UI.dialogOpen || G.cine || G.lockMove || (town.raids && town.raids.active)) return;
+      S.caveAsked = true; town.persist();
+      const forge = town.has && town.has("forge");
+      bark(P.sib, "There's a cave where the fork in the road runs out — I came on it gathering wood. Copper and tin in the rock, iron deeper in. Take a pickaxe and dig some out: Henning and Tobias will pay for ore.", 8);
+      setTimeout(() => G.town === town && bark(P.sib, forge ? "And we've a forge now, so we can smelt what you bring back ourselves." : "Mind — we can't use any of it ourselves. Neither of us knows how to forge yet. Put it in your chest and sell it, and keep a little back for when we learn.", 7), 8500);
+      return;
+    }
+    if (!S.caveDone) {
+      const m = cave.mouthAt;
+      if (cave.inside || Math.hypot(pl.pos.x - m.x, pl.pos.z - m.z) < 5) { S.caveDone = true; town.persist(); if (G.marker && G.marker.cave) G.marker = null; return; }
+      if (!G.marker) G.marker = { x: m.x, z: m.z, y: w.heightAt(m.x, m.z) + 2.6, cave: true };
+    }
+  });
   // and, from the second year, raiders
   const raids = new Raids(w, town);
   onFrame(dt => raids.update(dt));
