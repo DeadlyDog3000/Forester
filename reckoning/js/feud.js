@@ -178,13 +178,13 @@ export async function feudShift(town, a, sleep, alive) {
   // the watch: someone on the beat comes running and takes the one who started it
   const watch = town.knows && town.knows("policing") && town.has("jail") && town.actors.find(w => w.settler && w.settler.job === "watch" && !w.dead && !w.knocked && !w.settler.follow && w !== a && w !== foe);
   if (watch) watch.walkTo(a.pos.x + 1, a.pos.z + 1, 3).catch(() => {});
-  // the fight: blows traded, each landing or not
-  foe.faceTo(a.pos.x, a.pos.z);
+  // the fight: fists up, blows traded, each landing or not
+  foe.faceTo(a.pos.x, a.pos.z); a.person.setPose("punch"); foe.person.setPose("punch");
   for (let round = 0; round < 6; round++) {
     alive();
     if (foe.dead || foe.knocked) break;
     const hitter = round % 2 ? foe : a, hit = round % 2 ? a : foe;
-    hitter.faceTo(hit.pos.x, hit.pos.z); hitter.person.setPose("chop");
+    hitter.faceTo(hit.pos.x, hit.pos.z); hitter.person.setPose("punch");
     await sleep(0.4); alive(); hitter.person.setPose("idle");
     if (Math.random() < 0.7) {
       AUDIO.punch && AUDIO.punch(hit.pos);

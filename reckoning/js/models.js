@@ -316,7 +316,7 @@ function useModel(P, key, colors = {}) {
   const mixer = new THREE.AnimationMixer(m.scene);
   const clip = name => m.animations.find(a => a.name.toLowerCase() === name) || m.animations.find(a => a.name.toLowerCase().includes(name));
   const acts = {};
-  for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
+  for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer", "punch", "eat", "stir", "talk"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
   // the legs of a walk without its arms, and the arms of a held pose without its legs, so a man can
   // carry a lantern and walk at the same time
   const ARM = /shoulder|arm|elbow|wrist|hand|finger|thumb/i;
@@ -326,6 +326,8 @@ function useModel(P, key, colors = {}) {
   let cur = null, curArms = null;
   const play = n => { const a = acts[n] || acts.idle; if (!a || a === cur) return; a.reset().fadeIn(0.25).play(); if (cur) cur.fadeOut(0.25); cur = a; };
   const playArms = n => { const a = n ? acts[n] : null; if (a === curArms) return; if (a) a.reset().fadeIn(0.25).play(); if (curArms) curArms.fadeOut(0.25); curArms = a; };
+  let headB = null, neckB = null;
+  m.scene.traverse(o => { if (!o.isBone) return; if (!headB && /^head$/i.test(o.name)) headB = o; if (!neckB && /^neck$/i.test(o.name)) neckB = o; });
   // held things follow the model's right hand, if it has a bone by that name
   // (the rig's own names: handR / handL, or hand.R, hand_R, RightHand)
   let hand = null, handL = null;
@@ -352,10 +354,14 @@ function useModel(P, key, colors = {}) {
       play(speed > 3 && acts.runLegs ? "runLegs" : "walkLegs"); playArms(pose + "Arms");
     } else {
       playArms(null);
-      play(this.sitting > 0.5 ? "sit" : pose === "chop" || pose === "hammer" ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle");
+      play(this.sitting > 0.5 ? (pose === "eat" && acts.eat ? "eat" : "sit") : pose === "chop" || pose === "hammer" || pose === "punch" ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle");
     }
     if (cur && (cur === acts.walk || cur === acts.run || cur === acts.walkLegs || cur === acts.runLegs)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run || cur === acts.runLegs ? 5 : 1.4));
     mixer.update(dt);
+    // the head turned toward whoever they're watching, over what the clip is doing: most of it in the head, some in
+    // the neck, eased in and out
+    this.lookS = (this.lookS || 0) + ((this.look || 0) - (this.lookS || 0)) * Math.min(1, dt * 5);
+    if (Math.abs(this.lookS) > 0.002) { if (headB) headB.rotateY(this.lookS * 0.65); if (neckB) neckB.rotateY(this.lookS * 0.3); }
   };
 }
 

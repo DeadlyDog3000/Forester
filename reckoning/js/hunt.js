@@ -178,6 +178,8 @@ class Animal {
       // a gallop rocks the body, nose down and up, as the fore and hind legs take it in turn
       this.root.position.y = this.pos.y + Math.abs(Math.sin(this.phase)) * run * 0.08;
       this.root.rotation.x += (Math.sin(this.phase + 0.6) * 0.09 * run - this.root.rotation.x) * Math.min(1, dt * 12);
+      // (the walk nods the head with each step)
+      if (this.neck && this.speed > 0.1 && run < 0.5) this.neck.rotation.x += Math.sin(this.phase * 2) * 0.05 * Math.min(1, this.speed / K.walk);
     }
     this.root.position.x = this.pos.x; this.root.position.z = this.pos.z;
     this.root.rotation.y = this.yaw;

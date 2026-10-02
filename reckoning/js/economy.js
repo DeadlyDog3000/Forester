@@ -345,7 +345,7 @@ export async function dineShift(town, a, sleep, alive) {
     const near = local(c, lx, 1.8);
     await a.walkTo(near.x, near.z, 1.1); alive();
     a.place(seat.x, seat.z); a.faceTo(table.x, table.z);
-    a.person.setPose("sit"); a.person.sitting = 1;
+    a.person.setPose("eat"); a.person.sitting = 1;
     const bowl = a.hold(makeFood("dish"));
     a.doing = `eating at ${c.name}`;
     for (let i = 0; i < 6; i++) {
@@ -369,7 +369,7 @@ export async function eateryShift(town, a, c, sleep, alive) {
     a.doing = `cooking at ${c.name}`;
     const st = at(0.9, 0.35), pot = at(0.9, -0.4);
     await a.walkTo(st.x, st.z, 1.2); alive();
-    a.faceTo(pot.x, pot.z); a.person.setPose("hammer");
+    a.faceTo(pot.x, pot.z); a.person.setPose("stir");
     for (let i = 0; i < 4; i++) { await sleep(2.2); alive(); if (G.player && Math.hypot(G.player.pos.x - a.pos.x, G.player.pos.z - a.pos.z) < 8) AUDIO.stir && AUDIO.stir(); }
     a.person.setPose("idle");
     L.meat--; const grain = L.grain > 0 ? (L.grain--, 1) : 0;

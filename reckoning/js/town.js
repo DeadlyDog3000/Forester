@@ -1561,6 +1561,9 @@ export class Town {
   nextJob(p) { const jobs = this.jobsOpen(); return jobs[(jobs.indexOf(p.job) + 1) % jobs.length]; }
   // choosing someone's work from a list, rather than going round them all
   chooseJob(p) {
+    // (they turn to you and talk, with their hands, while you decide)
+    const ta = this.actors.find(x => x.settler === p);
+    if (ta && !ta.lying && !ta.inside) { ta.facePlayer(); ta.person.setPose("talk"); setTimeout(() => { if (ta.person && ta.person.pose === "talk") ta.person.setPose("idle"); ta.stopFacing && ta.stopFacing(); }, 5000); }
     if (!G.openTrade) { p.job = this.nextJob(p); this.persist(); return; }
     const count = j => this.S.people.filter(q => q.job === j).length;
     // a watchman can be asked to come with you — into the woods, into the caves — and fight at your side

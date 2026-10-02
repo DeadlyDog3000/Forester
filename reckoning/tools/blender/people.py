@@ -553,7 +553,9 @@ def animate(rig, key, f, J):
                 b.rotation_euler = Euler(r, "XYZ")
                 b.keyframe_insert("rotation_euler", frame=fr)
             h = pb["hips"]
-            h.location = Vector(loc[fr]) if loc and fr in loc else Vector((0, 0, 0))
+            # (a frame without a hip position of its own is left to the curve between its neighbours)
+            if loc and fr not in loc: continue
+            h.location = Vector(loc[fr]) if loc else Vector((0, 0, 0))
             h.keyframe_insert("location", frame=fr)
         tr = rig.animation_data.nla_tracks.new()
         tr.name = name
@@ -660,8 +662,12 @@ def animate(rig, key, f, J):
     def chop(spz, chz, sx=0.08, kL=0.1, kR=0.1, up=0.0):
         a2 = dict(arms_up); a2["upper_arm_L"] = (-1.35 - up, 0, -0.35); a2["upper_arm_R"] = (-1.35 - up, 0, 0.35)
         return P(**a2, spine=(sx, 0, spz), chest=(0, 0, chz), shin_L=(kL, 0, 0), shin_R=(kR, 0, 0), thigh_L=(-kL * 0.5, 0, 0), thigh_R=(-kR * 0.5, 0, 0), neck=(0, 0, -chz * 0.4))
-    act("Chop", {1: chop(0, 0), 10: chop(-0.5, -0.4, kR=0.25, up=0.15), 13: chop(-0.6, -0.5, kR=0.3, up=0.2),
-                 16: chop(0.35, 0.3, sx=0.14, kL=0.3), 19: chop(0.55, 0.42, sx=0.12, kL=0.25), 30: chop(0, 0)})
+    # (anticipation and weight: the hips shift back as the axe goes up, it hangs a moment at the top, comes through
+    # fast, jars on the wood, and the body follows it round before settling back to the guard)
+    act("Chop", {1: chop(0, 0), 6: chop(-0.22, -0.15, kR=0.15, up=0.05), 12: chop(-0.6, -0.5, kR=0.32, up=0.22), 14: chop(-0.64, -0.54, kR=0.34, up=0.25),
+                 16: chop(0.05, 0.02, sx=0.12, kL=0.2), 17: chop(0.4, 0.34, sx=0.16, kL=0.32), 18: chop(0.34, 0.28, sx=0.15, kL=0.3),
+                 22: chop(0.58, 0.45, sx=0.12, kL=0.25), 27: chop(0.2, 0.15, sx=0.1), 32: chop(0, 0)},
+        {1: (0, 0, 0), 12: (0, 0.035, -0.012), 14: (0, 0.04, -0.015), 17: (0, -0.03, -0.02), 22: (0, -0.02, -0.01), 32: (0, 0, 0)})
 
     # the story's poses: held, but breathing — never quite still
     def hold(name, **kw):
@@ -685,6 +691,47 @@ def animate(rig, key, f, J):
     def ham(ua, fa, sp=0.35, kn=0.08):
         return P(upper_arm_R=(ua, 0, -0.1), forearm_R=(fa, 0, 0), upper_arm_L=(-0.6, 0, 0.12), forearm_L=(-0.9, 0, 0), spine=(sp, 0, 0), shin_L=(kn, 0, 0), shin_R=(kn, 0, 0), thigh_L=(-kn * 0.5, 0, 0), thigh_R=(-kn * 0.5, 0, 0))
     act("Hammer", {1: ham(-1.0, -1.2), 8: ham(-2.15, -0.55, 0.3, 0.04), 10: ham(-0.95, -1.25, 0.42, 0.14), 11: ham(-1.08, -1.15, 0.4, 0.12), 16: ham(-1.0, -1.2)})
+    # Punch: fists up in a guard, the weight rocking; a jab with the right that snaps out and back, a heavier cross with
+    # the left that turns the shoulders into it, and back to the guard
+    def guard(jR=0.0, jL=0.0, tw=0.0, bob=0.0):
+        return P(upper_arm_R=(-0.95 - 0.55 * jR, 0, -0.28 + 0.2 * jR), forearm_R=(-1.75 + 1.6 * jR, 0, 0),
+                 upper_arm_L=(-0.95 - 0.55 * jL, 0, 0.28 - 0.2 * jL), forearm_L=(-1.75 + 1.6 * jL, 0, 0),
+                 spine=(0.12 + 0.04 * (jR + jL), 0, tw), chest=(0, 0, tw * 0.8), neck=(-0.1, 0, -tw * 0.5),
+                 thigh_L=(-0.25, 0, 0.05), thigh_R=(0.15, 0, -0.05), shin_L=(0.3 + bob, 0, 0), shin_R=(0.2 + bob, 0, 0))
+    act("Punch", {1: guard(), 4: guard(tw=0.12, bob=0.05), 6: guard(jR=1, tw=-0.25), 8: guard(jR=0.2, tw=-0.05), 11: guard(tw=-0.15, bob=0.06),
+                  14: guard(jL=1, tw=0.4), 17: guard(jL=0.2, tw=0.1), 22: guard()},
+        {1: (0, 0, -0.03), 6: (0, -0.04, -0.035), 11: (0, 0.02, -0.04), 14: (0, -0.06, -0.035), 22: (0, 0, -0.03)})
+
+    # Eat: sat at a table, the spoon from the bowl to the mouth, a chew, and again
+    def eat_at(t):
+        k = max(0.0, math.sin(t * 2 * PI * 3)) ** 1.5           # three spoonfuls
+        br = math.sin(t * 2 * PI * 2)
+        return P(thigh_L=(-1.5, 0, 0.05), thigh_R=(-1.5, 0, -0.05), shin_L=(1.5, 0, 0), shin_R=(1.5, 0, 0),
+                 upper_arm_L=(-0.55, 0, 0.12), forearm_L=(-1.0, 0, 0),
+                 upper_arm_R=(-0.6 - 0.55 * k, 0, -0.12 - 0.15 * k), forearm_R=(-1.0 - 1.1 * k, 0, 0),
+                 spine=(0.16 - 0.06 * k + 0.01 * br, 0, 0), chest=(0.02 * br, 0, 0), neck=(0.12 - 0.12 * k, 0, 0.02 * math.sin(t * 2 * PI * 9) * k))
+    cycle("Eat", 108, eat_at, lambda t: (0, 0, -0.44), 24)
+
+    # Stir: leaning over a pot, both hands on the ladle, going round and round
+    def stir_at(t):
+        a = t * 2 * PI * 2
+        return P(upper_arm_R=(-0.75 + 0.14 * math.sin(a), 0, -0.12 + 0.16 * math.cos(a)), forearm_R=(-0.85 - 0.12 * math.cos(a), 0, 0),
+                 upper_arm_L=(-0.6 + 0.1 * math.sin(a), 0, 0.2 + 0.1 * math.cos(a)), forearm_L=(-1.0, 0, 0),
+                 spine=(0.22, 0, 0.04 * math.sin(a)), chest=(0.04, 0, 0.05 * math.sin(a)), neck=(0.25, 0, 0),
+                 shin_L=(0.08, 0, 0), shin_R=(0.08, 0, 0), thigh_L=(-0.04, 0, 0), thigh_R=(-0.04, 0, 0))
+    cycle("Stir", 64, stir_at, lambda t: (0, 0, -0.01), 24)
+
+    # Talk: standing easy, a hand opening as they make a point, a nod, the weight shifting
+    def talk_at(t):
+        g = max(0.0, math.sin(t * 2 * PI * 2)) ** 1.2          # two gestures
+        sw = math.sin(t * 2 * PI)
+        return P(upper_arm_R=(-0.35 - 0.55 * g, 0, -0.1 - 0.2 * g), forearm_R=(-0.6 - 0.5 * g, 0, -0.3 * g),
+                 upper_arm_L=(0.03 * sw, 0, 0.08), forearm_L=(-0.15, 0, 0),
+                 spine=(0.02, 0.02 * sw, 0.03 * g), chest=(0.02 * math.sin(t * 2 * PI * 3), 0, 0.04 * g),
+                 neck=(0.08 * math.sin(t * 2 * PI * 4) * (0.4 + g), 0.04 * sw, 0.1 * math.sin(t * 2 * PI + 1)),
+                 thigh_L=(0, 0, 0.02 * sw), thigh_R=(0, 0, 0.02 * sw))
+    cycle("Talk", 120, talk_at, lambda t: (0.005 * math.sin(t * 2 * PI), 0, 0), 24)
+
     # stand in the rest pose when nothing plays
     for b in pb:
         b.rotation_euler = Euler((0, 0, 0))

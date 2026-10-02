@@ -1139,7 +1139,11 @@ export class Actor {
     else if (this.lookP) {
       const a = Math.atan2(G.player.pos.x - p.x, G.player.pos.z - p.z);
       this.person.look = clamp(angDiff(this.yaw, a), -1, 1);
-    } else this.person.look = 0;
+    } else {
+      // and anyone standing about glances at you as you pass close by
+      const dx = G.player.pos.x - p.x, dz = G.player.pos.z - p.z, d = Math.hypot(dx, dz), a = angDiff(this.yaw, Math.atan2(dx, dz));
+      this.person.look = !moving && !this.lying && d < 5 && d > 0.8 && Math.abs(a) < 1.5 && G.mode === "play" ? clamp(a, -1, 1) * 0.85 : 0;
+    }
     this.speed = moving ? spd : (this.forcedSpeed || 0);
     // their footsteps, if you are near enough to hear them (a few at a time, however many are walking)
     if (moving && spd > 0.3) {
