@@ -72,6 +72,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 #hotbar .hb.sel { border: 2px solid var(--gold); box-shadow: 0 0 8px rgba(140, 192, 132, 0.45), inset 0 2px 6px rgba(0, 0, 0, 0.6); }
 #hotbar .hb img { position: absolute; inset: 5px; width: calc(100% - 10px); height: calc(100% - 10px); image-rendering: pixelated; filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.6)); }
 #hotbar .hb .k { position: absolute; left: 3px; top: 1px; font: 600 9px/1 var(--sans); color: var(--ink-dim); }
+#hotbar .hb .dur { position: absolute; left: 5px; right: 5px; bottom: 3px; height: 3px; background: rgba(0, 0, 0, 0.6); border-radius: 1px; }
+#hotbar .hb .dur i { display: block; height: 100%; background: #8cc084; border-radius: 1px; }
+#hotbar .hb .dur.low i { background: #d8553a; }
 #hotbar .hb .n { position: absolute; right: 3px; bottom: 2px; font: 600 11px/1 var(--sans); color: var(--ink); text-shadow: 0 1px 2px #000; }
 @media (max-width: 560px) { #hotbar .hb { width: 32px; height: 32px; } }
 /* the full map: parchment on the table, in a dark frame */

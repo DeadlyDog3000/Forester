@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.33", date: "2 October 2026", title: "Duels and daily bread",
+    items: [
+      "Fights are one-on-one. A raider who comes at you squares up to you alone: he stops to fight instead of making for the stores, circles you, steps back out of reach and closes again, and doesn't let go until one of you is down. Hit another one and he turns on you, and the first lets you be.",
+      "Settlers pair off with raiders, one each, and fight it out the same way, circling and stepping back out of a wind-up. Anyone without a raider to pair with waits a few steps off, ready to step in when one falls. Rebels in a rising, and the bandits in the cave, fight the same way.",
+      "Farmers carry the reaped rye to the store chest in sheaves, and the baker fetches it from there in a sack and carries it to the oven.",
+      "Food by the day: each settler (and your brother or sister) eats five rye, or three loaves, or two meat a day. Your kitchen's dishes are a whole day's food, and come first, then bread, then meat, then rye. A field now gives twenty rye (twenty-four with a well), and a baking turns four rye into six loaves, so bread goes more than twice as far. Henning sells rye by the twenty-five, and his salt pork is twelve meat.",
+      "Fields snap together: a new field near one already dug sets itself edge to edge and square with it, so the fields make one patchwork.",
+      "Rye seed: sowing a new field takes a seed, and every harvest gives back a third of one. You start with three, and Henning sells them for 3 DM.",
+      "Tools wear out. Every stroke wears a tool, and better makings last longer: wooden 60 strokes, stone 120, copper 200, bronze 300 and iron 450. A bar under each tool in the hotbar shows what's left, and turns red when it's nearly gone. A worn-out axe or spade leaves you the old one from the block; anything else has to be made again.",
+      "In build mode, Y turns what you're placing the other way (R still turns it, and Shift+R still reverses it).",
+    ],
+  },
+  {
     v: "0.32", date: "2 October 2026", title: "In your hands",
     items: [
       "First-person hands that move with you. Whatever you hold sways behind you as you turn and catches up, bobs in a figure of eight with your stride, and rides lower and tilted when you sprint. It drops as you land from a jump and floats as you fall, rolls as you step sideways, and rises and falls with your breath when you stand still.",

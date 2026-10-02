@@ -1193,7 +1193,7 @@ async function ch6(w) {
       if (d < bd && (dx * f.x + dz * f.z) / d > 0.45) { bd = d; best = t; }
     }
     if (!best) return;
-    SFX.chop(); G.impact && G.impact();
+    SFX.chop(); G.impact && G.impact(); G.wear && G.wear("axe");
     // the stronger you are, the more often one stroke does the work of two
     best.hp -= Math.random() < skillK(G.body, "strength") * 0.8 ? 2 : 1;
     G.practise("strength", 0.6);
@@ -1944,7 +1944,7 @@ async function ch9(w, opts = {}) {
 // ---------------------------------------------------------------------------
 function loadTown() {
   const s = loadSave() || {};
-  const t = s.town || { store: (s.winter && s.winter.stack) ?? 6, rye: 12, people: [], felled: [], logs: [],
+  const t = s.town || { store: (s.winter && s.winter.stack) ?? 6, rye: 30, people: [], felled: [], logs: [],
     // the first field, the one they dug with Henning's spade
     buildings: [{ type: "field", x: FIELD.x, z: FIELD.z, ry: FIELD.ry, dug: 3, sown: true, growth: 2, done: true }] };
   // the felled ring from the cabin's rebuilding carries over
@@ -2190,7 +2190,7 @@ async function ch11(w) {
         seg: [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4],
         can: () => (b.growth ?? 1) >= 3,
         onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.chop(); },
-        use: () => { S.rye += 20; b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.build(); } });
+        use: () => { S.rye += 20; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.build(); } });
       reapIts.push(b._reap);
     }
   };
@@ -2295,7 +2295,7 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
       const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3,
         seg: [fl.x - Math.sin(fl.ry) * 3.4, fl.z - Math.cos(fl.ry) * 3.4, fl.x + Math.sin(fl.ry) * 3.4, fl.z + Math.cos(fl.ry) * 3.4],
         onHoldTick: (dt2, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt2) * 3)) SFX.chop(); },
-        use: () => { S.rye += 20; fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
+        use: () => { S.rye += 20; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
       ripe.set(fl, it);
     }
   });
@@ -2651,8 +2651,8 @@ function hennings(w, town) {
     offers: S => [
       { label: "Sell 6 logs", note: "Good dry spruce for the kilns.", get: "+2 DM", can: () => S.store >= 6, do: () => { S.store -= 6; S.coin += 2; } },
       { label: "Sell 6 loaves", note: "He knows a miller's wife who'll take them.", get: "+3 DM", can: () => S.bread >= 6, do: () => { S.bread -= 6; S.coin += 3; } },
-      { label: "Sell 10 rye", note: "", get: "+2 DM", can: () => S.rye >= 10, do: () => { S.rye -= 10; S.coin += 2; } },
-      { label: "Buy 10 rye", note: "For a hungry winter.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 10; } },
+      { label: "Sell 25 rye", note: "", get: "+2 DM", can: () => S.rye >= 25, do: () => { S.rye -= 25; S.coin += 2; } },
+      { label: "Buy 25 rye", note: "A day's food for five.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 25; } },
       { label: "Buy a good saw", note: "Trees come down quicker — for you and the woodcutters.", get: "10 DM", can: () => S.coin >= 10 && !S.upgrades.saw, done: () => S.upgrades.saw, do: () => { S.coin -= 10; S.upgrades.saw = true; } },
       { label: "Buy iron axe heads", note: "The woodcutters fell a third quicker.", get: "14 DM", can: () => S.coin >= 14 && !S.upgrades.axes, done: () => S.upgrades.axes, do: () => { S.coin -= 14; S.upgrades.axes = true; } },
       ...ownOffers(12, 4),
@@ -2669,7 +2669,8 @@ function pedlar(w, town) {
       { label: "Buy iron tools", note: "A set for one pair of hands: they work a quarter faster.", get: "8 DM", can: () => S.coin >= 8, do: () => { S.coin -= 8; S.tools = (S.tools || 0) + 1; } },
       { label: "Buy 4 iron", note: "Swedish bar iron.", get: "10 DM", can: () => S.coin >= 10, do: () => { S.coin -= 10; S.iron = (S.iron || 0) + 4; } },
       { label: "Buy 10 stone", note: "Cut, and heavy on his poor horse.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.stone = (S.stone || 0) + 10; } },
-      { label: "Buy a barrel of salt pork", note: "Feeds the settlement like 20 rye.", get: "6 DM", can: () => S.coin >= 6, do: () => { S.coin -= 6; S.rye += 20; } },
+      { label: "Buy a rye seed", note: "To sow a new field.", get: "3 DM", can: () => S.coin >= 3, do: () => { S.coin -= 3; S.seed = +((S.seed || 0) + 1).toFixed(2); } },
+      { label: "Buy a barrel of salt pork", note: "12 meat: a day's food for six.", get: "6 DM", can: () => S.coin >= 6, do: () => { S.coin -= 6; S.meat = (S.meat || 0) + 12; } },
       { label: "Sell 6 planks", note: "", get: "+4 DM", can: () => (S.planks || 0) >= 6, do: () => { S.planks -= 6; S.coin += 4; } },
       { label: "Sell 10 bricks", note: "", get: "+5 DM", can: () => (S.bricks || 0) >= 10, do: () => { S.bricks -= 10; S.coin += 5; } },
       ...dishOffers(),
@@ -2759,7 +2760,7 @@ async function chFree(w) {
     restock();
     const pop = S.people.length + 2;
     // (nobody settles where the people are miserable: contentment under 40 turns them back down the road)
-    if (town.beds + 2 > pop && S.rye + (S.bread || 0) * 3 >= pop * 3 && town.contentment().value >= 40) {
+    if (town.beds + 2 > pop && town.foodDays() >= 3 && town.contentment().value >= 40) {
       const used = new Set(S.people.map(p => p.name));
       const n = NEWCOMERS.find(p => !used.has(p.name));
       if (n) {
@@ -2767,7 +2768,7 @@ async function chFree(w) {
         await arrival(town, p, ["God keep you. Is there room for one more?", "I heard there was a place up here. Is it true?", "I can work. I only need a roof.", "Henning at the kiln sent me."][S.people.length % 4]);
         UI.hint(`${p.name} has come up the road, and stays. (${p.job})`, 5);
       }
-    } else if (S.rye < pop && (S.bread || 0) < pop) bark(P.sib, town.winter ? "We're short of food, and nothing grows till spring. Henning's cart sells rye." : "We're short of food — the rye and the bread both. Reap what's ripe, or dig another field.", 4);
+    } else if (town.foodDays() < 1.5) bark(P.sib, town.winter ? "We're short of food, and nothing grows till spring. Henning's cart sells rye." : "We're short of food — the rye and the bread both. Reap what's ripe, or dig another field.", 4);
   });
   await wait(0.2);
   // (the money from the house, said once, where it will be spent)

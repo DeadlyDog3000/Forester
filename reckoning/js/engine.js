@@ -14,7 +14,7 @@ import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
-import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills } from "./body.js";
+import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
 
 /* global SFX */
 
@@ -812,6 +812,19 @@ function updateCamera(dt) {
   sky.position.copy(camera.position);
 }
 
+// a tool used: a stroke's wear on it; worn through, it's put down (and you're told)
+G.wear = (k, n = 1) => {
+  const r = G.body && wearTool(G.body, k, n);
+  if (!r) return;
+  UI.hint(r.text, r.broke ? 4.5 : 3);
+  if (r.broke) {
+    AUDIO.clang && AUDIO.clang(0.6);
+    const pl = G.player;
+    // (the pickaxe or your own sword gone from your hands: the axe again, if you have one)
+    if (pl && pl.axe && pl.blade === k && !(G.body.tools[k] > 0)) { if (pl.hasAxe || k !== "axe") pl.wield("axe"); }
+    else if (pl && pl.axe && k === "axe" && (pl.blade || "axe") === "axe") pl.wield("axe");
+  }
+};
 // a blow that landed on something (a tree, a rock, a man): the stroke checks and your arms jar
 G.impact = () => { if (G.player) G.player.impactT = G.time + 0.18; };
 // ---- your hands on the screen, moving as you move ----
@@ -984,6 +997,7 @@ function mineSwing() {
   const k = w && w.rockAhead && w.rockAhead(pl.pos, pl.forward());
   if (!k || !tools) return;
   G.impact();
+  G.wear("pick");
   const R = ROCKS[k.kind];
   if ((tools.pick || 0) < R.need) {
     AUDIO.clang(0.25, { x: k.x, y: k.y + 0.6, z: k.z });

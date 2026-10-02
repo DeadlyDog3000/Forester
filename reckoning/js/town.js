@@ -20,7 +20,7 @@ import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng } fr
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade } from "./models.js";
+import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack } from "./models.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
@@ -42,8 +42,8 @@ export const BUILDINGS = {
   cabin:    { name: "Cabin", cost: 20, model: "cabin", w: 5.8, d: 6.8, beds: 2, icon: "cabin", note: "A home for two more people." },
   woodshed: { name: "Woodshed", cost: 8, model: "woodshed", w: 4.0, d: 2.6, store: 30, icon: "logs", note: "Keeps thirty more logs dry. Look at it (V) to build on a second and a third bay: seventy, then a hundred and twenty." },
   well:     { name: "Well", cost: 6, model: "well", w: 2.4, d: 2.4, icon: "key", note: "Water close by: the fields yield more." },
-  field:    { name: "Field", cost: 0, w: 6.6, d: 7.4, dig: 3, icon: "seeds", note: "Three strips of rye. Dug, not built." },
-  bakery:   { name: "Bakery", cost: 14, model: "town/bakery", tiers: true, w: 7.6, d: 5.8, icon: "bread", note: "A baker turns rye into bread — a loaf goes twice as far as the grain." },
+  field:    { name: "Field", cost: 0, w: 6.6, d: 7.4, dig: 3, icon: "seeds", note: "Three strips of rye. Dug, not built — and sown with a rye seed. Each harvest gives back a third of a seed." },
+  bakery:   { name: "Bakery", cost: 14, model: "town/bakery", tiers: true, w: 7.6, d: 5.8, icon: "bread", note: "A baker turns rye into bread — bread goes more than twice as far as the grain." },
   quarry:   { name: "Quarry", cost: 16, model: "town/quarry_1", w: 9, d: 8, icon: "stone", note: "A quarryman cuts stone — for chimneys, footings, and better houses." },
   sawmill:  { name: "Sawmill", cost: 18, mats: { stone: 4 }, model: "town/sawmill", tiers: true, w: 9.4, d: 6, icon: "planks", note: "A sawyer turns four logs into two planks. Timber frames want planks." },
   brickworks: { name: "Brickworks", cost: 14, mats: { stone: 8 }, model: "town/brickworks", tiers: true, w: 8.6, d: 5.4, icon: "bricks", note: "Clay dug and fired with logs: bricks, for building as the Hanse builds." },
@@ -106,8 +106,14 @@ export function modelKey(b) {
 // the year: eight days, and the last two of them winter
 export const YEAR = 8, SEASONS = ["spring", "spring", "summer", "summer", "autumn", "autumn", "winter", "winter"];
 export const LOGS_PER_TREE = 2, CARRY_MAX = 6;
-// a harvest: four rye from a field, five with a well; a loaf takes two and a half rye (five make two), and feeds as three
-const RYE_HARVEST = 4, LOAF_RYE = 2.5, LOAF_FEEDS = 3;
+// a harvest: twenty rye from a field, four more with a well. A day's food for one is five rye, or three loaves, or two meat
+// (a dish from your kitchen is a day's food by itself); a baking turns four rye into six loaves, so bread goes further
+const RYE_HARVEST = 20, WELL_RYE = 4;
+export const RATION = { rye: 5, bread: 3, meat: 2 };
+const BAKE_RYE = 4, BAKE_LOAVES = 6;
+// a harvest gives back a third of a rye seed: a field to sow takes a whole one
+export const SEED_BACK = 0.3;
+export const seedText = n => { const v = Math.round((n || 0) * 10) / 10; return `${Number.isInteger(v) ? v : v.toFixed(1)} rye seed${v === 1 ? "" : "s"}`; };
 // the work a settler can be set to; talking to them (F) moves them on to the next
 export const JOBS = {
   woodcutter: { name: "woodcutter", ask: "fell trees", reply: "Trees it is. Mind your heads." },
@@ -187,6 +193,8 @@ export class Town {
     this.w = w; this.S = state; this.persist = persist;
     this.S.store ??= 0; this.S.rye ??= 0; this.S.buildings ??= []; this.S.people ??= []; this.S.felled ??= []; this.S.logs ??= [];
     this.S.bread ??= 0; this.S.coin ??= 0; this.S.upgrades ??= {};
+    // rye seed: a field takes one to sow, and each harvest gives a little back (enough for three fields to start)
+    this.S.seed ??= 3;
     for (const k of ["stone", "planks", "bricks", "ore", "iron", "tools"]) this.S[k] ??= 0;
     // what the settlement knows: Forester's starting three, and whatever it has already built
     if (!this.S.tech) {
@@ -708,7 +716,17 @@ export class Town {
       for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < 1.1) return false;
       return Math.hypot(FIRE.x - x, FIRE.z - z) > 1.8 && Math.hypot(CABIN.x - x, CABIN.z - z) > 3.2;
     }
-    for (const b of this.S.buildings) { if (b.type === "path") continue; const d2 = BUILDINGS[b.type]; if (Math.hypot(b.x - x, b.z - z) < (d2.wall ? 1.4 + r * 0.8 : (Math.hypot(d2.w, d2.d) / 2 + r) * 0.8)) return false; }
+    for (const b of this.S.buildings) {
+      if (b.type === "path") continue;
+      const d2 = BUILDINGS[b.type];
+      // two fields lined up side by side may touch: they only clash where they really overlap
+      if (type === "field" && b.type === "field" && Math.abs(Math.sin(ry - b.ry)) < 0.02) {
+        const dx = x - b.x, dz = z - b.z, lx = dx * Math.cos(b.ry) - dz * Math.sin(b.ry), lz = dx * Math.sin(b.ry) + dz * Math.cos(b.ry);
+        if (Math.abs(lx) < def.w - 0.05 && Math.abs(lz) < def.d - 0.05) return false;
+        continue;
+      }
+      if (Math.hypot(b.x - x, b.z - z) < (d2.wall ? 1.4 + r * 0.8 : (Math.hypot(d2.w, d2.d) / 2 + r) * 0.8)) return false;
+    }
     for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < r) return false;
     for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.6], [STACK.x, STACK.z, 2], [BLOCK.x, BLOCK.z, 1.4], [FIRE.x, FIRE.z, 2.2]]) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
     if (this.opts.keepClear) for (const [px, pz, pr] of this.opts.keepClear) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
@@ -744,7 +762,7 @@ export class Town {
     w.root.add(ghost);
     let ry = CABIN.ry, x = 0, z = 0, ok = false;
     const strip = def.path || (def.wall && def.wall !== "gate");
-    if (!strip || !this._pathKeys) UI.keys(strip ? [["Click", def.wall ? "lay a length" : "lay a strip"], ["Hold R", "turn it"], ["B", "done"]] : [["Click", "set it here"], ["Hold R", "turn it"], ["B", "put the plan away"]], 9);
+    if (!strip || !this._pathKeys) UI.keys(strip ? [["Click", def.wall ? "lay a length" : "lay a strip"], ["Hold R / Y", "turn it"], ["B", "done"]] : [["Click", "set it here"], ["Hold R / Y", "turn it"], ["B", "put the plan away"]], 9);
     if (strip) this._pathKeys = true;
     if (def.wall && this._wallRy != null) ry = this._wallRy;
     return new Promise(res => {
@@ -753,16 +771,22 @@ export class Town {
         const f = pl.forward(), d = def.path ? 3 : def.wall ? 3.5 : 4 + Math.max(def.w, def.d) / 2;
         x = pl.pos.x + f.x * d; z = pl.pos.z + f.z * d;
         // turned smoothly while R is held (with Shift, the other way); nothing snaps
+        // (and Y turns it the other way)
         if (input.down("KeyR")) ry += dt * 1.7 * (input.down("ShiftLeft") || input.down("ShiftRight") ? -1 : 1);
+        if (input.down("KeyY")) ry -= dt * 1.7;
         // B puts the plan away, as Escape does
         if (input.hit("KeyB")) { done(null); return; }
         // (a path strip snaps onto the end of the last, so a path is laid in one piece)
         let px = x, pz = z, pry = ry;
         if (def.path) ({ x: px, z: pz, ry: pry } = this.snapPath(def, x, z, ry));
+        // (a field lines up against the side or end of one already dug, so fields make one patchwork)
+        if (type === "field") ({ x: px, z: pz, ry: pry } = this.snapField(def, x, z, ry));
         ok = this.fits(type, px, pz, pry);
         ghost.position.set(px, w.heightAt(px, pz), pz); ghost.rotation.y = pry;
         const col = ok ? 0x7fe07a : 0xe0503a; tint.color.setHex(col); edge.material.color.setHex(col);
-        if ((input.click || input.hit("KeyF")) && ok) {
+        if ((input.click || input.hit("KeyF")) && ok && type === "field" && (this.S.seed || 0) < 1) {
+          UI.hint(`A field needs a rye seed to sow it — you have ${seedText(this.S.seed)}. Each harvest gives back a third of one, and Henning sells them.`, 4);
+        } else if ((input.click || input.hit("KeyF")) && ok) {
           // (a wall is laid out a length at a time, each a site of its own: its logs brought, then raised)
           if (def.wall) { this._wallRy = ry; done({ type, x, z, ry, logs: 0, dug: 0, done: false }); }
           else done({ type, x: px, z: pz, ry: pry, logs: 0, dug: 0, done: !!def.path });
@@ -772,6 +796,7 @@ export class Town {
       const done = b => {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
         w.root.remove(ghost); this.planning = null;
+        if (b && b.type === "field") this.S.seed = +((this.S.seed || 0) - 1).toFixed(2);
         if (b) { this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.clearStumps(b); this.persist(); SFX().build(); }
         res(b);
         // (a path or a wall goes on: the next length is ready to lay until you put the plan away)
@@ -793,10 +818,11 @@ export class Town {
     ghost.traverse(o => { if (o.isMesh) o.material = tint; });
     w.root.add(ghost);
     let ry = 0;
-    UI.keys([["Click", "set it here"], ["R", "turn it"], ["Esc", "put the plan away"]], 9);
+    UI.keys([["Click", "set it here"], ["R / Y", "turn it"], ["Esc", "put the plan away"]], 9);
     return new Promise(res => {
       const tick = () => {
         if (input.hit("KeyR")) ry = (ry + Math.PI / 2) % TAU;
+        if (input.hit("KeyY")) ry = (ry - Math.PI / 2 + TAU) % TAU;
         const f = pl.forward();
         const [lx, lz] = w.worldToCabin(pl.pos.x + f.x * 1.5, pl.pos.z + f.z * 1.5);
         const cand = { type, lx, lz, ry };
@@ -853,8 +879,8 @@ export class Town {
       onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
       use: () => {
         if (b.type === "field") {
-          if ((b.dug || 0) < 3) b.dug = (b.dug || 0) + 1;
-          else if (b.sown && (b.growth ?? 1) >= 3) { const got = RYE_HARVEST + (this.has("well") ? 1 : 0); this.S.rye += got; b.growth = 0; b.sown = false; UI.hint(`Reaped: ${got} rye to the stores.`, 3); }
+          if ((b.dug || 0) < 3) { b.dug = (b.dug || 0) + 1; G.wear && G.wear("spade", 2); }
+          else if (b.sown && (b.growth ?? 1) >= 3) { const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0); this.S.rye += got; b.growth = 0; b.sown = false; this.S.seed = +((this.S.seed || 0) + SEED_BACK).toFixed(2); UI.hint(`Reaped: ${got} rye to the stores, and ${SEED_BACK} of a rye seed.`, 3); }
           else { b.sown = true; b.growth = 1; b.done = true; }
           this.show(b); this.persist(); SFX().build(); this.emit("dug", b); G.guide && G.guide("field"); return;
         }
@@ -876,6 +902,7 @@ export class Town {
           this.show(b); this.persist(); SFX().build(); return;
         }
         b.done = true; w.removeInteract(it);
+        G.wear && G.wear("hammer", 3);
         // a church or a shrine is raised to one faith: the state creed, or the biggest congregation
         if ((b.type === "church" || b.type === "shrine") && !b.faith) { b.faith = dedication(this); UI.hint(`The ${b.type} is dedicated: ${b.type === "church" ? FAITHS[b.faith].house : FAITHS[b.faith].shrine}.`, 5); }
         this.show(b); this.persist(); SFX().build(); this.emit("built", b);
@@ -980,6 +1007,22 @@ export class Town {
       if (vx * (x - best.ex) + vz * (z - best.ez) < 0) { vx = -vx; vz = -vz; }
     }
     return { x: best.ex + vx * h, z: best.ez + vz * h, ry: r, snapped: true };
+  }
+  // a new field near an old one: set edge to edge with it, square to it, on whichever side is nearest where you look
+  snapField(def, x, z, ry) {
+    let best = null, bd = 3.5;
+    const fields = this.S.buildings.filter(b => b.type === "field");
+    for (const f of fields) {
+      const ux = Math.cos(f.ry), uz = -Math.sin(f.ry), vx = Math.sin(f.ry), vz = Math.cos(f.ry);
+      for (const [sx, sz] of [[def.w, 0], [-def.w, 0], [0, def.d], [0, -def.d]]) {
+        const cx = f.x + ux * sx + vx * sz, cz = f.z + uz * sx + vz * sz;
+        // (a place another field already has is taken)
+        if (fields.some(o => o !== f && Math.hypot(o.x - cx, o.z - cz) < 1)) continue;
+        const d = Math.hypot(cx - x, cz - z);
+        if (d < bd) { bd = d; best = { x: cx, z: cz, ry: f.ry }; }
+      }
+    }
+    return best || { x, z, ry };
   }
   // ---- walls ----
   // a new length's ends meet an old one's where they are near: the nearer end is moved onto it
@@ -1321,6 +1364,19 @@ export class Town {
       g.userData.pile = pile; g.add(pile);
     }
   }
+  // how many eat from the stores each day (everyone but you: you eat from your own pack), Horse Feed making it go further
+  mouths() { return (this.S.people.length + 1) * (this.knows("horsefeed") ? 0.8 : 1); }
+  // how many days the food in the stores would last
+  foodDays() { const S = this.S; return ((S.rye || 0) / RATION.rye + (S.bread || 0) / RATION.bread + (S.meat || 0) / RATION.meat + (S.feast ? S.feast.length : 0)) / Math.max(0.8, this.mouths()); }
+  // where the settlement's rye goes in and comes out: in front of the store chest nearest this place, or the stack by the cabin
+  // ({x, z} to stand at; {cx, cz} to face)
+  chestAt(near) {
+    let best = null, bd = Infinity;
+    for (const b of this.S.buildings) if (b.done && b.type === "storehouse") { const d = Math.hypot(b.x - near.x, b.z - near.z); if (d < bd) { bd = d; best = b; } }
+    if (!best) { const s = this.stackAt; return { x: s.x + 1.0, z: s.z + 0.6, cx: s.x, cz: s.z }; }
+    const o = BUILDINGS.storehouse.d / 2 + 0.8;
+    return { x: best.x + Math.sin(best.ry) * o, z: best.z + Math.cos(best.ry) * o, cx: best.x, cz: best.z };
+  }
   setupStack() {
     const w = this.w, pl = G.player, at = () => this.stackAt;
     // the store chest: the settlement's stores, to take from and put into
@@ -1408,9 +1464,11 @@ export class Town {
   setupForestry() {
     const w = this.w, pl = G.player;
     G.onSwing = () => {
-      if (this.raids && this.raids.swing(pl)) return G.impact();
-      if (revoltSwing(this, pl)) return G.impact();
-      if (w.cave && w.cave.swing(pl)) return G.impact();
+      // (a blow on a man wears the blade in your hands: your own sword, or the axe)
+      const hitMan = () => { G.impact(); if (pl.blade === "sword" && G.body && G.body.tools.sword > 0) G.wear("sword"); else if ((pl.blade || "axe") === "axe") G.wear("axe"); };
+      if (this.raids && this.raids.swing(pl)) return hitMan();
+      if (revoltSwing(this, pl)) return hitMan();
+      if (w.cave && w.cave.swing(pl)) return hitMan();
       if (!(pl.blade && pl.blade !== "axe")) w.adoptNear && w.adoptNear(pl);
       if (pl.blade && pl.blade !== "axe" && ARMS[pl.blade]) { if (!this._bladeTip) { this._bladeTip = true; UI.hint(`A ${ARMS[pl.blade].name.toLowerCase()} won't fell a tree. Take the axe for that.`, 3); } return; }
       const f = pl.forward();
@@ -1422,7 +1480,7 @@ export class Town {
         if (d < bd && (dx * f.x + dz * f.z) / d > 0.45) { bd = d; best = t; }
       }
       if (!best) return;
-      SFX().chop(); G.impact && G.impact();
+      SFX().chop(); G.impact && G.impact(); G.wear && G.wear("axe");
       // (Tree Cutting and Axing: a stroke that bites deeper, now and then — a fifth, then a third, quicker)
       best.hp = (best.hp ?? 4) - 1 - (Math.random() < 1 / this.chopMul - 1 + axeBonus(G.body) + skillK(G.body, "strength") * 0.6 ? 1 : 0);
       G.practise && G.practise("strength", 0.6);
@@ -1671,7 +1729,6 @@ export class Town {
     const build = (type, text) => { const g = this.gated(type); return g ? this.researchAdvice(g.id, `a ${BUILDINGS[type].name.toLowerCase()}`) : text; };
     const site = S.buildings.find(b => !b.done && b.type !== "field");
     const field = S.buildings.find(b => b.type === "field" && !b.sown);
-    const food = S.rye + S.bread * LOAF_FEEDS;
     if (this.raids && this.raids.active) return `Raiders! ${this.raids.band.filter(r => r.alive).length} in the settlement — drive them off with the axe or the bow before they carry off the stores`;
     if (S.caveAsked && !S.caveDone) return `${G.who === "sister" ? "Brother" : "Sister"} wants you to dig ore in the cave where the fork in the road runs out (marked). Sell it to Henning or Tobias${this.has("forge") ? "" : " — you can't forge it yourselves yet"}`;
     const clear = this.toClear().length;
@@ -1679,8 +1736,8 @@ export class Town {
     if (S.lobes && this.roomDue() > 0) return `Room to grow — ${this.pop} of you now: open the map (J) and mark out new ground beyond the edge`;
     if (this.winter && S.store < this.hearths * 2) return `Winter: every hearth burns a log a day — fell trees, the stack is at ${S.store}`;
     if (this.season === "autumn" && S.store < this.hearths * 4) return `Winter is coming — stack firewood: ${this.hearths * 4} logs will see you through`;
-    if (food < need * 3) return this.harvestable().length ? "Food is low — reap the ripe field" : this.winter ? "Food is low, and nothing grows in winter — buy rye from Henning's cart" : "Food is low — dig and sow another field (B)";
-    if (!this.has("bakery") && S.people.length >= 4) return build("bakery", "Build a bakery (B): a loaf goes twice as far as the grain");
+    if (this.foodDays() < 3) return this.harvestable().length ? "Food is low — reap the ripe field" : this.winter ? "Food is low, and nothing grows in winter — buy rye from Henning's cart" : "Food is low — dig and sow another field (B)";
+    if (!this.has("bakery") && S.people.length >= 4) return build("bakery", "Build a bakery (B): bread goes more than twice as far as the grain");
     if (this.has("bakery") && !S.people.some(p => p.job === "baker")) return "The bakery stands idle — talk to someone (F) and set them to baking";
     if (site) return `Bring logs to the ${BUILDINGS[site.type].name.toLowerCase()} (${site.logs} of ${BUILDINGS[site.type].cost})`;
     if (field && !this.winter) return "Finish digging the new field";
@@ -1924,15 +1981,24 @@ export class Town {
         await sleep(8 * this.pace(a, "physicking")); alive(); a.person.setPose("idle");
         if (sick.length) { this.S.tended = this.day; this.learn(a, "physicking", 1); }
         await sleep(2);
-      } else if (job === "baker" && this.has("bakery") && this.S.rye >= LOAF_RYE * 2) {
-        a.doing = "baking";
+      } else if (job === "baker" && this.has("bakery") && this.S.rye >= BAKE_RYE) {
         const bk = this.S.buildings.find(b => b.done && b.type === "bakery");
+        // the rye fetched from the store chest first, a sack of it on the shoulder
+        const ch = this.chestAt(bk);
+        a.doing = "fetching rye from the store chest";
+        await a.walkTo(ch.x, ch.z, 1.2); alive();
+        a.faceTo(ch.cx, ch.cz); a.person.setPose("reach"); await sleep(1.2); alive();
+        if (this.S.rye < BAKE_RYE) { a.person.setPose("idle"); continue; }
+        this.sfxAt(a, "pickup");
+        const sack = a.hold(makeSack()); a.person.setPose("hold");
+        a.doing = "carrying rye to the bakery";
         // at the oven, on the bakery's right-hand side
         const ox = bk.x + Math.cos(bk.ry) * 3.2 - Math.sin(bk.ry) * 1.6, oz = bk.z - Math.sin(bk.ry) * 3.2 - Math.cos(bk.ry) * 1.6;
-        await a.walkTo(ox, oz, 1.2); alive();
+        try { await a.walkTo(ox, oz, 1.2); alive(); } finally { a.person.held.remove(sack); }
+        a.doing = "baking";
         a.faceTo(bk.x + Math.cos(bk.ry) * 3.6, bk.z - Math.sin(bk.ry) * 3.6); a.person.setPose("hammer");
         await sleep(9 * this.pace(a, "crafting")); alive();
-        if (this.S.rye >= LOAF_RYE * 2) { this.S.rye -= LOAF_RYE * 2; this.S.bread += 2; this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "crafting", 1); }
+        if (this.S.rye >= BAKE_RYE) { this.S.rye -= BAKE_RYE; this.S.bread += BAKE_LOAVES; this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "crafting", 1); }
         a.person.setPose("idle");
         await sleep(2);
       } else if (job === "farmer") {
@@ -1962,7 +2028,19 @@ export class Town {
         if (task === "tend") { f.tended = this.day; }
         else if ((f.progress = (f.progress || 0) + 1) >= 3) {
           f.progress = 0; f._farm = null;
-          if (task === "reap") { const got = RYE_HARVEST + (this.has("well") ? 1 : 0); this.S.rye += got; f.growth = 0; f.sown = false; this.emit("reaped", f, got); }
+          if (task === "reap") {
+            // reaped: the field bare again, and the sheaves carried in their arms to the store chest
+            const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0);
+            f.growth = 0; f.sown = false; this.show(f); this.persist(); this.sfxAt(a, "build");
+            const ch = this.chestAt(f), sheaf = a.hold(makeSheaf());
+            a.person.setPose("hold"); a.doing = "carrying the rye to the store chest";
+            // (whatever stops them on the way, the rye still goes in: it's never lost on the road)
+            try { await a.walkTo(ch.x, ch.z, 1.1); alive(); a.faceTo(ch.cx, ch.cz); a.person.setPose("reach"); await sleep(0.9); }
+            finally { a.person.held.remove(sheaf); a.person.setPose("idle"); this.S.rye += got; this.S.seed = +((this.S.seed || 0) + SEED_BACK).toFixed(2); this.persist(); }
+            this.sfxAt(a, "pickup"); this.emit("reaped", f, got);
+            alive();
+            continue;
+          }
           else { f.sown = true; f.growth = 1; }
           this.show(f); this.persist(); this.sfxAt(a, "build");
         } else f._farm = null;
@@ -2010,21 +2088,24 @@ export class Town {
         // (weeded yesterday: now and then a stage further)
         if ((b.growth ?? 1) < 3) { b.growth = Math.min(3, (b.growth ?? 1) + 1 + ((this.knows("agriculture") && Math.random() < 0.3) || (b.tended >= this.day - 1 && Math.random() < 0.25) ? 1 : 0)); this.show(b); }
       }
-      // everyone eats, bread first (a loaf goes twice as far); two days with nothing, and the newest to come leaves
+      // everyone eats: a day's food each — a dish you cooked, or three loaves, or two meat, or five rye, the best there is first;
+      // two days with nothing, and the newest to come leaves
       // (Horse Feed: hunger fades 20% slower)
-      let need = Math.ceil((this.S.people.length + 2) / 2 * (this.knows("horsefeed") ? 0.8 : 1));
+      let mouths = this.mouths();
       // first the dishes you cooked and put in the stores, the best first: whoever gets one is glad of it
       if (this.S.feast && this.S.feast.length) {
         const dishes = this.S.feast.sort((p, q) => q.stars - p.stars), eaters = this.S.people.filter(p => !p.child).sort(() => Math.random() - 0.5);
         let fed = 0;
         for (const p of eaters) { const d = dishes.shift(); if (!d) break; p.meal = { day: this.day, stars: d.stars, name: d.name, where: "from your kitchen" }; fed++; }
-        need = Math.max(0, need - Math.floor(fed / 2));
+        mouths = Math.max(0, mouths - fed);
         if (fed) UI.hint(`${fed} of your people ate your cooking today${fed > 1 ? "" : ""} — ${dishes.length ? `${dishes.length} dish${dishes.length > 1 ? "es" : ""} left in the stores` : "the dishes are all gone"}.`, 4);
       }
-      const loaves = Math.min(this.S.bread, Math.ceil(need / LOAF_FEEDS));
-      this.S.bread -= loaves; need = Math.max(0, need - loaves * LOAF_FEEDS);
-      // (then the roast meat the hunters brought in, a mouthful each)
-      const meats = Math.min(this.S.meat || 0, need); this.S.meat = (this.S.meat || 0) - meats; need -= meats;
+      // then bread, then the meat the hunters brought in, then the rye as it is
+      for (const k of ["bread", "meat"]) {
+        const n = Math.min(this.S[k] || 0, Math.ceil(mouths * RATION[k] - 1e-6));
+        this.S[k] = (this.S[k] || 0) - n; mouths = Math.max(0, mouths - n / RATION[k]);
+      }
+      const need = Math.ceil(mouths * RATION.rye - 1e-6);
       if (this.S.rye >= need) { this.S.rye -= need; this.S.hungry = 0; }
       else {
         this.S.rye = 0; this.S.hungry = (this.S.hungry || 0) + 1;

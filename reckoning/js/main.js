@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
@@ -573,7 +573,7 @@ function renderPlans() {
   }
   // (what hasn't been researched isn't shown at all)
   const list = Object.entries(TOWN_BUILDINGS).filter(([k, d]) => !d.settlers && (!t.unlocked || t.unlocked.has(k)) && !t.gated(k));
-  $("buildList").innerHTML = list.map(([k, d]) => t.gated(k) ? `<button class="plan short" data-k="${k}" data-gate="1"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(t.researchAdvice(t.gated(k).id, "it"))}.</span></span><span class="pc">locked</span></button>` : `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.path ? "free" : d.cost ? [d.cost + " logs", ...Object.entries(d.mats || {}).map(([k, n]) => `${n} ${k}`)].join(", ") : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
+  $("buildList").innerHTML = list.map(([k, d]) => t.gated(k) ? `<button class="plan short" data-k="${k}" data-gate="1"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(t.researchAdvice(t.gated(k).id, "it"))}.</span></span><span class="pc">locked</span></button>` : `<button class="plan" data-k="${k}"><img src="${ICON[d.icon] || ICON.logs}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}</span></span><span class="pc">${d.path ? "free" : k === "field" ? `1 seed (${t.S.seed != null ? (Math.round(t.S.seed * 10) / 10) : 0})` : d.cost ? [d.cost + " logs", ...Object.entries(d.mats || {}).map(([k, n]) => `${n} ${k}`)].join(", ") : "a spade"}</span></button>`).join("") || `<div class="inv-empty">Nothing to build yet.</div>`;
   for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { if (b.dataset.gate) return; showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
 }
 // ---- trading: a list of offers from whoever you're dealing with ----
@@ -688,8 +688,7 @@ function stat(k, v, n, bar, warn = true) {
 }
 function govNation(t) {
   const S = t.S, pop = S.people.length + 2, beds = t.beds + 2;
-  const need = Math.max(1, Math.ceil(pop / 2 * (t.knows("horsefeed") ? 0.8 : 1)));
-  const foodDays = Math.floor((S.rye + (S.bread || 0) * 2) / need);
+  const foodDays = Math.floor(t.foodDays());
   const fuelDays = Math.floor(S.store / Math.max(1, t.hearths));
   const c = t.contentment();
   const yearN = Math.floor(t.day / YEAR) + 1, dayN = (t.day % YEAR) + 1;
@@ -1080,6 +1079,8 @@ function hotbarItems() {
   for (const i of G.pack) out.push(i.icon === "spade" && tl && tl.spade >= 3 && G.town ? { ...i, name: `${cap(TIER_NAME[tl.spade])} spade` } : i);
   // the settlement's bread: yours to eat from the store
   if (G.town && G.town.S.bread > 0) out.push({ icon: "bread", name: "Bread, from the store", n: G.town.S.bread, fromStore: true });
+  // what's left of each tool, for the bar under it
+  if (tl) for (const i of out) { const k = i.tool === "axe" ? "axe" : i.tool === "pick" ? "pick" : i.icon && i.icon.startsWith("sword") ? "sword" : i.icon === "spade" ? "spade" : null; if (k) i.wear = toolLeft(G.body, k); }
   return out.slice(0, 9);
 }
 let hbSig = "";
@@ -1092,12 +1093,12 @@ function renderHotbar() {
   document.body.classList.toggle("talking", !!UI.dialogOpen);
   const items = hotbarItems(), pl = G.player;
   const sel = items.findIndex(i => (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow));
-  const sig = items.map(i => i.icon + (i.n ?? "")).join("|") + "#" + sel;
+  const sig = items.map(i => i.icon + (i.n ?? "") + (i.wear != null ? "w" + Math.round(i.wear * 40) : "")).join("|") + "#" + sel;
   if (sig === hbSig) return;
   hbSig = sig;
   hb.innerHTML = Array.from({ length: 9 }, (_, k) => {
     const it = items[k];
-    return `<div class="hb${k === sel ? " sel" : ""}"><span class="k">${k + 1}</span>${it ? `<img src="${ICON[it.icon]}" alt="${esc(it.name)}" title="${esc(it.name)}">${it.n != null && it.n !== 1 ? `<span class="n">${esc(it.n)}</span>` : ""}` : ""}</div>`;
+    return `<div class="hb${k === sel ? " sel" : ""}"><span class="k">${k + 1}</span>${it ? `<img src="${ICON[it.icon]}" alt="${esc(it.name)}" title="${esc(it.name)}">${it.n != null && it.n !== 1 ? `<span class="n">${esc(it.n)}</span>` : ""}${it.wear != null && it.wear < 1 ? `<span class="dur${it.wear < 0.15 ? " low" : ""}"><i style="width:${Math.round(it.wear * 100)}%"></i></span>` : ""}` : ""}</div>`;
   }).join("");
 }
 setInterval(renderHotbar, 200);

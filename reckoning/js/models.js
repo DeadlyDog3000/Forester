@@ -491,6 +491,26 @@ export function makeFood(kind) {
   }
   return g;
 }
+// a sheaf of rye, bound round the middle, the ears at the top (carried in the arms, from the field to the stores)
+export function makeSheaf() {
+  const g = new THREE.Group(), straw = mat(0xc9a85a, { surface: "none" }), ear = mat(0xa8823e, { surface: "none" });
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.4, r = 0.012 + (i % 3) * 0.012, x = Math.sin(a) * r, z = Math.cos(a) * r;
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.5, 4), straw); s.position.set(x, 0.25, z); s.rotation.set(z * 2, 0, -x * 2); g.add(s);
+    const e = new THREE.Mesh(new THREE.CapsuleGeometry(0.011, 0.05, 2, 4), ear); e.position.set(x * 1.8, 0.53, z * 1.8); e.rotation.set(z * 4, 0, -x * 4); g.add(e);
+  }
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.008, 4, 10), mat(0x8a6a34, { surface: "none" })); band.rotation.x = Math.PI / 2; band.position.y = 0.24; g.add(band);
+  g.rotation.z = 0.5;
+  return g;
+}
+// a sack of grain, tied at the neck
+export function makeSack() {
+  const g = new THREE.Group(), cloth = mat(0xb39a72, { surface: "none", roughness: 1 });
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), cloth); b.scale.set(1, 1.15, 0.85); b.position.y = 0.13; g.add(b);
+  const n = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.07, 6), cloth); n.position.y = 0.29; g.add(n);
+  const t = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.007, 4, 8), mat(0x6a5030, { surface: "none" })); t.rotation.x = Math.PI / 2; t.position.y = 0.28; g.add(t);
+  return g;
+}
 // a pickaxe: haft pointing +Y, the head across it at the top, in its making's colour
 const PICK_HEAD = [0x9a7448, 0x9a7448, 0x8a867e, 0xe0904e, 0xc49a48, 0xaab0b8];
 export function makePick(tier = 1) {

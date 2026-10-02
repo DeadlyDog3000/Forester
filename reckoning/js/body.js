@@ -62,6 +62,34 @@ export const TOOL_RECIPES = [
   { tool: "sword", tier: 4, name: "Bronze sword", cost: { logs: 1, bronze: 4 }, note: "Cast bronze, ground to a point: the plain blade of the age." },
   { tool: "sword", tier: 5, name: "Iron sword", cost: { logs: 1, iron: 4 }, note: "The best blade in the settlement." },
 ];
+// how many strokes a tool's making stands before it wears out: a wooden one soon, iron a long while
+export const TOOL_LIFE = [0, 60, 120, 200, 300, 450];
+// worn out, the axe and the spade go back to the old ones from the block (reground, they never quite give out);
+// anything else is gone, to make again
+const WORN_TO = { axe: 2, spade: 2 };
+const TOOL_WORD = { axe: "axe", pick: "pickaxe", spade: "spade", hammer: "hammer", sword: "sword" };
+// what's left of a tool, 0..1 (1 for one that doesn't wear)
+export function toolLeft(b, k) {
+  const t = b && b.tools && b.tools[k]; if (!t || (WORN_TO[k] && t <= WORN_TO[k])) return 1;
+  const w = b.wear && b.wear[k];
+  return w && w.t === t ? Math.max(0, w.n / TOOL_LIFE[t]) : 1;
+}
+// a stroke's worth of use; returns "worn" (a warning), "broke" (and what it is now), or nothing
+export function wearTool(b, k, n = 1) {
+  const t = b && b.tools && b.tools[k];
+  if (!t || (WORN_TO[k] && t <= WORN_TO[k])) return null;
+  b.wear ??= {};
+  let w = b.wear[k];
+  if (!w || w.t !== t) w = b.wear[k] = { t, n: TOOL_LIFE[t] };
+  const before = w.n / TOOL_LIFE[t];
+  w.n -= n; b.dirty = true;
+  if (w.n <= 0) {
+    b.tools[k] = WORN_TO[k] || 0; delete b.wear[k];
+    return { broke: true, text: `Your ${TIER_NAME[t]} ${TOOL_WORD[k]} has worn out${WORN_TO[k] ? ` — you're back to the old ${TOOL_WORD[k]} from the block` : ". Make another at the chopping block"}.` };
+  }
+  if (before > 0.15 && w.n / TOOL_LIFE[t] <= 0.15) return { worn: true, text: `Your ${TIER_NAME[t]} ${TOOL_WORD[k]} is nearly worn through.` };
+  return null;
+}
 // the tool a making replaces: the lowest one above what you have
 export const nextTier = (tools, tool) => Math.min(...TOOL_RECIPES.filter(r => r.tool === tool && r.tier > (tools[tool] || 0)).map(r => r.tier));
 // what each kind of rock gives, and the pick it wants
@@ -99,6 +127,7 @@ export function restoreBody(saved) {
     if (saved.purse > 0) b.purse = Math.floor(saved.purse);
     // (before bronze there were four makings, and 4 was iron: those are 5 now)
     if (saved.tools) for (const k of Object.keys(b.tools)) if (saved.tools[k] != null) { let v = saved.tools[k] | 0; if (!saved.tools.v && v >= 4) v = 5; b.tools[k] = Math.min(TOP_TIER, Math.max(b.tools[k], v)); }
+    if (saved.wear && typeof saved.wear === "object") { b.wear = {}; for (const [k, w] of Object.entries(saved.wear)) if (w && b.tools[k] === w.t && w.n > 0) b.wear[k] = { t: w.t, n: +w.n }; }
     for (const s of BODY_SKILLS) {
       const v = saved.skills && saved.skills[s.id];
       if (v) b.skills[s.id] = { lv: Math.min(SKILL_MAX, Math.max(1, v.lv | 0)), xp: Math.max(0, +v.xp || 0) };
@@ -106,7 +135,7 @@ export function restoreBody(saved) {
   }
   return b;
 }
-export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 }, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
+export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 }, wear: b.wear || {}, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
 // what the traders give for what you have gathered yourself and put in your chest, a piece
 export const SELL_PRICE = { meat: 2, venison: 3, hare: 2, boar: 4, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
 // the plague, from meat eaten raw: how long it lasts if nobody tends you
