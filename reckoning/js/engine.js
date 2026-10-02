@@ -1116,6 +1116,18 @@ export class Actor {
       if (d < rr && d > 1e-4) { p.x = pl.pos.x + dx / d * rr; p.z = pl.pos.z + dz / d * rr; }
     }
   }
+  // up to someone, stopping short at arm's length (never onto the spot they stand on); or back off to that distance
+  approach(fp, dist, speed) {
+    let dx = this.pos.x - fp.x, dz = this.pos.z - fp.z, d = Math.hypot(dx, dz);
+    if (d < 0.05) { dx = Math.sin(this.yaw + Math.PI); dz = Math.cos(this.yaw + Math.PI); d = 1; }
+    return this.walkTo(fp.x + dx / d * dist, fp.z + dz / d * dist, speed);
+  }
+  // step round someone you're fighting, at about this distance, one way or the other (the way you were going, mostly)
+  circleAbout(fp, rad, speed) {
+    if (Math.random() < 0.3 || !this.circleDir) this.circleDir = Math.random() < 0.5 ? -1 : 1;
+    const ang = Math.atan2(this.pos.x - fp.x, this.pos.z - fp.z) + this.circleDir * (0.45 + Math.random() * 0.35);
+    return this.walkTo(fp.x + Math.sin(ang) * rad, fp.z + Math.cos(ang) * rad, speed);
+  }
   faceTo(x, z) { this.faceTarget = null; this.targetYaw = Math.atan2(x - this.pos.x, z - this.pos.z); }
   facePlayer() { this.faceTarget = "player"; }
   stopFacing() { this.faceTarget = null; }
@@ -1189,6 +1201,9 @@ export class Actor {
       }
     }
     if (!moving && this.faceTarget === "player") this.targetYaw = Math.atan2(G.player.pos.x - p.x, G.player.pos.z - p.z);
+    // squared up to someone in a fight: the face stays on them, stepping about or not
+    const sq = this.squareTo && this.squareTo.pos;
+    if (sq) this.targetYaw = Math.atan2(sq.x - p.x, sq.z - p.z);
     // watching someone (who may be moving): turned to them while standing, and the head after them always
     const wt = this.watch && this.watch.pos;
     if (wt && !moving) this.targetYaw = Math.atan2(wt.x - p.x, wt.z - p.z);

@@ -89,6 +89,8 @@ class Raider {
     }
     this.hp -= d;
     if (this.hp <= 0) { AUDIO.voice("pain", { at: this.pos, vol: 1.1 }); return this.down(); }
+    // struck by you: whoever he was fighting, it's you he turns on now
+    if (from === G.player && this.duel !== G.player) this.raid.lock(this, G.player);
     AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos });
     this.stun = 0.45; this.wind = 0; this.a.path = [];
   }
@@ -103,6 +105,7 @@ class Raider {
     } else from.stagger = G.time + 0.9;
   }
   down() {
+    this.raid.lock(this, null); this.a.squareTo = null;
     this.state = "down"; this.a.path = []; this.a.person.held.clear(); this.a.person.heldL.clear();
     this.a.lying = true; this.a.yOff = 0.05;
     // what he had goes back where it came from
@@ -199,17 +202,44 @@ export class Raids {
     best.damage(this.town.armDmg(pl.blade && pl.blade !== "axe" ? pl.blade : "axe") * blowMul(G.body) * ownBlade(pl), pl); G.practise("strength", 1.5);
     return true;
   }
-  // the nearest one standing up to him: you (unless you're down), or a settler in the fight, within a few steps
-  foeOf(r) {
-    const pl = G.player, a = r.a;
-    let best = null, bd = 4;
-    if (!G.downed && G.mode === "play") { const d = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z); if (d < bd) { bd = d; best = pl; } }
-    for (const s of this.town.actors) {
-      if (!s.fighting || s.knocked) continue;
-      const d = Math.hypot(s.pos.x - a.pos.x, s.pos.z - a.pos.z);
-      if (d < bd - 0.5) { bd = d; best = s; }
+  // ---- the duel: a raider fights one at a time, whoever he has squared up to, until one of them is down ----
+  // (you, or one settler; a settler with no raider left to pair with waits their turn rather than piling on)
+  lock(r, foe) {
+    const old = r.duel;
+    if (old === foe) return;
+    if (old && old !== G.player && old.duel === r) old.duel = null;
+    r.duel = foe;
+    // (one on you at a time: whoever had you before lets you be)
+    if (foe === G.player) for (const o of this.band) if (o !== r && o.duel === foe) o.duel = null;
+    if (foe && foe !== G.player) { if (foe.duel && foe.duel !== r && foe.duel.duel === foe) foe.duel.duel = null; foe.duel = r; }
+    if (foe === G.player) {
+      AUDIO.voice("war", { at: r.pos, vol: 1 });
+      if (!this.duelTold) { this.duelTold = true; UI.hint("He's squared up to you — it's you and him now. Watch for the red mark as he winds up, and guard that side.", 5); }
     }
+  }
+  // a settler looking for a fight: the nearest raider nobody has squared up to yet
+  claim(a) {
+    let best = null, bd = Infinity;
+    for (const r of this.band) {
+      if (!r.alive || r.duel) continue;
+      const d = Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z);
+      if (d < bd) { bd = d; best = r; }
+    }
+    if (best) this.lock(best, a);
     return best;
+  }
+  // who he is fighting, if anyone: the one he is locked to while they're still standing and not far off;
+  // otherwise you, if you come close enough and nobody else of his is already at you
+  duelOf(r) {
+    const pl = G.player, a = r.a, D = f => Math.hypot(f.pos.x - a.pos.x, f.pos.z - a.pos.z);
+    const ok = f => f === pl ? !G.downed && G.mode === "play" && D(pl) < 22 : f && !f.knocked && !f.gone && !f.dead && f.fighting && f.duel === r && D(f) < 22;
+    if (r.duel && !ok(r.duel)) this.lock(r, null);
+    if (!r.duel && !G.downed && G.mode === "play" && !this.band.some(o => o !== r && o.alive && o.duel === pl)) {
+      const d = D(pl);
+      // (running off with his arms full, he only turns on you if you catch him)
+      if (d < (r.state === "flee" ? 2.4 : 9)) this.lock(r, pl);
+    }
+    return r.duel;
   }
   strikePlayer(r, W, d) {
     const pl = G.player, a = r.a, f = pl.forward();
@@ -256,6 +286,7 @@ export class Raids {
     // cut down by a blade, sometimes they do not get up again
     if (r && r.arm && r.arm !== "fists" && Math.random() < 0.3 && this.town.killSettler) { this.town.killSettler(s); return; }
     // down in the grass for a while; they get up again when it's over
+    s.squareTo = null; s.duel = null;
     s.knocked = G.time + 18; s.wasKnocked = true; s.path = []; s.lying = true; s.yOff = 0.05; s.person.held.clear(); s.armKind = null;
     UI.bark(s.settler.name, ["Ah—!", "I'm down—", "Get him off me!"][Math.floor(Math.random() * 3)], 1.8);
   }
@@ -276,24 +307,39 @@ export class Raids {
       // (unless he is running off with his arms full)
       // his guard moves: to a side at random, or to the side you're on
       if ((r.guardT -= dt) <= 0) { r.guardT = 1.1 + Math.random() * 1.5; r.guardDir = Math.random() < 0.45 && pl.stance ? pl.stance : DIRS[Math.floor(Math.random() * 3)]; }
-      const foe = r.state !== "flee" && this.foeOf(r);
+      const foe = this.duelOf(r);
+      a.squareTo = foe;
       if (foe) {
-        const fp = foe === pl ? pl.pos : foe.pos, d = Math.hypot(fp.x - a.pos.x, fp.z - a.pos.z);
-        a.path = []; a.faceTo(fp.x, fp.z);
+        const fp = foe.pos, d = Math.hypot(fp.x - a.pos.x, fp.z - a.pos.z);
         const W = THEIRS[r.arm];
+        r.stepT = (r.stepT || 0) - dt;
         if (r.wind > 0) {
           // the wind-up: the arm going back — the moment to raise a guard
+          a.path = [];
           r.wind -= dt;
           if (r.wind <= 0) {
             a.person.setPose("chop"); setTimeout(() => { if (r.alive) a.person.setPose("idle"); }, 350);
             AUDIO.whoosh && AUDIO.whoosh(0.4, r.arm !== "knife");
             if (d < 1.9) foe === pl ? this.strikePlayer(r, W, d) : this.strikeSettler(foe, W.dmg, r);
           }
-        } else if (d > 1.3) { a.walkTo(fp.x, fp.z, WALK); }
-        else if (r.cool <= 0) {
-          r.cool = W.cool * (0.85 + Math.random() * 0.3);
-          r.wind = 0.6; r.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose("reach");
-          if (Math.random() < 0.45) AUDIO.voice(Math.random() < 0.5 ? "grunt" : "war", { at: a.pos, vol: 0.8 });
+        } else if (d > 2.3) {
+          // closing in on them, and keeping after them
+          if (!a.path.length || r.stepT <= 0) { r.stepT = 0.4; a.approach(fp, 1.4, WALK); }
+        } else if (d < 0.95) {
+          // too close to swing: a step back
+          if (r.stepT <= 0) { r.stepT = 0.5; a.approach(fp, 1.5, 2.2); }
+        } else if (r.cool <= 0) {
+          if (d > 1.75) { if (r.stepT <= 0) { r.stepT = 0.3; a.approach(fp, 1.3, 2.6); } }
+          else {
+            a.path = [];
+            r.cool = W.cool * (0.85 + Math.random() * 0.3);
+            r.wind = 0.6; r.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose("reach");
+            if (Math.random() < 0.45) AUDIO.voice(Math.random() < 0.5 ? "grunt" : "war", { at: a.pos, vol: 0.8 });
+          }
+        } else if (r.stepT <= 0) {
+          // between blows: circling, looking for the opening
+          r.stepT = 0.7 + Math.random() * 0.9;
+          if (Math.random() < 0.7) a.circleAbout(fp, 1.6, 1.3); else a.path = [];
         }
         continue;
       }

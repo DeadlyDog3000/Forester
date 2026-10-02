@@ -249,7 +249,10 @@ export class Caves {
     for (const b of this.band || []) {
       if (b.down) continue;
       const dx = b.a.pos.x - pl.pos.x, dz = b.a.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
-      if (d < 2.3 && (dx * f.x + dz * f.z) / d > 0.5) { b.hurt(20 + Math.random() * 10); AUDIO.clang && AUDIO.clang(0.5, b.a.pos); G.practise && G.practise("strength", 0.6); return true; }
+      if (d < 2.3 && (dx * f.x + dz * f.z) / d > 0.5) {
+        // struck by you: it's you he fights now (and whoever had you waits)
+        if (b.duel !== pl) { for (const o of this.band) if (o.duel === pl) o.duel = null; b.duel = pl; }
+        b.hurt(20 + Math.random() * 10); AUDIO.clang && AUDIO.clang(0.5, b.a.pos); G.practise && G.practise("strength", 0.6); return true; }
     }
     return false;
   }
@@ -266,21 +269,37 @@ class Bandit {
   tick(dt) {
     if (this.down) return;
     const pl = G.player, a = this.a;
-    // whoever is nearest of you and those with you
+    // one at a time: whoever he has squared up to, you or one of those with you, until one of them is down
     const mates = G.town ? G.town.actors.filter(o => o.settler && o.settler.follow && !o.knocked && this.cave.holds(o.pos.x, o.pos.z)) : [];
-    let foe = null, d = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z);
-    for (const o of mates) { const e = Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z); if (e < d) { d = e; foe = o; } }
-    const tp = foe ? foe.pos : pl.pos;
+    const D = o => Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z), others = (this.cave.band || []).filter(b => b !== this && !b.down);
+    const taken = o => others.some(b => b.duel === o);
+    if (this.duel && (this.duel === pl ? G.downed || D(pl) > 25 : this.duel.knocked || !mates.includes(this.duel))) this.duel = null;
+    if (!this.duel && this.woke) {
+      const free = [pl, ...mates].filter(o => !taken(o)).sort((p, q) => D(p) - D(q))[0];
+      if (free && D(free) < 18) this.duel = free;
+    }
+    const near = [pl, ...mates].sort((p, q) => D(p) - D(q))[0];
+    const tp = (this.duel || near).pos, foe = this.duel && this.duel !== pl ? this.duel : null;
+    let d = D(this.duel || near);
     if (!this.woke && d < 15) { this.woke = true; AUDIO.voice && AUDIO.voice("war", { at: a.pos }); UI.hint("Raiders — they've made their camp down here!", 3); }
     if (!this.woke) return;
-    this.cool -= dt;
-    if (d > 1.6) { if (!a.path.length || (this.re = (this.re || 0) - dt) <= 0) { this.re = 0.6; a.walkTo(tp.x, tp.z, 3.4); } return; }
+    a.squareTo = this.duel || near;
+    this.cool -= dt; this.re = (this.re || 0) - dt;
+    // nobody free to fight: he hangs back, waiting for his turn
+    if (!this.duel) { if (this.re <= 0 && (d < 3.5 || d > 6)) { this.re = 0.8; a.approach(tp, 4.5, 2.6); } return; }
+    if (d > 2.0) { if (!a.path.length || this.re <= 0) { this.re = 0.5; a.approach(tp, 1.4, 3.4); } return; }
+    if (this.cool > 0.35) { if (this.re <= 0) { this.re = 0.7 + Math.random() * 0.8; if (Math.random() < 0.65) a.circleAbout(tp, 1.6, 1.3); } return; }
+    if (d > 1.6) { if (this.re <= 0) { this.re = 0.3; a.approach(tp, 1.3, 2.6); } return; }
     a.path = []; a.faceTo(tp.x, tp.z);
+    // the arm drawn back first, so you see it coming
+    if (this.cool <= 0 && !(this.wind > 0)) { this.wind = 0.5; a.person.setPose("reach"); return; }
+    if (this.wind > 0 && (this.wind -= dt) > 0) return;
     if (this.cool <= 0) {
+      this.wind = 0;
       this.cool = 1.2 + Math.random() * 0.5;
       a.person.setPose("chop"); setTimeout(() => a.person && a.person.setPose("idle"), 350);
       const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
-      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; } } } }
+      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; foe.squareTo = null; } } } }
       else if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2.1) G.hurt(pl.guard ? dmg * 0.3 : dmg, "raider");
       AUDIO.whoosh && AUDIO.whoosh(0.4, true);
     }
@@ -288,7 +307,7 @@ class Bandit {
   hurt(n) {
     this.hp -= n;
     if (this.hp > 0) { AUDIO.voice && AUDIO.voice("pain", { at: this.a.pos }); return; }
-    this.down = true; this.a.lying = true; this.a.path = [];
+    this.down = true; this.a.lying = true; this.a.path = []; this.a.squareTo = null; this.duel = null;
     AUDIO.voice && AUDIO.voice("fear", { at: this.a.pos });
     // what he had on him
     const dm = 4 + Math.floor(Math.random() * 10);

@@ -60,15 +60,24 @@ export async function revoltShift(town, a, sleep, alive) {
   const pl = G.player;
   // a rebel may go for you, if you are near
   const youNear = rebel && pl && !G.downed && Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 16;
-  let target = null, td = Infinity;
-  for (const o of foes) { const d = Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z); if (d < td) { td = d; target = o; } }
-  if (youNear && Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < td) target = "you";
+  // one at a time: whoever they squared up to, until one of them is down (or it's broken off, far apart)
+  const held = a.revFoe, D = o => Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z);
+  let target = held === "you" ? (rebel && !G.downed && D(pl) < 20 ? "you" : null) : held && foes.includes(held) && D(held) < 20 ? held : null;
+  if (!target) {
+    let td = Infinity;
+    // (the one nobody is fighting yet, first)
+    for (const o of foes) { const d = D(o) + (town.actors.some(x => x !== a && x.revFoe === o) ? 6 : 0); if (d < td) { td = d; target = o; } }
+    if (youNear && D(pl) < td && !town.actors.some(x => x !== a && x.revFoe === "you")) target = "you";
+  }
+  a.revFoe = target; a.squareTo = target === "you" ? pl : target;
   if (!target) { a.doing = rebel ? "in revolt, looking for a fight" : "standing by you"; await sleep(1.5); alive(); return true; }
   const tp = target === "you" ? pl.pos : target.pos;
   a.doing = rebel ? "fighting for the rising" : "fighting the rebels";
   const d = Math.hypot(tp.x - a.pos.x, tp.z - a.pos.z);
-  if (d > 1.5) { await Promise.race([a.walkTo(tp.x, tp.z, 2.8), sleep(0.8)]); alive(); return true; }
-  a.faceTo(tp.x, tp.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
+  if (d > 2.0) { await Promise.race([a.approach(tp, 1.4, 2.8), sleep(0.8)]); alive(); return true; }
+  if (Math.random() < 0.35) { await Promise.race([a.circleAbout(tp, 1.5, 1.4), sleep(0.7)]); alive(); return true; }
+  if (d > 1.5) { await Promise.race([a.approach(tp, 1.3, 2.4), sleep(0.4)]); alive(); }
+  a.path = []; a.faceTo(tp.x, tp.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
   const dmg = 9 + Math.random() * 7;
   if (target === "you") { if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2) G.hurt(dmg * 0.8, "rebel"); }
   else if (Math.hypot(target.pos.x - a.pos.x, target.pos.z - a.pos.z) < 2) hit(town, target, dmg);
@@ -80,6 +89,7 @@ export async function revoltShift(town, a, sleep, alive) {
 function hit(town, a, dmg) {
   a.hp = (a.hp ?? 50) - dmg;
   // (a blow that brings them down sometimes kills)
+  if (a.hp <= 0) { a.squareTo = null; a.revFoe = null; }
   if (a.hp <= 0 && Math.random() < 0.3 && town.killSettler) { town.killSettler(a, "revolt"); checkEnd(town); return; }
   if (a.hp <= 0) { a.knocked = Infinity; a.lying = true; a.path = []; AUDIO.voice && AUDIO.voice("fear", { at: a.pos, high: a.settler.sex === "f" }); checkEnd(town); }
 }
@@ -104,7 +114,7 @@ export function checkEnd(town) {
 export function endRevolt(town, winner) {
   const S = town.S, rebels = S.people.filter(p => p.rebel);
   S.revolt.active = false; S.lastRevolt = town.day;
-  for (const a of town.actors) { if (a.knocked === Infinity && !a.dead) { a.knocked = 0; a.lying = false; a.hp = 50; } armband(a, false); }
+  for (const a of town.actors) { if (a.knocked === Infinity && !a.dead) { a.knocked = 0; a.lying = false; a.hp = 50; } a.revFoe = null; a.squareTo = null; armband(a, false); }
   if (winner === "loyal") {
     // the rebels are put out of the settlement (the jail keeps one, if there is a jail)
     const jail = town.has && town.has("jail");

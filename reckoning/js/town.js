@@ -1185,7 +1185,7 @@ export class Town {
       if (a.armKind !== arm) { a.person.held.clear(); if (arm !== "fists") a.hold(makeArm(arm)); a.armKind = arm; }
       a.doing = "fighting at your side";
       const d = Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z);
-      if (d > 1.6) { await Promise.race([a.walkTo(foe.a.pos.x, foe.a.pos.z, 3.2), sleep(0.7)]); alive(); return true; }
+      if (d > 1.6) { await Promise.race([a.approach(foe.a.pos, 1.3, 3.2), sleep(0.7)]); alive(); return true; }
       a.faceTo(foe.a.pos.x, foe.a.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
       if (!foe.down && Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z) < 2) { foe.hurt(this.armDmg(arm) * armSkill(a.settler, "fighting")); this.learn(a, "fighting", 0.5); AUDIO.clang(0.5, a.pos); }
       await sleep(0.8); return true;
@@ -1726,7 +1726,7 @@ export class Town {
         a.knocked = 0; a.lying = false; a.yOff = 0; a.hp = 50;
       }
       if (!raid && a.fighting) {
-        a.fighting = false; if (a.armKind) { a.person.held.clear(); a.armKind = null; } a.hp = 50;
+        a.fighting = false; a.duel = null; a.squareTo = null; if (a.armKind) { a.person.held.clear(); a.armKind = null; } a.hp = 50;
         // stood in the fight and came through: hardened; beaten down and left lying: bitter
         if (a.wasKnocked) { if (a.settler.mark !== "hardened") this.setMark(a.settler, "bitter", "beaten down in the raid, and hasn't forgotten it"); }
         else this.setMark(a.settler, "hardened", "stood up to the raiders, and is less afraid of the next");
@@ -1756,19 +1756,36 @@ export class Town {
       }
       // (once there is Policing, the watch does the fighting and everyone else takes cover)
       if (raid && !a.settler.child && !(a.settler.name && FAITHS[faithOf(a.settler)].pacifist) && (!this.knows("policing") || job === "watch")) {
-        const r = this.raids.nearest(a.pos);
-        if (r) {
+        // one raider each: the one they've squared up to, or the nearest nobody has yet
+        const mine = a.duel && a.duel.alive && a.duel.duel === a ? a.duel : null;
+        const r = mine || this.raids.claim(a) || null, near = r || this.raids.nearest(a.pos);
+        if (near) {
           const arm = this.armFor(a.settler);
           if (a.armKind !== arm) { a.person.held.clear(); if (arm !== "fists") a.hold(makeArm(arm)); a.armKind = arm; }
           a.fighting = true;
-          a.doing = arm === "fists" ? "fighting the raiders with bare fists" : `fighting the raiders with ${arm === "axe" ? "an" : "a"} ${ARMS[arm].name.toLowerCase()}`;
+          if (!r) {
+            // every raider has someone on him already: ready, a few steps off, to step in when one falls
+            a.duel = null; a.squareTo = near;
+            a.doing = "waiting to step into the fight";
+            const d = Math.hypot(near.pos.x - a.pos.x, near.pos.z - a.pos.z);
+            if (d > 6 || d < 3.5) await Promise.race([a.approach(near.pos, 4.5, 2.6), sleep(0.8)]);
+            else await sleep(0.6);
+            alive(); continue;
+          }
+          a.squareTo = r;
+          a.doing = (arm === "fists" ? "fighting a raider with bare fists" : `fighting a raider with ${arm === "axe" ? "an" : "a"} ${ARMS[arm].name.toLowerCase()}`);
           const d = Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z);
-          if (d > 1.5) { await Promise.race([a.walkTo(r.pos.x, r.pos.z, 3.0), sleep(0.8)]); alive(); continue; }
+          if (d > 2.1) { await Promise.race([a.approach(r.pos, 1.4, 3.0), sleep(0.6)]); alive(); continue; }
           // thrown off by a parry: a moment to find their feet
           if (a.stagger && G.time < a.stagger) { await sleep(a.stagger - G.time); alive(); continue; }
-          a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
+          // he's winding up: step back out of it, or stand and take it (the steadier stand their ground)
+          if (r.wind > 0 && Math.random() < 0.4) { await Promise.race([a.approach(r.pos, 2.2, 2.8), sleep(0.5)]); alive(); continue; }
+          // between blows: circling him, feeling for an opening
+          if (Math.random() < 0.35) { await Promise.race([a.circleAbout(r.pos, 1.5, 1.4), sleep(0.7)]); alive(); continue; }
+          if (d > 1.6) { await Promise.race([a.approach(r.pos, 1.3, 2.4), sleep(0.4)]); alive(); }
+          a.path = []; a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
           if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm) * armSkill(a.settler, "fighting") * temperArm(a.settler), a); this.learn(a, "fighting", 0.5); arm === "fists" ? AUDIO.whoosh(0.3, false) : Math.random() < 0.35 ? AUDIO.clang(0.7, a.pos) : this.sfxAt(a, "chop"); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
-          await sleep(arm === "fists" ? 0.55 : 0.9); continue;
+          await sleep(arm === "fists" ? 0.55 : 0.8); continue;
         }
       }
       if (raid) {
