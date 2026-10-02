@@ -7,7 +7,7 @@
 // Boot, the front door, the pause menu, and the loop.
 
 import { renderer, clamp } from "./core.js";
-import { G, Player, frame, setAtmo, input, drawMap, setGraphics, dm } from "./engine.js";
+import { G, Player, frame, setAtmo, input, drawMap, setGraphics, dm, post } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
 import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES, WORKS, SHED_BAYS } from "./town.js";
 import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
@@ -51,6 +51,7 @@ function applySettings() {
   $("setDynres").checked = !!s.dynres; $("setShadows").value = s.shadows || "high"; $("setDraw").value = String(s.draw ?? 1);
   $("setCap").value = String(s.cap || 0); $("setFps").checked = !!s.showFps;
   $("setDark").checked = !!s.dark; document.body.classList.toggle("dark-fantasy", !!s.dark);
+  post.on = s.post !== false; $("setPost").checked = post.on;
   // saturation and pixelation: the colour turned up or down, and the picture drawn in bigger, harder pixels
   const sat = s.sat ?? 1, pix = s.pix ?? 1;
   $("setSat").value = sat; $("satVal").textContent = Math.round(sat * 100) + "%";
@@ -71,9 +72,9 @@ for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true]
 $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.value; applySettings(); G.saveSettings(); });
 // ---- FPS boosters ----
 const PRESETS = {
-  high: { scale: 1, dynres: false, shadows: "high", draw: 1 },
-  balanced: { scale: 0.85, dynres: true, shadows: "low", draw: 0.75 },
-  performance: { scale: 0.65, dynres: true, shadows: "off", draw: 0.55 },
+  high: { scale: 1, dynres: false, shadows: "high", draw: 1, post: true },
+  balanced: { scale: 0.85, dynres: true, shadows: "low", draw: 0.75, post: true },
+  performance: { scale: 0.65, dynres: true, shadows: "off", draw: 0.55, post: false },
 };
 let dynScale = 1;
 function applyScale() {
@@ -90,6 +91,7 @@ $("setShadows").addEventListener("change", e => custom("shadows", e.target.value
 $("setDraw").addEventListener("change", e => custom("draw", +e.target.value));
 $("setCap").addEventListener("change", e => { G.settings.cap = +e.target.value; G.saveSettings(); });
 $("setFps").addEventListener("change", e => { G.settings.showFps = e.target.checked; applySettings(); G.saveSettings(); });
+$("setPost").addEventListener("change", e => custom("post", e.target.checked));
 // the frame rate, measured each half second: shown if asked, and used by auto resolution
 let fpsN = 0, fpsT = 0, lowFor = 0;
 function meterFps(dtReal) {

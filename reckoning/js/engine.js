@@ -7,6 +7,8 @@
 // the one thing in front of you that E would do something to.
 
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
+import { renderFrame, post } from "./post.js";
+export { post };
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
@@ -85,6 +87,8 @@ sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -45; sun.shadow.camera.right = 45; sun.shadow.camera.top = 45; sun.shadow.camera.bottom = -45;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+// (a shadow is shade, not a hole: the sky still lights what the sun can't reach)
+sun.shadow.intensity = 0.8;
 const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x4a3f30, 0.8);
 // a low fill, so a room lit by one candle is dim rather than black
 const fill = new THREE.AmbientLight(0xffdcb8, 0.1);
@@ -1569,7 +1573,7 @@ export function frame(dt, skipRender) {
   input.endFrame();
   // (hard shadows, the cheaper kind, are only redrawn every other frame)
   if (G.shadowEvery > 1) renderer.shadowMap.needsUpdate = (G.frameN = (G.frameN || 0) + 1) % G.shadowEvery === 0;
-  if (!skipRender) renderer.render(G.scene, camera);
+  if (!skipRender) renderFrame(G.scene, camera);
 }
 
 // ---- graphics: the FPS boosters in the settings ----
