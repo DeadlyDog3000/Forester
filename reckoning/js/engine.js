@@ -155,6 +155,11 @@ export function blendAtmo(a, b, t) {
 // ---------------------------------------------------------------------------
 //  the player
 // ---------------------------------------------------------------------------
+// what your hands hold on the screen hangs from this, not the camera itself, so it can move as you do:
+// it sways behind a turn, bobs with your stride, drops when you land, and comes up from below when you take a thing out
+export const vm = new THREE.Group();
+camera.add(vm);
+
 export class Player {
   constructor() {
     this.pos = new THREE.Vector3();
@@ -200,7 +205,7 @@ export class Player {
       const a = (G.town ? k => makeOwnArm(k, !!(G.town.playerArm && G.town.playerArm() === "sword")) : makeArm)(this.blade || "axe");
       a.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0)));
       this.axe.add(a);
-      camera.add(this.axe);
+      vm.add(this.axe);
       // your two hands on the haft, and your sleeves back to your shoulders, so hands and axe are one
       const look = this.model && this.model.look || {};
       const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
@@ -218,7 +223,7 @@ export class Player {
         const arm = new THREE.Group();
         const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
         const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
-        camera.add(arm);
+        vm.add(arm);
         // (both arms come in from the right: the axe is held right-handed, the left hand low on the haft)
         return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.3 : 0.12, i === 0 ? -0.5 : -0.56, 0.12) };
       });
@@ -227,8 +232,8 @@ export class Player {
       this.axeBody = (G.town ? k => makeOwnArm(k, !!(G.town.playerArm && G.town.playerArm() === "sword")) : makeArm)(this.blade || "axe"); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
       if (this.model && this.model.held) this.model.held.add(this.axeBody);
     } else if (!on && this.axe) {
-      camera.remove(this.axe); this.axe = null;
-      for (const a of this.arms || []) camera.remove(a.arm);
+      vm.remove(this.axe); this.axe = null;
+      for (const a of this.arms || []) vm.remove(a.arm);
       this.arms = null; this.hands = null;
       if (this.axeBody && this.model && this.model.held) this.model.held.remove(this.axeBody); this.axeBody = null;
     }
@@ -251,7 +256,7 @@ export class Player {
       this.nocked = new THREE.Group();
       if (am) { am.scene.rotation.y = Math.PI; am.scene.position.z = -0.37; this.nocked.add(am.scene); }
       g.add(this.nocked);
-      camera.add(g); this.bow = g;
+      vm.add(g); this.bow = g;
       const look = this.model && this.model.look || {};
       const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
       const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
@@ -264,14 +269,14 @@ export class Player {
         const arm = new THREE.Group();
         const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
         const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
-        camera.add(arm);
+        vm.add(arm);
         return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.24 : -0.22, -0.5, 0.12) };
       });
       this.draw = 0; this.reload = 0;
       this.bowPose(0);
     } else if (!on && this.bow) {
-      camera.remove(this.bow); this.bow = null;
-      for (const a of this.arms || []) camera.remove(a.arm);
+      vm.remove(this.bow); this.bow = null;
+      for (const a of this.arms || []) vm.remove(a.arm);
       this.arms = null; this.hands = null; this.draw = 0;
     }
   }
@@ -330,7 +335,7 @@ export class Player {
   fitArms() {
     if (!this.arms) return;
     (this.axe || this.bow).updateMatrixWorld(true);
-    const inv = new THREE.Matrix4().copy(camera.matrixWorld).invert();
+    const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < 2; i++) {
       const { arm, sleeve, cuff, shoulder } = this.arms[i];
       const hp = new THREE.Vector3().setFromMatrixPosition(this.hands[i].matrixWorld).applyMatrix4(inv);
@@ -348,7 +353,7 @@ export class Player {
     const wk = G.working && G.time < G.working.until && G.working.kind ? G.working : null;
     const kind = wk ? wk.kind : null;
     if (kind !== this.workKind) {
-      if (this.workRig) { camera.remove(this.workRig); this.workRig = null; }
+      if (this.workRig) { vm.remove(this.workRig); this.workRig = null; }
       if (this.workBody && this.model && this.model.held) this.model.held.remove(this.workBody); this.workBody = null;
       this.workKind = kind; this.workT = 0; this.workBeat = 0;
       // the axe or the bow goes aside while your hands are busy
@@ -371,7 +376,7 @@ export class Player {
         const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 })); arm.add(sleeve);
         const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 })); arm.add(cuff);
         g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
-        camera.add(g); this.workRig = g;
+        vm.add(g); this.workRig = g;
         // and the same tool in the hand of your body, for when the camera is behind you
         if (this.model && this.model.held && kind !== "eat" && kind !== "sow") { this.workBody = kind === "dig" ? makeSpade() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
       }
@@ -663,7 +668,8 @@ export class Player {
     } else if (this.swingT >= 0) this.gp = R.slice();
     // the axe
     if (this.swingT >= 0) {
-      this.swingT += dt;
+      // (just after the blade bites, the stroke all but stops for a moment: you feel it hit)
+      this.swingT += dt * ((this.impactT || 0) - G.time > 0.11 ? 0.1 : 1);
       const T = this.swingT;
       if (this.axe) {
         // (pitch, yaw, roll) of the hands, and where they are: a level swing from right to left
@@ -792,6 +798,7 @@ function updateCamera(dt) {
     if (p.model) p.model.root.visible = dist > 0.7;
   }
   if (p.axe) p.axe.visible = !third && !p.workKind;
+  viewModel(dt, p, third);
   if (p.workRig) p.workRig.visible = !third;
   // hold Z to look closer
   const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : (p.draw || 0) * 0.55;
@@ -803,6 +810,57 @@ function updateCamera(dt) {
   sun.position.set(p.pos.x + sd.x * 90, p.pos.y + sd.y * 90, p.pos.z + sd.z * 90);
   sun.target.position.set(p.pos.x, p.pos.y, p.pos.z);
   sky.position.copy(camera.position);
+}
+
+// a blow that landed on something (a tree, a rock, a man): the stroke checks and your arms jar
+G.impact = () => { if (G.player) G.player.impactT = G.time + 0.18; };
+// ---- your hands on the screen, moving as you move ----
+const VM = { sx: 0, sy: 0, svx: 0, svy: 0, fy: 0, fv: 0, roll: 0, sprint: 0, crouch: 0, raise: 1, held: "", yaw: null, pitch: 0, t: 0 };
+// a spring a little short of settling at once: it overshoots a touch and comes back, as a held weight does
+const spring = (x, v, to, dt, k = 140, d = 17) => { v += ((to - x) * k - v * d) * dt; return [x + v * dt, v]; };
+function viewModel(dt, p, third) {
+  if (third) return;
+  dt = Math.min(dt, 1 / 30);
+  VM.t += dt;
+  // how fast the view turned this frame: the hands lag behind it, and catch up
+  if (VM.yaw === null) { VM.yaw = p.yaw; VM.pitch = p.pitch; }
+  const yv = angDiff(VM.yaw, p.yaw) / dt, pv = (p.pitch - VM.pitch) / dt;
+  VM.yaw = p.yaw; VM.pitch = p.pitch;
+  const aim = Math.max(p.draw || 0, G.zoom || 0), steady = 1 - aim * 0.8;
+  const tx = clamp(-yv * 0.012, -0.09, 0.09) * steady, ty = clamp(-pv * 0.012, -0.07, 0.07) * steady;
+  [VM.sx, VM.svx] = spring(VM.sx, VM.svx, tx, dt); [VM.sy, VM.svy] = spring(VM.sy, VM.svy, ty, dt);
+  // going up, the hands are left behind a little; coming down, they float; and the landing pushes them down
+  const fall = p.onGround ? 0 : clamp(-p.vy * 0.007, -0.04, 0.05);
+  [VM.fy, VM.fv] = spring(VM.fy, VM.fv, fall - (G.landDip || 0) * 0.5, dt, 110, 12);
+  // a step to the side, and they roll with it
+  const side = Math.cos(p.yaw) * p.vel.x - Math.sin(p.yaw) * p.vel.z;
+  VM.roll += (clamp(-side * 0.012, -0.05, 0.05) - VM.roll) * Math.min(1, dt * 8);
+  // running: held lower and turned in, out of the way; crouched: drawn in close
+  const running = p.speed > 4.2 && p.onGround && !p.horse && !p.workKind && !(p.draw > 0) && p.swingT < 0 && !p.guard;
+  VM.sprint += ((running ? 1 : 0) - VM.sprint) * Math.min(1, dt * 7);
+  VM.crouch += ((p.crouched ? 1 : 0) - VM.crouch) * Math.min(1, dt * 8);
+  // the stride: a figure of eight, side to side once and down twice a pair of steps, bigger running
+  const walk = p.onGround && !p.horse ? Math.min(1, p.speed / 3.1) : 0, big = 1 + VM.sprint * 0.8;
+  const bx = Math.cos(p.bob) * 0.011 * walk * big * steady, by = -Math.abs(Math.sin(p.bob)) * 0.013 * walk * big * steady;
+  // still, the hands rise and fall with your breath
+  const br = Math.sin(VM.t * 1.7) * 0.0035 * (1 - walk) * steady;
+  // taken out: up from below, quickly, and settled
+  const held = (p.axe ? "a" + (p.blade || "axe") : "") + (p.bow ? "b" : "") + (p.workKind || "");
+  if (held !== VM.held) { if (held) VM.raise = 0; VM.held = held; }
+  VM.raise = Math.min(1, VM.raise + dt * 3.6);
+  const r = 1 - VM.raise, rise = r * r * (3 - 2 * r);
+  vm.position.set(bx + VM.sprint * 0.02 + VM.crouch * -0.01, by + br + VM.fy - VM.sprint * 0.04 - rise * 0.32 - VM.crouch * 0.015, VM.sprint * 0.02 + VM.crouch * 0.03);
+  vm.rotation.set(VM.sy + VM.sprint * -0.16 - rise * 0.5 + by * 1.5, VM.sx + VM.sprint * 0.07, VM.roll + bx * 2 + VM.sprint * 0.22 + Math.cos(p.bob) * 0.012 * walk * VM.sprint);
+  // a stroke: the body goes with it, a little, turning into the blow and through it
+  if (p.swingT >= 0) {
+    const T = p.swingT, s = p.swingDir === "left" ? -1 : 1;
+    const wind = Math.sin(clamp(T / 0.2, 0, 1) * Math.PI) * 0.6, blow = Math.exp(-(((T - 0.3) / 0.07) ** 2));
+    if (p.swingDir === "up") camera.rotation.x += wind * 0.03 - blow * 0.035;
+    else { camera.rotation.y += (-wind * 0.015 + blow * 0.025) * s; camera.rotation.z += (wind * 0.012 - blow * 0.02) * s; }
+  }
+  // the bite: the blade stops dead in what it struck, and it jars your arms
+  const im = Math.max(0, (p.impactT || 0) - G.time);
+  if (im > 0) { const k = im / 0.18; camera.rotation.x += Math.sin(G.time * 70) * 0.006 * k; vm.position.y += 0.012 * k; vm.position.z += 0.025 * k; }
 }
 
 // ---------------------------------------------------------------------------
@@ -925,6 +983,7 @@ function mineSwing() {
   const pl = G.player, w = G.world, tools = G.body && G.body.tools;
   const k = w && w.rockAhead && w.rockAhead(pl.pos, pl.forward());
   if (!k || !tools) return;
+  G.impact();
   const R = ROCKS[k.kind];
   if ((tools.pick || 0) < R.need) {
     AUDIO.clang(0.25, { x: k.x, y: k.y + 0.6, z: k.z });

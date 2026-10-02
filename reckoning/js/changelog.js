@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.32", date: "2 October 2026", title: "In your hands",
+    items: [
+      "First-person hands that move with you. Whatever you hold sways behind you as you turn and catches up, bobs in a figure of eight with your stride, and rides lower and tilted when you sprint. It drops as you land from a jump and floats as you fall, rolls as you step sideways, and rises and falls with your breath when you stand still.",
+      "Taking something out (the axe, a blade, the bow, a tool for a job) brings it up into view from below instead of popping it into your hands.",
+      "Strokes land with weight: the view turns with the swing, and when the blade bites (a tree, a rock, a raider) the stroke checks for a moment and the jolt runs up your arms.",
+    ],
+  },
+  {
     v: "0.31", date: "1 October 2026", title: "The kitchen",
     items: [
       "The app updates itself now: when a new version of the game is out, it downloads in the background and asks whether to restart into it. There's no need to install the app again. Help → Check for updates looks straight away.",

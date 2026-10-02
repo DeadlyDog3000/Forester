@@ -1193,7 +1193,7 @@ async function ch6(w) {
       if (d < bd && (dx * f.x + dz * f.z) / d > 0.45) { bd = d; best = t; }
     }
     if (!best) return;
-    SFX.chop();
+    SFX.chop(); G.impact && G.impact();
     // the stronger you are, the more often one stroke does the work of two
     best.hp -= Math.random() < skillK(G.body, "strength") * 0.8 ? 2 : 1;
     G.practise("strength", 0.6);

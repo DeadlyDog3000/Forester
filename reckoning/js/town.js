@@ -1408,9 +1408,9 @@ export class Town {
   setupForestry() {
     const w = this.w, pl = G.player;
     G.onSwing = () => {
-      if (this.raids && this.raids.swing(pl)) return;
-      if (revoltSwing(this, pl)) return;
-      if (w.cave && w.cave.swing(pl)) return;
+      if (this.raids && this.raids.swing(pl)) return G.impact();
+      if (revoltSwing(this, pl)) return G.impact();
+      if (w.cave && w.cave.swing(pl)) return G.impact();
       if (!(pl.blade && pl.blade !== "axe")) w.adoptNear && w.adoptNear(pl);
       if (pl.blade && pl.blade !== "axe" && ARMS[pl.blade]) { if (!this._bladeTip) { this._bladeTip = true; UI.hint(`A ${ARMS[pl.blade].name.toLowerCase()} won't fell a tree. Take the axe for that.`, 3); } return; }
       const f = pl.forward();
@@ -1422,7 +1422,7 @@ export class Town {
         if (d < bd && (dx * f.x + dz * f.z) / d > 0.45) { bd = d; best = t; }
       }
       if (!best) return;
-      SFX().chop();
+      SFX().chop(); G.impact && G.impact();
       // (Tree Cutting and Axing: a stroke that bites deeper, now and then — a fifth, then a third, quicker)
       best.hp = (best.hp ?? 4) - 1 - (Math.random() < 1 / this.chopMul - 1 + axeBonus(G.body) + skillK(G.body, "strength") * 0.6 ? 1 : 0);
       G.practise && G.practise("strength", 0.6);
