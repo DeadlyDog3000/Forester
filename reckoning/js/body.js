@@ -100,6 +100,7 @@ export const ROCKS = {
   iron: { need: 4, hp: 8, gives: "ironore", n: 1, name: "iron rock" },
 };
 export const ITEM = {
+  bread: { name: "Bread", note: "A loaf from the settlement's bakery. Eat it (click, with it in your hand), or put it back in the store chest for everyone." },
   stone: { name: "Stone", note: "Broken from the grey rocks. For a stone pickaxe — and the settlement builds with it." },
   copperore: { name: "Copper ore", note: "Green-flecked rock. Smelt it at a forge (hold F beside it) to get copper." },
   tinore: { name: "Tin ore", note: "Pale rock with dark grains. Smelt it at a forge (hold F beside it) to get tin." },

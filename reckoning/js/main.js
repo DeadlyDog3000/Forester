@@ -1095,8 +1095,7 @@ function hotbarItems() {
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
   for (const i of G.pack) out.push(i.icon === "spade" && tl && tl.spade >= 3 && G.town ? { ...i, name: `${cap(TIER_NAME[tl.spade])} spade` } : i);
-  // the settlement's bread: yours to eat from the store
-  if (G.town && G.town.S.bread > 0) out.push({ icon: "bread", name: "Bread, from the store", n: G.town.S.bread, fromStore: true });
+  // (only what you carry: the settlement's stores are in the store chest — take bread from there to eat it)
   // what's left of each tool, for the bar under it
   if (tl) for (const i of out) { const k = i.tool === "axe" ? "axe" : i.tool === "pick" ? "pick" : i.icon && i.icon.startsWith("sword") ? "sword" : i.icon === "spade" ? "spade" : null; if (k) i.wear = toolLeft(G.body, k); }
   return out.slice(0, 9);
@@ -1110,6 +1109,8 @@ function renderHotbar() {
   hb.classList.toggle("hidden-by-talk", !!UI.dialogOpen);
   document.body.classList.toggle("talking", !!UI.dialogOpen);
   const items = hotbarItems(), pl = G.player;
+  // (food in the hand that's no longer on you — eaten up, or put away — leaves the hand empty)
+  if (G.heldFood && !heldFood()) putFoodAway();
   const sel = selIndex(items);
   const sig = items.map(i => i.icon + (i.n ?? "") + (i.wear != null ? "w" + Math.round(i.wear * 40) : "")).join("|") + "#" + sel;
   if (sig === hbSig) return;
