@@ -569,7 +569,22 @@ export function makeOwnArm(kind, smithSword = false) {
   if ((kind || "axe") === "axe" && t && t.axe >= 3) return makeAxe(t.axe);
   return makeArm(kind);
 }
-export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
+// a musket: the walnut stock and the long barrel, the lock and its flint, the ramrod under the barrel; held at the
+// wrist of the stock, pointing +Y along the barrel
+export function makeMusket() {
+  const g = new THREE.Group(), wood = mat(0x5a3820, { surface: "wood" }), iron = mat(0x3a3c40, { metalness: 0.7, roughness: 0.4 }), brass = mat(0xb08a3a, { metalness: 0.6, roughness: 0.35 });
+  const butt = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.32, 0.11), wood); butt.position.set(0, -0.22, -0.035); butt.rotation.x = 0.12; g.add(butt);
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.85, 0.05), wood); stock.position.y = 0.36; g.add(stock);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.016, 1.0, 8), iron); barrel.position.set(0, 0.62, 0.03); g.add(barrel);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.85, 5), wood); rod.position.set(0, 0.55, -0.02); g.add(rod);
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.035), iron); lock.position.set(0.025, 0.06, 0.02); g.add(lock);
+  const cock = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.05, 0.012), iron); cock.position.set(0.03, 0.12, 0.035); cock.rotation.x = -0.5; g.add(cock);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 4, 10), brass); band.rotation.x = Math.PI / 2; band.position.set(0, 0.7, 0.01); g.add(band);
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.12), brass); plate.position.set(0, -0.38, -0.035); g.add(plate);
+  g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 1.13, 0.03); g.add(g.userData.muzzle);
+  return g;
+}
+export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
 // (the pick's making is the player's, read from the game at the moment it is made)
 let _toolsOf = () => null;
 export const setToolSource = f => { _toolsOf = f; };

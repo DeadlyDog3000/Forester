@@ -297,7 +297,19 @@ const ICON = {
   copperore: "../assets/sprites/items/copper_ore.png", ironore: "../assets/sprites/items/iron_ore.png", copper: "../assets/sprites/items/copper.png", ironbar: "../assets/sprites/items/iron_bar.png",
   axe: "../assets/sprites/items/tool_iron.png", weapon: "../assets/sprites/items/weapon_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
-ICON.rye = ICON.rye || ICON.seeds; ICON.seed = ICON.seed || ICON.seeds;
+// rye (the grain, threshed, by the sack) drawn here as a sheaf, so it isn't mistaken for the seed corn
+ICON.rye = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.lineCap = "round";
+  for (let i = -5; i <= 5; i++) { const a = i * 0.075; x.strokeStyle = "#c9a85a"; x.lineWidth = 2.2; x.beginPath(); x.moveTo(32 + i * 0.6, 58); x.lineTo(32 + Math.sin(a) * 34, 58 - Math.cos(a) * 34); x.stroke();
+    x.fillStyle = "#a8823e"; x.save(); x.translate(32 + Math.sin(a) * 38, 58 - Math.cos(a) * 38); x.rotate(a); x.beginPath(); x.ellipse(0, 0, 2.6, 7, 0, 0, Math.PI * 2); x.fill(); x.restore(); }
+  x.strokeStyle = "#7a5a2a"; x.lineWidth = 4; x.beginPath(); x.moveTo(25, 44); x.lineTo(39, 44); x.stroke();
+  return c.toDataURL(); })();
+ICON.seed = ICON.seed || ICON.seeds;
+// the musket's picture, drawn here: a walnut stock and a long dark barrel, slanting
+ICON.musket = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.translate(32, 32); x.rotate(-0.62); x.fillStyle = "#5a3820"; x.fillRect(-28, -3, 26, 7); x.beginPath(); x.moveTo(-28, -3); x.lineTo(-34, -6); x.lineTo(-34, 9); x.lineTo(-28, 4); x.fill();
+  x.fillStyle = "#3a3c40"; x.fillRect(-4, -2, 36, 4); x.fillStyle = "#b08a3a"; x.fillRect(8, -3, 2, 6); x.fillRect(-35, -6, 2, 15); x.fillStyle = "#2a2a2c"; x.fillRect(-10, -6, 5, 4);
+  return c.toDataURL(); })();
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let invItems = [];
 const cap1 = s => s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -313,7 +325,7 @@ function renderInventory() {
   // the two hands: what's in them now — a blade, the pick or the bow, food — and whatever you carry in your arms
   const hands = [null, null], tl0 = G.body && G.body.tools;
   const held = hotbarItems()[selIndex(hotbarItems())];
-  if (held) hands[0] = { ...held, use: held.tool === "bow" ? "Hold right-click to draw" : FOOD[held.icon] ? "Click to eat" : "Click to swing" };
+  if (held) hands[0] = { ...held, use: held.tool === "gun" ? "Right mouse to aim, click to fire" : held.tool === "bow" ? "Hold right-click to draw" : FOOD[held.icon] ? "Click to eat" : "Click to swing" };
   else if (pl.axe) hands[0] = { icon: "axe", name: "Old felling axe", note: "Grey haft, good head.", use: "Click to swing" };
   if (pl.carryN > 0) hands[1] = { icon: "logs", n: pl.carryN, name: "Spruce logs", note: camp ? `Your arms hold ${camp.carryMax}.` : "", use: "Stack them by the cabin" };
   else if (UI.carrying) hands[/ledger/i.test(UI.carrying) ? 0 : 1] = { icon: /ledger/i.test(UI.carrying) ? "ledger" : "logs", name: UI.carrying, note: /ledger/i.test(UI.carrying) ? "The tally of the Baltic grain, for Jakob to sign." : "" };
@@ -330,6 +342,7 @@ function renderInventory() {
       tl0.pack ? { icon: "pack" + tl0.pack, name: ["", "Hide backpack", "Stitched pack", "Pedlar's frame pack"][tl0.pack], note: `Carries ${packSlots(G.body)} slots.` } : null,
       pl.hasBow ? { icon: "bow", name: "Henning's old bow", note: "Hold right-click to draw, let go to loose." } : null,
       pl.hasBow ? { icon: "arrows", name: "Arrows", n: pl.arrows || 0, note: "Pull your misses out of the ground to use them again." } : null,
+      tl0.musket ? { icon: "musket", name: "Your musket", note: "Right mouse to raise it to your eye, click to fire. Then it wants loading: six slow seconds of powder, ball and ramrod." } : null,
     ].filter(Boolean);
     html += `<div class="mc-sec">Tools</div><div class="mc-row">${Array.from({ length: 9 }, (_, i) => slot(tools[i] || null)).join("")}</div>`;
   }
@@ -1097,7 +1110,7 @@ setInterval(() => {
   const ob = $("objective"), obOn = ob && !ob.classList.contains("hidden");
   tb.style.top = (obOn ? ob.offsetTop + ob.offsetHeight + 8 : 24) + "px";
   const S = t.S;
-  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb"><img src="${ICON.seeds}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span>${S.meat > 0 ? `<span class="tb" title="meat"><img src="${ICON.meat}" alt="">${S.meat}</span>` : ""}<span class="tb tseed" title="rye seed: a new field takes one">seed ${+(S.seed || 0).toFixed(1)}</span>${t.foodDays ? (fd => `<span class="tb tfood${fd < 2 ? " low" : ""}" title="how long the food in the stores lasts everyone">${fd < 10 ? fd.toFixed(1) : Math.round(fd)} days' food</span>`)(t.foodDays()) : ""}<span class="tb"><img src="${ICON.coin}" alt="">${dm(S.coin)}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
+  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb" title="rye"><img src="${ICON.rye}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span>${S.meat > 0 ? `<span class="tb" title="meat"><img src="${ICON.meat}" alt="">${S.meat}</span>` : ""}<span class="tb tseed" title="rye seed: a new field takes one"><img src="${ICON.seeds}" alt="">${+(S.seed || 0).toFixed(1)}</span>${t.foodDays ? (fd => `<span class="tb tfood${fd < 2 ? " low" : ""}" title="how long the food in the stores lasts everyone">${fd < 10 ? fd.toFixed(1) : Math.round(fd)} days' food</span>`)(t.foodDays()) : ""}<span class="tb"><img src="${ICON.coin}" alt="">${dm(S.coin)}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"], ["muskets", "musket"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
 }, 300);
 // a question with set answers; resolves with the index of the one chosen
 G.choose = (title, options) => new Promise(res => {
@@ -1138,6 +1151,7 @@ function hotbarItems() {
   if (arm && !(own && arm === "sword")) out.push({ icon: "weapon", name: ARMS[arm].name, tool: "arm", kind: arm });
   if (own) out.push({ icon: "sword" + own, name: `${cap(TIER_NAME[own])} sword, your own`, tool: "arm", kind: "sword" });
   if (pl.hasBow) { out.push({ icon: "bow", name: "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
+  if (tl && tl.musket) out.push({ icon: "musket", name: "Your musket", tool: "gun" });
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
   for (const i of G.pack) out.push(i.icon === "spade" && tl && tl.spade >= 3 && G.town ? { ...i, name: `${cap(TIER_NAME[tl.spade])} spade` } : i);
@@ -1176,19 +1190,20 @@ addEventListener("keydown", e => {
   const holding = heldFood(), same = holding && it && it.icon === holding.icon && !!it.fromStore === !!holding.fromStore;
   if (holding) {
     putFoodAway();
-    if (it && ((it.tool === "axe" && pl.axe && blade === "axe") || (it.tool === "arm" && pl.axe && blade === it.kind) || (it.tool === "pick" && pl.axe && blade === "pick") || (it.tool === "bow" && pl.bow))) return;
+    if (it && ((it.tool === "axe" && pl.axe && blade === "axe") || (it.tool === "arm" && pl.axe && blade === it.kind) || (it.tool === "pick" && pl.axe && blade === "pick") || (it.tool === "bow" && pl.bow) || (it.tool === "gun" && pl.gun))) return;
   }
   if (it && it.tool === "axe") { if (pl.axe && blade !== "axe") pl.wield("axe"); else { pl.blade = "axe"; pl.holsterAxe(!!pl.axe); } }
   if (it && it.tool === "arm") { if (pl.axe && blade === it.kind) { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield(it.kind); }
   if (it && it.tool === "pick") { if (pl.axe && blade === "pick") { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield("pick"); }
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
+  if (it && it.tool === "gun") G.player.showGun(!G.player.gun);
   // food: taken in the hand (the number again puts it away); a click eats it
   if (it && FOOD[it.icon] && !same) holdFood(it);
 });
 // which slot is in your hand now (-1: none)
 function selIndex(items) {
   const pl = G.player, hf = G.heldFood;
-  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow));
+  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow) || (i.tool === "gun" && pl.gun));
 }
 // the wheel: the next thing along the bar (or the one before) into your hand — tools, weapons, the bow and food; logs,
 // arrows and the like are passed over. A notch a step (a trackpad's run of little nudges is gathered into notches)

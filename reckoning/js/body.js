@@ -126,7 +126,7 @@ export const ITEM = {
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0 }, plague: 0, purse: 0 };
+  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0 }, plague: 0, purse: 0 };
 }
 export function restoreBody(saved) {
   const b = freshBody();

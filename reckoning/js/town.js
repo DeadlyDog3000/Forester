@@ -23,6 +23,7 @@ import { AUDIO } from "./audio.js";
 import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack } from "./models.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
+import { gunsmithTick, benchFront } from "./gunsmith.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { NATIONS, NEAR, ensureEurope, europeDay, strengthOf, the, The } from "./europe.js";
 import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
@@ -129,6 +130,7 @@ export const JOBS = {
   smith: { name: "smith", ask: "work the forge", reply: "Tools, then. Good ones." },
   doctor: { name: "doctor", ask: "tend the sick", reply: "Show me who's ailing." },
   watch: { name: "watchman", ask: "keep the watch against raiders", reply: "I'll keep my eyes on the road." },
+  gunsmith: { name: "gunsmith", ask: "make muskets at the bench", reply: "Back to the bench, then." },
 };
 // the settlement earns room to grow at these many people (you and yours counted), and a claim can't be bigger than this
 const GROW_AT = [8, 13, 19, 26, 34];
@@ -253,12 +255,15 @@ export class Town {
   playerArm() { return ARM_KINDS.find(k => this.S[ARMS[k].key] > 0) || null; }
   // who gets what, best first: you, then the watch, then everyone else in turn; woodcutters have their axes, the rest their fists
   armFor(p) {
+    const order0 = this.S.people.filter(q => !q.child).sort((x, y) => (y.job === "watch") - (x.job === "watch"));
+    const gi = order0.indexOf(p), guns = this.S.muskets || 0;
+    if (gi >= 0 && gi < guns) return "musket";
     const pool = [];
     for (const k of ARM_KINDS) for (let i = 0; i < (this.S[ARMS[k].key] || 0); i++) pool.push(k);
     const pb = G.player && G.player.blade;
     if (pb && pb !== "axe" && G.player.axe) { const i = pool.indexOf(pb); if (i >= 0) pool.splice(i, 1); }
     const order = this.S.people.filter(q => !q.child).sort((x, y) => (y.job === "watch") - (x.job === "watch"));
-    return pool[order.indexOf(p)] || (p.job === "woodcutter" ? "axe" : "fists");
+    return pool[order.indexOf(p) - Math.min(guns, order.length)] || (p.job === "woodcutter" ? "axe" : "fists");
   }
   // the smith: tools, and — once the settlement knows how, and while there are fewer arms than hands to hold them — arms, by turns
   // the miner: iron ore mostly, and copper and tin as the seams give them
@@ -1742,7 +1747,7 @@ export class Town {
       // (a body cut down lies where it fell for a while; one that died abed is carried out quietly)
       setTimeout(() => { a.remove(); const j = this.actors.indexOf(a); if (j >= 0) this.actors.splice(j, 1); }, violent ? 30000 : 1500);
     }
-    (this.S.graves ??= []).push({ name: p.name, day: this.day });
+    (this.S.graves ??= []).push({ name: p.name, day: this.day, why });
     this.S.mournUntil = this.day + 3;
     this.showGraves(); this.persist(); this.emit("died", p, why);
     const how = {
@@ -1755,7 +1760,10 @@ export class Town {
   showGraves() {
     const w = this.w, list = this.S.graves || [];
     if (this.graveG) w.root.remove(this.graveG);
+    for (const it of this.graveIts || []) w.removeInteract(it);
+    this.graveIts = [];
     if (!list.length) return;
+    const HOW = { raid: "cut down in a raid", revolt: "killed in the rising", cave: "killed in the caves", hunger: "starved", feud: "killed in a feud", cold: "froze in the night", sick: "taken by the fever" };
     const g = this.graveG = new THREE.Group();
     const wood = mat(0x6a4a30, { surface: "wood" }), earth = mat(0x4a3a2a, { surface: "none" });
     list.forEach((gr, i) => {
@@ -1763,6 +1771,9 @@ export class Town {
       const mound = new THREE.Mesh(new THREE.SphereGeometry(0.55, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), earth); mound.scale.set(0.9, 0.35, 1.8); mound.position.set(x, y, z + 0.6); g.add(mound);
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 0.08), wood); post.position.set(x, y + 0.5, z); g.add(post);
       const arm = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.07, 0.07), wood); arm.position.set(x, y + 0.75, z); g.add(arm);
+      // (look at it, and the cross says who lies there)
+      const text = `Here lies ${gr.name}${gr.why && HOW[gr.why] ? ` — ${HOW[gr.why]}` : ""}, on day ${(gr.day || 0) + 1}`;
+      this.graveIts.push(w.addInteract({ x, y: y + 0.8, z, reach: 2.2, label: text, use: () => UI.hint(`${text}.`, 4) }));
     });
     w.root.add(g);
   }
@@ -1895,6 +1906,14 @@ export class Town {
           a.squareTo = r;
           a.doing = (arm === "fists" ? "fighting a raider with bare fists" : `fighting a raider with ${arm === "axe" ? "an" : "a"} ${ARMS[arm].name.toLowerCase()}`);
           const d = Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z);
+          // a musket: a shot from where they stand, if it's loaded and he's in range; then it's a club till it's loaded
+          if (arm === "musket" && !(a.gunAt > G.time) && d < 16) {
+            a.path = []; a.faceTo(r.pos.x, r.pos.z); a.person.setPose("point"); await sleep(0.8); alive();
+            AUDIO.gunshot && AUDIO.gunshot(0.9, a.pos);
+            if (G.gunSmoke) { const fd = new THREE.Vector3(Math.sin(a.yaw), 0, Math.cos(a.yaw)); G.gunSmoke(new THREE.Vector3(a.pos.x, a.pos.y + 1.45, a.pos.z).addScaledVector(fd, 1.1), fd); }
+            if (r.alive && Math.random() < 0.7) r.damage(55, a);
+            a.gunAt = G.time + 9; a.person.setPose("idle"); await sleep(0.6); continue;
+          }
           if (d > 2.1) { await Promise.race([a.approach(r.pos, 1.4, 3.0), sleep(0.6)]); alive(); continue; }
           // thrown off by a parry: a moment to find their feet
           if (a.stagger && G.time < a.stagger) { await sleep(a.stagger - G.time); alive(); continue; }
@@ -1953,7 +1972,7 @@ export class Town {
       // ground to clear: everyone who can swing an axe goes felling until it is done
       // (everyone clears ground for the settlement when it wants room — except the farmers, who have their fields)
       let loose = null, stump = null;
-      const clearing = !a.settler.child && job !== "farmer" && this.toClear().some(t => !t.claimed);
+      const clearing = !a.settler.child && job !== "farmer" && job !== "gunsmith" && this.toClear().some(t => !t.claimed);
       const site = this.S.buildings.find(b => !b.done && b.type !== "field" && b.logs < BUILDINGS[b.type].cost);
       const matSite = !site && this.S.buildings.find(b => !b.done && b.type !== "field" && Object.entries(this.wants(b)).some(([k]) => this.have(k) > 0));
       const works = job === "smith" ? this.smithWork() : job === "smelter" ? this.smelterWork() : job === "miner" ? this.minerWork() : WORKS[job], workAt = works && this.S.buildings.find(b => b.done && b.type === works.at);
@@ -2093,6 +2112,15 @@ export class Town {
         if (this.S.rye >= BAKE_RYE) { this.S.rye -= BAKE_RYE; this.S.bread += BAKE_LOAVES; this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "crafting", 1); }
         a.person.setPose("idle");
         await sleep(2);
+      } else if (job === "gunsmith" && benchFront(this)) {
+        // at his bench: filing and fitting, the vice, the little forge-pot — busy while there are orders, idle while not
+        const f = benchFront(this), busy = (this.S.gunOrders || []).length > 0;
+        a.doing = busy ? "making a musket" : "at his bench, waiting on an order";
+        await a.walkTo(f.x, f.z, 1.2); alive();
+        a.faceTo(this.S.gunsmith.x, this.S.gunsmith.z); a.person.setPose(busy ? "hammer" : "armsCrossed");
+        await sleep(busy ? 7 : 5); alive();
+        if (busy && Math.random() < 0.6) AUDIO.clang && AUDIO.clang(0.25, a.pos);
+        a.person.setPose("idle");
       } else if (job === "farmer") {
         // the fields as they need it: a ripe one reaped first, then bare ground sown, then the growing rye weeded —
         // a strip at a time, walked down its length, stooping at each stop
@@ -2153,6 +2181,7 @@ export class Town {
     if (this.S.revolt && this.S.revolt.active && (this._revT = (this._revT || 0) - dt) <= 0) { this._revT = 1; checkEnd(this); }
     if (this.techGates && (this._colT = (this._colT || 0) - dt) <= 0) { this._colT = 2; colonyCheck(this); }
     if (this.techGates) feudTick(this, dt);
+    gunsmithTick(this, dt);
     this.updateGates();
     // the scholars at their desk
     const r = this.S.tech.research;

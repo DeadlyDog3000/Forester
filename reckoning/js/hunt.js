@@ -235,6 +235,31 @@ export class Hunt {
     this.arrows.push(ar);
     this.orient(ar);
   }
+  // a musket ball: no arrow to see, it's there at once — along the line from the muzzle until it meets something: a man
+  // (anywhere on him, the head counting double), a beast, a tree or a wall, or the ground. Everything for sixty metres
+  // round hears it and takes fright. Returns what it struck.
+  shoot(from, dir, power = 2.6, range = 90) {
+    const w = this.w, p = from.clone(), step = 0.15;
+    let struck = null;
+    for (let d = 0; d < range && !struck; d += step) {
+      p.addScaledVector(dir, step);
+      for (const a of this.animals) {
+        if (!a.alive) continue;
+        if (a.K.upright) {
+          const q = a.pos;
+          if (p.y >= q.y + 0.1 && p.y <= q.y + 1.85 && Math.hypot(p.x - q.x, p.z - q.z) < a.K.r) { a.hit(power, p.y > q.y + 1.48); struck = a; break; }
+          continue;
+        }
+        const c = a.centre(), fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
+        const along = clamp((p.x - c.x) * fx + (p.z - c.z) * fz, -a.K.len, a.K.len);
+        if (Math.hypot(p.x - (c.x + fx * along), p.y - c.y, p.z - (c.z + fz * along)) < a.K.r) { a.hit(power); struck = a; break; }
+      }
+      if (struck) break;
+      if (p.y <= w.heightAt(p.x, p.z) || w.col.solidAt(p.x, p.y, p.z, 0)) { struck = "ground"; break; }
+    }
+    for (const a of this.animals) if (a.alive && a !== struck && a.startle && Math.hypot(a.pos.x - from.x, a.pos.z - from.z) < 60) a.startle(from, 1.4);
+    return { struck, at: p };
+  }
   orient(ar) { ar.mesh.position.copy(ar.pos); ar.mesh.lookAt(ar.pos.clone().add(ar.vel)); }
   // an arrow has come to rest; it can be pulled out and used again
   stick(ar, into = null) {

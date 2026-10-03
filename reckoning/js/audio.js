@@ -219,6 +219,31 @@ export const AUDIO = {
     }
   },
 
+  // a musket: the snap of the flint and the hiss of the pan, then the boom, rolling away through the trees
+  gunshot(vol = 1, at = null) {
+    const a = ctx(); if (!a) return;
+    let v = vol;
+    const GG = window.__G; if (at && GG && GG.player) { const d = Math.hypot(at.x - GG.player.pos.x, at.z - GG.player.pos.z); v *= Math.max(0.15, 1 - d / 160); }
+    const t = a.currentTime;
+    const s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = "lowpass"; f.frequency.setValueAtTime(5200, t + 0.03); f.frequency.exponentialRampToValueAtTime(240, t + 1.4);
+    g.gain.setValueAtTime(0.0001, t); g.gain.setValueAtTime(0.0001, t + 0.03); g.gain.exponentialRampToValueAtTime(0.9 * v, t + 0.036); g.gain.exponentialRampToValueAtTime(0.2 * v, t + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 1.7);
+    const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.setValueAtTime(90, t + 0.03); o.frequency.exponentialRampToValueAtTime(38, t + 0.5);
+    og.gain.setValueAtTime(0.0001, t + 0.03); og.gain.exponentialRampToValueAtTime(0.7 * v, t + 0.04); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    o.connect(og); og.connect(bus); o.start(t + 0.03); o.stop(t + 0.65);
+    const c = noiseSrc(a), cf = a.createBiquadFilter(), cg = a.createGain(); cf.type = "highpass"; cf.frequency.value = 2500;
+    cg.gain.setValueAtTime(0.0001, t); cg.gain.exponentialRampToValueAtTime(0.18 * v, t + 0.004); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    c.connect(cf); cf.connect(cg); cg.connect(bus); c.start(t, Math.random()); c.stop(t + 0.04);
+  },
+  // loading: the ramrod down the barrel, a scrape and a knock
+  ramrod() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = 3;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.08, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 0.32);
+  },
   // a bow drawn: the wood of the limbs creaking under the strain, a tick and a groan, louder the further it comes back
   bowCreak(k = 0.5) {
     const a = ctx(); if (!a) return;

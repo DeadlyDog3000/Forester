@@ -9,6 +9,7 @@
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
+import { makeMusket } from "./models.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
@@ -199,7 +200,7 @@ export class Player {
   dropFood() { if (G.heldFood) { G.heldFood = null; if (G.working && (G.working.kind === "food" || G.working.kind === "eat")) G.working = null; } }
   giveAxe(on) {
     this.hasAxe = on;
-    if (on) this.dropFood();
+    if (on) { this.dropFood(); if (this.gun) this.showGun(false); }
     if (on && this.bow) this.showBow(false);
     if (on && !this.axe) {
       // the hands are a pivot; inside it the haft points forward and the blade leads to the left
@@ -241,10 +242,81 @@ export class Player {
       if (this.axeBody && this.model && this.model.held) this.model.held.remove(this.axeBody); this.axeBody = null;
     }
   }
+  // ---- the musket: carried at the hip; right mouse brings it up to the eye, a click fires it, and then the long
+  // business of loading it again — powder, ball, the ramrod down the barrel three times — before it can fire again ----
+  showGun(on) {
+    if (on && !this.gun) {
+      this.dropFood();
+      if (this.axe) this.holsterAxe(true);
+      if (this.bow) this.showBow(false);
+      const g = new THREE.Group(); g.rotation.order = "YXZ";
+      const m = makeMusket(); m.rotation.x = -Math.PI / 2; g.add(m); this.gunModel = m;
+      m.traverse(o => { if (o.isMesh) o.castShadow = false; });
+      vm.add(g); this.gun = g;
+      const look = this.model && this.model.look || {};
+      const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
+      const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
+      const cuffM = new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 });
+      const fist = (y, z) => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); f.rotation.z = Math.PI / 2; h.add(f); h.position.set(0, y, z); m.add(h); return h; };
+      this.hands = [fist(0.02, -0.02), fist(0.5, -0.01)];
+      this.arms = this.hands.map((h, i) => {
+        const arm = new THREE.Group();
+        arm.add(new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM));
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
+        vm.add(arm);
+        return { arm, sleeve: arm.children[0], cuff, shoulder: new THREE.Vector3(i === 0 ? 0.26 : 0.02, i === 0 ? -0.48 : -0.55, 0.12) };
+      });
+      this.gunLoaded ??= true; this.gunReload = this.gunReload || 0; this.gunAim = 0; this.gunKickT = 0;
+      if (this.model && this.model.held) { this.gunBody = makeMusket(); this.gunBody.rotation.x = Math.PI / 2; this.model.held.add(this.gunBody); }
+    } else if (!on && this.gun) {
+      vm.remove(this.gun); this.gun = null;
+      for (const a of this.arms || []) vm.remove(a.arm);
+      this.arms = null; this.hands = null;
+      if (this.gunBody && this.model && this.model.held) this.model.held.remove(this.gunBody); this.gunBody = null;
+    }
+  }
+  updateGun(dt) {
+    if (!this.gun) return;
+    const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
+    const RL = 6.5;
+    // loading: lowered and tipped up, the ramrod three times down the barrel, and up again
+    if (this.gunReload > 0) {
+      const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt);
+      const p = 1 - this.gunReload / RL;
+      for (const at of [0.35, 0.5, 0.65]) if (1 - before / RL < at && p >= at) AUDIO.ramrod && AUDIO.ramrod();
+      if (this.gunReload === 0) { this.gunLoaded = true; SFX.pickup && SFX.pickup(); }
+    }
+    const reloading = this.gunReload > 0;
+    const aimWant = free && input.rdown && !reloading ? 1 : 0;
+    this.gunAim += (aimWant - this.gunAim) * Math.min(1, dt * 9);
+    // fire
+    if (free && input.click && this.gunLoaded && !reloading) {
+      input.click = false;
+      const q = camera.getWorldQuaternion(new THREE.Quaternion());
+      const spread = 0.004 + (1 - this.gunAim) * 0.03 + Math.min(1, this.speed / 4) * 0.02;
+      const dir = new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread, -1).normalize().applyQuaternion(q);
+      const from = camera.getWorldPosition(new THREE.Vector3());
+      const muzzle = this.gunModel.userData.muzzle.getWorldPosition(new THREE.Vector3());
+      AUDIO.gunshot && AUDIO.gunshot(1);
+      if (G.hunt) { const r = G.hunt.shoot(from, dir, 2.6); if (r.struck && r.struck !== "ground") G.practise && G.practise("archery", 0.6); }
+      gunSmoke(muzzle, dir);
+      this.gunLoaded = false; this.gunReload = RL; this.gunKickT = 1; G.bowKick = 1.4;
+      if (!this.gunTip) { this.gunTip = true; setTimeout(() => UI.hint("Loading takes a while — powder, ball, and the ramrod. Find cover.", 4), 600); }
+    } else if (free && input.click && !this.gunLoaded) input.click = false;
+    this.gunKickT = Math.max(0, this.gunKickT - dt * 4);
+    // where it is: at the hip, at the eye, or down for loading; and kicked by the shot
+    const a = this.gunAim, k = this.gunKickT * this.gunKickT, rl = reloading ? Math.sin(Math.min(1, (1 - this.gunReload / RL) * 1.15) * Math.PI) : 0;
+    const g = this.gun;
+    g.position.set(0.22 - 0.22 * a - 0.05 * rl, -0.27 + 0.155 * a - 0.12 * rl, -0.32 + 0.02 * a + 0.06 * k);
+    g.rotation.set(0.04 * (1 - a) + 0.12 * k + 0.9 * rl, 0.06 * (1 - a), 0.1 * (1 - a) + 0.35 * rl);
+    // (the ramrod hand at the muzzle while loading)
+    if (this.hands) this.hands[1].position.set(0, reloading && rl > 0.5 ? 1.0 + Math.sin(G.time * 9) * 0.08 : 0.5, reloading && rl > 0.5 ? 0.06 : -0.01);
+    this.fitArms();
+  }
   // ---- the bow: held out in the left hand, the right on the string ----
   // (the axe goes on your back while the bow is out, and the other way round)
   showBow(on) {
-    if (on) this.dropFood();
+    if (on) { this.dropFood(); if (this.gun) this.showGun(false); }
     if (on && !this.bow) {
       if (this.axe) this.holsterAxe(true);
       const g = new THREE.Group(); g.rotation.order = "YXZ";
@@ -363,7 +435,7 @@ export class Player {
   // each sleeve runs from its shoulder to its hand on the haft, however the axe is held
   fitArms() {
     if (!this.arms) return;
-    (this.axe || this.bow).updateMatrixWorld(true);
+    (this.axe || this.bow || this.gun).updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < 2; i++) {
       const { arm, sleeve, cuff, shoulder } = this.arms[i];
@@ -391,6 +463,7 @@ export class Player {
       const show = !kind;
       for (const a of this.arms || []) a.arm.visible = show;
       if (this.bow) this.bow.visible = show;
+      if (this.gun) this.gun.visible = show;
       if (this.model) this.model.setPose(kind === "food" ? "idle" : kind ? "hammer" : "idle");
       if (kind) {
         const look = this.model && this.model.look || {};
@@ -742,12 +815,18 @@ export class Player {
         else pose(THRU, REST, Math.min(1, (T - 0.36) / 0.3));
       }
       if (this.model) { this.model.setPose(this.swingDir === "up" ? "overhead" : "chop"); this.model.poseT = T / 1.25 * 1; }
-      if (T > 0.29 && !this._hitDone) { this._hitDone = true; this.onSwingHit && this.onSwingHit(); }
+      if (T > 0.29 && !this._hitDone) {
+        this._hitDone = true; const before = this.impactT || 0;
+        this.onSwingHit && this.onSwingHit();
+        // (a stroke that met nothing else, with the axe or a blade — not the pick — takes down a bush in front of you)
+        if ((this.impactT || 0) === before && this.blade !== "pick" && G.world && G.world.cutShrub && G.world.cutShrub(this)) G.impact && G.impact();
+      }
       if (T > 0.62) { this.swingT = -1; if (this.axe) this.axeRest(); if (this.model) this.model.setPose("idle"); }
     }
     // the sleeves follow wherever the hands have gone this frame
     if (this.axe) this.fitArms();
     this.updateBow(dt);
+    this.updateGun(dt);
     this.updateWork(dt);
   }
   // where your eyes are, leaning included
@@ -855,10 +934,11 @@ function updateCamera(dt) {
     if (p.model) p.model.root.visible = dist > 0.7;
   }
   if (p.axe) p.axe.visible = !third && !p.workKind;
+  if (p.gun) p.gun.visible = !third && !p.workKind;
   viewModel(dt, p, third);
   if (p.workRig) p.workRig.visible = !third;
   // hold Z to look closer
-  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : (p.draw || 0) * 0.55;
+  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : Math.max((p.draw || 0) * 0.55, (p.gun ? p.gunAim || 0 : 0) * 0.35);
   G.zoom = (G.zoom || 0) + (zoomWant - (G.zoom || 0)) * Math.min(1, dt * 10);
   const fov = G.settings.fov + (28 - G.settings.fov) * G.zoom;
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -882,6 +962,29 @@ G.wear = (k, n = 1) => {
     else if (pl && pl.axe && k === "axe" && (pl.blade || "axe") === "axe") pl.wield("axe");
   }
 };
+// a shot's smoke: a grey cloud out of the muzzle, drifting and spreading, gone in a few seconds
+let _smokeTex = null;
+function gunSmoke(at, dir) {
+  if (!G.world) return;
+  if (!_smokeTex) { const cv = document.createElement("canvas"); cv.width = cv.height = 64; const x = cv.getContext("2d"), gr = x.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, "rgba(255,255,255,0.85)"); gr.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); _smokeTex = new THREE.CanvasTexture(cv); }
+  const puffs = [];
+  for (let i = 0; i < 9; i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: _smokeTex, color: 0xd8d4cc, transparent: true, opacity: 0.6, depthWrite: false }));
+    s.position.copy(at).addScaledVector(dir, 0.3 + i * 0.25); s.scale.setScalar(0.3);
+    s.userData.v = dir.clone().multiplyScalar(2.5 - i * 0.2).add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.3 + Math.random() * 0.3, (Math.random() - 0.5) * 0.4));
+    G.world.root.add(s); puffs.push(s);
+  }
+  const flash = new THREE.PointLight(0xffc070, 30, 12, 1.6); flash.position.copy(at).addScaledVector(dir, 0.2); G.world.root.add(flash);
+  let t = 0;
+  const tick = dt => {
+    t += dt;
+    flash.intensity = Math.max(0, 30 * (1 - t / 0.07));
+    for (const s of puffs) { s.position.addScaledVector(s.userData.v, dt); s.userData.v.multiplyScalar(Math.pow(0.25, dt)); s.userData.v.y += dt * 0.15; s.scale.setScalar(0.3 + t * 1.1); s.material.opacity = Math.max(0, 0.6 * (1 - t / 4)); }
+    if (t > 4) { for (const s of puffs) { G.world && G.world.root.remove(s); s.material.dispose(); } G.world && G.world.root.remove(flash); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
+  };
+  G.onFrame.push(tick);
+}
+G.gunSmoke = (at, dir) => gunSmoke(at, dir);
 // a blow that landed on something (a tree, a rock, a man): the stroke checks and your arms jar
 G.impact = () => { if (G.player) G.player.impactT = G.time + 0.18; };
 // ---- your hands on the screen, moving as you move ----
@@ -915,7 +1018,7 @@ function viewModel(dt, p, third) {
   // still, the hands rise and fall with your breath
   const br = Math.sin(VM.t * 1.7) * 0.0035 * (1 - walk) * steady;
   // taken out: up from below, quickly, and settled
-  const held = (p.axe ? "a" + (p.blade || "axe") : "") + (p.bow ? "b" : "") + (p.workKind === "eat" ? "food" : p.workKind || "");
+  const held = (p.axe ? "a" + (p.blade || "axe") : "") + (p.bow ? "b" : "") + (p.gun ? "g" : "") + (p.workKind === "eat" ? "food" : p.workKind || "");
   if (held !== VM.held) { if (held) VM.raise = 0; VM.held = held; noSnow(vm); if (p.model) noSnow(p.model.root); }
   VM.raise = Math.min(1, VM.raise + dt * 3.6);
   const r = 1 - VM.raise, rise = r * r * (3 - 2 * r);

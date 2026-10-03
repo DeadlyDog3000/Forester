@@ -231,8 +231,9 @@ export class Woods extends WorldBase {
     this.mapTrees = list.map((t, i) => (t._mi = i, { x: t.x, z: t.z, k: t.kind }));
     this.treeCount = list.length;
 
-    // undergrowth: bushes, ferns, stones
-    const ub = new Builder();
+    // undergrowth: bushes, ferns, stones. The bushes and the clumps of fern are each their own, so a stroke of the
+    // axe (or a blade) cuts one down — and it stays down; the stones are fixed
+    const ub = new Builder(), shrubs = [];
     for (let i = 0; i < 900; i++) {
       const t = this.road[Math.floor(r() * this.road.length)];
       const a = r() * TAU, rad = 3.5 + r() * 45;
@@ -242,11 +243,25 @@ export class Woods extends WorldBase {
       if (Math.hypot(x - burnerAt.x, z - burnerAt.z) < 13) continue;
       const y = this.heightAt(x, z);
       const k = r();
-      if (k < 0.45) ub.add(TREE.blob, r.pick([0x3e5a2e, 0x4a6a34, 0x55703a]), x, y + 0.3, z, 0, r() * 3, 0, r.range(0.6, 1.3), r.range(0.4, 0.8), r.range(0.6, 1.3), 0.06);
-      else if (k < 0.8) for (let j = 0; j < 5; j++) ub.add(TREE.cone, 0x5a7a3a, x + r.range(-0.4, 0.4), y, z + r.range(-0.4, 0.4), r.range(-0.5, 0.5), 0, r.range(-0.5, 0.5), 0.12, 0.7, 0.12);
+      if (k < 0.45) shrubs.push({ kind: "bush", x, z, y, col: r.pick([0x3e5a2e, 0x4a6a34, 0x55703a]), ry: r() * 3, sx: r.range(0.6, 1.3), sy: r.range(0.4, 0.8), sz: r.range(0.6, 1.3) });
+      else if (k < 0.8) { const f = { kind: "fern", x, z, y, fronds: [] }; for (let j = 0; j < 5; j++) f.fronds.push([x + r.range(-0.4, 0.4), z + r.range(-0.4, 0.4), r.range(-0.5, 0.5), r.range(-0.5, 0.5)]); shrubs.push(f); }
       else ub.add(new THREE.DodecahedronGeometry(0.5, 0), 0x7a7870, x, y + 0.1, z, r(), r(), r(), r.range(0.5, 1.4), r.range(0.3, 0.7), r.range(0.5, 1.2), 0.08);
     }
     root.add(ub.build(MAT.rough, { shadow: false }));
+    {
+      const leafM = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5 });
+      const bushes = shrubs.filter(q => q.kind === "bush"), ferns = shrubs.filter(q => q.kind === "fern");
+      const bm = new THREE.InstancedMesh(TREE.blob, leafM, bushes.length), fm = new THREE.InstancedMesh(TREE.cone, leafM, ferns.length * 5);
+      const d = new THREE.Object3D(), c = new THREE.Color();
+      bushes.forEach((q, n) => { d.position.set(q.x, q.y + 0.3, q.z); d.rotation.set(0, q.ry, 0); d.scale.set(q.sx, q.sy, q.sz); d.updateMatrix(); bm.setMatrixAt(n, d.matrix); bm.setColorAt(n, c.set(q.col)); q.slots = [[bm, n]]; });
+      let fi = 0;
+      for (const q of ferns) { q.slots = []; for (const [fx, fz, rx, rz] of q.fronds) { d.position.set(fx, q.y, fz); d.rotation.set(rx, 0, rz); d.scale.set(0.12, 0.7, 0.12); d.updateMatrix(); fm.setMatrixAt(fi, d.matrix); fm.setColorAt(fi, c.set(0x5a7a3a)); q.slots.push([fm, fi++]); } }
+      for (const m of [bm, fm]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; root.add(m); }
+      this.shrubs = shrubs;
+      // (those already cut, in this save)
+      const gone = new Set(G.loadCut ? G.loadCut() : []);
+      shrubs.forEach((q, n) => { q.id = n; if (gone.has(n)) this.hideShrub(q); });
+    }
     this.makeBerryBushes();
 
     // ---- the road: a narrow cart track, two ruts and grass up the middle; the forks fainter still ----
@@ -1284,6 +1299,30 @@ export class Woods extends WorldBase {
   }
   // Brambles round the clearing and along the road, heavy with blackberries: hold F to pick a handful. They fruit
   // again in a few days' time, and stand bare through the winter.
+  // a bush or a clump of fern gone: its pieces shrunk to nothing where they stood
+  hideShrub(q) {
+    q.gone = true;
+    const z = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (const [m, n] of q.slots) { m.setMatrixAt(n, z); m.instanceMatrix.needsUpdate = true; }
+  }
+  // a stroke of the axe or a blade at a bush in front of you: down it comes, with a rustle and a scatter of leaves
+  cutShrub(pl) {
+    if (!this.shrubs) return false;
+    const f = pl.forward();
+    let best = null, bd = 1.9;
+    for (const q of this.shrubs) {
+      if (q.gone) continue;
+      const dx = q.x - pl.pos.x, dz = q.z - pl.pos.z, d = Math.hypot(dx, dz);
+      if (d < bd && (dx * f.x + dz * f.z) / (d || 1) > 0.35) { bd = d; best = q; }
+    }
+    if (!best) return false;
+    this.hideShrub(best);
+    AUDIO.whoosh && AUDIO.whoosh(0.3, false); window.SFX && window.SFX.chop && window.SFX.chop();
+    leafBurst(this.root, best.x, best.y + 0.4, best.z, best.kind === "fern" ? 0x5a7a3a : 0x4a6a34);
+    const cut = this.shrubs.filter(q => q.gone).map(q => q.id);
+    G.saveCut && G.saveCut(cut);
+    return true;
+  }
   makeBerryBushes() {
     // (bare in the winter: the settlement's winter, or snow lying in a chapter that has no settlement to say so)
     const bare = () => !!(G.town && G.town.winter) || SNOW.value > 0.15;
@@ -1437,6 +1476,20 @@ export class Woods extends WorldBase {
       }
     }
   }
+}
+// leaves thrown up as a bush comes down, falling and fading
+function leafBurst(root, x, y, z, color) {
+  const geo = new THREE.PlaneGeometry(0.09, 0.06), m = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true });
+  const bits = [];
+  for (let i = 0; i < 16; i++) { const b = new THREE.Mesh(geo, m); b.position.set(x + (Math.random() - 0.5) * 0.6, y + Math.random() * 0.4, z + (Math.random() - 0.5) * 0.6); b.userData.v = new THREE.Vector3((Math.random() - 0.5) * 2, 1 + Math.random() * 1.5, (Math.random() - 0.5) * 2); b.rotation.set(Math.random() * 3, Math.random() * 3, 0); root.add(b); bits.push(b); }
+  let t = 0;
+  const tick = dt => {
+    t += dt;
+    for (const b of bits) { b.userData.v.y -= 4 * dt; b.userData.v.multiplyScalar(Math.pow(0.4, dt)); b.position.addScaledVector(b.userData.v, dt); b.rotation.x += dt * 4; b.rotation.y += dt * 3; }
+    m.opacity = Math.max(0, 1 - t / 1.6);
+    if (t > 1.6) { for (const b of bits) root.remove(b); geo.dispose(); m.dispose(); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
+  };
+  G.onFrame.push(tick);
 }
 export { STACK, BLOCK, FIRE };
 const UP_AXIS = new THREE.Vector3(0, 1, 0);

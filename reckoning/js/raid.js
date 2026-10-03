@@ -49,6 +49,8 @@ export const ARMS = {
   spear: { name: "Spear", key: "spears", dmg: 14, tech: "spears" },
   sword: { name: "Sword", key: "swords", dmg: 20, tech: "swords" },
   battleaxe: { name: "Battle axe", key: "battleaxes", dmg: 28, tech: "battleaxes" },
+  // (a musket: fired from range, a ball that does more than any blade; up close, empty, it's a club)
+  musket: { name: "Musket", key: "muskets", dmg: 10 },
 };
 export const ARM_KINDS = ["battleaxe", "sword", "spear"];   // best first
 // what a raider carries: how hard, and how often

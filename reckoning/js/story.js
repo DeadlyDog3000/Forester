@@ -282,6 +282,9 @@ export function clearSlot(n) { _slotCache.delete(n); try { localStorage.removeIt
 export function loadSave() { return readSlot(slot); }
 // the body is written to the save now and then, when it has changed
 setInterval(() => { if (G.body && G.body.dirty && G.mode === "play") { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
+// the bushes you've cut down, kept with the save, so they stay down
+G.loadCut = () => (loadSave() || {}).cutBushes || [];
+G.saveCut = list => writeSave({ cutBushes: list });
 // (everything you have on you written down now, before something drastic: the graphics lost and the page started again)
 G.flushSave = () => { try { if (G.body && G.mode === "play") writeSave({ body: bodyToSave(G.body) }); if (G.town && G.town.persist) G.town.persist(); } catch (e) {} };
 export function writeSave(patch) {
