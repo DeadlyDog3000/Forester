@@ -297,6 +297,7 @@ const ICON = {
   copperore: "../assets/sprites/items/copper_ore.png", ironore: "../assets/sprites/items/iron_ore.png", copper: "../assets/sprites/items/copper.png", ironbar: "../assets/sprites/items/iron_bar.png",
   axe: "../assets/sprites/items/tool_iron.png", weapon: "../assets/sprites/items/weapon_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
+ICON.rye = ICON.rye || ICON.seeds; ICON.seed = ICON.seed || ICON.seeds;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let invItems = [];
 function slot(it, cap) {
@@ -350,7 +351,7 @@ $("inventory").addEventListener("click", e => {
 // ---- the chest in the cabin: nine places, one long row; click a thing to put it in or take it out ----
 const CHEST_SLOTS = 9;
 // what the stores keep that can be carried: the store's key, the thing in your pack, its name
-const STORE_ITEMS = [["bread", "bread", "Bread"], ["meat", "cookedmeat", "Roast meat"], ["stone", "stone", "Stone"], ["planks", "planks", "Planks"], ["bricks", "bricks", "Bricks"], ["ore", "ironore", "Iron ore"], ["copperore", "copperore", "Copper ore"], ["tinore", "tinore", "Tin ore"], ["copper", "copper", "Copper"], ["tin", "tin", "Tin"], ["bronze", "bronze", "Bronze"], ["iron", "iron", "Iron"], ["tools", "tools", "Tools"]];
+const STORE_ITEMS = [["rye", "rye", "Rye"], ["seed", "seed", "Rye seed"], ["bread", "bread", "Bread"], ["meat", "cookedmeat", "Roast meat"], ["stone", "stone", "Stone"], ["planks", "planks", "Planks"], ["bricks", "bricks", "Bricks"], ["ore", "ironore", "Iron ore"], ["copperore", "copperore", "Copper ore"], ["tinore", "tinore", "Tin ore"], ["copper", "copper", "Copper"], ["tin", "tin", "Tin"], ["bronze", "bronze", "Bronze"], ["iron", "iron", "Iron"], ["tools", "tools", "Tools"]];
 let chestNote = "";
 let chestMode = "own";
 function renderChest() {
@@ -361,7 +362,7 @@ function renderChest() {
     // the settlement's store chest: everything the stores hold, and what you carry to put in
     const S = G.town.S, list = STORE_ITEMS.filter(([k]) => (S[k] || 0) > 0);
     h += `<div class="mc-sec">The settlement's stores <span class="mc-hint">click to take five · click what you carry to put it in</span></div><div class="mc-row wrap">`;
-    h += list.length ? list.map(([k, icon, name]) => slot({ icon, name, n: S[k], note: "In the stores. Click to take up to five." }).replace('class="mc-slot', `data-store="${k}" class="mc-slot`)).join("") : `<span class="ch-note">The stores are empty.</span>`;
+    h += list.length ? list.map(([k, icon, name]) => slot({ icon, name, n: Math.round(S[k] * 10) / 10, note: k === "rye" ? "In the stores. Click to take a sack of twenty-five." : "In the stores. Click to take up to five." }).replace('class="mc-slot', `data-store="${k}" class="mc-slot`)).join("") : `<span class="ch-note">The stores are empty.</span>`;
   } else {
     h += `<div class="mc-sec">Your own chest <span class="mc-hint">yours to keep — or to sell to the traders for your purse</span></div><div class="mc-row">`;
     for (let i = 0; i < CHEST_SLOTS; i++) h += box[i] ? slot(box[i]).replace('class="mc-slot', `data-chest="${i}" class="mc-slot`) : `<div class="mc-slot"></div>`;
@@ -387,7 +388,8 @@ $("chestBody").addEventListener("click", e => {
   };
   if (el.dataset.store != null && G.town) {
     // out of the stores and into your hands: five at a time
-    const k = el.dataset.store, S = G.town.S, n = Math.min(5, S[k] || 0), [, icon, name] = STORE_ITEMS.find(x => x[0] === k);
+    // (rye by the sack of twenty-five; seed only whole)
+    const k = el.dataset.store, S = G.town.S, n = Math.floor(Math.min(k === "rye" ? 25 : 5, S[k] || 0)), [, icon, name] = STORE_ITEMS.find(x => x[0] === k);
     if (n > 0) { const got = G.packAdd(icon, n, name); S[k] -= got; G.town.persist(); chestNote = got ? `Took ${got} ${name.toLowerCase()} from the stores.` : "Your pack is full."; if (got) SFX.pickup && SFX.pickup(); }
     renderChest(); return;
   }
@@ -602,22 +604,41 @@ function renderPlans() {
   for (const b of $("buildList").querySelectorAll(".plan")) b.onclick = () => { if (b.dataset.gate) return; showOverlay("buildmenu", false); G.town.plan(b.dataset.k); };
 }
 // ---- trading: a list of offers from whoever you're dealing with ----
-let tradeNow = null;
+// Who pays: the treasury (the settlement's money; what's bought goes to the stores, what's sold comes out of them), or
+// your own purse (your money; what's bought goes in your pack, what's sold comes out of it). The settlement's own
+// purchases — a saw, axe heads for the woodcutters — are the treasury's alone; your own deals, your purse's alone.
+let tradeNow = null, tradeMode = "treasury";
+const packHas = icon => { const p = G.pack.find(i => i.icon === icon); return p ? p.n || 1 : 0; };
+function packTake(icon, n) { const p = G.pack.find(i => i.icon === icon); if (!p) return; p.n = (p.n || 1) - n; if (p.n <= 0) G.pack.splice(G.pack.indexOf(p), 1); }
+function asPurse(o) {
+  if (tradeMode !== "purse" || o.own) return o;
+  if (!o.swap) return { ...o, can: () => false, note: "The settlement's — paid from the treasury.", treasuryOnly: true };
+  const { icon, n, price, sell } = o.swap, b = G.body, name = (ITEM[icon] || {}).name || icon;
+  return sell
+    ? { ...o, note: `Out of your pack — you have ${packHas(icon)} ${name.toLowerCase()}.`, get: `+${price} DM to you`, can: () => packHas(icon) >= n, do: () => { packTake(icon, n); b.purse = (b.purse || 0) + price; b.dirty = true; } }
+    : { ...o, note: `${o.note ? o.note + " " : ""}Into your pack.`, get: `${price} DM of yours`, can: () => (b.purse || 0) >= price && roomFor(G.pack, b, icon) >= n,
+        do: () => { b.purse -= price; b.dirty = true; G.packAdd(icon, n, name, (ITEM[icon] || {}).note); } };
+}
 G.openTrade = (title, purse, offers, after) => { tradeNow = { title, purse, offers, after }; showOverlay("trade", true); };
 G.closeTrade = () => showOverlay("trade", false);
 function renderTrade() {
   const t = tradeNow; if (!t) return;
   $("tradeTitle").textContent = t.title;
   $("tradePurse").textContent = typeof t.purse === "function" ? t.purse() : t.purse && !/DM/.test(t.purse) ? t.purse : G.town ? `${dm(G.town.S.coin)} DM` : "";
-  $("tradeList").innerHTML = t.offers.map((o, i) => {
+  // (the choice of who pays, where there's anything it could matter for)
+  const both = t.offers.some(o => o.swap) && G.town;
+  const pick = both ? `<div class="trade-pay">Pay from <button data-pay="treasury" class="${tradeMode === "treasury" ? "on" : ""}">the treasury · ${dm(G.town.S.coin)} DM<small>bought goes to the stores</small></button><button data-pay="purse" class="${tradeMode === "purse" ? "on" : ""}">your purse · ${dm(G.body.purse)} DM<small>bought goes in your pack</small></button></div>` : "";
+  const offers = t.offers.map(o => both ? asPurse(o) : o);
+  $("tradeList").innerHTML = pick + offers.map((o, i) => {
     const done = o.done && o.done(), ok = !done && o.can();
     return `<button class="plan${done ? " owned" : ok ? "" : " short"}" data-i="${i}"><img src="${ICON[o.icon] || (o.label.startsWith("Sell") ? ICON.coin : ICON.cart)}" alt=""><span><span class="pn">${esc(o.label)}${done ? esc(o.doneText ?? " — yours") : ""}</span><span class="pd">${esc(o.note || "")}</span></span><span class="pc">${esc(o.get)}</span></button>`;
   }).join("");
   for (const b of $("tradeList").querySelectorAll(".plan")) b.onclick = () => {
-    const o = t.offers[+b.dataset.i];
+    const o = offers[+b.dataset.i];
     if ((o.done && o.done()) || !o.can()) return;
     o.do(); t.after && t.after(); renderTrade();
   };
+  for (const b of $("tradeList").querySelectorAll("[data-pay]")) b.onclick = () => { tradeMode = b.dataset.pay; renderTrade(); };
 }
 // ---- government (G): the nation, the tech tree, the people ----
 // ambitions: the long aims of free play, each with what it asks and what it brings

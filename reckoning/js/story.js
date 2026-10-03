@@ -2676,12 +2676,12 @@ function hennings(w, town) {
     hello: "Henning's cart is at the top of the clearing, on the road. Sell him logs, bread and rye for DM — and he has things to sell.",
     offers: S => [
       { label: "Sell 6 logs", note: "Good dry spruce for the kilns.", get: "+2 DM", can: () => S.store >= 6, do: () => { S.store -= 6; S.coin += 2; } },
-      { label: "Sell 6 loaves", note: "He knows a miller's wife who'll take them.", get: "+3 DM", can: () => S.bread >= 6, do: () => { S.bread -= 6; S.coin += 3; } },
-      { label: "Sell 25 rye", note: "", get: "+2 DM", can: () => S.rye >= 25, do: () => { S.rye -= 25; S.coin += 2; } },
-      { label: "Buy 25 rye", note: "A day's food for five.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 25; } },
+      { label: "Sell 6 loaves", note: "He knows a miller's wife who'll take them.", get: "+3 DM", can: () => S.bread >= 6, do: () => { S.bread -= 6; S.coin += 3; }, swap: { icon: "bread", n: 6, price: 3, sell: true } },
+      { label: "Sell 25 rye", note: "", get: "+2 DM", can: () => S.rye >= 25, do: () => { S.rye -= 25; S.coin += 2; }, swap: { icon: "rye", n: 25, price: 2, sell: true } },
+      { label: "Buy 25 rye", note: "A day's food for five.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye += 25; }, swap: { icon: "rye", n: 25, price: 4 } },
       { label: "Buy a good saw", note: "Trees come down quicker — for you and the woodcutters.", get: "10 DM", can: () => S.coin >= 10 && !S.upgrades.saw, done: () => S.upgrades.saw, do: () => { S.coin -= 10; S.upgrades.saw = true; } },
       { label: "Buy iron axe heads", note: "The woodcutters fell a third quicker.", get: "14 DM", can: () => S.coin >= 14 && !S.upgrades.axes, done: () => S.upgrades.axes, do: () => { S.coin -= 14; S.upgrades.axes = true; } },
-      ...ownOffers(12, 4),
+      ...ownOffers(12, 4).map(o => ({ ...o, own: true })),
     ],
   });
 }
@@ -2693,18 +2693,18 @@ function pedlar(w, town) {
     hello: "A pedlar has come up the road — Tobias, out of Lübeck. He sells food, arrows, tools and iron, and buys planks, bricks, meat — and any dish you've cooked, for what he thinks it's worth.",
     offers: S => [
       // food first: a pedlar on a hungry road sells what keeps
-      { label: "Buy a sack of rye", note: "25 rye: a day's food for five.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye = (S.rye || 0) + 25; } },
-      { label: "Buy 15 loaves", note: "Lübeck bread, hard but sound: a day's food for five.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.bread = (S.bread || 0) + 15; } },
-      { label: "Buy a crate of smoked herring", note: "Ten meat's worth: a day's food for five.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.meat = (S.meat || 0) + 10; } },
+      { label: "Buy a sack of rye", note: "25 rye: a day's food for five.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye = (S.rye || 0) + 25; }, swap: { icon: "rye", n: 25, price: 4 } },
+      { label: "Buy 15 loaves", note: "Lübeck bread, hard but sound: a day's food for five.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.bread = (S.bread || 0) + 15; }, swap: { icon: "bread", n: 15, price: 5 } },
+      { label: "Buy a crate of smoked herring", note: "Ten meat's worth: a day's food for five.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.meat = (S.meat || 0) + 10; }, swap: { icon: "cookedmeat", n: 10, price: 5 } },
       { label: "Buy iron tools", note: "A set for one pair of hands: they work a quarter faster.", get: "8 DM", can: () => S.coin >= 8, do: () => { S.coin -= 8; S.tools = (S.tools || 0) + 1; } },
-      { label: "Buy 4 iron", note: "Swedish bar iron.", get: "10 DM", can: () => S.coin >= 10, do: () => { S.coin -= 10; S.iron = (S.iron || 0) + 4; } },
-      { label: "Buy 10 stone", note: "Cut, and heavy on his poor horse.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.stone = (S.stone || 0) + 10; } },
-      { label: "Buy a rye seed", note: "To sow a new field.", get: "3 DM", can: () => S.coin >= 3, do: () => { S.coin -= 3; S.seed = +((S.seed || 0) + 1).toFixed(2); } },
-      { label: "Buy a barrel of salt pork", note: "12 meat: a day's food for six.", get: "6 DM", can: () => S.coin >= 6, do: () => { S.coin -= 6; S.meat = (S.meat || 0) + 12; } },
-      { label: "Sell 6 planks", note: "", get: "+4 DM", can: () => (S.planks || 0) >= 6, do: () => { S.planks -= 6; S.coin += 4; } },
-      { label: "Sell 10 bricks", note: "", get: "+5 DM", can: () => (S.bricks || 0) >= 10, do: () => { S.bricks -= 10; S.coin += 5; } },
-      ...dishOffers(),
-      ...ownOffers(20, 7),
+      { label: "Buy 4 iron", note: "Swedish bar iron.", get: "10 DM", can: () => S.coin >= 10, do: () => { S.coin -= 10; S.iron = (S.iron || 0) + 4; }, swap: { icon: "iron", n: 4, price: 10 } },
+      { label: "Buy 10 stone", note: "Cut, and heavy on his poor horse.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.stone = (S.stone || 0) + 10; }, swap: { icon: "stone", n: 10, price: 5 } },
+      { label: "Buy a rye seed", note: "To sow a new field.", get: "3 DM", can: () => S.coin >= 3, do: () => { S.coin -= 3; S.seed = +((S.seed || 0) + 1).toFixed(2); }, swap: { icon: "seed", n: 1, price: 3 } },
+      { label: "Buy a barrel of salt pork", note: "12 meat: a day's food for six.", get: "6 DM", can: () => S.coin >= 6, do: () => { S.coin -= 6; S.meat = (S.meat || 0) + 12; }, swap: { icon: "cookedmeat", n: 12, price: 6 } },
+      { label: "Sell 6 planks", note: "", get: "+4 DM", can: () => (S.planks || 0) >= 6, do: () => { S.planks -= 6; S.coin += 4; }, swap: { icon: "planks", n: 6, price: 4, sell: true } },
+      { label: "Sell 10 bricks", note: "", get: "+5 DM", can: () => (S.bricks || 0) >= 10, do: () => { S.bricks -= 10; S.coin += 5; }, swap: { icon: "bricks", n: 10, price: 5, sell: true } },
+      ...dishOffers().map(o => ({ ...o, own: true })),
+      ...ownOffers(20, 7).map(o => ({ ...o, own: true })),
     ],
   });
 }
