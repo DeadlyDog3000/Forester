@@ -707,7 +707,8 @@ export class Player {
         this.pos.x = clamp(this.pos.x, b.x0, b.x1); this.pos.z = clamp(this.pos.z, b.z0, b.z1);
       }
       if (w.constrain) w.constrain(this.pos);
-      const gy = w.heightAt(this.pos.x, this.pos.z);
+      // (in a house with an upper floor, the floor under your feet: the stair, or the loft)
+      const gy = w.floorAt ? w.floorAt(this.pos.x, this.pos.z, this.pos.y) : w.heightAt(this.pos.x, this.pos.z);
       const was = this.onGround, fall = this.vy;
       if (this.pos.y <= gy) { this.pos.y = gy; this.vy = 0; this.onGround = true; }
       else if (this.pos.y - gy < 0.25 && this.vy <= 0) { this.pos.y = gy; this.vy = 0; this.onGround = true; }

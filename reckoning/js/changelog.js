@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.40.1", date: "3 October 2026", title: "Upstairs",
+    items: [
+      "Your house has an upstairs. A steep stair in the corner by the door climbs to a loft under the roof, with a bed and its red blanket, a chest, a stool by the window and a rail round the stairwell.",
+      "The windows are real. Thirteen glazed, leaded windows, five downstairs and eight in the loft, and you can look out of every one, across the clearing and into the forest. The timbers inside step round them.",
+      "Fixed: a beam ran across the doorway inside the rebuilt house. The rail now stops either side of the door.",
+    ],
+  },
+  {
     v: "0.40", date: "3 October 2026", title: "Faces and families",
     items: [
       "Everyone has been rebuilt from the skin out. Faces are sculpted in one piece: a brow and eye sockets, cheekbones, a real nose, lips, a jaw and a chin, with colour in the cheeks and the eyebrows painted on. The eyes have an iris and pupil and a lid over them. Hands have fingers and a thumb. Hair is combed in strands from the crown to a clean hairline, and beards grow from the skin. Coats hang open in folds to the knee, split up the back, with pocket flaps and buttoned cuffs. Breeches are buckled at the knee, and shoes have heels and buckles. Skirts are gathered and full, with a darker hem, and aprons hang over them. Women wear a kerchief crossed at the breast and a linen coif with a frill. Tricorns have their brims pinned up properly. Shade gathers under brims and in folds and eye sockets.",

@@ -26,6 +26,29 @@ PI = math.pi
 W, D = 5.0, 6.0
 DOOR_W, DOOR_H = 1.3, 2.1
 CHIMNEY = (-1.2, D / 2 + 0.3)
+WW, WH = 0.62, 0.9
+# the windows, by the game's own reckoning of the house (x across, z from the back to the door, as woods.js has it):
+# (wall, where along it, the height of its middle). The same list is in woods.js, for the plaster inside.
+WINDOWS = [("front", -1.875, 1.65), ("back", 0.625, 1.65), ("left", 1.2, 1.65), ("right", -1.2, 1.65), ("right", 0.0, 1.65),
+           ("front", -0.625, 4.45), ("front", 0.625, 4.45), ("back", 0.625, 4.45), ("back", 1.875, 4.45),
+           ("left", -1.2, 4.45), ("left", 1.2, 4.45), ("right", -1.2, 4.45), ("right", 0.0, 4.45)]
+
+
+def wall_c(side, g):
+    """the game's place along a wall to Blender's (the game's z runs the other way from Blender's y)"""
+    return g if side in ("front", "back") else -g
+
+
+def plate_u(side, c):
+    """Blender's place along a wall to town.py's on_wall u"""
+    return {"front": c, "back": -c, "left": -c, "right": c}[side]
+
+
+def on_side(k, side, c, z, along, depth, height, key, color):
+    if side in ("front", "back"):
+        k.box(key, (along, depth, height), mat_tr((c, (-1 if side == "front" else 1) * D / 2, z)), color)
+    else:
+        k.box(key, (depth, along, height), mat_tr(((-1 if side == "left" else 1) * W / 2, c, z)), color)
 
 
 def build():
@@ -44,13 +67,31 @@ def build():
         k.box("stone", (t + 0.04, D + 0.02, 0.45), mat_tr((sd * W / 2, 0, 0.2)), stone)
         k.box("stone", ((W - DOOR_W) / 2 + 0.01, t + 0.04, 0.45), mat_tr((sd * (DOOR_W / 2 + (W - DOOR_W) / 4), -D / 2, 0.2)), stone)
     k.box("stone", (DOOR_W + 0.3, 0.5, 0.08), mat_tr((0, -D / 2 - 0.2, 0.0)), stone)
-    # plaster walls; the front in three pieces round the doorway
-    k.box("plaster", (W, t, H), mat_tr((0, D / 2, H / 2)), plaster)
-    for sd in (-1, 1):
-        k.box("plaster", (t, D, H), mat_tr((sd * W / 2, 0, H / 2)), plaster)
-        side_w = (W - DOOR_W) / 2
-        k.box("plaster", (side_w, t, H), mat_tr((sd * (DOOR_W / 2 + side_w / 2), -D / 2, H / 2)), plaster)
-    k.box("plaster", (DOOR_W, t, H - DOOR_H), mat_tr((0, -D / 2, DOOR_H + (H - DOOR_H) / 2)), plaster)
+    # the windows, real ones, glazed, that you can see out of — and the plaster walls built round them and the door
+    ops = {"front": [(0.0, 0.0, DOOR_H, DOOR_W)], "back": [], "left": [], "right": []}
+    for side, g, zc in WINDOWS:
+        ops[side].append((wall_c(side, g), zc - WH / 2, zc + WH / 2, WW))
+    for side, holes in ops.items():
+        L = W if side in ("front", "back") else D
+        cuts = sorted({-L / 2, L / 2} | {c + sd * w / 2 for c, z0, z1, w in holes for sd in (-1, 1)})
+        for a0, a1 in zip(cuts, cuts[1:]):
+            mid = (a0 + a1) / 2
+            gaps = sorted((z0, z1) for c, z0, z1, w in holes if abs(mid - c) < w / 2)
+            z = 0.0
+            for z0, z1 in gaps + [(H, H)]:
+                if z0 - z > 0.01:
+                    on_side(k, side, mid, (z + z0) / 2, a1 - a0, t, z0 - z, "plaster", plaster)
+                z = max(z, z1)
+    for side, g, zc in WINDOWS:
+        c = wall_c(side, g)
+        fr = oak()
+        on_side(k, side, c, zc + WH / 2 + 0.05, WW + 0.2, t + 0.08, 0.1, "wood", fr)               # head
+        on_side(k, side, c, zc - WH / 2 - 0.05, WW + 0.24, t + 0.14, 0.1, "wood", fr)              # sill
+        for sd in (-1, 1):
+            on_side(k, side, c + sd * (WW / 2 + 0.05), zc, 0.1, t + 0.08, WH, "wood", fr)           # jambs
+        on_side(k, side, c, zc, WW, 0.02, WH, "glass", rgb(0x9ab0b8))                              # the glass
+        on_side(k, side, c, zc, 0.03, 0.05, WH, "wood", rgb(0x2a2018))                              # the leading
+        on_side(k, side, c, zc + WH * 0.12, WW, 0.05, 0.03, "wood", rgb(0x2a2018))
     # the frame: posts, rails, braces, as the settlers' houses have — but none across the doorway
     for side in ("front", "back", "left", "right"):
         L = wall_len(W, D, side)
@@ -58,6 +99,8 @@ def build():
         for i in range(bays + 1):
             u = -L / 2 + L * i / bays
             if side == "front" and abs(u) < DOOR_W / 2 + 0.05:
+                continue
+            if any(abs(u - plate_u(sd_, wall_c(sd_, g))) < WW / 2 + 0.12 for sd_, g, zc in WINDOWS if sd_ == side):
                 continue
             plate(k, "wood", W, D, side, u, H / 2, 0.16, H, 0.16, oak(), th=0.05)
         for f in range(floors + 1):
@@ -79,17 +122,11 @@ def build():
             bw = L / bays
             for sd in (-1, 1):
                 u0 = sd * (L / 2 - bw / 2)
+                if any(sd_ == side and abs(plate_u(sd_, wall_c(sd_, g)) - u0) < bw / 2 and f * FH < zc < (f + 1) * FH for sd_, g, zc in WINDOWS):
+                    continue
                 ang = math.atan2(FH - 0.3, bw) * (1 if sd > 0 else -1)
                 loc, rot = on_wall(W, D, side, u0, f * FH + FH / 2, 0.165)
                 k.box("wood", (math.hypot(bw, FH - 0.3) - 0.1, 0.04, 0.12), mat_tr(loc, (0, ang, rot[2])), oak())
-        for f in range(floors):
-            for i in range(1, bays - 1):
-                u = -L / 2 + L * (i + 0.5) / bays
-                if side == "front" and f == 0 and abs(u) < 0.9:
-                    continue
-                if side == "back" and f == 0 and u > 0.4:
-                    continue        # (the hearth is behind that wall)
-                window(k, W, D, side, u, f * FH + 1.65, 0.62, 0.9, oak(), rgb(0x28323a), off=0.16, cross=rgb(0x2a2018))
     # the doorway's frame: two posts and a lintel, standing proud of the plaster
     for sd in (-1, 1):
         k.box("wood", (0.16, t + 0.1, DOOR_H + 0.1), mat_tr((sd * (DOOR_W / 2 + 0.08), -D / 2, DOOR_H / 2)), oak())

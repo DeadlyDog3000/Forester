@@ -16,6 +16,8 @@ const KEEP_CLEAR = [
   { x0: -2.3, x1: -0.1, z0: -2.9, z1: -1.55 },   // the hearth and its stone
   { x0: -0.95, x1: 0.95, z0: 1.45, z1: 3 },      // where the door swings
 ];
+// (and the stair, once the cabin is a house)
+export function furnishClear(r) { if (!KEEP_CLEAR.some(k => k.stair)) KEEP_CLEAR.push({ x0: r.x0 - 0.1, x1: r.x1 + 0.1, z0: r.z0 - 0.2, z1: 3, stair: true }); }
 
 export const FURNITURE = {
   pallet: { name: "Straw pallet", note: "A tick of straw and a blanket. Somewhere to sleep.", rye: 6, w: 0.9, d: 1.9, h: 0.3, bed: true,
