@@ -963,6 +963,10 @@ export class Woods extends WorldBase {
     const at = (a, b) => [e.x + fx * a + rx * b, e.z + fz * a + rz * b];
     const H = (x, z) => this.heightAt(x, z);
     const b = new Builder();
+    // (a turn that points a thing's +Y along n, as the builder takes it; and a rod from one point to another)
+    const _qq = new THREE.Quaternion(), _ee = new THREE.Euler(), UPV = new THREE.Vector3(0, 1, 0), _nn = new THREE.Vector3();
+    const along = (nx, ny, nz) => { _qq.setFromUnitVectors(UPV, _nn.set(nx, ny, nz).normalize()); _ee.setFromQuaternion(_qq, "YXZ"); return [_ee.x, _ee.y, _ee.z]; };
+    const rod = (x0, y0, z0, x1, y1, z1, r0, r1, color) => { const L = Math.hypot(x1 - x0, y1 - y0, z1 - z0); b.add(new THREE.CylinderGeometry(r1, r0, L, 6), color, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, ...along(x1 - x0, y1 - y0, z1 - z0)); };
     // the ground: soot and ash trodden in, in blotches, fading out into the forest floor at the edges
     const [px, pz] = at(5, 0);
     {
@@ -986,24 +990,33 @@ export class Woods extends WorldBase {
     // the clamp: a beehive of stacked billets under a skin of turf and earth, a smoke-hole at its crown and vents
     // round its flanks glowing where the fire inside shows through
     const [kx, kz] = at(6, 3.5), ky = H(kx, kz);
-    const prof = [[0.05, 2.15], [0.55, 2.1], [1.2, 1.85], [1.8, 1.4], [2.3, 0.85], [2.6, 0.3], [2.7, 0]].map(([u, v]) => new THREE.Vector2(u, v));
-    b.add(new THREE.LatheGeometry(prof, 16), 0x4a4232, kx, ky - 0.05, kz, 0, 0, 0, 1, 1, 1, 0.06);
-    for (let i = 0; i < 46; i++) {             // the turf, in sods
-      const a = r() * TAU, h = r(), rad = (1 - h * 0.85) * 2.55, y = ky + h * 2.0;
-      b.add(new THREE.DodecahedronGeometry(0.3, 0), r.pick([0x4a5230, 0x3e4a2a, 0x5a5a38, 0x3a3428]), kx + Math.cos(a) * rad, y, kz + Math.sin(a) * rad, r(), a, r(), 1.4, 0.45, 1.1, 0.08);
+    const PR = [[0.05, 2.15], [0.55, 2.1], [1.2, 1.85], [1.8, 1.4], [2.3, 0.85], [2.6, 0.3], [2.7, 0]];
+    b.add(new THREE.LatheGeometry(PR.map(([u, v]) => new THREE.Vector2(u, v)), 28), 0x4a4232, kx, ky - 0.05, kz, 0, 0, 0, 1, 1, 1, 0.06);
+    // the clamp's skin at a height: its radius there, and the slope (for setting things flat against it)
+    const skin = y => { for (let k = 0; k < PR.length - 1; k++) { const [u0, v0] = PR[k], [u1, v1] = PR[k + 1]; if (y <= v0 && y >= v1) { const t = (v0 - y) / (v0 - v1 || 1); return { rad: u0 + (u1 - u0) * t, du: u1 - u0, dv: v0 - v1 }; } } return { rad: 2.7, du: 0.1, dv: 0.3 }; };
+    const onSkin = (a, y, out = 0) => { const k = skin(y), len = Math.hypot(k.du, k.dv) || 1, nr = k.dv / len, ny = k.du / len; return { x: kx + Math.cos(a) * (k.rad + out * nr), y: ky - 0.05 + y + out * ny, z: kz + Math.sin(a) * (k.rad + out * nr), n: [Math.cos(a) * nr, ny, Math.sin(a) * nr] }; };
+    for (let i = 0; i < 60; i++) {             // the turf, in sods laid flat on it, overlapping like scales
+      const a = (i * 2.399963) % TAU, y = 0.12 + ((i * 0.618) % 1) * 1.9, q = onSkin(a, y, -0.02);
+      b.add(new THREE.CylinderGeometry(0.42, 0.46, 0.12, 6), r.pick([0x4a5230, 0x3e4a2a, 0x55573a, 0x3a3428]), q.x, q.y, q.z, ...along(...q.n), 1, 1, 1, 0.08);
     }
-    for (let i = 0; i < 8; i++) b.add(new THREE.CylinderGeometry(0.03, 0.04, 0.6, 5), 0x4a3828, kx + Math.cos(i) * 0.35, ky + 2.25, kz + Math.sin(i) * 0.35, Math.cos(i) * 0.4, 0, Math.sin(i) * 0.4);   // sticks round the smoke-hole
+    for (let i = 0; i < 8; i++) rod(kx + Math.cos(i) * 0.3, ky + 2.0, kz + Math.sin(i) * 0.3, kx + Math.cos(i) * 0.5, ky + 2.55, kz + Math.sin(i) * 0.5, 0.035, 0.025, 0x3a2c20);   // sticks round the smoke-hole
+    // vents round its flanks: dark holes in the turf, the fire's glow just showing in each
     const glowM = new THREE.MeshBasicMaterial({ color: 0xff6a20 });
     this.burnerGlow = [];
     for (let i = 0; i < 7; i++) {
-      const a = i / 7 * TAU + 0.3, rad = 2.25, y = ky + 0.6 + (i % 2) * 0.35;
-      b.add(new THREE.SphereGeometry(0.17, 8, 6), 0x15100c, kx + Math.cos(a) * rad, y, kz + Math.sin(a) * rad);
-      const g = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), glowM.clone()); g.position.set(kx + Math.cos(a) * (rad + 0.08), y, kz + Math.sin(a) * (rad + 0.08)); root.add(g); this.burnerGlow.push(g);
+      const a = i / 7 * TAU + 0.3, q = onSkin(a, 0.45 + (i % 2) * 0.35, 0.02), e = along(...q.n);
+      b.add(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 10), 0x0e0a08, q.x, q.y, q.z, ...e);
+      const g = new THREE.Mesh(new THREE.CircleGeometry(0.1, 10), glowM.clone());
+      const o = onSkin(a, 0.45 + (i % 2) * 0.35, 0.065); g.position.set(o.x, o.y, o.z); g.lookAt(o.x + q.n[0], o.y + q.n[1], o.z + q.n[2]);
+      root.add(g); this.burnerGlow.push(g);
     }
-    // a ladder up its side, and a wattle hurdle against the wind
-    { const la = Math.atan2(fx, fz) + 0.6, lx = kx - Math.sin(la) * 2.5, lz = kz - Math.cos(la) * 2.5;
-      for (const s of [-0.22, 0.22]) b.add(new THREE.CylinderGeometry(0.035, 0.035, 2.6, 5), 0x7a6248, lx + Math.cos(la) * s, ky + 1.1, lz - Math.sin(la) * s, 0.55, la, 0);
-      for (let i = 0; i < 6; i++) b.add(new THREE.CylinderGeometry(0.025, 0.025, 0.46, 5), 0x7a6248, lx + Math.sin(la) * (0.2 + i * 0.22) * 0.5, ky + 0.25 + i * 0.36, lz + Math.cos(la) * (0.2 + i * 0.22) * 0.5, 0, la, Math.PI / 2); }
+    // a ladder leant up its side: two rails from the ground to the shoulder of it, and the rungs between them
+    { const la = Math.atan2(fx, fz) + 0.6 + Math.PI, ca = Math.cos(la), sa = Math.sin(la);
+      const foot = { x: kx + ca * 3.2, z: kz + sa * 3.2 }, fy = H(foot.x, foot.z), top = onSkin(la, 1.75, 0.1);
+      const side = [-sa, ca];
+      for (const s2 of [-0.22, 0.22]) rod(foot.x + side[0] * s2, fy, foot.z + side[1] * s2, top.x + side[0] * s2, top.y + 0.25, top.z + side[1] * s2, 0.035, 0.03, 0x7a6248);
+      for (let i = 1; i <= 7; i++) { const t = i / 8, x = foot.x + (top.x - foot.x) * t, y = fy + (top.y + 0.25 - fy) * t, z = foot.z + (top.z - foot.z) * t;
+        rod(x - side[0] * 0.22, y, z - side[1] * 0.22, x + side[0] * 0.22, y, z + side[1] * 0.22, 0.022, 0.022, 0x8a7258); } }
     { const [wx0, wz0] = at(9.5, 5.5), wy0 = H(wx0, wz0);
       for (let i = 0; i < 6; i++) b.add(new THREE.CylinderGeometry(0.04, 0.05, 1.6, 5), 0x5a4432, wx0 + fx * (i - 2.5) * 0.7, wy0 + 0.8, wz0 + fz * (i - 2.5) * 0.7);
       for (let j = 0; j < 7; j++) b.box(4.0, 0.07, 0.07, wx0, wy0 + 0.25 + j * 0.19, wz0, j % 2 ? 0x7a6650 : 0x6a5640, ang + Math.PI / 2, 0.05); }
@@ -1018,7 +1031,9 @@ export class Woods extends WorldBase {
     // his hut: a cone of poles, clad in bark slabs and turfed at the foot, the door toward the fire
     const [hx, hz] = at(9, -3.5), hy = H(hx, hz);
     b.add(new THREE.ConeGeometry(1.95, 3.2, 14, 1, true), 0x5a4a38, hx, hy + 1.6, hz, 0, 0, 0, 1, 1, 1, 0.08);
-    for (let i = 0; i < 18; i++) { const a = i / 18 * TAU; b.add(new THREE.CylinderGeometry(0.04, 0.06, 3.9, 5), 0x6a5440, hx + Math.cos(a) * 1.0, hy + 1.75, hz + Math.sin(a) * 1.0, Math.sin(a) * 0.55, 0, -Math.cos(a) * 0.55); }
+    // (the poles lean in from the foot, cross at the top and stick up through it, as a pole hut's do)
+    for (let i = 0; i < 14; i++) { const a = i / 14 * TAU + 0.1, rr = 1.98, x0 = hx + Math.cos(a) * rr, z0 = hz + Math.sin(a) * rr, k = 1.22;
+      rod(x0, hy, z0, x0 + (hx - x0) * k, hy + 3.2 * k, z0 + (hz - z0) * k, 0.055, 0.035, r.pick([0x6a5440, 0x5e4a38])); }
     for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; b.add(new THREE.DodecahedronGeometry(0.34, 0), r.pick([0x4a5230, 0x3e3a2c]), hx + Math.cos(a) * 1.9, hy + 0.2, hz + Math.sin(a) * 1.9, r(), a, r(), 1.3, 0.6, 1.0, 0.08); }
     { const da = Math.atan2(px - hx, pz - hz), dx = Math.sin(da), dz = Math.cos(da);
       b.box(0.8, 1.5, 0.08, hx + dx * 1.55, hy + 0.75, hz + dz * 1.55, 0x120d0a, da);
@@ -1028,15 +1043,26 @@ export class Woods extends WorldBase {
     for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; b.add(new THREE.DodecahedronGeometry(0.16, 0), 0x6a665e, ox + Math.cos(a) * 0.55, oy + 0.08, oz + Math.sin(a) * 0.55, r(), r(), r(), 1, 0.7, 1, 0.08); }
     b.add(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 5), 0x4a3828, ox + 0.6, oy + 0.65, oz);
     b.box(0.9, 0.04, 0.04, ox + 0.15, oy + 1.25, oz, 0x3a3028);
-    b.add(new THREE.CylinderGeometry(0.13, 0.11, 0.22, 10), 0x2a2a2c, ox, oy + 0.6, oz);
-    { const em = new THREE.Mesh(new THREE.CircleGeometry(0.4, 10), new THREE.MeshBasicMaterial({ color: 0xc8501a })); em.rotation.x = -Math.PI / 2; em.position.set(ox, oy + 0.06, oz); root.add(em); this.burnerGlow.push(em); }
+    b.add(new THREE.CylinderGeometry(0.13, 0.11, 0.22, 10), 0x2a2a2c, ox, oy + 0.62, oz);
+    rod(ox, oy + 0.73, oz, ox, oy + 1.24, oz, 0.008, 0.008, 0x2a2a2c);          // (the pot-hook)
+    for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; rod(ox + Math.cos(a) * 0.35, oy + 0.06, oz + Math.sin(a) * 0.35, ox - Math.cos(a) * 0.05, oy + 0.16, oz - Math.sin(a) * 0.05, 0.045, 0.04, 0x3a2a1e); }   // (the burning sticks)
+    { const em = new THREE.Mesh(new THREE.CircleGeometry(0.3, 10), new THREE.MeshBasicMaterial({ color: 0x8a2a0c })); em.rotation.x = -Math.PI / 2; em.position.set(ox, oy + 0.05, oz); root.add(em); this.burnerGlow.push(em);
+      const fl = makeFlame(2.4); fl.position.set(ox, oy + 0.08, oz); root.add(fl); this.flames.push(fl); }
     const [sx2, sz2] = at(2.2, 3.4); b.add(new THREE.CylinderGeometry(0.22, 0.24, 1.8, 8), 0x6a5038, sx2, H(sx2, sz2) + 0.22, sz2, 0, ang, Math.PI / 2);
     // the charcoal: a black heap of it raked out, baskets and sacks of it ready for the buyer
     const [cx3, cz3] = at(5.5, -0.8), cy3 = H(cx3, cz3);
     for (let i = 0; i < 40; i++) { const a = r() * TAU, d = Math.sqrt(r()) * 1.1; b.add(new THREE.DodecahedronGeometry(0.12, 0), r.pick([0x141210, 0x1e1a18, 0x262220]), cx3 + Math.cos(a) * d, cy3 + (1.1 - d) * 0.35 + 0.05, cz3 + Math.sin(a) * d, r(), r(), r(), 1, 0.7, 1, 0.1); }
     for (let i = 0; i < 3; i++) { const [bx2, bz2] = at(2.4 + i * 0.7, -2.6), by2 = H(bx2, bz2);
-      b.add(new THREE.CylinderGeometry(0.3, 0.24, 0.42, 10, 1, true), 0x8a6a42, bx2, by2 + 0.21, bz2); b.add(new THREE.CircleGeometry(0.28, 10), 0x141210, bx2, by2 + 0.38, bz2, -Math.PI / 2, 0, 0); }
-    for (let i = 0; i < 3; i++) { const [sx, sz] = at(1.4, -3.4 - i * 0.65); b.add(new THREE.SphereGeometry(0.32, 8, 6), 0x8a7a5a, sx, H(sx, sz) + 0.3, sz, 0, r() * 3, 0, 0.85, 1.1, 0.75, 0.08); }
+      b.add(new THREE.CylinderGeometry(0.3, 0.24, 0.42, 12, 1, true), 0xa08454, bx2, by2 + 0.21, bz2); b.add(new THREE.TorusGeometry(0.3, 0.025, 4, 14), 0x8a6e44, bx2, by2 + 0.42, bz2, Math.PI / 2, 0, 0);
+      for (let k = 0; k < 7; k++) { const a = k / 7 * TAU; b.add(new THREE.DodecahedronGeometry(0.09, 0), 0x18140f, bx2 + Math.cos(a) * 0.15, by2 + 0.42, bz2 + Math.sin(a) * 0.15, r(), r(), r()); }
+      b.add(new THREE.DodecahedronGeometry(0.12, 0), 0x18140f, bx2, by2 + 0.48, bz2); }
+    // (sacks of it, in coarse cloth, tied at the neck: not wood)
+    { const cloth = new Builder();
+      for (let i = 0; i < 3; i++) { const [sx, sz] = at(1.4, -3.4 - i * 0.65), sy = H(sx, sz), sr = r() * 3;
+        cloth.add(new THREE.SphereGeometry(0.3, 10, 8), r.pick([0x8a7a5a, 0x7a6c4e, 0x938466]), sx, sy + 0.3, sz, 0, sr, 0, 0.95, 1.15, 0.8, 0.05);
+        cloth.add(new THREE.CylinderGeometry(0.06, 0.1, 0.14, 8), 0x7a6c4e, sx, sy + 0.66, sz);
+        cloth.add(new THREE.TorusGeometry(0.065, 0.016, 4, 10), 0x4a3a28, sx, sy + 0.64, sz, Math.PI / 2, 0, 0); }
+      root.add(cloth.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: false }))); }
     // a stack of split wood waiting to be burned, a chopping block with an axe in it, a rake and a shovel
     const [wx, wz] = at(3, -5.5), wy = H(wx, wz);
     root.add(P.logPile(wx, wz, 11, ang, wy));

@@ -876,7 +876,14 @@ export class Town {
         return `Raise the ${def.name.toLowerCase()}`;
       },
       can: () => b.type === "field" ? (!b.sown || ((b.growth ?? 1) >= 3 && !b._reap)) && !(this.winter && (b.dug || 0) >= 3) : (b.logs < def.cost ? pl.carryN > 0 : !(NEEDS_DOOR.has(b.type) && !b.door && !Object.keys(this.wants(b)).length && !(this.S.doors > 0))),
-      onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
+      // (the sound of the work: the spade biting, the sickle's swish, the seed falling; a hammer for building)
+      onHoldTick: (dt, t) => {
+        const at = n => Math.floor(t * n) !== Math.floor((t - dt) * n);
+        if (b.type !== "field") { if (at(2.6)) SFX().hammer(); return; }
+        if ((b.dug || 0) < 3) { if (at(0.9)) SFX().chop(); }
+        else if (b.sown && (b.growth ?? 1) >= 3) { if (at(1.25)) AUDIO.whoosh(0.22, false); }
+        else if (at(1.3)) SFX().pickup && SFX().pickup();
+      },
       use: () => {
         if (b.type === "field") {
           if ((b.dug || 0) < 3) { b.dug = (b.dug || 0) + 1; G.wear && G.wear("spade", 2); if (b.dug >= 3) b.done = true; }

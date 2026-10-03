@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.35", date: "3 October 2026", title: "Rough edges",
+    items: [
+      "The charcoal burner's camp, mended. The turf on the clamp lies flat against it, overlapping like scales, instead of sticking out at all angles, and the vents are glowing holes in its side, not balls floating off it. His ladder is one ladder, rungs and rails together, leant up the clamp. The poles of his hut lean in and cross at the top. His fire is a real little fire with sticks burning in it and a kettle on a hook, not a flat orange disc. The charcoal sacks are coarse cloth tied at the neck, not wooden balls, and the baskets are wicker with charcoal heaped in them.",
+      "In first person, reaping has its own stroke now: a sickle swept low through the stalks. Picking berries, pulling an arrow out, gathering moss or picking up a stone shows your hand reaching out, closing round it and pulling back. Each piece of work in a field sounds like itself: the spade's bite, the sickle's swish, the seed falling.",
+      "Fixed: restarting a chapter (or going back to the title) while in the free camera left the HUD hidden. Starting any chapter now always puts you back in yourself. While the free camera is on, a banner says so, and ; brings you back even with a menu open.",
+    ],
+  },
+  {
     v: "0.33", date: "2 October 2026", title: "Duels and daily bread",
     items: [
       "Fights are one-on-one. A raider who comes at you squares up to you alone: he stops to fight instead of making for the stores, circles you, steps back out of reach and closes again, and doesn't let go until one of you is down. Hit another one and he turns on you, and the first lets you be.",

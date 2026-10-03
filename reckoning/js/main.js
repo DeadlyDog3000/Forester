@@ -128,6 +128,7 @@ function refreshTitle() {
   UI.show("btnChapters", !!s);
 }
 function toTitle() {
+  G.endFreecam && G.endFreecam();
   G.mode = "title";
   if (overlay) showOverlay(overlay, false);
   setFreeLook(false);
@@ -1378,7 +1379,8 @@ addEventListener("keydown", e => {
     UI.hint("You get down. The horse trots home to the stable.", 3);
   }
   // ; : the free camera — the view flies loose of you (WASD, Space up, C down, Shift quicker); ; again to come back
-  if (e.code === "Semicolon" && !e.repeat && G.mode === "play" && !overlay) { const on = G.toggleFreecam(); UI.hint(on ? "Free camera: WASD to fly, Space up, C down, Shift quicker. ; to come back." : "Back in yourself.", on ? 4 : 1.5); }
+  // (and ; always brings you back, whatever is open)
+  if (e.code === "Semicolon" && !e.repeat && G.mode === "play" && (!overlay || G.freecam)) { const on = G.toggleFreecam(); UI.hint(on ? "Free camera: WASD to fly, Space up, C down, Shift quicker. ; to come back." : "Back in yourself.", on ? 4 : 1.5); }
   if (e.code === "KeyJ" && !e.repeat && G.mode === "play") {
     if (!G.hasMap && overlay !== "bigmap") UI.hint("You haven't a map.", 2.5);
     else showOverlay("bigmap", overlay !== "bigmap");

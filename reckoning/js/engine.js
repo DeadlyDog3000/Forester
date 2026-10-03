@@ -9,7 +9,7 @@
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
-import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
@@ -367,9 +367,9 @@ export class Player {
         const hand = new THREE.Group(); g.add(hand);
         const skin = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skin); fist.rotation.z = Math.PI / 2; hand.add(fist);
-        const tool = kind === "eat" ? makeFood(G.working.food) : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer();
+        const tool = kind === "eat" ? makeFood(G.working.food) : kind === "reap" ? makeSickle() : kind === "pick" ? new THREE.Group() : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer();
         // (blades turned flat to the eye, not edge on)
-        if (kind !== "hammer" && kind !== "eat") tool.rotation.y = Math.PI / 2;
+        if (kind !== "hammer" && kind !== "eat" && kind !== "reap") tool.rotation.y = Math.PI / 2;
         hand.add(tool);
         // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
         const arm = new THREE.Group(); g.add(arm);
@@ -378,7 +378,7 @@ export class Player {
         g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
         vm.add(g); this.workRig = g;
         // and the same tool in the hand of your body, for when the camera is behind you
-        if (this.model && this.model.held && kind !== "eat" && kind !== "sow") { this.workBody = kind === "dig" ? makeSpade() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
+        if (this.model && this.model.held && kind !== "eat" && kind !== "sow" && kind !== "pick") { this.workBody = kind === "reap" ? makeSickle() : kind === "dig" ? makeSpade() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
       }
     }
     if (!this.workRig) return;
@@ -406,6 +406,22 @@ export class Player {
       h.position.set(0.2, -0.04 - down * 0.1 + lever * 0.04, -0.5 - down * 0.04);
       h.quaternion.setFromUnitVectors(_UP, _dig.set(-0.25 + lever * 0.05, -0.8 - down * 0.2 + lever * 0.35, -1.1).normalize());
       if (beat(0.9) && !wk.quiet) SFX.chop && SFX.chop();
+    } else if (kind === "reap") {
+      // the sickle swept low through the stalks, right to left, the left hand gathering what it cuts; then back for more
+      const p = (t * 1.25) % 1, e = x => x * x * (3 - 2 * x);
+      const sweep = p < 0.45 ? e(p / 0.45) : 1 - e((p - 0.45) / 0.55);
+      h.position.set(0.28 - sweep * 0.4, -0.29 - Math.sin(sweep * Math.PI) * 0.05, -0.5 - Math.sin(sweep * Math.PI) * 0.08);
+      h.rotation.set(-1.15 + sweep * 0.15, 0.35 - sweep * 1.0, -0.2 + sweep * 0.5);
+      if (beat(1.25) && !wk.quiet) AUDIO.whoosh(0.22, false);
+    } else if (kind === "pick") {
+      // out to it, the fingers closing, a little twist and pull, and back to you — again and again
+      const p = (t * 1.4) % 1, e = x => x * x * (3 - 2 * x);
+      const out = p < 0.4 ? e(p / 0.4) : p < 0.6 ? 1 : 1 - e((p - 0.6) / 0.4), tug = p > 0.4 && p < 0.6 ? Math.sin((p - 0.4) / 0.2 * Math.PI) : 0;
+      h.position.set(0.17 - out * 0.08, -0.27 + out * 0.07 - tug * 0.015, -0.42 - out * 0.16 + tug * 0.03);
+      h.rotation.set(-0.5 + out * 0.4, 0.3 - tug * 0.4, 0.6 - out * 0.3);
+      h.scale.setScalar(1);
+      h.children[0] && (h.children[0].scale.x = 1 - (p > 0.38 && p < 0.65 ? 0.25 : 0));   // (the hand closing round it)
+      if (beat(1.4) && !wk.quiet && Math.random() < 0.7) SFX.pickup && SFX.pickup();
     } else if (kind === "sow") {
       // a handful out of the sack, cast wide in an arc
       const p = (t * 1.3) % 1;
@@ -739,6 +755,8 @@ function freeCamera(dt) {
   for (const c of camera.children) c.visible = false;
   if (p.model) p.model.root.visible = true;
 }
+// (out of the free camera without fuss: a chapter starting or the title screen ends it)
+G.endFreecam = () => { if (G.freecam) G.toggleFreecam(); document.body.classList.remove("freecam"); };
 G.toggleFreecam = () => {
   if (G.freecam) {
     for (const [c, v] of G.freecam.shown) c.visible = v;
@@ -1307,7 +1325,9 @@ function huntTarget() {
 // what a held action is done with, and so what your hands are seen doing: judged from what it is
 export function workOf(label) {
   if (/\b(Dig|Turn the earth)/i.test(label)) return "dig";
-  if (/\b(Sow|Reap)/i.test(label)) return "sow";
+  if (/\bReap/i.test(label)) return "reap";
+  if (/\bSow/i.test(label)) return "sow";
+  if (/\b(Pick|Pull|Take|Gather)/i.test(label)) return "pick";
   if (/\b(Hew|Saw|plank)/i.test(label)) return "saw";
   if (/\b(Carve|Dress|Whittle|Skin)/i.test(label)) return "craft";
   if (/\b(Rebuild|Raise|Build|Chink|Mend|Repair|Make|Nail|Frame|Furnish)/i.test(label)) return "hammer";

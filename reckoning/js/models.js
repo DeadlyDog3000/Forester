@@ -435,6 +435,14 @@ export function makeKnife() {
   const blade = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.22, 0.035), STEEL()); blade.position.y = 0.22; g.add(blade);
   return g;
 }
+// a sickle: a short handle, and the blade curving out and round from the top of it
+export function makeSickle() {
+  const g = new THREE.Group();
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.14, 6), mat(0x6a4a2a, { surface: "wood" })); grip.position.y = 0.04; g.add(grip);
+  const blade = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.009, 4, 14, Math.PI * 1.1), STEEL());
+  blade.scale.set(1, 1, 2.2); blade.rotation.z = -0.35; blade.position.set(0.11, 0.13, 0); g.add(blade);
+  return g;
+}
 // tools for work in the hands: gripped at the origin, pointing +Y
 export function makeSaw() {
   const g = new THREE.Group();

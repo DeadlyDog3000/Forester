@@ -324,6 +324,7 @@ export async function startChapter(n, opts = {}) {
   G.body = restoreBody((loadSave() || {}).body); G.body.hunger = Math.max(G.body.hunger, 0.6);
   G.chest = ((loadSave() || {}).chest || []).slice(0, 9);
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
+  G.endFreecam && G.endFreecam();
   G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0; G.health = 1; G.downed = false; G.hitShake = 0; G.panting = 0; G.onDowned = null; G.showHealth = false; UI.stance && UI.stance(null);   // running always costs breath
   if (G.town) { G.town.stop(); G.town = null; }
   G.bugs.setKind(null);
