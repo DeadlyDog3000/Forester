@@ -111,6 +111,7 @@ export const LOGS_PER_TREE = 2, CARRY_MAX = 6;
 // (a dish from your kitchen is a day's food by itself); a baking turns four rye into six loaves, so bread goes further
 export const RYE_HARVEST = 60, WELL_RYE = 12;
 export const RATION = { rye: 5, bread: 3, meat: 2 };
+const COLONY_KEYS = new Set(["store", "rye", "bread", "meat", "stone", "planks", "bricks", "seed", "hungry", "feast", "copper", "tin", "bronze", "iron", "copperore", "tinore", "ore", "tools"]);
 const BAKE_RYE = 4, BAKE_LOAVES = 6;
 // a harvest gives back a third of a rye seed: a field to sow takes a whole one
 export const SEED_BACK = 0.3;
@@ -223,7 +224,8 @@ export class Town {
     w.lobes = this.S.lobes;
     // the other settlements you have founded, and the roads to them
     this.S.colonies ??= [];
-    for (const c of this.S.colonies) layColony(this, c);
+    // (a settlement founded before it kept stores of its own starts with a cart's worth)
+    for (const c of this.S.colonies) { c.store ??= 8; c.rye ??= 40; c.seed ??= 1; layColony(this, c); }
     if ((this.S.homeTier || 1) >= 2 && w.setHomeTier) w.setHomeTier(this.S.homeTier);
     w.settled = true;
     // the trees felled before stay down (stumps), until they grow back
@@ -1405,8 +1407,46 @@ export class Town {
       g.userData.pile = pile; g.add(pile);
     }
   }
+  // ---- the settlements: the first, and any founded out in the forest, each with its own people and its own stores ----
+  // (the treasury, the research and the laws are the nation's, shared; logs, food, stone and the like are each
+  // settlement's own, and so are the people who live there — they work and eat where they live)
+  // free beds where: in the first settlement (your house's spare beds counted), or in one out in the forest (its cabins)
+  bedsIn(c) { const v = this.viewFor(c); return c ? v.beds - 2 : v.beds; }
+  inColony(x, z) { return (this.S.colonies || []).find(c => Math.hypot(x - c.x, z - c.z) <= c.r + 6) || null; }
+  colonyOf(p) { return p && p.home ? (this.S.colonies || []).find(c => c.name === p.home) || null : null; }
+  // the town as it looks from one settlement: its people, its buildings, its stores (the rest is the nation's)
+  viewFor(c) {
+    const key = c ? c.name : "";
+    this._views ??= new Map();
+    if (this._views.has(key)) return this._views.get(key);
+    const town = this, S = this.S;
+    const here = b => c ? Math.hypot(b.x - c.x, b.z - c.z) <= c.r + 6 : !(S.colonies || []).some(k => Math.hypot(b.x - k.x, b.z - k.z) <= k.r + 6);
+    const vS = new Proxy(S, {
+      get(t, k) {
+        if (c && COLONY_KEYS.has(k)) { if (k === "feast") return (c.feast ??= []); return c[k] ?? 0; }
+        if (k === "buildings") return t.buildings.filter(here);
+        if (k === "people") return t.people.filter(p => c ? p.home === c.name : !p.home);
+        return t[k];
+      },
+      set(t, k, v) { if (c && COLONY_KEYS.has(k)) c[k] = v; else t[k] = v; return true; },
+    });
+    const v = Object.create(town);
+    Object.defineProperty(v, "S", { value: vS });
+    if (c) Object.defineProperty(v, "stackAt", { get: () => ({ x: c.x + 2.2, z: c.z + 1.6 }) });
+    // (what changes the whole town, or saves it, is done by the town itself, never through a view)
+    for (const m of ["persist", "showStore", "killSettler", "leave", "addPerson", "showGraves", "setMark", "emit", "show", "site"]) v[m] = (...a) => town[m](...a);
+    v.colony = c;
+    if (c) {
+      // (out there nobody sleeps in your house, and the fire they sit by is their own)
+      Object.defineProperty(v, "ownBeds", { get: () => 0 });
+      v.homeOf = a => { const h = town.homeOf.call(v, a); if (h.inside) return h; const k = Math.max(0, vS.people.indexOf(a.settler)); return { door: [c.x + Math.cos(k * 1.3) * 2.4, c.z + Math.sin(k * 1.3) * 2.4], inside: false }; };
+    }
+    this._views.set(key, v);
+    return v;
+  }
   // how many eat from the stores each day (everyone but you: you eat from your own pack), Horse Feed making it go further
-  mouths() { return (this.S.people.length + 1) * (this.knows("horsefeed") ? 0.8 : 1); }
+  // (the first settlement's people only: each settlement out in the forest feeds its own)
+  mouths() { return (this.colony ? this.S.people.length : this.S.people.filter(p => !p.home).length + 1) * (this.knows("horsefeed") ? 0.8 : 1); }
   // how many days the food in the stores would last
   foodDays() { const S = this.S; return ((S.rye || 0) / RATION.rye + (S.bread || 0) / RATION.bread + (S.meat || 0) / RATION.meat + (S.feast ? S.feast.length : 0)) / Math.max(0.8, this.mouths()); }
   // a field staked out and not yet dug, that nobody else is digging
@@ -1450,7 +1490,8 @@ export class Town {
     if (this.storeIt) w.removeInteract(this.storeIt);
     const store = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "storehouse") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
     this.storeIt = w.addInteract({ get x() { const b = store(); return b ? b.x : 1e6; }, get z() { const b = store(); return b ? b.z : 1e6; }, get y() { const b = store(); return b ? w.heightAt(b.x, b.z) + 0.8 : 0; }, reach: 2.4,
-      label: "Open the settlement's store chest", can: () => !!store(), use: () => G.openChest && G.openChest("stores") });
+      label: () => { const b = store(), c = b && this.inColony(b.x, b.z); return c ? `Open ${c.name}'s store chest` : "Open the settlement's store chest"; },
+      can: () => !!store(), use: () => { const b = store(); G.chestS = this.viewFor(b && this.inColony(b.x, b.z)).S; G.openChest && G.openChest("stores"); } });
     // the chopping block: make tools; the forge (once there is one): smelt ore, and cast bronze
     // (at the side of whichever forge is nearest you, out of the way of its door)
     const forge = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "forge") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
@@ -1675,7 +1716,8 @@ export class Town {
           this.chooseJob(p);
         } });
     }
-    this.work(a).catch(e => { if (e !== "stop") console.error(e); });
+    // (they work where they live: out in a settlement in the forest, with its fields and sites and its own stores)
+    this.work.call(this.viewFor(this.colonyOf(p)), a).catch(e => { if (e !== "stop") console.error(e); });
     this.persist();
     return a;
   }
@@ -2167,7 +2209,7 @@ export class Town {
       } else {
         // nothing to do: idle about the fire and the cabins
         a.doing = "idle";
-        await a.walkTo(FIRE.x + (Math.random() - 0.5) * 8, FIRE.z + (Math.random() - 0.5) * 8, 1.0); alive();
+        { const F = this.colony || FIRE; await a.walkTo(F.x + (Math.random() - 0.5) * 8, F.z + (Math.random() - 0.5) * 8, 1.0); } alive();
         await sleep(4 + Math.random() * 6);
       }
     }
@@ -2237,6 +2279,19 @@ export class Town {
         if (this.S.hungry === 2) this.leave("hunger");
         else if (this.S.hungry > 2) this.killSettler(this.weakest(), "hunger");
         else this.emit("hungry", this.day);
+      }
+      // the settlements out in the forest eat from their own stores, the same way
+      for (const c of this.S.colonies || []) {
+        const folk = this.S.people.filter(p => p.home === c.name); if (!folk.length) continue;
+        let m = folk.length * (this.knows("horsefeed") ? 0.8 : 1);
+        for (const k of ["bread", "meat"]) { const n = Math.min(c[k] || 0, Math.ceil(m * RATION[k] - 1e-6)); c[k] = (c[k] || 0) - n; m = Math.max(0, m - n / RATION[k]); }
+        const want = Math.ceil(m * RATION.rye - 1e-6);
+        if ((c.rye || 0) >= want) { c.rye -= want; c.hungry = 0; }
+        else {
+          c.rye = 0; c.hungry = (c.hungry || 0) + 1;
+          if (c.hungry === 1) UI.hint(`${c.name} has run out of food. Carry or send food there, or someone will leave.`, 6);
+          else this.leave("hunger", folk[folk.length - 1]);
+        }
       }
       // the market sells what there is too much of
       if (this.has("market")) {

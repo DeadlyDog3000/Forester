@@ -391,7 +391,7 @@ function renderChest() {
   let h = "";
   if (chestMode === "stores" && G.town) {
     // the settlement's store chest: everything the stores hold, and what you carry to put in
-    const S = G.town.S, list = STORE_ITEMS.filter(([k]) => (S[k] || 0) > 0);
+    const S = G.chestS || G.town.S, list = STORE_ITEMS.filter(([k]) => (S[k] || 0) > 0);
     h += `<div class="mc-sec">The settlement's stores <span class="mc-hint">click to take five · click what you carry to put it in</span></div><div class="mc-row wrap">`;
     h += list.length ? list.map(([k, icon, name]) => slot({ icon, name, n: Math.round(S[k] * 10) / 10, note: k === "rye" ? "In the stores. Click to take a sack of twenty-five." : "In the stores. Click to take up to five." }).replace('class="mc-slot', `data-store="${k}" class="mc-slot`)).join("") : `<span class="ch-note">The stores are empty.</span>`;
   } else {
@@ -420,7 +420,7 @@ $("chestBody").addEventListener("click", e => {
   if (el.dataset.store != null && G.town) {
     // out of the stores and into your hands: five at a time
     // (rye by the sack of twenty-five; seed only whole)
-    const k = el.dataset.store, S = G.town.S, n = Math.floor(Math.min(k === "rye" ? 25 : 5, S[k] || 0)), [, icon, name] = STORE_ITEMS.find(x => x[0] === k);
+    const k = el.dataset.store, S = G.chestS || G.town.S, n = Math.floor(Math.min(k === "rye" ? 25 : 5, S[k] || 0)), [, icon, name] = STORE_ITEMS.find(x => x[0] === k);
     if (n > 0) { const got = G.packAdd(icon, n, name); S[k] -= got; G.town.persist(); chestNote = got ? `Took ${got} ${name.toLowerCase()} from the stores.` : "Your pack is full."; if (got) SFX.pickup && SFX.pickup(); }
     renderChest(); return;
   }
@@ -429,12 +429,12 @@ $("chestBody").addEventListener("click", e => {
     const it = G.pack[+el.dataset.pack], row = it && STORE_ITEMS.find(x => x[1] === it.icon);
     // a dish you cooked goes to feed the settlement: the best are eaten first, and whoever eats one is the happier for it
     if (it && it.icon === "dish") {
-      const S = G.town.S; S.feast ??= [];
+      const S = G.chestS || G.town.S; S.feast ??= [];
       for (let i = 0; i < (it.n || 1); i++) S.feast.push({ name: it.base, stars: it.stars });
       G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores: tomorrow it feeds someone, and ${it.stars >= 3.5 ? "they'll be glad of it" : it.stars >= 2 ? "they'll eat it" : "they'll grumble"}.`; SFX.pickup && SFX.pickup();
       renderChest(); return;
     }
-    if (row) { G.town.S[row[0]] = (G.town.S[row[0]] || 0) + (it.n || 1); G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores.`; SFX.pickup && SFX.pickup(); }
+    if (row) { const SS = G.chestS || G.town.S; SS[row[0]] = (SS[row[0]] || 0) + (it.n || 1); G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores.`; SFX.pickup && SFX.pickup(); }
     else chestNote = "The stores don't keep that.";
     renderChest(); return;
   }
@@ -456,7 +456,7 @@ $("chestBody").addEventListener("click", e => {
 });
 G.openChest = (mode = "own") => {
   if (G.guide && G.town) G.guide(mode === "own" ? "chest" : "stores");
-  chestMode = mode; chestNote = ""; AUDIO.door && AUDIO.door(true, 0.2); showOverlay("chest", true); renderChest();
+  chestMode = mode; chestNote = ""; if (mode !== "stores") G.chestS = null; AUDIO.door && AUDIO.door(true, 0.2); showOverlay("chest", true); renderChest();
   // (the first time: whose chest this is)
   if (mode === "own" && !G._toldOwnChest) { G._toldOwnChest = true; UI.hint("This chest is yours, not the settlement's. What you put in it you can sell to Henning or the pedlar — the DM goes in your own purse. The settlement's things are in its store chest.", 8); }
 };
@@ -778,7 +778,8 @@ function govNation(t) {
   h += `<div class="mc-sec">The nation</div><div class="gov-grid">`;
   h += stat("People", `${pop} <span class="dim" style="font-size:14px">of ${beds} beds</span>`, pop > beds ? `${pop - beds} without a bed — raise cabins (B)` : `${workers} settlers at work, and your family`, pop > beds ? 0.05 : 1 - pop / Math.max(1, beds) * 0.66);
   h += stat("Contentment", `${c.value} / 100`, c.value >= 60 ? "They are glad they came." : c.value >= 40 ? "They manage." : "Unhappy — nobody new will stay.", c.value / 100);
-  h += stat("Food", `${foodDays} day${foodDays === 1 ? "" : "s"}`, `${S.rye} rye, ${S.bread || 0} bread · ${need} a day`, foodDays / 8);
+  const mouths = t.mouths ? t.mouths() : pop;
+  h += stat("Food", `${foodDays} day${foodDays === 1 ? "" : "s"}`, `${Math.round(S.rye)} rye, ${S.bread || 0} bread, ${S.meat || 0} meat · ${Math.round(mouths * 10) / 10} mouths, each eating 5 rye, 3 loaves or 2 meat a day`, foodDays / 8);
   h += stat("Firewood", `${S.store} logs`, t.winter ? `${fuelDays} winter days at ${t.hearths} hearths` : `winter burns ${t.hearths} a day · store holds ${t.storeCap}`, t.winter ? fuelDays / 4 : S.store / Math.max(1, t.hearths * 4));
   // where DM comes from: the traders on the road, and a market
   const next = (every, on) => { for (let k = 0; k < every + 1; k++) if ((t.day + k) % every === on) return k; return 0; };
@@ -838,7 +839,7 @@ function govPeople(t) {
   // sending for someone new
   const pop = S.people.length + 2, free = t.beds + 2 - pop - (t.sentFor || 0);
   const trades = Object.keys(JOBS).filter(j => !(t.jobGated && t.jobGated(j)));
-  const recruit = t.recruit ? `<div class="recruit"><span>Send for someone:</span><select id="recJob">${trades.map(j => `<option value="${j}">${cap(JOBS[j].name)} — ${SKILL_NAME[JOB_SKILL[j]]}</option>`).join("")}</select><button id="recGo"${free > 0 ? "" : " disabled"}>Send — 12 DM</button><span class="dim">${free > 0 ? `${free} bed${free > 1 ? "s" : ""} free. They come up the road with the trade already in their hands.` : "No bed free — raise a cabin first."}${t.sentFor ? ` ${t.sentFor} on the way.` : ""}</span></div>` : "";
+  const recruit = t.recruit ? `<div class="recruit"><span>Send for someone:</span><select id="recJob">${trades.map(j => `<option value="${j}">${cap(JOBS[j].name)} — ${SKILL_NAME[JOB_SKILL[j]]}</option>`).join("")}</select>${(S.colonies || []).length ? `<span>to</span><select id="recTo"><option value="">${esc(S.name || "the first settlement")}</option>${S.colonies.map(c => `<option value="${esc(c.name)}">${esc(c.name)} — ${(n => `${n} bed${n === 1 ? "" : "s"} free`)(t.bedsIn(c) - S.people.filter(p => p.home === c.name).length)}</option>`).join("")}</select>` : ""}<button id="recGo"${free > 0 ? "" : " disabled"}>Send — 12 DM</button><span class="dim">${free > 0 ? `${free} bed${free > 1 ? "s" : ""} free. They come up the road with the trade already in their hands.` : "No bed free — raise a cabin first."}${t.sentFor ? ` ${t.sentFor} on the way.` : ""}</span></div>` : "";
   return `<div class="gov-why" style="margin-bottom:8px">${pop} souls. Everyone who is not family came up the road. Click a name for their whole sheet; the bar is how they feel (hover for why). Two miserable days and they leave.</div>${recruit}
     <table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Mood</th><th>Best at</th><th>Now</th><th>Has</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -1029,7 +1030,7 @@ function wirePeople(t) {
   for (const b of $("govBody").querySelectorAll("button[data-p]")) b.onclick = () => { const p = t.S.people[+b.dataset.p]; showOverlay("gov", false); t.chooseJob(p); };
   for (const b of $("govBody").querySelectorAll("button[data-train]")) b.onclick = () => { const msg = t.train(t.S.people[+b.dataset.train]); if (msg) UI.hint(msg, 3); renderGov(true); };
   for (const b of $("govBody").querySelectorAll("a[data-open]")) b.onclick = () => { const n = b.dataset.open; pplOpen.has(n) ? pplOpen.delete(n) : pplOpen.add(n); renderGov(true); };
-  const go = $("recGo"); if (go) go.onclick = () => { const msg = t.recruit($("recJob").value); UI.hint(msg || "Word is sent down the road. Someone will come.", 4); renderGov(true); };
+  const go = $("recGo"); if (go) go.onclick = () => { const msg = t.recruit($("recJob").value, $("recTo") ? $("recTo").value : ""); UI.hint(msg || "Word is sent down the road. Someone will come.", 4); renderGov(true); };
 }
 // the tech tree, laid out and drawn exactly as Forester lays it out
 function govTechFrame(t) {
@@ -1109,8 +1110,9 @@ setInterval(() => {
   // just under the objective, however many lines it runs to
   const ob = $("objective"), obOn = ob && !ob.classList.contains("hidden");
   tb.style.top = (obOn ? ob.offsetTop + ob.offsetHeight + 8 : 24) + "px";
-  const S = t.S;
-  tb.innerHTML = `${S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb" title="rye"><img src="${ICON.rye}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span>${S.meat > 0 ? `<span class="tb" title="meat"><img src="${ICON.meat}" alt="">${S.meat}</span>` : ""}<span class="tb tseed" title="rye seed: a new field takes one"><img src="${ICON.seeds}" alt="">${+(S.seed || 0).toFixed(1)}</span>${t.foodDays ? (fd => `<span class="tb tfood${fd < 2 ? " low" : ""}" title="how long the food in the stores lasts everyone">${fd < 10 ? fd.toFixed(1) : Math.round(fd)} days' food</span>`)(t.foodDays()) : ""}<span class="tb"><img src="${ICON.coin}" alt="">${dm(S.coin)}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"], ["muskets", "musket"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
+  // (out in a settlement of the forest, its own name and stores)
+  const here = t.inColony && G.player && t.inColony(G.player.pos.x, G.player.pos.z), S = here ? t.viewFor(here).S : t.S;
+  tb.innerHTML = `${here ? `<span class="tname">${esc(here.name)}</span>` : ""}${!here && S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb" title="rye"><img src="${ICON.rye}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span>${S.meat > 0 ? `<span class="tb" title="meat"><img src="${ICON.meat}" alt="">${S.meat}</span>` : ""}<span class="tb tseed" title="rye seed: a new field takes one"><img src="${ICON.seeds}" alt="">${+(S.seed || 0).toFixed(1)}</span>${t.foodDays ? (fd => `<span class="tb tfood${fd < 2 ? " low" : ""}" title="how long the food in the stores lasts everyone">${fd < 10 ? fd.toFixed(1) : Math.round(fd)} days' food</span>`)((here ? t.viewFor(here) : t).foodDays()) : ""}<span class="tb"><img src="${ICON.coin}" alt="">${dm(S.coin)}</span>${[["stone", "stone"], ["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"], ["muskets", "musket"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
 }, 300);
 // a question with set answers; resolves with the index of the one chosen
 G.choose = (title, options) => new Promise(res => {

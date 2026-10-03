@@ -3,7 +3,7 @@
 // ===========================================================================
 // A NEW SETTLEMENT: after forty minutes of play, you are asked whether to found another. Say yes, and a road
 // is cut out through the forest to a new clearing, with a fire ring and a signpost with its name. You build
-// there as you do at home; it shares the same stores and the same people.
+// there as you do at home; it keeps its own stores, and its own people, who you send for.
 import { THREE, mat, Builder, MAT } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
@@ -21,7 +21,7 @@ export function colonyCheck(town) {
   const sib = G.who === "sister" ? "Brother" : "Sister";
   UI.bark(sib, "There's room out there for another settlement, you know. A day's clearing, and a road to it.", 6);
   G.openTrade("A new settlement?", "a second clearing, with a road to it", [
-    { icon: "cabin", label: "Yes — found a new settlement", note: "A road is cut through the forest to a new clearing. Build there as you do here: the same stores, the same people.", get: "", can: () => true, do: () => { G.closeTrade && G.closeTrade(); found(town); } },
+    { icon: "cabin", label: "Yes — found a new settlement", note: "A road is cut through the forest to a new clearing. It keeps its own stores and its own people: you build there, and send for people to live in it.", get: "", can: () => true, do: () => { G.closeTrade && G.closeTrade(); found(town); } },
     { icon: "cabin", label: "Not now", note: "You can't be asked again — this is the one chance.", get: "", can: () => true, do: () => { G.closeTrade && G.closeTrade(); } },
   ], null);
 }
@@ -32,13 +32,14 @@ async function found(town) {
   const spot = pick(town);
   if (!spot) { UI.hint("There's no good ground for it out there.", 4); return; }
   await UI.fade(1, 0.6);
-  const c = { name: name.slice(0, 28), x: spot.x, z: spot.z, r: COLONY_R, road: spot.road, day: town.day };
+  // (its own stores, from nothing but a cart's worth: a few logs and some rye to start; and nobody lives there till you send for them)
+  const c = { name: name.slice(0, 28), x: spot.x, z: spot.z, r: COLONY_R, road: spot.road, day: town.day, store: 8, rye: 40, seed: 1 };
   (S.colonies ??= []).push(c);
   lay(town, c);
   town.persist();
   await new Promise(r => setTimeout(r, 900));
   UI.fade(0, 1.2);
-  UI.news && UI.news({ title: `${c.name} is founded`, sub: "A road runs out through the forest to it now, and the ground is cleared. Build there as you do at home.", img: "event_war" });
+  UI.news && UI.news({ title: `${c.name} is founded`, sub: "A road runs out through the forest to it, and the ground is cleared. It has its own stores — a cart's worth of logs and rye to start — and nobody lives there yet: raise cabins, then send for people to settle it (G, then People).", img: "event_war" });
   UI.hint(`A new road leads to ${c.name}. It's on the map (J).`, 6);
   G.guide && G.guide("colony");
 }

@@ -2780,18 +2780,23 @@ async function chFree(w) {
   // the board says the season and the day, and what wants doing next
   onFrame(() => UI.objective(`${S.name} — ${town.season}, day ${town.day + 1} · ${town.advice()}`));
   // sending for someone: a trade chosen, a few DM for the letter and the road, a bed for them — and they come up it
-  town.recruit = job => {
-    const pop = S.people.length + 2;
-    if (town.beds + 2 <= pop + (town.sentFor || 0)) return "There's no bed free for anyone new — raise a cabin first.";
+  town.recruit = (job, where = "") => {
+    // (to the first settlement, or to one out in the forest: they live, work and eat there)
+    const c = where ? (S.colonies || []).find(k => k.name === where) : null;
+    const V = town.viewFor(c), pop = V.S.people.length + (c ? 0 : 2), beds = town.bedsIn(c), sent = (town.sentTo ??= {})[where] || 0;
+    if (beds <= pop + sent) return c ? `There's no bed free in ${c.name} — raise a cabin there first.` : "There's no bed free for anyone new — raise a cabin first.";
     if ((S.coin || 0) < RECRUIT_COST) return `Sending for someone costs ${RECRUIT_COST} DM.`;
     S.coin -= RECRUIT_COST; town.sentFor = (town.sentFor || 0) + 1; town.persist();
     const used = new Set(S.people.map(q => q.name));
     const base = NEWCOMERS.find(q => !used.has(q.name)) || { name: SPARE_NAMES.find(n => !used.has(n)) || `${SPARE_NAMES[S.people.length % SPARE_NAMES.length]} the younger`, sex: S.people.length % 2 ? "f" : "m" };
     const r = Math.random, main = JOB_SKILL[job];
     const p = { name: base.name, sex: base.sex, job, seed: 400 + S.people.length * 11 + Math.floor(r() * 7), sk: { [main]: 16 + Math.floor(r() * 12) } };
+    if (c) p.home = c.name;
+    town.sentTo[where] = sent + 1;
     setTimeout(async () => {
-      town.sentFor = Math.max(0, (town.sentFor || 1) - 1);
+      town.sentFor = Math.max(0, (town.sentFor || 1) - 1); town.sentTo[where] = Math.max(0, (town.sentTo[where] || 1) - 1);
       if (G.town !== town) return;
+      if (c) { town.addPerson(p, c.x + 1.5, c.z + 1.5); UI.hint(`${p.name} has come to ${c.name} — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}. They'll live and work there.`, 6); return; }
       await arrival(town, p, `You sent for a ${JOBS[job].name}? I'm ${p.name}. I've done this work before.`);
       UI.hint(`${p.name} has come up the road — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}.`, 5);
     }, 9000);
@@ -2802,7 +2807,7 @@ async function chFree(w) {
     restock();
     const pop = S.people.length + 2;
     // (nobody settles where the people are miserable: contentment under 40 turns them back down the road)
-    if (town.beds + 2 > pop && town.foodDays() >= 3 && town.contentment().value >= 40) {
+    if (town.bedsIn(null) + 2 > S.people.filter(p => !p.home).length + 2 && town.foodDays() >= 3 && town.contentment().value >= 40) {
       const used = new Set(S.people.map(p => p.name));
       const n = NEWCOMERS.find(p => !used.has(p.name));
       if (n) {
