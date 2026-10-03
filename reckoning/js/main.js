@@ -1125,12 +1125,16 @@ addEventListener("keydown", e => {
   if (G.mode !== "play" || overlay || !/^Digit[1-9]$/.test(e.code)) return;
   const it = hotbarItems()[+e.code.slice(5) - 1];
   const pl = G.player, blade = pl.blade || "axe";
+  // food in the hand: put away first. If what you picked is already out behind it (the axe, a blade, the bow), that's
+  // all — it's in your hand again, not put away by the same press
+  const holding = heldFood(), same = holding && it && it.icon === holding.icon && !!it.fromStore === !!holding.fromStore;
+  if (holding) {
+    putFoodAway();
+    if (it && ((it.tool === "axe" && pl.axe && blade === "axe") || (it.tool === "arm" && pl.axe && blade === it.kind) || (it.tool === "pick" && pl.axe && blade === "pick") || (it.tool === "bow" && pl.bow))) return;
+  }
   if (it && it.tool === "axe") { if (pl.axe && blade !== "axe") pl.wield("axe"); else { pl.blade = "axe"; pl.holsterAxe(!!pl.axe); } }
   if (it && it.tool === "arm") { if (pl.axe && blade === it.kind) { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield(it.kind); }
   if (it && it.tool === "pick") { if (pl.axe && blade === "pick") { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield("pick"); }
-  // (taking up anything else puts the food away)
-  const holding = heldFood(), same = holding && it && it.icon === holding.icon && !!it.fromStore === !!holding.fromStore;
-  if (holding) putFoodAway();
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
   // food: taken in the hand (the number again puts it away); a click eats it
   if (it && FOOD[it.icon] && !same) holdFood(it);

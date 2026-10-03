@@ -195,8 +195,11 @@ export class Player {
     this.blade = kind; this.giveAxe(true);
     if (kind !== "axe") this.hasAxe = owned;
   }
+  // food in the hand is put away whenever something else is taken up (however it comes to you: a key, or the story)
+  dropFood() { if (G.heldFood) { G.heldFood = null; if (G.working && (G.working.kind === "food" || G.working.kind === "eat")) G.working = null; } }
   giveAxe(on) {
     this.hasAxe = on;
+    if (on) this.dropFood();
     if (on && this.bow) this.showBow(false);
     if (on && !this.axe) {
       // the hands are a pivot; inside it the haft points forward and the blade leads to the left
@@ -241,6 +244,7 @@ export class Player {
   // ---- the bow: held out in the left hand, the right on the string ----
   // (the axe goes on your back while the bow is out, and the other way round)
   showBow(on) {
+    if (on) this.dropFood();
     if (on && !this.bow) {
       if (this.axe) this.holsterAxe(true);
       const g = new THREE.Group(); g.rotation.order = "YXZ";
