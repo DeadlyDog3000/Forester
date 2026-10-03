@@ -273,6 +273,8 @@ export function clearSlot(n) { _slotCache.delete(n); try { localStorage.removeIt
 export function loadSave() { return readSlot(slot); }
 // the body is written to the save now and then, when it has changed
 setInterval(() => { if (G.body && G.body.dirty && G.mode === "play") { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
+// (everything you have on you written down now, before something drastic: the graphics lost and the page started again)
+G.flushSave = () => { try { if (G.body && G.mode === "play") writeSave({ body: bodyToSave(G.body) }); if (G.town && G.town.persist) G.town.persist(); } catch (e) {} };
 export function writeSave(patch) {
   const s = { ...(readSlotKept(slot) || {}), ...patch, at: Date.now() };
   // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)

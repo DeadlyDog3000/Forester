@@ -1452,6 +1452,19 @@ addEventListener("pointerdown", () => { AUDIO.init(); applySettings(); if (G.mod
 requestAnimationFrame(loop);
 // models from Blender, if any are listed, are loaded before the first chapter can start
 loadModels().finally(() => $("loading").remove());
+// the graphics lost (a driver that gives up, on some Windows machines): what you have is saved, the page starts again,
+// and you're put straight back into your game, rather than left looking at a frozen picture
+renderer.domElement.addEventListener("webglcontextlost", e => {
+  e.preventDefault();
+  console.error("Reckoning: the graphics were lost — saving and starting again");
+  G.flushSave && G.flushSave();
+  try { if (G.mode === "play") sessionStorage.setItem("reckoning.resume", "1"); } catch (e2) {}
+  setTimeout(() => location.reload(), 400);
+});
+setTimeout(() => {
+  let again = false; try { again = sessionStorage.getItem("reckoning.resume") === "1"; sessionStorage.removeItem("reckoning.resume"); } catch (e) {}
+  if (again && loadSave()) { $("btnContinue").click(); setTimeout(() => UI.hint("The graphics stopped for a moment — you're back where you were.", 4), 2500); }
+}, 600);
 // for testing from the console: __play(3) starts the third chapter
 window.__play = (n, who = "brother", opts) => { G.who = who; play(n, opts); };
 // ?raid: straight into free play with the bow, and a band of raiders on the road in a few seconds
