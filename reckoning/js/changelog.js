@@ -18,6 +18,7 @@ export const CHANGELOG = [
       "Tools wear out. Every stroke wears a tool, and better makings last longer: wooden 60 strokes, stone 120, copper 200, bronze 300 and iron 450. A bar under each tool in the hotbar shows what's left, and turns red when it's nearly gone. A worn-out axe or spade leaves you the old one from the block; anything else has to be made again.",
       "In build mode, Y turns what you're placing the other way (R still turns it, and Shift+R still reverses it).",
       "Fixed: once you had a woodshed, the old log stack by the cabin was gone, but it still stood there invisibly, blocking the way and showing on the map. Now it goes with it.",
+      "Settlers dig new fields now. A field you stake out used to sit there until you dug all three strips yourself; now the farmer turns it over a strip at a time with the spade and sows it. With no farmer, the hauler does it, or anyone grown. You can still dig it yourself (hold F).",
       "The map shows your settlement as it stands: every building in its real shape and turn, sites still being built as dashed outlines, paths as tracks, and fields coloured bare, growing or ripe.",
     ],
   },

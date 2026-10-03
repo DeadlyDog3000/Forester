@@ -879,7 +879,7 @@ export class Town {
       onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
       use: () => {
         if (b.type === "field") {
-          if ((b.dug || 0) < 3) { b.dug = (b.dug || 0) + 1; G.wear && G.wear("spade", 2); }
+          if ((b.dug || 0) < 3) { b.dug = (b.dug || 0) + 1; G.wear && G.wear("spade", 2); if (b.dug >= 3) b.done = true; }
           else if (b.sown && (b.growth ?? 1) >= 3) { const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0); this.S.rye += got; b.growth = 0; b.sown = false; this.S.seed = +((this.S.seed || 0) + SEED_BACK).toFixed(2); UI.hint(`Reaped: ${got} rye to the stores, and ${SEED_BACK} of a rye seed.`, 3); }
           else { b.sown = true; b.growth = 1; b.done = true; }
           this.show(b); this.persist(); SFX().build(); this.emit("dug", b); G.guide && G.guide("field"); return;
@@ -1370,6 +1370,13 @@ export class Town {
   mouths() { return (this.S.people.length + 1) * (this.knows("horsefeed") ? 0.8 : 1); }
   // how many days the food in the stores would last
   foodDays() { const S = this.S; return ((S.rye || 0) / RATION.rye + (S.bread || 0) / RATION.bread + (S.meat || 0) / RATION.meat + (S.feast ? S.feast.length : 0)) / Math.max(0.8, this.mouths()); }
+  // a field staked out and not yet dug, that nobody else is digging
+  // whose work the new fields are: a farmer, or failing that a hauler, or anyone grown (not someone who keeps a shop)
+  digger() {
+    const grown = this.S.people.filter(p => !p.child && !p.sick && !p.follow && p.jailedDay == null);
+    return grown.find(p => p.job === "farmer") || grown.find(p => p.job === "hauler") || grown.find(p => p.job === "idle") || grown[0] || null;
+  }
+  newField(a) { return this.S.buildings.find(b => b.type === "field" && !b.done && (b.dug || 0) < 3 && (!b._farm || b._farm === a || b._farm.gone || !b._farm.root.parent)); }
   // the settlement on the map: each building its own turned footprint (red, as the map draws buildings; a site only
   // staked out, dashed), fields as ploughland, paths as tracks
   drawOnMap(c, X, Z, S, TOWN, INK) {
@@ -1879,6 +1886,46 @@ export class Town {
       // their own business, if they have one: part of their time goes to it
       const own = !raid && !a.settler.child && this.S.companies && this.S.companies.find(c => c.owner === a.settler.name);
       if (own && await this.companyShift(a, own, sleep, alive)) continue;
+      // a field staked out and not yet dug: the one whose work it is (the farmer; with none, the hauler; or anyone grown)
+      // turns it over a strip at a time with the spade, and then it's ready to sow
+      // (and, with no farmer to do it, sows it too)
+      const bareField = !this.S.people.some(q => q.job === "farmer" && !q.child) && this.S.buildings.find(b => b.type === "field" && b.done && !b.sown && (!b._farm || b._farm === a || b._farm.gone));
+      if (!raid && !this.winter && this.digger() === a.settler && !this.newField(a) && bareField) {
+        const f = bareField; f._farm = a;
+        a.doing = "sowing the field";
+        const c = Math.cos(f.ry), sn = Math.sin(f.ry);
+        try {
+          for (const [o, lz] of [[-2.2, -2.8], [-2.2, 2.7], [0, 2.7], [0, -2.8], [2.2, -2.8], [2.2, 2.7]]) {
+            await a.walkTo(f.x + o * c + lz * sn, f.z - o * sn + lz * c, 1.0); alive();
+            a.person.setPose("reach"); await sleep(1.2 * this.workMul * this.pace(a, "farming")); alive(); a.person.setPose("idle");
+          }
+        } finally { f._farm = null; }
+        f.sown = true; f.growth = 1; this.learn(a, "farming", 0.5); this.show(f); this.persist(); this.sfxAt(a, "build");
+        continue;
+      }
+      if (!raid && !this.winter && this.digger() === a.settler && this.newField(a)) {
+        const f = this.newField(a); f._farm = a;
+        a.doing = `digging the new field — strip ${(f.dug || 0) + 1} of 3`;
+        const strip = (f.dug || 0) % 3, o = (strip - 1) * 2.2;
+        const c = Math.cos(f.ry), sn = Math.sin(f.ry), at = lz => [f.x + o * c + lz * sn, f.z - o * sn + lz * c];
+        const sp = a.hold(makeSpade());
+        try {
+          for (const lz of [-2.8, -1, 0.9, 2.7]) {
+            const [x, z] = at(lz);
+            await a.walkTo(x, z, 1.0); alive();
+            const [nx, nz] = at(lz + 1); a.faceTo(nx, nz);
+            a.person.setPose("chop");
+            await sleep(2.2 * this.workMul * this.pace(a, "farming")); alive();
+            if (Math.random() < 0.6) this.sfxAt(a, "chop");
+            a.person.setPose("idle");
+          }
+        } finally { a.person.held.remove(sp); f._farm = null; }
+        f.dug = Math.min(3, (f.dug || 0) + 1);
+        // (dug: a field now, bare and waiting for the seed — the farmers sow it next)
+        if (f.dug >= 3) { f.done = true; f.sown = false; this.emit("dug", f); }
+        this.learn(a, "farming", 0.5); this.show(f); this.persist(); this.sfxAt(a, "build");
+        continue;
+      }
       // ground to clear: everyone who can swing an axe goes felling until it is done
       // (everyone clears ground for the settlement when it wants room — except the farmers, who have their fields)
       let loose = null, stump = null;
