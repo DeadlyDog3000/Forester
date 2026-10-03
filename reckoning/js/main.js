@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
@@ -300,21 +300,39 @@ const ICON = {
 ICON.rye = ICON.rye || ICON.seeds; ICON.seed = ICON.seed || ICON.seeds;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let invItems = [];
+const cap1 = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 function slot(it, cap) {
   if (!it) return `<div class="mc-slot"></div>`;
   invItems.push(it);
   const i = invItems.length - 1;
-  return `<div class="mc-slot${it.dim ? " dim" : ""}" data-i="${i}"><img src="${ICON[it.icon]}" alt="">${it.n != null && it.n !== 1 ? `<span class="mc-n">${esc(it.n)}</span>` : ""}${cap ? `<span class="mc-cap">${esc(cap)}</span>` : ""}</div>`;
+  return `<div class="mc-slot${it.dim ? " dim" : ""}" data-i="${i}"><img src="${ICON[it.icon]}" alt="">${it.n != null && it.n !== 1 ? `<span class="mc-n">${esc(it.n)}</span>` : ""}${cap ? `<span class="mc-cap">${esc(cap)}</span>` : ""}${it.wear != null && it.wear < 1 ? `<span class="dur${it.wear < 0.15 ? " low" : ""}"><i style="width:${Math.round(it.wear * 100)}%"></i></span>` : ""}</div>`;
 }
 function renderInventory() {
   const pl = G.player, camp = G.camp;
   invItems = [];
-  // the two hands: the tool, and whatever else you hold
-  const hands = [null, null];
-  if (pl.axe) hands[0] = { icon: "axe", name: "Old felling axe", note: "Grey haft, good head.", use: "Click to swing" };
+  // the two hands: what's in them now — a blade, the pick or the bow, food — and whatever you carry in your arms
+  const hands = [null, null], tl0 = G.body && G.body.tools;
+  const held = hotbarItems()[selIndex(hotbarItems())];
+  if (held) hands[0] = { ...held, use: held.tool === "bow" ? "Hold right-click to draw" : FOOD[held.icon] ? "Click to eat" : "Click to swing" };
+  else if (pl.axe) hands[0] = { icon: "axe", name: "Old felling axe", note: "Grey haft, good head.", use: "Click to swing" };
   if (pl.carryN > 0) hands[1] = { icon: "logs", n: pl.carryN, name: "Spruce logs", note: camp ? `Your arms hold ${camp.carryMax}.` : "", use: "Stack them by the cabin" };
   else if (UI.carrying) hands[/ledger/i.test(UI.carrying) ? 0 : 1] = { icon: /ledger/i.test(UI.carrying) ? "ledger" : "logs", name: UI.carrying, note: /ledger/i.test(UI.carrying) ? "The tally of the Baltic grain, for Jakob to sign." : "" };
   let html = `<div class="mc-sec">Hands <span class="mc-hint" style="float:right">your own purse: ${dm(G.body && G.body.purse)} DM</span></div><div class="mc-row hands">${slot(hands[0])}${slot(hands[1])}</div>`;
+  // your tools: everything you own to work and fight with, its making, what it does, and how worn it is
+  if (tl0 && G.town) {
+    const T = (k, icon, name, note) => { const t = tl0[k] || 0; if (!t) return null; const left = toolLeft(G.body, k), worn = left < 1 ? ` — about ${Math.max(1, Math.round(left * TOOL_LIFE[t]))} strokes left of ${TOOL_LIFE[t]}` : ""; return { icon, name, note: note + worn, wear: left }; };
+    const tools = [
+      pl.hasAxe || pl.axe ? T("axe", "axe", tl0.axe >= 3 ? `${cap1(TIER_NAME[tl0.axe])} axe` : "Old felling axe", "Fells trees; a better head fells them in fewer strokes.") : null,
+      T("pick", "pick" + (tl0.pick || 1), `${cap1(TIER_NAME[tl0.pick] || "")} pickaxe`, ["", "Breaks the grey stone.", "Breaks copper and tin rock.", "Breaks copper and tin, quicker.", "Breaks iron rock.", "Breaks anything."][tl0.pick || 0]),
+      T("spade", "spade", tl0.spade >= 3 ? `${cap1(TIER_NAME[tl0.spade])} spade` : "Henning's spade", "Digs fields; a better one digs them quicker."),
+      T("hammer", "hammer" + (tl0.hammer || 1), `${cap1(TIER_NAME[tl0.hammer] || "")} hammer`, "Raises buildings quicker."),
+      T("sword", "sword" + (tl0.sword || 1), `${cap1(TIER_NAME[tl0.sword] || "")} sword, your own`, "For the raiders."),
+      tl0.pack ? { icon: "pack" + tl0.pack, name: ["", "Hide backpack", "Stitched pack", "Pedlar's frame pack"][tl0.pack], note: `Carries ${packSlots(G.body)} slots.` } : null,
+      pl.hasBow ? { icon: "bow", name: "Henning's old bow", note: "Hold right-click to draw, let go to loose." } : null,
+      pl.hasBow ? { icon: "arrows", name: "Arrows", n: pl.arrows || 0, note: "Pull your misses out of the ground to use them again." } : null,
+    ].filter(Boolean);
+    html += `<div class="mc-sec">Tools</div><div class="mc-row">${Array.from({ length: 9 }, (_, i) => slot(tools[i] || null)).join("")}</div>`;
+  }
   // what is on you: three rows of nine
   const pack = G.pack.slice(0, 27), cap = packSlots(G.body), tl = G.body && G.body.tools;
   const bag = tl && tl.pack ? ["", "a hide backpack", "a stitched pack", "a pedlar's frame pack"][tl.pack] : "no backpack — four hides make one";
