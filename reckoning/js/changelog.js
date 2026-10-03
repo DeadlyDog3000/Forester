@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.42", date: "3 October 2026", title: "Stairs, stone and ore",
+    items: [
+      "Fixed, properly this time: the stair in the house. It runs along the right-hand wall with its foot toward the middle of the room, so you walk straight onto it and climb toward the front, onto the loft. There's a rail along the well and across its far end.",
+      "Tobias the pedlar buys ore and metal now, for the foundries in Lübeck: copper, tin and iron ore, and copper, tin, bronze and iron. Sell out of the stores into the treasury, or out of your own pack into your purse.",
+      "The stores hold 50 stone, and twice as much for every step the town hall is rebuilt: 100 in timber, 200 in brick, 400 in stucco. The bar at the top shows how full they are. With the stores full of stone, the quarrymen stand idle.",
+      "Animals live out in the woods now, not only at the deer ride: deer, hares and the odd boar, each with its own patch of forest. They keep well away from your settlements and turn back if they stray close. Hunt them as you would at the ride.",
+      "Talking to a settler tells you which settlement they belong to.",
+      "The objective is for the settlement you're standing in, with a word on any other that needs you: one running out of food, or one with empty beds.",
+      "No more dust when you strike a rock: just the chips.",
+      "Hands are plain again: the fingers are gone.",
+    ],
+  },
+  {
     v: "0.41.2", date: "3 October 2026", title: "One edge",
     items: [
       "The map draws the edge of your land once, round the outside of all of it. Where ground you've marked out meets the old clearing, another piece of marked-out ground or a settlement, no dashed line runs through the middle any more.",

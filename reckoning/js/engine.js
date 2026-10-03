@@ -1183,17 +1183,16 @@ function mineSwing() {
   UI.hint(`${got} ${item.name.toLowerCase()}.`, 2);
   G.emitMine && G.emitMine(k.kind);
 }
-// chips of the rock flying from where the pick struck, in the rock's own colour, and a puff of grit; more when it breaks
+// chips of the rock flying from where the pick struck, in the rock's own colour; more when it breaks
 const CHIP_COL = { stone: 0x8e897d, copper: 0x5e8a6a, tin: 0xb0b0a6, iron: 0x8a4e3a };
-let chipGeo = null, dustGeo = null;
+let chipGeo = null;
 function rockChips(k, amount = 1) {
   const pl = G.player, root = G.scene; if (!root || !pl) return;
-  chipGeo ??= new THREE.TetrahedronGeometry(0.035, 0); dustGeo ??= new THREE.PlaneGeometry(0.22, 0.22);
+  chipGeo ??= new THREE.TetrahedronGeometry(0.035, 0);
   const dx = pl.pos.x - k.x, dz = pl.pos.z - k.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
   // (the face of the rock toward you, about where the pick came down)
   const r = Math.min(0.7, Math.max(0.35, d - 1.1)), hx = k.x + ux * r, hz = k.z + uz * r, hy = (k.y || 0) + 0.55;
   const cm = new THREE.MeshStandardMaterial({ color: CHIP_COL[k.kind] || CHIP_COL.stone, roughness: 0.9, flatShading: true });
-  const dm = new THREE.MeshBasicMaterial({ color: 0xb8b0a0, transparent: true, opacity: 0.45, depthWrite: false });
   const bits = [], n = Math.round(9 * amount) + 3;
   for (let i = 0; i < n; i++) {
     const b = new THREE.Mesh(chipGeo, cm); const s = 0.5 + Math.random() * (amount > 2 ? 1.6 : 0.9); b.scale.setScalar(s);
@@ -1203,8 +1202,6 @@ function rockChips(k, amount = 1) {
     b.userData.v = new THREE.Vector3(ux * out - uz * sx, up, uz * out + ux * sx); b.userData.spin = new THREE.Vector3(Math.random() * 12, Math.random() * 12, 0);
     root.add(b); bits.push(b);
   }
-  const puffs = [];
-  for (let i = 0; i < Math.round(3 * amount) + 2; i++) { const p = new THREE.Mesh(dustGeo, dm); p.position.set(hx + (Math.random() - 0.5) * 0.3, hy + Math.random() * 0.2, hz + (Math.random() - 0.5) * 0.3); p.userData.v = new THREE.Vector3(ux * 0.4 + (Math.random() - 0.5) * 0.6, 0.3 + Math.random() * 0.4, uz * 0.4 + (Math.random() - 0.5) * 0.6); root.add(p); puffs.push(p); }
   let t = 0;
   const tick = dt => {
     t += dt;
@@ -1216,11 +1213,9 @@ function rockChips(k, amount = 1) {
       if (b.position.y < gy) { b.position.y = gy; v.multiplyScalar(0.3); v.y = Math.abs(v.y) * 0.3; b.userData.spin.multiplyScalar(0.5); }
       b.rotation.x += b.userData.spin.x * dt; b.rotation.y += b.userData.spin.y * dt;
     }
-    for (const p of puffs) { p.position.addScaledVector(p.userData.v, dt); p.scale.setScalar(1 + t * 2.2); p.quaternion.copy(camera.quaternion); }
-    dm.opacity = Math.max(0, 0.45 * (1 - t / 1.1));
     // (the chips lie a moment where they land, then they're gone)
     if (t > 2.2) {
-      for (const b of bits) root.remove(b); for (const p of puffs) root.remove(p); cm.dispose(); dm.dispose();
+      for (const b of bits) root.remove(b); cm.dispose();
       const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
     }
   };

@@ -646,24 +646,7 @@ def build_person(key):
         b = hair_shell(RX, RY, RZ, 28, 20, bmask, thickness, 0.0016, lambda r_, m_, Z: tint(bc, (0.75 + 120 * r_, 0.75 + 120 * r_, 0.75 + 120 * r_)))
         merge(b, "hair")
 
-    # ---- hands: fingers and a thumb, curled a little toward the palm ----
-    for sd in (-1, 1):
-        hx, hz_ = sd * (sh + 0.05), 0.845
-        for k, (fy, ln) in enumerate([(-0.019, 0.062), (-0.0065, 0.07), (0.006, 0.066), (0.017, 0.054)]):
-            a = Vector((hx, J["hand.L"][1] + fy, hz_ + 0.012))
-            m1 = a + Vector((-sd * 0.004, 0, -ln * 0.5))
-            tip = m1 + Vector((-sd * 0.011, -0.002, -ln * 0.42))
-            r_ = 0.0085 if k < 3 else 0.0075
-            if f: r_ *= 0.88
-            P.cyl("skin", skin, a, m1, r_, r_ * 0.95, segs=6, caps=False)
-            P.cyl("skin", skin, m1, tip, r_ * 0.95, r_ * 0.85, segs=6, caps=False)
-            P.sphere("skin", skin, tip, (r_ * 0.85,) * 3, segs=6, rings=4)
-        tb = Vector((hx - sd * 0.008, J["hand.L"][1] - 0.022, 0.895))
-        tm = tb + Vector((-sd * 0.008, -0.014, -0.03))
-        tt = tm + Vector((-sd * 0.006, -0.006, -0.026))
-        P.cyl("skin", skin, tb, tm, 0.011 if not f else 0.0095, 0.0095 if not f else 0.0085, segs=7)
-        P.cyl("skin", skin, tm, tt, 0.0095 if not f else 0.0085, 0.008, segs=7)
-        P.sphere("skin", skin, tt, (0.008,) * 3, segs=7, rings=4)
+    # (hands are the skin's own: a plain mitten of a hand, no fingers)
 
     # ---- clothes over the body ----
     def skirt_rows(z0, z1, n, a0, a1, cols, rad, fold, off=0.006, jag=0.0):

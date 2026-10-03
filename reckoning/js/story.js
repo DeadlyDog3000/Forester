@@ -2703,11 +2703,14 @@ function pedlar(w, town) {
       { label: "Buy a crate of smoked herring", note: "Ten meat's worth: a day's food for five.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.meat = (S.meat || 0) + 10; }, swap: { icon: "cookedmeat", n: 10, price: 5 } },
       { label: "Buy iron tools", note: "A set for one pair of hands: they work a quarter faster.", get: "8 DM", can: () => S.coin >= 8, do: () => { S.coin -= 8; S.tools = (S.tools || 0) + 1; } },
       { label: "Buy 4 iron", note: "Swedish bar iron.", get: "10 DM", can: () => S.coin >= 10, do: () => { S.coin -= 10; S.iron = (S.iron || 0) + 4; }, swap: { icon: "iron", n: 4, price: 10 } },
-      { label: "Buy 10 stone", note: "Cut, and heavy on his poor horse.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.stone = (S.stone || 0) + 10; }, swap: { icon: "stone", n: 10, price: 5 } },
+      { label: "Buy 10 stone", note: "Cut, and heavy on his poor horse.", get: "5 DM", can: () => S.coin >= 5 && (S.stone || 0) + 10 <= G.town.stoneCap, do: () => { S.coin -= 5; S.stone = (S.stone || 0) + 10; }, swap: { icon: "stone", n: 10, price: 5 } },
       { label: "Buy a rye seed", note: "To sow a new field.", get: "3 DM", can: () => S.coin >= 3, do: () => { S.coin -= 3; S.seed = +((S.seed || 0) + 1).toFixed(2); }, swap: { icon: "seed", n: 1, price: 3 } },
       { label: "Buy a barrel of salt pork", note: "12 meat: a day's food for six.", get: "6 DM", can: () => S.coin >= 6, do: () => { S.coin -= 6; S.meat = (S.meat || 0) + 12; }, swap: { icon: "cookedmeat", n: 12, price: 6 } },
       { label: "Sell 6 planks", note: "", get: "+4 DM", can: () => (S.planks || 0) >= 6, do: () => { S.planks -= 6; S.coin += 4; }, swap: { icon: "planks", n: 6, price: 4, sell: true } },
       { label: "Sell 10 bricks", note: "", get: "+5 DM", can: () => (S.bricks || 0) >= 10, do: () => { S.bricks -= 10; S.coin += 5; }, swap: { icon: "bricks", n: 10, price: 5, sell: true } },
+      // ore and metal: he takes it down to Lübeck, to the foundries
+      ...[["copperore", "copperore", "copper ore", 5, 5], ["tinore", "tinore", "tin ore", 5, 5], ["ore", "ironore", "iron ore", 5, 6], ["copper", "copper", "copper", 3, 6], ["tin", "tin", "tin", 3, 6], ["bronze", "bronze", "bronze", 3, 9], ["iron", "iron", "iron", 3, 9]].map(([k, icon, name, n, price]) =>
+        ({ label: `Sell ${n} ${name}`, note: "For the foundries in Lübeck.", get: `+${price} DM`, can: () => (S[k] || 0) >= n, do: () => { S[k] -= n; S.coin += price; }, swap: { icon, n, price, sell: true } })),
       ...dishOffers().map(o => ({ ...o, own: true })),
       ...ownOffers(20, 7).map(o => ({ ...o, own: true })),
     ],
@@ -2744,6 +2747,8 @@ async function chFree(w) {
     // (its own meat — venison, hare or boar — and the hide off it: four hides make a backpack)
     onDress: (a, m) => { const k = a.K.meatKind || "meat"; G.packAdd(k, m, ITEM[k] ? ITEM[k].name : "Meat", ITEM[k] ? ITEM[k].note : ""); G.packAdd("hide", a.kind === "boar" ? 2 : 1); town.persist(); },
   });
+  // and out in the woods all round: beasts of their own, that keep away from where people live
+  hunt.roam();
   const WANT = { deer: 3, hare: 4, boar: 2 };
   const restock = () => { const n = k => hunt.animals.filter(a => a.kind === k && a.alive).length; for (const k in WANT) if (n(k) < WANT[k]) hunt.spawn(k, WANT[k] - n(k)); };
   restock();
@@ -2780,7 +2785,23 @@ async function chFree(w) {
   const raids = new Raids(w, town);
   onFrame(dt => raids.update(dt));
   // the board says the season and the day, and what wants doing next
-  onFrame(() => UI.objective(`${S.name} — ${town.season}, day ${town.day + 1} · ${town.advice()}`));
+  // the objective: what the settlement you're standing in wants next, and a word on any other that needs you
+  onFrame(() => {
+    const cols = S.colonies || [], here = cols.length ? town.inColony(pl.pos.x, pl.pos.z) : null;
+    const v = cols.length ? town.viewFor(here) : town;
+    let txt = `${here ? here.name : S.name} — ${town.season}, day ${town.day + 1} · ${v.advice()}`;
+    if (cols.length) {
+      const notes = [];
+      for (const c of [null, ...cols]) {
+        if (c === here) continue;
+        const o = town.viewFor(c), name = c ? c.name : S.name, n = o.S.people.length;
+        if (n && o.foodDays() < 2) { const d = Math.max(0, Math.floor(o.foodDays())); notes.push(`${name} has food for ${d ? `${d} day` : "less than a day"}`); }
+        else if (c && !n && town.bedsIn(c) > 0) notes.push(`${name} has beds and nobody in them — send for someone (G)`);
+      }
+      if (notes.length) txt += ` · ${notes.join(" · ")}`;
+    }
+    UI.objective(txt);
+  });
   // sending for someone: a trade chosen, a few DM for the letter and the road, a bed for them — and they come up it
   // (word sent from a town hall goes further, and costs less: 2 DM less for each step it has been rebuilt)
   town.recruitCost = () => Math.max(4, RECRUIT_COST - 2 * (town.hallTier || 0));

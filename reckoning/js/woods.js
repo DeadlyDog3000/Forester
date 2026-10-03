@@ -15,7 +15,8 @@ import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM, furnishClear, fitsRoom } 
 // the stair in the corner by the door, and the height of the loft floor above the room
 const HOME_WINDOWS = [["front", -1.875, 1.65], ["back", 0.625, 1.65], ["left", 1.2, 1.65], ["right", -1.2, 1.65], ["right", 0.0, 1.65],
   ["front", -0.625, 4.45], ["front", 0.625, 4.45], ["back", 0.625, 4.45], ["back", 1.875, 4.45], ["left", -1.2, 4.45], ["left", 1.2, 4.45], ["right", -1.2, 4.45], ["right", 0.0, 4.45]];
-const HOME_STAIR = { x0: 1.5, x1: 2.25, z0: 1.15, z1: 2.45 }, HOME_LOFT = 2.8;
+// (the stair runs along the right-hand wall, its foot toward the middle of the room, climbing toward the front)
+const HOME_STAIR = { x0: 1.5, x1: 2.25, z0: 0.3, z1: 1.9 }, HOME_LOFT = 2.8;
 import { ROCKS } from "./body.js";
 import { AUDIO } from "./audio.js";
 import { UI } from "./ui.js";
@@ -1319,23 +1320,24 @@ export class Woods extends WorldBase {
     const S0 = HOME_STAIR;
     const steps = 14;
     for (let i = 1; i <= steps; i++) {
-      const k = i / steps, lz = S0.z1 - (S0.z1 - S0.z0) * k;
-      box(S0.x1 - S0.x0, 0.04, 0.2, (S0.x0 + S0.x1) / 2, HOME_LOFT * k - 0.02, lz + 0.03, i % 2 ? 0x7e5a38 : 0x8a6440);
+      const k = i / steps, lz = S0.z0 + (S0.z1 - S0.z0) * k;
+      box(S0.x1 - S0.x0, 0.04, 0.2, (S0.x0 + S0.x1) / 2, HOME_LOFT * k - 0.02, lz - 0.03, i % 2 ? 0x7e5a38 : 0x8a6440);
     }
     for (const sx of [S0.x0 + 0.03, S0.x1 - 0.03]) {
       const len = Math.hypot(HOME_LOFT, S0.z1 - S0.z0), ang = Math.atan2(HOME_LOFT, S0.z1 - S0.z0);
-      const g = new THREE.BoxGeometry(0.06, 0.18, len); g.rotateX(ang); const [x, z] = this.cabinToWorld(sx, (S0.z0 + S0.z1) / 2); b.add(g, TB, x, HOME_LOFT / 2, z, 0, CABIN.ry, 0);
+      const g = new THREE.BoxGeometry(0.06, 0.18, len); g.rotateX(-ang); const [x, z] = this.cabinToWorld(sx, (S0.z0 + S0.z1) / 2); b.add(g, TB, x, HOME_LOFT / 2, z, 0, CABIN.ry, 0);
     }
     // the loft: its floor (the ceiling of the room below) with the stairwell left open, a rail round the well, and a
     // bed, a chest, a stool under the window
     for (let i = 0; i < 10; i++) {
-      const lx = -2.25 + i * 0.5, cut = lx + 0.25 > S0.x0 + 0.05;
-      const z0 = -2.85, z1 = cut ? S0.z0 : 2.85;
-      box(0.48, 0.05, z1 - z0, lx, HOME_LOFT - 0.025, (z0 + z1) / 2, i % 2 ? 0x6a4a2e : 0x5e4028);
+      const lx = -2.25 + i * 0.5, cut = lx + 0.25 > S0.x0 + 0.05, col = i % 2 ? 0x6a4a2e : 0x5e4028;
+      // (over the stair, the boards stop either side of the well)
+      for (const [z0, z1] of cut ? [[-2.85, S0.z0], [S0.z1, 2.85]] : [[-2.85, 2.85]]) box(0.48, 0.05, z1 - z0, lx, HOME_LOFT - 0.025, (z0 + z1) / 2, col);
     }
-    for (const lz of [S0.z0 + 0.04, (S0.z0 + 2.8) / 2, 2.76]) box(0.07, 1.0, 0.07, S0.x0 - 0.04, HOME_LOFT + 0.5, lz, TB);
-    box(0.06, 0.07, 2.8 - S0.z0, S0.x0 - 0.04, HOME_LOFT + 0.98, (S0.z0 + 2.8) / 2, TB);
-    box(0.06, 0.07, 2.8 - S0.z0, S0.x0 - 0.04, HOME_LOFT + 0.5, (S0.z0 + 2.8) / 2, TB);
+    // the rail round the well: along its open side, and across its far end, where it drops away to the room below
+    for (const lz of [S0.z0 + 0.04, (S0.z0 + S0.z1) / 2, S0.z1 - 0.04]) box(0.07, 1.0, 0.07, S0.x0 - 0.04, HOME_LOFT + 0.5, lz, TB);
+    box(0.07, 1.0, 0.07, S0.x1 - 0.04, HOME_LOFT + 0.5, S0.z0 + 0.04, TB);
+    for (const y of [0.98, 0.5]) { box(0.06, 0.07, S0.z1 - S0.z0, S0.x0 - 0.04, HOME_LOFT + y, (S0.z0 + S0.z1) / 2, TB); box(S0.x1 - S0.x0, 0.07, 0.06, (S0.x0 + S0.x1) / 2, HOME_LOFT + y, S0.z0 + 0.04, TB); }
     const L2 = HOME_LOFT;
     box(1.0, 0.32, 2.0, -1.65, L2 + 0.16, -1.6, 0x6a4a2e); box(0.9, 0.12, 1.9, -1.65, L2 + 0.36, -1.6, 0xc8b48a);    // the bed, its straw tick
     box(0.85, 0.1, 0.5, -1.65, L2 + 0.45, -2.35, 0xe8e0cc); box(0.95, 0.06, 1.2, -1.65, L2 + 0.44, -1.05, 0x7a3a2a);   // a bolster, a red blanket
@@ -1380,9 +1382,10 @@ export class Woods extends WorldBase {
     const top = this.cabinY + 6;
     line(-2.55, -3.05, 2.55, -3.05, 0.28, F2 - 0.4, top); line(-2.55, 3.05, 2.55, 3.05, 0.28, F2 - 0.4, top);
     line(-2.55, -3.05, -2.55, 3.05, 0.28, F2 - 0.4, top); line(2.55, -3.05, 2.55, 3.05, 0.28, F2 - 0.4, top);
-    line(S0.x0 - 0.06, S0.z0 + 0.05, S0.x0 - 0.06, 2.8, 0.06, F2 - 0.3, F2 + 1.0);                 // the rail round the well
-    line(S0.x0 + 0.1, S0.z0 + 0.15, S0.x1 - 0.1, S0.z0 + 0.15, 0.15, -5, this.cabinY + 1.25);     // (no walking in under the stair)
-    line(S0.x0 - 0.08, S0.z0 + 0.1, S0.x0 - 0.08, 1.75, 0.08, -5, this.cabinY + 0.9);               // (nor in from the side, though the foot of it is open)
+    line(S0.x0 - 0.06, S0.z0 + 0.05, S0.x0 - 0.06, S0.z1, 0.06, F2 - 0.3, F2 + 1.0);              // the rail round the well
+    line(S0.x0, S0.z0 - 0.02, S0.x1, S0.z0 - 0.02, 0.06, F2 - 0.3, F2 + 1.0);
+    line(S0.x0 + 0.1, S0.z1 - 0.15, S0.x1 - 0.1, S0.z1 - 0.15, 0.15, -5, this.cabinY + 1.25);     // (no walking in under the stair)
+    line(S0.x0 - 0.08, S0.z0 + 0.6, S0.x0 - 0.08, S0.z1, 0.08, -5, this.cabinY + 0.9);               // (nor in from the side, though the foot of it is open)
     line(-2.15, -2.6, -1.15, -0.6, 0.4, F2 - 0.1, F2 + 0.45);                                       // the bed
     const [lx, lz] = this.cabinToWorld(0, 0);
     this.loftLight = new THREE.PointLight(0xffc48a, 1.2, 6.5, 1.6); this.loftLight.position.set(lx, F2 + 2.0, lz); this.root.add(this.loftLight);
@@ -1398,8 +1401,8 @@ export class Woods extends WorldBase {
     const F2 = this.cabinY + 0.07 + HOME_LOFT, S0 = HOME_STAIR;
     let best = g;
     const take = h => { if (h <= y + 0.45 && h > best) best = h; };
-    if (lx > S0.x0 - 0.05 && lx < S0.x1 + 0.1 && lz > S0.z0 - 0.15 && lz < S0.z1 + 0.15) take(g + (F2 - g) * clamp((S0.z1 - lz) / (S0.z1 - S0.z0), 0, 1));
-    if (!(lx > S0.x0 && lz > S0.z0)) take(F2);
+    if (lx > S0.x0 - 0.05 && lx < S0.x1 + 0.1 && lz > S0.z0 - 0.15 && lz < S0.z1 + 0.15) take(g + (F2 - g) * clamp((lz - S0.z0) / (S0.z1 - S0.z0), 0, 1));
+    if (!(lx > S0.x0 && lz > S0.z0 && lz < S0.z1)) take(F2);
     return best;
   }
   // and outside: the log cabin gives way to a house like the settlers' own — timber and plaster, two storeys, a tiled
@@ -1508,7 +1511,8 @@ export class Woods extends WorldBase {
       for (const f of list) {
         if (fitsRoom(f, list)) continue;
         const [hx, hz] = [FURNITURE[f.type] ? FURNITURE[f.type].w / 2 : 0.5, FURNITURE[f.type] ? FURNITURE[f.type].d / 2 : 0.5];
-        if (!(f.lx + Math.max(hx, hz) > HOME_STAIR.x0 - 0.1 && f.lz + Math.max(hx, hz) > HOME_STAIR.z0 - 0.2)) continue;
+        const m = Math.max(hx, hz);
+        if (!(f.lx + m > HOME_STAIR.x0 - 0.1 && f.lz + m > HOME_STAIR.z0 - 0.7 && f.lz - m < HOME_STAIR.z1 + 0.2)) continue;
         search: for (const ry of [f.ry, f.ry + Math.PI / 2]) for (let lz = -2.4; lz <= 2.4; lz += 0.25) for (let lx = -2; lx <= 2; lx += 0.25) {
           const c = { ...f, lx, lz, ry };
           if (fitsRoom(c, list)) { Object.assign(f, c); moved = true; break search; }

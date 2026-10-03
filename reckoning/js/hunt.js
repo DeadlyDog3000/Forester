@@ -16,6 +16,7 @@ import { G } from "./engine.js";
 import { modelCopy } from "./models.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
+import { CLEARING } from "./woods.js";
 
 /* global SFX */
 
@@ -80,7 +81,7 @@ class Animal {
     for (const o of this.hunt.animals) if (o !== this && o.alive && o.state !== "flee" && o.state !== "charge" && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 14) o.startle(from, 0.8);
   }
   update(dt) {
-    const K = this.K, pl = G.player, home = this.hunt.home;
+    const K = this.K, pl = G.player, home = this.ownHome || this.hunt.home;
     if (this.state === "dead") {
       // it carries on a stride or two with what speed it had, stumbles, goes down on its side, and the legs kick
       this.slide ??= 0;
@@ -100,6 +101,12 @@ class Animal {
     const d = Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z);
     const loud = pl.speed > 4 ? K.hearRun : pl.speed > 0.4 ? (pl.crouched ? K.hearCreep : K.hearWalk) : 2.2;
     if (d < loud && this.state !== "flee" && this.state !== "charge") this.startle(pl.pos);
+    // people: whatever the herd, it keeps off the settlements' ground — and one living out in the woods keeps well clear of it
+    if (this.state !== "flee" && this.state !== "charge" && (this.koT = (this.koT || 0) - dt) <= 0) {
+      this.koT = 0.6;
+      const away = this.hunt.keepOut(this.pos.x, this.pos.z, this.ownHome ? 18 : 2);
+      if (away) { this.state = "walk"; this.target = away; this.t = 14; this.looking = 0; }
+    }
     this.t -= dt;
     let want = 0;
     if (this.state === "graze") {
@@ -112,6 +119,8 @@ class Animal {
         const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 8;
         let tx = this.pos.x + Math.sin(a) * r, tz = this.pos.z + Math.cos(a) * r;
         if (Math.hypot(tx - home.x, tz - home.z) > home.r) { tx = home.x + (Math.random() - 0.5) * home.r; tz = home.z + (Math.random() - 0.5) * home.r; }
+        // (never a step toward where people live)
+        if (this.hunt.keepOut(tx, tz, this.ownHome ? 18 : 2)) { tx = this.pos.x - Math.sin(a) * r; tz = this.pos.z - Math.cos(a) * r; }
         this.target = { x: tx, z: tz }; this.state = "walk"; this.t = 12;
       }
     } else if (this.state === "walk") {
@@ -208,6 +217,50 @@ export class Hunt {
       if (!this.w.col.solidAt(x, this.w.heightAt(x, z) + 0.5, z, 0.6)) return [x, z];
     }
     return [h.x, h.z];
+  }
+  // where people live: the settlement's ground, and every settlement out in the forest, with `pad` metres round it.
+  // Inside it, a point to make for, out the far side — or null
+  keepOut(x, z, pad = 2) {
+    const t = G.town; if (!t || !t.onGround) return null;
+    const out = (cx, cz, r) => { const dx = x - cx, dz = z - cz, d = Math.hypot(dx, dz) || 1; return { x: cx + dx / d * (r + pad + 14), z: cz + dz / d * (r + pad + 14) }; };
+    for (const c of t.S.colonies || []) if (Math.hypot(x - c.x, z - c.z) < c.r + pad) return out(c.x, c.z, c.r);
+    if (t.onGround(x, z, -pad * 2)) {
+      // (from the old clearing's middle, out past the edge of everything claimed in that direction)
+      const C = CLEARING;
+      const dx = x - C.x, dz = z - C.z, d = Math.hypot(dx, dz) || 1;
+      for (let r = d + 6; r < d + 160; r += 6) { const px = C.x + dx / d * r, pz = C.z + dz / d * r; if (!t.onGround(px, pz, -pad * 2)) return { x: px + dx / d * 10, z: pz + dz / d * 10 }; }
+      return out(C.x, C.z, t.clearR || 30);
+    }
+    return null;
+  }
+  // The woods, all round you: a few beasts of their own, each with its patch of forest, never near where people live.
+  // They come and go as you do — spread out at a distance, gone once you're far from them — so the forest is never empty
+  // and never crowded.
+  roam(want = { deer: 3, hare: 3, boar: 1 }) {
+    const w = this.w;
+    let t = 0;
+    const wild = () => this.animals.filter(a => a.ownHome);
+    const tick = dt => {
+      if ((t -= dt) > 0) return; t = 3;
+      const p = G.player && G.player.pos; if (!p || G.cine || (w.cave && w.cave.inside)) return;
+      // the far ones go, once out of sight and mind
+      for (const a of wild()) if (Math.hypot(a.pos.x - p.x, a.pos.z - p.z) > 190 && a.alive) { w.root.remove(a.root); this.animals.splice(this.animals.indexOf(a), 1); }
+      for (const [k, n] of Object.entries(want)) {
+        if (wild().filter(a => a.kind === k && a.alive).length >= n) continue;
+        // somewhere out of sight in the trees: well away from you, from people, and from the deer ride
+        for (let i = 0; i < 25; i++) {
+          const ang = Math.random() * Math.PI * 2, r = 70 + Math.random() * 80, x = p.x + Math.sin(ang) * r, z = p.z + Math.cos(ang) * r;
+          if (this.keepOut(x, z, 30) || Math.hypot(x - this.home.x, z - this.home.z) < this.home.r + 15) continue;
+          const b = w.bounds; if (b && (x < b.x0 + 8 || x > b.x1 - 8 || z < b.z0 + 8 || z > b.z1 - 8)) continue;
+          if (w.col.solidAt(x, w.heightAt(x, z) + 0.5, z, 0.6)) continue;
+          const a = new Animal(this, k, x, z); a.ownHome = { x, z, r: k === "hare" ? 18 : 32 }; this.animals.push(a);
+          break;
+        }
+        break;     // (one a beat)
+      }
+    };
+    G.onFrame.push(tick);
+    this._roam = tick;
   }
   spawn(kind, n = 1) { for (let i = 0; i < n; i++) { const [x, z] = this.spot(); this.animals.push(new Animal(this, kind, x, z)); } }
   onDown(a) {
@@ -317,6 +370,7 @@ export class Hunt {
   }
   stop() {
     const i = G.onFrame.indexOf(this._tick); if (i >= 0) G.onFrame.splice(i, 1);
+    if (this._roam) { const j = G.onFrame.indexOf(this._roam); if (j >= 0) G.onFrame.splice(j, 1); }
     for (const a of this.animals) this.w.root.remove(a.root);
     for (const ar of this.arrows) { if (ar.it) this.w.removeInteract(ar.it); if (ar.mesh.parent) ar.mesh.parent.remove(ar.mesh); }
     this.animals = []; this.arrows = [];

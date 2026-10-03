@@ -387,6 +387,8 @@ export class Town {
   get logsPerTree() { return LOGS_PER_TREE; }
   // the town hall, the grander the better (1 logs to 4 stucco; nothing without one): its clerk, its council, its say
   get hallTier() { return Math.max(0, ...this.S.buildings.filter(b => b.done && b.type === "townhall").map(b => b.tier || 1)); }
+  // how much stone the stores have room for: fifty, doubled with every step the town hall is rebuilt
+  get stoneCap() { return 50 * 2 ** Math.max(0, (this.hallTier || 0) - 1); }
   // (each settlement's own sheds: a view's buildings are already its own; the first settlement's are those not out in the forest)
   ownShed(b) { return b.done && b.type === "woodshed" && (this.colony || !this.inColony(b.x, b.z)); }
   get storeCap() { return 40 + this.S.buildings.filter(b => this.ownShed(b)).reduce((a, b) => a + SHED_BAYS[b.bays || 1].holds, 0); }
@@ -1569,7 +1571,7 @@ export class Town {
     const store = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "storehouse") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
     this.storeIt = w.addInteract({ get x() { const b = store(); return b ? b.x : 1e6; }, get z() { const b = store(); return b ? b.z : 1e6; }, get y() { const b = store(); return b ? w.heightAt(b.x, b.z) + 0.8 : 0; }, reach: 2.4,
       label: () => { const b = store(), c = b && this.inColony(b.x, b.z); return c ? `Open ${c.name}'s store chest` : "Open the settlement's store chest"; },
-      can: () => !!store(), use: () => { const b = store(); G.chestS = this.viewFor(b && this.inColony(b.x, b.z)).S; G.openChest && G.openChest("stores"); } });
+      can: () => !!store(), use: () => { const b = store(); G.chestView = this.viewFor(b && this.inColony(b.x, b.z)); G.chestS = G.chestView.S; G.openChest && G.openChest("stores"); } });
     // the chopping block: make tools; the forge (once there is one): smelt ore, and cast bronze
     // (at the side of whichever forge is nearest you, out of the way of its door)
     const forge = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "forge") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
@@ -1795,7 +1797,7 @@ export class Town {
       // (while a story is gathering people, it decides what talking does; otherwise it changes their work)
       a.talkIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 1.4; }, reach: 2.4, actor: a,
         can: () => !a.gone && !a.inside && (this.onTalk ? !!(this.talkLabel && this.talkLabel(p, a)) : !a.summoned),
-        label: () => (this.talkLabel && this.talkLabel(p, a)) || `Talk to ${fullName(p)} (${JOBS[p.job || "hauler"].name}) — set their work`,
+        label: () => (this.talkLabel && this.talkLabel(p, a)) || `Talk to ${fullName(p)} (${JOBS[p.job || "hauler"].name}, of ${this.homeName(p)}) — set their work`,
         use: () => {
           if (this.onTalk && this.onTalk(p, a)) return;
           this.chooseJob(p);
@@ -1812,6 +1814,8 @@ export class Town {
   jobsOpen() { return JOB_ORDER.filter(j => (!JOB_AT[j] || this.has(JOB_AT[j])) && !this.jobGated(j)); }
   nextJob(p) { const jobs = this.jobsOpen(); return jobs[(jobs.indexOf(p.job) + 1) % jobs.length]; }
   // choosing someone's work from a list, rather than going round them all
+  // the settlement someone belongs to: one out in the forest, or the first
+  homeName(p) { return (p && p.home) || this.S.name || "Forester's Clearing"; }
   chooseJob(p) {
     // (they turn to you and talk, with their hands, while you decide)
     const ta = this.actors.find(x => x.settler === p);
@@ -1822,7 +1826,7 @@ export class Town {
     const follow = p.job === "watch" ? [{ icon: "weapon", label: p.follow ? "Go back to your watch" : "Follow me", note: p.follow ? "Back to guarding the settlement." : "Stay at my side and fight with me — anywhere, even down in the caves.", get: "", can: () => true, done: () => false,
       do: () => { p.follow = !p.follow; this.persist(); UI.bark(p.name, p.follow ? "Lead on. I'm right behind you." : "Back to the road, then.", 3); G.closeTrade && G.closeTrade(); } }] : [];
     const peace = peaceOffer(this, p);
-    G.openTrade(`${fullName(p)}'s work`, `now a ${JOBS[p.job || "hauler"].name}`, (peace ? [peace] : []).concat(follow).concat(this.jobsOpen().map(j => ({
+    G.openTrade(`${fullName(p)}'s work`, `of ${this.homeName(p)} · now a ${JOBS[p.job || "hauler"].name}`, (peace ? [peace] : []).concat(follow).concat(this.jobsOpen().map(j => ({
       icon: "axe", label: JOBS[j].name[0].toUpperCase() + JOBS[j].name.slice(1), note: `${JOBS[j].ask[0].toUpperCase() + JOBS[j].ask.slice(1)}${WORKS[j] ? ` — ${this.costText(WORKS[j].need) || "nothing"} in, ${this.costText(WORKS[j].give)} out` : ""}`,
       get: `${count(j)} at it`, can: () => p.job !== j, done: () => p.job === j, doneText: " — now",
       do: () => {
@@ -2182,6 +2186,7 @@ export class Town {
         const wx = workAt.x + Math.sin(workAt.ry) * (def.d / 2 + 0.8), wz = workAt.z + Math.cos(workAt.ry) * (def.d / 2 + 0.8);
         await a.walkTo(wx, wz, 1.2); alive();
         a.faceTo(workAt.x, workAt.z);
+        if (works.give && works.give.stone && (this.S.stone || 0) >= this.stoneCap) { a.doing = `idle — the stores are full of stone (${this.stoneCap}; a grander town hall makes room)`; a.person.setPose("armsCrossed"); await sleep(8); alive(); a.person.setPose("idle"); continue; }
         if (!this.afford(works.need)) { a.doing = `waiting at the ${BUILDINGS[workAt.type].name.toLowerCase()} for ${this.short(works.need)}`; a.person.setPose("armsCrossed"); await sleep(6); alive(); a.person.setPose("idle"); continue; }
         a.person.setPose(works.pose);
         // (Deep Shafts: quarries and mines work 30% faster, and bring up more; Blast Furnace: twice the iron)
@@ -2193,7 +2198,7 @@ export class Town {
         alive();
         if (this.afford(works.need)) {
           this.pay(works.need);
-          for (const [k, n] of Object.entries(works.give)) this.S[k] = (this.S[k] || 0) + n * (works.at === "smelter" && this.knows("blastfurnace") ? 2 : 1) + (deep ? 1 : 0);
+          for (const [k, n] of Object.entries(works.give)) { this.S[k] = (this.S[k] || 0) + n * (works.at === "smelter" && this.knows("blastfurnace") ? 2 : 1) + (deep ? 1 : 0); if (k === "stone") this.S.stone = Math.min(this.S.stone, this.stoneCap); }
           this.persist(); this.sfxAt(a, "build"); this.learn(a, skill, 1);
         }
         a.person.setPose("idle");
