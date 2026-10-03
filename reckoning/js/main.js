@@ -1110,8 +1110,7 @@ function renderHotbar() {
   hb.classList.toggle("hidden-by-talk", !!UI.dialogOpen);
   document.body.classList.toggle("talking", !!UI.dialogOpen);
   const items = hotbarItems(), pl = G.player;
-  const hf = G.heldFood;
-  const sel = items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow));
+  const sel = selIndex(items);
   const sig = items.map(i => i.icon + (i.n ?? "") + (i.wear != null ? "w" + Math.round(i.wear * 40) : "")).join("|") + "#" + sel;
   if (sig === hbSig) return;
   hbSig = sig;
@@ -1139,6 +1138,30 @@ addEventListener("keydown", e => {
   // food: taken in the hand (the number again puts it away); a click eats it
   if (it && FOOD[it.icon] && !same) holdFood(it);
 });
+// which slot is in your hand now (-1: none)
+function selIndex(items) {
+  const pl = G.player, hf = G.heldFood;
+  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow));
+}
+// the wheel: the next thing along the bar (or the one before) into your hand — tools, weapons, the bow and food; logs,
+// arrows and the like are passed over. A notch a step (a trackpad's run of little nudges is gathered into notches)
+let wheelAcc = 0, wheelAt = 0;
+addEventListener("wheel", e => {
+  if (G.mode !== "play" || overlay || UI.dialogOpen || G.freecam || (G.town && G.town.planning)) return;
+  wheelAcc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+  const now = performance.now();
+  if (Math.abs(wheelAcc) < 40 || now - wheelAt < 110) return;
+  const dir = Math.sign(wheelAcc); wheelAcc = 0; wheelAt = now;
+  const items = hotbarItems(), can = i => i && (i.tool || FOOD[i.icon]);
+  if (!items.some(can)) return;
+  let k = selIndex(items);
+  for (let n = 0; n < items.length; n++) {
+    k = ((k < 0 && dir < 0 ? items.length : k) + dir + items.length) % items.length;
+    if (can(items[k])) break;
+  }
+  if (k === selIndex(items)) return;
+  dispatchEvent(new KeyboardEvent("keydown", { code: "Digit" + (k + 1), key: String(k + 1) }));
+}, { passive: true });
 // the food in your hand, if any (found again among what you carry, as the bar is rebuilt)
 function heldFood() { const h = G.heldFood; if (!h) return null; return hotbarItems().find(i => i.icon === h.icon && !!i.fromStore === h.fromStore) || null; }
 function holdFood(it) {
