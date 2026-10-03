@@ -2310,7 +2310,7 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
     if (wantHearth !== hearth) { hearth = wantHearth; w.lightHearth(hearth); if (hearth) w.setHearth(0.9); }
     // ripe fields can be reaped by hand, as well as by the farmers
     for (const fl of S.buildings) if (fl.type === "field" && fl.sown && (fl.growth ?? 1) >= 3 && !ripe.has(fl)) {
-      const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3,
+      const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3 && !town.winter,
         seg: [fl.x - Math.sin(fl.ry) * 3.4, fl.z - Math.cos(fl.ry) * 3.4, fl.x + Math.sin(fl.ry) * 3.4, fl.z + Math.cos(fl.ry) * 3.4],
         onHoldTick: (dt2, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt2) * 3)) SFX.chop(); },
         use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
@@ -2640,12 +2640,14 @@ function trader(w, town, spec) {
     h.walkTo(stand[0], stand[1], 1.4).then(() => { if (h.root.parent) { h.faceTo(CLEARING.x, CLEARING.z); h.person.setPose("armsCrossed"); } });
     const it = w.addInteract({ get x() { return h.pos.x; }, get z() { return h.pos.z; }, get y() { return h.pos.y + 1.4; }, reach: 2.6, label: `Trade with ${spec.name}`,
       use: () => (G.guide && G.guide("trade"), G.openTrade && G.openTrade(spec.title, () => `Your purse ${G.dm(G.body.purse)} DM · the treasury ${G.dm(S.coin)} DM`, spec.offers(S), () => { town.persist(); town.showStore && town.showStore(); SFX.pickup(); })) });
-    here = { h, cart, it };
+    here = { h, cart, it, name: spec.name.split(" ")[0] };
+    // (the settlers know when a trader is in, to sell him what they've made of their own)
+    (town.tradersHere ??= new Set()).add(here);
     UI.hint(spec.hello, 6);
     tutor("trade", "", [["F", "beside a trader: buy and sell"]], 7);
   };
   const leave = () => {
-    const { h, cart, it } = here; here = null;
+    const { h, cart, it } = here; town.tradersHere && town.tradersHere.delete(here); here = null;
     w.removeInteract(it);
     const r0 = w.road[w.road.length - 30];
     h.person.setPose("idle");

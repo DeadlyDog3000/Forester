@@ -7,7 +7,7 @@
 
 import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE } from "./core.js";
 import { WorldBase, G } from "./engine.js";
-import { P, forestInstances, makeSpruce, TREE, modelCopy } from "./models.js";
+import { P, forestInstances, makeSpruce, TREE, modelCopy, ensureModel } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM } from "./furnish.js";
@@ -965,6 +965,7 @@ export class Woods extends WorldBase {
       t.goneFor = (t.goneFor || 0) + dt;
       if (t.goneFor < 240 || Math.hypot(pl.pos.x - t.x, pl.pos.z - t.z) < 18) continue;
       if (t.stump) { this.root.remove(t.stump); t.stump = null; }
+      if (G.town && G.town.dropStump) G.town.dropStump(t);
       t.g.visible = true; t.g.rotation.set(0, 0, 0); t.state = "up"; t.hp = 4; t.col.disabled = false; t.claimed = null; t.goneFor = 0;
       if (!t.wild) this.onRegrow && this.onRegrow(this.fellable.indexOf(t));
     }
@@ -1294,8 +1295,27 @@ export class Woods extends WorldBase {
     this.homeRemodel = b.build(MAT.rough);
     this.homeRemodel.position.y = this.cabinY + 0.07;
     this.root.add(this.homeRemodel);
+    // a ceiling of boards over it: there's a loft above now
+    const ceil = new Builder();
+    for (let i = 0; i < 10; i++) { const [x, z] = this.cabinToWorld(-2.25 + i * 0.5, 0); ceil.box(0.48, 0.04, 5.7, x, 2.78, z, i % 2 ? 0x6a4a2e : 0x5e4028, CABIN.ry); }
+    const cm = ceil.build(MAT.rough); this.homeRemodel.add(cm); cm.position.y = 0;
     if (this.homeLight) this.homeLight.distance = 9;
     this.makeKitchen();
+    this.setHomeOutside(tier);
+  }
+  // and outside: the log cabin gives way to a house like the settlers' own — timber and plaster, two storeys, a tiled
+  // roof — with the same doorway, so the door still swings
+  setHomeOutside(tier) {
+    if ((tier || 1) < 2 || this.homeOutside) return;
+    ensureModel("home_2").then(ok => {
+      if (!ok || this.homeOutside) return;
+      const m = modelCopy("home_2"); if (!m) return;
+      m.scene.position.set(CABIN.x, this.cabinY, CABIN.z); m.scene.rotation.y = CABIN.ry;
+      for (const c of this.cabin.children) c.visible = false;
+      this.cabin.add(m.scene); this.homeOutside = m.scene;
+      const d = m.scene.getObjectByName("door");
+      if (d) { this.doorNode = d; this.doorBase = d.rotation.y; d.rotation.y = this.doorBase + this.doorA * 1.5; }
+    });
   }
   // Brambles round the clearing and along the road, heavy with blackberries: hold F to pick a handful. They fruit
   // again in a few days' time, and stand bare through the winter.

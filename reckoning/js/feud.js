@@ -52,11 +52,18 @@ export function kinFor(S, p) {
 
 // ---- what they think of each other ----
 const opOf = (c, o) => (c.op && c.op[o.name]) || 0;
-function nudge(town, c, o, by) {
+function nudge(town, c, o, by, why) {
   if (!c || !o || c === o) return;
   c.op ??= {};
   const was = c.op[o.name] || 0, now = Math.max(OP_MIN, Math.min(OP_MAX, was + by));
   if (Math.abs(now) < 0.5) delete c.op[o.name]; else c.op[o.name] = Math.round(now * 10) / 10;
+  // and why: the reasons they could give, the same reason added up, the few that weigh most kept
+  if (why) {
+    c.opWhy ??= {}; const list = (c.opWhy[o.name] ??= []);
+    const e = list.find(x => x[1] === why);
+    if (e) { e[0] = Math.round((e[0] + by) * 10) / 10; e[2] = town.day; } else list.push([Math.round(by * 10) / 10, why, town.day]);
+    list.sort((x, y) => Math.abs(y[0]) - Math.abs(x[0])); list.length = Math.min(list.length, 5);
+  }
   if (was > FEUD_AT && now <= FEUD_AT) startFeud(town, c, o);
 }
 export const opinionOf = opOf;
@@ -109,36 +116,70 @@ export function feudTick(town, dt) {
   const c = grown[Math.floor(Math.random() * grown.length)];
   const o = grown.filter(q => q !== c)[Math.floor(Math.random() * (grown.length - 1))];
   // a falling-out between two particular people, owing nothing to how well the place is run
-  const spark = 0.11 * (c.temper === "hot" ? 1.7 : c.temper === "even" ? 0.55 : 1);
+  const spark = 0.045 * (c.temper === "hot" ? 1.7 : c.temper === "even" ? 0.55 : 1);
   if (Math.random() < spark) {
     const over = GRIEVANCES[Math.floor(Math.random() * GRIEVANCES.length)];
     const bitter = opOf(c, o) < -25 ? 1.5 : 1;
-    const by = -(14 + Math.random() * 12) * bitter * temperHeat(c);
+    const by = -(9 + Math.random() * 9) * bitter * temperHeat(c);
     c.grievance = over;
-    nudge(town, c, o, by); nudge(town, o, c, -(4 + Math.random() * 8) * bitter * temperHeat(o));
+    nudge(town, c, o, by, `a quarrel ${over}`); nudge(town, o, c, -(4 + Math.random() * 8) * bitter * temperHeat(o), `a quarrel with ${c.name} ${over}`);
     // and the families take sides: kin think the worse of whoever crossed one of theirs
     if (c.family !== o.family) {
-      for (const k of S.people) if (k !== c && k.family === c.family && !k.child) nudge(town, k, o, by * 0.3);
-      for (const k of S.people) if (k !== o && k.family === o.family && !k.child) nudge(town, k, c, by * 0.15);
+      for (const k of S.people) if (k !== c && k.family === c.family && !k.child) nudge(town, k, o, by * 0.2, `took ${c.name}'s side ${over}`);
+      for (const k of S.people) if (k !== o && k.family === o.family && !k.child) nudge(town, k, c, by * 0.1, `took ${o.name}'s side ${over}`);
     }
     if (opOf(c, o) < -35 && Math.random() < 0.6) UI.hint(`${fullName(c)} and ${fullName(o)} have words ${over}.`, 4);
     return;
   }
-  let by = 0;
+  // the everyday: each thing that moves them, with its reason
+  const k = c.temper === "even" ? 0.6 : 1, grudge = opOf(c, o) < -15;
   const mood = town.mood(c).value;
-  by += mood > 60 ? 3 : mood < 30 ? -1.5 : 0;
-  if (by > 0 && opOf(c, o) < -15) by *= 0.15;                    // goodwill doesn't wash a real grudge away
-  if (c.family && c.family === o.family) by += 3;                 // blood is thicker
   const fc = faithOf(c), fo = faithOf(o);
-  if (fc !== fo) by -= 1;                                          // another creed: not quite trusted
-  else if (fc !== "lutheran") by += 1.5;                            // a rarer creed binds tighter
-  if (o.temper === "generous") by += 2.5;
-  if (o.temper === "grasping") by -= 2.5;
-  if (o.mark === "disgraced") by -= 1.5;
-  if (c.sick > 0 && !(o.sick > 0)) by -= 1;
-  nudge(town, c, o, by * (c.temper === "even" ? 0.6 : 1));
+  const why = [];
+  if (mood > 55) why.push([3, "good times in the settlement"]); else if (mood < 30) why.push([-0.8, "everyone's short-tempered when times are hard"]);
+  if (c.family && c.family === o.family) why.push([3, "family"]);
+  if (fc !== fo) why.push([-1, "another creed"]); else why.push([fc !== "lutheran" ? 2 : 1, "the same faith"]);
+  if (o.job && o.job === c.job) why.push([1.5, "work side by side"]);
+  if (o.temper === "generous") why.push([2.5, "generous"]);
+  if (o.temper === "grasping") why.push([-2.5, "grasping"]);
+  if (o.mark === "disgraced") why.push([-1.5, "disgraced"]);
+  if (c.sick > 0 && !(o.sick > 0)) why.push([-1, "sick and resentful"]);
+  // (goodwill doesn't wash a real grudge away)
+  for (const [n, w] of why) nudge(town, c, o, n * k * (n > 0 && grudge ? 0.3 : 1), w);
+  // and time: once a day, the old grudges soften a little, where there's no feud keeping them up
+  if (S.opDay !== town.day) {
+    S.opDay = town.day;
+    for (const p of S.people) for (const [n, v] of Object.entries(p.op || {})) if (v < 0) {
+      const q = S.people.find(x => x.name === n);
+      if (q && !(feudFor(S, p) && feudFor(S, p) === feudFor(S, q))) nudge(town, p, q, Math.min(-v, 4), "time heals");
+    }
+  }
   // the feuds run their course
   for (const f of feudsOf(S)) if (!f.over && town.day >= f.until) endFeud(town, f, "time");
+}
+
+// For the Families tab: each family, its people, and what it makes of every other family — on average, and why.
+export function familyReport(town) {
+  const S = town.S; ensureFamilies(S);
+  const fams = families(S), names = Object.keys(fams).sort();
+  const out = {};
+  for (const f of names) {
+    const ps = fams[f], grown = ps.filter(p => !p.child);
+    const toward = {};
+    for (const g of names) {
+      if (g === f) continue;
+      const them = fams[g].filter(q => !q.child);
+      let sum = 0, n = 0; const why = {};
+      for (const p of grown) for (const q of them) {
+        sum += opOf(p, q); n++;
+        for (const [d, w] of ((p.opWhy || {})[q.name] || [])) { const k = w.replace(/^took (\S+)'s side/, "took a side"); why[k] = (why[k] || 0) + d; }
+      }
+      const feud = feudsOf(S).find(x => !x.over && ((x.a === f && x.b === g) || (x.a === g && x.b === f)));
+      toward[g] = { value: n ? Math.round(sum / n) : 0, n, feud, why: Object.entries(why).filter(([, d]) => Math.abs(d) >= 1).sort((x, y) => Math.abs(y[1]) - Math.abs(x[1])).slice(0, 5).map(([w, d]) => [Math.round(d / Math.max(1, n)), w]) };
+    }
+    out[f] = { people: ps, toward, feud: feudsOf(S).find(x => !x.over && (x.a === f || x.b === f)) };
+  }
+  return out;
 }
 
 // how a feud weighs on a settler's mood
@@ -221,7 +262,7 @@ export async function feudShift(town, a, sleep, alive) {
 // a death in a feud: the dead one's kin will not forget it
 function feudGrief(town, f, dead) {
   const S = town.S;
-  for (const k of S.people) if (k.family === dead.family) for (const q of S.people) if (q.family && q.family !== dead.family && (q.family === f.a || q.family === f.b)) { k.op ??= {}; k.op[q.name] = Math.max(OP_MIN, (k.op[q.name] || 0) - 30); }
+  for (const k of S.people) if (k.family === dead.family) for (const q of S.people) if (q.family && q.family !== dead.family && (q.family === f.a || q.family === f.b)) nudge(town, k, q, -30, `${dead.name}'s death in the feud`);
 }
 
 // what you can do about it: blood money out of the treasury, to make them shake hands

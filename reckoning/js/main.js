@@ -26,6 +26,7 @@ import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trai
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
 import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf, cityAt, cityOwner, cityFirstOwner, buildGrid, CITIES, gridOf, llOf, MG_W } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
+import { familyReport, feudsOf } from "./feud.js";
 
 /* global SFX */
 
@@ -289,7 +290,7 @@ function buildChapters() {
 // ---- inventory (T) ----
 const ICON = {
   hide: "art/item_hide.png", pack1: "art/item_pack.png", pack2: "art/item_pack.png", pack3: "art/item_pack.png",
-  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "art/item_door.png", bricks: "../assets/sprites/items/stone.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", venison: "../assets/sprites/items/meat.png", hare: "../assets/sprites/items/meat.png", boar: "../assets/sprites/items/meat.png", dish: "../assets/sprites/items/meat_cooked.png", cookedmeat: "../assets/sprites/items/meat_cooked.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
+  key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "../assets/sprites/items/planks.png", bricks: "../assets/sprites/items/bricks.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", venison: "../assets/sprites/items/meat.png", hare: "../assets/sprites/items/meat.png", boar: "../assets/sprites/items/meat.png", dish: "../assets/sprites/items/meat_cooked.png", cookedmeat: "../assets/sprites/items/meat_cooked.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png",
   hammer1: "../assets/sprites/items/tool_stone.png", hammer2: "../assets/sprites/items/tool_stone.png", hammer3: "../assets/sprites/items/tool_bronze.png", hammer4: "../assets/sprites/items/tool_bronze.png", hammer5: "../assets/sprites/items/tool_iron.png",
   sword1: "../assets/sprites/items/weapon_stone.png", sword3: "../assets/sprites/items/weapon_bronze.png", sword4: "../assets/sprites/items/weapon_bronze.png", sword5: "../assets/sprites/items/weapon_iron.png",
   pick5: "../assets/sprites/items/pick_iron.png", tinore: "../assets/sprites/items/tin_ore.png", tin: "../assets/sprites/items/tin.png", bronze: "../assets/sprites/items/bronze.png",
@@ -465,21 +466,32 @@ const packN = k => (G.pack.find(i => i.icon === k) || {}).n || 0;
 // what the settlement's stores hold of a thing (logs are the stack; iron ore is "ore" in the stores)
 const storeN = k => G.town ? (G.town.S[k === "logs" ? "store" : k === "ironore" ? "ore" : k] || 0) : 0;
 const haveFor = (k, n) => k === "logs" ? storeN(k) >= n : packN(k) + storeN(k) >= n;
+// metal is only worked at a forge: copper, bronze and iron recipes are shown once there is one
+const METALS = ["copper", "tin", "bronze", "iron"];
+const craftUnlocked = r => !Object.keys(r.cost).some(k => METALS.includes(k)) || !!(G.town && G.town.has && G.town.has("forge"));
 function renderCraft() {
   const tl = G.body.tools;
-  // only what can be made now: the next making of each tool, when everything it takes is to hand
-  const rows = TOOL_RECIPES.map((r, i) => {
-    if (r.tier !== nextTier(tl, r.tool) || !Object.entries(r.cost).every(([k, n]) => haveFor(k, n))) return "";
-    const cost = Object.entries(r.cost).map(([k, n]) => `${n} ${k === "logs" ? (n === 1 ? "log" : "logs") + " from the stack" : ITEM[k].name.toLowerCase() + (n > 1 && k === "hide" ? "s" : "")}`).join(", ");
+  // every making you could reach with what's built: better than what you have, its metal workable here; the ones
+  // short of something shown with what's missing
+  const rows = [], later = [];
+  TOOL_RECIPES.forEach((r, i) => {
+    if (r.tier <= (tl[r.tool] || 0)) return;
+    if (!craftUnlocked(r)) { later.push(r); return; }
+    const short = Object.entries(r.cost).filter(([k, n]) => !haveFor(k, n));
+    const cost = Object.entries(r.cost).map(([k, n]) => { const lack = short.some(([x]) => x === k); return `<span class="${lack ? "cr-lack" : ""}">${n} ${k === "logs" ? (n === 1 ? "log" : "logs") + " from the stack" : ITEM[k].name.toLowerCase() + (n > 1 && k === "hide" ? "s" : "")}${lack ? ` (have ${k === "logs" ? storeN(k) : packN(k) + storeN(k)})` : ""}</span>`; }).join(", ");
     const icon = r.tool === "axe" ? ICON.axe : r.tool === "spade" ? ICON.spade : ICON[r.tool + r.tier] || ICON.logs;
-    return `<div class="cr-row"><img src="${icon}" alt=""><div><div class="sk-name">${r.name}</div><div class="sk-does">${r.note}</div><div class="cr-cost">${cost}</div></div>
-      <button class="btn primary" data-r="${i}">Make</button></div>`;
-  }).join("");
-  $("craftBody").innerHTML = `<div class="sk-sub">What you can make now. Stone from the grey rocks; copper, tin and iron broken with a good enough pick and smelted at a forge; bronze cast there from copper and tin.</div>${rows || `<p class="cr-none">Nothing you can make yet. A wooden pickaxe wants two logs on the stack.</p>`}`;
+    const ok = !short.length;
+    rows.push([ok ? 0 : 1, r.tool, r.tier, `<div class="cr-row${ok ? "" : " cr-short"}"><img src="${icon}" alt=""><div><div class="sk-name">${r.name}</div><div class="sk-does">${r.note}</div><div class="cr-cost">${cost}</div></div>
+      <button class="btn primary" data-r="${i}"${ok ? "" : " disabled"}>${ok ? "Make" : "Need more"}</button></div>`]);
+  });
+  rows.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1]) || a[2] - b[2]);
+  const lockNote = later.length ? `<p class="cr-none">Copper, bronze and iron tools are made at a forge — build one, and ${later.length} more recipe${later.length > 1 ? "s" : ""} open up.</p>` : "";
+  $("craftBody").innerHTML = `<div class="sk-sub">What you can make here. Stone from the grey rocks; copper, tin and iron broken with a good enough pick and smelted at a forge; bronze cast there from copper and tin.</div>${rows.map(r => r[3]).join("") || `<p class="cr-none">You have the best of everything you can make here.</p>`}${lockNote}`;
 }
 $("craftBody").addEventListener("click", e => {
   const b = e.target.closest("button[data-r]"); if (!b || b.disabled) return;
   const r = TOOL_RECIPES[+b.dataset.r];
+  if (!craftUnlocked(r) || !Object.entries(r.cost).every(([k, n]) => haveFor(k, n))) return;
   for (const [k, n] of Object.entries(r.cost)) {
     if (k === "logs") { G.town.S.store -= n; G.town.showStore && G.town.showStore(); G.town.persist(); }
     else {
@@ -741,6 +753,10 @@ function renderGov(full) {
     // (not redrawn while a slider is being dragged)
     if ((full || html !== govPeopleHtml || key !== govKey) && !(document.activeElement && document.activeElement.type === "range")) { const top = $("govBody").scrollTop; $("govBody").innerHTML = html; govPeopleHtml = html; wireLaws(t); $("govBody").scrollTop = top; }
   }
+  else if (govTab === "families") {
+    const html = govFamilies(t);
+    if (full || html !== govPeopleHtml || key !== govKey) { const top = $("govBody").scrollTop; $("govBody").innerHTML = html; govPeopleHtml = html; wireFamilies(t); $("govBody").scrollTop = top; }
+  }
   else if (govTab === "faith") {
     const html = govFaith(t);
     if (full || html !== govPeopleHtml || key !== govKey) { const top = $("govBody").scrollTop; $("govBody").innerHTML = html; govPeopleHtml = html; wireFaith(t); $("govBody").scrollTop = top; }
@@ -818,7 +834,7 @@ function govPeople(t) {
     const home = t.bedFor(i);
     const tool = !p.child && adults.indexOf(p) < (S.tools || 0);
     const arm = t.armFor ? t.armFor(p) : null;
-    const has = [p.job === "woodcutter" ? "Axe" : null, arm && arm !== "axe" && arm !== "fists" ? ARMS[arm].name : null, tool ? "Iron tools" : null, home ? "A bed" : null].filter(Boolean);
+    const has = [p.job === "woodcutter" ? "Axe" : null, arm && arm !== "axe" && arm !== "fists" ? ARMS[arm].name : null, tool ? "Iron tools" : null, home ? "A bed" : null, p.wares ? `${p.waresOf || "wares"}${p.wares > 1 ? " ×" + p.wares : ""} to sell` : null, (p.purse || 0) >= 0.1 ? `${dm(p.purse)} DM of their own` : null].filter(Boolean);
     const gone = !a || a.gone;
     const m = t.mood ? t.mood(p) : { value: 50, why: [] };
     const tp = TEMPER[p.temper], mk = p.mark && MARKS[p.mark];
@@ -844,6 +860,49 @@ function govPeople(t) {
     <table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Mood</th><th>Best at</th><th>Now</th><th>Has</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 const pplOpen = new Set();
+// ---- families: who is kin to whom, and what each family makes of the others, and why ----
+let famSel = null;
+const opWord = v => v >= 50 ? "close friends" : v >= 20 ? "friendly" : v > -10 ? "neither here nor there" : v > -30 ? "cool" : v > -50 ? "resentful" : v > -70 ? "bitter" : "out for blood";
+const opCol = v => v >= 20 ? "#9ac88a" : v > -10 ? "var(--ink-dim)" : v > -50 ? "#d6a03a" : "#d0503a";
+const opBar = v => `<div class="op-bar"><i style="left:${v < 0 ? 50 + v / 2 : 50}%;width:${Math.abs(v) / 2}%;background:${opCol(v)}"></i></div>`;
+function govFamilies(t) {
+  const R = familyReport(t), names = Object.keys(R);
+  if (!names.length) return `<div class="gov-why">Nobody has settled here yet: there are no families but your own.</div>`;
+  if (famSel && !R[famSel]) famSel = null;
+  const feuds = feudsOf(t.S).filter(f => !f.over);
+  let h = `<div class="gov-why" style="margin-bottom:8px">Everyone here belongs to a family. What each family thinks of the others moves for reasons they could name — a quarrel, a creed, a generous neighbour — and grudges fade with time unless a feud keeps them up. Past <b>out for blood</b>, two families come to blows. Click a family to see its people and why they feel as they do.${feuds.length ? `<br><b style="color:#d0503a">At feud: ${feuds.map(f => f.a ? `the ${esc(f.a)}s and the ${esc(f.b)}s (${esc(f.why)})` : `${esc(f.pa)} and ${esc(f.pb)}`).join("; ")}</b> — F beside one of them to pay blood money.` : ""}</div><div class="fam-grid">`;
+  for (const f of names) {
+    const r = R[f], others = Object.entries(r.toward).filter(([, x]) => x.n);
+    const avg = others.length ? Math.round(others.reduce((a, [, x]) => a + x.value, 0) / others.length) : 0;
+    const worst = others.sort((a, b) => a[1].value - b[1].value)[0];
+    h += `<button class="fam-card${famSel === f ? " on" : ""}${r.feud ? " feud" : ""}" data-fam="${esc(f)}"><div class="fam-name">The ${esc(f)}s</div><div class="dim">${r.people.length} ${r.people.length === 1 ? "soul" : "souls"} · ${esc(r.people.map(p => p.name).join(", "))}</div>
+      <div class="fam-line">Toward the others: <span style="color:${opCol(avg)}">${opWord(avg)}</span></div>${worst && worst[1].value < -10 ? `<div class="fam-line dim">Least liked: the ${esc(worst[0])}s (${worst[1].value})</div>` : ""}${r.feud ? `<div class="fam-line" style="color:#d0503a">At feud</div>` : ""}</button>`;
+  }
+  h += `</div>`;
+  if (famSel) {
+    const r = R[famSel];
+    h += `<div class="mc-sec">The ${esc(famSel)}s</div><table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Mood</th><th>Thinks least of</th><th>Thinks most of</th></tr></thead><tbody>`;
+    for (const p of r.people) {
+      const ops = Object.entries(p.op || {}).sort((a, b) => a[1] - b[1]);
+      const lo = ops[0], hi = ops[ops.length - 1];
+      const m = t.mood ? t.mood(p) : { value: 50 };
+      h += `<tr><td class="nm">${esc(p.name)}${p.child ? ' <span class="dim">(child)</span>' : ""}</td><td>${p.child ? "—" : esc(cap(JOBS[p.job || "hauler"].name))}</td><td>${p.child ? "—" : m.value}</td>
+        <td>${lo && lo[1] < 0 ? `${esc(lo[0])} <span style="color:${opCol(lo[1])}">${Math.round(lo[1])}</span>${whyOf(p, lo[0])}` : '<span class="dim">nobody</span>'}</td>
+        <td>${hi && hi[1] > 0 ? `${esc(hi[0])} <span style="color:${opCol(hi[1])}">+${Math.round(hi[1])}</span>${whyOf(p, hi[0])}` : '<span class="dim">nobody</span>'}</td></tr>`;
+    }
+    h += `</tbody></table><div class="mc-sec">What the ${esc(famSel)}s think of the other families</div>`;
+    for (const [g, x] of Object.entries(r.toward).sort((a, b) => a[1].value - b[1].value)) {
+      if (!x.n) continue;
+      h += `<div class="fam-op"><div class="fam-op-h"><b>The ${esc(g)}s</b> <span style="color:${opCol(x.value)}">${opWord(x.value)} (${x.value > 0 ? "+" : ""}${x.value})</span>${x.feud ? ' <b style="color:#d0503a">— at feud</b>' : ""}</div>${opBar(x.value)}
+        <div class="fam-why">${x.why.length ? x.why.map(([d, w]) => `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${d}</span> ${esc(w)}`).join("<br>") : '<span class="dim">Nothing much between them yet.</span>'}</div></div>`;
+    }
+  }
+  return h;
+}
+const whyOf = (p, n) => { const w = ((p.opWhy || {})[n] || []).slice(0, 2); return w.length ? `<div class="dim" style="font-size:12px">${w.map(([d, x]) => esc(x)).join("; ")}</div>` : ""; };
+function wireFamilies(t) {
+  for (const b of document.querySelectorAll("#govBody .fam-card")) b.onclick = () => { famSel = famSel === b.dataset.fam ? null : b.dataset.fam; renderGov(true); };
+}
 // ---- Europe: the map, and each crown's view of you ----
 let euSel = null, euHover = null, euPanelHtml = "", euCity = null, euHoverCity = null;
 // the view of the map: zoom and where it looks (in the canvas's units at zoom 1); past ZOOM_3D it becomes the land itself
@@ -1183,6 +1242,40 @@ function renderHotbar() {
   }).join("");
 }
 setInterval(renderHotbar, 200);
+// the name of what's in your hand, for a moment, right below its slot — whenever it changes (the wheel or 1-9)
+let hbLastSel = -2, hbNameT = 0;
+function showHbName() {
+  const hb = $("hotbar"); if (!hb || hb.style.display === "none") return;
+  const items = hotbarItems(), sel = selIndex(items);
+  if (sel === hbLastSel) return;
+  const first = hbLastSel === -2; hbLastSel = sel;
+  if (first || sel < 0 || !items[sel]) return;
+  let el = $("hbName");
+  if (!el) { el = document.createElement("div"); el.id = "hbName"; document.body.appendChild(el); }
+  const slotEl = hb.children[sel]; if (!slotEl) return;
+  const r = slotEl.getBoundingClientRect(), hr = hb.getBoundingClientRect();
+  el.textContent = items[sel].name;
+  el.style.left = (r.left + r.width / 2) + "px"; el.style.top = (hr.bottom + 2) + "px";
+  el.classList.add("on"); clearTimeout(hbNameT); hbNameT = setTimeout(() => el.classList.remove("on"), 1600);
+}
+setInterval(showHbName, 60);
+// what a thing is, right below it, when the pointer is over it: the bar, the inventory, the chests
+{
+  let tip = null;
+  addEventListener("mouseover", e => {
+    const t = e.target.closest && e.target.closest(".mc-slot[data-i], #hotbar .hb, .mc-slot[data-tip]");
+    if (!t) { if (tip) tip.classList.remove("on"); return; }
+    const it = t.dataset.i != null ? invItems[+t.dataset.i] : null;
+    const img = t.querySelector("img");
+    const name = (it && it.name) || t.dataset.tip || (img && (img.title || img.alt));
+    if (!name) { if (tip) tip.classList.remove("on"); return; }
+    if (!tip) { tip = document.createElement("div"); tip.id = "tipBelow"; document.body.appendChild(tip); }
+    const r = t.getBoundingClientRect();
+    tip.textContent = name + (it && it.n != null && it.n !== 1 ? ` · ${it.n}` : "");
+    tip.style.left = (r.left + r.width / 2) + "px"; tip.style.top = (r.bottom + 3) + "px";
+    tip.classList.add("on");
+  });
+}
 addEventListener("keydown", e => {
   if (G.mode !== "play" || overlay || !/^Digit[1-9]$/.test(e.code)) return;
   const it = hotbarItems()[+e.code.slice(5) - 1];

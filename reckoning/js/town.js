@@ -33,7 +33,7 @@ import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost
 import { economyDay, shopVisual, shopOffers, lawsOf, KINDS } from "./economy.js";
 import { openKitchen, cooking, isRawMeat } from "./cook.js";
 import { feudTick, feudShift, peaceOffer, ensureFamilies, kinFor, fullName } from "./feud.js";
-import { dineShift, eateryShift, eaterySolids } from "./economy.js";
+import { dineShift, eateryShift, eaterySolids, sideShift } from "./economy.js";
 import { revoltCheck, revoltShift, revoltSwing, checkEnd } from "./rebellion.js";
 import { colonyCheck, lay as layColony } from "./colony.js";
 
@@ -148,8 +148,8 @@ const SFX = () => sfxEngine() || QUIET;
 // the stuff of a path: trodden earth, then cobbles
 const PATH_MAT = {};
 // ---- the sign over a building site: what it still needs, in icons and numbers ----
-const SITE_ICON = { store: "../assets/sprites/items/logs.png", stone: "../assets/sprites/items/stone.png", planks: "art/item_door.png",
-  bricks: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", tools: "../assets/sprites/items/tool_iron.png" };
+const SITE_ICON = { store: "../assets/sprites/items/logs.png", stone: "../assets/sprites/items/stone.png", planks: "../assets/sprites/items/planks.png",
+  bricks: "../assets/sprites/items/bricks.png", iron: "../assets/sprites/items/iron.png", tools: "../assets/sprites/items/tool_iron.png" };
 const iconImg = {};
 const loadIcon = src => iconImg[src] ??= new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
 function siteSign(rows, ready) {
@@ -182,12 +182,16 @@ export function lieOn(a, bed) {
   a.lying = true; a.yOff = Math.max(0.05, bed.y - G.world.heightAt(bed.x, bed.z)) + 0.13;
 }
 // a settler's look, from a seed: townsman or townswoman, in their own colours
+// a child grows from about two-thirds of a grown body to the whole of one, the head the last to catch up
+export const CHILD_DAYS = 3 * YEAR, BABY_NAMES = { m: ["Jürgen", "Klaus", "Henning", "Peter", "Jan", "Hinrich", "Claus", "Lorenz", "Matthias", "Tönnies", "Jochim", "Asmus"], f: ["Anna", "Grete", "Elsabe", "Trine", "Margareta", "Catharina", "Engel", "Lene", "Dorothea", "Gesa", "Telse", "Marlene"] };
+export const grownFrac = p => !p.child ? 1 : p.grownDay == null || p.bornDay == null ? 0.45 : Math.max(0, Math.min(1, (G.town ? G.town.day - p.bornDay : 0) / Math.max(1, p.grownDay - p.bornDay)));
+const childScale = p => p.child ? 0.6 + 0.3 * grownFrac(p) : 1;
 function settlerLook(p) {
   const r = p.seed;
   const pick = (a, k) => a[(r * 7 + k * 13) % a.length];
   return p.sex === "f"
-    ? { model: "townswoman", name: p.name, skirt: true, apron: pick([0xf0ebe0, 0xe6dcc8, undefined], 1), hat: "bonnet", seed: r, coat: pick([0x6a5a48, 0x5a3b32, 0x4a4a3a], 2), skirtColor: pick([0x4a4038, 0x3e4a5c, 0x5a4a3a], 3), scale: p.child ? 0.72 : 1 }
-    : { model: "townsman", name: p.name, hat: pick(["tricorn", "cap", "hat"], 1), seed: r, coat: pick([0x5b4a3a, 0x4d5a3c, 0x3e4a5c, 0x6a4a32], 2), legs: pick([0x3a3028, 0x2e2e33, 0x4a4035], 3), scale: p.child ? 0.72 : 1 };
+    ? { model: "townswoman", name: p.name, skirt: true, apron: pick([0xf0ebe0, 0xe6dcc8, undefined], 1), hat: "bonnet", seed: r, coat: pick([0x6a5a48, 0x5a3b32, 0x4a4a3a], 2), skirtColor: pick([0x4a4038, 0x3e4a5c, 0x5a4a3a], 3), scale: childScale(p), headScale: p.child ? 1.28 - 0.2 * grownFrac(p) : 1 }
+    : { model: "townsman", name: p.name, hat: p.child ? "cap" : pick(["tricorn", "cap", "hat"], 1), seed: r, coat: pick([0x5b4a3a, 0x4d5a3c, 0x3e4a5c, 0x6a4a32], 2), legs: pick([0x3a3028, 0x2e2e33, 0x4a4035], 3), scale: childScale(p), headScale: p.child ? 1.28 - 0.2 * grownFrac(p) : 1 };
 }
 
 export class Town {
@@ -978,16 +982,30 @@ export class Town {
     const S = this.S;
     const thief = S.people.find(p => !p.child && p.jailedDay == null && !FAITHS[faithOf(p)].meek && this.mood(p).value < 30 && Math.random() < 0.35);
     if (!thief) return;
-    const coin = Math.min(S.coin || 0, 3 + Math.floor(Math.random() * 4)), rye = coin ? 0 : Math.min(S.rye, 6);
-    if (!coin && !rye) return;
-    S.coin -= coin; S.rye -= rye; S.thefts = (S.thefts || 0) + 1;
-    const what = coin ? `${coin} DM` : `${rye} rye`;
+    // coin out of the treasury, or goods out of the stores — to be sold on to the next trader who comes up the road
+    const GOODS = [["rye", 10, 0.1], ["bread", 5, 0.35], ["meat", 4, 0.5], ["planks", 4, 0.6], ["stone", 6, 0.4], ["bricks", 6, 0.4], ["iron", 1, 2.5]];
+    const goods = GOODS.filter(([k, n]) => (S[k] || 0) >= n);
+    const takeCoin = (S.coin || 0) >= 3 && (!goods.length || Math.random() < 0.4);
+    const coin = takeCoin ? Math.min(S.coin, 3 + Math.floor(Math.random() * 4)) : 0;
+    const g = !takeCoin && goods.length ? goods[Math.floor(Math.random() * goods.length)] : null;
+    if (!coin && !g) return;
+    const item = g ? g[0] : null, n = g ? g[1] : 0;
+    const name = k => ({ rye: "rye", bread: "loaves", meat: "meat", planks: "planks", stone: "stone", bricks: "bricks", iron: "iron" })[k] || k;
+    if (coin) S.coin -= coin; else S[item] -= n;
+    S.thefts = (S.thefts || 0) + 1;
+    const what = coin ? `${coin} DM` : `${n} ${name(item)}`;
     const watch = S.people.some(p => p.job === "watch" && p !== thief), jail = this.has("jail");
     if (jail && watch && Math.random() < 0.85) {
-      S.coin += coin; S.rye += rye; thief.jailedDay = this.day; S.caught = (S.caught || 0) + 1;
+      if (coin) S.coin += coin; else S[item] += n;
+      thief.jailedDay = this.day; S.caught = (S.caught || 0) + 1;
       this.setMark(thief, "disgraced", `caught taking ${what} from the stores, and held in the jail`);
       UI.hint(`In the night ${thief.name} took ${what} from the stores. The watch caught them: it's back, and they're in the jail for the day.`, 7);
-    } else UI.hint(`In the night someone took ${what} from the stores. ${!jail ? "There's no jail" : "There's no watchman"} — nobody was caught. (Research Policing for a jail and the watch.)`, 7);
+    } else {
+      // got away with it: coin into their own purse; goods hidden away, for the next trader
+      if (coin) thief.purse = Math.round(((thief.purse || 0) + coin) * 10) / 10;
+      else { const l = thief.loot; if (l && l.k === item) { l.n += n; l.worth += n * g[2]; } else thief.loot = { k: item, n, name: name(item), worth: Math.round(n * g[2] * 10) / 10 }; }
+      UI.hint(`In the night someone took ${what} from the stores. ${!jail ? "There's no jail" : "There's no watchman"} — nobody was caught. (Research Policing for a jail and the watch.)${coin ? "" : " Whoever it was will want to sell it on."}`, 7);
+    }
     this.persist(); this.showStore();
   }
   // a new strip of path: an end near another strip's end is moved onto it, and nearly in line it runs straight on
@@ -1661,11 +1679,18 @@ export class Town {
       t.dug = true; const f = this.S.felled.find(q => q.i === this.w.fellable.indexOf(t)); if (f) f.dug = true;
     }
   }
+  // the stump goes when a tree comes up on it again (ours, and any left from the chapters before)
+  dropStump(t) {
+    const m = this.stumps.get(t); if (m) { this.w.root.remove(m); this.stumps.delete(t); if (m.userData.it) this.w.removeInteract(m.userData.it); }
+    if (t.stump) { this.w.root.remove(t.stump); t.stump = null; }
+    // (and it's no longer down: not felled again when the game is loaded)
+    const i = this.w.fellable.indexOf(t); if (i >= 0 && this.S.felled.some(f => f.i === i && !f.dug)) { this.S.felled = this.S.felled.filter(f => f.i !== i); this.persist(); }
+  }
   regrow(t) {
     if (t.dug) return;
     // (nothing comes up through a path, or against a wall)
     if (this.builtNear(t.x, t.z)) return;
-    const m = this.stumps.get(t); if (m) { this.w.root.remove(m); this.stumps.delete(t); if (m.userData.it) this.w.removeInteract(m.userData.it); }
+    this.dropStump(t);
     t.g.visible = true; t.state = "up"; t.col.disabled = false; t.hp = 4; t.claimed = null;
     t.g.rotation.set(0, 0, 0);
     const i = this.w.fellable.indexOf(t);
@@ -1837,6 +1862,46 @@ export class Town {
     }
     this.persist(); this.emit("left", p, why);
   }
+  // ---- children: born to a family that has a man and a woman and is doing well, and grown in three years ----
+  growChildren() {
+    const S = this.S;
+    for (const p of S.people.slice()) {
+      if (!p.child) continue;
+      // (a child from before ageing: partway grown already)
+      if (p.grownDay == null) { p.bornDay = this.day - Math.round(CHILD_DAYS * 0.55); p.grownDay = this.day + Math.round(CHILD_DAYS * 0.45); }
+      const a = this.actors.find(x => x.settler === p);
+      if (this.day >= p.grownDay) {
+        p.child = false; p.job = "hauler"; p.sk = {}; delete p.temper; ensurePerson(p);
+        UI.news && UI.news({ title: `${p.name} is grown`, sub: `${fullName(p)} is old enough to do a grown person's work now. They'll haul to begin with — F beside them to set their work.`, img: "event_peace" });
+        // (a new body for the grown one, and someone to talk to about work)
+        if (a) { if (a.talkIt) this.w.removeInteract(a.talkIt); const x = a.pos.x, z = a.pos.z; a.remove(); this.actors.splice(this.actors.indexOf(a), 1); this.addPerson(p, x, z); }
+      } else if (a && a.person) {
+        a.person.body.scale.setScalar(childScale(p));
+        a.person.setHeadScale && a.person.setHeadScale(1.28 - 0.2 * grownFrac(p));
+      }
+    }
+    // a birth, now and then
+    const days = this.foodDays ? this.foodDays() : 9;
+    if (days < 3 || this.winter && Math.random() < 0.5) return;
+    const fams = {};
+    for (const p of S.people) if (p.family) (fams[p.family] ??= []).push(p);
+    for (const [f, ps] of Object.entries(fams)) {
+      const mum = ps.find(p => !p.child && p.sex === "f" && !(p.sick > 0) && p.jailedDay == null), dad = ps.find(p => !p.child && p.sex === "m");
+      if (!mum || !dad || ps.filter(p => p.child).length >= 3 || (mum.lastBorn != null && this.day - mum.lastBorn < YEAR * 1.5)) continue;
+      if (this.mood && this.mood(mum).value < 45) continue;
+      if (Math.random() > 0.05) continue;
+      const sex = Math.random() < 0.5 ? "m" : "f", used = new Set(S.people.map(q => q.name));
+      const name = BABY_NAMES[sex].find(n => !used.has(n)) || `${BABY_NAMES[sex][this.day % 12]} the younger`;
+      const kid = { name, sex, seed: Math.floor(Math.random() * 1e6), child: true, job: "idle", family: f, bornDay: this.day, grownDay: this.day + CHILD_DAYS, faith: mum.faith };
+      if (mum.home) kid.home = mum.home;
+      mum.lastBorn = this.day;
+      const ma = this.actors.find(x => x.settler === mum);
+      this.addPerson(kid, ma ? ma.pos.x + 0.8 : undefined, ma ? ma.pos.z + 0.8 : undefined);
+      UI.news && UI.news({ title: `A child for the ${f}s`, sub: `${mum.name} and ${dad.name} have a ${sex === "m" ? "son" : "daughter"}: ${name}. Another mouth to feed — and in three years, another pair of hands.`, img: "event_peace" });
+      this.emit("born", kid);
+      break;
+    }
+  }
   // what wants doing next, in a word to the player
   advice() {
     const S = this.S, pop = S.people.length + 2, need = Math.ceil(pop / 2);
@@ -1980,6 +2045,7 @@ export class Town {
       if (!raid && this.techGates && await feudShift(this, a, sleep, alive)) continue;
       // midday, with money in their purse: a meal at an eatery
       if (!raid && await dineShift(this, a, sleep, alive)) continue;
+      if (!raid && !this.isNight() && await sideShift(this, a, sleep, alive)) continue;
       // their own business, if they have one: part of their time goes to it
       const own = !raid && !a.settler.child && this.S.companies && this.S.companies.find(c => c.owner === a.settler.name);
       if (own && await this.companyShift(a, own, sleep, alive)) continue;
@@ -2255,6 +2321,7 @@ export class Town {
           if (b.growDays >= 2) { b.growDays = 0; b.growth = Math.min(3, (b.growth ?? 1) + 1); this.show(b); }
         }
       }
+      this.growChildren();
       // everyone eats: a day's food each — a dish you cooked, or three loaves, or two meat, or five rye, the best there is first;
       // two days with nothing, and the newest to come leaves
       // (Horse Feed: hunger fades 20% slower)

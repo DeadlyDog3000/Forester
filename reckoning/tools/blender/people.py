@@ -25,6 +25,7 @@ Front is -Y, up is +Z, 1 unit = 1 m, feet at the origin, about 1.78 m tall.
 """
 import math
 import os
+import random
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -50,6 +51,8 @@ CAST = {
     "albers": dict(sex="f", age="old", coat=0x5a4a3a, skirt=0x3e4a5c, apron=0xf0ebe0, hair=0x8a8078, skin=0xe0b898, hat="bonnet", wide=0.1),
     "townsman": dict(sex="m", age="mid", coat=0x5b4a3a, legs=0x3a3028, hair=0x4a3a2a, skin=0xdcb08a, hat="tricorn"),
     "townswoman": dict(sex="f", age="mid", coat=0x6a5a48, skirt=0x4a4038, apron=0xf0ebe0, hair=0x6a4a30, skin=0xe2b894, hat="bonnet"),
+    # the men who come out of the forest: no coat or breeches, but skins and furs and rags, the legs bound in strips
+    "raider": dict(sex="m", age="mid", coat=0x4a3424, legs=0x3a3226, hair=0x4a3624, beard=0x4a3624, skin=0xc8946c, hat="furhat", hatColor=0x5a4632, wild=True, longHair=True),
 }
 
 H = 1.78  # height to the crown
@@ -132,6 +135,97 @@ def make_material(name, base, rough=0.9, metal=0.0):
 WHITE = (1, 1, 1, 1)
 
 
+def smooth(t):
+    t = max(0.0, min(1.0, t)); return t * t * (3 - 2 * t)
+
+
+def gauss(x, s):
+    return math.exp(-(x / s) ** 2)
+
+
+def sheet(P, mat, rows, thick=0.006, closed=False, col=None):
+    """A piece of cloth with a thickness to it: rows of points from its top edge to its bottom, all the same length
+    (closed: each row runs round and joins itself). The thickness is laid on the outside, away from the body."""
+    b = P.bm(mat)
+    lay = b.loops.layers.float_color["Col"]
+    R_, C_ = len(rows), len(rows[0])
+    O, I, cols = [], [], {}
+    for i in range(R_):
+        cx = sum(p[0] for p in rows[i]) / C_; cy = sum(p[1] for p in rows[i]) / C_
+        ro, ri = [], []
+        for j in range(C_):
+            p = Vector(rows[i][j])
+            jp = (j + 1) % C_ if closed else min(C_ - 1, j + 1); jm = (j - 1) % C_ if closed else max(0, j - 1)
+            ip, im = min(R_ - 1, i + 1), max(0, i - 1)
+            n = (Vector(rows[i][jp]) - Vector(rows[i][jm])).cross(Vector(rows[ip][j]) - Vector(rows[im][j]))
+            out = Vector((p.x - cx, p.y - cy, 0))
+            if n.length < 1e-9: n = out
+            if n.length < 1e-9: n = Vector((0, 0, 1))
+            n.normalize()
+            if n.dot(out) < 0: n = -n
+            vo, vi = b.verts.new(p + n * thick), b.verts.new(p)
+            c = col(i, j) if col else WHITE
+            cols[vo] = c; cols[vi] = c
+            ro.append(vo); ri.append(vi)
+        O.append(ro); I.append(ri)
+    def face(vs):
+        try:
+            fc = b.faces.new(vs)
+            for l in fc.loops: l[lay] = cols[l.vert]
+        except ValueError:
+            pass
+    span = range(C_) if closed else range(C_ - 1)
+    for i in range(R_ - 1):
+        for j in span:
+            j2 = (j + 1) % C_
+            face((O[i][j], O[i][j2], O[i + 1][j2], O[i + 1][j]))
+            face((I[i][j], I[i + 1][j], I[i + 1][j2], I[i][j2]))
+    for i in (0, R_ - 1):
+        for j in span:
+            j2 = (j + 1) % C_
+            face((O[i][j], I[i][j], I[i][j2], O[i][j2]))
+    if not closed:
+        for i in range(R_ - 1):
+            for j in (0, C_ - 1):
+                face((O[i][j], O[i + 1][j], I[i + 1][j], I[i][j]))
+
+
+def bake_ao(sc, objs):
+    """The shade that gathers in the folds and corners — under the hat's brim, in the eye sockets, between the arm and
+    the side — baked into the vertex colours, so the game shows it everywhere at no cost."""
+    sc.render.engine = "CYCLES"
+    sc.cycles.samples = 48
+    sc.cycles.device = "CPU"
+    if not sc.world:
+        sc.world = bpy.data.worlds.new("w")
+    sc.world.light_settings.distance = 0.12
+    sc.render.bake.target = "VERTEX_COLORS"
+    for ob in objs:
+        me = ob.data
+        if "Col" not in me.color_attributes:
+            continue
+        dom = me.color_attributes["Col"].domain
+        me.color_attributes.new("AO", "FLOAT_COLOR", dom)
+        me.color_attributes.active_color = me.color_attributes["AO"]
+        for o2 in sc.objects:
+            o2.select_set(False)
+        ob.select_set(True)
+        bpy.context.view_layer.objects.active = ob
+        bpy.ops.object.bake(type="AO", target="VERTEX_COLORS")
+        col, ao = me.color_attributes["Col"], me.color_attributes["AO"]
+        n = len(col.data)
+        cv = [0.0] * (n * 4); av = [0.0] * (n * 4)
+        col.data.foreach_get("color", cv); ao.data.foreach_get("color", av)
+        for i in range(n):
+            k = 0.3 + 0.7 * av[i * 4]
+            cv[i * 4] *= k; cv[i * 4 + 1] *= k; cv[i * 4 + 2] *= k
+        col.data.foreach_set("color", cv)
+        me.color_attributes.remove(me.color_attributes["AO"])
+        me.color_attributes.active_color = me.color_attributes["Col"]
+        me.color_attributes.render_color_index = me.color_attributes.find("Col")
+        ob.select_set(False)
+
+
 def build_person(key):
     o = CAST[key]
     f = o["sex"] == "f"
@@ -161,6 +255,13 @@ def build_person(key):
 
     skin = rgb(o["skin"])
     hair = rgb(o["hair"])
+    wild = o.get("wild", False)
+    if wild:
+        mat("fur", rgb(0x6a5440), 1.0)
+        M["stockings"] = make_material(f"{key}_stockings", rgb(0x7a6a52), 0.95)
+    tint = lambda c, k: (c[0] * k[0], c[1] * k[1], c[2] * k[2], 1.0)
+    mix = lambda a, b, t: (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, 1.0)
+    rnd = random.Random(hash(key) & 0xffff)
 
     # ---- the skeleton of joints the body grows on (names = bones later) ----
     sh = 0.17 if f else 0.195                 # shoulder half width
@@ -168,38 +269,49 @@ def build_person(key):
     stoop = o.get("stoop", 0.0)
     J = {
         "pelvis": (0, 0, 0.93), "spine": (0, 0.0, 1.10), "chest": (0, stoop * 0.3, 1.30), "neck": (0, stoop * 0.6, 1.49), "head": (0, stoop * 0.8, 1.56),
-        # the yoke: the breadth across the top of the chest that the shoulders grow out of, so the arms don't hang off a
-        # narrow neck like a doll's
+        # the yoke: the breadth across the top of the chest that the shoulders grow out of
         "yoke": (0, stoop * 0.45, 1.405),
         "shoulder.L": (sh, stoop * 0.4, 1.42), "elbow.L": (sh + 0.03, 0.02, 1.16), "wrist.L": (sh + 0.045, -0.01, 0.93), "hand.L": (sh + 0.05, -0.02, 0.84),
         "shoulder.R": (-sh, stoop * 0.4, 1.42), "elbow.R": (-sh - 0.03, 0.02, 1.16), "wrist.R": (-sh - 0.045, -0.01, 0.93), "hand.R": (-sh - 0.05, -0.02, 0.84),
         "hip.L": (hp, 0, 0.90), "knee.L": (hp + 0.005, -0.015, 0.50), "ankle.L": (hp + 0.01, 0.02, 0.085), "toe.L": (hp + 0.01, -0.13, 0.035),
         "hip.R": (-hp, 0, 0.90), "knee.R": (-hp - 0.005, -0.015, 0.50), "ankle.R": (-hp - 0.01, 0.02, 0.085), "toe.R": (-hp - 0.01, -0.13, 0.035),
     }
-    # radii: (across, front-to-back)
     wide = o.get("wide", 0.0)
     R = {
-        "pelvis": ((0.17 if f else 0.155) + wide, 0.115 + wide * 0.6), "spine": (0.15 + wide * 0.8, 0.1 + wide * 0.6), "chest": ((0.16 if f else 0.18) + wide * 0.5, 0.11),
+        "pelvis": ((0.17 if f else 0.155) + wide, 0.115 + wide * 0.6), "spine": ((0.14 if f else 0.15) + wide * 0.8, 0.1 + wide * 0.6), "chest": ((0.155 if f else 0.18) + wide * 0.5, 0.115 if f else 0.11),
         "yoke": ((0.15 if f else 0.175) + wide * 0.4, 0.1),
-        "neck": (0.052, 0.055), "head": (0.058, 0.06),
-        "shoulder": (0.07, 0.068), "elbow": (0.048, 0.048), "wrist": (0.034, 0.03), "hand": (0.042, 0.02),
-        "hip": (0.088 if f else 0.085, 0.09), "knee": (0.056, 0.058), "ankle": (0.04, 0.042), "toe": (0.045, 0.03),
+        "neck": (0.05 if f else 0.058, 0.054 if f else 0.062), "head": (0.056 if f else 0.064, 0.058 if f else 0.066),
+        "shoulder": (0.066 if f else 0.07, 0.066 if f else 0.068), "elbow": (0.042 if f else 0.048, 0.044 if f else 0.048), "wrist": (0.03 if f else 0.034, 0.027 if f else 0.03), "hand": (0.036 if f else 0.04, 0.017),
+        "hip": (0.088 if f else 0.085, 0.09), "knee": (0.052 if f else 0.056, 0.056 if f else 0.058), "ankle": (0.036 if f else 0.04, 0.04 if f else 0.042), "toe": (0.042 if f else 0.045, 0.028 if f else 0.03),
     }
-    edges = [("pelvis", "spine"), ("spine", "chest"), ("chest", "yoke"), ("yoke", "neck"), ("neck", "head")]
+    RAD = {n: R[n.split(".")[0]] for n in J}
+    # where the flesh swells and narrows between the joints: the thigh, the calf, the biceps, the forearm
+    def along(a, b, t, dy=0.0):
+        pa, pb = Vector(J[a]), Vector(J[b]); p = pa.lerp(pb, t); return (p.x, p.y + dy, p.z)
+    PTS = dict(J)
+    chain = []
     for s in "LR":
-        edges += [("yoke", f"shoulder.{s}"), (f"shoulder.{s}", f"elbow.{s}"), (f"elbow.{s}", f"wrist.{s}"), (f"wrist.{s}", f"hand.{s}"),
-                  ("pelvis", f"hip.{s}"), (f"hip.{s}", f"knee.{s}"), (f"knee.{s}", f"ankle.{s}"), (f"ankle.{s}", f"toe.{s}")]
-    names = list(J)
+        extra = {
+            f"thighm.{s}": (along(f"hip.{s}", f"knee.{s}", 0.42, 0.004), (0.08 if f else 0.079, 0.086)),
+            f"calf.{s}": (along(f"knee.{s}", f"ankle.{s}", 0.3, 0.012), (0.05 if f else 0.055, 0.058 if f else 0.064)),
+            f"shinlo.{s}": (along(f"knee.{s}", f"ankle.{s}", 0.74), (0.037 if f else 0.04, 0.04 if f else 0.043)),
+            f"bicep.{s}": (along(f"shoulder.{s}", f"elbow.{s}", 0.42), (0.046 if f else 0.055, 0.048 if f else 0.057)),
+            f"forem.{s}": (along(f"elbow.{s}", f"wrist.{s}", 0.3), (0.039 if f else 0.046, 0.037 if f else 0.044)),
+        }
+        for n, (p, r) in extra.items():
+            PTS[n] = p; RAD[n] = r
+        chain += [("yoke", f"shoulder.{s}"), (f"shoulder.{s}", f"bicep.{s}"), (f"bicep.{s}", f"elbow.{s}"), (f"elbow.{s}", f"forem.{s}"), (f"forem.{s}", f"wrist.{s}"), (f"wrist.{s}", f"hand.{s}"),
+                  ("pelvis", f"hip.{s}"), (f"hip.{s}", f"thighm.{s}"), (f"thighm.{s}", f"knee.{s}"), (f"knee.{s}", f"calf.{s}"), (f"calf.{s}", f"shinlo.{s}"), (f"shinlo.{s}", f"ankle.{s}"), (f"ankle.{s}", f"toe.{s}")]
+    edges = [("pelvis", "spine"), ("spine", "chest"), ("chest", "yoke"), ("yoke", "neck"), ("neck", "head")] + chain
+    names = list(PTS)
     me = bpy.data.meshes.new(f"{key}_body")
-    me.from_pydata([J[n] for n in names], [(names.index(a), names.index(b)) for a, b in edges], [])
+    me.from_pydata([PTS[n] for n in names], [(names.index(a), names.index(b)) for a, b in edges], [])
     body = bpy.data.objects.new(f"{key}_body", me)
     sc.collection.objects.link(body)
     skin_mod = body.modifiers.new("Skin", "SKIN")
     skin_mod.use_smooth_shade = True
     for i, n in enumerate(names):
-        base = n.split(".")[0]
-        rx, ry = R[base]
-        me.skin_vertices[0].data[i].radius = (rx, ry)
+        me.skin_vertices[0].data[i].radius = RAD[n]
     me.skin_vertices[0].data[names.index("pelvis")].use_root = True
     sub = body.modifiers.new("Sub", "SUBSURF")
     sub.levels = 2
@@ -212,6 +324,7 @@ def build_person(key):
     # ---- dress the body: each face gets a material by where it is ----
     bm = bmesh.new()
     bm.from_mesh(me)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     layer = bm.loops.layers.float_color.new("Col")
     slots = ["skin", "coat", "legs", "stockings", "leather", "linen"] + (["skirt"] if f else [])
     for sname in slots:
@@ -222,10 +335,15 @@ def build_person(key):
         x, y, z = c
         ax = abs(x)
         arm = ax > sh - 0.02 and z > 0.78 and z < 1.5
+        col = WHITE
         if z < 0.13:
             m = "leather"                                   # shoes
         elif arm and z < 0.9:
             m = "skin"                                      # hands
+        elif arm and wild:
+            m = "leather" if z < 1.03 else "skin"           # bare arms, leather bracers
+        elif arm and f:
+            m = "skin" if z < 1.06 else "linen" if z < 1.1 else "coat"   # sleeves to the elbow, the shift's frill
         elif arm and z < 0.97:
             m = "linen"                                     # shirt cuffs
         elif arm:
@@ -236,12 +354,20 @@ def build_person(key):
             m = "coat"                                      # body
         elif f:
             m = "stockings" if z < 0.5 else "skin"          # under the skirt nobody looks
+        elif wild:
+            # the legs bound in strips from the ankle to the knee, criss-crossed
+            if z > 0.52: m = "legs"
+            else:
+                m = "stockings"
+                a = math.atan2(y, x - math.copysign(hp, x))
+                col = (0.6, 0.58, 0.54, 1) if math.sin(z * 70 + a * 2.0) > 0.45 else WHITE
         elif z > 0.5:
             m = "legs"                                      # breeches to the knee
         else:
             m = "stockings"
         fc.material_index = idx[m]
-        col = skin if m == "skin" else WHITE
+        if m == "skin":
+            col = skin
         for l in fc.loops:
             l[layer] = col
     bm.to_mesh(me)
@@ -249,173 +375,532 @@ def build_person(key):
     me.color_attributes.active_color_name = "Col"
     me.color_attributes.render_color_index = 0
 
+    # the body as something to fit clothes over: a point pushed out of it to stand `off` clear of the skin
+    from mathutils.bvhtree import BVHTree
+    btree = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    def clear(p, off=0.008):
+        p = Vector(p)
+        loc, n, i, d = btree.find_nearest(p)
+        if loc is None:
+            return p
+        if (p - loc).dot(n) < off:
+            return loc + n * off
+        return p
+
     P = Parts(key)
-    hz = 1.56 + stoop * 0.0                              # the base of the skull
+    hz = 1.56                                            # the base of the skull
     hy = stoop * 0.8
-    head_h = 0.23
     hc = Vector((0, hy - 0.005, hz + 0.105))             # centre of the head
-    # ---- the head: one smooth ellipsoid (no separate jaw, so no chin standing out), every feature set on its surface ----
-    SK = (hc, Vector((0.088, 0.1, 0.112)))
-    def front(x, z):
-        """how far forward (most negative y) the face is at (x, z)"""
-        best = 1.0
-        for c, r in (SK,):
-            u = 1 - ((x - c.x) / r.x) ** 2 - ((z - c.z) / r.z) ** 2
-            if u > 0:
-                best = min(best, c.y - r.y * math.sqrt(u))
-        return best
-    P.sphere("skin", skin, SK[0], SK[1], segs=28, rings=18)
-    # a slight brow over the eyes (no cheek bumps: faces are smooth there)
-    P.sphere("skin", skin, Vector((0, front(0, hc.z + 0.03) + 0.011, hc.z + 0.03)), (0.062, 0.013, 0.011), segs=16, rings=8)
-    # the nose: a bridge and a tip
-    ny = front(0, hc.z + 0.01)
-    P.cyl("skin", skin, (0, ny + 0.004, hc.z + 0.016), (0, ny - 0.018, hc.z - 0.028), 0.008, 0.012 if not f else 0.01, segs=10)
-    P.sphere("skin", skin, (0, ny - 0.016, hc.z - 0.031), (0.013, 0.012, 0.01), segs=12, rings=8)
-    for s_ in (-1, 1):
-        P.sphere("skin", skin, (s_ * 0.01, ny - 0.008, hc.z - 0.035), (0.007, 0.008, 0.006), segs=8, rings=6)
-    # lips
-    lip = rgb(0xb06e60) if f else rgb(0x9c6452)
-    ly = front(0, hc.z - 0.066)
-    P.sphere("skin", lip, (0, ly - 0.002, hc.z - 0.062), (0.024 if not f else 0.022, 0.008, 0.0065), segs=14, rings=6)
-    P.sphere("skin", lip, (0, ly - 0.001, hc.z - 0.072), (0.021, 0.009, 0.0075), segs=14, rings=6)
-    for s_ in (-1, 1):
-        ex, ez = s_ * 0.034, hc.z + 0.008
-        ey = front(ex, ez)
-        P.sphere("skin", skin, (s_ * 0.089, 0.005 + hc.y, hc.z - 0.005), (0.012, 0.022, 0.03), segs=12, rings=8)        # ear
-        # the eye in its socket: white, iris, pupil; a lid above and a brow
-        P.sphere("eyes", rgb(0xeee8dc), (ex, ey + 0.004, ez), (0.0145, 0.009, 0.0095), segs=14, rings=10)
-        iris = rgb(0x5a3a22 if key not in ("brother", "sister") else 0x3e5a7a)
-        P.sphere("eyes", iris, (ex, ey - 0.0045, ez), (0.0072, 0.0025, 0.0072), segs=12, rings=8)
-        P.sphere("eyes", rgb(0x0c0806), (ex, ey - 0.0062, ez), (0.0034, 0.0012, 0.0034), segs=10, rings=6)
-        P.sphere("skin", skin, (ex, ey + 0.001, ez + 0.0085), (0.0165, 0.0095, 0.0055), segs=12, rings=6)             # upper lid
-        bz = ez + (0.024 if f else 0.021)
-        P.box("hair", hair if not old else rgb(0xc8c4bc), (s_ * 0.036, front(s_ * 0.036, bz) - 0.012, bz), (0.036, 0.007, 0.006 if f else 0.009), (0.2, s_ * (0.12 if f else 0.04), 0))
-    # hair: a cap over the crown and back, cut to a hairline at the forehead and in front of the ears
-    hcol = hair
-    b = P.bm("hair")
-    v = bmesh.ops.create_uvsphere(b, u_segments=28, v_segments=18, radius=1)["verts"]
-    bmesh.ops.transform(b, matrix=Matrix.LocRotScale(hc + Vector((0, 0.006, 0.01)), Euler((0, 0, 0)), Vector((0.094, 0.106, 0.116))), verts=v)
-    face = [fc for fc in {fc for vv in v for fc in vv.link_faces}
-            if (fc.calc_center_median().y < hc.y - 0.035 and fc.calc_center_median().z < hc.z + 0.055)
-            or (fc.calc_center_median().y < hc.y + 0.02 and fc.calc_center_median().z < hc.z - 0.02)]
-    bmesh.ops.delete(b, geom=face, context="FACES")
-    v = [vv for vv in v if vv.is_valid]
-    P.paint(b, v, hcol)
-    if f or o.get("longHair"):
-        # it hangs behind the neck and over the shoulders at the back, never round the jaw
-        P.sphere("hair", hcol, hc + Vector((0, 0.07, -0.085)), (0.082, 0.048, 0.12), segs=20, rings=12)
-        if f and o.get("hat") != "bonnet":
-            P.sphere("hair", hcol, hc + Vector((0, 0.1, 0.02)), (0.05, 0.045, 0.05), segs=14, rings=10)             # a bun
+    RX, RY, RZ = 0.088, 0.1, 0.112
+
+    def piecewise(knots, t):
+        if t <= knots[0][0]: return knots[0][1]
+        for (a, va), (b, vb) in zip(knots, knots[1:]):
+            if t <= b:
+                k = (t - a) / (b - a); return va + (vb - va) * k
+        return knots[-1][1]
+
+    def paint_verts(b, colfn):
+        """each vertex its own colour, on all its corners"""
+        lay = b.loops.layers.float_color["Col"]
+        for v in b.verts:
+            c = colfn(v)
+            for l in v.link_loops:
+                l[lay] = c
+
+    def merge(b, mat):
+        """a piece built in its own bmesh, added to the material's mesh"""
+        tmp = bpy.data.meshes.new("tmp")
+        b.to_mesh(tmp); b.free()
+        P.bm(mat).from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+
+    def newbm():
+        b = bmesh.new(); b.loops.layers.float_color.new("Col"); return b
+
+    # ---- hair: a shell over the head, sunk under the skin wherever there is no hair, so the hairline is a clean curve;
+    # combed in fine ridges from the crown ----
+    if f:
+        HL = [(0, 0.52), (0.8, 0.46), (1.2, 0.12), (1.6, -0.12), (2.2, -0.4), (PI, -0.5)]
+    elif wild:
+        HL = [(0, 0.46), (0.8, 0.44), (1.1, 0.15), (1.35, -0.25), (1.62, 0.0), (2.0, -0.45), (PI, -0.65)]
     else:
-        P.sphere("hair", hcol, hc + Vector((0, 0.045, -0.045)), (0.084, 0.062, 0.074), segs=20, rings=12)
+        HL = [(0, 0.52), (0.75, 0.5 if not old else 0.6), (1.0, 0.32), (1.2, 0.02), (1.38, -0.1), (1.5, 0.1), (1.68, 0.14), (1.9, -0.2), (2.3, -0.45), (PI, -0.55)]
+    # ---- the head: an ellipsoid sculpted into a face — skull, jaw and chin, the brow and sockets, cheekbones, the nose and lips
+    # worked into the one surface — finer over the face, where the features are ----
+    hb = newbm()
+    bmesh.ops.create_uvsphere(hb, u_segments=32, v_segments=24, radius=1)
+    face_edges = [e for e in hb.edges if all(v.co.y < -0.28 and -0.9 < v.co.z < 0.6 for v in e.verts)]
+    bmesh.ops.subdivide_edges(hb, edges=face_edges, cuts=2, use_grid_fill=True, smooth=1.0)
+    for v in hb.verts:
+        v.co = v.co.normalized()
+    jawK = 0.16 if f else 0.12
+    noseH = 0.019 if f else 0.024
+    def sculpt(X, Y, Z):
+        fr = max(0.0, -Y)
+        x, y, z = X * RX, Y * RY, Z * RZ
+        if Y > 0: y *= 1 + 0.07 * Y * smooth((Z + 0.4) / 0.8)
+        low = smooth((-Z - 0.02) / 0.85)
+        x *= 1 - jawK * low * (0.35 + 0.65 * fr)
+        if not f: x *= 1 + 0.05 * gauss(Z + 0.55, 0.18) * smooth((abs(X) - 0.4) / 0.3)          # a squarer jaw
+        if Z < -0.85: z = -0.85 * RZ + (z + 0.85 * RZ) * 0.7
+        dy = 0.0
+        dy -= (0.003 if f else 0.0055) * gauss(Z - 0.27, 0.1) * gauss(X, 0.62)                       # the brow
+        for sd in (-1, 1):
+            dy += 0.0085 * gauss(X - sd * 0.39, 0.16) * gauss(Z - 0.07, 0.12)                           # the sockets
+            k = gauss(X - sd * 0.58, 0.2) * gauss(Z + 0.1, 0.16)
+            x += sd * 0.004 * k; dy -= 0.004 * k                                                       # cheekbones
+            if old: dy += 0.004 * gauss(X - sd * 0.45, 0.15) * gauss(Z + 0.35, 0.14)                   # hollow cheeks
+            dy += 0.0018 * gauss(X - sd * 0.26, 0.06) * gauss(Z + 0.5, 0.06)                            # the corners of the mouth
+            dy -= 0.0055 * gauss(X - sd * 0.15, 0.065) * gauss(Z + 0.3, 0.055)                          # the wings of the nose
+        # the nose: a bridge from between the eyes down to the tip, and in under it
+        if Z > -0.27:
+            t = max(0.0, min(1.0, (0.13 - Z) / 0.4)); h = 0.003 + (noseH - 0.003) * t ** 1.4; w = 0.065 + 0.07 * t
+        else:
+            h = noseH * smooth((Z + 0.37) / 0.1); w = 0.13
+        dy -= h * gauss(X, w)
+        dy -= 0.0035 * gauss(X, 0.3) * gauss(Z + 0.43, 0.07)                                           # the upper lip
+        dy += 0.0028 * gauss(X, 0.24) * gauss(Z + 0.5, 0.03)                                           # where the lips meet
+        dy -= 0.003 * gauss(X, 0.24) * gauss(Z + 0.56, 0.055)                                         # the lower lip
+        dy -= (0.003 if f else 0.005) * gauss(X, 0.26) * gauss(Z + 0.78, 0.12)                        # the chin
+        y += dy * smooth(fr / 0.5)
+        return Vector((x, y, z))
+    lipc = rgb(0xb8726a) if f else rgb(0xa47462)
+    hv_unit = {}
+    for v in hb.verts:
+        hv_unit[v.index] = v.co.copy()
+        v.co = hc + sculpt(*v.co)
+    def hcol(v):
+        X, Y, Z = hv_unit[v.index]
+        fr = max(0.0, -Y)
+        c = skin
+        blush = 0.0
+        for sd in (-1, 1):
+            blush += gauss(X - sd * 0.5, 0.22) * gauss(Z + 0.18, 0.2)
+        blush = min(1.0, blush) * fr * (0.45 if f else 0.3)
+        c = mix(c, tint(skin, (1.06, 0.82, 0.8)), blush)
+        c = mix(c, tint(skin, (1.04, 0.86, 0.84)), 0.35 * gauss(X, 0.12) * gauss(Z + 0.28, 0.07) * fr)    # the nose's tip
+        for sd in (-1, 1):
+            c = mix(c, tint(skin, (0.86, 0.8, 0.8)), 0.4 * gauss(X - sd * 0.39, 0.17) * gauss(Z - 0.05, 0.13) * fr)   # the sockets in shade
+        lip = gauss(X, 0.27) * max(gauss(Z + 0.47, 0.045), gauss(Z + 0.55, 0.05)) * fr
+        c = mix(c, lipc, min(1.0, lip * (1.1 if f else 0.8)))
+        c = mix(c, tint(lipc, (0.55, 0.5, 0.5)), 0.6 * gauss(X, 0.22) * gauss(Z + 0.505, 0.018) * fr)  # the line between them
+        # eyebrows, painted on: a soft arch over each eye
+        for sd in (-1, 1):
+            zc = 0.25 + 0.035 * gauss(abs(X) - 0.36, 0.2)
+            m_ = gauss(Z - zc, 0.03 if f else 0.045) * smooth((abs(X) - 0.1) / 0.06) * smooth((0.66 - abs(X)) / 0.08) * (1 if X * sd > 0 else 0) * fr
+            c = mix(c, rgb(o.get("beard", o["hair"])) if not old else rgb(0xa8a49c), min(1.0, m_ * (0.85 if f else 1.0)))
+        # the hairline painted on, finer than the hair's own shell can draw it
+        phi = math.atan2(X, -Y)
+        mh = smooth((Z - piecewise(HL, abs(phi)) + 0.02) / 0.11)
+        c = mix(c, tint(hair, (0.62, 0.62, 0.62)), mh)
+        # a shadow of beard on the shaven
+        if not f and not o.get("beard") and not young:
+            c = mix(c, tint(skin, (0.78, 0.78, 0.8)), 0.35 * smooth((-Z - 0.35) / 0.25) * smooth(fr / 0.3) * (1 - gauss(X, 0.25) * gauss(Z + 0.5, 0.1)))
+        return c
+    paint_verts(hb, hcol)
+    hb.normal_update()
+    htree = BVHTree.FromBMesh(hb)
+    merge(hb, "skin")
+    def front(x, z):
+        """the face's surface at (x, z): the nearest point coming in from the front"""
+        hit = htree.ray_cast(Vector((x, hc.y - 0.4, z)), Vector((0, 1, 0)))
+        return hit[0].y if hit[0] is not None else hc.y - RY
+
+    # the eyes in their sockets: the iris and pupil painted in rings round the front of the ball, a lid over the top
+    iris = rgb(0x5a3a22 if key not in ("brother", "sister") else 0x3e5a7a)
+    for sd in (-1, 1):
+        ex, ez = sd * 0.034, hc.z + 0.008
+        ey = front(ex, ez)
+        er = 0.0122
+        ec = Vector((ex, ey + er - 0.0055, ez))
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=12, radius=er)
+        bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.pi / 2, 3, "X"))
+        def ecol(v):
+            a = math.acos(max(-1.0, min(1.0, -v.co.y / er)))
+            return rgb(0x0a0706) if a < 0.2 else iris if a < 0.5 else rgb(0xe6ded2)
+        paint_verts(b, ecol)
+        bmesh.ops.translate(b, verts=b.verts, vec=ec)
+        merge(b, "eyes")
+        # the upper lid, its lashes dark along its edge
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=10, radius=1)
+        bmesh.ops.delete(b, geom=[v for v in b.verts if v.co.z < 0.12], context="VERTS")
+        bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(-0.25, 3, "X"))
+        paint_verts(b, lambda v: tint(skin, (0.3, 0.25, 0.22)) if v.co.z < 0.26 else mix(skin, tint(skin, (0.9, 0.82, 0.8)), 0.5))
+        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(ec + Vector((0, -0.0006, 0.0006)), Euler((0, 0, 0)), Vector((er * 1.12, er * 1.1, er * 1.02))))
+        merge(b, "skin")
+        # the lower lid, a soft roll
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=8, radius=1)
+        bmesh.ops.delete(b, geom=[v for v in b.verts if v.co.z > 0.0 or v.co.y > 0.2], context="VERTS")
+        paint_verts(b, lambda v: tint(skin, (0.92, 0.84, 0.82)))
+        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(ec + Vector((0, -0.0004, 0.0)), Euler((0.3, 0, 0)), Vector((er * 1.1, er * 1.08, er * 1.0))))
+        merge(b, "skin")
+        # the ear: a rim and the bowl inside it
+        ecn = Vector((sd * 0.084, hc.y + 0.008, hc.z - 0.006))
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=12, v_segments=8, radius=1)
+        paint_verts(b, lambda v: tint(skin, (0.98, 0.86, 0.84)))
+        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(ecn, Euler((0.2, 0, sd * -0.25)), Vector((0.008, 0.017, 0.027))))
+        merge(b, "skin")
+        b = newbm()
+        bmesh.ops.create_circle(b, cap_ends=False, segments=18, radius=1)
+        ring = [v.co.copy() for v in b.verts]
+        b.free()
+        b = newbm()
+        verts_rows = []
+        for i, c0 in enumerate(ring):
+            a = i / len(ring) * 2 * PI
+            cen = Vector((0, c0.x * 0.0155, c0.y * 0.0255))
+            row = []
+            for j in range(6):
+                t = j / 6 * 2 * PI
+                off = Vector((math.cos(t) * 0.0042, math.sin(t) * 0.0042 * c0.x, math.sin(t) * 0.0042 * c0.y))
+                row.append(b.verts.new(cen + off))
+            verts_rows.append(row)
+        for i in range(len(ring)):
+            r0, r1 = verts_rows[i], verts_rows[(i + 1) % len(ring)]
+            for j in range(6):
+                b.faces.new((r0[j], r0[(j + 1) % 6], r1[(j + 1) % 6], r1[j]))
+        paint_verts(b, lambda v: tint(skin, (1.0, 0.86, 0.84)))
+        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(ecn + Vector((sd * 0.002, 0, 0)), Euler((0.2, 0, sd * -0.25)), Vector((1, 1, 1))))
+        merge(b, "skin")
+
+    hcol_ = hair
+    def hair_shell(rx, ry, rz, segs, rings, mask, thick, ridge, col, groove=None):
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=segs, v_segments=rings, radius=1)
+        uv = {}
+        for v in b.verts:
+            X, Y, Z = v.co.normalized()
+            phi = math.atan2(X, -Y)
+            m_ = mask(X, Y, Z, phi)
+            r_ = ridge * abs(math.sin(phi * 24 + Z * 2.5)) * m_
+            e = -0.007 + (0.007 + thick(X, Y, Z)) * m_ + r_
+            if groove: e -= groove(X, Y, Z, phi) * m_
+            n = Vector((X, Y, Z))
+            p = sculpt(X, Y, Z) if Y < 0 else Vector((X * RX, Y * RY * (1 + 0.07 * Y * smooth((Z + 0.4) / 0.8)), Z * RZ))
+            v.co = hc + p + n * e
+            uv[v] = (r_, m_, Z)
+        paint_verts(b, lambda v: col(*uv[v]))
+        return b
+    vol = 0.007 if young else 0.008
+    b = hair_shell(RX, RY, RZ, 40, 28, lambda X, Y, Z, phi: smooth((Z - piecewise(HL, abs(phi)) - 0.1) / 0.09),
+                   lambda X, Y, Z: vol + 0.007 * smooth(Z + 0.2), 0.0024,
+                   lambda r_, m_, Z: tint(hcol_, (0.7 + 110 * r_, 0.7 + 110 * r_, 0.7 + 110 * r_)),
+                   (lambda X, Y, Z, phi: 0.004 * gauss(phi, 0.07) * smooth((Z - 0.3) / 0.2)) if f else None)
+    merge(b, "hair")
+    if f or o.get("longHair"):
+        # hair to the shoulders at the back: a fall of it from the back of the head, or gathered into a bun
+        if f and o.get("hat") not in ("bonnet",):
+            b = newbm()
+            bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=12, radius=1)
+            for v in b.verts:
+                a = math.atan2(v.co.x, v.co.z)
+                v.co *= 1 + 0.08 * abs(math.sin(a * 6))
+            paint_verts(b, lambda v: tint(hcol_, (0.85, 0.85, 0.85)))
+            bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(hc + Vector((0, 0.1, 0.0)), Euler((0.6, 0, 0)), Vector((0.048, 0.04, 0.046))))
+            merge(b, "hair")
+        if o.get("longHair") and not f:
+            rows = []
+            cols = 20
+            for i in range(7):
+                t = i / 6
+                row = []
+                for j in range(cols + 1):
+                    a = (1.7 if wild else 1.25) + (2 * PI - (3.4 if wild else 2.5)) * j / cols
+                    rr = 1.02 + 0.25 * t
+                    zz = hc.z - 0.02 - t * (0.2 if not wild else 0.24) - (rnd.random() * 0.03 * t if wild else 0)
+                    x_ = math.sin(a) * RX * rr * (1 + 0.6 * t)
+                    y_ = -math.cos(a) * RY * rr + 0.012 * t
+                    p = clear(Vector((x_, hc.y + y_, zz)), 0.012) if zz < 1.52 else Vector((x_, hc.y + y_, zz))
+                    p += Vector((math.sin(a), -math.cos(a), 0)) * 0.004 * abs(math.sin(j * 1.7 + i))
+                    row.append(p)
+                rows.append(row)
+            sheet(P, "hair", rows, thick=0.012, col=lambda i, j: tint(hcol_, (0.78 + 0.2 * ((j % 2)), 0.78 + 0.2 * ((j % 2)), 0.78 + 0.2 * ((j % 2)))))
     if o.get("beard"):
         bc = rgb(o["beard"])
-        by = front(0, hc.z - 0.09)
-        if o.get("beardShort"):
-            P.sphere("hair", bc, (0, by + 0.028, hc.z - 0.085), (0.07, 0.04, 0.042), segs=18, rings=10)
-        else:
-            P.sphere("hair", bc, (0, by + 0.03, hc.z - 0.092), (0.072, 0.042, 0.056), segs=18, rings=10)
-            P.sphere("hair", bc, (0, by + 0.004, hc.z - 0.125), (0.04, 0.026, 0.034), segs=14, rings=8)
-        P.sphere("hair", bc, (0, ly - 0.004, hc.z - 0.054), (0.034, 0.011, 0.009), segs=14, rings=6)                  # moustache
+        short = o.get("beardShort")
+        def bmask(X, Y, Z, phi):
+            under = smooth((-0.3 - Z) / 0.09) * smooth((1.5 - abs(phi)) / 0.15)
+            tash = gauss(Z + 0.39, 0.035) * gauss(X, 0.28) * smooth((0.6 - abs(phi)) / 0.2)
+            hole = gauss(X, 0.24) * gauss(Z + 0.5, 0.075)
+            return max(0.0, min(1.0, max(under * (1 - hole), tash * 1.2)))
+        thickness = (lambda X, Y, Z: 0.004 + 0.003 * smooth((-Z - 0.5) / 0.3)) if short else (lambda X, Y, Z: 0.006 + (0.03 if wild else 0.018) * smooth((-Z - 0.55) / 0.4) * gauss(X, 0.6))
+        b = hair_shell(RX, RY, RZ, 28, 20, bmask, thickness, 0.0016, lambda r_, m_, Z: tint(bc, (0.75 + 120 * r_, 0.75 + 120 * r_, 0.75 + 120 * r_)))
+        merge(b, "hair")
+
+    # ---- hands: fingers and a thumb, curled a little toward the palm ----
+    for sd in (-1, 1):
+        hx, hz_ = sd * (sh + 0.05), 0.845
+        for k, (fy, ln) in enumerate([(-0.019, 0.062), (-0.0065, 0.07), (0.006, 0.066), (0.017, 0.054)]):
+            a = Vector((hx, J["hand.L"][1] + fy, hz_ + 0.012))
+            m1 = a + Vector((-sd * 0.004, 0, -ln * 0.5))
+            tip = m1 + Vector((-sd * 0.011, -0.002, -ln * 0.42))
+            r_ = 0.0085 if k < 3 else 0.0075
+            if f: r_ *= 0.88
+            P.cyl("skin", skin, a, m1, r_, r_ * 0.95, segs=6, caps=False)
+            P.cyl("skin", skin, m1, tip, r_ * 0.95, r_ * 0.85, segs=6, caps=False)
+            P.sphere("skin", skin, tip, (r_ * 0.85,) * 3, segs=6, rings=4)
+        tb = Vector((hx - sd * 0.008, J["hand.L"][1] - 0.022, 0.895))
+        tm = tb + Vector((-sd * 0.008, -0.014, -0.03))
+        tt = tm + Vector((-sd * 0.006, -0.006, -0.026))
+        P.cyl("skin", skin, tb, tm, 0.011 if not f else 0.0095, 0.0095 if not f else 0.0085, segs=7)
+        P.cyl("skin", skin, tm, tt, 0.0095 if not f else 0.0085, 0.008, segs=7)
+        P.sphere("skin", skin, tt, (0.008,) * 3, segs=7, rings=4)
 
     # ---- clothes over the body ----
-    coatc = WHITE
-    if not f:
+    def skirt_rows(z0, z1, n, a0, a1, cols, rad, fold, off=0.006, jag=0.0):
+        """rows of points round the body from z0 down to z1, between angles a0 and a1 (0 at the front), each
+        pushed clear of the body"""
+        rows = []
+        for i in range(n):
+            t = i / (n - 1)
+            z = z0 + (z1 - z0) * t
+            row = []
+            for j in range(cols + 1):
+                a = a0 + (a1 - a0) * j / cols
+                rx_, ry_ = rad(t)
+                fo = fold(t, a)
+                p = Vector((math.sin(a) * (rx_ + fo), -math.cos(a) * (ry_ + fo), z - (jag * rnd.random() * t if jag else 0)))
+                row.append(clear(p, off))
+            rows.append(row)
+        return rows
+    if not f and not wild:
         # collar and cravat
-        P.cyl("linen", WHITE, (0, hy, 1.46), (0, hy, 1.52), 0.068, 0.058, segs=16)
+        P.cyl("linen", WHITE, (0, hy, 1.46), (0, hy, 1.52), 0.066, 0.056, segs=16)
         if o.get("bands"):
             P.box("linen", WHITE, (0, -0.1, 1.42), (0.07, 0.01, 0.12))
         else:
-            P.sphere("linen", WHITE, (0, -0.085, 1.43), (0.045, 0.028, 0.06), segs=12, rings=8)
-        # the coat's skirts, open at the front, to the knee
-        b = P.bm("coat")
-        v = bmesh.ops.create_cone(b, cap_ends=False, segments=24, radius1=0.25 + wide, radius2=0.168 + wide, depth=0.5)["verts"]
-        bmesh.ops.transform(b, matrix=Matrix.Translation((0, 0.005, 0.66)), verts=v)
-        gone = [fc for fc in {fc for vv in v for fc in vv.link_faces} if fc.calc_center_median().y < -0.12 and abs(fc.calc_center_median().x) < 0.07]
-        bmesh.ops.delete(b, geom=gone, context="FACES")
-        v = [vv for vv in v if vv.is_valid]
-        P.paint(b, v, WHITE)
+            P.sphere("linen", WHITE, (0, -0.086, 1.44), (0.034, 0.016, 0.028), segs=12, rings=8)
+            for sd in (-1, 1):
+                P.box("linen", WHITE, (sd * 0.012, -0.096, 1.385), (0.034, 0.008, 0.085), (0.12, 0, sd * 0.12))
+        # the coat's collar, standing at the back of the neck
+        rows = skirt_rows(1.5, 1.44, 3, 1.1, 2 * PI - 1.1, 18, lambda t: (0.072 + 0.02 * t, 0.07 + 0.02 * t), lambda t, a: 0.0, 0.006)
+        sheet(P, "coat", rows, thick=0.006)
+        # the skirts of the coat, flared to the knee, open at the front and split up the back, falling in folds
+        ph = [rnd.random() * 6 for _ in range(4)]
+        fold = lambda t, a: (0.002 + 0.014 * t) * (math.sin(a * 7 + ph[0]) * 0.7 + math.sin(a * 13 + ph[1]) * 0.3)
+        rad = lambda t: (0.172 + wide + 0.1 * t, 0.13 + wide * 0.6 + 0.085 * t)
+        for a0, a1 in ((0.3, PI - 0.03), (PI + 0.03, 2 * PI - 0.3)):
+            rows = skirt_rows(0.97, 0.42, 9, a0, a1, 18, rad, fold, 0.01)
+            sheet(P, "coat", rows, thick=0.007, col=lambda i, j: (0.86, 0.86, 0.86, 1) if i == 8 else WHITE)
+        # pocket flaps, each with three buttons
+        for sd in (-1, 1):
+            a = sd * 1.05
+            p = clear(Vector((math.sin(a) * 0.23, -math.cos(a) * 0.17, 0.77)), 0.02)
+            P.box("coat", WHITE, p, (0.15, 0.012, 0.055), (0.05, 0, a))
+            for k in (-1, 0, 1):
+                P.sphere("metal", WHITE, p + Vector((math.cos(a) * 0.045 * k, math.sin(a) * 0.045 * k - 0.006, -0.012)), (0.008, 0.005, 0.008), segs=8, rings=5)
         # a waistcoat showing at the front, buttoned
         if o.get("vest"):
             P.box("vest", WHITE, (0, -0.104, 1.18), (0.15, 0.03, 0.42))
-            for i in range(6):
-                P.sphere("metal", WHITE, (0, -0.121, 1.36 - i * 0.055), (0.009, 0.006, 0.009), segs=8, rings=6)
+            for i in range(7):
+                P.sphere("metal", WHITE, (0, -0.121, 1.36 - i * 0.048), (0.008, 0.005, 0.008), segs=8, rings=5)
         # coat facings and buttons
-        for s in (-1, 1):
-            P.box("coat", WHITE, (s * 0.1, -0.108, 1.15), (0.05, 0.02, 0.5), (0, s * -0.25, 0))
-            for i in range(5):
-                P.sphere("metal", WHITE, (s * 0.075, -0.118, 1.34 - i * 0.07), (0.01, 0.007, 0.01), segs=8, rings=6)
-        # deep turned-back cuffs
-        for s in (-1, 1):
-            x0 = s * (sh + 0.04)
-            P.cyl("coat", WHITE, (x0, 0.0, 0.97), (x0, -0.005, 1.07), 0.052, 0.058, segs=14)
-        # a belt of leather under the coat's waist? (the sash, for the watch)
+        for sd in (-1, 1):
+            P.box("coat", WHITE, (sd * 0.1, -0.108, 1.15), (0.05, 0.02, 0.5), (0, sd * -0.25, 0))
+            for i in range(6):
+                P.sphere("metal", WHITE, (sd * 0.076, -0.119, 1.36 - i * 0.06), (0.0095, 0.006, 0.0095), segs=8, rings=5)
+        # deep turned-back cuffs, buttoned
+        for sd in (-1, 1):
+            x0 = sd * (sh + 0.04)
+            P.cyl("coat", WHITE, (x0, 0.0, 0.97), (x0, -0.005, 1.075), 0.05, 0.058, segs=16)
+            for k in range(2):
+                P.sphere("metal", WHITE, (x0 + sd * 0.052, -0.012, 1.0 + k * 0.04), (0.006, 0.006, 0.006), segs=6, rings=4)
         if o.get("sash"):
             P.cyl("sash", WHITE, (0, 0, 1.12), (0, 0, 1.18), 0.162, 0.166, segs=20)
             P.box("sash", WHITE, (0.0, -0.02, 1.2), (0.06, 0.24, 0.62), (0.2, 0.62, 0))
         if o.get("chain"):
-            b = P.bm("metal")
-            v = bmesh.ops.create_circle(b, cap_ends=False, segments=20, radius=0.12)["verts"]
-            bmesh.ops.transform(b, matrix=Matrix.LocRotScale(Vector((0, -0.05, 1.34)), Euler((1.15, 0, 0)), Vector((1, 1, 1))), verts=v)
             for i in range(20):
                 a = i / 20 * 2 * PI
                 P.sphere("metal", WHITE, (math.cos(a) * 0.12, -0.05 - math.sin(a) * 0.12 * math.cos(1.15) * 0.3, 1.34 - math.sin(a) * 0.12 * math.sin(1.15)), (0.012, 0.012, 0.012), segs=6, rings=4)
-        # shoes: square toes and a buckle
-        for s in (-1, 1):
-            P.box("metal", WHITE, (s * (hp + 0.01), -0.12, 0.07), (0.05, 0.01, 0.03))
-    else:
-        # a laced bodice, a shawl, the full skirt with a darker hem, an apron
-        P.cyl("linen", WHITE, (0, hy, 1.45), (0, hy, 1.5), 0.066, 0.058, segs=16)
-        b = P.bm("coat")
-        v = bmesh.ops.create_cone(b, cap_ends=False, segments=24, radius1=0.24 + wide, radius2=0.14, depth=0.14)["verts"]
-        bmesh.ops.transform(b, matrix=Matrix.Translation((0, 0.01, 1.43)), verts=v)
-        P.paint(b, v, WHITE)                                                                         # shawl
+        # the breeches buckled below the knee
+        for sd in (-1, 1):
+            kx = sd * (hp + 0.005)
+            P.cyl("legs", WHITE, (kx, -0.015, 0.49), (kx, -0.015, 0.53), 0.06, 0.062, segs=14)
+            P.box("metal", WHITE, (kx + sd * 0.055, -0.02, 0.51), (0.008, 0.018, 0.022))
+        # shoes: a heel, a tongue, a square buckle
+        for sd in (-1, 1):
+            fx = sd * (hp + 0.01)
+            P.box("leather", WHITE, (fx, 0.035, 0.018), (0.056, 0.05, 0.036))
+            P.box("leather", WHITE, (fx, -0.075, 0.105), (0.05, 0.012, 0.06), (-0.5, 0, 0))
+            P.box("metal", WHITE, (fx, -0.096, 0.076), (0.042, 0.008, 0.03), (-0.5, 0, 0))
+    elif f:
+        P.cyl("linen", WHITE, (0, hy, 1.45), (0, hy, 1.5), 0.062, 0.054, segs=16)
+        # a kerchief round the shoulders, crossed over the breast
+        rows = []
+        for i in range(4):
+            t = i / 3
+            row = []
+            for j in range(41):
+                a = j / 40 * 2 * PI
+                rx_, ry_ = 0.07 + 0.11 * t, 0.068 + 0.06 * t
+                z = 1.475 - 0.06 * t - (0.16 * gauss(math.atan2(math.sin(a), math.cos(a)), 0.5) + 0.08 * gauss(abs(math.atan2(math.sin(a), math.cos(a))) - PI, 0.6)) * t ** 1.5
+                row.append(clear(Vector((math.sin(a) * rx_, -math.cos(a) * ry_ + hy * 0.5, z)), 0.009))
+            rows.append(row)
+        sheet(P, "linen", rows, thick=0.005, closed=True, col=lambda i, j: (0.93, 0.92, 0.9, 1))
         for i in range(6):
-            P.box("linen", WHITE, (0, -0.118, 1.36 - i * 0.05), (0.05, 0.004, 0.005), (0, 0, 0.5 * (-1) ** i))   # lacing
-        b = P.bm("skirt")
-        v = bmesh.ops.create_cone(b, cap_ends=False, segments=32, radius1=0.4 + wide, radius2=0.18 + wide, depth=0.88)["verts"]
-        for vv in v:                           # folds in the hem
-            if vv.co.z < 0:
-                a = math.atan2(vv.co.y, vv.co.x)
-                k = 1 + 0.045 * math.sin(a * 12)
-                vv.co.x *= k; vv.co.y *= k
-        bmesh.ops.transform(b, matrix=Matrix.Translation((0, 0.01, 0.5)), verts=v)
-        P.paint(b, v, WHITE)
-        v = P.cyl("skirt", rgb(0x9a9a9a), (0, 0.01, 0.06), (0, 0.01, 0.12), 0.405 + wide, 0.395 + wide, segs=32, caps=False)
+            P.box("linen", WHITE, (0, -0.122, 1.33 - i * 0.04), (0.05, 0.004, 0.005), (0, 0, 0.5 * (-1) ** i))   # lacing
+        # the skirt: gathered at the waist, full to the ankle, in deep folds, a darker band at the hem
+        ph = [rnd.random() * 6 for _ in range(3)]
+        rad = lambda t: (0.17 + wide + 0.23 * (1 - (1 - t) ** 1.7), 0.135 + wide * 0.8 + 0.2 * (1 - (1 - t) ** 1.7))
+        fold = lambda t, a: (0.004 + 0.016 * t) * (math.sin(a * 14 + ph[0]) * 0.6 + math.sin(a * 5 + ph[1]) * 0.4)
+        rows = skirt_rows(0.97, 0.05, 13, 0, 2 * PI, 56, rad, fold, 0.008)
+        for row in rows: row.pop()
+        sheet(P, "skirt", rows, thick=0.006, closed=True, col=lambda i, j: (0.7, 0.7, 0.7, 1) if i >= 11 else WHITE)
         if o.get("apron"):
-            b = P.bm("apron")
-            v = bmesh.ops.create_cone(b, cap_ends=False, segments=12, radius1=0.405 + wide, radius2=0.19 + wide, depth=0.72)["verts"]
-            bmesh.ops.transform(b, matrix=Matrix.Translation((0, 0.005, 0.58)), verts=v)
-            gone = [fc for fc in {fc for vv in v for fc in vv.link_faces} if fc.calc_center_median().y > -0.08]
-            bmesh.ops.delete(b, geom=gone, context="FACES")
-            v = [vv for vv in v if vv.is_valid]
-            P.paint(b, v, WHITE)
-            P.cyl("apron", WHITE, (0, 0, 0.93), (0, 0, 0.97), 0.172 + wide, 0.172 + wide, segs=20)
+            rad2 = lambda t: (rad(t)[0] + 0.024, rad(t)[1] + 0.024)
+            fold2 = lambda t, a: (0.002 + 0.006 * t) * math.sin(a * 6 + ph[2])
+            rows = skirt_rows(0.95, 0.24, 9, -1.05, 1.05, 18, rad2, fold2, 0.012)
+            sheet(P, "apron", rows, thick=0.004)
+            P.cyl("apron", WHITE, (0, 0, 0.93), (0, 0, 0.975), 0.176 + wide, 0.174 + wide, segs=24)
+            for sd in (-1, 1):
+                P.box("apron", WHITE, (sd * 0.03, 0.16 + wide * 0.6, 0.84), (0.03, 0.006, 0.18), (0.08, 0, sd * 0.15))
+        for sd in (-1, 1):
+            x0 = sd * (sh + 0.035)
+            P.cyl("linen", WHITE, (x0, 0.01, 1.075), (x0, 0.012, 1.115), 0.05, 0.054, segs=14)
+            fx = sd * (hp + 0.01)
+            P.box("leather", WHITE, (fx, 0.035, 0.018), (0.05, 0.045, 0.036))
+    else:
+        # the forest men: a mantle of skins over the shoulders, ragged at its edge and shaggy; a leather jerkin and a
+        # rough tunic under it to the thigh, belted with rope; the legs bound; furs round the ankles
+        rows = []
+        cols = 44
+        for i in range(6):
+            t = i / 5
+            row = []
+            for j in range(cols):
+                a = j / cols * 2 * PI
+                rx_, ry_ = 0.075 + 0.16 * min(1, t * 1.6), 0.07 + 0.07 * min(1, t * 1.6)
+                z = 1.48 - 0.26 * t - (0.05 * rnd.random() * t if i == 5 else 0)
+                p = clear(Vector((math.sin(a) * rx_, -math.cos(a) * ry_, z)), 0.016)
+                if i > 0:
+                    p += Vector((math.sin(a), -math.cos(a), 0)) * 0.006 * rnd.random()
+                row.append(p)
+            rows.append(row)
+        sheet(P, "fur", rows, thick=0.014, closed=True, col=lambda i, j: tuple([0.7 + 0.35 * rnd.random()] * 3) + (1,))
+        ph = [rnd.random() * 6 for _ in range(2)]
+        rows = skirt_rows(0.95, 0.66, 6, 0, 2 * PI, 36, lambda t: (0.17 + 0.06 * t, 0.125 + 0.05 * t), lambda t, a: 0.008 * t * math.sin(a * 9 + ph[0]), 0.008, jag=0.05)
+        for row in rows: row.pop()
+        sheet(P, "coat", rows, thick=0.006, closed=True, col=lambda i, j: (0.85, 0.85, 0.85, 1) if i == 5 else WHITE)
+        # the rope belt, a pouch, and the lacing up the jerkin
+        for k in range(3):
+            P.cyl("linen", rgb(0x8a7a5a), (0, 0.0, 0.925 + k * 0.012), (0, 0.0, 0.935 + k * 0.012), 0.168 + wide, 0.168 + wide, segs=24)
+        P.sphere("leather", WHITE, (0.12, -0.11, 0.88), (0.04, 0.025, 0.05), segs=10, rings=8)
+        for i in range(5):
+            P.box("leather", WHITE, (0, -0.118, 1.36 - i * 0.06), (0.05, 0.004, 0.006), (0, 0, 0.5 * (-1) ** i))
+        # furs round the ankles
+        for sd in (-1, 1):
+            fx = sd * (hp + 0.01)
+            rows = []
+            for i in range(3):
+                row = []
+                for j in range(16):
+                    a = j / 16 * 2 * PI
+                    rr = 0.055 + 0.012 * rnd.random() + 0.005 * i
+                    row.append(Vector((fx + math.sin(a) * rr, 0.01 - math.cos(a) * rr, 0.17 - i * 0.05)))
+                rows.append(row)
+            sheet(P, "fur", rows, thick=0.008, closed=True, col=lambda i, j: tuple([0.75 + 0.3 * rnd.random()] * 3) + (1,))
 
     # ---- hats ----
     hat = o.get("hat")
     top = hc.z + 0.105
+    def ring_rows(r0, r1, n, cols, zf, rf=None, cx=0.0, cy=0.0):
+        rows = []
+        for i in range(n):
+            t = i / (n - 1)
+            row = []
+            for j in range(cols):
+                a = j / cols * 2 * PI
+                r = r0 + (r1 - r0) * t
+                rh = rf(t, a, r) if rf else r
+                row.append(Vector((cx + math.sin(a) * rh, cy - math.cos(a) * rh, zf(t, a, r))))
+            rows.append(row)
+        return rows
+    def dome(mat, col, c, s, cut=0.0, segs=24, rings=12):
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=segs, v_segments=rings, radius=1)
+        bmesh.ops.delete(b, geom=[v for v in b.verts if v.co.z < cut - 1e-4], context="VERTS")
+        paint_verts(b, lambda v: col)
+        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(Vector(c), Euler((0, 0, 0)), Vector(s)))
+        merge(b, mat)
     if hat == "tricorn":
-        P.cyl("hat", WHITE, (0, hy, top - 0.03), (0, hy, top + 0.06), 0.1, 0.09, segs=18)
-        for i in range(3):
-            a = i / 3 * 2 * PI - PI / 2
-            P.box("hat", WHITE, (math.cos(a) * 0.095, hy + math.sin(a) * 0.095, top - 0.0), (0.2, 0.012, 0.075), (0.25, 0, a + PI / 2))
+        # a felt hat with its brim pinned up on three sides: the corners stand out, front and back two
+        dome("hat", WHITE, (0, hy + 0.005, top - 0.03), (0.098, 0.108, 0.07), 0.0)
+        P.cyl("hat", WHITE, (0, hy + 0.005, top - 0.06), (0, hy + 0.005, top - 0.025), 0.1, 0.098, segs=24)
+        def lift(t, a):
+            k = 0.25 + 0.75 * abs(math.sin(1.5 * a))
+            return k
+        rows = ring_rows(0.1, 0.205, 6, 48, lambda t, a, r: top - 0.06 + 0.1 * t ** 1.5 * lift(t, a),
+                         lambda t, a, r: 0.1 + 0.105 * t * (1 - 0.55 * lift(t, a) * t), cy=hy + 0.005)
+        sheet(P, "hat", rows, thick=0.005, closed=True, col=lambda i, j: (0.8, 0.8, 0.8, 1) if i == 5 else WHITE)
     elif hat == "hat":
-        P.cyl("hat", WHITE, (0, hy, top - 0.03), (0, hy, top - 0.018), 0.19, 0.19, segs=24)
-        P.cyl("hat", WHITE, (0, hy, top - 0.02), (0, hy, top + 0.13), 0.1, 0.09, segs=20)
-        P.cyl("leather", WHITE, (0, hy, top - 0.015), (0, hy, top + 0.01), 0.102, 0.101, segs=20)
+        # broad-brimmed, the crown high and rounded, a band round it
+        dome("hat", WHITE, (0, hy, top + 0.09), (0.098, 0.102, 0.04), 0.0)
+        P.cyl("hat", WHITE, (0, hy, top - 0.04), (0, hy, top + 0.09), 0.105, 0.098, segs=24)
+        rows = ring_rows(0.1, 0.21, 5, 40, lambda t, a, r: top - 0.04 - 0.012 * t * t * (0.5 + 0.5 * math.cos(2 * a)), cy=hy)
+        sheet(P, "hat", rows, thick=0.006, closed=True)
+        P.cyl("leather", WHITE, (0, hy, top - 0.035), (0, hy, top - 0.005), 0.107, 0.104, segs=24)
+        P.box("metal", WHITE, (0, hy - 0.106, top - 0.02), (0.022, 0.006, 0.02))
     elif hat == "cap":
-        P.sphere("hat", WHITE, (0, hy, top - 0.025), (0.1, 0.11, 0.06), segs=18, rings=10)
-        P.box("hat", WHITE, (0, hy - 0.1, top - 0.05), (0.13, 0.07, 0.012), (-0.2, 0, 0))
+        # a knitted cap, soft, its crown slumped back, the edge rolled
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=24, v_segments=12, radius=1)
+        bmesh.ops.delete(b, geom=[v for v in b.verts if v.co.z < -0.15], context="VERTS")
+        for v in b.verts:
+            X, Y, Z = v.co
+            v.co = Vector((X * (RX + 0.014), Y * (RY + 0.014) + 0.025 * max(0, Z) ** 2, Z * (0.085) + 0.02 * max(0, Z) ** 3))
+        paint_verts(b, lambda v: tuple([0.85 + 0.15 * abs(math.sin(math.atan2(v.co.x, v.co.y) * 20))] * 3) + (1,))
+        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(hc + Vector((0, 0.008, 0.045)), Euler((-0.25, 0, 0)), Vector((1, 1, 1))))
+        merge(b, "hat")
+        P.cyl("hat", WHITE, (0, hc.y + 0.005, hc.z + 0.03), (0, hc.y + 0.02, hc.z + 0.065), RX + 0.02, RX + 0.017, segs=24)
     elif hat == "bonnet":
-        P.sphere("hat", WHITE, (0, hy + 0.012, top - 0.03), (0.105, 0.115, 0.1), segs=20, rings=12)
-        P.cyl("hat", WHITE, (0, hy - 0.06, top - 0.02), (0, hy - 0.085, top - 0.03), 0.112, 0.118, segs=20, caps=False)
+        # a close linen coif over the hair, a frill round the face
+        b = hair_shell(RX, RY, RZ, 32, 22, lambda X, Y, Z, phi: smooth((Z - piecewise([(0, 0.62), (1.0, 0.45), (1.4, -0.1), (2.0, -0.35), (PI, -0.45)], abs(phi))) / 0.04),
+                       lambda X, Y, Z: 0.02 + 0.008 * smooth(-Y), 0.0, lambda r_, m_, Z: (0.95, 0.94, 0.92, 1))
+        merge(b, "hat")
+        COIF = [(0, 0.62), (1.0, 0.45), (1.4, -0.1), (2.0, -0.35), (PI, -0.45)]
+        b = newbm()
+        rows_v = []
+        n = 40
+        for i in range(n + 1):
+            phi = -1.75 + 3.5 * i / n
+            Z = piecewise(COIF, abs(phi)); h = math.sqrt(max(0.0, 1 - Z * Z))
+            X, Y = math.sin(phi) * h, -math.cos(phi) * h
+            nrm = Vector((X, Y, Z))
+            cen = hc + Vector((X * RX, Y * RY, Z * RZ)) + nrm * 0.024
+            w = 0.011 + 0.003 * abs(math.sin(i * 1.9))
+            rows_v.append((cen, nrm, w))
+        frame = []
+        for i, (cen, nrm, w) in enumerate(rows_v):
+            tg = (rows_v[min(n, i + 1)][0] - rows_v[max(0, i - 1)][0]).normalized()
+            bn = tg.cross(nrm).normalized()
+            frame.append([b.verts.new(cen + (nrm * math.cos(j / 6 * 2 * PI) + bn * math.sin(j / 6 * 2 * PI)) * w) for j in range(6)])
+        rows_v = frame
+        for i in range(n):
+            for j in range(6):
+                b.faces.new((rows_v[i][j], rows_v[i][(j + 1) % 6], rows_v[i + 1][(j + 1) % 6], rows_v[i + 1][j]))
+        paint_verts(b, lambda v: (0.97, 0.96, 0.94, 1))
+        merge(b, "hat")
     elif hat == "helmet":
-        P.sphere("hat", WHITE, (0, hy, top - 0.02), (0.11, 0.12, 0.09), segs=20, rings=10)
-        P.cyl("hat", WHITE, (0, hy, top - 0.055), (0, hy, top - 0.045), 0.2, 0.2, segs=24)
-        P.box("hat", WHITE, (0, hy, top + 0.07), (0.012, 0.2, 0.05))          # the morion's comb
+        # a morion: the high crest, the brim swept up into points front and back
+        dome("hat", WHITE, (0, hy, top - 0.045), (0.112, 0.13, 0.1), 0.0)
+        dome("hat", WHITE, (0, hy, top - 0.03), (0.006, 0.125, 0.1), 0.0, 16, 10)
+        rows = ring_rows(0.11, 0.2, 5, 40, lambda t, a, r: top - 0.05 + 0.08 * t ** 1.6 * math.cos(a) ** 2, lambda t, a, r: r * (1 + 0.25 * math.cos(a) ** 2 * t), cy=hy)
+        sheet(P, "hat", rows, thick=0.004, closed=True)
+    elif hat == "furhat":
+        # a shapeless cap of fur, pulled down to the brows
+        b = hair_shell(RX, RY, RZ, 32, 22, lambda X, Y, Z, phi: smooth((Z - piecewise([(0, 0.5), (1.2, 0.3), (1.6, 0.0), (PI, -0.25)], abs(phi))) / 0.05),
+                       lambda X, Y, Z: 0.026 + 0.012 * smooth(Z), 0.0, lambda r_, m_, Z: tuple([0.7 + 0.35 * rnd.random()] * 3) + (1,))
+        for v in b.verts:
+            v.co += (v.co - hc).normalized() * 0.006 * rnd.random()
+        merge(b, "hat")
 
     extra = P.build(sc, M)
+    bake_ao(sc, [body] + extra)
 
     # ---- the rig ----
     arm = bpy.data.armatures.new(f"{key}_rig")

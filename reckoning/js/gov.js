@@ -49,7 +49,7 @@ T("consecration", "Consecration", "military", [], 0, "Unlocks the Shrine — a s
 T("ministry", "Ministry", "military", ["consecration"], 1, "Unlocks the House of Worship — a creed's own house, worth far more to its flock than anyone else's");
 T("currencies", "Currencies", "military", ["trading"], 1, "Taxes collect +1 DM");
 T("marketing", "Marketing", "military", ["currencies"], 2, "Market prices +1 more DM");
-T("policing", "Policing", "military", ["marketing"], 3, "Unlocks recruiting police");
+T("policing", "Policing", "military", [], 0, "Unlocks the Jail and the watch — a watchman catches thieves in the night and holds them a day");
 T("court", "Court", "military", ["policing"], 4, "Half of beaten rebels are subdued alive");
 T("landownership", "Land Ownership", "military", ["currencies"], 2, "Every cabin and house sleeps one more");
 T("ownership", "Ownership", "military", ["landownership"], 3, "Dismantling refunds 75%");

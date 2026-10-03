@@ -323,6 +323,83 @@ function eateryParts(b, c) {
 const local = (c, lx, lz) => ({ x: c.x + lx * Math.cos(c.ry) + lz * Math.sin(c.ry), z: c.z - lx * Math.sin(c.ry) + lz * Math.cos(c.ry) });
 export const eaterySolids = () => [[-2.9, 0.1, 0.42], [-2.9, 0.9, 0.42], [2.9, 0.1, 0.42], [2.9, 0.9, 0.42], [0.9, -0.4, 0.3]];
 
+// ---- their own trade: a break in the day to make something of their own, sold to Henning or Tobias for their own purse ----
+// (nothing out of the settlement's stores: what they gather or make in their own time, and the DM is theirs, untaxed)
+const SIDE = {
+  woodcutter: ["a bundle of kindling", "gathering kindling", "reach"], hauler: ["a bundle of kindling", "gathering kindling", "reach"], sawyer: ["a bundle of kindling", "gathering kindling", "reach"],
+  farmer: ["a basket of mushrooms", "picking mushrooms", "reach"], baker: ["a basket of mushrooms", "picking mushrooms", "reach"],
+  hunter: ["a rabbit skin", "setting a snare", "reach"], doctor: ["a bunch of herbs", "gathering herbs", "reach"],
+  quarryman: ["a whittled spoon", "whittling", "hold"], miner: ["a whittled spoon", "whittling", "hold"], brickmaker: ["a whittled spoon", "whittling", "hold"],
+  smelter: ["a carved peg", "carving pegs", "hold"], smith: ["a carved peg", "carving pegs", "hold"], watch: ["a carved peg", "carving pegs", "hold"],
+};
+export const sideOf = p => SIDE[p.job] || SIDE.hauler;
+export async function sideShift(town, a, sleep, alive) {
+  const S = town.S, p = a.settler;
+  if (!p || p.child || p.jailedDay != null || a.settler.follow || !p.name) return false;
+  const f = town.frac; if (f < 0.2 || f > 0.66) return false;
+  // (out in a settlement in the forest, only if the trader's cart is within a walk)
+  const traders = [...(town.tradersHere || [])].filter(t => t.h && t.h.root && t.h.root.parent && (!town.colony || Math.hypot(t.h.pos.x - a.pos.x, t.h.pos.z - a.pos.z) < 160));
+  const [what, doing, pose] = sideOf(p);
+  // stolen goods, sold on the quiet to the first trader in — and someone may see it
+  if (p.loot && traders.length && p.soldDay !== town.day && Math.random() < 0.6) {
+    const t = traders[0], l = p.loot;
+    p.soldDay = town.day;
+    a.doing = `selling ${l.n} ${l.name} to ${t.name}, on the quiet`;
+    await Promise.race([a.walkTo(t.h.pos.x - 1.1, t.h.pos.z + 0.8, 1.4), sleep(120)]); alive();
+    if (!t.h.root.parent || Math.hypot(t.h.pos.x - a.pos.x, t.h.pos.z - a.pos.z) > 4) { p.soldDay = null; return true; }
+    a.faceTo(t.h.pos.x, t.h.pos.z); a.person.setPose("reach"); await sleep(1.5); alive(); a.person.setPose("idle");
+    const pay = Math.max(0.5, Math.round(l.worth * 10) / 10);
+    p.loot = null;
+    const watch = S.people.some(q => q.job === "watch" && q !== p) && town.has && town.has("jail");
+    if (watch && Math.random() < 0.4) {
+      // caught in the act: the money goes back to the treasury, and the thief to the jail
+      S.coin = Math.round(((S.coin || 0) + pay) * 10) / 10; p.jailedDay = town.day; S.caught = (S.caught || 0) + 1;
+      town.setMark && town.setMark(p, "disgraced", `caught selling stolen ${l.name} to ${t.name}`);
+      UI.hint(`The watch caught ${p.name} selling ${l.n} ${l.name} to ${t.name} — the settlement's own, stolen. The ${pay} DM goes back to the treasury, and ${p.name} to the jail.`, 7);
+    } else {
+      p.purse = Math.round(((p.purse || 0) + pay) * 10) / 10;
+      if (Math.random() < 0.6) UI.hint(`${p.name} was seen selling ${l.n} ${l.name} to ${t.name}. Where did they come by that?`, 6);
+    }
+    town.persist();
+    return true;
+  }
+  // the break: once a day, an hour or so of their own
+  if (p.sideDay !== town.day && (p.wares || 0) < 4 && Math.random() < (f > 0.45 ? 1 : 0.3)) {
+    p.sideDay = town.day;
+    a.doing = `${doing} — their own time`;
+    if (pose === "reach") {
+      // out to the trees at the edge of things
+      let best = null, bd = Infinity;
+      for (const t of town.w.fellable || []) {
+        if (t.state !== "up") continue;
+        const d = Math.hypot(t.x - a.pos.x, t.z - a.pos.z);
+        if (d > 6 && d < bd && d < 45) { bd = d; best = t; }
+      }
+      if (best) { const k = 1.1 / Math.max(0.1, bd); await Promise.race([a.walkTo(best.x + (a.pos.x - best.x) * k, best.z + (a.pos.z - best.z) * k, 1.3), sleep(25)]); alive(); a.faceTo(best.x, best.z); }
+    }
+    a.person.setPose(pose); await sleep(7 + Math.random() * 5); alive(); a.person.setPose("idle");
+    p.wares = (p.wares || 0) + 1 + (Math.random() < 0.4 ? 1 : 0); p.waresOf = what;
+    town.persist();
+    return true;
+  }
+  // a trader in: what they've made goes to him, and the money into their own purse
+  if ((p.wares || 0) > 0 && traders.length && p.soldDay !== town.day && Math.random() < (f > 0.4 ? 1 : 0.5)) {
+    const t = traders.sort((x, y) => Math.hypot(x.h.pos.x - a.pos.x, x.h.pos.z - a.pos.z) - Math.hypot(y.h.pos.x - a.pos.x, y.h.pos.z - a.pos.z))[0];
+    p.soldDay = town.day;
+    a.doing = `selling ${p.waresOf || "what they made"} to ${t.name}`;
+    await Promise.race([a.walkTo(t.h.pos.x + 1.2, t.h.pos.z + 0.6, 1.4), sleep(120)]); alive();
+    if (!t.h.root.parent || Math.hypot(t.h.pos.x - a.pos.x, t.h.pos.z - a.pos.z) > 4) { p.soldDay = null; return true; }
+    a.faceTo(t.h.pos.x, t.h.pos.z); a.person.setPose("reach"); await sleep(1.5); alive(); a.person.setPose("idle");
+    const pay = Math.round(p.wares * (1 + Math.random() * 0.8) * 10) / 10;
+    p.purse = Math.round(((p.purse || 0) + pay) * 10) / 10; p.earnedOwn = Math.round(((p.earnedOwn || 0) + pay) * 10) / 10; p.ownDay = town.day;
+    if (Math.random() < 0.35) UI.bark && UI.bark(p.name, [`${pay} DM for ${p.waresOf}. Not bad.`, "That's mine, that is.", `${t.name} drives a hard bargain.`, "A little put by."][Math.floor(Math.random() * 4)], 2.5);
+    p.wares = 0;
+    town.persist();
+    return true;
+  }
+  return false;
+}
+
 // midday, with money in their purse and an eatery open: a meal, sat at its table
 export async function dineShift(town, a, sleep, alive) {
   const S = town.S, p = a.settler; lawsOf(S);

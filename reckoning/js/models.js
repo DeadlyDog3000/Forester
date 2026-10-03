@@ -236,8 +236,11 @@ export function makePerson(o = {}) {
       if (this.sitting > 0.01) { legL.rotation.x = -1.45 * this.sitting; legR.rotation.x = -1.45 * this.sitting; }
     },
     setPose(p) { if (p !== this.pose) { this.pose = p; this.poseT = 0; } },
+    // a child's head is big for the body; it evens out as they grow
+    setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };
   if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor });
+  if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
   noSnow(P.root);
   return P;
 }
@@ -334,6 +337,7 @@ function useModel(P, key, colors = {}) {
   const playArms = n => { const a = n ? acts[n] : null; if (a === curArms) return; if (a) a.reset().fadeIn(0.25).play(); if (curArms) curArms.fadeOut(0.25); curArms = a; };
   let headB = null, neckB = null;
   m.scene.traverse(o => { if (!o.isBone) return; if (!headB && /^head$/i.test(o.name)) headB = o; if (!neckB && /^neck$/i.test(o.name)) neckB = o; });
+  P.headBone = headB;
   // held things follow the model's right hand, if it has a bone by that name
   // (the rig's own names: handR / handL, or hand.R, hand_R, RightHand)
   let hand = null, handL = null;
@@ -408,14 +412,72 @@ export function makeLantern(light = true) {
   if (light) { const L = new THREE.PointLight(0xffc27a, 5, 12, 1.6); L.position.y = -0.1; g.add(L); g.userData.light = L; }
   return g;
 }
+// The felling axe: a bearded head forged round its eye, thick at the poll and drawn thin to a honed edge, on a
+// hickory haft with a swell in its line and a knob at the end for the hand. Made once per metal, and shared.
+const _axeGeo = {}, _axeMat = {};
+const AXE_METAL = { 2: [0x6a6e74, 0.5, 0.5], 3: [0xd08a5a, 0.5, 0.4], 4: [0xc8a256, 0.5, 0.38], 5: [0x9aa0a8, 0.55, 0.42] };
+function axeHeadGeo() {
+  if (_axeGeo.head) return _axeGeo.head;
+  // its side, in (forward, up): the poll behind the eye, the cheek, the beard swept down, the bit curved out
+  const sh = new THREE.Shape();
+  sh.moveTo(-0.032, 0.668);
+  sh.lineTo(-0.034, 0.588);
+  sh.quadraticCurveTo(0.0, 0.578, 0.045, 0.584);
+  sh.quadraticCurveTo(0.098, 0.588, 0.128, 0.506);
+  sh.quadraticCurveTo(0.188, 0.548, 0.19, 0.612);
+  sh.quadraticCurveTo(0.188, 0.676, 0.158, 0.712);
+  sh.quadraticCurveTo(0.1, 0.672, 0.04, 0.672);
+  sh.quadraticCurveTo(0.004, 0.676, -0.032, 0.668);
+  const depth = 0.034;
+  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 2, curveSegments: 14, steps: 1 });
+  g.translate(0, 0, -depth / 2);
+  g.rotateY(-Math.PI / 2);
+  // drawn thin toward the edge; the colour: dark forge-scale, bright where it has been ground
+  const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i);
+    const t = Math.max(0, Math.min(1, (z - 0.03) / 0.155));
+    pos.setX(i, x * (1 - 0.86 * t * t * (3 - 2 * t)));
+    // the edge: the outermost reach of the bit, wherever it curves
+    const out = Math.hypot(z - 0.075, (y - 0.61) * 0.9);
+    const bright = Math.max(0, Math.min(1, (out - 0.095) / 0.02));
+    const v = 0.55 + 0.75 * bright;
+    col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v;
+  }
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return (_axeGeo.head = g);
+}
+function axeHaftGeo() {
+  if (_axeGeo.haft) return _axeGeo.haft;
+  const L = 0.8, g = new THREE.CylinderGeometry(0.0165, 0.0165, L, 12, 32);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i), h = y / L + 0.5;            // 0 at the knob, 1 at the head
+    // the knob at the end, a narrowing above it, the fuller throat under the head
+    const r = 1 + 0.42 * Math.exp(-(((h - 0.015) / 0.035) ** 2)) - 0.12 * Math.exp(-(((h - 0.1) / 0.06) ** 2)) + 0.14 * Math.max(0, h - 0.8) / 0.2;
+    // oval, deeper fore and aft; and the gentle S of a hand-shaped haft, in line with the blade
+    pos.setX(i, pos.getX(i) * r * 0.85);
+    pos.setZ(i, pos.getZ(i) * r * 1.2 + 0.03 * Math.sin(h * Math.PI) * (1 - h) - 0.012 * Math.exp(-(((h - 0.03) / 0.05) ** 2)));
+  }
+  g.translate(0, L / 2 - 0.1, 0);
+  g.computeVertexNormals();
+  return (_axeGeo.haft = g);
+}
 export function makeAxe(tier) {
+  const t = AXE_METAL[tier] ? tier : 2;
   const g = new THREE.Group();
-  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.72, 6), mat(0x7a5a3a));
-  haft.position.y = 0.3; g.add(haft);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.16), (tier === 3 ? mat(0xf0a060, { metalness: 0.08, roughness: 0.3 }) : tier === 4 ? mat(0xd4a650, { metalness: 0.12, roughness: 0.3 }) : mat(tier === 5 ? 0x9aa0a8 : 0x5d6166, { metalness: 0.8, roughness: 0.45 })));
-  head.position.set(0, 0.62, 0.06); g.add(head);
-  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.14, 0.04), mat(0xb8bcc2, { metalness: 0.9, roughness: 0.3 }));
-  edge.position.set(0, 0.62, 0.15); g.add(edge);
+  const haft = new THREE.Mesh(axeHaftGeo(), mat(0x8a6440, { roughness: 0.75, surface: "wood" }));
+  g.add(haft);
+  if (!_axeMat[t]) { const [c, m, r] = AXE_METAL[t]; _axeMat[t] = new THREE.MeshStandardMaterial({ color: c, metalness: m, roughness: r, vertexColors: true }); }
+  const head = new THREE.Mesh(axeHeadGeo(), _axeMat[t]);
+  g.add(head);
+  // the wedge driven into the top of the eye, and a few turns of cord below the head
+  const wedge = new THREE.Mesh(GEO("axeWedge", () => new THREE.BoxGeometry(0.008, 0.012, 0.03)), mat(0x5a3e26));
+  wedge.position.set(0, 0.676, -0.003); g.add(wedge);
+  const cord = new THREE.Mesh(GEO("axeCord", () => new THREE.CylinderGeometry(0.0205, 0.0205, 0.04, 12)), mat(0x6a5a40, { roughness: 1, surface: "cloth" }));
+  cord.scale.set(0.9, 1, 1.25); cord.position.set(0, 0.53, 0); g.add(cord);
+  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
   return g;
 }
 // arms: each held by the grip at the origin, pointing up +Y (as the axe is)

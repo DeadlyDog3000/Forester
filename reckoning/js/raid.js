@@ -27,7 +27,7 @@ import { THREE } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { makeArm, makeTorch } from "./models.js";
+import { makeArm, makeTorch, MODELS } from "./models.js";
 import { CLEARING, FIRE } from "./woods.js";
 import { NATIONS, strengthOf, the } from "./europe.js";
 
@@ -36,7 +36,7 @@ import { NATIONS, strengthOf, the } from "./europe.js";
 const LOOK = (s, enemy) => enemy
   // a crown's soldiers: its colours, a hat each
   ? { model: "townsman", name: "Soldier", coat: parseInt(NATIONS[enemy].color.slice(1), 16), legs: 0x2a2620, hat: "hat", hatColor: 0x1a1a1a, beard: 0x3e3226, seed: 500 + s }
-  : { model: "townsman", name: "Raider", coat: [0x3a3228, 0x2e3228, 0x40302a][s % 3], legs: 0x2a2620, hat: ["cap", "hat", null][s % 3], hatColor: 0x241e1a, beard: 0x3e3226, seed: 500 + s };
+  : { model: MODELS.raider ? "raider" : "townsman", name: "Raider", coat: [0x4a3424, 0x3e3a2a, 0x54402c][s % 3], legs: [0x3a3226, 0x2e2a22, 0x443a2c][s % 3], hat: MODELS.raider ? undefined : ["cap", "hat", null][s % 3], hatColor: [0x5a4632, 0x3e3428, 0x6a5a44][s % 3], beard: 0x3e3226, seed: 500 + s };
 const WALK = 3.4, FLEE = 3.1, WALL_SPEED = 2.6;
 const HP = 85;                    // (harder than they were: a raider takes a good few blows now)
 const DIRS = ["up", "left", "right"];

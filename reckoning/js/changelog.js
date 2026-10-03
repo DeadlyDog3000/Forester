@@ -7,6 +7,26 @@
 
 export const CHANGELOG = [
   {
+    v: "0.40", date: "3 October 2026", title: "Faces and families",
+    items: [
+      "Everyone has been rebuilt from the skin out. Faces are sculpted in one piece: a brow and eye sockets, cheekbones, a real nose, lips, a jaw and a chin, with colour in the cheeks and the eyebrows painted on. The eyes have an iris and pupil and a lid over them. Hands have fingers and a thumb. Hair is combed in strands from the crown to a clean hairline, and beards grow from the skin. Coats hang open in folds to the knee, split up the back, with pocket flaps and buttoned cuffs. Breeches are buckled at the knee, and shoes have heels and buckles. Skirts are gathered and full, with a darker hem, and aprons hang over them. Women wear a kerchief crossed at the breast and a linen coif with a frill. Tricorns have their brims pinned up properly. Shade gathers under brims and in folds and eye sockets.",
+      "Raiders dress like the forest men they are: a shaggy mantle of skins over the shoulders, a leather jerkin and a ragged tunic, a rope belt, bare arms with leather bracers, legs bound in strips, furs round the ankles, a fur cap, wild hair and beards.",
+      "Children grow up. A child grows over three years (24 days), getting taller and losing the big head of a little one. Then they're grown, and take up hauling: F beside them to set their work. And children are born: a family with a man and a woman, well fed and content, may have a child, a son or a daughter with a name of their own.",
+      "A Families tab in the government (G). Every family, its people, and what it thinks of each of the other families, from close friends to out for blood. Click a family to see who each of them likes least and most, and every reason: a quarrel over a borrowed axe, taking a cousin's side, another creed, hard times, good times, a generous neighbour, time healing. Feuds are marked in red.",
+      "Settlers quarrel less often and less bitterly, and old grudges soften a little every day unless a feud keeps them up. Good times, working side by side and sharing a faith win them round.",
+      "Rebuild your cabin as a house and the outside changes too: a two-storey house in timber and plaster with a red tile roof, like the settlers' own, with your door and a chimney over your hearth, and a boarded ceiling inside.",
+      "Crafting shows everything you can make with what's built. Recipes you're short of are greyed out, with what's missing in red. Copper, bronze and iron tools stay hidden until you have a forge, and it tells you how many more recipes a forge would open.",
+      "A new felling axe: a bearded head forged thin to a bright honed edge, with a wedge in its eye and a cord whipped under it, on a curved oval hickory haft with a knob at the end.",
+      "A stump goes when a tree grows back on it.",
+      "Settlers earn money of their own. Once a day each takes a break to make something in their own time: kindling, a basket of mushrooms, a bunch of herbs, a rabbit skin, a whittled spoon or carved pegs. When Henning or Tobias is in, they take it to him and sell it for their own purse. None of it comes out of the settlement's stores, and none of it is taxed. The People tab shows what they have to sell and what they've saved.",
+      "Thieves take goods as well as coin now: rye, loaves, meat, planks, stone, bricks or iron out of the stores. They hide it, and sell it on the quiet to the next trader. You may hear that someone was seen selling planks to Tobias, and wonder where they came by them. With a jail and a watchman, the watch may catch them in the act: the money goes back to the treasury and the thief to the jail.",
+      "The name of what's in your hand shows for a moment right below its slot whenever you change it, with the wheel or 1-9. Hover over anything on the bar, in the inventory or in a chest, and its name shows right below it.",
+      "Policing can be researched from the start (15 DM, in the Military Philosophy tree): the jail and the watch, to catch thieves, no longer wait on Trading, Currencies and Marketing.",
+      "Fixed: a ripe field could still be reaped in the middle of winter. Nothing is reaped or sown till spring.",
+      "Planks and bricks have pictures of their own: a stack of sawn boards and a pile of red bricks, instead of a door and a stone.",
+    ],
+  },
+  {
     v: "0.35", date: "3 October 2026", title: "Rough edges",
     items: [
       "The charcoal burner's camp, mended. The turf on the clamp lies flat against it, overlapping like scales, instead of sticking out at all angles, and the vents are glowing holes in its side, not balls floating off it. His ladder is one ladder, rungs and rails together, leant up the clamp. The poles of his hut lean in and cross at the top. His fire is a real little fire with sticks burning in it and a kettle on a hook, not a flat orange disc. The charcoal sacks are coarse cloth tied at the neck, not wooden balls, and the baskets are wicker with charcoal heaped in them.",

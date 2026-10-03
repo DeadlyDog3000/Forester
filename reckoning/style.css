@@ -66,7 +66,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 #askInput { display: block; width: min(320px, 70vw); margin: 12px auto 14px; padding: 8px 10px; font: 20px var(--serif); text-align: center; color: var(--ink); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--edge); border-radius: 3px; outline: none; }
 #askInput:focus { border-color: var(--gold); }
 /* the hotbar: nine slots along the bottom, what you have to hand */
-#hotbar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; background: rgba(6, 16, 10, 0.72); border: 1px solid rgba(140, 192, 132, 0.25); border-radius: 4px; transition: opacity 0.25s; }
+#hotbar { position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; background: rgba(6, 16, 10, 0.72); border: 1px solid rgba(140, 192, 132, 0.25); border-radius: 4px; transition: opacity 0.25s; }
 #hotbar.hidden-by-talk { opacity: 0; }
 #hotbar .hb { position: relative; width: 42px; height: 42px; background: rgba(0, 0, 0, 0.38); border: 1px solid rgba(140, 192, 132, 0.18); border-radius: 3px; box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6); }
 #hotbar .hb.sel { border: 2px solid var(--gold); box-shadow: 0 0 8px rgba(140, 192, 132, 0.45), inset 0 2px 6px rgba(0, 0, 0, 0.6); }
@@ -663,3 +663,27 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 .mc-slot .dur { position: absolute; left: 5px; right: 5px; bottom: 3px; height: 3px; background: rgba(0, 0, 0, 0.6); border-radius: 1px; }
 .mc-slot .dur i { display: block; height: 100%; background: #8cc084; border-radius: 1px; }
 .mc-slot .dur.low i { background: #d8553a; }
+
+/* the families tab */
+.fam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.fam-card { text-align: left; font: 13px var(--sans); color: var(--ink); background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(140, 192, 132, 0.25); border-radius: 4px; padding: 9px 11px; cursor: pointer; }
+.fam-card:hover { border-color: var(--gold); }
+.fam-card.on { border-color: var(--gold); background: rgba(200, 150, 46, 0.14); }
+.fam-card.feud { box-shadow: inset 3px 0 0 #d0503a; }
+.fam-card .dim { color: var(--ink-dim); font-size: 12px; margin-top: 2px; }
+.fam-name { font: 18px var(--serif); color: var(--gold); }
+.fam-line { margin-top: 4px; font-size: 12px; }
+.fam-op { padding: 8px 0; border-bottom: 1px solid rgba(140, 192, 132, 0.1); font: 13px var(--sans); color: var(--ink); }
+.fam-op-h b { font: 16px var(--serif); }
+.op-bar { position: relative; height: 6px; margin: 5px 0; background: rgba(0, 0, 0, 0.35); border-radius: 3px; }
+.op-bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(232, 220, 192, 0.4); }
+.op-bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.fam-why { font-size: 12px; color: var(--ink-dim); line-height: 1.5; }
+.fam-why .up { color: #9ac88a; } .fam-why .down { color: #d0503a; }
+.cr-row.cr-short { opacity: 0.62; }
+.cr-row.cr-short .btn[disabled] { opacity: 0.6; cursor: default; }
+.cr-lack { color: #d0805a; }
+
+/* the name of a thing, right below it */
+#hbName, #tipBelow { position: fixed; transform: translateX(-50%); z-index: 80; pointer-events: none; white-space: nowrap; font: 600 12px/1 var(--sans); letter-spacing: 0.04em; color: #f1e6c8; text-shadow: 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.8); padding: 3px 7px; border-radius: 3px; background: rgba(6, 16, 10, 0.7); opacity: 0; transition: opacity 0.25s; }
+#hbName.on, #tipBelow.on { opacity: 1; transition: opacity 0.08s; }
