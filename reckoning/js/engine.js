@@ -778,7 +778,8 @@ function freeCamera(dt) {
   if (G.mode === "play") {
     const s = G.settings;
     f.yaw -= input.mdx * 0.0022 * s.sens; f.pitch = clamp(f.pitch - input.mdy * 0.0022 * s.sens * (s.invert ? -1 : 1), -1.5, 1.5);
-    const sp = (input.down("ShiftLeft") || input.down("ShiftRight") ? 22 : 7) * dt;
+    // (the wheel sets the pace: slower for close work, much faster to cross the country)
+    const sp = (input.down("ShiftLeft") || input.down("ShiftRight") ? 22 : 7) * (f.mul || 1) * dt;
     const fx = -Math.sin(f.yaw) * Math.cos(f.pitch), fy = Math.sin(f.pitch), fz = -Math.cos(f.yaw) * Math.cos(f.pitch);
     const rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);
     const k = (a, b) => (input.down(a) ? 1 : 0) - (input.down(b) ? 1 : 0);

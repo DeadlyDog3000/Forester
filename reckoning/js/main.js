@@ -1147,7 +1147,17 @@ function selIndex(items) {
 // arrows and the like are passed over. A notch a step (a trackpad's run of little nudges is gathered into notches)
 let wheelAcc = 0, wheelAt = 0;
 addEventListener("wheel", e => {
-  if (G.mode !== "play" || overlay || UI.dialogOpen || G.freecam || (G.town && G.town.planning)) return;
+  // in the free camera the wheel is its pace: up quicker, down slower, a step a notch, from a crawl to twenty times as fast
+  if (G.freecam && G.mode === "play") {
+    wheelAcc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    const now = performance.now();
+    if (Math.abs(wheelAcc) < 40 || now - wheelAt < 60) return;
+    const f = G.freecam, up = wheelAcc < 0; wheelAcc = 0; wheelAt = now;
+    f.mul = Math.min(20, Math.max(0.25, (f.mul || 1) * (up ? 1.4 : 1 / 1.4)));
+    UI.hint(`Free camera pace: ×${f.mul < 1 ? f.mul.toFixed(2) : f.mul < 10 ? f.mul.toFixed(1) : Math.round(f.mul)}`, 1.2);
+    return;
+  }
+  if (G.mode !== "play" || overlay || UI.dialogOpen || (G.town && G.town.planning)) return;
   wheelAcc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
   const now = performance.now();
   if (Math.abs(wheelAcc) < 40 || now - wheelAt < 110) return;
@@ -1440,7 +1450,7 @@ addEventListener("keydown", e => {
   }
   // ; : the free camera — the view flies loose of you (WASD, Space up, C down, Shift quicker); ; again to come back
   // (and ; always brings you back, whatever is open)
-  if (e.code === "Semicolon" && !e.repeat && G.mode === "play" && (!overlay || G.freecam)) { const on = G.toggleFreecam(); UI.hint(on ? "Free camera: WASD to fly, Space up, C down, Shift quicker. ; to come back." : "Back in yourself.", on ? 4 : 1.5); }
+  if (e.code === "Semicolon" && !e.repeat && G.mode === "play" && (!overlay || G.freecam)) { const on = G.toggleFreecam(); UI.hint(on ? "Free camera: WASD to fly, Space up, C down, Shift quicker, the mouse wheel for its pace. ; to come back." : "Back in yourself.", on ? 4 : 1.5); }
   if (e.code === "KeyJ" && !e.repeat && G.mode === "play") {
     if (!G.hasMap && overlay !== "bigmap") UI.hint("You haven't a map.", 2.5);
     else showOverlay("bigmap", overlay !== "bigmap");
