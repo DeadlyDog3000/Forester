@@ -219,6 +219,34 @@ export const AUDIO = {
     }
   },
 
+  // a bow drawn: the wood of the limbs creaking under the strain, a tick and a groan, louder the further it comes back
+  bowCreak(k = 0.5) {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = "bandpass"; f.frequency.value = rnd(380, 560) + k * 200; f.Q.value = 9;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05 + 0.1 * k, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + rnd(0.07, 0.14));
+    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 0.16);
+  },
+  // the string let go: a deep, short twang that dies at once, the slap of it on the bracer, and the arrow hissing away
+  twang(power = 1) {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime;
+    for (const [fq, v, d] of [[rnd(92, 104), 0.32, 0.22], [rnd(186, 206), 0.14, 0.12], [rnd(410, 450), 0.06, 0.06]]) {
+      const o = a.createOscillator(), g = a.createGain(); o.type = "triangle";
+      o.frequency.setValueAtTime(fq * 1.35, t); o.frequency.exponentialRampToValueAtTime(fq, t + 0.03);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v * (0.4 + 0.6 * power), t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(bus); o.start(t); o.stop(t + d + 0.02);
+    }
+    const s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = "lowpass"; f.frequency.value = 900;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22 * (0.4 + 0.6 * power), t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 0.07);
+    const h = noiseSrc(a), hf = a.createBiquadFilter(), hg = a.createGain();
+    hf.type = "bandpass"; hf.Q.value = 2; hf.frequency.setValueAtTime(3200, t + 0.02); hf.frequency.exponentialRampToValueAtTime(1400, t + 0.4);
+    hg.gain.setValueAtTime(0.0001, t + 0.02); hg.gain.exponentialRampToValueAtTime(0.07 * power, t + 0.06); hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+    h.connect(hf); hf.connect(hg); hg.connect(bus); h.start(t + 0.02, Math.random()); h.stop(t + 0.45);
+  },
+
   // a blade or a haft through the air: noise that swells and falls away, its pitch rising with the stroke's speed
   whoosh(vol = 0.5, heavy = true) {
     const a = ctx(); if (!a) return;

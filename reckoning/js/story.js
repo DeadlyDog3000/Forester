@@ -325,6 +325,7 @@ export async function startChapter(n, opts = {}) {
   G.chest = ((loadSave() || {}).chest || []).slice(0, 9);
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
   G.endFreecam && G.endFreecam();
+  G.heldFood = null;
   G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0; G.health = 1; G.downed = false; G.hitShake = 0; G.panting = 0; G.onDowned = null; G.showHealth = false; UI.stance && UI.stance(null);   // running always costs breath
   if (G.town) { G.town.stop(); G.town = null; }
   G.bugs.setKind(null);
@@ -1179,7 +1180,8 @@ async function ch6(w) {
   w.addInteract({ x: CABIN.x + Math.sin(CABIN.ry) * 3.3, y: w.cy + 1.2, z: CABIN.z + Math.cos(CABIN.ry) * 3.3, reach: 3, hold: 5, label: `Rebuild the cabin (${CABIN_COST} logs and the door)`,
     can: () => S.door && S.store >= CABIN_COST && !rebuilt,
     onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.hammer(); },
-    use: () => { rebuilt = true; } });
+    // (the logs come off the stack into the walls)
+    use: () => { rebuilt = true; S.store = Math.max(0, S.store - CABIN_COST); w.setStack(S.store); persist(); } });
 
   // ---- felling ----
   const bundles = [];

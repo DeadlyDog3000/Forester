@@ -279,6 +279,8 @@ export class Hunt {
         if (ar.t > 6) { this.stick(ar); break; }
       }
       if (!ar.stuck || !ar.in) this.orient(ar);
+      // (just off the string an arrow flexes and wobbles — the archer's paradox — and straightens as it flies)
+      if (!ar.stuck && ar.t < 0.4) { const k = 1 - ar.t / 0.4; ar.mesh.rotateY(Math.sin(ar.t * 62) * 0.07 * k); ar.mesh.rotateX(Math.cos(ar.t * 55) * 0.04 * k); }
     }
     for (const a of this.animals) a.update(dt);
   }

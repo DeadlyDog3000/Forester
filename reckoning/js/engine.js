@@ -280,55 +280,80 @@ export class Player {
       this.arms = null; this.hands = null; this.draw = 0;
     }
   }
-  // the bow at rest, or drawn by k (0..1): the string comes back to your cheek and the bow comes up to your eye
-  bowPose(k) {
+  // the bow at rest, or drawn by k (0..1): the string comes back to your cheek and the bow comes up to your eye.
+  // After a shot (rel, 1 falling to 0) the bow kicks forward and rolls in the hand, the string shivers, and the drawing
+  // hand flies back past the ear; then (reloading) it goes back over the shoulder to the quiver and brings an arrow to the string
+  bowPose(k, rel = this.release || 0) {
     const g = this.bow; if (!g) return;
-    const e = k * k * (3 - 2 * k);
-    g.position.set(-0.07 + 0.05 * e, -0.22 + 0.13 * e, -0.55 + 0.04 * e);
-    g.rotation.set(0.05 * (1 - e), 0.06 * e, 0.28 * (1 - e) + 0.1);
+    const e = k * k * (3 - 2 * k), kick = rel * rel;
+    g.position.set(-0.07 + 0.05 * e, -0.22 + 0.13 * e - 0.015 * kick, -0.55 + 0.04 * e - 0.05 * kick);
+    g.rotation.set(0.05 * (1 - e) - 0.06 * kick, 0.06 * e, 0.28 * (1 - e) + 0.1 + 0.3 * kick);
     const back = 0.15, L = 0.66, nockZ = back + 0.02 + e * 0.4;
+    // (the string, let go, shivers back and forth a few times and is still)
+    const shiver = rel > 0 ? Math.sin((1 - rel) * 70) * 0.03 * rel : 0;
     const a = this.bowString.geometry.attributes.position;
-    a.setXYZ(0, 0, L, back); a.setXYZ(1, 0, 0.012, nockZ); a.setXYZ(2, 0, -L, back); a.needsUpdate = true;
+    a.setXYZ(0, 0, L, back); a.setXYZ(1, 0, 0.012, nockZ + shiver); a.setXYZ(2, 0, -L, back); a.needsUpdate = true;
     this.bowString.geometry.computeBoundingSphere();
-    this.nocked.position.set(0.012, 0.012, nockZ);
-    this.nocked.visible = (this.arrows || 0) > 0 && this.reload <= 0;
-    this.nockHand.position.set(0.02, 0.0, nockZ + 0.03);
+    const RL = 0.9, p = this.reload > 0 ? 1 - this.reload / RL : 1, ez = x => x * x * (3 - 2 * x);
+    // the drawing hand: on the string; or flown back after the shot; or away to the quiver and back with an arrow
+    const hx = 0.02, hy = 0.0, hz = nockZ + 0.03;
+    let x = hx, y = hy, z = hz;
+    if (this.reload > 0) {
+      const QX = 0.22, QY = 0.32, QZ = 0.42;                                  // (over the right shoulder, where the quiver is)
+      if (p < 0.4) { const t = ez(p / 0.4); x = 0.06 + (QX - 0.06) * t; y = 0.02 + (QY - 0.02) * t; z = hz + 0.16 + (QZ - hz - 0.16) * t; }
+      else { const t = ez((p - 0.4) / 0.6); x = QX + (hx - QX) * t; y = QY + (hy - QY) * t; z = QZ + (back + 0.05 - QZ) * t; }
+    }
+    if (rel > 0 && this.reload > 0.6) { x += 0.04 * rel; z += 0.14 * rel; }
+    this.nockHand.position.set(x, y, z);
+    // the arrow: on the string, or in the hand on its way there
+    const have = (this.arrows || 0) > 0;
+    this.nocked.visible = have && (this.reload <= 0 || p > 0.4);
+    if (this.reload > 0 && p > 0.4) this.nocked.position.set(x - 0.008, y + 0.012, z - 0.03);
+    else this.nocked.position.set(0.012, 0.012, nockZ);
   }
   updateBow(dt) {
     if (!this.bow) return;
     const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
     this.reload = Math.max(0, this.reload - dt);
+    this.release = Math.max(0, (this.release || 0) - dt * 2.6);
     // hold the right mouse button to draw; let it go to loose
     if (!input.rdown) this.noDraw = false;
     // (nor does holding right-click on something to use it, like an arrow to pull out)
     if (free && input.rdown && !this.noDraw && (this.arrows || 0) > 0 && this.reload <= 0) {
-      if (this.draw === 0) { SFX.pickup && SFX.pickup(); this.heldFull = 0; }
-      this.draw = Math.min(1, this.draw + dt / 0.85);
+      if (this.draw === 0) { SFX.pickup && SFX.pickup(); this.heldFull = 0; this.creakT = 0; this.breathHeld = 0; this.letdown = false; }
+      // (it comes easily at first and harder the further back it comes: the bow stacks)
+      this.draw = Math.min(1, this.draw + dt / 0.85 * (1.35 - 0.75 * this.draw));
+      if (this.draw < 1 && (this.creakT -= dt) <= 0) { this.creakT = 0.14 + Math.random() * 0.12; AUDIO.bowCreak && AUDIO.bowCreak(this.draw); }
       if (this.draw >= 1) this.heldFull += dt;
     } else if (this.draw > 0) {
-      // let go: a real shot if it was drawn enough, a let-down if not
-      if (this.draw > 0.2 && free) {
-        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
-        // (the shaking goes into the shot)
-        const sh = this.shake || 0;
-        dir.x += Math.sin(G.time * 11.3) * sh * 0.05; dir.y += Math.sin(G.time * 8.7) * sh * 0.05; dir.z += Math.cos(G.time * 9.9) * sh * 0.05; dir.normalize();
+      // let go: a real shot if it was drawn enough; if not, the string let down gently, not snapped
+      if (this.draw > 0.2 && free && !this.letdown) {
+        const q = camera.getWorldQuaternion(new THREE.Quaternion());
+        // (the arrow goes where the bow was pointing — sway and all — not where the crosshair is)
+        const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(this.swY || 0, this.swX || 0, 0, "YXZ")).applyQuaternion(q);
         const from = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
-        this.arrows--; this.reload = 0.55;
+        this.arrows--; this.reload = 0.9; this.release = 1; G.bowKick = 0.6 + 0.4 * this.draw;
         if (G.hunt) G.hunt.loose(from, dir, this.draw);
         G.practise("archery", 0.5);
-        SFX.swingFist && SFX.swingFist();
-      }
-      this.draw = 0; this.heldFull = 0;
+        AUDIO.twang ? AUDIO.twang(this.draw) : SFX.swingFist && SFX.swingFist();
+        this.draw = 0; this.heldFull = 0;
+      } else { this.letdown = true; this.draw = Math.max(0, this.draw - dt * 2.4); if (this.draw === 0) { this.letdown = false; this.heldFull = 0; } }
     }
-    // held at full draw, your arms begin to shake — a little at first, then worse
-    this.shake = this.draw >= 1 ? Math.min(1, 0.15 + (this.heldFull || 0) / 3) * aimSteady(G.body) : 0;
+    // held at full draw, your arms begin to shake — a little at first, then worse. Shift holds your breath: steady for a
+    // few seconds, at a cost in wind, and worse after
+    let steady = 1;
+    if (this.draw >= 1 && (input.down("ShiftLeft") || input.down("ShiftRight")) && (G.stamina ?? 1) > 0.05 && (this.breathHeld || 0) < 3.5) {
+      this.breathHeld = (this.breathHeld || 0) + dt; steady = 0.2;
+      if (G.stamina !== undefined) G.stamina = Math.max(0, G.stamina - dt * 0.12);
+      if (!this.breathTip) { this.breathTip = true; UI.hint("Holding your breath: steady, for a few seconds.", 2.5); }
+    } else if ((this.breathHeld || 0) >= 3.5) steady = 1.8;
+    this.shake = this.draw >= 1 ? Math.min(1, 0.15 + (this.heldFull || 0) / 3) * aimSteady(G.body) * steady : 0;
+    // the aim drifts as you hold it: a slow wander, a little more the harder the pull and the more tired the arms
+    const t = G.time, amp = this.draw > 0 ? (0.004 + 0.006 * this.draw + 0.018 * this.shake) * steady : 0;
+    this.swX = (Math.sin(t * 0.83) * 0.6 + Math.sin(t * 1.71 + 1.3) * 0.4) * amp + Math.sin(t * 17) * 0.004 * this.shake;
+    this.swY = (Math.sin(t * 1.17 + 0.4) * 0.6 + Math.sin(t * 2.3) * 0.4) * amp * 0.8 + Math.sin(t * 13) * 0.004 * this.shake;
     this.bowPose(this.draw);
-    if (this.shake > 0) {
-      const k = this.shake;
-      this.bow.rotation.x += (Math.sin(G.time * 23) * 0.6 + Math.sin(G.time * 9) * 0.4) * 0.012 * k;
-      this.bow.rotation.y += (Math.sin(G.time * 19) * 0.6 + Math.sin(G.time * 7) * 0.4) * 0.01 * k;
-      this.bow.position.x += Math.sin(G.time * 17) * 0.004 * k; this.bow.position.y += Math.sin(G.time * 13) * 0.004 * k;
-    }
+    this.bow.rotation.y += this.swX; this.bow.rotation.x += this.swY;
     this.fitArms();
   }
   // each sleeve runs from its shoulder to its hand on the haft, however the axe is held
@@ -350,6 +375,8 @@ export class Player {
   // G.working = { kind, until } while a held action goes on (or workFor, for a moment's work after something is made)
   workFor(kind, secs) { G.working = { kind, until: G.time + secs }; }
   updateWork(dt) {
+    // (food taken up stays in the hand after anything else you did meanwhile)
+    if (G.heldFood && (!G.working || G.time >= G.working.until)) G.working = { kind: "food", food: G.heldFood.icon, until: Infinity, quiet: true };
     const wk = G.working && G.time < G.working.until && G.working.kind ? G.working : null;
     const kind = wk ? wk.kind : null;
     if (kind !== this.workKind) {
@@ -360,16 +387,16 @@ export class Player {
       const show = !kind;
       for (const a of this.arms || []) a.arm.visible = show;
       if (this.bow) this.bow.visible = show;
-      if (this.model) this.model.setPose(kind ? "hammer" : "idle");
+      if (this.model) this.model.setPose(kind === "food" ? "idle" : kind ? "hammer" : "idle");
       if (kind) {
         const look = this.model && this.model.look || {};
         const g = new THREE.Group();
         const hand = new THREE.Group(); g.add(hand);
         const skin = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skin); fist.rotation.z = Math.PI / 2; hand.add(fist);
-        const tool = kind === "eat" ? makeFood(G.working.food) : kind === "reap" ? makeSickle() : kind === "pick" ? new THREE.Group() : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer();
+        const tool = kind === "eat" || kind === "food" ? makeFood(G.working.food) : kind === "reap" ? makeSickle() : kind === "pick" ? new THREE.Group() : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer();
         // (blades turned flat to the eye, not edge on)
-        if (kind !== "hammer" && kind !== "eat" && kind !== "reap") tool.rotation.y = Math.PI / 2;
+        if (kind !== "hammer" && kind !== "eat" && kind !== "food" && kind !== "reap") tool.rotation.y = Math.PI / 2;
         hand.add(tool);
         // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
         const arm = new THREE.Group(); g.add(arm);
@@ -378,7 +405,7 @@ export class Player {
         g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
         vm.add(g); this.workRig = g;
         // and the same tool in the hand of your body, for when the camera is behind you
-        if (this.model && this.model.held && kind !== "eat" && kind !== "sow" && kind !== "pick") { this.workBody = kind === "reap" ? makeSickle() : kind === "dig" ? makeSpade() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
+        if (this.model && this.model.held && kind !== "eat" && kind !== "food" && kind !== "sow" && kind !== "pick") { this.workBody = kind === "reap" ? makeSickle() : kind === "dig" ? makeSpade() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer(); this.workBody.rotation.x = Math.PI / 2; this.model.held.add(this.workBody); }
       }
     }
     if (!this.workRig) return;
@@ -438,6 +465,10 @@ export class Player {
       const busy = wk.busy && G.time < wk.busy, p = busy ? 1 - (wk.busy - G.time) / 0.5 : 0, flick = Math.sin(p * Math.PI);
       h.position.set(0.12 - flick * 0.05, -0.3 + flick * 0.09 + Math.sin(t * 2) * 0.004, -0.5 - flick * 0.05);
       h.rotation.set(-1.6 + flick * 1.1, 0.2, 0.35 - flick * 0.6);
+    } else if (kind === "food") {
+      // held in the hand, low and to the right, ready: it moves a little with you
+      h.position.set(0.2, -0.3 + Math.sin(t * 1.6) * 0.004, -0.44);
+      h.rotation.set(-0.25, 0.4, 0.25 + Math.sin(t * 1.1) * 0.02);
     } else if (kind === "eat") {
       // up to the mouth, and a bite, and a bite; the view dips a little with each
       const up = Math.min(1, t / 0.35), bite = Math.max(0, Math.sin(t * Math.PI * 2 * 1.6));
@@ -555,9 +586,11 @@ export class Player {
       UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick);
     } else UI.vitals(null);
     if (sprint && this.crouched) this.crouched = false;
+    // (a bow drawn: no running, and a slow, careful step)
+    if (this.draw > 0) sprint = false;
     // (a path is quicker going: a quarter faster along it; looked for a few times a second)
     if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.15; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(this.pos.x, this.pos.z)); }
-    const max = (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1);
+    const max = (this.draw > 0 ? 1.6 - this.draw * 0.5 : 1) * (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1);
     if (this.horse) this.crouched = false;
     const len = Math.hypot(mx, mz);
     const c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
@@ -876,7 +909,7 @@ function viewModel(dt, p, third) {
   // still, the hands rise and fall with your breath
   const br = Math.sin(VM.t * 1.7) * 0.0035 * (1 - walk) * steady;
   // taken out: up from below, quickly, and settled
-  const held = (p.axe ? "a" + (p.blade || "axe") : "") + (p.bow ? "b" : "") + (p.workKind || "");
+  const held = (p.axe ? "a" + (p.blade || "axe") : "") + (p.bow ? "b" : "") + (p.workKind === "eat" ? "food" : p.workKind || "");
   if (held !== VM.held) { if (held) VM.raise = 0; VM.held = held; }
   VM.raise = Math.min(1, VM.raise + dt * 3.6);
   const r = 1 - VM.raise, rise = r * r * (3 - 2 * r);
@@ -889,6 +922,9 @@ function viewModel(dt, p, third) {
     if (p.swingDir === "up") camera.rotation.x += wind * 0.03 - blow * 0.035;
     else { camera.rotation.y += (-wind * 0.015 + blow * 0.025) * s; camera.rotation.z += (wind * 0.012 - blow * 0.02) * s; }
   }
+  // the shot: the string's slap runs up the arm, and the view jolts, a little, and settles
+  const bk = G.bowKick || 0;
+  if (bk > 0) { const k = bk * bk; camera.rotation.x += 0.014 * k; camera.rotation.z -= 0.006 * k; G.bowKick = Math.max(0, bk - dt * 5); }
   // the bite: the blade stops dead in what it struck, and it jars your arms
   const im = Math.max(0, (p.impactT || 0) - G.time);
   if (im > 0) { const k = im / 0.18; camera.rotation.x += Math.sin(G.time * 70) * 0.006 * k; vm.position.y += 0.012 * k; vm.position.z += 0.025 * k; }
@@ -1684,6 +1720,8 @@ export function frame(dt, skipRender) {
     if (G.world && G.world.cave && G.world.cave.inside) G.world.cave.dark();
     updateInteract(dt);
     // the axe swings on a click, when there is an axe
+    // food in the hand: a click is a bite of it, not a swing
+    if (input.click && G.foodInHand && G.foodInHand() && !UI.dialogOpen && !G.cine) { G.eatHeld(); input.click = false; }
     if (input.click && G.player.axe && !G.player.horse && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);
     // move dialogue on
     if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();

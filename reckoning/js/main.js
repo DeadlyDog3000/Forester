@@ -1096,7 +1096,8 @@ function renderHotbar() {
   hb.classList.toggle("hidden-by-talk", !!UI.dialogOpen);
   document.body.classList.toggle("talking", !!UI.dialogOpen);
   const items = hotbarItems(), pl = G.player;
-  const sel = items.findIndex(i => (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow));
+  const hf = G.heldFood;
+  const sel = items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow));
   const sig = items.map(i => i.icon + (i.n ?? "") + (i.wear != null ? "w" + Math.round(i.wear * 40) : "")).join("|") + "#" + sel;
   if (sig === hbSig) return;
   hbSig = sig;
@@ -1113,13 +1114,29 @@ addEventListener("keydown", e => {
   if (it && it.tool === "axe") { if (pl.axe && blade !== "axe") pl.wield("axe"); else { pl.blade = "axe"; pl.holsterAxe(!!pl.axe); } }
   if (it && it.tool === "arm") { if (pl.axe && blade === it.kind) { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield(it.kind); }
   if (it && it.tool === "pick") { if (pl.axe && blade === "pick") { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield("pick"); }
+  // (taking up anything else puts the food away)
+  const holding = heldFood(), same = holding && it && it.icon === holding.icon && !!it.fromStore === !!holding.fromStore;
+  if (holding) putFoodAway();
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
-  if (it && FOOD[it.icon]) eat(it);
+  // food: taken in the hand (the number again puts it away); a click eats it
+  if (it && FOOD[it.icon] && !same) holdFood(it);
 });
+// the food in your hand, if any (found again among what you carry, as the bar is rebuilt)
+function heldFood() { const h = G.heldFood; if (!h) return null; return hotbarItems().find(i => i.icon === h.icon && !!i.fromStore === h.fromStore) || null; }
+function holdFood(it) {
+  if (G.working && G.time < G.working.until && G.working.kind !== "food") return;
+  G.heldFood = { icon: it.icon, fromStore: !!it.fromStore };
+  G.working = { kind: "food", food: it.icon, until: Infinity, quiet: true };
+  if (!holdFood.told) { holdFood.told = true; UI.hint(`${it.name} in your hand — click to eat. Press ${hotbarItems().indexOf(it) + 1} again to put it away.`, 4); }
+}
+function putFoodAway() { G.heldFood = null; if (G.working && (G.working.kind === "food" || G.working.kind === "eat")) G.working = null; }
+// a click with food in the hand: a bite (and the food stays in the hand while there's more of it)
+G.eatHeld = () => { const it = heldFood(); if (!it) { putFoodAway(); return; } eat(it); };
+G.foodInHand = () => !!G.heldFood;
 // eating: the number of something you can eat puts it to your mouth
 function eat(it) {
   const f = it.icon === "dish" ? { ...FOOD.dish, fill: it.fill || FOOD.dish.fill, raw: false, half: !!it.raw } : FOOD[it.icon], b = G.body;
-  if (!f || !b || (G.working && G.time < G.working.until)) return;
+  if (!f || !b || (G.working && G.time < G.working.until && G.working.kind !== "food")) return;
   if (b.hunger > 0.97) { UI.hint("You're not hungry.", 1.6); return; }
   // raw meat: a warning first; press again and you eat it anyway, and take the plague with it
   if (f.raw && !(eat.armed && eat.armed > performance.now())) { eat.armed = performance.now() + 3000; UI.hint("That's raw. Cook it at the fire first (hold F there) — raw meat brings the plague. Press again to eat it anyway.", 4); return; }
@@ -1136,6 +1153,8 @@ function eat(it) {
     if (f.raw && !(b.plague > 0)) { b.plague = PLAGUE_SECS; UI.hint("You ate it raw. By evening you're shaking with fever — the plague. Nothing mends while you have it; a hospital could cure it.", 7); }
     if (it.fromStore) { if (G.town.S.bread > 0) { G.town.S.bread--; G.town.persist && G.town.persist(); } }
     else { it.n = (it.n || 1) - 1; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }
+    // back to holding what's left of it, or the hand empty
+    if (G.heldFood) { if (heldFood()) G.working = { kind: "food", food: it.icon, until: Infinity, quiet: true }; else putFoodAway(); }
   }, 60);
 }
 
