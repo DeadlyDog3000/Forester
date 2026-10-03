@@ -6,7 +6,7 @@
 // people who walk around with you, the camera over (or behind) your eyes, and
 // the one thing in front of you that E would do something to.
 
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
@@ -916,7 +916,7 @@ function viewModel(dt, p, third) {
   const br = Math.sin(VM.t * 1.7) * 0.0035 * (1 - walk) * steady;
   // taken out: up from below, quickly, and settled
   const held = (p.axe ? "a" + (p.blade || "axe") : "") + (p.bow ? "b" : "") + (p.workKind === "eat" ? "food" : p.workKind || "");
-  if (held !== VM.held) { if (held) VM.raise = 0; VM.held = held; }
+  if (held !== VM.held) { if (held) VM.raise = 0; VM.held = held; noSnow(vm); if (p.model) noSnow(p.model.root); }
   VM.raise = Math.min(1, VM.raise + dt * 3.6);
   const r = 1 - VM.raise, rise = r * r * (3 - 2 * r);
   vm.position.set(bx + VM.sprint * 0.02 + VM.crouch * -0.01, by + br + VM.fy - VM.sprint * 0.04 - rise * 0.32 - VM.crouch * 0.015, VM.sprint * 0.02 + VM.crouch * 0.03);
@@ -1326,7 +1326,7 @@ export class Actor {
     if (G.world) { const a = G.world.actors; const i = a.indexOf(this); if (i >= 0) a.splice(i, 1); }
     if (this.resolve) { const r = this.resolve; this.resolve = null; r(); }
   }
-  hold(obj, left = false) { (left ? this.person.heldL : this.person.held).add(obj); return obj; }
+  hold(obj, left = false) { (left ? this.person.heldL : this.person.held).add(obj); return noSnow(obj); }
   headPos() { return new THREE.Vector3(this.pos.x, this.pos.y + 1.75 * (this.person.body.scale.y), this.pos.z); }
 }
 

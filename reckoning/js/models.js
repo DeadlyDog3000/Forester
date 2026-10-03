@@ -5,7 +5,7 @@
 // People, trees, and the furniture of a life: all built from primitives at
 // load, the way the first Forester built its sounds instead of loading them.
 
-import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail } from "./core.js";
+import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, noSnow } from "./core.js";
 import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
 
 // ---------------------------------------------------------------------------
@@ -238,6 +238,7 @@ export function makePerson(o = {}) {
     setPose(p) { if (p !== this.pose) { this.pose = p; this.poseT = 0; } },
   };
   if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor });
+  noSnow(P.root);
   return P;
 }
 

@@ -139,12 +139,13 @@ export const SNOW = { value: 0 };
 export const AUTO_FULL = { value: 1 };
 // a roofed room where no snow lies: (centre x, centre z, turn, on) and (half across, half deep, eaves height)
 export const ROOFED = { value: new THREE.Vector4(0, 0, 0, 0) }, ROOFSIZE = { value: new THREE.Vector3(2.8, 3.3, 0) };
-export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0 } = {}) {
+export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true } = {}) {
   const surf = SURFACE[surface] ?? -1;
+  material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow };
   material.onBeforeCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount }; sh.uniforms.dNear = { value: seeThrough };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
-    sh.uniforms.dSnow = SNOW; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE;
+    sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE;
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
@@ -218,6 +219,23 @@ addDetail(MAT.rough, { scale: 1.1, amount: 0.3, grain: 0.7 });
 addDetail(MAT.lit, { scale: 1.4, amount: 0.12, grain: 0.2 });
 
 const _mc = {};
+// people, and what they carry, never have snow lying on them: their materials (which may be shared with a roof or a
+// fence) are swapped for copies of their own that take none — one copy of each, used by everyone
+const _noSnow = new WeakMap();
+export function noSnow(obj) {
+  if (!obj) return obj;
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    const one = m => {
+      if (!m || !m.userData || !m.userData.detail || m.userData.detail.snow === false) return m;
+      let c = _noSnow.get(m);
+      if (!c) { c = m.clone(); addDetail(c, { ...m.userData.detail, snow: false }); _noSnow.set(m, c); }
+      return c;
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(one) : one(o.material);
+  });
+  return obj;
+}
 export function mat(hex, opts = {}) {
   const key = hex + JSON.stringify(opts);
   if (!_mc[key]) {
