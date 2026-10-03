@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.41.1", date: "3 October 2026", title: "The town hall",
+    items: [
+      "The town hall does something now, more the grander it is (logs, then timber, brick, stucco):",
+      "Its clerk collects the wage taxes: 15% more for each step it has been rebuilt. Taxes & trade (G) shows how much the clerk found.",
+      "Its council settles feuds. They burn out sooner, blood money costs half, and old grudges fade faster.",
+      "Word sent from it brings people up the road for less: 2 DM off sending for someone for each step, down to 4 DM.",
+      "Settlers bring their goods to it, as they do to the stores, when it's nearer.",
+      "Everyone is a little prouder of the place, from +3 to +6 contentment for having a say in how it's run.",
+      "And a brick town hall is still the charter you need to rebuild in the city style, and to be called a City.",
+    ],
+  },
+  {
     v: "0.41", date: "3 October 2026", title: "Tools and uniforms",
     items: [
       "Fixed: settlers' hands and skin stretched out with their arms. Everyone's arms are now their own, so a hand hanging against the hip no longer drags the hip, the coat or a pocket flap along when it reaches out.",

@@ -50,6 +50,9 @@ export function economyDay(town) {
     p.purse = Math.round(((p.purse || 0) + Math.max(0, wage) - tax) * 10) / 10;
     taxed += tax;
   }
+  // the town hall's clerk: nothing slips through the ledger — 15% more for each step it has been rebuilt
+  const hall = town.hallTier || 0, clerk = Math.round(taxed * 0.15 * hall * 10) / 10;
+  taxed += clerk;
   // the companies: what they sold today, and the business tax on it
   for (const c of S.companies) {
     if (!c.built) continue;
@@ -74,7 +77,7 @@ export function economyDay(town) {
     const yours = Math.round(all * YOUR_SHARE * 10) / 10;
     S.coin = Math.round(((S.coin || 0) + all - yours) * 10) / 10;
     if (G.body) { G.body.purse = Math.round(((G.body.purse || 0) + yours) * 10) / 10; G.body.dirty = true; }
-    S.taxToday = { taxed: Math.round(taxed * 10) / 10, biz: Math.round(biz * 10) / 10, yours };
+    S.taxToday = { taxed: Math.round(taxed * 10) / 10, biz: Math.round(biz * 10) / 10, yours, clerk };
   }
   // someone who has saved a little, and is doing well, starts a business of their own
   if (S.laws.business && town.techGates !== false) {

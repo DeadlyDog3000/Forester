@@ -2782,13 +2782,16 @@ async function chFree(w) {
   // the board says the season and the day, and what wants doing next
   onFrame(() => UI.objective(`${S.name} — ${town.season}, day ${town.day + 1} · ${town.advice()}`));
   // sending for someone: a trade chosen, a few DM for the letter and the road, a bed for them — and they come up it
+  // (word sent from a town hall goes further, and costs less: 2 DM less for each step it has been rebuilt)
+  town.recruitCost = () => Math.max(4, RECRUIT_COST - 2 * (town.hallTier || 0));
   town.recruit = (job, where = "") => {
     // (to the first settlement, or to one out in the forest: they live, work and eat there)
     const c = where ? (S.colonies || []).find(k => k.name === where) : null;
     const V = town.viewFor(c), pop = V.S.people.length + (c ? 0 : 2), beds = town.bedsIn(c), sent = (town.sentTo ??= {})[where] || 0;
     if (beds <= pop + sent) return c ? `There's no bed free in ${c.name} — raise a cabin there first.` : "There's no bed free for anyone new — raise a cabin first.";
-    if ((S.coin || 0) < RECRUIT_COST) return `Sending for someone costs ${RECRUIT_COST} DM.`;
-    S.coin -= RECRUIT_COST; town.sentFor = (town.sentFor || 0) + 1; town.persist();
+    const cost = town.recruitCost();
+    if ((S.coin || 0) < cost) return `Sending for someone costs ${cost} DM.`;
+    S.coin -= cost; town.sentFor = (town.sentFor || 0) + 1; town.persist();
     const used = new Set(S.people.map(q => q.name));
     const base = NEWCOMERS.find(q => !used.has(q.name)) || { name: SPARE_NAMES.find(n => !used.has(n)) || `${SPARE_NAMES[S.people.length % SPARE_NAMES.length]} the younger`, sex: S.people.length % 2 ? "f" : "m" };
     const r = Math.random, main = JOB_SKILL[job];

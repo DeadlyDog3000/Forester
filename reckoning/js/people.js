@@ -138,6 +138,7 @@ export function moodOf(town, p) {
     if (q === p || q.child) continue;
     if (faithOf(q) === "catholic" && town.S.bread > 0) { v += add(2, `alms from ${q.name}`); break; }
   }
+  if (town.hallTier) v += add(2 + town.hallTier, "a town hall: a say in how the place is run");
   if (p.sick > 0) v += add(-10, "sick");
   if (p.mark === "disgraced") v += add(-7, "disgraced: the jail");
   if (p.mark === "contented") v += add(6, "contented");

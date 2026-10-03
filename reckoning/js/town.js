@@ -52,7 +52,7 @@ export const BUILDINGS = {
   smelter:  { name: "Smelter", cost: 12, mats: { stone: 16, bricks: 6 }, model: "town/smelter", tiers: true, w: 8.4, d: 5.2, icon: "iron", note: "Ore and charcoal in, iron out." },
   forge:    { name: "Forge", cost: 14, mats: { stone: 10 }, model: "town/forge", tiers: true, w: 8, d: 6, icon: "tools", note: "A smith makes iron tools: everyone who has one works a quarter faster." },
   market:   { name: "Market", cost: 20, mats: { planks: 6 }, model: "town/market", tiers: true, w: 8.6, d: 10, icon: "coin", note: "Sells what you have too much of, every day, for DM (Deutsche Mark)." },
-  townhall: { name: "Town hall", cost: 30, mats: { stone: 12, planks: 10 }, model: "town/townhall", tiers: true, w: 9.6, d: 10, icon: "cabin", note: "A seat for the town, and a charter: without one, no town builds as a city does." },
+  townhall: { name: "Town hall", cost: 30, mats: { stone: 12, planks: 10 }, model: "town/townhall", tiers: true, w: 9.6, d: 10, icon: "cabin", note: "The seat of the town. Its clerk collects the taxes (more of them, the grander it is), its council settles feuds sooner and cheaper, word sent from it brings people up the road for less, and settlers bring their goods to it as to the stores. Everyone is a little prouder of the place. And a charter: without one, no town builds as a city does." },
   shop:     { name: "Shop", cost: 10, w: 4.2, d: 3.4, icon: "cabin", settlers: true, note: "A settler's own business." },
   stable:   { name: "Stable", cost: 14, mats: { stone: 4 }, w: 6.4, d: 4.2, icon: "cabin", note: "Stalls for two horses. Take one out (F at the stable) and ride — more than twice as fast as walking. X gets you down, and it finds its own way home." },
   path:     { name: "Path", cost: 0, w: 2.2, d: 3.4, path: true, icon: "stone", note: "A trodden way between the houses, laid a strip at a time — free. Cobbled once the town is brick." },
@@ -385,6 +385,8 @@ export class Town {
   get beds() { return 2 + this.ownBeds + this.S.buildings.filter(b => b.done && b.type === "cabin").reduce((a, b) => a + this.sleeps(b), 0); }
   // every tree gives two logs; a good saw and the sawing crafts make the felling quicker instead
   get logsPerTree() { return LOGS_PER_TREE; }
+  // the town hall, the grander the better (1 logs to 4 stucco; nothing without one): its clerk, its council, its say
+  get hallTier() { return Math.max(0, ...this.S.buildings.filter(b => b.done && b.type === "townhall").map(b => b.tier || 1)); }
   // (each settlement's own sheds: a view's buildings are already its own; the first settlement's are those not out in the forest)
   ownShed(b) { return b.done && b.type === "woodshed" && (this.colony || !this.inColony(b.x, b.z)); }
   get storeCap() { return 40 + this.S.buildings.filter(b => this.ownShed(b)).reduce((a, b) => a + SHED_BAYS[b.bays || 1].holds, 0); }
@@ -1553,9 +1555,11 @@ export class Town {
   // ({x, z} to stand at; {cx, cz} to face)
   chestAt(near) {
     let best = null, bd = Infinity;
-    for (const b of this.S.buildings) if (b.done && b.type === "storehouse") { const d = Math.hypot(b.x - near.x, b.z - near.z); if (d < bd) { bd = d; best = b; } }
-    if (!best) { const s = this.stackAt; return { x: s.x + 1.0, z: s.z + 0.6, cx: s.x, cz: s.z }; }
-    const o = BUILDINGS.storehouse.d / 2 + 0.8;
+    // (the stores, a storehouse, or the town hall — settlers take their goods to whichever is nearest)
+    for (const b of this.S.buildings) if (b.done && (b.type === "storehouse" || b.type === "townhall")) { const d = Math.hypot(b.x - near.x, b.z - near.z); if (d < bd) { bd = d; best = b; } }
+    const s0 = this.stackAt;
+    if (!best || Math.hypot(s0.x - near.x, s0.z - near.z) < bd) return { x: s0.x + 1.0, z: s0.z + 0.6, cx: s0.x, cz: s0.z };
+    const o = BUILDINGS[best.type].d / 2 + 0.8;
     return { x: best.x + Math.sin(best.ry) * o, z: best.z + Math.cos(best.ry) * o, cx: best.x, cz: best.z };
   }
   setupStack() {

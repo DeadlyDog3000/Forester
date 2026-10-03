@@ -80,7 +80,7 @@ export function startFeud(town, c, o) {
   if (feudsOf(S).filter(f => !f.over).length >= MAX_FEUDS) return;
   const over = c.grievance || GRIEVANCES[Math.floor(Math.random() * GRIEVANCES.length)];
   // kin: the whole of both families take it up. The same family: it's between the two of them alone
-  const f = { a: c.family, b: o.family, by: c.name, at: o.name, why: over, day: town.day, until: town.day + FEUD_DAYS, deaths: 0, brawls: 0 };
+  const f = { a: c.family, b: o.family, by: c.name, at: o.name, why: over, day: town.day, until: town.day + Math.max(1, FEUD_DAYS - (town.hallTier ? 1 + Math.floor(town.hallTier / 2) : 0)), deaths: 0, brawls: 0 };
   if (c.family === o.family) { f.a = f.b = null; f.pa = c.name; f.pb = o.name; }
   feudsOf(S).push(f); town.persist();
   S.feudCount = (S.feudCount || 0) + 1;
@@ -151,7 +151,7 @@ export function feudTick(town, dt) {
     S.opDay = town.day;
     for (const p of S.people) for (const [n, v] of Object.entries(p.op || {})) if (v < 0) {
       const q = S.people.find(x => x.name === n);
-      if (q && !(feudFor(S, p) && feudFor(S, p) === feudFor(S, q))) nudge(town, p, q, Math.min(-v, 4), "time heals");
+      if (q && !(feudFor(S, p) && feudFor(S, p) === feudFor(S, q))) nudge(town, p, q, Math.min(-v, 4 + 2 * (town.hallTier || 0)), town.hallTier ? "time heals, and the council hears them out" : "time heals");
     }
   }
   // the feuds run their course
@@ -269,7 +269,8 @@ function feudGrief(town, f, dead) {
 export function peaceOffer(town, p) {
   const S = town.S, f = feudFor(S, p) || feudsOf(S).find(x => !x.over && !x.a && (x.pa === p.name || x.pb === p.name));
   if (!f) return null;
-  const cost = 8 + f.deaths * 14 + (f.brawls || 0) * 2;
+  // (with a town hall, the council arbitrates: half the price)
+  const cost = Math.ceil((8 + f.deaths * 14 + (f.brawls || 0) * 2) * (town.hallTier ? 0.5 : 1));
   const who = f.a ? `the ${f.a}s and the ${f.b}s` : `${f.pa} and ${f.pb}`;
   return { icon: "coin", label: `Make peace between ${who}`, note: `Blood money from the treasury, and both families made to shake hands at the fire.${f.deaths ? ` There's a grave between them: it costs dear, and they may still refuse.` : ""} It started ${f.why}.`, get: `${cost} DM`,
     can: () => (S.coin || 0) >= cost,
