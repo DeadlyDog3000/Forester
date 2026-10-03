@@ -650,3 +650,5 @@ body.dark-fantasy #view::after { content: ""; position: fixed; inset: 0; pointer
 
 body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 50; padding: 5px 12px; border-radius: 3px;
   background: rgba(6, 16, 10, 0.72); border: 1px solid rgba(200, 150, 46, 0.5); color: #e8dcc0; font: 600 11px/1.2 var(--sans, sans-serif); letter-spacing: 0.12em; pointer-events: none; }
+
+#settings .set-note { color: var(--ink-dim, #b8ad92); font-size: 0.85em; }

@@ -90,6 +90,20 @@ $("setDynres").addEventListener("change", e => custom("dynres", e.target.checked
 $("setShadows").addEventListener("change", e => custom("shadows", e.target.value));
 $("setDraw").addEventListener("change", e => custom("draw", +e.target.value));
 $("setCap").addEventListener("change", e => { G.settings.cap = +e.target.value; G.saveSettings(); });
+// fullscreen: the whole screen, or a window. (The app's F11 fills the window to the screen as well; either way the box
+// shows how it is.) Kept as a setting, and taken up again at your first click into the game, as a browser requires
+const isFull = () => !!document.fullscreenElement || (Math.abs(innerWidth - screen.width) < 2 && Math.abs(innerHeight - screen.height) < 2);
+function setFull(on) {
+  try {
+    if (on && !document.fullscreenElement) { const p = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); if (p && p.catch) p.catch(() => {}); }
+    else if (!on && document.fullscreenElement) document.exitFullscreen();
+  } catch (e) {}
+}
+$("setFull").checked = isFull();
+$("setFull").addEventListener("change", e => { G.settings.fullscreen = e.target.checked; G.saveSettings(); setFull(e.target.checked); });
+const syncFull = () => { const f = isFull(); $("setFull").checked = f; };
+document.addEventListener("fullscreenchange", syncFull); addEventListener("resize", syncFull);
+addEventListener("mousedown", function first() { removeEventListener("mousedown", first); if (G.settings.fullscreen && !isFull()) setFull(true); });
 $("setFps").addEventListener("change", e => { G.settings.showFps = e.target.checked; applySettings(); G.saveSettings(); });
 $("setPost").addEventListener("change", e => custom("post", e.target.checked));
 // the frame rate, measured each half second: shown if asked, and used by auto resolution
