@@ -1165,21 +1165,68 @@ function mineSwing() {
   const R = ROCKS[k.kind];
   if ((tools.pick || 0) < R.need) {
     AUDIO.clang(0.25, { x: k.x, y: k.y + 0.6, z: k.z });
+    rockChips(k, 0.3);
     UI.hint(`Too hard for a ${TIER_NAME[tools.pick]} pick — ${k.kind === "iron" ? "iron wants a bronze pickaxe" : `${k.kind} wants a stone pickaxe`}.`, 3);
     return;
   }
   // (a full pack: nothing more to put it in)
   if (roomFor(G.pack, G.body, R.gives) <= 0) { UI.hint("Your pack is full. Put things in a chest — or make a backpack from hides at the chopping block.", 3.5); return; }
   AUDIO.clang(0.4, { x: k.x, y: k.y + 0.6, z: k.z }); SFX.chop && SFX.chop();
+  rockChips(k, 1);
   k.hp -= 1 + ((tools.pick - R.need) * 0.5) + (Math.random() < skillK(G.body, "strength") * 0.6 ? 1 : 0);
   G.practise("strength", 0.5);
   if (k.hp > 0) { k.g.position.x += (Math.random() - 0.5) * 0.02; return; }
+  rockChips(k, 2.5);
   w.breakRock(k);
   SFX.treeFall && SFX.treeFall(0.2);
   const item = ITEM[R.gives], got = G.packAdd(R.gives, R.n);
   UI.hint(`${got} ${item.name.toLowerCase()}.`, 2);
   G.emitMine && G.emitMine(k.kind);
 }
+// chips of the rock flying from where the pick struck, in the rock's own colour, and a puff of grit; more when it breaks
+const CHIP_COL = { stone: 0x8e897d, copper: 0x5e8a6a, tin: 0xb0b0a6, iron: 0x8a4e3a };
+let chipGeo = null, dustGeo = null;
+function rockChips(k, amount = 1) {
+  const pl = G.player, root = G.scene; if (!root || !pl) return;
+  chipGeo ??= new THREE.TetrahedronGeometry(0.035, 0); dustGeo ??= new THREE.PlaneGeometry(0.22, 0.22);
+  const dx = pl.pos.x - k.x, dz = pl.pos.z - k.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+  // (the face of the rock toward you, about where the pick came down)
+  const r = Math.min(0.7, Math.max(0.35, d - 1.1)), hx = k.x + ux * r, hz = k.z + uz * r, hy = (k.y || 0) + 0.55;
+  const cm = new THREE.MeshStandardMaterial({ color: CHIP_COL[k.kind] || CHIP_COL.stone, roughness: 0.9, flatShading: true });
+  const dm = new THREE.MeshBasicMaterial({ color: 0xb8b0a0, transparent: true, opacity: 0.45, depthWrite: false });
+  const bits = [], n = Math.round(9 * amount) + 3;
+  for (let i = 0; i < n; i++) {
+    const b = new THREE.Mesh(chipGeo, cm); const s = 0.5 + Math.random() * (amount > 2 ? 1.6 : 0.9); b.scale.setScalar(s);
+    b.position.set(hx, hy, hz); b.castShadow = true;
+    // out from the face, toward you and to the sides, up and falling
+    const sx = (Math.random() - 0.5) * 2.6, up = 1.2 + Math.random() * 2.6, out = 0.8 + Math.random() * 2.2;
+    b.userData.v = new THREE.Vector3(ux * out - uz * sx, up, uz * out + ux * sx); b.userData.spin = new THREE.Vector3(Math.random() * 12, Math.random() * 12, 0);
+    root.add(b); bits.push(b);
+  }
+  const puffs = [];
+  for (let i = 0; i < Math.round(3 * amount) + 2; i++) { const p = new THREE.Mesh(dustGeo, dm); p.position.set(hx + (Math.random() - 0.5) * 0.3, hy + Math.random() * 0.2, hz + (Math.random() - 0.5) * 0.3); p.userData.v = new THREE.Vector3(ux * 0.4 + (Math.random() - 0.5) * 0.6, 0.3 + Math.random() * 0.4, uz * 0.4 + (Math.random() - 0.5) * 0.6); root.add(p); puffs.push(p); }
+  let t = 0;
+  const tick = dt => {
+    t += dt;
+    const w = G.world;
+    for (const b of bits) {
+      const v = b.userData.v; v.y -= 9.8 * dt;
+      b.position.addScaledVector(v, dt);
+      const gy = w && w.heightAt ? w.heightAt(b.position.x, b.position.z) + 0.02 : 0;
+      if (b.position.y < gy) { b.position.y = gy; v.multiplyScalar(0.3); v.y = Math.abs(v.y) * 0.3; b.userData.spin.multiplyScalar(0.5); }
+      b.rotation.x += b.userData.spin.x * dt; b.rotation.y += b.userData.spin.y * dt;
+    }
+    for (const p of puffs) { p.position.addScaledVector(p.userData.v, dt); p.scale.setScalar(1 + t * 2.2); p.quaternion.copy(camera.quaternion); }
+    dm.opacity = Math.max(0, 0.45 * (1 - t / 1.1));
+    // (the chips lie a moment where they land, then they're gone)
+    if (t > 2.2) {
+      for (const b of bits) root.remove(b); for (const p of puffs) root.remove(p); cm.dispose(); dm.dispose();
+      const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
+    }
+  };
+  G.onFrame.push(tick);
+}
+G.rockChips = rockChips;
 // money as it is written: whole marks, or a mark and a tenth — never 0.30000000000000004
 export const dm = n => { const v = Math.round((+n || 0) * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
 G.dm = dm;

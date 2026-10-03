@@ -186,7 +186,16 @@ export function lieOn(a, bed) {
 export const CHILD_DAYS = 3 * YEAR, BABY_NAMES = { m: ["Jürgen", "Klaus", "Henning", "Peter", "Jan", "Hinrich", "Claus", "Lorenz", "Matthias", "Tönnies", "Jochim", "Asmus"], f: ["Anna", "Grete", "Elsabe", "Trine", "Margareta", "Catharina", "Engel", "Lene", "Dorothea", "Gesa", "Telse", "Marlene"] };
 export const grownFrac = p => !p.child ? 1 : p.grownDay == null || p.bornDay == null ? 0.45 : Math.max(0, Math.min(1, (G.town ? G.town.day - p.bornDay : 0) / Math.max(1, p.grownDay - p.bornDay)));
 const childScale = p => p.child ? 0.6 + 0.3 * grownFrac(p) : 1;
-function settlerLook(p) {
+// the watch's uniform: a coat, breeches, a waistcoat, a sash, and a morion helmet or a tricorn
+export const UNIFORM_DEFAULT = { coat: 0x7a2a26, legs: 0x2a2a30, vest: 0xc8b890, sash: 0xe0d8c0, hat: "helmet", hatColor: 0x1e1a18 };
+function settlerLook(p, S) {
+  if (p.job === "watch" && !p.child && S) {
+    const u = { ...UNIFORM_DEFAULT, ...(S.uniform || {}) };
+    if (p.sex === "f") return { model: "townswoman", name: p.name, skirt: true, seed: p.seed, coat: u.coat, skirtColor: u.legs, apron: undefined, hat: "bonnet" };
+    return u.hat === "helmet"
+      ? { model: "watchman", name: p.name, seed: p.seed, coat: u.coat, legs: u.legs, vest: u.vest, sash: u.sash ?? undefined }
+      : { model: "townsman", name: p.name, seed: p.seed, coat: u.coat, legs: u.legs, vest: u.vest, hat: "tricorn", hatColor: u.hatColor };
+  }
   const r = p.seed;
   const pick = (a, k) => a[(r * 7 + k * 13) % a.length];
   return p.sex === "f"
@@ -376,7 +385,9 @@ export class Town {
   get beds() { return 2 + this.ownBeds + this.S.buildings.filter(b => b.done && b.type === "cabin").reduce((a, b) => a + this.sleeps(b), 0); }
   // every tree gives two logs; a good saw and the sawing crafts make the felling quicker instead
   get logsPerTree() { return LOGS_PER_TREE; }
-  get storeCap() { return 40 + this.S.buildings.filter(b => b.done && b.type === "woodshed").reduce((a, b) => a + SHED_BAYS[b.bays || 1].holds, 0); }
+  // (each settlement's own sheds: a view's buildings are already its own; the first settlement's are those not out in the forest)
+  ownShed(b) { return b.done && b.type === "woodshed" && (this.colony || !this.inColony(b.x, b.z)); }
+  get storeCap() { return 40 + this.S.buildings.filter(b => this.ownShed(b)).reduce((a, b) => a + SHED_BAYS[b.bays || 1].holds, 0); }
   has(type) { return this.S.buildings.some(b => b.done && b.type === type); }
   count(type) { return this.S.buildings.filter(b => b.done && b.type === type).length; }
 
@@ -1393,23 +1404,33 @@ export class Town {
   // ---- the stack by the cabin: logs in, logs out ----
   // where the logs are kept: the stack by the cabin, or, once there is one, in front of the woodshed
   get stackAt() {
-    const sh = this.S.buildings.find(b => b.done && b.type === "woodshed");
-    if (!sh) return { x: STACK.x, z: STACK.z };
+    const sh = this.S.buildings.find(b => this.ownShed(b));
+    if (!sh) return this.colony ? { x: this.colony.x + 2.2, z: this.colony.z + 1.6 } : { x: STACK.x, z: STACK.z };
     const d = BUILDINGS.woodshed.d / 2 + 1.0;
     return { x: sh.x + Math.sin(sh.ry) * d, z: sh.z + Math.cos(sh.ry) * d };
   }
   // the logs, drawn as they are: the stack by the cabin fills as the store does; a woodshed takes them all in,
   // and the old stack and its platform are gone
   showStore() {
-    const w = this.w, sheds = this.S.buildings.filter(b => b.done && b.type === "woodshed");
-    const fill = this.storeCap ? clamp(this.S.store / this.storeCap, 0, 1) : 0;
+    const w = this.w, all = this.S.buildings.filter(b => b.done && b.type === "woodshed");
+    const mine = all.filter(b => !this.inColony(b.x, b.z));
+    const fillOf = c => { const v = this.viewFor(c), cap = v.storeCap; return { n: c ? c.store || 0 : this.S.store, fill: cap ? clamp((c ? c.store || 0 : this.S.store) / cap, 0, 1) : 0 }; };
     // (the stack's platform is solid only while it's there: with a woodshed it's gone, and you walk over where it stood)
-    if (w.stackCol) w.stackCol.disabled = !!sheds.length;
-    if (!sheds.length) { w.stack.visible = true; w.setStack(this.S.store > 0 ? Math.max(1, Math.round(fill * 24)) : 0); return; }
-    w.stack.visible = false;
-    for (const b of sheds) {
+    if (w.stackCol) w.stackCol.disabled = !!mine.length;
+    if (!mine.length) { const { n, fill } = fillOf(null); w.stack.visible = true; w.setStack(n > 0 ? Math.max(1, Math.round(fill * 24)) : 0); }
+    else w.stack.visible = false;
+    // the settlements out in the forest: a stack in the yard, until there's a shed
+    for (const c of this.S.colonies || []) {
+      const y = this.yards && this.yards.get(c.name); if (!y) continue;
+      const hasShed = all.some(b => this.inColony(b.x, b.z) === c), { n, fill } = fillOf(c), k = hasShed || n <= 0 ? 0 : Math.max(1, Math.round(fill * 24));
+      if (y.pile.userData.n === k) continue;
+      y.pile.userData.n = k; y.pile.clear();
+      if (k) { const L = []; for (let i = 0; i < k; i++) { const row = Math.floor(i / 6), col = i % 6; L.push({ x: (col - 2.5) * 0.31 + (row % 2) * 0.15, y: 0.17 + row * 0.28, z: 0, len: 1.6, r: 0.15, dir: "z" }); } y.pile.add(makeLogs(L, k)); }
+    }
+    for (const b of all) {
       const g = this.vis.get(b); if (!g) continue;
-      const bays = b.bays || 1, n = this.S.store > 0 ? Math.max(1, Math.round(fill * 30)) : 0;
+      const { n: stock, fill } = fillOf(this.inColony(b.x, b.z));
+      const bays = b.bays || 1, n = stock > 0 ? Math.max(1, Math.round(fill * 30)) : 0;
       if (g.userData.pileN === n && g.userData.pileBays === bays) continue;
       g.userData.pileN = n; g.userData.pileBays = bays;
       if (g.userData.pile) g.remove(g.userData.pile);
@@ -1424,6 +1445,42 @@ export class Town {
       if (n) for (let i = 0; i < bays; i++) { const p = makeLogs(L, n); p.position.x = (i - (bays - 1) / 2) * BUILDINGS.woodshed.w; pile.add(p); }
       g.userData.pile = pile; g.add(pile);
     }
+  }
+  // A settlement out in the forest has a yard as the first has: a chopping block to make tools at, a sawhorse to hew
+  // doors on, and its own log stack — or its woodshed, once it has one — to put logs in and take them out. All of it
+  // works from that settlement's own logs.
+  colonyYard(c) {
+    const w = this.w, pl = G.player;
+    this.yards ??= new Map();
+    if (this.yards.has(c.name)) return;
+    const v = () => this.viewFor(c);
+    const bx = c.x - 3.4, bz = c.z + 2.6, y = w.heightAt(bx, bz), b = new Builder();
+    b.add(new THREE.CylinderGeometry(0.42, 0.48, 0.6, 10), 0x6a4a30, bx, y + 0.3, bz);
+    b.add(new THREE.CylinderGeometry(0.4, 0.4, 0.02, 10), 0xb89a70, bx, y + 0.61, bz);
+    for (const sd of [-0.7, 0.7]) { b.box(0.08, 0.9, 0.08, bx + 1.3 + sd, y + 0.45, bz + 0.35, 0x5a4030); b.box(0.08, 0.9, 0.08, bx + 1.3 + sd, y + 0.45, bz - 0.35, 0x5a4030); }
+    b.box(1.8, 0.1, 0.12, bx + 1.3, y + 0.9, bz, 0x6a4a30);
+    const m = b.build(); w.root.add(m);
+    w.col.addCircle(bx, bz, 0.5, y + 0.6); w.col.addRect(bx + 1.3, bz, 1.8, 0.8, y + 0.9);
+    const st = v().stackAt, pile = new THREE.Group(); pile.position.set(st.x, w.heightAt(st.x, st.z), st.z); w.root.add(pile);
+    const shed = () => v().S.buildings.some(q => q.done && q.type === "woodshed");
+    const its = [
+      w.addInteract({ x: bx, y: y + 0.8, z: bz, reach: 2.0, label: "Make tools", use: () => { G.craftS = v().S; G.openCraft && G.openCraft(); } }),
+      w.addInteract({ x: bx + 1.3, y: y + 0.9, z: bz, reach: 2.4, anim: "saw", get hold() { return 4 * buildMul(G.body); },
+        label: () => `Hew a door (${DOOR_LOGS} logs from ${c.name}'s ${shed() ? "woodshed" : "stack"})`,
+        can: () => (c.store || 0) >= DOOR_LOGS && v().doorWanted(),
+        onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
+        use: () => { c.store -= DOOR_LOGS; this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4); } }),
+      w.addInteract({ get x() { return v().stackAt.x; }, y: y + 0.8, get z() { return v().stackAt.z; }, reach: 2.6,
+        label: () => pl.carryN > 0 ? `${shed() ? `Put the logs in ${c.name}'s woodshed` : `Stack the logs at ${c.name}`} (${pl.carryN})` : `Take logs from ${c.name}'s ${shed() ? "woodshed" : "stack"} (${c.store || 0})`,
+        can: () => pl.carryN > 0 ? (c.store || 0) < v().storeCap : (c.store || 0) > 0,
+        use: () => {
+          if (pl.carryN > 0) { const n = Math.min(pl.carryN, v().storeCap - (c.store || 0)); c.store = (c.store || 0) + n; pl.carryN -= n; }
+          else { const n = Math.min(CARRY_MAX, c.store || 0); c.store -= n; pl.carryN += n; }
+          UI.carry(pl.carryN ? `Carrying ${pl.carryN} log${pl.carryN > 1 ? "s" : ""}` : null);
+          this.showStore(); this.persist(); SFX().build();
+        } }),
+    ];
+    this.yards.set(c.name, { pile, its, m });
   }
   // ---- the settlements: the first, and any founded out in the forest, each with its own people and its own stores ----
   // (the treasury, the research and the laws are the nation's, shared; logs, food, stone and the like are each
@@ -1450,7 +1507,6 @@ export class Town {
     });
     const v = Object.create(town);
     Object.defineProperty(v, "S", { value: vS });
-    if (c) Object.defineProperty(v, "stackAt", { get: () => ({ x: c.x + 2.2, z: c.z + 1.6 }) });
     // (what changes the whole town, or saves it, is done by the town itself, never through a view)
     for (const m of ["persist", "showStore", "killSettler", "leave", "addPerson", "showGraves", "setMark", "emit", "show", "site"]) v[m] = (...a) => town[m](...a);
     v.colony = c;
@@ -1515,7 +1571,7 @@ export class Town {
     const forge = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "forge") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
     const side = () => { const b = forge(); if (!b) return { x: 1e6, z: 1e6 }; const def = BUILDINGS.forge, o = def.w / 2 + 0.9; return { x: b.x + Math.cos(b.ry) * o, z: b.z - Math.sin(b.ry) * o }; };
     if (this.craftIt) w.removeInteract(this.craftIt);
-    this.craftIt = w.addInteract({ x: BLOCK.x, y: w.cy + 0.8, z: BLOCK.z, reach: 2.0, label: "Make tools", use: () => G.openCraft && G.openCraft() });
+    this.craftIt = w.addInteract({ x: BLOCK.x, y: w.cy + 0.8, z: BLOCK.z, reach: 2.0, label: "Make tools", use: () => { G.craftS = null; G.openCraft && G.openCraft(); } });
     if (this.smeltIt) w.removeInteract(this.smeltIt);
     const METAL = { copperore: "copper", tinore: "tin", ironore: "iron" };
     const ore = () => G.pack.find(i => METAL[i.icon]);
@@ -1576,7 +1632,7 @@ export class Town {
       onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
       use: () => { this.S.store -= DOOR_LOGS; this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4); } });
     this.stackIt = w.addInteract({ get x() { return at().x; }, y: w.cy + 0.8, get z() { return at().z; }, reach: 2.6,
-      label: () => { const shed = this.has("woodshed"); return pl.carryN > 0 ? `${shed ? "Put the logs in the woodshed" : "Stack the logs"} (${pl.carryN})` : `Take logs from the ${shed ? "woodshed" : "stack"} (${this.S.store})`; },
+      label: () => { const shed = this.S.buildings.some(b => this.ownShed(b)); return pl.carryN > 0 ? `${shed ? "Put the logs in the woodshed" : "Stack the logs"} (${pl.carryN})` : `Take logs from the ${shed ? "woodshed" : "stack"} (${this.S.store})`; },
       can: () => pl.carryN > 0 ? this.S.store < this.storeCap : this.S.store > 0,
       use: () => {
         if (pl.carryN > 0) { const n = Math.min(pl.carryN, this.storeCap - this.S.store); this.S.store += n; pl.carryN -= n; }
@@ -1729,7 +1785,7 @@ export class Town {
     if (!p.family && this.S.people.length && !this.S.people.includes(p)) { const k = kinFor(this.S, p); if (k) setTimeout(() => UI.hint(`${p.name} is kin to ${k.name} — another of the ${p.family}s.`, 5), 4000); }
     if (!this.S.people.includes(p)) this.S.people.push(p);
     if (!p.family) ensureFamilies(this.S);
-    const a = new Actor(settlerLook(p), x ?? CLEARING.x + 2, z ?? CLEARING.z + 6, 0);
+    const a = new Actor(settlerLook(p, this.S), x ?? CLEARING.x + 2, z ?? CLEARING.z + 6, 0);
     a.settler = p; this.actors.push(a);
     if (!p.child) {
       // (while a story is gathering people, it decides what talking does; otherwise it changes their work)
@@ -1765,7 +1821,11 @@ export class Town {
     G.openTrade(`${fullName(p)}'s work`, `now a ${JOBS[p.job || "hauler"].name}`, (peace ? [peace] : []).concat(follow).concat(this.jobsOpen().map(j => ({
       icon: "axe", label: JOBS[j].name[0].toUpperCase() + JOBS[j].name.slice(1), note: `${JOBS[j].ask[0].toUpperCase() + JOBS[j].ask.slice(1)}${WORKS[j] ? ` — ${this.costText(WORKS[j].need) || "nothing"} in, ${this.costText(WORKS[j].give)} out` : ""}`,
       get: `${count(j)} at it`, can: () => p.job !== j, done: () => p.job === j, doneText: " — now",
-      do: () => { p.job = j; if (j !== "watch") p.follow = false; this.persist(); UI.bark(p.name, JOBS[j].reply, 3); this.emit("job", p); G.closeTrade && G.closeTrade(); } }))), null);
+      do: () => {
+        const was = p.job; p.job = j; if (j !== "watch") p.follow = false; this.persist(); UI.bark(p.name, JOBS[j].reply, 3); this.emit("job", p); G.closeTrade && G.closeTrade();
+        // (into the watch's uniform, or out of it)
+        if ((was === "watch") !== (j === "watch")) { const a = this.actors.find(x => x.settler === p && !x.gone); if (a && !a.inside) this.rebuildActor(a); }
+      } }))), null);
   }
   // called away from their work, to stand somewhere (the fire, for a gathering)
   summon(a, x, z) {
@@ -1862,6 +1922,16 @@ export class Town {
     }
     this.persist(); this.emit("left", p, why);
   }
+  // a settler given a new body where they stand (grown up, or the watch in a new uniform): the old one and its day's work
+  // stopped, a new one made from their look as it is now
+  rebuildActor(a) {
+    const p = a.settler, x = a.pos.x, z = a.pos.z;
+    a.gone = true; if (a.talkIt) this.w.removeInteract(a.talkIt);
+    a.remove(); const i = this.actors.indexOf(a); if (i >= 0) this.actors.splice(i, 1);
+    return this.addPerson(p, x, z);
+  }
+  // the watch's uniform, as the government has it (G, Taxes & trade): everyone on the watch put into it
+  refreshWatch() { for (const a of this.actors.slice()) if (a.settler && a.settler.job === "watch" && !a.gone && !a.dead && !a.inside) this.rebuildActor(a); }
   // ---- children: born to a family that has a man and a woman and is doing well, and grown in three years ----
   growChildren() {
     const S = this.S;
@@ -1874,7 +1944,7 @@ export class Town {
         p.child = false; p.job = "hauler"; p.sk = {}; delete p.temper; ensurePerson(p);
         UI.news && UI.news({ title: `${p.name} is grown`, sub: `${fullName(p)} is old enough to do a grown person's work now. They'll haul to begin with — F beside them to set their work.`, img: "event_peace" });
         // (a new body for the grown one, and someone to talk to about work)
-        if (a) { if (a.talkIt) this.w.removeInteract(a.talkIt); const x = a.pos.x, z = a.pos.z; a.remove(); this.actors.splice(this.actors.indexOf(a), 1); this.addPerson(p, x, z); }
+        if (a) this.rebuildActor(a);
       } else if (a && a.person) {
         a.person.body.scale.setScalar(childScale(p));
         a.person.setHeadScale && a.person.setHeadScale(1.28 - 0.2 * grownFrac(p));

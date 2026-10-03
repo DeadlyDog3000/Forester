@@ -53,7 +53,7 @@ T("policing", "Policing", "military", [], 0, "Unlocks the Jail and the watch —
 T("court", "Court", "military", ["policing"], 4, "Half of beaten rebels are subdued alive");
 T("landownership", "Land Ownership", "military", ["currencies"], 2, "Every cabin and house sleeps one more");
 T("ownership", "Ownership", "military", ["landownership"], 3, "Dismantling refunds 75%");
-T("township", "Township", "military", ["landownership"], 3, "Unlocks the Town Hall — civilians deposit their goods there on their own");
+T("township", "Township", "military", ["landownership"], 3, "Unlocks the Town Hall (a brick one is the charter you need to rebuild in the city style, and to be called a City) and the quarryman's trade");
 T("lordship", "Lordship", "military", ["ownership"], 4, "Lords underwrite the treasury: it may borrow to -50 DM");
 T("slavery", "Slavery", "military", ["lordship"], 5, "Forced labour edict: work +25% faster, happiness plummets");
 T("slavemarket", "Slave Market", "military", ["slavery"], 6, "+2 DM each tax collection; happiness suffers");

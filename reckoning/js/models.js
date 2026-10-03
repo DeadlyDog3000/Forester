@@ -239,7 +239,7 @@ export function makePerson(o = {}) {
     // a child's head is big for the body; it evens out as they grow
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };
-  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor });
+  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash });
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
   noSnow(P.root);
   return P;
@@ -412,131 +412,149 @@ export function makeLantern(light = true) {
   if (light) { const L = new THREE.PointLight(0xffc27a, 5, 12, 1.6); L.position.y = -0.1; g.add(L); g.userData.light = L; }
   return g;
 }
-// The felling axe: a bearded head forged round its eye, thick at the poll and drawn thin to a honed edge, on a
-// hickory haft with a swell in its line and a knob at the end for the hand. Made once per metal, and shared.
-const _axeGeo = {}, _axeMat = {};
-const AXE_METAL = { 2: [0x6a6e74, 0.5, 0.5], 3: [0xd08a5a, 0.5, 0.4], 4: [0xc8a256, 0.5, 0.38], 5: [0x9aa0a8, 0.55, 0.42] };
-function axeHeadGeo() {
-  if (_axeGeo.head) return _axeGeo.head;
-  // its side, in (forward, up): the poll behind the eye, the cheek, the beard swept down, the bit curved out
-  const sh = new THREE.Shape();
-  sh.moveTo(-0.032, 0.668);
-  sh.lineTo(-0.034, 0.588);
-  sh.quadraticCurveTo(0.0, 0.578, 0.045, 0.584);
-  sh.quadraticCurveTo(0.098, 0.588, 0.128, 0.506);
-  sh.quadraticCurveTo(0.188, 0.548, 0.19, 0.612);
-  sh.quadraticCurveTo(0.188, 0.676, 0.158, 0.712);
-  sh.quadraticCurveTo(0.1, 0.672, 0.04, 0.672);
-  sh.quadraticCurveTo(0.004, 0.676, -0.032, 0.668);
-  const depth = 0.034;
-  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 2, curveSegments: 14, steps: 1 });
-  g.translate(0, 0, -depth / 2);
-  g.rotateY(-Math.PI / 2);
-  // drawn thin toward the edge; the colour: dark forge-scale, bright where it has been ground
-  const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i);
-    const t = Math.max(0, Math.min(1, (z - 0.03) / 0.155));
-    pos.setX(i, x * (1 - 0.86 * t * t * (3 - 2 * t)));
-    // the edge: the outermost reach of the bit, wherever it curves
-    const out = Math.hypot(z - 0.075, (y - 0.61) * 0.9);
-    const bright = Math.max(0, Math.min(1, (out - 0.095) / 0.02));
-    const v = 0.55 + 0.75 * bright;
-    col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v;
-  }
-  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  return (_axeGeo.head = g);
+// ---------------------------------------------------------------------------
+//  tools and arms
+// ---------------------------------------------------------------------------
+// Every tool is made the way the rest of the forest is: a few honest shapes, faceted, in the colours of what they're made
+// of — and what they're made of is their making: 1 wood, 2 stone, 3 copper, 4 bronze, 5 iron (the old felling axe and
+// Henning's spade are worn iron too). Each is held by the grip at the origin and points up +Y.
+const _tm = {};
+const tmat = (k, f) => _tm[k] || (_tm[k] = f());
+const STUFF = t => tmat("s" + t, () => t === 1 ? mat(0x9a7448, { surface: "wood", flatShading: true }) : t === 2 ? mat(0x8e897d, { surface: "stone", flatShading: true })
+  : t === 3 ? mat(0xb8703e, { metalness: 0.35, roughness: 0.5, flatShading: true }) : t === 4 ? mat(0xa8843e, { metalness: 0.35, roughness: 0.5, flatShading: true })
+  : t === 0 ? mat(0x55585e, { metalness: 0.35, roughness: 0.6, flatShading: true }) : mat(0x6e737a, { metalness: 0.4, roughness: 0.5, flatShading: true }));
+// the bright, ground edge of a metal blade
+const EDGE = t => tmat("e" + t, () => mat(t === 3 ? 0xe0a070 : t === 4 ? 0xe0c27a : 0xc4c8ce, { metalness: 0.45, roughness: 0.32, flatShading: true }));
+const WOOD = () => tmat("wood", () => mat(0x8a6440, { surface: "wood", flatShading: true }));
+const WOOD_DARK = () => tmat("wooddark", () => mat(0x5a3e26, { surface: "wood", flatShading: true }));
+const LEATHER = () => tmat("leather", () => mat(0x3a2818, { surface: "none", flatShading: true }));
+const CORD = () => tmat("cord", () => mat(0x8a7450, { surface: "cloth", roughness: 1, flatShading: true }));
+const _tg = {};
+const tgeo = (k, f) => _tg[k] || (_tg[k] = f());
+// a haft: a little faceted, tapered, from `from` to `from + len` up the grip
+function haftGeo(len, r0, r1, segs = 7, from = -0.1, bow = 0) {
+  return tgeo(`haft${len}|${r0}|${r1}|${segs}|${from}|${bow}`, () => {
+    const g = new THREE.CylinderGeometry(r1, r0, len, segs, 8);
+    if (bow) { const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const h = p.getY(i) / len + 0.5; p.setZ(i, p.getZ(i) + bow * Math.sin(h * Math.PI) * (1 - h)); } }
+    g.translate(0, from + len / 2, 0); g.computeVertexNormals(); return g;
+  });
 }
-function axeHaftGeo() {
-  if (_axeGeo.haft) return _axeGeo.haft;
-  const L = 0.8, g = new THREE.CylinderGeometry(0.0165, 0.0165, L, 12, 32);
-  const pos = g.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i), h = y / L + 0.5;            // 0 at the knob, 1 at the head
-    // the knob at the end, a narrowing above it, the fuller throat under the head
-    const r = 1 + 0.42 * Math.exp(-(((h - 0.015) / 0.035) ** 2)) - 0.12 * Math.exp(-(((h - 0.1) / 0.06) ** 2)) + 0.14 * Math.max(0, h - 0.8) / 0.2;
-    // oval, deeper fore and aft; and the gentle S of a hand-shaped haft, in line with the blade
-    pos.setX(i, pos.getX(i) * r * 0.85);
-    pos.setZ(i, pos.getZ(i) * r * 1.2 + 0.03 * Math.sin(h * Math.PI) * (1 - h) - 0.012 * Math.exp(-(((h - 0.03) / 0.05) ** 2)));
-  }
-  g.translate(0, L / 2 - 0.1, 0);
-  g.computeVertexNormals();
-  return (_axeGeo.haft = g);
+// a flat shape (in forward z, up y), cut from a plate `depth` thick lying across the grip
+function plateGeo(key, pts, depth, bevel = 0.003, taper = null) {
+  return tgeo(key, () => {
+    const sh = new THREE.Shape(); sh.moveTo(pts[0][0], pts[0][1]);
+    for (const q of pts.slice(1)) q.length === 4 ? sh.quadraticCurveTo(q[0], q[1], q[2], q[3]) : sh.lineTo(q[0], q[1]);
+    const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: 1, curveSegments: 5, steps: 1 });
+    g.translate(0, 0, -depth / 2); g.rotateY(-Math.PI / 2);
+    if (taper) { const p = g.attributes.position; for (let i = 0; i < p.count; i++) p.setX(i, p.getX(i) * taper(p.getZ(i), p.getY(i))); }
+    g.computeVertexNormals(); return g;
+  });
 }
+const mesh = (g, m, parent, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.castShadow = true; parent.add(o); return o; };
+// a few turns of cord or leather round a haft
+const wrap = (g, y, h, r, m = CORD()) => mesh(tgeo(`wrap${h}|${r}`, () => new THREE.CylinderGeometry(r, r, h, 7)), m, g, 0, y);
+
+// The felling axe: a bearded head forged round its eye, thick at the poll and drawn thin to its ground edge, a wedge in
+// the eye and cord whipped under it, on a hickory haft with a swell and a knob for the hand.
+const AXE_SHAPE = [[-0.032, 0.668], [-0.034, 0.588], [0.0, 0.578, 0.045, 0.584], [0.098, 0.588, 0.128, 0.506], [0.188, 0.548, 0.19, 0.612], [0.188, 0.676, 0.158, 0.712], [0.1, 0.672, 0.04, 0.672], [0.004, 0.676, -0.032, 0.668]];
+const AXE_EDGE = [[0.124, 0.512], [0.186, 0.55, 0.19, 0.612], [0.188, 0.676, 0.156, 0.708], [0.16, 0.68, 0.17, 0.612], [0.168, 0.556, 0.124, 0.512]];
+const axeTaper = (z) => 1 - 0.8 * Math.max(0, Math.min(1, (z - 0.03) / 0.15));
 export function makeAxe(tier) {
-  const t = AXE_METAL[tier] ? tier : 2;
-  const g = new THREE.Group();
-  const haft = new THREE.Mesh(axeHaftGeo(), mat(0x8a6440, { roughness: 0.75, surface: "wood" }));
-  g.add(haft);
-  if (!_axeMat[t]) { const [c, m, r] = AXE_METAL[t]; _axeMat[t] = new THREE.MeshStandardMaterial({ color: c, metalness: m, roughness: r, vertexColors: true }); }
-  const head = new THREE.Mesh(axeHeadGeo(), _axeMat[t]);
-  g.add(head);
-  // the wedge driven into the top of the eye, and a few turns of cord below the head
-  const wedge = new THREE.Mesh(GEO("axeWedge", () => new THREE.BoxGeometry(0.008, 0.012, 0.03)), mat(0x5a3e26));
-  wedge.position.set(0, 0.676, -0.003); g.add(wedge);
-  const cord = new THREE.Mesh(GEO("axeCord", () => new THREE.CylinderGeometry(0.0205, 0.0205, 0.04, 12)), mat(0x6a5a40, { roughness: 1, surface: "cloth" }));
-  cord.scale.set(0.9, 1, 1.25); cord.position.set(0, 0.53, 0); g.add(cord);
-  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  const t = tier >= 3 && tier <= 5 ? tier : 0, g = new THREE.Group();
+  mesh(haftGeo(0.8, 0.0175, 0.016, 8, -0.1, 0.03), WOOD(), g);
+  mesh(tgeo("axeKnob", () => new THREE.CylinderGeometry(0.02, 0.024, 0.04, 8)), WOOD(), g, 0, -0.085);
+  mesh(plateGeo("axeHead", AXE_SHAPE, 0.034, 0.004, axeTaper), STUFF(t), g);
+  mesh(plateGeo("axeEdge", AXE_EDGE, 0.009, 0.001), EDGE(t), g);
+  mesh(tgeo("axeWedge", () => new THREE.BoxGeometry(0.008, 0.012, 0.03)), WOOD_DARK(), g, 0, 0.676, -0.003);
+  wrap(g, 0.53, 0.04, 0.0205);
   return g;
 }
-// arms: each held by the grip at the origin, pointing up +Y (as the axe is)
-const STEEL = () => mat(0xc4c9cf, { metalness: 0.45, roughness: 0.35 });
-// the blade's stuff by its making: wood, copper, or steel (the smith's, and iron)
-const BLADE_OF = t => t === 1 ? mat(0x7a5a38, { surface: "wood" }) : t === 3 ? mat(0xf0a060, { metalness: 0.08, roughness: 0.3 }) : t === 4 ? mat(0xd4a650, { metalness: 0.12, roughness: 0.3 }) : STEEL();
+// the arms, held by the grip
+const BLADE_SHAPE = len => [[0.026, 0], [0.024, len * 0.8], [0.0, len, 0, len], [-0.024, len * 0.8], [-0.026, 0]];
 export function makeSword(tier) {
-  const g = new THREE.Group();
-  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.24, 6), mat(0x3a2418)); grip.position.y = 0.1; g.add(grip);
-  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), mat(0x8a7040, { metalness: 0.7, roughness: 0.4 })); pommel.position.y = -0.03; g.add(pommel);
-  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.24), mat(0x8a7040, { metalness: 0.7, roughness: 0.4 })); guard.position.y = 0.23; g.add(guard);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(tier === 1 ? 0.024 : 0.012, 0.8, 0.05), BLADE_OF(tier)); blade.position.y = 0.64; g.add(blade);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.1, 4), BLADE_OF(tier)); tip.scale.x = 0.25; tip.position.y = 1.09; g.add(tip);
+  const t = tier === 1 ? 1 : tier === 3 || tier === 4 ? tier : 5, g = new THREE.Group(), fitting = tmat("brass", () => mat(0x8a7040, { metalness: 0.5, roughness: 0.45, flatShading: true }));
+  if (t === 1) {
+    // a wooden sword: a cudgel cut flat, a crosspiece lashed on
+    mesh(plateGeo("woodBlade", [[0.03, 0], [0.028, 0.7], [0, 0.82], [-0.028, 0.7], [-0.03, 0]], 0.024, 0.004), WOOD(), g, 0, 0.24);
+    mesh(tgeo("woodGuard", () => new THREE.BoxGeometry(0.03, 0.035, 0.18)), WOOD_DARK(), g, 0, 0.23);
+    wrap(g, 0.23, 0.05, 0.02);
+    mesh(haftGeo(0.24, 0.018, 0.017, 7, -0.03), WOOD_DARK(), g);
+    return g;
+  }
+  // a plain blade of the age: chamfered edges, a fuller down the middle, a guard with its ends turned, a wire-bound grip
+  mesh(plateGeo("blade", BLADE_SHAPE(0.86), 0.01, 0.003), STUFF(t), g, 0, 0.24);
+  mesh(tgeo("fuller", () => new THREE.BoxGeometry(0.015, 0.6, 0.008)), tmat("fuller", () => mat(0x3a3c40, { metalness: 0.4, roughness: 0.6 })), g, 0, 0.56);
+  mesh(tgeo("guard", () => new THREE.BoxGeometry(0.026, 0.026, 0.16)), fitting, g, 0, 0.23);
+  for (const sd of [-1, 1]) mesh(tgeo("quillon", () => new THREE.BoxGeometry(0.022, 0.022, 0.05)), fitting, g, 0, 0.245, sd * 0.095, sd * -0.5, 0, 0);
+  mesh(haftGeo(0.24, 0.016, 0.018, 7, -0.01), LEATHER(), g);
+  for (let i = 0; i < 4; i++) wrap(g, 0.02 + i * 0.05, 0.008, 0.0185, fitting);
+  mesh(tgeo("pommel", () => new THREE.OctahedronGeometry(0.03, 0)), fitting, g, 0, -0.03);
   return g;
 }
 export function makeSpear() {
   const g = new THREE.Group();
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 1.9, 6), mat(0x6a4a30)); shaft.position.y = 0.5; g.add(shaft);
-  const head = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.26, 4), STEEL()); head.scale.x = 0.35; head.position.y = 1.57; g.add(head);
+  mesh(haftGeo(1.9, 0.02, 0.017, 7, -0.45), WOOD(), g);
+  mesh(tgeo("spearSocket", () => new THREE.CylinderGeometry(0.016, 0.022, 0.1, 7)), STUFF(5), g, 0, 1.48);
+  mesh(plateGeo("spearHead", [[0, 0], [0.04, 0.05, 0.035, 0.12], [0.02, 0.2, 0, 0.26], [-0.02, 0.2, -0.035, 0.12], [-0.04, 0.05, 0, 0]], 0.012, 0.004), STUFF(5), g, 0, 1.52);
   return g;
 }
 export function makeBattleAxe() {
-  const g = makeAxe(); g.scale.set(1.15, 1.2, 1.15);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.2, 0.08), STEEL()); back.position.set(0, 0.62, -0.06); g.add(back);
+  const g = makeAxe(5); g.scale.set(1.15, 1.2, 1.15);
+  mesh(tgeo("bAxeSpike", () => { const c = new THREE.ConeGeometry(0.02, 0.1, 4); c.rotateX(-Math.PI / 2); return c; }), STUFF(5), g, 0, 0.63, -0.08);
   return g;
 }
+// a club: a cudgel of root-wood, gnarled and knotted
 export function makeClub() {
   const g = new THREE.Group();
-  const c = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.022, 0.7, 7), mat(0x5a4230)); c.position.y = 0.3; g.add(c);
-  for (let i = 0; i < 4; i++) { const k = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.03), mat(0x3a2a1e)); k.position.set(Math.sin(i * 1.6) * 0.05, 0.45 + i * 0.05, Math.cos(i * 1.6) * 0.05); g.add(k); }
+  mesh(tgeo("club", () => {
+    const c = new THREE.CylinderGeometry(0.055, 0.02, 0.72, 7, 6), p = c.attributes.position;
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i), k = 1 + 0.18 * Math.sin(y * 31 + i) * Math.max(0, y / 0.36 + 0.3); p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); }
+    c.translate(0, 0.28, 0); c.computeVertexNormals(); return c;
+  }), WOOD_DARK(), g);
+  for (let i = 0; i < 4; i++) mesh(tgeo("knot", () => new THREE.DodecahedronGeometry(0.018, 0)), LEATHER(), g, Math.sin(i * 1.7) * 0.05, 0.42 + i * 0.06, Math.cos(i * 1.7) * 0.05);
   return g;
 }
 export function makeKnife() {
   const g = new THREE.Group();
-  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.12, 6), mat(0x3a2418)); grip.position.y = 0.05; g.add(grip);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.22, 0.035), STEEL()); blade.position.y = 0.22; g.add(blade);
+  mesh(plateGeo("knifeBlade", [[-0.014, 0], [0.016, 0], [0.018, 0.12, 0, 0.2], [-0.012, 0.1, -0.014, 0]], 0.006, 0.0015), STUFF(5), g, 0, 0.11);
+  mesh(tgeo("knifeBolster", () => new THREE.BoxGeometry(0.014, 0.012, 0.036)), STUFF(4), g, 0, 0.105);
+  mesh(haftGeo(0.11, 0.015, 0.016, 7, 0), WOOD_DARK(), g);
   return g;
 }
-// a sickle: a short handle, and the blade curving out and round from the top of it
+// a sickle: a short handle with an iron ferrule, and the blade curving out and round from the top of it, its inner
+// edge bright where it is whetted
 export function makeSickle() {
   const g = new THREE.Group();
-  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.14, 6), mat(0x6a4a2a, { surface: "wood" })); grip.position.y = 0.04; g.add(grip);
-  const blade = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.009, 4, 14, Math.PI * 1.1), STEEL());
-  blade.scale.set(1, 1, 2.2); blade.rotation.z = -0.35; blade.position.set(0.11, 0.13, 0); g.add(blade);
+  mesh(haftGeo(0.15, 0.017, 0.019, 7, -0.03), WOOD(), g);
+  wrap(g, 0.115, 0.022, 0.021, STUFF(5));
+  const arc = (r0, r1, a0, a1, n = 12) => { const o = [], ins = []; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; o.push([Math.cos(a) * r1, Math.sin(a) * r1]); ins.push([Math.cos(a) * (r0 + (r1 - r0) * 0.15 * (i / n)), Math.sin(a) * r0]); } return [...o, ...ins.reverse()]; };
+  mesh(plateGeo("sickleBlade", arc(0.115, 0.145, -0.25, Math.PI * 1.05), 0.006, 0.0015), STUFF(5), g, 0, 0.14, -0.13);
+  mesh(plateGeo("sickleEdge", arc(0.11, 0.122, -0.15, Math.PI * 0.98), 0.008, 0), EDGE(5), g, 0, 0.14, -0.13);
   return g;
 }
-// tools for work in the hands: gripped at the origin, pointing +Y
+// a saw: a tapered blade with its teeth along the edge, and a handle with a grip cut through it
 export function makeSaw() {
-  const g = new THREE.Group();
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.13, 0.09), mat(0x6a4a2e, { surface: "wood" })); handle.position.y = 0.03; g.add(handle);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.62, 0.11), STEEL()); blade.position.set(0, 0.4, -0.01); g.add(blade);
-  // the teeth along the lower edge
-  const teeth = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.6, 0.012), mat(0x707478, { metalness: 0.5, roughness: 0.5 })); teeth.position.set(0, 0.41, -0.068); g.add(teeth);
+  const g = new THREE.Group(), teeth = [];
+  for (let i = 0; i <= 24; i++) teeth.push([-0.055 - (i % 2 ? 0.012 : 0), 0.06 + 0.6 * i / 24]);
+  mesh(plateGeo("sawBlade", [[0.05, 0.06], [0.03, 0.68], ...teeth.reverse().map(([z, y]) => [z * (1 - 0.35 * (y - 0.06) / 0.62), y])], 0.003, 0), STUFF(5), g, 0, 0, 0.005);
+  mesh(tgeo("sawHandle", () => {
+    const sh = new THREE.Shape(); sh.moveTo(-0.05, -0.06); sh.lineTo(0.07, -0.06); sh.quadraticCurveTo(0.09, 0.04, 0.06, 0.1); sh.lineTo(-0.065, 0.1); sh.quadraticCurveTo(-0.08, 0.02, -0.05, -0.06);
+    const h = new THREE.Path(); h.moveTo(-0.025, -0.03); h.lineTo(0.035, -0.03); h.quadraticCurveTo(0.045, 0.03, 0.03, 0.06); h.lineTo(-0.025, 0.06); h.lineTo(-0.025, -0.03); sh.holes.push(h);
+    const e = new THREE.ExtrudeGeometry(sh, { depth: 0.026, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 1, curveSegments: 4 }); e.translate(0, 0, -0.013); e.rotateY(-Math.PI / 2); e.computeVertexNormals(); return e;
+  }), WOOD(), g, 0, 0.02, 0);
   return g;
 }
-export function makeHammer() {
+// a hammer by its making: a wooden mallet, a stone lashed to a haft, or a forged head with a face and a peen
+export function makeHammer(tier = (G_TOOLS() || {}).hammer || 5) {
   const g = new THREE.Group();
-  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.017, 0.34, 6), mat(0x7a5a3a, { surface: "wood" })); haft.position.y = 0.12; g.add(haft);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.045, 0.13), mat(0x55595e, { metalness: 0.6, roughness: 0.45 })); head.position.set(0, 0.29, 0.02); g.add(head);
+  mesh(haftGeo(0.38, 0.016, 0.014, 7, -0.05), WOOD(), g);
+  if (tier <= 1) mesh(tgeo("mallet", () => { const c = new THREE.CylinderGeometry(0.045, 0.045, 0.15, 8); c.rotateX(Math.PI / 2); return c; }), WOOD_DARK(), g, 0, 0.3);
+  else if (tier === 2) { mesh(tgeo("stoneHammer", () => { const d = new THREE.DodecahedronGeometry(0.05, 0); d.scale(0.9, 0.8, 1.5); return d; }), STUFF(2), g, 0, 0.3); wrap(g, 0.3, 0.06, 0.02, LEATHER()); }
+  else {
+    mesh(tgeo("hammerHead", () => { const c = new THREE.CylinderGeometry(0.023, 0.026, 0.13, 8); c.rotateX(Math.PI / 2); return c; }), STUFF(tier), g, 0, 0.3, 0.015);
+    mesh(tgeo("hammerFace", () => { const c = new THREE.CylinderGeometry(0.029, 0.026, 0.022, 8); c.rotateX(Math.PI / 2); return c; }), EDGE(tier), g, 0, 0.3, 0.09);
+    mesh(tgeo("hammerPeen", () => new THREE.BoxGeometry(0.03, 0.012, 0.05)), STUFF(tier), g, 0, 0.3, -0.07);
+  }
   return g;
 }
 // kitchen tools, gripped at the origin, pointing +Y: a wooden ladle, and a flat wooden spatula for turning
@@ -552,11 +570,16 @@ export function makeSpatula() {
   const b = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.11, 0.07), wood); b.position.y = 0.29; g.add(b);
   return g;
 }
-// a spade, gripped at the origin, pointing +Y: a long haft, a T-grip, and the blade at the far end
-export function makeSpade() {
-  const g = new THREE.Group();
-  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.8, 6), mat(0x7a5a3a, { surface: "wood" })); haft.position.y = 0.36; g.add(haft);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.24, 0.17), mat(0x5d6166, { metalness: 0.6, roughness: 0.5 })); blade.position.y = 0.86; g.add(blade);
+// a spade, gripped at the origin, pointing +Y: a long haft with a T at the end, an iron socket, and the blade: square at
+// the shoulders where the foot goes, rounded to the cutting edge
+export function makeSpade(tier = (G_TOOLS() || {}).spade || 2) {
+  const t = tier >= 3 ? tier : 0, g = new THREE.Group();
+  mesh(haftGeo(0.86, 0.019, 0.017, 7, -0.12), WOOD(), g);
+  mesh(tgeo("spadeT", () => { const c = new THREE.CylinderGeometry(0.016, 0.016, 0.13, 6); c.rotateX(Math.PI / 2); return c; }), WOOD(), g, 0, -0.12);
+  mesh(tgeo("spadeSocket", () => new THREE.CylinderGeometry(0.02, 0.028, 0.1, 7)), STUFF(t), g, 0, 0.76);
+  mesh(plateGeo("spadeBlade", [[-0.09, 0], [0.09, 0], [0.092, 0.14], [0.085, 0.22, 0, 0.25], [-0.085, 0.22, -0.092, 0.14], [-0.09, 0]], 0.01, 0.002), STUFF(t), g, 0, 0.8);
+  mesh(plateGeo("spadeEdge", [[-0.06, 0.215], [0, 0.248, 0.06, 0.215], [0, 0.236, -0.06, 0.215]], 0.012, 0), EDGE(t), g, 0, 0.8);
+  for (const sd of [-1, 1]) mesh(tgeo("spadeTread", () => new THREE.BoxGeometry(0.03, 0.012, 0.07)), STUFF(t), g, 0, 0.806, sd * 0.055);
   return g;
 }
 // something to eat, held at the origin: a heel of bread, a joint of meat, a few berries in the palm
@@ -600,27 +623,23 @@ export function makeSack() {
   const t = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.007, 4, 8), mat(0x6a5030, { surface: "none" })); t.rotation.x = Math.PI / 2; t.position.y = 0.28; g.add(t);
   return g;
 }
-// a pickaxe: haft pointing +Y, the head across it at the top, in its making's colour
-const PICK_HEAD = [0x9a7448, 0x9a7448, 0x8a867e, 0xe0904e, 0xc49a48, 0xaab0b8];
+// a pickaxe by its making: a wooden point (fire-hardened), two wedges of stone lashed either side, or a forged crescent
+const PICK_SHAPE = [[-0.27, -0.075], [-0.13, 0.045, 0, 0.05], [0.13, 0.045, 0.27, -0.075], [0.12, -0.005, 0, -0.012], [-0.12, -0.005, -0.27, -0.075]];
 export function makePick(tier = 1) {
   const g = new THREE.Group();
-  const wood = mat(0x6e4c30, { surface: "wood" }), dark = mat(0x3a2818, { surface: "none" });
-  const metal = tier >= 3, head = mat(PICK_HEAD[tier] || PICK_HEAD[1], metal ? { metalness: tier === 5 ? 0.55 : 0.2, roughness: 0.4 } : { surface: tier === 2 ? "stone" : "wood" });
-  // the haft: a little thicker toward the head, with a leather wrap where the hands go
-  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.023, 0.74, 8), wood); haft.position.y = 0.31; g.add(haft);
-  const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.16, 8), dark); wrap.position.y = 0.04; g.add(wrap);
-  // the eye: a collar round the top of the haft
-  const eye = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.075, 0.07), head); eye.position.y = 0.66; g.add(eye);
-  // the head: one crescent, thick over the haft and drawn down to a point either side
-  const sh = new THREE.Shape();
-  sh.moveTo(-0.27, -0.075);
-  sh.quadraticCurveTo(-0.13, 0.045, 0, 0.05);
-  sh.quadraticCurveTo(0.13, 0.045, 0.27, -0.075);
-  sh.quadraticCurveTo(0.12, -0.005, 0, -0.012);
-  sh.quadraticCurveTo(-0.12, -0.005, -0.27, -0.075);
-  const hg = new THREE.ExtrudeGeometry(sh, { depth: 0.032, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.006, bevelSegments: 1, curveSegments: 10 });
-  hg.translate(0, 0, -0.016);
-  const hm = new THREE.Mesh(hg, head); hm.position.y = 0.655; hm.rotation.y = Math.PI / 2; hm.castShadow = true; g.add(hm);
+  mesh(haftGeo(0.78, 0.023, 0.019, 7, -0.08), WOOD(), g);
+  wrap(g, 0.04, 0.16, 0.026, LEATHER());
+  if (tier <= 1) {
+    mesh(plateGeo("pickWood", [[-0.22, -0.06], [-0.1, 0.04, 0, 0.055], [0.1, 0.04, 0.22, -0.06], [0.1, 0.0, 0, -0.005], [-0.1, 0.0, -0.22, -0.06]], 0.05, 0.006), WOOD_DARK(), g, 0, 0.655);
+    wrap(g, 0.66, 0.07, 0.03);
+  } else if (tier === 2) {
+    for (const sd of [-1, 1]) mesh(tgeo("pickStone", () => { const c = new THREE.ConeGeometry(0.05, 0.22, 5); c.rotateX(Math.PI / 2); c.scale(0.9, 0.8, 1); return c; }), STUFF(2), g, 0, 0.66, sd * 0.13, sd < 0 ? Math.PI : 0, 0, 0);
+    wrap(g, 0.66, 0.08, 0.032); mesh(tgeo("pickCross", () => new THREE.BoxGeometry(0.03, 0.03, 0.06)), CORD(), g, 0, 0.66);
+  } else {
+    mesh(tgeo("pickEye", () => new THREE.BoxGeometry(0.055, 0.075, 0.07)), STUFF(tier), g, 0, 0.66);
+    mesh(plateGeo("pickHead", PICK_SHAPE, 0.032, 0.006), STUFF(tier), g, 0, 0.655);
+    for (const sd of [-1, 1]) mesh(tgeo("pickTip", () => { const c = new THREE.ConeGeometry(0.01, 0.04, 4); c.rotateX(Math.PI / 2); return c; }), EDGE(tier), g, 0, 0.585, sd * 0.262, sd < 0 ? Math.PI - 0.5 : 0.5, 0, 0);
+  }
   return g;
 }
 // what is in your own hands: your own sword and axe by their making, the rest as anyone's

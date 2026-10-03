@@ -113,5 +113,6 @@ export function lay(town, c) {
   sign.position.set(sx + 2.2, w.heightAt(sx + 2.2, sz) + 2.1, sz); sign.rotation.y = Math.atan2(c.x - sx, c.z - sz) + Math.PI / 2; g.add(sign);
   w.root.add(g);
   (town.colonyVis ??= []).push(g);
+  town.colonyYard && town.colonyYard(c);
   w.colonies = town.S.colonies;
 }

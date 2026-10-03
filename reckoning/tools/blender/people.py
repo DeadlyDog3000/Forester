@@ -303,23 +303,37 @@ def build_person(key):
         chain += [("yoke", f"shoulder.{s}"), (f"shoulder.{s}", f"bicep.{s}"), (f"bicep.{s}", f"elbow.{s}"), (f"elbow.{s}", f"forem.{s}"), (f"forem.{s}", f"wrist.{s}"), (f"wrist.{s}", f"hand.{s}"),
                   ("pelvis", f"hip.{s}"), (f"hip.{s}", f"thighm.{s}"), (f"thighm.{s}", f"knee.{s}"), (f"knee.{s}", f"calf.{s}"), (f"calf.{s}", f"shinlo.{s}"), (f"shinlo.{s}", f"ankle.{s}"), (f"ankle.{s}", f"toe.{s}")]
     edges = [("pelvis", "spine"), ("spine", "chest"), ("chest", "yoke"), ("yoke", "neck"), ("neck", "head")] + chain
-    names = list(PTS)
-    me = bpy.data.meshes.new(f"{key}_body")
-    me.from_pydata([PTS[n] for n in names], [(names.index(a), names.index(b)) for a, b in edges], [])
-    body = bpy.data.objects.new(f"{key}_body", me)
-    sc.collection.objects.link(body)
-    skin_mod = body.modifiers.new("Skin", "SKIN")
-    skin_mod.use_smooth_shade = True
-    for i, n in enumerate(names):
-        me.skin_vertices[0].data[i].radius = RAD[n]
-    me.skin_vertices[0].data[names.index("pelvis")].use_root = True
-    sub = body.modifiers.new("Sub", "SUBSURF")
-    sub.levels = 2
+    # the trunk, legs and head grown as one skin, and the arms as skins of their own that sink into the shoulders —
+    # so a hand hanging against the hip is never joined to it, and never pulls it along
+    ARMS = {f"{b}.{s}" for s in "LR" for b in ("bicep", "elbow", "forem", "wrist", "hand")}
+    arm_edges = [e for e in edges if e[0] in ARMS or e[1] in ARMS]
+    body_edges = [e for e in edges if e not in arm_edges]
+    def skin_obj(name, elist, roots):
+        used = list(dict.fromkeys([n for e in elist for n in e]))
+        m_ = bpy.data.meshes.new(name)
+        m_.from_pydata([PTS[n] for n in used], [(used.index(a), used.index(b)) for a, b in elist], [])
+        ob = bpy.data.objects.new(name, m_)
+        sc.collection.objects.link(ob)
+        sm = ob.modifiers.new("Skin", "SKIN"); sm.use_smooth_shade = True
+        for i, n in enumerate(used):
+            m_.skin_vertices[0].data[i].radius = RAD[n]
+            if n in roots: m_.skin_vertices[0].data[i].use_root = True
+        ob.modifiers.new("Sub", "SUBSURF").levels = 2
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
+        bpy.ops.object.modifier_apply(modifier="Skin")
+        bpy.ops.object.modifier_apply(modifier="Sub")
+        ob.select_set(False)
+        return ob
+    body = skin_obj(f"{key}_body", body_edges, {"pelvis"})
+    arms = skin_obj(f"{key}_arms", arm_edges, {"shoulder.L", "shoulder.R"})
+    n_trunk = len(body.data.vertices)
+    for o2 in sc.objects: o2.select_set(False)
+    body.select_set(True); arms.select_set(True)
     bpy.context.view_layer.objects.active = body
-    body.select_set(True)
-    bpy.ops.object.modifier_apply(modifier="Skin")
-    bpy.ops.object.modifier_apply(modifier="Sub")
+    bpy.ops.object.join()
     body.select_set(False)
+    me = body.data
 
     # ---- dress the body: each face gets a material by where it is ----
     bm = bmesh.new()
@@ -353,7 +367,7 @@ def build_person(key):
         elif z > 0.88:
             m = "coat"                                      # body
         elif f:
-            m = "stockings" if z < 0.5 else "skin"          # under the skirt nobody looks
+            m = "stockings" if z < 0.5 else "skirt"         # under the skirt nobody looks (but a glimpse at the waist is the skirt)
         elif wild:
             # the legs bound in strips from the ankle to the knee, criss-crossed
             if z > 0.52: m = "legs"
@@ -689,7 +703,7 @@ def build_person(key):
             sheet(P, "coat", rows, thick=0.007, col=lambda i, j: (0.86, 0.86, 0.86, 1) if i == 8 else WHITE)
         # pocket flaps, each with three buttons
         for sd in (-1, 1):
-            a = sd * 1.05
+            a = sd * 0.8
             p = clear(Vector((math.sin(a) * 0.23, -math.cos(a) * 0.17, 0.77)), 0.02)
             P.box("coat", WHITE, p, (0.15, 0.012, 0.055), (0.05, 0, a))
             for k in (-1, 0, 1):
@@ -943,8 +957,9 @@ def build_person(key):
     bpy.ops.object.parent_set(type="ARMATURE_AUTO")
     for ob in list(sc.objects):
         ob.select_set(False)
+    clean_arms(body, J, n_trunk)
     for ob in extra:
-        vg_assign(ob, rig, hc, J, f, body)
+        vg_assign(ob, rig, hc, J, f, body, n_trunk)
 
     animate(rig, key, f, J)
     objs = [rig, body] + extra
@@ -964,14 +979,94 @@ def build_person(key):
     return path
 
 
-def vg_assign(ob, rig, hc, J, f, body):
+def seg_dist(p, a, b):
+    a, b = Vector(a), Vector(b); ab = b - a
+    t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-9)))
+    return (p - (a + ab * t)).length
+
+
+ARM_BONES = ("shoulder", "upper_arm", "forearm", "hand")
+
+
+def limb_of(p, J):
+    """Which the point belongs to: ("arm", side) if it lies on an arm or hand; ("trunk", None) if it is the body, the
+    legs or something worn on them, which must never be pulled along by a hand hanging beside it; or None round the
+    shoulders, where the arm and the chest blend."""
+    p = Vector(p)
+    s = "L" if p.x > 0 else "R"
+    if (p - Vector(J[f"shoulder.{s}"])).length < 0.1:
+        return None
+    chain = [J[f"shoulder.{s}"], J[f"elbow.{s}"], J[f"wrist.{s}"], J[f"hand.{s}"], tuple(Vector(J[f"hand.{s}"]) + Vector((0, 0, -0.11)))]
+    d_arm = min(seg_dist(p, a, b) for a, b in zip(chain, chain[1:]))
+    d_leg = seg_dist(p, J[f"hip.{s}"], J[f"knee.{s}"]) / 0.09
+    d_trunk = seg_dist(p, J["pelvis"], J["neck"]) / 0.17
+    if d_arm < 0.085 and d_arm / 0.06 < min(d_leg, d_trunk):
+        return ("arm", s)
+    return ("trunk", None)
+
+
+def arm_only(weights, s, z):
+    """an arm's weights, with anything from the trunk or the legs taken out"""
+    keep = {n: w for n, w in weights.items() if n in tuple(f"{b}.{s}" for b in ARM_BONES)}
+    if not keep:
+        keep = {(f"hand.{s}" if z < 0.93 else f"forearm.{s}" if z < 1.16 else f"upper_arm.{s}"): 1.0}
+    t = sum(keep.values())
+    return {n: w / t for n, w in keep.items()}
+
+
+def trunk_only(weights, z):
+    """the body's weights, with the arms' taken out"""
+    keep = {n: w for n, w in weights.items() if n.split(".")[0] not in ARM_BONES}
+    if not keep:
+        keep = {("hips" if z < 1.0 else "spine" if z < 1.25 else "chest"): 1.0}
+    t = sum(keep.values())
+    return {n: w / t for n, w in keep.items()}
+
+
+def limb_weights(weights, p, J):
+    k = limb_of(p, J)
+    if not k:
+        return weights
+    return arm_only(weights, k[1], p[2]) if k[0] == "arm" else trunk_only(weights, p[2])
+
+
+def clean_arms(body, J, n_trunk):
+    """the body's own skin, after automatic weighting: the arms' skin follows the arm alone, and the trunk's nothing of
+    the arms (but round the shoulders, where they blend)"""
+    vg = {g.index: g for g in body.vertex_groups}
+    byname = {g.name: g for g in body.vertex_groups}
+    for v in body.data.vertices:
+        w = {vg[x.group].name: x.weight for x in v.groups if x.group in vg}
+        s = "L" if v.co.x > 0 else "R"
+        if v.index >= n_trunk:
+            new = arm_only(w, s, v.co.z)
+        elif (v.co - Vector(J[f"shoulder.{s}"])).length < 0.1:
+            continue
+        else:
+            new = trunk_only(w, v.co.z)
+        if new is w:
+            continue
+        for n in w:
+            if n not in new:
+                byname[n].remove([v.index])
+        for n, wt in new.items():
+            if n not in byname:
+                byname[n] = body.vertex_groups.new(name=n)
+            byname[n].add([v.index], wt, "REPLACE")
+
+
+def vg_assign(ob, rig, hc, J, f, body, n_trunk):
     """Weight a piece of clothing to the bones the body under it follows: each vertex takes the skin
     weights of the nearest point on the body, so a coat bends with the torso it covers and a cuff with
     its forearm. Above the neck everything rides the head; skirts hang from the hips and swing with
     the thighs rather than splitting between the legs."""
     from mathutils.bvhtree import BVHTree
     bm_ = body.data
-    tree = BVHTree.FromPolygons([v.co.copy() for v in bm_.vertices], [tuple(p.vertices) for p in bm_.polygons])
+    verts = [v.co.copy() for v in bm_.vertices]
+    polys_arm = [p.index for p in bm_.polygons if p.vertices[0] >= n_trunk]
+    polys_trunk = [p.index for p in bm_.polygons if p.vertices[0] < n_trunk]
+    tree_arm = BVHTree.FromPolygons(verts, [tuple(bm_.polygons[i].vertices) for i in polys_arm])
+    tree_trunk = BVHTree.FromPolygons(verts, [tuple(bm_.polygons[i].vertices) for i in polys_trunk])
     names = {g.index: g.name for g in body.vertex_groups}
     vw = [{names[x.group]: x.weight for x in v.groups if x.group in names} for v in bm_.vertices]
     me = ob.data
@@ -981,6 +1076,25 @@ def vg_assign(ob, rig, hc, J, f, body):
         if n not in groups:
             groups[n] = ob.vertex_groups.new(name=n)
         return groups[n]
+    # each separate piece (a finger, a cuff, a button, a flap) goes wholly with the arm or wholly with the body: with the
+    # arm if most of it lies along an arm's bones
+    import bmesh as _bm
+    bmi = _bm.new(); bmi.from_mesh(me); bmi.verts.ensure_lookup_table()
+    island = [-1] * len(bmi.verts); arm_island = {}
+    for v0 in bmi.verts:
+        if island[v0.index] >= 0: continue
+        k = len(arm_island); stack = [v0]; island[v0.index] = k; members = []
+        while stack:
+            v1 = stack.pop(); members.append(v1.co.copy())
+            for e in v1.link_edges:
+                o = e.other_vert(v1)
+                if island[o.index] < 0: island[o.index] = k; stack.append(o)
+        cen = sum(members, Vector()) / len(members)
+        s_ = "L" if cen.x > 0 else "R"
+        chain = [J[f"shoulder.{s_}"], J[f"elbow.{s_}"], J[f"wrist.{s_}"], J[f"hand.{s_}"], tuple(Vector(J[f"hand.{s_}"]) + Vector((0, 0, -0.11)))]
+        near = sum(1 for m in members if min(seg_dist(m, a, b) for a, b in zip(chain, chain[1:])) < 0.075 and (m - Vector(J[f"shoulder.{s_}"])).length > 0.1)
+        arm_island[k] = s_ if near > 0.6 * len(members) else None
+    bmi.free()
     for v in me.vertices:
         x, y, z = v.co
         ax = abs(x)
@@ -988,13 +1102,23 @@ def vg_assign(ob, rig, hc, J, f, body):
         if z > 1.52:
             g("head").add([v.index], 1.0, "REPLACE")
             continue
+        on_arm = arm_island[island[v.index]]
         if piece in ("skirt", "apron") or (piece == "coat" and z < 0.93 and ax < 0.3 and abs(y) < 0.3 and z > 0.35):
             k = max(0.0, min(1.0, (0.93 - z) / 0.5)) * min(1.0, ax / 0.12) * 0.75
             g("hips").add([v.index], 1 - k, "REPLACE")
             if k > 0:
                 g(f"thigh.{side}").add([v.index], k, "REPLACE")
             continue
-        loc, nrm, fi, dist = tree.find_nearest(v.co)
+        # (what is worn on an arm — a cuff, a finger — goes with the arm; anything else with the body, though a hand hangs
+        # beside it)
+        la, na, fa, da = tree_arm.find_nearest(v.co)
+        lt, nt, ft, dt = tree_trunk.find_nearest(v.co)
+        if fa is not None and (on_arm or ft is None):
+            loc, fi = la, polys_arm[fa]
+        elif ft is not None:
+            loc, fi = lt, polys_trunk[ft]
+        else:
+            fi = None
         if fi is None:
             g("hips").add([v.index], 1.0, "REPLACE")
             continue
@@ -1011,9 +1135,11 @@ def vg_assign(ob, rig, hc, J, f, body):
             g("hips").add([v.index], 1.0, "REPLACE")
             continue
         s_ = sum(acc.values())
+        acc = {n: wv / s_ for n, wv in acc.items()}
+        acc = arm_only(acc, on_arm, z) if on_arm else acc if (v.co - Vector(J[f"shoulder.{side}"])).length < 0.1 else trunk_only(acc, z)
         for n, wv in acc.items():
-            if wv / s_ > 0.02:
-                g(n).add([v.index], wv / s_, "REPLACE")
+            if wv > 0.02:
+                g(n).add([v.index], wv, "REPLACE")
     mod = ob.modifiers.new("Armature", "ARMATURE")
     mod.object = rig
     ob.parent = rig

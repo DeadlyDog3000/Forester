@@ -10,12 +10,12 @@ import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy, ensureModel } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon } from "./map.js";
-import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM, furnishClear } from "./furnish.js";
+import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM, furnishClear, fitsRoom } from "./furnish.js";
 // the house your cabin becomes: its windows (wall, where along it, the height of the middle — as home.py builds them),
 // the stair in the corner by the door, and the height of the loft floor above the room
 const HOME_WINDOWS = [["front", -1.875, 1.65], ["back", 0.625, 1.65], ["left", 1.2, 1.65], ["right", -1.2, 1.65], ["right", 0.0, 1.65],
   ["front", -0.625, 4.45], ["front", 0.625, 4.45], ["back", 0.625, 4.45], ["back", 1.875, 4.45], ["left", -1.2, 4.45], ["left", 1.2, 4.45], ["right", -1.2, 4.45], ["right", 0.0, 4.45]];
-const HOME_STAIR = { x0: 1.5, x1: 2.25, z0: 1.3, z1: 2.65 }, HOME_LOFT = 2.8;
+const HOME_STAIR = { x0: 1.5, x1: 2.25, z0: 1.15, z1: 2.45 }, HOME_LOFT = 2.8;
 import { ROCKS } from "./body.js";
 import { AUDIO } from "./audio.js";
 import { UI } from "./ui.js";
@@ -1363,11 +1363,12 @@ export class Woods extends WorldBase {
     line(-2.55, -3.05, -2.55, 3.05, 0.28, F2 - 0.4, top); line(2.55, -3.05, 2.55, 3.05, 0.28, F2 - 0.4, top);
     line(S0.x0 - 0.06, S0.z0 + 0.05, S0.x0 - 0.06, 2.8, 0.06, F2 - 0.3, F2 + 1.0);                 // the rail round the well
     line(S0.x0 + 0.1, S0.z0 + 0.15, S0.x1 - 0.1, S0.z0 + 0.15, 0.15, -5, this.cabinY + 1.25);     // (no walking in under the stair)
-    line(S0.x0 - 0.08, S0.z0 + 0.1, S0.x0 - 0.08, 2.2, 0.08, -5, this.cabinY + 0.9);                // (nor in from the side)
+    line(S0.x0 - 0.08, S0.z0 + 0.1, S0.x0 - 0.08, 1.75, 0.08, -5, this.cabinY + 0.9);               // (nor in from the side, though the foot of it is open)
     line(-2.15, -2.6, -1.15, -0.6, 0.4, F2 - 0.1, F2 + 0.45);                                       // the bed
     const [lx, lz] = this.cabinToWorld(0, 0);
     this.loftLight = new THREE.PointLight(0xffc48a, 1.2, 6.5, 1.6); this.loftLight.position.set(lx, F2 + 2.0, lz); this.root.add(this.loftLight);
     furnishClear(S0);
+    if (this.furniture) this.setFurniture(this.furniture);
   }
   // where you stand in the house: on the ground floor, on the stair, or up in the loft — whichever is under your feet
   floorAt(x, z, y) {
@@ -1481,6 +1482,21 @@ export class Woods extends WorldBase {
     this.furniture = list || DEFAULT_HOME();
     // every cabin has its chest, even one furnished before there was such a thing
     if (!this.furniture.some(f => f.type === "chest")) this.furniture = [...this.furniture, { ...DEFAULT_CHEST }];
+    // with a stair in the corner, anything standing in its way is moved to somewhere it fits
+    if (this.loftMade) {
+      let moved = false;
+      const list = this.furniture.map(f => ({ ...f }));
+      for (const f of list) {
+        if (fitsRoom(f, list)) continue;
+        const [hx, hz] = [FURNITURE[f.type] ? FURNITURE[f.type].w / 2 : 0.5, FURNITURE[f.type] ? FURNITURE[f.type].d / 2 : 0.5];
+        if (!(f.lx + Math.max(hx, hz) > HOME_STAIR.x0 - 0.1 && f.lz + Math.max(hx, hz) > HOME_STAIR.z0 - 0.2)) continue;
+        search: for (const ry of [f.ry, f.ry + Math.PI / 2]) for (let lz = -2.4; lz <= 2.4; lz += 0.25) for (let lx = -2; lx <= 2; lx += 0.25) {
+          const c = { ...f, lx, lz, ry };
+          if (fitsRoom(c, list)) { Object.assign(f, c); moved = true; break search; }
+        }
+      }
+      if (moved) { this.furniture = list; if (G.town && G.town.S) { G.town.S.furniture = list; G.town.persist && G.town.persist(); } }
+    }
     if (this.furnGroup) this.root.remove(this.furnGroup);
     for (const c of this.furnCols || []) this.col.remove(c);
     for (const it of this.bedIts || []) this.removeInteract(it);

@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.41", date: "3 October 2026", title: "Tools and uniforms",
+    items: [
+      "Fixed: settlers' hands and skin stretched out with their arms. Everyone's arms are now their own, so a hand hanging against the hip no longer drags the hip, the coat or a pocket flap along when it reaches out.",
+      "The watch wears a uniform, and you choose it: G, then Taxes & trade, then The watch's uniform. Pick the coat, the breeches, the waistcoat, a morion helmet with a sash or a tricorn with its colour. Everyone on the watch changes into it at once, and anyone set to the watch puts it on.",
+      "Every settlement has its own yard: a chopping block to make tools at and a sawhorse to hew doors on, both using that settlement's own logs. Its stack, or its woodshed once it has one, takes logs in and gives them out. Each woodshed shows its own settlement's logs, and the first settlement's stack no longer wanders off to a woodshed built somewhere else.",
+      "The government menu (G) is the government of the settlement you're standing in: its people, its families, its stores and its food. The treasury, research and laws are the nation's, the same from anywhere. Sending for someone picks the settlement you're in.",
+      "All the tools rebuilt to match the rest of the forest: faceted, plainly shaped, each showing what it's made of. A pickaxe is a fire-hardened wooden point, two stone wedges lashed on, or a forged crescent of copper, bronze or iron. A hammer is a wooden mallet, a lashed stone or a forged head. The axe, the spade with its T-grip and treads, the sickle with its bright inner edge, the saw with its teeth and cut-through handle, the knife, the swords with their fullers and turned guards, the spear, the club and the battle-axe all have ground edges where they cut.",
+      "Strike a rock with a pick and chips of it fly out, in its own colour, with a puff of grit, and lie a moment where they land. A pick too soft for the rock throws only a few, and breaking a rock throws plenty.",
+      "Fixed: you couldn't get onto the stair to the loft. Its first step is now within reach, and anything standing in the stair's corner is moved out of the way.",
+      "Township's description said settlers take their goods to the town hall on their own. They don't, and never did. It now says what it really does: it unlocks the town hall (a brick one is the charter you need to rebuild in the city style, and to be called a City) and the quarryman's trade.",
+    ],
+  },
+  {
     v: "0.40.1", date: "3 October 2026", title: "Upstairs",
     items: [
       "Your house has an upstairs. A steep stair in the corner by the door climbs to a loft under the roof, with a bed and its red blanket, a chest, a stool by the window and a rail round the stairwell.",

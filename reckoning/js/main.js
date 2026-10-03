@@ -9,7 +9,7 @@
 import { renderer, clamp } from "./core.js";
 import { G, Player, frame, setAtmo, input, drawMap, setGraphics, dm, post } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
-import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES, WORKS, SHED_BAYS } from "./town.js";
+import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES, WORKS, SHED_BAYS, UNIFORM_DEFAULT } from "./town.js";
 import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
@@ -464,7 +464,9 @@ G.openChest = (mode = "own") => {
 // ---- tools, made at the chopping block: logs from the stack, the rest from what you carry ----
 const packN = k => (G.pack.find(i => i.icon === k) || {}).n || 0;
 // what the settlement's stores hold of a thing (logs are the stack; iron ore is "ore" in the stores)
-const storeN = k => G.town ? (G.town.S[k === "logs" ? "store" : k === "ironore" ? "ore" : k] || 0) : 0;
+// (made at a settlement's own chopping block out in the forest: from that settlement's stores)
+const craftStores = () => G.craftS || (G.town && G.town.S);
+const storeN = k => craftStores() ? (craftStores()[k === "logs" ? "store" : k === "ironore" ? "ore" : k] || 0) : 0;
 const haveFor = (k, n) => k === "logs" ? storeN(k) >= n : packN(k) + storeN(k) >= n;
 // metal is only worked at a forge: copper, bronze and iron recipes are shown once there is one
 const METALS = ["copper", "tin", "bronze", "iron"];
@@ -493,12 +495,12 @@ $("craftBody").addEventListener("click", e => {
   const r = TOOL_RECIPES[+b.dataset.r];
   if (!craftUnlocked(r) || !Object.entries(r.cost).every(([k, n]) => haveFor(k, n))) return;
   for (const [k, n] of Object.entries(r.cost)) {
-    if (k === "logs") { G.town.S.store -= n; G.town.showStore && G.town.showStore(); G.town.persist(); }
+    if (k === "logs") { craftStores().store -= n; G.town.showStore && G.town.showStore(); G.town.persist(); }
     else {
       // what you carry first, then the stores
       const it = G.pack.find(i => i.icon === k), fromPack = Math.min(n, it ? it.n : 0);
       if (it) { it.n -= fromPack; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }
-      if (n > fromPack) { const key = k === "ironore" ? "ore" : k; G.town.S[key] -= n - fromPack; G.town.persist(); }
+      if (n > fromPack) { const key = k === "ironore" ? "ore" : k; craftStores()[key] -= n - fromPack; G.town.persist(); }
     }
   }
   G.body.tools[r.tool] = r.tier; G.body.dirty = true;
@@ -723,24 +725,50 @@ function govLaws(t) {
     <div class="law-note">Businesses bring in taxes and cheer the place up, and you can buy at their shops for less. But an owner gives part of their time to it, so less goes into the settlement's stores. They fell their own timber for the shop. Forbid it, and those with savings resent it.</div>
     <label class="law-tog"><input type="checkbox" id="lawAsk"${S.laws.approval ? " checked" : ""}> A shop may only be built with your leave</label>
     <div class="law-note">With this law, whoever wants to open a shop comes to you first and shows you where. Refuse them, and they take it hard.</div>
+    <div class="mc-sec">The watch's uniform</div>${uniformHtml(S)}
     <div class="mc-sec">Companies</div>`;
   const list = S.companies.filter(c => !c.refused);
   h += list.length ? `<table class="gov-people"><tr><th>Company</th><th>Owner</th><th>Trade</th><th>State</th><th>Stock</th><th>Taken</th></tr>${list.map(c => `<tr><td class="nm">${esc(c.name)}</td><td>${esc(c.owner)}</td><td>${esc(KINDS[c.kind].name)}</td><td>${c.waiting ? "asking your leave" : c.built ? "open" : `building (${Math.min(10, c.logs || 0)}/10 logs)`}</td><td>${c.stock || 0}</td><td>${dm(c.earned)} DM</td></tr>`).join("")}</table>` : `<div class="law-note">No one has started a business yet. Someone who has saved twelve DM, and is doing well, may.</div>`;
   return h;
 }
+// ---- the watch's uniform ----
+const UNI = {
+  coat: [["Hamburg red", 0x7a2a26], ["Navy", 0x2a3450], ["Forest green", 0x3a4a2a], ["Black", 0x1e1e22], ["Grey", 0x5a5a5e], ["Brown", 0x5a3e2a], ["Sky blue", 0x4a6a8a], ["Ochre", 0x9a7a2a], ["White", 0xe0d8c8]],
+  legs: [["Charcoal", 0x2a2a30], ["Black", 0x1e1e22], ["Brown", 0x3a3028], ["Grey", 0x5a5a5e], ["Buff", 0xe0d8c8], ["Red", 0x7a2a26], ["Navy", 0x2a3450]],
+  vest: [["Buff", 0xc8b890], ["White", 0xe0d8c8], ["Red", 0x7a2a26], ["Navy", 0x2a3450], ["Ochre", 0x9a7a2a], ["Black", 0x1e1e22]],
+  sash: [["None", null], ["White", 0xe0d8c0], ["Red", 0x7a2a26], ["Blue", 0x2a3450], ["Gold", 0xc8a040], ["Green", 0x3a4a2a]],
+  hatColor: [["Black", 0x1e1a18], ["Navy", 0x2a3450], ["Brown", 0x5a3e2a], ["Grey", 0x5a5a5e]],
+};
+const UNI_NAME = { coat: "Coat", legs: "Breeches", vest: "Waistcoat", sash: "Sash", hatColor: "Hat" };
+function uniformHtml(S) {
+  const u = { ...UNIFORM_DEFAULT, ...(S.uniform || {}) }, hex = c => "#" + c.toString(16).padStart(6, "0");
+  const n = S.people.filter(p => p.job === "watch").length;
+  const row = k => (k === "hatColor" && u.hat === "helmet") || (k === "sash" && u.hat !== "helmet") ? "" : `<div class="uni-row"><span class="uni-k">${UNI_NAME[k]}</span>${UNI[k].map(([nm, c]) => `<button class="uni-sw${u[k] === c ? " on" : ""}${c == null ? " none" : ""}" data-u="${k}" data-c="${c == null ? "" : c}" title="${esc(nm)}" style="${c == null ? "" : `background:${hex(c)}`}">${c == null ? "—" : ""}</button>`).join("")}</div>`;
+  return `<div class="law-note">What the watch wear, so everyone knows them on sight. ${n ? `${n} on the watch now; they change into it at once.` : "Nobody is on the watch yet — research Policing, build a jail, and set someone to it."}</div>
+    <div class="uni-row"><span class="uni-k">Headgear</span><button class="uni-hat${u.hat === "helmet" ? " on" : ""}" data-hat="helmet">Morion helmet</button><button class="uni-hat${u.hat !== "helmet" ? " on" : ""}" data-hat="tricorn">Tricorn</button></div>
+    ${["coat", "legs", "vest", "sash", "hatColor"].map(row).join("")}
+    <div class="law-note">The sash goes with the helmet, and a hat's colour with the tricorn. A woman on the watch wears the coat with a skirt the colour of the breeches.</div>`;
+}
 function wireLaws(t) {
   const S = t.S;
+  const setU = (k, v) => { S.uniform = { ...UNIFORM_DEFAULT, ...(S.uniform || {}), [k]: v }; t.persist(); t.refreshWatch && t.refreshWatch(); renderGov(true); };
+  for (const b of document.querySelectorAll("#govBody .uni-sw")) b.onclick = () => setU(b.dataset.u, b.dataset.c === "" ? null : +b.dataset.c);
+  for (const b of document.querySelectorAll("#govBody .uni-hat")) b.onclick = () => setU("hat", b.dataset.hat);
   $("lawTax").oninput = e => { S.tax = +e.target.value / 100; $("lawTaxV").textContent = e.target.value + "%"; t.persist(); };
   $("lawBiz").oninput = e => { S.bizTax = +e.target.value / 100; $("lawBizV").textContent = e.target.value + "%"; t.persist(); };
   $("lawBiz1").onchange = e => { S.laws.business = e.target.checked; t.persist(); };
   $("lawAsk").onchange = e => { S.laws.approval = e.target.checked; t.persist(); };
 }
 function renderGov(full) {
-  const t = G.town; if (!t) return;
+  const t0 = G.town; if (!t0) return;
+  // the settlement you're standing in: its own people, stores and families; the treasury, research and laws are the
+  // nation's, the same from any of them
+  const here = t0.inColony && G.player ? t0.inColony(G.player.pos.x, G.player.pos.z) : null;
+  const t = here || (t0.S.colonies || []).length ? t0.viewFor(here) : t0;
   // (a redraw every half second would steal the search box's focus and the tree's scroll: only what moves is redrawn)
-  const key = govTab + "|" + techTree;
+  const key = govTab + "|" + techTree + "|" + (here ? here.name : "");
   for (const b of document.querySelectorAll("#govTabs .gov-tab")) b.classList.toggle("on", b.dataset.tab === govTab);
-  $("govTitle").textContent = `Government — ${t.S.name || "the clearing"}`;
+  $("govTitle").textContent = `Government — ${here ? here.name : t0.S.name || "the clearing"}`;
   if (govTab === "nation") $("govBody").innerHTML = govNation(t);
   else if (govTab === "ambitions") { const html = govAmbitions(t); if (full || html !== govPeopleHtml || key !== govKey) { $("govBody").innerHTML = html; govPeopleHtml = html; } }
   else if (govTab === "europe") {
@@ -780,7 +808,7 @@ function stat(k, v, n, bar, warn = true) {
   return `<div class="gov-stat"><div class="k">${k}</div><div class="v">${v}</div>${n ? `<div class="n">${n}</div>` : ""}${b}</div>`;
 }
 function govNation(t) {
-  const S = t.S, pop = S.people.length + 2, beds = t.beds + 2;
+  const fam = t.colony ? 0 : 2, S = t.S, pop = S.people.length + fam, beds = t.colony ? t.bedsIn(t.colony) : t.beds + 2;
   const foodDays = Math.floor(t.foodDays());
   const fuelDays = Math.floor(S.store / Math.max(1, t.hearths));
   const c = t.contentment();
@@ -789,10 +817,10 @@ function govNation(t) {
   const known = S.tech.done.length, total = Object.keys(TECH).length;
   const workers = S.people.filter(p => !p.child).length;
   const why = c.why.map(([n, text]) => `<span class="${n < 0 ? "neg" : ""}">${n > 0 ? "+" : ""}${n} ${esc(text)}</span>`).join(" · ");
-  let h = `<div class="gov-head"><span class="gov-name">${esc(S.name || "The clearing")}</span><span class="gov-rank">${rankOf(t)}</span>
+  let h = `<div class="gov-head"><span class="gov-name">${esc(t.colony ? t.colony.name : S.name || "The clearing")}</span><span class="gov-rank">${rankOf(t)}</span>
     <span class="gov-sub">${cap(t.season)}, day ${dayN} of year ${yearN} in the woods · built ${t.tierLevel > 1 ? UPGRADES[t.tierLevel].style.split(",")[0] : "in logs"}</span></div>`;
   h += `<div class="mc-sec">The nation</div><div class="gov-grid">`;
-  h += stat("People", `${pop} <span class="dim" style="font-size:14px">of ${beds} beds</span>`, pop > beds ? `${pop - beds} without a bed — raise cabins (B)` : `${workers} settlers at work, and your family`, pop > beds ? 0.05 : 1 - pop / Math.max(1, beds) * 0.66);
+  h += stat("People", `${pop} <span class="dim" style="font-size:14px">of ${beds} beds</span>`, pop > beds ? `${pop - beds} without a bed — raise cabins (B)` : `${workers} settlers at work${fam ? ", and your family" : ""}`, pop > beds ? 0.05 : 1 - pop / Math.max(1, beds) * 0.66);
   h += stat("Contentment", `${c.value} / 100`, c.value >= 60 ? "They are glad they came." : c.value >= 40 ? "They manage." : "Unhappy — nobody new will stay.", c.value / 100);
   const mouths = t.mouths ? t.mouths() : pop;
   h += stat("Food", `${foodDays} day${foodDays === 1 ? "" : "s"}`, `${Math.round(S.rye)} rye, ${S.bread || 0} bread, ${S.meat || 0} meat · ${Math.round(mouths * 10) / 10} mouths, each eating 5 rye, 3 loaves or 2 meat a day`, foodDays / 8);
@@ -827,8 +855,8 @@ function govPeople(t) {
   const youName = G.who === "sister" ? "Sister" : "Brother", sibName = G.who === "sister" ? "Brother" : "Sister";
   const sibA = t.sibActor;
   const moodCell = m => `<div class="mood" title="${esc(m.why.map(([n, w]) => `${n > 0 ? "+" : ""}${n} ${w}`).join("\n"))}"><div class="mood-bar"><i style="width:${m.value}%;background:${m.value < 25 ? "#d0503a" : m.value < 45 ? "#d6a03a" : "var(--gold)"}"></i></div><span>${m.value}</span></div>`;
-  let rows = `<tr><td class="nm">${youName} <span class="dim">(you)</span></td><td>Head of the household</td><td class="dim">—</td><td class="dim">—</td><td class="dim">The cabin</td><td><div class="has">${you.map(x => `<span>${esc(x)}</span>`).join("") || '<span class="dim">nothing</span>'}</div></td><td></td></tr>`;
-  rows += `<tr><td class="nm">${sibName}</td><td>Woodcutter · family</td><td class="dim">—</td><td class="dim">—</td><td class="dim">${esc(sibA ? cap(sibA.doing || "about the clearing") : "about the clearing")}</td><td><div class="has"><span>Axe</span></div></td><td></td></tr>`;
+  let rows = t.colony ? "" : `<tr><td class="nm">${youName} <span class="dim">(you)</span></td><td>Head of the household</td><td class="dim">—</td><td class="dim">—</td><td class="dim">The cabin</td><td><div class="has">${you.map(x => `<span>${esc(x)}</span>`).join("") || '<span class="dim">nothing</span>'}</div></td><td></td></tr>`;
+  if (!t.colony) rows += `<tr><td class="nm">${sibName}</td><td>Woodcutter · family</td><td class="dim">—</td><td class="dim">—</td><td class="dim">${esc(sibA ? cap(sibA.doing || "about the clearing") : "about the clearing")}</td><td><div class="has"><span>Axe</span></div></td><td></td></tr>`;
   S.people.forEach((p, i) => {
     const a = t.actors.find(x => x.settler === p);
     const home = t.bedFor(i);
@@ -853,10 +881,10 @@ function govPeople(t) {
         <div class="k">Why they feel as they do — ${m.value}</div><p>${m.why.map(([n, w]) => `<span class="${n > 0 ? "up" : "down"}">${n > 0 ? "+" : ""}${n}</span> ${esc(w)}`).join("<br>")}</p></div></div></td></tr>`;
   });
   // sending for someone new
-  const pop = S.people.length + 2, free = t.beds + 2 - pop - (t.sentFor || 0);
+  const pop = S.people.length + (t.colony ? 0 : 2), free = t.colony ? t.bedsIn(t.colony) - pop : t.beds + 2 - pop - (t.sentFor || 0);
   const trades = Object.keys(JOBS).filter(j => !(t.jobGated && t.jobGated(j)));
-  const recruit = t.recruit ? `<div class="recruit"><span>Send for someone:</span><select id="recJob">${trades.map(j => `<option value="${j}">${cap(JOBS[j].name)} — ${SKILL_NAME[JOB_SKILL[j]]}</option>`).join("")}</select>${(S.colonies || []).length ? `<span>to</span><select id="recTo"><option value="">${esc(S.name || "the first settlement")}</option>${S.colonies.map(c => `<option value="${esc(c.name)}">${esc(c.name)} — ${(n => `${n} bed${n === 1 ? "" : "s"} free`)(t.bedsIn(c) - S.people.filter(p => p.home === c.name).length)}</option>`).join("")}</select>` : ""}<button id="recGo"${free > 0 ? "" : " disabled"}>Send — 12 DM</button><span class="dim">${free > 0 ? `${free} bed${free > 1 ? "s" : ""} free. They come up the road with the trade already in their hands.` : "No bed free — raise a cabin first."}${t.sentFor ? ` ${t.sentFor} on the way.` : ""}</span></div>` : "";
-  return `<div class="gov-why" style="margin-bottom:8px">${pop} souls. Everyone who is not family came up the road. Click a name for their whole sheet; the bar is how they feel (hover for why). Two miserable days and they leave.</div>${recruit}
+  const recruit = t.recruit ? `<div class="recruit"><span>Send for someone:</span><select id="recJob">${trades.map(j => `<option value="${j}">${cap(JOBS[j].name)} — ${SKILL_NAME[JOB_SKILL[j]]}</option>`).join("")}</select>${(S.colonies || []).length ? `<span>to</span><select id="recTo"><option value="">${esc(S.name || "the first settlement")}</option>${S.colonies.map(c => `<option value="${esc(c.name)}"${t.colony && t.colony.name === c.name ? " selected" : ""}>${esc(c.name)} — ${(n => `${n} bed${n === 1 ? "" : "s"} free`)(t.bedsIn(c) - S.people.filter(p => p.home === c.name).length)}</option>`).join("")}</select>` : ""}<button id="recGo"${free > 0 ? "" : " disabled"}>Send — 12 DM</button><span class="dim">${free > 0 ? `${free} bed${free > 1 ? "s" : ""} free. They come up the road with the trade already in their hands.` : "No bed free — raise a cabin first."}${t.sentFor ? ` ${t.sentFor} on the way.` : ""}</span></div>` : "";
+  return `<div class="gov-why" style="margin-bottom:8px">${pop} souls${t.colony ? ` in ${esc(t.colony.name)}` : ""}. Everyone who is not family came up the road. Click a name for their whole sheet; the bar is how they feel (hover for why). Two miserable days and they leave.</div>${recruit}
     <table class="ppl"><thead><tr><th>Name</th><th>Work</th><th>Mood</th><th>Best at</th><th>Now</th><th>Has</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 const pplOpen = new Set();
