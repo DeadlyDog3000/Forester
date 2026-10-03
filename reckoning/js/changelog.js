@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.41.2", date: "3 October 2026", title: "One edge",
+    items: [
+      "The map draws the edge of your land once, round the outside of all of it. Where ground you've marked out meets the old clearing, another piece of marked-out ground or a settlement, no dashed line runs through the middle any more.",
+    ],
+  },
+  {
     v: "0.41.1", date: "3 October 2026", title: "The town hall",
     items: [
       "The town hall does something now, more the grander it is (logs, then timber, brick, stucco):",

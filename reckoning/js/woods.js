@@ -500,15 +500,13 @@ export class Woods extends WorldBase {
     for (const col of this.colonies || []) {
       road(c, col.road.map(([x, z]) => ({ x, z })), X, Z, Math.max(2.2, Math.min(4.5, S * 1.9)) * 0.8);
       c.fillStyle = "rgba(214,200,150,0.9)"; c.beginPath(); c.arc(X(col.x), Z(col.z), col.r * S, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]);
     }
     // the ground won from the forest beyond the old edge
     if (this.lobes && this.lobes.length) {
-      c.fillStyle = "rgba(214,200,150,0.9)"; c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]);
+      c.fillStyle = "rgba(214,200,150,0.9)";
       for (const l of this.lobes) { c.beginPath(); l.poly.forEach(([x, z], i) => i ? c.lineTo(X(x), Z(z)) : c.moveTo(X(x), Z(z))); c.closePath(); c.fill(); }
-      for (const l of this.lobes) { c.beginPath(); for (let i = 1; i < l.poly.length - 1; i++) { const [ax, az] = l.poly[i - 1], [bx, bz] = l.poly[i]; if (i === 1) c.moveTo(X(ax), Z(az)); c.lineTo(X(bx), Z(bz)); } c.lineTo(X(l.poly[l.poly.length - 1][0]), Z(l.poly[l.poly.length - 1][1])); c.stroke(); }
-      c.setLineDash([]);
     }
+    this.mapGroundEdge(c, X, Z, S);
     c.fillStyle = TREEC;
     for (const t of this.fellable) if (t.state === "up" || t.state === "shake") tree(c, X(t.x), Z(t.z), ts * 1.1, "spruce");
     // rocks you can break: grey stone, copper green, iron red
@@ -520,7 +518,28 @@ export class Woods extends WorldBase {
   // the clearing on the map: the old ground, and what has been won from the forest since
   mapClearing(c, X, Z, S) {
     c.fillStyle = "rgba(214,200,150,0.9)"; c.beginPath(); c.arc(X(CLEARING.x), Z(CLEARING.z), CLEARING.r * S, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = INK; c.lineWidth = 1; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]);
+  }
+  // the edge of all the ground that is yours, drawn once round the outside of it: the old clearing, what has been won from
+  // the forest beyond it, and the settlements out in the forest — where they meet, no line runs through the middle
+  // (each piece's outline is drawn twice as thick, then every piece's inside is cut out of the lines, leaving only the
+  // outer half of the edge where nothing else lies)
+  mapGroundEdge(c, X, Z, S) {
+    const shapes = [];
+    const circle = (x, z, r) => { const p = new Path2D(); p.arc(X(x), Z(z), r * S, 0, Math.PI * 2); shapes.push(p); };
+    circle(CLEARING.x, CLEARING.z, CLEARING.r);
+    for (const l of this.lobes || []) { const p = new Path2D(); l.poly.forEach(([x, z], i) => i ? p.lineTo(X(x), Z(z)) : p.moveTo(X(x), Z(z))); p.closePath(); shapes.push(p); }
+    for (const col of this.colonies || []) circle(col.x, col.z, col.r);
+    const W = c.canvas.width, H = c.canvas.height;
+    const o = (this._edgeCv ??= document.createElement("canvas"));
+    if (o.width !== W || o.height !== H) { o.width = W; o.height = H; }
+    const k = o.getContext("2d");
+    k.setTransform(1, 0, 0, 1, 0, 0); k.clearRect(0, 0, W, H); k.setTransform(c.getTransform());
+    k.strokeStyle = INK; k.lineWidth = 2; k.setLineDash([3, 3]);
+    for (const p of shapes) k.stroke(p);
+    k.setLineDash([]); k.globalCompositeOperation = "destination-out";
+    for (const p of shapes) k.fill(p);
+    k.globalCompositeOperation = "source-over";
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(o, 0, 0); c.restore();
   }
   // the sheet: MAP_K pixels to the metre, over the map and a margin round it; drawn again only when told to
   mapLayer() {
