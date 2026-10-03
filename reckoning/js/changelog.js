@@ -17,6 +17,8 @@ export const CHANGELOG = [
       "Rye seed: sowing a new field takes a seed, and every harvest gives back a third of one. You start with three, and Henning sells them for 3 DM.",
       "Tools wear out. Every stroke wears a tool, and better makings last longer: wooden 60 strokes, stone 120, copper 200, bronze 300 and iron 450. A bar under each tool in the hotbar shows what's left, and turns red when it's nearly gone. A worn-out axe or spade leaves you the old one from the block; anything else has to be made again.",
       "In build mode, Y turns what you're placing the other way (R still turns it, and Shift+R still reverses it).",
+      "Fixed: once you had a woodshed, the old log stack by the cabin was gone, but it still stood there invisibly, blocking the way and showing on the map. Now it goes with it.",
+      "The map shows your settlement as it stands: every building in its real shape and turn, sites still being built as dashed outlines, paths as tracks, and fields coloured bare, growing or ripe.",
     ],
   },
   {

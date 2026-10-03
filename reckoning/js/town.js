@@ -1344,6 +1344,8 @@ export class Town {
   showStore() {
     const w = this.w, sheds = this.S.buildings.filter(b => b.done && b.type === "woodshed");
     const fill = this.storeCap ? clamp(this.S.store / this.storeCap, 0, 1) : 0;
+    // (the stack's platform is solid only while it's there: with a woodshed it's gone, and you walk over where it stood)
+    if (w.stackCol) w.stackCol.disabled = !!sheds.length;
     if (!sheds.length) { w.stack.visible = true; w.setStack(this.S.store > 0 ? Math.max(1, Math.round(fill * 24)) : 0); return; }
     w.stack.visible = false;
     for (const b of sheds) {
@@ -1368,6 +1370,25 @@ export class Town {
   mouths() { return (this.S.people.length + 1) * (this.knows("horsefeed") ? 0.8 : 1); }
   // how many days the food in the stores would last
   foodDays() { const S = this.S; return ((S.rye || 0) / RATION.rye + (S.bread || 0) / RATION.bread + (S.meat || 0) / RATION.meat + (S.feast ? S.feast.length : 0)) / Math.max(0.8, this.mouths()); }
+  // the settlement on the map: each building its own turned footprint (red, as the map draws buildings; a site only
+  // staked out, dashed), fields as ploughland, paths as tracks
+  drawOnMap(c, X, Z, S, TOWN, INK) {
+    const rect = (b, w, d) => {
+      const co = Math.cos(b.ry), si = Math.sin(b.ry);
+      c.beginPath();
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sz], i) => { const lx = sx * w / 2, lz = sz * d / 2, x = X(b.x + lx * co + lz * si), z = Z(b.z - lx * si + lz * co); i ? c.lineTo(x, z) : c.moveTo(x, z); });
+      c.closePath();
+    };
+    for (const b of this.S.buildings) {
+      const def = BUILDINGS[b.type]; if (!def) continue;
+      if (def.path) { rect(b, def.w * 0.8, def.d); c.fillStyle = "rgba(150,112,70,0.75)"; c.fill(); continue; }
+      if (b.type === "field") { rect(b, def.w, def.d); c.fillStyle = b.sown ? ((b.growth ?? 1) >= 3 ? "rgba(200,170,80,0.8)" : "rgba(120,140,60,0.7)") : "rgba(120,90,55,0.6)"; c.fill(); c.strokeStyle = "rgba(60,45,30,0.5)"; c.lineWidth = 0.6; c.stroke(); continue; }
+      if (def.wall) { rect(b, def.w, Math.max(def.d, 0.6)); c.fillStyle = INK; c.fill(); continue; }
+      rect(b, def.w * (b.type === "woodshed" ? b.bays || 1 : 1), def.d);
+      if (b.done) { c.fillStyle = TOWN; c.fill(); c.strokeStyle = INK; c.lineWidth = 0.8; c.stroke(); }
+      else { c.setLineDash([2, 2]); c.strokeStyle = TOWN; c.lineWidth = 1; c.stroke(); c.setLineDash([]); }
+    }
+  }
   // where the settlement's rye goes in and comes out: in front of the store chest nearest this place, or the stack by the cabin
   // ({x, z} to stand at; {cx, cz} to face)
   chestAt(near) {

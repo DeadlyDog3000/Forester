@@ -1548,6 +1548,8 @@ function drawMapGround(c, X, Z, S, big, cx, cz, radius) {
     if (o.y1 >= 1.5) { c.fillRect(x, y, ww, hh); c.strokeRect(x, y, ww, hh); }
     else { c.fillStyle = "rgba(90,70,50,0.55)"; c.fillRect(x, y, ww, hh); c.fillStyle = TOWN; }
   }
+  // the settlement's own buildings, fields and paths, as they stand
+  if (G.town && G.town.w === w && G.town.drawOnMap) G.town.drawOnMap(c, X, Z, S, TOWN, INK);
   // what you have not seen is still blank parchment
   drawFog(c, X, Z, S);
   if (big && w.mapLabels) w.mapLabels(c, X, Z, S, exploredSet());

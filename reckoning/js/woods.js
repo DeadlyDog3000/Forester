@@ -792,7 +792,7 @@ export class Woods extends WorldBase {
     // ---- the stack, which grows as logs are carried to it ----
     this.stack = new THREE.Group(); root.add(this.stack);
     this.stackN = -1; this.setStack(0);
-    this.col.addRect(STACK.x, STACK.z, 1.6, 2.6, this.heightAt(STACK.x, STACK.z) + 0.5);
+    this.stackCol = this.col.addRect(STACK.x, STACK.z, 1.6, 2.6, this.heightAt(STACK.x, STACK.z) + 0.5);
 
     // ---- a fire ring ----
     const fr = new Builder();
