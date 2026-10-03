@@ -1125,7 +1125,7 @@ export class Actor {
     this.root.rotation.order = "YXZ";
     this.root.rotation.y = this.yaw;
     // asleep: on their back, the head toward where the back of the head was
-    this.root.rotation.x = this.lying ? -Math.PI / 2 : 0;
+    this.root.rotation.x = -Math.PI / 2 * (this.lieK ?? (this.lying ? 1 : 0));
   }
   place(x, z, yaw) { this.pos.x = x; this.pos.z = z; if (yaw !== undefined) { this.yaw = this.targetYaw = yaw; } this.path = []; this.sync(); }
   // walk a list of [x,z] points; resolves on arrival
@@ -1265,6 +1265,16 @@ export class Actor {
         }
       }
     }
+    // squared up to someone: the body knows it's in a fight, and which way it's stepping (to the side, or in and out)
+    const mvx = p.x - (this._lx ?? p.x), mvz = p.z - (this._lz ?? p.z); this._lx = p.x; this._lz = p.z;
+    const sq2 = this.squareTo && this.squareTo.pos, per = this.person;
+    per.fight = !!sq2 && !this.lying;
+    if (sq2 && dt > 0) { per.strafe = (mvx * Math.cos(this.yaw) - mvz * Math.sin(this.yaw)) / dt; per.fwd = (mvx * Math.sin(this.yaw) + mvz * Math.cos(this.yaw)) / dt; }
+    else per.strafe = per.fwd = 0;
+    // going down (or getting up): not all at once — over a moment, falling faster as they go
+    this.lieK = this.lieK ?? (this.lying ? 1 : 0);
+    if (this.lying && this.lieK < 1) this.lieK = Math.min(1, this.lieK + dt * (1.2 + this.lieK * 5));
+    else if (!this.lying && this.lieK > 0) this.lieK = Math.max(0, this.lieK - dt * 2.5);
     this.person.update(dt, this.speed);
     if (this.onUpdate) this.onUpdate(dt);
     this.sync();

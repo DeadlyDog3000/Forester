@@ -292,21 +292,21 @@ class Bandit {
     if (d > 1.6) { if (this.re <= 0) { this.re = 0.3; a.approach(tp, 1.3, 2.6); } return; }
     a.path = []; a.faceTo(tp.x, tp.z);
     // the arm drawn back first, so you see it coming
-    if (this.cool <= 0 && !(this.wind > 0)) { this.wind = 0.5; a.person.setPose("reach"); return; }
+    if (this.cool <= 0 && !(this.wind > 0)) { this.wind = 0.62; a.person.setPose(Math.random() < 0.35 ? "overhead" : "chop"); return; }
     if (this.wind > 0 && (this.wind -= dt) > 0) return;
     if (this.cool <= 0) {
       this.wind = 0;
       this.cool = 1.2 + Math.random() * 0.5;
-      a.person.setPose("chop"); setTimeout(() => a.person && a.person.setPose("idle"), 350);
+      setTimeout(() => a.person && a.person.setPose("idle"), 550);
       const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
-      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; foe.squareTo = null; } } } }
+      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp > 0 && foe.person.flinch) foe.person.flinch(); if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; foe.squareTo = null; } } } }
       else if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2.1) G.hurt(pl.guard ? dmg * 0.3 : dmg, "raider");
       AUDIO.whoosh && AUDIO.whoosh(0.4, true);
     }
   }
   hurt(n) {
     this.hp -= n;
-    if (this.hp > 0) { AUDIO.voice && AUDIO.voice("pain", { at: this.a.pos }); return; }
+    if (this.hp > 0) { AUDIO.voice && AUDIO.voice("pain", { at: this.a.pos }); this.a.person.flinch && this.a.person.flinch(); return; }
     this.down = true; this.a.lying = true; this.a.path = []; this.a.squareTo = null; this.duel = null;
     AUDIO.voice && AUDIO.voice("fear", { at: this.a.pos });
     // what he had on him

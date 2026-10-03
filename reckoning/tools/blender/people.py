@@ -732,6 +732,67 @@ def animate(rig, key, f, J):
                  thigh_L=(0, 0, 0.02 * sw), thigh_R=(0, 0, 0.02 * sw))
     cycle("Talk", 120, talk_at, lambda t: (0.005 * math.sin(t * 2 * PI), 0, 0), 24)
 
+    # Guard: squared up to someone, the weapon (or the fists) up and ready, knees soft, the weight rocking from foot to
+    # foot and the body never still: the stance between blows in a fight
+    def guard_at(t):
+        sw = math.sin(t * 2 * PI * 2); br = math.sin(t * 2 * PI * 3)
+        return P(upper_arm_R=(-1.05 + 0.05 * sw, 0, -0.3), forearm_R=(-1.45, 0, 0), upper_arm_L=(-0.85 - 0.04 * sw, 0, 0.3), forearm_L=(-1.55, 0, 0),
+                 spine=(0.16 + 0.015 * br, 0.03 * sw, 0.05), chest=(0.01 * br, 0, -0.06), neck=(-0.14, 0, 0.04 * sw),
+                 thigh_L=(-0.32, 0, 0.12), thigh_R=(0.12, 0, -0.12), shin_L=(0.42 + 0.06 * sw, 0, 0), shin_R=(0.3 - 0.06 * sw, 0, 0),
+                 foot_L=(-0.1, 0, 0), foot_R=(-0.12, 0, 0))
+    cycle("Guard", 64, guard_at, lambda t: (0.012 * math.sin(t * 2 * PI * 2), 0, -0.05 + 0.008 * abs(math.sin(t * 2 * PI * 2))), 16)
+
+    # Strafe: stepping sideways round someone with the guard up — the leading foot out, the other drawn in after it,
+    # never crossing; played backwards it steps the other way
+    def strafe_at(t):
+        s1 = math.sin(t * 2 * PI); out = max(0.0, s1); draw = max(0.0, -s1)
+        return P(upper_arm_R=(-1.05, 0, -0.3), forearm_R=(-1.45, 0, 0), upper_arm_L=(-0.85, 0, 0.3), forearm_L=(-1.55, 0, 0),
+                 spine=(0.16, 0, 0.05 * s1), chest=(0, 0, -0.06), neck=(-0.14, 0, 0),
+                 thigh_L=(-0.25 - 0.15 * out, 0, 0.12 + 0.32 * out), thigh_R=(0.05 - 0.15 * draw, 0, -0.12 - 0.12 * draw),
+                 shin_L=(0.4 + 0.35 * out, 0, 0), shin_R=(0.32 + 0.35 * draw, 0, 0), foot_L=(-0.15 * out, 0, 0), foot_R=(-0.15 * draw, 0, 0),
+                 hips=(0, 0, 0.06 * s1))
+    a = cycle("Strafe", 24, strafe_at, lambda t: (0.03 * math.sin(t * 2 * PI), 0, -0.05 + 0.02 * abs(math.sin(t * 2 * PI))), 16)
+
+    # Overhead: the weapon raised high behind the head, a breath at the top, brought straight down hard, and back up to guard
+    def over(ua, fa, sp, kn=0.25):
+        return P(upper_arm_R=(ua, 0, -0.12), upper_arm_L=(ua + 0.05, 0, 0.12), forearm_R=(fa, 0, 0), forearm_L=(fa, 0, 0),
+                 spine=(sp, 0, 0), chest=(sp * 0.3, 0, 0), neck=(-sp * 0.4, 0, 0),
+                 thigh_L=(-0.3 - kn * 0.3, 0, 0.1), thigh_R=(0.1, 0, -0.1), shin_L=(0.35 + kn * 0.4, 0, 0), shin_R=(0.3, 0, 0))
+    act("Overhead", {1: over(-1.05, -1.45, 0.16), 7: over(-2.75, -0.9, -0.18, 0.15), 10: over(-2.85, -0.85, -0.22, 0.15), 13: over(-1.1, -0.15, 0.5, 0.55),
+                     15: over(-0.95, -0.2, 0.55, 0.6), 22: over(-1.05, -1.45, 0.16)},
+        {1: (0, 0, -0.05), 10: (0, 0.04, -0.03), 13: (0, -0.08, -0.12), 15: (0, -0.08, -0.13), 22: (0, 0, -0.05)})
+
+    # Hit: a blow taken — the head snaps back, the body twists away, an arm flies out, a stagger and back
+    def hit(k, tw):
+        return P(neck=(-0.45 * k, 0, 0.2 * k), spine=(-0.25 * k, 0, tw), chest=(-0.1 * k, 0, tw * 0.8),
+                 upper_arm_L=(-0.4 * k, 0, 0.08 + 0.6 * k), upper_arm_R=(-0.6 * k, 0, -0.08 - 0.35 * k), forearm_L=(-0.4 * k - 0.12, 0, 0), forearm_R=(-0.7 * k - 0.12, 0, 0),
+                 thigh_L=(0.15 * k, 0, 0), thigh_R=(-0.3 * k, 0, 0), shin_R=(0.4 * k, 0, 0), shin_L=(0.1 * k, 0, 0))
+    act("Hit", {1: hit(0, 0), 3: hit(1, -0.25), 6: hit(0.75, -0.15), 12: hit(0.2, 0.0), 16: hit(0, 0)},
+        {1: (0, 0, 0), 3: (0, 0.05, -0.02), 8: (0, 0.06, -0.04), 16: (0, 0, 0)})
+
+    # Dig: the spade driven down with the foot, levered back, the earth lifted and thrown aside
+    def dig_at(t):
+        drive = max(0.0, math.sin(t * 2 * PI)) ; lift = max(0.0, -math.sin(t * 2 * PI)); throw = max(0.0, math.sin(t * 2 * PI * 2 - 2.2)) * lift
+        return P(upper_arm_R=(-0.7 - 0.4 * lift, 0, -0.15), forearm_R=(-0.9 + 0.3 * drive, 0, 0), upper_arm_L=(-0.9 - 0.2 * lift, 0, 0.25), forearm_L=(-0.7, 0, 0),
+                 spine=(0.45 * drive + 0.2 * lift, 0, 0.35 * throw), chest=(0.1 * drive, 0, 0.2 * throw), neck=(0.2 * drive, 0, 0),
+                 thigh_R=(-0.7 * drive, 0, -0.05), shin_R=(0.9 * drive, 0, 0), thigh_L=(-0.15 * lift, 0, 0.05), shin_L=(0.25 + 0.2 * lift, 0, 0))
+    cycle("Dig", 56, dig_at, lambda t: (0, 0, -0.03 - 0.05 * max(0.0, math.sin(t * 2 * PI))), 16)
+
+    # Reap: stooped, the sickle swept low from right to left through the stalks, the left hand gathering them
+    def reap_at(t):
+        s1 = math.sin(t * 2 * PI)
+        return P(upper_arm_R=(-1.0, 0, -0.5 + 0.7 * s1), forearm_R=(-0.4, 0, 0), upper_arm_L=(-1.1 - 0.15 * s1, 0, 0.35), forearm_L=(-0.6 - 0.3 * max(0.0, -s1), 0, 0),
+                 spine=(0.65, 0, 0.25 * s1), chest=(0.1, 0, 0.15 * s1), neck=(0.3, 0, 0),
+                 thigh_L=(-0.45, 0, 0.1), thigh_R=(-0.3, 0, -0.1), shin_L=(0.65, 0, 0), shin_R=(0.55, 0, 0))
+    cycle("Reap", 40, reap_at, lambda t: (0.02 * math.sin(t * 2 * PI), 0, -0.12), 16)
+
+    # Sow: walking the strip, a hand into the bag at the hip and the seed cast out wide in an arc
+    def sow_at(t):
+        c = math.sin(t * 2 * PI); cast = max(0.0, c); dip = max(0.0, -c)
+        return P(upper_arm_R=(-0.3 - 0.9 * cast, 0, -0.1 - 0.9 * cast), forearm_R=(-0.6 - 0.3 * dip + 0.4 * cast, 0, 0), upper_arm_L=(-0.4, 0, 0.15), forearm_L=(-1.1, 0, 0),
+                 spine=(0.1, 0, -0.18 * cast), chest=(0, 0, -0.12 * cast), neck=(0.05, 0, 0.1 * cast))
+    cycle("Sow", 36, sow_at, lambda t: (0, 0, -0.005), 16)
+
     # stand in the rest pose when nothing plays
     for b in pb:
         b.rotation_euler = Euler((0, 0, 0))

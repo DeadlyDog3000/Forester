@@ -1236,7 +1236,7 @@ export class Town {
       a.doing = "fighting at your side";
       const d = Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z);
       if (d > 1.6) { await Promise.race([a.approach(foe.a.pos, 1.3, 3.2), sleep(0.7)]); alive(); return true; }
-      a.faceTo(foe.a.pos.x, foe.a.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
+      a.faceTo(foe.a.pos.x, foe.a.pos.z); a.person.setPose(Math.random() < 0.3 ? "overhead" : "chop"); await sleep(0.6); alive(); a.person.setPose("idle");
       if (!foe.down && Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z) < 2) { foe.hurt(this.armDmg(arm) * armSkill(a.settler, "fighting")); this.learn(a, "fighting", 0.5); AUDIO.clang(0.5, a.pos); }
       await sleep(0.8); return true;
     }
@@ -1875,7 +1875,8 @@ export class Town {
           // between blows: circling him, feeling for an opening
           if (Math.random() < 0.35) { await Promise.race([a.circleAbout(r.pos, 1.5, 1.4), sleep(0.7)]); alive(); continue; }
           if (d > 1.6) { await Promise.race([a.approach(r.pos, 1.3, 2.4), sleep(0.4)]); alive(); }
-          a.path = []; a.faceTo(r.pos.x, r.pos.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
+          // (a stroke from the side, or now and then from above; it lands as the swing comes through)
+          a.path = []; a.faceTo(r.pos.x, r.pos.z); a.person.setPose(arm !== "fists" && Math.random() < 0.3 ? "overhead" : arm === "fists" ? "punch" : "chop"); await sleep(0.6); alive(); a.person.setPose("idle");
           if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm) * armSkill(a.settler, "fighting") * temperArm(a.settler), a); this.learn(a, "fighting", 0.5); arm === "fists" ? AUDIO.whoosh(0.3, false) : Math.random() < 0.35 ? AUDIO.clang(0.7, a.pos) : this.sfxAt(a, "chop"); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
           await sleep(arm === "fists" ? 0.55 : 0.8); continue;
         }
@@ -1906,7 +1907,7 @@ export class Town {
             const [x, z] = at(lz);
             await a.walkTo(x, z, 1.0); alive();
             const [nx, nz] = at(lz + 1); a.faceTo(nx, nz);
-            a.person.setPose("chop");
+            a.person.setPose("dig");
             await sleep(2.2 * this.workMul * this.pace(a, "farming")); alive();
             if (Math.random() < 0.6) this.sfxAt(a, "chop");
             a.person.setPose("idle");
@@ -1994,7 +1995,7 @@ export class Town {
         stump.claimed = a; a.doing = "digging out an old stump";
         await a.walkTo(stump.x + 0.9, stump.z + 0.5, 1.2); alive();
         if (!this.stumps.has(stump)) { stump.claimed = null; continue; }
-        a.faceTo(stump.x, stump.z); a.person.setPose("reach");
+        a.faceTo(stump.x, stump.z); a.person.setPose("dig");
         const sp = a.hold(makeSpade());
         for (let i = 0; i < 5; i++) { await sleep(1.1 * this.pace(a, "building")); alive(); this.sfxAt(a, "chop"); }
         a.person.held.remove(sp); a.person.setPose("idle");
@@ -2082,7 +2083,7 @@ export class Town {
           const [x, z] = at(lz);
           await a.walkTo(x, z, 1.0); alive();
           const [nx, nz] = at(lz + 1); a.faceTo(nx, nz);
-          a.person.setPose(task === "reap" ? "chop" : "reach");
+          a.person.setPose(task === "reap" ? "reap" : task === "sow" ? "sow" : "reach");
           await sleep(1.8 * this.workMul * this.pace(a, "farming")); alive();
           if (Math.random() < 0.5) this.sfxAt(a, task === "reap" ? "chop" : "pickup");
           a.person.setPose("idle");

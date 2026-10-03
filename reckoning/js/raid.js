@@ -89,6 +89,7 @@ class Raider {
     }
     this.hp -= d;
     if (this.hp <= 0) { AUDIO.voice("pain", { at: this.pos, vol: 1.1 }); return this.down(); }
+    this.a.person.flinch && this.a.person.flinch();
     // struck by you: whoever he was fighting, it's you he turns on now
     if (from === G.player && this.duel !== G.player) this.raid.lock(this, G.player);
     AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos });
@@ -281,6 +282,7 @@ export class Raids {
       return;
     }
     s.hp = (s.hp ?? 50) - dmg;
+    if (s.hp > 0 && s.person.flinch) s.person.flinch();
     AUDIO.voice(s.hp > 0 ? "pain" : "fear", { at: s.pos, high: this.highVoice(s) });
     if (s.hp > 0) return;
     // cut down by a blade, sometimes they do not get up again
@@ -318,7 +320,7 @@ export class Raids {
           a.path = [];
           r.wind -= dt;
           if (r.wind <= 0) {
-            a.person.setPose("chop"); setTimeout(() => { if (r.alive) a.person.setPose("idle"); }, 350);
+            setTimeout(() => { if (r.alive) a.person.setPose("idle"); }, 550);
             AUDIO.whoosh && AUDIO.whoosh(0.4, r.arm !== "knife");
             if (d < 1.9) foe === pl ? this.strikePlayer(r, W, d) : this.strikeSettler(foe, W.dmg, r);
           }
@@ -333,7 +335,8 @@ export class Raids {
           else {
             a.path = [];
             r.cool = W.cool * (0.85 + Math.random() * 0.3);
-            r.wind = 0.6; r.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose("reach");
+            // (the stroke starts with the wind-up: the weapon drawn back, or raised high for one from above, and the blow lands as it comes through)
+            r.wind = 0.62; r.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose(r.dir === "up" ? "overhead" : "chop");
             if (Math.random() < 0.45) AUDIO.voice(Math.random() < 0.5 ? "grunt" : "war", { at: a.pos, vol: 0.8 });
           }
         } else if (r.stepT <= 0) {

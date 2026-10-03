@@ -77,7 +77,7 @@ export async function revoltShift(town, a, sleep, alive) {
   if (d > 2.0) { await Promise.race([a.approach(tp, 1.4, 2.8), sleep(0.8)]); alive(); return true; }
   if (Math.random() < 0.35) { await Promise.race([a.circleAbout(tp, 1.5, 1.4), sleep(0.7)]); alive(); return true; }
   if (d > 1.5) { await Promise.race([a.approach(tp, 1.3, 2.4), sleep(0.4)]); alive(); }
-  a.path = []; a.faceTo(tp.x, tp.z); a.person.setPose("chop"); await sleep(0.45); alive(); a.person.setPose("idle");
+  a.path = []; a.faceTo(tp.x, tp.z); a.person.setPose(Math.random() < 0.5 ? "punch" : "overhead"); await sleep(0.55); alive(); a.person.setPose("idle");
   const dmg = 9 + Math.random() * 7;
   if (target === "you") { if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2) G.hurt(dmg * 0.8, "rebel"); }
   else if (Math.hypot(target.pos.x - a.pos.x, target.pos.z - a.pos.z) < 2) hit(town, target, dmg);
@@ -88,6 +88,7 @@ export async function revoltShift(town, a, sleep, alive) {
 }
 function hit(town, a, dmg) {
   a.hp = (a.hp ?? 50) - dmg;
+  if (a.hp > 0 && a.person.flinch) a.person.flinch();
   // (a blow that brings them down sometimes kills)
   if (a.hp <= 0) { a.squareTo = null; a.revFoe = null; }
   if (a.hp <= 0 && Math.random() < 0.3 && town.killSettler) { town.killSettler(a, "revolt"); checkEnd(town); return; }

@@ -316,15 +316,20 @@ function useModel(P, key, colors = {}) {
   const mixer = new THREE.AnimationMixer(m.scene);
   const clip = name => m.animations.find(a => a.name.toLowerCase() === name) || m.animations.find(a => a.name.toLowerCase().includes(name));
   const acts = {};
-  for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer", "punch", "eat", "stir", "talk"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
+  for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer", "punch", "eat", "stir", "talk", "guard", "strafe", "overhead", "hit", "dig", "reap", "sow"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
+  // (the blows and the flinch play once and hold their last frame till the pose moves on)
+  for (const n of ["overhead", "hit"]) if (acts[n]) { acts[n].setLoop(THREE.LoopOnce, 1); acts[n].clampWhenFinished = true; }
   // the legs of a walk without its arms, and the arms of a held pose without its legs, so a man can
   // carry a lantern and walk at the same time
   const ARM = /shoulder|arm|elbow|wrist|hand|finger|thumb/i;
   const part = (c, arms) => { if (!c) return null; const k = c.clone(); k.tracks = k.tracks.filter(t => ARM.test(t.name.split(".")[0]) === arms); k.name = c.name + (arms ? "·arms" : "·legs"); return mixer.clipAction(k); };
   for (const n of ["walk", "run"]) if (acts[n]) acts[n + "Legs"] = part(clip(n), false);
-  for (const n of ["torch", "lantern", "writ", "bound"]) if (acts[n]) acts[n + "Arms"] = part(clip(n), true);
+  for (const n of ["torch", "lantern", "writ", "bound", "hold", "guard"]) if (acts[n]) acts[n + "Arms"] = part(clip(n), true);
   let cur = null, curArms = null;
-  const play = n => { const a = acts[n] || acts.idle; if (!a || a === cur) return; a.reset().fadeIn(0.25).play(); if (cur) cur.fadeOut(0.25); cur = a; };
+  const play = (n, fade = 0.25) => { const a = acts[n] || acts.idle; if (!a || a === cur) return; a.reset().fadeIn(fade).play(); if (cur) cur.fadeOut(fade); cur = a; };
+  P.clipNow = () => cur && cur.getClip().name;                 // (for the tests)
+  // a blow landing on them: a flinch over whatever they're doing, for a moment
+  P.flinch = () => { if (!acts.hit) return; P.flinchT = 0.5; acts.hit.reset(); if (cur === acts.hit) acts.hit.play(); };
   const playArms = n => { const a = n ? acts[n] : null; if (a === curArms) return; if (a) a.reset().fadeIn(0.25).play(); if (curArms) curArms.fadeOut(0.25); curArms = a; };
   let headB = null, neckB = null;
   m.scene.traverse(o => { if (!o.isBone) return; if (!headB && /^head$/i.test(o.name)) headB = o; if (!neckB && /^neck$/i.test(o.name)) neckB = o; });
@@ -345,18 +350,28 @@ function useModel(P, key, colors = {}) {
     base(dt, speed);
     // the model does its own moving, so the code-built body stands straight
     P.body.rotation.x = 0; P.hips.position.y = 0.92;
-    const pose = (this.pose || "idle").toLowerCase();
-    // walking and running win over a held pose, except for what the hands must keep doing
-    const keepsHands = ["torch", "lantern", "writ", "bound"].includes(pose);
+    let pose = (this.pose || "idle").toLowerCase();
+    // in a fight and doing nothing else: the guard, not standing about
+    if (this.fight && (pose === "idle" || pose === "reach" && !acts.reach) && acts.guard) pose = "guard";
+    // walking and running win over a held pose, except for what the hands must keep doing (a load carried, a light held)
+    const keepsHands = ["torch", "lantern", "writ", "bound", "hold", "guard"].includes(pose);
     const moving = speed > 0.15 && this.sitting <= 0.5;
-    if (keepsHands && moving && acts[pose + "Arms"] && acts.walkLegs) {
+    const ONCE = pose === "chop" || pose === "hammer" || pose === "punch" || pose === "overhead";
+    const lat = this.strafe || 0, fwd = this.fwd || 0;
+    if (this.flinchT > 0 && acts.hit && this.sitting <= 0.5) {
+      // hit: the flinch, whatever else
+      this.flinchT -= dt; playArms(null); play("hit", 0.08);
+    } else if (this.fight && moving && acts.strafe && Math.abs(lat) > Math.abs(fwd) * 0.8 && !ONCE) {
+      // stepping round them sideways, guard up: the sidestep, played the way they're going
+      playArms(null); play("strafe", 0.15); cur.timeScale = Math.sign(lat || 1) * Math.min(1.6, Math.max(0.6, Math.abs(lat) / 1.2));
+    } else if (keepsHands && moving && acts[pose + "Arms"] && acts.walkLegs) {
       // walking with something held: the legs walk, the arms keep hold
       play(speed > 3 && acts.runLegs ? "runLegs" : "walkLegs"); playArms(pose + "Arms");
     } else {
       playArms(null);
-      play(this.sitting > 0.5 ? (pose === "eat" && acts.eat ? "eat" : "sit") : pose === "chop" || pose === "hammer" || pose === "punch" ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle");
+      play(this.sitting > 0.5 ? (pose === "eat" && acts.eat ? "eat" : "sit") : ONCE ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle", ONCE ? 0.12 : 0.25);
     }
-    if (cur && (cur === acts.walk || cur === acts.run || cur === acts.walkLegs || cur === acts.runLegs)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run || cur === acts.runLegs ? 5 : 1.4));
+    if (cur && (cur === acts.walk || cur === acts.run || cur === acts.walkLegs || cur === acts.runLegs)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run || cur === acts.runLegs ? 5 : 1.4)) * (fwd < -0.2 && this.fight ? -1 : 1);
     mixer.update(dt);
     // the head turned toward whoever they're watching, over what the clip is doing: most of it in the head, some in
     // the neck, eased in and out
