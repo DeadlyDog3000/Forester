@@ -25,7 +25,7 @@ import { Raids } from "./raid.js";
 import { JOB_SKILL, SKILL_NAME } from "./people.js";
 import { FAITHS, faithOf } from "./faith.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, P as PROPS } from "./models.js";
-import { Town, BUILDINGS, JOBS, lieOn, YEAR } from "./town.js";
+import { Town, BUILDINGS, JOBS, lieOn, YEAR, RATION } from "./town.js";
 
 /* global SFX */
 
@@ -2190,7 +2190,7 @@ async function ch11(w) {
         seg: [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4],
         can: () => (b.growth ?? 1) >= 3,
         onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.chop(); },
-        use: () => { S.rye += 20; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.build(); } });
+        use: () => { S.rye += 40; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.build(); } });
       reapIts.push(b._reap);
     }
   };
@@ -2295,7 +2295,7 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
       const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3,
         seg: [fl.x - Math.sin(fl.ry) * 3.4, fl.z - Math.cos(fl.ry) * 3.4, fl.x + Math.sin(fl.ry) * 3.4, fl.z + Math.cos(fl.ry) * 3.4],
         onHoldTick: (dt2, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt2) * 3)) SFX.chop(); },
-        use: () => { S.rye += 20; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
+        use: () => { S.rye += 40; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
       ripe.set(fl, it);
     }
   });
@@ -2350,14 +2350,16 @@ async function chHarvest(w) {
   w.lightFire(true);
   pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
   const saved = (loadSave() || {}).harvest || {};
-  const H = { joined: !!saved.joined || S.people.some(p => p.name === JAN.name), job: !!saved.job, furnished: !!saved.furnished, reaped: !!saved.reaped, told: !!saved.told };
+  const H = { joined: !!saved.joined || S.people.some(p => p.name === JAN.name), job: !!saved.job, furnished: !!saved.furnished, reaped: !!saved.reaped, told: !!saved.told, stocked: !!saved.stocked };
+  // (the start of autumn: whatever else has gone wrong, the last of the summer's sacks are in the stores, and a little money)
+  if (!H.told) { const want = town.mouths() * 3 * RATION.rye; if ((S.rye || 0) < want) S.rye = Math.ceil(want); S.coin = Math.max(S.coin || 0, 10); S.hungry = 0; town.persist(); }
   const persistH = () => writeSave({ harvest: { ...H } });
   // the rye stands ripe on the first field
   const f0 = S.buildings.find(b => b.type === "field" && b.sown);
   if (f0 && !H.reaped) { f0.growth = 3; town.show(f0); }
   town.t = (4 + 0.1) * DAY;          // the first morning of autumn
   const stopTraders = [hennings(w, town), pedlar(w, town)];
-  const stopDay = dayCycle(w, town, DAY, { onReap: () => { if (!H.reaped) { H.reaped = true; persistH(); bark(P.sib, "Twenty sacks' worth. Watch the number on the board — it goes down every day we eat.", 4); } } });
+  const stopDay = dayCycle(w, town, DAY, { onReap: () => { if (!H.reaped) { H.reaped = true; persistH(); bark(P.sib, "Forty rye. That's eight days for one of us — and there are more than one of us. Watch the days' food on the board.", 5); } } });
   // Jan and his sister wait by the fire until there's a roof for them
   let visitors = H.joined ? [] : [spawn(settlerLookFor(JAN), FIRE.x - 2.9, FIRE.z + 1.4, 0), spawn(settlerLookFor(LIESEL), FIRE.x - 3.3, FIRE.z + 0.2, 0)];
   for (const v of visitors) v.faceTo(FIRE.x, FIRE.z);
@@ -2373,8 +2375,10 @@ async function chHarvest(w) {
     await say("Liesel", "Henning at the kiln said there was a place up here where nobody asks who your father was.");
     lookAt(sib, 2);
     await say(P.sib, "Nobody does. But every bed we have has somebody in it.");
-    await say(P.sib, "A cabin is two beds. Raise one for them, and they stay. And every mouth here eats rye, every day — that's the sacks on the board, at the top. The harvest has to see us through.");
-    await say(P.sib, "And people work at what they're set to. If there's no one in the fields, ask someone. They'll listen to you.");
+    await say(P.sib, "Food first, though. Every one of us eats five rye a day — or three loaves, or two meat. Two more mouths is ten more rye a day.");
+    await say(P.sib, "The board at the top says how many days' food we have. Under two and it goes red, and then people go hungry, and then they leave — or worse.");
+    await say(P.sib, "So: reap the rye, and put someone in the fields to keep them sown. Hunters bring meat. And Henning and the pedlar both sell food, if there's money in the chest.");
+    await say(P.sib, "Then a cabin for these two. Two beds — raise it, and they stay.");
     G.lockMove = false; look(null);
     H.told = true; persistH();
   }
@@ -2389,7 +2393,9 @@ async function chHarvest(w) {
     bark("Liesel", "Our own door. We'll not forget this.", 3.5);
   };
   town.on("built", b => { if (b.type === "cabin" && !H.joined) join(); });
-  town.on("job", () => { if (!H.job) { H.job = true; persistH(); } });
+  const hasFarmer = () => S.people.some(p => p.job === "farmer" && !p.child);
+  town.on("job", () => { if (!H.job && hasFarmer()) { H.job = true; persistH(); bark(P.sib, "Good. The fields won't sow themselves.", 3); } });
+  let stockTold = false;
   town.on("furnished", () => { if (!H.furnished) { H.furnished = true; persistH(); bark(P.sib, "Look at that. Like people live here.", 3); } });
   let shortTold = false;
   const obj = onFrame(() => {
@@ -2398,25 +2404,30 @@ async function chHarvest(w) {
     if (!H.reaped && f0 && (f0.growth ?? 1) < 3) { H.reaped = true; persistH(); }
     if (!H.joined && visitors.length && town.beds - 2 - S.people.length >= 2) join();
     if (!H.furnished && (S.furniture || []).length) { H.furnished = true; persistH(); }
+    if (!H.job && hasFarmer()) { H.job = true; persistH(); }
+    if (!H.stocked && H.reaped && town.foodDays() >= 5) { H.stocked = true; persistH(); bark(P.sib, "Five days' food in the stores. Now we can think about roofs.", 4); }
+    if (!H.stocked && H.reaped && H.job && !stockTold) { stockTold = true; bark(P.sib, "Still short. Send someone hunting (F, set them to hunter), sow every field, or buy food — Henning comes every third day, the pedlar every fourth.", 7); }
     const parts = [];
     if (!H.reaped) parts.push("Reap the rye");
     if (!H.joined) {
       const site = S.buildings.find(b => b.type === "cabin" && !b.done);
       parts.push(site ? (site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Jan and Liesel's cabin" : "Hew a door at the sawhorse for Jan and Liesel's cabin") : `Raise Jan and Liesel's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`) : "Plan a cabin for Jan and Liesel (B)");
     }
-    if (!H.job) parts.push("Set someone to new work (F by them)");
+    if (!H.job) parts.push("Put someone in the fields: F by a settler, and make them a farmer");
+    if (!H.stocked) parts.push(`Lay in five days' food — ${town.foodDays().toFixed(1)} now`);
     if (!H.furnished) parts.push("Furnish your cabin (B inside)");
     UI.objective(parts.join(" · "));
     // the marker: the first thing still to do
     let m = null;
     if (!H.reaped && f0) m = [f0.x, f0.z, w.heightAt(f0.x, f0.z) + 1.4];
-    else if (!H.joined) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); if (site) m = [site.x, site.z, w.cy + 1.5]; }
     else if (!H.job) { let best = null, bd = Infinity; for (const a of town.actors) if (!a.settler.child && !a.gone) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } } m = best; }
+    else if (!H.joined) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); if (site) m = [site.x, site.z, w.cy + 1.5]; }
+    else if (false) { let best = null, bd = Infinity; for (const a of town.actors) if (!a.settler.child && !a.gone) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } } m = best; }
     else if (!H.furnished && !w.insideCabin(pl.pos.x, pl.pos.z)) { const [x, z] = w.cabinToWorld(0, 3.4); m = [x, z, w.cy + 1.6]; }
     mark(m);
     if (!H.furnished && w.insideCabin(pl.pos.x, pl.pos.z) && S.store < 2 && !shortTold) { shortTold = true; bark(P.sib, "You'll want logs for that. Two for a bench — fell a tree, or wait for the stack.", 4); }
   });
-  await until(() => H.reaped && H.joined && H.job && H.furnished);
+  await until(() => H.reaped && H.joined && H.job && H.stocked && H.furnished);
   obj(); mark(null); UI.objective(null);
   await wait(1.5);
   bark(P.sib, "That's the harvest in. Come to the fire tonight — Henning says he's bringing ale.", 4);
@@ -2664,8 +2675,12 @@ const PEDLAR = { model: "townsman", name: "Tobias", coat: 0x5a3a2a, legs: 0x2e2a
 function pedlar(w, town) {
   return trader(w, town, {
     name: "Tobias the pedlar", title: "Tobias's pack-cart", look: PEDLAR, at: [25.2, -284.5, [26.6, -288.6]], due: d => d % 4 === 3,
-    hello: "A pedlar has come up the road — Tobias, out of Lübeck. He sells arrows, tools and iron, and buys planks, bricks, meat — and any dish you've cooked, for what he thinks it's worth.",
+    hello: "A pedlar has come up the road — Tobias, out of Lübeck. He sells food, arrows, tools and iron, and buys planks, bricks, meat — and any dish you've cooked, for what he thinks it's worth.",
     offers: S => [
+      // food first: a pedlar on a hungry road sells what keeps
+      { label: "Buy a sack of rye", note: "25 rye: a day's food for five.", get: "4 DM", can: () => S.coin >= 4, do: () => { S.coin -= 4; S.rye = (S.rye || 0) + 25; } },
+      { label: "Buy 15 loaves", note: "Lübeck bread, hard but sound: a day's food for five.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.bread = (S.bread || 0) + 15; } },
+      { label: "Buy a crate of smoked herring", note: "Ten meat's worth: a day's food for five.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.meat = (S.meat || 0) + 10; } },
       { label: "Buy iron tools", note: "A set for one pair of hands: they work a quarter faster.", get: "8 DM", can: () => S.coin >= 8, do: () => { S.coin -= 8; S.tools = (S.tools || 0) + 1; } },
       { label: "Buy 4 iron", note: "Swedish bar iron.", get: "10 DM", can: () => S.coin >= 10, do: () => { S.coin -= 10; S.iron = (S.iron || 0) + 4; } },
       { label: "Buy 10 stone", note: "Cut, and heavy on his poor horse.", get: "5 DM", can: () => S.coin >= 5, do: () => { S.coin -= 5; S.stone = (S.stone || 0) + 10; } },
