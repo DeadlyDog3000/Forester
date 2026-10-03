@@ -333,13 +333,20 @@ function showTip(e) {
   const tip = $("invTip"), el = e.target.closest && e.target.closest(".mc-slot[data-i]");
   if (!el) { tip.classList.add("hidden"); return; }
   const it = invItems[+el.dataset.i];
-  tip.innerHTML = `${esc(it.name)}${it.note ? `<span class="tip-note">${esc(it.note)}</span>` : ""}${it.use ? `<span class="tip-use">${esc(it.use)}</span>` : ""}`;
+  const use = it.use || (FOOD[it.icon] && G.pack.includes(it) ? "Click to eat" : "");
+  tip.innerHTML = `${esc(it.name)}${it.note ? `<span class="tip-note">${esc(it.note)}</span>` : ""}${use ? `<span class="tip-use">${esc(use)}</span>` : ""}`;
   tip.classList.remove("hidden");
   tip.style.left = Math.min(e.clientX + 16, innerWidth - tip.offsetWidth - 8) + "px";
   tip.style.top = Math.max(8, e.clientY - 30) + "px";
 }
 $("inventory").addEventListener("mousemove", showTip);
 $("inventory").addEventListener("mouseleave", () => $("invTip").classList.add("hidden"));
+// food on you: a click on it in the inventory eats it there and then
+$("inventory").addEventListener("click", e => {
+  const el = e.target.closest && e.target.closest(".mc-slot[data-i]"); if (!el) return;
+  const it = invItems[+el.dataset.i];
+  if (it && FOOD[it.icon] && G.pack.includes(it)) { eat(it); setTimeout(renderInventory, 50); }
+});
 // ---- the chest in the cabin: nine places, one long row; click a thing to put it in or take it out ----
 const CHEST_SLOTS = 9;
 // what the stores keep that can be carried: the store's key, the thing in your pack, its name

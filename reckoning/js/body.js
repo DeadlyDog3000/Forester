@@ -100,6 +100,10 @@ export const ROCKS = {
   iron: { need: 4, hp: 8, gives: "ironore", n: 1, name: "iron rock" },
 };
 export const ITEM = {
+  blackberries: { name: "Blackberries", note: "Picked off the brambles. A handful takes the edge off hunger." },
+  meat: { name: "Raw meat", note: "Cook it at the fire first (hold F there): raw meat brings the plague." },
+  cookedmeat: { name: "Roast meat", note: "Cooked at the fire. Good, filling food." },
+  dish: { name: "A dish", note: "Something you cooked in the kitchen." },
   bread: { name: "Bread", note: "A loaf from the settlement's bakery. Eat it (click, with it in your hand), or put it back in the store chest for everyone." },
   stone: { name: "Stone", note: "Broken from the grey rocks. For a stone pickaxe — and the settlement builds with it." },
   copperore: { name: "Copper ore", note: "Green-flecked rock. Smelt it at a forge (hold F beside it) to get copper." },
