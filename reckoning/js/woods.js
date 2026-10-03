@@ -990,32 +990,47 @@ export class Woods extends WorldBase {
     // the clamp: a beehive of stacked billets under a skin of turf and earth, a smoke-hole at its crown and vents
     // round its flanks glowing where the fire inside shows through
     const [kx, kz] = at(6, 3.5), ky = H(kx, kz);
-    const PR = [[0.05, 2.15], [0.55, 2.1], [1.2, 1.85], [1.8, 1.4], [2.3, 0.85], [2.6, 0.3], [2.7, 0]];
-    b.add(new THREE.LatheGeometry(PR.map(([u, v]) => new THREE.Vector2(u, v)), 28), 0x4a4232, kx, ky - 0.05, kz, 0, 0, 0, 1, 1, 1, 0.06);
-    // the clamp's skin at a height: its radius there, and the slope (for setting things flat against it)
-    const skin = y => { for (let k = 0; k < PR.length - 1; k++) { const [u0, v0] = PR[k], [u1, v1] = PR[k + 1]; if (y <= v0 && y >= v1) { const t = (v0 - y) / (v0 - v1 || 1); return { rad: u0 + (u1 - u0) * t, du: u1 - u0, dv: v0 - v1 }; } } return { rad: 2.7, du: 0.1, dv: 0.3 }; };
-    const onSkin = (a, y, out = 0) => { const k = skin(y), len = Math.hypot(k.du, k.dv) || 1, nr = k.dv / len, ny = k.du / len; return { x: kx + Math.cos(a) * (k.rad + out * nr), y: ky - 0.05 + y + out * ny, z: kz + Math.sin(a) * (k.rad + out * nr), n: [Math.cos(a) * nr, ny, Math.sin(a) * nr] }; };
-    for (let i = 0; i < 60; i++) {             // the turf, in sods laid flat on it, overlapping like scales
-      const a = (i * 2.399963) % TAU, y = 0.12 + ((i * 0.618) % 1) * 1.9, q = onSkin(a, y, -0.02);
-      b.add(new THREE.CylinderGeometry(0.42, 0.46, 0.12, 6), r.pick([0x4a5230, 0x3e4a2a, 0x55573a, 0x3a3428]), q.x, q.y, q.z, ...along(...q.n), 1, 1, 1, 0.08);
+    // one mound, a squat dome of earth and turf: its skin lumpy where the sods lie, green turf in patches over brown earth,
+    // and its foot following the ground wherever the ground slopes
+    const RD = 2.7, HD = 2.15;
+    const domeR = y => RD * Math.sqrt(Math.max(0, 1 - (y / HD) ** 2));
+    const domeN = (a, y) => { const rr = domeR(y); return [Math.cos(a) * rr / (RD * RD), y / (HD * HD), Math.sin(a) * rr / (RD * RD)]; };
+    const onSkin = (a, y, out = 0) => { const n = domeN(a, y), l = Math.hypot(...n), rr = domeR(y); return { x: kx + Math.cos(a) * rr + n[0] / l * out, y: H(kx + Math.cos(a) * rr, kz + Math.sin(a) * rr) + y + n[1] / l * out, z: kz + Math.sin(a) * rr + n[2] / l * out, n: [n[0] / l, n[1] / l, n[2] / l] }; };
+    {
+      const geo = new THREE.SphereGeometry(1, 36, 14, 0, TAU, 0, Math.PI / 2), pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+      const earth = new THREE.Color(0x4a3e2e), turf = [new THREE.Color(0x46502e), new THREE.Color(0x3a4628), new THREE.Color(0x55573a)], c = new THREE.Color();
+      const noise = (x, z) => Math.sin(x * 3.1 + z * 1.7) * 0.5 + Math.sin(x * 1.3 - z * 2.9 + 1.2) * 0.5;
+      for (let k = 0; k < pos.count; k++) {
+        const ux = pos.getX(k), uy = pos.getY(k), uz = pos.getZ(k);
+        const wx = kx + ux * RD, wz = kz + uz * RD, lump = (noise(wx * 2.2, wz * 2.2) * 0.09 + noise(wz * 4.1, wx * 3.3) * 0.04) * Math.min(1, uy * 6);
+        // (the foot of it rests on the ground where it is, not on a level floor)
+        const g = H(wx, wz);
+        pos.setXYZ(k, ux * (RD + lump), g + uy * HD + lump * uy - 0.04, uz * (RD + lump));
+        const pk = (noise(wx * 1.6 + 7, wz * 1.6) + 1) / 2;
+        c.copy(pk > 0.42 ? turf[k % 3] : earth); if (uy > 0.93) c.copy(earth).multiplyScalar(0.7);   // (bare and sooty round the smoke-hole)
+        col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+      }
+      geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
+      m.position.set(kx, 0, kz); m.castShadow = true; m.receiveShadow = true; root.add(m);
     }
-    for (let i = 0; i < 8; i++) rod(kx + Math.cos(i) * 0.3, ky + 2.0, kz + Math.sin(i) * 0.3, kx + Math.cos(i) * 0.5, ky + 2.55, kz + Math.sin(i) * 0.5, 0.035, 0.025, 0x3a2c20);   // sticks round the smoke-hole
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, p0 = onSkin(a, HD - 0.08, -0.05); rod(p0.x, p0.y, p0.z, p0.x + Math.cos(a) * 0.15, p0.y + 0.45, p0.z + Math.sin(a) * 0.15, 0.035, 0.025, 0x3a2c20); }   // sticks round the smoke-hole
     // vents round its flanks: dark holes in the turf, the fire's glow just showing in each
     const glowM = new THREE.MeshBasicMaterial({ color: 0xff6a20 });
     this.burnerGlow = [];
     for (let i = 0; i < 7; i++) {
-      const a = i / 7 * TAU + 0.3, q = onSkin(a, 0.45 + (i % 2) * 0.35, 0.02), e = along(...q.n);
-      b.add(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 10), 0x0e0a08, q.x, q.y, q.z, ...e);
-      const g = new THREE.Mesh(new THREE.CircleGeometry(0.1, 10), glowM.clone());
-      const o = onSkin(a, 0.45 + (i % 2) * 0.35, 0.065); g.position.set(o.x, o.y, o.z); g.lookAt(o.x + q.n[0], o.y + q.n[1], o.z + q.n[2]);
-      root.add(g); this.burnerGlow.push(g);
+      const a = i / 7 * TAU + 0.3, y = 0.4 + (i % 2) * 0.3, q = onSkin(a, y, 0.01);
+      const hole = new THREE.Mesh(new THREE.CircleGeometry(0.15, 10), new THREE.MeshBasicMaterial({ color: 0x0c0806 }));
+      hole.position.set(q.x, q.y, q.z); hole.lookAt(q.x + q.n[0], q.y + q.n[1], q.z + q.n[2]); root.add(hole);
+      const g = new THREE.Mesh(new THREE.CircleGeometry(0.08, 10), glowM.clone()); const o = onSkin(a, y, 0.02);
+      g.position.set(o.x, o.y, o.z); g.lookAt(o.x + q.n[0], o.y + q.n[1], o.z + q.n[2]); root.add(g); this.burnerGlow.push(g);
     }
     // a ladder leant up its side: two rails from the ground to the shoulder of it, and the rungs between them
     { const la = Math.atan2(fx, fz) + 0.6 + Math.PI, ca = Math.cos(la), sa = Math.sin(la);
-      const foot = { x: kx + ca * 3.2, z: kz + sa * 3.2 }, fy = H(foot.x, foot.z), top = onSkin(la, 1.75, 0.1);
+      const foot = { x: kx + ca * (RD + 0.8), z: kz + sa * (RD + 0.8) }, fy = H(foot.x, foot.z), top = onSkin(la, 1.6, 0.08);
       const side = [-sa, ca];
-      for (const s2 of [-0.22, 0.22]) rod(foot.x + side[0] * s2, fy, foot.z + side[1] * s2, top.x + side[0] * s2, top.y + 0.25, top.z + side[1] * s2, 0.035, 0.03, 0x7a6248);
-      for (let i = 1; i <= 7; i++) { const t = i / 8, x = foot.x + (top.x - foot.x) * t, y = fy + (top.y + 0.25 - fy) * t, z = foot.z + (top.z - foot.z) * t;
+      for (const s2 of [-0.22, 0.22]) rod(foot.x + side[0] * s2, fy, foot.z + side[1] * s2, top.x + side[0] * s2, top.y + 0.3, top.z + side[1] * s2, 0.035, 0.03, 0x7a6248);
+      for (let i = 1; i <= 7; i++) { const t = i / 8, x = foot.x + (top.x - foot.x) * t, y = fy + (top.y + 0.3 - fy) * t, z = foot.z + (top.z - foot.z) * t;
         rod(x - side[0] * 0.22, y, z - side[1] * 0.22, x + side[0] * 0.22, y, z + side[1] * 0.22, 0.022, 0.022, 0x8a7258); } }
     { const [wx0, wz0] = at(9.5, 5.5), wy0 = H(wx0, wz0);
       for (let i = 0; i < 6; i++) b.add(new THREE.CylinderGeometry(0.04, 0.05, 1.6, 5), 0x5a4432, wx0 + fx * (i - 2.5) * 0.7, wy0 + 0.8, wz0 + fz * (i - 2.5) * 0.7);

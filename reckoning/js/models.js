@@ -372,11 +372,14 @@ function useModel(P, key, colors = {}) {
       play(this.sitting > 0.5 ? (pose === "eat" && acts.eat ? "eat" : "sit") : ONCE ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle", ONCE ? 0.12 : 0.25);
     }
     if (cur && (cur === acts.walk || cur === acts.run || cur === acts.walkLegs || cur === acts.runLegs)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run || cur === acts.runLegs ? 5 : 1.4)) * (fwd < -0.2 && this.fight ? -1 : 1);
+    // (last frame's turn of the head taken off first: the mixer only writes a bone when its clip changes it, so a turn
+    // left on would be added to again and again, and the head would wind round)
+    if (this.lookApplied) { if (headB) headB.rotateY(-this.lookApplied * 0.65); if (neckB) neckB.rotateY(-this.lookApplied * 0.3); this.lookApplied = 0; }
     mixer.update(dt);
     // the head turned toward whoever they're watching, over what the clip is doing: most of it in the head, some in
     // the neck, eased in and out
     this.lookS = (this.lookS || 0) + ((this.look || 0) - (this.lookS || 0)) * Math.min(1, dt * 5);
-    if (Math.abs(this.lookS) > 0.002) { if (headB) headB.rotateY(this.lookS * 0.65); if (neckB) neckB.rotateY(this.lookS * 0.3); }
+    if (Math.abs(this.lookS) > 0.002) { if (headB) headB.rotateY(this.lookS * 0.65); if (neckB) neckB.rotateY(this.lookS * 0.3); this.lookApplied = this.lookS; }
   };
 }
 
