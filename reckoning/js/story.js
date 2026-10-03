@@ -122,6 +122,15 @@ function tutor(key, line, keys, secs = 8) {
   if (line) bark(P.sib, line, Math.max(3.2, line.length * 0.06));
   if (keys) UI.keys(keys, secs);
 }
+// someone walked somewhere for a scene, and the scene waits for them — but never for ever: if they haven't got there in
+// a few seconds (a doorway blocked, someone in the way), they stop where they are, or are set down where they were going,
+// and the scene goes on
+async function arrive(a, pts, speed, secs = 6, place = false) {
+  const g = GEN;
+  await Promise.race([a.walk(pts, speed), wait(secs)]);
+  if (g !== GEN) throw ABORT;
+  if (a.path.length) { const last = pts[pts.length - 1]; a.path = []; if (place) a.place(last[0], last[1]); }
+}
 async function say(name, text) {
   const g = GEN;
   await UI.say(name, text);
@@ -524,7 +533,8 @@ async function ch2(w) {
   mark(null); UI.objective(null);
   G.lockMove = true;
   lookAt(father, 3);
-  await until(() => !father.path.length);
+  await Promise.race([until(() => !father.path.length), wait(10)]);
+  if (father.path.length) { father.path = []; father.place(13, -4.2); }
   await wait(0.5);
   w.setDoor(true);
   await wait(0.8);
@@ -552,14 +562,14 @@ async function ch2(w) {
   // (the last step is on his side of you, not round the far side)
   const near = Math.sign(side - pl.pos.x) || 1;
   const toYou = pl.pos.z > -5.6 ? [[pl.pos.x + 0.7, pl.pos.z]] : [[side, -4.9], [side, clamp(pl.pos.z, -8.6, -4.9)], [pl.pos.x + near * 0.75, pl.pos.z]];
-  await father.walk(toYou, 1.3);
+  await arrive(father, toYou, 1.3, 7);
   father.facePlayer();
   await say(null, "He crossed the room and took us both by the shoulders, and put his mouth by my ear.");
   await say("Father", `If I am not — the marsh gate. The small door in the wall beside it. Take your ${P.sibLower} and go, and do not come looking for me.`);
   await say("Watchman", "That's enough. Hands.");
   father.person.setPose("bound");
   const out = [[13, -4.2], [13, -1.0], [13, 3.5], [0, 3.5], [-12, 1]];
-  await father.walk([...toYou.slice(0, -1).reverse(), [12.4, -4.6]], 1.1);
+  await arrive(father, [...toYou.slice(0, -1).reverse(), [12.4, -4.6]], 1.1, 7, true);
   mag.walk(out.slice(1), 1.1);
   father.walk(out, 1.1);
   guards[0].walk(out, 1.1); guards[1].walk(out, 1.1);
@@ -2539,7 +2549,7 @@ async function chReckoning(w) {
   [amt, kes, wm].forEach((a, i) => a.walkTo(...stand[i], 1.1).then(() => a.faceTo(FIRE.x, FIRE.z)));
   G.lockMove = true;
   lookAt(amt, 1.5);
-  await until(() => !amt.path.length && !kes.path.length);
+  await Promise.race([until(() => !amt.path.length && !kes.path.length), wait(12)]); amt.path = []; kes.path = [];
   await wait(0.8);
   pl.faceTarget = null;
   await say("The Amtmann", "Which of you is master here?");
@@ -2559,7 +2569,7 @@ async function chReckoning(w) {
   jak.walkTo(34.2, -303.2, 2.6).then(() => jak.faceTo(amt.pos.x, amt.pos.z)); hen.walkTo(36.4, -303.8, 2.2).then(() => hen.faceTo(FIRE.x, FIRE.z));
   bark("Jakob", "Wait — wait! Herr Amtmann! In the Council's name!", 3);
   lookAt(jak, 1.5);
-  await until(() => !jak.path.length);
+  await Promise.race([until(() => !jak.path.length), wait(12)]); jak.path = [];
   await wait(0.6);
   jak.hold(makeScroll());
   await say("Jakob", "The merchant's ledger. You carried it to me yourself, the night before they came.");
