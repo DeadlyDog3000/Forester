@@ -1285,6 +1285,8 @@ export class Woods extends WorldBase {
   // Brambles round the clearing and along the road, heavy with blackberries: hold F to pick a handful. They fruit
   // again in a few days' time, and stand bare through the winter.
   makeBerryBushes() {
+    // (bare in the winter: the settlement's winter, or snow lying in a chapter that has no settlement to say so)
+    const bare = () => !!(G.town && G.town.winter) || SNOW.value > 0.15;
     const r = rng(733), leafB = new Builder();
     this.bushes = [];
     for (let i = 0, tries = 0; i < 30 && tries < 400; tries++) {
@@ -1301,9 +1303,9 @@ export class Woods extends WorldBase {
       for (let j = 0; j < 16; j++) { const a = r() * TAU, d = 0.3 + r() * 0.45; fb.add(new THREE.IcosahedronGeometry(0.035, 0), r() < 0.8 ? 0x241030 : 0x9a2a2a, x + Math.cos(a) * d, y + 0.3 + r() * 0.45, z + Math.sin(a) * d, 0, 0, 0, 1, 1, 1, 0); }
       const fruit = fb.build(MAT.rough, { shadow: false }); this.root.add(fruit);
       const bush = { x, z, fruit, ripeAt: 0 };
-      const ripe = () => G.time >= bush.ripeAt && !(G.town && G.town.winter);
+      const ripe = () => G.time >= bush.ripeAt && !bare();
       bush.it = this.addInteract({ x, y: y + 0.6, z, reach: 2, hold: 1.4, anim: "sow",
-        label: () => { fruit.visible = ripe(); return (G.town && G.town.winter) ? "A bramble, bare for the winter" : ripe() ? "Pick blackberries" : "A bramble — picked clean; it'll fruit again in a few days"; },
+        label: () => { fruit.visible = ripe(); return bare() ? "A bramble, bare for the winter" : ripe() ? "Pick blackberries" : "A bramble — picked clean; it'll fruit again in a few days"; },
         can: () => ripe(),
         use: () => {
           const n = 3 + Math.floor(Math.random() * 3), got = G.packAdd ? G.packAdd("blackberries", n, "Blackberries", "Picked off the brambles. A mouthful each — eat them (their number), or cook them into a dish.") : 0;
@@ -1316,7 +1318,7 @@ export class Woods extends WorldBase {
     }
     this.root.add(leafB.build(MAT.rough, { shadow: false }));
     // (the fruit comes back on its own time, and goes in the winter)
-    this.bushTick = () => { for (const b of this.bushes) b.fruit.visible = G.time >= b.ripeAt && !(G.town && G.town.winter); };
+    this.bushTick = () => { const off = bare(); for (const b of this.bushes) b.fruit.visible = G.time >= b.ripeAt && !off; };
     G.onFrame.push(dt => { if (G.world === this && (this._bushT = (this._bushT || 0) - dt) <= 0) { this._bushT = 2; this.bushTick(); } });
   }
   makeKitchen() {
