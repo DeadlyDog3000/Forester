@@ -1,7 +1,7 @@
 // ===========================================================================
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
-// THE DEVELOPER'S PANEL: F8, and only on the maker's own machine. The app turns it on (window.__dev) when it finds
+// THE DEVELOPER'S PANEL: the comma key, and only on the maker's own machine. The app turns it on (window.__dev) when it finds
 // a file named "developer" in its own data folder, which only the maker's Mac has; anywhere else, and in a browser,
 // it isn't there at all. Stores, time, the fields, raids, your body and your tools, all to hand for testing.
 import { G } from "./engine.js";
@@ -70,7 +70,7 @@ function build() {
     #devPanel .dv-stat { margin-top: 4px; color: #b8ad92; white-space: pre-wrap; }`;
   document.head.appendChild(css);
   panel = document.createElement("div"); panel.id = "devPanel"; panel.style.display = "none";
-  panel.innerHTML = `<h3>DEVELOPER — F8</h3><div class="dv-stat"></div>` + SECTIONS.map(([h, items], i) => `<h4>${h}</h4><div class="dv-row">${items.map(([l], j) => `<button data-s="${i}" data-i="${j}">${l}</button>`).join("")}</div>`).join("") + `<div class="dv-out"></div>`;
+  panel.innerHTML = `<h3>DEVELOPER — ,</h3><div class="dv-stat"></div>` + SECTIONS.map(([h, items], i) => `<h4>${h}</h4><div class="dv-row">${items.map(([l], j) => `<button data-s="${i}" data-i="${j}">${l}</button>`).join("")}</div>`).join("") + `<div class="dv-out"></div>`;
   panel.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; try { SECTIONS[+b.dataset.s][1][+b.dataset.i][1](); } catch (err) { say("Error: " + err.message); } stat(); });
   panel.addEventListener("mousedown", e => e.stopPropagation());
   document.body.appendChild(panel);
@@ -88,9 +88,9 @@ function toggle() {
 }
 export function initDev() {
   if (!window.__dev) return;
-  addEventListener("keydown", e => { if (e.code === "F8") { e.preventDefault(); toggle(); } });
+  addEventListener("keydown", e => { if (e.code === "Comma" && !e.repeat && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) { e.preventDefault(); toggle(); } });
   setInterval(() => { if (open) stat(); }, 1000);
-  setTimeout(() => UI.hint && UI.hint("Developer panel: F8.", 3), 1500);
+  setTimeout(() => UI.hint && UI.hint("Developer panel: the , key.", 3), 1500);
 }
 // the app says so after the page has loaded: listen for it, as well as checking now
 if (window.__dev) initDev(); else addEventListener("reckoning-dev", () => initDev(), { once: true });
