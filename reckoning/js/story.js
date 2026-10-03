@@ -25,7 +25,7 @@ import { Raids } from "./raid.js";
 import { JOB_SKILL, SKILL_NAME } from "./people.js";
 import { FAITHS, faithOf } from "./faith.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, P as PROPS } from "./models.js";
-import { Town, BUILDINGS, JOBS, lieOn, YEAR, RATION } from "./town.js";
+import { Town, BUILDINGS, JOBS, lieOn, YEAR, RATION, RYE_HARVEST } from "./town.js";
 
 /* global SFX */
 
@@ -2193,7 +2193,7 @@ async function ch11(w) {
         seg: [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4],
         can: () => (b.growth ?? 1) >= 3,
         onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.chop(); },
-        use: () => { S.rye += 40; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.build(); } });
+        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.build(); } });
       reapIts.push(b._reap);
     }
   };
@@ -2298,7 +2298,7 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
       const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3,
         seg: [fl.x - Math.sin(fl.ry) * 3.4, fl.z - Math.cos(fl.ry) * 3.4, fl.x + Math.sin(fl.ry) * 3.4, fl.z + Math.cos(fl.ry) * 3.4],
         onHoldTick: (dt2, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt2) * 3)) SFX.chop(); },
-        use: () => { S.rye += 40; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
+        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
       ripe.set(fl, it);
     }
   });
@@ -2362,7 +2362,7 @@ async function chHarvest(w) {
   if (f0 && !H.reaped) { f0.growth = 3; town.show(f0); }
   town.t = (4 + 0.1) * DAY;          // the first morning of autumn
   const stopTraders = [hennings(w, town), pedlar(w, town)];
-  const stopDay = dayCycle(w, town, DAY, { onReap: () => { if (!H.reaped) { H.reaped = true; persistH(); bark(P.sib, "Forty rye. That's eight days for one of us — and there are more than one of us. Watch the days' food on the board.", 5); } } });
+  const stopDay = dayCycle(w, town, DAY, { onReap: () => { if (!H.reaped) { H.reaped = true; persistH(); bark(P.sib, "Sixty rye. Twelve days for one of us — and there are more than one of us, and it's four days before a field is ripe again. Watch the days' food on the board.", 6); } } });
   // Jan and his sister wait by the fire until there's a roof for them
   let visitors = H.joined ? [] : [spawn(settlerLookFor(JAN), FIRE.x - 2.9, FIRE.z + 1.4, 0), spawn(settlerLookFor(LIESEL), FIRE.x - 3.3, FIRE.z + 0.2, 0)];
   for (const v of visitors) v.faceTo(FIRE.x, FIRE.z);

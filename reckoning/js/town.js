@@ -106,9 +106,9 @@ export function modelKey(b) {
 // the year: eight days, and the last two of them winter
 export const YEAR = 8, SEASONS = ["spring", "spring", "summer", "summer", "autumn", "autumn", "winter", "winter"];
 export const LOGS_PER_TREE = 2, CARRY_MAX = 6;
-// a harvest: forty rye from a field, eight more with a well. A day's food for one is five rye, or three loaves, or two meat
+// a harvest: sixty rye from a field, twelve more with a well (rye stands a stage every two days: four days from sowing). A day's food for one is five rye, or three loaves, or two meat
 // (a dish from your kitchen is a day's food by itself); a baking turns four rye into six loaves, so bread goes further
-const RYE_HARVEST = 40, WELL_RYE = 8;
+export const RYE_HARVEST = 60, WELL_RYE = 12;
 export const RATION = { rye: 5, bread: 3, meat: 2 };
 const BAKE_RYE = 4, BAKE_LOAVES = 6;
 // a harvest gives back a third of a rye seed: a field to sow takes a whole one
@@ -695,6 +695,7 @@ export class Town {
 
   // ---- can it go here? inside the clearing, clear of everything solid, trees and other plans ----
   fits(type, x, z, ry) {
+    if (type === "field") return this.fieldFits(x, z, ry);
     const def = BUILDINGS[type], w = this.w;
     const r = Math.hypot(def.w, def.d) / 2;
     if (!def.wall && !this.onGround(x, z, r)) return false;
@@ -888,7 +889,7 @@ export class Town {
         if (b.type === "field") {
           if ((b.dug || 0) < 3) { b.dug = (b.dug || 0) + 1; G.wear && G.wear("spade", 2); if (b.dug >= 3) b.done = true; }
           else if (b.sown && (b.growth ?? 1) >= 3) { const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0); this.S.rye += got; b.growth = 0; b.sown = false; this.S.seed = +((this.S.seed || 0) + SEED_BACK).toFixed(2); UI.hint(`Reaped: ${got} rye to the stores, and ${SEED_BACK} of a rye seed.`, 3); }
-          else { b.sown = true; b.growth = 1; b.done = true; }
+          else { b.sown = true; b.growth = 1; b.growDays = 0; b.done = true; }
           this.show(b); this.persist(); SFX().build(); this.emit("dug", b); G.guide && G.guide("field"); return;
         }
         if (b.logs < def.cost) {
@@ -1015,9 +1016,33 @@ export class Town {
     }
     return { x: best.ex + vx * h, z: best.ez + vz * h, ry: r, snapped: true };
   }
+  // a field is a flat rectangle, not a round building: what matters is what stands on that rectangle (or right at its
+  // edge), and that its corners are on cleared ground — so fields can lie edge to edge, and up close to things
+  fieldFits(x, z, ry) {
+    const def = BUILDINGS.field, w = this.w, hw = def.w / 2, hd = def.d / 2, c = Math.cos(ry), sn = Math.sin(ry);
+    const loc = (px, pz) => { const dx = px - x, dz = pz - z; return [dx * c - dz * sn, dx * sn + dz * c]; };
+    const edge = (px, pz) => { const [lx, lz] = loc(px, pz); return Math.hypot(Math.max(0, Math.abs(lx) - hw), Math.max(0, Math.abs(lz) - hd)); };
+    for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]]) { const lx = sx * hw, lz = sz * hd; if (!this.onGround(x + lx * c + lz * sn, z - lx * sn + lz * c, 1)) return false; }
+    for (const b of this.S.buildings) {
+      if (b.type === "path") continue;
+      const d2 = BUILDINGS[b.type];
+      if (b.type === "field") {
+        if (Math.abs(Math.sin(ry - b.ry)) < 0.02) { const [lx, lz] = loc(b.x, b.z); if (Math.abs(lx) < def.w - 0.05 && Math.abs(lz) < def.d - 0.05) return false; }
+        else if (edge(b.x, b.z) < Math.hypot(d2.w, d2.d) / 2 * 0.7) return false;
+        continue;
+      }
+      if (edge(b.x, b.z) < (d2.wall ? 0.9 : Math.hypot(d2.w, d2.d) / 2 * 0.8)) return false;
+    }
+    for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && edge(t.x, t.z) < 0.5) return false;
+    for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.4], [STACK.x, STACK.z, 1.6], [BLOCK.x, BLOCK.z, 1.2], [FIRE.x, FIRE.z, 2.2]]) if (edge(px, pz) < pr) return false;
+    // (a spot kept clear for the first field doesn't keep other fields away from it, once the field is there)
+    if (this.opts.keepClear) for (const [px, pz, pr] of this.opts.keepClear) if (edge(px, pz) < pr && !this.S.buildings.some(b => b.type === "field" && Math.hypot(b.x - px, b.z - pz) < 2)) return false;
+    for (const co of this.S.companies || []) if (!co.waiting && !co.refused && edge(co.x, co.z) < 2.8) return false;
+    return true;
+  }
   // a new field near an old one: set edge to edge with it, square to it, on whichever side is nearest where you look
   snapField(def, x, z, ry) {
-    let best = null, bd = 3.5;
+    const cands = [];
     const fields = this.S.buildings.filter(b => b.type === "field");
     for (const f of fields) {
       const ux = Math.cos(f.ry), uz = -Math.sin(f.ry), vx = Math.sin(f.ry), vz = Math.cos(f.ry);
@@ -1026,10 +1051,12 @@ export class Town {
         // (a place another field already has is taken)
         if (fields.some(o => o !== f && Math.hypot(o.x - cx, o.z - cz) < 1)) continue;
         const d = Math.hypot(cx - x, cz - z);
-        if (d < bd) { bd = d; best = { x: cx, z: cz, ry: f.ry }; }
+        if (d < 4.5) cands.push({ x: cx, z: cz, ry: f.ry, d });
       }
     }
-    return best || { x, z, ry };
+    // (the nearest side it will really go on; failing that, the nearest, shown red)
+    cands.sort((a, b) => a.d - b.d);
+    return cands.find(q => this.fieldFits(q.x, q.z, q.ry)) || cands[0] || { x, z, ry };
   }
   // ---- walls ----
   // a new length's ends meet an old one's where they are near: the nearer end is moved onto it
@@ -2105,7 +2132,7 @@ export class Town {
             alive();
             continue;
           }
-          else { f.sown = true; f.growth = 1; }
+          else { f.sown = true; f.growth = 1; f.growDays = 0; }
           this.show(f); this.persist(); this.sfxAt(a, "build");
         } else f._farm = null;
       } else {
@@ -2150,7 +2177,11 @@ export class Town {
       for (const b of this.S.buildings) if (b.type === "field" && b.sown && !winter) {
         // (Agriculture: crops ripen 30% faster)
         // (weeded yesterday: now and then a stage further)
-        if ((b.growth ?? 1) < 3) { b.growth = Math.min(3, (b.growth ?? 1) + 1 + ((this.knows("agriculture") && Math.random() < 0.3) || (b.tended >= this.day - 1 && Math.random() < 0.25) ? 1 : 0)); this.show(b); }
+        // (a stage every second day; Agriculture or yesterday's weeding now and then brings the next one a day early)
+        if ((b.growth ?? 1) < 3) {
+          b.growDays = (b.growDays || 0) + 1 + ((this.knows("agriculture") && Math.random() < 0.3) || (b.tended >= this.day - 1 && Math.random() < 0.25) ? 1 : 0);
+          if (b.growDays >= 2) { b.growDays = 0; b.growth = Math.min(3, (b.growth ?? 1) + 1); this.show(b); }
+        }
       }
       // everyone eats: a day's food each — a dish you cooked, or three loaves, or two meat, or five rye, the best there is first;
       // two days with nothing, and the newest to come leaves
