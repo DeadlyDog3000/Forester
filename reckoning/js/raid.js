@@ -38,7 +38,7 @@ const LOOK = (s, enemy) => enemy
   ? { model: "townsman", name: "Soldier", coat: parseInt(NATIONS[enemy].color.slice(1), 16), legs: 0x2a2620, hat: "hat", hatColor: 0x1a1a1a, beard: 0x3e3226, seed: 500 + s }
   : { model: "townsman", name: "Raider", coat: [0x3a3228, 0x2e3228, 0x40302a][s % 3], legs: 0x2a2620, hat: ["cap", "hat", null][s % 3], hatColor: 0x241e1a, beard: 0x3e3226, seed: 500 + s };
 const WALK = 3.4, FLEE = 3.1, WALL_SPEED = 2.6;
-const HP = 60;                    // (harder than they were: a raider takes a good few blows now)
+const HP = 85;                    // (harder than they were: a raider takes a good few blows now)
 const DIRS = ["up", "left", "right"];
 
 // what fights with what: damage in points (you have a hundred, a raider forty, a settler fifty).
@@ -52,7 +52,9 @@ export const ARMS = {
 };
 export const ARM_KINDS = ["battleaxe", "sword", "spear"];   // best first
 // what a raider carries: how hard, and how often
-const THEIRS = { knife: { dmg: 10, cool: 0.95 }, club: { dmg: 14, cool: 1.35 }, axe: { dmg: 17, cool: 1.55 }, sword: { dmg: 19, cool: 1.2 } };
+const THEIRS = { knife: { dmg: 13, cool: 0.85 }, club: { dmg: 19, cool: 1.15 }, axe: { dmg: 23, cool: 1.35 }, sword: { dmg: 25, cool: 1.05 } };
+// how long a raider's arm is drawn back before the blow lands: the red mark by the crosshair shows the side all that while
+const WIND = 1.0;
 
 class Raider {
   constructor(raid, x, z, i, n, enemy) {
@@ -65,7 +67,7 @@ class Raider {
     this.a.heavy = true;
     this.hp = HP; this.state = "come"; this.loot = null; this.cool = 1; this.stun = 0; this.wind = 0; this.t = 0;
     this.dir = "right"; this.guardDir = DIRS[n % 3]; this.guardT = 1;
-    this.K = { r: 0.45, h: 1.05, len: 0.18, name: "raider" };
+    this.K = { r: 0.36, h: 1.05, len: 0.18, name: "raider", upright: true };
   }
   // (what the hunt's arrows and the crosshair ask of a target)
   get alive() { return this.state !== "down" && this.state !== "gone"; }
@@ -75,8 +77,11 @@ class Raider {
   centre() { return new THREE.Vector3(this.a.pos.x, this.a.pos.y + 1.05, this.a.pos.z); }
   update() {}
   startle() {}
-  // an arrow: a good full draw does half of him
-  hit(power) { this.damage(8 + power * 16); }
+  // an arrow: a good full draw takes over a third of him; one in the head, twice that
+  hit(power, head = false) {
+    this.damage((10 + power * 22) * (head ? 2 : 1));
+    if (head && this.alive && !this.raid.headTold) { this.raid.headTold = true; UI.hint("In the head — that one counts double.", 2.5); }
+  }
   // a stroke at him, from you or a settler (an arrow has no `from`, and can't be parried)
   damage(d, from) {
     if (!this.alive) return;
@@ -93,7 +98,9 @@ class Raider {
     // struck by you: whoever he was fighting, it's you he turns on now
     if (from === G.player && this.duel !== G.player) this.raid.lock(this, G.player);
     AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos });
-    this.stun = 0.45; this.wind = 0; this.a.path = [];
+    // (a blow doesn't stop his own stroke once it's started — you have to guard it, or get out of the way; between
+    // strokes it staggers him for a moment)
+    if (!(this.wind > 0)) { this.stun = 0.2; this.a.path = []; }
   }
   // he turns the blow aside, and is quick to answer it
   parry(from) {
@@ -249,7 +256,7 @@ export class Raids {
     const side = (pl.stance || "right") === r.dir;
     if (pl.guard && facing && !side && !this.sideTip) { this.sideTip = true; UI.hint("Wrong side! Put your guard where the red mark is — look up for a blow from above, turn left or right for the sides.", 5); }
     // raised just as he swung, on his side: a parry — nothing lands, and he is thrown off his stroke
-    if (pl.guard && facing && side && G.time - pl.guardAt < 0.45) {
+    if (pl.guard && facing && side && G.time - pl.guardAt < 0.6) {
       AUDIO.clang(1.2);
       pl.parryJolt = G.time + 0.25; r.stun = 0.9; r.cool = Math.max(r.cool, 1.2); a.path = [];
       if ((this.youParried = (this.youParried || 0) + 1) <= 3) UI.hint("Parried! He's off balance — strike now.", 1.8);
@@ -308,7 +315,7 @@ export class Raids {
       // whoever is in his way — you, or a settler standing up to him — he fights
       // (unless he is running off with his arms full)
       // his guard moves: to a side at random, or to the side you're on
-      if ((r.guardT -= dt) <= 0) { r.guardT = 1.1 + Math.random() * 1.5; r.guardDir = Math.random() < 0.45 && pl.stance ? pl.stance : DIRS[Math.floor(Math.random() * 3)]; }
+      if ((r.guardT -= dt) <= 0) { r.guardT = 0.8 + Math.random() * 1.0; r.guardDir = Math.random() < (r.duel === pl ? 0.65 : 0.45) && pl.stance ? pl.stance : DIRS[Math.floor(Math.random() * 3)]; }
       const foe = this.duelOf(r);
       a.squareTo = foe;
       if (foe) {
@@ -318,7 +325,8 @@ export class Raids {
         if (r.wind > 0) {
           // the wind-up: the arm going back — the moment to raise a guard
           a.path = [];
-          r.wind -= dt;
+          const was = r.wind; r.wind -= dt;
+          if (was > 0.62 && r.wind <= 0.62) a.person.setPose(r.dir === "up" ? "overhead" : "chop");
           if (r.wind <= 0) {
             setTimeout(() => { if (r.alive) a.person.setPose("idle"); }, 550);
             AUDIO.whoosh && AUDIO.whoosh(0.4, r.arm !== "knife");
@@ -336,7 +344,7 @@ export class Raids {
             a.path = [];
             r.cool = W.cool * (0.85 + Math.random() * 0.3);
             // (the stroke starts with the wind-up: the weapon drawn back, or raised high for one from above, and the blow lands as it comes through)
-            r.wind = 0.62; r.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose(r.dir === "up" ? "overhead" : "chop");
+            r.wind = WIND; r.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose("guard");
             if (Math.random() < 0.45) AUDIO.voice(Math.random() < 0.5 ? "grunt" : "war", { at: a.pos, vol: 0.8 });
           }
         } else if (r.stepT <= 0) {
@@ -398,7 +406,7 @@ export class Raids {
       for (const r of this.band) {
         if (!r.alive) continue;
         const dx = r.pos.x - pl.pos.x, dz = r.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
-        if (r.wind > 0 && d < 2.2 && d < td) { td = d; threat = r.dir; }
+        if (r.wind > 0 && (r.duel === pl || d < 2.6) && d < td) { td = r.duel === pl ? 0 : d; threat = r.dir; }
         if (d < fd && (dx * f.x + dz * f.z) / (d || 1) > 0.5) { fd = d; foe = r.guardDir; }
       }
       UI.stance({ mine: pl.stance || "right", threat, foe });

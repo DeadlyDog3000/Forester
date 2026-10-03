@@ -1792,6 +1792,7 @@ export class Town {
     const site = S.buildings.find(b => !b.done && b.type !== "field");
     const field = S.buildings.find(b => b.type === "field" && !b.sown);
     if (this.raids && this.raids.active) return `Raiders! ${this.raids.band.filter(r => r.alive).length} in the settlement — drive them off with the axe or the bow before they carry off the stores`;
+    if (S.caveAsked && !S.caveDone && ((G.body && G.body.tools.pick) || 0) < 2) return `Make a stone pickaxe at the chopping block before the cave — a wooden pick first (F at the block), to break the grey stone round the clearing`;
     if (S.caveAsked && !S.caveDone) return `${G.who === "sister" ? "Brother" : "Sister"} wants you to dig ore in the cave where the fork in the road runs out (marked). Sell it to Henning or Tobias${this.has("forge") ? "" : " — you can't forge it yourselves yet"}`;
     const clear = this.toClear().length;
     if (clear) return `Clear the new ground: ${clear} tree${clear > 1 ? "s" : ""} left past the old edge — everyone is felling`;

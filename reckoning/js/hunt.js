@@ -266,6 +266,12 @@ export class Hunt {
         ar.t += h;
         for (const a of this.animals) {
           if (!a.alive) continue;
+          // a man stands upright: his whole height, feet to head, and a shot to the head counts double
+          if (a.K.upright) {
+            const p = a.pos, y0 = p.y + 0.2, y1 = p.y + 1.78, yy = clamp(ar.pos.y, y0, y1);
+            if (ar.pos.y >= y0 - 0.1 && ar.pos.y <= y1 + 0.1 && Math.hypot(ar.pos.x - p.x, ar.pos.z - p.z) < a.K.r) { this.stick(ar, a); a.hit(ar.power, yy > p.y + 1.48); break; }
+            continue;
+          }
           // the body is a short capsule along the animal's length
           const c = a.centre(), fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
           const along = clamp((ar.pos.x - c.x) * fx + (ar.pos.z - c.z) * fz, -a.K.len, a.K.len);

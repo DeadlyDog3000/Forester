@@ -2754,10 +2754,19 @@ async function chFree(w) {
       const forge = town.has && town.has("forge");
       bark(P.sib, "There's a cave where the fork in the road runs out — I came on it gathering wood. Copper and tin in the rock, iron deeper in. Take a pickaxe and dig some out: Henning and Tobias will pay for ore.", 8);
       setTimeout(() => G.town === town && bark(P.sib, forge ? "And we've a forge now, so we can smelt what you bring back ourselves." : "Mind — we can't use any of it ourselves. Neither of us knows how to forge yet. Put it in your chest and sell it, and keep a little back for when we learn.", 7), 8500);
+      // (and not with a wooden pick: copper wants stone at least)
+      if ((G.body.tools.pick || 0) < 2) setTimeout(() => G.town === town && bark(P.sib, "But make a stone pickaxe first — a wooden one won't touch copper. A wooden pick at the chopping block, break some of the grey stone round the clearing with it, and then make a stone one.", 9), 17000);
       return;
     }
     if (!S.caveDone) {
       const m = cave.mouthAt;
+      // first the stone pickaxe, at the chopping block; then the cave
+      if ((G.body.tools.pick || 0) < 2) {
+        if (!G.marker || G.marker.cave) G.marker = { x: BLOCK.x, z: BLOCK.z, y: w.cy + 1.4, pickFirst: true };
+        if (!cave.inside && Math.hypot(pl.pos.x - m.x, pl.pos.z - m.z) < 6 && !S.pickWarned) { S.pickWarned = true; bark(P.sib, "Not with that. You'll want a stone pickaxe for the copper — come back when you've made one.", 5); }
+        return;
+      }
+      if (G.marker && G.marker.pickFirst) { G.marker = null; if (!S.pickTold) { S.pickTold = true; bark(P.sib, "That'll break copper. Now the cave — it's marked.", 4); town.persist(); } }
       if (cave.inside || Math.hypot(pl.pos.x - m.x, pl.pos.z - m.z) < 5) { S.caveDone = true; town.persist(); if (G.marker && G.marker.cave) G.marker = null; return; }
       if (!G.marker) G.marker = { x: m.x, z: m.z, y: w.heightAt(m.x, m.z) + 2.6, cave: true };
     }
