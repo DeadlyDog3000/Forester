@@ -496,7 +496,8 @@ export class Player {
   swing(onHit) {
     if (this.swingT >= 0) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
-    this.swingDir = this.stance || "right";
+    // (a pickaxe only ever comes down from above, into the rock)
+    this.swingDir = this.blade === "pick" ? "up" : this.stance || "right";
     G.practise("strength", 0.3);
     // the stroke through the air (the heavier the thing swung, the lower it sounds)
     AUDIO.whoosh(0.55, (this.blade || "axe") !== "sword");
@@ -516,7 +517,7 @@ export class Player {
       if (this.turnAcc < -14) this.side = "left"; else if (this.turnAcc > 14) this.side = "right";
       this.stance = this.pitch > 0.04 ? "up" : (this.side || "right");
       // with a blade or the axe out and not already swinging, an arrow shows which way the next stroke comes
-      UI.swingArrow(this.axe && this.swingT < 0 && !this.workKind && !UI.dialogOpen && G.mode === "play" ? this.stance : null);
+      UI.swingArrow(this.axe && this.swingT < 0 && !this.workKind && !UI.dialogOpen && G.mode === "play" && this.blade !== "pick" ? this.stance : null);
     } else if (G.cine && G.cine.look) {
       // steer the view toward whatever the scene wants seen
       const d = G.cine.look.clone().sub(this.eyePos());
@@ -740,7 +741,7 @@ export class Player {
         else if (T < 0.36) pose(HIT, THRU, (T - 0.29) / 0.07);
         else pose(THRU, REST, Math.min(1, (T - 0.36) / 0.3));
       }
-      if (this.model) { this.model.setPose("chop"); this.model.poseT = T / 1.25 * 1; }
+      if (this.model) { this.model.setPose(this.swingDir === "up" ? "overhead" : "chop"); this.model.poseT = T / 1.25 * 1; }
       if (T > 0.29 && !this._hitDone) { this._hitDone = true; this.onSwingHit && this.onSwingHit(); }
       if (T > 0.62) { this.swingT = -1; if (this.axe) this.axeRest(); if (this.model) this.model.setPose("idle"); }
     }
