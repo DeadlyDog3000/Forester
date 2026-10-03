@@ -1071,6 +1071,7 @@ G.wakeUp = async (from, lost) => {
   UI.hint((from === "hunger" ? "You died of hunger, and woke in your bed as if from a fever." : from === "plague" ? "The plague took you — and yet you woke, in your bed, the fever gone." : "You died, and woke in your bed.") + G.lostText(lost || {}), 7);
 };
 G.hurt = (dmg, from) => {
+  if (G.devGod) return;
   if (G.health === undefined || G.downed || G.mode !== "play") return;
   dmg = damageTaken(G.body, dmg);
   G.health = Math.max(0, G.health - dmg / 100); G.hurtT = 0;

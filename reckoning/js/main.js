@@ -161,6 +161,9 @@ function lock() {
   }, 1200);
 }
 document.addEventListener("pointerlockchange", () => { if (document.pointerLockElement && input.freeLook) setFreeLook(false); });
+// (for the developer's panel: let go of the mouse without pausing, and take it again)
+G.releaseMouse = () => { if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); } else if (input.freeLook) setFreeLook(false); };
+G.lockMouse = () => lock();
 // M: lock the mouse, or where the browser refuses the lock, look with a hidden free cursor
 function toggleMouse() {
   if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); return; }
@@ -1416,7 +1419,7 @@ function loop(now) {
   lastDrawn = now;
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (!window.__manual) frame(dt);    // (tests step the game themselves)
+  if (!window.__manual) frame(dt * (G.devSpeed || 1));    // (tests step the game themselves; the developer's panel can hurry it)
   requestAnimationFrame(loop);
 }
 
@@ -1444,6 +1447,7 @@ if (/[?&]raid\b/.test(location.search)) loadModels().finally(() => {
 
 // ---- the key to the map: beside the minimap (K), and always in the corner of the big map ----
 import { drawLegend, LEGEND } from "./map.js";
+import "./dev.js";
 function legendCanvas() {
   const cv = document.createElement("canvas"), d = Math.min(2, devicePixelRatio || 1), w = 228, h = 28 + LEGEND.length * 17;
   cv.width = w * d; cv.height = h * d; cv.style.width = w + "px"; cv.style.height = h + "px";

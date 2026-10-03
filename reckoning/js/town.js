@@ -106,9 +106,9 @@ export function modelKey(b) {
 // the year: eight days, and the last two of them winter
 export const YEAR = 8, SEASONS = ["spring", "spring", "summer", "summer", "autumn", "autumn", "winter", "winter"];
 export const LOGS_PER_TREE = 2, CARRY_MAX = 6;
-// a harvest: twenty rye from a field, four more with a well. A day's food for one is five rye, or three loaves, or two meat
+// a harvest: forty rye from a field, eight more with a well. A day's food for one is five rye, or three loaves, or two meat
 // (a dish from your kitchen is a day's food by itself); a baking turns four rye into six loaves, so bread goes further
-const RYE_HARVEST = 20, WELL_RYE = 4;
+const RYE_HARVEST = 40, WELL_RYE = 8;
 export const RATION = { rye: 5, bread: 3, meat: 2 };
 const BAKE_RYE = 4, BAKE_LOAVES = 6;
 // a harvest gives back a third of a rye seed: a field to sow takes a whole one
@@ -1798,7 +1798,7 @@ export class Town {
     while (true) {
       alive();
       if (this.isNight() && !(this.raids && this.raids.active) && !(this.S.revolt && this.S.revolt.active) && !a.settler.follow) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
-      const job = a.settler.job || "hauler";
+      let job = a.settler.job || "hauler";
       // raiders in the settlement: every grown settler fights — with what the smith has made, an axe, or their fists;
       // the children hide by the fire
       const raid = this.raids && this.raids.active;
@@ -1888,21 +1888,6 @@ export class Town {
       if (own && await this.companyShift(a, own, sleep, alive)) continue;
       // a field staked out and not yet dug: the one whose work it is (the farmer; with none, the hauler; or anyone grown)
       // turns it over a strip at a time with the spade, and then it's ready to sow
-      // (and, with no farmer to do it, sows it too)
-      const bareField = !this.S.people.some(q => q.job === "farmer" && !q.child) && this.S.buildings.find(b => b.type === "field" && b.done && !b.sown && (!b._farm || b._farm === a || b._farm.gone));
-      if (!raid && !this.winter && this.digger() === a.settler && !this.newField(a) && bareField) {
-        const f = bareField; f._farm = a;
-        a.doing = "sowing the field";
-        const c = Math.cos(f.ry), sn = Math.sin(f.ry);
-        try {
-          for (const [o, lz] of [[-2.2, -2.8], [-2.2, 2.7], [0, 2.7], [0, -2.8], [2.2, -2.8], [2.2, 2.7]]) {
-            await a.walkTo(f.x + o * c + lz * sn, f.z - o * sn + lz * c, 1.0); alive();
-            a.person.setPose("reach"); await sleep(1.2 * this.workMul * this.pace(a, "farming")); alive(); a.person.setPose("idle");
-          }
-        } finally { f._farm = null; }
-        f.sown = true; f.growth = 1; this.learn(a, "farming", 0.5); this.show(f); this.persist(); this.sfxAt(a, "build");
-        continue;
-      }
       if (!raid && !this.winter && this.digger() === a.settler && this.newField(a)) {
         const f = this.newField(a); f._farm = a;
         a.doing = `digging the new field — strip ${(f.dug || 0) + 1} of 3`;
@@ -1926,6 +1911,9 @@ export class Town {
         this.learn(a, "farming", 0.5); this.show(f); this.persist(); this.sfxAt(a, "build");
         continue;
       }
+      // no farmer: whoever does the fields in their place reaps and sows them too, before their own work
+      if (!this.winter && this.digger() === a.settler && job !== "farmer" && !this.S.people.some(q => q.job === "farmer" && !q.child)
+        && this.S.buildings.some(b => b.type === "field" && b.done && (!b.sown || (b.growth ?? 1) >= 3))) job = "farmer";
       // ground to clear: everyone who can swing an axe goes felling until it is done
       // (everyone clears ground for the settlement when it wants room — except the farmers, who have their fields)
       let loose = null, stump = null;
@@ -2037,7 +2025,7 @@ export class Town {
         const got = Math.random() < 0.55 + skillLvl(a.settler, "hunting") / 200;
         if (got) {
           a.person.setPose("hold"); await a.walkTo(this.stackAt.x + 1.4, this.stackAt.z - 0.6, 1.2); alive(); a.person.setPose("idle");
-          this.S.meat = (this.S.meat || 0) + 2; this.S.hide = (this.S.hide || 0) + 1; this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "hunting", 1);
+          this.S.meat = (this.S.meat || 0) + 4; this.S.hide = (this.S.hide || 0) + 1; this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "hunting", 1);
         } else a.doing = "coming back from the hunt with nothing";
         await sleep(2);
       } else if (job === "doctor" && this.has("hospital")) {
