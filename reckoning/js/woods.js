@@ -964,6 +964,7 @@ export class Woods extends WorldBase {
     const H = (x, z) => this.heightAt(x, z);
     const b = new Builder();
     // (a turn that points a thing's +Y along n, as the builder takes it; and a rod from one point to another)
+    const BOXG = new THREE.BoxGeometry(1, 1, 1);
     const _qq = new THREE.Quaternion(), _ee = new THREE.Euler(), UPV = new THREE.Vector3(0, 1, 0), _nn = new THREE.Vector3();
     const along = (nx, ny, nz) => { _qq.setFromUnitVectors(UPV, _nn.set(nx, ny, nz).normalize()); _ee.setFromQuaternion(_qq, "YXZ"); return [_ee.x, _ee.y, _ee.z]; };
     const rod = (x0, y0, z0, x1, y1, z1, r0, r1, color) => { const L = Math.hypot(x1 - x0, y1 - y0, z1 - z0); b.add(new THREE.CylinderGeometry(r1, r0, L, 6), color, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, ...along(x1 - x0, y1 - y0, z1 - z0)); };
@@ -1043,16 +1044,36 @@ export class Woods extends WorldBase {
         b.add(new THREE.CylinderGeometry(0.075, 0.085, 1.25, 6), r.pick([0x8a6a48, 0x7a5c3e, 0x9a7a52]), cx + Math.cos(a) * d, cy + 0.6, cz + Math.sin(a) * d, Math.sin(a) * 0.18 * (ring + 1) * 0.5, 0, -Math.cos(a) * 0.18 * (ring + 1) * 0.5);
       }
       this.col.addCircle(cx, cz, 1.4, cy + 1.5); }
-    // his hut: a cone of poles, clad in bark slabs and turfed at the foot, the door toward the fire
+    // his hut: a forest hut of the kind charcoal burners kept here — a ridge pole on crossed poles at either end, two
+    // roofs of bark slabs coming down to the ground, a gable of upright split logs at each end and the door in the one
+    // toward the fire, and sods heaped along the eaves against the draught
     const [hx, hz] = at(9, -3.5), hy = H(hx, hz);
-    b.add(new THREE.ConeGeometry(1.95, 3.2, 14, 1, true), 0x5a4a38, hx, hy + 1.6, hz, 0, 0, 0, 1, 1, 1, 0.08);
-    // (the poles lean in from the foot, cross at the top and stick up through it, as a pole hut's do)
-    for (let i = 0; i < 14; i++) { const a = i / 14 * TAU + 0.1, rr = 1.98, x0 = hx + Math.cos(a) * rr, z0 = hz + Math.sin(a) * rr, k = 1.22;
-      rod(x0, hy, z0, x0 + (hx - x0) * k, hy + 3.2 * k, z0 + (hz - z0) * k, 0.055, 0.035, r.pick([0x6a5440, 0x5e4a38])); }
-    for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; b.add(new THREE.DodecahedronGeometry(0.34, 0), r.pick([0x4a5230, 0x3e3a2c]), hx + Math.cos(a) * 1.9, hy + 0.2, hz + Math.sin(a) * 1.9, r(), a, r(), 1.3, 0.6, 1.0, 0.08); }
-    { const da = Math.atan2(px - hx, pz - hz), dx = Math.sin(da), dz = Math.cos(da);
-      b.box(0.8, 1.5, 0.08, hx + dx * 1.55, hy + 0.75, hz + dz * 1.55, 0x120d0a, da);
-      for (const s of [-0.45, 0.45]) b.add(new THREE.CylinderGeometry(0.05, 0.05, 1.7, 5), 0x6a5440, hx + dx * 1.6 + dz * s, hy + 0.85, hz + dz * 1.6 - dx * s); }
+    { const da = Math.atan2(px - hx, pz - hz), dx = Math.sin(da), dz = Math.cos(da), sx = Math.cos(da), sz = -Math.sin(da);
+      const L = 3.4, Wd = 1.7, Hr = 2.5, slope = Math.hypot(Wd, Hr), tilt = Math.atan2(Hr, Wd);
+      const P2 = (a, w, y = 0) => [hx + dx * a + sx * w, hy + y, hz + dz * a + sz * w];     // (along, across, up)
+      // the roofs: strips of bark, each a little different, overlapping down the length
+      for (const side of [-1, 1]) for (let k = 0; k < 7; k++) {
+        const a = -L / 2 + (k + 0.5) * L / 7, [x, y, z] = P2(a, side * Wd / 2, Hr / 2);
+        b.add(BOXG, r.pick([0x5a4632, 0x4e3c2c, 0x64503a]), x, y, z, 0, da, -side * tilt, slope + 0.12, 0.07, L / 7 + 0.04, 0.06);
+      }
+      // the ridge pole, and the crossed poles at each end standing up past it
+      { const [x0, y0, z0] = P2(-L / 2 - 0.35, 0, Hr + 0.04), [x1, y1, z1] = P2(L / 2 + 0.35, 0, Hr + 0.04); rod(x0, y0, z0, x1, y1, z1, 0.07, 0.07, 0x6a5440); }
+      for (const a of [-L / 2 - 0.05, L / 2 + 0.05]) for (const side of [-1, 1]) {
+        const [x0, y0, z0] = P2(a, side * Wd * 1.04, 0), [x1, y1, z1] = P2(a, -side * 0.32, Hr + 0.45); rod(x0, y0, z0, x1, y1, z1, 0.06, 0.045, 0x5e4a38);
+      }
+      // the gables: upright split logs, cut to the slope of the roof; a doorway in the front one
+      for (const [a, door] of [[L / 2 - 0.04, true], [-L / 2 + 0.04, false]]) {
+        for (let w = -Wd + 0.16; w <= Wd - 0.15; w += 0.21) {
+          if (door && Math.abs(w) < 0.42) continue;
+          const h = Hr * (1 - Math.abs(w) / Wd) - 0.05, [x, , z] = P2(a, w);
+          b.add(new THREE.CylinderGeometry(0.1, 0.11, h, 6), r.pick([0x6a5440, 0x5e4a38, 0x735a42]), x, hy + h / 2, z, 0, 0, 0, 1, 1, 0.6, 0.06);
+        }
+      }
+      { const [x, y, z] = P2(L / 2 - 0.1, 0, 0.78); b.box(0.84, 1.56, 0.06, x, y, z, 0x120d0a, da); }                  // (the dark of the doorway)
+      { const [x, y, z] = P2(L / 2, 0, 1.62); b.box(0.98, 0.1, 0.16, x, y, z, 0x5e4a38, da); }                           // (the lintel)
+      // sods along the eaves
+      for (const side of [-1, 1]) for (let k = 0; k < 6; k++) { const [x, y, z] = P2(-L / 2 + (k + 0.5) * L / 6, side * (Wd + 0.12), 0.16); b.add(new THREE.DodecahedronGeometry(0.3, 0), r.pick([0x4a5230, 0x3e3a2c, 0x46502e]), x, y, z, r(), r(), r(), 1.4, 0.55, 1.0, 0.08); }
+    }
     // his fire, a log to sit on, and a kettle on a crane over it
     const [ox, oz] = at(3.2, 1.8), oy = H(ox, oz);
     for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; b.add(new THREE.DodecahedronGeometry(0.16, 0), 0x6a665e, ox + Math.cos(a) * 0.55, oy + 0.08, oz + Math.sin(a) * 0.55, r(), r(), r(), 1, 0.7, 1, 0.08); }
