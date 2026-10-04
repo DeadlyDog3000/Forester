@@ -269,6 +269,7 @@ function loaderReady() {
 // what a model's material is named for decides its grain: a building's plaster, brick and tiles get their own
 const SURF_BY_NAME = { plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "wood", wood: "wood", log: "wood", glass: "none", iron: "none", soot: "none", horn: "none" };
 const _loading = {};
+const BUILDING = k => /^town\//.test(k) || ["home_2", "cabin", "cabin_burned", "woodshed", "well"].includes(k);
 async function fetchModel(k, url) {
   try {
     MODELS[k] = await _loader.loadAsync(url);
@@ -281,6 +282,13 @@ async function fetchModel(k, url) {
       m.userData.part = n;
       m.userData.surface = CLOTH_PARTS.has(n) ? "cloth" : BARE_PARTS.has(n) ? "none" : SURF_BY_NAME[n] || "auto";
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
+      // a building is solid, closed shapes: drawn from the outside only (both sides drawn, the back of one face fights
+      // the face behind it — a gable built of two, a frame against its wall — and flickers); and its trim — timber,
+      // iron, glass — always drawn in front of the plaster or brick it lies on
+      if (BUILDING(k)) {
+        m.side = THREE.FrontSide;
+        if (/^(wood|iron|glass|metal|log|roof)$/.test(n)) { m.polygonOffset = true; m.polygonOffsetFactor = -1; m.polygonOffsetUnits = -2; }
+      }
       // (a tree's needles and leaves thin away when you stand inside it, so you can see out)
       addDetail(m, { scale: 2, amount: 0.22, grain: 0.6, surface: m.userData.surface, seeThrough: /needle|lea[fv]|foliage|canopy/i.test(m.name || "") ? 3.6 : 0 });
     });

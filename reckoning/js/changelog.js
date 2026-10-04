@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.42.3", date: "4 October 2026", title: "Steady frames",
+    items: [
+      "Fixed the flickering on buildings for good, after finding it by measurement rather than by eye. Buildings were drawn from both sides at once, so the back of one face fought the face behind it. The gable ends were two triangles laid back to back, which could both end up facing the same way. And timber and iron trim lay exactly on the plaster under it. Buildings are now drawn from the outside only, gables are solid wedges, and trim is always drawn in front of the wall it's fixed to.",
+    ],
+  },
+  {
     v: "0.42.2", date: "3 October 2026", title: "No snow indoors",
     items: [
       "Fixed: snow lay on the loft floor of your house. No snow falls anywhere under the roof now.",

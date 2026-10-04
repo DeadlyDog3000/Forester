@@ -79,12 +79,18 @@ def gable_roof(k, key, W, D, base, rise, color, over=0.45, rnd=None, boards=0):
 
 
 def gable_end(k, key, W, D, y, base, rise, color):
-    """The triangle of wall under a gable, as a solid wedge (both faces)."""
+    """The triangle of wall under a gable, as a solid wedge: a closed shape, so every face of it faces out (two flat
+    triangles laid back to back can end up facing the same way, and flicker)."""
     t = 0.3
-    for yy in (y - t / 2, y + t / 2):
-        pts = [(-W / 2, yy, base), (W / 2, yy, base), (0, yy, base + rise)]
-        k.poly(key, pts, color)
-        k.poly(key, list(reversed(pts)), color)
+    bm = k._bm(key)
+    tri = [(-W / 2, base), (W / 2, base), (0, base + rise)]
+    a = [bm.verts.new((x, y - t / 2, z)) for x, z in tri]
+    b = [bm.verts.new((x, y + t / 2, z)) for x, z in tri]
+    faces = [bm.faces.new(a), bm.faces.new(list(reversed(b)))]
+    for i in range(3):
+        j = (i + 1) % 3
+        faces.append(bm.faces.new((a[i], b[i], b[j], a[j])))
+    k._paint(bm, faces, color)
 
 
 def chimney(k, x, y, top, color, rnd, key="stone"):
