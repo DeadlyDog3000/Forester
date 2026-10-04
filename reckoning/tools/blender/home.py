@@ -85,10 +85,13 @@ def build():
     for side, g, zc in WINDOWS:
         c = wall_c(side, g)
         fr = oak()
-        on_side(k, side, c, zc + WH / 2 + 0.05, WW + 0.2, t + 0.08, 0.1, "wood", fr)               # head
-        on_side(k, side, c, zc - WH / 2 - 0.05, WW + 0.24, t + 0.14, 0.1, "wood", fr)              # sill
+        # (each piece of the frame a centimetre into the opening, so it covers the plaster's edge rather than lying in the
+        # same plane as it — which flickers)
+        IN = 0.012
+        on_side(k, side, c, zc + WH / 2 + 0.05 - IN, WW + 0.2, t + 0.08, 0.1, "wood", fr)          # head
+        on_side(k, side, c, zc - WH / 2 - 0.05 + IN, WW + 0.24, t + 0.14, 0.1, "wood", fr)         # sill
         for sd in (-1, 1):
-            on_side(k, side, c + sd * (WW / 2 + 0.05), zc, 0.1, t + 0.08, WH, "wood", fr)           # jambs
+            on_side(k, side, c + sd * (WW / 2 + 0.05 - IN), zc, 0.1, t + 0.08, WH, "wood", fr)      # jambs
         on_side(k, side, c, zc, WW, 0.02, WH, "glass", rgb(0x9ab0b8))                              # the glass
         on_side(k, side, c, zc, 0.03, 0.05, WH, "wood", rgb(0x2a2018))                              # the leading
         on_side(k, side, c, zc + WH * 0.12, WW, 0.05, 0.03, "wood", rgb(0x2a2018))
@@ -116,21 +119,21 @@ def build():
             if side == "front" and f == 0:
                 for sd in (-1, 1):
                     seg = (L - DOOR_W) / 2
-                    plate(k, "wood", W, D, side, sd * (DOOR_W / 2 + seg / 2), z, seg, 0.1, 0.165, oak(), th=0.04)
+                    plate(k, "wood", W, D, side, sd * (DOOR_W / 2 + seg / 2), z, seg, 0.1, 0.175, oak(), th=0.04)
             else:
-                plate(k, "wood", W, D, side, 0, z, L, 0.1, 0.165, oak(), th=0.04)
+                plate(k, "wood", W, D, side, 0, z, L, 0.1, 0.175, oak(), th=0.04)
             bw = L / bays
             for sd in (-1, 1):
                 u0 = sd * (L / 2 - bw / 2)
                 if any(sd_ == side and abs(plate_u(sd_, wall_c(sd_, g)) - u0) < bw / 2 and f * FH < zc < (f + 1) * FH for sd_, g, zc in WINDOWS):
                     continue
                 ang = math.atan2(FH - 0.3, bw) * (1 if sd > 0 else -1)
-                loc, rot = on_wall(W, D, side, u0, f * FH + FH / 2, 0.165)
+                loc, rot = on_wall(W, D, side, u0, f * FH + FH / 2, 0.15)
                 k.box("wood", (math.hypot(bw, FH - 0.3) - 0.1, 0.04, 0.12), mat_tr(loc, (0, ang, rot[2])), oak())
     # the doorway's frame: two posts and a lintel, standing proud of the plaster
     for sd in (-1, 1):
-        k.box("wood", (0.16, t + 0.1, DOOR_H + 0.1), mat_tr((sd * (DOOR_W / 2 + 0.08), -D / 2, DOOR_H / 2)), oak())
-    k.box("wood", (DOOR_W + 0.48, t + 0.1, 0.2), mat_tr((0, -D / 2, DOOR_H + 0.1)), oak())
+        k.box("wood", (0.16, t + 0.1, DOOR_H + 0.1), mat_tr((sd * (DOOR_W / 2 + 0.08 - 0.012), -D / 2, DOOR_H / 2)), oak())
+    k.box("wood", (DOOR_W + 0.48, t + 0.1, 0.2), mat_tr((0, -D / 2, DOOR_H + 0.1 - 0.012)), oak())
     # the roof of red tiles, gables plastered and framed (as town.py's timber houses)
     rise = W * 0.85
     for y in (-D / 2, D / 2):

@@ -1280,6 +1280,8 @@ export class Woods extends WorldBase {
     if (this.homeRemodel) { this.root.remove(this.homeRemodel); this.homeRemodel = null; }
     if (!this.cabinUp || (tier || 1) < 2) return;
     this.homeTier = tier;
+    // (no snow anywhere under the roof: the loft as well as the room below)
+    ROOFSIZE.value.z = this.cabinY + 5.5;
     const b = new Builder(), PL = 0xe8e0cc, TB = 0x3e2a1a, FL = 0x8a6440;
     const box = (w, h, d, lx, y, lz, col) => { const [x, z] = this.cabinToWorld(lx, lz); b.box(w, h, d, x, y, z, col, CABIN.ry); };
     const H = 2.35, X = 2.28, Zb = -2.82, Zf = 2.82;

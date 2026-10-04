@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.42.2", date: "3 October 2026", title: "No snow indoors",
+    items: [
+      "Fixed: snow lay on the loft floor of your house. No snow falls anywhere under the roof now.",
+      "Fixed: window frames and doorways flickered. The frames sat exactly level with the edges of the plaster round them, and the two fought to be drawn. They now stand a little into the opening, covering the edge. The timber framing on the settlers' houses had the same trouble where the posts, rails and braces crossed; they're spaced apart now.",
+    ],
+  },
+  {
     v: "0.42.1", date: "3 October 2026", title: "Chips and shops",
     items: [
       "Chips of wood fly from the cut when you chop a tree, pale heartwood and dark bark, and a shower of them when it comes down. They lie on the ground a while.",

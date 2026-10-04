@@ -169,13 +169,13 @@ def shell_timber(k, W, D, floors, rnd, door=True, windows=True):
         for f in range(floors + 1):
             plate(k, "wood", W, D, side, 0, min(H - 0.08, max(0.5, f * FH)), L + 0.1, 0.16, 0.17, oak(), th=0.05)
         for f in range(floors):
-            plate(k, "wood", W, D, side, 0, f * FH + 1.0, L, 0.1, 0.165, oak(), th=0.04)
+            plate(k, "wood", W, D, side, 0, f * FH + 1.0, L, 0.1, 0.175, oak(), th=0.04)
             # braces in the end bays, like the Hamburg houses on the Deichstraße
             bw = L / bays
             for sd in (-1, 1):
                 u0 = sd * (L / 2 - bw / 2)
                 ang = math.atan2(FH - 0.3, bw) * (1 if sd > 0 else -1)
-                loc, rot = on_wall(W, D, side, u0, f * FH + FH / 2, 0.165)
+                loc, rot = on_wall(W, D, side, u0, f * FH + FH / 2, 0.15)
                 # (tilted in the wall's own plane first, then turned with the wall)
                 k.box("wood", (math.hypot(bw, FH - 0.3) - 0.1, 0.04, 0.12), mat_tr(loc, (0, ang, rot[2])), oak())
         # windows in the middle bays, small and leaded
