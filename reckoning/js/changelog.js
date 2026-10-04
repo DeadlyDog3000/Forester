@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.42.4", date: "4 October 2026", title: "Gone means gone",
+    items: [
+      "Fixed: a construction site you pulled down came back a minute or two later. A hauler still carrying logs to it put it back when they arrived. A pulled-down site stays down now, and the logs that were on their way go back on the stack.",
+      "Fixed: animals' coats, the raiders' furs and hides had the wrong grain on them: the game took brown fur for wood or brick. Fur and hide are plain now.",
+    ],
+  },
+  {
     v: "0.42.3", date: "4 October 2026", title: "Steady frames",
     items: [
       "Fixed the flickering on buildings for good, after finding it by measurement rather than by eye. Buildings were drawn from both sides at once, so the back of one face fought the face behind it. The gable ends were two triangles laid back to back, which could both end up facing the same way. And timber and iron trim lay exactly on the plaster under it. Buildings are now drawn from the outside only, gables are solid wedges, and trim is always drawn in front of the wall it's fixed to.",

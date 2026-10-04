@@ -557,6 +557,8 @@ export class Town {
   }
   // ---- showing a building: a frame and a heap of logs while it goes up, the thing itself when done ----
   show(b) {
+    // (pulled down: whoever was still at work on it doesn't put it back)
+    if (b.gone) return;
     const w = this.w, def = BUILDINGS[b.type];
     let g = this.vis.get(b);
     if (g) { w.root.remove(g); if (g.userData.col) w.col.remove(g.userData.col); for (const c of g.userData.cols || []) w.col.remove(c); }
@@ -885,6 +887,7 @@ export class Town {
 
   // ---- a site to work at: bring logs, then raise it (or, for a field, dig it and sow it) ----
   site(b) {
+    if (b.gone) return;
     const def = BUILDINGS[b.type], w = this.w, pl = G.player;
     if (b.done && b.type !== "field") return;
     if (b._it && w.interact.includes(b._it)) return;          // (already has one)
@@ -1187,6 +1190,7 @@ export class Town {
     if (g) { w.root.remove(g); if (g.userData.col) w.col.remove(g.userData.col); for (const c of g.userData.cols || []) w.col.remove(c); this.vis.delete(b); }
     if (b._it) { w.removeInteract(b._it); b._it = null; }
     this.S.buildings.splice(this.S.buildings.indexOf(b), 1);
+    b.gone = true;
     // what comes back goes in the stores (logs as far as there is room for them)
     for (const [k, n] of Object.entries(back)) this.S[k] = (this.S[k] || 0) + n;
     this.S.store = Math.min(this.S.store, this.storeCap);
@@ -2224,6 +2228,8 @@ export class Town {
         const n = Math.min(4, this.S.store, BUILDINGS[site.type].cost - site.logs); if (n <= 0) continue;
         this.S.store -= n; this.showStore(); a.person.setPose("hold");
         await a.walkTo(site.x + 1.6, site.z + BUILDINGS[site.type].d / 2 + 1.4, 1.1); alive();
+        // (the site pulled down while they were on the way: the logs go back on the stack)
+        if (site.gone) { this.S.store = Math.min(this.storeCap, this.S.store + n); a.person.setPose("idle"); this.showStore(); this.persist(); continue; }
         site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "building", 0.6);
         await sleep(2);
       } else if (!clearing && job === "hauler" && !site && (stump = this.stumpToDig())) {
