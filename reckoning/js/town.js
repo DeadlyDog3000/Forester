@@ -1669,10 +1669,12 @@ export class Town {
       }
       if (!best) return;
       SFX().chop(); G.impact && G.impact(); G.wear && G.wear("axe");
+      G.woodChips && G.woodChips(best, 1);
       // (Tree Cutting and Axing: a stroke that bites deeper, now and then — a fifth, then a third, quicker)
       best.hp = (best.hp ?? 4) - 1 - (Math.random() < 1 / this.chopMul - 1 + axeBonus(G.body) + skillK(G.body, "strength") * 0.6 ? 1 : 0);
       G.practise && G.practise("strength", 0.6);
       if (best.hp > 0) { best.state = "shake"; best.shake = 0.25; return; }
+      G.woodChips && G.woodChips(best, 2.2);
       this.fell(best, best.x - pl.pos.x, best.z - pl.pos.z, true);
     };
   }

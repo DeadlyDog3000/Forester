@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.42.1", date: "3 October 2026", title: "Chips and shops",
+    items: [
+      "Chips of wood fly from the cut when you chop a tree, pale heartwood and dark bark, and a shower of them when it comes down. They lie on the ground a while.",
+      "Fixed: settlers never started businesses in a settlement that had grown. They only looked for room for a shop in the old clearing and right beside the paths, and when those were full they gave up without a word. They look over all your ground now, including everything you've marked out. A settler with 12 DM of their own who is doing well may start one any morning (with the law that a shop needs your leave, they come and ask you).",
+    ],
+  },
+  {
     v: "0.42", date: "3 October 2026", title: "Stairs, stone and ore",
     items: [
       "Fixed, properly this time: the stair in the house. It runs along the right-hand wall with its foot toward the middle of the room, so you walk straight onto it and climb toward the front, onto the loft. There's a rail along the well and across its far end.",

@@ -1222,6 +1222,39 @@ function rockChips(k, amount = 1) {
   G.onFrame.push(tick);
 }
 G.rockChips = rockChips;
+// chips of wood flying from the cut where the axe bit: pale heartwood and dark bark, flat and spinning; a shower when it falls
+let woodGeo = null;
+function woodChips(t, amount = 1) {
+  const pl = G.player, root = G.scene; if (!root || !pl || !t) return;
+  woodGeo ??= new THREE.BoxGeometry(0.06, 0.012, 0.035);
+  const dx = pl.pos.x - t.x, dz = pl.pos.z - t.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+  const gy = G.world && G.world.heightAt ? G.world.heightAt(t.x, t.z) : 0;
+  const hx = t.x + ux * 0.28, hz = t.z + uz * 0.28, hy = gy + 0.9;
+  const mats = [new THREE.MeshStandardMaterial({ color: 0xd8b880, roughness: 0.9, flatShading: true }), new THREE.MeshStandardMaterial({ color: 0x6a4a30, roughness: 1, flatShading: true })];
+  const bits = [], n = Math.round(10 * amount) + 4;
+  for (let i = 0; i < n; i++) {
+    const b = new THREE.Mesh(woodGeo, mats[i % 3 === 0 ? 1 : 0]); b.scale.setScalar(0.6 + Math.random() * 1.1);
+    b.position.set(hx, hy + (Math.random() - 0.5) * 0.15, hz); b.castShadow = true;
+    const sx = (Math.random() - 0.5) * 3, up = 1 + Math.random() * 2.4, out = 1 + Math.random() * 2.4;
+    b.userData.v = new THREE.Vector3(ux * out - uz * sx, up, uz * out + ux * sx); b.userData.spin = new THREE.Vector3(Math.random() * 16, Math.random() * 16, Math.random() * 10);
+    root.add(b); bits.push(b);
+  }
+  let tt = 0;
+  const tick = dt => {
+    tt += dt;
+    for (const b of bits) {
+      const v = b.userData.v; v.y -= 7 * dt; v.multiplyScalar(Math.pow(0.6, dt));
+      b.position.addScaledVector(v, dt);
+      const g2 = G.world && G.world.heightAt ? G.world.heightAt(b.position.x, b.position.z) + 0.01 : 0;
+      if (b.position.y < g2) { b.position.y = g2; v.set(0, 0, 0); b.userData.spin.set(0, 0, 0); b.rotation.x = 0; b.rotation.z = 0; }
+      b.rotation.x += b.userData.spin.x * dt; b.rotation.y += b.userData.spin.y * dt; b.rotation.z += b.userData.spin.z * dt;
+    }
+    // (they lie on the ground a while, then they're gone)
+    if (tt > 4) { for (const b of bits) root.remove(b); for (const m of mats) m.dispose(); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
+  };
+  G.onFrame.push(tick);
+}
+G.woodChips = woodChips;
 // money as it is written: whole marks, or a mark and a tenth — never 0.30000000000000004
 export const dm = n => { const v = Math.round((+n || 0) * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
 G.dm = dm;

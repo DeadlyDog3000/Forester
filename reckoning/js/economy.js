@@ -122,7 +122,15 @@ function shopSpot(town) {
   const paths = town.S.buildings.filter(b => b.type === "path");
   const tries = [];
   for (const p of paths) for (const s of [-1, 1]) tries.push({ x: p.x + Math.cos(p.ry) * 3.8 * s, z: p.z - Math.sin(p.ry) * 3.8 * s, ry: p.ry + (s > 0 ? -Math.PI / 2 : Math.PI / 2) });
-  for (let i = 0; i < 40; i++) { const a = Math.random() * Math.PI * 2, r = 8 + Math.random() * (town.clearR - 4); tries.push({ x: CLEARING.x + Math.cos(a) * r, z: CLEARING.z + Math.sin(a) * r, ry: Math.atan2(FIRE.x - CLEARING.x - Math.cos(a) * r, FIRE.z - CLEARING.z - Math.sin(a) * r) }); }
+  // (beside a path at either side, a little along it as well as square to it)
+  for (const p of paths) for (const s of [-1, 1]) for (const k of [-1.6, 1.6]) for (const off of [3.4, 4.6]) tries.push({ x: p.x + Math.cos(p.ry) * off * s + Math.sin(p.ry) * k, z: p.z - Math.sin(p.ry) * off * s + Math.cos(p.ry) * k, ry: p.ry + (s > 0 ? -Math.PI / 2 : Math.PI / 2) });
+  // anywhere on the settlement's ground: the old clearing, and all the ground marked out since
+  const face = (x, z) => Math.atan2(FIRE.x - x, FIRE.z - z);
+  for (let i = 0; i < 80; i++) { const a = Math.random() * Math.PI * 2, r = 8 + Math.random() * (town.clearR - 2); const x = CLEARING.x + Math.cos(a) * r, z = CLEARING.z + Math.sin(a) * r; tries.push({ x, z, ry: face(x, z) }); }
+  for (const l of town.S.lobes || []) {
+    const xs = l.poly.map(p => p[0]), zs = l.poly.map(p => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+    for (let i = 0; i < 50; i++) { const x = x0 + Math.random() * (x1 - x0), z = z0 + Math.random() * (z1 - z0); tries.push({ x, z, ry: face(x, z) }); }
+  }
   const taken = c => town.S.companies.some(o => Math.hypot(o.x - c.x, o.z - c.z) < 6);
   for (const t of tries) if (!taken(t) && town.fits("shop", t.x, t.z, t.ry)) return t;
   return null;
