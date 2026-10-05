@@ -396,7 +396,7 @@ export class Raids {
     }
     if (stolen) {
       S.lootedDay = t.day; t.persist();
-      UI.hint("One got away down the road with the stores he could carry. The settlement won't forget it soon.", 5);
+      G.tell("big", null, "One of the raiders got away down the road with the stores he could carry. The settlement won't forget it soon.", 5);
     }
     // the raid over: every one of them down in the grass, or away down the road
     const act = this.active;
@@ -432,6 +432,8 @@ export class Raids {
     if (this.wasActive && !act) {
       const sib = G.who === "sister" ? "Brother" : "Sister";
       UI.bark(sib, this.band.some(r => r.state === "down") ? "They're done. Nobody takes from us twice." : "Gone. We'll be readier next time.", 3.5);
+      const down = this.band.filter(r => r.state === "down").length, fled = this.band.length - down;
+      G.report && G.report(down ? `The raid is over: ${down} of them cut down${fled ? `, ${fled} got away down the road` : ""}.` : "The raiders are gone, back down the road with what they could carry.", "big");
     }
     this.wasActive = act;
   }

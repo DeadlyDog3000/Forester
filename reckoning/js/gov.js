@@ -18,6 +18,7 @@ T("treecutting", "Tree Cutting", "growth", ["foraging"], 1, "Chopping 20% faster
 T("axing", "Axing", "growth", ["treecutting"], 2, "Chopping 35% faster in total");
 T("sawing", "Sawing", "growth", ["axing"], 3, "trees felled quicker");
 T("sawmills", "Sawmills", "growth", ["sawing"], 4, "trees felled quicker again; doors cost 3 logs");
+T("broadsheets", "Broadsheets", "growth", [], 0, "Unlocks the News stand — a broadsheet of everything that's been going on in the settlements, to read whenever you like");
 T("replanting", "Replanting", "growth", ["foraging"], 1, "Saplings grow twice as fast");
 // The care of the body: what a colony learns about feeding and mending itself.
 // Both hang off Foraging and sit early and cheap on purpose — a farm growing
@@ -112,7 +113,7 @@ export const techTime = t => 45 + t.depth * 40;
 // so a new settlement starts with cabins, fields and paths, and learns the rest.)
 export const BUILD_GATES = { stable: "horses", bakery: "baking", market: "trading", townhall: "township", forge: "forging",
   quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting", church: "ministry",
-  woodshed: "treecutting", well: "replanting", brickworks: "masonry", shrine: "consecration", jail: "policing",
+  woodshed: "treecutting", well: "replanting", brickworks: "masonry", shrine: "consecration", jail: "policing", newsstand: "broadsheets",
   palisade: "defending", gate: "defending", stonewall: "defplus", hospital: "physick" };
 // what costs DM to keep, every day (Forester's CIVIC: the works that must be tended; cabins, fields, paths, sheds are free)
 export const CIVIC = new Set(["market", "townhall", "forge", "bakery", "well", "quarry", "mine", "sawmill", "smelter", "brickworks", "church", "jail", "hospital"]);

@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.43.0", date: "4 October 2026", title: "Read all about it",
+    items: [
+      "A news stand: research Broadsheets (a root of the tech tree, cheap and quick) and build one (B). F at it to read the settlement's own broadsheet. It covers who was born, died, came or left; who sold what to the pedlar, and what the thieves sold on the quiet; thefts and who the watch caught; quarrels, fights and feuds; the day's taxes; what was built, rebuilt or pulled down; raids, hardship, and word from abroad. It's sorted by day, and you can read one settlement at a time or one kind of news at a time. The news is kept from now on, so it's there to read whenever you build the stand.",
+      "Fixed: your settlers went on working while the game was paused. Their stone, planks and bread kept coming in, and their day ran on with nobody moving. Their work keeps the game's own time now: paused, nothing gets done.",
+      "Fixed: once the trees on the settlement's own ground were all felled or cleared for building, the woodcutters stood about all day doing nothing, and the woodshed ran dry. Now they go out to the forest past the edge of your ground. The trees they fell there grow back in time, as yours do.",
+      "Fixed: several people sent for at once could all arrive with the same name.",
+    ],
+  },
+  {
     v: "0.42.4", date: "4 October 2026", title: "Gone means gone",
     items: [
       "Fixed: a construction site you pulled down came back a minute or two later. A hauler still carrying logs to it put it back when they arrived. A pulled-down site stays down now, and the logs that were on their way go back on the stack.",

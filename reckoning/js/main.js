@@ -27,6 +27,7 @@ import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
 import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf, cityAt, cityOwner, cityFirstOwner, buildGrid, CITIES, gridOf, llOf, MG_W } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf } from "./feud.js";
+import { renderNews } from "./news.js";
 
 /* global SFX */
 
@@ -518,6 +519,7 @@ $("craftBody").addEventListener("click", e => {
   renderCraft();
 });
 G.openCraft = () => showOverlay("craft", true);
+G.openNews = () => showOverlay("paper", true);
 // ---- the keys (Tab): all of them in one place, what each does now ----
 function renderKeys() {
   const K = (keys, what) => `<div class="kr-k">${keys.map(k => `<kbd>${k}</kbd>`).join(" ")}</div><div>${what}</div>`;
@@ -547,6 +549,7 @@ let overlay = null, overlayTimer = 0, overlayLockMove = false;
 const OVERLAYS = {
   chest: { open: () => renderChest(), tick: () => {}, every: 1000 },
   craft: { open: () => renderCraft(), tick: () => renderCraft(), every: 700 },
+  paper: { open: () => { renderNews($("paperBody"), G.town); $("paperBody").scrollTop = 0; }, tick: () => {}, every: 5000 },
   keysRef: { open: () => renderKeys(), tick: () => {}, every: 2000 },
   guideBook: { open: () => renderGuide(), tick: () => {}, every: 5000 },
   skills: { open: () => renderSkills(), tick: () => renderSkills(), every: 500 },

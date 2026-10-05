@@ -36,6 +36,7 @@ import { feudTick, feudShift, peaceOffer, ensureFamilies, kinFor, fullName } fro
 import { dineShift, eateryShift, eaterySolids, sideShift } from "./economy.js";
 import { revoltCheck, revoltShift, revoltSwing, checkEnd } from "./rebellion.js";
 import { colonyCheck, lay as layColony } from "./colony.js";
+import { hookNews, setNewsView } from "./news.js";
 
 // what wants a door hewn for it before it can be raised, and what a door takes
 const NEEDS_DOOR = new Set(["cabin"]), DOOR_LOGS = 2;
@@ -56,6 +57,7 @@ export const BUILDINGS = {
   shop:     { name: "Shop", cost: 10, w: 4.2, d: 3.4, icon: "cabin", settlers: true, note: "A settler's own business." },
   stable:   { name: "Stable", cost: 14, mats: { stone: 4 }, w: 6.4, d: 4.2, icon: "cabin", note: "Stalls for two horses. Take one out (F at the stable) and ride — more than twice as fast as walking. X gets you down, and it finds its own way home." },
   path:     { name: "Path", cost: 0, w: 2.2, d: 3.4, path: true, icon: "stone", note: "A trodden way between the houses, laid a strip at a time — free. Cobbled once the town is brick." },
+  newsstand: { name: "News stand", cost: 8, w: 2.6, d: 2.0, icon: "ledger", note: "A booth with the broadsheet pinned up: everything that's been going on in the settlements — births and deaths, who came and who went, who sold what to the pedlar, thefts, quarrels, the taxes, what went up and what came down. F to read it." },
   storehouse: { name: "Store chest", cost: 6, w: 2.4, d: 2.0, icon: "logs", note: "The settlement's stores kept in one place, a big chest under a little roof: take what the settlement has, or put things in. The chest in your cabin is your own." },
   palisade: { name: "Palisade", cost: 3, w: 3.2, d: 0.7, wall: "log", hp: 60, icon: "logs", note: "A length of sharpened logs, laid a length at a time and joined end to end. Raiders must hack through it. Three logs a length." },
   gate:     { name: "Gate", cost: 8, w: 3.6, d: 0.8, wall: "gate", hp: 90, icon: "logs", note: "A way through the palisade: it stands open, and is shut when raiders come." },
@@ -226,6 +228,7 @@ export class Town {
     this.bundles = [];
     this.stumps = new Map();
     this.hooks = [];
+    hookNews(this);
     this.t = 0;
     this.day = 0;
     // the ground won from the forest as the settlement grew: those rings are trees to fell again, in the same order
@@ -616,6 +619,19 @@ export class Town {
       if (!G.player || !G.player.horse) { const h = makeHorse(0x6a4428); h.root.scale.setScalar(0.92); h.root.position.set(-W / 4, 0, -0.2); h.root.rotation.y = Math.PI; g.add(h.root); g.userData.horse = h; }
       g.userData.cols = this.solidAt(b, [[-W / 2 + 0.6, -D / 2 + 0.3, 0.45], [-W / 4, -D / 2 + 0.3, 0.45], [0, -D / 2 + 0.3, 0.45], [W / 4, -D / 2 + 0.3, 0.45], [W / 2 - 0.6, -D / 2 + 0.3, 0.45], [-W / 2, 0.6, 0.3], [W / 2, 0.6, 0.3]], w.heightAt(b.x, b.z) + 3);
       this.stableIt(b);
+    } else if (b.type === "newsstand" && b.done) {
+      // a booth: a counter with the papers stacked on it, a board behind with the broadsheet pinned up, a little roof
+      const bb = new Builder(), W = 2.0;
+      bb.box(W, 0.95, 0.6, 0, 0.475, 0.25, 0x6a4a2e, 0, 0.06);
+      bb.box(W + 0.1, 0.06, 0.7, 0, 0.98, 0.25, 0x5a3e24);
+      for (const px of [-W / 2, W / 2]) { bb.box(0.12, 2.3, 0.12, px, 1.15, -0.25, 0x5a4230); bb.box(0.1, 2.0, 0.1, px, 1.0, 0.55, 0x5a4230); }
+      bb.box(W, 1.1, 0.06, 0, 1.6, -0.27, 0x7a5634);
+      for (const [px, py, sw, sh] of [[-0.6, 1.72, 0.5, 0.66], [0.02, 1.68, 0.5, 0.74], [0.6, 1.75, 0.46, 0.6]]) { bb.box(sw, sh, 0.012, px, py, -0.235, 0xe6dcc4); bb.box(sw * 0.8, 0.07, 0.014, px, py + sh / 2 - 0.1, -0.232, 0x2a2420); for (let k = 0; k < 4; k++) bb.box(sw * 0.75, 0.025, 0.014, px, py + sh / 2 - 0.22 - k * 0.1, -0.232, 0x8a8276); }
+      for (let k = 0; k < 3; k++) bb.box(0.42, 0.04, 0.3, -0.45 + k * 0.03, 1.03 + k * 0.04, 0.3, k % 2 ? 0xe6dcc4 : 0xd8ccb0);
+      bb.box(0.3, 0.02, 0.4, 0.5, 1.02, 0.28, 0xe6dcc4);
+      bb.add(prismGeo(W + 0.5, 0.45, 1.3, 0.12), 0x4e3a28, 0, 2.3, 0.15);
+      const vis = bb.build(MAT.rough); vis.castShadow = true; g.add(vis);
+      g.userData.cols = this.footprint(b, 2.0, 0.9, w.heightAt(b.x, b.z) + 2);
     } else if (b.type === "storehouse" && b.done) {
       // a big iron-bound chest on the ground, under a lean little roof on four posts
       const bb = new Builder();
@@ -941,7 +957,7 @@ export class Town {
         b.done = true; w.removeInteract(it);
         G.wear && G.wear("hammer", 3);
         // a church or a shrine is raised to one faith: the state creed, or the biggest congregation
-        if ((b.type === "church" || b.type === "shrine") && !b.faith) { b.faith = dedication(this); UI.hint(`The ${b.type} is dedicated: ${b.type === "church" ? FAITHS[b.faith].house : FAITHS[b.faith].shrine}.`, 5); }
+        if ((b.type === "church" || b.type === "shrine") && !b.faith) { b.faith = dedication(this); G.tell("work", (this.inColony(b.x, b.z) || {}).name, `The ${b.type} is dedicated: ${b.type === "church" ? FAITHS[b.faith].house : FAITHS[b.faith].shrine}.`, 5); }
         this.show(b); this.persist(); SFX().build(); this.emit("built", b);
         if (G.guide) { if (b.type === "forge") G.guide("forge"); else if (b.type === "storehouse") G.guide("stores"); else if (b.type !== "path" && !BUILDINGS[b.type].wall) G.guide("inspect"); }
         if (b.type === "woodshed" && this.count("woodshed") === 1) UI.hint(`The woodshed is up: the logs from the stack go in under its roof (${this.S.store}), and the old stack is cleared away.`, 6);
@@ -956,7 +972,7 @@ export class Town {
   europeTick() {
     const S = this.S, E = ensureEurope(S);
     // a fortnight's news at most: the biggest first
-    for (const n of europeDay(S, this.day).slice(0, 2)) UI.news(n);
+    for (const n of europeDay(S, this.day).slice(0, 2)) UI.news({ ...n, abroad: true });
     // a crown that hates you, near enough to march, may declare war
     for (const id of NEAR) if (!E.war[id] && E.rel[id] <= -60 && Math.random() < 0.05) {
       E.war[id] = true; E.pact[id] = false;
@@ -984,13 +1000,13 @@ export class Town {
         const die = (cure > 1 ? 0.01 : 0.05) * (near ? 2 : 1) * (p.temper === "sickly" ? 1.5 : p.temper === "hardy" ? 0.5 : 1) * (p.child ? 1.5 : 1);
         if (Math.random() < die) { this.killSettler(p, "sick"); continue; }
         p.sick -= cure;
-        if (p.sick <= 0) { p.sick = 0; UI.hint(`${p.name} is well again.`, 3); }
+        if (p.sick <= 0) { p.sick = 0; G.tell("people", p.home, `${p.name} is well again.`, 3); }
         continue;
       }
       let k = 0.02 * (near ? 4 : 1) * (this.winter && S.cold ? 2 : 1) * (p.temper === "sickly" ? 1.6 : p.temper === "hardy" ? 0.5 : 1) * (this.has("well") ? 0.8 : 1);
       if (Math.random() < k) {
         p.sick = 3 + Math.floor(Math.random() * 3);
-        UI.hint(`${p.name} has fallen ill${near ? " — the plague is in the country round about" : ""}.${cure > 1 ? " The doctor will see to them." : this.has("hospital") ? " The hospital wants a doctor (F by someone)." : " A hospital and a doctor (Physick) would have them up sooner."}`, 6);
+        G.tell("trouble", p.home, `${p.name} has fallen ill${near ? " — the plague is in the country round about" : ""}.${cure > 1 ? " The doctor will see to them." : this.has("hospital") ? " The hospital wants a doctor (F by someone)." : " A hospital and a doctor (Physick) would have them up sooner."}`, 6);
       }
     }
   }
@@ -1017,12 +1033,12 @@ export class Town {
       if (coin) S.coin += coin; else S[item] += n;
       thief.jailedDay = this.day; S.caught = (S.caught || 0) + 1;
       this.setMark(thief, "disgraced", `caught taking ${what} from the stores, and held in the jail`);
-      UI.hint(`In the night ${thief.name} took ${what} from the stores. The watch caught them: it's back, and they're in the jail for the day.`, 7);
+      G.tell("crime", thief.home, `In the night ${thief.name} took ${what} from the stores. The watch caught them: it's back, and they're in the jail for the day.`, 7);
     } else {
       // got away with it: coin into their own purse; goods hidden away, for the next trader
       if (coin) thief.purse = Math.round(((thief.purse || 0) + coin) * 10) / 10;
       else { const l = thief.loot; if (l && l.k === item) { l.n += n; l.worth += n * g[2]; } else thief.loot = { k: item, n, name: name(item), worth: Math.round(n * g[2] * 10) / 10 }; }
-      UI.hint(`In the night someone took ${what} from the stores. ${!jail ? "There's no jail" : "There's no watchman"} — nobody was caught. (Research Policing for a jail and the watch.)${coin ? "" : " Whoever it was will want to sell it on."}`, 7);
+      G.tell("crime", null, `In the night someone took ${what} from the stores. ${!jail ? "There's no jail" : "There's no watchman"} — nobody was caught. (Research Policing for a jail and the watch.)${coin ? "" : " Whoever it was will want to sell it on."}`, 7);
     }
     this.persist(); this.showStore();
   }
@@ -1122,7 +1138,7 @@ export class Town {
     b.hp = (b.hp ?? def.hp) - dmg;
     AUDIO.clang && Math.random() < 0.3 && AUDIO.clang(0.3, { x: b.x, z: b.z });
     SFX().chop();
-    if (b.hp <= 0) { b.broken = true; b.hp = 0; this.show(b); this.persist(); SFX().treeFall(0.5); UI.hint(`The raiders have broken through the ${def.name.toLowerCase()}!`, 4); }
+    if (b.hp <= 0) { b.broken = true; b.hp = 0; this.show(b); this.persist(); SFX().treeFall(0.5); G.tell("big", null, `The raiders have broken through the ${def.name.toLowerCase()}!`, 4); }
   }
   // the nearest standing length of wall (or a shut gate) to a point, and the nearest spot on it
   wallNear(p, within = 4) {
@@ -1260,7 +1276,7 @@ export class Town {
         await a.walkTo(c.x + Math.sin(c.ry) * 2.6, c.z + Math.cos(c.ry) * 2.6, 1.2); alive();
         a.faceTo(c.x, c.z); a.person.setPose("hammer"); await sleep(8); alive(); a.person.setPose("idle");
         c.built = true; c.stock = 3; this.showShop(c); this.persist(); this.sfxAt(a, "build");
-        UI.hint(`${c.name} is open for trade. You can buy there for less than the pedlar asks.`, 5);
+        G.tell("trade", c.home || (this.inColony(c.x, c.z) || {}).name, `${c.name} is open for trade. You can buy there for less than the pedlar asks.`, 5);
         return true;
       }
       // the timber for it, felled and carried by the owner
@@ -1576,6 +1592,13 @@ export class Town {
     this.storeIt = w.addInteract({ get x() { const b = store(); return b ? b.x : 1e6; }, get z() { const b = store(); return b ? b.z : 1e6; }, get y() { const b = store(); return b ? w.heightAt(b.x, b.z) + 0.8 : 0; }, reach: 2.4,
       label: () => { const b = store(), c = b && this.inColony(b.x, b.z); return c ? `Open ${c.name}'s store chest` : "Open the settlement's store chest"; },
       can: () => !!store(), use: () => { const b = store(); G.chestView = this.viewFor(b && this.inColony(b.x, b.z)); G.chestS = G.chestView.S; G.openChest && G.openChest("stores"); } });
+    // the news stand: the broadsheet, with the news of the settlement it stands in first
+    if (this.newsIt) w.removeInteract(this.newsIt);
+    const stand = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "newsstand") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
+    const front = () => { const b = stand(); if (!b) return { x: 1e6, z: 1e6 }; return { x: b.x + Math.sin(b.ry) * 0.9, z: b.z + Math.cos(b.ry) * 0.9 }; };
+    this.newsIt = w.addInteract({ get x() { return front().x; }, get z() { return front().z; }, get y() { return w.heightAt(front().x, front().z) + 1.1; }, reach: 2.6,
+      label: "Read the news", can: () => !!stand(),
+      use: () => { const b = stand(), c = b && this.inColony(b.x, b.z); setNewsView(c ? c.name : null); G.openNews && G.openNews(); } });
     // the chopping block: make tools; the forge (once there is one): smelt ore, and cast bronze
     // (at the side of whichever forge is nearest you, out of the way of its door)
     const forge = () => { let best = null, bd = Infinity; for (const b of this.S.buildings) if (b.done && b.type === "forge") { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = b; } } return best; };
@@ -1681,6 +1704,21 @@ export class Town {
       G.woodChips && G.woodChips(best, 2.2);
       this.fell(best, best.x - pl.pos.x, best.z - pl.pos.z, true);
     };
+  }
+  // the nearest tree of the forest past the settlement's edge, taken up for felling (as one you fell yourself: it grows
+  // back in time, out of sight — so a settlement that has cleared all its own ground still has wood)
+  wildTree(from) {
+    const w = this.w; if (!w.forest || !w.adopt || !from) return null;
+    let best = null, bd = 70;
+    for (const s of w.forest) {
+      if (s.gone) continue;
+      const d = Math.hypot(s.x - from.x, s.z - from.z);
+      if (d >= bd || this.onGround(s.x, s.z, 0) || (w.anyRoadDist && w.anyRoadDist(s.x, s.z).d < 4)) continue;
+      bd = d; best = s;
+    }
+    if (!best) return null;
+    const t = w.adopt(best); t.wild = true;
+    return t;
   }
   fell(t, dx, dz, dropLogs) {
     const l = Math.hypot(dx, dz) || 1;
@@ -1854,7 +1892,7 @@ export class Town {
     // a master working nearby teaches faster
     const near = skillLvl(p, id) < MASTER_AT && this.actors.some(o => o !== a && o.settler && skillLvl(o.settler, id) >= MASTER_AT && Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z) < 14);
     const lvl = gainSkill(p, id, amount, near);
-    if (lvl) UI.hint(`${p.name} reaches ${SKILL_NAME[id]} ${lvl}${lvl >= 100 ? " — a master of it" : ""}.`, 4);
+    if (lvl) (lvl % 25 === 0 ? G.tell.bind(null, "people", p.home) : UI.hint.bind(UI))(`${p.name} reaches ${SKILL_NAME[id]} ${lvl}${lvl >= 100 ? " — a master of it" : ""}.`, 4);
   }
   // training out of the treasury: a level in the skill of their work, the dearer the better they are already
   train(p) {
@@ -1870,7 +1908,7 @@ export class Town {
   setMark(p, id, why) {
     if (!p || !p.name || p.child || p.mark === id) return;
     p.mark = id; this.persist();
-    UI.hint(`${p.name} — ${MARKS[id].name.toLowerCase()}: ${why}`, 5);
+    G.tell("people", p.home, `${p.name} — ${MARKS[id].name.toLowerCase()}: ${why}`, 5);
   }
   // dead: cut down in a raid or in the streets, starved, frozen, or taken by a fever. They are buried at the edge
   // of the clearing, and everyone mourns a few days
@@ -2029,7 +2067,8 @@ export class Town {
   // a settler's sound: only heard near them (the engine's sounds have no distance of their own)
   sfxAt(a, name) { const p = G.player && G.player.pos; if (!p || Math.hypot(a.pos.x - p.x, a.pos.z - p.z) < 22) SFX()[name](); }
   async work(a) {
-    const sleep = s => new Promise(r => setTimeout(r, s * 1000));
+    // (in the game's own time, not the clock's: paused, nobody's work gets done; hurried, it's done sooner)
+    const sleep = s => new Promise(r => { const until = this.t + s; const tick = () => (this.t >= until || this.stopped ? r() : setTimeout(tick, 40)); setTimeout(tick, Math.min(40, s * 1000)); });
     const alive = () => { if (a.dead) throw "stop"; if (this.stopped || a.gone || a.summoned || !G.world || G.world !== this.w) { a.root.visible = true; a.lying = false; throw "stop"; } };
     await sleep(Math.random() * 3);
     while (true) {
@@ -2249,6 +2288,8 @@ export class Town {
       } else if (clearing || job === "woodcutter" || (job === "hauler" && site)) {
         a.doing = clearing ? "clearing ground for the settlement" : "felling trees";
         const trees = clearing ? this.toClear().filter(t => t.state === "up" && !t.claimed) : this.w.fellable.filter(t => t.state === "up" && !t.claimed);
+        // (the trees on the settlement's own ground all down: out to the forest beyond its edge)
+        if (!trees.length && !clearing) { const wt = this.wildTree(this.stackAt); if (wt) trees.push(wt); }
         if (!trees.length) { await sleep(5); continue; }
         trees.sort((p, q) => Math.hypot(p.x - a.pos.x, p.z - a.pos.z) - Math.hypot(q.x - a.pos.x, q.z - a.pos.z));
         const t = trees[Math.floor(Math.random() * Math.min(5, trees.length))];
@@ -2443,7 +2484,7 @@ export class Town {
         if ((c.rye || 0) >= want) { c.rye -= want; c.hungry = 0; }
         else {
           c.rye = 0; c.hungry = (c.hungry || 0) + 1;
-          if (c.hungry === 1) UI.hint(`${c.name} has run out of food. Carry or send food there, or someone will leave.`, 6);
+          if (c.hungry === 1) G.tell("trouble", c.name, `${c.name} has run out of food. Carry or send food there, or someone will leave.`, 6);
           else this.leave("hunger", folk[folk.length - 1]);
         }
       }
@@ -2480,7 +2521,7 @@ export class Town {
       }
       if (this.techGates) {
         // the slow road to the state church
-        for (const p of dailyConversion(this)) UI.hint(`${p.name} is received into the ${FAITHS[p.faith].house} — ${FAITHS[p.was].name} no longer.`, 6);
+        for (const p of dailyConversion(this)) G.tell("people", p.home, `${p.name} is received into the ${FAITHS[p.faith].house} — ${FAITHS[p.was].name} no longer.`, 6);
         this.nightCrime();
         this.europeTick();
         ambitionsTick(this);
@@ -2494,7 +2535,7 @@ export class Town {
         p.good = m >= 75 ? (p.good || 0) + 1 : 0;
         if (p.good >= 4 && !p.mark) this.setMark(p, "contented", "warm, fed and unbothered a good while now");
         if (p.low >= 2) { UI.hint(`${p.name} can't bear it here any longer, and goes back down the road. (G, People, shows how everyone feels.)`, 7); this.leave("unhappy", p); }
-        else if (p.low === 1) UI.hint(`${p.name} is miserable (${m}). Another day like this and they'll leave — see G, People, for why.`, 6);
+        else if (p.low === 1) G.tell("trouble", p.home, `${p.name} is miserable (${m}). Another day like this and they'll leave — see G, People, for why.`, 6);
       }
       // the day's keep: a DM for every work that must be tended, out of the treasury; short, and they go untended
       if (this.techGates) {
@@ -2505,7 +2546,7 @@ export class Town {
           const paid = Math.min(bill, Math.max(0, this.S.coin || 0));
           this.S.coin = (this.S.coin || 0) - paid;
           this.S.unpaidDay = paid < bill ? this.day : null;
-          if (paid < bill) UI.hint(`The treasury is ${bill - paid} DM short of the day's keep (${bill} DM): the works stand untended until it's paid. Sell to the traders, or pull something down (V).`, 7);
+          if (paid < bill) G.tell("trouble", null, `The treasury is ${bill - paid} DM short of the day's keep (${bill} DM): the works stand untended until it's paid. Sell to the traders, or pull something down (V).`, 7);
           this.showStore();
         }
       }

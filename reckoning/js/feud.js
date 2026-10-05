@@ -86,7 +86,7 @@ export function startFeud(town, c, o) {
   S.feudCount = (S.feudCount || 0) + 1;
   G.guide && G.guide("feud");
   if (f.a) UI.news && UI.news({ title: `A feud: the ${f.a}s and the ${f.b}s`, sub: `${fullName(c)} and ${fullName(o)} fell out ${over}, and it has gone past words. Both families have taken it up — they'll come to blows on sight. Your watch can stop it, or you can pay to end it (F by any of them).`, img: "event_war" });
-  else UI.hint(`${c.name} and ${o.name} ${c.family ? `— both ${c.family}s — ` : ""}have fallen out for good ${over}, and mean to settle it.`, 7);
+  else G.tell("quarrel", c.home, `${c.name} and ${o.name} ${c.family ? `— both ${c.family}s — ` : ""}have fallen out for good ${over}, and mean to settle it.`, 7);
 }
 export function endFeud(town, f, why) {
   if (!f || f.over) return;
@@ -97,8 +97,8 @@ export function endFeud(town, f, why) {
   for (const p of A) for (const q of B) { if (p.op && p.op[q.name] < -20) p.op[q.name] = -20; if (q.op && q.op[p.name] < -20) q.op[p.name] = -20; }
   town.persist();
   const who = f.a ? `the ${f.a}s and the ${f.b}s` : `${f.pa} and ${f.pb}`;
-  if (why === "paid") UI.hint(`Blood money paid, and hands shaken at the fire: the feud between ${who} is over.`, 6);
-  else if (why === "time") UI.hint(`The feud between ${who} has burned itself out.`, 5);
+  if (why === "paid") G.tell("quarrel", null, `Blood money paid, and hands shaken at the fire: the feud between ${who} is over.`, 6);
+  else if (why === "time") G.tell("quarrel", null, `The feud between ${who} has burned itself out.`, 5);
 }
 // where someone stands: which feud, and against whom
 const sideOf = (f, p) => f.a ? (p.family === f.a ? "a" : p.family === f.b ? "b" : null) : (p.name === f.pa ? "a" : p.name === f.pb ? "b" : null);
@@ -128,7 +128,7 @@ export function feudTick(town, dt) {
       for (const k of S.people) if (k !== c && k.family === c.family && !k.child) nudge(town, k, o, by * 0.2, `took ${c.name}'s side ${over}`);
       for (const k of S.people) if (k !== o && k.family === o.family && !k.child) nudge(town, k, c, by * 0.1, `took ${o.name}'s side ${over}`);
     }
-    if (opOf(c, o) < -35 && Math.random() < 0.6) UI.hint(`${fullName(c)} and ${fullName(o)} have words ${over}.`, 4);
+    if (opOf(c, o) < -35) { if (Math.random() < 0.6) G.tell("quarrel", c.home, `${fullName(c)} and ${fullName(o)} have words ${over}.`, 4); else G.report && G.report(`${fullName(c)} and ${fullName(o)} have words ${over}.`, "quarrel", c.home); }
     return;
   }
   // the everyday: each thing that moves them, with its reason
@@ -215,6 +215,7 @@ export async function feudShift(town, a, sleep, alive) {
   if (foe.dead || Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) > 2.2) return true;
   f.brawls = (f.brawls || 0) + 1;
   if (f.brawls === 1 || Math.random() < 0.3) UI.hint(`${fullName(p)} has gone for ${fullName(q)} — a fight in the street!`, 4);
+  G.report && G.report(`${fullName(p)} went for ${fullName(q)} — a fight in the street.`, "quarrel", p.home);
   UI.bark(p.name, ["You'll answer for it!", `That's for the ${q.family || "lot of you"}!`, "Come here!", "I've waited for this."][Math.floor(Math.random() * 4)], 2);
   // the watch: someone on the beat comes running and takes the one who started it
   const watch = town.knows && town.knows("policing") && town.has("jail") && town.actors.find(w => w.settler && w.settler.job === "watch" && !w.dead && !w.knocked && !w.settler.follow && w !== a && w !== foe);
@@ -238,7 +239,7 @@ export async function feudShift(town, a, sleep, alive) {
         else {
           hit.knocked = G.time + 14; hit.lying = true; hit.path = []; hit.yOff = 0.05; hit.hp = 50;
           town.setMark && town.setMark(hit.settler, "bitter", `beaten bloody by ${fullName(hitter.settler)} in the feud`);
-          UI.hint(`${fullName(hit.settler)} is beaten bloody. ${hitter.settler.name} considers it settled — for today.`, 4);
+          G.tell("quarrel", hit.settler.home, `${fullName(hit.settler)} is beaten bloody. ${hitter.settler.name} considers it settled — for today.`, 4);
           setTimeout(() => { if (!hit.dead) { hit.knocked = 0; hit.lying = false; hit.yOff = 0; } }, 14000);
         }
         break;
@@ -247,7 +248,7 @@ export async function feudShift(town, a, sleep, alive) {
     await sleep(0.35);
     // the watch arrives
     if (watch && Math.hypot(watch.pos.x - a.pos.x, watch.pos.z - a.pos.z) < 2.5) {
-      UI.hint(`${watch.settler.name} of the watch pulls them apart, and takes ${p.name} to the jail.`, 5);
+      G.tell("crime", p.home, `${watch.settler.name} of the watch pulls them apart, and takes ${p.name} to the jail.`, 5);
       UI.bark(watch.settler.name, "Enough! You'll cool your heels in the jail.", 3);
       p.jailedDay = town.day; town.setMark && town.setMark(p, "disgraced", "locked up for brawling in the feud");
       f.until = Math.max(town.day + 1, f.until - 1);

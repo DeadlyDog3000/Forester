@@ -91,8 +91,8 @@ export function economyDay(town) {
         const brand = makeBrand(kind, p.name, Math.floor(Math.random() * 1e9));
         const c = { owner: p.name, kind, name: brand.name, brand, x: spot.x, z: spot.z, ry: spot.ry, logs: 0, built: false, stock: 0, asked: false, day: town.day };
         G.guide && G.guide(kind === "eatery" ? "eatery" : "business");
-        if (S.laws.approval) { c.waiting = true; S.companies.push(c); UI.hint(`${p.name} wants to open a shop — ${c.name}. They'll come and ask you.`, 6); }
-        else { S.companies.push(c); p.purse -= 10; town.startShop(c); UI.hint(`${p.name} has started a business: ${c.name}. They're gathering the timber for a shop.`, 6); }
+        if (S.laws.approval) { c.waiting = true; S.companies.push(c); G.tell("trade", p.home, `${p.name} wants to open a shop — ${c.name}. They'll come and ask you.`, 6); }
+        else { S.companies.push(c); p.purse -= 10; town.startShop(c); G.tell("trade", p.home, `${p.name} has started a business: ${c.name}. They're gathering the timber for a shop.`, 6); }
       }
     }
   }
@@ -366,10 +366,11 @@ export async function sideShift(town, a, sleep, alive) {
       // caught in the act: the money goes back to the treasury, and the thief to the jail
       S.coin = Math.round(((S.coin || 0) + pay) * 10) / 10; p.jailedDay = town.day; S.caught = (S.caught || 0) + 1;
       town.setMark && town.setMark(p, "disgraced", `caught selling stolen ${l.name} to ${t.name}`);
-      UI.hint(`The watch caught ${p.name} selling ${l.n} ${l.name} to ${t.name} — the settlement's own, stolen. The ${pay} DM goes back to the treasury, and ${p.name} to the jail.`, 7);
+      G.tell("crime", p.home, `The watch caught ${p.name} selling ${l.n} ${l.name} to ${t.name} — the settlement's own, stolen. The ${pay} DM goes back to the treasury, and ${p.name} to the jail.`, 7);
     } else {
       p.purse = Math.round(((p.purse || 0) + pay) * 10) / 10;
-      if (Math.random() < 0.6) UI.hint(`${p.name} was seen selling ${l.n} ${l.name} to ${t.name}. Where did they come by that?`, 6);
+      if (Math.random() < 0.6) G.tell("crime", p.home, `${p.name} was seen selling ${l.n} ${l.name} to ${t.name}. Where did they come by that?`, 6);
+      else G.report && G.report(`${p.name} sold ${l.n} ${l.name} to ${t.name}, on the quiet.`, "crime", p.home);
     }
     town.persist();
     return true;
@@ -403,6 +404,7 @@ export async function sideShift(town, a, sleep, alive) {
     a.faceTo(t.h.pos.x, t.h.pos.z); a.person.setPose("reach"); await sleep(1.5); alive(); a.person.setPose("idle");
     const pay = Math.round(p.wares * (1 + Math.random() * 0.8) * 10) / 10;
     p.purse = Math.round(((p.purse || 0) + pay) * 10) / 10; p.earnedOwn = Math.round(((p.earnedOwn || 0) + pay) * 10) / 10; p.ownDay = town.day;
+    G.report && G.report(`${p.name} sold ${p.waresOf || "what they made"} to ${t.name} for ${pay} DM, in their own time.`, "trade", p.home);
     if (Math.random() < 0.35) UI.bark && UI.bark(p.name, [`${pay} DM for ${p.waresOf}. Not bad.`, "That's mine, that is.", `${t.name} drives a hard bargain.`, "A little put by."][Math.floor(Math.random() * 4)], 2.5);
     p.wares = 0;
     town.persist();

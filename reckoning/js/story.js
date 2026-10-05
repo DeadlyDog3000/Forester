@@ -2644,6 +2644,7 @@ function trader(w, town, spec) {
     // (the settlers know when a trader is in, to sell him what they've made of their own)
     (town.tradersHere ??= new Set()).add(here);
     UI.hint(spec.hello, 6);
+    G.report && G.report(`${spec.name} has come up the road with a cart to trade.`, "trade");
     tutor("trade", "", [["F", "beside a trader: buy and sell"]], 7);
   };
   const leave = () => {
@@ -2813,18 +2814,19 @@ async function chFree(w) {
     const cost = town.recruitCost();
     if ((S.coin || 0) < cost) return `Sending for someone costs ${cost} DM.`;
     S.coin -= cost; town.sentFor = (town.sentFor || 0) + 1; town.persist();
-    const used = new Set(S.people.map(q => q.name));
+    // (nor a name already promised to someone still on the road: three sent for at once were all Elsabe)
+    const used = new Set([...S.people.map(q => q.name), ...(town.onRoad ??= new Set())]);
     const base = NEWCOMERS.find(q => !used.has(q.name)) || { name: SPARE_NAMES.find(n => !used.has(n)) || `${SPARE_NAMES[S.people.length % SPARE_NAMES.length]} the younger`, sex: S.people.length % 2 ? "f" : "m" };
     const r = Math.random, main = JOB_SKILL[job];
     const p = { name: base.name, sex: base.sex, job, seed: 400 + S.people.length * 11 + Math.floor(r() * 7), sk: { [main]: 16 + Math.floor(r() * 12) } };
     if (c) p.home = c.name;
-    town.sentTo[where] = sent + 1;
+    town.sentTo[where] = sent + 1; town.onRoad.add(p.name);
     setTimeout(async () => {
-      town.sentFor = Math.max(0, (town.sentFor || 1) - 1); town.sentTo[where] = Math.max(0, (town.sentTo[where] || 1) - 1);
+      town.sentFor = Math.max(0, (town.sentFor || 1) - 1); town.sentTo[where] = Math.max(0, (town.sentTo[where] || 1) - 1); town.onRoad.delete(p.name);
       if (G.town !== town) return;
-      if (c) { town.addPerson(p, c.x + 1.5, c.z + 1.5); UI.hint(`${p.name} has come to ${c.name} — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}. They'll live and work there.`, 6); return; }
+      if (c) { town.addPerson(p, c.x + 1.5, c.z + 1.5); G.tell("people", c.name, `${p.name} has come to ${c.name} — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}. They'll live and work there.`, 6); return; }
       await arrival(town, p, `You sent for a ${JOBS[job].name}? I'm ${p.name}. I've done this work before.`);
-      UI.hint(`${p.name} has come up the road — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}.`, 5);
+      G.tell("people", null, `${p.name} has come up the road — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}.`, 5);
     }, 9000);
     return null;
   };
@@ -2834,12 +2836,12 @@ async function chFree(w) {
     const pop = S.people.length + 2;
     // (nobody settles where the people are miserable: contentment under 40 turns them back down the road)
     if (town.bedsIn(null) + 2 > S.people.filter(p => !p.home).length + 2 && town.foodDays() >= 3 && town.contentment().value >= 40) {
-      const used = new Set(S.people.map(p => p.name));
+      const used = new Set([...S.people.map(p => p.name), ...(town.onRoad || [])]);
       const n = NEWCOMERS.find(p => !used.has(p.name));
       if (n) {
         const p = { ...n, seed: 400 + S.people.length * 11 };
         await arrival(town, p, ["God keep you. Is there room for one more?", "I heard there was a place up here. Is it true?", "I can work. I only need a roof.", "Henning at the kiln sent me."][S.people.length % 4]);
-        UI.hint(`${p.name} has come up the road, and stays. (${p.job})`, 5);
+        G.tell("people", null, `${p.name} has come up the road, and stays. (${p.job})`, 5);
       }
     } else if (town.foodDays() < 1.5) bark(P.sib, town.winter ? "We're short of food, and nothing grows till spring. Henning's cart sells rye." : "We're short of food — the rye and the bread both. Reap what's ripe, or dig another field.", 4);
   });
