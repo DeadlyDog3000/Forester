@@ -21,5 +21,8 @@
   "boar": "boar.glb",
   "bow": "bow.glb",
   "arrow": "arrow.glb",
-  "raider": "raider.glb"
+  "raider": "raider.glb",
+  "watchman_tricorn": "watchman_tricorn.glb",
+  "watchwoman": "watchwoman.glb",
+  "watchwoman_tricorn": "watchwoman_tricorn.glb"
 }

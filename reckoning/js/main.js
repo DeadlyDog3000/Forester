@@ -26,7 +26,7 @@ import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trai
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
 import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf, cityAt, cityOwner, cityFirstOwner, buildGrid, CITIES, gridOf, llOf, MG_W } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
-import { familyReport, feudsOf } from "./feud.js";
+import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
 
 /* global SFX */
@@ -734,13 +734,13 @@ function govLaws(t) {
     <div class="law-note">Businesses bring in taxes and cheer the place up, and you can buy at their shops for less. But an owner gives part of their time to it, so less goes into the settlement's stores. They fell their own timber for the shop. Forbid it, and those with savings resent it.</div>
     <label class="law-tog"><input type="checkbox" id="lawAsk"${S.laws.approval ? " checked" : ""}> A shop may only be built with your leave</label>
     <div class="law-note">With this law, whoever wants to open a shop comes to you first and shows you where. Refuse them, and they take it hard.</div>
-    <div class="mc-sec">The watch's uniform</div>${uniformHtml(S)}
+    <div class="law-note">The watch and its uniform have a tab of their own now: <b>Watch</b>.</div>
     <div class="mc-sec">Companies</div>`;
   const list = S.companies.filter(c => !c.refused);
   h += list.length ? `<table class="gov-people"><tr><th>Company</th><th>Owner</th><th>Trade</th><th>State</th><th>Stock</th><th>Taken</th></tr>${list.map(c => `<tr><td class="nm">${esc(c.name)}</td><td>${esc(c.owner)}</td><td>${esc(KINDS[c.kind].name)}</td><td>${c.waiting ? "asking your leave" : c.built ? "open" : `building (${Math.min(10, c.logs || 0)}/10 logs)`}</td><td>${c.stock || 0}</td><td>${dm(c.earned)} DM</td></tr>`).join("")}</table>` : `<div class="law-note">No one has started a business yet. Someone who has saved twelve DM, and is doing well, may.</div>`;
   return h;
 }
-// ---- the watch's uniform ----
+// ---- the watch: how to have one, who is on it, and what they wear ----
 const UNI = {
   coat: [["Hamburg red", 0x7a2a26], ["Navy", 0x2a3450], ["Forest green", 0x3a4a2a], ["Black", 0x1e1e22], ["Grey", 0x5a5a5e], ["Brown", 0x5a3e2a], ["Sky blue", 0x4a6a8a], ["Ochre", 0x9a7a2a], ["White", 0xe0d8c8]],
   legs: [["Charcoal", 0x2a2a30], ["Black", 0x1e1e22], ["Brown", 0x3a3028], ["Grey", 0x5a5a5e], ["Buff", 0xe0d8c8], ["Red", 0x7a2a26], ["Navy", 0x2a3450]],
@@ -748,21 +748,70 @@ const UNI = {
   sash: [["None", null], ["White", 0xe0d8c0], ["Red", 0x7a2a26], ["Blue", 0x2a3450], ["Gold", 0xc8a040], ["Green", 0x3a4a2a]],
   hatColor: [["Black", 0x1e1a18], ["Navy", 0x2a3450], ["Brown", 0x5a3e2a], ["Grey", 0x5a5a5e]],
 };
-const UNI_NAME = { coat: "Coat", legs: "Breeches", vest: "Waistcoat", sash: "Sash", hatColor: "Hat" };
-function uniformHtml(S) {
-  const u = { ...UNIFORM_DEFAULT, ...(S.uniform || {}) }, hex = c => "#" + c.toString(16).padStart(6, "0");
-  const n = S.people.filter(p => p.job === "watch").length;
-  const row = k => (k === "hatColor" && u.hat === "helmet") || (k === "sash" && u.hat !== "helmet") ? "" : `<div class="uni-row"><span class="uni-k">${UNI_NAME[k]}</span>${UNI[k].map(([nm, c]) => `<button class="uni-sw${u[k] === c ? " on" : ""}${c == null ? " none" : ""}" data-u="${k}" data-c="${c == null ? "" : c}" title="${esc(nm)}" style="${c == null ? "" : `background:${hex(c)}`}">${c == null ? "—" : ""}</button>`).join("")}</div>`;
-  return `<div class="law-note">What the watch wear, so everyone knows them on sight. ${n ? `${n} on the watch now; they change into it at once.` : "Nobody is on the watch yet — research Policing, build a jail, and set someone to it."}</div>
-    <div class="uni-row"><span class="uni-k">Headgear</span><button class="uni-hat${u.hat === "helmet" ? " on" : ""}" data-hat="helmet">Morion helmet</button><button class="uni-hat${u.hat !== "helmet" ? " on" : ""}" data-hat="tricorn">Tricorn</button></div>
-    ${["coat", "legs", "vest", "sash", "hatColor"].map(row).join("")}
-    <div class="law-note">The sash goes with the helmet, and a hat's colour with the tricorn. A woman on the watch wears the coat with a skirt the colour of the breeches.</div>`;
+const UNI_ROWS = [["hat", "Headgear"], ["coat", "Coat"], ["legs", "Breeches / skirt"], ["vest", "Waistcoat"], ["sash", "Sash"], ["hatColor", "Tricorn colour"]];
+const hexOf = c => "#" + c.toString(16).padStart(6, "0");
+// a picture of the uniform, a man and a woman of the watch side by side, drawn from what's chosen
+function uniformPicture(u) {
+  const C = hexOf(u.coat), L = hexOf(u.legs), V = hexOf(u.vest), S = u.sash == null ? null : hexOf(u.sash), H = hexOf(u.hatColor);
+  const skin = "#e2b894", sock = "#e8e0d0", shoe = "#241a14", steel = "#a4a8ae", steelD = "#7a7e84";
+  const hat = (cx, cy) => u.hat === "tricorn"
+    ? `<path d="M${cx - 21} ${cy + 1} Q${cx} ${cy - 22} ${cx + 21} ${cy + 1} Q${cx} ${cy - 5} ${cx - 21} ${cy + 1}Z" fill="${H}"/><path d="M${cx - 21} ${cy + 1} Q${cx} ${cy + 6} ${cx + 21} ${cy + 1}" stroke="${H}" stroke-width="3" fill="none"/>`
+    : `<path d="M${cx - 3} ${cy - 13} Q${cx} ${cy - 27} ${cx + 3} ${cy - 13}Z" fill="${steelD}"/><path d="M${cx - 12} ${cy} Q${cx - 12} ${cy - 16} ${cx} ${cy - 16} Q${cx + 12} ${cy - 16} ${cx + 12} ${cy}Z" fill="${steel}"/><path d="M${cx - 25} ${cy - 11} Q${cx - 14} ${cy + 3} ${cx} ${cy + 3} Q${cx + 14} ${cy + 3} ${cx + 25} ${cy - 11} Q${cx + 12} ${cy - 2} ${cx} ${cy - 1} Q${cx - 12} ${cy - 2} ${cx - 25} ${cy - 11}Z" fill="${steelD}"/>`;
+  const sash = (x0, y0, x1, y1, bw) => S ? `<path d="M${x0} ${y0} L${x0 + 9} ${y0} L${x1 + 4} ${y1} L${x1 - 5} ${y1}Z" fill="${S}"/><rect x="${50 - bw}" y="${y1 - 3}" width="${bw * 2}" height="6" fill="${S}"/>` : "";
+  const man = `<g>
+    <rect x="39" y="150" width="9" height="34" fill="${sock}"/><rect x="52" y="150" width="9" height="34" fill="${sock}"/>
+    <rect x="37" y="182" width="12" height="6" rx="2" fill="${shoe}"/><rect x="51" y="182" width="12" height="6" rx="2" fill="${shoe}"/>
+    <rect x="38" y="126" width="24" height="28" rx="3" fill="${L}"/>
+    <path d="M33 62 L67 62 L72 150 L28 150Z" fill="${C}"/>
+    <path d="M44 64 L56 64 L58 128 L42 128Z" fill="${V}"/>
+    ${sash(34, 62, 62, 112, 13)}
+    <rect x="24" y="62" width="10" height="56" rx="4" fill="${C}"/><rect x="66" y="62" width="10" height="56" rx="4" fill="${C}"/>
+    <circle cx="29" cy="121" r="4" fill="${skin}"/><circle cx="71" cy="121" r="4" fill="${skin}"/>
+    <rect x="46" y="50" width="8" height="12" fill="${skin}"/><ellipse cx="50" cy="42" rx="11" ry="13" fill="${skin}"/>
+    <path d="M42 50 Q50 60 58 50 Q50 54 42 50Z" fill="#3a2a1e"/>
+    ${hat(50, 33)}</g>`;
+  const woman = `<g>
+    <path d="M35 108 L65 108 L76 186 L24 186Z" fill="${L}"/>
+    <rect x="36" y="186" width="11" height="5" rx="2" fill="${shoe}"/><rect x="53" y="186" width="11" height="5" rx="2" fill="${shoe}"/>
+    <path d="M35 62 L65 62 L63 110 L37 110Z" fill="${C}"/>
+    ${sash(36, 62, 61, 106, 15)}
+    <rect x="26" y="62" width="9" height="52" rx="4" fill="${C}"/><rect x="65" y="62" width="9" height="52" rx="4" fill="${C}"/>
+    <circle cx="30" cy="117" r="4" fill="${skin}"/><circle cx="70" cy="117" r="4" fill="${skin}"/>
+    <rect x="46" y="50" width="8" height="12" fill="${skin}"/><ellipse cx="50" cy="42" rx="10" ry="12" fill="${skin}"/>
+    ${hat(50, 34)}</g>`;
+  return `<svg class="uni-pic" viewBox="0 0 220 200" aria-label="The uniform"><g transform="translate(5 4)">${man}</g><g transform="translate(115 4)">${woman}</g></svg>`;
+}
+function govWatch(t) {
+  const S = t.S, root = G.town.S, u = { ...UNIFORM_DEFAULT, ...(root.uniform || {}) };
+  const knows = t.knows ? t.knows("policing") : true, jail = t.has && t.has("jail");
+  const watch = S.people.filter(p => p.job === "watch" && !p.child), held = S.people.filter(p => p.jailedDay != null && p.jailedDay >= (t.day || 0) - 1);
+  const step = (done, text) => `<div class="w-step${done ? " done" : ""}"><span>${done ? "✓" : "·"}</span>${text}</div>`;
+  let h = `<div class="mc-sec">Having a watch</div>
+    ${step(knows, "Research <b>Policing</b> (Tech tree → Military Philosophy). It's one of the first things you can learn.")}
+    ${step(jail, "Build a <b>Jail</b> (B).")}
+    ${step(watch.length > 0, `Put someone on the watch: walk up to them, press <b>F</b>, and choose <b>Watch</b>.${watch.length ? ` On the watch now: <b>${esc(watch.map(p => fullName(p)).join(", "))}</b>.` : ""}`)}
+    <div class="law-note">The watch walk the settlement. At night they catch thieves and hold them in the jail for a day, and what was stolen comes back. They pull apart people fighting in the street. You can also ask one to follow you about (F by them).${held.length ? ` In the jail now: ${esc(held.map(p => p.name).join(", "))}.` : ""}</div>
+    <div class="mc-sec">The uniform</div>
+    <div class="law-note">Everyone on the watch, in every settlement, wears it, so you can tell them from everyone else at a glance. Click to change it: they change into it straight away, or as soon as they come outdoors.</div>
+    <div class="uni-wrap"><div class="uni-opts">`;
+  for (const [k, label] of UNI_ROWS) {
+    if (k === "hat") { h += `<div class="uni-row"><span class="uni-k">${label}</span><button class="uni-hat${u.hat !== "tricorn" ? " on" : ""}" data-hat="helmet">Steel helmet</button><button class="uni-hat${u.hat === "tricorn" ? " on" : ""}" data-hat="tricorn">Tricorn hat</button></div>`; continue; }
+    const off = k === "hatColor" && u.hat !== "tricorn";
+    const name = (UNI[k].find(([, c]) => c === u[k]) || ["—"])[0];
+    h += `<div class="uni-row${off ? " off" : ""}"><span class="uni-k">${label}</span><span class="uni-sws">${UNI[k].map(([nm, c]) => `<button class="uni-sw${u[k] === c ? " on" : ""}${c == null ? " none" : ""}" ${off ? "disabled" : ""} data-u="${k}" data-c="${c == null ? "" : c}" title="${esc(nm)}" style="${c == null ? "" : `--sw:${hexOf(c)}`}">${c == null ? "✕" : ""}</button>`).join("")}</span><span class="uni-name">${off ? "only with the tricorn" : esc(name)}${k === "vest" ? " <i>(men)</i>" : ""}</span></div>`;
+  }
+  h += `<button class="uni-reset">Back to the first uniform</button></div>${uniformPicture(u)}</div>`;
+  return h;
+}
+function wireWatch(t) {
+  const root = G.town.S;
+  const setU = (k, v) => { root.uniform = { ...UNIFORM_DEFAULT, ...(root.uniform || {}), [k]: v }; G.town.persist(); G.town.refreshWatch(); renderGov(true); };
+  for (const b of document.querySelectorAll("#govBody .uni-sw")) b.onclick = () => setU(b.dataset.u, b.dataset.c === "" ? null : +b.dataset.c);
+  for (const b of document.querySelectorAll("#govBody .uni-hat")) b.onclick = () => setU("hat", b.dataset.hat);
+  const r = document.querySelector("#govBody .uni-reset"); if (r) r.onclick = () => { root.uniform = { ...UNIFORM_DEFAULT }; G.town.persist(); G.town.refreshWatch(); renderGov(true); };
 }
 function wireLaws(t) {
   const S = t.S;
-  const setU = (k, v) => { S.uniform = { ...UNIFORM_DEFAULT, ...(S.uniform || {}), [k]: v }; t.persist(); t.refreshWatch && t.refreshWatch(); renderGov(true); };
-  for (const b of document.querySelectorAll("#govBody .uni-sw")) b.onclick = () => setU(b.dataset.u, b.dataset.c === "" ? null : +b.dataset.c);
-  for (const b of document.querySelectorAll("#govBody .uni-hat")) b.onclick = () => setU("hat", b.dataset.hat);
   $("lawTax").oninput = e => { S.tax = +e.target.value / 100; $("lawTaxV").textContent = e.target.value + "%"; t.persist(); };
   $("lawBiz").oninput = e => { S.bizTax = +e.target.value / 100; $("lawBizV").textContent = e.target.value + "%"; t.persist(); };
   $("lawBiz1").onchange = e => { S.laws.business = e.target.checked; t.persist(); };
@@ -793,6 +842,10 @@ function renderGov(full) {
   else if (govTab === "families") {
     const html = govFamilies(t);
     if (full || html !== govPeopleHtml || key !== govKey) { const top = $("govBody").scrollTop; $("govBody").innerHTML = html; govPeopleHtml = html; wireFamilies(t); $("govBody").scrollTop = top; }
+  }
+  else if (govTab === "watch") {
+    const html = govWatch(t);
+    if (full || html !== govPeopleHtml || key !== govKey) { const top = $("govBody").scrollTop; $("govBody").innerHTML = html; govPeopleHtml = html; wireWatch(t); $("govBody").scrollTop = top; }
   }
   else if (govTab === "faith") {
     const html = govFaith(t);

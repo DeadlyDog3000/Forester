@@ -189,15 +189,15 @@ export const CHILD_DAYS = 3 * YEAR, BABY_NAMES = { m: ["Jürgen", "Klaus", "Henn
 export const grownFrac = p => !p.child ? 1 : p.grownDay == null || p.bornDay == null ? 0.45 : Math.max(0, Math.min(1, (G.town ? G.town.day - p.bornDay : 0) / Math.max(1, p.grownDay - p.bornDay)));
 const childScale = p => p.child ? 0.6 + 0.3 * grownFrac(p) : 1;
 // the watch's uniform: a coat, breeches, a waistcoat, a sash, and a morion helmet or a tricorn
-export const UNIFORM_DEFAULT = { coat: 0x7a2a26, legs: 0x2a2a30, vest: 0xc8b890, sash: 0xe0d8c0, hat: "helmet", hatColor: 0x1e1a18 };
+export const UNIFORM_DEFAULT = { coat: 0x7a2a26, legs: 0x2a2a30, vest: 0xc8b890, sash: null, hat: "helmet", hatColor: 0x1e1a18 };
+// the watch's look, as the government has it: the same uniform on a man or a woman, in a helmet or a tricorn
+export function watchLook(p, S) {
+  const u = { ...UNIFORM_DEFAULT, ...(S && S.uniform || {}) }, f = p.sex === "f", tri = u.hat === "tricorn";
+  return { model: (f ? "watchwoman" : "watchman") + (tri ? "_tricorn" : ""), name: p.name, seed: p.seed, coat: u.coat, legs: u.legs,
+    skirt: f, skirtColor: f ? u.legs : undefined, vest: f ? undefined : u.vest, sash: u.sash ?? undefined, hide: u.sash == null ? ["sash"] : undefined, hatColor: tri ? u.hatColor : undefined };
+}
 function settlerLook(p, S) {
-  if (p.job === "watch" && !p.child && S) {
-    const u = { ...UNIFORM_DEFAULT, ...(S.uniform || {}) };
-    if (p.sex === "f") return { model: "townswoman", name: p.name, skirt: true, seed: p.seed, coat: u.coat, skirtColor: u.legs, apron: undefined, hat: "bonnet" };
-    return u.hat === "helmet"
-      ? { model: "watchman", name: p.name, seed: p.seed, coat: u.coat, legs: u.legs, vest: u.vest, sash: u.sash ?? undefined }
-      : { model: "townsman", name: p.name, seed: p.seed, coat: u.coat, legs: u.legs, vest: u.vest, hat: "tricorn", hatColor: u.hatColor };
-  }
+  if (p.job === "watch" && !p.child && S) return watchLook(p, S);
   const r = p.seed;
   const pick = (a, k) => a[(r * 7 + k * 13) % a.length];
   return p.sex === "f"
@@ -1836,7 +1836,7 @@ export class Town {
     if (!this.S.people.includes(p)) this.S.people.push(p);
     if (!p.family) ensureFamilies(this.S);
     const a = new Actor(settlerLook(p, this.S), x ?? CLEARING.x + 2, z ?? CLEARING.z + 6, 0);
-    a.settler = p; this.actors.push(a);
+    a.settler = p; a.dress = this.dressOf(p); this.actors.push(a);
     if (!p.child) {
       // (while a story is gathering people, it decides what talking does; otherwise it changes their work)
       a.talkIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 1.4; }, reach: 2.4, actor: a,
@@ -1876,7 +1876,7 @@ export class Town {
       do: () => {
         const was = p.job; p.job = j; if (j !== "watch") p.follow = false; this.persist(); UI.bark(p.name, JOBS[j].reply, 3); this.emit("job", p); G.closeTrade && G.closeTrade();
         // (into the watch's uniform, or out of it)
-        if ((was === "watch") !== (j === "watch")) { const a = this.actors.find(x => x.settler === p && !x.gone); if (a && !a.inside) this.rebuildActor(a); }
+        if ((was === "watch") !== (j === "watch")) this.refreshWatch();
       } }))), null);
   }
   // called away from their work, to stand somewhere (the fire, for a gathering)
@@ -1983,7 +1983,13 @@ export class Town {
     return this.addPerson(p, x, z);
   }
   // the watch's uniform, as the government has it (G, Taxes & trade): everyone on the watch put into it
-  refreshWatch() { for (const a of this.actors.slice()) if (a.settler && a.settler.job === "watch" && !a.gone && !a.dead && !a.inside) this.rebuildActor(a); }
+  // (checked every few seconds: whoever is dressed wrong for their work — put on the watch, taken off it, the uniform
+  // changed while they were indoors — changes as soon as they're out and not in a fight)
+  dressOf(p) { return p.job === "watch" && !p.child ? JSON.stringify(watchLook(p, this.S)) : "own"; }
+  refreshWatch() {
+    if ((this.raids && this.raids.active) || (this.S.revolt && this.S.revolt.active)) return;
+    for (const a of this.actors.slice()) if (a.settler && !a.gone && !a.dead && !a.inside && !a.lying && !a.fighting && !a.summoned && (a.dress ?? "own") !== this.dressOf(a.settler)) this.rebuildActor(a);
+  }
   // ---- children: born to a family that has a man and a woman and is doing well, and grown in three years ----
   growChildren() {
     const S = this.S;
@@ -2412,6 +2418,7 @@ export class Town {
   // ---- time: days pass; the forest grows back, fields ripen, people eat ----
   update(dt, dayLength = 300) {
     this.t += dt; this.dayLen = dayLength;
+    if ((this._dressT = (this._dressT || 0) + dt) > 3) { this._dressT = 0; this.refreshWatch(); }
     // how long it has been played (free play): some things wait on it
     if (G.mode === "play" && this.techGates) this.S.playSecs = (this.S.playSecs || 0) + dt;
     if (this.S.revolt && this.S.revolt.active && (this._revT = (this._revT || 0) - dt) <= 0) { this._revT = 1; checkEnd(this); }

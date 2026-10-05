@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.43.1", date: "5 October 2026", title: "The watch, in uniform",
+    items: [
+      "The watch has a tab of its own in the government menu (G, Watch). It shows the steps to having a watch, ticked off as you do them: research Policing, build a jail, put someone on the watch. It says what the watch does, and who is on it.",
+      "The uniform is chosen there. The colour swatches were blank before: the menu's own button style covered them, so you couldn't see what you were picking. They show their colours now, the one chosen is ringed, its name is beside it, and a picture shows a man and a woman of the watch in it.",
+      "The watch wear the uniform properly now. Women on the watch were dressed as housewives, in an apron and bonnet; they wear the uniform too, with a skirt the colour of the breeches. The steel helmet looked like a black felt hat; it's bright steel, with a crest and a brim swept up front and back. Choosing no sash takes the sash off. The tricorn keeps the waistcoat and sash, instead of turning them into an ordinary townsman.",
+      "Anyone put on or taken off the watch, or indoors when you changed the uniform, changes into the right clothes as soon as they're out.",
+    ],
+  },
+  {
     v: "0.43.0", date: "4 October 2026", title: "Read all about it",
     items: [
       "A news stand: research Broadsheets (a root of the tech tree, cheap and quick) and build one (B). F at it to read the settlement's own broadsheet. It covers who was born, died, came or left; who sold what to the pedlar, and what the thieves sold on the quiet; thefts and who the watch caught; quarrels, fights and feuds; the day's taxes; what was built, rebuilt or pulled down; raids, hardship, and word from abroad. It's sorted by day, and you can read one settlement at a time or one kind of news at a time. The news is kept from now on, so it's there to read whenever you build the stand.",

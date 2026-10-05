@@ -239,7 +239,7 @@ export function makePerson(o = {}) {
     // a child's head is big for the body; it evens out as they grow
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };
-  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash });
+  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide });
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
   noSnow(P.root);
   return P;
@@ -282,6 +282,9 @@ async function fetchModel(k, url) {
       m.userData.part = n;
       m.userData.surface = CLOTH_PARTS.has(n) ? "cloth" : BARE_PARTS.has(n) ? "none" : SURF_BY_NAME[n] || "auto";
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
+      // (a hat of steel — the watch's morion — is polished metal, not felt: no weave on it, and bright, since with no
+      // reflection to show a metal goes dark)
+      if (n === "hat" && m.metalness > 0.2) { m.userData.part = "helmet"; m.userData.surface = "none"; m.metalness = 0.12; m.roughness = 0.26; m.color.set(0xd2d6dc); m.emissive.set(0x1c2026); }
       // a building is solid, closed shapes: drawn from the outside only (both sides drawn, the back of one face fights
       // the face behind it — a gable built of two, a frame against its wall — and flickers); and its trim — timber,
       // iron, glass — always drawn in front of the plaster or brick it lies on
@@ -321,6 +324,8 @@ function useModel(P, key, colors = {}) {
   m.scene.traverse(o => {
     if (!o.isMesh || !o.material) return;
     const part = o.material.userData.part, want = colors[part];
+    // (a part left off altogether: the watch's sash, when the uniform has none)
+    if (colors.hide && colors.hide.includes(part)) { o.visible = false; return; }
     if (want === undefined || want === null) return;
     if (!own[part]) { own[part] = o.material.clone(); own[part].color.set(want); addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface }); }
     o.material = own[part];

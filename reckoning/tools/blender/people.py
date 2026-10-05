@@ -48,6 +48,11 @@ CAST = {
     "jakob": dict(sex="m", age="old", coat=0x5a4a3a, legs=0x3a3028, hair=0x9a9a9a, beard=0xa8a8a8, skin=0xd8a888, hat="cap", hatColor=0x3a3a40, stoop=0.12),
     "magistrate": dict(sex="m", age="old", coat=0x18181c, legs=0x18181c, hair=0xd8d4cc, beard=0xb8b4ac, skin=0xe0b898, hat="hat", bands=True, chain=True, longHair=True),
     "watchman": dict(sex="m", age="mid", coat=0x7a2a26, legs=0x2a2a30, vest=0xc8b890, hair=0x3a2a1e, skin=0xd4a07a, hat="helmet", sash=0xe0d8c0, beard=0x3a2a1e, beardShort=True),
+    # the watch, as the government dresses it: a man or a woman, in a morion helmet or a tricorn — the game tints the
+    # coat, breeches (or skirt), waistcoat, sash and hat to the uniform chosen
+    "watchman_tricorn": dict(sex="m", age="mid", coat=0x7a2a26, legs=0x2a2a30, vest=0xc8b890, hair=0x3a2a1e, skin=0xd4a07a, hat="tricorn", sash=0xe0d8c0, beard=0x3a2a1e, beardShort=True),
+    "watchwoman": dict(sex="f", age="mid", coat=0x7a2a26, skirt=0x2a2a30, hair=0x6a4a30, skin=0xe2b894, hat="helmet", sash=0xe0d8c0),
+    "watchwoman_tricorn": dict(sex="f", age="mid", coat=0x7a2a26, skirt=0x2a2a30, hair=0x6a4a30, skin=0xe2b894, hat="tricorn", sash=0xe0d8c0),
     "albers": dict(sex="f", age="old", coat=0x5a4a3a, skirt=0x3e4a5c, apron=0xf0ebe0, hair=0x8a8078, skin=0xe0b898, hat="bonnet", wide=0.1),
     "townsman": dict(sex="m", age="mid", coat=0x5b4a3a, legs=0x3a3028, hair=0x4a3a2a, skin=0xdcb08a, hat="tricorn"),
     "townswoman": dict(sex="f", age="mid", coat=0x6a5a48, skirt=0x4a4038, apron=0xf0ebe0, hair=0x6a4a30, skin=0xe2b894, hat="bonnet"),
@@ -250,7 +255,7 @@ def build_person(key):
     if f:
         mat("skirt", rgb(o["skirt"]))
         if o.get("apron"): mat("apron", rgb(o["apron"]))
-    if o.get("hat"): mat("hat", rgb(o.get("hatColor", 0x1e1a18 if o["hat"] != "bonnet" else 0xf0ebe0) if o["hat"] != "helmet" else 0x8a8e94), 0.5 if o["hat"] == "helmet" else 0.9, 0.8 if o["hat"] == "helmet" else 0.0)
+    if o.get("hat"): mat("hat", rgb(o.get("hatColor", 0x1e1a18 if o["hat"] != "bonnet" else 0xf0ebe0) if o["hat"] != "helmet" else 0xa4a8ae), 0.42 if o["hat"] == "helmet" else 0.9, 0.3 if o["hat"] == "helmet" else 0.0)
     if o.get("sash"): mat("sash", rgb(o["sash"]))
 
     skin = rgb(o["skin"])
@@ -756,6 +761,10 @@ def build_person(key):
             P.cyl("apron", WHITE, (0, 0, 0.93), (0, 0, 0.975), 0.176 + wide, 0.174 + wide, segs=24)
             for sd in (-1, 1):
                 P.box("apron", WHITE, (sd * 0.03, 0.16 + wide * 0.6, 0.84), (0.03, 0.006, 0.18), (0.08, 0, sd * 0.15))
+        if o.get("sash"):
+            # the watch's sash on a woman: a belt at the waist, and the band over the shoulder across the bodice
+            P.cyl("sash", WHITE, (0, 0, 0.965), (0, 0, 1.02), 0.178 + wide, 0.172 + wide, segs=24)
+            P.box("sash", WHITE, (0.0, -0.012, 1.2), (0.055, 0.29, 0.55), (0.16, 0.6, 0))
         for sd in (-1, 1):
             x0 = sd * (sh + 0.035)
             P.cyl("linen", WHITE, (x0, 0.01, 1.075), (x0, 0.012, 1.115), 0.05, 0.054, segs=14)
@@ -884,10 +893,14 @@ def build_person(key):
         merge(b, "hat")
     elif hat == "helmet":
         # a morion: the high crest, the brim swept up into points front and back
-        dome("hat", WHITE, (0, hy, top - 0.045), (0.112, 0.13, 0.1), 0.0)
-        dome("hat", WHITE, (0, hy, top - 0.03), (0.006, 0.125, 0.1), 0.0, 16, 10)
-        rows = ring_rows(0.11, 0.2, 5, 40, lambda t, a, r: top - 0.05 + 0.08 * t ** 1.6 * math.cos(a) ** 2, lambda t, a, r: r * (1 + 0.25 * math.cos(a) ** 2 * t), cy=hy)
-        sheet(P, "hat", rows, thick=0.004, closed=True)
+        dome("hat", WHITE, (0, hy, top - 0.05), (0.11, 0.128, 0.125), 0.0)
+        dome("hat", WHITE, (0, hy, top - 0.03), (0.011, 0.116, 0.2), 0.0, 16, 10)
+        rows = ring_rows(0.108, 0.168, 6, 48, lambda t, a, r: top - 0.055 + 0.17 * t ** 1.3 * math.cos(a) ** 2 + 0.03 * t * math.sin(a) ** 2, lambda t, a, r: r * (1 + 0.45 * math.cos(a) ** 2 * t), cy=hy)
+        sheet(P, "hat", rows, thick=0.005, closed=True, col=lambda i, j: (0.82, 0.82, 0.84, 1) if i == 5 else WHITE)
+        # (a rolled edge, and a row of brass rivets round the skull)
+        for i in range(14):
+            a = i / 14 * 2 * PI
+            P.sphere("metal", WHITE, (math.sin(a) * 0.108, hy - math.cos(a) * 0.126, top - 0.045), (0.006, 0.006, 0.006), segs=6, rings=4)
     elif hat == "furhat":
         # a shapeless cap of fur, pulled down to the brows
         b = hair_shell(RX, RY, RZ, 32, 22, lambda X, Y, Z, phi: smooth((Z - piecewise([(0, 0.5), (1.2, 0.3), (1.6, 0.0), (PI, -0.25)], abs(phi))) / 0.05),
