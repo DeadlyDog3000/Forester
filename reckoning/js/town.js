@@ -1684,6 +1684,7 @@ export class Town {
       if (this.raids && this.raids.swing(pl)) return hitMan();
       if (revoltSwing(this, pl)) return hitMan();
       if (w.cave && w.cave.swing(pl)) return hitMan();
+      if (w.camps && w.camps.swing(pl)) return hitMan();
       if (!(pl.blade && pl.blade !== "axe")) w.adoptNear && w.adoptNear(pl);
       if (pl.blade && pl.blade !== "axe" && ARMS[pl.blade]) { if (!this._bladeTip) { this._bladeTip = true; UI.hint(`A ${ARMS[pl.blade].name.toLowerCase()} won't fell a tree. Take the axe for that.`, 3); } return; }
       const f = pl.forward();

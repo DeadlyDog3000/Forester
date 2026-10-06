@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.44.0", date: "6 October 2026", title: "Camps in the woods",
+    items: [
+      "Raiders' camps: a band has made camp in the woods near each of your settlements: a fire, lean-tos of hides, and a stash of what they've taken. Each one is marked on the map (J) with a red cross. They sit by the fire until they see you; crouch (C) to get closer first. Put them all down, and F at the stash takes it: money, ore and metal, meat, arrows, and the logs and rye they stole, back into the stores. Clearing the camp near your first settlement puts its next raid off a few days. Some days later another band moves in somewhere else.",
+      "Raiders camped down in the caves keep a stash by their fire too, a richer one, and they're dressed as raiders now, not as townsmen.",
+      "Better surfaces everywhere: the grain of wood, stone, brick, bark, plaster and cloth now catches the light as real relief, not just as colour. Weather shows on things too. Each log and board is its own shade, and timber greys where the rain gets at it. Rain streaks run down plaster walls. Moss and lichen grow on stone, brick and tiles where they face the sky or sit low and wet. The relief is turned off with the shadows on the lowest graphics setting.",
+    ],
+  },
+  {
     v: "0.43.1", date: "5 October 2026", title: "The watch, in uniform",
     items: [
       "The watch has a tab of its own in the government menu (G, Watch). It shows the steps to having a watch, ticked off as you do them: research Policing, build a jail, put someone on the watch. It says what the watch does, and who is on it.",

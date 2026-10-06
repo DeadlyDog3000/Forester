@@ -11,6 +11,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { makeArm, makeTorch } from "./models.js";
 import { CLEARING } from "./woods.js";
+import { Bandit, swingAt, makeStash, lootStash } from "./camps.js";
 
 // where the caves are laid out (well away from everything), and how fine the ground is made
 const O = { x: 1500, z: -1500 }, CELL = 1.5, BASE = -60;
@@ -196,7 +197,7 @@ export class Caves {
     UI.fade(1, 0.5).then(() => {
       this.inside = false; this.root.visible = false;
       if (this.lantern && this.lantern.parent) this.lantern.parent.remove(this.lantern);
-      for (const b of this.band || []) b.a.remove(); this.band = [];
+      for (const b of this.band || []) b.remove(); this.band = [];
       const m = this.mouthAt; pl.place(m.x + Math.sin(m.ry) * 1.2, m.z + Math.cos(m.ry) * 1.2, m.ry + Math.PI);
       // those with you come up too — carried up, if they were beaten down
       if (G.town) for (const a of G.town.actors) if (a.settler && a.settler.follow && !a.dead && this.holds(a.pos.x, a.pos.z)) {
@@ -220,7 +221,7 @@ export class Caves {
     if (!this.holds(G.player.pos.x, G.player.pos.z) && !this._entering) {
       this.inside = false; this.root.visible = false;
       if (this.lantern && this.lantern.parent) this.lantern.parent.remove(this.lantern);
-      for (const b of this.band || []) b.a.remove(); this.band = [];
+      for (const b of this.band || []) b.remove(); this.band = [];
       G.sky && (G.sky.visible = true); G.reAtmo && G.reAtmo(); return;
     }
     for (const b of this.band || []) b.tick(dt);
@@ -230,88 +231,38 @@ export class Caves {
     G.scene.fog.color.setHex(0x0c0a08); G.scene.fog.near = 6; G.scene.fog.far = 55;
     if (G.sky) G.sky.visible = false;
   }
-  // now and then, raiders have made their camp down here: a fire in a far hall, and three or four of them round it
+  // now and then, raiders have made their camp down here: a fire in a far hall, three or four of them round it,
+  // and a stash of what they've taken behind it
   bandits() {
+    for (const b of this.band || []) b.remove();
     this.band = [];
+    if (this.camp) { this.root.remove(this.camp); this.camp = null; }
+    if (this.stashIt) { this.w.removeInteract(this.stashIt); this.stashIt = null; }
     if (Math.random() > 0.45) return;
     const far = this.halls.slice(3), h = far[Math.floor(Math.random() * far.length)];
-    const fire = makeFlame(1.6, new THREE.PointLight(0xff8a3a, 12, 18, 1.5)); fire.position.set(h.x, this.floorAt(h.x, h.z) + 0.1, h.z); this.root.add(fire);
+    const camp = this.camp = new THREE.Group(); this.root.add(camp);
+    const fire = makeFlame(1.6, new THREE.PointLight(0xff8a3a, 12, 18, 1.5)); fire.position.set(h.x, this.floorAt(h.x, h.z) + 0.1, h.z); camp.add(fire);
+    this.fire = { x: h.x, z: h.z };
+    const sx = h.x + 4.2, sz = h.z - 1.5, st = makeStash(); st.position.set(sx, this.floorAt(sx, sz), sz); st.rotation.y = -1.2; camp.add(st);
+    let looted = false;
+    this.stashIt = this.w.addInteract({ x: sx - 1, z: sz, y: this.floorAt(sx, sz) + 0.8, reach: 2.4, hold: 2.5, anim: "craft",
+      label: () => looted ? "The stash — empty" : this.band.some(b => !b.down) ? `The raiders' stash (${this.band.filter(b => !b.down).length} of them still standing)` : "Loot the raiders' stash",
+      can: () => this.inside && !looted,
+      use: () => {
+        const up = this.band.filter(b => !b.down);
+        if (up.length) { for (const b of up) b.wake(); UI.hint(`Not with ${up.length === 1 ? "one of them" : `${up.length} of them`} still on their feet.`, 3); return; }
+        looted = true;
+        const { got, full } = lootStash(1.4, G.town);
+        UI.hint(`The stash: ${got.join(", ")}.${full ? " (Your pack is full — some was left.)" : ""}`, 7);
+        G.report && G.report("A band of raiders camped in the caves was put down, and their stash taken.", "big");
+      } });
     const n = 3 + Math.floor(Math.random() * 2);
     for (let i = 0; i < n; i++) {
       const a = i / n * TAU, x = h.x + Math.cos(a) * 3, z = h.z + Math.sin(a) * 3;
       this.band.push(new Bandit(this, x, z, i));
     }
   }
+  get wakeText() { return "Raiders — they've made their camp down here!"; }
   // your stroke: a bandit in front of you takes it
-  swing(pl) {
-    if (!this.inside) return false;
-    const f = pl.forward();
-    for (const b of this.band || []) {
-      if (b.down) continue;
-      const dx = b.a.pos.x - pl.pos.x, dz = b.a.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
-      if (d < 2.3 && (dx * f.x + dz * f.z) / d > 0.5) {
-        // struck by you: it's you he fights now (and whoever had you waits)
-        if (b.duel !== pl) { for (const o of this.band) if (o.duel === pl) o.duel = null; b.duel = pl; }
-        b.hurt(20 + Math.random() * 10); AUDIO.clang && AUDIO.clang(0.5, b.a.pos); G.practise && G.practise("strength", 0.6); return true; }
-    }
-    return false;
-  }
-}
-
-// a raider camped in the caves: sits by his fire until he sees you, then comes for you
-class Bandit {
-  constructor(cave, x, z, i) {
-    this.cave = cave; this.hp = 70; this.cool = 1; this.down = false; this.woke = false;
-    this.a = new Actor({ model: "townsman", name: "Raider", coat: [0x3a3228, 0x2e3228, 0x40302a][i % 3], legs: 0x2a2620, hat: ["cap", "hat", null][i % 3], hatColor: 0x241e1a, beard: 0x3e3226, seed: 900 + i }, x, z, 0);
-    this.arm = ["axe", "club", "sword", "knife"][i % 4];
-    this.a.hold(makeArm(this.arm)); this.a.heavy = true;
-  }
-  tick(dt) {
-    if (this.down) return;
-    const pl = G.player, a = this.a;
-    // one at a time: whoever he has squared up to, you or one of those with you, until one of them is down
-    const mates = G.town ? G.town.actors.filter(o => o.settler && o.settler.follow && !o.knocked && this.cave.holds(o.pos.x, o.pos.z)) : [];
-    const D = o => Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z), others = (this.cave.band || []).filter(b => b !== this && !b.down);
-    const taken = o => others.some(b => b.duel === o);
-    if (this.duel && (this.duel === pl ? G.downed || D(pl) > 25 : this.duel.knocked || !mates.includes(this.duel))) this.duel = null;
-    if (!this.duel && this.woke) {
-      const free = [pl, ...mates].filter(o => !taken(o)).sort((p, q) => D(p) - D(q))[0];
-      if (free && D(free) < 18) this.duel = free;
-    }
-    const near = [pl, ...mates].sort((p, q) => D(p) - D(q))[0];
-    const tp = (this.duel || near).pos, foe = this.duel && this.duel !== pl ? this.duel : null;
-    let d = D(this.duel || near);
-    if (!this.woke && d < 15) { this.woke = true; AUDIO.voice && AUDIO.voice("war", { at: a.pos }); UI.hint("Raiders — they've made their camp down here!", 3); }
-    if (!this.woke) return;
-    a.squareTo = this.duel || near;
-    this.cool -= dt; this.re = (this.re || 0) - dt;
-    // nobody free to fight: he hangs back, waiting for his turn
-    if (!this.duel) { if (this.re <= 0 && (d < 3.5 || d > 6)) { this.re = 0.8; a.approach(tp, 4.5, 2.6); } return; }
-    if (d > 2.0) { if (!a.path.length || this.re <= 0) { this.re = 0.5; a.approach(tp, 1.4, 3.4); } return; }
-    if (this.cool > 0.35) { if (this.re <= 0) { this.re = 0.7 + Math.random() * 0.8; if (Math.random() < 0.65) a.circleAbout(tp, 1.6, 1.3); } return; }
-    if (d > 1.6) { if (this.re <= 0) { this.re = 0.3; a.approach(tp, 1.3, 2.6); } return; }
-    a.path = []; a.faceTo(tp.x, tp.z);
-    // the arm drawn back first, so you see it coming
-    if (this.cool <= 0 && !(this.wind > 0)) { this.wind = 0.62; a.person.setPose(Math.random() < 0.35 ? "overhead" : "chop"); return; }
-    if (this.wind > 0 && (this.wind -= dt) > 0) return;
-    if (this.cool <= 0) {
-      this.wind = 0;
-      this.cool = 1.2 + Math.random() * 0.5;
-      setTimeout(() => a.person && a.person.setPose("idle"), 550);
-      const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
-      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp > 0 && foe.person.flinch) foe.person.flinch(); if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; foe.squareTo = null; } } } }
-      else if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2.1) G.hurt(pl.guard ? dmg * 0.3 : dmg, "raider");
-      AUDIO.whoosh && AUDIO.whoosh(0.4, true);
-    }
-  }
-  hurt(n) {
-    this.hp -= n;
-    if (this.hp > 0) { AUDIO.voice && AUDIO.voice("pain", { at: this.a.pos }); this.a.person.flinch && this.a.person.flinch(); return; }
-    this.down = true; this.a.lying = true; this.a.path = []; this.a.squareTo = null; this.duel = null;
-    AUDIO.voice && AUDIO.voice("fear", { at: this.a.pos });
-    // what he had on him
-    const dm = 4 + Math.floor(Math.random() * 10);
-    G.body.purse = (G.body.purse || 0) + dm; G.body.dirty = true;
-    UI.hint(`He's down. ${dm} DM in his purse — yours now.`, 3);
-  }
+  swing(pl) { return this.inside && swingAt(this.band, pl); }
 }

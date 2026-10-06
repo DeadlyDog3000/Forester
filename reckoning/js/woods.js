@@ -580,6 +580,13 @@ export class Woods extends WorldBase {
     for (const br of this.branches) { const e = br.pts[br.pts.length - 1]; if (br.fork.sign) L("to " + br.fork.sign[1], e.x, e.z, 11, 11); }
     if (this.burner) L("the charcoal burner", this.burner.camp.x, this.burner.camp.z, 14, 12);
     if (this.huntOpen) L("the deer ride", HUNT.x, HUNT.z, 0, 12);
+    // the raiders' camps: a red cross, known to the settlement whether you've been there or not
+    if (this.camps && !(this.cave && this.cave.inside)) for (const k of this.camps.list()) {
+      const px = X(k.x), py = Z(k.z);
+      c.save(); c.strokeStyle = k.cleared ? "rgba(90, 70, 50, 0.6)" : "#9a2e22"; c.lineWidth = 2.4;
+      c.beginPath(); c.moveTo(px - 5, py - 5); c.lineTo(px + 5, py + 5); c.moveTo(px + 5, py - 5); c.lineTo(px - 5, py + 5); c.stroke(); c.restore();
+      label(c, k.cleared ? "an empty camp" : "raiders' camp", px, py + 15, 11);
+    }
   }
   get mapTitle() { return this.cave && this.cave.inside ? "The Cave" : "The Road North-East"; }
   get mapBounds() { if (this.cave && this.cave.inside) { const b = this.cave.b; return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1 }; } return { x0: -90, x1: 110, z0: -350, z1: 60 }; }

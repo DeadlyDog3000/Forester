@@ -6,7 +6,7 @@
 // people who walk around with you, the camera over (or behind) your eyes, and
 // the one thing in front of you that E would do something to.
 
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { makeMusket } from "./models.js";
@@ -1932,6 +1932,8 @@ export function setGraphics({ shadows = "high", drawMul = 1 } = {}) {
   renderer.shadowMap.enabled = want; renderer.shadowMap.type = type;
   renderer.shadowMap.autoUpdate = shadows !== "low";
   G.shadowEvery = shadows === "low" ? 2 : 1;
+  // (the grain's relief: off with the shadows, on the slowest setting)
+  RELIEF.value = shadows === "off" ? 0 : 1;
   if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
   // shadows on or off, or soft or hard: every material has to be rebuilt to match
   if (changed) G.scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });

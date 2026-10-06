@@ -19,6 +19,7 @@ import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
+import { Camps } from "./camps.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { Raids } from "./raid.js";
@@ -2785,6 +2786,9 @@ async function chFree(w) {
   // and, from the second year, raiders
   const raids = new Raids(w, town);
   onFrame(dt => raids.update(dt));
+  // and their camps in the woods, one near each settlement
+  const camps = new Camps(w, town);
+  onFrame(dt => camps.update(dt));
   // the board says the season and the day, and what wants doing next
   // the objective: what the settlement you're standing in wants next, and a word on any other that needs you
   onFrame(() => {
