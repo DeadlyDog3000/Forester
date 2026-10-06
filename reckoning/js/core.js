@@ -152,13 +152,13 @@ export const AUTO_FULL = { value: 1 };
 // a roofed room where no snow lies: (centre x, centre z, turn, on) and (half across, half deep, eaves height)
 export const ROOFED = { value: new THREE.Vector4(0, 0, 0, 0) }, ROOFSIZE = { value: new THREE.Vector3(2.8, 3.3, 0) };
 export const RELIEF = { value: 1 };   // (the graphics setting: 0 turns the relief off)
-export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true } = {}) {
+export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true } = {}) {
   const surf = SURFACE[surface] ?? -1;
   material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow };
   material.onBeforeCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount }; sh.uniforms.dNear = { value: seeThrough };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
-    sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF;
+    sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
@@ -170,7 +170,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         #endif
         vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         float dHgt = 0.0, dHk = 0.0;
         // leaves and needles right up against the eye (standing inside a tree) thin away in a fine dither,
@@ -198,7 +198,8 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
             diffuseColor.rgb *= 1.0 - (1.0 - g) * 0.12 * step(0.001, dHk);
             // weather: what years outdoors do to each stuff
             float up = vDNormal.y, side = 1.0 - an.y;
-            if (s == 0 || s == 4) {
+            if (dWeather < 0.5) {}
+            else if (s == 0 || s == 4) {
               // timber: every log and board its own shade, warmer or greyer, the grey where the rain gets at it
               float tone = dNoise(vec3(floor(vDWorld.y * 3.2), floor(vDWorld.x * 0.7), floor(vDWorld.z * 0.7)) + 0.37);
               diffuseColor.rgb *= mix(vec3(1.08, 1.02, 0.94), vec3(0.9, 0.9, 0.92), tone) * (0.92 + tone * 0.14);
@@ -208,7 +209,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
               float st = dNoise(vec3(vDWorld.x * 5.0, vDWorld.y * 0.35, vDWorld.z * 5.0)) * dNoise(vDWorld * 0.6 + 3.1);
               diffuseColor.rgb *= 1.0 - smoothstep(0.25, 0.6, st) * 0.16 * side;
             }
-            if (s == 2 || s == 3 || s == 7) {
+            if (dWeather > 0.5 && (s == 2 || s == 3 || s == 7)) {
               // stone, brick and tile: moss and lichen on what faces the sky and the wet low courses
               float mn = dFbm(vDWorld * 1.3 + 7.0), wet = max(up, 0.0) * 0.8 + (1.0 - smoothstep(0.0, 0.9, vDWorld.y - dGround)) * 0.6;
               float moss = smoothstep(0.55, 0.75, mn + wet * 0.35) * (1.0 - dSnow);
@@ -237,7 +238,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);
   };
-  material.customProgramCacheKey = () => "detail" + surf;
+  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w");
   material.needsUpdate = true;
   return material;
 }
@@ -546,15 +547,48 @@ export function makeSky() {
   return sky;
 }
 
-// A flickering flame: a small cone and an optional real light.
+// A flickering flame: tongues of fire, white-hot at the root and dark orange where they thin away to nothing (drawn
+// additively, so a darker colour is a fainter one), a soft glow round them, sparks going up — and an optional real light.
+const FLAME = {};
+function flameGeo(r, h, hot, cool) {
+  const g = new THREE.ConeGeometry(r, h, 7, 4, true); g.translate(0, h / 2, 0);
+  const p = g.attributes.position, c = new Float32Array(p.count * 3), a = new THREE.Color(hot), b = new THREE.Color(cool), t = new THREE.Color();
+  for (let i = 0; i < p.count; i++) { const k = Math.min(1, Math.max(0, p.getY(i) / h)); t.copy(a).lerp(b, Math.pow(k, 0.8)).multiplyScalar(1 - k * k * 0.85); c[i * 3] = t.r; c[i * 3 + 1] = t.g; c[i * 3 + 2] = t.b; }
+  g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+  return g;
+}
+function flameParts() {
+  if (FLAME.mat) return FLAME;
+  FLAME.mat = new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true });
+  FLAME.outer = flameGeo(0.07, 0.3, 0xffb040, 0x8a1a00);
+  FLAME.tongue = flameGeo(0.04, 0.26, 0xffc860, 0x6a1200);
+  FLAME.core = flameGeo(0.042, 0.15, 0xfff4d0, 0xff9a30);
+  const cv = document.createElement("canvas"); cv.width = cv.height = 64; const x = cv.getContext("2d");
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, "rgba(255,170,70,0.55)"); gr.addColorStop(0.4, "rgba(255,110,30,0.2)"); gr.addColorStop(1, "rgba(255,80,20,0)");
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+  FLAME.glow = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
+  FLAME.spark = new THREE.MeshBasicMaterial({ color: 0xffb060, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
+  FLAME.sparkGeo = new THREE.BoxGeometry(0.012, 0.012, 0.012);
+  return FLAME;
+}
 export function makeFlame(size = 1, light = null) {
-  const g = new THREE.Group();
-  const outer = new THREE.Mesh(new THREE.ConeGeometry(0.07 * size, 0.24 * size, 6), MAT.flame);
-  outer.position.y = 0.1 * size;
-  const inner = new THREE.Mesh(new THREE.ConeGeometry(0.045 * size, 0.14 * size, 6), MAT.ember);
-  inner.position.y = 0.06 * size;
+  const F = flameParts(), g = new THREE.Group();
+  const outer = new THREE.Mesh(F.outer, F.mat); outer.scale.setScalar(size); outer.renderOrder = 2;
+  const inner = new THREE.Mesh(F.core, F.mat); inner.scale.setScalar(size); inner.renderOrder = 3;
   g.add(outer, inner);
-  g.userData.flame = { outer, inner, t: Math.random() * 10, light, base: light ? light.intensity : 0 };
+  // (the tongues licking up round it, each on its own time)
+  const tongues = [];
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.Mesh(F.tongue, F.mat), a = i / 4 * Math.PI * 2 + Math.random();
+    m.position.set(Math.cos(a) * 0.035 * size, 0, Math.sin(a) * 0.035 * size); m.scale.setScalar(size * (0.7 + Math.random() * 0.5)); m.renderOrder = 2;
+    m.userData.ph = Math.random() * 10; m.userData.base = m.scale.y; m.userData.a = a;
+    g.add(m); tongues.push(m);
+  }
+  const glow = new THREE.Sprite(F.glow); glow.scale.setScalar(0.75 * size); glow.position.y = 0.1 * size; glow.renderOrder = 1; g.add(glow);
+  // sparks, only from a fire big enough to throw them
+  const sparks = [];
+  if (size >= 1.5) for (let i = 0; i < 4; i++) { const sp = new THREE.Mesh(F.sparkGeo, F.spark); sp.scale.setScalar(size * 0.6); sp.userData.t = Math.random(); g.add(sp); sparks.push(sp); }
+  g.userData.flame = { outer, inner, tongues, glow, sparks, size, t: Math.random() * 10, light, base: light ? light.intensity : 0 };
   if (light) { light.position.y = 0.25 * size; g.add(light); }
   return g;
 }
@@ -562,7 +596,22 @@ export function flicker(g, dt) {
   const f = g.userData.flame; if (!f) return;
   f.t += dt;
   const k = 0.85 + Math.sin(f.t * 13.1) * 0.08 + Math.sin(f.t * 23.7) * 0.06 + Math.sin(f.t * 5.3) * 0.05;
-  f.outer.scale.set(1, k, 1);
-  f.inner.scale.set(1, 1.6 - k * 0.6, 1);
+  const s = f.size || 1;
+  f.outer.scale.set(s * (1.05 - (k - 0.85) * 0.6), s * k * 1.05, s * (1.05 - (k - 0.85) * 0.6));
+  f.inner.scale.set(s, s * (1.6 - k * 0.6), s);
+  for (const m of f.tongues || []) {
+    const ph = m.userData.ph + f.t * (9 + m.userData.a);
+    m.scale.y = m.userData.base * (0.75 + 0.35 * Math.abs(Math.sin(ph)) + 0.1 * Math.sin(ph * 2.7));
+    m.rotation.z = Math.sin(ph * 0.7) * 0.18; m.rotation.x = Math.cos(ph * 0.9) * 0.15;
+  }
+  if (f.glow) f.glow.material.opacity = 1;
+  if (f.glow) f.glow.scale.setScalar(0.75 * s * (0.9 + (k - 0.85) * 1.5));
+  for (const sp of f.sparks || []) {
+    sp.userData.t += dt * (0.55 + (sp.id % 5) * 0.08);
+    if (sp.userData.t > 1) { sp.userData.t = 0; sp.userData.dx = (Math.random() - 0.5) * 0.25 * s; sp.userData.dz = (Math.random() - 0.5) * 0.25 * s; }
+    const u = sp.userData.t;
+    sp.position.set((sp.userData.dx || 0) * u + Math.sin(u * 9 + sp.id) * 0.03 * s, 0.15 * s + u * 0.9 * s, (sp.userData.dz || 0) * u);
+    sp.visible = u < 0.85;
+  }
   if (f.light) f.light.intensity = f.base * (0.8 + (k - 0.85) * 2.5);
 }

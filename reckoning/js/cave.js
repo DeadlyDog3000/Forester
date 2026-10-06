@@ -5,7 +5,7 @@
 // dark but for your lantern and a few old torches — thick with copper, tin and iron. Sometimes a band of
 // raiders has made its camp down there. The caves lie far off the map, under the ground as it were: the
 // forest's heightAt asks the cave for its floor while you are in it.
-import { THREE, mat, MAT, rng, TAU, makeFlame, camera } from "./core.js";
+import { THREE, mat, MAT, rng, TAU, makeFlame, camera, addDetail } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -67,8 +67,10 @@ export class Caves {
         const x = X(i), z = Z(j), s = sd[k], f = this.floorAt(x, z);
         const h = roof ? (s > 0 ? f + 2.9 + Math.min(9, s * 0.75) + (r() - 0.5) * 0.9 : f + Math.max(-0.4, s * 0.8)) : f;
         pos.push(x, h, z);
-        const g = roof ? 0.36 + r() * 0.1 : 0.44 + r() * 0.08;
-        col.push(g * 1.05, g, g * 0.92);
+        // (the rock in bands: grey, a darker seam, now and then a rusty one where there's iron in it)
+        const band = Math.sin(h * 2.3 + x * 0.07 + z * 0.05), g = (roof ? 0.36 + r() * 0.1 : 0.44 + r() * 0.08) * (0.88 + band * 0.12);
+        const rust = roof && band > 0.75 ? 0.08 : 0;
+        col.push(g * 0.94 + rust, g * 0.96, g * 1.0 - rust * 0.5);
         return at[k] = pos.length / 3 - 1;
       };
       for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
@@ -81,7 +83,7 @@ export class Caves {
       geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
       geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
       geo.setIndex(idx); geo = geo.toNonIndexed(); geo.computeVertexNormals();
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true, side: roof ? THREE.DoubleSide : THREE.FrontSide }));
+      const m = new THREE.Mesh(geo, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true, side: roof ? THREE.DoubleSide : THREE.FrontSide }), { surface: "none", scale: 0.9, amount: 0.75, snow: false, weather: false }));
       m.receiveShadow = true;
       return m;
     };
@@ -183,7 +185,8 @@ export class Caves {
     UI.fade(1, 0.5).then(() => {
       pl.place(this.start.x, this.start.z, Math.PI); this._entering = false;
       if (pl.horse) pl.dismount();
-      this.lantern = this.lantern || new THREE.PointLight(0xffc48a, 9, 20, 1.7);
+      // (the lantern held out ahead and a little up, so it lights the way rather than the axe in your hand)
+      if (!this.lantern) { this.lantern = new THREE.PointLight(0xffd2a8, 10, 24, 1.8); this.lantern.position.set(-0.2, 0.3, -1.3); }
       camera.add(this.lantern);
       this.bandits();
       UI.fade(0, 0.8);
@@ -227,7 +230,8 @@ export class Caves {
     for (const b of this.band || []) b.tick(dt);
   }
   dark() {
-    G.sun.intensity = 0; G.hemi.intensity = 0.32; G.hemi.color.setHex(0x6a6258); G.hemi.groundColor.setHex(0x1a1612);
+    // (dark, and cool: the warm light is only the lantern's and the torches', and it falls away into the black)
+    G.sun.intensity = 0; G.hemi.intensity = 0.14; G.hemi.color.setHex(0x5a6470); G.hemi.groundColor.setHex(0x14120f);
     G.scene.fog.color.setHex(0x0c0a08); G.scene.fog.near = 6; G.scene.fog.far = 55;
     if (G.sky) G.sky.visible = false;
   }

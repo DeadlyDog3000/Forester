@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.44.2", date: "6 October 2026", title: "Polish",
+    items: [
+      "Fire looks like fire: tongues of flame, white-hot at the root and orange where they thin away, a warm glow round them, and sparks going up from a big one. The same goes for the fire in the clearing, the hearths, the torches, the camps and the cave.",
+      "The cave is darker and cooler, so the warm light is the lantern's and the torches'. The rock runs in seams, with a rusty one here and there. The lantern is held out ahead, so it lights the way, not the axe in your hand.",
+      "Proper icons in the plans for the well, the town hall, the church, the shrine, the jail, the hospital, the stable and the news stand. The well was a key, and the rest were all a cabin.",
+      "The objective is set smaller, so it takes less of the screen.",
+    ],
+  },
+  {
     v: "0.44.1", date: "6 October 2026", title: "Steel and slow time",
     items: [
       "Every raider (in a raid, at a camp or in the caves) takes two whole seconds to wind up a blow. The red mark by the crosshair shows which way it's coming, and grows as it nears. A glint flashes on the blade the moment before it lands. Guard that side just before it lands to parry, or step back out of reach and let it whistle past.",
