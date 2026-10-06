@@ -171,6 +171,8 @@ export const UI = {
     for (const d of ["up", "left", "right"]) {
       const c = el.querySelector("." + d);
       c.classList.toggle("on", st.mine === d); c.classList.toggle("threat", st.threat === d); c.classList.toggle("foe", st.foe === d);
+      // (his blow coming: the mark grows as it nears, and burns brightest the moment before it lands)
+      c.style.setProperty("--urg", st.threat === d ? (st.urg ?? 1).toFixed(2) : "0");
     }
   },
   // word from afar: one card at a time, each for a while

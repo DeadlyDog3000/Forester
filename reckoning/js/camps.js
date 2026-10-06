@@ -11,6 +11,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { makeArm, MODELS } from "./models.js";
 import { CLEARING } from "./woods.js";
+import { WIND, strikeYou, blowLands, glint } from "./fight.js";
 import { ITEM, roomFor } from "./body.js";
 
 const RETURN_DAYS = 8;            // a cleared camp: how long before another band moves in, somewhere else
@@ -21,6 +22,7 @@ const NEAR = 70, FAR = 100;       // its raiders are about when you're this near
 export class Bandit {
   constructor(owner, x, z, i) {
     this.owner = owner; this.hp = 70; this.cool = 1; this.down = false; this.woke = false;
+    this.wind = 0; this.dir = "right"; this.guardDir = ["up", "left", "right"][i % 3]; this.guardT = 1; this.stun = 0;
     const raider = !!MODELS.raider;
     this.a = new Actor({ model: raider ? "raider" : "townsman", name: "Raider", coat: [0x4a3424, 0x3e3a2a, 0x54402c][i % 3], legs: [0x3a3226, 0x2e2a22, 0x443a2c][i % 3],
       hat: raider ? undefined : ["cap", "hat", null][i % 3], hatColor: [0x5a4632, 0x3e3428, 0x6a5a44][i % 3], beard: 0x3e3226, seed: 900 + i }, x, z, 0);
@@ -39,7 +41,7 @@ export class Bandit {
   centre() { return new THREE.Vector3(this.a.pos.x, this.a.pos.y + 1.05, this.a.pos.z); }
   update() {}
   startle() { this.wake(); }
-  hit(power, head = false) { this.wake(); this.hurt((10 + power * 22) * (head ? 2 : 1)); }
+  hit(power, head = false) { this.wake(); this.hurt((10 + power * 22) * (head ? 2 : 1), null); }
   wake() {
     if (this.woke) return;
     for (const b of this.owner.band || []) if (!b.woke) { b.woke = true; b.a.person.setPose("idle"); }
@@ -65,32 +67,59 @@ export class Bandit {
     // (crouched — C — you get closer before they see you)
     if (!this.woke && d < (pl.crouched ? 8 : 15)) this.wake();
     if (!this.woke) return;
+    this.guardTick(dt);
     a.squareTo = this.duel || near;
     this.cool -= dt; this.re = (this.re || 0) - dt;
+    // reeling from a parry or a blow
+    if (this.stun > 0) { this.stun -= dt; a.path = []; return; }
+    // the stroke under way: he holds his ground and lets it come (step back out of reach, and it whistles past)
+    if (this.wind > 0) {
+      a.path = []; a.faceTo(tp.x, tp.z);
+      const was = this.wind; this.wind -= dt;
+      if (was > 0.45 && this.wind <= 0.45 && !foe) glint(a);
+      if (was > 0.62 && this.wind <= 0.62) a.person.setPose(this.dir === "up" ? "overhead" : "chop");
+      if (this.wind > 0) return;
+      this.wind = 0;
+      this.cool = 1.2 + Math.random() * 0.6;
+      setTimeout(() => a.person && a.person.setPose("idle"), 550);
+      const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
+      AUDIO.whoosh && AUDIO.whoosh(0.4, true);
+      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; blowLands(foe, foe.hp <= 0 ? "down" : "hit", a); if (foe.hp > 0 && foe.person.flinch) foe.person.flinch(); if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; foe.squareTo = null; } } } }
+      else { const d2 = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z); if (d2 < 2.1 && strikeYou(a, this.dir, dmg, d2, this.owner) === "parry") { this.stun = 1.1; this.cool = Math.max(this.cool, 1.4); a.person.flinch && a.person.flinch(); } }
+      return;
+    }
     // nobody free to fight: he hangs back, waiting for his turn
     if (!this.duel) { if (this.re <= 0 && (d < 3.5 || d > 6)) { this.re = 0.8; a.approach(tp, 4.5, 2.6); } return; }
     if (d > 2.0) { if (!a.path.length || this.re <= 0) { this.re = 0.5; a.approach(tp, 1.4, 3.4); } return; }
     if (this.cool > 0.35) { if (this.re <= 0) { this.re = 0.7 + Math.random() * 0.8; if (Math.random() < 0.65) a.circleAbout(tp, 1.6, 1.3); } return; }
     if (d > 1.6) { if (this.re <= 0) { this.re = 0.3; a.approach(tp, 1.3, 2.6); } return; }
     a.path = []; a.faceTo(tp.x, tp.z);
-    // the arm drawn back first, so you see it coming
-    if (this.cool <= 0 && !(this.wind > 0)) { this.wind = 0.62; a.person.setPose(Math.random() < 0.35 ? "overhead" : "chop"); return; }
-    if (this.wind > 0 && (this.wind -= dt) > 0) return;
-    if (this.cool <= 0) {
-      this.wind = 0;
-      this.cool = 1.2 + Math.random() * 0.5;
-      setTimeout(() => a.person && a.person.setPose("idle"), 550);
-      const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
-      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; if (foe.hp > 0 && foe.person.flinch) foe.person.flinch(); if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; foe.squareTo = null; } } } }
-      else if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 2.1) G.hurt(pl.guard ? dmg * 0.3 : dmg, "raider");
-      AUDIO.whoosh && AUDIO.whoosh(0.4, true);
+    // the arm drawn back, from one side or from above, for two whole seconds — the red mark shows which way
+    if (this.cool <= 0 && !(this.wind > 0)) {
+      this.wind = WIND; this.dir = ["up", "left", "right"][Math.floor(Math.random() * 3)]; a.person.setPose("guard");
+      if (Math.random() < 0.8) AUDIO.voice && AUDIO.voice(Math.random() < 0.5 ? "grunt" : "war", { at: a.pos, vol: 0.8 });
+      return;
     }
   }
-  hurt(n) {
+  // his guard moves now and then: strike him from a side he isn't covering
+  guardTick(dt) { if ((this.guardT -= dt) <= 0) { this.guardT = 0.9 + Math.random() * 1.1; this.guardDir = Math.random() < 0.55 && G.player.stance ? G.player.stance : ["up", "left", "right"][Math.floor(Math.random() * 3)]; } }
+  hurt(n, from = null) {
     if (this.down) return;
     this.wake();
+    // (a blow of yours where he's guarding, from in front, he turns aside — unless he's mid-stroke or reeling)
+    if (from === G.player && this.stun <= 0 && !(this.wind > 0)) {
+      const dx = from.pos.x - this.a.pos.x, dz = from.pos.z - this.a.pos.z;
+      const facing = (dx * Math.sin(this.a.yaw) + dz * Math.cos(this.a.yaw)) / (Math.hypot(dx, dz) || 1) > 0.3;
+      if (facing && this.guardDir === (G.player.swingDir || "right")) {
+        AUDIO.clang && AUDIO.clang(0.9, this.a.pos); blowLands(this.a, "parried", from);
+        this.cool = Math.min(this.cool, 0.4); G.player.parryJolt = G.time + 0.3;
+        if (!this.owner.guardTold) { this.owner.guardTold = true; UI.hint("He was guarding that side — the grey mark by the crosshair. Strike from another: look up for an overhead, or turn left or right.", 5); }
+        return;
+      }
+    }
     this.hp -= n;
-    if (this.hp > 0) { AUDIO.voice && AUDIO.voice("pain", { at: this.a.pos }); this.a.person.flinch && this.a.person.flinch(); return; }
+    if (this.hp > 0) { blowLands(this.a, "hit", from); AUDIO.voice && AUDIO.voice("pain", { at: this.a.pos }); this.a.person.flinch && this.a.person.flinch(); if (!(this.wind > 0)) this.stun = Math.max(this.stun, 0.25); return; }
+    blowLands(this.a, "down", from);
     this.down = true; this.a.lying = true; this.a.path = []; this.a.squareTo = null; this.duel = null;
     AUDIO.voice && AUDIO.voice("fear", { at: this.a.pos });
     // what he had on him
@@ -111,7 +140,7 @@ export function swingAt(band, pl) {
     if (d < 2.3 && (dx * f.x + dz * f.z) / d > 0.5) {
       // struck by you: it's you he fights now (and whoever had you waits)
       if (b.duel !== pl) { for (const o of band) if (o.duel === pl) o.duel = null; b.duel = pl; }
-      b.hurt(20 + Math.random() * 10); AUDIO.clang && AUDIO.clang(0.5, b.a.pos); G.practise && G.practise("strength", 0.6); return true;
+      b.hurt(20 + Math.random() * 10, pl); G.practise && G.practise("strength", 0.6); return true;
     }
   }
   return false;

@@ -941,7 +941,9 @@ function updateCamera(dt) {
   // hold Z to look closer
   const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : Math.max((p.draw || 0) * 0.55, (p.gun ? p.gunAim || 0 : 0) * 0.35);
   G.zoom = (G.zoom || 0) + (zoomWant - (G.zoom || 0)) * Math.min(1, dt * 10);
-  const fov = G.settings.fov + (28 - G.settings.fov) * G.zoom;
+  const fov = G.settings.fov + (28 - G.settings.fov) * G.zoom + (G.fovKick || 0);
+  // the view shaken by a blow, given or taken
+  if (G.shakeA > 0.001 && !third) { const s = G.shakeA * G.shakeA; camera.rotation.x += (Math.random() - 0.5) * s * 0.07; camera.rotation.y += (Math.random() - 0.5) * s * 0.05; camera.rotation.z += (Math.random() - 0.5) * s * 0.06; }
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   // the sun's shadow follows the player
   const sd = G.sunDir || new THREE.Vector3(0, 1, 0);
@@ -1883,6 +1885,8 @@ export function setWorld(w) {
 //  the frame
 // ---------------------------------------------------------------------------
 export function frame(dt, skipRender) {
+  // (a fight's moments: a blow held for a heartbeat, a parry or the last man down in slow time)
+  if (G.timeWarp) dt = G.timeWarp(dt);
   updateExplore(dt);
   window.__frame = frame;
   G.time += dt;

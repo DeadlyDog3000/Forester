@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.44.1", date: "6 October 2026", title: "Steel and slow time",
+    items: [
+      "Every raider (in a raid, at a camp or in the caves) takes two whole seconds to wind up a blow. The red mark by the crosshair shows which way it's coming, and grows as it nears. A glint flashes on the blade the moment before it lands. Guard that side just before it lands to parry, or step back out of reach and let it whistle past.",
+      "Raiders at the camps and in the caves now fight as raid raiders do. They guard a side (the grey mark), so strike from another, and your guard blocks and parries them.",
+      "Fights feel like fights now. A blow that lands holds for a heartbeat. A parry throws sparks and slows time for a moment, so you can strike back. The last blow on a man slows everything right down. Blows you take and give shake the view, and a man you cut bleeds.",
+    ],
+  },
+  {
     v: "0.44.0", date: "6 October 2026", title: "Camps in the woods",
     items: [
       "Raiders' camps: a band has made camp in the woods near each of your settlements: a fire, lean-tos of hides, and a stash of what they've taken. Each one is marked on the map (J) with a red cross. They sit by the fire until they see you; crouch (C) to get closer first. Put them all down, and F at the stash takes it: money, ore and metal, meat, arrows, and the logs and rye they stole, back into the stores. Clearing the camp near your first settlement puts its next raid off a few days. Some days later another band moves in somewhere else.",
