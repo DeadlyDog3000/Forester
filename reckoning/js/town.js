@@ -16,7 +16,7 @@
 
 import { ambitionsTick } from "./ambitions.js";
 import { axeBonus, skillK, ITEM, digMul, buildMul } from "./body.js";
-import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng } from "./core.js";
+import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, addDetail } from "./core.js";
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -591,8 +591,9 @@ export class Town {
     else if (b.type === "path") {
       const cob = this.tierLevel >= 3;
       // low-poly, like the ground: a flat-shaded strip of trodden earth, or of cobbles in a brick town — a few facets, no photograph
-      PATH_MAT.dirt ??= new THREE.MeshStandardMaterial({ color: 0x8a6e4e, roughness: 1, flatShading: true });
-      PATH_MAT.cob ??= new THREE.MeshStandardMaterial({ color: 0x8c8880, roughness: 0.95, flatShading: true });
+      // (trodden earth, mottled; cobbles set in it; under snow, a thin trodden cover that still shows the way)
+      PATH_MAT.dirt ??= addDetail(new THREE.MeshStandardMaterial({ color: 0x8a6e4e, roughness: 1, flatShading: true }), { scale: 1.5, amount: 0.35, surface: "none", snow: 0.28 });
+      PATH_MAT.cob ??= addDetail(new THREE.MeshStandardMaterial({ color: 0x8c8880, roughness: 0.95, flatShading: true }), { scale: 1, amount: 0.2, surface: "stone", snow: 0.22 });
       // (laid on the ground as it is: down a slope it runs with the slope, and the next strip meets it)
       const pg = new THREE.PlaneGeometry(def.w, def.d + 0.4, 3, 8); pg.rotateX(-Math.PI / 2);
       this.drape(pg, b, 0.035, 0.03);

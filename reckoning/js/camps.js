@@ -258,9 +258,11 @@ export class Camps {
       for (const s of [-1, 1]) { lb.box(0.09, 2.0, 0.09, s * 1.2, 1.0, 0.75, 0x5a4230); lb.box(0.09, 0.09, 2.4, s * 1.2, 0.05, -0.1, 0x5a4230); }
       lb.box(2.5, 0.09, 0.09, 0, 1.95, 0.75, 0x5a4230);
       // (the hides slope from the ridge pole down to the ground behind)
-      lb.add(new THREE.BoxGeometry(2.7, 0.05, 2.64), 0x6a5440, 0, 0.98, -0.12, -0.84, 0, 0, 1, 1, 1, 0.08);
       lb.box(0.7, 0.12, 1.7, -0.4, 0.06, -0.1, 0x7a3a2a); lb.box(0.7, 0.12, 1.7, 0.45, 0.06, -0.1, 0x4a4a3a);
       const m = lb.build(MAT.rough); m.castShadow = true; lt.add(m);
+      // (the hides on their own: plain hide, not taken by its colour for timber)
+      const hide = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.05, 2.64), mat(0x6a5440, { surface: "none", roughness: 1 }));
+      hide.position.set(0, 0.98, -0.12); hide.rotation.x = -0.84; hide.castShadow = true; hide.receiveShadow = true; lt.add(hide);
       lt.position.set(lx, 0, lz); lt.rotation.y = lr; g.add(lt);
     }
     // log seats round the fire

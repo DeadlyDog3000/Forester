@@ -255,7 +255,7 @@ export class Woods extends WorldBase {
     }
     root.add(ub.build(MAT.rough, { shadow: false }));
     {
-      const leafM = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5 });
+      const leafM = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles" });
       const bushes = shrubs.filter(q => q.kind === "bush"), ferns = shrubs.filter(q => q.kind === "fern");
       const bm = new THREE.InstancedMesh(TREE.blob, leafM, bushes.length), fm = new THREE.InstancedMesh(TREE.cone, leafM, ferns.length * 5);
       const d = new THREE.Object3D(), c = new THREE.Color();

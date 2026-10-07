@@ -158,7 +158,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
   material.onBeforeCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount }; sh.uniforms.dNear = { value: seeThrough };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
-    sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
+    sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dSnowK = { value: typeof snow === "number" ? snow : 1 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
@@ -170,7 +170,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         #endif
         vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         float dHgt = 0.0, dHk = 0.0;
         // leaves and needles right up against the eye (standing inside a tree) thin away in a fine dither,
@@ -213,7 +213,8 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
               // stone, brick and tile: moss and lichen on what faces the sky and the wet low courses
               float mn = dFbm(vDWorld * 1.3 + 7.0), wet = max(up, 0.0) * 0.8 + (1.0 - smoothstep(0.0, 0.9, vDWorld.y - dGround)) * 0.6;
               float moss = smoothstep(0.55, 0.75, mn + wet * 0.35) * (1.0 - dSnow);
-              diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.78, 0.45) + vec3(0.02, 0.035, 0.0), moss * 0.55);
+              // (a roof's tiles only flecked with lichen: a whole roof gone green read as a different colour of roof)
+              diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.78, 0.45) + vec3(0.02, 0.035, 0.0), moss * (s == 7 ? 0.22 : 0.5));
             }
           }
           // then broad mottling, so no two walls are quite the same
@@ -224,7 +225,8 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           diffuseColor.rgb *= 1.0 - low * 0.12 * (1.0 - an.y) - max(-vDNormal.y, 0.0) * 0.12;
           // snow lies on whatever faces the sky, thinner where the noise says so
           if (dSnow > 0.0) {
-            float lie = smoothstep(0.25, 0.75, vDNormal.y + (dNoise(vDWorld * 1.7) - 0.5) * 0.5) * dSnow;
+            // (dSnowK: how much of it lies here — a trodden path keeps only a thin, broken cover)
+            float lie = smoothstep(0.25, 0.75, vDNormal.y + (dNoise(vDWorld * 1.7) - 0.5) * 0.5) * dSnow * dSnowK;
             if (dRoof.w > 0.5 && vDWorld.y < dRoofSize.z) {
               vec2 dd = vDWorld.xz - dRoof.xy; float rc = cos(dRoof.z), rs = sin(dRoof.z);
               vec2 lp = vec2(dd.x * rc - dd.y * rs, dd.x * rs + dd.y * rc);

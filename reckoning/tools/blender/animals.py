@@ -46,7 +46,7 @@ def deer():
     sc = fresh_scene("Reckoning deer")
     root = bpy.data.objects.new("deer", None)
     sc.collection.objects.link(root)
-    coat, belly, rump, dark = 0x9a5e36, 0xc9a886, 0xeae2d2, 0x1c1714
+    coat, belly, rump, dark = 0x7a5538, 0xc0a486, 0xeae2d2, 0x1c1714
     out = [root]
     k = Kit("deer", seed=31)
     rnd = k.rnd

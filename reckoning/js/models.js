@@ -251,7 +251,7 @@ export function makePerson(o = {}) {
 // Anything listed in models/manifest.json is loaded at start, and replaces the
 // shape built in code with the same name. See models/README.md.
 export const MODELS = {};
-const CLOTH_PARTS = new Set(["coat", "legs", "stockings", "linen", "vest", "skirt", "apron", "hat", "sash"]);
+const CLOTH_PARTS = new Set(["coat", "legs", "stockings", "linen", "vest", "skirt", "apron", "hat", "sash", "cloth", "rope", "sail", "flag"]);
 const BARE_PARTS = new Set(["skin", "eyes", "hair", "metal", "leather"]);
 export async function loadModels(base = "models/") {
   let list;
@@ -267,7 +267,9 @@ function loaderReady() {
   return _loaderP || (_loaderP = Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js")]).then(([{ GLTFLoader }, SU]) => { _clone = SU.clone; _loader = new GLTFLoader(); }));
 }
 // what a model's material is named for decides its grain: a building's plaster, brick and tiles get their own
-const SURF_BY_NAME = { fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "wood", wood: "wood", log: "wood", glass: "none", iron: "none", soot: "none", horn: "none" };
+const SURF_BY_NAME = { fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "wood", wood: "wood", log: "wood", glass: "none", iron: "none", soot: "none", horn: "none",
+  // (a tree's bark and needles; a ship's hull; the oven's clay; a candle's wax; a burned house's char and ash; the far city's water and roofs)
+  bark: "bark", needles: "needles", hull: "wood", clay: "plaster", wax: "none", char: "wood", ash: "none", water: "none", copper: "none", earth: "none", house: "plaster" };
 const _loading = {};
 const BUILDING = k => /^town\//.test(k) || ["home_2", "cabin", "cabin_burned", "woodshed", "well"].includes(k);
 async function fetchModel(k, url) {
@@ -277,7 +279,8 @@ async function fetchModel(k, url) {
     // what they are, so cloth gets the weave and skin gets nothing
     MODELS[k].scene.traverse(o => {
       if (!o.isMesh || !o.material || !o.material.isMeshStandardMaterial || o.material.userData.detail) return;
-      const m = o.material, n = (m.name || "").split("_").pop();
+      // (the stuff it's made of is the last word of its name; Blender's ".001" on a copy is no part of it)
+      const m = o.material, n = (m.name || "").split("_").pop().replace(/\.\d+$/, "");
       m.userData.detail = true;
       m.userData.part = n;
       m.userData.surface = CLOTH_PARTS.has(n) ? "cloth" : BARE_PARTS.has(n) ? "none" : SURF_BY_NAME[n] || "auto";

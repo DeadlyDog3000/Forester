@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "0.44.3", date: "6 October 2026", title: "The right stuff",
+    items: [
+      "Every material in the game checked, model by model. The trees you fell now have real bark and needles; they were taken for sawn timber and for nothing. The fletching on arrows, the grip on the bow, rope, sails and flags are cloth. A ship's hull is timber. The bakery's oven is clay, not timber, and a burned house's timbers are charred wood. The raider's leggings had lost their cloth to a misread name, and have it back.",
+      "Paths take the snow in winter: a thin, trodden cover, so the ways still show. They were left bare brown in the middle of the snow. They have their own surface now too: mottled earth, and cobbles in a brick town.",
+      "Brick towns' roofs are only flecked with lichen. Whole roofs had gone olive green.",
+      "The deer's coat is a duller brown. In the sun it looked orange.",
+      "The camps' lean-tos are covered in hides that look like hides, not boards.",
+    ],
+  },
+  {
     v: "0.44.2", date: "6 October 2026", title: "Polish",
     items: [
       "Fire looks like fire: tongues of flame, white-hot at the root and orange where they thin away, a warm glow round them, and sparks going up from a big one. The same goes for the fire in the clearing, the hearths, the torches, the camps and the cave.",
