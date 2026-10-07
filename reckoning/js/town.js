@@ -211,6 +211,9 @@ export class Town {
     this.w = w; this.S = state; this.persist = persist;
     this.S.store ??= 0; this.S.rye ??= 0; this.S.buildings ??= []; this.S.people ??= []; this.S.felled ??= []; this.S.logs ??= [];
     this.S.bread ??= 0; this.S.coin ??= 0; this.S.upgrades ??= {};
+    // (two people of one name — sent for together before that was mended — are told apart: the later "the younger".
+    // Opinions, feuds and shops know people by name, and would muddle the two.)
+    { const seen = new Set(); for (const p of this.S.people) { let n = p.name; if (seen.has(n)) { n = `${p.name} the younger`; for (let k = 2; seen.has(n); k++) n = `${p.name} ${["", "", "II", "III", "IV"][k] || k}`; p.name = n; } seen.add(n); } }
     // rye seed: a field takes one to sow, and each harvest gives a little back (enough for three fields to start)
     this.S.seed ??= 3;
     for (const k of ["stone", "planks", "bricks", "ore", "iron", "tools"]) this.S[k] ??= 0;

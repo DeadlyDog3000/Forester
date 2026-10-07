@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.44.5", date: "6 October 2026", title: "Fits the screen",
+    items: [
+      "The front menu fits a laptop's screen: the title was cut off at the top and the buttons ran off the bottom. It's set a little closer together when the window is short, and never crops the top.",
+      "In the government's People list, the words after each name (their temper, their faith, a mark against them) are readable on the parchment. They were pale and nearly invisible. The list fits without scrolling sideways.",
+      "Two settlers with the same name, sent for together before that was mended, are now told apart: the second is \"the younger\". Their opinions, feuds and shops could otherwise be muddled between them.",
+    ],
+  },
+  {
     v: "0.44.4", date: "6 October 2026", title: "Readable, and the whole map",
     items: [
       "The tech tree is readable: what you haven't learned yet was dark on dark, and its names couldn't be read at all. The next things you can study are paper plates with a red edge, and the learned ones are green.",

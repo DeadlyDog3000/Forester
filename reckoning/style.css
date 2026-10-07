@@ -764,3 +764,19 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 .gov-win .tnode.done text, .gov-win .tnode.done .sub { fill: #f2f8ec; }
 .gov-win .tnode.locked { opacity: 0.55; }
 .gov-win .tlink { stroke: rgba(59, 38, 18, 0.45); }
+/* the people's traits on the parchment: ink on a tinted chip, readable */
+.gov-win .ppl .tag { color: #2e4a30; background: rgba(78, 122, 82, 0.18); border: 1px solid rgba(46, 74, 48, 0.3); }
+.gov-win .ppl .tag.mark { color: #6a4210; background: rgba(200, 150, 46, 0.2); border-color: rgba(106, 66, 16, 0.3); }
+.gov-win .ppl .tag.faith { color: #2a3a6a; background: rgba(90, 110, 180, 0.16); border-color: rgba(42, 58, 106, 0.3); }
+.gov-win .ppl td.acts button { white-space: normal; max-width: 150px; font-size: 11px !important; line-height: 1.2; }
+/* the front door on a shorter screen: centred while it fits, never cut off at the top when it doesn't, and set
+   closer together so it fits more often */
+#menus { align-items: safe center; }
+@media (max-height: 900px) {
+  .logo-top { font-size: clamp(40px, 8.5vh, 84px); }
+  .logo-rule { margin: 8px auto; }
+  .tagline { font-size: 17px; margin: 12px auto 16px; }
+  .menu { gap: 7px; }
+  .menu .btn { padding: 9px 22px; }
+  .credit { margin-top: 16px; }
+}
