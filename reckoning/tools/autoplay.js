@@ -27,6 +27,32 @@
     if (m.x != null) return { x: m.x, z: m.z };
     return null;
   };
+  const { BUILDINGS } = await import("./js/town.js");
+  const builtTried = new Set();
+  let bt = null, best = null;
+  // the building the objective asks to be planned, if any (and not tried in the last half-minute)
+  const wantBuild = o => {
+    if (!/\(B\)|press B/.test(o)) return null;
+    for (const part of o.split(" · ")) {
+      if (!/^(Plan|Build|Dig)\b/.test(part)) continue;
+      const k = Object.keys(BUILDINGS).sort((a, b) => BUILDINGS[b].name.length - BUILDINGS[a].name.length).find(k => part.toLowerCase().includes(BUILDINGS[k].name.toLowerCase()));
+      if (k && !builtTried.has(k + Math.floor(simT / 30))) return k;
+    }
+    return null;
+  };
+  // the interaction that best matches the objective's words (and can be used now)
+  const STOP = new Set(["the", "a", "an", "to", "of", "and", "for", "at", "in", "on", "from", "with", "your", "it", "by"]);
+  const stems = t => new Set(String(t).toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/).filter(x => x.length > 2 && !STOP.has(x)).map(x => x.slice(0, 4)));
+  const bestFor = (o, w, pl) => {
+    const want = stems(o); let top = null, ts = 0;
+    for (const it of w.interact || []) {
+      if (it.x == null || (it.can && !it.can())) continue;
+      const l = labelOf(it); if (!l || /^(Close|Open) the door|Sleep|Go to bed/.test(l)) continue;
+      const sc = [...stems(l)].filter(x => want.has(x)).length - Math.hypot(it.x - pl.pos.x, it.z - pl.pos.z) / 400;
+      if (sc > ts) { ts = sc; top = it; }
+    }
+    return ts >= 1 ? top : null;
+  };
   // a step toward somewhere, at a brisk walk (through walls, if it must: this is a test, not a player)
   const stepTo = (x, z, dt, near = 1.6) => {
     const p = G.player.pos, dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz);
@@ -86,6 +112,30 @@
           }
         } else { atMark = 0; const d = Math.hypot(m.x - pl.pos.x, m.z - pl.pos.z) || 1; if (d > 3) lastDir = { x: (m.x - pl.pos.x) / d, z: (m.z - pl.pos.z) / d }; }
       }
+      else if (G.town && !G.town.planning && (bt = wantBuild(last))) {
+        // a building to plan: the plan opened, a spot found that it fits, and stood facing it to set it down
+        const T = G.town, def = T.constructor && BUILDINGS[bt];
+        if (def && !T.gated(bt)) {
+          T.plan(bt);
+          const C = G.world.clearing || { x: pl.pos.x, z: pl.pos.z };
+          let spot = null;
+          for (let r = 8; r < 60 && !spot; r += 3) for (let a = 0; a < 24 && !spot; a++) { const x = pl.pos.x + Math.cos(a / 24 * 6.283) * r, z = pl.pos.z + Math.sin(a / 24 * 6.283) * r; if (T.fits(bt, x, z, 0)) spot = { x, z }; }
+          if (spot) {
+            const d = def.path ? 3 : def.wall ? 3.5 : 4 + Math.max(def.w, def.d) / 2;
+            // (facing north: forward is -z, so stand d to the south of it)
+            pl.place(spot.x, spot.z + d, 0);
+            for (let i = 0; i < 3; i++) E.frame(1 / 30, true);
+            input.click = true; E.frame(1 / 30, true); input.click = false;
+            log.push(`${Math.round(simT)}s planned a ${bt} at ${spot.x.toFixed(0)},${spot.z.toFixed(0)}${T.planning ? " (still planning!)" : ""}`);
+            if (T.planning) T.planning.cancel();
+          } else { log.push(`${Math.round(simT)}s no room for a ${bt}`); T.planning && T.planning.cancel(); }
+          builtTried.add(bt + Math.floor(simT / 30));
+        }
+      }
+      else if (!m && (best = bestFor(last, w, pl))) {
+        // no marker: whatever there is to use that the objective speaks of
+        if (stepTo(best.x, best.z, dt * 6, Math.max(0.8, (best.reach || 2) - 0.6))) { /* used next time round, being in reach */ }
+      }
       else if (w.road && w.road.length && /road/i.test(last)) {
         // a road to follow, and no marker: on along it, from wherever on it we are
         let k = 0, bd = Infinity; w.road.forEach((r, i) => { const d = Math.hypot(r.x - pl.pos.x, r.z - pl.pos.z); if (d < bd) { bd = d; k = i; } });
@@ -107,7 +157,7 @@
       const m = markerAt();
       stuck = { objective: last, marker: m && { x: +m.x.toFixed(1), z: +m.z.toFixed(1) }, at: { x: +pl.pos.x.toFixed(1), z: +pl.pos.z.toFixed(1) },
         inReach: (w.interact || []).filter(it => it.x != null && Math.hypot(it.x - pl.pos.x, it.z - pl.pos.z) < 8).map(it => `${labelOf(it)}${it.can && !it.can() ? " (can't)" : ""}`).slice(0, 8),
-        lockMove: !!G.lockMove, progress: w.progress ? +w.progress().toFixed(3) : null, cine: !!G.cine, dialog: !!UI.dialogOpen, onSwing: !!G.onSwing };
+        people: G.town ? G.town.actors.map(a => `${a.settler && a.settler.name}/${a.settler && a.settler.job}: ${a.doing}`) : null, lockMove: !!G.lockMove, progress: w.progress ? +w.progress().toFixed(3) : null, cine: !!G.cine, dialog: !!UI.dialogOpen, onSwing: !!G.onSwing };
       break;
     }
     await sleep(2);

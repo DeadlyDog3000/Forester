@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.47.1", date: "7 October 2026", title: "Hints that fit",
+    items: [
+      "If you stand a while on the hunt in the deer ride, your sibling now tells you how to hunt: crouch, walk, draw with the right mouse button. The hint was written for an older wording of the task and never came up. The same goes for putting things in the chest and for staying hidden at Martinmas.",
+      "Every task in the story now has a hint. They were all checked against the hints, and those three had none.",
+    ],
+  },
+  {
     v: "0.47.0", date: "7 October 2026", title: "Firewood, and the forest",
     items: [
       "Winter no longer takes you by surprise. On the first day of autumn your sibling tells you how many logs the winter will want: a log a day for every hearth, over winter's two days. If the stack is still short on the last day of autumn, they warn you again. Both warnings also go into the news.",
