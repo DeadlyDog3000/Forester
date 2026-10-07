@@ -24,7 +24,7 @@ import { blowMul, SWORD_MUL } from "./body.js";
 // your own sword strikes by its making (the smith's by his); anything else as it is
 const ownBlade = pl => pl.blade === "sword" && G.body && G.body.tools.sword > 0 && !(G.town && G.town.playerArm && G.town.playerArm() === "sword" && G.body.tools.sword < 3) ? SWORD_MUL[G.body.tools.sword] : 1;
 import { THREE } from "./core.js";
-import { WIND, strikeYou, blowLands, glint, stanceTick } from "./fight.js";
+import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo } from "./fight.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -56,18 +56,22 @@ export const ARMS = {
 export const ARM_KINDS = ["battleaxe", "sword", "spear"];   // best first
 // what a raider carries: how hard, and how often
 const THEIRS = { knife: { dmg: 13, cool: 0.85 }, club: { dmg: 19, cool: 1.15 }, axe: { dmg: 23, cool: 1.35 }, sword: { dmg: 25, cool: 1.05 } };
+// the captain of a free company: a soldier's sword, quicker and harder than any raider's, and four of their lives
+const CAPTAIN = { model: "townsman", name: "Captain Wolff", coat: 0x5a1a16, legs: 0x1e1a16, hat: "tricorn", hatColor: 0x161210, vest: 0x8a6a2a, beard: 0x2a2018, hair: 0x2a2018, seed: 777 };
+const BOSS_W = { dmg: 30, cool: 0.95 }, BOSS_HP = 340;
 // how long a raider's arm is drawn back before the blow lands: the red mark by the crosshair shows the side all that while
 
 class Raider {
-  constructor(raid, x, z, i, n, enemy) {
-    this.raid = raid; this.i = i;
-    this.a = new Actor(LOOK(i, enemy), x, z, 0);
+  constructor(raid, x, z, i, n, enemy, boss = false) {
+    this.raid = raid; this.i = i; this.boss = boss;
+    this.a = new Actor(boss ? CAPTAIN : LOOK(i, enemy), x, z, 0);
     // his own weapon, and a torch in the other hand (the first few throw real light); soldiers carry swords
-    this.arm = enemy ? ["sword", "sword", "axe"][n % 3] : ["club", "axe", "knife", "sword", "axe", "club"][n % 6];
+    this.arm = boss ? "sword" : enemy ? ["sword", "sword", "axe"][n % 3] : ["club", "axe", "knife", "sword", "axe", "club"][n % 6];
     this.a.hold(makeArm(this.arm));
-    this.a.hold(makeTorch(n < 3), true);
+    if (!boss) this.a.hold(makeTorch(n < 3), true);
     this.a.heavy = true;
-    this.hp = HP; this.state = "come"; this.loot = null; this.cool = 1; this.stun = 0; this.wind = 0; this.t = 0;
+    if (boss) this.a.root.scale.setScalar(1.08);
+    this.hp = boss ? BOSS_HP : HP; this.state = "come"; this.loot = null; this.cool = 1; this.stun = 0; this.wind = 0; this.t = 0;
     this.dir = "right"; this.guardDir = DIRS[n % 3]; this.guardT = 1;
     this.K = { r: 0.36, h: 1.05, len: 0.18, name: "raider", upright: true };
   }
@@ -91,10 +95,13 @@ class Raider {
     if (from && this.stun <= 0 && this.wind <= 0 && this.state !== "flee") {
       const dx = from.pos.x - this.pos.x, dz = from.pos.z - this.pos.z;
       const facing = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) > 0.3;
-      const guarded = from === G.player ? this.guardDir === (G.player.swingDir || "right") : Math.random() < 0.22;
+      const guarded = from === G.player ? this.guardDir === (G.player.swingDir || "right") : Math.random() < (this.boss ? 0.55 : 0.22);
       if (facing && guarded) return this.parry(from);
     }
+    const was = this.hp;
     this.hp -= d;
+    // (the captain, half beaten: he says so, and fights the harder for it)
+    if (this.boss && was > BOSS_HP / 2 && this.hp <= BOSS_HP / 2 && this.hp > 0) { UI.bark("Captain Wolff", ["Brandt said you'd run. He doesn't know you, does he?", "Good. I was paid for a fight, not a fire."][Math.random() < 0.5 ? 0 : 1], 3.5); this.cool = Math.min(this.cool, 0.3); }
     if (this.hp <= 0) { AUDIO.voice("pain", { at: this.pos, vol: 1.1 }); blowLands(this.a, "down", from); return this.down(); }
     blowLands(this.a, "hit", from);
     this.a.person.flinch && this.a.person.flinch();
@@ -118,6 +125,8 @@ class Raider {
   }
   down() {
     this.raid.lock(this, null); this.a.squareTo = null;
+    this.raid.downN = (this.raid.downN || 0) + 1;
+    if (this.boss) this.raid.bossDown(this);
     this.state = "down"; this.a.path = []; this.a.person.held.clear(); this.a.person.heldL.clear();
     this.a.lying = true; this.a.yOff = 0.05;
     // what he had goes back where it came from
@@ -142,6 +151,7 @@ export class Raids {
     G.lockMove = true; UI.fade(1, 0.8);
     UI.hint("You were killed.", 2.5);
     await new Promise(r => setTimeout(r, 1500));
+    this.pending = null;
     for (const r of this.band) if (r.alive) { if (!r.loot) r.loot = this.take(); r.state = "gone"; r.a.remove(); }
     this.band = this.band.filter(r => r.state === "down");
     if (G.hunt) G.hunt.animals = G.hunt.animals.filter(a => !(a instanceof Raider) || a.state === "down");
@@ -154,33 +164,52 @@ export class Raids {
     UI.bark(sib, "You're breathing. I thought — they left you for dead. They're gone, and half the stores with them. Don't ever do that to me again.", 5);
     setTimeout(() => UI.hint("You came back from it, but not whole." + G.lostText(lost), 7), 5200);
   }
-  get active() { return this.band.some(r => r.state === "come" || r.state === "steal" || r.state === "flee" || r.state === "breach"); }
+  get active() { return !!this.pending || this.band.some(r => r.state === "come" || r.state === "steal" || r.state === "flee" || r.state === "breach"); }
   // the road they come up and go back down
   get roadEnd() { const r = this.w.road[this.w.road.length - 30]; return { x: r.x, z: r.z }; }
-  start() {
-    const t = this.town, S = t.S, pop = S.people.length + 2, enemy = t.enemy;
-    // at war: a crown's soldiers, more of them the stronger it is
-    const n = enemy ? Math.min(10, 4 + strengthOf(S.europe, enemy)) : Math.min(8, 3 + Math.floor(pop / 4) + Math.floor(S.raid.count / 2));
-    this.enemy = enemy;
-    const e = this.roadEnd;
+  // up the road: a band of n, the front ranks first (and a siege's second wave, with its captain, some way behind)
+  spawnBand(n, enemy, boss = false) {
+    const S = this.town.S, e = this.roadEnd, k0 = this.band.length;
     for (let i = 0; i < n; i++) {
-      const r = new Raider(this, e.x + (i % 3 - 1) * 1.4, e.z + Math.floor(i / 3) * 1.6, S.raid.count * 7 + i, i, enemy);
+      const r = new Raider(this, e.x + (i % 3 - 1) * 1.4, e.z + Math.floor(i / 3) * 1.6, S.raid.count * 7 + k0 + i, k0 + i, enemy, boss && i === n - 1);
       this.band.push(r);
       // the hunt's arrows can strike them, and the crosshair knows them
       if (G.hunt) G.hunt.animals.push(r);
     }
-    S.raid.count++; S.raid.next = t.day + (enemy ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 4));
+  }
+  // o: { n, siege } — a siege comes in two waves, the captain with the second, and isn't a raid in the count
+  start(o = {}) {
+    const t = this.town, S = t.S, pop = S.people.length + 2, enemy = o.siege ? null : t.enemy;
+    // at war: a crown's soldiers, more of them the stronger it is
+    const n = o.n || (enemy ? Math.min(10, 4 + strengthOf(S.europe, enemy)) : Math.min(8, 3 + Math.floor(pop / 4) + Math.floor(S.raid.count / 2)));
+    this.enemy = enemy; this.siege = !!o.siege; this.boss = null; this.downN = 0;
+    if (o.siege) {
+      const first = Math.ceil(n * 0.6);
+      this.spawnBand(first, null);
+      this.pending = { at: G.time + 40, n: n - first + 1 };
+      S.raid.next = Math.max(S.raid.next, t.day + 8);
+    } else {
+      this.spawnBand(n, enemy);
+      S.raid.count++; S.raid.next = t.day + (enemy ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 4));
+    }
     t.persist();
     AUDIO.bell && AUDIO.bell(1.1, 0.85);
     setTimeout(() => AUDIO.bell && AUDIO.bell(1.1, 0.85), 700);
     const sib = G.who === "sister" ? "Brother" : "Sister";
-    UI.bark(sib, enemy ? `Soldiers — ${n} of them, from ${the(enemy)}, on the road!` : `Raiders — ${n} of them, on the road! They're after the stores!`, 4);
+    UI.bark(sib, o.siege ? `The Free Company — ${n} of them, and more behind! Brandt's men!` : enemy ? `Soldiers — ${n} of them, from ${the(enemy)}, on the road!` : `Raiders — ${n} of them, on the road! They're after the stores!`, 4);
     // they come up the road yelling, to frighten; and the settlement cries out
     this.band.forEach((r, i) => setTimeout(() => r.alive && AUDIO.voice("war", { at: r.pos, vol: 1.2 }), 300 + i * 380 + Math.random() * 300));
     setTimeout(() => { const s = this.town.actors[0]; if (s) AUDIO.voice("fear", { at: s.pos, high: true }); }, 1400);
     G.guide && G.guide("raid");
-    UI.hint("Raiders! Drive them off with the axe or the bow before they carry off the stores. Mind your health — they hit back.", 7);
+    UI.hint(o.siege ? "The Free Company is at the gate. Hold them, and their captain will come — put him down and it's over." : "Raiders! Drive them off with the axe or the bow before they carry off the stores. Mind your health — they hit back.", 7);
     t.emit("raid", n);
+  }
+  // the captain cut down: the company breaks, and runs back down the road with whatever it holds
+  bossDown(r) {
+    this.bossFell = true;
+    for (const o of this.band) if (o !== r && o.alive && o.state !== "flee") { o.state = "flee"; this.lock(o, null); o.a.path = []; o.a.walkTo(this.roadEnd.x, this.roadEnd.z, FLEE); }
+    UI.bark(G.who === "sister" ? "Brother" : "Sister", "Wolff's down! Look at them run!", 3.5);
+    slowMo(1.6, 0.35);
   }
   forget(r) {
     const i = this.band.indexOf(r); if (i >= 0) this.band.splice(i, 1);
@@ -246,10 +275,12 @@ export class Raids {
     const pl = G.player, a = r.a, D = f => Math.hypot(f.pos.x - a.pos.x, f.pos.z - a.pos.z);
     const ok = f => f === pl ? !G.downed && G.mode === "play" && D(pl) < 22 : f && !f.knocked && !f.gone && !f.dead && f.fighting && f.duel === r && D(f) < 22;
     if (r.duel && !ok(r.duel)) this.lock(r, null);
+    // (the captain wants you, and the others give way to him)
+    if (r.boss && !r.duel && !G.downed && G.mode === "play" && r.state !== "flee" && Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 40) for (const o of this.band) if (o !== r && o.duel === pl) this.lock(o, null);
     if (!r.duel && !G.downed && G.mode === "play" && !this.band.some(o => o !== r && o.alive && o.duel === pl)) {
       const d = D(pl);
       // (running off with his arms full, he only turns on you if you catch him)
-      if (d < (r.state === "flee" ? 2.4 : 9)) this.lock(r, pl);
+      if (d < (r.state === "flee" ? 2.4 : r.boss ? 40 : 9)) this.lock(r, pl);
     }
     return r.duel;
   }
@@ -285,6 +316,14 @@ export class Raids {
   update(dt) {
     const t = this.town, S = t.S, pl = G.player;
     if (!this.band.length && t.day >= S.raid.next && t.frac > 0.63 && t.frac < 0.67 && t.techGates) this.start();
+    // a siege's second wave, and its captain, up the road behind the first
+    if (this.pending && G.time >= this.pending.at) {
+      const n = this.pending.n; this.pending = null;
+      this.spawnBand(n, null, true); this.boss = this.band[this.band.length - 1];
+      AUDIO.bell && AUDIO.bell(1.1, 0.85);
+      UI.bark(G.who === "sister" ? "Brother" : "Sister", "More on the road — and that's Wolff with them, in the red coat. He's looking for you.", 4.5);
+      this.band.forEach(r => r.boss && setTimeout(() => r.alive && AUDIO.voice("war", { at: r.pos, vol: 1.4 }), 600));
+    }
     let stolen = false;
     for (const r of this.band.slice()) {
       if (!r.alive) continue;
@@ -298,7 +337,7 @@ export class Raids {
       a.squareTo = foe;
       if (foe) {
         const fp = foe.pos, d = Math.hypot(fp.x - a.pos.x, fp.z - a.pos.z);
-        const W = THEIRS[r.arm];
+        const W = r.boss ? BOSS_W : THEIRS[r.arm];
         r.stepT = (r.stepT || 0) - dt;
         if (r.wind > 0) {
           // the wind-up: the arm going back — the moment to raise a guard
@@ -395,6 +434,14 @@ export class Raids {
       E.beaten[id] = (E.beaten[id] || 0) + 1;
       S.crownsBeaten = (S.crownsBeaten || 0) + 1;
       if (E.beaten[id] >= 2) { const pay = 10 + strengthOf(E, id) * 5; S.coin = (S.coin || 0) + pay; t.makePeace(id, `Beaten at your gate twice, it sues for peace — and pays ${pay} DM`); }
+    }
+    if (this.wasActive && !act && this.siege) {
+      // (a siege is the Reckoning's to tell: won if the captain is in the grass, lost if not)
+      const down = this.downN || 0;
+      this.siege = false;
+      this.onSiegeOver && this.onSiegeOver({ won: !!this.bossFell, down });
+      this.bossFell = false; this.boss = null; this.wasActive = act;
+      return;
     }
     if (this.wasActive && !act) {
       const sib = G.who === "sister" ? "Brother" : "Sister";

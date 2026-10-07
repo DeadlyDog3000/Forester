@@ -218,7 +218,8 @@ export class Camps {
     for (const pl of this.places()) {
       const st = this.state(pl.name);
       // a band moved on, and another moved in somewhere else
-      if (st.cleared != null && day >= st.cleared + RETURN_DAYS) { st.gen++; st.cleared = null; st.looted = false; st.down = 0; st.told = false; this.drop(pl.name); }
+      // (no band moves in while Brandt's company musters: they've all gone to join it)
+      if (st.cleared != null && day >= st.cleared + RETURN_DAYS && !(this.S.reck && /^(riding|warned|siege)$/.test(this.S.reck.stage))) { st.gen++; st.cleared = null; st.looted = false; st.down = 0; st.told = false; this.drop(pl.name); }
       if (st.cleared != null && st.looted) { if (this.camps.has(pl.name)) this.drop(pl.name); continue; }
       if (!this.camps.has(pl.name)) { const c = this.make(pl, st); if (c) this.camps.set(pl.name, c); }
     }

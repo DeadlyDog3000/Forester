@@ -1260,9 +1260,11 @@ export class Town {
     if (c.waiting) {
       // with the law, they come and ask you first — and show you where
       if (c.asking || !pl || Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) > 70) return false;
+      // (not in the middle of a fight, or of anything else you're busy with)
+      if ((this.raids && this.raids.active) || G.lockMove || G.cine) return false;
       a.doing = `looking for you, to ask leave to open ${c.name}`;
       await Promise.race([a.walkTo(pl.pos.x + 1.2, pl.pos.z + 1.2, 1.4), sleep(8)]); alive();
-      if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) > 4 || UI.dialogOpen || G.mode !== "play") return true;
+      if (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) > 4 || UI.dialogOpen || G.mode !== "play" || (this.raids && this.raids.active) || G.lockMove) return true;
       c.asking = true; a.faceTo(pl.pos.x, pl.pos.z);
       const prev = G.marker; G.marker = { x: c.x, z: c.z, y: 2 };
       UI.bark(a.settler.name, `I've a mind to open a shop — ${c.name}. There, where the marker is. Will you allow it?`, 6);
@@ -2093,6 +2095,7 @@ export class Town {
     const build = (type, text) => { const g = this.gated(type); return g ? this.researchAdvice(g.id, `a ${BUILDINGS[type].name.toLowerCase()}`) : text; };
     const site = S.buildings.find(b => !b.done && b.type !== "field");
     const field = S.buildings.find(b => b.type === "field" && !b.sown);
+    if (this.raids && this.raids.active && this.raids.siege) { const R = this.raids; return R.pending ? `The Free Company! ${R.band.filter(r => r.alive).length} at the gate, and more on the road — hold them` : R.boss && R.boss.alive ? "Captain Wolff is here, in the red coat — cut him down and it's over" : `The Free Company! ${R.band.filter(r => r.alive).length} in the settlement — hold them`; }
     if (this.raids && this.raids.active) return `Raiders! ${this.raids.band.filter(r => r.alive).length} in the settlement — drive them off with the axe or the bow before they carry off the stores`;
     if (S.caveAsked && !S.caveDone && ((G.body && G.body.tools.pick) || 0) < 2) return `Make a stone pickaxe at the chopping block before the cave — a wooden pick first (F at the block), to break the grey stone round the clearing`;
     if (S.caveAsked && !S.caveDone) return `${G.who === "sister" ? "Brother" : "Sister"} wants you to dig ore in the cave where the fork in the road runs out (marked). Sell it to Henning or Tobias${this.has("forge") ? "" : " — you can't forge it yourselves yet"}`;

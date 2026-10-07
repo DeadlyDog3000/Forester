@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "0.46.0", date: "7 October 2026", title: "The Free Company",
+    items: [
+      "The Reckoning has a last account to settle. Some while into free play (once Father's name is restored, or in the third year), Jakob rides up the road with news: Brandt is out of the cells, and has spent everything he had left on a free company under a Captain Wolff. They mean to burn the place where the ledger was hidden.",
+      "You have nine days to make ready, and the objective keeps count. Put up eight lengths of wall, get four blades into hands, raise a watch of three and clear the raiders' camps; every camp left standing sends its men to join the company. For 60 DM, Jakob will have the Amtmann put his own men on the lower road, and four fewer of Wolff's will get past.",
+      "They come up the road at dusk, in two waves, with Wolff in a red coat leading the second. He comes looking for you. He's quicker and harder than any raider, guards well, and takes four times their beating. Cut him down and the rest break and run.",
+      "Go down yourself, or let him get away, and they'll come back in six days, fewer by every one you put in the grass. Win, and they leave four good swords behind. The next morning the Amtmann rides up with the Council's bounty and a charter, and the raiders keep away a while.",
+      "Nobody asks your leave to open a shop in the middle of a fight any more.",
+    ],
+  },
+  {
     v: "0.45.0", date: "7 October 2026", title: "Supply lines",
     items: [
       "A new job, the carter, open once you have a second settlement. A carter keeps watch on every settlement's food and logs. When one is running short and another has plenty to spare, they load a handcart there, pull it along the road and unload it where it's wanted. Food goes first, then logs, and logs matter more in winter, when every hearth burns them.",

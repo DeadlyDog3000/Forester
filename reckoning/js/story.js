@@ -2720,6 +2720,177 @@ function pedlar(w, town) {
 }
 
 // ===========================================================================
+//  THE FREE COMPANY — the Reckoning's last account, in free play
+// ===========================================================================
+// Some while into free play (Father's name restored, or the third year), Jakob rides up the road: Brandt is out,
+// and has spent what he had left on a free company, to burn the place where the ledger was hidden. Nine days to
+// make ready: walls, arms, a watch, the raiders' camps cleared (each one left standing sends its men to swell the
+// company), and sixty DM to the Amtmann puts his men on the lower road. Then, at dusk, they come up it — in two
+// waves, the captain with the second. Cut him down and it's over; go down yourself, or let him get away, and they
+// come back for the rest in six days, fewer by the ones you put in the grass. Won, the Amtmann comes up the road
+// the next morning with the Council's bounty, and a charter.
+const PREP = { walls: 8, arms: 4, watch: 3 };
+function freeCompany(w, town, raids, camps) {
+  const S = town.S, pl = G.player;
+  const stand = [FIRE.x + 1.6, FIRE.z + 3.4];
+  let jak = null, it = null, amt = null, amtIt = null, busy = false;
+  const R = () => S.reck;
+  const persist = () => town.persist();
+  const prep = () => {
+    const walls = S.buildings.filter(b => b.done && BUILDINGS[b.type] && BUILDINGS[b.type].wall).length;
+    const arms = ["spears", "swords", "battleaxes", "muskets"].reduce((n, k) => n + (S[k] || 0), 0);
+    const watch = S.people.filter(p => p.job === "watch" && !p.child).length;
+    const open = camps.places().filter(p => camps.state(p.name).cleared == null).length;
+    return { walls, arms, watch, open, paid: !!(R() && R().paid) };
+  };
+  // how many come: a dozen, two more for every camp left standing, four fewer with the Amtmann's men on the road,
+  // and fewer by every one already put down
+  const size = () => { const p = prep(), r = R() || {}; return Math.max(6, Math.min(18, 12 + p.open * 2 - (p.paid ? 4 : 0) - (r.cut || 0))); };
+  const status = () => {
+    const p = prep(), left = R().due - town.day;
+    const tick = (ok, t) => ok ? `✓ ${t}` : t;
+    return [left <= 0 ? "The Free Company comes tonight" : `The Free Company in ${left} day${left === 1 ? "" : "s"}`,
+      tick(p.walls >= PREP.walls, `walls ${Math.min(p.walls, PREP.walls)}/${PREP.walls}`), tick(p.arms >= PREP.arms, `arms ${Math.min(p.arms, PREP.arms)}/${PREP.arms}`),
+      tick(p.watch >= PREP.watch, `watch ${Math.min(p.watch, PREP.watch)}/${PREP.watch}`), tick(!p.open, p.open ? `${p.open} camp${p.open === 1 ? "" : "s"} standing` : "camps cleared"),
+      tick(p.paid, p.paid ? "the Amtmann's men" : "the Amtmann (60 DM)")].join(" · ");
+  };
+  town.reckNote = () => { const r = R(); return r && r.stage === "riding" ? "Jakob has ridden up the road — he's at the fire" : r && r.stage === "warned" ? status() : r && r.stage === "won" && amt ? "The Amtmann has come up the road" : null; };
+
+  // ---- Jakob, at the fire for as long as it lasts ----
+  const placeJakob = (walk) => {
+    if (jak) return;
+    const r0 = w.road[w.road.length - 30];
+    jak = spawn(JAKOB, walk ? r0.x : stand[0], walk ? r0.z : stand[1], 0);
+    if (walk) jak.walkTo(stand[0], stand[1], 2.2).then(() => jak && jak.faceTo(FIRE.x, FIRE.z)); else jak.faceTo(FIRE.x, FIRE.z);
+    it = w.addInteract({ get x() { return jak.pos.x; }, get z() { return jak.pos.z; }, get y() { return jak.pos.y + 1.4; }, reach: 2.6,
+      label: () => R().stage === "riding" ? "Talk to Jakob — he's ridden all night" : "Talk to Jakob — how it stands",
+      use: () => { if (!busy) talkJakob().catch(e => { busy = false; if (e !== ABORT) throw e; }); } });
+  };
+  const dropJakob = () => { if (it) w.removeInteract(it); it = null; if (jak) { const j = jak; jak = null; const r0 = w.road[w.road.length - 30]; j.walkTo(r0.x, r0.z, 1.4).then(() => j.remove()); } };
+  const scene = async f => {
+    busy = true; G.lockMove = true; mark(null);
+    try { await f(); } finally { G.lockMove = false; look(null); busy = false; }
+  };
+  async function talkJakob() {
+    const r = R();
+    if (r.stage === "riding") return scene(async () => {
+      lookAt(jak, 2.5); jak.facePlayer();
+      await say("Jakob", "I've ridden all night. Brandt is out.");
+      await say("Jakob", "The Council let him buy his way onto a ship for Bergen. He sold the passage instead, and everything else he had left.");
+      await say("Jakob", "He's hired a free company with it — swords out of the Mecklenburg wars, and a captain called Wolff, who has burned better places than this for less.");
+      await say(YOU(), "For what? The ledger's read. It's done.");
+      await say("Jakob", "He says the ledger was forged, here, and he means there to be nothing left of the place to say otherwise. Nor of you.");
+      await say("Jakob", "They're mustering at Bergedorf. Nine days, perhaps. They'll come up the road at dusk — they always do.");
+      await say(P.sib, "Then we have nine days.");
+      await say("Jakob", "Put up walls — eight lengths at least. Get blades into hands: four, from the smith or bought. A watch of three who know what they're doing.");
+      await say("Jakob", "And the raiders in the woods. Wolff's been paying them. Every camp you leave standing is more swords at your gate.");
+      await say("Jakob", "The Amtmann owes you a debt, and knows it. Sixty DM, and he'll put his own men on the lower road — fewer of Wolff's will get past them.");
+      await say("Jakob", "I'll stay. I'm no use with a sword, but I can count.");
+      Object.assign(r, { stage: "warned", due: town.day + 9, tries: r.tries || 0 });
+      S.raid.next = Math.max(S.raid.next || 0, r.due + 5);
+      persist();
+      G.report && G.report("Councillor Brandt is out of the cells, and has hired a free company under a Captain Wolff. It is said they will come up the road within nine days.", "big");
+      UI.hint("The Free Company comes in nine days. Make ready: walls, arms, a watch, the camps cleared — and the Amtmann's men, for 60 DM from the treasury (talk to Jakob). It shows on the objective.", 9);
+    });
+    // how it stands, and the Amtmann's men
+    return scene(async () => {
+      lookAt(jak, 2.5); jak.facePlayer();
+      const p = prep(), left = r.due - town.day;
+      await say("Jakob", `${left <= 0 ? "Tonight." : `${left} day${left === 1 ? "" : "s"}.`} By my count they'll be ${size()} — ${p.open ? `the camps you've left will add to them` : "and the woods are quiet, thanks to you"}.`);
+      const opts = [r.paid ? "The Amtmann's men are on the road" : `Send 60 DM to the Amtmann for his men${(S.coin || 0) < 60 ? ` (the treasury has ${Math.floor(S.coin || 0)})` : ""}`, "That's all, Jakob"];
+      look(null);
+      const c = await G.choose("Jakob", opts);
+      lookAt(jak, 2.5);
+      if (c === 0 && !r.paid) {
+        if ((S.coin || 0) < 60) { await say("Jakob", "Sixty, he said. Not a pfennig less — he has his own men to feed."); return; }
+        S.coin -= 60; r.paid = true; persist(); town.showStore && town.showStore();
+        await say("Jakob", "I'll write tonight. He'll hold the ford below Bergedorf: there'll be four fewer of them on the road.");
+        G.report && G.report("The Amtmann's men will hold the ford below Bergedorf against Brandt's company.", "big");
+      } else await say("Jakob", "Go on, then. I'll be here.");
+    });
+  }
+
+  // ---- the night itself ----
+  raids.onSiegeOver = ({ won, down }) => {
+    const r = R(); if (!r) return;
+    if (won) {
+      r.stage = "won"; r.wonDay = town.day;
+      S.swords = (S.swords || 0) + 4;
+      persist();
+      setTimeout(() => G.town === town && bark(P.sib, "They left their swords in the grass. Four of them, good ones. We'll keep them.", 5), 4000);
+      G.report && G.report(`Brandt's free company was broken at the gate. Captain Wolff is cut down${down > 1 ? `, and ${down - 1} of his men with him` : ""}; the rest ran back down the road.`, "big");
+      dropJakob();
+    } else {
+      r.cut = (r.cut || 0) + down; r.tries = (r.tries || 0) + 1;
+      r.stage = "warned"; r.due = town.day + 6; S.raid.next = Math.max(S.raid.next || 0, r.due + 5);
+      persist();
+      setTimeout(() => G.town === town && bark(P.sib, `Wolff got away. He'll be back for the rest — six days, Jakob says. ${down ? `But there are ${down} fewer of them now.` : ""}`, 6), 7000);
+      G.report && G.report(`Brandt's free company came up the road at dusk and was not stopped. Captain Wolff is still at large, and they will come again.`, "big");
+    }
+  };
+
+  // ---- the morning after: the Amtmann, with the bounty and a charter ----
+  async function talkAmtmann() {
+    return scene(async () => {
+      lookAt(amt, 2.5); amt.facePlayer();
+      await say("The Amtmann", "Wolff's company is broken. The ones who ran were taken at the ford — and Brandt with the baggage, in a carter's coat.");
+      await say("The Amtmann", "He'll hang in Hamburg this time. No ships.");
+      amt.hold(makeScroll());
+      await say("The Amtmann", "The Council sends the bounty on Wolff: a hundred Deutsche Mark. And this.");
+      await say("The Amtmann", `A charter. ${S.name} is a free settlement under the Council's protection, and answers to no councillor's tithe-book again.`);
+      lookAt(sib(), 2);
+      await say(P.sib, "Father would have liked that. A ledger that balances.");
+      look(null);
+      S.coin = (S.coin || 0) + 100; S.charter = town.day;
+      // (word gets round the woods: the raiders keep away a while)
+      S.raid.count = Math.max(0, (S.raid.count || 0) - 3); S.raid.next = Math.max(S.raid.next || 0, town.day + 10);
+      R().stage = "done"; persist(); town.showStore && town.showStore();
+      G.report && G.report(`The Council's charter: ${S.name} is a free settlement. Councillor Brandt is to hang in Hamburg.`, "big");
+      if (amtIt) w.removeInteract(amtIt); amtIt = null;
+      const a = amt, r0 = w.road[w.road.length - 30]; amt = null;
+      a.walkTo(r0.x, r0.z, 1.2).then(() => a.remove());
+      await card("The account is closed", S.name + " — a free settlement", 3.5);
+      await narrate("A hundred DM for the treasury, and four swords from the grass. And the road, for once, quiet.", 5);
+    });
+  }
+  const sib = () => town.sibActor || jak || amt;
+
+  // a reload part-way: Jakob back at the fire; a siege broken off is still to come tonight
+  if (R() && R().stage === "siege") { R().stage = "warned"; R().due = Math.max(R().due, town.day); }
+  if (R() && (R().stage === "riding" || R().stage === "warned")) placeJakob(false);
+
+  onFrame(() => {
+    const r = R(), f = town.frac, free = G.mode === "play" && !UI.dialogOpen && !G.cine && !G.lockMove && !busy && !(w.cave && w.cave.inside);
+    if (!r) {
+      if (!free || raids.active || f < 0.15 || f > 0.5) return;
+      if (!(S.nameRestored != null || town.day >= 3 * YEAR) || town.day < 10) return;
+      S.reck = { stage: "riding", day: town.day }; persist();
+      placeJakob(true); mark(jak);
+      AUDIO.door && AUDIO.door(true, 0.3);
+      bark(P.sib, "A rider on the road — it's Jakob. He's ridden that horse half to death. Something's wrong.", 5);
+      return;
+    }
+    if (r.stage === "riding" && jak && !G.marker) mark(jak);
+    // dusk on the day: they come
+    if (r.stage === "warned" && town.day >= r.due && f > 0.56 && f < 0.7 && free && !raids.band.length) {
+      r.stage = "siege"; persist();
+      raids.start({ n: size(), siege: true });
+      return;
+    }
+    // the morning after: the Amtmann up the road
+    if (r.stage === "won" && !amt && town.day > r.wonDay && f > 0.12 && f < 0.6 && free) {
+      const r0 = w.road[w.road.length - 30];
+      amt = spawn(AMTMANN, r0.x, r0.z, 0);
+      amt.walkTo(stand[0], stand[1], 1.2).then(() => amt && amt.faceTo(FIRE.x, FIRE.z));
+      amtIt = w.addInteract({ get x() { return amt.pos.x; }, get z() { return amt.pos.z; }, get y() { return amt.pos.y + 1.5; }, reach: 2.8, label: "Talk to the Amtmann",
+        use: () => { if (!busy) talkAmtmann().catch(e => { busy = false; if (e !== ABORT) throw e; }); } });
+      mark(amt);
+      bark(P.sib, "The Amtmann's on the road — on his own horse this time, and smiling. That'll be a first.", 5);
+    }
+  });
+}
+
+// ===========================================================================
 //  XIV. FREE PLAY — the settlement, open-ended
 // ===========================================================================
 async function chFree(w) {
@@ -2789,6 +2960,8 @@ async function chFree(w) {
   // and their camps in the woods, one near each settlement
   const camps = new Camps(w, town);
   onFrame(dt => camps.update(dt));
+  // and, in time, the Reckoning's last account: Brandt's free company
+  freeCompany(w, town, raids, camps);
   // the board says the season and the day, and what wants doing next
   // the objective: what the settlement you're standing in wants next, and a word on any other that needs you
   onFrame(() => {
@@ -2807,6 +2980,7 @@ async function chFree(w) {
       if (notes.some(n => /has food for/.test(n)) && !S.people.some(p => p.job === "carter")) notes.push("a carter would bring it by road (F beside a settler)");
       if (notes.length) txt += ` · ${notes.join(" · ")}`;
     }
+    const rk = town.reckNote && town.reckNote(); if (rk) txt += ` · ${rk}`;
     UI.objective(txt);
   });
   // sending for someone: a trade chosen, a few DM for the letter and the road, a bed for them — and they come up it
