@@ -80,7 +80,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 /* the full map: parchment on the table, in a dark frame */
 #bigmap { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 8, 5, 0.72); z-index: 5; cursor: default; }
 #bigmapCanvas { box-shadow: 0 16px 60px rgba(0, 0, 0, 0.8), 0 0 0 6px #2a1d12, 0 0 0 7px rgba(200, 160, 90, 0.4); border-radius: 2px; }
-.bm-close { position: absolute; right: 22px; top: 18px; font: 12px var(--sans); color: var(--ink-dim); }
+.bm-close { position: absolute; right: 22px; top: 44px; font: 12px var(--sans); color: var(--ink-dim); }
 /* the inventory: a grid of slots, as block games lay one out, in the woods' own colours */
 /* a lesson: the game stops under a wash of grey, and a card shows what to do */
 #lesson { position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: rgba(60, 60, 60, 0.55); backdrop-filter: grayscale(0.85) blur(1.5px); -webkit-backdrop-filter: grayscale(0.85) blur(1.5px); pointer-events: auto; cursor: default; }
@@ -752,3 +752,15 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 .gov-win .w-step { color: #6b5234; }
 .gov-win .w-step.done { color: #2b1d10; }
 .gov-win .w-step.done span { background: #7a2216; color: #f6ecd0; border-color: #3b2612; }
+/* the tech tree on the parchment: nodes still to learn as paper plates, legible; the learned ones green */
+.gov-win #techWrap { background: rgba(110, 78, 40, 0.12) !important; }
+.gov-win .tnode rect { fill: #efe2c0; stroke: rgba(59, 38, 18, 0.45); }
+.gov-win .tnode.avail rect { fill: #f8efd6; stroke: #7a2216; stroke-width: 1.8; }
+.gov-win .tnode.avail:hover rect { fill: #fff8e4; }
+.gov-win .tnode.done rect { fill: #4e7a52; stroke: #2e4a30; }
+.gov-win .tnode.researching rect { fill: #f8efd6; stroke: #7a2216; }
+.gov-win .tnode text { fill: #2b1d10; font-weight: 600; }
+.gov-win .tnode .sub { fill: #6b5234; font-weight: 400; }
+.gov-win .tnode.done text, .gov-win .tnode.done .sub { fill: #f2f8ec; }
+.gov-win .tnode.locked { opacity: 0.55; }
+.gov-win .tlink { stroke: rgba(59, 38, 18, 0.45); }

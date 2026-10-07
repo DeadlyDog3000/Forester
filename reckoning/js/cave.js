@@ -5,7 +5,7 @@
 // dark but for your lantern and a few old torches — thick with copper, tin and iron. Sometimes a band of
 // raiders has made its camp down there. The caves lie far off the map, under the ground as it were: the
 // forest's heightAt asks the cave for its floor while you are in it.
-import { THREE, mat, MAT, rng, TAU, makeFlame, camera, addDetail } from "./core.js";
+import { THREE, mat, MAT, rng, TAU, makeFlame, camera, addDetail, renderer } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -232,6 +232,9 @@ export class Caves {
   dark() {
     // (dark, and cool: the warm light is only the lantern's and the torches', and it falls away into the black)
     G.sun.intensity = 0; G.hemi.intensity = 0.14; G.hemi.color.setHex(0x5a6470); G.hemi.groundColor.setHex(0x14120f);
+    // (no even fill down here, and no night-time lift of the exposure: the rock is lit only where a light falls on it)
+    if (G.fill) G.fill.intensity = 0.03;
+    renderer.toneMappingExposure = 1.05;
     G.scene.fog.color.setHex(0x0c0a08); G.scene.fog.near = 6; G.scene.fog.far = 55;
     if (G.sky) G.sky.visible = false;
   }

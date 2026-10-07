@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.44.4", date: "6 October 2026", title: "Readable, and the whole map",
+    items: [
+      "The tech tree is readable: what you haven't learned yet was dark on dark, and its names couldn't be read at all. The next things you can study are paper plates with a red edge, and the learned ones are green.",
+      "The map grows with your land: Nova Aquilia, all the ground you've claimed and the raiders' camps are all on it now, where some had run off the top. Your first settlement is marked with its own name, not \"The Clearing\". The map's close key no longer sits under the frame counter.",
+      "The cave is properly dark. An even warm light from outside was falling on every rock face, so the whole cave looked flat brown. Now the rock is lit only where your lantern and the torches reach.",
+      "The undersides of eaves and little roofs aren't so black by day: the light thrown back up off the ground is a little brighter.",
+    ],
+  },
+  {
     v: "0.44.3", date: "6 October 2026", title: "The right stuff",
     items: [
       "Every material in the game checked, model by model. The trees you fell now have real bark and needles; they were taken for sawn timber and for nothing. The fletching on arrows, the grip on the bow, rope, sails and flags are cloth. A ship's hull is timber. The bakery's oven is clay, not timber, and a burned house's timbers are charred wood. The raider's leggings had lost their cloth to a misread name, and have it back.",

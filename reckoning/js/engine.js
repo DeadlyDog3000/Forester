@@ -95,17 +95,17 @@ const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x4a3f30, 0.8);
 const fill = new THREE.AmbientLight(0xffdcb8, 0.1);
 G.scene.add(sky, sun, sun.target, hemi, camera, fill);   // the camera too, so what it carries (the axe) is drawn
 G.scene.fog = new THREE.Fog(0xc9d6e0, 30, 260);
-G.sun = sun; G.hemi = hemi; G.sky = sky;
+G.sun = sun; G.hemi = hemi; G.sky = sky; G.fill = fill;
 
 const C = h => new THREE.Color(h);
 export const ATMO = {
-  evening:   { sun: [0.55, 0.28, 0.4], sunC: 0xffb070, sunI: 2.4, hemiS: 0xa6b4d8, hemiG: 0x5a4632, hemiI: 0.9, fog: 0xd8a888, near: 40, far: 240, top: 0x3d5b93, mid: 0xf0b48a, bot: 0x8a6f60, stars: 0, win: 0.9, exp: 1.1 },
+  evening:   { sun: [0.55, 0.28, 0.4], sunC: 0xffb070, sunI: 2.4, hemiS: 0xa6b4d8, hemiG: 0x6a543a, hemiI: 0.9, fog: 0xd8a888, near: 40, far: 240, top: 0x3d5b93, mid: 0xf0b48a, bot: 0x8a6f60, stars: 0, win: 0.9, exp: 1.1 },
   dusk:      { sun: [-0.5, 0.08, 0.6], sunC: 0xff8050, sunI: 1.4, hemiS: 0x8a90c0, hemiG: 0x4e4238, hemiI: 1.0, fog: 0x7a6a78, near: 25, far: 180, top: 0x1e2850, mid: 0xc0705a, bot: 0x40353a, stars: 0.25, win: 1.6, exp: 1.2, fill: 0.3 },
   night:     { sun: [0.3, 0.7, -0.4], sunC: 0x8fa5d8, sunI: 0.5, hemiS: 0x46558a, hemiG: 0x1a1820, hemiI: 0.6, fog: 0x121828, near: 12, far: 100, top: 0x05070f, mid: 0x141b30, bot: 0x0a0a10, stars: 1, win: 2.2, exp: 1.35, fill: 0.42 },
   dawn:      { sun: [-0.2, 0.18, 0.9], sunC: 0xffc6a0, sunI: 1.1, hemiS: 0x9aa4b8, hemiG: 0x4e4844, hemiI: 0.85, fog: 0xa8a8b0, near: 8, far: 110, top: 0x5a6a88, mid: 0xc8b4b0, bot: 0x7a7478, stars: 0, win: 0.4, exp: 1.15 },
   mist:      { sun: [-0.2, 0.22, 0.9], sunC: 0xd0d0d8, sunI: 0.9, hemiS: 0xa4aebe, hemiG: 0x55504c, hemiI: 1.05, fog: 0x7a808a, near: 6, far: 70, top: 0x5a6472, mid: 0x8a909a, bot: 0x6a6c70, stars: 0, win: 0.9, exp: 1.3 },
-  afternoon: { sun: [0.4, 0.62, 0.35], sunC: 0xfff0d0, sunI: 2.6, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.85, fog: 0xa8b8b0, near: 30, far: 200, top: 0x4a78b5, mid: 0xc9d6e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
-  morning:   { sun: [-0.5, 0.42, 0.5], sunC: 0xffe6c0, sunI: 2.3, hemiS: 0xbcd0f0, hemiG: 0x4a4a30, hemiI: 0.8, fog: 0xb8c4c0, near: 30, far: 200, top: 0x5a88c0, mid: 0xdde4e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
+  afternoon: { sun: [0.4, 0.62, 0.35], sunC: 0xfff0d0, sunI: 2.6, hemiS: 0xbcd0f0, hemiG: 0x66603f, hemiI: 0.85, fog: 0xa8b8b0, near: 30, far: 200, top: 0x4a78b5, mid: 0xc9d6e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
+  morning:   { sun: [-0.5, 0.42, 0.5], sunC: 0xffe6c0, sunI: 2.3, hemiS: 0xbcd0f0, hemiG: 0x66603f, hemiI: 0.8, fog: 0xb8c4c0, near: 30, far: 200, top: 0x5a88c0, mid: 0xdde4e0, bot: 0x8a9a88, stars: 0, win: 0, exp: 1.0 },
   // night, with the marsh mist come in off the Elbe: the escape through the city
   nightmist: { sun: [0.3, 0.7, -0.4], sunC: 0x8fa0c8, sunI: 0.42, hemiS: 0x4a5878, hemiG: 0x1a1a22, hemiI: 0.62, fog: 0x1c2230, near: 5, far: 60, top: 0x070a12, mid: 0x1a2032, bot: 0x0c0c12, stars: 0.4, win: 2.2, exp: 1.35 },
   snowday:   { sun: [-0.3, 0.35, 0.6], sunC: 0xe8eef8, sunI: 1.2, hemiS: 0xd8e2f0, hemiG: 0x9098a0, hemiI: 1.1, fog: 0xc8d0da, near: 15, far: 130, top: 0x9aa8b8, mid: 0xd4dae2, bot: 0xb8c0c8, stars: 0, win: 0.6, exp: 1.1 },
@@ -1712,14 +1712,15 @@ const FOG_M = 1.5;
 let wFog = null;
 function worldFog(s) {
   const w = G.world, mb = w.mapBounds;
-  if (wFog && wFog.w === w && wFog.n === s.size) return wFog;
+  const bkey = `${mb.x0},${mb.x1},${mb.z0},${mb.z1}`;
+  if (wFog && wFog.w === w && wFog.n === s.size && wFog.key === bkey) return wFog;
   const k = 1 / FOG_M;
   // (the same country, more seen: only the new cells are cut; then the whole small sheet is softened once)
-  if (!(wFog && wFog.w === w && s.size > wFog.n)) {
+  if (!(wFog && wFog.w === w && s.size > wFog.n && wFog.key === bkey)) {
     const b = { x0: mb.x0 - 60, x1: mb.x1 + 60, z0: mb.z0 - 60, z1: mb.z1 + 60 };
     const mk = () => { const cv = document.createElement("canvas"); cv.width = Math.ceil((b.x1 - b.x0) * k); cv.height = Math.ceil((b.z1 - b.z0) * k); return cv; };
     const sharp = mk(), sc = sharp.getContext("2d"); sc.fillStyle = "#000"; sc.fillRect(0, 0, sharp.width, sharp.height);
-    wFog = { w, n: 0, cv: mk(), sharp, b, cut: new Set() };
+    wFog = { w, n: 0, cv: mk(), sharp, b, cut: new Set(), key: bkey };
   }
   const sc = wFog.sharp.getContext("2d"), b = wFog.b, C = EXPLORE_CELL, r = C * 0.95 * k;
   sc.globalCompositeOperation = "destination-out";

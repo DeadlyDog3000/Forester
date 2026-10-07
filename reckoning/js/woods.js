@@ -571,7 +571,7 @@ export class Woods extends WorldBase {
   }
   mapLabels(c, X, Z, S, set) {
     const L = (text, wx, wz, dy, size) => { if (seen(set, wx, wz)) label(c, text, X(wx), Z(wz) + dy, size); };
-    L("The Clearing", CLEARING.x, CLEARING.z, CLEARING.r * S + 14, 15);
+    L((G.town && G.town.w === this && G.town.S.name) || "The Clearing", CLEARING.x, CLEARING.z, CLEARING.r * S + 14, 15);
     for (const col of this.colonies || []) label(c, col.name, X(col.x), Z(col.z) + col.r * S + 12, 14);
     if (this.cave && this.cave.found && this.cave.mouthAt && !this.cave.inside) label(c, "the cave", X(this.cave.mouthAt.x), Z(this.cave.mouthAt.z) + 16, 12);
     L("the road north-east", -40, -120, 0, 13);
@@ -589,7 +589,22 @@ export class Woods extends WorldBase {
     }
   }
   get mapTitle() { return this.cave && this.cave.inside ? "The Cave" : "The Road North-East"; }
-  get mapBounds() { if (this.cave && this.cave.inside) { const b = this.cave.b; return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1 }; } return { x0: -90, x1: 110, z0: -350, z1: 60 }; }
+  get mapBounds() {
+    if (this.cave && this.cave.inside) { const b = this.cave.b; return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1 }; }
+    // the road's country — and as far again as your settlements, the ground you've claimed and the camps near them reach
+    const b = { x0: -90, x1: 110, z0: -350, z1: 60 };
+    const take = (x, z, r) => { b.x0 = Math.min(b.x0, x - r); b.x1 = Math.max(b.x1, x + r); b.z0 = Math.min(b.z0, z - r); b.z1 = Math.max(b.z1, z + r); };
+    for (const c of this.colonies || []) take(c.x, c.z, c.r + 40);
+    const S = G.town && G.town.w === this ? G.town.S : null;
+    for (const l of (S && S.lobes) || []) for (const [x, z] of l.poly || []) take(x, z, 25);
+    for (const k of this.camps ? this.camps.list() : []) take(k.x, k.z, 30);
+    for (const k of ["x0", "z0"]) b[k] = Math.floor(b[k] / 10) * 10;
+    for (const k of ["x1", "z1"]) b[k] = Math.ceil(b[k] / 10) * 10;
+    // (a bigger country: the sheet and its fog drawn again to fit)
+    const key = `${b.x0},${b.x1},${b.z0},${b.z1}`;
+    if (key !== this._mbKey) { if (this._mbKey) this._mapDirty = this._gridDirty = true; this._mbKey = key; }
+    return b;
+  }
   // gentle hills, flattened where the road runs and in the clearing
   // the ground, and the pads dug level into it for buildings: inside a pad its own height, and round it a bank
   // sloping back up (or down) to the ground as it was

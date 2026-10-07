@@ -203,7 +203,7 @@ function play(chapter, opts) {
 // a new game: first, which of the six saves it goes in
 $("btnNew").onclick = () => { back = "title"; slotMode = "new"; buildSlots(); screen("slots"); };
 $("btnSlots").onclick = () => { back = "title"; slotMode = "play"; buildSlots(); screen("slots"); };
-$("btnContinue").onclick = () => { const s = loadSave(); G.who = s.who || "brother"; play(s.chapter || 1); };
+$("btnContinue").onclick = () => { const s = loadSave(); if (!s) return; G.who = s.who || "brother"; play(s.chapter || 1); };
 $("btnChapters").onclick = () => { buildChapters(); back = "title"; screen("chapters"); };
 $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
 $("btnControls").onclick = () => { back = "title"; screen("controls"); };
