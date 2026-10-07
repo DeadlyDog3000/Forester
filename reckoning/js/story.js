@@ -2982,7 +2982,8 @@ async function chFree(w) {
       if (notes.some(n => /has food for/.test(n)) && !S.people.some(p => p.job === "carter")) notes.push("a carter would bring it by road (F beside a settler)");
       if (notes.length) txt += ` · ${notes.join(" · ")}`;
     }
-    const rk = town.reckNote && town.reckNote(); if (rk) txt += ` · ${rk}`;
+    // (the Free Company on a line of its own: it is the thing that matters most, these nine days)
+    const rk = town.reckNote && town.reckNote(); if (rk) txt += `\n${rk}`;
     UI.objective(txt);
   });
   // sending for someone: a trade chosen, a few DM for the letter and the road, a bed for them — and they come up it

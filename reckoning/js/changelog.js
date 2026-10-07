@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.47.2", date: "7 October 2026", title: "The count on its own line",
+    items: [
+      "While the Free Company is coming, its count of days and your checklist (walls, arms, the watch, the camps, the Amtmann) sit on a line of their own under the objective, not lost at the end of a long one.",
+    ],
+  },
+  {
     v: "0.47.1", date: "7 October 2026", title: "Hints that fit",
     items: [
       "If you stand a while on the hunt in the deer ride, your sibling now tells you how to hunt: crouch, walk, draw with the right mouse button. The hint was written for an older wording of the task and never came up. The same goes for putting things in the chest and for staying hidden at Martinmas.",
