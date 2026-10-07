@@ -27,7 +27,7 @@ export const KINDS = {
 export const MEAL_PRICE = 1.5;
 export const kindFor = job => Object.keys(KINDS).find(k => KINDS[k].jobs.includes(job)) || "goods";
 // what a day's work earns a settler, sold to the pedlar
-const WAGE = { hunter: 3, smith: 3, miner: 3, quarryman: 2, sawyer: 2, brickmaker: 2, baker: 2, farmer: 2, woodcutter: 2, smelter: 3, doctor: 3, watch: 2, hauler: 1 };
+const WAGE = { hunter: 3, smith: 3, miner: 3, quarryman: 2, sawyer: 2, brickmaker: 2, baker: 2, farmer: 2, woodcutter: 2, smelter: 3, doctor: 3, watch: 2, hauler: 1, carter: 2 };
 // your cut of what the taxes bring in
 export const YOUR_SHARE = 0.1;
 

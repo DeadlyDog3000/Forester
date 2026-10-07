@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.45.0", date: "7 October 2026", title: "Supply lines",
+    items: [
+      "A new job, the carter, open once you have a second settlement. A carter keeps watch on every settlement's food and logs. When one is running short and another has plenty to spare, they load a handcart there, pull it along the road and unload it where it's wanted. Food goes first, then logs, and logs matter more in winter, when every hearth burns them.",
+      "You can watch them on the road with the cart behind them, full of sacks or logs. Each trip goes into the news. A settlement is never stripped bare: a carter only takes what leaves it at least six days' food, or fifteen logs.",
+      "When a settlement is short of food, the objective now says a carter would bring it, if you have none.",
+    ],
+  },
+  {
     v: "0.44.5", date: "6 October 2026", title: "Fits the screen",
     items: [
       "The front menu fits a laptop's screen: the title was cut off at the top and the buttons ran off the bottom. It's set a little closer together when the window is short, and never crops the top.",

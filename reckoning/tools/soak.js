@@ -28,7 +28,7 @@
     for (let i = 0; i < 25; i++) { for (let k = 0; k < 10; k++) { E.frame(1 / 30, true); if (UI.dialogOpen && UI._advance) UI._advance(); } await sleep(15); }
     const t = G.town, S = t.S, C = W.CLEARING;
     Object.assign(S, { coin: 300, rye: 600, store: 40, stone: 40, planks: 30, bricks: 30, iron: 10, ore: 10, bread: 30 });
-    const jobs = ["farmer", "hauler", "woodcutter", "baker", "hunter", "quarryman", "sawyer", "smith", "watch", "miner", "doctor", "hauler"], fams = ["Brandt", "Kessler", "Vogt", "Meier"];
+    const jobs = ["farmer", "hauler", "woodcutter", "baker", "hunter", "quarryman", "sawyer", "smith", "watch", "miner", "doctor", "hauler", "carter"], fams = ["Brandt", "Kessler", "Vogt", "Meier"];
     jobs.forEach((j, i) => t.addPerson({ name: "Soak" + i, sex: i % 2 ? "f" : "m", seed: 200 + i, job: j, family: fams[i % 4], purse: 15 }, C.x - 6 + (i % 4) * 3, C.z + 8 + Math.floor(i / 4) * 2));
     for (const [type, dx, dz] of [["cabin", 12, 6], ["cabin", -12, 6], ["cabin", 12, -8], ["woodshed", -10, -8], ["field", 0, 16], ["bakery", 16, 0], ["jail", -16, 0], ["townhall", 0, -16], ["market", -18, 14], ["newsstand", 6, -5]]) {
       const b = { type, x: C.x + dx, z: C.z + dz, ry: 0, logs: 99, done: true, door: true, dug: 3, sown: true, growth: 2, tier: 1 }; S.buildings.push(b); t.show(b);

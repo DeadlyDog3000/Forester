@@ -123,6 +123,7 @@ export const JOBS = {
   woodcutter: { name: "woodcutter", ask: "fell trees", reply: "Trees it is. Mind your heads." },
   hunter: { name: "hunter", ask: "hunt the deer ride for meat and hides", reply: "I'll bring back what I can carry." },
   hauler: { name: "hauler", ask: "carry logs and stone to the building sites (nobody else does)", reply: "I'll carry. Somebody has to." },
+  carter: { name: "carter", ask: "cart food and logs along the roads, to whichever settlement is short", reply: "I'll hitch the cart. Tell them to leave the gate open." },
   farmer: { name: "farmer", ask: "work the fields", reply: "The fields, then. Good." },
   baker: { name: "baker", ask: "bake bread", reply: "Bread it is. Somebody keep that oven fed." },
   quarryman: { name: "quarryman", ask: "cut stone", reply: "Stone. My back will thank you." },
@@ -140,7 +141,7 @@ const GROW_AT = [8, 13, 19, 26, 34];
 const MAX_CLAIM = 1000;
 // the distance from a point to a segment
 const segDist = (x, z, [ax, az], [bx, bz]) => { const dx = bx - ax, dz = bz - az, l = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l)); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
-const JOB_ORDER = ["woodcutter", "hauler", "farmer", "hunter", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "doctor", "watch"];
+const JOB_ORDER = ["woodcutter", "hauler", "carter", "farmer", "hunter", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "doctor", "watch"];
 // which building a job needs, if any
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
 // (the sound engine is a page global; with it missing, as in a test, everything is quiet rather than broken)
@@ -1551,6 +1552,55 @@ export class Town {
   mouths() { return (this.colony ? this.S.people.length : this.S.people.filter(p => !p.home).length + 1) * (this.knows("horsefeed") ? 0.8 : 1); }
   // how many days the food in the stores would last
   foodDays() { const S = this.S; return ((S.rye || 0) / RATION.rye + (S.bread || 0) / RATION.bread + (S.meat || 0) / RATION.meat + (S.feast ? S.feast.length : 0)) / Math.max(0.8, this.mouths()); }
+  // ---- carting between the settlements: whichever is short of food or logs, from whichever has plenty ----
+  // (asked of the whole town: the settlements in want, worst first, each matched with the one best able to spare)
+  supplyPlan(busy = new Set()) {
+    const all = [null, ...(this.S.colonies || [])];
+    if (all.length < 2) return null;
+    const winter = this.winter, low = winter ? 20 : 8, need = [], have = [];
+    for (const c of all) {
+      const v = this.viewFor(c), fd = v.foodDays(), lg = c ? c.store || 0 : this.S.store;
+      if (!c || v.S.people.length) {
+        if (fd < 4) need.push({ c, kind: "food", urgency: (4 - fd) * 2 });
+        if (lg < low) need.push({ c, kind: "logs", urgency: (low - lg) / low * (winter ? 5 : 1.5) });
+      }
+      have.push({ c, v, fd, lg });
+    }
+    need.sort((p, q) => q.urgency - p.urgency);
+    for (const n of need) {
+      if (busy.has(`${n.c ? n.c.name : ""}:${n.kind}`)) continue;
+      const src = have.filter(h => h.c !== n.c && (n.kind === "food" ? h.fd > 7 : h.lg > 25)).sort((p, q) => n.kind === "food" ? q.fd - p.fd : q.lg - p.lg)[0];
+      if (src) return { from: src.c, to: n.c, kind: n.kind, key: `${n.c ? n.c.name : ""}:${n.kind}` };
+    }
+    return null;
+  }
+  // the way by road from one settlement's stores to another's (the first settlement's at the road ends; one out in the forest at the other)
+  roadRoute(from, to) {
+    const pts = [], at = c => this.viewFor(c).stackAt;
+    if (from) pts.push(...from.road.slice().reverse());
+    if (to) pts.push(...to.road);
+    const end = at(to); pts.push([end.x + 1.2, end.z + 0.8]);
+    return pts;
+  }
+  // a handcart, drawn behind whoever pulls it: a box on two wheels, the load heaped in it
+  makeCart(kind) {
+    const g = new THREE.Group(), wood = mat(0x7a5a3a, { surface: "wood" }), dark = mat(0x4a3622, { surface: "wood" });
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 1.1), wood); bed.position.set(0, 0.5, 0); g.add(bed);
+    for (const sx of [-1, 1]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.28, 1.1), wood); side.position.set(sx * 0.45, 0.66, 0); g.add(side);
+      const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 12), dark); wh.rotation.z = Math.PI / 2; wh.position.set(sx * 0.52, 0.34, -0.05); g.add(wh);
+      const sh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 1.0), dark); sh.position.set(sx * 0.3, 0.62, 0.95); sh.rotation.x = 0.28; g.add(sh);
+    }
+    for (const sz of [-1, 1]) { const end = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.28, 0.05), wood); end.position.set(0, 0.66, sz * 0.55); g.add(end); }
+    if (kind === "logs") {
+      const L = []; for (let i = 0; i < 7; i++) L.push({ x: -0.3 + (i % 4) * 0.2 + (i > 3 ? 0.1 : 0), y: 0.66 + (i > 3 ? 0.17 : 0), z: 0, len: 1.25, r: 0.09, dir: "z" });
+      g.add(makeLogs(L, 11));
+    } else {
+      for (let i = 0; i < 5; i++) { const s = makeSack(); s.scale.setScalar(1.5); s.position.set(-0.22 + (i % 3) * 0.22, 0.54 + (i > 2 ? 0.2 : 0), -0.25 + Math.floor(i / 3) * 0.4 + (i > 2 ? 0.1 : 0)); s.rotation.y = i * 1.3; g.add(s); }
+    }
+    g.position.set(0, 0, -1.25);
+    return g;
+  }
   // a field staked out and not yet dug, that nobody else is digging
   // whose work the new fields are: a farmer, or failing that a hauler, or anyone grown (not someone who keeps a shop)
   digger() {
@@ -1860,7 +1910,8 @@ export class Town {
   spawnPeople() { ensureFamilies(this.S); this.S.people.forEach((p, i) => this.addPerson(p, CLEARING.x - 6 + (i % 4) * 3, CLEARING.z + 8 + Math.floor(i / 4) * 2)); }
   stop() { this.stopped = true; for (const a of this.actors) { if (a.talkIt) this.w.removeInteract(a.talkIt); a.remove(); } this.actors = []; if (this.planning) this.planning.cancel(); G.onSwing = null; }
   // (baking only once there is a bakery)
-  jobsOpen() { return JOB_ORDER.filter(j => (!JOB_AT[j] || this.has(JOB_AT[j])) && !this.jobGated(j)); }
+  // (carting only once there is a second settlement to cart to)
+  jobsOpen() { return JOB_ORDER.filter(j => (!JOB_AT[j] || this.has(JOB_AT[j])) && !this.jobGated(j) && (j !== "carter" || (this.S.colonies || []).length)); }
   nextJob(p) { const jobs = this.jobsOpen(); return jobs[(jobs.indexOf(p.job) + 1) % jobs.length]; }
   // choosing someone's work from a list, rather than going round them all
   // the settlement someone belongs to: one out in the forest, or the first
@@ -2318,6 +2369,52 @@ export class Town {
         a.person.setPose("idle");
         this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); this.sfxAt(a, "build");
         await sleep(3 + Math.random() * 3);
+      } else if (job === "carter") {
+        // the carter goes where they are wanted: loads up at the stores that can spare it, and hauls it by road to the ones that can't
+        const root = G.town || this, busy = (root._carting ??= new Set());
+        const plan = root.supplyPlan && root.supplyPlan(busy);
+        if (!plan) { a.doing = "by the cart — nothing needs carting"; a.person.setPose("armsCrossed"); await sleep(10); alive(); a.person.setPose("idle"); continue; }
+        busy.add(plan.key);
+        const src = root.viewFor(plan.from), dst = root.viewFor(plan.to), name = c => c ? c.name : root.S.name || "Forester's Clearing";
+        let load = null, cart = null;
+        try {
+          a.doing = `going for ${plan.kind === "food" ? "food" : "logs"} at ${name(plan.from)}, for ${name(plan.to)}`;
+          // (to the stores the goods are in: by road, if the carter lives elsewhere)
+          const here = this.colony || null;
+          if (here !== plan.from) await a.walk(root.roadRoute(here, plan.from), 1.25); else { const st = src.stackAt; await a.walkTo(st.x + 1.2, st.z + 0.8, 1.25); }
+          alive();
+          // what can be spared, and what is wanted
+          const sS = src.S, dS = dst.S;
+          if (plan.kind === "food") {
+            let want = Math.min(12, (6 - dst.foodDays()) * Math.max(1, dst.mouths()), (src.foodDays() - 6) * Math.max(1, src.mouths()));
+            if (want < 1) { busy.delete(plan.key); continue; }
+            load = { rye: 0, bread: 0, meat: 0 };
+            for (const k of ["rye", "bread", "meat"]) { const n = Math.min(sS[k] || 0, Math.floor(want * RATION[k])); load[k] = n; sS[k] = (sS[k] || 0) - n; want -= n / RATION[k]; }
+          } else {
+            const n = Math.min(20, (sS.store || 0) - 15, dst.storeCap - (dS.store || 0));
+            if (n < 3) { busy.delete(plan.key); continue; }
+            load = { store: n }; sS.store -= n;
+          }
+          root.showStore(); root.persist(); this.sfxAt(a, "pickup");
+          cart = this.makeCart(plan.kind); a.root.add(cart); a.person.setPose("hold");
+          a.doing = `carting ${plan.kind === "food" ? "food" : "logs"} from ${name(plan.from)} to ${name(plan.to)}`;
+          await a.walk(root.roadRoute(plan.from, plan.to), 1.0); alive();
+          for (const [k, n] of Object.entries(load)) dS[k] = Math.min(k === "store" ? dst.storeCap : Infinity, (dS[k] || 0) + n);
+          a.root.remove(cart); cart = null; a.person.setPose("idle");
+          root.showStore(); root.persist(); this.sfxAt(a, "build"); this.learn(a, "building", 1.2);
+          const said = plan.kind === "food" ? Object.entries(load).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(", ") : `${load.store} logs`;
+          if (G.report) G.report(`${fullName(a.settler)} carted ${said} from ${name(plan.from)} to ${name(plan.to)}.`, "trade", plan.to ? plan.to.name : null);
+          load = null;
+          await sleep(4);
+        } catch (e) {
+          // (stopped on the way: whatever was on the cart goes back where it came from)
+          if (load) { for (const [k, n] of Object.entries(load)) src.S[k] = (src.S[k] || 0) + n; root.persist(); }
+          if (cart) { a.root.remove(cart); }
+          throw e;
+        } finally { busy.delete(plan.key); }
+        // (home again by road, if home is elsewhere)
+        const home = this.colony || null;
+        if (home !== plan.to) { a.doing = `on the road home to ${name(home)}`; await a.walk(root.roadRoute(plan.to, home), 1.25); alive(); }
       } else if (job === "hunter") {
         // out to the deer ride, a long wait in cover, and home with what they took: meat for the stores and a hide
         a.doing = "hunting in the deer ride";

@@ -2803,6 +2803,8 @@ async function chFree(w) {
         if (n && o.foodDays() < 2) { const d = Math.max(0, Math.floor(o.foodDays())); notes.push(`${name} has food for ${d ? `${d} day` : "less than a day"}`); }
         else if (c && !n && town.bedsIn(c) > 0) notes.push(`${name} has beds and nobody in them — send for someone (G)`);
       }
+      // (food short somewhere, and nobody carting: say who could)
+      if (notes.some(n => /has food for/.test(n)) && !S.people.some(p => p.job === "carter")) notes.push("a carter would bring it by road (F beside a settler)");
       if (notes.length) txt += ` · ${notes.join(" · ")}`;
     }
     UI.objective(txt);
