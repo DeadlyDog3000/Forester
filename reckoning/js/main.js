@@ -50,7 +50,7 @@ function applySettings() {
   if (P) Object.assign(s, P);
   $("setQuality").value = s.quality || "high";
   $("setScale").value = s.scale ?? 1; $("scaleVal").textContent = Math.round((s.scale ?? 1) * 100) + "%";
-  $("setDynres").checked = !!s.dynres; $("setShadows").value = s.shadows || "high"; $("setDraw").value = String(s.draw ?? 1);
+  $("setDynres").checked = !!s.dynres; $("setShadows").value = s.shadows || "high"; $("setDraw").value = String(s.draw ?? 1); $("setTrees").value = s.trees || "full";
   $("setCap").value = String(s.cap || 0); $("setFps").checked = !!s.showFps;
   $("setDark").checked = !!s.dark; document.body.classList.toggle("dark-fantasy", !!s.dark);
   post.on = s.post !== false; $("setPost").checked = post.on;
@@ -64,6 +64,8 @@ function applySettings() {
   G.reAtmo && G.reAtmo();
   $("fpsMeter").classList.toggle("hidden", !s.showFps);
   setGraphics({ shadows: s.shadows || "high", drawMul: +(s.draw ?? 1) });
+  // forest detail: how far out the trees are drawn whole, with every facet and a shadow, before the plainer ones
+  G.treeNear = { full: 55, medium: 22, low: 0 }[s.trees || "full"] ?? 55;
   if (!s.dynres) dynScale = 1;
   applyScale();
   $("sensVal").textContent = (+s.sens).toFixed(2); $("fovVal").textContent = s.fov + "°"; $("volVal").textContent = Math.round(s.volume * 100) + "%";
@@ -74,9 +76,9 @@ for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true]
 $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.value; applySettings(); G.saveSettings(); });
 // ---- FPS boosters ----
 const PRESETS = {
-  high: { scale: 1, dynres: false, shadows: "high", draw: 1, post: true },
-  balanced: { scale: 0.85, dynres: true, shadows: "low", draw: 0.75, post: true },
-  performance: { scale: 0.65, dynres: true, shadows: "off", draw: 0.55, post: false },
+  high: { scale: 1, dynres: false, shadows: "high", draw: 1, trees: "full", post: true },
+  balanced: { scale: 0.85, dynres: true, shadows: "low", draw: 0.75, trees: "medium", post: true },
+  performance: { scale: 0.65, dynres: true, shadows: "off", draw: 0.55, trees: "low", post: false },
 };
 let dynScale = 1;
 function applyScale() {
@@ -91,6 +93,7 @@ $("setScale").addEventListener("input", e => custom("scale", +e.target.value));
 $("setDynres").addEventListener("change", e => custom("dynres", e.target.checked));
 $("setShadows").addEventListener("change", e => custom("shadows", e.target.value));
 $("setDraw").addEventListener("change", e => custom("draw", +e.target.value));
+$("setTrees").addEventListener("change", e => custom("trees", e.target.value));
 $("setCap").addEventListener("change", e => { G.settings.cap = +e.target.value; G.saveSettings(); });
 // fullscreen: the whole screen, or a window. (The app's F11 fills the window to the screen as well; either way the box
 // shows how it is.) Kept as a setting, and taken up again at your first click into the game, as a browser requires

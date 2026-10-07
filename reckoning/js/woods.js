@@ -1583,7 +1583,12 @@ export class Woods extends WorldBase {
       this.tileT = 0.4;
       const p = G.player.pos, far = (G.scene && G.scene.fog && G.scene.fog.far ? G.scene.fog.far : 220) + 70;
       // near: every facet, and shadows; further: the plainer trees; past the haze: nothing
-      for (const t of this.forestTiles) { const d = Math.hypot(t.x - p.x, t.z - p.z); t.g.visible = d < 95; t.gf.visible = d >= 95 && d < far; }
+      // (how near is near is the Forest detail setting: by the edge of each eighty-metre tile, so the one you're in is always whole)
+      const nearR = G.treeNear ?? 55;
+      for (const t of this.forestTiles) {
+        const d = Math.hypot(t.x - p.x, t.z - p.z), e = Math.hypot(Math.max(0, Math.abs(t.x - p.x) - 40), Math.max(0, Math.abs(t.z - p.z) - 40));
+        t.g.visible = e <= nearR; t.gf.visible = e > nearR && d < far;
+      }
     }
     this.regrowTick(dt);
     this.t += dt;

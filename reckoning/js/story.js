@@ -1733,22 +1733,23 @@ async function ch8(w, opts = {}) {
   await until(() => out);
   w.removeInteract(fi); w.lightFire(false);
   // ---- into the trees ----
-  UI.objective("Hide in the trees on the far side — keep out of the lantern light");
+  UI.objective("Hide in the trees on the far side and crouch (C) — keep out of the lantern light");
   G.tension = 0.8;
   mark([HIDE.x, HIDE.z, w.cy + 0.8]);
   sib.stopFollow(); sib.walkTo(SIBHIDE.x, SIBHIDE.z, 2.4);
   tutor("hide", "", [["C", "crouch — only seen close to"], ["M", "keep the mouse"]], 7);
   const t0 = G.time;
-  await until(() => Math.hypot(pl.pos.x - HIDE.x, pl.pos.z - HIDE.z) < 7 || G.time - t0 > 35);
+  // (right in among the trees, not at their edge: he comes and looks from the clearing side)
+  await until(() => Math.hypot(pl.pos.x - HIDE.x, pl.pos.z - HIDE.z) < 2.5 || G.time - t0 > 35);
   mark(null);
-  UI.objective("Stay hidden until he goes");
+  UI.objective("Stay crouched and hidden until he goes");
   // ---- the charcoal buyer ----
   cart.visible = true;
   const door = [CABIN.x + Math.sin(CABIN.ry) * 4, CABIN.z + Math.cos(CABIN.ry) * 4];
-  const route = [[30.5, -289], [31, -298], door, [FIELD.x + 2.5, FIELD.z + 1], [FIRE.x + 1.2, FIRE.z - 0.5], [STACK.x + 1.5, STACK.z + 1.5], [HIDE.x - 1, HIDE.z + 10], [31, -298], [30, -284]];
+  const route = [[30.5, -289], [31, -298], door, [FIELD.x + 2.5, FIELD.z + 1], [FIRE.x + 1.2, FIRE.z - 0.5], [STACK.x + 1.5, STACK.z + 1.5], [HIDE.x - 1, HIDE.z + 12], [31, -298], [30, -284]];
   const remarks = { 2: "Empty, I was told. Somebody's mended it, though.", 3: "Rye. Somebody has sown rye.", 4: "...Still warm.", 5: "Fresh-cut, this.", 6: "And where would I go, if I'd a cabin to hide from? ...The trees." };
   let creak = 0;
-  const k = new Watchman(w, 88, route, { look: KESSLER, once: true, wait: 2.4, speed: 1.5, range: 22, crouchDiv: 2.5, light: w.lightPool[1],
+  const k = new Watchman(w, 88, route, { look: KESSLER, once: true, wait: 2.4, speed: 1.5, range: 22, crouchDiv: 3, light: w.lightPool[1],
     lines: ["Who's there?", "Someone there? Come out — I don't bite.", "Hm. A fox, is it?"],
     onArrive: i => { if (remarks[i]) bark("The charcoal buyer", remarks[i], 3.2); if (i === 6) { k.sweep = 0.9; k.baseYaw = Math.atan2(HIDE.x - k.a.pos.x, HIDE.z - k.a.pos.z); k.pause = 5; } else k.sweep = 0; } });
   let caught = false;
@@ -1899,7 +1900,7 @@ async function ch9(w, opts = {}) {
   await fade(1, 2);
   setAtmo("snownight"); w.setSnow(1, 1); AUDIO.wind(true, 1.5); SFX.fireLoop(true);
   w.lightFire(false); w.lightHearth(true); w.setCabinDoor(false, true);
-  let fire = 0.8, wood = 15, night = 0;      // (the twelve you split, and three kept dry under the bench)
+  let fire = 0.8, wood = 18, night = 0;      // (the twelve you split, and six kept dry under the bench)
   const DAWN = 85;
   setPile(wood);
   // the split wood came in with you, stacked by the hearth

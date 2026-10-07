@@ -389,6 +389,9 @@ export class Town {
 
   // ---- what the settlement can hold ----
   get hearths() { return 1 + this.count("cabin"); }
+  // the firewood kept back from building and the works, from the first day of autumn until winter's out: a log a day for
+  // every hearth, for the winter's two days (the first settlement's: out in the forest they burn what they gather)
+  woodReserve() { return this.colony || !(this.season === "autumn" || this.winter) ? 0 : this.hearths * 2; }
   get beds() { return 2 + this.ownBeds + this.S.buildings.filter(b => b.done && b.type === "cabin").reduce((a, b) => a + this.sleeps(b), 0); }
   // every tree gives two logs; a good saw and the sawing crafts make the felling quicker instead
   get logsPerTree() { return LOGS_PER_TREE; }
@@ -2099,11 +2102,15 @@ export class Town {
     if (this.raids && this.raids.active) return `Raiders! ${this.raids.band.filter(r => r.alive).length} in the settlement — drive them off with the axe or the bow before they carry off the stores`;
     if (S.caveAsked && !S.caveDone && ((G.body && G.body.tools.pick) || 0) < 2) return `Make a stone pickaxe at the chopping block before the cave — a wooden pick first (F at the block), to break the grey stone round the clearing`;
     if (S.caveAsked && !S.caveDone) return `${G.who === "sister" ? "Brother" : "Sister"} wants you to dig ore in the cave where the fork in the road runs out (marked). Sell it to Henning or Tobias${this.has("forge") ? "" : " — you can't forge it yourselves yet"}`;
+    // (firewood before anything else that can wait: a cold winter empties the settlement)
+    if (!this.colony && (this.winter || this.season === "autumn") && S.store < this.hearths * 2) {
+      const n = this.hearths, left = this.winter ? 0 : (YEAR - 2) - (((this.day % YEAR) + YEAR) % YEAR);
+      return this.winter ? `Winter: ${n} hearth${n > 1 ? "s" : ""} burn ${n} log${n > 1 ? "s" : ""} a day, and the stack is at ${S.store} — fell trees, or people will freeze`
+        : `Winter in ${left} day${left === 1 ? "" : "s"} — ${n} hearth${n > 1 ? "s" : ""} will want ${n * 2} logs; the stack is at ${S.store}. Building waits till it's stacked`;
+    }
     const clear = this.toClear().length;
     if (clear) return `Clear the new ground: ${clear} tree${clear > 1 ? "s" : ""} left past the old edge — everyone is felling`;
     if (S.lobes && this.roomDue() > 0) return `Room to grow — ${this.pop} of you now: open the map (J) and mark out new ground beyond the edge`;
-    if (this.winter && S.store < this.hearths * 2) return `Winter: every hearth burns a log a day — fell trees, the stack is at ${S.store}`;
-    if (this.season === "autumn" && S.store < this.hearths * 4) return `Winter is coming — stack firewood: ${this.hearths * 4} logs will see you through`;
     if (this.foodDays() < 3) return this.harvestable().length ? "Food is low — reap the ripe field" : this.winter ? "Food is low, and nothing grows in winter — buy rye from Henning's cart" : "Food is low — dig and sow another field (B)";
     if (!this.has("bakery") && S.people.length >= 4) return build("bakery", "Build a bakery (B): bread goes more than twice as far as the grain");
     if (this.has("bakery") && !S.people.some(p => p.job === "baker")) return "The bakery stands idle — talk to someone (F) and set them to baking";
@@ -2297,6 +2304,7 @@ export class Town {
         await a.walkTo(wx, wz, 1.2); alive();
         a.faceTo(workAt.x, workAt.z);
         if (works.give && works.give.stone && (this.S.stone || 0) >= this.stoneCap) { a.doing = `idle — the stores are full of stone (${this.stoneCap}; a grander town hall makes room)`; a.person.setPose("armsCrossed"); await sleep(8); alive(); a.person.setPose("idle"); continue; }
+        if (works.need.store && (this.S.store || 0) - works.need.store < this.woodReserve()) { a.doing = `waiting at the ${BUILDINGS[workAt.type].name.toLowerCase()} — the logs are kept for the winter fires`; a.person.setPose("armsCrossed"); await sleep(8); alive(); a.person.setPose("idle"); continue; }
         if (!this.afford(works.need)) { a.doing = `waiting at the ${BUILDINGS[workAt.type].name.toLowerCase()} for ${this.short(works.need)}`; a.person.setPose("armsCrossed"); await sleep(6); alive(); a.person.setPose("idle"); continue; }
         a.person.setPose(works.pose);
         // (Deep Shafts: quarries and mines work 30% faster, and bring up more; Blast Furnace: twice the iron)
@@ -2326,10 +2334,11 @@ export class Town {
         a.person.setPose("idle");
         this.S.store = Math.min(this.storeCap, this.S.store + n); this.showStore(); this.persist(); this.sfxAt(a, "build");
         await sleep(2);
-      } else if (!clearing && job === "hauler" && site && this.S.store > 0) {
+      } else if (!clearing && job === "hauler" && site && this.S.store > this.woodReserve()) {
         a.doing = `carrying logs to the ${BUILDINGS[site.type].name.toLowerCase()}`;
         await a.walkTo(this.stackAt.x + 1.0, this.stackAt.z + 0.6, 1.3); alive();
-        const n = Math.min(4, this.S.store, BUILDINGS[site.type].cost - site.logs); if (n <= 0) continue;
+        // (never the winter's firewood: that stays on the stack)
+        const n = Math.min(4, this.S.store - this.woodReserve(), BUILDINGS[site.type].cost - site.logs); if (n <= 0) continue;
         this.S.store -= n; this.showStore(); a.person.setPose("hold");
         await a.walkTo(site.x + 1.6, site.z + BUILDINGS[site.type].d / 2 + 1.4, 1.1); alive();
         // (the site pulled down while they were on the way: the logs go back on the stack)
@@ -2622,6 +2631,15 @@ export class Town {
           else this.emit("cold", this.day);
         }
       }
+      // autumn: a word to you about the winter's firewood, at the start of it and again on its last day, if it's short
+      { const d = ((this.day % YEAR) + YEAR) % YEAR, n = this.hearths, need = n * 2;
+        if ((d === YEAR - 4 || d === YEAR - 3) && (this.S.store || 0) < need && this.S.woodTold !== this.day) {
+          this.S.woodTold = this.day;
+          const sib = G.who === "sister" ? "Brother" : "Sister", eve = d === YEAR - 3;
+          UI.bark(sib, eve ? `Winter tomorrow, and the stack's at ${this.S.store || 0}. ${n} hearths, ${need} logs to see it out — everyone to the trees, or someone freezes.`
+            : `Autumn. In two days it's winter: ${n} hearth${n > 1 ? "s" : ""}, a log a day each — we want ${need} logs on the stack. I'll keep the builders off it till we have them.`, 8);
+          G.report && G.report(eve ? `Winter comes tomorrow, and the woodpile is short: ${this.S.store || 0} logs for ${n} hearths.` : `Autumn: ${need} logs wanted on the stack for the winter fires. Building waits till they're there.`, "trouble");
+        } }
       // room to grow: said once for each claim earned
       const due = this.roomDue();
       if (due > 0 && this.S.growTold !== this.S.lobes.length + this.S.expand + due) {

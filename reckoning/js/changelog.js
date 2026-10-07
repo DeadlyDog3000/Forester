@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.47.0", date: "7 October 2026", title: "Firewood, and the forest",
+    items: [
+      "Winter no longer takes you by surprise. On the first day of autumn your sibling tells you how many logs the winter will want: a log a day for every hearth, over winter's two days. If the stack is still short on the last day of autumn, they warn you again. Both warnings also go into the news.",
+      "From the first day of autumn until winter's out, that firewood is kept back. Haulers won't carry it to building sites, and the sawmill, brickworks and the other works won't burn it. They wait, and say so, until the stack holds enough. Building goes on with whatever is over.",
+      "When firewood is short, the objective says so first: how many days are left, how many logs the hearths want and what's on the stack. Before, it sat behind clearing the ground and making room to grow.",
+      "Martinmas is fairer. The hiding place kept its marker only until you were near the trees, so a player who stopped when it vanished stood at the very edge, where the charcoal buyer comes to look, and was caught every time. Now the marker stays until you're in among the trees, he looks from a little further off, and the objective says to crouch (C).",
+      "The first winter's night has six dry logs under the bench instead of three. Feeding the fire early, before it burns low, no longer means the fire dies before dawn and you play the whole chapter again.",
+      "The whole story was played through, chapter by chapter, by a test that follows the marker as a new player would. It found the two problems above, and no errors.",
+      "A new graphics setting, Forest detail. Full draws whole trees all round you, as before. Medium draws plainer ones past the next stand. Low keeps whole trees only where you're standing. It's the biggest boost after shadows, and it doesn't pull the fog in. The Balanced and Performance presets use it.",
+    ],
+  },
+  {
     v: "0.46.0", date: "7 October 2026", title: "The Free Company",
     items: [
       "The Reckoning has a last account to settle. Some while into free play (once Father's name is restored, or in the third year), Jakob rides up the road with news: Brandt is out of the cells, and has spent everything he had left on a free company under a Captain Wolff. They mean to burn the place where the ledger was hidden.",
