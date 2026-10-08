@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.48.2", date: "8 October 2026", title: "Sitting down",
+    items: [
+      "People sit down at the tavern table, or by the fire, and get up again, over most of a second, the way a person does, instead of dropping into the seat in the blink of an eye.",
+    ],
+  },
+  {
     v: "0.48.1", date: "7 October 2026", title: "The horse's paces",
     items: [
       "The horse you ride has its paces. It walks in four beats, trots on the diagonals and gallops with the hinds and then the fores, each chosen by how fast you're going. Before, it galloped at every speed, just smaller when slow. The stride lengthens with the pace and a hoof on the ground sweeps back as fast as you go, so the hooves don't slide. Each leg folds at the knee as it comes forward, the head nods with the stride, and there are four hoofbeats to a stride.",

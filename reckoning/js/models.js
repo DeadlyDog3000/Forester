@@ -399,7 +399,9 @@ function useModel(P, key, colors = {}) {
       play(speed > 2.1 && acts.runLegs ? "runLegs" : "walkLegs"); playArms(pose + "Arms");
     } else {
       playArms(null);
-      play(this.sitting > 0.5 ? (pose === "eat" && acts.eat ? "eat" : "sit") : ONCE ? pose : speed > 2.1 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle", ONCE ? 0.12 : 0.25);
+      // (sitting down or getting up takes a moment, not a blink: the blend into the seat and out of it is slow)
+      const seated = this.sitting > 0.5, rising = seated !== !!this.wasSeated; this.wasSeated = seated;
+      play(seated ? (pose === "eat" && acts.eat ? "eat" : "sit") : ONCE ? pose : speed > 2.1 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle", rising ? 0.7 : ONCE ? 0.12 : 0.25);
     }
     // (played as fast as the feet carry them, so a planted foot stays planted: the clips go 1.1 and 4.3 m/s at full
     // speed, measured with tools/blender/footspeed.py)
