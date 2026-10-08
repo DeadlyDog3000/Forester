@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.49.0", date: "8 October 2026", title: "Grazing",
+    items: [
+      "Animals feed as they should. A grazing deer leans onto its forelegs and puts its muzzle right down in the grass, a boar roots with its snout on the ground, and a hare drops its nose to the turf. The mouth works as they feed, with a nibble, a pull and a moment's chewing. Before, a deer's head stopped nearly half a metre above the grass, eating air.",
+      "They browse the bushes too. Now and then one goes over to a bush in the woods or along the road and feeds at it: a deer reaches into the leaves, while a boar roots at its foot and a hare nibbles the low shoots. A deer or boar that finds a bramble in fruit, out of your sight, has the blackberries before you do, and the bramble is picked clean for a few days.",
+      "The roe deer has its proper neck, long enough to reach the grass at its feet and the leaves of a bush.",
+      "The hare's hop is slower and longer. At an amble it makes a lazy hop of a couple of feet about once a second and sits between hops; at full tilt, long bounds two or three times a second. Before, it was a frantic patter of short ones.",
+    ],
+  },
+  {
     v: "0.48.2", date: "8 October 2026", title: "Sitting down",
     items: [
       "People sit down at the tavern table, or by the fire, and get up again, over most of a second, the way a person does, instead of dropping into the seat in the blink of an eye.",

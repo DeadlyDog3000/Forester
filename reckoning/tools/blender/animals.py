@@ -69,10 +69,11 @@ def deer():
     out += objs
 
     def neck(k):
+        # (a roe deer's neck is long enough to bring its mouth to the grass at its feet, and to the leaves of a bush)
         a = 0.85
         d = (0, -math.sin(a), math.cos(a))
-        k.cylinder("fur", 0.065, 0.09, 0.4, mat_tr((0, d[1] * 0.18, d[2] * 0.18), (a, 0, 0)), rgb(coat, 0.02, k.rnd), segs=12)
-        hx, hz = d[1] * 0.38, d[2] * 0.38
+        k.cylinder("fur", 0.06, 0.09, 0.58, mat_tr((0, d[1] * 0.27, d[2] * 0.27), (a, 0, 0)), rgb(coat, 0.02, k.rnd), segs=12)
+        hx, hz = d[1] * 0.56, d[2] * 0.56
         ellipsoid(k, "fur", (0, hx - 0.07, hz + 0.02), (0.07, 0.13, 0.075), rgb(coat, 0.02, k.rnd), rot=(0.45, 0, 0))
         ellipsoid(k, "fur", (0, hx - 0.18, hz - 0.03), (0.04, 0.07, 0.045), rgb(0x6a4228), rot=(0.45, 0, 0))   # the muzzle
         ellipsoid(k, "horn", (0, hx - 0.24, hz - 0.05), (0.028, 0.022, 0.022), rgb(dark))                   # the nose

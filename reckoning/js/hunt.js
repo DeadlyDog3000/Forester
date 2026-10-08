@@ -28,6 +28,10 @@ const KINDS = {
 };
 const GRAVITY = 9.8;
 
+// feeding: how far the neck goes down (and the body leans onto the forelegs) to bring the mouth to the grass, and to a
+// bush's leaves — measured on the models, so the muzzle meets the ground rather than stopping short in the air
+// (a boar roots at the foot of a bush, and a hare nibbles its lowest shoots: neither reaches the leaves)
+const FEED = { deer: { grass: 2.0, lean: 0.08, bush: 0.6 }, boar: { grass: 0.9, lean: 0.08, bush: 0.9 }, hare: { grass: 1.85, lean: 0.08, bush: 1.85 } };
 // the footfalls of each gait: when in the stride each foot (fore left, fore right, hind left, hind right) comes down, and
 // how much of the stride it stays down
 const GAIT = {
@@ -123,6 +127,7 @@ class Animal {
       this.lookT = (this.lookT ?? 2 + Math.random() * 5) - dt;
       if (this.lookT < 0) { this.looking = this.looking ? 0 : 1.2 + Math.random() * 1.5; this.lookT = this.looking || 3 + Math.random() * 6; this.lookYaw = (Math.random() - 0.5) * 1.1; }
       this.head += ((this.looking ? 1 : 0) - this.head) * Math.min(1, dt * (this.looking ? 4 : 2));
+      if (this.browse) { const want = Math.atan2(this.browse.x - this.pos.x, this.browse.z - this.pos.z); this.yaw += Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw)) * Math.min(1, dt * 3); }
       if (this.t <= 0) {
         // a few steps to fresh grass, never far from home
         const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 8;
@@ -130,12 +135,31 @@ class Animal {
         if (Math.hypot(tx - home.x, tz - home.z) > home.r) { tx = home.x + (Math.random() - 0.5) * home.r; tz = home.z + (Math.random() - 0.5) * home.r; }
         // (never a step toward where people live)
         if (this.hunt.keepOut(tx, tz, this.ownHome ? 18 : 2)) { tx = this.pos.x - Math.sin(a) * r; tz = this.pos.z - Math.cos(a) * r; }
-        this.target = { x: tx, z: tz }; this.state = "walk"; this.t = 12;
+        this.target = { x: tx, z: tz }; this.state = "walk"; this.t = 12; this.feedAt = null; this.browse = null;
+        // or, now and then, over to a bush to browse it — a bramble in fruit first
+        if (Math.random() < 0.45) {
+          const w = this.hunt.w, near = q => !q.gone && Math.hypot(q.x - this.pos.x, q.z - this.pos.z) < 14 && Math.hypot(q.x - home.x, q.z - home.z) < home.r + 6 && !this.hunt.keepOut(q.x, q.z, this.ownHome ? 18 : 2);
+          const ripe = (w.bushes || []).filter(b => near(b) && b.fruit && b.fruit.visible);
+          const pick = ripe[0] || (w.shrubs || []).filter(q => q.kind === "bush" && near(q)).sort(() => Math.random() - 0.5)[0];
+          if (pick) {
+            const dx = this.pos.x - pick.x, dz = this.pos.z - pick.z, l = Math.hypot(dx, dz) || 1, stand = K.len + 0.45;
+            this.target = { x: pick.x + dx / l * stand, z: pick.z + dz / l * stand }; this.feedAt = pick;
+          }
+        }
       }
     } else if (this.state === "walk") {
       this.head += (1 - this.head) * Math.min(1, dt * 3);
       want = K.walk;
-      if (!this.target || this.t <= 0 || Math.hypot(this.target.x - this.pos.x, this.target.z - this.pos.z) < 0.6) { this.state = "graze"; this.t = 3 + Math.random() * 7; }
+      if (!this.target || this.t <= 0 || Math.hypot(this.target.x - this.pos.x, this.target.z - this.pos.z) < 0.6) {
+        this.state = "graze"; this.t = 3 + Math.random() * 7;
+        this.browse = this.feedAt && Math.hypot(this.feedAt.x - this.pos.x, this.feedAt.z - this.pos.z) < K.len + 1.2 ? this.feedAt : null;
+        if (this.browse) {
+          this.t = 6 + Math.random() * 8;
+          // (a bramble in fruit, out of your sight: they have the blackberries before you do)
+          const b = this.browse;
+          if (b.fruit && b.fruit.visible && this.kind !== "hare" && Math.hypot(pl.pos.x - b.x, pl.pos.z - b.z) > 16) { b.ripeAt = G.time + 300 + Math.random() * 120; b.fruit.visible = false; }
+        }
+      }
     } else if (this.state === "charge") {
       // head down, straight at you; a blow from the tusks, and it breaks away
       this.head = 1; want = K.run * 0.95; this.target = { x: pl.pos.x, z: pl.pos.z };
@@ -156,7 +180,7 @@ class Animal {
     const hare = this.kind === "hare", runK = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1);
     let hop = -1, hopK = 1;
     if (hare) {
-      const duty = 0.5 + 0.4 * runK, u = (this.phase / (Math.PI * 2)) % 1;
+      const duty = 0.32 + 0.55 * runK, u = (this.phase / (Math.PI * 2)) % 1;
       if (u < duty) { hop = u / duty; hopK = 1 / duty; } else hopK = 0;
     }
     if (this.target && this.speed > 0.05) {
@@ -178,7 +202,9 @@ class Animal {
     // folds at the knee and swings forward to reach for the next step.
     const run = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1), amp = clamp(this.speed / K.walk, 0, 1) * (0.45 + run * 0.35);
     const g = run < 0.2 ? GAIT.walk : run < 0.55 ? GAIT.trot : GAIT.gallop;
-    const stride = hare ? 0.45 + runK * 1.5 : K.stride * (1 + run * 1.8);
+    // (a hare lopes: a lazy hop of a couple of feet about once a second and a sit between; at full tilt, long bounds
+    // two or three times a second — never the frantic patter of short ones)
+    const stride = hare ? 0.75 + runK * 2.4 : K.stride * (1 + run * 1.8);
     this.phase += dt * this.speed / stride * Math.PI * 2;
     const off = run > 0.5 ? [0, 0, Math.PI, Math.PI] : [0, Math.PI, Math.PI, 0];
     if (hare) {
@@ -194,26 +220,30 @@ class Animal {
         // (+ is the foot back: down at the front of its reach, swept back under, lifted, and swung forward again)
         if (u < g.duty) a = -A + 2 * A * (u / g.duty);
         else { const q = (u - g.duty) / (1 - g.duty), e = q * q * (3 - 2 * q); a = A - 2 * A * e; fold = Math.sin(q * Math.PI) * (front ? 1.25 : 0.85) * (0.5 + 0.5 * still) * (A > 0.02 ? 1 : 0); }
-        l.rotation.x = a;
+        l.rotation.x = a - (this.lean || 0);
         if (this.lows[i]) this.lows[i].rotation.x += ((front ? fold : -fold * 0.6) - this.lows[i].rotation.x) * Math.min(1, dt * 30);
       });
     } else this.legs.forEach((l, i) => { if (l) l.rotation.x = Math.sin(this.phase + off[i]) * amp; });
     // the head nods with each step at a walk; while it looks about, it turns
     const nod = Math.sin(this.phase * 2) * 0.07 * clamp(this.speed / K.walk, 0, 1) * (1 - run * 0.6);
     if (this.neck) {
-      this.neck.rotation.x = this.neck0 + (1 - this.head) * (this.kind === "deer" ? 1.1 : this.kind === "boar" ? 0.6 : 0.4) + Math.sin(G.time * 3 + this.phase) * 0.03 * (1 - this.head) + nod;
+      const F = FEED[this.kind] || { grass: 0.8, bush: 0.8 }, down = this.browse ? F.bush : F.grass;
+      // (head down, the mouth working: a nibble, a pull, a moment's chewing)
+      const nib = Math.sin(G.time * 7 + this.phase) * 0.035 + Math.max(0, Math.sin(G.time * 1.3 + this.phase)) * 0.06;
+      this.neck.rotation.x = this.neck0 + (1 - this.head) * (down + nib) + nod;
       this.neck.rotation.y += (((this.state === "graze" && this.looking) ? this.lookYaw || 0 : 0) - this.neck.rotation.y) * Math.min(1, dt * 3);
     }
     // a hare bounds; a deer lifts at the gallop
     if (hare) {
       const air = hop >= 0 ? Math.sin(hop * Math.PI) : 0;
-      this.root.position.y = this.pos.y + air * (0.07 + runK * 0.28);
+      this.root.position.y = this.pos.y + air * (0.1 + runK * 0.26);
       // nose up as it leaves the ground, down as it lands
       this.root.rotation.x += ((hop >= 0 ? -Math.cos(hop * Math.PI) * (0.25 + runK * 0.15) : 0) - this.root.rotation.x) * Math.min(1, dt * 18);
     } else {
-      // a gallop rocks the body, nose down and up, as the fore and hind legs take it in turn
+      // a gallop rocks the body, nose down and up, as the fore and hind legs take it in turn; feeding, it leans onto the forelegs
       this.root.position.y = this.pos.y + Math.abs(Math.sin(this.phase)) * run * 0.08;
-      this.root.rotation.x += (Math.sin(this.phase + 0.6) * 0.09 * run - this.root.rotation.x) * Math.min(1, dt * 12);
+      this.lean = (this.state === "graze" ? (1 - this.head) : 0) * ((FEED[this.kind] || {}).lean || 0);
+      this.root.rotation.x += (Math.sin(this.phase + 0.6) * 0.09 * run + this.lean - this.root.rotation.x) * Math.min(1, dt * 12);
       // (the walk nods the head with each step)
       if (this.neck && this.speed > 0.1 && run < 0.5) this.neck.rotation.x += Math.sin(this.phase * 2) * 0.05 * Math.min(1, this.speed / K.walk);
     }
