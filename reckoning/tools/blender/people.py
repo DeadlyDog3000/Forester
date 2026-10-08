@@ -1106,7 +1106,8 @@ def vg_assign(ob, rig, hc, J, f, body, n_trunk):
             g(f"foot.{foot_island[island[v.index]]}").add([v.index], 1.0, "REPLACE")
             continue
         if piece in ("skirt", "apron") or (piece == "coat" and z < 0.93 and ax < 0.3 and abs(y) < 0.3 and z > 0.35):
-            k = max(0.0, min(1.0, (0.93 - z) / 0.5)) * min(1.0, ax / 0.12) * 0.75
+            # (the skirt follows the legs only so far: enough to swing as they walk, not to be thrown out in front of a bent knee)
+            k = max(0.0, min(1.0, (0.93 - z) / 0.5)) * min(1.0, ax / 0.12) * 0.55
             g("hips").add([v.index], 1 - k, "REPLACE")
             if k > 0:
                 g(f"thigh.{side}").add([v.index], k, "REPLACE")
@@ -1489,11 +1490,44 @@ def animate(rig, key, f, J):
                  spine=(0.1, -0.18 * cast, 0), chest=(0, -0.12 * cast, 0), neck=(0.05, 0.1 * cast, 0))
     cycle("Sow", 36, sow_at, lambda t: (0, 0, -0.005), 16)
 
+    # Gather: down on the haunches over the ground, the right hand going down to pick (a weed, a mushroom, a stick of
+    # kindling) and back up to the left, which holds what's been picked; the weight shifting a little as they reach
+    def gather_at(t):
+        r = max(0.0, math.sin(t * 2 * PI * 2)) ** 1.4          # two pickings
+        sw = math.sin(t * 2 * PI)
+        # (stooped from the hips over soft knees, the hips back to balance: a skirt drapes over that, where a squat would
+        # throw it out in front)
+        return P(spine=(0.85 + 0.08 * r, 0.12 * sw, 0), chest=(0.15 + 0.05 * r, 0.08 * sw, 0), neck=(0.15, -0.1 * sw, 0),
+                 upper_arm_R=(-0.2 - 0.45 * r, 0, -0.15), forearm_R=(-0.15 - 0.9 * (1 - r), 0, 0),
+                 upper_arm_L=(-0.55, 0, 0.25), forearm_L=(-1.2, 0, 0.2),
+                 thigh_L=(-0.35, 0, 0.1), thigh_R=(-0.3, 0, -0.1), shin_L=(0.6, 0, 0), shin_R=(0.55, 0, 0))
+    cycle("Gather", 72, gather_at, lambda t: (0.02 * math.sin(t * 2 * PI), 0.1, -0.12), 24)
+
+    # Saw: a bucksaw across a log on the trestle, both hands on it — the left foot forward, the body rocking into each
+    # push and back with each pull, the right shoulder back
+    def saw_at(t):
+        s1 = math.sin(t * 2 * PI)
+        return P(upper_arm_R=(-0.55 - 0.35 * s1, 0, -0.2), forearm_R=(-1.25 + 0.6 * s1, 0, 0),
+                 upper_arm_L=(-0.75 - 0.3 * s1, 0, 0.3), forearm_L=(-1.1 + 0.5 * s1, 0, 0),
+                 spine=(0.3 + 0.08 * s1, -0.12, 0), chest=(0.05, -0.08 + 0.04 * s1, 0), neck=(0.3, 0.15, 0),
+                 thigh_L=(-0.35, 0, 0.08), shin_L=(0.35, 0, 0), thigh_R=(0.15, 0, -0.08), shin_R=(0.15, 0, 0))
+    cycle("Saw", 32, saw_at, lambda t: (0, -0.035 * math.sin(t * 2 * PI), -0.03), 16)
+
+    # Whittle: a knife and a stick at the chest, head down over the work, the right hand taking small strokes away
+    # from the body and coming back for the next
+    def whittle_at(t):
+        k = max(0.0, math.sin(t * 2 * PI * 4)) ** 2           # four strokes
+        br = math.sin(t * 2 * PI * 2)
+        return P(upper_arm_R=(-0.4 - 0.12 * k, 0, -0.12), forearm_R=(-1.55 + 0.35 * k, 0, 0.1 * k),
+                 upper_arm_L=(-0.45, 0, 0.15), forearm_L=(-1.5, 0, 0),
+                 spine=(0.12, 0, 0), chest=(0.03 + 0.015 * br, 0, 0), neck=(0.42, 0.04 * math.sin(t * 2 * PI), 0))
+    cycle("Whittle", 96, whittle_at, lambda t: (0, 0, -0.003 * abs(math.sin(t * 2 * PI * 2))), 32)
+
     # Planted feet: in every clip that stands its ground, each foot is pinned where it is on the clip's first frame, flat
     # on the ground, and the knees bend to keep it there whatever the hips and body do — an IK pass, baked into the clip.
     # (Without it the feet slid as the weight shifted, or hung in the air, or sank, as the hips moved over them.)
     plant(rig, J, {"Idle": "LR", "Talk": "LR", "Guard": "LR", "Chop": "LR", "Hammer": "LR", "Stir": "LR", "Sow": "LR", "Reap": "LR",
-                   "Punch": "LR", "Overhead": "LR", "Hit": "LR", "Dig": "L", "Torch": "LR", "Lantern": "LR", "Hold": "LR", "Writ": "LR",
+                   "Punch": "LR", "Overhead": "LR", "Hit": "LR", "Dig": "L", "Gather": "LR", "Saw": "LR", "Whittle": "LR", "Torch": "LR", "Lantern": "LR", "Hold": "LR", "Writ": "LR",
                    "Point": "LR", "ArmsCrossed": "LR", "Bound": "LR", "Grieve": "LR", "Reach": "LR"})
 
     # stand in the rest pose when nothing plays

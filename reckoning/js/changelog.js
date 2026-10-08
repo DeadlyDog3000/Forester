@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.49.1", date: "8 October 2026", title: "The right work in their hands",
+    items: [
+      "Settlers move like the work they're doing. A sawyer works a bucksaw, left foot forward and rocking into each stroke, where before they hammered. A brickmaker mixes the clay, a smelter shovels charcoal into the furnace, and a doctor leans over the sick and tends them rather than hammering at them.",
+      "Weeding the rye, gathering kindling, picking mushrooms, gathering herbs and setting a snare are all done stooped over the ground, a hand going down to pick and back up. Before, they stood upright with both arms held straight out.",
+      "Whittling a spoon or carving pegs is done head down over the work, with small knife strokes away from the body.",
+      "A long skirt drapes when its wearer stoops or kneels, rather than being thrown out in front of the knees like a board.",
+    ],
+  },
+  {
     v: "0.49.0", date: "8 October 2026", title: "Grazing",
     items: [
       "Animals feed as they should. A grazing deer leans onto its forelegs and puts its muzzle right down in the grass, a boar roots with its snout on the ground, and a hare drops its nose to the turf. The mouth works as they feed, with a nibble, a pull and a moment's chewing. Before, a deer's head stopped nearly half a metre above the grass, eating air.",

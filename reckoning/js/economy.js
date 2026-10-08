@@ -337,11 +337,11 @@ export const eaterySolids = () => [[-2.9, 0.1, 0.42], [-2.9, 0.9, 0.42], [2.9, 0
 // ---- their own trade: a break in the day to make something of their own, sold to Henning or Tobias for their own purse ----
 // (nothing out of the settlement's stores: what they gather or make in their own time, and the DM is theirs, untaxed)
 const SIDE = {
-  woodcutter: ["a bundle of kindling", "gathering kindling", "reach"], hauler: ["a bundle of kindling", "gathering kindling", "reach"], sawyer: ["a bundle of kindling", "gathering kindling", "reach"],
-  farmer: ["a basket of mushrooms", "picking mushrooms", "reach"], baker: ["a basket of mushrooms", "picking mushrooms", "reach"],
-  hunter: ["a rabbit skin", "setting a snare", "reach"], doctor: ["a bunch of herbs", "gathering herbs", "reach"],
-  quarryman: ["a whittled spoon", "whittling", "hold"], miner: ["a whittled spoon", "whittling", "hold"], brickmaker: ["a whittled spoon", "whittling", "hold"],
-  smelter: ["a carved peg", "carving pegs", "hold"], smith: ["a carved peg", "carving pegs", "hold"], watch: ["a carved peg", "carving pegs", "hold"],
+  woodcutter: ["a bundle of kindling", "gathering kindling", "gather"], hauler: ["a bundle of kindling", "gathering kindling", "gather"], sawyer: ["a bundle of kindling", "gathering kindling", "gather"],
+  farmer: ["a basket of mushrooms", "picking mushrooms", "gather"], baker: ["a basket of mushrooms", "picking mushrooms", "gather"],
+  hunter: ["a rabbit skin", "setting a snare", "gather"], doctor: ["a bunch of herbs", "gathering herbs", "gather"],
+  quarryman: ["a whittled spoon", "whittling", "whittle"], miner: ["a whittled spoon", "whittling", "whittle"], brickmaker: ["a whittled spoon", "whittling", "whittle"],
+  smelter: ["a carved peg", "carving pegs", "whittle"], smith: ["a carved peg", "carving pegs", "whittle"], watch: ["a carved peg", "carving pegs", "whittle"],
 };
 export const sideOf = p => SIDE[p.job] || SIDE.hauler;
 export async function sideShift(town, a, sleep, alive) {

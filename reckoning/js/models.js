@@ -336,7 +336,7 @@ function useModel(P, key, colors = {}) {
   const mixer = new THREE.AnimationMixer(m.scene);
   const clip = name => m.animations.find(a => a.name.toLowerCase() === name) || m.animations.find(a => a.name.toLowerCase().includes(name));
   const acts = {};
-  for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer", "punch", "eat", "stir", "talk", "guard", "strafe", "overhead", "hit", "dig", "reap", "sow"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
+  for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer", "punch", "eat", "stir", "talk", "guard", "strafe", "overhead", "hit", "dig", "reap", "sow", "gather", "saw", "whittle"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
   // (the blows and the flinch play once and hold their last frame till the pose moves on)
   for (const n of ["overhead", "hit"]) if (acts[n]) { acts[n].setLoop(THREE.LoopOnce, 1); acts[n].clampWhenFinished = true; }
   // the legs of a walk without its arms, and the arms of a held pose without its legs, so a man can
@@ -349,7 +349,7 @@ function useModel(P, key, colors = {}) {
   // (each person their own tempo, a touch quicker or slower; and a standing clip — breathing, talking, a held pose —
   // starts anywhere in its loop, so a crowd doesn't breathe and shift its weight all together, like clockwork)
   const tempo = 0.93 + Math.random() * 0.14;
-  const LOOSE = new Set(["idle", "talk", "guard", "sit", "eat", "stir", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach"]);
+  const LOOSE = new Set(["idle", "talk", "guard", "sit", "eat", "stir", "gather", "saw", "whittle", "dig", "reap", "sow", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach"]);
   const play = (n, fade = 0.25) => {
     const a = acts[n] || acts.idle; if (!a || a === cur) return;
     a.reset().fadeIn(fade).play();

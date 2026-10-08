@@ -70,10 +70,10 @@ export const BUILDINGS = {
 // what each work does with a shift: where, how long, what it takes from the stores and what it puts back
 export const WORKS = {
   quarryman: { at: "quarry", time: 11, need: {}, give: { stone: 2 }, pose: "chop" },
-  sawyer: { at: "sawmill", time: 11, need: { store: 3 }, give: { planks: 1 }, pose: "hammer" },
-  brickmaker: { at: "brickworks", time: 12, need: { store: 3 }, give: { bricks: 3 }, pose: "hammer" },
+  sawyer: { at: "sawmill", time: 11, need: { store: 3 }, give: { planks: 1 }, pose: "saw" },
+  brickmaker: { at: "brickworks", time: 12, need: { store: 3 }, give: { bricks: 3 }, pose: "stir" },
   miner: { at: "mine", time: 14, need: {}, give: { ore: 1 }, pose: "chop" },
-  smelter: { at: "smelter", time: 12, need: { ore: 3, store: 2 }, give: { iron: 1 }, pose: "hammer" },
+  smelter: { at: "smelter", time: 12, need: { ore: 3, store: 2 }, give: { iron: 1 }, pose: "dig" },
   smith: { at: "forge", time: 14, need: { iron: 2, store: 1 }, give: { tools: 1 }, pose: "hammer" },
 };
 // what the materials are called, for the board and the labels
@@ -2444,7 +2444,7 @@ export class Town {
         const sick = this.S.people.filter(q => q.sick > 0);
         a.doing = sick.length ? `tending ${sick.map(q => q.name).join(", ")}` : "at the hospital, with nobody ill";
         await a.walkTo(hos.x + Math.sin(hos.ry) * 3.4 + 1, hos.z + Math.cos(hos.ry) * 3.4, 1.2); alive();
-        a.faceTo(hos.x, hos.z); a.person.setPose(sick.length ? "hammer" : "armsCrossed");
+        a.faceTo(hos.x, hos.z); a.person.setPose(sick.length ? "stir" : "armsCrossed");
         await sleep(8 * this.pace(a, "physicking")); alive(); a.person.setPose("idle");
         if (sick.length) { this.S.tended = this.day; this.learn(a, "physicking", 1); }
         await sleep(2);
@@ -2495,7 +2495,7 @@ export class Town {
           const [x, z] = at(lz);
           await a.walkTo(x, z, 1.0); alive();
           const [nx, nz] = at(lz + 1); a.faceTo(nx, nz);
-          a.person.setPose(task === "reap" ? "reap" : task === "sow" ? "sow" : "reach");
+          a.person.setPose(task === "reap" ? "reap" : task === "sow" ? "sow" : "gather");
           await sleep(1.8 * this.workMul * this.pace(a, "farming")); alive();
           if (Math.random() < 0.5) this.sfxAt(a, task === "reap" ? "chop" : "pickup");
           a.person.setPose("idle");
