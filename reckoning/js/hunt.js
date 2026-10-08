@@ -21,13 +21,20 @@ import { CLEARING } from "./woods.js";
 /* global SFX */
 
 const KINDS = {
-  deer: { name: "roe deer", r: 0.34, h: 0.8, len: 0.42, walk: 0.9, run: 8.5, hp: 2, meat: 3, hearRun: 30, hearWalk: 15, hearCreep: 5.5, stride: 1.6, meatKind: "venison" },
+  deer: { name: "roe deer", r: 0.34, h: 0.8, len: 0.42, leg: 0.75, walk: 0.9, run: 8.5, hp: 2, meat: 3, hearRun: 30, hearWalk: 15, hearCreep: 5.5, stride: 1.6, meatKind: "venison" },
   hare: { name: "hare", r: 0.16, h: 0.2, len: 0.12, walk: 0.6, run: 7.5, hp: 1, meat: 1, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 0.7, meatKind: "hare" },
   // a boar: heavy, slow to frighten, hard to bring down — and, wounded, it comes for you
-  boar: { name: "wild boar", r: 0.42, h: 0.55, len: 0.5, walk: 0.7, run: 6.8, hp: 4, meat: 3, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 1.2, meatKind: "boar" },
+  boar: { name: "wild boar", r: 0.42, h: 0.55, len: 0.5, leg: 0.38, walk: 0.7, run: 6.8, hp: 4, meat: 3, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 1.2, meatKind: "boar" },
 };
 const GRAVITY = 9.8;
 
+// the footfalls of each gait: when in the stride each foot (fore left, fore right, hind left, hind right) comes down, and
+// how much of the stride it stays down
+const GAIT = {
+  walk: { off: [0.25, 0.75, 0, 0.5], duty: 0.68 },
+  trot: { off: [0, 0.5, 0.5, 0], duty: 0.45 },
+  gallop: { off: [0.55, 0.65, 0, 0.12], duty: 0.3 },
+};
 class Animal {
   constructor(hunt, kind, x, z) {
     this.hunt = hunt; this.kind = kind; this.K = KINDS[kind];
@@ -37,6 +44,8 @@ class Animal {
     else { const b = new THREE.Mesh(new THREE.BoxGeometry(this.K.r * 1.2, this.K.r * 1.4, this.K.len * 2.4), new THREE.MeshStandardMaterial({ color: 0x8a5a3a })); b.position.y = this.K.h; this.root.add(b); }
     const find = n => this.root.getObjectByName(n);
     this.legs = ["legFL", "legFR", "legHL", "legHR"].map(find);
+    // (below the knee or hock, where the model has one: folded as the leg swings through)
+    this.lows = ["legFL", "legFR", "legHL", "legHR"].map(n => find(n + "Low"));
     this.neck = find("neck");
     this.neck0 = this.neck ? this.neck.rotation.x : 0;
     this.pos = new THREE.Vector3(x, 0, z);
@@ -162,14 +171,32 @@ class Animal {
       // a fleeing animal that has run out of woods turns back into them
       if (Math.hypot(this.pos.x - home.x, this.pos.z - home.z) > home.r + 25) this.target = { x: home.x, z: home.z };
     }
-    // the legs: a walk moves them in diagonal pairs, a bolt throws the fronts and the hinds together
-    this.phase += dt * this.speed / (hare ? 0.45 + runK * 1.5 : K.stride) * Math.PI * 2;
+    // the legs, as a four-legged animal moves them. A walk is four beats, each foot down in turn (hind, fore on the same
+    // side, the other hind, the other fore) with three on the ground most of the time; a trot the diagonal pairs together;
+    // a gallop the hinds and then the fores, each pair a beat apart, a long stride, and a moment in the air. A foot on the
+    // ground sweeps back under the body as fast as the body goes over it, so it doesn't slide; off the ground the leg
+    // folds at the knee and swings forward to reach for the next step.
     const run = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1), amp = clamp(this.speed / K.walk, 0, 1) * (0.45 + run * 0.35);
+    const g = run < 0.2 ? GAIT.walk : run < 0.55 ? GAIT.trot : GAIT.gallop;
+    const stride = hare ? 0.45 + runK * 1.5 : K.stride * (1 + run * 1.8);
+    this.phase += dt * this.speed / stride * Math.PI * 2;
     const off = run > 0.5 ? [0, 0, Math.PI, Math.PI] : [0, Math.PI, Math.PI, 0];
     if (hare) {
       // the hinds push off together and the fronts reach out ahead; on the ground they gather in under it
       const air = hop >= 0 ? Math.sin(hop * Math.PI) : 0, kick = hop >= 0 ? Math.sin(hop * Math.PI * 2) : 0;
       this.legs.forEach((l, i) => { if (l) l.rotation.x = i < 2 ? -air * 0.9 : kick * 0.8 + air * 0.3; });
+    } else if (K.leg) {
+      const still = clamp(this.speed / (K.walk * 0.6), 0, 1), A = Math.min(0.75, g.duty * stride / (2 * K.leg)) * still;
+      this.legs.forEach((l, i) => {
+        if (!l) return;
+        const u = ((this.phase / (Math.PI * 2) + g.off[i]) % 1 + 1) % 1, front = i < 2;
+        let a, fold = 0;
+        // (+ is the foot back: down at the front of its reach, swept back under, lifted, and swung forward again)
+        if (u < g.duty) a = -A + 2 * A * (u / g.duty);
+        else { const q = (u - g.duty) / (1 - g.duty), e = q * q * (3 - 2 * q); a = A - 2 * A * e; fold = Math.sin(q * Math.PI) * (front ? 1.25 : 0.85) * (0.5 + 0.5 * still) * (A > 0.02 ? 1 : 0); }
+        l.rotation.x = a;
+        if (this.lows[i]) this.lows[i].rotation.x += ((front ? fold : -fold * 0.6) - this.lows[i].rotation.x) * Math.min(1, dt * 30);
+      });
     } else this.legs.forEach((l, i) => { if (l) l.rotation.x = Math.sin(this.phase + off[i]) * amp; });
     // the head nods with each step at a walk; while it looks about, it turns
     const nod = Math.sin(this.phase * 2) * 0.07 * clamp(this.speed / K.walk, 0, 1) * (1 - run * 0.6);

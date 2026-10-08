@@ -38,6 +38,14 @@ def joint(sc, name, loc, parent, build, seed):
     return [e] + objs
 
 
+def limb(sc, name, loc, parent, upper, lower, knee, seed):
+    """A leg in two: the upper from the shoulder or hip, and the lower hung from the knee (or hock) below it, so the game
+    can fold it as the leg swings through, and the hoof clears the ground instead of dragging a stiff leg through it."""
+    up = joint(sc, name, loc, parent, upper, seed)
+    low = joint(sc, name + "Low", (0, 0, knee), up[0], lower, seed + 1)
+    return up + low
+
+
 def ellipsoid(k, key, centre, radii, color, rot=(0, 0, 0)):
     k.rock(key, 1.0, mat_tr(centre, rot, radii), color, lumps=0.0, subdiv=3)
 
@@ -79,11 +87,13 @@ def deer():
             if not front:
                 ellipsoid(k, "fur", (0, 0.02, -0.06), (0.07, 0.12, 0.14), c)                   # the thigh
             k.cylinder("fur", 0.038, 0.03, 0.4, mat_tr((0, 0, -0.2)), c, segs=8)
-            k.cylinder("fur", 0.02, 0.017, 0.34, mat_tr((0, 0, -0.55)), rgb(0x7a4a2a, 0.02, k.rnd), segs=6)
-            k.box("horn", (0.035, 0.05, 0.04), mat_tr((0, -0.01, -0.73)), rgb(0x2a2420))       # the hoof
         return b
+    def shank(k):
+        # (below the knee: the slender cannon and the hoof)
+        k.cylinder("fur", 0.02, 0.017, 0.34, mat_tr((0, 0, -0.17)), rgb(0x7a4a2a, 0.02, k.rnd), segs=6)
+        k.box("horn", (0.035, 0.05, 0.04), mat_tr((0, -0.01, -0.35)), rgb(0x2a2420))       # the hoof
     for name, x, y, front in (("legFL", 0.11, -0.3, True), ("legFR", -0.11, -0.3, True), ("legHL", 0.11, 0.36, False), ("legHR", -0.11, 0.36, False)):
-        out += joint(sc, name, (x * 0.85, y, 0.75), root, leg(front), 33)
+        out += limb(sc, name, (x * 0.85, y, 0.75), root, leg(front), shank, -0.38, 33)
     ellipsoid(k2 := Kit("tail", seed=34), "fur", (0, 0.56, 0.9), (0.03, 0.04, 0.05), rgb(rump))
     for o in k2.build(sc):
         o.parent = root; out.append(o)
@@ -160,11 +170,13 @@ def boar():
         def b(k):
             c = rgb(coat, 0.03, k.rnd)
             ellipsoid(k, "fur", (0, 0.0, -0.05), (0.08, 0.1, 0.13), c)
-            k.cylinder("fur", 0.04, 0.032, 0.26, mat_tr((0, 0, -0.2)), c, segs=8)
-            k.box("horn", (0.05, 0.06, 0.05), mat_tr((0, -0.01, -0.36)), rgb(dark))     # the cloven hoof
+            k.cylinder("fur", 0.04, 0.036, 0.14, mat_tr((0, 0, -0.13)), c, segs=8)
         return b
+    def shank(k):
+        k.cylinder("fur", 0.036, 0.032, 0.14, mat_tr((0, 0, -0.06)), rgb(coat, 0.03, k.rnd), segs=8)
+        k.box("horn", (0.05, 0.06, 0.05), mat_tr((0, -0.01, -0.16)), rgb(dark))     # the cloven hoof
     for name, x, y, front in (("legFL", 0.13, -0.3, True), ("legFR", -0.13, -0.3, True), ("legHL", 0.12, 0.36, False), ("legHR", -0.12, 0.36, False)):
-        out += joint(sc, name, (x, y, 0.38), root, leg(front), 63)
+        out += limb(sc, name, (x, y, 0.38), root, leg(front), shank, -0.2, 63)
     k2 = Kit("tail", seed=64)
     k2.cylinder("fur", 0.012, 0.006, 0.16, mat_tr((0, 0.58, 0.5), (0.5, 0, 0)), rgb(bristle), segs=5)
     for o in k2.build(sc):

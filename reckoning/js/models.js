@@ -346,7 +346,16 @@ function useModel(P, key, colors = {}) {
   for (const n of ["walk", "run"]) if (acts[n]) acts[n + "Legs"] = part(clip(n), false);
   for (const n of ["torch", "lantern", "writ", "bound", "hold", "guard"]) if (acts[n]) acts[n + "Arms"] = part(clip(n), true);
   let cur = null, curArms = null;
-  const play = (n, fade = 0.25) => { const a = acts[n] || acts.idle; if (!a || a === cur) return; a.reset().fadeIn(fade).play(); if (cur) cur.fadeOut(fade); cur = a; };
+  // (each person their own tempo, a touch quicker or slower; and a standing clip — breathing, talking, a held pose —
+  // starts anywhere in its loop, so a crowd doesn't breathe and shift its weight all together, like clockwork)
+  const tempo = 0.93 + Math.random() * 0.14;
+  const LOOSE = new Set(["idle", "talk", "guard", "sit", "eat", "stir", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach"]);
+  const play = (n, fade = 0.25) => {
+    const a = acts[n] || acts.idle; if (!a || a === cur) return;
+    a.reset().fadeIn(fade).play();
+    if (LOOSE.has(n) || (!acts[n] && a === acts.idle)) { a.time = Math.random() * a.getClip().duration; a.timeScale = tempo; }
+    if (cur) cur.fadeOut(fade); cur = a;
+  };
   P.clipNow = () => cur && cur.getClip().name;                 // (for the tests)
   // a blow landing on them: a flinch over whatever they're doing, for a moment
   P.flinch = () => { if (!acts.hit) return; P.flinchT = 0.5; acts.hit.reset(); if (cur === acts.hit) acts.hit.play(); };
@@ -387,12 +396,14 @@ function useModel(P, key, colors = {}) {
       playArms(null); play("strafe", 0.15); cur.timeScale = Math.sign(lat || 1) * Math.min(1.6, Math.max(0.6, Math.abs(lat) / 1.2));
     } else if (keepsHands && moving && acts[pose + "Arms"] && acts.walkLegs) {
       // walking with something held: the legs walk, the arms keep hold
-      play(speed > 3 && acts.runLegs ? "runLegs" : "walkLegs"); playArms(pose + "Arms");
+      play(speed > 2.1 && acts.runLegs ? "runLegs" : "walkLegs"); playArms(pose + "Arms");
     } else {
       playArms(null);
-      play(this.sitting > 0.5 ? (pose === "eat" && acts.eat ? "eat" : "sit") : ONCE ? pose : speed > 3 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle", ONCE ? 0.12 : 0.25);
+      play(this.sitting > 0.5 ? (pose === "eat" && acts.eat ? "eat" : "sit") : ONCE ? pose : speed > 2.1 && !keepsHands ? "run" : speed > 0.15 && !keepsHands ? "walk" : acts[pose] ? pose : "idle", ONCE ? 0.12 : 0.25);
     }
-    if (cur && (cur === acts.walk || cur === acts.run || cur === acts.walkLegs || cur === acts.runLegs)) cur.timeScale = Math.max(0.5, speed / (cur === acts.run || cur === acts.runLegs ? 5 : 1.4)) * (fwd < -0.2 && this.fight ? -1 : 1);
+    // (played as fast as the feet carry them, so a planted foot stays planted: the clips go 1.1 and 4.3 m/s at full
+    // speed, measured with tools/blender/footspeed.py)
+    if (cur && (cur === acts.walk || cur === acts.run || cur === acts.walkLegs || cur === acts.runLegs)) cur.timeScale = Math.max(cur === acts.run || cur === acts.runLegs ? 0.6 : 0.5, speed / (cur === acts.run || cur === acts.runLegs ? 4.3 : 1.1)) * (fwd < -0.2 && this.fight ? -1 : 1);
     // (last frame's turn of the head taken off first: the mixer only writes a bone when its clip changes it, so a turn
     // left on would be added to again and again, and the head would wind round)
     if (this.lookApplied) { if (headB) headB.rotateY(-this.lookApplied * 0.65); if (neckB) neckB.rotateY(-this.lookApplied * 0.3); this.lookApplied = 0; }

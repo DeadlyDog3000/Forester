@@ -1463,7 +1463,11 @@ export class Actor {
     // watching someone (who may be moving): turned to them while standing, and the head after them always
     const wt = this.watch && this.watch.pos;
     if (wt && !moving) this.targetYaw = Math.atan2(wt.x - p.x, wt.z - p.z);
-    this.yaw += angDiff(this.yaw, this.targetYaw) * Math.min(1, dt * (wt ? 3 : 6));
+    // (a turn where they stand is taken at a person's pace, not spun on the spot: the head leads it, the feet step round)
+    const dTurn = angDiff(this.yaw, this.targetYaw), maxTurn = (moving ? 7 : 3.6) * dt;
+    this.yaw += clamp(dTurn * Math.min(1, dt * (wt ? 3 : 6)), -maxTurn, maxTurn);
+    if (!moving && !this.lying && !(this.person.sitting > 0.3) && Math.abs(dTurn) > 0.35) this.turnStep = 0.3;
+    else if (this.turnStep > 0) this.turnStep -= dt;
     if (wt) this.person.look = clamp(angDiff(this.yaw, Math.atan2(wt.x - p.x, wt.z - p.z)), -1, 1);
     // a head turned toward whoever is talking to them
     else if (this.lookP) {
@@ -1475,6 +1479,8 @@ export class Actor {
       this.person.look = !moving && !this.lying && d < 5 && d > 0.8 && Math.abs(a) < 1.5 && G.mode === "play" ? clamp(a, -1, 1) * 0.85 : 0;
     }
     this.speed = moving ? spd : (this.forcedSpeed || 0);
+    // (the head ahead of the body into a turn)
+    if (this.turnStep > 0 && !moving) this.person.look = clamp((this.person.look || 0) + clamp(dTurn, -0.7, 0.7) * 0.7, -1, 1);
     // their footsteps, if you are near enough to hear them (a few at a time, however many are walking)
     if (moving && spd > 0.3) {
       this.stepD = (this.stepD || 0) + spd * dt;
@@ -1498,7 +1504,9 @@ export class Actor {
     this.lieK = this.lieK ?? (this.lying ? 1 : 0);
     if (this.lying && this.lieK < 1) this.lieK = Math.min(1, this.lieK + dt * (1.2 + this.lieK * 5));
     else if (!this.lying && this.lieK > 0) this.lieK = Math.max(0, this.lieK - dt * 2.5);
-    this.person.update(dt, this.speed);
+    // (stepping round in a turn, unless they're busy at something with their hands)
+    const stepTurn = this.turnStep > 0 && !moving && (!this.person.pose || this.person.pose === "idle" || this.person.pose === "talk") && !per.fight;
+    this.person.update(dt, stepTurn ? Math.max(this.speed, 0.65) : this.speed);
     if (this.onUpdate) this.onUpdate(dt);
     this.sync();
   }

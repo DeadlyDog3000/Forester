@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.48.0", date: "7 October 2026", title: "How people move",
+    items: [
+      "Walking and running are rebuilt from how a real stride moves: hip, knee and ankle through each step. In a walk the heel strikes, the knee gives a little as the weight comes on, the heel lifts, the toe pushes off and the knee folds to carry the foot through. The body is lowest when both feet are down and highest over the standing foot, and the hips sway over it. The pelvis turns with the leg, the chest turns against it, the arms swing and the head stays level.",
+      "A run lands on a bent knee, kicks the back heel up and drives the knee high, with the arms pumping at the elbow and a forward lean. It's lowest at mid-stance and in the air between steps; before, it was the other way round.",
+      "Feet stay where they're put. A walk or run plays exactly as fast as the person moves over the ground, so a planted foot no longer skates. In everything done standing (idling, talking, the guard, felling, hammering, reaping, sowing, digging, stirring, punching, a blow taken, every held pose), each foot is pinned flat to the ground and the knees bend to keep it there, instead of sliding or hanging in the air.",
+      "Bodies turn the right way. Felling a tree, a punch, reaping, sowing, digging and throwing the earth aside all twist the body round, where before they bent it sideways at the waist. The axe swing in particular was a sideways lurch, and is now a turn through the hips and shoulders.",
+      "Shoe buckles stay on the shoes. They were weighted half to the shin and slid off the foot as it moved.",
+      "A crowd no longer breathes in step. Everyone starts their idle, their talk and their held poses at their own point in the loop, at their own slightly different tempo.",
+      "People turning where they stand no longer spin on the spot. The head leads, the body comes round at a person's pace and the feet step round with it.",
+      "Deer and boar have knees. A walk is four beats, each hoof in turn with three on the ground; a trot moves the diagonal pairs together; a gallop has the hinds and then the fores, a long stride and a moment in the air. Each leg folds as it swings forward instead of dragging stiff through the ground, and a hoof on the ground sweeps back as fast as the animal goes, so it doesn't slide.",
+    ],
+  },
+  {
     v: "0.47.2", date: "7 October 2026", title: "The count on its own line",
     items: [
       "While the Free Company is coming, its count of days and your checklist (walls, arms, the watch, the camps, the Amtmann) sit on a line of their own under the objective, not lost at the end of a long one.",
