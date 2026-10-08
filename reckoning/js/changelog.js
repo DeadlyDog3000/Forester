@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.48.1", date: "7 October 2026", title: "The horse's paces",
+    items: [
+      "The horse you ride has its paces. It walks in four beats, trots on the diagonals and gallops with the hinds and then the fores, each chosen by how fast you're going. Before, it galloped at every speed, just smaller when slow. The stride lengthens with the pace and a hoof on the ground sweeps back as fast as you go, so the hooves don't slide. Each leg folds at the knee as it comes forward, the head nods with the stride, and there are four hoofbeats to a stride.",
+      "Its coat and saddle blanket were drawn with a wood grain, like a plank. The coat is plain hide now, and the blanket is cloth.",
+    ],
+  },
+  {
     v: "0.48.0", date: "7 October 2026", title: "How people move",
     items: [
       "Walking and running are rebuilt from how a real stride moves: hip, knee and ankle through each step. In a walk the heel strikes, the knee gives a little as the weight comes on, the heel lifts, the toe pushes off and the knee folds to carry the foot through. The body is lowest when both feet are down and highest over the standing foot, and the hips sway over it. The pelvis turns with the leg, the chest turns against it, the arms swing and the head stays level.",

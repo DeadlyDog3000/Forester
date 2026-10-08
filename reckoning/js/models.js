@@ -1051,7 +1051,8 @@ export function makeShip(len = 18, seed = 3) {
 // facing +Z, standing on y = 0; { root, legs: [fl, fr, bl, br], neck, gait(t, k) } — gait swings the legs (k: 0 still, 1 gallop)
 export function makeHorse(coat = 0x6a4428, seed = 1) {
   const root = new THREE.Group();
-  const hide = mat(coat, { roughness: 0.9 }), dark = mat(0x2a1c12, { roughness: 0.9 }), hoof = mat(0x1a1410, { roughness: 0.8 });
+  // (a coat, not timber: no grain on it)
+  const hide = mat(coat, { roughness: 0.9, surface: "none" }), dark = mat(0x2a1c12, { roughness: 0.9, surface: "none" }), hoof = mat(0x1a1410, { roughness: 0.8, surface: "none" });
   const bx = (w, h, d, x, y, z, m, p = root) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; };
   // the barrel, a little rounder at the chest and the rump
   bx(0.5, 0.52, 1.5, 0, 1.18, 0, hide);
@@ -1066,8 +1067,8 @@ export function makeHorse(coat = 0x6a4428, seed = 1) {
   bx(0.18, 0.16, 0.12, 0, -0.02, 0.5, dark, head);                  // the muzzle
   for (const s of [-1, 1]) bx(0.05, 0.12, 0.05, s * 0.08, 0.15, 0.02, hide, head);   // ears
   // the saddle and the blanket under it
-  bx(0.56, 0.05, 0.62, 0, 1.46, 0.05, mat(0x6a2a20, { roughness: 0.9 }));
-  bx(0.4, 0.1, 0.48, 0, 1.51, 0.05, mat(0x3a2414, { roughness: 0.7 }));
+  bx(0.56, 0.05, 0.62, 0, 1.46, 0.05, mat(0x6a2a20, { roughness: 0.9, surface: "cloth" }));
+  bx(0.4, 0.1, 0.48, 0, 1.51, 0.05, mat(0x3a2414, { roughness: 0.7, surface: "none" }));
   // the tail
   const tail = new THREE.Group(); tail.position.set(0, 1.35, -0.9); tail.rotation.x = 0.5; root.add(tail);
   bx(0.1, 0.1, 0.62, 0, 0, -0.3, dark, tail);
@@ -1081,16 +1082,28 @@ export function makeHorse(coat = 0x6a4428, seed = 1) {
     bx(0.12, 0.06, 0.13, 0, -0.47, 0.01, hoof, low);
     l.userData.low = low; legs.push(l);
   }
-  const gait = (t, k) => {
-    // a gallop: the fore pair and the hind pair each a little apart, fore and hind half a stride apart
-    const ph = [0, 0.18, 0.5, 0.68];
+  // its gaits as a horse has them: a four-beat walk, a trot on the diagonals, a gallop with the hinds and then the fores
+  // (fore left, fore right, hind left, hind right: when each comes down, and for how much of the stride); the stride
+  // lengthens with the pace, and a hoof on the ground sweeps back exactly as fast as the horse goes over it
+  const GAITS = { walk: { off: [0.25, 0.75, 0, 0.5], duty: 0.62, stride: 1.7 }, trot: { off: [0, 0.5, 0.5, 0], duty: 0.42, stride: 2.7 }, gallop: { off: [0.55, 0.65, 0, 0.1], duty: 0.3, stride: 4.6 } };
+  let ph = 0;
+  const gait = (dt, speed) => {
+    const g = speed < 2.6 ? GAITS.walk : speed < 6 ? GAITS.trot : GAITS.gallop, still = Math.min(1, speed / 0.8);
+    ph = (ph + dt * speed / g.stride) % 1;
+    const A = Math.min(0.62, g.duty * g.stride / 2.0) * still;
     legs.forEach((l, i) => {
-      const a = Math.sin((t + ph[i]) * Math.PI * 2);
-      l.rotation.x = a * 0.7 * k;
-      l.userData.low.rotation.x = (i < 2 ? 1 : -1) * Math.max(0, -a) * 0.9 * k;
+      const u = (ph + g.off[i]) % 1, front = i < 2;
+      let a, fold = 0;
+      if (u < g.duty) a = -A + 2 * A * (u / g.duty);
+      else { const q = (u - g.duty) / (1 - g.duty), e = q * q * (3 - 2 * q); a = A - 2 * A * e; fold = Math.sin(q * Math.PI) * (front ? 1.2 : 0.8) * still; }
+      l.rotation.x = a;
+      l.userData.low.rotation.x += ((front ? fold : -fold * 0.7) - l.userData.low.rotation.x) * Math.min(1, dt * 30);
     });
-    neck.rotation.x = -0.75 + Math.sin(t * Math.PI * 2) * 0.08 * k;
-    tail.rotation.x = 0.5 + k * 0.4 + Math.sin(t * Math.PI * 4) * 0.1 * k;
+    const k = Math.min(1, speed / 8);
+    // the head nods with each stride (twice at the walk), and the tail lifts with the pace
+    neck.rotation.x = -0.75 + Math.sin(ph * Math.PI * 2 * (g === GAITS.walk ? 2 : 1)) * (0.05 + 0.05 * k) * still;
+    tail.rotation.x = 0.5 + k * 0.4 + Math.sin(ph * Math.PI * 4) * 0.1 * k;
+    return ph;
   };
   return { root, legs, neck, gait };
 }

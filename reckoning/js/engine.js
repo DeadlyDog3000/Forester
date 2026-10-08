@@ -725,9 +725,9 @@ export class Player {
     if (this.horse) {
       const h = this.horse;
       h.root.position.set(this.pos.x, this.pos.y, this.pos.z); h.root.rotation.y = this.yaw + Math.PI;
-      h.phase = (h.phase || 0) + this.speed * dt / 3.2;
-      h.gait(h.phase, Math.min(1, this.speed / 5));
-      if (this.onGround && this.speed > 0.6 && Math.floor(h.phase * 2) !== h.lastBeat) { h.lastBeat = Math.floor(h.phase * 2); AUDIO.step("dirt", 0.9, { fast: true }); AUDIO.step("dirt", 0.7, { fast: true }); }
+      h.phase = h.gait(dt, this.speed);
+      // (hoofbeats: four to a stride)
+      if (this.onGround && this.speed > 0.6 && Math.floor(h.phase * 4) !== h.lastBeat) { h.lastBeat = Math.floor(h.phase * 4); AUDIO.step("dirt", this.speed > 6 ? 0.9 : 0.6, { fast: this.speed > 6 }); }
     }
     // footsteps
     if (this.onGround && this.speed > 0.4 && !this.horse) {
