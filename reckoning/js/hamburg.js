@@ -8,11 +8,12 @@
 // the houses along them are generated, from a fixed seed, so it is the same
 // city every time.
 
-import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture, SNOW } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture, SNOW, camera } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
 import { WaterMat } from "./water.js";
+import { Smoke } from "./smoke.js";
 import { water, label, INK, seen } from "./map.js";
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,7 @@ export const SPOTS = {
   alley: [-24.8, 44.5], gate: [-35, 66], postern: [-27.5, 67.2],
 };
 
+let CHIMS = null;
 function row(b, r, x0, z0, x1, z1, facades, win, lit, cols) {
   // one row of gable houses along the longer side of the lot
   const alongX = (x1 - x0) >= (z1 - z0);
@@ -118,6 +120,16 @@ function row(b, r, x0, z0, x1, z1, facades, win, lit, cols) {
       if (alongX) b.add(BOXG, roof, px, oy + 0.08, pz, 0, 0, -sd * ang, slope + 0.35, 0.16, D + 0.5, 0.06);
       else b.add(BOXG, roof, px, oy + 0.08, pz, sd * ang, 0, 0, D + 0.5, 0.16, slope + 0.35, 0.06);
     }
+    // a chimney stack on most of them, up through one slope near the ridge (its smoke is the town's evening)
+    // (from the house's own place, not the street's random run, so the rest of the street is as it always was)
+    { const hh = (q => q - Math.floor(q))(Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453);
+      if (hh < 0.6) {
+        const sd = hh < 0.3 ? -1 : 1, off = bw * 0.18, ly = h + roofH * (1 - off / (bw / 2)), dz = (hh * 7 % 1 - 0.5) * D * 0.5;
+        const px = alongX ? cx + sd * off : cx + dz, pz = alongX ? cz + dz : cz + sd * off;
+        b.add(BOXG, brick ? 0x7a3a2e : 0x8a8478, px, ly + 0.6, pz, 0, ry, 0, 0.55, 1.8, 0.55, 0.03);
+        b.add(BOXG, 0x4a4440, px, ly + 1.55, pz, 0, ry, 0, 0.66, 0.12, 0.66);
+        (CHIMS || []).push({ x: px, y: ly + 1.65, z: pz });
+      } }
     // cornice
     b.add(BOXG, brick ? 0xcfc4b0 : TIMBER, cx, h + 0.05, cz, 0, ry, 0, bw + 0.12, 0.14, D + 0.12);
     // the faces that look onto a street get windows, a door, and beams
@@ -219,7 +231,7 @@ export class Hamburg extends WorldBase {
     this.col.addRect(-12, -43, 4, 4, 5);
 
     // ---- blocks of houses ----
-    const heights = [];
+    const heights = []; CHIMS = this.chimneys = [];
     for (const bl of BLOCKS) {
       const [x0, z0, x1, z1] = bl;
       const alongX = (x1 - x0) >= (z1 - z0);
@@ -617,6 +629,15 @@ export class Hamburg extends WorldBase {
     this.door.rotation.y = this.doorAngle;
     // water and ships
     if (this.wm) this.wm.update(dt);
+    // the town's chimneys: thin smoke from most of them, thicker toward evening
+    if (this.chimneys && this.chimneys.length) {
+      if (!this.smoke) this.smoke = new Smoke(this.root);
+      const f = G.scene.fog, sun = G.sun ? Math.min(1, G.sun.intensity / 2.4) : 1, k = 0.3 + (1 - sun) * 0.3;
+      const src = this._smk || (this._smk = this.chimneys.map(c => ({ x: c.x, y: c.y, z: c.z, k })));
+      for (const c of src) c.k = k;
+      this.smoke.update(dt, src, { x: 0.6, z: 0.25 }, G.player && G.player.pos, { color: new THREE.Color(0x77736f).multiplyScalar(0.35 + sun * 0.65).lerp(f.color, 0.18), fog: f.color, near: f.near, far: f.far });
+      this.smoke.mat.uniforms.uScale.value = innerHeight * (window.devicePixelRatio || 1) / (2 * Math.tan(camera.fov * Math.PI / 360));
+    }
     if (Math.floor(this.t * 20) !== this._wt) {
       this._wt = Math.floor(this.t * 20);
       const a = this.water.geometry.attributes.position, base = this._wbase;

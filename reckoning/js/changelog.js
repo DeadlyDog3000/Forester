@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.4", date: "8 October 2026", title: "Hamburg's chimneys",
+    items: [
+      "Most of the houses in Hamburg have a chimney stack up through the roof, brick or stone, and they smoke: thin by day and thicker toward evening, drifting off the rooftops over the streets.",
+    ],
+  },
+  {
     v: "0.53.3", date: "8 October 2026", title: "The Elbe",
     items: [
       "The Elbe at Hamburg is real water now. It's grey-green and silty, it holds the sky and the dark of the quays and ships along it, the sun glints off it, and a slow swell runs on it. Before, it was a flat blue sheet.",
