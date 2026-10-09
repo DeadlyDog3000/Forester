@@ -273,11 +273,13 @@ export class Raids {
   // otherwise you, if you come close enough and nobody else of his is already at you
   duelOf(r) {
     const pl = G.player, a = r.a, D = f => Math.hypot(f.pos.x - a.pos.x, f.pos.z - a.pos.z);
-    const ok = f => f === pl ? !G.downed && G.mode === "play" && D(pl) < 22 : f && !f.knocked && !f.gone && !f.dead && f.fighting && f.duel === r && D(f) < 22;
+    // (not you through the cabin wall: indoors, you are out of his reach, and he goes back to the stores)
+    const inside = this.w.insideCabin && this.w.insideCabin(pl.pos.x, pl.pos.z) && !this.w.insideCabin(a.pos.x, a.pos.z);
+    const ok = f => f === pl ? !G.downed && G.mode === "play" && D(pl) < 22 && !inside : f && !f.knocked && !f.gone && !f.dead && f.fighting && f.duel === r && D(f) < 22;
     if (r.duel && !ok(r.duel)) this.lock(r, null);
     // (the captain wants you, and the others give way to him)
     if (r.boss && !r.duel && !G.downed && G.mode === "play" && r.state !== "flee" && Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 40) for (const o of this.band) if (o !== r && o.duel === pl) this.lock(o, null);
-    if (!r.duel && !G.downed && G.mode === "play" && !this.band.some(o => o !== r && o.alive && o.duel === pl)) {
+    if (!r.duel && !G.downed && G.mode === "play" && !inside && !this.band.some(o => o !== r && o.alive && o.duel === pl)) {
       const d = D(pl);
       // (running off with his arms full, he only turns on you if you catch him)
       if (d < (r.state === "flee" ? 2.4 : r.boss ? 40 : 9)) this.lock(r, pl);
@@ -394,6 +396,10 @@ export class Raids {
           r.stuckT = 0; r.best = Infinity;
           const wl = t.wallNear && t.wallNear(a.pos, 4.5);
           if (wl) { r.state = "breach"; r.wall = wl; a.path = []; if (!this.breachTold) { this.breachTold = true; UI.bark(G.who === "sister" ? "Brother" : "Sister", "They're at the wall — they're hacking through it!", 3); } continue; }
+          // no wall: something else in his way (a house, a woodpile) — a few steps off to one side, and on again
+          const ang = Math.atan2(gx - a.pos.x, gz - a.pos.z) + (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 0.6), st2 = 3 + Math.random() * 3;
+          a.path = []; a.walkTo(a.pos.x + Math.sin(ang) * st2, a.pos.z + Math.cos(ang) * st2, r.state === "flee" ? FLEE : WALK);
+          continue;
         }
       }
       if (r.state === "come") {
@@ -414,6 +420,18 @@ export class Raids {
       S.lootedDay = t.day; t.persist();
       G.tell("big", null, "One of the raiders got away down the road with the stores he could carry. The settlement won't forget it soon.", 5);
     }
+    // a raid that drags on breaks off: after a good while they give it up and make for the road with what they have,
+    // and any still hanging about long after slip away into the woods (one caught on a wall, or lost in the trees,
+    // kept the whole settlement cowering indoors for a day)
+    if (this.active && !this.pending) {
+      this.activeFor = (this.activeFor || 0) + dt;
+      const day = t.dayLen || 480, giveUp = day * (this.siege ? 0.7 : 0.3);
+      if (this.activeFor > giveUp) {
+        if (!this.brokeOff) { this.brokeOff = true; UI.bark(G.who === "sister" ? "Brother" : "Sister", "They're giving it up — look, they're making off down the road!", 3); }
+        for (const r of this.band) if (r.alive && r.state !== "flee" && r.state !== "gone" && this.duelOf(r) !== pl) { r.state = "flee"; r.wall = null; this.lock(r, null); r.a.path = []; r.a.walkTo(this.roadEnd.x, this.roadEnd.z, FLEE); }
+      }
+      if (this.activeFor > giveUp + day * 0.15) for (const r of this.band.slice()) if (r.alive && r.state === "flee" && this.duelOf(r) !== pl && Math.hypot(r.a.pos.x - pl.pos.x, r.a.pos.z - pl.pos.z) > 25) { r.state = "gone"; r.a.remove(); this.forget(r); }
+    } else if (!this.active) { this.activeFor = 0; this.brokeOff = false; }
     // the raid over: every one of them down in the grass, or away down the road
     const act = this.active;
     // round the crosshair: your side; his blow coming, and how soon; the guard of the one in front of you

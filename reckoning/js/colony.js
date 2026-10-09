@@ -7,7 +7,7 @@
 import { THREE, mat, Builder, MAT } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
-import { CLEARING, HUNT } from "./woods.js";
+import { CLEARING, HUNT, POND } from "./woods.js";
 
 export const COLONY_AFTER = 40 * 60, COLONY_R = 20;
 
@@ -53,6 +53,7 @@ function pick(town) {
     if (w.anyRoadDist(x, z).d < COLONY_R + 8) continue;
     if (Math.hypot(x - HUNT.x, z - HUNT.z) < HUNT.r + COLONY_R) continue;
     if (w.cave && w.cave.mouthAt && Math.hypot(x - w.cave.mouthAt.x, z - w.cave.mouthAt.z) < COLONY_R + 12) continue;
+    if (Math.hypot(x - POND.x, z - POND.z) < COLONY_R + POND.r * 1.3 + 6) continue;
     if ((town.S.lobes || []).some(l => l.poly.some(p => Math.hypot(p[0] - x, p[1] - z) < COLONY_R))) continue;
     // (flattest is best)
     let rough = 0; for (let k = 0; k < 8; k++) { const b = k / 8 * Math.PI * 2; rough += Math.abs(w.heightAt(x + Math.cos(b) * 12, z + Math.sin(b) * 12) - w.heightAt(x, z)); }

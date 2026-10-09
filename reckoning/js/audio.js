@@ -91,6 +91,12 @@ export const AUDIO = {
       case "grass":
         burst(a, t, rnd(0.08, 0.12), 0.05 * k, rnd(2600, 3400), 1400, 0.7);
         break;
+      case "water":
+        // wading: a slosh, and the drip as the foot comes up
+        burst(a, t, rnd(0.12, 0.18), 0.09 * k, rnd(700, 1000), 300, 0.8);
+        burst(a, t + rnd(0.04, 0.08), rnd(0.1, 0.16), 0.05 * k, rnd(1800, 2600), 900, 1.4);
+        for (let i = 0; i < 3; i++) burst(a, t + rnd(0.15, 0.35), 0.02, 0.025 * k, rnd(2500, 4200), 1800, 6);
+        break;
       case "leaves":
         burst(a, t, rnd(0.07, 0.1), 0.04 * k, rnd(2200, 2800), 1200, 0.8);
         for (let i = 0; i < 3; i++) burst(a, t + rnd(0.005, 0.07), 0.015, 0.04 * k * rnd(0.5, 1), rnd(3500, 5500), 3000, 4);

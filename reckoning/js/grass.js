@@ -11,7 +11,7 @@
 import { THREE, SNOW, clamp } from "./core.js";
 import { addSway, swayGeo } from "./models.js";
 import { G } from "./engine.js";
-import { CLEARING, CABIN, FIRE, STACK, BLOCK } from "./woods.js";
+import { CLEARING, CABIN, FIRE, STACK, BLOCK, pondK } from "./woods.js";
 import { BUILDINGS } from "./town.js";
 
 const R = 26, STEP = 0.38, MAX = 16000;
@@ -74,6 +74,9 @@ export class Grass {
     const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
     let dens = clamp((CLEARING.r + 6 - dc) / 8, 0, 1) * 0.95;
     if (dens < 0.3) dens = Math.max(dens, (Math.sin(x * 0.31 + z * 0.17) * Math.sin(x * 0.13 - z * 0.29) + 0.2) * 0.5);
+    // (none in the pond; thick and lush on its banks)
+    const pk = pondK(x, z);
+    if (pk < 1.04) dens = 0; else if (pk < 1.9) dens = Math.max(dens, 0.85);
     if (hash(i, j, 3) <= dens * 1.4) {
       // (the road's distance, from a coarser grid of its own: it is the slow part)
       const rk = Math.floor(x / 2) * 100003 + Math.floor(z / 2), rc = this.roadC || (this.roadC = new Map());

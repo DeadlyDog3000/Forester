@@ -42,6 +42,12 @@ export const HUNT = { x: 74, z: -332, r: 34 };
 export const ROAM = 100;
 // each ring of forest cleared as the settlement grows is this deep
 export const RING = 14;
+// a pond in a hollow at the edge of the deer ride, where the roe come down to drink
+export const POND = { x: 115, z: -330, r: 10 };
+// its shore, an irregular round: how far out it lies at a bearing a
+export const pondR = a => POND.r * (1 + 0.16 * Math.sin(3 * a + 1) + 0.09 * Math.sin(5 * a + 2) + 0.05 * Math.sin(8 * a));
+// how far into the pond a point is: under 1 is water, 1 the water's edge
+export const pondK = (x, z) => { const dx = x - POND.x, dz = z - POND.z; return Math.hypot(dx, dz) / pondR(Math.atan2(dz, dx)); };
 const MAP_K = 5;
 // smooth value noise, 0..1: a lattice of fixed random heights, eased between
 function hash2(i, j) { let h = (i * 374761393 + j * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
@@ -102,6 +108,9 @@ export class Woods extends WorldBase {
       return { fork: f, n, k, at: a, pts: sp, dir: { x: fx, z: fz } };
     });
 
+    // ---- the pond's water level: a hand below the lowest of its bank, all the way round ----
+    { let lo = Infinity; for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2, r = pondR(a) * 1.08; lo = Math.min(lo, this.groundAt(POND.x + Math.cos(a) * r, POND.z + Math.sin(a) * r)); }
+      this.pondLevel = lo - 0.22; }
     // ---- terrain ----
     const size = 760, seg = 190;
     const tg = new THREE.PlaneGeometry(size, size, seg, seg);
@@ -135,6 +144,9 @@ export class Woods extends WorldBase {
       if (dc < CLEARING.r + 8) c.lerp(PAL.grass, clamp((CLEARING.r + 8 - dc) / 10, 0, 1) * 0.75);
       const d = this.anyRoadDist(x, z).d;
       if (d < 3) c.lerp(PAL.road, clamp((3 - d) / 2, 0, 1) * 0.7);
+      // the pond's banks: damp, mossy and green down to the water, dark mud right at its edge
+      const pk = pondK(x, z);
+      if (pk < 2.2) c.lerp(PAL.moss, clamp((2.2 - pk) / 1.0, 0, 1) * 0.75).lerp(PAL.earth, clamp((1.15 - pk) / 0.2, 0, 1) * 0.6);
       return c;
     };
     this.groundColour = (x, z, out = new THREE.Color()) => {
@@ -179,6 +191,7 @@ export class Woods extends WorldBase {
       const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
       if (dc < CLEARING.r + 14) continue;             // the clearing and the ring of choppable trees
       if (dc < CLEARING.r + 14 + 3 * RING && r() < 0.78) continue;   // (thinner where the settlement will grow)
+      if (pondK(x, z) < 1.9) continue;                // (nor in the pond, nor on its banks)
       const k = cellK(x, z);
       if (taken.has(k)) continue;
       taken.set(k, 1);
@@ -192,6 +205,7 @@ export class Woods extends WorldBase {
       const a = r() * TAU, rad = 17 + Math.pow(r(), 0.8) * 45;
       const x = burnerAt.x + Math.cos(a) * rad, z = burnerAt.z + Math.sin(a) * rad;
       if (this.anyRoadDist(x, z).d < 4.5) continue;
+      if (pondK(x, z) < 1.9) continue;                // (nor in the pond, nor on its banks)
       const k = cellK(x, z);
       if (taken.has(k)) continue;
       taken.set(k, 1);
@@ -211,6 +225,7 @@ export class Woods extends WorldBase {
       if (dh < HUNT.r * 0.9 && r() < (dh < HUNT.r * 0.5 ? 0.9 : 0.6)) continue;
       // the woods thin toward the clearing: that band is where the settlement will grow, a ring at a time
       if (rad < CLEARING.r + 14 + 3 * RING && r() < 0.78) continue;
+      if (pondK(x, z) < 1.9) continue;                // (nor in the pond, nor on its banks)
       const k = cellK(x, z);
       if (taken.has(k)) continue;
       taken.set(k, 1);
@@ -247,6 +262,7 @@ export class Woods extends WorldBase {
       if (this.anyRoadDist(x, z).d < 3) continue;
       if (Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r - 4) continue;
       if (Math.hypot(x - burnerAt.x, z - burnerAt.z) < 13) continue;
+      if (pondK(x, z) < 1.25) continue;
       const y = this.heightAt(x, z);
       const k = r();
       if (k < 0.45) shrubs.push({ kind: "bush", x, z, y, col: r.pick([0x3e5a2e, 0x4a6a34, 0x55703a]), ry: r() * 3, sx: r.range(0.6, 1.3), sy: r.range(0.4, 0.8), sz: r.range(0.6, 1.3) });
@@ -492,6 +508,7 @@ export class Woods extends WorldBase {
       const z0 = Math.floor((CLEARING.z + (0 - pad - Z(CLEARING.z)) / S) / 20), z1 = Math.floor((CLEARING.z + (H + pad - Z(CLEARING.z)) / S) / 20);
       for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) for (const t of g.get(i + "," + j) || []) tree(c, X(t.x), Z(t.z), ts, t.k);
       this.mapClearing(c, X, Z, S);
+      pondMap(c, X, Z);
       const rw = Math.max(2.2, Math.min(4.5, S * 1.9));
       for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
       road(c, this.road, X, Z, rw);
@@ -558,6 +575,7 @@ export class Woods extends WorldBase {
     c.fillStyle = TREEC;
     for (const t of this.mapTrees) if (!t.gone) tree(c, X(t.x), Z(t.z), 1.6 * K, t.k);
     this.mapClearing(c, X, Z, K);
+    pondMap(c, X, Z);
     const rw = 1.9 * K;
     for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
     road(c, this.road, X, Z, rw);
@@ -664,7 +682,14 @@ export class Woods extends WorldBase {
       const roadH = this.rawAt(rd.x, rd.z);
       h = roadH + (h - roadH) * k;
     }
-    return clearingH + (h - clearingH) * flatC;
+    h = clearingH + (h - clearingH) * flatC;
+    // the pond: its bed scooped out under the water, and the bank drawn down to meet it
+    if (this.pondLevel !== undefined && Math.abs(x - POND.x) < POND.r * 2.8 && Math.abs(z - POND.z) < POND.r * 2.8) {
+      const k = pondK(x, z), L = this.pondLevel;
+      if (k < 1) h = Math.min(h, L - 0.12 - 1.35 * (1 - k * k));
+      else if (k < 2.1) { const e = (k - 1) / 1.1, s = e * e * (3 - 2 * e); h = Math.min(h, L + 0.06 + (h - L - 0.06) * s); }
+    }
+    return h;
   }
   // the lie of the land: the long swells, and over them rounded hills, a few sharp ridges and hollows, and small humps
   rawAt(x, z) {
@@ -1265,6 +1290,7 @@ export class Woods extends WorldBase {
   // what is underfoot, for the sound of it
   surfaceAt(x, z) {
     if (this.insideCabin(x, z)) return "wood";
+    if (this.pondLevel !== undefined && pondK(x, z) < 1 && this.heightAt(x, z) < this.pondLevel) return "water";
     if (G.town && G.town.pathAt && G.town.pathAt(x, z)) return G.town.tierLevel >= 3 ? "stone" : "dirt";
     if (SNOW.value > 0.4) return "snow";
     if (this.anyRoadDist(x, z).d < 1.6) return "dirt";
@@ -1518,7 +1544,7 @@ export class Woods extends WorldBase {
       let x, z;
       if (r() < 0.6) { const a = r() * TAU, d = CLEARING.r + 3 + r() * 30; x = CLEARING.x + Math.cos(a) * d; z = CLEARING.z + Math.sin(a) * d; }
       else { const t = this.road[Math.floor(r() * this.road.length)], a = r() * TAU, d = 4 + r() * 10; x = t.x + Math.cos(a) * d; z = t.z + Math.sin(a) * d; }
-      if (this.anyRoadDist(x, z).d < 3.2 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 1) continue;
+      if (this.anyRoadDist(x, z).d < 3.2 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 1 || pondK(x, z) < 1.3) continue;
       const y = this.heightAt(x, z);
       if (this.col.solidAt(x, y + 0.5, z, 0.9) || this.bushes.some(b => Math.hypot(b.x - x, b.z - z) < 4)) continue;
       // the bramble: a low tangle of dark leaves
@@ -1642,6 +1668,9 @@ export class Woods extends WorldBase {
     }
     // nor does it fall there
     SWAY.t.value += dt;
+    // the pond
+    if (!this.pond && !this._pondLoading && this.pondLevel !== undefined) { this._pondLoading = true; import("./pond.js").then(m => { this.pond = new m.Pond(this); }); }
+    if (this.pond) this.pond.update(dt);
     // footprints, when there's snow lying
     if (SNOW.value > 0.4 && !this.tracks && !this._tracksLoading) { this._tracksLoading = true; import("./tracks.js").then(m => { this.tracks = new m.Tracks(this); }); }
     if (this.tracks) this.tracks.update(dt);
@@ -1794,6 +1823,13 @@ function chinking() {
   for (const sx of [-1, 1]) box(len, 0.02, 6.9, sx * 1.535, 4.993 - 0.843 * 1.535, 0, -sx * slope);
   g.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
   return g;
+}
+// the pond on the map: its shore, and the water inked in a muted blue
+function pondMap(c, X, Z) {
+  c.beginPath();
+  for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, r = pondR(a); const x = X(POND.x + Math.cos(a) * r), y = Z(POND.z + Math.sin(a) * r); i ? c.lineTo(x, y) : c.moveTo(x, y); }
+  c.fillStyle = "rgba(92,122,138,0.85)"; c.fill();
+  c.strokeStyle = "rgba(48,64,72,0.7)"; c.lineWidth = 1.2; c.stroke();
 }
 // leaves thrown up as a bush comes down, falling and fading
 function leafBurst(root, x, y, z, color) {

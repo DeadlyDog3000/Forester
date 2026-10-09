@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.52.0", date: "8 October 2026", title: "The pond",
+    items: [
+      "There's a pond in a hollow at the edge of the deer ride, east of the clearing. Its still brown-green water holds the sky and the dark of the trees round it, stirs in the wind, and is pocked by the rain. A fringe of rushes stands round it, lily pads lie on it with white flowers in summer, and a pair of mallards paddles about, dabbling, making off to the far side if you come close. It freezes over in winter.",
+      "The deer and the boar come down to it to drink when nobody's by it.",
+      "You can wade the margin, slowly and sloshing, but not out into the middle. The banks are damp and mossy, with thick grass.",
+      "The pond is on the map. Houses, fields, camps and settlements never go in it.",
+      "The fire in the middle of the clearing sends up a thin column of smoke, thicker when it's built up for the night.",
+      "A raid can't go on forever. A raider no longer fights you through the cabin wall while you're inside; he goes back to the stores. One caught on a house or the woodpile steps round it. A raid that drags on breaks off, and they make for the road. Before, one raider standing at your wall could keep the whole settlement cowering by the fire for days.",
+    ],
+  },
+  {
     v: "0.51.2", date: "8 October 2026", title: "Footprints and puddles",
     items: [
       "You leave footprints in the snow, left and right, pointing the way you went, and so does everyone who walks near you. They fill in slowly, and quickly while it's still snowing.",

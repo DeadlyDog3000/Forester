@@ -28,7 +28,7 @@ import { gunsmithTick, benchFront } from "./gunsmith.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { NATIONS, NEAR, ensureEurope, europeDay, strengthOf, the, The } from "./europe.js";
 import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
-import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING, HUNT, inPoly } from "./woods.js";
+import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING, HUNT, inPoly, POND, pondK } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
 import { TECH, START_TECH, BUILD_GATES, JOB_GATES, CIVIC, CIVIC_UPKEEP, techCost, techTime } from "./gov.js";
 import { economyDay, shopVisual, shopOffers, lawsOf, KINDS } from "./economy.js";
@@ -456,6 +456,8 @@ export class Town {
       const k = Math.min(1, K[b.type] ?? 0); if (k < 0.03) continue;
       mk.getWorldPosition(v); src.push({ x: v.x, y: v.y, z: v.z, k });
     }
+    // the fire in the middle of the clearing: a thin column of it, a thicker one when it's built up for the night
+    if (w.fire && w.fire.visible) { const fb = w.fire.userData.flame; w.fire.getWorldPosition(v); src.push({ x: v.x, y: v.y + 0.9, z: v.z, k: clamp((fb ? fb.base : 5) / 9, 0.2, 1) * 0.55 }); }
     // your own cabin, and more of it when the hearth is lit
     if (w.cabinChimney && w.cabinUp && w.cabin && w.cabin.visible) { w.cabinChimney.getWorldPosition(v); src.push({ x: v.x, y: v.y, z: v.z, k: w.hearth ? 0.85 : home }); }
     const sun = G.sun ? clamp(G.sun.intensity / 2.4, 0, 1) : 1, fog = G.scene.fog;
@@ -856,6 +858,8 @@ export class Town {
 
   // ---- can it go here? inside the clearing, clear of everything solid, trees and other plans ----
   fits(type, x, z, ry) {
+    // (never in the pond)
+    { const d0 = BUILDINGS[type]; if (pondK(x, z) < 1.12 + Math.hypot(d0.w, d0.d) / 2 / POND.r) return false; }
     if (type === "field") return this.fieldFits(x, z, ry);
     const def = BUILDINGS[type], w = this.w;
     const r = Math.hypot(def.w, def.d) / 2;

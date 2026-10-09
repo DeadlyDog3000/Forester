@@ -16,7 +16,7 @@ import { G } from "./engine.js";
 import { modelCopy } from "./models.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { CLEARING } from "./woods.js";
+import { CLEARING, POND, pondR } from "./woods.js";
 
 /* global SFX */
 
@@ -136,6 +136,13 @@ class Animal {
         // (never a step toward where people live)
         if (this.hunt.keepOut(tx, tz, this.ownHome ? 18 : 2)) { tx = this.pos.x - Math.sin(a) * r; tz = this.pos.z - Math.cos(a) * r; }
         this.target = { x: tx, z: tz }; this.state = "walk"; this.t = 12; this.feedAt = null; this.browse = null;
+        // or down to the pond to drink, if it's near and nobody is by it
+        const w0 = this.hunt.w, P = POND;
+        if (this.kind !== "hare" && w0.pond && Math.random() < 0.14 && Math.hypot(this.pos.x - P.x, this.pos.z - P.z) < 65 && Math.hypot(pl.pos.x - P.x, pl.pos.z - P.z) > 22) {
+          const a = Math.atan2(this.pos.z - P.z, this.pos.x - P.x), r = pondR(a), dx = Math.cos(a), dz = Math.sin(a);
+          const muzzle = { x: P.x + dx * r * 0.9, z: P.z + dz * r * 0.9, drink: true };
+          this.target = { x: muzzle.x + dx * (K.len + 0.35), z: muzzle.z + dz * (K.len + 0.35) }; this.feedAt = muzzle; this.t = 70;
+        } else
         // or, now and then, over to a bush to browse it — a bramble in fruit first
         if (Math.random() < 0.45) {
           const w = this.hunt.w, near = q => !q.gone && Math.hypot(q.x - this.pos.x, q.z - this.pos.z) < 14 && Math.hypot(q.x - home.x, q.z - home.z) < home.r + 6 && !this.hunt.keepOut(q.x, q.z, this.ownHome ? 18 : 2);
@@ -227,7 +234,7 @@ class Animal {
     // the head nods with each step at a walk; while it looks about, it turns
     const nod = Math.sin(this.phase * 2) * 0.07 * clamp(this.speed / K.walk, 0, 1) * (1 - run * 0.6);
     if (this.neck) {
-      const F = FEED[this.kind] || { grass: 0.8, bush: 0.8 }, down = this.browse ? F.bush : F.grass;
+      const F = FEED[this.kind] || { grass: 0.8, bush: 0.8 }, down = this.browse && !this.browse.drink ? F.bush : F.grass;
       // (head down, the mouth working: a nibble, a pull, a moment's chewing)
       const nib = Math.sin(G.time * 7 + this.phase) * 0.035 + Math.max(0, Math.sin(G.time * 1.3 + this.phase)) * 0.06;
       this.neck.rotation.x = this.neck0 + (1 - this.head) * (down + nib) + nod;

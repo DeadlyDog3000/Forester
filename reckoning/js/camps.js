@@ -10,7 +10,7 @@ import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { makeArm, MODELS } from "./models.js";
-import { CLEARING } from "./woods.js";
+import { CLEARING, POND } from "./woods.js";
 import { WIND, strikeYou, blowLands, glint } from "./fight.js";
 import { ITEM, roomFor } from "./body.js";
 
@@ -237,6 +237,7 @@ export class Camps {
       if (others.some(o => Math.hypot(o.x - x, o.z - z) < 40)) continue;
       if (w.cave && w.cave.mouthAt && Math.hypot(w.cave.mouthAt.x - x, w.cave.mouthAt.z - z) < 25) continue;
       if (w.burner && Math.hypot(w.burner.camp.x - x, w.burner.camp.z - z) < 30) continue;
+      if (Math.hypot(POND.x - x, POND.z - z) < POND.r * 1.3 + 16) continue;                  // (nor at the pond)
       const hs = [0, 1, 2, 3].map(i => w.heightAt(x + Math.cos(i * 1.57) * 5, z + Math.sin(i * 1.57) * 5));
       if (Math.max(...hs) - Math.min(...hs) > 2.2) continue;
       return { x, z, ry: a + Math.PI };
