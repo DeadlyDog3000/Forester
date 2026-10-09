@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "0.61.1", date: "9 October 2026", title: "Meadows and footings",
+    items: [
+      "Grass and wildflowers on the multiplayer maps: thick in the open meadows, thin under the trees, and none on the sand, the rocks or the snow. What you build stands on bare ground.",
+      "Buildings on a slope stand level on a stone footing, instead of hanging in the air at one corner.",
+      "Settlers go home to bed when night falls and come out again in the morning. Watchmen stay on watch after dark, with a torch.",
+      "If the connection to a game drops, the game tries to get you back in where you were. Only if that fails do you go back to the lobby.",
+      "The multiplayer keys are listed under Controls.",
+    ],
+  },
+  {
     v: "0.61.0", date: "9 October 2026", title: "Neighbours",
     items: [
       "Settlers in multiplayer. Build a cabin (beds for two) or a house (beds for four), and people come to your hearth to live in them, up to twelve. In Co-op they join the colony; in Classic they belong to your nation.",

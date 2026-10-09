@@ -104,8 +104,7 @@ class Room {
     this.invites = new Map();          // invited pid → {from, at}
     this.chat = [];
     this.nextB = 1;
-    this.day0 = now() - crypto.randomInt(0, R.DAY_MS) + 0;   // (a game starts at some hour of the day)
-    this.day0 = now() - R.DAY_MS * 0.3;                       // (in the morning, in fact)
+    this.day0 = now() - R.DAY_MS * (START && START.hour != null ? START.hour : 0.3);   // (in the morning, in fact)
     this.spawnAt = this.land.findHome(T.seq(this.seed ^ 0x5eed), [], 0);
     this.shared = { ...(START || R.START_STOCK) };   // (co-op: one colony, one store)
     this.settlers = {}; this.nextS = 1; this.lastArrive = {}; this.workCache = {};
@@ -382,6 +381,8 @@ class Room {
     return true;
   }
   // ---- settlers ----
+  dayFrac() { return (((now() - this.day0) % R.DAY_MS) + R.DAY_MS) % R.DAY_MS / R.DAY_MS; }
+  isNight() { const f = this.dayFrac(); return f > 0.86 || f < 0.21; }
   ownerKey(pid) { return this.mode === "coop" ? "colony" : pid; }
   active(owner) { return owner === "colony" ? this.online.size > 0 : this.online.has(owner); }
   mineB(owner, b) { return owner === "colony" || b.owner === owner; }
@@ -479,6 +480,17 @@ class Room {
         if (this.step(v, post.x + Math.cos(a) * 3.5, post.z + Math.sin(a) * 3.5, dt) <= 0.1) idle();
         continue;
       }
+      // night: home to bed (in a cabin or house of theirs), out again in the morning
+      if (this.isNight()) {
+        if (v.state !== "bed" && v.state !== "sleep") { if (v.carry) { const st = this.storeFor(v.owner); if (st) { st[v.carryKind === "stone" ? "stone" : "wood"] += v.carry; this.stockTo(v.owner); } v.carry = 0; } v.target = null; v.state = "bed"; }
+        if (v.state === "bed") {
+          const beds = Object.values(this.buildings).filter(b => (R.BUILD[b.type].beds || 0) > 0 && this.mineB(v.owner, b));
+          const bed = beds[Number(v.id.slice(1)) % Math.max(1, beds.length)] || home;
+          if (this.step(v, bed.x + Math.sin(bed.ry || 0) * 3.4, bed.z + Math.cos(bed.ry || 0) * 3.4, dt) <= 0.3) { v.state = "sleep"; v.a = "sleep"; v.s = 0; v.moved = true; }
+        }
+        continue;
+      }
+      if (v.state === "bed" || v.state === "sleep") { v.state = "find"; v.a = "idle"; v.moved = true; }
       const kind = v.job === "stone" ? "stone" : "wood";
       if (v.state === "rest") { idle(); if (t > v.until) v.state = "find"; continue; }
       if (v.state === "find") {
@@ -558,7 +570,7 @@ class Room {
 async function start(opts = {}) {
   const base = pathToFileURL(path.join(__dirname, "..", "js", "mp") + path.sep).href;
   R = await import(base + "rules.js"); T = await import(base + "terrain.js"); LK = await import(base + "look.js");
-  if (opts.stock) START = { wood: +opts.stock, stone: +opts.stock, fast: true };
+  if (opts.stock) START = { wood: +opts.stock, stone: +opts.stock, fast: true, hour: opts.hour != null ? +opts.hour : null };
   const rooms = new Map();
   const name = clean(opts.name, 40) || (opts.world ? "Forester: Reckoning" : `${os.hostname().replace(/\.(local|lan|home)$/, "")}'s games`);
   const dataDir = opts.data ? path.resolve(opts.data) : null;
@@ -688,7 +700,7 @@ module.exports = { start, discover, lanAddresses };
 // run on its own
 if (require.main === module) {
   const arg = (k, d) => { const i = process.argv.indexOf("--" + k); return i < 0 ? d : (process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : true); };
-  start({ port: +(arg("port", process.env.PORT || 8080)), world: !!arg("world", false), data: arg("data", "./world-data"), name: arg("name", ""), lan: !!arg("lan", false), seed: arg("seed") ? +arg("seed") : undefined, stock: arg("stock") ? +arg("stock") : 0 })
+  start({ port: +(arg("port", process.env.PORT || 8080)), world: !!arg("world", false), data: arg("data", "./world-data"), name: arg("name", ""), lan: !!arg("lan", false), seed: arg("seed") ? +arg("seed") : undefined, stock: arg("stock") ? +arg("stock") : 0, hour: arg("hour") ? +arg("hour") : undefined })
     .then(s => { const bye = () => s.stop().then(() => process.exit(0)); process.on("SIGINT", bye); process.on("SIGTERM", bye); })
     .catch(e => { console.error(e); process.exit(1); });
 }

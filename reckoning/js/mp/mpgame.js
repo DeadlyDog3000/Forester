@@ -11,13 +11,14 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
-import { makeAxe, makePick } from "../models.js";
+import { makeAxe, makePick, makeTorch } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { Wilds } from "./wilds.js";
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
+import { Net } from "./net.js";
 
 /* global SFX */
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -91,11 +92,16 @@ class SettlerView {
     a.settlerView = this; a.update = dt => this.update(dt);
     this.tx = v.x; this.tz = v.z; this.tyaw = v.yaw || 0; this.anim = v.a || "idle"; this.spd = 0; this.x = v.x; this.z = v.z; this.hp = v.hp;
     this.tool(); this.setTag();
-    this.it = game.w.addInteract({ x: 0, y: 1.4, z: 0, reach: 2.6, label: () => `Talk to ${this.name}, ${this.owned() ? "" : this.game.nameOf(this.owner) + "'s "}${JOB_NAME[this.job]}`,
+    this.it = game.w.addInteract({ x: 0, y: 1.4, z: 0, reach: 2.6, can: () => this.anim !== "sleep" && !this.dying, label: () => `Talk to ${this.name}, ${this.owned() ? "" : this.game.nameOf(this.owner) + "'s "}${JOB_NAME[this.job]}`,
       use: () => { const l = SAYS[this.job] || SAYS.wood; UI.bark ? UI.bark(this.name, l[Math.floor(Math.random() * l.length)], 3) : UI.hint(`${this.name}: ${l[0]}`, 3); } });
   }
   owned() { return this.owner === "colony" || this.owner === this.game.pid; }
-  tool() { const p = this.actor.person; p.held.clear && p.held.clear(); if (this.held) p.held.remove(this.held); this.held = this.actor.hold(this.job === "stone" ? makePick() : makeAxe()); }
+  tool() {
+    const p = this.actor.person; if (this.held) p.held.remove(this.held);
+    // (a watchman after dark carries a torch)
+    this.torch = this.job === "watch" && this.game.isNight();
+    this.held = this.actor.hold(this.torch ? makeTorch(true) : this.job === "stone" ? makePick() : makeAxe());
+  }
   setTag() {
     if (this.tag) { this.actor.root.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose(); }
     const fr = this.game.friendly(this.owner === "colony" ? this.game.pid : this.owner);
@@ -111,11 +117,14 @@ class SettlerView {
     a.speed = this.dying ? 0 : this.spd;
     a.lying = !!this.dying; a.lieK = this.dying ? Math.min(1, (a.lieK || 0) + dt * 2) : 0;
     a.person.fight = this.job === "watch" && this.anim === "chop";
-    a.person.setPose(this.dying ? "idle" : this.anim === "chop" ? "chop" : "idle");
+    const asleep = this.anim === "sleep";
+    a.root.visible = !asleep;
+    if ((this.toolT = (this.toolT || 0) - dt) <= 0) { this.toolT = 2; if (this.job === "watch" && this.torch !== this.game.isNight()) this.tool(); }
+    a.person.setPose(this.dying ? "idle" : this.anim === "chop" ? "chop" : this.torch ? "torch" : "idle");
     a.person.update(dt, a.speed);
     a.sync();
     if (this.it) { this.it.x = a.pos.x; this.it.z = a.pos.z; this.it.y = a.pos.y + 1.4; }
-    this.tag.visible = !this.dying && Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 16;
+    this.tag.visible = !this.dying && !asleep && Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 16;
   }
   remove() { if (this.it) this.game.w.removeInteract(this.it); if (this.tag) { this.tag.material.map.dispose(); this.tag.material.dispose(); } this.actor.remove(); }
 }
@@ -157,7 +166,7 @@ export class MPGame {
     G.onSwing = () => this.swing();
     G.onFrame.push(dt => this.tick(dt));
     this.listen();
-    this.hud(true);
+    this.hud(true); this.banner(null);
     this.atmo(true);
     UI.fade(0, 1.2);
     // hosting from this computer: how the others find it
@@ -285,7 +294,7 @@ export class MPGame {
     n.chat = m => this.chatLine(m);
     n.note = m => this.chatLine({ name: "", text: m.text });
     n.err = m => { UI.hint(m.text, 4); sfx("deny"); };
-    n.lost = () => { if (G.mp !== this) return; this.leave(); this.hooks.lost && this.hooks.lost("The connection to the game was lost."); };
+    n.lost = () => { if (G.mp !== this) return; this.reconnect(); };
   }
   refreshFriends() {
     for (const r of this.remotes.values()) r.setTag();
@@ -458,6 +467,7 @@ export class MPGame {
     }
     if (this.toastT > 0 && (this.toastT -= dt) <= 0) $("mpToast").classList.add("hidden");
   }
+  isNight() { const f = this.dayFrac(); return f > 0.86 || f < 0.21; }
   dayFrac() { return (((performance.now() - this.dayAt) % this.dayLen) + this.dayLen) % this.dayLen / this.dayLen; }
   atmo() {
     const f = this.dayFrac();
@@ -543,10 +553,34 @@ export class MPGame {
     if (e.code === "Escape" && (this.menuOpen || this.listOpen)) { this.openBuild(false); this.toggleList(false); return true; }
     return ["KeyP", "KeyG", "KeyH", "KeyV"].includes(e.code);
   }
-  leave() {
+  // the line dropped: tried again a few times (back into the same game, where you were), then back to the lobby
+  async reconnect() {
+    if (this.reconnecting) return; this.reconnecting = true;
+    this.banner("The connection dropped.", "Trying to get back in…");
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    for (let i = 0; i < 4 && G.mp === this; i++) {
+      await sleep(1200 * (i + 1));
+      const net = new Net(this.net.addr);
+      try {
+        await net.connect(this.me.name, this.me.look);
+        const wait = net.next("in", 15000);
+        net.send({ t: "join", room: this.room.id, password: this.target && this.target.password || "", name: this.me.name, look: this.me.look });
+        const inMsg = await wait;
+        if (G.mp !== this) { net.close(); return; }
+        this.leave(true);
+        new MPGame(net, inMsg, this.me, { addr: this.net.addr, room: this.room.id, password: this.target && this.target.password }, this.hooks);
+        UI.hint("Back in.", 2);
+        return;
+      } catch (e) { net.close(); }
+    }
+    if (G.mp !== this) return;
+    this.leave(true);
+    this.hooks.lost && this.hooks.lost(this.room.persistent ? "The connection to the wide world was lost." : "The connection to the game was lost — its host may have closed it.");
+  }
+  leave(quiet) {
     if (G.mp !== this) return;
     this.endBuild(); this.openBuild(false); this.toggleList(false); this.closeChat();
-    try { this.net.send({ t: "leave" }); } catch (e) {}
+    if (!quiet) { try { this.net.send({ t: "leave" }); } catch (e) {} }
     this.net.close();
     for (const r of this.remotes.values()) r.remove();
     this.remotes.clear();

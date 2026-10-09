@@ -88,6 +88,18 @@ export class Grass {
     if (cache.size > 250000) cache.clear();
     q = null;
     const w = this.w, x = (i + hash(i, j, 1)) * STEP, z = (j + hash(i, j, 2)) * STEP;
+    // (a map of its own that says where its grass grows: a multiplayer map)
+    if (w.grassAt) {
+      const dens = w.grassAt(x, z);
+      if (dens > 0 && hash(i, j, 3) <= dens * 1.4) {
+        const c = new THREE.Color(); w.groundColour(x, z, c);
+        c.multiplyScalar(1.05 + hash(i, j, 7) * 0.2);
+        if (c.r > c.g * 0.95) c.lerp(new THREE.Color(0xb0a160), 0.4);
+        q = { x, z, y: w.heightAt(x, z), sc: 0.22 + hash(i, j, 4) * 0.2, sy: 0.8 + hash(i, j, 6) * 0.6, ry: hash(i, j, 5) * 6.283, ph: (x * 0.9 + z * 0.7) % 6.283, c, open: dens > 0.55 };
+      }
+      cache.set(k, q);
+      return q;
+    }
     // how thick it grows here: the clearing's sward, the dry drifts, a little on the moss
     const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
     let dens = clamp((CLEARING.r + 6 - dc) / 8, 0, 1) * 0.95;
@@ -127,7 +139,8 @@ export class Grass {
       rects.push([b.x, b.z, Math.cos(b.ry || 0), Math.sin(b.ry || 0), bw / 2 + (def.path ? -0.05 : 0.35), (def.d || 4) / 2 + (def.path ? -0.05 : 0.35)]);
     }
     if (w.cabinUp || w.cabin) rects.push([CABIN.x, CABIN.z, Math.cos(CABIN.ry), Math.sin(CABIN.ry), 3.3, 3.9]);
-    const spots = [[FIRE.x, FIRE.z, 3.4], [STACK.x, STACK.z, 2.2], [BLOCK.x, BLOCK.z, 1.6]];
+    if (w.grassRects) rects.push(...w.grassRects(cx, cz, R + 14));
+    const spots = w.grassAt ? [] : [[FIRE.x, FIRE.z, 3.4], [STACK.x, STACK.z, 2.2], [BLOCK.x, BLOCK.z, 1.6]];
     const paved = town && town.streetLvl >= 3 ? CLEARING.r - 2 : 0;
     const c = new THREE.Color(), d = new THREE.Object3D(), dry = new THREE.Color(0xb0a160);
     let n = 0;
@@ -159,7 +172,7 @@ export class Grass {
     m.count = n;
     m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; m.geometry.attributes.aSway.needsUpdate = true;
     // ---- the flowers: in the open sward only, spring and summer; each its own colour, a few kinds in drifts ----
-    const F = this.flowers, season = town && town.season, fsw = F.geometry.attributes.aSway.array, fc = F.instanceColor.array;
+    const F = this.flowers, season = town ? town.season : w.season, fsw = F.geometry.attributes.aSway.array, fc = F.instanceColor.array;
     let nf = 0;
     if (season === "spring" || season === "summer") {
       const COLS = season === "spring" ? [[0.98, 0.98, 0.94], [0.95, 0.85, 0.2], [0.6, 0.5, 0.85]] : [[0.98, 0.98, 0.94], [0.95, 0.75, 0.15], [0.75, 0.25, 0.55], [0.35, 0.45, 0.85]];

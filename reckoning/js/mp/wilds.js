@@ -75,6 +75,26 @@ export class Wilds extends WorldBase {
     if (h > this.snowLine) return "snow";
     return this.land.forestAt(x, z) > 0.5 ? "leaves" : "grass";
   }
+  // where grass grows (for grass.js): thick in the open, thin under the trees, none on sand, rock or snow
+  grassAt(x, z) {
+    const h = this.land.heightAt(x, z);
+    if (h < WATER + 1.5 || h > this.snowLine - 6) return 0;
+    if (this.land.slopeAt(x, z) > 0.5) return 0;
+    const f = this.land.forestAt(x, z);
+    return f > 0.55 ? 0.12 : (1 - f) * 0.95;
+  }
+  groundColour(x, z, c = new THREE.Color()) { return this.colourAt(x, z, this.land.heightAt(x, z), 0, c); }
+  get season() { return "summer"; }
+  // what stands on the ground, as turned rectangles (no grass inside them)
+  grassRects(cx, cz, r) {
+    const out = [];
+    for (const e of this.blds.values()) {
+      const b = e.b, d = BUILD[b.type]; if (!d || Math.hypot(b.x - cx, b.z - cz) > r) continue;
+      const hw = d.wall ? d.len / 2 : (d.w || d.r * 1.6) / 2 + 0.3, hd = d.wall ? 0.4 : (d.d || d.r * 1.6) / 2 + 0.3;
+      out.push([b.x, b.z, Math.cos(b.ry || 0), Math.sin(b.ry || 0), hw, hd]);
+    }
+    return out;
+  }
   // the edge of the map: the sea runs out to it, and there you stop
   constrain(p) { const L = this.half - 4; p.x = clamp(p.x, -L, L); p.z = clamp(p.z, -L, L); }
   colourAt(x, z, h, steep, c) {
@@ -215,8 +235,16 @@ export class Wilds extends WorldBase {
   addBuilding(b, mine, friendly) {
     if (this.blds.has(b.id)) return;
     const d = BUILD[b.type]; if (!d) return;
-    const y = this.land.heightAt(b.x, b.z), g = new THREE.Group(), cols = [];
+    // level on the slope: set at the high side of its footing, with a stone footing down to the low side
+    const fw = d.wall ? d.len : d.w || d.r * 1.5, fd = d.wall ? 0.5 : d.d || d.r * 1.5, c0 = Math.cos(b.ry || 0), s0 = Math.sin(b.ry || 0);
+    let lo = Infinity, hi = -Infinity;
+    for (const [u, v] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [0, 0]]) { const h = this.land.heightAt(b.x + u * fw * c0 + v * fd * s0, b.z - u * fw * s0 + v * fd * c0); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    const y = d.wall || b.type === "hearth" ? lo + 0.05 : hi, g = new THREE.Group(), cols = [];
     g.position.set(b.x, y, b.z); g.rotation.y = b.ry || 0;
+    if (!d.wall && b.type !== "hearth" && hi - lo > 0.12) {
+      const ft = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.25, hi - lo + 0.5, fd + 0.25), mat(0x6e675c, { surface: "stone" }));
+      ft.position.y = -(hi - lo + 0.5) / 2 + 0.06; ft.receiveShadow = true; g.add(ft);
+    }
     const rect = (w, dd, h = 4) => { const sw = Math.abs(Math.sin(b.ry || 0)) > 0.5; cols.push(this.col.addRect(b.x, b.z, sw ? dd : w, sw ? w : dd, y + h)); };
     if (d.model) {
       const put = () => { const m = modelCopy(d.model); if (m) { g.add(m.scene); return true; } return false; };
@@ -353,6 +381,10 @@ export class Wilds extends WorldBase {
         door.rotation.y = -e.g.userData.doorA * 1.6;
       }
     }
+    if ((G.treeNear ?? 55) > 0) {
+      if (!this.grass && !this._grassLoading) { this._grassLoading = true; import("../grass.js").then(m => { this.grass = new m.Grass(this); }).catch(() => {}); }
+      if (this.grass) { if (this.blds.size !== this._bldN) { this._bldN = this.blds.size; this.grass.t = 99; } this.grass.update(dt); }
+    } else if (this.grass) { this.grass.mesh.visible = false; this.grass.flowers.visible = false; }
     if (!this.birds && !this._birdsLoading) { this._birdsLoading = true; import("../birds.js").then(m => { this.birds = new m.Birds(this); }).catch(() => {}); }
     if (this.birds) this.birds.update(dt);
   }
