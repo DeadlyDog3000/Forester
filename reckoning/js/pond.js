@@ -14,46 +14,7 @@ import { ITEM } from "./body.js";
 import { AUDIO } from "./audio.js";
 import { POND, pondR, pondK } from "./woods.js";
 import { addSway, swayGeo } from "./models.js";
-
-const vtx = `
-  varying vec3 vW;
-  #include <fog_pars_vertex>
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz;
-    vec4 mvPosition = viewMatrix * wp;
-    gl_Position = projectionMatrix * mvPosition;
-    #include <fog_vertex>
-  }`;
-const frag = `
-  uniform float uT, uWind, uRain, uIce;
-  uniform vec3 uDeep, uZenith, uHorizon, uSunDir, uSunCol, uTrees;
-  varying vec3 vW;
-  #include <fog_pars_fragment>
-  void main() {
-    vec2 p = vW.xz;
-    // the surface: slow swells, a finer cat's-paw where the wind catches it, and rings where the rain falls
-    float w = 0.012 + uWind * 0.03;
-    vec2 g = vec2(sin(p.x * 1.3 + uT * 0.9) + 0.6 * sin(p.x * 3.1 - p.y * 1.7 + uT * 1.7), cos(p.y * 1.5 - uT * 0.8) + 0.6 * cos(p.y * 2.9 + p.x * 2.3 - uT * 1.9)) * w;
-    g += vec2(sin(p.x * 9.0 + p.y * 4.0 + uT * 5.0), cos(p.y * 8.0 - p.x * 5.0 + uT * 4.3)) * uRain * 0.035;
-    vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
-    if (uIce > 0.5) n = normalize(vec3(-g.x * 0.05, 1.0, -g.y * 0.05));
-    vec3 v = normalize(cameraPosition - vW);
-    // (what it reflects: the sky, paler toward the horizon; and how much, more at a glancing look)
-    vec3 r = reflect(-v, n);
-    vec3 sky = mix(uHorizon, uZenith, clamp(r.y * 1.4, 0.0, 1.0));
-    // (low down, what it holds is the trees standing round it: dark, a little green, going up into the sky)
-    sky = mix(uTrees, sky, smoothstep(0.32, 0.75, r.y));
-    float fres = 0.04 + 0.96 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
-    vec3 col = mix(uDeep, sky, clamp(fres * 0.85 + 0.03, 0.0, 1.0));
-    // the sun's glint
-    col += uSunCol * pow(max(dot(r, uSunDir), 0.0), 160.0) * 1.6;
-    // ice: pale, grey and still
-    if (uIce > 0.5) col = mix(vec3(0.62, 0.68, 0.74) * (0.5 + 0.5 * length(uHorizon)), sky, fres * 0.5);
-    gl_FragColor = vec4(col, 1.0);
-    #include <tonemapping_fragment>
-    #include <colorspace_fragment>
-    #include <fog_fragment>
-  }`;
+import { WaterMat } from "./water.js";
 
 export class Pond {
   constructor(w) {
@@ -63,13 +24,7 @@ export class Pond {
     const N = 64, pos = [0, 0, 0], idx = [];
     for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2, r = pondR(a) * 1.12; pos.push(Math.cos(a) * r, 0, Math.sin(a) * r); idx.push(0, 1 + ((i + 1) % N), 1 + i); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
-    this.uni = {
-      uT: { value: 0 }, uWind: { value: 0.2 }, uRain: { value: 0 }, uIce: { value: 0 },
-      uDeep: { value: new THREE.Color(0x1c2a1e) }, uZenith: { value: new THREE.Color(0x5a88c0) }, uHorizon: { value: new THREE.Color(0xc9d6e0) },
-      uSunDir: { value: new THREE.Vector3(0.4, 0.6, 0.3) }, uSunCol: { value: new THREE.Color(1, 1, 1) }, uTrees: { value: new THREE.Color(0x1e2a1c) },
-    };
-    this.mat = new THREE.ShaderMaterial({ vertexShader: vtx, fragmentShader: frag, uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {}]), fog: true });
-    Object.assign(this.mat.uniforms, this.uni);
+    this.wm = new WaterMat(); this.mat = this.wm.mat; this.uni = this.wm.uni;
     this.water = new THREE.Mesh(geo, this.mat);
     this.water.position.set(POND.x, L, POND.z); this.water.receiveShadow = false;
     g.add(this.water);
@@ -222,21 +177,10 @@ export class Pond {
       if (pl && pl.wading > 0.05 && pl.speed > 0.4 && (this.wadeT = (this.wadeT || 0) - dt) <= 0) { this.wadeT = 0.35; this.ripple(pl.pos.x, pl.pos.z, 0.8); }
     }
     if (this.ringT > 0) { this.ringT -= dt * 1.2; const k = 1 - this.ringT; this.ring.position.set(this.float.position.x, this.w.pondLevel + 0.01, this.float.position.z); this.ring.scale.setScalar(0.05 + k * 0.5); this.ring.material.opacity = 0.4 * this.ringT; } else this.ring.material.opacity = 0;
-    const u = this.uni, w = this.w, town = G.town;
-    u.uT.value = this.t;
-    // the sky it holds: the dome's own colours, and the sun's
-    const sky = G.sky && G.sky.material.uniforms;
-    if (sky) { u.uZenith.value.copy(sky.top.value).lerp(sky.mid.value, 0.35); u.uHorizon.value.copy(G.scene.fog.color); }
-    if (G.sunDir) u.uSunDir.value.copy(G.sunDir);
-    if (G.sun) u.uSunCol.value.copy(G.sun.color).multiplyScalar(Math.min(1.2, G.sun.intensity / 2));
-    const lit = 0.3 + 0.7 * clamp(G.sun ? G.sun.intensity / 2.4 : 1, 0, 1);
-    u.uDeep.value.setRGB(0.028, 0.042, 0.03).multiplyScalar(lit);
-    // (the trees round it, as dark as the woods look at this hour, hazed toward the fog)
-    u.uTrees.value.setRGB(0.045, 0.07, 0.04).multiplyScalar(lit).lerp(G.scene.fog.color, 0.15);
-    u.uWind.value = G.windV ? clamp(Math.hypot(G.windV.x, G.windV.z) / 2, 0, 1) : 0.2;
-    u.uRain.value = w.rainK || 0;
+    const w = this.w, town = G.town;
     const ice = town && town.winter && (w.snowK || 0) > 0.5;
     this.frozen = !!ice; this.rip.visible = !ice;
+    this.wm.update(dt, { rain: w.rainK || 0, ice });
     // (frogs at dusk and into the night, spring and summer; and the ducks talking now and then, by day)
     const ft = town ? town.frac : 0.4, warm = town && (town.season === "spring" || town.season === "summer");
     if (pp && Math.hypot(pp.x - POND.x, pp.z - POND.z) < 55) {
@@ -245,7 +189,6 @@ export class Pond {
     }
     // (a fish rising, out in the middle, now and then — more at dusk)
     if (!ice && Math.random() < dt * (this.odds() * 0.12)) { const a = Math.random() * 6.283, r = pondR(a) * Math.random() * 0.7; this.ripple(POND.x + Math.cos(a) * r, POND.z + Math.sin(a) * r, 0.6); }
-    u.uIce.value = ice ? 1 : 0;
     this.padMesh.visible = this.flowers.visible = !ice;
     if (town) this.flowers.visible = !ice && (town.season === "summer");
     // ---- the ducks: paddling about, dabbling now and then, and off to the far side if you come near ----

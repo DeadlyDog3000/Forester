@@ -12,6 +12,7 @@ import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, gro
 import { WorldBase, G } from "./engine.js";
 import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
+import { WaterMat } from "./water.js";
 import { water, label, INK, seen } from "./map.js";
 
 // ---------------------------------------------------------------------------
@@ -180,7 +181,9 @@ export class Hamburg extends WorldBase {
 
     // ---- the harbour ----
     // the Elbe, wide as a sea here, out past the ships to the horizon
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(1400, 900, 110, 60), new THREE.MeshStandardMaterial({ color: 0x2f607a, roughness: 0.12, metalness: 0.45 }));
+    // (the Elbe: grey-green and silty, holding the sky, the quays and the ships dark along it, a slow swell running)
+    this.wm = new WaterMat({ deep: [0.03, 0.05, 0.055], round: [0.05, 0.045, 0.04], swell: 1.8 });
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(1400, 900, 110, 60), this.wm.mat);
     water.rotation.x = -Math.PI / 2; water.position.set(0, -1.1, -496);
     water.receiveShadow = true;
     root.add(water);
@@ -613,6 +616,7 @@ export class Hamburg extends WorldBase {
     this.doorAngle += (want - this.doorAngle) * Math.min(1, dt * 5);
     this.door.rotation.y = this.doorAngle;
     // water and ships
+    if (this.wm) this.wm.update(dt);
     if (Math.floor(this.t * 20) !== this._wt) {
       this._wt = Math.floor(this.t * 20);
       const a = this.water.geometry.attributes.position, base = this._wbase;

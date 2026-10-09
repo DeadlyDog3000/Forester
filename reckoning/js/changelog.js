@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.3", date: "8 October 2026", title: "The Elbe",
+    items: [
+      "The Elbe at Hamburg is real water now. It's grey-green and silty, it holds the sky and the dark of the quays and ships along it, the sun glints off it, and a slow swell runs on it. Before, it was a flat blue sheet.",
+    ],
+  },
+  {
     v: "0.53.2", date: "8 October 2026", title: "The house by the harbour",
     items: [
       "The family's house in Hamburg has windows on the inside. Small leaded panes in deep frames look onto the street from the hall, and onto the yard from the bedroom and the counting room, bright with the day and dark at night. Before, every room was a closed box.",
