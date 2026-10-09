@@ -1000,7 +1000,8 @@ function gunSmoke(at, dir) {
   };
   G.onFrame.push(tick);
 }
-G.gunSmoke = (at, dir) => gunSmoke(at, dir);
+// (a shot puts the birds up out of the woods round about)
+G.gunSmoke = (at, dir) => { gunSmoke(at, dir); if (G.startleBirds && Math.random() < 0.7) G.startleBirds(at.x + dir.x * 25, at.z + dir.z * 25); };
 // a blow that landed on something (a tree, a rock, a man): the stroke checks and your arms jar
 G.impact = () => { if (G.player) G.player.impactT = G.time + 0.18; };
 // ---- your hands on the screen, moving as you move ----

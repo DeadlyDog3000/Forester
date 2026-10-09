@@ -1226,6 +1226,7 @@ async function ch6(w) {
     t.dir = { x: dx / l, z: dz / l };
     t.axis = new THREE.Vector3(dz / l, 0, -dx / l);
     SFX.timberCrack();
+    G.startleBirds && G.startleBirds(t.x, t.z);
     t.onDown = () => {
       SFX.treeFall();
       const i = w.fellable.indexOf(t);

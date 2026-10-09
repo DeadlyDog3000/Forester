@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.51.1", date: "8 October 2026", title: "Birds",
+    items: [
+      "There are birds in the sky. Little flocks of finches bound over the clearing, a burst of wingbeats and then a dip with the wings shut. Crows row steadily across, and now and then a buzzard wheels high overhead on still wings. At dusk the bats come out and flicker about the clearing. In winter only the crows are left, and in a downpour or the dark there's nothing flying.",
+      "A tree coming down, or a shot, puts the birds up out of the woods round about, and they scatter away from you.",
+    ],
+  },
+  {
     v: "0.51.0", date: "8 October 2026", title: "Grass and rye",
     items: [
       "There's grass. The clearing is a sward of it, thick tufts stirring in the wind with the trees. Under the forest it grows in drifts of old dry grass, and here and there a tuft on the moss. None grows on a path or the road, under a house, round the fire where everyone walks, or on the cobbles once the town is paved. It lies under the snow in winter and turns to straw in autumn. It grows round about you wherever you walk. At the lowest forest detail there is none.",

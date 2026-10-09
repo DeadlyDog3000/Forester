@@ -1642,6 +1642,9 @@ export class Woods extends WorldBase {
     }
     // nor does it fall there
     SWAY.t.value += dt;
+    // the birds overhead
+    if (!this.birds && !this._birdsLoading) { this._birdsLoading = true; import("./birds.js").then(m => { this.birds = new m.Birds(this); }); }
+    if (this.birds) this.birds.update(dt);
     // the grass round about you (none at the lowest forest detail)
     if ((G.treeNear ?? 55) > 0) {
       if (!this.grass && !this._grassLoading) { this._grassLoading = true; import("./grass.js").then(m => { this.grass = new m.Grass(this); }); }

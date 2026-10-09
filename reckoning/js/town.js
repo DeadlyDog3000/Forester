@@ -1897,6 +1897,7 @@ export class Town {
     // (heard across the clearing, but not from the far side of the forest)
     const heard = () => !G.player || Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 45;
     if (heard()) SFX().timberCrack();
+    if (G.startleBirds) G.startleBirds(t.x, t.z);
     t.onDown = () => {
       if (heard()) SFX().treeFall();
       const i = this.w.fellable.indexOf(t);
