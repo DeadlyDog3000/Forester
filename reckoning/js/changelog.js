@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.7", date: "9 October 2026", title: "Butterflies",
+    items: [
+      "On a fine day in spring and summer, butterflies go about the clearing's grass and flowers: whites, brimstones, a red admiral now and then, and blues. They flutter in their jinking way and rest a moment, wings up, before they're off again.",
+    ],
+  },
+  {
     v: "0.55.6", date: "9 October 2026", title: "Squirrels",
     items: [
       "Red squirrels live in the woods round about you. They bound from tree to tree over the forest floor and sit up now and then to look about, the tail curled over the back. Come near and one is off to the nearest trunk and up it in a spiral, to wait there until you've gone a way. They keep in at night and in a downpour.",

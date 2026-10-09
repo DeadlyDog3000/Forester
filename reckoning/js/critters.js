@@ -97,3 +97,53 @@ export class Squirrels {
     }
   }
 }
+
+// Butterflies: over the clearing's flowers on a fine day in spring and summer, a handful of them, fluttering in
+// their jinking way from flower to flower and resting a moment, wings up, on one
+const BUTTER = [0xf0f0e8, 0xe8c840, 0xd06a28, 0x6a8ac8];
+export class Butterflies {
+  constructor(w) {
+    this.w = w; this.list = [];
+    const wing = new THREE.PlaneGeometry(0.05, 0.045); wing.translate(0.025, 0, 0);
+    this.geo = wing;
+  }
+  make(col) {
+    const g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: col, side: THREE.DoubleSide, roughness: 0.7 });
+    const L = new THREE.Mesh(this.geo, m), R = new THREE.Mesh(this.geo, m); R.scale.x = -1;
+    L.rotation.x = R.rotation.x = -Math.PI / 2;
+    const wl = new THREE.Group(), wr = new THREE.Group(); wl.add(L); wr.add(R); g.add(wl, wr);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.035, 4), new THREE.MeshStandardMaterial({ color: 0x2a2018 })); body.rotation.x = Math.PI / 2; g.add(body);
+    g.userData.wl = wl; g.userData.wr = wr;
+    this.w.root.add(g);
+    return g;
+  }
+  update(dt) {
+    const T = G.town, p = G.player && G.player.pos; if (!T || !p) return;
+    const fine = (T.season === "spring" || T.season === "summer") && T.frac > 0.1 && T.frac < 0.62 && (this.w.rainK || 0) < 0.05 && (G.cloud || 0) < 0.6;
+    const near = Math.hypot(p.x - CLEARING.x, p.z - CLEARING.z) < CLEARING.r + 25;
+    if (fine && near && this.list.length < 7 && Math.random() < dt) {
+      const a = Math.random() * 6.28, r = 4 + Math.random() * 12, x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
+      if (Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 4) this.list.push({ m: this.make(BUTTER[Math.floor(Math.random() * BUTTER.length)]), x, z, y: 0.6, h: Math.random() * 6.28, t: 0, rest: 0, ph: Math.random() * 6 });
+    }
+    for (const b of this.list.slice()) {
+      b.t += dt;
+      if (!fine || !near || Math.hypot(b.x - p.x, b.z - p.z) > 40) { this.w.root.remove(b.m); this.list.splice(this.list.indexOf(b), 1); continue; }
+      const gy = this.w.heightAt(b.x, b.z);
+      let flap;
+      if (b.rest > 0) { b.rest -= dt; b.y += (0.32 - b.y) * Math.min(1, dt * 4); flap = 0.15 + Math.sin(b.t * 2) * 0.1; }
+      else {
+        // (the jinking flight: the heading wandering, up and down in little lifts, now and then down to rest)
+        b.h += (Math.sin(b.t * 2.3 + b.ph) * 2.5 + (Math.random() - 0.5) * 6) * dt;
+        b.x += Math.sin(b.h) * 1.1 * dt; b.z += Math.cos(b.h) * 1.1 * dt;
+        b.y += ((0.6 + Math.sin(b.t * 3.1 + b.ph) * 0.35) - b.y) * Math.min(1, dt * 3);
+        if (Math.random() < dt * 0.15) b.rest = 2 + Math.random() * 3;
+        flap = Math.sin(b.t * 28 + b.ph);
+        // (drifting back if it strays out of the clearing)
+        if (Math.hypot(b.x - CLEARING.x, b.z - CLEARING.z) > CLEARING.r + 4) b.h = Math.atan2(CLEARING.x - b.x, CLEARING.z - b.z);
+      }
+      const m = b.m; m.position.set(b.x, gy + b.y, b.z); m.rotation.y = b.h;
+      const a = b.rest > 0 ? 1.2 : 0.2 + flap * 1.1;
+      m.userData.wl.rotation.z = a; m.userData.wr.rotation.z = -a;
+    }
+  }
+}

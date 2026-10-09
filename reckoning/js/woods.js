@@ -1857,8 +1857,8 @@ export class Woods extends WorldBase {
     if (SNOW.value > 0.4 && !this.tracks && !this._tracksLoading) { this._tracksLoading = true; import("./tracks.js").then(m => { this.tracks = new m.Tracks(this); }); }
     if (this.tracks) this.tracks.update(dt);
     // squirrels about the forest floor
-    if (!this.squirrels && !this._sqLoading) { this._sqLoading = true; import("./critters.js").then(m => { this.squirrels = new m.Squirrels(this); }); }
-    if (this.squirrels && !(this.cave && this.cave.inside)) this.squirrels.update(dt);
+    if (!this.squirrels && !this._sqLoading) { this._sqLoading = true; import("./critters.js").then(m => { this.squirrels = new m.Squirrels(this); this.butterflies = new m.Butterflies(this); }); }
+    if (this.squirrels && !(this.cave && this.cave.inside)) { this.squirrels.update(dt); this.butterflies.update(dt); }
     // the birds overhead
     if (!this.birds && !this._birdsLoading) { this._birdsLoading = true; import("./birds.js").then(m => { this.birds = new m.Birds(this); }); }
     if (this.birds) this.birds.update(dt);
