@@ -468,6 +468,54 @@ export class Town {
     a.root.visible = true; a.inside = false; a.lying = false; a.yOff = 0;
   }
 
+  // ---- the washing: on a fine day a few of the houses have theirs out on a line beside the door, flapping in the
+  // wind; it's in again before the rain, and by night ----
+  washing(dt) {
+    const w = this.w; if (!w || !w.root || this.colony) return;
+    const f = this.frac, fine = !this.winter && f > 0.12 && f < 0.62 && (w.rainK || 0) < 0.05 && (G.cloud || 0) < 0.75;
+    const houses = this.S.buildings.filter(b => b.done && b.type === "cabin").slice(0, 6);
+    const lines = this._lines || (this._lines = new Map());
+    for (const [b, L] of lines) if (!houses.includes(b)) { w.root.remove(L.g); lines.delete(b); }
+    for (const [i, b] of houses.entries()) {
+      // (not every house, and not every day: this house washes on its own days)
+      const out = fine && ((this.day + i * 3) % 4 === 0 || (this.day + i) % 5 === 0);
+      let L = lines.get(b);
+      if (!L) {
+        const g = new THREE.Group(), def = BUILDINGS.cabin, side = i % 2 ? 1 : -1, lx = side * (def.w / 2 + 1.6), c = Math.cos(b.ry), sn = Math.sin(b.ry);
+        const at = (x, z) => [b.x + x * c + z * sn, b.z - x * sn + z * c];
+        const [x0, z0] = at(lx, def.d / 2 - 0.5), [x1, z1] = at(lx, -def.d / 2 + 0.8);
+        const y0 = this.w.heightAt(x0, z0), y1 = this.w.heightAt(x1, z1), post = mat(0x6a4a30, { surface: "wood" });
+        for (const [x, z, y] of [[x0, z0, y0], [x1, z1, y1]]) { const pm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.9, 6), post); pm.position.set(x, y + 0.95, z); g.add(pm); }
+        const len = Math.hypot(x1 - x0, z1 - z0), rope = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, len, 4), mat(0x9a8a6a, { surface: "none" }));
+        rope.position.set((x0 + x1) / 2, (y0 + y1) / 2 + 1.82, (z0 + z1) / 2); rope.rotation.set(Math.PI / 2, Math.atan2(x1 - x0, z1 - z0), 0, "YXZ"); g.add(rope);
+        // (shirts, a shift, an apron, a blanket: pale linen mostly, a coloured one or two)
+        const cloths = [];
+        const COLS = [0xe8e2d4, 0xdcd4c0, 0xe8e2d4, 0x8a6a4a, 0xc8b89a, 0x5a6a7a];
+        for (let k = 0; k < 4; k++) {
+          const t = 0.18 + k * 0.21, w2 = 0.45 + ((k + i) % 3) * 0.2, h2 = 0.55 + ((k * 2 + i) % 3) * 0.2;
+          const piv = new THREE.Group(); piv.position.set(x0 + (x1 - x0) * t, (y0 + (y1 - y0) * t) + 1.8, z0 + (z1 - z0) * t); piv.rotation.y = Math.atan2(x1 - x0, z1 - z0) + Math.PI / 2;
+          // (a shirt, pegged up by its shoulders, or a sheet or an apron)
+          let geo;
+          if (k % 2 === 0) {
+            const sh = new THREE.Shape(), sw = 0.42, sl = 0.62;
+            sh.moveTo(-sw / 2, 0); sh.lineTo(-sw / 2 - 0.28, -0.05); sh.lineTo(-sw / 2 - 0.3, -0.22); sh.lineTo(-sw / 2, -0.2); sh.lineTo(-sw / 2, -sl);
+            sh.lineTo(sw / 2, -sl); sh.lineTo(sw / 2, -0.2); sh.lineTo(sw / 2 + 0.3, -0.22); sh.lineTo(sw / 2 + 0.28, -0.05); sh.lineTo(sw / 2, 0); sh.lineTo(0.07, 0); sh.lineTo(0, -0.07); sh.lineTo(-0.07, 0);
+            geo = new THREE.ShapeGeometry(sh);
+          } else { geo = new THREE.PlaneGeometry(w2, h2); geo.translate(0, -h2 / 2, 0); }
+          const cl = new THREE.Mesh(geo, mat(COLS[(k + i * 2) % COLS.length], { surface: "cloth", side: THREE.DoubleSide }));
+          piv.add(cl); g.add(piv); cloths.push({ piv, ph: Math.random() * 6 });
+        }
+        g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+        w.root.add(g); L = { g, cloths }; lines.set(b, L);
+      }
+      for (const cl of L.cloths) cl.piv.visible = out;
+      if (out) {
+        // (flapping: blown out by the wind, more on a windy day, each to its own time)
+        const wk = G.windV ? Math.min(1, Math.hypot(G.windV.x, G.windV.z) / 2) : 0.2, t = this.t;
+        for (const cl of L.cloths) cl.piv.rotation.x = 0.1 + wk * 0.5 + Math.sin(t * (2 + wk * 3) + cl.ph) * (0.08 + wk * 0.2);
+      }
+    }
+  }
   // ---- smoke from the chimneys: a hearth's in the morning and the evening and all day in the cold, and the works' while
   // they are working ----
   chimneys(dt) {
@@ -2815,7 +2863,7 @@ export class Town {
   // ---- time: days pass; the forest grows back, fields ripen, people eat ----
   update(dt, dayLength = 300) {
     this.t += dt; this.dayLen = dayLength;
-    this.chimneys(dt);
+    this.chimneys(dt); this.washing(dt);
     if ((this._dressT = (this._dressT || 0) + dt) > 3) { this._dressT = 0; this.refreshWatch(); }
     // how long it has been played (free play): some things wait on it
     if (G.mode === "play" && this.techGates) this.S.playSecs = (this.S.playSecs || 0) + dt;

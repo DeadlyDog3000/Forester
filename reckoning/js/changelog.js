@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.56.0", date: "9 October 2026", title: "Washing day",
+    items: [
+      "On a fine day a few of the houses have their washing out on a line beside the house: shirts pegged up by the shoulders, a sheet, an apron, all blown out and flapping in the wind, more on a windy day. Each house has its own washing days. It's taken in before the rain and by night, and the line stands empty in winter.",
+    ],
+  },
+  {
     v: "0.55.9", date: "9 October 2026", title: "Raids that end",
     items: [
       "Once raiders give it up and make off, they don't turn back on you for standing near them. Only if you hit one does he fight. And any still hanging about long after slip away into the woods. Before, a raider making off past you could lock the whole raid open, with the settlement cowering for days.",
