@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.59.1", date: "9 October 2026", title: "The sound of work",
+    items: [
+      "An axe into a trunk sounds like one: the crack of the blow, the ring of the blade, the knock of the wood and the crunch of torn fibre, a little different every stroke.",
+      "A tree going over creaks as it leans, its fibres snap faster and faster, and it gives a last loud crack. Then it comes down with a heavy thud, branches breaking and a long hiss of needles, from where its crown hits the ground.",
+      "The fire crackles and pops over a low rush, instead of a hiss.",
+      "Taking something up, building, hammering, coins, digging and anything heavy hitting the ground all have new sounds made from wood, metal, earth and cloth. Before, several were electronic beeps.",
+    ],
+  },
+  {
     v: "0.59.0", date: "9 October 2026", title: "Players",
     items: [
       "New music, played by a small band of the time: a lute, a harp, a recorder, a fiddle, a bass viol, a drone and a frame drum. The lute and harp are plucked strings, the recorder is breathed with a chiff as it speaks and a vibrato as it holds, and the fiddle and viol are bowed strings with a fiddle's body in their tone. It replaces the soft held chords that played before.",

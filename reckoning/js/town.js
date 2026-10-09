@@ -14,6 +14,7 @@
 //   people     settlers take jobs: woodcutters fell and stack, haulers carry from
 //              the stack to building sites, farmers keep the fields
 
+import { FOLEY } from "./foley.js";
 import { ambitionsTick } from "./ambitions.js";
 import { axeBonus, skillK, ITEM, digMul, buildMul } from "./body.js";
 import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, addDetail, camera, makeFlame } from "./core.js";
@@ -2002,10 +2003,10 @@ export class Town {
     t.axis = new THREE.Vector3(dz / l, 0, -dx / l);
     // (heard across the clearing, but not from the far side of the forest)
     const heard = () => !G.player || Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 45;
-    if (heard()) SFX().timberCrack();
+    if (heard()) FOLEY.fellStart({ x: t.x, z: t.z });
     if (G.startleBirds) G.startleBirds(t.x, t.z);
     t.onDown = () => {
-      if (heard()) SFX().treeFall();
+      if (heard()) { const r = (t.h || 9) * 0.5; FOLEY.crash(1, { x: t.x + t.dir.x * r, z: t.z + t.dir.z * r }); }
       const i = this.w.fellable.indexOf(t);
       if (!t.wild && !this.S.felled.some(f => f.i === i)) this.S.felled.push({ i, day: this.day, x: Math.round(t.x * 10) / 10, z: Math.round(t.z * 10) / 10 });
       if (dropLogs) this.dropLogs(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), this.logsPerTree);

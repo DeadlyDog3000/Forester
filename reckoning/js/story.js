@@ -10,6 +10,7 @@
 // time, so pausing pauses the story, and starting a chapter over bumps a
 // generation counter that makes every script from the old run fall silent.
 
+import { FOLEY } from "./foley.js";
 import { Caves } from "./cave.js";
 import { BUILD_GATES } from "./gov.js";
 import { dishOffers, isRawMeat } from "./cook.js";
@@ -1233,10 +1234,10 @@ async function ch6(w) {
     t.state = "falling"; t.fall = 0; t.col.disabled = true;
     t.dir = { x: dx / l, z: dz / l };
     t.axis = new THREE.Vector3(dz / l, 0, -dx / l);
-    SFX.timberCrack();
+    FOLEY.fellStart({ x: t.x, z: t.z });
     G.startleBirds && G.startleBirds(t.x, t.z);
     t.onDown = () => {
-      SFX.treeFall();
+      { const r = (t.h || 9) * 0.5; FOLEY.crash(1, { x: t.x + t.dir.x * r, z: t.z + t.dir.z * r }); }
       const i = w.fellable.indexOf(t);
       if (!t.wild && !S.felled.includes(i)) S.felled.push(i);
       persist();

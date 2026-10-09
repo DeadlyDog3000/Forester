@@ -17,6 +17,7 @@ import { AUDIO } from "./audio.js";
 import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
+import { FOLEY } from "./foley.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
 import { KINDS } from "./economy.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
@@ -1770,7 +1771,8 @@ function loop(now) {
 setAtmo("evening");
 applySettings();
 toTitle();
-addEventListener("pointerdown", () => { AUDIO.init(); applySettings(); if (G.mode === "title") AUDIO.music("title"); }, { once: true });
+try { FOLEY.install(SFX); } catch (e) {}
+addEventListener("pointerdown", () => { AUDIO.init(); applySettings(); FOLEY.warm(); if (G.mode === "title") AUDIO.music("title"); }, { once: true });
 requestAnimationFrame(loop);
 // models from Blender, if any are listed, are loaded before the first chapter can start
 loadModels().finally(() => $("loading").remove());
