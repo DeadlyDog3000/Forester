@@ -993,21 +993,37 @@ export class Woods extends WorldBase {
   pieces(s) {
     const near = (s.slots || []).filter(([m]) => !m.userData.far);
     if (!near.length) return null;
-    const g = new THREE.Group(), M = new THREE.Matrix4(), C = new THREE.Color();
-    const inv = new THREE.Matrix4().makeTranslation(-s.x, -(s.y - 0.1), -s.z);
+    // (merged, one mesh to a material — crown and trunk — rather than a mesh to every tier: an adopted tree drew
+    // eight times over, and the woodcutters adopt dozens of them)
+    const byMat = new Map(), M = new THREE.Matrix4(), C = new THREE.Color(), inv = new THREE.Matrix4().makeTranslation(-s.x, -(s.y - 0.1), -s.z), N = new THREE.Matrix3(), v = new THREE.Vector3();
+    const sway = [s.y - 0.2, s.h, (s.x * 0.37 + s.z * 0.61) % 6.283];
     for (const [m, i] of near) {
       m.getMatrixAt(i, M);
       if (M.elements[0] === 0 && M.elements[5] === 0) continue;       // (already gone)
-      // (swaying as it did in the forest, until it's cut)
-      const geo = m.geometry.userData.base ? swayGeo(m.geometry.userData.base, 1) : m.geometry;
-      if (geo !== m.geometry) geo.attributes.aSway.array.set([s.y - 0.2, s.h, (s.x * 0.37 + s.z * 0.61) % 6.283]);
-      const one = new THREE.InstancedMesh(geo, m.material, 1);
-      one.setMatrixAt(0, M.clone().premultiply(inv));
-      if (m.instanceColor) { m.getColorAt(i, C); one.setColorAt(0, C); }
-      one.castShadow = true; one.receiveShadow = true; one.frustumCulled = false;
-      g.add(one);
+      M.premultiply(inv); N.getNormalMatrix(M);
+      if (m.instanceColor) m.getColorAt(i, C); else C.setRGB(1, 1, 1);
+      const g = m.geometry.userData.base || m.geometry, P = g.attributes.position, Nn = g.attributes.normal, Cl = g.attributes.color, Ix = g.index;
+      let b = byMat.get(m.material); if (!b) byMat.set(m.material, b = { p: [], n: [], c: [], s: [], i: [] });
+      const o = b.p.length / 3;
+      for (let k = 0; k < P.count; k++) {
+        v.fromBufferAttribute(P, k).applyMatrix4(M); b.p.push(v.x, v.y, v.z);
+        v.fromBufferAttribute(Nn, k).applyMatrix3(N).normalize(); b.n.push(v.x, v.y, v.z);
+        b.c.push((Cl ? Cl.getX(k) : 1) * C.r, (Cl ? Cl.getY(k) : 1) * C.g, (Cl ? Cl.getZ(k) : 1) * C.b);
+        b.s.push(...sway);
+      }
+      if (Ix) for (let k = 0; k < Ix.count; k++) b.i.push(o + Ix.getX(k)); else for (let k = 0; k < P.count; k++) b.i.push(o + k);
     }
-    return g.children.length ? g : null;
+    if (!byMat.size) return null;
+    const grp = new THREE.Group();
+    for (const [mat, b] of byMat) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(b.p, 3)); geo.setAttribute("normal", new THREE.Float32BufferAttribute(b.n, 3));
+      geo.setAttribute("color", new THREE.Float32BufferAttribute(b.c, 3)); geo.setAttribute("aSway", new THREE.Float32BufferAttribute(b.s, 3));
+      geo.setIndex(b.i); geo.computeBoundingSphere(); geo.userData.sway = sway;
+      const one = new THREE.Mesh(geo, mat); one.castShadow = true; one.receiveShadow = true;
+      grp.add(one);
+    }
+    return grp;
   }
   // a scenery tree becomes one you can fell: the instance goes, and a tree of its own stands where it stood
   adopt(s, touched) {

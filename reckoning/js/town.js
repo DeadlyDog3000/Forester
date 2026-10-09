@@ -2027,6 +2027,9 @@ export class Town {
     this.dropStump(t);
     t.g.visible = true; t.state = "up"; t.col.disabled = false; t.hp = 4; t.claimed = null;
     t.g.rotation.set(0, 0, 0);
+    // (a new tree: its fall still to come, and swaying in the wind again)
+    t.th = null; t.om = 0; t.hits = 0; t.fall = 0;
+    t.g.traverse(o => { const a = o.geometry && o.geometry.attributes.aSway, sv = o.geometry && o.geometry.userData.sway; if (a && sv) { for (let k = 0; k < a.count; k++) a.setXYZ(k, sv[0], sv[1], sv[2]); a.needsUpdate = true; } });
     const i = this.w.fellable.indexOf(t);
     this.S.felled = this.S.felled.filter(f => f.i !== i);
   }
@@ -2319,7 +2322,7 @@ export class Town {
       if (this.isNight() && !(this.raids && this.raids.active) && !(this.S.revolt && this.S.revolt.active) && !a.settler.follow) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
       let job = a.settler.job || "hauler";
       // (a carter with nothing to cart lends a hand hauling for a while)
-      if (job === "carter" && a.helpHaul > G.time) job = "hauler";
+      if ((job === "carter" || job === "woodcutter") && a.helpHaul > G.time) job = "hauler";
       // raiders in the settlement: every grown settler fights — with what the smith has made, an axe, or their fists;
       // the children hide by the fire
       const raid = this.raids && this.raids.active;
@@ -2588,12 +2591,16 @@ export class Town {
         const trees = clearing ? this.toClear().filter(t => t.state === "up" && !t.claimed) : this.w.fellable.filter(t => t.state === "up" && !t.claimed);
         // (the trees on the settlement's own ground all down: out to the forest beyond its edge)
         if (!trees.length && !clearing) { const wt = this.wildTree(this.stackAt); if (wt) trees.push(wt); }
-        if (!trees.length) { await sleep(5); continue; }
+        // (no tree to be had: a hand with the hauling for a while, rather than standing about)
+        if (!trees.length) { a.helpHaul = G.time + 60; await sleep(2); continue; }
         trees.sort((p, q) => Math.hypot(p.x - a.pos.x, p.z - a.pos.z) - Math.hypot(q.x - a.pos.x, q.z - a.pos.z));
-        const t = trees[Math.floor(Math.random() * Math.min(5, trees.length))];
+        const reach = trees.filter(q => (q.noReach || 0) < 2), t = reach[Math.floor(Math.random() * Math.min(5, reach.length))];
+        if (!t) { a.helpHaul = G.time + 60; await sleep(2); continue; }
         t.claimed = "settler";
         const dx = CLEARING.x - t.x, dz = CLEARING.z - t.z, l = Math.hypot(dx, dz);
-        await a.walkTo(t.x + dx / l * 1.1, t.z + dz / l * 1.1, 1.3); alive();
+        // (one they can't get to is left for now — and after twice, for good)
+        await Promise.race([a.walkTo(t.x + dx / l * 1.1, t.z + dz / l * 1.1, 1.3), sleep(60)]); alive();
+        if (Math.hypot(a.pos.x - t.x, a.pos.z - t.z) > 3) { t.claimed = null; t.noReach = (t.noReach || 0) + 1; a.path = []; continue; }
         a.faceTo(t.x, t.z); a.person.setPose("chop");
         const axe = a.hold(makeAxe()); axe.rotation.y = Math.PI / 2;   // (the blade sideways, into the trunk)
         for (let i = 0; i < (this.S.upgrades.axes ? 4 : 6); i++) { await sleep(0.8 * this.chopMul * this.pace(a, "woodcutting")); alive(); if (Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 24) this.sfxAt(a, "chop"); }
@@ -2601,7 +2608,7 @@ export class Town {
         this.fell(t, -dx, -dz, false); this.learn(a, "woodcutting", 1);
         await sleep(2.6); alive();
         a.person.setPose("hold");
-        await a.walkTo(this.stackAt.x + 1.1, this.stackAt.z + 0.4, 1.2); alive();
+        await Promise.race([a.walkTo(this.stackAt.x + 1.1, this.stackAt.z + 0.4, 1.2), sleep(80)]); alive();
         a.person.setPose("idle");
         this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); this.sfxAt(a, "build");
         await sleep(3 + Math.random() * 3);

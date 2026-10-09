@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.8", date: "9 October 2026", title: "Lighter woods",
+    items: [
+      "The game stays quicker the longer you play. Each tree the woodcutters take out of the forest was drawn as eight separate pieces, and over a few days dozens of them doubled the work of drawing a frame. Now each is drawn in one piece for its crown and one for its trunk, and a busy settlement's frames take about a third less time.",
+      "A tree that grows back from a stump falls properly when it's felled again, and sways in the wind again. Before, it was down the instant it was cut, and stood stock still.",
+      "A woodcutter sent to a tree they can't get to leaves it for another, rather than standing at the edge of the wood all day. With no tree to be had, they lend a hand hauling.",
+    ],
+  },
+  {
     v: "0.55.7", date: "9 October 2026", title: "Butterflies",
     items: [
       "On a fine day in spring and summer, butterflies go about the clearing's grass and flowers: whites, brimstones, a red admiral now and then, and blues. They flutter in their jinking way and rest a moment, wings up, before they're off again.",
