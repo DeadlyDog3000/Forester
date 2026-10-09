@@ -87,7 +87,7 @@ export class Pond {
       use: () => this.landed() });
     // (you can wade the margin, but not out into the middle, where it's over your head)
     const rr = Math.min(...Array.from({ length: 24 }, (_, i) => pondR(i / 24 * Math.PI * 2)));
-    w.col.addCircle(POND.x, POND.z, rr * 0.62, L + 3);
+    this.deep = w.col.addCircle(POND.x, POND.z, rr * 0.62, L + 3);
   }
   // how likely a fish is to take, now: best at dawn and dusk, slow at midday, poorer still at night; a little better in rain
   odds() {
@@ -180,6 +180,13 @@ export class Pond {
     const w = this.w, town = G.town;
     const ice = town && town.winter && (w.snowK || 0) > 0.5;
     this.frozen = !!ice; this.rip.visible = !ice;
+    // (frozen, you may walk out over it; thawed, the middle is too deep again)
+    if (this.deep) this.deep.disabled = !!ice;
+    // (the rushes die back: straw-coloured in autumn, brown and broken-looking in winter)
+    if (town && this.rushes && this._rushSeason !== town.season) {
+      this._rushSeason = town.season;
+      this.rushes.material.color.set(town.season === "winter" ? 0xb08a60 : town.season === "autumn" ? 0xd8c890 : 0xffffff);
+    }
     this.wm.update(dt, { rain: w.rainK || 0, ice });
     // (frogs at dusk and into the night, spring and summer; and the ducks talking now and then, by day)
     const ft = town ? town.frac : 0.4, warm = town && (town.season === "spring" || town.season === "summer");

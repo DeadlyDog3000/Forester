@@ -630,6 +630,8 @@ export class Woods extends WorldBase {
   // the ground, and the pads dug level into it for buildings: inside a pad its own height, and round it a bank
   // sloping back up (or down) to the ground as it was
   heightAt(x, z) {
+    // (the pond frozen over: you stand on the ice, not on its bed)
+    if (this.pond && this.pond.frozen && Math.abs(x - POND.x) < POND.r * 1.4 && Math.abs(z - POND.z) < POND.r * 1.4 && pondK(x, z) < 1.02) return Math.max(this.groundAt(x, z), this.pondLevel + 0.02);
     const h = this.groundAt(x, z);
     const P = this.pads; if (!P || !P.length) return h;
     let out = h;

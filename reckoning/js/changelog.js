@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.9", date: "8 October 2026", title: "On the ice",
+    items: [
+      "When the pond freezes over you can walk out across it, on the ice, not wading along its bed beneath. It goes back to water at the thaw.",
+      "The rushes round the pond die back with the year: straw-coloured in autumn, brown in winter.",
+    ],
+  },
+  {
     v: "0.53.8", date: "8 October 2026", title: "The turn of the year",
     items: [
       "The birches keep the seasons. They're green through spring and summer, yellow into autumn, gold and then rust, and bare by winter. The bushes brown with them, and in autumn leaves come fluttering down off the birches round you, carried on the wind, and lie a while where they land. The spruce and the pine stay green all year.",
