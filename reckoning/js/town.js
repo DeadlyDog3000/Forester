@@ -1963,7 +1963,7 @@ export class Town {
   }
   // a stump on the settlement's own ground that nobody is at yet (out in the forest they're left to grow again)
   stumpToDig() {
-    for (const t of this.stumps.keys()) if (!t.claimed && this.onGround(t.x, t.z, 0)) return t;
+    for (const t of this.stumps.keys()) if (!t.claimed && (t.noReach || 0) < 2 && this.onGround(t.x, t.z, 0)) return t;
     return null;
   }
   // stumps under something newly laid out are grubbed up with it, and nothing grows there again
@@ -2485,7 +2485,9 @@ export class Town {
       } else if (!clearing && job === "hauler" && !site && (stump = this.stumpToDig())) {
         // nothing to carry: the stumps left in the settlement, grubbed out one by one
         stump.claimed = a; a.doing = "digging out an old stump";
-        await a.walkTo(stump.x + 0.9, stump.z + 0.5, 1.2); alive();
+        // (one they can't get to — penned in by trees, or over a bank — is given up, and after twice, left be)
+        await Promise.race([a.walkTo(stump.x + 0.9, stump.z + 0.5, 1.2), sleep(45)]); alive();
+        if (Math.hypot(a.pos.x - stump.x, a.pos.z - stump.z) > 2.6) { stump.claimed = null; stump.noReach = (stump.noReach || 0) + 1; a.path = []; continue; }
         if (!this.stumps.has(stump)) { stump.claimed = null; continue; }
         a.faceTo(stump.x, stump.z); a.person.setPose("dig");
         const sp = a.hold(makeSpade());
@@ -2659,6 +2661,31 @@ export class Town {
           this.show(f); this.persist(); this.sfxAt(a, "build");
         } else f._farm = null;
       } else {
+        // a child: playing — chasing the others, running about, crouched over something in the grass, or at mother's side
+        if (a.settler.child && !this.isNight()) {
+          const F = this.colony || FIRE, kids = this.actors.filter(o => o !== a && o.settler && o.settler.child && !o.inside && o.root.visible);
+          const mum = this.actors.find(o => o.settler && !o.settler.child && o.settler.sex === "f" && o.settler.family && o.settler.family === a.settler.family && !o.inside);
+          const r = Math.random();
+          if (kids.length && r < 0.45) {
+            // tag: after one of the others, flat out, then off again the other way
+            const k = kids[Math.floor(Math.random() * kids.length)];
+            a.doing = `playing tag with ${k.settler.name}`;
+            await Promise.race([a.walkTo(k.pos.x + (Math.random() - 0.5) * 1.5, k.pos.z + (Math.random() - 0.5) * 1.5, 3.0), sleep(6)]); alive();
+            await sleep(0.5 + Math.random());
+          } else if (r < 0.65) {
+            a.doing = "running about, playing";
+            for (let i = 0; i < 3; i++) { const a2 = Math.random() * 6.28; await Promise.race([a.walkTo(F.x + Math.cos(a2) * (4 + Math.random() * 7), F.z + Math.sin(a2) * (4 + Math.random() * 7), 2.6 + Math.random() * 0.8), sleep(6)]); alive(); }
+          } else if (r < 0.85 || !mum) {
+            a.doing = "playing in the grass";
+            const a2 = Math.random() * 6.28; await a.walkTo(F.x + Math.cos(a2) * (5 + Math.random() * 8), F.z + Math.sin(a2) * (5 + Math.random() * 8), 1.4); alive();
+            a.person.setPose("gather"); await sleep(4 + Math.random() * 5); alive(); a.person.setPose("idle");
+          } else {
+            a.doing = `by ${mum.settler.name}`;
+            await Promise.race([a.walkTo(mum.pos.x + 0.9, mum.pos.z + 0.6, 1.5), sleep(12)]); alive();
+            a.faceTo(mum.pos.x, mum.pos.z); a.person.setPose("talk"); await sleep(3 + Math.random() * 3); alive(); a.person.setPose("idle");
+          }
+          continue;
+        }
         // nothing to do: idle about the fire and the cabins
         a.doing = "idle";
         { const F = this.colony || FIRE; await a.walkTo(F.x + (Math.random() - 0.5) * 8, F.z + (Math.random() - 0.5) * 8, 1.0); } alive();

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.1", date: "9 October 2026", title: "Children at play",
+    items: [
+      "The settlement's children play. They chase each other round the fire, run about the clearing, crouch over something in the grass, or go and stand at their mother's side and chatter. Before, they only wandered about the fire and stood.",
+      "A settler sent to dig out an old stump they can't get to, penned in by trees or over a bank, gives up on it rather than standing at it all day, and after two tries it's left alone.",
+    ],
+  },
+  {
     v: "0.54.0", date: "9 October 2026", title: "Clouds",
     items: [
       "The sky has clouds. On a fair day there's a scatter of them, white on the sun's side and grey beneath. Ahead of rain they thicken into a low grey lid, and they drift across, quicker on a windy day. At dusk they take the colour of the sunset, and at night they're dim shapes against the dark. Before, the sky was a plain gradient with nothing in it.",
