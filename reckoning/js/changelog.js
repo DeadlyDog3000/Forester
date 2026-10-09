@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.2", date: "9 October 2026", title: "After the rain",
+    items: [
+      "When a shower clears in the daytime, with the sun low enough to throw one, a rainbow stands in the sky opposite it for a little while, red outside and violet within, and then fades.",
+    ],
+  },
+  {
     v: "0.54.1", date: "9 October 2026", title: "Children at play",
     items: [
       "The settlement's children play. They chase each other round the fire, run about the clearing, crouch over something in the grass, or go and stand at their mother's side and chatter. Before, they only wandered about the fire and stood.",

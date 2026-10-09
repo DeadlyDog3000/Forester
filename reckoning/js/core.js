@@ -522,10 +522,10 @@ export function makeSky() {
       bottom: { value: new THREE.Color(0x9aa9b0) }, sunDir: { value: new THREE.Vector3(0, 1, 0) },
       sunCol: { value: new THREE.Color(0xfff0c0) }, sunSize: { value: 0.9985 },
       moonK: { value: 0 }, moonPhase: { value: 0.5 },
-      cloudT: { value: 0 }, cloudK: { value: 0.3 }, cloudLit: { value: 1 },
+      cloudT: { value: 0 }, cloudK: { value: 0.3 }, cloudLit: { value: 1 }, bowK: { value: 0 },
     },
     vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform vec3 top, mid, bottom, sunCol, sunDir; uniform float sunSize, moonK, moonPhase, cloudT, cloudK, cloudLit; varying vec3 vP;
+    fragmentShader: `uniform vec3 top, mid, bottom, sunCol, sunDir; uniform float sunSize, moonK, moonPhase, cloudT, cloudK, cloudLit, bowK; varying vec3 vP;
       float ch(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float cn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(ch(i), ch(i + vec2(1, 0)), f.x), mix(ch(i + vec2(0, 1)), ch(i + vec2(1, 1)), f.x), f.y); }
@@ -547,6 +547,15 @@ export function makeSky() {
           // (brighter at the edges toward the sun)
           cc += sunCol * pow(max(s, 0.0), 6.0) * (1.0 - thick) * 0.5 * cloudLit;
           c = mix(c, cc, cov * (0.85 + cloudK * 0.15));
+        }
+        // a rainbow, as a shower clears: the bow forty-two degrees round the point opposite the sun, red outside
+        // and violet within, fainter toward the ground and the ends
+        if (bowK > 0.0 && h > -0.02) {
+          float ang = acos(clamp(dot(d, -sd), -1.0, 1.0)), x = (ang - 0.705) / 0.045;
+          if (abs(x) < 1.0) {
+            vec3 bow = clamp(vec3(1.5 - abs(x - 0.7) * 2.6, 1.5 - abs(x) * 2.6, 1.5 - abs(x + 0.7) * 2.6), 0.0, 1.0);
+            c += bow * bowK * 0.32 * smoothstep(-0.02, 0.15, h) * (1.0 - x * x);
+          }
         }
         // the moon, by night, where the night's light comes from: a pale disc lit on one side by the sun below the
         // world (its phase), the dark of it faintly there, and a soft halo round it

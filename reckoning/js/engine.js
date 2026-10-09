@@ -152,6 +152,7 @@ function applyAtmo(a00) {
   // (the clouds: a fair day's scatter, thickening with the weather; lit by the day, near black by night)
   u.cloudK.value = clamp(0.25 + (G.cloud || 0) * 0.85, 0, 1);
   u.cloudLit.value = clamp((a.sunI - 0.4) / 2.0, 0, 1) * 1.05 + 0.035;
+  u.bowK.value = G.rainbow || 0;
   u.moonPhase.value = G.town ? ((G.town.t / (G.town.dayLen || 480)) / 8) % 1 : 0.5;
   MAT.lit.emissiveIntensity = a.win;
   renderer.toneMappingExposure = a.exp;

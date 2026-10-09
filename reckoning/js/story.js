@@ -2336,7 +2336,7 @@ function weatherAt(W, f) {
 function dayCycle(w, town, DAY, { onReap } = {}) {
   const S = town.S, pl = G.player, ripe = new Map();
   town.nightly = true; town.dayLen = DAY;
-  let snow = town.winter ? 1 : 0, hearth = false, lastRain = -1, lastUnder = false;
+  let snow = town.winter ? 1 : 0, hearth = false, lastRain = -1, lastUnder = false, bowAt = -1e9;
   const tick = onFrame(dt => {
     town.update(dt, DAY);
     const f = (town.t / DAY) % 1;
@@ -2350,6 +2350,10 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
     const rainK = snow > 0.5 ? 0 : X.fall;
     if (w.setRain) w.setRain(rainK, W.wind);
     G.cloud = X.cloud; G.mist = X.mist;
+    // a rainbow when a shower clears in daylight, with the sun out low enough to throw one, for a little while
+    if (rainK > 0.25) bowAt = town.t;
+    const sinceRain = (town.t - bowAt) / DAY, bowWant = W.wet && !snow && sinceRain > 0.004 && sinceRain < 0.07 && f > 0.06 && f < 0.6 && X.cloud < 0.85 ? Math.min(1, (0.07 - sinceRain) / 0.03) : 0;
+    G.rainbow = (G.rainbow || 0) + (bowWant - (G.rainbow || 0)) * Math.min(1, dt * 0.5);
     // (the wind the smoke leans on: a breeze, stronger the wetter the day)
     G.windV = { x: 0.4 + W.wind * 2.2 * (0.4 + X.cloud), z: 0.15 + W.wind * 0.9 * (0.4 + X.cloud) };
     if (Math.abs(rainK - lastRain) > 0.02 || under !== lastUnder) { lastRain = rainK; lastUnder = under; AUDIO.rain(rainK, under); }
@@ -2404,7 +2408,7 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
     const say1 = { spring: "Spring. The ground's soft again — the fields will grow.", summer: "Summer. Long days; get the logs in while it's dry.", autumn: "Autumn. Winter's two days off — stack firewood, and bread.", winter: "Winter. Nothing grows now, and every hearth burns a log a day." }[lastSeason];
     UI.hint(say1, 6);
   });
-  return () => { tick(); told(); seasons(); G.cloud = 0; G.mist = 0; G.flash = 0; if (w.setRain) w.setRain(0); AUDIO.rain(0); w.onSleep = null; town.nightly = false; if (hearth) w.lightHearth(false); for (const it of ripe.values()) w.removeInteract(it); };
+  return () => { tick(); told(); seasons(); G.cloud = 0; G.mist = 0; G.flash = 0; G.rainbow = 0; if (w.setRain) w.setRain(0); AUDIO.rain(0); w.onSleep = null; town.nightly = false; if (hearth) w.lightHearth(false); for (const it of ripe.values()) w.removeInteract(it); };
 }
 const sibling = () => LOOKS[G.who === "brother" ? "sister" : "brother"];
 // places round the fire, for a gathering
