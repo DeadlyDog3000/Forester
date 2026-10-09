@@ -16,12 +16,13 @@
 
 import { ambitionsTick } from "./ambitions.js";
 import { axeBonus, skillK, ITEM, digMul, buildMul } from "./body.js";
-import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, addDetail } from "./core.js";
+import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, addDetail, camera } from "./core.js";
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack } from "./models.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
+import { Smoke, Breath, chimneyMark } from "./smoke.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { gunsmithTick, benchFront } from "./gunsmith.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
@@ -387,6 +388,59 @@ export class Town {
     a.root.visible = true; a.inside = false; a.lying = false; a.yOff = 0;
   }
 
+  // ---- smoke from the chimneys: a hearth's in the morning and the evening and all day in the cold, and the works' while
+  // they are working ----
+  chimneys(dt) {
+    const w = this.w; if (!w || !w.root || !G.player) return;
+    if (!this.smoke) this.smoke = new Smoke(w.root);
+    const f = this.frac, cold = this.winter ? 1 : this.season === "autumn" ? 0.4 : 0, work = f > 0.03 && f < 0.62;
+    const home = (f < 0.12 || f > 0.55 ? 0.5 : 0.08) + cold * 0.4;
+    const K = { cabin: home, bakery: work ? 0.85 : 0.15, forge: work ? 0.8 : 0.05, smelter: work ? 1 : 0.1, brickworks: work ? 0.7 : 0.3, hospital: 0.2 + cold * 0.3, townhall: cold * 0.45 };
+    const src = this._smokeSrc || (this._smokeSrc = []), v = new THREE.Vector3(); src.length = 0;
+    for (const [b, g] of this.vis) {
+      const mk = g.userData.chimney; if (!mk || !g.visible) continue;
+      const k = Math.min(1, K[b.type] ?? 0); if (k < 0.03) continue;
+      mk.getWorldPosition(v); src.push({ x: v.x, y: v.y, z: v.z, k });
+    }
+    // your own cabin, and more of it when the hearth is lit
+    if (w.cabinChimney && w.cabinUp && w.cabin && w.cabin.visible) { w.cabinChimney.getWorldPosition(v); src.push({ x: v.x, y: v.y, z: v.z, k: w.hearth ? 0.85 : home }); }
+    const sun = G.sun ? clamp(G.sun.intensity / 2.4, 0, 1) : 1, fog = G.scene.fog;
+    const col = new THREE.Color(0x77736f).multiplyScalar(0.35 + sun * 0.65).lerp(fog.color, 0.18);
+    const wind = G.windV || { x: 0.5, z: 0.2 };
+    const scale = innerHeight * (window.devicePixelRatio || 1) / (2 * Math.tan(camera.fov * Math.PI / 360));
+    this.smoke.update(dt, src, wind, G.player.pos, { color: col, fog: fog.color, near: fog.near, far: fog.far });
+    this.smoke.mat.uniforms.uScale.value = scale;
+    this.breathe(dt, { color: new THREE.Color(0xdfe4ea).multiplyScalar(0.3 + sun * 0.7).lerp(fog.color, 0.2), fog: fog.color, near: fog.near, far: fog.far, scale });
+  }
+  // breath you can see, in the cold: winter all day, and autumn's early mornings and nights
+  breathe(dt, light) {
+    const f = this.frac, cold = this.winter ? 1 : this.season === "autumn" && (f < 0.1 || f > 0.66) ? 0.6 : this.season === "spring" && f < 0.06 ? 0.4 : 0;
+    if (!cold && !this.breath) return;
+    if (!this.breath) this.breath = new Breath(this.w.root);
+    if (cold && !(this.w.sheltered && this.w.sheltered())) {
+      const pl = G.player, v = new THREE.Vector3();
+      for (const a of this.actors) {
+        if (a.inside || a.dead || !a.root.visible || !a.person || a.lying) continue;
+        const dx = a.pos.x - pl.pos.x, dz = a.pos.z - pl.pos.z; if (dx * dx + dz * dz > 400) continue;
+        // (a breath every three seconds or so standing, quicker walking, quicker still running)
+        const sp = a.speed || 0;
+        if ((a._breathT = (a._breathT ?? Math.random() * 3) - dt * (1 + sp * 0.5)) > 0) continue;
+        a._breathT = 2.6 + Math.random() * 1.2;
+        const hb = a.person.headBone; if (!hb) continue;
+        hb.getWorldPosition(v);
+        const fx = Math.sin(a.yaw || 0), fz = Math.cos(a.yaw || 0);
+        this.breath.puff(v.x + fx * 0.14, v.y + 0.02, v.z + fz * 0.14, fx, fz, cold);
+      }
+      // and your own, out in front of you (more often when you have been running)
+      if ((this._myBreath = (this._myBreath ?? 1) - dt * (1 + (G.panting || 0) * 1.5 + (pl.speed > 3 ? 0.8 : 0))) <= 0 && G.mode === "play" && !pl.horse) {
+        this._myBreath = 2.8 + Math.random();
+        const fx = -Math.sin(pl.yaw), fz = -Math.cos(pl.yaw);
+        this.breath.puff(camera.position.x + fx * 0.45, camera.position.y - 0.32, camera.position.z + fz * 0.45, fx, fz, cold * 0.5);
+      }
+    }
+    this.breath.update(dt, light);
+  }
+
   // ---- what the settlement can hold ----
   get hearths() { return 1 + this.count("cabin"); }
   // the firewood kept back from building and the works, from the first day of autumn until winter's out: a log a day for
@@ -654,6 +708,8 @@ export class Town {
       const key = modelKey(b), m = modelCopy(key);
       if (m) {
         g.add(m.scene);
+        // (where its smoke comes out, if it has a chimney)
+        const mk = chimneyMark(key); if (mk) { m.scene.add(mk); g.userData.chimney = mk; }
         // (the woodshed's own logs are drawn from the store, not always full; a bigger one is more bays of it, side by side)
         if (b.type === "woodshed") {
           const n = b.bays || 1, bays = [m.scene];
@@ -2532,6 +2588,7 @@ export class Town {
   // ---- time: days pass; the forest grows back, fields ripen, people eat ----
   update(dt, dayLength = 300) {
     this.t += dt; this.dayLen = dayLength;
+    this.chimneys(dt);
     if ((this._dressT = (this._dressT || 0) + dt) > 3) { this._dressT = 0; this.refreshWatch(); }
     // how long it has been played (free play): some things wait on it
     if (G.mode === "play" && this.techGates) this.S.playSecs = (this.S.playSecs || 0) + dt;

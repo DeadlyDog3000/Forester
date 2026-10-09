@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.50.1", date: "8 October 2026", title: "Smoke and breath",
+    items: [
+      "Chimneys smoke. A house's hearth smokes in the morning while the bread is on, in the evening, and all day in the cold, as does your own cabin's, more thickly when you've lit the fire. The bakery, the forge and the smelter smoke while they're working, and the brickworks' kiln day and night. Each plume rises, spreads and thins out downwind, leaning further on a wet, windy day. It shows pale against the dusk and the stars, and faint against a bright sky.",
+      "In the cold you can see breath. In winter, and on autumn mornings and nights, everyone near you breathes out a little white cloud every few seconds, more often when they're walking. So do you, more often when you've been running.",
+    ],
+  },
+  {
     v: "0.50.0", date: "8 October 2026", title: "Weather",
     items: [
       "The sky has weather now, and every day its own. Spring has showers, summer has thunderstorms, and autumn has long rains and mist. Winter snows some days and not others, and harder some days than others. Before, every day was the same clear sky, and every winter day snowed at the same hour.",

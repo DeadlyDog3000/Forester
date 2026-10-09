@@ -2335,6 +2335,8 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
     const rainK = snow > 0.5 ? 0 : X.fall;
     if (w.setRain) w.setRain(rainK, W.wind);
     G.cloud = X.cloud; G.mist = X.mist;
+    // (the wind the smoke leans on: a breeze, stronger the wetter the day)
+    G.windV = { x: 0.4 + W.wind * 2.2 * (0.4 + X.cloud), z: 0.15 + W.wind * 0.9 * (0.4 + X.cloud) };
     if (Math.abs(rainK - lastRain) > 0.02 || under !== lastUnder) { lastRain = rainK; lastUnder = under; AUDIO.rain(rainK, under); }
     // a storm: lightning, near and far, and the thunder after it as long as the strike was far
     if (W.storm && rainK > 0.4 && Math.random() < dt / 14) {

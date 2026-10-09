@@ -817,7 +817,7 @@ export class Woods extends WorldBase {
     const cm = cb.build(); cm.position.y = y0; this.cabin.add(cm);
     // a cabin made in Blender, if there is one, stands in for this one
     const cabinModel = modelCopy("cabin");
-    if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); cabinModel.scene.add(chinking()); }
+    if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); cabinModel.scene.add(chinking()); this.cabinChimney = new THREE.Object3D(); this.cabinChimney.position.set(-1.2, 5.88, -3.3); cabinModel.scene.add(this.cabinChimney); }
     // the door hangs on its own hinge in the model, so it can be swung
     this.cabinY = y0;
     this.doorNode = cabinModel ? cabinModel.scene.getObjectByName("door") : null;
