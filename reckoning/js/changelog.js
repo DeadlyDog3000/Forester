@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.56.1", date: "9 October 2026", title: "Fawns",
+    items: [
+      "In spring and at the start of summer, some of the roe does have a fawn with them. It's small and dappled with pale spots, keeps at its mother's heels, grazes beside her, and bolts with her at her flank when she's startled. There's not much meat on one.",
+    ],
+  },
+  {
     v: "0.56.0", date: "9 October 2026", title: "Washing day",
     items: [
       "On a fine day a few of the houses have their washing out on a line beside the house: shirts pegged up by the shoulders, a sheet, an apron, all blown out and flapping in the wind, more on a windy day. Each house has its own washing days. It's taken in before the rain and by night, and the line stands empty in winter.",

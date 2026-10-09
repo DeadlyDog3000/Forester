@@ -123,6 +123,23 @@ class Animal {
       if (away) { this.state = "walk"; this.target = away; this.t = 14; this.looking = 0; }
     }
     this.t -= dt;
+    // a fawn keeps to its mother: at her heels when she moves, grazing by her when she grazes, away with her when she bolts
+    if (this.mother) {
+      const M = this.mother;
+      if (!M.alive || !this.hunt.animals.includes(M)) this.mother = null;
+      else if (M.state === "flee") {
+        // (bolting with her: making for a spot just behind her, so it stays at her flank the whole way)
+        if (this.state !== "flee") { this.state = "flee"; this.fear = 1; }
+        this.target = { x: M.pos.x + Math.sin(M.yaw) * 3 + Math.sin(M.yaw + 1.6) * 0.8, z: M.pos.z + Math.cos(M.yaw) * 3 + Math.cos(M.yaw + 1.6) * 0.8 };
+        this.t = Math.max(this.t, 0.5);
+      }
+      else if (M.state !== "flee") {
+        const md = Math.hypot(M.pos.x - this.pos.x, M.pos.z - this.pos.z);
+        if (md > 2.6 && this.state !== "walk") { this.state = "walk"; this.target = { x: M.pos.x + Math.sin(M.yaw + 2.4) * 1.2, z: M.pos.z + Math.cos(M.yaw + 2.4) * 1.2 }; this.t = 6; this.feedAt = null; this.browse = null; }
+        else if (this.state === "walk" && this.target) { this.target.x = M.pos.x + Math.sin(M.yaw + 2.4) * 1.2; this.target.z = M.pos.z + Math.cos(M.yaw + 2.4) * 1.2; }
+        if (this.state === "graze" && this.t <= 0) this.t = 1 + Math.random() * 2;   // (it doesn't wander off on its own)
+      }
+    }
     if (this.bleed > 0 && this.alive) {
       this.bleed -= dt;
       const b = this.bleedAt || (this.bleedAt = { x: this.pos.x, z: this.pos.z });
@@ -333,7 +350,23 @@ export class Hunt {
     G.onFrame.push(tick);
     this._roam = tick;
   }
-  spawn(kind, n = 1) { for (let i = 0; i < n; i++) { const [x, z] = this.spot(); this.animals.push(new Animal(this, kind, x, z)); } }
+  spawn(kind, n = 1) {
+    for (let i = 0; i < n; i++) {
+      const [x, z] = this.spot(), a = new Animal(this, kind, x, z); this.animals.push(a);
+      // (in spring and early summer, a doe now and then has her fawn with her: smaller, spotted, and never far from her)
+      const T = G.town, young = T && (T.season === "spring" || (T.season === "summer" && T.day % 8 === 2));
+      if (kind === "deer" && young && Math.random() < 0.5) {
+        const f = new Animal(this, "deer", x + 1, z + 1);
+        f.K = { ...KINDS.deer, name: "roe fawn", h: KINDS.deer.h * 0.58, len: KINDS.deer.len * 0.58, leg: KINDS.deer.leg * 0.58, r: KINDS.deer.r * 0.6, meat: 1, stride: KINDS.deer.stride * 0.6, hp: 1, run: KINDS.deer.run * 1.05 };
+        f.root.scale.setScalar(0.58); f.mother = a; f.fawn = true; f.hp = 1;
+        // (dappled: pale spots on the back)
+        const spots = new THREE.Group(), sm = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.9 });
+        for (let k = 0; k < 10; k++) { const sp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 5, 4), sm); sp.scale.set(1, 0.4, 1); sp.position.set((k % 2 ? 1 : -1) * (0.06 + (k % 3) * 0.025), KINDS.deer.h + 0.06, -0.25 + k * 0.055); spots.add(sp); }
+        f.root.add(spots);
+        this.animals.push(f);
+      }
+    }
+  }
   // a drop of blood on the ground (bigger the fresher the wound); they darken and go in a few minutes
   drip(x, z, k = 1) {
     if (!this.bloodM) {
