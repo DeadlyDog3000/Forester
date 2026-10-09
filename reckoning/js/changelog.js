@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.2", date: "8 October 2026", title: "The house by the harbour",
+    items: [
+      "The family's house in Hamburg has windows on the inside. Small leaded panes in deep frames look onto the street from the hall, and onto the yard from the bedroom and the counting room, bright with the day and dark at night. Before, every room was a closed box.",
+      "And it's furnished like a merchant's house. A dresser of pewter plates stands in the hall, a strongbox and a map of the Elbe are in the counting room, and the bedroom has a rag rug between the beds, a stool with a candle at their heads, a washstand with its basin and jug, and a cross over the door.",
+    ],
+  },
+  {
     v: "0.53.1", date: "8 October 2026", title: "Life on the water",
     items: [
       "The pond moves. A duck going somewhere leaves a wake of spreading rings, wading sends rings out round your legs, and now and then a fish rises out in the middle, more often at dusk.",

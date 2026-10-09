@@ -440,6 +440,44 @@ export class Hamburg extends WorldBase {
     P.bed(props, 14.9, -12.8, 0); P.bed(props, 16.9, -12.8, 0);
     this.col.addRect(14.9, -12.8, 1, 2.1, 0.6); this.col.addRect(16.9, -12.8, 1, 2.1, 0.6);
     props.box(0.5, 0.5, 0.4, 17.3, 0.25, -9.6, 0x5a3e28);
+    // ---- windows, from inside: small leaded panes in deep frames, the day showing through them (or the dark) ----
+    this.winGlass = new THREE.MeshBasicMaterial({ color: 0xc8d4dc });
+    const pane = (x, y, z, w, hh, faceZ) => {
+      const g = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), this.winGlass); g.position.set(x, y, z); g.rotation.y = faceZ > 0 ? 0 : Math.PI; this.root.add(g);
+      // (the frame, the sill, and the lead between the little panes)
+      const fz = z + faceZ * 0.03;
+      b.box(w + 0.16, 0.08, 0.1, x, y + hh / 2 + 0.04, fz, TIMBER); b.box(w + 0.16, 0.08, 0.16, x, y - hh / 2 - 0.04, fz + faceZ * 0.03, TIMBER);
+      b.box(0.08, hh, 0.1, x - w / 2 - 0.04, y, fz, TIMBER); b.box(0.08, hh, 0.1, x + w / 2 + 0.04, y, fz, TIMBER);
+      b.box(0.05, hh, 0.04, x, y, fz, TIMBER);
+      for (let i = 1; i < 4; i++) b.box(w, 0.012, 0.02, x, y - hh / 2 + hh * i / 4, fz - faceZ * 0.005, 0x2a2622);
+      for (const k of [-0.25, 0.25]) b.box(0.012, hh, 0.02, x + w * k, y, fz - faceZ * 0.005, 0x2a2622);
+    };
+    pane(9.9, 1.7, H.z1 - 0.33, 0.9, 1.3, -1); pane(16.1, 1.7, H.z1 - 0.33, 0.9, 1.3, -1);      // the hall, onto the street
+    pane(15.9, 1.95, H.z0 + 0.33, 0.7, 0.9, 1); pane(10.0, 1.8, H.z0 + 0.33, 0.8, 1.1, 1);      // the bedroom and the counting room, onto the yard
+    // ---- what a merchant's house has in it ----
+    // the hall: a dresser of pewter on the east wall, a candlestick on it
+    props.box(0.5, 0.95, 1.5, 17.42, 0.475, -6.4, 0x5a3e28, 0, 0.04); props.box(0.32, 0.95, 1.5, 17.5, 1.42, -6.4, 0x5a3e28, 0, 0.03);
+    for (const y of [1.2, 1.6]) { props.box(0.34, 0.03, 1.46, 17.48, y - 0.21, -6.4, 0x4a3220); for (let i = 0; i < 4; i++) props.add(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 12), 0x9a9c98, 17.38, y - 0.04, -6.95 + i * 0.36, 0, 0, Math.PI / 2 - 0.25); }
+    props.add(new THREE.CylinderGeometry(0.035, 0.05, 0.22, 8), 0x9a9c98, 17.3, 1.06, -6.0);
+    this.col.addRect(17.42, -6.4, 0.5, 1.5, 1.9);
+    // the counting room: an iron-bound strongbox, and the map of the Elbe pinned up on the west wall
+    props.box(0.8, 0.5, 0.5, 13.3, 0.25, -10.5, 0x4a3420, 0, 0.03);
+    for (const x of [13.05, 13.55]) props.box(0.06, 0.52, 0.52, x, 0.25, -10.5, 0x2a2724);
+    props.box(0.12, 0.1, 0.03, 13.3, 0.36, -10.24, 0x3a3632);
+    this.col.addRect(13.3, -10.5, 0.8, 0.5, 0.6);
+    props.box(0.02, 0.85, 1.15, H.x0 + 0.33, 1.85, -13.2, 0xd8c8a0);
+    props.box(0.03, 0.9, 1.2, H.x0 + 0.32, 1.85, -13.2, 0x4a3626);
+    for (let i = 0; i < 5; i++) props.box(0.025, 0.03, 0.5 + (i % 2) * 0.3, H.x0 + 0.345, 1.6 + i * 0.12, -13.25 + (i % 3) * 0.1, 0x5a7a8a);
+    // the bedroom: a rag rug between the beds, a stool and a candle at their heads, a washstand, a cross over the door
+    props.box(1.0, 0.012, 1.7, 15.9, 0.016, -11.6, 0x7a3a2e);
+    for (let i = 0; i < 4; i++) props.box(1.0, 0.013, 0.08, 15.9, 0.017, -12.2 + i * 0.4, 0x5a4a3a);
+    props.add(new THREE.CylinderGeometry(0.18, 0.16, 0.45, 8), 0x6a4a30, 15.9, 0.225, -13.6);
+    props.add(new THREE.CylinderGeometry(0.03, 0.035, 0.12, 6), 0xe8e0c8, 15.9, 0.51, -13.6);
+    props.box(0.5, 0.75, 0.42, 17.55, 0.375, -10.0, 0x5a3e28, Math.PI / 2, 0.03);
+    props.add(new THREE.CylinderGeometry(0.17, 0.11, 0.09, 12), 0xd8d4c8, 17.55, 0.8, -10.0);
+    props.add(new THREE.CylinderGeometry(0.06, 0.08, 0.24, 10), 0xc8c0b0, 17.62, 0.95, -9.82);
+    this.col.addRect(17.55, -10.0, 0.42, 0.5, 0.8);
+    props.box(0.06, 0.42, 0.04, 15.9, 2.55, -9.12, 0x3a2a1c); props.box(0.28, 0.06, 0.04, 15.9, 2.62, -9.12, 0x3a2a1c);
     // the front door, on a hinge
     const door = new THREE.Group();
     // a door in old oxblood paint, weathered dark, in a darker frame
@@ -559,6 +597,8 @@ export class Hamburg extends WorldBase {
   inHome(x = G.player.pos.x, z = G.player.pos.z) { return x > HOME.x0 && x < HOME.x1 && z > HOME.z0 && z < HOME.z1; }
 
   update(dt) {
+    // (the window glass: the colour of the day outside, bright at noon and gone dark at night)
+    if (this.winGlass) { const f = G.scene.fog.color; this.winGlass.color.setRGB(f.r, f.g, f.b).multiplyScalar(1.15).lerp(new THREE.Color(0.75, 0.82, 0.9), 0.15 * Math.min(1, f.r * 2)); }
     this.t += dt;
     // the two street lamps nearest you actually light the street
     this._lampT -= dt;
