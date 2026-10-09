@@ -2091,6 +2091,8 @@ export class Town {
     if (!a) return;
     if (a && !a.settler && !a.root) a = this.actors.find(x => x.settler === a) || { settler: a };
     const p = a.settler; if (!p || a.dead) return;
+    // (your brother or sister works among them, but is not one of them to bury: the story needs them)
+    if (a.isSibling || !p.name) return false;
     a.dead = true;
     const i = this.S.people.indexOf(p); if (i >= 0) this.S.people.splice(i, 1);
     if (a.root) {
@@ -2109,6 +2111,7 @@ export class Town {
       hunger: "Starved: there was nothing left in the stores.", feud: "Beaten to death in the feud between the families.", cold: "Froze in the night, with no wood for the hearth.", sick: "The fever took them.",
     }[why] || "";
     UI.news({ title: `${p.name} is dead`, sub: `${how} Buried at the edge of the clearing, by the ones who were left.`, img: "event_war" });
+    return true;
   }
   // the graves: a row of wooden crosses at the north-west edge of the clearing, each with its name
   showGraves() {
@@ -2261,6 +2264,8 @@ export class Town {
       alive();
       if (this.isNight() && !(this.raids && this.raids.active) && !(this.S.revolt && this.S.revolt.active) && !a.settler.follow) { a.doing = "asleep"; await this.nightFall(a, sleep, alive); continue; }
       let job = a.settler.job || "hauler";
+      // (a carter with nothing to cart lends a hand hauling for a while)
+      if (job === "carter" && a.helpHaul > G.time) job = "hauler";
       // raiders in the settlement: every grown settler fights — with what the smith has made, an axe, or their fists;
       // the children hide by the fire
       const raid = this.raids && this.raids.active;
@@ -2302,7 +2307,8 @@ export class Town {
         a.settler.jailedDay = null;
       }
       // (once there is Policing, the watch does the fighting and everyone else takes cover)
-      if (raid && !a.settler.child && !(a.settler.name && FAITHS[faithOf(a.settler)].pacifist) && (!this.knows("policing") || job === "watch")) {
+      // (once beaten down, they've had enough: up again, they take cover with the rest)
+      if (raid && !a.wasKnocked && !a.settler.child && !(a.settler.name && FAITHS[faithOf(a.settler)].pacifist) && (!this.knows("policing") || job === "watch")) {
         // one raider each: the one they've squared up to, or the nearest nobody has yet
         const mine = a.duel && a.duel.alive && a.duel.duel === a ? a.duel : null;
         const r = mine || this.raids.claim(a) || null, near = r || this.raids.nearest(a.pos);
@@ -2345,6 +2351,7 @@ export class Town {
         }
       }
       if (raid) {
+        if (a.duel) { a.duel = null; a.squareTo = null; if (a.armKind) { a.person.held.clear(); a.armKind = null; } }
         a.doing = "taking cover from the raiders";
         await a.walkTo(FIRE.x + Math.cos(a.settler.seed || 0) * 3, FIRE.z + Math.sin(a.settler.seed || 0) * 3, 2.6); alive();
         a.person.setPose("armsCrossed"); await sleep(2); alive(); a.person.setPose("idle");
@@ -2499,7 +2506,8 @@ export class Town {
         // the carter goes where they are wanted: loads up at the stores that can spare it, and hauls it by road to the ones that can't
         const root = G.town || this, busy = (root._carting ??= new Set());
         const plan = root.supplyPlan && root.supplyPlan(busy);
-        if (!plan) { a.doing = "by the cart — nothing needs carting"; a.person.setPose("armsCrossed"); await sleep(10); alive(); a.person.setPose("idle"); continue; }
+        // (nothing to cart: a hand with the odd jobs about the place — kindling, the garden, a snare — and back to the cart)
+        if (!plan) { if (!this.isNight() && Math.random() < 0.7 && await sideShift(this, a, sleep, alive)) continue; if (!this.isNight() && Math.random() < 0.6) { a.helpHaul = G.time + 60; continue; } a.doing = "by the cart — nothing needs carting"; a.person.setPose("armsCrossed"); await sleep(10); alive(); a.person.setPose("idle"); continue; }
         busy.add(plan.key);
         const src = root.viewFor(plan.from), dst = root.viewFor(plan.to), name = c => c ? c.name : root.S.name || "Forester's Clearing";
         let load = null, cart = null;

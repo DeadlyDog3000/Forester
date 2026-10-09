@@ -59,10 +59,13 @@ export async function revoltShift(town, a, sleep, alive) {
   const foes = town.actors.filter(o => o.settler && !o.settler.child && !o.knocked && !o.gone && !!o.settler.rebel !== rebel);
   const pl = G.player;
   // a rebel may go for you, if you are near
-  const youNear = rebel && pl && !G.downed && Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 16;
+  // (and once nobody is left standing against them, they come looking for you — wherever you are; shut in your cabin,
+  // you have left them the settlement)
+  if (rebel && !foes.length && pl && town.w.insideCabin && town.w.insideCabin(pl.pos.x, pl.pos.z)) { endRevolt(town, "rebels"); return true; }
+  const youNear = rebel && pl && !G.downed && (Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 16 || !foes.length);
   // one at a time: whoever they squared up to, until one of them is down (or it's broken off, far apart)
   const held = a.revFoe, D = o => Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z);
-  let target = held === "you" ? (rebel && !G.downed && D(pl) < 20 ? "you" : null) : held && foes.includes(held) && D(held) < 20 ? held : null;
+  let target = held === "you" ? (rebel && !G.downed && (D(pl) < 20 || !foes.length) ? "you" : null) : held && foes.includes(held) && D(held) < 20 ? held : null;
   if (!target) {
     let td = Infinity;
     // (the one nobody is fighting yet, first)
@@ -70,6 +73,8 @@ export async function revoltShift(town, a, sleep, alive) {
     if (youNear && D(pl) < td && !town.actors.some(x => x !== a && x.revFoe === "you")) target = "you";
   }
   a.revFoe = target; a.squareTo = target === "you" ? pl : target;
+  // (nobody left standing against them, and you down too: the settlement is theirs)
+  if (!target && rebel && !foes.length) { endRevolt(town, "rebels"); return true; }
   if (!target) { a.doing = rebel ? "in revolt, looking for a fight" : "standing by you"; await sleep(1.5); alive(); return true; }
   const tp = target === "you" ? pl.pos : target.pos;
   a.doing = rebel ? "fighting for the rising" : "fighting the rebels";
@@ -91,7 +96,7 @@ function hit(town, a, dmg) {
   if (a.hp > 0 && a.person.flinch) a.person.flinch();
   // (a blow that brings them down sometimes kills)
   if (a.hp <= 0) { a.squareTo = null; a.revFoe = null; }
-  if (a.hp <= 0 && Math.random() < 0.3 && town.killSettler) { town.killSettler(a, "revolt"); checkEnd(town); return; }
+  if (a.hp <= 0 && Math.random() < 0.15 && town.killSettler && town.killSettler(a, "revolt")) { checkEnd(town); return; }
   if (a.hp <= 0) { a.knocked = Infinity; a.lying = true; a.path = []; AUDIO.voice && AUDIO.voice("fear", { at: a.pos, high: a.settler.sex === "f" }); checkEnd(town); }
 }
 // your stroke: a rebel in front of you takes it

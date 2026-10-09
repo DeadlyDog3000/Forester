@@ -304,11 +304,12 @@ export class Raids {
     AUDIO.voice(s.hp > 0 ? "pain" : "fear", { at: s.pos, high: this.highVoice(s) });
     if (s.hp > 0) return;
     // cut down by a blade, sometimes they do not get up again
-    if (r && r.arm && r.arm !== "fists" && Math.random() < 0.3 && this.town.killSettler) { this.town.killSettler(s); return; }
+    // (not often: they came for the stores, not to murder; and never your own brother or sister, who is only knocked down)
+    if (r && r.arm && r.arm !== "fists" && Math.random() < 0.15 && this.town.killSettler && !s.isSibling && s.settler && s.settler.name) { this.town.killSettler(s); return; }
     // down in the grass for a while; they get up again when it's over
     s.squareTo = null; s.duel = null;
     s.knocked = G.time + 18; s.wasKnocked = true; s.path = []; s.lying = true; s.yOff = 0.05; s.person.held.clear(); s.armKind = null;
-    UI.bark(s.settler.name, ["Ah—!", "I'm down—", "Get him off me!"][Math.floor(Math.random() * 3)], 1.8);
+    UI.bark(s.settler.name || (G.who === "sister" ? "Brother" : "Sister"), ["Ah—!", "I'm down—", "Get him off me!"][Math.floor(Math.random() * 3)], 1.8);
   }
   nearest(p, alive = true) {
     let best = null, bd = Infinity;

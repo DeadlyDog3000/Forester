@@ -84,7 +84,7 @@ export class Bandit {
       setTimeout(() => a.person && a.person.setPose("idle"), 550);
       const dmg = { axe: 17, club: 14, sword: 19, knife: 10 }[this.arm] * (0.8 + Math.random() * 0.4);
       AUDIO.whoosh && AUDIO.whoosh(0.4, true);
-      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; blowLands(foe, foe.hp <= 0 ? "down" : "hit", a); if (foe.hp > 0 && foe.person.flinch) foe.person.flinch(); if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler) G.town.killSettler(foe, "cave"); else { foe.knocked = G.time + 25; foe.lying = true; foe.squareTo = null; } } } }
+      if (foe) { if (Math.hypot(foe.pos.x - a.pos.x, foe.pos.z - a.pos.z) < 2.1) { foe.hp = (foe.hp ?? 50) - dmg; blowLands(foe, foe.hp <= 0 ? "down" : "hit", a); if (foe.hp > 0 && foe.person.flinch) foe.person.flinch(); if (foe.hp <= 0) { if (Math.random() < 0.3 && G.town && G.town.killSettler && G.town.killSettler(foe, "cave")) {} else { foe.knocked = G.time + 25; foe.lying = true; foe.squareTo = null; } } } }
       else { const d2 = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z); if (d2 < 2.1 && strikeYou(a, this.dir, dmg, d2, this.owner) === "parry") { this.stun = 1.1; this.cool = Math.max(this.cool, 1.4); a.person.flinch && a.person.flinch(); } }
       return;
     }

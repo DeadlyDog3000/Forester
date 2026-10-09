@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.52.1", date: "8 October 2026", title: "Fewer graves",
+    items: [
+      "Your brother or sister can no longer be killed in a raid, in the fighting at a camp, or in a rising. Before, they could be cut down while working among the settlers and buried at the edge of the clearing with no name on the cross. Now they're knocked down and get up again.",
+      "Raids are much less murderous. A settler beaten down gets up and takes cover with the rest rather than going back in, and fewer of those cut down die. A band of six could kill nine people in a raid you weren't there for. Now it's one or two.",
+      "A rising ends. Once nobody's left standing against the rebels, they come looking for you, and if you've shut yourself in your cabin they take the settlement. Fewer die in the street fighting. Before, the rebels could stand about the fire for days with nobody to fight.",
+      "A carter with nothing to cart lends a hand hauling, or does a few odd jobs, rather than standing by the cart all day.",
+    ],
+  },
+  {
     v: "0.52.0", date: "8 October 2026", title: "The pond",
     items: [
       "There's a pond in a hollow at the edge of the deer ride, east of the clearing. Its still brown-green water holds the sky and the dark of the trees round it, stirs in the wind, and is pocked by the rain. A fringe of rushes stands round it, lily pads lie on it with white flowers in summer, and a pair of mallards paddles about, dabbling, making off to the far side if you come close. It freezes over in winter.",
