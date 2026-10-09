@@ -16,7 +16,7 @@
 
 import { ambitionsTick } from "./ambitions.js";
 import { axeBonus, skillK, ITEM, digMul, buildMul } from "./body.js";
-import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, addDetail, camera } from "./core.js";
+import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, addDetail, camera, makeFlame } from "./core.js";
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -1930,6 +1930,22 @@ export class Town {
     if (!best) return null;
     const t = w.adopt(best); t.wild = true;
     return t;
+  }
+  // struck by lightning in a storm: a tree near you (but not on top of you) splits with the crack, burns a while at the
+  // crown as it goes over, and leaves its logs where it falls
+  lightning() {
+    const p = G.player && G.player.pos; if (!p) return false;
+    const trees = this.w.fellable.filter(t => t.state === "up" && !t.claimed && Math.hypot(t.x - p.x, t.z - p.z) > 14 && Math.hypot(t.x - p.x, t.z - p.z) < 70);
+    if (!trees.length) return false;
+    const t = trees[Math.floor(Math.random() * trees.length)];
+    G.flash = 1.4; AUDIO.thunder && AUDIO.thunder(0);
+    // (flames at the crown, riding the tree down, and dying away)
+    const fl = makeFlame(2.2, new THREE.PointLight(0xff8a3a, 6, 16, 1.6)); fl.position.set(0, (t.h || 9) * 0.8, 0); t.g.add(fl); this.w.flames && this.w.flames.push(fl);
+    setTimeout(() => { t.g.remove(fl); const i = this.w.flames ? this.w.flames.indexOf(fl) : -1; if (i >= 0) this.w.flames.splice(i, 1); }, 9000);
+    const a = Math.random() * Math.PI * 2;
+    this.fell(t, Math.sin(a), Math.cos(a), true);
+    G.tell && G.tell("work", null, "Lightning took a tree in the woods — it's down, and there are logs to be had where it fell.", 5);
+    return true;
   }
   fell(t, dx, dz, dropLogs) {
     const l = Math.hypot(dx, dz) || 1;

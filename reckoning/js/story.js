@@ -2360,8 +2360,9 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
     // a storm: lightning, near and far, and the thunder after it as long as the strike was far
     if (W.storm && rainK > 0.4 && Math.random() < dt / 14) {
       const d = Math.random();
-      if (d < 0.75) G.flash = 1 - d;
-      setTimeout(() => AUDIO.thunder(d), d * 4000);
+      // (now and then, close by, it comes down on a tree)
+      if (d < 0.15 && Math.random() < 0.35 && town.lightning && town.lightning()) {}
+      else { if (d < 0.75) G.flash = 1 - d; setTimeout(() => AUDIO.thunder(d), d * 4000); }
     }
     G.flash = Math.max(0, (G.flash || 0) - dt * 5) * (Math.random() < 0.85 ? 1 : 0.4);
     let i = 0; while (i < DAYCYCLE.length - 2 && f >= DAYCYCLE[i + 1][0]) i++;

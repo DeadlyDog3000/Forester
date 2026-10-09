@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.3", date: "9 October 2026", title: "Struck",
+    items: [
+      "Now and then in a summer storm the lightning comes down on a tree near you: a blinding flash, the crack at once, and the tree goes over burning at the crown. Its logs lie where it fell, there for the taking.",
+    ],
+  },
+  {
     v: "0.55.2", date: "9 October 2026", title: "Stooks",
     items: [
       "The day a field is reaped, the sheaves stand on the stubble in stooks, leaned together in rows to dry. They're carried in by the next day.",
