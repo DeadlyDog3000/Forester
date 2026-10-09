@@ -100,7 +100,7 @@ const SURF_GLSL = `
   }
   float dSurf(int s, vec3 p, vec3 w) {
     if (s == 0) return dTri(dTexA, 0, p * 0.9, w);
-    if (s == 1) return dTri(dTexA, 1, p * 0.55, w);
+    if (s == 1) return dTri(dTexA, 1, p * 0.55, w) * 0.55 + dTri(dTexA, 1, p * 0.21 + vec3(0.37, 0.61, 0.13), w) * 0.45;   // (two scales, so the trowel marks don't repeat)
     if (s == 2) return dTri(dTexA, 2, p * 0.7, w);
     if (s == 3) return dTri(dTexB, 0, p * 0.9, w);
     if (s == 4) return dTri(dTexB, 1, p * 1.1, w);
@@ -117,6 +117,7 @@ const SURF_GLSL = `
     if (c.g > c.r * 1.03 && c.g > c.b * 1.04 && sat > 0.12) return 6;            // green: foliage
     if (lum > 0.5 && sat < 0.5) return 1;                                         // pale, warm or cool: plaster
     if (slope && lum < 0.5) return 7;                                             // a dark slope: a roof of tiles or slate
+    if (c.r > c.g * 1.65 && sat > 0.45 && n.y > 0.97) return 5;                   // red and lying flat: a blanket, a cloth, not brick
     if (c.r > c.g * 1.65 && sat > 0.45) return 3;                                   // red, upright: brick
     if (sat < 0.15) return 2;                                                     // grey: stone
     return 0;                                                                     // browns and the rest: timber

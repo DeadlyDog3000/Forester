@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.57.0", date: "9 October 2026", title: "Front of house",
+    items: [
+      "The title menu is tidier. Every button is one width, Continue shows its chapter and save on a quiet second line, and the version is under the title.",
+      "Long screens fit the window. Settings, Controls, Chapters and the update log scroll inside their own panel, with Back always in sight, and the scrollbars are in the game's colours instead of a white system bar.",
+      "Settings is laid out in sections (Controls, Sound, Display, Look, Performance), each setting on one line with its value beside it.",
+      "The lines under each screen's heading are readable over the painting, and the chapter list drops its doubled numbering.",
+      "The FPS counter sits in the bottom corner, off the health bar. On the map, the bar for marking out new ground sits at the bottom, off the map's title.",
+      "The children's bedroom in Hamburg, where the game begins, is furnished: a clothes chest at the foot of each bed, a peg rail with Father's old coat, a shirt and a cap, a shelf with a book and a jug, and skirting boards. The window shows the sky over the yard instead of a flat white pane.",
+      "Plaster walls everywhere have a less regular grain, with no repeating pattern on a big wall. Red blankets and cloths no longer take a brick pattern.",
+    ],
+  },
+  {
     v: "0.56.6", date: "9 October 2026", title: "Elbow room",
     items: [
       "Settlers keep a little room between them. Two who stop to talk now stand a natural distance apart, and anyone sent to the same spot eases aside, instead of standing inside one another.",

@@ -456,7 +456,13 @@ export class Hamburg extends WorldBase {
     this.col.addRect(14.9, -12.8, 1, 2.1, 0.6); this.col.addRect(16.9, -12.8, 1, 2.1, 0.6);
     props.box(0.5, 0.5, 0.4, 17.3, 0.25, -9.6, 0x5a3e28);
     // ---- windows, from inside: small leaded panes in deep frames, the day showing through them (or the dark) ----
-    this.winGlass = new THREE.MeshBasicMaterial({ color: 0xc8d4dc });
+    // (old glass: the sky bright at the top of the pane, the yard's walls and roofs darker below, a little uneven)
+    const gc = document.createElement("canvas"); gc.width = 8; gc.height = 64;
+    { const x = gc.getContext("2d"), gr = x.createLinearGradient(0, 0, 0, 64);
+      gr.addColorStop(0, "#f4f7fa"); gr.addColorStop(0.45, "#dfe6ea"); gr.addColorStop(0.62, "#a8aea4"); gr.addColorStop(1, "#7c806e");
+      x.fillStyle = gr; x.fillRect(0, 0, 8, 64); }
+    const gt = new THREE.CanvasTexture(gc); gt.colorSpace = THREE.SRGBColorSpace;
+    this.winGlass = new THREE.MeshBasicMaterial({ color: 0xc8d4dc, map: gt });
     const pane = (x, y, z, w, hh, faceZ) => {
       const g = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), this.winGlass); g.position.set(x, y, z); g.rotation.y = faceZ > 0 ? 0 : Math.PI; this.root.add(g);
       // (the frame, the sill, and the lead between the little panes)
@@ -493,6 +499,30 @@ export class Hamburg extends WorldBase {
     props.add(new THREE.CylinderGeometry(0.06, 0.08, 0.24, 10), 0xc8c0b0, 17.62, 0.95, -9.82);
     this.col.addRect(17.55, -10.0, 0.42, 0.5, 0.8);
     props.box(0.06, 0.42, 0.04, 15.9, 2.55, -9.12, 0x3a2a1c); props.box(0.28, 0.06, 0.04, 15.9, 2.62, -9.12, 0x3a2a1c);
+    // a clothes chest at the foot of each bed, iron-cornered, with a folded blanket on one
+    for (const x of [14.9, 16.9]) {
+      props.box(0.86, 0.46, 0.44, x, 0.23, -11.45, 0x5e4028, 0, 0.03); props.box(0.9, 0.06, 0.48, x, 0.48, -11.45, 0x4e3420);
+      for (const sx of [-0.4, 0.4]) props.box(0.05, 0.47, 0.45, x + sx, 0.235, -11.45, 0x2a2622);
+      props.box(0.1, 0.12, 0.03, x, 0.38, -11.22, 0x2a2622);
+      this.col.addRect(x, -11.45, 0.86, 0.44, 0.5);
+    }
+    props.box(0.7, 0.12, 0.36, 14.9, 0.57, -11.45, 0x8a6a4a); props.box(0.7, 0.02, 0.36, 14.9, 0.64, -11.45, 0x6a4a3a);
+    // a peg rail on the partition wall: Father's old coat that came down to you, and a cap
+    const wx = 14.12;
+    props.box(0.05, 0.1, 1.6, wx, 1.75, -10.6, 0x4e3420);
+    for (const z of [-11.2, -10.6, -10.0]) props.add(new THREE.CylinderGeometry(0.018, 0.018, 0.12, 6), 0x3a2a1c, wx + 0.06, 1.75, z, 0, 0, Math.PI / 2);
+    props.box(0.12, 0.9, 0.45, wx + 0.1, 1.28, -11.2, 0x3e4a5a, 0, 0.02); props.box(0.14, 0.18, 0.5, wx + 0.1, 1.68, -11.2, 0x36404e);
+    props.add(new THREE.CylinderGeometry(0.11, 0.12, 0.08, 10), 0x2a2420, wx + 0.12, 1.66, -10.0); props.add(new THREE.CylinderGeometry(0.16, 0.16, 0.015, 12), 0x2a2420, wx + 0.12, 1.62, -10.0);
+    props.box(0.08, 0.55, 0.32, wx + 0.08, 1.42, -10.6, 0xd8ccb0);          // a shirt
+    // a shelf on the east wall over the washstand's corner, with a book, a box and a jug
+    const ex = H.x1 - 0.42;
+    props.box(0.22, 0.04, 1.0, ex, 1.55, -11.4, 0x4e3420);
+    props.box(0.18, 0.12, 0.05, ex, 1.49, -11.75, 0x3a2a1c); props.box(0.18, 0.12, 0.05, ex, 1.49, -11.05, 0x3a2a1c);
+    props.box(0.15, 0.06, 0.2, ex, 1.6, -11.7, 0x6a2e22); props.box(0.1, 0.1, 0.14, ex, 1.62, -11.4, 0x7a5a3a);
+    props.add(new THREE.CylinderGeometry(0.05, 0.065, 0.16, 10), 0x9a7a5a, ex, 1.65, -11.1);
+    // skirting boards round the room, where the plaster meets the floor
+    props.box(0.03, 0.14, 5.5, 14.11, 0.07, -11.9, 0x3e2c1e); props.box(0.03, 0.14, 5.5, H.x1 - 0.33, 0.07, -11.9, 0x3e2c1e);
+    props.box(3.5, 0.14, 0.03, 15.9, 0.07, H.z0 + 0.33, 0x3e2c1e);
     // the front door, on a hinge
     const door = new THREE.Group();
     // a door in old oxblood paint, weathered dark, in a darker frame

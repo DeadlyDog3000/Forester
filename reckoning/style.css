@@ -360,7 +360,7 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); }
 
 /* ---- FPS boosters ---- */
 .set-sec { font: 600 10px/1 var(--sans); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin: 14px 0 2px; }
-#fpsMeter { position: fixed; right: 12px; top: 10px; z-index: 9; font: 600 12px var(--sans); color: var(--ink); background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(140, 192, 132, 0.3); border-radius: 3px; padding: 3px 8px; pointer-events: none; font-variant-numeric: tabular-nums; }
+#fpsMeter { position: fixed; right: 12px; bottom: 10px; z-index: 9; font: 600 12px var(--sans); color: var(--ink); background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(140, 192, 132, 0.3); border-radius: 3px; padding: 3px 8px; pointer-events: none; font-variant-numeric: tabular-nums; }
 #fpsMeter.hidden { display: none; }
 #fpsMeter.slow { color: #e8a07a; }
 
@@ -588,7 +588,7 @@ body.talking #hint { bottom: 298px; }
 @media (max-width: 640px) { .gd-grid { grid-template-columns: 1fr; } .gd-list { flex-direction: row; flex-wrap: wrap; } }
 
 /* marking out new ground on the map */
-.bm-grow { position: fixed; top: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: #efe3c4; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); font: 15px var(--serif, Georgia); max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; z-index: 6; }
+.bm-grow { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: #efe3c4; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); font: 15px var(--serif, Georgia); max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; z-index: 6; }
 .bm-grow .btn { padding: 5px 12px; font-size: 14px; }
 .bm-grow .bad { color: #8a2a1a; }
 #bigmap.drawing { cursor: crosshair; }
@@ -780,3 +780,35 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
   .menu .btn { padding: 9px 22px; }
   .credit { margin-top: 16px; }
 }
+
+/* the title menu: every button one width, the continue button's chapter on a quiet second line */
+.screen .menu .btn:not(.ghost-sm) { width: 280px; min-width: 0; }
+.btn .btn-sub { display: block; font-size: 12px; letter-spacing: 0.04em; opacity: 0.7; margin-top: 2px; font-variant: normal; }
+
+/* long screens (settings, controls, chapters, the update log, saves) fit the window: the list scrolls inside its
+   panel and Back stays in sight, instead of the whole page running off the bottom */
+#menus { align-items: safe center; }
+#menus .screen:not(#title) { display: flex; flex-direction: column; align-items: center; max-height: calc(100vh - 32px); }
+#menus .screen:not(#title) > h2, #menus .screen:not(#title) > .btn { flex: none; }
+#menus .screen:not(#title) > :not(h2):not(.btn) { min-height: 0; max-width: 100%; }
+#chapterList, #menus .settings, #menus table.keys, #updateList { flex: 0 1 auto; overflow-y: auto; max-height: none; align-self: stretch; }
+#menus table.keys { display: block; }
+#menus .screen > .btn.ghost { margin-top: 16px; }
+
+/* scrollbars in the game's own colours, not the system's white */
+* { scrollbar-width: thin; scrollbar-color: rgba(220, 203, 159, 0.4) transparent; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.18); border-radius: 5px; }
+::-webkit-scrollbar-thumb { background: rgba(220, 203, 159, 0.35); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(220, 203, 159, 0.55); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* settings: in sections, each setting on one line: its name, the control, and the value */
+.settings { gap: 10px; }
+.settings label.row { display: grid; grid-template-columns: 150px 1fr 56px; align-items: center; gap: 14px; flex-direction: row; }
+.settings label.row.sel { grid-template-columns: 150px 1fr; }
+.settings label.row > span { text-align: right; }
+.settings .set-sec { margin-top: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(220, 203, 159, 0.18); }
+.settings .set-sec:first-child { margin-top: 0; }
+/* (the lines under a screen's heading, readable over the painting) */
+#menus .screen > .sub, #menus .tagline { text-wrap: balance; color: #eadfc4; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 12px rgba(0, 0, 0, 0.7); }

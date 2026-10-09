@@ -143,7 +143,8 @@ function screen(id) {
 function refreshTitle() {
   const s = loadSave();
   UI.show("btnContinue", !!s);
-  $("btnContinue").textContent = s ? `Continue — ${CHAPTERS[(s.chapter || 1) - 1].title}${getSlot() > 1 ? ` (save ${getSlot()})` : ""}` : "Continue";
+  // (the chapter and the save on a small second line, so the button keeps the width of the others)
+  $("btnContinue").innerHTML = s ? `Continue<small class="btn-sub">${CHAPTERS[(s.chapter || 1) - 1].title}${getSlot() > 1 ? ` · save ${getSlot()}` : ""}</small>` : "Continue";
   UI.show("btnChapters", !!s);
 }
 function toTitle() {
@@ -276,6 +277,8 @@ $("slotFile").addEventListener("change", async () => {
   // (after the list is redrawn, which puts the usual words back)
   $("slotsSub").textContent = ok ? `Imported into save ${slotImportTo}.` : "That file isn't a Forester: Reckoning save.";
 });
+// (the version, under the title)
+{ const v = document.getElementById("verNum"); if (v && CHANGELOG[0]) v.textContent = `Version ${CHANGELOG[0].v}`; }
 function buildChapters() {
   const s = loadSave() || {}, u = s.unlocked || 1;
   const list = $("chapterList");
@@ -284,7 +287,7 @@ function buildChapters() {
     if (c.n > u) continue;             // what you have not reached yet is not shown at all
     const b = document.createElement("button");
     b.className = "chapter" + (c.n > u ? " locked" : "");
-    b.innerHTML = `<span class="ch-n">${["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV"][c.n - 1]}<small>(${c.n})</small></span><span class="ch-t">${c.title}</span><span class="ch-k">${c.n > u ? "Not yet reached" : c.kicker}</span>`;
+    b.innerHTML = `<span class="ch-n">${["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV"][c.n - 1]}</span><span class="ch-t">${c.title}</span><span class="ch-k">${c.n > u ? "Not yet reached" : c.kicker}</span>`;
     b.disabled = c.n > u;
     b.onclick = () => { G.who = s.who || "brother"; if (c.n === 6 && s.clearing && s.clearing.done) writeSave({ clearing: {} }); play(c.n); };
     list.appendChild(b);

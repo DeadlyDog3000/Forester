@@ -209,7 +209,7 @@
         <button id="btnCredits" class="btn ghost-sm">Credits</button>
         <button id="btnQuitGame" class="btn hidden">Quit</button>
       </nav>
-      <footer class="credit">A <strong>DeadlyDog Productions</strong> game &middot; &copy; 2026 Roan Fraese &middot; Part One: Ashes</footer>
+      <footer class="credit">A <strong>DeadlyDog Productions</strong> game &middot; &copy; 2026 Roan Fraese &middot; <span id="verNum"></span></footer>
     </section>
 
     <section id="choose" class="screen hidden">
@@ -239,7 +239,7 @@
     </section>
 
     <section id="chapters" class="screen hidden">
-      <h2>Part One: Ashes</h2>
+      <h2>Chapters</h2>
       <div id="chapterList"></div>
       <button class="btn ghost" data-back>Back</button>
     </section>
@@ -247,11 +247,16 @@
     <section id="settings" class="screen hidden">
       <h2>Settings</h2>
       <div class="settings">
+        <div class="set-sec">Controls</div>
+        <label class="row">Mouse sensitivity<input id="setSens" type="range" min="0.2" max="3" step="0.05"><span id="sensVal"></span></label>
+        <label class="row">Field of view<input id="setFov" type="range" min="55" max="100" step="1"><span id="fovVal"></span></label>
+        <label class="check"><input id="setInvert" type="checkbox"> Invert mouse Y</label>
+        <div class="set-sec">Sound</div>
+        <label class="row">Volume<input id="setVol" type="range" min="0" max="1" step="0.05"><span id="volVal"></span></label>
+        <label class="check"><input id="setMusic" type="checkbox"> Music</label>
+        <div class="set-sec">Display</div>
         <label class="check"><input id="setFull" type="checkbox"> Fullscreen <span class="set-note">(F11 too)</span></label>
-        <label>Mouse sensitivity <span id="sensVal"></span><input id="setSens" type="range" min="0.2" max="3" step="0.05"></label>
-        <label>Field of view <span id="fovVal"></span><input id="setFov" type="range" min="55" max="100" step="1"></label>
-        <label>Volume <span id="volVal"></span><input id="setVol" type="range" min="0" max="1" step="0.05"></label>
-        <label>Graphics
+        <label class="row sel">Graphics
           <select id="setQuality">
             <option value="high">High — soft shadows, full resolution, far</option>
             <option value="balanced">Balanced — hard shadows, a little less resolution</option>
@@ -259,28 +264,27 @@
             <option value="custom">Custom — set below</option>
           </select>
         </label>
+        <label class="check"><input id="setFps" type="checkbox"> Show FPS</label>
+        <div class="set-sec">Look</div>
         <label class="check"><input id="setDark" type="checkbox"> Dark Fantasy — a darker, grimmer world, drawn at low resolution</label>
-        <label>Saturation <span id="satVal"></span><input id="setSat" type="range" min="0.4" max="2" step="0.05"></label>
-        <label>Pixelation <span id="pixVal"></span><input id="setPix" type="range" min="1" max="8" step="1"></label>
-        <div class="set-sec">FPS boosters</div>
+        <label class="row">Saturation<input id="setSat" type="range" min="0.4" max="2" step="0.05"><span id="satVal"></span></label>
+        <label class="row">Pixelation<input id="setPix" type="range" min="1" max="8" step="1"><span id="pixVal"></span></label>
+        <div class="set-sec">Performance</div>
         <label class="check"><input id="setPost" type="checkbox"> Cinematic shading — softer shade, a glow round fires and lit windows, film-like colour (turn off for speed)</label>
-        <label>Render scale <span id="scaleVal"></span><input id="setScale" type="range" min="0.5" max="1" step="0.05"></label>
+        <label class="row">Render scale<input id="setScale" type="range" min="0.5" max="1" step="0.05"><span id="scaleVal"></span></label>
         <label class="check"><input id="setDynres" type="checkbox"> Auto resolution — drops the render scale when the frame rate falls, and brings it back</label>
-        <label>Shadows
+        <label class="row sel">Shadows
           <select id="setShadows"><option value="high">Soft</option><option value="low">Hard — cheaper, redrawn every other frame</option><option value="off">Off — the biggest boost</option></select>
         </label>
-        <label>Draw distance
+        <label class="row sel">Draw distance
           <select id="setDraw"><option value="1">Far</option><option value="0.75">Medium</option><option value="0.55">Near — the fog comes in, less to draw</option></select>
         </label>
-        <label>Forest detail
+        <label class="row sel">Forest detail
           <select id="setTrees"><option value="full">Full — whole trees all round you</option><option value="medium">Medium — plainer trees past the next stand</option><option value="low">Low — whole trees only where you stand: the biggest boost after shadows</option></select>
         </label>
-        <label>Frame cap
+        <label class="row sel">Frame cap
           <select id="setCap"><option value="0">Unlimited</option><option value="60">60 FPS</option><option value="30">30 FPS — cooler and quieter, saves battery</option></select>
         </label>
-        <label class="check"><input id="setFps" type="checkbox"> Show FPS</label>
-        <label class="check"><input id="setInvert" type="checkbox"> Invert mouse Y</label>
-        <label class="check"><input id="setMusic" type="checkbox"> Music</label>
       </div>
       <button class="btn ghost" data-back>Back</button>
     </section>
