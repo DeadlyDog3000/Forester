@@ -952,7 +952,10 @@ function updateCamera(dt) {
     // too close and the body would fill the lens
     if (p.model) p.model.root.visible = dist > 0.7;
   }
-  if (p.axe) p.axe.visible = !third && !p.workKind;
+  // (put by while you fish: the rod is in your hands then, and the arms that held the axe hold it)
+  if (p.axe) p.axe.visible = !third && !p.workKind && !G.fishing;
+  if (G.fishing) { for (const a of p.arms || []) if (a.arm) a.arm.visible = false; p.fishHid = true; }
+  else if (p.fishHid) { p.fishHid = false; for (const a of p.arms || []) if (a.arm) a.arm.visible = !third; }
   if (p.gun) p.gun.visible = !third && !p.workKind;
   viewModel(dt, p, third);
   if (p.workRig) p.workRig.visible = !third;

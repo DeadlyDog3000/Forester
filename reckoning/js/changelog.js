@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.0", date: "8 October 2026", title: "Gone fishing",
+    items: [
+      "You can fish the pond. Stand on the shore, look out at the water and hold F. You take up a rod, the float goes out, and you watch it bob. Nibbles dip it, and if one has taken, it goes right under at the end. Fish bite best at dawn and dusk, slowly at midday and poorly at night, a little better in the rain. Not when the pond's frozen.",
+      "A perch is a new food. Roast it at the fire, fry it in the kitchen (Fried perch), or simmer two with a little rye for Fish soup. Traders will buy it too.",
+      "Settlers open their doors. A log cabin's door swings open as its people go in for the night and shuts behind them, then opens again in the morning as they come out. Before, they vanished on the doorstep.",
+      "The pond has its name and a key entry on the map.",
+    ],
+  },
+  {
     v: "0.52.2", date: "8 October 2026", title: "The moon",
     items: [
       "There's a moon. It comes out with the stars, a pale disc with a soft halo, and it waxes and wanes, full every eighth night and dark between. Behind cloud it's only a glow.",

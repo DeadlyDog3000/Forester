@@ -620,6 +620,12 @@ export function makeFood(kind) {
     const stew = new THREE.Mesh(new THREE.CircleGeometry(0.062, 10), mat(0x6a3a22, { surface: "none", roughness: 0.35 })); stew.rotation.x = -Math.PI / 2; stew.position.y = 0.04; g.add(stew);
     return g;
   }
+  if (kind === "fish") {
+    // a perch: olive-backed, barred, a pale belly and an orange tail
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), mat(0x6a7a3e, { surface: "none", roughness: 0.4 })); b.scale.set(2.2, 0.9, 0.55); b.position.y = 0.04; g.add(b);
+    const t = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.05, 4), mat(0xc8642e, { surface: "none" })); t.rotation.z = -Math.PI / 2; t.position.set(-0.13, 0.04, 0); t.scale.set(1, 1, 0.3); g.add(t);
+    return g;
+  }
   if (kind === "meat" || kind === "venison" || kind === "hare" || kind === "boar") {
     const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.05, 0), mat(kind === "boar" ? 0xb06a5a : kind === "hare" ? 0xa04a3a : 0x8a3a2a, { surface: "none" })); m.scale.set(1.3, 0.8, 1); m.position.y = 0.05; g.add(m);
     const fat = new THREE.Mesh(new THREE.DodecahedronGeometry(0.03, 0), mat(0xe8d0b0, { surface: "none" })); fat.position.set(0.03, 0.07, 0.02); g.add(fat);

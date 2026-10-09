@@ -420,10 +420,21 @@ export class Town {
   homeOf(a) {
     const i = this.S.people.indexOf(a.settler);
     const bed = this.bedFor(i), b = bed && bed.b;
-    if (bed && bed.own) return { door: [CABIN.x + Math.sin(CABIN.ry) * 3.7, CABIN.z + Math.cos(CABIN.ry) * 3.7], inside: true };
-    if (b) return { door: [b.x + Math.sin(b.ry) * (BUILDINGS.cabin.d / 2 + 0.6), b.z + Math.cos(b.ry) * (BUILDINGS.cabin.d / 2 + 0.6)], inside: true };
+    if (bed && bed.own) return { door: [CABIN.x + Math.sin(CABIN.ry) * 3.7, CABIN.z + Math.cos(CABIN.ry) * 3.7], inside: true, own: true };
+    if (b) return { door: [b.x + Math.sin(b.ry) * (BUILDINGS.cabin.d / 2 + 0.6), b.z + Math.cos(b.ry) * (BUILDINGS.cabin.d / 2 + 0.6)], inside: true, b };
     const k = i < 0 ? 0 : i;
     return { door: [FIRE.x + Math.cos(k * 1.3) * 2.4, FIRE.z + Math.sin(k * 1.3) * 2.4], inside: false };
+  }
+  // a house's door swung open, or shut (a log cabin's: the grander houses keep theirs inside the model, fixed)
+  door(h, open) {
+    if (h.own) { if (this.w.setCabinDoor && !this.w.insideCabin(G.player.pos.x, G.player.pos.z)) this.w.setCabinDoor(open, Math.hypot(G.player.pos.x - CABIN.x, G.player.pos.z - CABIN.z) > 25); return; }
+    const g = h.b && this.vis.get(h.b), d = g && g.getObjectByName("door"); if (!d) return;
+    if (d.userData.base == null) d.userData.base = d.rotation.y;
+    const from = d.rotation.y, to = d.userData.base + (open ? 1.4 : 0); let t = 0;
+    const near = G.player && Math.hypot(G.player.pos.x - h.b.x, G.player.pos.z - h.b.z) < 20;
+    if (near && AUDIO.door) AUDIO.door(open);
+    const tick = dt => { t = Math.min(1, t + dt * 2.2); const e = t * t * (3 - 2 * t); d.rotation.y = from + (to - from) * e; if (t >= 1) { const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); } };
+    G.onFrame.push(tick);
   }
   // the day's work ends at dark: home, and indoors, until the morning
   async nightFall(a, sleep, alive) {
@@ -435,10 +446,14 @@ export class Town {
     } else {
       const h = this.homeOf(a);
       await a.walkTo(h.door[0], h.door[1], 1.2); alive();
-      if (h.inside) { a.root.visible = false; a.inside = true; }
+      // (the door opened, in, and shut behind them)
+      if (h.inside) { a.faceTo(h.b ? h.b.x : CABIN.x, h.b ? h.b.z : CABIN.z); this.door(h, true); await sleep(0.7); alive(); a.root.visible = false; a.inside = true; await sleep(0.6); this.door(h, false); a.homeDoor = h; }
       else { a.faceTo(FIRE.x, FIRE.z); a.lying = true; a.yOff = 0.05; }
     }
     while (this.isNight() && !(this.raids && this.raids.active)) { await sleep(1.5); alive(); }
+    // (and out again in the morning, the door opening ahead of them)
+    const hd = a.homeDoor; a.homeDoor = null;
+    if (hd && a.inside) { this.door(hd, true); await sleep(0.5); alive(); a.root.visible = true; a.inside = false; await sleep(0.9); this.door(hd, false); }
     a.root.visible = true; a.inside = false; a.lying = false; a.yOff = 0;
   }
 

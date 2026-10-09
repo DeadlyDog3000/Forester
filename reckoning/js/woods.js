@@ -600,6 +600,7 @@ export class Woods extends WorldBase {
     for (const br of this.branches) { const e = br.pts[br.pts.length - 1]; if (br.fork.sign) L("to " + br.fork.sign[1], e.x, e.z, 11, 11); }
     if (this.burner) L("the charcoal burner", this.burner.camp.x, this.burner.camp.z, 14, 12);
     if (this.huntOpen) L("the deer ride", HUNT.x, HUNT.z, 0, 12);
+    L("the pond", POND.x, POND.z, POND.r * S + 12, 11);
     // the raiders' camps: a red cross, known to the settlement whether you've been there or not
     if (this.camps && !(this.cave && this.cave.inside)) for (const k of this.camps.list()) {
       const px = X(k.x), py = Z(k.z);

@@ -8,7 +8,9 @@
 // It freezes over in winter.
 
 import { THREE, clamp } from "./core.js";
-import { G } from "./engine.js";
+import { G, vm } from "./engine.js";
+import { UI } from "./ui.js";
+import { ITEM } from "./body.js";
 import { POND, pondR, pondK } from "./woods.js";
 import { addSway, swayGeo } from "./models.js";
 
@@ -110,14 +112,88 @@ export class Pond {
     // ---- a pair of mallards ----
     this.ducks = [makeDuck(true), makeDuck(false)].map((m, i) => { g.add(m); const a = i * 2 + 1; return { m, x: POND.x + Math.cos(a) * 3, z: POND.z + Math.sin(a) * 3, yaw: a, sp: 0, t: Math.random() * 5, flee: 0 }; });
     w.root.add(g); this.g = g;
+    // ---- fishing: a float out on the water off the shore nearest you; hold F, watch it, and wait for it to go under ----
+    const fl2 = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xc8301e, roughness: 0.5 }));
+    const bot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xf0ece0, roughness: 0.5 }));
+    const quill = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.08, 4), new THREE.MeshStandardMaterial({ color: 0xe8e0c8 })); quill.position.y = 0.05;
+    fl2.add(top, bot, quill); fl2.visible = false; g.add(fl2); this.float = fl2;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 16), new THREE.MeshBasicMaterial({ color: 0xc0c8d0, transparent: true, opacity: 0, depthWrite: false })); ring.rotation.x = -Math.PI / 2; g.add(ring); this.ring = ring;
+    this.fishIt = w.addInteract({ x: POND.x, y: L, z: POND.z, reach: 4.6, hold: 6 + Math.random() * 5,
+      label: () => this.frozen ? "The pond is frozen over" : "Fish — hold F, and wait for the float to go under",
+      can: () => !this.frozen && G.mode === "play" && !G.player.horse,
+      onHoldTick: (dt, t) => this.fishing(dt, t),
+      use: () => this.landed() });
     // (you can wade the margin, but not out into the middle, where it's over your head)
     const rr = Math.min(...Array.from({ length: 24 }, (_, i) => pondR(i / 24 * Math.PI * 2)));
     w.col.addCircle(POND.x, POND.z, rr * 0.62, L + 3);
+  }
+  // how likely a fish is to take, now: best at dawn and dusk, slow at midday, poorer still at night; a little better in rain
+  odds() {
+    const t = G.town, f = t ? t.frac : 0.4;
+    let k = f < 0.12 || (f > 0.55 && f < 0.72) ? 0.75 : f > 0.74 || f < 0.04 ? 0.3 : 0.45;
+    if ((this.w.rainK || 0) > 0.2) k += 0.1;
+    if (t && t.season === "autumn") k += 0.05;
+    return Math.min(0.9, k);
+  }
+  // the rod in your hands while you fish (the axe or whatever else put by), and the line from its tip to the float
+  rod(on) {
+    const pl = G.player;
+    if (on && !this.rodG) {
+      const g = new THREE.Group(), wood = new THREE.MeshStandardMaterial({ color: 0x7a5a36, roughness: 0.8 });
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.016, 2.3, 6), wood); pole.position.y = 1.15; g.add(pole);
+      const tip = new THREE.Object3D(); tip.position.y = 2.3; g.add(tip);
+      // (your hand round the butt of it, and your sleeve)
+      const look = (pl.model && pl.model.look) || {};
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6), new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 })); fist.scale.set(1.1, 1.35, 1); fist.position.set(0, 0.16, 0.012); g.add(fist);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.05, 0.05, 8), new THREE.MeshStandardMaterial({ color: 0xe6e0d4, roughness: 0.9 })); cuff.position.set(0.0, 0.08, 0.012); g.add(cuff);
+      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.06, 0.32, 8), new THREE.MeshStandardMaterial({ color: look.coat ?? 0x2e3a2c, roughness: 0.95 })); sleeve.position.set(0.0, -0.13, 0.012); g.add(sleeve);
+      g.position.set(0.22, -0.38, -0.32); g.rotation.set(-1.05, 0.12, -0.1);
+      this.rodG = g; this.rodTip = tip;
+      const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+      this.line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xd8d4c8, transparent: true, opacity: 0.7 })); this.line.frustumCulled = false;
+    }
+    if (!this.rodG) return;
+    if (on && !this.rodG.parent) { vm.add(this.rodG); this.g.add(this.line); G.fishing = true; }
+    if (!on && this.rodG.parent) { vm.remove(this.rodG); this.g.remove(this.line); G.fishing = false; }
+  }
+  fishing(dt, t) {
+    const it = this.fishIt, f = this.float;
+    if (!f.visible) { f.visible = true; this.bite = Math.random() < this.odds(); this.ringT = 0; f.position.set(it.x, this.w.pondLevel, it.z); this.rod(true); }
+    // (the float rides the water; now and then a nibble dips it; at the end, if one has taken, it goes right under)
+    const end = t > it.hold - 0.6, nib = Math.sin(t * 7.3) > 0.97 || (this.bite && t > it.hold * 0.6 && Math.sin(t * 11) > 0.9);
+    f.position.y = this.w.pondLevel + Math.sin(this.t * 2.1) * 0.006 - (nib ? 0.025 : 0) - (end && this.bite ? 0.08 : 0);
+    if (nib && this.ringT <= 0) this.ringT = 1;
+  }
+  landed() {
+    const f = this.float, it = this.fishIt;
+    f.visible = false; this.rod(false);
+    it.hold = 6 + Math.random() * 6;
+    if (this.bite) {
+      if (G.packAdd("fish", 1, ITEM.fish.name, ITEM.fish.note) > 0) UI.hint(["A perch — striped, and fighting all the way in.", "A good perch. Into the pack with it.", "A little one. It'll fry."][Math.floor(Math.random() * 3)], 3);
+      this.ringT = 1;
+      G.town && G.town.persist();
+    } else UI.hint(["Nothing. The bait's gone — a clever one down there.", "A nibble, and nothing. Try again.", "Not a touch. They're not biting just now."][Math.floor(Math.random() * 3)], 2.5);
+    this.bite = false;
   }
   // is x, z in the water, and how deep
   depthAt(x, z) { return pondK(x, z) < 1 ? Math.max(0, this.w.pondLevel - this.w.heightAt(x, z)) : 0; }
   update(dt) {
     this.t += dt;
+    // the fishing spot: out on the water, off the bit of shore nearest you
+    const pp = G.player && G.player.pos;
+    if (pp && this.fishIt) {
+      const a = Math.atan2(pp.z - POND.z, pp.x - POND.x), r = pondR(a) * 0.82;
+      this.fishIt.x = POND.x + Math.cos(a) * r; this.fishIt.z = POND.z + Math.sin(a) * r; this.fishIt.y = this.w.pondLevel + 0.1;
+      if (this.float.visible && (G.interactTarget !== this.fishIt || G.holdT <= 0)) { this.float.visible = false; this.rod(false); }
+      // (the line, from the rod's tip down to the float)
+      if (this.line && this.line.parent && this.rodTip) {
+        const a2 = this.line.geometry.attributes.position, v = new THREE.Vector3();
+        this.rodTip.getWorldPosition(v); this.g.worldToLocal(v); a2.setXYZ(0, v.x, v.y, v.z);
+        const fp = this.float.position; a2.setXYZ(1, fp.x, fp.y + 0.09, fp.z); a2.needsUpdate = true;
+      }
+    }
+    if (this.ringT > 0) { this.ringT -= dt * 1.2; const k = 1 - this.ringT; this.ring.position.set(this.float.position.x, this.w.pondLevel + 0.01, this.float.position.z); this.ring.scale.setScalar(0.05 + k * 0.5); this.ring.material.opacity = 0.4 * this.ringT; } else this.ring.material.opacity = 0;
     const u = this.uni, w = this.w, town = G.town;
     u.uT.value = this.t;
     // the sky it holds: the dome's own colours, and the sun's
@@ -132,6 +208,7 @@ export class Pond {
     u.uWind.value = G.windV ? clamp(Math.hypot(G.windV.x, G.windV.z) / 2, 0, 1) : 0.2;
     u.uRain.value = w.rainK || 0;
     const ice = town && town.winter && (w.snowK || 0) > 0.5;
+    this.frozen = !!ice;
     u.uIce.value = ice ? 1 : 0;
     this.padMesh.visible = this.flowers.visible = !ice;
     if (town) this.flowers.visible = !ice && (town.season === "summer");
