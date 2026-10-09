@@ -782,11 +782,13 @@ async function start(opts = {}) {
 // a look, from a player: only colours and a few words, nothing else passed on
 function sanitizeLook(l) {
   const o = {}; if (!l || typeof l !== "object") return o;
-  for (const k of ["skin", "hair", "coat", "legs", "vest", "apron", "hatColor", "sash"]) if (Number.isFinite(+l[k]) && l[k] !== null && l[k] !== "") o[k] = (+l[k]) & 0xffffff;
+  for (const k of ["skin", "hair", "coat", "legs", "vest", "apron", "hatColor", "sash", "eyes", "linen", "stockings"]) if (Number.isFinite(+l[k]) && l[k] !== null && l[k] !== "") o[k] = (+l[k]) & 0xffffff;
   o.body = ["townsman", "townswoman", "brother", "sister"].includes(l.body) ? l.body : "townsman";
   o.sex = o.body === "townswoman" || o.body === "sister" ? "f" : "m";
   o.hat = l.hat === "none" ? "none" : "hat";
   o.height = Math.max(0.92, Math.min(1.08, num(l.height, 1)));
+  o.build = Math.max(0.88, Math.min(1.14, num(l.build, 1)));
+  o.head = Math.max(0.92, Math.min(1.08, num(l.head, 1)));
   o.seed = num(l.seed, 1) | 0;
   return o;
 }

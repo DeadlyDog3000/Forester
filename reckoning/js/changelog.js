@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.63.1", date: "10 October 2026", title: "A better likeness",
+    items: [
+      "The character builder, made over. It's in tabs now: presets to start from, body, face and hair, and clothes. The figure stands in a portrait painter's light and casts a shadow. Turn them by dragging or with the arrows, look closer with the wheel, and switch between the whole figure and the face. Choosing face and hair takes the view in close by itself.",
+      "More to choose: build (slight to broad) and head size alongside height, eye colour, and the colour of the shirt and stockings. Every colour has a picker beside its row, so it can be any colour at all, not only the dyes of the time.",
+      "Six presets to start from: a merchant's son, a woodcutter, a farm girl, a woodswoman, an old soldier and a burgher's wife.",
+    ],
+  },
+  {
     v: "0.63.0", date: "10 October 2026", title: "Claim wars",
     items: [
       "Claim wars in Classic. From the list of who's here (Tab), declare a claim war on a neighbour's homestead, and everyone in the game hears of it. Hold their hearth, with none of theirs standing at it, and it slips toward you; their people at the hearth win it back. Take it, and the hearth, everything built on that ground and everyone living there are yours, with half of what was in their stores.",

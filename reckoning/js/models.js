@@ -31,6 +31,8 @@ export function makePerson(o = {}) {
   const body = new THREE.Group(); root.add(body);
   const s = o.scale ?? 1;
   body.scale.setScalar(s);
+  // (broader or slighter about the shoulders and middle, the height as it was)
+  if (o.build && o.build !== 1) { body.scale.x = s * o.build; body.scale.z = s * o.build; }
 
   const M = c => mat(c, { roughness: 0.95, surface: "cloth" });
   const skinM = mat(skin, { roughness: 0.62, surface: "none" });
@@ -239,7 +241,7 @@ export function makePerson(o = {}) {
     // a child's head is big for the body; it evens out as they grow
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };
-  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor });
+  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor, eyes: o.eyeColor, stockings: o.stockingsColor, linen: o.linenColor });
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
   noSnow(P.root);
   return P;

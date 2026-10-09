@@ -13,7 +13,7 @@ import { MODES, SIZES } from "./rules.js";
 import { readSlot, MP_SLOT } from "../story.js";
 const MODE_LABEL = { ...MODES, colony: "Co-op colony" };
 import { TERRAINS, TERRAIN_ORDER } from "./terrain.js";
-import { BODIES, SWATCH, randomLook, savedLook, saveLook, lookOpts, isF } from "./look.js";
+import { BODIES, SWATCH, PRESETS, randomLook, savedLook, saveLook, lookOpts, isF } from "./look.js";
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const hex = n => "#" + (n >>> 0).toString(16).padStart(6, "0");
@@ -156,62 +156,96 @@ async function connect(target) {
 }
 
 // ---- the character builder ----
-let pv = null;
+// A preview you can turn and look closer at, and the choices in tabs: a preset to start from, the body, the face and
+// hair, the clothes. Every colour has its row of the period's dyes and a picker for any other.
+let pv = null, tab = "body";
+const BODY_NOTE = { townsman: "Coat, breeches and buckled shoes", townswoman: "Bodice, skirt and apron", brother: "A woodsman's coat and waistcoat", sister: "A working dress, sleeves rolled" };
 function openBuilder(target) {
   ctx.screen("mpBuilder");
   $("mpName").value = me.name || "";
   $("mpBuildGo").textContent = target ? (target.host ? "Host the game" : "Into the game") : "Done";
   $("mpBuildTitle").textContent = target ? "Who goes into the woods?" : "Your character";
+  for (const b of document.querySelectorAll("#mpBuilder [data-tab]")) b.onclick = () => { tab = b.dataset.tab; buildControls(); setCam(tab === "face" ? "face" : "body"); };
+  for (const b of document.querySelectorAll("#mpBuilder [data-cam]")) b.onclick = () => setCam(b.dataset.cam);
+  for (const b of document.querySelectorAll("#mpBuilder [data-turn]")) b.onclick = () => { if (pv) pv.yawTo = (pv.yawTo ?? pv.yaw) + Math.PI / 4 * +b.dataset.turn; };
   buildControls();
   openPreview();
   showLook();
   if (!me.name) setTimeout(() => $("mpName").focus(), 50);
 }
+function setCam(c) { if (pv) pv.cam = c; for (const b of document.querySelectorAll("#mpBuilder [data-cam]")) b.classList.toggle("on", b.dataset.cam === c); }
 function buildControls() {
   const L = me.look, f = isF(L);
-  const row = (key, label, list, cur, extra = "") => `<div class="mp-row"><span>${label}</span><div class="mp-sw">${list.map(v => `<button class="sw${v === cur || (v === null && !cur) ? " on" : ""}${v === null ? " none" : ""}" data-k="${key}" data-v="${v === null ? "" : v}" style="${v === null ? "" : `background:${hex(v)}`}" title="${v === null ? "None" : ""}"></button>`).join("")}${extra}</div></div>`;
-  $("mpControls").innerHTML =
-    `<div class="mp-row"><span>Body</span><div class="mp-bodies">${BODIES.map(b => `<button class="mp-body${b.id === L.body ? " on" : ""}" data-body="${b.id}">${b.name}</button>`).join("")}</div></div>` +
-    row("skin", "Skin", SWATCH.skin, L.skin) +
-    row("hair", "Hair", SWATCH.hair, L.hair) +
-    row("coat", f ? "Bodice" : "Coat", SWATCH.coat, L.coat) +
-    row("legs", f ? "Skirt" : "Breeches", SWATCH.legs, L.legs) +
-    (L.body === "brother" ? row("vest", "Waistcoat", SWATCH.vest, L.vest) : "") +
-    (f ? row("apron", "Apron", SWATCH.apron, L.apron || null) : "") +
-    (L.body !== "sister" ? row("hatColor", f ? "Bonnet" : "Hat", SWATCH.hat, L.hat === "none" ? null : L.hatColor) : "") +
-    `<div class="mp-row"><span>Height</span><input type="range" id="mpHeight" min="0.94" max="1.06" step="0.01" value="${L.height || 1}"></div>`;
-  for (const b of $("mpControls").querySelectorAll("[data-body]")) b.onclick = () => { L.body = b.dataset.body; buildControls(); showLook(); };
-  for (const b of $("mpControls").querySelectorAll(".sw")) b.onclick = () => {
-    const k = b.dataset.k, v = b.dataset.v === "" ? null : +b.dataset.v;
+  for (const b of document.querySelectorAll("#mpBuilder [data-tab]")) b.classList.toggle("on", b.dataset.tab === tab);
+  const sw = (key, label, list, cur, isNone) => `<div class="mp-row"><span>${label}</span><div class="mp-sw">${list.map(v => `<button class="sw${(v === null ? isNone : v === cur && !isNone) ? " on" : ""}${v === null ? " none" : ""}" data-k="${key}" data-v="${v === null ? "" : v}" style="${v === null ? "" : `background:${hex(v)}`}" title="${v === null ? "None" : ""}"></button>`).join("")}<input type="color" class="cb-pick" data-k="${key}" value="${hex(cur ?? list.find(x => x !== null) ?? 0x888888)}" title="Any colour"></div></div>`;
+  const slider = (key, label, min, max, v, fmt) => `<div class="mp-row"><span>${label}</span><div class="cb-slider"><input type="range" data-s="${key}" min="${min}" max="${max}" step="0.01" value="${v}"><span data-o="${key}">${fmt(v)}</span></div></div>`;
+  const pct = v => `${Math.round(v * 100)}%`;
+  let h = "";
+  if (tab === "presets") {
+    h = `<div class="cb-presets">${PRESETS.map((p, i) => `<button data-pre="${i}">${esc(p.name)}<div class="cb-chips">${["skin", "hair", "coat", "legs"].map(k => `<i style="background:${hex(p.look[k] ?? 0)}"></i>`).join("")}</div></button>`).join("")}</div><p class="mp-hint">A preset fills everything in. Change anything after.</p>`;
+  } else if (tab === "body") {
+    h = `<div class="cb-bodies">${BODIES.map(b => `<button data-body="${b.id}" class="${b.id === L.body ? "on" : ""}">${b.name}<small>${BODY_NOTE[b.id]}</small></button>`).join("")}</div>`
+      + slider("height", "Height", 0.94, 1.06, L.height || 1, v => `${Math.round(170 * v)} cm`)
+      + slider("build", "Build", 0.9, 1.12, L.build || 1, v => v < 0.96 ? "slight" : v > 1.05 ? "broad" : "middling")
+      + sw("skin", "Skin", SWATCH.skin, L.skin);
+  } else if (tab === "face") {
+    h = slider("head", "Head", 0.94, 1.06, L.head || 1, pct)
+      + sw("hair", "Hair", SWATCH.hair, L.hair)
+      + sw("eyes", "Eyes", SWATCH.eyes, L.eyes ?? SWATCH.eyes[0])
+      + (L.body !== "sister" ? sw("hatColor", f ? "Bonnet" : "Hat", SWATCH.hat, L.hatColor, L.hat === "none") : "");
+  } else {
+    h = sw("coat", f ? "Bodice" : "Coat", SWATCH.coat, L.coat)
+      + sw("legs", f ? "Skirt" : "Breeches", SWATCH.legs, L.legs)
+      + (L.body === "brother" ? sw("vest", "Waistcoat", SWATCH.vest, L.vest) : "")
+      + (f ? sw("apron", "Apron", SWATCH.apron, L.apron, !L.apron) : "")
+      + sw("linen", "Shirt", SWATCH.linen, L.linen ?? SWATCH.linen[0])
+      + sw("stockings", "Stockings", SWATCH.stockings, L.stockings ?? SWATCH.stockings[0]);
+  }
+  $("mpControls").innerHTML = h;
+  const set = (k, v) => {
     if (k === "hatColor") { if (v === null) L.hat = "none"; else { L.hat = "hat"; L.hatColor = v; } }
     else L[k] = v;
-    buildControls(); showLook();
+    showLook();
   };
-  $("mpHeight").oninput = e => { L.height = +e.target.value; showLook(); };
+  for (const b of $("mpControls").querySelectorAll("[data-body]")) b.onclick = () => { L.body = b.dataset.body; buildControls(); showLook(); };
+  for (const b of $("mpControls").querySelectorAll(".sw")) b.onclick = () => { set(b.dataset.k, b.dataset.v === "" ? null : +b.dataset.v); buildControls(); };
+  for (const i of $("mpControls").querySelectorAll(".cb-pick")) i.oninput = () => { set(i.dataset.k, parseInt(i.value.slice(1), 16)); for (const b of i.parentNode.querySelectorAll(".sw")) b.classList.remove("on"); };
+  for (const i of $("mpControls").querySelectorAll("[data-s]")) i.oninput = () => { L[i.dataset.s] = +i.value; const o = $("mpControls").querySelector(`[data-o="${i.dataset.s}"]`); if (o) o.textContent = { height: v => `${Math.round(170 * v)} cm`, build: v => v < 0.96 ? "slight" : v > 1.05 ? "broad" : "middling", head: v => `${Math.round(v * 100)}%` }[i.dataset.s](+i.value); showLook(); };
+  for (const b of $("mpControls").querySelectorAll("[data-pre]")) b.onclick = () => { me.look = { ...PRESETS[+b.dataset.pre].look, seed: me.look.seed || 1 }; tab = "body"; buildControls(); showLook(); };
 }
 function openPreview() {
   if (pv) return;
   // (a fresh canvas each time: the last one's drawing context was let go)
   const old = $("mpPreview"), cv = old.cloneNode(false); old.replaceWith(cv);
+  const W = cv.clientWidth || 380, H = cv.clientHeight || 520;
   const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
-  r.setPixelRatio(Math.min(2, devicePixelRatio || 1)); r.setSize(cv.clientWidth || 300, cv.clientHeight || 420, false);
+  r.setPixelRatio(Math.min(2, devicePixelRatio || 1)); r.setSize(W, H, false);
   r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
-  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(26, (cv.clientWidth || 300) / (cv.clientHeight || 420), 0.1, 50);
-  cam.position.set(0, 1.12, 4.6); cam.lookAt(0, 0.95, 0);
-  const sun = new THREE.DirectionalLight(0xffe6c0, 2.4); sun.position.set(-2, 4, 3); scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0xbcd0f0, 0x66603f, 1.1), new THREE.AmbientLight(0xffdcb8, 0.25));
-  const rim = new THREE.DirectionalLight(0xa8c8ff, 1.0); rim.position.set(2, 2, -3); scene.add(rim);
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.55, 40), new THREE.MeshStandardMaterial({ color: 0x2c3a22, roughness: 1 })); disc.rotation.x = -Math.PI / 2; scene.add(disc);
-  pv = { r, scene, cam, P: null, yaw: 0.5, drag: null, raf: 0, last: performance.now() };
-  cv.onpointerdown = e => { pv.drag = e.clientX; cv.setPointerCapture(e.pointerId); };
+  r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(24, W / H, 0.05, 50);
+  // a portrait painter's light: a warm key from high on one side, a cool rim behind, a soft fill
+  const key = new THREE.DirectionalLight(0xffe2b8, 2.6); key.position.set(-2.2, 4, 3); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+  Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 2.5, bottom: -0.5, near: 0.5, far: 12 }); key.shadow.bias = -0.0005; scene.add(key);
+  const rim = new THREE.DirectionalLight(0x9cc0ff, 1.4); rim.position.set(2.5, 2.5, -3); scene.add(rim);
+  scene.add(new THREE.HemisphereLight(0xc8d8f0, 0x5a5038, 0.9), new THREE.AmbientLight(0xffdcb8, 0.15));
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.75, 48), new THREE.MeshStandardMaterial({ color: 0x3a3a2a, roughness: 1 })); disc.rotation.x = -Math.PI / 2; disc.receiveShadow = true; scene.add(disc);
+  pv = { r, scene, cam, P: null, yaw: 0.45, yawTo: null, drag: null, raf: 0, last: performance.now(), cam: "body", zoom: 1, cx: 0, cy: 0.95, cd: 4.6 };
+  cv.onpointerdown = e => { pv.drag = e.clientX; pv.yawTo = null; cv.setPointerCapture(e.pointerId); };
   cv.onpointermove = e => { if (pv && pv.drag != null) { pv.yaw += (e.clientX - pv.drag) * 0.012; pv.drag = e.clientX; } };
-  cv.onpointerup = () => { if (pv) pv.drag = null; };
+  cv.onpointerup = () => { if (pv) { pv.drag = null; pv.idleAt = performance.now(); } };
+  cv.onwheel = e => { e.preventDefault(); if (!pv) return; pv.zoom = Math.min(1.25, Math.max(0.35, pv.zoom * Math.exp(e.deltaY * 0.0012))); };
   const loop = now => {
     if (!pv) return;
     const dt = Math.min(0.05, (now - pv.last) / 1000); pv.last = now;
-    if (pv.drag == null) pv.yaw += dt * 0.25;
+    if (pv.yawTo != null) { pv.yaw += (pv.yawTo - pv.yaw) * Math.min(1, dt * 6); if (Math.abs(pv.yawTo - pv.yaw) < 0.01) pv.yawTo = null; }
+    else if (pv.drag == null && now - (pv.idleAt || 0) > 3000) pv.yaw += dt * 0.22;
+    // the camera: the whole figure, or close on the face — eased between
+    const ht = (me.look.height || 1), face = pv.cam === "face";
+    const wantY = face ? 1.66 * ht : 0.95 * ht, wantD = (face ? 1.75 : 4.6) * pv.zoom;
+    pv.cy += (wantY - pv.cy) * Math.min(1, dt * 5); pv.cd += (wantD - pv.cd) * Math.min(1, dt * 5);
+    cam.position.set(0, pv.cy + (face ? 0.02 : 0.15), pv.cd); cam.lookAt(0, pv.cy, 0);
     if (pv.P) { pv.P.root.rotation.y = pv.yaw; pv.P.update(dt, 0); }
-    pv.r.render(pv.scene, pv.cam);
+    pv.r.render(pv.scene, cam);
     pv.raf = requestAnimationFrame(loop);
   };
   pv.raf = requestAnimationFrame(loop);
@@ -221,6 +255,7 @@ function showLook() {
   if (pv.P) pv.scene.remove(pv.P.root);
   pv.P = makePerson(lookOpts(me.look, me.name));
   pv.P.setPose("idle");
+  pv.P.root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   pv.scene.add(pv.P.root);
 }
 function closePreview() {

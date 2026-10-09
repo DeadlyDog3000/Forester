@@ -409,12 +409,18 @@
 
     <section id="mpBuilder" class="screen hidden">
       <h2 id="mpBuildTitle">Your character</h2>
-      <div class="mp-builder">
-        <div class="mp-pv"><canvas id="mpPreview"></canvas><div class="mp-pv-hint">Drag to turn</div></div>
-        <div class="mp-ctl">
+      <div class="cb">
+        <div class="cb-pv">
+          <canvas id="mpPreview"></canvas>
+          <div class="cb-cam"><button data-cam="body" class="on">Whole</button><button data-cam="face">Face</button></div>
+          <div class="cb-turn"><button data-turn="-1" title="Turn left">&#10226;</button><button data-turn="1" title="Turn right">&#10227;</button></div>
+          <div class="mp-pv-hint">Drag to turn · wheel to look closer</div>
+        </div>
+        <div class="cb-side">
           <label class="mp-namerow"><span>Name</span><input id="mpName" maxlength="24" placeholder="What are you called?" spellcheck="false"></label>
-          <div id="mpControls"></div>
-          <button id="mpRandom" class="linkish">Someone else, at random</button>
+          <div class="cb-tabs"><button data-tab="presets">Presets</button><button data-tab="body" class="on">Body</button><button data-tab="face">Face &amp; hair</button><button data-tab="clothes">Clothes</button></div>
+          <div id="mpControls" class="cb-panel"></div>
+          <div class="cb-foot"><button id="mpRandom" class="linkish">Someone else, at random</button></div>
         </div>
       </div>
       <nav class="menu mp-menu"><button id="mpBuildGo" class="btn primary">Into the game</button><button id="mpBuildBack" class="btn ghost">Back</button></nav>

@@ -952,3 +952,37 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 .nw { padding: 8px 2px; border-bottom: 1px solid rgba(59, 38, 18, 0.2); font: 16px/1.35 var(--serif); }
 .nw .k { font: 600 10px var(--sans); letter-spacing: 0.18em; text-transform: uppercase; color: #8a2a1a; margin-right: 8px; }
 .nw .w { font: 12px var(--sans); opacity: 0.6; float: right; }
+
+/* ---- the character builder ---- */
+#mpBuilder { width: min(1040px, 100%); }
+.cb { display: grid; grid-template-columns: minmax(280px, 400px) 1fr; gap: 22px; width: 100%; text-align: left; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.cb-pv { position: relative; height: min(560px, calc(100vh - 220px)); min-height: 340px; border-radius: 8px; overflow: hidden; border: 1px solid var(--edge);
+  background: radial-gradient(ellipse 70% 60% at 50% 42%, rgba(220, 200, 150, 0.22), rgba(20, 30, 22, 0.15) 60%, rgba(0, 0, 0, 0.55)), linear-gradient(180deg, #2c3a2a, #121a12); }
+.cb-pv canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.cb-pv canvas:active { cursor: grabbing; }
+.cb-cam { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; background: rgba(0, 0, 0, 0.35); padding: 3px; border-radius: 16px; }
+.cb-cam button, .cb-turn button { border: none; background: transparent; color: var(--ink); font: 600 12px var(--sans); padding: 5px 12px; border-radius: 13px; cursor: pointer; }
+.cb-cam button.on { background: rgba(140, 192, 132, 0.45); }
+.cb-turn { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+.cb-turn button { font-size: 18px; background: rgba(0, 0, 0, 0.35); width: 36px; height: 36px; padding: 0; border-radius: 50%; }
+.cb-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 14px 16px; background: linear-gradient(180deg, rgba(10, 24, 16, 0.92), rgba(6, 16, 10, 0.94)); border: 1px solid var(--edge); border-radius: 8px; }
+.cb-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--edge); }
+.cb-tabs button { flex: 1; border: none; background: transparent; color: var(--ink-dim); font: 600 12px var(--sans); letter-spacing: 0.1em; text-transform: uppercase; padding: 9px 4px; cursor: pointer; border-bottom: 2px solid transparent; }
+.cb-tabs button.on { color: var(--ink); border-bottom-color: var(--gold); }
+.cb-panel { display: flex; flex-direction: column; gap: 11px; overflow-y: auto; padding: 4px 4px 4px 0; min-height: 0; flex: 1 1 auto; }
+.cb-panel .mp-row { grid-template-columns: 100px 1fr; }
+.cb-pick { width: 26px; height: 26px; padding: 0; border: 2px dashed var(--edge); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.cb-pick::-webkit-color-swatch-wrapper { padding: 0; } .cb-pick::-webkit-color-swatch { border: none; border-radius: 50%; }
+.cb-slider { display: grid; grid-template-columns: 1fr 48px; gap: 8px; align-items: center; }
+.cb-slider span { font: 12px var(--sans); color: var(--ink-dim); text-align: right; }
+.cb-bodies { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.cb-bodies button { padding: 12px 10px; text-align: left; font: 600 14px var(--sans); color: var(--ink); background: rgba(140, 192, 132, 0.1); border: 1px solid var(--edge); border-radius: 6px; cursor: pointer; }
+.cb-bodies button small { display: block; font: 12px var(--sans); color: var(--ink-dim); margin-top: 3px; font-weight: 400; }
+.cb-bodies button.on { background: rgba(140, 192, 132, 0.35); border-color: var(--gold); }
+.cb-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.cb-presets button { padding: 10px; text-align: left; font: 600 13px var(--sans); color: var(--ink); background: rgba(140, 192, 132, 0.1); border: 1px solid var(--edge); border-radius: 6px; cursor: pointer; }
+.cb-presets button:hover { border-color: var(--gold); }
+.cb-chips { display: flex; gap: 3px; margin-top: 6px; }
+.cb-chips i { width: 14px; height: 14px; border-radius: 3px; display: block; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.cb-foot { display: flex; justify-content: space-between; }
+@media (max-width: 760px) { .cb { grid-template-columns: 1fr; overflow-y: auto; } .cb-pv { height: 320px; } }
