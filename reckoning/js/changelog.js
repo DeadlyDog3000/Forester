@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.61.0", date: "9 October 2026", title: "Neighbours",
+    items: [
+      "Settlers in multiplayer. Build a cabin (beds for two) or a house (beds for four), and people come to your hearth to live in them, up to twelve. In Co-op they join the colony; in Classic they belong to your nation.",
+      "They work without being told. Woodcutters go out to the trees near home, fell them and carry the logs back to your woodshed or hearth. When logs are plentiful, some turn quarryman and bring back stone. Build a watchtower and two of them keep watch. They go for anyone hostile on your ground, and they fight well.",
+      "Everyone in the game sees the same settlers doing the same work. Talk to one (F) to hear how it's going. In Classic, an enemy's settlers can be killed, but only while their owner is in the game. Hurt them and they run.",
+      "Co-op and Classic replace the names Co-op and PvP. Co-op is one colony with one store and one hearth for everyone. Classic is a nation each.",
+    ],
+  },
+  {
     v: "0.60.0", date: "9 October 2026", title: "Into the woods together",
     items: [
       "Multiplayer, from the new button on the front screen. It lists the games you can join, and you can host your own.",

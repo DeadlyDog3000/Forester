@@ -11,11 +11,11 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
-import { makeAxe } from "../models.js";
+import { makeAxe, makePick } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { Wilds } from "./wilds.js";
-import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS } from "./rules.js";
+import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
 
@@ -78,12 +78,54 @@ class Remote {
   remove() { if (this.tag) { this.tag.material.map.dispose(); this.tag.material.dispose(); } this.actor.remove(); }
 }
 
+// one of the settlers: the server walks them about and sets them to work; this shows them
+const SAYS = {
+  wood: ["Good timber round here.", "Another one for the stack.", "Mind your feet — it'll come down where it likes."],
+  stone: ["Stone takes its time.", "This one's got a seam in it.", "Hard work, but it'll stand a hundred years."],
+  watch: ["All quiet.", "I'd know a stranger by his walk.", "Nobody comes onto this ground I don't see."],
+};
+class SettlerView {
+  constructor(game, v) {
+    this.game = game; this.id = v.id; this.owner = v.owner; this.name = v.name; this.job = v.job;
+    const a = this.actor = new Actor(lookOpts(v.look, v.name), v.x, v.z, v.yaw || 0);
+    a.settlerView = this; a.update = dt => this.update(dt);
+    this.tx = v.x; this.tz = v.z; this.tyaw = v.yaw || 0; this.anim = v.a || "idle"; this.spd = 0; this.x = v.x; this.z = v.z; this.hp = v.hp;
+    this.tool(); this.setTag();
+    this.it = game.w.addInteract({ x: 0, y: 1.4, z: 0, reach: 2.6, label: () => `Talk to ${this.name}, ${this.owned() ? "" : this.game.nameOf(this.owner) + "'s "}${JOB_NAME[this.job]}`,
+      use: () => { const l = SAYS[this.job] || SAYS.wood; UI.bark ? UI.bark(this.name, l[Math.floor(Math.random() * l.length)], 3) : UI.hint(`${this.name}: ${l[0]}`, 3); } });
+  }
+  owned() { return this.owner === "colony" || this.owner === this.game.pid; }
+  tool() { const p = this.actor.person; p.held.clear && p.held.clear(); if (this.held) p.held.remove(this.held); this.held = this.actor.hold(this.job === "stone" ? makePick() : makeAxe()); }
+  setTag() {
+    if (this.tag) { this.actor.root.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose(); }
+    const fr = this.game.friendly(this.owner === "colony" ? this.game.pid : this.owner);
+    this.actor.friendly = fr; this.actor.isSibling = false;
+    this.tag = nameTag(`${this.name} · ${JOB_NAME[this.job]}`, fr ? "#cfe8c8" : "#f0b0a0");
+    this.tag.scale.multiplyScalar(0.75); this.tag.position.y = 2.05; this.actor.root.add(this.tag);
+  }
+  update(dt) {
+    const a = this.actor, k = Math.min(1, dt * 6);
+    a.pos.x += (this.tx - a.pos.x) * k; a.pos.z += (this.tz - a.pos.z) * k;
+    a.yaw += Math.atan2(Math.sin(this.tyaw - a.yaw), Math.cos(this.tyaw - a.yaw)) * Math.min(1, dt * 8);
+    this.x = a.pos.x; this.z = a.pos.z;
+    a.speed = this.dying ? 0 : this.spd;
+    a.lying = !!this.dying; a.lieK = this.dying ? Math.min(1, (a.lieK || 0) + dt * 2) : 0;
+    a.person.fight = this.job === "watch" && this.anim === "chop";
+    a.person.setPose(this.dying ? "idle" : this.anim === "chop" ? "chop" : "idle");
+    a.person.update(dt, a.speed);
+    a.sync();
+    if (this.it) { this.it.x = a.pos.x; this.it.z = a.pos.z; this.it.y = a.pos.y + 1.4; }
+    this.tag.visible = !this.dying && Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 16;
+  }
+  remove() { if (this.it) this.game.w.removeInteract(this.it); if (this.tag) { this.tag.material.map.dispose(); this.tag.material.dispose(); } this.actor.remove(); }
+}
+
 export class MPGame {
   constructor(net, inMsg, me, target, hooks) {
     this.net = net; this.me = me; this.target = target; this.hooks = hooks;
     const r = inMsg.room;
     this.room = r; this.mode = r.mode; this.pid = inMsg.you.pid;
-    this.remotes = new Map();
+    this.remotes = new Map(); this.settlers = new Map();
     this.groups = inMsg.groups || {};
     this.online = new Set(inMsg.online || []);
     this.owners = {};                     // pid → name, as heard
@@ -110,6 +152,7 @@ export class MPGame {
     w.setFelled(inMsg.felled || []); w.setBroken(inMsg.broken || []);
     for (const p of inMsg.players || []) this.addRemote(p);
     for (const b of inMsg.buildings || []) this.addB(b);
+    for (const v of inMsg.settlers || []) this.settlers.set(v.id, new SettlerView(this, v));
     for (const c of inMsg.chat || []) this.chatLine(c, true);
     G.onSwing = () => this.swing();
     G.onFrame.push(dt => this.tick(dt));
@@ -130,7 +173,7 @@ export class MPGame {
   // ---- who's who ----
   groupOf(pid) { for (const [id, g] of Object.entries(this.groups)) if (g.members.includes(pid)) return id; return null; }
   friendly(pid) { if (pid === this.pid || this.mode === "coop") return true; const a = this.groupOf(pid); return !!a && a === this.groupOf(this.pid); }
-  nameOf(pid) { if (pid === this.pid) return this.me.name; const r = this.remotes.get(pid); return r ? r.name : this.owners[pid] || "someone"; }
+  nameOf(pid) { if (pid === this.pid) return this.me.name; const sv = this.settlers && this.settlers.get(pid); if (sv) return `${sv.name} (${JOB_NAME[sv.job]})`; const r = this.remotes.get(pid); return r ? r.name : this.owners[pid] || "someone"; }
   addRemote(p) {
     if (p.pid === this.pid || this.remotes.has(p.pid)) return;
     this.owners[p.pid] = p.name;
@@ -178,6 +221,7 @@ export class MPGame {
       const f = w.falling[w.falling.length - 1];
       if (f) f.onDown = () => { const r = (t.h || 9) * 0.5; FOLEY.crash(1, { x: t.x + f.dir.x * r, z: t.z + f.dir.z * r }); };
       if (m.by === this.pid) { G.woodChips && G.woodChips(t, 2.2); this.toast(`+${{ birch: 3 }[t.kind] || 5} logs`); }
+      else if (Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 1.4);
     };
     n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.crash(0.35, { x: k.x, z: k.z }); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("+4 stone"); };
     n.grow = m => { for (const id of m.trees || []) w.showTree(id); for (const id of m.rocks || []) w.showRock(id); };
@@ -226,6 +270,16 @@ export class MPGame {
       }
       const r = this.remotes.get(m.pid); if (r) { r.dead = false; r.hp = m.hp; r.tx = m.x; r.tz = m.z; r.actor.place(m.x, m.z); }
     };
+    n.sj = m => { if (!this.settlers.has(m.s.id)) this.settlers.set(m.s.id, new SettlerView(this, m.s)); };
+    n.sx = m => {
+      const v = this.settlers.get(m.id); if (!v) return;
+      this.settlers.delete(m.id);
+      if (m.dead) { v.dying = true; blowLands(v.actor, "down", m.by === this.pid ? G.player : null); if (m.by === this.pid) this.toast(`${v.name} is dead.`); setTimeout(() => v.remove(), 4000); }
+      else v.remove();
+    };
+    n.ss = m => { for (const [id, x, z, yaw, a, sp] of m.l) { const v = this.settlers.get(id); if (v) { v.tx = x; v.tz = z; v.tyaw = yaw; v.anim = a; v.spd = sp; } } };
+    n.sjob = m => { const v = this.settlers.get(m.id); if (v) { v.job = m.job; v.tool(); v.setTag(); } };
+    n.sh = m => { const v = this.settlers.get(m.id); if (!v) return; blowLands(v.actor, "hit", m.by === this.pid ? G.player : null); v.actor.person.flinch && v.actor.person.flinch(); v.hp = m.hp; };
     n.groups = m => { this.groups = m.groups || {}; this.refreshFriends(); if (this.listOpen) this.drawList(); };
     n.invite = m => this.invited(m);
     n.chat = m => this.chatLine(m);
@@ -235,6 +289,7 @@ export class MPGame {
   }
   refreshFriends() {
     for (const r of this.remotes.values()) r.setTag();
+    for (const v of this.settlers.values()) v.setTag();
     for (const e of this.w.blds.values()) { const fr = this.friendly(e.b.owner); e.friendly = fr; e.mapColour = e.mine ? "#2e6a40" : fr ? "#3a5a8a" : "#9a2e22"; this.w.setGateFriendly(e.b.id, fr); }
     this.hudCount();
   }
@@ -253,6 +308,14 @@ export class MPGame {
       if (this.mode === "coop") { UI.hint("Not in a game among friends.", 2); return; }
       if (this.friendly(best.pid)) { UI.hint(`${best.name} is your ally.`, 2); return; }
       this.net.send({ t: "hit", pid: best.pid }); G.impact && G.impact();
+      return;
+    }
+    // someone's settler
+    let sv = null; bd = Infinity;
+    for (const v of this.settlers.values()) { if (v.dying) continue; const d = ahead(v.x, v.z, 2.6); if (d < bd) { bd = d; sv = v; } }
+    if (sv) {
+      if (sv.owned() || this.mode === "coop" || this.friendly(sv.owner)) { UI.hint(`${sv.name} works for ${sv.owned() ? "you" : this.nameOf(sv.owner)}.`, 2); return; }
+      this.net.send({ t: "hits", id: sv.id }); G.impact && G.impact();
       return;
     }
     // something built
@@ -487,6 +550,8 @@ export class MPGame {
     this.net.close();
     for (const r of this.remotes.values()) r.remove();
     this.remotes.clear();
+    for (const v of this.settlers.values()) v.remove();
+    this.settlers.clear();
     this.hud(false); this.banner(null); $("mpInvite").classList.add("hidden"); $("mpToast").classList.add("hidden");
     G.onSwing = null; G.onFrame.length = 0; G.downed = false; G.lockMove = false;
     G.mp = null;

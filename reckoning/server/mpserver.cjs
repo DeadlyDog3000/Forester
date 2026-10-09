@@ -17,7 +17,8 @@
 const http = require("http"), crypto = require("crypto"), fs = require("fs"), path = require("path"), dgram = require("dgram"), os = require("os");
 const { pathToFileURL } = require("url");
 
-let R = null, T = null;              // the rules and the land (ES modules, shared with the game: loaded at start)
+let R = null, T = null, LK = null;
+let START = null;                    // (a test server can start everyone rich: --stock 200)              // the rules and the land (ES modules, shared with the game: loaded at start)
 const LAN_PORT = 47811;
 
 // ---------------------------------------------------------------------------
@@ -106,7 +107,8 @@ class Room {
     this.day0 = now() - crypto.randomInt(0, R.DAY_MS) + 0;   // (a game starts at some hour of the day)
     this.day0 = now() - R.DAY_MS * 0.3;                       // (in the morning, in fact)
     this.spawnAt = this.land.findHome(T.seq(this.seed ^ 0x5eed), [], 0);
-    this.shared = { wood: R.START_STOCK.wood, stone: R.START_STOCK.stone };   // (co-op: one colony, one store)
+    this.shared = { ...(START || R.START_STOCK) };   // (co-op: one colony, one store)
+    this.settlers = {}; this.nextS = 1; this.lastArrive = {}; this.workCache = {};
     this.dirty = false;
   }
   storeOf(pid) { return this.mode === "coop" ? this.shared : this.recs[pid]; }
@@ -114,10 +116,10 @@ class Room {
     return { id: this.id, name: this.name, mode: this.mode, kind: this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, locked: !!this.password, persistent: this.persistent };
   }
   // ---- saving the wide world ----
-  toJSON() { return { shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0 }; }
+  toJSON() { return { settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0 }; }
   static from(j) {
     const r = new Room(j);
-    Object.assign(r, { shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0 });
+    Object.assign(r, { settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0 });
     return r;
   }
   each(f) { for (const p of this.online.values()) f(p); }
@@ -143,7 +145,7 @@ class Room {
     if (this.online.has(who.pid)) { const old = this.online.get(who.pid); old.sock.send({ t: "err", text: "You've joined from somewhere else." }); this.leave(old); }
     if (this.online.size >= this.max) return sock.send({ t: "err", text: "That game is full." });
     let rec = this.recs[who.pid];
-    if (!rec) rec = this.recs[who.pid] = { name: who.name, look: who.look, wood: R.START_STOCK.wood, stone: R.START_STOCK.stone, home: null, kills: 0, deaths: 0, group: null, first: now() };
+    if (!rec) rec = this.recs[who.pid] = { name: who.name, look: who.look, ...(START || R.START_STOCK), home: null, kills: 0, deaths: 0, group: null, first: now() };
     rec.name = who.name; rec.look = who.look; rec.seen = now();
     // where you come in: your hearth if it still stands; else (in a game among friends) beside the others, or
     // (in a fight, and the wide world) somewhere of your own, well away from everyone
@@ -158,7 +160,7 @@ class Room {
     const t = now();
     sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null },
       players: [...this.online.values()].filter(q => q !== p).map(q => this.pub(q)), felled: live(this.felled, t), broken: live(this.broken, t),
-      buildings: Object.values(this.buildings), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
+      buildings: Object.values(this.buildings), settlers: Object.values(this.settlers).map(x => this.pubS(x)), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
       online: this.onlineNames() });
     this.all({ t: "pj", p: this.pub(p) }, p);
     this.note(`${p.name} has come.`, p);
@@ -281,19 +283,23 @@ class Room {
         if (q.shield > t) return p.sock.send({ t: "err", text: `${q.name} has only just come — leave them be a moment.` });
         // a hit that strikes into a raised guard, from in front, mostly glances off
         let dmg = R.BLOW.player * (this.hasForge(p.pid) ? 1.25 : 1);
-        const face = Math.atan2(p.x - q.x, p.z - q.z), diff = Math.abs(Math.atan2(Math.sin(face - (q.yaw + Math.PI)), Math.cos(face - (q.yaw + Math.PI))));
-        const guarded = q.g && diff < 1.2;
-        if (guarded) dmg *= 0.25;
         p.shield = 0;                 // (striking someone ends your own grace)
-        q.hp = Math.max(0, q.hp - dmg); q.hurtAt = t;
-        this.all({ t: "hp", pid: q.pid, hp: q.hp, by: p.pid, guarded });
-        if (q.hp > 0) return;
-        q.dead = true;
-        const vr = this.recs[q.pid], w = Math.floor(vr.wood * 0.2), s = Math.floor(vr.stone * 0.2);
-        vr.wood -= w; vr.stone -= s; st.wood += w; st.stone += s; rec.kills++; vr.deaths++;
-        this.all({ t: "die", pid: q.pid, by: p.pid, got: { wood: w, stone: s } });
-        this.stock(p); this.stock(q); this.dirty = true;
-        setTimeout(() => this.respawn(q), R.RESPAWN_MS);
+        this.damage(q, dmg, p.pid, p.x, p.z);
+        return;
+      }
+      case "hits": {              // a blow at someone's settler
+        if (p.dead || t - p.lastHit < 380) return; p.lastHit = t;
+        const sv = this.settlers[String(m.id || "")]; if (!sv) return;
+        if (this.mode === "coop" || this.allied(sv.owner, p.pid)) return;
+        if (!this.active(sv.owner)) return p.sock.send({ t: "err", text: "Their people are safe while they're away." });
+        if (!this.near(p, sv.x, sv.z, R.REACH + 0.8)) return;
+        sv.hp -= R.BLOW.player * (this.hasForge(p.pid) ? 1.25 : 1);
+        sv.hurtAt = t;
+        if (sv.hp > 0) { this.all({ t: "sh", id: sv.id, hp: sv.hp, by: p.pid }); if (sv.job !== "watch") { sv.state = "flee"; sv.from = { x: p.x, z: p.z }; sv.until = t + 6000; } return; }
+        delete this.settlers[sv.id];
+        this.all({ t: "sx", id: sv.id, by: p.pid, dead: true });
+        const o = this.online.get(sv.owner); if (o) o.sock.send({ t: "note", text: `${sv.name} was killed by ${p.name}.` });
+        this.dirty = true;
         return;
       }
       case "chat": {
@@ -354,6 +360,159 @@ class Room {
       case "respawn": return;
     }
   }
+  // a blow landing on a player: from another player (by a pid) or a settler (by "s…")
+  damage(q, dmg, by, fx, fz) {
+    const t = now();
+    if (q.dead || q.shield > t) return false;
+    const face = Math.atan2(fx - q.x, fz - q.z), diff = Math.abs(Math.atan2(Math.sin(face - (q.yaw + Math.PI)), Math.cos(face - (q.yaw + Math.PI))));
+    const guarded = q.g && diff < 1.2;
+    if (guarded) dmg *= 0.25;
+    q.hp = Math.max(0, q.hp - dmg); q.hurtAt = t;
+    this.all({ t: "hp", pid: q.pid, hp: q.hp, by, guarded });
+    if (q.hp > 0) return true;
+    q.dead = true;
+    const killer = this.recs[by] ? by : (this.settlers[by] && this.settlers[by].owner);
+    const vr = this.storeOf(q.pid), kr = killer && killer !== "colony" ? this.storeOf(killer) : null;
+    let w = 0, s = 0;
+    if (kr && kr !== vr) { w = Math.floor(vr.wood * 0.2); s = Math.floor(vr.stone * 0.2); vr.wood -= w; vr.stone -= s; kr.wood += w; kr.stone += s; }
+    if (this.recs[by]) this.recs[by].kills++; if (this.recs[q.pid]) this.recs[q.pid].deaths++;
+    this.all({ t: "die", pid: q.pid, by, got: { wood: w, stone: s } });
+    const ko = killer && this.online.get(killer); if (ko) this.stock(ko); this.stock(q); this.dirty = true;
+    setTimeout(() => this.respawn(q), R.RESPAWN_MS);
+    return true;
+  }
+  // ---- settlers ----
+  ownerKey(pid) { return this.mode === "coop" ? "colony" : pid; }
+  active(owner) { return owner === "colony" ? this.online.size > 0 : this.online.has(owner); }
+  mineB(owner, b) { return owner === "colony" || b.owner === owner; }
+  homeOf(owner) { return Object.values(this.buildings).find(b => b.type === "hearth" && this.mineB(owner, b)) || null; }
+  bedsOf(owner) { let n = 0; for (const b of Object.values(this.buildings)) if (this.mineB(owner, b)) n += R.BUILD[b.type].beds || 0; return Math.min(n, R.SETTLER.max); }
+  storeFor(owner) { return owner === "colony" ? this.shared : this.recs[owner]; }
+  stockTo(owner) { if (owner === "colony") { this.all({ t: "stock", wood: this.shared.wood, stone: this.shared.stone }); return; } const o = this.online.get(owner); if (o) this.stock(o); }
+  pubS(v) { return { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: +v.x.toFixed(2), z: +v.z.toFixed(2), yaw: v.yaw || 0, a: v.a || "idle", hp: v.hp }; }
+  // who comes, who goes, and who does what: every few seconds
+  settle() {
+    const t = now(), owners = new Set();
+    for (const b of Object.values(this.buildings)) if (b.type === "hearth") owners.add(this.mode === "coop" ? "colony" : b.owner);
+    for (const v of Object.values(this.settlers)) if (!owners.has(v.owner)) { delete this.settlers[v.id]; this.all({ t: "sx", id: v.id }); }   // (their hearth gone: they go)
+    for (const owner of owners) {
+      if (!this.active(owner)) continue;
+      const home = this.homeOf(owner), beds = this.bedsOf(owner), list = Object.values(this.settlers).filter(v => v.owner === owner);
+      // fewer beds than people (a house broken): the last to come leave
+      for (const v of list.slice(beds)) { delete this.settlers[v.id]; this.all({ t: "sx", id: v.id, left: true }); }
+      if (list.length < beds && t - (this.lastArrive[owner] || 0) > (START && START.fast ? 3000 : R.SETTLER.arriveMs)) {
+        this.lastArrive[owner] = t;
+        const look = LK.randomLook(crypto.randomInt(1, 1e9)), f = LK.isF(look);
+        if (look.body === "brother") look.body = "townsman"; if (look.body === "sister") look.body = "townswoman";
+        const names = R.SETTLER_NAMES[LK.isF(look) ? "f" : "m"];
+        const a = Math.random() * 6.28, v = { id: "s" + (this.nextS++), owner, name: names[crypto.randomInt(0, names.length)], look, job: "wood", x: home.x + Math.cos(a) * 4, z: home.z + Math.sin(a) * 4, yaw: 0, a: "idle", s: 0, hp: R.SETTLER.hp, state: "find" };
+        void f;
+        this.settlers[v.id] = v;
+        this.all({ t: "sj", s: this.pubS(v) });
+        const o = owner === "colony" ? null : this.online.get(owner);
+        const msg = `${v.name} has come to live ${owner === "colony" ? "in the colony" : "with you"}.`;
+        if (o) o.sock.send({ t: "note", text: msg }); else if (owner === "colony") this.note(msg);
+        this.dirty = true;
+      }
+      // the work: a watch for every tower (two to each), a third at the stone if logs are plenty, the rest at the trees
+      const now2 = Object.values(this.settlers).filter(v => v.owner === owner);
+      const towers = Object.values(this.buildings).filter(b => b.type === "tower" && this.mineB(owner, b)).length;
+      const st = this.storeFor(owner) || { wood: 0, stone: 0 };
+      let watch = Math.min(now2.length, towers * R.SETTLER.guardsPerTower), stoneN = st.wood > st.stone * 3 + 20 ? Math.floor((now2.length - watch) / 3) : 0;
+      for (const v of now2) {
+        const want = watch > 0 ? (watch--, "watch") : stoneN > 0 ? (stoneN--, "stone") : "wood";
+        if (v.job !== want) { v.job = want; v.state = v.carry ? "home" : "find"; v.target = null; this.all({ t: "sjob", id: v.id, job: want }); }
+      }
+    }
+  }
+  // the trees (or rocks) within reach of a homestead, nearest first: worked out now and then, not every step
+  workList(owner, home, kind) {
+    const k = owner + ":" + kind, c = this.workCache[k], t = now();
+    if (c && t - c.at < 30000 && c.x === home.x) return c.list;
+    const out = [], R2 = R.SETTLER.reach, C = T.CHUNK;
+    for (let ci = Math.floor((home.x - R2) / C); ci <= Math.floor((home.x + R2) / C); ci++) for (let cj = Math.floor((home.z - R2) / C); cj <= Math.floor((home.z + R2) / C); cj++) {
+      for (const it of kind === "wood" ? this.land.chunkTrees(ci, cj) : this.land.chunkRocks(ci, cj)) {
+        const d = Math.hypot(it.x - home.x, it.z - home.z); if (d > R2 || d < 6) continue;
+        // (only what can be walked to: no water on the way)
+        let dry = true; for (let i = 1; i < 6; i++) { const f = i / 6; if (this.land.heightAt(home.x + (it.x - home.x) * f, home.z + (it.z - home.z) * f) < 0.3) { dry = false; break; } }
+        if (dry) out.push({ id: it.id, x: it.x, z: it.z, d });
+      }
+    }
+    out.sort((a, b) => a.d - b.d);
+    this.workCache[k] = { at: t, x: home.x, list: out };
+    return out;
+  }
+  step(v, x, z, dt) {
+    const dx = x - v.x, dz = z - v.z, d = Math.hypot(dx, dz); if (d < 0.05) return 0;
+    const sp = Math.min(d, R.SETTLER.speed * (v.state === "flee" || v.state === "chase" ? 2 : 1) * dt);
+    v.x += dx / d * sp; v.z += dz / d * sp; v.yaw = Math.atan2(dx, dz); v.s = sp / dt; v.a = "idle"; v.moved = true;
+    return d - sp;
+  }
+  // every fifth of a second: each settler a step further on with what they're doing
+  ai(dt) {
+    const t = now();
+    const taken = new Set(Object.values(this.settlers).map(v => v.target && v.target.id).filter(Boolean));
+    for (const v of Object.values(this.settlers)) {
+      if (!this.active(v.owner)) { if (v.s) { v.s = 0; v.a = "idle"; v.moved = true; } continue; }
+      const home = this.homeOf(v.owner); if (!home) continue;
+      if (v.hp < R.SETTLER.hp && t - (v.hurtAt || 0) > 10000) v.hp = Math.min(R.SETTLER.hp, v.hp + 2);
+      const idle = () => { if (v.s || v.a !== "idle") { v.s = 0; v.a = "idle"; v.moved = true; } };
+      if (v.state === "flee") { const dx = v.x - v.from.x, dz = v.z - v.from.z, d = Math.hypot(dx, dz) || 1; if (t > v.until) v.state = v.carry ? "home" : "find"; else this.step(v, v.x + dx / d * 5, v.z + dz / d * 5, dt); continue; }
+      if (v.job === "watch") {
+        // anyone hostile on our ground: go for them
+        const claim = R.BUILD.hearth.claim + 8;
+        let foe = null, fd = Infinity;
+        if (this.mode !== "coop") for (const q of this.online.values()) {
+          if (q.dead || this.allied(q.pid, v.owner) || q.shield > t) continue;
+          if (Math.hypot(q.x - home.x, q.z - home.z) > claim) continue;
+          const d = Math.hypot(q.x - v.x, q.z - v.z); if (d < fd) { fd = d; foe = q; }
+        }
+        if (foe) {
+          v.state = "chase";
+          if (fd > 1.7) this.step(v, foe.x, foe.z, dt);
+          else { idle(); v.yaw = Math.atan2(foe.x - v.x, foe.z - v.z); if (t - (v.lastHit || 0) > 1300) { v.lastHit = t; v.a = "chop"; v.moved = true; this.damage(foe, R.SETTLER.guardHit, v.id, v.x, v.z); } }
+          continue;
+        }
+        v.state = "post";
+        const towers = Object.values(this.buildings).filter(b => b.type === "tower" && this.mineB(v.owner, b));
+        const post = towers.length ? towers[Number(v.id.slice(1)) % towers.length] : home, a = (Number(v.id.slice(1)) * 2.4) % 6.28;
+        if (this.step(v, post.x + Math.cos(a) * 3.5, post.z + Math.sin(a) * 3.5, dt) <= 0.1) idle();
+        continue;
+      }
+      const kind = v.job === "stone" ? "stone" : "wood";
+      if (v.state === "rest") { idle(); if (t > v.until) v.state = "find"; continue; }
+      if (v.state === "find") {
+        const gone = kind === "wood" ? this.felled : this.broken;
+        const it = this.workList(v.owner, home, kind).find(w => !(gone[w.id] > t) && !taken.has(w.id));
+        if (!it) { v.state = "rest"; v.until = t + 8000; continue; }
+        v.target = it; taken.add(it.id); v.state = "go";
+      }
+      if (v.state === "go" || v.state === "work") {
+        const it = v.target, gone = kind === "wood" ? this.felled : this.broken;
+        if (!it || gone[it.id] > t) { v.state = "find"; v.target = null; continue; }
+        const dx = v.x - it.x, dz = v.z - it.z, d = Math.hypot(dx, dz) || 1, stand = kind === "wood" ? 1.3 : 2.0;
+        if (v.state === "go") {
+          if (this.step(v, it.x + dx / d * stand, it.z + dz / d * stand, dt) <= 0.1) { v.state = "work"; v.until = t + (kind === "wood" ? R.SETTLER.chopMs : R.SETTLER.mineMs); }
+          continue;
+        }
+        v.s = 0; v.yaw = Math.atan2(it.x - v.x, it.z - v.z); if (v.a !== "chop") { v.a = "chop"; v.moved = true; }
+        if (t < v.until) continue;
+        if (kind === "wood") { this.felled[it.id] = t + R.REGROW_MS; this.all({ t: "fell", id: it.id, by: v.id, dx: -dx / d, dz: -dz / d }); v.carry = R.SETTLER.logs; }
+        else { this.broken[it.id] = t + R.REGROW_MS; this.all({ t: "rock", id: it.id, by: v.id }); v.carry = R.SETTLER.stone; }
+        v.carryKind = kind; v.target = null; v.state = "home"; this.dirty = true;
+        continue;
+      }
+      if (v.state === "home") {
+        const sheds = Object.values(this.buildings).filter(b => b.type === "shed" && this.mineB(v.owner, b));
+        let drop = home, dd = Math.hypot(home.x - v.x, home.z - v.z);
+        for (const b of sheds) { const d = Math.hypot(b.x - v.x, b.z - v.z); if (d < dd) { dd = d; drop = b; } }
+        if (this.step(v, drop.x + 2.2, drop.z + 1.2, dt) <= 0.3) {
+          const st = this.storeFor(v.owner); if (st && v.carry) { st[v.carryKind === "stone" ? "stone" : "wood"] += v.carry; this.stockTo(v.owner); }
+          v.carry = 0; v.state = "rest"; v.until = t + 2500; this.dirty = true;
+        }
+      }
+    }
+  }
   hasForge(pid) { return Object.values(this.buildings).some(b => b.type === "forge" && this.allied(b.owner, pid)); }
   quitGroup(pid) {
     const r = this.recs[pid]; if (!r || !r.group) return;
@@ -374,12 +533,19 @@ class Room {
     const moved = [];
     for (const p of this.online.values()) if (p.moved) { p.moved = false; moved.push([p.pid, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), p.a, p.h, +p.s.toFixed(2), p.g ? 1 : 0]); }
     if (moved.length) this.all({ t: "ps", l: moved });
+    if ((this.tickN = (this.tickN || 0) + 1) % 2 === 0) {
+      this.ai(0.2);
+      const sm = [];
+      for (const v of Object.values(this.settlers)) if (v.moved) { v.moved = false; sm.push([v.id, +v.x.toFixed(2), +v.z.toFixed(2), +v.yaw.toFixed(2), v.a, +(v.s || 0).toFixed(2)]); }
+      if (sm.length) this.all({ t: "ss", l: sm });
+    }
   }
   slow() {
     const t = now(), back = [], rocks = [];
     for (const [id, at] of Object.entries(this.felled)) if (at <= t) { delete this.felled[id]; back.push(id); }
     for (const [id, at] of Object.entries(this.broken)) if (at <= t) { delete this.broken[id]; rocks.push(id); }
     if (back.length || rocks.length) { this.all({ t: "grow", trees: back, rocks }); this.dirty = true; }
+    this.settle();
     for (const [k, at] of this.invites) if (t - at > 120000) this.invites.delete(k);
     // wounds mend, a while after the last blow
     for (const p of this.online.values()) if (!p.dead && p.hp < R.MAX_HP && t - (p.hurtAt || 0) > 8000) { p.hp = Math.min(R.MAX_HP, p.hp + 4); this.all({ t: "hp", pid: p.pid, hp: p.hp, heal: true }); }
@@ -391,7 +557,8 @@ class Room {
 // ---------------------------------------------------------------------------
 async function start(opts = {}) {
   const base = pathToFileURL(path.join(__dirname, "..", "js", "mp") + path.sep).href;
-  R = await import(base + "rules.js"); T = await import(base + "terrain.js");
+  R = await import(base + "rules.js"); T = await import(base + "terrain.js"); LK = await import(base + "look.js");
+  if (opts.stock) START = { wood: +opts.stock, stone: +opts.stock, fast: true };
   const rooms = new Map();
   const name = clean(opts.name, 40) || (opts.world ? "Forester: Reckoning" : `${os.hostname().replace(/\.(local|lan|home)$/, "")}'s games`);
   const dataDir = opts.data ? path.resolve(opts.data) : null;
@@ -521,7 +688,7 @@ module.exports = { start, discover, lanAddresses };
 // run on its own
 if (require.main === module) {
   const arg = (k, d) => { const i = process.argv.indexOf("--" + k); return i < 0 ? d : (process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : true); };
-  start({ port: +(arg("port", process.env.PORT || 8080)), world: !!arg("world", false), data: arg("data", "./world-data"), name: arg("name", ""), lan: !!arg("lan", false), seed: arg("seed") ? +arg("seed") : undefined })
+  start({ port: +(arg("port", process.env.PORT || 8080)), world: !!arg("world", false), data: arg("data", "./world-data"), name: arg("name", ""), lan: !!arg("lan", false), seed: arg("seed") ? +arg("seed") : undefined, stock: arg("stock") ? +arg("stock") : 0 })
     .then(s => { const bye = () => s.stop().then(() => process.exit(0)); process.on("SIGINT", bye); process.on("SIGTERM", bye); })
     .catch(e => { console.error(e); process.exit(1); });
 }

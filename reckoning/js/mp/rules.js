@@ -11,13 +11,13 @@ export const PROTOCOL = 1;
 // or for walls a length); `claim`, the ground round it that becomes yours
 export const BUILD = {
   hearth:    { name: "Hearth",      wood: 10, stone: 0,  hp: 260, r: 1.6, claim: 32, note: "Your homestead's fire. The ground round it is yours: no one else can build there, and you wake here after a fall." },
-  cabin:     { name: "Cabin",       wood: 30, stone: 0,  hp: 420, r: 4.2, w: 5.2, d: 6.2, model: "cabin", note: "A log cabin with a roof over it." },
+  cabin:     { name: "Cabin",       wood: 30, stone: 0,  hp: 420, r: 4.2, w: 5.2, d: 6.2, model: "cabin", beds: 2, note: "A log cabin: beds for two settlers, who come to live in it and work for you." },
   shed:      { name: "Woodshed",    wood: 18, stone: 0,  hp: 300, r: 3.0, w: 4.4, d: 3.0, model: "woodshed", store: true, note: "Where your logs and stone are kept. Break someone's woodshed and half of what they have is yours." },
-  house:     { name: "House",       wood: 45, stone: 10, hp: 600, r: 5.0, w: 7.0, d: 6.0, model: "town/house_2", note: "A timber house, plastered." },
+  house:     { name: "House",       wood: 45, stone: 10, hp: 600, r: 5.0, w: 7.0, d: 6.0, model: "town/house_2", beds: 4, note: "A timber house, plastered: beds for four settlers." },
   well:      { name: "Well",        wood: 4,  stone: 12, hp: 380, r: 1.8, model: "well", note: "Water for the homestead." },
   wall:      { name: "Palisade",    wood: 4,  stone: 0,  hp: 160, len: 4, r: 0.6, wall: true, note: "Four metres of sharpened stakes. R turns it." },
   gate:      { name: "Gate",        wood: 8,  stone: 0,  hp: 220, len: 4, r: 0.6, wall: true, gate: true, note: "A palisade with a gate in it: it opens for you and your allies." },
-  tower:     { name: "Watchtower",  wood: 24, stone: 6,  hp: 420, r: 2.2, note: "A lookout over the trees. Climb it to see raiders coming." },
+  tower:     { name: "Watchtower",  wood: 24, stone: 6,  hp: 420, r: 2.2, note: "A lookout over the trees. With one, two of your settlers keep watch, and go for anyone hostile on your ground." },
   forge:     { name: "Forge",       wood: 20, stone: 16, hp: 520, r: 4.4, w: 8, d: 6, model: "town/forge_1", note: "A smith's forge: with one, your axe bites deeper — trees fall and walls break a blow sooner." },
   market:    { name: "Market",      wood: 30, stone: 8,  hp: 480, r: 5.2, w: 8.6, d: 10, model: "town/market_1", note: "A market stall: trade logs for stone and stone for logs." },
 };
@@ -39,3 +39,19 @@ export const WORLD_HALF = 3000;                   // the wide world: six kilomet
 export const MODES = { coop: "Co-op", pvp: "Classic" };
 export const MODE_NOTES = { coop: "One colony, built together: one store, one hearth, and no harm between you.", pvp: "A nation each: build your own, trade and make treaties — or make war on your neighbours." };
 export const GROUP_MAX = 8;
+
+// settlers: who comes to live in what you build, and what they do
+export const SETTLER = {
+  max: 12,                      // to a colony or a nation
+  arriveMs: 50 * 1000,          // one more, this often, while there's a bed
+  speed: 1.7,                   // walking, metres a second
+  chopMs: 9000, mineMs: 10000,  // a tree, a rock
+  logs: 4, stone: 3,            // what one carries home
+  reach: 70,                    // how far from the hearth they'll go for work
+  hp: 60, guardHit: 9, guardsPerTower: 2,
+};
+export const SETTLER_NAMES = {
+  m: ["Hinrich", "Jürgen", "Claus", "Marten", "Hans", "Detlef", "Peter", "Jochim", "Berend", "Carsten", "Tönnies", "Lütke", "Gerd", "Harm", "Asmus", "Eggert", "Reimer", "Wolter", "Ties", "Matthias"],
+  f: ["Anneke", "Grete", "Metta", "Trina", "Elsabe", "Lene", "Becke", "Abel", "Wiebke", "Gesche", "Tibke", "Dorthe", "Engel", "Marike", "Hille", "Alheid", "Talke", "Imke", "Geske", "Ilsabe"],
+};
+export const JOB_NAME = { wood: "woodcutter", stone: "quarryman", watch: "watchman" };

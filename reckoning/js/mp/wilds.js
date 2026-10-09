@@ -184,7 +184,7 @@ export class Wilds extends WorldBase {
   }
   addStump(t) {
     if (this.stumps.has(t.id)) return;
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * (t.h / 10) + 0.12, 0.26 * (t.h / 10) + 0.14, 0.5, 8), mat(0x5a4030, { surface: "wood" }));
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * (t.h / 10) + 0.1, 0.18 * (t.h / 10) + 0.12, 0.42, 8), mat(0x5a4030, { surface: "wood" }));
     s.position.set(t.x, t.y + 0.15, t.z); s.castShadow = true; this.root.add(s); this.stumps.set(t.id, s);
   }
   showTree(id) {
