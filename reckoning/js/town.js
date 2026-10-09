@@ -2719,6 +2719,20 @@ export class Town {
           this.show(f); this.persist(); this.sfxAt(a, "build");
         } else f._farm = null;
       } else {
+        // a downpour, and nothing that needs doing: indoors till it eases (those with a roof of their own)
+        if ((this.w.rainK || 0) > 0.55 && !this.colony) {
+          const h = this.homeOf(a);
+          if (h.inside) {
+            a.doing = "indoors out of the rain";
+            await Promise.race([a.walkTo(h.door[0], h.door[1], 1.6), sleep(30)]); alive();
+            this.door(h, true); await sleep(0.6); alive(); a.root.visible = false; a.inside = true; await sleep(0.6); this.door(h, false);
+            const until = this.t + 90;
+            try { while ((this.w.rainK || 0) > 0.3 && this.t < until && !this.isNight()) { await sleep(3); alive(); } }
+            finally { if (!this.isNight()) { a.root.visible = true; a.inside = false; } }
+            if (!this.isNight()) { this.door(h, true); setTimeout(() => this.door(h, false), 1500); }
+            continue;
+          }
+        }
         // a child: playing — chasing the others, running about, crouched over something in the grass, or at mother's side
         if (a.settler.child && !this.isNight()) {
           const F = this.colony || FIRE, kids = this.actors.filter(o => o !== a && o.settler && o.settler.child && !o.inside && o.root.visible);

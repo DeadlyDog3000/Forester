@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.1", date: "9 October 2026", title: "In out of the rain",
+    items: [
+      "In a downpour, settlers with nothing that needs doing, and the children, go indoors and wait for it to ease before they come out again. The work goes on in the wet.",
+      "The map's key shows the brook with the pond.",
+    ],
+  },
+  {
     v: "0.55.0", date: "9 October 2026", title: "The brook",
     items: [
       "A brook runs out of the pond, over the lowest of its bank and away east through the trees to a boggy pool in a hollow. The water runs in it, carried downstream in ripples and little streaks of foam, with rushes along the banks and thick round the pool. You hear it as you come near. It's shallow enough to wade, and freezes still in winter. It's on the map, and nothing is built in it.",

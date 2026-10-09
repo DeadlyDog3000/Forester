@@ -135,7 +135,7 @@ export const LEGEND = [
   [(c, x, y) => oreIcon(c, x, y, "tin", 5.5), "Tin ore"],
   [(c, x, y) => oreIcon(c, x, y, "iron", 5.5), "Iron ore"],
   [(c, x, y) => caveIcon(c, x, y + 1, 5), "A cave"],
-  [(c, x, y) => { c.fillStyle = "rgba(92,122,138,0.85)"; c.strokeStyle = "rgba(48,64,72,0.7)"; c.lineWidth = 1; c.beginPath(); c.ellipse(x, y, 5, 3.4, 0.3, 0, Math.PI * 2); c.fill(); c.stroke(); }, "The pond"],
+  [(c, x, y) => { c.fillStyle = "rgba(92,122,138,0.85)"; c.strokeStyle = "rgba(48,64,72,0.7)"; c.lineWidth = 1; c.beginPath(); c.ellipse(x, y, 5, 3.4, 0.3, 0, Math.PI * 2); c.fill(); c.stroke(); }, "The pond, and its brook"],
 ];
 function dot(c, x, y, col, r) { c.fillStyle = col; c.strokeStyle = "#f3e7c6"; c.lineWidth = 1; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.stroke(); }
 // the key, as a block of parchment in the corner of the big map
