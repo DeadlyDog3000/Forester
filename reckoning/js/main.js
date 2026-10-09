@@ -369,6 +369,15 @@ ICON.musket = (() => { const c = document.createElement("canvas"); c.width = c.h
   x.translate(32, 32); x.rotate(-0.62); x.fillStyle = "#5a3820"; x.fillRect(-28, -3, 26, 7); x.beginPath(); x.moveTo(-28, -3); x.lineTo(-34, -6); x.lineTo(-34, 9); x.lineTo(-28, 4); x.fill();
   x.fillStyle = "#3a3c40"; x.fillRect(-4, -2, 36, 4); x.fillStyle = "#b08a3a"; x.fillRect(8, -3, 2, 6); x.fillRect(-35, -6, 2, 15); x.fillStyle = "#2a2a2c"; x.fillRect(-10, -6, 5, 4);
   return c.toDataURL(); })();
+// the crossbow's picture, and its bolts', drawn here too
+ICON.crossbow = ICON.crossbow5 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.translate(32, 34); x.rotate(-0.7); x.fillStyle = "#6a4428"; x.fillRect(-26, -3, 46, 6); x.fillRect(-30, -5, 8, 10);
+  x.strokeStyle = "#8a8e96"; x.lineWidth = 3.2; x.beginPath(); x.moveTo(14, -20); x.quadraticCurveTo(24, 0, 14, 20); x.stroke();
+  x.strokeStyle = "#e8e0c8"; x.lineWidth = 1; x.beginPath(); x.moveTo(14, -20); x.lineTo(2, 0); x.lineTo(14, 20); x.stroke();
+  x.fillStyle = "#3a3c40"; x.fillRect(-6, 3, 3, 7); return c.toDataURL(); })();
+ICON.bolts = ICON.bolts0 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  for (let i = 0; i < 3; i++) { x.save(); x.translate(20 + i * 10, 34); x.rotate(-0.75); x.fillStyle = "#8a6a44"; x.fillRect(-18, -1.6, 30, 3.2); x.fillStyle = "#5a5e66"; x.beginPath(); x.moveTo(12, -4); x.lineTo(20, 0); x.lineTo(12, 4); x.fill(); x.fillStyle = "#c8c0a8"; x.fillRect(-19, -4, 5, 8); x.restore(); }
+  return c.toDataURL(); })();
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let invItems = [];
 const cap1 = s => s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -384,7 +393,7 @@ function renderInventory() {
   // the two hands: what's in them now — a blade, the pick or the bow, food — and whatever you carry in your arms
   const hands = [null, null], tl0 = G.body && G.body.tools;
   const held = hotbarItems()[selIndex(hotbarItems())];
-  if (held) hands[0] = { ...held, use: held.tool === "gun" ? "Right mouse to aim, click to fire" : held.tool === "bow" ? "Hold right-click to draw" : FOOD[held.icon] ? "Click to eat" : "Click to swing" };
+  if (held) hands[0] = { ...held, use: held.tool === "gun" ? "Right mouse to aim, click to fire" : held.tool === "bow" ? "Hold right-click to draw" : held.tool === "xbow" ? "Right-click to aim, click to loose" : FOOD[held.icon] ? "Click to eat" : "Click to swing" };
   else if (pl.axe) hands[0] = { icon: "axe", name: "Old felling axe", note: "Grey haft, good head.", use: "Click to swing" };
   if (pl.carryN > 0) hands[1] = { icon: "logs", n: pl.carryN, name: "Spruce logs", note: camp ? `Your arms hold ${camp.carryMax}.` : "", use: "Stack them by the cabin" };
   else if (UI.carrying) hands[/ledger/i.test(UI.carrying) ? 0 : 1] = { icon: /ledger/i.test(UI.carrying) ? "ledger" : "logs", name: UI.carrying, note: /ledger/i.test(UI.carrying) ? "The tally of the Baltic grain, for Jakob to sign." : "" };
@@ -541,7 +550,7 @@ function renderCraft() {
   // short of something shown with what's missing
   const rows = [], later = [];
   TOOL_RECIPES.forEach((r, i) => {
-    if (r.tier <= (tl[r.tool] || 0)) return;
+    if (!r.item && r.tier <= (tl[r.tool] || 0)) return;
     if (!craftUnlocked(r)) { later.push(r); return; }
     const short = Object.entries(r.cost).filter(([k, n]) => !haveFor(k, n));
     const cost = Object.entries(r.cost).map(([k, n]) => { const lack = short.some(([x]) => x === k); return `<span class="${lack ? "cr-lack" : ""}">${n} ${k === "logs" ? (n === 1 ? "log" : "logs") + " from the stack" : ITEM[k].name.toLowerCase() + (n > 1 && k === "hide" ? "s" : "")}${lack ? ` (have ${k === "logs" ? storeN(k) : packN(k) + storeN(k)})` : ""}</span>`; }).join(", ");
@@ -567,9 +576,10 @@ $("craftBody").addEventListener("click", e => {
       if (n > fromPack) { const key = k === "ironore" ? "ore" : k; craftStores()[key] -= n - fromPack; G.town.persist(); }
     }
   }
-  G.body.tools[r.tool] = r.tier; G.body.dirty = true;
+  if (r.item) G.body.tools[r.tool] = (G.body.tools[r.tool] || 0) + r.item; else G.body.tools[r.tool] = r.tier;
+  G.body.dirty = true;
   // the new one in your hands
-  if (r.tool === "pick") G.player.wield("pick"); else if (r.tool === "sword") G.player.wield("sword"); else if (G.player.axe && (G.player.blade || "axe") === "axe") { G.player.giveAxe(false); G.player.giveAxe(true); }
+  if (r.tool === "crossbow") G.player.showXbow(true); else if (r.tool === "bolts") {} else if (r.tool === "pick") G.player.wield("pick"); else if (r.tool === "sword") G.player.wield("sword"); else if (G.player.axe && (G.player.blade || "axe") === "axe") { G.player.giveAxe(false); G.player.giveAxe(true); }
   G.player.workFor && G.player.workFor("hammer", 1.6);
   UI.hint(`${r.name} made.`, 3);
   G.emitCraft && G.emitCraft(r);
@@ -1360,6 +1370,7 @@ function hotbarItems() {
   if (own) out.push({ icon: "sword" + own, name: `${cap(TIER_NAME[own])} sword, your own`, tool: "arm", kind: "sword" });
   if (pl.hasBow) { out.push({ icon: "bow", name: "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
   if (tl && tl.musket) out.push({ icon: "musket", name: "Your musket", tool: "gun" });
+  if (tl && tl.crossbow) { out.push({ icon: "crossbow", name: "Your crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: tl.bolts || 0 }); }
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
   for (const i of G.pack) out.push(i.icon === "spade" && tl && tl.spade >= 3 && G.town ? { ...i, name: `${cap(TIER_NAME[tl.spade])} spade` } : i);
@@ -1439,13 +1450,15 @@ addEventListener("keydown", e => {
   if (it && it.tool === "pick") { if (pl.axe && blade === "pick") { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield("pick"); }
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
   if (it && it.tool === "gun") G.player.showGun(!G.player.gun);
+  if (it && it.tool === "xbow") G.player.showXbow(!G.player.xbow);
+  else if (it && G.player.xbow && (it.tool || FOOD[it.icon])) G.player.showXbow(false);
   // food: taken in the hand (the number again puts it away); a click eats it
   if (it && FOOD[it.icon] && !same) holdFood(it);
 });
 // which slot is in your hand now (-1: none)
 function selIndex(items) {
   const pl = G.player, hf = G.heldFood;
-  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow) || (i.tool === "gun" && pl.gun));
+  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow) || (i.tool === "gun" && pl.gun) || (i.tool === "xbow" && pl.xbow));
 }
 // the wheel: the next thing along the bar (or the one before) into your hand — tools, weapons, the bow and food; logs,
 // arrows and the like are passed over. A notch a step (a trackpad's run of little nudges is gathered into notches)

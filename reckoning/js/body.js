@@ -63,6 +63,8 @@ export const TOOL_RECIPES = [
   { tool: "sword", tier: 3, name: "Copper sword", cost: { logs: 1, copper: 4 }, note: "A real blade, of your own. It bends." },
   { tool: "sword", tier: 4, name: "Bronze sword", cost: { logs: 1, bronze: 4 }, note: "Cast bronze, ground to a point: the plain blade of the age." },
   { tool: "sword", tier: 5, name: "Iron sword", cost: { logs: 1, iron: 4 }, note: "The best blade in the settlement." },
+  { tool: "crossbow", tier: 5, name: "Crossbow", cost: { planks: 2, iron: 2, hide: 1 }, note: "A steel-bowed crossbow, spanned with a crank. Slow to load, but a bolt flies flat and hits harder than any arrow. It wants bolts." },
+  { tool: "bolts", item: 8, tier: 0, name: "Crossbow bolts (eight)", cost: { planks: 1, iron: 1 }, note: "Short, heavy bolts with iron heads, for the crossbow." },
 ];
 // how many strokes a tool's making stands before it wears out: a wooden one soon, iron a long while
 export const TOOL_LIFE = [0, 60, 120, 200, 300, 450];
@@ -124,13 +126,15 @@ export const ITEM = {
   mushrooms: { name: "Ceps", note: "Fat brown mushrooms from under the trees, after rain. Eat them as they are, or stew them with rye in the kitchen." },
   fish: { name: "Fish", note: "A perch out of the pond, striped and spiny-finned: taste 3, tenderness 4/4, fills 16%. Fry it in the kitchen, or roast it at the fire." },
   boar: { name: "Boar", note: "Fat and strong: taste 4.5, tenderness 1/4, fills 36%. Forgiving if left on — dangerous if taken off too soon." },
+  crossbow: { name: "Crossbow", note: "Right-click to aim down it; click to loose a bolt. It cranks itself back for the next." },
+  bolts: { name: "Crossbow bolts", note: "For the crossbow. Made at the chopping block, eight at a time, once there's a forge." },
   hide: { name: "Hide", note: "A skin off something you hunted. Four make a backpack, at the chopping block." },
 };
 
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0 }, plague: 0, purse: 0 };
+  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0, crossbow: 0, bolts: 0 }, plague: 0, purse: 0 };
 }
 export function restoreBody(saved) {
   const b = freshBody();
@@ -139,7 +143,7 @@ export function restoreBody(saved) {
     if (saved.plague > 0) b.plague = Math.min(PLAGUE_SECS, saved.plague);
     if (saved.purse > 0) b.purse = Math.floor(saved.purse);
     // (before bronze there were four makings, and 4 was iron: those are 5 now)
-    if (saved.tools) for (const k of Object.keys(b.tools)) if (saved.tools[k] != null) { let v = saved.tools[k] | 0; if (!saved.tools.v && v >= 4) v = 5; b.tools[k] = Math.min(TOP_TIER, Math.max(b.tools[k], v)); }
+    if (saved.tools) for (const k of Object.keys(b.tools)) if (saved.tools[k] != null) { let v = saved.tools[k] | 0; if (!saved.tools.v && v >= 4) v = 5; b.tools[k] = k === "bolts" ? Math.max(0, Math.min(999, saved.tools[k] | 0)) : Math.min(TOP_TIER, Math.max(b.tools[k], v)); }
     if (saved.wear && typeof saved.wear === "object") { b.wear = {}; for (const [k, w] of Object.entries(saved.wear)) if (w && b.tools[k] === w.t && w.n > 0) b.wear[k] = { t: w.t, n: +w.n }; }
     for (const s of BODY_SKILLS) {
       const v = saved.skills && saved.skills[s.id];

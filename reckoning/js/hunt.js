@@ -396,9 +396,11 @@ export class Hunt {
       } });
     this._onDown && this._onDown(a);
   }
-  loose(from, dir, power) {
+  loose(from, dir, power, bolt = false) {
     const m = modelCopy("arrow");
     const mesh = m ? m.scene : new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.74).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xb89a6a }));
+    // (a crossbow's bolt: half the length of an arrow, and stouter)
+    if (bolt) mesh.scale.set(1.5, 1.5, 0.5);
     this.w.root.add(mesh);
     const ar = { mesh, pos: from.clone(), from: from.clone(), vel: dir.clone().multiplyScalar(14 + 32 * power), power, t: 0, stuck: false };
     this.arrows.push(ar);

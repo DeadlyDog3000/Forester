@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.65.0", date: "10 October 2026", title: "Crossbows",
+    items: [
+      "Crossbows. Make one at the chopping block once the settlement has a forge, from two planks, two iron and a hide. Make its bolts there too, eight at a time.",
+      "Right click raises it to your eye and sights down the bolt; click looses it. A bolt flies flat and fast and hits harder than any arrow, so it brings down a deer or a raider where an arrow might not. Loosed from the hip it goes wider.",
+      "Then it has to be spanned again: you wind the crank, the string comes back to the nut, and a fresh bolt goes into the groove, a few seconds each time. It's slower than the bow, and it pays for it.",
+    ],
+  },
+  {
     v: "0.64.0", date: "10 October 2026", title: "Achievements",
     items: [
       "Achievements: thirty-six of them, across the story, your colony, yourself and games with others. Some are kept secret till you earn them. They're kept across every save. A gilt card comes in at the corner when you earn one.",

@@ -222,6 +222,7 @@ export class Player {
     this.hasAxe = on;
     if (on) { this.dropFood(); if (this.gun) this.showGun(false); }
     if (on && this.bow) this.showBow(false);
+    if (on && this.xbow) this.showXbow(false);
     if (on && !this.axe) {
       // the hands are a pivot; inside it the haft points forward and the blade leads to the left
       this.axe = new THREE.Group();
@@ -266,7 +267,7 @@ export class Player {
   // business of loading it again — powder, ball, the ramrod down the barrel three times — before it can fire again ----
   showGun(on) {
     if (on && !this.gun) {
-      this.dropFood();
+      this.dropFood(); if (this.xbow) this.showXbow(false);
       if (this.axe) this.holsterAxe(true);
       if (this.bow) this.showBow(false);
       const g = new THREE.Group(); g.rotation.order = "YXZ";
@@ -336,7 +337,7 @@ export class Player {
   // ---- the bow: held out in the left hand, the right on the string ----
   // (the axe goes on your back while the bow is out, and the other way round)
   showBow(on) {
-    if (on) { this.dropFood(); if (this.gun) this.showGun(false); }
+    if (on) { this.dropFood(); if (this.gun) this.showGun(false); if (this.xbow) this.showXbow(false); }
     if (on && !this.bow) {
       if (this.axe) this.holsterAxe(true);
       const g = new THREE.Group(); g.rotation.order = "YXZ";
@@ -451,6 +452,69 @@ export class Player {
     this.bowPose(this.draw);
     this.bow.rotation.y += this.swX; this.bow.rotation.x += this.swY;
     this.fitArms();
+  }
+  // ---- the crossbow: a stock with a steel bow across its front, spanned with a crank; aimed down, and loosed ----
+  showXbow(on) {
+    if (on) { this.dropFood(); if (this.gun) this.showGun(false); if (this.bow) this.showBow(false); }
+    if (on && !this.xbow) {
+      if (this.axe) this.holsterAxe(true);
+      const g = new THREE.Group(), wood = new THREE.MeshStandardMaterial({ color: 0x6a4428, roughness: 0.75 }), steel = new THREE.MeshStandardMaterial({ color: 0x5a5e66, roughness: 0.35, metalness: 0.6 });
+      const box = (w, h, d, x, y, z, m, rx = 0, ry = 0, rz = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.set(rx, ry, rz); g.add(b); return b; };
+      box(0.045, 0.055, 0.66, 0, 0, -0.08, wood);                      // the stock, running away from you
+      box(0.04, 0.07, 0.1, 0, -0.035, 0.17, wood, -0.25);               // its butt against the shoulder
+      box(0.02, 0.012, 0.5, 0, 0.03, -0.12, steel);                     // the groove the bolt lies in, iron-lined
+      for (const sd of [-1, 1]) box(0.3, 0.018, 0.03, sd * 0.15, 0.025, -0.4 - 0.05, steel, 0, sd * 0.22, 0);   // the steel prod, swept back
+      const st = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.006, 6, 14), steel); st.position.set(0, 0.0, -0.44); st.rotation.x = Math.PI / 2; g.add(st);   // the stirrup
+      box(0.012, 0.05, 0.02, 0, -0.05, 0.03, steel, 0.3);               // the trigger lever
+      const crank = box(0.06, 0.008, 0.008, 0.04, -0.01, -0.02, steel); this.xcrank = crank;
+      const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
+      this.xstring = new THREE.Line(sg, new THREE.LineBasicMaterial({ color: 0xe8e0c8 })); g.add(this.xstring);
+      const bolt = new THREE.Group();
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.34, 6).rotateX(Math.PI / 2), wood); bolt.add(shaft);
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.04, 6).rotateX(-Math.PI / 2), steel); head.position.z = -0.19; bolt.add(head);
+      bolt.position.set(0, 0.045, -0.25); g.add(bolt); this.xbolt = bolt;
+      g.traverse(o => { if (o.isMesh) o.castShadow = false; });
+      vm.add(g); this.xbow = g;
+      this.xaim = 0; this.xspan = (G.body && G.body.tools.bolts > 0) ? 1 : 0; this.xkick = 0;
+      this.xposeIt();
+    } else if (!on && this.xbow) { vm.remove(this.xbow); this.xbow = null; }
+  }
+  // how it lies in the hands: at the hip, or up at the eye with the bolt along the sight; the string back or loosed
+  xposeIt() {
+    const g = this.xbow; if (!g) return;
+    const a = this.xaim * this.xaim * (3 - 2 * this.xaim), k = this.xkick;
+    g.position.set(0.17 * (1 - a), -0.24 + 0.16 * a + 0.02 * k, -0.42 - 0.1 * a + 0.06 * k);
+    g.rotation.set(0.04 * (1 - a) + 0.12 * k, 0.04 * (1 - a), 0.08 * (1 - a));
+    const sp = this.xspan, z = -0.44 + 0.3 * sp, p = this.xstring.geometry.attributes.position;
+    p.setXYZ(0, -0.29, 0.026, -0.39); p.setXYZ(1, 0, 0.03, z); p.setXYZ(2, 0.29, 0.026, -0.39); p.needsUpdate = true; this.xstring.geometry.computeBoundingSphere();
+    this.xbolt.visible = sp >= 1 && (G.body ? G.body.tools.bolts > 0 : false);
+  }
+  updateXbow(dt) {
+    if (!this.xbow) return;
+    const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
+    const bolts = G.body ? G.body.tools.bolts || 0 : 0;
+    this.xaim += ((free && input.rdown ? 1 : 0) - this.xaim) * Math.min(1, dt * 9);
+    this.xkick = Math.max(0, this.xkick - dt * 3);
+    // the shot: down the line of the sight if aimed, wider from the hip
+    if (free && input.click && this.xspan >= 1 && bolts > 0) {
+      input.click = false;
+      const q = camera.getWorldQuaternion(new THREE.Quaternion()), spread = 0.004 + (1 - this.xaim) * 0.05;
+      const dir = new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread, -1).normalize().applyQuaternion(q);
+      const from = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
+      G.body.tools.bolts = bolts - 1; G.body.dirty = true;
+      this.xspan = 0; this.xkick = 1; G.bowKick = 1.2;
+      if (G.hunt) G.hunt.loose(from, dir, 1.75, true);
+      G.practise && G.practise("archery", 0.6);
+      AUDIO.twang ? AUDIO.twang(1.3) : SFX.swingFist && SFX.swingFist();
+    } else if (free && input.click && bolts <= 0 && this.xspan < 1) { input.click = false; UI.hint("No bolts. Make some at the chopping block (it takes iron, so a forge).", 3); }
+    // spanning it again: the crank wound, the string drawn back to the nut, a bolt laid in the groove
+    if (this.xspan < 1 && bolts > 0) {
+      const was = this.xspan; this.xspan = Math.min(1, this.xspan + dt / 2.6);
+      this.xcrank.rotation.x += dt * 14;
+      if (Math.floor(was * 8) !== Math.floor(this.xspan * 8)) AUDIO.bowCreak && AUDIO.bowCreak(0.4 + this.xspan * 0.5);
+      if (this.xspan >= 1) SFX.pickup && SFX.pickup();
+    }
+    this.xposeIt();
   }
   // each sleeve runs from its shoulder to its hand on the haft, however the axe is held
   fitArms() {
@@ -849,6 +913,7 @@ export class Player {
     // the sleeves follow wherever the hands have gone this frame
     if (this.axe) this.fitArms();
     this.updateBow(dt);
+    this.updateXbow(dt);
     this.updateGun(dt);
     this.updateWork(dt);
   }
