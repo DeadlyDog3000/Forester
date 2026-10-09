@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.66.0", date: "10 October 2026", title: "The Earth",
+    items: [
+      "A new country to play in: the Earth. The whole world made small, with every continent, island and ocean where it really is, taken from Natural Earth's maps. The great mountain ranges rise where they stand: the Himalaya, the Andes, the Rockies, the Alps. The Sahara, Arabia, the Gobi and the Australian outback are desert, and the far north is tundra and snow.",
+      "Choose it when you host a game (Country: The Earth). It's always drawn big enough to walk across continents, whatever the size. The wide world is the Earth too.",
+      "Its map is a map of the world: the countries named where they lie, the oceans named, the land drawn in its colours, and you somewhere on it. You start somewhere temperate, never in the desert or the snow.",
+    ],
+  },
+  {
     v: "0.65.0", date: "10 October 2026", title: "Crossbows",
     items: [
       "Crossbows. Make one at the chopping block once the settlement has a forge, from two planks, two iron and a hide. Make its bolts there too, eight at a time.",

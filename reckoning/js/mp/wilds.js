@@ -13,6 +13,7 @@ import { forestInstances, modelCopy, ensureModel, makeSpruce, SWAY } from "../mo
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
 import { makeTerrain, CHUNK, WATER } from "./terrain.js";
+import { COUNTRIES } from "./earth-data.js";
 import { BUILD } from "./rules.js";
 import { ryeStrip } from "../town.js";
 
@@ -21,7 +22,7 @@ const SEG = 24;                                  // ground facets along a piece'
 const PAL = {
   grass: new THREE.Color(0x6c7f38), meadow: new THREE.Color(0x7d8c44), litter: new THREE.Color(0x53463a), moss: new THREE.Color(0x4a5d2a),
   earth: new THREE.Color(0x3d3126), dry: new THREE.Color(0x8c8248), stone: new THREE.Color(0x6e6b62), sand: new THREE.Color(0xb8a77a),
-  wetSand: new THREE.Color(0x8a7a58), bed: new THREE.Color(0x5e5640), snow: new THREE.Color(0xe8ecf0), rock: new THREE.Color(0x7a7870),
+  wetSand: new THREE.Color(0x8a7a58), desert: new THREE.Color(0xc8b07a), bed: new THREE.Color(0x5e5640), snow: new THREE.Color(0xe8ecf0), rock: new THREE.Color(0x7a7870),
 };
 // (the same small hash as the ground's grain everywhere else)
 const hash = (x, z) => { const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return h - Math.floor(h); };
@@ -80,6 +81,7 @@ export class Wilds extends WorldBase {
   grassAt(x, z) {
     const h = this.land.heightAt(x, z);
     if (h < WATER + 1.5 || h > this.snowLine - 6) return 0;
+    if (this.land.kind === "earth") { const cl = this.land.climate(x, z); if (cl.dry > 0.5 || cl.cold > 0.6) return 0; }
     if (this.land.slopeAt(x, z) > 0.5) return 0;
     const f = this.land.forestAt(x, z);
     return f > 0.55 ? 0.12 : (1 - f) * 0.95;
@@ -104,6 +106,8 @@ export class Wilds extends WorldBase {
     if (h < WATER + 1.4) return c.copy(PAL.sand).lerp(PAL.wetSand, clamp((WATER + 0.4 - h) / 0.8, 0, 1));
     const f = L.forestAt(x, z), dry = hash(Math.floor(x / 9), Math.floor(z / 9));
     c.copy(PAL.meadow).lerp(PAL.grass, 0.5 + (dry - 0.5) * 0.6);
+    // (the Earth: desert sand where it's dry, tundra and snow toward the poles)
+    if (L.kind === "earth") { const cl = L.climate(x, z); if (cl.dry > 0.05) c.lerp(PAL.desert, Math.min(1, cl.dry * 1.15)); if (cl.cold > 0.05) c.lerp(PAL.snow, cl.cold * 0.85); }
     if (dry > 0.82) c.lerp(PAL.dry, 0.45);
     // under the trees: needle litter and moss
     if (f > 0.35) c.lerp(PAL.litter, clamp((f - 0.35) * 2.2, 0, 0.85)).lerp(PAL.moss, hash(x * 0.05, z * 0.05) > 0.6 ? 0.35 : 0);
@@ -408,11 +412,14 @@ export class Wilds extends WorldBase {
   }
   // ---- the map ----
   get mapTitle() { return this.title || "The Island"; }
-  get mapBounds() { return { x0: -this.half, x1: this.half, z0: -this.half, z1: this.half }; }
+  get mapBounds() {
+    if (this.land.kind === "earth") return { x0: -this.half, x1: this.half, z0: -78 / 180 * this.half, z1: 60 / 180 * this.half };
+    return { x0: -this.half, x1: this.half, z0: -this.half, z1: this.half };
+  }
   // the whole land drawn once, at a size to suit it, then only copied out
   mapSheet() {
     if (this._sheet) return this._sheet;
-    const N = this.half > 1500 ? 1500 : 1100, cv = document.createElement("canvas"); cv.width = cv.height = N;
+    const N = this.land.kind === "earth" ? 1000 : this.half > 1500 ? 1500 : 1100, cv = document.createElement("canvas"); cv.width = cv.height = N;
     const c = cv.getContext("2d"); fillPaper(c, N, N);
     const img = c.getImageData(0, 0, N, N), d = img.data, S = 2 * this.half / N, L = this.land;
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -423,6 +430,7 @@ export class Wilds extends WorldBase {
       else {
         const f = L.forestAt(x, z), hk = clamp(h / 60, 0, 1);
         r = 200 - f * 70 - hk * 30; g = 190 - f * 50 - hk * 30; b = 130 - f * 40;
+        if (L.kind === "earth") { const cl = L.climate(x, z); r = r * (1 - cl.dry) + 214 * cl.dry; g = g * (1 - cl.dry) + 190 * cl.dry; b = b * (1 - cl.dry) + 130 * cl.dry; r = r * (1 - cl.cold) + 236 * cl.cold; g = g * (1 - cl.cold) + 236 * cl.cold; b = b * (1 - cl.cold) + 236 * cl.cold; }
         if (h > this.snowLine - 4) { r = g = b = 236; }
         // (a hint of the hills: lighter on the slopes facing the north-west light)
         const sh = clamp((L.heightAt(x - 6, z - 6) - h) * 0.6, -18, 18); r -= sh; g -= sh; b -= sh;
@@ -481,6 +489,12 @@ export class Wilds extends WorldBase {
   // the names of the land: its hills, lakes, woods and bays, the same for everyone (from the seed)
   get places() {
     if (this._places) return this._places;
+    if (this.land.kind === "earth") {
+      const at = (lon, lat) => ({ x: lon / 180 * this.half, z: -lat / 180 * this.half });
+      const out = COUNTRIES.slice(0, 45).map(([name, lon, lat, size]) => ({ kind: "land", name, size, ...at(lon, lat) }));
+      for (const [name, lon, lat] of [["Atlantic Ocean", -35, 15], ["Pacific Ocean", -140, 5], ["Pacific Ocean", 165, 18], ["Indian Ocean", 78, -20], ["Arctic Ocean", 0, 72], ["Southern Ocean", 40, -55], ["Mediterranean", 18, 35.5]]) out.push({ kind: "sea", name, ...at(lon, lat) });
+      return this._places = out;
+    }
     const L = this.land, n = 72, step = 2 * this.half / n, out = [];
     let s = (L.seed ^ 0x51a7e) | 1; const rnd = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
     const ROOT = ["Eller", "Birken", "Föhren", "Hirsch", "Raben", "Wolfs", "Eichen", "Mönchs", "Grauen", "Stein", "Linden", "Heide", "Kranich", "Fuchs", "Tannen", "Otter", "Bären", "Elben", "Schwarz", "Weiden", "Hagen", "Moor", "Falken", "Erlen"];
@@ -518,7 +532,15 @@ export class Wilds extends WorldBase {
     return this._places = out;
   }
   mapLabels(c, X, Z) {
+    const used = [];
     for (const p of this.places) {
+      if (p.kind === "land") {
+        const size = Math.max(9, Math.min(16, 7 + Math.sqrt(p.size) * 0.45));
+        c.font = `italic ${size}px "IM Fell English", Georgia, serif`;
+        const w = c.measureText(p.name).width, bx = { x0: X(p.x) - w / 2 - 2, x1: X(p.x) + w / 2 + 2, y0: Z(p.z) - size / 2 - 1, y1: Z(p.z) + size / 2 + 1 };
+        if (used.some(q => q.x0 < bx.x1 && bx.x0 < q.x1 && q.y0 < bx.y1 && bx.y0 < q.y1)) continue;
+        used.push(bx); label(c, p.name, X(p.x), Z(p.z), size, INK); continue;
+      }
       const size = p.kind === "sea" ? 18 : p.kind === "hill" ? 13 : p.kind === "lake" ? 12 + Math.min(4, (p.size || 3) / 6) : 13;
       if (p.kind === "hill") { c.fillStyle = INK; c.beginPath(); c.moveTo(X(p.x), Z(p.z) - 5); c.lineTo(X(p.x) + 4, Z(p.z) + 2); c.lineTo(X(p.x) - 4, Z(p.z) + 2); c.closePath(); c.fill(); }
       label(c, p.name, X(p.x), Z(p.z) + (p.kind === "hill" ? 14 : 0), size, p.kind === "lake" || p.kind === "sea" ? "#3e5a62" : INK);

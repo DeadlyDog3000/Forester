@@ -90,6 +90,7 @@ class Room {
     this.kind = T.TERRAINS[o.kind] ? o.kind : "island";
     this.size = R.SIZES[o.size] ? o.size : "m";
     this.half = o.half || R.SIZES[this.size];
+    if (this.kind === "earth") this.half = Math.max(this.half, 2400);        // (the whole world wants room to be seen)
     this.seed = num(o.seed, crypto.randomInt(1, 2 ** 31 - 1)) | 0;
     this.persistent = !!o.persistent;
     this.password = o.password ? String(o.password).slice(0, 40) : "";
@@ -697,7 +698,7 @@ async function start(opts = {}) {
   if (opts.world) {
     const f = dataDir && path.join(dataDir, "world.json");
     try { if (f && fs.existsSync(f)) world = Room.from(JSON.parse(fs.readFileSync(f, "utf8"))); } catch (e) { log("world file unreadable:", e.message); }
-    if (!world) world = new Room({ id: "world", name: "The Wide World", mode: "pvp", kind: "highlands", max: 500, persistent: true, half: R.WORLD_HALF, seed: opts.seed });
+    if (!world) world = new Room({ id: "world", name: "The Wide World", mode: "pvp", kind: "earth", max: 500, persistent: true, half: R.WORLD_HALF, seed: opts.seed });
     world.id = "world"; world.half = R.WORLD_HALF;
     rooms.set(world.id, world);
     log(`the wide world: seed ${world.seed}, ${Object.keys(world.recs).length} players known, ${Object.keys(world.buildings).length} buildings`);
