@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.9", date: "9 October 2026", title: "Raids that end",
+    items: [
+      "Once raiders give it up and make off, they don't turn back on you for standing near them. Only if you hit one does he fight. And any still hanging about long after slip away into the woods. Before, a raider making off past you could lock the whole raid open, with the settlement cowering for days.",
+    ],
+  },
+  {
     v: "0.55.8", date: "9 October 2026", title: "Lighter woods",
     items: [
       "The game stays quicker the longer you play. Each tree the woodcutters take out of the forest was drawn as eight separate pieces, and over a few days dozens of them doubled the work of drawing a frame. Now each is drawn in one piece for its crown and one for its trunk, and a busy settlement's frames take about a third less time.",

@@ -282,7 +282,8 @@ export class Raids {
     if (!r.duel && !G.downed && G.mode === "play" && !inside && !this.band.some(o => o !== r && o.alive && o.duel === pl)) {
       const d = D(pl);
       // (running off with his arms full, he only turns on you if you catch him)
-      if (d < (r.state === "flee" ? 2.4 : r.boss ? 40 : 9)) this.lock(r, pl);
+      // (once they've given it up, a man making off doesn't turn on you for being near — only if you hit him)
+      if (d < (r.state === "flee" ? (this.brokeOff ? 0 : 2.4) : r.boss ? 40 : 9)) this.lock(r, pl);
     }
     return r.duel;
   }
@@ -433,7 +434,7 @@ export class Raids {
         const stale = this.activeFor > giveUp * 2;
         for (const r of this.band) if (r.alive && r.state !== "flee" && r.state !== "gone" && (stale || this.duelOf(r) !== pl)) { r.state = "flee"; r.wall = null; this.lock(r, null); r.a.path = []; r.a.walkTo(this.roadEnd.x, this.roadEnd.z, FLEE); }
       }
-      if (this.activeFor > giveUp + day * 0.15) for (const r of this.band.slice()) if (r.alive && r.state === "flee" && (this.activeFor > giveUp * 2.5 || this.duelOf(r) !== pl) && Math.hypot(r.a.pos.x - pl.pos.x, r.a.pos.z - pl.pos.z) > 25) { r.state = "gone"; r.a.remove(); this.forget(r); }
+      if (this.activeFor > giveUp + day * 0.15) for (const r of this.band.slice()) if (r.alive && r.state === "flee" && ((this.activeFor > giveUp * 2.5 || this.duelOf(r) !== pl) && Math.hypot(r.a.pos.x - pl.pos.x, r.a.pos.z - pl.pos.z) > 25 || this.activeFor > giveUp * 3)) { r.state = "gone"; this.lock(r, null); r.a.remove(); this.forget(r); }
     } else if (!this.active) { this.activeFor = 0; this.brokeOff = false; }
     // the raid over: every one of them down in the grass, or away down the road
     const act = this.active;
