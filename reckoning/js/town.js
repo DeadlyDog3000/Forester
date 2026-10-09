@@ -855,6 +855,17 @@ export class Town {
       soil.receiveShadow = true; g.add(soil);
       if (b.sown && growth > 0) g.add(ryeStrip(b, o, growth, up, this.baseY(b)));
     }
+    // the day it's reaped, the sheaves stand in stooks on the stubble, leaned together to dry
+    if (b.stooks != null && !b.sown && this.day - b.stooks < 1) {
+      const sb = new Builder(), straw = 0xc9a85a, band = 0x8a6a3a;
+      for (const [lx, lz] of [[-2.2, -2.4], [0, -2.2], [2.2, -2.5], [-2.1, 0.2], [0.1, 0.4], [2.2, 0.1], [-2.3, 2.6], [0.2, 2.4], [2.1, 2.7]]) {
+        const y = up(lx, lz) + 0.06;
+        for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; sb.add(new THREE.CylinderGeometry(0.06, 0.1, 0.95, 5), straw, lx + Math.cos(a) * 0.18, y + 0.45, lz + Math.sin(a) * 0.18, -Math.sin(a) * 0.3, 0, Math.cos(a) * 0.3); }
+        sb.add(new THREE.ConeGeometry(0.2, 0.3, 6), 0xb08a4a, lx, y + 1.0, lz);
+        sb.add(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 6), band, lx, y + 0.55, lz);
+      }
+      const st = sb.build(MAT.rough); st.castShadow = true; g.add(st);
+    }
   }
   // where a building sits: at the lowest of its corners and middle, so on a slope it is dug into the hill, never
   // standing on air (a path or a field lies on the ground as it is, from its middle)
@@ -1081,7 +1092,7 @@ export class Town {
       use: () => {
         if (b.type === "field") {
           if ((b.dug || 0) < 3) { b.dug = (b.dug || 0) + 1; G.wear && G.wear("spade", 2); if (b.dug >= 3) b.done = true; }
-          else if (b.sown && (b.growth ?? 1) >= 3) { const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0); this.S.rye += got; b.growth = 0; b.sown = false; this.S.seed = +((this.S.seed || 0) + SEED_BACK).toFixed(2); UI.hint(`Reaped: ${got} rye to the stores, and ${SEED_BACK} of a rye seed.`, 3); }
+          else if (b.sown && (b.growth ?? 1) >= 3) { const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0); this.S.rye += got; b.growth = 0; b.sown = false; b.stooks = this.day; this.S.seed = +((this.S.seed || 0) + SEED_BACK).toFixed(2); UI.hint(`Reaped: ${got} rye to the stores, and ${SEED_BACK} of a rye seed.`, 3); }
           else { b.sown = true; b.growth = 1; b.growDays = 0; b.done = true; }
           this.show(b); this.persist(); SFX().build(); this.emit("dug", b); G.guide && G.guide("field"); return;
         }
@@ -2705,7 +2716,7 @@ export class Town {
           if (task === "reap") {
             // reaped: the field bare again, and the sheaves carried in their arms to the store chest
             const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0);
-            f.growth = 0; f.sown = false; this.show(f); this.persist(); this.sfxAt(a, "build");
+            f.growth = 0; f.sown = false; f.stooks = this.day; this.show(f); this.persist(); this.sfxAt(a, "build");
             const ch = this.chestAt(f), sheaf = a.hold(makeSheaf());
             a.person.setPose("hold"); a.doing = "carrying the rye to the store chest";
             // (whatever stops them on the way, the rye still goes in: it's never lost on the road)
@@ -2809,6 +2820,8 @@ export class Town {
       // (Replanting: saplings grow twice as fast)
       const regrowDays = this.knows("replanting") ? 1 : 2, regrowOdds = this.knows("replanting") ? 0.7 : 0.35;
       for (const f of this.S.felled.slice()) if (this.day - (f.day ?? -9) >= regrowDays && Math.random() < regrowOdds) { const t = this.w.fellable[f.i]; if (t && t.state === "gone" && !t.ring && !t.lobe) this.regrow(t); }
+      // (yesterday's stooks carried in)
+      for (const b of this.S.buildings) if (b.type === "field" && b.stooks != null && this.day - b.stooks >= 1) { b.stooks = null; this.show(b); }
       // fields grow a stage a day; a ripe field waits for someone to reap it — the farmers, or you
       // (nothing grows in winter)
       for (const b of this.S.buildings) if (b.type === "field" && b.sown && !winter) {

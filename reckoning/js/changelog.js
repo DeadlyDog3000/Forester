@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.2", date: "9 October 2026", title: "Stooks",
+    items: [
+      "The day a field is reaped, the sheaves stand on the stubble in stooks, leaned together in rows to dry. They're carried in by the next day.",
+    ],
+  },
+  {
     v: "0.55.1", date: "9 October 2026", title: "In out of the rain",
     items: [
       "In a downpour, settlers with nothing that needs doing, and the children, go indoors and wait for it to ease before they come out again. The work goes on in the wet.",
