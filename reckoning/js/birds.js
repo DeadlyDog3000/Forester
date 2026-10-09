@@ -18,6 +18,7 @@ const KIND = {
   crow:    { span: 0.95, speed: 10, alt: [14, 40], rate: 4.2, col: 0x141414, n: [1, 4] },
   buzzard: { span: 1.25, speed: 8, alt: [45, 75], rate: 3, col: 0x5a4430, n: [1, 1], soar: true },
   bat:     { span: 0.3, speed: 6, alt: [3, 12], rate: 11, col: 0x2a2220, n: [2, 5], erratic: true },
+  gull:    { span: 1.15, speed: 7.5, alt: [7, 24], rate: 3.4, col: 0xe6e6e2, n: [1, 3], glide: true },
 };
 // a bird: a slim body and two wings, each wing's points marked with how far out along it they lie (for the beat)
 function birdGeo() {
@@ -41,8 +42,9 @@ function birdGeo() {
 }
 
 export class Birds {
-  constructor(w) {
-    this.w = w; this.flocks = []; this.t = 0; this.spawnT = 2;
+  // opts.gulls: a harbour's sky instead of the woods' — gulls wheeling over the water round opts.at
+  constructor(w, opts = {}) {
+    this.w = w; this.flocks = []; this.t = 0; this.spawnT = 2; this.opts = opts;
     const geo = birdGeo();
     this.flap = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);   // phase, beats a second, how far the wings go
     geo.setAttribute("aFlap", this.flap);
@@ -93,7 +95,11 @@ export class Birds {
     const under = this.w.cave && this.w.cave.inside;
     this.mesh.visible = !under;
     // ---- who is about: a few flocks round you by day, bats at dusk, nothing in a downpour or the dark ----
-    if ((this.spawnT -= dt) <= 0) {
+    if (this.opts.gulls && (this.spawnT -= dt) <= 0) {
+      this.spawnT = 3 + Math.random() * 4;
+      const at = this.opts.at, n = this.flocks.length;
+      if (n < 4 && rain < 0.6) { const a = Math.random() * 6.28, r = 8 + Math.random() * 40; this.flock("gull", at.x + Math.cos(a) * r, at.z + Math.sin(a) * r, { dir: Math.random() * 6.28, life: 60 + Math.random() * 60 }); }
+    } else if (!this.opts.gulls && (this.spawnT -= dt) <= 0) {
       this.spawnT = 4 + Math.random() * 6;
       const live = k => this.flocks.filter(q => q.kind === k).length;
       const ring = (r0, r1) => { const a = Math.random() * 6.28, r = r0 + Math.random() * (r1 - r0); return [p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a + Math.PI + (Math.random() - 0.5) * 1.4]; };
@@ -111,7 +117,7 @@ export class Birds {
       const q = this.flocks[k], K = q.K;
       q.life -= dt;
       const dist = Math.hypot(q.pos.x - p.x, q.pos.z - p.z);
-      if (dist > 260 || (q.life < 0 && dist > 120) || q.life < -40 || (!day && !dusk && q.kind !== "bat" && q.life < 0) || (q.kind === "bat" && !dusk && q.life < 0)) { this.flocks.splice(k, 1); continue; }
+      if (dist > 260 || (q.life < 0 && dist > 120) || q.life < -40 || (!this.opts.gulls && !day && !dusk && q.kind !== "bat" && q.life < 0) || (q.kind === "bat" && !dusk && q.life < 0)) { this.flocks.splice(k, 1); continue; }
       // where to: a buzzard wheels over a spot; the rest wander across, curving gently, and turn back toward you if they
       // stray too far (while they're still about)
       if (K.soar) {
@@ -119,6 +125,12 @@ export class Birds {
         const cx = q.cx ?? (q.cx = q.pos.x), cz = q.cz ?? (q.cz = q.pos.z);
         const want = new THREE.Vector3(cx + Math.cos(q.circle) * 35 - q.pos.x, 0, cz + Math.sin(q.circle) * 35 - q.pos.z);
         q.vel.lerp(want.normalize().multiplyScalar(K.speed), Math.min(1, dt * 1.5));
+      } else if (K.glide && this.opts.at) {
+        // (a gull: long easy turns over the water, drifting back over the harbour if it strays)
+        const at = this.opts.at, back = Math.atan2(at.x - q.pos.x, at.z - q.pos.z), da = Math.hypot(at.x - q.pos.x, at.z - q.pos.z);
+        q.heading += (Math.sin(this.t * 0.25 + k * 2.1) * 0.5) * dt;
+        if (da > 70) { let dh = back - q.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); q.heading += Math.max(-0.5, Math.min(0.5, dh)) * dt; }
+        q.vel.set(Math.sin(q.heading), 0, Math.cos(q.heading)).multiplyScalar(K.speed);
       } else {
         q.heading += (Math.sin(this.t * 0.3 + k * 1.7) * 0.25 + (K.erratic ? Math.sin(this.t * 2.3 + k) * 2.2 : 0)) * dt;
         if (q.life > 0 && dist > 120) { const back = Math.atan2(p.x - q.pos.x, p.z - q.pos.z); let dh = back - q.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); q.heading += clamp(dh, -0.6, 0.6) * dt; }
@@ -144,6 +156,7 @@ export class Birds {
         let amp = 0.55;
         if (K.bound) amp = Math.sin(this.t * 2.6 + b.ph) > -0.2 ? 0.7 : 0.04;
         if (K.soar) amp = Math.sin(this.t * 0.15 + b.ph) > 0.93 ? 0.35 : 0.03;
+        if (K.glide) amp = Math.sin(this.t * 0.6 + b.ph) > 0.3 ? 0.45 : 0.05;
         fl[n * 3] = b.ph; fl[n * 3 + 1] = K.rate * (0.9 + (b.ph % 1) * 0.2); fl[n * 3 + 2] = amp;
         n++;
       }

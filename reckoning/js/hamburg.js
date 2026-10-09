@@ -629,6 +629,9 @@ export class Hamburg extends WorldBase {
     this.door.rotation.y = this.doorAngle;
     // water and ships
     if (this.wm) this.wm.update(dt);
+    // gulls over the harbour
+    if (!this.birds && !this._birdsLoading) { this._birdsLoading = true; import("./birds.js").then(m => { this.birds = new m.Birds(this, { gulls: true, at: { x: 0, z: -60 } }); }); }
+    if (this.birds) this.birds.update(dt);
     // the town's chimneys: thin smoke from most of them, thicker toward evening
     if (this.chimneys && this.chimneys.length) {
       if (!this.smoke) this.smoke = new Smoke(this.root);

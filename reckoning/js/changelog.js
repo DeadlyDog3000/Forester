@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.6", date: "8 October 2026", title: "Gulls",
+    items: [
+      "Gulls wheel over the harbour at Hamburg, on long easy turns over the water and the quays, a few wingbeats and then a glide.",
+    ],
+  },
+  {
     v: "0.53.5", date: "8 October 2026", title: "Trails",
     items: [
       "The beasts leave tracks in the snow, as people do: a deer's and a boar's little cloven slots and a hare's pad marks, a trail you can follow through the woods in winter.",
