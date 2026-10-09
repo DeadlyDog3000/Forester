@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.3", date: "9 October 2026", title: "Evenings",
+    items: [
+      "In the evening, before the dark, settlers come and sit on the logs round the fire for a while, facing the flames, four at a time.",
+      "Settlers with nothing to do find each other and talk, turning to face each other and talking with their hands, rather than each standing alone.",
+    ],
+  },
+  {
     v: "0.54.2", date: "9 October 2026", title: "After the rain",
     items: [
       "When a shower clears in the daytime, with the sun low enough to throw one, a rainbow stands in the sky opposite it for a little while, red outside and violet within, and then fades.",

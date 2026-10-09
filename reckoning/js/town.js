@@ -2373,6 +2373,26 @@ export class Town {
         a.person.setPose("armsCrossed"); await sleep(2); alive(); a.person.setPose("idle");
         continue;
       }
+      // the evening, before the dark: some come and sit on the logs round the fire for a while, facing it
+      const fv = this.frac;
+      if (!raid && !this.colony && !a.settler.child && fv > 0.6 && fv < 0.73 && !a.sitDay && Math.random() < 0.5) {
+        const seats = this.fireSeats || (this.fireSeats = [[-1, 0.3, 0.3], [-1, 0.3, 0.3, 1], [1, 0.4, -0.3], [1, 0.4, -0.3, 1]].map(([sd, oz, ry, k]) => {
+          const off = (k ? 0.45 : -0.45); return { x: FIRE.x + sd * 1.9 + Math.sin(ry) * off, z: FIRE.z + oz + Math.cos(ry) * off, by: null };
+        }));
+        const seat = seats.find(q => !q.by);
+        if (seat) {
+          seat.by = a; a.sitDay = true; a.doing = "sitting by the fire";
+          try {
+            await Promise.race([a.walkTo(seat.x + (seat.x < FIRE.x ? -0.5 : 0.5), seat.z, 1.1), sleep(25)]); alive();
+            a.place(seat.x, seat.z, Math.atan2(FIRE.x - seat.x, FIRE.z - seat.z)); a.faceTo(FIRE.x, FIRE.z);
+            a.person.sitting = 1; a.person.setPose("sit");
+            const until = this.t + 25 + Math.random() * 30;
+            while (this.t < until && this.frac < 0.74 && !(this.raids && this.raids.active)) { await sleep(2); alive(); a.faceTo(FIRE.x, FIRE.z); }
+          } finally { seat.by = null; if (a.person) { a.person.sitting = 0; a.person.setPose("idle"); } }
+          continue;
+        }
+      }
+      if (fv < 0.5) a.sitDay = false;
       // a feud: one of the other family about, and they go for them
       if (!raid && this.techGates && await feudShift(this, a, sleep, alive)) continue;
       // midday, with money in their purse: a meal at an eatery
@@ -2686,8 +2706,20 @@ export class Town {
           }
           continue;
         }
-        // nothing to do: idle about the fire and the cabins
+        // nothing to do: idle about the fire and the cabins — and if somebody else is idling there too, a word with them
         a.doing = "idle";
+        const other = Math.random() < 0.6 && this.actors.find(o => o !== a && o.settler && !o.settler.child && /^idle|^talking with/.test(o.doing || "") && !o.inside && Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z) < 14);
+        if (other) {
+          a.doing = `talking with ${other.settler.name}`;
+          await Promise.race([a.approach(other.pos, 1.3, 1.1), sleep(12)]); alive();
+          a.faceTo(other.pos.x, other.pos.z);
+          for (let i = 0; i < 2 + Math.floor(Math.random() * 3); i++) {
+            a.person.setPose(Math.random() < 0.6 ? "talk" : "idle"); await sleep(2.5 + Math.random() * 2.5); alive();
+            a.faceTo(other.pos.x, other.pos.z);
+          }
+          a.person.setPose("idle");
+          continue;
+        }
         { const F = this.colony || FIRE; await a.walkTo(F.x + (Math.random() - 0.5) * 8, F.z + (Math.random() - 0.5) * 8, 1.0); } alive();
         await sleep(4 + Math.random() * 6);
       }
