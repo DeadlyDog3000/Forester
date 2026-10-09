@@ -389,14 +389,15 @@
         <div class="mp-host-grid">
           <div class="mp-fields">
             <label class="row"><span>Name</span><input id="mpHostName" maxlength="40"></label>
-            <label class="row"><span>Play</span><select id="mpHostMode"><option value="coop">Co-op — one colony, built together</option><option value="pvp">Classic — a nation each: trade, ally, or make war</option></select></label>
-            <label class="row"><span>Country</span><select id="mpHostKind"></select></label>
-            <label class="row"><span>Size</span><select id="mpHostSize"><option value="s">Small — a kilometre across</option><option value="m" selected>Middling — a kilometre and a half</option><option value="l">Large — two kilometres</option></select></label>
+            <label class="row"><span>Play</span><select id="mpHostMode"><option value="colony">Co-op colony — the full game, one settlement run together</option><option value="pvp">Classic — a nation each on a new map: trade, ally, or make war</option><option value="coop">Frontier — homesteading together on a new map</option></select></label>
+            <label class="row mp-colony-only"><span>Colony</span><select id="mpHostColony"><option value="new">A new colony</option></select></label>
+            <label class="row mp-map-only"><span>Country</span><select id="mpHostKind"></select></label>
+            <label class="row mp-map-only"><span>Size</span><select id="mpHostSize"><option value="s">Small — a kilometre across</option><option value="m" selected>Middling — a kilometre and a half</option><option value="l">Large — two kilometres</option></select></label>
             <label class="row"><span>Players</span><select id="mpHostMax"><option>2</option><option>4</option><option selected>8</option><option>12</option><option>16</option></select></label>
             <label class="row"><span>Password</span><input id="mpHostPw" maxlength="40" placeholder="none"></label>
             <label class="row"><span>Where</span><select id="mpHostWhere"></select></label>
           </div>
-          <div class="mp-kind"><canvas id="mpKindMap" width="220" height="220"></canvas><p id="mpKindNote"></p><button id="mpHostSeed" class="linkish">Another map</button></div>
+          <div class="mp-kind mp-map-only"><canvas id="mpKindMap" width="220" height="220"></canvas><p id="mpKindNote"></p><button id="mpHostSeed" class="linkish">Another map</button></div>
         </div>
       </div>
       <nav class="menu mp-menu"><button id="mpHostGo" class="btn primary">Host</button><button id="mpHostBack" class="btn ghost">Back</button></nav>

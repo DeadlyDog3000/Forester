@@ -2983,6 +2983,37 @@ function freeCompany(w, town, raids, camps) {
 // ===========================================================================
 //  XIV. FREE PLAY — the settlement, open-ended
 // ===========================================================================
+// Multiplayer, co-op: someone else's colony, as their game says it is. Built from their settlement's state the same way
+// a save is loaded, and drawn the same; but their game keeps the time and does all the work (see mp/colony.js), so
+// here nothing is set going — no settlers sent to work, no traders, no raiders of our own.
+export const FREE_DAY = 480;
+export function startReplica(snap) {
+  const w = new Woods();
+  setWorld(w);
+  const S = snap.S;
+  const town = new Town(w, S, () => {}, { keepClear: [[FIELD.x, FIELD.z, 5]] });
+  town.replica = true; town.techGates = true; town.researchGates = true;
+  town.unlocked = new Set([...Object.keys(BUILDINGS), "path"]);
+  G.town = town;
+  w.showCabin(); w.openTracks.add(3);
+  w.setFurniture(S.furniture || null);
+  if ((S.homeTier || 1) >= 2) w.setHomeTier(S.homeTier);
+  w.cave = new Caves(w);
+  { const m = caveMouthSpot(w); w.cave.mouth(m.x, m.z, m.ry); if (m.n >= 0) { w.openTracks.add(m.n); w.caveFork = m.n; } }
+  w.cave.found = !!S.caveFound;
+  onFrame(dt => w.cave && w.cave.tick(dt));
+  G.player.giveAxe(true); if (w.blockAxe) w.blockAxe.visible = false;
+  town.t = snap.clock || 0; town.day = Math.floor(town.t / FREE_DAY);
+  town.sitesAll();
+  dayCycle(w, town, FREE_DAY);
+  w.huntOpen = true; w.lightFire(true);
+  G.bugs.setKind("flies"); SFX.insectLoop(true);
+  return { w, town };
+}
+// which save a multiplayer colony keeps to: its own, out of the six, and never remembered as the one last played
+export const MP_SLOT = 9;
+export function useSlot(n) { slot = n; }
+
 async function chFree(w) {
   const DAY = 480;
   G.bugs.setKind("flies"); AUDIO.music("settlement"); SFX.insectLoop(true);

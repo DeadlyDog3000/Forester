@@ -10,6 +10,8 @@ import { makePerson } from "../models.js";
 import { $ } from "../ui.js";
 import { Net, addressOf, listRooms, globalServer, HOST } from "./net.js";
 import { MODES, SIZES } from "./rules.js";
+import { readSlot, MP_SLOT } from "../story.js";
+const MODE_LABEL = { ...MODES, colony: "Co-op colony" };
 import { TERRAINS, TERRAIN_ORDER } from "./terrain.js";
 import { BODIES, SWATCH, randomLook, savedLook, saveLook, lookOpts, isF } from "./look.js";
 
@@ -78,9 +80,9 @@ async function refresh() {
   // (the same game heard twice — on the network and by address — once)
   const seen = new Set(); rows = found.filter(r => { const k = r.id; if (seen.has(k)) return false; seen.add(k); return true; });
   list.innerHTML = rows.length ? rows.map((r, i) => `<div class="slot mp-room">
-      <div class="sl-n">${esc(r.where)} · ${MODES[r.mode] || r.mode}${r.locked ? " · 🔒" : ""}</div>
+      <div class="sl-n">${esc(r.where)} · ${MODE_LABEL[r.mode] || r.mode}${r.locked ? " · 🔒" : ""}</div>
       <div class="sl-t">${esc(r.name)}</div>
-      <div class="sl-d">${esc(TERRAINS[r.kind] ? TERRAINS[r.kind].name : "Island")}, ${{ s: "small", m: "middling", l: "large" }[r.size] || ""} · hosted by ${esc(r.host || "?")}<br>${r.players} of ${r.max} playing</div>
+      <div class="sl-d">${r.mode === "colony" ? "The full game: one settlement, run together" : `${esc(TERRAINS[r.kind] ? TERRAINS[r.kind].name : "Island")}, ${{ s: "small", m: "middling", l: "large" }[r.size] || ""}`} · hosted by ${esc(r.host || "?")}<br>${r.players} of ${r.max} playing</div>
       <div class="sl-acts"><button class="primary" data-i="${i}" ${r.players >= r.max ? "disabled" : ""}>${r.players >= r.max ? "Full" : "Join"}</button></div></div>`).join("")
     : `<div class="mp-empty">No games to join just now. Host one, and your friends will see it here${HOST ? " (on your own network, they'll find it by themselves; over the internet, give them your address)" : ""}.</div>`;
   for (const b of list.querySelectorAll("button[data-i]")) b.onclick = () => { const r = rows[+b.dataset.i]; const pw = r.locked ? prompt("That game has a password:") : ""; if (r.locked && pw === null) return; go({ addr: r.addr, room: r.id, password: pw || "" }); };
@@ -98,7 +100,11 @@ function openHost() {
   $("mpHostWhere").innerHTML = opts.join("") || `<option value="">Hosting needs the desktop app, or a server's address</option>`;
   $("mpHostGo").disabled = !opts.length;
   $("mpKindNote").textContent = TERRAINS[$("mpHostKind").value].note;
-  drawKindPreview();
+  // a co-op colony: the one you've hosted before, carried on, or a new one
+  const old = readSlot(MP_SLOT), T = old && old.town;
+  $("mpHostColony").innerHTML = (T ? `<option value="continue">Carry on with ${esc(T.name || "your colony")} — day ${Math.floor(T.days || 0) + 1}, ${(T.people || []).length + 2} souls</option>` : "") + `<option value="new">${T ? "A new colony (the old one is gone)" : "A new colony"}</option>`;
+  const setMode = () => { $("mpHost").classList.toggle("colony", $("mpHostMode").value === "colony"); if ($("mpHostMode").value !== "colony") drawKindPreview(); };
+  $("mpHostMode").onchange = setMode; setMode();
 }
 // a look at the land before you choose it: the same seed the game will grow
 async function drawKindPreview() {
@@ -128,7 +134,7 @@ async function hostGo() {
   else if (where.startsWith("addr:")) addr = addressOf(where.slice(5));
   if (!addr) return;
   seedNow = Math.floor(Math.random() * 2 ** 31);
-  go({ addr, host: msg });
+  go({ addr, host: msg, colony: msg.mode === "colony" ? $("mpHostColony").value : null });
 }
 
 // ---- in: through the builder, then onto the server ----

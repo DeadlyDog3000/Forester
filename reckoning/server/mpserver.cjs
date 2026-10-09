@@ -41,8 +41,8 @@ class Sock {
       const fin = b[0] & 0x80, op = b[0] & 0x0f, masked = b[1] & 0x80;
       let len = b[1] & 0x7f, o = 2;
       if (len === 126) { if (b.length < 4) return; len = b.readUInt16BE(2); o = 4; }
-      else if (len === 127) { if (b.length < 10) return; const big = b.readBigUInt64BE(2); if (big > 1n << 20n) throw new Error("too big"); len = Number(big); o = 10; }
-      if (len > 1 << 20) throw new Error("too big");
+      else if (len === 127) { if (b.length < 10) return; const big = b.readBigUInt64BE(2); if (big > 1n << 25n) throw new Error("too big"); len = Number(big); o = 10; }
+      if (len > 1 << 25) throw new Error("too big");     // (a colony's whole state, sent to someone joining, can run to megabytes)
       const mo = o; if (masked) o += 4;
       if (b.length < o + len) return;
       let data = b.subarray(o, o + len);
@@ -55,7 +55,7 @@ class Sock {
       if (op === 0 && this.frag) { this.frag.push(data); if (fin) { const all = Buffer.concat(this.frag); this.frag = null; this.deliver(all); } }
     }
   }
-  deliver(data) { if (this.onmessage) this.onmessage(data.toString("utf8")); }
+  deliver(data) { if (process.env.MP_DEBUG && data.length > 100000) console.log(`big message ${data.length}`); if (this.onmessage) this.onmessage(data.toString("utf8")); }
   raw(head, data) {
     if (!this.open) return;
     const n = data.length, h = n < 126 ? Buffer.from([head, n]) : n < 65536 ? Buffer.from([head, 126, n >> 8, n & 255]) : (() => { const x = Buffer.alloc(10); x[0] = head; x[1] = 127; x.writeBigUInt64BE(BigInt(n), 2); return x; })();
@@ -84,7 +84,8 @@ class Room {
   constructor(o) {
     this.id = o.id || crypto.randomBytes(4).toString("hex");
     this.name = clean(o.name, 40) || "A game in the woods";
-    this.mode = R.MODES[o.mode] ? o.mode : "coop";
+    this.mode = R.MODES[o.mode] || o.mode === "colony" ? o.mode : "coop";
+    this.hostPid = o.hostPid || null;        // (a colony game: the one whose game it is, and runs it)
     this.max = Math.max(2, Math.min(o.persistent ? 500 : 16, num(o.max, 8) | 0));
     this.kind = T.TERRAINS[o.kind] ? o.kind : "island";
     this.size = R.SIZES[o.size] ? o.size : "m";
@@ -112,7 +113,7 @@ class Room {
   }
   storeOf(pid) { return this.mode === "coop" ? this.shared : this.recs[pid]; }
   meta() {
-    return { id: this.id, name: this.name, mode: this.mode, kind: this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, locked: !!this.password, persistent: this.persistent };
+    return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, locked: !!this.password, persistent: this.persistent };
   }
   // ---- saving the wide world ----
   toJSON() { return { settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0 }; }
@@ -162,6 +163,7 @@ class Room {
       buildings: Object.values(this.buildings), settlers: Object.values(this.settlers).map(x => this.pubS(x)), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
       online: this.onlineNames() });
     this.all({ t: "pj", p: this.pub(p) }, p);
+    if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
     this.note(`${p.name} has come.`, p);
     this.dirty = true;
   }
@@ -171,6 +173,7 @@ class Room {
     this.online.delete(p.pid); p.sock.player = null;
     const r = this.recs[p.pid]; if (r) r.seen = now();
     this.all({ t: "pl", pid: p.pid });
+    if (this.mode === "colony" && p.pid === this.hostPid) { this.all({ t: "ended", text: `${p.name} has closed the colony.` }); this.ended = true; }
     this.note(`${p.name} has gone.`);
     if (!this.online.size) this.emptySince = now();
     this.dirty = true;
@@ -185,6 +188,22 @@ class Room {
   // ---- what players do ----
   on(p, m) {
     const rec = this.recs[p.pid], st = this.storeOf(p.pid), t = now();
+    // a colony game is the host's own game: the server only carries messages between it and the others
+    if (this.mode === "colony") {
+      if (process.env.MP_DEBUG && m.t === "h") console.log(`colony h from ${p.name} to ${m.to || "all"} ${m.m && m.m.t}`);
+      if (m.t === "h" && p.pid === this.hostPid) {                  // host → one guest, or all of them
+        const s2 = JSON.stringify({ t: "h", m: m.m });
+        if (m.to) { const q = this.online.get(String(m.to)); if (q) q.sock.send(s2); }
+        else for (const q of this.online.values()) if (q !== p) q.sock.send(s2);
+        return;
+      }
+      if (process.env.MP_DEBUG && m.t !== "st") console.log(`colony msg ${m.t} from ${p.name}${m.m ? " " + m.m.t : ""}`);
+      if (m.t === "g" && p.pid !== this.hostPid) {                  // a guest → the host
+        const h = this.online.get(this.hostPid); if (h) h.sock.send({ t: "g", from: p.pid, name: p.name, m: m.m });
+        return;
+      }
+      if (!["st", "chat", "respawn"].includes(m.t)) return;
+    }
     switch (m.t) {
       case "st": {
         if (p.dead) return;
@@ -583,7 +602,7 @@ class Room {
     for (const p of this.online.values()) if (p.moved) { p.moved = false; moved.push([p.pid, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), p.a, p.h, +p.s.toFixed(2), p.g ? 1 : 0]); }
     if (moved.length) this.all({ t: "ps", l: moved });
     if ((this.tickN = (this.tickN || 0) + 1) % 2 === 0) {
-      this.ai(0.2);
+      if (this.mode !== "colony") this.ai(0.2);
       const sm = [];
       for (const v of Object.values(this.settlers)) if (v.moved) { v.moved = false; sm.push([v.id, +v.x.toFixed(2), +v.z.toFixed(2), +v.yaw.toFixed(2), v.a, +(v.s || 0).toFixed(2)]); }
       if (sm.length) this.all({ t: "ss", l: sm });
@@ -594,7 +613,7 @@ class Room {
     for (const [id, at] of Object.entries(this.felled)) if (at <= t) { delete this.felled[id]; back.push(id); }
     for (const [id, at] of Object.entries(this.broken)) if (at <= t) { delete this.broken[id]; rocks.push(id); }
     if (back.length || rocks.length) { this.all({ t: "grow", trees: back, rocks }); this.dirty = true; }
-    this.settle();
+    if (this.mode !== "colony") this.settle();
     for (const [k, at] of this.invites) if (t - at > 120000) this.invites.delete(k);
     // wounds mend, a while after the last blow
     for (const p of this.online.values()) if (!p.dead && p.hp < R.MAX_HP && t - (p.hurtAt || 0) > 8000) { p.hp = Math.min(R.MAX_HP, p.hp + 4); this.all({ t: "hp", pid: p.pid, hp: p.hp, heal: true }); }
@@ -628,7 +647,7 @@ async function start(opts = {}) {
     try { fs.mkdirSync(dataDir, { recursive: true }); const f = path.join(dataDir, "world.json"); fs.writeFileSync(f + ".tmp", JSON.stringify(world)); fs.renameSync(f + ".tmp", f); }
     catch (e) { log("couldn't save the world:", e.message); }
   };
-  const list = () => [...rooms.values()].map(r => r.meta());
+  const list = () => [...rooms.values()].filter(r => !r.ended).map(r => r.meta());
   const stats = () => ({ ok: true, name, protocol: R.PROTOCOL, world: !!world, games: rooms.size - (world ? 1 : 0), players: [...rooms.values()].reduce((a, r) => a + r.online.size, 0) });
 
   const server = http.createServer((req, res) => {
@@ -658,13 +677,14 @@ async function start(opts = {}) {
       if (m.t === "rooms") return ws.send({ t: "rooms", rooms: list(), server: stats() });
       if (m.t === "host") {
         if (rooms.size > 200) return ws.send({ t: "err", text: "This server has as many games as it can hold." });
-        const r = new Room({ name: m.name, mode: m.mode, max: m.max, kind: m.kind, size: m.size, password: m.password, host: who.name, seed: m.seed });
+    // (meta for the lobby: a colony lists without being joinable once ended)
+        const r = new Room({ name: m.name, mode: m.mode, max: m.max, kind: m.kind, size: m.size, password: m.password, host: who.name, seed: m.seed, hostPid: who.pid });
         rooms.set(r.id, r); log(`hosted "${r.name}" (${r.mode}, ${r.kind}, ${r.size}) by ${who.name}`);
         if (ws.player) ws.player.room.leave(ws.player);
         return r.join(ws, who, r.password);
       }
       if (m.t === "join") {
-        const r = rooms.get(String(m.room || "")); if (!r) return ws.send({ t: "err", text: "That game has ended." });
+        const r = rooms.get(String(m.room || "")); if (!r || r.ended) return ws.send({ t: "err", text: "That game has ended." });
         if (ws.player) ws.player.room.leave(ws.player);
         who.look = sanitizeLook(m.look || who.look); who.name = clean(m.name, 24) || who.name;
         return r.join(ws, who, m.password ? String(m.password) : "");
@@ -677,7 +697,7 @@ async function start(opts = {}) {
   const iv2 = setInterval(() => {
     for (const r of rooms.values()) r.slow();
     // a game left empty is ended after ten minutes (time enough to come back to it)
-    for (const [id, r] of rooms) if (!r.persistent && !r.online.size && r.emptySince && now() - r.emptySince > 10 * 60 * 1000) { rooms.delete(id); log(`"${r.name}" ended`); }
+    for (const [id, r] of rooms) if (!r.persistent && !r.online.size && r.emptySince && (r.ended || now() - r.emptySince > 10 * 60 * 1000)) { rooms.delete(id); log(`"${r.name}" ended`); }
   }, 3000);
   const iv3 = setInterval(saveWorld, 20000);
   await new Promise((ok, no) => { server.once("error", no); server.listen(opts.port ?? 47810, opts.host || "0.0.0.0", ok); });

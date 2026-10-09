@@ -264,7 +264,7 @@ export function watchLook(p, S) {
   return { model: (f ? "watchwoman" : "watchman") + (tri ? "_tricorn" : ""), name: p.name, seed: p.seed, coat: u.coat, legs: u.legs,
     skirt: f, skirtColor: f ? u.legs : undefined, vest: f ? undefined : u.vest, sash: u.sash ?? undefined, hide: u.sash == null ? ["sash"] : undefined, hatColor: tri ? u.hatColor : undefined };
 }
-function settlerLook(p, S) {
+export function settlerLook(p, S) {
   if (p.job === "watch" && !p.child && S) return watchLook(p, S);
   const r = p.seed;
   const pick = (a, k) => a[(r * 7 + k * 13) % a.length];
@@ -1049,8 +1049,8 @@ export class Town {
       const done = b => {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
         w.root.remove(ghost); this.planning = null;
-        if (b && b.type === "field") this.S.seed = +((this.S.seed || 0) - 1).toFixed(2);
-        if (b) { this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.clearStumps(b); this.persist(); SFX().build(); }
+        // (in someone else's colony the plan goes to their game, which lays it out, by these same rules)
+        if (b) { if (this.remoteAct) { this.remoteAct("plan", b); SFX().build(); } else this.commitPlan(b); }
         res(b);
         // (a path or a wall goes on: the next length is ready to lay until you put the plan away)
         if (b && strip) setTimeout(() => { if (!this.planning && !this.stopped) this.plan(type); }, 0);
@@ -1061,6 +1061,12 @@ export class Town {
     });
   }
 
+  // a plan laid out: the site marked, and work on it can start
+  commitPlan(b) {
+    const def = BUILDINGS[b.type];
+    if (b.type === "field") this.S.seed = +((this.S.seed || 0) - 1).toFixed(2);
+    this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.clearStumps(b); this.persist(); SFX().build();
+  }
   // ---- furnishing the cabin: a ghost of the piece stands where you look, inside the walls ----
   canAfford(type) { const d = FURNITURE[type]; return this.S.store >= (d.logs || 0) && this.S.rye >= (d.rye || 0); }
   furnish(type) {
@@ -1997,6 +2003,7 @@ export class Town {
     return true;
   }
   fell(t, dx, dz, dropLogs) {
+    if (this.onFell) this.onFell(t, dx, dz);         // (told to the others in a co-op colony, to see it come down)
     const l = Math.hypot(dx, dz) || 1;
     t.state = "falling"; t.fall = 0; t.col.disabled = true;
     t.dir = { x: dx / l, z: dz / l };
@@ -2863,6 +2870,8 @@ export class Town {
 
   // ---- time: days pass; the forest grows back, fields ripen, people eat ----
   update(dt, dayLength = 300) {
+    // (a copy of someone else's colony, in multiplayer: their game keeps the time and does the work; this only shows it)
+    if (this.replica) { this.t += dt; this.dayLen = dayLength; this.chimneys(dt); this.washing(dt); this.day = Math.floor(this.t / dayLength); return; }
     this.t += dt; this.dayLen = dayLength;
     this.chimneys(dt); this.washing(dt);
     if ((this._dressT = (this._dressT || 0) + dt) > 3) { this._dressT = 0; this.refreshWatch(); }

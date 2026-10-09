@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "0.62.0", date: "10 October 2026", title: "The colony, together",
+    items: [
+      "Co-op is now the whole game. The host plays real Free Play, and everyone who joins comes into that colony: the same clearing, settlers, buildings, stores, research, government, traders, raiders and seasons, all working exactly as they do on your own.",
+      "Everything a guest does happens in the host's game, by the game's own rules. They can fell trees, take and stack logs, lay out plans with B, work on sites, start research and send for people from G, set jobs and laws, and anything else F does. Everyone sees the trees come down and the buildings go up.",
+      "The host's colony is kept in a save of its own, so hosting never touches your story games. You can carry on with it the next time you host.",
+      "In a game with others the world doesn't stop when you open the pause menu or read a tip. It carries on for everyone.",
+      "Classic and Frontier (on new maps) are still there. Frontier homesteads now have fields and farmers, and settlers who need feeding.",
+    ],
+  },
+  {
     v: "0.61.1", date: "9 October 2026", title: "Meadows and footings",
     items: [
       "Grass and wildflowers on the multiplayer maps: thick in the open meadows, thin under the trees, and none on the sand, the rocks or the snow. What you build stands on bare ground.",

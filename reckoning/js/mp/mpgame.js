@@ -28,7 +28,7 @@ const sfx = (n, ...a) => { try { if (typeof SFX !== "undefined" && SFX[n]) SFX[n
 const DAY = [[0, "night"], [0.2, "dawn"], [0.27, "morning"], [0.5, "afternoon"], [0.68, "evening"], [0.76, "dusk"], [0.84, "night"], [1, "night"]];
 
 // a name over someone's head
-function nameTag(text, colour) {
+export function nameTag(text, colour) {
   const cv = document.createElement("canvas"), c = cv.getContext("2d"), f = "600 34px 'Open Sans', sans-serif";
   c.font = f; const w = Math.ceil(c.measureText(text).width) + 28; cv.width = w; cv.height = 52;
   c.font = f; c.fillStyle = "rgba(8,16,10,0.55)"; c.beginPath(); c.roundRect ? c.roundRect(0, 4, w, 44, 10) : c.rect(0, 4, w, 44); c.fill();
@@ -40,7 +40,7 @@ function nameTag(text, colour) {
 }
 
 // someone else, as they're seen here: their body, where the server last said they were, eased toward it
-class Remote {
+export class Remote {
   constructor(game, p) {
     this.game = game; this.pid = p.pid; this.name = p.name; this.look = p.look || {};
     const a = this.actor = new Actor(lookOpts(this.look, p.name), p.x, p.z, (p.yaw || 0) + Math.PI);

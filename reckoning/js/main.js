@@ -15,7 +15,7 @@ import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE } from "./body.js";
-import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot } from "./story.js";
+import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, useSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { FOLEY } from "./foley.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
@@ -31,6 +31,8 @@ import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
 import { initLobby, openLobby, SCREENS as MP_SCREENS } from "./mp/lobby.js";
 import { MPGame } from "./mp/mpgame.js";
+import { ColonyHost, ColonyGuest } from "./mp/colony.js";
+import { lookOpts as mpLookOpts, isF as mpIsF } from "./mp/look.js";
 
 /* global SFX */
 
@@ -220,13 +222,38 @@ $("btnSlots").onclick = () => { back = "title"; slotMode = "play"; buildSlots();
 $("btnContinue").onclick = () => { const s = loadSave(); if (!s) return; G.who = s.who || "brother"; play(s.chapter || 1); };
 $("btnChapters").onclick = () => { buildChapters(); back = "title"; screen("chapters"); };
 // multiplayer: the lobby, and from it into a game
+// (a colony you host is kept in a save of its own; the one you were playing is put back after)
+let mpSlotWas = null;
+function mpDone() { if (mpSlotWas != null) { useSlot(mpSlotWas); mpSlotWas = null; } }
 $("btnMulti").onclick = () => { back = "title"; openLobby(); };
 initLobby({
   screen,
   enter(net, inMsg, me, target) {
+    const lost = text => { mpDone(); toTitle(); openLobby(); $("mpNote").textContent = text; $("mpNote").classList.add("bad"); };
+    // a co-op colony: the real free play — your own, kept in its own save, or the host's, as their game has it
+    if (inMsg.room.mode === "colony") {
+      if (target && target.host) {
+        mpSlotWas = getSlot(); useSlot(MP_SLOT);
+        if (target.colony !== "continue" || !(readSlot(MP_SLOT) || {}).town) { clearSlot(MP_SLOT); writeSave({ who: mpIsF(me.look) ? "sister" : "brother", chapter: 14, unlocked: 14 }); }
+        G.who = (loadSave() || {}).who || "brother";
+        play(14);
+        const wait = setInterval(() => {
+          if (!G.town || G.town.replica) return;
+          clearInterval(wait);
+          G.player.setModel(mpLookOpts(me.look, me.name)); G.player.model.scaleBase = me.look.height || 1;
+          new ColonyHost(net, inMsg, me, { lost });
+        }, 200);
+        return;
+      }
+      AUDIO.init(); applySettings();
+      G.mode = "play"; screen(null); $("menus").classList.remove("backdrop"); UI.show("hud", true);
+      new ColonyGuest(net, inMsg, me, { lost });
+      lock();
+      return;
+    }
     AUDIO.init(); applySettings();
     G.mode = "play"; screen(null); $("menus").classList.remove("backdrop"); UI.show("hud", true);
-    new MPGame(net, inMsg, me, target, { lost: text => { toTitle(); openLobby(); $("mpNote").textContent = text; $("mpNote").classList.add("bad"); } });
+    new MPGame(net, inMsg, me, target, { lost });
     lock();
   },
 });
@@ -1719,7 +1746,7 @@ $("btnRestart").onclick = () => {
   restartArmed = 0; b.textContent = "Restart chapter"; b.classList.remove("armed");
   SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock(); startChapter(G.chapter || 1);
 };
-$("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.mp) { G.mp.leave(); toTitle(); openLobby(); return; } toTitle(); };
+$("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.mp) { G.mp.leave(); if (G.town && G.town.persist && !G.town.replica) G.town.persist(); mpDone(); toTitle(); openLobby(); return; } toTitle(); };
 document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement) freeMouse = false;
   else if (G.mode === "play" && !freeMouse) pause();

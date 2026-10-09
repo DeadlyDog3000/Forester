@@ -934,3 +934,7 @@ body.mp .bigmap-key, body.mp #mmKeyTab, body.mp #mmLegend { display: none !impor
 .mp-pl button:hover { filter: brightness(1.08); }
 .mp-pl .a i { font: italic 15px var(--serif); opacity: 0.7; }
 #controls tr.kt-sec td { padding-top: 16px; font: 600 10px/1 var(--sans); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); text-align: left; }
+
+#mpHost.colony .mp-map-only, #mpHost:not(.colony) .mp-colony-only { display: none; }
+#mpHost.colony .mp-host-grid { grid-template-columns: 1fr; max-width: 640px; margin: 0 auto; }
+body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display: none; }

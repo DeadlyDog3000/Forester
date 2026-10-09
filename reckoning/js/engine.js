@@ -1383,6 +1383,7 @@ function personalSpace(list, dt) {
 export class Actor {
   constructor(opts, x, z, yaw = 0) {
     this.person = makePerson(opts);
+    this.opts = opts;                    // (what they were made from: for showing them on someone else's screen)
     this.root = this.person.root;
     this.name = opts.name || "";
     this.pos = new THREE.Vector3(x, 0, z);
@@ -1672,7 +1673,7 @@ function updateInteract(dt) {
     UI.hold(G.holdT / hold);
     // real work: your hands are seen doing it
     if (hold >= 1 && !talk) G.working = { kind: it.anim || workOf(label || ""), until: G.time + 0.15, quiet: !!it.onHoldTick };
-    if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); G.holdLatch = true; if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; it.use(); }
+    if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); G.holdLatch = true; if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; if (!(G.mpUse && G.mpUse(it))) it.use(); }   // (in someone else's colony, done in their game)
   } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / hold); }
 }
 
@@ -1953,8 +1954,10 @@ export function frame(dt, skipRender) {
   window.__frame = frame;
   G.time += dt;
   const w = G.world;
-  if (G.mode === "play" && w) {
-    if (!G.player.frozen) G.player.update(dt);
+  // (in a game with others the world doesn't stop for you: paused, or reading a card, it goes on — only your hands stop)
+  const live = G.mode === "play" || (G.mp && (G.mode === "pause" || G.mode === "lesson"));
+  if (live && w) {
+    if (!G.player.frozen && G.mode === "play") G.player.update(dt);
     for (const a of w.actors.slice()) a.update(dt);
     personalSpace(w.actors, dt);
     if (window.__foley) window.__foley.work(w.actors);
@@ -1971,6 +1974,7 @@ export function frame(dt, skipRender) {
     for (const f of G.onFrame.slice()) f(dt);
     // (after everything else has set the sky: under the ground, it is dark)
     if (G.world && G.world.cave && G.world.cave.inside) G.world.cave.dark();
+    if (G.mode === "play") {
     updateInteract(dt);
     // the axe swings on a click, when there is an axe
     // food in the hand: a click is a bite of it, not a swing
@@ -1978,6 +1982,7 @@ export function frame(dt, skipRender) {
     if (input.click && G.player.axe && !G.player.horse && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);
     // move dialogue on
     if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();
+    }
   } else if (w) {
     for (const f of w.flames) flicker(f, dt * 0.2);
   }
@@ -1985,7 +1990,7 @@ export function frame(dt, skipRender) {
   // a filming rig can take the camera over for a shot (the trailer is captured this way)
   if (G.camOverride) G.camOverride(camera, dt);
   updateMarker(dt);
-  if (G.mode === "play" && w) updateMinimap(dt);
+  if (live && w) updateMinimap(dt);
   input.endFrame();
   // (hard shadows, the cheaper kind, are only redrawn every other frame)
   if (G.shadowEvery > 1) renderer.shadowMap.needsUpdate = (G.frameN = (G.frameN || 0) + 1) % G.shadowEvery === 0;
