@@ -20,7 +20,7 @@ import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, add
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack } from "./models.js";
+import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, SWAY } from "./models.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { Smoke, Breath, chimneyMark } from "./smoke.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
@@ -407,6 +407,9 @@ export class Town {
     const sun = G.sun ? clamp(G.sun.intensity / 2.4, 0, 1) : 1, fog = G.scene.fog;
     const col = new THREE.Color(0x77736f).multiplyScalar(0.35 + sun * 0.65).lerp(fog.color, 0.18);
     const wind = G.windV || { x: 0.5, z: 0.2 };
+    // (the trees lean on the same wind, easing into a change of it)
+    { const wl = Math.hypot(wind.x, wind.z) || 1, kWant = clamp((wl - 0.3) / 1.6, 0.1, 1);
+      SWAY.k.value += (kWant - SWAY.k.value) * Math.min(1, dt * 0.3); SWAY.dir.value.set(wind.x / wl, wind.z / wl); }
     const scale = innerHeight * (window.devicePixelRatio || 1) / (2 * Math.tan(camera.fov * Math.PI / 360));
     this.smoke.update(dt, src, wind, G.player.pos, { color: col, fog: fog.color, near: fog.near, far: fog.far });
     this.smoke.mat.uniforms.uScale.value = scale;

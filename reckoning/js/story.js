@@ -2015,6 +2015,20 @@ const NEWCOMERS = [
 ];
 // more names, for when the list above has all come (sending for people can run through it)
 const SPARE_NAMES = ["Hans", "Gesche", "Detlef", "Metta", "Berend", "Wiebke", "Harmen", "Abelke", "Lüder", "Tibbe", "Carsten", "Ilsabe", "Marten", "Beke", "Reimer", "Taleke"];
+// and more again, the names of the country between the Elbe and the Weser in the 1680s, men's and women's by turns
+const MORE_NAMES = ["Johann", "Sophia", "Dirk", "Adelheid", "Gerd", "Wobke", "Albert", "Hille", "Heinrich", "Rixe", "Eggert", "Ottilie", "Bartold", "Magdalena", "Gösche", "Agnete", "Ties", "Mette", "Volkmar", "Gretje", "Arend", "Lucia", "Henneke", "Sanne", "Evert", "Christina", "Meinert", "Becke", "Wilken", "Hedwig", "Ludolf", "Kunigunde"];
+// who comes next: a name nobody here goes by, nobody on the road has, and nobody lies buried under —
+// a stranger turning up the week after a burial with the dead one's name was a ghost, not a newcomer
+function nextNewcomer(S, onRoad = []) {
+  const used = new Set([...S.people.map(q => q.name), ...onRoad, ...(S.graves || []).map(g => g.name)]);
+  const n = NEWCOMERS.find(q => !used.has(q.name));
+  if (n) return n;
+  const pool = SPARE_NAMES.concat(MORE_NAMES), i = pool.findIndex(x => !used.has(x));
+  const jobs = ["woodcutter", "farmer", "hauler"];
+  if (i >= 0) return { name: pool[i], sex: i % 2 ? "f" : "m", job: jobs[S.people.length % 3] };
+  const k = S.people.length % pool.length;
+  return { name: `${pool[k]} the younger`, sex: k % 2 ? "f" : "m", job: jobs[S.people.length % 3] };
+}
 const RECRUIT_COST = 12;
 // what they say when you make a tool: what it is for, and what to go after next
 G.emitCraft = r => {
@@ -3040,8 +3054,7 @@ async function chFree(w) {
     if ((S.coin || 0) < cost) return `Sending for someone costs ${cost} DM.`;
     S.coin -= cost; town.sentFor = (town.sentFor || 0) + 1; town.persist();
     // (nor a name already promised to someone still on the road: three sent for at once were all Elsabe)
-    const used = new Set([...S.people.map(q => q.name), ...(town.onRoad ??= new Set())]);
-    const base = NEWCOMERS.find(q => !used.has(q.name)) || { name: SPARE_NAMES.find(n => !used.has(n)) || `${SPARE_NAMES[S.people.length % SPARE_NAMES.length]} the younger`, sex: S.people.length % 2 ? "f" : "m" };
+    const base = nextNewcomer(S, town.onRoad ??= new Set());
     const r = Math.random, main = JOB_SKILL[job];
     const p = { name: base.name, sex: base.sex, job, seed: 400 + S.people.length * 11 + Math.floor(r() * 7), sk: { [main]: 16 + Math.floor(r() * 12) } };
     if (c) p.home = c.name;
@@ -3061,8 +3074,7 @@ async function chFree(w) {
     const pop = S.people.length + 2;
     // (nobody settles where the people are miserable: contentment under 40 turns them back down the road)
     if (town.bedsIn(null) + 2 > S.people.filter(p => !p.home).length + 2 && town.foodDays() >= 3 && town.contentment().value >= 40) {
-      const used = new Set([...S.people.map(p => p.name), ...(town.onRoad || [])]);
-      const n = NEWCOMERS.find(p => !used.has(p.name));
+      const n = nextNewcomer(S, town.onRoad || []);
       if (n) {
         const p = { ...n, seed: 400 + S.people.length * 11 };
         await arrival(town, p, ["God keep you. Is there room for one more?", "I heard there was a place up here. Is it true?", "I can work. I only need a roof.", "Henning at the kiln sent me."][S.people.length % 4]);

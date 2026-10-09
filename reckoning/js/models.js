@@ -776,6 +776,46 @@ function trunkGeo() {
   return g;
 }
 
+// ---- the wind in the trees: every tree bends from its foot, the crown most, each to its own slow beat, and the gusts
+// roll across the forest in waves. aSway, per tree: [its foot's height, its height, its phase]
+export const SWAY = { t: { value: 0 }, k: { value: 0.2 }, dir: { value: new THREE.Vector2(0.92, 0.38) } };
+export function addSway(material) {
+  const prev = material.onBeforeCompile, key = material.customProgramCacheKey;
+  material.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.uniforms.uSwayT = SWAY.t; sh.uniforms.uSwayK = SWAY.k; sh.uniforms.uSwayDir = SWAY.dir;
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec3 aSway; uniform float uSwayT, uSwayK; uniform vec2 uSwayDir;")
+      .replace("#include <project_vertex>", `
+        vec4 swW = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          swW = instanceMatrix * swW;
+        #endif
+        swW = modelMatrix * swW;
+        if (aSway.y > 0.5) {
+          float hk = clamp((swW.y - aSway.x) / aSway.y, 0.0, 1.2); hk *= hk;
+          float T = uSwayT, gust = 0.55 + 0.45 * sin(T * 0.55 - dot(swW.xz, uSwayDir) * 0.07);
+          float A = aSway.y * (0.006 + 0.028 * uSwayK) * gust;
+          float w = sin(T * (2.6 - aSway.y * 0.06) + aSway.z) + 0.35 * sin(T * 3.7 + aSway.z * 1.7);
+          vec2 off = uSwayDir * (A * w + aSway.y * 0.012 * uSwayK * gust) + vec2(-uSwayDir.y, uSwayDir.x) * A * 0.35 * sin(T * 1.3 + aSway.z * 2.3);
+          swW.xz += off * hk;
+        }
+        vec4 mvPosition = viewMatrix * swW;
+        gl_Position = projectionMatrix * mvPosition;`);
+  };
+  material.customProgramCacheKey = () => (key ? key.call(material) : "") + "sway";
+  material.needsUpdate = true;
+  return material;
+}
+// the same shape, with a sway for each of n instances (the shape's own buffers shared, not copied)
+export function swayGeo(geo, n) {
+  const g = new THREE.BufferGeometry();
+  g.index = geo.index; for (const k in geo.attributes) g.setAttribute(k, geo.attributes[k]);
+  g.boundingSphere = geo.boundingSphere; g.boundingBox = geo.boundingBox;
+  g.setAttribute("aSway", new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * 3), 3));
+  g.userData.base = geo;
+  return g;
+}
 export const TREE = {
   trunk: trunkGeo(),
   cone: spruceTierGeo(),
@@ -790,6 +830,7 @@ export const TREE = {
   leafMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6a8a40, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
 };
 for (const k of ["trunk", "cone", "blob"]) TREE[k]._shared = true;
+for (const k of ["trunkMat", "birchMat", "spruceMat", "pineMat", "leafMat"]) addSway(TREE[k]);
 
 // a spruce's tiers, low and wide to high and narrow: [height fraction, width fraction, tier height]
 const SPRUCE_TIERS = [[0.14, 1.0, 0.3], [0.26, 0.86, 0.28], [0.38, 0.72, 0.26], [0.5, 0.58, 0.24], [0.62, 0.44, 0.22], [0.73, 0.3, 0.2], [0.83, 0.17, 0.17]];
@@ -828,54 +869,57 @@ export function forestInstances(list, far = false) {
     col.set(0xffffff).offsetHSL((g - 0.5) * dh, 0, (f - 0.5) * dl * 2);
     m.setColorAt(i, col);
   };
-  const trunks = new THREE.InstancedMesh(TREE.trunk, TREE.trunkMat, kinds.spruce.length + kinds.pine.length);
-  const birchTr = new THREE.InstancedMesh(TREE.trunk, TREE.birchMat, kinds.birch.length);
+  const nTr = kinds.spruce.length + kinds.pine.length;
+  const trunks = new THREE.InstancedMesh(swayGeo(TREE.trunk, nTr), TREE.trunkMat, nTr);
+  const birchTr = new THREE.InstancedMesh(swayGeo(TREE.trunk, kinds.birch.length), TREE.birchMat, kinds.birch.length);
+  // (each piece of a tree gets the tree's own sway: its foot, its height, its beat)
+  const sway = (m, i, t) => { const a = m.geometry.attributes.aSway.array; a[i * 3] = t.y - 0.2; a[i * 3 + 1] = t.h; a[i * 3 + 2] = (t.x * 0.37 + t.z * 0.61) % 6.283; };
   let ti = 0;
   const NT = TIERS.length;
-  const spruceC = new THREE.InstancedMesh(CONE, TREE.spruceMat, kinds.spruce.length * NT);
+  const spruceC = new THREE.InstancedMesh(swayGeo(CONE, kinds.spruce.length * NT), TREE.spruceMat, kinds.spruce.length * NT);
   let si = 0;
   for (const t of kinds.spruce) {
     const lean = Math.sin(t.rot * 3.7) * 0.03;
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(lean, t.rot, 0); dummy.scale.set(1.1, t.h * 0.55, 1.1); dummy.updateMatrix();
-    trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
+    sway(trunks, ti, t); trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
     const seed = t.x * 0.37 + t.z * 1.13;
     for (let i = 0; i < NT; i++) {
       const [y, wf, th] = TIERS[i];
       const w = wf * t.h * 0.26 * (1 + Math.sin(seed + i * 2.1) * 0.07);
       dummy.position.set(t.x + Math.sin(t.rot) * lean * t.h * y, t.y + t.h * y, t.z + Math.cos(t.rot) * lean * t.h * y);
       dummy.scale.set(w, t.h * th, w); dummy.rotation.set(0, t.rot + i * 1.7, 0); dummy.updateMatrix();
-      spruceC.setMatrixAt(si, dummy.matrix); t.slots.push([spruceC, si]);
+      sway(spruceC, si, t); spruceC.setMatrixAt(si, dummy.matrix); t.slots.push([spruceC, si]);
       tint(spruceC, si++, 0, seed);
     }
   }
   // Scots pine: a tall bare trunk and a flat, broken crown
-  const pineB = new THREE.InstancedMesh(BLOB, TREE.pineMat, kinds.pine.length * 4);
+  const pineB = new THREE.InstancedMesh(swayGeo(BLOB, kinds.pine.length * 4), TREE.pineMat, kinds.pine.length * 4);
   let pi = 0;
   for (const t of kinds.pine) {
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.85, t.h * 0.86, 0.85); dummy.updateMatrix();
-    trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
+    sway(trunks, ti, t); trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
     const seed = t.x * 0.53 + t.z * 0.91;
     for (let i = 0; i < 4; i++) {
       const a = t.rot + i * 1.9, rad = i === 0 ? 0 : t.h * 0.1;
       const w = t.h * (i === 0 ? 0.19 : 0.13);
       dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.84 + (i === 0 ? 0.04 : -0.03 + (i % 2) * 0.05)), t.z + Math.sin(a) * rad);
       dummy.scale.set(w, w * 0.45, w * 0.9); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
-      pineB.setMatrixAt(pi, dummy.matrix); t.slots.push([pineB, pi]);
+      sway(pineB, pi, t); pineB.setMatrixAt(pi, dummy.matrix); t.slots.push([pineB, pi]);
       tint(pineB, pi++, 0, seed);
     }
   }
   // birch: a pale trunk and a loose, many-clumped crown
-  const leaves = new THREE.InstancedMesh(BLOB, TREE.leafMat, kinds.birch.length * 6);
+  const leaves = new THREE.InstancedMesh(swayGeo(BLOB, kinds.birch.length * 6), TREE.leafMat, kinds.birch.length * 6);
   let li = 0, bi = 0;
   for (const t of kinds.birch) {
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.5, t.h * 0.78, 0.5); dummy.updateMatrix();
-    birchTr.setMatrixAt(bi++, dummy.matrix); (t.slots ??= []).push([birchTr, bi - 1]);
+    sway(birchTr, bi, t); birchTr.setMatrixAt(bi++, dummy.matrix); (t.slots ??= []).push([birchTr, bi - 1]);
     const seed = t.x * 0.71 + t.z * 0.29;
     for (let i = 0; i < 6; i++) {
       const a = t.rot + i * 2.4, rad = i === 0 ? 0 : 0.5 + (i % 3) * 0.35;
       dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.56 + (i / 6) * 0.36), t.z + Math.sin(a) * rad);
       const w = t.h * (0.15 - i * 0.008); dummy.scale.set(w, w * 0.85, w); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
-      leaves.setMatrixAt(li, dummy.matrix); t.slots.push([leaves, li]);
+      sway(leaves, li, t); leaves.setMatrixAt(li, dummy.matrix); t.slots.push([leaves, li]);
       tint(leaves, li++, 0, seed, 0.09, 0.03);
     }
   }

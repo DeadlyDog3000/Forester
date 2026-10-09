@@ -7,7 +7,7 @@
 
 import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE } from "./core.js";
 import { WorldBase, G } from "./engine.js";
-import { P, forestInstances, makeSpruce, TREE, modelCopy, ensureModel } from "./models.js";
+import { P, forestInstances, makeSpruce, TREE, modelCopy, ensureModel, SWAY, swayGeo, addSway } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM, furnishClear, fitsRoom } from "./furnish.js";
@@ -255,13 +255,15 @@ export class Woods extends WorldBase {
     }
     root.add(ub.build(MAT.rough, { shadow: false }));
     {
-      const leafM = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles" });
+      const leafM = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles" }); addSway(leafM);
       const bushes = shrubs.filter(q => q.kind === "bush"), ferns = shrubs.filter(q => q.kind === "fern");
-      const bm = new THREE.InstancedMesh(TREE.blob, leafM, bushes.length), fm = new THREE.InstancedMesh(TREE.cone, leafM, ferns.length * 5);
+      const bm = new THREE.InstancedMesh(swayGeo(TREE.blob, bushes.length), leafM, bushes.length), fm = new THREE.InstancedMesh(swayGeo(TREE.cone, ferns.length * 5), leafM, ferns.length * 5);
+      // (a bush stirs in the wind, and a fern frond more)
+      const sw = (m, i, q, h) => m.geometry.attributes.aSway.array.set([q.y - 0.05, h, (q.x * 0.71 + q.z * 0.43) % 6.283], i * 3);
       const d = new THREE.Object3D(), c = new THREE.Color();
-      bushes.forEach((q, n) => { d.position.set(q.x, q.y + 0.3, q.z); d.rotation.set(0, q.ry, 0); d.scale.set(q.sx, q.sy, q.sz); d.updateMatrix(); bm.setMatrixAt(n, d.matrix); bm.setColorAt(n, c.set(q.col)); q.slots = [[bm, n]]; });
+      bushes.forEach((q, n) => { sw(bm, n, q, 1.6); d.position.set(q.x, q.y + 0.3, q.z); d.rotation.set(0, q.ry, 0); d.scale.set(q.sx, q.sy, q.sz); d.updateMatrix(); bm.setMatrixAt(n, d.matrix); bm.setColorAt(n, c.set(q.col)); q.slots = [[bm, n]]; });
       let fi = 0;
-      for (const q of ferns) { q.slots = []; for (const [fx, fz, rx, rz] of q.fronds) { d.position.set(fx, q.y, fz); d.rotation.set(rx, 0, rz); d.scale.set(0.12, 0.7, 0.12); d.updateMatrix(); fm.setMatrixAt(fi, d.matrix); fm.setColorAt(fi, c.set(0x5a7a3a)); q.slots.push([fm, fi++]); } }
+      for (const q of ferns) { q.slots = []; for (const [fx, fz, rx, rz] of q.fronds) { sw(fm, fi, q, 1.2); d.position.set(fx, q.y, fz); d.rotation.set(rx, 0, rz); d.scale.set(0.12, 0.7, 0.12); d.updateMatrix(); fm.setMatrixAt(fi, d.matrix); fm.setColorAt(fi, c.set(0x5a7a3a)); q.slots.push([fm, fi++]); } }
       for (const m of [bm, fm]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; root.add(m); }
       this.shrubs = shrubs;
       // (those already cut, in this save)
@@ -953,7 +955,10 @@ export class Woods extends WorldBase {
     for (const [m, i] of near) {
       m.getMatrixAt(i, M);
       if (M.elements[0] === 0 && M.elements[5] === 0) continue;       // (already gone)
-      const one = new THREE.InstancedMesh(m.geometry, m.material, 1);
+      // (swaying as it did in the forest, until it's cut)
+      const geo = m.geometry.userData.base ? swayGeo(m.geometry.userData.base, 1) : m.geometry;
+      if (geo !== m.geometry) geo.attributes.aSway.array.set([s.y - 0.2, s.h, (s.x * 0.37 + s.z * 0.61) % 6.283]);
+      const one = new THREE.InstancedMesh(geo, m.material, 1);
       one.setMatrixAt(0, M.clone().premultiply(inv));
       if (m.instanceColor) { m.getColorAt(i, C); one.setColorAt(0, C); }
       one.castShadow = true; one.receiveShadow = true; one.frustumCulled = false;
@@ -1201,7 +1206,12 @@ export class Woods extends WorldBase {
       const n = 4000, p = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) { p[i * 3] = (Math.random() - 0.5) * 60; p[i * 3 + 1] = Math.random() * 30; p[i * 3 + 2] = (Math.random() - 0.5) * 60; }
       const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(p, 3));
-      this.flakes = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.09, transparent: true, opacity: 0.85, depthWrite: false }));
+      // (each flake a soft round dot, not a square: close to the eye, a square one showed as a white tile)
+      const cv = document.createElement("canvas"); cv.width = cv.height = 32;
+      const cx = cv.getContext("2d"), gr = cx.createRadialGradient(16, 16, 0, 16, 16, 16);
+      gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.45, "rgba(255,255,255,0.8)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+      cx.fillStyle = gr; cx.fillRect(0, 0, 32, 32);
+      this.flakes = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.09, map: new THREE.CanvasTexture(cv), transparent: true, opacity: 0.85, depthWrite: false }));
       this.flakes.frustumCulled = false;
       this.root.add(this.flakes);
     }
@@ -1631,6 +1641,7 @@ export class Woods extends WorldBase {
       this.homeLight.intensity += (want - this.homeLight.intensity) * Math.min(1, dt * 3);
     }
     // nor does it fall there
+    SWAY.t.value += dt;
     const under = this.sheltered();
     if (this.winPane) this.winPane.visible = MAT.lit.emissiveIntensity > 0.5 && !under;
     if (this.flakes) this.flakes.visible = this.flakeFall > 0 && !under;
@@ -1684,7 +1695,11 @@ export class Woods extends WorldBase {
         const F = t.fx || (t.fx = fallOf(t));
         // a trunk tipping over on its hinge: slow to lean (the hinge holds it at first), then faster and faster as
         // the weight gets out over the stump, until it hits the ground hard, bounces on its crown and lies still
-        if (t.th == null) { t.th = 0.05; t.om = 0.16; t.hits = 0; }
+        if (t.th == null) {
+          t.th = 0.05; t.om = 0.16; t.hits = 0;
+          // (a falling tree is done with swaying: the bend was measured upright, from its foot)
+          t.g.traverse(o => { const a = o.geometry && o.geometry.attributes.aSway; if (a) { a.array.fill(0); a.needsUpdate = true; } });
+        }
         for (let n = 0; n < 4; n++) {
           const h = dt / 4;
           t.om += F.k * Math.sin(t.th) * (t.th < 0.15 ? 0.6 : 1) * h - (t.hits ? t.om * 2 * h : 0);

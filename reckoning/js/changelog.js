@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.50.2", date: "8 October 2026", title: "Wind in the trees",
+    items: [
+      "The forest moves. Every tree bends from its foot, the crown most, each to its own slow beat; a tall spruce rocks slowly and a bush quickly. The gusts roll across the woods in waves. On a still day it's barely a stir; on a wet, windy one the crowns lean and toss. The trees you can fell move with the rest until the axe takes them.",
+      "Snowflakes are soft round flakes. Before, one falling close past your eye showed as a white square.",
+      "Nobody new comes up the road wearing the name of someone buried at the edge of the clearing. Before, the day after Liesel was laid in the ground, a new Liesel could turn up and stay. There are many more names to go round as well, so the road never runs out of newcomers.",
+    ],
+  },
+  {
     v: "0.50.1", date: "8 October 2026", title: "Smoke and breath",
     items: [
       "Chimneys smoke. A house's hearth smokes in the morning while the bread is on, in the evening, and all day in the cold, as does your own cabin's, more thickly when you've lit the fire. The bakery, the forge and the smelter smoke while they're working, and the brickworks' kiln day and night. Each plume rises, spreads and thins out downwind, leaning further on a wet, windy day. It shows pale against the dusk and the stars, and faint against a bright sky.",
