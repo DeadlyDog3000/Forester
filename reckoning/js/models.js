@@ -977,13 +977,31 @@ export const P = {
     b.box(1.0, 0.8, 0.08, x - 1.0 * s, 0.4, z - 1.0 * c, 0x5a3e28, ry);
   },
   shelf(b, x, z, w = 1.6, ry = 0) {
-    b.box(w, 2.2, 0.4, x, 1.1, z, 0x5a3e28, ry);
-    const c = Math.cos(ry), s = Math.sin(ry);
+    // an open case: sides, a back, four boards, and on them books, ledgers and boxes, each its own size and colour
+    const c = Math.cos(ry), s = Math.sin(ry), at = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c];
+    const WOOD = 0x5a3e28, DARK = 0x3e2a1a;
+    { const [px, pz] = at(0, -0.17); b.box(w, 2.2, 0.04, px, 1.1, pz, DARK, ry); }
+    for (const sx of [-1, 1]) { const [px, pz] = at(sx * (w / 2 - 0.03), 0); b.box(0.06, 2.2, 0.4, px, 1.1, pz, WOOD, ry); }
+    { const [px, pz] = at(0, 0); b.box(w, 0.06, 0.42, px, 2.22, pz, WOOD, ry); }
+    const COLS = [0x5c3a30, 0x2e3e5a, 0x5a4a22, 0x3e4a32, 0x4a2e22, 0x7a6a4a, 0x2a2622];   // (no bright red: an upright red reads as brick)
+    let seed = Math.abs(Math.floor(x * 73 + z * 31)) + 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let i = 0; i < 4; i++) {
-      const y = 0.3 + i * 0.52;
-      b.box(w * 0.92, 0.3, 0.3, x + 0.06 * s, y + 0.16, z + 0.06 * c, [0x7a2e22, 0x2e4a6a, 0x6a5a2a, 0x3e5a3a][i], ry, 0.2);
+      const y = 0.08 + i * 0.52;
+      { const [px, pz] = at(0, 0); b.box(w - 0.1, 0.04, 0.38, px, y, pz, WOOD, ry); }
+      // (along the board: a run of books, now and then a gap, a box, or one lying flat)
+      let lx = -w / 2 + 0.1;
+      while (lx < w / 2 - 0.14) {
+        const r = rnd();
+        if (r < 0.08) { lx += 0.12; continue; }
+        if (r < 0.16) { const bw = 0.22, [px, pz] = at(lx + bw / 2, 0.02); b.box(bw, 0.16, 0.26, px, y + 0.1, pz, 0x7a5a3a, ry); lx += bw + 0.03; continue; }
+        if (r < 0.22) { const [px, pz] = at(lx + 0.14, 0.02); b.box(0.28, 0.05, 0.22, px, y + 0.045, pz, COLS[Math.floor(rnd() * COLS.length)], ry); b.box(0.26, 0.05, 0.2, px, y + 0.095, pz, COLS[Math.floor(rnd() * COLS.length)], ry); lx += 0.32; continue; }
+        const bw = 0.04 + rnd() * 0.05, bh = 0.24 + rnd() * 0.16, [px, pz] = at(lx + bw / 2, 0.02 + rnd() * 0.03);
+        b.box(bw, bh, 0.24 + rnd() * 0.06, px, y + 0.02 + bh / 2, pz, COLS[Math.floor(rnd() * COLS.length)], ry);
+        lx += bw + 0.004;
+      }
     }
   },
+
   hearth(b, x, z, ry = 0) {
     b.box(1.8, 1.2, 0.8, x, 0.6, z, 0x6e665e, ry, 0.05);
     b.box(1.2, 0.8, 0.6, x + Math.sin(ry) * 0.12, 0.4, z + Math.cos(ry) * 0.12, 0x1a1512, ry);

@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.57.1", date: "9 October 2026", title: "Books and glazing",
+    items: [
+      "Bookcases are real bookcases: an open case with four boards, and on them books of every height and colour, ledgers lying flat, a box or two, and gaps where something's been taken down. Before, they were a flat board painted in coloured stripes. Father's counting room has two, and so do the houses you furnish.",
+      "Every window along Hamburg's streets has a frame, a wooden cross and leaded panes, lit or dark, instead of a plain glowing rectangle.",
+      "The clothes chests in the bedroom sit snug against the beds, out of the way of where you wake.",
+    ],
+  },
+  {
     v: "0.57.0", date: "9 October 2026", title: "Front of house",
     items: [
       "The title menu is tidier. Every button is one width, Continue shows its chapter and save on a quiet second line, and the version is under the title.",

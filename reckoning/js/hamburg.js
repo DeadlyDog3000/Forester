@@ -151,6 +151,10 @@ function row(b, r, x0, z0, x1, z1, facades, win, lit, cols) {
           const isLit = r() < 0.38;
           put(lx, y, 0.8, 1.25, isLit ? 0xffd9a0 : 0x1e232c, isLit ? lit : win, 0.06);
           put(lx, y - 0.7, 1.0, 0.1, brick ? 0xcfc4b0 : TIMBER);
+          // (a frame round it, and the glazing bars: a cross of wood and the little leaded panes)
+          put(lx, y + 0.66, 0.92, 0.08, TIMBER, b, 0.1); put(lx - 0.44, y, 0.07, 1.3, TIMBER, b, 0.1); put(lx + 0.44, y, 0.07, 1.3, TIMBER, b, 0.1);
+          put(lx, y, 0.05, 1.25, TIMBER, b, 0.1); put(lx, y + 0.12, 0.8, 0.05, TIMBER, b, 0.1);
+          put(lx, y - 0.25, 0.8, 0.015, 0x2a2622, b, 0.09); put(lx, y + 0.42, 0.8, 0.015, 0x2a2622, b, 0.09);
         }
         if (!brick && fl > 0) put(0, fl * 3 + 0.2, bw, 0.18, TIMBER);
       }
@@ -159,6 +163,7 @@ function row(b, r, x0, z0, x1, z1, facades, win, lit, cols) {
       const gy = h + roofH * 0.3;
       const isLit = r() < 0.3;
       put(0, gy, 0.6, 0.9, isLit ? 0xffd9a0 : 0x1e232c, isLit ? lit : win, 0.06);
+      put(0, gy, 0.04, 0.9, TIMBER, b, 0.1); put(0, gy + 0.1, 0.6, 0.04, TIMBER, b, 0.1); put(0, gy + 0.48, 0.7, 0.07, TIMBER, b, 0.1);
     }
     cols.push(h);
     s += w;
@@ -501,12 +506,12 @@ export class Hamburg extends WorldBase {
     props.box(0.06, 0.42, 0.04, 15.9, 2.55, -9.12, 0x3a2a1c); props.box(0.28, 0.06, 0.04, 15.9, 2.62, -9.12, 0x3a2a1c);
     // a clothes chest at the foot of each bed, iron-cornered, with a folded blanket on one
     for (const x of [14.9, 16.9]) {
-      props.box(0.86, 0.46, 0.44, x, 0.23, -11.45, 0x5e4028, 0, 0.03); props.box(0.9, 0.06, 0.48, x, 0.48, -11.45, 0x4e3420);
-      for (const sx of [-0.4, 0.4]) props.box(0.05, 0.47, 0.45, x + sx, 0.235, -11.45, 0x2a2622);
-      props.box(0.1, 0.12, 0.03, x, 0.38, -11.22, 0x2a2622);
-      this.col.addRect(x, -11.45, 0.86, 0.44, 0.5);
+      props.box(0.86, 0.46, 0.38, x, 0.23, -11.57, 0x5e4028, 0, 0.03); props.box(0.9, 0.06, 0.42, x, 0.48, -11.57, 0x4e3420);
+      for (const sx of [-0.4, 0.4]) props.box(0.05, 0.47, 0.39, x + sx, 0.235, -11.57, 0x2a2622);
+      props.box(0.1, 0.12, 0.03, x, 0.38, -11.37, 0x2a2622);
+      this.col.addRect(x, -11.57, 0.86, 0.38, 0.5);
     }
-    props.box(0.7, 0.12, 0.36, 14.9, 0.57, -11.45, 0x8a6a4a); props.box(0.7, 0.02, 0.36, 14.9, 0.64, -11.45, 0x6a4a3a);
+    props.box(0.7, 0.12, 0.32, 14.9, 0.57, -11.57, 0x8a6a4a); props.box(0.7, 0.02, 0.32, 14.9, 0.64, -11.57, 0x6a4a3a);
     // a peg rail on the partition wall: Father's old coat that came down to you, and a cap
     const wx = 14.12;
     props.box(0.05, 0.1, 1.6, wx, 1.75, -10.6, 0x4e3420);
@@ -518,7 +523,7 @@ export class Hamburg extends WorldBase {
     const ex = H.x1 - 0.42;
     props.box(0.22, 0.04, 1.0, ex, 1.55, -11.4, 0x4e3420);
     props.box(0.18, 0.12, 0.05, ex, 1.49, -11.75, 0x3a2a1c); props.box(0.18, 0.12, 0.05, ex, 1.49, -11.05, 0x3a2a1c);
-    props.box(0.15, 0.06, 0.2, ex, 1.6, -11.7, 0x6a2e22); props.box(0.1, 0.1, 0.14, ex, 1.62, -11.4, 0x7a5a3a);
+    props.box(0.15, 0.06, 0.2, ex, 1.6, -11.7, 0x5c3a30); props.box(0.1, 0.1, 0.14, ex, 1.62, -11.4, 0x7a5a3a);
     props.add(new THREE.CylinderGeometry(0.05, 0.065, 0.16, 10), 0x9a7a5a, ex, 1.65, -11.1);
     // skirting boards round the room, where the plaster meets the floor
     props.box(0.03, 0.14, 5.5, 14.11, 0.07, -11.9, 0x3e2c1e); props.box(0.03, 0.14, 5.5, H.x1 - 0.33, 0.07, -11.9, 0x3e2c1e);
