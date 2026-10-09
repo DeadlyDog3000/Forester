@@ -938,3 +938,17 @@ body.mp .bigmap-key, body.mp #mmKeyTab, body.mp #mmLegend { display: none !impor
 #mpHost.colony .mp-map-only, #mpHost:not(.colony) .mp-colony-only { display: none; }
 #mpHost.colony .mp-host-grid { grid-template-columns: 1fr; max-width: 640px; margin: 0 auto; }
 body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display: none; }
+
+#mpWar { position: absolute; left: 50%; top: 104px; transform: translateX(-50%); min-width: 320px; padding: 8px 14px 10px; background: rgba(40, 12, 8, 0.85); border: 1px solid rgba(220, 110, 90, 0.6); border-radius: 4px; font: 13px var(--sans); color: #f3e0d0; text-align: center; }
+#mpWar .wt { font: 600 11px var(--sans); letter-spacing: 0.18em; text-transform: uppercase; color: #f0a090; margin-bottom: 4px; }
+#mpWar .bar { height: 7px; background: rgba(255, 255, 255, 0.12); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+#mpWar .bar div { height: 100%; background: linear-gradient(90deg, #c0392b, #f0a090); transition: width 0.6s; }
+#mpWar .ws { font-size: 12px; opacity: 0.8; margin-top: 3px; }
+#mpTicker { position: absolute; right: 24px; top: 250px; width: 300px; padding: 8px 12px; background: rgba(236, 222, 186, 0.92); border: 1px solid #3b2612; color: #2b1d10; font: italic 14px/1.35 var(--serif); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
+#mpTicker b { font: 600 10px var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: #8a2a1a; display: block; font-style: normal; margin-bottom: 2px; }
+#mpNews { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 8; background: rgba(5, 16, 10, 0.35); }
+#mpNews.hidden { display: none; }
+#mpNewsBody { width: min(560px, 90vw); max-height: 60vh; overflow-y: auto; }
+.nw { padding: 8px 2px; border-bottom: 1px solid rgba(59, 38, 18, 0.2); font: 16px/1.35 var(--serif); }
+.nw .k { font: 600 10px var(--sans); letter-spacing: 0.18em; text-transform: uppercase; color: #8a2a1a; margin-right: 8px; }
+.nw .w { font: 12px var(--sans); opacity: 0.6; float: right; }

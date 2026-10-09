@@ -29,10 +29,13 @@
     <div id="mpInvite" class="hidden"></div>
     <div id="mpBuildBar" class="hidden"></div>
     <div id="mpChat" class="quiet"><div id="mpChatLog"></div><input id="mpChatIn" class="hidden" maxlength="200" placeholder="Say something — Enter to send, Tab for allies only" spellcheck="false"></div>
-    <div id="mpKeys">Enter talk · Tab people · B build · J map</div>
+    <div id="mpWar" class="hidden"></div>
+    <div id="mpTicker" class="hidden"></div>
+    <div id="mpKeys">Enter talk · Tab people · B build · N news · J map</div>
     <div id="mpDead" class="hidden"></div>
   </div>
   <div id="mpBuild" class="hidden"><div class="mc-win"><div class="mc-label">Build <span class="mc-hint">1–0 or click · B to close</span></div><div id="mpBuildList"></div></div></div>
+  <div id="mpNews" class="hidden"><div class="mc-win"><div class="mc-label">The news <span class="mc-hint">N to close</span></div><div id="mpNewsBody"></div></div></div>
   <div id="mpPlayers" class="hidden"><div class="mc-win"><div class="mc-label">Who's here <span class="mc-hint">Tab to close</span></div><div id="mpPlayersBody"></div></div></div>
   <div id="hud" class="hidden">
     <div id="crosshair"><i></i><b></b></div>
@@ -349,7 +352,8 @@
         <tr><td><kbd>Enter</kbd></td><td>Talk &mdash; <kbd>Tab</kbd> as you type to speak to your allies only</td></tr>
         <tr><td><kbd>Tab</kbd></td><td>Who's here: ask for an alliance, give logs</td></tr>
         <tr><td><kbd>B</kbd></td><td>Build &mdash; <kbd>R</kbd> turns it, click to put it down, right click to stop</td></tr>
-        <tr><td><kbd>Y</kbd> <kbd>N</kbd></td><td>Say yes or no to an alliance</td></tr>
+        <tr><td><kbd>N</kbd></td><td>The news: wars, homesteads taken, alliances, deaths</td></tr>
+        <tr><td><kbd>Y</kbd> <kbd>N</kbd></td><td>Say yes or no to an alliance (while it's being asked)</td></tr>
       </table>
       <button class="btn ghost" data-back>Back</button>
     </section>

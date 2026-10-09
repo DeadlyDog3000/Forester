@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.63.0", date: "10 October 2026", title: "Claim wars",
+    items: [
+      "Claim wars in Classic. From the list of who's here (Tab), declare a claim war on a neighbour's homestead, and everyone in the game hears of it. Hold their hearth, with none of theirs standing at it, and it slips toward you; their people at the hearth win it back. Take it, and the hearth, everything built on that ground and everyone living there are yours, with half of what was in their stores.",
+      "A war lasts twenty minutes. Hold out that long and your homestead is safe, and it can't be fought over again for a while. A war only goes forward while the defender is in the game: no one loses their home while they're away. Your watchmen fight for the hearth with you.",
+      "The news (N): the wars declared, homesteads taken, alliances made, who struck whom down, and the homesteads that are growing. Each one is called out in the corner as it happens. A contested claim shows in red on the map.",
+      "In a co-op colony, everyone hears the colony's news and its word of its people, not only the host.",
+    ],
+  },
+  {
     v: "0.62.1", date: "10 October 2026", title: "Surveyed",
     items: [
       "The maps are surveyed now. Hills are shaded from the north-west light and drawn with contour lines, every fifth one heavier, so you can see the lie of the land: the rise behind the clearing, the hollow the pond sits in.",

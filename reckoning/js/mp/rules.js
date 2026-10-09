@@ -58,3 +58,6 @@ export const SETTLER_NAMES = {
 export const JOB_NAME = { wood: "woodcutter", stone: "quarryman", watch: "watchman", farm: "farmer" };
 // food: what a settler eats, and what a field gives
 export const FOOD = { eatMs: 150 * 1000, harvest: 16, wellBonus: 4, growMs: 140 * 1000, reapMs: 6000, hungryLeaveMs: 200 * 1000 };
+
+// claim wars: one homestead against another (Classic). The attacker takes the ground by holding the hearth.
+export const WAR = { captureMs: 75 * 1000, radius: 9, lastsMs: 20 * 60 * 1000, cooldownMs: 10 * 60 * 1000, decay: 1.5 };

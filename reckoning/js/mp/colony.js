@@ -114,6 +114,10 @@ export class ColonyHost extends ColonyBase {
     this.chatLine({ name: "", text: "Your colony is open. Others can join it from the Multiplayer list; everything they do happens in your game." });
     // (anyone already waiting)
     for (const p of this.players) this.snapshot(p.pid);
+    // the colony's news and word of its people, heard by everyone in it, not only you
+    this.keepNews = UI.news; this.keepTell = G.tell;
+    UI.news = (n, ...rest) => { if (this.remotes.size && !this.inRunAs) { try { this.net.send({ t: "h", m: { t: "news", n: plain(n) } }); } catch (e) {} } return this.keepNews.call(UI, n, ...rest); };
+    G.tell = (...a) => { if (this.remotes.size && !this.inRunAs) { try { this.net.send({ t: "h", m: { t: "tell", a: plain(a) } }); } catch (e) {} } return this.keepTell && this.keepTell(...a); };
     // every tree that comes down, told at once, so they see it fall (wild ones too, which the settlement doesn't keep)
     G.town.onFell = (t, dx, dz) => { if (this.remotes.size) this.net.send({ t: "h", m: { t: "fell", x: t.x, z: t.z, dx, dz } }); };
   }
@@ -181,9 +185,10 @@ export class ColonyHost extends ColonyBase {
     G.tell = (k, where, text) => said.push(text); G.practise = () => {}; G.wear = () => {}; G.impact = () => {}; G.report = () => {};
     if (at) { pl.pos.set(at.x, at.y, at.z); pl.yaw = at.yaw; pl.pitch = at.pitch || 0; }
     pl.carryN = g.carryN; pl.blade = "axe";
-    let out;
+    let out; this.inRunAs = true;
     try { out = fn(); }
     finally {
+      this.inRunAs = false;
       g.carryN = pl.carryN;
       pl.pos.set(was.x, was.y, was.z); pl.yaw = was.yaw; pl.pitch = was.pitch; pl.carryN = was.carryN; pl.blade = was.blade;
       Object.assign(U, { hint: keep.hint, bark: keep.bark, carry: keep.carry, keys: keep.keys });
@@ -250,6 +255,7 @@ export class ColonyHost extends ColonyBase {
     if (G.mp !== this) return;
     const i = G.onFrame.indexOf(this.tickFn); if (i >= 0) G.onFrame.splice(i, 1);
     if (G.town) G.town.onFell = null;
+    if (this.keepNews) UI.news = this.keepNews; if (this.keepTell) G.tell = this.keepTell;
     this.leaveCommon(quiet);
     G.mp = null;
   }
@@ -309,6 +315,8 @@ export class ColonyGuest extends ColonyBase {
     if (m.t === "ar") { for (const id of m.l) { const x = this.mirrors.get(id); if (x) { x.remove(); this.mirrors.delete(id); } } return; }
     if (m.t === "ax") { for (const l of m.l) { const x = this.mirrors.get(l[0]); if (x) x.set(l); } return; }
     if (m.t === "say") return this.said(m);
+    if (m.t === "news") { try { UI.news(m.n); } catch (e) {} return; }
+    if (m.t === "tell") { try { G.tell && G.tell(...(m.a || [])); } catch (e) {} return; }
     if (m.t === "fell") return this.treeFalls(m);
   }
   // what you do here goes to the host's game, to be done there

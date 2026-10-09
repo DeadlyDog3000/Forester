@@ -15,7 +15,7 @@ import { makeAxe, makePick, makeTorch, makeSpade, makeSickle } from "../models.j
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { Wilds } from "./wilds.js";
-import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME } from "./rules.js";
+import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
 import { Net } from "./net.js";
@@ -146,6 +146,7 @@ export class MPGame {
     this.dayAt = performance.now() - inMsg.day.t; this.dayLen = inMsg.day.len;
     this.build = null; this.sendT = 0; this.atmoT = 0; this.lastHurt = -1e9;
     this.chatLines = [];
+    this.wars = inMsg.wars || []; this.news = inMsg.news || [];
     // ---- the world ----
     resetForMode();
     G.mp = this;
@@ -216,6 +217,7 @@ export class MPGame {
       } });
     if (b.type === "market") e.it2 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.2, z: b.z, reach: d.r + 2.2, hold: 1.2, can: () => e.friendly && this.stock.stone > 0 && input.down("ShiftLeft"), label: "Hold F: a stone for 3 logs", use: () => this.net.send({ t: "trade", want: "wood" }) });
   }
+  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
   removeB(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); this.w.removeBuilding(id); }
   // ---- what the server says ----
   listen() {
@@ -292,6 +294,11 @@ export class MPGame {
     n.ss = m => { for (const [id, x, z, yaw, a, sp] of m.l) { const v = this.settlers.get(id); if (v) { v.tx = x; v.tz = z; v.tyaw = yaw; v.anim = a; v.spd = sp; } } };
     n.sjob = m => { const v = this.settlers.get(m.id); if (v) { v.job = m.job; v.tool(); v.setTag(); } };
     n.sh = m => { const v = this.settlers.get(m.id); if (!v) return; blowLands(v.actor, "hit", m.by === this.pid ? G.player : null); v.actor.person.flinch && v.actor.person.flinch(); v.hp = m.hp; };
+    n.wars = m => { this.wars = m.wars || []; this.drawWar(); };
+    n.warned = m => { this.warn(`${m.war.attName} has declared a claim war on your homestead! Hold your hearth — while they stand at it and none of yours do, it slips from you.`); AUDIO.music && AUDIO.music("battle"); };
+    n.news = m => { this.news.push(m.n); if (this.news.length > 80) this.news.shift(); this.ticker(m.n); if (this.newsOpen) this.drawNews(); };
+    n.bown = m => { const e = this.w.blds.get(m.id); if (!e) return; const b = { ...e.b, owner: m.owner }; this.removeBNow(m.id); this.addB(b); };
+    n.sown = m => { const v = this.settlers.get(m.id); if (v) { v.owner = m.owner; v.setTag(); } };
     n.groups = m => { this.groups = m.groups || {}; this.refreshFriends(); if (this.listOpen) this.drawList(); };
     n.invite = m => this.invited(m);
     n.chat = m => this.chatLine(m);
@@ -307,6 +314,7 @@ export class MPGame {
   }
   // (never brought in inside a tree or a rock: stepped out of it)
   unstick() { const p = G.player.pos; for (let i = 0; i < 6; i++) this.w.col.resolve(p, 0.7, p.y, 1.7); p.y = this.w.floorAt(p.x, p.z, p.y); }
+  hasHearth(pid) { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && e.b.owner === pid) return true; return false; }
   myHearth() { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && (e.mine || this.mode === "coop")) return e; return null; }
   // ---- your blow: at whoever or whatever is in front of you ----
   swing() {
@@ -457,7 +465,7 @@ export class MPGame {
       const guard = !!(input.rdown && pl.axe && !this.build);
       this.net.send({ t: "st", x: +pl.pos.x.toFixed(2), y: +pl.pos.y.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(3), a: pl.swingT >= 0 ? "chop" : G.working && G.working.until > G.time && G.working.kind === "hammer" ? "hammer" : "idle", h: "axe", s: +(pl.speed || 0).toFixed(2), g: guard });
     }
-    if ((this.atmoT -= dt) <= 0) { this.atmoT = 0.5; this.atmo(); }
+    if ((this.atmoT -= dt) <= 0) { this.atmoT = 0.5; this.atmo(); this.drawWar(); }
     // spawn shield
     const sh = Math.max(0, this.shieldUntil - now);
     const el = $("mpShield"); el.classList.toggle("hidden", sh <= 0 || this.mode === "coop"); if (sh > 0) el.textContent = `Safe for ${Math.ceil(sh / 1000)} s — no one can hurt you yet`;
@@ -479,6 +487,30 @@ export class MPGame {
       if (f >= a && f <= b) { blendAtmo(A, B, (f - a) / (b - a || 1)); break; }
     }
   }
+  // ---- wars and news ----
+  drawWar() {
+    const el = $("mpWar"), p = G.player.pos;
+    // the war that's yours, or the one being fought where you stand
+    const w = this.wars.find(w => w.att === this.pid || w.def === this.pid) || this.wars.find(w => Math.hypot(w.x - p.x, w.z - p.z) < 60);
+    if (!w) { el.classList.add("hidden"); return; }
+    el.classList.remove("hidden");
+    const mine = w.def === this.pid, left = Math.max(0, Math.ceil((WAR.lastsMs - (Date.now() - w.start)) / 60000));
+    const at = Math.hypot(w.x - p.x, w.z - p.z) < WAR.radius;
+    el.innerHTML = `<div class="wt">Claim war</div>${esc(w.attName)} against ${esc(w.defName)}'s homestead<div class="bar"><div style="width:${Math.round(w.progress * 100)}%"></div></div>`
+      + `<div class="ws">${Math.round(w.progress * 100)}% taken · ${left} min left${at ? " · you're at the hearth" : ""}${mine ? " — stand at your hearth to win it back" : w.att === this.pid ? " — hold their hearth with none of theirs there" : ""}</div>`;
+  }
+  ticker(n) {
+    const el = $("mpTicker"), K = { war: "War", capture: "Taken", ally: "Alliance", death: "A death", grow: "Growing" };
+    el.innerHTML = `<b>${K[n.kind] || "News"}</b>${esc(n.text)}`; el.classList.remove("hidden");
+    clearTimeout(this._tick); this._tick = setTimeout(() => el.classList.add("hidden"), 7000);
+    if (n.kind === "war" || n.kind === "capture") sfx("deny");
+  }
+  drawNews() {
+    const ago = at => { const m = Math.round((Date.now() - at) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+    const K = { war: "War", capture: "Taken", ally: "Alliance", death: "Death", grow: "Growing" };
+    $("mpNewsBody").innerHTML = this.news.length ? this.news.slice().reverse().map(n => `<div class="nw"><span class="k">${K[n.kind] || "News"}</span>${esc(n.text)}<span class="w">${ago(n.at)}</span></div>`).join("") : `<p class="mc-hint">Nothing has happened yet that anyone's talking about.</p>`;
+  }
+  toggleNews(on = !this.newsOpen) { this.newsOpen = on; $("mpNews").classList.toggle("hidden", !on); if (on) { G.releaseMouse && G.releaseMouse(); this.drawNews(); } else G.lockMouse && G.lockMouse(); }
   // ---- the screen ----
   hud(on) {
     $("mpHud").classList.toggle("hidden", !on);
@@ -528,7 +560,7 @@ export class MPGame {
       people.map(p => {
         const ally = p.pid !== this.pid && this.friendly(p.pid), grp = this.groupOf(p.pid);
         const acts = p.pid === this.pid ? (g && this.mode !== "coop" ? `<button data-a="unally">Leave the alliance</button>` : `<i>you</i>`)
-          : [this.mode !== "coop" && !ally ? `<button data-a="ally" data-p="${p.pid}">Ask to be allies</button>` : "", near(p.pid) && this.stock.wood >= 10 ? `<button data-a="give" data-p="${p.pid}">Give 10 logs</button>` : ""].join("");
+          : [this.mode !== "coop" && !ally ? `<button data-a="ally" data-p="${p.pid}">Ask to be allies</button>` : "", this.mode === "pvp" && !ally && this.hasHearth(p.pid) && !this.wars.some(w => w.def === p.pid) ? `<button data-a="war" data-p="${p.pid}">Declare a claim war</button>` : "", near(p.pid) && this.stock.wood >= 10 ? `<button data-a="give" data-p="${p.pid}">Give 10 logs</button>` : ""].join("");
         return `<div class="mp-pl${ally ? " ally" : ""}"><span class="n">${esc(p.name)}</span><span class="g">${grp && this.groups[grp] ? esc(this.groups[grp].name) : ""}</span><span class="a">${acts}</span></div>`;
       }).join("") + `<p class="mc-hint">${this.mode === "pvp" ? "Allies can't hurt each other, share their gates, and can build on each other's ground. Up to eight to an alliance." : "In co-op no one can be hurt, and you can all build anywhere."}${this.room.persistent ? " In the wide world, a homestead can't be broken while its owner is away." : " Nothing of yours can be broken while you're away from the game."}</p>`;
     for (const b of $("mpPlayersBody").querySelectorAll("button[data-a]")) b.onclick = () => {
@@ -536,6 +568,7 @@ export class MPGame {
       if (a === "ally") this.net.send({ t: "ally", pid });
       else if (a === "unally") this.net.send({ t: "unally" });
       else if (a === "give") this.net.send({ t: "give", pid, wood: 10 });
+      else if (a === "war") { if (b.classList.contains("armed")) { this.net.send({ t: "war", pid }); this.toggleList(false); } else { b.classList.add("armed"); b.textContent = "Click again: war"; } }
     };
   }
   invited(m) {
@@ -550,10 +583,11 @@ export class MPGame {
     if (G.mode !== "play" || e.repeat) return ["Tab", "KeyB", "KeyT", "KeyP", "KeyG", "KeyH", "KeyV"].includes(e.code) && G.mode === "play";
     if (e.code === "Enter" || e.code === "KeyT") { e.preventDefault(); this.openChat(); return true; }
     if (e.code === "Tab") { e.preventDefault(); this.toggleList(); return true; }
+    if (e.code === "KeyN" && !this.invite) { this.toggleNews(); return true; }
     if (e.code === "KeyB") { if (this.build) this.endBuild(); else { const on = !this.menuOpen; this.openBuild(on); if (on) G.releaseMouse && G.releaseMouse(); else G.lockMouse && G.lockMouse(); } return true; }
     if (this.menuOpen && /^Digit\d$/.test(e.code)) { const i = (+e.code.slice(5) + 9) % 10, k = BUILD_ORDER[i]; const d = BUILD[k]; if (k && this.stock.wood >= d.wood && this.stock.stone >= d.stone) this.startBuild(k); return true; }
     if (this.invite && (e.code === "KeyY" || e.code === "KeyN")) { this.net.send({ t: e.code === "KeyY" ? "allyok" : "allyno", pid: this.invite.pid }); $("mpInvite").classList.add("hidden"); this.invite = null; return true; }
-    if (e.code === "Escape" && (this.menuOpen || this.listOpen)) { this.openBuild(false); this.toggleList(false); return true; }
+    if (e.code === "Escape" && (this.menuOpen || this.listOpen || this.newsOpen)) { this.openBuild(false); this.toggleList(false); this.toggleNews(false); return true; }
     return ["KeyP", "KeyG", "KeyH", "KeyV"].includes(e.code);
   }
   // the line dropped: tried again a few times (back into the same game, where you were), then back to the lobby
@@ -582,7 +616,7 @@ export class MPGame {
   }
   leave(quiet) {
     if (G.mp !== this) return;
-    this.endBuild(); this.openBuild(false); this.toggleList(false); this.closeChat();
+    this.endBuild(); this.openBuild(false); this.toggleList(false); this.toggleNews(false); this.closeChat(); $("mpWar").classList.add("hidden"); $("mpTicker").classList.add("hidden");
     if (!quiet) { try { this.net.send({ t: "leave" }); } catch (e) {} }
     this.net.close();
     for (const r of this.remotes.values()) r.remove();

@@ -468,7 +468,8 @@ export class Wilds extends WorldBase {
     for (const e of this.blds.values()) {
       const d = BUILD[e.b.type];
       if (d.claim) {
-        c.save(); c.strokeStyle = e.mapColour || INK; c.setLineDash([4, 3]); c.lineWidth = 1.6;
+        const war = G.mp && G.mp.wars && G.mp.wars.some(w => w.hearth === e.b.id);
+        c.save(); c.strokeStyle = war ? "#c0392b" : e.mapColour || INK; c.setLineDash(war ? [6, 2] : [4, 3]); c.lineWidth = war ? 3 : 1.6;
         c.beginPath(); c.arc(X(e.b.x), Z(e.b.z), d.claim * S, 0, Math.PI * 2); c.stroke(); c.restore();
       }
       const r = Math.max(2.5, (d.r || 1) * S * 0.8);

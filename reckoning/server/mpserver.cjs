@@ -109,6 +109,7 @@ class Room {
     this.spawnAt = this.land.findHome(T.seq(this.seed ^ 0x5eed), [], 0);
     this.shared = { ...(START || R.START_STOCK) };   // (co-op: one colony, one store)
     this.settlers = {}; this.nextS = 1; this.lastArrive = {}; this.workCache = {};
+    this.wars = []; this.news = []; this.lastWar = {};
     this.dirty = false;
   }
   storeOf(pid) { return this.mode === "coop" ? this.shared : this.recs[pid]; }
@@ -116,10 +117,10 @@ class Room {
     return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, locked: !!this.password, persistent: this.persistent };
   }
   // ---- saving the wide world ----
-  toJSON() { return { settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0 }; }
+  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0 }; }
   static from(j) {
     const r = new Room(j);
-    Object.assign(r, { settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0 });
+    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0 });
     return r;
   }
   each(f) { for (const p of this.online.values()) f(p); }
@@ -160,7 +161,7 @@ class Room {
     const t = now();
     sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, food: this.storeOf(p.pid).food | 0, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null },
       players: [...this.online.values()].filter(q => q !== p).map(q => this.pub(q)), felled: live(this.felled, t), broken: live(this.broken, t),
-      buildings: Object.values(this.buildings), settlers: Object.values(this.settlers).map(x => this.pubS(x)), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
+      buildings: Object.values(this.buildings), settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
       online: this.onlineNames() });
     this.all({ t: "pj", p: this.pub(p) }, p);
     if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
@@ -179,6 +180,12 @@ class Room {
     this.dirty = true;
   }
   note(text, except) { this.all({ t: "note", text }, except); }
+  // the game's news: what everyone hears of — wars, homesteads taken, alliances, deaths, the growing places
+  headline(kind, text) {
+    const n = { kind, text, at: now() };
+    this.news.push(n); if (this.news.length > 200) this.news.shift();
+    this.all({ t: "news", n }); this.dirty = true;
+  }
   stock(p) {
     // (a co-op colony's store is everyone's: all are told)
     if (this.mode === "coop") { this.all({ t: "stock", wood: this.shared.wood, stone: this.shared.stone, food: this.shared.food | 0 }); return; }
@@ -320,6 +327,23 @@ class Room {
         this.dirty = true;
         return;
       }
+      case "war": {               // a claim war declared on someone's homestead
+        if (this.mode !== "pvp") return;
+        const q = this.online.get(String(m.pid || "")); const no = text => p.sock.send({ t: "err", text });
+        if (!q || q === p) return;
+        if (this.allied(p.pid, q.pid)) return no("You can't make war on an ally. Leave the alliance first.");
+        const hearth = Object.values(this.buildings).find(b => b.type === "hearth" && b.owner === q.pid);
+        if (!hearth) return no(`${q.name} has no homestead to take.`);
+        if (!Object.values(this.buildings).some(b => b.type === "hearth" && b.owner === p.pid)) return no("You need a homestead of your own before you can claim another's.");
+        if (this.wars.some(w => w.att === p.pid || w.def === q.pid)) return no("There's a war on already — one at a time.");
+        if (t - (this.lastWar[q.pid] || 0) < R.WAR.cooldownMs) return no(`${q.name}'s homestead was fought over only lately. Give them a while.`);
+        const war = { id: "w" + crypto.randomBytes(3).toString("hex"), att: p.pid, def: q.pid, attName: p.name, defName: q.name, hearth: hearth.id, x: hearth.x, z: hearth.z, start: t, progress: 0 };
+        this.wars.push(war);
+        this.all({ t: "wars", wars: this.wars });
+        this.headline("war", `${p.name} has declared a claim war on ${q.name}'s homestead!`);
+        q.sock.send({ t: "warned", war });
+        return;
+      }
       case "chat": {
         const text = clean(m.text, 200); if (!text) return;
         if (t - (p.lastChat || 0) < 500) return; p.lastChat = t;
@@ -352,6 +376,7 @@ class Room {
         this.groups[gid].members.push(p.pid); rec.group = gid;
         this.all({ t: "groups", groups: this.groups });
         this.note(`${p.name} and ${q.name} are allies now.`);
+        this.headline("ally", `${p.name} and ${q.name} have made an alliance.`);
         this.dirty = true;
         return;
       }
@@ -395,6 +420,7 @@ class Room {
     if (kr && kr !== vr) { w = Math.floor(vr.wood * 0.2); s = Math.floor(vr.stone * 0.2); vr.wood -= w; vr.stone -= s; kr.wood += w; kr.stone += s; }
     if (this.recs[by]) this.recs[by].kills++; if (this.recs[q.pid]) this.recs[q.pid].deaths++;
     this.all({ t: "die", pid: q.pid, by, got: { wood: w, stone: s } });
+    { const kn = this.online.get(by) ? this.online.get(by).name : this.settlers[by] ? `${this.settlers[by].name}, a watchman` : "someone"; this.headline("death", `${q.name} was struck down by ${kn}.`); }
     const ko = killer && this.online.get(killer); if (ko) this.stock(ko); this.stock(q); this.dirty = true;
     setTimeout(() => this.respawn(q), R.RESPAWN_MS);
     return true;
@@ -443,6 +469,7 @@ class Room {
         this.all({ t: "sj", s: this.pubS(v) });
         const o = owner === "colony" ? null : this.online.get(owner);
         const msg = `${v.name} has come to live ${owner === "colony" ? "in the colony" : "with you"}.`;
+        { const count = Object.values(this.settlers).filter(x => x.owner === owner).length; if (count === 4 || count === 8 || count === 12) this.headline("grow", `${owner === "colony" ? "The colony" : (this.recs[owner] ? this.recs[owner].name + "'s homestead" : "A homestead")} has grown to ${count} settlers.`); }
         if (o) o.sock.send({ t: "note", text: msg }); else if (owner === "colony") this.note(msg);
         this.dirty = true;
       }
@@ -581,6 +608,39 @@ class Room {
       }
     }
   }
+  // the wars, every few seconds: who's at the hearth, and how far the taking of it has gone
+  warTick(t) {
+    let changed = false;
+    for (const w of this.wars.slice()) {
+      const h = this.buildings[w.hearth];
+      const end = (text, kind = "war") => { this.wars.splice(this.wars.indexOf(w), 1); this.lastWar[w.def] = t; this.headline(kind, text); changed = true; };
+      if (!h || h.owner !== w.def) { end(`The war over ${w.defName}'s homestead is over.`); continue; }
+      if (t - w.start > R.WAR.lastsMs) { end(`${w.defName} held their homestead against ${w.attName}.`); continue; }
+      if (!this.online.has(w.def)) continue;         // (the defender away: the war waits for them)
+      const near = (pid, ok) => [...this.online.values()].filter(q => !q.dead && ok(q.pid) && Math.hypot(q.x - h.x, q.z - h.z) < R.WAR.radius).length
+        + Object.values(this.settlers).filter(v => ok(v.owner) && Math.hypot(v.x - h.x, v.z - h.z) < R.WAR.radius).length;
+      const att = near(w.att, pid => pid === w.att || this.allied(pid, w.att)), def = near(w.def, pid => pid === w.def || this.allied(pid, w.def));
+      const before = w.progress;
+      const cap = R.WAR.captureMs / (START && START.fast ? 6 : 1);
+      if (att > 0 && def === 0) w.progress = Math.min(1, w.progress + 3000 / cap);
+      else if (def > 0 && att === 0) w.progress = Math.max(0, w.progress - 3000 / cap * R.WAR.decay);
+      w.att_n = att; w.def_n = def;
+      if (w.progress !== before) changed = true;
+      if (w.progress >= 1) {
+        // taken: the hearth and everything on its ground, and everyone who lived there
+        const claim = R.BUILD.hearth.claim;
+        let n = 0;
+        for (const b of Object.values(this.buildings)) if (b.owner === w.def && Math.hypot(b.x - h.x, b.z - h.z) < claim + 2) { b.owner = w.att; n++; this.all({ t: "bown", id: b.id, owner: w.att }); }
+        for (const v of Object.values(this.settlers)) if (v.owner === w.def) { v.owner = w.att; this.all({ t: "sown", id: v.id, owner: w.att }); }
+        const vs = this.recs[w.def], as = this.recs[w.att];
+        if (vs && as) { const half = k => { const x = Math.floor((vs[k] | 0) / 2); vs[k] = (vs[k] | 0) - x; as[k] = (as[k] | 0) + x; }; half("wood"); half("stone"); half("food"); }
+        const o1 = this.online.get(w.att), o2 = this.online.get(w.def); if (o1) this.stock(o1); if (o2) this.stock(o2);
+        end(`${w.attName} has taken ${w.defName}'s homestead — ${n} building${n === 1 ? "" : "s"} and all its people!`, "capture");
+        this.dirty = true;
+      }
+    }
+    if (changed) this.all({ t: "wars", wars: this.wars });
+  }
   hasForge(pid) { return Object.values(this.buildings).some(b => b.type === "forge" && this.allied(b.owner, pid)); }
   quitGroup(pid) {
     const r = this.recs[pid]; if (!r || !r.group) return;
@@ -614,6 +674,7 @@ class Room {
     for (const [id, at] of Object.entries(this.broken)) if (at <= t) { delete this.broken[id]; rocks.push(id); }
     if (back.length || rocks.length) { this.all({ t: "grow", trees: back, rocks }); this.dirty = true; }
     if (this.mode !== "colony") this.settle();
+    if (this.wars.length) this.warTick(t);
     for (const [k, at] of this.invites) if (t - at > 120000) this.invites.delete(k);
     // wounds mend, a while after the last blow
     for (const p of this.online.values()) if (!p.dead && p.hp < R.MAX_HP && t - (p.hurtAt || 0) > 8000) { p.hp = Math.min(R.MAX_HP, p.hp + 4); this.all({ t: "hp", pid: p.pid, hp: p.hp, heal: true }); }
