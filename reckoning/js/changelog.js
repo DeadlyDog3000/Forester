@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.52.2", date: "8 October 2026", title: "The moon",
+    items: [
+      "There's a moon. It comes out with the stars, a pale disc with a soft halo, and it waxes and wanes, full every eighth night and dark between. Behind cloud it's only a glow.",
+      "A raider squared up to you who can't get at you, and won't be put down, gives up in the end like the rest.",
+    ],
+  },
+  {
     v: "0.52.1", date: "8 October 2026", title: "Fewer graves",
     items: [
       "Your brother or sister can no longer be killed in a raid, in the fighting at a camp, or in a rising. Before, they could be cut down while working among the settlers and buried at the edge of the clearing with no name on the cross. Now they're knocked down and get up again.",

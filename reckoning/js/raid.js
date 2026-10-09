@@ -429,9 +429,11 @@ export class Raids {
       const day = t.dayLen || 480, giveUp = day * (this.siege ? 0.7 : 0.3);
       if (this.activeFor > giveUp) {
         if (!this.brokeOff) { this.brokeOff = true; UI.bark(G.who === "sister" ? "Brother" : "Sister", "They're giving it up — look, they're making off down the road!", 3); }
-        for (const r of this.band) if (r.alive && r.state !== "flee" && r.state !== "gone" && this.duelOf(r) !== pl) { r.state = "flee"; r.wall = null; this.lock(r, null); r.a.path = []; r.a.walkTo(this.roadEnd.x, this.roadEnd.z, FLEE); }
+        // (one squared up to you gives it up too, if it has gone on twice as long: a stand-off that's going nowhere)
+        const stale = this.activeFor > giveUp * 2;
+        for (const r of this.band) if (r.alive && r.state !== "flee" && r.state !== "gone" && (stale || this.duelOf(r) !== pl)) { r.state = "flee"; r.wall = null; this.lock(r, null); r.a.path = []; r.a.walkTo(this.roadEnd.x, this.roadEnd.z, FLEE); }
       }
-      if (this.activeFor > giveUp + day * 0.15) for (const r of this.band.slice()) if (r.alive && r.state === "flee" && this.duelOf(r) !== pl && Math.hypot(r.a.pos.x - pl.pos.x, r.a.pos.z - pl.pos.z) > 25) { r.state = "gone"; r.a.remove(); this.forget(r); }
+      if (this.activeFor > giveUp + day * 0.15) for (const r of this.band.slice()) if (r.alive && r.state === "flee" && (this.activeFor > giveUp * 2.5 || this.duelOf(r) !== pl) && Math.hypot(r.a.pos.x - pl.pos.x, r.a.pos.z - pl.pos.z) > 25) { r.state = "gone"; r.a.remove(); this.forget(r); }
     } else if (!this.active) { this.activeFor = 0; this.brokeOff = false; }
     // the raid over: every one of them down in the grass, or away down the road
     const act = this.active;

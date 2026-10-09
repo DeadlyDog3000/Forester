@@ -521,12 +521,28 @@ export function makeSky() {
       top: { value: new THREE.Color(0x4a78b5) }, mid: { value: new THREE.Color(0xc9d6e0) },
       bottom: { value: new THREE.Color(0x9aa9b0) }, sunDir: { value: new THREE.Vector3(0, 1, 0) },
       sunCol: { value: new THREE.Color(0xfff0c0) }, sunSize: { value: 0.9985 },
+      moonK: { value: 0 }, moonPhase: { value: 0.5 },
     },
     vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform vec3 top, mid, bottom, sunCol, sunDir; uniform float sunSize; varying vec3 vP;
+    fragmentShader: `uniform vec3 top, mid, bottom, sunCol, sunDir; uniform float sunSize, moonK, moonPhase; varying vec3 vP;
       void main(){ float h = vP.y; vec3 c = h > 0.0 ? mix(mid, top, pow(clamp(h,0.0,1.0),0.55)) : mix(mid, bottom, clamp(-h*4.0,0.0,1.0));
-        float s = dot(normalize(vP), normalize(sunDir));
-        c += sunCol * (smoothstep(sunSize, 1.0, s) * 1.6 + pow(max(s,0.0), 24.0) * 0.35);
+        vec3 d = normalize(vP), sd = normalize(sunDir);
+        float s = dot(d, sd);
+        c += sunCol * (smoothstep(sunSize, 1.0, s) * 1.6 + pow(max(s,0.0), 24.0) * 0.35) * (1.0 - moonK);
+        // the moon, by night, where the night's light comes from: a pale disc lit on one side by the sun below the
+        // world (its phase), the dark of it faintly there, and a soft halo round it
+        if (moonK > 0.0) {
+          vec3 ax = normalize(cross(sd, vec3(0.0, 1.0, 0.0))), ay = cross(ax, sd);
+          vec2 q = vec2(dot(d, ax), dot(d, ay)) / 0.03;
+          float r2 = dot(q, q);
+          if (r2 < 1.0 && s > 0.0) {
+            vec3 n = vec3(q, sqrt(1.0 - r2));
+            float ph = moonPhase * 6.2832, lit = smoothstep(-0.05, 0.12, dot(n, vec3(sin(ph), 0.0, -cos(ph))));
+            float mot = 0.86 + 0.14 * sin(q.x * 9.0 + 1.3) * sin(q.y * 7.0 - 0.4);
+            c = mix(c, vec3(0.95, 0.94, 0.88) * mot * (0.08 + 1.1 * lit), moonK * smoothstep(1.0, 0.92, r2));
+          }
+          c += vec3(0.5, 0.56, 0.7) * pow(max(s, 0.0), 900.0) * 0.5 * moonK * (0.4 + 0.6 * abs(cos(moonPhase * 3.1416)));
+        }
         gl_FragColor = vec4(c, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

@@ -147,6 +147,9 @@ function applyAtmo(a00) {
   u.top.value.copy(a.top); u.mid.value.copy(a.mid); u.bottom.value.copy(a.bot);
   u.sunDir.value.copy(G.sunDir); u.sunCol.value.copy(a.sunC).multiplyScalar(Math.min(1, a.sunI / 2));
   sky.userData.stars.material.opacity = a.stars;
+  // (the moon: out with the stars, behind the cloud; full every eighth day, waxing and waning between)
+  u.moonK.value = clamp(a.stars * 1.2, 0, 1) * (1 - Math.min(1, (G.cloud || 0) * 1.3));
+  u.moonPhase.value = G.town ? ((G.town.t / (G.town.dayLen || 480)) / 8) % 1 : 0.5;
   MAT.lit.emissiveIntensity = a.win;
   renderer.toneMappingExposure = a.exp;
 }
