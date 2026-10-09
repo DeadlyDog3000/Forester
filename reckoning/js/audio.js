@@ -480,6 +480,23 @@ export const AUDIO = {
     l.lp.frequency.setTargetAtTime(under ? 1400 : 5000 + k * 3000, a.currentTime, 0.4);
     l.hp.frequency.setTargetAtTime(under ? 250 : 900 - k * 400, a.currentTime, 0.4);
   },
+  // a brook: a bright babble over stones, louder as you come near (k, 0 to 1)
+  brook(k) {
+    const a = ctx(); if (!a) return;
+    if (k <= 0.01) { loop("brook", false); return; }
+    if (!loops.brook) loop("brook", true, a => {
+      const g = a.createGain(); g.gain.value = 0.0001; g.connect(bus);
+      const stop = [];
+      for (let i = 0; i < 3; i++) {
+        const s = noiseSrc(a), f = a.createBiquadFilter(), vg = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
+        f.type = "bandpass"; f.frequency.value = rnd(900, 2600); f.Q.value = 2.5;
+        lfo.frequency.value = rnd(1.5, 4.5); lg.gain.value = 0.45; vg.gain.value = 0.55; lfo.connect(lg); lg.connect(vg.gain);
+        s.connect(f); f.connect(vg); vg.connect(g); s.start(0, Math.random() * 2); lfo.start(); stop.push(s, lfo);
+      }
+      return { g, stop };
+    });
+    if (loops.brook) loops.brook.g.gain.setTargetAtTime(0.05 * k * k, a.currentTime, 0.5);
+  },
   // a frog in the pond: a low double croak, from where it sits (at: {x, z})
   frog(at) {
     const a = ctx(); if (!a) return;

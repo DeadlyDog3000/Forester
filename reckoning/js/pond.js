@@ -230,7 +230,7 @@ export class Pond {
   }
 }
 // a rush clump: stiff dark green blades, the tallest with a brown seed head
-function rushGeo() {
+export function rushGeo() {
   const P = [], C = [], I = [];
   for (let b = 0; b < 9; b++) {
     const a = b / 9 * Math.PI * 2 + b, lean = 0.04 + (b % 3) * 0.05, h = 0.8 + (b % 4) * 0.25, dx = Math.cos(a), dz = Math.sin(a), px = -dz * 0.012, pz = dx * 0.012, i0 = P.length / 3;

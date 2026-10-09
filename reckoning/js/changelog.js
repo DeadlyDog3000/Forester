@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.0", date: "9 October 2026", title: "The brook",
+    items: [
+      "A brook runs out of the pond, over the lowest of its bank and away east through the trees to a boggy pool in a hollow. The water runs in it, carried downstream in ripples and little streaks of foam, with rushes along the banks and thick round the pool. You hear it as you come near. It's shallow enough to wade, and freezes still in winter. It's on the map, and nothing is built in it.",
+      "The windows in the Hamburg house are less glaring at dusk.",
+    ],
+  },
+  {
     v: "0.54.8", date: "9 October 2026", title: "Limestone",
     items: [
       "The stalagmites in the cave are pale limestone. Before, they came out moss-green, as if they had been standing out in the rain.",

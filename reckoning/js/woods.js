@@ -111,6 +111,8 @@ export class Woods extends WorldBase {
     // ---- the pond's water level: a hand below the lowest of its bank, all the way round ----
     { let lo = Infinity; for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2, r = pondR(a) * 1.08; lo = Math.min(lo, this.groundAt(POND.x + Math.cos(a) * r, POND.z + Math.sin(a) * r)); }
       this.pondLevel = lo - 0.22; }
+    // ---- the brook: out of the pond at the lowest of its bank and away downhill, to a boggy pool in a hollow ----
+    this.makeBrook();
     // ---- terrain ----
     const size = 760, seg = 190;
     const tg = new THREE.PlaneGeometry(size, size, seg, seg);
@@ -118,6 +120,8 @@ export class Woods extends WorldBase {
     tg.translate(10, 0, -150);
     const pos0 = tg.attributes.position;
     for (let i = 0; i < pos0.count; i++) pos0.setY(i, this.heightAt(pos0.getX(i), pos0.getZ(i)));
+    // (the grid's heights kept, to know where the drawn ground itself lies between them)
+    this.tGrid = { x0: 10 - size / 2, z0: -150 - size / 2, cell: size / seg, n: seg + 1, h: Float32Array.from({ length: pos0.count }, (_, i) => pos0.getY(i)) };
     // low-poly, like everything else: every facet flat and of one colour — needle-brown litter, moss,
     // dark bare earth and old leaves, laid in slow drifts, a little grassier out in the clearing
     const geo = tg.toNonIndexed(); tg.dispose();
@@ -192,6 +196,7 @@ export class Woods extends WorldBase {
       if (dc < CLEARING.r + 14) continue;             // the clearing and the ring of choppable trees
       if (dc < CLEARING.r + 14 + 3 * RING && r() < 0.78) continue;   // (thinner where the settlement will grow)
       if (pondK(x, z) < 1.9) continue;                // (nor in the pond, nor on its banks)
+      { const bq = this.brookAt(x, z); if (bq && bq.d < bq.w + 2.5) continue; }   // (nor in the brook)
       const k = cellK(x, z);
       if (taken.has(k)) continue;
       taken.set(k, 1);
@@ -206,6 +211,7 @@ export class Woods extends WorldBase {
       const x = burnerAt.x + Math.cos(a) * rad, z = burnerAt.z + Math.sin(a) * rad;
       if (this.anyRoadDist(x, z).d < 4.5) continue;
       if (pondK(x, z) < 1.9) continue;                // (nor in the pond, nor on its banks)
+      { const bq = this.brookAt(x, z); if (bq && bq.d < bq.w + 2.5) continue; }   // (nor in the brook)
       const k = cellK(x, z);
       if (taken.has(k)) continue;
       taken.set(k, 1);
@@ -226,6 +232,7 @@ export class Woods extends WorldBase {
       // the woods thin toward the clearing: that band is where the settlement will grow, a ring at a time
       if (rad < CLEARING.r + 14 + 3 * RING && r() < 0.78) continue;
       if (pondK(x, z) < 1.9) continue;                // (nor in the pond, nor on its banks)
+      { const bq = this.brookAt(x, z); if (bq && bq.d < bq.w + 2.5) continue; }   // (nor in the brook)
       const k = cellK(x, z);
       if (taken.has(k)) continue;
       taken.set(k, 1);
@@ -263,6 +270,7 @@ export class Woods extends WorldBase {
       if (Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r - 4) continue;
       if (Math.hypot(x - burnerAt.x, z - burnerAt.z) < 13) continue;
       if (pondK(x, z) < 1.25) continue;
+      { const bq = this.brookAt(x, z); if (bq && bq.d < bq.w + 0.8) continue; }
       const y = this.heightAt(x, z);
       const k = r();
       if (k < 0.45) shrubs.push({ kind: "bush", x, z, y, col: r.pick([0x3e5a2e, 0x4a6a34, 0x55703a]), ry: r() * 3, sx: r.range(0.6, 1.3), sy: r.range(0.4, 0.8), sz: r.range(0.6, 1.3) });
@@ -508,7 +516,7 @@ export class Woods extends WorldBase {
       const z0 = Math.floor((CLEARING.z + (0 - pad - Z(CLEARING.z)) / S) / 20), z1 = Math.floor((CLEARING.z + (H + pad - Z(CLEARING.z)) / S) / 20);
       for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) for (const t of g.get(i + "," + j) || []) tree(c, X(t.x), Z(t.z), ts, t.k);
       this.mapClearing(c, X, Z, S);
-      pondMap(c, X, Z);
+      pondMap(c, X, Z, this);
       const rw = Math.max(2.2, Math.min(4.5, S * 1.9));
       for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
       road(c, this.road, X, Z, rw);
@@ -575,7 +583,7 @@ export class Woods extends WorldBase {
     c.fillStyle = TREEC;
     for (const t of this.mapTrees) if (!t.gone) tree(c, X(t.x), Z(t.z), 1.6 * K, t.k);
     this.mapClearing(c, X, Z, K);
-    pondMap(c, X, Z);
+    pondMap(c, X, Z, this);
     const rw = 1.9 * K;
     for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
     road(c, this.road, X, Z, rw);
@@ -691,6 +699,13 @@ export class Woods extends WorldBase {
       const k = pondK(x, z), L = this.pondLevel;
       if (k < 1) h = Math.min(h, L - 0.12 - 1.35 * (1 - k * k));
       else if (k < 2.1) { const e = (k - 1) / 1.1, s = e * e * (3 - 2 * e); h = Math.min(h, L + 0.06 + (h - L - 0.06) * s); }
+    }
+    // the brook's bed, a little below its water; its banks drawn down to meet it
+    const bq = this.brook && this.brookAt(x, z);
+    if (bq && bq.d < 4) {
+      const W = bq.w, L = bq.y;
+      if (bq.pool && bq.d < W) h = Math.min(h, L - 0.08 - 0.45 * (1 - (bq.d / W) ** 2));
+      else { const e = Math.min(1, Math.max(0, bq.d - W * 0.5) / (4 - W * 0.5)), s = e * e * (3 - 2 * e); h = Math.min(h, L + 0.05 + Math.max(0, h - L - 0.05) * s); }
     }
     return h;
   }
@@ -1323,6 +1338,67 @@ export class Woods extends WorldBase {
       this.root.add(this.fire); this.flames.push(this.fire);
     }
   }
+  // the brook's course, worked out from the lie of the land: downhill from the pond's outflow with a little momentum,
+  // two metres a step, until the ground stops falling; its water falls a little at every step, never rising
+  makeBrook() {
+    let best = null;
+    for (let i = 0; i < 64; i++) { const a = i / 64 * Math.PI * 2, r = pondR(a) * 1.15, x = POND.x + Math.cos(a) * r, z = POND.z + Math.sin(a) * r, h = this.rawAt(x, z); if (!best || h < best.h) best = { a, x, z, h }; }
+    // (from just inside the shore, so the water runs out of the pond itself)
+    const pts = [{ x: POND.x + Math.cos(best.a) * pondR(best.a) * 0.85, z: POND.z + Math.sin(best.a) * pondR(best.a) * 0.85 }];
+    let x = best.x, z = best.z, dx = Math.cos(best.a), dz = Math.sin(best.a), lowest = best.h, still = 0;
+    for (let i = 0; i < 70 && still < 6; i++) {
+      pts.push({ x, z });
+      const e = 1.5, gx = this.rawAt(x + e, z) - this.rawAt(x - e, z), gz = this.rawAt(x, z + e) - this.rawAt(x, z - e);
+      let nx = -gx, nz = -gz; const l = Math.hypot(nx, nz) || 1;
+      dx = dx * 0.72 + nx / l * 0.28; dz = dz * 0.72 + nz / l * 0.28; const l2 = Math.hypot(dx, dz); dx /= l2; dz /= l2;
+      x += dx * 2; z += dz * 2;
+      const h = this.rawAt(x, z); if (h < lowest - 0.05) { lowest = h; still = 0; } else still++;
+    }
+    // (back to where it was lowest: that is the hollow it ends in)
+    while (pts.length > 3 && this.rawAt(pts[pts.length - 1].x, pts[pts.length - 1].z) > lowest + 0.05) pts.pop();
+    // the water's level along it: the pond's, then falling with the ground, a few centimetres a step at least
+    let y = this.pondLevel;
+    for (const p of pts) { y = Math.min(y - 0.02, this.rawAt(p.x, p.z) - 0.28); p.y = y; }
+    // (and how wide: a stream out of the pond, wider and slower in the hollow)
+    pts.forEach((p, i) => { p.w = 0.9 + 0.25 * Math.sin(i * 0.7) + (i > pts.length - 4 ? 0.6 : 0); });
+    const end = pts[pts.length - 1];
+    this.brook = { pts, end: { x: end.x, z: end.z, y: end.y, r: 5.5 }, grid: new Map(),
+      box: [Math.min(...pts.map(p => p.x)) - 12, Math.max(...pts.map(p => p.x)) + 12, Math.min(...pts.map(p => p.z)) - 12, Math.max(...pts.map(p => p.z)) + 12] };
+    // (which stretches pass near each 8 m square, for finding the nearest quickly)
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      for (let gx = Math.floor((Math.min(a.x, b.x) - 6) / 8); gx <= Math.floor((Math.max(a.x, b.x) + 6) / 8); gx++)
+        for (let gz = Math.floor((Math.min(a.z, b.z) - 6) / 8); gz <= Math.floor((Math.max(a.z, b.z) + 6) / 8); gz++) { const k = gx + "," + gz; if (!this.brook.grid.has(k)) this.brook.grid.set(k, []); this.brook.grid.get(k).push(i); }
+    }
+  }
+  // the nearest of the brook to x, z: how far (d), its water level there (y), its half-width (w); or null if it's nowhere near
+  brookAt(x, z) {
+    const B = this.brook; if (!B || x < B.box[0] || x > B.box[1] || z < B.box[2] || z > B.box[3]) return null;
+    const E = B.end, de = Math.hypot(x - E.x, z - E.z);
+    let best = de < E.r + 4 ? { d: Math.max(0, de - E.r + 1.2), y: E.y, w: 1.2, pool: true } : null;
+    const list = B.grid.get(Math.floor(x / 8) + "," + Math.floor(z / 8)); if (!list) return best;
+    for (const i of list) {
+      const a = B.pts[i], b = B.pts[i + 1], vx = b.x - a.x, vz = b.z - a.z, L2 = vx * vx + vz * vz;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * vx + (z - a.z) * vz) / (L2 || 1)));
+      const d = Math.hypot(x - (a.x + vx * t), z - (a.z + vz * t));
+      if (!best || d < best.d) best = { d, y: a.y + (b.y - a.y) * t, w: a.w + (b.w - a.w) * t };
+    }
+    return best;
+  }
+  // the height of the ground as it is drawn (its flat facets between the grid's points), which a thin thing laid on it
+  // must follow — the analytic height can be a hand above or below a facet
+  meshHeightAt(x, z) {
+    const T = this.tGrid; if (!T) return this.heightAt(x, z);
+    const gx = (x - T.x0) / T.cell, gz = (z - T.z0) / T.cell, ix = Math.max(0, Math.min(T.n - 2, Math.floor(gx))), iz = Math.max(0, Math.min(T.n - 2, Math.floor(gz)));
+    const fx = gx - ix, fz = gz - iz, H = T.h, a = H[ix + T.n * iz], b = H[ix + T.n * (iz + 1)], c = H[ix + 1 + T.n * (iz + 1)], d = H[ix + 1 + T.n * iz];
+    return fx + fz <= 1 ? a + (d - a) * fx + (b - a) * fz : c + (b - c) * (1 - fx) + (d - c) * (1 - fz);
+  }
+  // how deep the water is at x, z — the pond's, or the brook's
+  waterDepth(x, z) {
+    let d = this.pond ? this.pond.depthAt(x, z) : 0;
+    const b = this.brookAt(x, z); if (b && b.d < b.w) d = Math.max(d, b.pool ? b.y - this.heightAt(x, z) : 0.18);
+    return Math.max(0, d);
+  }
   // the cabin's own frame: across (x) and back-to-door (z), to the world and back
   cabinToWorld(lx, lz) { const { c, s } = this.cabinFrame; return [CABIN.x + lx * c + lz * s, CABIN.z - lx * s + lz * c]; }
   worldToCabin(x, z) { const { c, s } = this.cabinFrame, dx = x - CABIN.x, dz = z - CABIN.z; return [dx * c - dz * s, dx * s + dz * c]; }
@@ -1330,6 +1406,7 @@ export class Woods extends WorldBase {
   surfaceAt(x, z) {
     if (this.insideCabin(x, z)) return "wood";
     if (this.pondLevel !== undefined && pondK(x, z) < 1 && this.heightAt(x, z) < this.pondLevel) return "water";
+    { const b = this.brookAt(x, z); if (b && b.d < b.w) return "water"; }
     if (G.town && G.town.pathAt && G.town.pathAt(x, z)) return G.town.tierLevel >= 3 ? "stone" : "dirt";
     if (SNOW.value > 0.4) return "snow";
     if (this.anyRoadDist(x, z).d < 1.6) return "dirt";
@@ -1583,7 +1660,7 @@ export class Woods extends WorldBase {
       let x, z;
       if (r() < 0.6) { const a = r() * TAU, d = CLEARING.r + 3 + r() * 30; x = CLEARING.x + Math.cos(a) * d; z = CLEARING.z + Math.sin(a) * d; }
       else { const t = this.road[Math.floor(r() * this.road.length)], a = r() * TAU, d = 4 + r() * 10; x = t.x + Math.cos(a) * d; z = t.z + Math.sin(a) * d; }
-      if (this.anyRoadDist(x, z).d < 3.2 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 1 || pondK(x, z) < 1.3) continue;
+      if (this.anyRoadDist(x, z).d < 3.2 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 1 || pondK(x, z) < 1.3 || (this.brookAt(x, z) || { d: 9 }).d < 3) continue;
       const y = this.heightAt(x, z);
       if (this.col.solidAt(x, y + 0.5, z, 0.9) || this.bushes.some(b => Math.hypot(b.x - x, b.z - z) < 4)) continue;
       // the bramble: a low tangle of dark leaves
@@ -1725,6 +1802,9 @@ export class Woods extends WorldBase {
       // and in autumn, leaves coming down off the birches round you, fluttering as they go
       this.leafFall(dt, k > 0.3 && k < 1.9 ? TREE.leafMat.color : null);
     }
+    // the brook
+    if (this.brook && !this.brookV && !this._brookLoading) { this._brookLoading = true; import("./brook.js").then(m => { this.brookV = new m.Brook(this); }); }
+    if (this.brookV) this.brookV.update(dt);
     // the pond
     if (!this.pond && !this._pondLoading && this.pondLevel !== undefined) { this._pondLoading = true; import("./pond.js").then(m => { this.pond = new m.Pond(this); }); }
     if (this.pond) this.pond.update(dt);
@@ -1881,8 +1961,14 @@ function chinking() {
   g.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
   return g;
 }
-// the pond on the map: its shore, and the water inked in a muted blue
-function pondMap(c, X, Z) {
+// the pond on the map: its shore, and the water inked in a muted blue (and the brook running out of it)
+function pondMap(c, X, Z, w) {
+  const B = w && w.brook;
+  if (B) {
+    c.strokeStyle = "rgba(92,122,138,0.85)"; c.lineCap = "round"; c.lineWidth = Math.max(1.6, Math.abs(X(1) - X(0)) * 2.0);
+    c.beginPath(); B.pts.forEach((p, i) => i ? c.lineTo(X(p.x), Z(p.z)) : c.moveTo(X(p.x), Z(p.z))); c.stroke();
+    c.fillStyle = "rgba(92,122,138,0.7)"; c.beginPath(); c.arc(X(B.end.x), Z(B.end.z), Math.abs(X(B.end.r) - X(0)), 0, Math.PI * 2); c.fill();
+  }
   c.beginPath();
   for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, r = pondR(a); const x = X(POND.x + Math.cos(a) * r), y = Z(POND.z + Math.sin(a) * r); i ? c.lineTo(x, y) : c.moveTo(x, y); }
   c.fillStyle = "rgba(92,122,138,0.85)"; c.fill();

@@ -613,7 +613,7 @@ export class Hamburg extends WorldBase {
 
   update(dt) {
     // (the window glass: the colour of the day outside, bright at noon and gone dark at night)
-    if (this.winGlass) { const f = G.scene.fog.color; this.winGlass.color.setRGB(f.r, f.g, f.b).multiplyScalar(1.15).lerp(new THREE.Color(0.75, 0.82, 0.9), 0.15 * Math.min(1, f.r * 2)); }
+    if (this.winGlass) { const f = G.scene.fog.color; this.winGlass.color.setRGB(f.r, f.g, f.b).multiplyScalar(0.8).lerp(new THREE.Color(0.75, 0.82, 0.9), 0.15 * Math.min(1, f.r * 2)); }
     this.t += dt;
     // the two street lamps nearest you actually light the street
     this._lampT -= dt;

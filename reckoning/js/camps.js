@@ -240,6 +240,7 @@ export class Camps {
       if (w.cave && w.cave.mouthAt && Math.hypot(w.cave.mouthAt.x - x, w.cave.mouthAt.z - z) < 25) continue;
       if (w.burner && Math.hypot(w.burner.camp.x - x, w.burner.camp.z - z) < 30) continue;
       if (Math.hypot(POND.x - x, POND.z - z) < POND.r * 1.3 + 16) continue;                  // (nor at the pond)
+      { const bq = w.brookAt && w.brookAt(x, z); if (bq && bq.d < 12) continue; }                  // (nor across the brook)
       const hs = [0, 1, 2, 3].map(i => w.heightAt(x + Math.cos(i * 1.57) * 5, z + Math.sin(i * 1.57) * 5));
       if (Math.max(...hs) - Math.min(...hs) > 2.2) continue;
       return { x, z, ry: a + Math.PI };

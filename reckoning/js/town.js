@@ -885,7 +885,8 @@ export class Town {
   // ---- can it go here? inside the clearing, clear of everything solid, trees and other plans ----
   fits(type, x, z, ry) {
     // (never in the pond)
-    { const d0 = BUILDINGS[type]; if (pondK(x, z) < 1.12 + Math.hypot(d0.w, d0.d) / 2 / POND.r) return false; }
+    { const d0 = BUILDINGS[type]; if (pondK(x, z) < 1.12 + Math.hypot(d0.w, d0.d) / 2 / POND.r) return false;
+      const bq = this.w.brookAt && this.w.brookAt(x, z); if (bq && bq.d < bq.w + Math.hypot(d0.w, d0.d) / 2 + 0.5) return false; }
     if (type === "field") return this.fieldFits(x, z, ry);
     const def = BUILDINGS[type], w = this.w;
     const r = Math.hypot(def.w, def.d) / 2;

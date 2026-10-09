@@ -54,6 +54,7 @@ function pick(town) {
     if (Math.hypot(x - HUNT.x, z - HUNT.z) < HUNT.r + COLONY_R) continue;
     if (w.cave && w.cave.mouthAt && Math.hypot(x - w.cave.mouthAt.x, z - w.cave.mouthAt.z) < COLONY_R + 12) continue;
     if (Math.hypot(x - POND.x, z - POND.z) < COLONY_R + POND.r * 1.3 + 6) continue;
+    { const bq = w.brookAt && w.brookAt(x, z); if (bq && bq.d < COLONY_R + 4) continue; }
     if ((town.S.lobes || []).some(l => l.poly.some(p => Math.hypot(p[0] - x, p[1] - z) < COLONY_R))) continue;
     // (flattest is best)
     let rough = 0; for (let k = 0; k < 8; k++) { const b = k / 8 * Math.PI * 2; rough += Math.abs(w.heightAt(x + Math.cos(b) * 12, z + Math.sin(b) * 12) - w.heightAt(x, z)); }

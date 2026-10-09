@@ -687,7 +687,7 @@ export class Player {
     // (a bow drawn: no running, and a slow, careful step)
     if (this.draw > 0) sprint = false;
     // (a path is quicker going: a quarter faster along it; looked for a few times a second)
-    if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.15; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(this.pos.x, this.pos.z)); this.wading = G.world && G.world.pond ? G.world.pond.depthAt(this.pos.x, this.pos.z) : 0; }
+    if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.15; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(this.pos.x, this.pos.z)); this.wading = G.world && G.world.waterDepth ? G.world.waterDepth(this.pos.x, this.pos.z) : 0; }
     // (wading is slow going, and slower the deeper)
     const wade = this.wading > 0.05 && !this.horse ? 1 - Math.min(0.55, this.wading * 0.7) : 1;
     const max = (this.draw > 0 ? 1.6 - this.draw * 0.5 : 1) * (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1) * wade;
