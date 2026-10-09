@@ -182,7 +182,7 @@ export class Raids {
     const t = this.town, S = t.S, pop = S.people.length + 2, enemy = o.siege ? null : t.enemy;
     // at war: a crown's soldiers, more of them the stronger it is
     const n = o.n || (enemy ? Math.min(10, 4 + strengthOf(S.europe, enemy)) : Math.min(8, 3 + Math.floor(pop / 4) + Math.floor(S.raid.count / 2)));
-    this.enemy = enemy; this.siege = !!o.siege; this.boss = null; this.downN = 0;
+    this.enemy = enemy; this.siege = !!o.siege; this.boss = null; this.downN = 0; this.killedN = 0;
     if (o.siege) {
       const first = Math.ceil(n * 0.6);
       this.spawnBand(first, null);
@@ -306,7 +306,10 @@ export class Raids {
     if (s.hp > 0) return;
     // cut down by a blade, sometimes they do not get up again
     // (not often: they came for the stores, not to murder; and never your own brother or sister, who is only knocked down)
-    if (r && r.arm && r.arm !== "fists" && Math.random() < 0.15 && this.town.killSettler && !s.isSibling && s.settler && s.settler.name) { this.town.killSettler(s); return; }
+    // (and once one has been killed, the rest fight shy of it: the raiders have what they came for, and the settlers keep
+    //  further back, so a second death in the same raid is rarer still, and a third very rare)
+    const kill = 0.15 / (1 + (this.killedN || 0) * 2.5);
+    if (r && r.arm && r.arm !== "fists" && Math.random() < kill && this.town.killSettler && !s.isSibling && s.settler && s.settler.name) { if (this.town.killSettler(s) !== false) this.killedN = (this.killedN || 0) + 1; return; }
     // down in the grass for a while; they get up again when it's over
     s.squareTo = null; s.duel = null;
     s.knocked = G.time + 18; s.wasKnocked = true; s.path = []; s.lying = true; s.yOff = 0.05; s.person.held.clear(); s.armKind = null;

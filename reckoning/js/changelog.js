@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.56.4", date: "9 October 2026", title: "Fewer burials",
+    items: [
+      "A raid is less likely to leave several settlers dead. Once one has been killed, the rest keep further back and the raiders don't press it, so a second death in the same raid is much rarer and a third very rare. Before, one bad raid could take a quarter of the town.",
+    ],
+  },
+  {
     v: "0.56.3", date: "9 October 2026", title: "The turning year",
     items: [
       "The grass and the ground change with the year. In spring they're fresh and bright. The green starts going over in late summer, and through autumn the sward turns straw-coloured in patches and the ground under it warmer and duller, until the snow comes.",
