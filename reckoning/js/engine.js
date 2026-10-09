@@ -1299,6 +1299,13 @@ function firstPersonBones(m, fp) {
     if (!m._fp.length) m._fp = [m.neck, m.armR].filter(Boolean);
   }
   for (const b of m._fp) b.scale.setScalar(fp ? 0.001 : 1);
+  // (and a stock over where the neck was: looking down, you see your collar, not the inside of a neck)
+  const nb = m._fp.find(b => b.isBone && /^neck$/i.test(b.name));
+  if (nb && nb.parent && !m._cap) {
+    m._cap = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 6), new THREE.MeshStandardMaterial({ color: 0xe6e0d4, roughness: 0.9 }));
+    m._cap.scale.set(1.05, 0.55, 0.95); m._cap.position.copy(nb.position); nb.parent.add(m._cap);
+  }
+  if (m._cap) m._cap.visible = fp;
 }
 // something put in your pack, as much as there is room for (a dozen to a slot); how many went in
 G.packAdd = (icon, n, name, note) => {

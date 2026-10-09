@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.6", date: "9 October 2026", title: "Your collar",
+    items: [
+      "Look straight down and you see your neckcloth at your collar, where before there was a patch of bare skin, the inside of a neck with no head on it.",
+    ],
+  },
+  {
     v: "0.54.5", date: "9 October 2026", title: "The Lord's day",
     items: [
       "Every fourth day is the Lord's day. In the morning the church bell rings, and the settlers of the church's own creed leave what they're doing and go in to the service, coming out again an hour or two later.",
