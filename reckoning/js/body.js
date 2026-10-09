@@ -30,6 +30,7 @@ export const FOOD = {
   hare: { fill: 0.14, secs: 2.2, name: "raw hare", raw: true },
   boar: { fill: 0.26, secs: 2.8, name: "raw boar", raw: true },
   fish: { fill: 0.12, secs: 2, name: "raw fish", raw: true },
+  mushrooms: { fill: 0.05, secs: 1.4, name: "a handful of ceps" },
   dish: { fill: 0.4, secs: 3.2, name: "a dish" },
 };
 
@@ -120,6 +121,7 @@ export const ITEM = {
   iron: { name: "Iron", note: "Smelted from the ore. For an iron pickaxe or axe." },
   venison: { name: "Venison", note: "From a roe deer. Lean, dark and rich: taste 4, tenderness 3/4, fills 30%. Dries out fast if overcooked. Cook it in the kitchen, or roast it at the fire." },
   hare: { name: "Hare", note: "Sweet and delicate: taste 3, tenderness 4/4, fills 18%. Quick to cook and quicker to ruin." },
+  mushrooms: { name: "Ceps", note: "Fat brown mushrooms from under the trees, after rain. Eat them as they are, or stew them with rye in the kitchen." },
   fish: { name: "Fish", note: "A perch out of the pond, striped and spiny-finned: taste 3, tenderness 4/4, fills 16%. Fry it in the kitchen, or roast it at the fire." },
   boar: { name: "Boar", note: "Fat and strong: taste 4.5, tenderness 1/4, fills 36%. Forgiving if left on — dangerous if taken off too soon." },
   hide: { name: "Hide", note: "A skin off something you hunted. Four make a backpack, at the chopping block." },
@@ -148,7 +150,7 @@ export function restoreBody(saved) {
 }
 export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 }, wear: b.wear || {}, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
 // what the traders give for what you have gathered yourself and put in your chest, a piece
-export const SELL_PRICE = { meat: 2, venison: 3, hare: 2, boar: 4, fish: 1.5, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
+export const SELL_PRICE = { meat: 2, venison: 3, hare: 2, boar: 4, fish: 1.5, mushrooms: 0.5, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
 // the plague, from meat eaten raw: how long it lasts if nobody tends you
 export const PLAGUE_SECS = 300;
 

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.4", date: "9 October 2026", title: "Ceps",
+    items: [
+      "In autumn, after rain, clusters of ceps come up on the forest floor under the trees round about you. Pick them (F) and eat them as they are, or stew three with a little rye in the kitchen (Mushroom stew). Left alone, they go over in a day or two. Traders will take them too.",
+    ],
+  },
+  {
     v: "0.55.3", date: "9 October 2026", title: "Struck",
     items: [
       "Now and then in a summer storm the lightning comes down on a tree near you: a blinding flash, the crack at once, and the tree goes over burning at the crown. Its logs lie where it fell, there for the taking.",

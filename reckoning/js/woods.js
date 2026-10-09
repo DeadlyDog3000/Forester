@@ -1317,6 +1317,39 @@ export class Woods extends WorldBase {
     this.leaves.instanceMatrix.needsUpdate = true;
     if (!col && !live) this.leaves.visible = false;
   }
+  // mushrooms: in autumn, a day after the rain, clusters of ceps come up on the forest floor near the trees round
+  // about you; pick them (F), and they are gone; left, they go over in a day or two
+  mushroomsTick(dt) {
+    if ((this._mushT = (this._mushT || 0) - dt) > 0) return;
+    this._mushT = 4;
+    const T = G.town, p = G.player && G.player.pos; if (!T || T.w !== this || !p) return;
+    const list = this.mush || (this.mush = []);
+    const season = T.season === "autumn" || (T.season === "summer" && T.day % 8 === 3);
+    // (gone over, or out of season, or far behind you)
+    for (const m of list.slice()) if (!season || T.t - m.born > T.dayLen * 1.6 || Math.hypot(m.x - p.x, m.z - p.z) > 140) this.dropMush(m);
+    if (!season || (this.wet || 0) < 0.15 && !this._rainedLately) { if ((this.wet || 0) > 0.4) this._rainedLately = true; return; }
+    if ((this.wet || 0) > 0.4) this._rainedLately = true;
+    if (list.length >= 10) return;
+    for (let tries = 0; tries < 12 && list.length < 10; tries++) {
+      const a = Math.random() * Math.PI * 2, r = 22 + Math.random() * 40, x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
+      if (Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 8 || this.anyRoadDist(x, z).d < 4 || pondK(x, z) < 1.6) continue;
+      const bq = this.brookAt(x, z); if (bq && bq.d < bq.w + 2) continue;
+      // (in among the trees)
+      if (!this.forest.some(t => !t.gone && Math.abs(t.x - x) < 4 && Math.abs(t.z - z) < 4)) continue;
+      const y = this.meshHeightAt(x, z), g = new THREE.Group(), n = 3 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) {
+        const s = 0.6 + Math.random() * 0.8, ox = (Math.random() - 0.5) * 0.6, oz = (Math.random() - 0.5) * 0.6;
+        const st = new THREE.Mesh(MUSH.stem, MUSH.stemM); st.scale.setScalar(s); st.position.set(ox, 0.04 * s, oz); g.add(st);
+        const cp = new THREE.Mesh(MUSH.cap, MUSH.capM); cp.scale.set(s, s * 0.8, s); cp.position.set(ox, 0.08 * s, oz); cp.rotation.set((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3); g.add(cp);
+      }
+      g.position.set(x, y, z); this.root.add(g);
+      const m = { x, z, g, born: T.t, n };
+      m.it = this.addInteract({ x, y: y + 0.2, z, reach: 2.2, hold: 1.2, anim: "pick", label: "Pick the ceps",
+        use: () => { if (G.packAdd("mushrooms", Math.max(2, Math.round(n * 0.7)), "Ceps") > 0) { UI.hint && UI.hint("Ceps — a good handful.", 2); this.dropMush(m); } } });
+      list.push(m);
+    }
+  }
+  dropMush(m) { this.root.remove(m.g); this.removeInteract(m.it); const i = this.mush.indexOf(m); if (i >= 0) this.mush.splice(i, 1); }
   // under a roof, or under the ground: no rain or snow falls on you here
   sheltered() {
     const p = G.player && G.player.pos; if (!p) return false;
@@ -1802,6 +1835,8 @@ export class Woods extends WorldBase {
       // and in autumn, leaves coming down off the birches round you, fluttering as they go
       this.leafFall(dt, k > 0.3 && k < 1.9 ? TREE.leafMat.color : null);
     }
+    // ceps under the trees, after rain, in autumn
+    this.mushroomsTick(dt);
     // the brook
     if (this.brook && !this.brookV && !this._brookLoading) { this._brookLoading = true; import("./brook.js").then(m => { this.brookV = new m.Brook(this); }); }
     if (this.brookV) this.brookV.update(dt);
@@ -1938,6 +1973,11 @@ export class Woods extends WorldBase {
     }
   }
 }
+// a cep: a fat pale stem and a brown cap (shared by every cluster)
+const MUSH = {
+  stem: new THREE.CylinderGeometry(0.028, 0.038, 0.09, 6), cap: new THREE.SphereGeometry(0.06, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2),
+  stemM: mat(0xe2d8bc, { surface: "none" }), capM: mat(0x8a5634, { surface: "none", roughness: 0.6 }),
+};
 // the clay and moss packed between the cabin's logs, and the boards under its roof: a dark lining inside the walls
 // and the roof, so no daylight shows through the seams from inside (the model's own measurements: walls 2.5 out and
 // 3.0 back from the middle, eaves at 2.4, the ridge at 4.96; a window in the right-hand wall, the door in front)

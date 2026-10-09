@@ -32,6 +32,7 @@ export const RECIPES = [
   { id: "fried_hare", name: "Fried hare", vessel: "pan", need: { hare: 1 }, bonus: 0, lv: 1, price: 3, fill: 0.24, colour: 0xb05a4a, done: 0x9a6a3a },
   { id: "boar_chops", name: "Boar chops", vessel: "pan", need: { boar: 1 }, bonus: 0, lv: 1, price: 5, fill: 0.4, colour: 0xc07a6a, done: 0x8a5a32 },
   { id: "fried_perch", name: "Fried perch", vessel: "pan", need: { fish: 1 }, bonus: 0, lv: 1, price: 3, fill: 0.22, colour: 0xd8c8b0, done: 0xb08a4a },
+  { id: "mushroom_stew", name: "Mushroom stew", vessel: "pot", need: { mushrooms: 3, rye: 1 }, bonus: 0.3, lv: 2, price: 4, fill: 0.3, colour: 0x8a6a4a, done: 0x6a4a2a, note: "Ceps stewed down with rye: dark, earthy and filling." },
   { id: "fish_soup", name: "Fish soup", vessel: "pot", need: { fish: 2, rye: 1 }, bonus: 0.5, lv: 5, price: 5, fill: 0.38, colour: 0xc8b890, done: 0x9a8058, note: "Perch simmered with a little rye: a Friday dish." },
   { id: "jugged_hare", name: "Jugged hare", vessel: "pot", need: { hare: 1, rye: 2 }, bonus: 0.5, lv: 3, price: 5, fill: 0.36, colour: 0x7a4a3a, done: 0x5a3020, note: "Hare stewed slow with rye to thicken it." },
   { id: "venison_stew", name: "Venison stew", vessel: "pot", need: { venison: 1, rye: 2 }, bonus: 0.5, lv: 6, price: 6, fill: 0.46, colour: 0x7a3a2a, done: 0x5e3a22, note: "A thick brown stew. It keeps a family going." },
@@ -40,7 +41,7 @@ export const RECIPES = [
   { id: "boar_stew", name: "Wild boar stew", vessel: "pot", need: { boar: 1, rye: 2, blackberries: 2 }, bonus: 1, lv: 30, price: 12, fill: 0.62, colour: 0x8a4a3a, done: 0x4a2a1a, note: "Dark, rich and slow. The dish a burgher's cook would be proud of." },
 ];
 export const RECIPE = Object.fromEntries(RECIPES.map(r => [r.id, r]));
-const INGR_NAME = { venison: "venison", hare: "hare", boar: "boar", fish: "fish", rye: "rye (stores)", blackberries: "blackberries", bread: "bread" };
+const INGR_NAME = { venison: "venison", hare: "hare", boar: "boar", fish: "fish", mushrooms: "ceps", rye: "rye (stores)", blackberries: "blackberries", bread: "bread" };
 
 // what you have of an ingredient: meats and berries from your pack, rye and bread from the stores too
 function have(k) {

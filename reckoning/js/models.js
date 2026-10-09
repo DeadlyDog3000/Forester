@@ -620,6 +620,13 @@ export function makeFood(kind) {
     const stew = new THREE.Mesh(new THREE.CircleGeometry(0.062, 10), mat(0x6a3a22, { surface: "none", roughness: 0.35 })); stew.rotation.x = -Math.PI / 2; stew.position.y = 0.04; g.add(stew);
     return g;
   }
+  if (kind === "mushrooms") {
+    for (const [x, z, s] of [[0, 0, 1], [0.05, 0.03, 0.7]]) {
+      const st = new THREE.Mesh(new THREE.CylinderGeometry(0.014 * s, 0.018 * s, 0.05 * s, 6), mat(0xe8dec4, { surface: "none" })); st.position.set(x, 0.025 * s, z); g.add(st);
+      const cp = new THREE.Mesh(new THREE.SphereGeometry(0.035 * s, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x8a5634, { surface: "none" })); cp.position.set(x, 0.045 * s, z); g.add(cp);
+    }
+    return g;
+  }
   if (kind === "fish") {
     // a perch: olive-backed, barred, a pale belly and an orange tail
     const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), mat(0x6a7a3e, { surface: "none", roughness: 0.4 })); b.scale.set(2.2, 0.9, 0.55); b.position.y = 0.04; g.add(b);
