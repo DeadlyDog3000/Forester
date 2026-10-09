@@ -40,6 +40,7 @@
       </div>
     </div>
     <div id="fpsMeter" class="hidden"></div>
+    <div id="saveMark">Saved</div>
     <div id="inspect" class="hidden">
       <div class="mc-win insp-win">
         <div class="mc-label"><span id="inspTitle">Building</span> <span class="mc-hint"><kbd>V</kbd> or <kbd>F</kbd> close</span></div>
@@ -297,6 +298,8 @@
         <div class="cr-role">Created by</div><div class="cr-name">Roan Fraese</div>
         <div class="cr-role">Tested by</div><div class="cr-name">JR Teja</div>
         <div class="cr-note">Thank you for playing.</div>
+        <div class="cr-libs">Made with <b>three.js</b> (MIT Licence, &copy; the three.js authors) and <b>Electron</b> (MIT Licence).<br>
+          Type: <b>Cinzel</b> by Natanael Gama, <b>IM Fell English</b> by Igino Marini, <b>Open Sans</b> by Steve Matteson &mdash; under the SIL Open Font Licence.</div>
       </div>
       <button class="btn ghost" data-back>Back</button>
     </section>
@@ -306,21 +309,26 @@
       <table class="keys">
         <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
         <tr><td>Mouse</td><td>Look</td></tr>
-        <tr><td><kbd>J</kbd></td><td>Map</td></tr>
-        <tr><td><kbd>B</kbd></td><td>Plans &mdash; what you can build, once there is somewhere to build it</td></tr>
-        <tr><td><kbd>T</kbd></td><td>Inventory &mdash; what you have, and what you carry</td></tr>
-        <tr><td><kbd>P</kbd></td><td>Skills &mdash; strength, toughness, healing, endurance, archery</td></tr>
-        <tr><td><kbd>1</kbd>&ndash;<kbd>9</kbd></td><td>Take out a tool &middot; eat what is in that slot</td></tr>
-        <tr><td><kbd>M</kbd></td><td>Lock the mouse to look around / let it go</td></tr>
         <tr><td><kbd>Shift</kbd></td><td>Run</td></tr>
         <tr><td><kbd>C</kbd></td><td>Crouch</td></tr>
         <tr><td><kbd>Space</kbd></td><td>Jump &middot; move a conversation on</td></tr>
-        <tr><td><kbd>F</kbd></td><td>Talk, take, open &mdash; hold it for work that takes time</td></tr>
         <tr><td><kbd>Q</kbd><kbd>E</kbd></td><td>Lean left / right</td></tr>
-        <tr><td>Left click</td><td>Attack</td></tr>
-        <tr><td>Right click</td><td>Use item</td></tr>
-        <tr><td><kbd>Z</kbd></td><td>Hold to zoom in</td></tr>
+        <tr><td><kbd>Z</kbd></td><td>Hold to look closer</td></tr>
+        <tr><td><kbd>M</kbd></td><td>Lock the mouse to look around / let it go</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Take, open, talk &mdash; hold it for work that takes time</td></tr>
+        <tr><td>Left click</td><td>Swing what you hold &mdash; the way you look is the way it comes</td></tr>
+        <tr><td>Right click</td><td>Draw the bow &middot; raise your guard</td></tr>
+        <tr><td><kbd>1</kbd>&ndash;<kbd>9</kbd></td><td>Take out a tool &middot; eat what is in that slot</td></tr>
+        <tr><td><kbd>J</kbd></td><td>The map</td></tr>
         <tr><td><kbd>K</kbd></td><td>The key to the map: what its marks mean</td></tr>
+        <tr><td><kbd>T</kbd></td><td>Inventory &mdash; what you have, and what you carry</td></tr>
+        <tr><td><kbd>P</kbd></td><td>Skills &mdash; strength, toughness, healing, endurance, archery, cooking</td></tr>
+        <tr><td><kbd>H</kbd></td><td>The guide: how everything works</td></tr>
+        <tr><td><kbd>B</kbd></td><td>Plans &mdash; what you can build, once there is somewhere to build it</td></tr>
+        <tr><td><kbd>V</kbd></td><td>Inspect a building: upkeep, mend, rebuild, pull down</td></tr>
+        <tr><td><kbd>G</kbd></td><td>Government: the nation, research, people, faith, Europe</td></tr>
+        <tr><td><kbd>X</kbd></td><td>Get down off your horse</td></tr>
+        <tr><td><kbd>;</kbd></td><td>Free camera &mdash; fly the view loose, <kbd>;</kbd> again to come back</td></tr>
         <tr><td><kbd>Tab</kbd></td><td>All the keys, in the game</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
       </table>
@@ -346,7 +354,7 @@
     </section>
   </div>
 
-  <div id="loading">Loading…</div>
+  <div id="loading"><div class="ld-box"><div class="logo-top">Forester</div><div class="logo-sub">Reckoning</div><div class="ld-text">Loading the world…</div></div></div>
 
   <script>
     // ?mute: no sound at all — effects and music — for testing without waking the house

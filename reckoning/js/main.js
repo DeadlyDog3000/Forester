@@ -37,6 +37,13 @@ $("view").appendChild(renderer.domElement);
 const SET_KEY = "reckoning.settings.v1";
 try { Object.assign(G.settings, JSON.parse(localStorage.getItem(SET_KEY)) || {}); } catch (e) {}
 G.saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(G.settings)); } catch (e) {} };
+// the very first run: a graphics preset to suit the machine — High on Apple's own chips and on a real graphics card,
+// Balanced on the integrated Intel graphics of older laptops (the player can change it in Settings either way)
+if (!G.settings.quality) {
+  let gpu = "";
+  try { const gl = renderer.getContext(), ext = gl.getExtension("WEBGL_debug_renderer_info"); gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch (e) {}
+  G.settings.quality = /intel|llvmpipe|swiftshader|software/i.test(gpu) && !/apple m\d/i.test(gpu) ? "balanced" : "high";
+}
 function applySettings() {
   const s = G.settings;
   try { SFX.setMaster(s.volume); } catch (e) {}
@@ -876,7 +883,7 @@ function stat(k, v, n, bar, warn = true) {
   return `<div class="gov-stat"><div class="k">${k}</div><div class="v">${v}</div>${n ? `<div class="n">${n}</div>` : ""}${b}</div>`;
 }
 function govNation(t) {
-  const fam = t.colony ? 0 : 2, S = t.S, pop = S.people.length + fam, beds = t.colony ? t.bedsIn(t.colony) : t.beds + 2;
+  const fam = t.colony ? 0 : 2, S = t.S, pop = S.people.length + fam, beds = t.colony ? t.bedsIn(t.colony) : t.beds;
   const foodDays = Math.floor(t.foodDays());
   const fuelDays = Math.floor(S.store / Math.max(1, t.hearths));
   const c = t.contentment();
@@ -949,7 +956,7 @@ function govPeople(t) {
         <div class="k">Why they feel as they do — ${m.value}</div><p>${m.why.map(([n, w]) => `<span class="${n > 0 ? "up" : "down"}">${n > 0 ? "+" : ""}${n}</span> ${esc(w)}`).join("<br>")}</p></div></div></td></tr>`;
   });
   // sending for someone new
-  const pop = S.people.length + (t.colony ? 0 : 2), free = t.colony ? t.bedsIn(t.colony) - pop : t.beds + 2 - pop - (t.sentFor || 0);
+  const pop = S.people.length + (t.colony ? 0 : 2), free = t.colony ? t.bedsIn(t.colony) - pop : t.beds - pop - (t.sentFor || 0);
   const trades = Object.keys(JOBS).filter(j => !(t.jobGated && t.jobGated(j)));
   const recruit = t.recruit ? `<div class="recruit"><span>Send for someone:</span><select id="recJob">${trades.map(j => `<option value="${j}">${cap(JOBS[j].name)} — ${SKILL_NAME[JOB_SKILL[j]]}</option>`).join("")}</select>${(S.colonies || []).length ? `<span>to</span><select id="recTo"><option value="">${esc(S.name || "the first settlement")}</option>${S.colonies.map(c => `<option value="${esc(c.name)}"${t.colony && t.colony.name === c.name ? " selected" : ""}>${esc(c.name)} — ${(n => `${n} bed${n === 1 ? "" : "s"} free`)(t.bedsIn(c) - S.people.filter(p => p.home === c.name).length)}</option>`).join("")}</select>` : ""}<button id="recGo"${free > 0 ? "" : " disabled"}>Send — ${t.recruitCost ? t.recruitCost() : 12} DM</button><span class="dim">${free > 0 ? `${free} bed${free > 1 ? "s" : ""} free. They come up the road with the trade already in their hands.` : "No bed free — raise a cabin first."}${t.sentFor ? ` ${t.sentFor} on the way.` : ""}</span></div>` : "";
   return `<div class="gov-why" style="margin-bottom:8px">${pop} souls${t.colony ? ` in ${esc(t.colony.name)}` : ""}. Everyone who is not family came up the road. Click a name for their whole sheet; the bar is how they feel (hover for why). Two miserable days and they leave.</div>${recruit}
@@ -1267,7 +1274,7 @@ setInterval(() => {
   tb.style.top = (obOn ? ob.offsetTop + ob.offsetHeight + 8 : 24) + "px";
   // (out in a settlement of the forest, its own name and stores)
   const here = t.inColony && G.player && t.inColony(G.player.pos.x, G.player.pos.z), S = here ? t.viewFor(here).S : t.S;
-  tb.innerHTML = `${here ? `<span class="tname">${esc(here.name)}</span>` : ""}${!here && S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb" title="rye"><img src="${ICON.rye}" alt="">${S.rye}</span><span class="tb"><img src="${ICON.bread}" alt="">${S.bread || 0}</span>${S.meat > 0 ? `<span class="tb" title="meat"><img src="${ICON.meat}" alt="">${S.meat}</span>` : ""}<span class="tb tseed" title="rye seed: a new field takes one"><img src="${ICON.seeds}" alt="">${+(S.seed || 0).toFixed(1)}</span>${t.foodDays ? (fd => `<span class="tb tfood${fd < 2 ? " low" : ""}" title="how long the food in the stores lasts everyone">${fd < 10 ? fd.toFixed(1) : Math.round(fd)} days' food</span>`)((here ? t.viewFor(here) : t).foodDays()) : ""}<span class="tb"><img src="${ICON.coin}" alt="">${dm(S.coin)}</span>${(S.stone > 0 ? `<span class="tb" title="stone: the stores hold ${(here ? t.viewFor(here) : t).stoneCap}"><img src="${ICON.stone}" alt="">${S.stone} / ${(here ? t.viewFor(here) : t).stoneCap}</span>` : "")}${[["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"], ["muskets", "musket"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason">${G.town.season || ""}</span><span class="tb"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds + 2}</span>`;
+  tb.innerHTML = `${here ? `<span class="tname">${esc(here.name)}</span>` : ""}${!here && S.name ? `<span class="tname">${esc(S.name)}</span>` : ""}<span class="tb" title="logs in the stores, and room for"><img src="${ICON.logs}" alt="">${S.store} / ${t.storeCap}</span><span class="tb" title="rye"><img src="${ICON.rye}" alt="">${S.rye}</span><span class="tb" title="bread"><img src="${ICON.bread}" alt="">${S.bread || 0}</span>${S.meat > 0 ? `<span class="tb" title="meat"><img src="${ICON.meat}" alt="">${S.meat}</span>` : ""}<span class="tb tseed" title="rye seed: a new field takes one"><img src="${ICON.seeds}" alt="">${+(S.seed || 0).toFixed(1)}</span>${t.foodDays ? (fd => `<span class="tb tfood${fd < 2 ? " low" : ""}" title="how long the food in the stores lasts everyone">${fd < 10 ? fd.toFixed(1) : Math.round(fd)} days' food</span>`)((here ? t.viewFor(here) : t).foodDays()) : ""}<span class="tb" title="the settlement's money, in marks"><img src="${ICON.coin}" alt="">${dm(S.coin)}</span>${(S.stone > 0 ? `<span class="tb" title="stone: the stores hold ${(here ? t.viewFor(here) : t).stoneCap}"><img src="${ICON.stone}" alt="">${S.stone} / ${(here ? t.viewFor(here) : t).stoneCap}</span>` : "")}${[["planks", "planks"], ["bricks", "bricks"], ["ore", "ore"], ["iron", "iron"], ["tools", "tools"], ["spears", "weapon"], ["swords", "weapon"], ["battleaxes", "weapon"], ["muskets", "musket"]].filter(([k]) => S[k] > 0).map(([k, ic]) => `<span class="tb" title="${k}"><img src="${ICON[ic]}" alt="">${S[k]}</span>`).join("")}<span class="tb tseason" title="the season">${G.town.season || ""}</span><span class="tb tbeds${S.people.length + 2 > t.beds ? " low" : ""}" title="${S.people.length + 2 > t.beds ? "more people than beds: build a cabin or make beds, or some will leave" : "people, and beds for them"}"><img src="${ICON.cabin}" alt="">${S.people.length + 2} / ${t.beds}</span>`;
 }, 300);
 // a question with set answers; resolves with the index of the one chosen
 G.choose = (title, options) => new Promise(res => {
@@ -1682,7 +1689,18 @@ function resume() {
 $("btnResume").onclick = resume;
 $("btnPauseSettings").onclick = () => { back = "pause"; screen("settings"); };
 $("btnPauseControls").onclick = () => { back = "pause"; screen("controls"); };
-$("btnRestart").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock(); startChapter(G.chapter || 1); };
+// (restarting throws away what you've done since the chapter began: the first click asks, a second within a few seconds does it)
+let restartArmed = 0;
+$("btnRestart").onclick = () => {
+  const b = $("btnRestart");
+  if (Date.now() - restartArmed > 4000) {
+    restartArmed = Date.now(); b.textContent = "Restart? Click again"; b.classList.add("armed");
+    setTimeout(() => { if (Date.now() - restartArmed >= 3900) { b.textContent = "Restart chapter"; b.classList.remove("armed"); } }, 4000);
+    return;
+  }
+  restartArmed = 0; b.textContent = "Restart chapter"; b.classList.remove("armed");
+  SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock(); startChapter(G.chapter || 1);
+};
 $("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); toTitle(); };
 document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement) freeMouse = false;

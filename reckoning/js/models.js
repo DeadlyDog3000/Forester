@@ -287,7 +287,8 @@ async function fetchModel(k, url) {
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
       // (a hat of steel — the watch's morion — is polished metal, not felt: no weave on it, and bright, since with no
       // reflection to show a metal goes dark)
-      if (n === "hat" && m.metalness > 0.2) { m.userData.part = "helmet"; m.userData.surface = "none"; m.metalness = 0.12; m.roughness = 0.26; m.color.set(0xd2d6dc); m.emissive.set(0x1c2026); }
+      // (a steel helmet: dark polished iron with the sun's sheen on it — it was a pale grey that read as white in daylight)
+      if (n === "hat" && m.metalness > 0.2) { m.userData.part = "helmet"; m.userData.surface = "none"; m.metalness = 0.4; m.roughness = 0.28; m.color.set(0x80848a); m.emissive.set(0x07080a); }
       // a building is solid, closed shapes: drawn from the outside only (both sides drawn, the back of one face fights
       // the face behind it — a gable built of two, a frame against its wall — and flickers); and its trim — timber,
       // iron, glass — always drawn in front of the plaster or brick it lies on

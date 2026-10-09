@@ -2340,7 +2340,7 @@ export class Town {
     if (field && !this.winter) return "Finish digging the new field";
     // nobody yet but the two of you: there is no one to ask, so the first thing is somewhere for people to live
     const hands = S.people.filter(p => !p.child).length;
-    if (!hands) return this.beds + 2 > pop ? "It's only the two of you — keep the rye up, and settlers will come up the road to the free beds" : "It's only the two of you — raise a cabin (B), and settlers will come up the road";
+    if (!hands) return this.beds > pop ? "It's only the two of you — keep the rye up, and settlers will come up the road to the free beds" : "It's only the two of you — raise a cabin (B), and settlers will come up the road";
     if (!this.winter && !S.people.some(p => p.job === "farmer")) return "No one is farming — talk to someone (F) and set them to the fields";
     // the works, each standing idle without a pair of hands
     for (const [j, wk] of Object.entries(WORKS)) if (this.has(wk.at) && !S.people.some(p => p.job === j)) return `The ${BUILDINGS[wk.at].name.toLowerCase()} stands idle — set someone to work as a ${JOBS[j].name} (F by them)`;
@@ -2350,7 +2350,7 @@ export class Town {
     if (up && this.afford(UPGRADES[2].mats)) return `Rebuild a ${BUILDINGS[up.type].name.toLowerCase()} in timber and plaster — F at its front`;
     if (!this.has("brickworks") && S.buildings.some(b => (b.tier || 1) >= 2)) return "Build a brickworks (B): bricks, for building as the Hanse builds";
     if (!this.has("townhall") && S.people.length >= 8) return build("townhall", "Raise a town hall (B): a charter, and a seat for the town");
-    if (this.beds + 2 <= pop) return "Every bed is taken — raise a cabin (B), and someone may come up the road";
+    if (this.beds <= pop) return "Every bed is taken — raise a cabin (B), and someone may come up the road";
     if (!this.has("woodshed") && S.store > this.storeCap - 8) return "The stack is nearly full — build a woodshed (B)";
     if (!this.has("well")) return "Dig a well (B): the fields will yield more";
     if ((S.coin || 0) < 15 && !this.has("market")) return "Short of DM? Sell logs, bread and rye to the traders on the road — Henning comes every third day, Tobias the pedlar every fourth";

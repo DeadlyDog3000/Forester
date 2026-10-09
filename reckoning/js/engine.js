@@ -1256,12 +1256,14 @@ G.rockChips = rockChips;
 let woodGeo = null;
 function woodChips(t, amount = 1) {
   const pl = G.player, root = G.scene; if (!root || !pl || !t) return;
-  woodGeo ??= new THREE.BoxGeometry(0.06, 0.012, 0.035);
+  woodGeo ??= new THREE.BoxGeometry(0.075, 0.014, 0.045);
   const dx = pl.pos.x - t.x, dz = pl.pos.z - t.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
   const gy = G.world && G.world.heightAt ? G.world.heightAt(t.x, t.z) : 0;
-  const hx = t.x + ux * 0.28, hz = t.z + uz * 0.28, hy = gy + 0.9;
+  // (out of the face of the cut, on the bark: a big spruce's trunk is thicker than a birch's, so further from its heart)
+  const kind = t.kind || (t.src && t.src.kind), rTrunk = Math.max(0.24, (kind === "birch" ? 0.2 : 0.3) * ((t.h || 10) / 10)) + 0.05;
+  const hx = t.x + ux * rTrunk, hz = t.z + uz * rTrunk, hy = gy + 0.95;
   const mats = [new THREE.MeshStandardMaterial({ color: 0xd8b880, roughness: 0.9, flatShading: true }), new THREE.MeshStandardMaterial({ color: 0x6a4a30, roughness: 1, flatShading: true })];
-  const bits = [], n = Math.round(10 * amount) + 4;
+  const bits = [], n = Math.round(14 * amount) + 6;
   for (let i = 0; i < n; i++) {
     const b = new THREE.Mesh(woodGeo, mats[i % 3 === 0 ? 1 : 0]); b.scale.setScalar(0.6 + Math.random() * 1.1);
     b.position.set(hx, hy + (Math.random() - 0.5) * 0.15, hz); b.castShadow = true;

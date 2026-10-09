@@ -293,6 +293,12 @@ export function writeSave(patch) {
   const s = { ...(readSlotKept(slot) || {}), ...patch, at: Date.now() };
   // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)
   writeSlot(slot, s);
+  // (a quiet mark in the corner that the game is kept: at most once a minute, so it never flickers)
+  if (typeof document !== "undefined" && Date.now() - (writeSave._shown || 0) > 60000) {
+    writeSave._shown = Date.now();
+    const m = document.getElementById("saveMark");
+    if (m) { m.classList.remove("on"); void m.offsetWidth; m.classList.add("on"); }
+  }
   return s;
 }
 export function clearSave() { clearSlot(slot); }
@@ -1214,10 +1220,12 @@ async function ch6(w) {
     }
     if (!best) return;
     SFX.chop(); G.impact && G.impact(); G.wear && G.wear("axe");
+    G.woodChips && G.woodChips(best, 1);
     // the stronger you are, the more often one stroke does the work of two
     best.hp -= Math.random() < skillK(G.body, "strength") * 0.8 ? 2 : 1;
     G.practise("strength", 0.6);
     if (best.hp > 0) { best.state = "shake"; best.shake = 0.25; return; }
+    G.woodChips && G.woodChips(best, 2.2);
     fell(best, best.x - pl.pos.x, best.z - pl.pos.z, "you");
   };
   function fell(t, dx, dz, by) {
@@ -3079,7 +3087,7 @@ async function chFree(w) {
     restock();
     const pop = S.people.length + 2;
     // (nobody settles where the people are miserable: contentment under 40 turns them back down the road)
-    if (town.bedsIn(null) + 2 > S.people.filter(p => !p.home).length + 2 && town.foodDays() >= 3 && town.contentment().value >= 40) {
+    if (town.bedsIn(null) > S.people.filter(p => !p.home).length + 2 && town.foodDays() >= 3 && town.contentment().value >= 40) {
       const n = nextNewcomer(S, town.onRoad || []);
       if (n) {
         const p = { ...n, seed: 400 + S.people.length * 11 };

@@ -649,7 +649,7 @@ body.dark-fantasy #view::after { content: ""; position: fixed; inset: 0; pointer
 @media (max-width: 640px) { #mmLegend { right: 140px; top: 12px; transform: scale(0.8); transform-origin: top right; } #mmKeyTab { display: none; } }
 
 #townbar .tseed, #townbar .tfood { font-size: 0.92em; color: var(--ink-dim, #b8ad92); }
-#townbar .tfood.low { color: #e0684a; font-weight: 600; }
+#townbar .tfood.low, #townbar .tbeds.low { color: #e0684a; font-weight: 600; }
 
 body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 50; padding: 5px 12px; border-radius: 3px;
   background: rgba(6, 16, 10, 0.72); border: 1px solid rgba(200, 150, 46, 0.5); color: #e8dcc0; font: 600 11px/1.2 var(--sans, sans-serif); letter-spacing: 0.12em; pointer-events: none; }
@@ -812,3 +812,23 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 .settings .set-sec:first-child { margin-top: 0; }
 /* (the lines under a screen's heading, readable over the painting) */
 #menus .screen > .sub, #menus .tagline { text-wrap: balance; color: #eadfc4; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 12px rgba(0, 0, 0, 0.7); }
+/* the loading screen: the title's painting, dimmed, and the name over it */
+#loading { flex-direction: column; text-align: center; background: linear-gradient(rgba(5, 12, 8, 0.72), rgba(5, 12, 8, 0.85)), url("art/menu_painted.jpg") center / cover no-repeat, var(--deep); }
+#loading .ld-text { margin-top: 28px; font: italic 18px var(--serif); color: #eadfc4; animation: ldPulse 1.8s ease-in-out infinite; }
+@keyframes ldPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+.screen .btn.armed { background: linear-gradient(180deg, #c0503a, #8a2e22); color: #f6ecd0; }
+.credits .cr-libs { margin-top: 26px; font: 12px/1.6 var(--sans); color: rgba(234, 223, 196, 0.6); text-shadow: 0 1px 2px #000; }
+.credits .cr-libs b { font-weight: 600; color: rgba(234, 223, 196, 0.8); }
+@media (max-height: 700px) {
+  .logo-top { font-size: clamp(34px, 7vh, 60px); }
+  .logo-sub { font-size: 18px; }
+  .tagline { display: none; }
+  .menu { gap: 5px; }
+  .menu .btn { padding: 6px 22px; }
+  .screen .btn { font-size: 16px; }
+}
+/* the game kept: a small mark low in the corner, there and gone */
+#saveMark { position: fixed; right: 14px; bottom: 40px; z-index: 9; font: italic 14px var(--serif); color: #eadfc4; text-shadow: 0 1px 3px #000; opacity: 0; pointer-events: none; }
+#saveMark::before { content: "✦ "; color: var(--gold); }
+#saveMark.on { animation: saveMark 2.6s ease-in-out; }
+@keyframes saveMark { 0% { opacity: 0; transform: translateY(4px); } 15%, 70% { opacity: 0.85; transform: none; } 100% { opacity: 0; } }

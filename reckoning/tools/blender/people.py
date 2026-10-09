@@ -285,7 +285,7 @@ def build_person(key):
     R = {
         "pelvis": ((0.17 if f else 0.155) + wide, 0.115 + wide * 0.6), "spine": ((0.14 if f else 0.15) + wide * 0.8, 0.1 + wide * 0.6), "chest": ((0.155 if f else 0.18) + wide * 0.5, 0.115 if f else 0.11),
         "yoke": ((0.15 if f else 0.175) + wide * 0.4, 0.1),
-        "neck": (0.05 if f else 0.058, 0.054 if f else 0.062), "head": (0.056 if f else 0.064, 0.058 if f else 0.066),
+        "neck": (0.045 if f else 0.052, 0.05 if f else 0.057), "head": (0.05 if f else 0.058, 0.054 if f else 0.062),
         "shoulder": (0.066 if f else 0.07, 0.066 if f else 0.068), "elbow": (0.042 if f else 0.048, 0.044 if f else 0.048), "wrist": (0.03 if f else 0.034, 0.027 if f else 0.03), "hand": (0.036 if f else 0.04, 0.017),
         "hip": (0.088 if f else 0.085, 0.09), "knee": (0.052 if f else 0.056, 0.056 if f else 0.058), "ankle": (0.036 if f else 0.04, 0.04 if f else 0.042), "toe": (0.042 if f else 0.045, 0.028 if f else 0.03),
     }
@@ -302,15 +302,17 @@ def build_person(key):
             f"shinlo.{s}": (along(f"knee.{s}", f"ankle.{s}", 0.74), (0.037 if f else 0.04, 0.04 if f else 0.043)),
             f"bicep.{s}": (along(f"shoulder.{s}", f"elbow.{s}", 0.42), (0.046 if f else 0.055, 0.048 if f else 0.057)),
             f"forem.{s}": (along(f"elbow.{s}", f"wrist.{s}", 0.3), (0.039 if f else 0.046, 0.037 if f else 0.044)),
+            # the thumb: off the root of the hand, forward and a little in, so a hand reads as a hand and not a paddle
+            f"thumb.{s}": ((J[f"wrist.{s}"][0] - (0.012 if s == "L" else -0.012), J[f"wrist.{s}"][1] - 0.036, J[f"wrist.{s}"][2] - 0.068), (0.011 if f else 0.013, 0.011 if f else 0.013)),
         }
         for n, (p, r) in extra.items():
             PTS[n] = p; RAD[n] = r
-        chain += [("yoke", f"shoulder.{s}"), (f"shoulder.{s}", f"bicep.{s}"), (f"bicep.{s}", f"elbow.{s}"), (f"elbow.{s}", f"forem.{s}"), (f"forem.{s}", f"wrist.{s}"), (f"wrist.{s}", f"hand.{s}"),
+        chain += [("yoke", f"shoulder.{s}"), (f"shoulder.{s}", f"bicep.{s}"), (f"bicep.{s}", f"elbow.{s}"), (f"elbow.{s}", f"forem.{s}"), (f"forem.{s}", f"wrist.{s}"), (f"wrist.{s}", f"hand.{s}"), (f"wrist.{s}", f"thumb.{s}"),
                   ("pelvis", f"hip.{s}"), (f"hip.{s}", f"thighm.{s}"), (f"thighm.{s}", f"knee.{s}"), (f"knee.{s}", f"calf.{s}"), (f"calf.{s}", f"shinlo.{s}"), (f"shinlo.{s}", f"ankle.{s}"), (f"ankle.{s}", f"toe.{s}")]
     edges = [("pelvis", "spine"), ("spine", "chest"), ("chest", "yoke"), ("yoke", "neck"), ("neck", "head")] + chain
     # the trunk, legs and head grown as one skin, and the arms as skins of their own that sink into the shoulders —
     # so a hand hanging against the hip is never joined to it, and never pulls it along
-    ARMS = {f"{b}.{s}" for s in "LR" for b in ("bicep", "elbow", "forem", "wrist", "hand")}
+    ARMS = {f"{b}.{s}" for s in "LR" for b in ("bicep", "elbow", "forem", "wrist", "hand", "thumb")}
     arm_edges = [e for e in edges if e[0] in ARMS or e[1] in ARMS]
     body_edges = [e for e in edges if e not in arm_edges]
     def skin_obj(name, elist, roots):
@@ -357,8 +359,8 @@ def build_person(key):
         col = WHITE
         if z < 0.13:
             m = "leather"                                   # shoes
-        elif arm and z < 0.9:
-            m = "skin"                                      # hands
+        elif arm and (z < 0.9 or (z < 0.945 and not f and not wild)):
+            m = "skin"                                      # hands, and the wrist below a short shirt frill
         elif arm and wild:
             m = "leather" if z < 1.03 else "skin"           # bare arms, leather bracers
         elif arm and f:
@@ -454,7 +456,7 @@ def build_person(key):
     for v in hb.verts:
         v.co = v.co.normalized()
     jawK = 0.16 if f else 0.12
-    noseH = 0.019 if f else 0.024
+    noseH = 0.032 if f else 0.041
     def sculpt(X, Y, Z):
         fr = max(0.0, -Y)
         x, y, z = X * RX, Y * RY, Z * RZ
@@ -463,25 +465,38 @@ def build_person(key):
         x *= 1 - jawK * low * (0.35 + 0.65 * fr)
         if not f: x *= 1 + 0.05 * gauss(Z + 0.55, 0.18) * smooth((abs(X) - 0.4) / 0.3)          # a squarer jaw
         if Z < -0.85: z = -0.85 * RZ + (z + 0.85 * RZ) * 0.7
+        # the jaw: below the cheeks the skull's sides and back draw in to the neck, so the head grows out of the neck
+        # instead of sitting on it like a ball; the chin, at the front, stays where it is
+        jl = smooth((-Z - 0.38) / 0.55) * smooth((Y + 0.62) / 0.5)
+        if jl > 0:
+            rn = 0.048 if f else 0.056
+            ln = math.hypot(x, y - 0.012) or 1e-6
+            k = jl * 0.75
+            x = x * (1 - k) + (x / ln * rn) * k
+            y = (y - 0.012) * (1 - k) + ((y - 0.012) / ln * rn) * k + 0.012
+            z -= 0.012 * jl
         dy = 0.0
-        dy -= (0.003 if f else 0.0055) * gauss(Z - 0.27, 0.1) * gauss(X, 0.62)                       # the brow
+        dy -= (0.0045 if f else 0.008) * gauss(Z - 0.27, 0.1) * gauss(X, 0.62)                       # the brow
         for sd in (-1, 1):
-            dy += 0.0085 * gauss(X - sd * 0.39, 0.16) * gauss(Z - 0.07, 0.12)                           # the sockets
+            dy += 0.011 * gauss(X - sd * 0.39, 0.16) * gauss(Z - 0.07, 0.12)                            # the sockets
             k = gauss(X - sd * 0.58, 0.2) * gauss(Z + 0.1, 0.16)
-            x += sd * 0.004 * k; dy -= 0.004 * k                                                       # cheekbones
+            x += sd * 0.005 * k; dy -= 0.006 * k                                                       # cheekbones
             if old: dy += 0.004 * gauss(X - sd * 0.45, 0.15) * gauss(Z + 0.35, 0.14)                   # hollow cheeks
             dy += 0.0018 * gauss(X - sd * 0.26, 0.06) * gauss(Z + 0.5, 0.06)                            # the corners of the mouth
-            dy -= 0.0055 * gauss(X - sd * 0.15, 0.065) * gauss(Z + 0.3, 0.055)                          # the wings of the nose
+            dy -= 0.008 * gauss(X - sd * 0.15, 0.065) * gauss(Z + 0.3, 0.055)                           # the wings of the nose
+            dy += 0.003 * gauss(X - sd * 0.22, 0.05) * gauss(Z + 0.3, 0.07)                             # and the crease beside them
         # the nose: a bridge from between the eyes down to the tip, and in under it
         if Z > -0.27:
             t = max(0.0, min(1.0, (0.13 - Z) / 0.4)); h = 0.003 + (noseH - 0.003) * t ** 1.4; w = 0.065 + 0.07 * t
         else:
             h = noseH * smooth((Z + 0.37) / 0.1); w = 0.13
         dy -= h * gauss(X, w)
-        dy -= 0.0035 * gauss(X, 0.3) * gauss(Z + 0.43, 0.07)                                           # the upper lip
-        dy += 0.0028 * gauss(X, 0.24) * gauss(Z + 0.5, 0.03)                                           # where the lips meet
-        dy -= 0.003 * gauss(X, 0.24) * gauss(Z + 0.56, 0.055)                                         # the lower lip
-        dy -= (0.003 if f else 0.005) * gauss(X, 0.26) * gauss(Z + 0.78, 0.12)                        # the chin
+        dy -= 0.0055 * gauss(X, 0.3) * gauss(Z + 0.43, 0.07)                                           # the upper lip
+        dy += 0.0015 * gauss(X, 0.05) * gauss(Z + 0.4, 0.04)                                           # the groove above it
+        dy += 0.004 * gauss(X, 0.24) * gauss(Z + 0.5, 0.03)                                            # where the lips meet
+        dy -= 0.0048 * gauss(X, 0.24) * gauss(Z + 0.56, 0.055)                                        # the lower lip
+        dy += 0.003 * gauss(X, 0.3) * gauss(Z + 0.66, 0.05)                                           # the hollow under it
+        dy -= (0.005 if f else 0.008) * gauss(X, 0.26) * gauss(Z + 0.78, 0.12)                        # the chin
         y += dy * smooth(fr / 0.5)
         return Vector((x, y, z))
     lipc = rgb(0xb8726a) if f else rgb(0xa47462)
@@ -496,13 +511,13 @@ def build_person(key):
         blush = 0.0
         for sd in (-1, 1):
             blush += gauss(X - sd * 0.5, 0.22) * gauss(Z + 0.18, 0.2)
-        blush = min(1.0, blush) * fr * (0.45 if f else 0.3)
+        blush = min(1.0, blush) * fr * (0.28 if f else 0.18)
         c = mix(c, tint(skin, (1.06, 0.82, 0.8)), blush)
         c = mix(c, tint(skin, (1.04, 0.86, 0.84)), 0.35 * gauss(X, 0.12) * gauss(Z + 0.28, 0.07) * fr)    # the nose's tip
         for sd in (-1, 1):
             c = mix(c, tint(skin, (0.86, 0.8, 0.8)), 0.4 * gauss(X - sd * 0.39, 0.17) * gauss(Z - 0.05, 0.13) * fr)   # the sockets in shade
-        lip = gauss(X, 0.27) * max(gauss(Z + 0.47, 0.045), gauss(Z + 0.55, 0.05)) * fr
-        c = mix(c, lipc, min(1.0, lip * (1.1 if f else 0.8)))
+        lip = gauss(X, 0.22) * max(gauss(Z + 0.46, 0.032), gauss(Z + 0.555, 0.038)) * fr
+        c = mix(c, lipc, min(1.0, lip * (0.85 if f else 0.6)))
         c = mix(c, tint(lipc, (0.55, 0.5, 0.5)), 0.6 * gauss(X, 0.22) * gauss(Z + 0.505, 0.018) * fr)  # the line between them
         # eyebrows, painted on: a soft arch over each eye
         for sd in (-1, 1):
@@ -545,9 +560,9 @@ def build_person(key):
         # the upper lid, its lashes dark along its edge
         b = newbm()
         bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=10, radius=1)
-        bmesh.ops.delete(b, geom=[v for v in b.verts if v.co.z < 0.12], context="VERTS")
-        bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(-0.25, 3, "X"))
-        paint_verts(b, lambda v: tint(skin, (0.3, 0.25, 0.22)) if v.co.z < 0.26 else mix(skin, tint(skin, (0.9, 0.82, 0.8)), 0.5))
+        bmesh.ops.delete(b, geom=[v for v in b.verts if v.co.z < -0.02], context="VERTS")
+        bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(-0.42, 3, "X"))
+        paint_verts(b, lambda v: tint(skin, (0.3, 0.25, 0.22)) if v.co.z < 0.1 else mix(skin, tint(skin, (0.9, 0.82, 0.8)), 0.5))
         bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(ec + Vector((0, -0.0006, 0.0006)), Euler((0, 0, 0)), Vector((er * 1.12, er * 1.1, er * 1.02))))
         merge(b, "skin")
         # the lower lid, a soft roll

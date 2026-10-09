@@ -7,6 +7,20 @@
 
 export const CHANGELOG = [
   {
+    v: "0.58.0", date: "9 October 2026", title: "Faces and hands",
+    items: [
+      "Everyone's face is better modelled. The jaw draws in to the neck, so a head grows out of the shoulders instead of sitting on them like a ball. The brow, the eye sockets, the cheekbones, the nose and its wings, the lips and the chin all stand out more, the eyelids sit naturally over the eyes instead of staring, and the lips and cheeks are no longer smudged with colour.",
+      "Hands have thumbs, and a man's wrist shows below a short shirt frill instead of a long white sleeve.",
+      "The watch's helmets are dark polished steel. They were a pale grey that looked white in daylight.",
+      "Chopping a tree throws chips of bark and heartwood from the cut with every stroke, wherever you chop, and a shower of them when it goes. Before, the chips started inside a big spruce's trunk where you couldn't see them, and the trees in the first clearing threw none at all.",
+      "Beds are counted the same way everywhere. Newcomers no longer arrive for two beds that don't exist, only to be unhappy for having no bed. The settlement bar shows people against beds, and turns red with the reason when there are more people than beds.",
+      "Every item on the settlement bar names itself when you hover over it with a menu open.",
+      "The first time you play, the graphics are set to suit your machine: High on Apple's own chips and on a real graphics card, Balanced on older Intel laptops.",
+      "Restart chapter asks you to click again before it throws away what you've done. A small Saved mark shows in the corner when the game is kept, at most once a minute. The loading screen shows the title painting.",
+      "The Controls screen lists every key, matching the list in the game. The Credits name the libraries and typefaces the game is made with. On a short window, the title menu fits without scrolling.",
+    ],
+  },
+  {
     v: "0.57.2", date: "9 October 2026", title: "Fields by the road",
     items: [
       "The open country where the road leaves Hamburg is meadow: green in the hollows, drier on the rises, with grass growing thick across it. Before, the fields between the city and the woods were bare khaki ground with a tuft here and there.",
