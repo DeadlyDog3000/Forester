@@ -1279,7 +1279,10 @@ export class Woods extends WorldBase {
   // the ground's colour: brighter under snow, darker when the rain has soaked it
   groundTint() {
     if (!this.terrainMat) return;
-    this.terrainMat.color.setRGB(1, 1, 1).lerp(new THREE.Color(1.7, 1.75, 1.85), this.snowK || 0).multiplyScalar(1 - (this.wet || 0) * 0.28 * (1 - (this.snowK || 0)));
+    // (the ground's green turning with the year: a little fresher in spring, warmer and duller as autumn comes on)
+    const T = G.town, yd = T ? ((T.day % 8) + 8) % 8 : 2, k = [-0.5, -0.4, 0, 0.25, 0.6, 0.85, 1, 1][yd];
+    this._tintDay = T ? T.day : 0;
+    this.terrainMat.color.setRGB(1 + k * 0.12, 1 - k * 0.05, 1 - k * 0.22 + (k < 0 ? k * 0.06 : 0)).lerp(new THREE.Color(1.7, 1.75, 1.85), this.snowK || 0).multiplyScalar(1 - (this.wet || 0) * 0.28 * (1 - (this.snowK || 0)));
   }
   // rain, k from nothing to a downpour; wind slants it
   setRain(k, wind = 0.3) {
@@ -1939,7 +1942,7 @@ export class Woods extends WorldBase {
     // the ground soaks up the rain, and dries again more slowly
     const wetWant = (this.rainK || 0) > 0.15 ? 1 : 0, wet0 = this.wet || 0;
     this.wet = clamp(wet0 + (wetWant ? dt / 40 * this.rainK : -dt / 150), 0, 1);
-    if (Math.abs(this.wet - wet0) > 1e-5) this.groundTint();
+    if (Math.abs(this.wet - wet0) > 1e-5 || (G.town && G.town.day !== this._tintDay)) this.groundTint();
     if (this.flakes && this.flakes.visible) {
       const p = this.flakes.geometry.attributes.position, c = G.player.pos, sp = 2 + this.flakeFall * 5;
       for (let i = 0; i < p.count; i++) {

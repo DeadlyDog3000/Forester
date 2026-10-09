@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.56.3", date: "9 October 2026", title: "The turning year",
+    items: [
+      "The grass and the ground change with the year. In spring they're fresh and bright. The green starts going over in late summer, and through autumn the sward turns straw-coloured in patches and the ground under it warmer and duller, until the snow comes.",
+    ],
+  },
+  {
     v: "0.56.2", date: "9 October 2026", title: "Summer nights",
     items: [
       "On a still summer night, fireflies drift low over the grass all round you. Each one glows up and fades in its own slow rhythm. None come out in rain or wind.",
