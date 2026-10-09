@@ -13,7 +13,7 @@ import { forestInstances, modelCopy, ensureModel, makeSpruce, SWAY } from "../mo
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
 import { makeTerrain, CHUNK, WATER } from "./terrain.js";
-import { COUNTRIES } from "./earth-data.js";
+import { REALMS_1683, SEAS_1683 } from "./earth-1683.js";
 import { BUILD } from "./rules.js";
 import { ryeStrip } from "../town.js";
 
@@ -491,8 +491,9 @@ export class Wilds extends WorldBase {
     if (this._places) return this._places;
     if (this.land.kind === "earth") {
       const at = (lon, lat) => ({ x: lon / 180 * this.half, z: -lat / 180 * this.half });
-      const out = COUNTRIES.slice(0, 45).map(([name, lon, lat, size]) => ({ kind: "land", name, size, ...at(lon, lat) }));
-      for (const [name, lon, lat] of [["Atlantic Ocean", -35, 15], ["Pacific Ocean", -140, 5], ["Pacific Ocean", 165, 18], ["Indian Ocean", 78, -20], ["Arctic Ocean", 0, 72], ["Southern Ocean", 40, -55], ["Mediterranean", 18, 35.5]]) out.push({ kind: "sea", name, ...at(lon, lat) });
+      // (the world of 1683: its realms and seas by the names of the day)
+      const out = REALMS_1683.map(([name, lon, lat, size]) => ({ kind: "land", name, size, ...at(lon, lat) }));
+      for (const [name, lon, lat] of SEAS_1683) out.push({ kind: "sea", name, ...at(lon, lat) });
       return this._places = out;
     }
     const L = this.land, n = 72, step = 2 * this.half / n, out = [];
@@ -532,15 +533,22 @@ export class Wilds extends WorldBase {
     return this._places = out;
   }
   mapLabels(c, X, Z) {
-    const used = [];
-    for (const p of this.places) {
-      if (p.kind === "land") {
-        const size = Math.max(9, Math.min(16, 7 + Math.sqrt(p.size) * 0.45));
-        c.font = `italic ${size}px "IM Fell English", Georgia, serif`;
-        const w = c.measureText(p.name).width, bx = { x0: X(p.x) - w / 2 - 2, x1: X(p.x) + w / 2 + 2, y0: Z(p.z) - size / 2 - 1, y1: Z(p.z) + size / 2 + 1 };
-        if (used.some(q => q.x0 < bx.x1 && bx.x0 < q.x1 && q.y0 < bx.y1 && bx.y0 < q.y1)) continue;
-        used.push(bx); label(c, p.name, X(p.x), Z(p.z), size, INK); continue;
+    const used = [], hits = bx => used.some(q => q.x0 < bx.x1 && bx.x0 < q.x1 && q.y0 < bx.y1 && bx.y0 < q.y1);
+    // (the great lands are lettered first; a smaller one that would crowd them shifts a little, or is left off)
+    const land = this.places.filter(p => p.kind === "land").sort((a, b) => (b.size || 0) - (a.size || 0));
+    for (const p of land) {
+      const size = Math.max(9, Math.min(16, 7 + Math.sqrt(p.size) * 0.45));
+      c.font = `italic ${size}px "IM Fell English", Georgia, serif`;
+      const w = c.measureText(p.name).width;
+      for (const [ox, oy] of [[0, 0], [0, -size], [0, size], [-w / 3, 0], [w / 3, 0], [0, -size * 2], [0, size * 2]]) {
+        const x = X(p.x) + ox, y = Z(p.z) + oy, bx = { x0: x - w / 2 - 2, x1: x + w / 2 + 2, y0: y - size / 2 - 1, y1: y + size / 2 + 1 };
+        if (hits(bx)) continue;
+        used.push(bx); label(c, p.name, x, y, size, INK); break;
       }
+    }
+    for (const p of this.places) {
+      if (p.kind === "land") continue;
+      if (p.kind === "sea") { c.font = `italic 18px "IM Fell English", Georgia, serif`; const w = c.measureText(p.name).width, bx = { x0: X(p.x) - w / 2, x1: X(p.x) + w / 2, y0: Z(p.z) - 9, y1: Z(p.z) + 9 }; if (hits(bx)) continue; used.push(bx); }
       const size = p.kind === "sea" ? 18 : p.kind === "hill" ? 13 : p.kind === "lake" ? 12 + Math.min(4, (p.size || 3) / 6) : 13;
       if (p.kind === "hill") { c.fillStyle = INK; c.beginPath(); c.moveTo(X(p.x), Z(p.z) - 5); c.lineTo(X(p.x) + 4, Z(p.z) + 2); c.lineTo(X(p.x) - 4, Z(p.z) + 2); c.closePath(); c.fill(); }
       label(c, p.name, X(p.x), Z(p.z) + (p.kind === "hill" ? 14 : 0), size, p.kind === "lake" || p.kind === "sea" ? "#3e5a62" : INK);

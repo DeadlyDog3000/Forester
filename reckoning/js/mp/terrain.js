@@ -62,7 +62,7 @@ export const TERRAINS = {
   continent:   { name: "Continent",    note: "Land from edge to edge, a coast down one side and mountains round the rest." },
   highlands:   { name: "Highlands",    note: "An island of mountains, snow on the peaks and the woods in the valleys." },
   lakeland:    { name: "Lake country", note: "An island full of lakes and the land between them." },
-  earth:       { name: "The Earth",    note: "The whole world, made small: every continent and ocean where it is, the mountains where they rise, desert and snow where they lie." },
+  earth:       { name: "The Earth",    note: "The whole world as it stood in 1683, made small: every continent and sea where it is, the realms of the day on the map, the mountains where they rise, desert and snow where they lie." },
 };
 export const TERRAIN_ORDER = ["island", "archipelago", "continent", "highlands", "lakeland", "earth"];
 

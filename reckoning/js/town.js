@@ -28,6 +28,7 @@ import { ARMS, ARM_KINDS } from "./raid.js";
 import { gunsmithTick, benchFront } from "./gunsmith.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { NATIONS, NEAR, ensureEurope, europeDay, strengthOf, the, The } from "./europe.js";
+import { DISEASES, catchSomething, sicken, diseaseName } from "./disease.js";
 import { ensurePerson, gainSkill, workSkill, armSkill, temperWork, temperArm, JOB_SKILL, SKILL_NAME, MARKS, moodOf, skillLvl, MASTER_AT, trainCost } from "./people.js";
 import { CLEARING, CABIN, STACK, BLOCK, FIRE, RING, HUNT, inPoly, POND, pondK } from "./woods.js";
 import { FURNITURE, ROOM, halfSize, fitsRoom, ghostOf } from "./furnish.js";
@@ -1207,20 +1208,45 @@ export class Town {
   // ---- sickness: some fall ill, day by day; the hospital and a doctor get them up again quickly ----
   sickness() {
     const S = this.S, E = S.europe, near = E ? [...NEAR].some(id => E.plague && E.plague[id]) : false;
-    const cure = this.has("hospital") && S.people.some(p => p.job === "doctor" && !(p.sick > 0)) ? 3 : 1;
+    const doctor = this.has("hospital") && S.people.some(p => p.job === "doctor" && !(p.sick > 0));
+    const cure = doctor ? 3 : 1;
+    // (a hospital with a doctor keeps the sick apart from the rest: half as catching)
+    const apart = doctor ? 0.5 : 1;
+    const sick = S.people.filter(p => p.sick > 0);
     for (const p of [...S.people]) {
       if (p.sick > 0) {
-        // a fever can kill: rarely with a doctor, more often without, and most of all with the plague about
-        const die = (cure > 1 ? 0.01 : 0.05) * (near ? 2 : 1) * (p.temper === "sickly" ? 1.5 : p.temper === "hardy" ? 0.5 : 1) * (p.child ? 1.5 : 1);
-        if (Math.random() < die) { this.killSettler(p, "sick"); continue; }
+        const D = DISEASES[p.disease] || DISEASES.fever;
+        // it can kill: rarely with a doctor, more often without, and worse for the sickly, the young, and when the plague is about
+        const die = D.die * (doctor ? 0.3 : 1) * (near && p.disease === "plague" ? 1.3 : 1) * (p.temper === "sickly" ? 1.5 : p.temper === "hardy" ? 0.5 : 1) * (p.child ? 1.5 : 1);
+        if (Math.random() < die) { p.diedOf = D.name; this.killSettler(p, "sick"); continue; }
         p.sick -= cure;
-        if (p.sick <= 0) { p.sick = 0; G.tell("people", p.home, `${p.name} is well again.`, 3); }
+        if (p.sick <= 0) {
+          p.sick = 0;
+          if (D.immune) { (p.immune ??= []).includes(p.disease) || p.immune.push(p.disease); }
+          G.tell("people", p.home, `${p.name} is over ${D.name}.${D.immune ? " They'll not catch it again." : ""}`, 3);
+          p.disease = null;
+        }
         continue;
       }
+      // caught off someone: each catching sickness in the settlement (the same settlement), a chance a day
+      let caught = null;
+      for (const q of sick) {
+        if (q === p || q.home !== p.home) continue;
+        const D = DISEASES[q.disease]; if (!D || !D.spread || (p.immune || []).includes(q.disease)) continue;
+        if (Math.random() < D.spread * apart * (p.temper === "sickly" ? 1.5 : p.temper === "hardy" ? 0.6 : 1)) { caught = q; break; }
+      }
+      if (caught) {
+        sicken(p, caught.disease);
+        G.tell("trouble", p.home, `${p.name} has caught ${diseaseName(p)} from ${caught.name}.${doctor ? "" : " A hospital with a doctor keeps the sick apart, and slows it."}`, 6);
+        continue;
+      }
+      // or falling ill of something new: likelier in the cold, with the plague about, and for the sickly; a well keeps the water clean
       let k = 0.02 * (near ? 4 : 1) * (this.winter && S.cold ? 2 : 1) * (p.temper === "sickly" ? 1.6 : p.temper === "hardy" ? 0.5 : 1) * (this.has("well") ? 0.8 : 1);
       if (Math.random() < k) {
-        p.sick = 3 + Math.floor(Math.random() * 3);
-        G.tell("trouble", p.home, `${p.name} has fallen ill${near ? " — the plague is in the country round about" : ""}.${cure > 1 ? " The doctor will see to them." : this.has("hospital") ? " The hospital wants a doctor (F by someone)." : " A hospital and a doctor (Physick) would have them up sooner."}`, 6);
+        let id = catchSomething(this, { near, winter: this.winter, season: this.season, well: this.has("well") });
+        if ((p.immune || []).includes(id)) id = "fever";
+        sicken(p, id);
+        G.tell("trouble", p.home, `${p.name} has fallen ill with ${diseaseName(p)}${near ? " — the plague is in the country round about" : ""}.${cure > 1 ? " The doctor will see to them." : this.has("hospital") ? " The hospital wants a doctor (F by someone)." : " A hospital and a doctor (Physick) would have them up sooner."}`, 6);
       }
     }
   }
@@ -2237,12 +2263,12 @@ export class Town {
       // (a body cut down lies where it fell for a while; one that died abed is carried out quietly)
       setTimeout(() => { a.remove(); const j = this.actors.indexOf(a); if (j >= 0) this.actors.splice(j, 1); }, violent ? 30000 : 1500);
     }
-    (this.S.graves ??= []).push({ name: p.name, day: this.day, why });
+    (this.S.graves ??= []).push({ name: p.name, day: this.day, why, of: why === "sick" ? p.diedOf || null : undefined });
     this.S.mournUntil = this.day + 3;
     this.showGraves(); this.persist(); this.emit("died", p, why);
     const how = {
       raid: "Cut down in the raid.", revolt: "Killed in the fighting in the streets.", cave: "Killed down in the caves, in the dark.",
-      hunger: "Starved: there was nothing left in the stores.", feud: "Beaten to death in the feud between the families.", cold: "Froze in the night, with no wood for the hearth.", sick: "The fever took them.",
+      hunger: "Starved: there was nothing left in the stores.", feud: "Beaten to death in the feud between the families.", cold: "Froze in the night, with no wood for the hearth.", sick: `Taken by ${p.diedOf || "a fever"}.`,
     }[why] || "";
     UI.news({ title: `${p.name} is dead`, sub: `${how} Buried at the edge of the clearing, by the ones who were left.`, img: "event_war" });
     return true;
@@ -2254,7 +2280,7 @@ export class Town {
     for (const it of this.graveIts || []) w.removeInteract(it);
     this.graveIts = [];
     if (!list.length) return;
-    const HOW = { raid: "cut down in a raid", revolt: "killed in the rising", cave: "killed in the caves", hunger: "starved", feud: "killed in a feud", cold: "froze in the night", sick: "taken by the fever" };
+    const HOW = { raid: "cut down in a raid", revolt: "killed in the rising", cave: "killed in the caves", hunger: "starved", feud: "killed in a feud", cold: "froze in the night", sick: "taken by sickness" };
     const g = this.graveG = new THREE.Group();
     const wood = mat(0x6a4a30, { surface: "wood" }), earth = mat(0x4a3a2a, { surface: "none" });
     list.forEach((gr, i) => {

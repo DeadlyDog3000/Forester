@@ -12,6 +12,7 @@
 
 import { FOLEY } from "./foley.js";
 import { Caves } from "./cave.js";
+import { sicken, weighted, CARRIED, diseaseName } from "./disease.js";
 import { BUILD_GATES } from "./gov.js";
 import { dishOffers, isRawMeat } from "./cook.js";
 import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME, SELL_PRICE } from "./body.js";
@@ -2093,6 +2094,8 @@ function glance(watchers, target, secs = 8) {
 // someone comes up the road and joins you
 async function arrival(town, p, say1) {
   const w = town.w, r0 = w.road[w.road.length - 30];
+  // (one in seven or so brings something with them up the road — and it may go round)
+  if (town.techGates && Math.random() < 0.15) { sicken(p, weighted(CARRIED)); setTimeout(() => G.town === town && G.tell("trouble", null, `${p.name} has come up the road with ${diseaseName(p)}. Keep them apart if you can — a hospital with a doctor — or it may go round.`, 7), 5000); }
   const a = town.addPerson(p, r0.x, r0.z);
   if (G.guide) setTimeout(() => G.guide("settlers"), 12000);
   glance([...town.actors, ...(G.world.actors || []).filter(x => x.isSibling)], a, 9);

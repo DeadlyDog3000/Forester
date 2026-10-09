@@ -9,6 +9,7 @@
 // hundred, the same six pairs of temperaments, the same marks — fitted to the
 // few systems Reckoning has. Every one bends a number that was already there.
 
+import { diseaseName } from "./disease.js";
 import { economyMood } from "./economy.js";
 import { feudMood } from "./feud.js";
 import { rng } from "./core.js";
@@ -139,7 +140,7 @@ export function moodOf(town, p) {
     if (faithOf(q) === "catholic" && town.S.bread > 0) { v += add(2, `alms from ${q.name}`); break; }
   }
   if (town.hallTier) v += add(2 + town.hallTier, "a town hall: a say in how the place is run");
-  if (p.sick > 0) v += add(-10, "sick");
+  if (p.sick > 0) v += add(p.disease === "plague" || p.disease === "smallpox" ? -16 : -10, `sick with ${diseaseName(p)}`);
   if (p.mark === "disgraced") v += add(-7, "disgraced: the jail");
   if (p.mark === "contented") v += add(6, "contented");
   if (p.mark === "bitter") v += add(-5, "bitter");

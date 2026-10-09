@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.67.0", date: "10 October 2026", title: "Sickness, and the world of 1683",
+    items: [
+      "More than the fever now. People can come down with a winter cough, the flux, the ague, consumption, the smallpox, or the plague, and some are far deadlier than others. A cough is a misery that passes. The plague kills.",
+      "Some sicknesses catch. They go round the people who share a house, so one case can become five. Survive the smallpox or the plague and you won't take it again. A hospital with a doctor keeps the sick apart and saves more of them.",
+      "When you take in a newcomer, there's about a one-in-seven chance they bring something with them up the road. You'll be told what it is.",
+      "Graves, the news and people's moods now name what they're sick with, or what took them.",
+      "The Earth map is now the world as it was in 1683. The realms of the day are named where they lay: the Holy Roman Empire, the Tsardom of Muscovy, the Ottoman Empire, Safavid Persia, the Mughal and Qing empires, New France, New Spain, Rupert's Land, New Holland and more. The seas carry their old names too, such as the Western Ocean, the Mar del Sur and the Mare Magellanicum.",
+      "Map names no longer pile on top of each other. The great realms are lettered first, and a smaller one moves aside to make room.",
+    ],
+  },
+  {
     v: "0.66.0", date: "10 October 2026", title: "The Earth",
     items: [
       "A new country to play in: the Earth. The whole world made small, with every continent, island and ocean where it really is, taken from Natural Earth's maps. The great mountain ranges rise where they stand: the Himalaya, the Andes, the Rockies, the Alps. The Sahara, Arabia, the Gobi and the Australian outback are desert, and the far north is tundra and snow.",
