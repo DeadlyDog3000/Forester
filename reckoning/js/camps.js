@@ -20,7 +20,7 @@ const NEAR = 70, FAR = 100;       // its raiders are about when you're this near
 // a raider camped out (in the woods, or down in the caves): sits by his fire until he sees you, then comes for you.
 // `owner` is the camp: what ground is his (holds(x, z)), and his band.
 export class Bandit {
-  constructor(owner, x, z, i) {
+  constructor(owner, x, z, i, seated = false) {
     this.owner = owner; this.hp = 70; this.cool = 1; this.down = false; this.woke = false;
     this.wind = 0; this.dir = "right"; this.guardDir = ["up", "left", "right"][i % 3]; this.guardT = 1; this.stun = 0;
     const raider = !!MODELS.raider;
@@ -29,7 +29,9 @@ export class Bandit {
     this.arm = ["axe", "club", "sword", "knife"][i % 4];
     this.a.hold(makeArm(this.arm)); this.a.heavy = true;
     this.a.faceTo(owner.fire ? owner.fire.x : x, owner.fire ? owner.fire.z : z);
-    this.a.person.setPose("sit");
+    // (on a log by the fire, if there is one to sit on; otherwise up on his feet, arms folded, keeping watch)
+    if (seated) { this.a.person.sitting = 1; this.a.person.setPose("sit"); }
+    else { this.a.person.setPose("armsCrossed"); if (owner.fire) this.a.faceTo(x * 2 - owner.fire.x, z * 2 - owner.fire.z); }
     // (the hunt's arrows and the musket find him, as they find a raid's raiders)
     this.K = { r: 0.36, h: 1.05, len: 0.18, name: "raider", upright: true };
     if (G.hunt) G.hunt.animals.push(this);
@@ -44,7 +46,7 @@ export class Bandit {
   hit(power, head = false) { this.wake(); this.hurt((10 + power * 22) * (head ? 2 : 1), null); }
   wake() {
     if (this.woke) return;
-    for (const b of this.owner.band || []) if (!b.woke) { b.woke = true; b.a.person.setPose("idle"); }
+    for (const b of this.owner.band || []) if (!b.woke) { b.woke = true; b.a.person.sitting = 0; b.a.person.setPose("idle"); }
     AUDIO.voice && AUDIO.voice("war", { at: this.a.pos });
     UI.hint(this.owner.wakeText || "Raiders — they've seen you!", 3);
   }
@@ -310,11 +312,12 @@ export class Camps {
   // the raiders, about when you're near (and not those already put down)
   spawn(c) {
     const n = Math.max(0, 3 + (this.town.hallTier >= 2 ? 1 : 0) - (c.st.down || 0));
-    const seats = [[0, 1.6], [-1.6, 0.4], [1.6, 0.6], [0.9, -1.4]];
+    // (on the three logs round the fire, and a fourth stood keeping watch)
+    const seats = [[0, 2.0, 1], [-1.9, 0.4, 1], [1.9, 0.6, 1], [0.9, -1.4, 0]];
     for (let i = 0; i < n; i++) {
-      const [lx, lz] = seats[i % seats.length];
+      const [lx, lz, sit] = seats[i % seats.length];
       const p = { x: c.x + lx * Math.cos(c.ry) + lz * Math.sin(c.ry), z: c.z - lx * Math.sin(c.ry) + lz * Math.cos(c.ry) };
-      c.band.push(new Bandit(c, p.x, p.z, i + (c.st.gen || 0) * 3));
+      c.band.push(new Bandit(c, p.x, p.z, i + (c.st.gen || 0) * 3, !!sit && i < 3));
     }
   }
   cleared(c) {

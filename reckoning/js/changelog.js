@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.7", date: "9 October 2026", title: "Round their fire",
+    items: [
+      "Raiders in a camp sit on the logs round their fire until they see you, and the fourth stands keeping watch with his arms folded, facing out into the trees. Before, they stood bunched up round the fire all together.",
+    ],
+  },
+  {
     v: "0.54.6", date: "9 October 2026", title: "Your collar",
     items: [
       "Look straight down and you see your neckcloth at your collar, where before there was a patch of bare skin, the inside of a neck with no head on it.",
