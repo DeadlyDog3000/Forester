@@ -986,3 +986,23 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 .cb-chips i { width: 14px; height: 14px; border-radius: 3px; display: block; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3); }
 .cb-foot { display: flex; justify-content: space-between; }
 @media (max-width: 760px) { .cb { grid-template-columns: 1fr; overflow-y: auto; } .cb-pv { height: 320px; } }
+
+/* ---- achievements ---- */
+#achievements { width: min(900px, 100%); }
+#achList { text-align: left; }
+.ach-sum { font: italic 18px var(--serif); color: var(--ink); text-align: center; margin-bottom: 10px; }
+.ach-bar { width: min(360px, 80%); height: 6px; margin: 8px auto 0; background: rgba(255, 255, 255, 0.12); border-radius: 3px; overflow: hidden; }
+.ach-bar div { height: 100%; background: linear-gradient(90deg, #b8913a, #f0d080); }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 6px 0 14px; }
+.ach { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center; padding: 10px 12px; background: rgba(9, 24, 16, 0.6); border: 1px solid rgba(140, 192, 132, 0.18); border-radius: 6px; opacity: 0.62; }
+.ach.on { opacity: 1; border-color: rgba(220, 180, 90, 0.6); background: linear-gradient(135deg, rgba(60, 46, 16, 0.75), rgba(9, 24, 16, 0.7)); }
+.ach-i { font-size: 24px; text-align: center; color: var(--ink-dim); }
+.ach.on .ach-i { color: #f0d080; text-shadow: 0 0 10px rgba(240, 208, 128, 0.6); }
+.ach-n { font: 600 14px var(--sans); color: var(--ink); }
+.ach-d { font: 12px/1.35 var(--sans); color: var(--ink-dim); margin-top: 2px; }
+.ach-w { font: italic 11px var(--serif); color: #d8b870; margin-top: 3px; }
+#achCard { position: fixed; right: 24px; bottom: 90px; z-index: 50; width: 300px; padding: 12px 16px 13px; color: #f6ecd0; background: linear-gradient(135deg, rgba(60, 40, 12, 0.96), rgba(20, 16, 8, 0.96)); border: 1px solid #d8b870; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 0 18px rgba(240, 208, 128, 0.15); border-radius: 4px; transform: translateX(360px); opacity: 0; transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.4s; pointer-events: none; }
+#achCard.on { transform: none; opacity: 1; }
+#achCard .ac-k { font: 600 10px var(--sans); letter-spacing: 0.24em; text-transform: uppercase; color: #f0d080; }
+#achCard .ac-t { font: 21px var(--serif); margin: 3px 0 2px; }
+#achCard .ac-d { font: 13px/1.35 var(--sans); opacity: 0.85; }

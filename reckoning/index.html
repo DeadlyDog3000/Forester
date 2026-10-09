@@ -221,6 +221,7 @@
         <button id="btnChapters" class="btn hidden">Chapters</button>
         <button id="btnMulti" class="btn">Multiplayer</button>
         <button id="btnSlots" class="btn">Saves</button>
+        <button id="btnAch" class="btn ghost-sm">Achievements</button>
         <button id="btnSettings" class="btn">Settings</button>
         <button id="btnControls" class="btn">Controls</button>
         <button id="btnUpdates" class="btn ghost-sm">What has changed</button>
@@ -426,12 +427,19 @@
       <nav class="menu mp-menu"><button id="mpBuildGo" class="btn primary">Into the game</button><button id="mpBuildBack" class="btn ghost">Back</button></nav>
     </section>
 
+    <section id="achievements" class="screen hidden">
+      <h2>Achievements</h2>
+      <div id="achList" class="mp-scroll"></div>
+      <button class="btn ghost" data-back>Back</button>
+    </section>
+
     <section id="pause" class="screen hidden">
       <h2>Paused</h2>
       <nav class="menu">
         <button id="btnResume" class="btn primary">Resume</button>
         <button id="btnPauseSettings" class="btn">Settings</button>
         <button id="btnPauseControls" class="btn">Controls</button>
+        <button id="btnPauseAch" class="btn">Achievements</button>
         <button id="btnRestart" class="btn">Restart chapter</button>
         <button id="btnQuit" class="btn ghost">Quit to title</button>
       </nav>

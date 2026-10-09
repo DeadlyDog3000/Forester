@@ -1988,6 +1988,7 @@ export class Town {
       G.practise && G.practise("strength", 0.6);
       if (best.hp > 0) { best.state = "shake"; best.shake = 0.25; return; }
       G.woodChips && G.woodChips(best, 2.2);
+      G.achCount && G.achCount("trees");
       this.fell(best, best.x - pl.pos.x, best.z - pl.pos.z, true);
     };
   }

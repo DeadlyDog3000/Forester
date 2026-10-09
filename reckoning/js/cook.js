@@ -390,6 +390,7 @@ function finish(town, s) {
     if (same) same.n = (same.n || 1) + 1; else G.pack.push(dish);
     showCard(dish, res);
     if (res.stars >= 4.5) AUDIO.bell && AUDIO.bell(0.25, 1.6);
+    if (res.stars >= 5) G.achEvent && G.achEvent("dish-5");
     // what you learn by it: more from a dish done well, and more from a hard one
     G.practise && G.practise("cooking", Math.round(4 + res.stars * 2 + r.lv * 0.3));
     G.lockMove = false; session = null;

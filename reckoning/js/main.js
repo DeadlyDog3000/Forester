@@ -32,6 +32,7 @@ import { renderNews } from "./news.js";
 import { initLobby, openLobby, SCREENS as MP_SCREENS } from "./mp/lobby.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
+import { renderAchievements } from "./achievements.js";
 import { lookOpts as mpLookOpts, isF as mpIsF } from "./mp/look.js";
 
 /* global SFX */
@@ -146,7 +147,7 @@ for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setDa
 G.player = new Player();
 
 // ---- screens ----
-const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", ...MP_SCREENS];
+const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", "achievements", ...MP_SCREENS];
 let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
@@ -261,6 +262,8 @@ $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
 $("btnControls").onclick = () => { back = "title"; screen("controls"); };
 $("btnUpdates").onclick = () => { back = "title"; screen("updates"); };
 $("btnCredits").onclick = () => { back = "title"; screen("credits"); };
+$("btnAch").onclick = () => { back = "title"; renderAchievements($("achList")); screen("achievements"); };
+$("btnPauseAch").onclick = () => { back = "pause"; renderAchievements($("achList")); screen("achievements"); };
 // quit: in the desktop app, closing the window ends the game (a browser tab cannot be closed by its page, so there it isn't offered)
 if (/Electron/.test(navigator.userAgent)) { $("btnQuitGame").classList.remove("hidden"); $("btnQuitGame").onclick = () => window.close(); }
 $("updateList").innerHTML = CHANGELOG.map(u => `<article class="upd"><div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");

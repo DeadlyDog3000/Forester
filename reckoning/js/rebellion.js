@@ -118,6 +118,7 @@ export function checkEnd(town) {
   else if (G.downed || (up(false) === 0 && (G.health ?? 1) < 0.2)) endRevolt(town, "rebels");
 }
 export function endRevolt(town, winner) {
+  G.achEvent && G.achEvent("revolt-" + winner);
   const S = town.S, rebels = S.people.filter(p => p.rebel);
   S.revolt.active = false; S.lastRevolt = town.day;
   for (const a of town.actors) { if (a.knocked === Infinity && !a.dead) { a.knocked = 0; a.lying = false; a.hp = 50; } a.revFoe = null; a.squareTo = null; armband(a, false); }

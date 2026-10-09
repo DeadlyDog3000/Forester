@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.64.0", date: "10 October 2026", title: "Achievements",
+    items: [
+      "Achievements: thirty-six of them, across the story, your colony, yourself and games with others. Some are kept secret till you earn them. They're kept across every save. A gilt card comes in at the corner when you earn one.",
+      "The book of them (Achievements, on the front screen and in the pause menu) shows what you've earned and when, what's still to do, and how far along you are.",
+      "Whatever you'd already done before there were achievements counts. It's earned the first time you play, and told on one card.",
+    ],
+  },
+  {
     v: "0.63.1", date: "10 October 2026", title: "A better likeness",
     items: [
       "The character builder, made over. It's in tabs now: presets to start from, body, face and hair, and clothes. The figure stands in a portrait painter's light and casts a shadow. Turn them by dragging or with the arrows, look closer with the wheel, and switch between the whole figure and the face. Choosing face and hair takes the view in close by itself.",

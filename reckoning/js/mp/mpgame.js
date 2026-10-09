@@ -168,6 +168,7 @@ export class MPGame {
     for (const c of inMsg.chat || []) this.chatLine(c, true);
     G.onSwing = () => this.swing();
     G.onFrame.push(dt => this.tick(dt));
+    G.achEvent && (G.achEvent("mp-join"), r.persistent && G.achEvent("mp-world"), target && target.host && G.achEvent("mp-host"));
     this.listen();
     this.hud(true); this.banner(null);
     this.atmo(true);
@@ -272,6 +273,7 @@ export class MPGame {
         return;
       }
       const r = this.remotes.get(m.pid); if (r) { r.dead = true; blowLands(r.actor, "down", m.by === this.pid ? G.player : null); }
+      if (m.by === this.pid) G.achEvent && G.achEvent("mp-kill");
       if (m.by === this.pid) this.toast(`${this.nameOf(m.pid)} is down${loot ? ` — you took${loot.slice(4)}` : ""}.`);
       else this.chatLine({ name: "", text: `${this.nameOf(m.pid)} fell to ${this.nameOf(m.by)}.` });
     };
@@ -284,7 +286,7 @@ export class MPGame {
       }
       const r = this.remotes.get(m.pid); if (r) { r.dead = false; r.hp = m.hp; r.tx = m.x; r.tz = m.z; r.actor.place(m.x, m.z); }
     };
-    n.sj = m => { if (!this.settlers.has(m.s.id)) this.settlers.set(m.s.id, new SettlerView(this, m.s)); };
+    n.sj = m => { if (!this.settlers.has(m.s.id)) this.settlers.set(m.s.id, new SettlerView(this, m.s)); if ([...this.settlers.values()].filter(v => v.owned()).length >= 12) G.achEvent && G.achEvent("mp-settlers-12"); };
     n.sx = m => {
       const v = this.settlers.get(m.id); if (!v) return;
       this.settlers.delete(m.id);
@@ -294,12 +296,16 @@ export class MPGame {
     n.ss = m => { for (const [id, x, z, yaw, a, sp] of m.l) { const v = this.settlers.get(id); if (v) { v.tx = x; v.tz = z; v.tyaw = yaw; v.anim = a; v.spd = sp; } } };
     n.sjob = m => { const v = this.settlers.get(m.id); if (v) { v.job = m.job; v.tool(); v.setTag(); } };
     n.sh = m => { const v = this.settlers.get(m.id); if (!v) return; blowLands(v.actor, "hit", m.by === this.pid ? G.player : null); v.actor.person.flinch && v.actor.person.flinch(); v.hp = m.hp; };
-    n.wars = m => { this.wars = m.wars || []; this.drawWar(); };
+    n.wars = m => {
+      const was = this.wars || []; this.wars = m.wars || []; this.drawWar();
+      // (a war on your homestead over, and it's still yours: held)
+      for (const w of was) if (w.def === this.pid && !this.wars.some(x => x.id === w.id) && this.hasHearth(this.pid)) G.achEvent && G.achEvent("mp-held");
+    };
     n.warned = m => { this.warn(`${m.war.attName} has declared a claim war on your homestead! Hold your hearth — while they stand at it and none of yours do, it slips from you.`); AUDIO.music && AUDIO.music("battle"); };
     n.news = m => { this.news.push(m.n); if (this.news.length > 80) this.news.shift(); this.ticker(m.n); if (this.newsOpen) this.drawNews(); };
-    n.bown = m => { const e = this.w.blds.get(m.id); if (!e) return; const b = { ...e.b, owner: m.owner }; this.removeBNow(m.id); this.addB(b); };
+    n.bown = m => { const e = this.w.blds.get(m.id); if (!e) return; if (m.owner === this.pid && e.b.type === "hearth") G.achEvent && G.achEvent("mp-capture"); const b = { ...e.b, owner: m.owner }; this.removeBNow(m.id); this.addB(b); };
     n.sown = m => { const v = this.settlers.get(m.id); if (v) { v.owner = m.owner; v.setTag(); } };
-    n.groups = m => { this.groups = m.groups || {}; this.refreshFriends(); if (this.listOpen) this.drawList(); };
+    n.groups = m => { this.groups = m.groups || {}; if (this.groupOf(this.pid)) G.achEvent && G.achEvent("mp-ally"); this.refreshFriends(); if (this.listOpen) this.drawList(); };
     n.invite = m => this.invited(m);
     n.chat = m => this.chatLine(m);
     n.note = m => this.chatLine({ name: "", text: m.text });

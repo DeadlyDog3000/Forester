@@ -104,6 +104,7 @@ export class ColonyHost extends ColonyBase {
     this.ids = new WeakMap(); this.nextId = 1; this.sentActors = new Map();   // actor id → actor, as the guests know them
     this.lastKeys = {};
     G.mp = this; this.host = true;
+    G.achEvent && (G.achEvent("mp-join"), G.achEvent("mp-host"));
     for (const p of this.players) this.addRemote(p);
     this.listenCommon();
     this.net.on.g = m => this.fromGuest(m);
@@ -392,6 +393,7 @@ export class ColonyGuest extends ColonyBase {
     G.onFrame.push(this.tickFn);
     this.wire(town);
     this.ready = true;
+    G.achEvent && (G.achEvent("mp-join"), G.achEvent("colony-join"));
     this.hud(true);
     UI.fade(0, 1.2);
     AUDIO.music && AUDIO.music("settlement");
