@@ -113,13 +113,14 @@ function ryeGeo(stage) {
     idx.push(i0, i0 + 1, i0 + 3, i0, i0 + 3, i0 + 2, i0 + 2, i0 + 3, i0 + 4, i0, i0 + 3, i0 + 1, i0, i0 + 2, i0 + 3, i0 + 2, i0 + 4, i0 + 3);
     if (ear) {
       // the ear: a slim spindle of grain hanging over from the top of the stalk
-      const j0 = pos.length / 3, tx = dx * lean, tz = dz * lean, ex = dx * 0.07, ez = dz * 0.07, ew = 0.016;
-      pos.push(tx, h, tz, tx + ex * 0.5 - dz * ew, h + 0.035, tz + ez * 0.5 + dx * ew, tx + ex * 0.5 + dz * ew, h + 0.035, tz + ez * 0.5 - dx * ew, tx + ex, h - 0.02, tz + ez, tx + ex * 0.5, h + 0.05, tz + ez * 0.5);
-      for (let n = 0; n < 5; n++) col.push(0.86, 0.72, 0.38);
+      // (a slim ear, nodding over: from the top of the stalk outward and down, a little bulge of grain halfway)
+      const j0 = pos.length / 3, tx = dx * lean, tz = dz * lean, ex = dx * 0.05, ez = dz * 0.05, ew = 0.009;
+      pos.push(tx, h, tz, tx + ex * 0.5 - dz * ew, h + 0.01, tz + ez * 0.5 + dx * ew, tx + ex * 0.5 + dz * ew, h + 0.01, tz + ez * 0.5 - dx * ew, tx + ex, h - 0.085, tz + ez, tx + ex * 0.5, h + 0.02, tz + ez * 0.5);
+      for (let n = 0; n < 5; n++) col.push(n === 3 ? 0.5 : 0.62, n === 3 ? 0.38 : 0.48, n === 3 ? 0.16 : 0.22);
       idx.push(j0, j0 + 1, j0 + 3, j0, j0 + 3, j0 + 2, j0, j0 + 4, j0 + 1, j0 + 1, j0 + 4, j0 + 3, j0 + 3, j0 + 4, j0 + 2, j0 + 2, j0 + 4, j0);
     }
   };
-  const green = [[0.25, 0.36, 0.14], [0.45, 0.6, 0.25]], tall = [[0.3, 0.4, 0.16], [0.5, 0.64, 0.28]], gold = [[0.55, 0.45, 0.22], [0.86, 0.74, 0.42]];
+  const green = [[0.25, 0.36, 0.14], [0.45, 0.6, 0.25]], tall = [[0.3, 0.4, 0.16], [0.5, 0.64, 0.28]], gold = [[0.42, 0.34, 0.15], [0.68, 0.56, 0.27]];
   const n = stage === 1 ? 6 : 7;
   for (let i = 0; i < n; i++) {
     const a = i / n * Math.PI * 2 + i * 0.9;

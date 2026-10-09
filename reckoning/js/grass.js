@@ -49,13 +49,31 @@ export class Grass {
     this.mesh.count = 0;
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
     w.root.add(this.mesh);
+    // wildflowers among it, spring and summer: a thin stem and a little head of colour
+    const fg = (() => {
+      const P = [], C = [], I = [];
+      const stem = [0.2, 0.32, 0.12], i0 = 0;
+      P.push(-0.006, 0, 0, 0.006, 0, 0, 0, 1, 0); C.push(...stem, ...stem, ...stem); I.push(0, 1, 2, 0, 2, 1);
+      // (the head: a small flat star of petals, white by default — the instance colour tints it)
+      const n = 5, c0 = P.length / 3; P.push(0, 1.02, 0); C.push(0.95, 0.85, 0.3);
+      for (let k = 0; k < n * 2; k++) { const a = k / (n * 2) * Math.PI * 2, r = k % 2 ? 0.05 : 0.11; P.push(Math.cos(a) * r, 1.0 + (k % 2 ? 0.01 : -0.01), Math.sin(a) * r); C.push(1, 1, 1); }
+      for (let k = 0; k < n * 2; k++) { const a = c0 + 1 + k, b2 = c0 + 1 + (k + 1) % (n * 2); I.push(c0, a, b2, c0, b2, a); }
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();
+      const nn = g.attributes.normal; for (let k = 0; k < nn.count; k++) nn.setXYZ(k, 0, 1, 0);
+      return g;
+    })();
+    const fmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }); addSway(fmat);
+    this.flowers = new THREE.InstancedMesh(swayGeo(fg, 1500), fmat, 1500);
+    this.flowers.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(1500 * 3), 3);
+    this.flowers.frustumCulled = false; this.flowers.count = 0; this.flowers.castShadow = false; this.flowers.receiveShadow = true;
+    w.root.add(this.flowers);
     this.cx = Infinity; this.cz = Infinity; this.t = 0; this.snowAt = -1;
   }
   update(dt) {
     const p = G.player && G.player.pos; if (!p) return;
     const snow = SNOW.value;
     // (under the snow there is none to see; and none down in the cave)
-    this.mesh.visible = snow < 0.55 && !(this.w.cave && this.w.cave.inside);
+    this.mesh.visible = snow < 0.55 && !(this.w.cave && this.w.cave.inside); this.flowers.visible = this.mesh.visible;
     if (!this.mesh.visible) return;
     this.t += dt;
     // laid again when you've walked a few metres, and now and then anyway (a house may have gone up)
@@ -86,7 +104,7 @@ export class Grass {
         w.groundColour ? w.groundColour(x, z, c) : c.set(0x6c7f38);
         c.multiplyScalar(1.05 + hash(i, j, 7) * 0.2);
         if (c.r > c.g * 0.95) c.lerp(new THREE.Color(0xb0a160), 0.4);
-        q = { x, z, y: w.heightAt(x, z), sc: 0.22 + hash(i, j, 4) * 0.2, sy: 0.8 + hash(i, j, 6) * 0.6, ry: hash(i, j, 5) * 6.283, ph: (x * 0.9 + z * 0.7) % 6.283, c };
+        q = { x, z, y: w.heightAt(x, z), sc: 0.22 + hash(i, j, 4) * 0.2, sy: 0.8 + hash(i, j, 6) * 0.6, ry: hash(i, j, 5) * 6.283, ph: (x * 0.9 + z * 0.7) % 6.283, c, open: dc < CLEARING.r + 4 || (pk > 1.1 && pk < 1.9) };
       }
     }
     cache.set(k, q);
@@ -132,5 +150,30 @@ export class Grass {
     }
     m.count = n;
     m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; m.geometry.attributes.aSway.needsUpdate = true;
+    // ---- the flowers: in the open sward only, spring and summer; each its own colour, a few kinds in drifts ----
+    const F = this.flowers, season = town && town.season, fsw = F.geometry.attributes.aSway.array, fc = F.instanceColor.array;
+    let nf = 0;
+    if (season === "spring" || season === "summer") {
+      const COLS = season === "spring" ? [[0.98, 0.98, 0.94], [0.95, 0.85, 0.2], [0.6, 0.5, 0.85]] : [[0.98, 0.98, 0.94], [0.95, 0.75, 0.15], [0.75, 0.25, 0.55], [0.35, 0.45, 0.85]];
+      for (let i = i0; i <= i1 && nf < 1500; i++) for (let j = j0; j <= j1 && nf < 1500; j++) {
+        const q = this.cell(i, j); if (!q || !q.open) continue;
+        if (hash(i, j, 11) > 0.13) continue;
+        const x = q.x + 0.12, z = q.z - 0.1, dd = Math.hypot(x - cx, z - cz); if (dd > R - 2) continue;
+        if (paved && Math.hypot(x - FIRE.x, z - FIRE.z) < paved) continue;
+        let hit = false;
+        for (const [sx, sz, sr] of spots) if ((x - sx) ** 2 + (z - sz) ** 2 < sr * sr) { hit = true; break; }
+        if (!hit) for (const [bx, bz, co, si, hw, hd] of rects) { const lx = (x - bx) * co - (z - bz) * si, lz = (x - bx) * si + (z - bz) * co; if (Math.abs(lx) < hw && Math.abs(lz) < hd) { hit = true; break; } }
+        if (hit) continue;
+        const sc = (0.42 + hash(i, j, 12) * 0.25) * (1 - snow);
+        d.position.set(x, q.y - 0.02, z); d.rotation.set((hash(i, j, 13) - 0.5) * 0.3, hash(i, j, 14) * 6.28, 0); d.scale.set(sc * 1.25, sc * (1.0 + hash(i, j, 15) * 0.5), sc * 1.25); d.updateMatrix();
+        F.setMatrixAt(nf, d.matrix);
+        // (in drifts: the kind changes slowly across the ground)
+        const kc = COLS[Math.floor((Math.sin(x * 0.11) * Math.cos(z * 0.13) * 0.5 + 0.5) * COLS.length * 0.999)];
+        fc[nf * 3] = kc[0]; fc[nf * 3 + 1] = kc[1]; fc[nf * 3 + 2] = kc[2];
+        fsw[nf * 3] = q.y; fsw[nf * 3 + 1] = 0.6; fsw[nf * 3 + 2] = q.ph;
+        nf++;
+      }
+    }
+    F.count = nf; F.instanceMatrix.needsUpdate = true; F.instanceColor.needsUpdate = true; F.geometry.attributes.aSway.needsUpdate = true;
   }
 }

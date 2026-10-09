@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.7", date: "8 October 2026", title: "Wildflowers",
+    items: [
+      "Wildflowers grow in the clearing's grass and along the pond's banks in spring and summer: white, yellow and mauve in spring, with blue and red in summer, in drifts that change slowly from one kind to another, nodding in the wind.",
+      "Ripe rye has slim golden ears nodding over, and the straw is a deeper gold. Before, close up, the ears looked like pale little flags.",
+    ],
+  },
+  {
     v: "0.53.6", date: "8 October 2026", title: "Gulls",
     items: [
       "Gulls wheel over the harbour at Hamburg, on long easy turns over the water and the quays, a few wingbeats and then a glide.",
