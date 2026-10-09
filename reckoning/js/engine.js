@@ -1362,6 +1362,22 @@ G.hurt = (dmg, from) => {
   if (G.health <= 0) G.die(from);
 };
 
+// people keep a little room between them: two who have come together to talk, or been sent to the same spot,
+// ease apart to a natural distance instead of standing inside one another (not those sitting, lying or indoors)
+function personalSpace(list, dt) {
+  const R = 0.75, k = Math.min(1, dt * 4);
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i]; if (!a.settler || a.lying || a.inside || a.person.sitting || a.horse || !a.root.visible) continue;
+    for (let j = i + 1; j < list.length; j++) {
+      const b = list[j]; if (!b.settler || b.lying || b.inside || b.person.sitting || b.horse || !b.root.visible) continue;
+      const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d2 = dx * dx + dz * dz;
+      if (d2 >= R * R || Math.abs(a.pos.y - b.pos.y) > 1) continue;
+      const d = Math.sqrt(d2) || 0.01, push = (R - d) * 0.5 * k, ux = d2 ? dx / d : Math.cos(i), uz = d2 ? dz / d : Math.sin(i);
+      a.pos.x -= ux * push; a.pos.z -= uz * push; b.pos.x += ux * push; b.pos.z += uz * push;
+      if (a.collide) a.collide(); if (b.collide) b.collide();
+    }
+  }
+}
 export class Actor {
   constructor(opts, x, z, yaw = 0) {
     this.person = makePerson(opts);
@@ -1938,6 +1954,7 @@ export function frame(dt, skipRender) {
   if (G.mode === "play" && w) {
     if (!G.player.frozen) G.player.update(dt);
     for (const a of w.actors.slice()) a.update(dt);
+    personalSpace(w.actors, dt);
     if (w.update) w.update(dt);
     for (const f of w.flames) flicker(f, dt);
     G.bugs.update(dt, G.player, () => AUDIO.buzz());

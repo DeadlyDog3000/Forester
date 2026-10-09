@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.56.6", date: "9 October 2026", title: "Elbow room",
+    items: [
+      "Settlers keep a little room between them. Two who stop to talk now stand a natural distance apart, and anyone sent to the same spot eases aside, instead of standing inside one another.",
+    ],
+  },
+  {
     v: "0.56.5", date: "9 October 2026", title: "A quieter forest floor",
     items: [
       "The forest floor is a soberer brown. The needle litter and old leaves were a bright orange in the sun, and each facet of the ground stood out sharply from the next in a patchwork. Now the shades sit closer together, so the ground reads as one floor, with the moss, bracken and dry grass laid over it.",
