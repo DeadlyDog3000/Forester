@@ -2384,6 +2384,19 @@ export class Town {
         continue;
       }
       const fv = this.frac;
+      // the Lord's day (every fourth): in the morning the bell, and the faithful of the church's own creed go in to the
+      // service, and come out again an hour or two later
+      const church = !raid && !this.colony && this.day % 4 === 0 && fv > 0.1 && fv < 0.24 && a.churchDay !== this.day && this.S.buildings.find(b => b.done && b.type === "church" && b.faith && b.faith === faithOf(a.settler));
+      if (church) {
+        a.churchDay = this.day; a.doing = "going to church";
+        if (this.bellDay !== this.day) { this.bellDay = this.day; const pl = G.player; if (pl && Math.hypot(pl.pos.x - church.x, pl.pos.z - church.z) < 80) { AUDIO.bell && AUDIO.bell(0.9, 0.7); setTimeout(() => AUDIO.bell && AUDIO.bell(0.9, 0.7), 1400); setTimeout(() => AUDIO.bell && AUDIO.bell(0.9, 0.7), 2800); } }
+        const dx = church.x + Math.sin(church.ry) * (BUILDINGS.church.d / 2 + 0.8), dz = church.z + Math.cos(church.ry) * (BUILDINGS.church.d / 2 + 0.8);
+        await Promise.race([a.walkTo(dx, dz, 1.1), sleep(40)]); alive();
+        a.root.visible = false; a.inside = true; a.doing = "at church";
+        while (this.frac < 0.3 && !(this.raids && this.raids.active)) { await sleep(2); alive(); }
+        a.root.visible = true; a.inside = false;
+        continue;
+      }
       // first thing in the morning: water from the well, wound up in the bucket and carried home
       const well = !raid && !this.colony && !a.settler.child && fv > 0.03 && fv < 0.13 && !a.waterDay && Math.random() < 0.2 && this.S.buildings.find(b => b.done && b.type === "well");
       if (fv > 0.2) a.waterDay = false;

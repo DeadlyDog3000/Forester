@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.5", date: "9 October 2026", title: "The Lord's day",
+    items: [
+      "Every fourth day is the Lord's day. In the morning the church bell rings, and the settlers of the church's own creed leave what they're doing and go in to the service, coming out again an hour or two later.",
+    ],
+  },
+  {
     v: "0.54.4", date: "9 October 2026", title: "Water for the day",
     items: [
       "First thing in the morning, if there's a well, some of the settlers go and draw the day's water, winding the bucket up and carrying it home before work.",
