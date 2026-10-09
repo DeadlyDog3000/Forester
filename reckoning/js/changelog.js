@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.6", date: "9 October 2026", title: "Squirrels",
+    items: [
+      "Red squirrels live in the woods round about you. They bound from tree to tree over the forest floor and sit up now and then to look about, the tail curled over the back. Come near and one is off to the nearest trunk and up it in a spiral, to wait there until you've gone a way. They keep in at night and in a downpour.",
+    ],
+  },
+  {
     v: "0.55.5", date: "9 October 2026", title: "Voices in the woods",
     items: [
       "The woods have voices of their own. A tawny owl calls from somewhere off in the trees at night, a long hoo and then the quavering answer. By day a woodpecker drums on a dead branch now and then, more often when you're out among the trees. Neither calls in the rain, and the woodpecker is quiet in winter.",
