@@ -8,6 +8,8 @@
 // music that is a mood rather than a march. Still no audio files.
 
 /* global SFX */
+import { createMusic } from "./music.js";
+let MUSIC = null;
 
 let ac = null, bus = null, musicBus = null, noise = null;
 function ctx() {
@@ -656,54 +658,16 @@ export const AUDIO = {
     n.connect(f); f.connect(ng); ng.connect(node); n.start(t, Math.random()); n.stop(t + 0.08);
   },
 
-  // ---- music: slow chords and a few plucked notes, per mood ----
-  _mood: null, _mt: null, _step: 0,
+  // ---- music: played by the players in music.js — a tune for the mood, a rest, another ----
+  _mood: null,
   music(mood) {
     if (mood === this._mood) return;
     this._mood = mood;
-    clearTimeout(this._mt);
-    if (!mood) return;
-    this._step = 0;
-    const tick = () => { if (this._mood !== mood) return; this._play(mood); this._mt = setTimeout(tick, MOODS[mood].bar * 1000); };
-    tick();
+    if (!MUSIC) MUSIC = createMusic(() => ctx(), () => { ctx(); return musicBus; });
+    MUSIC.play(mood);
   },
-  _play(mood) {
-    const a = ctx(); if (!a || !window.__reckonMusic) return;
-    const M = MOODS[mood], t = a.currentTime + 0.05;
-    const chord = M.chords[this._step % M.chords.length];
-    this._step++;
-    const hz = n => 440 * Math.pow(2, (n - 69) / 12);
-    for (const n of chord) {
-      const o = a.createOscillator(), o2 = a.createOscillator(), g = a.createGain(), f = a.createBiquadFilter();
-      o.type = M.wave; o2.type = "sine"; o.frequency.value = hz(n); o2.frequency.value = hz(n) * 1.003;
-      f.type = "lowpass"; f.frequency.value = M.cut;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(M.vol, t + M.bar * 0.35);
-      g.gain.linearRampToValueAtTime(0.0001, t + M.bar * 1.15);
-      o.connect(f); o2.connect(f); f.connect(g); g.connect(musicBus);
-      o.start(t); o2.start(t); o.stop(t + M.bar * 1.2); o2.stop(t + M.bar * 1.2);
-    }
-    // a few notes on top, like someone picking at a cittern
-    if (M.pluck) for (let i = 0; i < 4; i++) {
-      if (Math.random() > M.pluck) continue;
-      const n = chord[Math.floor(Math.random() * chord.length)] + 12 * (1 + (Math.random() < 0.3 ? 1 : 0));
-      const tt = t + (i * M.bar) / 4 + Math.random() * 0.1;
-      const o = a.createOscillator(), g = a.createGain();
-      o.type = "triangle"; o.frequency.value = hz(n);
-      g.gain.setValueAtTime(0.0001, tt); g.gain.exponentialRampToValueAtTime(0.07, tt + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, tt + 1.4);
-      o.connect(g); g.connect(musicBus); o.start(tt); o.stop(tt + 1.5);
-    }
-  },
+  get musicState() { return MUSIC ? { mood: MUSIC.mood, playing: MUSIC.playing } : null; },
 };
 
-const MOODS = {
-  title:  { bar: 6, wave: "triangle", cut: 900, vol: 0.05, pluck: 0.55, chords: [[50, 57, 62, 65], [46, 53, 58, 62], [48, 55, 60, 64], [45, 52, 57, 61]] },
-  home:   { bar: 5, wave: "triangle", cut: 1100, vol: 0.045, pluck: 0.7, chords: [[50, 57, 62, 66], [55, 59, 62, 67], [47, 54, 59, 62], [52, 57, 61, 64]] },
-  unease: { bar: 7, wave: "sawtooth", cut: 420, vol: 0.035, pluck: 0.2, chords: [[45, 52, 57, 60], [44, 51, 56, 59], [46, 53, 58, 61], [45, 52, 56, 60]] },
-  dread:  { bar: 8, wave: "sawtooth", cut: 320, vol: 0.05, pluck: 0, chords: [[38, 45, 50, 53], [37, 44, 49, 52], [38, 45, 50, 51]] },
-  grief:  { bar: 7, wave: "triangle", cut: 700, vol: 0.05, pluck: 0.35, chords: [[45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 58], [40, 47, 52, 55]] },
-  flight: { bar: 3, wave: "sawtooth", cut: 520, vol: 0.04, pluck: 0.1, chords: [[40, 47, 52, 55], [41, 48, 53, 56], [40, 47, 52, 55], [39, 46, 51, 54]] },
-  woods:  { bar: 6, wave: "triangle", cut: 1000, vol: 0.04, pluck: 0.5, chords: [[43, 50, 55, 59], [48, 55, 60, 64], [45, 52, 57, 60], [50, 57, 62, 66]] },
-  hope:   { bar: 5, wave: "triangle", cut: 1300, vol: 0.05, pluck: 0.8, chords: [[48, 55, 60, 64], [53, 57, 60, 65], [45, 52, 57, 60], [55, 59, 62, 67]] },
-};
+
 window.__audio = AUDIO;

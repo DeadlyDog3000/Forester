@@ -2967,9 +2967,21 @@ function freeCompany(w, town, raids, camps) {
 // ===========================================================================
 async function chFree(w) {
   const DAY = 480;
-  G.bugs.setKind("flies"); AUDIO.music("woods"); SFX.insectLoop(true);
+  G.bugs.setKind("flies"); AUDIO.music("settlement"); SFX.insectLoop(true);
   const pl = G.player;
   const town = startTown(w, Object.keys(BUILDINGS));
+  // the music follows the life of the place: fighting when raiders are in, a dance on a church day afternoon,
+  // quieter airs at evening, the night's and the winter's own, and the settlement's working tunes by day
+  { const g0 = GEN; let mt = 0;
+    const offMusic = onFrame(dt => {
+      if (g0 !== GEN) { offMusic(); return; }
+      if ((mt -= dt) > 0) return; mt = 3;
+      const t = G.town; if (!t) return;
+      const f = t.frac, fight = (t.raids && t.raids.active) || (t.S.revolt && t.S.revolt.active);
+      const night = f > 0.76 || f < 0.03, evening = f > 0.62 && !night;
+      const sunday = t.day % 4 === 0 && f > 0.25 && f < 0.6 && t.has && t.has("church");
+      AUDIO.music(fight ? "battle" : night ? "night" : t.winter ? "winter" : evening ? "evening" : sunday ? "feast" : "settlement");
+    }); }
   const S = town.S;
   S.name ??= "Forester's Clearing";
   // free play is Forester's: what can be built and worked waits on what is known (G, the tech tree)

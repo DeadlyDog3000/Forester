@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.59.0", date: "9 October 2026", title: "Players",
+    items: [
+      "New music, played by a small band of the time: a lute, a harp, a recorder, a fiddle, a bass viol, a drone and a frame drum. The lute and harp are plucked strings, the recorder is breathed with a chiff as it speaks and a vibrato as it holds, and the fiddle and viol are bowed strings with a fiddle's body in their tone. It replaces the soft held chords that played before.",
+      "Seventeen tunes in the old modes, each a melody over its chords in two strains, AABB. The players arrange them as they go: who takes the tune each time round, a second voice under the long notes, the lute picking out the chords or strumming them, the drum coming in for a dance. They slow a little into the last bars. So a tune is never quite the same twice.",
+      "There's music for everything the game had before (the title, home in Hamburg, the woods, unease, dread, grief, flight and hope) and for the settlement now. Working tunes by day, quieter airs at evening, the night's and the winter's own, a dance on a church-day afternoon once there's a church, and a fight when raiders or rebels are in. In the settlement there's a rest between tunes, often a long one, so the woods have their quiet too.",
+    ],
+  },
+  {
     v: "0.58.0", date: "9 October 2026", title: "Faces and hands",
     items: [
       "Everyone's face is better modelled. The jaw draws in to the neck, so a head grows out of the shoulders instead of sitting on them like a ball. The brow, the eye sockets, the cheekbones, the nose and its wings, the lips and the chin all stand out more, the eyelids sit naturally over the eyes instead of staring, and the lips and cheeks are no longer smudged with colour.",
