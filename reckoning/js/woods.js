@@ -1642,6 +1642,9 @@ export class Woods extends WorldBase {
     }
     // nor does it fall there
     SWAY.t.value += dt;
+    // footprints, when there's snow lying
+    if (SNOW.value > 0.4 && !this.tracks && !this._tracksLoading) { this._tracksLoading = true; import("./tracks.js").then(m => { this.tracks = new m.Tracks(this); }); }
+    if (this.tracks) this.tracks.update(dt);
     // the birds overhead
     if (!this.birds && !this._birdsLoading) { this._birdsLoading = true; import("./birds.js").then(m => { this.birds = new m.Birds(this); }); }
     if (this.birds) this.birds.update(dt);
@@ -1671,6 +1674,36 @@ export class Woods extends WorldBase {
         p.needsUpdate = true;
         this.rain.geometry.setDrawRange(0, live * 2);
         this.rain.material.opacity = 0.18 + this.rainK * 0.22;
+      }
+      // where the drops land: little rings spreading on the ground round you, and gone
+      if (!this.splash) {
+        const N = 220, rg = new THREE.RingGeometry(0.7, 1, 14); rg.rotateX(-Math.PI / 2);
+        this.splash = new THREE.InstancedMesh(rg, new THREE.MeshStandardMaterial({ color: 0xb8c2cc, roughness: 0.3, transparent: true, opacity: 0.22, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }), N);
+        this.splash.frustumCulled = false; this.splash.userData.t = new Float32Array(N).fill(1); this.splash.userData.p = new Float32Array(N * 3); this.splash.userData.next = 0;
+        this.root.add(this.splash);
+      }
+      const sp = this.splash, T = sp.userData.t, Pp = sp.userData.p, N = T.length, M4 = this._m4 || (this._m4 = new THREE.Matrix4());
+      sp.visible = this.rain.visible;
+      if (sp.visible) {
+        const c = G.player.pos;
+        let born = this.rainK * 420 * dt + (this._splashCarry || 0);
+        while (born >= 1) {
+          born -= 1;
+          const i = sp.userData.next; sp.userData.next = (i + 1) % N;
+          const a = Math.random() * 6.283, r = 0.8 + Math.sqrt(Math.random()) * 11, x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
+          Pp[i * 3] = x; Pp[i * 3 + 1] = this.heightAt(x, z) + 0.02; Pp[i * 3 + 2] = z; T[i] = 0;
+        }
+        this._splashCarry = born;
+        for (let i = 0; i < N; i++) {
+          if (T[i] >= 1) { M4.makeScale(0, 0, 0); sp.setMatrixAt(i, M4); continue; }
+          T[i] = Math.min(1, T[i] + dt * 3.2);
+          const k = 0.02 + T[i] * 0.11;
+          // (thinning as it spreads: the ring scaled flat at the end)
+          M4.makeScale(k, 1, k).setPosition(Pp[i * 3], Pp[i * 3 + 1], Pp[i * 3 + 2]);
+          if (T[i] > 0.7) M4.scale(new THREE.Vector3(1 - (T[i] - 0.7) * 2, 1, 1 - (T[i] - 0.7) * 2));
+          sp.setMatrixAt(i, M4);
+        }
+        sp.instanceMatrix.needsUpdate = true;
       }
     }
     // the ground soaks up the rain, and dries again more slowly

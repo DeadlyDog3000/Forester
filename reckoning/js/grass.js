@@ -105,7 +105,7 @@ export class Grass {
     const c = new THREE.Color(), d = new THREE.Object3D(), dry = new THREE.Color(0xb0a160);
     let n = 0;
     const i0 = Math.floor((cx - R) / STEP), i1 = Math.ceil((cx + R) / STEP), j0 = Math.floor((cz - R) / STEP), j1 = Math.ceil((cz + R) / STEP);
-    const autumn = town && town.season === "autumn" ? 0.35 : 0;
+    const autumn = town && town.season === "autumn" ? 0.15 : 0;
     for (let i = i0; i <= i1 && n < MAX; i++) for (let j = j0; j <= j1 && n < MAX; j++) {
       const q = this.cell(i, j); if (!q) continue;
       const x = q.x, z = q.z, dd = Math.hypot(x - cx, z - cz); if (dd > R) continue;

@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.51.2", date: "8 October 2026", title: "Footprints and puddles",
+    items: [
+      "You leave footprints in the snow, left and right, pointing the way you went, and so does everyone who walks near you. They fill in slowly, and quickly while it's still snowing.",
+      "Rain lands. Little rings spread on the ground round about you where the drops come down, more of them the harder it rains.",
+      "Grass in autumn only fades toward straw rather than turning straw-coloured all at once against the green ground.",
+    ],
+  },
+  {
     v: "0.51.1", date: "8 October 2026", title: "Birds",
     items: [
       "There are birds in the sky. Little flocks of finches bound over the clearing, a burst of wingbeats and then a dip with the wings shut. Crows row steadily across, and now and then a buzzard wheels high overhead on still wings. At dusk the bats come out and flicker about the clearing. In winter only the crows are left, and in a downpour or the dark there's nothing flying.",
