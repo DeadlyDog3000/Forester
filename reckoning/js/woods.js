@@ -126,7 +126,7 @@ export class Woods extends WorldBase {
     // dark bare earth and old leaves, laid in slow drifts, a little grassier out in the clearing
     const geo = tg.toNonIndexed(); tg.dispose();
     const pos = geo.attributes.position, colors = new Float32Array(pos.count * 3);
-    const PAL = { litter: new THREE.Color(0x5b4533), leaf: new THREE.Color(0x87603a), moss: new THREE.Color(0x4a5d2a), earth: new THREE.Color(0x3f3022), grass: new THREE.Color(0x6c7f38), road: new THREE.Color(0x7d6548),
+    const PAL = { litter: new THREE.Color(0x53463a), leaf: new THREE.Color(0x7a5e40), moss: new THREE.Color(0x4a5d2a), earth: new THREE.Color(0x3d3126), grass: new THREE.Color(0x6c7f38), road: new THREE.Color(0x7d6548),
       fern: new THREE.Color(0x3d5a28), dry: new THREE.Color(0x8c8248), stone: new THREE.Color(0x6e6b62) };
     const hash = (x, z) => { const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return h - Math.floor(h); };
     const vn = (x, z) => { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
@@ -165,7 +165,7 @@ export class Woods extends WorldBase {
       const bx = pos.getX(t + 2) - pos.getX(t), by = pos.getY(t + 2) - pos.getY(t), bz = pos.getZ(t + 2) - pos.getZ(t);
       const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, steep = 1 - Math.abs(ny) / (Math.hypot(nx, ny, nz) || 1);
       groundAt(x, z, steep, c);
-      c.multiplyScalar(0.84 + hash(x * 0.37, z * 0.53) * 0.32);       // each facet a shade apart from its neighbours
+      c.multiplyScalar(0.9 + hash(x * 0.37, z * 0.53) * 0.2);        // each facet a shade apart from its neighbours
       for (let k = 0; k < 3; k++) { colors[(t + k) * 3] = c.r; colors[(t + k) * 3 + 1] = c.g; colors[(t + k) * 3 + 2] = c.b; }
     }
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
