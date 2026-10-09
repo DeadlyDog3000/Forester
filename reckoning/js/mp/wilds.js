@@ -14,6 +14,7 @@ import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label } from "../map.js";
 import { makeTerrain, CHUNK, WATER } from "./terrain.js";
 import { BUILD } from "./rules.js";
+import { ryeStrip } from "../town.js";
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const SEG = 24;                                  // ground facets along a piece's side (four metres each)
@@ -294,6 +295,13 @@ export class Wilds extends WorldBase {
         const o = this.col.addCircle(b.x + u * c, b.z - u * s, 0.3, y + 2.6); cols.push(o);
         if (mid) o.gateDoor = true;
       }
+    } else if (b.type === "field") {
+      // dug earth in three strips, and the rye in them as far as it has grown
+      const bl = new Builder();
+      for (const o of [-2.2, 0, 2.2]) { bl.box(1.9, 0.12, 6.9, o, 0.02, 0, 0x4a3a28); for (let k = -1; k <= 1; k++) bl.box(0.08, 0.06, 6.7, o + k * 0.6, 0.1, 0, 0x3a2c1e); }
+      g.add(bl.build(MAT.rough, { shadow: false }));
+      g.userData.rye = new THREE.Group(); g.add(g.userData.rye);
+      this.setGrowth(b, g, b.growth || 0);
     } else if (b.type === "tower") {
       const bl = new Builder(), H = 5.2;
       for (const [x, z] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) bl.add(new THREE.CylinderGeometry(0.14, 0.17, H + 1.4, 6), 0x5a4030, x, (H + 1.4) / 2, z);
@@ -311,6 +319,16 @@ export class Wilds extends WorldBase {
     const e = { b, g, cols, hp: b.hp, shake: 0 };
     this.blds.set(b.id, e);
     return e;
+  }
+  // a field's rye: shoots, green stalks, then gold
+  setGrowth(b, g = this.blds.get(b.id) && this.blds.get(b.id).g, growth = 0) {
+    if (!g || !g.userData.rye) return;
+    const stage = growth < 0.05 ? 0 : growth < 0.34 ? 1 : growth < 0.67 ? 2 : 3;
+    if (g.userData.stage === stage) return;
+    g.userData.stage = stage;
+    const R = g.userData.rye; for (const m of [...R.children]) { R.remove(m); m.geometry.dispose(); }
+    if (!stage) return;
+    for (const o of [-2.2, 0, 2.2]) R.add(ryeStrip(b, o, stage, () => 0.06, g.position.y));
   }
   // a gate: shut against those it isn't theirs to open (told again when alliances change)
   setGateFriendly(id, friendly) {

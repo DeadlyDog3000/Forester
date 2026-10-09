@@ -147,7 +147,7 @@ function ryeGeo(stage) {
   return (_rye[stage] = g);
 }
 let _ryeMat = null;
-function ryeStrip(b, o, stage, up, Y) {
+export function ryeStrip(b, o, stage, up, Y) {
   if (!_ryeMat) _ryeMat = addSway(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
   const rows = [-0.62, -0.31, 0, 0.31, 0.62], dz = stage === 1 ? 0.3 : 0.22, nz = Math.floor(6.6 / dz), n = rows.length * nz;
   const m = new THREE.InstancedMesh(swayGeo(ryeGeo(stage), n), _ryeMat, n), d = new THREE.Object3D(), c = new THREE.Color(), sw = m.geometry.attributes.aSway.array;

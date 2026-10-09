@@ -14,6 +14,7 @@ export const BUILD = {
   cabin:     { name: "Cabin",       wood: 30, stone: 0,  hp: 420, r: 4.2, w: 5.2, d: 6.2, model: "cabin", beds: 2, note: "A log cabin: beds for two settlers, who come to live in it and work for you." },
   shed:      { name: "Woodshed",    wood: 18, stone: 0,  hp: 300, r: 3.0, w: 4.4, d: 3.0, model: "woodshed", store: true, note: "Where your logs and stone are kept. Break someone's woodshed and half of what they have is yours." },
   house:     { name: "House",       wood: 45, stone: 10, hp: 600, r: 5.0, w: 7.0, d: 6.0, model: "town/house_2", beds: 4, note: "A timber house, plastered: beds for four settlers." },
+  field:     { name: "Field",       wood: 6,  stone: 0,  hp: 120, r: 3.6, w: 6.6, d: 7.4, field: true, note: "Three strips of rye. A settler farms it, and each harvest feeds the homestead. Settlers eat, and with no food they won't stay." },
   well:      { name: "Well",        wood: 4,  stone: 12, hp: 380, r: 1.8, model: "well", note: "Water for the homestead." },
   wall:      { name: "Palisade",    wood: 4,  stone: 0,  hp: 160, len: 4, r: 0.6, wall: true, note: "Four metres of sharpened stakes. R turns it." },
   gate:      { name: "Gate",        wood: 8,  stone: 0,  hp: 220, len: 4, r: 0.6, wall: true, gate: true, note: "A palisade with a gate in it: it opens for you and your allies." },
@@ -21,9 +22,9 @@ export const BUILD = {
   forge:     { name: "Forge",       wood: 20, stone: 16, hp: 520, r: 4.4, w: 8, d: 6, model: "town/forge_1", note: "A smith's forge: with one, your axe bites deeper — trees fall and walls break a blow sooner." },
   market:    { name: "Market",      wood: 30, stone: 8,  hp: 480, r: 5.2, w: 8.6, d: 10, model: "town/market_1", note: "A market stall: trade logs for stone and stone for logs." },
 };
-export const BUILD_ORDER = ["hearth", "cabin", "shed", "wall", "gate", "tower", "well", "house", "forge", "market"];
+export const BUILD_ORDER = ["hearth", "cabin", "field", "shed", "wall", "gate", "tower", "well", "house", "forge", "market"];
 
-export const START_STOCK = { wood: 12, stone: 0 };
+export const START_STOCK = { wood: 12, stone: 0, food: 24 };
 export const TREE_HITS = { spruce: 4, pine: 4, birch: 3 };
 export const LOGS_PER_TREE = { spruce: 5, pine: 5, birch: 3 };
 export const ROCK_HITS = 5, STONE_PER_ROCK = 4;
@@ -54,4 +55,6 @@ export const SETTLER_NAMES = {
   m: ["Hinrich", "Jürgen", "Claus", "Marten", "Hans", "Detlef", "Peter", "Jochim", "Berend", "Carsten", "Tönnies", "Lütke", "Gerd", "Harm", "Asmus", "Eggert", "Reimer", "Wolter", "Ties", "Matthias"],
   f: ["Anneke", "Grete", "Metta", "Trina", "Elsabe", "Lene", "Becke", "Abel", "Wiebke", "Gesche", "Tibke", "Dorthe", "Engel", "Marike", "Hille", "Alheid", "Talke", "Imke", "Geske", "Ilsabe"],
 };
-export const JOB_NAME = { wood: "woodcutter", stone: "quarryman", watch: "watchman" };
+export const JOB_NAME = { wood: "woodcutter", stone: "quarryman", watch: "watchman", farm: "farmer" };
+// food: what a settler eats, and what a field gives
+export const FOOD = { eatMs: 150 * 1000, harvest: 16, wellBonus: 4, growMs: 140 * 1000, reapMs: 6000, hungryLeaveMs: 200 * 1000 };

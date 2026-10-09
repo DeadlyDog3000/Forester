@@ -896,6 +896,8 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 #mpStock .ic { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-left: 8px; }
 #mpStock .ic.log { background: #8a6a45; margin-left: 0; }
 #mpStock .ic.stone { background: #8a8780; }
+#mpStock .ic.food { background: #c8a050; }
+#mpStock.hungry #mpFood { color: #f0a090; }
 #mpStock.flash { animation: mpflash 0.7s; }
 @keyframes mpflash { 0% { color: #fff; transform: scale(1.06); } 100% { color: var(--ink); transform: none; } }
 #mpShield { position: absolute; left: 50%; top: 22px; transform: translateX(-50%); padding: 5px 14px; font: 600 12px var(--sans); color: #cfe8c8; background: rgba(46, 106, 64, 0.6); border-radius: 12px; }

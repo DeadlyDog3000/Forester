@@ -11,7 +11,7 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
-import { makeAxe, makePick, makeTorch } from "../models.js";
+import { makeAxe, makePick, makeTorch, makeSpade, makeSickle } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { Wilds } from "./wilds.js";
@@ -84,6 +84,7 @@ const SAYS = {
   wood: ["Good timber round here.", "Another one for the stack.", "Mind your feet — it'll come down where it likes."],
   stone: ["Stone takes its time.", "This one's got a seam in it.", "Hard work, but it'll stand a hundred years."],
   watch: ["All quiet.", "I'd know a stranger by his walk.", "Nobody comes onto this ground I don't see."],
+  farm: ["Good soil, this. Keep the birds off it and it'll feed us.", "Rye's coming on.", "A field never thanks you, but it feeds you."],
 };
 class SettlerView {
   constructor(game, v) {
@@ -100,7 +101,7 @@ class SettlerView {
     const p = this.actor.person; if (this.held) p.held.remove(this.held);
     // (a watchman after dark carries a torch)
     this.torch = this.job === "watch" && this.game.isNight();
-    this.held = this.actor.hold(this.torch ? makeTorch(true) : this.job === "stone" ? makePick() : makeAxe());
+    this.held = this.actor.hold(this.torch ? makeTorch(true) : this.job === "stone" ? makePick() : this.job === "farm" ? (this.anim === "reap" ? makeSickle() : makeSpade()) : makeAxe());
   }
   setTag() {
     if (this.tag) { this.actor.root.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose(); }
@@ -120,7 +121,8 @@ class SettlerView {
     const asleep = this.anim === "sleep";
     a.root.visible = !asleep;
     if ((this.toolT = (this.toolT || 0) - dt) <= 0) { this.toolT = 2; if (this.job === "watch" && this.torch !== this.game.isNight()) this.tool(); }
-    a.person.setPose(this.dying ? "idle" : this.anim === "chop" ? "chop" : this.torch ? "torch" : "idle");
+    if (this.job === "farm" && (this.anim === "reap") !== !!this.sickle) { this.sickle = this.anim === "reap"; this.tool(); }
+    a.person.setPose(this.dying ? "idle" : ["chop", "dig", "reap"].includes(this.anim) && !(this.spd > 0.2) ? this.anim : this.torch ? "torch" : "idle");
     a.person.update(dt, a.speed);
     a.sync();
     if (this.it) { this.it.x = a.pos.x; this.it.z = a.pos.z; this.it.y = a.pos.y + 1.4; }
@@ -138,7 +140,7 @@ export class MPGame {
     this.groups = inMsg.groups || {};
     this.online = new Set(inMsg.online || []);
     this.owners = {};                     // pid → name, as heard
-    this.stock = { wood: inMsg.you.wood, stone: inMsg.you.stone };
+    this.stock = { wood: inMsg.you.wood, stone: inMsg.you.stone, food: inMsg.you.food | 0 };
     this.hp = MAX_HP; this.dead = false;
     this.shieldUntil = performance.now() + (inMsg.you.shield || SPAWN_SHIELD_MS);
     this.dayAt = performance.now() - inMsg.day.t; this.dayLen = inMsg.day.len;
@@ -221,7 +223,8 @@ export class MPGame {
     n.ps = m => { for (const l of m.l) { const r = this.remotes.get(l[0]); if (r) r.set(l); } };
     n.pj = m => { this.online.add(m.p.pid); this.addRemote(m.p); this.refreshFriends(); };
     n.pl = m => { this.online.delete(m.pid); const r = this.remotes.get(m.pid); if (r) { r.remove(); this.remotes.delete(m.pid); } this.hudCount(); this.refreshFriends(); };
-    n.stock = m => { this.stock = { wood: m.wood, stone: m.stone }; this.hudStock(true); };
+    n.stock = m => { const fed = (m.food | 0) > (this.stock.food | 0) + 4; this.stock = { wood: m.wood, stone: m.stone, food: m.food | 0 }; this.hudStock(true); if (fed && this.settlers.size) this.toast(`Harvest in: ${m.food} food in the store`); };
+    n.bg = m => { const e = this.w.blds.get(m.id); if (e) { e.b.growth = m.growth; this.w.setGrowth(e.b, e.g, m.growth); } };
     n.chip = m => { const t = w.thing(m.id); if (!t) return; const r = this.remotes.get(m.by); if (t.id[0] === "r") { AUDIO.clang && AUDIO.clang(0.25, { x: t.x, y: t.y + 0.5, z: t.z }); } else if (r && Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 0.6); };
     n.fell = m => {
       const t = w.fell(m.id, m.dx, m.dz); if (!t) return;
@@ -485,7 +488,7 @@ export class MPGame {
     $("mpMode").textContent = `${MODES[this.mode]} · ${TERRAINS[this.room.kind] ? TERRAINS[this.room.kind].name : ""}`;
     this.hudStock(); this.hudCount(); this.drawChat();
   }
-  hudStock(flash) { $("mpLogs").textContent = this.stock.wood; $("mpStone").textContent = this.stock.stone; if (flash) { const e = $("mpStock"); e.classList.remove("flash"); void e.offsetWidth; e.classList.add("flash"); } if (this.menuOpen) this.openBuild(true); }
+  hudStock(flash) { $("mpLogs").textContent = this.stock.wood; $("mpStone").textContent = this.stock.stone; $("mpFood").textContent = this.stock.food | 0; $("mpStock").classList.toggle("hungry", (this.stock.food | 0) <= 0 && this.settlers.size > 0); if (flash) { const e = $("mpStock"); e.classList.remove("flash"); void e.offsetWidth; e.classList.add("flash"); } if (this.menuOpen) this.openBuild(true); }
   hudCount() { const n = this.remotes.size + 1; $("mpCount").textContent = `${n} ${n === 1 ? "person" : "people"} here`; }
   toast(text) { const e = $("mpToast"); e.textContent = text; e.classList.remove("hidden", "bad"); this.toastT = 2.6; }
   warn(text) { const e = $("mpToast"); e.textContent = text; e.classList.remove("hidden"); e.classList.add("bad"); this.toastT = 4; sfx("deny"); }
