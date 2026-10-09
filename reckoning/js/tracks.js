@@ -30,22 +30,22 @@ export class Tracks {
     this.d = new THREE.Object3D(); this.c = new THREE.Color();
   }
   // somebody's foot coming down at x, z, heading yaw (their facing as the actors have it: forward is sin, cos)
-  print(x, z, yaw, side) {
+  print(x, z, yaw, side, size = 1, gait = 0.11) {
     const i = this.next; this.next = (this.next + 1) % MAX;
-    const px = Math.cos(yaw) * side * 0.11, pz = -Math.sin(yaw) * side * 0.11;
-    const d = this.d; d.position.set(x + px, this.w.heightAt(x + px, z + pz) + 0.015, z + pz); d.rotation.set(0, yaw + side * 0.08, 0); d.scale.setScalar(1);
+    const px = Math.cos(yaw) * side * gait, pz = -Math.sin(yaw) * side * gait;
+    const d = this.d; d.position.set(x + px, this.w.heightAt(x + px, z + pz) + 0.015, z + pz); d.rotation.set(0, yaw + side * 0.08, 0); d.scale.set(size, 1, size * (size < 0.6 ? 0.8 : 1));
     d.updateMatrix(); this.mesh.setMatrixAt(i, d.matrix);
     this.age[i] = 0; this.mesh.instanceColor.setXYZ(i, DENT.r, DENT.g, DENT.b);
     this.mesh.count = Math.max(this.mesh.count, i + 1);
     this.dirty = true;
   }
   // a walker: how far they've come since their last print
-  step(who, x, z, yaw) {
+  step(who, x, z, yaw, stride = STRIDE, size = 1, gait = 0.11) {
     let s = this.walkers.get(who);
     if (!s) { s = { x, z, side: 1 }; this.walkers.set(who, s); return; }
     const dd = Math.hypot(x - s.x, z - s.z);
     if (dd > 6) { s.x = x; s.z = z; return; }                 // (moved by the story, not walked)
-    if (dd >= STRIDE) { s.side = -s.side; this.print(x, z, yaw, s.side); s.x = x; s.z = z; }
+    if (dd >= stride) { s.side = -s.side; this.print(x, z, yaw, s.side, size, gait); s.x = x; s.z = z; }
   }
   update(dt) {
     const snow = SNOW.value, fall = this.w.flakeFall || 0, w = this.w;
@@ -59,6 +59,13 @@ export class Tracks {
         if (a.inside || a.dead || a.lying || !a.root.visible) continue;
         if (Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z) > 35) continue;
         if (onSnow(a.pos.x, a.pos.z)) this.step(a, a.pos.x, a.pos.z, a.yaw || 0);
+      }
+      // and the beasts': a deer's and a boar's little cloven slots, a hare's pad marks — a trail to follow
+      const H = G.hunt;
+      if (H) for (const a of H.animals) {
+        if (!a.alive || !a.pos || Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z) > 45) continue;
+        const k = a.kind === "deer" ? [0.55, 0.42, 0.09] : a.kind === "boar" ? [0.6, 0.5, 0.12] : [0.45, 0.32, 0.05];
+        this.step(a, a.pos.x, a.pos.z, a.yaw || 0, k[0], k[1], k[2]);
       }
     }
     // ---- and filling in: slowly, quickly while it snows, all at once when the snow's gone ----

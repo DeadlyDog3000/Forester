@@ -72,6 +72,8 @@ class Animal {
   hit(power) {
     if (!this.alive) return;
     this.hp -= power > 0.7 ? 2 : 1;
+    // (wounded, it bleeds as it runs: a trail of drops to follow)
+    this.bleed = 40; this.bleedAt = null;
     G.practise && G.practise("archery", 3);
     if (this.hp <= 0) { this.state = "dead"; this.slide = Math.min(6, this.speed || 0); this.fall = 0; this.speed = 0; this.hunt.onDown(this); SFX.treeFall && SFX.treeFall(0.3); return; }
     // a wounded boar turns on whoever did it, if they are near enough to reach
@@ -121,6 +123,11 @@ class Animal {
       if (away) { this.state = "walk"; this.target = away; this.t = 14; this.looking = 0; }
     }
     this.t -= dt;
+    if (this.bleed > 0 && this.alive) {
+      this.bleed -= dt;
+      const b = this.bleedAt || (this.bleedAt = { x: this.pos.x, z: this.pos.z });
+      if (Math.hypot(this.pos.x - b.x, this.pos.z - b.z) > 1.1 + Math.random()) { this.hunt.drip(this.pos.x, this.pos.z, Math.max(0.3, this.bleed / 40)); b.x = this.pos.x; b.z = this.pos.z; }
+    }
     let want = 0;
     if (this.state === "graze") {
       // head down to the grass — and now and then up, ears forward, looking about
@@ -327,6 +334,18 @@ export class Hunt {
     this._roam = tick;
   }
   spawn(kind, n = 1) { for (let i = 0; i < n; i++) { const [x, z] = this.spot(); this.animals.push(new Animal(this, kind, x, z)); } }
+  // a drop of blood on the ground (bigger the fresher the wound); they darken and go in a few minutes
+  drip(x, z, k = 1) {
+    if (!this.bloodM) {
+      const g = new THREE.CircleGeometry(0.1, 7); g.rotateX(-Math.PI / 2);
+      this.bloodM = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0x6a0e0a, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -4 }), 160);
+      this.bloodM.count = 0; this.bloodM.frustumCulled = false; this.w.root.add(this.bloodM); this.bloodN = 0; this.bloodT = new Float32Array(160);
+    }
+    const i = this.bloodN; this.bloodN = (i + 1) % 160;
+    const d = new THREE.Object3D(), s = (0.5 + Math.random() * 0.8) * (0.6 + k * 0.6);
+    d.position.set(x + (Math.random() - 0.5) * 0.3, this.w.heightAt(x, z) + 0.02, z + (Math.random() - 0.5) * 0.3); d.rotation.y = Math.random() * 6.28; d.scale.set(s, 1, s * (0.6 + Math.random() * 0.6)); d.updateMatrix();
+    this.bloodM.setMatrixAt(i, d.matrix); this.bloodM.count = Math.max(this.bloodM.count, i + 1); this.bloodM.instanceMatrix.needsUpdate = true;
+  }
   onDown(a) {
     // a fallen beast can be dressed where it lies
     const it = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 0.4; }, reach: 2.2, hold: 2.2,

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.5", date: "8 October 2026", title: "Trails",
+    items: [
+      "The beasts leave tracks in the snow, as people do: a deer's and a boar's little cloven slots and a hare's pad marks, a trail you can follow through the woods in winter.",
+      "A wounded deer or boar bleeds as it runs, leaving a trail of drops on the ground to follow it by, heavier while the wound is fresh.",
+    ],
+  },
+  {
     v: "0.53.4", date: "8 October 2026", title: "Hamburg's chimneys",
     items: [
       "Most of the houses in Hamburg have a chimney stack up through the roof, brick or stone, and they smoke: thin by day and thicker toward evening, drifting off the rooftops over the streets.",
