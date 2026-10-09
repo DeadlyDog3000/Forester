@@ -146,6 +146,9 @@ export class Woods extends WorldBase {
       if (steep > 0.12) c.lerp(PAL.stone, Math.min(0.9, (steep - 0.12) * 5));
       const dc = Math.hypot(x - CLEARING.x, z - CLEARING.z);
       if (dc < CLEARING.r + 8) c.lerp(PAL.grass, clamp((CLEARING.r + 8 - dc) / 10, 0, 1) * 0.75);
+      // the fields back toward the city, where no trees stand: meadow, greener in the hollows, drier on the rises
+      const field = clamp((z - 12) / 14, 0, 1);
+      if (field > 0) c.lerp(PAL.grass, field * 0.8).lerp(PAL.dry, field * clamp(dry - 0.35, 0, 0.5));
       const d = this.anyRoadDist(x, z).d;
       if (d < 3) c.lerp(PAL.road, clamp((3 - d) / 2, 0, 1) * 0.7);
       // the pond's banks: damp, mossy and green down to the water, dark mud right at its edge

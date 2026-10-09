@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.57.2", date: "9 October 2026", title: "Fields by the road",
+    items: [
+      "The open country where the road leaves Hamburg is meadow: green in the hollows, drier on the rises, with grass growing thick across it. Before, the fields between the city and the woods were bare khaki ground with a tuft here and there.",
+    ],
+  },
+  {
     v: "0.57.1", date: "9 October 2026", title: "Books and glazing",
     items: [
       "Bookcases are real bookcases: an open case with four boards, and on them books of every height and colour, ledgers lying flat, a box or two, and gaps where something's been taken down. Before, they were a flat board painted in coloured stripes. Father's counting room has two, and so do the houses you furnish.",

@@ -96,6 +96,9 @@ export class Grass {
     const pk = pondK(x, z);
     if (pk < 1.04) dens = 0; else if (pk < 1.9) dens = Math.max(dens, 0.85);
     // (none in the brook either, and its banks are lush)
+    // (and the fields back toward the city, south of the woods: open meadow, thick with it)
+    const field = clamp((z - 14) / 12, 0, 1);
+    if (field > 0) dens = Math.max(dens, field * (0.7 + Math.sin(x * 0.11 + z * 0.07) * 0.2));
     const bq = w.brookAt && w.brookAt(x, z);
     if (bq && bq.d < bq.w + 0.1) dens = 0; else if (bq && bq.d < bq.w + 2.2) dens = Math.max(dens, 0.8);
     if (hash(i, j, 3) <= dens * 1.4) {
@@ -107,7 +110,7 @@ export class Grass {
         w.groundColour ? w.groundColour(x, z, c) : c.set(0x6c7f38);
         c.multiplyScalar(1.05 + hash(i, j, 7) * 0.2);
         if (c.r > c.g * 0.95) c.lerp(new THREE.Color(0xb0a160), 0.4);
-        q = { x, z, y: w.heightAt(x, z), sc: 0.22 + hash(i, j, 4) * 0.2, sy: 0.8 + hash(i, j, 6) * 0.6, ry: hash(i, j, 5) * 6.283, ph: (x * 0.9 + z * 0.7) % 6.283, c, open: dc < CLEARING.r + 4 || (pk > 1.1 && pk < 1.9) || !!(bq && bq.d > bq.w + 0.4 && bq.d < bq.w + 2.2) };
+        q = { x, z, y: w.heightAt(x, z), sc: 0.22 + hash(i, j, 4) * 0.2, sy: 0.8 + hash(i, j, 6) * 0.6, ry: hash(i, j, 5) * 6.283, ph: (x * 0.9 + z * 0.7) % 6.283, c, open: dc < CLEARING.r + 4 || field > 0.5 || (pk > 1.1 && pk < 1.9) || !!(bq && bq.d > bq.w + 0.4 && bq.d < bq.w + 2.2) };
       }
     }
     cache.set(k, q);
