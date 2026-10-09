@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.55.5", date: "9 October 2026", title: "Voices in the woods",
+    items: [
+      "The woods have voices of their own. A tawny owl calls from somewhere off in the trees at night, a long hoo and then the quavering answer. By day a woodpecker drums on a dead branch now and then, more often when you're out among the trees. Neither calls in the rain, and the woodpecker is quiet in winter.",
+      "The guide has a page on what the woods give, ceps and blackberries, shown the first time the mushrooms come up near you.",
+    ],
+  },
+  {
     v: "0.55.4", date: "9 October 2026", title: "Ceps",
     items: [
       "In autumn, after rain, clusters of ceps come up on the forest floor under the trees round about you. Pick them (F) and eat them as they are, or stew three with a little rye in the kitchen (Mushroom stew). Left alone, they go over in a day or two. Traders will take them too.",

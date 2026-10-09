@@ -497,6 +497,28 @@ export const AUDIO = {
     });
     if (loops.brook) loops.brook.g.gain.setTargetAtTime(0.05 * k * k, a.currentTime, 0.5);
   },
+  // a tawny owl, somewhere off in the trees: a long hoo, a pause, and the quavering hoo-hoo-hoooo
+  owl(at) {
+    const a = ctx(); if (!a) return;
+    const P = placed(a, at, 120); if (P.k <= 0.01) return;
+    const t0 = a.currentTime, note = (t, dur, f0, f1, v) => {
+      const o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter();
+      o.type = "sine"; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f1, t + dur);
+      lp.type = "lowpass"; lp.frequency.value = 900;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v * P.k, t + 0.05); g.gain.setValueAtTime(v * P.k, t + dur - 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(lp); lp.connect(g); g.connect(P.node); o.start(t); o.stop(t + dur + 0.02);
+    };
+    note(t0, 0.55, 410, 380, 0.07);
+    for (let i = 0; i < 3; i++) note(t0 + 1.6 + i * 0.16, 0.12, 400, 390, 0.05);
+    note(t0 + 2.15, 0.85, 405, 370, 0.07);
+  },
+  // a woodpecker drumming on a dead branch, a quick roll that dies away
+  woodpecker(at) {
+    const a = ctx(); if (!a) return;
+    const P = placed(a, at, 90); if (P.k <= 0.01) return;
+    const t0 = a.currentTime, n = 14 + Math.floor(Math.random() * 8);
+    for (let i = 0; i < n; i++) { const t = t0 + i * (0.045 + i * 0.0012); burst(a, t, 0.02, 0.06 * P.k * (1 - i / n * 0.6), rnd(1300, 1600), 900, 4); }
+  },
   // a frog in the pond: a low double croak, from where it sits (at: {x, z})
   frog(at) {
     const a = ctx(); if (!a) return;

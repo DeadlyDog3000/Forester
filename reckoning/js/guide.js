@@ -56,6 +56,14 @@ export const GUIDE = {
       "The settlement's <b>bread</b> is on your hotbar too, when there is some in the stores.",
     ],
   },
+  forage: {
+    kicker: "The woods", title: "What the woods give",
+    steps: [
+      "In autumn, after rain, <b>ceps</b> come up under the trees: fat brown mushrooms in little clusters. Hold <kbd>F</kbd> to pick them. They're safe to eat as they are.",
+      "In late summer the <b>brambles</b> ripen: pick the blackberries before the deer and the boar get them.",
+      "In the kitchen, three ceps and a little rye make a <i>Mushroom stew</i>. The traders will buy what you don't eat.",
+    ],
+  },
   pond: {
     kicker: "The woods", title: "The pond, and fishing",
     steps: [

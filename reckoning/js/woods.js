@@ -1348,6 +1348,8 @@ export class Woods extends WorldBase {
         use: () => { if (G.packAdd("mushrooms", Math.max(2, Math.round(n * 0.7)), "Ceps") > 0) { UI.hint && UI.hint("Ceps — a good handful.", 2); this.dropMush(m); } } });
       list.push(m);
     }
+    // (the first time some come up near you, the guide's page on what the woods give)
+    if (!this._toldForage && list.some(m => Math.hypot(m.x - p.x, m.z - p.z) < 25) && G.mode === "play") { this._toldForage = true; G.guide && G.guide("forage"); }
   }
   dropMush(m) { this.root.remove(m.g); this.removeInteract(m.it); const i = this.mush.indexOf(m); if (i >= 0) this.mush.splice(i, 1); }
   // under a roof, or under the ground: no rain or snow falls on you here
@@ -1837,6 +1839,14 @@ export class Woods extends WorldBase {
     }
     // ceps under the trees, after rain, in autumn
     this.mushroomsTick(dt);
+    // the woods' own voices: an owl by night, a woodpecker by day, somewhere off in the trees
+    if (G.town && G.town.w === this && (this._voiceT = (this._voiceT ?? 15) - dt) <= 0) {
+      this._voiceT = 18 + Math.random() * 30;
+      const f = G.town.frac, p = G.player.pos, a = Math.random() * Math.PI * 2, r = 40 + Math.random() * 60, at = { x: p.x + Math.cos(a) * r, z: p.z + Math.sin(a) * r };
+      const rain = (this.rainK || 0) > 0.4, inWoods = Math.hypot(p.x - CLEARING.x, p.z - CLEARING.z) > CLEARING.r + 10;
+      if (!rain && (f > 0.78 || f < 0.03)) AUDIO.owl && AUDIO.owl(at);
+      else if (!rain && f > 0.1 && f < 0.6 && !G.town.winter && (inWoods || Math.random() < 0.3)) AUDIO.woodpecker && AUDIO.woodpecker(at);
+    }
     // the brook
     if (this.brook && !this.brookV && !this._brookLoading) { this._brookLoading = true; import("./brook.js").then(m => { this.brookV = new m.Brook(this); }); }
     if (this.brookV) this.brookV.update(dt);
