@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.0", date: "9 October 2026", title: "Clouds",
+    items: [
+      "The sky has clouds. On a fair day there's a scatter of them, white on the sun's side and grey beneath. Ahead of rain they thicken into a low grey lid, and they drift across, quicker on a windy day. At dusk they take the colour of the sunset, and at night they're dim shapes against the dark. Before, the sky was a plain gradient with nothing in it.",
+    ],
+  },
+  {
     v: "0.53.9", date: "8 October 2026", title: "On the ice",
     items: [
       "When the pond freezes over you can walk out across it, on the ice, not wading along its bed beneath. It goes back to water at the thaw.",

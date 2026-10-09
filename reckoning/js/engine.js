@@ -149,6 +149,9 @@ function applyAtmo(a00) {
   sky.userData.stars.material.opacity = a.stars;
   // (the moon: out with the stars, behind the cloud; full every eighth day, waxing and waning between)
   u.moonK.value = clamp(a.stars * 1.2, 0, 1) * (1 - Math.min(1, (G.cloud || 0) * 1.3));
+  // (the clouds: a fair day's scatter, thickening with the weather; lit by the day, near black by night)
+  u.cloudK.value = clamp(0.25 + (G.cloud || 0) * 0.85, 0, 1);
+  u.cloudLit.value = clamp((a.sunI - 0.4) / 2.0, 0, 1) * 1.05 + 0.035;
   u.moonPhase.value = G.town ? ((G.town.t / (G.town.dayLen || 480)) / 8) % 1 : 0.5;
   MAT.lit.emissiveIntensity = a.win;
   renderer.toneMappingExposure = a.exp;
@@ -971,6 +974,8 @@ function updateCamera(dt) {
   sun.position.set(p.pos.x + sd.x * 90, p.pos.y + sd.y * 90, p.pos.z + sd.z * 90);
   sun.target.position.set(p.pos.x, p.pos.y, p.pos.z);
   sky.position.copy(camera.position);
+  // (the clouds drift on, with the wind)
+  sky.material.uniforms.cloudT.value = (G.time || 0) * (1 + (G.windV ? Math.hypot(G.windV.x, G.windV.z) : 0.4));
 }
 
 // a tool used: a stroke's wear on it; worn through, it's put down (and you're told)

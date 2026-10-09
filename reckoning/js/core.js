@@ -522,13 +522,32 @@ export function makeSky() {
       bottom: { value: new THREE.Color(0x9aa9b0) }, sunDir: { value: new THREE.Vector3(0, 1, 0) },
       sunCol: { value: new THREE.Color(0xfff0c0) }, sunSize: { value: 0.9985 },
       moonK: { value: 0 }, moonPhase: { value: 0.5 },
+      cloudT: { value: 0 }, cloudK: { value: 0.3 }, cloudLit: { value: 1 },
     },
     vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform vec3 top, mid, bottom, sunCol, sunDir; uniform float sunSize, moonK, moonPhase; varying vec3 vP;
+    fragmentShader: `uniform vec3 top, mid, bottom, sunCol, sunDir; uniform float sunSize, moonK, moonPhase, cloudT, cloudK, cloudLit; varying vec3 vP;
+      float ch(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float cn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(ch(i), ch(i + vec2(1, 0)), f.x), mix(ch(i + vec2(0, 1)), ch(i + vec2(1, 1)), f.x), f.y); }
+      float cfbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * cn(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return s; }
       void main(){ float h = vP.y; vec3 c = h > 0.0 ? mix(mid, top, pow(clamp(h,0.0,1.0),0.55)) : mix(mid, bottom, clamp(-h*4.0,0.0,1.0));
         vec3 d = normalize(vP), sd = normalize(sunDir);
         float s = dot(d, sd);
         c += sunCol * (smoothstep(sunSize, 1.0, s) * 1.6 + pow(max(s,0.0), 24.0) * 0.35) * (1.0 - moonK);
+        // clouds: a layer overhead, seen in perspective, drifting with the wind; scattered on a fair day, a low grey
+        // lid before rain; lit white on the sun's side and grey beneath, and only dark shapes against the night
+        if (h > 0.0) {
+          vec2 cp = d.xz / (d.y + 0.12) * 1.6 + vec2(cloudT * 0.012, cloudT * 0.005);
+          float n = cfbm(cp) * 0.75 + cfbm(cp * 2.7 + 3.1) * 0.25;
+          float cov = smoothstep(0.62 - cloudK * 0.5, 0.78 - cloudK * 0.35, n) * smoothstep(0.0, 0.18, h);
+          float thick = smoothstep(0.5, 0.95, n + cloudK * 0.3);
+          vec3 lit = mix(vec3(1.0), sunCol * 1.4 + vec3(0.25), 0.35) * cloudLit;
+          vec3 shade = mix(mid, vec3(0.42, 0.44, 0.48), 0.6) * (0.35 + 0.65 * cloudLit);
+          vec3 cc = mix(lit, shade, thick * 0.8 + cloudK * 0.3);
+          // (brighter at the edges toward the sun)
+          cc += sunCol * pow(max(s, 0.0), 6.0) * (1.0 - thick) * 0.5 * cloudLit;
+          c = mix(c, cc, cov * (0.85 + cloudK * 0.15));
+        }
         // the moon, by night, where the night's light comes from: a pale disc lit on one side by the sun below the
         // world (its phase), the dark of it faintly there, and a soft halo round it
         if (moonK > 0.0) {
