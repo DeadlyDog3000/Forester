@@ -912,7 +912,7 @@ G.toggleFreecam = () => {
 };
 function updateCamera(dt) {
   const p = G.player;
-  if (G.freecam) { freeCamera(dt); return; }
+  if (G.freecam) { freeCamera(dt); sky.position.copy(camera.position); return; }
   const third = !!G.forceThird;   // first person always; only a scene may step the camera back
   const bobY = third ? 0 : Math.sin(p.bob * 2) * 0.035 * Math.min(1, p.speed / 3);
   const bobX = third ? 0 : Math.cos(p.bob) * 0.025 * Math.min(1, p.speed / 3);

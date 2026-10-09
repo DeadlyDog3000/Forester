@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.56.2", date: "9 October 2026", title: "Summer nights",
+    items: [
+      "On a still summer night, fireflies drift low over the grass all round you. Each one glows up and fades in its own slow rhythm. None come out in rain or wind.",
+      "The shops' signboards are painted on both sides, so the name reads properly from behind. They and the banners are lit by the day like everything else, so they don't glow in the dark any more.",
+      "In the free camera, the sky stays round the view. Before, if you flew off a way, the sky showed as a great dome sitting on the town.",
+    ],
+  },
+  {
     v: "0.56.1", date: "9 October 2026", title: "Fawns",
     items: [
       "In spring and at the start of summer, some of the roe does have a fawn with them. It's small and dappled with pale spots, keeps at its mother's heels, grazes beside her, and bolts with her at her flank when she's startled. There's not much meat on one.",

@@ -279,13 +279,19 @@ function banner(c, y) {
   c.brand ??= makeBrand(c.kind, c.owner, Math.floor(Math.random() * 1e9));
   const g = new THREE.Group();
   // the sign across the front
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 0.7), new THREE.MeshBasicMaterial({ map: signBoard(c), side: THREE.DoubleSide }));
-  sign.position.set(0, y, 1.95); g.add(sign);
+  // (a board painted both sides: the name reads right from the front and from behind, and it's lit by the day like
+  //  the house it hangs on, dim at dusk, not glowing in the dark)
+  const sm = new THREE.MeshStandardMaterial({ map: signBoard(c), roughness: 0.85 });
+  for (const back of [0, 1]) {
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 0.7), sm);
+    sign.position.set(0, y, 1.95 + (back ? -0.012 : 0.012)); sign.rotation.y = back ? Math.PI : 0; g.add(sign);
+  }
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(2.84, 0.74, 0.02), mat(0x4e3a28)); edge.position.set(0, y, 1.95); g.add(edge);
   const rail = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.06, 0.06), mat(0x4e3a28)); rail.position.set(0, y + 0.38, 1.95); g.add(rail);
   // the banner on its own pole beside the shop, hanging from a crossbar
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 4.2, 6), mat(0x4e3a28)); pole.position.set(2.4, 2.1, 1.6); g.add(pole);
   const bar = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.05), mat(0x4e3a28)); bar.position.set(2.4 + 0.45, 3.95, 1.6); g.add(bar);
-  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 1.7), new THREE.MeshBasicMaterial({ map: bannerCloth(c.brand), side: THREE.DoubleSide, transparent: true, alphaTest: 0.5 }));
+  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 1.7), new THREE.MeshStandardMaterial({ map: bannerCloth(c.brand), side: THREE.DoubleSide, alphaTest: 0.5, roughness: 0.95 }));
   cloth.position.set(2.4 + 0.45, 3.1, 1.6); cloth.rotation.y = Math.PI / 2; g.add(cloth);
   g.userData.cloth = cloth;
   return g;

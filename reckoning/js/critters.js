@@ -7,7 +7,7 @@
 // come near and one is off to the nearest trunk and up it in a spiral, to sit on
 // a branch out of reach until you've gone.
 
-import { THREE } from "./core.js";
+import { THREE, renderer } from "./core.js";
 import { G } from "./engine.js";
 import { CLEARING } from "./woods.js";
 
@@ -145,5 +145,66 @@ export class Butterflies {
       const a = b.rest > 0 ? 1.2 : 0.2 + flap * 1.1;
       m.userData.wl.rotation.z = a; m.userData.wr.rotation.z = -a;
     }
+  }
+}
+
+// Fireflies: on a still summer night, a scatter of little greenish lights drifting low over the grass round you,
+// each glowing up and fading in its own slow rhythm. None in rain or wind, or out of summer.
+const FF = 48;
+export class Fireflies {
+  constructor(w) {
+    this.w = w; this.t = 0; this.k = 0;
+    const g = new THREE.BufferGeometry();
+    this.pos = new Float32Array(FF * 3); this.ph = new Float32Array(FF);
+    this.fl = [];
+    for (let i = 0; i < FF; i++) { this.ph[i] = Math.random() * 40; this.fl.push({ x: 0, z: 0, y: 0.6, h: Math.random() * 6.28, rate: 0.5 + Math.random() * 0.6, ok: false }); }
+    g.setAttribute("position", new THREE.BufferAttribute(this.pos, 3));
+    g.setAttribute("aPh", new THREE.BufferAttribute(this.ph, 1));
+    this.mat = new THREE.ShaderMaterial({
+      uniforms: { uT: { value: 0 }, uK: { value: 0 }, uPx: { value: 1 } },
+      vertexShader: `attribute float aPh; uniform float uT, uPx; varying float vB;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          // (each one's glow: a slow swell and fade, then dark a while)
+          float c = fract(uT * (0.18 + fract(aPh * 0.37) * 0.1) + aPh);
+          vB = smoothstep(0.0, 0.1, c) * (1.0 - smoothstep(0.3, 0.55, c));
+          gl_PointSize = clamp(110.0 / -mv.z, 4.0, 22.0) * (0.4 + vB) * uPx;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `uniform float uK; varying float vB;
+        void main() {
+          float d = length(gl_PointCoord - 0.5) * 2.0;
+          float a = (exp(-d * d * 6.0) + exp(-d * d * 2.0) * 0.5) * vB * uK;
+          if (a < 0.01) discard;
+          gl_FragColor = vec4(vec3(0.9, 1.0, 0.45) * a * 3.5, a);
+        }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    this.pts = new THREE.Points(g, this.mat); this.pts.frustumCulled = false; this.pts.visible = false;
+    w.root.add(this.pts);
+  }
+  place(f, p) {
+    const a = Math.random() * 6.28, r = 3 + Math.random() * 22;
+    f.x = p.x + Math.cos(a) * r; f.z = p.z + Math.sin(a) * r; f.y = 0.3 + Math.random() * 1.3; f.ok = true;
+  }
+  update(dt) {
+    const T = G.town, p = G.player && G.player.pos; if (!T || !p) return;
+    this.t += dt;
+    const f0 = T.frac, night = f0 > 0.7 || f0 < 0.03;
+    const want = T.season === "summer" && night && (this.w.rainK || 0) < 0.05 && (G.windV ? Math.hypot(G.windV.x, G.windV.z) : 0) < 1.5 ? 1 : 0;
+    this.k += (want - this.k) * Math.min(1, dt * 0.3);
+    this.pts.visible = this.k > 0.01;
+    if (!this.pts.visible) { for (const f of this.fl) f.ok = false; return; }
+    for (let i = 0; i < FF; i++) {
+      const f = this.fl[i];
+      if (!f.ok || Math.hypot(f.x - p.x, f.z - p.z) > 28) this.place(f, p);
+      // (a lazy, wandering drift: the heading turning slowly, rising and sinking a little)
+      f.h += (Math.sin(this.t * 0.7 + i) * 0.8 + (Math.random() - 0.5) * 1.5) * dt;
+      f.x += Math.sin(f.h) * 0.35 * f.rate * dt; f.z += Math.cos(f.h) * 0.35 * f.rate * dt;
+      const gy = this.w.heightAt(f.x, f.z), y = gy + f.y + Math.sin(this.t * 0.6 * f.rate + i * 1.7) * 0.25;
+      this.pos[i * 3] = f.x; this.pos[i * 3 + 1] = Math.max(gy + 0.15, y); this.pos[i * 3 + 2] = f.z;
+    }
+    this.pts.geometry.attributes.position.needsUpdate = true;
+    this.mat.uniforms.uT.value = this.t; this.mat.uniforms.uK.value = this.k; this.mat.uniforms.uPx.value = renderer.getPixelRatio();
   }
 }
