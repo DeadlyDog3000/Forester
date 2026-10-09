@@ -20,7 +20,7 @@ import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, add
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, SWAY } from "./models.js";
+import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, SWAY, addSway, swayGeo } from "./models.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { Smoke, Breath, chimneyMark } from "./smoke.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
@@ -99,6 +99,60 @@ export const UPGRADES = {
   3: { style: "red brick, as the Hanse builds", mats: { planks: 12, bricks: 45, stone: 20 } },
   4: { style: "stucco and glass, as a city builds now", mats: { planks: 20, bricks: 60, stone: 25, iron: 18 }, needs: t => t.S.buildings.some(b => b.done && b.type === "townhall" && (b.tier || 1) >= 3) ? null : "a town hall in brick first (the city's charter)" },
 };
+// ---- the rye in a strip of field: one clump of stalks after another in five rows, all drawn at once, stirring in the
+// wind. Sown, it is a green flush of shoots; then knee-high green stalks; ripe, a waist-high gold with the ears nodding.
+const _rye = {};
+function ryeGeo(stage) {
+  if (_rye[stage]) return _rye[stage];
+  const pos = [], col = [], idx = [];
+  const blade = (a, lean, h, w, c0, c1, ear) => {
+    const dx = Math.cos(a), dz = Math.sin(a), px = -dz * w, pz = dx * w, i0 = pos.length / 3;
+    pos.push(-px, 0, -pz, px, 0, pz, -px * 0.5 + dx * lean * 0.5, h * 0.6, -pz * 0.5 + dz * lean * 0.5, px * 0.5 + dx * lean * 0.5, h * 0.6, pz * 0.5 + dz * lean * 0.5, dx * lean, h, dz * lean);
+    const cm = c0.map((v, n) => (v + c1[n]) / 2);
+    for (const k of [c0, c0, cm, cm, c1]) col.push(k[0], k[1], k[2]);
+    idx.push(i0, i0 + 1, i0 + 3, i0, i0 + 3, i0 + 2, i0 + 2, i0 + 3, i0 + 4, i0, i0 + 3, i0 + 1, i0, i0 + 2, i0 + 3, i0 + 2, i0 + 4, i0 + 3);
+    if (ear) {
+      // the ear: a slim spindle of grain hanging over from the top of the stalk
+      const j0 = pos.length / 3, tx = dx * lean, tz = dz * lean, ex = dx * 0.07, ez = dz * 0.07, ew = 0.016;
+      pos.push(tx, h, tz, tx + ex * 0.5 - dz * ew, h + 0.035, tz + ez * 0.5 + dx * ew, tx + ex * 0.5 + dz * ew, h + 0.035, tz + ez * 0.5 - dx * ew, tx + ex, h - 0.02, tz + ez, tx + ex * 0.5, h + 0.05, tz + ez * 0.5);
+      for (let n = 0; n < 5; n++) col.push(0.86, 0.72, 0.38);
+      idx.push(j0, j0 + 1, j0 + 3, j0, j0 + 3, j0 + 2, j0, j0 + 4, j0 + 1, j0 + 1, j0 + 4, j0 + 3, j0 + 3, j0 + 4, j0 + 2, j0 + 2, j0 + 4, j0);
+    }
+  };
+  const green = [[0.25, 0.36, 0.14], [0.45, 0.6, 0.25]], tall = [[0.3, 0.4, 0.16], [0.5, 0.64, 0.28]], gold = [[0.55, 0.45, 0.22], [0.86, 0.74, 0.42]];
+  const n = stage === 1 ? 6 : 7;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * Math.PI * 2 + i * 0.9;
+    if (stage === 1) blade(a, 0.05 + (i % 3) * 0.03, 0.1 + (i % 3) * 0.04, 0.012, green[0], green[1]);
+    else if (stage === 2) blade(a, 0.04 + (i % 3) * 0.04, 0.42 + (i % 4) * 0.07, 0.01, tall[0], tall[1]);
+    else blade(a, 0.05 + (i % 3) * 0.04, 0.85 + (i % 4) * 0.07, 0.008, gold[0], gold[1], true);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  const nn = g.attributes.normal; for (let i = 0; i < nn.count; i++) nn.setXYZ(i, 0, 1, 0);
+  g._shared = true;
+  return (_rye[stage] = g);
+}
+let _ryeMat = null;
+function ryeStrip(b, o, stage, up, Y) {
+  if (!_ryeMat) _ryeMat = addSway(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
+  const rows = [-0.62, -0.31, 0, 0.31, 0.62], dz = stage === 1 ? 0.3 : 0.22, nz = Math.floor(6.6 / dz), n = rows.length * nz;
+  const m = new THREE.InstancedMesh(swayGeo(ryeGeo(stage), n), _ryeMat, n), d = new THREE.Object3D(), c = new THREE.Color(), sw = m.geometry.attributes.aSway.array;
+  let i = 0;
+  for (const f of rows) for (let k = 0; k < nz; k++) {
+    const h1 = Math.sin((o + f) * 91.7 + k * 13.1) * 43758.5453, r1 = h1 - Math.floor(h1);
+    const z = -3.3 + (k + 0.5) * dz + (r1 - 0.5) * 0.08, x = o + f + (r1 - 0.5) * 0.06;
+    const y = up(x, z) + 0.06;
+    d.position.set(x, y, z); d.rotation.set(0, r1 * 6.283, 0); const s = 0.9 + r1 * 0.25; d.scale.set(s, s * (0.9 + r1 * 0.2), s); d.updateMatrix();
+    m.setMatrixAt(i, d.matrix); m.setColorAt(i, c.setScalar(0.9 + r1 * 0.2));
+    // (the sway's foot in the world: the strip stands in the field's own group, at the field's height)
+    sw[i * 3] = Y + y; sw[i * 3 + 1] = stage === 1 ? 0.6 : stage === 2 ? 0.8 : 1.2; sw[i * 3 + 2] = (x * 1.3 + z * 0.9 + b.x) % 6.283;
+    i++;
+  }
+  m.castShadow = stage === 3; m.receiveShadow = true;
+  return m;
+}
 // the model a building wears: a tiered one by its tier (1 the log original, 4 a city street), the cabin as the first house
 export function modelKey(b) {
   const def = BUILDINGS[b.type];
@@ -759,7 +813,6 @@ export class Town {
   }
   fieldVis(g, b) {
     const w = this.w, growth = b.growth ?? 0;
-    const H = [0.12, 0.12, 0.45, 0.95][growth], C = [0x6a8a3a, 0x6a8a3a, 0x7a9a3e, 0xc8a850][growth];
     // (the strips lie on the ground as it is: down a slope, they bend with it)
     const up = (lx, lz) => this.groundAt(b, lx, lz);
     for (let k = 0; k < 3; k++) {
@@ -772,10 +825,7 @@ export class Town {
       const sg = new THREE.PlaneGeometry(1.7, 7, 2, 12); sg.rotateX(-Math.PI / 2); sg.translate(o, 0, 0); this.drape(sg, b, 0.07, 0.03);
       const soil = new THREE.Mesh(sg, mat(0x3e2e22, { surface: "stone" }));
       soil.receiveShadow = true; g.add(soil);
-      if (b.sown && growth > 0) for (const f of [-0.5, 0, 0.5]) for (let z = -3; z <= 3; z += growth > 1 ? 0.3 : 0.5) {
-        const m = new THREE.Mesh(new THREE.ConeGeometry(growth > 1 ? 0.05 : 0.03, H, 4), mat(C, { surface: "needles" }));
-        m.position.set(o + f, up(o + f, z) + 0.08 + H / 2, z); g.add(m);
-      }
+      if (b.sown && growth > 0) g.add(ryeStrip(b, o, growth, up, this.baseY(b)));
     }
   }
   // where a building sits: at the lowest of its corners and middle, so on a slope it is dug into the hill, never

@@ -1642,6 +1642,11 @@ export class Woods extends WorldBase {
     }
     // nor does it fall there
     SWAY.t.value += dt;
+    // the grass round about you (none at the lowest forest detail)
+    if ((G.treeNear ?? 55) > 0) {
+      if (!this.grass && !this._grassLoading) { this._grassLoading = true; import("./grass.js").then(m => { this.grass = new m.Grass(this); }); }
+      if (this.grass) this.grass.update(dt);
+    } else if (this.grass) this.grass.mesh.visible = false;
     const under = this.sheltered();
     if (this.winPane) this.winPane.visible = MAT.lit.emissiveIntensity > 0.5 && !under;
     if (this.flakes) this.flakes.visible = this.flakeFall > 0 && !under;

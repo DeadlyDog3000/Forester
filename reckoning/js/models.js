@@ -795,7 +795,7 @@ export function addSway(material) {
         if (aSway.y > 0.5) {
           float hk = clamp((swW.y - aSway.x) / aSway.y, 0.0, 1.2); hk *= hk;
           float T = uSwayT, gust = 0.55 + 0.45 * sin(T * 0.55 - dot(swW.xz, uSwayDir) * 0.07);
-          float A = aSway.y * (0.006 + 0.028 * uSwayK) * gust;
+          float A = (aSway.y + 2.0) * (0.006 + 0.028 * uSwayK) * gust;
           float w = sin(T * (2.6 - aSway.y * 0.06) + aSway.z) + 0.35 * sin(T * 3.7 + aSway.z * 1.7);
           vec2 off = uSwayDir * (A * w + aSway.y * 0.012 * uSwayK * gust) + vec2(-uSwayDir.y, uSwayDir.x) * A * 0.35 * sin(T * 1.3 + aSway.z * 2.3);
           swW.xz += off * hk;

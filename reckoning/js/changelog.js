@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.51.0", date: "8 October 2026", title: "Grass and rye",
+    items: [
+      "There's grass. The clearing is a sward of it, thick tufts stirring in the wind with the trees. Under the forest it grows in drifts of old dry grass, and here and there a tuft on the moss. None grows on a path or the road, under a house, round the fire where everyone walks, or on the cobbles once the town is paved. It lies under the snow in winter and turns to straw in autumn. It grows round about you wherever you walk. At the lowest forest detail there is none.",
+      "Rye looks like rye. A sown field comes up as a green flush of shoots, then knee-high green stalks. When it's ripe it stands waist-high in gold, with the ears nodding, and the whole field ripples in the wind. Before, every plant was a little green spike, and a field took a couple of hundred separate pieces to draw. Now it takes three.",
+    ],
+  },
+  {
     v: "0.50.2", date: "8 October 2026", title: "Wind in the trees",
     items: [
       "The forest moves. Every tree bends from its foot, the crown most, each to its own slow beat; a tall spruce rocks slowly and a bush quickly. The gusts roll across the woods in waves. On a still day it's barely a stir; on a wet, windy one the crowns lean and toss. The trees you can fell move with the rest until the axe takes them.",
