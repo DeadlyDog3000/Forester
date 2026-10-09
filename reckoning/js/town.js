@@ -99,6 +99,16 @@ export const UPGRADES = {
   3: { style: "red brick, as the Hanse builds", mats: { planks: 12, bricks: 45, stone: 20 } },
   4: { style: "stucco and glass, as a city builds now", mats: { planks: 20, bricks: 60, stone: 25, iron: 18 }, needs: t => t.S.buildings.some(b => b.done && b.type === "townhall" && (b.tier || 1) >= 3) ? null : "a town hall in brick first (the city's charter)" },
 };
+// a wooden bucket of water, carried by its rope handle
+let _bucketG = null;
+function bucketMesh() {
+  const g = new THREE.Group();
+  if (!_bucketG) _bucketG = { b: new THREE.CylinderGeometry(0.13, 0.1, 0.24, 10, 1, true), w: new THREE.CircleGeometry(0.12, 10), h: new THREE.TorusGeometry(0.12, 0.008, 4, 10, Math.PI) };
+  const b = new THREE.Mesh(_bucketG.b, mat(0x7a5634, { surface: "wood", side: THREE.DoubleSide })); b.position.y = -0.2; g.add(b);
+  const w = new THREE.Mesh(_bucketG.w, mat(0x3a5a6a, { roughness: 0.15, surface: "none" })); w.rotation.x = -Math.PI / 2; w.position.y = -0.1; g.add(w);
+  const hd = new THREE.Mesh(_bucketG.h, mat(0x8a7450, { surface: "none" })); hd.position.y = -0.08; g.add(hd);
+  return g;
+}
 // ---- the rye in a strip of field: one clump of stalks after another in five rows, all drawn at once, stirring in the
 // wind. Sown, it is a green flush of shoots; then knee-high green stalks; ripe, a waist-high gold with the ears nodding.
 const _rye = {};
@@ -2373,8 +2383,22 @@ export class Town {
         a.person.setPose("armsCrossed"); await sleep(2); alive(); a.person.setPose("idle");
         continue;
       }
-      // the evening, before the dark: some come and sit on the logs round the fire for a while, facing it
       const fv = this.frac;
+      // first thing in the morning: water from the well, wound up in the bucket and carried home
+      const well = !raid && !this.colony && !a.settler.child && fv > 0.03 && fv < 0.13 && !a.waterDay && Math.random() < 0.2 && this.S.buildings.find(b => b.done && b.type === "well");
+      if (fv > 0.2) a.waterDay = false;
+      if (well) {
+        a.waterDay = true; a.doing = "fetching water from the well";
+        const sx = well.x + Math.sin(well.ry) * 1.3, sz = well.z + Math.cos(well.ry) * 1.3;
+        await Promise.race([a.walkTo(sx, sz, 1.1), sleep(30)]); alive();
+        a.faceTo(well.x, well.z); a.person.setPose("stir"); await sleep(3.5); alive();
+        const bucket = a.hold(bucketMesh()); a.person.setPose("hold");
+        const h = this.homeOf(a);
+        await Promise.race([a.walkTo(h.door[0], h.door[1], 1.0), sleep(40)]); alive();
+        a.person.held.remove(bucket); a.person.setPose("idle"); await sleep(1.5);
+        continue;
+      }
+      // the evening, before the dark: some come and sit on the logs round the fire for a while, facing it
       if (!raid && !this.colony && !a.settler.child && fv > 0.6 && fv < 0.73 && !a.sitDay && Math.random() < 0.5) {
         const seats = this.fireSeats || (this.fireSeats = [[-1, 0.3, 0.3], [-1, 0.3, 0.3, 1], [1, 0.4, -0.3], [1, 0.4, -0.3, 1]].map(([sd, oz, ry, k]) => {
           const off = (k ? 0.45 : -0.45); return { x: FIRE.x + sd * 1.9 + Math.sin(ry) * off, z: FIRE.z + oz + Math.cos(ry) * off, by: null };

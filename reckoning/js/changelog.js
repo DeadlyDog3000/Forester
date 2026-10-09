@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.4", date: "9 October 2026", title: "Water for the day",
+    items: [
+      "First thing in the morning, if there's a well, some of the settlers go and draw the day's water, winding the bucket up and carrying it home before work.",
+    ],
+  },
+  {
     v: "0.54.3", date: "9 October 2026", title: "Evenings",
     items: [
       "In the evening, before the dark, settlers come and sit on the logs round the fire for a while, facing the flames, four at a time.",
