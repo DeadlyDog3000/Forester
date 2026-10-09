@@ -1841,7 +1841,8 @@ function drawFog(c, X, Z, S) {
   }
   // paper, kept only where the mask is
   const f = fogCv.getContext("2d");
-  f.globalCompositeOperation = "source-over"; f.clearRect(0, 0, W, H); f.drawImage(paperCv, 0, 0);
+  // (not blank: what lies there shows through faintly, as land you've only heard of)
+  f.globalCompositeOperation = "source-over"; f.clearRect(0, 0, W, H); f.globalAlpha = 0.78; f.drawImage(paperCv, 0, 0); f.globalAlpha = 1;
   f.globalCompositeOperation = "destination-in"; f.imageSmoothingEnabled = true; f.drawImage(maskCv, 0, 0, mw, mh, 0, 0, W, H);
   f.globalCompositeOperation = "source-over";
   c.drawImage(fogCv, 0, 0, W, H);

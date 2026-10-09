@@ -11,7 +11,7 @@ import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, ma
 import { G, WorldBase } from "../engine.js";
 import { forestInstances, modelCopy, ensureModel, makeSpruce, SWAY } from "../models.js";
 import { Woods } from "../woods.js";
-import { fillPaper, tree as mapTree, INK, TOWN, label } from "../map.js";
+import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
 import { makeTerrain, CHUNK, WATER } from "./terrain.js";
 import { BUILD } from "./rules.js";
 import { ryeStrip } from "../town.js";
@@ -431,6 +431,21 @@ export class Wilds extends WorldBase {
       d[o] = d[o] * (1 - a) + r * a; d[o + 1] = d[o + 1] * (1 - a) + g * a; d[o + 2] = d[o + 2] * (1 - a) + b * a;
     }
     c.putImageData(img, 0, 0);
+    // the contours over it (a line every few metres on an island; every ten in the mountains of the wide world)
+    { const K = N / (2 * this.half), b = { x0: -this.half, x1: this.half, z0: -this.half, z1: this.half };
+      const XX = x => (x + this.half) * K, ZZ = z => (z + this.half) * K, st = Math.max(4, 2 * this.half / 380);
+      relief(c, (x, z) => L.heightAt(x, z), b, XX, ZZ, { step: st, every: this.land.big ? 10 : 4, water: 0, shade: 0 });
+      // the woods, stamped as a map of the time stamps them: a little tree to every few paces of forest
+      c.fillStyle = "rgba(60,74,44,0.6)";
+      const gap = Math.max(7, 2 * this.half / N * 7);
+      for (let z = -this.half; z < this.half; z += gap) for (let x = -this.half; x < this.half; x += gap) {
+        const jx = x + (hash(x, z) - 0.5) * gap * 0.8, jz = z + (hash(z, x) - 0.5) * gap * 0.8;
+        const f = L.forestAt(jx, jz), h = L.heightAt(jx, jz);
+        if (h < 1.6 || h > this.snowLine - 4 || f < 0.45 || hash(jx * 0.3, jz * 0.7) > f) continue;
+        mapTree(c, XX(jx), ZZ(jz), Math.max(1.8, gap * K * 0.32), hash(jx, jz) < 0.65 ? "spruce" : "birch");
+      }
+      // and the coast, inked
+      relief(c, (x, z) => L.heightAt(x, z), b, XX, ZZ, { step: st, shade: 0, levels: [0.05], ink: "rgba(59,42,26,0.75)" }); }
     // a coastline in ink
     c.strokeStyle = "rgba(59,42,26,0.55)"; c.lineWidth = 1;
     return this._sheet = { cv, N };
@@ -462,7 +477,51 @@ export class Wilds extends WorldBase {
     }
     void big;
   }
+  // the names of the land: its hills, lakes, woods and bays, the same for everyone (from the seed)
+  get places() {
+    if (this._places) return this._places;
+    const L = this.land, n = 72, step = 2 * this.half / n, out = [];
+    let s = (L.seed ^ 0x51a7e) | 1; const rnd = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
+    const ROOT = ["Eller", "Birken", "Föhren", "Hirsch", "Raben", "Wolfs", "Eichen", "Mönchs", "Grauen", "Stein", "Linden", "Heide", "Kranich", "Fuchs", "Tannen", "Otter", "Bären", "Elben", "Schwarz", "Weiden", "Hagen", "Moor", "Falken", "Erlen"];
+    const used = new Set(), name = suf => { for (let k = 0; k < 20; k++) { const r = ROOT[Math.floor(rnd() * ROOT.length)]; if (!used.has(r)) { used.add(r); return r + suf; } } return ROOT[0] + suf; };
+    const H = [], at = (i, j) => H[Math.max(0, Math.min(n - 1, j)) * n + Math.max(0, Math.min(n - 1, i))];
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) H.push(L.heightAt(-this.half + (i + 0.5) * step, -this.half + (j + 0.5) * step));
+    const xy = (i, j) => ({ x: -this.half + (i + 0.5) * step, z: -this.half + (j + 0.5) * step });
+    // hills: the highest points, each the top of its own neighbourhood
+    const peaks = [];
+    for (let j = 2; j < n - 2; j++) for (let i = 2; i < n - 2; i++) {
+      const h = at(i, j); if (h < (this.land.big ? 40 : 14)) continue;
+      let top = true; for (let dj = -3; dj <= 3 && top; dj++) for (let di = -3; di <= 3; di++) if ((di || dj) && at(i + di, j + dj) > h) { top = false; break; }
+      if (top) peaks.push({ h, ...xy(i, j) });
+    }
+    peaks.sort((a, b) => b.h - a.h);
+    const tops = [];
+    for (const p of peaks) { if (tops.length >= (this.land.big ? 7 : 3)) break; if (tops.some(q => Math.hypot(q.x - p.x, q.z - p.z) < this.half * 0.25)) continue; tops.push(p); }
+    for (const p of tops) out.push({ kind: "hill", name: name("berg"), x: p.x, z: p.z, h: p.h });
+    // lakes: water inside the land, each body of it once
+    const seen = new Uint8Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const k = j * n + i; if (seen[k] || H[k] >= 0) continue;
+      const q = [[i, j]], cells = []; seen[k] = 1; let edge = false;
+      while (q.length) { const [a, b] = q.pop(); cells.push([a, b]); if (a === 0 || b === 0 || a === n - 1 || b === n - 1) edge = true;
+        for (const [da, db] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const A = a + da, B = b + db; if (A < 0 || B < 0 || A >= n || B >= n) continue; const kk = B * n + A; if (seen[kk] || H[kk] >= 0) continue; seen[kk] = 1; q.push([A, B]); } }
+      if (edge || cells.length < 3) continue;
+      const ci = cells.reduce((s2, c) => s2 + c[0], 0) / cells.length, cj = cells.reduce((s2, c) => s2 + c[1], 0) / cells.length;
+      out.push({ kind: "lake", name: name("see"), ...xy(ci, cj), size: cells.length });
+    }
+    // the deepest woods, and a bay or two on the coast
+    const woods = [];
+    for (let j = 4; j < n - 4; j += 6) for (let i = 4; i < n - 4; i += 6) { const p = xy(i, j); if (at(i, j) > 2 && L.forestAt(p.x, p.z) > 0.85) woods.push(p); }
+    for (const p of woods.sort(() => rnd() - 0.5).slice(0, this.land.big ? 6 : 2)) out.push({ kind: "wood", name: name("wald"), ...p });
+    if (this.kind !== "continent") out.push({ kind: "sea", name: this.kind === "archipelago" ? "the Sounds" : "the Sea", x: 0, z: this.half * 0.93 });
+    return this._places = out;
+  }
   mapLabels(c, X, Z) {
+    for (const p of this.places) {
+      const size = p.kind === "sea" ? 18 : p.kind === "hill" ? 13 : p.kind === "lake" ? 12 + Math.min(4, (p.size || 3) / 6) : 13;
+      if (p.kind === "hill") { c.fillStyle = INK; c.beginPath(); c.moveTo(X(p.x), Z(p.z) - 5); c.lineTo(X(p.x) + 4, Z(p.z) + 2); c.lineTo(X(p.x) - 4, Z(p.z) + 2); c.closePath(); c.fill(); }
+      label(c, p.name, X(p.x), Z(p.z) + (p.kind === "hill" ? 14 : 0), size, p.kind === "lake" || p.kind === "sea" ? "#3e5a62" : INK);
+    }
     for (const e of this.blds.values()) if (e.b.type === "hearth" && e.ownerName) label(c, e.mine ? "your homestead" : `${e.ownerName}'s`, X(e.b.x), Z(e.b.z) + 18, 12);
   }
   dispose() {

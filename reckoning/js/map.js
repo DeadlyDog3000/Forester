@@ -149,3 +149,58 @@ export function drawLegend(c, x, y) {
   c.restore();
   return { w, h };
 }
+
+// ---------------------------------------------------------------------------
+//  relief: the lie of the land, as a surveyor of the time would ink it — hills shaded from the north-west, and
+//  contour lines, every fifth a little heavier. Drawn once onto a map's sheet: c is in sheet pixels, X and Z turn
+//  metres into them, hAt(x, z) is the ground's height, b the ground covered, step the spacing it's sampled at.
+// ---------------------------------------------------------------------------
+export function relief(c, hAt, b, X, Z, { step = 2, every = 2.5, water = -Infinity, shade = 0.5, contours = true, levels = null, ink = null } = {}) {
+  const nx = Math.ceil((b.x1 - b.x0) / step) + 1, nz = Math.ceil((b.z1 - b.z0) / step) + 1;
+  const H = new Float32Array(nx * nz);
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) H[j * nx + i] = hAt(b.x0 + i * step, b.z0 + j * step);
+  const h = (i, j) => H[Math.min(nz - 1, Math.max(0, j)) * nx + Math.min(nx - 1, Math.max(0, i))];
+  // shading: the slope facing away from the light darkened, toward it lightened — a pixel to a sample, then stretched
+  // over the sheet smoothly, so up close it's a soft shadow and not a grid of squares
+  if (shade > 0) {
+    const sc = document.createElement("canvas"); sc.width = nx; sc.height = nz;
+    const sx2 = sc.getContext("2d"), img = sx2.createImageData(nx, nz), d = img.data;
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const o = (j * nx + i) * 4, y = h(i, j);
+      if (y < water) continue;
+      const sx = (h(i + 1, j) - h(i - 1, j)) / (2 * step), sz = (h(i, j + 1) - h(i, j - 1)) / (2 * step);
+      const k = (sx + sz) * 0.7;          // (lit from the north-west: a slope rising to the south-east is in shade)
+      if (k > 0) { d[o] = 70; d[o + 1] = 45; d[o + 2] = 20; d[o + 3] = 255 * Math.min(0.42, k * 0.9) * shade; }
+      else { d[o] = 255; d[o + 1] = 248; d[o + 2] = 225; d[o + 3] = 255 * Math.min(0.3, -k * 0.6) * shade; }
+    }
+    sx2.putImageData(img, 0, 0);
+    c.save(); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+    c.drawImage(sc, X(b.x0) - (X(b.x0 + step) - X(b.x0)) / 2, Z(b.z0) - (Z(b.z0 + step) - Z(b.z0)) / 2, X(b.x0 + nx * step) - X(b.x0), Z(b.z0 + nz * step) - Z(b.z0));
+    c.restore();
+  }
+  if (!contours) return;
+  // contours: marching squares, a level at a time
+  let lo = Infinity, hi = -Infinity; for (const v of H) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  const first = Math.ceil(Math.max(lo, water + 0.01) / every) * every;
+  c.lineCap = "round";
+  const levs = levels || []; if (!levels) for (let lev = first; lev <= hi; lev += every) levs.push(lev);
+  for (const lev of levs) {
+    const n = Math.round(lev / every), major = n % 5 === 0;
+    c.strokeStyle = ink || (major ? "rgba(92,58,28,0.62)" : "rgba(110,72,36,0.36)"); c.lineWidth = ink ? 1.4 : major ? 1.2 : 0.75;
+    c.beginPath();
+    for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      const a = h(i, j), bb = h(i + 1, j), cc = h(i + 1, j + 1), d = h(i, j + 1);
+      const k = (a > lev ? 1 : 0) | (bb > lev ? 2 : 0) | (cc > lev ? 4 : 0) | (d > lev ? 8 : 0);
+      if (k === 0 || k === 15) continue;
+      const x0 = b.x0 + i * step, z0 = b.z0 + j * step;
+      const e = [];
+      const lerpE = (p, q, xa, za, xb, zb) => { const t = (lev - p) / (q - p); return [x0 + xa + (xb - xa) * t, z0 + za + (zb - za) * t]; };
+      if ((a > lev) !== (bb > lev)) e.push(lerpE(a, bb, 0, 0, step, 0));
+      if ((bb > lev) !== (cc > lev)) e.push(lerpE(bb, cc, step, 0, step, step));
+      if ((cc > lev) !== (d > lev)) e.push(lerpE(cc, d, step, step, 0, step));
+      if ((d > lev) !== (a > lev)) e.push(lerpE(d, a, 0, step, 0, 0));
+      for (let q = 0; q + 1 < e.length; q += 2) { c.moveTo(X(e[q][0]), Z(e[q][1])); c.lineTo(X(e[q + 1][0]), Z(e[q + 1][1])); }
+    }
+    c.stroke();
+  }
+}

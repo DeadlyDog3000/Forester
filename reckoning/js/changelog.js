@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.62.1", date: "10 October 2026", title: "Surveyed",
+    items: [
+      "The maps are surveyed now. Hills are shaded from the north-west light and drawn with contour lines, every fifth one heavier, so you can see the lie of the land: the rise behind the clearing, the hollow the pond sits in.",
+      "Zoom in on the settlement (the wheel, on the map) and every building has its name written beside it, sites included. Fields show their furrows.",
+      "Ground you haven't walked yet is no longer blank paper. It shows faintly, as country you've only heard of.",
+      "Multiplayer maps are drawn the same way, with the woods stamped in tree by tree and the coast inked. Every lake, hill, wood and sea has a name of its own, the same for everyone in the game.",
+    ],
+  },
+  {
     v: "0.62.0", date: "10 October 2026", title: "The colony, together",
     items: [
       "Co-op is now the whole game. The host plays real Free Play, and everyone who joins comes into that colony: the same clearing, settlers, buildings, stores, research, government, traders, raiders and seasons, all working exactly as they do on your own.",

@@ -1831,11 +1831,31 @@ export class Town {
     for (const b of this.S.buildings) {
       const def = BUILDINGS[b.type]; if (!def) continue;
       if (def.path) { rect(b, def.w * 0.8, def.d); c.fillStyle = "rgba(150,112,70,0.75)"; c.fill(); continue; }
-      if (b.type === "field") { rect(b, def.w, def.d); c.fillStyle = b.sown ? ((b.growth ?? 1) >= 3 ? "rgba(200,170,80,0.8)" : "rgba(120,140,60,0.7)") : "rgba(120,90,55,0.6)"; c.fill(); c.strokeStyle = "rgba(60,45,30,0.5)"; c.lineWidth = 0.6; c.stroke(); continue; }
+      if (b.type === "field") {
+        rect(b, def.w, def.d); c.fillStyle = b.sown ? ((b.growth ?? 1) >= 3 ? "rgba(200,170,80,0.8)" : "rgba(120,140,60,0.7)") : "rgba(120,90,55,0.6)"; c.fill(); c.strokeStyle = "rgba(60,45,30,0.5)"; c.lineWidth = 0.6; c.stroke();
+        // (close in, its furrows: the strips it was dug in)
+        if (S > 2.2) {
+          const co = Math.cos(b.ry), si = Math.sin(b.ry); c.strokeStyle = "rgba(70,50,30,0.45)"; c.lineWidth = 0.6; c.beginPath();
+          for (let k = -2; k <= 2; k++) { const lx = k * def.w / 6; for (const lz of [-def.d / 2 + 0.3, def.d / 2 - 0.3]) { const x = X(b.x + lx * co + lz * si), z = Z(b.z - lx * si + lz * co); lz < 0 ? c.moveTo(x, z) : c.lineTo(x, z); } }
+          c.stroke();
+        }
+        continue;
+      }
       if (def.wall) { rect(b, def.w, Math.max(def.d, 0.6)); c.fillStyle = INK; c.fill(); continue; }
       rect(b, def.w * (b.type === "woodshed" ? b.bays || 1 : 1), def.d);
       if (b.done) { c.fillStyle = TOWN; c.fill(); c.strokeStyle = INK; c.lineWidth = 0.8; c.stroke(); }
       else { c.setLineDash([2, 2]); c.strokeStyle = TOWN; c.lineWidth = 1; c.stroke(); c.setLineDash([]); }
+    }
+    // on the big map, close in: what each building is, written beside it as a surveyor would
+    if (S >= 3 && c.canvas.width > 400) {
+      c.font = `italic ${Math.min(13, 6 + S * 1.1)}px "IM Fell English", Georgia, serif`; c.textAlign = "center"; c.textBaseline = "top";
+      for (const b of this.S.buildings) {
+        const def = BUILDINGS[b.type]; if (!def || def.path || def.wall || b.type === "field") continue;
+        const x = X(b.x), y = Z(b.z) + def.d * S * 0.55 + 2;
+        if (x < -40 || y < -20 || x > c.canvas.width + 40 || y > c.canvas.height + 20) continue;
+        const name = (b.done ? "" : "site: ") + (b.type === "cabin" && (b.tier || 1) > 1 ? "house" : def.name.toLowerCase());
+        c.lineWidth = 3; c.strokeStyle = "rgba(236,222,186,0.85)"; c.strokeText(name, x, y); c.fillStyle = INK; c.fillText(name, x, y);
+      }
     }
   }
   // where the settlement's rye goes in and comes out: in front of the store chest nearest this place, or the stack by the cabin

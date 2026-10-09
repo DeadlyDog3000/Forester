@@ -9,7 +9,7 @@ import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, cla
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy, ensureModel, SWAY, swayGeo, addSway } from "./models.js";
 import { grassTexture } from "./hamburg.js";
-import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon } from "./map.js";
+import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon, relief } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM, furnishClear, fitsRoom } from "./furnish.js";
 // the house your cabin becomes: its windows (wall, where along it, the height of the middle — as home.py builds them),
 // the stair in the corner by the door, and the height of the loft floor above the room
@@ -503,6 +503,8 @@ export class Woods extends WorldBase {
       return;
     }
     const vis = (x, z) => { const px = X(x), pz = Z(z); return px > -pad && px < W + pad && pz > -pad && pz < H + pad; };
+    // the lie of the land under everything: hills shaded, and contours
+    { const R = this.mapRelief(); c.drawImage(R.cv, X(R.b.x0), Z(R.b.z0), (R.b.x1 - R.b.x0) * S, (R.b.z1 - R.b.z0) * S); }
     const ts = Math.max(2.2, Math.min(4.2, S * 1.6));
     // the wash, the forest, the clearing and the road never change: drawn once onto a sheet the size of the country,
     // and only the piece in view copied out (looked at closer than the sheet holds, the trees in view are drawn as before)
@@ -592,6 +594,16 @@ export class Woods extends WorldBase {
     road(c, this.road, X, Z, rw);
     this._mapLayer = { cv, b }; this._mapDirty = false;
     return this._mapLayer;
+  }
+  // the relief, on a sheet of its own (three pixels to the metre), drawn again only if the country grows
+  mapRelief() {
+    const mb = this.mapBounds, b = { x0: mb.x0 - 60, x1: mb.x1 + 60, z0: mb.z0 - 60, z1: mb.z1 + 60 }, key = `${b.x0},${b.x1},${b.z0},${b.z1}`;
+    if (this._relief && this._relief.key === key) return this._relief;
+    const K = 3, cv = document.createElement("canvas");
+    cv.width = Math.round((b.x1 - b.x0) * K); cv.height = Math.round((b.z1 - b.z0) * K);
+    const c = cv.getContext("2d");
+    relief(c, (x, z) => this.groundAt(x, z), b, x => (x - b.x0) * K, z => (z - b.z0) * K, { step: 2, every: 1.5, shade: 0.9 });
+    return this._relief = { cv, b, key };
   }
   mapTreeGrid() {
     if (this._treeGrid && !this._gridDirty) return this._treeGrid;
