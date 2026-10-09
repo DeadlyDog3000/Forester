@@ -1823,7 +1823,7 @@ export class Town {
     // the fire: meat roasted over it (raw, it brings the plague)
     if (this.cookIt) w.removeInteract(this.cookIt);
     this.cookIt = w.addInteract({ x: FIRE.x, y: w.cy + 0.4, z: FIRE.z, reach: 2.6, hold: 3, anim: "craft",
-      label: () => `Roast your meat over the fire (${G.pack.filter(i => isRawMeat(i.icon)).reduce((s, i) => s + (i.n || 1), 0)})${(this.S.homeTier || 1) >= 2 ? " — or cook it properly in the kitchen" : ""}`,
+      label: () => `Roast your ${G.pack.some(i => i.icon === "fish") && !G.pack.some(i => isRawMeat(i.icon) && i.icon !== "fish") ? "fish" : G.pack.some(i => i.icon === "fish") ? "meat and fish" : "meat"} over the fire (${G.pack.filter(i => isRawMeat(i.icon)).reduce((s, i) => s + (i.n || 1), 0)})${(this.S.homeTier || 1) >= 2 ? " — or cook it properly in the kitchen" : ""}`,
       can: () => G.pack.some(i => isRawMeat(i.icon)),
       onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().pickup && SFX().pickup(); },
       use: () => {

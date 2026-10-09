@@ -480,6 +480,34 @@ export const AUDIO = {
     l.lp.frequency.setTargetAtTime(under ? 1400 : 5000 + k * 3000, a.currentTime, 0.4);
     l.hp.frequency.setTargetAtTime(under ? 250 : 900 - k * 400, a.currentTime, 0.4);
   },
+  // a frog in the pond: a low double croak, from where it sits (at: {x, z})
+  frog(at) {
+    const a = ctx(); if (!a) return;
+    const P = placed(a, at, 50); if (P.k <= 0.01) return;
+    const t = a.currentTime, f0 = rnd(380, 520), n = Math.random() < 0.6 ? 2 : 3;
+    for (let i = 0; i < n; i++) {
+      const o = a.createOscillator(), g = a.createGain(), bp = a.createBiquadFilter();
+      o.type = "sawtooth"; o.frequency.setValueAtTime(f0 * 0.5, t + i * 0.16); o.frequency.linearRampToValueAtTime(f0 * 0.42, t + i * 0.16 + 0.1);
+      bp.type = "bandpass"; bp.frequency.value = f0 * 1.6; bp.Q.value = 3;
+      // (the throb in it: a fast flutter on the loudness)
+      const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = rnd(28, 40); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(g.gain);
+      g.gain.setValueAtTime(0.0001, t + i * 0.16); g.gain.linearRampToValueAtTime(0.09 * P.k, t + i * 0.16 + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.16 + 0.12);
+      o.connect(bp); bp.connect(g); g.connect(P.node); o.start(t + i * 0.16); o.stop(t + i * 0.16 + 0.14); lfo.start(t + i * 0.16); lfo.stop(t + i * 0.16 + 0.14);
+    }
+  },
+  // a duck's quack: a nasal, falling honk, once or twice
+  quack(at) {
+    const a = ctx(); if (!a) return;
+    const P = placed(a, at, 40); if (P.k <= 0.01) return;
+    const t = a.currentTime, n = Math.random() < 0.5 ? 1 : 2;
+    for (let i = 0; i < n; i++) {
+      const t0 = t + i * 0.22, o = a.createOscillator(), g = a.createGain(), f1 = a.createBiquadFilter(), f2 = a.createBiquadFilter();
+      o.type = "sawtooth"; o.frequency.setValueAtTime(rnd(300, 360), t0); o.frequency.exponentialRampToValueAtTime(rnd(200, 240), t0 + 0.16);
+      f1.type = "bandpass"; f1.frequency.value = 1100; f1.Q.value = 4; f2.type = "bandpass"; f2.frequency.value = 2400; f2.Q.value = 5;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.12 * P.k, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+      o.connect(f1); o.connect(f2); f1.connect(g); f2.connect(g); g.connect(P.node); o.start(t0); o.stop(t0 + 0.2);
+    }
+  },
   // thunder: d is how far the strike was, 0 (overhead: a crack, then the roll) to 1 (far off: only a low grumble)
   thunder(d = 0.5) {
     const a = ctx(); if (!a) return;

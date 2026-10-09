@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.1", date: "8 October 2026", title: "Life on the water",
+    items: [
+      "The pond moves. A duck going somewhere leaves a wake of spreading rings, wading sends rings out round your legs, and now and then a fish rises out in the middle, more often at dusk.",
+      "Frogs croak round the margin from dusk into the night in spring and summer, and the ducks quack to each other by day.",
+      "The guide has a page on the pond and fishing, shown the first time you come to it. The fire offers to roast your fish as well as your meat.",
+    ],
+  },
+  {
     v: "0.53.0", date: "8 October 2026", title: "Gone fishing",
     items: [
       "You can fish the pond. Stand on the shore, look out at the water and hold F. You take up a rod, the float goes out, and you watch it bob. Nibbles dip it, and if one has taken, it goes right under at the end. Fish bite best at dawn and dusk, slowly at midday and poorly at night, a little better in the rain. Not when the pond's frozen.",

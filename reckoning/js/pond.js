@@ -11,6 +11,7 @@ import { THREE, clamp } from "./core.js";
 import { G, vm } from "./engine.js";
 import { UI } from "./ui.js";
 import { ITEM } from "./body.js";
+import { AUDIO } from "./audio.js";
 import { POND, pondR, pondK } from "./woods.js";
 import { addSway, swayGeo } from "./models.js";
 
@@ -119,6 +120,11 @@ export class Pond {
     const quill = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.08, 4), new THREE.MeshStandardMaterial({ color: 0xe8e0c8 })); quill.position.y = 0.05;
     fl2.add(top, bot, quill); fl2.visible = false; g.add(fl2); this.float = fl2;
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 16), new THREE.MeshBasicMaterial({ color: 0xc0c8d0, transparent: true, opacity: 0, depthWrite: false })); ring.rotation.x = -Math.PI / 2; g.add(ring); this.ring = ring;
+    // ripples: rings spreading on the water behind a paddling duck, round your legs as you wade, where a fish rises
+    const RN2 = 28, rgeo = new THREE.RingGeometry(0.85, 1, 20); rgeo.rotateX(-Math.PI / 2);
+    this.rip = new THREE.InstancedMesh(rgeo, new THREE.MeshBasicMaterial({ color: 0xc8d0d8, transparent: true, opacity: 0.32, depthWrite: false }), RN2);
+    this.rip.frustumCulled = false; this.ripT = new Float32Array(RN2).fill(1); this.ripP = new Float32Array(RN2 * 3); this.ripN = 0;
+    g.add(this.rip);
     this.fishIt = w.addInteract({ x: POND.x, y: L, z: POND.z, reach: 4.6, hold: 6 + Math.random() * 5,
       label: () => this.frozen ? "The pond is frozen over" : "Fish — hold F, and wait for the float to go under",
       can: () => !this.frozen && G.mode === "play" && !G.player.horse,
@@ -176,12 +182,18 @@ export class Pond {
     } else UI.hint(["Nothing. The bait's gone — a clever one down there.", "A nibble, and nothing. Try again.", "Not a touch. They're not biting just now."][Math.floor(Math.random() * 3)], 2.5);
     this.bite = false;
   }
+  ripple(x, z, size = 1) {
+    const i = this.ripN; this.ripN = (i + 1) % this.ripT.length;
+    this.ripT[i] = 0; this.ripP[i * 3] = x; this.ripP[i * 3 + 1] = size; this.ripP[i * 3 + 2] = z;
+  }
   // is x, z in the water, and how deep
   depthAt(x, z) { return pondK(x, z) < 1 ? Math.max(0, this.w.pondLevel - this.w.heightAt(x, z)) : 0; }
   update(dt) {
     this.t += dt;
     // the fishing spot: out on the water, off the bit of shore nearest you
     const pp = G.player && G.player.pos;
+    // (the first time you come to it, the guide's page on it)
+    if (pp && !this.told && Math.hypot(pp.x - POND.x, pp.z - POND.z) < POND.r + 9 && G.mode === "play") { this.told = true; G.guide && G.guide("pond"); }
     if (pp && this.fishIt) {
       const a = Math.atan2(pp.z - POND.z, pp.x - POND.x), r = pondR(a) * 0.82;
       this.fishIt.x = POND.x + Math.cos(a) * r; this.fishIt.z = POND.z + Math.sin(a) * r; this.fishIt.y = this.w.pondLevel + 0.1;
@@ -192,6 +204,22 @@ export class Pond {
         this.rodTip.getWorldPosition(v); this.g.worldToLocal(v); a2.setXYZ(0, v.x, v.y, v.z);
         const fp = this.float.position; a2.setXYZ(1, fp.x, fp.y + 0.09, fp.z); a2.needsUpdate = true;
       }
+    }
+    // the ripples spreading and fading; and new ones where something moves through the water
+    { const M = this._m || (this._m = new THREE.Matrix4()), L0 = this.w.pondLevel + 0.012;
+      for (let i = 0; i < this.ripT.length; i++) {
+        if (this.ripT[i] >= 1) { M.makeScale(0, 0, 0); this.rip.setMatrixAt(i, M); continue; }
+        this.ripT[i] = Math.min(1, this.ripT[i] + dt / 1.8);
+        const k = this.ripT[i], r = (0.1 + k * 0.9) * this.ripP[i * 3 + 1];
+        M.makeScale(r, 1, r).setPosition(this.ripP[i * 3], L0, this.ripP[i * 3 + 2]);
+        if (k > 0.6) M.scale(new THREE.Vector3(1 + (k - 0.6), 1, 1 + (k - 0.6)));
+        this.rip.setMatrixAt(i, M);
+      }
+      this.rip.instanceMatrix.needsUpdate = true;
+      this.rip.material.opacity = 0.2;
+      // (wading: rings round your legs as you go)
+      const pl = G.player;
+      if (pl && pl.wading > 0.05 && pl.speed > 0.4 && (this.wadeT = (this.wadeT || 0) - dt) <= 0) { this.wadeT = 0.35; this.ripple(pl.pos.x, pl.pos.z, 0.8); }
     }
     if (this.ringT > 0) { this.ringT -= dt * 1.2; const k = 1 - this.ringT; this.ring.position.set(this.float.position.x, this.w.pondLevel + 0.01, this.float.position.z); this.ring.scale.setScalar(0.05 + k * 0.5); this.ring.material.opacity = 0.4 * this.ringT; } else this.ring.material.opacity = 0;
     const u = this.uni, w = this.w, town = G.town;
@@ -208,7 +236,15 @@ export class Pond {
     u.uWind.value = G.windV ? clamp(Math.hypot(G.windV.x, G.windV.z) / 2, 0, 1) : 0.2;
     u.uRain.value = w.rainK || 0;
     const ice = town && town.winter && (w.snowK || 0) > 0.5;
-    this.frozen = !!ice;
+    this.frozen = !!ice; this.rip.visible = !ice;
+    // (frogs at dusk and into the night, spring and summer; and the ducks talking now and then, by day)
+    const ft = town ? town.frac : 0.4, warm = town && (town.season === "spring" || town.season === "summer");
+    if (pp && Math.hypot(pp.x - POND.x, pp.z - POND.z) < 55) {
+      if (!ice && warm && (ft > 0.55 || ft < 0.05) && (w.rainK || 0) < 0.6 && Math.random() < dt / 2.5) { const a = Math.random() * 6.283, r = pondR(a) * 0.95; AUDIO.frog && AUDIO.frog({ x: POND.x + Math.cos(a) * r, z: POND.z + Math.sin(a) * r }); }
+      if (!ice && ft > 0.06 && ft < 0.7 && Math.random() < dt / 9) { const dk = this.ducks[Math.floor(Math.random() * 2)]; if (dk.m.visible) AUDIO.quack && AUDIO.quack({ x: dk.x, z: dk.z }); }
+    }
+    // (a fish rising, out in the middle, now and then — more at dusk)
+    if (!ice && Math.random() < dt * (this.odds() * 0.12)) { const a = Math.random() * 6.283, r = pondR(a) * Math.random() * 0.7; this.ripple(POND.x + Math.cos(a) * r, POND.z + Math.sin(a) * r, 0.6); }
     u.uIce.value = ice ? 1 : 0;
     this.padMesh.visible = this.flowers.visible = !ice;
     if (town) this.flowers.visible = !ice && (town.season === "summer");
@@ -237,6 +273,8 @@ export class Pond {
       if (dk.dabble > 0 && dk.sp < 0.1) dk.dabble -= dt;
       const up = dk.dabble > 0 && dk.sp < 0.1 && Math.sin(dk.dabble * 2.5) > 0;
       dk.m.position.set(dk.x, L + 0.02 + Math.sin(this.t * 2 + i) * 0.008, dk.z);
+      // (a wake behind a duck that's going somewhere; a ring where one dabbles)
+      if ((dk.sp > 0.15 || (up && Math.random() < dt * 2)) && (dk.wakeT = (dk.wakeT || 0) - dt) <= 0) { dk.wakeT = dk.flee ? 0.25 : 0.6; this.ripple(dk.x - Math.sin(dk.yaw) * 0.15, dk.z - Math.cos(dk.yaw) * 0.15, 0.5 + dk.sp * 0.4); }
       dk.m.rotation.set(up ? 1.1 : Math.sin(this.t * 1.7 + i) * 0.04, dk.yaw, 0);
     }
   }

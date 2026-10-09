@@ -56,6 +56,15 @@ export const GUIDE = {
       "The settlement's <b>bread</b> is on your hotbar too, when there is some in the stores.",
     ],
   },
+  pond: {
+    kicker: "The woods", title: "The pond, and fishing",
+    steps: [
+      "Stand on the shore, <b>look out at the water</b> and <b>hold</b> <kbd>F</kbd> to fish. Keep holding while the float bobs. If a fish has taken, it goes under at the end, and the perch is yours.",
+      "They bite best at <b>dawn and dusk</b>, slowly at midday, and hardly at all at night. Rain helps a little. In winter the pond is frozen.",
+      "<b>Raw fish</b> is like raw meat: cook it first, at the fire or in the kitchen (<i>Fried perch</i>, or <i>Fish soup</i> with rye).",
+      "You can <b>wade</b> the margin, slowly, but not the middle. The deer come down to drink when nobody's about.",
+    ],
+  },
   hurt: {
     kicker: "Your body", title: "Wounds",
     steps: [
