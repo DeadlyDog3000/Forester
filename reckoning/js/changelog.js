@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.54.8", date: "9 October 2026", title: "Limestone",
+    items: [
+      "The stalagmites in the cave are pale limestone. Before, they came out moss-green, as if they had been standing out in the rain.",
+    ],
+  },
+  {
     v: "0.54.7", date: "9 October 2026", title: "Round their fire",
     items: [
       "Raiders in a camp sit on the logs round their fire until they see you, and the fourth stands keeping watch with his arms folded, facing out into the trees. Before, they stood bunched up round the fire all together.",

@@ -282,9 +282,10 @@ export function noSnow(obj) {
 export function mat(hex, opts = {}) {
   const key = hex + JSON.stringify(opts);
   if (!_mc[key]) {
-    const { surface, ...o } = opts;
+    // (weather: false — no moss and weathering, for what's under the ground or indoors)
+    const { surface, weather, ...o } = opts;
     _mc[key] = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, ...o });
-    if (!o.metalness) addDetail(_mc[key], { scale: 3, amount: 0.16, grain: 0.4, surface: surface || "auto" });
+    if (!o.metalness) addDetail(_mc[key], { scale: 3, amount: 0.16, grain: 0.4, surface: surface || "auto", weather: weather !== false });
   }
   return _mc[key];
 }

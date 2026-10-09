@@ -100,7 +100,7 @@ export class Caves {
     for (let i = 0; i < 70; i++) {
       const h = this.halls[Math.floor(r() * this.halls.length)], a = r() * TAU, d = r() * h.r * 0.85, x = h.x + Math.cos(a) * d, z = h.z + Math.sin(a) * d;
       if (this.sd(x, z) < 2) continue;
-      const s = new THREE.Mesh(new THREE.ConeGeometry(0.25 + r() * 0.35, 0.8 + r() * 1.8, 5), mat(0x4a4640, { roughness: 1 }));
+      const s = new THREE.Mesh(new THREE.ConeGeometry(0.25 + r() * 0.35, 0.8 + r() * 1.8, 5), mat(0x8a8478, { roughness: 1, surface: "stone", weather: false }));
       s.position.set(x, this.floorAt(x, z) + 0.5, z); root.add(s);
     }
     // the ore: plenty of it, deeper halls richer
