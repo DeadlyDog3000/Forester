@@ -342,10 +342,10 @@ export async function startChapter(n, opts = {}) {
   UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
   G.endFreecam && G.endFreecam();
   G.heldFood = null;
-  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0; G.health = 1; G.downed = false; G.hitShake = 0; G.panting = 0; G.onDowned = null; G.showHealth = false; UI.stance && UI.stance(null);   // running always costs breath
+  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0; G.health = 1; G.downed = false; G.hitShake = 0; G.panting = 0; G.onDowned = null; G.showHealth = false; G.cloud = 0; G.mist = 0; G.flash = 0; UI.stance && UI.stance(null);   // running always costs breath
   if (G.town) { G.town.stop(); G.town = null; }
   G.bugs.setKind(null);
-  AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false);
+  AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false); AUDIO.rain(0);
   SFX.fireLoop(false); SFX.insectLoop(false);
   const ch = CHAPTERS[n - 1];
   UI.fadeNow(1);
@@ -2291,10 +2291,37 @@ async function ch11(w) {
 const DAYCYCLE = [[0, "dawn"], [0.08, "morning"], [0.3, "afternoon"], [0.55, "evening"], [0.7, "dusk"], [0.8, "night"], [0.95, "night"], [1, "dawn"]];
 // winter wears the same hours, in snow
 const WINTER_ATMO = { dawn: "snowday", morning: "snowday", afternoon: "snowday", evening: "snowday", dusk: "snownight", night: "snownight" };
+// the weather, day by day: the same day always has the same sky. Each season has its own odds — April showers,
+// summer storms, autumn rain and mist, and winter's snow some days and not others. The rain (or snow) comes in a
+// spell part of the day, the cloud gathering ahead of it and breaking up after.
+const WX = {
+  spring: { rain: 0.4, storm: 0.1, grey: 0.25, mist: 0.35 },
+  summer: { rain: 0.25, storm: 0.55, grey: 0.15, mist: 0.1 },
+  autumn: { rain: 0.5, storm: 0.1, grey: 0.3, mist: 0.6 },
+  winter: { rain: 0.6, storm: 0, grey: 0.4, mist: 0.2 },
+};
+function weatherOf(day, season) {
+  const h = n => (x => x - Math.floor(x))(Math.sin(day * 127.1 + n * 311.7) * 43758.5453);
+  const o = WX[season] || WX.summer;
+  const wet = h(1) < o.rain, start = 0.08 + h(2) * 0.5;
+  return {
+    wet, storm: wet && h(3) < o.storm, grey: !wet && h(4) < o.grey, mist: h(5) < o.mist,
+    start, end: Math.min(0.92, start + 0.12 + h(6) * 0.28), k: 0.45 + h(7) * 0.55, wind: (h(8) - 0.3) * 0.8,
+  };
+}
+// how hard it is coming down at f, and how cloudy
+function weatherAt(W, f) {
+  const ramp = 0.035, inSpell = (lead) => Math.min(clamp((f - (W.start - lead)) / ramp, 0, 1), clamp(((W.end + lead) - f) / ramp, 0, 1));
+  const fall = W.wet ? inSpell(0) * W.k : 0;
+  const cloud = W.wet ? Math.max(inSpell(0.06) * (0.6 + W.k * 0.4), 0.2) : W.grey ? 0.55 : 0.05;
+  // mist in the early morning, burning off as the sun climbs
+  const mist = W.mist ? clamp(1 - (f - 0.03) / 0.12, 0, 1) * clamp(f / 0.02, 0, 1) : 0;
+  return { fall, cloud, mist };
+}
 function dayCycle(w, town, DAY, { onReap } = {}) {
   const S = town.S, pl = G.player, ripe = new Map();
   town.nightly = true; town.dayLen = DAY;
-  let snow = town.winter ? 1 : 0, hearth = false;
+  let snow = town.winter ? 1 : 0, hearth = false, lastRain = -1, lastUnder = false;
   const tick = onFrame(dt => {
     town.update(dt, DAY);
     const f = (town.t / DAY) % 1;
@@ -2302,7 +2329,20 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
     // snow comes in with winter and goes with it, over half a day
     const wantSnow = town.winter ? 1 : 0;
     snow += clamp(wantSnow - snow, -dt / (DAY * 0.5), dt / (DAY * 0.5));
-    w.setSnow(snow, town.winter && (f > 0.2 && f < 0.5) ? 0.4 : 0);
+    // the day's weather
+    const W = weatherOf(town.day, town.season), X = weatherAt(W, f), under = w.sheltered && w.sheltered();
+    w.setSnow(snow, snow > 0.5 ? X.fall : 0);
+    const rainK = snow > 0.5 ? 0 : X.fall;
+    if (w.setRain) w.setRain(rainK, W.wind);
+    G.cloud = X.cloud; G.mist = X.mist;
+    if (Math.abs(rainK - lastRain) > 0.02 || under !== lastUnder) { lastRain = rainK; lastUnder = under; AUDIO.rain(rainK, under); }
+    // a storm: lightning, near and far, and the thunder after it as long as the strike was far
+    if (W.storm && rainK > 0.4 && Math.random() < dt / 14) {
+      const d = Math.random();
+      if (d < 0.75) G.flash = 1 - d;
+      setTimeout(() => AUDIO.thunder(d), d * 4000);
+    }
+    G.flash = Math.max(0, (G.flash || 0) - dt * 5) * (Math.random() < 0.85 ? 1 : 0.4);
     let i = 0; while (i < DAYCYCLE.length - 2 && f >= DAYCYCLE[i + 1][0]) i++;
     const [f0, a0] = DAYCYCLE[i], [f1, b0] = DAYCYCLE[i + 1];
     const a = snow > 0.5 ? WINTER_ATMO[a0] || a0 : a0, b = snow > 0.5 ? WINTER_ATMO[b0] || b0 : b0;
@@ -2347,7 +2387,7 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
     const say1 = { spring: "Spring. The ground's soft again — the fields will grow.", summer: "Summer. Long days; get the logs in while it's dry.", autumn: "Autumn. Winter's two days off — stack firewood, and bread.", winter: "Winter. Nothing grows now, and every hearth burns a log a day." }[lastSeason];
     UI.hint(say1, 6);
   });
-  return () => { tick(); told(); seasons(); w.onSleep = null; town.nightly = false; if (hearth) w.lightHearth(false); for (const it of ripe.values()) w.removeInteract(it); };
+  return () => { tick(); told(); seasons(); G.cloud = 0; G.mist = 0; G.flash = 0; if (w.setRain) w.setRain(0); AUDIO.rain(0); w.onSleep = null; town.nightly = false; if (hearth) w.lightHearth(false); for (const it of ripe.values()) w.removeInteract(it); };
 }
 const sibling = () => LOOKS[G.who === "brother" ? "sister" : "brother"];
 // places round the fire, for a gathering

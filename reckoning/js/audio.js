@@ -451,6 +451,37 @@ export const AUDIO = {
       return { g, stop: [s, lfo] };
     });
   },
+  // rain: a soft hiss on the leaves and the roofs, heavier and lower as it comes down harder (k, 0 to 1),
+  // and muffled to a drumming on the shingles when you are under a roof
+  rain(k, under = false) {
+    const a = ctx(); if (!a) return;
+    if (k <= 0.01) { loop("rain", false); return; }
+    const vol = 0.012 + k * 0.07;
+    if (!loops.rain) loop("rain", true, a => {
+      const g = a.createGain(); g.gain.value = 0.0001; g.connect(bus);
+      const s = noiseSrc(a), hp = a.createBiquadFilter(), lp = a.createBiquadFilter();
+      hp.type = "highpass"; hp.frequency.value = 900; lp.type = "lowpass"; lp.frequency.value = 7000;
+      s.connect(hp); hp.connect(lp); lp.connect(g); s.start(0, Math.random() * 2);
+      // and a few big drops off the leaves, now and then
+      const self = { g, lp, hp, stop: [s], k };
+      const drip = () => { if (loops.rain !== self) return; burst(a, a.currentTime, rnd(0.01, 0.03), rnd(0.01, 0.04) * self.k, rnd(2500, 6000), rnd(1200, 2400), 3); setTimeout(drip, rnd(40, 260) / (0.3 + self.k)); };
+      setTimeout(drip, 100);
+      return self;
+    });
+    const l = loops.rain; if (!l) return;
+    l.k = k;
+    l.g.gain.setTargetAtTime(vol * (under ? 0.7 : 1), a.currentTime, 0.8);
+    l.lp.frequency.setTargetAtTime(under ? 1400 : 5000 + k * 3000, a.currentTime, 0.4);
+    l.hp.frequency.setTargetAtTime(under ? 250 : 900 - k * 400, a.currentTime, 0.4);
+  },
+  // thunder: d is how far the strike was, 0 (overhead: a crack, then the roll) to 1 (far off: only a low grumble)
+  thunder(d = 0.5) {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime, near = 1 - d;
+    if (near > 0.6) burst(a, t, 0.35, 0.35 * near, 2400, 300, 0.7, "lowpass");
+    // the roll: several overlapping rumbles, each lower and later
+    for (let i = 0; i < 4 + Math.round(near * 3); i++) burst(a, t + 0.05 + i * rnd(0.25, 0.6), rnd(1.2, 2.6), (0.16 + near * 0.22) * (1 - i * 0.1), 260 + near * 300, 50, 0.6, "lowpass");
+  },
   wind(on, vol = 1) {
     loop("wind", on, a => {
       const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.05 * vol, a.currentTime, 2); g.connect(bus);

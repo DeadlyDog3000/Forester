@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.50.0", date: "8 October 2026", title: "Weather",
+    items: [
+      "The sky has weather now, and every day its own. Spring has showers, summer has thunderstorms, and autumn has long rains and mist. Winter snows some days and not others, and harder some days than others. Before, every day was the same clear sky, and every winter day snowed at the same hour.",
+      "Rain comes in a spell during part of the day. The cloud gathers grey ahead of it, the light goes flat and the distance closes in. It slants in the wind, and you hear it hiss on the leaves, with big drops falling off them now and then. Under your own roof it becomes a drumming on the shingles, and no rain falls indoors or in the cave.",
+      "The ground darkens as the rain soaks in, then dries out slowly after.",
+      "In a summer storm, lightning lights up the clearing, and the thunder comes after it. A near strike is a crack followed by a long roll; a far one is only a grumble.",
+      "Some mornings, mostly in autumn, a mist lies over the clearing until the sun burns it off.",
+      "A felled tree falls the way a tree does. The hinge holds it at first and it barely leans, then it goes faster and faster until it hits the ground hard, bounces on its branches and lies still, throwing up needles and twigs where the crown lands. A tall tree takes longer to come down than a short one. Before, it swung down in a second on a fixed curve.",
+      "No daylight shows through the seams of your cabin any more. There's clay between the logs and boards under the roof.",
+      "Your cabin's candlelit window at night is in the window itself. Before, it hung on the wall beside it and glowed orange all day.",
+    ],
+  },
+  {
     v: "0.49.1", date: "8 October 2026", title: "The right work in their hands",
     items: [
       "Settlers move like the work they're doing. A sawyer works a bucksaw, left foot forward and rocking into each stroke, where before they hammered. A brickmaker mixes the clay, a smelter shovels charcoal into the furnace, and a doctor leans over the sick and tends them rather than hammering at them.",

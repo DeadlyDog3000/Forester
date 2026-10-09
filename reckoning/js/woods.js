@@ -817,7 +817,7 @@ export class Woods extends WorldBase {
     const cm = cb.build(); cm.position.y = y0; this.cabin.add(cm);
     // a cabin made in Blender, if there is one, stands in for this one
     const cabinModel = modelCopy("cabin");
-    if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); }
+    if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); cabinModel.scene.add(chinking()); }
     // the door hangs on its own hinge in the model, so it can be swung
     this.cabinY = y0;
     this.doorNode = cabinModel ? cabinModel.scene.getObjectByName("door") : null;
@@ -827,6 +827,9 @@ export class Woods extends WorldBase {
     const win = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.06), MAT.lit);
     const [wx, wz] = place(cw / 2 + 0.2, 0.5); win.position.set(wx, y0 + 1.5, wz); win.rotation.y = CABIN.ry + Math.PI / 2;
     this.cabin.add(win);
+    // (the model has its own window, in the right-hand wall: the candlelight is set back in that, and only seen from
+    // outside after dark — from inside, or by day, it is an open window)
+    if (cabinModel) { win.geometry = new THREE.BoxGeometry(0.66, 0.86, 0.02); const [x2, z2] = place(2.36, -0.5); win.position.set(x2, y0 + 1.65, z2); this.winPane = win; }
     this.cabin.visible = false;
     root.add(this.cabin);
 
@@ -1192,8 +1195,8 @@ export class Woods extends WorldBase {
   }
   // let it snow: k is how much lies on the ground, fall is how hard it is still coming down
   setSnow(k, fall = 0) {
-    SNOW.value = k;
-    if (this.terrainMat) this.terrainMat.color.setRGB(1, 1, 1).lerp(new THREE.Color(1.7, 1.75, 1.85), k);
+    SNOW.value = k; this.snowK = k;
+    this.groundTint();
     if (fall > 0 && !this.flakes) {
       const n = 4000, p = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) { p[i * 3] = (Math.random() - 0.5) * 60; p[i * 3 + 1] = Math.random() * 30; p[i * 3 + 2] = (Math.random() - 0.5) * 60; }
@@ -1203,6 +1206,32 @@ export class Woods extends WorldBase {
       this.root.add(this.flakes);
     }
     if (this.flakes) { this.flakes.visible = fall > 0; this.flakeFall = fall; }
+  }
+  // the ground's colour: brighter under snow, darker when the rain has soaked it
+  groundTint() {
+    if (!this.terrainMat) return;
+    this.terrainMat.color.setRGB(1, 1, 1).lerp(new THREE.Color(1.7, 1.75, 1.85), this.snowK || 0).multiplyScalar(1 - (this.wet || 0) * 0.28 * (1 - (this.snowK || 0)));
+  }
+  // rain, k from nothing to a downpour; wind slants it
+  setRain(k, wind = 0.3) {
+    this.rainK = k; this.rainWind = wind;
+    if (k > 0 && !this.rain) {
+      const n = 3000, p = new Float32Array(n * 6), v = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const x = (Math.random() - 0.5) * 50, y = Math.random() * 24, z = (Math.random() - 0.5) * 50;
+        p.set([x, y, z, x, y + 0.5, z], i * 6); v[i] = 0.85 + Math.random() * 0.3;
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(p, 3));
+      this.rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xb4bcc8, transparent: true, opacity: 0.35, depthWrite: false, fog: true }));
+      this.rain.frustumCulled = false; this.rain.userData.v = v;
+      this.root.add(this.rain);
+    }
+    if (this.rain) this.rain.visible = k > 0;
+  }
+  // under a roof, or under the ground: no rain or snow falls on you here
+  sheltered() {
+    const p = G.player && G.player.pos; if (!p) return false;
+    return this.insideCabin(p.x, p.z) || !!(this.cave && this.cave.inside);
   }
   // the fire's strength, 0 (out) to 1 (roaring)
   setFire(k) {
@@ -1602,7 +1631,33 @@ export class Woods extends WorldBase {
       this.homeLight.intensity += (want - this.homeLight.intensity) * Math.min(1, dt * 3);
     }
     // nor does it fall there
-    if (this.flakes) this.flakes.visible = this.flakeFall > 0 && !this.insideCabin(G.player.pos.x, G.player.pos.z);
+    const under = this.sheltered();
+    if (this.winPane) this.winPane.visible = MAT.lit.emissiveIntensity > 0.5 && !under;
+    if (this.flakes) this.flakes.visible = this.flakeFall > 0 && !under;
+    // rain: streaks falling round you, slanted by the wind, thinned out to as many as the rain is heavy
+    if (this.rain) {
+      this.rain.visible = this.rainK > 0 && !under;
+      if (this.rain.visible) {
+        const p = this.rain.geometry.attributes.position, a = p.array, v = this.rain.userData.v, c = G.player.pos, n = v.length;
+        const live = Math.round(n * Math.min(1, this.rainK)), wx = this.rainWind * 2.2, wz = this.rainWind * 0.9, len = 0.35 + this.rainK * 0.3;
+        for (let i = 0; i < live; i++) {
+          const o = i * 6, sp = 10 * v[i];
+          let x = a[o] + wx * dt, y = a[o + 1] - sp * dt, z = a[o + 2] + wz * dt;
+          if (y < c.y - 3) { y += 24; x = c.x + (Math.random() - 0.5) * 50; z = c.z + (Math.random() - 0.5) * 50; }
+          if (x - c.x > 25) x -= 50; else if (x - c.x < -25) x += 50;
+          if (z - c.z > 25) z -= 50; else if (z - c.z < -25) z += 50;
+          a[o] = x; a[o + 1] = y; a[o + 2] = z;
+          a[o + 3] = x - wx / sp * len; a[o + 4] = y + len; a[o + 5] = z - wz / sp * len;
+        }
+        p.needsUpdate = true;
+        this.rain.geometry.setDrawRange(0, live * 2);
+        this.rain.material.opacity = 0.18 + this.rainK * 0.22;
+      }
+    }
+    // the ground soaks up the rain, and dries again more slowly
+    const wetWant = (this.rainK || 0) > 0.15 ? 1 : 0, wet0 = this.wet || 0;
+    this.wet = clamp(wet0 + (wetWant ? dt / 40 * this.rainK : -dt / 150), 0, 1);
+    if (Math.abs(this.wet - wet0) > 1e-5) this.groundTint();
     if (this.flakes && this.flakes.visible) {
       const p = this.flakes.geometry.attributes.position, c = G.player.pos, sp = 2 + this.flakeFall * 5;
       for (let i = 0; i < p.count; i++) {
@@ -1627,12 +1682,28 @@ export class Woods extends WorldBase {
         // every tree its own fall: a tall one slower, a birch quicker; a twist as it goes, a roll to one side,
         // where it comes to rest, and a little bounce when it hits the ground
         const F = t.fx || (t.fx = fallOf(t));
-        if (t.state === "falling") {
-          t.fall = Math.min(1, t.fall + dt * (0.25 + t.fall * 2.2) * F.speed);
-          if (t.fall >= 1) { t.state = "settle"; t.settle = 0; t.onDown && t.onDown(); }
-        } else if ((t.settle += dt * 2.2) >= 1) t.state = "down";
-        const bounce = t.state === "settle" ? Math.sin(Math.min(1, t.settle) * Math.PI) * F.bounce * (1 - Math.min(1, t.settle)) : 0;
-        const k = t.fall * t.fall, a = k * F.rest - bounce;
+        // a trunk tipping over on its hinge: slow to lean (the hinge holds it at first), then faster and faster as
+        // the weight gets out over the stump, until it hits the ground hard, bounces on its crown and lies still
+        if (t.th == null) { t.th = 0.05; t.om = 0.16; t.hits = 0; }
+        for (let n = 0; n < 4; n++) {
+          const h = dt / 4;
+          t.om += F.k * Math.sin(t.th) * (t.th < 0.15 ? 0.6 : 1) * h - (t.hits ? t.om * 2 * h : 0);
+          t.th += t.om * h;
+          if (t.th >= F.rest && t.om > 0) {
+            t.th = F.rest; t.om = -t.om * F.bounce; t.hits++;
+            if (t.hits === 1) {
+              t.state = "settle"; t.onDown && t.onDown();
+              // needles and twigs thrown up where the crown hits the ground
+              if (t.dir && G.player && Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 40) {
+                const r = (t.h || 9) * 0.65, cx = t.x + t.dir.x * r, cz = t.z + t.dir.z * r;
+                leafBurst(this.root || G.scene, cx, this.heightAt(cx, cz) + 0.3, cz, t.src && t.src.kind === "birch" ? 0x7a9a3a : 0x2f4a28);
+              }
+            }
+            if (t.hits > 2 || Math.abs(t.om) < 0.12) { t.om = 0; t.state = "down"; break; }
+          }
+        }
+        t.fall = t.th / F.rest;
+        const k = t.fall * t.fall, a = t.th;
         t.g.rotation.set(0, 0, 0);
         t.g.rotateOnWorldAxis(t.axis, a);
         t.g.rotateOnWorldAxis(UP_AXIS, F.twist * k);
@@ -1644,6 +1715,29 @@ export class Woods extends WorldBase {
       }
     }
   }
+}
+// the clay and moss packed between the cabin's logs, and the boards under its roof: a dark lining inside the walls
+// and the roof, so no daylight shows through the seams from inside (the model's own measurements: walls 2.5 out and
+// 3.0 back from the middle, eaves at 2.4, the ridge at 4.96; a window in the right-hand wall, the door in front)
+function chinking() {
+  const g = new THREE.Group(), m = mat(0x2e2218, { surface: "none", side: THREE.DoubleSide });
+  const box = (w, h, d, x, y, z, rz = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.z = rz; g.add(b); };
+  const H = 2.45;
+  // the side walls, the right one round its window
+  box(0.04, H, 5.9, -2.5, H / 2, 0);
+  box(0.04, H, 2.1, 2.5, H / 2, -1.9); box(0.04, H, 3.1, 2.5, H / 2, 1.4);
+  box(0.04, 1.2, 0.7, 2.5, 0.6, -0.5); box(0.04, H - 2.1, 0.7, 2.5, (2.1 + H) / 2, -0.5);
+  // the back wall, and the front round the doorway
+  box(5.0, H, 0.04, 0, H / 2, -3.0);
+  box(1.8, H, 0.04, -1.56, H / 2, 3.0); box(1.8, H, 0.04, 1.56, H / 2, 3.0); box(1.32, H - 2.1, 0.04, 0, (2.1 + H) / 2, 3.0);
+  // the gables
+  const tri = new THREE.Shape([new THREE.Vector2(-2.5, 2.4), new THREE.Vector2(2.5, 2.4), new THREE.Vector2(0, 4.85)]);
+  for (const z of [-3.0, 3.0]) { const t = new THREE.Mesh(new THREE.ShapeGeometry(tri), m); t.position.z = z; g.add(t); }
+  // the roof, inside its own thickness, either side of the ridge
+  const slope = Math.atan(0.843), len = 3.07 / Math.cos(slope);
+  for (const sx of [-1, 1]) box(len, 0.02, 6.9, sx * 1.535, 4.993 - 0.843 * 1.535, 0, -sx * slope);
+  g.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
+  return g;
 }
 // leaves thrown up as a bush comes down, falling and fading
 function leafBurst(root, x, y, z, color) {
@@ -1666,11 +1760,13 @@ function fallOf(t) {
   const h = (x => x - Math.floor(x))(Math.sin(t.x * 12.9898 + t.z * 78.233) * 43758.5453), h2 = (x => x - Math.floor(x))(Math.sin(t.x * 39.3468 + t.z * 11.135) * 24634.634);
   const kind = t.src && t.src.kind, tall = Math.max(5, t.h || 9);
   return {
-    speed: (0.8 + h * 0.45) * Math.pow(9 / tall, 0.35) * (kind === "birch" ? 1.2 : 1),
+    // (the gravity on a trunk turning about its foot, 3g/2 over its height: a tall tree comes down slower)
+    k: 1.5 * 9.8 / tall * (0.85 + h * 0.3) * (kind === "birch" ? 1.25 : 1),
     rest: Math.PI / 2 - 0.05 - h2 * 0.16,
     twist: (h - 0.5) * 0.7,
     roll: (h2 - 0.5) * 0.25,
-    bounce: 0.035 + h * 0.05,
+    // (how much of its swing it keeps, bouncing back up off its branches)
+    bounce: 0.16 + h * 0.12,
   };
 }
 void prismGeo;

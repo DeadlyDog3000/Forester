@@ -115,8 +115,21 @@ export const ATMO = {
 // Dark Fantasy (a setting): the same hour, darker, colder and greyer, with the mist in closer
 const GRIM = new THREE.Color(0x2a2c30);
 const grim = c => G.settings.dark ? c.clone().lerp(GRIM, 0.35).multiplyScalar(0.55) : c;
-function applyAtmo(a0) {
-  G.atmoNow = a0;
+// the weather over the hour: cloud (0 clear, 1 a low grey sky, rain coming) greys the sky and the light and pulls the
+// mist in; flash is lightning, for a moment
+const OVERCAST = new THREE.Color(0x8a9098);
+function weathered(a) {
+  const c = G.cloud || 0, fl = G.flash || 0, m = G.mist || 0;
+  if (c < 0.01 && fl < 0.01 && m < 0.01) return a;
+  // (the grey as bright as the sky was: a cloudy night is still night)
+  const grey = col => { const l = col.r * 0.3 + col.g * 0.55 + col.b * 0.15; return col.clone().lerp(OVERCAST.clone().multiplyScalar(l / 0.56 * 0.9), Math.min(1, c * 1.3)); };
+  return { ...a, top: grey(a.top), mid: grey(a.mid), bot: grey(a.bot), fog: grey(a.fog), sunC: grey(a.sunC),
+    sunI: a.sunI * (1 - c * 0.72), hemiI: a.hemiI * (1 + c * 0.15) + fl * 2.5, hemiS: a.hemiS.clone().lerp(new THREE.Color(0xdde4ff), fl),
+    near: a.near * (1 - c * 0.5) * (1 - m * 0.85), far: a.far * (1 - c * 0.45) * (1 - m * 0.6), stars: a.stars * (1 - c), exp: a.exp * (1 - c * 0.06) + fl * 0.6, win: a.win + c * 0.35 };
+}
+function applyAtmo(a00) {
+  G.atmoNow = a00;
+  const a0 = weathered(a00);
   const dk = !!G.settings.dark;
   const a = dk ? { ...a0, fog: grim(a0.fog), top: grim(a0.top), mid: grim(a0.mid), bot: grim(a0.bot), sunC: grim(a0.sunC).multiplyScalar(1.5), sunI: a0.sunI * 0.7, hemiI: a0.hemiI * 0.7, near: a0.near * 0.6, far: a0.far * 0.7, exp: a0.exp * 0.8, stars: a0.stars * 0.5 } : a0;
   sun.color.copy(a.sunC); sun.intensity = a.sunI;
