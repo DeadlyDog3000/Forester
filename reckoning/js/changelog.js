@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.53.8", date: "8 October 2026", title: "The turn of the year",
+    items: [
+      "The birches keep the seasons. They're green through spring and summer, yellow into autumn, gold and then rust, and bare by winter. The bushes brown with them, and in autumn leaves come fluttering down off the birches round you, carried on the wind, and lie a while where they land. The spruce and the pine stay green all year.",
+    ],
+  },
+  {
     v: "0.53.7", date: "8 October 2026", title: "Wildflowers",
     items: [
       "Wildflowers grow in the clearing's grass and along the pond's banks in spring and summer: white, yellow and mauve in spring, with blue and red in summer, in drifts that change slowly from one kind to another, nodding in the wind.",

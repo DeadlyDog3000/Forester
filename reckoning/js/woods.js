@@ -271,7 +271,7 @@ export class Woods extends WorldBase {
     }
     root.add(ub.build(MAT.rough, { shadow: false }));
     {
-      const leafM = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles" }); addSway(leafM);
+      const leafM = this.shrubLeaf = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles" }); addSway(leafM);
       const bushes = shrubs.filter(q => q.kind === "bush"), ferns = shrubs.filter(q => q.kind === "fern");
       const bm = new THREE.InstancedMesh(swayGeo(TREE.blob, bushes.length), leafM, bushes.length), fm = new THREE.InstancedMesh(swayGeo(TREE.cone, ferns.length * 5), leafM, ferns.length * 5);
       // (a bush stirs in the wind, and a fern frond more)
@@ -1264,6 +1264,42 @@ export class Woods extends WorldBase {
     }
     if (this.rain) this.rain.visible = k > 0;
   }
+  leafFall(dt, col) {
+    if (!col && !this.leaves) return;
+    if (!this.leaves) {
+      const N = 90, g = new THREE.PlaneGeometry(0.07, 0.05);
+      this.leaves = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.8 }), N);
+      this.leaves.frustumCulled = false; this.leaves.count = N; this.leaves.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
+      this.leafP = Array.from({ length: N }, () => ({ t: 1, x: 0, y: -99, z: 0, vx: 0, vz: 0, ph: Math.random() * 6 }));
+      this.root.add(this.leaves); this._birchT = 0; this._birches = [];
+    }
+    const p = G.player.pos, M = this._lm || (this._lm = new THREE.Matrix4()), E = this._le || (this._le = new THREE.Euler()), Q = this._lq || (this._lq = new THREE.Quaternion());
+    // (the birches near you, looked for now and then)
+    if ((this._birchT -= dt) <= 0) { this._birchT = 2; this._birches = this.forest.filter(t => t.kind === "birch" && !t.gone && Math.abs(t.x - p.x) < 25 && Math.abs(t.z - p.z) < 25); }
+    const wind = G.windV || { x: 0.4, z: 0.15 };
+    this.leaves.visible = true;
+    let live = 0;
+    for (let i = 0; i < this.leafP.length; i++) {
+      const L = this.leafP[i];
+      if (L.y < -50 || L.t >= 1) {
+        // a new one off a birch, now and then
+        if (col && this._birches.length && Math.random() < dt * 1.2) {
+          const b = this._birches[Math.floor(Math.random() * this._birches.length)];
+          L.x = b.x + (Math.random() - 0.5) * 3; L.z = b.z + (Math.random() - 0.5) * 3; L.y = b.y + b.h * (0.6 + Math.random() * 0.3); L.t = 0; L.ground = this.heightAt(L.x, L.z);
+          this.leaves.setColorAt(i, new THREE.Color().copy(col).offsetHSL((Math.random() - 0.5) * 0.04, 0, (Math.random() - 0.5) * 0.12));
+          this.leaves.instanceColor.needsUpdate = true;
+        } else { M.makeScale(0, 0, 0); this.leaves.setMatrixAt(i, M); continue; }
+      }
+      // (down slowly, swinging side to side as a leaf does, carried along by the wind; a while on the ground, then gone)
+      if (L.y > L.ground + 0.02) { L.ph += dt * 3; L.y -= dt * (0.7 + Math.sin(L.ph) * 0.3); L.x += (wind.x * 0.6 + Math.cos(L.ph) * 0.5) * dt; L.z += (wind.z * 0.6 + Math.sin(L.ph * 0.7) * 0.4) * dt; if (L.y <= L.ground + 0.02) L.y = L.ground + 0.02; }
+      else L.t += dt / 25;
+      live++;
+      E.set(L.y > L.ground + 0.03 ? L.ph : -Math.PI / 2, L.ph * 0.5, Math.sin(L.ph) * 0.8);
+      Q.setFromEuler(E); M.compose(new THREE.Vector3(L.x, L.y, L.z), Q, new THREE.Vector3(1, 1, 1)); this.leaves.setMatrixAt(i, M);
+    }
+    this.leaves.instanceMatrix.needsUpdate = true;
+    if (!col && !live) this.leaves.visible = false;
+  }
   // under a roof, or under the ground: no rain or snow falls on you here
   sheltered() {
     const p = G.player && G.player.pos; if (!p) return false;
@@ -1669,6 +1705,24 @@ export class Woods extends WorldBase {
     }
     // nor does it fall there
     SWAY.t.value += dt;
+    // the year in the broadleaves: the birches green through spring and summer, yellowing into autumn, gold and then
+    // bare by winter (the spruce and the pine keep their needles); the bushes brown as well
+    if (G.town && G.town.w === this) {
+      const T = G.town, yd = ((T.day % 8) + 8) % 8 + T.frac;           // (the year is eight days: two to a season)
+      // 0 green until midsummer's end, to 1 full autumn gold by the middle of autumn, 2 bare from the first of winter
+      const k = yd < 4 ? 0 : yd < 5 ? yd - 4 : yd < 6 ? 1 + (yd - 5) : 2;
+      if (Math.abs((this._leafK ?? -1) - k) > 0.01) {
+        this._leafK = k;
+        const g = new THREE.Color(0x6a8a40), gold = new THREE.Color(0xc89a30), rust = new THREE.Color(0x8a5a2a);
+        const c = k <= 1 ? g.clone().lerp(gold, k) : gold.clone().lerp(rust, Math.min(1, k - 1));
+        TREE.leafMat.color.copy(c);
+        // (bare in winter: the clumps of leaves gone from the birches, and back in spring)
+        TREE.leafMat.visible = k < 1.9;
+        if (this.shrubLeaf) this.shrubLeaf.color.setRGB(1, 1, 1).lerp(new THREE.Color(0.95, 0.75, 0.45), Math.min(1, k) * 0.7);
+      }
+      // and in autumn, leaves coming down off the birches round you, fluttering as they go
+      this.leafFall(dt, k > 0.3 && k < 1.9 ? TREE.leafMat.color : null);
+    }
     // the pond
     if (!this.pond && !this._pondLoading && this.pondLevel !== undefined) { this._pondLoading = true; import("./pond.js").then(m => { this.pond = new m.Pond(this); }); }
     if (this.pond) this.pond.update(dt);
