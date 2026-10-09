@@ -284,12 +284,12 @@ export function writeSlot(n, s) {
 export function clearSlot(n) { _slotCache.delete(n); try { localStorage.removeItem(slotKey(n)); localStorage.removeItem(slotKey(n) + ".prev"); } catch (e) {} }
 export function loadSave() { return readSlot(slot); }
 // the body is written to the save now and then, when it has changed
-setInterval(() => { if (G.body && G.body.dirty && G.mode === "play") { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
+setInterval(() => { if (G.body && G.body.dirty && G.mode === "play" && !G.mp) { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
 // the bushes you've cut down, kept with the save, so they stay down
 G.loadCut = () => (loadSave() || {}).cutBushes || [];
-G.saveCut = list => writeSave({ cutBushes: list });
+G.saveCut = list => { if (!G.mp) writeSave({ cutBushes: list }); };
 // (everything you have on you written down now, before something drastic: the graphics lost and the page started again)
-G.flushSave = () => { try { if (G.body && G.mode === "play") writeSave({ body: bodyToSave(G.body) }); if (G.town && G.town.persist) G.town.persist(); } catch (e) {} };
+G.flushSave = () => { try { if (G.mp) return; if (G.body && G.mode === "play") writeSave({ body: bodyToSave(G.body) }); if (G.town && G.town.persist) G.town.persist(); } catch (e) {} };
 export function writeSave(patch) {
   const s = { ...(readSlotKept(slot) || {}), ...patch, at: Date.now() };
   // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)
@@ -375,6 +375,24 @@ export async function startChapter(n, opts = {}) {
   catch (e) { if (e !== ABORT) console.error(e); }
 }
 export function currentGen() { return GEN; }
+// Everything a chapter leaves lying about, cleared, for a game that isn't a chapter (multiplayer): any chapter still
+// running is stopped, and your body starts fresh
+export function resetForMode() {
+  GEN++;
+  G.onFrame.length = 0;
+  G.body = restoreBody(null); G.body.hunger = 1;
+  G.chest = [];
+  UI.closeDialog(); UI.clearBark(); UI.objective(null); UI.prompt(null); UI.carry(null); UI.eye(0); UI.hold(0);
+  G.endFreecam && G.endFreecam();
+  G.heldFood = null;
+  G.cine = null; G.lockMove = false; G.marker = null; G.onSwing = null; G.forceThird = false; G.stamina = 1; G.sprintSpeed = undefined; G.staminaMul = undefined; G.tension = 0; G.health = 1; G.downed = false; G.hitShake = 0; G.panting = 0; G.onDowned = null; G.showHealth = true; G.cloud = 0; G.mist = 0; G.flash = 0; UI.stance && UI.stance(null);
+  if (G.town) { G.town.stop(); G.town = null; }
+  G.bugs.setKind(null);
+  AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false); AUDIO.rain(0);
+  SFX.fireLoop(false); SFX.insectLoop(false);
+  G.chapter = 0; G.pack = []; G.camp = null;
+  UI.fadeNow(1);
+}
 
 // A townsperson who walks a loop until the chapter ends.
 function wanderer(route, seed, speed = 1.2) {

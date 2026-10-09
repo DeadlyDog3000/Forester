@@ -239,7 +239,7 @@ export function makePerson(o = {}) {
     // a child's head is big for the body; it evens out as they grow
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };
-  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide });
+  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor });
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
   noSnow(P.root);
   return P;

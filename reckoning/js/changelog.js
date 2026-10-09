@@ -7,6 +7,21 @@
 
 export const CHANGELOG = [
   {
+    v: "0.60.0", date: "9 October 2026", title: "Into the woods together",
+    items: [
+      "Multiplayer, from the new button on the front screen. It lists the games you can join, and you can host your own.",
+      "Two ways to play. In Co-op, you build one colony together, with one store of logs and stone, one hearth, and no harm between you. In Classic, each player is a nation of their own: build, trade, make treaties, or make war on the neighbours.",
+      "Every game is a new map, grown from a number, so no two are the same. When you host, you choose the country: an island, an archipelago of islets with shallows to wade between, a continent with a coast down one side, highlands with snow on the peaks, or lake country. You also choose the size, up to two kilometres across, and you see the land before you start. The map (J) shows all of it.",
+      "A character builder on the way in: four bodies, skin, hair, coat, breeches or skirt, waistcoat, apron, hat and height, turned about in front of you. Everyone else sees you as you made yourself, with your name over your head.",
+      "Fell trees and break rocks for logs and stone. Build a hearth to claim the ground round it, then cabins, a woodshed, a house, a well, palisades and gates, a watchtower to climb, a forge that makes your axe bite deeper, and a market to trade logs for stone. Trees and rocks grow back in time.",
+      "In Classic, an axe works on people as well as trees. Hold your guard up to turn a blow. A fall costs you a fifth of your logs and stone, to whoever felled you, and you wake at your hearth. Break someone's woodshed and half of their store is yours. Newcomers are safe for their first minute.",
+      "Alliances: ask someone from the list of who's here (Tab). Allies can't hurt each other, their gates open for each other, and they can build on each other's ground. Up to eight to an alliance. Talk with Enter, to everyone or, with Tab as you type, to your allies only.",
+      "Nothing of yours can be broken while you're away from the game. No one can raid a homestead whose owner isn't there to defend it.",
+      "In the desktop app, you can host a game on your own computer. Friends on the same network see it in their list by themselves. Others can join by your address. The game also lists games on any server whose address you type in.",
+      "The wide world, one great land six kilometres across, shared by everyone, with mountains in it, is ready in the game. It opens once its server is up.",
+    ],
+  },
+  {
     v: "0.59.2", date: "9 October 2026", title: "Work you can hear",
     items: [
       "You hear your people at work from where they are: each axe blow, hammer stroke, spadeful and saw stroke lands with the swing, louder or softer and to one side or the other depending on where you stand. Before, a few unplaced knocks played wherever you were.",

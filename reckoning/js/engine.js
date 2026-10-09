@@ -1747,7 +1747,7 @@ try { explored = Object.fromEntries(Object.entries(JSON.parse(localStorage.getIt
 function exploredSet() { const k = G.world && G.world.name; if (!k) return null; return explored[k] || (explored[k] = new Set()); }
 function updateExplore(dt) {
   exploreT -= dt; exploreSaveT -= dt;
-  if (exploreT <= 0 && G.world && G.player) {
+  if (exploreT <= 0 && G.world && G.player && !G.world.noFog) {
     exploreT = 0.3;
     const s = exploredSet(), p = G.player.pos, C = EXPLORE_CELL, n = Math.ceil(EXPLORE_R / C);
     const cx = Math.floor(p.x / C), cz = Math.floor(p.z / C);
@@ -1800,7 +1800,7 @@ function worldFog(s) {
 }
 function drawFog(c, X, Z, S) {
   // (the cave keeps its own map of what you've seen)
-  if (G.world && G.world.cave && G.world.cave.inside) return;
+  if (G.world && ((G.world.cave && G.world.cave.inside) || G.world.noFog)) return;
   const s = exploredSet(); if (!s) return;
   const W = c.canvas.width, H = c.canvas.height, mw = Math.ceil(W / FOG_K), mh = Math.ceil(H / FOG_K);
   if (!fogCv) { fogCv = document.createElement("canvas"); maskCv = document.createElement("canvas"); paperCv = document.createElement("canvas"); }

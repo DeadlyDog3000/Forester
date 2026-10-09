@@ -29,6 +29,8 @@ import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWor
 import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
+import { initLobby, openLobby, SCREENS as MP_SCREENS } from "./mp/lobby.js";
+import { MPGame } from "./mp/mpgame.js";
 
 /* global SFX */
 
@@ -142,7 +144,7 @@ for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setDa
 G.player = new Player();
 
 // ---- screens ----
-const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits"];
+const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", ...MP_SCREENS];
 let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
@@ -217,6 +219,17 @@ $("btnNew").onclick = () => { back = "title"; slotMode = "new"; buildSlots(); sc
 $("btnSlots").onclick = () => { back = "title"; slotMode = "play"; buildSlots(); screen("slots"); };
 $("btnContinue").onclick = () => { const s = loadSave(); if (!s) return; G.who = s.who || "brother"; play(s.chapter || 1); };
 $("btnChapters").onclick = () => { buildChapters(); back = "title"; screen("chapters"); };
+// multiplayer: the lobby, and from it into a game
+$("btnMulti").onclick = () => { back = "title"; openLobby(); };
+initLobby({
+  screen,
+  enter(net, inMsg, me, target) {
+    AUDIO.init(); applySettings();
+    G.mode = "play"; screen(null); $("menus").classList.remove("backdrop"); UI.show("hud", true);
+    new MPGame(net, inMsg, me, target, { lost: text => { toTitle(); openLobby(); $("mpNote").textContent = text; $("mpNote").classList.add("bad"); } });
+    lock();
+  },
+});
 $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
 $("btnControls").onclick = () => { back = "title"; screen("controls"); };
 $("btnUpdates").onclick = () => { back = "title"; screen("updates"); };
@@ -1675,6 +1688,10 @@ G.lesson = () => new Promise(res => {
 function pause() {
   if (G.mode !== "play") return;
   G.mode = "pause";
+  // (in a game with others: no chapter to restart, and the game goes on without you while you're here)
+  UI.show("btnRestart", !G.mp);
+  $("pause").querySelector(".sub").textContent = G.mp ? "The others play on while you're in here — your body stands where you left it." : "Your progress is kept at the start of every chapter, and as you work.";
+  $("btnQuit").textContent = G.mp ? "Leave the game" : "Quit to title";
   setFreeLook(false);
   if (overlay) showOverlay(overlay, false);
   SFX.pauseAll && SFX.pauseAll(true);
@@ -1702,12 +1719,14 @@ $("btnRestart").onclick = () => {
   restartArmed = 0; b.textContent = "Restart chapter"; b.classList.remove("armed");
   SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock(); startChapter(G.chapter || 1);
 };
-$("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); toTitle(); };
+$("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.mp) { G.mp.leave(); toTitle(); openLobby(); return; } toTitle(); };
 document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement) freeMouse = false;
   else if (G.mode === "play" && !freeMouse) pause();
 });
 addEventListener("keydown", e => {
+  // (a game with others has keys of its own: talking, the people here, building)
+  if (G.mp && G.mp.key(e)) return;
   if (e.code === "Escape" && G.mode === "pause" && !document.pointerLockElement) { /* the browser ate the first Escape */ }
   // with no lock to lose, Escape has to pause by hand
   if (e.code === "Escape" && G.mode === "play" && input.freeLook) pause();

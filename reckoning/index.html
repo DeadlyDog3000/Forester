@@ -21,6 +21,19 @@
   <div id="view"></div>
 
   <!-- ===== in play ===== -->
+  <div id="mpHud" class="hidden">
+    <div id="mpTop"><div id="mpRoom"></div><div id="mpMode"></div><div id="mpCount"></div></div>
+    <div id="mpStock"><span class="ic log"></span><b id="mpLogs">0</b> logs <span class="ic stone"></span><b id="mpStone">0</b> stone</div>
+    <div id="mpShield" class="hidden"></div>
+    <div id="mpToast" class="hidden"></div>
+    <div id="mpInvite" class="hidden"></div>
+    <div id="mpBuildBar" class="hidden"></div>
+    <div id="mpChat" class="quiet"><div id="mpChatLog"></div><input id="mpChatIn" class="hidden" maxlength="200" placeholder="Say something — Enter to send, Tab for allies only" spellcheck="false"></div>
+    <div id="mpKeys">Enter talk · Tab people · B build · J map</div>
+    <div id="mpDead" class="hidden"></div>
+  </div>
+  <div id="mpBuild" class="hidden"><div class="mc-win"><div class="mc-label">Build <span class="mc-hint">1–0 or click · B to close</span></div><div id="mpBuildList"></div></div></div>
+  <div id="mpPlayers" class="hidden"><div class="mc-win"><div class="mc-label">Who's here <span class="mc-hint">Tab to close</span></div><div id="mpPlayersBody"></div></div></div>
   <div id="hud" class="hidden">
     <div id="crosshair"><i></i><b></b></div>
     <div id="swingArrow" class="hidden"><span class="sa left"></span><span class="sa right"></span><span class="sa up"></span></div>
@@ -203,6 +216,7 @@
         <button id="btnContinue" class="btn hidden">Continue</button>
         <button id="btnNew" class="btn primary">New Game</button>
         <button id="btnChapters" class="btn hidden">Chapters</button>
+        <button id="btnMulti" class="btn">Multiplayer</button>
         <button id="btnSlots" class="btn">Saves</button>
         <button id="btnSettings" class="btn">Settings</button>
         <button id="btnControls" class="btn">Controls</button>
@@ -339,6 +353,61 @@
       <h2>What has changed</h2>
       <div id="updateList"></div>
       <button class="btn ghost" data-back>Back</button>
+    </section>
+
+    <section id="mpLobby" class="screen hidden">
+      <h2>Multiplayer</h2>
+      <p class="sub">Into the woods with others: build a homestead together, or fight over the forest. <span id="mpWho"></span> · <button id="mpEditChar" class="linkish">Edit character</button></p>
+      <div class="mp-scroll">
+        <div class="slot mp-world">
+          <div class="sl-n">For everyone</div>
+          <div class="sl-t">The Wide World</div>
+          <div class="sl-d">One great land, six kilometres across, shared by every player. What you build stays. While you're away, nothing of yours can be broken.<br><i id="mpWorldState"></i></div>
+          <div class="sl-acts"><button id="mpWorldGo" class="primary">Enter the Wide World</button></div>
+        </div>
+        <div class="set-sec">Games</div>
+        <div id="mpRooms"></div>
+        <p id="mpLanNote" class="mp-hint hidden">Hosting a game on your own network needs the desktop app.</p>
+        <div class="mp-addr"><input id="mpAddr" placeholder="A server's address, e.g. 192.168.1.20:47810" spellcheck="false"><button id="mpAddrGo">Look</button></div>
+        <p id="mpNote" class="mp-note"></p>
+      </div>
+      <nav class="menu mp-menu">
+        <button id="mpHostBtn" class="btn primary">Host a game</button>
+        <button id="mpRefresh" class="btn">Refresh</button>
+        <button id="mpLobbyBack" class="btn ghost">Back</button>
+      </nav>
+    </section>
+
+    <section id="mpHost" class="screen hidden">
+      <h2>Host a game</h2>
+      <div class="mp-scroll mp-form">
+        <div class="mp-host-grid">
+          <div class="mp-fields">
+            <label class="row"><span>Name</span><input id="mpHostName" maxlength="40"></label>
+            <label class="row"><span>Play</span><select id="mpHostMode"><option value="coop">Co-op — one colony, built together</option><option value="pvp">Classic — a nation each: trade, ally, or make war</option></select></label>
+            <label class="row"><span>Country</span><select id="mpHostKind"></select></label>
+            <label class="row"><span>Size</span><select id="mpHostSize"><option value="s">Small — a kilometre across</option><option value="m" selected>Middling — a kilometre and a half</option><option value="l">Large — two kilometres</option></select></label>
+            <label class="row"><span>Players</span><select id="mpHostMax"><option>2</option><option>4</option><option selected>8</option><option>12</option><option>16</option></select></label>
+            <label class="row"><span>Password</span><input id="mpHostPw" maxlength="40" placeholder="none"></label>
+            <label class="row"><span>Where</span><select id="mpHostWhere"></select></label>
+          </div>
+          <div class="mp-kind"><canvas id="mpKindMap" width="220" height="220"></canvas><p id="mpKindNote"></p><button id="mpHostSeed" class="linkish">Another map</button></div>
+        </div>
+      </div>
+      <nav class="menu mp-menu"><button id="mpHostGo" class="btn primary">Host</button><button id="mpHostBack" class="btn ghost">Back</button></nav>
+    </section>
+
+    <section id="mpBuilder" class="screen hidden">
+      <h2 id="mpBuildTitle">Your character</h2>
+      <div class="mp-builder">
+        <div class="mp-pv"><canvas id="mpPreview"></canvas><div class="mp-pv-hint">Drag to turn</div></div>
+        <div class="mp-ctl">
+          <label class="mp-namerow"><span>Name</span><input id="mpName" maxlength="24" placeholder="What are you called?" spellcheck="false"></label>
+          <div id="mpControls"></div>
+          <button id="mpRandom" class="linkish">Someone else, at random</button>
+        </div>
+      </div>
+      <nav class="menu mp-menu"><button id="mpBuildGo" class="btn primary">Into the game</button><button id="mpBuildBack" class="btn ghost">Back</button></nav>
     </section>
 
     <section id="pause" class="screen hidden">
