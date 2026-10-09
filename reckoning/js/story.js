@@ -1294,8 +1294,7 @@ async function ch6(w) {
       sib.person.setPose("chop");
       const axe = sib.hold(makeSibAxe());
       for (let i = 0; i < 7; i++) {
-        await wait(0.8);
-        if (Math.hypot(sib.pos.x - pl.pos.x, sib.pos.z - pl.pos.z) < 22) SFX.chop();
+        await wait(0.8);   // (the blows are heard from the swing itself, where they are)
       }
       sib.person.setPose("idle");
       sib.person.held.remove(axe);

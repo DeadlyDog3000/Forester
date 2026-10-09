@@ -357,7 +357,8 @@ function useModel(P, key, colors = {}) {
     if (LOOSE.has(n) || (!acts[n] && a === acts.idle)) { a.time = Math.random() * a.getClip().duration; a.timeScale = tempo; }
     if (cur) cur.fadeOut(fade); cur = a;
   };
-  P.clipNow = () => cur && cur.getClip().name;                 // (for the tests)
+  P.clipNow = () => cur && cur.getClip().name;                 // (for the tests, and for the sound of work)
+  P.clipPhase = () => { if (!cur) return 0; const d = cur.getClip().duration || 1; return ((cur.time % d) + d) % d / d; };
   // a blow landing on them: a flinch over whatever they're doing, for a moment
   P.flinch = () => { if (!acts.hit) return; P.flinchT = 0.5; acts.hit.reset(); if (cur === acts.hit) acts.hit.play(); };
   const playArms = n => { const a = n ? acts[n] : null; if (a === curArms) return; if (a) a.reset().fadeIn(0.25).play(); if (curArms) curArms.fadeOut(0.25); curArms = a; };

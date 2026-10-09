@@ -150,6 +150,17 @@ const RECIPES = {
     modes(d, sr, 0.03, [[rand(85, 110), 0.08, 0.7]]);
     return finish(d);
   },
+  // a saw through timber: the teeth rasping, rising and falling with the stroke
+  saw(sr) {
+    const L = 0.55, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", rand(1800, 2600), 1.4, sr), bp2 = new Biquad("bp", rand(3800, 4600), 2, sr);
+    let ph = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr, k = Math.sin(Math.PI * t / L), rate = 70 + 90 * k;
+      ph += rate / sr; const tooth = (ph % 1) < 0.15 ? Math.random() * 2 - 1 : (Math.random() * 2 - 1) * 0.15;
+      d[i] = (bp.run(tooth) + bp2.run(tooth) * 0.5) * k ** 1.5;
+    }
+    return finish(d, 0.8);
+  },
   // a fire burning: the low rush of it, and its crackle and pops — made long enough to loop without being heard to
   fire(sr) {
     const L = 7, n = Math.floor(sr * L), d = new Float32Array(n);
@@ -164,7 +175,7 @@ const RECIPES = {
     return out;
   },
 };
-const VARIANTS = { chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1 };
+const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1 };
 
 // ---------------------------------------------------------------------------
 const made = {};
@@ -206,6 +217,24 @@ let fireSrc = null;
 export const FOLEY = {
   play,
   chop: (at, vol = 0.8) => play("chop", { vol, at, rate: [0.9, 1.1] }),
+  // the sound of other people at work, from where they are, timed to the blow in what they're doing
+  work(actors) {
+    const G = window.__G; if (!G || !G.player || !ac()) return;
+    const p = G.player.pos;
+    for (const a of actors) {
+      const P = a.person; if (!P || !P.clipNow || !a.root.visible || a === G.player) continue;
+      const dx = a.pos.x - p.x, dz = a.pos.z - p.z; if (dx * dx + dz * dz > 45 * 45) { a._wph = null; continue; }
+      const clip = (P.clipNow() || "").toLowerCase(), ph = P.clipPhase(), prev = a._wph, prevClip = a._wclip;
+      a._wph = ph; a._wclip = clip;
+      if (prev == null || prevClip !== clip) continue;
+      const crossed = x => prev <= ph ? prev < x && ph >= x : prev < x || ph >= x;
+      const at = { x: a.pos.x, z: a.pos.z };
+      if (clip === "chop" && crossed(0.5)) play("chop", { vol: 0.7, at, rate: [0.9, 1.1] });
+      else if (clip === "hammer" && crossed(0.6)) play("hammer", { vol: 0.6, at, rate: [0.92, 1.1] });
+      else if (clip === "dig" && crossed(0.32)) play("dig", { vol: 0.55, at });
+      else if (clip === "saw" && (crossed(0.02) || crossed(0.52))) play("saw", { vol: 0.45, at, rate: [0.9, 1.1] });
+    }
+  },
   fellStart: (at, vol = 1) => play("fellStart", { vol, at, reach: 60, rate: [0.92, 1.06] }),
   crash: (vol = 1, at = null) => play("crash", { vol, at, reach: 70, rate: [0.85, 1.05] }),
   fire(on) {

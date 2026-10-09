@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.59.2", date: "9 October 2026", title: "Work you can hear",
+    items: [
+      "You hear your people at work from where they are: each axe blow, hammer stroke, spadeful and saw stroke lands with the swing, louder or softer and to one side or the other depending on where you stand. Before, a few unplaced knocks played wherever you were.",
+      "Your own spade sounds like digging, not chopping.",
+    ],
+  },
+  {
     v: "0.59.1", date: "9 October 2026", title: "The sound of work",
     items: [
       "An axe into a trunk sounds like one: the crack of the blow, the ring of the blade, the knock of the wood and the crunch of torn fibre, a little different every stroke.",

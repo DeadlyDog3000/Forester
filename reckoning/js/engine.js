@@ -529,7 +529,7 @@ export class Player {
       // (held in the right hand, low; the haft runs forward, left and down, the blade in the ground ahead)
       h.position.set(0.2, -0.04 - down * 0.1 + lever * 0.04, -0.5 - down * 0.04);
       h.quaternion.setFromUnitVectors(_UP, _dig.set(-0.25 + lever * 0.05, -0.8 - down * 0.2 + lever * 0.35, -1.1).normalize());
-      if (beat(0.9) && !wk.quiet) SFX.chop && SFX.chop();
+      if (beat(0.9) && !wk.quiet) SFX.dig && SFX.dig();
     } else if (kind === "reap") {
       // the sickle swept low through the stalks, right to left, the left hand gathering what it cuts; then back for more
       const p = (t * 1.25) % 1, e = x => x * x * (3 - 2 * x);
@@ -1957,6 +1957,7 @@ export function frame(dt, skipRender) {
     if (!G.player.frozen) G.player.update(dt);
     for (const a of w.actors.slice()) a.update(dt);
     personalSpace(w.actors, dt);
+    if (window.__foley) window.__foley.work(w.actors);
     if (w.update) w.update(dt);
     for (const f of w.flames) flicker(f, dt);
     G.bugs.update(dt, G.player, () => AUDIO.buzz());
