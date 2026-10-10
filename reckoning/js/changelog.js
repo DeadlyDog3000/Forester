@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.86.0", date: "10 October 2026", title: "The host's settlement",
+    items: [
+      "In co-op, the settlement is the host's, and the host runs it. In a colony, only the host lays out plans (B), opens the government (G), researches, sends for people, sets jobs and laws, and takes buildings down. In Frontier co-op, the host places the buildings, takes them down and says who works where. Guests fell, carry, help raise what's planned, hunt, fight, and make their own tools. If a guest tries something that's the host's to do, they're told so.",
+      "Looking at a building offers only what can be done there: climb a watchtower, trade at a market, open or shut a cabin's door, or put someone to work a field. The descriptions that came up as if F would do something are gone.",
+      "Frontier: look at a field and press F to choose which of your people farms it. They keep to it until you let them go, and the others go where they're wanted.",
+      "Frontier: you can go into a cabin you've built. F at the door swings it open on its hinges, and the walls have the doorway in them as the clearing's cabin does.",
+      "Frontier: the logs, stone and food at the top show the same pictures as the settlement's, just under the objective.",
+      "T opens the inventory in Frontier again. Enter is for talking.",
+      "Hints that send you to break stone first tell you to make a pickaxe (two logs at the chopping block) if you haven't one.",
+    ],
+  },
+  {
     v: "0.85.1", date: "10 October 2026", title: "A word in the ear",
     items: [
       "Every line that goes up in the multiplayer talk is heard: a slip of paper and a light tap when someone says something, and a softer slip for the game's own notices (someone coming or going, going to bed, a settler on the way). No musical notes. It's in every mode, and the interface sounds setting turns it off with the rest.",

@@ -1147,7 +1147,7 @@ export class Town {
         if (b.logs < def.cost) return pl.carryN > 0 ? `Add ${Math.min(pl.carryN, def.cost - b.logs)} logs (${b.logs} of ${def.cost})` : `Bring logs — ${b.logs} of ${def.cost}${this.S.people.some(p => !p.child) && !this.S.people.some(p => p.job === "hauler") ? " · nobody is hauling: F beside a settler to make one a hauler" : ""}`;
         const want = this.wants(b);
         if (Object.keys(want).length && G.guide) G.guide("materials");
-        if (Object.keys(want).length) return this.afford(want, true) ? `Put in ${this.costText(want)} (from the stores and your pack)` : `Needs ${this.costText(want)} — ${this.short(want, true)} short. Break stone at the grey rocks, or put it in the store chest`;
+        if (Object.keys(want).length) return this.afford(want, true) ? `Put in ${this.costText(want)} (from the stores and your pack)` : `Needs ${this.costText(want)} — ${this.short(want, true)} short. ${G.body && !(G.body.tools.pick > 0) ? "Make a pickaxe at the chopping block (2 logs), then break stone at the grey rocks" : "Break stone at the grey rocks"}, or put it in the store chest`;
         if (NEEDS_DOOR.has(b.type) && !b.door) return (this.S.doors || 0) > 0 ? "Hang the door" : "Needs a door — hew one at the sawhorse";
         return `Raise the ${def.name.toLowerCase()}`;
       },

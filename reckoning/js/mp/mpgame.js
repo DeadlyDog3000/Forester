@@ -106,7 +106,7 @@ const SAYS = {
 };
 class SettlerView {
   constructor(game, v) {
-    this.game = game; this.id = v.id; this.owner = v.owner; this.name = v.name; this.job = v.job;
+    this.game = game; this.id = v.id; this.owner = v.owner; this.name = v.name; this.job = v.job; this.pin = v.pin || null;
     const a = this.actor = new Actor(lookOpts(v.look, v.name), v.x, v.z, v.yaw || 0);
     a.settlerView = this; a.update = dt => this.update(dt);
     this.tx = v.x; this.tz = v.z; this.tyaw = v.yaw || 0; this.anim = v.a || "idle"; this.spd = 0; this.x = v.x; this.z = v.z; this.hp = v.hp;
@@ -203,6 +203,9 @@ export class MPGame {
       : `${r.mode === "coop" ? "Co-op: one colony, one store for everyone" : "Classic: your own nation"} — on ${kind === "island" ? "an island" : kind === "archipelago" ? "an archipelago" : kind === "continent" ? "a continent" : kind === "highlands" ? "the highlands" : "lake country"}. Fell trees for logs (click), B to build${r.mode === "coop" ? " (start with the hearth)" : " — your hearth first, it claims the ground"}, Enter to talk${r.mode === "pvp" ? ", Tab to make allies" : ""}.`, 9);
   }
   // ---- who's who ----
+  // (a co-op settlement is the host's to run: what's built, who works where; the others help)
+  manages() { return this.mode !== "coop" || !this.room.hostPid || this.room.hostPid === this.pid; }
+  hostName() { return this.room.host || "the host"; }
   groupOf(pid) { for (const [id, g] of Object.entries(this.groups)) if (g.members.includes(pid)) return id; return null; }
   friendly(pid) { if (pid === this.pid || this.mode === "coop") return true; const a = this.groupOf(pid); return !!a && a === this.groupOf(this.pid); }
   nameOf(pid) { if (pid === this.pid) return this.me.name; const sv = this.settlers && this.settlers.get(pid); if (sv) return `${sv.name} (${JOB_NAME[sv.job]})`; const r = this.remotes.get(pid); return r ? r.name : this.owners[pid] || "someone"; }
@@ -222,23 +225,32 @@ export class MPGame {
     this.w.setGateFriendly(b.id, fr);
     // what you see when you look at it
     const d = BUILD[b.type];
-    e.it = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.2, z: b.z, reach: (d.wall ? d.len / 2 : d.r) + 2.2,
+    // (looking at a building offers only what can be done there: climb the tower, trade at the market, set people to
+    //  work a field, open a cabin's door — nothing that's only a description)
+    const act = b.type === "tower" || b.type === "market" || b.type === "field";
+    if (act) e.it = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.2, z: b.z, reach: (d.wall ? d.len / 2 : d.r) + 2.2,
+      can: () => b.type === "tower" || (e.friendly && (b.type === "market" || this.manages())),
       label: () => {
-        const whose = e.mine ? "Your" : `${esc(e.ownerName)}'s`;
-        if (b.type === "tower") return `${whose} watchtower — F to climb`;
-        if (b.type === "market" && e.friendly) return `${whose} market — F: 4 logs for a stone · hold F: a stone for 3 logs`;
-        if (e.mine) return `Your ${d.name.toLowerCase()} — swing at it to take it down (most of it back)`;
-        if (e.friendly || this.mode === "coop") return `${whose} ${d.name.toLowerCase()}`;
-        return `${whose} ${d.name.toLowerCase()}${this.online.has(b.owner) ? " — swing to break it" : " (they're away: it can't be broken)"}`;
+        if (b.type === "tower") return "Climb the watchtower";
+        if (b.type === "market") return "Trade: 4 logs for a stone · hold F: a stone for 3 logs";
+        const on = [...this.settlers.values()].filter(v => v.pin === b.id).map(v => v.name);
+        return `Put someone to work this field${on.length ? ` (${on.join(", ")} ${on.length > 1 ? "work" : "works"} it)` : ""}`;
       },
       use: () => {
         if (b.type === "tower") { const t = (this.w.towers || []).find(q => q.id === b.id); if (!t) return; const pl = G.player; if (pl.pos.y > t.top - 1) { pl.place(b.x + Math.sin(b.ry || 0) * 2.2, b.z + Math.cos(b.ry || 0) * 2.2, pl.yaw); } else { pl.pos.set(b.x, t.top, b.z); pl.vy = 0; } sfx("build"); }
-        else if (b.type === "market" && e.friendly) this.net.send({ t: "trade", want: "stone" });
+        else if (b.type === "market") this.net.send({ t: "trade", want: "stone" });
+        else this.workField(b);
       } });
+    // a cabin's door: F to open it and go in, F to shut it
+    if (e.setDoor) {
+      const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), dx = b.x + 3.05 * sn, dz = b.z + 3.05 * c;
+      e.it3 = this.w.addInteract({ x: dx, y: this.w.heightAt(dx, dz) + 1.2, z: dz, reach: 2.1, label: () => e.doorOpen ? "Close the door" : "Open the door",
+        use: () => { e.setDoor(!e.doorOpen); AUDIO.door && AUDIO.door(e.doorOpen, 0.3); } });
+    }
     if (b.type === "market") e.it2 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.2, z: b.z, reach: d.r + 2.2, hold: 1.2, can: () => e.friendly && this.stock.stone > 0 && input.down("ShiftLeft"), label: "Hold F: a stone for 3 logs", use: () => this.net.send({ t: "trade", want: "wood" }) });
   }
-  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
-  removeB(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); this.w.removeBuilding(id); }
+  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
+  removeB(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); this.w.removeBuilding(id); }
   // ---- what the server says ----
   listen() {
     const n = this.net.on, w = this.w;
@@ -319,6 +331,7 @@ export class MPGame {
       else v.remove();
     };
     n.ss = m => { for (const [id, x, z, yaw, a, sp] of m.l) { const v = this.settlers.get(id); if (v) { v.tx = x; v.tz = z; v.tyaw = yaw; v.anim = a; v.spd = sp; } } };
+    n.spin = m => { const v = this.settlers.get(m.id); if (v) v.pin = m.field || null; };
     n.sjob = m => { const v = this.settlers.get(m.id); if (v) { v.job = m.job; v.tool(); v.setTag(); } };
     n.sh = m => { const v = this.settlers.get(m.id); if (!v) return; blowLands(v.actor, "hit", m.by === this.pid ? G.player : null); v.actor.person.flinch && v.actor.person.flinch(); v.hp = m.hp; };
     n.wars = m => {
@@ -417,6 +430,17 @@ export class MPGame {
     }
   }
   // ---- building ----
+  // who works this field: your people, each to be set to it (or let go from it)
+  workField(b) {
+    if (!this.manages()) { UI.hint(`It's ${this.hostName()}'s settlement: they say who works where.`, 3.5); return; }
+    const mine = [...this.settlers.values()].filter(v => v.owned() && !v.dying);
+    if (!mine.length) { UI.hint("Nobody lives here yet. Raise a cabin, and settlers will come through the woods.", 4); return; }
+    G.openTrade && G.openTrade("Who works this field", "Set someone to farm it: they sow, tend and reap it, and the harvest feeds everyone.", mine.map(v => ({
+      icon: "seeds", label: v.name, note: v.pin === b.id ? "Works this field — click to let them go back to whatever's wanted" : v.pin ? "Works another field" : `Now a ${JOB_NAME[v.job] || v.job}`,
+      get: v.pin === b.id ? "here" : "", can: () => true,
+      do: () => { this.net.send({ t: "assign", sid: v.id, field: v.pin === b.id ? null : b.id }); v.pin = v.pin === b.id ? null : b.id; },
+    })), null);
+  }
   // the plans: the same window, the same rows and pictures as the plans in the settlement (B) — only Frontier's own buildings
   openBuild(on) {
     this.menuOpen = on;
@@ -573,13 +597,22 @@ export class MPGame {
   // ---- the screen ----
   hud(on) {
     $("mpHud").classList.toggle("hidden", !on);
+    clearInterval(this._stockPos); if (on) this._stockPos = setInterval(() => this.placeStock(), 300);
     document.body.classList.toggle("mp", on);
     if (!on) return;
     $("mpRoom").textContent = this.room.persistent ? "The Wide World" : this.room.name;
     $("mpMode").textContent = `${MODES[this.mode]} · ${TERRAINS[this.room.kind] ? TERRAINS[this.room.kind].name : ""}`;
     this.hudStock(); this.hudCount(); this.drawChat();
   }
-  hudStock(flash) { $("mpLogs").textContent = this.stock.wood; $("mpStone").textContent = this.stock.stone; $("mpFood").textContent = this.stock.food | 0; $("mpStock").classList.toggle("hungry", (this.stock.food | 0) <= 0 && this.settlers.size > 0); if (flash) { const e = $("mpStock"); e.classList.remove("flash"); void e.offsetWidth; e.classList.add("flash"); } if (this.menuOpen) this.openBuild(true); }
+  hudStock(flash) {
+    // (as the settlement's own bar: its pictures, under the objective)
+    const IC = G.icons || {}, el = $("mpStock");
+    el.innerHTML = `<span class="tb" title="logs"><img src="${IC.logs || ""}" alt=""><b id="mpLogs">${this.stock.wood}</b></span><span class="tb" title="stone"><img src="${IC.stone || ""}" alt=""><b id="mpStone">${this.stock.stone}</b></span><span class="tb" title="food"><img src="${IC.bread || IC.rye || ""}" alt=""><b id="mpFood">${this.stock.food | 0}</b></span>`;
+    el.classList.toggle("hungry", (this.stock.food | 0) <= 0 && this.settlers.size > 0);
+    if (flash) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+    if (this.menuOpen) this.openBuild(true);
+  }
+  placeStock() { const ob = $("objective"), on = ob && !ob.classList.contains("hidden"); $("mpStock").style.top = (on ? ob.offsetTop + ob.offsetHeight + 8 : 24) + "px"; }
   hudCount() { const n = this.remotes.size + 1; $("mpCount").textContent = `${n} ${n === 1 ? "person" : "people"} here`; }
   toast(text) { const e = $("mpToast"); e.textContent = text; e.classList.remove("hidden", "bad"); this.toastT = 2.6; }
   warn(text) { const e = $("mpToast"); e.textContent = text; e.classList.remove("hidden"); e.classList.add("bad"); this.toastT = 4; sfx("deny"); }
@@ -642,9 +675,11 @@ export class MPGame {
   key(e) {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return false;
     if (G.mode !== "play" || e.repeat) return ["Tab", "KeyB", "KeyT", "KeyP", "KeyG", "KeyH", "KeyV"].includes(e.code) && G.mode === "play";
-    if (e.code === "Enter" || e.code === "KeyT") { e.preventDefault(); this.openChat(); return true; }
+    // (Enter to talk — T is the inventory, as everywhere else)
+    if (e.code === "Enter") { e.preventDefault(); this.openChat(); return true; }
     if (e.code === "Tab") { e.preventDefault(); this.toggleList(); return true; }
     if (e.code === "KeyN" && !this.invite) { this.toggleNews(); return true; }
+    if (e.code === "KeyB" && !this.manages() && !this.build) { UI.hint(`It's ${this.hostName()}'s settlement: they lay out what's built. Fell trees and bring the logs — that's how it goes up.`, 4.5); return true; }
     if (e.code === "KeyB") { if (this.build) this.endBuild(); else { const on = !this.menuOpen; this.openBuild(on); if (on) G.releaseMouse && G.releaseMouse(); else G.lockMouse && G.lockMouse(); } return true; }
     if (this.menuOpen && /^Digit\d$/.test(e.code)) { const i = (+e.code.slice(5) + 9) % 10, k = BUILD_ORDER[i]; const d = BUILD[k]; if (k && this.stock.wood >= d.wood && this.stock.stone >= d.stone) this.startBuild(k); return true; }
     if (this.invite && (e.code === "KeyY" || e.code === "KeyN")) { this.net.send({ t: e.code === "KeyY" ? "allyok" : "allyno", pid: this.invite.pid }); $("mpInvite").classList.add("hidden"); this.invite = null; return true; }

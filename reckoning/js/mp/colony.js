@@ -48,7 +48,13 @@ export class ColonyBase {
     if ((b.hunger ?? 1) < 0.3) return "You're hungry — eat what you carry (press its number), or hunt in the deer ride and cook the meat at the fire (F)";
     if (pl.carryN) return `Carry your ${pl.carryN} log${pl.carryN > 1 ? "s" : ""} to a building site, or put ${pl.carryN > 1 ? "them" : "it"} on the ${shed ? "woodshed" : "stack"} by the cabin (F)`;
     if (!pl.hasBow) return logs >= 2 ? "Make a hunting bow: F at the chopping block by the cabin (2 logs from the stack)" : "Fell a tree (click with the axe) and stack its logs (F) — two make a hunting bow at the chopping block";
-    if ((pl.arrows || 0) < 4) return "Make arrows: F at the chopping block — a log and a stone for a dozen (stone: break a grey rock with the axe)";
+    if ((pl.arrows || 0) < 4) {
+      // (arrows want a stone, and stone wants a pickaxe: that first, if there's no stone to be had)
+      const stone = (S.stone || 0) + (((G.pack || []).find(i => i.icon === "stone") || {}).n || 0);
+      if (!stone && !(tl.pick > 0)) return logs >= 2 ? "Make a pickaxe: F at the chopping block (2 logs) — you'll need it to break stone for arrows" : "Fell a tree and stack its logs (F) — two make a pickaxe at the chopping block, for breaking stone";
+      if (!stone) return "Break a grey rock for stone: take out the pickaxe (its number) and swing at one — then make arrows at the chopping block";
+      return "Make arrows: F at the chopping block — a log and a stone for a dozen";
+    }
     if (!tl.canteen) return "Make a canteen at the chopping block (F) — fill it at the brook (its number), then press its number by the fire to boil it";
     const site = S.buildings.find(x => !x.done && !x.gone && BUILDINGS[x.type] && !["path", "field", "fence", "wall"].includes(x.type));
     if (site) return `Help raise the ${BUILDINGS[site.type].name.toLowerCase()}: fell trees, take the logs (F) and carry them to its site (F there)`;
@@ -102,6 +108,8 @@ export class ColonyBase {
     if (G.mode !== "play" || e.repeat) return false;
     // (lying in bed waiting for the others: a step, and you're up again)
     if (this.inBed && /^(KeyW|KeyA|KeyS|KeyD|Space)$/.test(e.code)) { this.outOfBed(); return true; }
+    // (a guest in the colony: the plans and the government are the host's)
+    if (!this.host && this.hostRuns && (e.code === "KeyB" || e.code === "KeyG")) { this.hostRuns(e.code === "KeyB" ? "lays out what's built" : "runs the government"); return true; }
     if (e.code === "Enter") { e.preventDefault(); this.openChat(); return true; }
     return false;
   }
@@ -281,6 +289,7 @@ export class ColonyHost extends ColonyBase {
     if (m.t === "hello") return this.snapshot(g.from);
     if (m.t === "act") { try { this.act(g.from, m); } catch (e) { console.warn("colony: a guest's action failed", m.a, e); } }
   }
+  notYours(pid, what) { this.net.send({ t: "h", to: pid, m: { t: "say", said: [`It's ${this.me.name}'s settlement — ${this.me.name} ${what}. You can fell, carry, build, hunt and fight.`] } }); }
   guest(pid) { return (this.guests ??= {})[pid] ??= { carryN: 0 }; }
   // something done as the guest: you (this game's player) stood aside for a moment, and they stand where they are,
   // facing as they face, carrying what they carry; what the game says to them is caught and sent to them
@@ -352,16 +361,11 @@ export class ColonyHost extends ColonyBase {
         });
         return;
       }
-      case "plan": {
-        const b = m.b; if (!b || !BUILDINGS_OK(b.type)) return;
-        return this.runAs(pid, m.at, () => {
-          if (!town.fits(b.type, b.x, b.z, b.ry)) return "Something's in the way there now.";
-          if (b.type === "field" && (town.S.seed || 0) < 1) return "There's no rye seed to sow a field with.";
-          town.commitPlan({ type: b.type, x: b.x, z: b.z, ry: b.ry, logs: 0, dug: 0, done: !!b.done });
-        });
-      }
+      // (laying out what's built is the host's: it's their settlement)
+      case "plan": return this.notYours(pid, "lays out what's built");
       case "call": {
         if (!CALLS.has(m.fn) || typeof town[m.fn] !== "function") return;
+        if (MANAGE.has(m.fn)) return this.notYours(pid, "runs the settlement");
         return this.runAs(pid, m.at, () => town[m.fn](...(m.args || []).map(v => this.deref(v))));
       }
       case "rparry": {
@@ -380,12 +384,9 @@ export class ColonyHost extends ColonyBase {
       case "set": {
         // the settlement's own settings changed from their screens (jobs, names, laws, taxes…): put into ours
         const S = town.S;
-        for (const [k, v] of Object.entries(m.d || {})) {
-          if (k === "buildings" || k === "felled" || k === "logs") continue;     // (those change only by what's done)
-          if (k === "people" && Array.isArray(v)) { for (const np of v) { const op = S.people.find(p => p.name === np.name); if (op) Object.assign(op, np); } continue; }
-          if (k === "colonies" && Array.isArray(v)) { for (const nc of v) { const oc = (S.colonies || []).find(c => c.name === nc.name); if (oc) Object.assign(oc, nc); } continue; }
-          S[k] = v;
-        }
+        // (settings — jobs, laws, names — are the host's; what was taken from or put in the stores counts from anyone)
+        // (save the dishes put in the stores for the settlement's table — those count from anyone)
+        if (Array.isArray((m.d || {}).feast)) S.feast = m.d.feast;
         // (counts — the stores, the treasury — as what was added or taken, so two people at the stores at once both count)
         for (const [k, v] of Object.entries(m.inc || {})) if (typeof v === "number" && isFinite(v) && (S[k] == null || typeof S[k] === "number")) S[k] = Math.max(0, (S[k] || 0) + v);
         town.persist(); town.showStore && town.showStore();
@@ -405,6 +406,8 @@ export class ColonyHost extends ColonyBase {
 }
 // what the others may ask the colony's game to do, from the government and the buildings' own screens
 const CALLS = new Set(["research", "recruit", "train", "upgrade", "upgradeHome", "repair", "makePeace", "leave", "enlargeRoom", "enlarge", "dismantle", "claim", "chooseJob", "stableIt"]);
+// (and of those, what's the running of it — the host's alone: it's their settlement)
+const MANAGE = new Set(["research", "recruit", "train", "upgrade", "upgradeHome", "makePeace", "leave", "enlargeRoom", "enlarge", "dismantle", "claim", "chooseJob"]);
 const BUILDINGS_OK = type => typeof type === "string" && /^[a-z_]+$/.test(type);
 
 // ---------------------------------------------------------------------------
@@ -471,6 +474,7 @@ export class ColonyGuest extends ColonyBase {
     if (m.t === "morning") { if (this.inBed) { if (m.natural) this.outOfBed(true); else this.wake(); } return; }
     if (m.t === "hx") { if (G.hunt && G.hunt.w === this.w) G.hunt.puppets(m.l || []); return; }
   }
+  hostRuns(what = "runs the settlement") { const h = this.room.host || "the host"; UI.hint(`It's ${h}'s settlement — ${h} ${what}. You can fell, carry, help raise what's planned, hunt and fight.`, 5); }
   // your arrow in one of the host's beasts: told to their game, where it's brought down (or not)
   huntHit(a, power, head) { this.send("hunthit", { id: a.netId, power: +(+power).toFixed(2), head: !!head }); }
   // what you do here goes to the host's game, to be done there
@@ -500,7 +504,8 @@ export class ColonyGuest extends ColonyBase {
     town.remoteAct = (a, b) => this.send(a, { b: { type: b.type, x: b.x, z: b.z, ry: b.ry, done: !!b.done } });
     // the government's doings
     for (const fn of ["research", "recruit", "train", "upgrade", "upgradeHome", "repair", "makePeace", "leave", "enlargeRoom", "enlarge", "dismantle", "claim", "chooseJob", "stableIt"])
-      town[fn] = (...args) => { this.send("call", { fn, args: args.map(v => this.ref(v)) }); return null; };
+      town[fn] = (...args) => { if (MANAGE.has(fn)) { this.hostRuns(); return null; } this.send("call", { fn, args: args.map(v => this.ref(v)) }); return null; };
+    town.plan = () => this.hostRuns("lays out what's built");
     town.recruitCost = () => Math.max(4, 12 - 2 * (town.hallTier || 0));
     // and what's changed straight in the settlement from a screen (a job, a law, a name): sent when it would be saved
     this.hostJSON = {};

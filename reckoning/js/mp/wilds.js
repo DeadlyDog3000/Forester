@@ -252,13 +252,23 @@ export class Wilds extends WorldBase {
     }
     const rect = (w, dd, h = 4) => { const sw = Math.abs(Math.sin(b.ry || 0)) > 0.5; cols.push(this.col.addRect(b.x, b.z, sw ? dd : w, sw ? w : dd, y + h)); };
     if (d.model) {
-      const put = () => { const m = modelCopy(d.model); if (m) { g.add(m.scene); return true; } return false; };
+      const put = () => { const m = modelCopy(d.model); if (m) { g.add(m.scene); g.userData.door = m.scene.getObjectByName("door") || null; return true; } return false; };
       if (!put()) {
         // (a stand-in until the model's there: a plain block of the right size)
         const ph = new THREE.Mesh(new THREE.BoxGeometry(d.w || 4, 2.6, d.d || 4), mat(0x7a5a3a)); ph.position.y = 1.3; g.add(ph);
         ensureModel(d.model).then(ok => { if (ok && this.blds.has(b.id)) { g.remove(ph); put(); } });
       }
-      rect((d.w || 4) * 0.9, (d.d || 4) * 0.9, 5);
+      if (b.type === "cabin") {
+        // (a cabin you can go into, as the one in the clearing: log walls all round, and the doorway in the front the only way in)
+        const c0 = Math.cos(b.ry || 0), s0 = Math.sin(b.ry || 0);
+        const circle = (lx, lz, r) => cols.push(this.col.addCircle(b.x + lx * c0 + lz * s0, b.z - lx * s0 + lz * c0, r, y + 3));
+        const wall = (lx0, lz0, lx1, lz1) => { const n = Math.ceil(Math.hypot(lx1 - lx0, lz1 - lz0) / 0.45); for (let i = 0; i <= n; i++) circle(lx0 + (lx1 - lx0) * i / n, lz0 + (lz1 - lz0) * i / n, 0.28); };
+        wall(-2.55, -3.05, 2.55, -3.05); wall(-2.55, -3.05, -2.55, 3.05); wall(2.55, -3.05, 2.55, 3.05);
+        wall(-2.55, 3.05, -0.95, 3.05); wall(0.95, 3.05, 2.55, 3.05);
+        circle(-1.2, -3.6, 0.6);
+        // the door, while it's shut (F at it opens it, as the cabin's in the clearing)
+        g.userData.doorCols = [-0.45, 0, 0.45].map(lx => { circle(lx, 3.05, 0.26); return cols[cols.length - 1]; });
+      } else rect((d.w || 4) * 0.9, (d.d || 4) * 0.9, 5);
     } else if (b.type === "hearth") {
       const bl = new Builder();
       for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; bl.add(new THREE.DodecahedronGeometry(0.2, 0), 0x6e6b62, Math.cos(a) * 0.62, 0.1, Math.sin(a) * 0.62, i, i * 2, 0, 1.1, 0.8, 1.0, 0.1); }
@@ -321,6 +331,11 @@ export class Wilds extends WorldBase {
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     this.root.add(g);
     const e = { b, g, cols, hp: b.hp, shake: 0 };
+    // (a door that swings in on its hinge, and lets you through when it's open)
+    if (g.userData.doorCols) e.setDoor = open => {
+      e.doorOpen = open; for (const c of g.userData.doorCols) c.disabled = open;
+      const dr = g.userData.door; if (dr) dr.rotation.y = open ? 1.45 : 0;
+    };
     this.blds.set(b.id, e);
     return e;
   }
