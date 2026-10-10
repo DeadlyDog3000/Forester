@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.83.0", date: "10 October 2026", title: "Black powder",
+    items: [
+      "Musket and cannon smoke has been made again to behave like black powder. Each shot throws a dense white jet out of the muzzle that brakes hard within a couple of paces and rolls over into a lumpy cloud, lit on top and grey underneath. It hangs there, swelling and thinning, lifting a little and drifting off down the wind until it's a haze you can see through, and then gone.",
+      "A musket's smoke lingers for several seconds, and a little puff goes up out of the flintlock's pan. A cannon's lingers for the better part of half a minute, leaving a wide, faint haze over the ground and a wisp from the touch-hole.",
+      "The flash is now a burst of light and a spray of sparks, there and gone. Muskets no longer make a new light for it, which could stall the game for a moment.",
+      "The smoke is dimmed to the light there is, so it doesn't glow at dusk or at night.",
+    ],
+  },
+  {
     v: "0.82.0", date: "10 October 2026", title: "Sworn to come",
     items: [
       "Allies come to each other's defence in Classic. When a nation is attacked, every one of its allies who's playing is told, with a call to arms in the nations screen (N). Press Go to their aid and you ride into your ally's settlement, as their game has it, while the raid is on.",

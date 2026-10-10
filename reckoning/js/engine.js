@@ -10,6 +10,7 @@ import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, A
 import { renderFrame, post } from "./post.js";
 export { post };
 import { makeMusket, makeCrossbow } from "./models.js";
+import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
@@ -1093,27 +1094,14 @@ G.wear = (k, n = 1) => {
     else if (pl && pl.axe && k === "axe" && (pl.blade || "axe") === "axe") pl.wield("axe");
   }
 };
-// a shot's smoke: a grey cloud out of the muzzle, drifting and spreading, gone in a few seconds
-let _smokeTex = null;
+// a shot's smoke: the flash at the muzzle, the jet of powder smoke rolling out and hanging, and the puff from the pan
+// (powder.js); no new light for the flash, which would stall the game a moment as it was made
 function gunSmoke(at, dir) {
   if (!G.world) return;
-  if (!_smokeTex) { const cv = document.createElement("canvas"); cv.width = cv.height = 64; const x = cv.getContext("2d"), gr = x.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, "rgba(255,255,255,0.85)"); gr.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); _smokeTex = new THREE.CanvasTexture(cv); }
-  const puffs = [];
-  for (let i = 0; i < 9; i++) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: _smokeTex, color: 0xd8d4cc, transparent: true, opacity: 0.6, depthWrite: false }));
-    s.position.copy(at).addScaledVector(dir, 0.3 + i * 0.25); s.scale.setScalar(0.3);
-    s.userData.v = dir.clone().multiplyScalar(2.5 - i * 0.2).add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.3 + Math.random() * 0.3, (Math.random() - 0.5) * 0.4));
-    G.world.root.add(s); puffs.push(s);
-  }
-  const flash = new THREE.PointLight(0xffc070, 30, 12, 1.6); flash.position.copy(at).addScaledVector(dir, 0.2); G.world.root.add(flash);
-  let t = 0;
-  const tick = dt => {
-    t += dt;
-    flash.intensity = Math.max(0, 30 * (1 - t / 0.07));
-    for (const s of puffs) { s.position.addScaledVector(s.userData.v, dt); s.userData.v.multiplyScalar(Math.pow(0.25, dt)); s.userData.v.y += dt * 0.15; s.scale.setScalar(0.3 + t * 1.1); s.material.opacity = Math.max(0, 0.6 * (1 - t / 4)); }
-    if (t > 4) { for (const s of puffs) { G.world && G.world.root.remove(s); s.material.dispose(); } G.world && G.world.root.remove(flash); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
-  };
-  G.onFrame.push(tick);
+  muzzleFlash(G.world.root, at, dir, 1);
+  powderSmoke(G.world.root, at, dir, { scale: 1, life: 7, n: 14, speed: 9 });
+  const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+  panPuff(G.world.root, at.clone().addScaledVector(dir, -0.95).addScaledVector(side, 0.06));
 }
 // (a shot puts the birds up out of the woods round about)
 G.gunSmoke = (at, dir) => { gunSmoke(at, dir); if (G.startleBirds && Math.random() < 0.7) G.startleBirds(at.x + dir.x * 25, at.z + dir.z * 25); };

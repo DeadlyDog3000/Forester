@@ -15,6 +15,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { mat } from "./core.js";
 import { shake, kickFov } from "./fight.js";
+import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 
 const RELOAD = 7, SPEED = 58, GRAV = 9.8, TRAVERSE = 0.9, ELEV = [-0.06, 0.42];
 
@@ -129,14 +130,6 @@ function cloud(root, at, dir, { n = 10, colour = 0xd8d4cc, life = 4, speed = 4, 
   };
   G.onFrame.push(tick);
 }
-function flash(root, at, size = 2.4) {
-  puffTex();
-  const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLASH, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
-  m.position.copy(at); m.scale.setScalar(size); root.add(m);
-  let t = 0;
-  const tick = dt => { t += dt; m.material.opacity = Math.max(0, 1 - t / 0.12); m.scale.setScalar(size * (1 + t * 3)); if (t > 0.13) { root.remove(m); m.material.dispose(); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); } };
-  G.onFrame.push(tick);
-}
 
 // ---- the guns of a settlement ----
 export class Artillery {
@@ -202,8 +195,10 @@ export class Artillery {
     const yaw = this.facing(gun), dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(gun.pitch), Math.sin(gun.pitch), -Math.cos(yaw) * Math.cos(gun.pitch));
     // (fired by the watch: they aim, as well as they can, at the nearest of the enemy)
     this.balls.push({ p: at.clone(), v: dir.clone().multiplyScalar(SPEED), hits: new Set(), bounces: 0, t: 0, mesh: this.ballMesh(at) });
-    flash(root, at.clone().addScaledVector(dir, 0.4), 2.8);
-    cloud(root, at.clone().addScaledVector(dir, 0.6), dir, { n: 14, life: 5, speed: 6, size: 1.6, opacity: 0.6 });
+    muzzleFlash(root, at.clone().addScaledVector(dir, 0.2), dir, 3);
+    powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 18, n: 30, speed: 17, haze: true });
+    // (and a wisp from the touch-hole, going up)
+    { const m = gun.model.userData.barrel; m.updateMatrixWorld(true); panPuff(root, m.localToWorld(new THREE.Vector3(0, 0.2, 0.6)), 1.4); }
     AUDIO.cannon ? AUDIO.cannon(1, at) : AUDIO.gunshot && AUDIO.gunshot(1.4, at);
     const d = Math.hypot(at.x - G.player.pos.x, at.z - G.player.pos.z);
     if (d < 40) { shake(Math.max(0.15, 1 - d / 40)); if (this.manned === gun) { kickFov(9); G.hitShake = 0.6; } }
