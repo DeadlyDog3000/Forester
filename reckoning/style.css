@@ -1067,3 +1067,19 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 .nt-sw .sw.on { border-color: #2b1d10 !important; box-shadow: 0 0 0 2px #e8d9b0; }
 .nt-flagform select { font: 13px var(--serif); padding: 2px 4px; background: #fbf5e4; border: 1px solid #8a7050; color: #2b1d10; }
 @media (max-width: 640px) { .nt-flagform { grid-template-columns: 1fr; } .nt-flag.huge { width: 144px; height: 96px; } }
+
+/* ---- the title's menu: the three things you came for, large; everything else in a tidy grid of small ones below ---- */
+#title .title-menu { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px 22px 16px; border-radius: 6px;
+  background: radial-gradient(ellipse 70% 80% at 50% 50%, rgba(6, 12, 8, 0.55), rgba(6, 12, 8, 0) 75%); }
+#title .tm-main { display: flex; flex-direction: column; gap: 9px; align-items: center; }
+#title .tm-main .btn { width: 310px; padding: 13px 22px; font-size: 16px; letter-spacing: 0.12em; }
+#title .tm-main #btnContinue { padding: 15px 22px; font-size: 18px; }
+#title .tm-grid { display: grid; grid-template-columns: repeat(2, 151px); gap: 7px 8px; }
+#title .tm-grid .btn { width: auto !important; min-width: 0; padding: 8px 10px; font: 600 12px var(--sans); letter-spacing: 0.14em; text-transform: uppercase;
+  background: rgba(246, 236, 208, 0.12) !important; color: #f3e7c6 !important; border: 1px solid rgba(246, 236, 208, 0.32) !important; box-shadow: none !important; transition: background 0.15s, border-color 0.15s, transform 0.15s; }
+#title .tm-grid .btn:hover, #title .tm-grid .btn:focus-visible { background: rgba(246, 236, 208, 0.24) !important; border-color: #e8d9b0 !important; transform: translateY(-1px); }
+#title .tm-grid .btn.hidden { display: none; }
+#title .tm-grid #btnQuitGame { opacity: 0.85; }
+#menus .btn:focus-visible { outline: 2px solid #e8d9b0; outline-offset: 2px; }
+@media (max-height: 760px) { #title .tm-main .btn { padding: 9px 20px; font-size: 14px; } #title .tm-main #btnContinue { padding: 11px 20px; font-size: 16px; } #title .tm-grid .btn { padding: 6px 8px; } #title .title-menu { gap: 10px; padding: 10px 16px; } }
+@media (max-width: 420px) { #title .tm-main .btn { width: min(310px, calc(100vw - 32px)); } #title .tm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(310px, calc(100vw - 32px)); } }

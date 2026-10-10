@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.81.0", date: "10 October 2026", title: "A clearer front door",
+    items: [
+      "The title menu has been rearranged. The three things you came for are large and first: Continue (with your game and save under it), New Game and Multiplayer.",
+      "Everything else (Chapters, Saves, Achievements, Settings, Controls, What's new, Credits and Quit) sits in a neat grid of smaller buttons beneath, all in one style. Before, eleven buttons were stacked in a column in two different styles.",
+      "A soft shadow behind the menu keeps it readable against the painting, and the buttons lift as the pointer passes.",
+      "The menus work from the keyboard: the up and down arrows move between buttons, with a clear outline on the one that's chosen, and Enter presses it.",
+    ],
+  },
+  {
     v: "0.80.0", date: "10 October 2026", title: "Something to aim for",
     items: [
       "Objectives in multiplayer's Frontier games. The board in the corner now leads you through making a homestead, one thing after another, with how far along you are. Fell your first logs, then raise a hearth, a cabin, your first settler, a field, a woodshed, stone, a palisade and gate, a watchtower, six settlers, a forge, an alliance or a claim war, and finally twelve settlers.",

@@ -283,6 +283,15 @@ initLobby({
   },
 });
 $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
+// the menus by keyboard: up and down through the buttons of the screen that's up (Enter presses one, as ever)
+addEventListener("keydown", e => {
+  if (G.mode === "play" || !/^Arrow(Up|Down)$/.test(e.code) || /^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName)) return;
+  const scr = [...document.querySelectorAll("#menus .screen")].find(s => !s.classList.contains("hidden")); if (!scr) return;
+  const bs = [...scr.querySelectorAll("button")].filter(b => b.offsetParent && !b.disabled); if (!bs.length) return;
+  e.preventDefault();
+  const i = bs.indexOf(document.activeElement), n = e.code === "ArrowDown" ? (i + 1) % bs.length : (i <= 0 ? bs.length - 1 : i - 1);
+  bs[n].focus(); window.__uisfx && window.__uisfx.hover();
+});
 $("btnControls").onclick = () => { back = "title"; screen("controls"); };
 $("btnUpdates").onclick = () => { back = "title"; screen("updates"); };
 $("btnCredits").onclick = () => { back = "title"; screen("credits"); };
