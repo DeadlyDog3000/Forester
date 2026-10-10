@@ -56,9 +56,9 @@ export const TOOL_RECIPES = [
   { tool: "hammer", tier: 3, name: "Copper hammer", cost: { logs: 1, copper: 3 }, note: "Quicker again." },
   { tool: "hammer", tier: 4, name: "Bronze hammer", cost: { logs: 1, bronze: 3 }, note: "Quicker again." },
   { tool: "hammer", tier: 5, name: "Iron hammer", cost: { logs: 1, iron: 3 }, note: "A building raised in half the time." },
-  { tool: "pack", tier: 1, name: "Hide backpack", cost: { hide: 4 }, note: "Four hides, laced. Twelve slots on your back instead of six." },
-  { tool: "pack", tier: 2, name: "Stitched pack", cost: { hide: 6, logs: 1 }, note: "Doubled hide on a bent-wood frame: eighteen slots." },
-  { tool: "pack", tier: 3, name: "Pedlar's frame pack", cost: { hide: 8, logs: 2, iron: 1 }, note: "A wooden frame with an iron buckle, as the pedlars carry: twenty-seven slots." },
+  { tool: "pack", tier: 1, name: "Hide backpack", cost: { hide: 4 }, note: "Four hides, laced: a pack ten squares by five, instead of what a sack over your shoulder holds (ten by four)." },
+  { tool: "pack", tier: 2, name: "Stitched pack", cost: { hide: 6, logs: 1 }, note: "Doubled hide on a bent-wood frame: ten squares by six." },
+  { tool: "pack", tier: 3, name: "Pedlar's frame pack", cost: { hide: 8, logs: 2, iron: 1 }, note: "A wooden frame with an iron buckle, as the pedlars carry: twelve squares by six." },
   { tool: "sword", tier: 1, name: "Wooden sword", cost: { logs: 2 }, note: "Better than your fists when they come up the road. Not much better." },
   { tool: "sword", tier: 3, name: "Copper sword", cost: { logs: 1, copper: 4 }, note: "A real blade, of your own. It bends." },
   { tool: "sword", tier: 4, name: "Bronze sword", cost: { logs: 1, bronze: 4 }, note: "Cast bronze, ground to a point: the plain blade of the age." },
@@ -66,6 +66,7 @@ export const TOOL_RECIPES = [
   { tool: "bow", tier: 1, name: "Hunting bow", cost: { logs: 2 }, note: "A self bow of ash, cut from a stave and strung with sinew. Hold right-click to draw, let go to loose — for the deer ride, and for the road when they come up it. It wants arrows." },
   { tool: "arrows", item: 12, tier: 0, name: "Arrows (a dozen)", cost: { logs: 1, stone: 1 }, note: "Shafts of split ash, fletched, with knapped stone heads." },
   { tool: "crossbow", tier: 5, name: "Crossbow", cost: { planks: 2, iron: 2, hide: 1 }, note: "A steel-bowed crossbow, spanned with a crank. Slow to load, but a bolt flies flat and hits harder than any arrow. It wants bolts." },
+  { tool: "rod", tier: 1, name: "Fishing rod", cost: { logs: 1 }, note: "A long hazel pole in two lengths, a horsehair line, a quill float and a bent-pin hook. Take it out at the pond, click to cast, and click again the moment the float goes right under." },
   { tool: "canteen", tier: 1, name: "Canteen", cost: { logs: 2 }, note: "A little wooden costrel on a cord: four drinks. Fill it at a well, the brook or the pond, and boil what's in it at the fire (press its number there) so it won't make you ill. Press its number anywhere else to drink." },
   { tool: "canteen", tier: 2, name: "Leather canteen", cost: { leather: 2 }, note: "A leather bottle, waxed inside and stitched: six drinks instead of four." },
   { tool: "coat", tier: 1, name: "Buff coat", cost: { leather: 5 }, note: "A thick coat of oiled leather, as the soldiers wear under their armour: every blow takes a fifth less off you." },
@@ -140,7 +141,7 @@ export const ITEM = {
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, thirst: 1, water: { n: 0, kind: null }, ill: null, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0, crossbow: 0, bolts: 0, canteen: 0, coat: 0 }, plague: 0, purse: 0 };
+  return { hunger: 1, thirst: 1, water: { n: 0, kind: null }, ill: null, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0, crossbow: 0, bolts: 0, canteen: 0, coat: 0, rod: 0 }, plague: 0, purse: 0 };
 }
 export function restoreBody(saved) {
   const b = freshBody();
@@ -151,6 +152,7 @@ export function restoreBody(saved) {
     if (saved.water && WATER_KINDS.includes(saved.water.kind)) b.water = { n: Math.max(0, Math.min(8, saved.water.n | 0)), kind: saved.water.kind };
     if (saved.ill && ILLS[saved.ill.id] && saved.ill.t > 0) b.ill = { id: saved.ill.id, t: Math.min(ILLS[saved.ill.id].secs, +saved.ill.t) };
     if (saved.purse > 0) b.purse = Math.floor(saved.purse);
+    if (saved.gridPos && typeof saved.gridPos === "object") b.gridPos = saved.gridPos;
     // (before bronze there were four makings, and 4 was iron: those are 5 now)
     if (saved.tools) for (const k of Object.keys(b.tools)) if (saved.tools[k] != null) { let v = saved.tools[k] | 0; if (!saved.tools.v && v >= 4) v = 5; b.tools[k] = k === "bolts" ? Math.max(0, Math.min(999, saved.tools[k] | 0)) : Math.min(TOP_TIER, Math.max(b.tools[k], v)); }
     if (saved.wear && typeof saved.wear === "object") { b.wear = {}; for (const [k, w] of Object.entries(saved.wear)) if (w && b.tools[k] === w.t && w.n > 0) b.wear[k] = { t: w.t, n: +w.n }; }
@@ -161,7 +163,7 @@ export function restoreBody(saved) {
   }
   return b;
 }
-export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), thirst: +(b.thirst ?? 1).toFixed(3), water: b.water && b.water.n ? b.water : undefined, ill: b.ill || undefined, skills: b.skills, tools: { ...b.tools, v: 2 }, wear: b.wear || {}, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
+export const bodyToSave = b => ({ gridPos: b.gridPos || undefined, hunger: +b.hunger.toFixed(3), thirst: +(b.thirst ?? 1).toFixed(3), water: b.water && b.water.n ? b.water : undefined, ill: b.ill || undefined, skills: b.skills, tools: { ...b.tools, v: 2 }, wear: b.wear || {}, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
 // what the traders give for what you have gathered yourself and put in your chest, a piece
 export const SELL_PRICE = { leather: 4, hide: 1.5, meat: 2, venison: 3, hare: 2, boar: 4, fish: 1.5, mushrooms: 0.5, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
 // the plague, from meat eaten raw: how long it lasts if nobody tends you
@@ -234,15 +236,59 @@ export function hungerTick(b, dt, running) {
   if (Math.floor(before * 50) !== Math.floor(b.hunger * 50)) b.dirty = true;
 }
 
-// ---- what you can carry: slots on your back, a dozen of a thing to a slot; a backpack gives more ----
-export const PACK_SLOTS = [6, 12, 18, 27], STACK = 12;
-// (a key, a map, a spade take a slot of their own and don't stack)
-const LOOSE = new Set(["key", "map", "spade", "ledger", "door"]);
-export function packSlots(body) { return PACK_SLOTS[Math.min(3, (body && body.tools && body.tools.pack) || 0)]; }
-export function slotsUsed(pack) { return pack.reduce((a, i) => a + (LOOSE.has(i.icon) || i.n == null ? 1 : Math.ceil((i.n || 1) / STACK)), 0); }
-// how many more of a thing fit
+// ---- what you can carry: a pack laid out as a grid, as a pedlar packs his: every thing takes the room it takes —
+// an axe two squares by two, the bow a long one by four, a fish one by two, a handful of stone one square, a dozen of
+// it to the square. Your tools and the bow ride in it too. A backpack gives a bigger grid. ----
+export const GRID = [[10, 4], [10, 5], [10, 6], [12, 6]], STACK = 12;
+// (kept for what still counts in slots: the number of squares)
+export const PACK_SLOTS = GRID.map(([w, h]) => w * h);
+// (a key, a map, a spade, a dish take a place of their own and don't pile up)
+const LOOSE = new Set(["key", "map", "spade", "ledger", "door", "dish"]);
+const SIZE = { axe: [2, 2], pick: [2, 2], spade: [1, 3], hammer: [1, 2], sword: [1, 3], weapon: [1, 3], bow: [1, 4], arrows: [1, 2], rod: [1, 4], canteen: [1, 2],
+  musket: [1, 4], crossbow: [2, 2], bolts: [1, 2], map: [2, 2], ledger: [2, 2], door: [2, 2], fish: [1, 2], meat: [2, 2], venison: [2, 2], hare: [1, 2], boar: [2, 2],
+  cookedmeat: [1, 2], hide: [2, 2], leather: [2, 2], rye: [2, 2], planks: [1, 3], tools: [1, 2] };
+const STACK_OF = { hide: 4, leather: 4, meat: 4, venison: 3, boar: 3, hare: 4, fish: 4, cookedmeat: 6, planks: 6, rye: 25 };
+export function itemSize(icon) { const k = String(icon || "").replace(/\d+$/, ""); return SIZE[icon] || SIZE[k] || [1, 1]; }
+export function stackOf(it) { return it.n == null || LOOSE.has(it.icon) ? 1 : (STACK_OF[it.icon] || STACK); }
+export function gridSize(body) { return GRID[Math.min(3, (body && body.tools && body.tools.pack) || 0)]; }
+export function packSlots(body) { const [w, h] = gridSize(body); return w * h; }
+// (your tools, as things in the grid: the game says which — see setToolItems)
+let toolItems = () => [];
+export function setToolItems(f) { toolItems = f; }
+// where everything goes: what has a place of its own keeps it; the rest goes wherever there's room, down the columns
+// from the left. Returns the pieces placed (each a pile of a thing, or a tool), what didn't fit, and the grid
+export function packLayout(pack, body, tools = toolItems()) {
+  const [W, H] = gridSize(body), occ = new Int16Array(W * H).fill(-1), all = [], over = [];
+  const fits = (x, y, w, h) => { if (x < 0 || y < 0 || x + w > W || y + h > H) return false; for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (occ[j * W + i] >= 0) return false; return true; };
+  const mark = (p, x, y) => { p.x = x; p.y = y; p.placed = true; for (let j = y; j < y + p.h; j++) for (let i = x; i < x + p.w; i++) occ[j * W + i] = p.id; };
+  for (const t of tools) { const [w, h] = itemSize(t.icon); all.push({ it: t, tool: true, k: 0, n: t.n, w, h }); }
+  for (const it of pack) {
+    const s = stackOf(it), cnt = Math.max(1, Math.ceil((it.n || 1) / s)), [w, h] = itemSize(it.icon);
+    for (let k = 0; k < cnt; k++) all.push({ it, k, n: it.n == null ? null : Math.min(s, (it.n || 1) - k * s), w, h });
+  }
+  all.forEach((p, i) => { p.id = i; });
+  const gp = body ? (body.gridPos || (body.gridPos = {})) : {};
+  const posOf = p => p.tool ? gp[p.it.key] : (p.it.pos || [])[p.k];
+  const keep = (p, x, y) => { if (p.tool) gp[p.it.key] = [x, y]; else { const a = p.it.pos || (p.it.pos = []); a[p.k] = [x, y]; } };
+  for (const p of all) { const at = posOf(p); if (at && fits(at[0], at[1], p.w, p.h)) mark(p, at[0], at[1]); }
+  for (const p of all) {
+    if (p.placed) continue;
+    let done = false;
+    for (let x = 0; x < W && !done; x++) for (let y = 0; y < H && !done; y++) if (fits(x, y, p.w, p.h)) { mark(p, x, y); keep(p, x, y); done = true; }
+    if (!done) over.push(p);
+  }
+  return { W, H, pieces: all.filter(p => p.placed), over, occ, fits };
+}
+export function slotsUsed(pack, body) { const L = packLayout(pack, body); return L.pieces.reduce((a, p) => a + p.w * p.h, 0); }
+// how many more of a thing fit: the room left on its last pile, and as many new piles as there are places for
 export function roomFor(pack, body, icon) {
-  const free = Math.max(0, packSlots(body) - slotsUsed(pack)) * STACK;
-  const have = pack.find(i => i.icon === icon), part = have && have.n ? (STACK - (have.n % STACK)) % STACK : 0;
-  return free + part;
+  const L = packLayout(pack, body), s = stackOf({ icon, n: 1 }), [w, h] = itemSize(icon);
+  const have = pack.find(i => i.icon === icon);
+  let room = have && have.n != null && s > 1 ? (s - ((have.n || 1) % s)) % s : 0;
+  // (a thing that didn't fit isn't room)
+  if (have && L.over.some(p => p.it === have)) room = 0;
+  const occ = L.occ.slice(), W = L.W, H = L.H;
+  const fits = (x, y) => { if (x + w > W || y + h > H) return false; for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (occ[j * W + i] >= 0) return false; return true; };
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) if (fits(x, y)) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) occ[j * W + i] = 9999; room += s; }
+  return room;
 }

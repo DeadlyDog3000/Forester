@@ -1085,3 +1085,20 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 #menus .btn:focus-visible { outline: 2px solid #e8d9b0; outline-offset: 2px; }
 @media (max-height: 760px) { #title .tm-main .btn { padding: 9px 20px; font-size: 14px; } #title .tm-main #btnContinue { padding: 11px 20px; font-size: 16px; } #title .tm-grid .btn { padding: 6px 8px; } #title .title-menu { gap: 10px; padding: 10px 16px; } }
 @media (max-width: 420px) { #title .tm-main .btn { width: min(310px, calc(100vw - 32px)); } #title .tm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(310px, calc(100vw - 32px)); } }
+/* the pack as a grid: every thing takes the room it takes */
+.pk-grid { --g: 44px; position: relative; width: calc(var(--W) * var(--g)); height: calc(var(--H) * var(--g)); margin-bottom: 6px; touch-action: none; user-select: none;
+  background-color: rgba(110, 78, 40, 0.13); border: 1px solid rgba(59, 38, 18, 0.45); box-shadow: inset 0 1px 4px rgba(80, 50, 20, 0.35);
+  background-image: linear-gradient(to right, rgba(59, 38, 18, 0.28) 1px, transparent 1px), linear-gradient(to bottom, rgba(59, 38, 18, 0.28) 1px, transparent 1px);
+  background-size: var(--g) var(--g); box-sizing: content-box; }
+.pk-it { position: absolute; box-sizing: border-box; border: 1px solid rgba(59, 38, 18, 0.5); background: rgba(154, 120, 70, 0.22); border-radius: 2px; cursor: grab; display: flex; align-items: center; justify-content: center; }
+.pk-it.tool { background: rgba(120, 90, 50, 0.3); }
+.pk-it:hover { outline: 2px solid var(--gold); outline-offset: -2px; z-index: 2; }
+.pk-it img { max-width: calc(100% - 8px); max-height: calc(100% - 8px); width: auto; height: auto; min-width: 60%; object-fit: contain; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(60, 40, 20, 0.45)); }
+.pk-it.lifted { z-index: 5; cursor: grabbing; opacity: 0.92; box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45); pointer-events: none; }
+.pk-it .dur { position: absolute; left: 4px; right: 4px; bottom: 3px; }
+.pk-drop { position: absolute; box-sizing: border-box; border: 2px solid rgba(90, 160, 70, 0.9); background: rgba(90, 160, 70, 0.18); pointer-events: none; z-index: 4; }
+.pk-drop.bad { border-color: rgba(190, 60, 40, 0.9); background: rgba(190, 60, 40, 0.18); }
+@media (max-width: 560px) { .pk-grid { --g: 30px; } }
+.pk-it .dur { height: 3px; background: rgba(0, 0, 0, 0.6); border-radius: 1px; }
+.pk-it .dur i { display: block; height: 100%; background: #8cc084; border-radius: 1px; }
+.pk-it .dur.low i { background: #d8553a; }

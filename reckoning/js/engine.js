@@ -1460,6 +1460,7 @@ G.packAdd = (icon, n, name, note) => {
     if (have) have.n = (have.n || 1) + put;
     else G.pack.push({ icon, name: name || (ITEM[icon] || {}).name || icon, note: note || (ITEM[icon] || {}).note || "", n: put });
   }
+  if (put > 0 && window.__foley) window.__foley.packIn(0.32);
   if (put < n) UI.hint(`Your pack is full${put ? ` — only ${put} went in` : ""}. Put things in a chest, or make a bigger backpack from hides.`, 4);
   return put;
 };

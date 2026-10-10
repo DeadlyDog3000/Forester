@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "0.91.0", date: "10 October 2026", title: "Rod, pack and bow",
+    items: [
+      "Fishing wants a rod. The first time you come down to the pond, your brother or sister hands you one and tells you how (and you can make another at the chopping block from a log). Take it out with its number, or F on the shore.",
+      "Fishing is done with your own hands now: click to cast, and the float flies out and lands with a plop. Watch it: a nibble only dips it. When it's pulled right under, click at once to strike. Too soon or too slow, and the fish is off with the bait. Struck in time, the rod bends, the perch thrashes on the water as you play it in to the bank, and it swings in on the line, flapping, into your pack. Right-click reels in.",
+      "Your pack is a grid now, as in Diablo: every thing takes the room it takes. An axe is two squares by two, the bow and the rod one by four, a fish one by two, a pile of stone one square (a dozen to it). Your tools, the bow and its arrows sit in the grid with everything else. Drag a thing to move it; drop it on another to change them over. A sack gives ten by four; a backpack from hides, more.",
+      "Settlers whose work is hunting really hunt: out to the deer ride with a bow, a beast picked out and stalked, the bow drawn and a real arrow loosed. If it falls, they dress it where it lies and carry the meat and the hide home; if they miss, it bolts, and they try again.",
+      "Things sound as they would: putting something in your pack is the flap lifted and the thing sliding in against canvas, with the buckle's clink, and taking something out the same the other way. Drinking is swallows, not chewing. A pot coming to the boil bubbles. The float's plop, a fish's splash, and the swish of the line are all their own.",
+      "You're told how to boil water: the guide on thirst says so (hold F at any lit fire to boil a pot), and your brother or sister reminds you when you're parched.",
+      "New pickaxe pictures: the head is fixed on the haft, as a pickaxe's is, and each one shows what it's made of.",
+    ],
+  },
+  {
     v: "0.90.0", date: "10 October 2026", title: "Notches and quilts",
     items: [
       "Every stroke of the axe leaves a notch in the trunk, at waist height on the side you're at, cut a little deeper each time.",

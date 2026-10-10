@@ -54,6 +54,11 @@ function crackles(d, sr, at, dur, rate, amp, f0 = 1500, f1 = 6000) {
   }
 }
 
+// a bubble: a note that rises as the bubble closes, dying away fast — the sound of a drop, of water stirred
+function bubble(d, sr, at, f0, rise, dur, amp) {
+  const i0 = Math.floor(at * sr), n = Math.floor(dur * 3 * sr); let ph = 0;
+  for (let i = 0; i < n && i0 + i < d.length; i++) { const t = i / sr, f = f0 * (1 + (rise - 1) * Math.min(1, t / dur)); ph += TAU * f / sr; d[i0 + i] += Math.sin(ph) * amp * Math.exp(-t / (dur * 0.8)) * Math.min(1, t / 0.001); }
+}
 // ---- the sounds, each a recipe, worked out in a few versions ----
 const RECIPES = {
   // an axe into standing wood
@@ -161,6 +166,58 @@ const RECIPES = {
     }
     return finish(d, 0.8);
   },
+  // a drop into still water: the bubble's note, rising quickly as it closes, and a little hiss of the surface
+  plop(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.25));
+    bubble(d, sr, 0, rand(420, 620), rand(2.2, 3.0), 0.05, 1);
+    hiss(d, sr, 0, 0.05, 0.25, new Biquad("lp", 1800, 0.7, sr), x => Math.exp(-x / 0.012));
+    return finish(d, 0.7);
+  },
+  // something thrown or thrashing in the water: the slap of it, a spray falling back, and a string of bubbles
+  splash(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.75));
+    hiss(d, sr, 0, 0.09, 0.9, new Biquad("lp", 900, 0.6, sr), x => Math.exp(-x / 0.02));
+    hiss(d, sr, 0.01, 0.6, 0.55, new Biquad("bp", rand(1800, 2600), 0.5, sr), x => Math.min(1, x / 0.015) * Math.exp(-x / 0.14));
+    modes(d, sr, 0, [[rand(90, 130), 0.05, 0.5]]);
+    for (let k = 0; k < 7; k++) bubble(d, sr, rand(0.02, 0.45), rand(500, 1400), rand(1.6, 2.6), rand(0.02, 0.05), rand(0.2, 0.55));
+    // (the spray, pattering back down)
+    crackles(d, sr, 0.08, 0.45, 70, 0.3, 2500, 7000);
+    return finish(d, 0.85);
+  },
+  // drinking: two or three swallows — the water's own little glug, and the throat's soft knock under it
+  gulp(sr) {
+    const d = new Float32Array(Math.floor(sr * 1.1)), n = 2 + Math.floor(Math.random() * 2);
+    for (let k = 0; k < n; k++) {
+      const t = k * rand(0.3, 0.38);
+      bubble(d, sr, t, rand(220, 320), rand(1.8, 2.4), 0.06, 0.6);
+      bubble(d, sr, t + 0.03, rand(500, 700), rand(1.5, 2), 0.03, 0.25);
+      modes(d, sr, t + 0.05, [[rand(70, 95), 0.05, 0.8]]);
+      hiss(d, sr, t, 0.08, 0.12, new Biquad("bp", 1200, 0.8, sr), x => Math.exp(-x / 0.03));
+    }
+    return finish(d, 0.6);
+  },
+  // a rod's line swished through the air as it's cast or lifted: a thin rising and falling whistle of air
+  swish(sr) {
+    const L = 0.35, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 1200, 3, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr, k = Math.sin(Math.PI * t / L) ** 2; bp.set("bp", 900 + 2600 * k, 3, sr); d[i] = bp.run(Math.random() * 2 - 1) * k; }
+    return finish(d, 0.6);
+  },
+  // into your pack, and out of it: the flap lifted, the thing sliding against canvas and leather, the buckle's clink
+  packIn(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.5));
+    hiss(d, sr, 0, 0.12, 0.45, new Biquad("bp", rand(1400, 2200), 0.7, sr), x => Math.sin(Math.PI * Math.min(1, x / 0.12)) ** 2);
+    hiss(d, sr, 0.1, 0.22, 0.6, new Biquad("bp", rand(500, 900), 0.6, sr), x => Math.sin(Math.PI * Math.min(1, x / 0.22)));
+    modes(d, sr, rand(0.28, 0.33), [[rand(180, 260), 0.04, 0.5], [rand(520, 700), 0.02, 0.2]]);
+    if (Math.random() < 0.6) modes(d, sr, rand(0.36, 0.42), [[rand(3200, 3800), 0.05, 0.12], [rand(5200, 6000), 0.03, 0.06]]);
+    return finish(d, 0.75);
+  },
+  packOut(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.45));
+    if (Math.random() < 0.6) modes(d, sr, 0, [[rand(3200, 3800), 0.05, 0.12], [rand(5200, 6000), 0.03, 0.06]]);
+    hiss(d, sr, 0.03, 0.2, 0.55, new Biquad("bp", rand(600, 1000), 0.6, sr), x => Math.sin(Math.PI * Math.min(1, x / 0.2)));
+    hiss(d, sr, 0.18, 0.16, 0.5, new Biquad("bp", rand(1800, 2800), 0.7, sr), x => Math.sin(Math.PI * Math.min(1, x / 0.16)) ** 2);
+    return finish(d, 0.75);
+  },
   // a fire burning: a light thing — the soft breath of the flames drawing, a faint hiss of sap, and over it the
   // crackle, many small dry ticks and now and then a snap; a knot pops once in a while. (It was a heavy roar once,
   // more furnace than campfire.) Made long enough to loop without being heard to.
@@ -183,7 +240,7 @@ const RECIPES = {
     return out;
   },
 };
-const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1 };
+const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, swish: 2, packIn: 4, packOut: 4, gulp: 3 };
 
 // ---------------------------------------------------------------------------
 const made = {};
@@ -243,6 +300,12 @@ export const FOLEY = {
       else if (clip === "saw" && (crossed(0.02) || crossed(0.52))) play("saw", { vol: 0.45, at, rate: [0.9, 1.1] });
     }
   },
+  plop: (at, vol = 0.5) => play("plop", { vol, at, reach: 30, rate: [0.85, 1.2] }),
+  splash: (at, vol = 0.7) => play("splash", { vol, at, reach: 45, rate: [0.85, 1.15] }),
+  gulp: (vol = 0.5) => play("gulp", { vol, rate: [0.92, 1.08] }),
+  swish: (vol = 0.35) => play("swish", { vol, rate: [0.85, 1.2] }),
+  packIn: (vol = 0.45) => play("packIn", { vol, rate: [0.9, 1.1] }),
+  packOut: (vol = 0.45) => play("packOut", { vol, rate: [0.9, 1.1] }),
   fellStart: (at, vol = 1) => play("fellStart", { vol, at, reach: 60, rate: [0.92, 1.06] }),
   crash: (vol = 1, at = null) => play("crash", { vol, at, reach: 70, rate: [0.85, 1.05] }),
   fire(on) {

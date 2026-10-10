@@ -22,7 +22,7 @@ let world = null, drinkIt = null, wells = new Map();
 function quench(amount, kind, how) {
   const b = G.body; if (!b) return;
   b.thirst = Math.min(1, (b.thirst ?? 1) + amount); b.dirty = true;
-  AUDIO.water && AUDIO.water.sip ? AUDIO.water.sip() : AUDIO.chew && AUDIO.chew();
+  window.__foley ? window.__foley.gulp() : AUDIO.chew && AUDIO.chew();
   if (!b.ill && Math.random() < (WATER_RISK[kind] || 0)) {
     b.ill = { id: "flux", t: ILLS.flux.secs };
     setTimeout(() => UI.hint(`Your belly turns over — the flux, from ${kind === "well" ? "the well" : "the unboiled water"}. Nothing mends till it passes, and you'll be thirstier. Boil your water.`, 7), 1800);
@@ -43,12 +43,14 @@ G.useCanteen = () => {
   if (fire && W.n > 0 && W.kind !== "boiled") {
     G.player.workFor && G.player.workFor("stir", 5);
     UI.hint("You set the canteen in the embers and let it come to the boil…", 4);
+    AUDIO.bubble && AUDIO.bubble(true, 0.2); setTimeout(() => AUDIO.bubble && AUDIO.bubble(true, 0.6), 2500); setTimeout(() => AUDIO.bubble && AUDIO.bubble(false), 4800);
     setTimeout(() => { if (b.water.n > 0) { b.water.kind = "boiled"; b.dirty = true; UI.hint("Boiled. That water won't make you ill.", 3); } }, 5000);
     return;
   }
   const src = wellNear(w) ? { kind: "well", what: "well" } : near.on ? { kind: "raw", what: near.what } : null;
   if (src && W.n < size) {
     G.player.workFor && G.player.workFor("sow", 1.8);
+    window.__foley && window.__foley.splash(null, 0.18);
     setTimeout(() => {
       const kind = W.n > 0 && WORSE[W.kind] > WORSE[src.kind] ? W.kind : src.kind;
       b.water = { n: size, kind }; b.dirty = true;
@@ -98,7 +100,7 @@ function findWater(w) {
 function setup(w) {
   world = w; wells = new Map();
   drinkIt = w.addInteract({ get x() { return near.x; }, get z() { return near.z; }, get y() { return near.y; }, reach: 3.2, local: true,
-    can: () => near.on && !!G.body && !(G.player && G.player.horse),
+    can: () => near.on && !!G.body && !(G.player && G.player.horse) && !G.rodOut,
     label: () => `Drink from the ${near.what} — unboiled${canteenSize(G.body) ? " (press the canteen's number to fill it)" : ""}`,
     use: () => drinkAt("raw", near.what) });
   // at any fire: a pot of water set on to boil, and drunk when it has — slow, but it never makes you ill
@@ -108,6 +110,8 @@ function setup(w) {
     use: () => {
       G.player.workFor && G.player.workFor("stir", 5);
       UI.hint("You fill the pot, set it on the fire, and wait for it to come to the boil…", 4.5);
+      // (the pot coming to the boil: a murmur, then bubbling, louder as it rolls)
+      AUDIO.bubble && AUDIO.bubble(true, 0.15); setTimeout(() => AUDIO.bubble && AUDIO.bubble(true, 0.7), 2500); setTimeout(() => AUDIO.bubble && AUDIO.bubble(false), 4700);
       setTimeout(() => quench(1, "boiled", "Boiled, cooled a little, and drunk. That won't make you ill."), 5000);
     } });
 }

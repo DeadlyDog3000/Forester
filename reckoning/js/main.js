@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE, WATER_NAME } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE, WATER_NAME, packLayout, setToolItems } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot, applyStoryLook, storyLookOf } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { FOLEY } from "./foley.js";
@@ -406,8 +406,8 @@ const ICON = {
   key: "art/item_key.png", blackberries: "art/item_blackberries.png", ledger: "art/item_ledger.png", door: "art/item_door.png", spade: "art/item_spade.png", stone: "../assets/sprites/items/stone.png", iron: "../assets/sprites/items/iron.png", ore: "../assets/sprites/items/stone.png", tools: "../assets/sprites/items/tool_iron.png", planks: "../assets/sprites/items/planks.png", bricks: "../assets/sprites/items/bricks.png", bread: "../assets/sprites/items/bread.png", coin: "../assets/sprites/items/dm.png", cart: "../assets/sprites/items/wheat.png", meat: "../assets/sprites/items/meat.png", venison: "../assets/sprites/items/meat.png", hare: "../assets/sprites/items/meat.png", boar: "../assets/sprites/items/meat.png", fish: "art/item_fish.png", mushrooms: "art/item_mushrooms.png", dish: "../assets/sprites/items/meat_cooked.png", cookedmeat: "../assets/sprites/items/meat_cooked.png", map: "art/item_map.png", bow: "art/item_bow.png", arrows: "art/item_arrows.png", seeds: "../assets/sprites/items/seeds.png", well: "../assets/sprites/items/well.png", church: "../assets/sprites/items/church.png", townhall: "../assets/sprites/items/townhall.png", jail: "../assets/sprites/items/jail.png", hospital: "../assets/sprites/items/hospital.png", stable: "../assets/sprites/items/stable.png", shrine: "../assets/sprites/items/shrine.png", newsstand: "../assets/sprites/items/newsstand.png",
   hammer1: "../assets/sprites/items/tool_stone.png", hammer2: "../assets/sprites/items/tool_stone.png", hammer3: "../assets/sprites/items/tool_bronze.png", hammer4: "../assets/sprites/items/tool_bronze.png", hammer5: "../assets/sprites/items/tool_iron.png",
   sword1: "../assets/sprites/items/weapon_stone.png", sword3: "../assets/sprites/items/weapon_bronze.png", sword4: "../assets/sprites/items/weapon_bronze.png", sword5: "../assets/sprites/items/weapon_iron.png",
-  pick5: "../assets/sprites/items/pick_iron.png", tinore: "../assets/sprites/items/tin_ore.png", tin: "../assets/sprites/items/tin.png", bronze: "../assets/sprites/items/bronze.png",
-  pick1: "../assets/sprites/items/pick_wood.png", pick2: "../assets/sprites/items/pick_stone.png", pick3: "../assets/sprites/items/pick_copper.png", pick4: "../assets/sprites/items/pick_bronze.png",
+  pick5: "art/item_pick5.png", tinore: "../assets/sprites/items/tin_ore.png", tin: "../assets/sprites/items/tin.png", bronze: "../assets/sprites/items/bronze.png",
+  pick1: "art/item_pick1.png", pick2: "art/item_pick2.png", pick3: "art/item_pick3.png", pick4: "art/item_pick4.png",
   copperore: "../assets/sprites/items/copper_ore.png", ironore: "../assets/sprites/items/iron_ore.png", copper: "../assets/sprites/items/copper.png", ironbar: "../assets/sprites/items/iron_bar.png",
   axe: "../assets/sprites/items/tool_iron.png", weapon: "../assets/sprites/items/weapon_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
@@ -431,6 +431,14 @@ ICON.crossbow = ICON.crossbow5 = (() => { const c = document.createElement("canv
   x.strokeStyle = "#8a8e96"; x.lineWidth = 3.2; x.beginPath(); x.moveTo(14, -20); x.quadraticCurveTo(24, 0, 14, 20); x.stroke();
   x.strokeStyle = "#e8e0c8"; x.lineWidth = 1; x.beginPath(); x.moveTo(14, -20); x.lineTo(2, 0); x.lineTo(14, 20); x.stroke();
   x.fillStyle = "#3a3c40"; x.fillRect(-6, 3, 3, 7); return c.toDataURL(); })();
+// the fishing rod: a long pole slanting, the line down from its tip, and a red-topped float
+ICON.rod = ICON.rod1 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.lineCap = "round"; x.strokeStyle = "#7a5a36"; x.lineWidth = 3.4; x.beginPath(); x.moveTo(8, 58); x.lineTo(34, 24); x.stroke();
+  x.lineWidth = 2; x.beginPath(); x.moveTo(34, 24); x.lineTo(54, 6); x.stroke();
+  x.strokeStyle = "#5a3a20"; x.lineWidth = 5; x.beginPath(); x.moveTo(8, 58); x.lineTo(14, 50); x.stroke();
+  x.strokeStyle = "rgba(230,226,214,0.9)"; x.lineWidth = 1; x.beginPath(); x.moveTo(54, 6); x.quadraticCurveTo(58, 26, 52, 44); x.stroke();
+  x.fillStyle = "#f0ece0"; x.beginPath(); x.arc(52, 48, 4, 0, Math.PI); x.fill(); x.fillStyle = "#c8301e"; x.beginPath(); x.arc(52, 48, 4, Math.PI, 0); x.fill();
+  return c.toDataURL(); })();
 // the canteen: a little wooden keg on its cord
 ICON.canteen = ICON.canteen1 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
   x.strokeStyle = "#3a2a1a"; x.lineWidth = 2.5; x.beginPath(); x.moveTo(18, 22); x.quadraticCurveTo(32, 2, 46, 22); x.stroke();
@@ -451,7 +459,7 @@ ICON.bolts = ICON.bolts0 = (() => { const c = document.createElement("canvas"); 
   for (let i = 0; i < 3; i++) { x.save(); x.translate(20 + i * 10, 34); x.rotate(-0.75); x.fillStyle = "#8a6a44"; x.fillRect(-18, -1.6, 30, 3.2); x.fillStyle = "#5a5e66"; x.beginPath(); x.moveTo(12, -4); x.lineTo(20, 0); x.lineTo(12, 4); x.fill(); x.fillStyle = "#c8c0a8"; x.fillRect(-19, -4, 5, 8); x.restore(); }
   return c.toDataURL(); })();
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-let invItems = [];
+let invItems = [], invPieces = [];
 const cap1 = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 function slot(it, cap) {
   if (!it) return `<div class="mc-slot"></div>`;
@@ -459,7 +467,29 @@ function slot(it, cap) {
   const i = invItems.length - 1;
   return `<div class="mc-slot${it.dim ? " dim" : ""}" data-i="${i}"><img src="${ICON[it.icon]}" alt="">${it.n != null && it.n !== 1 ? `<span class="mc-n">${esc(it.n)}</span>` : ""}${cap ? `<span class="mc-cap">${esc(cap)}</span>` : ""}${it.wear != null && it.wear < 1 ? `<span class="dur${it.wear < 0.15 ? " low" : ""}"><i style="width:${Math.round(it.wear * 100)}%"></i></span>` : ""}</div>`;
 }
+// your tools, as things in your pack: each with its own place in the grid
+function toolItems() {
+  const pl = G.player, tl = G.body && G.body.tools; if (!pl || !tl) return [];
+  const T = (k, icon, name, note) => { const t = tl[k] || 0; if (!t) return null; const left = toolLeft(G.body, k), worn = left < 1 ? ` — about ${Math.max(1, Math.round(left * TOOL_LIFE[t]))} strokes left of ${TOOL_LIFE[t]}` : ""; return { key: k, icon, name, note: note + worn, wear: left }; };
+  const spadeInPack = (G.pack || []).some(i => i.icon === "spade");
+  return [
+    pl.hasAxe || pl.axe ? T("axe", "axe", tl.axe >= 3 ? `${cap1(TIER_NAME[tl.axe])} axe` : "Old felling axe", "Fells trees; a better head fells them in fewer strokes.") : null,
+    T("pick", "pick" + (tl.pick || 1), `${cap1(TIER_NAME[tl.pick] || "")} pickaxe`, ["", "Breaks the grey stone.", "Breaks copper and tin rock.", "Breaks copper and tin, quicker.", "Breaks iron rock.", "Breaks anything."][tl.pick || 0]),
+    G.town && !spadeInPack ? T("spade", "spade", tl.spade >= 3 ? `${cap1(TIER_NAME[tl.spade])} spade` : "Henning's spade", "Digs fields; a better one digs them quicker.") : null,
+    T("hammer", "hammer" + (tl.hammer || 1), `${cap1(TIER_NAME[tl.hammer] || "")} hammer`, "Raises buildings quicker."),
+    T("sword", "sword" + (tl.sword || 1), `${cap1(TIER_NAME[tl.sword] || "")} sword, your own`, "For the raiders."),
+    pl.hasBow ? { key: "bow", icon: "bow", name: pl.bowMade ? "Your hunting bow" : "Henning's old bow", note: "Hold right-click to draw, let go to loose." } : null,
+    pl.hasBow ? { key: "arrows", icon: "arrows", name: "Arrows", n: pl.arrows || 0, note: "Pull your misses out of the ground to use them again." } : null,
+    tl.rod ? { key: "rod", icon: "rod", name: "Fishing rod", note: "At the pond: click to cast, and click again the moment the float goes right under." } : null,
+    tl.canteen ? { key: "canteen", icon: "canteen", name: tl.canteen >= 2 ? "Leather canteen" : "Canteen", n: (G.body.water || {}).n || 0, note: "Fill it at the water, boil it at the fire, drink anywhere — press its number." } : null,
+    tl.musket ? { key: "musket", icon: "musket", name: "Your musket", note: "Right mouse to raise it to your eye, click to fire. Then it wants loading: six slow seconds of powder, ball and ramrod." } : null,
+    tl.crossbow ? { key: "crossbow", icon: "crossbow", name: "Your crossbow", note: "Right-click to aim, click to loose. Slow to span." } : null,
+    tl.crossbow ? { key: "bolts", icon: "bolts", name: "Bolts", n: tl.bolts || 0, note: "For the crossbow." } : null,
+  ].filter(Boolean);
+}
+setToolItems(toolItems);
 function renderInventory() {
+  if (pkDrag) return;
   const pl = G.player, camp = G.camp;
   invItems = [];
   // the two hands: what's in them now — a blade, the pick or the bow, food — and whatever you carry in your arms
@@ -470,28 +500,25 @@ function renderInventory() {
   if (pl.carryN > 0) hands[1] = { icon: "logs", n: pl.carryN, name: "Spruce logs", note: camp ? `Your arms hold ${camp.carryMax}.` : "", use: "Stack them by the cabin" };
   else if (UI.carrying) hands[/ledger/i.test(UI.carrying) ? 0 : 1] = { icon: /ledger/i.test(UI.carrying) ? "ledger" : "logs", name: UI.carrying, note: /ledger/i.test(UI.carrying) ? "The tally of the Baltic grain, for Jakob to sign." : "" };
   let html = `<div class="mc-sec">Hands <span class="mc-hint" style="float:right">your own purse: ${dm(G.body && G.body.purse)} DM</span></div><div class="mc-row hands">${slot(hands[0])}${slot(hands[1])}</div>`;
-  // your tools: everything you own to work and fight with, its making, what it does, and how worn it is
-  if (tl0 && G.town) {
-    const T = (k, icon, name, note) => { const t = tl0[k] || 0; if (!t) return null; const left = toolLeft(G.body, k), worn = left < 1 ? ` — about ${Math.max(1, Math.round(left * TOOL_LIFE[t]))} strokes left of ${TOOL_LIFE[t]}` : ""; return { icon, name, note: note + worn, wear: left }; };
-    const tools = [
-      pl.hasAxe || pl.axe ? T("axe", "axe", tl0.axe >= 3 ? `${cap1(TIER_NAME[tl0.axe])} axe` : "Old felling axe", "Fells trees; a better head fells them in fewer strokes.") : null,
-      T("pick", "pick" + (tl0.pick || 1), `${cap1(TIER_NAME[tl0.pick] || "")} pickaxe`, ["", "Breaks the grey stone.", "Breaks copper and tin rock.", "Breaks copper and tin, quicker.", "Breaks iron rock.", "Breaks anything."][tl0.pick || 0]),
-      T("spade", "spade", tl0.spade >= 3 ? `${cap1(TIER_NAME[tl0.spade])} spade` : "Henning's spade", "Digs fields; a better one digs them quicker."),
-      T("hammer", "hammer" + (tl0.hammer || 1), `${cap1(TIER_NAME[tl0.hammer] || "")} hammer`, "Raises buildings quicker."),
-      T("sword", "sword" + (tl0.sword || 1), `${cap1(TIER_NAME[tl0.sword] || "")} sword, your own`, "For the raiders."),
-      tl0.pack ? { icon: "pack" + tl0.pack, name: ["", "Hide backpack", "Stitched pack", "Pedlar's frame pack"][tl0.pack], note: `Carries ${packSlots(G.body)} slots.` } : null,
-      pl.hasBow ? { icon: "bow", name: pl.bowMade ? "Your hunting bow" : "Henning's old bow", note: "Hold right-click to draw, let go to loose." } : null,
-      pl.hasBow ? { icon: "arrows", name: "Arrows", n: pl.arrows || 0, note: "Pull your misses out of the ground to use them again." } : null,
-      tl0.musket ? { icon: "musket", name: "Your musket", note: "Right mouse to raise it to your eye, click to fire. Then it wants loading: six slow seconds of powder, ball and ramrod." } : null,
-    ].filter(Boolean);
-    html += `<div class="mc-sec">Tools</div><div class="mc-row">${Array.from({ length: 9 }, (_, i) => slot(tools[i] || null)).join("")}</div>`;
-  }
-  // what is on you: three rows of nine
-  const pack = G.pack.slice(0, 27), cap = packSlots(G.body), tl = G.body && G.body.tools;
+  // your pack, as a grid: every thing in it takes the room it takes, your tools and the bow among them. Drag a thing
+  // to move it; drop it on another to change them over; click food to eat it
+  const L = packLayout(G.pack, G.body), tl = G.body && G.body.tools;
   const bag = tl && tl.pack ? ["", "a hide backpack", "a stitched pack", "a pedlar's frame pack"][tl.pack] : "no backpack — four hides make one";
-  html += `<div class="mc-sec">On you <span class="mc-hint" style="float:right">${slotsUsed(G.pack)} of ${cap} slots · ${bag}</span></div>`;
-  // (the slots past what you can carry are shut: a bigger pack opens them)
-  for (let r = 0; r < 3; r++) html += `<div class="mc-row">${Array.from({ length: 9 }, (_, c) => r * 9 + c >= cap && !pack[r * 9 + c] ? '<div class="mc-slot locked" title="A bigger backpack carries more"></div>' : slot(pack[r * 9 + c])).join("")}</div>`;
+  const used = L.pieces.reduce((a, p) => a + p.w * p.h, 0);
+  html += `<div class="mc-sec">Your pack <span class="mc-hint" style="float:right">${used} of ${L.W * L.H} squares · ${bag}</span></div>`;
+  html += `<div class="pk-grid" id="pkGrid" style="--W:${L.W};--H:${L.H}">`;
+  invPieces = [];
+  for (const p of L.pieces) {
+    invItems.push(p.it); invPieces.push(p); const i = invItems.length - 1;
+    html += `<div class="pk-it${p.tool ? " tool" : ""}" data-i="${i}" data-p="${invPieces.length - 1}" style="left:calc(${p.x} * var(--g));top:calc(${p.y} * var(--g));width:calc(${p.w} * var(--g));height:calc(${p.h} * var(--g))"><img src="${ICON[p.it.icon] || ICON.logs}" alt="">${p.n != null && p.n !== 1 ? `<span class="mc-n">${esc(p.n)}</span>` : ""}${p.it.wear != null && p.it.wear < 1 ? `<span class="dur${p.it.wear < 0.15 ? " low" : ""}"><i style="width:${Math.round(p.it.wear * 100)}%"></i></span>` : ""}</div>`;
+  }
+  html += `</div>`;
+  // (what didn't fit: still yours, but it's no place to keep it — make room, or put it in a chest)
+  if (L.over.length) {
+    html += `<div class="mc-sec">Won't fit <span class="mc-hint" style="float:right">make room in the pack, or put it in a chest</span></div><div class="mc-row">`;
+    for (const p of L.over.slice(0, 9)) html += slot(p.it);
+    html += `</div>`;
+  }
   if (camp) {
     html += `<div class="mc-sec">At the clearing</div><div class="mc-row">`;
     html += slot({ icon: "logs", n: camp.logs, name: "Logs on the stack", note: `${camp.logs} stacked by the cabin.`, dim: camp.logs === 0 });
@@ -502,8 +529,8 @@ function renderInventory() {
   $("invBody").innerHTML = html;
 }
 function showTip(e) {
-  const tip = $("invTip"), el = e.target.closest && e.target.closest(".mc-slot[data-i]");
-  if (!el) { tip.classList.add("hidden"); return; }
+  const tip = $("invTip"), el = e.target.closest && e.target.closest(".mc-slot[data-i], .pk-it[data-i]");
+  if (!el || pkDrag) { tip.classList.add("hidden"); return; }
   const it = invItems[+el.dataset.i];
   const use = it.use || (FOOD[it.icon] && G.pack.includes(it) ? "Click to eat" : "");
   tip.innerHTML = `${esc(it.name)}${it.note ? `<span class="tip-note">${esc(it.note)}</span>` : ""}${use ? `<span class="tip-use">${esc(use)}</span>` : ""}`;
@@ -515,16 +542,78 @@ $("inventory").addEventListener("mousemove", showTip);
 $("inventory").addEventListener("mouseleave", () => $("invTip").classList.add("hidden"));
 // food on you: a click on it in the inventory eats it there and then
 $("inventory").addEventListener("click", e => {
-  const el = e.target.closest && e.target.closest(".mc-slot[data-i]"); if (!el) return;
+  if (pkDrag || performance.now() - pkDropAt < 150) return;
+  const el = e.target.closest && e.target.closest(".mc-slot[data-i], .pk-it[data-i]"); if (!el) return;
   const it = invItems[+el.dataset.i];
   if (it && FOOD[it.icon] && G.pack.includes(it)) { eat(it); setTimeout(renderInventory, 50); }
 });
+// moving things about the pack: take a thing up and it follows the pointer, its outline shown where it would go —
+// green where it fits, red where it doesn't; let go and it's there. Let go over one other thing and the two change over
+// (if the other fits where the first was). Anywhere it won't go, it goes back
+let pkDrag = null, pkDropAt = 0;
+$("inventory").addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  const el = e.target.closest && e.target.closest(".pk-it[data-p]"); if (!el) return;
+  const p = invPieces[+el.dataset.p]; if (!p) return;
+  const grid = $("pkGrid"), g = grid.getBoundingClientRect(), cell = g.width / (+getComputedStyle(grid).getPropertyValue("--W") || 8);
+  const r = el.getBoundingClientRect();
+  pkDrag = { p, el, cell, dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY, moved: false, at: null };
+  e.preventDefault();
+});
+addEventListener("pointermove", e => {
+  const d = pkDrag; if (!d) return;
+  if (!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 5) return;
+  const grid = $("pkGrid"); if (!grid) { pkDrag = null; return; }
+  if (!d.moved) {
+    d.moved = true; d.el.classList.add("lifted"); $("invTip").classList.add("hidden");
+    d.shadow = document.createElement("div"); d.shadow.className = "pk-drop"; grid.appendChild(d.shadow);
+    window.__foley && window.__foley.packOut(0.25);
+  }
+  const g = grid.getBoundingClientRect(), left = e.clientX - d.dx, top = e.clientY - d.dy;
+  d.el.style.left = (left - g.left) + "px"; d.el.style.top = (top - g.top) + "px";
+  const x = Math.round((left - g.left) / d.cell), y = Math.round((top - g.top) / d.cell);
+  d.at = [x, y];
+  const ok = pkPlace(d.p, x, y, true);
+  d.shadow.style.cssText = `left:calc(${x} * var(--g));top:calc(${y} * var(--g));width:calc(${d.p.w} * var(--g));height:calc(${d.p.h} * var(--g))`;
+  d.shadow.classList.toggle("bad", !ok);
+});
+addEventListener("pointerup", () => {
+  const d = pkDrag; if (!d) return;
+  pkDrag = null;
+  if (!d.moved) return;
+  pkDropAt = performance.now();
+  if (d.at && pkPlace(d.p, d.at[0], d.at[1], false)) window.__foley && window.__foley.packIn(0.25);
+  renderInventory();
+});
+// can piece p go at x, y (try: only ask) — into empty room, or changing places with the one thing that's there
+function pkPlace(p, x, y, tryOnly) {
+  const L = packLayout(G.pack, G.body), W = L.W, H = L.H;
+  if (x < 0 || y < 0 || x + p.w > W || y + p.h > H) return false;
+  const me = L.pieces.find(q => q.it === p.it && q.k === p.k && !!q.tool === !!p.tool); if (!me) return false;
+  const under = new Set();
+  for (let j = y; j < y + p.h; j++) for (let i = x; i < x + p.w; i++) { const o = L.occ[j * W + i]; if (o >= 0 && o !== me.id) under.add(o); }
+  const set = (q, qx, qy) => { if (q.tool) (G.body.gridPos || (G.body.gridPos = {}))[q.it.key] = [qx, qy]; else { const a = q.it.pos || (q.it.pos = []); a[q.k] = [qx, qy]; } };
+  if (!under.size) { if (!tryOnly) { set(me, x, y); G.body.dirty = true; } return true; }
+  if (under.size > 1) return false;
+  // a change-over: the other goes where this one was, if it fits there once this one has moved
+  const other = L.pieces.find(q => q.id === [...under][0]);
+  const occ = L.occ.slice(); const clear = q => { for (let j = q.y; j < q.y + q.h; j++) for (let i = q.x; i < q.x + q.w; i++) occ[j * W + i] = -1; };
+  clear(me); clear(other);
+  for (let j = y; j < y + p.h; j++) for (let i = x; i < x + p.w; i++) occ[j * W + i] = me.id;
+  const ox = me.x, oy = me.y;
+  if (ox + other.w > W || oy + other.h > H) return false;
+  for (let j = oy; j < oy + other.h; j++) for (let i = ox; i < ox + other.w; i++) if (occ[j * W + i] >= 0) return false;
+  if (!tryOnly) { set(me, x, y); set(other, ox, oy); G.body.dirty = true; }
+  return true;
+}
 // ---- the chest in the cabin: nine places, one long row; click a thing to put it in or take it out ----
 const CHEST_SLOTS = 9;
 // what the stores keep that can be carried: the store's key, the thing in your pack, its name
 const STORE_ITEMS = [["rye", "rye", "Rye"], ["seed", "seed", "Rye seed"], ["bread", "bread", "Bread"], ["meat", "cookedmeat", "Roast meat"], ["stone", "stone", "Stone"], ["planks", "planks", "Planks"], ["bricks", "bricks", "Bricks"], ["ore", "ironore", "Iron ore"], ["copperore", "copperore", "Copper ore"], ["tinore", "tinore", "Tin ore"], ["copper", "copper", "Copper"], ["tin", "tin", "Tin"], ["bronze", "bronze", "Bronze"], ["iron", "iron", "Iron"], ["tools", "tools", "Tools"]];
 let chestNote = "";
 let chestMode = "own";
+// (how much room is left in your pack, in squares)
+function roomLeft() { const L = packLayout(G.pack, G.body); return L.W * L.H - L.pieces.reduce((a, p) => a + p.w * p.h, 0); }
 function renderChest() {
   const box = G.chest || (G.chest = []);
   invItems = [];
@@ -538,9 +627,9 @@ function renderChest() {
     h += `<div class="mc-sec">Your own chest <span class="mc-hint">yours to keep — or to sell to the traders for your purse</span></div><div class="mc-row">`;
     for (let i = 0; i < CHEST_SLOTS; i++) h += box[i] ? slot(box[i]).replace('class="mc-slot', `data-chest="${i}" class="mc-slot`) : `<div class="mc-slot"></div>`;
   }
-  h += `</div><div class="mc-sec">On you</div><div class="mc-row">`;
-  const pack = G.pack.slice(0, 9);
-  for (let i = 0; i < 9; i++) h += pack[i] ? slot(pack[i]).replace('class="mc-slot', `data-pack="${i}" class="mc-slot`) : `<div class="mc-slot"></div>`;
+  h += `</div><div class="mc-sec">In your pack <span class="mc-hint">${roomLeft()} squares free</span></div><div class="mc-row wrap">`;
+  const pack = G.pack;
+  for (let i = 0; i < Math.max(9, pack.length); i++) h += pack[i] ? slot(pack[i]).replace('class="mc-slot', `data-pack="${i}" class="mc-slot`) : i < 9 ? `<div class="mc-slot"></div>` : "";
   h += `</div><div class="ch-note">${esc(chestNote)}</div>`;
   $("chestBody").innerHTML = h;
   $("chestTitle").textContent = chestMode === "stores" ? "The store chest" : "Your chest";
@@ -561,7 +650,7 @@ $("chestBody").addEventListener("click", e => {
     // out of the stores and into your hands: five at a time
     // (rye by the sack of twenty-five; seed only whole)
     const k = el.dataset.store, S = G.chestS || G.town.S, n = Math.floor(Math.min(k === "rye" ? 25 : 5, S[k] || 0)), [, icon, name] = STORE_ITEMS.find(x => x[0] === k);
-    if (n > 0) { const got = G.packAdd(icon, n, name); S[k] -= got; G.town.persist(); chestNote = got ? `Took ${got} ${name.toLowerCase()} from the stores.` : "Your pack is full."; if (got) SFX.pickup && SFX.pickup(); }
+    if (n > 0) { const got = G.packAdd(icon, n, name); S[k] -= got; G.town.persist(); chestNote = got ? `Took ${got} ${name.toLowerCase()} from the stores.` : "Your pack is full."; if (got) FOLEY.packIn(); }
     renderChest(); return;
   }
   if (el.dataset.pack != null && chestMode === "stores" && G.town) {
@@ -571,31 +660,31 @@ $("chestBody").addEventListener("click", e => {
     if (it && it.icon === "dish") {
       const S = G.chestS || G.town.S; S.feast ??= [];
       for (let i = 0; i < (it.n || 1); i++) S.feast.push({ name: it.base, stars: it.stars });
-      G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores: tomorrow it feeds someone, and ${it.stars >= 3.5 ? "they'll be glad of it" : it.stars >= 2 ? "they'll eat it" : "they'll grumble"}.`; SFX.pickup && SFX.pickup();
+      G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores: tomorrow it feeds someone, and ${it.stars >= 3.5 ? "they'll be glad of it" : it.stars >= 2 ? "they'll eat it" : "they'll grumble"}.`; FOLEY.packOut();
       renderChest(); return;
     }
     // (stone, only as much as the stores have room for)
     if (row && row[0] === "stone") {
       const SS = G.chestS || G.town.S, cap = (G.chestS && G.chestView || G.town).stoneCap, room = Math.max(0, cap - (SS.stone || 0)), n = Math.min(room, it.n || 1);
       if (!n) { chestNote = `The stores hold ${cap} stone, and they're full. A grander town hall makes room for more.`; renderChest(); return; }
-      SS.stone = (SS.stone || 0) + n; it.n = (it.n || 1) - n; if (!it.n) G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = n < (n + (it.n || 0)) && it.n ? `Put in ${n} — the stores are full of stone now.` : "Put in the stores."; SFX.pickup && SFX.pickup(); renderChest(); return;
+      SS.stone = (SS.stone || 0) + n; it.n = (it.n || 1) - n; if (!it.n) G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = n < (n + (it.n || 0)) && it.n ? `Put in ${n} — the stores are full of stone now.` : "Put in the stores."; FOLEY.packOut(); renderChest(); return;
     }
-    if (row) { const SS = G.chestS || G.town.S; SS[row[0]] = (SS[row[0]] || 0) + (it.n || 1); G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores.`; SFX.pickup && SFX.pickup(); }
+    if (row) { const SS = G.chestS || G.town.S; SS[row[0]] = (SS[row[0]] || 0) + (it.n || 1); G.pack.splice(G.pack.indexOf(it), 1); G.town.persist(); chestNote = `Put in the stores.`; FOLEY.packOut(); }
     else chestNote = "The stores don't keep that.";
     renderChest(); return;
   }
   if (el.dataset.pack != null) {
     const it = G.pack[+el.dataset.pack]; if (!it) return;
     if (it.icon === "key" || it.icon === "map") { chestNote = "You keep that on you."; renderChest(); return; }
-    if (put(box, it, CHEST_SLOTS)) { G.pack.splice(G.pack.indexOf(it), 1); chestNote = ""; SFX.pickup && SFX.pickup(); }
+    if (put(box, it, CHEST_SLOTS)) { G.pack.splice(G.pack.indexOf(it), 1); chestNote = ""; FOLEY.packOut(); }
     else chestNote = "The chest is full.";
   } else if (el.dataset.chest != null) {
     const i = +el.dataset.chest, it = box[i]; if (!it) return;
-    if (it.n != null && roomFor(G.pack, G.body, it.icon) < (it.n || 1)) { chestNote = "Your pack hasn't room for all of that."; renderChest(); return; }
+    if (roomFor(G.pack, G.body, it.icon) < (it.n || 1)) { chestNote = "Your pack hasn't room for all of that."; renderChest(); return; }
     box[i] = null;
     const same = G.pack.find(x => x.icon === it.icon && x.name === it.name && it.n != null);
-    if (same) same.n = (same.n || 1) + (it.n || 1); else G.pack.push(it);
-    chestNote = ""; SFX.pickup && SFX.pickup();
+    if (same) same.n = (same.n || 1) + (it.n || 1); else { delete it.pos; G.pack.push(it); }
+    chestNote = ""; FOLEY.packIn();
   }
   writeSave({ chest: box.map(x => x || null) });
   renderChest();
@@ -628,7 +717,7 @@ function renderCraft() {
     if (!craftUnlocked(r)) { later.push(r); return; }
     const short = Object.entries(r.cost).filter(([k, n]) => !haveFor(k, n));
     const cost = Object.entries(r.cost).map(([k, n]) => { const lack = short.some(([x]) => x === k); return `<span class="${lack ? "cr-lack" : ""}">${n} ${k === "logs" ? (n === 1 ? "log" : "logs") + " from the stack" : ITEM[k].name.toLowerCase() + (n > 1 && k === "hide" ? "s" : "")}${lack ? ` (have ${k === "logs" ? storeN(k) : packN(k) + storeN(k)})` : ""}</span>`; }).join(", ");
-    const icon = r.tool === "bow" ? ICON.bow : r.tool === "arrows" ? ICON.arrows : r.tool === "axe" ? ICON.axe : r.tool === "spade" ? ICON.spade : ICON[r.tool + r.tier] || ICON.logs;
+    const icon = r.tool === "rod" ? ICON.rod : r.tool === "bow" ? ICON.bow : r.tool === "arrows" ? ICON.arrows : r.tool === "axe" ? ICON.axe : r.tool === "spade" ? ICON.spade : ICON[r.tool + r.tier] || ICON.logs;
     const ok = !short.length;
     rows.push([ok ? 0 : 1, r.tool, r.tier, `<div class="cr-row${ok ? "" : " cr-short"}"><img src="${icon}" alt=""><div><div class="sk-name">${r.name}</div><div class="sk-does">${r.note}</div><div class="cr-cost">${cost}</div></div>
       <button class="btn primary" data-r="${i}"${ok ? "" : " disabled"}>${ok ? "Make" : "Need more"}</button></div>`]);
@@ -1451,6 +1540,7 @@ function hotbarItems() {
   if (pl.hasBow) { out.push({ icon: "bow", name: pl.bowMade ? "Your hunting bow" : "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
   if (tl && tl.musket) out.push({ icon: "musket", name: "Your musket", tool: "gun" });
   if (tl && tl.crossbow) { out.push({ icon: "crossbow", name: "Your crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: tl.bolts || 0 }); }
+  if (tl && tl.rod && G.world && G.world.pond) out.push({ icon: "rod", name: "Fishing rod", tool: "rod" });
   if (tl && tl.canteen && G.world && G.world.waterOK) { const W = G.body.water || { n: 0 }, size = tl.canteen >= 2 ? 6 : 4; out.push({ icon: "canteen", name: W.n ? `Canteen — ${W.n} of ${size}, ${WATER_NAME[W.kind] || "water"}` : "Canteen — empty", tool: "canteen", n: W.n }); }
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
@@ -1526,6 +1616,9 @@ addEventListener("keydown", e => {
     putFoodAway();
     if (it && ((it.tool === "axe" && pl.axe && blade === "axe") || (it.tool === "arm" && pl.axe && blade === it.kind) || (it.tool === "pick" && pl.axe && blade === "pick") || (it.tool === "bow" && pl.bow) || (it.tool === "gun" && pl.gun))) return;
   }
+  // the rod: out, or away (anything else taken up puts it away first)
+  if (it && it.tool === "rod") { G.toggleRod && G.toggleRod(!G.rodOut); return; }
+  if (it && G.rodOut && (it.tool || FOOD[it.icon])) { G.toggleRod && G.toggleRod(false); if (it.tool === "axe") { pl.blade = "axe"; pl.holsterAxe(false); return; } }
   if (it && it.tool === "axe") { if (pl.axe && blade !== "axe") pl.wield("axe"); else { pl.blade = "axe"; pl.holsterAxe(!!pl.axe); } }
   if (it && it.tool === "arm") { if (pl.axe && blade === it.kind) { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield(it.kind); }
   if (it && it.tool === "pick") { if (pl.axe && blade === "pick") { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield("pick"); }
@@ -1541,7 +1634,7 @@ addEventListener("keydown", e => {
 // which slot is in your hand now (-1: none)
 function selIndex(items) {
   const pl = G.player, hf = G.heldFood;
-  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow) || (i.tool === "gun" && pl.gun) || (i.tool === "xbow" && pl.xbow));
+  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow) || (i.tool === "gun" && pl.gun) || (i.tool === "xbow" && pl.xbow) || (i.tool === "rod" && G.rodOut));
 }
 // the wheel: the next thing along the bar (or the one before) into your hand — tools, weapons, the bow and food; logs,
 // arrows and the like are passed over. A notch a step (a trackpad's run of little nudges is gathered into notches)
@@ -1576,7 +1669,7 @@ addEventListener("wheel", e => {
 function heldFood() { const h = G.heldFood; if (!h) return null; return hotbarItems().find(i => i.icon === h.icon && !!i.fromStore === h.fromStore) || null; }
 function holdFood(it) {
   if (G.working && G.time < G.working.until && G.working.kind !== "food") return;
-  G.heldFood = { icon: it.icon, fromStore: !!it.fromStore };
+  G.heldFood = { icon: it.icon, fromStore: !!it.fromStore }; FOLEY.packOut(0.3);
   G.working = { kind: "food", food: it.icon, until: Infinity, quiet: true };
   if (!holdFood.told) { holdFood.told = true; UI.hint(`${it.name} in your hand — click to eat. Press ${hotbarItems().indexOf(it) + 1} again to put it away.`, 4); }
 }

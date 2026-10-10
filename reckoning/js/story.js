@@ -247,6 +247,10 @@ function sibHints() {
       const food = (G.pack || []).find(i => i.icon === "cookedmeat" || i.icon === "dish" || i.icon === "blackberries") || (G.town && G.town.S.bread > 0 ? { icon: "bread" } : null);
       return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "cookedmeat" ? "roast meat" : food.icon === "dish" ? food.base.toLowerCase() : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
     }
+    if (G.body && G.world && G.world.waterOK && (G.body.thirst ?? 1) < 0.45 && !raid && (!once.has("thirst") || G.time - (once.thirstAt || 0) > 300)) {
+      once.add("thirst"); once.thirstAt = G.time;
+      return say1("You look parched. Drink at the brook or the pond — F at the edge. Better boiled, though: hold F at the fire and boil a pot. Unboiled water gives you the flux.", 6);
+    }
     if (pl.hasBow && pl.bow && (pl.arrows || 0) === 0 && !once.has("arrows")) { once.add("arrows"); return say1("You're out of arrows. Pull them out where they landed — F — or buy more when a trader comes.", 4.5); }
     if (G.town && G.body && !raid && !G.body.tools.pick && G.chapter >= 12 && !once.has("pick")) { once.add("pick"); return say1("You could make yourself a pickaxe at the chopping block — two logs. There's stone in the grey rocks round the clearing.", 5); }
     // the settlement's needs, every few minutes, when they've changed

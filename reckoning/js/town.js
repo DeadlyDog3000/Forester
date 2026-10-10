@@ -2787,17 +2787,63 @@ export class Town {
         const home = this.colony || null;
         if (home !== plan.to) { a.doing = `on the road home to ${name(home)}`; await a.walk(root.roadRoute(plan.to, home), 1.25); alive(); }
       } else if (job === "hunter") {
-        // out to the deer ride, a long wait in cover, and home with what they took: meat for the stores and a hide
+        // out to the deer ride with a bow: a beast picked out, stalked to within a long bowshot, the bow drawn and the
+        // arrow loosed — a real one, that flies, and hits or doesn't. Brought down, it's dressed where it fell, and the
+        // meat and the hide carried home; missed, it bolts, and there's another try or two before they give it up
+        const H = G.hunt; let cur = null;
         a.doing = "hunting in the deer ride";
-        const ang = Math.random() * Math.PI * 2;
-        await a.walkTo(HUNT.x + Math.cos(ang) * HUNT.r * 0.5, HUNT.z + Math.sin(ang) * HUNT.r * 0.5, 1.3); alive();
-        a.person.setPose("armsCrossed"); await sleep(14 * this.pace(a, "hunting")); alive(); a.person.setPose("idle");
-        const got = Math.random() < 0.55 + skillLvl(a.settler, "hunting") / 200;
-        if (got) {
-          a.person.setPose("hold"); await a.walkTo(this.stackAt.x + 1.4, this.stackAt.z - 0.6, 1.2); alive(); a.person.setPose("idle");
-          this.S.meat = (this.S.meat || 0) + 4; this.S.hide = (this.S.hide || 0) + 1; this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "hunting", 1);
-        } else a.doing = "coming back from the hunt with nothing";
-        await sleep(2);
+        const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a }));
+        bow.rotation.set(0, Math.PI / 2, 0); a.hold(bow, true);
+        try {
+          const ang = Math.random() * Math.PI * 2;
+          await a.walkTo(HUNT.x + Math.cos(ang) * HUNT.r * 0.6, HUNT.z + Math.sin(ang) * HUNT.r * 0.6, 1.3); alive();
+          const skill = skillLvl(a.settler, "hunting") / 100;
+          const prey = () => H && H.animals ? H.animals.filter(q => q.alive && !q.puppet && !q.hunted && !q.fawn && Math.hypot(q.pos.x - HUNT.x, q.pos.z - HUNT.z) < HUNT.r + 40)
+            .sort((p, q) => Math.hypot(p.pos.x - a.pos.x, p.pos.z - a.pos.z) - Math.hypot(q.pos.x - a.pos.x, q.pos.z - a.pos.z))[0] : null;
+          let got = null; cur = null;
+          for (let tries = 0; tries < 3 && !got; tries++) {
+            const q = prey();
+            if (!q) { a.person.setPose("armsCrossed"); a.doing = "waiting in cover for something to come"; await sleep(10 * this.pace(a, "hunting")); alive(); a.person.setPose("idle"); continue; }
+            q.hunted = a; cur = q;
+            // in close, slowly, downwind of it
+            a.doing = `stalking a ${q.K.name}`;
+            for (let k = 0; k < 12 && q.alive && Math.hypot(q.pos.x - a.pos.x, q.pos.z - a.pos.z) > 20; k++) {
+              const dx = q.pos.x - a.pos.x, dz = q.pos.z - a.pos.z, d = Math.hypot(dx, dz);
+              await Promise.race([a.walkTo(a.pos.x + dx / d * Math.min(6, d - 18), a.pos.z + dz / d * Math.min(6, d - 18), 0.8), sleep(4)]); alive();
+            }
+            if (!q.alive) { q.hunted = null; continue; }
+            // the bow drawn, a breath held, and loosed
+            a.faceTo(q.pos.x, q.pos.z); a.person.setPose("reach"); a.doing = `drawing on a ${q.K.name}`;
+            await sleep(1.4); alive();
+            if (H && q.alive) {
+              const from = new THREE.Vector3(a.pos.x, a.pos.y + 1.45, a.pos.z), to = q.centre(), d = from.distanceTo(to), v = 14 + 32 * 0.9;
+              to.y += 4.9 * (d / v) ** 2;                    // (aimed up a little, for the drop)
+              const dir = to.sub(from).normalize(), wob = 0.07 - skill * 0.05;
+              dir.x += (Math.random() - 0.5) * wob; dir.y += (Math.random() - 0.5) * wob * 0.6; dir.z += (Math.random() - 0.5) * wob; dir.normalize();
+              from.addScaledVector(dir, 0.5);
+              H.loose(from, dir, 0.9, false, a);
+              if (G.player && Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 30) AUDIO.twang && AUDIO.twang(0.5);
+            }
+            await sleep(1.2); alive(); a.person.setPose("idle");
+            if (!q.alive) got = q; else { q.hunted = null; a.doing = "after it again — it bolted"; this.learn(a, "hunting", 0.3); }
+          }
+          if (got) {
+            // dressed where it fell, then home with the meat and the hide
+            a.doing = `dressing the ${got.K.name}`;
+            await a.walkTo(got.pos.x + 0.8, got.pos.z + 0.4, 1.1); alive();
+            a.faceTo(got.pos.x, got.pos.z); a.person.setPose("gather"); await sleep(5); alive();
+            const meat = got.K.meat || 2;
+            H.takeBy(got); cur = null;
+            a.person.setPose("hold"); a.doing = `carrying a ${got.K.name}'s meat home`;
+            await a.walkTo(this.stackAt.x + 1.4, this.stackAt.z - 0.6, 1.2); alive(); a.person.setPose("idle");
+            this.S.meat = (this.S.meat || 0) + meat; this.S.hide = (this.S.hide || 0) + (got.kind === "boar" ? 2 : 1); this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "hunting", 1);
+          } else a.doing = "coming back from the hunt with nothing";
+          await sleep(2);
+        } finally {
+          a.person.heldL.remove(bow); a.person.setPose("idle");
+          // (called away before it was dressed: what they'd brought down isn't left lying for ever — it's in the stores)
+          if (cur) { if (cur.alive) cur.hunted = null; else if (H && H.animals.includes(cur)) { H.takeBy(cur); this.S.meat = (this.S.meat || 0) + (cur.K.meat || 2); this.S.hide = (this.S.hide || 0) + 1; } }
+        }
       } else if (job === "doctor" && this.has("hospital")) {
         const hos = this.S.buildings.find(b => b.done && b.type === "hospital");
         const sick = this.S.people.filter(q => q.sick > 0);

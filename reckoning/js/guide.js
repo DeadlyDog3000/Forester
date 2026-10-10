@@ -51,6 +51,7 @@ export const GUIDE = {
     steps: [
       "The <b>blue bar</b> under your hunger is your thirst. It falls quicker than hunger, and quicker still when you run.",
       "<b>Drink</b> at the brook or the pond (<kbd>F</kbd> at the water's edge), or at a <b>well</b>. Brook and pond water, unboiled, may give you <b>the flux</b>; a well's seldom does.",
+      "<b>Boiled water never makes you ill.</b> At any lit fire, <b>hold <kbd>F</kbd></b> to boil a pot of water and drink it: it takes a little while, and it's always safe.",
       "Make a <b>canteen</b> at the chopping block. Fill it at the water (press its number there), and <b>boil</b> it at the fire (press its number by the fire): boiled water never makes you ill. Press its number anywhere else to drink.",
       "Thirsty, your wounds don't mend; low on water or food, you slowly weaken; with none at all, you die. The flux stops your wounds mending until it passes.",
     ],
@@ -76,10 +77,11 @@ export const GUIDE = {
   pond: {
     kicker: "The woods", title: "The pond, and fishing",
     steps: [
-      "Stand on the shore, <b>look out at the water</b> and <b>hold</b> <kbd>F</kbd> to fish. Keep holding while the float bobs. If a fish has taken, it goes under at the end, and the perch is yours.",
-      "They bite best at <b>dawn and dusk</b>, slowly at midday, and hardly at all at night. Rain helps a little. In winter the pond is frozen.",
+      "You fish with a <b>rod</b>. Yours is in the bar at the bottom: <b>press its number</b> to take it out (or <kbd>F</kbd> on the shore). If you ever lose it, make another at the chopping block from a log.",
+      "Stand at the water's edge, <b>face the pond</b>, and <b>click</b> to cast. The float lands out on the water.",
+      "Watch the float. A <b>nibble</b> just dips it. Wait. When it's <b>pulled right under</b>, <b>click at once</b> to strike. Too soon or too slow, and the fish is off with the bait. Right-click reels in.",
+      "Struck in time, you play it in to the bank, and the perch goes into your pack. They bite best at <b>dawn and dusk</b>, slowly at midday, and hardly at night. Rain helps a little. In winter the pond is frozen.",
       "<b>Raw fish</b> is like raw meat: cook it first, at the fire or in the kitchen (<i>Fried perch</i>, or <i>Fish soup</i> with rye).",
-      "You can <b>wade</b> the margin, slowly, but not the middle. The deer come down to drink when nobody's about.",
     ],
   },
   hurt: {

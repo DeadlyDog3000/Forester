@@ -69,23 +69,24 @@ class Animal {
     this.root.rotation.y = this.yaw;
   }
   // an arrow in it: power is how far the bow was drawn
-  hit(power) {
+  // (from: where the arrow came from, when it's a settler's, not yours — no practice for you, and nobody charged)
+  hit(power, head, from) {
     if (!this.alive) return;
     // (in someone else's colony this beast is theirs, shown here: the arrow's told to their game, which brings it down)
     if (this.puppet) { G.practise && G.practise("archery", 3); G.mp && G.mp.huntHit && G.mp.huntHit(this, power); return; }
     this.hp -= power > 0.7 ? 2 : 1;
     // (wounded, it bleeds as it runs: a trail of drops to follow)
     this.bleed = 40; this.bleedAt = null;
-    G.practise && G.practise("archery", 3);
-    if (this.hp <= 0) { this.state = "dead"; this.slide = Math.min(6, this.speed || 0); this.fall = 0; this.speed = 0; this.hunt.onDown(this); if (this.kind === "boar") G.achEvent && G.achEvent("boar"); SFX.treeFall && SFX.treeFall(0.3); return; }
+    if (!from) G.practise && G.practise("archery", 3);
+    if (this.hp <= 0) { this.byNpc = !!from; this.state = "dead"; this.slide = Math.min(6, this.speed || 0); this.fall = 0; this.speed = 0; this.hunt.onDown(this); if (this.kind === "boar") G.achEvent && G.achEvent("boar"); SFX.treeFall && SFX.treeFall(0.3); return; }
     // a wounded boar turns on whoever did it, if they are near enough to reach
     const pl = G.player;
-    if (this.kind === "boar" && pl && Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z) < 14) {
+    if (!from && this.kind === "boar" && pl && Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z) < 14) {
       this.state = "charge"; this.t = 5; this.gore = 0; this.fear = 1;
       AUDIO.voice && AUDIO.voice("grunt", { at: this.pos, vol: 1.3 });
       return;
     }
-    this.startle(G.player.pos, 1.5);
+    this.startle(from || G.player.pos, 1.5);
   }
   startle(from, k = 1) {
     if (!this.alive) return;
@@ -424,9 +425,17 @@ export class Hunt {
     d.position.set(x + (Math.random() - 0.5) * 0.3, this.w.heightAt(x, z) + 0.02, z + (Math.random() - 0.5) * 0.3); d.rotation.y = Math.random() * 6.28; d.scale.set(s, 1, s * (0.6 + Math.random() * 0.6)); d.updateMatrix();
     this.bloodM.setMatrixAt(i, d.matrix); this.bloodM.count = Math.max(this.bloodM.count, i + 1); this.bloodM.instanceMatrix.needsUpdate = true;
   }
+  // a settler's kill: dressed by them where it lies, not left for you
+  takeBy(a) {
+    if (a._dressIt) this.w.removeInteract(a._dressIt);
+    this.w.root.remove(a.root);
+    const i = this.animals.indexOf(a); if (i >= 0) this.animals.splice(i, 1);
+    for (const ar of this.arrows.filter(r => r.in === a)) this.arrows.splice(this.arrows.indexOf(ar), 1);
+  }
   onDown(a) {
+    if (a.byNpc) return;
     // a fallen beast can be dressed where it lies
-    const it = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 0.4; }, reach: 2.2, hold: 2.2,
+    const it = a._dressIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 0.4; }, reach: 2.2, hold: 2.2,
       label: `Dress the ${a.K.name}`,
       onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX.pickup && SFX.pickup(); },
       use: () => {
@@ -441,13 +450,13 @@ export class Hunt {
       } });
     this._onDown && this._onDown(a);
   }
-  loose(from, dir, power, bolt = false) {
+  loose(from, dir, power, bolt = false, npc = null) {
     const m = modelCopy("arrow");
     const mesh = m ? m.scene : new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.74).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xb89a6a }));
     // (a crossbow's bolt: half the length of an arrow, and stouter)
     if (bolt) mesh.scale.set(1.5, 1.5, 0.5);
     this.w.root.add(mesh);
-    const ar = { mesh, pos: from.clone(), from: from.clone(), vel: dir.clone().multiplyScalar(14 + 32 * power), power, t: 0, stuck: false };
+    const ar = { mesh, pos: from.clone(), from: from.clone(), vel: dir.clone().multiplyScalar(14 + 32 * power), power, t: 0, stuck: false, npc };
     this.arrows.push(ar);
     this.orient(ar);
   }
@@ -492,6 +501,8 @@ export class Hunt {
       const d = Math.hypot(a.pos.x - ar.pos.x, a.pos.z - ar.pos.z);
       if (d < 14 && (d < 7 || Math.random() < 0.7)) a.startle(ar.from, d < 7 ? 1.3 : 1);
     }
+    // (a settler's miss: they gather it up themselves, in a while)
+    if (ar.npc) { setTimeout(() => { if (this.arrows.includes(ar)) { this.w.root.remove(ar.mesh); this.arrows.splice(this.arrows.indexOf(ar), 1); } }, 25000); return; }
     ar.it = this.w.addInteract({ x: ar.pos.x, y: ar.pos.y, z: ar.pos.z, reach: 2.0, local: true, label: "Pull the arrow out",
       use: () => { this.w.removeInteract(ar.it); this.w.root.remove(ar.mesh); this.arrows.splice(this.arrows.indexOf(ar), 1); G.player.arrows = (G.player.arrows || 0) + 1; SFX.pickup && SFX.pickup(); } });
   }
@@ -517,7 +528,7 @@ export class Hunt {
           const c = a.centre(), fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
           const along = clamp((ar.pos.x - c.x) * fx + (ar.pos.z - c.z) * fz, -a.K.len, a.K.len);
           const px = c.x + fx * along, pz = c.z + fz * along;
-          if (Math.hypot(ar.pos.x - px, ar.pos.y - c.y, ar.pos.z - pz) < a.K.r) { this.stick(ar, a); a.hit(ar.power); UI.hint && null; break; }
+          if (Math.hypot(ar.pos.x - px, ar.pos.y - c.y, ar.pos.z - pz) < a.K.r) { this.stick(ar, a); a.hit(ar.power, false, ar.npc ? ar.from : undefined); break; }
         }
         if (ar.stuck) break;
         const gy = w.heightAt(ar.pos.x, ar.pos.z);
