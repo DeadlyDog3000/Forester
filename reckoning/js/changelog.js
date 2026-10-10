@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.87.0", date: "10 October 2026", title: "Logs to carry",
+    items: [
+      "In Frontier, felling and building work as they do in the settlement. A felled tree's logs lie where it comes down. F takes them up, six in your arms at most. Stack them at the hearth or a woodshed (F there), or take logs back out of the store there to carry somewhere.",
+      "Every building but the hearth is laid out as a site: a pale frame with its corner posts and its ground outlined. Bring it its logs (F to add what you carry; the heap beside it grows as they come). When there are enough, hold F to raise it, and any stone it needs is taken from the store then. The hearth is still lit at once, from the store.",
+      "Your settlers bring the logs they cut to any site that wants them before they take the rest to the store, as the settlement's haulers do.",
+      "Frontier's goals say how: lay it out, carry its logs to the site, hold F to raise it. In co-op, a guest is asked to help the host build rather than to press B.",
+    ],
+  },
+  {
     v: "0.86.0", date: "10 October 2026", title: "The host's settlement",
     items: [
       "In co-op, the settlement is the host's, and the host runs it. In a colony, only the host lays out plans (B), opens the government (G), researches, sends for people, sets jobs and laws, and takes buildings down. In Frontier co-op, the host places the buildings, takes them down and says who works where. Guests fell, carry, help raise what's planned, hunt, fight, and make their own tools. If a guest tries something that's the host's to do, they're told so.",

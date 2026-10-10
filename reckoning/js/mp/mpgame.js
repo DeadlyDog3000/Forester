@@ -11,7 +11,7 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
-import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel } from "../models.js";
+import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel, makeLogs } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { Wilds } from "./wilds.js";
@@ -29,18 +29,21 @@ const DAY = [[0, "night"], [0.2, "dawn"], [0.27, "morning"], [0.5, "afternoon"],
 
 // a name over someone's head
 // THE BOARD, in Frontier: what to do next with a homestead, one thing after another, each with how far along it is
+// (each building: laid out by whoever runs the settlement, then its logs carried to the site and raised — a guest in
+//  co-op helps with that part)
+const lay = (g, what, why) => g.manages() ? `Lay out ${what} (B), carry its logs to the site (F) and hold F to raise it: ${why}` : `Help ${g.hostName()} build ${what}: carry logs to its site (F), then hold F there to raise it`;
 const MP_GOALS = [
-  { text: g => `Fell trees for logs — ${Math.min(10, g.stock.wood)} of 10 (swing the axe at a tree)`, done: g => g.stock.wood >= 10 || g.has("hearth") },
-  { text: () => "Raise a hearth (B): the ground round it becomes yours, and you wake there after a fall", done: g => g.has("hearth") },
-  { text: () => "Build a cabin (B): beds for two settlers, who'll come to live and work for you", done: g => g.has("cabin") || g.has("house") },
-  { text: () => "Wait for your first settler to come up — keep felling meanwhile", done: g => g.mine() >= 1 },
-  { text: () => "Lay out a field (B): settlers eat, and with no food they won't stay", done: g => g.has("field") },
-  { text: () => "Build a woodshed (B) to keep your logs and stone", done: g => g.has("shed") },
+  { text: g => `Fell trees for logs — ${Math.min(10, g.stock.wood)} of 10 (swing the axe at a tree, take up its logs with F, stack them at the hearth)`, done: g => g.stock.wood >= 10 || g.has("hearth") },
+  { text: g => g.manages() ? "Raise a hearth (B): the ground round it becomes yours, and you wake there after a fall" : `Wait for ${g.hostName()} to raise the hearth — fell trees meanwhile`, done: g => g.has("hearth") },
+  { text: g => lay(g, "a cabin", "beds for two settlers, who'll come through the woods to live and work"), done: g => g.has("cabin") || g.has("house") },
+  { text: () => "Wait for your first settler to come through the woods — keep felling meanwhile", done: g => g.mine() >= 1 },
+  { text: g => lay(g, "a field", "settlers eat, and with no food they won't stay"), done: g => g.has("field") },
+  { text: g => lay(g, "a woodshed", "to keep the logs and stone"), done: g => g.has("shed") },
   { text: g => `Break stone from the grey rocks — ${Math.min(10, g.stock.stone)} of 10`, done: g => g.stock.stone >= 10 || g.has("well") || g.has("tower") || g.has("house") },
-  { text: () => "Put up a palisade (B) round your ground, with a gate in it", done: g => g.has("wall") && g.has("gate") },
-  { text: () => "Raise a watchtower (B): two of your settlers keep watch", done: g => g.has("tower") },
+  { text: g => lay(g, "a palisade with a gate in it", "round your ground"), done: g => g.has("wall") && g.has("gate") },
+  { text: g => lay(g, "a watchtower", "two of your settlers keep watch"), done: g => g.has("tower") },
   { text: g => `Grow your homestead to six settlers — ${g.mine()} of 6 (more beds: cabins and houses)`, done: g => g.mine() >= 6 },
-  { text: () => "Build a forge (B): your axe bites deeper — trees fall and walls break sooner", done: g => g.has("forge") },
+  { text: g => lay(g, "a forge", "your axe bites deeper — trees fall and walls break sooner"), done: g => g.has("forge") },
   { text: () => "Make an alliance (Tab) — or claim a rival's ground in a war", done: g => g.mode === "coop" || !!g.groupOf(g.pid) || (g.wars || []).some(w => w.att === g.pid || w.def === g.pid) },
   { text: g => `A full homestead: twelve settlers — ${g.mine()} of 12`, done: g => g.mine() >= 12 },
 ];
@@ -183,6 +186,9 @@ export class MPGame {
     for (const p of inMsg.players || []) this.addRemote(p);
     for (const b of inMsg.buildings || []) this.addB(b);
     this.drops = new Map(); for (const d of inMsg.drops || []) this.addDrop(d);
+    this.piles = new Map(); for (const q of inMsg.piles || []) this.setPile(q);
+    this.sites = new Map(); for (const q of inMsg.sites || []) this.setSite(q);
+    this.setCarry(inMsg.carry || 0);
     for (const v of inMsg.settlers || []) this.settlers.set(v.id, new SettlerView(this, v));
     for (const c of inMsg.chat || []) this.chatLine(c, true);
     G.onSwing = () => this.swing();
@@ -241,6 +247,11 @@ export class MPGame {
         else if (b.type === "market") this.net.send({ t: "trade", want: "stone" });
         else this.workField(b);
       } });
+    // the store, at the hearth and at a woodshed: the logs you carry stacked, or taken out to carry to a site
+    if ((b.type === "hearth" || b.type === "shed") && fr) e.it4 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 0.8, z: b.z, reach: d.r + 2.4,
+      can: () => !this.dead && (this.carry > 0 || (this.stock.wood > 0 && this.carry < 6)),
+      label: () => this.carry > 0 ? `Stack the logs (${this.carry})` : `Take logs from the store (${this.stock.wood})`,
+      use: () => this.net.send({ t: this.carry > 0 ? "stack" : "unstack", id: b.id }) });
     // a cabin's door: F to open it and go in, F to shut it
     if (e.setDoor) {
       const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), dx = b.x + 3.05 * sn, dz = b.z + 3.05 * c;
@@ -249,8 +260,8 @@ export class MPGame {
     }
     if (b.type === "market") e.it2 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.2, z: b.z, reach: d.r + 2.2, hold: 1.2, can: () => e.friendly && this.stock.stone > 0 && input.down("ShiftLeft"), label: "Hold F: a stone for 3 logs", use: () => this.net.send({ t: "trade", want: "wood" }) });
   }
-  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
-  removeB(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); this.w.removeBuilding(id); }
+  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
+  removeB(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); this.w.removeBuilding(id); }
   // ---- what the server says ----
   listen() {
     const n = this.net.on, w = this.w;
@@ -266,7 +277,7 @@ export class MPGame {
       G.startleBirds && G.startleBirds(t.x, t.z);
       const f = w.falling[w.falling.length - 1];
       if (f) f.onDown = () => { const r = (t.h || 9) * 0.5; FOLEY.crash(1, { x: t.x + f.dir.x * r, z: t.z + f.dir.z * r }); };
-      if (m.by === this.pid) { G.woodChips && G.woodChips(t, 2.2); this.toast(`+${{ birch: 3 }[t.kind] || 5} logs`); }
+      if (m.by === this.pid) G.woodChips && G.woodChips(t, 2.2);
       else if (Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 1.4);
     };
     n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.crash(0.35, { x: k.x, z: k.z }); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("+4 stone"); };
@@ -296,6 +307,11 @@ export class MPGame {
       r.hp = m.hp;
     };
     n.drop = m => this.addDrop(m.d);
+    n.pile = m => this.setPile(m.p);
+    n.pilex = m => this.dropPile(m.id);
+    n.site = m => this.setSite(m.s);
+    n.sitex = m => this.dropSite(m.id);
+    n.carry = m => { const was = this.carry; this.setCarry(m.n); if (m.n !== was) sfx("pickup"); };
     n.dropgone = m => {
       const e = this.drops.get(m.id); if (!e) return;
       this.w.root.remove(e.mesh); this.w.removeInteract(e.it); this.drops.delete(m.id);
@@ -450,9 +466,10 @@ export class MPGame {
     const IC = G.icons || {}, PIC = { hearth: "logs", cabin: "cabin", shed: "logs", house: "cabin", field: "seeds", well: "well", wall: "logs", gate: "logs", tower: "weapon", forge: "tools", market: "coin" };
     $("buildTitle").textContent = "Plans";
     $("buildList").innerHTML = BUILD_ORDER.map((k, i) => {
-      const d = BUILD[k], ok = this.stock.wood >= d.wood && this.stock.stone >= d.stone, has = k === "hearth" && this.myHearth();
-      const cost = [`${d.wood} logs`, d.stone ? `${d.stone} stone` : ""].filter(Boolean).join(", ");
-      const short = !ok ? ` — ${[this.stock.wood < d.wood ? `${d.wood - this.stock.wood} logs` : "", this.stock.stone < d.stone ? `${d.stone - this.stock.stone} stone` : ""].filter(Boolean).join(" and ")} short` : "";
+      // (the hearth is lit from the store; anything else is laid out as a site, and its logs brought to it)
+      const d = BUILD[k], ok = k !== "hearth" || this.stock.wood >= d.wood, has = k === "hearth" && this.myHearth();
+      const cost = k === "hearth" ? `${d.wood} logs from the store` : [`${d.wood} logs to bring`, d.stone ? `${d.stone} stone` : ""].filter(Boolean).join(", ");
+      const short = !ok ? ` — ${d.wood - this.stock.wood} logs short` : "";
       return `<button class="plan${ok && !has ? "" : " short"}" data-k="${k}" data-i="${i}"><img src="${IC[PIC[k]] || IC.logs || ""}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}${has ? (this.mode === "coop" ? " (The colony has one.)" : " (You have one.)") : esc(short)}</span></span><span class="pc">${cost}</span></button>`;
     }).join("");
     for (const b of $("buildList").querySelectorAll("[data-k]")) b.onclick = () => { if (b.classList.contains("short")) { sfx("deny"); return; } this.startBuild(b.dataset.k); };
@@ -504,7 +521,7 @@ export class MPGame {
     B.ghost.position.set(x, y, z); B.ghost.rotation.y = ry;
     // will it do?
     let why = "";
-    if (this.stock.wood < d.wood || this.stock.stone < d.stone) why = `Needs ${d.wood} logs${d.stone ? ` and ${d.stone} stone` : ""}`;
+    if (B.type === "hearth" && this.stock.wood < d.wood) why = `A hearth takes ${d.wood} logs from the store`;
     else if (y < 0.6) why = "Not in the water";
     else if (Math.abs(x) > this.room.half - 10 || Math.abs(z) > this.room.half - 10) why = "The edge of the map";
     else {
@@ -519,6 +536,7 @@ export class MPGame {
       const gap = (d.wall && c.wall) ? 1.2 : (d.wall ? 0.3 : d.r) + (c.wall ? 0.3 : c.r) - 0.2;
       if (Math.hypot(e.b.x - x, e.b.z - z) < gap) { why = "Something's in the way"; break; }
     }
+    if (!why) for (const e of this.sites.values()) { const c = BUILD[e.q.type]; if (Math.hypot(e.q.x - x, e.q.z - z) < (d.wall ? 0.3 : d.r) + (c.wall ? 0.3 : c.r) - 0.2) { why = "There's a site laid out there already"; break; } }
     if (!why && B.type === "hearth" && this.myHearth()) why = this.mode === "coop" ? "The colony has its hearth" : "You have a hearth already";
     if (!why && !d.wall) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const ch = this.w.chunkAt(x + i * 8, z + j * 8); if (ch) for (const t of ch.trees) if (!t.gone && Math.hypot(t.x - x, t.z - z) < (d.r || 1.5) * 0.8) why = "Fell the trees here first"; }
     B.ok = !why; B.x = x; B.z = z; B.ry = ry;
@@ -681,7 +699,7 @@ export class MPGame {
     if (e.code === "KeyN" && !this.invite) { this.toggleNews(); return true; }
     if (e.code === "KeyB" && !this.manages() && !this.build) { UI.hint(`It's ${this.hostName()}'s settlement: they lay out what's built. Fell trees and bring the logs — that's how it goes up.`, 4.5); return true; }
     if (e.code === "KeyB") { if (this.build) this.endBuild(); else { const on = !this.menuOpen; this.openBuild(on); if (on) G.releaseMouse && G.releaseMouse(); else G.lockMouse && G.lockMouse(); } return true; }
-    if (this.menuOpen && /^Digit\d$/.test(e.code)) { const i = (+e.code.slice(5) + 9) % 10, k = BUILD_ORDER[i]; const d = BUILD[k]; if (k && this.stock.wood >= d.wood && this.stock.stone >= d.stone) this.startBuild(k); return true; }
+    if (this.menuOpen && /^Digit\d$/.test(e.code)) { const i = (+e.code.slice(5) + 9) % 10, k = BUILD_ORDER[i]; const d = BUILD[k]; if (k && (k !== "hearth" || this.stock.wood >= d.wood)) this.startBuild(k); return true; }
     if (this.invite && (e.code === "KeyY" || e.code === "KeyN")) { this.net.send({ t: e.code === "KeyY" ? "allyok" : "allyno", pid: this.invite.pid }); $("mpInvite").classList.add("hidden"); this.invite = null; return true; }
     if (e.code === "Escape" && (this.menuOpen || this.listOpen || this.newsOpen)) { this.openBuild(false); this.toggleList(false); this.toggleNews(false); return true; }
     return ["KeyP", "KeyG", "KeyH", "KeyV"].includes(e.code);
@@ -711,6 +729,60 @@ export class MPGame {
     this.hooks.lost && this.hooks.lost(this.room.persistent ? "The connection to the wide world was lost." : "The connection to the game was lost — its host may have closed it.");
   }
   // a fallen player's sack: where they fell, F to take what's in it
+  // ---- logs and sites, as in the settlement ----
+  setCarry(n) { this.carry = n; if (G.player) G.player.carryN = n; UI.carry(n ? `Carrying ${n} log${n > 1 ? "s" : ""}` : null); }
+  // a tree's logs, lying where it fell: F to take them up (six in your arms at most)
+  setPile(q) {
+    let e = this.piles.get(q.id);
+    if (!e) {
+      const g = new THREE.Group(), y = this.w.heightAt(q.x, q.z);
+      g.add(makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.3, y: 0.15 + (i === 1 ? 0.24 : 0), z: 0, len: 1.8, r: 0.15, dir: "z" })), Math.floor(q.x * 13 + q.z)));
+      g.position.set(q.x, y, q.z); g.rotation.y = q.a || 0; this.w.root.add(g);
+      e = { q, g };
+      e.it = this.w.addInteract({ x: q.x, y: y + 0.4, z: q.z, reach: 2.4, can: () => !this.dead && this.carry < 6, label: () => `Take the logs (${e.q.n})`, use: () => this.net.send({ t: "take", id: q.id }) });
+      this.piles.set(q.id, e);
+    }
+    e.q = q;
+  }
+  dropPile(id) { const e = this.piles.get(id); if (!e) return; this.w.root.remove(e.g); this.w.removeInteract(e.it); this.piles.delete(id); }
+  // a building laid out: its outline and frame, pale, the logs brought heaped by it; F to add yours, and when there are
+  // enough, hold F to raise it (with the stone from the store)
+  setSite(q) {
+    const d = BUILD[q.type]; if (!d) return;
+    let e = this.sites.get(q.id);
+    if (!e) {
+      const g = new THREE.Group(), y = this.w.heightAt(q.x, q.z);
+      g.position.set(q.x, y, q.z); g.rotation.y = q.ry || 0;
+      const tint = new THREE.MeshStandardMaterial({ color: 0xc8a878, transparent: true, opacity: 0.32, depthWrite: false, roughness: 0.9 });
+      const fw = d.wall ? d.len : d.w || d.r * 2, fd = d.wall ? 0.5 : d.d || d.r * 2;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(fw * 0.9, d.field ? 0.08 : 2.4, fd * 0.9).translate(0, d.field ? 0.04 : 1.2, 0), tint); g.add(body);
+      const put = () => { const m = modelCopy(d.model); if (!m) return false; m.scene.traverse(o => { if (o.isMesh) { o.material = tint; o.castShadow = false; } }); g.remove(body); g.add(m.scene); return true; };
+      if (d.model && !put()) ensureModel(d.model).then(ok => ok && this.sites.has(q.id) && put());
+      // the corner posts and the outline on the ground, so it reads as a site laid out
+      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(fw, 0.05, fd)), new THREE.LineBasicMaterial({ color: 0xd8c08a })); edge.position.y = 0.05; g.add(edge);
+      if (!d.field && !d.wall) for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.6, 6), new THREE.MeshStandardMaterial({ color: 0x6a4a2e })); post.position.set(sx * fw / 2, 0.8, sz * fd / 2); g.add(post); }
+      const heap = new THREE.Group(); heap.position.set(fw / 2 + 0.9, 0, 0); g.add(heap);
+      this.w.root.add(g);
+      e = { q, g, heap, n: -1 };
+      e.it = this.w.addInteract({ x: q.x, y: y + 0.9, z: q.z, reach: (d.wall ? d.len / 2 : Math.max(fw, fd) / 2) + 1.6,
+        hold: () => e.q.logs >= d.wood ? 3 : 0,
+        can: () => !this.dead,
+        label: () => {
+          const Q = e.q, need = d.wood;
+          if (Q.logs < need) return this.carry > 0 ? `Add ${Math.min(this.carry, need - Q.logs)} logs (${Q.logs} of ${need})` : `Bring logs — ${Q.logs} of ${need} (take them from a felled tree, or from the store at the hearth)`;
+          if (d.stone && this.stock.stone < d.stone) return `Needs ${d.stone} stone from the store — ${d.stone - this.stock.stone} short. Break the grey rocks`;
+          return `Raise the ${d.name.toLowerCase()}`;
+        },
+        onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) sfx("chop"); },
+        use: () => { if (this.carry > 0 && e.q.logs < d.wood) this.net.send({ t: "deliver", id: q.id }); else if (e.q.logs >= d.wood) this.net.send({ t: "raise", id: q.id }); } });
+      this.sites.set(q.id, e);
+    }
+    e.q = q;
+    // (the logs brought, heaped beside it: more as more come)
+    const k = Math.min(6, Math.ceil(q.logs / Math.max(1, d.wood) * 6));
+    if (k !== e.n) { e.n = k; e.heap.clear(); if (k) e.heap.add(makeLogs(Array.from({ length: k }, (_, i) => ({ x: (i % 3 - 1) * 0.3, y: 0.15 + Math.floor(i / 3) * 0.26, z: 0, len: 1.8, r: 0.15, dir: "z" })), 7)); }
+  }
+  dropSite(id) { const e = this.sites.get(id); if (!e) return; this.w.root.remove(e.g); this.w.removeInteract(e.it); this.sites.delete(id); }
   addDrop(d) {
     if (!d || this.drops.has(d.id)) return;
     const mesh = new THREE.Group(), s1 = makeSack(), s2 = makeSack();

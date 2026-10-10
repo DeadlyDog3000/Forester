@@ -18,6 +18,7 @@ const http = require("http"), crypto = require("crypto"), fs = require("fs"), pa
 const { pathToFileURL } = require("url");
 
 let R = null, T = null, LK = null;
+const CARRY_MAX = 6;                   // (logs in your arms at once, as in the settlement)
 let START = null;                    // (a test server can start everyone rich: --stock 200)              // the rules and the land (ES modules, shared with the game: loaded at start)
 const LAN_PORT = 47811;
 
@@ -111,22 +112,33 @@ class Room {
     this.shared = { ...(START || R.START_STOCK) };   // (co-op: one colony, one store)
     this.settlers = {}; this.nextS = 1; this.lastArrive = {}; this.workCache = {};
     this.wars = []; this.news = []; this.lastWar = {};
-    this.drops = {}; this.nextD = 1;     // (what the fallen dropped: a sack each, for anyone to loot, a few minutes)
+    this.drops = {}; this.nextD = 1;
+    // (as in the settlement: a tree's logs lie where it fell, to be carried; a building is a site till the logs are
+    //  brought and it's raised)
+    this.piles = {}; this.nextP = 1; this.sites = {};     // (what the fallen dropped: a sack each, for anyone to loot, a few minutes)
     // Classic: a nation each, each the real game on its owner's computer; here only what passes between them
     this.nats = {}; this.pacts = new Set(); this.nwars = []; this.offers = new Map(); this.forays = new Map(); this.peaceAsk = new Map(); this.pactAsk = new Map(); this.lastNWar = {}; this.nextO = 1;
     this.dirty = false;
   }
   storeOf(pid) { return this.mode === "coop" ? this.shared : this.recs[pid]; }
+  addPile(x, z, a, n) {
+    // (onto a pile already lying close by, rather than a heap of little ones)
+    const near = Object.values(this.piles).find(q => Math.hypot(q.x - x, q.z - z) < 1.2);
+    if (near) { near.n += n; this.all({ t: "pile", p: near }); return near; }
+    const pl = { id: "p" + (this.nextP++), x: +x.toFixed(2), z: +z.toFixed(2), a: +a.toFixed(2), n };
+    this.piles[pl.id] = pl; this.all({ t: "pile", p: pl });
+    return pl;
+  }
   // who runs the settlement: in co-op, the host alone; otherwise each their own
   manages(p) { return this.mode !== "coop" || !this.hostPid || p.pid === this.hostPid; }
   meta() {
     return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, hostPid: this.hostPid, locked: !!this.password, persistent: this.persistent };
   }
   // ---- saving the wide world ----
-  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0 }; }
+  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0, piles: this.piles, nextP: this.nextP, sites: this.sites }; }
   static from(j) {
     const r = new Room(j);
-    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0 });
+    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0, piles: j.piles || {}, nextP: j.nextP || 1, sites: j.sites || {} });
     return r;
   }
   each(f) { for (const p of this.online.values()) f(p); }
@@ -167,7 +179,7 @@ class Room {
     const t = now();
     sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, food: this.storeOf(p.pid).food | 0, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null },
       players: [...this.online.values()].filter(q => q !== p).map(q => this.pub(q)), felled: live(this.felled, t), broken: live(this.broken, t),
-      buildings: Object.values(this.buildings), drops: Object.values(this.drops), settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
+      buildings: Object.values(this.buildings), drops: Object.values(this.drops), piles: Object.values(this.piles), sites: Object.values(this.sites), carry: (this.recs[p.pid] || {}).carry || 0, settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
       online: this.onlineNames(), ...(this.mode === "nations" ? this.natState() : {}) });
     this.all({ t: "pj", p: this.pub(p) }, p);
     if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
@@ -239,9 +251,10 @@ class Room {
         this.hits.delete(tr.id);
         this.felled[tr.id] = t + R.REGROW_MS;
         const dx = tr.x - p.x, dz = tr.z - p.z, l = Math.hypot(dx, dz) || 1;
-        st.wood += R.LOGS_PER_TREE[tr.kind];
         this.all({ t: "fell", id: tr.id, by: p.pid, dx: dx / l, dz: dz / l });
-        this.stock(p); this.dirty = true;
+        // (its logs where it comes down, a few paces out along the way it fell)
+        this.addPile(tr.x + dx / l * 1.6, tr.z + dz / l * 1.6, Math.atan2(dx, dz), R.LOGS_PER_TREE[tr.kind]);
+        this.dirty = true;
         return;
       }
       case "mine": {
@@ -264,7 +277,7 @@ class Room {
         const no = text => p.sock.send({ t: "err", text });
         // (a co-op settlement is the host's: they lay out what's built)
         if (!this.manages(p)) return no(`It's ${this.host || "the host"}'s settlement: they lay out what's built. Help raise it, and fetch the logs.`);
-        if (st.wood < d.wood || st.stone < d.stone) return no(`A ${d.name.toLowerCase()} takes ${d.wood} logs${d.stone ? ` and ${d.stone} stone` : ""}.`);
+        if (m.type === "hearth" && (st.wood < d.wood || st.stone < d.stone)) return no(`A hearth takes ${d.wood} logs from the store.`);
         if (!this.near(p, x, z, 16)) return no("Too far away to build there.");
         if (Math.abs(x) > this.half - 10 || Math.abs(z) > this.half - 10) return no("That's the edge of the map.");
         if (this.land.heightAt(x, z) < 0.6) return no("Not in the water.");
@@ -276,14 +289,67 @@ class Room {
           const e = R.BUILD[b.type], gap = (d.wall && e.wall) ? 1.2 : (d.wall ? 0.3 : d.r) + (e.wall ? 0.3 : e.r) - 0.2;
           if (Math.hypot(b.x - x, b.z - z) < gap) return no("Something's in the way.");
         }
-        st.wood -= d.wood; st.stone -= d.stone;
-        const b = { id: "b" + (this.nextB++), type: m.type, x, z, ry, owner: p.pid, hp: d.hp, at: t };
-        this.buildings[b.id] = b;
-        this.all({ t: "b", b });
-        this.stock(p); this.dirty = true;
+        for (const q of Object.values(this.sites)) { const e = R.BUILD[q.type]; if (Math.hypot(q.x - x, q.z - z) < (d.wall ? 0.3 : d.r) + (e.wall ? 0.3 : e.r) - 0.2) return no("There's a site laid out there already."); }
+        // the hearth: lit at once, from what's in the store (it's where everything else is kept)
+        if (m.type === "hearth") {
+          st.wood -= d.wood; st.stone -= d.stone;
+          const b = { id: "b" + (this.nextB++), type: m.type, x, z, ry, owner: p.pid, hp: d.hp, at: t };
+          this.buildings[b.id] = b; this.all({ t: "b", b }); this.stock(p); this.dirty = true;
+          return;
+        }
+        // anything else: a site, as in the settlement — its logs to be brought, then raised
+        const sx = { id: "s" + (this.nextB++), type: m.type, x, z, ry, owner: p.pid, logs: 0 };
+        this.sites[sx.id] = sx; this.all({ t: "site", s: sx }); this.dirty = true;
         return;
       }
       // a settler put to work at a field (or let go from it, back to whatever's wanted)
+      case "take": {
+        const pl = this.piles[String(m.id || "")], rec = this.recs[p.pid]; if (!pl || !rec || p.dead) return;
+        if (!this.near(p, pl.x, pl.z, 3.6)) return;
+        const room = CARRY_MAX - (rec.carry || 0); if (room <= 0) return p.sock.send({ t: "err", text: `${CARRY_MAX} is all anyone can carry. Stack them at the hearth or a woodshed, or take them to a site.` });
+        const n = Math.min(room, pl.n); pl.n -= n; rec.carry = (rec.carry || 0) + n;
+        if (pl.n <= 0) { delete this.piles[pl.id]; this.all({ t: "pilex", id: pl.id }); } else this.all({ t: "pile", p: pl });
+        p.sock.send({ t: "carry", n: rec.carry }); this.dirty = true;
+        return;
+      }
+      case "stack": case "unstack": {
+        const rec = this.recs[p.pid], b = this.buildings[String(m.id || "")]; if (!rec || !b || p.dead) return;
+        if (!(b.type === "hearth" || b.type === "shed") || !this.mineB(this.mode === "coop" ? "colony" : p.pid, b) || !this.near(p, b.x, b.z, R.BUILD[b.type].r + 3.5)) return;
+        if (m.t === "stack") { if (!rec.carry) return; st.wood += rec.carry; rec.carry = 0; }
+        else { const n = Math.min(CARRY_MAX - (rec.carry || 0), st.wood); if (n <= 0) return; st.wood -= n; rec.carry = (rec.carry || 0) + n; }
+        p.sock.send({ t: "carry", n: rec.carry }); this.stock(p); this.dirty = true;
+        return;
+      }
+      case "deliver": {
+        const rec = this.recs[p.pid], sx = this.sites[String(m.id || "")]; if (!rec || !sx || !rec.carry || p.dead) return;
+        const d = R.BUILD[sx.type];
+        if (!(sx.owner === p.pid || this.mode === "coop" || this.allied(sx.owner, p.pid)) || !this.near(p, sx.x, sx.z, (d.wall ? d.len / 2 : d.r) + 3.5)) return;
+        const n = Math.min(rec.carry, d.wood - sx.logs); if (n <= 0) return;
+        sx.logs += n; rec.carry -= n;
+        p.sock.send({ t: "carry", n: rec.carry }); this.all({ t: "site", s: sx }); this.dirty = true;
+        return;
+      }
+      case "raise": {
+        const sx = this.sites[String(m.id || "")]; if (!sx || p.dead) return;
+        const d = R.BUILD[sx.type], no = text => p.sock.send({ t: "err", text });
+        if (!(sx.owner === p.pid || this.mode === "coop" || this.allied(sx.owner, p.pid)) || !this.near(p, sx.x, sx.z, (d.wall ? d.len / 2 : d.r) + 3.5)) return;
+        if (sx.logs < d.wood) return no(`It wants ${d.wood - sx.logs} more logs first.`);
+        const ost = this.storeFor(this.mode === "coop" ? "colony" : sx.owner) || st;
+        if ((ost.stone || 0) < d.stone) return no(`It wants ${d.stone} stone from the store — ${d.stone - (ost.stone || 0)} short. Break the grey rocks.`);
+        ost.stone -= d.stone;
+        delete this.sites[sx.id]; this.all({ t: "sitex", id: sx.id });
+        const b = { id: "b" + (this.nextB++), type: sx.type, x: sx.x, z: sx.z, ry: sx.ry, owner: sx.owner, hp: d.hp, at: t };
+        this.buildings[b.id] = b; this.all({ t: "b", b }); this.stockTo(this.mode === "coop" ? "colony" : sx.owner); this.dirty = true;
+        return;
+      }
+      case "unsite": {
+        const sx = this.sites[String(m.id || "")]; if (!sx) return;
+        if (!(sx.owner === p.pid && this.manages(p)) && !(this.mode === "coop" && this.manages(p))) return;
+        delete this.sites[sx.id]; this.all({ t: "sitex", id: sx.id });
+        if (sx.logs) this.addPile(sx.x + 1.5, sx.z, 0, sx.logs);
+        this.dirty = true;
+        return;
+      }
       case "assign": {
         const v = this.settlers[String(m.sid || "")], f = m.field ? this.buildings[String(m.field)] : null;
         const no = text => p.sock.send({ t: "err", text });
@@ -659,6 +725,16 @@ class Room {
         continue;
       }
       if (v.state === "home") {
+        // (logs to a site of ours that wants them, first — as the settlement's haulers do; else to the store)
+        const site = v.carryKind === "wood" ? Object.values(this.sites).filter(q => this.mineB(v.owner, q) && q.logs < R.BUILD[q.type].wood).sort((a, b) => Math.hypot(a.x - v.x, a.z - v.z) - Math.hypot(b.x - v.x, b.z - v.z))[0] : null;
+        if (site) {
+          if (this.step(v, site.x + 1.8, site.z + 1.2, dt) <= 0.3) {
+            const n = Math.min(v.carry || 0, R.BUILD[site.type].wood - site.logs); site.logs += n; v.carry -= n;
+            this.all({ t: "site", s: site }); this.dirty = true;
+            if (!v.carry) { v.state = "rest"; v.until = t + 2500; }
+          }
+          continue;
+        }
         const sheds = Object.values(this.buildings).filter(b => b.type === "shed" && this.mineB(v.owner, b));
         let drop = home, dd = Math.hypot(home.x - v.x, home.z - v.z);
         for (const b of sheds) { const d = Math.hypot(b.x - v.x, b.z - v.z); if (d < dd) { dd = d; drop = b; } }
