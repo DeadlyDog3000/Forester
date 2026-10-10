@@ -254,6 +254,17 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
   return material;
 }
 
+// a thing that moves through the world — what's in your hands, a tree as it falls — wears its grain in its own space,
+// not the world's, or the grain would slide over it as it moves. (The same stuff, a copy of its material once.)
+const OWN_GRAIN = new Map();
+export function ownGrain(m) {
+  if (!m || !m.userData || !m.userData.detail || m.userData.detail.local) return m;
+  let c = OWN_GRAIN.get(m);
+  if (!c) { c = m.clone(); c.color = m.color; if (m.emissive) c.emissive = m.emissive; addDetail(c, { ...m.userData.detail, local: true, snow: false }); OWN_GRAIN.set(m, c); }
+  return c;
+}
+export function ownGrainAll(obj) { obj.traverse(o => { if (o.isMesh && o.material) o.material = Array.isArray(o.material) ? o.material.map(ownGrain) : ownGrain(o.material); }); }
+
 // ---------------------------------------------------------------------------
 //  materials — vertex coloured, so one material paints a whole town
 // ---------------------------------------------------------------------------

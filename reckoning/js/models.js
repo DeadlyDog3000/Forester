@@ -1224,62 +1224,118 @@ export function logMats() {
 }
 const LOG_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1); LOG_GEO._shared = true;
 // many logs in one draw: [{x,y,z,len,r,dir:"x"|"z"}], each a touch uneven
-// ---- a stump: no two alike. Its girth from the tree it was, its bark from its kind (a birch's white, a spruce's dark
-// red-brown), cut on a slant with the rings showing, a fringe of torn splinters standing up where it broke over on the
-// far side, and its roots running out into the ground — each from a seed, so the same tree leaves the same stump ----
-const RING_TEX = {};
-function ringTex(v) {
-  if (RING_TEX[v]) return RING_TEX[v];
-  let sd = v * 9301 + 49297; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+// ---- a stump: no two alike, and each kind its own. A spruce's (the brown fir) dark red-brown and scaly, its roots
+// spread shallow; a pine's thick-plated, grey at the foot and fox-orange above, the cut face warm and beaded with resin,
+// a few stout roots going down; a birch's slim and low, white with black marks, its bark peeling in curls at the cut,
+// the face pale and often gone dark at the heart. Each from a seed, so the same tree leaves the same stump ----
+const RING_TEX = {}, BARK_TEX = {};
+const STUMP_KIND = {
+  spruce: { face: "#d8b884", ring: [120, 78, 40], rim: "#3e2a1c", r: 0.24, h: [0.22, 0.6], roots: [3, 6], rootK: 1.0 },
+  pine:   { face: "#e2b676", ring: [150, 92, 40], rim: "#5a3a26", r: 0.26, h: [0.3, 0.7], roots: [2, 4], rootK: 1.25, resin: true },
+  birch:  { face: "#efe2c4", ring: [180, 150, 110], rim: "#f2efe8", r: 0.17, h: [0.15, 0.42], roots: [2, 4], rootK: 0.8, curls: true, rot: 0.55 },
+};
+function ringTex(v, kind) {
+  const key = kind + v; if (RING_TEX[key]) return RING_TEX[key];
+  const K = STUMP_KIND[kind] || STUMP_KIND.spruce;
+  let sd = v * 9301 + 49297 + kind.length * 77; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
   const cx = 64 + (rnd() - 0.5) * 18, cy = 64 + (rnd() - 0.5) * 18;
-  x.fillStyle = "#d8b884"; x.fillRect(0, 0, 128, 128);
+  x.fillStyle = K.face; x.fillRect(0, 0, 128, 128);
   // the rings, each year its own width, dark latewood between pale
-  let r = 2 + rnd() * 3; const n = 14 + Math.floor(rnd() * 16);
-  for (let i = 0; i < n && r < 92; i++) { x.strokeStyle = `rgba(${120 + rnd() * 30},${78 + rnd() * 20},${40 + rnd() * 15},${0.45 + rnd() * 0.35})`; x.lineWidth = 0.8 + rnd() * 1.4; x.beginPath(); x.ellipse(cx, cy, r, r * (0.92 + rnd() * 0.12), rnd(), 0, Math.PI * 2); x.stroke(); r += 2 + rnd() * 4.5; }
-  // the heart, darker; a check or two split out from it; the saw-and-axe marks across the face
-  const g = x.createRadialGradient(cx, cy, 0, cx, cy, 14); g.addColorStop(0, "rgba(110,64,30,0.7)"); g.addColorStop(1, "rgba(110,64,30,0)"); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  let r = 2 + rnd() * 3; const n = 14 + Math.floor(rnd() * 16), [R, Gc, B] = K.ring;
+  for (let i = 0; i < n && r < 92; i++) { x.strokeStyle = `rgba(${R + rnd() * 30},${Gc + rnd() * 20},${B + rnd() * 15},${(kind === "birch" ? 0.25 : 0.45) + rnd() * 0.35})`; x.lineWidth = 0.8 + rnd() * 1.4; x.beginPath(); x.ellipse(cx, cy, r, r * (0.92 + rnd() * 0.12), rnd(), 0, Math.PI * 2); x.stroke(); r += 2 + rnd() * 4.5; }
+  // the heart: darker; in a birch, often rotten through
+  const heart = kind === "birch" && rnd() < (K.rot || 0) ? 26 + rnd() * 14 : 14;
+  const g = x.createRadialGradient(cx, cy, 0, cx, cy, heart); g.addColorStop(0, kind === "birch" && heart > 20 ? "rgba(70,44,26,0.9)" : "rgba(110,64,30,0.7)"); g.addColorStop(1, "rgba(110,64,30,0)"); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  // a pine's resin, welling up in amber beads
+  if (K.resin) for (let k = 0; k < 5 + rnd() * 6; k++) { const a = rnd() * 6.28, d = 20 + rnd() * 38; x.fillStyle = `rgba(${200 + rnd() * 40},${140 + rnd() * 40},40,0.85)`; x.beginPath(); x.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1.5 + rnd() * 2.5, 0, 6.28); x.fill(); }
   x.strokeStyle = "rgba(50,30,15,0.8)"; x.lineWidth = 1.5;
   for (let k = 0, m = Math.floor(rnd() * 3); k < m; k++) { const a = rnd() * Math.PI * 2, l = 25 + rnd() * 35; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.cos(a) * l, cy + Math.sin(a) * l); x.stroke(); }
-  x.strokeStyle = "rgba(90,60,30,0.25)"; x.lineWidth = 2;
+  x.strokeStyle = "rgba(90,60,30,0.22)"; x.lineWidth = 2;
   for (let k = 0; k < 6; k++) { const yy = 20 + rnd() * 88; x.beginPath(); x.moveTo(0, yy); x.lineTo(128, yy + (rnd() - 0.5) * 20); x.stroke(); }
-  // the bark round the edge
-  x.strokeStyle = "#3e2a1c"; x.lineWidth = 7; x.beginPath(); x.arc(64, 64, 61, 0, Math.PI * 2); x.stroke();
+  // the bark round the edge: a pine's thick, a birch's thin and white
+  x.strokeStyle = K.rim; x.lineWidth = kind === "pine" ? 10 : kind === "birch" ? 4 : 7; x.beginPath(); x.arc(64, 64, 61, 0, Math.PI * 2); x.stroke();
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return RING_TEX[v] = t;
+  return RING_TEX[key] = t;
 }
-const BARK = { spruce: 0x4e3626, pine: 0x6a4a32, oak: 0x4a4038, birch: 0xe2ded2, beech: 0x8a8a80 };
+// the bark, wrapped round the stump
+function barkTex(kind, v) {
+  const key = kind + v; if (BARK_TEX[key]) return BARK_TEX[key];
+  let sd = v * 7919 + 104729 + kind.length * 31; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const c = document.createElement("canvas"); c.width = 256; c.height = 128; const x = c.getContext("2d");
+  if (kind === "birch") {
+    x.fillStyle = "#ebe7dd"; x.fillRect(0, 0, 256, 128);
+    // grey shading and the black marks across: the lenticels, and dark diamonds where branches were
+    for (let k = 0; k < 60; k++) { x.fillStyle = `rgba(30,28,26,${0.5 + rnd() * 0.4})`; x.fillRect(rnd() * 256, rnd() * 128, 4 + rnd() * 18, 1 + rnd() * 2); }
+    for (let k = 0; k < 3; k++) { const px = rnd() * 256, py = 30 + rnd() * 98, w = 10 + rnd() * 16; x.fillStyle = "rgba(34,30,28,0.9)"; x.beginPath(); x.moveTo(px - w, py); x.lineTo(px, py - w * 0.6); x.lineTo(px + w, py); x.lineTo(px, py + w * 0.6); x.fill(); }
+    // (darker and rougher at the very foot)
+    const gr = x.createLinearGradient(0, 128, 0, 80); gr.addColorStop(0, "rgba(40,36,32,0.75)"); gr.addColorStop(1, "rgba(40,36,32,0)"); x.fillStyle = gr; x.fillRect(0, 0, 256, 128);
+  } else if (kind === "pine") {
+    // plates of bark between deep furrows: grey-brown at the foot, fox-orange higher up
+    const gr = x.createLinearGradient(0, 128, 0, 0); gr.addColorStop(0, "#5e4a3c"); gr.addColorStop(0.6, "#7a5038"); gr.addColorStop(1, "#b0602e"); x.fillStyle = gr; x.fillRect(0, 0, 256, 128);
+    for (let k = 0; k < 40; k++) { const px = rnd() * 256, py = rnd() * 128, w = 12 + rnd() * 22, h = 8 + rnd() * 18; x.fillStyle = `rgba(${150 + rnd() * 60},${80 + rnd() * 40},${40 + rnd() * 20},${0.35 + rnd() * 0.3})`; x.fillRect(px, py, w, h); }
+    x.strokeStyle = "rgba(30,18,10,0.85)"; x.lineWidth = 2.5;
+    for (let k = 0; k < 18; k++) { let px = rnd() * 256; x.beginPath(); x.moveTo(px, 128); for (let y = 128; y > 0; y -= 12) { px += (rnd() - 0.5) * 8; x.lineTo(px, y); } x.stroke(); }
+  } else {
+    // a spruce's: dark red-brown, in small round scales
+    x.fillStyle = "#4e3626"; x.fillRect(0, 0, 256, 128);
+    for (let k = 0; k < 220; k++) { const px = rnd() * 256, py = rnd() * 128; x.fillStyle = rnd() < 0.5 ? `rgba(110,70,46,${0.4 + rnd() * 0.4})` : `rgba(30,20,14,${0.35 + rnd() * 0.4})`; x.beginPath(); x.ellipse(px, py, 3 + rnd() * 5, 2 + rnd() * 3, rnd(), 0, 6.28); x.fill(); }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping;
+  return BARK_TEX[key] = t;
+}
 export function makeStump(t, kind = "spruce") {
+  if (!STUMP_KIND[kind]) kind = "spruce";
+  const K = STUMP_KIND[kind];
   let sd = Math.abs(Math.floor((t.x || 0) * 73.1 + (t.z || 0) * 191.7)) + 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  const big = Math.max(0.6, Math.min(1.6, (t.h || 10) / 10)), birch = kind === "birch";
-  const r = (birch ? 0.17 : 0.24) * big * (0.85 + rnd() * 0.3), h = 0.22 + rnd() * 0.38, tilt = 0.08 + rnd() * 0.3, dirA = rnd() * Math.PI * 2;
+  const big = Math.max(0.6, Math.min(1.6, (t.h || 10) / 10));
+  const r = K.r * big * (0.85 + rnd() * 0.3), h = K.h[0] + rnd() * (K.h[1] - K.h[0]), tilt = 0.08 + rnd() * 0.3, dirA = rnd() * Math.PI * 2;
   const g = new THREE.Group();
-  const bark = mat(BARK[kind] || BARK.spruce, { surface: "bark", flatShading: true });
-  const face = new THREE.MeshStandardMaterial({ map: ringTex(Math.floor(rnd() * 6)), roughness: 0.95 });
-  const geo = new THREE.CylinderGeometry(r, r * 1.22, h, 11, 1);
+  const bark = new THREE.MeshStandardMaterial({ map: barkTex(kind, Math.floor(rnd() * 4)), roughness: kind === "birch" ? 0.75 : 0.95 });
+  const face = new THREE.MeshStandardMaterial({ map: ringTex(Math.floor(rnd() * 6), kind), roughness: 0.95 });
+  const geo = new THREE.CylinderGeometry(r, r * (kind === "birch" ? 1.12 : 1.25), h, 12, 1);
   // (the top cut on a slant, which way at random)
   const p = geo.attributes.position, cA = Math.cos(dirA), sA = Math.sin(dirA);
   for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setY(i, p.getY(i) + Math.tan(tilt) * (p.getX(i) * cA + p.getZ(i) * sA));
   geo.computeVertexNormals();
   const trunk = new THREE.Mesh(geo, [bark, face, bark]); trunk.position.y = h / 2; trunk.castShadow = trunk.receiveShadow = true; g.add(trunk);
+  const topAt = (lx, lz) => h / 2 + Math.tan(tilt) * (lx * cA + lz * sA);
   // the hinge: torn fibres standing up along the high side, where it broke as it went over
-  const pale = mat(0xd2b07c, { surface: "wood", flatShading: true });
+  const pale = new THREE.MeshStandardMaterial({ color: kind === "birch" ? 0xece0c4 : kind === "pine" ? 0xe0b070 : 0xd2b07c, roughness: 0.9, flatShading: true });
   for (let k = 0, n = 3 + Math.floor(rnd() * 5); k < n; k++) {
-    const a = dirA + (rnd() - 0.5) * 1.6, rr = r * (0.35 + rnd() * 0.55), sh = 0.05 + rnd() * 0.16;
-    const lx = Math.cos(a) * rr, lz = Math.sin(a) * rr, top = h / 2 + Math.tan(tilt) * (lx * cA + lz * sA);
-    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.012 + rnd() * 0.018, sh, 4), pale);
-    sp.position.set(lx, top + sh / 2 - 0.01, lz); sp.rotation.set((rnd() - 0.5) * 0.4, rnd() * 3, (rnd() - 0.5) * 0.4); trunk.add(sp);
+    const a = dirA + (rnd() - 0.5) * 1.6, rr = r * (0.35 + rnd() * 0.55), sh = (kind === "birch" ? 0.04 : 0.05) + rnd() * 0.14;
+    const lx = Math.cos(a) * rr, lz = Math.sin(a) * rr;
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.01 + rnd() * 0.016, sh, 4), pale);
+    sp.position.set(lx, topAt(lx, lz) + sh / 2 - 0.01, lz); sp.rotation.set((rnd() - 0.5) * 0.4, rnd() * 3, (rnd() - 0.5) * 0.4); trunk.add(sp);
   }
-  // the roots: three to five swells running out and down into the ground
-  for (let k = 0, n = 3 + Math.floor(rnd() * 3); k < n; k++) {
-    const a = k / n * Math.PI * 2 + rnd() * 0.8, L = r * (0.8 + rnd() * 0.7);
-    const rt = new THREE.Mesh(new THREE.ConeGeometry(r * (0.42 + rnd() * 0.18), L, 6), bark);
+  // a birch's bark, peeling back in curls at the cut
+  if (K.curls) {
+    const white = new THREE.MeshStandardMaterial({ color: 0xf0ece2, roughness: 0.7, side: THREE.DoubleSide });
+    for (let k = 0, n = 2 + Math.floor(rnd() * 3); k < n; k++) {
+      const a = rnd() * 6.28, lx = Math.cos(a) * r, lz = Math.sin(a) * r;
+      const cu = new THREE.Mesh(new THREE.CylinderGeometry(0.018 + rnd() * 0.012, 0.018, 0.05 + rnd() * 0.05, 8, 1, true, 0, Math.PI * 1.4), white);
+      cu.position.set(lx * 1.02, topAt(lx, lz) - 0.03, lz * 1.02); cu.rotation.set(Math.PI / 2, -a, 0); trunk.add(cu);
+    }
+  }
+  // a pine's resin, run down the bark from the cut in a drip or two
+  if (K.resin) {
+    const amber = new THREE.MeshStandardMaterial({ color: 0xd8902a, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.85 });
+    for (let k = 0, n = 1 + Math.floor(rnd() * 3); k < n; k++) {
+      const a = rnd() * 6.28, lx = Math.cos(a) * r * 1.03, lz = Math.sin(a) * r * 1.03, len = 0.05 + rnd() * 0.1;
+      const dr = new THREE.Mesh(new THREE.CapsuleGeometry(0.008, len, 3, 6), amber); dr.position.set(lx, topAt(lx, lz) - len / 2 - 0.02, lz); trunk.add(dr);
+    }
+  }
+  // the roots: swells running out and down into the ground — a spruce's many and shallow, a pine's few and stout
+  const rootM = new THREE.MeshStandardMaterial({ map: bark.map, roughness: 0.95 });
+  for (let k = 0, n = K.roots[0] + Math.floor(rnd() * (K.roots[1] - K.roots[0] + 1)); k < n; k++) {
+    const a = k / n * Math.PI * 2 + rnd() * 0.8, L = r * (0.8 + rnd() * 0.7) * K.rootK;
+    const rt = new THREE.Mesh(new THREE.ConeGeometry(r * (0.42 + rnd() * 0.18) * K.rootK, L, 6), rootM);
     // (the cone's tip turned out along the ground and a little down into it, its thick end against the trunk)
     rt.rotation.order = "YXZ"; rt.rotation.y = -a; rt.rotation.z = -(Math.PI / 2 + 0.18 + rnd() * 0.15); rt.scale.set(1, 1, 0.75);
     rt.position.set(Math.cos(a) * (r * 0.75 + L * 0.45), 0.07, Math.sin(a) * (r * 0.75 + L * 0.45)); rt.castShadow = true; g.add(rt);
   }
-  // (and, now and then, moss on the low side)
-  if (!birch && rnd() < 0.4) { const ms = new THREE.Mesh(new THREE.SphereGeometry(r * 0.5, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x4a6a2a, { surface: "needles" })); ms.scale.set(1.3, 0.35, 1); ms.position.set(-Math.cos(dirA) * r * 0.9, 0.04, -Math.sin(dirA) * r * 0.9); g.add(ms); }
+  // (and, now and then, moss on the low side of a spruce or a pine)
+  if (kind !== "birch" && rnd() < 0.4) { const ms = new THREE.Mesh(new THREE.SphereGeometry(r * 0.5, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x4a6a2a, { surface: "needles" })); ms.scale.set(1.3, 0.35, 1); ms.position.set(-Math.cos(dirA) * r * 0.9, 0.04, -Math.sin(dirA) * r * 0.9); g.add(ms); }
   g.rotation.y = rnd() * 6.28;
   return g;
 }

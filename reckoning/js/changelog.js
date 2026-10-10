@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.92.1", date: "10 October 2026", title: "The angler's rod",
+    items: [
+      "The fishing rod is a 1600s angler's rod: a long, slender rod of hazel in four lengths whipped together with thread, a leather grip, no reel, and a horsehair line tied to its top. It bends in an arc all along its length with a fish on it, not at one joint.",
+      "No float, as in the old way of it: a bare hook with a worm on it. Watch the line where it goes into the water. A nibble twitches it; when it's drawn away under and the top of the rod pulls down, strike.",
+      "A tree falling keeps its texture: the bark's grain no longer slides over it as it tips and comes down.",
+      "Each kind of tree leaves its own stump. A spruce's is dark red-brown and scaly, with shallow roots spread out. A pine's is thick-plated, grey at the foot and fox-orange above, the cut beaded with resin and a drip run down the side. A birch's is slim and low, white with black marks, its bark peeling back in curls, the cut pale and often dark at the heart.",
+    ],
+  },
+  {
     v: "0.92.0", date: "10 October 2026", title: "Lines in the sea",
     items: [
       "Frontier has fishing: everyone has a rod (its number takes it out). Stand at the edge of a lake or the sea, face the water, and click to cast; strike when the float goes right under, and play the fish in. What you catch goes into your pack, two food a fish, to put in the store at the hearth for your settlers. It's the same fishing as at the settlement's pond.",

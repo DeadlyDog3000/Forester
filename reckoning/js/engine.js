@@ -6,7 +6,7 @@
 // people who walk around with you, the camera over (or behind) your eyes, and
 // the one thing in front of you that E would do something to.
 
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, addDetail } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, addDetail, ownGrain } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { makeMusket, makeCrossbow } from "./models.js";
@@ -1126,14 +1126,6 @@ G.impact = () => { if (G.player) G.player.impactT = G.time + 0.18; };
 const VM = { sx: 0, sy: 0, svx: 0, svy: 0, fy: 0, fv: 0, roll: 0, sprint: 0, crouch: 0, raise: 1, held: "", yaw: null, pitch: 0, t: 0 };
 // a spring a little short of settling at once: it overshoots a touch and comes back, as a held weight does
 const spring = (x, v, to, dt, k = 140, d = 17) => { v += ((to - x) * k - v * d) * dt; return [x + v * dt, v]; };
-// (what's in your hands wears its grain in its own space: the world's would slide over it as you turned)
-const OWN_GRAIN = new Map();
-function ownGrain(m) {
-  if (!m || !m.userData.detail || m.userData.detail.local) return m;
-  let c = OWN_GRAIN.get(m);
-  if (!c) { c = m.clone(); c.color = m.color; if (m.emissive) c.emissive = m.emissive; addDetail(c, { ...m.userData.detail, local: true, snow: false }); OWN_GRAIN.set(m, c); }
-  return c;
-}
 function viewModel(dt, p, third) {
   if (third) return;
   vm.traverse(o => { if (o.isMesh && !Array.isArray(o.material) && o.material.userData.detail && !o.material.userData.detail.local) o.material = ownGrain(o.material); });

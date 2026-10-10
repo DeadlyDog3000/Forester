@@ -2,7 +2,7 @@
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
 
-// FISHING, at any water: the rod in your hands, a cast with a click, the float out on the water, a nibble and then the
+// FISHING, at any water: the rod in your hands, a cast with a click, the baited hook out in the water, a nibble and then the
 // take, a click to strike, the fish played in to the bank and swung in on the line. Whatever water it is gives the
 // gear what it needs to know about itself (see fishingGear): the pond in the settlement's woods, a lake or the sea
 // shore in Frontier.
@@ -17,25 +17,44 @@ import { FOLEY } from "./foley.js";
 export const hasRod = () => !!(G.body && G.body.tools && G.body.tools.rod > 0);
 
 class Gear {
-  // ---- the rod: a long hazel pole of two lengths, the line and the float; in your hands while it's out ----
+  // ---- the rod, as an angler of the 1600s had it: a long, slender rod of hazel in four lengths, each whipped to the
+  // next with thread, thick at the butt and fine as a switch at the top, a leather grip, no reel — the horsehair line
+  // tied fast to the top, and a bare hook with a worm on it. It bends in an arc, all along, when a fish pulls ----
   rod(on) {
     const pl = G.player;
     if (on && !this.rodG) {
-      const g = new THREE.Group(), wood = new THREE.MeshStandardMaterial({ color: 0x7a5a36, roughness: 0.8 });
-      const butt = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.017, 1.3, 6), wood); butt.position.y = 0.65; g.add(butt);
-      // (the top length bends: a fish on, and it's pulled down in an arc)
-      const tip = new THREE.Group(); tip.position.y = 1.3; g.add(tip);
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.011, 1.0, 5), wood); top.position.y = 0.5; tip.add(top);
-      const end = new THREE.Object3D(); end.position.y = 1.0; tip.add(end);
-      // (your hand round the butt of it, and your sleeve)
+      const g = new THREE.Group();
+      const hazel = new THREE.MeshStandardMaterial({ color: 0x9a7a4e, roughness: 0.75 }), dark = new THREE.MeshStandardMaterial({ color: 0x5a3e22, roughness: 0.8 });
+      const whip = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 }), leather = new THREE.MeshStandardMaterial({ color: 0x4a2e1a, roughness: 0.95 });
+      // (the butt: a stout length, the grip of leather bound round it, a cap of horn at its end)
+      const LEN = [0.95, 0.85, 0.75, 0.65], R0 = 0.019, R1 = 0.0028;
+      let parent = g, at = 0, total = LEN.reduce((x, y) => x + y, 0);
+      this.rodBends = [];
+      for (let i = 0; i < LEN.length; i++) {
+        const seg = new THREE.Group(); seg.position.y = i ? LEN[i - 1] : 0; parent.add(seg);
+        const ra = R0 + (R1 - R0) * (at / total), rb = R0 + (R1 - R0) * ((at + LEN[i]) / total);
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(rb, ra, LEN[i], 7), i ? hazel : dark); m.position.y = LEN[i] / 2; seg.add(m);
+        // (the knots of the hazel along it, a little swollen)
+        for (let k = 1; k < 3; k++) { const kn = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 4), hazel); const rr = ra + (rb - ra) * k / 3; kn.scale.set(rr * 1.25, rr * 0.7, rr * 1.25); kn.position.y = LEN[i] * k / 3; seg.add(kn); }
+        // (where this length is whipped to the next: a band of thread)
+        if (i < LEN.length - 1) { const w = new THREE.Mesh(new THREE.CylinderGeometry(rb * 1.35, rb * 1.35, 0.07, 7), whip); w.position.y = LEN[i] - 0.02; seg.add(w); }
+        if (!i) {
+          const grip = new THREE.Mesh(new THREE.CylinderGeometry(R0 * 1.25, R0 * 1.3, 0.34, 8), leather); grip.position.y = 0.2; seg.add(grip);
+          const cap = new THREE.Mesh(new THREE.SphereGeometry(R0 * 1.3, 8, 5), new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.5 })); cap.position.y = 0.02; seg.add(cap);
+        }
+        this.rodBends.push(seg); parent = seg; at += LEN[i];
+      }
+      const end = new THREE.Object3D(); end.position.y = LEN[LEN.length - 1]; parent.add(end);
+      // (your hand round the grip, and your sleeve)
       const look = (pl.model && pl.model.colors) || {};
-      const fist = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6), new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 })); fist.scale.set(1.1, 1.35, 1); fist.position.set(0, 0.16, 0.012); g.add(fist);
-      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.05, 0.05, 8), new THREE.MeshStandardMaterial({ color: look.linen ?? 0xe6e0d4, roughness: 0.9 })); cuff.position.set(0.0, 0.08, 0.012); g.add(cuff);
-      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.06, 0.32, 8), new THREE.MeshStandardMaterial({ color: look.coat ?? 0x2e3a2c, roughness: 0.95 })); sleeve.position.set(0.0, -0.13, 0.012); g.add(sleeve);
-      g.position.set(0.22, -0.38, -0.32); g.rotation.set(-1.05, 0.12, -0.1);
-      this.rodG = g; this.rodTip = end; this.rodBend = tip;
-      const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0], 3));
-      this.line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xd8d4c8, transparent: true, opacity: 0.7 })); this.line.frustumCulled = false;
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 6), new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 })); fist.scale.set(1.1, 1.35, 1); fist.position.set(0, 0.2, 0.012); g.add(fist);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.05, 0.05, 8), new THREE.MeshStandardMaterial({ color: look.linen ?? 0xe6e0d4, roughness: 0.9 })); cuff.position.set(0.0, 0.12, 0.012); g.add(cuff);
+      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.06, 0.32, 8), new THREE.MeshStandardMaterial({ color: look.coat ?? 0x2e3a2c, roughness: 0.95 })); sleeve.position.set(0.0, -0.09, 0.012); g.add(sleeve);
+      g.position.set(0.22, -0.4, -0.3); g.rotation.set(-1.05, 0.12, -0.1);
+      this.rodG = g; this.rodTip = end;
+      // the line: a sag of horsehair from the top of the rod to the hook
+      const N = 10, lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(N * 3), 3));
+      this.line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xcfc6b0, transparent: true, opacity: 0.75 })); this.line.frustumCulled = false; this.lineN = N;
     }
     if (!this.rodG) return;
     if (on && !this.rodG.parent) { vm.add(this.rodG); this.g.add(this.line); this.float.visible = true; G.fishing = true; }
@@ -51,7 +70,7 @@ class Gear {
       pl.dropFood && pl.dropFood();
       this.out = true; G.rodOut = true; this.rod(true); this.raise = 0;
       FOLEY.swish(0.2);
-      if (!this.toldRod) { this.toldRod = true; UI.keys([["Click", "cast, facing the water"], ["Click", "strike, when the float goes right under"], ["Right-click", "reel in"]], 9); }
+      if (!this.toldRod) { this.toldRod = true; UI.keys([["Click", "cast, facing the water"], ["Click", "strike, when the line is drawn away under"], ["Right-click", "lift the line out"]], 9); }
     } else {
       this.cast = null; this.out = false; G.rodOut = false; this.rod(false);
     }
@@ -69,7 +88,7 @@ class Gear {
     this.cast = { st: "back", t: 0, x: to.x, z: to.z, sx, sz, nib: 1 + Math.random() * 3, wait: (3.5 + Math.random() * 8) * (1.35 - this.odds()), from: null };
     FOLEY.swish(0.4);
   }
-  // reel in (nothing on it): the float skims back to you
+  // the line lifted out (nothing on it): the hook skims back to you
   reelIn() { const c = this.cast; if (!c || c.st === "reel" || c.st === "land") return; c.st = "reel"; c.t = 0; c.from = this.float.position.clone(); FOLEY.swish(0.25); }
   fishTick(dt) {
     const pl = G.player, input = G.input; if (!pl) return;
@@ -82,8 +101,8 @@ class Gear {
     this.raise = Math.min(1, (this.raise || 0) + dt * 4);
     if (!c) {
       if (click) this.startCast();
-      // (the float hangs from the tip on a short drop of line, swinging a little)
-      F.position.set(tip.x + Math.sin(now * 1.7) * 0.04, tip.y - 0.6, tip.z + Math.cos(now * 1.3) * 0.04); F.rotation.set(0, 0, 0);
+      // (the hook hangs from the top of the rod on a drop of line, swinging a little)
+      F.position.set(tip.x + Math.sin(now * 1.7) * 0.04, tip.y - 0.7, tip.z + Math.cos(now * 1.3) * 0.04); F.rotation.set(0, 0, 0);
     } else {
       c.t += dt;
       if (rclick) this.reelIn();
@@ -99,18 +118,19 @@ class Gear {
       } else if (c.st === "wait") {
         rx = -1.2 + Math.sin(now * 0.8) * 0.02;
         let dip = 0;
-        // (a nibble now and then: the float dips and comes up again — not yet)
+        // (a nibble now and then: the line twitches where it goes in, and a ring spreads — not yet)
         c.nib -= dt;
-        if (c.nib < 0) { dip = 0.03 * Math.sin(Math.min(1, -c.nib / 0.25) * Math.PI); if (c.nib < -0.25) { c.nib = 1.2 + Math.random() * 3.5; } else if (c.nib > -dt * 1.5) { this.ripple(c.x, c.z, 0.3); FOLEY.plop({ x: c.x, z: c.z }, 0.18); } }
-        F.position.set(c.x, L + Math.sin(now * 2.1) * 0.006 - dip, c.z);
-        if (click) { UI.hint(["Too soon — you jerk the float out of the water, and whatever was nosing at it is off.", "Too soon. Wait till it goes right under."][Math.floor(Math.random() * 2)], 3); this.reelIn(); }
+        if (c.nib < 0) { dip = 0.06 * Math.sin(Math.min(1, -c.nib / 0.25) * Math.PI); if (c.nib < -0.25) { c.nib = 1.2 + Math.random() * 3.5; } else if (c.nib > -dt * 1.5) { this.ripple(c.x, c.z, 0.3); FOLEY.plop({ x: c.x, z: c.z }, 0.12); } }
+        F.position.set(c.x + dip * 0.6, L - 0.05 - dip, c.z);
+        bend = dip * 0.6;
+        if (click) { UI.hint(["Too soon — you snatch the line out of the water, and whatever was nosing at the worm is off.", "Too soon. Wait till the line's drawn right away under."][Math.floor(Math.random() * 2)], 3); this.reelIn(); }
         else if (c.t > c.wait) { c.st = "bite"; c.t = 0; this.ripple(c.x, c.z, 0.9); this.ringT = 1; FOLEY.plop({ x: c.x, z: c.z }, 0.45); }
       } else if (c.st === "bite") {
-        // pulled right under: now
-        rx = -1.22; bend = 0.08;
-        F.position.set(c.x + Math.sin(now * 20) * 0.03, L - 0.09, c.z);
+        // taken: the line drawn away under the water and the top of the rod pulled down — now
+        rx = -1.24; bend = 0.22 + Math.sin(now * 18) * 0.04;
+        F.position.set(c.x + Math.min(1, c.t * 2) * 0.5, L - 0.2, c.z + Math.sin(now * 9) * 0.1);
         if (click) { c.st = Math.random() < 0.08 ? "lost" : "hook"; c.t = 0; FOLEY.splash({ x: c.x, z: c.z }, 0.6); this.ripple(c.x, c.z, 1.1); }
-        else if (c.t > 0.95) { UI.hint(["Too slow — it's off, and the bait with it.", "The float bobs up again. Gone. Strike the moment it goes under."][Math.floor(Math.random() * 2)], 3); this.reelIn(); }
+        else if (c.t > 0.95) { UI.hint(["Too slow — it's off, and the worm with it.", "The line goes slack. Gone. Strike the moment it's drawn under."][Math.floor(Math.random() * 2)], 3); this.reelIn(); }
       } else if (c.st === "lost") {
         rx = -0.7; bend = 0.4 * Math.max(0, 1 - c.t * 2);
         F.position.set(c.x, L + 0.02, c.z);
@@ -123,7 +143,7 @@ class Gear {
         rx = -0.55 + Math.sin(c.t * 7) * 0.08; rz = -0.1 + Math.sin(c.t * 5.3) * 0.12; bend = 0.55 + Math.sin(c.t * 13) * 0.12;
         this.perch.visible = true; this.perch.position.set(px, L + 0.03 + Math.abs(Math.sin(c.t * 14)) * 0.07, pz);
         this.perch.rotation.set(0, Math.atan2(dx, dz) + Math.sin(c.t * 18) * 0.6, Math.sin(c.t * 11) * 0.5);
-        F.position.set(px, L + 0.05, pz);
+        F.position.set(px, L, pz);
         if ((c.splash = (c.splash || 0) - dt) <= 0) { c.splash = 0.22 + Math.random() * 0.2; this.ripple(px, pz, 0.5); if (Math.random() < 0.6) FOLEY.splash({ x: px, z: pz }, 0.35); }
         if (k >= 1) { c.st = "land"; c.t = 0; c.from = this.perch.position.clone(); FOLEY.splash({ x: px, z: pz }, 0.5); }
       } else if (c.st === "land") {
@@ -132,10 +152,10 @@ class Gear {
         rx = -0.35; bend = 0.3;
         const p = c.from.clone().lerp(to, k); p.y += Math.sin(k * Math.PI) * 0.6;
         this.perch.position.copy(p); this.perch.rotation.set(Math.PI / 2 - 0.2, now * 2, Math.sin(now * 28) * 0.7);
-        F.position.copy(p).add(new THREE.Vector3(0, 0.35, 0));
+        F.position.copy(p).add(new THREE.Vector3(0, 0.12, 0));
         if (k >= 1) this.landed();
       } else if (c.st === "reel") {
-        const k = Math.min(1, c.t / 0.5), to = tip.clone().add(new THREE.Vector3(0, -0.6, 0));
+        const k = Math.min(1, c.t / 0.5), to = tip.clone().add(new THREE.Vector3(0, -0.7, 0));
         rx = -1.05 + 0.4 * Math.sin(k * Math.PI);
         F.position.copy(c.from).lerp(to, k); F.position.y += Math.sin(k * Math.PI) * 0.4;
         if (k >= 1) { this.cast = null; this.perch.visible = false; }
@@ -147,11 +167,15 @@ class Gear {
     const R = this.rodG, up = 1 - this.raise;
     R.rotation.x += (rx - R.rotation.x) * Math.min(1, dt * 14); R.rotation.z += (rz - R.rotation.z) * Math.min(1, dt * 10);
     R.position.y = -0.38 - up * 0.4;
-    this.rodBend.rotation.x += (-bend - this.rodBend.rotation.x) * Math.min(1, dt * 12);
+    // (the bend shared down the lengths, more toward the top: an arc, not a hinge)
+    const W = [0.08, 0.2, 0.32, 0.4];
+    this.rodBends.forEach((sg, i) => { sg.rotation.x += (-bend * W[i] * 2.2 - sg.rotation.x) * Math.min(1, dt * 12); });
     const a2 = this.line.geometry.attributes.position, t2 = this.tipWorld(), fp = this.perch.visible && this.cast && (this.cast.st === "hook" || this.cast.st === "land") ? this.perch.position : F.position;
     this.g.worldToLocal(t2);
-    const mx = (t2.x + fp.x) / 2, mz = (t2.z + fp.z) / 2, my = (t2.y + fp.y + 0.09) / 2 - (this.cast && this.cast.st === "wait" ? 0.25 : 0.04);
-    a2.setXYZ(0, t2.x, t2.y, t2.z); a2.setXYZ(1, mx, my, mz); a2.setXYZ(2, fp.x, fp.y + 0.09, fp.z); a2.needsUpdate = true;
+    // (the line: slack and sagging while it waits, drawn straight when a fish is on it)
+    const taut = this.cast && (this.cast.st === "bite" || this.cast.st === "hook" || this.cast.st === "land" || this.cast.st === "fly"), sag = taut ? 0.03 : this.cast && this.cast.st === "wait" ? 0.35 : 0.04, N = this.lineN;
+    for (let i = 0; i < N; i++) { const k = i / (N - 1); a2.setXYZ(i, t2.x + (fp.x - t2.x) * k, t2.y + (fp.y + 0.015 - t2.y) * k - Math.sin(k * Math.PI) * sag, t2.z + (fp.z - t2.z) * k); }
+    a2.needsUpdate = true;
   }
   landed() {
     this.perch.visible = false; this.cast = null;
@@ -163,7 +187,7 @@ class Gear {
     } else UI.hint("A perch — but your pack's full, so back it goes.", 3);
     G.town && G.town.persist();
   }
-  // the ring that spreads from the float when it lands or something takes
+  // the ring that spreads where the line goes in, when the hook lands or something takes
   ringTick(dt) {
     if (this.ringT > 0) { this.ringT -= dt * 1.2; const k = 1 - this.ringT; this.ring.position.set(this.float.position.x, this.lvl() + 0.01, this.float.position.z); this.ring.scale.setScalar(0.05 + k * 0.5); this.ring.material.opacity = 0.4 * this.ringT; } else this.ring.material.opacity = 0;
   }
@@ -175,11 +199,11 @@ class Gear {
 export function fishingGear(host) {
   for (const k of Object.getOwnPropertyNames(Gear.prototype)) if (k !== "constructor") host[k] = Gear.prototype[k];
   const g = host.g;
+  // (no float: the bare hook, bent from a pin, and a worm on it — what you watch is the line, where it goes into the water)
   const fl2 = new THREE.Group();
-  const top = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xc8301e, roughness: 0.5 }));
-  const bot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xf0ece0, roughness: 0.5 }));
-  const quill = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.08, 4), new THREE.MeshStandardMaterial({ color: 0xe8e0c8 })); quill.position.y = 0.05;
-  fl2.add(top, bot, quill); fl2.visible = false; g.add(fl2); host.float = fl2;
+  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.0018, 4, 10, Math.PI * 1.3), new THREE.MeshStandardMaterial({ color: 0x6a6e74, metalness: 0.6, roughness: 0.4 })); hook.rotation.z = Math.PI * 0.85; fl2.add(hook);
+  const worm = new THREE.Mesh(new THREE.CapsuleGeometry(0.005, 0.03, 3, 6), new THREE.MeshStandardMaterial({ color: 0xb8706a, roughness: 0.6 })); worm.position.set(0.008, -0.012, 0); worm.rotation.z = 0.6; fl2.add(worm);
+  fl2.visible = false; g.add(fl2); host.float = fl2;
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 16), new THREE.MeshBasicMaterial({ color: 0xc0c8d0, transparent: true, opacity: 0, depthWrite: false })); ring.rotation.x = -Math.PI / 2; g.add(ring); host.ring = ring;
   host.cast = null; host.ringT = 0;
   // a perch on the line: olive-backed, barred, red-finned

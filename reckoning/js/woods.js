@@ -5,7 +5,7 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy, ensureModel, SWAY, swayGeo, addSway } from "./models.js";
 import { grassTexture } from "./hamburg.js";
@@ -947,6 +947,7 @@ export class Woods extends WorldBase {
       const ty = this.heightAt(tx, tz);
       g.position.set(tx, ty - 0.1, tz);
       root.add(g);
+      ownGrainAll(g);
       const t = { g, x: tx, z: tz, y: ty, h, hp: 4, state: "up", angle: a, col: this.col.addCircle(tx, tz, 0.32, 12), fall: 0, claimed: null };
       this.fellable.push(t);
     }
@@ -1057,7 +1058,7 @@ export class Woods extends WorldBase {
       else g = makeSpruce(s.h, Math.floor(s.x * 7));
     }
     g.position.set(s.x, s.y - 0.1, s.z);
-    this.root.add(g);
+    this.root.add(g); ownGrainAll(g);
     const t = { g, x: s.x, z: s.z, y: s.y, h: s.h, hp: s.kind === "birch" ? 3 : 4, state: "up", angle: Math.atan2(s.z - CLEARING.z, s.x - CLEARING.x), col: this.col.addCircle(s.x, s.z, s.kind === "birch" ? 0.24 : 0.32, 12), fall: 0, claimed: null, src: s };
     s.adopted = t;
     this.fellable.push(t);
@@ -2034,6 +2035,8 @@ export class Woods extends WorldBase {
     if (this.burnerGlow) this.burnerGlow.forEach((g, i) => g.material.color.setRGB(1, 0.32 + 0.12 * Math.sin(this.t * 2.3 + i * 1.7), 0.08 + 0.04 * Math.sin(this.t * 3.1 + i)));
     for (const t of this.fellable) {
       if (t.state === "falling" || t.state === "settle") {
+        // (its grain in its own space from now on: tipping over, it would otherwise slide through the world's)
+        if (!t.ownGrain) { t.ownGrain = true; ownGrainAll(t.g); }
         // every tree its own fall: a tall one slower, a birch quicker; a twist as it goes, a roll to one side,
         // where it comes to rest, and a little bounce when it hits the ground
         const F = t.fx || (t.fx = fallOf(t));

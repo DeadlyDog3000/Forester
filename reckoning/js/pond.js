@@ -112,8 +112,8 @@ export class Pond {
     if (pp && G.body && G.body.tools && !(G.body.tools.rod > 0) && !this.gave && Math.hypot(pp.x - POND.x, pp.z - POND.z) < POND.r + 14 && G.mode === "play" && !G.cine && !UI.dialogOpen) {
       this.gave = true; G.body.tools.rod = 1; G.body.dirty = true;
       const sib = G.who === "sister" ? "Brother" : "Sister";
-      const line = "Here — I cut you a rod from the hazel, and twisted a line. Take it out with its number and click to cast. When the float goes right under — not just dips, right under — click, quick!";
-      if (G.mp || !UI.bark) UI.hint("A fishing rod for the pond. Take it out with its number, click to cast, and click again the moment the float goes right under.", 7);
+      const line = "Here — I cut you a rod from the hazel, and twisted a line. Take it out with its number and click to cast. Watch the line where it goes in. When it's drawn right away under — not just a twitch — click, quick!";
+      if (G.mp || !UI.bark) UI.hint("A fishing rod for the pond. Take it out with its number, click to cast, and click again the moment the line is drawn away under.", 7);
       else UI.bark(sib, line, 7);
       FOLEY.packIn(0.35);
     }

@@ -7,7 +7,7 @@
 // kilometres across, costs no more to walk than a small island. What people have done to it (trees down, rocks
 // broken, things built) is told by the server and laid over the top.
 
-import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, mat } from "../core.js";
+import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, mat, ownGrainAll } from "../core.js";
 import { G, WorldBase } from "../engine.js";
 import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, SWAY } from "../models.js";
 import { Woods } from "../woods.js";
@@ -234,6 +234,7 @@ export class Wilds extends WorldBase {
     let g = t.slots ? Woods.prototype.pieces.call(this, t) : null;
     if (!g) { const m = modelCopy(t.kind) || modelCopy("spruce"); if (m) { g = new THREE.Group(); m.scene.scale.setScalar(t.h / 10); m.scene.rotation.y = t.rot; g.add(m.scene); } else g = makeSpruce(t.h, Math.floor(t.x * 7)); }
     g.position.set(t.x, t.y - 0.1, t.z); this.root.add(g);
+    ownGrainAll(g);   // (its grain in its own space as it falls, not sliding through the world's)
     if (t.slots) this.hideTree(t); else this.addStump(t);
     const l = Math.hypot(dx, dz) || 1;
     const k = 1.5 * 9.8 / Math.max(5, t.h) * (t.kind === "birch" ? 1.25 : 1);

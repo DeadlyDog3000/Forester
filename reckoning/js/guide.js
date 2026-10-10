@@ -78,8 +78,8 @@ export const GUIDE = {
     kicker: "The woods", title: "The pond, and fishing",
     steps: [
       "You fish with a <b>rod</b>. Yours is in the bar at the bottom: <b>press its number</b> to take it out (or <kbd>F</kbd> on the shore). If you ever lose it, make another at the chopping block from a log.",
-      "Stand at the water's edge, <b>face the pond</b>, and <b>click</b> to cast. The float lands out on the water.",
-      "Watch the float. A <b>nibble</b> just dips it. Wait. When it's <b>pulled right under</b>, <b>click at once</b> to strike. Too soon or too slow, and the fish is off with the bait. Right-click reels in.",
+      "Stand at the water's edge, <b>face the water</b>, and <b>click</b> to cast. The baited hook drops in a few paces out.",
+      "There's no float, as in the old way of it: <b>watch the line</b> where it goes into the water. A <b>nibble</b> just twitches it. Wait. When it's <b>drawn away under</b> and the top of the rod pulls down, <b>click at once</b> to strike. Too soon or too slow, and the fish is off with the bait. Right-click lifts the line out.",
       "Struck in time, you play it in to the bank, and the perch goes into your pack. They bite best at <b>dawn and dusk</b>, slowly at midday, and hardly at night. Rain helps a little. In winter the pond is frozen.",
       "<b>Raw fish</b> is like raw meat: cook it first, at the fire or in the kitchen (<i>Fried perch</i>, or <i>Fish soup</i> with rye).",
     ],

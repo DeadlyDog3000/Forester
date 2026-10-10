@@ -431,13 +431,16 @@ ICON.crossbow = ICON.crossbow5 = (() => { const c = document.createElement("canv
   x.strokeStyle = "#8a8e96"; x.lineWidth = 3.2; x.beginPath(); x.moveTo(14, -20); x.quadraticCurveTo(24, 0, 14, 20); x.stroke();
   x.strokeStyle = "#e8e0c8"; x.lineWidth = 1; x.beginPath(); x.moveTo(14, -20); x.lineTo(2, 0); x.lineTo(14, 20); x.stroke();
   x.fillStyle = "#3a3c40"; x.fillRect(-6, 3, 3, 7); return c.toDataURL(); })();
-// the fishing rod: a long pole slanting, the line down from its tip, and a red-topped float
+// the fishing rod: a long, slender rod of hazel slanting up, its joints whipped dark, the line hanging from its top with
+// a hook and a worm on it — no float, no reel
 ICON.rod = ICON.rod1 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
-  x.lineCap = "round"; x.strokeStyle = "#7a5a36"; x.lineWidth = 3.4; x.beginPath(); x.moveTo(8, 58); x.lineTo(34, 24); x.stroke();
-  x.lineWidth = 2; x.beginPath(); x.moveTo(34, 24); x.lineTo(54, 6); x.stroke();
-  x.strokeStyle = "#5a3a20"; x.lineWidth = 5; x.beginPath(); x.moveTo(8, 58); x.lineTo(14, 50); x.stroke();
-  x.strokeStyle = "rgba(230,226,214,0.9)"; x.lineWidth = 1; x.beginPath(); x.moveTo(54, 6); x.quadraticCurveTo(58, 26, 52, 44); x.stroke();
-  x.fillStyle = "#f0ece0"; x.beginPath(); x.arc(52, 48, 4, 0, Math.PI); x.fill(); x.fillStyle = "#c8301e"; x.beginPath(); x.arc(52, 48, 4, Math.PI, 0); x.fill();
+  x.lineCap = "round";
+  const seg = (x0, y0, x1, y1, w, col) => { x.strokeStyle = col; x.lineWidth = w; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke(); };
+  seg(6, 60, 20, 44, 4.2, "#4a2e1a"); seg(20, 44, 32, 30, 3.2, "#9a7a4e"); seg(32, 30, 43, 17, 2.4, "#9a7a4e"); seg(43, 17, 54, 5, 1.5, "#a8885a");
+  for (const [jx, jy] of [[20, 44], [32, 30], [43, 17]]) { x.fillStyle = "#2a1c10"; x.beginPath(); x.arc(jx, jy, 2.1, 0, Math.PI * 2); x.fill(); }
+  x.strokeStyle = "rgba(225,215,190,0.95)"; x.lineWidth = 1; x.beginPath(); x.moveTo(54, 5); x.quadraticCurveTo(57, 24, 55, 46); x.stroke();
+  x.strokeStyle = "#7a7e84"; x.lineWidth = 1.4; x.beginPath(); x.arc(53, 49, 3, -0.3, Math.PI * 0.9); x.stroke();
+  x.fillStyle = "#c07a70"; x.beginPath(); x.ellipse(51, 52, 1.6, 3.2, 0.5, 0, Math.PI * 2); x.fill();
   return c.toDataURL(); })();
 // the canteen: a little wooden keg on its cord
 ICON.canteen = ICON.canteen1 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
@@ -480,7 +483,7 @@ function toolItems() {
     T("sword", "sword" + (tl.sword || 1), `${cap1(TIER_NAME[tl.sword] || "")} sword, your own`, "For the raiders."),
     pl.hasBow ? { key: "bow", icon: "bow", name: pl.bowMade ? "Your hunting bow" : "Henning's old bow", note: "Hold right-click to draw, let go to loose." } : null,
     pl.hasBow ? { key: "arrows", icon: "arrows", name: "Arrows", n: pl.arrows || 0, note: "Pull your misses out of the ground to use them again." } : null,
-    tl.rod ? { key: "rod", icon: "rod", name: "Fishing rod", note: "At the pond: click to cast, and click again the moment the float goes right under." } : null,
+    tl.rod ? { key: "rod", icon: "rod", name: "Fishing rod", note: "At the water: click to cast, and click again the moment the line is drawn away under." } : null,
     tl.canteen ? { key: "canteen", icon: "canteen", name: tl.canteen >= 2 ? "Leather canteen" : "Canteen", n: (G.body.water || {}).n || 0, note: "Fill it at the water, boil it at the fire, drink anywhere — press its number." } : null,
     tl.musket ? { key: "musket", icon: "musket", name: "Your musket", note: "Right mouse to raise it to your eye, click to fire. Then it wants loading: six slow seconds of powder, ball and ramrod." } : null,
     tl.crossbow ? { key: "crossbow", icon: "crossbow", name: "Your crossbow", note: "Right-click to aim, click to loose. Slow to span." } : null,
