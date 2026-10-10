@@ -105,15 +105,37 @@ export class ColonyBase {
   // the night, by the colony's clock (as the free play's bed has it)
   night() { const t = G.town; if (!t) return false; const f = t.frac ?? 0.5; return f > 0.6 || f < 0.04; }
   // into bed: the screen goes dim, and you wait for the others; when everyone is down, the night passes for all
-  lieDown() {
+  lieDown(here) {
     this.inBed = true; G.lockMove = true; UI.fade(0.75, 1.2);
-    const bed = G.world.bedSpot && G.world.bedSpot(0); if (bed) G.player.place(bed.x + Math.sin(bed.ry) * 0.9, bed.z + Math.cos(bed.ry) * 0.9, bed.ry + Math.PI);
+    const bed = !here && G.world.bedSpot && G.world.bedSpot(0); if (bed) G.player.place(bed.x + Math.sin(bed.ry) * 0.9, bed.z + Math.cos(bed.ry) * 0.9, bed.ry + Math.PI);
     UI.hint("You lie down. When everyone in the colony is in bed, the night passes. (A step gets you up again.)", 6);
   }
   outOfBed(quiet) {
     if (!this.inBed) return;
     this.inBed = false; G.lockMove = false; UI.fade(0, 0.8);
     if (!quiet) this.bedChanged && this.bedChanged(false);
+  }
+  // there's one bed in the cabin, and more of you than that: so anyone can bed down for the night by a fire, or in any
+  // cabin the colony has built
+  bedroll(w, go) {
+    const spot = () => {
+      const pl = G.player, t = G.town; if (!pl || !t) return null;
+      let best = null, bd = 6;
+      for (const b of t.S.buildings) if (b.type === "cabin" && b.done && !b.gone) { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; best = { x: b.x, z: b.z, what: "Bed down in the cabin" }; } }
+      for (const f of w.flames || []) {
+        const fl = f.userData && f.userData.flame; if (!fl || !(fl.base > 0.5) || !f.parent) continue;
+        const p = f.getWorldPosition(f.position.clone()), d = Math.hypot(p.x - pl.pos.x, p.z - pl.pos.z);
+        if (d < Math.min(bd, 4)) { bd = d; best = { x: p.x, z: p.z, what: "Bed down by the fire" }; }
+      }
+      return best;
+    };
+    let at = null, t = 0;
+    const tick = dt => { if ((t -= dt) <= 0) { t = 0.25; at = this.night() && !this.inBed ? spot() : null; } };
+    G.onFrame.push(tick); this.rollTick = tick;
+    this.rollIt = w.addInteract({ get x() { return at ? at.x : 1e6; }, get z() { return at ? at.z : 1e6; }, get y() { return at ? w.heightAt(at.x, at.z) + 0.6 : 0; }, reach: 4.5, local: true,
+      can: () => !!at && this.night() && !this.inBed && !(G.player && G.player.horse),
+      label: () => `${at ? at.what : "Bed down"} for the night — it passes when everyone's in bed`,
+      use: () => go() });
   }
   // the night gone: up with the others, by the bed, in the morning light
   wake() {
@@ -122,6 +144,8 @@ export class ColonyBase {
     setTimeout(() => { UI.fade(0, 1.6); G.lockMove = false; }, 2200);
   }
   leaveCommon(quiet) {
+    if (this.rollIt && G.world) G.world.removeInteract(this.rollIt);
+    if (this.rollTick) { const i = G.onFrame.indexOf(this.rollTick); if (i >= 0) G.onFrame.splice(i, 1); }
     if (this.inBed) { this.inBed = false; G.lockMove = false; UI.fade(0, 0.3); }
     this.closeChat();
     if (!quiet) { try { this.net.send({ t: "leave" }); } catch (e) {} }
@@ -161,6 +185,7 @@ export class ColonyHost extends ColonyBase {
     this.origSleep = G.world.onSleep;
     if (this.origSleep) G.world.onSleep = { label: "Go to bed — the night passes when everyone has", can: () => this.night() && !this.inBed && (!this.origSleep.can || this.origSleep.can()),
       use: () => { if (!this.remotes.size) return this.origSleep.use(); this.lieDown(); this.bedChanged(true); } };
+    this.bedroll(G.world, () => { if (!this.remotes.size && this.origSleep) return this.origSleep.use(); this.lieDown(true); this.bedChanged(true); });
     // every tree that comes down, told at once, so they see it fall (wild ones too, which the settlement doesn't keep)
     G.town.onFell = (t, dx, dz) => { if (this.remotes.size) this.net.send({ t: "h", m: { t: "fell", x: t.x, z: t.z, dx, dz } }); };
   }
@@ -218,7 +243,7 @@ export class ColonyHost extends ColonyBase {
       if (this.remotes.size) this.net.send({ t: "h", m: { t: "ax", l } });
       // the beasts of the woods, which aren't people: where each is, how it goes, and whether it's down
       const H = G.hunt;
-      if (this.remotes.size && H && H.w === G.world) this.net.send({ t: "h", m: { t: "hx", l: H.animals.map(a => [this.idOf(a), a.kind, +a.pos.x.toFixed(2), +a.pos.z.toFixed(2), +a.yaw.toFixed(2), +(a.speed || 0).toFixed(2), a.state, +(a.head ?? 1).toFixed(2), a.fawn ? 1 : 0]) } });
+      if (this.remotes.size && H && H.w === G.world) this.net.send({ t: "h", m: { t: "hx", l: H.animals.map(a => [this.idOf(a), a.K && a.K.upright ? "man" : a.kind, +a.pos.x.toFixed(2), +a.pos.z.toFixed(2), +a.yaw.toFixed(2), +(a.speed || 0).toFixed(2), a.state, +(a.head ?? 1).toFixed(2), a.fawn ? 1 : 0]) } });
     }
     // what changed in the settlement, once a second: whole parts of it that differ from what was last sent
     if ((this.sdT = (this.sdT || 0) - dt) <= 0) {
@@ -328,7 +353,7 @@ export class ColonyHost extends ColonyBase {
       case "unbed": { if (!this.guest(pid).inBed) return; this.guest(pid).inBed = false; this.bedChanged(false, pid); return; }
       case "hunthit": {
         const a = G.hunt && G.hunt.animals.find(x => this.ids.get(x) === m.id);
-        if (a && a.alive) this.runAs(pid, m.at, () => a.hit(Math.min(2.6, +m.power || 1)));
+        if (a && a.alive) this.runAs(pid, m.at, () => a.hit(Math.min(2.6, +m.power || 1), !!m.head));
         return;
       }
       case "set": {
@@ -420,7 +445,7 @@ export class ColonyGuest extends ColonyBase {
     if (m.t === "hx") { if (G.hunt && G.hunt.w === this.w) G.hunt.puppets(m.l || []); return; }
   }
   // your arrow in one of the host's beasts: told to their game, where it's brought down (or not)
-  huntHit(a, power) { this.send("hunthit", { id: a.netId, power: +(+power).toFixed(2) }); }
+  huntHit(a, power, head) { this.send("hunthit", { id: a.netId, power: +(+power).toFixed(2), head: !!head }); }
   // what you do here goes to the host's game, to be done there
   at() { const p = G.player; return { x: +p.pos.x.toFixed(2), y: +p.pos.y.toFixed(2), z: +p.pos.z.toFixed(2), yaw: +p.yaw.toFixed(3), pitch: +p.pitch.toFixed(3) }; }
   send(a, more) { this.net.send({ t: "g", m: { t: "act", a, at: this.at(), pack: G.pack || [], ...more } }); }
@@ -469,6 +494,7 @@ export class ColonyGuest extends ColonyBase {
     // the bed: you lie down here, and the host's game is told; the night passes when everyone is down
     this.w.onSleep = { label: "Go to bed — the night passes when everyone has", local: true, can: () => this.night() && !this.inBed,
       use: () => { this.lieDown(); this.send("bed"); } };
+    this.bedroll(this.w, () => { this.lieDown(true); this.send("bed"); });
     this.bedChanged = down => { if (!down) this.send("unbed"); };
     // furnishing the cabin is the host's to do
     town.furnish = () => UI.hint("Furnishing the cabin is for the colony's host.", 3);

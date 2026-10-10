@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.84.3", date: "10 October 2026", title: "A place by the fire",
+    items: [
+      "In a co-op colony, anyone can bed down for the night by a lit fire or in any cabin the colony has built (F there, at night). The cabin's one bed is no longer the only place to sleep, so a guest always has somewhere, and the night passes once everyone's lying down.",
+      "A guest's arrows and musket balls strike the host's raiders: the hit counts in the host's game, a shot to the head double, and the raider goes down for everyone.",
+    ],
+  },
+  {
     v: "0.84.2", date: "10 October 2026", title: "Everyone to bed",
     items: [
       "Sleeping works in a co-op colony. Before, a guest going to bed was done in the host's game: the host's screen went dark and the host was moved to the bed, while the guest got nothing. Now each of you goes to bed on your own (F at a bed, at night). The screen dims and you wait, and everyone is told who's in bed (\"Guesty has gone to bed, 1 of 2\"). When the last of you lies down, the night passes for everyone and you all wake in the morning. A step gets you up again if you change your mind.",

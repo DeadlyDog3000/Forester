@@ -307,6 +307,28 @@ class Animal {
   }
 }
 
+// in someone else's colony: where one of their raiders stands, for your arrows to strike (he is drawn as their people are)
+class ManMark {
+  constructor(hunt, id, x, z) {
+    this.hunt = hunt; this.man = true; this.puppet = true; this.netId = id; this.kind = "man";
+    this.K = { r: 0.36, h: 1.05, len: 0.18, name: "raider", upright: true };
+    this.pos = new THREE.Vector3(x, hunt.w.heightAt(x, z), z); this.yaw = 0; this.state = "come";
+    this.root = new THREE.Group(); this.root.position.copy(this.pos); hunt.w.root.add(this.root);
+  }
+  get alive() { return this.state !== "down" && this.state !== "gone" && this.state !== "dead"; }
+  centre() { return new THREE.Vector3(this.pos.x, this.pos.y + 1.05, this.pos.z); }
+  startle() {}
+  hit(power, head = false) { G.practise && G.practise("archery", 2); G.mp && G.mp.huntHit && G.mp.huntHit(this, power, head); }
+  update(dt) {
+    const n = this.net; if (!n) return;
+    const k = Math.min(1, dt * 9);
+    if (Math.hypot(n.x - this.pos.x, n.z - this.pos.z) > 8) { this.pos.x = n.x; this.pos.z = n.z; }
+    this.pos.x += (n.x - this.pos.x) * k; this.pos.z += (n.z - this.pos.z) * k; this.yaw = n.yaw;
+    this.pos.y = this.hunt.w.heightAt(this.pos.x, this.pos.z);
+    this.root.position.copy(this.pos); this.root.rotation.y = this.yaw;
+  }
+}
+
 export class Hunt {
   // home: {x, z, r} — where the herd lives. onDown(animal) when one falls; onDress(animal, meat) when you take the meat.
   constructor(w, home, { onDown, onDress } = {}) {
@@ -516,6 +538,10 @@ export class Hunt {
     for (const [id, kind, x, z, yaw, spd, st, head, fawn] of list) {
       seen.add(id);
       let a = by.get(id);
+      if (!a && kind === "man") {
+        // (a man — a raider, a bandit: drawn here as the host's people are; this is only where an arrow finds him)
+        a = new ManMark(this, id, x, z); by.set(id, a); this.animals.push(a);
+      }
       if (!a) {
         if (!KINDS[kind]) continue;
         a = new Animal(this, kind, x, z); a.puppet = true; a.netId = id; a.yaw = yaw; a.hp = 99;
@@ -523,6 +549,7 @@ export class Hunt {
         by.set(id, a); this.animals.push(a);
       }
       a.net = { x, z, yaw, spd, st, head };
+      if (a.man) { a.state = st; continue; }
       if (st === "dead" && a.state !== "dead") {
         a.state = "dead"; a.slide = Math.min(6, a.speed || 0); a.fall = 0; a.speed = 0;
         a.dressIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 0.4; }, reach: 2.2, hold: 2.2, label: `Dress the ${a.K.name}`, use: () => {} });
