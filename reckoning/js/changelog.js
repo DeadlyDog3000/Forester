@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.71.1", date: "10 October 2026", title: "A finer gun",
+    items: [
+      "The cannon has been made again. The barrel is cast bronze, shaped the way the founders turned it. It has a button on the cascabel at the back, a base ring and two reinforces stepping down, a long chase, a moulded ring near the front and a swelling muzzle with a dark bore. There are two lifting handles shaped as dolphins on top and a touch-hole with its pan.",
+      "The carriage is shaped oak. Its side pieces slope down from the axle to a trail resting on the ground, ironed along their tops, with iron straps over the trunnions and a ring at the trail's end. Two twelve-spoked wheels have iron tyres and hub rings. The rammer and sponge hang along the side.",
+    ],
+  },
+  {
     v: "0.71.0", date: "10 October 2026", title: "Cannon",
     items: [
       "Cannon. Research Artillery (military, after Matchlock Muskets) and you can build one for 8 iron and 4 planks. It's a long iron gun with a swelling muzzle on an oak field carriage, with two spoked wheels, a trail, and a rammer and sponge leaning against it. Lay it out facing where trouble will come from.",

@@ -19,43 +19,75 @@ import { shake, kickFov } from "./fight.js";
 const RELOAD = 7, SPEED = 58, GRAV = 9.8, TRAVERSE = 0.9, ELEV = [-0.06, 0.42];
 
 // ---- the gun itself ----
+// A field gun of the 1680s: a bronze barrel cast all in one, its mouldings turned on a lathe (the cascabel's button
+// behind, the base ring, two reinforces stepping down, the long chase, the astragal and the swelling tulip of the
+// muzzle), with dolphins to lift it by and its trunnions resting in the cheeks of an oak carriage. The cheeks run down
+// from the axle to a trail on the ground, ironed along their tops; two wheels of twelve spokes with iron tyres; the
+// rammer and sponge hung along the side. Built pointing down -z, on the ground at y = 0.
 export function makeCannon() {
   const g = new THREE.Group();
-  const oak = mat(0x5a3e26, { surface: "wood" }), iron = mat(0x2e3034, { metalness: 0.75, roughness: 0.45 }), band = mat(0x1e1f22, { metalness: 0.7, roughness: 0.5 });
-  const box = (w, h, d, x, y, z, m, rx = 0, ry = 0, rz = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.set(rx, ry, rz); b.castShadow = true; g.add(b); return b; };
-  // the carriage: two cheeks of oak, the trail running back to the ground, an axle-tree, transoms between
+  const oak = mat(0x5e4128, { surface: "wood" }), oakD = mat(0x4a321e, { surface: "wood" });
+  const iron = mat(0x2a2b2e, { metalness: 0.7, roughness: 0.5 }), bronze = mat(0x8a6834, { metalness: 0.8, roughness: 0.4 }), dark = new THREE.MeshBasicMaterial({ color: 0x080606 });
+  const put = (m, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => { m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
+  const box = (w, h, d, m, x, y, z, rx = 0, ry = 0, rz = 0) => put(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m), x, y, z, rx, ry, rz);
+  const AX = -0.32, R = 0.47;                        // (the axle, and the wheels' size)
+  // the cheeks: drawn from the side (z along, y up), sawn from a plank and set either side of the barrel
+  const side = new THREE.Shape(), P = [[-0.72, 0.42], [-0.72, 0.78], [-0.5, 0.86], [-0.42, 0.8], [-0.24, 0.8], [-0.16, 0.86], [0.12, 0.78], [1.62, 0.1], [1.66, 0.0], [1.5, 0.0], [0.2, 0.42], [-0.2, 0.36], [-0.72, 0.42]];
+  side.moveTo(P[0][0], P[0][1]); for (const [x, y] of P.slice(1)) side.lineTo(x, y);
+  const cg = new THREE.ExtrudeGeometry(side, { depth: 0.085, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 1 });
+  cg.translate(0, 0, -0.0425); cg.rotateY(-Math.PI / 2);
   for (const sd of [-1, 1]) {
-    box(0.1, 0.34, 1.5, sd * 0.2, 0.62, 0.15, oak, -0.32);
-    box(0.1, 0.16, 0.5, sd * 0.2, 0.86, -0.5, oak);
+    put(new THREE.Mesh(cg, oak), sd * 0.2);
+    // iron along the top of each, and a strap over the trunnion (the capsquare)
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.012, 1.55), iron); put(strap, sd * 0.2, 0.47, 0.88, 0.47);
+    put(new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 5, 10, Math.PI), iron), sd * 0.2, 0.86, -0.32, 0, Math.PI / 2, 0);
+    for (const z of [-0.6, 0.3, 0.9]) put(new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.1, 6).rotateZ(Math.PI / 2), iron), sd * 0.248, z > 0 ? 0.62 - (z - 0.12) * 0.47 : 0.6, z);
   }
-  box(0.5, 0.12, 0.2, 0, 0.5, 0.55, oak, -0.32); box(0.5, 0.12, 0.2, 0, 0.74, -0.3, oak);
-  box(0.18, 0.12, 1.0, 0, 0.26, 0.95, oak, -0.3);                       // the trail, down to the ground behind
-  box(0.92, 0.12, 0.12, 0, 0.42, -0.45, oak);                            // the axle-tree
-  // the wheels: hub, felloes, spokes and an iron tyre
+  // the transoms between the cheeks, the trail's end, and its iron ring (the lunette)
+  box(0.32, 0.16, 0.12, oakD, 0, 0.6, -0.62); box(0.32, 0.14, 0.12, oakD, 0, 0.5, 0.2); box(0.32, 0.12, 0.16, oakD, 0, 0.08, 1.52);
+  put(new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.014, 6, 12), iron), 0, 0.1, 1.66, Math.PI / 2);
+  // the bed and quoin under the breech: the wedge that sets the elevation
+  box(0.3, 0.05, 0.42, oakD, 0, 0.56, 0.25, 0.47);
+  // the axle-tree, its arms running out into the wheels
+  box(0.6, 0.13, 0.13, oakD, 0, R, AX); put(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.02, 8).rotateZ(Math.PI / 2), iron), 0, R, AX);
+  // the wheels: hub, twelve spokes, the felloes and their iron tyre
   for (const sd of [-1, 1]) {
-    const wh = new THREE.Group(); wh.position.set(sd * 0.47, 0.42, -0.45); g.add(wh);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.045, 6, 24), oak); rim.rotation.y = Math.PI / 2; wh.add(rim);
-    const tyre = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.018, 4, 24), band); tyre.rotation.y = Math.PI / 2; wh.add(tyre);
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.18, 10).rotateZ(Math.PI / 2), oak); wh.add(hub);
-    for (let i = 0; i < 10; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.38, 0.05), oak); const a = i / 10 * Math.PI * 2; s.position.set(0, Math.cos(a) * 0.2, Math.sin(a) * 0.2); s.rotation.x = -a; wh.add(s); }
-    wh.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    const wh = new THREE.Group(); wh.position.set(sd * 0.43, R, AX); g.add(wh);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.24, 12).rotateZ(Math.PI / 2), oak); wh.add(hub);
+    for (const o of [-0.09, 0.09]) { const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.01, 4, 14), iron); hoop.rotation.y = Math.PI / 2; hoop.position.x = o; wh.add(hoop); }
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.04, 8).rotateZ(Math.PI / 2), iron); cap.position.x = sd * 0.13; wh.add(cap);
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * Math.PI * 2, sp = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.34, 0.045), oak);
+      sp.position.set(sd * 0.02, Math.cos(a) * 0.25, Math.sin(a) * 0.25); sp.rotation.x = a; wh.add(sp);
+    }
+    const fel = new THREE.Mesh(new THREE.TorusGeometry(R - 0.045, 0.04, 6, 36), oak); fel.rotation.y = Math.PI / 2; fel.scale.set(1, 1, 1.5); wh.add(fel);
+    const tyre = new THREE.Mesh(new THREE.TorusGeometry(R - 0.005, 0.012, 4, 36), iron); tyre.rotation.y = Math.PI / 2; tyre.scale.set(1, 1, 4); wh.add(tyre);
+    wh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   }
-  // the barrel: on its trunnions between the cheeks, so it can be raised and lowered (and recoils with the carriage)
-  const barrel = new THREE.Group(); barrel.position.set(0, 0.92, -0.45); g.add(barrel);
-  const prof = [[0, 0.62], [0.13, 0.6], [0.145, 0.52], [0.13, 0.46], [0.122, 0.3], [0.115, 0.2], [0.112, 0.16], [0.105, 0.0], [0.095, -0.4], [0.088, -0.9], [0.083, -1.25], [0.098, -1.32], [0.1, -1.38], [0.07, -1.4], [0.04, -1.4]]
-    .map(([r, y]) => new THREE.Vector2(r, y));
-  prof.unshift(new THREE.Vector2(0.001, 0.66), new THREE.Vector2(0.05, 0.68), new THREE.Vector2(0.06, 0.64));   // (the cascabel knob behind)
-  const tube = new THREE.Mesh(new THREE.LatheGeometry(prof, 18).rotateX(-Math.PI / 2), iron); tube.castShadow = true; barrel.add(tube);
-  // (its rings, the reinforce and the muzzle astragal)
-  for (const [z, r] of [[0.45, 0.135], [0.16, 0.118], [-0.42, 0.1], [-1.22, 0.092]]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 5, 18), band); ring.position.z = z; barrel.add(ring); }
-  const trun = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.36, 8).rotateZ(Math.PI / 2), iron); barrel.add(trun);
-  // the bore, black, and where the ball comes out
-  const bore = new THREE.Mesh(new THREE.CircleGeometry(0.045, 12), new THREE.MeshBasicMaterial({ color: 0x050505 })); bore.position.z = -1.401; bore.rotation.y = Math.PI; barrel.add(bore);
-  const muzzle = new THREE.Object3D(); muzzle.position.z = -1.45; barrel.add(muzzle);
-  // the quoin under the breech, and a rammer and sponge leaning on the carriage
-  box(0.16, 0.08, 0.3, 0, 0.83, 0.35, oak, -0.15);
-  const rammer = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.1, 6), oak); rammer.position.set(0.32, 0.55, 0.3); rammer.rotation.set(-1.25, 0, 0.1); g.add(rammer);
-  const sponge = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.22, 8), mat(0x6a5a42, { roughness: 1 })); sponge.position.set(0.32, 0.18, 1.3); sponge.rotation.set(-1.25, 0, 0.1); g.add(sponge);
+  // the barrel, on its trunnions: turned from its outline (r, y) from the button behind to the lip in front, then the
+  // bore back inside it; its trunnions are its pivot, so laying it up and down turns it about them
+  const barrel = new THREE.Group(); barrel.position.set(0, 0.86, AX); g.add(barrel);
+  const prof = [[0, 0.8], [0.04, 0.79], [0.055, 0.76], [0.05, 0.73], [0.028, 0.7], [0.03, 0.67], [0.12, 0.655], [0.152, 0.63], [0.168, 0.6], [0.168, 0.555], [0.152, 0.545],
+    [0.149, 0.31], [0.164, 0.3], [0.164, 0.27], [0.143, 0.26], [0.138, 0.02], [0.15, 0.01], [0.15, -0.025], [0.126, -0.035], [0.108, -1.05], [0.122, -1.08], [0.122, -1.11], [0.106, -1.13],
+    [0.112, -1.24], [0.134, -1.33], [0.146, -1.38], [0.146, -1.415], [0.06, -1.42], [0.055, -1.1], [0.001, -1.1]];
+  const lg = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y + 0.12)), 28); lg.rotateX(Math.PI / 2);
+  const tube = new THREE.Mesh(lg, bronze); tube.castShadow = true; barrel.add(tube);
+  const bore = new THREE.Mesh(new THREE.CircleGeometry(0.056, 16), dark); bore.position.z = -1.0; bore.rotation.y = Math.PI; barrel.add(bore);
+  const trun = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.44, 10).rotateZ(Math.PI / 2), bronze); barrel.add(trun);
+  for (const sd of [-1, 1]) { const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 10).rotateZ(Math.PI / 2), bronze); rim.position.x = sd * 0.155; barrel.add(rim); }
+  // the dolphins: two arched handles astride it, over the trunnions
+  for (const sd of [-1, 1]) { const d = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.014, 6, 12, Math.PI), bronze); d.rotation.y = Math.PI / 2; d.position.set(sd * 0.05, 0.13, 0.02); d.rotation.z = sd * 0.25; barrel.add(d); }
+  // the touch-hole and its little pan
+  const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.012, 10), bronze); pan.position.set(0, 0.162, 0.6); barrel.add(pan);
+  const vent = new THREE.Mesh(new THREE.CircleGeometry(0.008, 8), dark); vent.rotation.x = -Math.PI / 2; vent.position.set(0, 0.169, 0.6); barrel.add(vent);
+  const muzzle = new THREE.Object3D(); muzzle.position.z = -1.36; barrel.add(muzzle);
+  // the rammer and the sponge, laid along the left cheek, down its slope, on iron hooks
+  const SL = 0.425, along = (t, x) => [x, 0.47 + (0.6 - t) * Math.tan(SL) * 0.0 + (0.6 - t) * 0.453, t];
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.9, 6).rotateX(Math.PI / 2), oakD);
+  { const [x, y, z] = along(0.6, -0.285); put(pole, x, y, z, SL); }
+  { const [x, y, z] = along(-0.33, -0.285); put(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10).rotateX(Math.PI / 2), mat(0x5e5040, { roughness: 1 })), x, y, z, SL); }
+  { const [x, y, z] = along(1.52, -0.285); put(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 10).rotateX(Math.PI / 2), oakD), x, y, z, SL); }
+  for (const t of [0.0, 1.1]) { const [x, y, z] = along(t, -0.262); put(new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 4, 8, Math.PI), iron), x, y - 0.01, z, 0, Math.PI / 2, Math.PI); }
   g.userData = { barrel, muzzle };
   return g;
 }
