@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.80.0", date: "10 October 2026", title: "Something to aim for",
+    items: [
+      "Objectives in multiplayer's Frontier games. The board in the corner now leads you through making a homestead, one thing after another, with how far along you are. Fell your first logs, then raise a hearth, a cabin, your first settler, a field, a woodshed, stone, a palisade and gate, a watchtower, six settlers, a forge, an alliance or a claim war, and finally twelve settlers.",
+      "Each one done is called out with a chime, and the next goes up on the board.",
+      "Co-op colonies and Classic nations already had the full game's board, and still do.",
+    ],
+  },
+  {
     v: "0.79.0", date: "10 October 2026", title: "Colours",
     items: [
       "Custom flags for nations in Classic. Open the nations screen (N) and press Make your flag. Choose a field and a second dye from the period's dyes, a pattern (pale, fess, bend, chevron, quartered, saltire, cross, border, chequy, stripes or wavy) and an emblem (a crown, a tower, a stag's antlers, a key, a star, a ship and twenty more). Watch it take shape, or press Something else for a fresh one.",

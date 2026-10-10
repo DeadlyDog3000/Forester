@@ -28,6 +28,22 @@ const sfx = (n, ...a) => { try { if (typeof SFX !== "undefined" && SFX[n]) SFX[n
 const DAY = [[0, "night"], [0.2, "dawn"], [0.27, "morning"], [0.5, "afternoon"], [0.68, "evening"], [0.76, "dusk"], [0.84, "night"], [1, "night"]];
 
 // a name over someone's head
+// THE BOARD, in Frontier: what to do next with a homestead, one thing after another, each with how far along it is
+const MP_GOALS = [
+  { text: g => `Fell trees for logs — ${Math.min(10, g.stock.wood)} of 10 (swing the axe at a tree)`, done: g => g.stock.wood >= 10 || g.has("hearth") },
+  { text: () => "Raise a hearth (B): the ground round it becomes yours, and you wake there after a fall", done: g => g.has("hearth") },
+  { text: () => "Build a cabin (B): beds for two settlers, who'll come to live and work for you", done: g => g.has("cabin") || g.has("house") },
+  { text: () => "Wait for your first settler to come up — keep felling meanwhile", done: g => g.mine() >= 1 },
+  { text: () => "Lay out a field (B): settlers eat, and with no food they won't stay", done: g => g.has("field") },
+  { text: () => "Build a woodshed (B) to keep your logs and stone", done: g => g.has("shed") },
+  { text: g => `Break stone from the grey rocks — ${Math.min(10, g.stock.stone)} of 10`, done: g => g.stock.stone >= 10 || g.has("well") || g.has("tower") || g.has("house") },
+  { text: () => "Put up a palisade (B) round your ground, with a gate in it", done: g => g.has("wall") && g.has("gate") },
+  { text: () => "Raise a watchtower (B): two of your settlers keep watch", done: g => g.has("tower") },
+  { text: g => `Grow your homestead to six settlers — ${g.mine()} of 6 (more beds: cabins and houses)`, done: g => g.mine() >= 6 },
+  { text: () => "Build a forge (B): your axe bites deeper — trees fall and walls break sooner", done: g => g.has("forge") },
+  { text: () => "Make an alliance (Tab) — or claim a rival's ground in a war", done: g => g.mode === "coop" || !!g.groupOf(g.pid) || (g.wars || []).some(w => w.att === g.pid || w.def === g.pid) },
+  { text: g => `A full homestead: twelve settlers — ${g.mine()} of 12`, done: g => g.mine() >= 12 },
+];
 // what's in a sack, said
 const goodsText = g => g ? [g.wood && `${g.wood} log${g.wood > 1 ? "s" : ""}`, g.stone && `${g.stone} stone`, g.food && `${g.food} food`].filter(Boolean).join(", ") || "nothing" : "nothing";
 export function nameTag(text, colour) {
@@ -330,6 +346,18 @@ export class MPGame {
   // (never brought in inside a tree or a rock: stepped out of it)
   unstick() { const p = G.player.pos; for (let i = 0; i < 6; i++) this.w.col.resolve(p, 0.7, p.y, 1.7); p.y = this.w.floorAt(p.x, p.z, p.y); }
   hasHearth(pid) { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && e.b.owner === pid) return true; return false; }
+  // the board: the first thing not yet done
+  has(type) { for (const e of this.w.blds.values()) if (e.b.type === type && (e.mine || this.mode === "coop")) return true; return false; }
+  mine() { let n = 0; for (const v of this.settlers.values()) if (v.owned && v.owned()) n++; return n; }
+  goals() {
+    let i = MP_GOALS.findIndex(q => { try { return !q.done(this); } catch (e) { return false; } });
+    if (this.goalAt != null && i > this.goalAt) {
+      const was = MP_GOALS[this.goalAt]; let t = ""; try { t = was.text(this).split(/ —| \(|:/)[0]; } catch (e) {}
+      this.toast(`Done: ${t}.${i < 0 ? "" : " Next on the board."}`); window.__uisfx && window.__uisfx.done();
+    }
+    this.goalAt = i < 0 ? MP_GOALS.length : i;
+    UI.objective(i < 0 ? "Your homestead stands, full. Hold it — and grow." : `${this.room.name} · ${MP_GOALS[i].text(this)}`);
+  }
   myHearth() { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && (e.mine || this.mode === "coop")) return e; return null; }
   // ---- your blow: at whoever or whatever is in front of you ----
   swing() {
@@ -471,6 +499,7 @@ export class MPGame {
   // ---- every frame ----
   tick(dt) {
     const pl = G.player, now = performance.now();
+    if ((this.goalT = (this.goalT || 0) - dt) <= 0) { this.goalT = 1; try { this.goals(); } catch (e) {} }
     // your health is the server's: no mending here but what it says, no hunger in these woods
     G.health = this.hp / MAX_HP; if (G.body) G.body.hunger = 1;
     if (this.build) this.tickBuild();
@@ -641,6 +670,7 @@ export class MPGame {
   }
   leave(quiet) {
     if (G.mp !== this) return;
+    UI.objective(null);
     this.endBuild(); this.openBuild(false); this.toggleList(false); this.toggleNews(false); this.closeChat(); $("mpWar").classList.add("hidden"); $("mpTicker").classList.add("hidden");
     if (!quiet) { try { this.net.send({ t: "leave" }); } catch (e) {} }
     this.net.close();
