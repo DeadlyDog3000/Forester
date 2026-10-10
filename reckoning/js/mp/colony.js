@@ -18,6 +18,7 @@ import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
 import { resetForMode, startReplica } from "../story.js";
+import { restoreBody, bodyToSave } from "../body.js";
 import { Remote } from "./mpgame.js";
 import { hostCommand } from "./net.js";
 import { lookOpts, isF } from "./look.js";
@@ -467,6 +468,7 @@ class Mirror {
 export class ColonyGuest extends ColonyBase {
   constructor(net, inMsg, me, hooks) {
     super(net, inMsg, me);
+    this.keepsKit = true;          // (what you carry, make and know in someone's colony is kept for next time — a battle's isn't)
     this.hooks = hooks || {};
     this.mirrors = new Map();
     G.mp = this; this.host = false; this.ready = false;
@@ -587,6 +589,7 @@ export class ColonyGuest extends ColonyBase {
     this.w = w; this.town = town;
     const pl = G.player;
     pl.setModel(lookOpts(this.me.look, this.me.name)); pl.model.scaleBase = this.me.look.height || 1;
+    this.loadKit();
     pl.blade = "axe"; pl.crouched = false; pl.seated = false; pl.frozen = false; pl.carryN = 0;
     pl.place(snap.at.x, snap.at.z, 0);
     G.hasMap = true; G.mode = "play";
@@ -647,8 +650,26 @@ export class ColonyGuest extends ColonyBase {
     for (const l of list) town.dropLogs(l.x, l.z, l.a, l.n, true);
     town.S.logs = list;
   }
+  // your own things in this colony — tools, bow and arrows, what's in your pack and your chest, your skills and purse —
+  // kept on this computer, for this host's colony, and back again when you come back
+  kitKey() { return `reckoning.coop.kit.${this.room.hostPid || this.room.host || this.room.name || "x"}`; }
+  loadKit() {
+    if (!this.keepsKit) return;
+    let k = null; try { k = JSON.parse(localStorage.getItem(this.kitKey()) || "null"); } catch (e) {}
+    G.pack = (k && Array.isArray(k.pack)) ? k.pack : [];
+    if (!k) return;
+    try { G.body = restoreBody(k.body); } catch (e) {}
+    G.chest = Array.isArray(k.chest) ? k.chest : [];
+    G.player.hasBow = !!k.bow; G.player.arrows = k.arrows || 0;
+    if (k.bow && G.world) G.world.huntOpen = true;
+  }
+  saveKit() {
+    if (!this.keepsKit || !G.body) return;
+    try { localStorage.setItem(this.kitKey(), JSON.stringify({ body: bodyToSave(G.body), pack: G.pack || [], chest: G.chest || [], bow: !!G.player.hasBow, arrows: G.player.arrows || 0 })); } catch (e) {}
+  }
   tick(dt) {
     if (G.mp !== this || !this.ready) return; this.sendSelf(dt);
+    if ((this.kitT = (this.kitT || 0) - dt) <= 0) { this.kitT = 5; this.saveKit(); }
     // (down, or up again: the raiders leave you be while you're down)
     if (!!G.downed !== !!this.wasDown) { this.wasDown = !!G.downed; this.send("downed", { on: this.wasDown }); }
     // the board: the colony's season and its want, as the host sees it, and under it what you yourself might do
@@ -661,6 +682,7 @@ export class ColonyGuest extends ColonyBase {
   leave(quiet) {
     if (G.mp !== this) return;
     const i = G.onFrame.indexOf(this.tickFn); if (i >= 0) G.onFrame.splice(i, 1);
+    this.saveKit();
     for (const x of this.mirrors.values()) x.remove();
     this.mirrors.clear();
     this.leaveCommon(quiet);

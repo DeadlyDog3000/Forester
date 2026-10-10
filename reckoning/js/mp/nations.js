@@ -554,6 +554,7 @@ class Battle extends ColonyGuest {
   constructor(nat, foe, snap, aid = false) {
     super(nat.net, { room: nat.room, you: { pid: nat.pid }, players: [], online: [], chat: [] }, nat.me, {});
     this.nat = nat; this.foe = foe; this.foeName = nat.natName(foe); this.aid = aid; this.selfId = snap.self;
+    this.keepsKit = false;
     const n = this.net.on;
     n.lost = () => { this.quit(); nat.hooks.lost && nat.hooks.lost("The connection to the server was lost. Your nation is saved; host or join again to carry on."); };
     n.ended = n.lost;

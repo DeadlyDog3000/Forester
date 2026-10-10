@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.89.1", date: "10 October 2026", title: "Your own things",
+    items: [
+      "A guest in someone's co-op colony keeps their own things between visits: the tools they've made, the bow and arrows, what's in their pack and their own chest, their skills, and their purse. They're kept on the guest's computer for that host's colony, and given back on joining again. Before, a guest started with nothing every time.",
+    ],
+  },
+  {
     v: "0.89.0", date: "10 October 2026", title: "Shot across the field",
     items: [
       "Bows, crossbows and muskets count in Classic battles. Leading the attack on someone's settlement, your arrows, bolts and balls strike its defenders: the settlers standing to it, and its ruler. Come to an ally's aid, they strike the raiders. A shot to the head counts double, as always.",
