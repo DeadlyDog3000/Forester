@@ -587,6 +587,8 @@ export class MPGame {
   chatLine(c, old) {
     this.chatLines.push({ who: c.name, text: c.text, at: old ? 0 : performance.now(), to: c.to, mine: c.pid === this.pid });
     if (this.chatLines.length > 40) this.chatLines.shift();
+    // (heard as it goes up: a person's words a little louder than the game's own notices)
+    if (!old) window.__uisfx && window.__uisfx.chat(!c.name);
     this.drawChat();
   }
   drawChat() {

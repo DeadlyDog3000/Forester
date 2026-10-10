@@ -36,7 +36,7 @@ function play(fn) {
   const a = ac(), out = bus(); if (!a || !out) return;
   try { fn(a, out, a.currentTime + 0.005); } catch (e) {}
 }
-let lastHover = 0;
+let lastHover = 0, lastChat = 0;
 // (in the game itself, nothing tuned: no notes over the woods — a rustle, a scratch, a knock; the chimes and fanfares
 //  are the menus' only)
 const inGame = () => { const G = window.__G; return !!G && G.mode !== "title"; };
@@ -67,6 +67,14 @@ export const UISFX = {
   craft: () => play((a, o, t) => { if (inGame()) { burst(a, o, t, { f: 5200, q: 6, dur: 0.05, vol: 0.06 }); knock(a, o, t + 0.03, 0.07, 240); return; } burst(a, o, t, { f: 5200, q: 6, dur: 0.05, vol: 0.06 }); note(a, o, hz(83), t, { vol: 0.07, decay: 0.8, bright: 0.6 }); note(a, o, hz(71), t + 0.02, { vol: 0.06, decay: 0.5, wood: 1 }); }),
   // a level gained, an achievement: a small fanfare
   fanfare: () => play((a, o, t) => { if (inGame()) { rustle(a, o, t, 0.06, true); knock(a, o, t + 0.1, 0.09, 190); knock(a, o, t + 0.22, 0.09, 190); knock(a, o, t + 0.34, 0.07, 160); return; } [67, 72, 76, 79].forEach((m, i) => note(a, o, hz(m), t + i * 0.08, { vol: 0.08, decay: 0.9, bright: 0.5 })); [72, 76, 79, 84].forEach(m => note(a, o, hz(m), t + 0.38, { vol: 0.05, decay: 1.8, bright: 0.35 })); }),
+  // a line up in the talk: a slip of paper and a light tap (no notes — it's heard in the woods); a notice, softer
+  chat: (notice = false) => {
+    const n = performance.now(); if (n - lastChat < 90) return; lastChat = n;
+    play((a, o, t) => {
+      burst(a, o, t, { f: 1800, q: 0.9, dur: 0.07, vol: notice ? 0.03 : 0.05, sweep: 1600 });
+      if (!notice) knock(a, o, t + 0.05, 0.05, 260);
+    });
+  },
   // not allowed: a low double knock
   deny: () => play((a, o, t) => { note(a, o, hz(45), t, { vol: 0.1, decay: 0.12, wood: 1 }); note(a, o, hz(43), t + 0.09, { vol: 0.1, decay: 0.16, wood: 1 }); }),
 };

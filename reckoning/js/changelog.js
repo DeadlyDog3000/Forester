@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.85.1", date: "10 October 2026", title: "A word in the ear",
+    items: [
+      "Every line that goes up in the multiplayer talk is heard: a slip of paper and a light tap when someone says something, and a softer slip for the game's own notices (someone coming or going, going to bed, a settler on the way). No musical notes. It's in every mode, and the interface sounds setting turns it off with the rest.",
+    ],
+  },
+  {
     v: "0.85.0", date: "10 October 2026", title: "The same plans",
     items: [
       "Frontier's build menu (B) is the settlement's own Plans window: the same parchment, the same rows with their pictures, what each is for and what it costs, and greyed out when you're short (with how much short).",
