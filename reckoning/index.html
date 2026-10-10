@@ -353,7 +353,7 @@
         <tr><td><kbd>Enter</kbd></td><td>Talk &mdash; <kbd>Tab</kbd> as you type to speak to your allies only</td></tr>
         <tr><td><kbd>Tab</kbd></td><td>Who's here: ask for an alliance, give logs</td></tr>
         <tr><td><kbd>B</kbd></td><td>Build &mdash; <kbd>R</kbd> turns it, click to put it down, right click to stop</td></tr>
-        <tr><td><kbd>N</kbd></td><td>The news: wars, homesteads taken, alliances, deaths</td></tr>
+        <tr><td><kbd>N</kbd></td><td>The news: wars, homesteads taken, alliances, deaths. In Classic: the nations — trade, alliances, war, war parties</td></tr>
         <tr><td><kbd>Y</kbd> <kbd>N</kbd></td><td>Say yes or no to an alliance (while it's being asked)</td></tr>
       </table>
       <button class="btn ghost" data-back>Back</button>
@@ -394,8 +394,8 @@
         <div class="mp-host-grid">
           <div class="mp-fields">
             <label class="row"><span>Name</span><input id="mpHostName" maxlength="40"></label>
-            <label class="row"><span>Play</span><select id="mpHostMode"><option value="colony">Co-op colony — the full game, one settlement run together</option><option value="pvp">Classic — a nation each on a new map: trade, ally, or make war</option><option value="coop">Frontier — homesteading together on a new map</option></select></label>
-            <label class="row mp-colony-only"><span>Colony</span><select id="mpHostColony"><option value="new">A new colony</option></select></label>
+            <label class="row"><span>Play</span><select id="mpHostMode"><option value="colony">Co-op colony — the full game, one settlement run together</option><option value="nations">Classic — the full game, a nation each: trade, ally, or make war</option><option value="coop">Frontier — homesteading together on a new map</option><option value="pvp">Frontier rivals — a homestead each on a new map, and claim wars</option></select></label>
+            <label class="row mp-colony-only"><span id="mpHostColonyL">Colony</span><select id="mpHostColony"><option value="new">A new colony</option></select></label>
             <label class="row mp-map-only"><span>Country</span><select id="mpHostKind"></select></label>
             <label class="row mp-map-only"><span>Size</span><select id="mpHostSize"><option value="s">Small — a kilometre across</option><option value="m" selected>Middling — a kilometre and a half</option><option value="l">Large — two kilometres</option></select></label>
             <label class="row"><span>Players</span><select id="mpHostMax"><option>2</option><option>4</option><option selected>8</option><option>12</option><option>16</option></select></label>

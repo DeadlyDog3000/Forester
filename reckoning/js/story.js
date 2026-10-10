@@ -285,12 +285,13 @@ export function writeSlot(n, s) {
 export function clearSlot(n) { _slotCache.delete(n); try { localStorage.removeItem(slotKey(n)); localStorage.removeItem(slotKey(n) + ".prev"); } catch (e) {} }
 export function loadSave() { return readSlot(slot); }
 // the body is written to the save now and then, when it has changed
-setInterval(() => { if (G.body && G.body.dirty && G.mode === "play" && !G.mp) { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
+// (in multiplayer, only a game kept in a save of its own — your colony, your nation — keeps what you carry)
+setInterval(() => { if (G.body && G.body.dirty && G.mode === "play" && (!G.mp || G.mp.ownSave)) { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
 // the bushes you've cut down, kept with the save, so they stay down
 G.loadCut = () => (loadSave() || {}).cutBushes || [];
-G.saveCut = list => { if (!G.mp) writeSave({ cutBushes: list }); };
+G.saveCut = list => { if (!G.mp || G.mp.ownSave) writeSave({ cutBushes: list }); };
 // (everything you have on you written down now, before something drastic: the graphics lost and the page started again)
-G.flushSave = () => { try { if (G.mp) return; if (G.body && G.mode === "play") writeSave({ body: bodyToSave(G.body) }); if (G.town && G.town.persist) G.town.persist(); } catch (e) {} };
+G.flushSave = () => { try { if (G.mp && !G.mp.ownSave) return; if (G.body && G.mode === "play") writeSave({ body: bodyToSave(G.body) }); if (G.town && G.town.persist) G.town.persist(); } catch (e) {} };
 export function writeSave(patch) {
   const s = { ...(readSlotKept(slot) || {}), ...patch, at: Date.now() };
   // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)
@@ -3014,7 +3015,7 @@ export function startReplica(snap) {
   return { w, town };
 }
 // which save a multiplayer colony keeps to: its own, out of the six, and never remembered as the one last played
-export const MP_SLOT = 9;
+export const MP_SLOT = 9, NATION_SLOT = 8;
 export function useSlot(n) { slot = n; }
 
 async function chFree(w) {

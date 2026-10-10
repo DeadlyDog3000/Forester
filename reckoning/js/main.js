@@ -15,7 +15,7 @@ import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE } from "./body.js";
-import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, useSlot } from "./story.js";
+import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { FOLEY } from "./foley.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
@@ -32,6 +32,7 @@ import { renderNews } from "./news.js";
 import { initLobby, openLobby, SCREENS as MP_SCREENS } from "./mp/lobby.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
+import { NationGame } from "./mp/nations.js";
 import { renderAchievements } from "./achievements.js";
 import { lookOpts as mpLookOpts, isF as mpIsF } from "./mp/look.js";
 
@@ -231,6 +232,21 @@ initLobby({
   screen,
   enter(net, inMsg, me, target) {
     const lost = text => { mpDone(); toTitle(); openLobby(); $("mpNote").textContent = text; $("mpNote").classList.add("bad"); };
+    // Classic: a nation each — your own real free play, in a save of its own, with the others' nations beside it
+    if (inMsg.room.mode === "nations") {
+      mpSlotWas = getSlot(); useSlot(NATION_SLOT);
+      const want = target && target.colony;
+      if (want === "new" || !(readSlot(NATION_SLOT) || {}).town) { clearSlot(NATION_SLOT); writeSave({ who: mpIsF(me.look) ? "sister" : "brother", chapter: 14, unlocked: 14 }); }
+      G.who = (loadSave() || {}).who || "brother";
+      play(14);
+      const wait = setInterval(() => {
+        if (!G.town || G.town.replica || !G.town.raids) return;
+        clearInterval(wait);
+        G.player.setModel(mpLookOpts(me.look, me.name)); G.player.model.scaleBase = me.look.height || 1;
+        new NationGame(net, inMsg, me, { lost });
+      }, 200);
+      return;
+    }
     // a co-op colony: the real free play — your own, kept in its own save, or the host's, as their game has it
     if (inMsg.room.mode === "colony") {
       if (target && target.host) {

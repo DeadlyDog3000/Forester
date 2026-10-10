@@ -152,7 +152,7 @@ export class Raids {
     UI.hint("You were killed.", 2.5);
     await new Promise(r => setTimeout(r, 1500));
     this.pending = null;
-    for (const r of this.band) if (r.alive) { if (!r.loot) r.loot = this.take(); r.state = "gone"; r.a.remove(); }
+    for (const r of this.band) if (r.alive) { if (!r.loot) r.loot = this.take(); if (this.carried) for (const k in this.carried) this.carried[k] += r.loot[k] || 0; r.state = "gone"; r.a.remove(); }
     this.band = this.band.filter(r => r.state === "down");
     if (G.hunt) G.hunt.animals = G.hunt.animals.filter(a => !(a instanceof Raider) || a.state === "down");
     t.S.lootedDay = t.day; t.persist();
@@ -179,15 +179,19 @@ export class Raids {
   }
   // o: { n, siege } — a siege comes in two waves, the captain with the second, and isn't a raid in the count
   start(o = {}) {
-    const t = this.town, S = t.S, pop = S.people.length + 2, enemy = o.siege ? null : t.enemy;
+    const t = this.town, S = t.S, pop = S.people.length + 2, enemy = o.siege || o.nation ? null : t.enemy;
     // at war: a crown's soldiers, more of them the stronger it is
     const n = o.n || (enemy ? Math.min(10, 4 + strengthOf(S.europe, enemy)) : Math.min(8, 3 + Math.floor(pop / 4) + Math.floor(S.raid.count / 2)));
     this.enemy = enemy; this.siege = !!o.siege; this.boss = null; this.downN = 0; this.killedN = 0;
+    // (another player's nation at war with you: its war party, as many as it sent; what it carries off goes home with it)
+    this.nation = o.nation || null; this.carried = { store: 0, rye: 0, coin: 0 };
     if (o.siege) {
       const first = Math.ceil(n * 0.6);
       this.spawnBand(first, null);
       this.pending = { at: G.time + 40, n: n - first + 1 };
       S.raid.next = Math.max(S.raid.next, t.day + 8);
+    } else if (o.nation) {
+      this.spawnBand(n, null);
     } else {
       this.spawnBand(n, enemy);
       S.raid.count++; S.raid.next = t.day + (enemy ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 4));
@@ -196,12 +200,12 @@ export class Raids {
     AUDIO.bell && AUDIO.bell(1.1, 0.85);
     setTimeout(() => AUDIO.bell && AUDIO.bell(1.1, 0.85), 700);
     const sib = G.who === "sister" ? "Brother" : "Sister";
-    UI.bark(sib, o.siege ? `The Free Company — ${n} of them, and more behind! Brandt's men!` : enemy ? `Soldiers — ${n} of them, from ${the(enemy)}, on the road!` : `Raiders — ${n} of them, on the road! They're after the stores!`, 4);
+    UI.bark(sib, o.nation ? `Armed men — ${n} of them, from ${o.nation.name}, on the road! It's war!` : o.siege ? `The Free Company — ${n} of them, and more behind! Brandt's men!` : enemy ? `Soldiers — ${n} of them, from ${the(enemy)}, on the road!` : `Raiders — ${n} of them, on the road! They're after the stores!`, 4);
     // they come up the road yelling, to frighten; and the settlement cries out
     this.band.forEach((r, i) => setTimeout(() => r.alive && AUDIO.voice("war", { at: r.pos, vol: 1.2 }), 300 + i * 380 + Math.random() * 300));
     setTimeout(() => { const s = this.town.actors[0]; if (s) AUDIO.voice("fear", { at: s.pos, high: true }); }, 1400);
     G.guide && G.guide("raid");
-    UI.hint(o.siege ? "The Free Company is at the gate. Hold them, and their captain will come — put him down and it's over." : "Raiders! Drive them off with the axe or the bow before they carry off the stores. Mind your health — they hit back.", 7);
+    UI.hint(o.nation ? `${o.nation.name} has sent a war party against you. Cut them down or drive them off before they carry off the stores.` : o.siege ? "The Free Company is at the gate. Hold them, and their captain will come — put him down and it's over." : "Raiders! Drive them off with the axe or the bow before they carry off the stores. Mind your health — they hit back.", 7);
     t.emit("raid", n);
   }
   // the captain cut down: the company breaks, and runs back down the road with whatever it holds
@@ -416,7 +420,7 @@ export class Raids {
         if (!a.path.length) a.walkTo(e.x, e.z, FLEE);
         if (Math.hypot(a.pos.x - e.x, a.pos.z - e.z) < 2.5) {
           // away down the road, with it
-          if (r.loot && (r.loot.store || r.loot.rye || r.loot.coin)) stolen = true;
+          if (r.loot && (r.loot.store || r.loot.rye || r.loot.coin)) { stolen = true; for (const k in this.carried) this.carried[k] += r.loot[k] || 0; }
           r.state = "gone"; a.remove(); this.forget(r);
         }
       }
@@ -459,6 +463,15 @@ export class Raids {
       E.beaten[id] = (E.beaten[id] || 0) + 1;
       S.crownsBeaten = (S.crownsBeaten || 0) + 1;
       if (E.beaten[id] >= 2) { const pay = 10 + strengthOf(E, id) * 5; S.coin = (S.coin || 0) + pay; t.makePeace(id, `Beaten at your gate twice, it sues for peace — and pays ${pay} DM`); }
+    }
+    if (this.wasActive && !act && this.nation) {
+      // (a war party from another player's nation: its own game is told how many fell, and what the rest carried home)
+      const down = this.band.filter(r => r.state === "down").length, nat = this.nation;
+      this.nation = null;
+      nat.over && nat.over({ down, loot: { ...this.carried } });
+      UI.bark(G.who === "sister" ? "Brother" : "Sister", down ? `That's ${nat.name} answered. ${down} of theirs won't go home.` : "They're gone — and they took what they could.", 3.5);
+      this.wasActive = act;
+      return;
     }
     if (this.wasActive && !act && this.siege) {
       // (a siege is the Reckoning's to tell: won if the captain is in the grass, lost if not)

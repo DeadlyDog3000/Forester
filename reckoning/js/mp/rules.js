@@ -37,7 +37,9 @@ export const SPAWN_SHIELD_MS = 45 * 1000;         // a fresh arrival can't be hu
 export const DAY_MS = 24 * 60 * 1000;             // a whole day and night
 export const SIZES = { s: 420, m: 650, l: 950 };  // half the width of a game's island, in metres
 export const WORLD_HALF = 3000;                   // the wide world: six kilometres across
-export const MODES = { coop: "Co-op", pvp: "Classic" };
+export const MODES = { coop: "Frontier", pvp: "Frontier rivals" };
+// Classic, on the real game: what one nation can trade or send another (as each game's stores keep it), and its name
+export const NATION_GOODS = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "ore", iron: "iron", tools: "tools", rye: "rye", bread: "bread", coin: "DM" };
 export const MODE_NOTES = { coop: "One colony, built together: one store, one hearth, and no harm between you.", pvp: "A nation each: build your own, trade and make treaties — or make war on your neighbours." };
 export const GROUP_MAX = 8;
 

@@ -84,7 +84,7 @@ class Room {
   constructor(o) {
     this.id = o.id || crypto.randomBytes(4).toString("hex");
     this.name = clean(o.name, 40) || "A game in the woods";
-    this.mode = R.MODES[o.mode] || o.mode === "colony" ? o.mode : "coop";
+    this.mode = R.MODES[o.mode] || o.mode === "colony" || o.mode === "nations" ? o.mode : "coop";
     this.hostPid = o.hostPid || null;        // (a colony game: the one whose game it is, and runs it)
     this.max = Math.max(2, Math.min(o.persistent ? 500 : 16, num(o.max, 8) | 0));
     this.kind = T.TERRAINS[o.kind] ? o.kind : "island";
@@ -111,11 +111,13 @@ class Room {
     this.shared = { ...(START || R.START_STOCK) };   // (co-op: one colony, one store)
     this.settlers = {}; this.nextS = 1; this.lastArrive = {}; this.workCache = {};
     this.wars = []; this.news = []; this.lastWar = {};
+    // Classic: a nation each, each the real game on its owner's computer; here only what passes between them
+    this.nats = {}; this.pacts = new Set(); this.nwars = []; this.offers = new Map(); this.forays = new Map(); this.peaceAsk = new Map(); this.pactAsk = new Map(); this.lastNWar = {}; this.nextO = 1;
     this.dirty = false;
   }
   storeOf(pid) { return this.mode === "coop" ? this.shared : this.recs[pid]; }
   meta() {
-    return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, locked: !!this.password, persistent: this.persistent };
+    return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, locked: !!this.password, persistent: this.persistent };
   }
   // ---- saving the wide world ----
   toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0 }; }
@@ -163,7 +165,7 @@ class Room {
     sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, food: this.storeOf(p.pid).food | 0, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null },
       players: [...this.online.values()].filter(q => q !== p).map(q => this.pub(q)), felled: live(this.felled, t), broken: live(this.broken, t),
       buildings: Object.values(this.buildings), settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
-      online: this.onlineNames() });
+      online: this.onlineNames(), ...(this.mode === "nations" ? this.natState() : {}) });
     this.all({ t: "pj", p: this.pub(p) }, p);
     if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
     this.note(`${p.name} has come.`, p);
@@ -176,6 +178,7 @@ class Room {
     const r = this.recs[p.pid]; if (r) r.seen = now();
     this.all({ t: "pl", pid: p.pid });
     if (this.mode === "colony" && p.pid === this.hostPid) { this.all({ t: "ended", text: `${p.name} has closed the colony.` }); this.ended = true; }
+    if (this.mode === "nations") this.natGone(p.pid);
     this.note(`${p.name} has gone.`);
     if (!this.online.size) this.emptySince = now();
     this.dirty = true;
@@ -196,6 +199,7 @@ class Room {
   // ---- what players do ----
   on(p, m) {
     const rec = this.recs[p.pid], st = this.storeOf(p.pid), t = now();
+    if (this.mode === "nations") return this.nationsOn(p, m);
     // a colony game is the host's own game: the server only carries messages between it and the others
     if (this.mode === "colony") {
       if (process.env.MP_DEBUG && m.t === "h") console.log(`colony h from ${p.name} to ${m.to || "all"} ${m.m && m.m.t}`);
@@ -642,6 +646,145 @@ class Room {
     }
     if (changed) this.all({ t: "wars", wars: this.wars });
   }
+  // ---- Classic: nations ----
+  natState() { return { nats: this.nats, pacts: [...this.pacts], nwars: this.nwars, offers: [...this.offers.values()] }; }
+  natPush() { this.all({ t: "nstate", ...this.natState() }); }
+  pk(a, b) { return [a, b].sort().join("|"); }
+  natName(pid) { const n = this.nats[pid]; return n ? n.nation : (this.recs[pid] ? this.recs[pid].name : "someone"); }
+  atWar(a, b) { return this.nwars.find(w => (w.a === a && w.b === b) || (w.a === b && w.b === a)) || null; }
+  sendTo(pid, msg) { const q = this.online.get(pid); if (q) q.sock.send(msg); return !!q; }
+  endNWar(w, how) {
+    this.nwars = this.nwars.filter(x => x !== w);
+    this.lastNWar[this.pk(w.a, w.b)] = now();
+    this.headline("peace", how);
+    this.natPush();
+  }
+  nationsOn(p, m) {
+    const me = p.pid, to = String(m.to || ""), t = now();
+    const no = text => p.sock.send({ t: "err", text });
+    switch (m.t) {
+      case "st": case "respawn": return;
+      case "chat": {
+        const text = clean(m.text, 200); if (!text) return;
+        const c = { pid: me, name: p.name, text }; this.chat.push(c); if (this.chat.length > 60) this.chat.shift();
+        this.all({ t: "chat", ...c }); return;
+      }
+      // how a nation stands: its name, its people, its day — told now and then by its own game
+      case "nat": {
+        const was = this.nats[me];
+        const n = { pid: me, ruler: p.name, nation: clean(m.nation, 40) || `${p.name}'s people`, pop: num(m.pop) | 0, day: num(m.day) | 0, coin: num(m.coin) | 0, watch: num(m.watch) | 0, built: num(m.built) | 0, known: num(m.known) | 0, at: t };
+        this.nats[me] = n;
+        if (was) for (const k of [10, 25, 50]) if (was.pop < k && n.pop >= k) this.headline("grow", `${n.nation} has grown to ${k} souls.`);
+        if (!was || was.nation !== n.nation || was.pop !== n.pop || was.day !== n.day || was.watch !== n.watch) this.natPush();
+        return;
+      }
+      // alliances: asked, and accepted or turned down; broken by either
+      case "pact": {
+        if (!this.online.has(to) || to === me) return;
+        if (this.atWar(me, to)) return no("You're at war with them. Make peace first.");
+        if (this.pacts.has(this.pk(me, to))) return;
+        this.pactAsk.set(this.pk(me, to), { from: me, at: t });
+        this.sendTo(to, { t: "ask", kind: "pact", from: me, name: this.natName(me) });
+        return no(`You've offered ${this.natName(to)} an alliance. It's for them to accept.`);
+      }
+      case "pactok": {
+        const k = this.pk(me, to), a = this.pactAsk.get(k); if (!a || a.from !== to) return;
+        this.pactAsk.delete(k); this.pacts.add(k);
+        this.headline("ally", `${this.natName(to)} and ${this.natName(me)} have sworn an alliance.`);
+        this.natPush(); return;
+      }
+      case "pactno": { const k = this.pk(me, to), a = this.pactAsk.get(k); if (!a || a.from !== to) return; this.pactAsk.delete(k); this.sendTo(to, { t: "err", text: `${this.natName(me)} has turned down your alliance.` }); return; }
+      case "unpact": {
+        const k = this.pk(me, to); if (!this.pacts.delete(k)) return;
+        this.headline("ally", `${this.natName(me)} has broken its alliance with ${this.natName(to)}.`);
+        this.natPush(); return;
+      }
+      // war: only on a nation that's here to defend itself, and not an ally, and not straight after a peace
+      case "war": {
+        if (!this.online.has(to) || to === me) return no("They aren't here. No one can be attacked while they're away.");
+        if (this.pacts.has(this.pk(me, to))) return no("You're allies. Break the alliance first.");
+        if (this.atWar(me, to)) return;
+        const last = this.lastNWar[this.pk(me, to)] || 0;
+        if (t - last < R.WAR.cooldownMs) return no(`The peace is too new. In ${Math.ceil((R.WAR.cooldownMs - (t - last)) / 60000)} min you can break it.`);
+        const w = { a: me, b: to, aName: this.natName(me), bName: this.natName(to), start: t };
+        this.nwars.push(w);
+        this.headline("war", `${w.aName} has declared war on ${w.bName}.`);
+        this.natPush(); return;
+      }
+      case "peace": {
+        const w = this.atWar(me, to); if (!w) return;
+        this.peaceAsk.set(this.pk(me, to), { from: me, at: t });
+        this.sendTo(to, { t: "ask", kind: "peace", from: me, name: this.natName(me) });
+        return no(`You've sued ${this.natName(to)} for peace. It's for them to accept.`);
+      }
+      case "peaceok": {
+        const k = this.pk(me, to), a = this.peaceAsk.get(k), w = this.atWar(me, to); if (!a || a.from !== to || !w) return;
+        this.peaceAsk.delete(k);
+        this.endNWar(w, `${this.natName(to)} and ${this.natName(me)} have made peace.`); return;
+      }
+      case "peaceno": { const k = this.pk(me, to), a = this.peaceAsk.get(k); if (!a || a.from !== to) return; this.peaceAsk.delete(k); this.sendTo(to, { t: "err", text: `${this.natName(me)} won't hear of peace.` }); return; }
+      // trade: what one offers, held here until the other takes it or turns it down (the goods were set aside by the giver's own game)
+      case "offer": {
+        if (!this.online.has(to) || to === me) return;
+        const goods = g => { const o = {}; for (const [k, v] of Object.entries(g || {})) if (R.NATION_GOODS[k] && num(v) > 0) o[k] = Math.min(9999, num(v) | 0); return o; };
+        const o = { id: "o" + this.nextO++, from: me, to, fromName: this.natName(me), toName: this.natName(to), give: goods(m.give), want: goods(m.want), at: t };
+        if (!Object.keys(o.give).length && !Object.keys(o.want).length) return;
+        this.offers.set(o.id, o);
+        this.sendTo(to, { t: "offer", o }); p.sock.send({ t: "offer", o });
+        return;
+      }
+      case "accept": {
+        const o = this.offers.get(String(m.id)); if (!o || o.to !== me) { p.sock.send({ t: "got", goods: m.paid || {}, why: "That offer is gone." }); return; }
+        this.offers.delete(o.id);
+        p.sock.send({ t: "got", goods: o.give, id: o.id, why: `The trade with ${o.fromName} is done.` });
+        this.sendTo(o.from, { t: "got", goods: o.want, id: o.id, why: `${o.toName} took your offer.` });
+        if (Object.keys(o.want).length) this.headline("trade", `${o.fromName} and ${o.toName} have traded.`);
+        else this.headline("trade", `${o.fromName} has sent ${o.toName} a gift.`);
+        return;
+      }
+      case "decline": case "cancel": {
+        const o = this.offers.get(String(m.id)); if (!o || (m.t === "decline" ? o.to !== me : o.from !== me)) return;
+        this.offers.delete(o.id);
+        this.sendTo(o.from, { t: "got", goods: o.give, id: o.id, back: true, why: m.t === "decline" ? `${o.toName} turned down your offer; the goods are back in your stores.` : "You took back your offer." });
+        this.sendTo(o.to, { t: "offergone", id: o.id });
+        return;
+      }
+      // a war party: so many of your people, sent up the enemy's road; their game fights it out, and says how it went
+      case "raid": {
+        const w = this.atWar(me, to); if (!w) return no("You're not at war with them.");
+        if (!this.online.has(to)) return no("They aren't here.");
+        if ([...this.forays.values()].some(f => f.from === me)) return no("Your war party is still out.");
+        const n = Math.max(1, Math.min(10, num(m.n) | 0)), id = "f" + this.nextO++;
+        this.forays.set(id, { id, from: me, to, n, at: t, people: Array.isArray(m.people) ? m.people.slice(0, 10).map(x => clean(x, 40)) : [] });
+        this.sendTo(to, { t: "raided", id, from: me, name: this.natName(me), n });
+        this.headline("war", `${this.natName(me)} has sent ${n} armed men against ${this.natName(to)}.`);
+        return;
+      }
+      case "raidEnd": {
+        const f = this.forays.get(String(m.id)); if (!f || f.to !== me) return;
+        this.forays.delete(f.id);
+        const down = Math.max(0, Math.min(f.n, num(m.down) | 0)), loot = {};
+        for (const [k, v] of Object.entries(m.loot || {})) if (R.NATION_GOODS[k] && num(v) > 0) loot[k] = Math.min(999, num(v) | 0);
+        this.sendTo(f.from, { t: "raidBack", id: f.id, n: f.n, down, loot, name: this.natName(me) });
+        const got = Object.values(loot).some(v => v > 0);
+        this.headline("war", down >= f.n ? `${this.natName(me)} cut down every one of the ${f.n} men ${this.natName(f.from)} sent against it.` : `${this.natName(f.from)}'s war party came back from ${this.natName(me)}${got ? " with plunder" : " empty-handed"}${down ? `, ${down} of ${f.n} left dead on the road` : ""}.`);
+        return;
+      }
+    }
+  }
+  // someone gone: their offers are void, their wars end, a war party sent against them comes home
+  natGone(pid) {
+    for (const o of [...this.offers.values()]) if (o.from === pid || o.to === pid) {
+      this.offers.delete(o.id);
+      if (o.from !== pid) this.sendTo(o.from, { t: "got", goods: o.give, id: o.id, back: true, why: `${o.toName} has gone; your offer's goods are back in your stores.` });
+      else this.sendTo(o.to, { t: "offergone", id: o.id });
+    }
+    for (const f of [...this.forays.values()]) if (f.to === pid) { this.forays.delete(f.id); this.sendTo(f.from, { t: "raidBack", id: f.id, n: f.n, down: 0, loot: {}, name: this.natName(pid), gone: true }); }
+    else if (f.from === pid) this.forays.delete(f.id);
+    for (const w of this.nwars.slice()) if (w.a === pid || w.b === pid) this.endNWar(w, `The war between ${w.aName} and ${w.bName} is over: ${this.natName(pid)} has gone from the world.`);
+    delete this.nats[pid];
+    this.natPush();
+  }
   hasForge(pid) { return Object.values(this.buildings).some(b => b.type === "forge" && this.allied(b.owner, pid)); }
   quitGroup(pid) {
     const r = this.recs[pid]; if (!r || !r.group) return;
@@ -663,7 +806,7 @@ class Room {
     for (const p of this.online.values()) if (p.moved) { p.moved = false; moved.push([p.pid, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), p.a, p.h, +p.s.toFixed(2), p.g ? 1 : 0]); }
     if (moved.length) this.all({ t: "ps", l: moved });
     if ((this.tickN = (this.tickN || 0) + 1) % 2 === 0) {
-      if (this.mode !== "colony") this.ai(0.2);
+      if (this.mode !== "colony" && this.mode !== "nations") this.ai(0.2);
       const sm = [];
       for (const v of Object.values(this.settlers)) if (v.moved) { v.moved = false; sm.push([v.id, +v.x.toFixed(2), +v.z.toFixed(2), +v.yaw.toFixed(2), v.a, +(v.s || 0).toFixed(2)]); }
       if (sm.length) this.all({ t: "ss", l: sm });
@@ -674,8 +817,9 @@ class Room {
     for (const [id, at] of Object.entries(this.felled)) if (at <= t) { delete this.felled[id]; back.push(id); }
     for (const [id, at] of Object.entries(this.broken)) if (at <= t) { delete this.broken[id]; rocks.push(id); }
     if (back.length || rocks.length) { this.all({ t: "grow", trees: back, rocks }); this.dirty = true; }
-    if (this.mode !== "colony") this.settle();
+    if (this.mode !== "colony" && this.mode !== "nations") this.settle();
     if (this.wars.length) this.warTick(t);
+    for (const w of this.nwars.slice()) if (t - w.start > R.WAR.lastsMs * 2) this.endNWar(w, `The war between ${w.aName} and ${w.bName} has burnt itself out. There's peace, of a kind.`);
     for (const [k, at] of this.invites) if (t - at > 120000) this.invites.delete(k);
     // wounds mend, a while after the last blow
     for (const p of this.online.values()) if (!p.dead && p.hp < R.MAX_HP && t - (p.hurtAt || 0) > 8000) { p.hp = Math.min(R.MAX_HP, p.hp + 4); this.all({ t: "hp", pid: p.pid, hp: p.hp, heal: true }); }

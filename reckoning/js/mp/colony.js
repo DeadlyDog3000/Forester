@@ -30,7 +30,7 @@ const bKey = b => `${b.type}@${(+b.x).toFixed(2)},${(+b.z).toFixed(2)}`;
 // ---------------------------------------------------------------------------
 //  what both sides share: the others' bodies, talk, the people list
 // ---------------------------------------------------------------------------
-class ColonyBase {
+export class ColonyBase {
   constructor(net, inMsg, me) {
     this.net = net; this.me = me; this.room = inMsg.room; this.pid = inMsg.you.pid; this.mode = "colony";
     this.remotes = new Map(); this.online = new Set(inMsg.online || []);
@@ -103,7 +103,7 @@ export class ColonyHost extends ColonyBase {
     this.hooks = hooks || {};
     this.ids = new WeakMap(); this.nextId = 1; this.sentActors = new Map();   // actor id → actor, as the guests know them
     this.lastKeys = {};
-    G.mp = this; this.host = true;
+    G.mp = this; this.host = true; this.ownSave = true;
     G.achEvent && (G.achEvent("mp-join"), G.achEvent("mp-host"));
     for (const p of this.players) this.addRemote(p);
     this.listenCommon();

@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.68.0", date: "10 October 2026", title: "Nations",
+    items: [
+      "Classic is now the full game for every player. Each of you plays your own settlement as a nation, with everything free play has: the same building, stores, research, settlers, laws, Europe and raiders. Your nation is kept in a save of its own, so you can carry it on the next time you play Classic.",
+      "N opens the nations: every other player's nation, with its ruler, its people, its day, its buildings and what it knows.",
+      "Trade any goods: logs, stone, planks, bricks, ore, iron, tools, rye, bread or Deutschmarks. What you offer is set aside until they answer, and comes back if they refuse. Ask for nothing and it's a gift.",
+      "Offer an alliance, and break one if you must. Declare war on a nation that isn't your ally. You can't attack anyone who isn't here, and once a peace is made it can't be broken for ten minutes.",
+      "At war, send a war party. Choose how many of your people go; the watch go first. They walk down your road and come up the enemy's as a real raid in their game, fought with every weapon and wall they have. Those who fall don't come back. The rest bring home whatever they carried off.",
+      "Sue for peace, or the war burns itself out after forty minutes. Everyone hears the news of wars, peaces, alliances, trades and war parties.",
+      "The old map-based mode stays as Frontier rivals: a homestead each on a new map, with claim wars.",
+      "In a colony you host, and in your nation, what you carry and your skills are now kept with that game's save.",
+    ],
+  },
+  {
     v: "0.67.0", date: "10 October 2026", title: "Sickness, and the world of 1683",
     items: [
       "More than the fever now. People can come down with a winter cough, the flux, the ague, consumption, the smallpox, or the plague, and some are far deadlier than others. A cough is a misery that passes. The plague kills.",

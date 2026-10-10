@@ -2258,7 +2258,7 @@ export class Town {
     if (a.root) {
       if (a.talkIt) this.w.removeInteract(a.talkIt);
       a.lying = true; a.path = []; a.person.held.clear(); a.onUpdate = null; a.knocked = Infinity; a.yOff = 0.05;
-      const violent = why === "raid" || why === "revolt" || why === "cave";
+      const violent = why === "raid" || why === "revolt" || why === "cave" || why === "war";
       if (violent) AUDIO.voice("fear", { at: a.pos, high: p.sex === "f" || !!p.child });
       // (a body cut down lies where it fell for a while; one that died abed is carried out quietly)
       setTimeout(() => { a.remove(); const j = this.actors.indexOf(a); if (j >= 0) this.actors.splice(j, 1); }, violent ? 30000 : 1500);
@@ -2268,7 +2268,7 @@ export class Town {
     this.showGraves(); this.persist(); this.emit("died", p, why);
     const how = {
       raid: "Cut down in the raid.", revolt: "Killed in the fighting in the streets.", cave: "Killed down in the caves, in the dark.",
-      hunger: "Starved: there was nothing left in the stores.", feud: "Beaten to death in the feud between the families.", cold: "Froze in the night, with no wood for the hearth.", sick: `Taken by ${p.diedOf || "a fever"}.`,
+      hunger: "Starved: there was nothing left in the stores.", feud: "Beaten to death in the feud between the families.", cold: "Froze in the night, with no wood for the hearth.", sick: `Taken by ${p.diedOf || "a fever"}.`, war: "Fell in the war, on the enemy's road.",
     }[why] || "";
     UI.news({ title: `${p.name} is dead`, sub: `${how} Buried at the edge of the clearing, by the ones who were left.`, img: "event_war" });
     return true;
@@ -2280,7 +2280,7 @@ export class Town {
     for (const it of this.graveIts || []) w.removeInteract(it);
     this.graveIts = [];
     if (!list.length) return;
-    const HOW = { raid: "cut down in a raid", revolt: "killed in the rising", cave: "killed in the caves", hunger: "starved", feud: "killed in a feud", cold: "froze in the night", sick: "taken by sickness" };
+    const HOW = { raid: "cut down in a raid", revolt: "killed in the rising", cave: "killed in the caves", hunger: "starved", feud: "killed in a feud", cold: "froze in the night", sick: "taken by sickness", war: "fell in the war" };
     const g = this.graveG = new THREE.Group();
     const wood = mat(0x6a4a30, { surface: "wood" }), earth = mat(0x4a3a2a, { surface: "none" });
     list.forEach((gr, i) => {
