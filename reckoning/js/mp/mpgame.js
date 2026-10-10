@@ -11,7 +11,7 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
-import { makeAxe, makePick, makeTorch, makeSpade, makeSickle } from "../models.js";
+import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { Wilds } from "./wilds.js";
@@ -28,6 +28,8 @@ const sfx = (n, ...a) => { try { if (typeof SFX !== "undefined" && SFX[n]) SFX[n
 const DAY = [[0, "night"], [0.2, "dawn"], [0.27, "morning"], [0.5, "afternoon"], [0.68, "evening"], [0.76, "dusk"], [0.84, "night"], [1, "night"]];
 
 // a name over someone's head
+// what's in a sack, said
+const goodsText = g => g ? [g.wood && `${g.wood} log${g.wood > 1 ? "s" : ""}`, g.stone && `${g.stone} stone`, g.food && `${g.food} food`].filter(Boolean).join(", ") || "nothing" : "nothing";
 export function nameTag(text, colour) {
   const cv = document.createElement("canvas"), c = cv.getContext("2d"), f = "600 34px 'Open Sans', sans-serif";
   c.font = f; const w = Math.ceil(c.measureText(text).width) + 28; cv.width = w; cv.height = 52;
@@ -164,6 +166,7 @@ export class MPGame {
     w.setFelled(inMsg.felled || []); w.setBroken(inMsg.broken || []);
     for (const p of inMsg.players || []) this.addRemote(p);
     for (const b of inMsg.buildings || []) this.addB(b);
+    this.drops = new Map(); for (const d of inMsg.drops || []) this.addDrop(d);
     for (const v of inMsg.settlers || []) this.settlers.set(v.id, new SettlerView(this, v));
     for (const c of inMsg.chat || []) this.chatLine(c, true);
     G.onSwing = () => this.swing();
@@ -264,17 +267,23 @@ export class MPGame {
       if (m.hp < r.hp && !m.heal) { blowLands(r.actor, m.guarded ? "parried" : "hit", m.by === this.pid ? G.player : (this.remotes.get(m.by) || {}).actor); r.actor.person.flinch && r.actor.person.flinch(); if (m.by !== this.pid) sfx("chop"); }
       r.hp = m.hp;
     };
+    n.drop = m => this.addDrop(m.d);
+    n.dropgone = m => {
+      const e = this.drops.get(m.id); if (!e) return;
+      this.w.root.remove(e.mesh); this.w.removeInteract(e.it); this.drops.delete(m.id);
+      if (m.by === this.pid) { this.toast(`You take ${goodsText(m.d)}${m.d && m.d.owner === this.pid ? " — back again" : ` from ${m.d ? m.d.name : "the"}'s sack`}.`); sfx("pickup"); G.achEvent && m.d && m.d.owner !== this.pid && G.achEvent("mp-loot"); }
+    };
     n.die = m => {
-      const loot = m.got && (m.got.wood || m.got.stone) ? ` and ${[m.got.wood && `${m.got.wood} logs`, m.got.stone && `${m.got.stone} stone`].filter(Boolean).join(" and ")}` : "";
+      const loot = m.dropped ? ` — ${goodsText(m.dropped)} spilled from their pack` : "";
       if (m.pid === this.pid) {
         this.dead = true; this.hp = 0; G.downed = true; G.lockMove = true;
         UI.fade(1, 1.4);
-        this.banner(`You fell to ${esc(this.nameOf(m.by))}.`, `They took${loot ? loot.slice(4) : " nothing you had"}. You'll wake ${this.myHearth() ? "at your hearth" : "somewhere safe"} in a moment.`);
+        this.banner(`You fell to ${esc(this.nameOf(m.by))}.`, `${m.dropped ? `A third of what you carried — ${esc(goodsText(m.dropped))} — lies in a sack where you fell, for whoever gets there first.` : "You had nothing worth taking."} You'll wake ${this.myHearth() ? "at your hearth" : "somewhere safe"} in a moment.`);
         return;
       }
       const r = this.remotes.get(m.pid); if (r) { r.dead = true; blowLands(r.actor, "down", m.by === this.pid ? G.player : null); }
       if (m.by === this.pid) G.achEvent && G.achEvent("mp-kill");
-      if (m.by === this.pid) this.toast(`${this.nameOf(m.pid)} is down${loot ? ` — you took${loot.slice(4)}` : ""}.`);
+      if (m.by === this.pid) this.toast(`${this.nameOf(m.pid)} is down${loot}${m.dropped ? ". Loot the sack (F) before someone else does." : "."}`);
       else this.chatLine({ name: "", text: `${this.nameOf(m.pid)} fell to ${this.nameOf(m.by)}.` });
     };
     n.spawn = m => {
@@ -619,6 +628,16 @@ export class MPGame {
     if (G.mp !== this) return;
     this.leave(true);
     this.hooks.lost && this.hooks.lost(this.room.persistent ? "The connection to the wide world was lost." : "The connection to the game was lost — its host may have closed it.");
+  }
+  // a fallen player's sack: where they fell, F to take what's in it
+  addDrop(d) {
+    if (!d || this.drops.has(d.id)) return;
+    const mesh = new THREE.Group(), s1 = makeSack(), s2 = makeSack();
+    s1.scale.setScalar(2.3); s2.scale.setScalar(1.7); s2.position.set(0.25, 0, 0.18); s2.rotation.z = 1.2; mesh.add(s1, s2);
+    mesh.position.set(d.x, this.w.heightAt(d.x, d.z), d.z); mesh.rotation.y = (d.x * 7.3) % 6.28; this.w.root.add(mesh);
+    const it = this.w.addInteract({ x: d.x, y: this.w.heightAt(d.x, d.z) + 0.4, z: d.z, reach: 2.6, can: () => !this.dead,
+      label: () => `${d.owner === this.pid ? "Take back your sack" : `Loot ${d.name}'s sack`} — ${goodsText(d)}`, use: () => this.net.send({ t: "loot", id: d.id }) });
+    this.drops.set(d.id, { d, mesh, it });
   }
   leave(quiet) {
     if (G.mp !== this) return;

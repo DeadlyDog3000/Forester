@@ -111,6 +111,7 @@ class Room {
     this.shared = { ...(START || R.START_STOCK) };   // (co-op: one colony, one store)
     this.settlers = {}; this.nextS = 1; this.lastArrive = {}; this.workCache = {};
     this.wars = []; this.news = []; this.lastWar = {};
+    this.drops = {}; this.nextD = 1;     // (what the fallen dropped: a sack each, for anyone to loot, a few minutes)
     // Classic: a nation each, each the real game on its owner's computer; here only what passes between them
     this.nats = {}; this.pacts = new Set(); this.nwars = []; this.offers = new Map(); this.forays = new Map(); this.peaceAsk = new Map(); this.pactAsk = new Map(); this.lastNWar = {}; this.nextO = 1;
     this.dirty = false;
@@ -164,7 +165,7 @@ class Room {
     const t = now();
     sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, food: this.storeOf(p.pid).food | 0, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null },
       players: [...this.online.values()].filter(q => q !== p).map(q => this.pub(q)), felled: live(this.felled, t), broken: live(this.broken, t),
-      buildings: Object.values(this.buildings), settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
+      buildings: Object.values(this.buildings), drops: Object.values(this.drops), settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
       online: this.onlineNames(), ...(this.mode === "nations" ? this.natState() : {}) });
     this.all({ t: "pj", p: this.pub(p) }, p);
     if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
@@ -406,6 +407,17 @@ class Room {
         return;
       }
       case "respawn": return;
+      // a fallen player's sack, taken up
+      case "loot": {
+        const d = this.drops[String(m.id || "")]; if (!d || p.dead || !this.near(p, d.x, d.z, 3.6)) return;
+        delete this.drops[d.id];
+        st.wood += d.wood; st.stone += d.stone; st.food = (st.food || 0) + d.food;
+        this.all({ t: "dropgone", id: d.id, by: p.pid, name: p.name, d });
+        if (p.pid !== d.owner) this.note(`${p.name} has looted ${d.name}'s sack.`);
+        if (d.wood + d.stone >= 20 && p.pid !== d.owner) this.headline("death", `${p.name} stripped ${d.name}'s body of ${d.wood} logs and ${d.stone} stone.`);
+        this.stock(p); this.dirty = true;
+        return;
+      }
     }
   }
   // a blow landing on a player: from another player (by a pid) or a settler (by "s…")
@@ -421,10 +433,19 @@ class Room {
     q.dead = true;
     const killer = this.recs[by] ? by : (this.settlers[by] && this.settlers[by].owner);
     const vr = this.storeOf(q.pid), kr = killer && killer !== "colony" ? this.storeOf(killer) : null;
-    let w = 0, s = 0;
-    if (kr && kr !== vr) { w = Math.floor(vr.wood * 0.2); s = Math.floor(vr.stone * 0.2); vr.wood -= w; vr.stone -= s; kr.wood += w; kr.stone += s; }
+    // what they carried: a third of it, dropped in a sack where they fell — the killer's, or anyone's who gets there first
+    let w = 0, s = 0, f = 0, drop = null;
+    if (kr && kr !== vr) {
+      w = Math.floor(vr.wood / 3); s = Math.floor(vr.stone / 3); f = Math.floor((vr.food || 0) / 3);
+      if (w || s || f) {
+        vr.wood -= w; vr.stone -= s; vr.food = (vr.food || 0) - f;
+        drop = { id: "d" + this.nextD++, x: q.x, z: q.z, wood: w, stone: s, food: f, name: q.name, owner: q.pid, at: t };
+        this.drops[drop.id] = drop; this.all({ t: "drop", d: drop });
+      }
+    }
+    void kr;
     if (this.recs[by]) this.recs[by].kills++; if (this.recs[q.pid]) this.recs[q.pid].deaths++;
-    this.all({ t: "die", pid: q.pid, by, got: { wood: w, stone: s } });
+    this.all({ t: "die", pid: q.pid, by, dropped: drop ? { wood: w, stone: s, food: f } : null });
     { const kn = this.online.get(by) ? this.online.get(by).name : this.settlers[by] ? `${this.settlers[by].name}, a watchman` : "someone"; this.headline("death", `${q.name} was struck down by ${kn}.`); }
     const ko = killer && this.online.get(killer); if (ko) this.stock(ko); this.stock(q); this.dirty = true;
     setTimeout(() => this.respawn(q), R.RESPAWN_MS);
@@ -826,6 +847,8 @@ class Room {
     if (this.wars.length) this.warTick(t);
     for (const w of this.nwars.slice()) if (t - w.start > R.WAR.lastsMs * 2) this.endNWar(w, `The war between ${w.aName} and ${w.bName} has burnt itself out. There's peace, of a kind.`);
     for (const [k, at] of this.invites) if (t - at > 120000) this.invites.delete(k);
+    // a sack left lying a few minutes is gone (picked over, or the crows had it)
+    for (const d of Object.values(this.drops)) if (t - d.at > 180000) { delete this.drops[d.id]; this.all({ t: "dropgone", id: d.id }); }
     // wounds mend, a while after the last blow
     for (const p of this.online.values()) if (!p.dead && p.hp < R.MAX_HP && t - (p.hurtAt || 0) > 8000) { p.hp = Math.min(R.MAX_HP, p.hp + 4); this.all({ t: "hp", pid: p.pid, hp: p.hp, heal: true }); }
   }

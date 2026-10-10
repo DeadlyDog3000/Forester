@@ -56,6 +56,7 @@ export const ACH = [
   ["capture", "Conqueror", "Take someone's homestead in a claim war.", "With others", "mp-capture"],
   ["hold", "Hold the Line", "Keep your homestead through a claim war.", "With others", "mp-held"],
   ["settlers12", "Patron", "Have twelve settlers living at your homestead.", "With others", "mp-settlers-12"],
+  ["loot", "Spoils", "Loot another player's sack.", "With others", "mp-loot"],
   ["kill", "Blood on the Axe", "Strike down another player.", "With others", "mp-kill", true],
   ["world", "Into the Wide World", "Set foot in the wide world.", "With others", "mp-world"],
 ].map(([id, name, desc, group, how, hidden]) => ({ id, name, desc, group, test: typeof how === "function" ? how : null, event: typeof how === "string" ? how : null, hidden: !!hidden }));

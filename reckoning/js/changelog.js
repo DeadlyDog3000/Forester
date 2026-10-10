@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.74.0", date: "10 October 2026", title: "Spoils",
+    items: [
+      "Player looting in multiplayer. When a player is cut down, a third of what they carried (logs, stone and food) spills into a sack on the ground where they fell. It no longer goes straight to whoever killed them.",
+      "Anyone can loot it with F, the killer or a passer-by, and the one who fell can run back for it. It lies there for three minutes.",
+      "A big haul makes the news. There's a new achievement, Spoils, for looting someone else's sack.",
+    ],
+  },
+  {
     v: "0.73.0", date: "10 October 2026", title: "Leather",
     items: [
       "Tanning racks. Build one for 8 logs. It has two frames to stretch hides on, a vat of bark liquor and a scraping beam with the fleshing knife left on it.",
