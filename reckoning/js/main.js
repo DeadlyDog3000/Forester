@@ -35,6 +35,7 @@ import { ColonyHost, ColonyGuest } from "./mp/colony.js";
 import { NationGame } from "./mp/nations.js";
 import "./drink.js";
 import { UISFX } from "./uisfx.js";
+import "./ambience.js";
 import { renderAchievements } from "./achievements.js";
 import { lookOpts as mpLookOpts, isF as mpIsF } from "./mp/look.js";
 

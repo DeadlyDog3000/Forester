@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "0.78.0", date: "10 October 2026", title: "The woods, heard",
+    items: [
+      "Stronger ambience. The forest now has a sound of its own. The wind in the leaves comes and goes in gusts and moves from one side of you to the other, and it's quieter in winter's bare woods and muffled once you're indoors.",
+      "Real birdsong, each species singing its own song from somewhere among the trees: the blackbird's fluty phrases, the chaffinch's tumbling trill, the great tit's 'tea-cher, tea-cher', the wood pigeon's soft coo-COO-coo, crows, and the cuckoo in spring and summer.",
+      "There's a full chorus at dawn that thins through the day and falls silent at night. Birds are fewer in winter and in the rain.",
+      "When the wind gets up, old trunks creak somewhere nearby.",
+      "It plays in the woods and in multiplayer's open country, not in the caves or the city. The Ambient sounds setting still turns it off.",
+    ],
+  },
+  {
     v: "0.77.0", date: "10 October 2026", title: "The sounds of the screens",
     items: [
       "Every button now answers with a short, dry wooden tick, and a softer one when the pointer finds it. A greyed-out button gives a low double knock instead.",
