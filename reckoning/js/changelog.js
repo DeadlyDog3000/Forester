@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.71.0", date: "10 October 2026", title: "Cannon",
+    items: [
+      "Cannon. Research Artillery (military, after Matchlock Muskets) and you can build one for 8 iron and 4 planks. It's a long iron gun with a swelling muzzle on an oak field carriage, with two spoked wheels, a trail, and a rammer and sponge leaning against it. Lay it out facing where trouble will come from.",
+      "Press F at it to be the gunner. Look to aim, as far round as the trail will swing and as high as the quoin allows, then click to fire.",
+      "When it fires there's a flash, a cloud of powder smoke and a boom that rolls off through the woods, and the gun jumps back on its carriage. The ball flies a real arc and cuts through every raider in its path. It skips along the ground, throwing up earth, and then lies where it stopped.",
+      "Then it has to be sponged and loaded again, which takes a few seconds, and every ball is cast from one iron out of the stores.",
+      "In a raid, if you aren't at the gun and the settlement has a watchman, the watch lay it on the nearest raider in front of it and fire it themselves.",
+      "Press F again to leave the gun.",
+    ],
+  },
+  {
     v: "0.70.0", date: "10 October 2026", title: "Fire",
     items: [
       "Every fire in the game has been made again: the campfire, hearths, the charcoal clamp, candles and torches. The flames used to be solid cones. Now they move like real fire: tongues lick up and break off at the top, white-gold at the heart and red at the edges, and they never look quite the same twice.",

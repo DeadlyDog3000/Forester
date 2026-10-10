@@ -26,6 +26,7 @@ import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { Smoke, Breath, chimneyMark } from "./smoke.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { gunsmithTick, benchFront } from "./gunsmith.js";
+import { makeCannon } from "./cannon.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { NATIONS, NEAR, ensureEurope, europeDay, strengthOf, the, The } from "./europe.js";
 import { DISEASES, catchSomething, sicken, diseaseName } from "./disease.js";
@@ -61,6 +62,7 @@ export const BUILDINGS = {
   stable:   { name: "Stable", cost: 14, mats: { stone: 4 }, w: 6.4, d: 4.2, icon: "stable", note: "Stalls for two horses. Take one out (F at the stable) and ride — more than twice as fast as walking. X gets you down, and it finds its own way home." },
   path:     { name: "Path", cost: 0, w: 2.2, d: 3.4, path: true, icon: "stone", note: "A trodden way between the houses, laid a strip at a time — free. Cobbled once the town is brick." },
   newsstand: { name: "News stand", cost: 8, w: 2.6, d: 2.0, icon: "newsstand", note: "A booth with the broadsheet pinned up: everything that's been going on in the settlements — births and deaths, who came and who went, who sold what to the pedlar, thefts, quarrels, the taxes, what went up and what came down. F to read it." },
+  cannon:   { name: "Cannon", cost: 4, mats: { iron: 8, planks: 4 }, w: 2.2, d: 3.2, icon: "tools", note: "An iron gun on a field carriage, its mouth the way you lay it out. F to man it: look to aim, click to fire. Each ball costs an iron, and it takes a while to load again. In a raid, the watch fire it if you aren't there." },
   storehouse: { name: "Store chest", cost: 6, w: 2.4, d: 2.0, icon: "logs", note: "The settlement's stores kept in one place, a big chest under a little roof: take what the settlement has, or put things in. The chest in your cabin is your own." },
   palisade: { name: "Palisade", cost: 3, w: 3.2, d: 0.7, wall: "log", hp: 60, icon: "logs", note: "A length of sharpened logs, laid a length at a time and joined end to end. Raiders must hack through it. Three logs a length." },
   gate:     { name: "Gate", cost: 8, w: 3.6, d: 0.8, wall: "gate", hp: 90, icon: "logs", note: "A way through the palisade: it stands open, and is shut when raiders come." },
@@ -829,6 +831,10 @@ export class Town {
       bb.add(prismGeo(W + 0.5, 0.45, 1.3, 0.12), 0x4e3a28, 0, 2.3, 0.15);
       const vis = bb.build(MAT.rough); vis.castShadow = true; g.add(vis);
       g.userData.cols = this.footprint(b, 2.0, 0.9, w.heightAt(b.x, b.z) + 2);
+    } else if (b.type === "cannon" && b.done) {
+      // the gun on its carriage (cannon.js aims it, fires it, and throws it back)
+      const c = makeCannon(); g.add(c); g.userData.cannon = c;
+      g.userData.cols = this.footprint(b, 1.0, 1.6, w.heightAt(b.x, b.z) + 1.2);
     } else if (b.type === "storehouse" && b.done) {
       // a big iron-bound chest on the ground, under a lean little roof on four posts
       const bb = new Builder();

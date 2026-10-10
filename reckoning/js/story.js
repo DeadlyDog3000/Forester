@@ -25,6 +25,7 @@ import { Camps } from "./camps.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { Raids } from "./raid.js";
+import { Artillery } from "./cannon.js";
 import { JOB_SKILL, SKILL_NAME } from "./people.js";
 import { FAITHS, faithOf } from "./faith.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, P as PROPS } from "./models.js";
@@ -3094,6 +3095,9 @@ async function chFree(w) {
   // and, from the second year, raiders
   const raids = new Raids(w, town);
   onFrame(dt => raids.update(dt));
+  // and the settlement's guns, once it has any
+  const guns = new Artillery(w, town);
+  onFrame(dt => guns.update(dt));
   // and their camps in the woods, one near each settlement
   const camps = new Camps(w, town);
   onFrame(dt => camps.update(dt));

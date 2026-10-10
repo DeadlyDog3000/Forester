@@ -68,6 +68,7 @@ T("lances", "Lances", "military", ["swords"], 9, "Distance cavalry: riders strik
 T("matchlock", "Matchlock Muskets", "military", ["defending"], 5, "Unlocks Line Infantry — deadly (40 dmg far, 88 point-blank), but desperately slow to load");
 T("bayonets", "Bayonets", "military", ["matchlock"], 6, "A blade at every muzzle: line infantry fight hand-to-hand as well as at range");
 T("flintlock", "Flintlock Muskets", "military", ["bayonets"], 7, "No more smouldering cord: muskets load in 4.5s instead of 7.5, and hit harder still");
+T("artillery", "Artillery", "military", ["matchlock"], 6, "Unlocks the cannon: an iron gun on a field carriage. Man it yourself (F) and every ball cuts through a band of raiders; in a raid, the watch fire it if you aren't there. Each ball costs an iron");
 T("defending", "Defending", "military", ["policing"], 4, "Unlocks Town Walls & Gates; police take weapons from the armoury; torching 30% slower — but the camps take notice");
 T("raiding", "Raiding", "military", ["defending"], 5, "Unlocks Soldiers who can sack thief & raid camps; +10 damage");
 T("defplus", "Defending II", "military", ["defending"], 5, "Stone walls & gates, and moats & ditches that mire attackers");
@@ -114,7 +115,7 @@ export const techTime = t => 45 + t.depth * 40;
 export const BUILD_GATES = { stable: "horses", bakery: "baking", market: "trading", townhall: "township", forge: "forging",
   quarry: "masonry", sawmill: "millwork", mine: "mining", smelter: "smelting", church: "ministry",
   woodshed: "treecutting", well: "replanting", brickworks: "masonry", shrine: "consecration", jail: "policing", newsstand: "broadsheets",
-  palisade: "defending", gate: "defending", stonewall: "defplus", hospital: "physick" };
+  palisade: "defending", gate: "defending", stonewall: "defplus", hospital: "physick", cannon: "artillery" };
 // what costs DM to keep, every day (Forester's CIVIC: the works that must be tended; cabins, fields, paths, sheds are free)
 export const CIVIC = new Set(["market", "townhall", "forge", "bakery", "well", "quarry", "mine", "sawmill", "smelter", "brickworks", "church", "jail", "hospital"]);
 export const CIVIC_UPKEEP = 0.5;   // (low: half a DM a day for each; a settlement of a dozen works pays six)

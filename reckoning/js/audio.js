@@ -244,6 +244,24 @@ export const AUDIO = {
     cg.gain.setValueAtTime(0.0001, t); cg.gain.exponentialRampToValueAtTime(0.18 * v, t + 0.004); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
     c.connect(cf); cf.connect(cg); cg.connect(bus); c.start(t, Math.random()); c.stop(t + 0.04);
   },
+  // a cannon: the crack of it, and a boom far deeper than a musket's, rolling off through the woods and back
+  cannon(vol = 1, at = null) {
+    const a = ctx(); if (!a) return;
+    let v = vol;
+    const GG = window.__G; if (at && GG && GG.player) { const d = Math.hypot(at.x - GG.player.pos.x, at.z - GG.player.pos.z); v *= Math.max(0.25, 1 - d / 400); }
+    const t = a.currentTime;
+    const s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = "lowpass"; f.frequency.setValueAtTime(3800, t); f.frequency.exponentialRampToValueAtTime(110, t + 2.6);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.0 * v, t + 0.01); g.gain.exponentialRampToValueAtTime(0.35 * v, t + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 3.3);
+    const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.setValueAtTime(62, t); o.frequency.exponentialRampToValueAtTime(24, t + 1.1);
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.95 * v, t + 0.015); og.gain.exponentialRampToValueAtTime(0.0001, t + 1.3);
+    o.connect(og); og.connect(bus); o.start(t); o.stop(t + 1.35);
+    // (the echo off the far trees)
+    const e = noiseSrc(a), ef = a.createBiquadFilter(), eg = a.createGain(); ef.type = "lowpass"; ef.frequency.value = 400;
+    eg.gain.setValueAtTime(0.0001, t + 0.7); eg.gain.exponentialRampToValueAtTime(0.18 * v, t + 0.8); eg.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+    e.connect(ef); ef.connect(eg); eg.connect(bus); e.start(t + 0.7, Math.random()); e.stop(t + 2.5);
+  },
   // loading: the ramrod down the barrel, a scrape and a knock
   ramrod() {
     const a = ctx(); if (!a) return;
