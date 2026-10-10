@@ -10,6 +10,7 @@
 // time, so pausing pauses the story, and starting a chapter over bumps a
 // generation counter that makes every script from the old run fall silent.
 
+import { lookOpts } from "./mp/look.js";
 import { FOLEY } from "./foley.js";
 import { Caves } from "./cave.js";
 import { sicken, weighted, CARRIED, diseaseName } from "./disease.js";
@@ -41,6 +42,25 @@ export const LOOKS = {
   brother: { model: "brother", name: "Brother", coat: 0x4d5a3c, legs: 0x3a3028, hair: 0x5a3d25, skin: 0xe8c4a0, hat: "cap", hatColor: 0x5a4a38, vest: 0x8a7a5a, scale: 0.95, seed: 11 },
   sister: { model: "sister", name: "Sister", coat: 0x6a3b32, skirt: true, skirtColor: 0x4a3a50, apron: 0xe6dcc8, hair: 0x5a3d25, skin: 0xe8c4a0, longHair: true, scale: 0.93, seed: 12 },
 };
+// (as made: what a look from the builder is laid over, and put back to for a game without one)
+const BASE_LOOKS = JSON.parse(JSON.stringify(LOOKS));
+// the Brother or Sister as you made them; their sibling shares their skin, hair and eyes — they're family
+export function applyStoryLook(look, who) {
+  for (const k of ["brother", "sister"]) { for (const key of Object.keys(LOOKS[k])) delete LOOKS[k][key]; Object.assign(LOOKS[k], JSON.parse(JSON.stringify(BASE_LOOKS[k]))); }
+  if (!look || !LOOKS[who]) return;
+  const o = lookOpts({ ...look, body: who }, LOOKS[who].name), L = LOOKS[who], other = LOOKS[who === "brother" ? "sister" : "brother"];
+  for (const k of ["coat", "legs", "skirtColor", "vest", "apron", "hatColor", "skinColor", "hairColor", "eyeColor", "linenColor", "stockingsColor", "build", "headScale"]) if (o[k] != null) L[k] = o[k];
+  if (o.scale) L.scale = o.scale;
+  if (o.hide) L.hide = o.hide;
+  if (o.skinColor != null) { L.skin = o.skinColor; other.skinColor = o.skinColor; other.skin = o.skinColor; }
+  if (o.hairColor != null) { L.hair = o.hairColor; other.hairColor = o.hairColor; other.hair = o.hairColor; }
+  if (o.eyeColor != null) other.eyeColor = o.eyeColor;
+}
+// a starting point for the builder: the Brother or Sister as they're made
+export function storyLookOf(who) {
+  const b = BASE_LOOKS[who];
+  return { body: who, skin: b.skin, hair: b.hair, coat: b.coat, legs: who === "sister" ? b.skirtColor : b.legs, vest: b.vest, apron: b.apron, hat: who === "brother" ? "hat" : "none", hatColor: b.hatColor, height: b.scale, build: 1, head: 1, seed: b.seed };
+}
 const FATHER = { model: "father", name: "Father", coat: 0x2e2a34, vest: 0x7a3a2a, legs: 0x2a2626, hair: 0x5a4a3c, beard: 0x5e5248, skin: 0xd9ab84, collar: 0xf0ebe0, seed: 21 };
 const MAGISTRATE = { model: "magistrate", name: "The magistrate", coat: 0x18181c, legs: 0x18181c, hair: 0xd8d4cc, longHair: true, hat: "hat", collar: 0xffffff, chain: true, beard: 0xb8b4ac, seed: 31 };
 const GUARD = s => ({ model: "watchman", name: "Watchman", coat: 0x7a2a26, legs: 0x2a2a30, vest: 0xc8b890, hat: "helmet", sash: 0xe0d8c0, seed: s });

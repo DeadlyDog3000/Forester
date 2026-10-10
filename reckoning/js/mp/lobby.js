@@ -26,6 +26,7 @@ export const SCREENS = ["mpLobby", "mpHost", "mpBuilder"];
 let ctx = null;            // {screen(id), enter(net, inMsg, me)} from main.js
 let me = null;             // {name, look}
 let afterBuild = null;     // what the builder's Play button does
+let story = null;          // (the builder lent to the story: your Brother's or Sister's look, the body fixed)
 let rows = [];             // the games last heard of
 
 export function initLobby(c) {
@@ -45,9 +46,10 @@ export function initLobby(c) {
   $("mpHostKind").onchange = () => { $("mpKindNote").textContent = TERRAINS[$("mpHostKind").value].note; drawKindPreview(); };
   $("mpHostSize").onchange = drawKindPreview;
   $("mpHostSeed").onclick = () => { seedNow = Math.floor(Math.random() * 2 ** 31); drawKindPreview(); };
-  $("mpBuildBack").onclick = () => { closePreview(); ctx.screen("mpLobby"); };
-  $("mpBuildGo").onclick = () => { const n = $("mpName").value.trim().slice(0, 24); if (!n) { $("mpName").focus(); $("mpName").classList.add("want"); return; } me.name = n; saveLook(me.name, me.look); closePreview(); const f = afterBuild; afterBuild = null; if (f) f(); else ctx.screen("mpLobby"); };
-  $("mpRandom").onclick = () => { me.look = randomLook(); buildControls(); showLook(); };
+  $("mpBuildBack").onclick = () => { if (story) { const s = story; story = null; me.look = s.keep; closePreview(); document.getElementById("mpBuilder").classList.remove("story"); s.cancel && s.cancel(); return; } closePreview(); ctx.screen("mpLobby"); };
+  $("mpBuildGo").onclick = () => {
+    if (story) { const s = story, look = { ...me.look }; story = null; me.look = s.keep; closePreview(); document.getElementById("mpBuilder").classList.remove("story"); s.done(look); return; } const n = $("mpName").value.trim().slice(0, 24); if (!n) { $("mpName").focus(); $("mpName").classList.add("want"); return; } me.name = n; saveLook(me.name, me.look); closePreview(); const f = afterBuild; afterBuild = null; if (f) f(); else ctx.screen("mpLobby"); };
+  $("mpRandom").onclick = () => { me.look = story ? { ...randomLook(), body: story.body } : randomLook(); buildControls(); showLook(); };
   $("mpName").addEventListener("input", () => $("mpName").classList.remove("want"));
 }
 export function openLobby() {
@@ -191,7 +193,7 @@ function buildControls() {
   if (tab === "presets") {
     h = `<div class="cb-presets">${PRESETS.map((p, i) => `<button data-pre="${i}">${esc(p.name)}<div class="cb-chips">${["skin", "hair", "coat", "legs"].map(k => `<i style="background:${hex(p.look[k] ?? 0)}"></i>`).join("")}</div></button>`).join("")}</div><p class="mp-hint">A preset fills everything in. Change anything after.</p>`;
   } else if (tab === "body") {
-    h = `<div class="cb-bodies">${BODIES.map(b => `<button data-body="${b.id}" class="${b.id === L.body ? "on" : ""}">${b.name}<small>${BODY_NOTE[b.id]}</small></button>`).join("")}</div>`
+    h = `<div class="cb-bodies">${BODIES.filter(b => !story || b.id === story.body).map(b => `<button data-body="${b.id}" class="${b.id === L.body ? "on" : ""}">${b.name}<small>${BODY_NOTE[b.id]}</small></button>`).join("")}</div>`
       + slider("height", "Height", 0.94, 1.06, L.height || 1, v => `${Math.round(170 * v)} cm`)
       + slider("build", "Build", 0.9, 1.12, L.build || 1, v => v < 0.96 ? "slight" : v > 1.05 ? "broad" : "middling")
       + sw("skin", "Skin", SWATCH.skin, L.skin);
@@ -218,7 +220,7 @@ function buildControls() {
   for (const b of $("mpControls").querySelectorAll(".sw")) b.onclick = () => { set(b.dataset.k, b.dataset.v === "" ? null : +b.dataset.v); buildControls(); };
   for (const i of $("mpControls").querySelectorAll(".cb-pick")) i.oninput = () => { set(i.dataset.k, parseInt(i.value.slice(1), 16)); for (const b of i.parentNode.querySelectorAll(".sw")) b.classList.remove("on"); };
   for (const i of $("mpControls").querySelectorAll("[data-s]")) i.oninput = () => { L[i.dataset.s] = +i.value; const o = $("mpControls").querySelector(`[data-o="${i.dataset.s}"]`); if (o) o.textContent = { height: v => `${Math.round(170 * v)} cm`, build: v => v < 0.96 ? "slight" : v > 1.05 ? "broad" : "middling", head: v => `${Math.round(v * 100)}%` }[i.dataset.s](+i.value); showLook(); };
-  for (const b of $("mpControls").querySelectorAll("[data-pre]")) b.onclick = () => { me.look = { ...PRESETS[+b.dataset.pre].look, seed: me.look.seed || 1 }; tab = "body"; buildControls(); showLook(); };
+  for (const b of $("mpControls").querySelectorAll("[data-pre]")) b.onclick = () => { me.look = { ...PRESETS[+b.dataset.pre].look, seed: me.look.seed || 1 }; if (story) me.look.body = story.body; tab = "body"; buildControls(); showLook(); };
 }
 function openPreview() {
   if (pv) return;
@@ -272,3 +274,19 @@ function closePreview() {
   pv = null;
 }
 export const myself = () => me;
+
+// ---- the builder, lent to the story: the Brother or the Sister as you'd have them look ----
+// o: { body: "brother" | "sister", look, title, go: button text, done(look), cancel() }
+export function openLookEditor(o) {
+  story = { body: o.body, done: o.done, cancel: o.cancel, keep: me.look };
+  me.look = { ...o.look, body: o.body };
+  ctx.screen("mpBuilder");
+  document.getElementById("mpBuilder").classList.add("story");
+  $("mpBuildTitle").textContent = o.title || "How do you look?";
+  $("mpBuildGo").textContent = o.go || "Done";
+  tab = "body";
+  for (const b of document.querySelectorAll("#mpBuilder [data-tab]")) b.onclick = () => { tab = b.dataset.tab; buildControls(); setCam(tab === "face" ? "face" : "body"); };
+  for (const b of document.querySelectorAll("#mpBuilder [data-cam]")) b.onclick = () => setCam(b.dataset.cam);
+  for (const b of document.querySelectorAll("#mpBuilder [data-turn]")) b.onclick = () => { if (pv) pv.yawTo = (pv.yawTo ?? pv.yaw) + Math.PI / 4 * +b.dataset.turn; };
+  buildControls(); openPreview(); showLook();
+}

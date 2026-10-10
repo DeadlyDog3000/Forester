@@ -15,7 +15,7 @@ import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE, WATER_NAME } from "./body.js";
-import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot } from "./story.js";
+import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot, applyStoryLook, storyLookOf } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { FOLEY } from "./foley.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
@@ -29,7 +29,7 @@ import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWor
 import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
-import { initLobby, openLobby, SCREENS as MP_SCREENS } from "./mp/lobby.js";
+import { initLobby, openLobby, openLookEditor, SCREENS as MP_SCREENS } from "./mp/lobby.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
 import { NationGame } from "./mp/nations.js";
@@ -213,6 +213,7 @@ function play(chapter, opts) {
   screen(null);
   $("menus").classList.remove("backdrop");
   UI.show("hud", true);
+  applyStoryLook((loadSave() || {}).look, G.who);
   G.player.setModel(LOOKS[G.who]);
   G.player.model.scaleBase = LOOKS[G.who].scale;
   lock();
@@ -285,18 +286,31 @@ $("btnUpdates").onclick = () => { back = "title"; screen("updates"); };
 $("btnCredits").onclick = () => { back = "title"; screen("credits"); };
 $("btnAch").onclick = () => { back = "title"; renderAchievements($("achList")); screen("achievements"); };
 $("btnPauseAch").onclick = () => { back = "pause"; renderAchievements($("achList")); screen("achievements"); };
+// your look, changed mid-game (not in someone else's game: there you're as you came)
+$("btnPauseLook").onclick = () => {
+  if (G.mp && !G.mp.ownSave) return;
+  const s = loadSave() || {}, who = G.who || "brother";
+  openLookEditor({ body: who, look: s.look || storyLookOf(who), title: "How do you look?", go: "Done", cancel: () => screen("pause"),
+    done: look => { writeSave({ look }); applyStoryLook(look, who); if (!G.mp) { G.player.setModel(LOOKS[who]); G.player.model.scaleBase = LOOKS[who].scale; } screen("pause"); } });
+};
 // quit: in the desktop app, closing the window ends the game (a browser tab cannot be closed by its page, so there it isn't offered)
 if (/Electron/.test(navigator.userAgent)) { $("btnQuitGame").classList.remove("hidden"); $("btnQuitGame").onclick = () => window.close(); }
 $("updateList").innerHTML = CHANGELOG.map(u => `<article class="upd"><div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");
 for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => screen(back);
 for (const b of document.querySelectorAll("[data-who]")) b.onclick = () => {
-  G.who = b.dataset.who;
+  const who = b.dataset.who;
+  // first, how they look: the builder, with their body; then the game
+  openLookEditor({ body: who, look: storyLookOf(who), title: who === "sister" ? "The Sister — how does she look?" : "The Brother — how does he look?", go: "Begin", cancel: () => screen("choose"),
+    done: look => startNew(who, look) });
+};
+function startNew(who, look) {
+  G.who = who;
   // a new game starts the clearing from nothing
   const s = loadSave() || {};
   clearSave();
-  writeSave({ who: G.who, chapter: 1, unlocked: s.unlocked || 1 });
+  writeSave({ who: G.who, chapter: 1, unlocked: s.unlocked || 1, look });
   play(1);
-};
+}
 // ---- the six saves ----
 let slotMode = "play", slotArmed = null, slotImportTo = 0;
 const slotWhen = at => { if (!at) return ""; const d = new Date(at), m = (Date.now() - at) / 60000; return m < 1 ? "just now" : m < 60 ? `${Math.round(m)} min ago` : m < 60 * 24 ? `${Math.round(m / 60)} h ago` : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); };

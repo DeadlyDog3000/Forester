@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.75.0", date: "10 October 2026", title: "Your own likeness",
+    items: [
+      "A character builder for the story. Start a new game, choose the Brother or the Sister, and shape how they look before you begin: height and build, skin, hair, eyes and head, and every piece of their clothes, with the same presets, swatches and colour pickers as multiplayer.",
+      "Their sibling is family, so they share your skin, hair and eyes.",
+      "Change your look any time from the pause menu (Your look). It's kept with that save.",
+    ],
+  },
+  {
     v: "0.74.0", date: "10 October 2026", title: "Spoils",
     items: [
       "Player looting in multiplayer. When a player is cut down, a third of what they carried (logs, stone and food) spills into a sack on the ground where they fell. It no longer goes straight to whoever killed them.",

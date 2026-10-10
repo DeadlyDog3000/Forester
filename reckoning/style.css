@@ -1048,3 +1048,6 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 #thirst.low .th-drop { animation: hpbeat 1.2s ease-in-out infinite; }
 #thirst.low .hg-fill { background: linear-gradient(180deg, #e0703a, #9a3a14); }
 @media (max-width: 640px) { #thirst .hg-bar { width: 120px; } }
+
+/* the builder lent to the story: no name to give (the Brother and the Sister have theirs) */
+#mpBuilder.story .mp-namerow { display: none; }
