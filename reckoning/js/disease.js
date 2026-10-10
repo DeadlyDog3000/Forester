@@ -34,3 +34,13 @@ export function sicken(p, id) {
   const D = DISEASES[id] || DISEASES.fever;
   p.disease = id; p.sick = D.days[0] + Math.floor(Math.random() * (D.days[1] - D.days[0] + 1));
 }
+
+// a newcomer taken in: about one in seven brings something up the road with them, and is told of when they've come
+// (every way a settler arrives goes through here: up the road on their own, sent for, to a settlement in the forest,
+//  the gunsmith from Suhl)
+export function newcomerMayCarry(town, p, tell, where = null) {
+  if (!town || !town.techGates || Math.random() >= 0.15) return false;
+  sicken(p, weighted(CARRIED));
+  setTimeout(() => tell && tell(p, where), 5000);
+  return true;
+}

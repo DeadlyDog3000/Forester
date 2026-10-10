@@ -10,6 +10,7 @@ import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { makeMusket } from "./models.js";
+import { newcomerMayCarry, diseaseName } from "./disease.js";
 
 export const GUNSMITH_AT = 50, GUN_PRICE = 100, GUN_SECS = 15 * 60;
 const NAME = "Matthias";
@@ -46,6 +47,7 @@ function arrive(town) {
   S.gunsmith = { name: NAME, ...spot };
   const r0 = w.road[w.road.length - 30];
   const p = { name: NAME, sex: "m", job: "gunsmith", seed: 777 };
+  newcomerMayCarry(town, p, q => G.town === town && G.tell("trouble", null, `${q.name} the gunsmith has come up from Suhl with ${diseaseName(q)}. Keep him apart if you can, or it may go round.`, 7));
   town.addPerson(p, r0.x, r0.z);
   town.persist();
   UI.news && UI.news({ title: "A gunsmith comes up the road", sub: `${NAME}, out of Suhl. Fifty souls, he says, is a town worth a gunsmith. He's setting up his bench — muskets made to order, ${GUN_PRICE} DM apiece.`, img: "event_war" });

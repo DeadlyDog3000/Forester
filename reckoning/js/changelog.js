@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.81.1", date: "10 October 2026", title: "Every newcomer",
+    items: [
+      "The roughly one-in-seven chance that a newcomer brings an illness with them now applies however a settler arrives. Before, it only covered someone coming up the road to your first settlement. Now it also covers someone sent for to a settlement out in the forest, and the gunsmith from Suhl.",
+      "You're told who has brought what, and where, so you can keep them apart.",
+    ],
+  },
+  {
     v: "0.81.0", date: "10 October 2026", title: "A clearer front door",
     items: [
       "The title menu has been rearranged. The three things you came for are large and first: Continue (with your game and save under it), New Game and Multiplayer.",

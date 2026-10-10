@@ -13,7 +13,7 @@
 import { lookOpts } from "./mp/look.js";
 import { FOLEY } from "./foley.js";
 import { Caves } from "./cave.js";
-import { sicken, weighted, CARRIED, diseaseName } from "./disease.js";
+import { sicken, weighted, CARRIED, diseaseName, newcomerMayCarry } from "./disease.js";
 import { BUILD_GATES } from "./gov.js";
 import { dishOffers, isRawMeat } from "./cook.js";
 import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME, SELL_PRICE } from "./body.js";
@@ -2115,10 +2115,12 @@ function glance(watchers, target, secs = 8) {
   setTimeout(() => { for (const a of who) if (a.watch === target) a.watch = null; }, secs * 1000);
 }
 // someone comes up the road and joins you
+// (what you're told when a newcomer has brought something with them)
+const outbreakTold = town => (p, where) => G.town === town && G.tell("trouble", where, `${p.name} has come ${where ? `to ${where}` : "up the road"} with ${diseaseName(p)}. Keep them apart if you can — a hospital with a doctor — or it may go round.`, 7);
 async function arrival(town, p, say1) {
   const w = town.w, r0 = w.road[w.road.length - 30];
   // (one in seven or so brings something with them up the road — and it may go round)
-  if (town.techGates && Math.random() < 0.15) { sicken(p, weighted(CARRIED)); setTimeout(() => G.town === town && G.tell("trouble", null, `${p.name} has come up the road with ${diseaseName(p)}. Keep them apart if you can — a hospital with a doctor — or it may go round.`, 7), 5000); }
+  newcomerMayCarry(town, p, outbreakTold(town));
   const a = town.addPerson(p, r0.x, r0.z);
   if (G.guide) setTimeout(() => G.guide("settlers"), 12000);
   glance([...town.actors, ...(G.world.actors || []).filter(x => x.isSibling)], a, 9);
@@ -3168,7 +3170,7 @@ async function chFree(w) {
     setTimeout(async () => {
       town.sentFor = Math.max(0, (town.sentFor || 1) - 1); town.sentTo[where] = Math.max(0, (town.sentTo[where] || 1) - 1); town.onRoad.delete(p.name);
       if (G.town !== town) return;
-      if (c) { town.addPerson(p, c.x + 1.5, c.z + 1.5); G.tell("people", c.name, `${p.name} has come to ${c.name} — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}. They'll live and work there.`, 6); return; }
+      if (c) { newcomerMayCarry(town, p, outbreakTold(town), c.name); town.addPerson(p, c.x + 1.5, c.z + 1.5); G.tell("people", c.name, `${p.name} has come to ${c.name} — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}. They'll live and work there.`, 6); return; }
       await arrival(town, p, `You sent for a ${JOBS[job].name}? I'm ${p.name}. I've done this work before.`);
       G.tell("people", null, `${p.name} has come up the road — a ${JOBS[job].name}, ${SKILL_NAME[main]} ${p.sk[main]}.`, 5);
     }, 9000);
