@@ -9,6 +9,7 @@
 export const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+const G_MODE = () => (window.__G ? window.__G.mode : null);
 export const UI = {
   dialogOpen: false,
   _advance: null,
@@ -206,6 +207,9 @@ export const UI = {
     // set every frame with a count or a clock in it: only a new task (not a new number) pulses
     const key = text.replace(/[\d:%]+/g, "#");
     if (key === this._obj && !o.classList.contains("hidden")) return;
+    // (a new task is heard as well as seen: the quill and two notes — not too often, as free play's advice changes)
+    const nowT = performance.now();
+    if (this._obj && G_MODE() === "play" && nowT - (this._objSfx || 0) > 20000) { this._objSfx = nowT; window.__uisfx && window.__uisfx.objective(); }
     this._obj = key;
     o.classList.remove("hidden");
     o.classList.remove("pulse"); void o.offsetWidth; o.classList.add("pulse");

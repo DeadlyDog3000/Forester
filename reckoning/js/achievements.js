@@ -89,7 +89,7 @@ function card(a) {
     if (!el) { el = document.createElement("div"); el.id = "achCard"; document.body.appendChild(el); }
     el.innerHTML = `<div class="ac-k">Achievement</div><div class="ac-t">${x.name}</div><div class="ac-d">${x.desc}</div>`;
     el.classList.remove("on"); void el.offsetWidth; el.classList.add("on");
-    try { SFX.coin && SFX.coin(); } catch (e) {}
+    try { window.__uisfx ? window.__uisfx.fanfare() : SFX.coin && SFX.coin(); } catch (e) {}
     setTimeout(() => { el.classList.remove("on"); setTimeout(next, 600); }, 4800);
   };
   next();

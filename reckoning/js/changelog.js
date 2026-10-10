@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "0.77.0", date: "10 October 2026", title: "The sounds of the screens",
+    items: [
+      "Every button now answers with a short, dry wooden tick, and a softer one when the pointer finds it. A greyed-out button gives a low double knock instead.",
+      "Books and boards open and close with a pair of plucked notes: the inventory, the plans, the guide, crafting and the rest.",
+      "A new task on the board is heard as well as seen: the scratch of a quill and two chimed notes. It won't sound more than every twenty seconds or so, because free play's advice changes often.",
+      "Making something at the chopping block rings bright. A skill rising gives three notes, and every tenth level, and every achievement, gets a little fanfare.",
+      "All of it is made in code like the rest of the game's sound, and follows your volume and the mute.",
+    ],
+  },
+  {
     v: "0.76.0", date: "10 October 2026", title: "Hearth and daylight",
     items: [
       "A real fireplace in your cabin. The fire used to burn loose on the floor. Now it sits in a proper firebox: a raised hearthstone with its kerb, jambs laid in courses, an oak mantel beam and a breast running up into the chimney. Inside are iron firedogs with the logs across them, a floor of ash, and a crane with the kettle swung over the flames.",

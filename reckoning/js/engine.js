@@ -1427,7 +1427,7 @@ setToolSource(() => G.body && G.body.tools);
 G.practise = (id, xp) => {
   const up = practise(G.body, id, xp);
   if (up && G.guide) G.guide("skills");
-  if (up) { const sk = BODY_SKILLS.find(s => s.id === id); UI.hint(`${sk.name} rose to ${up}.${up === 100 ? " No one could be better." : ""}`, 3); }
+  if (up) { const sk = BODY_SKILLS.find(s => s.id === id); UI.hint(`${sk.name} rose to ${up}.${up === 100 ? " No one could be better." : ""}`, 3); window.__uisfx && (up % 10 === 0 ? window.__uisfx.fanfare() : window.__uisfx.done()); }
 };
 // dying: whatever killed you, a share of every skill goes (15%), and you wake in your own bed if you have one
 G.die = (from) => {

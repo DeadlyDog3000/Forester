@@ -34,6 +34,7 @@ import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
 import { NationGame } from "./mp/nations.js";
 import "./drink.js";
+import { UISFX } from "./uisfx.js";
 import { renderAchievements } from "./achievements.js";
 import { lookOpts as mpLookOpts, isF as mpIsF } from "./mp/look.js";
 
@@ -632,7 +633,7 @@ $("craftBody").addEventListener("click", e => {
   // the new one in your hands
   if (r.tool === "crossbow") G.player.showXbow(true); else if (r.tool === "bolts") {} else if (r.tool === "pick") G.player.wield("pick"); else if (r.tool === "sword") G.player.wield("sword"); else if (G.player.axe && (G.player.blade || "axe") === "axe") { G.player.giveAxe(false); G.player.giveAxe(true); }
   G.player.workFor && G.player.workFor("hammer", 1.6);
-  UI.hint(`${r.name} made.`, 3);
+  UI.hint(`${r.name} made.`, 3); UISFX.craft();
   G.emitCraft && G.emitCraft(r);
   renderCraft();
 });
@@ -686,13 +687,13 @@ function showOverlay(id, on) {
   UI.show(id, on);
   clearInterval(overlayTimer);
   if (on) {
-    overlay = id;
+    overlay = id; UISFX.open();
     o.open(); overlayTimer = setInterval(o.tick, o.every);
     if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); }
     setFreeLook(false);
     overlayLockMove = G.lockMove; G.lockMove = true;
   } else {
-    overlay = null;
+    overlay = null; UISFX.close();
     o.close && o.close();
     G.lockMove = overlayLockMove;
     if (G.mode === "play") lock();
