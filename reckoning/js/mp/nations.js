@@ -10,7 +10,9 @@
 //
 // Nothing can be done to a nation whose player isn't here: its game isn't running, and the server won't allow it.
 
-import { G } from "../engine.js";
+import { G, Actor } from "../engine.js";
+import { makeArm } from "../models.js";
+import { FIRE } from "../woods.js";
 import { UI, $ } from "../ui.js";
 import { ColonyBase, ColonyGuest } from "./colony.js";
 import { NATION_GOODS } from "./rules.js";
@@ -68,8 +70,17 @@ export class NationGame extends ColonyBase {
     n.foray = m => { const S = this.S; if (S && S.warband && !S.warband.id) { S.warband.id = m.id; G.town.persist(); } };
     // a battle you lead: the enemy's game shows you their settlement
     n.h = m => { if (this.awaitBattle && m.m && m.m.t === "snap") this.startBattle(m.m); };
-    n.g = m => { if (this.bhost && m.from === this.bhost.to) this.bhost.fromGuest(m.m || {}); };
-    n.pl = m => { if (this.bhost && m.pid === this.bhost.to) this.bhost.end("gone"); };
+    n.g = m => { if (this.bhost && this.bhost.guests.has(m.from)) this.bhost.fromGuest(m.m || {}, m.from); };
+    n.pl = m => { if (this.bhost && this.bhost.guests.has(m.pid)) this.bhost.drop(m.pid, "gone"); };
+    // an ally of yours attacked: you're asked to come; and, defending, an ally come to you
+    n.callaid = m => { this.aidCalls = (this.aidCalls || []).filter(c => c.to !== m.to); this.aidCalls.push({ ...m, at: Date.now() }); this.toast(`${m.toName} is attacked by ${m.fromName}! N to go to their aid.`); this.redraw(); };
+    n.aidjoin = m => {
+      if (this.away) return;
+      const t = G.town, R = t && t.raids; if (!R || !R.active) return;
+      if (!this.bhost) this.bhost = new BattleHost(this, { id: m.id });
+      this.bhost.add(m.from, "aid", m.look, m.name);
+      UI.bark(G.who === "sister" ? "Brother" : "Sister", `Look — ${m.name} of ${m.nation}, come to help us!`, 4);
+    };
   }
   // (in Classic the others' bodies are in their own worlds, not yours)
   addRemote() {}
@@ -189,7 +200,7 @@ export class NationGame extends ColonyBase {
     if (R.active) { this.queued = m; this.toast(`${m.name} has sent ${m.n} armed men against you. They'll be up the road as soon as this fight is done.`); return; }
     R.start({ n: m.n, nation: { name: m.name, over: res => this.net.send({ t: "raidEnd", id: m.id, down: res.down, loot: res.loot }) } });
     // led by their ruler in person: they're here, in the band, and see all of it
-    if (m.lead) { this.bhost = new BattleHost(this, m); UI.bark(G.who === "sister" ? "Brother" : "Sister", `That's ${m.ruler} at their head — ${m.name}'s own ruler!`, 4); }
+    if (m.lead) { this.bhost = new BattleHost(this, { id: m.id }); this.bhost.add(m.from, "attack", m.look, m.ruler); UI.bark(G.who === "sister" ? "Brother" : "Sister", `That's ${m.ruler} at their head — ${m.name}'s own ruler!`, 4); }
   }
   // ---- relations ----
   natName(pid) { const n = this.nats[pid]; return n ? n.nation : "someone"; }
@@ -247,6 +258,8 @@ export class NationGame extends ColonyBase {
     };
     const waiting = [];
     for (const a of this.asks) waiting.push(`<div class="nt-ask">${a.kind === "pact" ? `<b>${esc(a.name)}</b> offers you an alliance.` : `<b>${esc(a.name)}</b> sues for peace.`} <button data-a="${a.kind}ok" data-p="${a.from}">Accept</button><button data-a="${a.kind}no" data-p="${a.from}">Refuse</button></div>`);
+    this.aidCalls = (this.aidCalls || []).filter(c => Date.now() - c.at < 5 * 60 * 1000 && this.allied(c.to));
+    for (const c of this.aidCalls) waiting.push(`<div class="nt-ask"><b>${esc(c.toName)}</b>, your ally, is attacked by <b>${esc(c.fromName)}</b> — ${c.n} armed men. <button data-a="aidgo" data-o="${c.id}" class="red">Go to their aid</button></div>`);
     for (const o of this.offers.values()) {
       if (o.to === this.pid) waiting.push(`<div class="nt-ask"><b>${esc(o.fromName)}</b> ${Object.keys(o.want).length ? `offers ${esc(list(o.give))} for ${esc(list(o.want))}.` : `sends a gift: ${esc(list(o.give))}.`} <button data-a="accept" data-o="${o.id}"${this.has(o.want) ? "" : " disabled title=\"You haven't enough\""}>${Object.keys(o.want).length ? "Accept" : "Take it"}</button><button data-a="decline" data-o="${o.id}">Refuse</button></div>`);
       else if (o.from === this.pid) waiting.push(`<div class="nt-ask mine">You offered <b>${esc(o.toName)}</b> ${esc(list(o.give))}${Object.keys(o.want).length ? ` for ${esc(list(o.want))}` : " as a gift"}. Waiting on them. <button data-a="cancel" data-o="${o.id}">Take it back</button></div>`);
@@ -316,6 +329,14 @@ export class NationGame extends ColonyBase {
         send({ t: "offer", to: pid, give, want });
         this.form = null; break;
       }
+      case "aidgo": {
+        const c = (this.aidCalls || []).find(x => x.id === oid); if (!c) break;
+        this.aidCalls = this.aidCalls.filter(x => x !== c);
+        send({ t: "aid", id: c.id });
+        this.awaitBattle = { to: c.to, until: Date.now() + 15000, aid: true };
+        this.toggle(false); UI.fade(1, 1.2); UI.hint(`You ride for ${c.toName}…`, 4);
+        return;
+      }
       case "bandgo": { const n = Math.max(1, Math.floor(+($("ntBandN") || {}).value || 1)), lead = !!($("ntBandLead") || {}).checked; this.form = null; this.sendWarband(pid, n, lead); return; }
       case "accept": {
         const o = this.offers.get(oid); if (!o) break;
@@ -330,12 +351,12 @@ export class NationGame extends ColonyBase {
   }
   // ---- a battle led in person ----
   startBattle(snap) {
-    const to = this.awaitBattle.to; this.awaitBattle = null;
+    const to = this.awaitBattle.to, aid = !!this.awaitBattle.aid; this.awaitBattle = null;
     // (your own settlement saved and put away until you're back)
     try { G.flushSave && G.flushSave(); } catch (e) {}
     this.toggle(false);
     const i = G.onFrame.indexOf(this.tickFn); if (i >= 0) G.onFrame.splice(i, 1);
-    this.battle = new Battle(this, to, snap);
+    this.battle = new Battle(this, to, snap, aid);
   }
   // back from it: your own settlement loaded again, and the news that waited for you
   home(why) {
@@ -351,6 +372,7 @@ export class NationGame extends ColonyBase {
       else if (why === "spent") UI.hint("Your war party is spent, and you fell back with it. You're home.", 5);
       else if (why === "withdraw") UI.hint("You fell back down the road, and you're home.", 4);
       else if (why === "gone") UI.hint("They're gone from the world — the battle's over. You're home.", 5);
+      else if (why === "won") { UI.hint("The raiders are beaten off, and your ally owes you for it. You're home.", 5); G.achEvent && G.achEvent("mp-held"); }
       const l = this.later; this.later = [];
       for (const f of l) { try { f(); } catch (e) { console.warn("nations: after a battle", e); } }
       if (this.S && this.S.flag) flyFlag(G.world, this.S.flag);
@@ -381,40 +403,77 @@ const plain = v => JSON.parse(JSON.stringify(v, (k, x) => (k[0] === "_" ? undefi
 // ---------------------------------------------------------------------------
 class BattleHost {
   constructor(nat, m) {
-    this.nat = nat; this.to = m.from; this.id = m.id;
+    this.nat = nat; this.id = m.id; this.guests = new Map();     // pid → { role: "attack" | "aid", r (a raider) | ally }
     this.ids = new WeakMap(); this.nextId = 1; this.sent = new Map(); this.last = {}; this.spent = 0;
     const R = this.R = G.town.raids, e = R.roadEnd;
     this.at = { x: e.x, z: e.z + 2.5 };
-    this.r = R.addPuppet(lookOpts(m.look || {}, m.ruler), this.at.x, this.at.z);
-    this.r.puppet.onDown = () => this.end("down");
-    // (their name over them, red: an enemy)
-    try { this.tag = nameTag(m.ruler, "#e07060"); this.tag.position.y = 2.15; this.r.a.root.add(this.tag); } catch (e) {}
     this.hostOpts = lookOpts(nat.me.look || {}, nat.me.name);
-    this.snapshot();
   }
-  send(m) { this.nat.net.send({ t: "bh", to: this.to, m }); }
+  // someone come into the fight: the ruler at the head of the war party (one of the raiders, moved from their game),
+  // or an ally come to help (one of yours: strikes at the raiders, and comes in by the fire)
+  add(pid, role, look, name) {
+    if (this.guests.has(pid)) return;
+    const R = this.R, opts = lookOpts(look || {}, name), g = { role, name };
+    if (role === "attack") {
+      g.r = R.addPuppet(opts, this.at.x, this.at.z);
+      g.r.puppet.onDown = () => this.drop(pid, "down");
+      g.body = g.r.a;
+    } else {
+      const F = FIRE;
+      const a = g.body = new Actor(opts, F.x + 2, F.z + 2, 0);
+      a.hold(makeArm("sword")); a.heavy = true; a.isPuppet = true;
+      g.ally = { tx: a.pos.x, tz: a.pos.z, tyaw: 0, spd: 0, wind: 0, dir: "right", hp: 160 };
+      a.update = dt => {
+        const P = g.ally, k = Math.min(1, dt * 9);
+        if (Math.hypot(P.tx - a.pos.x, P.tz - a.pos.z) > 8) { a.pos.x = P.tx; a.pos.z = P.tz; }
+        a.pos.x += (P.tx - a.pos.x) * k; a.pos.z += (P.tz - a.pos.z) * k; a.pos.y = G.world.heightAt(a.pos.x, a.pos.z);
+        a.yaw += Math.atan2(Math.sin(P.tyaw - a.yaw), Math.cos(P.tyaw - a.yaw)) * Math.min(1, dt * 10);
+        a.speed = P.spd; a.person.update(dt, P.spd); a.sync();
+        // (their blow, drawn back a moment, then whichever raider is in front of them)
+        if (P.wind > 0 && (P.wind -= dt) <= 0) {
+          setTimeout(() => a.person.setPose("idle"), 450); AUDIO.whoosh && AUDIO.whoosh(0.4, true);
+          const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw); let best = null, bd = 2.5;
+          for (const r of R.band) { if (!r.alive || r.puppet) continue; const dx = r.pos.x - a.pos.x, dz = r.pos.z - a.pos.z, d = Math.hypot(dx, dz); if (d < bd && (dx * fx + dz * fz) / (d || 1) > 0.35) { bd = d; best = r; } }
+          if (best) best.damage(26, a);
+        }
+      };
+    }
+    try { const tag = nameTag(name, role === "attack" ? "#e07060" : "#8fd08a"); tag.position.y = 2.15; g.body.root.add(tag); } catch (e) {}
+    this.guests.set(pid, g);
+    this.snapshot(pid);
+  }
+  send(m, to) { for (const pid of to ? [to] : this.guests.keys()) this.nat.net.send({ t: "bh", to: pid, m }); }
   idOf(a) { let id = this.ids.get(a); if (!id) { id = "a" + this.nextId++; this.ids.set(a, id); } return id; }
-  actors() { return (G.world ? G.world.actors : []).filter(a => !a.remote && a.opts && a.root && !a.isPuppet); }
+  // everyone in the world here (the guests' own bodies too: each sees the others, and is told which is their own)
+  actors() { return (G.world ? G.world.actors : []).filter(a => !a.remote && a.opts && a.root && a.root.parent); }
   defs(all) {
     const out = [];
     if (all || !this.sent.has("host")) { out.push({ id: "host", opts: this.hostOpts }); this.sent.set("host", G.player); }
     for (const a of this.actors()) { const id = this.idOf(a); if (all || !this.sent.has(id)) { out.push({ id, opts: plain(a.opts) }); this.sent.set(id, a); } }
     return out;
   }
-  snapshot() {
-    const t = G.town;
-    this.send({ t: "snap", S: plain(t.S), clock: t.t, actors: this.defs(true), at: this.at });
+  snapshot(to) {
+    const t = G.town, g = this.guests.get(to); if (!g) return;
+    const at = g.role === "aid" ? { x: g.body.pos.x, z: g.body.pos.z } : this.at;
+    this.send({ t: "snap", S: plain(t.S), clock: t.t, actors: this.defs(true), at, self: this.idOf(g.body), role: g.role }, to);
   }
-  fromGuest(m) {
-    const r = this.r; if (!r || this.done) return;
-    if (m.t === "hello") return this.snapshot();
-    if (m.t === "pos") { const P = r.puppet; P.tx = +m.x || P.tx; P.tz = +m.z || P.tz; P.tyaw = (+m.yaw || 0) + Math.PI; P.spd = Math.min(8, +m.s || 0); return; }
-    if (m.t === "act" && m.a === "swing") return this.R.puppetSwing(r, m.dir);
-    if (m.t === "act" && m.a === "withdraw") return this.end("withdraw");
+  fromGuest(m, from) {
+    const g = this.guests.get(from); if (!g) return;
+    if (m.t === "hello") return this.snapshot(from);
+    if (m.t === "pos") {
+      const P = g.r ? g.r.puppet : g.ally; if (!P) return;
+      P.tx = +m.x || P.tx; P.tz = +m.z || P.tz; P.tyaw = (+m.yaw || 0) + Math.PI; P.spd = Math.min(8, +m.s || 0); return;
+    }
+    if (m.t === "act" && m.a === "swing") {
+      if (g.r) return this.R.puppetSwing(g.r, m.dir);
+      if (g.ally && !(g.ally.wind > 0)) { g.ally.wind = 0.32; g.body.person.setPose(m.dir === "up" ? "overhead" : "chop"); }
+      return;
+    }
+    if (m.t === "act" && m.a === "withdraw") return this.drop(from, "withdraw");
   }
   tick(dt) {
-    if (this.done) return;
     const t = G.town; if (!t) return;
+    if (!this.guests.size) { if (this.nat.bhost === this) this.nat.bhost = null; return; }
     if ((this.axT = (this.axT || 0) - dt) <= 0) {
       this.axT = 0.1;
       const neu = this.defs(false); if (neu.length) this.send({ t: "ad", l: neu });
@@ -428,9 +487,11 @@ class BattleHost {
       for (const id of gone) this.sent.delete(id);
       if (gone.length) this.send({ t: "ar", l: gone });
       this.send({ t: "ax", l });
-      // how they stand: their wounds, as this game has them
-      const hp = Math.max(0, Math.round(this.r.hp));
-      if (hp !== this.lastHp) { this.lastHp = hp; this.send({ t: "bhp", hp, max: this.r.maxHp }); }
+      // how each of them stands: their wounds, as this game has them
+      for (const [pid, g] of this.guests) {
+        const hp = Math.max(0, Math.round(g.r ? g.r.hp : g.ally.hp)), max = g.r ? g.r.maxHp : 160;
+        if (hp !== g.lastHp) { g.lastHp = hp; this.send({ t: "bhp", hp, max }, pid); }
+      }
     }
     if ((this.sdT = (this.sdT || 0) - dt) <= 0) {
       this.sdT = 1;
@@ -442,20 +503,27 @@ class BattleHost {
       }
       this.send({ t: "sd", d, clock: t.t });
     }
-    // their men all down or gone: the one leading them falls back too, a few moments after
-    const others = this.R.band.some(x => x !== this.r && x.alive && !x.puppet) || this.R.pending;
+    // the war party all down or gone: its ruler falls back, and those who came to help have won
+    const others = this.R.band.some(x => x.alive && !x.puppet) || this.R.pending;
     this.spent = others ? 0 : this.spent + dt;
-    if (this.spent > 6) this.end("spent");
+    if (this.spent > 6) for (const [pid, g] of [...this.guests]) this.drop(pid, g.role === "attack" ? "spent" : "won");
   }
-  end(why) {
-    if (this.done) return; this.done = true;
-    try { this.send({ t: "bend", why }); } catch (e) {}
-    const r = this.r, R = this.R;
-    if (why !== "down" && r && r.alive) { r.state = "gone"; R.lock(r, null); r.a.remove(); R.forget(r); }
-    if (this.nat.bhost === this) this.nat.bhost = null;
-    if (why === "down") UI.hint("Their ruler is down! The rest of them will break now.", 4);
-    else if (why === "withdraw") UI.hint("Their ruler has fallen back down the road.", 4);
+  // one of them out of it: down, fallen back, gone, or the fight won
+  drop(pid, why) {
+    const g = this.guests.get(pid); if (!g) return;
+    this.guests.delete(pid);
+    try { this.send({ t: "bend", why }, pid); } catch (e) {}
+    const R = this.R;
+    if (g.r) { if (why !== "down" && g.r.alive) { g.r.state = "gone"; R.lock(g.r, null); g.r.a.remove(); R.forget(g.r); } }
+    else if (g.body) g.body.remove();
+    if (g.role === "attack") {
+      if (why === "down") UI.hint("Their ruler is down! The rest of them will break now.", 4);
+      else if (why === "withdraw") UI.hint("Their ruler has fallen back down the road.", 4);
+    } else if (why === "withdraw") UI.hint(`${g.name} has gone home.`, 3);
+    else if (why === "won") UI.hint(`${g.name} raises their sword to you, and goes home.`, 4);
+    if (!this.guests.size && this.nat.bhost === this) this.nat.bhost = null;
   }
+  end(why) { for (const pid of [...this.guests.keys()]) this.drop(pid, why); }
 }
 
 // ---------------------------------------------------------------------------
@@ -463,22 +531,26 @@ class BattleHost {
 //  What you do is done there: where you go, and every blow (struck as theirs strike, drawn back first).
 // ---------------------------------------------------------------------------
 class Battle extends ColonyGuest {
-  constructor(nat, foe, snap) {
+  constructor(nat, foe, snap, aid = false) {
     super(nat.net, { room: nat.room, you: { pid: nat.pid }, players: [], online: [], chat: [] }, nat.me, {});
-    this.nat = nat; this.foe = foe; this.foeName = nat.natName(foe);
+    this.nat = nat; this.foe = foe; this.foeName = nat.natName(foe); this.aid = aid; this.selfId = snap.self;
     const n = this.net.on;
     n.lost = () => { this.quit(); nat.hooks.lost && nat.hooks.lost("The connection to the server was lost. Your nation is saved; host or join again to carry on."); };
     n.ended = n.lost;
     // (a battle is no one's colony: no colony achievements, and its own words)
     const ach = G.achEvent; G.achEvent = () => {};
+    // (and no lessons in someone else's settlement, mid-fight: the guide is yours again at home)
+    this.keepGuide = G.guide; G.guide = () => {};
     try { this.fromHost(snap); } finally { G.achEvent = ach; }
     this.chatLines.pop(); this.drawChat();
     if (snap.S && snap.S.flag) flyFlag(G.world, snap.S.flag);
     AUDIO.music && AUDIO.music("battle");
     G.showHealth = true; G.health = 1;
-    UI.hint(`${this.foeName}. Your men are on the road with you — cut down their defenders, and get out alive. N to fall back.`, 7);
+    UI.hint(aid ? `${this.foeName}, your ally — raiders in their streets. Cut them down beside their own people. N to go home.` : `${this.foeName}. Your men are on the road with you — cut down their defenders, and get out alive. N to fall back.`, 7);
   }
   send(a, more) { this.net.send({ t: "bg", to: this.foe, m: { t: "act", a, at: this.at(), ...more } }); }
+  // (your own body in their world is you: not drawn again)
+  addMirror(d) { if (d && d.id === this.selfId) return; super.addMirror(d); }
   wire(town) {
     G.onSwing = () => { this.send("swing", { dir: G.player.swingDir || "right" }); };
     G.mpUse = () => { UI.hint("Not here — you're at war. Fight, or N to fall back.", 2.5); return true; };
@@ -515,7 +587,7 @@ class Battle extends ColonyGuest {
       this.net.send({ t: "bg", to: this.foe, m: { t: "pos", x: +pl.pos.x.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(3), s: +(pl.speed || 0).toFixed(2) } });
     }
     const el = $("mpWar"); el.classList.remove("hidden");
-    el.innerHTML = `<div class="wt">Battle</div>${esc(this.foeName)}<div class="ws">You lead the attack · N to fall back</div>`;
+    el.innerHTML = this.aid ? `<div class="wt">To their aid</div>${esc(this.foeName)}<div class="ws">You fight for your ally · N to go home</div>` : `<div class="wt">Battle</div>${esc(this.foeName)}<div class="ws">You lead the attack · N to fall back</div>`;
   }
   // over: dark, and home
   finish(why) {
@@ -527,6 +599,7 @@ class Battle extends ColonyGuest {
   // put away, without letting go of the server (the nation goes on)
   quit() {
     if (this.gone) return; this.gone = true;
+    if (this.keepGuide) G.guide = this.keepGuide;
     const i = G.onFrame.indexOf(this.tickFn); if (i >= 0) G.onFrame.splice(i, 1);
     for (const x of this.mirrors.values()) x.remove();
     this.mirrors.clear();

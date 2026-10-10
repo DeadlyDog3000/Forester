@@ -776,21 +776,32 @@ class Room {
       case "raid": {
         const w = this.atWar(me, to); if (!w) return no("You're not at war with them.");
         if (!this.online.has(to)) return no("They aren't here.");
-        if ([...this.forays.values()].some(f => f.from === me)) return no("Your war party is still out.");
+        if ([...this.forays.values()].some(f => f.from === me && !f.over)) return no("Your war party is still out.");
         const n = Math.max(1, Math.min(10, num(m.n) | 0)), id = "f" + this.nextO++;
         const lead = !!m.lead;
         this.forays.set(id, { id, from: me, to, n, at: t, lead, people: Array.isArray(m.people) ? m.people.slice(0, 10).map(x => clean(x, 40)) : [] });
         this.sendTo(to, { t: "raided", id, from: me, name: this.natName(me), n, lead, ruler: p.name, look: p.look });
         p.sock.send({ t: "foray", id, to });
+        // the defender's allies hear of it, and may go to their aid
+        for (const k of this.pacts) { const [a, b] = k.split("|"), ally = a === to ? b : b === to ? a : null; if (ally && ally !== me && this.online.has(ally)) this.sendTo(ally, { t: "callaid", id, to, toName: this.natName(to), fromName: this.natName(me), n }); }
         this.headline("war", lead ? `${p.name} of ${this.natName(me)} marches against ${this.natName(to)} at the head of ${n} armed men.` : `${this.natName(me)} has sent ${n} armed men against ${this.natName(to)}.`);
         return;
       }
       // a battle led in person: the defender's game shows it to the one leading the attack, and is told what they do
-      case "bh": { const f = [...this.forays.values()].find(f => f.lead && f.to === me && f.from === to); if (f) this.sendTo(to, { t: "h", m: m.m }); return; }
-      case "bg": { const f = [...this.forays.values()].find(f => f.lead && f.from === me && f.to === to); if (f) this.sendTo(to, { t: "g", from: me, m: m.m }); return; }
+      case "bh": { const f = [...this.forays.values()].find(f => f.to === me && ((f.lead && f.from === to) || (f.aid && f.aid.has(to)))); if (f) this.sendTo(to, { t: "h", m: m.m }); return; }
+      case "bg": { const f = [...this.forays.values()].find(f => f.to === to && ((f.lead && f.from === me) || (f.aid && f.aid.has(me)))); if (f) this.sendTo(to, { t: "g", from: me, m: m.m }); return; }
+      // an ally going to the aid of a nation that's under attack
+      case "aid": {
+        const f = this.forays.get(String(m.id || "")); if (!f || f.over || !this.online.has(f.to) || !this.pacts.has(this.pk(me, f.to))) return no("That fight is over, or they're no ally of yours.");
+        (f.aid ??= new Set()).add(me);
+        this.sendTo(f.to, { t: "aidjoin", id: f.id, from: me, name: p.name, nation: this.natName(me), look: p.look });
+        this.headline("ally", `${p.name} of ${this.natName(me)} has gone to the aid of ${this.natName(f.to)}.`);
+        return;
+      }
       case "raidEnd": {
-        const f = this.forays.get(String(m.id)); if (!f || f.to !== me) return;
-        this.forays.delete(f.id);
+        const f = this.forays.get(String(m.id)); if (!f || f.to !== me || f.over) return;
+        // (kept a minute more: the defender's game still has its last words for whoever came to the fight)
+        f.over = t;
         const down = Math.max(0, Math.min(f.n, num(m.down) | 0)), loot = {};
         for (const [k, v] of Object.entries(m.loot || {})) if (R.NATION_GOODS[k] && num(v) > 0) loot[k] = Math.min(999, num(v) | 0);
         this.sendTo(f.from, { t: "raidBack", id: f.id, n: f.n, down, loot, name: this.natName(me) });
@@ -807,7 +818,7 @@ class Room {
       if (o.from !== pid) this.sendTo(o.from, { t: "got", goods: o.give, id: o.id, back: true, why: `${o.toName} has gone; your offer's goods are back in your stores.` });
       else this.sendTo(o.to, { t: "offergone", id: o.id });
     }
-    for (const f of [...this.forays.values()]) if (f.to === pid) { this.forays.delete(f.id); this.sendTo(f.from, { t: "raidBack", id: f.id, n: f.n, down: 0, loot: {}, name: this.natName(pid), gone: true }); }
+    for (const f of [...this.forays.values()]) if (f.to === pid) { this.forays.delete(f.id); if (!f.over) this.sendTo(f.from, { t: "raidBack", id: f.id, n: f.n, down: 0, loot: {}, name: this.natName(pid), gone: true }); }
     else if (f.from === pid) this.forays.delete(f.id);
     for (const w of this.nwars.slice()) if (w.a === pid || w.b === pid) this.endNWar(w, `The war between ${w.aName} and ${w.bName} is over: ${this.natName(pid)} has gone from the world.`);
     delete this.nats[pid];
@@ -847,6 +858,7 @@ class Room {
     if (back.length || rocks.length) { this.all({ t: "grow", trees: back, rocks }); this.dirty = true; }
     if (this.mode !== "colony" && this.mode !== "nations") this.settle();
     if (this.wars.length) this.warTick(t);
+    for (const f of [...this.forays.values()]) if (f.over && t - f.over > 60000) this.forays.delete(f.id);
     for (const w of this.nwars.slice()) if (t - w.start > R.WAR.lastsMs * 2) this.endNWar(w, `The war between ${w.aName} and ${w.bName} has burnt itself out. There's peace, of a kind.`);
     for (const [k, at] of this.invites) if (t - at > 120000) this.invites.delete(k);
     // a sack left lying a few minutes is gone (picked over, or the crows had it)

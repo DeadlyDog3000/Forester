@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.82.0", date: "10 October 2026", title: "Sworn to come",
+    items: [
+      "Allies come to each other's defence in Classic. When a nation is attacked, every one of its allies who's playing is told, with a call to arms in the nations screen (N). Press Go to their aid and you ride into your ally's settlement, as their game has it, while the raid is on.",
+      "There you fight beside their people. Your blows are drawn back a moment and land on whichever raider is in front of you, and you appear to them by their fire with your name in green over your head. When the raiders are beaten off you go home, with your ally in your debt. Press N twice to go home sooner.",
+      "A battle can have more than one guest now. A ruler leading the attack and the allies come to stop them are all in it together, and each sees the others.",
+      "The game's tutorial cards no longer pop up in someone else's settlement in the middle of a fight.",
+    ],
+  },
+  {
     v: "0.81.1", date: "10 October 2026", title: "Every newcomer",
     items: [
       "The roughly one-in-seven chance that a newcomer brings an illness with them now applies however a settler arrives. Before, it only covered someone coming up the road to your first settlement. Now it also covers someone sent for to a settlement out in the forest, and the gunsmith from Suhl.",
