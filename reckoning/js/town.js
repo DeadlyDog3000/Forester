@@ -21,7 +21,7 @@ import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, add
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, SWAY, addSway, swayGeo } from "./models.js";
+import { makeStump, modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, SWAY, addSway, swayGeo } from "./models.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { Smoke, Breath, chimneyMark } from "./smoke.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
@@ -229,7 +229,7 @@ const SITE_ICON = { store: "../assets/sprites/items/logs.png", stone: "../assets
   bricks: "../assets/sprites/items/bricks.png", iron: "../assets/sprites/items/iron.png", tools: "../assets/sprites/items/tool_iron.png" };
 const iconImg = {};
 const loadIcon = src => iconImg[src] ??= new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
-function siteSign(rows, ready) {
+export function siteSign(rows, ready) {
   const W = 256, H = 64 * Math.max(1, rows.length) + (ready ? 0 : 0);
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
@@ -2096,10 +2096,7 @@ export class Town {
     const rec = () => this.S.felled.find(f => f.i === this.w.fellable.indexOf(t));
     if (t.dug || (rec() || {}).dug) { t.dug = true; return; }
     if (!this.stumps.has(t)) {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 0.45, 8), mat(0x5a4030, { surface: "bark" }));
-      m.position.set(t.x, t.y + 0.1, t.z); m.castShadow = true;
-      const top = new THREE.Mesh(new THREE.CircleGeometry(0.26, 8), mat(0xc8a878, { surface: "wood" }));
-      top.rotation.x = -Math.PI / 2; top.position.y = 0.226; m.add(top);
+      const m = makeStump(t, t.kind || (t.src && t.src.kind) || "spruce"); m.position.set(t.x, t.y - 0.02, t.z);
       this.w.root.add(m); this.stumps.set(t, m);
       // a stump can be dug out, roots and all: then nothing grows there again
       m.userData.it = this.w.addInteract({ x: t.x, y: t.y + 0.4, z: t.z, reach: 1.9, hold: 3.5, anim: "dig",

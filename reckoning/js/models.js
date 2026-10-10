@@ -1224,6 +1224,65 @@ export function logMats() {
 }
 const LOG_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1); LOG_GEO._shared = true;
 // many logs in one draw: [{x,y,z,len,r,dir:"x"|"z"}], each a touch uneven
+// ---- a stump: no two alike. Its girth from the tree it was, its bark from its kind (a birch's white, a spruce's dark
+// red-brown), cut on a slant with the rings showing, a fringe of torn splinters standing up where it broke over on the
+// far side, and its roots running out into the ground — each from a seed, so the same tree leaves the same stump ----
+const RING_TEX = {};
+function ringTex(v) {
+  if (RING_TEX[v]) return RING_TEX[v];
+  let sd = v * 9301 + 49297; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
+  const cx = 64 + (rnd() - 0.5) * 18, cy = 64 + (rnd() - 0.5) * 18;
+  x.fillStyle = "#d8b884"; x.fillRect(0, 0, 128, 128);
+  // the rings, each year its own width, dark latewood between pale
+  let r = 2 + rnd() * 3; const n = 14 + Math.floor(rnd() * 16);
+  for (let i = 0; i < n && r < 92; i++) { x.strokeStyle = `rgba(${120 + rnd() * 30},${78 + rnd() * 20},${40 + rnd() * 15},${0.45 + rnd() * 0.35})`; x.lineWidth = 0.8 + rnd() * 1.4; x.beginPath(); x.ellipse(cx, cy, r, r * (0.92 + rnd() * 0.12), rnd(), 0, Math.PI * 2); x.stroke(); r += 2 + rnd() * 4.5; }
+  // the heart, darker; a check or two split out from it; the saw-and-axe marks across the face
+  const g = x.createRadialGradient(cx, cy, 0, cx, cy, 14); g.addColorStop(0, "rgba(110,64,30,0.7)"); g.addColorStop(1, "rgba(110,64,30,0)"); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  x.strokeStyle = "rgba(50,30,15,0.8)"; x.lineWidth = 1.5;
+  for (let k = 0, m = Math.floor(rnd() * 3); k < m; k++) { const a = rnd() * Math.PI * 2, l = 25 + rnd() * 35; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.cos(a) * l, cy + Math.sin(a) * l); x.stroke(); }
+  x.strokeStyle = "rgba(90,60,30,0.25)"; x.lineWidth = 2;
+  for (let k = 0; k < 6; k++) { const yy = 20 + rnd() * 88; x.beginPath(); x.moveTo(0, yy); x.lineTo(128, yy + (rnd() - 0.5) * 20); x.stroke(); }
+  // the bark round the edge
+  x.strokeStyle = "#3e2a1c"; x.lineWidth = 7; x.beginPath(); x.arc(64, 64, 61, 0, Math.PI * 2); x.stroke();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return RING_TEX[v] = t;
+}
+const BARK = { spruce: 0x4e3626, pine: 0x6a4a32, oak: 0x4a4038, birch: 0xe2ded2, beech: 0x8a8a80 };
+export function makeStump(t, kind = "spruce") {
+  let sd = Math.abs(Math.floor((t.x || 0) * 73.1 + (t.z || 0) * 191.7)) + 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const big = Math.max(0.6, Math.min(1.6, (t.h || 10) / 10)), birch = kind === "birch";
+  const r = (birch ? 0.17 : 0.24) * big * (0.85 + rnd() * 0.3), h = 0.22 + rnd() * 0.38, tilt = 0.08 + rnd() * 0.3, dirA = rnd() * Math.PI * 2;
+  const g = new THREE.Group();
+  const bark = mat(BARK[kind] || BARK.spruce, { surface: "bark", flatShading: true });
+  const face = new THREE.MeshStandardMaterial({ map: ringTex(Math.floor(rnd() * 6)), roughness: 0.95 });
+  const geo = new THREE.CylinderGeometry(r, r * 1.22, h, 11, 1);
+  // (the top cut on a slant, which way at random)
+  const p = geo.attributes.position, cA = Math.cos(dirA), sA = Math.sin(dirA);
+  for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setY(i, p.getY(i) + Math.tan(tilt) * (p.getX(i) * cA + p.getZ(i) * sA));
+  geo.computeVertexNormals();
+  const trunk = new THREE.Mesh(geo, [bark, face, bark]); trunk.position.y = h / 2; trunk.castShadow = trunk.receiveShadow = true; g.add(trunk);
+  // the hinge: torn fibres standing up along the high side, where it broke as it went over
+  const pale = mat(0xd2b07c, { surface: "wood", flatShading: true });
+  for (let k = 0, n = 3 + Math.floor(rnd() * 5); k < n; k++) {
+    const a = dirA + (rnd() - 0.5) * 1.6, rr = r * (0.35 + rnd() * 0.55), sh = 0.05 + rnd() * 0.16;
+    const lx = Math.cos(a) * rr, lz = Math.sin(a) * rr, top = h / 2 + Math.tan(tilt) * (lx * cA + lz * sA);
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.012 + rnd() * 0.018, sh, 4), pale);
+    sp.position.set(lx, top + sh / 2 - 0.01, lz); sp.rotation.set((rnd() - 0.5) * 0.4, rnd() * 3, (rnd() - 0.5) * 0.4); trunk.add(sp);
+  }
+  // the roots: three to five swells running out and down into the ground
+  for (let k = 0, n = 3 + Math.floor(rnd() * 3); k < n; k++) {
+    const a = k / n * Math.PI * 2 + rnd() * 0.8, L = r * (0.8 + rnd() * 0.7);
+    const rt = new THREE.Mesh(new THREE.ConeGeometry(r * (0.42 + rnd() * 0.18), L, 6), bark);
+    // (the cone's tip turned out along the ground and a little down into it, its thick end against the trunk)
+    rt.rotation.order = "YXZ"; rt.rotation.y = -a; rt.rotation.z = -(Math.PI / 2 + 0.18 + rnd() * 0.15); rt.scale.set(1, 1, 0.75);
+    rt.position.set(Math.cos(a) * (r * 0.75 + L * 0.45), 0.07, Math.sin(a) * (r * 0.75 + L * 0.45)); rt.castShadow = true; g.add(rt);
+  }
+  // (and, now and then, moss on the low side)
+  if (!birch && rnd() < 0.4) { const ms = new THREE.Mesh(new THREE.SphereGeometry(r * 0.5, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x4a6a2a, { surface: "needles" })); ms.scale.set(1.3, 0.35, 1); ms.position.set(-Math.cos(dirA) * r * 0.9, 0.04, -Math.sin(dirA) * r * 0.9); g.add(ms); }
+  g.rotation.y = rnd() * 6.28;
+  return g;
+}
 export function makeLogs(list, seed = 1) {
   const r = rng(seed), m = new THREE.InstancedMesh(LOG_GEO, logMats(), list.length);
   const o = new THREE.Object3D();

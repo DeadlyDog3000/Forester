@@ -61,15 +61,20 @@ function bubble(d, sr, at, f0, rise, dur, amp) {
 }
 // ---- the sounds, each a recipe, worked out in a few versions ----
 const RECIPES = {
-  // an axe into standing wood
+  // an axe into standing wood, as it really sounds: not a note but a thwack — the sharp crack of the edge going in, the
+  // dull thud of the trunk taking the blow (a knock with no ring to it: a live tree is wet and heavy), the crunch of the
+  // fibres it cuts, a chip or two flicking off, and the slap of it coming back off the trees round about
   chop(sr) {
-    const d = new Float32Array(Math.floor(sr * 0.45));
-    hiss(d, sr, 0, 0.01, 0.9, new Biquad("hp", 900, 0.7, sr), x => Math.exp(-x / 0.0015));            // the blow
-    const p = rand(0.88, 1.12);
-    modes(d, sr, 0.001, [[170 * p, 0.09, 0.9], [395 * p, 0.06, 0.7], [740 * p, 0.04, 0.45], [1180 * p, 0.03, 0.3], [2050 * p, 0.018, 0.2]]);   // the trunk's wood
-    modes(d, sr, 0.0, [[rand(2900, 3600), 0.12, 0.05], [rand(5200, 6100), 0.06, 0.03]]);                    // the blade's ring
-    hiss(d, sr, 0.002, 0.06, 0.35, new Biquad("bp", rand(1400, 2400), 0.9, sr), x => Math.exp(-x / 0.02)); // the bite
-    crackles(d, sr, 0.004, 0.05, 260, 0.25, 1800, 5000);                                                    // torn fibre
+    const d = new Float32Array(Math.floor(sr * 0.5)), p = rand(0.85, 1.15);
+    hiss(d, sr, 0, 0.006, 1.0, new Biquad("hp", 400, 0.7, sr), x => Math.exp(-x / 0.0012));                                  // the crack of the edge
+    hiss(d, sr, 0.001, 0.09, 0.8, new Biquad("lp", 700 * p, 0.8, sr), x => Math.exp(-x / 0.02));                             // the trunk's thud
+    hiss(d, sr, 0.001, 0.07, 2.6, new Biquad("bp", 640 * p, 2.2, sr), x => Math.exp(-x / 0.03));                              // its knock, woody, damped
+    hiss(d, sr, 0.001, 0.06, 1.8, new Biquad("bp", 1250 * p, 2.5, sr), x => Math.exp(-x / 0.018));
+    modes(d, sr, 0.001, [[rand(105, 140), 0.03, 0.18]]);                                                                       // (the weight of it, felt more than heard)
+    hiss(d, sr, 0.003, 0.05, 0.9, new Biquad("bp", rand(2200, 3200), 0.7, sr), x => Math.exp(-x / 0.016));                    // the bite
+    crackles(d, sr, 0.004, 0.07, 320, 0.3, 1500, 6000);                                                                        // fibre torn
+    for (let k = 0, n = Math.floor(rand(0, 3)); k < n; k++) hiss(d, sr, rand(0.08, 0.22), 0.01, 0.12, new Biquad("bp", rand(2500, 5000), 3, sr), x => Math.exp(-x / 0.002));   // a chip landing
+    hiss(d, sr, 0.02, 0.4, 0.12, new Biquad("lp", 1400, 0.6, sr), x => Math.min(1, x / 0.02) * Math.exp(-x / 0.09));         // back off the trees
     return finish(d);
   },
   // a tree starting to go: the creak as it leans, fibres snapping faster, the last loud crack

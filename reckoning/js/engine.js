@@ -42,8 +42,16 @@ addEventListener("keyup", e => input.keys.delete(e.code));
 addEventListener("blur", () => input.keys.clear());
 // the cursor gone off the page stops free look turning at the edge
 document.addEventListener("mouseleave", () => { input.mx = input.my = -1; });
+// (the browser now and then reports one false, enormous movement — just as the mouse is locked or let go, or when the
+//  window regains focus — and that turned you right round in an instant. Such a jump, and anything in the first moments
+//  after the lock changes, is let go; real hand movement never comes in one leap that size)
+let lockChangedAt = 0;
+document.addEventListener("pointerlockchange", () => { lockChangedAt = performance.now(); });
+addEventListener("focus", () => { lockChangedAt = performance.now(); });
 addEventListener("mousemove", e => {
   input.mx = e.clientX; input.my = e.clientY;
+  if (performance.now() - lockChangedAt < 120) return;
+  if (Math.abs(e.movementX) > 250 || Math.abs(e.movementY) > 250) return;
   if (document.pointerLockElement || (input.freeLook && G.mode === "play")) { input.mdx += e.movementX; input.mdy += e.movementY; }
 });
 addEventListener("mousedown", e => { if (e.button === 0) { input.click = true; input.mouseDown = true; } if (e.button === 2) { input.rclick = true; input.rdown = true; } });
@@ -1778,8 +1786,9 @@ function updateInteract(dt) {
   const ch = crossEl();
   if (ch) {
     let k = 0;                                          // 0 yellow .. 1 green
-    if (it && G.holdT > 0) k = clamp(G.holdT / (it.hold || 1), 0, 1);
-    if (it && input.hit("KeyF") && !it.hold) crossFlash = 1;
+    const ih = it && (typeof it.hold === "function" ? it.hold() : it.hold);
+    if (it && G.holdT > 0) k = clamp(G.holdT / (ih || 1), 0, 1);
+    if (it && input.hit("KeyF") && !ih) crossFlash = 1;
     if (G.player && G.player.swingT >= 0) crossFlash = Math.max(crossFlash, 1 - G.player.swingT / 0.62);
     crossFlash = Math.max(0, crossFlash - dt * 2.2);
     k = Math.max(k, crossFlash);
@@ -1804,7 +1813,8 @@ function updateInteract(dt) {
   // talking to someone is an action like any other, and takes a moment: hold F, and they stop to talk
   const talk = /^(Talk to|Speak to|Ask) /.test(label || "");
   // every action fills the wheel: a quick one in a moment, talking in a second, real work as long as it takes
-  const hold = it.hold || (talk ? 1.0 : 0.4);
+  // (how long it's held: a number, or worked out now — a site is a quick F to add logs, a long hold to raise)
+  const hold = (typeof it.hold === "function" ? it.hold() : it.hold) || (talk ? 1.0 : 0.4);
   UI.prompt(label, hold >= 1);
   // (F only: the right button is the bow and the guard, never a second F)
   const pressing = input.down("KeyF");

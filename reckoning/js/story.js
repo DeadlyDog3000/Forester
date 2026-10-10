@@ -30,7 +30,7 @@ import { Artillery } from "./cannon.js";
 import { Tannery } from "./tannery.js";
 import { JOB_SKILL, SKILL_NAME } from "./people.js";
 import { FAITHS, faithOf } from "./faith.js";
-import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, P as PROPS } from "./models.js";
+import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, makeStump, P as PROPS } from "./models.js";
 import { Town, BUILDINGS, JOBS, lieOn, YEAR, RATION, RYE_HARVEST } from "./town.js";
 
 /* global SFX */
@@ -3222,10 +3222,7 @@ function makeSibAxe() {
 }
 function stump(w, t) {
   if (t.stump) return;
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 0.45, 8), new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 1 }));
-  m.position.set(t.x, t.y + 0.1, t.z); m.castShadow = true;
-  const top = new THREE.Mesh(new THREE.CircleGeometry(0.26, 8), new THREE.MeshStandardMaterial({ color: 0xc8a878 }));
-  top.rotation.x = -Math.PI / 2; top.position.y = 0.226; m.add(top);
+  const m = makeStump(t, t.kind || (t.src && t.src.kind) || "spruce"); m.position.set(t.x, t.y - 0.02, t.z);
   w.root.add(m); t.stump = m;
 }
 void HOME; void input;

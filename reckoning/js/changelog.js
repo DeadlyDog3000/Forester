@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.91.1", date: "10 October 2026", title: "Into your pack",
+    items: [
+      "Frontier: what you gather goes into your own pack, not straight into the stores, as in the settlement. Stone from the rocks, and what you loot from a fallen player's sack, ride on your back (T shows them) until you empty them into the store at the hearth or a woodshed (F there: \"Put in the store\"). A site raised takes its stone from the store first, then from your pack. Fall, and it's what's in your arms and your pack that spills, not your stores at home. Logs you hand to someone come out of your arms.",
+      "Adding logs to a building site works again, in Frontier and at the settlement's own sites: the site's F wasn't being counted, so it never finished. Tested by carrying logs from the store to a woodshed's site three times and raising it.",
+      "A building site no longer shows a pale ghost of the building. It's laid out as in the settlement: stakes at its corners with a cord between them, a sign of what it has and still wants, and the logs heaped beside it. No grass grows inside the cord.",
+      "Every stump is its own: as thick as the tree was, with its kind's bark (a birch's white, a spruce's dark red-brown), cut on a slant with its growth rings showing, a fringe of torn splinters where it broke over, its roots running into the ground, and moss on some.",
+      "The axe sounds like an axe going into a tree: a short, dull thwack with the crunch of the cut fibre and a slap back off the trees, not a ringing knock.",
+      "No more being spun round: the browser now and then reports one false, enormous movement of the mouse just as it's locked, or as the window comes back into focus, and that turned you round in an instant. Those are ignored now.",
+    ],
+  },
+  {
     v: "0.91.0", date: "10 October 2026", title: "Rod, pack and bow",
     items: [
       "Fishing wants a rod. The first time you come down to the pond, your brother or sister hands you one and tells you how (and you can make another at the chopping block from a log). Take it out with its number, or F on the shore.",

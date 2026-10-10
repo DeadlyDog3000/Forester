@@ -19,6 +19,9 @@ const { pathToFileURL } = require("url");
 
 let R = null, T = null, LK = null;
 const CARRY_MAX = 6;                   // (logs in your arms at once, as in the settlement)
+// what a player carries on their back, as in the settlement: what they gather goes in here, not into the stores, till
+// they empty it at the hearth or a woodshed
+const PACK_MAX = 40;
 let START = null;                    // (a test server can start everyone rich: --stock 200)              // the rules and the land (ES modules, shared with the game: loaded at start)
 const LAN_PORT = 47811;
 
@@ -179,11 +182,12 @@ class Room {
     this.online.set(p.pid, p); sock.player = p; this.emptySince = 0;
     const live = (o, t) => Object.keys(o).filter(k => o[k] > t);
     const t = now();
-    sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, food: this.storeOf(p.pid).food | 0, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null },
+    sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, food: this.storeOf(p.pid).food | 0, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null, pack: { ...this.packOf(p.pid) } },
       players: [...this.online.values()].filter(q => q !== p).map(q => this.pub(q)), felled: live(this.felled, t), broken: live(this.broken, t),
       buildings: Object.values(this.buildings), drops: Object.values(this.drops), piles: Object.values(this.piles), sites: Object.values(this.sites), carry: (this.recs[p.pid] || {}).carry || 0, settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
       online: this.onlineNames(), ...(this.mode === "nations" ? this.natState() : {}) });
     this.all({ t: "pj", p: this.pub(p) }, p);
+    this.sendPack(p);
     if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
     this.note(`${p.name} has come.`, p);
     this.dirty = true;
@@ -227,6 +231,10 @@ class Room {
     this.news.push(n); if (this.news.length > 200) this.news.shift();
     this.all({ t: "news", n }); this.dirty = true;
   }
+  // your pack: stone and food you've gathered and not yet put in the stores
+  packOf(pid) { const r = this.recs[pid]; if (!r) return { stone: 0, food: 0 }; return r.pack || (r.pack = { stone: 0, food: 0 }); }
+  packRoom(pid) { const k = this.packOf(pid); return Math.max(0, PACK_MAX - (k.stone | 0) - (k.food | 0)); }
+  sendPack(p) { const k = this.packOf(p.pid); p.sock.send({ t: "pack", stone: k.stone | 0, food: k.food | 0, max: PACK_MAX }); }
   stock(p) {
     // (a co-op colony's store is everyone's: all are told)
     if (this.mode === "coop") { this.all({ t: "stock", wood: this.shared.wood, stone: this.shared.stone, food: this.shared.food | 0 }); return; }
@@ -289,9 +297,12 @@ class Room {
         if (n < R.ROCK_HITS) { this.hits.set(k.id, n); this.all({ t: "chip", id: k.id, by: p.pid }, p); return; }
         this.hits.delete(k.id);
         this.broken[k.id] = t + R.REGROW_MS;
-        st.stone += R.STONE_PER_ROCK;
+        // (into your pack, not the stores: empty it at the hearth or a woodshed)
+        const pk = this.packOf(p.pid), got = Math.min(R.STONE_PER_ROCK, this.packRoom(p.pid));
+        pk.stone += got;
+        if (got < R.STONE_PER_ROCK) p.sock.send({ t: "err", text: got ? `Your pack is full — only ${got} stone went in. Empty it at the hearth.` : "Your pack is full. Empty it at the hearth or a woodshed (F there)." });
         this.all({ t: "rock", id: k.id, by: p.pid });
-        this.stock(p); this.dirty = true;
+        this.sendPack(p); this.dirty = true;
         return;
       }
       case "build": {
@@ -299,7 +310,7 @@ class Room {
         const d = R.BUILD[m.type]; if (!d) return;
         const x = num(m.x), z = num(m.z), ry = num(m.ry);
         const no = text => p.sock.send({ t: "err", text });
-        if (m.type === "hearth" && (st.wood < d.wood || st.stone < d.stone)) return no(`A hearth takes ${d.wood} logs from the store.`);
+        if (m.type === "hearth" && (st.wood < d.wood || st.stone + (this.packOf(p.pid).stone | 0) < d.stone)) return no(`A hearth takes ${d.wood} logs from the store.`);
         if (!this.near(p, x, z, 16)) return no("Too far away to build there.");
         if (Math.abs(x) > this.half - 10 || Math.abs(z) > this.half - 10) return no("That's the edge of the map.");
         if (this.land.heightAt(x, z) < 0.6) return no("Not in the water.");
@@ -314,7 +325,7 @@ class Room {
         for (const q of Object.values(this.sites)) { const e = R.BUILD[q.type]; if (Math.hypot(q.x - x, q.z - z) < (d.wall ? 0.3 : d.r) + (e.wall ? 0.3 : e.r) - 0.2) return no("There's a site laid out there already."); }
         // the hearth: lit at once, from what's in the store (it's where everything else is kept)
         if (m.type === "hearth") {
-          st.wood -= d.wood; st.stone -= d.stone;
+          st.wood -= d.wood; { const pk = this.packOf(p.pid), fs = Math.min(st.stone, d.stone); st.stone -= fs; pk.stone -= d.stone - fs; if (d.stone > fs) this.sendPack(p); }
           const b = { id: "b" + (this.nextB++), type: m.type, x, z, ry, owner: p.pid, hp: d.hp, at: t };
           this.buildings[b.id] = b; this.all({ t: "b", b }); this.stock(p); this.dirty = true;
           return;
@@ -337,7 +348,13 @@ class Room {
       case "stack": case "unstack": {
         const rec = this.recs[p.pid], b = this.buildings[String(m.id || "")]; if (!rec || !b || p.dead) return;
         if (!(b.type === "hearth" || b.type === "shed") || !this.mineB(this.mode === "coop" ? "colony" : p.pid, b) || !this.near(p, b.x, b.z, R.BUILD[b.type].r + 3.5)) return;
-        if (m.t === "stack") { if (!rec.carry) return; st.wood += rec.carry; rec.carry = 0; }
+        if (m.t === "stack") {
+          const pk = this.packOf(p.pid);
+          if (!rec.carry && !pk.stone && !pk.food) return;
+          st.wood += rec.carry || 0; rec.carry = 0;
+          st.stone += pk.stone | 0; st.food = (st.food | 0) + (pk.food | 0); pk.stone = 0; pk.food = 0;
+          this.sendPack(p);
+        }
         else { const n = Math.min(CARRY_MAX - (rec.carry || 0), st.wood); if (n <= 0) return; st.wood -= n; rec.carry = (rec.carry || 0) + n; }
         p.sock.send({ t: "carry", n: rec.carry }); this.stock(p); this.dirty = true;
         return;
@@ -357,8 +374,11 @@ class Room {
         if (!(sx.owner === p.pid || this.mode === "coop" || this.allied(sx.owner, p.pid)) || !this.near(p, sx.x, sx.z, (d.wall ? d.len / 2 : d.r) + 3.5)) return;
         if (sx.logs < d.wood) return no(`It wants ${d.wood - sx.logs} more logs first.`);
         const ost = this.storeFor(this.mode === "coop" ? "colony" : sx.owner) || st;
-        if ((ost.stone || 0) < d.stone) return no(`It wants ${d.stone} stone from the store — ${d.stone - (ost.stone || 0)} short. Break the grey rocks.`);
-        ost.stone -= d.stone;
+        // (the stone from the stores first, then from your pack, as in the settlement)
+        const pk = this.packOf(p.pid), have = (ost.stone || 0) + (pk.stone | 0);
+        if (have < d.stone) return no(`It wants ${d.stone} stone, from the store and your pack — ${d.stone - have} short. Break the grey rocks.`);
+        const fromStore = Math.min(ost.stone || 0, d.stone); ost.stone -= fromStore; pk.stone -= d.stone - fromStore;
+        if (d.stone - fromStore > 0) this.sendPack(p);
         delete this.sites[sx.id]; this.all({ t: "sitex", id: sx.id });
         const b = { id: "b" + (this.nextB++), type: sx.type, x: sx.x, z: sx.z, ry: sx.ry, owner: sx.owner, hp: d.hp, at: t };
         this.buildings[b.id] = b; this.all({ t: "b", b }); this.stockTo(this.mode === "coop" ? "colony" : sx.owner); this.dirty = true;
@@ -497,10 +517,12 @@ class Room {
       case "unally": { if (rec.group) { const g = this.groups[rec.group]; this.quitGroup(p.pid); this.all({ t: "groups", groups: this.groups }); this.note(`${p.name} has left ${g ? g.name : "their alliance"}.`); this.dirty = true; } return; }
       case "give": {             // logs or stone handed to someone near
         const q = this.online.get(String(m.pid || "")); if (!q || q === p || !this.near(p, q.x, q.z, 6)) return;
-        const w = Math.max(0, Math.min(st.wood, num(m.wood) | 0)), s = Math.max(0, Math.min(st.stone, num(m.stone) | 0));
+        // (from your arms and your pack, into theirs, as much as they can take)
+        const pk = this.packOf(p.pid), qk = this.packOf(q.pid), qr = this.recs[q.pid];
+        const w = Math.max(0, Math.min(rec.carry || 0, num(m.wood) | 0, CARRY_MAX - (qr.carry || 0))), s = Math.max(0, Math.min(pk.stone | 0, num(m.stone) | 0, this.packRoom(q.pid)));
         if (!w && !s) return;
-        st.wood -= w; st.stone -= s; this.recs[q.pid].wood += w; this.recs[q.pid].stone += s;
-        this.stock(p); this.stock(q);
+        rec.carry -= w; qr.carry = (qr.carry || 0) + w; pk.stone -= s; qk.stone += s;
+        p.sock.send({ t: "carry", n: rec.carry }); q.sock.send({ t: "carry", n: qr.carry }); this.sendPack(p); this.sendPack(q);
         q.sock.send({ t: "note", text: `${p.name} gave you ${[w && `${w} logs`, s && `${s} stone`].filter(Boolean).join(" and ")}.` });
         this.dirty = true;
         return;
@@ -517,8 +539,14 @@ class Room {
       // a fallen player's sack, taken up
       case "loot": {
         const d = this.drops[String(m.id || "")]; if (!d || p.dead || !this.near(p, d.x, d.z, 3.6)) return;
+        // (into your arms and your pack, as much as goes; the rest stays in the sack)
+        const pk = this.packOf(p.pid), arms = Math.min(d.wood, CARRY_MAX - (rec.carry || 0));
+        rec.carry = (rec.carry || 0) + arms; d.wood -= arms;
+        const sg = Math.min(d.stone, this.packRoom(p.pid)); pk.stone += sg; d.stone -= sg;
+        const fg = Math.min(d.food || 0, this.packRoom(p.pid)); pk.food += fg; d.food = (d.food || 0) - fg;
+        p.sock.send({ t: "carry", n: rec.carry }); this.sendPack(p);
+        if (d.wood + d.stone + (d.food || 0) > 0) { this.all({ t: "drop", d }); p.sock.send({ t: "err", text: "You can't carry it all — the rest is still in the sack." }); this.dirty = true; return; }
         delete this.drops[d.id];
-        st.wood += d.wood; st.stone += d.stone; st.food = (st.food || 0) + d.food;
         this.all({ t: "dropgone", id: d.id, by: p.pid, name: p.name, d });
         if (p.pid !== d.owner) this.note(`${p.name} has looted ${d.name}'s sack.`);
         if (d.wood + d.stone >= 20 && p.pid !== d.owner) this.headline("death", `${p.name} stripped ${d.name}'s body of ${d.wood} logs and ${d.stone} stone.`);
@@ -542,10 +570,12 @@ class Room {
     const vr = this.storeOf(q.pid), kr = killer && killer !== "colony" ? this.storeOf(killer) : null;
     // what they carried: a third of it, dropped in a sack where they fell — the killer's, or anyone's who gets there first
     let w = 0, s = 0, f = 0, drop = null;
-    if (kr && kr !== vr) {
-      w = Math.floor(vr.wood / 3); s = Math.floor(vr.stone / 3); f = Math.floor((vr.food || 0) / 3);
+    {
+      // (what was in their arms and their pack — not the stores at home)
+      const qr = this.recs[q.pid], pk = this.packOf(q.pid);
+      w = (qr && qr.carry) || 0; s = pk.stone | 0; f = pk.food | 0;
       if (w || s || f) {
-        vr.wood -= w; vr.stone -= s; vr.food = (vr.food || 0) - f;
+        if (qr) qr.carry = 0; pk.stone = 0; pk.food = 0; q.sock.send({ t: "carry", n: 0 }); this.sendPack(q);
         drop = { id: "d" + this.nextD++, x: q.x, z: q.z, wood: w, stone: s, food: f, name: q.name, owner: q.pid, at: t };
         this.drops[drop.id] = drop; this.all({ t: "drop", d: drop });
       }

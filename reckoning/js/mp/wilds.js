@@ -9,7 +9,7 @@
 
 import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, mat } from "../core.js";
 import { G, WorldBase } from "../engine.js";
-import { forestInstances, modelCopy, ensureModel, makeSpruce, SWAY } from "../models.js";
+import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, SWAY } from "../models.js";
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
 import { makeTerrain, CHUNK, WATER } from "./terrain.js";
@@ -95,6 +95,11 @@ export class Wilds extends WorldBase {
       const b = e.b, d = BUILD[b.type]; if (!d || Math.hypot(b.x - cx, b.z - cz) > r) continue;
       const hw = d.wall ? d.len / 2 : (d.w || d.r * 1.6) / 2 + 0.3, hd = d.wall ? 0.4 : (d.d || d.r * 1.6) / 2 + 0.3;
       out.push([b.x, b.z, Math.cos(b.ry || 0), Math.sin(b.ry || 0), hw, hd]);
+    }
+    // (and the sites laid out: trodden ground inside the cord)
+    for (const e of (this.sitesFor && this.sitesFor()) || []) {
+      const b = e.q, d = BUILD[b.type]; if (!d || Math.hypot(b.x - cx, b.z - cz) > r) continue;
+      out.push([b.x, b.z, Math.cos(b.ry || 0), Math.sin(b.ry || 0), d.wall ? d.len / 2 : (d.w || d.r * 2) / 2 + 0.2, d.wall ? 0.4 : (d.d || d.r * 2) / 2 + 0.2]);
     }
     return out;
   }
@@ -209,12 +214,11 @@ export class Wilds extends WorldBase {
   }
   addStump(t) {
     if (this.stumps.has(t.id)) return;
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * (t.h / 10) + 0.1, 0.18 * (t.h / 10) + 0.12, 0.42, 8), mat(0x5a4030, { surface: "wood" }));
-    s.position.set(t.x, t.y + 0.15, t.z); s.castShadow = true; this.root.add(s); this.stumps.set(t.id, s);
+    const s = makeStump(t, t.kind); s.position.set(t.x, t.y - 0.02, t.z); this.root.add(s); this.stumps.set(t.id, s);
   }
   showTree(id) {
     const t = this.thing(id); this.felled.delete(id);
-    const s = this.stumps.get(id); if (s) { this.root.remove(s); s.geometry.dispose(); this.stumps.delete(id); }
+    const s = this.stumps.get(id); if (s) { this.root.remove(s); this.stumps.delete(id); }
     if (!t || !t.slots) return;
     // (put back as it was: the chunk is built afresh, the cheapest way to have every piece of it right)
     const ch = this.chunkAt(t.x, t.z); if (ch) { this.dropChunk(ch); this.buildChunk(ch.ci, ch.cj); }

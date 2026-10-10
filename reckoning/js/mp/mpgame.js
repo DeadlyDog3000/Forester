@@ -14,6 +14,7 @@ import { FOLEY } from "../foley.js";
 import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel, makeLogs } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
+import { siteSign } from "../town.js";
 import { Wilds } from "./wilds.js";
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
@@ -187,6 +188,7 @@ export class MPGame {
     this.drops = new Map(); for (const d of inMsg.drops || []) this.addDrop(d);
     this.piles = new Map(); for (const q of inMsg.piles || []) this.setPile(q);
     this.sites = new Map(); for (const q of inMsg.sites || []) this.setSite(q);
+    w.sitesFor = () => this.sites.values();
     this.setCarry(inMsg.carry || 0);
     for (const v of inMsg.settlers || []) this.settlers.set(v.id, new SettlerView(this, v));
     for (const c of inMsg.chat || []) this.chatLine(c, true);
@@ -197,6 +199,7 @@ export class MPGame {
     G.onFrame.push(dt => this.tick(dt));
     G.achEvent && (G.achEvent("mp-join"), r.persistent && G.achEvent("mp-world"), target && target.host && G.achEvent("mp-host"));
     this.listen();
+    this.pack = { stone: 0, food: 0 }; if (inMsg.you.pack && this.net.on.pack) this.net.on.pack(inMsg.you.pack);
     this.hud(true); this.banner(null);
     this.atmo(true);
     UI.fade(0, 1.2);
@@ -251,9 +254,9 @@ export class MPGame {
       } });
     // the store, at the hearth and at a woodshed: the logs you carry stacked, or taken out to carry to a site
     if ((b.type === "hearth" || b.type === "shed") && fr) e.it4 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 0.8, z: b.z, reach: d.r + 2.4,
-      can: () => !this.dead && (this.carry > 0 || (this.stock.wood > 0 && this.carry < 6)),
-      label: () => this.carry > 0 ? `Stack the logs (${this.carry})` : `Take logs from the store (${this.stock.wood})`,
-      use: () => this.net.send({ t: this.carry > 0 ? "stack" : "unstack", id: b.id }) });
+      can: () => !this.dead && (this.carry > 0 || this.packHas() || (this.stock.wood > 0 && this.carry < 6)),
+      label: () => this.carry > 0 || this.packHas() ? `Put in the store: ${[this.carry && `${this.carry} log${this.carry > 1 ? "s" : ""}`, this.pack.stone && `${this.pack.stone} stone`, this.pack.food && `${this.pack.food} food`].filter(Boolean).join(", ")}` : `Take logs from the store (${this.stock.wood})`,
+      use: () => this.net.send({ t: this.carry > 0 || this.packHas() ? "stack" : "unstack", id: b.id }) });
     // a cabin's door: F to open it and go in, F to shut it
     if (e.setDoor) {
       const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), dx = b.x + 3.05 * sn, dz = b.z + 3.05 * c;
@@ -282,7 +285,7 @@ export class MPGame {
       if (m.by === this.pid) G.woodChips && G.woodChips(t, 2.2);
       else if (Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 1.4);
     };
-    n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.crash(0.35, { x: k.x, z: k.z }); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("+4 stone"); };
+    n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.crash(0.35, { x: k.x, z: k.z }); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("Stone into your pack — put it in the store at the hearth"); };
     n.grow = m => { for (const id of m.trees || []) w.showTree(id); for (const id of m.rocks || []) w.showRock(id); };
     n.b = m => { this.owners[m.b.owner] ??= this.nameOf(m.b.owner); this.addB(m.b); if (Math.hypot(m.b.x - G.player.pos.x, m.b.z - G.player.pos.z) < 40) sfx("build"); };
     n.bhp = m => { w.hitBuilding(m.id, m.hp); const e = w.blds.get(m.id); if (e && Math.hypot(e.b.x - G.player.pos.x, e.b.z - G.player.pos.z) < 40) { sfx("chop"); if (e.mine) this.warn(`${this.nameOf(m.by)} is breaking your ${BUILD[e.b.type].name.toLowerCase()}!`); } };
@@ -314,6 +317,15 @@ export class MPGame {
     n.site = m => this.setSite(m.s);
     n.sitex = m => this.dropSite(m.id);
     n.carry = m => { const was = this.carry; this.setCarry(m.n); if (m.n !== was) sfx("pickup"); };
+    // what's in your pack: the stone you've broken and the food you've picked up, yours till you put it in the store
+    n.pack = m => {
+      const was = this.pack || { stone: 0, food: 0 };
+      this.pack = { stone: m.stone | 0, food: m.food | 0 };
+      const keep = (icon, name, note, k) => { let it = G.pack.find(i => i.icon === icon); if (k > 0) { if (!it) G.pack.push(it = { icon, name, note, n: k }); else it.n = k; } else if (it) G.pack.splice(G.pack.indexOf(it), 1); };
+      keep("stone", "Stone", "Broken from the grey rocks. Put it in the store at the hearth or a woodshed (F), or use it straight from your pack at a site.", this.pack.stone);
+      keep("bread", "Food", "Put it in the store at the hearth (F), where the settlers eat from.", this.pack.food);
+      if (this.pack.stone > was.stone || this.pack.food > was.food) window.__foley && window.__foley.packIn(0.32);
+    };
     n.dropgone = m => {
       const e = this.drops.get(m.id); if (!e) return;
       this.w.root.remove(e.mesh); this.w.removeInteract(e.it); this.drops.delete(m.id);
@@ -771,45 +783,60 @@ export class MPGame {
   dropPile(id) { const e = this.piles.get(id); if (!e) return; this.w.root.remove(e.g); this.w.removeInteract(e.it); this.piles.delete(id); }
   // a building laid out: its outline and frame, pale, the logs brought heaped by it; F to add yours, and when there are
   // enough, hold F to raise it (with the stone from the store)
+  // a building site, as the settlement draws one: stakes at its corners and a cord between them, a sign of what it
+  // still wants, and the logs brought heaped beside it — not the building itself, till it's raised
   setSite(q) {
     const d = BUILD[q.type]; if (!d) return;
     let e = this.sites.get(q.id);
+    const fw = d.wall ? d.len : d.w || d.r * 2, fd = d.wall ? 0.5 : d.d || d.r * 2;
     if (!e) {
       const g = new THREE.Group(), y = this.w.heightAt(q.x, q.z);
       g.position.set(q.x, y, q.z); g.rotation.y = q.ry || 0;
-      const tint = new THREE.MeshStandardMaterial({ color: 0xc8a878, transparent: true, opacity: 0.32, depthWrite: false, roughness: 0.9 });
-      const fw = d.wall ? d.len : d.w || d.r * 2, fd = d.wall ? 0.5 : d.d || d.r * 2;
-      const body = new THREE.Mesh(new THREE.BoxGeometry(fw * 0.9, d.field ? 0.08 : 2.4, fd * 0.9).translate(0, d.field ? 0.04 : 1.2, 0), tint); g.add(body);
-      const put = () => { const m = modelCopy(d.model); if (!m) return false; m.scene.traverse(o => { if (o.isMesh) { o.material = tint; o.castShadow = false; } }); g.remove(body); g.add(m.scene); return true; };
-      if (d.model && !put()) ensureModel(d.model).then(ok => ok && this.sites.has(q.id) && put());
-      // the corner posts and the outline on the ground, so it reads as a site laid out
-      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(fw, 0.05, fd)), new THREE.LineBasicMaterial({ color: 0xd8c08a })); edge.position.y = 0.05; g.add(edge);
-      if (!d.field && !d.wall) for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.6, 6), new THREE.MeshStandardMaterial({ color: 0x6a4a2e })); post.position.set(sx * fw / 2, 0.8, sz * fd / 2); g.add(post); }
+      const stake = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 0.9 }), cord = new THREE.MeshStandardMaterial({ color: 0xd8ceb4, roughness: 1 });
+      const corners = d.wall ? [[-1, 0], [1, 0]] : [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+      for (const [sx, sz] of corners) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.1, 0.1), stake); m.position.set(sx * fw / 2, 0.55, sz * fd / 2); m.castShadow = true; g.add(m); }
+      if (d.wall) { const c = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.02, 0.02), cord); c.position.y = 0.9; g.add(c); }
+      else for (const [x0, z0, x1, z1] of [[-1, -1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1], [-1, 1, -1, -1]]) {
+        const ax = x0 * fw / 2, az = z0 * fd / 2, bx = x1 * fw / 2, bz = z1 * fd / 2;
+        const c = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02, Math.abs(bx - ax)), 0.02, Math.max(0.02, Math.abs(bz - az))), cord); c.position.set((ax + bx) / 2, 0.9, (az + bz) / 2); g.add(c);
+      }
       const heap = new THREE.Group(); heap.position.set(fw / 2 + 0.9, 0, 0); g.add(heap);
       this.w.root.add(g);
-      e = { q, g, heap, n: -1 };
+      e = { q, g, heap, n: -1, sig: "" };
+      const M = this;
       e.it = this.w.addInteract({ x: q.x, y: y + 0.9, z: q.z, reach: (d.wall ? d.len / 2 : Math.max(fw, fd) / 2) + 1.6,
-        hold: () => e.q.logs >= d.wood ? 3 : 0,
+        // (a quick F to put the logs in; held, once it has them all, to raise it)
+        get hold() { return e.q.logs >= d.wood ? 3 : 0; },
         // (only when there's something to do here: logs to add, or it's ready to raise — the heap shows how far it's come)
-        can: () => !this.dead && (this.carry > 0 || e.q.logs >= d.wood),
+        can: () => !M.dead && ((M.carry > 0 && e.q.logs < d.wood) || e.q.logs >= d.wood),
         label: () => {
           const Q = e.q, need = d.wood;
-          if (Q.logs < need) return this.carry > 0 ? `Add ${Math.min(this.carry, need - Q.logs)} logs (${Q.logs} of ${need})` : `Bring logs — ${Q.logs} of ${need} (take them from a felled tree, or from the store at the hearth)`;
-          if (d.stone && this.stock.stone < d.stone) return `Needs ${d.stone} stone from the store — ${d.stone - this.stock.stone} short. Break the grey rocks`;
+          if (Q.logs < need) return `Add ${Math.min(M.carry, need - Q.logs)} log${Math.min(M.carry, need - Q.logs) > 1 ? "s" : ""} (${Q.logs} of ${need})`;
+          const st = M.stock.stone + ((M.pack && M.pack.stone) | 0);
+          if (d.stone && st < d.stone) return `Needs ${d.stone} stone, from the store and your pack — ${d.stone - st} short. Break the grey rocks`;
           return `Raise the ${d.name.toLowerCase()}`;
         },
-        onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) sfx("chop"); },
-        use: () => { if (this.carry > 0 && e.q.logs < d.wood) this.net.send({ t: "deliver", id: q.id }); else if (e.q.logs >= d.wood) this.net.send({ t: "raise", id: q.id }); } });
+        onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) sfx("hammer"); },
+        use: () => { if (M.carry > 0 && e.q.logs < d.wood) M.net.send({ t: "deliver", id: q.id }); else if (e.q.logs >= d.wood) M.net.send({ t: "raise", id: q.id }); } });
       this.sites.set(q.id, e);
     }
     e.q = q;
     // (the logs brought, heaped beside it: more as more come)
     const k = Math.min(6, Math.ceil(q.logs / Math.max(1, d.wood) * 6));
     if (k !== e.n) { e.n = k; e.heap.clear(); if (k) e.heap.add(makeLogs(Array.from({ length: k }, (_, i) => ({ x: (i % 3 - 1) * 0.3, y: 0.15 + Math.floor(i / 3) * 0.26, z: 0, len: 1.8, r: 0.15, dir: "z" })), 7)); }
+    // (the sign over it: what it has and what it wants)
+    const ready = q.logs >= d.wood, rows = [["store", `${Math.min(q.logs, d.wood)} / ${d.wood} logs`, q.logs >= d.wood]];
+    if (d.stone) rows.push(["stone", `${d.stone} stone`, false]);
+    if (ready) rows.push(["", "Raise it — hold F", true]);
+    const sig = JSON.stringify(rows);
+    if (sig !== e.sig) { e.sig = sig; if (e.sign) e.g.remove(e.sign); e.sign = siteSign(rows, ready); e.sign.position.set(0, 3.0 + rows.length * 0.28, 0); e.g.add(e.sign); }
   }
   dropSite(id) { const e = this.sites.get(id); if (!e) return; this.w.root.remove(e.g); this.w.removeInteract(e.it); this.sites.delete(id); }
+  packHas() { const k = this.pack; return !!k && ((k.stone | 0) > 0 || (k.food | 0) > 0); }
   addDrop(d) {
-    if (!d || this.drops.has(d.id)) return;
+    // (a sack already lying there, with less in it now: what it holds is updated)
+    if (d && this.drops.has(d.id)) { Object.assign(this.drops.get(d.id).d, d); return; }
+    if (!d) return;
     const mesh = new THREE.Group(), s1 = makeSack(), s2 = makeSack();
     s1.scale.setScalar(2.3); s2.scale.setScalar(1.7); s2.position.set(0.25, 0, 0.18); s2.rotation.z = 1.2; mesh.add(s1, s2);
     mesh.position.set(d.x, this.w.heightAt(d.x, d.z), d.z); mesh.rotation.y = (d.x * 7.3) % 6.28; this.w.root.add(mesh);
