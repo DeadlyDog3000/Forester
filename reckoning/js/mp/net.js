@@ -77,3 +77,9 @@ export class Net {
 
 // the app's own powers (hosting a game on your network, and hearing the others), when there is an app
 export const HOST = typeof window !== "undefined" ? window.reckoningHost || null : null;
+
+// the host's words in the talk: /kick, /ban or /unban and a name (the server says no to anyone else)
+export function hostCommand(net, text) {
+  const m = /^\/(kick|ban|unban)\s+(.+)$/i.exec(text); if (!m) return false;
+  net.send({ t: m[1].toLowerCase(), name: m[2].trim() }); return true;
+}

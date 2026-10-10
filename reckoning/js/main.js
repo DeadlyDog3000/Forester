@@ -306,6 +306,8 @@ $("btnPauseLook").onclick = () => {
   openLookEditor({ body: who, look: s.look || storyLookOf(who), title: "How do you look?", go: "Done", cancel: () => screen("pause"),
     done: look => { writeSave({ look }); applyStoryLook(look, who); if (!G.mp) { G.player.setModel(LOOKS[who]); G.player.model.scaleBase = LOOKS[who].scale; } screen("pause"); } });
 };
+// who's in this game with you (and for the host: send someone away, ban them, or let them back)
+$("btnPausePeople").onclick = () => { if (!G.mp) return; resume(); setTimeout(() => G.mp && (G.mp.togglePeople ? G.mp.togglePeople(true) : G.mp.toggleList && G.mp.toggleList(true)), 60); };
 // quit: in the desktop app, closing the window ends the game (a browser tab cannot be closed by its page, so there it isn't offered)
 if (/Electron/.test(navigator.userAgent)) { $("btnQuitGame").classList.remove("hidden"); $("btnQuitGame").onclick = () => window.close(); }
 $("updateList").innerHTML = CHANGELOG.map(u => `<article class="upd"><div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");
@@ -1806,6 +1808,7 @@ function pause() {
   G.mode = "pause";
   // (in a game with others: no chapter to restart, and the game goes on without you while you're here)
   UI.show("btnRestart", !G.mp);
+  UI.show("btnPausePeople", !!G.mp);
   $("pause").querySelector(".sub").textContent = G.mp ? "The others play on while you're in here — your body stands where you left it." : "Your progress is kept at the start of every chapter, and as you work.";
   $("btnQuit").textContent = G.mp ? "Leave the game" : "Quit to title";
   setFreeLook(false);

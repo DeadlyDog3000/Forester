@@ -18,7 +18,7 @@ import { Wilds } from "./wilds.js";
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
-import { Net } from "./net.js";
+import { Net, hostCommand } from "./net.js";
 
 /* global SFX */
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -29,12 +29,11 @@ const DAY = [[0, "night"], [0.2, "dawn"], [0.27, "morning"], [0.5, "afternoon"],
 
 // a name over someone's head
 // THE BOARD, in Frontier: what to do next with a homestead, one thing after another, each with how far along it is
-// (each building: laid out by whoever runs the settlement, then its logs carried to the site and raised — a guest in
-//  co-op helps with that part)
-const lay = (g, what, why) => g.manages() ? `Lay out ${what} (B), carry its logs to the site (F) and hold F to raise it: ${why}` : `Help ${g.hostName()} build ${what}: carry logs to its site (F), then hold F there to raise it`;
+// (each building: laid out, then its logs carried to the site and raised)
+const lay = (g, what, why) => `Lay out ${what} (B), carry its logs to the site (F) and hold F to raise it: ${why}`;
 const MP_GOALS = [
   { text: g => `Fell trees for logs — ${Math.min(10, g.stock.wood)} of 10 (swing the axe at a tree, take up its logs with F, stack them at the hearth)`, done: g => g.stock.wood >= 10 || g.has("hearth") },
-  { text: g => g.manages() ? "Raise a hearth (B): the ground round it becomes yours, and you wake there after a fall" : `Wait for ${g.hostName()} to raise the hearth — fell trees meanwhile`, done: g => g.has("hearth") },
+  { text: () => "Raise a hearth (B): the ground round it becomes yours, and you wake there after a fall", done: g => g.has("hearth") },
   { text: g => lay(g, "a cabin", "beds for two settlers, who'll come through the woods to live and work"), done: g => g.has("cabin") || g.has("house") },
   { text: () => "Wait for your first settler to come through the woods — keep felling meanwhile", done: g => g.mine() >= 1 },
   { text: g => lay(g, "a field", "settlers eat, and with no food they won't stay"), done: g => g.has("field") },
@@ -364,6 +363,7 @@ export class MPGame {
     n.chat = m => this.chatLine(m);
     n.note = m => this.chatLine({ name: "", text: m.text });
     n.err = m => { UI.hint(m.text, 4); sfx("deny"); };
+    n.kicked = m => { if (G.mp !== this) return; this.kicked = true; this.leave(true); this.hooks.lost && this.hooks.lost(m.text || "The host has sent you away."); };
     n.lost = () => { if (G.mp !== this) return; this.reconnect(); };
   }
   refreshFriends() {
@@ -653,7 +653,7 @@ export class MPGame {
     const i = $("mpChatIn"); i.classList.remove("hidden"); i.value = ""; i.focus(); this.drawChat();
     i.onkeydown = e => {
       e.stopPropagation();
-      if (e.key === "Enter") { const t = i.value.trim(); if (t) this.net.send({ t: "chat", text: t, allies: !!this.alliesOnly }); this.closeChat(); }
+      if (e.key === "Enter") { const t = i.value.trim(); if (t && !hostCommand(this.net, t)) this.net.send({ t: "chat", text: t, allies: !!this.alliesOnly }); this.closeChat(); }
       else if (e.key === "Escape") this.closeChat();
       else if (e.key === "Tab") { e.preventDefault(); this.alliesOnly = !this.alliesOnly; i.placeholder = this.alliesOnly ? "To your allies only — Tab for everyone" : "Say something — Enter to send, Tab for allies only"; }
     };
@@ -673,13 +673,15 @@ export class MPGame {
         const ally = p.pid !== this.pid && this.friendly(p.pid), grp = this.groupOf(p.pid);
         const acts = p.pid === this.pid ? (g && this.mode !== "coop" ? `<button data-a="unally">Leave the alliance</button>` : `<i>you</i>`)
           : [this.mode !== "coop" && !ally ? `<button data-a="ally" data-p="${p.pid}">Ask to be allies</button>` : "", this.mode === "pvp" && !ally && this.hasHearth(p.pid) && !this.wars.some(w => w.def === p.pid) ? `<button data-a="war" data-p="${p.pid}">Declare a claim war</button>` : "", near(p.pid) && this.stock.wood >= 10 ? `<button data-a="give" data-p="${p.pid}">Give 10 logs</button>` : ""].join("");
-        return `<div class="mp-pl${ally ? " ally" : ""}"><span class="n">${esc(p.name)}</span><span class="g">${grp && this.groups[grp] ? esc(this.groups[grp].name) : ""}</span><span class="a">${acts}</span></div>`;
+        const hostActs = p.pid !== this.pid && this.room.hostPid === this.pid ? `<button data-a="kick" data-p="${p.pid}">Send away</button><button data-a="ban" data-p="${p.pid}">Ban</button>` : "";
+        return `<div class="mp-pl${ally ? " ally" : ""}"><span class="n">${esc(p.name)}${p.pid === this.room.hostPid ? " <i>(host)</i>" : ""}</span><span class="g">${grp && this.groups[grp] ? esc(this.groups[grp].name) : ""}</span><span class="a">${acts}${hostActs}</span></div>`;
       }).join("") + `<p class="mc-hint">${this.mode === "pvp" ? "Allies can't hurt each other, share their gates, and can build on each other's ground. Up to eight to an alliance." : "In co-op no one can be hurt, and you can all build anywhere."}${this.room.persistent ? " In the wide world, a homestead can't be broken while its owner is away." : " Nothing of yours can be broken while you're away from the game."}</p>`;
     for (const b of $("mpPlayersBody").querySelectorAll("button[data-a]")) b.onclick = () => {
       const a = b.dataset.a, pid = b.dataset.p;
       if (a === "ally") this.net.send({ t: "ally", pid });
       else if (a === "unally") this.net.send({ t: "unally" });
       else if (a === "give") this.net.send({ t: "give", pid, wood: 10 });
+      else if (a === "kick" || a === "ban") { if (a === "ban" && !confirm(`Ban ${this.nameOf(pid)}? They won't be able to come back into this game.`)) return; this.net.send({ t: a, pid }); setTimeout(() => this.listOpen && this.drawList(), 600); }
       else if (a === "war") { if (b.classList.contains("armed")) { this.net.send({ t: "war", pid }); this.toggleList(false); } else { b.classList.add("armed"); b.textContent = "Click again: war"; } }
     };
   }
@@ -697,7 +699,6 @@ export class MPGame {
     if (e.code === "Enter") { e.preventDefault(); this.openChat(); return true; }
     if (e.code === "Tab") { e.preventDefault(); this.toggleList(); return true; }
     if (e.code === "KeyN" && !this.invite) { this.toggleNews(); return true; }
-    if (e.code === "KeyB" && !this.manages() && !this.build) { UI.hint(`It's ${this.hostName()}'s settlement: they lay out what's built. Fell trees and bring the logs — that's how it goes up.`, 4.5); return true; }
     if (e.code === "KeyB") { if (this.build) this.endBuild(); else { const on = !this.menuOpen; this.openBuild(on); if (on) G.releaseMouse && G.releaseMouse(); else G.lockMouse && G.lockMouse(); } return true; }
     if (this.menuOpen && /^Digit\d$/.test(e.code)) { const i = (+e.code.slice(5) + 9) % 10, k = BUILD_ORDER[i]; const d = BUILD[k]; if (k && (k !== "hearth" || this.stock.wood >= d.wood)) this.startBuild(k); return true; }
     if (this.invite && (e.code === "KeyY" || e.code === "KeyN")) { this.net.send({ t: e.code === "KeyY" ? "allyok" : "allyno", pid: this.invite.pid }); $("mpInvite").classList.add("hidden"); this.invite = null; return true; }

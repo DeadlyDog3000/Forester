@@ -19,6 +19,7 @@ import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
 import { resetForMode, startReplica } from "../story.js";
 import { Remote } from "./mpgame.js";
+import { hostCommand } from "./net.js";
 import { lookOpts, isF } from "./look.js";
 import { MAX_HP } from "./rules.js";
 import { BUILDINGS } from "../town.js";
@@ -71,6 +72,23 @@ export class ColonyBase {
     n.chat = m => this.chatLine(m);
     n.note = m => this.chatLine({ name: "", text: m.text });
     n.err = m => UI.hint(m.text, 4);
+    // (sent away, or banned, by the host)
+    n.kicked = m => { if (G.mp !== this) return; this.leave(true); this.hooks && this.hooks.lost && this.hooks.lost(m.text || "The host has sent you away."); };
+  }
+  // who's here — and, for the host, a word to send someone away, or ban them for good
+  togglePeople(on = !this.peopleOpen) {
+    this.peopleOpen = on; $("mpPlayers").classList.toggle("hidden", !on);
+    if (!on) { G.lockMouse && G.lockMouse(); return; }
+    G.releaseMouse && G.releaseMouse();
+    const host = this.room.hostPid === this.pid || this.host;
+    const people = [{ pid: this.pid, name: this.me.name }, ...[...this.remotes.values()].map(r => ({ pid: r.pid, name: r.name }))];
+    $("mpPlayersBody").innerHTML = `<div class="mc-sec">${people.length} here</div>` + people.map(p => `<div class="mp-pl"><span class="n">${esc(p.name)}${p.pid === this.room.hostPid ? " <i>(host)</i>" : ""}</span><span class="g"></span><span class="a">${p.pid === this.pid ? "<i>you</i>" : host ? `<button data-a="kick" data-p="${p.pid}">Send away</button><button data-a="ban" data-p="${p.pid}">Ban</button>` : ""}</span></div>`).join("")
+      + `<p class="mc-hint">${host ? "Send away: they're put out of the game, but can come back. Ban: they can't come back into it. In the talk, /unban and a name lets someone back." : "The host can send people away or ban them."} Esc or Tab to close.</p>`;
+    for (const b of $("mpPlayersBody").querySelectorAll("button[data-a]")) b.onclick = () => {
+      const name = this.nameOf(b.dataset.p);
+      if (b.dataset.a === "ban" && !confirm(`Ban ${name}? They won't be able to come back into this game.`)) return;
+      this.net.send({ t: b.dataset.a, pid: b.dataset.p }); setTimeout(() => this.peopleOpen && this.togglePeople(true), 600);
+    };
   }
   hud(on) {
     // (the settlement's own screen is the game's; of the multiplayer one, only the talk and who's here)
@@ -93,7 +111,7 @@ export class ColonyBase {
   }
   openChat() {
     const i = $("mpChatIn"); i.classList.remove("hidden"); i.value = ""; i.focus(); this.drawChat();
-    i.onkeydown = e => { e.stopPropagation(); if (e.key === "Enter") { const t = i.value.trim(); if (t) this.net.send({ t: "chat", text: t }); this.closeChat(); } else if (e.key === "Escape") this.closeChat(); };
+    i.onkeydown = e => { e.stopPropagation(); if (e.key === "Enter") { const t = i.value.trim(); if (t && !hostCommand(this.net, t)) this.net.send({ t: "chat", text: t }); this.closeChat(); } else if (e.key === "Escape") this.closeChat(); };
   }
   closeChat() { const i = $("mpChatIn"); i.blur(); i.classList.add("hidden"); this.drawChat(); }
   // where you are, ten times a second (the server passes it on: it's how the others see you)
@@ -109,8 +127,9 @@ export class ColonyBase {
     // (lying in bed waiting for the others: a step, and you're up again)
     if (this.inBed && /^(KeyW|KeyA|KeyS|KeyD|Space)$/.test(e.code)) { this.outOfBed(); return true; }
     // (a guest in the colony: the plans and the government are the host's)
-    if (!this.host && this.hostRuns && (e.code === "KeyB" || e.code === "KeyG")) { this.hostRuns(e.code === "KeyB" ? "lays out what's built" : "runs the government"); return true; }
+    if (!this.host && this.hostRuns && e.code === "KeyG") { this.hostRuns("runs the government"); return true; }
     if (e.code === "Enter") { e.preventDefault(); this.openChat(); return true; }
+    if (this.peopleOpen && (e.code === "Escape" || e.code === "Tab")) { e.preventDefault(); this.togglePeople(false); return true; }
     return false;
   }
   // the night, by the colony's clock (as the free play's bed has it)
@@ -289,7 +308,7 @@ export class ColonyHost extends ColonyBase {
     if (m.t === "hello") return this.snapshot(g.from);
     if (m.t === "act") { try { this.act(g.from, m); } catch (e) { console.warn("colony: a guest's action failed", m.a, e); } }
   }
-  notYours(pid, what) { this.net.send({ t: "h", to: pid, m: { t: "say", said: [`It's ${this.me.name}'s settlement — ${this.me.name} ${what}. You can fell, carry, build, hunt and fight.`] } }); }
+  notYours(pid, what) { this.net.send({ t: "h", to: pid, m: { t: "say", said: [`It's ${this.me.name}'s settlement — ${this.me.name} ${what}. You can build, fell, carry, hunt and fight.`] } }); }
   guest(pid) { return (this.guests ??= {})[pid] ??= { carryN: 0 }; }
   // something done as the guest: you (this game's player) stood aside for a moment, and they stand where they are,
   // facing as they face, carrying what they carry; what the game says to them is caught and sent to them
@@ -361,8 +380,14 @@ export class ColonyHost extends ColonyBase {
         });
         return;
       }
-      // (laying out what's built is the host's: it's their settlement)
-      case "plan": return this.notYours(pid, "lays out what's built");
+      case "plan": {
+        const b = m.b; if (!b || !BUILDINGS_OK(b.type)) return;
+        return this.runAs(pid, m.at, () => {
+          if (!town.fits(b.type, b.x, b.z, b.ry)) return "Something's in the way there now.";
+          if (b.type === "field" && (town.S.seed || 0) < 1) return "There's no rye seed to sow a field with.";
+          town.commitPlan({ type: b.type, x: b.x, z: b.z, ry: b.ry, logs: 0, dug: 0, done: !!b.done });
+        });
+      }
       case "call": {
         if (!CALLS.has(m.fn) || typeof town[m.fn] !== "function") return;
         if (MANAGE.has(m.fn)) return this.notYours(pid, "runs the settlement");
@@ -474,7 +499,7 @@ export class ColonyGuest extends ColonyBase {
     if (m.t === "morning") { if (this.inBed) { if (m.natural) this.outOfBed(true); else this.wake(); } return; }
     if (m.t === "hx") { if (G.hunt && G.hunt.w === this.w) G.hunt.puppets(m.l || []); return; }
   }
-  hostRuns(what = "runs the settlement") { const h = this.room.host || "the host"; UI.hint(`It's ${h}'s settlement — ${h} ${what}. You can fell, carry, help raise what's planned, hunt and fight.`, 5); }
+  hostRuns(what = "runs the settlement") { const h = this.room.host || "the host"; UI.hint(`It's ${h}'s settlement — ${h} ${what}. You can build, fell, carry, hunt and fight.`, 5); }
   // your arrow in one of the host's beasts: told to their game, where it's brought down (or not)
   huntHit(a, power, head) { this.send("hunthit", { id: a.netId, power: +(+power).toFixed(2), head: !!head }); }
   // what you do here goes to the host's game, to be done there
@@ -505,7 +530,6 @@ export class ColonyGuest extends ColonyBase {
     // the government's doings
     for (const fn of ["research", "recruit", "train", "upgrade", "upgradeHome", "repair", "makePeace", "leave", "enlargeRoom", "enlarge", "dismantle", "claim", "chooseJob", "stableIt"])
       town[fn] = (...args) => { if (MANAGE.has(fn)) { this.hostRuns(); return null; } this.send("call", { fn, args: args.map(v => this.ref(v)) }); return null; };
-    town.plan = () => this.hostRuns("lays out what's built");
     town.recruitCost = () => Math.max(4, 12 - 2 * (town.hallTier || 0));
     // and what's changed straight in the settlement from a screen (a job, a law, a name): sent when it would be saved
     this.hostJSON = {};

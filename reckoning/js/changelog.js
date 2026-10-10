@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.88.0", date: "10 October 2026", title: "The host's word",
+    items: [
+      "Everyone in a co-op game can lay out buildings again (B), in a colony and in Frontier. The running of the settlement stays the host's: the government, research, sending for people, jobs and laws, and who works which field. In Frontier, whoever put a building up, or the host, can take it down.",
+      "The host can send someone away or ban them. Esc, then People here (Tab in Frontier), lists everyone in the game, with Send away and Ban beside each name for the host. In the talk, the host can also type /kick, /ban or /unban and a name. Someone sent away can come back; someone banned can't, until the host unbans them.",
+    ],
+  },
+  {
     v: "0.87.0", date: "10 October 2026", title: "Logs to carry",
     items: [
       "In Frontier, felling and building work as they do in the settlement. A felled tree's logs lie where it comes down. F takes them up, six in your arms at most. Stack them at the hearth or a woodshed (F there), or take logs back out of the store there to carry somewhere.",

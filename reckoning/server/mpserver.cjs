@@ -86,7 +86,8 @@ class Room {
     this.id = o.id || crypto.randomBytes(4).toString("hex");
     this.name = clean(o.name, 40) || "A game in the woods";
     this.mode = R.MODES[o.mode] || o.mode === "colony" || o.mode === "nations" ? o.mode : "coop";
-    this.hostPid = o.hostPid || null;        // (a colony game: the one whose game it is, and runs it)
+    this.hostPid = o.hostPid || null;
+    this.banned = new Map(Object.entries(o.banned || {}));   // (pid → name: the ones the host has turned away)        // (a colony game: the one whose game it is, and runs it)
     this.max = Math.max(2, Math.min(o.persistent ? 500 : 16, num(o.max, 8) | 0));
     this.kind = T.TERRAINS[o.kind] ? o.kind : "island";
     this.size = R.SIZES[o.size] ? o.size : "m";
@@ -135,10 +136,10 @@ class Room {
     return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, hostPid: this.hostPid, locked: !!this.password, persistent: this.persistent };
   }
   // ---- saving the wide world ----
-  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0, piles: this.piles, nextP: this.nextP, sites: this.sites }; }
+  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0, banned: Object.fromEntries(this.banned), piles: this.piles, nextP: this.nextP, sites: this.sites }; }
   static from(j) {
     const r = new Room(j);
-    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0, piles: j.piles || {}, nextP: j.nextP || 1, sites: j.sites || {} });
+    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0, piles: j.piles || {}, nextP: j.nextP || 1, sites: j.sites || {}, banned: new Map(Object.entries(j.banned || {})) });
     return r;
   }
   each(f) { for (const p of this.online.values()) f(p); }
@@ -160,6 +161,7 @@ class Room {
     return null;
   }
   join(sock, who, password) {
+    if (this.banned.has(who.pid)) return sock.send({ t: "err", text: `${this.host || "The host"} has banned you from this game.` });
     if (this.password && password !== this.password) return sock.send({ t: "err", text: "That game has a password, and that wasn't it." });
     if (this.online.has(who.pid)) { const old = this.online.get(who.pid); old.sock.send({ t: "err", text: "You've joined from somewhere else." }); this.leave(old); }
     if (this.online.size >= this.max) return sock.send({ t: "err", text: "That game is full." });
@@ -185,6 +187,26 @@ class Room {
     if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
     this.note(`${p.name} has come.`, p);
     this.dirty = true;
+  }
+  turnAway(p, m) {
+    const no = text => p.sock.send({ t: "err", text });
+    if (!this.hostPid || p.pid !== this.hostPid) return no("Only the host can do that.");
+    const key = String(m.pid || ""), name = String(m.name || "").trim().toLowerCase();
+    if (m.t === "unban") {
+      const hit = [...this.banned].find(([pid, n]) => pid === key || n.toLowerCase() === name);
+      if (!hit) return no("There's nobody of that name banned.");
+      this.banned.delete(hit[0]); this.dirty = true;
+      return p.sock.send({ t: "note", text: `${hit[1]} may come back now.` });
+    }
+    const q = this.online.get(key) || [...this.online.values()].find(x => x.name.toLowerCase() === name);
+    if (!q) return no(m.t === "ban" ? "There's nobody here of that name." : "There's nobody here of that name.");
+    if (q === p) return no("That's you.");
+    if (m.t === "ban") { this.banned.set(q.pid, q.name); this.dirty = true; }
+    const why = m.t === "ban" ? `${this.host || "The host"} has banned you from this game.` : `${this.host || "The host"} has sent you away from this game.`;
+    try { q.sock.send({ t: "kicked", text: why }); } catch (e) {}
+    this.leave(q);
+    setTimeout(() => { try { q.sock.close(); } catch (e) {} }, 300);
+    this.note(m.t === "ban" ? `${q.name} has been banned by ${p.name}.` : `${q.name} has been sent away by ${p.name}.`);
   }
   onlineNames() { return [...this.online.values()].map(q => q.pid); }
   leave(p) {
@@ -214,6 +236,8 @@ class Room {
   // ---- what players do ----
   on(p, m) {
     const rec = this.recs[p.pid], st = this.storeOf(p.pid), t = now();
+    // the host's say over who plays: sent away for now, or for good (and let back)
+    if (m.t === "kick" || m.t === "ban" || m.t === "unban") return this.turnAway(p, m);
     if (this.mode === "nations") return this.nationsOn(p, m);
     // a colony game is the host's own game: the server only carries messages between it and the others
     if (this.mode === "colony") {
@@ -275,8 +299,6 @@ class Room {
         const d = R.BUILD[m.type]; if (!d) return;
         const x = num(m.x), z = num(m.z), ry = num(m.ry);
         const no = text => p.sock.send({ t: "err", text });
-        // (a co-op settlement is the host's: they lay out what's built)
-        if (!this.manages(p)) return no(`It's ${this.host || "the host"}'s settlement: they lay out what's built. Help raise it, and fetch the logs.`);
         if (m.type === "hearth" && (st.wood < d.wood || st.stone < d.stone)) return no(`A hearth takes ${d.wood} logs from the store.`);
         if (!this.near(p, x, z, 16)) return no("Too far away to build there.");
         if (Math.abs(x) > this.half - 10 || Math.abs(z) > this.half - 10) return no("That's the edge of the map.");
@@ -344,7 +366,7 @@ class Room {
       }
       case "unsite": {
         const sx = this.sites[String(m.id || "")]; if (!sx) return;
-        if (!(sx.owner === p.pid && this.manages(p)) && !(this.mode === "coop" && this.manages(p))) return;
+        if (!(sx.owner === p.pid || (this.mode === "coop" && this.manages(p)))) return;
         delete this.sites[sx.id]; this.all({ t: "sitex", id: sx.id });
         if (sx.logs) this.addPile(sx.x + 1.5, sx.z, 0, sx.logs);
         this.dirty = true;
@@ -370,8 +392,7 @@ class Room {
         const d = R.BUILD[b.type];
         if (!this.near(p, b.x, b.z, (d.wall ? d.len / 2 : d.r) + R.REACH + 1)) return;
         const no = text => p.sock.send({ t: "err", text });
-        // your own: taken down, and most of it back (in co-op, only by the host, whose settlement it is)
-        if (this.mode === "coop" && !this.manages(p)) return p.sock.send({ t: "err", text: `Only ${this.host || "the host"} can take down what's built — it's their settlement.` });
+        // your own: taken down, and most of it back (in co-op, whoever put it up, or the host)
         if (b.owner === p.pid || (this.mode === "coop" && this.manages(p))) {
           delete this.buildings[b.id];
           st.wood += Math.floor(d.wood * 0.6); st.stone += Math.floor(d.stone * 0.6);
