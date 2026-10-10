@@ -71,6 +71,8 @@ class Animal {
   // an arrow in it: power is how far the bow was drawn
   hit(power) {
     if (!this.alive) return;
+    // (in someone else's colony this beast is theirs, shown here: the arrow's told to their game, which brings it down)
+    if (this.puppet) { G.practise && G.practise("archery", 3); G.mp && G.mp.huntHit && G.mp.huntHit(this, power); return; }
     this.hp -= power > 0.7 ? 2 : 1;
     // (wounded, it bleeds as it runs: a trail of drops to follow)
     this.bleed = 40; this.bleedAt = null;
@@ -112,10 +114,17 @@ class Animal {
       if (this.neck) this.neck.rotation.x += (this.neck0 - 0.3 - this.neck.rotation.x) * Math.min(1, dt * 3);
       return;
     }
+    if (this.puppet) return this.puppetUpdate(dt);
     // what it hears of you
     const d = Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z);
     const loud = pl.speed > 4 ? K.hearRun : pl.speed > 0.4 ? (pl.crouched ? K.hearCreep : K.hearWalk) : 2.2;
     if (d < loud && this.state !== "flee" && this.state !== "charge") this.startle(pl.pos);
+    // (and of the others in a co-op colony, walking the woods as you do)
+    else if (G.mp && G.mp.host && G.mp.remotes && this.state !== "flee" && this.state !== "charge") for (const r of G.mp.remotes.values()) {
+      const q = r.actor && r.actor.pos; if (!q) continue;
+      const loudR = r.spd > 4 ? K.hearRun : r.spd > 0.4 ? K.hearWalk * 0.7 : 2.2;
+      if (Math.hypot(q.x - this.pos.x, q.z - this.pos.z) < loudR) { this.startle(q); break; }
+    }
     // people: whatever the herd, it keeps off the settlements' ground — and one living out in the woods keeps well clear of it
     if (this.state !== "flee" && this.state !== "charge" && (this.koT = (this.koT || 0) - dt) <= 0) {
       this.koT = 0.6;
@@ -206,6 +215,20 @@ class Animal {
       want = K.run * (this.t > 1.5 ? 1 : 0.5);
       if (this.t <= 0) { this.state = "walk"; this.t = 6; this.target = { x: home.x + (Math.random() - 0.5) * home.r, z: home.z + (Math.random() - 0.5) * home.r }; }
     }
+    this.animate(dt, want);
+  }
+  // shown here as another game has it (co-op): eased to where it is there, and its legs and head moved as it moves
+  puppetUpdate(dt) {
+    const n = this.net; if (!n) return;
+    if (Math.hypot(n.x - this.pos.x, n.z - this.pos.z) > 10) { this.pos.x = n.x; this.pos.z = n.z; }
+    const k = Math.min(1, dt * 8);
+    this.pos.x += (n.x - this.pos.x) * k; this.pos.z += (n.z - this.pos.z) * k;
+    this.yaw += Math.atan2(Math.sin(n.yaw - this.yaw), Math.cos(n.yaw - this.yaw)) * Math.min(1, dt * 8);
+    this.state = n.st; this.head += (n.head - this.head) * Math.min(1, dt * 4); this.target = null;
+    this.animate(dt, n.spd);
+  }
+  animate(dt, want) {
+    const K = this.K, home = this.ownHome || this.hunt.home;
     this.speed += (want - this.speed) * Math.min(1, dt * (this.state === "flee" || this.state === "charge" ? 4 : 2));
     // a hare goes in hops: it covers its ground in the air and sits a moment between them (less, the faster it goes)
     const hare = this.kind === "hare", runK = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1);
@@ -447,7 +470,7 @@ export class Hunt {
       const d = Math.hypot(a.pos.x - ar.pos.x, a.pos.z - ar.pos.z);
       if (d < 14 && (d < 7 || Math.random() < 0.7)) a.startle(ar.from, d < 7 ? 1.3 : 1);
     }
-    ar.it = this.w.addInteract({ x: ar.pos.x, y: ar.pos.y, z: ar.pos.z, reach: 2.0, label: "Pull the arrow out",
+    ar.it = this.w.addInteract({ x: ar.pos.x, y: ar.pos.y, z: ar.pos.z, reach: 2.0, local: true, label: "Pull the arrow out",
       use: () => { this.w.removeInteract(ar.it); this.w.root.remove(ar.mesh); this.arrows.splice(this.arrows.indexOf(ar), 1); G.player.arrows = (G.player.arrows || 0) + 1; SFX.pickup && SFX.pickup(); } });
   }
   update(dt) {
@@ -485,6 +508,31 @@ export class Hunt {
       if (!ar.stuck && ar.t < 0.4) { const k = 1 - ar.t / 0.4; ar.mesh.rotateY(Math.sin(ar.t * 62) * 0.07 * k); ar.mesh.rotateX(Math.cos(ar.t * 55) * 0.04 * k); }
     }
     for (const a of this.animals) a.update(dt);
+  }
+  // co-op: the beasts as the colony's own game has them, [id, kind, x, z, yaw, speed, state, head, fawn] — new ones
+  // made, gone ones taken away, the dead ones left lying with a way to dress them (done there, by that game)
+  puppets(list) {
+    const seen = new Set(), by = this.byNet ??= new Map();
+    for (const [id, kind, x, z, yaw, spd, st, head, fawn] of list) {
+      seen.add(id);
+      let a = by.get(id);
+      if (!a) {
+        if (!KINDS[kind]) continue;
+        a = new Animal(this, kind, x, z); a.puppet = true; a.netId = id; a.yaw = yaw; a.hp = 99;
+        if (fawn) { a.K = { ...KINDS.deer, name: "roe fawn", h: KINDS.deer.h * 0.58, len: KINDS.deer.len * 0.58, leg: KINDS.deer.leg * 0.58, r: KINDS.deer.r * 0.6, stride: KINDS.deer.stride * 0.6 }; a.root.scale.setScalar(0.58); }
+        by.set(id, a); this.animals.push(a);
+      }
+      a.net = { x, z, yaw, spd, st, head };
+      if (st === "dead" && a.state !== "dead") {
+        a.state = "dead"; a.slide = Math.min(6, a.speed || 0); a.fall = 0; a.speed = 0;
+        a.dressIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 0.4; }, reach: 2.2, hold: 2.2, label: `Dress the ${a.K.name}`, use: () => {} });
+      }
+    }
+    for (const [id, a] of by) if (!seen.has(id)) {
+      by.delete(id); this.w.root.remove(a.root); const i = this.animals.indexOf(a); if (i >= 0) this.animals.splice(i, 1);
+      if (a.dressIt) this.w.removeInteract(a.dressIt);
+      for (const ar of this.arrows.filter(r => r.in === a)) { if (ar.mesh.parent) ar.mesh.parent.remove(ar.mesh); this.arrows.splice(this.arrows.indexOf(ar), 1); }
+    }
   }
   stop() {
     const i = G.onFrame.indexOf(this._tick); if (i >= 0) G.onFrame.splice(i, 1);

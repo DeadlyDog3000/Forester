@@ -17,6 +17,8 @@ import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
 import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, thirstTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
+// the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
+const ARMS_M = { skin: new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.6 }), sleeve: new THREE.MeshStandardMaterial({ color: 0x4d5a3c, roughness: 0.95 }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 }) };
 
 /* global SFX */
 
@@ -198,6 +200,9 @@ export class Player {
     if (this.model) G.scene.remove(this.model.root);
     this.model = makePerson(opts);
     G.scene.add(this.model.root);
+    // (your hands and sleeves, first person, as the body you've been given: its skin, its coat, its shirt at the cuff)
+    const c = this.model.colors || {};
+    ARMS_M.skin.color.setHex(c.skin ?? 0xe8c4a0); ARMS_M.sleeve.color.setHex(c.coat ?? 0x4d5a3c); ARMS_M.cuff.color.setHex(c.linen ?? 0xd9d2c3);
   }
   place(x, z, yaw = 0) {
     this.pos.set(x, G.world ? G.world.heightAt(x, z) : 0, z);
@@ -233,10 +238,10 @@ export class Player {
       this.axe.add(a);
       vm.add(this.axe);
       // your two hands on the haft, and your sleeves back to your shoulders, so hands and axe are one
-      const look = this.model && this.model.look || {};
-      const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
-      const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
-      const cuffM = new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 });
+      const look = this.model && this.model.colors || {};
+      const skinM = ARMS_M.skin;
+      const sleeveM = ARMS_M.sleeve;
+      const cuffM = ARMS_M.cuff;
       const hand = y => {
         const h = new THREE.Group(); h.position.set(0, y, 0);
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); fist.rotation.z = Math.PI / 2; h.add(fist);
@@ -275,10 +280,10 @@ export class Player {
       const m = makeMusket(); m.rotation.x = -Math.PI / 2; g.add(m); this.gunModel = m;
       m.traverse(o => { if (o.isMesh) o.castShadow = false; });
       vm.add(g); this.gun = g;
-      const look = this.model && this.model.look || {};
-      const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
-      const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
-      const cuffM = new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 });
+      const look = this.model && this.model.colors || {};
+      const skinM = ARMS_M.skin;
+      const sleeveM = ARMS_M.sleeve;
+      const cuffM = ARMS_M.cuff;
       const fist = (y, z) => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); f.rotation.z = Math.PI / 2; h.add(f); h.position.set(0, y, z); m.add(h); return h; };
       this.hands = [fist(0.02, -0.02), fist(0.5, -0.01)];
       this.arms = this.hands.map((h, i) => {
@@ -355,10 +360,10 @@ export class Player {
       if (am) { am.scene.rotation.y = Math.PI; am.scene.position.z = -0.37; this.nocked.add(am.scene); }
       g.add(this.nocked);
       vm.add(g); this.bow = g;
-      const look = this.model && this.model.look || {};
-      const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
-      const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
-      const cuffM = new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 });
+      const look = this.model && this.model.colors || {};
+      const skinM = ARMS_M.skin;
+      const sleeveM = ARMS_M.sleeve;
+      const cuffM = ARMS_M.cuff;
       const fist = parent => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); h.add(f); parent.add(h); return h; };
       const grip = fist(g); grip.position.set(0, 0, 0.02);
       this.nockHand = fist(g);
@@ -464,10 +469,10 @@ export class Player {
       vm.add(g); this.xbow = g;
       this.xcrank = g.userData.crank; this.xbolt = g.userData.bolt; this.xtrig = g.userData.trig;
       // your hands on it: the right round the wrist of the stock at the trigger, the left under the fore-end
-      const look = this.model && this.model.look || {};
-      const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
-      const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
-      const cuffM = new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 });
+      const look = this.model && this.model.colors || {};
+      const skinM = ARMS_M.skin;
+      const sleeveM = ARMS_M.sleeve;
+      const cuffM = ARMS_M.cuff;
       const fist = (x, y, z, rz) => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.034, 0.05, 4, 8), skinM); f.rotation.z = rz; h.add(f); h.position.set(x, y, z); g.add(h); return h; };
       this.hands = [fist(0.012, -0.06, 0.02, Math.PI / 2 - 0.3), fist(-0.006, -0.05, -0.27, Math.PI / 2 + 0.2)];
       this.arms = this.hands.map((h, i) => {
@@ -574,10 +579,10 @@ export class Player {
       if (this.gun) this.gun.visible = show;
       if (this.model) this.model.setPose(kind === "food" ? "idle" : kind ? "hammer" : "idle");
       if (kind) {
-        const look = this.model && this.model.look || {};
+        const look = this.model && this.model.colors || {};
         const g = new THREE.Group();
         const hand = new THREE.Group(); g.add(hand);
-        const skin = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
+        const skin = ARMS_M.skin;
         const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skin); fist.rotation.z = Math.PI / 2; hand.add(fist);
         const tool = kind === "eat" || kind === "food" ? makeFood(G.working.food) : kind === "reap" ? makeSickle() : kind === "pick" ? new THREE.Group() : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer();
         // (blades turned flat to the eye, not edge on)
@@ -585,8 +590,8 @@ export class Player {
         hand.add(tool);
         // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
         const arm = new THREE.Group(); g.add(arm);
-        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 })); arm.add(sleeve);
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 })); arm.add(cuff);
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), ARMS_M.sleeve); arm.add(sleeve);
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), ARMS_M.cuff); arm.add(cuff);
         g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
         vm.add(g); this.workRig = g;
         // and the same tool in the hand of your body, for when the camera is behind you

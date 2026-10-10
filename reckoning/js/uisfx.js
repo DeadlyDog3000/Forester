@@ -37,14 +37,19 @@ function play(fn) {
   try { fn(a, out, a.currentTime + 0.005); } catch (e) {}
 }
 let lastHover = 0;
+// (in the game itself, nothing tuned: no notes over the woods — a rustle, a scratch, a knock; the chimes and fanfares
+//  are the menus' only)
+const inGame = () => { const G = window.__G; return !!G && G.mode !== "title"; };
+const rustle = (a, o, t, vol = 0.05, up = true) => burst(a, o, t, { f: up ? 700 : 1600, q: 0.7, dur: 0.14, vol, sweep: up ? 1500 : -900 });
+const knock = (a, o, t, vol = 0.09, f = 180) => { burst(a, o, t, { f: f * 4, q: 1.2, dur: 0.05, vol: vol * 0.7 }); note(a, o, f, t, { vol, decay: 0.09, bright: 0.05, wood: 1 }); };
 export const UISFX = {
   // a button pressed: a dry wooden tick with a little body to it
   click: () => play((a, o, t) => { burst(a, o, t, { f: 2600, q: 3, dur: 0.035, vol: 0.17 }); note(a, o, 940, t, { vol: 0.08, decay: 0.08, bright: 0.1, wood: 1 }); }),
   // the pointer onto a button: barely there
   hover: () => { const n = performance.now(); if (n - lastHover < 60) return; lastHover = n; play((a, o, t) => burst(a, o, t, { f: 4200, q: 4, dur: 0.018, vol: 0.035 })); },
   // a book or a board opened, and shut: two plucked notes, up, and down
-  open: () => play((a, o, t) => { burst(a, o, t, { f: 900, q: 0.8, dur: 0.09, vol: 0.05, sweep: 1200 }); note(a, o, hz(67), t, { vol: 0.07, decay: 0.25, wood: 1 }); note(a, o, hz(74), t + 0.055, { vol: 0.07, decay: 0.3, wood: 1 }); }),
-  close: () => play((a, o, t) => { note(a, o, hz(74), t, { vol: 0.06, decay: 0.2, wood: 1 }); note(a, o, hz(67), t + 0.05, { vol: 0.06, decay: 0.26, wood: 1 }); }),
+  open: () => play((a, o, t) => { if (inGame()) return rustle(a, o, t, 0.06, true); burst(a, o, t, { f: 900, q: 0.8, dur: 0.09, vol: 0.05, sweep: 1200 }); note(a, o, hz(67), t, { vol: 0.07, decay: 0.25, wood: 1 }); note(a, o, hz(74), t + 0.055, { vol: 0.07, decay: 0.3, wood: 1 }); }),
+  close: () => play((a, o, t) => { if (inGame()) return rustle(a, o, t, 0.05, false); note(a, o, hz(74), t, { vol: 0.06, decay: 0.2, wood: 1 }); note(a, o, hz(67), t + 0.05, { vol: 0.06, decay: 0.26, wood: 1 }); }),
   // something taken up: a round little pop
   pop: () => play((a, o, t) => {
     const os = a.createOscillator(), g = a.createGain(); os.type = "sine"; os.frequency.setValueAtTime(820, t); os.frequency.exponentialRampToValueAtTime(330, t + 0.07);
@@ -52,15 +57,16 @@ export const UISFX = {
   }),
   // a new task on the board: the quill, and two notes
   objective: () => play((a, o, t) => {
+    if (inGame()) { for (let i = 0; i < 3; i++) burst(a, o, t + i * 0.07, { f: 3200 + i * 300, q: 1.2, dur: 0.06, vol: 0.04, sweep: -1400 }); return; }
     for (let i = 0; i < 3; i++) burst(a, o, t + i * 0.07, { f: 3200 + i * 300, q: 1.2, dur: 0.06, vol: 0.035, sweep: -1400 });
     note(a, o, hz(76), t + 0.2, { vol: 0.09, decay: 0.9, bright: 0.4 }); note(a, o, hz(81), t + 0.33, { vol: 0.08, decay: 1.2, bright: 0.4 });
   }),
   // a task done: three notes rising, ringing on
-  done: () => play((a, o, t) => { [72, 76, 79].forEach((m, i) => note(a, o, hz(m), t + i * 0.09, { vol: 0.09, decay: 1.1, bright: 0.45 })); note(a, o, hz(84), t + 0.3, { vol: 0.06, decay: 1.6, bright: 0.3 }); }),
+  done: () => play((a, o, t) => { if (inGame()) { rustle(a, o, t, 0.05, true); knock(a, o, t + 0.12, 0.08, 200); knock(a, o, t + 0.24, 0.07, 170); return; } [72, 76, 79].forEach((m, i) => note(a, o, hz(m), t + i * 0.09, { vol: 0.09, decay: 1.1, bright: 0.45 })); note(a, o, hz(84), t + 0.3, { vol: 0.06, decay: 1.6, bright: 0.3 }); }),
   // a thing made: a bright ring on metal, and a note under it
-  craft: () => play((a, o, t) => { burst(a, o, t, { f: 5200, q: 6, dur: 0.05, vol: 0.06 }); note(a, o, hz(83), t, { vol: 0.07, decay: 0.8, bright: 0.6 }); note(a, o, hz(71), t + 0.02, { vol: 0.06, decay: 0.5, wood: 1 }); }),
+  craft: () => play((a, o, t) => { if (inGame()) { burst(a, o, t, { f: 5200, q: 6, dur: 0.05, vol: 0.06 }); knock(a, o, t + 0.03, 0.07, 240); return; } burst(a, o, t, { f: 5200, q: 6, dur: 0.05, vol: 0.06 }); note(a, o, hz(83), t, { vol: 0.07, decay: 0.8, bright: 0.6 }); note(a, o, hz(71), t + 0.02, { vol: 0.06, decay: 0.5, wood: 1 }); }),
   // a level gained, an achievement: a small fanfare
-  fanfare: () => play((a, o, t) => { [67, 72, 76, 79].forEach((m, i) => note(a, o, hz(m), t + i * 0.08, { vol: 0.08, decay: 0.9, bright: 0.5 })); [72, 76, 79, 84].forEach(m => note(a, o, hz(m), t + 0.38, { vol: 0.05, decay: 1.8, bright: 0.35 })); }),
+  fanfare: () => play((a, o, t) => { if (inGame()) { rustle(a, o, t, 0.06, true); knock(a, o, t + 0.1, 0.09, 190); knock(a, o, t + 0.22, 0.09, 190); knock(a, o, t + 0.34, 0.07, 160); return; } [67, 72, 76, 79].forEach((m, i) => note(a, o, hz(m), t + i * 0.08, { vol: 0.08, decay: 0.9, bright: 0.5 })); [72, 76, 79, 84].forEach(m => note(a, o, hz(m), t + 0.38, { vol: 0.05, decay: 1.8, bright: 0.35 })); }),
   // not allowed: a low double knock
   deny: () => play((a, o, t) => { note(a, o, hz(45), t, { vol: 0.1, decay: 0.12, wood: 1 }); note(a, o, hz(43), t + 0.09, { vol: 0.1, decay: 0.16, wood: 1 }); }),
 };

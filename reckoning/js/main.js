@@ -235,6 +235,8 @@ $("btnMulti").onclick = () => { back = "title"; openLobby(); };
 initLobby({
   screen,
   enter(net, inMsg, me, target) {
+    // (the lobby's tunes stop at the door: the game has its own music, or the quiet of the woods)
+    try { AUDIO.music(null); } catch (e) {}
     const lost = text => { mpDone(); toTitle(); openLobby(); $("mpNote").textContent = text; $("mpNote").classList.add("bad"); };
     // Classic: a nation each — your own real free play, in a save of its own, with the others' nations beside it
     if (inMsg.room.mode === "nations") {
@@ -613,10 +615,12 @@ function renderCraft() {
   const rows = [], later = [];
   TOOL_RECIPES.forEach((r, i) => {
     if (!r.item && r.tier <= (tl[r.tool] || 0)) return;
+    if (r.tool === "bow" && G.player.hasBow) return;
+    if (r.tool === "arrows" && !G.player.hasBow) return;
     if (!craftUnlocked(r)) { later.push(r); return; }
     const short = Object.entries(r.cost).filter(([k, n]) => !haveFor(k, n));
     const cost = Object.entries(r.cost).map(([k, n]) => { const lack = short.some(([x]) => x === k); return `<span class="${lack ? "cr-lack" : ""}">${n} ${k === "logs" ? (n === 1 ? "log" : "logs") + " from the stack" : ITEM[k].name.toLowerCase() + (n > 1 && k === "hide" ? "s" : "")}${lack ? ` (have ${k === "logs" ? storeN(k) : packN(k) + storeN(k)})` : ""}</span>`; }).join(", ");
-    const icon = r.tool === "axe" ? ICON.axe : r.tool === "spade" ? ICON.spade : ICON[r.tool + r.tier] || ICON.logs;
+    const icon = r.tool === "bow" ? ICON.bow : r.tool === "arrows" ? ICON.arrows : r.tool === "axe" ? ICON.axe : r.tool === "spade" ? ICON.spade : ICON[r.tool + r.tier] || ICON.logs;
     const ok = !short.length;
     rows.push([ok ? 0 : 1, r.tool, r.tier, `<div class="cr-row${ok ? "" : " cr-short"}"><img src="${icon}" alt=""><div><div class="sk-name">${r.name}</div><div class="sk-does">${r.note}</div><div class="cr-cost">${cost}</div></div>
       <button class="btn primary" data-r="${i}"${ok ? "" : " disabled"}>${ok ? "Make" : "Need more"}</button></div>`]);
@@ -638,7 +642,10 @@ $("craftBody").addEventListener("click", e => {
       if (n > fromPack) { const key = k === "ironore" ? "ore" : k; craftStores()[key] -= n - fromPack; G.town.persist(); }
     }
   }
-  if (r.item) G.body.tools[r.tool] = (G.body.tools[r.tool] || 0) + r.item; else G.body.tools[r.tool] = r.tier;
+  // (the bow and its arrows are kept as the story's bow is: on you, and in the save)
+  if (r.tool === "bow") { G.player.hasBow = true; G.player.arrows = G.player.arrows || 0; if (G.world) G.world.huntOpen = true; if (!G.mp || G.mp.ownSave) writeSave({ bow: true }); }
+  else if (r.tool === "arrows") G.player.arrows = (G.player.arrows || 0) + r.item;
+  else if (r.item) G.body.tools[r.tool] = (G.body.tools[r.tool] || 0) + r.item; else G.body.tools[r.tool] = r.tier;
   G.body.dirty = true;
   // the new one in your hands
   if (r.tool === "crossbow") G.player.showXbow(true); else if (r.tool === "bolts") {} else if (r.tool === "pick") G.player.wield("pick"); else if (r.tool === "sword") G.player.wield("sword"); else if (G.player.axe && (G.player.blade || "axe") === "axe") { G.player.giveAxe(false); G.player.giveAxe(true); }

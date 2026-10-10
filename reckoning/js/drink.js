@@ -15,6 +15,7 @@ import { POND, pondR } from "./woods.js";
 
 const WORSE = { boiled: 0, well: 1, raw: 2 };
 const near = { on: false, x: 0, z: 0, y: 0, what: "brook" };
+const hearth = { on: false, x: 0, z: 0, y: 0 };
 let world = null, drinkIt = null, wells = new Map();
 
 // a drink: how much, of what, and the chance it makes you ill
@@ -96,19 +97,28 @@ function findWater(w) {
 }
 function setup(w) {
   world = w; wells = new Map();
-  drinkIt = w.addInteract({ get x() { return near.x; }, get z() { return near.z; }, get y() { return near.y; }, reach: 3.2,
+  drinkIt = w.addInteract({ get x() { return near.x; }, get z() { return near.z; }, get y() { return near.y; }, reach: 3.2, local: true,
     can: () => near.on && !!G.body && !(G.player && G.player.horse),
     label: () => `Drink from the ${near.what} — unboiled${canteenSize(G.body) ? " (press the canteen's number to fill it)" : ""}`,
     use: () => drinkAt("raw", near.what) });
+  // at any fire: a pot of water set on to boil, and drunk when it has — slow, but it never makes you ill
+  w.addInteract({ get x() { return hearth.x; }, get z() { return hearth.z; }, get y() { return hearth.y; }, reach: 2.6, local: true, hold: 1.2,
+    can: () => hearth.on && !!G.body && (G.body.thirst ?? 1) < 0.9 && !(G.player && G.player.horse),
+    label: () => "Boil a pot of water and drink it — safe",
+    use: () => {
+      G.player.workFor && G.player.workFor("stir", 5);
+      UI.hint("You fill the pot, set it on the fire, and wait for it to come to the boil…", 4.5);
+      setTimeout(() => quench(1, "boiled", "Boiled, cooled a little, and drunk. That won't make you ill."), 5000);
+    } });
 }
 // the town's wells, each a place to drink
 function syncWells(w) {
-  const t = G.town; if (!t || t.w !== w || t.replica) return;
+  const t = G.town; if (!t || t.w !== w) return;
   const live = new Set();
   for (const b of t.S.buildings) {
     if (b.type !== "well" || !b.done || b.gone) continue;
     live.add(b);
-    if (!wells.has(b)) wells.set(b, w.addInteract({ x: b.x, z: b.z, y: w.heightAt(b.x, b.z) + 1, reach: 2.8, can: () => !!G.body,
+    if (!wells.has(b)) wells.set(b, w.addInteract({ x: b.x, z: b.z, y: w.heightAt(b.x, b.z) + 1, reach: 2.8, local: true, can: () => !!G.body,
       label: () => `Drink at the well${canteenSize(G.body) ? " (press the canteen's number to fill it)" : ""}`, use: () => drinkAt("well", "well") }));
   }
   for (const [b, it] of wells) if (!live.has(b)) { w.removeInteract(it); wells.delete(b); }
@@ -119,6 +129,7 @@ setInterval(() => {
   if (!w || !w.waterOK) { near.on = false; return; }
   if (w !== world) setup(w);
   findWater(w);
+  { const f = fireNear(w); hearth.on = !!f; if (f) { const p = f.getWorldPosition ? f.getWorldPosition(f.position.clone()) : f.position; hearth.x = p.x; hearth.z = p.z; hearth.y = p.y + 0.6; } }
   if ((wellT -= 0.1) <= 0) { wellT = 1; syncWells(w); }
 }, 100);
 void drinkIt;

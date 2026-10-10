@@ -3035,6 +3035,8 @@ export function startReplica(snap) {
   town.sitesAll();
   dayCycle(w, town, FREE_DAY);
   w.huntOpen = true; w.lightFire(true);
+  // (the beasts are the host's, shown here as their game has them; your arrows fly here, and are told to it)
+  new Hunt(w, HUNT, {});
   G.bugs.setKind("flies"); SFX.insectLoop(true);
   return { w, town };
 }
@@ -3148,6 +3150,8 @@ async function chFree(w) {
     }
     // (the Free Company on a line of its own: it is the thing that matters most, these nine days)
     const rk = town.reckNote && town.reckNote(); if (rk) txt += `\n${rk}`;
+    // (in a co-op colony: and what you, yourself, might do next)
+    if (G.mp && G.mp.nextForYou) { const you = G.mp.nextForYou(); if (you) txt += `\nYou: ${you}`; }
     UI.objective(txt);
   });
   // sending for someone: a trade chosen, a few DM for the letter and the road, a bed for them — and they come up it

@@ -73,7 +73,9 @@ export class Grass {
     const p = G.player && G.player.pos; if (!p) return;
     const snow = SNOW.value;
     // (under the snow there is none to see; and none down in the cave)
-    this.mesh.visible = snow < 0.55 && !(this.w.cave && this.w.cave.inside); this.flowers.visible = this.mesh.visible;
+    this.mesh.visible = snow < 0.55 && !(this.w.cave && this.w.cave.inside);
+    // (no wildflowers: the grass is grass)
+    this.flowers.visible = false;
     if (!this.mesh.visible) return;
     this.t += dt;
     // laid again when you've walked a few metres, and now and then anyway (a house may have gone up)

@@ -172,7 +172,7 @@ export function makePerson(o = {}) {
   const heldL = new THREE.Group(); heldL.position.y = -0.58; armL.add(heldL);
 
   const P = {
-    look: { skin, coat },
+    colors: { skin: o.skinColor ?? skin, coat: o.coat ?? coat, linen: o.linenColor ?? 0xd9d2c3 },   // (what your own hands and sleeves are, first person)
     root, body, hips, legL, legR, armL, armR, neck, head, held, heldL,
     phase: r() * TAU, walkAmt: 0, pose: "idle", poseT: 0, look: 0, sitting: 0,
     update(dt, speed = 0) {

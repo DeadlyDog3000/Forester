@@ -21,6 +21,7 @@ import { resetForMode, startReplica } from "../story.js";
 import { Remote } from "./mpgame.js";
 import { lookOpts, isF } from "./look.js";
 import { MAX_HP } from "./rules.js";
+import { BUILDINGS } from "../town.js";
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 // the settlement as a save keeps it (the game's own bookkeeping, named with a leading underscore, left out)
@@ -38,6 +39,21 @@ export class ColonyBase {
     this.players = inMsg.players || [];
   }
   friendly() { return true; }
+  // the board's second line in a co-op colony: the one thing you, yourself, would do best to do next — plainly, with the key
+  nextForYou() {
+    const b = G.body, pl = G.player, t = G.town; if (!b || !pl || !t) return "";
+    const tl = b.tools || {}, S = t.S, logs = S.store || 0, shed = S.buildings.some(x => x.type === "woodshed" && x.done);
+    if ((b.thirst ?? 1) < 0.35) return "You're thirsty — F at the brook, the pond or a well to drink; or F at the fire to boil a pot of water and drink it safe";
+    if ((b.hunger ?? 1) < 0.3) return "You're hungry — eat what you carry (press its number), or hunt in the deer ride and cook the meat at the fire (F)";
+    if (pl.carryN) return `Carry your ${pl.carryN} log${pl.carryN > 1 ? "s" : ""} to a building site, or put ${pl.carryN > 1 ? "them" : "it"} on the ${shed ? "woodshed" : "stack"} by the cabin (F)`;
+    if (!pl.hasBow) return logs >= 2 ? "Make a hunting bow: F at the chopping block by the cabin (2 logs from the stack)" : "Fell a tree (click with the axe) and stack its logs (F) — two make a hunting bow at the chopping block";
+    if ((pl.arrows || 0) < 4) return "Make arrows: F at the chopping block — a log and a stone for a dozen (stone: break a grey rock with the axe)";
+    if (!tl.canteen) return "Make a canteen at the chopping block (F) — fill it at the brook (its number), then press its number by the fire to boil it";
+    const site = S.buildings.find(x => !x.done && !x.gone && BUILDINGS[x.type] && !["path", "field", "fence", "wall"].includes(x.type));
+    if (site) return `Help raise the ${BUILDINGS[site.type].name.toLowerCase()}: fell trees, take the logs (F) and carry them to its site (F there)`;
+    if ((S.hide || 0) + (((G.pack || []).find(i => i.icon === "hide") || {}).n || 0) > 0 && S.buildings.some(x => x.type === "tannery" && x.done)) return "Tan a hide: F at the front of the tanning rack";
+    return "Hunt in the deer ride for meat and hides — hold right-click to draw the bow, let go to loose; F to dress what you bring down";
+  }
   nameOf(pid) { if (pid === this.pid) return this.me.name; const r = this.remotes.get(pid); return r ? r.name : "someone"; }
   addRemote(p) { if (p.pid === this.pid || this.remotes.has(p.pid)) return; this.remotes.set(p.pid, new Remote(this, p)); }
   listenCommon() {
@@ -155,6 +171,9 @@ export class ColonyHost extends ColonyBase {
       for (const id of gone) this.sentActors.delete(id);
       if (gone.length) this.net.send({ t: "h", m: { t: "ar", l: gone } });
       if (this.remotes.size) this.net.send({ t: "h", m: { t: "ax", l } });
+      // the beasts of the woods, which aren't people: where each is, how it goes, and whether it's down
+      const H = G.hunt;
+      if (this.remotes.size && H && H.w === G.world) this.net.send({ t: "h", m: { t: "hx", l: H.animals.map(a => [this.idOf(a), a.kind, +a.pos.x.toFixed(2), +a.pos.z.toFixed(2), +a.yaw.toFixed(2), +(a.speed || 0).toFixed(2), a.state, +(a.head ?? 1).toFixed(2), a.fawn ? 1 : 0]) } });
     }
     // what changed in the settlement, once a second: whole parts of it that differ from what was last sent
     if ((this.sdT = (this.sdT || 0) - dt) <= 0) {
@@ -180,23 +199,42 @@ export class ColonyHost extends ColonyBase {
   // facing as they face, carrying what they carry; what the game says to them is caught and sent to them
   runAs(pid, at, fn) {
     const pl = G.player, g = this.guest(pid), U = UI;
-    const was = { x: pl.pos.x, y: pl.pos.y, z: pl.pos.z, yaw: pl.yaw, pitch: pl.pitch, carryN: pl.carryN, blade: pl.blade };
-    const said = [], keep = { hint: U.hint, bark: U.bark, carry: U.carry, keys: U.keys, tell: G.tell, practise: G.practise, wear: G.wear, impact: G.impact, report: G.report };
+    const was = { x: pl.pos.x, y: pl.pos.y, z: pl.pos.z, yaw: pl.yaw, pitch: pl.pitch, carryN: pl.carryN, blade: pl.blade, working: G.working, pack: G.pack };
+    let opened = false;
+    const OPEN = ["openChest", "openCraft", "openNews", "openTrade", "openKitchen", "showGov"], keepOpen = {};
+    for (const k of OPEN) { keepOpen[k] = G[k]; if (G[k]) G[k] = () => { opened = true; }; }
+    const said = [], keep = { hint: U.hint, bark: U.bark, carry: U.carry, keys: U.keys, tell: G.tell, practise: G.practise, wear: G.wear, impact: G.impact, report: G.report, achEvent: G.achEvent, setTimeout: window.setTimeout };
     U.hint = (text) => said.push(text); U.bark = (who, text) => said.push(`${who}: ${text}`); U.carry = () => {}; U.keys = () => {};
-    G.tell = (k, where, text) => said.push(text); G.practise = () => {}; G.wear = () => {}; G.impact = () => {}; G.report = () => {};
+    G.tell = (k, where, text) => said.push(text); G.practise = () => {}; G.wear = () => {}; G.impact = () => {}; G.report = () => {}; G.achEvent = () => {};
+    // (their pack, not yours: what they carry, as they last sent it)
+    G.pack = g.pack || [];
+    // (and whatever it leaves to be done a moment later is done as them too, and told to them, not you)
+    window.setTimeout = (cb, ms, ...args) => keep.setTimeout.call(window, () => { if (G.mp === this && typeof cb === "function") this.runAs(pid, null, () => cb(...args)); }, ms);
     if (at) { pl.pos.set(at.x, at.y, at.z); pl.yaw = at.yaw; pl.pitch = at.pitch || 0; }
     pl.carryN = g.carryN; pl.blade = "axe";
-    let out; this.inRunAs = true;
+    const packWas = JSON.stringify(G.pack);
+    let out, work = null; this.inRunAs = true;
     try { out = fn(); }
     finally {
       this.inRunAs = false;
       g.carryN = pl.carryN;
+      // (the work it set them to: theirs to do, there; you carry on with yours)
+      if (G.working !== was.working && G.working && G.working.until > G.time) work = { kind: G.working.kind, secs: +(G.working.until - G.time).toFixed(2) };
+      G.working = was.working;
+      g.pack = G.pack; G.pack = was.pack;
       pl.pos.set(was.x, was.y, was.z); pl.yaw = was.yaw; pl.pitch = was.pitch; pl.carryN = was.carryN; pl.blade = was.blade;
       Object.assign(U, { hint: keep.hint, bark: keep.bark, carry: keep.carry, keys: keep.keys });
-      Object.assign(G, { tell: keep.tell, practise: keep.practise, wear: keep.wear, impact: keep.impact, report: keep.report });
+      Object.assign(G, { tell: keep.tell, practise: keep.practise, wear: keep.wear, impact: keep.impact, report: keep.report, achEvent: keep.achEvent });
+      window.setTimeout = keep.setTimeout;
+      Object.assign(G, keepOpen);
     }
     if (typeof out === "string") said.push(out);
-    this.net.send({ t: "h", to: pid, m: { t: "say", said: said.filter(Boolean).slice(0, 4), carry: g.carryN } });
+    const packNow = JSON.stringify(g.pack), m = { t: "say", said: said.filter(Boolean).slice(0, 4), carry: g.carryN };
+    if (packNow !== packWas) m.pack = JSON.parse(packNow);
+    if (work) m.work = work;
+    // (a screen it would have opened — a chest, the chopping block, a trader — is theirs to open, on their own screen)
+    if (opened) m.local = true;
+    this.net.send({ t: "h", to: pid, m });
     return out;
   }
   // a reference from the guest (a building, a person, a settlement) to the thing itself here
@@ -209,6 +247,7 @@ export class ColonyHost extends ColonyBase {
   }
   act(pid, m) {
     const town = G.town, w = G.world; if (!town) return;
+    if (Array.isArray(m.pack)) this.guest(pid).pack = m.pack;
     switch (m.a) {
       case "swing": return this.runAs(pid, m.at, () => { G.onSwing && G.onSwing(); });
       case "use": {
@@ -238,6 +277,11 @@ export class ColonyHost extends ColonyBase {
         if (!CALLS.has(m.fn) || typeof town[m.fn] !== "function") return;
         return this.runAs(pid, m.at, () => town[m.fn](...(m.args || []).map(v => this.deref(v))));
       }
+      case "hunthit": {
+        const a = G.hunt && G.hunt.animals.find(x => this.ids.get(x) === m.id);
+        if (a && a.alive) this.runAs(pid, m.at, () => a.hit(Math.min(2.6, +m.power || 1)));
+        return;
+      }
       case "set": {
         // the settlement's own settings changed from their screens (jobs, names, laws, taxes…): put into ours
         const S = town.S;
@@ -247,6 +291,8 @@ export class ColonyHost extends ColonyBase {
           if (k === "colonies" && Array.isArray(v)) { for (const nc of v) { const oc = (S.colonies || []).find(c => c.name === nc.name); if (oc) Object.assign(oc, nc); } continue; }
           S[k] = v;
         }
+        // (counts — the stores, the treasury — as what was added or taken, so two people at the stores at once both count)
+        for (const [k, v] of Object.entries(m.inc || {})) if (typeof v === "number" && isFinite(v) && (S[k] == null || typeof S[k] === "number")) S[k] = Math.max(0, (S[k] || 0) + v);
         town.persist(); town.showStore && town.showStore();
         return;
       }
@@ -319,10 +365,13 @@ export class ColonyGuest extends ColonyBase {
     if (m.t === "news") { try { UI.news(m.n); } catch (e) {} return; }
     if (m.t === "tell") { try { G.tell && G.tell(...(m.a || [])); } catch (e) {} return; }
     if (m.t === "fell") return this.treeFalls(m);
+    if (m.t === "hx") { if (G.hunt && G.hunt.w === this.w) G.hunt.puppets(m.l || []); return; }
   }
+  // your arrow in one of the host's beasts: told to their game, where it's brought down (or not)
+  huntHit(a, power) { this.send("hunthit", { id: a.netId, power: +(+power).toFixed(2) }); }
   // what you do here goes to the host's game, to be done there
   at() { const p = G.player; return { x: +p.pos.x.toFixed(2), y: +p.pos.y.toFixed(2), z: +p.pos.z.toFixed(2), yaw: +p.yaw.toFixed(3), pitch: +p.pitch.toFixed(3) }; }
-  send(a, more) { this.net.send({ t: "g", m: { t: "act", a, at: this.at(), ...more } }); }
+  send(a, more) { this.net.send({ t: "g", m: { t: "act", a, at: this.at(), pack: G.pack || [], ...more } }); }
   ref(v) {
     const S = this.town.S;
     if (v && typeof v === "object") {
@@ -337,6 +386,8 @@ export class ColonyGuest extends ColonyBase {
     G.onSwing = () => { this.send("swing"); };
     // F on anything: done there
     G.mpUse = it => {
+      if (it.local || this.doingHere) return false;          // (your own doings — a drink, say — are done here, by you)
+      this.lastUse = it;
       let label = ""; try { label = typeof it.label === "function" ? it.label() : it.label; } catch (e) {}
       this.send("use", { label, x: it.x ?? 0, z: it.z ?? 0 });
       return true;
@@ -352,14 +403,28 @@ export class ColonyGuest extends ColonyBase {
     for (const k of Object.keys(town.S)) this.hostJSON[k] = JSON.stringify(town.S[k]);
     town.persist = () => {
       const d = {};
-      for (const k of Object.keys(town.S)) { if (k[0] === "_" || k === "buildings" || k === "felled" || k === "logs") continue; const j = JSON.stringify(town.S[k]); if (j !== this.hostJSON[k]) { d[k] = JSON.parse(j); this.hostJSON[k] = j; } }
-      if (Object.keys(d).length) this.send("set", { d });
+      const inc = {};
+      for (const k of Object.keys(town.S)) {
+        if (k[0] === "_" || k === "buildings" || k === "felled" || k === "logs") continue;
+        const j = JSON.stringify(town.S[k]); if (j === this.hostJSON[k]) continue;
+        // (a count — logs on the stack, stone, coin — sent as how much it changed by, so it adds to theirs)
+        const was = this.hostJSON[k] != null ? JSON.parse(this.hostJSON[k]) : null;
+        if (typeof town.S[k] === "number" && typeof was === "number") inc[k] = town.S[k] - was; else d[k] = JSON.parse(j);
+        this.hostJSON[k] = j;
+      }
+      if (Object.keys(d).length || Object.keys(inc).length) this.send("set", { d, inc });
     };
     // furnishing the cabin is the host's to do
     town.furnish = () => UI.hint("Furnishing the cabin is for the colony's host.", 3);
   }
   // what the host's game said back
-  said(m) { for (const t of m.said || []) UI.hint(t, 4); G.player.carryN = m.carry || 0; UI.carry(G.player.carryN ? `Carrying ${G.player.carryN} log${G.player.carryN > 1 ? "s" : ""}` : null); }
+  said(m) {
+    // (a screen to open: opened here, from the same thing, by your own game)
+    if (m.local && this.lastUse) { const it = this.lastUse; this.lastUse = null; this.doingHere = true; try { it.use(); } catch (e) { console.warn("colony: couldn't open that here", e); } finally { this.doingHere = false; } }
+    for (const t of m.said || []) UI.hint(t, 4);
+    if (Array.isArray(m.pack) && G.pack) G.pack.splice(0, G.pack.length, ...m.pack);
+    if (m.work) G.working = { kind: m.work.kind, until: G.time + m.work.secs };
+    G.player.carryN = m.carry || 0; UI.carry(G.player.carryN ? `Carrying ${G.player.carryN} log${G.player.carryN > 1 ? "s" : ""}` : null); }
   // a tree coming down in the host's game: seen coming down here
   treeFalls(m) {
     const w = this.w;
@@ -444,7 +509,15 @@ export class ColonyGuest extends ColonyBase {
     for (const l of list) town.dropLogs(l.x, l.z, l.a, l.n, true);
     town.S.logs = list;
   }
-  tick(dt) { if (G.mp !== this || !this.ready) return; this.sendSelf(dt); }
+  tick(dt) {
+    if (G.mp !== this || !this.ready) return; this.sendSelf(dt);
+    // the board: the colony's season and its want, as the host sees it, and under it what you yourself might do
+    if ((this.objT = (this.objT || 0) - dt) <= 0) {
+      this.objT = 0.5;
+      const t = this.town; let adv = ""; try { adv = t.advice ? t.advice() : ""; } catch (e) {}
+      UI.objective(`${t.S.name || "The colony"} — ${t.season || ""}, day ${(t.day || 0) + 1}${adv ? ` · ${adv}` : ""}\nYou: ${this.nextForYou()}`);
+    }
+  }
   leave(quiet) {
     if (G.mp !== this) return;
     const i = G.onFrame.indexOf(this.tickFn); if (i >= 0) G.onFrame.splice(i, 1);

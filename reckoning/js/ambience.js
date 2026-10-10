@@ -68,6 +68,9 @@ const SONGS = {
 };
 // the weights of the chorus: who sings, by the time of day and the season
 function pickSong(dawn, winter, spring) {
+  // (the songbirds, sung by pure tones, sounded like a little tune over the woods and not like birds: only the crow,
+  //  whose caw is noise and not a note, is left; the first Forester's own birds still sing)
+  return "crow";
   const w = winter ? [["crow", 4], ["greattit", 2], ["blackbird", 0.5]] : [["blackbird", dawn ? 5 : 3], ["chaffinch", 4], ["greattit", 3], ["pigeon", 2.5], ["crow", 1.2], ["cuckoo", spring ? 1.4 : 0]];
   let s = w.reduce((a, b) => a + b[1], 0) * Math.random();
   for (const [k, v] of w) { s -= v; if (s <= 0) return k; }
@@ -108,7 +111,7 @@ function tick() {
   // the birds: thick at dawn, a song every few seconds by day, none at night, few in winter and the rain
   const frac = town && town.frac != null ? town.frac : 0.4, dawn = frac > 0.18 && frac < 0.32;
   if (!night && t > nextSong) {
-    const rate = (dawn ? 1.8 : 6) * (winter ? 3 : 1) * (1 + rain * 4) * (indoor ? 2.5 : 1);
+    const rate = (dawn ? 14 : 28) * (winter ? 1.4 : 1) * (1 + rain * 4) * (indoor ? 2.5 : 1);
     nextSong = t + rate * rnd(0.6, 1.4);
     const kind = pickSong(dawn, winter, spring), dist = rnd(12, 65), side = rnd(-1, 1);
     const voice = place(a, out, dist, side);
@@ -126,4 +129,34 @@ function tick() {
   }
 }
 setInterval(tick, 250);
-export const AMBIENCE = { SONGS, tick };
+// a crow somewhere off among the trees (for the story's woods, in place of the old chip-tune bird calls)
+function crowNear() {
+  const a = ac(), out = bus(); if (!a || !out || FSET().ambient === false) return;
+  const v = place(a, out, rnd(18, 60), rnd(-1, 1)); try { SONGS.crow(a, v, a.currentTime + 0.02); } catch (e) {}
+}
+// crickets on a summer night: a high, buzzing trill from the grass, pulsing in chirps, near and far
+let crick = null;
+function crickets(on) {
+  const a = ac(), out = bus(); if (FSET().ambient === false) on = false;
+  if (!a || !out) { if (!on) crick = null; return; }
+  if (on && !crick) {
+    const n = window.__foresterNoise; if (!n) return;
+    const master = a.createGain(); master.gain.value = 0; master.gain.setTargetAtTime(0.03, a.currentTime, 2); master.connect(out);
+    const voices = [[4300, -0.5, 1.7], [4700, 0.6, 2.3], [3900, 0.1, 3.1]].map(([f, pan, rate]) => {
+      const s = a.createBufferSource(); s.buffer = n; s.loop = true;
+      const bp = a.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = 18;
+      const am = a.createGain(); am.gain.value = 0;
+      const pulse = a.createOscillator(); pulse.frequency.value = 28 + Math.random() * 8; const pg = a.createGain(); pg.gain.value = 0.5; pulse.connect(pg); pg.connect(am.gain);
+      const chirp = a.createOscillator(); chirp.type = "square"; chirp.frequency.value = rate; const cg = a.createGain(); cg.gain.value = 0.5; chirp.connect(cg); cg.connect(am.gain);
+      const p = a.createStereoPanner(); p.pan.value = pan;
+      s.connect(bp); bp.connect(am); am.connect(p); p.connect(master); s.start(0, Math.random()); pulse.start(); chirp.start();
+      return [s, pulse, chirp];
+    });
+    crick = { master, stop: voices.flat() };
+  } else if (!on && crick) {
+    const c = crick; crick = null; c.master.gain.setTargetAtTime(0, a.currentTime, 0.8);
+    setTimeout(() => { for (const x of c.stop) { try { x.stop(); } catch (e) {} } try { c.master.disconnect(); } catch (e) {} }, 3000);
+  }
+}
+export const AMBIENCE = { SONGS, tick, crowNear, crickets };
+window.__ambience = AMBIENCE;

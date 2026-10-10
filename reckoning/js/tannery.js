@@ -28,10 +28,13 @@ export function makeTannery() {
     P(post(2.0), -0.72, 1.0, 0); P(post(2.0), 0.72, 1.0, 0);
     P(post(1.6, 0.045), 0, 1.78, 0, 0, 0, Math.PI / 2); P(post(1.6, 0.045), 0, 0.28, 0, 0, 0, Math.PI / 2);
     // the hide, laced to the frame: raw it's pale and pinkish, tanned it's brown (its colour set as it goes)
-    const hm = new THREE.MeshStandardMaterial({ color: 0xc89a84, roughness: 0.85, side: THREE.DoubleSide });
+    // (its flesh side faces you as you work; behind, only the frame, the props, and the dark grain of the back of it)
+    const hm = new THREE.MeshStandardMaterial({ color: 0xc89a84, roughness: 0.85, side: THREE.FrontSide });
+    const bm = new THREE.MeshStandardMaterial({ color: 0x5a4636, roughness: 1, side: THREE.BackSide });
     const shape = new THREE.Shape(); const pts = [[-0.5, -0.62], [-0.58, -0.2], [-0.52, 0.3], [-0.6, 0.62], [-0.2, 0.55], [0, 0.66], [0.2, 0.55], [0.6, 0.62], [0.52, 0.3], [0.58, -0.2], [0.5, -0.62], [0.15, -0.52], [0, -0.66], [-0.15, -0.52]];
     shape.moveTo(pts[0][0], pts[0][1]); for (const [x, y] of pts.slice(1)) shape.lineTo(x, y);
-    const hide = new THREE.Mesh(new THREE.ShapeGeometry(shape), hm); hide.position.set(0, 1.03, 0.01); hide.castShadow = true; f.add(hide);
+    const hg = new THREE.ShapeGeometry(shape), hide = new THREE.Group(); hide.position.set(0, 1.03, 0.01); f.add(hide);
+    for (const m of [hm, bm]) { const h = new THREE.Mesh(hg, m); h.castShadow = true; hide.add(h); }
     // the lacing: cords from the hide's edge out to the frame
     const lace = new THREE.Group(); f.add(lace);
     for (const [hx, hy, ex, ey] of [[-0.55, 0.4, -0.72, 0.5], [-0.56, -0.1, -0.72, -0.1], [-0.5, -0.55, -0.72, -0.6], [0.55, 0.4, 0.72, 0.5], [0.56, -0.1, 0.72, -0.1], [0.5, -0.55, 0.72, -0.6], [-0.3, 0.6, -0.3, 0.75], [0.3, 0.6, 0.3, 0.75], [-0.25, -0.58, -0.25, -0.75], [0.25, -0.58, 0.25, -0.75]]) {
@@ -40,18 +43,26 @@ export function makeTannery() {
     }
     // a prop behind, holding it up
     P(post(1.9, 0.04), 0, 0.95, -0.45, 0.45);
-    hides.push({ hide, lace, mat: hm });
+    hides.push({ hide, lace, mat: hm, back: bm });
   }
-  // the vat of bark liquor, and the scraping beam
-  const vat = add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.44, 0.62, 16, 1, true), old), 2.3, 0.31, 0.4);
+  // in front, where the work's done: the ground trodden bare and strewn with bark, the vat of liquor at one end and
+  // the scraping beam at the other, a stool between (so it's plain which side of the rack is the one to stand at)
+  const bare = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshStandardMaterial({ color: 0x5b4a36, roughness: 1 }));
+  bare.scale.set(2.5, 1.05, 1); bare.rotation.x = -Math.PI / 2; bare.position.set(0, 0.03, 1.15); bare.receiveShadow = true; g.add(bare);
+  const bark = mat(0x4a3424, { roughness: 1 });
+  for (let i = 0; i < 14; i++) add(new THREE.Mesh(new THREE.BoxGeometry(0.16 + Math.random() * 0.12, 0.025, 0.06), bark), (Math.random() - 0.5) * 3.6, 0.05, 0.6 + Math.random() * 1.2, 0, Math.random() * Math.PI, 0);
+  const vat = add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.44, 0.62, 16, 1, true), old), 1.75, 0.31, 1.35);
   vat.material = old; vat.material.side = THREE.DoubleSide;
-  for (const y of [0.12, 0.5]) add(new THREE.Mesh(new THREE.TorusGeometry(0.485, 0.018, 4, 18), mat(0x2e2a26, { metalness: 0.5 })), 2.3, y, 0.4, Math.PI / 2);
-  add(new THREE.Mesh(new THREE.CircleGeometry(0.47, 16), new THREE.MeshStandardMaterial({ color: 0x3a2412, roughness: 0.2, metalness: 0.1 })), 2.3, 0.5, 0.4, -Math.PI / 2);
-  add(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 1.7, 8), old), -2.2, 0.55, 0.5, 0, 0, 1.2);   // the beam, sloping
-  add(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.75, 6), wood), -1.55, 0.37, 0.5, 0.25);
-  add(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.75, 6), wood), -1.55, 0.37, 0.5, -0.25);
+  for (const y of [0.12, 0.5]) add(new THREE.Mesh(new THREE.TorusGeometry(0.485, 0.018, 4, 18), mat(0x2e2a26, { metalness: 0.5 })), 1.75, y, 1.35, Math.PI / 2);
+  add(new THREE.Mesh(new THREE.CircleGeometry(0.47, 16), new THREE.MeshStandardMaterial({ color: 0x3a2412, roughness: 0.2, metalness: 0.1 })), 1.75, 0.5, 1.35, -Math.PI / 2);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 1.7, 8), old), -1.75, 0.55, 1.35, 0, 0, 1.2);   // the beam, sloping
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.75, 6), wood), -1.1, 0.37, 1.35, 0.25);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.75, 6), wood), -1.1, 0.37, 1.35, -0.25);
   // the fleshing knife, left on the beam
-  add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.012, 0.05), mat(0x8a8e96, { metalness: 0.7, roughness: 0.35 })), -2.15, 0.72, 0.5, 0, 0, 1.2 - Math.PI / 2 + 0.2);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.012, 0.05), mat(0x8a8e96, { metalness: 0.7, roughness: 0.35 })), -1.7, 0.72, 1.35, 0, 0, 1.2 - Math.PI / 2 + 0.2);
+  // the stool: a round of log on three short legs
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 12), wood), 0, 0.42, 1.25);
+  for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3; add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.42, 5), wood), Math.cos(a) * 0.12, 0.2, 1.25 + Math.sin(a) * 0.12, Math.sin(a) * 0.2, 0, -Math.cos(a) * 0.2); }
   g.userData.hides = hides;
   return g;
 }
@@ -66,7 +77,9 @@ export class Tannery {
       live.add(b);
       b.frames ??= [];
       if (!this.racks.has(b)) {
-        const it = this.w.addInteract({ x: b.x, z: b.z, y: this.w.heightAt(b.x, b.z) + 1.2, reach: 3.2, hold: 2.2,
+        // (worked from the front, where the stool and the beam are)
+        const fx = b.x + Math.sin(b.ry || 0) * 0.9, fz = b.z + Math.cos(b.ry || 0) * 0.9;
+        const it = this.w.addInteract({ x: fx, z: fz, y: this.w.heightAt(fx, fz) + 1.0, reach: 2.2, hold: 2.2,
           can: () => !!this.action(b),
           label: () => { const a = this.action(b); return a ? a.label : ""; },
           use: () => { const a = this.action(b); if (a) a.go(); } });
@@ -112,7 +125,7 @@ export class Tannery {
       const f = fr[i], on = !!f || (i === 1 && tanner);
       h.hide.visible = h.lace.visible = on;
       const k = f ? Math.min(1, (this.now() - f.at) / TAN_SECS) : 0.5;
-      h.mat.color.copy(RAW).lerp(TANNED, k);
+      h.mat.color.copy(RAW).lerp(TANNED, k); h.back.color.copy(RAW).lerp(TANNED, k).multiplyScalar(0.55);
     });
   }
   update(dt) {

@@ -66,9 +66,17 @@ export function openLobby() {
 function say(text, bad = true) { const n = $("mpNote"); n.textContent = text || ""; n.classList.toggle("bad", !!bad); }
 
 // ---- the list ----
-async function refresh() {
-  say("");
-  const list = $("mpRooms"); list.innerHTML = `<div class="mp-empty">Looking for games…</div>`;
+// (while the list is up it looks again by itself every few seconds — games hosted on your network turn up, and ones
+//  that have ended go — quietly, without the list flashing or jumping under your pointer)
+let busy = false, lastSig = "";
+setInterval(() => { const l = document.getElementById("mpLobby"); if (l && !l.classList.contains("hidden") && !busy) refresh(true); }, 4000);
+async function refresh(quiet = false) {
+  if (busy) return; busy = true;
+  try { await refreshNow(quiet); } finally { busy = false; }
+}
+async function refreshNow(quiet) {
+  if (!quiet) say("");
+  const list = $("mpRooms"); if (!quiet) { list.innerHTML = `<div class="mp-empty">Looking for games…</div>`; lastSig = ""; }
   const found = [];
   const g = globalServer(), jobs = [];
   if (g) jobs.push(listRooms(addressOf(g)).then(r => {
@@ -83,7 +91,10 @@ async function refresh() {
   }).catch(() => {}));
   await Promise.all(jobs);
   // (the same game heard twice — on the network and by address — once)
-  const seen = new Set(); rows = found.filter(r => { const k = r.id; if (seen.has(k)) return false; seen.add(k); return true; });
+  const seen = new Set(); const fresh = found.filter(r => { const k = r.id; if (seen.has(k)) return false; seen.add(k); return true; });
+  const sig = JSON.stringify(fresh.map(r => [r.id, r.where, r.players, r.name]));
+  if (quiet && sig === lastSig) return;
+  lastSig = sig; rows = fresh;
   list.innerHTML = rows.length ? rows.map((r, i) => `<div class="slot mp-room">
       <div class="sl-n">${esc(r.where)} · ${MODE_LABEL[r.mode] || r.mode}${r.locked ? " · 🔒" : ""}</div>
       <div class="sl-t">${esc(r.name)}</div>

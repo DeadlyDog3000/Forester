@@ -7,6 +7,22 @@
 
 export const CHANGELOG = [
   {
+    v: "0.84.0", date: "10 October 2026", title: "Side by side",
+    items: [
+      "Co-op colonies: what your friend does is told to them, not to you. Before, a message that came a moment after their action (a hide laced, a drink, a find) turned up on the host's screen. The host's own character also stopped to do their work, and the host's pack and thirst were used for it. Now all of it is theirs: their pack, their work, their messages.",
+      "Co-op: chests, the chopping block, the kitchen, the traders and the news stand open on the screen of the person who used them. Before, they opened for the host. What you take from or put in the stores is counted as added or taken, so two people at the stores at once both count.",
+      "Co-op hunting works for everyone. Guests now see the host's deer, hares and boar moving as they do there, and the beasts hear guests walking. A guest's arrow brings the beast down in the host's game, and the guest dresses it (F) for their own meat and hide.",
+      "A hunting bow can be made at the chopping block from two logs, and arrows from a log and a stone (a dozen at a time), so you can hunt without the story's bow. The canteen is two logs now.",
+      "At any lit fire you can boil a pot of water and drink it (F when you're thirsty). It never makes you ill.",
+      "In co-op, the objective has a second line just for you: the next thing you should do, with the key to press. Drink, eat, make a bow, make arrows, make a canteen, help raise the building that's going up, tan a hide or go hunting.",
+      "The tanning rack has a front. The flesh side of the hide faces it, and the stool, the scraping beam and the vat of bark liquor stand there on trodden ground. Behind it are only the frames, the props and the dark back of the hide. You work it from the front.",
+      "No more wildflowers in the grass.",
+      "The multiplayer list finds games on your network by itself, looking again every few seconds while it's open, without flickering.",
+      "Your arms in first person are the colour of the character you built, skin, sleeves and cuffs. Before, they were always the default.",
+      "The old chiptune sounds left over from the first Forester are gone: the beeps on buttons, the chirping birds and the buzzing insect loop. In their place there are crickets at night, crows by day and owls after dark. In the game itself, the menus' sounds are a rustle, a knock or a quill, never musical notes. The lobby's music stops when you go into a game.",
+    ],
+  },
+  {
     v: "0.83.0", date: "10 October 2026", title: "Black powder",
     items: [
       "Musket and cannon smoke has been made again to behave like black powder. Each shot throws a dense white jet out of the muzzle that brakes hard within a couple of paces and rolls over into a lumpy cloud, lit on top and grey underneath. It hangs there, swelling and thinning, lifting a little and drifting off down the wind until it's a haze you can see through, and then gone.",

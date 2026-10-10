@@ -275,6 +275,17 @@ export const FOLEY = {
     S.hammer = () => play("hammer", { vol: 0.55, rate: [0.92, 1.08] });
     S.coin = () => play("coin", { vol: 0.38 });
     S.dig = () => play("dig", { vol: 0.62 });
+    // (the rest of the first Forester's chip-tune sounds: not in this game — a beep on every button, square-wave birds,
+    //  a buzzing insect loop. Each is something real here, or nothing)
+    S.click = () => {};                      // (the screens' own sounds are uisfx.js)
+    for (const k of ["hover", "open", "close", "deny", "craft"]) S[k] = () => {};
+    S.swingFist = () => window.__audio && window.__audio.whoosh && window.__audio.whoosh(0.22, false);
+    S.swing = () => window.__audio && window.__audio.whoosh && window.__audio.whoosh(0.35, true);
+    S.bird = () => {};                       // (the woods' own birds are the ambience's)
+    S.crow = () => window.__ambience && window.__ambience.crowNear();
+    S.owl = () => { const A = window.__audio, G = window.__G; if (A && A.owl && G && G.player) { const a = Math.random() * 6.28, d = 25 + Math.random() * 30; A.owl({ x: G.player.pos.x + Math.cos(a) * d, z: G.player.pos.z + Math.sin(a) * d }); } };
+    const insOld = S.insectLoop; S.insectLoop = on => { window.__ambience && window.__ambience.crickets(on); if (insOld && !on) try { insOld(false); } catch (e) {} };
+    S.timberCrack = () => {}; S.bell = S.bell || (() => {});
     const fireOld = S.fireLoop;
     S.fireLoop = on => { if ((window.FSET || {}).ambient === false) on = false; FOLEY.fire(on); if (fireOld && !on) try { fireOld(false); } catch (e) {} };
   },
