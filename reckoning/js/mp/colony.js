@@ -22,6 +22,7 @@ import { Remote } from "./mpgame.js";
 import { lookOpts, isF } from "./look.js";
 import { MAX_HP } from "./rules.js";
 import { BUILDINGS } from "../town.js";
+import { strikeYou, glint } from "../fight.js";
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 // the settlement as a save keeps it (the game's own bookkeeping, named with a leading underscore, left out)
@@ -196,6 +197,18 @@ export class ColonyHost extends ColonyBase {
     const pl = G.player;
     this.net.send({ t: "h", to, m: { t: "snap", S: plain(t.S), clock: t.t, actors: this.actorDefs(true), at: { x: pl.pos.x + 1.5, z: pl.pos.z + 1.5 } } });
   }
+  // the others, as the raiders see them: someone to square up to, to wind up at, and to strike — the blow itself is taken
+  // in their own game, where their guard is
+  foeFor(pid) {
+    if (!pid || !this.remotes.has(pid)) return null;
+    const F = this.foes ??= new Map();
+    let f = F.get(pid);
+    if (!f) { f = { guest: pid, fighting: true, duel: null, down: false, get pos() { const r = this.host.remotes.get(pid); return r ? r.actor.pos : { x: 1e6, y: 0, z: 1e6 }; }, live: () => this.remotes.has(pid) && !f.down }; f.host = this; F.set(pid, f); }
+    return f;
+  }
+  raidFoes() { return [...this.remotes.keys()].map(pid => this.foeFor(pid)).filter(Boolean); }
+  raidWind(f, r) { this.net.send({ t: "h", to: f.guest, m: { t: "rwind", id: this.idOf(r.a) } }); }
+  raidStrike(f, r, W, d) { this.net.send({ t: "h", to: f.guest, m: { t: "rstrike", id: this.idOf(r.a), dir: r.dir, dmg: W.dmg, d: +d.toFixed(2) } }); }
   // who is in bed, said to everyone; and if that's all of them, morning
   bedChanged(down, pid) {
     const who = pid ? this.nameOf(pid) : this.me.name, n = this.sleepers().length, all = this.remotes.size + 1;
@@ -285,10 +298,10 @@ export class ColonyHost extends ColonyBase {
     if (at) { pl.pos.set(at.x, at.y, at.z); pl.yaw = at.yaw; pl.pitch = at.pitch || 0; }
     pl.carryN = g.carryN; pl.blade = "axe";
     const packWas = JSON.stringify(G.pack);
-    let out, work = null; this.inRunAs = true;
+    let out, work = null; this.inRunAs = true; const runWas = this.runPid; this.runPid = pid;
     try { out = fn(); }
     finally {
-      this.inRunAs = false;
+      this.inRunAs = false; this.runPid = runWas;
       g.carryN = pl.carryN;
       // (the work it set them to: theirs to do, there; you carry on with yours)
       if (G.working !== was.working && G.working && G.working.until > G.time) work = { kind: G.working.kind, secs: +(G.working.until - G.time).toFixed(2) };
@@ -349,6 +362,12 @@ export class ColonyHost extends ColonyBase {
         if (!CALLS.has(m.fn) || typeof town[m.fn] !== "function") return;
         return this.runAs(pid, m.at, () => town[m.fn](...(m.args || []).map(v => this.deref(v))));
       }
+      case "rparry": {
+        const r = G.town && G.town.raids && G.town.raids.band.find(x => this.ids.get(x.a) === m.id);
+        if (r && r.alive) { r.stun = 1.1; r.cool = Math.max(r.cool, 1.4); r.a.path = []; r.a.person.flinch && r.a.person.flinch(); }
+        return;
+      }
+      case "downed": { const f = this.foeFor(pid); if (f) { f.down = !!m.on; if (f.down) for (const r of (G.town.raids && G.town.raids.band) || []) if (r.duel === f) r.duel = null; } return; }
       case "bed": { if (!this.night()) return; this.guest(pid).inBed = true; this.bedChanged(true, pid); return; }
       case "unbed": { if (!this.guest(pid).inBed) return; this.guest(pid).inBed = false; this.bedChanged(false, pid); return; }
       case "hunthit": {
@@ -440,6 +459,12 @@ export class ColonyGuest extends ColonyBase {
     if (m.t === "news") { try { UI.news(m.n); } catch (e) {} return; }
     if (m.t === "tell") { try { G.tell && G.tell(...(m.a || [])); } catch (e) {} return; }
     if (m.t === "fell") return this.treeFalls(m);
+    if (m.t === "rwind") { const x = this.mirrors.get(m.id); if (x) glint(x.actor); return; }
+    if (m.t === "rstrike") {
+      const x = this.mirrors.get(m.id); if (!x || G.downed) return;
+      if (strikeYou(x.actor, m.dir, m.dmg, m.d, this.tips ??= {}) === "parry") this.send("rparry", { id: m.id });
+      return;
+    }
     if (m.t === "bednote") return this.chatLine({ name: "", text: m.text });
     if (m.t === "morning") { if (this.inBed) { if (m.natural) this.outOfBed(true); else this.wake(); } return; }
     if (m.t === "hx") { if (G.hunt && G.hunt.w === this.w) G.hunt.puppets(m.l || []); return; }
@@ -593,6 +618,8 @@ export class ColonyGuest extends ColonyBase {
   }
   tick(dt) {
     if (G.mp !== this || !this.ready) return; this.sendSelf(dt);
+    // (down, or up again: the raiders leave you be while you're down)
+    if (!!G.downed !== !!this.wasDown) { this.wasDown = !!G.downed; this.send("downed", { on: this.wasDown }); }
     // the board: the colony's season and its want, as the host sees it, and under it what you yourself might do
     if ((this.objT = (this.objT || 0) - dt) <= 0) {
       this.objT = 0.5;

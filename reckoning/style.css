@@ -888,10 +888,10 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 
 /* ---- multiplayer: in the game ---- */
 #mpHud { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
-#mpTop { position: absolute; left: 28px; top: 22px; padding: 9px 18px 10px; background: linear-gradient(90deg, var(--panel), rgba(9, 24, 16, 0)); border-left: 4px solid var(--gold); }
+#mpTop { position: absolute; left: 28px; bottom: 62px; padding: 7px 16px 8px; background: linear-gradient(90deg, var(--panel), rgba(9, 24, 16, 0)); border-left: 4px solid var(--gold); }
 #mpRoom { font: italic 19px var(--serif); color: var(--gold); }
 #mpMode, #mpCount { font: 600 12px var(--sans); letter-spacing: 0.08em; color: var(--ink-dim); margin-top: 2px; }
-#mpStock { position: absolute; left: 28px; top: 104px; padding: 6px 14px; background: linear-gradient(90deg, var(--panel), rgba(9, 24, 16, 0)); font: 13px var(--sans); color: var(--ink); }
+#mpStock { position: absolute; left: 28px; bottom: 24px; padding: 6px 14px; background: linear-gradient(90deg, var(--panel), rgba(9, 24, 16, 0)); font: 13px var(--sans); color: var(--ink); }
 #mpStock b { font-size: 16px; margin: 0 3px; }
 #mpStock .ic { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-left: 8px; }
 #mpStock .ic.log { background: #8a6a45; margin-left: 0; }

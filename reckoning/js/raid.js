@@ -251,6 +251,7 @@ export class Raids {
   // ---- the duel: a raider fights one at a time, whoever he has squared up to, until one of them is down ----
   // (you, or one settler; a settler with no raider left to pair with waits their turn rather than piling on)
   lock(r, foe) {
+    if (foe === G.player && G.mp && G.mp.inRunAs && G.mp.foeFor) foe = G.mp.foeFor(G.mp.runPid) || foe;
     const old = r.duel;
     if (old === foe) return;
     if (old && old !== G.player && old.duel === r) old.duel = null;
@@ -280,7 +281,7 @@ export class Raids {
     const pl = G.player, a = r.a, D = f => Math.hypot(f.pos.x - a.pos.x, f.pos.z - a.pos.z);
     // (not you through the cabin wall: indoors, you are out of his reach, and he goes back to the stores)
     const inside = this.w.insideCabin && this.w.insideCabin(pl.pos.x, pl.pos.z) && !this.w.insideCabin(a.pos.x, a.pos.z);
-    const ok = f => f === pl ? !G.downed && G.mode === "play" && D(pl) < 22 && !inside : f && !f.knocked && !f.gone && !f.dead && f.fighting && f.duel === r && D(f) < 22;
+    const ok = f => f === pl ? !G.downed && G.mode === "play" && D(pl) < 22 && !inside : f && f.guest ? f.live() && D(f) < 22 : f && !f.knocked && !f.gone && !f.dead && f.fighting && f.duel === r && D(f) < 22;
     if (r.duel && !ok(r.duel)) this.lock(r, null);
     // (the captain wants you, and the others give way to him)
     if (r.boss && !r.duel && !G.downed && G.mode === "play" && r.state !== "flee" && Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 40) for (const o of this.band) if (o !== r && o.duel === pl) this.lock(o, null);
@@ -289,6 +290,11 @@ export class Raids {
       // (running off with his arms full, he only turns on you if you catch him)
       // (once they've given it up, a man making off doesn't turn on you for being near — only if you hit him)
       if (d < (r.state === "flee" ? (this.brokeOff ? 0 : 2.4) : r.boss ? 40 : 9)) this.lock(r, pl);
+    }
+    // (in a co-op colony, the others playing are in his way as much as you are: one raider to each of them)
+    if (!r.duel && r.state !== "flee" && G.mp && G.mp.raidFoes) for (const f of G.mp.raidFoes()) {
+      if (!f.live() || this.band.some(o => o !== r && o.alive && o.duel === f)) continue;
+      if (D(f) < (r.boss ? 40 : 9)) { this.lock(r, f); break; }
     }
     return r.duel;
   }
@@ -399,12 +405,12 @@ export class Raids {
           // the wind-up: the arm going back — the moment to raise a guard
           a.path = [];
           const was = r.wind; r.wind -= dt;
-          if (was > 0.45 && r.wind <= 0.45 && foe === pl) glint(a);
+          if (was > 0.45 && r.wind <= 0.45) { if (foe === pl) glint(a); else if (foe.guest) G.mp.raidWind(foe, r); }
           if (was > 0.62 && r.wind <= 0.62) a.person.setPose(r.dir === "up" ? "overhead" : "chop");
           if (r.wind <= 0) {
             setTimeout(() => { if (r.alive) a.person.setPose("idle"); }, 550);
             AUDIO.whoosh && AUDIO.whoosh(0.4, r.arm !== "knife");
-            if (d < 1.9) foe === pl ? this.strikePlayer(r, W, d) : this.strikeSettler(foe, W.dmg, r);
+            if (d < 1.9) foe === pl ? this.strikePlayer(r, W, d) : foe.guest ? G.mp.raidStrike(foe, r, W, d) : this.strikeSettler(foe, W.dmg, r);
           }
         } else if (d > 2.3) {
           // closing in on them, and keeping after them

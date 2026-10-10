@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.84.4", date: "10 October 2026", title: "In harm's way",
+    items: [
+      "In a co-op colony the raiders fight the guests too. One squares up to a guest who comes near, just as one does to the host, with the red mark as he winds up. The blow is taken in the guest's own game, so a guest's guard blocks and parries it. A parry throws him off his stroke in the host's game. A guest who is down is left alone till they're up.",
+      "A blow struck by a guest turns that raider on the guest, not on the host across the clearing.",
+      "The box with the game's name (and in Frontier, your logs, stone and food) has moved down to the bottom-left corner. It no longer covers the objective.",
+    ],
+  },
+  {
     v: "0.84.3", date: "10 October 2026", title: "A place by the fire",
     items: [
       "In a co-op colony, anyone can bed down for the night by a lit fire or in any cabin the colony has built (F there, at night). The cabin's one bed is no longer the only place to sleep, so a guest always has somewhere, and the night passes once everyone's lying down.",
