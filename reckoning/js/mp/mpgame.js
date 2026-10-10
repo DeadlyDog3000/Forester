@@ -410,6 +410,16 @@ export class MPGame {
       this.net.send({ t: "hits", id: sv.id }); G.impact && G.impact();
       return;
     }
+    // a site laid out: taken down by whoever laid it out (or the host) — two blows, so it isn't done by mistake; its logs are
+    // left on the ground
+    let sq = null; bd = Infinity;
+    for (const e of this.sites.values()) { const d = BUILD[e.q.type], dist = ahead(e.q.x, e.q.z, (d.wall ? d.len / 2 : d.r) + 2.2) - (d.wall ? 0 : d.r); if (dist < bd) { bd = dist; sq = e; } }
+    if (sq && (sq.q.owner === this.pid || (this.mode === "coop" && this.room.hostPid === this.pid))) {
+      if (this.unsiteAsk && this.unsiteAsk.id === sq.q.id && performance.now() - this.unsiteAsk.at < 3000) { this.unsiteAsk = null; this.net.send({ t: "unsite", id: sq.q.id }); G.impact && G.impact(); return; }
+      this.unsiteAsk = { id: sq.q.id, at: performance.now() };
+      UI.hint(`Swing again to take down the ${BUILD[sq.q.type].name.toLowerCase()}'s site — its logs are left on the ground.`, 3);
+      return;
+    }
     // something built
     let bb = null; bd = Infinity;
     for (const e of this.w.blds.values()) {
@@ -767,7 +777,8 @@ export class MPGame {
       e = { q, g, heap, n: -1 };
       e.it = this.w.addInteract({ x: q.x, y: y + 0.9, z: q.z, reach: (d.wall ? d.len / 2 : Math.max(fw, fd) / 2) + 1.6,
         hold: () => e.q.logs >= d.wood ? 3 : 0,
-        can: () => !this.dead,
+        // (only when there's something to do here: logs to add, or it's ready to raise — the heap shows how far it's come)
+        can: () => !this.dead && (this.carry > 0 || e.q.logs >= d.wood),
         label: () => {
           const Q = e.q, need = d.wood;
           if (Q.logs < need) return this.carry > 0 ? `Add ${Math.min(this.carry, need - Q.logs)} logs (${Q.logs} of ${need})` : `Bring logs — ${Q.logs} of ${need} (take them from a felled tree, or from the store at the hearth)`;

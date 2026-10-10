@@ -470,6 +470,14 @@ class BattleHost {
       return;
     }
     if (m.t === "act" && m.a === "withdraw") return this.drop(from, "withdraw");
+    // an arrow, a bolt or a ball of theirs, struck home in their game: what it struck, here
+    if (m.t === "act" && m.a === "hunthit") {
+      const power = Math.min(2.6, +m.power || 1), head = !!m.head;
+      if (g.role === "aid") { const r = this.R.band.find(x => this.ids.get(x) === m.id); if (r && r.alive) r.hit(power, head); return; }
+      if (m.id === "host") { if (!G.downed && G.hurt) G.hurt(Math.round((8 + power * 8) * (head ? 2 : 1)), "arrow"); return; }
+      const a = (G.town.actors || []).find(x => this.ids.get(x) === m.id);
+      if (a && !a.knocked) this.R.strikeSettler(a, Math.round((8 + power * 8) * (head ? 2 : 1)), g.r || null);
+    }
   }
   tick(dt) {
     const t = G.town; if (!t) return;
@@ -487,6 +495,18 @@ class BattleHost {
       for (const id of gone) this.sent.delete(id);
       if (gone.length) this.send({ t: "ar", l: gone });
       this.send({ t: "ax", l });
+      // what each of them can shoot at, as this game has it: for one come to help, the raiders; for the one leading the
+      // attack, the defenders — the settlers standing to it, and you
+      const H = G.hunt, man = (id, x, z, yaw) => [id, "man", +x.toFixed(2), +z.toFixed(2), +yaw.toFixed(2), 0, "come", 1, 0];
+      for (const [pid, g] of this.guests) {
+        const hx = [];
+        if (g.role === "aid") { if (H) for (const r of this.R.band) if (r.alive) hx.push(man(this.idOf(r), r.pos.x, r.pos.z, r.yaw)); }
+        else {
+          if (!G.downed) hx.push(man("host", pl.pos.x, pl.pos.z, pl.yaw));
+          for (const a of t.actors || []) if (a.settler && !a.knocked && !a.gone && !a.dead && !a.inside && a.root.visible) hx.push(man(this.idOf(a), a.pos.x, a.pos.z, a.yaw));
+        }
+        this.send({ t: "hx", l: hx }, pid);
+      }
       // how each of them stands: their wounds, as this game has them
       for (const [pid, g] of this.guests) {
         const hp = Math.max(0, Math.round(g.r ? g.r.hp : g.ally.hp)), max = g.r ? g.r.maxHp : 160;

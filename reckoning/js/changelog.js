@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.89.0", date: "10 October 2026", title: "Shot across the field",
+    items: [
+      "Bows, crossbows and muskets count in Classic battles. Leading the attack on someone's settlement, your arrows, bolts and balls strike its defenders: the settlers standing to it, and its ruler. Come to an ally's aid, they strike the raiders. A shot to the head counts double, as always.",
+      "Frontier: a building site offers something only when there's something to do: add the logs you carry, or, when it has all its logs, hold F to raise it. The heap of logs beside it shows how far along it is.",
+      "Frontier: a site can be taken down by whoever laid it out (or the host, in co-op). Swing at it twice, and the logs already brought are left on the ground.",
+    ],
+  },
+  {
     v: "0.88.0", date: "10 October 2026", title: "The host's word",
     items: [
       "Everyone in a co-op game can lay out buildings again (B), in a colony and in Frontier. The running of the settlement stays the host's: the government, research, sending for people, jobs and laws, and who works which field. In Frontier, whoever put a building up, or the host, can take it down.",
