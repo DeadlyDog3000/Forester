@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.84.1", date: "10 October 2026", title: "Heard across the room",
+    items: [
+      "The multiplayer list now really finds games hosted on other computers on your network. Its listening was cut off the instant it began, so only your own games, and ones you'd typed an address for, ever showed up. Now it listens for a couple of seconds each time it looks, every few seconds while the list is open.",
+    ],
+  },
+  {
     v: "0.84.0", date: "10 October 2026", title: "Side by side",
     items: [
       "Co-op colonies: what your friend does is told to them, not to you. Before, a message that came a moment after their action (a hide laced, a drink, a find) turned up on the host's screen. The host's own character also stopped to do their work, and the host's pack and thirst were used for it. Now all of it is theirs: their pack, their work, their messages.",
