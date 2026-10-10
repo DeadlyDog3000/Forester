@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.76.0", date: "10 October 2026", title: "Hearth and daylight",
+    items: [
+      "A real fireplace in your cabin. The fire used to burn loose on the floor. Now it sits in a proper firebox: a raised hearthstone with its kerb, jambs laid in courses, an oak mantel beam and a breast running up into the chimney. Inside are iron firedogs with the logs across them, a floor of ash, and a crane with the kettle swung over the flames.",
+      "It's rough stone in the log cabin, and brick against the chimney stack once you've remodelled it into a house.",
+      "Real cave exits. You don't press a key at a patch of light any more. At the end of the first hall there's a ragged arch of rock with daylight pouring through it and a pool of light on the floor. Walk up into it and you're out.",
+      "Going in works the same way: walk into the black of the cave mouth and you're in. F still works at both.",
+    ],
+  },
+  {
     v: "0.75.1", date: "10 October 2026", title: "Plainer trades",
     items: [
       "Settlers' companies are less gaudy. Their awnings, banners and sign boards now use the dyes a country trade of 1683 could actually get: madder red, woad blue, weld yellow, walnut black, lichen purple, rust, and cloth left undyed. All of them are faded by the weather.",

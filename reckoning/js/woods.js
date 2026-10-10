@@ -1527,16 +1527,64 @@ export class Woods extends WorldBase {
     if (!silent) AUDIO.door(open);
     if (silent) this.doorA = open ? 1 : 0;
   }
+  // the fireplace in the cabin's back wall: a stone hearth, jambs and an oak mantel round a sooty firebox, its breast
+  // going up into the chimney; iron dogs with the logs across them, and a crane with the kettle swung over the fire
+  // (in the log cabin it stands against the back wall, under the stone chimney outside; in the house, against the
+  //  front of the brick stack that comes up through the floor, between the kitchen range and the door)
+  fireSpot() { return (this.homeTier || 1) >= 2 && this.cabinUp ? { CX: -1.0, ZB: -2.06, W: 0.7 } : { CX: -1.2, ZB: -2.78, W: 0.95 }; }
+  buildFireplace(again = false) {
+    if (!this.cabinFrame) return;
+    const spot = this.fireSpot(), key = JSON.stringify(spot);
+    if (this.fireplace && !again && this.fireKey === key) return;
+    if (this.fireplace) { this.root.remove(this.fireplace); this.fireplace = null; }
+    this.fireKey = key;
+    const b = new Builder(), Y = this.cabinY, ry = CABIN.ry;
+    const box = (w, h, d, lx, y, lz, col) => { const [x, z] = this.cabinToWorld(lx, lz); b.box(w, h, d, x, Y + y, z, col, ry); };
+    const { CX, ZB, W } = spot;                        // (the fire's middle, the wall behind it, and half its width)
+    const stone = [0x8a8478, 0x7a7468, 0x948e82, 0x6e695e];
+    // the hearthstone, proud of the floor, and its kerb
+    const OW = W * 2, IW = OW - 0.5 * 2 * (W / 0.95) * 0.75;      // (outside width; the firebox's opening)
+    const house = (this.homeTier || 1) >= 2, stone2 = house ? [0x8a4a3a, 0x7e4434, 0x94523e, 0x74402f] : stone;
+    box(OW, 0.08, 1.15, CX, 0.04, ZB + 0.62, 0x6e695e);
+    box(OW, 0.06, 0.12, CX, 0.09, ZB + 1.18, 0x5e594f);
+    // the jambs, laid in courses of rough stone (of brick, in the house)
+    const JW = (OW - IW) / 2;
+    for (const sd of [-1, 1]) for (let k = 0; k < 6; k++) box(JW, 0.17, 0.66, CX + sd * (IW / 2 + JW / 2) + (k % 2 ? 0.015 : -0.015) * sd, 0.1 + k * 0.17, ZB + 0.33, stone2[(k + (sd > 0 ? 1 : 0)) % 4]);
+    // the firebox: its back and sides black with soot, and the floor of ash
+    box(IW, 1.0, 0.08, CX, 0.55, ZB + 0.04, 0x1a1512);
+    for (const sd of [-1, 1]) box(0.06, 1.0, 0.6, CX + sd * (IW / 2 - 0.03), 0.55, ZB + 0.33, 0x221c17);
+    box(IW - 0.04, 0.03, 0.6, CX, 0.1, ZB + 0.33, 0x3a3631);
+    // the mantel beam across, oak, and the breast above it running up to the ceiling
+    box(OW + 0.05, 0.2, 0.3, CX, 1.15, ZB + 0.6, 0x4e3420);
+    box(OW - 0.1, 0.05, 0.36, CX, 1.28, ZB + 0.6, 0x5a3e26);
+    box(OW - 0.3, 1.1, 0.62, CX, 1.85, ZB + 0.31, house ? 0x844634 : 0x7e786c);
+    for (let k = 0; k < 4; k++) box(OW - 0.28, 0.025, 0.64, CX, 1.42 + k * 0.27, ZB + 0.31, house ? 0x6a3a2c : 0x6a655a);
+    // the andirons: two iron dogs, and the logs laid across them
+    for (const sd of [-1, 1]) { box(0.05, 0.05, 0.42, CX + sd * IW * 0.24, 0.15, ZB + 0.38, 0x2a2826); box(0.05, 0.26, 0.05, CX + sd * IW * 0.24, 0.24, ZB + 0.6, 0x2a2826); }
+    // the crane: an iron arm on its post, swung over the fire, the kettle hanging off it
+    box(0.04, 0.9, 0.04, CX - IW * 0.4, 0.6, ZB + 0.14, 0x2a2826);
+    box(IW * 0.45, 0.035, 0.035, CX - IW * 0.18, 0.98, ZB + 0.28, 0x2a2826);
+    box(0.015, 0.22, 0.015, CX + 0.02, 0.86, ZB + 0.3, 0x2a2826);
+    const g = b.build(MAT.rough); g.castShadow = true; g.receiveShadow = true;
+    // the kettle: black iron, round-bellied
+    const [kx, kz] = this.cabinToWorld(CX + 0.02, ZB + 0.3);
+    const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), mat(0x1e1d1c, { metalness: 0.5, roughness: 0.6 })); kettle.scale.set(1, 0.85, 1); kettle.position.set(kx, Y + 0.66, kz); g.add(kettle);
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.03, 10), mat(0x1e1d1c, { metalness: 0.5, roughness: 0.6 })); lid.position.set(kx, Y + 0.76, kz); g.add(lid);
+    this.fireplace = g; this.root.add(g);
+  }
   lightHearth(on = true) {
+    this.buildFireplace();
     if (!on && this.hearth) { this.root.remove(this.hearth, this.hearthLogs); this.flames.splice(this.flames.indexOf(this.hearth), 1); this.hearth = null; return; }
     if (on && !this.hearth) {
       const L = new THREE.PointLight(0xff8a3a, 5, 9, 1.6);
       this.hearth = makeFlame(2.6, L);
       const [x, z] = this.cabinToWorld(-1.2, -2.2);                 // in the mouth of the firebox
-      this.hearth.position.set(x, this.cabinY + 0.14, z);
-      // two split logs under it, crossed
+      const sp = this.fireSpot(), [fx, fz] = this.cabinToWorld(sp.CX, sp.ZB + 0.36);
+      this.hearth.position.set(fx, this.cabinY + 0.2, fz);
+      // three split logs laid across the dogs, and one fallen in front
       const b = new Builder();
-      for (const a of [0.5, -0.5]) b.add(new THREE.CylinderGeometry(0.06, 0.07, 0.55, 6), 0x3a2618, x, this.cabinY + 0.13, z, Math.PI / 2, CABIN.ry + Math.PI / 2 + a, 0);
+      for (const [ox, oy, a] of [[0, 0.2, 0], [0, 0.29, 0.08], [0, 0.2, -0.1]]) b.add(new THREE.CylinderGeometry(0.06, 0.07, 0.62, 6), 0x3a2618, fx, this.cabinY + oy, fz + ox, 0, CABIN.ry + Math.PI / 2 + a, Math.PI / 2);
+      void x; void z;
       this.hearthLogs = b.build(MAT.rough); this.root.add(this.hearthLogs);
       this.hearth.userData.flame.base = 5;
       this.root.add(this.hearth); this.flames.push(this.hearth);
@@ -1551,6 +1599,8 @@ export class Woods extends WorldBase {
   // the cabin rebuilt as a house, inside: whitewashed plaster between dark timbers, a boarded floor, a beam overhead
   setHomeTier(tier) {
     if (this.homeRemodel) { this.root.remove(this.homeRemodel); this.homeRemodel = null; }
+    this.homeTier = tier || 1;
+    if (this.fireplace) { this.buildFireplace(true); if (this.hearth) { const k = this.hearth.userData.flame.base / 5; this.lightHearth(false); this.lightHearth(true); this.setHearth(k || 1); } }
     if (!this.cabinUp || (tier || 1) < 2) return;
     this.homeTier = tier;
     // (no snow anywhere under the roof: the loft as well as the room below)

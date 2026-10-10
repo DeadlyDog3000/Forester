@@ -126,8 +126,24 @@ export class Caves {
     const h0 = this.halls[0];
     this.start = { x: h0.x, z: h0.z + 4 };
     const exit = { x: h0.x, z: h0.z - h0.r + 2.5 };
-    const shaft = new THREE.PointLight(0xdfe8ff, 16, 16, 1.3); shaft.position.set(exit.x, this.floorAt(exit.x, exit.z) + 5, exit.z); root.add(shaft);
-    this.outIt = w.addInteract({ x: exit.x, y: this.floorAt(exit.x, exit.z) + 1.2, z: exit.z, reach: 2.8, label: "Climb out, into the daylight", use: () => this.leave() });
+    // the way out: a ragged arch of rock in the hall's far wall, and daylight in it — you walk up into it, and you're out
+    {
+      const fy = this.floorAt(exit.x, exit.z), ex = exit.x, ez = exit.z - 1.6, rockM = new THREE.MeshStandardMaterial({ color: 0x5e5a52, roughness: 1, flatShading: true });
+      for (const [px, py, pz, s] of [[-1.7, 0.9, 0, 1.0], [1.7, 0.9, 0, 1.0], [-1.9, 2.1, -0.2, 0.9], [1.9, 2.1, -0.2, 0.9], [0, 3.1, -0.1, 1.2], [-1.0, 2.9, 0.2, 0.8], [1.0, 2.9, 0.2, 0.8], [-2.6, 0.3, 0.6, 0.8], [2.5, 0.35, 0.5, 0.8], [0.6, 0.15, 1.2, 0.4], [-0.8, 0.12, 1.5, 0.35]]) {
+        const m = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), rockM); m.position.set(ex + px, fy + py, ez + pz); m.rotation.set(px * 1.7, pz + 0.3, py); root.add(m);
+      }
+      // the light itself: a pale glow filling the opening, brighter at its heart, and a fall of it on the floor
+      const c = document.createElement("canvas"); c.width = 64; c.height = 96; const x = c.getContext("2d");
+      const g = x.createRadialGradient(32, 56, 4, 32, 56, 52); g.addColorStop(0, "rgba(255,252,240,1)"); g.addColorStop(0.45, "rgba(214,228,240,0.95)"); g.addColorStop(1, "rgba(150,170,190,0)");
+      x.fillStyle = g; x.fillRect(0, 0, 64, 96);
+      const day = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.4), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, fog: false }));
+      day.position.set(ex, fy + 1.6, ez - 0.6); root.add(day);
+      const pool = new THREE.Mesh(new THREE.CircleGeometry(2.2, 20), new THREE.MeshBasicMaterial({ color: 0xc8d4e0, transparent: true, opacity: 0.18, depthWrite: false }));
+      pool.rotation.x = -Math.PI / 2; pool.position.set(ex, fy + 0.03, ez + 1.4); root.add(pool);
+      const shaft = new THREE.PointLight(0xdfe8ff, 22, 18, 1.3); shaft.position.set(ex, fy + 2.2, ez + 0.4); root.add(shaft);
+      this.outAt = { x: ex, z: ez + 0.4 };
+    }
+    this.outIt = w.addInteract({ x: exit.x, y: this.floorAt(exit.x, exit.z) + 1.2, z: exit.z - 1.2, reach: 2.8, label: "Walk out, into the daylight", use: () => this.leave() });
     root.visible = false;
   }
   // ---- the mouth, out in the forest: a heap of rock round a black opening ----
@@ -196,8 +212,10 @@ export class Caves {
     AUDIO.step && AUDIO.step("stone", 0.8);
   }
   leave() {
-    const pl = G.player; if (!this.inside) return;
+    const pl = G.player; if (!this.inside || this._leaving) return;
+    this._leaving = true;
     UI.fade(1, 0.5).then(() => {
+      this._leaving = false;
       this.inside = false; this.root.visible = false;
       if (this.lantern && this.lantern.parent) this.lantern.parent.remove(this.lantern);
       for (const b of this.band || []) b.remove(); this.band = [];
@@ -215,6 +233,13 @@ export class Caves {
     // found: once you've come near the mouth (or been in), it's on the map, and so is every hall you've stood in
     const pl = G.player, S = G.town && G.town.S;
     if (!this.inside && !this.found && this.mouthAt && pl && Math.hypot(pl.pos.x - this.mouthAt.x, pl.pos.z - this.mouthAt.z) < 14) this.markFound();
+    // walked into: the mouth's dark, going in; the daylight at the end of the first hall, going out
+    if (pl && !this._entering && !this._leaving && G.mode === "play" && !G.cine) {
+      if (!this.inside && this.mouthAt && !pl.horse) {
+        const m = this.mouthAt, dx = pl.pos.x - m.x, dz = pl.pos.z - m.z, lx = dx * Math.cos(m.ry) - dz * Math.sin(m.ry), lz = dx * Math.sin(m.ry) + dz * Math.cos(m.ry);
+        if (lz < -2.1 && Math.abs(lx) < 1.1) this.enter();
+      } else if (this.inside && this.outAt && Math.hypot(pl.pos.x - this.outAt.x, pl.pos.z - this.outAt.z) < 1.4) this.leave();
+    }
     if (this.inside && S && pl) {
       S.caveSeen ??= [];
       this.halls.forEach((h, i) => { if (!S.caveSeen.includes(i) && Math.hypot(pl.pos.x - h.x, pl.pos.z - h.z) < h.r + 3) { S.caveSeen.push(i); G.town.persist(); } });
