@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.79.0", date: "10 October 2026", title: "Colours",
+    items: [
+      "Custom flags for nations in Classic. Open the nations screen (N) and press Make your flag. Choose a field and a second dye from the period's dyes, a pattern (pale, fess, bend, chevron, quartered, saltire, cross, border, chequy, stripes or wavy) and an emblem (a crown, a tower, a stag's antlers, a key, a star, a ship and twenty more). Watch it take shape, or press Something else for a fresh one.",
+      "Raise it and it flies from a tall pole by your fire, the cloth rippling in the wind.",
+      "Every other nation sees your flag beside your name, and when you march on someone, their flag flies over their settlement.",
+    ],
+  },
+  {
     v: "0.78.0", date: "10 October 2026", title: "The woods, heard",
     items: [
       "Stronger ambience. The forest now has a sound of its own. The wind in the leaves comes and goes in gusts and moves from one side of you to the other, and it's quieter in winter's bare woods and muffled once you're indoors.",

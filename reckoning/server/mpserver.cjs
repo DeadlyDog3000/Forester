@@ -693,10 +693,12 @@ class Room {
       // how a nation stands: its name, its people, its day — told now and then by its own game
       case "nat": {
         const was = this.nats[me];
-        const n = { pid: me, ruler: p.name, nation: clean(m.nation, 40) || `${p.name}'s people`, pop: num(m.pop) | 0, day: num(m.day) | 0, coin: num(m.coin) | 0, watch: num(m.watch) | 0, built: num(m.built) | 0, known: num(m.known) | 0, at: t };
+        const hex = v => (/^#[0-9a-f]{6}$/i.test(String(v)) ? String(v) : null);
+        const flag = m.flag && typeof m.flag === "object" ? { c1: hex(m.flag.c1) || "#8a3e2e", c2: hex(m.flag.c2) || "#d8ccb0", pattern: clean(m.flag.pattern, 16) || "plain", emblem: clean(m.flag.emblem, 16) || "none" } : null;
+        const n = { pid: me, flag, ruler: p.name, nation: clean(m.nation, 40) || `${p.name}'s people`, pop: num(m.pop) | 0, day: num(m.day) | 0, coin: num(m.coin) | 0, watch: num(m.watch) | 0, built: num(m.built) | 0, known: num(m.known) | 0, at: t };
         this.nats[me] = n;
         if (was) for (const k of [10, 25, 50]) if (was.pop < k && n.pop >= k) this.headline("grow", `${n.nation} has grown to ${k} souls.`);
-        if (!was || was.nation !== n.nation || was.pop !== n.pop || was.day !== n.day || was.watch !== n.watch) this.natPush();
+        if (!was || was.nation !== n.nation || was.pop !== n.pop || was.day !== n.day || was.watch !== n.watch || JSON.stringify(was.flag) !== JSON.stringify(n.flag)) this.natPush();
         return;
       }
       // alliances: asked, and accepted or turned down; broken by either

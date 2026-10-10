@@ -1051,3 +1051,19 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 
 /* the builder lent to the story: no name to give (the Brother and the Sister have theirs) */
 #mpBuilder.story .mp-namerow { display: none; }
+
+/* ---- nations' flags ---- */
+.nt-who { display: flex; gap: 10px; align-items: center; }
+.nt-flag { width: 48px; height: 32px; border: 1px solid #3b2612; box-shadow: 0 1px 3px rgba(0,0,0,0.3); flex: none; }
+.nt-flag.none { display: inline-block; background: repeating-linear-gradient(45deg, rgba(59,38,18,0.12) 0 4px, transparent 4px 8px); }
+.nt-flag.big { width: 72px; height: 48px; }
+.nt-flag.huge { width: 192px; height: 128px; }
+.nt-me { display: flex; gap: 12px; align-items: center; }
+.nt-me button { margin-top: 6px; }
+.nt-flagform { grid-template-columns: auto 1fr; display: grid; gap: 14px; align-items: start; }
+.nt-flagform label { display: flex; gap: 8px; align-items: center; }
+.nt-sw { display: flex; gap: 4px; flex-wrap: wrap; }
+.nt-sw .sw { width: 22px !important; height: 22px; padding: 0 !important; border-radius: 50%; border: 2px solid rgba(59,38,18,0.4) !important; background-image: none !important; }
+.nt-sw .sw.on { border-color: #2b1d10 !important; box-shadow: 0 0 0 2px #e8d9b0; }
+.nt-flagform select { font: 13px var(--serif); padding: 2px 4px; background: #fbf5e4; border: 1px solid #8a7050; color: #2b1d10; }
+@media (max-width: 640px) { .nt-flagform { grid-template-columns: 1fr; } .nt-flag.huge { width: 144px; height: 96px; } }

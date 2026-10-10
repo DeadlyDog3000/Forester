@@ -17,6 +17,8 @@ import { NATION_GOODS } from "./rules.js";
 import { lookOpts } from "./look.js";
 import { nameTag } from "./mpgame.js";
 import { AUDIO } from "../audio.js";
+import { flagURL, cleanFlag, randomFlag, FLAG_DYES, FLAG_PATTERNS, FLAG_EMBLEMS } from "../economy.js";
+import { flyFlag } from "../flag.js";
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const GOODS = Object.keys(NATION_GOODS);
@@ -46,6 +48,8 @@ export class NationGame extends ColonyBase {
     this.panel();
     this.chatLine({ name: "", text: "Your nation is in the game. N for the nations: trade, alliances, war. Everything else is your settlement, as in free play." });
     this.status(true);
+    // (your flag, if you've made one, over your settlement)
+    if (this.S && this.S.flag) flyFlag(G.world, this.S.flag);
   }
   // what the server says (set again after a battle, whose screens borrow some of these for a while)
   listen() {
@@ -87,7 +91,7 @@ export class NationGame extends ColonyBase {
   status(now) {
     const S = this.S; if (!S) return;
     const t = G.town;
-    const m = { t: "nat", nation: S.name || `${this.me.name}'s settlement`, pop: S.people.length + 2, day: t.day, coin: S.coin | 0, watch: S.people.filter(p => p.job === "watch" && !p.child).length,
+    const m = { t: "nat", flag: S.flag || null, nation: S.name || `${this.me.name}'s settlement`, pop: S.people.length + 2, day: t.day, coin: S.coin | 0, watch: S.people.filter(p => p.job === "watch" && !p.child).length,
       built: S.buildings.filter(b => b.done).length, known: S.tech ? S.tech.done.length : 0 };
     const k = JSON.stringify(m); if (!now && k === this.lastNat) return;
     this.lastNat = k; this.net.send(m);
@@ -218,6 +222,7 @@ export class NationGame extends ColonyBase {
     // (typing a number in here is a number, not a tool from the belt)
     d.addEventListener("keydown", e => { if (/^(INPUT|SELECT)$/.test(e.target.tagName)) { e.stopPropagation(); if (e.key === "Escape") this.toggle(false); } });
     d.addEventListener("click", e => this.click(e));
+    d.addEventListener("change", e => { const k = e.target.dataset && e.target.dataset.flag; if (k && this.form && this.form.kind === "flag") { this.form.flag[k] = e.target.value; this.drawNations(); } });
   }
   toggle(on = !this.open) {
     this.open = on; this.form = on ? this.form : null;
@@ -237,7 +242,7 @@ export class NationGame extends ColonyBase {
       if (war) { acts.push(`<button data-a="peace" data-p="${n.pid}">Sue for peace</button>`); if (!(S && S.warband)) acts.push(`<button data-a="band" data-p="${n.pid}" class="red">Send a war party</button>`); }
       else if (ally) acts.push(`<button data-a="unpact" data-p="${n.pid}">Break the alliance</button>`);
       else acts.push(`<button data-a="pact" data-p="${n.pid}">Offer an alliance</button>`, `<button data-a="war" data-p="${n.pid}" class="red">Declare war</button>`);
-      return `<div class="nt-row${war ? " war" : ally ? " ally" : ""}"><div><div class="nt-n">${esc(n.nation)} ${rel}</div><div class="nt-s">${esc(n.ruler)} · ${n.pop} souls · day ${n.day + 1} · ${n.built} buildings · ${n.known} known · ${n.watch} on the watch · ${n.coin} DM</div></div><div class="nt-a">${acts.join("")}</div></div>`
+      return `<div class="nt-row${war ? " war" : ally ? " ally" : ""}"><div class="nt-who">${n.flag ? `<img class="nt-flag" src="${flagURL(n.flag)}" alt="">` : `<span class="nt-flag none"></span>`}<div><div class="nt-n">${esc(n.nation)} ${rel}</div><div class="nt-s">${esc(n.ruler)} · ${n.pop} souls · day ${n.day + 1} · ${n.built} buildings · ${n.known} known · ${n.watch} on the watch · ${n.coin} DM</div></div></div><div class="nt-a">${acts.join("")}</div></div>`
         + (this.form && this.form.pid === n.pid ? this.formHtml(n) : "");
     };
     const waiting = [];
@@ -247,10 +252,22 @@ export class NationGame extends ColonyBase {
       else if (o.from === this.pid) waiting.push(`<div class="nt-ask mine">You offered <b>${esc(o.toName)}</b> ${esc(list(o.give))}${Object.keys(o.want).length ? ` for ${esc(list(o.want))}` : " as a gift"}. Waiting on them. <button data-a="cancel" data-o="${o.id}">Take it back</button></div>`);
     }
     const news = this.news.slice(-8).reverse().map(n => `<div class="nw"><span class="k">${NEWS_K[n.kind] || "News"}</span>${esc(n.text)}<span class="w">${ago(n.at)}</span></div>`).join("");
-    $("mpNatBody").innerHTML = `<div class="nt-me">${esc(mine ? mine.nation : S ? S.name : "Your nation")} <span>— yours. ${S && S.warband ? `${S.warband.people.length} of your people are away at war.` : "Everything in it is played as in free play."}</span></div>`
+    const myFlag = S && S.flag;
+    $("mpNatBody").innerHTML = `<div class="nt-me">${myFlag ? `<img class="nt-flag big" src="${flagURL(myFlag, 96, 64)}" alt="">` : ""}<div>${esc(mine ? mine.nation : S ? S.name : "Your nation")} <span>— yours. ${S && S.warband ? `${S.warband.people.length} of your people are away at war.` : "Everything in it is played as in free play."}</span><div><button data-a="flag">${myFlag ? "Change your flag" : "Make your flag"}</button></div></div></div>`
+      + (this.form && this.form.kind === "flag" ? this.flagForm() : "")
       + (waiting.length ? `<div class="nt-sec">Waiting on you</div>${waiting.join("")}` : "")
       + `<div class="nt-sec">The other nations</div>` + (others.length ? others.map(row).join("") : `<p class="mc-hint">No one else is here yet. Others join from the Multiplayer list, each with a nation of their own.</p>`)
       + `<div class="nt-sec">The news</div>${news || `<p class="mc-hint">Nothing yet that anyone's talking about.</p>`}`;
+  }
+  // the flag-maker: two dyes, a pattern, an emblem — and how it looks
+  flagForm() {
+    const f = this.form.flag;
+    const sw = (k) => `<div class="nt-sw">${FLAG_DYES.map(c => `<button class="sw${f[k] === c ? " on" : ""}" data-a="flagset" data-k="${k}" data-v="${c}" style="background:${c}"></button>`).join("")}</div>`;
+    const sel = (k, list) => `<select data-flag="${k}">${list.map(v => `<option value="${v}"${f[k] === v ? " selected" : ""}>${v === "none" ? "no emblem" : v}</option>`).join("")}</select>`;
+    return `<div class="nt-form nt-flagform"><img class="nt-flag huge" src="${flagURL(f, 192, 128)}" alt=""><div>
+      <label>Field ${sw("c1")}</label><label>Second dye ${sw("c2")}</label>
+      <label>Pattern ${sel("pattern", FLAG_PATTERNS)}</label><label>Emblem ${sel("emblem", FLAG_EMBLEMS)}</label>
+      <div class="nt-fa"><button data-a="flagrand">Something else</button><button data-a="flagsave">Raise it</button><button data-a="close">Not now</button></div></div></div>`;
   }
   formHtml(n) {
     const S = this.S, f = this.form;
@@ -274,6 +291,14 @@ export class NationGame extends ColonyBase {
       case "trade": this.form = { kind: "trade", pid }; break;
       case "band": this.form = { kind: "band", pid }; break;
       case "close": this.form = null; break;
+      case "flag": this.form = { kind: "flag", flag: cleanFlag(this.S && this.S.flag) || randomFlag() }; break;
+      case "flagset": this.form.flag[b.dataset.k] = b.dataset.v; break;
+      case "flagrand": this.form.flag = randomFlag(); break;
+      case "flagsave": {
+        const S = this.S; if (!S) break;
+        S.flag = cleanFlag(this.form.flag); G.town.persist(); flyFlag(G.world, S.flag); this.status(true); this.form = null;
+        UI.hint("Your flag is raised by the fire, and the other nations see it.", 3.5); break;
+      }
       case "pact": case "unpact": case "war": case "peace": send({ t: a, to: pid }); break;
       case "pactok": case "pactno": dropAsk("pact"); send({ t: a, to: pid }); break;
       case "peaceok": case "peaceno": dropAsk("peace"); send({ t: a, to: pid }); break;
@@ -328,6 +353,7 @@ export class NationGame extends ColonyBase {
       else if (why === "gone") UI.hint("They're gone from the world — the battle's over. You're home.", 5);
       const l = this.later; this.later = [];
       for (const f of l) { try { f(); } catch (e) { console.warn("nations: after a battle", e); } }
+      if (this.S && this.S.flag) flyFlag(G.world, this.S.flag);
       this.status(true);
     });
   }
@@ -447,6 +473,7 @@ class Battle extends ColonyGuest {
     const ach = G.achEvent; G.achEvent = () => {};
     try { this.fromHost(snap); } finally { G.achEvent = ach; }
     this.chatLines.pop(); this.drawChat();
+    if (snap.S && snap.S.flag) flyFlag(G.world, snap.S.flag);
     AUDIO.music && AUDIO.music("battle");
     G.showHealth = true; G.health = 1;
     UI.hint(`${this.foeName}. Your men are on the road with you — cut down their defenders, and get out alive. N to fall back.`, 7);

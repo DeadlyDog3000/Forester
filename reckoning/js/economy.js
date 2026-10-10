@@ -533,3 +533,28 @@ export async function eateryShift(town, a, c, sleep, alive) {
   await sleep(10); alive(); a.person.setPose("idle");
   return true;
 }
+
+// ---- a nation's flag (Classic): the same heraldry as the companies' banners — two dyes, a pattern, an emblem — at its
+//      full colour (a flag isn't left out in the weather like an awning), drawn onto a canvas ----
+export const FLAG_DYES = PALETTE.map(p => p[0]), FLAG_PATTERNS = PATTERNS;
+export const FLAG_EMBLEMS = ["none", ...new Set(Object.values(EMBLEMS).flat())];
+const HEX = /^#[0-9a-f]{6}$/i;
+export function cleanFlag(f) {
+  if (!f || typeof f !== "object") return null;
+  return { c1: HEX.test(f.c1) ? f.c1 : FLAG_DYES[0], c2: HEX.test(f.c2) ? f.c2 : FLAG_DYES[4], pattern: FLAG_PATTERNS.includes(f.pattern) ? f.pattern : "plain", emblem: FLAG_EMBLEMS.includes(f.emblem) ? f.emblem : "none" };
+}
+export function randomFlag() {
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  let c1 = pick(FLAG_DYES), c2 = pick(FLAG_DYES); while (c2 === c1) c2 = pick(FLAG_DYES);
+  return { c1, c2, pattern: pick(FLAG_PATTERNS), emblem: pick(FLAG_EMBLEMS.slice(1)) };
+}
+export function drawFlag(cv, f) {
+  f = cleanFlag(f) || randomFlag();
+  const x = cv.getContext("2d"), W = cv.width, H = cv.height;
+  x.save(); x.clearRect(0, 0, W, H);
+  field(x, f, W, H);
+  if (f.emblem !== "none") emblem(x, f, W / 2, H / 2, Math.min(W, H) * 0.32);
+  x.restore();
+  return cv;
+}
+export function flagURL(f, w = 72, h = 48) { const cv = document.createElement("canvas"); cv.width = w; cv.height = h; return drawFlag(cv, f).toDataURL(); }
