@@ -156,19 +156,30 @@ export function shopVisual(c) {
   b.box(3.6, 0.1, 2.9, 0, 2.3, 0, 0x4e3a28);                 // the roof boards
   // the awning, striped in the company's own colours
   c.brand ??= makeBrand(c.kind, c.owner, 7);
-  const h1 = parseInt(c.brand.c1.slice(1), 16), h2 = parseInt(c.brand.c2.slice(1), 16);
+  const Bt = toned(c.brand), h1 = parseInt(Bt.c1.slice(1), 16), h2 = parseInt(Bt.c2.slice(1), 16);
   b.box(3.8, 0.06, 1.2, 0, 2.05, 1.8, h1);
   for (let i = -3; i <= 3; i += 2) b.box(0.5, 0.065, 1.21, i * 0.5, 2.05, 1.8, h2);
   if (c.kind === "eatery") eateryParts(b, c);
   // wares on the counter
-  const ware = { bread: 0xc8962e, meats: 0x8a3a2a, lumber: 0x7a5634, stone: 0x8a8a90, iron: 0x5a6068, goods: 0x9a7a5a, eatery: 0xe8e0cc }[c.kind];
+  const ware = { bread: 0xb08a4a, meats: 0x7a4234, lumber: 0x7a5634, stone: 0x8a8a90, iron: 0x5a6068, goods: 0x8a7a62, eatery: 0xd8d0bc }[c.kind];
   for (let i = 0; i < Math.min(5, Math.max(1, c.kind === "eatery" ? c.meals || 0 : c.stock || 0)); i++) b.box(0.3, 0.2, 0.25, -1.2 + i * 0.6, 1.0, 1.05, ware);
   g.add(b.build(MAT.rough));
   g.add(banner(c, 2.9));
   return g;
 }
 // ---- branding: every company its own name, colours, pattern, emblem and banner, made once when it is founded ----
-const PALETTE = [["#8a1e1e", "red"], ["#1e3a6a", "blue"], ["#2a5a2a", "green"], ["#c8962e", "gold"], ["#e8dcc0", "white"], ["#2a1a0c", "black"], ["#5a2a6a", "purple"], ["#b85a1a", "orange"], ["#6a4a2e", "brown"], ["#3a6a6a", "teal"]];
+// (the dyes a country trade of 1683 could get: madder, woad, weld, walnut, lichen, iron rust — and cloth left undyed;
+//  none of them bright, and all of them faded by the weather)
+const PALETTE = [["#8a3e2e", "madder"], ["#3e4c64", "woad"], ["#4e5e42", "green"], ["#a88a46", "weld"], ["#d8ccb0", "undyed"], ["#2e2418", "black"], ["#5a4652", "lichen"], ["#94603a", "rust"], ["#6a4e34", "brown"], ["#4a5a5c", "slate"]];
+// any colour, faded toward the dun of old cloth and weathered wood (companies founded before the dyes were dulled too)
+const DUN = [0x86, 0x76, 0x60];
+function mute(hex, k = 0.32) {
+  const v = parseInt(String(hex).slice(1), 16), c = [v >> 16 & 255, v >> 8 & 255, v & 255];
+  const grey = (c[0] + c[1] + c[2]) / 3;
+  const o = c.map((x, i) => Math.round((x + (grey - x) * 0.35) * (1 - k) + DUN[i] * k * 0.95));
+  return "#" + o.map(x => Math.max(0, Math.min(255, x)).toString(16).padStart(2, "0")).join("");
+}
+const toned = B => ({ ...B, c1: mute(B.c1), c2: mute(B.c2) });
 const PATTERNS = ["plain", "pale", "fess", "bend", "chevron", "quartered", "saltire", "border", "chequy", "stripes", "cross", "wavy"];
 const SHAPES = ["square", "swallowtail", "pennant", "banneret", "gonfalon"];
 const EMBLEMS = { bread: ["loaf", "sheaf", "mill", "pretzel"], meats: ["antler", "boar", "hare", "knife"], lumber: ["tree", "axe", "saw", "logs"], stone: ["hammer", "tower", "pick", "block"], iron: ["anvil", "hammer", "key", "horseshoe"], goods: ["star", "crown", "ship", "wheel", "key", "fish"], eatery: ["pot", "goose", "spoon", "boar"] };
@@ -207,7 +218,8 @@ function field(x, B, W, H) {
 }
 // the emblem, drawn as a sign-painter would: a flat shape, outlined
 function emblem(x, B, cx, cy, s) {
-  const ink = B.c1 === "#e8dcc0" || B.c2 === "#e8dcc0" ? "#2a1a0c" : "#efe3c4";
+  const pale = h => { const v = parseInt(String(h).slice(1), 16); return ((v >> 16 & 255) + (v >> 8 & 255) + (v & 255)) / 3 > 150; };
+  const ink = pale(B.c1) || pale(B.c2) ? "#2a1a0c" : "#efe3c4";
   x.save(); x.translate(cx, cy); x.scale(s, s); x.fillStyle = ink; x.strokeStyle = ink; x.lineWidth = 0.08; x.lineJoin = "round"; x.lineCap = "round";
   const P = pts => { x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.closePath(); x.fill(); };
   const C = (a, b, r) => { x.beginPath(); x.arc(a, b, r, 0, Math.PI * 2); x.fill(); };
@@ -245,6 +257,7 @@ function emblem(x, B, cx, cy, s) {
 const texOf = cv => { const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; };
 // the hanging banner, in its cut: square, swallow-tailed, a long pennant, a small banneret or a gonfalon with tails
 function bannerCloth(B) {
+  B = toned(B);
   const cv = document.createElement("canvas"); cv.width = 128; cv.height = 256;
   const x = cv.getContext("2d");
   x.save();
@@ -263,7 +276,7 @@ function bannerCloth(B) {
 }
 // the sign over the counter: the name, and the emblem either side, on a board in the company's colours
 function signBoard(c) {
-  const B = c.brand, cv = document.createElement("canvas"); cv.width = 512; cv.height = 128;
+  const B = toned(c.brand), cv = document.createElement("canvas"); cv.width = 512; cv.height = 128;
   const x = cv.getContext("2d");
   x.fillStyle = "#efe3c4"; x.fillRect(0, 0, 512, 128);
   x.fillStyle = B.c1; x.fillRect(0, 0, 512, 14); x.fillRect(0, 114, 512, 14); x.fillStyle = B.c2; x.fillRect(0, 14, 512, 5); x.fillRect(0, 109, 512, 5);

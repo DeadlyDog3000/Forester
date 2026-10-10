@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.75.1", date: "10 October 2026", title: "Plainer trades",
+    items: [
+      "Settlers' companies are less gaudy. Their awnings, banners and sign boards now use the dyes a country trade of 1683 could actually get: madder red, woad blue, weld yellow, walnut black, lichen purple, rust, and cloth left undyed. All of them are faded by the weather.",
+      "Shops opened before this update fade to match. The wares on their counters are quieter too.",
+    ],
+  },
+  {
     v: "0.75.0", date: "10 October 2026", title: "Your own likeness",
     items: [
       "A character builder for the story. Start a new game, choose the Brother or the Sister, and shape how they look before you begin: height and build, skin, hair, eyes and head, and every piece of their clothes, with the same presets, swatches and colour pickers as multiplayer.",
