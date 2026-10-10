@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.72.0", date: "10 October 2026", title: "Water",
+    items: [
+      "Thirst. Out in the woods there's a blue bar under your hunger. It runs down faster than hunger does, and faster still when you run.",
+      "Drink at the brook or the pond by pressing F at the water's edge, wherever you stand along it. Drink at a well too. Unboiled brook and pond water may give you the flux. A well's water seldom does.",
+      "Make a canteen at the chopping block from a plank and a log: a little wooden costrel on a cord that holds four drinks. Press its number at the water or a well to fill it, by the fire to boil what's in it, or anywhere else to drink. Boiled water never makes you ill.",
+      "The flux stops your wounds mending, wears you down and makes you thirstier until it passes.",
+      "When you're thirsty your wounds don't mend. Low on water or food, you slowly weaken. With no water at all, you die of thirst, sooner than you'd starve.",
+      "There's a new page in the guide (H) on thirst.",
+    ],
+  },
+  {
     v: "0.71.1", date: "10 October 2026", title: "A finer gun",
     items: [
       "The cannon has been made again. The barrel is cast bronze, shaped the way the founders turned it. It has a button on the cascabel at the back, a base ring and two reinforces stepping down, a long chase, a moulded ring near the front and a swelling muzzle with a dark bore. There are two lifting handles shaped as dolphins on top and a touch-hole with its pan.",

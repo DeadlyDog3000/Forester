@@ -15,7 +15,7 @@ import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
-import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
+import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, thirstTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
 
 /* global SFX */
 
@@ -750,7 +750,10 @@ export class Player {
     // health: blows take it, and it comes back slowly once nothing has hit you for a while
     if (G.health !== undefined) {
       G.hurtT = (G.hurtT || 0) + dt;
-      const b = G.body, starving = b && b.hunger <= 0, hungry = b && b.hunger < 0.2;
+      // (thirst only where there's water to be had: out in the woods, not in the city)
+      const wet = !!(G.world && G.world.waterOK);
+      const b = G.body, starving = b && b.hunger <= 0, parched = wet && b && (b.thirst ?? 1) <= 0, hungry = b && (b.hunger < 0.2 || (wet && (b.thirst ?? 1) < 0.2));
+      if (wet && b && (b.thirst ?? 1) < 0.5 && G.guide) G.guide("thirst");
       if (b && b.hunger < 0.5 && G.guide) G.guide("hunger");
       // the plague: it eats at you, and nothing mends while you have it; left alone it passes, or it kills you
       const sick = b && b.plague > 0;
@@ -761,14 +764,24 @@ export class Player {
         else if (b.plague <= 0) UI.hint("The fever breaks. You've come through the plague.", 5);
         if ((this.coughT = (this.coughT || 4) - dt) <= 0) { this.coughT = 5 + Math.random() * 6; AUDIO.voice && AUDIO.voice("pain", { high: G.who === "sister", vol: 0.5 }); }
       }
-      if (G.hurtT > healDelay(b) && G.health < 1 && !G.downed && !hungry && !sick) {
+      // ill from bad water: the flux — nothing mends, and it wears you down, until it passes
+      const ill = b && b.ill;
+      if (ill && G.mode === "play" && !G.downed) {
+        ill.t -= dt; b.dirty = true;
+        G.health = Math.max(0.02, G.health - dt * (ILLS[ill.id] ? ILLS[ill.id].drain : 0.002));
+        if (ill.t <= 0) { b.ill = null; UI.hint(`The worst of ${ILLS[ill.id] ? ILLS[ill.id].name : "it"} has passed. Boil your water.`, 5); }
+      }
+      if (G.hurtT > healDelay(b) && G.health < 1 && !G.downed && !hungry && !sick && !ill) {
         const h0 = G.health; G.health = Math.min(1, G.health + dt * healRate(b));
         G.practise("healing", (G.health - h0) * 40);
       }
       // with nothing in you at all, you weaken, and in the end it kills you
       if (starving && !G.downed) { G.health = Math.max(0, G.health - dt / 240); if (G.health <= 0) G.die("hunger"); }
-      if (G.mode === "play") hungerTick(b, dt, sprint && this.speed > 1);
-      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick);
+      // with no water in you, sooner; and low on either, a slow weakening even before they're gone
+      else if (parched && !G.downed) { G.health = Math.max(0, G.health - dt / 150); if (G.health <= 0) G.die("thirst"); }
+      else if (b && !G.downed && G.mode === "play" && (b.hunger < 0.1 || (wet && (b.thirst ?? 1) < 0.1))) G.health = Math.max(0.05, G.health - dt / 700);
+      if (G.mode === "play") { hungerTick(b, dt, sprint && this.speed > 1); if (wet) thirstTick(b, dt, sprint && this.speed > 1); }
+      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick || !!ill, wet && b ? b.thirst ?? 1 : null);
     } else UI.vitals(null);
     if (sprint && this.crouched) this.crouched = false;
     // (a bow drawn: no running, and a slow, careful step)
@@ -1430,11 +1443,11 @@ G.wakeUp = async (from, lost) => {
   await new Promise(r => setTimeout(r, 1400));
   if (w && w.bedSpot && w.cabin && w.cabin.visible) { const b = w.bedSpot(0); if (b) pl.place(b.x + 0.6, b.z + 0.6, b.ry); }
   G.health = 0.5; G.downed = false; G.hurtT = 0; G.stamina = 0.5; G.panting = 0; G.hitShake = 0;
-  if (G.body) G.body.hunger = Math.max(G.body.hunger, 0.35);
+  if (G.body) { G.body.hunger = Math.max(G.body.hunger, 0.35); G.body.thirst = Math.max(G.body.thirst ?? 1, 0.4); G.body.ill = null; }
   await new Promise(r => setTimeout(r, 900));
   UI.fade(0, 1.4); G.lockMove = false;
   if (G.body) G.body.plague = 0;
-  UI.hint((from === "hunger" ? "You died of hunger, and woke in your bed as if from a fever." : from === "plague" ? "The plague took you — and yet you woke, in your bed, the fever gone." : "You died, and woke in your bed.") + G.lostText(lost || {}), 7);
+  UI.hint((from === "hunger" ? "You died of hunger, and woke in your bed as if from a fever." : from === "thirst" ? "You died of thirst, and woke in your bed with a cup of water beside it." : from === "plague" ? "The plague took you — and yet you woke, in your bed, the fever gone." : "You died, and woke in your bed.") + G.lostText(lost || {}), 7);
 };
 G.hurt = (dmg, from) => {
   if (G.devGod) return;

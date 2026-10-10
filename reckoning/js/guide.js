@@ -46,6 +46,15 @@ export const GUIDE = {
       "The metal goes into your pack. Take it to the chopping block to make better tools.",
     ],
   },
+  thirst: {
+    kicker: "Your body", title: "Thirst",
+    steps: [
+      "The <b>blue bar</b> under your hunger is your thirst. It falls quicker than hunger, and quicker still when you run.",
+      "<b>Drink</b> at the brook or the pond (<kbd>F</kbd> at the water's edge), or at a <b>well</b>. Brook and pond water, unboiled, may give you <b>the flux</b>; a well's seldom does.",
+      "Make a <b>canteen</b> at the chopping block. Fill it at the water (press its number there), and <b>boil</b> it at the fire (press its number by the fire): boiled water never makes you ill. Press its number anywhere else to drink.",
+      "Thirsty, your wounds don't mend; low on water or food, you slowly weaken; with none at all, you die. The flux stops your wounds mending until it passes.",
+    ],
+  },
   hunger: {
     kicker: "Your body", title: "Hunger",
     steps: [
@@ -260,4 +269,4 @@ export const GUIDE = {
   },
 };
 // the order the book lists them in
-export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "colony", "business", "eatery", "kitchen", "feud", "horse", "cave", "revolt", "raid"];
+export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "thirst", "hurt", "skills", "winter", "expand", "colony", "business", "eatery", "kitchen", "feud", "horse", "cave", "revolt", "raid"];

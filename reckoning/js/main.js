@@ -14,7 +14,7 @@ import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE, WATER_NAME } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { FOLEY } from "./foley.js";
@@ -33,6 +33,7 @@ import { initLobby, openLobby, SCREENS as MP_SCREENS } from "./mp/lobby.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
 import { NationGame } from "./mp/nations.js";
+import "./drink.js";
 import { renderAchievements } from "./achievements.js";
 import { lookOpts as mpLookOpts, isF as mpIsF } from "./mp/look.js";
 
@@ -395,6 +396,12 @@ ICON.crossbow = ICON.crossbow5 = (() => { const c = document.createElement("canv
   x.strokeStyle = "#8a8e96"; x.lineWidth = 3.2; x.beginPath(); x.moveTo(14, -20); x.quadraticCurveTo(24, 0, 14, 20); x.stroke();
   x.strokeStyle = "#e8e0c8"; x.lineWidth = 1; x.beginPath(); x.moveTo(14, -20); x.lineTo(2, 0); x.lineTo(14, 20); x.stroke();
   x.fillStyle = "#3a3c40"; x.fillRect(-6, 3, 3, 7); return c.toDataURL(); })();
+// the canteen: a little wooden keg on its cord
+ICON.canteen = ICON.canteen1 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.strokeStyle = "#3a2a1a"; x.lineWidth = 2.5; x.beginPath(); x.moveTo(18, 22); x.quadraticCurveTo(32, 2, 46, 22); x.stroke();
+  x.fillStyle = "#8a6038"; x.beginPath(); x.ellipse(32, 38, 17, 15, 0, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = "#3a3c40"; x.lineWidth = 2.6; for (const dx of [-9, 9]) { x.beginPath(); x.ellipse(32 + dx, 38, 3, 15, 0, 0, Math.PI * 2); x.stroke(); }
+  x.fillStyle = "#5a3a20"; x.fillRect(29, 18, 6, 7); x.fillStyle = "#c8a878"; x.fillRect(30, 15, 4, 4); return c.toDataURL(); })();
 ICON.bolts = ICON.bolts0 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
   for (let i = 0; i < 3; i++) { x.save(); x.translate(20 + i * 10, 34); x.rotate(-0.75); x.fillStyle = "#8a6a44"; x.fillRect(-18, -1.6, 30, 3.2); x.fillStyle = "#5a5e66"; x.beginPath(); x.moveTo(12, -4); x.lineTo(20, 0); x.lineTo(12, 4); x.fill(); x.fillStyle = "#c8c0a8"; x.fillRect(-19, -4, 5, 8); x.restore(); }
   return c.toDataURL(); })();
@@ -1391,6 +1398,7 @@ function hotbarItems() {
   if (pl.hasBow) { out.push({ icon: "bow", name: "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
   if (tl && tl.musket) out.push({ icon: "musket", name: "Your musket", tool: "gun" });
   if (tl && tl.crossbow) { out.push({ icon: "crossbow", name: "Your crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: tl.bolts || 0 }); }
+  if (tl && tl.canteen && G.world && G.world.waterOK) { const W = G.body.water || { n: 0 }, size = tl.canteen >= 2 ? 6 : 4; out.push({ icon: "canteen", name: W.n ? `Canteen — ${W.n} of ${size}, ${WATER_NAME[W.kind] || "water"}` : "Canteen — empty", tool: "canteen", n: W.n }); }
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
   for (const i of G.pack) out.push(i.icon === "spade" && tl && tl.spade >= 3 && G.town ? { ...i, name: `${cap(TIER_NAME[tl.spade])} spade` } : i);
@@ -1470,6 +1478,8 @@ addEventListener("keydown", e => {
   if (it && it.tool === "pick") { if (pl.axe && blade === "pick") { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield("pick"); }
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
   if (it && it.tool === "gun") G.player.showGun(!G.player.gun);
+  // the canteen: not taken in hand — drunk from, filled, or boiled, as where you are allows
+  if (it && it.tool === "canteen") { G.useCanteen && G.useCanteen(); return; }
   if (it && it.tool === "xbow") G.player.showXbow(!G.player.xbow);
   else if (it && G.player.xbow && (it.tool || FOOD[it.icon])) G.player.showXbow(false);
   // food: taken in the hand (the number again puts it away); a click eats it

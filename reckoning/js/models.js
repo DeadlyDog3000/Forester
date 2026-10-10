@@ -618,6 +618,13 @@ export function makeSpade(tier = (G_TOOLS() || {}).spade || 2) {
 // something to eat, held at the origin: a heel of bread, a joint of meat, a few berries in the palm
 export function makeFood(kind) {
   const g = new THREE.Group();
+  if (kind === "canteen") {
+    // the costrel: a little keg on its side, bound with iron, a stopper in its top
+    const keg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.07, 12).rotateZ(Math.PI / 2), mat(0x8a6038, { surface: "wood" })); keg.position.y = 0.05; g.add(keg);
+    for (const dx of [-0.022, 0.022]) { const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.056, 0.004, 4, 14), mat(0x3a3c40, { metalness: 0.6 })); hoop.rotation.y = Math.PI / 2; hoop.position.set(dx, 0.05, 0); g.add(hoop); }
+    const stop = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.02, 6), mat(0xc8a878)); stop.position.y = 0.11; g.add(stop);
+    return g;
+  }
   if (kind === "dish") {
     // a wooden bowl with something hot in it
     const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.045, 0.045, 10), mat(0x8a6440, { surface: "wood" })); bowl.position.y = 0.02; g.add(bowl);

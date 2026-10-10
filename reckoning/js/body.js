@@ -64,6 +64,7 @@ export const TOOL_RECIPES = [
   { tool: "sword", tier: 4, name: "Bronze sword", cost: { logs: 1, bronze: 4 }, note: "Cast bronze, ground to a point: the plain blade of the age." },
   { tool: "sword", tier: 5, name: "Iron sword", cost: { logs: 1, iron: 4 }, note: "The best blade in the settlement." },
   { tool: "crossbow", tier: 5, name: "Crossbow", cost: { planks: 2, iron: 2, hide: 1 }, note: "A steel-bowed crossbow, spanned with a crank. Slow to load, but a bolt flies flat and hits harder than any arrow. It wants bolts." },
+  { tool: "canteen", tier: 1, name: "Canteen", cost: { planks: 1, logs: 1 }, note: "A little wooden costrel on a cord: four drinks. Fill it at a well, the brook or the pond, and boil what's in it at the fire (press its number there) so it won't make you ill. Press its number anywhere else to drink." },
   { tool: "bolts", item: 8, tier: 0, name: "Crossbow bolts (eight)", cost: { planks: 1, iron: 1 }, note: "Short, heavy bolts with iron heads, for the crossbow." },
 ];
 // how many strokes a tool's making stands before it wears out: a wooden one soon, iron a long while
@@ -134,13 +135,16 @@ export const ITEM = {
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0, crossbow: 0, bolts: 0 }, plague: 0, purse: 0 };
+  return { hunger: 1, thirst: 1, water: { n: 0, kind: null }, ill: null, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0, crossbow: 0, bolts: 0, canteen: 0 }, plague: 0, purse: 0 };
 }
 export function restoreBody(saved) {
   const b = freshBody();
   if (saved && typeof saved === "object") {
     if (typeof saved.hunger === "number") b.hunger = Math.min(1, Math.max(0, saved.hunger));
     if (saved.plague > 0) b.plague = Math.min(PLAGUE_SECS, saved.plague);
+    if (typeof saved.thirst === "number") b.thirst = Math.min(1, Math.max(0, saved.thirst));
+    if (saved.water && WATER_KINDS.includes(saved.water.kind)) b.water = { n: Math.max(0, Math.min(8, saved.water.n | 0)), kind: saved.water.kind };
+    if (saved.ill && ILLS[saved.ill.id] && saved.ill.t > 0) b.ill = { id: saved.ill.id, t: Math.min(ILLS[saved.ill.id].secs, +saved.ill.t) };
     if (saved.purse > 0) b.purse = Math.floor(saved.purse);
     // (before bronze there were four makings, and 4 was iron: those are 5 now)
     if (saved.tools) for (const k of Object.keys(b.tools)) if (saved.tools[k] != null) { let v = saved.tools[k] | 0; if (!saved.tools.v && v >= 4) v = 5; b.tools[k] = k === "bolts" ? Math.max(0, Math.min(999, saved.tools[k] | 0)) : Math.min(TOP_TIER, Math.max(b.tools[k], v)); }
@@ -152,7 +156,7 @@ export function restoreBody(saved) {
   }
   return b;
 }
-export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), skills: b.skills, tools: { ...b.tools, v: 2 }, wear: b.wear || {}, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
+export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), thirst: +(b.thirst ?? 1).toFixed(3), water: b.water && b.water.n ? b.water : undefined, ill: b.ill || undefined, skills: b.skills, tools: { ...b.tools, v: 2 }, wear: b.wear || {}, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
 // what the traders give for what you have gathered yourself and put in your chest, a piece
 export const SELL_PRICE = { meat: 2, venison: 3, hare: 2, boar: 4, fish: 1.5, mushrooms: 0.5, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
 // the plague, from meat eaten raw: how long it lasts if nobody tends you
@@ -204,6 +208,19 @@ export const healRate = b => (1 + 3 * skillK(b, "healing")) / 70;
 export const staminaDrain = b => 1 - 0.45 * skillK(b, "endurance");
 export const aimSteady = b => 1 - 0.7 * skillK(b, "archery");
 
+// thirst: like hunger, but quicker — full to dry in about eighteen minutes, sooner when you run or when you're ill
+// with the flux. Water from the brook or the pond, drunk as it is, may make you ill; well water seldom; boiled, never.
+export const WATER_KINDS = ["raw", "well", "boiled"];
+export const WATER_NAME = { raw: "brook water, unboiled", well: "well water", boiled: "boiled water" };
+export const WATER_RISK = { raw: 0.22, well: 0.03, boiled: 0 };
+export const ILLS = { flux: { name: "the flux", secs: 240, drain: 1 / 520 } };
+export const canteenSize = b => (b && b.tools && b.tools.canteen >= 2 ? 6 : b && b.tools && b.tools.canteen ? 4 : 0);
+export function thirstTick(b, dt, running) {
+  if (!b) return;
+  const before = b.thirst ?? 1;
+  b.thirst = Math.max(0, before - dt / 1100 * (running ? 1.6 : 1) * (b.ill ? 1.5 : 1));
+  if (Math.floor(before * 50) !== Math.floor(b.thirst * 50)) b.dirty = true;
+}
 // hunger: full to empty over about twenty-five minutes of play, sooner when you run
 export function hungerTick(b, dt, running) {
   if (!b) return;
