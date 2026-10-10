@@ -402,6 +402,16 @@ ICON.canteen = ICON.canteen1 = (() => { const c = document.createElement("canvas
   x.fillStyle = "#8a6038"; x.beginPath(); x.ellipse(32, 38, 17, 15, 0, 0, Math.PI * 2); x.fill();
   x.strokeStyle = "#3a3c40"; x.lineWidth = 2.6; for (const dx of [-9, 9]) { x.beginPath(); x.ellipse(32 + dx, 38, 3, 15, 0, 0, Math.PI * 2); x.stroke(); }
   x.fillStyle = "#5a3a20"; x.fillRect(29, 18, 6, 7); x.fillStyle = "#c8a878"; x.fillRect(30, 15, 4, 4); return c.toDataURL(); })();
+// leather: a tanned skin, folded; and a buff coat
+ICON.leather = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.fillStyle = "#7a4e2c"; x.beginPath(); x.moveTo(12, 20); x.lineTo(28, 14); x.lineTo(50, 18); x.lineTo(54, 40); x.lineTo(40, 50); x.lineTo(16, 46); x.closePath(); x.fill();
+  x.fillStyle = "#9a6a40"; x.beginPath(); x.moveTo(12, 20); x.lineTo(28, 14); x.lineTo(50, 18); x.lineTo(30, 28); x.closePath(); x.fill();
+  x.strokeStyle = "#4a2e18"; x.lineWidth = 1.5; x.stroke(); return c.toDataURL(); })();
+ICON.coat1 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.fillStyle = "#c8a46a"; x.beginPath(); x.moveTo(22, 10); x.lineTo(42, 10); x.lineTo(54, 20); x.lineTo(48, 30); x.lineTo(44, 26); x.lineTo(44, 56); x.lineTo(20, 56); x.lineTo(20, 26); x.lineTo(16, 30); x.lineTo(10, 20); x.closePath(); x.fill();
+  x.strokeStyle = "#6a4a28"; x.lineWidth = 1.6; x.stroke(); x.beginPath(); x.moveTo(32, 12); x.lineTo(32, 56); x.stroke();
+  x.fillStyle = "#6a4a28"; for (let i = 0; i < 4; i++) x.fillRect(29, 20 + i * 9, 6, 2); return c.toDataURL(); })();
+ICON.canteen2 = ICON.leather;
 ICON.bolts = ICON.bolts0 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
   for (let i = 0; i < 3; i++) { x.save(); x.translate(20 + i * 10, 34); x.rotate(-0.75); x.fillStyle = "#8a6a44"; x.fillRect(-18, -1.6, 30, 3.2); x.fillStyle = "#5a5e66"; x.beginPath(); x.moveTo(12, -4); x.lineTo(20, 0); x.lineTo(12, 4); x.fill(); x.fillStyle = "#c8c0a8"; x.fillRect(-19, -4, 5, 8); x.restore(); }
   return c.toDataURL(); })();

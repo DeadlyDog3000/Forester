@@ -27,6 +27,7 @@ import { Smoke, Breath, chimneyMark } from "./smoke.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
 import { gunsmithTick, benchFront } from "./gunsmith.js";
 import { makeCannon } from "./cannon.js";
+import { makeTannery } from "./tannery.js";
 import { FAITHS, faithOf, dedication, dailyConversion } from "./faith.js";
 import { NATIONS, NEAR, ensureEurope, europeDay, strengthOf, the, The } from "./europe.js";
 import { DISEASES, catchSomething, sicken, diseaseName } from "./disease.js";
@@ -62,6 +63,7 @@ export const BUILDINGS = {
   stable:   { name: "Stable", cost: 14, mats: { stone: 4 }, w: 6.4, d: 4.2, icon: "stable", note: "Stalls for two horses. Take one out (F at the stable) and ride — more than twice as fast as walking. X gets you down, and it finds its own way home." },
   path:     { name: "Path", cost: 0, w: 2.2, d: 3.4, path: true, icon: "stone", note: "A trodden way between the houses, laid a strip at a time — free. Cobbled once the town is brick." },
   newsstand: { name: "News stand", cost: 8, w: 2.6, d: 2.0, icon: "newsstand", note: "A booth with the broadsheet pinned up: everything that's been going on in the settlements — births and deaths, who came and who went, who sold what to the pedlar, thefts, quarrels, the taxes, what went up and what came down. F to read it." },
+  tannery:  { name: "Tanning rack", cost: 8, w: 5.6, d: 2.4, icon: "hide", note: "Two frames to stretch hides on, a vat of bark liquor and a scraping beam. Hold F there to lace up a hide from the hunt; in a few minutes it's leather, for a buff coat or a better canteen, or to sell. A tanner does it by himself with the stores' hides." },
   cannon:   { name: "Cannon", cost: 4, mats: { iron: 8, planks: 4 }, w: 2.2, d: 3.2, icon: "tools", note: "An iron gun on a field carriage, its mouth the way you lay it out. F to man it: look to aim, click to fire. Each ball costs an iron, and it takes a while to load again. In a raid, the watch fire it if you aren't there." },
   storehouse: { name: "Store chest", cost: 6, w: 2.4, d: 2.0, icon: "logs", note: "The settlement's stores kept in one place, a big chest under a little roof: take what the settlement has, or put things in. The chest in your cabin is your own." },
   palisade: { name: "Palisade", cost: 3, w: 3.2, d: 0.7, wall: "log", hp: 60, icon: "logs", note: "A length of sharpened logs, laid a length at a time and joined end to end. Raiders must hack through it. Three logs a length." },
@@ -80,9 +82,10 @@ export const WORKS = {
   miner: { at: "mine", time: 14, need: {}, give: { ore: 1 }, pose: "chop" },
   smelter: { at: "smelter", time: 12, need: { ore: 3, store: 2 }, give: { iron: 1 }, pose: "dig" },
   smith: { at: "forge", time: 14, need: { iron: 2, store: 1 }, give: { tools: 1 }, pose: "hammer" },
+  tanner: { at: "tannery", time: 40, need: { hide: 1 }, give: { leather: 1 }, pose: "stir" },
 };
 // what the materials are called, for the board and the labels
-export const MAT_NAME = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "iron ore", iron: "iron", copperore: "copper ore", tinore: "tin ore", copper: "copper", tin: "tin", bronze: "bronze", tools: "tools", coin: "DM", spears: "spears", swords: "swords", battleaxes: "battle axes" };
+export const MAT_NAME = { leather: "leather", hide: "hides", store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "iron ore", iron: "iron", copperore: "copper ore", tinore: "tin ore", copper: "copper", tin: "tin", bronze: "bronze", tools: "tools", coin: "DM", spears: "spears", swords: "swords", battleaxes: "battle axes" };
 // the store key for each thing you can carry in your pack
 const PACK_ICON = { stone: "stone", planks: "planks", bricks: "bricks", ore: "ironore", copperore: "copperore", tinore: "tinore", copper: "copper", tin: "tin", bronze: "bronze", iron: "iron" };
 // buildings you can walk about in, solid only where something stands: the quarry is its rock face round the back
@@ -202,6 +205,7 @@ export const JOBS = {
   miner: { name: "miner", ask: "work the mine", reply: "Down the hole, then." },
   smelter: { name: "smelter", ask: "work the smelter", reply: "I'll keep the furnace hot." },
   smith: { name: "smith", ask: "work the forge", reply: "Tools, then. Good ones." },
+  tanner: { name: "tanner", ask: "tan the hides at the rack", reply: "Hides. I'll stink of the vat by supper." },
   doctor: { name: "doctor", ask: "tend the sick", reply: "Show me who's ailing." },
   watch: { name: "watchman", ask: "keep the watch against raiders", reply: "I'll keep my eyes on the road." },
   gunsmith: { name: "gunsmith", ask: "make muskets at the bench", reply: "Back to the bench, then." },
@@ -211,7 +215,7 @@ const GROW_AT = [8, 13, 19, 26, 34];
 const MAX_CLAIM = 1000;
 // the distance from a point to a segment
 const segDist = (x, z, [ax, az], [bx, bz]) => { const dx = bx - ax, dz = bz - az, l = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l)); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
-const JOB_ORDER = ["woodcutter", "hauler", "carter", "farmer", "hunter", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "doctor", "watch"];
+const JOB_ORDER = ["woodcutter", "hauler", "carter", "farmer", "hunter", "baker", "quarryman", "sawyer", "brickmaker", "miner", "smelter", "smith", "tanner", "doctor", "watch"];
 // which building a job needs, if any
 const JOB_AT = { baker: "bakery", ...Object.fromEntries(Object.entries(WORKS).map(([j, w]) => [j, w.at])) };
 // (the sound engine is a page global; with it missing, as in a test, everything is quiet rather than broken)
@@ -831,6 +835,11 @@ export class Town {
       bb.add(prismGeo(W + 0.5, 0.45, 1.3, 0.12), 0x4e3a28, 0, 2.3, 0.15);
       const vis = bb.build(MAT.rough); vis.castShadow = true; g.add(vis);
       g.userData.cols = this.footprint(b, 2.0, 0.9, w.heightAt(b.x, b.z) + 2);
+    } else if (b.type === "tannery" && b.done) {
+      // the frames, the vat and the beam (tannery.js puts the hides on the frames)
+      const tm = makeTannery(); g.add(tm); g.userData.tannery = tm;
+      g.userData.cols = this.footprint(b, 4.6, 1.0, w.heightAt(b.x, b.z) + 2);
+      if (this.tannery) setTimeout(() => this.tannery.paint(b), 0);
     } else if (b.type === "cannon" && b.done) {
       // the gun on its carriage (cannon.js aims it, fires it, and throws it back)
       const c = makeCannon(); g.add(c); g.userData.cannon = c;

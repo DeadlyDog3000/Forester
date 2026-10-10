@@ -65,6 +65,8 @@ export const TOOL_RECIPES = [
   { tool: "sword", tier: 5, name: "Iron sword", cost: { logs: 1, iron: 4 }, note: "The best blade in the settlement." },
   { tool: "crossbow", tier: 5, name: "Crossbow", cost: { planks: 2, iron: 2, hide: 1 }, note: "A steel-bowed crossbow, spanned with a crank. Slow to load, but a bolt flies flat and hits harder than any arrow. It wants bolts." },
   { tool: "canteen", tier: 1, name: "Canteen", cost: { planks: 1, logs: 1 }, note: "A little wooden costrel on a cord: four drinks. Fill it at a well, the brook or the pond, and boil what's in it at the fire (press its number there) so it won't make you ill. Press its number anywhere else to drink." },
+  { tool: "canteen", tier: 2, name: "Leather canteen", cost: { leather: 2 }, note: "A leather bottle, waxed inside and stitched: six drinks instead of four." },
+  { tool: "coat", tier: 1, name: "Buff coat", cost: { leather: 5 }, note: "A thick coat of oiled leather, as the soldiers wear under their armour: every blow takes a fifth less off you." },
   { tool: "bolts", item: 8, tier: 0, name: "Crossbow bolts (eight)", cost: { planks: 1, iron: 1 }, note: "Short, heavy bolts with iron heads, for the crossbow." },
 ];
 // how many strokes a tool's making stands before it wears out: a wooden one soon, iron a long while
@@ -129,13 +131,14 @@ export const ITEM = {
   boar: { name: "Boar", note: "Fat and strong: taste 4.5, tenderness 1/4, fills 36%. Forgiving if left on — dangerous if taken off too soon." },
   crossbow: { name: "Crossbow", note: "Right-click to aim down it; click to loose a bolt. It cranks itself back for the next." },
   bolts: { name: "Crossbow bolts", note: "For the crossbow. Made at the chopping block, eight at a time, once there's a forge." },
-  hide: { name: "Hide", note: "A skin off something you hunted. Four make a backpack, at the chopping block." },
+  hide: { name: "Hide", note: "A skin off something you hunted. Four make a backpack, at the chopping block; tanned at a tanning rack, it's leather." },
+  leather: { name: "Leather", note: "A hide tanned on the rack. For a buff coat, a leather canteen — or the market." },
 };
 
 export function freshBody() {
   const skills = {};
   for (const s of BODY_SKILLS) skills[s.id] = { lv: 1, xp: 0 };
-  return { hunger: 1, thirst: 1, water: { n: 0, kind: null }, ill: null, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0, crossbow: 0, bolts: 0, canteen: 0 }, plague: 0, purse: 0 };
+  return { hunger: 1, thirst: 1, water: { n: 0, kind: null }, ill: null, skills, tools: { pick: 0, axe: 2, spade: 2, hammer: 0, sword: 0, pack: 0, musket: 0, crossbow: 0, bolts: 0, canteen: 0, coat: 0 }, plague: 0, purse: 0 };
 }
 export function restoreBody(saved) {
   const b = freshBody();
@@ -158,7 +161,7 @@ export function restoreBody(saved) {
 }
 export const bodyToSave = b => ({ hunger: +b.hunger.toFixed(3), thirst: +(b.thirst ?? 1).toFixed(3), water: b.water && b.water.n ? b.water : undefined, ill: b.ill || undefined, skills: b.skills, tools: { ...b.tools, v: 2 }, wear: b.wear || {}, plague: Math.round(b.plague || 0), purse: b.purse || 0 });
 // what the traders give for what you have gathered yourself and put in your chest, a piece
-export const SELL_PRICE = { meat: 2, venison: 3, hare: 2, boar: 4, fish: 1.5, mushrooms: 0.5, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
+export const SELL_PRICE = { leather: 4, hide: 1.5, meat: 2, venison: 3, hare: 2, boar: 4, fish: 1.5, mushrooms: 0.5, cookedmeat: 3, stone: 0.5, copperore: 1, tinore: 1, ironore: 1, copper: 2, tin: 2, bronze: 3, iron: 3, bread: 1, planks: 0.5, bricks: 0.5 };
 // the plague, from meat eaten raw: how long it lasts if nobody tends you
 export const PLAGUE_SECS = 300;
 
@@ -199,7 +202,7 @@ export function loseSkills(b, frac = 0.15) {
   return lost;
 }
 // ---- what the skills do ----
-export const damageTaken = (b, dmg) => dmg * (1 - 0.5 * skillK(b, "toughness"));
+export const damageTaken = (b, dmg) => dmg * (1 - 0.5 * skillK(b, "toughness")) * (b && b.tools && b.tools.coat ? 0.8 : 1);   // (a buff coat turns a fifth of it)
 // how hard a blow rattles you: the flash, the shake, the gasping (a hardened body hardly notices)
 export const rattle = b => 1 - 0.8 * skillK(b, "toughness");
 export const blowMul = b => 1 + 0.8 * skillK(b, "strength");

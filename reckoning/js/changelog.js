@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.73.0", date: "10 October 2026", title: "Leather",
+    items: [
+      "Tanning racks. Build one for 8 logs. It has two frames to stretch hides on, a vat of bark liquor and a scraping beam with the fleshing knife left on it.",
+      "Hold F at the rack to scrape a hide and lace it up on a frame, from your pack or the stores. Over a few minutes it turns from raw pink to brown, and then you take the leather off.",
+      "There's a new job, the tanner, who works the rack with the hides your hunters bring to the stores.",
+      "Leather makes a leather canteen (two pieces) that holds six drinks instead of four.",
+      "Leather also makes a buff coat (five pieces), the thick oiled leather coat soldiers wore under their armour. Every blow takes a fifth less off you.",
+      "Leather and hides sell at the market.",
+    ],
+  },
+  {
     v: "0.72.0", date: "10 October 2026", title: "Water",
     items: [
       "Thirst. Out in the woods there's a blue bar under your hunger. It runs down faster than hunger does, and faster still when you run.",
