@@ -8,6 +8,7 @@
 import { THREE } from "../core.js";
 import { makePerson } from "../models.js";
 import { $ } from "../ui.js";
+import { AUDIO } from "../audio.js";
 import { Net, addressOf, listRooms, globalServer, HOST } from "./net.js";
 import { MODES, SIZES } from "./rules.js";
 import { readSlot, MP_SLOT, NATION_SLOT } from "../story.js";
@@ -51,6 +52,8 @@ export function initLobby(c) {
 }
 export function openLobby() {
   ctx.screen("mpLobby");
+  // (music to wait to: it plays on through the lobby, the hosting and the builder, until you're in a game)
+  try { AUDIO.music("lobby"); } catch (e) {}
   $("mpWho").textContent = me.name ? `Playing as ${me.name}` : "You haven't made your character yet";
   const g = globalServer();
   $("mpWorldGo").disabled = !g;

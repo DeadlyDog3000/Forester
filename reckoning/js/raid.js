@@ -124,6 +124,7 @@ class Raider {
     } else from.stagger = G.time + 0.9;
   }
   down() {
+    if (this.puppet && this.puppet.onDown) this.puppet.onDown();
     this.raid.lock(this, null); this.a.squareTo = null;
     this.raid.downN = (this.raid.downN || 0) + 1;
     if (this.boss) this.raid.bossDown(this);
@@ -319,6 +320,48 @@ export class Raids {
     s.knocked = G.time + 18; s.wasKnocked = true; s.path = []; s.lying = true; s.yOff = 0.05; s.person.held.clear(); s.armKind = null;
     UI.bark(s.settler.name || (G.who === "sister" ? "Brother" : "Sister"), ["Ah—!", "I'm down—", "Get him off me!"][Math.floor(Math.random() * 3)], 1.8);
   }
+  // ---- a player at the head of their war party (Classic): a raider in this game, moved and swung from theirs ----
+  addPuppet(opts, x, z, hp = 160) {
+    const S = this.town.S, r = new Raider(this, x, z, S.raid.count * 7 + this.band.length, this.band.length, null);
+    r.a.remove();
+    const a = r.a = new Actor(opts, x, z, 0);
+    a.hold(makeArm("sword")); a.heavy = true; a.isPuppet = true;
+    r.arm = "sword"; r.hp = r.maxHp = hp; r.puppet = { tx: x, tz: z, tyaw: 0, spd: 0, wind: 0 };
+    // (moved only by where they say they are)
+    a.update = dt => {
+      const P = r.puppet, k = Math.min(1, dt * 9);
+      if (r.state === "down") { a.person.update(dt, 0); a.sync(); return; }
+      if (Math.hypot(P.tx - a.pos.x, P.tz - a.pos.z) > 8) { a.pos.x = P.tx; a.pos.z = P.tz; }
+      a.pos.x += (P.tx - a.pos.x) * k; a.pos.z += (P.tz - a.pos.z) * k;
+      a.pos.y = this.w.heightAt(a.pos.x, a.pos.z);
+      a.yaw += Math.atan2(Math.sin(P.tyaw - a.yaw), Math.cos(P.tyaw - a.yaw)) * Math.min(1, dt * 10);
+      a.speed = P.spd; a.person.update(dt, P.spd); a.sync();
+    };
+    this.band.push(r);
+    if (G.hunt) G.hunt.animals.push(r);
+    return r;
+  }
+  // their blow: drawn back a moment (time enough to see it coming and guard), then whoever is in front of them
+  puppetSwing(r, dir) {
+    if (!r.alive || r.puppet.wind > 0) return;
+    r.dir = ["left", "right", "up"].includes(dir) ? dir : "right";
+    r.puppet.wind = 0.42; r.a.person.setPose(r.dir === "up" ? "overhead" : "chop");
+    const pl = G.player, d = Math.hypot(pl.pos.x - r.pos.x, pl.pos.z - r.pos.z);
+    if (d < 3) glint(r.a);
+  }
+  puppetStep(r, dt) {
+    const P = r.puppet; if (!(P.wind > 0)) return;
+    P.wind -= dt; if (P.wind > 0) return;
+    setTimeout(() => { if (r.alive) r.a.person.setPose("idle"); }, 450);
+    AUDIO.whoosh && AUDIO.whoosh(0.4, true);
+    const a = r.a, fx = Math.sin(a.yaw), fz = Math.cos(a.yaw), W = { dmg: 24, cool: 1 };
+    const front = (o, reach) => { const dx = o.pos.x - a.pos.x, dz = o.pos.z - a.pos.z, d = Math.hypot(dx, dz); return d < reach && (dx * fx + dz * fz) / (d || 1) > 0.35 ? d : null; };
+    const pl = G.player, dp = !G.downed && G.mode !== "title" ? front(pl, 2.4) : null;
+    let best = null, bd = 2.4;
+    for (const s of this.town.actors) { if (s.gone || s.dead || s.knocked || s.inside) continue; const d = front(s, bd); if (d != null) { bd = d; best = s; } }
+    if (dp != null && (best == null || dp <= bd)) this.strikePlayer(r, W, dp);
+    else if (best) { this.strikeSettler(best, W.dmg, r); if (!best.duel && best.fighting) this.lock(r, best); }
+  }
   nearest(p, alive = true) {
     let best = null, bd = Infinity;
     for (const r of this.band) { if (alive && !r.alive) continue; const d = Math.hypot(r.pos.x - p.x, r.pos.z - p.z); if (d < bd) { bd = d; best = r; } }
@@ -338,6 +381,8 @@ export class Raids {
     let stolen = false;
     for (const r of this.band.slice()) {
       if (!r.alive) continue;
+      // (another player, come with their war party to lead it: steered from their game, not by any of this)
+      if (r.puppet) { this.puppetStep(r, dt); continue; }
       const a = r.a; r.t += dt; r.cool -= dt;
       if (r.stun > 0) { r.stun -= dt; continue; }
       // whoever is in his way — you, or a settler standing up to him — he fights
@@ -439,9 +484,9 @@ export class Raids {
         if (!this.brokeOff) { this.brokeOff = true; UI.bark(G.who === "sister" ? "Brother" : "Sister", "They're giving it up — look, they're making off down the road!", 3); }
         // (one squared up to you gives it up too, if it has gone on twice as long: a stand-off that's going nowhere)
         const stale = this.activeFor > giveUp * 2;
-        for (const r of this.band) if (r.alive && r.state !== "flee" && r.state !== "gone" && (stale || this.duelOf(r) !== pl)) { r.state = "flee"; r.wall = null; this.lock(r, null); r.a.path = []; r.a.walkTo(this.roadEnd.x, this.roadEnd.z, FLEE); }
+        for (const r of this.band) if (r.alive && !r.puppet && r.state !== "flee" && r.state !== "gone" && (stale || this.duelOf(r) !== pl)) { r.state = "flee"; r.wall = null; this.lock(r, null); r.a.path = []; r.a.walkTo(this.roadEnd.x, this.roadEnd.z, FLEE); }
       }
-      if (this.activeFor > giveUp + day * 0.15) for (const r of this.band.slice()) if (r.alive && r.state === "flee" && ((this.activeFor > giveUp * 2.5 || this.duelOf(r) !== pl) && Math.hypot(r.a.pos.x - pl.pos.x, r.a.pos.z - pl.pos.z) > 25 || this.activeFor > giveUp * 3)) { r.state = "gone"; this.lock(r, null); r.a.remove(); this.forget(r); }
+      if (this.activeFor > giveUp + day * 0.15) for (const r of this.band.slice()) if (r.alive && !r.puppet && r.state === "flee" && ((this.activeFor > giveUp * 2.5 || this.duelOf(r) !== pl) && Math.hypot(r.a.pos.x - pl.pos.x, r.a.pos.z - pl.pos.z) > 25 || this.activeFor > giveUp * 3)) { r.state = "gone"; this.lock(r, null); r.a.remove(); this.forget(r); }
     } else if (!this.active) { this.activeFor = 0; this.brokeOff = false; }
     // the raid over: every one of them down in the grass, or away down the road
     const act = this.active;
@@ -466,7 +511,7 @@ export class Raids {
     }
     if (this.wasActive && !act && this.nation) {
       // (a war party from another player's nation: its own game is told how many fell, and what the rest carried home)
-      const down = this.band.filter(r => r.state === "down").length, nat = this.nation;
+      const down = this.band.filter(r => r.state === "down" && !r.puppet).length, nat = this.nation;
       this.nation = null;
       nat.over && nat.over({ down, loot: { ...this.carried } });
       UI.bark(G.who === "sister" ? "Brother" : "Sister", down ? `That's ${nat.name} answered. ${down} of theirs won't go home.` : "They're gone — and they took what they could.", 3.5);

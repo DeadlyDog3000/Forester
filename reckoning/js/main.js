@@ -237,14 +237,18 @@ initLobby({
       mpSlotWas = getSlot(); useSlot(NATION_SLOT);
       const want = target && target.colony;
       if (want === "new" || !(readSlot(NATION_SLOT) || {}).town) { clearSlot(NATION_SLOT); writeSave({ who: mpIsF(me.look) ? "sister" : "brother", chapter: 14, unlocked: 14 }); }
-      G.who = (loadSave() || {}).who || "brother";
-      play(14);
-      const wait = setInterval(() => {
-        if (!G.town || G.town.replica || !G.town.raids) return;
-        clearInterval(wait);
-        G.player.setModel(mpLookOpts(me.look, me.name)); G.player.model.scaleBase = me.look.height || 1;
-        new NationGame(net, inMsg, me, { lost });
-      }, 200);
+      // (your own settlement, loaded: at first, and again on coming home from a battle you led in someone else's)
+      const loadHome = done => {
+        G.who = (loadSave() || {}).who || "brother";
+        play(14);
+        const wait = setInterval(() => {
+          if (!G.town || G.town.replica || !G.town.raids) return;
+          clearInterval(wait);
+          G.player.setModel(mpLookOpts(me.look, me.name)); G.player.model.scaleBase = me.look.height || 1;
+          done();
+        }, 200);
+      };
+      loadHome(() => new NationGame(net, inMsg, me, { lost, home: loadHome }));
       return;
     }
     // a co-op colony: the real free play — your own, kept in its own save, or the host's, as their game has it

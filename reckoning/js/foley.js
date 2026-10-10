@@ -161,13 +161,21 @@ const RECIPES = {
     }
     return finish(d, 0.8);
   },
-  // a fire burning: the low rush of it, and its crackle and pops — made long enough to loop without being heard to
+  // a fire burning: a light thing — the soft breath of the flames drawing, a faint hiss of sap, and over it the
+  // crackle, many small dry ticks and now and then a snap; a knot pops once in a while. (It was a heavy roar once,
+  // more furnace than campfire.) Made long enough to loop without being heard to.
   fire(sr) {
-    const L = 7, n = Math.floor(sr * L), d = new Float32Array(n);
-    const lp = new Biquad("lp", 380, 0.6, sr); let flick = 0;
-    for (let i = 0; i < n; i++) { flick += (Math.random() - 0.5) * 0.002; flick *= 0.9995; d[i] += lp.run(Math.random() * 2 - 1) * (0.55 + flick * 40 + 0.15 * Math.sin(i / sr * TAU * 0.3)); }
-    crackles(d, sr, 0, L, 9, 0.9, 1200, 7000);
-    let t = 0; while ((t += -Math.log(1 - Math.random()) / 0.8) < L - 0.1) modes(d, sr, t, [[rand(180, 420), 0.025, rand(0.3, 0.7)]]);
+    const L = 8, n = Math.floor(sr * L), d = new Float32Array(n);
+    const lp = new Biquad("lp", 560, 0.5, sr), hp = new Biquad("hp", 150, 0.5, sr), sap = new Biquad("hp", 4800, 0.7, sr); let flick = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      flick += (Math.random() - 0.5) * 0.002; flick *= 0.9995;
+      d[i] += hp.run(lp.run(Math.random() * 2 - 1)) * Math.max(0.04, 0.17 + flick * 14 + 0.06 * Math.sin(t * TAU * 0.23) + 0.03 * Math.sin(t * TAU * 0.61));
+      d[i] += sap.run(Math.random() * 2 - 1) * 0.014 * (1 + 0.6 * Math.sin(t * TAU * 0.37));
+    }
+    crackles(d, sr, 0, L, 17, 0.5, 2200, 8500);
+    crackles(d, sr, 0, L, 2.5, 0.95, 900, 3200);
+    let t = 0; while ((t += -Math.log(1 - Math.random()) / 0.35) < L - 0.1) modes(d, sr, t, [[rand(220, 460), 0.018, rand(0.12, 0.3)]]);
     // (the end folded into the start, so the loop has no seam)
     const xf = Math.floor(sr * 0.4); for (let i = 0; i < xf; i++) { const k = i / xf; d[i] = d[i] * k + d[n - xf + i] * (1 - k); }
     const out = d.subarray(0, n - xf);
@@ -213,7 +221,7 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
   last.connect(out);
   src.start();
 }
-let fireSrc = null;
+let fireSrc = null, FIRE_AT = null;
 export const FOLEY = {
   play,
   chop: (at, vol = 0.8) => play("chop", { vol, at, rate: [0.9, 1.1] }),
@@ -241,10 +249,20 @@ export const FOLEY = {
     const a = ac(), out = window.__foresterBus; if (!a || !out) return;
     if (on && !fireSrc) {
       const s = a.createBufferSource(); s.buffer = bufs("fire")[0]; s.loop = true;
-      const g = a.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(0.32, a.currentTime, 0.4);
+      const g = a.createGain(); g.gain.value = 0;
       s.connect(g); g.connect(out); s.start(); fireSrc = { s, g };
+      // (the fire is where it is: loud beside it, a murmur across the clearing, gone further off)
+      const near = () => {
+        const G = window.__G, f = fireSrc && fireSrc.g === g; if (!f) return;
+        let k = 1;
+        if (FIRE_AT && G && G.player && !G.player.seated) { const dd = Math.hypot(G.player.pos.x - FIRE_AT.x, G.player.pos.z - FIRE_AT.z); k = Math.max(0, Math.min(1, 1 - (dd - 3) / 40)) ** 1.4; }
+        g.gain.setTargetAtTime(0.22 * k, a.currentTime, 0.4);
+        setTimeout(near, 300);
+      };
+      if (!FIRE_AT) import("./woods.js").then(m => { FIRE_AT = m.FIRE || null; }).catch(() => {});
+      near();
     } else if (!on && fireSrc) {
-      const f = fireSrc; fireSrc = null; f.g.gain.setTargetAtTime(0, a.currentTime, 0.3); setTimeout(() => { try { f.s.stop(); } catch (e) {} }, 2000);
+      const f = fireSrc; fireSrc = null; f.g.gain.cancelScheduledValues(a.currentTime); f.g.gain.setTargetAtTime(0, a.currentTime, 0.3); setTimeout(() => { try { f.s.stop(); } catch (e) {} }, 2000);
     }
   },
   // the first Forester's blips, swapped for these (in this game only)

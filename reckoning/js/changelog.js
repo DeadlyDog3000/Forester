@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "0.69.0", date: "10 October 2026", title: "At the head of your men",
+    items: [
+      "Real battles in Classic. When you send a war party, you can lead it yourself. You march down the road with your men and come up the enemy's road into their own settlement, as their game has it: their houses, their people, their watch and their ruler, all moving as they are.",
+      "Fight there with your axe. Your blows are drawn back a moment before they land, the same as any raider's, so a defender who's watching can guard or parry them. You fight beside your own men while the enemy's watch and settlers fight back. Your health is your own, and if you're cut down your men carry you home.",
+      "Press N twice to fall back down the road. When all your men are down or gone, you fall back with them. Either way you wake at home in your own settlement, and the war party's plunder and losses follow you there.",
+      "Defending, you'll see their ruler at the head of the band, named in red over their head. Cut them down and the rest break.",
+      "The fire sounds lighter: a soft breath of flame under small dry crackles and the odd snap, where before it was a heavy roar. It also gets quieter as you walk away from it.",
+      "Music in the lobby: livelier tunes, one after another, through the game list, hosting and the character builder. The title tunes have shorter breaks between them too.",
+    ],
+  },
+  {
     v: "0.68.0", date: "10 October 2026", title: "Nations",
     items: [
       "Classic is now the full game for every player. Each of you plays your own settlement as a nation, with everything free play has: the same building, stores, research, settlers, laws, Europe and raiders. Your nation is kept in a save of its own, so you can carry it on the next time you play Classic.",

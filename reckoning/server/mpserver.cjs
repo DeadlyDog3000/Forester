@@ -755,11 +755,16 @@ class Room {
         if (!this.online.has(to)) return no("They aren't here.");
         if ([...this.forays.values()].some(f => f.from === me)) return no("Your war party is still out.");
         const n = Math.max(1, Math.min(10, num(m.n) | 0)), id = "f" + this.nextO++;
-        this.forays.set(id, { id, from: me, to, n, at: t, people: Array.isArray(m.people) ? m.people.slice(0, 10).map(x => clean(x, 40)) : [] });
-        this.sendTo(to, { t: "raided", id, from: me, name: this.natName(me), n });
-        this.headline("war", `${this.natName(me)} has sent ${n} armed men against ${this.natName(to)}.`);
+        const lead = !!m.lead;
+        this.forays.set(id, { id, from: me, to, n, at: t, lead, people: Array.isArray(m.people) ? m.people.slice(0, 10).map(x => clean(x, 40)) : [] });
+        this.sendTo(to, { t: "raided", id, from: me, name: this.natName(me), n, lead, ruler: p.name, look: p.look });
+        p.sock.send({ t: "foray", id, to });
+        this.headline("war", lead ? `${p.name} of ${this.natName(me)} marches against ${this.natName(to)} at the head of ${n} armed men.` : `${this.natName(me)} has sent ${n} armed men against ${this.natName(to)}.`);
         return;
       }
+      // a battle led in person: the defender's game shows it to the one leading the attack, and is told what they do
+      case "bh": { const f = [...this.forays.values()].find(f => f.lead && f.to === me && f.from === to); if (f) this.sendTo(to, { t: "h", m: m.m }); return; }
+      case "bg": { const f = [...this.forays.values()].find(f => f.lead && f.from === me && f.to === to); if (f) this.sendTo(to, { t: "g", from: me, m: m.m }); return; }
       case "raidEnd": {
         const f = this.forays.get(String(m.id)); if (!f || f.to !== me) return;
         this.forays.delete(f.id);

@@ -236,7 +236,9 @@ export const PIECES = {
 
 // the moods the game asks for, the tunes that suit each, and how long the quiet between them
 export const MOODS = {
-  title:      { pieces: ["ashes", "harbour"], rest: [3, 6] },
+  title:      { pieces: ["ashes", "harbour"], rest: [1, 2.5] },
+  // the multiplayer lobby and the character builder: music to wait to, one tune after another with hardly a breath
+  lobby:      { pieces: ["feast", "merchant", "burgher", "workday", "hope", "harbour"], rest: [0.4, 1.2] },
   home:       { pieces: ["merchant", "burgher", "harbour"], rest: [6, 14] },
   unease:     { pieces: ["shadows"], rest: [2, 4] },
   dread:      { pieces: ["dread"], rest: [0.5, 1] },
