@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.69.1", date: "10 October 2026", title: "A proper crossbow",
+    items: [
+      "The crossbow has been made again, as a German hunter of the day would carry one. It has a shaped walnut stock with its butt dropped for the cheek, bone inlay on the sides and along the top, and a steel bow swept back and lashed to the front with cord. There's a cord string, a horn nut that holds it, a long trigger lever underneath, a stirrup, sights, and a windlass on the side.",
+      "It's in your hands now, right hand at the trigger and left under the front of the stock. The steel bow bends back as it's spanned, and the string is drawn back to the nut. The bolt in the groove has an iron head and two red vanes.",
+      "Aim and it comes up to your cheek, the butt beside your face and the sights in front of your eye. Wind it and you tip it up and turn the crank, with your hand going round on the knob.",
+      "Other players see you carrying the same crossbow.",
+    ],
+  },
+  {
     v: "0.69.0", date: "10 October 2026", title: "At the head of your men",
     items: [
       "Real battles in Classic. When you send a war party, you can lead it yourself. You march down the road with your men and come up the enemy's road into their own settlement, as their game has it: their houses, their people, their watch and their ruler, all moving as they are.",

@@ -711,6 +711,88 @@ export function makeMusket() {
   g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 1.13, 0.03); g.add(g.userData.muzzle);
   return g;
 }
+// a crossbow of the time, as a German hunter would carry one: a walnut tiller, its butt dropped for the cheek and set
+// with bone; a steel prod, swept back, lashed to the front with cord; a horn nut that holds the string; a long
+// trigger lever under the stock; a stirrup; sights to look down; and a windlass on the side to span it. Built
+// pointing away down -z. userData.span(k) bends the prod and draws the string back (0 loosed, 1 spanned at the nut).
+export function makeCrossbow() {
+  const g = new THREE.Group();
+  const wood = mat(0x5a3820, { surface: "wood" }), dark = mat(0x3e2614, { surface: "wood" }), bone = mat(0xe6dcc4, { roughness: 0.55 });
+  const steel = mat(0x8c9198, { metalness: 0.75, roughness: 0.32 }), blued = mat(0x3a3e46, { metalness: 0.7, roughness: 0.38 });
+  const cord = mat(0x3a2c1e, { roughness: 0.95 }), horn = mat(0xd6c49a, { roughness: 0.5 }), str = mat(0xd8cfb4, { roughness: 0.9 });
+  const add = (m, x = 0, y = 0, z = 0) => { m.position.set(x, y, z); g.add(m); return m; };
+  // the tiller: its side drawn (forward is -z), and given its thickness
+  const sh = new THREE.Shape(), P = [[-0.25, 0.012], [-0.24, -0.1], [-0.2, -0.108], [-0.12, -0.07], [-0.04, -0.045], [0.02, -0.05], [0.16, -0.045], [0.3, -0.034], [0.47, -0.022], [0.47, 0.026], [0.06, 0.03], [-0.03, 0.03], [-0.14, 0.026], [-0.25, 0.012]];
+  sh.moveTo(P[0][0], P[0][1]); for (const [a, b] of P.slice(1)) sh.lineTo(a, b);
+  const tg = new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 4 });
+  tg.translate(0, 0, -0.02); tg.rotateY(Math.PI / 2);       // (the drawing's x becomes forward, -z)
+  add(new THREE.Mesh(tg, wood));
+  // bone set into the butt's sides, and a stripe along its comb
+  for (const sd of [-1, 1]) {
+    const pl = add(new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.05, 0.12), bone), sd * 0.0265, -0.045, 0.18); pl.rotation.x = 0.28;
+    for (let i = 0; i < 3; i++) add(new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 4), bone), sd * 0.0262, -0.012, 0.06 - i * 0.045);
+  }
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.003, 0.3), bone), 0, 0.0335, 0.02);
+  // the groove the bolt lies in, darker, and its spring clip
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.003, 0.34), dark), 0, 0.0345, -0.27);
+  const clip = add(new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.002, 0.06), steel), 0, 0.042, -0.15); clip.rotation.x = 0.12;
+  // the lock: plates either side, and the horn nut that the string catches on
+  for (const sd of [-1, 1]) add(new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.032, 0.07), steel), sd * 0.027, 0.006, -0.12);
+  const nut = add(new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.034, 12).rotateZ(Math.PI / 2), horn), 0, 0.034, -0.12);
+  // the long trigger lever under the stock, and its pivot
+  const trig = new THREE.Group(); trig.position.set(0, -0.045, -0.1); g.add(trig);
+  const lever = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.008, 0.2), steel); lever.position.set(0, -0.012, 0.1); lever.rotation.x = -0.12; trig.add(lever);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.05, 8).rotateZ(Math.PI / 2), blued), 0, -0.04, -0.1);
+  // sights: a notched leaf behind, a bead in front
+  for (const sd of [-1, 1]) add(new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.022, 0.004), blued), sd * 0.005, 0.046, -0.03);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.006, 0.004), blued), 0, 0.037, -0.03);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.0045, 8, 6), steel), 0, 0.044, -0.445);
+  // the steel prod: each half swept back from the root, flat-sectioned, with a nock at the tip
+  const root = new THREE.Vector3(0, 0.022, -0.42), halves = [];
+  for (const sd of [-1, 1]) {
+    const h = new THREE.Group(); h.position.copy(root); g.add(h);
+    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(sd * 0.1, 0, 0.004), new THREE.Vector3(sd * 0.2, -0.001, 0.016), new THREE.Vector3(sd * 0.3, -0.002, 0.04)]);
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.014, 8, false), steel); tube.scale.set(1, 0.68, 1); h.add(tube);
+    const nock = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), steel); nock.position.set(sd * 0.3, -0.001, 0.04); h.add(nock);
+    halves.push({ h, sd });
+  }
+  // the bridle: cord bound round prod and stock where they meet, and the iron that keeps them
+  for (const dx of [-0.026, 0.026]) { const w = add(new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.005, 5, 12), cord), dx, 0.012, -0.42); w.rotation.y = Math.PI / 2; }
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.056, 0.012, 0.03), blued), 0, 0.036, -0.42);
+  // the stirrup, for a foot when it's spanned by hand
+  const stir = add(new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.006, 6, 16, Math.PI), steel), 0, -0.004, -0.49); stir.rotation.set(0, 0, Math.PI);
+  stir.scale.set(1, 1.2, 1);
+  // the windlass on the right of the stock: its drum, and the crank that winds it
+  const drum = add(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.02, 14).rotateZ(Math.PI / 2), blued), 0.04, -0.01, -0.03);
+  const crank = new THREE.Group(); crank.position.set(0.054, -0.01, -0.03); g.add(crank);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.075, 0.01), steel); arm.position.y = 0.035; crank.add(arm);
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.03, 8).rotateZ(Math.PI / 2), dark); knob.position.set(0.017, 0.07, 0); crank.add(knob);
+  void drum; void nut;
+  // the string: two lengths of cord from the nocks to where it's held
+  const strand = () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 1, 5).translate(0, 0.5, 0), str); g.add(m); return m; };
+  const S1 = strand(), S2 = strand(), up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3();
+  const lay = (m, a, b) => { tmp.subVectors(b, a); const L = tmp.length(); m.position.copy(a); m.quaternion.setFromUnitVectors(up, tmp.normalize()); m.scale.set(1, L, 1); };
+  // a bolt in the groove: stout, a squared iron head, two vanes
+  const bolt = new THREE.Group();
+  bolt.add(new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0065, 0.3, 6).rotateX(Math.PI / 2), mat(0xa88458, { surface: "wood" })));
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.045, 4).rotateX(-Math.PI / 2), steel); head.position.z = -0.17; bolt.add(head);
+  for (const sd of [-1, 1]) { const v = new THREE.Mesh(new THREE.BoxGeometry(0.0015, 0.016, 0.05), mat(0x7a2e22)); v.position.set(sd * 0.006, 0.006, 0.13); v.rotation.z = sd * 0.5; bolt.add(v); }
+  bolt.position.set(0, 0.043, -0.26); g.add(bolt);
+  g.userData = { bolt, crank, trig, span(k) {
+    k = Math.max(0, Math.min(1, k));
+    const bend = 0.05 + 0.2 * k, tips = [];
+    for (const { h, sd } of halves) {
+      h.rotation.y = sd > 0 ? -bend : bend;
+      // (where the nock is, now)
+      const x = sd * (0.3 * Math.cos(bend) - 0.04 * Math.sin(bend)), z = 0.3 * Math.sin(bend) + 0.04 * Math.cos(bend);
+      tips.push(new THREE.Vector3(root.x + x, root.y - 0.002, root.z + z));
+    }
+    const mid = new THREE.Vector3(0, 0.034, tips[0].z + (-0.12 - tips[0].z) * k);
+    lay(S1, tips[0], mid); lay(S2, tips[1], mid);
+  } };
+  g.userData.span(1);
+  return g;
+}
 export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
 // (the pick's making is the player's, read from the game at the moment it is made)
 let _toolsOf = () => null;

@@ -9,7 +9,7 @@
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
-import { makeMusket } from "./models.js";
+import { makeMusket, makeCrossbow } from "./models.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
@@ -458,36 +458,58 @@ export class Player {
     if (on) { this.dropFood(); if (this.gun) this.showGun(false); if (this.bow) this.showBow(false); }
     if (on && !this.xbow) {
       if (this.axe) this.holsterAxe(true);
-      const g = new THREE.Group(), wood = new THREE.MeshStandardMaterial({ color: 0x6a4428, roughness: 0.75 }), steel = new THREE.MeshStandardMaterial({ color: 0x5a5e66, roughness: 0.35, metalness: 0.6 });
-      const box = (w, h, d, x, y, z, m, rx = 0, ry = 0, rz = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.set(rx, ry, rz); g.add(b); return b; };
-      box(0.045, 0.055, 0.66, 0, 0, -0.08, wood);                      // the stock, running away from you
-      box(0.04, 0.07, 0.1, 0, -0.035, 0.17, wood, -0.25);               // its butt against the shoulder
-      box(0.02, 0.012, 0.5, 0, 0.03, -0.12, steel);                     // the groove the bolt lies in, iron-lined
-      for (const sd of [-1, 1]) box(0.3, 0.018, 0.03, sd * 0.15, 0.025, -0.4 - 0.05, steel, 0, sd * 0.22, 0);   // the steel prod, swept back
-      const st = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.006, 6, 14), steel); st.position.set(0, 0.0, -0.44); st.rotation.x = Math.PI / 2; g.add(st);   // the stirrup
-      box(0.012, 0.05, 0.02, 0, -0.05, 0.03, steel, 0.3);               // the trigger lever
-      const crank = box(0.06, 0.008, 0.008, 0.04, -0.01, -0.02, steel); this.xcrank = crank;
-      const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
-      this.xstring = new THREE.Line(sg, new THREE.LineBasicMaterial({ color: 0xe8e0c8 })); g.add(this.xstring);
-      const bolt = new THREE.Group();
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.34, 6).rotateX(Math.PI / 2), wood); bolt.add(shaft);
-      const head = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.04, 6).rotateX(-Math.PI / 2), steel); head.position.z = -0.19; bolt.add(head);
-      bolt.position.set(0, 0.045, -0.25); g.add(bolt); this.xbolt = bolt;
+      const g = makeCrossbow(); g.scale.setScalar(0.86);
       g.traverse(o => { if (o.isMesh) o.castShadow = false; });
       vm.add(g); this.xbow = g;
+      this.xcrank = g.userData.crank; this.xbolt = g.userData.bolt; this.xtrig = g.userData.trig;
+      // your hands on it: the right round the wrist of the stock at the trigger, the left under the fore-end
+      const look = this.model && this.model.look || {};
+      const skinM = new THREE.MeshStandardMaterial({ color: look.skin ?? 0xe8c4a0, roughness: 0.6 });
+      const sleeveM = new THREE.MeshStandardMaterial({ color: look.coat ?? 0x4d5a3c, roughness: 0.95 });
+      const cuffM = new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 });
+      const fist = (x, y, z, rz) => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.034, 0.05, 4, 8), skinM); f.rotation.z = rz; h.add(f); h.position.set(x, y, z); g.add(h); return h; };
+      this.hands = [fist(0.012, -0.06, 0.02, Math.PI / 2 - 0.3), fist(-0.006, -0.05, -0.27, Math.PI / 2 + 0.2)];
+      this.arms = this.hands.map((h, i) => {
+        const arm = new THREE.Group();
+        arm.add(new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM));
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
+        vm.add(arm);
+        return { arm, sleeve: arm.children[0], cuff, shoulder: new THREE.Vector3(i === 0 ? 0.26 : -0.02, i === 0 ? -0.48 : -0.55, 0.12) };
+      });
+      // (and the one the others see, in your hands)
+      if (this.model && this.model.held) { this.xbowBody = makeCrossbow(); this.xbowBody.rotation.set(Math.PI / 2, 0, 0); this.model.held.add(this.xbowBody); }
       this.xaim = 0; this.xspan = (G.body && G.body.tools.bolts > 0) ? 1 : 0; this.xkick = 0;
       this.xposeIt();
-    } else if (!on && this.xbow) { vm.remove(this.xbow); this.xbow = null; }
+    } else if (!on && this.xbow) {
+      vm.remove(this.xbow); this.xbow = null;
+      for (const a of this.arms || []) vm.remove(a.arm);
+      this.arms = null; this.hands = null;
+      if (this.xbowBody && this.model && this.model.held) this.model.held.remove(this.xbowBody); this.xbowBody = null;
+    }
   }
   // how it lies in the hands: at the hip, or up at the eye with the bolt along the sight; the string back or loosed
   xposeIt() {
     const g = this.xbow; if (!g) return;
-    const a = this.xaim * this.xaim * (3 - 2 * this.xaim), k = this.xkick;
-    g.position.set(0.17 * (1 - a), -0.24 + 0.16 * a + 0.02 * k, -0.42 - 0.1 * a + 0.06 * k);
-    g.rotation.set(0.04 * (1 - a) + 0.12 * k, 0.04 * (1 - a), 0.08 * (1 - a));
-    const sp = this.xspan, z = -0.44 + 0.3 * sp, p = this.xstring.geometry.attributes.position;
-    p.setXYZ(0, -0.29, 0.026, -0.39); p.setXYZ(1, 0, 0.03, z); p.setXYZ(2, 0.29, 0.026, -0.39); p.needsUpdate = true; this.xstring.geometry.computeBoundingSphere();
+    const a = this.xaim * this.xaim * (3 - 2 * this.xaim), k = this.xkick, wd = this.xwind || 0, wn = wd * wd * (3 - 2 * wd);
+    // three ways of holding it: low at the hip; up at the cheek, the butt beside your face and the sights before your
+    // eye; and tipped up and turned while you wind the crank
+    const L = (h, m, wv) => (h + (m - h) * a) * (1 - wn) + wv * wn;
+    g.position.set(L(0.17, 0, 0.07), L(-0.24, -0.074, -0.23) + 0.02 * k, L(-0.5, -0.2, -0.42) + 0.06 * k);
+    g.rotation.set(L(0.07, 0, 0.42) + 0.12 * k, L(0.07, 0, 0.62), L(0.1, 0, 0.16));
+    const sp = this.xspan;
+    g.userData.span(sp);
+    if (this.xbowBody) this.xbowBody.userData.span(sp);
+    // (the trigger lever squeezed up against the stock as it looses, and back down)
+    if (this.xtrig) this.xtrig.rotation.x = 0.16 * k;
     this.xbolt.visible = sp >= 1 && (G.body ? G.body.tools.bolts > 0 : false);
+    if (this.xbowBody) this.xbowBody.userData.bolt.visible = this.xbolt.visible;
+    // (the left hand leaves the fore-end to wind the crank while it's spanned)
+    if (this.hands) {
+      // (on the crank's knob, going round with it)
+      const c = this.xcrank.rotation.x, wx = 0.09, wy = -0.01 + 0.07 * Math.cos(c), wz = -0.03 + 0.07 * Math.sin(c);
+      this.hands[1].position.set(-0.006 + (wx + 0.006) * wn, -0.05 + (wy + 0.05) * wn, -0.27 + (wz + 0.27) * wn);
+    }
+    this.fitArms();
   }
   updateXbow(dt) {
     if (!this.xbow) return;
@@ -495,6 +517,7 @@ export class Player {
     const bolts = G.body ? G.body.tools.bolts || 0 : 0;
     this.xaim += ((free && input.rdown ? 1 : 0) - this.xaim) * Math.min(1, dt * 9);
     this.xkick = Math.max(0, this.xkick - dt * 3);
+    this.xwind = (this.xwind || 0) + ((this.xspan < 1 && bolts > 0 && this.xkick < 0.6 ? 1 : 0) - (this.xwind || 0)) * Math.min(1, dt * 6);
     // the shot: down the line of the sight if aimed, wider from the hip
     if (free && input.click && this.xspan >= 1 && bolts > 0) {
       input.click = false;
@@ -519,7 +542,7 @@ export class Player {
   // each sleeve runs from its shoulder to its hand on the haft, however the axe is held
   fitArms() {
     if (!this.arms) return;
-    (this.axe || this.bow || this.gun).updateMatrixWorld(true);
+    (this.axe || this.bow || this.gun || this.xbow).updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < 2; i++) {
       const { arm, sleeve, cuff, shoulder } = this.arms[i];
