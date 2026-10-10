@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.84.2", date: "10 October 2026", title: "Everyone to bed",
+    items: [
+      "Sleeping works in a co-op colony. Before, a guest going to bed was done in the host's game: the host's screen went dark and the host was moved to the bed, while the guest got nothing. Now each of you goes to bed on your own (F at a bed, at night). The screen dims and you wait, and everyone is told who's in bed (\"Guesty has gone to bed, 1 of 2\"). When the last of you lies down, the night passes for everyone and you all wake in the morning. A step gets you up again if you change your mind.",
+    ],
+  },
+  {
     v: "0.84.1", date: "10 October 2026", title: "Heard across the room",
     items: [
       "The multiplayer list now really finds games hosted on other computers on your network. Its listening was cut off the instant it began, so only your own games, and ones you'd typed an address for, ever showed up. Now it listens for a couple of seconds each time it looks, every few seconds while the list is open.",

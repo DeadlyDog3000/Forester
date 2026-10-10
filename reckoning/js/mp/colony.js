@@ -97,10 +97,32 @@ export class ColonyBase {
   key(e) {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return false;
     if (G.mode !== "play" || e.repeat) return false;
+    // (lying in bed waiting for the others: a step, and you're up again)
+    if (this.inBed && /^(KeyW|KeyA|KeyS|KeyD|Space)$/.test(e.code)) { this.outOfBed(); return true; }
     if (e.code === "Enter") { e.preventDefault(); this.openChat(); return true; }
     return false;
   }
+  // the night, by the colony's clock (as the free play's bed has it)
+  night() { const t = G.town; if (!t) return false; const f = t.frac ?? 0.5; return f > 0.6 || f < 0.04; }
+  // into bed: the screen goes dim, and you wait for the others; when everyone is down, the night passes for all
+  lieDown() {
+    this.inBed = true; G.lockMove = true; UI.fade(0.75, 1.2);
+    const bed = G.world.bedSpot && G.world.bedSpot(0); if (bed) G.player.place(bed.x + Math.sin(bed.ry) * 0.9, bed.z + Math.cos(bed.ry) * 0.9, bed.ry + Math.PI);
+    UI.hint("You lie down. When everyone in the colony is in bed, the night passes. (A step gets you up again.)", 6);
+  }
+  outOfBed(quiet) {
+    if (!this.inBed) return;
+    this.inBed = false; G.lockMove = false; UI.fade(0, 0.8);
+    if (!quiet) this.bedChanged && this.bedChanged(false);
+  }
+  // the night gone: up with the others, by the bed, in the morning light
+  wake() {
+    this.inBed = false;
+    UI.fade(1, 0.8);
+    setTimeout(() => { UI.fade(0, 1.6); G.lockMove = false; }, 2200);
+  }
   leaveCommon(quiet) {
+    if (this.inBed) { this.inBed = false; G.lockMove = false; UI.fade(0, 0.3); }
     this.closeChat();
     if (!quiet) { try { this.net.send({ t: "leave" }); } catch (e) {} }
     this.net.close();
@@ -135,6 +157,10 @@ export class ColonyHost extends ColonyBase {
     this.keepNews = UI.news; this.keepTell = G.tell;
     UI.news = (n, ...rest) => { if (this.remotes.size && !this.inRunAs) { try { this.net.send({ t: "h", m: { t: "news", n: plain(n) } }); } catch (e) {} } return this.keepNews.call(UI, n, ...rest); };
     G.tell = (...a) => { if (this.remotes.size && !this.inRunAs) { try { this.net.send({ t: "h", m: { t: "tell", a: plain(a) } }); } catch (e) {} } return this.keepTell && this.keepTell(...a); };
+    // the bed: in a colony with others in it, the night passes only when everyone has gone to bed
+    this.origSleep = G.world.onSleep;
+    if (this.origSleep) G.world.onSleep = { label: "Go to bed — the night passes when everyone has", can: () => this.night() && !this.inBed && (!this.origSleep.can || this.origSleep.can()),
+      use: () => { if (!this.remotes.size) return this.origSleep.use(); this.lieDown(); this.bedChanged(true); } };
     // every tree that comes down, told at once, so they see it fall (wild ones too, which the settlement doesn't keep)
     G.town.onFell = (t, dx, dz) => { if (this.remotes.size) this.net.send({ t: "h", m: { t: "fell", x: t.x, z: t.z, dx, dz } }); };
   }
@@ -144,6 +170,25 @@ export class ColonyHost extends ColonyBase {
     const t = G.town; if (!t) return;
     const pl = G.player;
     this.net.send({ t: "h", to, m: { t: "snap", S: plain(t.S), clock: t.t, actors: this.actorDefs(true), at: { x: pl.pos.x + 1.5, z: pl.pos.z + 1.5 } } });
+  }
+  // who is in bed, said to everyone; and if that's all of them, morning
+  bedChanged(down, pid) {
+    const who = pid ? this.nameOf(pid) : this.me.name, n = this.sleepers().length, all = this.remotes.size + 1;
+    this.bedNote(down ? `${who} has gone to bed (${n} of ${all}).` : `${who} is up again.`);
+    this.checkBeds();
+  }
+  sleepers() { return [...(this.inBed ? [this.pid] : []), ...[...this.remotes.keys()].filter(pid => this.guest(pid).inBed)]; }
+  bedNote(text) { this.chatLine({ name: "", text }); if (this.remotes.size) this.net.send({ t: "h", m: { t: "bednote", text } }); }
+  checkBeds() {
+    if (!this.sleepers().length) return;
+    // (morning came by itself: up, all of you)
+    if (!this.night()) { for (const pid of this.remotes.keys()) this.guest(pid).inBed = false; if (this.inBed) this.outOfBed(true); this.net.send({ t: "h", m: { t: "morning", natural: true } }); return; }
+    if (this.sleepers().length < this.remotes.size + 1) return;
+    for (const pid of this.remotes.keys()) this.guest(pid).inBed = false;
+    this.inBed = false;
+    this.net.send({ t: "h", m: { t: "morning" } });
+    // (the night passed as it always is: the screen dark, the clock on to dawn, you up by the bed)
+    try { this.origSleep.use(); } catch (e) { G.lockMove = false; UI.fade(0, 1); }
   }
   joined(p) { this.snapshot(p.pid); UI.hint(`${p.name} has joined your colony.`, 4); }
   // the people and creatures of the world (not the other players' bodies)
@@ -178,6 +223,8 @@ export class ColonyHost extends ColonyBase {
     // what changed in the settlement, once a second: whole parts of it that differ from what was last sent
     if ((this.sdT = (this.sdT || 0) - dt) <= 0) {
       this.sdT = 1;
+      if (this.guests) for (const pid of Object.keys(this.guests)) if (!this.remotes.has(pid)) this.guests[pid].inBed = false;
+      this.checkBeds();
       if (!this.remotes.size) { this.lastKeys = {}; return; }
       const S = t.S, d = {};
       for (const k of Object.keys(S)) {
@@ -277,6 +324,8 @@ export class ColonyHost extends ColonyBase {
         if (!CALLS.has(m.fn) || typeof town[m.fn] !== "function") return;
         return this.runAs(pid, m.at, () => town[m.fn](...(m.args || []).map(v => this.deref(v))));
       }
+      case "bed": { if (!this.night()) return; this.guest(pid).inBed = true; this.bedChanged(true, pid); return; }
+      case "unbed": { if (!this.guest(pid).inBed) return; this.guest(pid).inBed = false; this.bedChanged(false, pid); return; }
       case "hunthit": {
         const a = G.hunt && G.hunt.animals.find(x => this.ids.get(x) === m.id);
         if (a && a.alive) this.runAs(pid, m.at, () => a.hit(Math.min(2.6, +m.power || 1)));
@@ -302,6 +351,7 @@ export class ColonyHost extends ColonyBase {
     if (G.mp !== this) return;
     const i = G.onFrame.indexOf(this.tickFn); if (i >= 0) G.onFrame.splice(i, 1);
     if (G.town) G.town.onFell = null;
+    if (this.origSleep && G.world) G.world.onSleep = this.origSleep;
     if (this.keepNews) UI.news = this.keepNews; if (this.keepTell) G.tell = this.keepTell;
     this.leaveCommon(quiet);
     G.mp = null;
@@ -365,6 +415,8 @@ export class ColonyGuest extends ColonyBase {
     if (m.t === "news") { try { UI.news(m.n); } catch (e) {} return; }
     if (m.t === "tell") { try { G.tell && G.tell(...(m.a || [])); } catch (e) {} return; }
     if (m.t === "fell") return this.treeFalls(m);
+    if (m.t === "bednote") return this.chatLine({ name: "", text: m.text });
+    if (m.t === "morning") { if (this.inBed) { if (m.natural) this.outOfBed(true); else this.wake(); } return; }
     if (m.t === "hx") { if (G.hunt && G.hunt.w === this.w) G.hunt.puppets(m.l || []); return; }
   }
   // your arrow in one of the host's beasts: told to their game, where it's brought down (or not)
@@ -414,6 +466,10 @@ export class ColonyGuest extends ColonyBase {
       }
       if (Object.keys(d).length || Object.keys(inc).length) this.send("set", { d, inc });
     };
+    // the bed: you lie down here, and the host's game is told; the night passes when everyone is down
+    this.w.onSleep = { label: "Go to bed — the night passes when everyone has", local: true, can: () => this.night() && !this.inBed,
+      use: () => { this.lieDown(); this.send("bed"); } };
+    this.bedChanged = down => { if (!down) this.send("unbed"); };
     // furnishing the cabin is the host's to do
     town.furnish = () => UI.hint("Furnishing the cabin is for the colony's host.", 3);
   }

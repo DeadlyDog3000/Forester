@@ -1862,7 +1862,8 @@ export class Woods extends WorldBase {
         this.furnCols.push(this.col.addCircle(x + along[0] * o, z + along[1] * o, sh / 2 * 0.9, this.cabinY + d.h));
       }
       if (f.type === "chest") this.bedIts.push(this.addInteract({ x, y: this.cabinY + 0.6, z, reach: 2, label: "Open the chest", use: () => G.openChest && G.openChest() }));
-      if (d.bed) this.bedIts.push(this.addInteract({ x, y: this.cabinY + 0.5, z, reach: 2.2, label: () => (this.onSleep && this.onSleep.label) || "Go to bed",
+      const W = this;
+      if (d.bed) this.bedIts.push(this.addInteract({ x, y: this.cabinY + 0.5, z, reach: 2.2, get local() { return !!(W.onSleep && W.onSleep.local); }, label: () => (this.onSleep && this.onSleep.label) || "Go to bed",
         can: () => !!this.onSleep && (!this.onSleep.can || this.onSleep.can()), use: () => this.onSleep.use(f) }));
     }
     this.furnGroup = b.build(MAT.rough);
