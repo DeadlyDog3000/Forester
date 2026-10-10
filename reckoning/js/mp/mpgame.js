@@ -15,6 +15,8 @@ import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCop
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { siteSign } from "../town.js";
+import { fishingGear } from "../fishing.js";
+import { WATER } from "./terrain.js";
 import { Wilds } from "./wilds.js";
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
@@ -196,6 +198,27 @@ export class MPGame {
     // (a pickaxe for the rocks, as in the settlement: 2 to take it out)
     G.onMine = () => this.swing();
     if (G.body) G.body.tools.pick = Math.max(G.body.tools.pick || 0, 1);
+    // fishing, at the lakes and the sea's edge: a rod of your own, as in the settlement; what you catch goes in your pack
+    if (G.body) G.body.tools.rod = Math.max(G.body.tools.rod || 0, 1);
+    {
+      const fg = new THREE.Group(); w.root.add(fg);
+      const wet = (x, z, k = 0.9) => w.land.heightAt(x, z) < WATER - (k > 0.92 ? 0.15 : 0.35);
+      const rings = [];
+      this.fish = fishingGear({ w, g: fg, t: 0, frozen: false, lvl: () => WATER - 0.05, wet,
+        shore: p => { for (let r = 1.5; r <= 7; r += 1.5) for (let a = 0; a < 6.28; a += 0.5) if (wet(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r)) return true; return false; },
+        farText: "Go down to the water's edge — a lake, or the shore — and face the water to cast.",
+        odds: () => 0.5,
+        ripple: (x, z, size = 1) => {
+          const m = rings.find(q => q.k >= 1) || (rings.length < 10 ? (() => { const q = { mesh: new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xc8d0d8, transparent: true, opacity: 0, depthWrite: false })), k: 1 }; fg.add(q.mesh); rings.push(q); return q; })() : rings[0]);
+          m.k = 0; m.s = size; m.mesh.position.set(x, WATER - 0.03, z);
+        },
+        onCatch: () => {
+          if (this.packHas && (this.pack.stone + this.pack.food) >= (this.packMax || 40)) { UI.hint("A fish — but your pack's full, so back it goes. Empty it at the hearth.", 3); return; }
+          this.net.send({ t: "fish" });
+          UI.hint(["A fish, fighting all the way in. Into your pack: food for the store.", "A good one, as long as your hand. Into your pack.", "A little one — it'll still feed someone."][Math.floor(Math.random() * 3)], 3);
+        } });
+      this.fishRings = rings;
+    }
     G.onFrame.push(dt => this.tick(dt));
     G.achEvent && (G.achEvent("mp-join"), r.persistent && G.achEvent("mp-world"), target && target.host && G.achEvent("mp-host"));
     this.listen();
@@ -320,10 +343,10 @@ export class MPGame {
     // what's in your pack: the stone you've broken and the food you've picked up, yours till you put it in the store
     n.pack = m => {
       const was = this.pack || { stone: 0, food: 0 };
-      this.pack = { stone: m.stone | 0, food: m.food | 0 };
+      this.pack = { stone: m.stone | 0, food: m.food | 0 }; if (m.max) this.packMax = m.max;
       const keep = (icon, name, note, k) => { let it = G.pack.find(i => i.icon === icon); if (k > 0) { if (!it) G.pack.push(it = { icon, name, note, n: k }); else it.n = k; } else if (it) G.pack.splice(G.pack.indexOf(it), 1); };
       keep("stone", "Stone", "Broken from the grey rocks. Put it in the store at the hearth or a woodshed (F), or use it straight from your pack at a site.", this.pack.stone);
-      keep("bread", "Food", "Put it in the store at the hearth (F), where the settlers eat from.", this.pack.food);
+      keep("fish", "Fish", "Caught at the water. Put it in the store at the hearth (F), where the settlers eat from — each feeds two.", this.pack.food);
       if (this.pack.stone > was.stone || this.pack.food > was.food) window.__foley && window.__foley.packIn(0.32);
     };
     n.dropgone = m => {
@@ -582,6 +605,10 @@ export class MPGame {
   }
   // ---- every frame ----
   tick(dt) {
+    if (this.fish) {
+      this.fish.t += dt; this.fish.fishTick(dt); this.fish.ringTick(dt);
+      for (const q of this.fishRings || []) { if (q.k >= 1) { q.mesh.material.opacity = 0; continue; } q.k = Math.min(1, q.k + dt / 1.8); q.mesh.scale.setScalar((0.1 + q.k * 0.9) * q.s); q.mesh.material.opacity = 0.3 * (1 - q.k); }
+    }
     const pl = G.player, now = performance.now();
     if ((this.goalT = (this.goalT || 0) - dt) <= 0) { this.goalT = 1; try { this.goals(); } catch (e) {} }
     // your health is the server's: no mending here but what it says, no hunger in these woods

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.92.0", date: "10 October 2026", title: "Lines in the sea",
+    items: [
+      "Frontier has fishing: everyone has a rod (its number takes it out). Stand at the edge of a lake or the sea, face the water, and click to cast; strike when the float goes right under, and play the fish in. What you catch goes into your pack, two food a fish, to put in the store at the hearth for your settlers. It's the same fishing as at the settlement's pond.",
+      "Tested in a game with two players, with the real keys and clicks: a guest fells a tree, takes the logs, adds them to the host's building site, breaks a rock into their pack and empties it at the hearth; and in a co-op colony, a guest takes logs from the stack and adds them to the host's site.",
+    ],
+  },
+  {
     v: "0.91.1", date: "10 October 2026", title: "Into your pack",
     items: [
       "Frontier: what you gather goes into your own pack, not straight into the stores, as in the settlement. Stone from the rocks, and what you loot from a fallen player's sack, ride on your back (T shows them) until you empty them into the store at the hearth or a woodshed (F there: \"Put in the store\"). A site raised takes its stone from the store first, then from your pack. Fall, and it's what's in your arms and your pack that spills, not your stores at home. Logs you hand to someone come out of your arms.",

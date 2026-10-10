@@ -305,6 +305,16 @@ class Room {
         this.sendPack(p); this.dirty = true;
         return;
       }
+      // a fish caught: only at the water's edge, and not quicker than a cast can be made — into the pack, food for the store
+      case "fish": {
+        if (p.dead || t - (p.lastFish || 0) < 4000) return; p.lastFish = t;
+        let wet = false;
+        for (let r = 1.5; r <= 9 && !wet; r += 1.5) for (let a = 0; a < 6.28 && !wet; a += 0.5) if (this.land.heightAt(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r) < -0.3) wet = true;
+        if (!wet) return;
+        const pk = this.packOf(p.pid), n = Math.min(2, this.packRoom(p.pid)); if (n <= 0) return;
+        pk.food += n; this.sendPack(p); this.dirty = true;
+        return;
+      }
       case "build": {
         if (p.dead) return;
         const d = R.BUILD[m.type]; if (!d) return;

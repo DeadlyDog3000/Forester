@@ -1540,7 +1540,7 @@ function hotbarItems() {
   if (pl.hasBow) { out.push({ icon: "bow", name: pl.bowMade ? "Your hunting bow" : "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
   if (tl && tl.musket) out.push({ icon: "musket", name: "Your musket", tool: "gun" });
   if (tl && tl.crossbow) { out.push({ icon: "crossbow", name: "Your crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: tl.bolts || 0 }); }
-  if (tl && tl.rod && G.world && G.world.pond) out.push({ icon: "rod", name: "Fishing rod", tool: "rod" });
+  if (tl && tl.rod && G.world && G.world.fishing) out.push({ icon: "rod", name: "Fishing rod", tool: "rod" });
   if (tl && tl.canteen && G.world && G.world.waterOK) { const W = G.body.water || { n: 0 }, size = tl.canteen >= 2 ? 6 : 4; out.push({ icon: "canteen", name: W.n ? `Canteen — ${W.n} of ${size}, ${WATER_NAME[W.kind] || "water"}` : "Canteen — empty", tool: "canteen", n: W.n }); }
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
