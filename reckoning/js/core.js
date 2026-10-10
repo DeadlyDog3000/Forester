@@ -598,45 +598,90 @@ export function makeSky() {
 // A flickering flame: tongues of fire, white-hot at the root and dark orange where they thin away to nothing (drawn
 // additively, so a darker colour is a fainter one), a soft glow round them, sparks going up — and an optional real light.
 const FLAME = {};
-function flameGeo(r, h, hot, cool) {
-  const g = new THREE.ConeGeometry(r, h, 7, 4, true); g.translate(0, h / 2, 0);
-  const p = g.attributes.position, c = new Float32Array(p.count * 3), a = new THREE.Color(hot), b = new THREE.Color(cool), t = new THREE.Color();
-  for (let i = 0; i < p.count; i++) { const k = Math.min(1, Math.max(0, p.getY(i) / h)); t.copy(a).lerp(b, Math.pow(k, 0.8)).multiplyScalar(1 - k * k * 0.85); c[i * 3] = t.r; c[i * 3 + 1] = t.g; c[i * 3 + 2] = t.b; }
-  g.setAttribute("color", new THREE.BufferAttribute(c, 3));
-  return g;
+// FIRE: flames drawn as they move, not solid cones — a little film of a flame, sixteen frames that loop, made once
+// here from noise (the tongues licking up and breaking off, white-gold at the heart and red at the edges), shown on a
+// few faces that always turn to you; a glow about it; embers that float up and wink out; and over a big fire, smoke.
+function noise3(x, y, z) {
+  const X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z), fx = x - X, fy = y - Y, fz = z - Z;
+  const h = (i, j, k) => { let n = (i * 374761393 + j * 668265263 + k * 1274126177) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  const s = t => t * t * (3 - 2 * t), u = s(fx), v = s(fy), w = s(fz), L = (a, b, t) => a + (b - a) * t;
+  return L(L(L(h(X, Y, Z), h(X + 1, Y, Z), u), L(h(X, Y + 1, Z), h(X + 1, Y + 1, Z), u), v), L(L(h(X, Y, Z + 1), h(X + 1, Y, Z + 1), u), L(h(X, Y + 1, Z + 1), h(X + 1, Y + 1, Z + 1), u), v), w);
 }
+const FRAMES = 16, FW = 64, FH = 128;
 function flameParts() {
-  if (FLAME.mat) return FLAME;
-  FLAME.mat = new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true });
-  FLAME.outer = flameGeo(0.07, 0.3, 0xffb040, 0x8a1a00);
-  FLAME.tongue = flameGeo(0.04, 0.26, 0xffc860, 0x6a1200);
-  FLAME.core = flameGeo(0.042, 0.15, 0xfff4d0, 0xff9a30);
-  const cv = document.createElement("canvas"); cv.width = cv.height = 64; const x = cv.getContext("2d");
-  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, "rgba(255,170,70,0.55)"); gr.addColorStop(0.4, "rgba(255,110,30,0.2)"); gr.addColorStop(1, "rgba(255,80,20,0)");
-  x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
-  FLAME.glow = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
-  FLAME.spark = new THREE.MeshBasicMaterial({ color: 0xffb060, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
-  FLAME.sparkGeo = new THREE.BoxGeometry(0.012, 0.012, 0.012);
+  if (FLAME.film) return FLAME;
+  // the film: four rows of four frames; time goes round a circle through the noise, so the last frame meets the first
+  const cv = document.createElement("canvas"); cv.width = FW * 4; cv.height = FH * 4;
+  const x = cv.getContext("2d"), img = x.createImageData(cv.width, cv.height), d = img.data;
+  for (let f = 0; f < FRAMES; f++) {
+    const ang = f / FRAMES * Math.PI * 2, cz = Math.cos(ang) * 1.3, sz = Math.sin(ang) * 1.3, ox = (f % 4) * FW, oy = Math.floor(f / 4) * FH;
+    for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) {
+      const u = (i + 0.5) / FW * 2 - 1, v = 1 - (j + 0.5) / FH;     // (v: 0 at the foot, 1 at the top)
+      // the rising turbulence: noise drifting up through the flame, two scales of it
+      const n1 = noise3(u * 2.2 + cz, v * 3.2 - ang * 0.9, sz), n2 = noise3(u * 5 + 7 + cz * 1.7, v * 7 - ang * 1.8, sz * 1.7 + 3);
+      const turb = n1 * 0.65 + n2 * 0.35;
+      // the shape: wide and bright at the foot, narrowing and breaking up toward the top, bent by the turbulence
+      const wv = 0.62 * Math.pow(1 - v, 0.55) + 0.04, du = u + (turb - 0.5) * 0.55 * v;
+      let k = Math.exp(-Math.pow(du / wv, 2) * 1.6) * Math.pow(1 - v, 0.35);
+      k *= 0.45 + turb * 1.1 - v * 0.55;
+      k = Math.max(0, Math.min(1.2, k * 1.5 - 0.1));
+      // (nothing at a frame's very edges, so no frame bleeds into the next)
+      k *= Math.min(1, v / 0.05) * Math.min(1, (1 - v) / 0.08) * Math.min(1, (1 - Math.abs(u)) / 0.08);
+      const o = ((oy + j) * cv.width + ox + i) * 4;
+      // white-gold at the heart, orange, then deep red as it thins
+      d[o] = Math.min(255, 255 * Math.min(1, k * 2.2));
+      d[o + 1] = Math.min(255, 255 * Math.max(0, Math.min(1, k * 1.5 - 0.25)));
+      d[o + 2] = Math.min(255, 255 * Math.max(0, k - 0.75) * 2.4);
+      d[o + 3] = Math.min(255, 255 * Math.min(1, k * 1.8));
+    }
+  }
+  x.putImageData(img, 0, 0);
+  FLAME.film = new THREE.CanvasTexture(cv); FLAME.film.colorSpace = THREE.SRGBColorSpace;
+  FLAME.film.generateMipmaps = false; FLAME.film.minFilter = THREE.LinearFilter;
+  FLAME.film.repeat.set(0.25, 0.25);
+  const blob = (inner, outer, a0, size = 64) => {
+    const c = document.createElement("canvas"); c.width = c.height = size; const g = c.getContext("2d");
+    const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); gr.addColorStop(0, inner); gr.addColorStop(a0, outer); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, size, size); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  FLAME.glow = new THREE.SpriteMaterial({ map: blob("rgba(255,170,70,0.55)", "rgba(255,110,30,0.2)", 0.4), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
+  FLAME.ember = new THREE.SpriteMaterial({ map: blob("rgba(255,240,200,1)", "rgba(255,140,40,0.6)", 0.35, 32), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: true });
+  // smoke: a soft, uneven puff
+  { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d");
+    for (let i = 0; i < 9; i++) { const px = 22 + Math.random() * 20, py = 22 + Math.random() * 20, r = Math.min(10 + Math.random() * 14, px - 1, 63 - px, py - 1, 63 - py), gr = g.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, "rgba(255,255,255,0.32)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }
+    FLAME.smokeTex = new THREE.CanvasTexture(c); }
   return FLAME;
 }
 export function makeFlame(size = 1, light = null) {
   const F = flameParts(), g = new THREE.Group();
-  const outer = new THREE.Mesh(F.outer, F.mat); outer.scale.setScalar(size); outer.renderOrder = 2;
-  const inner = new THREE.Mesh(F.core, F.mat); inner.scale.setScalar(size); inner.renderOrder = 3;
-  g.add(outer, inner);
-  // (the tongues licking up round it, each on its own time)
-  const tongues = [];
-  for (let i = 0; i < 4; i++) {
-    const m = new THREE.Mesh(F.tongue, F.mat), a = i / 4 * Math.PI * 2 + Math.random();
-    m.position.set(Math.cos(a) * 0.035 * size, 0, Math.sin(a) * 0.035 * size); m.scale.setScalar(size * (0.7 + Math.random() * 0.5)); m.renderOrder = 2;
-    m.userData.ph = Math.random() * 10; m.userData.base = m.scale.y; m.userData.a = a;
-    g.add(m); tongues.push(m);
+  // the faces of the flame: a tall one in the middle, and smaller ones about it, each at its own place in the film
+  const faces = [];
+  const n = size >= 2 ? 4 : size >= 0.8 ? 3 : 2;
+  for (let i = 0; i < n; i++) {
+    const map = F.film.clone(); map.repeat.set(0.25, 0.25);
+    const m = new THREE.SpriteMaterial({ map, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: true });
+    const sp = new THREE.Sprite(m); sp.center.set(0.5, 0.04); sp.renderOrder = 2;
+    const main = i === 0, a = i / n * Math.PI * 2 + Math.random();
+    const w = (main ? 0.26 : 0.17 + Math.random() * 0.05) * size, h = (main ? 0.52 : 0.34 + Math.random() * 0.1) * size;
+    sp.position.set(main ? 0 : Math.cos(a) * 0.05 * size, 0, main ? 0 : Math.sin(a) * 0.05 * size);
+    sp.scale.set(w, h, 1);
+    sp.userData = { w, h, ph: Math.random() * FRAMES, fps: 15 + Math.random() * 6, flip: Math.random() < 0.5 };
+    if (sp.userData.flip) { map.repeat.x = -0.25; }
+    g.add(sp); faces.push(sp);
   }
-  const glow = new THREE.Sprite(F.glow); glow.scale.setScalar(0.75 * size); glow.position.y = 0.1 * size; glow.renderOrder = 1; g.add(glow);
-  // sparks, only from a fire big enough to throw them
+  const glow = new THREE.Sprite(F.glow); glow.scale.setScalar(0.75 * size); glow.position.y = 0.12 * size; glow.renderOrder = 1; g.add(glow);
+  // embers, from a fire big enough to throw them
   const sparks = [];
-  if (size >= 1.5) for (let i = 0; i < 4; i++) { const sp = new THREE.Mesh(F.sparkGeo, F.spark); sp.scale.setScalar(size * 0.6); sp.userData.t = Math.random(); g.add(sp); sparks.push(sp); }
-  g.userData.flame = { outer, inner, tongues, glow, sparks, size, t: Math.random() * 10, light, base: light ? light.intensity : 0 };
+  if (size >= 1.5) for (let i = 0; i < Math.min(14, Math.round(size * 2.5)); i++) {
+    const sp = new THREE.Sprite(F.ember.clone()); sp.scale.setScalar(0.035 * Math.min(2, size / 2)); sp.userData = { t: Math.random(), sp: 0.35 + Math.random() * 0.35, dx: 0, dz: 0, sw: Math.random() * 10 }; sp.renderOrder = 3; g.add(sp); sparks.push(sp);
+  }
+  // smoke, over a proper fire
+  const smoke = [];
+  if (size >= 2) for (let i = 0; i < 7; i++) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: F.smokeTex, color: 0x9a948a, transparent: true, depthWrite: false, opacity: 0, fog: true }));
+    m.userData = { t: i / 7, rot: (Math.random() - 0.5) * 0.6 }; m.renderOrder = 1; g.add(m); smoke.push(m);
+  }
+  g.userData.flame = { faces, glow, sparks, smoke, size, t: Math.random() * 10, light, base: light ? light.intensity : 0 };
   if (light) { light.position.y = 0.25 * size; g.add(light); }
   return g;
 }
@@ -645,21 +690,34 @@ export function flicker(g, dt) {
   f.t += dt;
   const k = 0.85 + Math.sin(f.t * 13.1) * 0.08 + Math.sin(f.t * 23.7) * 0.06 + Math.sin(f.t * 5.3) * 0.05;
   const s = f.size || 1;
-  f.outer.scale.set(s * (1.05 - (k - 0.85) * 0.6), s * k * 1.05, s * (1.05 - (k - 0.85) * 0.6));
-  f.inner.scale.set(s, s * (1.6 - k * 0.6), s);
-  for (const m of f.tongues || []) {
-    const ph = m.userData.ph + f.t * (9 + m.userData.a);
-    m.scale.y = m.userData.base * (0.75 + 0.35 * Math.abs(Math.sin(ph)) + 0.1 * Math.sin(ph * 2.7));
-    m.rotation.z = Math.sin(ph * 0.7) * 0.18; m.rotation.x = Math.cos(ph * 0.9) * 0.15;
+  // (out: a fire with no light left in it shows no flame either)
+  const lit = !f.light || f.base > 0.01;
+  for (const sp of f.faces || []) {
+    const u = sp.userData; sp.visible = lit; if (!lit) continue;
+    const fr = Math.floor(u.ph + f.t * u.fps) % FRAMES, map = sp.material.map;
+    map.offset.set((fr % 4) * 0.25 + (u.flip ? 0.25 : 0), 0.75 - Math.floor(fr / 4) * 0.25);
+    const breathe = 0.9 + (k - 0.85) * 1.2 + 0.06 * Math.sin(f.t * 3.1 + u.ph);
+    sp.scale.set(u.w * (1.02 - (k - 0.85) * 0.4), u.h * breathe, 1);
+    sp.material.rotation = Math.sin(f.t * 1.7 + u.ph) * 0.05;
   }
-  if (f.glow) f.glow.material.opacity = 1;
-  if (f.glow) f.glow.scale.setScalar(0.75 * s * (0.9 + (k - 0.85) * 1.5));
+  if (f.glow) { f.glow.visible = lit; f.glow.scale.setScalar(0.75 * s * (0.9 + (k - 0.85) * 1.5)); }
   for (const sp of f.sparks || []) {
-    sp.userData.t += dt * (0.55 + (sp.id % 5) * 0.08);
-    if (sp.userData.t > 1) { sp.userData.t = 0; sp.userData.dx = (Math.random() - 0.5) * 0.25 * s; sp.userData.dz = (Math.random() - 0.5) * 0.25 * s; }
-    const u = sp.userData.t;
-    sp.position.set((sp.userData.dx || 0) * u + Math.sin(u * 9 + sp.id) * 0.03 * s, 0.15 * s + u * 0.9 * s, (sp.userData.dz || 0) * u);
-    sp.visible = u < 0.85;
+    const u = sp.userData;
+    u.t += dt * u.sp;
+    if (u.t > 1) { u.t = 0; u.dx = (Math.random() - 0.5) * 0.5 * s; u.dz = (Math.random() - 0.5) * 0.5 * s; u.sp = 0.3 + Math.random() * 0.4; }
+    const t = u.t;
+    sp.position.set(u.dx * t + Math.sin(t * 7 + u.sw) * 0.06 * s, 0.12 * s + t * (0.8 + u.sp) * s, u.dz * t + Math.cos(t * 6 + u.sw) * 0.05 * s);
+    sp.visible = lit && t < 0.92;
+    sp.material.opacity = (1 - t) * (0.6 + 0.4 * Math.sin(f.t * 20 + u.sw));
+  }
+  for (const m of f.smoke || []) {
+    const u = m.userData; u.t += dt * 0.16; if (u.t > 1) u.t -= 1;
+    const t = u.t;
+    m.visible = lit;
+    m.position.set(Math.sin(t * 3 + u.rot * 9) * 0.15 * s, 0.35 * s + t * 1.6 * s, Math.cos(t * 2.4 + u.rot * 7) * 0.12 * s);
+    m.scale.setScalar((0.25 + t * 0.9) * s);
+    m.material.opacity = Math.sin(Math.min(1, t * 1.3) * Math.PI) * 0.16;
+    m.material.rotation = u.rot * t * 3;
   }
   if (f.light) f.light.intensity = f.base * (0.8 + (k - 0.85) * 2.5);
 }

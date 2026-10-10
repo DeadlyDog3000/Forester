@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.70.0", date: "10 October 2026", title: "Fire",
+    items: [
+      "Every fire in the game has been made again: the campfire, hearths, the charcoal clamp, candles and torches. The flames used to be solid cones. Now they move like real fire: tongues lick up and break off at the top, white-gold at the heart and red at the edges, and they never look quite the same twice.",
+      "Embers float up from a good fire, drifting and winking out. A big fire sends up a slow column of smoke that spreads as it rises.",
+      "A fire that's gone out shows no flame.",
+    ],
+  },
+  {
     v: "0.69.1", date: "10 October 2026", title: "A proper crossbow",
     items: [
       "The crossbow has been made again, as a German hunter of the day would carry one. It has a shaped walnut stock with its butt dropped for the cheek, bone inlay on the sides and along the top, and a steel bow swept back and lashed to the front with cord. There's a cord string, a horn nut that holds it, a long trigger lever underneath, a stirrup, sights, and a windlass on the side.",
