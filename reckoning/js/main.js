@@ -404,6 +404,7 @@ const ICON = {
   copperore: "../assets/sprites/items/copper_ore.png", ironore: "../assets/sprites/items/iron_ore.png", copper: "../assets/sprites/items/copper.png", ironbar: "../assets/sprites/items/iron_bar.png",
   axe: "../assets/sprites/items/tool_iron.png", weapon: "../assets/sprites/items/weapon_iron.png", logs: "../assets/sprites/items/logs.png", cabin: "../assets/sprites/buildings/log_cabin_32.png",
 };
+G.icons = ICON;   // (the item and building pictures, for the other screens that show them: Frontier's plans)
 // rye (the grain, threshed, by the sack) drawn here as a sheaf, so it isn't mistaken for the seed corn
 ICON.rye = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
   x.lineCap = "round";

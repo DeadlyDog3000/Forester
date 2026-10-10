@@ -11,7 +11,7 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
-import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack } from "../models.js";
+import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { Wilds } from "./wilds.js";
@@ -417,50 +417,65 @@ export class MPGame {
     }
   }
   // ---- building ----
+  // the plans: the same window, the same rows and pictures as the plans in the settlement (B) — only Frontier's own buildings
   openBuild(on) {
     this.menuOpen = on;
-    $("mpBuild").classList.toggle("hidden", !on);
+    $("buildmenu").classList.toggle("hidden", !on);
+    $("mpBuild").classList.add("hidden");
     if (!on) return;
-    $("mpBuildList").innerHTML = BUILD_ORDER.map((k, i) => {
+    const IC = G.icons || {}, PIC = { hearth: "logs", cabin: "cabin", shed: "logs", house: "cabin", field: "seeds", well: "well", wall: "logs", gate: "logs", tower: "weapon", forge: "tools", market: "coin" };
+    $("buildTitle").textContent = "Plans";
+    $("buildList").innerHTML = BUILD_ORDER.map((k, i) => {
       const d = BUILD[k], ok = this.stock.wood >= d.wood && this.stock.stone >= d.stone, has = k === "hearth" && this.myHearth();
-      return `<button class="plan" data-k="${k}" ${ok && !has ? "" : "disabled"}><span class="pk">${(i + 1) % 10}</span><span><b>${d.name}</b><span class="pd">${d.note}${has ? (this.mode === "coop" ? " (The colony has one.)" : " (You have one.)") : ""}</span></span><span class="pc">${d.wood} logs${d.stone ? `<br>${d.stone} stone` : ""}</span></button>`;
+      const cost = [`${d.wood} logs`, d.stone ? `${d.stone} stone` : ""].filter(Boolean).join(", ");
+      const short = !ok ? ` — ${[this.stock.wood < d.wood ? `${d.wood - this.stock.wood} logs` : "", this.stock.stone < d.stone ? `${d.stone - this.stock.stone} stone` : ""].filter(Boolean).join(" and ")} short` : "";
+      return `<button class="plan${ok && !has ? "" : " short"}" data-k="${k}" data-i="${i}"><img src="${IC[PIC[k]] || IC.logs || ""}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}${has ? (this.mode === "coop" ? " (The colony has one.)" : " (You have one.)") : esc(short)}</span></span><span class="pc">${cost}</span></button>`;
     }).join("");
-    for (const b of $("mpBuildList").querySelectorAll("[data-k]")) b.onclick = () => this.startBuild(b.dataset.k);
+    for (const b of $("buildList").querySelectorAll("[data-k]")) b.onclick = () => { if (b.classList.contains("short")) { sfx("deny"); return; } this.startBuild(b.dataset.k); };
   }
   startBuild(type) {
     this.openBuild(false);
     G.lockMouse && G.lockMouse();
     const d = BUILD[type]; if (!d) return;
     if (this.build) this.endBuild();
-    const mat = new THREE.MeshBasicMaterial({ color: 0x5ac85a, transparent: true, opacity: 0.2, depthWrite: false });
+    // what it will look like, as the settlement's plans show it: the building itself, pale green, its ground outlined
+    const tint = new THREE.MeshStandardMaterial({ color: 0x7fe07a, transparent: true, opacity: 0.42, depthWrite: false, roughness: 0.8, emissive: 0x2a5a26, emissiveIntensity: 0.5 });
+    const dress = o => { o.traverse(m => { if (m.isMesh || m.isInstancedMesh) { m.material = tint; m.castShadow = false; m.receiveShadow = false; } }); return o; };
+    const ghost = new THREE.Group(), body = new THREE.Group(); ghost.add(body);
     let geo;
     if (d.wall) geo = new THREE.BoxGeometry(d.len, 2.6, 0.4).translate(0, 1.3, 0);
     else if (type === "hearth") geo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 16).translate(0, 0.25, 0);
     else if (type === "tower") geo = new THREE.BoxGeometry(2.6, 6.4, 2.6).translate(0, 3.2, 0);
     else if (type === "well") geo = new THREE.CylinderGeometry(1.2, 1.2, 1.4, 14).translate(0, 0.7, 0);
-    else geo = new THREE.BoxGeometry(d.w || 4, 3.2, d.d || 4).translate(0, 1.6, 0);
-    const ghost = new THREE.Mesh(geo, mat);
-    // (its edges drawn clear, so it reads as an outline of what will stand there and doesn't fill the view)
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 })); ghost.add(edges); ghost.userData.edges = edges;
+    else if (d.field) geo = new THREE.BoxGeometry(d.w || 6, 0.08, d.d || 7).translate(0, 0.04, 0);
+    else geo = new THREE.BoxGeometry((d.w || 4) * 0.9, 3.2, (d.d || 4) * 0.9).translate(0, 1.6, 0);
+    body.add(new THREE.Mesh(geo, tint));
+    if (d.model) { const put = () => { const m = modelCopy(d.model); if (!m) return false; body.clear(); body.add(dress(m.scene)); return true; }; if (!put()) ensureModel(d.model).then(ok => { if (ok && this.build && this.build.ghost === ghost) put(); }); }
+    const fw = d.wall ? d.len : d.w || d.r * 2, fd = d.wall ? 0.5 : d.d || d.r * 2;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(fw, 0.05, fd)), new THREE.LineBasicMaterial({ color: 0x7fe07a })); edges.position.y = 0.05; ghost.add(edges); ghost.userData.edges = edges; ghost.userData.tint = tint;
     // the ground it will claim, for a hearth
-    if (d.claim) { const ring = new THREE.Mesh(new THREE.RingGeometry(d.claim - 0.25, d.claim, 64).rotateX(-Math.PI / 2), mat); ring.position.y = 0.3; ghost.add(ring); }
+    if (d.claim) { const ring = new THREE.Mesh(new THREE.RingGeometry(d.claim - 0.25, d.claim, 64).rotateX(-Math.PI / 2), tint); ring.position.y = 0.3; ghost.add(ring); }
+    UI.keys(d.wall ? [["Click", "lay a length"], ["Hold R / Y", "turn it"], ["B", "done"]] : [["Click", "set it here"], ["Hold R / Y", "turn it"], ["B", "put the plan away"]]);
     G.scene.add(ghost);
-    this.build = { type, d, ghost, rot: 0, ok: false };
+    this.build = { type, d, ghost, rot: this.wallRy ?? G.player.yaw, ok: false };
     G.onSwing = null;
     $("mpBuildBar").classList.remove("hidden");
   }
   endBuild() {
     if (!this.build) return;
-    G.scene.remove(this.build.ghost); this.build.ghost.geometry.dispose();
-    this.build = null; G.onSwing = () => this.swing();
+    G.scene.remove(this.build.ghost);
+    this.build = null; $("keys").classList.add("hidden"); G.onSwing = () => this.swing();
     $("mpBuildBar").classList.add("hidden");
   }
   tickBuild() {
     const B = this.build, pl = G.player, d = B.d, f = pl.forward();
     const dist = d.wall ? 3.2 : (d.r || 1.5) + 3.6;
     const x = pl.pos.x + f.x * dist, z = pl.pos.z + f.z * dist;
-    const step = d.wall ? Math.PI / 12 : Math.PI / 2;
-    const ry = Math.round((pl.yaw + B.rot) / step) * step;
+    // (turned smoothly while R is held, Y the other way — nothing snaps, as in the settlement)
+    const dt = 1 / 60;
+    if (input.down("KeyR")) B.rot += dt * 1.7 * (input.down("ShiftLeft") || input.down("ShiftRight") ? -1 : 1);
+    if (input.down("KeyY")) B.rot -= dt * 1.7;
+    const ry = B.rot;
     const y = this.w.heightAt(x, z);
     B.ghost.position.set(x, y, z); B.ghost.rotation.y = ry;
     // will it do?
@@ -483,17 +498,17 @@ export class MPGame {
     if (!why && B.type === "hearth" && this.myHearth()) why = this.mode === "coop" ? "The colony has its hearth" : "You have a hearth already";
     if (!why && !d.wall) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const ch = this.w.chunkAt(x + i * 8, z + j * 8); if (ch) for (const t of ch.trees) if (!t.gone && Math.hypot(t.x - x, t.z - z) < (d.r || 1.5) * 0.8) why = "Fell the trees here first"; }
     B.ok = !why; B.x = x; B.z = z; B.ry = ry;
-    B.ghost.material.color.set(B.ok ? 0x5ac85a : 0xd04a3a); B.ghost.userData.edges.material.color.set(B.ok ? 0xd8ffd0 : 0xffc0b0);
-    $("mpBuildBar").innerHTML = `<b>${d.name}</b> — ${B.ok ? "click to build it here" : esc(why)} · R to turn · B or right-click to stop`;
-    if (input.hit("KeyR")) B.rot += step;
+    const col = B.ok ? 0x7fe07a : 0xe0503a; B.ghost.userData.tint.color.setHex(col); B.ghost.userData.edges.material.color.setHex(col);
+    // (why not, when it won't do — said under it)
+    $("mpBuildBar").classList.toggle("hidden", B.ok); if (!B.ok) $("mpBuildBar").innerHTML = `<b>${d.name}</b> — ${esc(why)}`;
     if (input.rclick) { this.endBuild(); return; }
-    if (input.click && !UI.dialogOpen) {
+    if ((input.click || input.hit("KeyF")) && !UI.dialogOpen) {
       input.click = false;
       if (!B.ok) { sfx("deny"); return; }
       this.net.send({ t: "build", type: B.type, x: +x.toFixed(2), z: +z.toFixed(2), ry: +ry.toFixed(3) });
       G.working = { kind: "hammer", until: G.time + 0.6 };
       // (walls go up one after another; anything else, once)
-      if (!d.wall) this.endBuild();
+      if (!d.wall) this.endBuild(); else this.wallRy = ry;
     }
   }
   // ---- every frame ----

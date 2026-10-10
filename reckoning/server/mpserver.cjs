@@ -489,12 +489,21 @@ class Room {
         const look = LK.randomLook(crypto.randomInt(1, 1e9)), f = LK.isF(look);
         if (look.body === "brother") look.body = "townsman"; if (look.body === "sister") look.body = "townswoman";
         const names = R.SETTLER_NAMES[LK.isF(look) ? "f" : "m"];
-        const a = Math.random() * 6.28, v = { id: "s" + (this.nextS++), owner, name: names[crypto.randomInt(0, names.length)], look, job: "wood", x: home.x + Math.cos(a) * 4, z: home.z + Math.sin(a) * 4, yaw: 0, a: "idle", s: 0, hp: R.SETTLER.hp, state: "find" };
+        // (they come out of the woods, from a way off, and walk in: never just there by the fire)
+        let a = Math.random() * 6.28, far = 4;
+        for (let i = 0; i < 24; i++) {
+          const aa = Math.random() * 6.28, r = 45 + Math.random() * 20, x = home.x + Math.cos(aa) * r, z = home.z + Math.sin(aa) * r;
+          if (Math.abs(x) > this.half - 12 || Math.abs(z) > this.half - 12) continue;
+          let dry = true; for (let k = 0; k <= 10; k++) { const f = k / 10; if (this.land.heightAt(home.x + (x - home.x) * f, home.z + (z - home.z) * f) < 0.4) { dry = false; break; } }
+          if (dry) { a = aa; far = r; break; }
+        }
+        const v = { id: "s" + (this.nextS++), owner, name: names[crypto.randomInt(0, names.length)], look, job: "wood", x: home.x + Math.cos(a) * far, z: home.z + Math.sin(a) * far, yaw: 0, a: "idle", s: 0, hp: R.SETTLER.hp, state: "find" };
         void f;
+        if (far > 4) v.state = "arrive";
         this.settlers[v.id] = v;
         this.all({ t: "sj", s: this.pubS(v) });
         const o = owner === "colony" ? null : this.online.get(owner);
-        const msg = `${v.name} has come to live ${owner === "colony" ? "in the colony" : "with you"}.`;
+        const msg = far > 4 ? `${v.name} is coming through the woods to live ${owner === "colony" ? "in the colony" : "with you"}.` : `${v.name} has come to live ${owner === "colony" ? "in the colony" : "with you"}.`;
         { const count = Object.values(this.settlers).filter(x => x.owner === owner).length; if (count === 4 || count === 8 || count === 12) this.headline("grow", `${owner === "colony" ? "The colony" : (this.recs[owner] ? this.recs[owner].name + "'s homestead" : "A homestead")} has grown to ${count} settlers.`); }
         if (o) o.sock.send({ t: "note", text: msg }); else if (owner === "colony") this.note(msg);
         this.dirty = true;
@@ -543,6 +552,8 @@ class Room {
       const home = this.homeOf(v.owner); if (!home) continue;
       if (v.hp < R.SETTLER.hp && t - (v.hurtAt || 0) > 10000) v.hp = Math.min(R.SETTLER.hp, v.hp + 2);
       const idle = () => { if (v.s || v.a !== "idle") { v.s = 0; v.a = "idle"; v.moved = true; } };
+      // on the way in, through the trees to the hearth; then to work
+      if (v.state === "arrive") { if (this.step(v, home.x + 3, home.z + 3, dt) < 1.5) { v.state = "find"; idle(); } continue; }
       if (v.state === "flee") { const dx = v.x - v.from.x, dz = v.z - v.from.z, d = Math.hypot(dx, dz) || 1; if (t > v.until) v.state = v.carry ? "home" : "find"; else this.step(v, v.x + dx / d * 5, v.z + dz / d * 5, dt); continue; }
       if (v.job === "watch") {
         // anyone hostile on our ground: go for them

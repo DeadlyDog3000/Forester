@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.85.0", date: "10 October 2026", title: "The same plans",
+    items: [
+      "Frontier's build menu (B) is the settlement's own Plans window: the same parchment, the same rows with their pictures, what each is for and what it costs, and greyed out when you're short (with how much short).",
+      "Placing a building in Frontier is as it is in the settlement. The building itself is shown pale green where it will stand (red where it won't do), with its ground outlined. Hold R to turn it smoothly (Y the other way), click or F to set it, and B to put the plan away. A palisade keeps the angle of the last length you laid.",
+      "Settlers in Frontier come out of the woods, from fifty or sixty paces off, and walk in to the hearth. They no longer appear beside it. You're told when one is on the way.",
+      "The hammer's face strikes the work now, not the back of its head, in your hands and on your body.",
+    ],
+  },
+  {
     v: "0.84.4", date: "10 October 2026", title: "In harm's way",
     items: [
       "In a co-op colony the raiders fight the guests too. One squares up to a guest who comes near, just as one does to the host, with the red mark as he winds up. The blow is taken in the guest's own game, so a guest's guard blocks and parries it. A parry throws him off his stroke in the host's game. A guest who is down is left alone till they're up.",

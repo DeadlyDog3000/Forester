@@ -587,6 +587,8 @@ export class Player {
         const tool = kind === "eat" || kind === "food" ? makeFood(G.working.food) : kind === "reap" ? makeSickle() : kind === "pick" ? new THREE.Group() : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer();
         // (blades turned flat to the eye, not edge on)
         if (kind !== "hammer" && kind !== "eat" && kind !== "food" && kind !== "reap") tool.rotation.y = Math.PI / 2;
+        // (the hammer's face leading the blow, square onto what it strikes — not its back)
+        if (kind === "hammer") tool.rotation.y = Math.PI;
         hand.add(tool);
         // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
         const arm = new THREE.Group(); g.add(arm);
