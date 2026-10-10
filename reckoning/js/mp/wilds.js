@@ -52,7 +52,7 @@ export class Wilds extends WorldBase {
     this.stumps = new Map();
     this.snowLine = this.land.big ? 62 : 48;
     this.mat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "none" });
-    this.rockMat = addDetail(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), { scale: 2, amount: 0.25, grain: 0.6, surface: "stone" });
+    this.rockMat = addDetail(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
     // the sea and the lakes: one sheet of water at one level, following you about under the haze
     const wg = new THREE.PlaneGeometry(1600, 1600, 1, 1); wg.rotateX(-Math.PI / 2);
     this.water = new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ color: 0x3d5f6e, roughness: 0.18, metalness: 0.15, transparent: true, opacity: 0.86 }));

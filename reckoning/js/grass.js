@@ -117,9 +117,9 @@ export class Grass {
     if (bq && bq.d < bq.w + 0.1) dens = 0; else if (bq && bq.d < bq.w + 2.2) dens = Math.max(dens, 0.8);
     if (hash(i, j, 3) <= dens * 1.4) {
       // (the road's distance, from a coarser grid of its own: it is the slow part)
-      const rk = Math.floor(x / 2) * 100003 + Math.floor(z / 2), rc = this.roadC || (this.roadC = new Map());
-      let dr = rc.get(rk); if (dr === undefined) { dr = w.anyRoadDist ? w.anyRoadDist(Math.floor(x / 2) * 2 + 1, Math.floor(z / 2) * 2 + 1).d : 99; rc.set(rk, dr); }
-      if (dr > 3.2 && hash(i, j, 3) <= dens * (dr < 6 ? 1.4 : 1)) {
+      const rk = Math.floor(x) * 100003 + Math.floor(z), rc = this.roadC || (this.roadC = new Map());
+      let dr = rc.get(rk); if (dr === undefined) { dr = w.anyRoadDist ? w.anyRoadDist(Math.floor(x) + 0.5, Math.floor(z) + 0.5).d : 99; rc.set(rk, dr); }
+      if (dr > 3.4 && hash(i, j, 3) <= dens * (dr < 6 ? 1.4 : 1)) {
         const c = new THREE.Color();
         w.groundColour ? w.groundColour(x, z, c) : c.set(0x6c7f38);
         c.multiplyScalar(1.05 + hash(i, j, 7) * 0.2);
@@ -138,7 +138,7 @@ export class Grass {
     if (town && town.S) for (const b of town.S.buildings) {
       const def = BUILDINGS[b.type]; if (!def || Math.hypot(b.x - cx, b.z - cz) > R + 14) continue;
       const bw = (def.w || 4) * (b.type === "woodshed" ? b.bays || 1 : 1);
-      rects.push([b.x, b.z, Math.cos(b.ry || 0), Math.sin(b.ry || 0), bw / 2 + (def.path ? -0.05 : 0.35), (def.d || 4) / 2 + (def.path ? -0.05 : 0.35)]);
+      rects.push([b.x, b.z, Math.cos(b.ry || 0), Math.sin(b.ry || 0), bw / 2 + (def.path ? 0.1 : 0.35), (def.d || 4) / 2 + (def.path ? 0.1 : 0.35)]);
     }
     if (w.cabinUp || w.cabin) rects.push([CABIN.x, CABIN.z, Math.cos(CABIN.ry), Math.sin(CABIN.ry), 3.3, 3.9]);
     if (w.grassRects) rects.push(...w.grassRects(cx, cz, R + 14));

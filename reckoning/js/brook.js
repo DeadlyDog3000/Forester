@@ -12,6 +12,7 @@ import { AUDIO } from "./audio.js";
 import { WaterMat } from "./water.js";
 import { addSway, swayGeo } from "./models.js";
 import { rushGeo } from "./pond.js";
+import { pondK } from "./woods.js";
 
 export class Brook {
   constructor(w) {
@@ -19,16 +20,32 @@ export class Brook {
     const B = w.brook, pts = B.pts, g = new THREE.Group();
     this.wm = new WaterMat({ deep: [0.035, 0.05, 0.035], round: [0.05, 0.075, 0.045], flow: 1 });
     // ---- the water: a ribbon along the course, its level falling with it, a little wider than the bed ----
+    // (the course drawn smooth — rounded twice, corner by corner — so a bend is a bend and not a fold, and run on a
+    //  little way into the pond it leaves and the pool it ends in, so it's of a piece with both, with no cut end)
     const P = [], U = [], I = [];
-    let len = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1;
-      const nx = -dz / l, nz = dx / l, p = pts[i], hw = p.w * 1.15;
-      if (i) len += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z);
-      // (laid on the ground as it's drawn, a little proud of it, falling with it; never above the pond it came from)
-      const ya = Math.min(w.pondLevel, w.meshHeightAt(p.x + nx * hw, p.z + nz * hw) + 0.05), yb = Math.min(w.pondLevel, w.meshHeightAt(p.x - nx * hw, p.z - nz * hw) + 0.05);
-      const yc = Math.min(w.pondLevel, w.meshHeightAt(p.x, p.z) + 0.05), y = Math.max(ya, yb, yc);
-      P.push(p.x + nx * hw, Math.max(ya, y - 0.1), p.z + nz * hw, p.x - nx * hw, Math.max(yb, y - 0.1), p.z - nz * hw);
+    let C = pts.map(p => ({ x: p.x, z: p.z, w: p.w }));
+    { const a = C[0], b = C[1], l = Math.hypot(b.x - a.x, b.z - a.z) || 1; C.unshift({ x: a.x - (b.x - a.x) / l * 2.5, z: a.z - (b.z - a.z) / l * 2.5, w: a.w * 1.3 }); }
+    { const E = B.end, a = C[C.length - 1], l = Math.hypot(E.x - a.x, E.z - a.z); if (l > 0.5) C.push({ x: a.x + (E.x - a.x) * 0.6, z: a.z + (E.z - a.z) * 0.6, w: a.w * 1.2 }); }
+    for (let k = 0; k < 2; k++) {
+      const N = [C[0]];
+      for (let i = 0; i < C.length - 1; i++) { const a = C[i], b = C[i + 1]; N.push({ x: a.x * 0.75 + b.x * 0.25, z: a.z * 0.75 + b.z * 0.25, w: a.w * 0.75 + b.w * 0.25 }, { x: a.x * 0.25 + b.x * 0.75, z: a.z * 0.25 + b.z * 0.75, w: a.w * 0.25 + b.w * 0.75 }); }
+      N.push(C[C.length - 1]); C = N;
+    }
+    let len = 0, yRun = w.pondLevel;
+    for (let i = 0; i < C.length; i++) {
+      const a = C[Math.max(0, i - 2)], b = C[Math.min(C.length - 1, i + 2)], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1;
+      const nx = -dz / l, nz = dx / l, p = C[i], hw = p.w * 1.15;
+      if (i) len += Math.hypot(p.x - C[i - 1].x, p.z - C[i - 1].z);
+      // (laid on the ground as it's drawn, a little proud of it — the ground here is drawn in facets four metres across,
+      //  coarser than the channel, so a level held to the pond's sank out of sight under the bank, and the brook seemed to
+      //  start out of nowhere: it follows what's drawn instead; out in the pond and the pool, at their own level)
+      const ya = w.meshHeightAt(p.x + nx * hw, p.z + nz * hw) + 0.06, yb = w.meshHeightAt(p.x - nx * hw, p.z - nz * hw) + 0.06;
+      const yc = w.meshHeightAt(p.x, p.z) + 0.06;
+      let y = Math.max(ya, yb, yc);
+      if (pondK(p.x, p.z) < 1) y = Math.min(y, w.pondLevel + 0.02);
+      if (Math.hypot(p.x - B.end.x, p.z - B.end.z) < B.end.r + 0.4) y = Math.min(y, B.end.y + 0.04);
+      yRun = y;
+      P.push(p.x + nx * hw, Math.max(Math.min(ya, y), y - 0.1), p.z + nz * hw, p.x - nx * hw, Math.max(Math.min(yb, y), y - 0.1), p.z - nz * hw);
       U.push(0, len / 2.5, 1, len / 2.5);
       if (i) { const k = i * 2; I.push(k - 2, k - 1, k, k - 1, k + 1, k); }
     }

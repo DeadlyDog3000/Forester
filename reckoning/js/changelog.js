@@ -7,6 +7,25 @@
 
 export const CHANGELOG = [
   {
+    v: "0.90.0", date: "10 October 2026", title: "Notches and quilts",
+    items: [
+      "Every stroke of the axe leaves a notch in the trunk, at waist height on the side you're at, cut a little deeper each time.",
+      "The well's roof sits on its posts now, on a ridge pole across their tops. It had been turned crosswise and floated over the well.",
+      "Boulders and the rocks you break look like rock, rough-grained with specks and hairline cracks, not like a mason's wall of squared stones.",
+      "Beds look like beds: a frame of peeled logs with corner posts and a railed headboard, a fat straw tick, a thick wool quilt with a sheet turned down over it, and a plump pillow. Straw pallets have a striped wool blanket. All of the bedding is drawn as cloth, not as wood.",
+      "What you hold in your hands keeps its own grain. Before, the axe's haft and the rest seemed to slide through their texture as you turned.",
+      "Settlers swinging an axe swing from the shoulders, not wrung round at the waist.",
+      "Swinging the pickaxe, your hands stay at your chest and the head goes back over your shoulder. Your arms no longer fly up into the air.",
+      "You hew a door at the sawhorse with the logs in your arms first, and only then from the stack.",
+      "Once there's a woodshed, the old stack's ground by the cabin is free to build on. It had still kept buildings off it after the stack was gone.",
+      "B puts away a piece of furniture you're placing in the cabin, as Escape does.",
+      "You can't walk about in the middle of a scene, such as sitting at the fire. A menu opened and closed during a scene used to let you go.",
+      "M twice now gives you back the mouse properly. Taken again too soon after letting go, the lock used to be refused, and you were left turning with a cursor that stopped at the edge of the screen.",
+      "The brook runs smoothly out of the pond and into its pool. It used to kink at its bends and to start out of nothing, short of the pond.",
+      "Grass keeps further off the paths and the road.",
+    ],
+  },
+  {
     v: "0.89.2", date: "10 October 2026", title: "The right tool",
     items: [
       "Frontier gives you a wooden pickaxe as well as the axe (2 takes it out), and the grey rocks are broken with it, as in the settlement. Swing the axe at a rock and you're told to take out the pickaxe; swing the pickaxe at a tree and you're told to take out the axe.",

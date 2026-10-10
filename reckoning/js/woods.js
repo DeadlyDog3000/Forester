@@ -423,7 +423,7 @@ export class Woods extends WorldBase {
   // ---- rocks to break with a pick: grey stone near the clearing, copper farther out, iron deep in ----
   buildRocks(r) {
     this.rocks = [];
-    const rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
+    const rockMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
     // a boulder: a rough ball of facets, each a slightly different grey
     const boulder = (size, pale = false) => {
       let geo = new THREE.IcosahedronGeometry(size, 1); if (geo.index) geo = geo.toNonIndexed(); const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
@@ -1096,6 +1096,7 @@ export class Woods extends WorldBase {
       if (t.goneFor < 240 || Math.hypot(pl.pos.x - t.x, pl.pos.z - t.z) < 18) continue;
       if (t.stump) { this.root.remove(t.stump); t.stump = null; }
       if (G.town && G.town.dropStump) G.town.dropStump(t);
+      G.clearNotch && G.clearNotch(t);
       t.g.visible = true; t.g.rotation.set(0, 0, 0); t.state = "up"; t.hp = 4; t.col.disabled = false; t.claimed = null; t.goneFor = 0;
       if (!t.wild) this.onRegrow && this.onRegrow(this.fellable.indexOf(t));
     }
@@ -1849,7 +1850,7 @@ export class Woods extends WorldBase {
     for (const c of this.furnCols || []) this.col.remove(c);
     for (const it of this.bedIts || []) this.removeInteract(it);
     this.furnCols = []; this.bedIts = [];
-    const b = new Builder();
+    const b = new Builder(); b.cloth = new Builder();
     for (const f of this.furniture) {
       const d = FURNITURE[f.type]; if (!d) continue;
       const [x, z] = this.cabinToWorld(f.lx, f.lz), ry = CABIN.ry + f.ry;
@@ -1867,6 +1868,8 @@ export class Woods extends WorldBase {
         can: () => !!this.onSleep && (!this.onSleep.can || this.onSleep.can()), use: () => this.onSleep.use(f) }));
     }
     this.furnGroup = b.build(MAT.rough);
+    // (the bedding: cloth, with a weave to it, not the grain of the logs)
+    if (!b.cloth.empty) this.furnGroup.add(b.cloth.build(CLOTH_MAT || (CLOTH_MAT = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 2, amount: 0.12, grain: 0.5, surface: "cloth", weather: false }))));
     this.furnGroup.position.y = this.cabinY + 0.07;
     this.root.add(this.furnGroup);
   }
@@ -2127,6 +2130,7 @@ function leafBurst(root, x, y, z, color) {
   };
   G.onFrame.push(tick);
 }
+let CLOTH_MAT = null;
 export { STACK, BLOCK, FIRE };
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 // how a tree falls, from where it stands (the same tree always falls the same way)

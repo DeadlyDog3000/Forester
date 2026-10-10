@@ -84,7 +84,7 @@ const detailTex = ["a", "b", "c"].map(k => {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4;
   return t;
 });
-export const SURFACE = { auto: -1, none: -2, wood: 0, plaster: 1, stone: 2, brick: 3, bark: 4, cloth: 5, needles: 6, tiles: 7 };
+export const SURFACE = { auto: -1, none: -2, wood: 0, plaster: 1, stone: 2, brick: 3, bark: 4, cloth: 5, needles: 6, tiles: 7, rock: 8 };
 export function groundTexture(name, repeat) {
   const t = texLoader.load(`art/tex/${name}.jpg`);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
@@ -106,6 +106,11 @@ const SURF_GLSL = `
     if (s == 4) return dTri(dTexB, 1, p * 1.1, w);
     if (s == 5) return dTri(dTexB, 2, p * 3.0, w);
     if (s == 6) return dTri(dTexC, 0, p * 0.8, w);
+    if (s == 8) {
+      // a boulder's own rock, not a mason's wall: a coarse grain, specks of other stone in it, and a few hairline cracks
+      float n = dFbm(p * 2.4), sp = dNoise(p * 17.0), cr = 1.0 - smoothstep(0.0, 0.035, abs(dNoise(p * 0.8 + 4.3) - 0.5));
+      return clamp(0.5 + (n - 0.5) * 1.0 + (sp - 0.5) * 0.4 - cr * 0.35, 0.0, 1.0);
+    }
     return dTri(dTexC, 1, p * 0.6, w);
   }
   // for the town, painted in vertex colours: what is it made of, judged by its colour and its slope
@@ -128,15 +133,15 @@ const SURF_GLSL = `
     vec3 c = pow(max(lin, vec3(0.0)), vec3(1.0 / 2.2));
     float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
     float sat = (mx - mn) / max(mx, 1e-3), lum = dot(c, vec3(0.3, 0.59, 0.11));
-    if (sat < 0.14 && lum > 0.2 && lum < 0.75) return 2;
+    if (sat < 0.14 && lum > 0.2 && lum < 0.75) return 8;                        // (out here, grey is rock, not a wall)
     if (c.r >= c.g && c.g >= c.b * 0.95 && sat > 0.2 && sat < 0.75 && lum < 0.6 && lum > 0.08) return 0;
     return -2;
   }
 `;
-const SURF_STRENGTH = "float dStrength[8] = float[8](0.75, 0.3, 0.85, 0.8, 0.95, 0.55, 0.8, 0.85);";
+const SURF_STRENGTH = "float dStrength[9] = float[9](0.75, 0.3, 0.85, 0.8, 0.95, 0.55, 0.8, 0.85, 0.7);";
 // how deep each surface's grain stands out, in metres: the grain lit as relief, not only painted on — wood's
 // grain and checks, plaster's trowel marks, stone's pits, brick's mortar, bark's furrows, cloth's weave
-const SURF_RELIEF = "float dDepth[8] = float[8](0.012, 0.009, 0.018, 0.02, 0.026, 0.005, 0.01, 0.016);";
+const SURF_RELIEF = "float dDepth[9] = float[9](0.012, 0.009, 0.018, 0.02, 0.026, 0.005, 0.01, 0.016, 0.02);";
 // the light bent by a height that changes across the surface (as three's bump map, from the screen-space slope of it)
 const RELIEF_GLSL = `
   vec3 dPerturb(vec3 sp, vec3 sn, vec2 dh, float fd) {
@@ -153,31 +158,34 @@ export const AUTO_FULL = { value: 1 };
 // a roofed room where no snow lies: (centre x, centre z, turn, on) and (half across, half deep, eaves height)
 export const ROOFED = { value: new THREE.Vector4(0, 0, 0, 0) }, ROOFSIZE = { value: new THREE.Vector3(2.8, 3.3, 0) };
 export const RELIEF = { value: 1 };   // (the graphics setting: 0 turns the relief off)
-export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true } = {}) {
+// (local: the grain laid on in the thing's own space, not the world's — for what's carried in your hands, which
+//  would otherwise slide through the world's grain as you turn)
+export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true, local = false } = {}) {
   const surf = SURFACE[surface] ?? -1;
-  material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow };
+  material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow, weather, local };
   material.onBeforeCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount }; sh.uniforms.dNear = { value: seeThrough };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
     sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dSnowK = { value: typeof snow === "number" ? snow : 1 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
     sh.vertexShader = sh.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal;")
       .replace("#include <begin_vertex>", `#include <begin_vertex>
         vec4 dwp = vec4(transformed, 1.0);
         vec3 dn = objectNormal;
         #ifdef USE_INSTANCING
           dwp = instanceMatrix * dwp; dn = mat3(instanceMatrix) * dn;
         #endif
-        vDWorld = (modelMatrix * dwp).xyz; vDNormal = normalize(mat3(modelMatrix) * dn);`);
+        vDReal = (modelMatrix * dwp).xyz;
+        ${local ? "vDWorld = dwp.xyz * 2.0; vDNormal = normalize(dn);" : "vDWorld = vDReal; vDNormal = normalize(mat3(modelMatrix) * dn);"}`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         float dHgt = 0.0, dHk = 0.0;
         // leaves and needles right up against the eye (standing inside a tree) thin away in a fine dither,
         // so you can see out through them and still be in among them
         if (dNear > 0.0) {
-          float dd = distance(vDWorld, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.6, dNear, dd);
+          float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.6, dNear, dd);
           if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear * 0.92) discard; }
         }
         {
@@ -193,7 +201,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
             diffuseColor.rgb *= 1.0 + (g - 0.5) * 1.6 * dStrength[s];
             // (the same grain as relief, fading out with distance, where it would only shimmer)
             ${SURF_RELIEF}
-            dHk = dDepth[s] * dRelief * (1.0 - smoothstep(18.0, 45.0, distance(vDWorld, cameraPosition)));
+            dHk = dDepth[s] * dRelief * (1.0 - smoothstep(18.0, 45.0, distance(vDReal, cameraPosition)));
             dHgt = g;
             // (and the hollows of it a little darker, as dirt and shadow gather in them)
             diffuseColor.rgb *= 1.0 - (1.0 - g) * 0.12 * step(0.001, dHk);
@@ -210,7 +218,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
               float st = dNoise(vec3(vDWorld.x * 5.0, vDWorld.y * 0.35, vDWorld.z * 5.0)) * dNoise(vDWorld * 0.6 + 3.1);
               diffuseColor.rgb *= 1.0 - smoothstep(0.25, 0.6, st) * 0.16 * side;
             }
-            if (dWeather > 0.5 && (s == 2 || s == 3 || s == 7)) {
+            if (dWeather > 0.5 && (s == 2 || s == 3 || s == 7 || s == 8)) {
               // stone, brick and tile: moss and lichen on what faces the sky and the wet low courses
               float mn = dFbm(vDWorld * 1.3 + 7.0), wet = max(up, 0.0) * 0.8 + (1.0 - smoothstep(0.0, 0.9, vDWorld.y - dGround)) * 0.6;
               float moss = smoothstep(0.55, 0.75, mn + wet * 0.35) * (1.0 - dSnow);
@@ -241,7 +249,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);
   };
-  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w");
+  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w") + (local ? "l" : "");
   material.needsUpdate = true;
   return material;
 }

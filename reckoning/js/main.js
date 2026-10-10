@@ -190,13 +190,18 @@ function setFreeLook(on) {
 // moment it does come, the free cursor gives way to it, so turning never stops at the edge of the screen.)
 function lock() {
   const el = renderer.domElement;
-  try { const p = el.requestPointerLock && el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  // (a lock asked for again too soon after one was let go — M, then M again — is refused: so it's asked for again a few
+  //  times over the next moments, while the key press still counts as yours, instead of falling back to the free cursor,
+  //  which stops turning at the edge of the screen)
+  const ask = () => { try { const p = el.requestPointerLock && el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
+  ask();
+  for (const ms of [350, 700, 1100, 1600, 2400, 3400]) setTimeout(() => { if (!document.pointerLockElement && G.mode === "play" && !overlay) ask(); }, ms);
   setTimeout(() => {
     if (document.pointerLockElement || G.mode !== "play") return;
     setFreeLook(true);
     // some embedded browsers forbid the lock outright; say so once, rather than let the cursor wander off
     if (!lock.warned && location.protocol !== "app:") { lock.warned = true; UI.hint("This browser will not lock the mouse, so the cursor can leave the window. Open the game in Chrome or Safari to look around freely.", 8); }
-  }, 1200);
+  }, 3800);
 }
 document.addEventListener("pointerlockchange", () => { if (document.pointerLockElement && input.freeLook) setFreeLook(false); });
 // (for the developer's panel: let go of the mouse without pausing, and take it again)
@@ -684,7 +689,10 @@ function renderSkills() {
   $("skillsBody").innerHTML = `<div class="sk-sub">You grow better at what you do. Hunger: ${Math.round(b.hunger * 100)}% fed.</div>${rows}`;
 }
 // ---- overlays (inventory, map): one at a time; the cursor comes back and you stand still ----
-let overlay = null, overlayTimer = 0, overlayLockMove = false;
+let overlay = null, overlayTimer = 0;
+// (a menu open holds you still by a lock of its own: closing it can't undo a scene's hold that began while it was open —
+//  it used to put back whatever was there when it opened, and you could walk about in the middle of a scene at the fire)
+{ let scene = !!G.lockMove; G.menuLock = false; Object.defineProperty(G, "lockMove", { configurable: true, get() { return scene || this.menuLock; }, set(v) { scene = !!v; } }); }
 const OVERLAYS = {
   chest: { open: () => renderChest(), tick: () => {}, every: 1000 },
   craft: { open: () => renderCraft(), tick: () => renderCraft(), every: 700 },
@@ -711,11 +719,11 @@ function showOverlay(id, on) {
     o.open(); overlayTimer = setInterval(o.tick, o.every);
     if (document.pointerLockElement) { freeMouse = true; document.exitPointerLock(); }
     setFreeLook(false);
-    overlayLockMove = G.lockMove; G.lockMove = true;
+    G.menuLock = true;
   } else {
     overlay = null; UISFX.close();
     o.close && o.close();
-    G.lockMove = overlayLockMove;
+    G.menuLock = false;
     if (G.mode === "play") lock();
   }
 }
@@ -1839,9 +1847,12 @@ $("btnRestart").onclick = () => {
   SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock(); startChapter(G.chapter || 1);
 };
 $("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.mp) { G.mp.leave(); if (G.town && G.town.persist && !G.town.replica) G.town.persist(); mpDone(); toTitle(); openLobby(); return; } toTitle(); };
+// (only a lock that was had and then lost pauses: a refused request can fire this too, and that's no reason to stop)
+let hadLock = false;
 document.addEventListener("pointerlockchange", () => {
-  if (document.pointerLockElement) freeMouse = false;
-  else if (G.mode === "play" && !freeMouse) pause();
+  if (document.pointerLockElement) { freeMouse = false; hadLock = true; return; }
+  if (hadLock && G.mode === "play" && !freeMouse) pause();
+  hadLock = false;
 });
 addEventListener("keydown", e => {
   // (a game with others has keys of its own: talking, the people here, building)
@@ -1887,6 +1898,8 @@ addEventListener("keydown", e => {
     else if (G.mode === "play") toggleMouse();
   }
 });
+// (on the free cursor, any click asks for the lock again: the moment it comes, turning has no edge)
+addEventListener("mousedown", () => { if (G.mode === "play" && input.freeLook && !document.pointerLockElement && !overlay) { try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }, true);
 // a click on the world while playing re-takes the mouse
 renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !overlay) lock(); });
 

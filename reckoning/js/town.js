@@ -596,6 +596,10 @@ export class Town {
   get stoneCap() { return 50 * 2 ** Math.max(0, (this.hallTier || 0) - 1); }
   // (each settlement's own sheds: a view's buildings are already its own; the first settlement's are those not out in the forest)
   ownShed(b) { return b.done && b.type === "woodshed" && (this.colony || !this.inColony(b.x, b.z)); }
+  // (the old stack by the cabin is cleared away once there's a woodshed: its ground is free to build on)
+  stackGone() { return this.S.buildings.some(b => this.ownShed(b)); }
+  // how far from the old stack's place a thing must keep: nothing at all, once it's gone
+  stackClear(x, z, r) { return this.stackGone() || Math.hypot(STACK.x - x, STACK.z - z) >= r; }
   get storeCap() { return 40 + this.S.buildings.filter(b => this.ownShed(b)).reduce((a, b) => a + SHED_BAYS[b.bays || 1].holds, 0); }
   has(type) { return this.S.buildings.some(b => b.done && b.type === type); }
   count(type) { return this.S.buildings.filter(b => b.done && b.type === type).length; }
@@ -977,7 +981,7 @@ export class Town {
         if (Math.hypot(b.x - x, b.z - z) < Math.hypot(d2.w, d2.d) / 2 * 0.8 + 0.6) return false;
       }
       for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < 1.3) return false;
-      return Math.hypot(FIRE.x - x, FIRE.z - z) > 3 && Math.hypot(CABIN.x - x, CABIN.z - z) > 4.5 && Math.hypot(STACK.x - x, STACK.z - z) > 2.5;
+      return Math.hypot(FIRE.x - x, FIRE.z - z) > 3 && Math.hypot(CABIN.x - x, CABIN.z - z) > 4.5 && this.stackClear(x, z, 2.5);
     }
     if (def.path) {
       // a path strip: anywhere open — up to a door, beside a field, onto another strip — but not through a building or a tree
@@ -997,7 +1001,7 @@ export class Town {
       if (Math.hypot(b.x - x, b.z - z) < (d2.wall ? 1.4 + r * 0.8 : (Math.hypot(d2.w, d2.d) / 2 + r) * 0.8)) return false;
     }
     for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && Math.hypot(t.x - x, t.z - z) < r) return false;
-    for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.6], [STACK.x, STACK.z, 2], [BLOCK.x, BLOCK.z, 1.4], [FIRE.x, FIRE.z, 2.2]]) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
+    for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.6], ...(this.stackGone() ? [] : [[STACK.x, STACK.z, 2]]), [BLOCK.x, BLOCK.z, 1.4], [FIRE.x, FIRE.z, 2.2]]) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
     if (this.opts.keepClear) for (const [px, pz, pr] of this.opts.keepClear) if (Math.hypot(px - x, pz - z) < pr + r * 0.8) return false;
     for (const c of this.S.companies || []) if (!c.waiting && !c.refused && Math.hypot(c.x - x, c.z - z) < 2.8 + r * 0.8) return false;
     return true;
@@ -1093,7 +1097,7 @@ export class Town {
     ghost.traverse(o => { if (o.isMesh) o.material = tint; });
     w.root.add(ghost);
     let ry = 0;
-    UI.keys([["Click", "set it here"], ["R / Y", "turn it"], ["Esc", "put the plan away"]], 9);
+    UI.keys([["Click", "set it here"], ["R / Y", "turn it"], ["B / Esc", "put the plan away"]], 9);
     return new Promise(res => {
       const tick = () => {
         if (input.hit("KeyR")) ry = (ry + Math.PI / 2) % TAU;
@@ -1111,7 +1115,7 @@ export class Town {
         ghost.position.set(x, w.cabinY + 0.07, z); ghost.rotation.y = CABIN.ry + ry;
         tint.color.setHex(ok ? 0x7fe07a : 0xe0503a);
         if ((input.click || input.hit("KeyF")) && ok) done(cand);
-        else if (input.hit("Escape") || !w.insideCabin(pl.pos.x, pl.pos.z)) done(null);
+        else if (input.hit("Escape") || input.hit("KeyB") || !w.insideCabin(pl.pos.x, pl.pos.z)) done(null);
       };
       const done = f => {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
@@ -1348,7 +1352,7 @@ export class Town {
       if (edge(b.x, b.z) < (d2.wall ? 0.9 : Math.hypot(d2.w, d2.d) / 2 * 0.8)) return false;
     }
     for (const t of w.fellable) if ((t.state === "up" || t.state === "shake") && edge(t.x, t.z) < 0.5) return false;
-    for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.4], [STACK.x, STACK.z, 1.6], [BLOCK.x, BLOCK.z, 1.2], [FIRE.x, FIRE.z, 2.2]]) if (edge(px, pz) < pr) return false;
+    for (const [px, pz, pr] of [[CABIN.x, CABIN.z, 4.4], ...(this.stackGone() ? [] : [[STACK.x, STACK.z, 1.6]]), [BLOCK.x, BLOCK.z, 1.2], [FIRE.x, FIRE.z, 2.2]]) if (edge(px, pz) < pr) return false;
     // (a spot kept clear for the first field doesn't keep other fields away from it, once the field is there)
     if (this.opts.keepClear) for (const [px, pz, pr] of this.opts.keepClear) if (edge(px, pz) < pr && !this.S.buildings.some(b => b.type === "field" && Math.hypot(b.x - px, b.z - pz) < 2)) return false;
     for (const co of this.S.companies || []) if (!co.waiting && !co.refused && edge(co.x, co.z) < 2.8) return false;
@@ -1747,10 +1751,10 @@ export class Town {
     const its = [
       w.addInteract({ x: bx, y: y + 0.8, z: bz, reach: 2.0, label: "Make tools", use: () => { G.craftS = v().S; G.openCraft && G.openCraft(); } }),
       w.addInteract({ x: bx + 1.3, y: y + 0.9, z: bz, reach: 2.4, anim: "saw", get hold() { return 4 * buildMul(G.body); },
-        label: () => `Hew a door (${DOOR_LOGS} logs from ${c.name}'s ${shed() ? "woodshed" : "stack"})`,
-        can: () => (c.store || 0) >= DOOR_LOGS && v().doorWanted(),
+        label: () => `Hew a door (${DOOR_LOGS} logs${pl.carryN > 0 ? ` — ${Math.min(DOOR_LOGS, pl.carryN)} of them the ones you're carrying` : ` from ${c.name}'s ${shed() ? "woodshed" : "stack"}`})`,
+        can: () => (c.store || 0) + (pl.carryN || 0) >= DOOR_LOGS && v().doorWanted(),
         onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
-        use: () => { c.store -= DOOR_LOGS; this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4); } }),
+        use: () => { const own = Math.min(DOOR_LOGS, pl.carryN || 0); pl.carryN -= own; c.store -= DOOR_LOGS - own; this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4); } }),
       w.addInteract({ get x() { return v().stackAt.x; }, y: y + 0.8, get z() { return v().stackAt.z; }, reach: 2.6,
         label: () => pl.carryN > 0 ? `${shed() ? `Put the logs in ${c.name}'s woodshed` : `Stack the logs at ${c.name}`} (${pl.carryN})` : `Take logs from ${c.name}'s ${shed() ? "woodshed" : "stack"} (${c.store || 0})`,
         can: () => pl.carryN > 0 ? (c.store || 0) < v().storeCap : (c.store || 0) > 0,
@@ -1986,10 +1990,14 @@ export class Town {
     if (this.sawIt) w.removeInteract(this.sawIt);
     this.sawIt = w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, anim: "saw",
       get hold() { return 4 * buildMul(G.body); },
-      label: () => `Hew a door (${DOOR_LOGS} logs from the ${this.has("woodshed") ? "woodshed" : "stack"})`,
-      can: () => this.doorWanted() && this.S.store >= DOOR_LOGS,
+      // (the logs in your arms first, then the stack's)
+      label: () => `Hew a door (${DOOR_LOGS} logs${pl.carryN > 0 ? ` — ${Math.min(DOOR_LOGS, pl.carryN)} of them the ones you're carrying` : ` from the ${this.has("woodshed") ? "woodshed" : "stack"}`})`,
+      can: () => this.doorWanted() && this.S.store + (pl.carryN || 0) >= DOOR_LOGS,
       onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
-      use: () => { this.S.store -= DOOR_LOGS; this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4); } });
+      use: () => {
+        const own = Math.min(DOOR_LOGS, pl.carryN || 0); pl.carryN -= own; this.S.store -= DOOR_LOGS - own;
+        this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4);
+      } });
     this.stackIt = w.addInteract({ get x() { return at().x; }, y: w.cy + 0.8, get z() { return at().z; }, reach: 2.6,
       label: () => { const shed = this.S.buildings.some(b => this.ownShed(b)); return pl.carryN > 0 ? `${shed ? "Put the logs in the woodshed" : "Stack the logs"} (${pl.carryN})` : `Take logs from the ${shed ? "woodshed" : "stack"} (${this.S.store})`; },
       can: () => pl.carryN > 0 ? this.S.store < this.storeCap : this.S.store > 0,
@@ -2114,7 +2122,7 @@ export class Town {
     }
     for (const c of this.S.companies || []) if (Math.hypot(c.x - x, c.z - z) < 5) return true;
     for (const c of this.S.colonies || []) { if (Math.hypot(c.x - x, c.z - z) < c.r + 2) return true; if (c.road.some((p, i) => i < c.road.length - 1 && segDist(x, z, p, c.road[i + 1]) < 3.5)) return true; }
-    if (Math.hypot(STACK.x - x, STACK.z - z) < 3 || Math.hypot(FIRE.x - x, FIRE.z - z) < 4 || Math.hypot(CABIN.x - x, CABIN.z - z) < 6) return true;
+    if (!this.stackClear(x, z, 3) || Math.hypot(FIRE.x - x, FIRE.z - z) < 4 || Math.hypot(CABIN.x - x, CABIN.z - z) < 6) return true;
     return false;
   }
   // a stump on the settlement's own ground that nobody is at yet (out in the forest they're left to grow again)
@@ -2143,6 +2151,7 @@ export class Town {
     // (nothing comes up through a path, or against a wall)
     if (this.builtNear(t.x, t.z)) return;
     this.dropStump(t);
+    G.clearNotch && G.clearNotch(t);
     t.g.visible = true; t.state = "up"; t.col.disabled = false; t.hp = 4; t.claimed = null;
     t.g.rotation.set(0, 0, 0);
     // (a new tree: its fall still to come, and swaying in the wind again)

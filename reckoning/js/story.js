@@ -945,7 +945,7 @@ function stones(w, spots) {
   for (const st of alleyStones) { w.root.remove(st.m); if (st.it) w.removeInteract(st.it); }
   alleyStones = [];
   pl.stones = 0; UI.carry(null);
-  const stoneMat = mat(0x77736a, { surface: "stone" });
+  const stoneMat = mat(0x77736a, { surface: "rock" });
   const show = () => UI.carry(pl.stones ? `${pl.stones} stone${pl.stones > 1 ? "s" : ""} — click to throw` : null);
   spots.forEach(([x, z], i) => {
     const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09 + (i % 2) * 0.02), stoneMat);
@@ -1238,10 +1238,11 @@ async function ch6(w) {
       if (choppedBefore) UI.hint("Click to swing. Stand close to a trunk and face it.", 6); } });
   w.addInteract({ x: STACK.x, y: w.cy + 0.8, z: STACK.z, reach: 2.6, label: () => `Stack the logs (${pl.carryN})`, can: () => pl.carryN > 0,
     use: () => { S.store += pl.carryN; pl.carryN = 0; S.carry = 0; w.setStack(S.store); SFX.build(); persist(); } });
-  w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, hold: 4, label: `Hew a door (${DOOR_COST} logs from the stack)`,
-    can: () => !S.door && S.store >= DOOR_COST,
+  // (the logs in your arms first, then the stack's)
+  w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, hold: 4, label: () => `Hew a door (${DOOR_COST} logs${pl.carryN > 0 ? ` — ${Math.min(DOOR_COST, pl.carryN)} of them the ones you're carrying` : " from the stack"})`,
+    can: () => !S.door && S.store + (pl.carryN || 0) >= DOOR_COST,
     onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX.hammer(); },
-    use: () => { S.door = true; S.store -= DOOR_COST; w.setStack(S.store); w.doorProp.visible = true; SFX.build(); persist(); bark(P.sib, "A door! Crooked as a dog's hind leg. It's perfect."); } });
+    use: () => { const own = Math.min(DOOR_COST, pl.carryN || 0); pl.carryN -= own; S.carry = pl.carryN; S.door = true; S.store -= DOOR_COST - own; w.setStack(S.store); w.doorProp.visible = true; SFX.build(); persist(); bark(P.sib, "A door! Crooked as a dog's hind leg. It's perfect."); } });
   let rebuilt = false;
   w.addInteract({ x: CABIN.x + Math.sin(CABIN.ry) * 3.3, y: w.cy + 1.2, z: CABIN.z + Math.cos(CABIN.ry) * 3.3, reach: 3, hold: 5, label: `Rebuild the cabin (${CABIN_COST} logs and the door)`,
     can: () => S.door && S.store >= CABIN_COST && !rebuilt,

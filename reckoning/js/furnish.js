@@ -21,12 +21,7 @@ export function furnishClear(r) { if (!KEEP_CLEAR.some(k => k.stair)) KEEP_CLEAR
 
 export const FURNITURE = {
   pallet: { name: "Straw pallet", note: "A tick of straw and a blanket. Somewhere to sleep.", rye: 6, w: 0.9, d: 1.9, h: 0.3, bed: true,
-    build(b, x, z, ry) {
-      b.box(0.9, 0.16, 1.9, x, 0.08, z, 0xb89a62, ry, 0.12);
-      const c = Math.cos(ry), s = Math.sin(ry);
-      b.box(0.86, 0.06, 1.15, x + 0.35 * s, 0.19, z + 0.35 * c, 0x6a4a3a, ry, 0.06);
-      b.box(0.55, 0.1, 0.32, x - 0.7 * s, 0.2, z - 0.7 * c, 0xd8cfb8, ry);
-    } },
+    build(b, x, z, ry) { P.pallet(b, x, z, ry); } },
   bed: { name: "Bed", note: "A frame of split logs off the floor, and the draught.", logs: 4, w: 1.0, d: 2.0, h: 0.9, bed: true,
     build(b, x, z, ry) { P.bed(b, x, z, ry); } },
   table: { name: "Table", note: "Somewhere to eat that isn't your knees.", logs: 3, w: 1.4, d: 0.8, h: 0.85,

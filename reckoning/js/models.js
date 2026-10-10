@@ -205,7 +205,7 @@ export function makePerson(o = {}) {
           const c = (t * 1.25) % 1;
           const e = x => x * x * (3 - 2 * x);
           const twist = c < 0.45 ? -0.95 * e(c / 0.45) : c < 0.62 ? -0.95 + 1.75 * e((c - 0.45) / 0.17) : 0.8 - 0.8 * e(Math.min(1, (c - 0.62) / 0.38));
-          body.rotation.y = twist;
+          body.rotation.y = twist * 0.25;   // (the stroke from the shoulders: the trunk turns a little, not wrung round)
           armR.rotation.set(-1.35, 0, -0.35 + twist * 0.3); armL.rotation.set(-1.3, 0, 0.45 + twist * 0.3);
           body.rotation.x = 0.08;
           break;
@@ -337,7 +337,21 @@ function useModel(P, key, colors = {}) {
     o.material = own[part];
   });
   const mixer = new THREE.AnimationMixer(m.scene);
-  const clip = name => m.animations.find(a => a.name.toLowerCase() === name) || m.animations.find(a => a.name.toLowerCase().includes(name));
+  const clip0 = name => m.animations.find(a => a.name.toLowerCase() === name) || m.animations.find(a => a.name.toLowerCase().includes(name));
+  // (a felling stroke from the arms and shoulders: the trunk turned only a little with it, not wrung round at the waist)
+  const steady = {};
+  const clip = name => {
+    const c = clip0(name); if (!c || name !== "chop") return c;
+    if (steady[name]) return steady[name];
+    const k = c.clone(), rest = new THREE.Quaternion(), q = new THREE.Quaternion();
+    for (const t of k.tracks) {
+      const [bone, prop] = t.name.split("."); if (prop !== "quaternion" || !/^(root|hips|spine|chest)$/i.test(bone)) continue;
+      const b = m.scene.getObjectByName(bone); if (!b) continue;
+      rest.copy(b.quaternion); t.values = t.values.slice();
+      for (let i = 0; i < t.values.length; i += 4) { q.fromArray(t.values, i); rest.clone().slerp(q, 0.2).toArray(t.values, i); }
+    }
+    return steady[name] = k;
+  };
   const acts = {};
   for (const n of ["idle", "walk", "run", "sit", "chop", "torch", "lantern", "hold", "writ", "point", "armscrossed", "bound", "grieve", "reach", "hammer", "punch", "eat", "stir", "talk", "guard", "strafe", "overhead", "hit", "dig", "reap", "sow", "gather", "saw", "whittle"]) { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); }
   // (the blows and the flinch play once and hold their last frame till the pose moves on)
@@ -451,6 +465,18 @@ export function makeLantern(light = true) {
 // Every tool is made the way the rest of the forest is: a few honest shapes, faceted, in the colours of what they're made
 // of — and what they're made of is their making: 1 wood, 2 stone, 3 copper, 4 bronze, 5 iron (the old felling axe and
 // Henning's spade are worn iron too). Each is held by the grip at the origin and points up +Y.
+// (for the furniture: a log, a ball, and a box with its edges rounded off — a straw tick, a quilt)
+const CYL8 = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
+const BALL = new THREE.SphereGeometry(0.5, 12, 8);
+const RBOX = (() => {
+  const g = new THREE.BoxGeometry(1, 1, 1, 6, 4, 8), p = g.attributes.position, R = [0.08, 0.4, 0.04];
+  for (let i = 0; i < p.count; i++) {
+    const v = [p.getX(i), p.getY(i), p.getZ(i)], inn = v.map((a, k) => Math.max(-0.5 + R[k], Math.min(0.5 - R[k], a)));
+    const n = v.map((a, k) => (a - inn[k]) / R[k]), l = Math.hypot(...n) || 1;
+    p.setXYZ(i, ...inn.map((a, k) => a + n[k] / l * R[k] * Math.min(1, l)));
+  }
+  g.computeVertexNormals(); return g;
+})();
 const _tm = {};
 const tmat = (k, f) => _tm[k] || (_tm[k] = f());
 const STUFF = t => tmat("s" + t, () => t === 1 ? mat(0x9a7448, { surface: "wood", flatShading: true }) : t === 2 ? mat(0x8e897d, { surface: "stone", flatShading: true })
@@ -1061,13 +1087,38 @@ export const P = {
     const c = Math.cos(ry), s = Math.sin(ry);
     for (const lx of [-1, 1]) { const ox = lx * (w / 2 - 0.12); b.box(0.06, 0.44, 0.28, x + ox * c, 0.22, z - ox * s, 0x4f3620, ry); }
   },
+  // a bed: a frame of peeled logs, posts at the corners, a headboard of three rails; on it a fat straw tick, a sheet
+  // turned down over a thick wool quilt that hangs over the sides, and a plump pillow (the bedding goes on b.cloth, when
+  // the builder has one, so it's drawn as cloth and not as more timber)
   bed(b, x, z, ry = 0) {
-    b.box(1.0, 0.4, 2.0, x, 0.2, z, 0x5a3e28, ry);
-    b.box(0.9, 0.14, 1.9, x, 0.45, z, 0xd9d0bc, ry);
-    const c = Math.cos(ry), s = Math.sin(ry);
-    b.box(0.92, 0.1, 1.2, x + 0.4 * s, 0.53, z + 0.4 * c, 0x7a3b33, ry);
-    b.box(0.6, 0.12, 0.35, x - 0.75 * s, 0.56, z - 0.75 * c, 0xf0ebe0, ry);
-    b.box(1.0, 0.8, 0.08, x - 1.0 * s, 0.4, z - 1.0 * c, 0x5a3e28, ry);
+    const c = Math.cos(ry), s = Math.sin(ry), at = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c];
+    const cl = b.cloth || b, LOG = 0x7a5534, END = 0x9a7048;
+    const post = (lx, lz, h) => { const [px, pz] = at(lx, lz); b.add(CYL8, LOG, px, h / 2, pz, 0, ry, 0, 0.13, h, 0.13); b.add(CYL8, END, px, h + 0.005, pz, 0, ry, 0, 0.12, 0.012, 0.12); };
+    const rail = (lz, y, len = 1.0, r = 0.1) => { const [px, pz] = at(0, lz); b.add(CYL8, LOG, px, y, pz, 0, ry, Math.PI / 2, r, len, r); };
+    const side = (lx, y) => { const [px, pz] = at(lx, 0); b.add(CYL8, LOG, px, y, pz, Math.PI / 2, ry, 0, 0.1, 1.98, 0.1); };
+    post(-0.47, -0.97, 0.95); post(0.47, -0.97, 0.95); post(-0.47, 0.97, 0.55); post(0.47, 0.97, 0.55);
+    rail(-0.97, 0.42); rail(-0.97, 0.62); rail(-0.97, 0.82); rail(0.97, 0.42); rail(0.97, 0.5);
+    side(-0.47, 0.3); side(0.47, 0.3);
+    // (slats under the tick)
+    { const [px, pz] = at(0, 0); b.box(0.86, 0.04, 1.86, px, 0.31, pz, 0x6a4a2c, ry); }
+    // the straw tick, rounded at its edges
+    { const [px, pz] = at(0, 0.02); cl.add(RBOX, 0xcbb683, px, 0.42, pz, 0, ry, 0, 0.9, 0.2, 1.86); }
+    // the quilt over the lower part, hanging down the sides, a band at its top turned back, and a darker check woven in
+    { const [px, pz] = at(0, 0.36); cl.add(RBOX, 0x8e3d32, px, 0.47, pz, 0, ry, 0, 0.98, 0.2, 1.22); }
+    for (const lz of [0.06, 0.46, 0.86]) { const [px, pz] = at(0, lz); cl.box(0.86, 0.203, 0.07, px, 0.47, pz, 0x6e2c24, ry); }
+    { const [px, pz] = at(0, -0.24); cl.add(CYL8, 0xe9e1cc, px, 0.56, pz, 0, ry, Math.PI / 2, 0.11, 0.97, 0.09); }
+    // the pillow, plump, against the headboard
+    { const [px, pz] = at(0, -0.72); cl.add(BALL, 0xf1ebdc, px, 0.58, pz, 0, ry, 0, 0.62, 0.17, 0.34); }
+  },
+  // a straw pallet on the floor: a fat tick of straw, a grey-brown wool blanket with a stripe at its ends, a sack of a pillow
+  pallet(b, x, z, ry = 0) {
+    const c = Math.cos(ry), s = Math.sin(ry), at = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c], cl = b.cloth || b;
+    { const [px, pz] = at(0, 0); cl.add(RBOX, 0xc2aa72, px, 0.09, pz, 0, ry, 0, 0.9, 0.18, 1.9); }
+    // (a few straws sticking out of the ticking at the foot)
+    for (const lx of [-0.3, -0.05, 0.22]) { const [px, pz] = at(lx, 0.94); b.add(CYL8, 0xd8c07a, px, 0.1, pz, 1.2, ry + lx, 0, 0.012, 0.16, 0.012); }
+    { const [px, pz] = at(0, 0.32); cl.add(RBOX, 0x6e5e4c, px, 0.15, pz, 0, ry, 0, 0.94, 0.14, 1.22); }
+    for (const lz of [-0.22, 0.86]) { const [px, pz] = at(0, lz); cl.box(0.86, 0.143, 0.08, px, 0.15, pz, 0x9a3a2c, ry); }
+    { const [px, pz] = at(0, -0.68); cl.add(BALL, 0xe2d8c0, px, 0.22, pz, 0, ry, 0, 0.56, 0.14, 0.32); }
   },
   shelf(b, x, z, w = 1.6, ry = 0) {
     // an open case: sides, a back, four boards, and on them books, ledgers and boxes, each its own size and colour

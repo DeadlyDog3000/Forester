@@ -25,7 +25,7 @@ export function wallVis(g, b, def) {
   if (b.broken) {
     // what's left: a few stumps of it, and the rest in the grass
     if (def.wall === "stone") for (let i = 0; i < 7; i++) {
-      const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28 + r() * 0.2, 0), mat(0x8a857c, { surface: "stone" }));
+      const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28 + r() * 0.2, 0), mat(0x8a857c, { surface: "rock" }));
       m.position.set((r() - 0.5) * W, 0.2, (r() - 0.5) * 1.2); m.rotation.set(r() * 3, r() * 3, 0); m.castShadow = true; g.add(m);
     } else {
       g.add(makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.9 + (r() - 0.5) * 0.3, y: 0.18, z: (r() - 0.5) * 1.2, len: 2.2 + r(), r: 0.16, dir: "x", ry: (r() - 0.5) * 0.8 })), 5));

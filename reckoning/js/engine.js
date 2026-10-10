@@ -6,7 +6,7 @@
 // people who walk around with you, the camera over (or behind) your eyes, and
 // the one thing in front of you that E would do something to.
 
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, addDetail } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { makeMusket, makeCrossbow } from "./models.js";
@@ -937,7 +937,7 @@ export class Player {
         const [BACK, HIT, THRU] = {
           right: [[0.25, -1.25, 0.0, 0.42, -0.24, -0.26], [0.18, 0.75, 0.0, 0.1, -0.3, -0.46], [0.2, 1.6, 0.0, -0.12, -0.34, -0.36]],
           left: [[0.25, 1.2, 0.0, -0.3, -0.22, -0.3], [0.18, -0.7, 0.0, 0.02, -0.3, -0.46], [0.2, -1.5, 0.0, 0.3, -0.36, -0.36]],
-          up: [[2.2, -0.1, 1.57, 0.14, 0.02, -0.18], [0.2, 0.0, 1.57, 0.06, -0.18, -0.5], [-0.5, 0.0, 1.57, 0.06, -0.44, -0.42]],
+          up: [[1.95, -0.1, 1.57, 0.2, -0.3, -0.3], [0.25, 0.0, 1.57, 0.08, -0.3, -0.5], [-0.4, 0.0, 1.57, 0.06, -0.44, -0.42]],   // (the head of the pick goes back over your shoulder; your hands stay low, at your chest)
         }[this.swingDir || "right"];
         const pose = (A, B, k) => { k = e(k); this.axe.rotation.set(L(A[0], B[0], k), L(A[1], B[1], k), L(A[2], B[2], k)); this.axe.position.set(L(A[3], B[3], k), L(A[4], B[4], k), L(A[5], B[5], k)); };
         if (T < 0.2) pose(REST, BACK, T / 0.2);
@@ -1118,8 +1118,17 @@ G.impact = () => { if (G.player) G.player.impactT = G.time + 0.18; };
 const VM = { sx: 0, sy: 0, svx: 0, svy: 0, fy: 0, fv: 0, roll: 0, sprint: 0, crouch: 0, raise: 1, held: "", yaw: null, pitch: 0, t: 0 };
 // a spring a little short of settling at once: it overshoots a touch and comes back, as a held weight does
 const spring = (x, v, to, dt, k = 140, d = 17) => { v += ((to - x) * k - v * d) * dt; return [x + v * dt, v]; };
+// (what's in your hands wears its grain in its own space: the world's would slide over it as you turned)
+const OWN_GRAIN = new Map();
+function ownGrain(m) {
+  if (!m || !m.userData.detail || m.userData.detail.local) return m;
+  let c = OWN_GRAIN.get(m);
+  if (!c) { c = m.clone(); c.color = m.color; if (m.emissive) c.emissive = m.emissive; addDetail(c, { ...m.userData.detail, local: true, snow: false }); OWN_GRAIN.set(m, c); }
+  return c;
+}
 function viewModel(dt, p, third) {
   if (third) return;
+  vm.traverse(o => { if (o.isMesh && !Array.isArray(o.material) && o.material.userData.detail && !o.material.userData.detail.local) o.material = ownGrain(o.material); });
   dt = Math.min(dt, 1 / 30);
   VM.t += dt;
   // how fast the view turned this frame: the hands lag behind it, and catch up
@@ -1384,7 +1393,43 @@ function woodChips(t, amount = 1) {
   };
   G.onFrame.push(tick);
 }
-G.woodChips = woodChips;
+G.woodChips = (t, amount = 1) => { woodChips(t, amount); if (amount === 1) notch(t); };
+// the cut the axe makes: a notch in the trunk at waist height, on the side you're at, a little deeper with every stroke
+// (laid on the bark as a curved patch that hugs the trunk: the pale face of the cut above, the shadowed one below)
+const NOTCH_TEX = [];
+function notchTex(k) {
+  if (NOTCH_TEX[k]) return NOTCH_TEX[k];
+  const c = document.createElement("canvas"); c.width = 128; c.height = 128; const x = c.getContext("2d");
+  const cy = 74, wHalf = 44 + k * 5, up = 16 + k * 7, dn = 6 + k * 3;
+  // the open mouth of the cut: a lens, sloped face above the crease, the flat face below
+  x.beginPath(); x.moveTo(64 - wHalf, cy); x.quadraticCurveTo(64, cy - up * 2, 64 + wHalf, cy); x.closePath();
+  let g = x.createLinearGradient(0, cy - up, 0, cy); g.addColorStop(0, "#e6cc98"); g.addColorStop(1, "#c4a26c"); x.fillStyle = g; x.fill();
+  x.beginPath(); x.moveTo(64 - wHalf, cy); x.quadraticCurveTo(64, cy + dn * 2, 64 + wHalf, cy); x.closePath();
+  x.fillStyle = "#7a5a38"; x.fill();
+  // the crease, deep in shadow, and the torn bark round the lip
+  x.strokeStyle = "#2a1c10"; x.lineWidth = 2 + k * 0.6; x.beginPath(); x.moveTo(64 - wHalf * 0.9, cy); x.lineTo(64 + wHalf * 0.9, cy); x.stroke();
+  x.strokeStyle = "rgba(40,26,14,0.8)"; x.lineWidth = 2; x.beginPath(); x.moveTo(64 - wHalf, cy); x.quadraticCurveTo(64, cy - up * 2, 64 + wHalf, cy); x.quadraticCurveTo(64, cy + dn * 2, 64 - wHalf, cy); x.stroke();
+  // (grain across the pale face)
+  x.strokeStyle = "rgba(150,110,60,0.35)"; x.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { const yy = cy - up * i / 4.2; x.beginPath(); x.moveTo(64 - wHalf * 0.8, yy + 2); x.lineTo(64 + wHalf * 0.8, yy); x.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return NOTCH_TEX[k] = t;
+}
+function notch(t) {
+  const pl = G.player; if (!t || !t.g || !pl || t.state === "falling" || t.state === "down" || t.state === "gone") return;
+  const kind = t.kind || (t.src && t.src.kind), r = Math.max(0.2, (kind === "birch" ? 0.2 : 0.3) * ((t.h || 10) / 10)) + 0.035;
+  if (!t.notch) {
+    // (which way you are from the tree, in the tree's own turn)
+    const a = Math.atan2(pl.pos.x - t.x, pl.pos.z - t.z) - t.g.rotation.y, span = 1.5;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.42, 10, 1, true, a - span / 2, span),
+      new THREE.MeshStandardMaterial({ map: notchTex(0), transparent: true, alphaTest: 0.3, roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+    m.position.y = 1.0; m.userData.k = 0; t.g.add(m); t.notch = m;
+  } else {
+    const m = t.notch; m.userData.k = Math.min(4, m.userData.k + 1); m.material.map = notchTex(m.userData.k); m.material.needsUpdate = true;
+  }
+}
+// (a tree grown again, or stood up again, has no cut in it)
+G.clearNotch = t => { if (t && t.notch) { t.notch.parent && t.notch.parent.remove(t.notch); t.notch.geometry.dispose(); t.notch.material.dispose(); t.notch = null; } };
 // money as it is written: whole marks, or a mark and a tenth — never 0.30000000000000004
 export const dm = n => { const v = Math.round((+n || 0) * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
 G.dm = dm;
