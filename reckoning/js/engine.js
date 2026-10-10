@@ -1283,6 +1283,8 @@ export function findPath(w, sx, sz, gx, gz) {
 // a blow to you: dmg in points of a hundred. At nothing, you go down (what happens then is the chapter's to say)
 // a stroke of the pick: at the rock in front, if the pick is hard enough for it
 function mineSwing() {
+  // (a game with rocks of its own — Frontier's — breaks them its own way)
+  if (G.onMine) return G.onMine();
   const pl = G.player, w = G.world, tools = G.body && G.body.tools;
   const k = w && w.rockAhead && w.rockAhead(pl.pos, pl.forward());
   if (!k || !tools) return;

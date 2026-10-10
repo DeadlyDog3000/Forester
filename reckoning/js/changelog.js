@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.89.2", date: "10 October 2026", title: "The right tool",
+    items: [
+      "Frontier gives you a wooden pickaxe as well as the axe (2 takes it out), and the grey rocks are broken with it, as in the settlement. Swing the axe at a rock and you're told to take out the pickaxe; swing the pickaxe at a tree and you're told to take out the axe.",
+      "A bow you've made yourself is called your hunting bow, not Henning's old bow.",
+    ],
+  },
+  {
     v: "0.89.1", date: "10 October 2026", title: "Your own things",
     items: [
       "A guest in someone's co-op colony keeps their own things between visits: the tools they've made, the bow and arrows, what's in their pack and their own chest, their skills, and their purse. They're kept on the guest's computer for that host's colony, and given back on joining again. Before, a guest started with nothing every time.",

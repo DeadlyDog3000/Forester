@@ -38,7 +38,7 @@ const MP_GOALS = [
   { text: () => "Wait for your first settler to come through the woods — keep felling meanwhile", done: g => g.mine() >= 1 },
   { text: g => lay(g, "a field", "settlers eat, and with no food they won't stay"), done: g => g.has("field") },
   { text: g => lay(g, "a woodshed", "to keep the logs and stone"), done: g => g.has("shed") },
-  { text: g => `Break stone from the grey rocks — ${Math.min(10, g.stock.stone)} of 10`, done: g => g.stock.stone >= 10 || g.has("well") || g.has("tower") || g.has("house") },
+  { text: g => `Break stone from the grey rocks with the pickaxe (2) — ${Math.min(10, g.stock.stone)} of 10`, done: g => g.stock.stone >= 10 || g.has("well") || g.has("tower") || g.has("house") },
   { text: g => lay(g, "a palisade with a gate in it", "round your ground"), done: g => g.has("wall") && g.has("gate") },
   { text: g => lay(g, "a watchtower", "two of your settlers keep watch"), done: g => g.has("tower") },
   { text: g => `Grow your homestead to six settlers — ${g.mine()} of 6 (more beds: cabins and houses)`, done: g => g.mine() >= 6 },
@@ -191,6 +191,9 @@ export class MPGame {
     for (const v of inMsg.settlers || []) this.settlers.set(v.id, new SettlerView(this, v));
     for (const c of inMsg.chat || []) this.chatLine(c, true);
     G.onSwing = () => this.swing();
+    // (a pickaxe for the rocks, as in the settlement: 2 to take it out)
+    G.onMine = () => this.swing();
+    if (G.body) G.body.tools.pick = Math.max(G.body.tools.pick || 0, 1);
     G.onFrame.push(dt => this.tick(dt));
     G.achEvent && (G.achEvent("mp-join"), r.persistent && G.achEvent("mp-world"), target && target.host && G.achEvent("mp-host"));
     this.listen();
@@ -441,12 +444,14 @@ export class MPGame {
       const ch = this.w.chunkAt(p.x + i * 3, p.z + j * 3); if (!ch) continue;
       for (const t of ch.trees) { if (t.gone || this.w.felled.has(t.id)) continue; const d = ahead(t.x, t.z, 2.6); if (d < bd) { bd = d; tr = t; } }
     }
-    if (tr) {
+    if (tr && G.player.blade !== "pick") {
       sfx("chop"); G.impact && G.impact(); G.woodChips && G.woodChips(tr, 1);
       this.net.send({ t: "chop", id: tr.id });
       return;
     }
-    // a rock
+    // a rock: with the pickaxe (as in the settlement — the axe only blunts on it)
+    if (G.player.blade !== "pick") { if (this.rockAhead(p, f)) UI.hint("Stone wants the pickaxe — take it out (2) and swing at the rock.", 3); return; }
+    if (!this.rockAhead(p, f)) { if (tr) UI.hint("That's the pickaxe — take out the axe (1) for trees.", 2.5); return; }
     let rk = null; bd = Infinity;
     const ch = this.w.chunkAt(p.x, p.z);
     for (const c of [ch, this.w.chunkAt(p.x + 4, p.z), this.w.chunkAt(p.x - 4, p.z), this.w.chunkAt(p.x, p.z + 4), this.w.chunkAt(p.x, p.z - 4)]) if (c) for (const k of c.rocks) { if (k.gone) continue; const d = ahead(k.x, k.z, k.s + 2.2) - k.s; if (d < bd) { bd = d; rk = k; } }
@@ -740,6 +745,14 @@ export class MPGame {
     this.hooks.lost && this.hooks.lost(this.room.persistent ? "The connection to the wide world was lost." : "The connection to the game was lost — its host may have closed it.");
   }
   // a fallen player's sack: where they fell, F to take what's in it
+  // a grey rock ahead, close enough to strike
+  rockAhead(p, f) {
+    for (const c of [this.w.chunkAt(p.x, p.z), this.w.chunkAt(p.x + 4, p.z), this.w.chunkAt(p.x - 4, p.z), this.w.chunkAt(p.x, p.z + 4), this.w.chunkAt(p.x, p.z - 4)]) if (c) for (const k of c.rocks) {
+      if (k.gone) continue; const dx = k.x - p.x, dz = k.z - p.z, d = Math.hypot(dx, dz);
+      if (d < k.s + 2.4 && (d < 0.7 || (dx * f.x + dz * f.z) / d > 0.45)) return k;
+    }
+    return null;
+  }
   // ---- logs and sites, as in the settlement ----
   setCarry(n) { this.carry = n; if (G.player) G.player.carryN = n; UI.carry(n ? `Carrying ${n} log${n > 1 ? "s" : ""}` : null); }
   // a tree's logs, lying where it fell: F to take them up (six in your arms at most)
@@ -815,7 +828,7 @@ export class MPGame {
     for (const v of this.settlers.values()) v.remove();
     this.settlers.clear();
     this.hud(false); this.banner(null); $("mpInvite").classList.add("hidden"); $("mpToast").classList.add("hidden");
-    G.onSwing = null; G.onFrame.length = 0; G.downed = false; G.lockMove = false;
+    G.onSwing = null; G.onMine = null; G.onFrame.length = 0; G.downed = false; G.lockMove = false;
     G.mp = null;
   }
 }

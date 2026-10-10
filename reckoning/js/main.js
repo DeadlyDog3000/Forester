@@ -475,7 +475,7 @@ function renderInventory() {
       T("hammer", "hammer" + (tl0.hammer || 1), `${cap1(TIER_NAME[tl0.hammer] || "")} hammer`, "Raises buildings quicker."),
       T("sword", "sword" + (tl0.sword || 1), `${cap1(TIER_NAME[tl0.sword] || "")} sword, your own`, "For the raiders."),
       tl0.pack ? { icon: "pack" + tl0.pack, name: ["", "Hide backpack", "Stitched pack", "Pedlar's frame pack"][tl0.pack], note: `Carries ${packSlots(G.body)} slots.` } : null,
-      pl.hasBow ? { icon: "bow", name: "Henning's old bow", note: "Hold right-click to draw, let go to loose." } : null,
+      pl.hasBow ? { icon: "bow", name: pl.bowMade ? "Your hunting bow" : "Henning's old bow", note: "Hold right-click to draw, let go to loose." } : null,
       pl.hasBow ? { icon: "arrows", name: "Arrows", n: pl.arrows || 0, note: "Pull your misses out of the ground to use them again." } : null,
       tl0.musket ? { icon: "musket", name: "Your musket", note: "Right mouse to raise it to your eye, click to fire. Then it wants loading: six slow seconds of powder, ball and ramrod." } : null,
     ].filter(Boolean);
@@ -646,7 +646,7 @@ $("craftBody").addEventListener("click", e => {
     }
   }
   // (the bow and its arrows are kept as the story's bow is: on you, and in the save)
-  if (r.tool === "bow") { G.player.hasBow = true; G.player.arrows = G.player.arrows || 0; if (G.world) G.world.huntOpen = true; if (!G.mp || G.mp.ownSave) writeSave({ bow: true }); }
+  if (r.tool === "bow") { G.player.hasBow = true; G.player.bowMade = true; G.player.arrows = G.player.arrows || 0; if (G.world) G.world.huntOpen = true; if (!G.mp || G.mp.ownSave) writeSave({ bow: true }); }
   else if (r.tool === "arrows") G.player.arrows = (G.player.arrows || 0) + r.item;
   else if (r.item) G.body.tools[r.tool] = (G.body.tools[r.tool] || 0) + r.item; else G.body.tools[r.tool] = r.tier;
   G.body.dirty = true;
@@ -1433,14 +1433,14 @@ function hotbarItems() {
   const pl = G.player, out = [];
   const tl = G.body && G.body.tools;
   if (pl.hasAxe) out.push({ icon: "axe", name: tl && tl.axe >= 3 && G.town ? `${cap(TIER_NAME[tl.axe])} axe` : "Old felling axe", tool: "axe" });
-  if (tl && tl.pick > 0 && G.town) out.push({ icon: "pick" + tl.pick, name: `${cap(TIER_NAME[tl.pick])} pickaxe`, tool: "pick" });
+  if (tl && tl.pick > 0 && (G.town || G.onMine)) out.push({ icon: "pick" + tl.pick, name: `${cap(TIER_NAME[tl.pick])} pickaxe`, tool: "pick" });
   // the best weapon the smith has made, if there is one: yours to take up
   const arm = G.town && G.town.playerArm && G.town.playerArm();
   // a sword of your own making, when it is the better blade (or there is no other)
   const own = G.town && tl && tl.sword > 0 && (!arm || arm !== "sword" || tl.sword >= 3) ? tl.sword : 0;
   if (arm && !(own && arm === "sword")) out.push({ icon: "weapon", name: ARMS[arm].name, tool: "arm", kind: arm });
   if (own) out.push({ icon: "sword" + own, name: `${cap(TIER_NAME[own])} sword, your own`, tool: "arm", kind: "sword" });
-  if (pl.hasBow) { out.push({ icon: "bow", name: "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
+  if (pl.hasBow) { out.push({ icon: "bow", name: pl.bowMade ? "Your hunting bow" : "Henning's old bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
   if (tl && tl.musket) out.push({ icon: "musket", name: "Your musket", tool: "gun" });
   if (tl && tl.crossbow) { out.push({ icon: "crossbow", name: "Your crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: tl.bolts || 0 }); }
   if (tl && tl.canteen && G.world && G.world.waterOK) { const W = G.body.water || { n: 0 }, size = tl.canteen >= 2 ? 6 : 4; out.push({ icon: "canteen", name: W.n ? `Canteen — ${W.n} of ${size}, ${WATER_NAME[W.kind] || "water"}` : "Canteen — empty", tool: "canteen", n: W.n }); }

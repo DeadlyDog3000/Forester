@@ -660,7 +660,7 @@ export class ColonyGuest extends ColonyBase {
     if (!k) return;
     try { G.body = restoreBody(k.body); } catch (e) {}
     G.chest = Array.isArray(k.chest) ? k.chest : [];
-    G.player.hasBow = !!k.bow; G.player.arrows = k.arrows || 0;
+    G.player.hasBow = !!k.bow; G.player.bowMade = !!k.bow; G.player.arrows = k.arrows || 0;
     if (k.bow && G.world) G.world.huntOpen = true;
   }
   saveKit() {
