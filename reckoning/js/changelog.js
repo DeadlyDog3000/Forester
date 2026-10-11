@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.8.1", date: "11 October 2026", title: "Real sounds",
+    items: [
+      "Frontier sounds like the world, not a game: meat and fish spit and sizzle over the town hall's fire; boots knock up the watchtower's ladder; you splash ashore out of a boat; and an alliance asked of you comes as a quiet note, not the ring of a coin.",
+    ],
+  },
+  {
     v: "1.8.0", date: "11 October 2026", title: "How will you play?",
     items: [
       "A new game asks how you'll play. The Story: Hamburg, 1683, the chapters from the first. Free Play: a clearing in the woods and a cabin to raise — your own settlement from the first day, grown into a nation, with no story to it. The Frontier: an island, a continent or the whole Earth on your own — the Frontier's setup, ready for one, kept on this computer (in the desktop app); invite others later if you like.",

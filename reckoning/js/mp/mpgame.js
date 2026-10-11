@@ -300,7 +300,7 @@ export class MPGame {
         return `Put someone to work this field${on.length ? ` (${on.join(", ")} ${on.length > 1 ? "work" : "works"} it)` : ""}`;
       },
       use: () => {
-        if (b.type === "tower") { const t = (this.w.towers || []).find(q => q.id === b.id); if (!t) return; const pl = G.player; if (pl.pos.y > t.top - 1) { pl.place(b.x + Math.sin(b.ry || 0) * 2.2, b.z + Math.cos(b.ry || 0) * 2.2, pl.yaw); } else { pl.pos.set(b.x, t.top, b.z); pl.vy = 0; } sfx("build"); }
+        if (b.type === "tower") { const t = (this.w.towers || []).find(q => q.id === b.id); if (!t) return; const pl = G.player; if (pl.pos.y > t.top - 1) { pl.place(b.x + Math.sin(b.ry || 0) * 2.2, b.z + Math.cos(b.ry || 0) * 2.2, pl.yaw); } else { pl.pos.set(b.x, t.top, b.z); pl.vy = 0; } FOLEY.ladder(0.5); }
         else if (b.type === "market") this.net.send({ t: "trade", want: "stone" });
         else this.workField(b);
       } });
@@ -318,8 +318,8 @@ export class MPGame {
       e.it5 = this.w.addInteract({ x: fa.x, y: this.w.heightAt(fa.x, fa.z) + 0.4, z: fa.z, reach: 2.6, hold: 3, anim: "craft",
         can: () => !this.dead && ((this.pack.food | 0) + (this.pack.meat | 0)) > 0,
         label: () => `Roast your ${this.pack.meat && this.pack.food ? "meat and fish" : this.pack.meat ? "meat" : "fish"} over the fire (${(this.pack.food | 0) + (this.pack.meat | 0)})`,
-        onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) sfx("pickup"); },
-        use: () => { this.net.send({ t: "cook", id: b.id }); UI.hint("Roasted. It smells like a feast day — eat it from your pack (T).", 3.5); sfx("build"); } });
+        onHoldTick: (dt, t) => { if (Math.floor(t * 1.2) !== Math.floor((t - dt) * 1.2)) FOLEY.sizzle(fa, 0.4); },
+        use: () => { this.net.send({ t: "cook", id: b.id }); UI.hint("Roasted. It smells like a feast day — eat it from your pack (T).", 3.5); FOLEY.packIn(0.35); } });
       // and the hall rebuilt grander, from the store: a timber hall, plaster, brick — each claiming more ground round it
       const nx = HALL[(b.level || 1) + 1];
       if (nx && this.manages()) {
@@ -872,7 +872,7 @@ export class MPGame {
   invited(m) {
     const e = $("mpInvite");
     e.innerHTML = `<b>${esc(m.name)}</b> asks you to stand with them${m.group ? ` in ${esc(m.group)}` : ""}. <span class="k">Y</span> yes · <span class="k">N</span> no`;
-    e.classList.remove("hidden"); this.invite = m; sfx("coin");
+    e.classList.remove("hidden"); this.invite = m; window.__uisfx && window.__uisfx.chat(true);
     clearTimeout(this._invT); this._invT = setTimeout(() => { e.classList.add("hidden"); this.invite = null; }, 30000);
   }
   // keys main.js passes on while a game is on; true if taken
@@ -1168,7 +1168,7 @@ export class MPGame {
       let land = null;
       for (let r = 1.5; r <= (ship ? 16 : 7) && !land; r += 1) for (let k = 0; k < 16 && !land; k++) { const ang = k / 16 * Math.PI * 2, x = pl.pos.x + Math.cos(ang) * r, z = pl.pos.z + Math.sin(ang) * r; if (w.land.heightAt(x, z) > 0.4) land = { x, z }; }
       if (!land) UI.hint(ship ? "Too far from the land to go ashore — bring her in closer." : "Row in to the shore to step out.", 2.5);
-      else { this.disembark(); pl.place(land.x, land.z, pl.yaw); w.buildNear(land.x, land.z, 99); sfx("build"); }
+      else { this.disembark(); pl.place(land.x, land.z, pl.yaw); w.buildNear(land.x, land.z, 99); FOLEY.splash({ x: land.x, z: land.z }, 0.25); }
     }
   }
   // an arrow in one of the wild beasts: told to the server, which has it fall, or run, or turn on you

@@ -219,6 +219,19 @@ const RECIPES = {
     const out = d.subarray(0, n - xf); let m = 0; for (const v of out) m = Math.max(m, Math.abs(v)); for (let i = 0; i < out.length; i++) out[i] *= 0.9 / (m || 1);
     return out;
   },
+  // meat or fish over the fire: the fat spitting into the coals — a hiss that swells and falls, and pops in it
+  sizzle(sr) {
+    const L = 1.4, d = new Float32Array(Math.floor(sr * L)), hp = new Biquad("hp", 2500, 0.7, sr), bp = new Biquad("bp", 5200, 0.6, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr, env = Math.sin(Math.PI * Math.min(1, t / L)) * (0.75 + 0.25 * Math.sin(t * 23)); const w = Math.random() * 2 - 1; d[i] = (hp.run(w) * 0.5 + bp.run(w) * 0.5) * env; }
+    crackles(d, sr, 0.02, L - 0.1, 30, 0.6, 1500, 5000);
+    return finish(d, 0.5);
+  },
+  // up or down a wooden ladder: boots on the rungs, the timber knocking under them
+  ladder(sr) {
+    const d = new Float32Array(Math.floor(sr * 1.3));
+    for (let k = 0; k < 4; k++) { const t = k * rand(0.26, 0.32); modes(d, sr, t, [[rand(140, 190), 0.07, 0.8], [rand(380, 520), 0.03, 0.3]]); hiss(d, sr, t, 0.05, 0.25, new Biquad("bp", rand(900, 1400), 0.8, sr), x => Math.exp(-x / 0.012)); }
+    return finish(d, 0.6);
+  },
   // a hull run up on the shallows: the keel grinding over sand and stones, and the planks' dull knock
   scrape(sr) {
     const d = new Float32Array(Math.floor(sr * 0.8));
@@ -283,7 +296,7 @@ const RECIPES = {
     return out;
   },
 };
-const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3 };
+const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3 };
 
 // ---------------------------------------------------------------------------
 const made = {};
@@ -347,6 +360,8 @@ export const FOLEY = {
   splash: (at, vol = 0.7) => play("splash", { vol, at, reach: 45, rate: [0.85, 1.15] }),
   oarDip: (at, vol = 0.5) => play("oarDip", { vol, at, reach: 40, rate: [0.9, 1.1] }),
   oarDrip: (at, vol = 0.35) => play("oarDrip", { vol, at, reach: 25, rate: [0.9, 1.15] }),
+  sizzle: (at, vol = 0.45) => play("sizzle", { vol, at, reach: 20, rate: [0.9, 1.1] }),
+  ladder: (vol = 0.5) => play("ladder", { vol, rate: [0.92, 1.08] }),
   scrape: (at, vol = 0.7) => play("scrape", { vol, at, reach: 40, rate: [0.9, 1.1] }),
   // the wash along the hull of the boat you're in, as loud as she's going fast (0 to 1)
   wash(k) {
