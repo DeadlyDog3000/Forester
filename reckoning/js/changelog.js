@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.99.4", date: "11 October 2026", title: "A quicker look",
+    items: [
+      "The big map (J) opens and redraws in a moment on a large land: it used to stall the game for a third of a second every time it was drawn on the Earth, looking for buildings square by square across the whole world.",
+    ],
+  },
+  {
     v: "0.99.3", date: "11 October 2026", title: "Solid ground",
     items: [
       "Fixed: anything standing on low ground — a building in a hollow, a tree in a valley, a rock by a lake — could be walked straight through. Everything that's solid is now solid however low or high it stands.",

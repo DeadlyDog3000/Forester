@@ -2009,7 +2009,9 @@ function drawMapGround(c, X, Z, S, big, cx, cz, radius) {
   if (w.minimap) w.minimap(c, X, Z, S, big);
   // buildings and walls: everything solid and taller than a person, in red with an ink edge
   c.fillStyle = TOWN; c.strokeStyle = INK; c.lineWidth = 0.8;
-  for (const o of w.col.near(cx, cz, radius)) {
+  // (a wide view: every solid thing, straight off the list — looking them up square by square over a whole land was
+  //  millions of empty squares, and a third of a second every time the map was drawn)
+  for (const o of radius > 250 ? w.col.all : w.col.near(cx, cz, radius)) {
     if (o.disabled) continue;
     if (o.type === "obox") {
       // (a turned building: drawn turned)
