@@ -21,7 +21,7 @@ import { WATER, BIOMES } from "./terrain.js";
 import { waveAt } from "../water.js";
 import { Wilds, LANDFORMS } from "./wilds.js";
 window.__BIOMES = BIOMES;   // (the big map names the country under the pointer)
-import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR, SHIP, BOATS } from "./rules.js";
+import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR, SHIP, BOATS, HALL, claimOf } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
 import { Net, hostCommand } from "./net.js";
@@ -38,8 +38,8 @@ const DAY = [[0, "night"], [0.2, "dawn"], [0.27, "morning"], [0.5, "afternoon"],
 // (each building: laid out, then its logs carried to the site and raised)
 const lay = (g, what, why) => `Lay out ${what} (B), carry its logs to the site (F) and hold F to raise it: ${why}`;
 const MP_GOALS = [
-  { text: g => `Fell trees for logs — ${Math.min(10, g.stock.wood)} of 10 (swing the axe at a tree, take up its logs with F, stack them at the hearth)`, done: g => g.stock.wood >= 10 || g.has("hearth") },
-  { text: () => "Raise a hearth (B): the ground round it becomes yours, and you wake there after a fall", done: g => g.has("hearth") },
+  { text: g => `Fell trees for logs — ${Math.min(10, g.stock.wood)} of 10 (swing the axe at a tree, take up its logs with F, stack them at the town hall)`, done: g => g.stock.wood >= 10 || g.has("hearth") },
+  { text: () => "Raise a town hall (B): the ground round it becomes yours, and you wake there after a fall", done: g => g.has("hearth") },
   { text: g => lay(g, "a cabin", "beds for two settlers, who'll come through the woods to live and work"), done: g => g.has("cabin") || g.has("house") },
   { text: () => "Wait for your first settler to come through the woods — keep felling meanwhile", done: g => g.mine() >= 1 },
   { text: g => lay(g, "a field", "settlers eat, and with no food they won't stay"), done: g => g.has("field") },
@@ -233,7 +233,7 @@ export class MPGame {
           m.k = 0; m.s = size; m.mesh.position.set(x, WATER - 0.03, z);
         },
         onCatch: () => {
-          if (this.packHas && (this.pack.stone + this.pack.food) >= (this.packMax || 40)) { UI.hint("A fish — but your pack's full, so back it goes. Empty it at the hearth.", 3); return; }
+          if (this.packHas && (this.pack.stone + this.pack.food) >= (this.packMax || 40)) { UI.hint("A fish — but your pack's full, so back it goes. Empty it at the town hall.", 3); return; }
           this.net.send({ t: "fish" });
           UI.hint(["A fish, fighting all the way in. Into your pack: food for the store.", "A good one, as long as your hand. Into your pack.", "A little one — it'll still feed someone."][Math.floor(Math.random() * 3)], 3);
         } });
@@ -257,8 +257,8 @@ export class MPGame {
     }
     AUDIO.music && AUDIO.music("settlement");
     const kind = TERRAINS[r.kind] ? TERRAINS[r.kind].name.toLowerCase() : "island";
-    UI.hint(r.persistent ? "The wide world. Build a hearth (B) to make a homestead of your own — while you're away, nothing of yours can be broken."
-      : `${r.mode === "coop" ? "Co-op: one colony, one store for everyone" : "Classic: your own nation"} — on ${kind === "island" ? "an island" : kind === "archipelago" ? "an archipelago" : kind === "continent" ? "a continent" : kind === "highlands" ? "the highlands" : kind === "earth" ? "the Earth" : "lake country"}. Fell trees for logs (click), B to build${r.mode === "coop" ? " (start with the hearth)" : " — your hearth first, it claims the ground"}, Enter to talk${r.mode === "pvp" ? ", Tab to make allies" : ""}.`, 9);
+    UI.hint(r.persistent ? "The wide world. Build a town hall (B) to make a homestead of your own — while you're away, nothing of yours can be broken."
+      : `${r.mode === "coop" ? "Co-op: one colony, one store for everyone" : "Classic: your own nation"} — on ${kind === "island" ? "an island" : kind === "archipelago" ? "an archipelago" : kind === "continent" ? "a continent" : kind === "highlands" ? "the highlands" : kind === "earth" ? "the Earth" : "lake country"}. Fell trees for logs (click), B to build${r.mode === "coop" ? " (start with the town hall)" : " — your town hall first, it claims the ground"}, Enter to talk${r.mode === "pvp" ? ", Tab to make allies" : ""}.`, 9);
   }
   // ---- who's who ----
   // (a co-op settlement is the host's to run: what's built, who works where; the others help)
@@ -299,11 +299,30 @@ export class MPGame {
         else if (b.type === "market") this.net.send({ t: "trade", want: "stone" });
         else this.workField(b);
       } });
-    // the store, at the hearth and at a woodshed: the logs you carry stacked, or taken out to carry to a site
+    // the store, at the town hall and at a woodshed: the logs you carry stacked, or taken out to carry to a site
+    // (the store: a chest of the settlement's, as in the story — what it holds, and what you carry, to put in and take out)
     if ((b.type === "hearth" || b.type === "shed") && fr) e.it4 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 0.8, z: b.z, reach: d.r + 2.4,
-      can: () => !this.dead && (this.carry > 0 || this.packHas() || (this.stock.wood > 0 && this.carry < 6)),
-      label: () => this.carry > 0 || this.packHas() ? `Put in the store: ${[this.carry && `${this.carry} log${this.carry > 1 ? "s" : ""}`, this.pack.stone && `${this.pack.stone} stone`, this.pack.food && `${this.pack.food} food`].filter(Boolean).join(", ")}` : `Take logs from the store (${this.stock.wood})`,
-      use: () => this.net.send({ t: this.carry > 0 || this.packHas() ? "stack" : "unstack", id: b.id }) });
+      can: () => !this.dead,
+      label: () => this.carry > 0 ? `Put ${this.carry} log${this.carry > 1 ? "s" : ""} in the store — or open it` : "Open the store",
+      use: () => { if (this.carry > 0) this.net.send({ t: "storeput", id: b.id, k: "wood" }); this.storeAt = b.id; G.openChest && G.openChest("mpstores"); } });
+    // the town hall's fire: your fish and meat roasted over it, as at the fire in the story (hold F)
+    if (b.type === "hearth" && fr) {
+      const fa = e.g.userData.fireAt || { x: b.x, z: b.z };
+      e.it5 = this.w.addInteract({ x: fa.x, y: this.w.heightAt(fa.x, fa.z) + 0.4, z: fa.z, reach: 2.6, hold: 3, anim: "craft",
+        can: () => !this.dead && ((this.pack.food | 0) + (this.pack.meat | 0)) > 0,
+        label: () => `Roast your ${this.pack.meat && this.pack.food ? "meat and fish" : this.pack.meat ? "meat" : "fish"} over the fire (${(this.pack.food | 0) + (this.pack.meat | 0)})`,
+        onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) sfx("pickup"); },
+        use: () => { this.net.send({ t: "cook", id: b.id }); UI.hint("Roasted. It smells like a feast day — eat it from your pack (T).", 3.5); sfx("build"); } });
+      // and the hall rebuilt grander, from the store: a timber hall, plaster, brick — each claiming more ground round it
+      const nx = HALL[(b.level || 1) + 1];
+      if (nx && this.manages()) {
+        const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), off = (d.d * ((b.level || 1) === 1 ? 1 : 1.17)) / 2 + 0.6, dx = b.x + off * sn, dz = b.z + off * c;
+        e.it6 = this.w.addInteract({ x: dx, y: this.w.heightAt(dx, dz) + 1.4, z: dz, reach: 2.4, hold: 3, anim: "hammer",
+          can: () => !this.dead && this.stock.wood >= nx.wood && this.stock.stone >= nx.stone,
+          label: () => `Rebuild the hall as ${nx.name} — ${nx.wood} logs, ${nx.stone} stone from the store (claims more ground)`,
+          use: () => this.net.send({ t: "hallup", id: b.id }) });
+      }
+    }
     // a stable of your own (or the colony's): a horse out from it to ride, and put back
     if (b.type === "stable" && fr) {
       const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), fx = b.x + (d.d / 2 + 1.2) * sn, fz = b.z + (d.d / 2 + 1.2) * c, pl = G.player;
@@ -328,7 +347,7 @@ export class MPGame {
       use: () => { if (this.stock.wood >= SHIP.wood && this.stock.stone >= SHIP.stone) this.net.send({ t: "ship", id: b.id }); else sfx("deny"); } });
     if (b.type === "market") e.it2 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.2, z: b.z, reach: d.r + 2.2, hold: 1.2, can: () => e.friendly && this.stock.stone > 0 && input.down("ShiftLeft"), label: "Hold F: a stone for 3 logs", use: () => this.net.send({ t: "trade", want: "wood" }) });
   }
-  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
+  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); for (const k of ["it5", "it6"]) if (e[k]) this.w.removeInteract(e[k]); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
   removeB(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); this.w.removeBuilding(id); }
   // ---- what the server says ----
   listen() {
@@ -336,7 +355,7 @@ export class MPGame {
     n.ps = m => { for (const l of m.l) { const r = this.remotes.get(l[0]); if (r) r.set(l); } };
     n.pj = m => { this.online.add(m.p.pid); this.addRemote(m.p); this.refreshFriends(); };
     n.pl = m => { this.online.delete(m.pid); const r = this.remotes.get(m.pid); if (r) { r.remove(); this.remotes.delete(m.pid); } this.hudCount(); this.refreshFriends(); };
-    n.stock = m => { const fed = (m.food | 0) > (this.stock.food | 0) + 4; this.stock = { wood: m.wood, stone: m.stone, food: m.food | 0 }; this.hudStock(true); if (fed && this.settlers.size) this.toast(`Harvest in: ${m.food} food in the store`); };
+    n.stock = m => { const fed = (m.food | 0) > (this.stock.food | 0) + 4; this.stock = { wood: m.wood, stone: m.stone, food: m.food | 0 }; this.hudStock(true); if (fed && this.settlers.size) this.toast(`Harvest in: ${m.food} food in the store`); G.renderChest && G.renderChest(); };
     n.bg = m => { const e = this.w.blds.get(m.id); if (e) { e.b.growth = m.growth; this.w.setGrowth(e.b, e.g, m.growth); } };
     n.chip = m => { const t = w.thing(m.id); if (!t) return; const r = this.remotes.get(m.by); if (t.id[0] === "r" || t.id[0] === "s") { AUDIO.clang && AUDIO.clang(0.25, { x: t.x, y: t.y + 0.5, z: t.z }); } else if (r && Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 0.6); };
     n.fell = m => {
@@ -348,7 +367,7 @@ export class MPGame {
       if (m.by === this.pid) G.woodChips && G.woodChips(t, 2.2);
       else if (Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 1.4);
     };
-    n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.crash(0.35, { x: k.x, z: k.z }); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("Stone into your pack — put it in the store at the hearth"); };
+    n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.crash(0.35, { x: k.x, z: k.z }); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("Stone into your pack — put it in the store at the town hall"); };
     n.grow = m => { for (const id of m.trees || []) w.showTree(id); for (const id of m.rocks || []) w.showRock(id); };
     n.b = m => { this.owners[m.b.owner] ??= this.nameOf(m.b.owner); this.addB(m.b); if (Math.hypot(m.b.x - G.player.pos.x, m.b.z - G.player.pos.z) < 40) sfx("build"); };
     n.bhp = m => { w.hitBuilding(m.id, m.hp); const e = w.blds.get(m.id); if (e && Math.hypot(e.b.x - G.player.pos.x, e.b.z - G.player.pos.z) < 40) { sfx("chop"); if (e.mine) this.warn(`${this.nameOf(m.by)} is breaking your ${BUILD[e.b.type].name.toLowerCase()}!`); } };
@@ -382,15 +401,19 @@ export class MPGame {
     n.ax = m => { if (this.hunt) this.hunt.puppets(m.l || []); };
     n.boat = m => this.setBoat(m.o);
     n.bm = m => { for (const [id, x, z, yaw] of m.l || []) { const e = this.boats.get(id); if (!e || (this.aboard && this.aboard.e === e && this.aboard.helm)) continue; e.o.x = x; e.o.z = z; e.o.yaw = yaw; } };
-    n.carry = m => { const was = this.carry; this.setCarry(m.n); if (m.n !== was) sfx("pickup"); };
+    n.carry = m => { const was = this.carry; this.setCarry(m.n); if (m.n !== was) sfx("pickup"); G.renderChest && G.renderChest(); };
     // what's in your pack: the stone you've broken and the food you've picked up, yours till you put it in the store
     n.pack = m => {
-      const was = this.pack || { stone: 0, food: 0 };
-      this.pack = { stone: m.stone | 0, food: m.food | 0 }; if (m.max) this.packMax = m.max;
-      const keep = (icon, name, note, k) => { let it = G.pack.find(i => i.icon === icon); if (k > 0) { if (!it) G.pack.push(it = { icon, name, note, n: k }); else it.n = k; } else if (it) G.pack.splice(G.pack.indexOf(it), 1); };
-      keep("stone", "Stone", "Broken from the grey rocks. Put it in the store at the hearth or a woodshed (F), or use it straight from your pack at a site.", this.pack.stone);
-      keep("fish", "Fish", "Caught at the water. Put it in the store at the hearth (F), where the settlers eat from — each feeds two.", this.pack.food);
-      if (this.pack.stone > was.stone || this.pack.food > was.food) window.__foley && window.__foley.packIn(0.32);
+      const was = this.pack || { stone: 0, food: 0, meat: 0, roast: 0 };
+      this.pack = { stone: m.stone | 0, food: m.food | 0, meat: m.meat | 0, roast: m.roast | 0 }; if (m.max) this.packMax = m.max;
+      const keep = (icon, name, note, k) => { let it = G.pack.find(i => i.icon === icon); if (k > 0) { if (!it) G.pack.push(it = { icon, name, note, n: k, mp: true }); else it.n = k; } else if (it) G.pack.splice(G.pack.indexOf(it), 1); };
+      keep("stone", "Stone", "Broken from the grey rocks. Put it in the store at the town hall or a woodshed, or use it straight from your pack at a site.", this.pack.stone);
+      keep("fish", "Fish", "Caught at the water. Raw — roast it at the town hall's fire (hold F there) before you eat it, or put it in the store for the settlers.", this.pack.food);
+      keep("meat", "Raw meat", "From a beast you brought down. Raw — roast it at the town hall's fire (hold F there), or it brings the fever.", this.pack.meat);
+      keep("cookedmeat", "Roast meat", "Cooked over the fire. Good, filling food: click it in your pack (T) to eat, or put it in the store — it feeds two.", this.pack.roast);
+      const tot = q => q.stone + q.food + q.meat + q.roast;
+      if (tot(this.pack) > tot(was)) window.__foley && window.__foley.packIn(0.32);
+      if (G.chestOpen && G.chestOpen()) G.renderChest && G.renderChest();
     };
     n.dropgone = m => {
       const e = this.drops.get(m.id); if (!e) return;
@@ -402,7 +425,7 @@ export class MPGame {
       if (m.pid === this.pid) {
         this.dead = true; this.hp = 0; G.downed = true; G.lockMove = true; this.dismount();
         UI.fade(1, 1.4);
-        this.banner(`You fell to ${esc(this.nameOf(m.by))}.`, `${m.dropped ? `A third of what you carried — ${esc(goodsText(m.dropped))} — lies in a sack where you fell, for whoever gets there first.` : "You had nothing worth taking."} You'll wake ${this.myHearth() ? "at your hearth" : "somewhere safe"} in a moment.`);
+        this.banner(`You fell to ${esc(this.nameOf(m.by))}.`, `${m.dropped ? `A third of what you carried — ${esc(goodsText(m.dropped))} — lies in a sack where you fell, for whoever gets there first.` : "You had nothing worth taking."} You'll wake ${this.myHearth() ? "at your town hall" : "somewhere safe"} in a moment.`);
         return;
       }
       const r = this.remotes.get(m.pid); if (r) { r.dead = true; blowLands(r.actor, "down", m.by === this.pid ? G.player : null); }
@@ -435,8 +458,9 @@ export class MPGame {
       // (a war on your homestead over, and it's still yours: held)
       for (const w of was) if (w.def === this.pid && !this.wars.some(x => x.id === w.id) && this.hasHearth(this.pid)) G.achEvent && G.achEvent("mp-held");
     };
-    n.warned = m => { this.warn(`${m.war.attName} has declared a claim war on your homestead! Hold your hearth — while they stand at it and none of yours do, it slips from you.`); AUDIO.music && AUDIO.music("battle"); };
+    n.warned = m => { this.warn(`${m.war.attName} has declared a claim war on your homestead! Hold your town hall — while they stand at it and none of yours do, it slips from you.`); AUDIO.music && AUDIO.music("battle"); };
     n.news = m => { this.news.push(m.n); if (this.news.length > 80) this.news.shift(); this.ticker(m.n); if (this.newsOpen) this.drawNews(); };
+    n.bup = m => { if (!this.w.blds.has(m.b.id)) return; this.removeBNow(m.b.id); this.addB(m.b); if (m.by === this.pid) { this.toast(`The town hall stands rebuilt — level ${m.b.level}.`); sfx("build"); } };
     n.bown = m => { const e = this.w.blds.get(m.id); if (!e) return; if (m.owner === this.pid && e.b.type === "hearth") G.achEvent && G.achEvent("mp-capture"); const b = { ...e.b, owner: m.owner }; this.removeBNow(m.id); this.addB(b); };
     n.sown = m => { const v = this.settlers.get(m.id); if (v) { v.owner = m.owner; v.setTag(); } };
     n.groups = m => { this.groups = m.groups || {}; if (this.groupOf(this.pid)) G.achEvent && G.achEvent("mp-ally"); this.refreshFriends(); if (this.listOpen) this.drawList(); };
@@ -455,6 +479,7 @@ export class MPGame {
   }
   // (never brought in inside a tree or a rock: stepped out of it)
   unstick() { const p = G.player.pos; for (let i = 0; i < 6; i++) this.w.col.resolve(p, 0.7, p.y, 1.7); p.y = this.w.floorAt(p.x, p.z, p.y); }
+  packHas() { const k = this.pack || {}; return (k.stone | 0) + (k.food | 0) + (k.meat | 0) + (k.roast | 0) > 0; }
   hasHearth(pid) { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && e.b.owner === pid) return true; return false; }
   // the board: the first thing not yet done
   has(type) { for (const e of this.w.blds.values()) if (e.b.type === type && (e.mine || this.mode === "coop")) return true; return false; }
@@ -567,10 +592,10 @@ export class MPGame {
     $("buildmenu").classList.toggle("hidden", !on);
     $("mpBuild").classList.add("hidden");
     if (!on) return;
-    const IC = G.icons || {}, PIC = { stable: "stable", hearth: "logs", cabin: "cabin", shed: "logs", house: "cabin", field: "seeds", well: "well", wall: "logs", gate: "logs", tower: "weapon", forge: "tools", market: "coin", rowboat: "logs", shipyard: "planks" };
+    const IC = G.icons || {}, PIC = { stable: "stable", hearth: "townhall", cabin: "cabin", shed: "logs", house: "cabin", field: "seeds", well: "well", wall: "logs", gate: "logs", tower: "weapon", forge: "tools", market: "coin", rowboat: "logs", shipyard: "planks" };
     $("buildTitle").textContent = "Plans";
     $("buildList").innerHTML = BUILD_ORDER.map((k, i) => {
-      // (the hearth is lit from the store; anything else is laid out as a site, and its logs brought to it)
+      // (the town hall is lit from the store; anything else is laid out as a site, and its logs brought to it)
       const fromStore = k === "hearth" || k === "rowboat";
       const d = BUILD[k], ok = !fromStore || this.stock.wood >= d.wood, has = k === "hearth" && this.myHearth();
       const cost = fromStore ? `${d.wood} logs from the store` : [`${d.wood} logs to bring`, d.stone ? `${d.stone} stone` : ""].filter(Boolean).join(", ");
@@ -590,7 +615,7 @@ export class MPGame {
     const ghost = new THREE.Group(), body = new THREE.Group(); ghost.add(body);
     let geo;
     if (d.wall) geo = new THREE.BoxGeometry(d.len, 2.6, 0.4).translate(0, 1.3, 0);
-    else if (type === "hearth") geo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 16).translate(0, 0.25, 0);
+    else if (type === "hearth") geo = new THREE.BoxGeometry(d.w, 3.2, d.d).translate(0, 1.6, 0);
     else if (type === "tower") geo = new THREE.BoxGeometry(2.6, 6.4, 2.6).translate(0, 3.2, 0);
     else if (type === "well") geo = new THREE.CylinderGeometry(1.2, 1.2, 1.4, 14).translate(0, 0.7, 0);
     else if (d.field) geo = new THREE.BoxGeometry(d.w || 6, 0.08, d.d || 7).translate(0, 0.04, 0);
@@ -601,7 +626,7 @@ export class MPGame {
     if (d.model) { const put = () => { const m = modelCopy(d.model); if (!m) return false; body.clear(); body.add(dress(m.scene)); return true; }; if (!put()) ensureModel(d.model).then(ok => { if (ok && this.build && this.build.ghost === ghost) put(); }); }
     const fw = d.wall ? d.len : d.w || d.r * 2, fd = d.wall ? 0.5 : d.d || d.r * 2;
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(fw, 0.05, fd)), new THREE.LineBasicMaterial({ color: 0x7fe07a })); edges.position.y = 0.05; ghost.add(edges); ghost.userData.edges = edges; ghost.userData.tint = tint;
-    // the ground it will claim, for a hearth
+    // the ground it will claim, for a town hall
     if (d.claim) { const ring = new THREE.Mesh(new THREE.RingGeometry(d.claim - 0.25, d.claim, 64).rotateX(-Math.PI / 2), tint); ring.position.y = 0.3; ghost.add(ring); }
     UI.keys(d.wall ? [["Click", "lay a length"], ["Hold R / Y", "turn it"], ["B", "done"]] : [["Click", "set it here"], ["Hold R / Y", "turn it"], ["B", "put the plan away"]]);
     G.scene.add(ghost);
@@ -639,7 +664,7 @@ export class MPGame {
       if ((input.click || input.hit("KeyF")) && !UI.dialogOpen) { input.click = false; if (!B.ok) { sfx("deny"); return; } this.net.send({ t: "build", type: B.type, x: +x.toFixed(2), z: +z.toFixed(2), ry: +ry.toFixed(3) }); G.working = { kind: "hammer", until: G.time + 0.6 }; this.endBuild(); }
       return;
     }
-    if (B.type === "hearth" && this.stock.wood < d.wood) why = `A hearth takes ${d.wood} logs from the store`;
+    if (B.type === "hearth" && this.stock.wood < d.wood) why = `A town hall takes ${d.wood} logs from the store`;
     else if (y < 0.6) why = "Not in the water";
     else if (d.shore && this.w.land.heightAt(x + Math.sin(ry) * (d.d / 2 + 6), z + Math.cos(ry) * (d.d / 2 + 6)) > -1.2) why = "Its front, the slipway, must run out over deep water — turn it (R) to face the water";
     else if (Math.abs(x) > this.room.half - 10 || Math.abs(z) > this.room.half - 10) why = "The edge of the map";
@@ -650,13 +675,13 @@ export class MPGame {
     }
     if (!why) for (const e of this.w.blds.values()) {
       const c = BUILD[e.b.type];
-      if (c.claim && !e.friendly && Math.hypot(e.b.x - x, e.b.z - z) < c.claim) { why = `${e.ownerName}'s ground`; break; }
-      if (B.type === "hearth" && c.claim && !e.friendly && Math.hypot(e.b.x - x, e.b.z - z) < c.claim + d.claim) { why = "Too near someone's homestead"; break; }
+      if (c.claim && !e.friendly && Math.hypot(e.b.x - x, e.b.z - z) < claimOf(e.b)) { why = `${e.ownerName}'s ground`; break; }
+      if (B.type === "hearth" && c.claim && !e.friendly && Math.hypot(e.b.x - x, e.b.z - z) < claimOf(e.b) + d.claim) { why = "Too near someone's homestead"; break; }
       const gap = (d.wall && c.wall) ? 1.2 : (d.wall ? 0.3 : d.r) + (c.wall ? 0.3 : c.r) - 0.2;
       if (Math.hypot(e.b.x - x, e.b.z - z) < gap) { why = "Something's in the way"; break; }
     }
     if (!why) for (const e of this.sites.values()) { const c = BUILD[e.q.type]; if (Math.hypot(e.q.x - x, e.q.z - z) < (d.wall ? 0.3 : d.r) + (c.wall ? 0.3 : c.r) - 0.2) { why = "There's a site laid out there already"; break; } }
-    if (!why && B.type === "hearth" && this.myHearth()) why = this.mode === "coop" ? "The colony has its hearth" : "You have a hearth already";
+    if (!why && B.type === "hearth" && this.myHearth()) why = this.mode === "coop" ? "The colony has its town hall" : "You have a town hall already";
     if (!why && !d.wall) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const ch = this.w.chunkAt(x + i * 8, z + j * 8); if (ch) for (const t of ch.trees) if (!t.gone && Math.hypot(t.x - x, t.z - z) < (d.r || 1.5) * 0.8) why = "Fell the trees here first"; }
     B.ok = !why; B.x = x; B.z = z; B.ry = ry;
     const col = B.ok ? 0x7fe07a : 0xe0503a; B.ghost.userData.tint.color.setHex(col); B.ghost.userData.edges.material.color.setHex(col);
@@ -682,7 +707,9 @@ export class MPGame {
     const pl = G.player, now = performance.now();
     if ((this.goalT = (this.goalT || 0) - dt) <= 0) { this.goalT = 1; try { this.goals(); } catch (e) {} }
     // your health is the server's: no mending here but what it says, no hunger in these woods
-    G.health = this.hp / MAX_HP; if (G.body) G.body.hunger = 1;
+    // (hunger as in the story: it falls as you go, and when it's gone it wears your health down — the server's health)
+    G.health = this.hp / MAX_HP;
+    if (G.body && G.body.hunger <= 0 && !this.dead && (this.starveT = (this.starveT || 0) - dt) <= 0) { this.starveT = 6; this.net.send({ t: "starve" }); if (!this.toldStarve) { this.toldStarve = true; UI.hint("You're starving — it's wearing you down. Eat: roast fish or meat at the town hall's fire, or take provisions from the store.", 6); } }
     if (this.build) this.tickBuild();
     // into new country: its name, as you cross into it (once it's sure — the same for two looks running), and on the
     // Earth the great feature of the land you're in, if you're in one
@@ -735,7 +762,7 @@ export class MPGame {
     const mine = w.def === this.pid, left = Math.max(0, Math.ceil((WAR.lastsMs - (Date.now() - w.start)) / 60000));
     const at = Math.hypot(w.x - p.x, w.z - p.z) < WAR.radius;
     el.innerHTML = `<div class="wt">Claim war</div>${esc(w.attName)} against ${esc(w.defName)}'s homestead<div class="bar"><div style="width:${Math.round(w.progress * 100)}%"></div></div>`
-      + `<div class="ws">${Math.round(w.progress * 100)}% taken · ${left} min left${at ? " · you're at the hearth" : ""}${mine ? " — stand at your hearth to win it back" : w.att === this.pid ? " — hold their hearth with none of theirs there" : ""}</div>`;
+      + `<div class="ws">${Math.round(w.progress * 100)}% taken · ${left} min left${at ? " · you're at the town hall" : ""}${mine ? " — stand at your town hall to win it back" : w.att === this.pid ? " — hold their town hall with none of theirs there" : ""}</div>`;
   }
   ticker(n) {
     const el = $("mpTicker"), K = { war: "War", capture: "Taken", ally: "Alliance", death: "A death", grow: "Growing" };

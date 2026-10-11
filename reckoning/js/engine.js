@@ -213,6 +213,16 @@ export class Player {
     // (your hands and sleeves, first person, as the body you've been given: its skin, its coat, its shirt at the cuff)
     const c = this.model.colors || {};
     ARMS_M.skin.color.setHex(c.skin ?? 0xe8c4a0); ARMS_M.sleeve.color.setHex(c.coat ?? 0x4d5a3c); ARMS_M.cuff.color.setHex(c.linen ?? 0xd9d2c3);
+    // (the body's own skin and cloth as they're drawn — their colour times the shading painted into the model — so the
+    // hands on the screen are the very colour of the face and the arms below them, not a shade lighter)
+    const seen = (re, M) => {
+      let mesh = null; this.model.root.traverse(o => { if (!mesh && o.isMesh && re.test(o.name) && o.material && o.material.color) mesh = o; });
+      if (!mesh) return;
+      const col = mesh.material.color.clone(), ca = mesh.material.vertexColors && mesh.geometry.attributes.color;
+      if (ca) { let r = 0, g = 0, b = 0; const n = ca.count; for (let i = 0; i < n; i++) { r += ca.getX(i); g += ca.getY(i); b += ca.getZ(i); } col.multiply(new THREE.Color(r / n, g / n, b / n)); }
+      M.color.copy(col); M.roughness = mesh.material.roughness ?? M.roughness;
+    };
+    seen(/skin$/i, ARMS_M.skin); seen(/coat$/i, ARMS_M.sleeve); seen(/linen$/i, ARMS_M.cuff);
   }
   place(x, z, yaw = 0) {
     this.pos.set(x, G.world ? G.world.heightAt(x, z) : 0, z);

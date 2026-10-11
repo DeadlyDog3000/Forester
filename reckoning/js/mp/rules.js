@@ -10,7 +10,7 @@ export const PROTOCOL = 1;
 // what you can build: logs and stone; how much of a beating it takes; how much room it needs (a circle about it,
 // or for walls a length); `claim`, the ground round it that becomes yours
 export const BUILD = {
-  hearth:    { name: "Hearth",      wood: 10, stone: 0,  hp: 260, r: 1.6, claim: 32, note: "Your homestead's fire. The ground round it is yours: no one else can build there, and you wake here after a fall." },
+  hearth:    { name: "Town hall",   wood: 10, stone: 0,  hp: 320, r: 4.6, w: 8.2, d: 8.5, claim: 32, note: "The heart of your homestead: its store, and its fire in front to roast what you catch. The ground round it is yours — no one else can build there — and you wake here after a fall. Rebuild it grander to claim more ground." },
   cabin:     { name: "Cabin",       wood: 30, stone: 0,  hp: 420, r: 4.2, w: 5.2, d: 6.2, model: "cabin", beds: 2, note: "A log cabin: beds for two settlers, who come to live in it and work for you." },
   shed:      { name: "Woodshed",    wood: 18, stone: 0,  hp: 300, r: 3.0, w: 4.4, d: 3.0, model: "woodshed", store: true, note: "Where your logs and stone are kept. Break someone's woodshed and half of what they have is yours." },
   house:     { name: "House",       wood: 45, stone: 10, hp: 600, r: 5.0, w: 7.0, d: 6.0, model: "town/house_2", beds: 4, note: "A timber house, plastered: beds for four settlers." },
@@ -25,6 +25,9 @@ export const BUILD = {
   stable:    { name: "Stable",      wood: 16, stone: 4,  hp: 320, r: 3.4, w: 6.4, d: 4.2, note: "Stalls and hay for your horses. Take one out at the stable's front (F) and ride — better than twice as fast as walking, and a great deal quicker over a big land. X gets you down anywhere, and the horse finds its own way home." },
   market:    { name: "Market",      wood: 30, stone: 8,  hp: 480, r: 5.2, w: 8.6, d: 10, model: "town/market_1", note: "A market stall: trade logs for stone and stone for logs." },
 };
+// the town hall, level by level: what each rebuilding costs (from the store), and how much more ground it claims
+export const HALL = [null, { wood: 10, stone: 0, name: "a log hall" }, { wood: 40, stone: 15, name: "a timber hall" }, { wood: 80, stone: 40, name: "a hall of timber and plaster" }, { wood: 130, stone: 70, name: "a brick town hall" }];
+export const claimOf = b => { const d = BUILD[b.type]; return d && d.claim ? d.claim + ((b.level || 1) - 1) * 10 : 0; };
 export const BUILD_ORDER = ["hearth", "cabin", "field", "shed", "wall", "gate", "tower", "well", "house", "stable", "forge", "market", "rowboat", "shipyard"];
 // a ship, built at a shipyard: what it takes from the store, and how many it carries besides the one at the helm
 export const SHIP = { wood: 120, stone: 20, crew: 7 };
@@ -48,7 +51,7 @@ export const WORLD_HALF = 20000;                  // the wide world: the Earth a
 export const MODES = { coop: "Frontier", pvp: "Frontier rivals" };
 // Classic, on the real game: what one nation can trade or send another (as each game's stores keep it), and its name
 export const NATION_GOODS = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "ore", iron: "iron", tools: "tools", rye: "rye", bread: "bread", coin: "DM" };
-export const MODE_NOTES = { coop: "One colony, built together: one store, one hearth, and no harm between you.", pvp: "A nation each: build your own, trade and make treaties — or make war on your neighbours." };
+export const MODE_NOTES = { coop: "One colony, built together: one store, one town hall, and no harm between you.", pvp: "A nation each: build your own, trade and make treaties — or make war on your neighbours." };
 export const GROUP_MAX = 8;
 
 // settlers: who comes to live in what you build, and what they do
@@ -58,7 +61,7 @@ export const SETTLER = {
   speed: 1.7,                   // walking, metres a second
   chopMs: 9000, mineMs: 10000,  // a tree, a rock
   logs: 4, stone: 3,            // what one carries home
-  reach: 70,                    // how far from the hearth they'll go for work
+  reach: 70,                    // how far from the town hall they'll go for work
   hp: 60, guardHit: 9, guardsPerTower: 2,
 };
 export const SETTLER_NAMES = {
@@ -69,5 +72,5 @@ export const JOB_NAME = { wood: "woodcutter", stone: "quarryman", watch: "watchm
 // food: what a settler eats, and what a field gives
 export const FOOD = { eatMs: 150 * 1000, harvest: 16, wellBonus: 4, growMs: 140 * 1000, reapMs: 6000, hungryLeaveMs: 200 * 1000 };
 
-// claim wars: one homestead against another (Classic). The attacker takes the ground by holding the hearth.
+// claim wars: one homestead against another (Classic). The attacker takes the ground by holding the town hall.
 export const WAR = { captureMs: 75 * 1000, radius: 9, lastsMs: 20 * 60 * 1000, cooldownMs: 10 * 60 * 1000, decay: 1.5 };

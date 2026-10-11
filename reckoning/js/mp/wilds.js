@@ -16,7 +16,7 @@ import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
 import { WaterMat, waveAt } from "../water.js";
 import { Caves } from "../cave.js";
 import { REALMS_1683, SEAS_1683 } from "./earth-1683.js";
-import { BUILD } from "./rules.js";
+import { BUILD, claimOf } from "./rules.js";
 import { ryeStrip } from "../town.js";
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -27,6 +27,10 @@ const PAL = {
   wetSand: new THREE.Color(0x8a7a58), desert: new THREE.Color(0xc8b07a), bed: new THREE.Color(0x5e5640), snow: new THREE.Color(0xe8ecf0), rock: new THREE.Color(0x7a7870),
 };
 // (the same small hash as the ground's grain everywhere else)
+// the buildings you can walk into (the town hall, a house, the forge — the cabin has its own door already)
+const WALK_IN = new Set(["hearth", "house", "forge"]);
+let _floorM = null;
+const FLOOR_MAT = () => _floorM ??= mat(0x6e5236, { surface: "wood", roughness: 0.9 });
 const hash = (x, z) => { const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return h - Math.floor(h); };
 
 let rockGeo = null;
@@ -96,13 +100,23 @@ export class Wilds extends WorldBase {
     this.t = 0;
     this.buildNear(0, 0, 0);
   }
+  // inside a building you've walked into: its floor (the boards, level), not the ground under it
+  floorIn(x, z, y) {
+    for (const e of this.blds.values()) {
+      const n = e.inner || e.g.userData.inner; if (!n) continue;
+      const wx = x - n.x, wz = z - n.z, lx = wx * n.c - wz * n.s, lz = wx * n.s + wz * n.c;
+      if (lx > n.x0 && lx < n.x1 && lz > n.z0 && lz < n.z1 + 0.35 && (y === undefined || y < n.y + 2)) return n.y;
+    }
+    return null;
+  }
   // ---- the ground ----
   // (down a cave, the ground under you is the cave's floor, far beneath the hill)
   heightAt(x, z) { const c = this.cave; return c && c.inside && c.holds(x, z) ? c.floorAt(x, z) : this.land.heightAt(x, z); }
   // where your feet are: the ground, or out of your depth, swimming with your head above the water; or up a tower
   floorAt(x, z, y) {
     { const c = this.cave; if (c && c.inside && c.holds(x, z)) return c.floorAt(x, z); }
-    const g = this.land.heightAt(x, z);
+    let g = this.land.heightAt(x, z);
+    { const f = this.floorIn(x, z, y); if (f !== null) g = Math.max(g, f); }
     for (const t of this.towers || []) if (Math.abs(x - t.x) < 1.5 && Math.abs(z - t.z) < 1.5 && y > t.top - 0.6) return t.top;
     return Math.max(g, WATER - 1.3);
   }
@@ -305,7 +319,9 @@ export class Wilds extends WorldBase {
       const ft = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.25, hi - lo + 0.5, fd + 0.25), mat(0x6e675c, { surface: "stone" }));
       ft.position.y = -(hi - lo + 0.5) / 2 + 0.06; ft.receiveShadow = true; g.add(ft);
     }
-    if (d.model) {
+    // (the town hall: the hall of its level — the first a small log hall — and its fire out in front)
+    const hallLv = b.type === "hearth" ? Math.max(1, Math.min(4, b.level || 1)) : 0, mkey = hallLv ? `town/townhall_${hallLv}` : d.model, mscale = hallLv === 1 ? 0.85 : 1;
+    if (mkey) {
       // (solid where its walls are: the model's own footing, measured at a person's height in its own frame, so the
       //  box turns with it and sits on it however it was set down — not a guess at its size, nor a square to the map)
       let body = null;
@@ -318,14 +334,24 @@ export class Wilds extends WorldBase {
           for (let k = 0; k < p.count; k++) { v.fromBufferAttribute(p, k).applyMatrix4(M); if (v.y < 0.25 || v.y > 1.9) continue; x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } });
         if (!(x1 > x0)) return;
         const c = Math.cos(b.ry || 0), s = Math.sin(b.ry || 0), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
-        if (body) { this.col.remove(body); cols.splice(cols.indexOf(body), 1); }
-        cols.push(body = this.col.addOBox(b.x + mx * c + mz * s, b.z - mx * s + mz * c, (x1 - x0) / 2 - 0.08, (z1 - z0) / 2 - 0.08, b.ry || 0, y + 5));
+        if (body) { for (const o of [].concat(body)) { this.col.remove(o); cols.splice(cols.indexOf(o), 1); } }
+        const box = (lx0, lx1, lz0, lz1) => { const cx = (lx0 + lx1) / 2, cz = (lz0 + lz1) / 2; return this.col.addOBox(b.x + cx * c + cz * s, b.z - cx * s + cz * c, (lx1 - lx0) / 2, (lz1 - lz0) / 2, b.ry || 0, y + 5); };
+        if (WALK_IN.has(b.type)) {
+          // a building you go into: its four walls solid (a little inside the model's), a doorway in the middle of the
+          // front, where its door is; and a floor of boards inside, level, whatever the ground does under it
+          const t = 0.3, dw = 0.8, X0 = x0 + 0.06, X1 = x1 - 0.06, Z0 = z0 + 0.06, Z1 = z1 - 0.06;
+          body = [box(X0, X1, Z0, Z0 + t), box(X0, X0 + t, Z0, Z1), box(X1 - t, X1, Z0, Z1), box(X0, mx - dw, Z1 - t, Z1), box(mx + dw, X1, Z1 - t, Z1)];
+          cols.push(...body);
+          const fl = new THREE.Mesh(new THREE.BoxGeometry(X1 - X0 - 2 * t, 0.08, Z1 - Z0 - 2 * t), FLOOR_MAT()); fl.position.set(mx, 0.05, mz); fl.receiveShadow = true; g.add(fl);
+          const e = this.blds.get(b.id) || null; const inner = { x: b.x, z: b.z, c, s, x0: X0 + t, x1: X1 - t, z0: Z0 + t, z1: Z1, y: y + 0.09 };
+          g.userData.inner = inner; if (e) e.inner = inner;
+        } else cols.push(body = box(x0 + 0.08, x1 - 0.08, z0 + 0.08, z1 - 0.08));
       };
-      const put = () => { const m = modelCopy(d.model); if (m) { g.add(m.scene); g.userData.door = m.scene.getObjectByName("door") || null; fit(m.scene); return true; } return false; };
+      const put = () => { const m = modelCopy(mkey); if (m) { m.scene.scale.setScalar(mscale); g.add(m.scene); g.userData.door = m.scene.getObjectByName("door") || null; fit(m.scene); return true; } return false; };
       if (!put()) {
         // (a stand-in until the model's there: a plain block of the right size)
         const ph = new THREE.Mesh(new THREE.BoxGeometry(d.w || 4, 2.6, d.d || 4), mat(0x7a5a3a)); ph.position.y = 1.3; g.add(ph);
-        ensureModel(d.model).then(ok => { if (ok && this.blds.has(b.id)) { g.remove(ph); put(); } });
+        ensureModel(mkey).then(ok => { if (ok && this.blds.has(b.id)) { g.remove(ph); put(); } });
       }
       if (b.type === "cabin") {
         // (a cabin you can go into, as the one in the clearing: log walls all round, and the doorway in the front the only way in)
@@ -338,18 +364,24 @@ export class Wilds extends WorldBase {
         // the door, while it's shut (F at it opens it, as the cabin's in the clearing)
         g.userData.doorCols = [-0.45, 0, 0.45].map(lx => { circle(lx, 3.05, 0.26); return cols[cols.length - 1]; });
       } else if (!body) cols.push(body = this.col.addOBox(b.x, b.z, (d.w || 4) * 0.45, (d.d || 4) * 0.45, b.ry || 0, y + 5));
-    } else if (b.type === "hearth") {
+    }
+    if (b.type === "hearth") {
+      // the fire, in a ring of stones before the hall's door; and the owner's banner beside it
+      // (off to one side of the way in, so the door's clear)
+      const k = hallLv === 1 ? 1 : 1.17, fz = (d.d * k) / 2 + 2.0, fx = d.w * k * 0.36, fire = new THREE.Group(); fire.position.set(fx, 0, fz); g.add(fire);
+      { const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0); g.userData.fireAt = { x: b.x + fx * c + fz * sn, z: b.z - fx * sn + fz * c }; }
       const bl = new Builder();
       for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; bl.add(new THREE.DodecahedronGeometry(0.2, 0), 0x6e6b62, Math.cos(a) * 0.62, 0.1, Math.sin(a) * 0.62, i, i * 2, 0, 1.1, 0.8, 1.0, 0.1); }
       for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI + 0.3; bl.add(new THREE.CylinderGeometry(0.07, 0.08, 0.9, 6), 0x5a4030, Math.cos(a) * 0.12, 0.15, Math.sin(a) * 0.12, Math.PI / 2 - 0.25, a, 0); }
-      g.add(bl.build(MAT.rough));
+      fire.add(bl.build(MAT.rough));
+      const fy = this.land.heightAt(g.userData.fireAt.x, g.userData.fireAt.z) - y; fire.position.y = fy;
       const light = new THREE.PointLight(0xff8a3a, 1.6, 14, 1.6);
-      const f = makeFlame(1.3, light); f.position.y = 0.12; g.add(f); this.flames.push(f);
+      const f = makeFlame(1.3, light); f.position.y = 0.12; fire.add(f); this.flames.push(f);
       // the banner: the owner's own colour on a pole, so a homestead is known by it
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x4a3626 })); pole.position.set(1.6, 1.6, 0); g.add(pole);
-      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), new THREE.MeshStandardMaterial({ color: b.colour || 0x7a2a22, side: THREE.DoubleSide, roughness: 0.9 })); flag.position.set(2.06, 2.85, 0); g.add(flag);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x4a3626 })); pole.position.set(1.6, 1.6, 0); fire.add(pole);
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), new THREE.MeshStandardMaterial({ color: b.colour || 0x7a2a22, side: THREE.DoubleSide, roughness: 0.9 })); flag.position.set(2.06, 2.85, 0); fire.add(flag);
       g.userData.flag = flag; g.userData.flame = f;
-      cols.push(this.col.addCircle(b.x, b.z, 0.75, y + 0.6));
+      cols.push(this.col.addCircle(g.userData.fireAt.x, g.userData.fireAt.z, 0.75, y + fy + 0.6));
     } else if (b.type === "shipyard") {
       // the slipway down into the water, the ribs of a ship on it, the shed and the crane (solid only where they stand)
       g.add(makeShipyard(d.w, d.d));
@@ -700,7 +732,7 @@ export class Wilds extends WorldBase {
       if (d.claim) {
         const war = G.mp && G.mp.wars && G.mp.wars.some(w => w.hearth === e.b.id);
         c.save(); c.strokeStyle = war ? "#c0392b" : e.mapColour || INK; c.setLineDash(war ? [6, 2] : [4, 3]); c.lineWidth = war ? 3 : 1.6;
-        c.beginPath(); c.arc(X(e.b.x), Z(e.b.z), d.claim * S, 0, Math.PI * 2); c.stroke(); c.restore();
+        c.beginPath(); c.arc(X(e.b.x), Z(e.b.z), claimOf(e.b) * S, 0, Math.PI * 2); c.stroke(); c.restore();
       }
       const r = Math.max(2.5, (d.r || 1) * S * 0.8);
       c.fillStyle = e.mine ? "#2e6a40" : e.friendly ? "#3a5a8a" : TOWN;

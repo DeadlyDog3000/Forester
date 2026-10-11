@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.2.0", date: "11 October 2026", title: "The town hall",
+    items: [
+      "Frontier: the hearth is a town hall now — a small log hall to begin with, still only ten logs from the store — with its fire out in front and your banner beside it. Rebuild it grander as you go (hold F at its door): a timber hall, then timber and plaster, then brick, each from the store, and each claiming more ground round it.",
+      "Walk into the town hall, a house or the forge: in at the door, boards under your feet.",
+      "The store is a proper menu, as the story's store chest is: what the store holds, and what you carry — click a thing to take it out or put it in. Logs come out an armful at a time, stone five at a time, and the settlers' food as provisions, ready to eat.",
+      "Cooking, as in the story: hold F at the town hall's fire to roast the fish you've caught and the meat of a beast you've brought down. Roast meat is eaten from your pack (T, click it) and mends you; raw food is a little, and brings the fever.",
+      "Hunger, as in the story: it falls as you go, and when it's gone it wears your health down till you eat.",
+      "Fixed: putting fish in the store took logs out of it instead.",
+      "Fixed: the hand on the screen is the colour of the rest of you — it was a shade lighter, being drawn without the shading painted into the body.",
+      "The hats are the game's own now — a burgher's hat, a woodsman's, a gentleman's, an apprentice's cap, a watchman's, a tricorn, a fur hat, a bonnet, a goodwife's cap, a watchwoman's — any of them on any outfit, made as the outfits' own are.",
+    ],
+  },
+  {
     v: "1.1.0", date: "11 October 2026", title: "Dressed for it",
     items: [
       "The character builder has outfits now, not just colours: for men the Burgher, Woodsman, Craftsman, Apprentice, Gentleman (the long coat of a man of standing), Watchman (the city's coat and sash) and Rover (fur and leather); for women the Burgher's wife, Woodswoman, Goodwife and Watchwoman. Every one in the colours you choose — coat, breeches or skirt, waistcoat, sash, shirt, stockings.",

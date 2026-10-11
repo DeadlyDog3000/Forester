@@ -20,7 +20,7 @@ const { pathToFileURL } = require("url");
 let R = null, T = null, LK = null, F = null;
 const CARRY_MAX = 6;                   // (logs in your arms at once, as in the settlement)
 // what a player carries on their back, as in the settlement: what they gather goes in here, not into the stores, till
-// they empty it at the hearth or a woodshed
+// they empty it at the town hall or a woodshed
 const PACK_MAX = 40;
 let START = null;                    // (a test server can start everyone rich: --stock 200)              // the rules and the land (ES modules, shared with the game: loaded at start)
 const LAN_PORT = 47811;
@@ -167,11 +167,11 @@ class Room {
     const ga = this.recs[a] && this.recs[a].group, gb = this.recs[b] && this.recs[b].group;
     return !!ga && ga === gb;
   }
-  // the ground someone has claimed with a hearth, at a point (or null)
+  // the ground someone has claimed with a town hall, at a point (or null)
   claimAt(x, z) {
     for (const b of Object.values(this.buildings)) {
       const d = R.BUILD[b.type]; if (!d || !d.claim) continue;
-      if (Math.hypot(b.x - x, b.z - z) < d.claim) return b;
+      if (Math.hypot(b.x - x, b.z - z) < R.claimOf(b)) return b;
     }
     return null;
   }
@@ -184,7 +184,7 @@ class Room {
     let rec = this.recs[who.pid];
     if (!rec) rec = this.recs[who.pid] = { name: who.name, look: who.look, ...(START || R.START_STOCK), home: null, kills: 0, deaths: 0, group: null, first: now() };
     rec.name = who.name; rec.look = who.look; rec.seen = now(); rec.food ??= R.START_STOCK.food; this.shared.food ??= R.START_STOCK.food;
-    // where you come in: your hearth if it still stands; else (in a game among friends) beside the others, or
+    // where you come in: your town hall if it still stands; else (in a game among friends) beside the others, or
     // (in a fight, and the wide world) somewhere of your own, well away from everyone
     const hearth = Object.values(this.buildings).find(b => b.type === "hearth" && (b.owner === who.pid || this.mode === "coop"));
     let at;
@@ -262,9 +262,10 @@ class Room {
     this.all({ t: "news", n }); this.dirty = true;
   }
   // your pack: stone and food you've gathered and not yet put in the stores
-  packOf(pid) { const r = this.recs[pid]; if (!r) return { stone: 0, food: 0 }; return r.pack || (r.pack = { stone: 0, food: 0 }); }
-  packRoom(pid) { const k = this.packOf(pid); return Math.max(0, PACK_MAX - (k.stone | 0) - (k.food | 0)); }
-  sendPack(p) { const k = this.packOf(p.pid); p.sock.send({ t: "pack", stone: k.stone | 0, food: k.food | 0, max: PACK_MAX }); }
+  // what's in your pack: stone, fish (raw), game meat (raw), and food cooked at the fire
+  packOf(pid) { const r = this.recs[pid]; if (!r) return { stone: 0, food: 0, meat: 0, roast: 0 }; const k = r.pack || (r.pack = { stone: 0, food: 0 }); k.meat ??= 0; k.roast ??= 0; return k; }
+  packRoom(pid) { const k = this.packOf(pid); return Math.max(0, PACK_MAX - (k.stone | 0) - (k.food | 0) - (k.meat | 0) - (k.roast | 0)); }
+  sendPack(p) { const k = this.packOf(p.pid); p.sock.send({ t: "pack", stone: k.stone | 0, food: k.food | 0, meat: k.meat | 0, roast: k.roast | 0, max: PACK_MAX }); }
   stock(p) {
     // (a co-op colony's store is everyone's: all are told)
     if (this.mode === "coop") { this.all({ t: "stock", wood: this.shared.wood, stone: this.shared.stone, food: this.shared.food | 0 }); return; }
@@ -332,10 +333,10 @@ class Room {
         if (n < R.ROCK_HITS) { this.hits.set(k.id, n); this.all({ t: "chip", id: k.id, by: p.pid }, p); return; }
         this.hits.delete(k.id);
         this.broken[k.id] = t + R.REGROW_MS;
-        // (into your pack, not the stores: empty it at the hearth or a woodshed)
+        // (into your pack, not the stores: empty it at the town hall or a woodshed)
         const per = R.STONE_PER_ROCK * (k.seam ? 2 : 1), pk = this.packOf(p.pid), got = Math.min(per, this.packRoom(p.pid));
         pk.stone += got;
-        if (got < per) p.sock.send({ t: "err", text: got ? `Your pack is full — only ${got} stone went in. Empty it at the hearth.` : "Your pack is full. Empty it at the hearth or a woodshed (F there)." });
+        if (got < per) p.sock.send({ t: "err", text: got ? `Your pack is full — only ${got} stone went in. Empty it at the town hall.` : "Your pack is full. Empty it at the town hall or a woodshed (F there)." });
         this.all({ t: "rock", id: k.id, by: p.pid });
         this.sendPack(p); this.dirty = true;
         return;
@@ -416,9 +417,9 @@ class Room {
         const S = F.SPECIES[a.kind]; if (!this.near(p, a.x, a.z, 3.5 + S.r * 2)) return;
         const pk = this.packOf(p.pid), n = Math.min(S.meat, this.packRoom(p.pid));
         delete this.beasts[a.id]; this.sendBeasts(true);
-        if (n <= 0) return p.sock.send({ t: "err", text: "Your pack is full — the meat's left for the crows. Empty your pack at the hearth." });
-        pk.food += n; this.sendPack(p); this.dirty = true;
-        p.sock.send({ t: "note", text: `The ${S.name} dressed: ${n} food in your pack${n < S.meat ? " (all it would hold)" : ""}.` });
+        if (n <= 0) return p.sock.send({ t: "err", text: "Your pack is full — the meat's left for the crows. Empty your pack at the town hall." });
+        pk.meat += n; this.sendPack(p); this.dirty = true;
+        p.sock.send({ t: "note", text: `The ${S.name} dressed: ${n} meat in your pack${n < S.meat ? " (all it would hold)" : ""} — roast it at the town hall's fire.` });
         return;
       }
       // a fish caught: only at the water's edge, and not quicker than a cast can be made — into the pack, food for the store
@@ -436,7 +437,7 @@ class Room {
         const d = R.BUILD[m.type]; if (!d) return;
         const x = num(m.x), z = num(m.z), ry = num(m.ry);
         const no = text => p.sock.send({ t: "err", text });
-        if (m.type === "hearth" && (st.wood < d.wood || st.stone + (this.packOf(p.pid).stone | 0) < d.stone)) return no(`A hearth takes ${d.wood} logs from the store.`);
+        if (m.type === "hearth" && (st.wood < d.wood || st.stone + (this.packOf(p.pid).stone | 0) < d.stone)) return no(`A town hall takes ${d.wood} logs from the store.`);
         if (!this.near(p, x, z, 16)) return no("Too far away to build there.");
         if (Math.abs(x) > this.half - 10 || Math.abs(z) > this.half - 10) return no("That's the edge of the map.");
         // (a boat on the water, near enough the shore to step into; a shipyard at the water's edge, its front to the water)
@@ -451,16 +452,16 @@ class Room {
         }
         if (this.land.heightAt(x, z) < 0.6) return no("Not in the water.");
         if (d.shore) { const fx = x + Math.sin(ry) * (d.d / 2 + 6), fz = z + Math.cos(ry) * (d.d / 2 + 6); if (this.land.heightAt(fx, fz) > -1.2) return no("A shipyard stands at the water's edge, its front (the slipway) out over deep water. Turn it (R) to face the water."); }
-        if (m.type === "hearth" && Object.values(this.buildings).some(b => b.type === "hearth" && (b.owner === p.pid || this.mode === "coop"))) return no(this.mode === "coop" ? "The colony has its hearth already." : "You have a hearth already. Break it to move your homestead.");
+        if (m.type === "hearth" && Object.values(this.buildings).some(b => b.type === "hearth" && (b.owner === p.pid || this.mode === "coop"))) return no(this.mode === "coop" ? "The colony has its town hall already." : "You have a town hall already. Break it to move your homestead.");
         const claim = this.claimAt(x, z);
         if (claim && !this.allied(claim.owner, p.pid)) return no(`That's ${this.recs[claim.owner] ? this.recs[claim.owner].name + "'s" : "someone's"} ground.`);
-        if (m.type === "hearth") for (const b of Object.values(this.buildings)) if (b.type === "hearth" && !this.allied(b.owner, p.pid) && Math.hypot(b.x - x, b.z - z) < d.claim + R.BUILD.hearth.claim) return no("Too near someone else's homestead.");
+        if (m.type === "hearth") for (const b of Object.values(this.buildings)) if (b.type === "hearth" && !this.allied(b.owner, p.pid) && Math.hypot(b.x - x, b.z - z) < d.claim + R.claimOf(b)) return no("Too near someone else's homestead.");
         for (const b of Object.values(this.buildings)) {
           const e = R.BUILD[b.type], gap = (d.wall && e.wall) ? 1.2 : (d.wall ? 0.3 : d.r) + (e.wall ? 0.3 : e.r) - 0.2;
           if (Math.hypot(b.x - x, b.z - z) < gap) return no("Something's in the way.");
         }
         for (const q of Object.values(this.sites)) { const e = R.BUILD[q.type]; if (Math.hypot(q.x - x, q.z - z) < (d.wall ? 0.3 : d.r) + (e.wall ? 0.3 : e.r) - 0.2) return no("There's a site laid out there already."); }
-        // the hearth: lit at once, from what's in the store (it's where everything else is kept)
+        // the town hall: lit at once, from what's in the store (it's where everything else is kept)
         if (m.type === "hearth") {
           st.wood -= d.wood; { const pk = this.packOf(p.pid), fs = Math.min(st.stone, d.stone); st.stone -= fs; pk.stone -= d.stone - fs; if (d.stone > fs) this.sendPack(p); }
           const b = { id: "b" + (this.nextB++), type: m.type, x, z, ry, owner: p.pid, hp: d.hp, at: t };
@@ -476,7 +477,7 @@ class Room {
       case "take": {
         const pl = this.piles[String(m.id || "")], rec = this.recs[p.pid]; if (!pl || !rec || p.dead) return;
         if (!this.near(p, pl.x, pl.z, 3.6)) return;
-        const room = CARRY_MAX - (rec.carry || 0); if (room <= 0) return p.sock.send({ t: "err", text: `${CARRY_MAX} is all anyone can carry. Stack them at the hearth or a woodshed, or take them to a site.` });
+        const room = CARRY_MAX - (rec.carry || 0); if (room <= 0) return p.sock.send({ t: "err", text: `${CARRY_MAX} is all anyone can carry. Stack them at the town hall or a woodshed, or take them to a site.` });
         const n = Math.min(room, pl.n); pl.n -= n; rec.carry = (rec.carry || 0) + n;
         if (pl.n <= 0) { delete this.piles[pl.id]; this.all({ t: "pilex", id: pl.id }); } else this.all({ t: "pile", p: pl });
         p.sock.send({ t: "carry", n: rec.carry }); this.dirty = true;
@@ -487,13 +488,66 @@ class Room {
         if (!(b.type === "hearth" || b.type === "shed") || !this.mineB(this.mode === "coop" ? "colony" : p.pid, b) || !this.near(p, b.x, b.z, R.BUILD[b.type].r + 3.5)) return;
         if (m.t === "stack") {
           const pk = this.packOf(p.pid);
-          if (!rec.carry && !pk.stone && !pk.food) return;
+          if (!rec.carry && !pk.stone && !pk.food && !pk.meat && !pk.roast) return;
           st.wood += rec.carry || 0; rec.carry = 0;
-          st.stone += pk.stone | 0; st.food = (st.food | 0) + (pk.food | 0); pk.stone = 0; pk.food = 0;
+          st.stone += pk.stone | 0; st.food = (st.food | 0) + (pk.food | 0) + (pk.meat | 0) + (pk.roast | 0) * 2; pk.stone = 0; pk.food = 0; pk.meat = 0; pk.roast = 0;
           this.sendPack(p);
         }
         else { const n = Math.min(CARRY_MAX - (rec.carry || 0), st.wood); if (n <= 0) return; st.wood -= n; rec.carry = (rec.carry || 0) + n; }
         p.sock.send({ t: "carry", n: rec.carry }); this.stock(p); this.dirty = true;
+        return;
+      }
+      // the store, item by item, as a chest is (at the town hall or a woodshed of your own, or the colony's): one kind of
+      // thing put in, or taken out
+      case "storeput": case "storetake": {
+        const rec = this.recs[p.pid], b = this.buildings[String(m.id || "")]; if (!rec || !b || p.dead) return;
+        if (!(b.type === "hearth" || b.type === "shed") || !this.mineB(this.mode === "coop" ? "colony" : p.pid, b) || !this.near(p, b.x, b.z, R.BUILD[b.type].r + 4)) return;
+        const st = this.storeOf(p.pid), pk = this.packOf(p.pid), k = String(m.k || ""), want = Math.max(1, Math.min(99, num(m.n, 99) | 0));
+        if (m.t === "storeput") {
+          if (k === "wood") { const n = rec.carry || 0; if (!n) return; st.wood += n; rec.carry = 0; }
+          else if (k === "stone") { const n = Math.min(want, pk.stone | 0); if (!n) return; pk.stone -= n; st.stone += n; }
+          else if (k === "food" || k === "meat" || k === "roast") { const n = Math.min(want, pk[k] | 0); if (!n) return; pk[k] -= n; st.food = (st.food | 0) + n * (k === "roast" ? 2 : 1); }
+          else return;
+        } else {
+          if (k === "wood") { const n = Math.min(CARRY_MAX - (rec.carry || 0), st.wood); if (n <= 0) return p.sock.send({ t: "err", text: rec.carry >= CARRY_MAX ? "Your arms are full." : "There are no logs in the store." }); st.wood -= n; rec.carry = (rec.carry || 0) + n; }
+          else if (k === "stone") { const n = Math.min(want, st.stone, this.packRoom(p.pid)); if (n <= 0) return p.sock.send({ t: "err", text: "Your pack is full." }); st.stone -= n; pk.stone += n; }
+          // (the store's food comes out as provisions, ready to eat: two of it for a roast)
+          else if (k === "food") { const n = Math.min(want, Math.floor((st.food | 0) / 2), this.packRoom(p.pid)); if (n <= 0) return p.sock.send({ t: "err", text: (st.food | 0) < 2 ? "There isn't enough food in the store." : "Your pack is full." }); st.food -= n * 2; pk.roast += n; }
+          else return;
+        }
+        p.sock.send({ t: "carry", n: rec.carry || 0 }); this.sendPack(p); this.stock(p); this.dirty = true;
+        return;
+      }
+      // the town hall rebuilt grander: from the store, a level at a time
+      case "hallup": {
+        const b = this.buildings[String(m.id || "")]; if (!b || p.dead || b.type !== "hearth") return;
+        if (!this.mineB(this.mode === "coop" ? "colony" : p.pid, b) || (this.mode === "coop" && this.hostPid && p.pid !== this.hostPid)) return;
+        const nx = R.HALL[(b.level || 1) + 1], st = this.storeOf(p.pid); if (!nx) return;
+        if (st.wood < nx.wood || st.stone < nx.stone) return p.sock.send({ t: "err", text: `That takes ${nx.wood} logs and ${nx.stone} stone in the store.` });
+        st.wood -= nx.wood; st.stone -= nx.stone; b.level = (b.level || 1) + 1; b.hp = (R.BUILD.hearth.hp + (b.level - 1) * 200);
+        this.all({ t: "bup", b, by: p.pid }); this.stock(p); this.dirty = true;
+        this.note(`${p.name} has rebuilt their town hall as ${nx.name}.`);
+        return;
+      }
+      // roasting at the town hall's fire: all the raw fish and meat you carry, cooked
+      case "cook": {
+        const b = this.buildings[String(m.id || "")], pk = this.packOf(p.pid); if (!b || p.dead || b.type !== "hearth" || !this.near(p, b.x, b.z, R.BUILD.hearth.r + 6)) return;
+        const n = (pk.food | 0) + (pk.meat | 0); if (!n) return;
+        pk.food = 0; pk.meat = 0; pk.roast += n; this.sendPack(p); this.dirty = true;
+        return;
+      }
+      // something eaten from your pack: cooked food mends you, raw a little (and the fever's on you, not the server)
+      case "eat": {
+        const pk = this.packOf(p.pid), k = String(m.k || ""); if (p.dead || !["roast", "food", "meat"].includes(k) || !(pk[k] > 0) || t - (p.lastEat || 0) < 1500) return;
+        p.lastEat = t; pk[k]--; p.hp = Math.min(R.MAX_HP, p.hp + R.MAX_HP * (k === "roast" ? 0.2 : 0.05));
+        this.all({ t: "hp", pid: p.pid, hp: p.hp }); this.sendPack(p); this.dirty = true;
+        return;
+      }
+      // going hungry: it wears you down, slowly, till you eat
+      case "starve": {
+        if (p.dead || t - (p.lastStarve || 0) < 5500) return; p.lastStarve = t;
+        p.hp = Math.max(0, p.hp - R.MAX_HP * 0.025);
+        if (p.hp <= 0) { p.hp = 1; this.damage(p, 1, null, p.x, p.z); } else this.all({ t: "hp", pid: p.pid, hp: p.hp });
         return;
       }
       case "deliver": {
@@ -793,8 +847,9 @@ class Room {
       // (what was in their arms and their pack — not the stores at home)
       const qr = this.recs[q.pid], pk = this.packOf(q.pid);
       w = (qr && qr.carry) || 0; s = pk.stone | 0; f = pk.food | 0;
+      f += (pk.meat | 0) + (pk.roast | 0);
       if (w || s || f) {
-        if (qr) qr.carry = 0; pk.stone = 0; pk.food = 0; q.sock.send({ t: "carry", n: 0 }); this.sendPack(q);
+        if (qr) qr.carry = 0; pk.stone = 0; pk.food = 0; pk.meat = 0; pk.roast = 0; q.sock.send({ t: "carry", n: 0 }); this.sendPack(q);
         drop = { id: "d" + this.nextD++, x: q.x, z: q.z, wood: w, stone: s, food: f, name: q.name, owner: q.pid, at: t };
         this.drops[drop.id] = drop; this.all({ t: "drop", d: drop });
       }
@@ -823,7 +878,7 @@ class Room {
   settle() {
     const t = now(), owners = new Set();
     for (const b of Object.values(this.buildings)) if (b.type === "hearth") owners.add(this.mode === "coop" ? "colony" : b.owner);
-    for (const v of Object.values(this.settlers)) if (!owners.has(v.owner)) { delete this.settlers[v.id]; this.all({ t: "sx", id: v.id }); }   // (their hearth gone: they go)
+    for (const v of Object.values(this.settlers)) if (!owners.has(v.owner)) { delete this.settlers[v.id]; this.all({ t: "sx", id: v.id }); }   // (their town hall gone: they go)
     for (const owner of owners) {
       if (!this.active(owner)) continue;
       const home = this.homeOf(owner), beds = this.bedsOf(owner), list = Object.values(this.settlers).filter(v => v.owner === owner);
@@ -911,7 +966,7 @@ class Room {
       const home = this.homeOf(v.owner); if (!home) continue;
       if (v.hp < R.SETTLER.hp && t - (v.hurtAt || 0) > 10000) v.hp = Math.min(R.SETTLER.hp, v.hp + 2);
       const idle = () => { if (v.s || v.a !== "idle") { v.s = 0; v.a = "idle"; v.moved = true; } };
-      // on the way in, through the trees to the hearth; then to work
+      // on the way in, through the trees to the town hall; then to work
       if (v.state === "arrive") { if (this.step(v, home.x + 3, home.z + 3, dt) < 1.5) { v.state = "find"; idle(); } continue; }
       if (v.state === "flee") { const dx = v.x - v.from.x, dz = v.z - v.from.z, d = Math.hypot(dx, dz) || 1; if (t > v.until) v.state = v.carry ? "home" : "find"; else this.step(v, v.x + dx / d * 5, v.z + dz / d * 5, dt); continue; }
       if (v.job === "watch") {
@@ -1015,7 +1070,7 @@ class Room {
       }
     }
   }
-  // the wars, every few seconds: who's at the hearth, and how far the taking of it has gone
+  // the wars, every few seconds: who's at the town hall, and how far the taking of it has gone
   warTick(t) {
     let changed = false;
     for (const w of this.wars.slice()) {
@@ -1034,7 +1089,7 @@ class Room {
       w.att_n = att; w.def_n = def;
       if (w.progress !== before) changed = true;
       if (w.progress >= 1) {
-        // taken: the hearth and everything on its ground, and everyone who lived there
+        // taken: the town hall and everything on its ground, and everyone who lived there
         const claim = R.BUILD.hearth.claim;
         let n = 0;
         for (const b of Object.values(this.buildings)) if (b.owner === w.def && Math.hypot(b.x - h.x, b.z - h.z) < claim + 2) { b.owner = w.att; n++; this.all({ t: "bown", id: b.id, owner: w.att }); }
@@ -1247,7 +1302,7 @@ class Room {
     // a sack left lying a few minutes is gone (picked over, or the crows had it)
     for (const d of Object.values(this.drops)) if (t - d.at > 180000) { delete this.drops[d.id]; this.all({ t: "dropgone", id: d.id }); }
     // wounds mend, a while after the last blow
-    for (const p of this.online.values()) if (!p.dead && p.hp < R.MAX_HP && t - (p.hurtAt || 0) > 8000) { p.hp = Math.min(R.MAX_HP, p.hp + 4); this.all({ t: "hp", pid: p.pid, hp: p.hp, heal: true }); }
+    for (const p of this.online.values()) if (!p.dead && p.hp < R.MAX_HP && t - (p.hurtAt || 0) > 8000 && t - (p.lastStarve || 0) > 12000) { p.hp = Math.min(R.MAX_HP, p.hp + 4); this.all({ t: "hp", pid: p.pid, hp: p.hp, heal: true }); }
   }
 }
 

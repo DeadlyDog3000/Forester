@@ -222,7 +222,7 @@ function buildControls() {
       + sw("hair", "Hair", SWATCH.hair, L.hair)
       + sw("eyes", "Eyes", SWATCH.eyes, L.eyes ?? SWATCH.eyes[0])
       + `<div class="mp-row"><span>Hat</span><div class="cb-hats">${HAT_STYLES.map(hs => `<button data-hat="${hs.id}" class="${(L.hat || "hat") === hs.id ? "on" : ""}">${hs.name}</button>`).join("")}</div></div>`
-      + (!["none", "straw", "coif"].includes(L.hat) ? sw("hatColor", "Hat colour", SWATCH.hat.slice(1), L.hatColor ?? SWATCH.hat[1]) : "");
+      + (L.hat !== "none" ? sw("hatColor", "Hat colour", SWATCH.hat.slice(1).concat([0xe6dcc8, 0xf0ebe0]), L.hatColor ?? SWATCH.hat[1]) : "");
   } else {
     h = sw("coat", f ? "Bodice" : "Coat", SWATCH.coat, L.coat)
       + sw("legs", f ? "Skirt" : "Breeches", SWATCH.legs, L.legs)

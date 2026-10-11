@@ -19,11 +19,12 @@ export const BODIES = [
   { id: "albers", common: true, name: "Goodwife", f: true, note: "A housewife's dress and apron, a cap to it" },
   { id: "watchwoman", name: "Watchwoman", f: true, note: "The city's colours, a sash across them" },
 ];
-// the hats, besides the one an outfit comes with (and none): made in models.js, keyed the same
+// the hats, besides the one an outfit comes with (and none): each another outfit's own hat, by that outfit's model
 export const HAT_STYLES = [
   { id: "hat", name: "The outfit's own" }, { id: "none", name: "None" },
-  { id: "tricorn", name: "Tricorn" }, { id: "wide", name: "Broad felt hat" }, { id: "capotain", name: "Tall capotain" }, { id: "cavalier", name: "Plumed hat" },
-  { id: "cap", name: "Knitted cap" }, { id: "straw", name: "Straw hat" }, { id: "fur", name: "Fur cap" }, { id: "coif", name: "Linen coif" }, { id: "kerchief", name: "Kerchief" },
+  { id: "townsman", name: "Burgher's hat" }, { id: "brother", name: "Woodsman's hat" }, { id: "magistrate", name: "Gentleman's hat" },
+  { id: "jakob", name: "Apprentice's cap" }, { id: "watchman", name: "Watchman's hat" }, { id: "watchman_tricorn", name: "Tricorn" },
+  { id: "raider", name: "Fur hat" }, { id: "townswoman", name: "Bonnet" }, { id: "albers", name: "Goodwife's cap" }, { id: "watchwoman", name: "Watchwoman's hat" },
 ];
 export const SWATCH = {
   skin: [0xf1d3bc, 0xe2b896, 0xc99a74, 0xa87652, 0x7e5236, 0x5a3a26],

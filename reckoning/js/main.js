@@ -621,7 +621,13 @@ function renderChest() {
   const box = G.chest || (G.chest = []);
   invItems = [];
   let h = "";
-  if (chestMode === "stores" && G.town) {
+  if (chestMode === "mpstores" && G.mp) {
+    // Frontier's store, at the town hall or a woodshed: what the store holds (the server's), and what you carry
+    const M = G.mp, st = M.stock || {}, rows = [["wood", "logs", "Logs", st.wood | 0, "In the store. Click to take an armful (six)."], ["stone", "stone", "Stone", st.stone | 0, "In the store. Click to take five."], ["food", "cookedmeat", "Provisions", Math.floor((st.food | 0) / 2), "The settlers' food, ready to eat. Click to take one (two of the store's food)."]].filter(r => r[3] > 0);
+    h += `<div class="mc-sec">The store <span class="mc-hint">click to take · click what you carry to put it in</span></div><div class="mc-row wrap">`;
+    h += rows.length ? rows.map(([k, icon, name, n, note]) => slot({ icon, name, n, note }).replace('class="mc-slot', `data-mpstore="${k}" class="mc-slot`)).join("") : `<span class="ch-note">The store is empty.</span>`;
+    if (M.carry > 0) h += `</div><div class="mc-sec">In your arms</div><div class="mc-row">` + slot({ icon: "logs", name: "Logs", n: M.carry, note: "Click to stack them in the store." }).replace('class="mc-slot', 'data-mparms="1" class="mc-slot');
+  } else if (chestMode === "stores" && G.town) {
     // the settlement's store chest: everything the stores hold, and what you carry to put in
     const S = G.chestS || G.town.S, list = STORE_ITEMS.filter(([k]) => (S[k] || 0) > 0);
     h += `<div class="mc-sec">The settlement's stores <span class="mc-hint">click to take five · click what you carry to put it in</span></div><div class="mc-row wrap">`;
@@ -635,7 +641,7 @@ function renderChest() {
   for (let i = 0; i < Math.max(9, pack.length); i++) h += pack[i] ? slot(pack[i]).replace('class="mc-slot', `data-pack="${i}" class="mc-slot`) : i < 9 ? `<div class="mc-slot"></div>` : "";
   h += `</div><div class="ch-note">${esc(chestNote)}</div>`;
   $("chestBody").innerHTML = h;
-  $("chestTitle").textContent = chestMode === "stores" ? "The store chest" : "Your chest";
+  $("chestTitle").textContent = chestMode === "mpstores" ? "The store" : chestMode === "stores" ? "The store chest" : "Your chest";
 }
 $("chestBody").addEventListener("click", e => {
   const el = e.target.closest(".mc-slot"); if (!el) return;
@@ -649,6 +655,14 @@ $("chestBody").addEventListener("click", e => {
     if (list.length < max) { list.push(it); return true; }
     return false;
   };
+  // (Frontier: the server's store — asked, and the answer comes back as the pack and the stock)
+  if (chestMode === "mpstores" && G.mp) {
+    const M = G.mp, id = M.storeAt, PUT = { stone: "stone", fish: "food", meat: "meat", cookedmeat: "roast" };
+    if (el.dataset.mpstore) { M.net.send({ t: "storetake", id, k: el.dataset.mpstore, n: el.dataset.mpstore === "stone" ? 5 : 1 }); chestNote = ""; FOLEY.packIn(); }
+    else if (el.dataset.mparms) { M.net.send({ t: "storeput", id, k: "wood" }); FOLEY.packOut(); }
+    else if (el.dataset.pack != null) { const it = G.pack[+el.dataset.pack]; if (it && PUT[it.icon]) { M.net.send({ t: "storeput", id, k: PUT[it.icon], n: 99 }); FOLEY.packOut(); chestNote = it.icon === "cookedmeat" ? "Put in the store: it feeds the settlers, two to a roast." : "Put in the store."; } else chestNote = "The store doesn't keep that."; }
+    setTimeout(renderChest, 150); return;
+  }
   if (el.dataset.store != null && G.town) {
     // out of the stores and into your hands: five at a time
     // (rye by the sack of twenty-five; seed only whole)
@@ -692,6 +706,8 @@ $("chestBody").addEventListener("click", e => {
   writeSave({ chest: box.map(x => x || null) });
   renderChest();
 });
+G.chestOpen = () => overlay === "chest";
+G.renderChest = () => { if (overlay === "chest") renderChest(); };
 G.openChest = (mode = "own") => {
   if (G.guide && G.town) G.guide(mode === "own" ? "chest" : "stores");
   chestMode = mode; chestNote = ""; if (mode !== "stores") G.chestS = null; AUDIO.door && AUDIO.door(true, 0.2); showOverlay("chest", true); renderChest();
@@ -1699,6 +1715,8 @@ function eat(it) {
     if (f.half && Math.random() < 0.5 && !(b.plague > 0)) { b.plague = PLAGUE_SECS; UI.hint("It was raw in the middle. By evening you're shaking with fever — the plague.", 6); }
     if (f.raw && !(b.plague > 0)) { b.plague = PLAGUE_SECS; UI.hint("You ate it raw. By evening you're shaking with fever — the plague. Nothing mends while you have it; a hospital could cure it.", 7); }
     if (it.fromStore) { if (G.town.S.bread > 0) { G.town.S.bread--; G.town.persist && G.town.persist(); } }
+    // (in Frontier, what's in your pack is the server's: it takes the one eaten, and mends you for it)
+    else if (it.mp && G.mp && G.mp.net) G.mp.net.send({ t: "eat", k: { fish: "food", meat: "meat", cookedmeat: "roast" }[it.icon] });
     else { it.n = (it.n || 1) - 1; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }
     // back to holding what's left of it, or the hand empty
     if (G.heldFood) { if (heldFood()) G.working = { kind: "food", food: it.icon, until: Infinity, quiet: true }; else putFoodAway(); }
