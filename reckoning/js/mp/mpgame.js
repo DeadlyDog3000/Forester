@@ -16,7 +16,7 @@ import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { siteSign } from "../town.js";
 import { fishingGear } from "../fishing.js";
-import { WATER } from "./terrain.js";
+import { WATER, BIOMES } from "./terrain.js";
 import { Wilds } from "./wilds.js";
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
@@ -223,6 +223,8 @@ export class MPGame {
     G.achEvent && (G.achEvent("mp-join"), r.persistent && G.achEvent("mp-world"), target && target.host && G.achEvent("mp-host"));
     this.listen();
     this.pack = { stone: 0, food: 0 }; if (inMsg.you.pack && this.net.on.pack) this.net.on.pack(inMsg.you.pack);
+    // on the Earth, with no homestead yet: where in the world will you begin?
+    if (w.land.kind === "earth" && !inMsg.you.home) setTimeout(() => this.chooseStart(), 600);
     this.hud(true); this.banner(null);
     this.atmo(true);
     UI.fade(0, 1.2);
@@ -799,7 +801,7 @@ export class MPGame {
     let e = this.piles.get(q.id);
     if (!e) {
       const g = new THREE.Group(), y = this.w.heightAt(q.x, q.z);
-      g.add(makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.3, y: 0.15 + (i === 1 ? 0.24 : 0), z: 0, len: 1.8, r: 0.15, dir: "z" })), Math.floor(q.x * 13 + q.z)));
+      g.add(makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.3, y: 0.15 + (i === 1 ? 0.24 : 0), z: 0, len: 1.8, r: 0.15, dir: "z" })), Math.floor(q.x * 13 + q.z), q.k));
       g.position.set(q.x, y, q.z); g.rotation.y = q.a || 0; this.w.root.add(g);
       e = { q, g };
       e.it = this.w.addInteract({ x: q.x, y: y + 0.4, z: q.z, reach: 2.4, can: () => !this.dead && this.carry < 6, label: () => `Take the logs (${e.q.n})`, use: () => this.net.send({ t: "take", id: q.id }) });
@@ -859,6 +861,35 @@ export class MPGame {
     if (sig !== e.sig) { e.sig = sig; if (e.sign) e.g.remove(e.sign); e.sign = siteSign(rows, ready); e.sign.position.set(0, 3.0 + rows.length * 0.28, 0); e.g.add(e.sign); }
   }
   dropSite(id) { const e = this.sites.get(id); if (!e) return; this.w.root.remove(e.g); this.w.removeInteract(e.it); this.sites.delete(id); }
+  // the world map, and a click on it: where you'd like to begin. (The server finds dry land near where you pointed)
+  chooseStart() {
+    if (G.mp !== this || $("mpStart")) return;
+    const w = this.w, sheet = w.mapSheet(), half = w.half;
+    const box = document.createElement("div"); box.id = "mpStart";
+    box.innerHTML = `<div class="ms-win"><div class="ms-title">Where in the world will you begin?</div><div class="ms-note">Click anywhere on land. You can travel anywhere from there — but your first homestead will be near it.</div><div class="ms-map"><canvas></canvas><div class="ms-pin"></div></div><div class="ms-acts"><span class="ms-where"></span><button class="btn" data-k="stay">Stay where I am</button><button class="btn primary" data-k="go" disabled>Begin here</button></div></div>`;
+    document.body.appendChild(box);
+    const cv = box.querySelector("canvas"), S = Math.min(720, innerWidth - 80, (innerHeight - 220) * 1);
+    cv.width = cv.height = S; cv.getContext("2d").drawImage(sheet.cv, 0, 0, S, S);
+    // (your own place on it now)
+    const ctx = cv.getContext("2d"), me = G.player.pos, X = x => (x + half) / (2 * half) * S, Z = z => (z + half) / (2 * half) * S;
+    ctx.fillStyle = "#9a2b1c"; ctx.beginPath(); ctx.arc(X(me.x), Z(me.z), 4, 0, 7); ctx.fill();
+    let pick = null;
+    const pin = box.querySelector(".ms-pin"), go = box.querySelector('[data-k="go"]'), where = box.querySelector(".ms-where");
+    if (document.pointerLockElement) document.exitPointerLock();
+    G.menuLock = true;
+    cv.onclick = e => {
+      const r = cv.getBoundingClientRect(), px = (e.clientX - r.left) / r.width, pz = (e.clientY - r.top) / r.height;
+      const x = -half + px * 2 * half, z = -half + pz * 2 * half, h = w.land.heightAt(x, z);
+      pin.style.left = (px * 100) + "%"; pin.style.top = (pz * 100) + "%"; pin.style.display = "block";
+      if (h < 0.5) { pick = null; go.disabled = true; where.textContent = "That's the sea."; return; }
+      pick = { x, z }; go.disabled = false;
+      const lat = -z / half * 180, lon = x / half * 180, b = w.land.biomeAt(x, z);
+      where.textContent = `${Math.abs(lat).toFixed(0)}° ${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(0)}° ${lon >= 0 ? "E" : "W"} — ${(BIOMES[b] || {}).name || b}`;
+    };
+    const close = () => { box.remove(); G.menuLock = false; G.lockMouse && G.lockMouse(); };
+    box.querySelector('[data-k="stay"]').onclick = close;
+    go.onclick = () => { if (!pick) return; this.net.send({ t: "spawnAt", x: +pick.x.toFixed(1), z: +pick.z.toFixed(1) }); UI.fade && UI.fade(1, 0.3); setTimeout(() => UI.fade && UI.fade(0, 1.2), 900); close(); };
+  }
   packHas() { const k = this.pack; return !!k && ((k.stone | 0) > 0 || (k.food | 0) > 0); }
   addDrop(d) {
     // (a sack already lying there, with less in it now: what it holds is updated)

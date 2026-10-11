@@ -55,6 +55,34 @@ const gauss = (d, r) => Math.exp(-(d * d) / (r * r));
 const DESERTS = [[-17, 33, 15, 32, 1], [33, 60, 13, 32, 1], [44, 62, 25, 38, 0.8], [62, 72, 24, 42, 0.7], [68, 76, 24, 30, 0.6], [85, 118, 36, 46, 0.8], [76, 92, 34, 40, 0.6],
   [-118, -102, 22, 37, 0.7], [-72, -68, -30, -16, 0.8], [12, 26, -28, -18, 0.75], [114, 142, -32, -19, 0.9], [-70, -64, -48, -38, 0.5]];
 
+// where it rains most, the year round: the great rain forests, and the wet western coasts — [west, east, south, north, how wet]
+const WETS = [[-80, -44, -16, 6, 1], [8, 32, -8, 6, 0.9], [92, 152, -11, 18, 0.95], [72, 92, 6, 26, 0.6], [-10, 20, 44, 60, 0.45], [-130, -118, 38, 60, 0.6], [-92, -72, 6, 20, 0.7], [140, 146, 34, 44, 0.5]];
+// the savanna belts: rain enough for grass and scattered trees, not for forest — [west, east, south, north]
+const SAVANNAS = [[33, 52, -12, 12], [-17, 40, 9, 17], [-55, -38, -22, -6], [118, 150, -20, -11], [70, 86, 11, 25], [12, 40, -20, -8]];
+// how warm, by the latitude: [degrees, warmth]
+const WARMTH = [[0, 1.0], [20, 0.86], [35, 0.68], [50, 0.53], [58, 0.41], [66, 0.27], [74, 0.12], [90, 0]];
+// where the summers are dry and the winters wet: round the Middle Sea, California, Chile, the Cape, the south-west of New Holland
+const MEDS = [[-10, 42, 30, 45], [-124, -116, 32, 40], [-74, -70, -38, -30], [17, 26, -35, -32], [114, 124, -36, -30]];
+
+// THE BIOMES: what kind of country it is, from how warm and how wet, how high, how near the water. Each has its own
+// ground, its own grass, and its own trees, in its own mix.
+//   ground: the colour of the ground in the open; grass: how thick the grass grows (0..1); forest: how much of it is
+//   wooded, at most; trees: [kind, weight] — the mix, and size: how tall they grow there
+export const BIOMES = {
+  ice:           { name: "ice",               ground: [0.9, 0.92, 0.95], grass: 0,    forest: 0,    trees: [] },
+  tundra:        { name: "tundra",            ground: [0.52, 0.5, 0.4],  grass: 0.35, forest: 0.08, trees: [["birch", 3], ["spruce", 2]], size: 0.45 },
+  taiga:         { name: "the taiga",         ground: [0.36, 0.42, 0.28], grass: 0.25, forest: 1,    trees: [["spruce", 7], ["pine", 2], ["birch", 2]] },
+  heath:         { name: "heath",             ground: [0.5, 0.46, 0.32], grass: 0.55, forest: 0.45, trees: [["pine", 7], ["birch", 3]] },
+  temperate:     { name: "broadleaf woods",   ground: [0.4, 0.5, 0.26],  grass: 0.6,  forest: 0.9,  trees: [["oak", 6], ["birch", 2], ["spruce", 1], ["pine", 1]] },
+  grassland:     { name: "steppe",            ground: [0.58, 0.58, 0.32], grass: 1,    forest: 0.12, trees: [["oak", 2], ["birch", 2], ["scrub", 2]] },
+  mediterranean: { name: "maquis",            ground: [0.6, 0.54, 0.36], grass: 0.45, forest: 0.4,  trees: [["pine", 4], ["oak", 3], ["scrub", 4]] },
+  desert:        { name: "desert",            ground: [0.84, 0.72, 0.5], grass: 0,    forest: 0.05, trees: [["scrub", 6], ["palm", 1]] },
+  savanna:       { name: "savanna",           ground: [0.74, 0.64, 0.36], grass: 1,    forest: 0.13,  trees: [["acacia", 7], ["scrub", 2]] },
+  rainforest:    { name: "rain forest",       ground: [0.28, 0.4, 0.2],  grass: 0.45, forest: 0.75, trees: [["jungle", 5], ["palm", 3], ["oak", 2]], size: 1.4 },
+  wetland:       { name: "marsh",             ground: [0.34, 0.4, 0.26], grass: 0.95, forest: 0.35, trees: [["birch", 3], ["oak", 2]] },
+  alpine:        { name: "the high meadows",  ground: [0.5, 0.52, 0.42], grass: 0.45, forest: 0.12, trees: [["spruce", 4], ["pine", 1]], size: 0.6 },
+};
+
 // The kinds of country a game can be set in
 export const TERRAINS = {
   island:      { name: "Island",       note: "One island, the sea all round it." },
@@ -62,7 +90,7 @@ export const TERRAINS = {
   continent:   { name: "Continent",    note: "Land from edge to edge, a coast down one side and mountains round the rest." },
   highlands:   { name: "Highlands",    note: "An island of mountains, snow on the peaks and the woods in the valleys." },
   lakeland:    { name: "Lake country", note: "An island full of lakes and the land between them." },
-  earth:       { name: "The Earth",    note: "The whole world as it stood in 1683, made small: every continent and sea where it is, the realms of the day on the map, the mountains where they rise, desert and snow where they lie." },
+  earth:       { name: "The Earth",    note: "The whole world as it stood in 1683, made small: every continent and sea where it is, the mountains where they rise, and every kind of country where it lies: the ice and the tundra, the taiga, the broadleaf woods, the steppe and the maquis, desert, savanna and rain forest." },
 };
 export const TERRAIN_ORDER = ["island", "archipelago", "continent", "highlands", "lakeland", "earth"];
 
@@ -120,19 +148,52 @@ export function makeTerrain(seed, half, kind = "island") {
     return h;
   }
   const slopeAt = (x, z) => { const e = 1.5; return Math.hypot(heightAt(x + e, z) - heightAt(x - e, z), heightAt(x, z + e) - heightAt(x, z - e)) / (2 * e); };
-  // the climate (the Earth only): how cold, and how dry — the poles snowy, the desert belts bare
-  const climate = (x, z) => {
-    if (kind !== "earth") return { cold: 0, dry: 0 };
-    const lat = Math.abs(latOf(z)), lon = lonOf(x);
-    const cold = smooth(56, 70, lat);
-    // (the deserts, where they really are — each a soft-edged patch: [west, east, south, north] in degrees)
-    const la = latOf(z), soft = (v, lo, hi, e) => smooth(lo - e, lo + e, v) * (1 - smooth(hi - e, hi + e, v));
-    let dry = 0;
-    for (const [w, e, sLat, nLat, k] of DESERTS) dry = Math.max(dry, soft(lon, w, e, 4) * soft(la, sLat, nLat, 3) * k);
-    return { cold, dry: Math.min(1, dry * (0.8 + fbm(nC, x / 200, z / 200, 2) * 0.4)) };
+  // the climate: how warm (0 the poles .. 1 the equator) and how wet (0 desert .. 1 rain forest). On the Earth, where
+  // it really is: by the latitude, the height, the deserts and the rain belts as they lie. Elsewhere, a temperate land,
+  // warmer and colder, wetter and drier across it, colder up high
+  const WC = new Map();
+  const warmWet = (x, z) => { const key = Math.floor(x / 8) * 65536 + Math.floor(z / 8); let v = WC.get(key); if (v === undefined) { if (WC.size > 400000) WC.clear(); v = warmWet0(Math.floor(x / 8) * 8 + 4, Math.floor(z / 8) * 8 + 4); WC.set(key, v); } return v; };
+  const warmWet0 = (x, z) => {
+    const h = heightAt(x, z), nT = fbm(nC, x / 900 + 31, z / 900 - 7, 3), nM = fbm(nA, x / 600 - 19, z / 600 + 44, 3);
+    if (kind !== "earth") {
+      const lake = nE(x / lakeK + 17, z / lakeK + 5);
+      return { t: Math.max(0, 0.52 + nT * 0.28 - Math.max(0, h - 20) * 0.006), m: Math.min(1, Math.max(0, 0.55 + nM * 0.5 + smooth(lakeAt - 0.12, lakeAt, lake) * 0.3)) };
+    }
+    const lat = latOf(z), lon = lonOf(x), al = Math.abs(lat), soft = (v, lo, hi, e) => smooth(lo - e, lo + e, v) * (1 - smooth(hi - e, hi + e, v));
+    let tl = 0; for (let k = 1; k < WARMTH.length; k++) if (al <= WARMTH[k][0]) { const [a0, w0] = WARMTH[k - 1], [a1, w1] = WARMTH[k]; tl = w0 + (w1 - w0) * (al - a0) / (a1 - a0); break; }
+    const t = Math.max(0, tl - Math.max(0, h - 12) * 0.005 + nT * 0.05);
+    // (the rain belts: wet at the equator, dry in the horse latitudes, wet again in the westerlies, dry at the poles)
+    let m = al < 12 ? 0.8 : al < 34 ? 0.8 - (al - 12) / 22 * 0.45 : al < 60 ? 0.42 + Math.sin((al - 34) / 26 * Math.PI) * 0.2 : 0.4;
+    for (const [w, e, sLat, nLat, k] of WETS) m = Math.max(m, soft(lon, w, e, 4) * soft(lat, sLat, nLat, 3) * k + m * (1 - k * soft(lon, w, e, 4) * soft(lat, sLat, nLat, 3)));
+    for (const [w, e, sLat, nLat] of SAVANNAS) { const k = soft(lon, w, e, 3) * soft(lat, sLat, nLat, 2.5); m = m * (1 - k) + Math.min(m, 0.42) * k; }
+    let dry = 0; for (const [w, e, sLat, nLat, k] of DESERTS) dry = Math.max(dry, soft(lon, w, e, 4) * soft(lat, sLat, nLat, 3) * k);
+    m = m * (1 - dry * 0.95) + nM * 0.08;
+    return { t, m: Math.min(1, Math.max(0, m)), med: MEDS.some(([w, e, sLat, nLat]) => lon > w && lon < e && lat > sLat && lat < nLat) };
   };
+  // which biome, here (worked out once for each eight-metre square, and kept)
+  const BC = new Map();
+  const biomeAt = (x, z) => { const key = Math.floor(x / 8) * 65536 + Math.floor(z / 8); let b = BC.get(key); if (b === undefined) { if (BC.size > 400000) BC.clear(); b = biomeAt0(Math.floor(x / 8) * 8 + 4, Math.floor(z / 8) * 8 + 4); BC.set(key, b); } return b; };
+  const biomeAt0 = (x, z) => {
+    const h = heightAt(x, z), { t, m, med } = warmWet(x, z);
+    if (t < 0.13) return "ice";
+    if (h > (big || kind === "earth" ? 52 : 40) && t < 0.55) return "alpine";
+    if (t < 0.24) return "tundra";
+    if (t < 0.42) return m < 0.25 ? "grassland" : "taiga";
+    if (t < 0.7) {
+      if (m < 0.2) return "desert";
+      if (med && m < 0.62) return "mediterranean";
+      if (m < 0.4) return "grassland";
+      if (m > 0.86 && h < 9) return "wetland";
+      return kind !== "earth" && m < 0.5 ? "heath" : "temperate";
+    }
+    if (m < 0.22) return "desert";
+    if (m < 0.58) return "savanna";
+    return "rainforest";
+  };
+  // (what the rest of the game asked of the climate: how cold, how dry — from the biome now)
+  const climate = (x, z) => { const b = biomeAt(x, z), { t, m } = warmWet(x, z); return { cold: b === "ice" ? 1 : b === "tundra" ? 0.6 : Math.max(0, 0.3 - t) * 2, dry: b === "desert" ? 1 : Math.max(0, 0.3 - m) * 2, t, m, biome: b }; };
   // how thick the forest stands: 0 open meadow .. 1 deep woods
-  const forestAt = (x, z) => { const f = smooth(-0.25, 0.3, fbm(nB, x / 190 + 50, z / 190 + 50, 3) + 0.12); if (kind !== "earth") return f; const c = climate(x, z); return f * (1 - c.dry) * (1 - c.cold * 0.7); };
+  const forestAt = (x, z) => { const f = smooth(-0.25, 0.3, fbm(nB, x / 190 + 50, z / 190 + 50, 3) + 0.12); return f * BIOMES[biomeAt(x, z)].forest; };
   const meadowAt = (x, z) => 1 - forestAt(x, z);
   const sandAt = (x, z, h = heightAt(x, z)) => h < WATER + 1.4;
   // the tree in a cell, if there is one: always the same tree
@@ -142,12 +203,19 @@ export function makeTerrain(seed, half, kind = "island") {
     const dens = forestAt(x, z);
     if (r > dens * 0.78 + 0.02) return null;
     const y = heightAt(x, z);
-    if (y < WATER + 1.6 || y > (big ? 70 : 60)) return null;
+    if (y < WATER + 1.6 || y > (big || kind === "earth" ? 70 : 60)) return null;
     if (slopeAt(x, z) > 0.75) return null;
     const k = hash3(seed + 3, i, j), hh = hash3(seed + 4, i, j);
-    const kind = y > 38 ? (k < 0.85 ? "spruce" : "pine") : k < 0.55 ? "spruce" : k < 0.8 ? "pine" : "birch";
-    const h = kind === "spruce" ? 8 + hh * 8 : kind === "pine" ? 10 + hh * 7 : 7 + hh * 4;
-    return { id: i + ":" + j, i, j, x, y, z, h, kind, rot: hash3(seed + 5, i, j) * Math.PI * 2 };
+    // (the kind of tree from the biome's own mix; a palm on a warm shore)
+    const B = BIOMES[biomeAt(x, z)];
+    let tk = "spruce";
+    if (B.trees.length) { const tot = B.trees.reduce((a, q) => a + q[1], 0); let acc = 0; for (const [kk, w] of B.trees) { acc += w / tot; if (k < acc) { tk = kk; break; } } }
+    // (a palm by warm water: on a shore, or round an oasis's pool — not out on the dry sand)
+    if (y < WATER + 3.2 && warmWet(x, z).t > 0.72 && [[9, 0], [-9, 0], [0, 9], [0, -9], [6, 6], [-6, -6]].some(([dx, dz]) => heightAt(x + dx, z + dz) < WATER)) tk = "palm";
+    else if (tk === "palm" && B !== BIOMES.rainforest) tk = "scrub";
+    const H0 = { spruce: [8, 8], pine: [10, 7], birch: [7, 4], oak: [9, 6], palm: [8, 7], acacia: [6, 4], jungle: [16, 12], scrub: [1.2, 1.4] }[tk];
+    const h = (H0[0] + hh * H0[1]) * (tk === "scrub" ? 1 : B.size || 1);
+    return { id: i + ":" + j, i, j, x, y, z, h, kind: tk, rot: hash3(seed + 5, i, j) * Math.PI * 2 };
   }
   function treeById(id) { const [i, j] = id.split(":").map(Number); return Number.isFinite(i) && Number.isFinite(j) ? treeIn(i, j) : null; }
   function rockIn(i, j) {
@@ -191,7 +259,7 @@ export function makeTerrain(seed, half, kind = "island") {
     }
     return best || { x: 0, z: 0 };
   }
-  return { seed, half, kind, big, lonOf, latOf, climate, heightAt, slopeAt, forestAt, meadowAt, sandAt, treeIn, treeById, rockIn, rockById, chunkTrees, chunkRocks, findHome, coast };
+  return { seed, half, kind, big, lonOf, latOf, climate, biomeAt, warmWet, heightAt, slopeAt, forestAt, meadowAt, sandAt, treeIn, treeById, rockIn, rockById, chunkTrees, chunkRocks, findHome, coast };
 }
 
 // a seeded run of numbers from 0 to 1 (the same as core.js's, without needing it)

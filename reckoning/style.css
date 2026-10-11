@@ -1102,3 +1102,13 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 .pk-it .dur { height: 3px; background: rgba(0, 0, 0, 0.6); border-radius: 1px; }
 .pk-it .dur i { display: block; height: 100%; background: #8cc084; border-radius: 1px; }
 .pk-it .dur.low i { background: #d8553a; }
+/* the Earth: where will you begin */
+#mpStart { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(8, 12, 8, 0.6); }
+#mpStart .ms-win { background: var(--panel); border: 1px solid var(--edge); border-top: 3px solid var(--gold); padding: 16px 20px; max-width: calc(100vw - 32px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); }
+#mpStart .ms-title { font: 26px var(--serif); font-variant: small-caps; color: var(--ink); }
+#mpStart .ms-note { font: 14px var(--sans); color: var(--ink-dim); margin: 4px 0 10px; }
+#mpStart .ms-map { position: relative; display: table; margin: 0 auto; line-height: 0; border: 1px solid var(--edge); cursor: crosshair; }
+#mpStart canvas { max-width: 100%; height: auto; }
+#mpStart .ms-pin { position: absolute; display: none; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 2px solid #9a2b1c; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 245, 220, 0.8); pointer-events: none; }
+#mpStart .ms-acts { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+#mpStart .ms-where { flex: 1; font: italic 15px var(--serif); color: var(--ink); }

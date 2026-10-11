@@ -12,7 +12,7 @@ import { G, WorldBase } from "../engine.js";
 import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, SWAY } from "../models.js";
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
-import { makeTerrain, CHUNK, WATER } from "./terrain.js";
+import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
 import { REALMS_1683, SEAS_1683 } from "./earth-1683.js";
 import { BUILD } from "./rules.js";
 import { ryeStrip } from "../town.js";
@@ -36,6 +36,17 @@ function rockShape() {
   return rockGeo = g;
 }
 
+// the great features of the land, by the names they had then: deserts, mountains, plains, the great forests
+const LANDFORMS = [
+  ["the Sahara", 12, 23, 260], ["the Arabian Desert", 46, 23, 90], ["the Gobi", 104, 43, 110], ["the Himalaya", 84, 29, 120], ["the Alps", 10, 46.5, 40],
+  ["the Caucasus", 44, 42.5, 40], ["the Urals", 59, 58, 60], ["the Steppe", 62, 48, 160], ["Siberia", 100, 62, 300], ["the Taiga", 125, 58, 140],
+  ["the Andes", -70, -22, 120], ["the Amazon", -60, -5, 230], ["the Pampas", -63, -36, 80], ["Patagonia", -69, -46, 70],
+  ["the Rocky Mountains", -110, 44, 120], ["the Great Plains", -100, 40, 120], ["the Appalachians", -79, 38, 50], ["the Great Lakes", -84, 46, 50],
+  ["the Congo", 22, -1, 120], ["the Kalahari", 22, -23, 80], ["the Horn of Africa", 45, 8, 50], ["the Great Rift", 36, -2, 60],
+  ["the Deccan", 77, 17, 80], ["Tartary", 75, 52, 200], ["the Tibetan Plateau", 88, 33, 110], ["Arabia Felix", 46, 15, 40],
+  ["the Outback", 133, -25, 180], ["the Great Barrier Reef", 147, -17, 50], ["Greenland", -41, 72, 120], ["Lapland", 24, 68, 60],
+  ["the Pyrenees", 1, 42.7, 30], ["the Carpathians", 24, 47.5, 40], ["Scandinavia", 15, 63, 80], ["Anatolia", 33, 39, 60], ["Mesopotamia", 44, 33, 50],
+];
 export class Wilds extends WorldBase {
   // info: {seed, half, kind}
   constructor(info) {
@@ -75,16 +86,20 @@ export class Wilds extends WorldBase {
     if (h < WATER) return "water";
     if (h < WATER + 1.4) return "dirt";
     if (h > this.snowLine) return "snow";
+    const b = this.land.biomeAt(x, z);
+    if (b === "ice" || b === "tundra") return "snow";
+    if (b === "desert") return "dirt";
     return this.land.forestAt(x, z) > 0.5 ? "leaves" : "grass";
   }
   // where grass grows (for grass.js): thick in the open, thin under the trees, none on sand, rock or snow
   grassAt(x, z) {
     const h = this.land.heightAt(x, z);
     if (h < WATER + 1.5 || h > this.snowLine - 6) return 0;
-    if (this.land.kind === "earth") { const cl = this.land.climate(x, z); if (cl.dry > 0.5 || cl.cold > 0.6) return 0; }
+    // (as thick as the biome grows it: none on the desert or the ice, thin on the tundra, a sea of it on the steppe)
+    const gk = BIOMES[this.land.biomeAt(x, z)].grass; if (gk <= 0) return 0;
     if (this.land.slopeAt(x, z) > 0.5) return 0;
     const f = this.land.forestAt(x, z);
-    return f > 0.55 ? 0.12 : (1 - f) * 0.95;
+    return (f > 0.55 ? 0.12 : (1 - f) * 0.95) * gk;
   }
   groundColour(x, z, c = new THREE.Color()) { return this.colourAt(x, z, this.land.heightAt(x, z), 0, c); }
   get season() { return "summer"; }
@@ -110,16 +125,22 @@ export class Wilds extends WorldBase {
     if (h < WATER - 0.3) return c.copy(PAL.bed).lerp(PAL.sand, clamp((h + 3) / 3, 0, 1) * 0.6);
     if (h < WATER + 1.4) return c.copy(PAL.sand).lerp(PAL.wetSand, clamp((WATER + 0.4 - h) / 0.8, 0, 1));
     const f = L.forestAt(x, z), dry = hash(Math.floor(x / 9), Math.floor(z / 9));
-    c.copy(PAL.meadow).lerp(PAL.grass, 0.5 + (dry - 0.5) * 0.6);
-    // (the Earth: desert sand where it's dry, tundra and snow toward the poles)
-    if (L.kind === "earth") { const cl = L.climate(x, z); if (cl.dry > 0.05) c.lerp(PAL.desert, Math.min(1, cl.dry * 1.15)); if (cl.cold > 0.05) c.lerp(PAL.snow, cl.cold * 0.85); }
-    if (dry > 0.82) c.lerp(PAL.dry, 0.45);
+    // the ground of the biome — blended with its neighbours', so one kind of country gives way to the next
+    this.biomeGround(x, z, c);
+    c.multiplyScalar(0.93 + (dry - 0.5) * 0.14);
+    if (dry > 0.82) c.lerp(PAL.dry, 0.25);
     // under the trees: needle litter and moss
     if (f > 0.35) c.lerp(PAL.litter, clamp((f - 0.35) * 2.2, 0, 0.85)).lerp(PAL.moss, hash(x * 0.05, z * 0.05) > 0.6 ? 0.35 : 0);
     if (h < WATER + 2.4) c.lerp(PAL.sand, clamp((WATER + 2.4 - h) / 1, 0, 1) * 0.5);
     if (steep > 0.16) c.lerp(PAL.stone, clamp((steep - 0.16) * 4, 0, 0.9));
     if (h > this.snowLine - 6) c.lerp(PAL.snow, clamp((h - this.snowLine + 6) / 8, 0, 1) * (steep > 0.45 ? 0.4 : 1));
     return c;
+  }
+  // the colour of the ground in the open, for the kind of country it is: the biome here and those round about, mixed
+  biomeGround(x, z, c) {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let dx = -16; dx <= 16; dx += 16) for (let dz = -16; dz <= 16; dz += 16) { const q = BIOMES[this.land.biomeAt(x + dx, z + dz)].ground, w = dx || dz ? 1 : 2; r += q[0] * w; g += q[1] * w; b += q[2] * w; n += w; }
+    return c.setRGB(r / n, g / n, b / n);
   }
   // ---- the pieces of the map round you ----
   key(ci, cj) { return ci + "," + cj; }
@@ -150,7 +171,7 @@ export class Wilds extends WorldBase {
     g.add(near, far); far.visible = false;
     const cols2 = [];
     for (const t of trees) {
-      t.col = this.col.addCircle(t.x, t.z, t.kind === "birch" ? 0.22 : 0.32, 12); cols2.push(t.col);
+      t.col = this.col.addCircle(t.x, t.z, { birch: 0.22, palm: 0.2, acacia: 0.24, oak: 0.45, jungle: 0.6, scrub: 0.35 }[t.kind] || 0.32, t.kind === "scrub" ? 1.2 : 12); cols2.push(t.col);
       if (this.felled.has(t.id)) this.hideTree(t, true);
     }
     // the rocks
@@ -448,9 +469,9 @@ export class Wilds extends WorldBase {
       if (h < WATER) { const k = clamp(-h / 10, 0, 1); r = 120 - k * 50; g = 150 - k * 40; b = 160 - k * 20; }
       else if (h < WATER + 1.4) { r = 214; g = 196; b = 150; }
       else {
-        const f = L.forestAt(x, z), hk = clamp(h / 60, 0, 1);
-        r = 200 - f * 70 - hk * 30; g = 190 - f * 50 - hk * 30; b = 130 - f * 40;
-        if (L.kind === "earth") { const cl = L.climate(x, z); r = r * (1 - cl.dry) + 214 * cl.dry; g = g * (1 - cl.dry) + 190 * cl.dry; b = b * (1 - cl.dry) + 130 * cl.dry; r = r * (1 - cl.cold) + 236 * cl.cold; g = g * (1 - cl.cold) + 236 * cl.cold; b = b * (1 - cl.cold) + 236 * cl.cold; }
+        const f = L.forestAt(x, z), hk = clamp(h / 60, 0, 1), q = BIOMES[L.biomeAt(x, z)].ground;
+        // (the biomes, washed in as a map-maker would: the parchment tinted toward the country's own colour)
+        r = 212 * 0.45 + q[0] * 255 * 0.55 - f * 40 - hk * 20; g = 198 * 0.45 + q[1] * 255 * 0.55 - f * 28 - hk * 20; b = 150 * 0.45 + q[2] * 255 * 0.55 - f * 22;
         if (h > this.snowLine - 4) { r = g = b = 236; }
         // (a hint of the hills: lighter on the slopes facing the north-west light)
         const sh = clamp((L.heightAt(x - 6, z - 6) - h) * 0.6, -18, 18); r -= sh; g -= sh; b -= sh;
@@ -470,7 +491,7 @@ export class Wilds extends WorldBase {
         const jx = x + (hash(x, z) - 0.5) * gap * 0.8, jz = z + (hash(z, x) - 0.5) * gap * 0.8;
         const f = L.forestAt(jx, jz), h = L.heightAt(jx, jz);
         if (h < 1.6 || h > this.snowLine - 4 || f < 0.45 || hash(jx * 0.3, jz * 0.7) > f) continue;
-        mapTree(c, XX(jx), ZZ(jz), Math.max(1.8, gap * K * 0.32), hash(jx, jz) < 0.65 ? "spruce" : "birch");
+        { const bb = L.biomeAt(jx, jz); mapTree(c, XX(jx), ZZ(jz), Math.max(1.8, gap * K * 0.32), bb === "taiga" || bb === "alpine" || bb === "tundra" || (bb !== "temperate" && bb !== "rainforest" && bb !== "savanna" && hash(jx, jz) < 0.5) ? "spruce" : "birch"); }
       }
       // and the coast, inked
       relief(c, (x, z) => L.heightAt(x, z), b, XX, ZZ, { step: st, shade: 0, levels: [0.05], ink: "rgba(59,42,26,0.75)" }); }
@@ -511,8 +532,8 @@ export class Wilds extends WorldBase {
     if (this._places) return this._places;
     if (this.land.kind === "earth") {
       const at = (lon, lat) => ({ x: lon / 180 * this.half, z: -lat / 180 * this.half });
-      // (the world of 1683: its realms and seas by the names of the day)
-      const out = REALMS_1683.map(([name, lon, lat, size]) => ({ kind: "land", name, size, ...at(lon, lat) }));
+      // (no realms on it — there are no nations here: the land by its own great features, and the seas)
+      const out = LANDFORMS.map(([name, lon, lat, size]) => ({ kind: "land", name, size, ...at(lon, lat) }));
       for (const [name, lon, lat] of SEAS_1683) out.push({ kind: "sea", name, ...at(lon, lat) });
       return this._places = out;
     }

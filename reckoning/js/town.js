@@ -334,7 +334,7 @@ export class Town {
     // the settlers' own shops
     lawsOf(this.S); this.shopVis = new Map();
     for (const c of this.S.companies) if (!c.waiting) this.showShop(c);
-    for (const l of this.S.logs) this.dropLogs(l.x, l.z, l.a, l.n, true);
+    for (const l of this.S.logs) this.dropLogs(l.x, l.z, l.a, l.n, true, l.k);
     this.setupForestry();
     this.setupStack();
     this.showGraves();
@@ -2086,7 +2086,7 @@ export class Town {
       if (heard()) { const r = (t.h || 9) * 0.5; FOLEY.crash(1, { x: t.x + t.dir.x * r, z: t.z + t.dir.z * r }); }
       const i = this.w.fellable.indexOf(t);
       if (!t.wild && !this.S.felled.some(f => f.i === i)) this.S.felled.push({ i, day: this.day, x: Math.round(t.x * 10) / 10, z: Math.round(t.z * 10) / 10 });
-      if (dropLogs) this.dropLogs(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), this.logsPerTree);
+      if (dropLogs) this.dropLogs(t.x + t.dir.x * 1.6, t.z + t.dir.z * 1.6, Math.atan2(t.dir.x, t.dir.z), this.logsPerTree, false, t.kind || (t.src && t.src.kind));
       this.persist();
       setTimeout(() => this.fellNow(t), 1500);
     };
@@ -2157,16 +2157,16 @@ export class Town {
     const i = this.w.fellable.indexOf(t);
     this.S.felled = this.S.felled.filter(f => f.i !== i);
   }
-  dropLogs(x, z, a, n, restoring) {
+  dropLogs(x, z, a, n, restoring, kind = null) {
     const w = this.w, pl = G.player;
     // (they lie where the tree fell, however far out: carry them home, or leave them for a hauler)
     const y = w.heightAt(x, z), dx = Math.sin(a), dz = Math.cos(a);
     const g = new THREE.Group();
     // three logs, two side by side and one on top, across the line the tree fell along
-    const pile = makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.3, y: 0.15 + (i === 1 ? 0.24 : 0), z: 0, len: 1.8, r: 0.15, dir: "z" })), Math.floor(x * 13 + z));
+    const pile = makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.3, y: 0.15 + (i === 1 ? 0.24 : 0), z: 0, len: 1.8, r: 0.15, dir: "z" })), Math.floor(x * 13 + z), kind);
     pile.rotation.y = a; g.add(pile);
     g.position.set(x, y, z); w.root.add(g);
-    const b = { g, x, z, a, n };
+    const b = { g, x, z, a, n, k: kind };
     b.it = w.addInteract({ x, y: y + 0.4, z, reach: 2.4, label: () => `Take the logs (${b.n})`,
       can: () => pl.carryN < CARRY_MAX,
       use: () => {
@@ -2181,7 +2181,7 @@ export class Town {
     return b;
   }
   pickUp(b) { this.w.removeInteract(b.it); this.w.root.remove(b.g); this.bundles.splice(this.bundles.indexOf(b), 1); }
-  saveLogs() { this.S.logs = this.bundles.map(b => ({ x: b.x, z: b.z, a: b.a, n: b.n })); this.persist(); }
+  saveLogs() { this.S.logs = this.bundles.map(b => ({ x: b.x, z: b.z, a: b.a, n: b.n, ...(b.k ? { k: b.k } : {}) })); this.persist(); }
 
   // ---- people ----
   addPerson(p, x, z) {

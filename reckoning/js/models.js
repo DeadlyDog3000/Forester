@@ -960,9 +960,29 @@ export const TREE = {
   spruceMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
   pineMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x3f6334, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
   leafMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6a8a40, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
+  // (the trees of the other biomes: the broadleaf oak, the savanna's acacia, the rain forest's giants, the palm, desert scrub)
+  frond: frondGeo(),
+  oakMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x3d5e28, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
+  acaciaMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6b7a34, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
+  jungleMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x2a5622, roughness: 0.85, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
+  scrubMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6e7448, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.25, grain: 0.6, surface: "needles" }),
+  palmMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x4f8030, roughness: 0.8, side: THREE.DoubleSide }), { scale: 2.5, amount: 0.18, grain: 0.5, surface: "needles", seeThrough: 3.6 }),
+  palmTrunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x8a7a62, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
 };
-for (const k of ["trunk", "cone", "blob"]) TREE[k]._shared = true;
-for (const k of ["trunkMat", "birchMat", "spruceMat", "pineMat", "leafMat"]) addSway(TREE[k]);
+for (const k of ["trunk", "cone", "blob", "frond"]) TREE[k]._shared = true;
+for (const k of ["trunkMat", "birchMat", "spruceMat", "pineMat", "leafMat", "oakMat", "acaciaMat", "jungleMat", "scrubMat", "palmMat", "palmTrunkMat"]) addSway(TREE[k]);
+// a palm's frond: a long leaf arched up and over and drooping at its tip, its leaflets a narrow blade either side
+function frondGeo() {
+  const P = [], I = [], C = [], N = 9;
+  for (let i = 0; i <= N; i++) {
+    const k = i / N, x = k, y = Math.sin(k * Math.PI * 0.8) * 0.32 - k * k * 0.55, w = 0.17 * (1 - k * 0.85) + 0.015;
+    P.push(x, y - 0.03, -w, x, y + 0.02, 0, x, y - 0.03, w);
+    const sh = 0.75 + k * 0.25; C.push(sh, sh, sh, sh, sh, sh, sh, sh, sh);
+  }
+  for (let i = 0; i < N; i++) { const a = i * 3; I.push(a, a + 3, a + 1, a + 1, a + 3, a + 4, a + 1, a + 4, a + 2, a + 2, a + 4, a + 5); }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();
+  return g;
+}
 
 // a spruce's tiers, low and wide to high and narrow: [height fraction, width fraction, tier height]
 const SPRUCE_TIERS = [[0.14, 1.0, 0.3], [0.26, 0.86, 0.28], [0.38, 0.72, 0.26], [0.5, 0.58, 0.24], [0.62, 0.44, 0.22], [0.73, 0.3, 0.2], [0.83, 0.17, 0.17]];
@@ -990,8 +1010,8 @@ export function forestInstances(list, far = false) {
   // (far off, a spruce is four tiers rather than seven, each a little deeper)
   const TIERS = far ? [0, 2, 4, 6].map(i => { const [y, w, th] = SPRUCE_TIERS[i]; return [y, w, th * 1.55]; }) : SPRUCE_TIERS;
   const dummy = new THREE.Object3D();
-  const kinds = { spruce: [], pine: [], birch: [] };
-  for (const t of list) kinds[t.kind].push(t);
+  const kinds = { spruce: [], pine: [], birch: [], oak: [], acacia: [], jungle: [], palm: [], scrub: [] };
+  for (const t of list) (kinds[t.kind] || kinds.spruce).push(t);
   const out = [];
   const col = new THREE.Color();
   // no two trees quite the same green
@@ -1001,7 +1021,7 @@ export function forestInstances(list, far = false) {
     col.set(0xffffff).offsetHSL((g - 0.5) * dh, 0, (f - 0.5) * dl * 2);
     m.setColorAt(i, col);
   };
-  const nTr = kinds.spruce.length + kinds.pine.length;
+  const nTr = kinds.spruce.length + kinds.pine.length + kinds.oak.length + kinds.acacia.length + kinds.jungle.length;
   const trunks = new THREE.InstancedMesh(swayGeo(TREE.trunk, nTr), TREE.trunkMat, nTr);
   const birchTr = new THREE.InstancedMesh(swayGeo(TREE.trunk, kinds.birch.length), TREE.birchMat, kinds.birch.length);
   // (each piece of a tree gets the tree's own sway: its foot, its height, its beat)
@@ -1055,7 +1075,53 @@ export function forestInstances(list, far = false) {
       tint(leaves, li++, 0, seed, 0.09, 0.03);
     }
   }
-  for (const m of [trunks, birchTr, spruceC, pineB, leaves]) { m.userData.far = far; m.castShadow = !far && m !== trunks && m !== birchTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
+  // a crown of leaf clumps, of one kind, for each tree of it: each clump [height fraction, out from the trunk (fraction
+  // of the height), width (fraction), flattening]
+  const crown = (list, mat, clumps, trunk) => {
+    const m = new THREE.InstancedMesh(swayGeo(BLOB, list.length * clumps(0).length), mat, Math.max(1, list.length * clumps(0).length)); let n = 0;
+    for (const t of list) {
+      if (trunk) { const [sx, sy] = trunk; dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(Math.sin(t.rot * 5) * 0.04, t.rot, 0); dummy.scale.set(sx, t.h * sy, sx); dummy.updateMatrix(); sway(trunks, ti, t); trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]); }
+      const seed = t.x * 0.47 + t.z * 0.83;
+      clumps(t).forEach(([hy, out, wf, flat], i) => {
+        const a = t.rot + i * 2.39, w = t.h * wf * (1 + Math.sin(seed + i * 1.3) * 0.1);
+        dummy.position.set(t.x + Math.cos(a) * out * t.h, t.y + t.h * hy, t.z + Math.sin(a) * out * t.h);
+        dummy.scale.set(w, w * flat, w); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
+        sway(m, n, t); m.setMatrixAt(n, dummy.matrix); (t.slots ??= []).push([m, n]); tint(m, n++, 0, seed, 0.08, 0.03);
+      });
+    }
+    m.count = n; return m;
+  };
+  // the oak: a stout trunk and a broad, rounded crown
+  const OAK = () => [[0.78, 0, 0.26, 0.8], [0.62, 0.17, 0.2, 0.75], [0.66, 0.17, 0.19, 0.75], [0.6, 0.18, 0.2, 0.75], [0.7, 0.15, 0.18, 0.8], [0.88, 0.08, 0.18, 0.75], [0.56, 0.2, 0.15, 0.7]];
+  const oakC = crown(kinds.oak, TREE.oakMat, OAK, [1.25, 0.5]);
+  // the acacia: a thin trunk, and its crown flat as a table, wide over the grass
+  const ACA = () => [[0.66, 0, 0.42, 0.2], [0.62, 0.26, 0.3, 0.2], [0.64, 0.28, 0.28, 0.18], [0.6, 0.24, 0.26, 0.22], [0.68, 0.14, 0.26, 0.18]];
+  const acaC = crown(kinds.acacia, TREE.acaciaMat, ACA, [0.65, 0.62]);
+  // the rain forest's giant: a tall straight bole, the crown spread high up, a lower storey of leaves under it
+  const JUN = () => [[0.95, 0, 0.2, 0.55], [0.9, 0.13, 0.17, 0.5], [0.92, 0.14, 0.16, 0.5], [0.88, 0.12, 0.16, 0.55], [0.55, 0.12, 0.11, 0.7], [0.45, 0.1, 0.1, 0.7]];
+  const junC = crown(kinds.jungle, TREE.jungleMat, JUN, [1.35, 0.88]);
+  // desert scrub: no trunk to speak of, a low tangle of grey-green
+  const SCR = () => [[0.35, 0, 0.6, 0.7], [0.3, 0.3, 0.45, 0.65], [0.25, 0.32, 0.4, 0.6]];
+  const scrC = crown(kinds.scrub, TREE.scrubMat, SCR, null);
+  // the palm: a slender, leaning, ringed trunk, and a head of fronds arching out from the top
+  const palmTr = new THREE.InstancedMesh(swayGeo(TREE.trunk, kinds.palm.length), TREE.palmTrunkMat, Math.max(1, kinds.palm.length));
+  const fronds = new THREE.InstancedMesh(swayGeo(TREE.frond, kinds.palm.length * 9), TREE.palmMat, Math.max(1, kinds.palm.length * 9));
+  let pti = 0, fi = 0;
+  for (const t of kinds.palm) {
+    const lean = 0.12 + Math.sin(t.rot * 3.1) * 0.08;
+    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(lean, t.rot, 0); dummy.scale.set(0.62, t.h, 0.62); dummy.updateMatrix();
+    sway(palmTr, pti, t); palmTr.setMatrixAt(pti++, dummy.matrix); (t.slots ??= []).push([palmTr, pti - 1]);
+    // (the top of the leaning trunk)
+    const tx = t.x + Math.sin(t.rot) * Math.sin(lean) * t.h, tz = t.z + Math.cos(t.rot) * Math.sin(lean) * t.h, ty = t.y - 0.2 + Math.cos(lean) * t.h;
+    const seed = t.x * 0.61 + t.z * 0.37;
+    for (let i = 0; i < 9; i++) {
+      const a = t.rot + i * (Math.PI * 2 / 9) + Math.sin(seed + i) * 0.2, L = t.h * (0.42 + Math.sin(seed * 2 + i) * 0.06);
+      dummy.position.set(tx, ty, tz); dummy.rotation.set(0, a, (Math.sin(seed + i * 1.7) - 0.3) * 0.25); dummy.scale.set(L, L, L); dummy.updateMatrix();
+      sway(fronds, fi, t); fronds.setMatrixAt(fi, dummy.matrix); t.slots.push([fronds, fi]); tint(fronds, fi++, 0, seed, 0.08, 0.03);
+    }
+  }
+  palmTr.count = pti; fronds.count = fi;
+  for (const m of [trunks, birchTr, spruceC, pineB, leaves, oakC, acaC, junC, scrC, palmTr, fronds]) { m.userData.far = far; m.castShadow = !far && m !== trunks && m !== birchTr && m !== palmTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
   return out;
 }
 
@@ -1183,7 +1249,10 @@ export const P = {
 // (the furrows run along its length) and whose two ends take the end grain.
 let _logMats = null;
 function paint(size, fn) { const c = document.createElement("canvas"); c.width = c.height = size; fn(c.getContext("2d"), size); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
-export function logMats() {
+// (a birch's logs are white: their own bark and their own pale ends)
+const _logMatsK = {};
+export function logMats(kind) {
+  if (kind === "birch") return _logMatsK.birch || (_logMatsK.birch = birchLogMats());
   if (_logMats) return _logMats;
   const r = rng(77);
   const bark = paint(256, (g, S) => {
@@ -1222,6 +1291,27 @@ export function logMats() {
   bark.userData.shared = end.userData.shared = true;
   return (_logMats = [side, cap, cap]);
 }
+function birchLogMats() {
+  const r = rng(91);
+  const bark = paint(256, (g, S) => {
+    g.fillStyle = "#ece8de"; g.fillRect(0, 0, S, S);
+    // the black marks across the white: lenticels in dashes, and a dark knot or two where branches were
+    for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(28,26,24,${0.45 + r() * 0.45})`; g.fillRect(r() * S, r() * S, 1.5 + r() * 2.5, 6 + r() * 22); }
+    for (let i = 0; i < 4; i++) { const x = r() * S, y = r() * S, w = 8 + r() * 12; g.fillStyle = "rgba(34,30,28,0.85)"; g.beginPath(); g.moveTo(x, y - w); g.lineTo(x + w * 0.6, y); g.lineTo(x, y + w); g.lineTo(x - w * 0.6, y); g.fill(); }
+    for (let i = 0; i < 1400; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "120,115,105" : "255,255,250"},${r() * 0.18})`; g.fillRect(r() * S, r() * S, 2 + r() * 3, 1); }
+  });
+  bark.wrapS = bark.wrapT = THREE.RepeatWrapping; bark.repeat.set(2, 2);
+  const end = paint(256, (g, S) => {
+    const c = S / 2, grd = g.createRadialGradient(c, c, 4, c, c, c);
+    grd.addColorStop(0, "#d8c49e"); grd.addColorStop(0.8, "#efe2c4"); grd.addColorStop(0.9, "#e6d8b8"); grd.addColorStop(0.93, "#f2efe8"); grd.addColorStop(1, "#d8d4ca");
+    g.fillStyle = grd; g.fillRect(0, 0, S, S);
+    for (let k = 1; k < 18; k++) { const rad = c * 0.86 * Math.pow(k / 18, 0.8); g.strokeStyle = `rgba(170,140,100,${0.15 + r() * 0.2})`; g.lineWidth = 1 + r(); g.beginPath(); g.arc(c, c, rad, 0, 7); g.stroke(); }
+    g.fillStyle = "#a07a50"; g.beginPath(); g.arc(c, c, 3, 0, 7); g.fill();
+  });
+  bark.userData.shared = end.userData.shared = true;
+  const side = new THREE.MeshStandardMaterial({ map: bark, roughness: 0.8 }), cap = new THREE.MeshStandardMaterial({ map: end, roughness: 0.85 });
+  return [side, cap, cap];
+}
 const LOG_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1); LOG_GEO._shared = true;
 // many logs in one draw: [{x,y,z,len,r,dir:"x"|"z"}], each a touch uneven
 // ---- a stump: no two alike, and each kind its own. A spruce's (the brown fir) dark red-brown and scaly, its roots
@@ -1233,6 +1323,11 @@ const STUMP_KIND = {
   spruce: { face: "#d8b884", ring: [120, 78, 40], rim: "#3e2a1c", r: 0.24, h: [0.22, 0.6], roots: [3, 6], rootK: 1.0 },
   pine:   { face: "#e2b676", ring: [150, 92, 40], rim: "#5a3a26", r: 0.26, h: [0.3, 0.7], roots: [2, 4], rootK: 1.25, resin: true },
   birch:  { face: "#efe2c4", ring: [180, 150, 110], rim: "#f2efe8", r: 0.17, h: [0.15, 0.42], roots: [2, 4], rootK: 0.8, curls: true, rot: 0.55 },
+  oak:    { face: "#d4b07a", ring: [130, 90, 50], rim: "#4a4038", r: 0.34, h: [0.3, 0.6], roots: [4, 6], rootK: 1.35 },
+  acacia: { face: "#caa070", ring: [140, 90, 50], rim: "#4a3a2e", r: 0.17, h: [0.2, 0.45], roots: [2, 3], rootK: 0.9 },
+  jungle: { face: "#e0c290", ring: [150, 110, 70], rim: "#8a8478", r: 0.46, h: [0.4, 0.9], roots: [5, 7], rootK: 1.9 },
+  palm:   { face: "#c8b28a", ring: [150, 130, 100], rim: "#7a6a52", r: 0.15, h: [0.3, 0.6], roots: [0, 0], rootK: 0.6 },
+  scrub:  { face: "#c0a274", ring: [130, 100, 70], rim: "#5a4a38", r: 0.07, h: [0.08, 0.16], roots: [0, 0], rootK: 0.5 },
 };
 function ringTex(v, kind) {
   const key = kind + v; if (RING_TEX[key]) return RING_TEX[key];
@@ -1276,6 +1371,15 @@ function barkTex(kind, v) {
     for (let k = 0; k < 40; k++) { const px = rnd() * 256, py = rnd() * 128, w = 12 + rnd() * 22, h = 8 + rnd() * 18; x.fillStyle = `rgba(${150 + rnd() * 60},${80 + rnd() * 40},${40 + rnd() * 20},${0.35 + rnd() * 0.3})`; x.fillRect(px, py, w, h); }
     x.strokeStyle = "rgba(30,18,10,0.85)"; x.lineWidth = 2.5;
     for (let k = 0; k < 18; k++) { let px = rnd() * 256; x.beginPath(); x.moveTo(px, 128); for (let y = 128; y > 0; y -= 12) { px += (rnd() - 0.5) * 8; x.lineTo(px, y); } x.stroke(); }
+  } else if (kind === "palm") {
+    // a palm's: grey-brown, ringed round where the old fronds fell
+    x.fillStyle = "#8a7a62"; x.fillRect(0, 0, 256, 128);
+    for (let y = 4; y < 128; y += 9 + rnd() * 4) { x.fillStyle = `rgba(60,50,38,${0.4 + rnd() * 0.3})`; x.fillRect(0, y, 256, 2 + rnd() * 2); }
+  } else if (kind === "oak" || kind === "jungle" || kind === "acacia") {
+    // grey and deep-ridged (an oak's), smoother and paler (the rain forest's), rough and dark (the acacia's)
+    x.fillStyle = kind === "jungle" ? "#8a867a" : kind === "acacia" ? "#4e4034" : "#5a524a"; x.fillRect(0, 0, 256, 128);
+    x.strokeStyle = kind === "jungle" ? "rgba(60,58,50,0.35)" : "rgba(28,24,20,0.7)"; x.lineWidth = kind === "jungle" ? 1.5 : 3;
+    for (let k = 0; k < 22; k++) { let px = rnd() * 256; x.beginPath(); x.moveTo(px, 128); for (let y = 128; y > 0; y -= 10) { px += (rnd() - 0.5) * 10; x.lineTo(px, y); } x.stroke(); }
   } else {
     // a spruce's: dark red-brown, in small round scales
     x.fillStyle = "#4e3626"; x.fillRect(0, 0, 256, 128);
@@ -1339,8 +1443,8 @@ export function makeStump(t, kind = "spruce") {
   g.rotation.y = rnd() * 6.28;
   return g;
 }
-export function makeLogs(list, seed = 1) {
-  const r = rng(seed), m = new THREE.InstancedMesh(LOG_GEO, logMats(), list.length);
+export function makeLogs(list, seed = 1, kind = null) {
+  const r = rng(seed), m = new THREE.InstancedMesh(LOG_GEO, logMats(kind), list.length);
   const o = new THREE.Object3D();
   list.forEach((l, i) => {
     o.position.set(l.x, l.y, l.z);

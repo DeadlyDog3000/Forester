@@ -25,8 +25,8 @@ export const BUILD = {
 export const BUILD_ORDER = ["hearth", "cabin", "field", "shed", "wall", "gate", "tower", "well", "house", "forge", "market"];
 
 export const START_STOCK = { wood: 12, stone: 0, food: 24 };
-export const TREE_HITS = { spruce: 4, pine: 4, birch: 3 };
-export const LOGS_PER_TREE = { spruce: 5, pine: 5, birch: 3 };
+export const TREE_HITS = { spruce: 4, pine: 4, birch: 3, oak: 5, palm: 3, acacia: 3, jungle: 6, scrub: 1 };
+export const LOGS_PER_TREE = { spruce: 5, pine: 5, birch: 3, oak: 6, palm: 3, acacia: 3, jungle: 8, scrub: 1 };
 export const ROCK_HITS = 5, STONE_PER_ROCK = 4;
 export const REGROW_MS = 12 * 60 * 1000;          // a felled tree, a broken rock: back after this, out of sight
 export const REACH = 3.6;                         // how far a blow reaches (with a little slack for the lag)
@@ -36,7 +36,7 @@ export const RESPAWN_MS = 6000;
 export const SPAWN_SHIELD_MS = 45 * 1000;         // a fresh arrival can't be hurt for a while
 export const DAY_MS = 24 * 60 * 1000;             // a whole day and night
 export const SIZES = { s: 420, m: 650, l: 950 };  // half the width of a game's island, in metres
-export const WORLD_HALF = 3000;                   // the wide world: six kilometres across
+export const WORLD_HALF = 20000;                  // the wide world: the Earth at its full scale, forty kilometres across
 export const MODES = { coop: "Frontier", pvp: "Frontier rivals" };
 // Classic, on the real game: what one nation can trade or send another (as each game's stores keep it), and its name
 export const NATION_GOODS = { store: "logs", stone: "stone", planks: "planks", bricks: "bricks", ore: "ore", iron: "iron", tools: "tools", rye: "rye", bread: "bread", coin: "DM" };

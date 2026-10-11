@@ -125,11 +125,11 @@ class Room {
     this.dirty = false;
   }
   storeOf(pid) { return this.mode === "coop" ? this.shared : this.recs[pid]; }
-  addPile(x, z, a, n) {
+  addPile(x, z, a, n, kind) {
     // (onto a pile already lying close by, rather than a heap of little ones)
     const near = Object.values(this.piles).find(q => Math.hypot(q.x - x, q.z - z) < 1.2);
     if (near) { near.n += n; this.all({ t: "pile", p: near }); return near; }
-    const pl = { id: "p" + (this.nextP++), x: +x.toFixed(2), z: +z.toFixed(2), a: +a.toFixed(2), n };
+    const pl = { id: "p" + (this.nextP++), x: +x.toFixed(2), z: +z.toFixed(2), a: +a.toFixed(2), n, ...(kind === "birch" ? { k: kind } : {}) };
     this.piles[pl.id] = pl; this.all({ t: "pile", p: pl });
     return pl;
   }
@@ -285,7 +285,7 @@ class Room {
         const dx = tr.x - p.x, dz = tr.z - p.z, l = Math.hypot(dx, dz) || 1;
         this.all({ t: "fell", id: tr.id, by: p.pid, dx: dx / l, dz: dz / l });
         // (its logs where it comes down, a few paces out along the way it fell)
-        this.addPile(tr.x + dx / l * 1.6, tr.z + dz / l * 1.6, Math.atan2(dx, dz), R.LOGS_PER_TREE[tr.kind]);
+        this.addPile(tr.x + dx / l * 1.6, tr.z + dz / l * 1.6, Math.atan2(dx, dz), R.LOGS_PER_TREE[tr.kind], tr.kind);
         this.dirty = true;
         return;
       }
@@ -303,6 +303,22 @@ class Room {
         if (got < R.STONE_PER_ROCK) p.sock.send({ t: "err", text: got ? `Your pack is full — only ${got} stone went in. Empty it at the hearth.` : "Your pack is full. Empty it at the hearth or a woodshed (F there)." });
         this.all({ t: "rock", id: k.id, by: p.pid });
         this.sendPack(p); this.dirty = true;
+        return;
+      }
+      // on the Earth, where you'd like to begin: anywhere on dry land, before you've a homestead of your own — the nearest
+      // good spot to where you pointed on the map, out of anyone else's ground
+      case "spawnAt": {
+        if (p.dead || this.land.kind !== "earth") return;
+        if (Object.values(this.buildings).some(b => b.type === "hearth" && b.owner === p.pid)) return p.sock.send({ t: "err", text: "You've a homestead already: you begin there." });
+        const x = Math.max(-this.half + 20, Math.min(this.half - 20, num(m.x))), z = Math.max(-this.half + 20, Math.min(this.half - 20, num(m.z)));
+        let at = null;
+        for (let r = 0; r <= 240 && !at; r += 20) for (let k = 0; k < 16 && !at; k++) {
+          const a = k / 16 * Math.PI * 2, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r, h = this.land.heightAt(px, pz);
+          if (h > 1.8 && h < 60 && this.land.slopeAt(px, pz) < 0.35 && !this.claimAt(px, pz)) at = { x: px, z: pz };
+        }
+        if (!at) return p.sock.send({ t: "err", text: "There's no dry land to stand on near there. Pick somewhere else." });
+        p.x = at.x; p.z = at.z; p.y = this.land.heightAt(at.x, at.z);
+        p.sock.send({ t: "spawn", pid: p.pid, x: at.x, z: at.z, hp: p.hp });
         return;
       }
       // a fish caught: only at the water's edge, and not quicker than a cast can be made — into the pack, food for the store
@@ -1057,7 +1073,17 @@ async function start(opts = {}) {
     const f = dataDir && path.join(dataDir, "world.json");
     try { if (f && fs.existsSync(f)) world = Room.from(JSON.parse(fs.readFileSync(f, "utf8"))); } catch (e) { log("world file unreadable:", e.message); }
     if (!world) world = new Room({ id: "world", name: "The Wide World", mode: "pvp", kind: "earth", max: 500, persistent: true, half: R.WORLD_HALF, seed: opts.seed });
-    world.id = "world"; world.half = R.WORLD_HALF;
+    world.id = "world";
+    // (a world saved at another scale — or on another map — is laid out again on the Earth at the full scale: everything
+    //  built stays where it stood on the globe, the trees and rocks grown afresh)
+    if (world.half !== R.WORLD_HALF || world.kind !== "earth") {
+      const k = R.WORLD_HALF / (world.half || R.WORLD_HALF), mv = o => { if (o && Number.isFinite(o.x)) { o.x = +(o.x * k).toFixed(2); o.z = +(o.z * k).toFixed(2); } };
+      for (const coll of [world.buildings, world.sites, world.piles, world.settlers]) for (const o of Object.values(coll || {})) mv(o);
+      for (const r of Object.values(world.recs || {})) { mv(r); if (r.home) mv(r.home); }
+      log(`the wide world: laid out again at ${R.WORLD_HALF * 2 / 1000} km across (from ${(world.half * 2 / 1000).toFixed(1)})`);
+      world.half = R.WORLD_HALF; world.kind = "earth"; world.land = T.makeTerrain(world.seed, world.half, world.kind);
+      world.felled = {}; world.broken = {}; world.spawnAt = world.land.findHome(T.seq(world.seed ^ 0x5eed), [], 0); world.dirty = true;
+    }
     rooms.set(world.id, world);
     log(`the wide world: seed ${world.seed}, ${Object.keys(world.recs).length} players known, ${Object.keys(world.buildings).length} buildings`);
   }

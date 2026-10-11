@@ -7,6 +7,20 @@
 
 export const CHANGELOG = [
   {
+    v: "0.93.0", date: "11 October 2026", title: "Every kind of country",
+    items: [
+      "Frontier's land has biomes now, each with its own ground, its own grass and its own trees: ice and tundra, the taiga, heath, broadleaf woods, steppe, maquis, desert, savanna, rain forest, marsh, and the high meadows above the tree line.",
+      "On the Earth map they lie where they really do, from the latitude, the height, the rain belts and the deserts: rain forest in the Amazon, the Congo and the Indies, savanna across East Africa and the Sahel, desert in the Sahara, Arabia and the Gobi, broadleaf woods in Germany, maquis round the Middle Sea, taiga across Siberia, tundra and ice toward the poles. On the other maps the land is warmer and colder, wetter and drier across it: woods, heaths, meadows, marshes and mountains.",
+      "New trees for them: the oak with its broad round crown, the savanna's flat-topped acacia, the rain forest's tall giants, palms on warm shores and round oases (with their fronds drooping), and grey-green desert scrub. Each fells, and leaves its own stump.",
+      "The map shows the biomes, washed in as a map-maker would.",
+      "The Earth map no longer has the realms of 1683 lettered on it: there are no nations on it. It's lettered with the great features of the land instead — the Sahara, the Himalaya, the Amazon, the Steppe, the Rocky Mountains — and the seas.",
+      "On an Earth map, before you've a homestead, you're asked where in the world you'd like to begin: click anywhere on land, and you start there.",
+      "The Wide World is the Earth at its full scale: forty kilometres across. A world already saved is laid out again at the new scale, with everything built where it stood on the globe.",
+      "A birch's logs are white, as its bark is.",
+      "Swinging the pickaxe, your second hand stays on the haft with the first, at its end, all through the stroke.",
+    ],
+  },
+  {
     v: "0.92.1", date: "10 October 2026", title: "The angler's rod",
     items: [
       "The fishing rod is a 1600s angler's rod: a long, slender rod of hazel in four lengths whipped together with thread, a leather grip, no reel, and a horsehair line tied to its top. It bends in an arc all along its length with a fish on it, not at one joint.",

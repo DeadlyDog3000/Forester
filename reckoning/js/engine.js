@@ -256,7 +256,7 @@ export class Player {
         a.add(h); return h;
       };
       // (a sword's grip is short: the second hand close under the guard)
-      const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5] }[this.blade] || [0.07, 0.3];
+      const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], pick: [0.03, 0.15] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
       this.hands = [hand(grips[0]), hand(grips[1])];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
