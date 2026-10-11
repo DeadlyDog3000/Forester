@@ -58,7 +58,7 @@ function rockCols(col, mx, x, z, s, ground, y0, y1) {
 }
 
 // the great features of the land, by the names they had then: deserts, mountains, plains, the great forests
-const LANDFORMS = [
+export const LANDFORMS = [
   ["the Sahara", 12, 23, 260], ["the Arabian Desert", 46, 23, 90], ["the Gobi", 104, 43, 110], ["the Himalaya", 84, 29, 120], ["the Alps", 10, 46.5, 40],
   ["the Caucasus", 44, 42.5, 40], ["the Urals", 59, 58, 60], ["the Steppe", 62, 48, 160], ["Siberia", 100, 62, 300], ["the Taiga", 125, 58, 140],
   ["the Andes", -70, -22, 120], ["the Amazon", -60, -5, 230], ["the Pampas", -63, -36, 80], ["Patagonia", -69, -46, 70],

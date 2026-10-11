@@ -59,6 +59,9 @@ const DESERTS = [[-17, 33, 15, 32, 1], [33, 60, 13, 32, 1], [44, 62, 25, 38, 0.8
 const WETS = [[-80, -44, -16, 6, 1], [8, 32, -8, 6, 0.9], [92, 152, -11, 18, 0.95], [72, 92, 6, 26, 0.6], [-10, 20, 44, 60, 0.45], [-130, -118, 38, 60, 0.6], [-92, -72, 6, 20, 0.7], [140, 146, 34, 44, 0.5]];
 // the savanna belts: rain enough for grass and scattered trees, not for forest — [west, east, south, north]
 const SAVANNAS = [[33, 52, -12, 12], [-17, 40, 9, 17], [-55, -38, -22, -6], [118, 150, -20, -11], [70, 86, 11, 25], [12, 40, -20, -8]];
+// the great grasslands, where the trees give out and the grass runs on: the prairies, the pampas, the steppe of the Ukraine
+// and of Tartary, the veld — [west, east, south, north]
+const PRAIRIES = [[-105, -95, 32, 52], [-65, -57, -38, -30], [30, 52, 45, 52], [52, 90, 44, 54], [24, 32, -30, -24]];
 // how warm, by the latitude: [degrees, warmth]
 const WARMTH = [[0, 1.0], [20, 0.86], [35, 0.68], [50, 0.53], [58, 0.41], [66, 0.27], [74, 0.12], [90, 0]];
 // where the summers are dry and the winters wet: round the Middle Sea, California, Chile, the Cape, the south-west of New Holland
@@ -180,6 +183,7 @@ export function makeTerrain(seed, half, kind = "island") {
     let m = al < 12 ? 0.8 : al < 34 ? 0.8 - (al - 12) / 22 * 0.45 : al < 60 ? 0.42 + Math.sin((al - 34) / 26 * Math.PI) * 0.2 : 0.4;
     for (const [w, e, sLat, nLat, k] of WETS) m = Math.max(m, soft(lon, w, e, 4) * soft(lat, sLat, nLat, 3) * k + m * (1 - k * soft(lon, w, e, 4) * soft(lat, sLat, nLat, 3)));
     for (const [w, e, sLat, nLat] of SAVANNAS) { const k = soft(lon, w, e, 3) * soft(lat, sLat, nLat, 2.5); m = m * (1 - k) + Math.min(m, 0.42) * k; }
+    for (const [w, e, sLat, nLat] of PRAIRIES) { const k = soft(lon, w, e, 3) * soft(lat, sLat, nLat, 2.5); m = m * (1 - k) + Math.min(m, 0.3) * k; }
     let dry = 0; for (const [w, e, sLat, nLat, k] of DESERTS) dry = Math.max(dry, soft(lon, w, e, 4) * soft(lat, sLat, nLat, 3) * k);
     m = m * (1 - dry * 0.95) + nM * 0.08;
     return { t, m: Math.min(1, Math.max(0, m)), med: MEDS.some(([w, e, sLat, nLat]) => lon > w && lon < e && lat > sLat && lat < nLat) };

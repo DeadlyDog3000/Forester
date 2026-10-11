@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.99.5", date: "11 October 2026", title: "Where you are",
+    items: [
+      "Frontier: cross into new country and its name comes up — the taiga, the broadleaf woods, the high meadows, desert — and on the Earth, the great feature of the land you're in: \"The taiga — Siberia\", \"Desert — the Sahara\", \"Rain forest — the Amazon\". You're told where you've begun, too, when you arrive on the Earth.",
+      "The Earth's great grasslands are open grass now, as they should be: the prairies of the Great Plains, the pampas, the steppe of the Ukraine and of Tartary.",
+      "The welcome on the Earth says you're on the Earth (it said lake country).",
+    ],
+  },
+  {
     v: "0.99.4", date: "11 October 2026", title: "A quicker look",
     items: [
       "The big map (J) opens and redraws in a moment on a large land: it used to stall the game for a third of a second every time it was drawn on the Earth, looking for buildings square by square across the whole world.",

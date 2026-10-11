@@ -19,7 +19,7 @@ import { fishingGear } from "../fishing.js";
 import { Hunt } from "../hunt.js";
 import { WATER, BIOMES } from "./terrain.js";
 import { waveAt } from "../water.js";
-import { Wilds } from "./wilds.js";
+import { Wilds, LANDFORMS } from "./wilds.js";
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR, SHIP, BOATS } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
@@ -256,7 +256,7 @@ export class MPGame {
     AUDIO.music && AUDIO.music("settlement");
     const kind = TERRAINS[r.kind] ? TERRAINS[r.kind].name.toLowerCase() : "island";
     UI.hint(r.persistent ? "The wide world. Build a hearth (B) to make a homestead of your own — while you're away, nothing of yours can be broken."
-      : `${r.mode === "coop" ? "Co-op: one colony, one store for everyone" : "Classic: your own nation"} — on ${kind === "island" ? "an island" : kind === "archipelago" ? "an archipelago" : kind === "continent" ? "a continent" : kind === "highlands" ? "the highlands" : "lake country"}. Fell trees for logs (click), B to build${r.mode === "coop" ? " (start with the hearth)" : " — your hearth first, it claims the ground"}, Enter to talk${r.mode === "pvp" ? ", Tab to make allies" : ""}.`, 9);
+      : `${r.mode === "coop" ? "Co-op: one colony, one store for everyone" : "Classic: your own nation"} — on ${kind === "island" ? "an island" : kind === "archipelago" ? "an archipelago" : kind === "continent" ? "a continent" : kind === "highlands" ? "the highlands" : kind === "earth" ? "the Earth" : "lake country"}. Fell trees for logs (click), B to build${r.mode === "coop" ? " (start with the hearth)" : " — your hearth first, it claims the ground"}, Enter to talk${r.mode === "pvp" ? ", Tab to make allies" : ""}.`, 9);
   }
   // ---- who's who ----
   // (a co-op settlement is the host's to run: what's built, who works where; the others help)
@@ -682,6 +682,14 @@ export class MPGame {
     // your health is the server's: no mending here but what it says, no hunger in these woods
     G.health = this.hp / MAX_HP; if (G.body) G.body.hunger = 1;
     if (this.build) this.tickBuild();
+    // into new country: its name, as you cross into it (once it's sure — the same for two looks running), and on the
+    // Earth the great feature of the land you're in, if you're in one
+    if ((this.landT = (this.landT || 0) - dt) <= 0 && !(this.w.cave && this.w.cave.inside)) {
+      this.landT = 2;
+      const L = this.w.land, b = L.biomeAt(pl.pos.x, pl.pos.z);
+      if (b !== this.landB) { if (this.landNext === b) { const first = !this.landB; this.landB = b; if (!first || L.kind === "earth") this.toast(this.placeName(b)); } else this.landNext = b; }
+      else this.landNext = b;
+    }
     // a horse won't swim out of its depth: at deep water it stops, and won't be driven in
     if (pl.horse) {
       if (this.w.waterDepth(pl.pos.x, pl.pos.z) > 0.9) { if (this.lastDry) { pl.pos.x = this.lastDry.x; pl.pos.z = this.lastDry.z; } if (!this.toldDeep) { this.toldDeep = true; UI.hint("The horse won't go any deeper. Get down (X) to swim, or go round.", 3.5); } }
@@ -759,6 +767,13 @@ export class MPGame {
   }
   placeStock() { const ob = $("objective"), on = ob && !ob.classList.contains("hidden"); $("mpStock").style.top = (on ? ob.offsetTop + ob.offsetHeight + 8 : 24) + "px"; }
   hudCount() { const n = this.remotes.size + 1; $("mpCount").textContent = `${n} ${n === 1 ? "person" : "people"} here`; }
+  placeName(b) {
+    const L = this.w.land, B = BIOMES[b], name = B ? B.name : b;
+    let where = "";
+    if (L.kind === "earth") { const lon = L.lonOf(G.player.pos.x), lat = L.latOf(G.player.pos.z); let bd = Infinity; for (const [n, ox, oy, rr] of LANDFORMS) { const dx = Math.abs(lon - ox), d = Math.hypot(Math.min(dx, 360 - dx), lat - oy); if (d < rr / 10 && d < bd) { bd = d; where = n; } } }
+    const up = name[0].toUpperCase() + name.slice(1);
+    return where ? `${up} — ${where}` : up;
+  }
   toast(text) { const e = $("mpToast"); e.textContent = text; e.classList.remove("hidden", "bad"); this.toastT = 2.6; }
   warn(text) { const e = $("mpToast"); e.textContent = text; e.classList.remove("hidden"); e.classList.add("bad"); this.toastT = 4; sfx("deny"); }
   banner(title, sub) { const e = $("mpDead"); if (!title) { e.classList.add("hidden"); return; } e.innerHTML = `<div class="t">${title}</div><div class="s">${sub || ""}</div>`; e.classList.remove("hidden"); }
