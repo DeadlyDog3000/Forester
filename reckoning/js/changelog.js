@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.99.7", date: "11 October 2026", title: "Mouths in the hills",
+    items: [
+      "A cave's hill is the colour of the country round it — sand in the desert, dry grass on the savanna, snow up high — not always green moss.",
+      "Caves open onto dry ground you can walk up to, never straight onto the sea.",
+    ],
+  },
+  {
     v: "0.99.6", date: "11 October 2026", title: "Degrees and leagues",
     items: [
       "On the big map (J), the pointer tells you where it is: on the Earth its latitude and longitude and the kind of country there (\"54°N 8°E · the sea\"), on any other land the country.",

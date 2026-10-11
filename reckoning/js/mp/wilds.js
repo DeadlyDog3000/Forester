@@ -464,7 +464,10 @@ export class Wilds extends WorldBase {
     if (!(this.cave && this.cave.inside)) {
       for (const c of this.land.cavesNear(p.x, p.z, 170)) if (!map.has(c.id)) {
         const cv = new Caves(this, c.seed, { at: { x: c.x - Math.sin(c.ry) * 14, z: c.z - Math.cos(c.ry) * 14 }, base: -150, quiet: true, seam: (cave, n, x, z) => this.makeSeam(c.id + ":" + n, x, z, cave) });
-        cv.mouth(c.x, c.z, c.ry); map.set(c.id, cv); cv.site = c;
+        const mg = cv.mouth(c.x, c.z, c.ry); map.set(c.id, cv); cv.site = c;
+        // (the hill over it the colour of the country round about — sand in the desert, snow up high — not always moss)
+        { const mound = mg.children[0], col = new THREE.Color(); this.colourAt(c.x - Math.sin(c.ry) * 8, c.z - Math.cos(c.ry) * 8, this.land.heightAt(c.x - Math.sin(c.ry) * 8, c.z - Math.cos(c.ry) * 8), 0.1, col);
+          if (mound && mound.material) { mound.material = mound.material.clone(); mound.material.color.copy(col); } }
       }
       let best = null, bd = Infinity;
       for (const cv of map.values()) { const d = Math.hypot(cv.site.x - p.x, cv.site.z - p.z); if (d < bd) { bd = d; best = cv; } }

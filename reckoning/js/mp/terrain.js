@@ -228,6 +228,8 @@ export function makeTerrain(seed, half, kind = "island") {
       // (facing down the hill: the ground falls away in front, and rises behind)
       const e = 3, gx = heightAt(x + e, z) - heightAt(x - e, z), gz = heightAt(x, z + e) - heightAt(x, z - e), ry = Math.atan2(-gx, -gz);
       if (heightAt(x - Math.sin(ry) * 8, z - Math.cos(ry) * 8) < y + 0.7) continue;
+      // (and dry ground in front of it, to walk up to it on — not a mouth opening straight onto the sea)
+      if (heightAt(x + Math.sin(ry) * 6, z + Math.cos(ry) * 6) < 0.8 || heightAt(x + Math.sin(ry) * 12, z + Math.cos(ry) * 12) < 0.4) continue;
       out = { id: "c" + key, ci, cj, x, y, z, ry, seed: (seed * 7919 + ci * 104729 + cj * 1299709) | 0 };
     }
     CC.set(key, out); return out;
