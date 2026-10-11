@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.7.0", date: "11 October 2026", title: "The crown",
+    items: [
+      "Raise a town hall in Frontier and you're crowned: King or Queen of the ground round it, with the news of it carried to everyone in the land. In a co-op colony, whoever raises the hall wears the crown, and everyone in the colony is one of its people.",
+      "G opens your government — the same window as the settlement's in the story. The Nation: its name and title (King, Queen, Duke, Duchess, Elector, Margrave and the rest — proclaim a new one when you like), its people, settlers, town hall, the ground it claims, its buildings and its store. People: your governors and citizens — make a citizen a governor, or a governor a citizen, or send someone away. Invite: ask anyone here to join, as a citizen or as a governor; they answer Y or N. Realms: every nation in the land.",
+      "A citizen builds on the nation's ground and keeps its store — the logs they stack are the nation's, and they can build from it. A governor can do that, ask people in as citizens, rebuild the hall and set the settlers to work. The crown does all of it, and names the governors. Fellow subjects can't hurt one another, and share their gates.",
+      "Greenland lies under its ice sheet, as it does, with only a strip of bare coast round it; and the far south is ice.",
+    ],
+  },
+  {
     v: "1.6.0", date: "11 October 2026", title: "Heavy seas",
     items: [
       "The sea isn't the same everywhere now. A lake or a sheltered bay lies calm; out from the land the swell gets up, the further the rougher. On the Earth it's the real seas: the North Atlantic and the waters round the north are rough and white-capped, the warm seas of the tropics gentle, and the Southern Ocean, far to the south, the wildest of all.",

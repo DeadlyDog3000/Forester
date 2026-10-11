@@ -206,6 +206,14 @@ export function makeTerrain(seed, half, kind = "island") {
   const biomeAt0 = (x, z) => {
     const h = heightAt(x, z), { t, m, med } = warmWet(x, z);
     if (t < 0.13) return "ice";
+    // the ice sheets: Greenland under ice but for a strip of bare coast, and the whole of the south polar land
+    if (kind === "earth") {
+      const lat = latOf(z), lon = lonOf(x);
+      if (lat < -62) return "ice";
+      // (Greenland's own west coast, not a line of longitude: Baffin Island and Ellesmere, across the strait, stay tundra)
+      const west = lat < 70 ? -56 : lat < 76 ? -60 - (lat - 70) * 2 : -73;
+      if (lon > west && lon < -11 && lat > 59.5 && lat < 84 && !(lon > -25.5 && lat < 67.5)) { const e = 18 + fbm(nB, x / 60, z / 60, 2) * 10; return [[e, 0], [-e, 0], [0, e], [0, -e]].some(([a, b]) => height0(x + a, z + b) - SEA_RISE < 0) ? "tundra" : "ice"; }
+    }
     if (h > (big || kind === "earth" ? 52 : 40) && t < 0.55) return "alpine";
     if (t < 0.24) return "tundra";
     if (t < 0.42) return m < 0.25 ? "grassland" : "taiga";

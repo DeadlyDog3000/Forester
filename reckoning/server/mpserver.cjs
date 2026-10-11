@@ -120,6 +120,9 @@ class Room {
     this.hits = new Map();             // a tree or a rock part-way through: id → blows so far
     this.buildings = {};
     this.groups = {};                  // group id → {name, members: [pid]}
+    // THE NATIONS (Frontier): whoever raises a town hall is crowned its monarch; others join by invitation, as a
+    // citizen or a governor. monarch pid → {name, title, founded, members: {pid: "monarch" | "governor" | "citizen"}}
+    this.nations = {}; this.natAsk = new Map();
     this.invites = new Map();          // invited pid → {from, at}
     this.chat = [];
     this.nextB = 1;
@@ -138,7 +141,30 @@ class Room {
     this.nats = {}; this.pacts = new Set(); this.nwars = []; this.offers = new Map(); this.forays = new Map(); this.peaceAsk = new Map(); this.pactAsk = new Map(); this.lastNWar = {}; this.nextO = 1;
     this.dirty = false;
   }
-  storeOf(pid) { return this.mode === "coop" ? this.shared : this.recs[pid]; }
+  storeOf(pid) { return this.mode === "coop" ? this.shared : this.recs[this.natOf(pid) || pid] || this.recs[pid]; }
+  // ---- the nations ----
+  natOf(pid) { if (this.nations[pid]) return pid; const r = this.recs[pid], n = r && r.nation; return n && this.nations[n] && this.nations[n].members[pid] ? n : null; }
+  roleOf(pid) { const n = this.natOf(pid); return n ? this.nations[n].members[pid] : null; }
+  sameNation(a, b) { const n = this.natOf(a); return !!n && n === this.natOf(b); }
+  natSend() { this.all({ t: "nations", nations: this.nations }); this.dirty = true; }
+  // a town hall raised: its builder crowned (and in a co-op colony, everyone in it their people)
+  crown(p) {
+    if (this.natOf(p.pid) || this.mode === "nations") return;
+    const f = !!(LK && LK.isF && LK.isF(p.look)), title = f ? "Queen" : "King";
+    const n = this.nations[p.pid] = { name: `${p.name}'s Realm`, title, founded: Math.floor((now() - this.day0) / R.DAY_MS) + 1, members: { [p.pid]: "monarch" } };
+    this.recs[p.pid].nation = p.pid;
+    if (this.mode === "coop") for (const pid of Object.keys(this.recs)) if (pid !== p.pid && !this.natOf(pid)) { n.members[pid] = "citizen"; this.recs[pid].nation = p.pid; }
+    this.headline("crown", `${p.name} is crowned ${title} of ${n.name}.`);
+    p.sock.send({ t: "crowned", title, name: n.name });
+    this.natSend();
+  }
+  natLeave(pid) {
+    const n = this.natOf(pid); if (!n || n === pid) return;
+    delete this.nations[n].members[pid]; if (this.recs[pid]) this.recs[pid].nation = null;
+    // (what they carry stays theirs; their own store starts again from nothing — the nation's stays the nation's)
+    const r = this.recs[pid]; if (r) { r.wood = r.wood || 0; r.stone = r.stone || 0; }
+    const q = this.online.get(pid); if (q) this.stock(q);
+  }
   addPile(x, z, a, n, kind) {
     // (onto a pile already lying close by, rather than a heap of little ones)
     const near = Object.values(this.piles).find(q => Math.hypot(q.x - x, q.z - z) < 1.2);
@@ -148,15 +174,17 @@ class Room {
     return pl;
   }
   // who runs the settlement: in co-op, the host alone; otherwise each their own
-  manages(p) { return this.mode !== "coop" || !this.hostPid || p.pid === this.hostPid; }
+  // (who may run the settlement's affairs — rebuild the hall, set the settlers to work: in a nation its monarch and
+  //  governors; in a co-op colony with no crown yet, its host)
+  manages(p) { const r = this.roleOf(p.pid); if (r) return r === "monarch" || r === "governor"; return this.mode !== "coop" || !this.hostPid || p.pid === this.hostPid; }
   meta() {
     return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, hostUser: this.hostUser || null, hostPid: this.hostPid, locked: !!this.password, persistent: this.persistent, private: this.private };
   }
   // ---- saving the wide world ----
-  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0, banned: Object.fromEntries(this.banned), piles: this.piles, nextP: this.nextP, sites: this.sites, boats: Object.fromEntries(Object.entries(this.boats).map(([k, b]) => [k, { ...b, driver: null, riders: [] }])), nextO: this.nextO }; }
+  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nations: this.nations, nextB: this.nextB, day0: this.day0, banned: Object.fromEntries(this.banned), piles: this.piles, nextP: this.nextP, sites: this.sites, boats: Object.fromEntries(Object.entries(this.boats).map(([k, b]) => [k, { ...b, driver: null, riders: [] }])), nextO: this.nextO }; }
   static from(j) {
     const r = new Room(j);
-    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0, piles: j.piles || {}, nextP: j.nextP || 1, sites: j.sites || {}, boats: j.boats || {}, nextO: j.nextO || 1, banned: new Map(Object.entries(j.banned || {})) });
+    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nations: j.nations || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0, piles: j.piles || {}, nextP: j.nextP || 1, sites: j.sites || {}, boats: j.boats || {}, nextO: j.nextO || 1, banned: new Map(Object.entries(j.banned || {})) });
     return r;
   }
   each(f) { for (const p of this.online.values()) f(p); }
@@ -166,6 +194,7 @@ class Room {
   allied(a, b) {
     if (a === b) return true;
     if (this.mode === "coop") return true;
+    if (this.sameNation(a, b)) return true;
     const ga = this.recs[a] && this.recs[a].group, gb = this.recs[b] && this.recs[b].group;
     return !!ga && ga === gb;
   }
@@ -199,12 +228,14 @@ class Room {
     const t = now();
     sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, food: this.storeOf(p.pid).food | 0, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null, pack: { ...this.packOf(p.pid) } },
       players: [...this.online.values()].filter(q => q !== p).map(q => this.pub(q)), felled: live(this.felled, t), broken: live(this.broken, t),
-      buildings: Object.values(this.buildings), drops: Object.values(this.drops), piles: Object.values(this.piles), sites: Object.values(this.sites), boats: Object.values(this.boats), carry: (this.recs[p.pid] || {}).carry || 0, settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
+      buildings: Object.values(this.buildings), drops: Object.values(this.drops), piles: Object.values(this.piles), sites: Object.values(this.sites), boats: Object.values(this.boats), carry: (this.recs[p.pid] || {}).carry || 0, nations: this.nations, settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
       online: this.onlineNames(), ...(this.mode === "nations" ? this.natState() : {}) });
     this.all({ t: "pj", p: this.pub(p) }, p);
     this.sendPack(p);
     if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
     this.note(`${p.name} has come.`, p);
+    // (in a co-op colony with a crown, a newcomer is one of its people)
+    if (this.mode === "coop" && !this.natOf(p.pid)) { const n = Object.keys(this.nations)[0]; if (n) { this.nations[n].members[p.pid] = "citizen"; this.recs[p.pid].nation = n; this.natSend(); } }
     this.dirty = true;
   }
   // may this person see (and join) the game? A public one, anyone; a private one, its host and whoever's invited
@@ -271,7 +302,9 @@ class Room {
   stock(p) {
     // (a co-op colony's store is everyone's: all are told)
     if (this.mode === "coop") { this.all({ t: "stock", wood: this.shared.wood, stone: this.shared.stone, food: this.shared.food | 0 }); return; }
-    const r = this.recs[p.pid]; p.sock.send({ t: "stock", wood: r.wood, stone: r.stone, food: r.food | 0 });
+    // (a nation's store is its people's: all of them that are here are told)
+    const n = this.natOf(p.pid), r = this.storeOf(p.pid), msg = { t: "stock", wood: r.wood, stone: r.stone, food: r.food | 0 };
+    if (n) { for (const pid of Object.keys(this.nations[n].members)) { const q = this.online.get(pid); if (q) q.sock.send(msg); } } else p.sock.send(msg);
   }
   near(p, x, z, d) { return Math.hypot(p.x - x, p.z - z) <= d; }
   // ---- what players do ----
@@ -463,6 +496,7 @@ class Room {
         }
         if (this.land.heightAt(x, z) < 0.6) return no("Not in the water.");
         if (d.shore) { const fx = x + Math.sin(ry) * (d.d / 2 + 6), fz = z + Math.cos(ry) * (d.d / 2 + 6); if (this.land.heightAt(fx, fz) > -1.2) return no("A shipyard stands at the water's edge, its front (the slipway) out over deep water. Turn it (R) to face the water."); }
+        if (m.type === "hearth" && this.natOf(p.pid) && this.natOf(p.pid) !== p.pid) return no(`You're one of the people of ${this.nations[this.natOf(p.pid)].name} — its town hall is yours. Leave the nation (G) to found your own.`);
         if (m.type === "hearth" && Object.values(this.buildings).some(b => b.type === "hearth" && (b.owner === p.pid || this.mode === "coop"))) return no(this.mode === "coop" ? "The colony has its town hall already." : "You have a town hall already. Break it to move your homestead.");
         const claim = this.claimAt(x, z);
         if (claim && !this.allied(claim.owner, p.pid)) return no(`That's ${this.recs[claim.owner] ? this.recs[claim.owner].name + "'s" : "someone's"} ground.`);
@@ -478,6 +512,7 @@ class Room {
           { const pk = this.packOf(p.pid), fs = Math.min(st.stone, d.stone); st.stone -= fs; pk.stone -= d.stone - fs; if (d.stone > fs) this.sendPack(p); }
           const b = { id: "b" + (this.nextB++), type: m.type, x, z, ry, owner: p.pid, hp: d.hp, at: t };
           this.buildings[b.id] = b; this.all({ t: "b", b }); this.stock(p); this.dirty = true;
+          this.crown(p);
           return;
         }
         // anything else: a site, as in the settlement — its logs to be brought, then raised
@@ -556,6 +591,55 @@ class Room {
         return;
       }
       // going hungry: it wears you down, slowly, till you eat
+      // ---- the nation: invitations, answers, roles, leaving, its name ----
+      case "natinvite": {
+        const n = this.natOf(p.pid), role = this.roleOf(p.pid), want = m.role === "governor" ? "governor" : "citizen", q = this.online.get(String(m.pid || ""));
+        const no = text => p.sock.send({ t: "err", text });
+        if (!n) return no("You have no nation to invite anyone into. Raise a town hall, and you'll be crowned.");
+        if (role !== "monarch" && !(role === "governor" && want === "citizen")) return no(role === "governor" ? "A governor can invite citizens; only the crown makes governors." : "Only the crown and its governors can invite people in.");
+        if (!q || q.pid === p.pid) return;
+        if (this.natOf(q.pid) === n) return no(`${q.name} is one of your people already.`);
+        if (this.nations[q.pid]) return no(`${q.name} wears a crown of their own.`);
+        this.natAsk.set(q.pid + ">" + n, { role: want, at: now(), by: p.pid });
+        q.sock.send({ t: "natask", nation: n, name: this.nations[n].name, title: this.nations[n].title, monarch: (this.recs[n] || {}).name || "", from: p.name, role: want });
+        return p.sock.send({ t: "note", text: `You've asked ${q.name} to join ${this.nations[n].name} as ${want === "governor" ? "a governor" : "a citizen"}.` });
+      }
+      case "natyes": case "natno": {
+        const n = String(m.nation || ""), k = p.pid + ">" + n, ask = this.natAsk.get(k); if (!ask || !this.nations[n]) return;
+        this.natAsk.delete(k);
+        const by = this.online.get(ask.by);
+        if (m.t === "natno") { if (by) by.sock.send({ t: "note", text: `${p.name} would rather not join.` }); return; }
+        if (this.nations[p.pid]) return p.sock.send({ t: "err", text: "You wear a crown of your own." });
+        const old = this.natOf(p.pid); if (old) this.natLeave(p.pid);
+        this.nations[n].members[p.pid] = ask.role; this.recs[p.pid].nation = n;
+        this.headline("nation", `${p.name} has joined ${this.nations[n].name} as ${ask.role === "governor" ? "a governor" : "a citizen"}.`);
+        this.natSend(); this.stock(p);
+        return;
+      }
+      case "natrole": {
+        const n = this.natOf(p.pid); if (!n || n !== p.pid) return p.sock.send({ t: "err", text: "Only the crown names its governors." });
+        const pid = String(m.pid || ""), role = m.role === "governor" ? "governor" : "citizen";
+        if (!this.nations[n].members[pid] || pid === n) return;
+        this.nations[n].members[pid] = role; this.natSend();
+        const q = this.online.get(pid); if (q) q.sock.send({ t: "note", text: role === "governor" ? `The ${this.nations[n].title.toLowerCase()} has made you a governor of ${this.nations[n].name}.` : `You're a citizen of ${this.nations[n].name} now, no longer a governor.` });
+        return;
+      }
+      case "natdismiss": {
+        const n = this.natOf(p.pid), pid = String(m.pid || ""), r = this.roleOf(p.pid); if (!n || pid === n || !this.nations[n].members[pid]) return;
+        if (!(r === "monarch" || (r === "governor" && this.nations[n].members[pid] === "citizen"))) return p.sock.send({ t: "err", text: "You can't send them away." });
+        this.natLeave(pid); this.natSend();
+        const q = this.online.get(pid); if (q) q.sock.send({ t: "note", text: `You've been sent away from ${this.nations[n].name}.` });
+        return;
+      }
+      case "natleave": { const n = this.natOf(p.pid); if (!n || n === p.pid) return; const nm = this.nations[n].name; this.natLeave(p.pid); this.natSend(); this.note(`${p.name} has left ${nm}.`); return; }
+      case "natname": {
+        const n = this.natOf(p.pid); if (!n || n !== p.pid) return;
+        const N = this.nations[n], name = clean(m.name, 36), TITLES = ["King", "Queen", "Prince", "Princess", "Duke", "Duchess", "Lord", "Lady", "Elector", "Margrave"];
+        const was = N.name;
+        if (name) N.name = name; if (TITLES.includes(m.title)) N.title = m.title;
+        if (name && name !== was) this.headline("nation", `${was} is now called ${N.name}.`);
+        this.natSend(); return;
+      }
       // the cold, or the heat, has you: as hunger does, a little at a time
       case "exposure": {
         if (p.dead || t - (p.lastExposure || 0) < 5500) return; p.lastExposure = t;
@@ -886,11 +970,11 @@ class Room {
   isNight() { const f = this.dayFrac(); return f > 0.86 || f < 0.21; }
   ownerKey(pid) { return this.mode === "coop" ? "colony" : pid; }
   active(owner) { return owner === "colony" ? this.online.size > 0 : this.online.has(owner); }
-  mineB(owner, b) { return owner === "colony" || b.owner === owner; }
+  mineB(owner, b) { return owner === "colony" || b.owner === owner || this.sameNation(owner, b.owner); }
   homeOf(owner) { return Object.values(this.buildings).find(b => b.type === "hearth" && this.mineB(owner, b)) || null; }
   bedsOf(owner) { let n = 0; for (const b of Object.values(this.buildings)) if (this.mineB(owner, b)) n += R.BUILD[b.type].beds || 0; return Math.min(n, R.SETTLER.max); }
   storeFor(owner) { return owner === "colony" ? this.shared : this.recs[owner]; }
-  stockTo(owner) { if (owner === "colony") { this.all({ t: "stock", wood: this.shared.wood, stone: this.shared.stone, food: this.shared.food | 0 }); return; } const o = this.online.get(owner); if (o) this.stock(o); }
+  stockTo(owner) { { const n = owner !== "colony" && this.natOf(owner); if (n) { for (const pid of Object.keys(this.nations[n].members)) { const q = this.online.get(pid); if (q) return this.stock(q); } return; } } if (owner === "colony") { this.all({ t: "stock", wood: this.shared.wood, stone: this.shared.stone, food: this.shared.food | 0 }); return; } const o = this.online.get(owner); if (o) this.stock(o); }
   tell(owner, text) { if (owner === "colony") this.note(text); else { const o = this.online.get(owner); if (o) o.sock.send({ t: "note", text }); } }
   pubS(v) { return { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: +v.x.toFixed(2), z: +v.z.toFixed(2), yaw: v.yaw || 0, a: v.a || "idle", hp: v.hp, pin: v.pin ? v.pin.field : null }; }
   // who comes, who goes, and who does what: every few seconds

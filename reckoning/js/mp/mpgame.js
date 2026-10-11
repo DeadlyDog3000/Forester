@@ -11,6 +11,7 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
+import { Realm } from "./realm.js";
 import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel, makeLogs, makeRowboat, makeShipyard, makeShip, makeHorse } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
@@ -181,7 +182,7 @@ export class MPGame {
     const r = inMsg.room;
     this.room = r; this.mode = r.mode; this.pid = inMsg.you.pid;
     this.remotes = new Map(); this.settlers = new Map();
-    this.groups = inMsg.groups || {};
+    this.groups = inMsg.groups || {}; this.nations = inMsg.nations || {};
     this.online = new Set(inMsg.online || []);
     this.owners = {};                     // pid → name, as heard
     this.stock = { wood: inMsg.you.wood, stone: inMsg.you.stone, food: inMsg.you.food | 0 };
@@ -266,10 +267,10 @@ export class MPGame {
   }
   // ---- who's who ----
   // (a co-op settlement is the host's to run: what's built, who works where; the others help)
-  manages() { return this.mode !== "coop" || !this.room.hostPid || this.room.hostPid === this.pid; }
+  manages() { const r = this.roleOf(this.pid); if (r) return r === "monarch" || r === "governor"; return this.mode !== "coop" || !this.room.hostPid || this.room.hostPid === this.pid; }
   hostName() { return this.room.host || "the host"; }
   groupOf(pid) { for (const [id, g] of Object.entries(this.groups)) if (g.members.includes(pid)) return id; return null; }
-  friendly(pid) { if (pid === this.pid || this.mode === "coop") return true; const a = this.groupOf(pid); return !!a && a === this.groupOf(this.pid); }
+  friendly(pid) { if (pid === this.pid || this.mode === "coop" || this.sameNation(pid, this.pid)) return true; const a = this.groupOf(pid); return !!a && a === this.groupOf(this.pid); }
   nameOf(pid) { if (pid === this.pid) return this.me.name; const sv = this.settlers && this.settlers.get(pid); if (sv) return `${sv.name} (${JOB_NAME[sv.job]})`; const r = this.remotes.get(pid); return r ? r.name : this.owners[pid] || "someone"; }
   addRemote(p) {
     if (p.pid === this.pid || this.remotes.has(p.pid)) return;
@@ -470,6 +471,9 @@ export class MPGame {
     n.bup = m => { if (!this.w.blds.has(m.b.id)) return; this.removeBNow(m.b.id); this.addB(m.b); if (m.by === this.pid) { this.toast(`The town hall stands rebuilt — level ${m.b.level}.`); sfx("build"); } };
     n.bown = m => { const e = this.w.blds.get(m.id); if (!e) return; if (m.owner === this.pid && e.b.type === "hearth") G.achEvent && G.achEvent("mp-capture"); const b = { ...e.b, owner: m.owner }; this.removeBNow(m.id); this.addB(b); };
     n.sown = m => { const v = this.settlers.get(m.id); if (v) { v.owner = m.owner; v.setTag(); } };
+    n.nations = m => this.onNations(m);
+    n.crowned = m => this.onCrowned(m);
+    n.natask = m => this.onNatAsk(m);
     n.groups = m => { this.groups = m.groups || {}; if (this.groupOf(this.pid)) G.achEvent && G.achEvent("mp-ally"); this.refreshFriends(); if (this.listOpen) this.drawList(); };
     n.invite = m => this.invited(m);
     n.chat = m => this.chatLine(m);
@@ -489,7 +493,7 @@ export class MPGame {
   packHas() { const k = this.pack || {}; return (k.stone | 0) + (k.food | 0) + (k.meat | 0) + (k.roast | 0) > 0; }
   hasHearth(pid) { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && e.b.owner === pid) return true; return false; }
   // the board: the first thing not yet done
-  has(type) { for (const e of this.w.blds.values()) if (e.b.type === type && (e.mine || this.mode === "coop")) return true; return false; }
+  has(type) { for (const e of this.w.blds.values()) if (e.b.type === type && (e.mine || this.mode === "coop" || this.sameNation(e.b.owner, this.pid))) return true; return false; }
   mine() { let n = 0; for (const v of this.settlers.values()) if (v.owned && v.owned()) n++; return n; }
   goals() {
     let i = MP_GOALS.findIndex(q => { try { return !q.done(this); } catch (e) { return false; } });
@@ -500,7 +504,7 @@ export class MPGame {
     this.goalAt = i < 0 ? MP_GOALS.length : i;
     UI.objective(i < 0 ? "Your homestead stands, full. Hold it — and grow." : `${this.room.name} · ${MP_GOALS[i].text(this)}`);
   }
-  myHearth() { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && (e.mine || this.mode === "coop")) return e; return null; }
+  myHearth() { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && (e.mine || this.mode === "coop" || this.sameNation(e.b.owner, this.pid))) return e; return null; }
   // ---- your blow: at whoever or whatever is in front of you ----
   swing() {
     if (this.dead || this.build) return;
@@ -878,9 +882,12 @@ export class MPGame {
     // (Enter to talk — T is the inventory, as everywhere else)
     if (e.code === "Enter") { e.preventDefault(); this.openChat(); return true; }
     if (e.code === "Tab") { e.preventDefault(); this.toggleList(); return true; }
-    if (e.code === "KeyN" && !this.invite) { this.toggleNews(); return true; }
+    if (e.code === "KeyN" && !this.invite && !this.natInvite) { this.toggleNews(); return true; }
     if (e.code === "KeyB") { if (this.build) this.endBuild(); else { const on = !this.menuOpen; this.openBuild(on); if (on) G.releaseMouse && G.releaseMouse(); else G.lockMouse && G.lockMouse(); } return true; }
     if (this.menuOpen && !e.fromWheel && /^Digit\d$/.test(e.code)) { const i = (+e.code.slice(5) + 9) % 10, k = BUILD_ORDER[i]; const d = BUILD[k]; if (k && (k !== "hearth" || this.stock.wood + (this.carry | 0) >= d.wood)) this.startBuild(k); return true; }
+    if (this.natInvite && (e.code === "KeyY" || e.code === "KeyN")) { this.answerNat(e.code === "KeyY"); return true; }
+    if (e.code === "KeyG") { this.toggleGov(); return true; }
+    if (this.govOpen && (e.code === "Escape" || e.code === "KeyF")) { this.toggleGov(false); return true; }
     if (this.invite && (e.code === "KeyY" || e.code === "KeyN")) { this.net.send({ t: e.code === "KeyY" ? "allyok" : "allyno", pid: this.invite.pid }); $("mpInvite").classList.add("hidden"); this.invite = null; return true; }
     if (e.code === "Escape" && (this.menuOpen || this.listOpen || this.newsOpen)) { this.openBuild(false); this.toggleList(false); this.toggleNews(false); return true; }
     return ["KeyP", "KeyG", "KeyH", "KeyV"].includes(e.code);
@@ -1184,7 +1191,7 @@ export class MPGame {
     if (this.hunt) { this.hunt.stop(); this.hunt = null; }
     if (G.mp !== this) return;
     UI.objective(null);
-    FOLEY.wash(0); this.endBuild(); this.openBuild(false); this.toggleList(false); this.toggleNews(false); this.closeChat(); $("mpWar").classList.add("hidden"); $("mpTicker").classList.add("hidden");
+    FOLEY.wash(0); if (this.govOpen) this.toggleGov(false); this.endBuild(); this.openBuild(false); this.toggleList(false); this.toggleNews(false); this.closeChat(); $("mpWar").classList.add("hidden"); $("mpTicker").classList.add("hidden");
     if (!quiet) { try { this.net.send({ t: "leave" }); } catch (e) {} }
     this.net.close();
     for (const r of this.remotes.values()) r.remove();
@@ -1196,3 +1203,5 @@ export class MPGame {
     G.mp = null;
   }
 }
+// (the realm: the crown, the government (G), its people — realm.js)
+Object.assign(MPGame.prototype, Realm);
