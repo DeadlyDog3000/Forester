@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "0.99.2", date: "11 October 2026", title: "Solid ground",
+    items: [
+      "Fixed: anything standing on low ground — a building in a hollow, a tree in a valley, a rock by a lake — could be walked straight through. Everything that's solid is now solid however low or high it stands.",
+      "Fixed: the settlement's buildings are solid exactly at their own walls, at whatever angle they were set down. You used to walk a metre into some walls and stop short of others; now you come right up against them, and round their corners. Your people keep a little off them as before.",
+    ],
+  },
+  {
     v: "0.99.1", date: "11 October 2026", title: "Out of its depth",
     items: [
       "A horse won't swim out of its depth: ridden into the sea or a lake, it stops where the water's up to its belly and won't be driven further. Get down (X) to swim, or ride round.",

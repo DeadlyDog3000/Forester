@@ -752,6 +752,19 @@ export class Town {
     const col = this.w.col, c = Math.cos(b.ry), s = Math.sin(b.ry);
     return parts.map(([lx, lz, r]) => { const o = col.addCircle(b.x + lx * c + lz * s, b.z - lx * s + lz * c, r, top); o.npcPad = 0.3; return o; });
   }
+  fitted(b, g, top) {
+    g.updateMatrixWorld(true);
+    const inv = g.matrixWorld.clone().invert(), v = new THREE.Vector3(), M = new THREE.Matrix4();
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    g.traverse(o => { const p = o.isMesh && !o.isInstancedMesh && o.visible && o.geometry && o.geometry.attributes.position; if (!p) return;
+      M.multiplyMatrices(inv, o.matrixWorld);
+      for (let k = 0; k < p.count; k++) { v.fromBufferAttribute(p, k).applyMatrix4(M); if (v.y < 0.3 || v.y > 1.9) continue; x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } });
+    if (!(x1 > x0 && z1 > z0)) return null;
+    const c = Math.cos(b.ry), s = Math.sin(b.ry), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    const o = this.w.col.addOBox(b.x + mx * c + mz * s, b.z - mx * s + mz * c, (x1 - x0) / 2 - 0.08, (z1 - z0) / 2 - 0.08, b.ry, top);
+    o.npcPad = 0.3;
+    return [o];
+  }
   footprint(b, w, d, top) {
     const col = this.w.col, c = Math.cos(b.ry), s = Math.sin(b.ry), out = [];
     const long = Math.max(w, d), short = Math.max(0.4, Math.min(w, d)), r = short / 2;
@@ -877,8 +890,10 @@ export class Town {
       }
       // solid: the building's own turned footprint, filled with a row of circles a little inside its walls —
       // a square box round a turned building stood out past its corners, and caught you walking round it
+      // (or, once the real model stands there, a box turned with it and fitted to its own walls at a person's height —
+      //  the circles were a guess, and you walked a metre into some walls and stopped short of others)
       g.userData.cols = SOLID[b.type] ? this.solidAt(b, SOLID[b.type], w.heightAt(b.x, b.z) + 8)
-        : this.footprint(b, def.w * (b.type === "woodshed" ? b.bays || 1 : 1) - 1.2, def.d - 1.2, w.heightAt(b.x, b.z) + 8);   // (well inside the walls: you slip round a corner)
+        : (m && this.fitted(b, g, w.heightAt(b.x, b.z) + 8)) || this.footprint(b, def.w * (b.type === "woodshed" ? b.bays || 1 : 1) - 1.2, def.d - 1.2, w.heightAt(b.x, b.z) + 8);
       this.upgradeSpot(b);
       if (this.streets !== undefined || b.tier > 2) this.updateStreets();
     } else {

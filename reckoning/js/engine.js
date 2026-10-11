@@ -1190,7 +1190,7 @@ function blockedAt(w, x, z, pad = NPC_R, y = w.heightAt(x, z)) {
   for (const o of w.col.near(x, z, pad + 1.3)) {
     if (o.disabled || y + 0.3 > o.y1 - 0.05 || y + 1.7 < o.y0) continue;
     if (o.type === "box") { if (x > o.x0 - pad && x < o.x1 + pad && z > o.z0 - pad && z < o.z1 + pad) return true; }
-    else if (o.type === "obox") { const wx = x - o.x, wz = z - o.z; if (Math.abs(wx * o.c - wz * o.s) < o.hw + pad && Math.abs(wx * o.s + wz * o.c) < o.hd + pad) return true; }
+    else if (o.type === "obox") { const wx = x - o.x, wz = z - o.z, q = pad + (o.npcPad || 0); if (Math.abs(wx * o.c - wz * o.s) < o.hw + q && Math.abs(wx * o.s + wz * o.c) < o.hd + q) return true; }
     else if ((x - o.x) ** 2 + (z - o.z) ** 2 < (o.r + pad + (o.npcPad || 0)) ** 2) return true;
   }
   return false;

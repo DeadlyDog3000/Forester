@@ -210,7 +210,7 @@ export class Wilds extends WorldBase {
         d.position.set(k.x, k.y - 0.25 * k.s, k.z); d.rotation.set(0, k.rot, 0); d.scale.setScalar(k.s); d.updateMatrix();
         rm.setMatrixAt(i, d.matrix); rm.setColorAt(i, rc.copy(PAL.rock).offsetHSL(0, 0, (hash(k.x, k.z) - 0.5) * 0.08));
         k.slot = [rm, i]; k.m = d.matrix.clone();
-        k.cols = rockCols(this.col, d.matrix, k.x, k.z, k.s, (x, z) => L.heightAt(x, z), -5, k.y + k.s * 0.6); cols2.push(...k.cols);
+        k.cols = rockCols(this.col, d.matrix, k.x, k.z, k.s, (x, z) => L.heightAt(x, z), Math.min(-5, k.y - 30), k.y + k.s * 0.6); cols2.push(...k.cols);
         if (this.broken.has(k.id)) this.hideRock(k, true);
       });
       rm.castShadow = true; rm.receiveShadow = true; rm.instanceMatrix.needsUpdate = true; rm.computeBoundingSphere();

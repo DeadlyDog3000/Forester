@@ -438,11 +438,13 @@ export class Collision {
     for (const k of o._cells || []) { const a = this.grid.get(k); const j = a ? a.indexOf(o) : -1; if (j >= 0) a.splice(j, 1); }
     o._cells = [];
   }
-  addBox(x0, z0, x1, z1, y1 = 10, y0 = -5, tag) {
+  // (how far down a thing is solid: to well under the ground it stands on — however low that ground is — but not so far
+  //  that it reaches a cave beneath it)
+  addBox(x0, z0, x1, z1, y1 = 10, y0 = Math.min(-5, y1 - 40), tag) {
     return this.insert({ type: "box", x0: Math.min(x0, x1), x1: Math.max(x0, x1), z0: Math.min(z0, z1), z1: Math.max(z0, z1), y0, y1, tag });
   }
   // a box given by centre and size
-  addRect(cx, cz, w, d, y1 = 10, y0 = -5, tag) { return this.addBox(cx - w / 2, cz - d / 2, cx + w / 2, cz + d / 2, y1, y0, tag); }
+  addRect(cx, cz, w, d, y1 = 10, y0 = Math.min(-5, y1 - 40), tag) { return this.addBox(cx - w / 2, cz - d / 2, cx + w / 2, cz + d / 2, y1, y0, tag); }
   // the extent of everything solid, for fitting a map to it
   bounds() {
     if (!this.all.length) return null;
@@ -455,11 +457,11 @@ export class Collision {
   }
   // a box turned to any angle (a building set down square to the way you faced): centre, half its width and depth,
   // and its turn about the upright
-  addOBox(x, z, hw, hd, ry = 0, y1 = 10, y0 = -5, tag) {
+  addOBox(x, z, hw, hd, ry = 0, y1 = 10, y0 = Math.min(-5, y1 - 40), tag) {
     const c = Math.cos(ry), s = Math.sin(ry), ex = Math.abs(c) * hw + Math.abs(s) * hd, ez = Math.abs(s) * hw + Math.abs(c) * hd;
     return this.insert({ type: "obox", x, z, c, s, hw, hd, y0, y1, tag, bb: { x0: x - ex, x1: x + ex, z0: z - ez, z1: z + ez } });
   }
-  addCircle(x, z, r, y1 = 10, tag) { return this.insert({ type: "circle", x, z, r, y0: -5, y1, tag }); }
+  addCircle(x, z, r, y1 = 10, tag) { return this.insert({ type: "circle", x, z, r, y0: Math.min(-5, y1 - 40), y1, tag }); }
   near(x, z, rad = 2) {
     const c = this.cell, out = new Set();
     for (let i = Math.floor((x - rad) / c); i <= Math.floor((x + rad) / c); i++)
@@ -493,13 +495,13 @@ export class Collision {
         }
       } else if (o.type === "obox") {
         // (into the box's own frame — x along its width, z along its depth — pushed out there, and back)
-        const wx = p.x - o.x, wz = p.z - o.z, lx = wx * o.c - wz * o.s, lz = wx * o.s + wz * o.c;
-        const cx = clamp(lx, -o.hw, o.hw), cz = clamp(lz, -o.hd, o.hd);
+        const wx = p.x - o.x, wz = p.z - o.z, lx = wx * o.c - wz * o.s, lz = wx * o.s + wz * o.c, pad = npc && o.npcPad || 0;
+        const cx = clamp(lx, -o.hw - pad, o.hw + pad), cz = clamp(lz, -o.hd - pad, o.hd + pad);
         let dx = lx - cx, dz = lz - cz, nx = lx, nz = lz;
         const d2 = dx * dx + dz * dz;
         if (d2 < r * r) {
           if (d2 > 1e-8) { const d = Math.sqrt(d2); nx = cx + dx / d * r; nz = cz + dz / d * r; }
-          else { const ox = o.hw - Math.abs(lx), oz = o.hd - Math.abs(lz); if (ox < oz) nx = Math.sign(lx || 1) * (o.hw + r); else nz = Math.sign(lz || 1) * (o.hd + r); }
+          else { const ox = o.hw + pad - Math.abs(lx), oz = o.hd + pad - Math.abs(lz); if (ox < oz) nx = Math.sign(lx || 1) * (o.hw + pad + r); else nz = Math.sign(lz || 1) * (o.hd + pad + r); }
           p.x = o.x + nx * o.c + nz * o.s; p.z = o.z - nx * o.s + nz * o.c;
         }
       } else {
