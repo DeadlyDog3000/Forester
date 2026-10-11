@@ -340,7 +340,8 @@ export class Wilds extends WorldBase {
           // a building you go into: its four walls solid (a little inside the model's), a doorway in the middle of the
           // front, where its door is; and a floor of boards inside, level, whatever the ground does under it
           const t = 0.3, dw = 0.8, X0 = x0 + 0.06, X1 = x1 - 0.06, Z0 = z0 + 0.06, Z1 = z1 - 0.06;
-          body = [box(X0, X1, Z0, Z0 + t), box(X0, X0 + t, Z0, Z1), box(X1 - t, X1, Z0, Z1), box(X0, mx - dw, Z1 - t, Z1), box(mx + dw, X1, Z1 - t, Z1)];
+          const dx = Math.max(X0 + dw + t, Math.min(X1 - dw - t, 0));   // (the door on the building's own middle line)
+          body = [box(X0, X1, Z0, Z0 + t), box(X0, X0 + t, Z0, Z1), box(X1 - t, X1, Z0, Z1), box(X0, dx - dw, Z1 - t, Z1), box(dx + dw, X1, Z1 - t, Z1)];
           cols.push(...body);
           const fl = new THREE.Mesh(new THREE.BoxGeometry(X1 - X0 - 2 * t, 0.08, Z1 - Z0 - 2 * t), FLOOR_MAT()); fl.position.set(mx, 0.05, mz); fl.receiveShadow = true; g.add(fl);
           const e = this.blds.get(b.id) || null; const inner = { x: b.x, z: b.z, c, s, x0: X0 + t, x1: X1 - t, z0: Z0 + t, z1: Z1, y: y + 0.09 };

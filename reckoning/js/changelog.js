@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.2.1", date: "11 October 2026", title: "In at the door",
+    items: [
+      "In the story too, walk into the settlement's buildings, in at the door: the bakery, the sawmill, the brickworks, the smelter, the forge, the town hall, the church, the jail, the hospital, a settler's shop.",
+      "Every doorway is where the building's door is, even on one whose oven or lean-to stands out to the side.",
+    ],
+  },
+  {
     v: "1.2.0", date: "11 October 2026", title: "The town hall",
     items: [
       "Frontier: the hearth is a town hall now — a small log hall to begin with, still only ten logs from the store — with its fire out in front and your banner beside it. Rebuild it grander as you go (hold F at its door): a timber hall, then timber and plaster, then brick, each from the store, and each claiming more ground round it.",

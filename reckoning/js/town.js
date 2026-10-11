@@ -90,6 +90,8 @@ export const MAT_NAME = { leather: "leather", hide: "hides", store: "logs", ston
 const PACK_ICON = { stone: "stone", planks: "planks", bricks: "bricks", ore: "ironore", copperore: "copperore", tinore: "tinore", copper: "copper", tin: "tin", bronze: "bronze", iron: "iron" };
 // buildings you can walk about in, solid only where something stands: the quarry is its rock face round the back
 // (a horseshoe, open to the front) and the crane's post; the pit and the cut blocks in it are open ground
+// the buildings you can walk into, in at the door (the house you live in has its own way in)
+const WALK_IN = new Set(["bakery", "sawmill", "brickworks", "smelter", "forge", "townhall", "church", "jail", "hospital", "shop"]);
 const SOLID = {
   quarry: [[-4.2, -4.4, 1.2], [-2.4, -4.9, 1.2], [-0.6, -5.2, 1.1], [1.2, -5.1, 1.2], [3, -4.8, 1.2], [4.3, -4.2, 1.1], [-4.4, -3.1, 0.9], [4.4, -3, 0.9], [2.6, 1.5, 0.6], [2.5, 3.2, 0.35]],
 };
@@ -761,9 +763,16 @@ export class Town {
       for (let k = 0; k < p.count; k++) { v.fromBufferAttribute(p, k).applyMatrix4(M); if (v.y < 0.3 || v.y > 1.9) continue; x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } });
     if (!(x1 > x0 && z1 > z0)) return null;
     const c = Math.cos(b.ry), s = Math.sin(b.ry), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
-    const o = this.w.col.addOBox(b.x + mx * c + mz * s, b.z - mx * s + mz * c, (x1 - x0) / 2 - 0.08, (z1 - z0) / 2 - 0.08, b.ry, top);
-    o.npcPad = 0.3;
-    return [o];
+    const box = (lx0, lx1, lz0, lz1) => { const cx = (lx0 + lx1) / 2, cz = (lz0 + lz1) / 2, o = this.w.col.addOBox(b.x + cx * c + cz * s, b.z - cx * s + cz * c, (lx1 - lx0) / 2, (lz1 - lz0) / 2, b.ry, top); o.npcPad = 0.3; return o; };
+    // a building you can go into: its walls solid, with a doorway in the middle of the front where its door is
+    // (the ground under it is already dug level for it)
+    if (WALK_IN.has(b.type)) {
+      const t = 0.3, dw = 0.8, X0 = x0 + 0.06, X1 = x1 - 0.06, Z0 = z0 + 0.06, Z1 = z1 - 0.06;
+      // (the door on the building's own middle line — not the middle of all of it: a bakery's oven stands out to one side)
+      const dx = Math.max(X0 + dw + t, Math.min(X1 - dw - t, 0));
+      return [box(X0, X1, Z0, Z0 + t), box(X0, X0 + t, Z0, Z1), box(X1 - t, X1, Z0, Z1), box(X0, dx - dw, Z1 - t, Z1), box(dx + dw, X1, Z1 - t, Z1)];
+    }
+    return [box(x0 + 0.08, x1 - 0.08, z0 + 0.08, z1 - 0.08)];
   }
   footprint(b, w, d, top) {
     const col = this.w.col, c = Math.cos(b.ry), s = Math.sin(b.ry), out = [];
