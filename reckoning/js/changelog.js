@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.3.2", date: "11 October 2026", title: "Name and username",
+    items: [
+      "Over each player's head, their roleplay name, and under it, small and grey, their username — and the same in Who's here (Tab).",
+    ],
+  },
+  {
     v: "1.3.1", date: "11 October 2026", title: "Who you are",
     items: [
       "A username: the first time you open the game it asks what you'd like to be called by other players, and keeps it. It's who you are online — people invite you to their games by it (in Invite when hosting, or /invite username in the talk) — and it never changes when you play under another name. Change it on purpose from the multiplayer screen.",

@@ -54,14 +54,18 @@ const MP_GOALS = [
 ];
 // what's in a sack, said
 const goodsText = g => g ? [g.wood && `${g.wood} log${g.wood > 1 ? "s" : ""}`, g.stone && `${g.stone} stone`, g.food && `${g.food} food`].filter(Boolean).join(", ") || "nothing" : "nothing";
-export function nameTag(text, colour) {
-  const cv = document.createElement("canvas"), c = cv.getContext("2d"), f = "600 34px 'Open Sans', sans-serif";
-  c.font = f; const w = Math.ceil(c.measureText(text).width) + 28; cv.width = w; cv.height = 52;
-  c.font = f; c.fillStyle = "rgba(8,16,10,0.55)"; c.beginPath(); c.roundRect ? c.roundRect(0, 4, w, 44, 10) : c.rect(0, 4, w, 44); c.fill();
-  c.fillStyle = colour; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(text, w / 2, 27);
+export function nameTag(text, colour, sub = null) {
+  // (and under the name, small and grey, the player's username: who they are, whatever they're called here)
+  const cv = document.createElement("canvas"), c = cv.getContext("2d"), f = "600 34px 'Open Sans', sans-serif", fs = "400 22px 'Open Sans', sans-serif";
+  c.font = f; let w = Math.ceil(c.measureText(text).width) + 28;
+  if (sub) { c.font = fs; w = Math.max(w, Math.ceil(c.measureText(sub).width) + 28); }
+  const H = sub ? 78 : 52; cv.width = w; cv.height = H;
+  c.fillStyle = "rgba(8,16,10,0.55)"; c.beginPath(); c.roundRect ? c.roundRect(0, 4, w, H - 8, 10) : c.rect(0, 4, w, H - 8); c.fill();
+  c.font = f; c.fillStyle = colour; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(text, w / 2, 27);
+  if (sub) { c.font = fs; c.fillStyle = "rgba(200,200,190,0.62)"; c.fillText(sub, w / 2, 56); }
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true, fog: false }));
-  sp.scale.set(w / 52 * 0.26, 0.26, 1); sp.renderOrder = 5;
+  sp.scale.set(w / 52 * 0.26, H / 52 * 0.26, 1); sp.renderOrder = 5;
   return sp;
 }
 
@@ -81,7 +85,7 @@ export class Remote {
     if (this.tag) { this.actor.root.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose(); }
     const fr = this.game.friendly(this.pid);
     this.actor.friendly = fr; this.actor.isSibling = fr;
-    this.tag = nameTag(this.name, fr ? "#9fe08f" : this.game.mode === "pvp" ? "#f0a090" : "#f3e7c6");
+    this.tag = nameTag(this.name, fr ? "#9fe08f" : this.game.mode === "pvp" ? "#f0a090" : "#f3e7c6", this.user);
     this.tag.position.y = 2.15; this.actor.root.add(this.tag);
   }
   set(l) { [, this.tx, this.ty, this.tz, this.tyaw, this.anim, this.held, this.spd, this.guard] = l; this.tyaw += Math.PI; this.ride(this.held === "horse"); }
@@ -847,7 +851,7 @@ export class MPGame {
         const acts = p.pid === this.pid ? (g && this.mode !== "coop" ? `<button data-a="unally">Leave the alliance</button>` : `<i>you</i>`)
           : [this.mode !== "coop" && !ally ? `<button data-a="ally" data-p="${p.pid}">Ask to be allies</button>` : "", this.mode === "pvp" && !ally && this.hasHearth(p.pid) && !this.wars.some(w => w.def === p.pid) ? `<button data-a="war" data-p="${p.pid}">Declare a claim war</button>` : "", near(p.pid) && this.stock.wood >= 10 ? `<button data-a="give" data-p="${p.pid}">Give 10 logs</button>` : ""].join("");
         const hostActs = p.pid !== this.pid && this.room.hostPid === this.pid ? `<button data-a="kick" data-p="${p.pid}">Send away</button><button data-a="ban" data-p="${p.pid}">Ban</button>` : "";
-        return `<div class="mp-pl${ally ? " ally" : ""}"><span class="n">${esc(p.name)}${p.user ? ` <small class="u">${esc(p.user)}</small>` : ""}${p.pid === this.room.hostPid ? " <i>(host)</i>" : ""}</span><span class="g">${grp && this.groups[grp] ? esc(this.groups[grp].name) : ""}</span><span class="a">${acts}${hostActs}</span></div>`;
+        return `<div class="mp-pl${ally ? " ally" : ""}"><span class="n">${esc(p.name)}${p.pid === this.room.hostPid ? " <i>(host)</i>" : ""}${p.user ? `<small class="u">${esc(p.user)}</small>` : ""}</span><span class="g">${grp && this.groups[grp] ? esc(this.groups[grp].name) : ""}</span><span class="a">${acts}${hostActs}</span></div>`;
       }).join("") + `<p class="mc-hint">${this.mode === "pvp" ? "Allies can't hurt each other, share their gates, and can build on each other's ground. Up to eight to an alliance." : "In co-op no one can be hurt, and you can all build anywhere."}${this.room.persistent ? " In the wide world, a homestead can't be broken while its owner is away." : " Nothing of yours can be broken while you're away from the game."}</p>`;
     for (const b of $("mpPlayersBody").querySelectorAll("button[data-a]")) b.onclick = () => {
       const a = b.dataset.a, pid = b.dataset.p;

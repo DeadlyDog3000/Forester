@@ -1131,4 +1131,4 @@ body:has(#bigmap:not(.hidden)) #mpTop { visibility: hidden; }
 #uaName { width: min(320px, 80vw); padding: 10px 14px; font: 20px var(--sans); color: var(--ink); background: rgba(0, 0, 0, 0.45); border: 1px solid var(--gold); border-radius: 3px; outline: none; text-align: center; }
 #uaNote.bad { color: #e08a7a; }
 .mp-usernote { font: 12px var(--sans); color: var(--ink-dim); margin: -2px 0 6px; }
-.mp-pl .n small.u { color: var(--ink-dim); font-size: 0.8em; margin-left: 4px; }
+.mp-pl .n small.u { display: block; color: #8a8478; font: 11px var(--sans); font-style: normal; margin-top: 1px; opacity: 0.85; }
