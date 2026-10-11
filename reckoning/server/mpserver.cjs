@@ -95,7 +95,7 @@ class Room {
     this.kind = T.TERRAINS[o.kind] ? o.kind : "island";
     this.size = R.SIZES[o.size] ? o.size : "m";
     this.half = o.half || R.SIZES[this.size];
-    if (this.kind === "earth") this.half = Math.max(this.half, 2400);        // (the whole world wants room to be seen)
+    if (this.kind === "earth" && !o.half) this.half = R.EARTH_SIZES[this.size];   // (the whole world wants room to be seen: a long way across)
     this.seed = num(o.seed, crypto.randomInt(1, 2 ** 31 - 1)) | 0;
     this.persistent = !!o.persistent;
     this.password = o.password ? String(o.password).slice(0, 40) : "";
@@ -299,7 +299,7 @@ class Room {
       case "chop": {
         if (p.dead || t - p.lastBlow < 300) return; p.lastBlow = t;
         const tr = this.land.treeById(String(m.id || ""));
-        if (!tr || this.felled[tr.id] > t || !this.near(p, tr.x, tr.z, R.REACH + 1)) return;
+        if (!tr || p.y < -60 || this.felled[tr.id] > t || !this.near(p, tr.x, tr.z, R.REACH + 1)) return;
         const forge = this.hasForge(p.pid);
         const n = (this.hits.get(tr.id) || 0) + (forge ? 1.5 : 1);
         if (n < R.TREE_HITS[tr.kind]) { this.hits.set(tr.id, n); this.all({ t: "chip", id: tr.id, by: p.pid }, p); return; }
@@ -314,16 +314,20 @@ class Room {
       }
       case "mine": {
         if (p.dead || t - p.lastBlow < 300) return; p.lastBlow = t;
-        const k = this.land.rockById(String(m.id || ""));
+        // (a rock up top; or a seam of stone in a cave's wall — taken on trust where it lies, so long as it's one of a cave
+        //  that's there and you're down in it: its halls are under its mouth, a few hundred paces about)
+        let k = null; const id = String(m.id || "");
+        if (id[0] === "s") { const [ci, cj, n] = id.slice(1).split(":").map(Number), cv = this.land.caveIn(ci, cj); if (cv && n >= 0 && n < 80 && p.y < -100 && Math.hypot(p.x - cv.x, p.z - cv.z) < 450) k = { id, x: p.x, z: p.z, s: 1, seam: true }; }
+        else k = this.land.rockById(id);
         if (!k || this.broken[k.id] > t || !this.near(p, k.x, k.z, R.REACH + k.s + 1)) return;
         const n = (this.hits.get(k.id) || 0) + (this.hasForge(p.pid) ? 1.5 : 1);
         if (n < R.ROCK_HITS) { this.hits.set(k.id, n); this.all({ t: "chip", id: k.id, by: p.pid }, p); return; }
         this.hits.delete(k.id);
         this.broken[k.id] = t + R.REGROW_MS;
         // (into your pack, not the stores: empty it at the hearth or a woodshed)
-        const pk = this.packOf(p.pid), got = Math.min(R.STONE_PER_ROCK, this.packRoom(p.pid));
+        const per = R.STONE_PER_ROCK * (k.seam ? 2 : 1), pk = this.packOf(p.pid), got = Math.min(per, this.packRoom(p.pid));
         pk.stone += got;
-        if (got < R.STONE_PER_ROCK) p.sock.send({ t: "err", text: got ? `Your pack is full — only ${got} stone went in. Empty it at the hearth.` : "Your pack is full. Empty it at the hearth or a woodshed (F there)." });
+        if (got < per) p.sock.send({ t: "err", text: got ? `Your pack is full — only ${got} stone went in. Empty it at the hearth.` : "Your pack is full. Empty it at the hearth or a woodshed (F there)." });
         this.all({ t: "rock", id: k.id, by: p.pid });
         this.sendPack(p); this.dirty = true;
         return;
@@ -559,7 +563,7 @@ class Room {
       }
       case "hit": {
         if (p.dead || t - p.lastHit < 380) return; p.lastHit = t;
-        const q = this.online.get(String(m.pid || "")); if (!q || q.dead) return;
+        const q = this.online.get(String(m.pid || "")); if (!q || q.dead || Math.abs((q.y || 0) - (p.y || 0)) > 8) return;
         if (this.mode === "coop") return;
         if (this.allied(p.pid, q.pid)) return;
         if (!this.near(p, q.x, q.z, R.REACH + 0.8)) return;
@@ -711,7 +715,7 @@ class Room {
       if (a.dead) continue;
       const S = F.SPECIES[a.kind];
       let close = null, cd = Infinity;
-      for (const q of players) { const d = Math.hypot(q.x - a.x, q.z - a.z); if (d < cd) { cd = d; close = q; } }
+      for (const q of players) { if (q.y < -60) continue; const d = Math.hypot(q.x - a.x, q.z - a.z); if (d < cd) { cd = d; close = q; } }
       if (close && a.st !== "flee" && a.st !== "charge") {
         const loud = close.s > 4 ? S.hearRun : close.s > 0.4 ? (close.c ? S.hearCreep : S.hearWalk) : 2.2;
         if (cd < loud) {
@@ -721,7 +725,7 @@ class Room {
       }
       if (a.st === "charge") {
         const q = this.online.get(a.prey);
-        if (!q || q.dead || t > a.until) { a.st = "walk"; a.until = t + 4000; a.tx = a.home.x; a.tz = a.home.z; }
+        if (!q || q.dead || t > a.until || q.y < -60) { a.st = "walk"; a.until = t + 4000; a.tx = a.home.x; a.tz = a.home.z; }
         else {
           a.yaw = Math.atan2(q.x - a.x, q.z - a.z); a.spd = S.run * 0.85;
           const d = Math.hypot(q.x - a.x, q.z - a.z);

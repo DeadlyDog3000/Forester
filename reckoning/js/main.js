@@ -1736,6 +1736,7 @@ $("bmGrowBtn").onclick = () => {
 $("bmGrowCancel").onclick = () => { growReset(); bigMapSoon(); };
 // (a drag or a turn of the wheel asks for a redraw; it is drawn once, on the next frame, however many came)
 let bigMapQueued = false;
+G.mapRedraw = () => bigMapSoon();
 function bigMapSoon() { if (bigMapQueued) return; bigMapQueued = true; requestAnimationFrame(() => { bigMapQueued = false; if (overlay === "bigmap") renderBigMap(); }); }
 $("bigmap").addEventListener("wheel", e => {
   const mv = G.mapView; if (!mv || !mv.S) return;
@@ -1743,7 +1744,8 @@ $("bigmap").addEventListener("wheel", e => {
   const r = $("bigmapCanvas").getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
   const wx = mv.cx + (mx - mv.W / 2) / mv.S, wz = mv.cz + (my - mv.H / 2) / mv.S;
   const z0 = mv.zoom;
-  mv.zoom = clamp(mv.zoom * Math.exp(-e.deltaY * 0.0015), 1, 8);
+  // (as close as a few pixels to the metre, however big the land: on the Earth that's a long way in)
+  mv.zoom = clamp(mv.zoom * Math.exp(-e.deltaY * 0.0015), 1, Math.max(8, 4 / (mv.S / z0)));
   const S1 = mv.S * mv.zoom / z0;
   mv.ox += (wx - (mx - mv.W / 2) / S1) - mv.cx; mv.oz += (wz - (my - mv.H / 2) / S1) - mv.cz;
   if (mv.zoom === 1) { mv.ox = 0; mv.oz = 0; }

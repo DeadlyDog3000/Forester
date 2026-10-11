@@ -17,8 +17,11 @@ import { Bandit, swingAt, makeStash, lootStash } from "./camps.js";
 const O = { x: 1500, z: -1500 }, CELL = 1.5, BASE = -60;
 
 export class Caves {
-  constructor(w, seed = 41) {
-    this.w = w; this.inside = false;
+  // (opt, for the caves of a multiplayer land: `at` where its halls lie — under its own mouth — and `base` how deep;
+  //  `quiet`, no raiders' camp; `seam(cave, n, x, z)`, the stone in its walls, made by the land it's in)
+  constructor(w, seed = 41, opt = {}) {
+    this.w = w; this.inside = false; this.opt = opt;
+    this.O = opt.at || O; this.base = opt.base ?? BASE;
     const r = rng(seed);
     // the chambers: a winding chain with branches off it, each a great round hall
     const halls = [{ x: 0, z: 0, r: 11 }];
@@ -32,13 +35,13 @@ export class Caves {
       const h = halls[k], b = a + (r() < 0.5 ? 1 : -1) * (1.2 + r()), d = 24 + r() * 10;
       halls.push({ x: h.x + Math.cos(b) * d, z: h.z + Math.sin(b) * d, r: 9 + r() * 6, from: k });
     }
-    this.halls = halls.map(h => ({ ...h, x: h.x + O.x, z: h.z + O.z }));
+    this.halls = halls.map(h => ({ ...h, x: h.x + this.O.x, z: h.z + this.O.z }));
     this.tunnels = this.halls.filter(h => h.from != null).map(h => ({ a: this.halls[h.from], b: h, r: 2.4 + r() * 1.4 }));
     const xs = this.halls.map(h => [h.x - h.r - 4, h.x + h.r + 4]).flat(), zs = this.halls.map(h => [h.z - h.r - 4, h.z + h.r + 4]).flat();
     this.b = { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
     this.r = r;
     // (the forest asks the cave for its floor from here on: the rocks laid in it must stand on that floor)
-    w.cave = this;
+    if (!opt.at) w.cave = this;
     this.build();
   }
   holds(x, z) { return x > this.b.x0 && x < this.b.x1 && z > this.b.z0 && z < this.b.z1; }
@@ -52,7 +55,7 @@ export class Caves {
     }
     return best;
   }
-  floorAt(x, z) { return BASE + Math.sin(x * 0.13) * 0.35 + Math.cos(z * 0.11) * 0.35 + Math.sin((x - z) * 0.05) * 0.8; }
+  floorAt(x, z) { return this.base + Math.sin(x * 0.13) * 0.35 + Math.cos(z * 0.11) * 0.35 + Math.sin((x - z) * 0.05) * 0.8; }
   build() {
     const w = this.w, B = this.b, nx = Math.ceil((B.x1 - B.x0) / CELL) + 1, nz = Math.ceil((B.z1 - B.z0) / CELL) + 1, r = this.r;
     const X = i => B.x0 + i * CELL, Z = j => B.z0 + j * CELL;
@@ -94,7 +97,7 @@ export class Caves {
     for (let j = 1; j < nz - 1; j++) for (let i = 1; i < nx - 1; i++) {
       const k = i + j * nx; if (sd[k] > 0) continue;
       // (reaching down to the cave's own floor, far under the forest's)
-      if (sd[k + 1] > 0 || sd[k - 1] > 0 || sd[k + nx] > 0 || sd[k - nx] > 0) { const o = w.col.addCircle(X(i), Z(j), CELL * 0.75, BASE + 20); o.y0 = BASE - 20; this.cols.push(o); }
+      if (sd[k + 1] > 0 || sd[k - 1] > 0 || sd[k + nx] > 0 || sd[k - nx] > 0) { const o = w.col.addCircle(X(i), Z(j), CELL * 0.75, this.base + 20); o.y0 = this.base - 20; this.cols.push(o); }
     }
     // stalagmites, here and there
     for (let i = 0; i < 70; i++) {
@@ -112,7 +115,8 @@ export class Caves {
         const a = r() * TAU, d = h.r * (0.3 + r() * 0.45), x = h.x + Math.cos(a) * d, z = h.z + Math.sin(a) * d;
         if (this.sd(x, z) < 2.5) continue;
         const kind = r() < 0.15 ? "stone" : ["copper", "tin", "iron"][Math.floor(r() * 3)];
-        if (w.makeRock) this.rocks.push(w.makeRock(kind, x, z));
+        if (this.opt.seam) { const k = this.opt.seam(this, this.rocks.length, x, z); if (k) this.rocks.push(k); }
+        else if (w.makeRock) this.rocks.push(w.makeRock(kind, x, z));
       }
     });
     // old torches in iron brackets along the way: the only light but yours
@@ -174,10 +178,10 @@ export class Caves {
   markFound() {
     this.found = true;
     if (G.town) { G.town.S.caveFound = true; G.town.persist(); }
-    UI.hint("You've found a cave. It's on your map now (J).", 4);
+    UI.hint(this.opt.at ? "A cave, going down into the hill. Walk into its mouth to go in." : "You've found a cave. It's on your map now (J).", 4);
   }
   // what has been seen of it, from the save
-  get seen() { return (G.town && G.town.S.caveSeen) || []; }
+  get seen() { return this.opt.at ? (this._seen ??= []) : (G.town && G.town.S.caveSeen) || []; }
   // on the map, inside: the halls you've stood in, and the tunnels between them, in ink on the parchment
   drawMap(c, X, Z, S) {
     const seen = new Set(this.seen);
@@ -204,10 +208,10 @@ export class Caves {
       // (the lantern held out ahead and a little up, so it lights the way rather than the axe in your hand)
       if (!this.lantern) { this.lantern = new THREE.PointLight(0xffd2a8, 10, 24, 1.8); this.lantern.position.set(-0.2, 0.3, -1.3); }
       camera.add(this.lantern);
-      this.bandits();
+      if (!this.opt.quiet) this.bandits();
       UI.fade(0, 0.8);
-      G.guide && G.guide("cave");
-      if (!this.told) { this.told = true; UI.hint("The cave. Copper, tin and iron in the rock all through it — and it goes a long way back. Mind the dark.", 6); }
+      if (!this.opt.at) G.guide && G.guide("cave");
+      if (!this.told) { this.told = true; UI.hint(this.opt.at ? "The cave: halls and tunnels a long way back into the hill. There's good stone in the walls, for the pickaxe. Mind the dark." : "The cave. Copper, tin and iron in the rock all through it — and it goes a long way back. Mind the dark.", 6); }
     });
     AUDIO.step && AUDIO.step("stone", 0.8);
   }
@@ -240,7 +244,8 @@ export class Caves {
         if (lz < -2.1 && Math.abs(lx) < 1.1) this.enter();
       } else if (this.inside && this.outAt && Math.hypot(pl.pos.x - this.outAt.x, pl.pos.z - this.outAt.z) < 1.4) this.leave();
     }
-    if (this.inside && S && pl) {
+    if (this.inside && this.opt.at && pl) this.halls.forEach((h, i) => { if (!this.seen.includes(i) && Math.hypot(pl.pos.x - h.x, pl.pos.z - h.z) < h.r + 3) this.seen.push(i); });
+    else if (this.inside && S && pl) {
       S.caveSeen ??= [];
       this.halls.forEach((h, i) => { if (!S.caveSeen.includes(i) && Math.hypot(pl.pos.x - h.x, pl.pos.z - h.z) < h.r + 3) { S.caveSeen.push(i); G.town.persist(); } });
     }

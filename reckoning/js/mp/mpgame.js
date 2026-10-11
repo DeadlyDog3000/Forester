@@ -97,7 +97,8 @@ export class Remote {
     a.sync();
     // (swimming, or up a tower: the height they're at, not the ground's)
     const gy = G.world.heightAt(a.pos.x, a.pos.z);
-    a.root.position.y += ((this.ty ?? gy) - gy > 0.3 || gy < 0 ? (this.ty - gy) : 0);
+    // (or down a cave, under the ground: there, out of sight of all but those down there too)
+    a.root.position.y += ((this.ty ?? gy) - gy > 0.3 || gy < 0 || (this.ty ?? gy) < gy - 20 ? (this.ty - gy) : 0);
     const far = Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z);
     this.tag.visible = far < 45 && !this.dead;
   }
@@ -313,7 +314,7 @@ export class MPGame {
     n.pl = m => { this.online.delete(m.pid); const r = this.remotes.get(m.pid); if (r) { r.remove(); this.remotes.delete(m.pid); } this.hudCount(); this.refreshFriends(); };
     n.stock = m => { const fed = (m.food | 0) > (this.stock.food | 0) + 4; this.stock = { wood: m.wood, stone: m.stone, food: m.food | 0 }; this.hudStock(true); if (fed && this.settlers.size) this.toast(`Harvest in: ${m.food} food in the store`); };
     n.bg = m => { const e = this.w.blds.get(m.id); if (e) { e.b.growth = m.growth; this.w.setGrowth(e.b, e.g, m.growth); } };
-    n.chip = m => { const t = w.thing(m.id); if (!t) return; const r = this.remotes.get(m.by); if (t.id[0] === "r") { AUDIO.clang && AUDIO.clang(0.25, { x: t.x, y: t.y + 0.5, z: t.z }); } else if (r && Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 0.6); };
+    n.chip = m => { const t = w.thing(m.id); if (!t) return; const r = this.remotes.get(m.by); if (t.id[0] === "r" || t.id[0] === "s") { AUDIO.clang && AUDIO.clang(0.25, { x: t.x, y: t.y + 0.5, z: t.z }); } else if (r && Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 0.6); };
     n.fell = m => {
       const t = w.fell(m.id, m.dx, m.dz); if (!t) return;
       FOLEY.fellStart({ x: t.x, z: t.z });
@@ -451,11 +452,22 @@ export class MPGame {
     const ahead = (x, z, reach) => { const dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz); return d < reach && (d < 0.7 || (dx * f.x + dz * f.z) / d > 0.45) ? d : Infinity; };
     // a person
     let best = null, bd = Infinity;
-    for (const r of this.remotes.values()) { if (r.dead) continue; const d = ahead(r.x, r.z, 2.8); if (d < bd) { bd = d; best = r; } }
+    for (const r of this.remotes.values()) { if (r.dead || Math.abs((r.ty ?? p.y) - p.y) > 6) continue; const d = ahead(r.x, r.z, 2.8); if (d < bd) { bd = d; best = r; } }
     if (best) {
       if (this.mode === "coop") { UI.hint("Not in a game among friends.", 2); return; }
       if (this.friendly(best.pid)) { UI.hint(`${best.name} is your ally.`, 2); return; }
       this.net.send({ t: "hit", pid: best.pid }); G.impact && G.impact();
+      return;
+    }
+    // down a cave: nothing up top in reach — only the seams of stone in its walls
+    const cave = this.w.cave;
+    if (cave && cave.inside) {
+      let rk = null; bd = Infinity;
+      for (const k of cave.rocks) { if (k.gone) continue; const d = ahead(k.x, k.z, k.s + 2.2) - k.s; if (d < bd) { bd = d; rk = k; } }
+      if (!rk) return;
+      if (G.player.blade !== "pick") { UI.hint("Stone wants the pickaxe — take it out (2) and swing at the seam.", 3); return; }
+      AUDIO.clang && AUDIO.clang(0.35, { x: rk.x, y: rk.y + 0.5, z: rk.z }); G.rockChips && G.rockChips(rk, 1); G.impact && G.impact();
+      this.net.send({ t: "mine", id: rk.id });
       return;
     }
     // someone's settler

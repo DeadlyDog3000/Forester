@@ -14,6 +14,7 @@ import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
 import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
 import { WaterMat } from "../water.js";
+import { Caves } from "../cave.js";
 import { REALMS_1683, SEAS_1683 } from "./earth-1683.js";
 import { BUILD } from "./rules.js";
 import { ryeStrip } from "../town.js";
@@ -77,9 +78,11 @@ export class Wilds extends WorldBase {
     this.buildNear(0, 0, 0);
   }
   // ---- the ground ----
-  heightAt(x, z) { return this.land.heightAt(x, z); }
+  // (down a cave, the ground under you is the cave's floor, far beneath the hill)
+  heightAt(x, z) { const c = this.cave; return c && c.inside && c.holds(x, z) ? c.floorAt(x, z) : this.land.heightAt(x, z); }
   // where your feet are: the ground, or out of your depth, swimming with your head above the water; or up a tower
   floorAt(x, z, y) {
+    { const c = this.cave; if (c && c.inside && c.holds(x, z)) return c.floorAt(x, z); }
     const g = this.land.heightAt(x, z);
     for (const t of this.towers || []) if (Math.abs(x - t.x) < 1.5 && Math.abs(z - t.z) < 1.5 && y > t.top - 0.6) return t.top;
     return Math.max(g, WATER - 1.3);
@@ -175,7 +178,7 @@ export class Wilds extends WorldBase {
     g.add(near, far); far.visible = false;
     const cols2 = [];
     for (const t of trees) {
-      t.col = this.col.addCircle(t.x, t.z, { birch: 0.22, palm: 0.2, acacia: 0.24, oak: 0.45, jungle: 0.6, scrub: 0.35 }[t.kind] || 0.32, t.kind === "scrub" ? 1.2 : 12); cols2.push(t.col);
+      t.col = this.col.addCircle(t.x, t.z, { birch: 0.22, palm: 0.2, acacia: 0.24, oak: 0.45, jungle: 0.6, scrub: 0.35 }[t.kind] || 0.32, t.y + (t.kind === "scrub" ? 1.2 : 12)); cols2.push(t.col);   // (its top from the ground it stands on, not from the sea)
       if (this.felled.has(t.id)) this.hideTree(t, true);
     }
     // the rocks
@@ -227,6 +230,7 @@ export class Wilds extends WorldBase {
   // ---- trees and rocks: found, felled, broken, grown back ----
   chunkAt(x, z) { return this.chunks.get(this.key(Math.floor(x / CHUNK), Math.floor(z / CHUNK))); }
   thing(id) {
+    if (id[0] === "s") return (this.seams && this.seams.get(id)) || null;
     const t = id[0] === "r" ? this.land.rockById(id) : this.land.treeById(id); if (!t) return null;
     const ch = this.chunkAt(t.x, t.z);
     return (ch && ch.byId.get(id)) || t;
@@ -248,8 +252,8 @@ export class Wilds extends WorldBase {
     // (put back as it was: the chunk is built afresh, the cheapest way to have every piece of it right)
     const ch = this.chunkAt(t.x, t.z); if (ch) { this.dropChunk(ch); this.buildChunk(ch.ci, ch.cj); }
   }
-  hideRock(k) { const [m, i] = k.slot || []; if (m) { m.setMatrixAt(i, ZERO); m.instanceMatrix.needsUpdate = true; } if (k.col) k.col.disabled = true; k.gone = true; }
-  showRock(id) { this.broken.delete(id); const k = this.thing(id); if (k && k.slot) { k.slot[0].setMatrixAt(k.slot[1], k.m); k.slot[0].instanceMatrix.needsUpdate = true; k.gone = false; if (k.col) k.col.disabled = false; } }
+  hideRock(k) { const [m, i] = k.slot || []; if (m) { m.setMatrixAt(i, ZERO); m.instanceMatrix.needsUpdate = true; } if (k.mesh) k.mesh.visible = false; if (k.col) k.col.disabled = true; k.gone = true; }
+  showRock(id) { this.broken.delete(id); const k = this.thing(id); if (k && k.mesh) { k.mesh.visible = true; k.gone = false; if (k.col) k.col.disabled = false; } if (k && k.slot) { k.slot[0].setMatrixAt(k.slot[1], k.m); k.slot[0].instanceMatrix.needsUpdate = true; k.gone = false; if (k.col) k.col.disabled = false; } }
   setFelled(ids) { for (const id of ids) { this.felled.add(id); const t = this.thing(id); if (t && t.slots) this.hideTree(t, true); } }
   setBroken(ids) { for (const id of ids) { this.broken.add(id); const k = this.thing(id); if (k && k.slot) this.hideRock(k); } }
   // a tree comes down, away from whoever felled it
@@ -280,9 +284,23 @@ export class Wilds extends WorldBase {
       const ft = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.25, hi - lo + 0.5, fd + 0.25), mat(0x6e675c, { surface: "stone" }));
       ft.position.y = -(hi - lo + 0.5) / 2 + 0.06; ft.receiveShadow = true; g.add(ft);
     }
-    const rect = (w, dd, h = 4) => { const sw = Math.abs(Math.sin(b.ry || 0)) > 0.5; cols.push(this.col.addRect(b.x, b.z, sw ? dd : w, sw ? w : dd, y + h)); };
     if (d.model) {
-      const put = () => { const m = modelCopy(d.model); if (m) { g.add(m.scene); g.userData.door = m.scene.getObjectByName("door") || null; return true; } return false; };
+      // (solid where its walls are: the model's own footing, measured at a person's height in its own frame, so the
+      //  box turns with it and sits on it however it was set down — not a guess at its size, nor a square to the map)
+      let body = null;
+      const fit = sc => {
+        if (b.type === "cabin") return;
+        sc.updateMatrixWorld(true); const v = new THREE.Vector3(), M = new THREE.Matrix4();
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+        sc.traverse(o => { const p = o.isMesh && o.geometry && o.geometry.attributes.position; if (!p) return;
+          M.multiplyMatrices(new THREE.Matrix4().copy(sc.matrixWorld).invert(), o.matrixWorld);
+          for (let k = 0; k < p.count; k++) { v.fromBufferAttribute(p, k).applyMatrix4(M); if (v.y < 0.25 || v.y > 1.9) continue; x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } });
+        if (!(x1 > x0)) return;
+        const c = Math.cos(b.ry || 0), s = Math.sin(b.ry || 0), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+        if (body) { this.col.remove(body); cols.splice(cols.indexOf(body), 1); }
+        cols.push(body = this.col.addOBox(b.x + mx * c + mz * s, b.z - mx * s + mz * c, (x1 - x0) / 2 - 0.08, (z1 - z0) / 2 - 0.08, b.ry || 0, y + 5));
+      };
+      const put = () => { const m = modelCopy(d.model); if (m) { g.add(m.scene); g.userData.door = m.scene.getObjectByName("door") || null; fit(m.scene); return true; } return false; };
       if (!put()) {
         // (a stand-in until the model's there: a plain block of the right size)
         const ph = new THREE.Mesh(new THREE.BoxGeometry(d.w || 4, 2.6, d.d || 4), mat(0x7a5a3a)); ph.position.y = 1.3; g.add(ph);
@@ -298,7 +316,7 @@ export class Wilds extends WorldBase {
         circle(-1.2, -3.6, 0.6);
         // the door, while it's shut (F at it opens it, as the cabin's in the clearing)
         g.userData.doorCols = [-0.45, 0, 0.45].map(lx => { circle(lx, 3.05, 0.26); return cols[cols.length - 1]; });
-      } else rect((d.w || 4) * 0.9, (d.d || 4) * 0.9, 5);
+      } else if (!body) cols.push(body = this.col.addOBox(b.x, b.z, (d.w || 4) * 0.45, (d.d || 4) * 0.45, b.ry || 0, y + 5));
     } else if (b.type === "hearth") {
       const bl = new Builder();
       for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; bl.add(new THREE.DodecahedronGeometry(0.2, 0), 0x6e6b62, Math.cos(a) * 0.62, 0.1, Math.sin(a) * 0.62, i, i * 2, 0, 1.1, 0.8, 1.0, 0.1); }
@@ -402,6 +420,32 @@ export class Wilds extends WorldBase {
     this.falling.push({ g: e.g, collapse: true, life: 0, tip: (hash(e.b.x, e.b.z) - 0.5) * 0.6 });
     return e;
   }
+  // ---- the caves ----
+  // the mouths near you made as you come near them (their halls beneath, ready and dark), and kept; the nearest one the
+  // world's cave — the one walked into, whose dark the sky gives way to
+  cavesNear(p) {
+    const map = this.caves ??= new Map();
+    if (!(this.cave && this.cave.inside)) {
+      for (const c of this.land.cavesNear(p.x, p.z, 170)) if (!map.has(c.id)) {
+        const cv = new Caves(this, c.seed, { at: { x: c.x - Math.sin(c.ry) * 14, z: c.z - Math.cos(c.ry) * 14 }, base: -150, quiet: true, seam: (cave, n, x, z) => this.makeSeam(c.id + ":" + n, x, z, cave) });
+        cv.mouth(c.x, c.z, c.ry); map.set(c.id, cv); cv.site = c;
+      }
+      let best = null, bd = Infinity;
+      for (const cv of map.values()) { const d = Math.hypot(cv.site.x - p.x, cv.site.z - p.z); if (d < bd) { bd = d; best = cv; } }
+      this.cave = best;
+    }
+  }
+  // a seam of good stone in a cave's wall: the pickaxe breaks it, as a rock up top
+  makeSeam(id, x, z, cave) {
+    const sid = "s" + id.slice(1), y = cave.floorAt(x, z), s = 1.1 + hash(x, z) * 0.6;
+    const m = new THREE.Mesh(rockShape(), this.seamMat ??= addDetail(new THREE.MeshStandardMaterial({ color: 0x9a9080, roughness: 0.9, flatShading: true }), { scale: 2, amount: 0.3, grain: 0.6, surface: "rock", snow: false, weather: false }));
+    m.position.set(x, y - 0.2 * s, z); m.scale.setScalar(s); m.rotation.y = hash(z, x) * 6.28; m.castShadow = m.receiveShadow = true; cave.root.add(m);
+    const k = { id: sid, x, y, z, s, mesh: m, cave, gone: false };
+    k.col = this.col.addCircle(x, z, s * 0.85, y + s * 0.6); k.col.y0 = y - 2;
+    (this.seams ??= new Map()).set(sid, k);
+    if (this.broken.has(sid)) this.hideRock(k);
+    return k;
+  }
   hitBuilding(id, hp) { const e = this.blds.get(id); if (!e) return; e.hp = hp; e.shake = 0.3; }
   // ---- every frame ----
   update(dt) {
@@ -410,7 +454,8 @@ export class Wilds extends WorldBase {
     const p = G.player ? G.player.pos : { x: 0, z: 0 };
     this.water.position.x = Math.round(p.x / 50) * 50; this.water.position.z = Math.round(p.z / 50) * 50;
     this.wm.update(dt, { rain: this.rainK || 0 });
-    if ((this.streamT = (this.streamT || 0) - dt) <= 0) { this.streamT = 0.25; this.buildNear(p.x, p.z, 1); }
+    if ((this.streamT = (this.streamT || 0) - dt) <= 0) { this.streamT = 0.25; this.buildNear(p.x, p.z, 1); this.cavesNear(p); }
+    if (this.cave) this.cave.tick(dt);
     // near trees in full, the rest plainer, past the haze nothing
     if ((this.tileT = (this.tileT || 0) - dt) <= 0) {
       this.tileT = 0.4;
@@ -463,8 +508,9 @@ export class Wilds extends WorldBase {
     if (this.birds) this.birds.update(dt);
   }
   // ---- the map ----
-  get mapTitle() { return this.title || "The Island"; }
+  get mapTitle() { return this.cave && this.cave.inside ? "The Cave" : this.title || "The Island"; }
   get mapBounds() {
+    if (this.cave && this.cave.inside) { const b = this.cave.b; return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1 }; }
     if (this.land.kind === "earth") return { x0: -this.half, x1: this.half, z0: -78 / 180 * this.half, z1: 60 / 180 * this.half };
     return { x0: -this.half, x1: this.half, z0: -this.half, z1: this.half };
   }
@@ -472,10 +518,16 @@ export class Wilds extends WorldBase {
   mapSheet() {
     if (this._sheet) return this._sheet;
     const N = this.land.kind === "earth" ? 1000 : this.half > 1500 ? 1500 : 1100, cv = document.createElement("canvas"); cv.width = cv.height = N;
-    const c = cv.getContext("2d"); fillPaper(c, N, N);
-    const img = c.getImageData(0, 0, N, N), d = img.data, S = 2 * this.half / N, L = this.land;
+    this.paintMap(cv.getContext("2d"), -this.half, -this.half, 2 * this.half, N);
+    return this._sheet = { cv, N };
+  }
+  // a square of the land, `size` metres from (x0, z0), painted onto N pixels: the country's colour, the hills in
+  // contour, the woods stamped, the coast inked (the whole sheet is one; so is each close-up piece of it)
+  paintMap(c, x0, z0, size, N) {
+    fillPaper(c, N, N);
+    const img = c.getImageData(0, 0, N, N), d = img.data, S = size / N, L = this.land, e = Math.max(1.5, Math.min(6, S));
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-      const x = -this.half + (i + 0.5) * S, z = -this.half + (j + 0.5) * S, h = L.heightAt(x, z), o = (j * N + i) * 4;
+      const x = x0 + (i + 0.5) * S, z = z0 + (j + 0.5) * S, h = L.heightAt(x, z), o = (j * N + i) * 4;
       let r, g, b, a = 1;
       if (h < WATER) { const k = clamp(-h / 10, 0, 1); r = 120 - k * 50; g = 150 - k * 40; b = 160 - k * 20; }
       else if (h < WATER + 1.4) { r = 214; g = 196; b = 150; }
@@ -485,36 +537,80 @@ export class Wilds extends WorldBase {
         r = 212 * 0.45 + q[0] * 255 * 0.55 - f * 40 - hk * 20; g = 198 * 0.45 + q[1] * 255 * 0.55 - f * 28 - hk * 20; b = 150 * 0.45 + q[2] * 255 * 0.55 - f * 22;
         if (h > this.snowLine - 4) { r = g = b = 236; }
         // (a hint of the hills: lighter on the slopes facing the north-west light)
-        const sh = clamp((L.heightAt(x - 6, z - 6) - h) * 0.6, -18, 18); r -= sh; g -= sh; b -= sh;
+        const sh = clamp((L.heightAt(x - e, z - e) - h) * 0.6 * 6 / e, -18, 18); r -= sh; g -= sh; b -= sh;
         a = 0.85;
       }
       d[o] = d[o] * (1 - a) + r * a; d[o + 1] = d[o + 1] * (1 - a) + g * a; d[o + 2] = d[o + 2] * (1 - a) + b * a;
     }
     c.putImageData(img, 0, 0);
     // the contours over it (a line every few metres on an island; every ten in the mountains of the wide world)
-    { const K = N / (2 * this.half), b = { x0: -this.half, x1: this.half, z0: -this.half, z1: this.half };
-      const XX = x => (x + this.half) * K, ZZ = z => (z + this.half) * K, st = Math.max(4, 2 * this.half / 380);
-      relief(c, (x, z) => L.heightAt(x, z), b, XX, ZZ, { step: st, every: this.land.big ? 10 : 4, water: 0, shade: 0 });
-      // the woods, stamped as a map of the time stamps them: a little tree to every few paces of forest
-      c.fillStyle = "rgba(60,74,44,0.6)";
-      const gap = Math.max(7, 2 * this.half / N * 7);
-      for (let z = -this.half; z < this.half; z += gap) for (let x = -this.half; x < this.half; x += gap) {
-        const jx = x + (hash(x, z) - 0.5) * gap * 0.8, jz = z + (hash(z, x) - 0.5) * gap * 0.8;
-        const f = L.forestAt(jx, jz), h = L.heightAt(jx, jz);
-        if (h < 1.6 || h > this.snowLine - 4 || f < 0.45 || hash(jx * 0.3, jz * 0.7) > f) continue;
-        { const bb = L.biomeAt(jx, jz); mapTree(c, XX(jx), ZZ(jz), Math.max(1.8, gap * K * 0.32), bb === "taiga" || bb === "alpine" || bb === "tundra" || (bb !== "temperate" && bb !== "rainforest" && bb !== "savanna" && hash(jx, jz) < 0.5) ? "spruce" : "birch"); }
-      }
-      // and the coast, inked
-      relief(c, (x, z) => L.heightAt(x, z), b, XX, ZZ, { step: st, shade: 0, levels: [0.05], ink: "rgba(59,42,26,0.75)" }); }
-    // a coastline in ink
-    c.strokeStyle = "rgba(59,42,26,0.55)"; c.lineWidth = 1;
-    return this._sheet = { cv, N };
+    const K = N / size, bb = { x0, x1: x0 + size, z0, z1: z0 + size }, whole = size >= 2 * this.half;
+    const XX = x => (x - x0) * K, ZZ = z => (z - z0) * K, st = Math.max(whole ? 4 : 1, size / 380);
+    relief(c, (x, z) => L.heightAt(x, z), bb, XX, ZZ, { step: st, every: this.land.big ? 10 : 4, water: 0, shade: 0 });
+    // the woods, stamped as a map of the time stamps them: a little tree to every few paces of forest
+    c.fillStyle = "rgba(60,74,44,0.6)";
+    const gap = Math.max(whole ? 7 : 4.6, S * 7), gx0 = Math.floor(x0 / gap) * gap, gz0 = Math.floor(z0 / gap) * gap;
+    for (let z = gz0; z < z0 + size; z += gap) for (let x = gx0; x < x0 + size; x += gap) {
+      const jx = x + (hash(x, z) - 0.5) * gap * 0.8, jz = z + (hash(z, x) - 0.5) * gap * 0.8;
+      const f = L.forestAt(jx, jz), h = L.heightAt(jx, jz);
+      if (h < 1.6 || h > this.snowLine - 4 || f < 0.45 || hash(jx * 0.3, jz * 0.7) > f) continue;
+      const bm = L.biomeAt(jx, jz);
+      mapTree(c, XX(jx), ZZ(jz), Math.max(1.8, Math.min(7, gap * K * 0.32)), bm === "taiga" || bm === "alpine" || bm === "tundra" || (bm !== "temperate" && bm !== "rainforest" && bm !== "savanna" && hash(jx, jz) < 0.5) ? "spruce" : "birch");
+    }
+    // and the coast, inked
+    relief(c, (x, z) => L.heightAt(x, z), bb, XX, ZZ, { step: st, shade: 0, levels: [0.05], ink: "rgba(59,42,26,0.75)" });
+  }
+  // close up on the big map, the land drawn again at the scale it's looked at: pieces of it, painted a few at a time
+  // as they're wanted (and kept, the last hundred or so), over the whole sheet stretched beneath
+  mapTiles(c, X, Z, S) {
+    const sh = this.mapSheet(), dpr = Math.min(2, devicePixelRatio || 1), m0 = 2 * this.half / sh.N;
+    const lvl = Math.min(Math.ceil(Math.log2(m0 * S * dpr / 1.2)), Math.floor(Math.log2(m0 / 0.35)));
+    if (lvl < 1) return;
+    const T = 192, mpp = m0 / 2 ** lvl, size = T * mpp, W = c.canvas.width, H = c.canvas.height;
+    const tiles = this._tiles ??= new Map(), want = this._tileWant ??= [];
+    const i0 = Math.floor((0 - X(-this.half)) / S / size), i1 = Math.floor((W - X(-this.half)) / S / size);
+    const j0 = Math.floor(((0 - Z(-this.half)) / S) / size), j1 = Math.floor(((H - Z(-this.half)) / S) / size);
+    const n = Math.ceil(2 * this.half / size);
+    want.length = 0;
+    c.save(); c.imageSmoothingEnabled = true;
+    for (let j = Math.max(0, j0); j <= Math.min(n - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(n - 1, i1); i++) {
+      const key = lvl + ":" + i + ":" + j, t = tiles.get(key), x = -this.half + i * size, z = -this.half + j * size;
+      if (t) { t.used = performance.now(); c.drawImage(t.cv, X(x), Z(z), size * S + 0.5, size * S + 0.5); }
+      else want.push({ key, x, z, size });
+    }
+    c.restore();
+    { const cx = (W / 2 - X(0)) / S, cz = (H / 2 - Z(0)) / S; want.sort((a, b) => Math.hypot(a.x + a.size / 2 - cx, a.z + a.size / 2 - cz) - Math.hypot(b.x + b.size / 2 - cx, b.z + b.size / 2 - cz)); }
+    if (want.length && !this._tileBusy) {
+      this._tileBusy = true;
+      // (the pieces wanted now, nearest the middle of the view first: the list is the latest drawing's, so a sheet
+      //  moved on from isn't painted for nothing)
+      const step = () => {
+        const t0 = performance.now(), job = this._tileWant;
+        while (job.length && performance.now() - t0 < 14) {
+          const q = job.shift(); if (tiles.has(q.key)) continue;
+          const cv = document.createElement("canvas"); cv.width = cv.height = T;
+          this.paintMap(cv.getContext("2d"), q.x, q.z, q.size, T); tiles.set(q.key, { cv, used: performance.now() });
+        }
+        if (tiles.size > 140) [...tiles.entries()].sort((a, b) => a[1].used - b[1].used).slice(0, tiles.size - 140).forEach(([k]) => tiles.delete(k));
+        G.mapRedraw && G.mapRedraw();
+        if (job.length) setTimeout(step, 0); else this._tileBusy = false;
+      };
+      setTimeout(step, 0);
+    }
   }
   minimap(c, X, Z, S, big) {
+    // down a cave: the cave's own map, the halls you've stood in, and the seams of stone in them
+    if (this.cave && this.cave.inside) {
+      const cv = this.cave; cv.drawMap(c, X, Z, S);
+      c.fillStyle = "#8a8478"; c.strokeStyle = INK; c.lineWidth = 1;
+      for (const k of cv.rocks) if (!k.gone && cv.seen.some(i => { const h = cv.halls[i]; return Math.hypot(k.x - h.x, k.z - h.z) < h.r + 1; })) { c.beginPath(); c.arc(X(k.x), Z(k.z), Math.max(3, S * 0.9), 0, Math.PI * 2); c.fill(); c.stroke(); }
+      return;
+    }
     const sh = this.mapSheet();
     c.save(); c.imageSmoothingEnabled = true;
     c.drawImage(sh.cv, X(-this.half), Z(-this.half), 2 * this.half * S, 2 * this.half * S);
     c.restore();
+    if (big) this.mapTiles(c, X, Z, S);
     // close up, the trees themselves
     if (S > 1.4) {
       const W = c.canvas.width, H = c.canvas.height, ts = Math.max(2.2, Math.min(4.2, S * 1.6));

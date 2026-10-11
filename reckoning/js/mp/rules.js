@@ -41,7 +41,8 @@ export const MAX_HP = 100;
 export const RESPAWN_MS = 6000;
 export const SPAWN_SHIELD_MS = 45 * 1000;         // a fresh arrival can't be hurt for a while
 export const DAY_MS = 24 * 60 * 1000;             // a whole day and night
-export const SIZES = { s: 420, m: 650, l: 950 };  // half the width of a game's island, in metres
+export const SIZES = { s: 420, m: 650, l: 950 };
+export const EARTH_SIZES = { s: 4000, m: 6000, l: 9000 };  // the same, for a game on the Earth (twelve kilometres across, middling)  // half the width of a game's island, in metres
 export const WORLD_HALF = 20000;                  // the wide world: the Earth at its full scale, forty kilometres across
 export const MODES = { coop: "Frontier", pvp: "Frontier rivals" };
 // Classic, on the real game: what one nation can trade or send another (as each game's stores keep it), and its name

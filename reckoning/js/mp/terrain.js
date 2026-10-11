@@ -115,14 +115,28 @@ export function makeTerrain(seed, half, kind = "island") {
   };
   const coast = (x, z) => {
     const r = Math.hypot(x, z) / half, u = x / half, v = z / half;
-    if (kind === "earth") return 1.02 - landK(lonOf(x), latOf(z)) * 0.42 + fbm(nE, u * 14 + 9, v * 14 + 9, 3) * 0.07;
+    // (the world's coasts are a half-degree grid: pushed about by a little noise, so the shore wanders in bays and points
+    //  as a real one does, instead of running square along the grid's rows)
+    if (kind === "earth") { const cell = half / 360, wx = x + nC(x / (cell * 3.1) + 5.3, z / (cell * 3.1) - 2.1) * cell * 1.7, wz = z + nD(x / (cell * 3.1) - 7.7, z / (cell * 3.1) + 3.9) * cell * 1.7;
+      return 1.02 - landK(lonOf(wx), latOf(wz)) * 0.42 + fbm(nE, u * 14 + 9, v * 14 + 9, 3) * 0.07 + fbm(nB, x / (cell * 1.4) + 3, z / (cell * 1.4) - 8, 3) * 0.035; }
     if (kind === "archipelago") return 0.62 + r * 0.42 - fbm(nE, u * 3.4 + 9, v * 3.4 + 9, 4) * 1.25;
     if (kind === "continent") return 0.8 + ((u * cx + v * cz) - 0.42) * 1.1 + fbm(nE, u * 2.2 + 9, v * 2.2 + 9, 4) * 0.3;
     // (bays and headlands, big and small, out of the noise round the edge)
     return r + fbm(nE, u * 1.7 + 9, v * 1.7 + 9, 4) * 0.34;
   };
   const lakeK = Math.min(420, half * (kind === "lakeland" ? 0.22 : 0.38)), lakeAt = kind === "lakeland" ? 0.06 : kind === "earth" ? 9 : 0.24;
-  function heightAt(x, z) {
+  // mountains, jagged: ridges sharpened to knife-edges (each octave's ridge squared, and the finer ones riding the
+  // ridges of the coarser, so the crests break up into teeth and the valleys stay smooth), and crags on top
+  const jag = (x, z, sc) => {
+    let s = 0, a = 1, t = 0, wgt = 1, f = 1 / sc;
+    for (let i = 0; i < 5; i++) { const r = 1 - Math.abs(nD(x * f + i * 17.3, z * f - i * 9.1)); const v = r * r * wgt; s += v * a; t += a; wgt = Math.min(1, v * 1.6); a *= 0.5; f *= 2.1; }
+    const crag = 1 - Math.abs(nB(x / 23 + 40, z / 23 - 12));
+    return s / t * 1.15 + crag * crag * crag * 0.12 * (s / t);
+  };
+  // (the sea stands a little higher up the shore than the land was first laid out for)
+  const SEA_RISE = 0.9;
+  function heightAt(x, z) { return height0(x, z) - SEA_RISE; }
+  function height0(x, z) {
     const c = coast(x, z);
     if (c > 1.05) return -16;
     // rolling ground, then the hills, then (on the wide world, and in the highlands) the mountains
@@ -132,10 +146,10 @@ export function makeTerrain(seed, half, kind = "island") {
     if (kind === "earth") {
       const lon = lonOf(x), lat = latOf(z);
       let m = 0; for (const [ox, oy, rr, hh] of RANGES) { const dx = Math.abs(lon - ox), d = Math.hypot(Math.min(dx, 360 - dx), lat - oy); if (d < rr * 3) m += gauss(d, rr) * hh; }
-      h += Math.min(1.2, m) * (1 - Math.abs(fbm(nD, x / 300, z / 300, 3))) * 110;
+      if (m > 0.004) h += Math.min(1.2, m) * jag(x, z, 300) * 110;
     } else if (mountains) {
       const sc = big ? 1400 : half * 0.9, m = kind === "highlands" ? smooth(-0.12, 0.38, nC(x / sc + 71.3, z / sc - 23.9)) : smooth(0.05, 0.5, nC(x / sc + 71.3, z / sc - 23.9));
-      h += m * (1 - Math.abs(fbm(nD, x / 420, z / 420, 3))) * (big ? 120 : 75);
+      if (m > 0.004) h += m * jag(x, z, 420) * (big ? 120 : 75);
     }
     // the continent runs on past the edge of the map: there it rises into mountains you can't cross
     if (kind === "continent") { const e = Math.max(Math.abs(x), Math.abs(z)) / half; h += smooth(0.86, 1, e) * 70; }
@@ -196,6 +210,28 @@ export function makeTerrain(seed, half, kind = "island") {
   const forestAt = (x, z) => { const f = smooth(-0.25, 0.3, fbm(nB, x / 190 + 50, z / 190 + 50, 3) + 0.12); return f * BIOMES[biomeAt(x, z)].forest; };
   const meadowAt = (x, z) => 1 - forestAt(x, z);
   const sandAt = (x, z, h = heightAt(x, z)) => h < WATER + 1.4;
+  // the caves: here and there a mouth in a hillside, its back to the slope and facing down it (no more than one to a
+  // great square of the map, and not in every one), and the halls and tunnels in the rock far beneath it
+  const CC = new Map(), CAVE_CELL = kind === "earth" || big ? 700 : 430;
+  function caveIn(ci, cj) {
+    const key = ci + ":" + cj; if (CC.has(key)) return CC.get(key);
+    let out = null;
+    if (hash3(seed + 31, ci, cj) < 0.72) for (let k = 0; k < 40 && !out; k++) {
+      const x = (ci + 0.12 + hash3(seed + 32 + k, ci, cj) * 0.76) * CAVE_CELL, z = (cj + 0.12 + hash3(seed + 57 + k, ci, cj) * 0.76) * CAVE_CELL;
+      if (Math.abs(x) > half - 60 || Math.abs(z) > half - 60) continue;
+      const y = height0(x, z) - SEA_RISE, sl = slopeAt(x, z);
+      if (y < 3 || y > 90 || sl < 0.09 || sl > 0.7) continue;
+      // (facing down the hill: the ground falls away in front, and rises behind)
+      const e = 3, gx = heightAt(x + e, z) - heightAt(x - e, z), gz = heightAt(x, z + e) - heightAt(x, z - e), ry = Math.atan2(-gx, -gz);
+      if (heightAt(x - Math.sin(ry) * 8, z - Math.cos(ry) * 8) < y + 0.7) continue;
+      out = { id: "c" + key, ci, cj, x, y, z, ry, seed: (seed * 7919 + ci * 104729 + cj * 1299709) | 0 };
+    }
+    CC.set(key, out); return out;
+  }
+  const caveById = id => { const [ci, cj] = String(id).slice(1).split(":").map(Number); return Number.isFinite(ci) && Number.isFinite(cj) ? caveIn(ci, cj) : null; };
+  const cavesNear = (x, z, r) => { const out = []; for (let ci = Math.floor((x - r) / CAVE_CELL); ci <= Math.floor((x + r) / CAVE_CELL); ci++) for (let cj = Math.floor((z - r) / CAVE_CELL); cj <= Math.floor((z + r) / CAVE_CELL); cj++) { const c = caveIn(ci, cj); if (c && Math.hypot(c.x - x, c.z - z) < r) out.push(c); } return out; };
+  // (nothing grows or lies in a cave's mouth, nor on the mound over it)
+  const byCave = (x, z, r) => { const c = caveIn(Math.floor(x / CAVE_CELL), Math.floor(z / CAVE_CELL)); return !!c && Math.hypot(c.x - Math.sin(c.ry) * 5 - x, c.z - Math.cos(c.ry) * 5 - z) < r; };
   // the tree in a cell, if there is one: always the same tree
   function treeIn(i, j) {
     const r = hash3(seed, i, j);
@@ -204,7 +240,7 @@ export function makeTerrain(seed, half, kind = "island") {
     if (r > dens * 0.78 + 0.02) return null;
     const y = heightAt(x, z);
     if (y < WATER + 1.6 || y > (big || kind === "earth" ? 70 : 60)) return null;
-    if (slopeAt(x, z) > 0.75) return null;
+    if (slopeAt(x, z) > 0.75 || byCave(x, z, 11)) return null;
     const k = hash3(seed + 3, i, j), hh = hash3(seed + 4, i, j);
     // (the kind of tree from the biome's own mix; a palm on a warm shore)
     const B = BIOMES[biomeAt(x, z)];
@@ -222,7 +258,7 @@ export function makeTerrain(seed, half, kind = "island") {
     if (hash3(seed + 9, i, j) > 0.34) return null;
     const x = (i + 0.2 + hash3(seed + 10, i, j) * 0.6) * ROCK_CELL, z = (j + 0.2 + hash3(seed + 11, i, j) * 0.6) * ROCK_CELL;
     const y = heightAt(x, z);
-    if (y < WATER + 1.2) return null;
+    if (y < WATER + 1.2 || byCave(x, z, 12)) return null;
     const s = 0.8 + hash3(seed + 12, i, j) * 1.1;
     return { id: "r" + i + ":" + j, i, j, x, y, z, s, rot: hash3(seed + 13, i, j) * 6.28 };
   }
@@ -259,7 +295,7 @@ export function makeTerrain(seed, half, kind = "island") {
     }
     return best || { x: 0, z: 0 };
   }
-  return { seed, half, kind, big, lonOf, latOf, climate, biomeAt, warmWet, heightAt, slopeAt, forestAt, meadowAt, sandAt, treeIn, treeById, rockIn, rockById, chunkTrees, chunkRocks, findHome, coast };
+  return { seed, half, kind, big, lonOf, latOf, climate, biomeAt, warmWet, heightAt, slopeAt, forestAt, meadowAt, sandAt, treeIn, treeById, rockIn, rockById, chunkTrees, chunkRocks, findHome, coast, caveIn, caveById, cavesNear, CAVE_CELL };
 }
 
 // a seeded run of numbers from 0 to 1 (the same as core.js's, without needing it)

@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "0.98.0", date: "11 October 2026", title: "Under the hill",
+    items: [
+      "Frontier: caves, on the Earth and on every other land. Here and there a mouth of rock in a hillside, facing down the slope; walk into it and you're in a warren of great halls and tunnels deep under the hill, dark but for your lantern and a few old torches. Seams of good stone in the walls give twice what a rock up top does (the pickaxe), and the cave has its own map (J) of the halls you've stood in. Walk out into the daylight at the end of the first hall.",
+      "Down a cave, the world up top can't reach you: no beast comes for you there, no one above can strike you, and your axe won't fell the trees over your head.",
+      "Frontier: the Earth is far bigger — eight, twelve or eighteen kilometres across (small, middling, large), up from under five.",
+      "The mountains are jagged now: knife-edged ridges breaking into teeth, crags on the crests, the valleys smooth between.",
+      "The sea stands higher up the shore, and the Earth's coasts wander in bays and points instead of running square along the old grid.",
+      "Zoomed in on the big map (J), the land is drawn again at the scale you're looking at, piece by piece: every wood, contour and cove sharp, however close you go — and on a big land, you can go a good deal closer.",
+      "Fixed: the walls of buildings in Frontier were solid in the wrong places when a building stood at a slant — invisible corners you bumped on and gaps you could walk through. They're now exactly the building's own walls, at any angle (and they're drawn turned on the map too).",
+      "Fixed: trees on high ground could be walked straight through. Every trunk is solid now, however high up the hill.",
+    ],
+  },
+  {
     v: "0.97.0", date: "11 October 2026", title: "By invitation",
     items: [
       "Hosting a game, choose who may join: Public, for anyone who finds it, or Private, for only the people you invite. Put their names in Invite, with commas between.",

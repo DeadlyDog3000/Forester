@@ -420,8 +420,8 @@ export class Collision {
   insert(o) {
     this.all.push(o);
     const c = this.cell;
-    const x0 = Math.floor((o.type === "box" ? o.x0 : o.x - o.r) / c), x1 = Math.floor((o.type === "box" ? o.x1 : o.x + o.r) / c);
-    const z0 = Math.floor((o.type === "box" ? o.z0 : o.z - o.r) / c), z1 = Math.floor((o.type === "box" ? o.z1 : o.z + o.r) / c);
+    const ext = o.type === "box" ? o : o.type === "obox" ? o.bb : { x0: o.x - o.r, x1: o.x + o.r, z0: o.z - o.r, z1: o.z + o.r };
+    const x0 = Math.floor(ext.x0 / c), x1 = Math.floor(ext.x1 / c), z0 = Math.floor(ext.z0 / c), z1 = Math.floor(ext.z1 / c);
     o._cells = [];
     for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) {
       const k = this.key(i, j);
@@ -452,6 +452,12 @@ export class Collision {
       b.x0 = Math.min(b.x0, o.x0); b.x1 = Math.max(b.x1, o.x1); b.z0 = Math.min(b.z0, o.z0); b.z1 = Math.max(b.z1, o.z1);
     }
     return isFinite(b.x0) ? b : null;
+  }
+  // a box turned to any angle (a building set down square to the way you faced): centre, half its width and depth,
+  // and its turn about the upright
+  addOBox(x, z, hw, hd, ry = 0, y1 = 10, y0 = -5, tag) {
+    const c = Math.cos(ry), s = Math.sin(ry), ex = Math.abs(c) * hw + Math.abs(s) * hd, ez = Math.abs(s) * hw + Math.abs(c) * hd;
+    return this.insert({ type: "obox", x, z, c, s, hw, hd, y0, y1, tag, bb: { x0: x - ex, x1: x + ex, z0: z - ez, z1: z + ez } });
   }
   addCircle(x, z, r, y1 = 10, tag) { return this.insert({ type: "circle", x, z, r, y0: -5, y1, tag }); }
   near(x, z, rad = 2) {
@@ -485,6 +491,17 @@ export class Collision {
             else if (m === f) p.z = o.z0 - r; else p.z = o.z1 + r;
           }
         }
+      } else if (o.type === "obox") {
+        // (into the box's own frame — x along its width, z along its depth — pushed out there, and back)
+        const wx = p.x - o.x, wz = p.z - o.z, lx = wx * o.c - wz * o.s, lz = wx * o.s + wz * o.c;
+        const cx = clamp(lx, -o.hw, o.hw), cz = clamp(lz, -o.hd, o.hd);
+        let dx = lx - cx, dz = lz - cz, nx = lx, nz = lz;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < r * r) {
+          if (d2 > 1e-8) { const d = Math.sqrt(d2); nx = cx + dx / d * r; nz = cz + dz / d * r; }
+          else { const ox = o.hw - Math.abs(lx), oz = o.hd - Math.abs(lz); if (ox < oz) nx = Math.sign(lx || 1) * (o.hw + r); else nz = Math.sign(lz || 1) * (o.hd + r); }
+          p.x = o.x + nx * o.c + nz * o.s; p.z = o.z - nx * o.s + nz * o.c;
+        }
       } else {
         const dx = p.x - o.x, dz = p.z - o.z, rr = r + o.r + (npc && o.npcPad || 0), d2 = dx * dx + dz * dz;
         if (d2 < rr * rr && d2 > 1e-8) { const d = Math.sqrt(d2); p.x = o.x + dx / d * rr; p.z = o.z + dz / d * rr; }
@@ -496,6 +513,7 @@ export class Collision {
     for (const o of this.near(x, z, 1)) {
       if (o.disabled || y > o.y1 || y < o.y0) continue;
       if (o.type === "box") { if (x > o.x0 - pad && x < o.x1 + pad && z > o.z0 - pad && z < o.z1 + pad) return true; }
+      else if (o.type === "obox") { const wx = x - o.x, wz = z - o.z; if (Math.abs(wx * o.c - wz * o.s) < o.hw + pad && Math.abs(wx * o.s + wz * o.c) < o.hd + pad) return true; }
       else if ((x - o.x) ** 2 + (z - o.z) ** 2 < (o.r + pad) ** 2) return true;
     }
     return false;
@@ -515,8 +533,8 @@ export class Collision {
         if (t > 0.02 && t < 0.98 && (cx - o.x) ** 2 + (cz - o.z) ** 2 < o.r * o.r && cy > o.y0 && cy < o.y1) return false;
         continue;
       }
-      if (o.type !== "box") continue;
-      // slab test on the segment
+      if (o.type !== "box" && o.type !== "obox") continue;
+      // slab test on the segment (a turned box: in its own frame)
       let t0 = 0, t1 = 1;
       const slab = (p, d, lo, hi) => {
         if (Math.abs(d) < 1e-9) return p >= lo && p <= hi;
@@ -525,6 +543,11 @@ export class Collision {
         t0 = Math.max(t0, u); t1 = Math.min(t1, v);
         return t0 <= t1;
       };
+      if (o.type === "obox") {
+        const ax = a.x - o.x, az = a.z - o.z, lx = ax * o.c - az * o.s, lz = ax * o.s + az * o.c, ldx = dx * o.c - dz * o.s, ldz = dx * o.s + dz * o.c;
+        if (slab(lx, ldx, -o.hw, o.hw) && slab(a.y, dy, o.y0, o.y1) && slab(lz, ldz, -o.hd, o.hd) && t1 > 0.001 && t0 < 0.999) return false;
+        continue;
+      }
       if (slab(a.x, dx, o.x0, o.x1) && slab(a.y, dy, o.y0, o.y1) && slab(a.z, dz, o.z0, o.z1) && t1 > 0.001 && t0 < 0.999) return false;
     }
     return true;

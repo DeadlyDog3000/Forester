@@ -1190,6 +1190,7 @@ function blockedAt(w, x, z, pad = NPC_R, y = w.heightAt(x, z)) {
   for (const o of w.col.near(x, z, pad + 1.3)) {
     if (o.disabled || y + 0.3 > o.y1 - 0.05 || y + 1.7 < o.y0) continue;
     if (o.type === "box") { if (x > o.x0 - pad && x < o.x1 + pad && z > o.z0 - pad && z < o.z1 + pad) return true; }
+    else if (o.type === "obox") { const wx = x - o.x, wz = z - o.z; if (Math.abs(wx * o.c - wz * o.s) < o.hw + pad && Math.abs(wx * o.s + wz * o.c) < o.hd + pad) return true; }
     else if ((x - o.x) ** 2 + (z - o.z) ** 2 < (o.r + pad + (o.npcPad || 0)) ** 2) return true;
   }
   return false;
@@ -1740,6 +1741,8 @@ function pickInteract() {
     const dx = ix - p.pos.x, dz = iz - p.pos.z, d = Math.hypot(dx, dz);
     const reach = it.reach ?? 2.3;
     if (d > reach) continue;
+    // (not a thing far over your head or under your feet: up on the hill when you're down in a cave under it)
+    if (it.y != null && Math.abs(it.y - eye.y) > 12) continue;
     const to = new THREE.Vector3(ix - eye.x, (it.y ?? 1) - eye.y, iz - eye.z).normalize();
     const dot = to.dot(fwd);
     if (dot < (d < 1 ? 0.2 : 0.72)) continue;
@@ -2007,7 +2010,14 @@ function drawMapGround(c, X, Z, S, big, cx, cz, radius) {
   // buildings and walls: everything solid and taller than a person, in red with an ink edge
   c.fillStyle = TOWN; c.strokeStyle = INK; c.lineWidth = 0.8;
   for (const o of w.col.near(cx, cz, radius)) {
-    if (o.disabled || o.type !== "box" || o.x1 - o.x0 > 400) continue;
+    if (o.disabled) continue;
+    if (o.type === "obox") {
+      // (a turned building: drawn turned)
+      c.beginPath(); for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const lx = u * o.hw, lz = v * o.hd; c.lineTo(X(o.x + lx * o.c + lz * o.s), Z(o.z - lx * o.s + lz * o.c)); } c.closePath();
+      if (o.y1 >= 1.5) { c.fill(); c.stroke(); } else { c.fillStyle = "rgba(90,70,50,0.55)"; c.fill(); c.fillStyle = TOWN; }
+      continue;
+    }
+    if (o.type !== "box" || o.x1 - o.x0 > 400) continue;
     const x = X(o.x0), y = Z(o.z0), ww = (o.x1 - o.x0) * S, hh = (o.z1 - o.z0) * S;
     if (o.y1 >= 1.5) { c.fillRect(x, y, ww, hh); c.strokeRect(x, y, ww, hh); }
     else { c.fillStyle = "rgba(90,70,50,0.55)"; c.fillRect(x, y, ww, hh); c.fillStyle = TOWN; }

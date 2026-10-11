@@ -10,7 +10,7 @@ import { makePerson } from "../models.js";
 import { $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { Net, addressOf, listRooms, globalServer, HOST, whoAmI } from "./net.js";
-import { MODES, SIZES } from "./rules.js";
+import { MODES, SIZES, EARTH_SIZES } from "./rules.js";
 import { readSlot, MP_SLOT, NATION_SLOT } from "../story.js";
 const MODE_LABEL = { ...MODES, colony: "Co-op colony", nations: "Classic" };
 import { TERRAINS, TERRAIN_ORDER } from "./terrain.js";
@@ -131,7 +131,11 @@ function openHost() {
 // a look at the land before you choose it: the same seed the game will grow
 async function drawKindPreview() {
   const { makeTerrain } = await import("./terrain.js");
-  const cv = $("mpKindMap"), N = cv.width, half = SIZES[$("mpHostSize").value] || 650, T = makeTerrain(seedNow, half, $("mpHostKind").value);
+  // (the sizes, told in the distances of the land chosen: the Earth's are a good deal bigger)
+  { const earth = $("mpHostKind").value === "earth", o = $("mpHostSize").options;
+    const txt = { s: earth ? "Small — eight kilometres across" : "Small — a kilometre across", m: earth ? "Middling — twelve kilometres" : "Middling — a kilometre and a half", l: earth ? "Large — eighteen kilometres" : "Large — two kilometres" };
+    for (const op of o) op.textContent = txt[op.value] || op.textContent; }
+  const cv = $("mpKindMap"), N = cv.width, half = ($("mpHostKind").value === "earth" ? EARTH_SIZES : SIZES)[$("mpHostSize").value] || 650, T = makeTerrain(seedNow, half, $("mpHostKind").value);
   const c = cv.getContext("2d"), img = c.createImageData(N, N), d = img.data;
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = -half + (i + 0.5) * 2 * half / N, z = -half + (j + 0.5) * 2 * half / N, h = T.heightAt(x, z), o = (j * N + i) * 4;
