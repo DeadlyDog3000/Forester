@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.99.8", date: "11 October 2026", title: "The wide world, told true",
+    items: [
+      "The lobby describes the wide world as it is now: the whole Earth at its full size, forty kilometres across, every continent, sea and mountain range where it lies.",
+    ],
+  },
+  {
     v: "0.99.7", date: "11 October 2026", title: "Mouths in the hills",
     items: [
       "A cave's hill is the colour of the country round it — sand in the desert, dry grass on the savanna, snow up high — not always green moss.",
