@@ -100,7 +100,7 @@ export class Remote {
     // (or down a cave, under the ground: there, out of sight of all but those down there too)
     a.root.position.y += ((this.ty ?? gy) - gy > 0.3 || gy < 0 || (this.ty ?? gy) < gy - 20 ? (this.ty - gy) : 0);
     const far = Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z);
-    this.tag.visible = far < 45 && !this.dead;
+    this.tag.visible = far < 45 && !this.dead && Math.abs(a.root.position.y - G.player.pos.y) < 25;
   }
   remove() { if (this.tag) { this.tag.material.map.dispose(); this.tag.material.dispose(); } this.actor.remove(); }
 }

@@ -1045,17 +1045,20 @@ export function forestInstances(list, far = false) {
     }
   }
   // Scots pine: a tall bare trunk and a flat, broken crown
-  const pineB = new THREE.InstancedMesh(swayGeo(BLOB, kinds.pine.length * 4), TREE.pineMat, kinds.pine.length * 4);
+  // (the crown the top third of it: a flat-topped head, and boughs standing out from the trunk under it, each its own
+  //  flat cloud of needles — not one blob on a stick)
+  const PN = 7, pineB = new THREE.InstancedMesh(swayGeo(BLOB, kinds.pine.length * PN), TREE.pineMat, Math.max(1, kinds.pine.length * PN));
   let pi = 0;
   for (const t of kinds.pine) {
-    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.85, t.h * 0.86, 0.85); dummy.updateMatrix();
+    dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(Math.sin(t.rot * 4.1) * 0.04, t.rot, 0); dummy.scale.set(1.0, t.h * 0.9, 1.0); dummy.updateMatrix();
     sway(trunks, ti, t); trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
     const seed = t.x * 0.53 + t.z * 0.91;
-    for (let i = 0; i < 4; i++) {
-      const a = t.rot + i * 1.9, rad = i === 0 ? 0 : t.h * 0.1;
-      const w = t.h * (i === 0 ? 0.19 : 0.13);
-      dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.84 + (i === 0 ? 0.04 : -0.03 + (i % 2) * 0.05)), t.z + Math.sin(a) * rad);
-      dummy.scale.set(w, w * 0.45, w * 0.9); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
+    for (let i = 0; i < PN; i++) {
+      const a = t.rot + i * 2.2 + Math.sin(seed + i) * 0.4, rad = i === 0 ? 0 : t.h * (0.09 + (i % 3) * 0.035);
+      const w = t.h * (i === 0 ? 0.2 : 0.12 + (i % 2) * 0.03);
+      const hy = i === 0 ? 0.9 : 0.66 + ((i * 0.37 + Math.sin(seed * 3 + i) * 0.1) % 0.24);
+      dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * hy, t.z + Math.sin(a) * rad);
+      dummy.scale.set(w, w * 0.42, w * 0.85); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
       sway(pineB, pi, t); pineB.setMatrixAt(pi, dummy.matrix); t.slots.push([pineB, pi]);
       tint(pineB, pi++, 0, seed);
     }
@@ -1092,8 +1095,9 @@ export function forestInstances(list, far = false) {
     m.count = n; return m;
   };
   // the oak: a stout trunk and a broad, rounded crown
-  const OAK = () => [[0.78, 0, 0.26, 0.8], [0.62, 0.17, 0.2, 0.75], [0.66, 0.17, 0.19, 0.75], [0.6, 0.18, 0.2, 0.75], [0.7, 0.15, 0.18, 0.8], [0.88, 0.08, 0.18, 0.75], [0.56, 0.2, 0.15, 0.7]];
-  const oakC = crown(kinds.oak, TREE.oakMat, OAK, [1.25, 0.5]);
+  // (as broad as it's high, the crown coming down low on a short thick bole)
+  const OAK = () => [[0.74, 0, 0.3, 0.75], [0.58, 0.23, 0.24, 0.7], [0.63, 0.25, 0.22, 0.7], [0.55, 0.24, 0.23, 0.68], [0.68, 0.21, 0.22, 0.75], [0.86, 0.1, 0.22, 0.7], [0.5, 0.27, 0.18, 0.62], [0.76, 0.2, 0.2, 0.72]];
+  const oakC = crown(kinds.oak, TREE.oakMat, OAK, [1.45, 0.46]);
   // the acacia: a thin trunk, and its crown flat as a table, wide over the grass
   const ACA = () => [[0.66, 0, 0.42, 0.2], [0.62, 0.26, 0.3, 0.2], [0.64, 0.28, 0.28, 0.18], [0.6, 0.24, 0.26, 0.22], [0.68, 0.14, 0.26, 0.18]];
   const acaC = crown(kinds.acacia, TREE.acaciaMat, ACA, [0.65, 0.62]);

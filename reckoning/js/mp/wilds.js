@@ -11,7 +11,7 @@ import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, ma
 import { G, WorldBase } from "../engine.js";
 import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShipyard, SWAY } from "../models.js";
 import { Woods } from "../woods.js";
-import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
+import { fillPaper, tree as mapTree, INK, TOWN, label, relief, caveIcon } from "../map.js";
 import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
 import { WaterMat } from "../water.js";
 import { Caves } from "../cave.js";
@@ -36,6 +36,25 @@ function rockShape() {
   for (let i = 0; i < p.count; i++) { const k = 0.8 + hash(p.getX(i) * 3.1, p.getZ(i) * 2.7 + p.getY(i)) * 0.35; p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.72, p.getZ(i) * k); }
   g.computeVertexNormals(); g._shared = true;
   return rockGeo = g;
+}
+// a rock's footing: how far it reaches out from its middle, all the way round, where it stands up out of the ground
+// (its own shape as it's set down — sunk, turned, scaled — and the ground's slope under it), and the circles to walk
+// against laid round that: the rock itself, not a circle round it
+const _rv = new THREE.Vector3();
+function rockCols(col, mx, x, z, s, ground, y0, y1) {
+  const p = rockShape().attributes.position, N = 12, ext = new Array(N).fill(0);
+  for (let i = 0; i < p.count; i++) {
+    _rv.fromBufferAttribute(p, i).applyMatrix4(mx);
+    if (_rv.y < ground(_rv.x, _rv.z) + 0.12) continue;
+    const dx = _rv.x - x, dz = _rv.z - z, b = ((Math.round(Math.atan2(dz, dx) / (Math.PI * 2 / N)) % N) + N) % N;
+    ext[b] = Math.max(ext[b], Math.hypot(dx, dz));
+  }
+  // (a sector nothing reached: as its neighbours do)
+  for (let b = 0; b < N; b++) if (!ext[b]) ext[b] = Math.min(ext[(b + 1) % N] || s * 0.6, ext[(b + N - 1) % N] || s * 0.6);
+  const r0 = Math.min(...ext) * 0.9, rs = Math.min(0.32 * s, r0), out = [col.addCircle(x, z, r0, y1)];
+  ext.forEach((e, b) => { if (e > r0 + 0.05) { const a = b * Math.PI * 2 / N, d = Math.max(0, e - rs); out.push(col.addCircle(x + Math.cos(a) * d, z + Math.sin(a) * d, rs, y1)); } });
+  for (const o of out) o.y0 = y0;
+  return out;
 }
 
 // the great features of the land, by the names they had then: deserts, mountains, plains, the great forests
@@ -191,7 +210,7 @@ export class Wilds extends WorldBase {
         d.position.set(k.x, k.y - 0.25 * k.s, k.z); d.rotation.set(0, k.rot, 0); d.scale.setScalar(k.s); d.updateMatrix();
         rm.setMatrixAt(i, d.matrix); rm.setColorAt(i, rc.copy(PAL.rock).offsetHSL(0, 0, (hash(k.x, k.z) - 0.5) * 0.08));
         k.slot = [rm, i]; k.m = d.matrix.clone();
-        k.col = this.col.addCircle(k.x, k.z, k.s * 0.85, k.y + k.s * 0.6); cols2.push(k.col);
+        k.cols = rockCols(this.col, d.matrix, k.x, k.z, k.s, (x, z) => L.heightAt(x, z), -5, k.y + k.s * 0.6); cols2.push(...k.cols);
         if (this.broken.has(k.id)) this.hideRock(k, true);
       });
       rm.castShadow = true; rm.receiveShadow = true; rm.instanceMatrix.needsUpdate = true; rm.computeBoundingSphere();
@@ -252,8 +271,8 @@ export class Wilds extends WorldBase {
     // (put back as it was: the chunk is built afresh, the cheapest way to have every piece of it right)
     const ch = this.chunkAt(t.x, t.z); if (ch) { this.dropChunk(ch); this.buildChunk(ch.ci, ch.cj); }
   }
-  hideRock(k) { const [m, i] = k.slot || []; if (m) { m.setMatrixAt(i, ZERO); m.instanceMatrix.needsUpdate = true; } if (k.mesh) k.mesh.visible = false; if (k.col) k.col.disabled = true; k.gone = true; }
-  showRock(id) { this.broken.delete(id); const k = this.thing(id); if (k && k.mesh) { k.mesh.visible = true; k.gone = false; if (k.col) k.col.disabled = false; } if (k && k.slot) { k.slot[0].setMatrixAt(k.slot[1], k.m); k.slot[0].instanceMatrix.needsUpdate = true; k.gone = false; if (k.col) k.col.disabled = false; } }
+  hideRock(k) { const [m, i] = k.slot || []; if (m) { m.setMatrixAt(i, ZERO); m.instanceMatrix.needsUpdate = true; } if (k.mesh) k.mesh.visible = false; for (const o of k.cols || []) o.disabled = true; k.gone = true; }
+  showRock(id) { this.broken.delete(id); const k = this.thing(id); if (k && k.mesh) { k.mesh.visible = true; k.gone = false; for (const o of k.cols || []) o.disabled = false; } if (k && k.slot) { k.slot[0].setMatrixAt(k.slot[1], k.m); k.slot[0].instanceMatrix.needsUpdate = true; k.gone = false; for (const o of k.cols || []) o.disabled = false; } }
   setFelled(ids) { for (const id of ids) { this.felled.add(id); const t = this.thing(id); if (t && t.slots) this.hideTree(t, true); } }
   setBroken(ids) { for (const id of ids) { this.broken.add(id); const k = this.thing(id); if (k && k.slot) this.hideRock(k); } }
   // a tree comes down, away from whoever felled it
@@ -441,7 +460,7 @@ export class Wilds extends WorldBase {
     const m = new THREE.Mesh(rockShape(), this.seamMat ??= addDetail(new THREE.MeshStandardMaterial({ color: 0x9a9080, roughness: 0.9, flatShading: true }), { scale: 2, amount: 0.3, grain: 0.6, surface: "rock", snow: false, weather: false }));
     m.position.set(x, y - 0.2 * s, z); m.scale.setScalar(s); m.rotation.y = hash(z, x) * 6.28; m.castShadow = m.receiveShadow = true; cave.root.add(m);
     const k = { id: sid, x, y, z, s, mesh: m, cave, gone: false };
-    k.col = this.col.addCircle(x, z, s * 0.85, y + s * 0.6); k.col.y0 = y - 2;
+    m.updateMatrix(); k.cols = rockCols(this.col, m.matrix, x, z, s, (px, pz) => cave.floorAt(px, pz), y - 2, y + s * 0.6);
     (this.seams ??= new Map()).set(sid, k);
     if (this.broken.has(sid)) this.hideRock(k);
     return k;
@@ -620,6 +639,8 @@ export class Wilds extends WorldBase {
         for (const t of ch.trees) if (!t.gone) mapTree(c, X(t.x), Z(t.z), ts, t.kind);
       }
     }
+    // the caves you've come across: a dark arch in the hillside
+    for (const cv of (this.caves || new Map()).values()) if (cv.found && cv.mouthAt) caveIcon(c, X(cv.mouthAt.x), Z(cv.mouthAt.z), Math.max(4, Math.min(9, S * 2.2)));
     // claims: a dashed ring in the owner's colour
     for (const e of this.blds.values()) {
       const d = BUILD[e.b.type];

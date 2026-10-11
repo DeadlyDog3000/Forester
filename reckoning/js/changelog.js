@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.98.1", date: "11 October 2026", title: "Rock and bough",
+    items: [
+      "Frontier: the rocks are solid where the rock is — their own lumpy outline as they sit on the slope, not a circle round them — so you come right up against the stone, and don't stop short of it in thin air.",
+      "Scots pines have a proper crown now: a flat-topped head and boughs standing out under it, each a cloud of needles, instead of one blob on a pole. Oaks are broad, low-crowned and thick in the bole.",
+      "The caves you've come across are marked on the map, a dark arch in the hillside.",
+      "Someone down a cave is out of sight of those up top, name and all — and those up top of them.",
+    ],
+  },
+  {
     v: "0.98.0", date: "11 October 2026", title: "Under the hill",
     items: [
       "Frontier: caves, on the Earth and on every other land. Here and there a mouth of rock in a hillside, facing down the slope; walk into it and you're in a warren of great halls and tunnels deep under the hill, dark but for your lantern and a few old torches. Seams of good stone in the walls give twice what a rock up top does (the pickaxe), and the cave has its own map (J) of the halls you've stood in. Walk out into the daylight at the end of the first hall.",
