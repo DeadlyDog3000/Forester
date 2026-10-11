@@ -549,6 +549,13 @@ class Room {
         return;
       }
       // going hungry: it wears you down, slowly, till you eat
+      // the cold, or the heat, has you: as hunger does, a little at a time
+      case "exposure": {
+        if (p.dead || t - (p.lastExposure || 0) < 5500) return; p.lastExposure = t;
+        p.hp = Math.max(0, p.hp - R.MAX_HP * 0.03);
+        if (p.hp <= 0) { p.hp = 1; this.damage(p, 1, null, p.x, p.z); } else this.all({ t: "hp", pid: p.pid, hp: p.hp });
+        return;
+      }
       case "starve": {
         if (p.dead || t - (p.lastStarve || 0) < 5500) return; p.lastStarve = t;
         p.hp = Math.max(0, p.hp - R.MAX_HP * 0.025);

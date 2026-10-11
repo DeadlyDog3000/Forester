@@ -16,6 +16,7 @@ import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
+import { tickTemperature } from "./temperature.js";
 import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, thirstTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
 const ARMS_M = { skin: new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.6 }), sleeve: new THREE.MeshStandardMaterial({ color: 0x4d5a3c, roughness: 0.95 }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 }) };
@@ -823,7 +824,20 @@ export class Player {
       else if (parched && !G.downed) { G.health = Math.max(0, G.health - dt / 150); if (G.health <= 0) G.die("thirst"); }
       else if (b && !G.downed && G.mode === "play" && (b.hunger < 0.1 || (wet && (b.thirst ?? 1) < 0.1))) G.health = Math.max(0.05, G.health - dt / 700);
       if (G.mode === "play") { hungerTick(b, dt, sprint && this.speed > 1); if (wet) thirstTick(b, dt, sprint && this.speed > 1); }
-      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick || !!ill, wet && b ? b.thirst ?? 1 : null);
+      // the cold and the heat: out of doors (not in the city's streets and houses), the gauge fills; full, it hurts
+      let temp = null;
+      if ((wet || (G.world && G.world.land)) && G.mode === "play" && !G.cine) {
+        temp = G.temp = tickTemperature(G, dt);
+        if (temp && Math.abs(temp.g) >= 0.999 && !G.downed) {
+          const cold = temp.g < 0;
+          if (G.mp) { if ((G.expT = (G.expT || 0) - dt) <= 0) { G.expT = 6; G.mp.net.send({ t: "exposure", cold }); } }
+          else { G.health = Math.max(0, G.health - dt / 160); if (G.health <= 0) G.die(cold ? "cold" : "heat"); }
+        }
+        if (temp && G.guide) { if (temp.g < -0.4) G.guide("cold"); else if (temp.g > 0.4) G.guide("heat"); }
+        if (temp && !G._toldCold && temp.g < -0.35) { G._toldCold = true; UI.hint("The cold's getting into you. A fire, a cave or a roof over you will warm you — a warmer coat keeps it out.", 6); }
+        if (temp && !G._toldHeat && temp.g > 0.35) { G._toldHeat = true; UI.hint("The heat's getting to you. Get into the shade — a roof, a cave — or wear less: shirtsleeves and a brimmed hat.", 6); }
+      }
+      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick || !!ill, wet && b ? b.thirst ?? 1 : null, temp);
     } else UI.vitals(null);
     if (sprint && this.crouched) this.crouched = false;
     // (a bow drawn: no running, and a slow, careful step)
@@ -1612,7 +1626,7 @@ G.wakeUp = async (from, lost) => {
   await new Promise(r => setTimeout(r, 900));
   UI.fade(0, 1.4); G.lockMove = false;
   if (G.body) G.body.plague = 0;
-  UI.hint((from === "hunger" ? "You died of hunger, and woke in your bed as if from a fever." : from === "thirst" ? "You died of thirst, and woke in your bed with a cup of water beside it." : from === "plague" ? "The plague took you — and yet you woke, in your bed, the fever gone." : "You died, and woke in your bed.") + G.lostText(lost || {}), 7);
+  UI.hint((from === "cold" ? "The cold took you — and you woke in your bed, under every blanket in the house." : from === "heat" ? "The heat struck you down — and you woke in your bed, a wet cloth on your head." : from === "hunger" ? "You died of hunger, and woke in your bed as if from a fever." : from === "thirst" ? "You died of thirst, and woke in your bed with a cup of water beside it." : from === "plague" ? "The plague took you — and yet you woke, in your bed, the fever gone." : "You died, and woke in your bed.") + G.lostText(lost || {}), 7);
 };
 G.hurt = (dmg, from) => {
   if (G.devGod) return;

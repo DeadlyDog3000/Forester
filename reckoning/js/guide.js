@@ -46,6 +46,24 @@ export const GUIDE = {
       "The metal goes into your pack. Take it to the chopping block to make better tools.",
     ],
   },
+  cold: {
+    kicker: "Your body", title: "The cold",
+    steps: [
+      "The <b>snowflake</b> bar fills as the cold gets into you: out of doors in a cold country, at night, in winter, high up, and above all <b>wet</b> from the water.",
+      "Full, the cold starts to take your <b>health</b>.",
+      "Get warm: stand by a <b>fire</b> (it dries you too), go into a <b>cave</b> — the same cool air all the year round — or get a <b>roof</b> over you.",
+      "What you wear keeps it out: <b>fur and leather</b> best, then a long coat; shirtsleeves least. A fur hat helps.",
+    ],
+  },
+  heat: {
+    kicker: "Your body", title: "The heat",
+    steps: [
+      "In a hot country the bar fills under a <b>sun</b> as the heat gets to you, worst in the middle of the day.",
+      "Full, the heat starts to take your <b>health</b>.",
+      "Get out of it: into the <b>shade</b> of a roof, or a <b>cave</b>, which stays cool. A swim cools you.",
+      "Wear less: <b>shirtsleeves</b> (the Craftsman) or a <b>working dress with the sleeves rolled</b> (the Woodswoman), and a <b>brimmed hat</b> for shade. Fur, or a long coat, makes it far worse.",
+    ],
+  },
   thirst: {
     kicker: "Your body", title: "Thirst",
     steps: [

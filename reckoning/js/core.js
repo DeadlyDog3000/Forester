@@ -788,8 +788,11 @@ function flameParts() {
     FLAME.smokeTex = new THREE.CanvasTexture(c); }
   return FLAME;
 }
+// (every fire made, so the cold can ask which are near: see temperature.js)
+export const FLAMES = new Set();
 export function makeFlame(size = 1, light = null) {
   const F = flameParts(), g = new THREE.Group();
+  g.userData.heat = size; FLAMES.add(g);
   // the faces of the flame: a tall one in the middle, and smaller ones about it, each at its own place in the film
   const faces = [];
   const n = size >= 2 ? 4 : size >= 0.8 ? 3 : 2;

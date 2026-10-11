@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.5.0", date: "11 October 2026", title: "Cold and heat",
+    items: [
+      "A new gauge under your hunger: the cold and the heat. Out of doors in a cold country — at night, in winter, high up, and worst of all wet from the water — a snowflake's bar fills as the cold gets into you; in a hot country a sun's fills as the heat gets to you. Full, it starts to take your health; let it, and it kills you.",
+      "Get warm at a fire (it dries you too), in a cave (the same cool air all the year round), or under a roof out of the wind. Get cool in the shade of a roof, in a cave, or in the water.",
+      "What you wear counts. Fur and leather (the Rover) keep out the worst cold, then the long coats; but in the heat they're the worst thing to be wearing. Shirtsleeves (the Craftsman) and a working dress with the sleeves rolled (the Woodswoman) are the coolest, and a brimmed hat shades you; a fur hat warms.",
+      "On the Earth it's the real climate: Lapland is cold even at noon in summer clothes, the Sahara bakes by day and is bitter at night, and the rain forest is close and hot.",
+    ],
+  },
+  {
     v: "1.4.0", date: "11 October 2026", title: "Oars in the water",
     items: [
       "A new rowboat, clinker-built: five lapped planks a side, tarred below the waterline with a green top strake, a sheer rising to a sharp stem, a broad transom, ribs, two thwarts and a stern seat, rails along the gunwales and the oars in their tholes. It sits up in the water as a boat does — dry inside — and its grain is its own, not sliding over it as it moves. A rowboat now takes 6 logs.",

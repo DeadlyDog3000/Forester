@@ -1132,3 +1132,18 @@ body:has(#bigmap:not(.hidden)) #mpTop { visibility: hidden; }
 #uaNote.bad { color: #e08a7a; }
 .mp-usernote { font: 12px var(--sans); color: var(--ink-dim); margin: -2px 0 6px; }
 .mp-pl .n small.u { display: block; color: #8a8478; font: 11px var(--sans); font-style: normal; margin-top: 1px; opacity: 0.85; }
+
+/* the cold and the heat: a snowflake filling blue, or a sun filling orange; full, it hurts */
+#vitals #temp { margin-right: 26px; display: flex; align-items: center; gap: 7px; }
+#temp.hidden { display: none !important; }
+#temp svg { order: 2; width: 19px; height: 19px; fill: none; stroke-width: 1.9; stroke-linecap: round; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
+#temp .tp-snow { stroke: #cfe6f8; }
+#temp .tp-sun { stroke: #f2b04a; fill: rgba(242, 176, 74, 0.35); display: none; }
+#temp.hot .tp-snow { display: none; } #temp.hot .tp-sun { display: block; }
+#temp .hg-bar { position: relative; width: 172px; height: 12px; background: rgba(8, 14, 22, 0.72); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); box-shadow: inset 0 0 0 1px rgba(190, 220, 255, 0.25); }
+#temp .hg-fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--f, 0) * 100%); background: linear-gradient(180deg, #d6ecff 0%, #7ab4e4 55%, #3a6e9e 100%); transition: width 0.4s ease-out; }
+#temp.hot .hg-fill { background: linear-gradient(180deg, #ffd27a 0%, #e8862e 55%, #a0461a 100%); }
+#temp .hg-ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), rgba(8, 14, 22, 0.85) calc(10% - 2px) 10%); }
+#temp.full svg { animation: hpbeat 1.2s ease-in-out infinite; }
+#temp.full .hg-fill { filter: brightness(1.25); }
+@media (max-width: 640px) { #temp .hg-bar { width: 120px; } }
