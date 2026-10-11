@@ -24,7 +24,7 @@ window.__BIOMES = BIOMES;   // (the big map names the country under the pointer)
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR, SHIP, BOATS, HALL, claimOf } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
-import { Net, hostCommand } from "./net.js";
+import { Net, hostCommand, myUser } from "./net.js";
 
 /* global SFX */
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -68,7 +68,7 @@ export function nameTag(text, colour) {
 // someone else, as they're seen here: their body, where the server last said they were, eased toward it
 export class Remote {
   constructor(game, p) {
-    this.game = game; this.pid = p.pid; this.name = p.name; this.look = p.look || {};
+    this.game = game; this.pid = p.pid; this.name = p.name; this.user = p.user || null; this.look = p.look || {};
     const a = this.actor = new Actor(lookOpts(this.look, p.name), p.x, p.z, (p.yaw || 0) + Math.PI);
     a.remote = this; a.friendly = false;
     this.tx = p.x; this.ty = p.y; this.tz = p.z; this.tyaw = (p.yaw || 0) + Math.PI; this.anim = "idle"; this.spd = 0;
@@ -839,7 +839,7 @@ export class MPGame {
   }
   drawList() {
     const mine = this.groupOf(this.pid), g = mine && this.groups[mine];
-    const people = [{ pid: this.pid, name: this.me.name }, ...[...this.remotes.values()].map(r => ({ pid: r.pid, name: r.name }))];
+    const people = [{ pid: this.pid, name: this.me.name, user: myUser() }, ...[...this.remotes.values()].map(r => ({ pid: r.pid, name: r.name, user: r.user }))];
     const near = pid => { const r = this.remotes.get(pid); return r && Math.hypot(r.x - G.player.pos.x, r.z - G.player.pos.z) < 6; };
     $("mpPlayersBody").innerHTML = `<div class="mc-sec">${this.mode === "coop" ? "Everyone here is on the same side" : g ? `Your alliance: ${esc(g.name)}` : "You stand alone"}</div>` +
       people.map(p => {
@@ -847,7 +847,7 @@ export class MPGame {
         const acts = p.pid === this.pid ? (g && this.mode !== "coop" ? `<button data-a="unally">Leave the alliance</button>` : `<i>you</i>`)
           : [this.mode !== "coop" && !ally ? `<button data-a="ally" data-p="${p.pid}">Ask to be allies</button>` : "", this.mode === "pvp" && !ally && this.hasHearth(p.pid) && !this.wars.some(w => w.def === p.pid) ? `<button data-a="war" data-p="${p.pid}">Declare a claim war</button>` : "", near(p.pid) && this.stock.wood >= 10 ? `<button data-a="give" data-p="${p.pid}">Give 10 logs</button>` : ""].join("");
         const hostActs = p.pid !== this.pid && this.room.hostPid === this.pid ? `<button data-a="kick" data-p="${p.pid}">Send away</button><button data-a="ban" data-p="${p.pid}">Ban</button>` : "";
-        return `<div class="mp-pl${ally ? " ally" : ""}"><span class="n">${esc(p.name)}${p.pid === this.room.hostPid ? " <i>(host)</i>" : ""}</span><span class="g">${grp && this.groups[grp] ? esc(this.groups[grp].name) : ""}</span><span class="a">${acts}${hostActs}</span></div>`;
+        return `<div class="mp-pl${ally ? " ally" : ""}"><span class="n">${esc(p.name)}${p.user ? ` <small class="u">${esc(p.user)}</small>` : ""}${p.pid === this.room.hostPid ? " <i>(host)</i>" : ""}</span><span class="g">${grp && this.groups[grp] ? esc(this.groups[grp].name) : ""}</span><span class="a">${acts}${hostActs}</span></div>`;
       }).join("") + `<p class="mc-hint">${this.mode === "pvp" ? "Allies can't hurt each other, share their gates, and can build on each other's ground. Up to eight to an alliance." : "In co-op no one can be hurt, and you can all build anywhere."}${this.room.persistent ? " In the wide world, a homestead can't be broken while its owner is away." : " Nothing of yours can be broken while you're away from the game."}</p>`;
     for (const b of $("mpPlayersBody").querySelectorAll("button[data-a]")) b.onclick = () => {
       const a = b.dataset.a, pid = b.dataset.p;

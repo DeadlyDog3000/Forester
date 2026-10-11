@@ -35,10 +35,14 @@ export function addressOf(s) {
 }
 // what a server has going: its games (and the wide world, if it keeps one)
 // (who you are, so a private game you're invited to is listed for you)
-export function whoAmI() { let pid = "", name = ""; try { pid = localStorage.getItem("reckoning.mp.pid") || ""; name = localStorage.getItem("reckoning.mp.name") || ""; } catch (e) {} return { pid, name }; }
+export function whoAmI() { let pid = "", name = ""; try { pid = localStorage.getItem("reckoning.mp.pid") || ""; name = localStorage.getItem("reckoning.mp.name") || ""; } catch (e) {} return { pid, name, user: myUser() }; }
+// your username: chosen once, kept on this computer — who you are to other players, whatever name you play under
+export const cleanUser = s => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 20);
+export function myUser() { try { return cleanUser(localStorage.getItem("reckoning.mp.user")); } catch (e) { return ""; } }
+export function setUser(u) { try { localStorage.setItem("reckoning.mp.user", cleanUser(u)); } catch (e) {} }
 export async function listRooms(addr, ms = 2500) {
   const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms), me = whoAmI();
-  try { const r = await fetch(addr.http + "/rooms?pid=" + encodeURIComponent(me.pid) + "&name=" + encodeURIComponent(me.name), { signal: ac.signal, cache: "no-store" }); return r.ok ? await r.json() : null; }
+  try { const r = await fetch(addr.http + "/rooms?pid=" + encodeURIComponent(me.pid) + "&name=" + encodeURIComponent(me.name) + "&user=" + encodeURIComponent(me.user), { signal: ac.signal, cache: "no-store" }); return r.ok ? await r.json() : null; }
   catch (e) { return null; }
   finally { clearTimeout(t); }
 }
@@ -51,7 +55,7 @@ export class Net {
       const fail = text => { if (!done) { done = true; no(new Error(text)); } };
       let ws; try { ws = this.ws = new WebSocket(this.addr.ws); } catch (e) { return fail("Couldn't reach that server."); }
       const to = setTimeout(() => { fail("The server didn't answer."); try { ws.close(); } catch (e) {} }, 6000);
-      ws.onopen = () => { this.open = true; this.send({ t: "hello", v: PROTOCOL, token: myToken(), name, look }); };
+      ws.onopen = () => { this.open = true; this.send({ t: "hello", v: PROTOCOL, token: myToken(), user: myUser(), name, look }); };
       ws.onerror = () => { clearTimeout(to); fail("Couldn't reach that server."); };
       ws.onclose = () => { this.open = false; clearTimeout(to); fail("The server closed the connection."); if (done && !this.closedByUs && this.on.lost) this.on.lost(); };
       ws.onmessage = e => {

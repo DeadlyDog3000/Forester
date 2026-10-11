@@ -250,7 +250,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
             vec3 w = pow(an, vec3(4.0)); w /= (w.x + w.y + w.z);
             float g = dSurf(s, vDWorld, w);
             // the surface's real colour pattern (courses, mortar, boards, stones), and the grain over it, gentler
-            ${"float dColK[8] = float[8](0.9, 0.7, 1.0, 1.0, 0.9, 0.6, 0.8, 1.0);"}
+            ${"float dColK[8] = float[8](0.9, 1.0, 1.0, 1.0, 0.9, 0.6, 0.8, 1.0);"}
             if (s < 8) {
               vec3 pc = dSurfCol(s, vDWorld, w);
               diffuseColor.rgb *= mix(vec3(1.0), pc, dColK[s] * (dRot ? 0.75 : 1.0));
@@ -271,6 +271,11 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
               diffuseColor.rgb *= mix(vec3(1.08, 1.02, 0.94), vec3(0.9, 0.9, 0.92), tone) * (0.92 + tone * 0.14);
               diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.33))), max(up, 0.0) * 0.25);
             } else if (s == 1) {
+              // and the wash itself never quite even: broad clouds of it paler and dingier, and its patches where it was mended
+              float cl = dFbm(vDWorld * vec3(0.45, 0.8, 0.45) + 11.0);
+              diffuseColor.rgb *= mix(vec3(1.05, 1.03, 0.99), vec3(0.86, 0.84, 0.8), smoothstep(0.35, 0.7, cl));
+              float pa = step(0.78, dNoise(floor(vDWorld * vec3(1.6, 2.2, 1.6)) + 5.0));
+              diffuseColor.rgb *= 1.0 + pa * 0.05;
               // plaster: rain streaks run down the walls from the eaves and the sills, and it greys toward the ground
               float st = dNoise(vec3(vDWorld.x * 5.0, vDWorld.y * 0.35, vDWorld.z * 5.0)) * dNoise(vDWorld * 0.6 + 3.1);
               diffuseColor.rgb *= 1.0 - smoothstep(0.25, 0.6, st) * 0.16 * side;

@@ -29,6 +29,9 @@ const PAL = {
 // (the same small hash as the ground's grain everywhere else)
 // a doorway cut in a model's front wall: every one of its materials told not to draw inside the door's box (in the
 // building's own frame), and a frame of dark timber round the opening, the door swung in on its hinges
+// a banner's woven cloth, in a colour (one material for each colour)
+const _cloth = new Map();
+const clothMat = c => { if (!_cloth.has(c)) _cloth.set(c, addDetail(new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, side: THREE.DoubleSide }), { scale: 2, amount: 0.22, grain: 0.6, surface: "cloth", weather: false })); return _cloth.get(c); };
 const DOOR_W = 0.66, DOOR_H = 2.25;
 function doorway(g, sc, dx, zf, deep = 0.7) {
   g.updateMatrixWorld(true);
@@ -83,7 +86,7 @@ function furnishHall(g, x0, x1, z0, z1, colour) {
   for (let i = 0; i < 3; i++) bl.add(new THREE.CylinderGeometry(0.32, 0.3, 0.9, 10), 0x6a4a2e, x1 - 0.5, 0.45, z0 + 1.6 + i * 0.75);
   const vis = bl.build(MAT.rough); vis.castShadow = true; vis.receiveShadow = true; g.add(vis);
   // the banner on the back wall, in the owner's colour
-  const ban = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.5), new THREE.MeshStandardMaterial({ color: colour, roughness: 0.9, side: THREE.DoubleSide }));
+  const ban = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.5), clothMat(colour));
   ban.position.set(cx, 2.1, z0 + 0.06); g.add(ban);
   // a lantern hanging over the table, lit — and its light
   const lan = makeFlame(0.6, null);   // (no light of its own: a light in every hall slows the whole world's drawing) lan.position.set(cx, 2.6, tz); g.add(lan);
@@ -496,8 +499,8 @@ export class Wilds extends WorldBase {
       const light = new THREE.PointLight(0xff8a3a, 1.6, 14, 1.6);
       const f = makeFlame(1.3, light); f.position.y = 0.12; fire.add(f); this.flames.push(f);
       // the banner: the owner's own colour on a pole, so a homestead is known by it
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x4a3626 })); pole.position.set(1.6, 1.6, 0); fire.add(pole);
-      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), new THREE.MeshStandardMaterial({ color: b.colour || 0x7a2a22, side: THREE.DoubleSide, roughness: 0.9 })); flag.position.set(2.06, 2.85, 0); fire.add(flag);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 3.2, 6), mat(0x4a3626, { surface: "wood" })); pole.position.set(1.6, 1.6, 0); fire.add(pole);
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), clothMat(b.colour || 0x7a2a22)); flag.position.set(2.06, 2.85, 0); fire.add(flag);
       g.userData.flag = flag; g.userData.flame = f;
       cols.push(this.col.addCircle(g.userData.fireAt.x, g.userData.fireAt.z, 0.75, y + fy + 0.6));
     } else if (b.type === "shipyard") {

@@ -87,6 +87,8 @@ function upgrade(req, socket) {
 //  the games
 // ---------------------------------------------------------------------------
 const pidOf = token => crypto.createHash("sha256").update("reckoning:" + token).digest("hex").slice(0, 12);
+// a username: letters, digits, _ . - only, lower case, up to 20 (so it can be typed after /invite, and matched)
+const userOf = s => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 20);
 const clean = (s, n) => String(s == null ? "" : s).replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, n);
 const num = (v, d = 0) => (Number.isFinite(+v) ? +v : d);
 const now = () => Date.now();
@@ -109,7 +111,7 @@ class Room {
     // (a private game: only for its host and those they've invited — by name, or by who they are)
     this.private = !!o.private;
     this.invited = new Set((Array.isArray(o.invite) ? o.invite : []).map(x => String(x).trim().toLowerCase()).filter(Boolean).slice(0, 64));
-    this.host = clean(o.host, 24);
+    this.host = clean(o.host, 24); this.hostUser = userOf(o.hostUser) || null;
     this.created = now(); this.emptySince = now();
     this.land = T.makeTerrain(this.seed, this.half, this.kind);
     this.online = new Map();           // pid → {sock, pid, name, look, x, y, z, yaw, a, h, hp, dead, ...}
@@ -148,7 +150,7 @@ class Room {
   // who runs the settlement: in co-op, the host alone; otherwise each their own
   manages(p) { return this.mode !== "coop" || !this.hostPid || p.pid === this.hostPid; }
   meta() {
-    return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, hostPid: this.hostPid, locked: !!this.password, persistent: this.persistent, private: this.private };
+    return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, hostUser: this.hostUser || null, hostPid: this.hostPid, locked: !!this.password, persistent: this.persistent, private: this.private };
   }
   // ---- saving the wide world ----
   toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0, banned: Object.fromEntries(this.banned), piles: this.piles, nextP: this.nextP, sites: this.sites, boats: Object.fromEntries(Object.entries(this.boats).map(([k, b]) => [k, { ...b, driver: null, riders: [] }])), nextO: this.nextO }; }
@@ -159,7 +161,7 @@ class Room {
   }
   each(f) { for (const p of this.online.values()) f(p); }
   all(msg, except) { const s = JSON.stringify(msg); for (const p of this.online.values()) if (p !== except) p.sock.send(s); }
-  pub(p) { const r = this.recs[p.pid]; return { pid: p.pid, name: p.name, look: p.look, x: p.x, y: p.y, z: p.z, yaw: p.yaw, hp: p.hp, dead: p.dead, group: r && r.group || null }; }
+  pub(p) { const r = this.recs[p.pid]; return { pid: p.pid, name: p.name, user: p.user || null, look: p.look, x: p.x, y: p.y, z: p.z, yaw: p.yaw, hp: p.hp, dead: p.dead, group: r && r.group || null }; }
   // ---- who may hurt whom ----
   allied(a, b) {
     if (a === b) return true;
@@ -191,7 +193,7 @@ class Room {
     if (hearth) at = { x: hearth.x + 3, z: hearth.z + 3 };
     else if (this.mode === "coop" && !this.persistent) at = this.land.findHome(T.seq(crypto.randomInt(1, 1e9)), [], 0, this.spawnAt, 30);
     else at = this.land.findHome(T.seq(crypto.randomInt(1, 1e9)), Object.values(this.buildings).filter(b => b.type === "hearth").concat([...this.online.values()]), this.persistent ? 260 : 120);
-    const p = { sock, pid: who.pid, name: who.name, look: who.look, x: at.x, y: this.land.heightAt(at.x, at.z), z: at.z, yaw: 0, a: "idle", h: "axe", s: 0, hp: R.MAX_HP, dead: false, shield: now() + R.SPAWN_SHIELD_MS, lastBlow: 0, lastHit: 0, room: this };
+    const p = { sock, pid: who.pid, user: who.user || null, name: who.name, look: who.look, x: at.x, y: this.land.heightAt(at.x, at.z), z: at.z, yaw: 0, a: "idle", h: "axe", s: 0, hp: R.MAX_HP, dead: false, shield: now() + R.SPAWN_SHIELD_MS, lastBlow: 0, lastHit: 0, room: this };
     this.online.set(p.pid, p); sock.player = p; this.emptySince = 0;
     const live = (o, t) => Object.keys(o).filter(k => o[k] > t);
     const t = now();
@@ -208,14 +210,14 @@ class Room {
   // may this person see (and join) the game? A public one, anyone; a private one, its host and whoever's invited
   canSee(who) {
     if (!this.private || !who) return !this.private;
-    return who.pid === this.hostPid || this.invited.has(String(who.pid || "")) || this.invited.has(String(who.name || "").trim().toLowerCase());
+    return who.pid === this.hostPid || this.invited.has(String(who.pid || "")) || (!!who.user && this.invited.has(who.user)) || (!who.user && this.invited.has(String(who.name || "").trim().toLowerCase()));
   }
   invite(p, m) {
     const no = text => p.sock.send({ t: "err", text });
     if (!this.hostPid || p.pid !== this.hostPid) return no("Only the host can invite people.");
     const names = String(m.names || m.name || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 16);
-    if (!names.length) return no("Invite whom? /invite Name, or several: /invite Ann, Bert");
-    for (const n of names) this.invited.add(n.toLowerCase());
+    if (!names.length) return no("Invite whom? /invite username, or several: /invite ann, bert");
+    for (const n of names) this.invited.add(userOf(n.replace(/^@/, "")) || n.toLowerCase());
     this.dirty = true;
     return p.sock.send({ t: "note", text: `Invited: ${names.join(", ")}. ${this.private ? "They'll find the game on their list now." : "(The game's open to anyone anyway.)"}` });
   }
@@ -1353,7 +1355,7 @@ async function start(opts = {}) {
     const u = new URL(req.url, "http://x");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Content-Type", "application/json");
-    if (u.pathname === "/rooms") { const who = u.searchParams.get("pid") || u.searchParams.get("name") ? { pid: String(u.searchParams.get("pid") || ""), name: String(u.searchParams.get("name") || "") } : null; return res.end(JSON.stringify({ ...stats(), rooms: list(who) })); }
+    if (u.pathname === "/rooms") { const who = u.searchParams.get("pid") || u.searchParams.get("name") || u.searchParams.get("user") ? { pid: String(u.searchParams.get("pid") || ""), name: String(u.searchParams.get("name") || ""), user: userOf(u.searchParams.get("user")) } : null; return res.end(JSON.stringify({ ...stats(), rooms: list(who) })); }
     if (u.pathname === "/" || u.pathname === "/status") return res.end(JSON.stringify(stats()));
     res.statusCode = 404; res.end("{}");
   });
@@ -1369,7 +1371,8 @@ async function start(opts = {}) {
       if (m.t === "hello") {
         if ((m.v | 0) !== R.PROTOCOL) return ws.send({ t: "err", fatal: true, text: "This server runs a different version of the game. Update the game, or wait for the server to be." });
         const token = String(m.token || ""); if (token.length < 16) return ws.close();
-        who = { pid: pidOf(token), name: clean(m.name, 24) || "Stranger", look: sanitizeLook(m.look) };
+        // (the username is who you are, and stays; the name is who you play this time — invitations go by the username)
+        who = { pid: pidOf(token), user: userOf(m.user), name: clean(m.name, 24) || "Stranger", look: sanitizeLook(m.look) };
         return ws.send({ t: "hi", pid: who.pid, server: stats() });
       }
       if (!who) return;
@@ -1377,7 +1380,7 @@ async function start(opts = {}) {
       if (m.t === "host") {
         if (rooms.size > 200) return ws.send({ t: "err", text: "This server has as many games as it can hold." });
     // (meta for the lobby: a colony lists without being joinable once ended)
-        const r = new Room({ name: m.name, mode: m.mode, max: m.max, kind: m.kind, size: m.size, password: m.password, host: who.name, seed: m.seed, hostPid: who.pid, private: !!m.private, invite: m.invite });
+        const r = new Room({ name: m.name, mode: m.mode, max: m.max, kind: m.kind, size: m.size, password: m.password, host: who.name, hostUser: who.user, seed: m.seed, hostPid: who.pid, private: !!m.private, invite: m.invite });
         rooms.set(r.id, r); log(`hosted "${r.name}" (${r.mode}, ${r.kind}, ${r.size}) by ${who.name}`);
         if (ws.player) ws.player.room.leave(ws.player);
         return r.join(ws, who, r.password);

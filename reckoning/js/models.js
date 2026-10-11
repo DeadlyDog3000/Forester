@@ -338,7 +338,7 @@ function loaderReady() {
   return _loaderP || (_loaderP = Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js")]).then(([{ GLTFLoader }, SU]) => { _clone = SU.clone; _loader = new GLTFLoader(); }));
 }
 // what a model's material is named for decides its grain: a building's plaster, brick and tiles get their own
-const SURF_BY_NAME = { fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "wood", wood: "wood", log: "log", glass: "none", iron: "none", soot: "none", horn: "none",
+const SURF_BY_NAME = { fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "log", wood: "wood", log: "log", glass: "none", iron: "none", soot: "none", horn: "none",
   // (a tree's bark and needles; a ship's hull; the oven's clay; a candle's wax; a burned house's char and ash; the far city's water and roofs)
   bark: "bark", needles: "needles", hull: "wood", clay: "plaster", wax: "none", char: "wood", ash: "none", water: "none", copper: "none", earth: "none", house: "plaster" };
 const _loading = {};

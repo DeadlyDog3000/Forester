@@ -29,7 +29,7 @@ import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWor
 import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
-import { initLobby, openLobby, openLookEditor, SCREENS as MP_SCREENS } from "./mp/lobby.js";
+import { initLobby, openLobby, openLookEditor, askUser, hasUser, SCREENS as MP_SCREENS } from "./mp/lobby.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
 import { NationGame } from "./mp/nations.js";
@@ -69,6 +69,7 @@ function applySettings() {
   $("setScale").value = s.scale ?? 1; $("scaleVal").textContent = Math.round((s.scale ?? 1) * 100) + "%";
   $("setDynres").checked = !!s.dynres; $("setShadows").value = s.shadows || "high"; $("setDraw").value = String(s.draw ?? 1); $("setTrees").value = s.trees || "full";
   $("setCap").value = String(s.cap || 0); $("setFps").checked = !!s.showFps;
+  $("setChat").value = String(s.chat || 1); document.documentElement.style.setProperty("--chat-k", String(s.chat || 1));
   $("setDark").checked = !!s.dark; document.body.classList.toggle("dark-fantasy", !!s.dark);
   post.on = s.post !== false; $("setPost").checked = post.on;
   // saturation and pixelation: the colour turned up or down, and the picture drawn in bigger, harder pixels
@@ -112,6 +113,7 @@ $("setShadows").addEventListener("change", e => custom("shadows", e.target.value
 $("setDraw").addEventListener("change", e => custom("draw", +e.target.value));
 $("setTrees").addEventListener("change", e => custom("trees", e.target.value));
 $("setCap").addEventListener("change", e => { G.settings.cap = +e.target.value; G.saveSettings(); });
+$("setChat").addEventListener("change", e => { G.settings.chat = +e.target.value; applySettings(); G.saveSettings(); });
 // fullscreen: the whole screen, or a window. (The app's F11 fills the window to the screen as well; either way the box
 // shows how it is.) Kept as a setting, and taken up again at your first click into the game, as a browser requires
 const isFull = () => !!document.fullscreenElement || (Math.abs(innerWidth - screen.width) < 2 && Math.abs(innerHeight - screen.height) < 2);
@@ -289,6 +291,8 @@ initLobby({
     lock();
   },
 });
+// (the first time the game is opened: who are you to other players?)
+if (!hasUser() && !/[?&](autoplay|probe)/.test(location.search) && !window.__probe) askUser(() => screen("title"));
 $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
 // the menus by keyboard: up and down through the buttons of the screen that's up (Enter presses one, as ever)
 addEventListener("keydown", e => {

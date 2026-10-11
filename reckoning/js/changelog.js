@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.3.1", date: "11 October 2026", title: "Who you are",
+    items: [
+      "A username: the first time you open the game it asks what you'd like to be called by other players, and keeps it. It's who you are online — people invite you to their games by it (in Invite when hosting, or /invite username in the talk) — and it never changes when you play under another name. Change it on purpose from the multiplayer screen.",
+      "And a roleplay name for each game: going into a game, the character builder asks who you play this time. Call yourself anything, as often as you like — your invitations still find you. Who's here (Tab) shows each person's name with their username beside it.",
+      "Settings: Chat size — Normal, Large, Larger or Largest, for the talk in multiplayer.",
+      "Plaster walls are never quite even now: clouds of the wash paler and dingier, and mended patches. Banners and flags are woven cloth, and shingle roofs lie in rows, not a grid.",
+    ],
+  },
+  {
     v: "1.3.0", date: "11 October 2026", title: "Within the walls",
     items: [
       "Real textures on everything: every wall, roof and floor now wears its own stuff from photographs — brick in its courses with the mortar pale between, stone walls of odd-coloured stones, the boards of a plank wall with their seams and knots, logs with their grain running along them, plaster with its stains, roof tiles row on row, bark, cloth and needles — in the story and the Frontier alike. And the ground under your feet: grass where it's green, leaf litter in the woods, bare earth on the paths and the yards, rock on the steeps.",

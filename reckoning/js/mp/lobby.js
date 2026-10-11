@@ -9,7 +9,7 @@ import { THREE } from "../core.js";
 import { makePerson } from "../models.js";
 import { $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
-import { Net, addressOf, listRooms, globalServer, HOST, whoAmI } from "./net.js";
+import { Net, addressOf, listRooms, globalServer, HOST, whoAmI, myUser, setUser, cleanUser } from "./net.js";
 import { MODES, SIZES, EARTH_SIZES } from "./rules.js";
 import { readSlot, MP_SLOT, NATION_SLOT } from "../story.js";
 const MODE_LABEL = { ...MODES, colony: "Co-op colony", nations: "Classic" };
@@ -22,7 +22,7 @@ const SERVERS_KEY = "reckoning.mp.servers";
 const typed = () => { try { return JSON.parse(localStorage.getItem(SERVERS_KEY)) || []; } catch (e) { return []; } };
 const remember = a => { try { const l = typed().filter(x => x !== a); l.unshift(a); localStorage.setItem(SERVERS_KEY, JSON.stringify(l.slice(0, 6))); } catch (e) {} };
 
-export const SCREENS = ["mpLobby", "mpHost", "mpBuilder"];
+export const SCREENS = ["mpLobby", "mpHost", "mpBuilder", "userAsk"];
 let ctx = null;            // {screen(id), enter(net, inMsg, me)} from main.js
 let me = null;             // {name, look}
 let afterBuild = null;     // what the builder's Play button does
@@ -37,6 +37,7 @@ export function initLobby(c) {
   $("mpRefresh").onclick = () => refresh();
   $("mpHostBtn").onclick = () => openHost();
   $("mpEditChar").onclick = () => openBuilder(null);
+  $("mpUserChange").onclick = () => askUser(() => openLobby(), true);
   $("mpAddrGo").onclick = () => { const a = addressOf($("mpAddr").value); if (!a) return say("That isn't an address — something like 192.168.1.20:47810."); remember(a.label); refresh(); };
   $("mpAddr").addEventListener("keydown", e => { if (e.key === "Enter") $("mpAddrGo").click(); });
   $("mpWorldGo").onclick = () => { const g = globalServer(); if (!g) return; go({ addr: addressOf(g), room: "world" }); };
@@ -52,11 +53,30 @@ export function initLobby(c) {
   $("mpRandom").onclick = () => { me.look = story ? { ...randomLook(), body: story.body } : randomLook(); buildControls(); showLook(); };
   $("mpName").addEventListener("input", () => $("mpName").classList.remove("want"));
 }
+// the username: asked once (the first time the game is opened), kept, and changed only on purpose
+export function askUser(then, changing = false) {
+  ctx.screen("userAsk");
+  const inp = $("uaName"), note = $("uaNote");
+  inp.value = myUser(); note.textContent = "Letters, numbers, _ . and - only."; note.classList.remove("bad");
+  $("uaGo").textContent = changing ? "Change it" : "Done";
+  const go = () => {
+    const u = cleanUser(inp.value);
+    if (u.length < 3) { note.textContent = "At least three letters or numbers."; note.classList.add("bad"); inp.focus(); return; }
+    if (changing && u !== myUser() && !confirm(`Change your username to ${u}? Games you've been invited to under ${myUser()} won't know you by the new one.`)) return;
+    setUser(u); then && then();
+  };
+  $("uaGo").onclick = go;
+  inp.onkeydown = e => { if (e.key === "Enter") go(); };
+  inp.oninput = () => { const c = cleanUser(inp.value); if (c !== inp.value) inp.value = c; note.classList.remove("bad"); };
+  setTimeout(() => inp.focus(), 50);
+}
+export function hasUser() { return !!myUser(); }
 export function openLobby() {
+  if (!myUser()) return askUser(() => openLobby());
   ctx.screen("mpLobby");
   // (music to wait to: it plays on through the lobby, the hosting and the builder, until you're in a game)
   try { AUDIO.music("lobby"); } catch (e) {}
-  $("mpWho").textContent = me.name ? `Playing as ${me.name}` : "You haven't made your character yet";
+  $("mpWho").textContent = `Signed in as ${myUser()}` + (me.name ? ` · last played as ${me.name}` : "");
   const g = globalServer();
   $("mpWorldGo").disabled = !g;
   $("mpWorldState").textContent = g ? "Looking…" : "The wide world's server isn't open yet. Host a game, or join one, in the meantime.";
@@ -88,7 +108,7 @@ async function refreshNow(quiet) {
   for (const a of typed()) { const ad = addressOf(a); if (ad) jobs.push(listRooms(ad).then(r => { if (r) for (const x of r.rooms || []) if (!x.persistent) found.push({ ...x, addr: ad, where: a }); })); }
   if (HOST) jobs.push(HOST.discover(2200).then(servers => {
     // (a private game on the network: shown only to its host and to those invited)
-    const me = whoAmI(), mine = x => !x.private || (x.inv || []).some(v => v === me.pid || v === (me.name || "").trim().toLowerCase());
+    const me = whoAmI(), mine = x => !x.private || (x.inv || []).some(v => v === me.pid || (me.user && v === me.user));
     for (const s of servers || []) { const ad = addressOf(`${s.address}:${s.port}`); for (const x of s.rooms || []) if (mine(x)) found.push({ ...x, invited: x.private && x.hostPid !== me.pid ? true : undefined, addr: ad, where: s.self ? "Hosted here" : "On this network" }); }
   }).catch(() => {}));
   await Promise.all(jobs);
@@ -110,7 +130,7 @@ async function refreshNow(quiet) {
 let seedNow = Math.floor(Math.random() * 2 ** 31);
 function openHost() {
   ctx.screen("mpHost");
-  if (!$("mpHostName").value) $("mpHostName").value = me.name ? `${me.name}'s game` : "A game in the woods";
+  if (!$("mpHostName").value) $("mpHostName").value = `${myUser() || me.name || "A"}'s game`;
   const g = globalServer(), opts = [];
   if (HOST) opts.push(`<option value="lan">On this computer — friends on your network join, or over the internet by your address</option>`);
   if (g) opts.push(`<option value="global">On the Forester server — anyone can join</option>`);
@@ -191,6 +211,7 @@ const HAS = { vest: ["brother", "father", "watchman"], sash: ["watchman", "watch
 function openBuilder(target) {
   ctx.screen("mpBuilder");
   $("mpName").value = me.name || ""; try { if (me.name) localStorage.setItem("reckoning.mp.name", me.name); } catch (e) {}
+  $("mpUserNote").textContent = `Your username is ${myUser()} — that's how people invite you, whatever you're called in here.`;
   $("mpBuildGo").textContent = target ? (target.host ? "Host the game" : "Into the game") : "Done";
   $("mpBuildTitle").textContent = target ? "Who goes into the woods?" : "Your character";
   for (const b of document.querySelectorAll("#mpBuilder [data-tab]")) b.onclick = () => { tab = b.dataset.tab; buildControls(); setCam(tab === "face" ? "face" : "body"); };

@@ -908,12 +908,12 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 #mpInvite { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); padding: 10px 18px; font: 15px var(--sans); color: var(--ink); background: rgba(9, 24, 16, 0.92); border: 1px solid var(--gold); border-radius: 4px; }
 #mpInvite .k { display: inline-block; padding: 0 6px; margin: 0 2px; border: 1px solid var(--edge); border-radius: 3px; font-weight: 600; }
 #mpBuildBar { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); padding: 8px 16px; font: 14px var(--sans); color: var(--ink); background: rgba(9, 24, 16, 0.82); border: 1px solid var(--edge); border-radius: 4px; white-space: nowrap; }
-#mpChat { position: absolute; left: 28px; bottom: 150px; width: min(440px, 60vw); transition: opacity 1.2s; }
+#mpChat { position: absolute; left: 28px; bottom: 150px; width: min(calc(440px * var(--chat-k, 1)), 70vw); transition: opacity 1.2s; }
 #mpChat.quiet { opacity: 0.35; }
-#mpChatLog .cl { font: 14px/1.35 var(--sans); color: var(--ink); text-shadow: 0 1px 3px #000; margin: 2px 0; }
+#mpChatLog .cl { font: calc(14px * var(--chat-k, 1))/1.35 var(--sans); color: var(--ink); text-shadow: 0 1px 3px #000; margin: 2px 0; }
 #mpChatLog .cl.sys { font-style: italic; color: var(--ink-dim); }
 #mpChatLog .cl.ally b { color: #9fe08f; }
-#mpChatIn { pointer-events: auto; width: 100%; margin-top: 6px; padding: 7px 10px; font: 14px var(--sans); color: var(--ink); background: rgba(0, 0, 0, 0.6); border: 1px solid var(--gold); border-radius: 3px; outline: none; }
+#mpChatIn { pointer-events: auto; width: 100%; margin-top: 6px; padding: 7px 10px; font: calc(14px * var(--chat-k, 1)) var(--sans); color: var(--ink); background: rgba(0, 0, 0, 0.6); border: 1px solid var(--gold); border-radius: 3px; outline: none; }
 #mpKeys { position: absolute; right: 24px; bottom: 14px; font: 11px var(--sans); color: rgba(232, 239, 226, 0.5); letter-spacing: 0.06em; }
 #mpDead { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 30; }
 #mpDead .t { font: 34px var(--serif); color: #f3e7c6; text-shadow: 0 2px 10px #000; }
@@ -1125,3 +1125,10 @@ body:has(#bigmap:not(.hidden)) #mpTop { visibility: hidden; }
 .cb-hats { display: flex; flex-wrap: wrap; gap: 5px; }
 .cb-hats button { padding: 5px 9px; font: 600 12px var(--sans); color: var(--ink); background: rgba(140, 192, 132, 0.1); border: 1px solid var(--edge); border-radius: 5px; cursor: pointer; }
 .cb-hats button.on { background: rgba(140, 192, 132, 0.35); border-color: var(--gold); }
+
+/* the username, asked once */
+#userAsk .ua-box { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 18px; }
+#uaName { width: min(320px, 80vw); padding: 10px 14px; font: 20px var(--sans); color: var(--ink); background: rgba(0, 0, 0, 0.45); border: 1px solid var(--gold); border-radius: 3px; outline: none; text-align: center; }
+#uaNote.bad { color: #e08a7a; }
+.mp-usernote { font: 12px var(--sans); color: var(--ink-dim); margin: -2px 0 6px; }
+.mp-pl .n small.u { color: var(--ink-dim); font-size: 0.8em; margin-left: 4px; }
