@@ -34,9 +34,11 @@ export function addressOf(s) {
   return { ws: (secure ? "wss://" : "ws://") + hostport, http: (secure ? "https://" : "http://") + hostport, label: hostport };
 }
 // what a server has going: its games (and the wide world, if it keeps one)
+// (who you are, so a private game you're invited to is listed for you)
+export function whoAmI() { let pid = "", name = ""; try { pid = localStorage.getItem("reckoning.mp.pid") || ""; name = localStorage.getItem("reckoning.mp.name") || ""; } catch (e) {} return { pid, name }; }
 export async function listRooms(addr, ms = 2500) {
-  const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms);
-  try { const r = await fetch(addr.http + "/rooms", { signal: ac.signal, cache: "no-store" }); return r.ok ? await r.json() : null; }
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms), me = whoAmI();
+  try { const r = await fetch(addr.http + "/rooms?pid=" + encodeURIComponent(me.pid) + "&name=" + encodeURIComponent(me.name), { signal: ac.signal, cache: "no-store" }); return r.ok ? await r.json() : null; }
   catch (e) { return null; }
   finally { clearTimeout(t); }
 }
@@ -54,7 +56,7 @@ export class Net {
       ws.onclose = () => { this.open = false; clearTimeout(to); fail("The server closed the connection."); if (done && !this.closedByUs && this.on.lost) this.on.lost(); };
       ws.onmessage = e => {
         let m; try { m = JSON.parse(e.data); } catch (er) { return; }
-        if (m.t === "hi" && !done) { done = true; clearTimeout(to); this.pid = m.pid; this.server = m.server; ok(m); return; }
+        if (m.t === "hi" && !done) { done = true; clearTimeout(to); this.pid = m.pid; this.server = m.server; try { localStorage.setItem("reckoning.mp.pid", m.pid); } catch (e) {} ok(m); return; }
         if (m.t === "err" && m.fatal && !done) { clearTimeout(to); fail(m.text); return; }
         const f = this.on[m.t]; if (f) f(m);
         if (this.on.any) this.on.any(m);
@@ -80,6 +82,7 @@ export const HOST = typeof window !== "undefined" ? window.reckoningHost || null
 
 // the host's words in the talk: /kick, /ban or /unban and a name (the server says no to anyone else)
 export function hostCommand(net, text) {
+  const iv = /^\/invite\s+(.+)$/i.exec(text); if (iv) { net.send({ t: "invite", names: iv[1].trim() }); return true; }
   const m = /^\/(kick|ban|unban)\s+(.+)$/i.exec(text); if (!m) return false;
   net.send({ t: m[1].toLowerCase(), name: m[2].trim() }); return true;
 }

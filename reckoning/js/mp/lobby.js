@@ -9,7 +9,7 @@ import { THREE } from "../core.js";
 import { makePerson } from "../models.js";
 import { $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
-import { Net, addressOf, listRooms, globalServer, HOST } from "./net.js";
+import { Net, addressOf, listRooms, globalServer, HOST, whoAmI } from "./net.js";
 import { MODES, SIZES } from "./rules.js";
 import { readSlot, MP_SLOT, NATION_SLOT } from "../story.js";
 const MODE_LABEL = { ...MODES, colony: "Co-op colony", nations: "Classic" };
@@ -48,7 +48,7 @@ export function initLobby(c) {
   $("mpHostSeed").onclick = () => { seedNow = Math.floor(Math.random() * 2 ** 31); drawKindPreview(); };
   $("mpBuildBack").onclick = () => { if (story) { const s = story; story = null; me.look = s.keep; closePreview(); document.getElementById("mpBuilder").classList.remove("story"); s.cancel && s.cancel(); return; } closePreview(); ctx.screen("mpLobby"); };
   $("mpBuildGo").onclick = () => {
-    if (story) { const s = story, look = { ...me.look }; story = null; me.look = s.keep; closePreview(); document.getElementById("mpBuilder").classList.remove("story"); s.done(look); return; } const n = $("mpName").value.trim().slice(0, 24); if (!n) { $("mpName").focus(); $("mpName").classList.add("want"); return; } me.name = n; saveLook(me.name, me.look); closePreview(); const f = afterBuild; afterBuild = null; if (f) f(); else ctx.screen("mpLobby"); };
+    if (story) { const s = story, look = { ...me.look }; story = null; me.look = s.keep; closePreview(); document.getElementById("mpBuilder").classList.remove("story"); s.done(look); return; } const n = $("mpName").value.trim().slice(0, 24); if (!n) { $("mpName").focus(); $("mpName").classList.add("want"); return; } me.name = n; saveLook(me.name, me.look); try { localStorage.setItem("reckoning.mp.name", n); } catch (e) {} closePreview(); const f = afterBuild; afterBuild = null; if (f) f(); else ctx.screen("mpLobby"); };
   $("mpRandom").onclick = () => { me.look = story ? { ...randomLook(), body: story.body } : randomLook(); buildControls(); showLook(); };
   $("mpName").addEventListener("input", () => $("mpName").classList.remove("want"));
 }
@@ -87,16 +87,18 @@ async function refreshNow(quiet) {
   }));
   for (const a of typed()) { const ad = addressOf(a); if (ad) jobs.push(listRooms(ad).then(r => { if (r) for (const x of r.rooms || []) if (!x.persistent) found.push({ ...x, addr: ad, where: a }); })); }
   if (HOST) jobs.push(HOST.discover(2200).then(servers => {
-    for (const s of servers || []) { const ad = addressOf(`${s.address}:${s.port}`); for (const x of s.rooms || []) found.push({ ...x, addr: ad, where: s.self ? "Hosted here" : "On this network" }); }
+    // (a private game on the network: shown only to its host and to those invited)
+    const me = whoAmI(), mine = x => !x.private || (x.inv || []).some(v => v === me.pid || v === (me.name || "").trim().toLowerCase());
+    for (const s of servers || []) { const ad = addressOf(`${s.address}:${s.port}`); for (const x of s.rooms || []) if (mine(x)) found.push({ ...x, invited: x.private && x.hostPid !== me.pid ? true : undefined, addr: ad, where: s.self ? "Hosted here" : "On this network" }); }
   }).catch(() => {}));
   await Promise.all(jobs);
   // (the same game heard twice — on the network and by address — once)
   const seen = new Set(); const fresh = found.filter(r => { const k = r.id; if (seen.has(k)) return false; seen.add(k); return true; });
   const sig = JSON.stringify(fresh.map(r => [r.id, r.where, r.players, r.name]));
   if (quiet && sig === lastSig) return;
-  lastSig = sig; rows = fresh;
+  lastSig = sig; rows = fresh.sort((a, b) => (b.invited ? 1 : 0) - (a.invited ? 1 : 0));
   list.innerHTML = rows.length ? rows.map((r, i) => `<div class="slot mp-room">
-      <div class="sl-n">${esc(r.where)} · ${MODE_LABEL[r.mode] || r.mode}${r.locked ? " · 🔒" : ""}</div>
+      <div class="sl-n">${r.invited ? "<b>Invited</b> · " : r.private ? "Private · " : ""}${esc(r.where)} · ${MODE_LABEL[r.mode] || r.mode}${r.locked ? " · 🔒" : ""}</div>
       <div class="sl-t">${esc(r.name)}</div>
       <div class="sl-d">${r.mode === "colony" ? "The full game: one settlement, run together" : r.mode === "nations" ? "The full game: a nation each — trade, ally, make war" : `${esc(TERRAINS[r.kind] ? TERRAINS[r.kind].name : "Island")}, ${{ s: "small", m: "middling", l: "large" }[r.size] || ""}`} · hosted by ${esc(r.host || "?")}<br>${r.players} of ${r.max} playing</div>
       <div class="sl-acts"><button class="primary" data-i="${i}" ${r.players >= r.max ? "disabled" : ""}>${r.players >= r.max ? "Full" : "Join"}</button></div></div>`).join("")
@@ -143,7 +145,7 @@ async function drawKindPreview() {
   c.putImageData(img, 0, 0);
 }
 async function hostGo() {
-  const where = $("mpHostWhere").value, msg = { t: "host", name: $("mpHostName").value.trim() || "A game in the woods", mode: $("mpHostMode").value, kind: $("mpHostKind").value, size: $("mpHostSize").value, max: +$("mpHostMax").value, password: $("mpHostPw").value, seed: seedNow };
+  const where = $("mpHostWhere").value, msg = { t: "host", name: $("mpHostName").value.trim() || "A game in the woods", mode: $("mpHostMode").value, kind: $("mpHostKind").value, size: $("mpHostSize").value, max: +$("mpHostMax").value, password: $("mpHostPw").value, seed: seedNow, private: $("mpHostWho").value === "private", invite: $("mpHostInvite").value.split(",").map(x => x.trim()).filter(Boolean) };
   let addr = null;
   if (where === "lan") {
     $("mpHostGo").disabled = true; $("mpHostGo").textContent = "Starting…";
@@ -182,7 +184,7 @@ let pv = null, tab = "body";
 const BODY_NOTE = { townsman: "Coat, breeches and buckled shoes", townswoman: "Bodice, skirt and apron", brother: "A woodsman's coat and waistcoat", sister: "A working dress, sleeves rolled" };
 function openBuilder(target) {
   ctx.screen("mpBuilder");
-  $("mpName").value = me.name || "";
+  $("mpName").value = me.name || ""; try { if (me.name) localStorage.setItem("reckoning.mp.name", me.name); } catch (e) {}
   $("mpBuildGo").textContent = target ? (target.host ? "Host the game" : "Into the game") : "Done";
   $("mpBuildTitle").textContent = target ? "Who goes into the woods?" : "Your character";
   for (const b of document.querySelectorAll("#mpBuilder [data-tab]")) b.onclick = () => { tab = b.dataset.tab; buildControls(); setCam(tab === "face" ? "face" : "body"); };

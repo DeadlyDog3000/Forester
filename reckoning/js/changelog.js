@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.97.0", date: "11 October 2026", title: "By invitation",
+    items: [
+      "Hosting a game, choose who may join: Public, for anyone who finds it, or Private, for only the people you invite. Put their names in Invite, with commas between.",
+      "A private game is only on the list for its host and the people invited — marked Invited, and at the top — on the internet and on your own network alike. Nobody else sees it, and nobody else can join it.",
+      "The host can invite more people while the game goes on: /invite Name in the talk (or several: /invite Ann, Bert).",
+      "A private game with invitations out stays on the server for twelve hours after the last person leaves, not ten minutes, so the people invited can still come.",
+    ],
+  },
+  {
     v: "0.96.0", date: "11 October 2026", title: "Boats and ships",
     items: [
       "Frontier: build a rowboat (B; eight logs from the store) and lay it on the water by the shore. F to get in, W to row, S to back water, A and D to pull round, and F to step ashore when you're in by the land. It rides the swell, and its oars swing as you row.",

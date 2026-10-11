@@ -99,6 +99,9 @@ class Room {
     this.seed = num(o.seed, crypto.randomInt(1, 2 ** 31 - 1)) | 0;
     this.persistent = !!o.persistent;
     this.password = o.password ? String(o.password).slice(0, 40) : "";
+    // (a private game: only for its host and those they've invited — by name, or by who they are)
+    this.private = !!o.private;
+    this.invited = new Set((Array.isArray(o.invite) ? o.invite : []).map(x => String(x).trim().toLowerCase()).filter(Boolean).slice(0, 64));
     this.host = clean(o.host, 24);
     this.created = now(); this.emptySince = now();
     this.land = T.makeTerrain(this.seed, this.half, this.kind);
@@ -138,7 +141,7 @@ class Room {
   // who runs the settlement: in co-op, the host alone; otherwise each their own
   manages(p) { return this.mode !== "coop" || !this.hostPid || p.pid === this.hostPid; }
   meta() {
-    return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, hostPid: this.hostPid, locked: !!this.password, persistent: this.persistent };
+    return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, hostPid: this.hostPid, locked: !!this.password, persistent: this.persistent, private: this.private };
   }
   // ---- saving the wide world ----
   toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0, banned: Object.fromEntries(this.banned), piles: this.piles, nextP: this.nextP, sites: this.sites, boats: Object.fromEntries(Object.entries(this.boats).map(([k, b]) => [k, { ...b, driver: null, riders: [] }])), nextO: this.nextO }; }
@@ -168,6 +171,7 @@ class Room {
   join(sock, who, password) {
     if (this.banned.has(who.pid)) return sock.send({ t: "err", text: `${this.host || "The host"} has banned you from this game.` });
     if (this.password && password !== this.password) return sock.send({ t: "err", text: "That game has a password, and that wasn't it." });
+    if (!this.canSee(who)) return sock.send({ t: "err", text: "That game is private. Ask its host to invite you." });
     if (this.online.has(who.pid)) { const old = this.online.get(who.pid); old.sock.send({ t: "err", text: "You've joined from somewhere else." }); this.leave(old); }
     if (this.online.size >= this.max) return sock.send({ t: "err", text: "That game is full." });
     let rec = this.recs[who.pid];
@@ -193,6 +197,20 @@ class Room {
     if (process.env.MP_DEBUG) console.log(`join ${this.id} ${p.name} ${p.pid} host=${this.hostPid}`);
     this.note(`${p.name} has come.`, p);
     this.dirty = true;
+  }
+  // may this person see (and join) the game? A public one, anyone; a private one, its host and whoever's invited
+  canSee(who) {
+    if (!this.private || !who) return !this.private;
+    return who.pid === this.hostPid || this.invited.has(String(who.pid || "")) || this.invited.has(String(who.name || "").trim().toLowerCase());
+  }
+  invite(p, m) {
+    const no = text => p.sock.send({ t: "err", text });
+    if (!this.hostPid || p.pid !== this.hostPid) return no("Only the host can invite people.");
+    const names = String(m.names || m.name || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 16);
+    if (!names.length) return no("Invite whom? /invite Name, or several: /invite Ann, Bert");
+    for (const n of names) this.invited.add(n.toLowerCase());
+    this.dirty = true;
+    return p.sock.send({ t: "note", text: `Invited: ${names.join(", ")}. ${this.private ? "They'll find the game on their list now." : "(The game's open to anyone anyway.)"}` });
   }
   turnAway(p, m) {
     const no = text => p.sock.send({ t: "err", text });
@@ -250,6 +268,7 @@ class Room {
     const rec = this.recs[p.pid], st = this.storeOf(p.pid), t = now();
     // the host's say over who plays: sent away for now, or for good (and let back)
     if (m.t === "kick" || m.t === "ban" || m.t === "unban") return this.turnAway(p, m);
+    if (m.t === "invite") return this.invite(p, m);
     if (this.mode === "nations") return this.nationsOn(p, m);
     // a colony game is the host's own game: the server only carries messages between it and the others
     if (this.mode === "colony") {
@@ -1257,14 +1276,15 @@ async function start(opts = {}) {
     try { fs.mkdirSync(dataDir, { recursive: true }); const f = path.join(dataDir, "world.json"); fs.writeFileSync(f + ".tmp", JSON.stringify(world)); fs.renameSync(f + ".tmp", f); }
     catch (e) { log("couldn't save the world:", e.message); }
   };
-  const list = () => [...rooms.values()].filter(r => !r.ended).map(r => r.meta());
+  // (the games a person may see: the public ones, and the private ones they're invited to — marked so)
+  const list = (who = null) => [...rooms.values()].filter(r => !r.ended && r.canSee(who)).map(r => ({ ...r.meta(), invited: r.private && !!who && who.pid !== r.hostPid ? true : undefined }));
   const stats = () => ({ ok: true, name, protocol: R.PROTOCOL, world: !!world, games: rooms.size - (world ? 1 : 0), players: [...rooms.values()].reduce((a, r) => a + r.online.size, 0) });
 
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, "http://x");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Content-Type", "application/json");
-    if (u.pathname === "/rooms") return res.end(JSON.stringify({ ...stats(), rooms: list() }));
+    if (u.pathname === "/rooms") { const who = u.searchParams.get("pid") || u.searchParams.get("name") ? { pid: String(u.searchParams.get("pid") || ""), name: String(u.searchParams.get("name") || "") } : null; return res.end(JSON.stringify({ ...stats(), rooms: list(who) })); }
     if (u.pathname === "/" || u.pathname === "/status") return res.end(JSON.stringify(stats()));
     res.statusCode = 404; res.end("{}");
   });
@@ -1284,11 +1304,11 @@ async function start(opts = {}) {
         return ws.send({ t: "hi", pid: who.pid, server: stats() });
       }
       if (!who) return;
-      if (m.t === "rooms") return ws.send({ t: "rooms", rooms: list(), server: stats() });
+      if (m.t === "rooms") return ws.send({ t: "rooms", rooms: list(who), server: stats() });
       if (m.t === "host") {
         if (rooms.size > 200) return ws.send({ t: "err", text: "This server has as many games as it can hold." });
     // (meta for the lobby: a colony lists without being joinable once ended)
-        const r = new Room({ name: m.name, mode: m.mode, max: m.max, kind: m.kind, size: m.size, password: m.password, host: who.name, seed: m.seed, hostPid: who.pid });
+        const r = new Room({ name: m.name, mode: m.mode, max: m.max, kind: m.kind, size: m.size, password: m.password, host: who.name, seed: m.seed, hostPid: who.pid, private: !!m.private, invite: m.invite });
         rooms.set(r.id, r); log(`hosted "${r.name}" (${r.mode}, ${r.kind}, ${r.size}) by ${who.name}`);
         if (ws.player) ws.player.room.leave(ws.player);
         return r.join(ws, who, r.password);
@@ -1307,7 +1327,7 @@ async function start(opts = {}) {
   const iv2 = setInterval(() => {
     for (const r of rooms.values()) r.slow();
     // a game left empty is ended after ten minutes (time enough to come back to it)
-    for (const [id, r] of rooms) if (!r.persistent && !r.online.size && r.emptySince && (r.ended || now() - r.emptySince > 10 * 60 * 1000)) { rooms.delete(id); log(`"${r.name}" ended`); }
+    for (const [id, r] of rooms) if (!r.persistent && !r.online.size && r.emptySince && (r.ended || now() - r.emptySince > (r.private && r.invited.size ? 12 * 3600 * 1000 : 10 * 60 * 1000))) { rooms.delete(id); log(`"${r.name}" ended`); }
   }, 3000);
   const iv3 = setInterval(saveWorld, 20000);
   await new Promise((ok, no) => { server.once("error", no); server.listen(opts.port ?? 47810, opts.host || "0.0.0.0", ok); });
@@ -1318,7 +1338,7 @@ async function start(opts = {}) {
   if (opts.lan) {
     beacon = dgram.createSocket({ type: "udp4", reuseAddr: true });
     beacon.bind(() => { try { beacon.setBroadcast(true); } catch (e) {} });
-    const shout = () => { const msg = Buffer.from(JSON.stringify({ reckoning: R.PROTOCOL, name, port, rooms: list().filter(r => !r.persistent) })); for (const a of broadcastAddrs()) beacon.send(msg, LAN_PORT, a, () => {}); };
+    const shout = () => { const msg = Buffer.from(JSON.stringify({ reckoning: R.PROTOCOL, name, port, rooms: [...rooms.values()].filter(r => !r.ended && !r.persistent).map(r => ({ ...r.meta(), ...(r.private ? { inv: [...r.invited, r.hostPid] } : {}) })) })); for (const a of broadcastAddrs()) beacon.send(msg, LAN_PORT, a, () => {}); };
     biv = setInterval(shout, 2000); setTimeout(shout, 100);
   }
   const stop = () => new Promise(ok => {
