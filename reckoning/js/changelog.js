@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.95.0", date: "11 October 2026", title: "Waymarks and swell",
+    items: [
+      "Right-click anywhere on the big map (J) to set a waypoint there. A tall beam of light stands up out of the place, seen from far off; a red flag on the screen shows the way and how far; and it's on the map and the minimap too. Right-click it on the map again to take it away. It goes when you get there.",
+      "The water moves: long swells roll across the sea and the lakes in Frontier, lifting and dropping the surface, catching the light, with white water breaking on the crests of the bigger ones — more in a wind, more again in the rain. The pond in the woods has its own gentle swell, and the ducks and your fishing float ride it.",
+      "The animal shapes have been tidied: a kangaroo's tail rests on the ground behind it, and a fox's and a wolf's hang back as they should.",
+    ],
+  },
+  {
     v: "0.94.0", date: "11 October 2026", title: "The beasts of the world",
     items: [
       "Frontier's land is alive: wild beasts all round you wherever you go, a dozen and more in sight of any player, in herds where they go in herds. The server keeps them, so everyone in the game sees the same ones.",

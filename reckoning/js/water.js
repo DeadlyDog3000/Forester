@@ -9,20 +9,39 @@
 import { THREE, clamp } from "./core.js";
 import { G } from "./engine.js";
 
+// the waves: a few long swells running across the surface, each its own length, way and pace (a deep-water wave's
+// pace from its length, as the sea's own are), summed — the surface lifted and dropped by them, its slope carried to
+// the light; the same sum in JS below (waveAt), so a float or a duck rides them
+const WAVES = [[0.96, 0.28, 1.0, 0.5], [-0.37, 0.93, 0.61, 0.28], [0.66, -0.75, 0.39, 0.15], [-0.98, -0.2, 0.24, 0.07], [0.2, 0.98, 0.15, 0.04]];
+const WAVE_GLSL = `
+  uniform float uAmp, uLen;
+  vec3 waves(vec2 p, float t) {
+    float h = 0.0; vec2 s = vec2(0.0);
+    ${WAVES.map(([dx, dz, l, a]) => `{ float L = ${l.toFixed(3)} * uLen, k = 6.2832 / L, w = sqrt(9.8 * k), ph = k * dot(vec2(${dx}, ${dz}), p) - w * t, A = ${a.toFixed(3)} * uAmp;
+      h += A * sin(ph); s += A * k * vec2(${dx}, ${dz}) * cos(ph); }`).join("\n    ")}
+    return vec3(h, s);
+  }`;
 const vtx = `
-  varying vec3 vW; varying vec2 vUv;
+  uniform float uT;
+  varying vec3 vW; varying vec2 vUv; varying vec3 vWave;
+  ${WAVE_GLSL}
   #include <fog_pars_vertex>
   void main() {
     vUv = uv;
-    vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz;
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWave = vec3(0.0);
+    if (uAmp > 0.0) { vWave = waves(wp.xz, uT); wp.y += vWave.x; }
+    vW = wp.xyz;
     vec4 mvPosition = viewMatrix * wp;
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
   }`;
 const frag = `
-  uniform float uT, uWind, uRain, uIce, uSwell;
+  uniform float uT, uWind, uRain, uIce, uSwell, uAmp;
   uniform vec3 uDeep, uZenith, uHorizon, uSunDir, uSunCol, uTrees; uniform float uFlow;
-  varying vec3 vW; varying vec2 vUv;
+  varying vec3 vW; varying vec2 vUv; varying vec3 vWave;
+  float wHash(vec2 q) { return fract(sin(dot(q, vec2(127.1, 311.7))) * 43758.5453); }
+  float wNoise(vec2 q) { vec2 i = floor(q), f = fract(q); f = f * f * (3.0 - 2.0 * f); return mix(mix(wHash(i), wHash(i + vec2(1, 0)), f.x), mix(wHash(i + vec2(0, 1)), wHash(i + vec2(1, 1)), f.x), f.y); }
   #include <fog_pars_fragment>
   void main() {
     vec2 p = vW.xz;
@@ -37,6 +56,8 @@ const frag = `
       g += vec2(sin(ph * 3.1) * 0.05, cos(ph * 2.3 + vUv.x * 5.0) * 0.05);
       fl = smoothstep(0.82, 1.0, sin(ph * 1.7 + vUv.x * 3.0) * 0.5 + 0.5) * (0.4 + 0.6 * abs(vUv.x - 0.5) * 2.0);
     }
+    // (the swells' own slope under the ripples)
+    g += vWave.yz;
     vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
     if (uIce > 0.5) n = normalize(vec3(-g.x * 0.05, 1.0, -g.y * 0.05));
     vec3 v = normalize(cameraPosition - vW);
@@ -52,6 +73,12 @@ const frag = `
     // ice: pale, grey and still
     if (uIce > 0.5) col = mix(vec3(0.62, 0.68, 0.74) * (0.5 + 0.5 * length(uHorizon)), sky, fres * 0.5);
     col += vec3(0.5, 0.55, 0.58) * fl * 0.12 * (0.3 + 0.7 * length(uHorizon));
+    // white water on the crests of the bigger waves, broken up, lit as the day is
+    if (uAmp > 0.15 && uIce < 0.5) {
+      float crest = vWave.x / uAmp, br = wNoise(p * 0.9 + vec2(uT * 0.25, -uT * 0.18)) * 0.65 + wNoise(p * 3.1 - vec2(uT * 0.4, uT * 0.3)) * 0.35;
+      float foam = smoothstep(0.5, 0.85, crest + (br - 0.5) * 0.55) * smoothstep(0.35, 0.65, br) * (0.35 + 0.65 * uWind);
+      col = mix(col, vec3(0.86, 0.9, 0.92) * (0.35 + 0.65 * length(uHorizon) / 1.5), foam * 0.6);
+    }
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -61,10 +88,10 @@ const frag = `
 
 export class WaterMat {
   // deep: the water's own colour, looked straight down into; round: what stands round it, reflected low down
-  constructor({ deep = [0.028, 0.042, 0.03], round = [0.045, 0.07, 0.04], swell = 1, flow = 0 } = {}) {
-    this.deep = deep; this.round = round;
+  constructor({ deep = [0.028, 0.042, 0.03], round = [0.045, 0.07, 0.04], swell = 1, flow = 0, amp = 0, len = 1 } = {}) {
+    this.deep = deep; this.round = round; this.amp = amp; this.len = len;
     this.uni = {
-      uT: { value: 0 }, uWind: { value: 0.2 }, uRain: { value: 0 }, uIce: { value: 0 }, uSwell: { value: swell }, uFlow: { value: flow },
+      uT: { value: 0 }, uWind: { value: 0.2 }, uRain: { value: 0 }, uIce: { value: 0 }, uSwell: { value: swell }, uFlow: { value: flow }, uAmp: { value: amp }, uLen: { value: len },
       uDeep: { value: new THREE.Color() }, uZenith: { value: new THREE.Color(0x5a88c0) }, uHorizon: { value: new THREE.Color(0xc9d6e0) },
       uSunDir: { value: new THREE.Vector3(0.4, 0.6, 0.3) }, uSunCol: { value: new THREE.Color(1, 1, 1) }, uTrees: { value: new THREE.Color() },
     };
@@ -84,5 +111,15 @@ export class WaterMat {
     u.uTrees.value.setRGB(...this.round).multiplyScalar(lit).lerp(G.scene.fog.color, 0.15);
     u.uWind.value = G.windV ? clamp(Math.hypot(G.windV.x, G.windV.z) / 2, 0, 1) : 0.2;
     u.uRain.value = rain; u.uIce.value = ice ? 1 : 0;
+    // (the swell rises with the wind, and a frozen surface is still)
+    u.uAmp.value = ice ? 0 : this.amp * (0.6 + 0.8 * u.uWind.value + rain * 0.4);
   }
+}
+
+// how high the water stands at x, z now, on one water's waves (the shader's own sum): for a float, a duck, a boat
+export function waveAt(wm, x, z) {
+  const u = wm.uni, A = u.uAmp.value, t = u.uT.value; if (!A) return 0;
+  let h = 0;
+  for (const [dx, dz, l, a] of WAVES) { const L = l * u.uLen.value, k = 6.2832 / L, w = Math.sqrt(9.8 * k); h += a * A * Math.sin(k * (dx * x + dz * z) - w * t); }
+  return h;
 }

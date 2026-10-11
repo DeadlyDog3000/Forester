@@ -18,6 +18,7 @@ import { siteSign } from "../town.js";
 import { fishingGear } from "../fishing.js";
 import { Hunt } from "../hunt.js";
 import { WATER, BIOMES } from "./terrain.js";
+import { waveAt } from "../water.js";
 import { Wilds } from "./wilds.js";
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
@@ -207,7 +208,7 @@ export class MPGame {
       const fg = new THREE.Group(); w.root.add(fg);
       const wet = (x, z, k = 0.9) => w.land.heightAt(x, z) < WATER - (k > 0.92 ? 0.15 : 0.35);
       const rings = [];
-      this.fish = fishingGear({ w, g: fg, t: 0, frozen: false, lvl: () => WATER - 0.05, wet,
+      this.fish = fishingGear({ w, g: fg, t: 0, frozen: false, lvl: () => WATER - 0.05 + (this.fish && this.fish.float && w.wm ? waveAt(w.wm, this.fish.float.position.x, this.fish.float.position.z) : 0), wet,
         shore: p => { for (let r = 1.5; r <= 7; r += 1.5) for (let a = 0; a < 6.28; a += 0.5) if (wet(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r)) return true; return false; },
         farText: "Go down to the water's edge — a lake, or the shore — and face the water to cast.",
         odds: () => 0.5,

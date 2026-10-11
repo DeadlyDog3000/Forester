@@ -1768,6 +1768,16 @@ $("bigmap").addEventListener("wheel", e => {
     bigMapSoon();
   });
 }
+// a right-click on the map: a waypoint there (or, on the one you have, taken away)
+$("bigmap").addEventListener("contextmenu", e => {
+  e.preventDefault();
+  if (grow.mode) return;
+  const p = mapWorldAt(e); if (!p) return;
+  const wp = G.waypoint, mv = G.mapView;
+  if (wp && wp.w === G.world && Math.hypot(wp.x - p[0], wp.z - p[1]) * mv.S < 14) { G.waypoint = null; UI.hint("Waypoint taken away.", 1.6); }
+  else { G.waypoint = { x: p[0], z: p[1], w: G.world }; UI.hint("Waypoint set — follow the beam of light. Right-click it on the map to take it away.", 3); }
+  UISFX.click(); bigMapSoon();
+});
 // the context, but reporting the size the map is drawn at (its methods bound once, not on every call)
 let _bigProxy = null;
 function bigProxy(c, sub) {
@@ -1832,6 +1842,7 @@ function renderBigMap() {
   const px = 50 * 0.75 * S;
   c.fillStyle = MAPINK; c.fillRect(34, H - 42, px, 4); c.fillStyle = "#e9dcb8"; c.fillRect(34 + px / 2, H - 41, px / 2 - 1, 2);
   c.font = `italic 12px ${MAPSERIF}`; c.fillStyle = MAPINK; c.textAlign = "left"; c.fillText("fifty paces", 34, H - 52);
+  c.textAlign = "right"; c.fillText("right-click: set a waypoint", W - 30, H - 28);
   c.restore();
 }
 G.showMap = on => showOverlay("bigmap", on);

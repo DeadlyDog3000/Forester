@@ -13,6 +13,7 @@ import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, SWAY } 
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
 import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
+import { WaterMat } from "../water.js";
 import { REALMS_1683, SEAS_1683 } from "./earth-1683.js";
 import { BUILD } from "./rules.js";
 import { ryeStrip } from "../town.js";
@@ -65,9 +66,12 @@ export class Wilds extends WorldBase {
     this.mat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "none" });
     this.rockMat = addDetail(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
     // the sea and the lakes: one sheet of water at one level, following you about under the haze
-    const wg = new THREE.PlaneGeometry(1600, 1600, 1, 1); wg.rotateX(-Math.PI / 2);
-    this.water = new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ color: 0x3d5f6e, roughness: 0.18, metalness: 0.15, transparent: true, opacity: 0.86 }));
-    this.water.position.y = WATER - 0.05; this.water.receiveShadow = true; noSnow(this.water);
+    // (fine near you and coarser out toward the haze, so the swell can move it where you can see it move)
+    const wg = new THREE.PlaneGeometry(2, 2, 150, 150); wg.rotateX(-Math.PI / 2);
+    { const p = wg.attributes.position; for (let i = 0; i < p.count; i++) { const f = v => Math.sign(v) * Math.pow(Math.abs(v), 2.2) * 800; p.setXYZ(i, f(p.getX(i)), 0, f(p.getZ(i))); } wg.computeVertexNormals(); }
+    this.wm = new WaterMat({ deep: [0.02, 0.06, 0.075], round: [0.05, 0.08, 0.06], amp: 0.45, len: 24, swell: 1.4 });
+    this.water = new THREE.Mesh(wg, this.wm.mat); this.water.frustumCulled = false;
+    this.water.position.y = WATER - 0.05; noSnow(this.water);
     this.root.add(this.water);
     this.t = 0;
     this.buildNear(0, 0, 0);
@@ -399,6 +403,7 @@ export class Wilds extends WorldBase {
     SWAY.t.value += dt;
     const p = G.player ? G.player.pos : { x: 0, z: 0 };
     this.water.position.x = Math.round(p.x / 50) * 50; this.water.position.z = Math.round(p.z / 50) * 50;
+    this.wm.update(dt, { rain: this.rainK || 0 });
     if ((this.streamT = (this.streamT || 0) - dt) <= 0) { this.streamT = 0.25; this.buildNear(p.x, p.z, 1); }
     // near trees in full, the rest plainer, past the haze nothing
     if ((this.tileT = (this.tileT || 0) - dt) <= 0) {

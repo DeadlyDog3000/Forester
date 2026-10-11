@@ -2042,7 +2042,40 @@ function drawMapLive(c, X, Z, S, big, radius) {
     c.fillStyle = "#c8962e"; c.strokeStyle = INK; c.lineWidth = 1.2;
     c.save(); c.translate(mx, mz); c.rotate(Math.PI / 4); c.fillRect(-4.5, -4.5, 9, 9); c.strokeRect(-4.5, -4.5, 9, 9); c.restore();
   }
+  // your own waypoint: a red flag on its pole, held to the edge of the minimap when it's further
+  const wp = G.waypoint && G.waypoint.w === w ? G.waypoint : null;
+  if (wp) {
+    let fx = X(wp.x), fz = Z(wp.z);
+    if (!big) { const R = W / 2, dx = fx - R, dz = fz - R, d = Math.hypot(dx, dz); if (d > R - 9) { fx = R + dx / d * (R - 9); fz = R + dz / d * (R - 9); } }
+    const k = big ? 1.4 : 1;
+    c.strokeStyle = INK; c.lineWidth = 1.4 * k; c.beginPath(); c.moveTo(fx, fz); c.lineTo(fx, fz - 13 * k); c.stroke();
+    c.fillStyle = "#b3261e"; c.beginPath(); c.moveTo(fx, fz - 13 * k); c.lineTo(fx + 9 * k, fz - 10 * k); c.lineTo(fx, fz - 7 * k); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = INK; c.beginPath(); c.arc(fx, fz, 1.8 * k, 0, Math.PI * 2); c.fill();
+  }
   you(c, X(p.x), Z(p.z), G.player.yaw, big ? 1.3 : 1);
+}
+// ---- a waypoint of your own, set on the map (right-click): a beam of light standing up out of the place, seen from
+// far off, and a little flag on the screen with how far it is ----
+let wpBeam = null, wpEl = null;
+function updateWaypoint() {
+  const wp = G.waypoint, w = G.world, on = !!(wp && wp.w === w && G.mode === "play" && !G.cine), shown = on && !G.menuLock && !G.mapOpen;
+  if (!wpEl) { wpEl = document.createElement("div"); wpEl.id = "wpMark"; wpEl.innerHTML = `<i></i><span></span>`; document.body.appendChild(wpEl); }
+  if (!on) { wpEl.style.display = "none"; if (wpBeam && wpBeam.parent) wpBeam.parent.remove(wpBeam); return; }
+  if (!wpBeam) {
+    const m = new THREE.MeshBasicMaterial({ color: 0xffc860, transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide });
+    wpBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 140, 10, 1, true).translate(0, 70, 0), m); wpBeam.renderOrder = 5;
+  }
+  if (wpBeam.parent !== w.root) w.root.add(wpBeam);
+  wpBeam.position.set(wp.x, w.heightAt(wp.x, wp.z), wp.z); wpBeam.material.opacity = 0.22 + 0.08 * Math.sin(G.time * 2.5);
+  const pl = G.player, d = Math.hypot(wp.x - pl.pos.x, wp.z - pl.pos.z);
+  if (d < 3) { G.waypoint = null; UI.hint && UI.hint("You're at your waypoint.", 2); return; }
+  const v = new THREE.Vector3(wp.x, w.heightAt(wp.x, wp.z) + 2.5, wp.z).project(camera);
+  let sx = (v.x * 0.5 + 0.5) * innerWidth, sy = (-v.y * 0.5 + 0.5) * innerHeight;
+  // (behind you, or off the edge: held at the edge of the screen, on the side it lies)
+  if (v.z > 1) { sx = innerWidth - sx; sy = innerHeight - 40; }
+  sx = Math.max(24, Math.min(innerWidth - 24, sx)); sy = Math.max(40, Math.min(innerHeight - 60, sy));
+  wpEl.style.display = shown ? "block" : "none"; wpEl.style.transform = `translate(${sx}px, ${sy}px)`;
+  wpEl.lastChild.textContent = d >= 1000 ? (d / 1000).toFixed(1) + " km" : Math.round(d) + " m";
 }
 // The minimap every frame, smoothly: the ground is drawn once into a sheet twice the map's reach and only
 // slid under it as you walk (drawn again when you near its edge, or every few seconds for what has changed),
@@ -2137,6 +2170,7 @@ export function frame(dt, skipRender) {
   // a filming rig can take the camera over for a shot (the trailer is captured this way)
   if (G.camOverride) G.camOverride(camera, dt);
   updateMarker(dt);
+  updateWaypoint();
   if (live && w) updateMinimap(dt);
   input.endFrame();
   // (hard shadows, the cheaper kind, are only redrawn every other frame)

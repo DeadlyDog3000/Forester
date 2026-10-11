@@ -14,7 +14,7 @@ import { ITEM } from "./body.js";
 import { AUDIO } from "./audio.js";
 import { POND, pondR, pondK } from "./woods.js";
 import { addSway, swayGeo } from "./models.js";
-import { WaterMat } from "./water.js";
+import { WaterMat, waveAt } from "./water.js";
 import { FOLEY } from "./foley.js";
 import { fishingGear, hasRod } from "./fishing.js";
 
@@ -23,10 +23,13 @@ export class Pond {
     this.w = w; this.t = 0;
     const L = w.pondLevel, g = new THREE.Group();
     // ---- the water: the shore's shape, a little past it, so the bank always comes down into it ----
-    const N = 64, pos = [0, 0, 0], idx = [];
-    for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2, r = pondR(a) * 1.12; pos.push(Math.cos(a) * r, 0, Math.sin(a) * r); idx.push(0, 1 + ((i + 1) % N), 1 + i); }
+    // (rings out from the middle to the shore, so the swell has something to move)
+    const N = 64, RINGS = 14, pos = [0, 0, 0], idx = [];
+    for (let k = 1; k <= RINGS; k++) for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2, r = pondR(a) * 1.12 * k / RINGS; pos.push(Math.cos(a) * r, 0, Math.sin(a) * r); }
+    for (let i = 0; i < N; i++) idx.push(0, 1 + ((i + 1) % N), 1 + i);
+    for (let k = 1; k < RINGS; k++) for (let i = 0; i < N; i++) { const a = 1 + (k - 1) * N + i, b = 1 + (k - 1) * N + (i + 1) % N, c = 1 + k * N + i, d = 1 + k * N + (i + 1) % N; idx.push(a, b, c, b, d, c); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
-    this.wm = new WaterMat(); this.mat = this.wm.mat; this.uni = this.wm.uni;
+    this.wm = new WaterMat({ amp: 0.07, len: 5 }); this.mat = this.wm.mat; this.uni = this.wm.uni;
     this.water = new THREE.Mesh(geo, this.mat);
     this.water.position.set(POND.x, L, POND.z); this.water.receiveShadow = false;
     g.add(this.water);
@@ -81,7 +84,7 @@ export class Pond {
       can: () => !this.frozen && hasRod() && !this.out && G.mode === "play" && !G.player.horse,
       use: () => G.toggleRod(true) });
     // the fishing: the pond's own water, its level and its edge
-    this.lvl = () => this.w.pondLevel; this.wet = (x, z, k = 0.9) => pondK(x, z) < k; this.shore = p => pondK(p.x, p.z) < 1.7;
+    this.lvl = () => this.w.pondLevel + (this.float ? waveAt(this.wm, this.float.position.x, this.float.position.z) : 0); this.wet = (x, z, k = 0.9) => pondK(x, z) < k; this.shore = p => pondK(p.x, p.z) < 1.7;
     this.farText = "Go down to the water's edge, and face the pond to cast.";
     fishingGear(this);
     // (you can wade the margin, but not out into the middle, where it's over your head)
@@ -184,7 +187,7 @@ export class Pond {
       // (dabbling: tail up, head under, for a moment)
       if (dk.dabble > 0 && dk.sp < 0.1) dk.dabble -= dt;
       const up = dk.dabble > 0 && dk.sp < 0.1 && Math.sin(dk.dabble * 2.5) > 0;
-      dk.m.position.set(dk.x, L + 0.02 + Math.sin(this.t * 2 + i) * 0.008, dk.z);
+      dk.m.position.set(dk.x, L + 0.02 + waveAt(this.wm, dk.x, dk.z) + Math.sin(this.t * 2 + i) * 0.008, dk.z);
       // (a wake behind a duck that's going somewhere; a ring where one dabbles)
       if ((dk.sp > 0.15 || (up && Math.random() < dt * 2)) && (dk.wakeT = (dk.wakeT || 0) - dt) <= 0) { dk.wakeT = dk.flee ? 0.25 : 0.6; this.ripple(dk.x - Math.sin(dk.yaw) * 0.15, dk.z - Math.cos(dk.yaw) * 0.15, 0.5 + dk.sp * 0.4); }
       dk.m.rotation.set(up ? 1.1 : Math.sin(this.t * 1.7 + i) * 0.04, dk.yaw, 0);
