@@ -248,6 +248,31 @@
       </div>
     </section>
 
+    <!-- a new game: which kind -->
+    <section id="modeSel" class="screen hidden">
+      <h2>How will you play?</h2>
+      <p class="sub">A game of your own. The story from its beginning, a settlement of your own with no story to it, or the frontier.</p>
+      <div class="choose-row">
+        <button class="who mode" data-mode="story">
+          <img src="../assets/sprites/ui/cut1_hamburg.png" alt="">
+          <span class="who-name">The Story</span>
+          <span class="who-text">Hamburg, 1683. A house by the harbour, a family's good name — and a night that takes it all away. The chapters, from the first.</span>
+        </button>
+        <button class="who mode" data-mode="free">
+          <img src="../assets/sprites/ui/vig_settlement.png" alt="">
+          <span class="who-name">Free Play</span>
+          <span class="who-text">A clearing in the woods and a cabin to raise — your own settlement from the first day, grown into a nation, as long as you like. No story.</span>
+        </button>
+        <button class="who mode" data-mode="frontier">
+          <img src="../assets/sprites/ui/ruins_scene.png" alt="">
+          <span class="who-name">The Frontier</span>
+          <span class="who-text">An island, a continent or the whole Earth, wild, to cross and to claim — fell, build, fish, hunt, and be crowned. On your own; others can be invited later.</span>
+          <span class="who-note" id="modeFrontierNote"></span>
+        </button>
+      </div>
+      <button class="btn ghost" id="modeBack">Back</button>
+    </section>
+
     <section id="choose" class="screen hidden">
       <h2>Who are you?</h2>
       <p class="sub">Two children ran through the marsh gate. You are one of them; the other will be beside you all the way.</p>
@@ -410,7 +435,7 @@
     </section>
 
     <section id="mpHost" class="screen hidden">
-      <h2>Host a game</h2>
+      <h2 id="mpHostH">Host a game</h2>
       <div class="mp-scroll mp-form">
         <div class="mp-host-grid">
           <div class="mp-fields">
@@ -419,7 +444,7 @@
             <label class="row mp-colony-only"><span id="mpHostColonyL">Colony</span><select id="mpHostColony"><option value="new">A new colony</option></select></label>
             <label class="row mp-map-only"><span>Country</span><select id="mpHostKind"></select></label>
             <label class="row mp-map-only"><span>Size</span><select id="mpHostSize"><option value="s">Small — a kilometre across</option><option value="m" selected>Middling — a kilometre and a half</option><option value="l">Large — two kilometres</option></select></label>
-            <label class="row"><span>Players</span><select id="mpHostMax"><option>2</option><option>4</option><option selected>8</option><option>12</option><option>16</option></select></label>
+            <label class="row"><span>Players</span><select id="mpHostMax"><option value="1">1 — just you</option><option>2</option><option>4</option><option selected>8</option><option>12</option><option>16</option></select></label>
             <label class="row"><span>Who may join</span><select id="mpHostWho"><option value="public">Public — anyone who finds it</option><option value="private">Private — only those you invite</option></select></label>
             <label class="row" id="mpHostInviteRow"><span>Invite</span><input id="mpHostInvite" maxlength="300" placeholder="usernames, with commas between"></label>
             <label class="row"><span>Password</span><input id="mpHostPw" maxlength="40" placeholder="none"></label>

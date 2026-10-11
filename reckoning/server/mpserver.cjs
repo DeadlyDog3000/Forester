@@ -100,7 +100,7 @@ class Room {
     this.mode = R.MODES[o.mode] || o.mode === "colony" || o.mode === "nations" ? o.mode : "coop";
     this.hostPid = o.hostPid || null;
     this.banned = new Map(Object.entries(o.banned || {}));   // (pid → name: the ones the host has turned away)        // (a colony game: the one whose game it is, and runs it)
-    this.max = Math.max(2, Math.min(o.persistent ? 500 : 16, num(o.max, 8) | 0));
+    this.max = Math.max(1, Math.min(o.persistent ? 500 : 16, num(o.max, 8) | 0));
     this.kind = T.TERRAINS[o.kind] ? o.kind : "island";
     this.size = R.SIZES[o.size] ? o.size : "m";
     this.half = o.half || R.SIZES[this.size];

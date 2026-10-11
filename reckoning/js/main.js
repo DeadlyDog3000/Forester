@@ -29,7 +29,8 @@ import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWor
 import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
-import { initLobby, openLobby, openLookEditor, askUser, hasUser, SCREENS as MP_SCREENS } from "./mp/lobby.js";
+import { initLobby, openLobby, openLookEditor, askUser, hasUser, openSoloFrontier, SCREENS as MP_SCREENS } from "./mp/lobby.js";
+import { HOST } from "./mp/net.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
 import { NationGame } from "./mp/nations.js";
@@ -153,7 +154,7 @@ for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setDa
 G.player = new Player();
 
 // ---- screens ----
-const screens = ["title", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", "achievements", ...MP_SCREENS];
+const screens = ["title", "modeSel", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", "achievements", ...MP_SCREENS];
 let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
@@ -329,12 +330,21 @@ for (const b of document.querySelectorAll("[data-who]")) b.onclick = () => {
 };
 function startNew(who, look) {
   G.who = who;
-  // a new game starts the clearing from nothing
-  const s = loadSave() || {};
+  // a new game starts the clearing from nothing (free play: your own settlement from the first day, no story)
+  const s = loadSave() || {}, free = newMode === "free";
   clearSave();
-  writeSave({ who: G.who, chapter: 1, unlocked: s.unlocked || 1, look });
-  play(1);
+  writeSave({ who: G.who, chapter: free ? 14 : 1, unlocked: Math.max(s.unlocked || 1, free ? 14 : 1), look, freeStart: free || undefined });
+  play(free ? 14 : 1);
 }
+// ---- a new game: the story, free play, or the frontier on your own ----
+let newMode = "story";
+$("modeBack").onclick = () => screen("slots");
+for (const b of document.querySelectorAll("[data-mode]")) b.onclick = () => {
+  newMode = b.dataset.mode;
+  if (newMode === "frontier") { openSoloFrontier(); return; }
+  back = "modeSel"; screen("choose");
+};
+{ const fn = $("modeFrontierNote"), fb = document.querySelector('[data-mode="frontier"]'); if (!HOST) { fn.textContent = "Needs the desktop app, to keep the world on this computer."; fb.disabled = true; } }
 // ---- the six saves ----
 let slotMode = "play", slotArmed = null, slotImportTo = 0;
 const slotWhen = at => { if (!at) return ""; const d = new Date(at), m = (Date.now() - at) / 60000; return m < 1 ? "just now" : m < 60 ? `${Math.round(m)} min ago` : m < 60 * 24 ? `${Math.round(m / 60)} h ago` : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); };
@@ -366,7 +376,7 @@ $("slotList").addEventListener("click", e => {
   if ((act === "delete" || (act === "new" && s && slotMode === "new")) && !(slotArmed && slotArmed.n === n && slotArmed.act === act)) { slotArmed = { n, act }; buildSlots(); return; }
   slotArmed = null;
   if (act === "play") { setSlot(n); G.who = s.who || "brother"; play(s.chapter || 1); }
-  else if (act === "new") { setSlot(n); back = "slots"; slotMode = "new"; screen("choose"); }
+  else if (act === "new") { setSlot(n); back = "slots"; slotMode = "new"; screen("modeSel"); }
   else if (act === "delete") { clearSlot(n); if (n === getSlot()) refreshTitle(); buildSlots(); }
   else if (act === "export") {
     const blob = new Blob([JSON.stringify({ game: "forester-reckoning", version: CHANGELOG[0].v, save: n, data: s }, null, 1)], { type: "application/json" });

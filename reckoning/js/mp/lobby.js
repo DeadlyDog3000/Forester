@@ -128,7 +128,21 @@ async function refreshNow(quiet) {
 
 // ---- hosting ----
 let seedNow = Math.floor(Math.random() * 2 ** 31);
+// the frontier on your own (New Game): the hosting form, set for one — a private game on this computer, just you
+export function openSoloFrontier() {
+  if (!myUser()) return askUser(() => openSoloFrontier());
+  solo = true; openHost();
+  $("mpHostH").textContent = "The Frontier — on your own";
+  $("mpHostMode").value = "coop"; $("mpHostMode").onchange && $("mpHostMode").onchange();
+  if ([...$("mpHostWhere").options].some(o => o.value === "lan")) $("mpHostWhere").value = "lan";
+  $("mpHostWho").value = "private"; $("mpHostMax").value = "1";
+  $("mpHostName").value = `${myUser()}'s frontier`;
+  $("mpHostBack").onclick = () => { solo = false; ctx.screen("modeSel"); };
+}
+let solo = false;
 function openHost() {
+  if (!solo) { $("mpHostH").textContent = "Host a game"; $("mpHostBack").onclick = () => ctx.screen("mpLobby"); }
+  solo = false;
   ctx.screen("mpHost");
   if (!$("mpHostName").value) $("mpHostName").value = `${myUser() || me.name || "A"}'s game`;
   const g = globalServer(), opts = [];

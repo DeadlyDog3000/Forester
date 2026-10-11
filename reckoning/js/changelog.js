@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.8.0", date: "11 October 2026", title: "How will you play?",
+    items: [
+      "A new game asks how you'll play. The Story: Hamburg, 1683, the chapters from the first. Free Play: a clearing in the woods and a cabin to raise — your own settlement from the first day, grown into a nation, with no story to it. The Frontier: an island, a continent or the whole Earth on your own — the Frontier's setup, ready for one, kept on this computer (in the desktop app); invite others later if you like.",
+      "A hosted game can be for one: Players — 1, just you.",
+    ],
+  },
+  {
     v: "1.7.0", date: "11 October 2026", title: "The crown",
     items: [
       "Raise a town hall in Frontier and you're crowned: King or Queen of the ground round it, with the news of it carried to everyone in the land. In a co-op colony, whoever raises the hall wears the crown, and everyone in the colony is one of its people.",

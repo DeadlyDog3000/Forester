@@ -1155,3 +1155,13 @@ body:has(#bigmap:not(.hidden)) #mpTop { visibility: hidden; }
 .realm-form input { width: 260px; }
 .realm-row { margin: 4px 0; }
 .realm-row .u { display: block; color: #8a8478; font: 11px var(--sans); }
+
+/* a new game: which kind */
+#modeSel .choose-row { flex-wrap: nowrap; max-width: 100%; }
+.who.mode { width: 232px; flex: 0 1 232px; padding: 16px 14px; }
+.who.mode img { width: 100%; height: 112px; object-fit: cover; border-radius: 3px; image-rendering: auto; }
+.who.mode .who-text { font-size: 14px; }
+#modeSel > .btn { margin-top: 18px; }
+@media (max-width: 760px) { #modeSel .choose-row { flex-wrap: wrap; } }
+.who.mode[disabled] { opacity: 0.5; cursor: default; }
+.who-note { font: italic 12px var(--serif); color: #e0a070; }
