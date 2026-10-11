@@ -637,7 +637,7 @@ function renderChest() {
   let h = "";
   if (chestMode === "mpstores" && G.mp) {
     // Frontier's store, at the town hall or a woodshed: what the store holds (the server's), and what you carry
-    const M = G.mp, st = M.stock || {}, rows = [["wood", "logs", "Logs", st.wood | 0, "In the store. Click to take an armful (six)."], ["stone", "stone", "Stone", st.stone | 0, "In the store. Click to take five."], ["food", "cookedmeat", "Provisions", Math.floor((st.food | 0) / 2), "The settlers' food, ready to eat. Click to take one (two of the store's food)."]].filter(r => r[3] > 0);
+    const M = G.mp, st = M.stock || {}, rows = [["wood", "logs", "Logs", st.wood | 0, "In the store. Click to take an armful (six)."], ["stone", "stone", "Stone", st.stone | 0, "In the store. Click to take five."], ["food", "cookedmeat", "Food", st.food | 0, "The settlers' food (the same as the count at the top of the screen). Click to take a meal of it — two."]].filter(r => r[3] > 1 || (r[0] !== "food" && r[3] > 0));
     h += `<div class="mc-sec">The store <span class="mc-hint">click to take · click what you carry to put it in</span></div><div class="mc-row wrap">`;
     h += rows.length ? rows.map(([k, icon, name, n, note]) => slot({ icon, name, n, note }).replace('class="mc-slot', `data-mpstore="${k}" class="mc-slot`)).join("") : `<span class="ch-note">The store is empty.</span>`;
     if (M.carry > 0) h += `</div><div class="mc-sec">In your arms</div><div class="mc-row">` + slot({ icon: "logs", name: "Logs", n: M.carry, note: "Click to stack them in the store." }).replace('class="mc-slot', 'data-mparms="1" class="mc-slot');

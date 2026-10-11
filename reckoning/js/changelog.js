@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.8.3", date: "11 October 2026", title: "A tap",
+    items: [
+      "A tap of F does the quick things — taking logs, opening the store, laying out a site — without holding it down. Felling, building and the like still want it held.",
+      "The store's food is counted as it is at the top of the screen, so they agree.",
+    ],
+  },
+  {
     v: "1.8.2", date: "11 October 2026", title: "Back",
     items: [
       "Fixed: having looked at How will you play? and come back to the saves, their Back button did nothing. It takes you back to the title again.",

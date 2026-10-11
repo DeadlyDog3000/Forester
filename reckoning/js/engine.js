@@ -1938,7 +1938,7 @@ function updateInteract(dt) {
     }
   }
   if (it !== G.interactTarget) { G.holdT = 0; G.interactTarget = it; }
-  if (!it) { UI.prompt(null); UI.hold(0); return; }
+  if (!it) { UI.prompt(null); UI.hold(0); G.tapFor = null; return; }
   const label = typeof it.label === "function" ? it.label() : it.label;
   // talking to someone is an action like any other, and takes a moment: hold F, and they stop to talk
   const talk = /^(Talk to|Speak to|Ask) /.test(label || "");
@@ -1947,9 +1947,13 @@ function updateInteract(dt) {
   const hold = (typeof it.hold === "function" ? it.hold() : it.hold) || (talk ? 1.0 : 0.4);
   UI.prompt(label, hold >= 1);
   // (F only: the right button is the bow and the guard, never a second F)
-  const pressing = input.down("KeyF");
+  // (a quick action — under a second — goes through on a tap: the wheel fills by itself once F is pressed on it;
+  //  real work, a second or more, still wants F held all the way)
+  if (input.hit("KeyF") && hold < 1 && !G.holdLatch) G.tapFor = it;
+  if (G.tapFor && G.tapFor !== it) G.tapFor = null;
+  const pressing = input.down("KeyF") || G.tapFor === it;
   // (once done, let go before the next: holding F doesn't open and shut a door over and over)
-  if (!pressing) G.holdLatch = false;
+  if (!input.down("KeyF")) G.holdLatch = false;
   if (pressing && !G.holdLatch) {
     G.holdT += dt;
     if (it.actor) it.actor.talkUntil = G.time + 0.3;
@@ -1957,7 +1961,7 @@ function updateInteract(dt) {
     UI.hold(G.holdT / hold);
     // real work: your hands are seen doing it
     if (hold >= 1 && !talk) G.working = { kind: it.anim || workOf(label || ""), until: G.time + 0.15, quiet: !!it.onHoldTick };
-    if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); G.holdLatch = true; if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; if (!(G.mpUse && G.mpUse(it))) it.use(); }   // (in someone else's colony, done in their game)
+    if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); G.holdLatch = input.down("KeyF"); G.tapFor = null; if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; if (!(G.mpUse && G.mpUse(it))) it.use(); }   // (in someone else's colony, done in their game)
   } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / hold); }
 }
 
