@@ -9,7 +9,7 @@
 
 import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, mat, ownGrainAll } from "../core.js";
 import { G, WorldBase } from "../engine.js";
-import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, SWAY } from "../models.js";
+import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShipyard, SWAY } from "../models.js";
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief } from "../map.js";
 import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
@@ -274,9 +274,9 @@ export class Wilds extends WorldBase {
     const fw = d.wall ? d.len : d.w || d.r * 1.5, fd = d.wall ? 0.5 : d.d || d.r * 1.5, c0 = Math.cos(b.ry || 0), s0 = Math.sin(b.ry || 0);
     let lo = Infinity, hi = -Infinity;
     for (const [u, v] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [0, 0]]) { const h = this.land.heightAt(b.x + u * fw * c0 + v * fd * s0, b.z - u * fw * s0 + v * fd * c0); lo = Math.min(lo, h); hi = Math.max(hi, h); }
-    const y = d.wall || b.type === "hearth" ? lo + 0.05 : hi, g = new THREE.Group(), cols = [];
+    const y = d.wall || b.type === "hearth" ? lo + 0.05 : b.type === "shipyard" ? Math.max(0.4, this.land.heightAt(b.x - Math.sin(b.ry || 0) * fd * 0.25, b.z - Math.cos(b.ry || 0) * fd * 0.25)) : hi, g = new THREE.Group(), cols = [];
     g.position.set(b.x, y, b.z); g.rotation.y = b.ry || 0;
-    if (!d.wall && b.type !== "hearth" && hi - lo > 0.12) {
+    if (!d.wall && b.type !== "hearth" && b.type !== "shipyard" && hi - lo > 0.12) {
       const ft = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.25, hi - lo + 0.5, fd + 0.25), mat(0x6e675c, { surface: "stone" }));
       ft.position.y = -(hi - lo + 0.5) / 2 + 0.06; ft.receiveShadow = true; g.add(ft);
     }
@@ -311,6 +311,12 @@ export class Wilds extends WorldBase {
       const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), new THREE.MeshStandardMaterial({ color: b.colour || 0x7a2a22, side: THREE.DoubleSide, roughness: 0.9 })); flag.position.set(2.06, 2.85, 0); g.add(flag);
       g.userData.flag = flag; g.userData.flame = f;
       cols.push(this.col.addCircle(b.x, b.z, 0.75, y + 0.6));
+    } else if (b.type === "shipyard") {
+      // the slipway down into the water, the ribs of a ship on it, the shed and the crane (solid only where they stand)
+      g.add(makeShipyard(d.w, d.d));
+      const c0 = Math.cos(b.ry || 0), s0 = Math.sin(b.ry || 0), at = (lx, lz) => [b.x + lx * c0 + lz * s0, b.z - lx * s0 + lz * c0];
+      for (const lz of [-0.35, -0.2, -0.05, 0.1].map(k => k * d.d)) for (const lx of [d.w * 0.25 - 2.6, d.w * 0.25 + 2.6]) { const [px, pz] = at(lx, lz); cols.push(this.col.addCircle(px, pz, 0.3, y + 5)); }
+      { const [px, pz] = at(-d.w * 0.45, d.d * 0.1); cols.push(this.col.addCircle(px, pz, 0.4, y + 9)); }
     } else if (d.wall) {
       // sharpened stakes, side by side, along the length (a gate: two stout posts and a door between them)
       const bl = new Builder(), n = 10, L = d.len;

@@ -11,7 +11,7 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
-import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel, makeLogs } from "../models.js";
+import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel, makeLogs, makeRowboat, makeShipyard, makeShip } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { siteSign } from "../town.js";
@@ -20,7 +20,7 @@ import { Hunt } from "../hunt.js";
 import { WATER, BIOMES } from "./terrain.js";
 import { waveAt } from "../water.js";
 import { Wilds } from "./wilds.js";
-import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR } from "./rules.js";
+import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR, SHIP, BOATS } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
 import { Net, hostCommand } from "./net.js";
@@ -194,6 +194,7 @@ export class MPGame {
     this.drops = new Map(); for (const d of inMsg.drops || []) this.addDrop(d);
     this.piles = new Map(); for (const q of inMsg.piles || []) this.setPile(q);
     this.sites = new Map(); for (const q of inMsg.sites || []) this.setSite(q);
+    this.boats = new Map(); this.aboard = null; for (const o of inMsg.boats || []) this.setBoat(o);
     w.sitesFor = () => this.sites.values();
     this.setCarry(inMsg.carry || 0);
     for (const v of inMsg.settlers || []) this.settlers.set(v.id, new SettlerView(this, v));
@@ -294,6 +295,12 @@ export class MPGame {
       e.it3 = this.w.addInteract({ x: dx, y: this.w.heightAt(dx, dz) + 1.2, z: dz, reach: 2.1, label: () => e.doorOpen ? "Close the door" : "Open the door",
         use: () => { e.setDoor(!e.doorOpen); AUDIO.door && AUDIO.door(e.doorOpen, 0.3); } });
     }
+    // a shipyard of your own: a ship built there, off the slipway into the water
+    if (b.type === "shipyard" && fr) e.it2 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.4, z: b.z, reach: d.r + 4, hold: 3,
+      can: () => !this.dead,
+      label: () => this.stock.wood >= SHIP.wood && this.stock.stone >= SHIP.stone ? `Build a ship (${SHIP.wood} logs and ${SHIP.stone} stone from the store)` : `A ship takes ${SHIP.wood} logs and ${SHIP.stone} stone from the store — ${[this.stock.wood < SHIP.wood && `${SHIP.wood - this.stock.wood} logs`, this.stock.stone < SHIP.stone && `${SHIP.stone - this.stock.stone} stone`].filter(Boolean).join(" and ")} short`,
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) sfx("hammer"); },
+      use: () => { if (this.stock.wood >= SHIP.wood && this.stock.stone >= SHIP.stone) this.net.send({ t: "ship", id: b.id }); else sfx("deny"); } });
     if (b.type === "market") e.it2 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.2, z: b.z, reach: d.r + 2.2, hold: 1.2, can: () => e.friendly && this.stock.stone > 0 && input.down("ShiftLeft"), label: "Hold F: a stone for 3 logs", use: () => this.net.send({ t: "trade", want: "wood" }) });
   }
   removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
@@ -348,6 +355,8 @@ export class MPGame {
     n.site = m => this.setSite(m.s);
     n.sitex = m => this.dropSite(m.id);
     n.ax = m => { if (this.hunt) this.hunt.puppets(m.l || []); };
+    n.boat = m => this.setBoat(m.o);
+    n.bm = m => { for (const [id, x, z, yaw] of m.l || []) { const e = this.boats.get(id); if (!e || (this.aboard && this.aboard.e === e && this.aboard.helm)) continue; e.o.x = x; e.o.z = z; e.o.yaw = yaw; } };
     n.carry = m => { const was = this.carry; this.setCarry(m.n); if (m.n !== was) sfx("pickup"); };
     // what's in your pack: the stone you've broken and the food you've picked up, yours till you put it in the store
     n.pack = m => {
@@ -522,12 +531,13 @@ export class MPGame {
     $("buildmenu").classList.toggle("hidden", !on);
     $("mpBuild").classList.add("hidden");
     if (!on) return;
-    const IC = G.icons || {}, PIC = { hearth: "logs", cabin: "cabin", shed: "logs", house: "cabin", field: "seeds", well: "well", wall: "logs", gate: "logs", tower: "weapon", forge: "tools", market: "coin" };
+    const IC = G.icons || {}, PIC = { hearth: "logs", cabin: "cabin", shed: "logs", house: "cabin", field: "seeds", well: "well", wall: "logs", gate: "logs", tower: "weapon", forge: "tools", market: "coin", rowboat: "logs", shipyard: "planks" };
     $("buildTitle").textContent = "Plans";
     $("buildList").innerHTML = BUILD_ORDER.map((k, i) => {
       // (the hearth is lit from the store; anything else is laid out as a site, and its logs brought to it)
-      const d = BUILD[k], ok = k !== "hearth" || this.stock.wood >= d.wood, has = k === "hearth" && this.myHearth();
-      const cost = k === "hearth" ? `${d.wood} logs from the store` : [`${d.wood} logs to bring`, d.stone ? `${d.stone} stone` : ""].filter(Boolean).join(", ");
+      const fromStore = k === "hearth" || k === "rowboat";
+      const d = BUILD[k], ok = !fromStore || this.stock.wood >= d.wood, has = k === "hearth" && this.myHearth();
+      const cost = fromStore ? `${d.wood} logs from the store` : [`${d.wood} logs to bring`, d.stone ? `${d.stone} stone` : ""].filter(Boolean).join(", ");
       const short = !ok ? ` — ${d.wood - this.stock.wood} logs short` : "";
       return `<button class="plan${ok && !has ? "" : " short"}" data-k="${k}" data-i="${i}"><img src="${IC[PIC[k]] || IC.logs || ""}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}${has ? (this.mode === "coop" ? " (The colony has one.)" : " (You have one.)") : esc(short)}</span></span><span class="pc">${cost}</span></button>`;
     }).join("");
@@ -550,6 +560,8 @@ export class MPGame {
     else if (d.field) geo = new THREE.BoxGeometry(d.w || 6, 0.08, d.d || 7).translate(0, 0.04, 0);
     else geo = new THREE.BoxGeometry((d.w || 4) * 0.9, 3.2, (d.d || 4) * 0.9).translate(0, 1.6, 0);
     body.add(new THREE.Mesh(geo, tint));
+    if (type === "rowboat") { body.clear(); body.add(dress(makeRowboat())); }
+    if (type === "shipyard") { body.clear(); body.add(dress(makeShipyard(d.w, d.d))); }
     if (d.model) { const put = () => { const m = modelCopy(d.model); if (!m) return false; body.clear(); body.add(dress(m.scene)); return true; }; if (!put()) ensureModel(d.model).then(ok => { if (ok && this.build && this.build.ghost === ghost) put(); }); }
     const fw = d.wall ? d.len : d.w || d.r * 2, fd = d.wall ? 0.5 : d.d || d.r * 2;
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(fw, 0.05, fd)), new THREE.LineBasicMaterial({ color: 0x7fe07a })); edges.position.y = 0.05; ghost.add(edges); ghost.userData.edges = edges; ghost.userData.tint = tint;
@@ -569,7 +581,7 @@ export class MPGame {
   }
   tickBuild() {
     const B = this.build, pl = G.player, d = B.d, f = pl.forward();
-    const dist = d.wall ? 3.2 : (d.r || 1.5) + 3.6;
+    const dist = d.wall ? 3.2 : d.boat ? 4.5 : (d.r || 1.5) + 3.6;
     const x = pl.pos.x + f.x * dist, z = pl.pos.z + f.z * dist;
     // (turned smoothly while R is held, Y the other way — nothing snaps, as in the settlement)
     const dt = 1 / 60;
@@ -577,16 +589,28 @@ export class MPGame {
     if (input.down("KeyY")) B.rot -= dt * 1.7;
     const ry = B.rot;
     const y = this.w.heightAt(x, z);
-    B.ghost.position.set(x, y, z); B.ghost.rotation.y = ry;
+    B.ghost.position.set(x, d.boat ? WATER - 0.05 : y, z); B.ghost.rotation.y = ry;
     // will it do?
     let why = "";
+    if (d.boat) {
+      // (a boat: on the water, a little way out from the shore)
+      if (this.stock.wood < d.wood) why = `A rowboat takes ${d.wood} logs from the store`;
+      else if (y > -0.4) why = "A boat goes on the water — face the water, by the shore";
+      B.ok = !why; B.x = x; B.z = z; B.ry = ry;
+      const col = B.ok ? 0x7fe07a : 0xe0503a; B.ghost.userData.tint.color.setHex(col); B.ghost.userData.edges.material.color.setHex(col);
+      $("mpBuildBar").classList.toggle("hidden", B.ok); if (!B.ok) $("mpBuildBar").innerHTML = `<b>${d.name}</b> — ${esc(why)}`;
+      if (input.rclick) { this.endBuild(); return; }
+      if ((input.click || input.hit("KeyF")) && !UI.dialogOpen) { input.click = false; if (!B.ok) { sfx("deny"); return; } this.net.send({ t: "build", type: B.type, x: +x.toFixed(2), z: +z.toFixed(2), ry: +ry.toFixed(3) }); G.working = { kind: "hammer", until: G.time + 0.6 }; this.endBuild(); }
+      return;
+    }
     if (B.type === "hearth" && this.stock.wood < d.wood) why = `A hearth takes ${d.wood} logs from the store`;
     else if (y < 0.6) why = "Not in the water";
+    else if (d.shore && this.w.land.heightAt(x + Math.sin(ry) * (d.d / 2 + 6), z + Math.cos(ry) * (d.d / 2 + 6)) > -1.2) why = "Its front, the slipway, must run out over deep water — turn it (R) to face the water";
     else if (Math.abs(x) > this.room.half - 10 || Math.abs(z) > this.room.half - 10) why = "The edge of the map";
     else {
       const r = d.wall ? d.len / 2 : d.r || 1.5;
       let lo = Infinity, hi = -Infinity; for (const [a, b] of [[r, 0], [-r, 0], [0, r], [0, -r], [0, 0]]) { const h = this.w.heightAt(x + a, z + b); lo = Math.min(lo, h); hi = Math.max(hi, h); }
-      if (hi - lo > (d.wall ? 1.6 : 1.2)) why = "Too steep";
+      if (hi - lo > (d.wall ? 1.6 : d.shore ? 6 : 1.2)) why = "Too steep";
     }
     if (!why) for (const e of this.w.blds.values()) {
       const c = BUILD[e.b.type];
@@ -614,6 +638,7 @@ export class MPGame {
   }
   // ---- every frame ----
   tick(dt) {
+    if (this.boats) this.tickBoats(dt);
     if (this.fish) {
       this.fish.t += dt; this.fish.fishTick(dt); this.fish.ringTick(dt);
       for (const q of this.fishRings || []) { if (q.k >= 1) { q.mesh.material.opacity = 0; continue; } q.k = Math.min(1, q.k + dt / 1.8); q.mesh.scale.setScalar((0.1 + q.k * 0.9) * q.s); q.mesh.material.opacity = 0.3 * (1 - q.k); }
@@ -896,6 +921,94 @@ export class MPGame {
     const close = () => { box.remove(); G.menuLock = false; G.lockMouse && G.lockMouse(); };
     box.querySelector('[data-k="stay"]').onclick = close;
     go.onclick = () => { if (!pick) return; this.net.send({ t: "spawnAt", x: +pick.x.toFixed(1), z: +pick.z.toFixed(1) }); UI.fade && UI.fade(1, 0.3); setTimeout(() => UI.fade && UI.fade(0, 1.2), 900); close(); };
+  }
+  // ---- boats: a rowboat, or a ship from a shipyard; on the water, riding the swell; at the helm you row or sail it,
+  // aboard as crew you go where it goes ----
+  setBoat(o) {
+    let e = this.boats.get(o.id);
+    if (!e) {
+      const g = new THREE.Group();
+      if (o.kind === "ship") { const m = modelCopy("ship"); g.add(m ? m.scene : makeShip(20)); }
+      else g.add(makeRowboat());
+      g.traverse(q => { if (q.isMesh) q.castShadow = true; });
+      this.w.root.add(g);
+      e = { o, g, cur: { x: o.x, z: o.z, yaw: o.yaw || 0 }, ph: 0 };
+      const M = this;
+      e.it = this.w.addInteract({ get x() { return e.cur.x; }, get z() { return e.cur.z; }, get y() { return WATER + (e.o.kind === "ship" ? 2.4 : 0.9); }, reach: o.kind === "ship" ? 13 : 5, local: true,
+        can: () => !M.dead && !M.aboard && !(e.o.kind === "rowboat" && e.o.driver),
+        label: () => e.o.kind === "ship" ? (e.o.driver ? "Go aboard the ship" : "Take the ship's helm") : "Get in the rowboat and row",
+        use: () => M.net.send({ t: "board", id: e.o.id }) });
+      this.boats.set(o.id, e);
+    }
+    const mine = this.aboard && this.aboard.e === e && this.aboard.helm;
+    e.o = { ...o, ...(mine ? { x: e.cur.x, z: e.cur.z, yaw: e.cur.yaw } : {}) };
+    const helm = o.driver === this.pid, crew = (o.riders || []).includes(this.pid);
+    if (helm || crew) { if (!this.aboard || this.aboard.e !== e || this.aboard.helm !== helm) this.embark(e, helm, Math.max(0, (o.riders || []).indexOf(this.pid))); }
+    else if (this.aboard && this.aboard.e === e) this.disembark(false);
+  }
+  embark(e, helm, seat = 0) {
+    const pl = G.player;
+    this.aboard = { e, helm, seat, speed: 0, sendT: 0 };
+    G.lockMove = true; pl.holsterAxe && pl.holsterAxe(true); if (pl.bow) pl.showBow(false);
+    const ship = e.o.kind === "ship";
+    UI.keys(helm ? [["W / S", ship ? "make sail, or take it in" : "row, or back water"], ["A / D", ship ? "put the helm over" : "pull round"], ["F", "step ashore, at the shore"]] : [["F", "step ashore, at the shore"]], 8);
+    UI.hint(helm ? (ship ? "You've the helm. W to make sail, A and D to steer — and F to go ashore when she's in by the land." : "In the boat. W to row, S to back water, A and D to pull round; F to step out at the shore.") : "Aboard. You go where she goes; F to step ashore when she's in by the land.", 4);
+  }
+  disembark(tell = true) {
+    const a = this.aboard; if (!a) return;
+    this.aboard = null; G.lockMove = false;
+    if (tell) this.net.send({ t: "unboard" });
+  }
+  tickBoats(dt) {
+    const w = this.w, pl = G.player;
+    for (const e of this.boats.values()) {
+      const B = BOATS[e.o.kind], mine = this.aboard && this.aboard.e === e && this.aboard.helm;
+      if (!mine) {
+        // (someone else's, or nobody's: eased to where the server has it)
+        const k = Math.min(1, dt * 4), dyaw = Math.atan2(Math.sin(e.o.yaw - e.cur.yaw), Math.cos(e.o.yaw - e.cur.yaw));
+        if (Math.hypot(e.o.x - e.cur.x, e.o.z - e.cur.z) > 30) { e.cur.x = e.o.x; e.cur.z = e.o.z; }
+        e.cur.x += (e.o.x - e.cur.x) * k; e.cur.z += (e.o.z - e.cur.z) * k; e.cur.yaw += dyaw * k;
+        e.spd = Math.hypot(e.o.x - e.cur.x, e.o.z - e.cur.z) * 4;
+      }
+      // riding the swell: lifted and dropped, pitching and rolling with the slope of it
+      const fx = Math.sin(e.cur.yaw), fz = Math.cos(e.cur.yaw), L = B.len * 0.4, Wd = e.o.kind === "ship" ? 2.4 : 0.6;
+      const h = waveAt(w.wm, e.cur.x, e.cur.z), hb = waveAt(w.wm, e.cur.x + fx * L, e.cur.z + fz * L), hs = waveAt(w.wm, e.cur.x - fx * L, e.cur.z - fz * L);
+      const hl = waveAt(w.wm, e.cur.x + fz * Wd, e.cur.z - fx * Wd), hr = waveAt(w.wm, e.cur.x - fz * Wd, e.cur.z + fx * Wd);
+      e.y = WATER - 0.05 + h - (e.o.kind === "ship" ? 0.2 : 0.05);
+      e.g.position.set(e.cur.x, e.y, e.cur.z);
+      e.g.rotation.set(Math.atan2(hs - hb, 2 * L) * (e.o.kind === "ship" ? 0.5 : 1), e.cur.yaw, Math.atan2(hl - hr, 2 * Wd) * (e.o.kind === "ship" ? 0.6 : 1), "YXZ");
+      // (a rowboat's oars, swung as it's rowed)
+      const oars = e.g.children[0] && e.g.children[0].userData.oars;
+      if (oars) { const spd = mine ? Math.abs(this.aboard.speed) : e.spd || 0; e.ph += dt * (spd > 0.2 ? 3.2 : 0); oars.forEach((o, i) => { o.rotation.y = spd > 0.2 ? Math.sin(e.ph) * 0.6 * (i ? -1 : 1) : o.rotation.y * 0.9; o.rotation.z = (i ? 0.32 : -0.32) + (spd > 0.2 ? Math.cos(e.ph) * 0.12 * (i ? 1 : -1) : 0); }); }
+    }
+    const a = this.aboard; if (!a) return;
+    const e = a.e, B = BOATS[e.o.kind];
+    if (this.dead || !this.boats.has(e.o.id)) { this.disembark(); return; }
+    if (a.helm) {
+      // at the helm: W and S to row (or to make and take in sail), A and D to turn — quicker the faster she goes
+      const want = input.down("KeyW") ? B.speed : input.down("KeyS") ? -B.speed * 0.35 : 0;
+      a.speed += (want - a.speed) * Math.min(1, dt * (e.o.kind === "ship" ? 0.35 : 1.4));
+      const turn = (input.down("KeyA") ? 1 : 0) - (input.down("KeyD") ? 1 : 0);
+      e.cur.yaw += turn * B.turn * dt * (0.35 + 0.65 * Math.min(1, Math.abs(a.speed) / B.speed)) * Math.sign(a.speed || 1);
+      const nx = e.cur.x + Math.sin(e.cur.yaw) * a.speed * dt, nz = e.cur.z + Math.cos(e.cur.yaw) * a.speed * dt;
+      // (aground: she won't go on, into the shallows or onto the land)
+      const ahead = (k) => w.land.heightAt(nx + Math.sin(e.cur.yaw) * B.len * 0.5 * k, nz + Math.cos(e.cur.yaw) * B.len * 0.5 * k);
+      if (ahead(Math.sign(a.speed || 1)) > -B.draft || w.land.heightAt(nx, nz) > -B.draft) { if (Math.abs(a.speed) > 0.6) { sfx("build"); } a.speed = 0; }
+      else { e.cur.x = nx; e.cur.z = nz; }
+      if ((a.sendT -= dt) <= 0) { a.sendT = 0.15; this.net.send({ t: "boatmv", id: e.o.id, x: +e.cur.x.toFixed(2), z: +e.cur.z.toFixed(2), yaw: +e.cur.yaw.toFixed(3) }); }
+    }
+    // where you are aboard: at the oars, at the ship's helm by the stern, or along her deck
+    const ship = e.o.kind === "ship", fx = Math.sin(e.cur.yaw), fz = Math.cos(e.cur.yaw), sx = Math.cos(e.cur.yaw), sz = -Math.sin(e.cur.yaw);
+    // (the helmsman up on the stern castle, where he can see over the waist and the bow)
+    const along = ship ? (a.helm ? -8.6 : 4 - (a.seat % 4) * 3) : -0.1, across = ship && !a.helm ? (a.seat < 4 ? -1.2 : 1.2) : 0;
+    pl.pos.set(e.cur.x + fx * along + sx * across, e.y + (ship ? (a.helm ? 4.3 : 2.6) : -0.45), e.cur.z + fz * along + sz * across); pl.vy = 0; pl.vel && pl.vel.set(0, 0, 0);
+    // F: ashore, if there's land close enough to step onto
+    if (input.hit("KeyF") && G.mode === "play" && !UI.dialogOpen) {
+      let land = null;
+      for (let r = 1.5; r <= (ship ? 16 : 7) && !land; r += 1) for (let k = 0; k < 16 && !land; k++) { const ang = k / 16 * Math.PI * 2, x = pl.pos.x + Math.cos(ang) * r, z = pl.pos.z + Math.sin(ang) * r; if (w.land.heightAt(x, z) > 0.4) land = { x, z }; }
+      if (!land) UI.hint(ship ? "Too far from the land to go ashore — bring her in closer." : "Row in to the shore to step out.", 2.5);
+      else { this.disembark(); pl.place(land.x, land.z, pl.yaw); w.buildNear(land.x, land.z, 99); sfx("build"); }
+    }
   }
   // an arrow in one of the wild beasts: told to the server, which has it fall, or run, or turn on you
   huntHit(a, power, head) { if (a && a.netId) this.net.send({ t: "hunthit", id: a.netId, power: +(+power || 0.5).toFixed(2), head: !!head }); }

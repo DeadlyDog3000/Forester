@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.96.0", date: "11 October 2026", title: "Boats and ships",
+    items: [
+      "Frontier: build a rowboat (B; eight logs from the store) and lay it on the water by the shore. F to get in, W to row, S to back water, A and D to pull round, and F to step ashore when you're in by the land. It rides the swell, and its oars swing as you row.",
+      "Frontier: build a shipyard — a great slipway running down into deep water, the ribs of a hull on it, a timber shed and a crane — at the water's edge, its front to the water. At it, hold F to build a ship (120 logs and 20 stone from the store): a two-masted ship of the day comes off the slipway. Take her helm and sail: W to make sail, A and D to steer, far faster than any rowboat. Up to seven others can come aboard as crew, and go where she goes; F to go ashore when she's in close.",
+      "The boats are the server's, so everyone in the game sees them on the water, and sees them move; they're kept with the world.",
+    ],
+  },
+  {
     v: "0.95.0", date: "11 October 2026", title: "Waymarks and swell",
     items: [
       "Right-click anywhere on the big map (J) to set a waypoint there. A tall beam of light stands up out of the place, seen from far off; a red flag on the screen shows the way and how far; and it's on the map and the minimap too. Right-click it on the map again to take it away. It goes when you get there.",

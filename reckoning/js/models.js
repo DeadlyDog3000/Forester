@@ -1659,3 +1659,66 @@ export function makeBeast(kind, S) {
   if (V.trunk) { const tr = new THREE.Group(); tr.position.set(0, -hr * 0.1, hl * 0.85); tr.rotation.x = 0.25; head.add(tr); add(CYL, coatM, tr, 0, -V.trunk * 0.5, 0, 0.09, V.trunk, 0.09); }
   return root;
 }
+
+// ---------------------------------------------------------------------------
+//  a rowing boat: a clinker-built hull of overlapping planks, pointed at the bow and square at the stern, two thwarts
+//  across it, and a pair of oars in their tholes (g.userData.oars, to be swung). Lies along z, bow toward +z; the
+//  waterline at y 0
+// ---------------------------------------------------------------------------
+export function makeRowboat() {
+  const g = new THREE.Group(), wood = mat(0x8a6440, { surface: "wood" }), dark = mat(0x5a3e26, { surface: "wood" }), tar = mat(0x2e2620, { surface: "none" });
+  // (the hull: a shell, its sides each in four strakes, wider at the gunwale)
+  const L = 3.6, W = 1.25, H = 0.62;
+  const shape = (y, k) => { const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12, z = -L / 2 + t * L, w = W / 2 * k * (t < 0.75 ? Math.pow(Math.sin(Math.min(1, (t + 0.08) / 0.83) * Math.PI / 2), 0.6) : Math.cos((t - 0.75) / 0.25 * Math.PI / 2)); pts.push([w, y, z]); } return pts; };
+  for (let s = 0; s < 4; s++) {
+    const y0 = -0.18 + s * (H / 4), y1 = y0 + H / 4 + 0.02, k0 = 0.55 + s * 0.15, k1 = k0 + 0.15, a = shape(y0, k0), b = shape(y1, k1);
+    for (const sx of [-1, 1]) {
+      const P = [], I = [];
+      for (let i = 0; i < a.length; i++) { P.push(a[i][0] * sx, a[i][1], a[i][2], b[i][0] * sx, b[i][1], b[i][2]); }
+      for (let i = 0; i < a.length - 1; i++) { const q = i * 2; I.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); geo.setIndex(I); geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, s === 0 ? tar : s % 2 ? wood : dark); m.material.side = THREE.DoubleSide; m.castShadow = true; m.receiveShadow = true; g.add(m);
+    }
+  }
+  // (the bottom boards, the transom across the stern, the stem post at the bow, a rail along each gunwale)
+  const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.castShadow = true; g.add(o); return o; };
+  add(new THREE.BoxGeometry(W * 0.5, 0.04, L * 0.8), dark, 0, -0.15, -0.1);
+  add(new THREE.BoxGeometry(W * 0.95, H * 0.9, 0.06), wood, 0, 0.1, -L / 2 + 0.02);
+  add(new THREE.BoxGeometry(0.07, H + 0.15, 0.1), dark, 0, 0.12, L / 2 - 0.02, 0.25, 0, 0);
+  for (const z of [-0.5, 0.45]) add(new THREE.BoxGeometry(W * 0.86, 0.05, 0.24), wood, 0, 0.22, z);
+  // the oars, each from its thole out over the side to the blade
+  const oars = [];
+  for (const sx of [-1, 1]) {
+    const o = new THREE.Group(); o.position.set(sx * W * 0.47, 0.42, 0.05); g.add(o);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 2.4, 6), wood); shaft.rotation.z = Math.PI / 2; shaft.position.x = sx * 0.75; o.add(shaft);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.02, 0.15), wood); blade.position.x = sx * 1.85; o.add(blade);
+    o.rotation.z = -sx * 0.32; oars.push(o);
+  }
+  g.userData.oars = oars;
+  return g;
+}
+
+// a shipyard: a slipway of timbers running down into the water, a ship's ribs standing on it, a great open shed on
+// posts beside it, a crane, and timber stacked. Faces +z (the slipway's foot in the water); w across, d deep
+export function makeShipyard(w = 14, d = 24) {
+  const b = new Builder(), WD = 0x7a5634, DK = 0x4e3624, PL = 0x9a7448;
+  // the slipway: two long ways, and the cross-timbers between them, sloping down toward the water
+  for (let i = 0; i < 12; i++) { const z = -d * 0.15 + i * (d * 0.9 / 12), y = 0.5 - i * 0.18; b.box(4.2, 0.18, 0.32, -w * 0.18, y, z, DK); }
+  for (const sx of [-1, 1]) b.add(new THREE.BoxGeometry(0.3, 0.3, d * 0.95), WD, -w * 0.18 + sx * 1.7, -0.3, d * 0.3, -0.09, 0, 0);
+  // a ship's ribs on the slipway, a keel along under them
+  b.box(0.3, 0.35, d * 0.55, -w * 0.18, 0.9, d * 0.05, DK);
+  for (let i = 0; i < 9; i++) { const z = -d * 0.18 + i * (d * 0.5 / 9), k = Math.sin((i + 0.5) / 9 * Math.PI); for (const sx of [-1, 1]) b.add(new THREE.CylinderGeometry(0.1, 0.12, 3.2 * (0.7 + 0.3 * k), 6), PL, -w * 0.18 + sx * 1.4 * k, 2.2, z, 0, 0, sx * 0.45); }
+  // the shed: posts and a long pitched roof, open at the sides
+  const sx0 = w * 0.25;
+  for (const px of [-2.6, 2.6]) for (let i = 0; i < 4; i++) b.box(0.3, 4.4, 0.3, sx0 + px, 2.2, -d * 0.35 + i * 4, DK);
+  for (const s of [-1, 1]) b.add(new THREE.BoxGeometry(3.4, 0.14, 14), 0x5a4232, sx0 + s * 1.5, 5.0, -d * 0.35 + 6, 0, 0, -s * 0.5);
+  // timber stacked in the shed
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 5; i++) b.add(new THREE.CylinderGeometry(0.2, 0.2, 5, 8), WD, sx0 - 1.6 + i * 0.42, 0.25 + r * 0.38, -d * 0.3 + 2, Math.PI / 2, 0, 0);
+  // the crane: a mast, a jib out over the slipway, and its rope
+  b.box(0.45, 9, 0.45, -w * 0.45, 4.5, d * 0.1, DK);
+  b.add(new THREE.BoxGeometry(0.25, 0.25, 7), WD, -w * 0.45 + 1.8, 8.4, d * 0.1, 0, Math.PI / 2 - 0.4, 0);
+  b.add(new THREE.CylinderGeometry(0.02, 0.02, 4, 4), 0xd8ceb4, -w * 0.45 + 4.3, 6.4, d * 0.1 + 1.6);
+  const m = b.build(MAT.solid);
+  const g = new THREE.Group(); g.add(m);
+  return g;
+}

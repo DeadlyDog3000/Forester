@@ -117,7 +117,8 @@ class Room {
     this.settlers = {}; this.nextS = 1; this.lastArrive = {}; this.workCache = {};
     this.wars = []; this.news = []; this.lastWar = {};
     this.drops = {}; this.nextD = 1;
-    this.beasts = {}; this.nextA = 1;   // (the wild beasts round the players: kept here, so everyone sees the same ones)
+    this.beasts = {}; this.nextA = 1;
+    this.boats = {}; this.nextO = 1;   // (boats on the water: rowboats, and ships from the shipyards)   // (the wild beasts round the players: kept here, so everyone sees the same ones)
     // (as in the settlement: a tree's logs lie where it fell, to be carried; a building is a site till the logs are
     //  brought and it's raised)
     this.piles = {}; this.nextP = 1; this.sites = {};     // (what the fallen dropped: a sack each, for anyone to loot, a few minutes)
@@ -140,10 +141,10 @@ class Room {
     return { id: this.id, name: this.name, mode: this.mode, kind: this.mode === "colony" || this.mode === "nations" ? "woods" : this.kind, size: this.size, half: this.half, players: this.online.size, max: this.max, host: this.host, hostPid: this.hostPid, locked: !!this.password, persistent: this.persistent };
   }
   // ---- saving the wide world ----
-  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0, banned: Object.fromEntries(this.banned), piles: this.piles, nextP: this.nextP, sites: this.sites }; }
+  toJSON() { return { news: this.news.slice(-60), settlers: Object.fromEntries(Object.entries(this.settlers).map(([k, v]) => [k, { id: v.id, owner: v.owner, name: v.name, look: v.look, job: v.job, x: v.x, z: v.z, hp: v.hp, pin: v.pin || null }])), nextS: this.nextS, shared: this.shared, id: this.id, name: this.name, mode: this.mode, kind: this.kind, half: this.half, seed: this.seed, max: this.max, persistent: true, recs: this.recs, felled: this.felled, broken: this.broken, buildings: this.buildings, groups: this.groups, nextB: this.nextB, day0: this.day0, banned: Object.fromEntries(this.banned), piles: this.piles, nextP: this.nextP, sites: this.sites, boats: Object.fromEntries(Object.entries(this.boats).map(([k, b]) => [k, { ...b, driver: null, riders: [] }])), nextO: this.nextO }; }
   static from(j) {
     const r = new Room(j);
-    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0, piles: j.piles || {}, nextP: j.nextP || 1, sites: j.sites || {}, banned: new Map(Object.entries(j.banned || {})) });
+    Object.assign(r, { news: j.news || [], settlers: Object.fromEntries(Object.entries(j.settlers || {}).map(([k, v]) => [k, { ...v, state: "find", a: "idle", yaw: 0, s: 0 }])), nextS: j.nextS || 1, shared: j.shared || r.shared, recs: j.recs || {}, felled: j.felled || {}, broken: j.broken || {}, buildings: j.buildings || {}, groups: j.groups || {}, nextB: j.nextB || 1, day0: j.day0 || r.day0, piles: j.piles || {}, nextP: j.nextP || 1, sites: j.sites || {}, boats: j.boats || {}, nextO: j.nextO || 1, banned: new Map(Object.entries(j.banned || {})) });
     return r;
   }
   each(f) { for (const p of this.online.values()) f(p); }
@@ -185,7 +186,7 @@ class Room {
     const t = now();
     sock.send({ t: "in", room: { ...this.meta(), seed: this.seed }, you: { pid: p.pid, x: p.x, z: p.z, wood: this.storeOf(p.pid).wood, stone: this.storeOf(p.pid).stone, food: this.storeOf(p.pid).food | 0, shield: R.SPAWN_SHIELD_MS, home: hearth ? hearth.id : null, pack: { ...this.packOf(p.pid) } },
       players: [...this.online.values()].filter(q => q !== p).map(q => this.pub(q)), felled: live(this.felled, t), broken: live(this.broken, t),
-      buildings: Object.values(this.buildings), drops: Object.values(this.drops), piles: Object.values(this.piles), sites: Object.values(this.sites), carry: (this.recs[p.pid] || {}).carry || 0, settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
+      buildings: Object.values(this.buildings), drops: Object.values(this.drops), piles: Object.values(this.piles), sites: Object.values(this.sites), boats: Object.values(this.boats), carry: (this.recs[p.pid] || {}).carry || 0, settlers: Object.values(this.settlers).map(x => this.pubS(x)), wars: this.wars, news: this.news.slice(-30), groups: this.groups, day: { t: (t - this.day0) % R.DAY_MS, len: R.DAY_MS }, chat: this.chat.slice(-20),
       online: this.onlineNames(), ...(this.mode === "nations" ? this.natState() : {}) });
     this.all({ t: "pj", p: this.pub(p) }, p);
     this.sendPack(p);
@@ -217,6 +218,8 @@ class Room {
   leave(p) {
     if (!this.online.has(p.pid) || this.online.get(p.pid) !== p) return;
     this.online.delete(p.pid); p.sock.player = null;
+    // (their place in a boat, given up)
+    for (const o of Object.values(this.boats || {})) { if (o.driver === p.pid) { o.driver = (o.riders || []).shift() || null; this.all({ t: "boat", o }); } else if ((o.riders || []).includes(p.pid)) { o.riders = o.riders.filter(q => q !== p.pid); this.all({ t: "boat", o }); } }
     const r = this.recs[p.pid]; if (r) r.seen = now();
     this.all({ t: "pl", pid: p.pid });
     if (this.mode === "colony" && p.pid === this.hostPid) { this.all({ t: "ended", text: `${p.name} has closed the colony.` }); this.ended = true; }
@@ -322,6 +325,49 @@ class Room {
         p.sock.send({ t: "spawn", pid: p.pid, x: at.x, z: at.z, hp: p.hp });
         return;
       }
+      // into a boat: at the helm if nobody is, or aboard a ship as one of its crew
+      case "board": {
+        const o = this.boats[String(m.id || "")]; if (!o || p.dead) return;
+        if (!this.near(p, o.x, o.z, o.kind === "ship" ? 14 : 4)) return;
+        const B = R.BOATS[o.kind];
+        for (const b of Object.values(this.boats)) { if (b.driver === p.pid) b.driver = null; b.riders = (b.riders || []).filter(q => q !== p.pid); }
+        if (!o.driver) o.driver = p.pid;
+        else if ((o.riders || []).length < B.seats - 1) (o.riders ||= []).push(p.pid);
+        else return p.sock.send({ t: "err", text: o.kind === "ship" ? "The ship's full." : "There's someone in it already." });
+        this.all({ t: "boat", o }); return;
+      }
+      case "unboard": {
+        for (const o of Object.values(this.boats)) {
+          if (o.driver === p.pid) { o.driver = (o.riders || []).shift() || null; this.all({ t: "boat", o }); }
+          else if ((o.riders || []).includes(p.pid)) { o.riders = o.riders.filter(q => q !== p.pid); this.all({ t: "boat", o }); }
+        }
+        return;
+      }
+      // the one at the helm, rowing or sailing it: where it is now (no faster than it can go, and not on dry land)
+      case "boatmv": {
+        const o = this.boats[String(m.id || "")]; if (!o || o.driver !== p.pid) return;
+        const x = num(m.x, o.x), z = num(m.z, o.z), B = R.BOATS[o.kind];
+        if (Math.hypot(x - o.x, z - o.z) > B.speed * 2.5 + 3) return;
+        if (this.land.heightAt(x, z) > 0.2) return;
+        o.x = x; o.z = z; o.yaw = num(m.yaw, o.yaw); o.moved = true; this.dirty = true;
+        return;
+      }
+      // a ship off the slipway: built at your (or your colony's) shipyard, from the store
+      case "ship": {
+        const sy = this.buildings[String(m.id || "")]; if (!sy || sy.type !== "shipyard" || p.dead) return;
+        if (!this.mineB(this.mode === "coop" ? "colony" : p.pid, sy) || !this.near(p, sy.x, sy.z, 22)) return;
+        const no = text => p.sock.send({ t: "err", text });
+        if (Object.values(this.boats).some(b => b.kind === "ship" && b.from === sy.id && Math.hypot(b.x - sy.x, b.z - sy.z) < 40)) return no("There's a ship at the slipway already. Sail her off first.");
+        if (st.wood < R.SHIP.wood || st.stone < R.SHIP.stone) return no(`A ship takes ${R.SHIP.wood} logs and ${R.SHIP.stone} stone from the store.`);
+        const d = R.BUILD.shipyard; let at = null;
+        for (let k = 8; k <= 40 && !at; k += 2) { const x = sy.x + Math.sin(sy.ry || 0) * (d.d / 2 + k), z = sy.z + Math.cos(sy.ry || 0) * (d.d / 2 + k); if (this.land.heightAt(x, z) < -2) at = { x, z }; }
+        if (!at) return no("The water off the slipway isn't deep enough for a ship.");
+        st.wood -= R.SHIP.wood; st.stone -= R.SHIP.stone;
+        const o = { id: "o" + (this.nextO++), kind: "ship", x: +at.x.toFixed(2), z: +at.z.toFixed(2), yaw: sy.ry || 0, owner: p.pid, from: sy.id, driver: null, riders: [] };
+        this.boats[o.id] = o; this.all({ t: "boat", o }); this.stock(p); this.dirty = true;
+        this.note(`${p.name} has launched a ship.`);
+        return;
+      }
       // an arrow (or a ball) in a beast: told by whoever loosed it; the beast's fear or its fury, and its death
       case "hunthit": {
         const a = this.beasts[String(m.id || "")]; if (!a || a.dead || p.dead) return;
@@ -362,7 +408,18 @@ class Room {
         if (m.type === "hearth" && (st.wood < d.wood || st.stone + (this.packOf(p.pid).stone | 0) < d.stone)) return no(`A hearth takes ${d.wood} logs from the store.`);
         if (!this.near(p, x, z, 16)) return no("Too far away to build there.");
         if (Math.abs(x) > this.half - 10 || Math.abs(z) > this.half - 10) return no("That's the edge of the map.");
+        // (a boat on the water, near enough the shore to step into; a shipyard at the water's edge, its front to the water)
+        if (d.boat) {
+          if (this.land.heightAt(x, z) > -0.4) return no("A boat goes on the water — lay it a little way out from the shore.");
+          if (!this.near(p, x, z, 12)) return no("Lay it nearer you, by the shore.");
+          if (st.wood < d.wood) return no(`A rowboat takes ${d.wood} logs from the store.`);
+          st.wood -= d.wood;
+          const o = { id: "o" + (this.nextO++), kind: "rowboat", x: +x.toFixed(2), z: +z.toFixed(2), yaw: ry, owner: p.pid, driver: null, riders: [] };
+          this.boats[o.id] = o; this.all({ t: "boat", o }); this.stock(p); this.dirty = true;
+          return;
+        }
         if (this.land.heightAt(x, z) < 0.6) return no("Not in the water.");
+        if (d.shore) { const fx = x + Math.sin(ry) * (d.d / 2 + 6), fz = z + Math.cos(ry) * (d.d / 2 + 6); if (this.land.heightAt(fx, fz) > -1.2) return no("A shipyard stands at the water's edge, its front (the slipway) out over deep water. Turn it (R) to face the water."); }
         if (m.type === "hearth" && Object.values(this.buildings).some(b => b.type === "hearth" && (b.owner === p.pid || this.mode === "coop"))) return no(this.mode === "coop" ? "The colony has its hearth already." : "You have a hearth already. Break it to move your homestead.");
         const claim = this.claimAt(x, z);
         if (claim && !this.allied(claim.owner, p.pid)) return no(`That's ${this.recs[claim.owner] ? this.recs[claim.owner].name + "'s" : "someone's"} ground.`);
@@ -1142,6 +1199,8 @@ class Room {
       const sm = [];
       for (const v of Object.values(this.settlers)) if (v.moved) { v.moved = false; sm.push([v.id, +v.x.toFixed(2), +v.z.toFixed(2), +v.yaw.toFixed(2), v.a, +(v.s || 0).toFixed(2)]); }
       if (sm.length) this.all({ t: "ss", l: sm });
+      const bm = []; for (const o of Object.values(this.boats || {})) if (o.moved) { o.moved = false; bm.push([o.id, +o.x.toFixed(2), +o.z.toFixed(2), +o.yaw.toFixed(3)]); }
+      if (bm.length) this.all({ t: "bm", l: bm });
     }
   }
   slow() {
