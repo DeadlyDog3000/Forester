@@ -84,7 +84,27 @@ const detailTex = ["a", "b", "c"].map(k => {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4;
   return t;
 });
-export const SURFACE = { auto: -1, none: -2, wood: 0, plaster: 1, stone: 2, brick: 3, bark: 4, cloth: 5, needles: 6, tiles: 7, rock: 8 };
+// and each surface's own colour (art/tex/colour.jpg, twelve squares side by side: the eight stuffs, then meadow, forest floor, dirt and cobbles): how each brick, stone, board and
+// tile differs from the wall's own colour, so a wall shows its courses and its mortar, not only a grain on a flat
+// paint. Cut into the layers of one texture (one sampler for all twelve); a flat grey layer until it has loaded.
+const COLOUR_N = 12, COLOUR_SZ = 512;
+const colourTex = new THREE.DataArrayTexture(new Uint8Array(4 * 4 * COLOUR_N).fill(128), 2, 2, COLOUR_N);
+colourTex.wrapS = colourTex.wrapT = THREE.RepeatWrapping; colourTex.colorSpace = THREE.NoColorSpace;
+colourTex.magFilter = THREE.LinearFilter; colourTex.minFilter = THREE.LinearMipmapLinearFilter; colourTex.generateMipmaps = true; colourTex.anisotropy = 8;
+colourTex.needsUpdate = true;
+{
+  const img = new Image();
+  img.onload = () => {
+    const S = COLOUR_SZ, c = document.createElement("canvas"); c.width = S * COLOUR_N; c.height = S;
+    const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(img, 0, 0, S * COLOUR_N, S);
+    const data = new Uint8Array(S * S * 4 * COLOUR_N);
+    for (let k = 0; k < COLOUR_N; k++) data.set(g.getImageData(k * S, 0, S, S).data, k * S * S * 4);
+    colourTex.image = { data, width: S, height: S, depth: COLOUR_N };
+    colourTex.needsUpdate = true;
+  };
+  img.src = "art/tex/colour.jpg";
+}
+export const SURFACE = { auto: -1, none: -2, wood: 0, plaster: 1, stone: 2, brick: 3, bark: 4, cloth: 5, needles: 6, tiles: 7, rock: 8, ground: 9, log: 10 };
 export function groundTexture(name, repeat) {
   const t = texLoader.load(`art/tex/${name}.jpg`);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
@@ -93,9 +113,38 @@ export function groundTexture(name, repeat) {
 }
 const SURF_GLSL = `
   uniform sampler2D dTexA, dTexB, dTexC;
+  uniform highp sampler2DArray dTexCol;
+  // (a log lies on its side: its grain runs along it, so on the walls the photograph is laid on turned a quarter)
+  bool dRot = false;
+  vec3 dTriCol(int s, vec3 p, vec3 w) {
+    float L = float(s);
+    return texture(dTexCol, vec3(dRot ? p.yz : p.zy, L)).rgb * w.x + texture(dTexCol, vec3(p.xz, L)).rgb * w.y + texture(dTexCol, vec3(dRot ? p.yx : p.xy, L)).rgb * w.z;
+  }
+  // the ground: grass, leaf litter, bare earth or stones, judged by the ground's own colour, at two scales so the
+  // photographs' squares don't show across a field; and only up close, where it can be seen, not as a shimmer far off
+  vec3 dGroundCol(vec3 lin, vec3 p, vec3 n, float far) {
+    vec3 c = pow(max(lin, vec3(0.0)), vec3(1.0 / 2.2));
+    float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
+    float sat = (mx - mn) / max(mx, 1e-3), lum = dot(c, vec3(0.3, 0.59, 0.11));
+    vec3 w = pow(abs(n), vec3(4.0)); w /= (w.x + w.y + w.z);
+    int L; float k;
+    if (n.y < 0.6 || (sat < 0.12 && lum < 0.7)) { L = 2; k = 0.55; }                          // steep or grey: rock
+    else if (c.g >= c.r * 0.92 && sat > 0.12) { L = 8; k = 0.85; }                              // green: grass
+    else if (lum > 0.5) { L = 10; k = 0.7; }                                                   // pale: sand, dry earth
+    else if (lum < 0.3) { L = 9; k = 0.8; }                                                    // dark brown: the forest floor
+    else { L = 10; k = 0.75; }                                                                 // brown: bare earth
+    vec3 a = dTriCol(L, p * 0.42, w) * 2.0, b = dTriCol(L, p * 0.11 + vec3(0.3, 0.0, 0.7), w) * 2.0;
+    vec3 pc = 1.0 + (mix(a, b, 0.4) - 1.0) * 1.5;
+    return mix(vec3(1.0), max(pc, vec3(0.3)), k * (1.0 - smoothstep(30.0, 90.0, far)));
+  }
+  // the surface's own colour pattern at p, laid on at the scale its grain is (so the two agree): 1 is the wall's colour
+  vec3 dSurfCol(int s, vec3 p, vec3 w) {
+    float sc = s == 0 ? 0.9 : s == 1 ? 0.21 : s == 2 ? 0.7 : s == 3 ? 0.9 : s == 4 ? 1.1 : s == 5 ? 3.0 : s == 6 ? 0.8 : 0.6;
+    return dTriCol(s, p * sc, w) * 2.0;
+  }
   // the grain of surface s at world point p, seen from the three axes and blended by the normal
   float dTri(sampler2D t, int ch, vec3 p, vec3 w) {
-    vec4 a = texture2D(t, p.zy), b = texture2D(t, p.xz), c = texture2D(t, p.xy);
+    vec4 a = texture2D(t, dRot ? p.yz : p.zy), b = texture2D(t, p.xz), c = texture2D(t, dRot ? p.yx : p.xy);
     return dot(vec3(a[ch], b[ch], c[ch]), w);
   }
   float dSurf(int s, vec3 p, vec3 w) {
@@ -167,7 +216,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount }; sh.uniforms.dNear = { value: seeThrough };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
     sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dSnowK = { value: typeof snow === "number" ? snow : 1 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
-    sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] };
+    sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] }; sh.uniforms.dTexCol = { value: colourTex };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal;")
       .replace("#include <begin_vertex>", `#include <begin_vertex>
@@ -194,11 +243,19 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           // the real surface first
           int s = ${surf};
           if (s == -1) s = dAutoFull > 0.5 ? dClassify(diffuseColor.rgb, vDNormal) : dClassifySimple(diffuseColor.rgb);
+          if (s == 10) { dRot = true; s = 0; }
+          if (s == 9) { diffuseColor.rgb *= dGroundCol(diffuseColor.rgb, vDWorld, vDNormal, distance(vDReal, cameraPosition)); s = -2; }
           if (s >= 0) {
             ${SURF_STRENGTH}
             vec3 w = pow(an, vec3(4.0)); w /= (w.x + w.y + w.z);
             float g = dSurf(s, vDWorld, w);
-            diffuseColor.rgb *= 1.0 + (g - 0.5) * 1.6 * dStrength[s];
+            // the surface's real colour pattern (courses, mortar, boards, stones), and the grain over it, gentler
+            ${"float dColK[8] = float[8](0.9, 0.7, 1.0, 1.0, 0.9, 0.6, 0.8, 1.0);"}
+            if (s < 8) {
+              vec3 pc = dSurfCol(s, vDWorld, w);
+              diffuseColor.rgb *= mix(vec3(1.0), pc, dColK[s] * (dRot ? 0.75 : 1.0));
+              diffuseColor.rgb *= 1.0 + (g - 0.5) * 0.7 * dStrength[s];
+            } else diffuseColor.rgb *= 1.0 + (g - 0.5) * 1.6 * dStrength[s];
             // (the same grain as relief, fading out with distance, where it would only shimmer)
             ${SURF_RELIEF}
             dHk = dDepth[s] * dRelief * (1.0 - smoothstep(18.0, 45.0, distance(vDReal, cameraPosition)));
@@ -408,6 +465,27 @@ export function gableGeo(w, h, t) {
   return g;
 }
 
+// a model's footing: the extent, in `frame`'s own space, of every face of it that stands across a person's waist
+// height (y = h) — walls and posts, not the roof over them nor the steps before them; big low-poly walls have their
+// corners only at the floor and the eaves, so their corners alone (in a band) would miss them
+export function footingOf(root, frame, h = 1.0) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(frame.matrixWorld).invert(), M = new THREE.Matrix4(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  const take = v => { x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); };
+  root.traverse(o => {
+    const g = o.isMesh && !o.isInstancedMesh && o.visible && o.geometry, p = g && g.attributes.position; if (!p) return;
+    M.multiplyMatrices(inv, o.matrixWorld);
+    const ix = g.index, n = ix ? ix.count : p.count;
+    for (let i = 0; i + 2 < n; i += 3) {
+      a.fromBufferAttribute(p, ix ? ix.getX(i) : i).applyMatrix4(M); b.fromBufferAttribute(p, ix ? ix.getX(i + 1) : i + 1).applyMatrix4(M); c.fromBufferAttribute(p, ix ? ix.getX(i + 2) : i + 2).applyMatrix4(M);
+      const lo = Math.min(a.y, b.y, c.y), hi = Math.max(a.y, b.y, c.y);
+      if (lo > h || hi < h) continue;
+      take(a); take(b); take(c);
+    }
+  });
+  return x1 > x0 && z1 > z0 ? { x0, x1, z0, z1 } : null;
+}
 // ---------------------------------------------------------------------------
 //  collision
 // ---------------------------------------------------------------------------

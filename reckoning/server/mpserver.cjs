@@ -942,6 +942,8 @@ class Room {
     for (let ci = Math.floor((home.x - R2) / C); ci <= Math.floor((home.x + R2) / C); ci++) for (let cj = Math.floor((home.z - R2) / C); cj <= Math.floor((home.z + R2) / C); cj++) {
       for (const it of kind === "wood" ? this.land.chunkTrees(ci, cj) : this.land.chunkRocks(ci, cj)) {
         const d = Math.hypot(it.x - home.x, it.z - home.z); if (d > R2 || d < 6) continue;
+        // (not one cleared away for a building, under it or in its yard)
+        if (Object.values(this.buildings).some(b => { const bd = R.BUILD[b.type]; return bd && !bd.wall && Math.hypot(b.x - it.x, b.z - it.z) < Math.max(bd.w || 0, bd.d || 0, (bd.r || 1) * 1.5) / 2 + 3.5; })) continue;
         // (only what can be walked to: no water on the way)
         let dry = true; for (let i = 1; i < 6; i++) { const f = i / 6; if (this.land.heightAt(home.x + (it.x - home.x) * f, home.z + (it.z - home.z) * f) < 0.3) { dry = false; break; } }
         if (dry) out.push({ id: it.id, x: it.x, z: it.z, d });

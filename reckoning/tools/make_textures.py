@@ -31,6 +31,11 @@ PACKS = {
     "detail_c.png": ["needles", "tiles", "wood"],
 }
 GROUND = ["meadow", "forestfloor", "cobbles", "dirt"]
+# the surfaces' own colour, in the order of SURFACE in core.js: each photo divided by its broad colour, so what's left
+# is how each brick, stone, board and tile differs from the wall's own colour (the mortar paler, a stone bluer, a
+# knot darker) — laid side by side in one strip, which the game cuts into the layers of one texture
+# (and after them the ground's: the terrain picks one by its own colour)
+COLOUR = ["wood", "plaster", "stone", "brick", "bark", "cloth", "needles", "tiles", "meadow", "forestfloor", "dirt", "cobbles"]
 
 
 def seamless(img):
@@ -57,6 +62,16 @@ def detail(img, size=512):
     return np.clip(d, 0, 1)
 
 
+def colour(img, size=512):
+    im = img.resize((size, size), Image.LANCZOS)
+    a = np.asarray(im, dtype=np.float32) / 255
+    broad = np.asarray(im.filter(ImageFilter.GaussianBlur(size / 5)), dtype=np.float32) / 255
+    r = a / np.maximum(broad, 0.04)
+    # (a little gentler than the photo: a wall's own colour should still be its colour)
+    r = 1 + (r - 1) * 0.9
+    return np.clip(r * 0.5, 0, 1)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     cache = {}
@@ -68,6 +83,9 @@ def main():
         rgb = np.stack([detail(load(n)) for n in chans], axis=-1)
         Image.fromarray((rgb * 255).astype(np.uint8)).save(OUT / name)
         print("wrote", name, chans)
+    strip = np.concatenate([colour(load(n)) for n in COLOUR], axis=1)
+    Image.fromarray((strip * 255 + 0.5).astype(np.uint8)).save(OUT / "colour.jpg", quality=92)
+    print("wrote colour.jpg", COLOUR)
     for n in GROUND:
         load(n).resize((1024, 1024), Image.LANCZOS).save(OUT / f"{n}.jpg", quality=88)
         print("wrote", f"{n}.jpg")

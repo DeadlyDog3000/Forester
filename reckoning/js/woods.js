@@ -175,7 +175,7 @@ export class Woods extends WorldBase {
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
     const tg2 = geo;
-    this.terrainMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "none" });
+    this.terrainMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "ground" });
     const terrain = this.terrain = new THREE.Mesh(tg2, this.terrainMat);
     SNOW.value = 0;
     terrain.receiveShadow = true;
@@ -347,7 +347,7 @@ export class Woods extends WorldBase {
     rg.computeVertexNormals();
     // wound the other way round: flip if it faces down
     if (rg.attributes.normal.getY(0) < 0) { const ix = rg.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } rg.computeVertexNormals(); }
-    const roadMesh = new THREE.Mesh(rg, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 2, amount: 0.12, grain: 0.4, surface: "none" }));
+    const roadMesh = new THREE.Mesh(rg, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 2, amount: 0.12, grain: 0.4, surface: "ground" }));
     roadMesh.receiveShadow = true;
     root.add(roadMesh);
     // stones kicked to the sides, tufts in the middle

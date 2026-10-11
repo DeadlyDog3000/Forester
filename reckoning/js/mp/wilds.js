@@ -7,7 +7,7 @@
 // kilometres across, costs no more to walk than a small island. What people have done to it (trees down, rocks
 // broken, things built) is told by the server and laid over the top.
 
-import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, mat, ownGrainAll } from "../core.js";
+import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, mat, ownGrainAll, footingOf } from "../core.js";
 import { G, WorldBase } from "../engine.js";
 import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShipyard, makeHorse, SWAY } from "../models.js";
 import { Woods } from "../woods.js";
@@ -27,6 +27,120 @@ const PAL = {
   wetSand: new THREE.Color(0x8a7a58), desert: new THREE.Color(0xc8b07a), bed: new THREE.Color(0x5e5640), snow: new THREE.Color(0xe8ecf0), rock: new THREE.Color(0x7a7870),
 };
 // (the same small hash as the ground's grain everywhere else)
+// a doorway cut in a model's front wall: every one of its materials told not to draw inside the door's box (in the
+// building's own frame), and a frame of dark timber round the opening, the door swung in on its hinges
+const DOOR_W = 0.66, DOOR_H = 2.25;
+function doorway(g, sc, dx, zf, deep = 0.7) {
+  g.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().makeTranslation(dx, DOOR_H / 2, zf).premultiply(g.matrixWorld).invert();
+  const U = { value: inv };
+  sc.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    // (a clone keeps none of its shader's additions: the surface's grain and colour put back first, or every wall
+    //  of the building would come out plain, and all of them sharing one program)
+    const o0 = o.material, m = o.material = o0.clone(); if (o0.userData.detail) addDetail(m, o0.userData.detail);
+    const prev = m.onBeforeCompile, key = m.customProgramCacheKey.bind(m);
+    m.onBeforeCompile = (sh, r) => {
+      if (prev) prev.call(m, sh, r);
+      sh.uniforms.uDoorInv = U;
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nuniform mat4 uDoorInv; varying vec3 vDoorP;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvDoorP = (uDoorInv * modelMatrix * vec4(transformed, 1.0)).xyz;");
+      sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vDoorP;")
+        .replace("void main() {", `void main() { if (abs(vDoorP.x) < ${DOOR_W.toFixed(2)} && abs(vDoorP.y) < ${(DOOR_H / 2).toFixed(3)} && abs(vDoorP.z) < ${deep.toFixed(2)}) discard;`);
+    };
+    m.customProgramCacheKey = () => key() + "|door";
+  });
+  const wood = mat(0x4a3424, { surface: "wood", roughness: 0.85 }), bl = new Builder();
+  bl.box(0.16, DOOR_H + 0.1, 0.5, dx - DOOR_W - 0.08, (DOOR_H + 0.1) / 2, zf - 0.1, 0x4a3424);
+  bl.box(0.16, DOOR_H + 0.1, 0.5, dx + DOOR_W + 0.08, (DOOR_H + 0.1) / 2, zf - 0.1, 0x4a3424);
+  bl.box(DOOR_W * 2 + 0.48, 0.2, 0.52, dx, DOOR_H + 0.1, zf - 0.1, 0x4a3424);
+  bl.box(DOOR_W * 2 + 0.2, 0.08, 0.8, dx, 0.04, zf - 0.1, 0x6e6b62);
+  const frame = bl.build(MAT.rough); frame.castShadow = true; g.add(frame);
+  // (the door: boards and two iron straps, open into the room)
+  const door = new THREE.Group(), db = new Builder();
+  for (let i = 0; i < 4; i++) db.box(DOOR_W * 2 / 4 - 0.01, DOOR_H - 0.06, 0.07, (i + 0.5) * DOOR_W * 2 / 4, (DOOR_H - 0.06) / 2, 0, 0x6a4a30);
+  for (const y of [0.45, DOOR_H - 0.5]) db.box(DOOR_W * 2 - 0.1, 0.07, 0.02, DOOR_W, y, 0.045, 0x2a2622);
+  door.add(db.build(MAT.rough)); door.position.set(dx - DOOR_W, 0, zf - 0.3); door.rotation.y = -1.75; g.add(door);
+  void wood;
+}
+// the hall within: a long table down the middle with its benches, the reeve's desk at the far end with the ledger
+// open on it, the store's great chest against the wall, the owner's banner hung behind, and a lantern overhead
+function furnishHall(g, x0, x1, z0, z1, colour) {
+  const bl = new Builder(), W = x1 - x0, D = z1 - z0, cx = (x0 + x1) / 2, L = Math.max(2, D - 4.2), tz = (z0 + 1.9 + z1 - 1.8) / 2;
+  bl.box(1.0, 0.07, L, cx, 0.78, tz, 0x6a4a30);
+  for (const sx of [-0.4, 0.4]) for (const sz of [-L / 2 + 0.15, L / 2 - 0.15]) bl.box(0.08, 0.74, 0.08, cx + sx, 0.38, tz + sz, 0x4a3424);
+  for (const sx of [-0.85, 0.85]) { bl.box(0.32, 0.06, L - 0.3, cx + sx, 0.46, tz, 0x5a3e28); for (const sz of [-L / 2 + 0.3, L / 2 - 0.3]) bl.box(0.06, 0.44, 0.24, cx + sx, 0.22, tz + sz, 0x4a3424); }
+  // (the reeve's desk, and the chair behind it, at the far end; the ledger open)
+  const dz = z0 + 1.0;
+  bl.box(1.6, 0.08, 0.7, cx, 0.8, dz, 0x5a3e28); bl.box(1.5, 0.76, 0.6, cx, 0.39, dz, 0x4a3424);
+  bl.box(0.5, 0.04, 0.36, cx - 0.2, 0.86, dz, 0xe8dcc0); bl.box(0.04, 0.05, 0.36, cx - 0.2, 0.87, dz, 0x7a2a22);
+  bl.box(0.5, 0.06, 0.48, cx, 0.5, dz - 0.62, 0x5a3e28); bl.box(0.5, 0.7, 0.06, cx, 0.88, dz - 0.86, 0x5a3e28);
+  // (the store chest: iron-bound, against the left wall)
+  bl.box(0.85, 0.72, 1.5, x0 + 0.55, 0.36, z0 + 2.2, 0x6a4a2e); bl.box(0.9, 0.12, 1.56, x0 + 0.55, 0.78, z0 + 2.2, 0x5a3e24);
+  for (const o of [-0.45, 0.45]) bl.box(0.92, 0.8, 0.07, x0 + 0.55, 0.4, z0 + 2.2 + o, 0x2a2724);
+  { g.updateMatrixWorld(true); const p = new THREE.Vector3(x0 + 0.55, 0, z0 + 2.2).applyMatrix4(g.matrixWorld); g.userData.storeAt = { x: p.x, z: p.z }; }
+  // (barrels by the right wall, and a lantern post)
+  for (let i = 0; i < 3; i++) bl.add(new THREE.CylinderGeometry(0.32, 0.3, 0.9, 10), 0x6a4a2e, x1 - 0.5, 0.45, z0 + 1.6 + i * 0.75);
+  const vis = bl.build(MAT.rough); vis.castShadow = true; vis.receiveShadow = true; g.add(vis);
+  // the banner on the back wall, in the owner's colour
+  const ban = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.5), new THREE.MeshStandardMaterial({ color: colour, roughness: 0.9, side: THREE.DoubleSide }));
+  ban.position.set(cx, 2.1, z0 + 0.06); g.add(ban);
+  // a lantern hanging over the table, lit — and its light
+  const lan = makeFlame(0.6, null);   // (no light of its own: a light in every hall slows the whole world's drawing) lan.position.set(cx, 2.6, tz); g.add(lan);
+  return lan;
+}
+// a house within: four beds along the side walls, their straw ticks and blankets; a table and stools in the middle;
+// a fireplace of stone on the back wall with a pot over its fire; a chest at the foot of a bed
+function furnishHouse(g, x0, x1, z0, z1) {
+  const bl = new Builder(), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, blanket = [0x7a2a22, 0x2e4a3a, 0x3e4a5c, 0x6a5a3a];
+  [[x0 + 0.55, z0 + 1.2], [x0 + 0.55, z0 + 3.4], [x1 - 0.55, z0 + 1.2], [x1 - 0.55, z0 + 3.4]].forEach(([bx, bz], i) => {
+    if (bz + 1.1 > z1 - 1.4) return;
+    bl.box(0.95, 0.3, 2.0, bx, 0.18, bz, 0x5a3e28); bl.box(0.85, 0.12, 1.9, bx, 0.38, bz, 0xc8b88a); bl.box(0.88, 0.07, 1.25, bx, 0.47, bz + 0.3, blanket[i % 4]); bl.box(0.5, 0.1, 0.3, bx, 0.48, bz - 0.7, 0xe8dcc0);
+    bl.box(0.95, 0.7, 0.08, bx, 0.35, bz - 1.0, 0x4a3424);
+  });
+  bl.box(1.3, 0.07, 0.8, cx, 0.76, cz + 0.6, 0x6a4a30); for (const [sx, sz] of [[-0.55, -0.32], [0.55, -0.32], [-0.55, 0.32], [0.55, 0.32]]) bl.box(0.07, 0.73, 0.07, cx + sx, 0.37, cz + 0.6 + sz, 0x4a3424);
+  for (const [sx, sz] of [[-0.95, 0.6], [0.95, 0.6], [0, 1.3]]) { bl.add(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 10), 0x5a3e28, cx + sx, 0.45, cz + sz); bl.box(0.06, 0.42, 0.06, cx + sx, 0.21, cz + sz, 0x4a3424); }
+  // (the fireplace)
+  bl.box(1.8, 1.4, 0.6, cx, 0.7, z0 + 0.3, 0x6e6b62); bl.box(1.1, 0.8, 0.3, cx, 0.45, z0 + 0.5, 0x2a2420); bl.box(2.0, 0.15, 0.75, cx, 1.45, z0 + 0.35, 0x5a5650); bl.box(0.8, 2.0, 0.5, cx, 2.3, z0 + 0.25, 0x6e6b62);
+  bl.add(new THREE.CylinderGeometry(0.2, 0.16, 0.25, 10), 0x2a2622, cx, 0.42, z0 + 0.62);
+  const vis = bl.build(MAT.rough); vis.castShadow = true; vis.receiveShadow = true; g.add(vis);
+  const f = makeFlame(0.7, null); f.position.set(cx, 0.15, z0 + 0.6); g.add(f);
+  return f;
+}
+// a forge within: the hearth of brick with its coals aglow, the bellows beside it, the anvil on its block, a quench
+// barrel, and the smith's tools racked on the wall
+function furnishForge(g, x0, x1, z0, z1) {
+  const bl = new Builder(), cx = (x0 + x1) / 2;
+  bl.box(1.6, 0.9, 1.2, x0 + 1.1, 0.45, z0 + 0.9, 0x8a4a32); bl.box(1.3, 0.12, 0.9, x0 + 1.1, 0.92, z0 + 0.9, 0x2a2420);
+  bl.box(0.9, 2.4, 0.7, x0 + 1.1, 2.1, z0 + 0.5, 0x7a4430);
+  bl.box(0.6, 0.25, 1.0, x0 + 2.25, 0.75, z0 + 0.9, 0x6a4a30);
+  bl.add(new THREE.CylinderGeometry(0.28, 0.32, 0.6, 10), 0x5a3e28, cx, 0.3, (z0 + z1) / 2); bl.box(0.7, 0.22, 0.26, cx, 0.72, (z0 + z1) / 2, 0x3a3a40); bl.box(0.3, 0.1, 0.2, cx + 0.42, 0.78, (z0 + z1) / 2, 0x3a3a40);
+  bl.add(new THREE.CylinderGeometry(0.34, 0.3, 0.75, 12), 0x6a4a2e, x1 - 0.6, 0.38, (z0 + z1) / 2 + 0.8); bl.add(new THREE.CylinderGeometry(0.3, 0.3, 0.02, 12), 0x2a3a40, x1 - 0.6, 0.74, (z0 + z1) / 2 + 0.8);
+  bl.box(1.6, 0.06, 0.12, x1 - 0.12, 1.6, z0 + 1.6, 0x4a3424);
+  for (let i = 0; i < 4; i++) bl.box(0.04, 0.6, 0.04, x1 - 0.16, 1.35, z0 + 1.0 + i * 0.4, 0x3a3a40);
+  const vis = bl.build(MAT.rough); vis.castShadow = true; vis.receiveShadow = true; g.add(vis);
+  // (the coals, glowing)
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.7), new THREE.MeshBasicMaterial({ color: 0xff6a20 })); glow.position.set(x0 + 1.1, 1.0, z0 + 0.9); g.add(glow);
+  const f = makeFlame(0.6, null); f.position.set(x0 + 1.1, 1.0, z0 + 0.9); g.add(f);
+  return f;
+}
+// the yard: bare trodden earth under and round a building and out before its door, lying on the ground as it lies,
+// fading at its edges into the grass
+function yardPatch(w, b, f, y0) {
+  const N = 10, x0 = f.x0 - 1, x1 = f.x1 + 1, z0 = f.z0 - 1, z1 = f.z1 + 1, pos = [], col = [], idx = [];
+  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+    const lx = x0 + (x1 - x0) * i / N, lz = z0 + (z1 - z0) * j / N, wx = f.x + lx * f.c + lz * f.s, wz = f.z - lx * f.s + lz * f.c;
+    pos.push(lx, w.land.heightAt(wx, wz) - y0 + 0.04, lz);
+    const edge = Math.min(i, N - i, j, N - j) / 2.2, a = Math.min(1, edge) * (0.8 + hash(wx, wz) * 0.2), n = 0.9 + hash(wz * 1.3, wx) * 0.15;
+    col.push(0.36 * n, 0.29 * n, 0.2 * n, a);
+  }
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i, b2 = a + 1, c = a + N + 1, d = c + 1; idx.push(a, c, b2, b2, c, d); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 4)); geo.setIndex(idx); geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, YARD_MAT()); m.receiveShadow = true; m.renderOrder = -1;
+  return m;
+}
+let _yardM = null;
+const YARD_MAT = () => _yardM ??= addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { scale: 1.5, amount: 0.3, grain: 0.7, surface: "ground" });
 // the buildings you can walk into (the town hall, a house, the forge — the cabin has its own door already)
 const WALK_IN = new Set(["hearth", "house", "forge"]);
 let _floorM = null;
@@ -87,7 +201,7 @@ export class Wilds extends WorldBase {
     this.falling = [];
     this.stumps = new Map();
     this.snowLine = this.land.big ? 62 : 48;
-    this.mat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "none" });
+    this.mat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "ground" });
     this.rockMat = addDetail(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
     // the sea and the lakes: one sheet of water at one level, following you about under the haze
     // (fine near you and coarser out toward the haze, so the swell can move it where you can see it move)
@@ -215,6 +329,7 @@ export class Wilds extends WorldBase {
     for (const t of trees) {
       t.col = this.col.addCircle(t.x, t.z, { birch: 0.22, palm: 0.2, acacia: 0.24, oak: 0.45, jungle: 0.6, scrub: 0.35 }[t.kind] || 0.32, t.y + (t.kind === "scrub" ? 1.2 : 12)); cols2.push(t.col);   // (its top from the ground it stands on, not from the sea)
       if (this.felled.has(t.id)) this.hideTree(t, true);
+      else if (this.underBuilding(t.x, t.z)) this.clearThing(t);
     }
     // the rocks
     const rocks = L.chunkRocks(ci, cj);
@@ -228,6 +343,7 @@ export class Wilds extends WorldBase {
         k.slot = [rm, i]; k.m = d.matrix.clone();
         k.cols = rockCols(this.col, d.matrix, k.x, k.z, k.s, (x, z) => L.heightAt(x, z), Math.min(-5, k.y - 30), k.y + k.s * 0.6); cols2.push(...k.cols);
         if (this.broken.has(k.id)) this.hideRock(k, true);
+        else if (this.underBuilding(k.x, k.z, k.s)) this.clearThing(k);
       });
       rm.castShadow = true; rm.receiveShadow = true; rm.instanceMatrix.needsUpdate = true; rm.computeBoundingSphere();
       g.add(rm);
@@ -320,18 +436,15 @@ export class Wilds extends WorldBase {
       ft.position.y = -(hi - lo + 0.5) / 2 + 0.06; ft.receiveShadow = true; g.add(ft);
     }
     // (the town hall: the hall of its level — the first a small log hall — and its fire out in front)
-    const hallLv = b.type === "hearth" ? Math.max(1, Math.min(4, b.level || 1)) : 0, mkey = hallLv ? `town/townhall_${hallLv}` : d.model, mscale = hallLv === 1 ? 0.85 : 1;
+    const hallLv = b.type === "hearth" ? Math.max(1, Math.min(4, b.level || 1)) : 0, mkey = hallLv ? `town/townhall_${hallLv}` : d.model, mscale = 1;
     if (mkey) {
       // (solid where its walls are: the model's own footing, measured at a person's height in its own frame, so the
       //  box turns with it and sits on it however it was set down — not a guess at its size, nor a square to the map)
       let body = null;
       const fit = sc => {
         if (b.type === "cabin") return;
-        sc.updateMatrixWorld(true); const v = new THREE.Vector3(), M = new THREE.Matrix4();
-        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-        sc.traverse(o => { const p = o.isMesh && o.geometry && o.geometry.attributes.position; if (!p) return;
-          M.multiplyMatrices(new THREE.Matrix4().copy(sc.matrixWorld).invert(), o.matrixWorld);
-          for (let k = 0; k < p.count; k++) { v.fromBufferAttribute(p, k).applyMatrix4(M); if (v.y < 0.25 || v.y > 1.9) continue; x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } });
+        const F = footingOf(sc, g); if (!F) return;
+        const { x0, x1, z0, z1 } = F;
         if (!(x1 > x0)) return;
         const c = Math.cos(b.ry || 0), s = Math.sin(b.ry || 0), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
         if (body) { for (const o of [].concat(body)) { this.col.remove(o); cols.splice(cols.indexOf(o), 1); } }
@@ -344,6 +457,10 @@ export class Wilds extends WorldBase {
           body = [box(X0, X1, Z0, Z0 + t), box(X0, X0 + t, Z0, Z1), box(X1 - t, X1, Z0, Z1), box(X0, dx - dw, Z1 - t, Z1), box(dx + dw, X1, Z1 - t, Z1)];
           cols.push(...body);
           const fl = new THREE.Mesh(new THREE.BoxGeometry(X1 - X0 - 2 * t, 0.08, Z1 - Z0 - 2 * t), FLOOR_MAT()); fl.position.set(mx, 0.05, mz); fl.receiveShadow = true; g.add(fl);
+          // the doorway itself: the wall not drawn where the door is, a frame round it, the door stood open
+          doorway(g, sc, dx, Z1 + 0.06, hallLv === 4 ? 3.2 : 0.7);   // (the grandest hall's door is back behind its arcade)
+          const fl2 = b.type === "hearth" ? furnishHall(g, X0 + t, X1 - t, Z0 + t, Z1 - t, b.colour || 0x7a2a22) : b.type === "house" ? furnishHouse(g, X0 + t, X1 - t, Z0 + t, Z1 - t) : b.type === "forge" ? furnishForge(g, X0 + t, X1 - t, Z0 + t, Z1 - t) : null;
+          if (fl2) { this.flames.push(fl2); (g.userData.flames ??= []).push(fl2); }
           const e = this.blds.get(b.id) || null; const inner = { x: b.x, z: b.z, c, s, x0: X0 + t, x1: X1 - t, z0: Z0 + t, z1: Z1, y: y + 0.09 };
           g.userData.inner = inner; if (e) e.inner = inner;
         } else cols.push(body = box(x0 + 0.08, x1 - 0.08, z0 + 0.08, z1 - 0.08));
@@ -369,7 +486,7 @@ export class Wilds extends WorldBase {
     if (b.type === "hearth") {
       // the fire, in a ring of stones before the hall's door; and the owner's banner beside it
       // (off to one side of the way in, so the door's clear)
-      const k = hallLv === 1 ? 1 : 1.17, fz = (d.d * k) / 2 + 2.0, fx = d.w * k * 0.36, fire = new THREE.Group(); fire.position.set(fx, 0, fz); g.add(fire);
+      const k = 1, fz = (d.d * k) / 2 + 2.0, fx = d.w * k * 0.36, fire = new THREE.Group(); fire.position.set(fx, 0, fz); g.add(fire);
       { const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0); g.userData.fireAt = { x: b.x + fx * c + fz * sn, z: b.z - fx * sn + fz * c }; }
       const bl = new Builder();
       for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; bl.add(new THREE.DodecahedronGeometry(0.2, 0), 0x6e6b62, Math.cos(a) * 0.62, 0.1, Math.sin(a) * 0.62, i, i * 2, 0, 1.1, 0.8, 1.0, 0.1); }
@@ -456,6 +573,16 @@ export class Wilds extends WorldBase {
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     this.root.add(g);
     const e = { b, g, cols, hp: b.hp, shake: 0 };
+    // the ground it stands on, and its yard before the door: cleared of trees and rocks, and trodden to bare earth
+    if (!d.wall && !d.boat) {
+      const hw = (d.w || d.r * 1.5) / 2 + 0.8, hd = (d.d || d.r * 1.5) / 2 + 0.8, front = b.type === "hearth" ? 4.5 : 2.6;
+      e.fp = { x: b.x, z: b.z, c: Math.cos(b.ry || 0), s: Math.sin(b.ry || 0), x0: -hw, x1: hw, z0: -hd, z1: hd + front };
+      for (const ch of this.chunks.values()) if (Math.abs(ch.x - b.x) < CHUNK + 20 && Math.abs(ch.z - b.z) < CHUNK + 20) {
+        for (const t of ch.trees) if (!t.gone && this.inFp(e.fp, t.x, t.z, 0.4)) this.clearThing(t);
+        for (const k of ch.rocks) if (!k.gone && this.inFp(e.fp, k.x, k.z, k.s)) this.clearThing(k);
+      }
+      if (b.type !== "field" && b.type !== "shipyard") g.add(yardPatch(this, b, e.fp, y));
+    }
     // (a door that swings in on its hinge, and lets you through when it's open)
     if (g.userData.doorCols) e.setDoor = open => {
       e.doorOpen = open; for (const c of g.userData.doorCols) c.disabled = open;
@@ -487,9 +614,19 @@ export class Wilds extends WorldBase {
     for (const c of e.cols) this.col.remove(c);
     if (this.towers) this.towers = this.towers.filter(t => t.id !== id);
     if (e.g.userData.flame) { const i = this.flames.indexOf(e.g.userData.flame); if (i >= 0) this.flames.splice(i, 1); }
+    for (const f of e.g.userData.flames || []) { const i = this.flames.indexOf(f); if (i >= 0) this.flames.splice(i, 1); }
     // it comes down: sinks and tips over in a moment, then is gone
     this.falling.push({ g: e.g, collapse: true, life: 0, tip: (hash(e.b.x, e.b.z) - 0.5) * 0.6 });
     return e;
+  }
+  // a building's ground (and its yard), in its own frame: is this point on it?
+  inFp(f, x, z, pad = 0) { const wx = x - f.x, wz = z - f.z, lx = wx * f.c - wz * f.s, lz = wx * f.s + wz * f.c; return lx > f.x0 - pad && lx < f.x1 + pad && lz > f.z0 - pad && lz < f.z1 + pad; }
+  underBuilding(x, z, pad = 0.4) { for (const e of this.blds.values()) if (e.fp && this.inFp(e.fp, x, z, pad)) return true; return false; }
+  // a tree or a rock where a building stands: gone, without a stump or a word (it was cleared to build)
+  clearThing(t) {
+    for (const [m, i] of t.slots || (t.slot ? [t.slot] : [])) { m.setMatrixAt(i, ZERO); m.instanceMatrix.needsUpdate = true; }
+    if (t.col) t.col.disabled = true; for (const o of t.cols || []) o.disabled = true;
+    t.gone = true; t.cleared = true;
   }
   // ---- the caves ----
   // the mouths near you made as you come near them (their halls beneath, ready and dark), and kept; the nearest one the
@@ -502,7 +639,7 @@ export class Wilds extends WorldBase {
         const mg = cv.mouth(c.x, c.z, c.ry); map.set(c.id, cv); cv.site = c;
         // (the hill over it the colour of the country round about — sand in the desert, snow up high — not always moss)
         { const mound = mg.children[0], col = new THREE.Color(); this.colourAt(c.x - Math.sin(c.ry) * 8, c.z - Math.cos(c.ry) * 8, this.land.heightAt(c.x - Math.sin(c.ry) * 8, c.z - Math.cos(c.ry) * 8), 0.1, col);
-          if (mound && mound.material) { mound.material = mound.material.clone(); mound.material.color.copy(col); } }
+          if (mound && mound.material) { const m0 = mound.material; mound.material = m0.clone(); if (m0.userData.detail) addDetail(mound.material, m0.userData.detail); mound.material.color.copy(col); } }
       }
       let best = null, bd = Infinity;
       for (const cv of map.values()) { const d = Math.hypot(cv.site.x - p.x, cv.site.z - p.z); if (d < bd) { bd = d; best = cv; } }

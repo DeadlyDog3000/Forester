@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.3.0", date: "11 October 2026", title: "Within the walls",
+    items: [
+      "Real textures on everything: every wall, roof and floor now wears its own stuff from photographs — brick in its courses with the mortar pale between, stone walls of odd-coloured stones, the boards of a plank wall with their seams and knots, logs with their grain running along them, plaster with its stains, roof tiles row on row, bark, cloth and needles — in the story and the Frontier alike. And the ground under your feet: grass where it's green, leaf litter in the woods, bare earth on the paths and the yards, rock on the steeps.",
+      "Fixed: a building you can walk into had lost all of its texture, its walls, roof and floor all drawn alike in plain paint.",
+      "The town hall stands at its full size from the first: a log hall with its clock tower, then timber, plaster and brick as you rebuild it. In through its door — a real doorway now, the door stood open on its hinges in a frame of dark timber — and inside: a long table with its benches, the reeve's desk at the far end with the ledger open on it, the store's great chest by the wall (open the store there), barrels, a lantern over the table, and your banner on the back wall.",
+      "A house within has its beds along the walls, a table and stools, and a stone fireplace with a pot over the fire; a forge has its brick hearth with the coals aglow, the anvil on its block, the quench barrel and the smith's tools on the wall. Every one has a real doorway to walk through.",
+      "Every building stands on cleared ground: no tree grows up through a floor or in front of a door any more, nor a rock in the way, and each has its yard of bare, trodden earth round it and out before the door. Settlers don't go felling the trees that were cleared for a building.",
+      "The walls you walk against are each building's own walls, measured from the walls themselves — the grandest town hall and some of the settlement's buildings used to be measured by their posts and trim, and came out wrong.",
+    ],
+  },
+  {
     v: "1.2.1", date: "11 October 2026", title: "In at the door",
     items: [
       "In the story too, walk into the settlement's buildings, in at the door: the bakery, the sawmill, the brickworks, the smelter, the forge, the town hall, the church, the jail, the hospital, a settler's shop.",

@@ -17,7 +17,7 @@
 import { FOLEY } from "./foley.js";
 import { ambitionsTick } from "./ambitions.js";
 import { axeBonus, skillK, ITEM, digMul, buildMul } from "./body.js";
-import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, addDetail, camera, makeFlame } from "./core.js";
+import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, addDetail, camera, makeFlame, footingOf } from "./core.js";
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -755,12 +755,8 @@ export class Town {
     return parts.map(([lx, lz, r]) => { const o = col.addCircle(b.x + lx * c + lz * s, b.z - lx * s + lz * c, r, top); o.npcPad = 0.3; return o; });
   }
   fitted(b, g, top) {
-    g.updateMatrixWorld(true);
-    const inv = g.matrixWorld.clone().invert(), v = new THREE.Vector3(), M = new THREE.Matrix4();
-    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-    g.traverse(o => { const p = o.isMesh && !o.isInstancedMesh && o.visible && o.geometry && o.geometry.attributes.position; if (!p) return;
-      M.multiplyMatrices(inv, o.matrixWorld);
-      for (let k = 0; k < p.count; k++) { v.fromBufferAttribute(p, k).applyMatrix4(M); if (v.y < 0.3 || v.y > 1.9) continue; x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } });
+    const F = footingOf(g, g); if (!F) return null;
+    const { x0, x1, z0, z1 } = F;
     if (!(x1 > x0 && z1 > z0)) return null;
     const c = Math.cos(b.ry), s = Math.sin(b.ry), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
     const box = (lx0, lx1, lz0, lz1) => { const cx = (lx0 + lx1) / 2, cz = (lz0 + lz1) / 2, o = this.w.col.addOBox(b.x + cx * c + cz * s, b.z - cx * s + cz * c, (lx1 - lx0) / 2, (lz1 - lz0) / 2, b.ry, top); o.npcPad = 0.3; return o; };
@@ -820,7 +816,7 @@ export class Town {
       const cob = this.tierLevel >= 3;
       // low-poly, like the ground: a flat-shaded strip of trodden earth, or of cobbles in a brick town — a few facets, no photograph
       // (trodden earth, mottled; cobbles set in it; under snow, a thin trodden cover that still shows the way)
-      PATH_MAT.dirt ??= addDetail(new THREE.MeshStandardMaterial({ color: 0x8a6e4e, roughness: 1, flatShading: true }), { scale: 1.5, amount: 0.35, surface: "none", snow: 0.28 });
+      PATH_MAT.dirt ??= addDetail(new THREE.MeshStandardMaterial({ color: 0x8a6e4e, roughness: 1, flatShading: true }), { scale: 1.5, amount: 0.35, surface: "ground", snow: 0.28 });
       PATH_MAT.cob ??= addDetail(new THREE.MeshStandardMaterial({ color: 0x8c8880, roughness: 0.95, flatShading: true }), { scale: 1, amount: 0.2, surface: "stone", snow: 0.22 });
       // (laid on the ground as it is: down a slope it runs with the slope, and the next strip meets it)
       const pg = new THREE.PlaneGeometry(def.w, def.d + 0.4, 3, 8); pg.rotateX(-Math.PI / 2);

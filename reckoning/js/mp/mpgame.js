@@ -301,7 +301,9 @@ export class MPGame {
       } });
     // the store, at the town hall and at a woodshed: the logs you carry stacked, or taken out to carry to a site
     // (the store: a chest of the settlement's, as in the story — what it holds, and what you carry, to put in and take out)
-    if ((b.type === "hearth" || b.type === "shed") && fr) e.it4 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 0.8, z: b.z, reach: d.r + 2.4,
+    // (in the town hall, at its great chest inside — once the hall's stood up; a woodshed's, at the shed)
+    const hall = b.type === "hearth", chestAt = () => (hall && e.g.userData.storeAt) || b;
+    if ((b.type === "hearth" || b.type === "shed") && fr) e.it4 = this.w.addInteract({ get x() { return chestAt().x; }, get z() { return chestAt().z; }, y: this.w.heightAt(b.x, b.z) + 0.8, get reach() { return hall && e.g.userData.storeAt ? 2.4 : d.r + 2.4; },
       can: () => !this.dead,
       label: () => this.carry > 0 ? `Put ${this.carry} log${this.carry > 1 ? "s" : ""} in the store — or open it` : "Open the store",
       use: () => { if (this.carry > 0) this.net.send({ t: "storeput", id: b.id, k: "wood" }); this.storeAt = b.id; G.openChest && G.openChest("mpstores"); } });
@@ -316,7 +318,7 @@ export class MPGame {
       // and the hall rebuilt grander, from the store: a timber hall, plaster, brick — each claiming more ground round it
       const nx = HALL[(b.level || 1) + 1];
       if (nx && this.manages()) {
-        const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), off = (d.d * ((b.level || 1) === 1 ? 1 : 1.17)) / 2 + 0.6, dx = b.x + off * sn, dz = b.z + off * c;
+        const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), off = d.d / 2 + 0.6, dx = b.x + off * sn, dz = b.z + off * c;
         e.it6 = this.w.addInteract({ x: dx, y: this.w.heightAt(dx, dz) + 1.4, z: dz, reach: 2.4, hold: 3, anim: "hammer",
           can: () => !this.dead && this.stock.wood >= nx.wood && this.stock.stone >= nx.stone,
           label: () => `Rebuild the hall as ${nx.name} — ${nx.wood} logs, ${nx.stone} stone from the store (claims more ground)`,
@@ -347,7 +349,7 @@ export class MPGame {
       use: () => { if (this.stock.wood >= SHIP.wood && this.stock.stone >= SHIP.stone) this.net.send({ t: "ship", id: b.id }); else sfx("deny"); } });
     if (b.type === "market") e.it2 = this.w.addInteract({ x: b.x, y: this.w.heightAt(b.x, b.z) + 1.2, z: b.z, reach: d.r + 2.2, hold: 1.2, can: () => e.friendly && this.stock.stone > 0 && input.down("ShiftLeft"), label: "Hold F: a stone for 3 logs", use: () => this.net.send({ t: "trade", want: "wood" }) });
   }
-  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); for (const k of ["it5", "it6"]) if (e[k]) this.w.removeInteract(e[k]); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
+  removeBNow(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); for (const k of ["it5", "it6"]) if (e[k]) this.w.removeInteract(e[k]); this.w.blds.delete(id); for (const c of e.cols) this.w.col.remove(c); if (this.w.towers) this.w.towers = this.w.towers.filter(t => t.id !== id); if (e.g.userData.flame) { const i = this.w.flames.indexOf(e.g.userData.flame); if (i >= 0) this.w.flames.splice(i, 1); } for (const f of e.g.userData.flames || []) { const i = this.w.flames.indexOf(f); if (i >= 0) this.w.flames.splice(i, 1); } this.w.root.remove(e.g); }
   removeB(id) { const e = this.w.blds.get(id); if (!e) return; if (e.it) this.w.removeInteract(e.it); if (e.it2) this.w.removeInteract(e.it2); if (e.it3) this.w.removeInteract(e.it3); if (e.it4) this.w.removeInteract(e.it4); this.w.removeBuilding(id); }
   // ---- what the server says ----
   listen() {
