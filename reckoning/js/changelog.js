@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "0.94.0", date: "11 October 2026", title: "The beasts of the world",
+    items: [
+      "Frontier's land is alive: wild beasts all round you wherever you go, a dozen and more in sight of any player, in herds where they go in herds. The server keeps them, so everyone in the game sees the same ones.",
+      "Each country has its own. On the Earth map, where they really live: beavers by the northern rivers, moose, wolves and bears in the taiga of Canada and Russia; bison on the American plains; lions, zebras, antelope, elephants and giraffes on the African savanna; camels in the deserts; kangaroos across New Holland; tigers in India and the Indies, jaguars, monkeys and capybaras in the Amazon; reindeer and musk oxen on the tundra, polar bears on the ice, and penguins in the far south. On the other maps, by the kind of country: deer, boar and hare in the woods, wild horses on the steppe, ibex in the mountains.",
+      "They graze and wander, hear you coming (less if you creep), and bolt with their herd. Lions, tigers, jaguars, wolves, bears and elephants don't always run: get close and they may come for you.",
+      "Everyone in Frontier has a bow and two dozen arrows. Bring a beast down and hold F to dress it: its meat goes into your pack, food for the store at the hearth.",
+    ],
+  },
+  {
     v: "0.93.0", date: "11 October 2026", title: "Every kind of country",
     items: [
       "Frontier's land has biomes now, each with its own ground, its own grass and its own trees: ice and tundra, the taiga, heath, broadleaf woods, steppe, maquis, desert, savanna, rain forest, marsh, and the high meadows above the tree line.",

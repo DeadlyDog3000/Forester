@@ -16,6 +16,7 @@ import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { siteSign } from "../town.js";
 import { fishingGear } from "../fishing.js";
+import { Hunt } from "../hunt.js";
 import { WATER, BIOMES } from "./terrain.js";
 import { Wilds } from "./wilds.js";
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR } from "./rules.js";
@@ -179,7 +180,9 @@ export class MPGame {
     setWorld(w);
     const pl = G.player;
     pl.setModel(lookOpts(me.look, me.name)); pl.model.scaleBase = me.look.height || 1;
-    pl.giveAxe(true); pl.blade = "axe"; pl.showBow(false); pl.hasBow = false; pl.crouched = false; pl.seated = false; pl.frozen = false; pl.carryN = 0;
+    pl.giveAxe(true); pl.blade = "axe"; pl.showBow(false);
+    // (a bow and a quiver of arrows, for the beasts of the wild)
+    pl.hasBow = true; pl.arrows = Math.max(pl.arrows || 0, 24); pl.crouched = false; pl.seated = false; pl.frozen = false; pl.carryN = 0;
     pl.place(inMsg.you.x, inMsg.you.z, Math.random() * 6.28);
     w.buildNear(pl.pos.x, pl.pos.z, 99);
     this.unstick();
@@ -219,6 +222,8 @@ export class MPGame {
         } });
       this.fishRings = rings;
     }
+    // the wild beasts: kept by the server, the same for everyone; shown here, and hunted
+    this.hunt = new Hunt(w, { x: 0, z: 0, r: 1 }, {});
     G.onFrame.push(dt => this.tick(dt));
     G.achEvent && (G.achEvent("mp-join"), r.persistent && G.achEvent("mp-world"), target && target.host && G.achEvent("mp-host"));
     this.listen();
@@ -341,6 +346,7 @@ export class MPGame {
     n.pilex = m => this.dropPile(m.id);
     n.site = m => this.setSite(m.s);
     n.sitex = m => this.dropSite(m.id);
+    n.ax = m => { if (this.hunt) this.hunt.puppets(m.l || []); };
     n.carry = m => { const was = this.carry; this.setCarry(m.n); if (m.n !== was) sfx("pickup"); };
     // what's in your pack: the stone you've broken and the food you've picked up, yours till you put it in the store
     n.pack = m => {
@@ -620,7 +626,7 @@ export class MPGame {
     if ((this.sendT -= dt) <= 0) {
       this.sendT = 0.1;
       const guard = !!(input.rdown && pl.axe && !this.build);
-      this.net.send({ t: "st", x: +pl.pos.x.toFixed(2), y: +pl.pos.y.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(3), a: pl.swingT >= 0 ? "chop" : G.working && G.working.until > G.time && G.working.kind === "hammer" ? "hammer" : "idle", h: "axe", s: +(pl.speed || 0).toFixed(2), g: guard });
+      this.net.send({ t: "st", c: pl.crouched ? 1 : 0, x: +pl.pos.x.toFixed(2), y: +pl.pos.y.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(3), a: pl.swingT >= 0 ? "chop" : G.working && G.working.until > G.time && G.working.kind === "hammer" ? "hammer" : "idle", h: "axe", s: +(pl.speed || 0).toFixed(2), g: guard });
     }
     if ((this.atmoT -= dt) <= 0) { this.atmoT = 0.5; this.atmo(); this.drawWar(); }
     // spawn shield
@@ -890,6 +896,10 @@ export class MPGame {
     box.querySelector('[data-k="stay"]').onclick = close;
     go.onclick = () => { if (!pick) return; this.net.send({ t: "spawnAt", x: +pick.x.toFixed(1), z: +pick.z.toFixed(1) }); UI.fade && UI.fade(1, 0.3); setTimeout(() => UI.fade && UI.fade(0, 1.2), 900); close(); };
   }
+  // an arrow in one of the wild beasts: told to the server, which has it fall, or run, or turn on you
+  huntHit(a, power, head) { if (a && a.netId) this.net.send({ t: "hunthit", id: a.netId, power: +(+power || 0.5).toFixed(2), head: !!head }); }
+  // a beast brought down, dressed where it lies (its meat into your pack)
+  dressBeast(a) { if (a && a.netId) { this.net.send({ t: "dress", id: a.netId }); window.__foley && window.__foley.packIn(0.35); } }
   packHas() { const k = this.pack; return !!k && ((k.stone | 0) > 0 || (k.food | 0) > 0); }
   addDrop(d) {
     // (a sack already lying there, with less in it now: what it holds is updated)
@@ -903,6 +913,7 @@ export class MPGame {
     this.drops.set(d.id, { d, mesh, it });
   }
   leave(quiet) {
+    if (this.hunt) { this.hunt.stop(); this.hunt = null; }
     if (G.mp !== this) return;
     UI.objective(null);
     this.endBuild(); this.openBuild(false); this.toggleList(false); this.toggleNews(false); this.closeChat(); $("mpWar").classList.add("hidden"); $("mpTicker").classList.add("hidden");

@@ -1547,3 +1547,115 @@ export function makeHorse(coat = 0x6a4428, seed = 1) {
   };
   return { root, legs, neck, gait };
 }
+
+// ---------------------------------------------------------------------------
+//  the beasts of the wider world, built here: a body, four legs that swing at the hip and bend at the knee (named as the
+//  hunt's models are, so they walk and run and graze the same), a neck and a head with what each has on it — antlers,
+//  horns, a mane, a trunk and tusks, a hump; its coat, striped or spotted, and a tail. Stats in mp/fauna.js
+// ---------------------------------------------------------------------------
+const BEAST = {
+  moose:     { col: 0x4a3426, belly: 0x3a2a1e, leg: 0x2a201a, neck: [0.5, 0.55], head: [0.42, 0.15], snout: 0.22, ears: 0.1, antlers: "palm", tail: 0.08 },
+  reindeer:  { col: 0x8a7a66, belly: 0xd8d0c0, leg: 0x5a4a3a, neck: [0.4, 0.75], head: [0.3, 0.11], snout: 0.12, ears: 0.08, antlers: "branch", tail: 0.08 },
+  beaver:    { col: 0x5a3a24, belly: 0x4a3020, leg: 0x2a1e14, neck: [0.08, 0.3], head: [0.16, 0.11], snout: 0.06, ears: 0.03, tail: 0.32, flatTail: 0x2a2a2a },
+  wolf:      { col: 0x7a7a74, belly: 0xc8c4b8, leg: 0x6a6a64, neck: [0.25, 0.5], head: [0.24, 0.1], snout: 0.16, ears: 0.09, pointy: true, tail: 0.45, bushy: true },
+  bear:      { col: 0x5a3e28, belly: 0x4a3220, leg: 0x3a2a1c, neck: [0.2, 0.35], head: [0.3, 0.17], snout: 0.12, ears: 0.06, tail: 0.06 },
+  polarbear: { col: 0xeee8da, belly: 0xe0d8c8, leg: 0xe0d8c8, neck: [0.32, 0.25], head: [0.3, 0.15], snout: 0.14, ears: 0.05, tail: 0.06 },
+  fox:       { col: 0xc06a2a, belly: 0xf0e8dc, leg: 0x3a2a1e, neck: [0.14, 0.5], head: [0.14, 0.07], snout: 0.1, ears: 0.07, pointy: true, tail: 0.38, bushy: true, tip: 0xf4f0e8 },
+  bison:     { col: 0x4a3220, belly: 0x3a2618, leg: 0x2a1c12, neck: [0.2, -0.2], head: [0.38, 0.22], snout: 0.12, ears: 0.06, horns: "short", hump: 0.55, shaggy: 0x2e1e12, tail: 0.3 },
+  horse:     { col: 0x8a6a48, belly: 0x7a5a3a, leg: 0x3a2a1e, neck: [0.62, 0.85], head: [0.5, 0.13], snout: 0.22, ears: 0.09, pointy: true, mane: 0x2a1e14, tail: 0.6 },
+  lion:      { col: 0xc8a060, belly: 0xe0c890, leg: 0xb89050, neck: [0.22, 0.5], head: [0.3, 0.16], snout: 0.12, ears: 0.06, lionMane: 0x7a4a22, tail: 0.65, tuft: 0x3a2a1a },
+  zebra:     { col: 0xf0f0ea, belly: 0xf4f4ee, leg: 0xf0f0ea, neck: [0.5, 0.8], head: [0.45, 0.12], snout: 0.2, ears: 0.1, pointy: true, mane: 0x1a1a1a, tail: 0.45, coat: "stripes" },
+  antelope:  { col: 0xb8844a, belly: 0xf0e8d8, leg: 0xa87a44, neck: [0.4, 0.8], head: [0.28, 0.1], snout: 0.12, ears: 0.09, pointy: true, horns: "straight", tail: 0.15 },
+  elephant:  { col: 0x8a8680, belly: 0x7e7a74, leg: 0x7e7a74, neck: [0.25, 0.3], head: [0.6, 0.55], snout: 0, ears: 0.6, bigEars: true, trunk: 1.4, tusks: true, tail: 0.6 },
+  giraffe:   { col: 0xe0b468, belly: 0xf0dcb0, leg: 0xe8c890, neck: [1.8, 1.15], head: [0.45, 0.12], snout: 0.18, ears: 0.1, horns: "ossicones", mane: 0x7a4a22, tail: 0.7, coat: "patches" },
+  camel:     { col: 0xc8a070, belly: 0xd8b888, leg: 0xb89060, neck: [0.95, 0.75], head: [0.45, 0.13], snout: 0.18, ears: 0.06, hump: 0.6, tail: 0.4 },
+  kangaroo:  { col: 0xa8784e, belly: 0xd8c0a0, leg: 0x8a6040, neck: [0.25, 1.2], head: [0.24, 0.1], snout: 0.12, ears: 0.14, pointy: true, tail: 1.0, thickTail: true, upPitch: 0.75 },
+  tiger:     { col: 0xd87a2a, belly: 0xf0e8d8, leg: 0xd87a2a, neck: [0.24, 0.45], head: [0.3, 0.16], snout: 0.12, ears: 0.06, tail: 0.85, coat: "stripes" },
+  jaguar:    { col: 0xd8a050, belly: 0xf0e0c0, leg: 0xd8a050, neck: [0.2, 0.45], head: [0.26, 0.14], snout: 0.1, ears: 0.05, tail: 0.65, coat: "spots" },
+  monkey:    { col: 0x6a5038, belly: 0xa88a6a, leg: 0x5a4030, neck: [0.06, 0.8], head: [0.13, 0.11], snout: 0.05, ears: 0.05, tail: 0.6, upPitch: 0.5 },
+  capybara:  { col: 0x7a5a3a, belly: 0x6a4a30, leg: 0x5a4028, neck: [0.1, 0.3], head: [0.3, 0.15], snout: 0.1, ears: 0.04, tail: 0 },
+  goat:      { col: 0x9a8a72, belly: 0xc8bca8, leg: 0x6a5e4e, neck: [0.32, 0.8], head: [0.24, 0.1], snout: 0.12, ears: 0.07, pointy: true, horns: "curved", tail: 0.08 },
+  penguin:   { col: 0x1e1e22, belly: 0xf4f4f0, leg: 0xe08a2a, neck: [0, 0], head: [0.13, 0.11], snout: 0.08, beak: 0xe08a2a, ears: 0, tail: 0, upright: true },
+  muskox:    { col: 0x3a2a1e, belly: 0x2e2018, leg: 0x2a1e14, neck: [0.15, 0.1], head: [0.32, 0.18], snout: 0.1, ears: 0.05, horns: "muskox", shaggy: 0x2a1c12, tail: 0.1 },
+};
+const _coat = {};
+function coatTex(kind, base) {
+  if (_coat[kind]) return _coat[kind];
+  const c = document.createElement("canvas"); c.width = 256; c.height = 128; const x = c.getContext("2d");
+  x.fillStyle = "#" + base.toString(16).padStart(6, "0"); x.fillRect(0, 0, 256, 128);
+  const pat = BEAST[kind].coat;
+  if (pat === "stripes") { x.fillStyle = "#141414"; for (let i = 0; i < 26; i++) { const px = i * 10 + Math.sin(i) * 3; x.beginPath(); x.moveTo(px, 0); x.quadraticCurveTo(px + 8, 64, px - 2, 128); x.lineTo(px + 4, 128); x.quadraticCurveTo(px + 13, 64, px + 5, 0); x.fill(); } }
+  if (pat === "spots") for (let i = 0; i < 90; i++) { const px = Math.random() * 256, py = Math.random() * 128; x.strokeStyle = "#2a1a10"; x.lineWidth = 2.5; x.beginPath(); x.arc(px, py, 3 + Math.random() * 3, 0, 5.5); x.stroke(); }
+  if (pat === "patches") { x.fillStyle = "#e8d8b0"; x.fillRect(0, 0, 256, 128); for (let j = 0; j < 7; j++) for (let i = 0; i < 14; i++) { x.fillStyle = "#8a4a1e"; const px = i * 19 + (j % 2) * 9, py = j * 19; x.beginPath(); x.moveTo(px + 2, py + 2); x.lineTo(px + 16, py + 3); x.lineTo(px + 15, py + 16); x.lineTo(px + 3, py + 15); x.fill(); } }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return _coat[kind] = t;
+}
+export function makeBeast(kind, S) {
+  const V = BEAST[kind]; if (!V || !S) return null;
+  const root = new THREE.Group(), M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, ...o });
+  const coatM = V.coat ? M(0xffffff, { map: coatTex(kind, V.col) }) : M(V.col), bellyM = M(V.belly), legM = V.coat === "stripes" ? coatM : M(V.leg);
+  const add = (geo, mat, parent, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.set(rx, ry, rz); m.castShadow = true; parent.add(m); return m; };
+  const BALL = new THREE.SphereGeometry(1, 12, 9), CYL = new THREE.CylinderGeometry(1, 1, 1, 8), CONE = new THREE.ConeGeometry(1, 1, 7);
+  const r = S.r, h = S.h, len = S.len, body = new THREE.Group(); root.add(body);
+  if (V.upright) {
+    // (a penguin: stood up on its feet, black back and white front, flippers at its sides)
+    add(BALL, coatM, body, 0, h, 0, r, h * 0.95, r * 0.9); add(BALL, bellyM, body, 0, h * 0.95, r * 0.25, r * 0.85, h * 0.85, r * 0.75);
+    for (const sx of [-1, 1]) add(BALL, coatM, body, sx * r * 0.95, h * 1.05, 0, r * 0.12, h * 0.5, r * 0.35, 0, 0, sx * 0.2);
+    const legs = ["legFL", "legFR", "legHL", "legHR"].map((n, i) => { const g = new THREE.Group(); g.name = n; g.position.set((i % 2 ? 1 : -1) * r * 0.4, 0.06, i < 2 ? 0.04 : -0.04); add(BALL, legM, g, 0, -0.03, 0.04, 0.05, 0.02, 0.09); root.add(g); return g; });
+    void legs;
+    const neck = new THREE.Group(); neck.name = "neck"; neck.position.set(0, h * 1.75, 0); root.add(neck);
+    add(BALL, coatM, neck, 0, 0.04, 0.02, V.head[1], V.head[1], V.head[1]); add(CONE, M(V.beak), neck, 0, 0.04, V.head[1] + 0.04, 0.025, 0.09, 0.025, Math.PI / 2);
+    return root;
+  }
+  if (V.upPitch) body.rotation.x = -V.upPitch * 0.45;
+  // the body: the barrel of it, a paler belly under, and a hump on some
+  add(BALL, coatM, body, 0, h, 0, r, r * 1.02, len + r * 0.6);
+  add(BALL, bellyM, body, 0, h - r * 0.35, 0, r * 0.85, r * 0.7, len + r * 0.3);
+  if (V.hump) add(BALL, coatM, body, 0, h + r * 0.75, V.shaggy ? len * 0.4 : 0, r * 0.65, r * V.hump, len * 0.5);
+  if (V.shaggy) add(BALL, M(V.shaggy), body, 0, h + r * 0.1, len * 0.45, r * 1.12, r * 1.15, len * 0.7);
+  // the legs: from the hip and the shoulder, a thigh and a shank, the knee between (hind legs bigger on a kangaroo)
+  const hipY = h - r * 0.35;
+  ["legFL", "legFR", "legHL", "legHR"].forEach((n, i) => {
+    const front = i < 2, sx = i % 2 ? 1 : -1, g = new THREE.Group(); g.name = n;
+    const big = V.thickTail && !front ? 1.6 : V.thickTail && front ? 0.45 : 1;
+    const L = (V.thickTail && front ? hipY * 0.55 : hipY), lr = Math.max(0.025, r * 0.17) * big;
+    g.position.set(sx * r * 0.55, hipY, (front ? 1 : -1) * len * 0.78); root.add(g);
+    add(CYL, legM, g, 0, -L * 0.25, 0, lr * 1.25, L * 0.5, lr * 1.25);
+    const low = new THREE.Group(); low.name = n + "Low"; low.position.y = -L * 0.5; g.add(low);
+    add(CYL, legM, low, 0, -L * 0.25, 0, lr * 0.8, L * 0.5, lr * 0.8);
+    add(BALL, M(V.coat === "stripes" ? 0x1a1a1a : 0x2a221c), low, 0, -L * 0.5 + lr * 0.4, lr * (V.thickTail && !front ? 2.5 : 0.4), lr, lr * 0.6, lr * (V.thickTail && !front ? 3 : 1.3));
+  });
+  // the tail
+  if (V.tail) {
+    const tg = new THREE.Group(); tg.position.set(0, h + r * 0.2, -len - r * 0.5); tg.rotation.x = V.thickTail ? -0.55 : V.bushy ? -0.45 : -0.6; root.add(tg);   // (hanging back and down: a kangaroo's resting on the ground behind it)
+    if (V.flatTail) add(BALL, M(V.flatTail), tg, 0, -0.05, -V.tail * 0.5, r * 0.6, 0.03, V.tail * 0.55, -0.9);
+    else if (V.bushy) { add(BALL, coatM, tg, 0, 0, -V.tail * 0.5, r * 0.32, r * 0.32, V.tail * 0.55); if (V.tip) add(BALL, M(V.tip), tg, 0, 0, -V.tail * 0.95, r * 0.22, r * 0.22, V.tail * 0.15); }
+    else { add(CYL, coatM, tg, 0, 0, -V.tail * 0.5, V.thickTail ? r * 0.28 : 0.025, V.tail, V.thickTail ? r * 0.28 : 0.025, Math.PI / 2); if (V.tuft) add(BALL, M(V.tuft), tg, 0, 0, -V.tail, 0.06, 0.06, 0.09); if (V.mane && kind === "horse" || kind === "zebra") add(BALL, M(V.mane), tg, 0, -0.1, -V.tail * 0.6, 0.06, V.tail * 0.5, 0.06); }
+  }
+  // the neck and the head on it
+  const neck = new THREE.Group(); neck.name = "neck"; neck.position.set(0, h + r * 0.45, len + r * 0.35); root.add(neck);
+  const [nl, na] = V.neck, nx = Math.cos(na) * nl, ny = Math.sin(na) * nl;
+  if (nl > 0.05) add(CYL, coatM, neck, 0, ny / 2, nx / 2, r * 0.42 * (V.bigEars ? 1.3 : 1), Math.hypot(nx, ny) + 0.05, r * 0.42 * (V.bigEars ? 1.3 : 1), Math.atan2(nx, ny));
+  if (V.mane && nl > 0.2) add(BALL, M(V.mane), neck, 0, ny / 2 + r * 0.25, nx / 2 - r * 0.15, 0.04, Math.hypot(nx, ny) * 0.55, r * 0.22, Math.atan2(nx, ny));
+  if (V.lionMane) add(BALL, M(V.lionMane), neck, 0, ny, nx, V.head[1] * 1.9, V.head[1] * 2.0, V.head[1] * 1.6);
+  const head = new THREE.Group(); head.position.set(0, ny, nx); neck.add(head);
+  const [hl, hr] = V.head;
+  add(BALL, coatM, head, 0, 0, hl * 0.3, hr, hr, hl * 0.6);
+  if (V.snout) add(BALL, coatM, head, 0, -hr * 0.25, hl * 0.6 + V.snout * 0.4, hr * 0.6, hr * 0.55, V.snout * 0.7);
+  add(BALL, M(0x141414), head, 0, -hr * 0.2, hl * 0.6 + V.snout * 1.05 + 0.01, hr * 0.22, hr * 0.18, 0.02);
+  for (const sx of [-1, 1]) {
+    add(BALL, M(0x101010, { roughness: 0.3 }), head, sx * hr * 0.75, hr * 0.25, hl * 0.55, 0.018, 0.018, 0.012);
+    if (V.bigEars) add(BALL, coatM, head, sx * hr * 1.0, 0, hl * 0.1, 0.05, V.ears, V.ears * 0.8, 0, sx * 0.4);
+    else if (V.ears) add(V.pointy ? CONE : BALL, coatM, head, sx * hr * 0.6, hr * 0.95, hl * 0.15, V.ears * 0.4, V.ears, V.ears * 0.25, 0, 0, -sx * 0.3);
+    // what grows on the head
+    if (V.antlers === "branch") { const a = new THREE.Group(); a.position.set(sx * hr * 0.4, hr * 0.8, hl * 0.2); a.rotation.set(-0.4, 0, -sx * 0.5); head.add(a); add(CYL, M(0xd8c8a8), a, 0, 0.25, 0, 0.018, 0.5, 0.018); for (let k = 0; k < 3; k++) add(CYL, M(0xd8c8a8), a, 0, 0.15 + k * 0.13, 0.08, 0.012, 0.18, 0.012, 0.9); }
+    if (V.antlers === "palm") { const a = new THREE.Group(); a.position.set(sx * hr * 0.6, hr * 0.7, hl * 0.1); a.rotation.set(0, 0, -sx * 1.2); head.add(a); add(BALL, M(0xc8b898), a, 0, 0.3, 0, 0.32, 0.3, 0.06); add(CYL, M(0xc8b898), a, 0, 0.1, 0, 0.03, 0.2, 0.03); }
+    if (V.horns === "short") add(CONE, M(0x2a2420), head, sx * hr * 0.85, hr * 0.5, hl * 0.2, 0.04, 0.16, 0.04, 0, 0, -sx * 1.2);
+    if (V.horns === "straight") add(CONE, M(0x2a2420), head, sx * hr * 0.4, hr * 1.3, hl * 0.05, 0.02, 0.4, 0.02, -0.5);
+    if (V.horns === "curved") add(new THREE.TorusGeometry(0.16, 0.025, 5, 10, Math.PI * 1.1), M(0x5a5248), head, sx * hr * 0.4, hr * 0.9, 0, 1, 1, 1, 0, Math.PI / 2, 0);
+    if (V.horns === "ossicones") { add(CYL, coatM, head, sx * hr * 0.4, hr * 1.2, hl * 0.05, 0.02, 0.16, 0.02); add(BALL, M(0x3a2a1a), head, sx * hr * 0.4, hr * 1.3, hl * 0.05, 0.03, 0.03, 0.03); }
+    if (V.horns === "muskox") add(new THREE.TorusGeometry(0.14, 0.03, 5, 10, Math.PI), M(0xd8ccb0), head, sx * hr * 0.75, hr * 0.5, hl * 0.1, 1, 1, 1, 0, Math.PI / 2, -sx * 0.6);
+    if (V.tusks) add(CONE, M(0xf0ead8), head, sx * hr * 0.35, -hr * 0.6, hl * 0.75, 0.04, 0.5, 0.04, -1.2);
+  }
+  if (V.trunk) { const tr = new THREE.Group(); tr.position.set(0, -hr * 0.1, hl * 0.85); tr.rotation.x = 0.25; head.add(tr); add(CYL, coatM, tr, 0, -V.trunk * 0.5, 0, 0.09, V.trunk, 0.09); }
+  return root;
+}

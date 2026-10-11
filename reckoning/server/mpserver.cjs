@@ -17,7 +17,7 @@
 const http = require("http"), crypto = require("crypto"), fs = require("fs"), path = require("path"), dgram = require("dgram"), os = require("os");
 const { pathToFileURL } = require("url");
 
-let R = null, T = null, LK = null;
+let R = null, T = null, LK = null, F = null;
 const CARRY_MAX = 6;                   // (logs in your arms at once, as in the settlement)
 // what a player carries on their back, as in the settlement: what they gather goes in here, not into the stores, till
 // they empty it at the hearth or a woodshed
@@ -117,6 +117,7 @@ class Room {
     this.settlers = {}; this.nextS = 1; this.lastArrive = {}; this.workCache = {};
     this.wars = []; this.news = []; this.lastWar = {};
     this.drops = {}; this.nextD = 1;
+    this.beasts = {}; this.nextA = 1;   // (the wild beasts round the players: kept here, so everyone sees the same ones)
     // (as in the settlement: a tree's logs lie where it fell, to be carried; a building is a site till the logs are
     //  brought and it's raised)
     this.piles = {}; this.nextP = 1; this.sites = {};     // (what the fallen dropped: a sack each, for anyone to loot, a few minutes)
@@ -269,7 +270,7 @@ class Room {
         const x = num(m.x, p.x), z = num(m.z, p.z);
         // (no stepping off the map, and nothing faster than a horse)
         if (Math.abs(x) > this.half + 50 || Math.abs(z) > this.half + 50) return;
-        p.x = x; p.y = num(m.y, p.y); p.z = z; p.yaw = num(m.yaw, 0); p.a = clean(m.a, 12) || "idle"; p.h = clean(m.h, 10); p.s = num(m.s, 0); p.g = !!m.g;
+        p.x = x; p.y = num(m.y, p.y); p.z = z; p.yaw = num(m.yaw, 0); p.a = clean(m.a, 12) || "idle"; p.h = clean(m.h, 10); p.s = num(m.s, 0); p.g = !!m.g; p.c = !!m.c;
         p.moved = true;
         return;
       }
@@ -319,6 +320,28 @@ class Room {
         if (!at) return p.sock.send({ t: "err", text: "There's no dry land to stand on near there. Pick somewhere else." });
         p.x = at.x; p.z = at.z; p.y = this.land.heightAt(at.x, at.z);
         p.sock.send({ t: "spawn", pid: p.pid, x: at.x, z: at.z, hp: p.hp });
+        return;
+      }
+      // an arrow (or a ball) in a beast: told by whoever loosed it; the beast's fear or its fury, and its death
+      case "hunthit": {
+        const a = this.beasts[String(m.id || "")]; if (!a || a.dead || p.dead) return;
+        if (Math.hypot(a.x - p.x, a.z - p.z) > 120) return;
+        const S = F.SPECIES[a.kind];
+        a.hp -= num(m.power, 0.5) > 0.7 ? 2 : 1; if (m.head) a.hp -= 1;
+        if (a.hp <= 0) { a.dead = true; a.deadAt = now(); a.st = "dead"; a.spd = 0; this.sendBeasts(true); return; }
+        if (S.fierce) { a.st = "charge"; a.prey = p.pid; a.until = now() + 7000; }
+        else this.scare(a, p.x, p.z, 1.4);
+        return;
+      }
+      // a beast brought down, dressed where it lies: its meat into your pack, food for the store
+      case "dress": {
+        const a = this.beasts[String(m.id || "")]; if (!a || !a.dead || p.dead) return;
+        const S = F.SPECIES[a.kind]; if (!this.near(p, a.x, a.z, 3.5 + S.r * 2)) return;
+        const pk = this.packOf(p.pid), n = Math.min(S.meat, this.packRoom(p.pid));
+        delete this.beasts[a.id]; this.sendBeasts(true);
+        if (n <= 0) return p.sock.send({ t: "err", text: "Your pack is full — the meat's left for the crows. Empty your pack at the hearth." });
+        pk.food += n; this.sendPack(p); this.dirty = true;
+        p.sock.send({ t: "note", text: `The ${S.name} dressed: ${n} food in your pack${n < S.meat ? " (all it would hold)" : ""}.` });
         return;
       }
       // a fish caught: only at the water's edge, and not quicker than a cast can be made — into the pack, food for the store
@@ -581,6 +604,88 @@ class Room {
       }
     }
   }
+  // ---- the wild beasts: never far from anyone, in their own kinds for the country, going about their own lives ----
+  wild(dt) {
+    const t = now(), players = [...this.online.values()].filter(q => !q.dead);
+    const list = Object.values(this.beasts);
+    // (gone out of everyone's way: let go of; the dead, a while after they fell)
+    for (const a of list) {
+      const far = players.every(q => Math.hypot(q.x - a.x, q.z - a.z) > 260);
+      if ((far && !a.dead) || (a.dead && t - a.deadAt > 240000) || (far && a.dead)) delete this.beasts[a.id];
+    }
+    // more where there are too few: a herd at a time, out of sight, of the beasts that live there
+    for (const q of players) {
+      const near = Object.values(this.beasts).filter(a => !a.dead && Math.hypot(q.x - a.x, q.z - a.z) < 170).length;
+      if (near >= 14 || Math.random() > 0.25) continue;
+      for (let k = 0; k < 8; k++) {
+        const ang = Math.random() * Math.PI * 2, d = 70 + Math.random() * 90, x = q.x + Math.cos(ang) * d, z = q.z + Math.sin(ang) * d;
+        if (Math.abs(x) > this.half - 20 || Math.abs(z) > this.half - 20) continue;
+        const h = this.land.heightAt(x, z); if (h < 1.2 || h > 75 || this.claimAt(x, z)) continue;
+        const kinds = F.faunaAt(this.land, x, z); if (!kinds.length) break;
+        const kind = F.pickFauna(kinds, Math.random()), S = F.SPECIES[kind];
+        // (a beaver or a capybara only near water)
+        if (S.water && ![[10, 0], [-10, 0], [0, 10], [0, -10], [7, 7], [-7, -7]].some(([dx, dz]) => this.land.heightAt(x + dx, z + dz) < 0)) continue;
+        const n = 1 + Math.floor(Math.random() * (S.herd || 1));
+        for (let i = 0; i < n; i++) { const id = "a" + (this.nextA++), bx = x + (Math.random() - 0.5) * 8, bz = z + (Math.random() - 0.5) * 8; this.beasts[id] = { id, kind, x: bx, z: bz, yaw: Math.random() * 6.28, spd: 0, st: "graze", hp: S.hp, until: t + Math.random() * 5000, home: { x, z } }; }
+        break;
+      }
+    }
+    // each about its business: grazing, wandering, hearing you and off, or (the fierce ones) coming for you
+    for (const a of Object.values(this.beasts)) {
+      if (a.dead) continue;
+      const S = F.SPECIES[a.kind];
+      let close = null, cd = Infinity;
+      for (const q of players) { const d = Math.hypot(q.x - a.x, q.z - a.z); if (d < cd) { cd = d; close = q; } }
+      if (close && a.st !== "flee" && a.st !== "charge") {
+        const loud = close.s > 4 ? S.hearRun : close.s > 0.4 ? (close.c ? S.hearCreep : S.hearWalk) : 2.2;
+        if (cd < loud) {
+          if (S.fierce && cd < loud * 0.6 && Math.random() < 0.5) { a.st = "charge"; a.prey = close.pid; a.until = t + 7000; }
+          else this.scare(a, close.x, close.z, 1);
+        }
+      }
+      if (a.st === "charge") {
+        const q = this.online.get(a.prey);
+        if (!q || q.dead || t > a.until) { a.st = "walk"; a.until = t + 4000; a.tx = a.home.x; a.tz = a.home.z; }
+        else {
+          a.yaw = Math.atan2(q.x - a.x, q.z - a.z); a.spd = S.run * 0.85;
+          const d = Math.hypot(q.x - a.x, q.z - a.z);
+          if (d < S.r + 1.1) { a.spd = 0; if (t - (a.bit || 0) > 1300) { a.bit = t; this.damage(q, S.fierce, a.id, a.x, a.z); } }
+        }
+      } else if (a.st === "flee") {
+        a.spd = S.run; if (t > a.until) { a.st = "graze"; a.spd = 0; a.until = t + 3000 + Math.random() * 6000; }
+      } else if (t > a.until) {
+        // (grazing a while, then a little way on, never far from where it was found)
+        if (a.st === "graze") { const ang = Math.random() * 6.28, r = Math.random() * 25; a.tx = a.home.x + Math.cos(ang) * r; a.tz = a.home.z + Math.sin(ang) * r; a.st = "walk"; a.until = t + 12000; }
+        else { a.st = "graze"; a.spd = 0; a.until = t + 4000 + Math.random() * 9000; }
+      }
+      if (a.st === "walk") {
+        const dx = a.tx - a.x, dz = a.tz - a.z, d = Math.hypot(dx, dz);
+        if (d < 1) { a.st = "graze"; a.spd = 0; a.until = t + 4000 + Math.random() * 8000; } else { a.yaw = Math.atan2(dx, dz); a.spd = S.walk; }
+      }
+      if (a.spd > 0) {
+        const nx = a.x + Math.sin(a.yaw) * a.spd * dt, nz = a.z + Math.cos(a.yaw) * a.spd * dt, h = this.land.heightAt(nx, nz);
+        // (not into the sea or a lake, unless it's a beast of the water; not up a cliff)
+        if ((h < 0.4 && !S.water) || h < -1.5 || h > 80) { a.yaw += Math.PI * (0.6 + Math.random() * 0.8); if (a.st === "walk") a.until = 0; }
+        else { a.x = nx; a.z = nz; }
+      }
+    }
+    this.sendBeasts(false);
+  }
+  // off, away from what frightened it, and the others of its herd with it
+  scare(a, fx, fz, k) {
+    const t = now(), S = F.SPECIES[a.kind];
+    a.yaw = Math.atan2(a.x - fx, a.z - fz) + (Math.random() - 0.5) * 0.8; a.st = "flee"; a.until = t + (4000 + Math.random() * 3000) * k; a.spd = S.run;
+    for (const o of Object.values(this.beasts)) if (o !== a && !o.dead && o.kind === a.kind && o.st !== "flee" && Math.hypot(o.x - a.x, o.z - a.z) < 18) { o.yaw = a.yaw + (Math.random() - 0.5) * 0.6; o.st = "flee"; o.until = a.until; o.spd = S.run; }
+  }
+  // to each player, the beasts round them: [id, kind, x, z, yaw, speed, state, head]
+  sendBeasts(now_) {
+    if (!now_ && (this.beastN = (this.beastN || 0) + 1) % 1) return;
+    for (const q of this.online.values()) {
+      const l = [];
+      for (const a of Object.values(this.beasts)) if (Math.hypot(q.x - a.x, q.z - a.z) < 200) l.push([a.id, a.kind, +a.x.toFixed(2), +a.z.toFixed(2), +a.yaw.toFixed(2), +(a.spd || 0).toFixed(2), a.st, a.st === "graze" ? 0 : 1, 0]);
+      q.sock.send({ t: "ax", l });
+    }
+  }
   // a blow landing on a player: from another player (by a pid) or a settler (by "s…")
   damage(q, dmg, by, fx, fz) {
     const t = now();
@@ -609,7 +714,7 @@ class Room {
     void kr;
     if (this.recs[by]) this.recs[by].kills++; if (this.recs[q.pid]) this.recs[q.pid].deaths++;
     this.all({ t: "die", pid: q.pid, by, dropped: drop ? { wood: w, stone: s, food: f } : null });
-    { const kn = this.online.get(by) ? this.online.get(by).name : this.settlers[by] ? `${this.settlers[by].name}, a watchman` : "someone"; this.headline("death", `${q.name} was struck down by ${kn}.`); }
+    { const kn = this.online.get(by) ? this.online.get(by).name : this.settlers[by] ? `${this.settlers[by].name}, a watchman` : this.beasts && this.beasts[by] ? `a ${F.SPECIES[this.beasts[by].kind].name}` : "someone"; this.headline("death", `${q.name} was struck down by ${kn}.`); }
     const ko = killer && this.online.get(killer); if (ko) this.stock(ko); this.stock(q); this.dirty = true;
     setTimeout(() => this.respawn(q), R.RESPAWN_MS);
     return true;
@@ -1033,7 +1138,7 @@ class Room {
     for (const p of this.online.values()) if (p.moved) { p.moved = false; moved.push([p.pid, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), p.a, p.h, +p.s.toFixed(2), p.g ? 1 : 0]); }
     if (moved.length) this.all({ t: "ps", l: moved });
     if ((this.tickN = (this.tickN || 0) + 1) % 2 === 0) {
-      if (this.mode !== "colony" && this.mode !== "nations") this.ai(0.2);
+      if (this.mode !== "colony" && this.mode !== "nations") { this.ai(0.2); this.wild(0.2); }
       const sm = [];
       for (const v of Object.values(this.settlers)) if (v.moved) { v.moved = false; sm.push([v.id, +v.x.toFixed(2), +v.z.toFixed(2), +v.yaw.toFixed(2), v.a, +(v.s || 0).toFixed(2)]); }
       if (sm.length) this.all({ t: "ss", l: sm });
@@ -1061,7 +1166,7 @@ class Room {
 // ---------------------------------------------------------------------------
 async function start(opts = {}) {
   const base = pathToFileURL(path.join(__dirname, "..", "js", "mp") + path.sep).href;
-  R = await import(base + "rules.js"); T = await import(base + "terrain.js"); LK = await import(base + "look.js");
+  R = await import(base + "rules.js"); T = await import(base + "terrain.js"); LK = await import(base + "look.js"); F = await import(base + "fauna.js");
   if (opts.stock) START = { wood: +opts.stock, stone: +opts.stock, fast: true, hour: opts.hour != null ? +opts.hour : null };
   const rooms = new Map();
   const name = clean(opts.name, 40) || (opts.world ? "Forester: Reckoning" : `${os.hostname().replace(/\.(local|lan|home)$/, "")}'s games`);

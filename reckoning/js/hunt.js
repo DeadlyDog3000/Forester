@@ -13,7 +13,8 @@
 
 import { THREE, clamp } from "./core.js";
 import { G } from "./engine.js";
-import { modelCopy } from "./models.js";
+import { modelCopy, makeBeast } from "./models.js";
+import { SPECIES } from "./mp/fauna.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { CLEARING, POND, pondR } from "./woods.js";
@@ -26,6 +27,8 @@ const KINDS = {
   // a boar: heavy, slow to frighten, hard to bring down — and, wounded, it comes for you
   boar: { name: "wild boar", r: 0.42, h: 0.55, len: 0.5, leg: 0.38, walk: 0.7, run: 6.8, hp: 4, meat: 3, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 1.2, meatKind: "boar" },
 };
+// (and the beasts of the wider world: Frontier's maps, the Earth)
+for (const [k, v] of Object.entries(SPECIES)) if (!KINDS[k]) KINDS[k] = { ...v, meatKind: "meat" };
 const GRAVITY = 9.8;
 
 // feeding: how far the neck goes down (and the body leans onto the forelegs) to bring the mouth to the grass, and to a
@@ -42,10 +45,10 @@ const GAIT = {
 class Animal {
   constructor(hunt, kind, x, z) {
     this.hunt = hunt; this.kind = kind; this.K = KINDS[kind];
-    const m = modelCopy(kind);
+    const m = modelCopy(kind), beast = m ? null : makeBeast(kind, this.K);
     this.root = new THREE.Group(); this.root.rotation.order = "YXZ";
-    if (m) this.root.add(m.scene);
-    else { const b = new THREE.Mesh(new THREE.BoxGeometry(this.K.r * 1.2, this.K.r * 1.4, this.K.len * 2.4), new THREE.MeshStandardMaterial({ color: 0x8a5a3a })); b.position.y = this.K.h; this.root.add(b); }
+    if (m) this.root.add(m.scene); else if (beast) this.root.add(beast);
+    else if (!beast) { const b = new THREE.Mesh(new THREE.BoxGeometry(this.K.r * 1.2, this.K.r * 1.4, this.K.len * 2.4), new THREE.MeshStandardMaterial({ color: 0x8a5a3a })); b.position.y = this.K.h; this.root.add(b); }
     const find = n => this.root.getObjectByName(n);
     this.legs = ["legFL", "legFR", "legHL", "legHR"].map(find);
     // (below the knee or hock, where the model has one: folded as the leg swings through)
@@ -232,7 +235,7 @@ class Animal {
     const K = this.K, home = this.ownHome || this.hunt.home;
     this.speed += (want - this.speed) * Math.min(1, dt * (this.state === "flee" || this.state === "charge" ? 4 : 2));
     // a hare goes in hops: it covers its ground in the air and sits a moment between them (less, the faster it goes)
-    const hare = this.kind === "hare", runK = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1);
+    const hare = this.kind === "hare" || !!K.hops, runK = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1);
     let hop = -1, hopK = 1;
     if (hare) {
       const duty = 0.32 + 0.55 * runK, u = (this.phase / (Math.PI * 2)) % 1;
@@ -563,7 +566,7 @@ export class Hunt {
       if (a.man) { a.state = st; continue; }
       if (st === "dead" && a.state !== "dead") {
         a.state = "dead"; a.slide = Math.min(6, a.speed || 0); a.fall = 0; a.speed = 0;
-        a.dressIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 0.4; }, reach: 2.2, hold: 2.2, label: `Dress the ${a.K.name}`, use: () => {} });
+        a.dressIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 0.4; }, reach: 2.2 + a.K.r, hold: 2.2, label: `Dress the ${a.K.name}`, use: () => { if (G.mp && G.mp.dressBeast) G.mp.dressBeast(a); } });
       }
     }
     for (const [id, a] of by) if (!seen.has(id)) {
