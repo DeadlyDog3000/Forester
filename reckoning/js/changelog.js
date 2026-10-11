@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.8.2", date: "11 October 2026", title: "Back",
+    items: [
+      "Fixed: having looked at How will you play? and come back to the saves, their Back button did nothing. It takes you back to the title again.",
+    ],
+  },
+  {
     v: "1.8.1", date: "11 October 2026", title: "Real sounds",
     items: [
       "Frontier sounds like the world, not a game: meat and fish spit and sizzle over the town hall's fire; boots knock up the watchtower's ladder; you splash ashore out of a boat; and an alliance asked of you comes as a quiet note, not the ring of a coin.",

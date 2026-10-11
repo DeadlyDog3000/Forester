@@ -338,7 +338,7 @@ function startNew(who, look) {
 }
 // ---- a new game: the story, free play, or the frontier on your own ----
 let newMode = "story";
-$("modeBack").onclick = () => screen("slots");
+$("modeBack").onclick = () => { back = "title"; screen("slots"); };   // (and the saves' own Back, from there, to the title)
 for (const b of document.querySelectorAll("[data-mode]")) b.onclick = () => {
   newMode = b.dataset.mode;
   if (newMode === "frontier") { openSoloFrontier(); return; }
