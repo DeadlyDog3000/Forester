@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "0.99.6", date: "11 October 2026", title: "Degrees and leagues",
+    items: [
+      "On the big map (J), the pointer tells you where it is: on the Earth its latitude and longitude and the kind of country there (\"54°N 8°E · the sea\"), on any other land the country.",
+      "The map's scale bar grows with the view: fifty paces close in, then a thousand paces, a league, five leagues, a hundred leagues across the whole world.",
+      "The game's name card no longer sits over the corner of the big map.",
+    ],
+  },
+  {
     v: "0.99.5", date: "11 October 2026", title: "Where you are",
     items: [
       "Frontier: cross into new country and its name comes up — the taiga, the broadleaf woods, the high meadows, desert — and on the Earth, the great feature of the land you're in: \"The taiga — Siberia\", \"Desert — the Sahara\", \"Rain forest — the Amazon\". You're told where you've begun, too, when you arrive on the Earth.",

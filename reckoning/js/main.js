@@ -1771,6 +1771,8 @@ $("bigmap").addEventListener("wheel", e => {
   });
 }
 // a right-click on the map: a waypoint there (or, on the one you have, taken away)
+$("bigmap").addEventListener("mousemove", e => { const p = mapWorldAt(e); G.mapHover = p; if (G.world && G.world.land) bigMapSoon(); });
+$("bigmap").addEventListener("mouseleave", () => { G.mapHover = null; bigMapSoon(); });
 $("bigmap").addEventListener("contextmenu", e => {
   e.preventDefault();
   if (grow.mode) return;
@@ -1840,11 +1842,19 @@ function renderBigMap() {
   c.beginPath(); c.roundRect(35, 33, tw + 46, 40, 5); c.stroke();
   c.fillStyle = MAPINK; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText(t, 58, 54);
   mapCompass(c, W - 70, 80, 42);
-  // a scale bar: fifty paces
-  const px = 50 * 0.75 * S;
+  // a scale bar, in the measures of the day: as long as suits the view, from fifty paces to a hundred leagues
+  const SCALES = [[37.5, "fifty paces"], [150, "two hundred paces"], [750, "a thousand paces"], [4800, "a league"], [24000, "five leagues"], [96000, "twenty leagues"], [480000, "a hundred leagues"]];
+  const [m, word] = SCALES.find(([m]) => m * S >= 40) || SCALES[SCALES.length - 1], px = m * S;
   c.fillStyle = MAPINK; c.fillRect(34, H - 42, px, 4); c.fillStyle = "#e9dcb8"; c.fillRect(34 + px / 2, H - 41, px / 2 - 1, 2);
-  c.font = `italic 12px ${MAPSERIF}`; c.fillStyle = MAPINK; c.textAlign = "left"; c.fillText("fifty paces", 34, H - 52);
+  c.font = `italic 12px ${MAPSERIF}`; c.fillStyle = MAPINK; c.textAlign = "left"; c.fillText(word, 34, H - 52);
   c.textAlign = "right"; c.fillText("right-click: set a waypoint", W - 30, H - 28);
+  // under the pointer: where in the world, and what kind of country (on a land that knows)
+  const hv = G.mapHover, L = w.land;
+  if (hv && L && L.biomeAt && !(w.cave && w.cave.inside)) {
+    const h = L.heightAt(hv[0], hv[1]); let t = h < 0 ? "the sea" : (L.biomeAt(hv[0], hv[1]) && (window.__BIOMES || {})[L.biomeAt(hv[0], hv[1])] || {}).name || "";
+    if (L.kind === "earth") { const lon = L.lonOf(hv[0]), lat = L.latOf(hv[1]), dg = (v, p, n) => `${Math.abs(Math.round(v))}°${v >= 0 ? p : n}`; t = `${dg(lat, "N", "S")} ${dg(lon, "E", "W")}${t ? " · " + t : ""}`; }
+    if (t) { c.textAlign = "center"; c.font = `italic 14px ${MAPSERIF}`; c.fillText(t, W / 2, H - 28); }
+  }
   c.restore();
 }
 G.showMap = on => showOverlay("bigmap", on);

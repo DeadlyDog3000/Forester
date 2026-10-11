@@ -20,6 +20,7 @@ import { Hunt } from "../hunt.js";
 import { WATER, BIOMES } from "./terrain.js";
 import { waveAt } from "../water.js";
 import { Wilds, LANDFORMS } from "./wilds.js";
+window.__BIOMES = BIOMES;   // (the big map names the country under the pointer)
 import { BUILD, BUILD_ORDER, MAX_HP, MODES, SPAWN_SHIELD_MS, JOB_NAME, WAR, SHIP, BOATS } from "./rules.js";
 import { TERRAINS } from "./terrain.js";
 import { lookOpts, isF } from "./look.js";
