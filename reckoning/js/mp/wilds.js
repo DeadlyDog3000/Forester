@@ -21,6 +21,26 @@ import { ryeStrip } from "../town.js";
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const SEG = 24;                                  // ground facets along a piece's side (four metres each)
+// HOW ROUGH THE SEA IS, place by place (1 the swell as it is): calm in a lake or a sheltered bay, rougher the further
+// out from the land; and on the Earth by the latitude too — the cold seas of the north and the Southern Ocean wild,
+// the trade-wind seas of the tropics gentle. A grid over the whole map, worked out once.
+function seaRoughness(L, half) {
+  const N = 192, cell = half * 2 / N, d = new Float32Array(N * N), INF = 1e9;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) d[j * N + i] = L.heightAt(-half + (i + 0.5) * cell, -half + (j + 0.5) * cell) > -0.5 ? 0 : INF;
+  // (how far from the land each square of sea is: two sweeps of a chamfer distance)
+  const D1 = cell, D2 = cell * 1.414;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { let v = d[j * N + i]; if (!v) continue; if (i > 0) v = Math.min(v, d[j * N + i - 1] + D1); if (j > 0) { v = Math.min(v, d[(j - 1) * N + i] + D1); if (i > 0) v = Math.min(v, d[(j - 1) * N + i - 1] + D2); if (i < N - 1) v = Math.min(v, d[(j - 1) * N + i + 1] + D2); } d[j * N + i] = v; }
+  for (let j = N - 1; j >= 0; j--) for (let i = N - 1; i >= 0; i--) { let v = d[j * N + i]; if (!v) continue; if (i < N - 1) v = Math.min(v, d[j * N + i + 1] + D1); if (j < N - 1) { v = Math.min(v, d[(j + 1) * N + i] + D1); if (i < N - 1) v = Math.min(v, d[(j + 1) * N + i + 1] + D2); if (i > 0) v = Math.min(v, d[(j + 1) * N + i - 1] + D2); } d[j * N + i] = v; }
+  const earth = L.kind === "earth", out = new Float32Array(N * N), far = earth ? half * 0.03 : Math.min(900, half * 0.3);   // (the Earth is drawn small: an ocean a few hundred metres across)
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = j * N + i, open = smooth01((d[k] - cell * 0.5) / far);
+    let r = 0.45 + 1.15 * open;
+    if (earth) { const lat = L.latOf(-half + (j + 0.5) * cell), al = Math.abs(lat); r *= 0.7 + 0.3 * smooth01((al - 25) / 15) + 0.8 * smooth01((lat - 48) / 14) + 0.9 * smooth01((-lat - 42) / 12); }
+    out[k] = Math.min(3, r);
+  }
+  return [out, N, -half, -half, half * 2];
+}
+const smooth01 = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
 const PAL = {
   grass: new THREE.Color(0x6c7f38), meadow: new THREE.Color(0x7d8c44), litter: new THREE.Color(0x53463a), moss: new THREE.Color(0x4a5d2a),
   earth: new THREE.Color(0x3d3126), dry: new THREE.Color(0x8c8248), stone: new THREE.Color(0x6e6b62), sand: new THREE.Color(0xb8a77a),
@@ -214,6 +234,7 @@ export class Wilds extends WorldBase {
     this.water = new THREE.Mesh(wg, this.wm.mat); this.water.frustumCulled = false;
     this.water.position.y = WATER - 0.05; noSnow(this.water);
     this.root.add(this.water);
+    this.wm.setRough(...seaRoughness(this.land, this.half));
     this.t = 0;
     this.buildNear(0, 0, 0);
   }
@@ -282,7 +303,9 @@ export class Wilds extends WorldBase {
   colourAt(x, z, h, steep, c) {
     const L = this.land;
     if (h < WATER - 0.3) return c.copy(PAL.bed).lerp(PAL.sand, clamp((h + 3) / 3, 0, 1) * 0.6);
-    if (h < WATER + 1.4) return c.copy(PAL.sand).lerp(PAL.wetSand, clamp((WATER + 0.4 - h) / 0.8, 0, 1));
+    // the shore: sand where the seas are warm, shingle and rock where they're cold — the north, and the far south
+    const rocky = this.coastRock(x, z);
+    if (h < WATER + 1.4) { c.copy(PAL.sand).lerp(PAL.wetSand, clamp((WATER + 0.4 - h) / 0.8, 0, 1)); if (rocky > 0) c.lerp(hash(x * 0.21, z * 0.17) > 0.55 ? PAL.rock : PAL.stone, rocky * (0.75 + hash(x * 0.6, z * 0.5) * 0.25)); return c; }
     const f = L.forestAt(x, z), dry = hash(Math.floor(x / 9), Math.floor(z / 9));
     // the ground of the biome — blended with its neighbours', so one kind of country gives way to the next
     this.biomeGround(x, z, c);
@@ -290,15 +313,23 @@ export class Wilds extends WorldBase {
     if (dry > 0.82) c.lerp(PAL.dry, 0.25);
     // under the trees: needle litter and moss
     if (f > 0.35) c.lerp(PAL.litter, clamp((f - 0.35) * 2.2, 0, 0.85)).lerp(PAL.moss, hash(x * 0.05, z * 0.05) > 0.6 ? 0.35 : 0);
-    if (h < WATER + 2.4) c.lerp(PAL.sand, clamp((WATER + 2.4 - h) / 1, 0, 1) * 0.5);
+    if (h < WATER + 2.4) c.lerp(rocky > 0.5 ? PAL.stone : PAL.sand, clamp((WATER + 2.4 - h) / 1, 0, 1) * 0.5);
     if (steep > 0.16) c.lerp(PAL.stone, clamp((steep - 0.16) * 4, 0, 0.9));
     if (h > this.snowLine - 6) c.lerp(PAL.snow, clamp((h - this.snowLine + 6) / 8, 0, 1) * (steep > 0.45 ? 0.4 : 1));
     return c;
   }
+  // how rocky the shore is here (0 a sandy beach .. 1 shingle and rock): on the Earth by the latitude — the cold seas
+  // of the north and the far south have rocky coasts, the warm ones sand; elsewhere, by how cold the country is
+  coastRock(x, z) {
+    const L = this.land, n = hash(Math.floor(x / 60), Math.floor(z / 60)) * 0.3;
+    if (L.kind === "earth") { const lat = L.latOf(z); return clamp(smooth01((lat - 44) / 12) + smooth01((-lat - 42) / 10) + (n - 0.15), 0, 1); }
+    const t = L.climate(x, z).t; return clamp(1 - smooth01((t - 0.3) / 0.18) + (n - 0.15), 0, 1);
+  }
   // the colour of the ground in the open, for the kind of country it is: the biome here and those round about, mixed
   biomeGround(x, z, c) {
     let r = 0, g = 0, b = 0, n = 0;
-    for (let dx = -16; dx <= 16; dx += 16) for (let dz = -16; dz <= 16; dz += 16) { const q = BIOMES[this.land.biomeAt(x + dx, z + dz)].ground, w = dx || dz ? 1 : 2; r += q[0] * w; g += q[1] * w; b += q[2] * w; n += w; }
+    // (over a good way round — thirty metres and more — so one country fades into the next instead of changing at a line)
+    for (let dx = -32; dx <= 32; dx += 16) for (let dz = -32; dz <= 32; dz += 16) { if (Math.abs(dx) + Math.abs(dz) > 48) continue; const q = BIOMES[this.land.biomeAt(x + dx, z + dz)].ground, w = dx || dz ? 1 / (1 + (Math.abs(dx) + Math.abs(dz)) / 32) : 2; r += q[0] * w; g += q[1] * w; b += q[2] * w; n += w; }
     return c.setRGB(r / n, g / n, b / n);
   }
   // ---- the pieces of the map round you ----

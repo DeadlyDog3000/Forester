@@ -378,6 +378,13 @@ class Room {
         return;
       }
       // the one at the helm, rowing or sailing it: where it is now (no faster than it can go, and not on dry land)
+      // a rowboat swamped out on the open sea: gone to the bottom, and whoever was in her in the water
+      case "boatsink": {
+        const o = this.boats[String(m.id || "")]; if (!o || o.kind !== "rowboat" || o.driver !== p.pid) return;
+        delete this.boats[o.id]; this.all({ t: "boatx", id: o.id }); this.dirty = true;
+        this.note(`${p.name}'s rowboat was swamped in the heavy seas and went down.`, p);
+        return;
+      }
       case "boatmv": {
         const o = this.boats[String(m.id || "")]; if (!o || o.driver !== p.pid) return;
         const x = num(m.x, o.x), z = num(m.z, o.z), B = R.BOATS[o.kind];

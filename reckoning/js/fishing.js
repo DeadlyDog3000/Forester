@@ -94,7 +94,8 @@ class Gear {
     const pl = G.player, input = G.input; if (!pl) return;
     if (this.out && (pl.axe || pl.bow || pl.gun || pl.xbow || G.heldFood || pl.horse || this.frozen || !hasRod())) this.setOut(false);
     if (!this.out || !this.rodG) return;
-    const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine;
+    // (sat in a boat you can't walk, but you can fish: over the side, into the open water round you)
+    const free = G.mode === "play" && (!G.lockMove || G.seatedInBoat) && !UI.dialogOpen && !G.cine;
     const click = free && input.click, rclick = free && input.rclick;
     const L = this.lvl(), c = this.cast, F = this.float, tip = this.tipWorld(), now = this.t;
     let rx = -1.05, rz = -0.1, bend = 0;

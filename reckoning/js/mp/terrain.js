@@ -183,7 +183,12 @@ export function makeTerrain(seed, half, kind = "island") {
       const lake = nE(x / lakeK + 17, z / lakeK + 5);
       return { t: Math.max(0, 0.52 + nT * 0.28 - Math.max(0, h - 20) * 0.006), m: Math.min(1, Math.max(0, 0.55 + nM * 0.5 + smooth(lakeAt - 0.12, lakeAt, lake) * 0.3)) };
     }
-    const lat = latOf(z), lon = lonOf(x), al = Math.abs(lat), soft = (v, lo, hi, e) => smooth(lo - e, lo + e, v) * (1 - smooth(hi - e, hi + e, v));
+    // (the belts and the boxes of desert, savanna and steppe drawn on the latitude and the longitude, but their edges
+    //  warped by a slow noise — a few degrees in and out — so the kinds of country meet along ragged, natural lines,
+    //  not along the squares of a grid)
+    const lon0 = lonOf(x), lat0 = latOf(z);
+    const wl = fbm(nD, lon0 / 7 + 5, lat0 / 7 - 3, 3) + fbm(nB, lon0 / 1.8 - 7, lat0 / 1.8 + 2, 2) * 0.3, wa = fbm(nE, lon0 / 7 - 11, lat0 / 7 + 8, 3) + fbm(nC, lon0 / 1.8 + 4, lat0 / 1.8 - 9, 2) * 0.3;
+    const lat = lat0 + wa * 5, lon = lon0 + wl * 6, al = Math.abs(lat0 + wa * 1.5), soft = (v, lo, hi, e) => smooth(lo - e, lo + e, v) * (1 - smooth(hi - e, hi + e, v));
     let tl = 0; for (let k = 1; k < WARMTH.length; k++) if (al <= WARMTH[k][0]) { const [a0, w0] = WARMTH[k - 1], [a1, w1] = WARMTH[k]; tl = w0 + (w1 - w0) * (al - a0) / (a1 - a0); break; }
     const t = Math.max(0, tl - Math.max(0, h - 12) * 0.005 + nT * 0.05);
     // (the rain belts: wet at the equator, dry in the horse latitudes, wet again in the westerlies, dry at the poles)

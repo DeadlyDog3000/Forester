@@ -406,6 +406,7 @@ export class MPGame {
     n.sitex = m => this.dropSite(m.id);
     n.ax = m => { if (this.hunt) this.hunt.puppets(m.l || []); };
     n.boat = m => this.setBoat(m.o);
+    n.boatx = m => { const e = this.boats.get(m.id); if (!e) return; if (this.aboard && this.aboard.e === e) this.disembark(false); this.w.root.remove(e.g); if (e.it) this.w.removeInteract(e.it); this.boats.delete(m.id); };
     n.bm = m => { for (const [id, x, z, yaw] of m.l || []) { const e = this.boats.get(id); if (!e || (this.aboard && this.aboard.e === e && this.aboard.helm)) continue; e.o.x = x; e.o.z = z; e.o.yaw = yaw; } };
     n.carry = m => { const was = this.carry; this.setCarry(m.n); if (m.n !== was) sfx("pickup"); G.renderChest && G.renderChest(); };
     // what's in your pack: the stone you've broken and the food you've picked up, yours till you put it in the store
@@ -1054,14 +1055,14 @@ export class MPGame {
   embark(e, helm, seat = 0) {
     const pl = G.player; this.dismount();
     this.aboard = { e, helm, seat, speed: 0, sendT: 0 };
-    G.lockMove = true; pl.holsterAxe && pl.holsterAxe(true); if (pl.bow) pl.showBow(false);
+    G.lockMove = true; G.seatedInBoat = e.o.kind === "rowboat"; G.noSwim = true; pl.holsterAxe && pl.holsterAxe(true); if (pl.bow) pl.showBow(false);
     const ship = e.o.kind === "ship";
     UI.keys(helm ? [["W / S", ship ? "make sail, or take it in" : "row, or back water"], ["A / D", ship ? "put the helm over" : "pull round"], ["F", "step ashore, at the shore"]] : [["F", "step ashore, at the shore"]], 8);
     UI.hint(helm ? (ship ? "You've the helm. W to make sail, A and D to steer — and F to go ashore when she's in by the land." : "In the boat. W to row, S to back water, A and D to pull round; F to step out at the shore.") : "Aboard. You go where she goes; F to step ashore when she's in by the land.", 4);
   }
   disembark(tell = true) {
     const a = this.aboard; if (!a) return;
-    this.aboard = null; G.lockMove = false;
+    this.aboard = null; G.lockMove = false; G.seatedInBoat = false; G.noSwim = false;
     if (tell) this.net.send({ t: "unboard" });
   }
   tickBoats(dt) {
@@ -1079,7 +1080,9 @@ export class MPGame {
       const fx = Math.sin(e.cur.yaw), fz = Math.cos(e.cur.yaw), L = B.len * 0.4, Wd = e.o.kind === "ship" ? 2.4 : 0.6;
       const h = waveAt(w.wm, e.cur.x, e.cur.z), hb = waveAt(w.wm, e.cur.x + fx * L, e.cur.z + fz * L), hs = waveAt(w.wm, e.cur.x - fx * L, e.cur.z - fz * L);
       const hl = waveAt(w.wm, e.cur.x + fz * Wd, e.cur.z - fx * Wd), hr = waveAt(w.wm, e.cur.x - fz * Wd, e.cur.z + fx * Wd);
-      e.y = WATER - 0.05 + h - (e.o.kind === "ship" ? 0.2 : 0.05);
+      e.y = WATER - 0.05 + h - (e.o.kind === "ship" ? 0.2 : 0.05) - (e.flood || 0) * 0.38;
+      // (water in her: the sea shows inside the hull, deeper as she fills)
+      { const cover = e.g.children[0] && e.g.children[0].children.find(q => q.userData.noShadow); if (cover) cover.visible = (e.flood || 0) < 0.2; }
       e.g.position.set(e.cur.x, e.y, e.cur.z);
       e.g.rotation.set(Math.atan2(hs - hb, 2 * L) * (e.o.kind === "ship" ? 0.5 : 1), e.cur.yaw, Math.atan2(hl - hr, 2 * Wd) * (e.o.kind === "ship" ? 0.6 : 1), "YXZ");
       // (a rowboat's oars, rowed: each stroke the blades go in at the catch, forward, are pulled aft through the water —
@@ -1116,6 +1119,8 @@ export class MPGame {
     if (a.helm) {
       // at the helm: W and S to row (or to make and take in sail), A and D to turn — quicker the faster she goes
       const want = input.down("KeyW") ? B.speed : input.down("KeyS") ? -B.speed * 0.35 : 0;
+      // (the oars want both hands: the rod goes down in the boat when you take them up)
+      if (want && G.rodOut && G.toggleRod) G.toggleRod(false);
       a.speed += (want - a.speed) * Math.min(1, dt * (e.o.kind === "ship" ? 0.35 : 1.4));
       const turn = (input.down("KeyA") ? 1 : 0) - (input.down("KeyD") ? 1 : 0);
       e.cur.yaw += turn * B.turn * dt * (0.35 + 0.65 * Math.min(1, Math.abs(a.speed) / B.speed)) * Math.sign(a.speed || 1);
@@ -1124,6 +1129,19 @@ export class MPGame {
       const ahead = (k) => w.land.heightAt(nx + Math.sin(e.cur.yaw) * B.len * 0.5 * k, nz + Math.cos(e.cur.yaw) * B.len * 0.5 * k);
       if (ahead(Math.sign(a.speed || 1)) > -B.draft || w.land.heightAt(nx, nz) > -B.draft) { if (Math.abs(a.speed) > 0.6) FOLEY.scrape({ x: e.cur.x, z: e.cur.z }, Math.min(0.8, Math.abs(a.speed) / B.speed)); a.speed = 0; }
       else { e.cur.x = nx; e.cur.z = nz; }
+      // the open sea: a rowboat is for lakes and the coast. Out where the swell runs high she ships water over the
+      // gunwale faster than you can bail, settles, and goes down — you need a ship out there
+      if (e.o.kind === "rowboat") {
+        const R = w.wm.roughAt(e.cur.x, e.cur.z);
+        if (R > 1.35) {
+          a.flood = (a.flood || 0) + dt * (R - 1.35) * 0.06;
+          if (!a.toldRough) { a.toldRough = true; UI.hint("The swell's getting up — heavy seas out here, breaking over the gunwale. A rowboat won't live in this: turn back for the shore. On the open sea you need a ship.", 7); }
+          if ((a.splashT = (a.splashT || 0) - dt) <= 0) { a.splashT = 1.2 + Math.random() * 2.5 / R; FOLEY.splash({ x: e.cur.x, z: e.cur.z }, Math.min(0.7, 0.25 + (R - 1.35) * 0.4)); }
+        } else a.flood = Math.max(0, (a.flood || 0) - dt * 0.02);
+        if (a.flood > 0.5 && !a.toldFlood) { a.toldFlood = true; UI.hint("She's half full of water and settling. Make for the land — now.", 5); }
+        e.flood = a.flood;
+        if (a.flood >= 1) { this.net.send({ t: "boatsink", id: e.o.id }); UI.hint("Swamped. She goes down under you, and you're in the sea — swim for it.", 6); a.flood = 0; this.disembark(false); return; }
+      }
       if ((a.sendT -= dt) <= 0) { a.sendT = 0.15; this.net.send({ t: "boatmv", id: e.o.id, x: +e.cur.x.toFixed(2), z: +e.cur.z.toFixed(2), yaw: +e.cur.yaw.toFixed(3) }); }
     }
     // where you are aboard: at the oars, at the ship's helm by the stern, or along her deck

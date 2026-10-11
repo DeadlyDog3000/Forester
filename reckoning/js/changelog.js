@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.6.0", date: "11 October 2026", title: "Heavy seas",
+    items: [
+      "The sea isn't the same everywhere now. A lake or a sheltered bay lies calm; out from the land the swell gets up, the further the rougher. On the Earth it's the real seas: the North Atlantic and the waters round the north are rough and white-capped, the warm seas of the tropics gentle, and the Southern Ocean, far to the south, the wildest of all.",
+      "A rowboat is for lakes and the coast. Take one out where the swell runs high and the seas break over the gunwale: she ships water faster than you can bail, settles lower and lower, and goes down under you — and you're swimming. Turn back in time and she drains as you bail. Out on the open ocean you need a ship from a shipyard.",
+      "Fish from a rowboat: take out the rod (its number) and cast over the side, wherever you are on the water. Take up the oars and the rod goes down in the boat.",
+      "Sat in a boat you're sat in it — the game no longer thinks you're swimming because the seat's below the waterline.",
+      "On the Earth, the kinds of country meet along ragged, natural lines — the edge of the Sahara, the steppe, the savanna — instead of the straight edges of boxes; and each fades into the next over a good way, not at a line.",
+      "Coasts by the climate: the cold shores of the north and of the far south are shingle and rock, the warm ones sand.",
+    ],
+  },
+  {
     v: "1.5.0", date: "11 October 2026", title: "Cold and heat",
     items: [
       "A new gauge under your hunger: the cold and the heat. Out of doors in a cold country — at night, in winter, high up, and worst of all wet from the water — a snowflake's bar fills as the cold gets into you; in a hot country a sun's fills as the heat gets to you. Full, it starts to take your health; let it, and it kills you.",
