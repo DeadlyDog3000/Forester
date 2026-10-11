@@ -5,11 +5,25 @@
 // YOUR LOOK IN A MULTIPLAYER GAME: what the character builder makes, kept on this computer and sent to the others,
 // and how it becomes a body (the townsfolk's own models, in your colours).
 
+// the outfits: each a body of the townsfolk's own, in its own clothes (the colours of them yours to choose)
 export const BODIES = [
-  { id: "townsman", name: "Townsman", f: false },
-  { id: "townswoman", name: "Townswoman", f: true },
-  { id: "brother", name: "Woodsman", f: false },
-  { id: "sister", name: "Woodswoman", f: true },
+  { id: "townsman", common: true, name: "Burgher", f: false, note: "Coat, breeches and buckled shoes" },
+  { id: "brother", common: true, name: "Woodsman", f: false, note: "A woodsman's coat and waistcoat" },
+  { id: "father", common: true, name: "Craftsman", f: false, note: "Waistcoat and shirtsleeves, ready for work" },
+  { id: "jakob", common: true, name: "Apprentice", f: false, note: "A plain short coat, a boy's first good one" },
+  { id: "magistrate", name: "Gentleman", f: false, note: "The long coat of a man of standing" },
+  { id: "watchman", name: "Watchman", f: false, note: "The city's coat, a sash across it" },
+  { id: "raider", name: "Rover", f: false, note: "Fur and leather, rough-made for the road" },
+  { id: "townswoman", common: true, name: "Burgher's wife", f: true, note: "Bodice, skirt and apron" },
+  { id: "sister", common: true, name: "Woodswoman", f: true, note: "A working dress, sleeves rolled" },
+  { id: "albers", common: true, name: "Goodwife", f: true, note: "A housewife's dress and apron, a cap to it" },
+  { id: "watchwoman", name: "Watchwoman", f: true, note: "The city's colours, a sash across them" },
+];
+// the hats, besides the one an outfit comes with (and none): made in models.js, keyed the same
+export const HAT_STYLES = [
+  { id: "hat", name: "The outfit's own" }, { id: "none", name: "None" },
+  { id: "tricorn", name: "Tricorn" }, { id: "wide", name: "Broad felt hat" }, { id: "capotain", name: "Tall capotain" }, { id: "cavalier", name: "Plumed hat" },
+  { id: "cap", name: "Knitted cap" }, { id: "straw", name: "Straw hat" }, { id: "fur", name: "Fur cap" }, { id: "coif", name: "Linen coif" }, { id: "kerchief", name: "Kerchief" },
 ];
 export const SWATCH = {
   skin: [0xf1d3bc, 0xe2b896, 0xc99a74, 0xa87652, 0x7e5236, 0x5a3a26],
@@ -22,6 +36,7 @@ export const SWATCH = {
   eyes: [0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a, 0x6a7a8a, 0x2a2a2a],
   linen: [0xf0ebe0, 0xe6dcc8, 0xd8ccb0, 0xc8d0d8, 0xb8a888],
   stockings: [0xd8d0c0, 0xf0ebe0, 0x3a3028, 0x5a5048, 0x6a3b32, 0x3e4a5c],
+  sash: [0x8a2a22, 0xb8a060, 0x2a3a5a, 0x2e4a3a, 0xe6dcc8, 0x3b3b40],
 };
 // starting points for the builder: a few of the people of the time
 export const PRESETS = [
@@ -35,7 +50,7 @@ export const PRESETS = [
 const pick = (a, r) => a[Math.floor(r() * a.length)];
 export function randomLook(seed = Math.floor(Math.random() * 1e9)) {
   let s = seed | 0 || 1; const r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
-  const body = pick(BODIES, r).id;
+  const body = pick(BODIES.filter(b => b.common), r).id;   // (a settler dresses as working folk do: no watchmen's sashes or rovers' furs)
   return { body, skin: pick(SWATCH.skin, r), hair: pick(SWATCH.hair, r), coat: pick(SWATCH.coat, r), legs: pick(SWATCH.legs, r), vest: pick(SWATCH.vest, r),
     apron: pick(SWATCH.apron.slice(1), r), hatColor: pick(SWATCH.hat.slice(1), r), hat: r() < 0.75 ? "hat" : "none", height: 0.96 + r() * 0.08,
     build: 0.94 + r() * 0.12, head: 0.97 + r() * 0.06, eyes: pick(SWATCH.eyes, r), linen: pick(SWATCH.linen, r), stockings: pick(SWATCH.stockings, r), seed };
@@ -51,11 +66,11 @@ export function saveLook(name, look) { try { localStorage.setItem(KEY, JSON.stri
 export function lookOpts(l, name) {
   l = l || {};
   const body = BODIES.some(b => b.id === l.body) ? l.body : "townsman", f = isF(l);
-  const hide = [];
-  if (l.hat === "none") hide.push("hat");
+  const hide = [], style = HAT_STYLES.some(h => h.id === l.hat) ? l.hat : "hat";
+  if (style !== "hat") hide.push("hat");
   if (f && !l.apron) hide.push("apron");
   return { model: body, name, seed: l.seed, coat: l.coat, legs: f ? undefined : l.legs, skirt: f, skirtColor: f ? l.legs : undefined,
-    vest: body === "brother" ? l.vest : undefined, apron: f ? l.apron || undefined : undefined, hatColor: l.hat === "none" ? undefined : l.hatColor,
+    vest: l.vest ?? undefined, apron: f ? l.apron || undefined : undefined, hatColor: style === "none" ? undefined : l.hatColor, hatStyle: style === "hat" || style === "none" ? undefined : style, sash: l.sash ?? undefined,
     skinColor: l.skin, hairColor: l.hair, eyeColor: l.eyes ?? undefined, linenColor: l.linen ?? undefined, stockingsColor: l.stockings ?? undefined,
     scale: l.height || 1, build: l.build || 1, headScale: l.head && l.head !== 1 ? l.head : undefined, hide: hide.length ? hide : undefined };
 }

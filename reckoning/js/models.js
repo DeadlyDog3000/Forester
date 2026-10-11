@@ -21,6 +21,80 @@ const _geo = {};
 function GEO(k, f) { if (!_geo[k]) { _geo[k] = f(); _geo[k]._shared = true; } return _geo[k]; }
 function shade(hex, l) { const c = new THREE.Color(hex); c.offsetHSL(0, 0, l); return c.getHex(); }
 
+// ---------------------------------------------------------------------------
+//  hats of the day: each made facing +Z, its band at y = 0 round a head of radius 0.1 (fitted to the head it goes on)
+// ---------------------------------------------------------------------------
+const hatMat = (c, rough = 0.95) => { const m = new THREE.MeshStandardMaterial({ color: c, roughness: rough, flatShading: true }); return addDetail(m, { scale: 3, amount: 0.15, grain: 0.5, surface: "none" }); };
+const HM = (geo, m, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.castShadow = true; return o; };
+export const HATS = {
+  // the cocked hat: its brim turned up on three sides, a point to the front
+  tricorn: { name: "Tricorn", make: (c, l) => { const g = new THREE.Group(), m = hatMat(c);
+    g.add(HM(new THREE.CylinderGeometry(0.098, 0.106, 0.085, 10), m, 0, 0.04, 0));
+    const wall = HM(new THREE.CylinderGeometry(0.205, 0.17, 0.075, 3, 1, true), m, 0, 0.03, -0.01, 0, Math.PI, 0); wall.material = hatMat(c); wall.material.side = THREE.DoubleSide; g.add(wall);
+    g.add(HM(new THREE.CylinderGeometry(0.175, 0.175, 0.012, 3), m, 0, -0.005, -0.01, 0, Math.PI, 0));
+    const trim = HM(new THREE.CylinderGeometry(0.207, 0.207, 0.012, 3, 1, true), hatMat(0xb8a060, 0.6), 0, 0.068, -0.01, 0, Math.PI, 0); trim.material.side = THREE.DoubleSide; g.add(trim); return g; } },
+  // a broad felt hat, low-crowned and round-brimmed, a little down at the edge
+  wide: { name: "Broad felt hat", make: c => { const g = new THREE.Group(), m = hatMat(c);
+    g.add(HM(new THREE.CylinderGeometry(0.092, 0.104, 0.1, 12), m, 0, 0.05, 0));
+    g.add(HM(new THREE.CylinderGeometry(0.205, 0.215, 0.014, 18), m, 0, 0.0, 0));
+    g.add(HM(new THREE.CylinderGeometry(0.106, 0.106, 0.022, 12), hatMat(0x2a2420), 0, 0.016, 0)); return g; } },
+  // the tall sugarloaf of the Dutch and the Puritans, a buckle on its band
+  capotain: { name: "Tall capotain", make: c => { const g = new THREE.Group(), m = hatMat(c);
+    g.add(HM(new THREE.CylinderGeometry(0.082, 0.104, 0.2, 12), m, 0, 0.1, 0));
+    g.add(HM(new THREE.CylinderGeometry(0.17, 0.175, 0.013, 16), m, 0, 0.0, 0));
+    g.add(HM(new THREE.CylinderGeometry(0.106, 0.106, 0.03, 12), hatMat(0x1a1612), 0, 0.022, 0));
+    g.add(HM(new THREE.BoxGeometry(0.04, 0.034, 0.008), hatMat(0xc8b070, 0.4), 0, 0.022, 0.107)); return g; } },
+  // a cavalier's hat: a great brim pinned up on one side, a plume over it
+  cavalier: { name: "Plumed hat", make: c => { const g = new THREE.Group(), m = hatMat(c);
+    g.add(HM(new THREE.CylinderGeometry(0.094, 0.104, 0.11, 12), m, 0, 0.055, 0));
+    g.add(HM(new THREE.CylinderGeometry(0.23, 0.23, 0.014, 18), m, 0, 0.005, 0, 0, 0, 0.28));
+    const plume = HM(new THREE.SphereGeometry(1, 8, 6), hatMat(0xf2ece0), 0.07, 0.12, -0.02, 0.2, 0, -0.9); plume.scale.set(0.03, 0.15, 0.045); g.add(plume);
+    const plume2 = HM(new THREE.SphereGeometry(1, 8, 6), hatMat(0x8a2a22), 0.05, 0.1, 0.02, -0.2, 0, -1.1); plume2.scale.set(0.022, 0.11, 0.035); g.add(plume2); return g; } },
+  // a knitted Monmouth cap, rolled at the edge
+  cap: { name: "Knitted cap", make: c => { const g = new THREE.Group(), m = hatMat(c);
+    g.add(HM(new THREE.SphereGeometry(0.108, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), m, 0, 0, 0)); g.children[0].scale.set(1, 1.15, 1.05);
+    g.add(HM(new THREE.TorusGeometry(0.106, 0.016, 6, 16), m, 0, 0.005, 0, Math.PI / 2, 0, 0)); return g; } },
+  // a wide straw hat for the fields
+  straw: { name: "Straw hat", straw: true, make: () => { const g = new THREE.Group(), m = hatMat(0xd8bc72);
+    g.add(HM(new THREE.CylinderGeometry(0.085, 0.104, 0.085, 12), m, 0, 0.042, 0));
+    g.add(HM(new THREE.CylinderGeometry(0.235, 0.24, 0.012, 18), m, 0, 0.0, 0));
+    g.add(HM(new THREE.CylinderGeometry(0.106, 0.106, 0.02, 12), hatMat(0x7a2a22), 0, 0.014, 0)); return g; } },
+  // a fur cap for the cold country
+  fur: { name: "Fur cap", make: c => { const g = new THREE.Group(), m = hatMat(c, 1);
+    g.add(HM(new THREE.CylinderGeometry(0.115, 0.118, 0.11, 10), m, 0, 0.045, 0));
+    g.add(HM(new THREE.SphereGeometry(0.112, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), m, 0, 0.09, 0)); g.children[1].scale.y = 0.45; return g; } },
+  // a linen coif, close about the head
+  coif: { name: "Linen coif", linen: true, make: (c, l) => { const g = new THREE.Group(), m = hatMat(l);
+    const s = HM(new THREE.SphereGeometry(0.112, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), m, 0, -0.035, -0.012, -0.35, 0, 0); s.scale.set(1, 1.05, 1.08); g.add(s); return g; } },
+  // a kerchief tied over the hair, its ends at the nape
+  kerchief: { name: "Kerchief", make: c => { const g = new THREE.Group(), m = hatMat(c);
+    const s = HM(new THREE.SphereGeometry(0.11, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), m, 0, -0.03, -0.01, -0.25, 0, 0); s.scale.set(1.02, 1.05, 1.08); g.add(s);
+    g.add(HM(new THREE.ConeGeometry(0.04, 0.09, 4), m, 0, -0.07, -0.11, 0.5, 0, 0)); return g; } },
+};
+// the hat set on a rigged head: where the top of the head is, and how wide, from the hair; held by the head bone,
+// square to the body however the bone itself lies
+function putHat(P, style, colour, linen) {
+  const H = HATS[style], head = P.headBone; if (!H || !head) return;
+  P.root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(P.root.matrixWorld).invert(), box = new THREE.Box3(), v = new THREE.Vector3();
+  P.body.traverse(o => { if (!o.isMesh || !/hair$/i.test(o.name) || !o.geometry) return; const p = o.geometry.attributes.position, M = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld); for (let i = 0; i < p.count; i++) box.expandByPoint(v.fromBufferAttribute(p, i).applyMatrix4(M)); });
+  if (box.isEmpty()) return;
+  // (the head's width at the crown, not the hair's at its widest: a wig or long hair falls wide of the head below it)
+  const top = box.max.y, crown = new THREE.Box3();
+  P.body.traverse(o => { if (!o.isMesh || !/hair$/i.test(o.name) || !o.geometry) return; const p = o.geometry.attributes.position, M = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(M); if (v.y > top - 0.07) crown.expandByPoint(v); } });
+  // own hat off
+  P.body.traverse(o => { if (o.isMesh && /_hat$/i.test(o.name)) o.visible = false; });
+  const r = Math.min(0.12, Math.max(0.075, Math.max(crown.max.x - crown.min.x, crown.max.z - crown.min.z) / 2 * 1.05)), cx = (crown.max.x + crown.min.x) / 2, cz = (crown.max.z + crown.min.z) / 2;
+  const hat = H.make(colour, linen); hat.scale.setScalar(r / 0.1 * 1.04);
+  // (where it sits: the band a little under the crown of the head, a touch back)
+  const at = new THREE.Vector3(cx, top - r * 0.42, cz - r * 0.08).applyMatrix4(P.root.matrixWorld);
+  head.updateMatrixWorld(true);
+  const hi = new THREE.Matrix4().copy(head.matrixWorld).invert();
+  hat.position.copy(at.applyMatrix4(hi));
+  const q = new THREE.Quaternion(); head.getWorldQuaternion(q); const qr = new THREE.Quaternion(); P.root.getWorldQuaternion(qr);
+  hat.quaternion.copy(q.invert().multiply(qr));
+  head.add(hat); P.hat = hat; noSnow(hat);
+}
 // a swimmer lies along the water: the body turned face-down and lifted, so the back is at the surface and the head up
 // out of it (eased in and out as they go into deep water and come out)
 // the stroke on a rigged body, over whatever its clip has the bones doing: each bone turned about the body's own axes
@@ -290,6 +364,8 @@ export function makePerson(o = {}) {
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };
   if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor, eyes: o.eyeColor, stockings: o.stockingsColor, linen: o.linenColor });
+  // a hat of another style than the outfit's own, set on the head (and turning with it)
+  if (o.hatStyle && HATS[o.hatStyle] && P.headBone) putHat(P, o.hatStyle, o.hatColor ?? 0x2a2420, o.linenColor ?? 0xf0ebe0);
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
   noSnow(P.root);
   return P;

@@ -49,7 +49,7 @@ export function applyStoryLook(look, who) {
   for (const k of ["brother", "sister"]) { for (const key of Object.keys(LOOKS[k])) delete LOOKS[k][key]; Object.assign(LOOKS[k], JSON.parse(JSON.stringify(BASE_LOOKS[k]))); }
   if (!look || !LOOKS[who]) return;
   const o = lookOpts({ ...look, body: who }, LOOKS[who].name), L = LOOKS[who], other = LOOKS[who === "brother" ? "sister" : "brother"];
-  for (const k of ["coat", "legs", "skirtColor", "vest", "apron", "hatColor", "skinColor", "hairColor", "eyeColor", "linenColor", "stockingsColor", "build", "headScale"]) if (o[k] != null) L[k] = o[k];
+  for (const k of ["coat", "legs", "skirtColor", "vest", "apron", "hatColor", "hatStyle", "skinColor", "hairColor", "eyeColor", "linenColor", "stockingsColor", "build", "headScale"]) if (o[k] != null) L[k] = o[k];
   if (o.scale) L.scale = o.scale;
   if (o.hide) L.hide = o.hide;
   if (o.skinColor != null) { L.skin = o.skinColor; other.skinColor = o.skinColor; other.skin = o.skinColor; }

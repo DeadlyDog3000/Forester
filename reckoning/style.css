@@ -1119,3 +1119,9 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 #wpMark span { display: block; margin: 2px 0 0 -10px; font: 600 12px var(--sans); color: #fff6e0; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
 /* (the game's name card, out of the way while the big map is open over it) */
 body:has(#bigmap:not(.hidden)) #mpTop { visibility: hidden; }
+/* the builder: outfits in two groups, and the hats as a row of choices */
+.cb-group { font: 600 11px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); margin: 10px 0 6px; }
+.cb-group:first-child { margin-top: 0; }
+.cb-hats { display: flex; flex-wrap: wrap; gap: 5px; }
+.cb-hats button { padding: 5px 9px; font: 600 12px var(--sans); color: var(--ink); background: rgba(140, 192, 132, 0.1); border: 1px solid var(--edge); border-radius: 5px; cursor: pointer; }
+.cb-hats button.on { background: rgba(140, 192, 132, 0.35); border-color: var(--gold); }

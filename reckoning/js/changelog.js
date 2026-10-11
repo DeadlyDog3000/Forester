@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.1.0", date: "11 October 2026", title: "Dressed for it",
+    items: [
+      "The character builder has outfits now, not just colours: for men the Burgher, Woodsman, Craftsman, Apprentice, Gentleman (the long coat of a man of standing), Watchman (the city's coat and sash) and Rover (fur and leather); for women the Burgher's wife, Woodswoman, Goodwife and Watchwoman. Every one in the colours you choose — coat, breeches or skirt, waistcoat, sash, shirt, stockings.",
+      "Hats to choose from, made for the time: a tricorn, a broad felt hat, a tall capotain, a plumed cavalier's hat, a knitted cap, a straw hat, a fur cap, a linen coif or a kerchief — or the outfit's own, or none. Each is fitted to the head it's on, turns with it, and comes in your colour.",
+      "Settlers coming to live with you dress as working folk: no watchmen's sashes or rovers' furs among them.",
+    ],
+  },
+  {
     v: "1.0.0", date: "11 October 2026", title: "Out of your depth",
     items: [
       "Swimming, properly. Out of your depth you swim: laid along the water with your head up, the arms in a breaststroke — out together in front, a wide sweep, drawn back in — and the legs in a frog kick. In first person you see your own two arms stroking; everyone else sees you swim. Your axe or bow goes on your back while you're in the water, and comes back to your hands on the shore.",

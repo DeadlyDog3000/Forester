@@ -1364,9 +1364,9 @@ async function start(opts = {}) {
 function sanitizeLook(l) {
   const o = {}; if (!l || typeof l !== "object") return o;
   for (const k of ["skin", "hair", "coat", "legs", "vest", "apron", "hatColor", "sash", "eyes", "linen", "stockings"]) if (Number.isFinite(+l[k]) && l[k] !== null && l[k] !== "") o[k] = (+l[k]) & 0xffffff;
-  o.body = ["townsman", "townswoman", "brother", "sister"].includes(l.body) ? l.body : "townsman";
-  o.sex = o.body === "townswoman" || o.body === "sister" ? "f" : "m";
-  o.hat = l.hat === "none" ? "none" : "hat";
+  o.body = LK.BODIES.some(b => b.id === l.body) ? l.body : "townsman";
+  o.sex = LK.isF(o) ? "f" : "m";
+  o.hat = LK.HAT_STYLES.some(h => h.id === l.hat) ? l.hat : "hat";
   o.height = Math.max(0.92, Math.min(1.08, num(l.height, 1)));
   o.build = Math.max(0.88, Math.min(1.14, num(l.build, 1)));
   o.head = Math.max(0.92, Math.min(1.08, num(l.head, 1)));

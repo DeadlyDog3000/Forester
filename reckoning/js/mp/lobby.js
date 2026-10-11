@@ -14,7 +14,7 @@ import { MODES, SIZES, EARTH_SIZES } from "./rules.js";
 import { readSlot, MP_SLOT, NATION_SLOT } from "../story.js";
 const MODE_LABEL = { ...MODES, colony: "Co-op colony", nations: "Classic" };
 import { TERRAINS, TERRAIN_ORDER } from "./terrain.js";
-import { BODIES, SWATCH, PRESETS, randomLook, savedLook, saveLook, lookOpts, isF } from "./look.js";
+import { BODIES, HAT_STYLES, SWATCH, PRESETS, randomLook, savedLook, saveLook, lookOpts, isF } from "./look.js";
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const hex = n => "#" + (n >>> 0).toString(16).padStart(6, "0");
@@ -185,7 +185,9 @@ async function connect(target) {
 // A preview you can turn and look closer at, and the choices in tabs: a preset to start from, the body, the face and
 // hair, the clothes. Every colour has its row of the period's dyes and a picker for any other.
 let pv = null, tab = "body";
-const BODY_NOTE = { townsman: "Coat, breeches and buckled shoes", townswoman: "Bodice, skirt and apron", brother: "A woodsman's coat and waistcoat", sister: "A working dress, sleeves rolled" };
+const BODY_NOTE = Object.fromEntries(BODIES.map(b => [b.id, b.note]));
+// (what each outfit has to be coloured: a waistcoat, a sash)
+const HAS = { vest: ["brother", "father", "watchman"], sash: ["watchman", "watchwoman"] };
 function openBuilder(target) {
   ctx.screen("mpBuilder");
   $("mpName").value = me.name || ""; try { if (me.name) localStorage.setItem("reckoning.mp.name", me.name); } catch (e) {}
@@ -210,7 +212,8 @@ function buildControls() {
   if (tab === "presets") {
     h = `<div class="cb-presets">${PRESETS.map((p, i) => `<button data-pre="${i}">${esc(p.name)}<div class="cb-chips">${["skin", "hair", "coat", "legs"].map(k => `<i style="background:${hex(p.look[k] ?? 0)}"></i>`).join("")}</div></button>`).join("")}</div><p class="mp-hint">A preset fills everything in. Change anything after.</p>`;
   } else if (tab === "body") {
-    h = `<div class="cb-bodies">${BODIES.filter(b => !story || b.id === story.body).map(b => `<button data-body="${b.id}" class="${b.id === L.body ? "on" : ""}">${b.name}<small>${BODY_NOTE[b.id]}</small></button>`).join("")}</div>`
+    const group = (f, t) => { const list = BODIES.filter(b => b.f === f && (!story || b.id === story.body)); return list.length ? `<div class="cb-group">${t}</div><div class="cb-bodies">${list.map(b => `<button data-body="${b.id}" class="${b.id === L.body ? "on" : ""}">${b.name}<small>${BODY_NOTE[b.id]}</small></button>`).join("")}</div>` : ""; };
+    h = group(false, "Men's outfits") + group(true, "Women's outfits")
       + slider("height", "Height", 0.94, 1.06, L.height || 1, v => `${Math.round(170 * v)} cm`)
       + slider("build", "Build", 0.9, 1.12, L.build || 1, v => v < 0.96 ? "slight" : v > 1.05 ? "broad" : "middling")
       + sw("skin", "Skin", SWATCH.skin, L.skin);
@@ -218,22 +221,25 @@ function buildControls() {
     h = slider("head", "Head", 0.94, 1.06, L.head || 1, pct)
       + sw("hair", "Hair", SWATCH.hair, L.hair)
       + sw("eyes", "Eyes", SWATCH.eyes, L.eyes ?? SWATCH.eyes[0])
-      + (L.body !== "sister" ? sw("hatColor", f ? "Bonnet" : "Hat", SWATCH.hat, L.hatColor, L.hat === "none") : "");
+      + `<div class="mp-row"><span>Hat</span><div class="cb-hats">${HAT_STYLES.map(hs => `<button data-hat="${hs.id}" class="${(L.hat || "hat") === hs.id ? "on" : ""}">${hs.name}</button>`).join("")}</div></div>`
+      + (!["none", "straw", "coif"].includes(L.hat) ? sw("hatColor", "Hat colour", SWATCH.hat.slice(1), L.hatColor ?? SWATCH.hat[1]) : "");
   } else {
     h = sw("coat", f ? "Bodice" : "Coat", SWATCH.coat, L.coat)
       + sw("legs", f ? "Skirt" : "Breeches", SWATCH.legs, L.legs)
-      + (L.body === "brother" ? sw("vest", "Waistcoat", SWATCH.vest, L.vest) : "")
+      + (HAS.vest.includes(L.body) ? sw("vest", "Waistcoat", SWATCH.vest, L.vest ?? SWATCH.vest[0]) : "")
+      + (HAS.sash.includes(L.body) ? sw("sash", "Sash", SWATCH.sash, L.sash ?? SWATCH.sash[0]) : "")
       + (f ? sw("apron", "Apron", SWATCH.apron, L.apron, !L.apron) : "")
       + sw("linen", "Shirt", SWATCH.linen, L.linen ?? SWATCH.linen[0])
       + sw("stockings", "Stockings", SWATCH.stockings, L.stockings ?? SWATCH.stockings[0]);
   }
   $("mpControls").innerHTML = h;
   const set = (k, v) => {
-    if (k === "hatColor") { if (v === null) L.hat = "none"; else { L.hat = "hat"; L.hatColor = v; } }
+    if (k === "hatColor") { if (v === null) L.hat = "none"; else { if (L.hat === "none") L.hat = "hat"; L.hatColor = v; } }
     else L[k] = v;
     showLook();
   };
   for (const b of $("mpControls").querySelectorAll("[data-body]")) b.onclick = () => { L.body = b.dataset.body; buildControls(); showLook(); };
+  for (const b of $("mpControls").querySelectorAll("[data-hat]")) b.onclick = () => { L.hat = b.dataset.hat; buildControls(); showLook(); };
   for (const b of $("mpControls").querySelectorAll(".sw")) b.onclick = () => { set(b.dataset.k, b.dataset.v === "" ? null : +b.dataset.v); buildControls(); };
   for (const i of $("mpControls").querySelectorAll(".cb-pick")) i.oninput = () => { set(i.dataset.k, parseInt(i.value.slice(1), 16)); for (const b of i.parentNode.querySelectorAll(".sw")) b.classList.remove("on"); };
   for (const i of $("mpControls").querySelectorAll("[data-s]")) i.oninput = () => { L[i.dataset.s] = +i.value; const o = $("mpControls").querySelector(`[data-o="${i.dataset.s}"]`); if (o) o.textContent = { height: v => `${Math.round(170 * v)} cm`, build: v => v < 0.96 ? "slight" : v > 1.05 ? "broad" : "middling", head: v => `${Math.round(v * 100)}%` }[i.dataset.s](+i.value); showLook(); };
