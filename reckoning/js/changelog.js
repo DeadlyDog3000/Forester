@@ -7,9 +7,10 @@
 
 export const CHANGELOG = [
   {
-    v: "0.99.2", date: "11 October 2026", title: "Solid ground",
+    v: "0.99.3", date: "11 October 2026", title: "Solid ground",
     items: [
       "Fixed: anything standing on low ground — a building in a hollow, a tree in a valley, a rock by a lake — could be walked straight through. Everything that's solid is now solid however low or high it stands.",
+      "Fixed: out in the forest of the story, away from the road, you could walk straight through the trees. Every trunk in the woods is solid now.",
       "Fixed: the settlement's buildings are solid exactly at their own walls, at whatever angle they were set down. You used to walk a metre into some walls and stop short of others; now you come right up against them, and round their corners. Your people keep a little off them as before.",
     ],
   },

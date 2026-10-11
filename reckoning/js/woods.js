@@ -207,7 +207,8 @@ export class Woods extends WorldBase {
       const kind = r() < 0.62 ? "spruce" : r() < 0.6 ? "pine" : "birch";
       const h = kind === "spruce" ? r.range(8, 16) : kind === "pine" ? r.range(10, 17) : r.range(7, 11);
       list.push({ x, z, y: this.heightAt(x, z), h, kind, rot: r() * TAU });
-      if (this.roadDist(x, z).d < 40 || dc < 70) this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
+      // (every trunk solid — up from the ground it stands on — not only those by the road)
+      { const t = list[list.length - 1]; t.col = this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, t.y + 12); }
     }
     // and the woods close round the charcoal burner's clearing too
     for (let i = 0; i < 900; i++) {
@@ -222,7 +223,7 @@ export class Woods extends WorldBase {
       const kind = r() < 0.7 ? "spruce" : r() < 0.5 ? "pine" : "birch";
       const h = kind === "spruce" ? r.range(8, 16) : kind === "pine" ? r.range(10, 17) : r.range(7, 11);
       list.push({ x, z, y: this.heightAt(x, z), h, kind, rot: r() * TAU });
-      if (rad < 30) this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
+      { const t = list[list.length - 1]; t.col = this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, t.y + 12); }
     }
     // and all the way round the clearing, deep, so it sits in a forest and not at the edge of the world;
     // the deer ride east of it is a glade in that forest, thinned rather than cleared
@@ -244,7 +245,7 @@ export class Woods extends WorldBase {
       const h = kind === "spruce" ? r.range(8, 16) : kind === "pine" ? r.range(10, 17) : r.range(7, 11);
       list.push({ x, z, y: this.heightAt(x, z), h, kind, rot: r() * TAU });
       const tree = list[list.length - 1];
-      if (rad < CLEARING.r + 60 || dh < HUNT.r + 6) tree.col = this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, 12);
+      tree.col = this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, tree.y + 12);
     }
     // the forest in tiles of eighty metres, so what is behind you or past the haze is never drawn
     // (as one piece, every tree was drawn every frame, and twice over for the shadows)
@@ -948,7 +949,7 @@ export class Woods extends WorldBase {
       g.position.set(tx, ty - 0.1, tz);
       root.add(g);
       ownGrainAll(g);
-      const t = { g, x: tx, z: tz, y: ty, h, hp: 4, state: "up", angle: a, col: this.col.addCircle(tx, tz, 0.32, 12), fall: 0, claimed: null };
+      const t = { g, x: tx, z: tz, y: ty, h, hp: 4, state: "up", angle: a, col: this.col.addCircle(tx, tz, 0.32, ty + 12), fall: 0, claimed: null };
       this.fellable.push(t);
     }
   }
@@ -1059,7 +1060,7 @@ export class Woods extends WorldBase {
     }
     g.position.set(s.x, s.y - 0.1, s.z);
     this.root.add(g); ownGrainAll(g);
-    const t = { g, x: s.x, z: s.z, y: s.y, h: s.h, hp: s.kind === "birch" ? 3 : 4, state: "up", angle: Math.atan2(s.z - CLEARING.z, s.x - CLEARING.x), col: this.col.addCircle(s.x, s.z, s.kind === "birch" ? 0.24 : 0.32, 12), fall: 0, claimed: null, src: s };
+    const t = { g, x: s.x, z: s.z, y: s.y, h: s.h, hp: s.kind === "birch" ? 3 : 4, state: "up", angle: Math.atan2(s.z - CLEARING.z, s.x - CLEARING.x), col: s.col && !s.col.disabled ? s.col : this.col.addCircle(s.x, s.z, s.kind === "birch" ? 0.24 : 0.32, s.y + 12), fall: 0, claimed: null, src: s };
     s.adopted = t;
     this.fellable.push(t);
     return t;
