@@ -190,6 +190,8 @@ export function blendAtmo(a, b, t) {
 // what your hands hold on the screen hangs from this, not the camera itself, so it can move as you do:
 // it sways behind a turn, bobs with your stride, drops when you land, and comes up from below when you take a thing out
 export const vm = new THREE.Group();
+// (the splash of a stroke, a plunge, a going-under: the foley's, when it's there)
+const FOLEY_SPLASH = (p, vol) => { const F = window.__foley; if (F && F.splash) F.splash({ x: p.x, y: p.y + 1.2, z: p.z }, vol); };
 camera.add(vm);
 
 export class Player {
@@ -215,6 +217,7 @@ export class Player {
   place(x, z, yaw = 0) {
     this.pos.set(x, G.world ? G.world.heightAt(x, z) : 0, z);
     this.yaw = yaw; this.pitch = 0; this.vel.set(0, 0, 0);
+    this.landTrail = null;              // (put somewhere new: the dry ground behind you is here now, not where you were)
     this.trail = [{ x, z }];
   }
   forward() { return new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); }
@@ -690,7 +693,7 @@ export class Player {
   // held low on the right, head up, ready
   axeRest() { this.axe.position.set(0.34, -0.5, -0.42); this.axe.rotation.set(1.05, -0.35, -0.5); }
   swing(onHit) {
-    if (this.swingT >= 0) return;
+    if (this.swingT >= 0 || this.swimming) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
     // (a pickaxe only ever comes down from above, into the rock)
     this.swingDir = this.blade === "pick" ? "up" : this.stance || "right";
@@ -725,7 +728,7 @@ export class Player {
 
     // movement
     let mx = 0, mz = 0;
-    const canMove = G.mode === "play" && !G.lockMove && !UI.dialogOpenBlocking && !G.freecam;
+    const canMove = G.mode === "play" && !G.lockMove && !UI.dialogOpenBlocking && !G.freecam && !this.drowning;
     if (canMove) {
       if (input.down("KeyW") || input.down("ArrowUp")) mz -= 1;
       if (input.down("KeyS") || input.down("ArrowDown")) mz += 1;
@@ -735,8 +738,18 @@ export class Player {
     // (not while the camera flies free: there C takes the camera down, not you)
     if (!G.freecam && (input.hit("KeyC") || input.hit("ControlLeft"))) this.crouched = !this.crouched;
     let sprint = (input.down("ShiftLeft") || input.down("ShiftRight")) && !this.crouched;
-    // in a chase, breath runs out: a spent runner can only jog until it comes back
-    if (G.stamina !== undefined) {
+    // in deep water, out of your depth: swimming (not on a horse, not in a boat)
+    this.swimUpdate(dt, w, mx || mz);
+    if (this.swimming) {
+      // the water takes your strength fast, and gives none of it back till you're out: when it's gone, you go under
+      // (Shift: a hard stroke, quicker, and quicker spent)
+      if (G.stamina === undefined) G.stamina = 1;
+      const drain = (mx || mz ? (sprint ? 1 / 4.5 : 1 / 8.5) : 1 / 14) * (G.staminaMul ?? 1) * staminaDrain(G.body);
+      if (!this.drowning) G.stamina = Math.max(0, G.stamina - dt * drain);
+      if (G.stamina <= 0) this.drown();
+      this.winded = false;
+      UI.stamina(G.stamina, G.stamina < 0.25);
+    } else if (G.stamina !== undefined) {
       if (this.winded && G.stamina > 0.35) this.winded = false;
       const hungry = G.body && G.body.hunger < 0.2 ? 0.5 : 1;
       if (sprint && !this.winded && this.speed > 1) { G.stamina = Math.max(0, G.stamina - dt / 5.5 * (G.staminaMul ?? 1) * staminaDrain(G.body)); if (G.stamina < 0.5) G.practise("endurance", dt * 0.5); }
@@ -806,7 +819,7 @@ export class Player {
     if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.15; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(this.pos.x, this.pos.z)); this.wading = G.world && G.world.waterDepth ? G.world.waterDepth(this.pos.x, this.pos.z) : 0; }
     // (wading is slow going, and slower the deeper)
     const wade = this.wading > 0.05 && !this.horse ? 1 - Math.min(0.55, this.wading * 0.7) : 1;
-    const max = (this.draw > 0 ? 1.6 - this.draw * 0.5 : 1) * (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1) * wade;
+    const max = this.swimming ? (sprint ? 2.7 : 1.8) : (this.draw > 0 ? 1.6 - this.draw * 0.5 : 1) * (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1) * wade;
     if (this.horse) this.crouched = false;
     const len = Math.hypot(mx, mz);
     const c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
@@ -820,7 +833,7 @@ export class Player {
 
     // jumping and gravity
     // (a jump costs breath: winded, you can't jump at all; tired, it's only a hop)
-    if (canMove && input.hit("Space") && this.onGround && !UI.dialogOpen && !(this.winded && G.stamina !== undefined)) {
+    if (canMove && input.hit("Space") && this.onGround && !this.swimming && !UI.dialogOpen && !(this.winded && G.stamina !== undefined)) {
       const st = G.stamina ?? 1;
       this.vy = 4.6 * (st < 0.2 ? 0.7 : 1); this.onGround = false;
       if (G.stamina !== undefined) { G.stamina = Math.max(0, G.stamina - 0.12 * (G.staminaMul ?? 1) * staminaDrain(G.body)); if (G.stamina <= 0) this.winded = true; }
@@ -846,7 +859,9 @@ export class Player {
       }
       if (w.constrain) w.constrain(this.pos);
       // (in a house with an upper floor, the floor under your feet: the stair, or the loft)
-      const gy = w.floorAt ? w.floorAt(this.pos.x, this.pos.z, this.pos.y) : w.heightAt(this.pos.x, this.pos.z);
+      let gy = w.floorAt ? w.floorAt(this.pos.x, this.pos.z, this.pos.y) : w.heightAt(this.pos.x, this.pos.z);
+      // (swimming: afloat, your head above the water, rising and falling a little with your strokes)
+      if (this.swimming) gy = Math.max(gy, this.swimSurf - 1.32 + Math.sin(this.swimT * 3.2) * 0.04);
       const was = this.onGround, fall = this.vy;
       if (this.pos.y <= gy) { this.pos.y = gy; this.vy = 0; this.onGround = true; }
       else if (this.pos.y - gy < 0.25 && this.vy <= 0) { this.pos.y = gy; this.vy = 0; this.onGround = true; }
@@ -901,6 +916,7 @@ export class Player {
       m.body.scale.y = (this.model.scaleBase ?? 1) * (this.crouched ? 0.7 : 1);
       // on a bench or a stool, your body sits too
       m.sitting += ((this.seated || this.horse ? 1 : 0) - m.sitting) * Math.min(1, dt * 6);
+      if (this.swimming) m.setPose("swim"); else if (m.pose === "swim") m.setPose("idle");
       m.update(dt, this.seated || this.horse ? 0 : this.speed);
       m.body.rotation.z = this.lean * 0.28;
       // first person, your own body is there when you look down: all of you but the head (the camera is in it)
@@ -909,7 +925,8 @@ export class Player {
       if (this.horse) m.root.position.y += 1.02;
       if (fp) { const bk = G.fpBack ?? 0.12; m.root.position.x += Math.sin(this.yaw) * bk; m.root.position.z += Math.cos(this.yaw) * bk; m.root.position.y -= G.fpDown ?? 0.05; }
       firstPersonBones(m, fp);
-      m.root.visible = true;
+      // (first person in the water, your own body's under you and out of sight: the arms on the screen do the swimming)
+      m.root.visible = !(fp && this.swimming);
     }
 
     // the guard: right mouse held with the axe or a weapon out (and nothing in front of you to use) —
@@ -968,6 +985,97 @@ export class Player {
     this.updateXbow(dt);
     this.updateGun(dt);
     this.updateWork(dt);
+  }
+  // ---- swimming ----
+  // in the water or out of it, each frame: your tools put away while you swim (and back in your hands on the shore),
+  // the dry ground you last stood on remembered, and the arms on the screen stroking
+  swimUpdate(dt, w, moving) {
+    let deep = 0, ground = 0;
+    if (w && w.waterDepth && !this.horse && !G.noSwim) { ground = w.heightAt(this.pos.x, this.pos.z); deep = w.waterDepth(this.pos.x, this.pos.z); }
+    const surf = ground + deep + (deep > 0.5 && w.waveHeight ? w.waveHeight(this.pos.x, this.pos.z) : 0);
+    // (out of your depth and down in it — not stood on a tower over it, nor in a boat on it)
+    const was = this.swimming;
+    this.swimming = deep > (was ? 1.05 : 1.2) && this.pos.y < surf - 0.6;
+    if (this.swimming) {
+      this.swimSurf = surf; this.swimT = (this.swimT || 0) + dt * (moving ? 1 : 0.45);
+      if (!was) {
+        this.swimStow = { axe: !!this.axe || this.swimStow?.axe, bow: !!this.bow, gun: !!this.gun };
+        FOLEY_SPLASH(this.pos, 0.6);
+        if (!this.toldSwim) { this.toldSwim = true; UI.hint("Out of your depth — swimming. It takes your strength fast (Shift: a hard stroke, faster spent). Make for land before the bar runs out.", 5); }
+      }
+      if (this.axe) this.holsterAxe(true);
+      if (this.bow) this.showBow(false);
+      if (this.gun) this.showGun(false);
+      if (this.crouched) this.crouched = false;
+      // the strokes: a splash now and then as the arms come round
+      const ph = (this.swimT * 0.55) % 1;
+      if (moving && (this.lastStroke ?? 1) > ph) FOLEY_SPLASH(this.pos, 0.25);
+      this.lastStroke = ph;
+    } else {
+      if (was && this.swimStow) {
+        const st = this.swimStow; this.swimStow = null;
+        if (st.axe) this.holsterAxe(false); else if (st.bow) this.showBow(true); else if (st.gun) this.showGun(true);
+      }
+      // the last dry ground you stood on, a few seconds back: where you come to if the water takes you
+      if (this.onGround && deep < 0.15 && !this.drowning && w) {
+        if ((this.landT = (this.landT || 0) - dt) <= 0) {
+          this.landT = 0.5;
+          (this.landTrail ??= []).push({ x: this.pos.x, z: this.pos.z, yaw: this.yaw });
+          if (this.landTrail.length > 8) this.landTrail.shift();
+        }
+      }
+    }
+    this.swimArms(dt, this.swimming && !G.forceThird && !G.freecam, moving);
+  }
+  // the water takes you: everything goes dark, and you come to on the last dry ground you stood on, spent and coughing
+  drown() {
+    if (this.drowning) return;
+    this.drowning = true;
+    UI.hint("Your strength's gone — the water's taking you under…", 2.5);
+    FOLEY_SPLASH(this.pos, 0.9);
+    UI.fade(1, 0.9).then(() => {
+      const t = (this.landTrail || []).filter(p => !G.world || !G.world.waterDepth || G.world.waterDepth(p.x, p.z) < 0.15);
+      const p = t[0] || t[t.length - 1];
+      if (p) this.place(p.x, p.z, p.yaw); this.vel.set(0, 0, 0);
+      this.landTrail = p ? [p] : [];
+      G.stamina = 0.4; this.winded = true;
+      // (a hurt for it, in a game whose health is yours to keep — in a game on a server, the server keeps it)
+      if (!G.mp && G.health !== undefined) G.health = Math.max(0.05, G.health - 0.15);
+      G.panting = 4;
+      this.drowning = false;
+      UI.fade(0, 1.1);
+      UI.hint("The water took you under. You come to on the shore, coughing it up.", 4.5);
+    });
+  }
+  // your two arms on the screen, in the water: out together in front, apart in a wide sweep, and drawn back in to the
+  // chest — a breaststroke, slower when you only tread water
+  swimArms(dt, on, moving) {
+    if (!on) { if (this.swimRig) this.swimRig.visible = false; return; }
+    if (!this.swimRig) {
+      const g = this.swimRig = new THREE.Group(); vm.add(g);
+      this.swimLimbs = [-1, 1].map(side => {
+        const arm = new THREE.Group();
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), ARMS_M.sleeve); arm.add(sleeve);
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), ARMS_M.cuff); arm.add(cuff);
+        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.03, 0.12).translate(0, 0, -0.05), ARMS_M.skin);
+        g.add(arm, hand); return { side, arm, sleeve, cuff, hand };
+      });
+    }
+    this.swimRig.visible = true;
+    // (the cycle: 0 hands together at the chest .. 0.3 reached out in front .. 0.65 swept wide .. 1 drawn back in)
+    const ph = (this.swimT * 0.55) % 1, e = x => x * x * (3 - 2 * x);
+    const key = [[0, 0.09, -0.27, -0.42], [0.3, 0.07, -0.16, -0.85], [0.65, 0.5, -0.19, -0.62], [1, 0.09, -0.27, -0.42]];
+    let k = 0; while (k < key.length - 2 && ph > key[k + 1][0]) k++;
+    const [t0, x0, y0, z0] = key[k], [t1, x1, y1, z1] = key[k + 1], f = e((ph - t0) / (t1 - t0));
+    const hx = x0 + (x1 - x0) * f, hy = y0 + (y1 - y0) * f + (moving ? 0 : 0.03), hz = z0 + (z1 - z0) * f;
+    const sweep = k === 1 ? f : k === 2 ? 1 - f : 0;            // (palms turned out as they sweep apart)
+    for (const L of this.swimLimbs) {
+      const h = new THREE.Vector3(hx * L.side, hy, hz), sh = new THREE.Vector3(0.24 * L.side, -0.5, 0.08);
+      L.hand.position.copy(h); L.hand.rotation.set(-0.15, 0, L.side * (0.25 + sweep * 0.9));
+      const d = new THREE.Vector3().subVectors(h, sh), len = d.length();
+      L.arm.position.copy(sh); L.arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+      L.sleeve.scale.set(1, Math.max(0.05, len - 0.08), 1); L.cuff.position.y = Math.max(0.05, len - 0.11);
+    }
   }
   // where your eyes are, leaning included
   // up on a horse from the stable, and down again (it goes back there by itself)

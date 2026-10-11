@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.0.0", date: "11 October 2026", title: "Out of your depth",
+    items: [
+      "Swimming, properly. Out of your depth you swim: laid along the water with your head up, the arms in a breaststroke — out together in front, a wide sweep, drawn back in — and the legs in a frog kick. In first person you see your own two arms stroking; everyone else sees you swim. Your axe or bow goes on your back while you're in the water, and comes back to your hands on the shore.",
+      "The water takes your strength fast, and gives none back till you're out: the bar drains as you swim (faster with a hard stroke, Shift; slower treading water). When it runs out you go under — everything goes dark — and you come to on the last dry ground you stood on, spent and coughing (and a little hurt, in the story).",
+      "A swimmer rides the swell, rising and falling with the waves.",
+      "The English Channel is open sea again, wide from the Scillies to the Narrows of Dover: England is an island, as it should be.",
+    ],
+  },
+  {
     v: "0.99.8", date: "11 October 2026", title: "The wide world, told true",
     items: [
       "The lobby describes the wide world as it is now: the whole Earth at its full size, forty kilometres across, every continent, sea and mountain range where it lies.",

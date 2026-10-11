@@ -21,6 +21,44 @@ const _geo = {};
 function GEO(k, f) { if (!_geo[k]) { _geo[k] = f(); _geo[k]._shared = true; } return _geo[k]; }
 function shade(hex, l) { const c = new THREE.Color(hex); c.offsetHSL(0, 0, l); return c.getHex(); }
 
+// a swimmer lies along the water: the body turned face-down and lifted, so the back is at the surface and the head up
+// out of it (eased in and out as they go into deep water and come out)
+// the stroke on a rigged body, over whatever its clip has the bones doing: each bone turned about the body's own axes
+// (taken into the bone's frame), so the rig's own bone rolls don't matter
+const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _ax = new THREE.Vector3();
+function turnBone(b, root, ax, ang) {
+  if (!b || !ang) return;
+  // the axis, from the body's frame into the bone's parent's frame, then applied on top of the bone's own turn
+  b.parent.getWorldQuaternion(_qi); root.getWorldQuaternion(_q); _qi.invert().multiply(_q);
+  _ax.copy(ax).applyQuaternion(_qi).normalize();
+  b.quaternion.premultiply(_q.setFromAxisAngle(_ax, ang));
+}
+const AX = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+function swimBones(P, dt) {
+  const B = P.bones || {}, k = P.swimK, c = ((P.poseT || 0) * 0.55) % 1;
+  const out = c < 0.3 ? c / 0.3 : c < 0.65 ? 1 : 1 - (c - 0.65) / 0.35, wide = c < 0.3 ? 0 : c < 0.65 ? (c - 0.3) / 0.35 : 1 - (c - 0.65) / 0.35;
+  const kick = Math.sin(c * Math.PI * 2);
+  P.root.updateMatrixWorld(true);
+  P._swimBack = ["upper_arm.L", "upper_arm.R", "forearm.L", "forearm.R", "thigh.L", "thigh.R", "shin.L", "shin.R", "neck"].filter(n => B[n]).map(n => [B[n], B[n].quaternion.clone()]);
+  for (const [side, s] of [["L", 1], ["R", -1]]) {
+    // (arms: raised forward over the head, swept out to the side, drawn back in)
+    turnBone(B["upper_arm." + side], P.body, AX.x, -(1.2 + out * 1.4) * k);
+    turnBone(B["upper_arm." + side], P.body, AX.z, s * wide * 0.9 * k);
+    turnBone(B["forearm." + side], P.body, AX.x, -(1 - out) * 0.9 * k);
+    // (legs: a frog kick)
+    turnBone(B["thigh." + side], P.body, AX.x, kick * 0.35 * k);
+    turnBone(B["thigh." + side], P.body, AX.z, s * Math.max(0, kick) * 0.3 * k);
+    turnBone(B["shin." + side], P.body, AX.x, Math.max(0, -kick) * 0.8 * k);
+  }
+  // (the head held up out of the water)
+  turnBone(B.neck, P.body, AX.x, -0.9 * k);
+}
+function swimLay(P, dt) {
+  P.swimK = (P.swimK || 0) + ((P.pose === "swim" ? 1 : 0) - (P.swimK || 0)) * Math.min(1, dt * 4);
+  const k = P.swimK;
+  P.body.rotation.x = (P.body.rotation.x || 0) * (1 - k) + 1.3 * k;
+  P.body.position.y = 0.86 * k; P.body.position.z = -0.75 * k;
+}
 export function makePerson(o = {}) {
   const r = rng(o.seed ?? Math.floor(Math.random() * 1e9));
   const skin = o.skin ?? r.pick(SKIN), hair = o.hair ?? r.pick(HAIR);
@@ -214,7 +252,17 @@ export function makePerson(o = {}) {
         case "sit": armR.rotation.set(-0.7, 0.2, 0); armL.rotation.set(-0.7, -0.2, 0); break;
         case "grieve": armR.rotation.set(-1.9, -0.6, 0); armL.rotation.set(-1.9, 0.6, 0); neck.rotation.x = 0.4; break;
         case "bound": armR.rotation.set(0.35, -0.5, 0.2); armL.rotation.set(0.35, 0.5, -0.2); break;
+        case "swim": {
+          // a breaststroke, laid out along the water: arms out in front, a wide sweep, drawn in; the legs a frog kick
+          const c = (t * 0.55) % 1, out = c < 0.3 ? c / 0.3 : c < 0.65 ? 1 : 1 - (c - 0.65) / 0.35, wide = c < 0.3 ? 0 : c < 0.65 ? (c - 0.3) / 0.35 : 1 - (c - 0.65) / 0.35;
+          armR.rotation.set(-1.4 - out * 1.5, 0, -0.2 - wide * 1.0); armL.rotation.set(-1.4 - out * 1.5, 0, 0.2 + wide * 1.0);
+          const kick = Math.sin(c * Math.PI * 2);
+          legL.rotation.set(kick * 0.35, 0, 0.15 + Math.max(0, kick) * 0.3); legR.rotation.set(kick * 0.35, 0, -0.15 - Math.max(0, kick) * 0.3);
+          break;
+        }
       }
+      // (in the water, the whole body laid along it, its back at the surface)
+      swimLay(this, dt);
       if (this.pose !== "grieve") neck.rotation.x += ((this.pose === "sit" ? 0.1 : 0) - neck.rotation.x) * Math.min(1, dt * 6);
       // the cloth follows the legs: each point swings with the leg on its side, more the lower it hangs
       if (cloth.length && root.visible) {
@@ -381,6 +429,8 @@ function useModel(P, key, colors = {}) {
   let headB = null, neckB = null;
   m.scene.traverse(o => { if (!o.isBone) return; if (!headB && /^head$/i.test(o.name)) headB = o; if (!neckB && /^neck$/i.test(o.name)) neckB = o; });
   P.headBone = headB;
+  // (by the rig's names, as Blender wrote them: the loader takes the dots out — upper_arm.L comes in as upper_armL)
+  P.bones = {}; m.scene.traverse(o => { if (o.isBone) { P.bones[o.name] = o; P.bones[o.name.replace(/([LR])$/, ".$1")] ??= o; } });
   // held things follow the model's right hand, if it has a bone by that name
   // (the rig's own names: handR / handL, or hand.R, hand_R, RightHand)
   let hand = null, handL = null;
@@ -399,6 +449,7 @@ function useModel(P, key, colors = {}) {
     // the model does its own moving, so the code-built body stands straight
     P.body.rotation.x = 0; P.hips.position.y = 0.92;
     let pose = (this.pose || "idle").toLowerCase();
+    if (pose === "swim") pose = "idle";
     // in a fight and doing nothing else: the guard, not standing about
     if (this.fight && (pose === "idle" || pose === "reach" && !acts.reach) && acts.guard) pose = "guard";
     // walking and running win over a held pose, except for what the hands must keep doing (a load carried, a light held)
@@ -427,7 +478,12 @@ function useModel(P, key, colors = {}) {
     // (last frame's turn of the head taken off first: the mixer only writes a bone when its clip changes it, so a turn
     // left on would be added to again and again, and the head would wind round)
     if (this.lookApplied) { if (headB) headB.rotateY(-this.lookApplied * 0.65); if (neckB) neckB.rotateY(-this.lookApplied * 0.3); this.lookApplied = 0; }
+    // (last frame's stroke taken off first, as the head's turn is: a bone the clip doesn't move would keep it, and add to it)
+    if (this._swimBack) { for (const [b, q] of this._swimBack) b.quaternion.copy(q); this._swimBack = null; }
     mixer.update(dt);
+    // swimming: laid along the water (as the code-built body is), the arms and legs in their stroke over the clip
+    swimLay(this, dt);
+    if (this.swimK > 0.02) swimBones(this, dt);
     // the head turned toward whoever they're watching, over what the clip is doing: most of it in the head, some in
     // the neck, eased in and out
     this.lookS = (this.lookS || 0) + ((this.look || 0) - (this.lookS || 0)) * Math.min(1, dt * 5);

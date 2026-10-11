@@ -13,7 +13,7 @@ import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShi
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief, caveIcon } from "../map.js";
 import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
-import { WaterMat } from "../water.js";
+import { WaterMat, waveAt } from "../water.js";
 import { Caves } from "../cave.js";
 import { REALMS_1683, SEAS_1683 } from "./earth-1683.js";
 import { BUILD } from "./rules.js";
@@ -107,6 +107,8 @@ export class Wilds extends WorldBase {
     return Math.max(g, WATER - 1.3);
   }
   waterDepth(x, z) { return Math.max(0, WATER - this.land.heightAt(x, z)); }
+  // the swell here, now: how far the sea's surface stands above or below its level (a swimmer rides it)
+  waveHeight(x, z) { return waveAt(this.wm, x, z); }
   surfaceAt(x, z) {
     const h = this.land.heightAt(x, z);
     if (h < WATER) return "water";

@@ -99,8 +99,9 @@ export class Remote {
     a.lying = this.dead; a.lieK = this.dead ? Math.min(1, (a.lieK || 0) + dt * 2) : Math.max(0, (a.lieK || 0) - dt * 3);
     a.speed = this.dead ? 0 : this.spd;
     a.person.fight = !!this.guard;
-    a.person.setPose(this.dead ? "idle" : this.anim === "chop" ? "chop" : this.anim === "hammer" ? "hammer" : "idle");
+    a.person.setPose(this.dead ? "idle" : this.anim === "swim" ? "swim" : this.anim === "chop" ? "chop" : this.anim === "hammer" ? "hammer" : "idle");
     if (this.horse) a.person.sitting += (1 - a.person.sitting) * Math.min(1, dt * 6);
+    a.person.held.visible = !this.horse && this.anim !== "swim";   // (the axe put away to swim)
     a.person.update(dt, this.horse ? 0 : a.speed);
     a.sync();
     // (swimming, or up a tower: the height they're at, not the ground's)
@@ -700,7 +701,7 @@ export class MPGame {
     if ((this.sendT -= dt) <= 0) {
       this.sendT = 0.1;
       const guard = !!(input.rdown && pl.axe && !this.build);
-      this.net.send({ t: "st", c: pl.crouched ? 1 : 0, x: +pl.pos.x.toFixed(2), y: +pl.pos.y.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(3), a: pl.swingT >= 0 ? "chop" : G.working && G.working.until > G.time && G.working.kind === "hammer" ? "hammer" : "idle", h: pl.horse ? "horse" : "axe", s: +(pl.speed || 0).toFixed(2), g: guard });
+      this.net.send({ t: "st", c: pl.crouched ? 1 : 0, x: +pl.pos.x.toFixed(2), y: +pl.pos.y.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(3), a: pl.swimming ? "swim" : pl.swingT >= 0 ? "chop" : G.working && G.working.until > G.time && G.working.kind === "hammer" ? "hammer" : "idle", h: pl.horse ? "horse" : "axe", s: +(pl.speed || 0).toFixed(2), g: guard });
     }
     if ((this.atmoT -= dt) <= 0) { this.atmoT = 0.5; this.atmo(); this.drawWar(); }
     // spawn shield

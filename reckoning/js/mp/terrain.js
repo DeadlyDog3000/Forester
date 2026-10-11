@@ -62,6 +62,9 @@ const SAVANNAS = [[33, 52, -12, 12], [-17, 40, 9, 17], [-55, -38, -22, -6], [118
 // the great grasslands, where the trees give out and the grass runs on: the prairies, the pampas, the steppe of the Ukraine
 // and of Tartary, the veld — [west, east, south, north]
 const PRAIRIES = [[-105, -95, 32, 52], [-65, -57, -38, -30], [30, 52, 45, 52], [52, 90, 44, 54], [24, 32, -30, -24]];
+// straits the half-degree grid closes up, cut back open: a line of sea, [lon, lat, lon, lat, half its width in degrees]
+// — the English Channel wide from the Scillies to the Narrows of Dover, so England is an island, as it is
+const STRAITS = [[-7, 49.35, -3.5, 49.65, 0.7], [-3.5, 49.65, -0.5, 49.95, 0.68], [-0.5, 49.95, 1.4, 50.85, 0.6], [1.4, 50.85, 2.3, 51.45, 0.5], [2.3, 51.45, 3.2, 52.2, 0.5]];
 // how warm, by the latitude: [degrees, warmth]
 const WARMTH = [[0, 1.0], [20, 0.86], [35, 0.68], [50, 0.53], [58, 0.41], [66, 0.27], [74, 0.12], [90, 0]];
 // where the summers are dry and the winters wet: round the Middle Sea, California, Chile, the Cape, the south-west of New Holland
@@ -121,7 +124,11 @@ export function makeTerrain(seed, half, kind = "island") {
     // (the world's coasts are a half-degree grid: pushed about by a little noise, so the shore wanders in bays and points
     //  as a real one does, instead of running square along the grid's rows)
     if (kind === "earth") { const cell = half / 360, wx = x + nC(x / (cell * 3.1) + 5.3, z / (cell * 3.1) - 2.1) * cell * 1.7, wz = z + nD(x / (cell * 3.1) - 7.7, z / (cell * 3.1) + 3.9) * cell * 1.7;
-      return 1.02 - landK(lonOf(wx), latOf(wz)) * 0.42 + fbm(nE, u * 14 + 9, v * 14 + 9, 3) * 0.07 + fbm(nB, x / (cell * 1.4) + 3, z / (cell * 1.4) - 8, 3) * 0.035; }
+      let sea = 0; const lon = lonOf(x), lat = latOf(z);
+      for (const [a0, b0, a1, b1, hw] of STRAITS) { if (lon < Math.min(a0, a1) - hw - 1 || lon > Math.max(a0, a1) + hw + 1 || lat < Math.min(b0, b1) - hw - 1 || lat > Math.max(b0, b1) + hw + 1) continue;
+        const dx = a1 - a0, dy = b1 - b0, t = Math.max(0, Math.min(1, ((lon - a0) * dx + (lat - b0) * dy) / (dx * dx + dy * dy))), d = Math.hypot(lon - a0 - dx * t, lat - b0 - dy * t);
+        sea = Math.max(sea, smooth(hw, hw * 0.55, d)); }
+      return 1.02 - landK(lonOf(wx), latOf(wz)) * 0.42 * (1 - sea) + sea * 0.12 + fbm(nE, u * 14 + 9, v * 14 + 9, 3) * 0.07 + fbm(nB, x / (cell * 1.4) + 3, z / (cell * 1.4) - 8, 3) * 0.035; }
     if (kind === "archipelago") return 0.62 + r * 0.42 - fbm(nE, u * 3.4 + 9, v * 3.4 + 9, 4) * 1.25;
     if (kind === "continent") return 0.8 + ((u * cx + v * cz) - 0.42) * 1.1 + fbm(nE, u * 2.2 + 9, v * 2.2 + 9, 4) * 0.3;
     // (bays and headlands, big and small, out of the noise round the edge)
