@@ -682,6 +682,11 @@ export class MPGame {
     // your health is the server's: no mending here but what it says, no hunger in these woods
     G.health = this.hp / MAX_HP; if (G.body) G.body.hunger = 1;
     if (this.build) this.tickBuild();
+    // a horse won't swim out of its depth: at deep water it stops, and won't be driven in
+    if (pl.horse) {
+      if (this.w.waterDepth(pl.pos.x, pl.pos.z) > 0.9) { if (this.lastDry) { pl.pos.x = this.lastDry.x; pl.pos.z = this.lastDry.z; } if (!this.toldDeep) { this.toldDeep = true; UI.hint("The horse won't go any deeper. Get down (X) to swim, or go round.", 3.5); } }
+      else this.lastDry = { x: pl.pos.x, z: pl.pos.z };
+    } else this.lastDry = null;
     // where you are, ten times a second
     if ((this.sendT -= dt) <= 0) {
       this.sendT = 0.1;

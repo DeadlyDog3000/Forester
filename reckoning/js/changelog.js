@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "0.99.1", date: "11 October 2026", title: "Out of its depth",
+    items: [
+      "A horse won't swim out of its depth: ridden into the sea or a lake, it stops where the water's up to its belly and won't be driven further. Get down (X) to swim, or ride round.",
+    ],
+  },
+  {
     v: "0.99.0", date: "11 October 2026", title: "Horseback",
     items: [
       "Frontier: build a stable (B; sixteen logs and four stone) — a lean-to with two stalls, hay, and a horse standing in it. At its open front, F to take the horse out and ride: better than twice as fast as walking, which on the big Earth is the difference between an afternoon and a week. X gets you down anywhere and the horse finds its own way home; or F at the stable to put it back in its stall.",
