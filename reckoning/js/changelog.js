@@ -7,6 +7,21 @@
 
 export const CHANGELOG = [
   {
+    v: "1.4.0", date: "11 October 2026", title: "Oars in the water",
+    items: [
+      "A new rowboat, clinker-built: five lapped planks a side, tarred below the waterline with a green top strake, a sheer rising to a sharp stem, a broad transom, ribs, two thwarts and a stern seat, rails along the gunwales and the oars in their tholes. It sits up in the water as a boat does — dry inside — and its grain is its own, not sliding over it as it moves. A rowboat now takes 6 logs.",
+      "Rowing as rowing is: each stroke the blades go in at the catch, are pulled through the water, come out and swing forward clear of it. And it sounds like water — the blade going in with a gurgle and a swirl, the water running off it as it lifts, the wash along the hull growing as she gathers way, and the keel grinding on the shallows if you run her in. (No more thud of a hammer.)",
+      "Fixed: a rowboat was laid with its bow to the shore, so rowing ran it straight aground; now it's laid bow out to sea, the way you face. And getting in works from wherever the game offers it.",
+      "Sat in a boat you face the bow and the boat turns you with it: you can turn your head, a little past your shoulder, but not round behind you.",
+      "The stump a tree leaves is that tree's own trunk: as thick as it was where the axe went through, the same bark and colour, turned the way it stood.",
+      "Fixed: turning the mouse wheel with the plans open picked a building. The wheel scrolls a window that's open, and changes what's in your hand only when none is.",
+      "Fixed: a click on the map, a menu or any window swung your axe or used what you held. Clicks there are the window's now.",
+      "Your first town hall can be raised from the logs in your arms as well as the store — before it stands there's nowhere to stack them — and the guide says so, instead of telling you to stack them at a hall you haven't got.",
+      "Stone is stone: rocky slopes and the rock of a quarry or a mine wear a rock's own grain, not a mason's wall of blocks; a field's soil is earth; a knapped stone axe is stone. The meadow's flowers no longer speckle the grass pink.",
+      "The waypoint's marker on the screen costs next to nothing to draw now.",
+    ],
+  },
+  {
     v: "1.3.2", date: "11 October 2026", title: "Name and username",
     items: [
       "Over each player's head, their roleplay name, and under it, small and grey, their username — and the same in Who's here (Tab).",

@@ -1674,6 +1674,10 @@ addEventListener("wheel", e => {
     return;
   }
   if (G.mode !== "play" || overlay || UI.dialogOpen || (G.town && G.town.planning)) return;
+  // (a window open over the game — the plans, who's here, the news — has the wheel to itself, to scroll; and a plan
+  //  being laid out keeps what's in your hand)
+  const M = G.mp; if (M && (M.menuOpen || M.listOpen || M.newsOpen || M.build)) return;
+  if (e.target && e.target.closest && e.target.closest("#buildmenu, .panel, .mc-panel, #mpPlayers, #mpNews")) return;
   wheelAcc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
   const now = performance.now();
   if (Math.abs(wheelAcc) < 40 || now - wheelAt < 110) return;
@@ -1686,7 +1690,7 @@ addEventListener("wheel", e => {
     if (can(items[k])) break;
   }
   if (k === selIndex(items)) return;
-  dispatchEvent(new KeyboardEvent("keydown", { code: "Digit" + (k + 1), key: String(k + 1) }));
+  const ev = new KeyboardEvent("keydown", { code: "Digit" + (k + 1), key: String(k + 1) }); ev.fromWheel = true; dispatchEvent(ev);
 }, { passive: true });
 // the food in your hand, if any (found again among what you carry, as the bar is rebuilt)
 function heldFood() { const h = G.heldFood; if (!h) return null; return hotbarItems().find(i => i.icon === h.icon && !!i.fromStore === h.fromStore) || null; }
@@ -2041,7 +2045,7 @@ addEventListener("keydown", e => {
   }
 });
 // (on the free cursor, any click asks for the lock again: the moment it comes, turning has no edge)
-addEventListener("mousedown", () => { if (G.mode === "play" && input.freeLook && !document.pointerLockElement && !overlay) { try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }, true);
+addEventListener("mousedown", e => { if (G.mode === "play" && input.freeLook && !document.pointerLockElement && !overlay && e.target === renderer.domElement && !(G.mp && (G.mp.menuOpen || G.mp.listOpen || G.mp.newsOpen))) { try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }, true);
 // a click on the world while playing re-takes the mouse
 renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !overlay) lock(); });
 

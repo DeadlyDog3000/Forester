@@ -940,7 +940,7 @@ export class Town {
         g.add(line); continue;
       }
       const sg = new THREE.PlaneGeometry(1.7, 7, 2, 12); sg.rotateX(-Math.PI / 2); sg.translate(o, 0, 0); this.drape(sg, b, 0.07, 0.03);
-      const soil = new THREE.Mesh(sg, mat(0x3e2e22, { surface: "stone" }));
+      const soil = new THREE.Mesh(sg, mat(0x3e2e22, { surface: "ground" }));
       soil.receiveShadow = true; g.add(soil);
       if (b.sown && growth > 0) g.add(ryeStrip(b, o, growth, up, this.baseY(b)));
     }

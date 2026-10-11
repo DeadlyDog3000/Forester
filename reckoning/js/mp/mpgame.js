@@ -38,7 +38,7 @@ const DAY = [[0, "night"], [0.2, "dawn"], [0.27, "morning"], [0.5, "afternoon"],
 // (each building: laid out, then its logs carried to the site and raised)
 const lay = (g, what, why) => `Lay out ${what} (B), carry its logs to the site (F) and hold F to raise it: ${why}`;
 const MP_GOALS = [
-  { text: g => `Fell trees for logs — ${Math.min(10, g.stock.wood)} of 10 (swing the axe at a tree, take up its logs with F, stack them at the town hall)`, done: g => g.stock.wood >= 10 || g.has("hearth") },
+  { text: g => `Fell trees for logs — ${Math.min(10, g.stock.wood + (g.carry | 0))} of 10 (swing the axe at a tree, then take up its logs with F and keep them in your arms: the town hall is raised from them)`, done: g => g.stock.wood + (g.carry | 0) >= 10 || g.has("hearth") },
   { text: () => "Raise a town hall (B): the ground round it becomes yours, and you wake there after a fall", done: g => g.has("hearth") },
   { text: g => lay(g, "a cabin", "beds for two settlers, who'll come through the woods to live and work"), done: g => g.has("cabin") || g.has("house") },
   { text: () => "Wait for your first settler to come through the woods — keep felling meanwhile", done: g => g.mine() >= 1 },
@@ -602,10 +602,10 @@ export class MPGame {
     $("buildTitle").textContent = "Plans";
     $("buildList").innerHTML = BUILD_ORDER.map((k, i) => {
       // (the town hall is lit from the store; anything else is laid out as a site, and its logs brought to it)
-      const fromStore = k === "hearth" || k === "rowboat";
-      const d = BUILD[k], ok = !fromStore || this.stock.wood >= d.wood, has = k === "hearth" && this.myHearth();
-      const cost = fromStore ? `${d.wood} logs from the store` : [`${d.wood} logs to bring`, d.stone ? `${d.stone} stone` : ""].filter(Boolean).join(", ");
-      const short = !ok ? ` — ${d.wood - this.stock.wood} logs short` : "";
+      const fromStore = k === "hearth" || k === "rowboat", have = this.stock.wood + (k === "hearth" ? this.carry | 0 : 0);
+      const d = BUILD[k], ok = !fromStore || have >= d.wood, has = k === "hearth" && this.myHearth();
+      const cost = k === "hearth" ? `${d.wood} logs, carried or from the store` : fromStore ? `${d.wood} logs from the store` : [`${d.wood} logs to bring`, d.stone ? `${d.stone} stone` : ""].filter(Boolean).join(", ");
+      const short = !ok ? ` — ${d.wood - have} logs short` : "";
       return `<button class="plan${ok && !has ? "" : " short"}" data-k="${k}" data-i="${i}"><img src="${IC[PIC[k]] || IC.logs || ""}" alt=""><span><span class="pn">${esc(d.name)}</span><span class="pd">${esc(d.note)}${has ? (this.mode === "coop" ? " (The colony has one.)" : " (You have one.)") : esc(short)}</span></span><span class="pc">${cost}</span></button>`;
     }).join("");
     for (const b of $("buildList").querySelectorAll("[data-k]")) b.onclick = () => { if (b.classList.contains("short")) { sfx("deny"); return; } this.startBuild(b.dataset.k); };
@@ -617,7 +617,7 @@ export class MPGame {
     if (this.build) this.endBuild();
     // what it will look like, as the settlement's plans show it: the building itself, pale green, its ground outlined
     const tint = new THREE.MeshStandardMaterial({ color: 0x7fe07a, transparent: true, opacity: 0.42, depthWrite: false, roughness: 0.8, emissive: 0x2a5a26, emissiveIntensity: 0.5 });
-    const dress = o => { o.traverse(m => { if (m.isMesh || m.isInstancedMesh) { m.material = tint; m.castShadow = false; m.receiveShadow = false; } }); return o; };
+    const dress = o => { o.traverse(m => { if (m.isMesh || m.isInstancedMesh) { if (m.userData.noShadow) { m.visible = false; return; } m.material = tint; m.castShadow = false; m.receiveShadow = false; } }); return o; };
     const ghost = new THREE.Group(), body = new THREE.Group(); ghost.add(body);
     let geo;
     if (d.wall) geo = new THREE.BoxGeometry(d.len, 2.6, 0.4).translate(0, 1.3, 0);
@@ -660,17 +660,19 @@ export class MPGame {
     // will it do?
     let why = "";
     if (d.boat) {
-      // (a boat: on the water, a little way out from the shore)
+      // (a boat: on the water, a little way out from the shore — and its bow out to sea, the way you face; its own
+      //  front is the other way about from yours)
+      B.ghost.rotation.y = ry + Math.PI;
       if (this.stock.wood < d.wood) why = `A rowboat takes ${d.wood} logs from the store`;
       else if (y > -0.4) why = "A boat goes on the water — face the water, by the shore";
       B.ok = !why; B.x = x; B.z = z; B.ry = ry;
       const col = B.ok ? 0x7fe07a : 0xe0503a; B.ghost.userData.tint.color.setHex(col); B.ghost.userData.edges.material.color.setHex(col);
       $("mpBuildBar").classList.toggle("hidden", B.ok); if (!B.ok) $("mpBuildBar").innerHTML = `<b>${d.name}</b> — ${esc(why)}`;
       if (input.rclick) { this.endBuild(); return; }
-      if ((input.click || input.hit("KeyF")) && !UI.dialogOpen) { input.click = false; if (!B.ok) { sfx("deny"); return; } this.net.send({ t: "build", type: B.type, x: +x.toFixed(2), z: +z.toFixed(2), ry: +ry.toFixed(3) }); G.working = { kind: "hammer", until: G.time + 0.6 }; this.endBuild(); }
+      if ((input.click || input.hit("KeyF")) && !UI.dialogOpen) { input.click = false; if (!B.ok) { sfx("deny"); return; } this.net.send({ t: "build", type: B.type, x: +x.toFixed(2), z: +z.toFixed(2), ry: +(ry + Math.PI).toFixed(3) }); G.working = { kind: "hammer", until: G.time + 0.6 }; this.endBuild(); }
       return;
     }
-    if (B.type === "hearth" && this.stock.wood < d.wood) why = `A town hall takes ${d.wood} logs from the store`;
+    if (B.type === "hearth" && this.stock.wood + (this.carry | 0) < d.wood) why = `A town hall takes ${d.wood} logs — ${d.wood - this.stock.wood - (this.carry | 0)} more, carried or in the store`;
     else if (y < 0.6) why = "Not in the water";
     else if (d.shore && this.w.land.heightAt(x + Math.sin(ry) * (d.d / 2 + 6), z + Math.cos(ry) * (d.d / 2 + 6)) > -1.2) why = "Its front, the slipway, must run out over deep water — turn it (R) to face the water";
     else if (Math.abs(x) > this.room.half - 10 || Math.abs(z) > this.room.half - 10) why = "The edge of the map";
@@ -877,7 +879,7 @@ export class MPGame {
     if (e.code === "Tab") { e.preventDefault(); this.toggleList(); return true; }
     if (e.code === "KeyN" && !this.invite) { this.toggleNews(); return true; }
     if (e.code === "KeyB") { if (this.build) this.endBuild(); else { const on = !this.menuOpen; this.openBuild(on); if (on) G.releaseMouse && G.releaseMouse(); else G.lockMouse && G.lockMouse(); } return true; }
-    if (this.menuOpen && /^Digit\d$/.test(e.code)) { const i = (+e.code.slice(5) + 9) % 10, k = BUILD_ORDER[i]; const d = BUILD[k]; if (k && (k !== "hearth" || this.stock.wood >= d.wood)) this.startBuild(k); return true; }
+    if (this.menuOpen && !e.fromWheel && /^Digit\d$/.test(e.code)) { const i = (+e.code.slice(5) + 9) % 10, k = BUILD_ORDER[i]; const d = BUILD[k]; if (k && (k !== "hearth" || this.stock.wood + (this.carry | 0) >= d.wood)) this.startBuild(k); return true; }
     if (this.invite && (e.code === "KeyY" || e.code === "KeyN")) { this.net.send({ t: e.code === "KeyY" ? "allyok" : "allyno", pid: this.invite.pid }); $("mpInvite").classList.add("hidden"); this.invite = null; return true; }
     if (e.code === "Escape" && (this.menuOpen || this.listOpen || this.newsOpen)) { this.openBuild(false); this.toggleList(false); this.toggleNews(false); return true; }
     return ["KeyP", "KeyG", "KeyH", "KeyV"].includes(e.code);
@@ -1019,7 +1021,7 @@ export class MPGame {
       const g = new THREE.Group();
       if (o.kind === "ship") { const m = modelCopy("ship"); g.add(m ? m.scene : makeShip(20)); }
       else g.add(makeRowboat());
-      g.traverse(q => { if (q.isMesh) q.castShadow = true; });
+      g.traverse(q => { if (q.isMesh && !q.userData.noShadow) q.castShadow = true; });
       this.w.root.add(g);
       e = { o, g, cur: { x: o.x, z: o.z, yaw: o.yaw || 0 }, ph: 0 };
       const M = this;
@@ -1080,10 +1082,34 @@ export class MPGame {
       e.y = WATER - 0.05 + h - (e.o.kind === "ship" ? 0.2 : 0.05);
       e.g.position.set(e.cur.x, e.y, e.cur.z);
       e.g.rotation.set(Math.atan2(hs - hb, 2 * L) * (e.o.kind === "ship" ? 0.5 : 1), e.cur.yaw, Math.atan2(hl - hr, 2 * Wd) * (e.o.kind === "ship" ? 0.6 : 1), "YXZ");
-      // (a rowboat's oars, swung as it's rowed)
+      // (a rowboat's oars, rowed: each stroke the blades go in at the catch, forward, are pulled aft through the water —
+      //  the drive — come out, and are swung forward again clear of it; backing water, the other way round. At rest
+      //  they lie trailing, their blades just clear)
       const oars = e.g.children[0] && e.g.children[0].userData.oars;
-      if (oars) { const spd = mine ? Math.abs(this.aboard.speed) : e.spd || 0; e.ph += dt * (spd > 0.2 ? 3.2 : 0); oars.forEach((o, i) => { o.rotation.y = spd > 0.2 ? Math.sin(e.ph) * 0.6 * (i ? -1 : 1) : o.rotation.y * 0.9; o.rotation.z = (i ? 0.32 : -0.32) + (spd > 0.2 ? Math.cos(e.ph) * 0.12 * (i ? 1 : -1) : 0); }); }
+      if (oars) {
+        const sp = mine ? this.aboard.speed : (e.spd || 0) * (e.back ? -1 : 1), rowing = Math.abs(sp) > 0.25;
+        const u0 = e.u || 0;
+        if (rowing) e.u = (u0 + dt * 0.62 * Math.max(0.6, Math.min(1, Math.abs(sp) / B.speed))) % 1;
+        const u = e.u || 0, back = sp < 0;
+        // the swing, fore and aft (+ the blade aft), and how deep the blade is (the dip)
+        let sw, dip;
+        if (u < 0.45) { const k = u / 0.45; sw = -0.6 + 1.1 * (0.5 - 0.5 * Math.cos(k * Math.PI)); dip = 0.19 * Math.min(1, u / 0.04); }
+        else if (u < 0.55) { sw = 0.5; dip = 0.19 - (u - 0.45) / 0.1 * 0.15; }
+        else { const k = (u - 0.55) / 0.45; sw = 0.5 - 1.1 * (0.5 - 0.5 * Math.cos(k * Math.PI)); dip = 0.04 + (u > 0.95 ? (u - 0.95) / 0.05 * 0.15 : 0); }
+        if (back) sw = -sw;
+        e.os = e.os ?? 0; e.od = e.od ?? 0.02;
+        const kk = Math.min(1, dt * 10); e.os += ((rowing ? sw : 0.75) - e.os) * kk; e.od += ((rowing ? dip : 0.02) - e.od) * kk;
+        for (const o of oars) { const sx = o.userData.side; o.rotation.set(0, sx * e.os, -sx * e.od); }
+        // and the water: the blades in with a gurgle at the catch, and the water running off them as they come out
+        if (rowing && Math.hypot(e.cur.x - pl.pos.x, e.cur.z - pl.pos.z) < 40) {
+          const at = { x: e.cur.x, z: e.cur.z }, cross = x => u0 <= u ? u0 < x && u >= x : u0 < x || u >= x;
+          if (cross(0.02)) FOLEY.oarDip(at, mine ? 0.55 : 0.4);
+          if (cross(0.47)) FOLEY.oarDrip(at, mine ? 0.4 : 0.28);
+        }
+      }
     }
+    // (the water along the hull of the boat you're in, louder the faster she goes)
+    { const ab = this.aboard; FOLEY.wash(ab ? Math.abs(ab.helm ? ab.speed : ab.e.spd || 0) / BOATS[ab.e.o.kind].speed : 0); }
     const a = this.aboard; if (!a) return;
     const e = a.e, B = BOATS[e.o.kind];
     if (this.dead || !this.boats.has(e.o.id)) { this.disembark(); return; }
@@ -1096,7 +1122,7 @@ export class MPGame {
       const nx = e.cur.x + Math.sin(e.cur.yaw) * a.speed * dt, nz = e.cur.z + Math.cos(e.cur.yaw) * a.speed * dt;
       // (aground: she won't go on, into the shallows or onto the land)
       const ahead = (k) => w.land.heightAt(nx + Math.sin(e.cur.yaw) * B.len * 0.5 * k, nz + Math.cos(e.cur.yaw) * B.len * 0.5 * k);
-      if (ahead(Math.sign(a.speed || 1)) > -B.draft || w.land.heightAt(nx, nz) > -B.draft) { if (Math.abs(a.speed) > 0.6) { sfx("build"); } a.speed = 0; }
+      if (ahead(Math.sign(a.speed || 1)) > -B.draft || w.land.heightAt(nx, nz) > -B.draft) { if (Math.abs(a.speed) > 0.6) FOLEY.scrape({ x: e.cur.x, z: e.cur.z }, Math.min(0.8, Math.abs(a.speed) / B.speed)); a.speed = 0; }
       else { e.cur.x = nx; e.cur.z = nz; }
       if ((a.sendT -= dt) <= 0) { a.sendT = 0.15; this.net.send({ t: "boatmv", id: e.o.id, x: +e.cur.x.toFixed(2), z: +e.cur.z.toFixed(2), yaw: +e.cur.yaw.toFixed(3) }); }
     }
@@ -1105,6 +1131,13 @@ export class MPGame {
     // (the helmsman up on the stern castle, where he can see over the waist and the bow)
     const along = ship ? (a.helm ? -8.6 : 4 - (a.seat % 4) * 3) : -0.1, across = ship && !a.helm ? (a.seat < 4 ? -1.2 : 1.2) : 0;
     pl.pos.set(e.cur.x + fx * along + sx * across, e.y + (ship ? (a.helm ? 4.3 : 2.6) : -0.45), e.cur.z + fz * along + sz * across); pl.vy = 0; pl.vel && pl.vel.set(0, 0, 0);
+    // (sat on the thwart you face the bow, and the boat turns you with it: you can turn your head, but only so far —
+    //  a little past your shoulder, not round behind you)
+    if (!ship) {
+      const bow = e.cur.yaw + Math.PI, was = a.bow ?? bow, lim = 1.75;
+      const rel = Math.atan2(Math.sin(pl.yaw - was), Math.cos(pl.yaw - was));
+      pl.yaw = bow + Math.max(-lim, Math.min(lim, rel)); a.bow = bow;
+    }
     // F: ashore, if there's land close enough to step onto
     if (input.hit("KeyF") && G.mode === "play" && !UI.dialogOpen) {
       let land = null;
@@ -1133,7 +1166,7 @@ export class MPGame {
     if (this.hunt) { this.hunt.stop(); this.hunt = null; }
     if (G.mp !== this) return;
     UI.objective(null);
-    this.endBuild(); this.openBuild(false); this.toggleList(false); this.toggleNews(false); this.closeChat(); $("mpWar").classList.add("hidden"); $("mpTicker").classList.add("hidden");
+    FOLEY.wash(0); this.endBuild(); this.openBuild(false); this.toggleList(false); this.toggleNews(false); this.closeChat(); $("mpWar").classList.add("hidden"); $("mpTicker").classList.add("hidden");
     if (!quiet) { try { this.net.send({ t: "leave" }); } catch (e) {} }
     this.net.close();
     for (const r of this.remotes.values()) r.remove();

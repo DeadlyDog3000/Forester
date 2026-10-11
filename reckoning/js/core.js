@@ -122,19 +122,24 @@ const SURF_GLSL = `
   }
   // the ground: grass, leaf litter, bare earth or stones, judged by the ground's own colour, at two scales so the
   // photographs' squares don't show across a field; and only up close, where it can be seen, not as a shimmer far off
-  vec3 dGroundCol(vec3 lin, vec3 p, vec3 n, float far) {
+  // which ground photograph (a layer of the colour texture), or -1: bare rock, which is a boulder's own grain
+  int dGroundL(vec3 lin, vec3 n, out float k) {
     vec3 c = pow(max(lin, vec3(0.0)), vec3(1.0 / 2.2));
     float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
     float sat = (mx - mn) / max(mx, 1e-3), lum = dot(c, vec3(0.3, 0.59, 0.11));
+    k = 0.8;
+    if (n.y < 0.6 || (sat < 0.12 && lum < 0.7)) return -1;                                    // steep or grey: rock
+    if (c.g >= c.r * 0.92 && sat > 0.12) { k = 0.85; return 8; }                               // green: grass
+    if (lum > 0.5) { k = 0.7; return 10; }                                                     // pale: sand, dry earth
+    if (lum < 0.3) return 9;                                                                   // dark brown: the forest floor
+    k = 0.75; return 10;                                                                       // brown: bare earth
+  }
+  vec3 dGroundCol(int L, float k, vec3 p, vec3 n, float far) {
     vec3 w = pow(abs(n), vec3(4.0)); w /= (w.x + w.y + w.z);
-    int L; float k;
-    if (n.y < 0.6 || (sat < 0.12 && lum < 0.7)) { L = 2; k = 0.55; }                          // steep or grey: rock
-    else if (c.g >= c.r * 0.92 && sat > 0.12) { L = 8; k = 0.85; }                              // green: grass
-    else if (lum > 0.5) { L = 10; k = 0.7; }                                                   // pale: sand, dry earth
-    else if (lum < 0.3) { L = 9; k = 0.8; }                                                    // dark brown: the forest floor
-    else { L = 10; k = 0.75; }                                                                 // brown: bare earth
     vec3 a = dTriCol(L, p * 0.42, w) * 2.0, b = dTriCol(L, p * 0.11 + vec3(0.3, 0.0, 0.7), w) * 2.0;
     vec3 pc = 1.0 + (mix(a, b, 0.4) - 1.0) * 1.5;
+    // (the meadow's flowers and the like kept only as light and dark: the ground's own colour is the ground's)
+    pc = mix(vec3(dot(pc, vec3(0.3, 0.59, 0.11))), pc, 0.35);
     return mix(vec3(1.0), max(pc, vec3(0.3)), k * (1.0 - smoothstep(30.0, 90.0, far)));
   }
   // the surface's own colour pattern at p, laid on at the scale its grain is (so the two agree): 1 is the wall's colour
@@ -244,7 +249,11 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           int s = ${surf};
           if (s == -1) s = dAutoFull > 0.5 ? dClassify(diffuseColor.rgb, vDNormal) : dClassifySimple(diffuseColor.rgb);
           if (s == 10) { dRot = true; s = 0; }
-          if (s == 9) { diffuseColor.rgb *= dGroundCol(diffuseColor.rgb, vDWorld, vDNormal, distance(vDReal, cameraPosition)); s = -2; }
+          if (s == 9) {
+            float gk; int L = dGroundL(diffuseColor.rgb, vDNormal, gk);
+            if (L < 0) s = 8;
+            else { diffuseColor.rgb *= dGroundCol(L, gk, vDWorld, vDNormal, distance(vDReal, cameraPosition)); s = -2; }
+          }
           if (s >= 0) {
             ${SURF_STRENGTH}
             vec3 w = pow(an, vec3(4.0)); w /= (w.x + w.y + w.z);

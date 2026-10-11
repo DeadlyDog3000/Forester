@@ -5,7 +5,7 @@
 // People, trees, and the furniture of a life: all built from primitives at
 // load, the way the first Forester built its sounds instead of loading them.
 
-import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, noSnow } from "./core.js";
+import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, noSnow, ownGrainAll } from "./core.js";
 import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
 
 // ---------------------------------------------------------------------------
@@ -355,6 +355,8 @@ async function fetchModel(k, url) {
       m.userData.detail = true;
       m.userData.part = n;
       m.userData.surface = CLOTH_PARTS.has(n) ? "cloth" : BARE_PARTS.has(n) ? "none" : SURF_BY_NAME[n] || "auto";
+      // (a quarry's and a mine's stone is the rock of the hill, broken — not a mason's wall)
+      if (n === "stone" && /quarry|mine/.test(k)) m.userData.surface = "rock";
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
       // (a hat of steel — the watch's morion — is polished metal, not felt: no weave on it, and bright, since with no
       // reflection to show a metal goes dark)
@@ -556,7 +558,7 @@ const RBOX = (() => {
 })();
 const _tm = {};
 const tmat = (k, f) => _tm[k] || (_tm[k] = f());
-const STUFF = t => tmat("s" + t, () => t === 1 ? mat(0x9a7448, { surface: "wood", flatShading: true }) : t === 2 ? mat(0x8e897d, { surface: "stone", flatShading: true })
+const STUFF = t => tmat("s" + t, () => t === 1 ? mat(0x9a7448, { surface: "wood", flatShading: true }) : t === 2 ? mat(0x8e897d, { surface: "rock", flatShading: true })
   : t === 3 ? mat(0xb8703e, { metalness: 0.35, roughness: 0.5, flatShading: true }) : t === 4 ? mat(0xa8843e, { metalness: 0.35, roughness: 0.5, flatShading: true })
   : t === 0 ? mat(0x55585e, { metalness: 0.35, roughness: 0.6, flatShading: true }) : mat(0x6e737a, { metalness: 0.4, roughness: 0.5, flatShading: true }));
 // the bright, ground edge of a metal blade
@@ -1401,13 +1403,13 @@ const LOG_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1); LOG_GEO._shared = tr
 // the face pale and often gone dark at the heart. Each from a seed, so the same tree leaves the same stump ----
 const RING_TEX = {}, BARK_TEX = {};
 const STUMP_KIND = {
-  spruce: { face: "#d8b884", ring: [120, 78, 40], rim: "#3e2a1c", r: 0.24, h: [0.22, 0.6], roots: [3, 6], rootK: 1.0 },
-  pine:   { face: "#e2b676", ring: [150, 92, 40], rim: "#5a3a26", r: 0.26, h: [0.3, 0.7], roots: [2, 4], rootK: 1.25, resin: true },
+  spruce: { face: "#d8b884", ring: [120, 78, 40], rim: "#33251b", r: 0.24, h: [0.22, 0.6], roots: [3, 6], rootK: 1.0 },
+  pine:   { face: "#e2b676", ring: [150, 92, 40], rim: "#33251b", r: 0.26, h: [0.3, 0.7], roots: [2, 4], rootK: 1.25, resin: true },
   birch:  { face: "#efe2c4", ring: [180, 150, 110], rim: "#f2efe8", r: 0.17, h: [0.15, 0.42], roots: [2, 4], rootK: 0.8, curls: true, rot: 0.55 },
-  oak:    { face: "#d4b07a", ring: [130, 90, 50], rim: "#4a4038", r: 0.34, h: [0.3, 0.6], roots: [4, 6], rootK: 1.35 },
-  acacia: { face: "#caa070", ring: [140, 90, 50], rim: "#4a3a2e", r: 0.17, h: [0.2, 0.45], roots: [2, 3], rootK: 0.9 },
-  jungle: { face: "#e0c290", ring: [150, 110, 70], rim: "#8a8478", r: 0.46, h: [0.4, 0.9], roots: [5, 7], rootK: 1.9 },
-  palm:   { face: "#c8b28a", ring: [150, 130, 100], rim: "#7a6a52", r: 0.15, h: [0.3, 0.6], roots: [0, 0], rootK: 0.6 },
+  oak:    { face: "#d4b07a", ring: [130, 90, 50], rim: "#33251b", r: 0.34, h: [0.3, 0.6], roots: [4, 6], rootK: 1.35 },
+  acacia: { face: "#caa070", ring: [140, 90, 50], rim: "#33251b", r: 0.17, h: [0.2, 0.45], roots: [2, 3], rootK: 0.9 },
+  jungle: { face: "#e0c290", ring: [150, 110, 70], rim: "#33251b", r: 0.46, h: [0.4, 0.9], roots: [5, 7], rootK: 1.9 },
+  palm:   { face: "#c8b28a", ring: [150, 130, 100], rim: "#4e4536", r: 0.15, h: [0.3, 0.6], roots: [0, 0], rootK: 0.6 },
   scrub:  { face: "#c0a274", ring: [130, 100, 70], rim: "#5a4a38", r: 0.07, h: [0.08, 0.16], roots: [0, 0], rootK: 0.5 },
 };
 function ringTex(v, kind) {
@@ -1469,16 +1471,36 @@ function barkTex(kind, v) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping;
   return BARK_TEX[key] = t;
 }
+// what's left of the tree is the tree's own trunk: as thick as it was where the axe went through, the same nine
+// facets turned the same way, and the same bark — the trunk's own material, not a stump's guess at one. (Each kind's
+// trunk in the forest: the one trunk shape, widened by the first number and stood up by the second times its height)
+const TRUNK_SHAPE = { spruce: [1.1, 0.55], pine: [1.0, 0.9], birch: [0.5, 0.78], oak: [1.45, 0.46], acacia: [0.65, 0.62], jungle: [1.35, 0.88], palm: [0.62, 1] };
+const _stumpBark = {};
+function stumpBark(kind) {
+  const src = kind === "birch" ? TREE.birchMat : kind === "palm" ? TREE.palmTrunkMat : TREE.trunkMat;
+  return _stumpBark[kind] ??= addDetail(new THREE.MeshStandardMaterial({ color: src.color.clone(), roughness: src.roughness, vertexColors: true }), { ...src.userData.detail });
+}
+// (the trunk's shading: darker at its foot, as the tree's own vertex colours have it)
+function trunkShade(geo, y0, span) {
+  const p = geo.attributes.position, c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) { const k = 0.62 + Math.max(0, Math.min(1, (p.getY(i) + y0) / span)) * 0.45; c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = k; }
+  geo.setAttribute("color", new THREE.BufferAttribute(c, 3));
+  return geo;
+}
 export function makeStump(t, kind = "spruce") {
   if (!STUMP_KIND[kind]) kind = "spruce";
-  const K = STUMP_KIND[kind];
+  const K = STUMP_KIND[kind], TS = TRUNK_SHAPE[kind];
   let sd = Math.abs(Math.floor((t.x || 0) * 73.1 + (t.z || 0) * 191.7)) + 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   const big = Math.max(0.6, Math.min(1.6, (t.h || 10) / 10));
-  const r = K.r * big * (0.85 + rnd() * 0.3), h = K.h[0] + rnd() * (K.h[1] - K.h[0]), tilt = 0.08 + rnd() * 0.3, dirA = rnd() * Math.PI * 2;
+  const h = K.h[0] + rnd() * (K.h[1] - K.h[0]), tilt = 0.08 + rnd() * 0.3, dirA = rnd() * Math.PI * 2;
+  // (the trunk's foot is 0.2 below the tree's point, the stump's 0.02: its radius where the stump stands and is cut)
+  const span = TS ? (t.h || 10) * TS[1] : 1, at = y => TS ? TS[0] * (0.3 - 0.14 * Math.min(1, (y + 0.18) / span)) : K.r * big;
+  const r = at(h), rb = at(0);
   const g = new THREE.Group();
-  const bark = new THREE.MeshStandardMaterial({ map: barkTex(kind, Math.floor(rnd() * 4)), roughness: kind === "birch" ? 0.75 : 0.95 });
+  const bark = TS ? stumpBark(kind) : new THREE.MeshStandardMaterial({ map: barkTex(kind, Math.floor(rnd() * 4)), roughness: 0.95 });
   const face = new THREE.MeshStandardMaterial({ map: ringTex(Math.floor(rnd() * 6), kind), roughness: 0.95 });
-  const geo = new THREE.CylinderGeometry(r, r * (kind === "birch" ? 1.12 : 1.25), h, 12, 1);
+  const geo = new THREE.CylinderGeometry(r, rb * (TS ? 1.04 : 1.25), h, TS ? 9 : 12, 1);
+  if (TS) trunkShade(geo, h / 2 + 0.18, span);
   // (the top cut on a slant, which way at random)
   const p = geo.attributes.position, cA = Math.cos(dirA), sA = Math.sin(dirA);
   for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setY(i, p.getY(i) + Math.tan(tilt) * (p.getX(i) * cA + p.getZ(i) * sA));
@@ -1511,17 +1533,19 @@ export function makeStump(t, kind = "spruce") {
     }
   }
   // the roots: swells running out and down into the ground — a spruce's many and shallow, a pine's few and stout
-  const rootM = new THREE.MeshStandardMaterial({ map: bark.map, roughness: 0.95 });
+  const rootM = bark;
   for (let k = 0, n = K.roots[0] + Math.floor(rnd() * (K.roots[1] - K.roots[0] + 1)); k < n; k++) {
     const a = k / n * Math.PI * 2 + rnd() * 0.8, L = r * (0.8 + rnd() * 0.7) * K.rootK;
-    const rt = new THREE.Mesh(new THREE.ConeGeometry(r * (0.42 + rnd() * 0.18) * K.rootK, L, 6), rootM);
+    const rgeo = new THREE.ConeGeometry(r * (0.42 + rnd() * 0.18) * K.rootK, L, 6); if (TS) trunkShade(rgeo, -1, 1);
+    const rt = new THREE.Mesh(rgeo, rootM);
     // (the cone's tip turned out along the ground and a little down into it, its thick end against the trunk)
     rt.rotation.order = "YXZ"; rt.rotation.y = -a; rt.rotation.z = -(Math.PI / 2 + 0.18 + rnd() * 0.15); rt.scale.set(1, 1, 0.75);
     rt.position.set(Math.cos(a) * (r * 0.75 + L * 0.45), 0.07, Math.sin(a) * (r * 0.75 + L * 0.45)); rt.castShadow = true; g.add(rt);
   }
   // (and, now and then, moss on the low side of a spruce or a pine)
   if (kind !== "birch" && rnd() < 0.4) { const ms = new THREE.Mesh(new THREE.SphereGeometry(r * 0.5, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x4a6a2a, { surface: "needles" })); ms.scale.set(1.3, 0.35, 1); ms.position.set(-Math.cos(dirA) * r * 0.9, 0.04, -Math.sin(dirA) * r * 0.9); g.add(ms); }
-  g.rotation.y = rnd() * 6.28;
+  // (turned as the tree stood, so its facets carry on where the trunk's were)
+  g.rotation.y = TS && t.rot != null ? t.rot : rnd() * 6.28;
   return g;
 }
 export function makeLogs(list, seed = 1, kind = null) {
@@ -1746,36 +1770,83 @@ export function makeBeast(kind, S) {
 //  across it, and a pair of oars in their tholes (g.userData.oars, to be swung). Lies along z, bow toward +z; the
 //  waterline at y 0
 // ---------------------------------------------------------------------------
+// A rowing boat, clinker-built as the boats of the Elbe and the Baltic were: five strakes each side, each plank
+// lapped over the one below it (the step of every lap catches the light), a sheer that rises to a sharp stem at the
+// bow and a broad transom at the stern; tarred below the waterline, a green top strake, oiled oak above and inside.
+// Ribs inside, two thwarts and a stern seat, the bottom boards, a rail along each gunwale, and a pair of oars in their
+// tholes. Its wood grain is its own (it moves; the world's grain would slide over it). Faces +z, the waterline at
+// y = 0.1 as it floats (it's set 0.1 below the water). And a cover over its inside that the water can't be drawn
+// through, so the sea doesn't seem to stand in it.
 export function makeRowboat() {
-  const g = new THREE.Group(), wood = mat(0x8a6440, { surface: "wood" }), dark = mat(0x5a3e26, { surface: "wood" }), tar = mat(0x2e2620, { surface: "none" });
-  // (the hull: a shell, its sides each in four strakes, wider at the gunwale)
-  const L = 3.6, W = 1.25, H = 0.62;
-  const shape = (y, k) => { const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12, z = -L / 2 + t * L, w = W / 2 * k * (t < 0.75 ? Math.pow(Math.sin(Math.min(1, (t + 0.08) / 0.83) * Math.PI / 2), 0.6) : Math.cos((t - 0.75) / 0.25 * Math.PI / 2)); pts.push([w, y, z]); } return pts; };
-  for (let s = 0; s < 4; s++) {
-    const y0 = -0.18 + s * (H / 4), y1 = y0 + H / 4 + 0.02, k0 = 0.55 + s * 0.15, k1 = k0 + 0.15, a = shape(y0, k0), b = shape(y1, k1);
-    for (const sx of [-1, 1]) {
-      const P = [], I = [];
-      for (let i = 0; i < a.length; i++) { P.push(a[i][0] * sx, a[i][1], a[i][2], b[i][0] * sx, b[i][1], b[i][2]); }
-      for (let i = 0; i < a.length - 1; i++) { const q = i * 2; I.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); }
-      const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); geo.setIndex(I); geo.computeVertexNormals();
-      const m = new THREE.Mesh(geo, s === 0 ? tar : s % 2 ? wood : dark); m.material.side = THREE.DoubleSide; m.castShadow = true; m.receiveShadow = true; g.add(m);
-    }
+  const g = new THREE.Group();
+  const L = 3.7, W = 1.32, N = 28, STR = 5;
+  const tar = mat(0x2a221c, { surface: "wood", roughness: 0.7 }), oak = mat(0x8c6a44, { surface: "wood" }), green = mat(0x34503e, { surface: "wood", roughness: 0.75 });
+  const inside = mat(0x9a774e, { surface: "wood" }), dark = mat(0x5a3e28, { surface: "wood" }), iron = mat(0x3a3a3c, { metalness: 0.5, roughness: 0.5 });
+  // the lines: half-beam, keel height and sheer height along the length (t: 0 the stern, 1 the bow)
+  const half = t => W / 2 * (t < 0.55 ? 1 - Math.pow((0.55 - t) / 0.55, 2) * 0.38 : Math.pow(Math.cos((t - 0.55) / 0.45 * Math.PI / 2), 0.85));
+  const keel = t => -0.12 + (t > 0.72 ? Math.pow((t - 0.72) / 0.28, 2) * 0.42 : 0) + (t < 0.12 ? (0.12 - t) / 0.12 * 0.1 : 0);
+  const sheer = t => 0.42 + 0.17 * Math.pow(2 * t - 1, 2) + (t > 0.5 ? (t - 0.5) * 0.12 : 0);
+  // a point of the hull: t along, s up the side (0 the keel, 1 the gunwale), side ±1
+  const P = (t, s, sx) => { const hb = half(t), k = keel(t), sh = sheer(t); return [sx * hb * Math.pow(Math.sin(s * Math.PI / 2), 0.55), k + (sh - k) * (1 - Math.cos(s * Math.PI / 2)), -L / 2 + t * L]; };
+  const sheet = (rows, cols, at, m, flip, off = 0) => {
+    const pos = [], idx = [];
+    for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) { const v = at(i / cols, j / rows); pos.push(v[0], v[1], v[2]); }
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { const a = j * (cols + 1) + i, b = a + 1, c = a + cols + 1, d = c + 1; if (flip) idx.push(a, b, c, b, d, c); else idx.push(a, c, b, b, c, d); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+    const o = new THREE.Mesh(geo, m); o.castShadow = true; o.receiveShadow = true; g.add(o); return o;
+  };
+  // the strakes, outside: each its band of the side, its lower edge standing proud of the plank below (the lap)
+  for (const sx of [-1, 1]) for (let k = 0; k < STR; k++) {
+    const s0 = k / STR, s1 = (k + 1) / STR, m = k < 2 ? tar : k === STR - 1 ? green : oak;
+    sheet(2, N, (u, v) => { const t = 0.004 + u * 0.992, s = s0 + (s1 - s0) * v, p = P(t, s, sx), lap = (1 - v) * 0.016 * Math.sin(Math.PI * Math.min(1, t * 1.15)); return [p[0] + sx * lap, p[1] - lap * 0.4, p[2]]; }, m, sx > 0);
+    // (and the same plank seen from inside, a hair in, the inside's own oiled colour)
+    sheet(1, N, (u, v) => { const t = 0.01 + u * 0.98, s = s0 + (s1 - s0) * v, p = P(t, s, sx * 0.975); return [p[0], p[1] + 0.012, p[2]]; }, inside, sx < 0);
   }
-  // (the bottom boards, the transom across the stern, the stem post at the bow, a rail along each gunwale)
-  const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.castShadow = true; g.add(o); return o; };
-  add(new THREE.BoxGeometry(W * 0.5, 0.04, L * 0.8), dark, 0, -0.15, -0.1);
-  add(new THREE.BoxGeometry(W * 0.95, H * 0.9, 0.06), wood, 0, 0.1, -L / 2 + 0.02);
-  add(new THREE.BoxGeometry(0.07, H + 0.15, 0.1), dark, 0, 0.12, L / 2 - 0.02, 0.25, 0, 0);
-  for (const z of [-0.5, 0.45]) add(new THREE.BoxGeometry(W * 0.86, 0.05, 0.24), wood, 0, 0.22, z);
-  // the oars, each from its thole out over the side to the blade
+  // the keel along the bottom, the stem rising at the bow
+  const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.castShadow = true; o.receiveShadow = true; g.add(o); return o; };
+  for (let i = 0; i < 10; i++) { const t0 = 0.02 + i * 0.07, t1 = t0 + 0.075, a = P(t0, 0, 0), b = P(t1, 0, 0), len = Math.hypot(b[1] - a[1], b[2] - a[2]); add(new THREE.BoxGeometry(0.07, 0.09, len + 0.02), tar, 0, (a[1] + b[1]) / 2 - 0.035, (a[2] + b[2]) / 2, -Math.atan2(b[1] - a[1], b[2] - a[2])); }
+  { const a = P(0.72, 0, 0), b = P(1, 0, 0), top = sheer(1) + 0.12, pts = []; for (let i = 0; i <= 6; i++) { const t = 0.72 + i / 6 * 0.28; pts.push(P(t, 0, 0)); } pts.push([0, top, L / 2 + 0.02]);
+    for (let i = 0; i < pts.length - 1; i++) { const a2 = pts[i], b2 = pts[i + 1], len = Math.hypot(b2[1] - a2[1], b2[2] - a2[2]); add(new THREE.BoxGeometry(0.08, 0.1, len + 0.03), dark, 0, (a2[1] + b2[1]) / 2, (a2[2] + b2[2]) / 2 + 0.01, -Math.atan2(b2[1] - a2[1], b2[2] - a2[2])); } void a; void b; }
+  // the transom: the stern's flat board, filling the section at t = 0
+  { const sh = new THREE.Shape(), M = 10; for (let i = 0; i <= M; i++) { const p = P(0.004, i / M, 1); i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1]); } for (let i = M; i >= 0; i--) { const p = P(0.004, i / M, -1); sh.lineTo(p[0], p[1]); }
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.05, bevelEnabled: false }); const o = add(geo, oak, 0, 0, -L / 2 - 0.03); void o; }
+  // the gunwale rails, a rubbing strake, and the ribs inside
+  for (const sx of [-1, 1]) for (let i = 0; i < N; i++) {
+    const t0 = 0.01 + i / N * 0.97, t1 = t0 + 0.97 / N, a = P(t0, 1, sx), b = P(t1, 1, sx), len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    const o = add(new THREE.BoxGeometry(0.06, 0.05, len + 0.01), dark, (a[0] + b[0]) / 2 + sx * 0.012, (a[1] + b[1]) / 2 + 0.02, (a[2] + b[2]) / 2);
+    o.rotation.y = Math.atan2(b[0] - a[0], b[2] - a[2]); o.rotation.x = -Math.atan2(b[1] - a[1], Math.hypot(b[0] - a[0], b[2] - a[2])); o.rotation.order = "YXZ";
+  }
+  for (let r = 0; r < 9; r++) { const t = 0.1 + r * 0.085; for (const sx of [-1, 1]) for (let k = 0; k < 4; k++) { const a = P(t, 0.06 + k * 0.235, sx * 0.94), b = P(t, 0.06 + (k + 1) * 0.235, sx * 0.94), len = Math.hypot(b[0] - a[0], b[1] - a[1]); const o = add(new THREE.BoxGeometry(0.035, len + 0.02, 0.045), inside, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + 0.012, a[2]); o.rotation.z = -Math.atan2(b[0] - a[0], b[1] - a[1]); } }
+  // the bottom boards, the thwarts and the stern seat
+  { const p = P(0.45, 0.12, 1); add(new THREE.BoxGeometry(p[0] * 1.5, 0.03, L * 0.62), inside, 0, p[1] + 0.01, -0.12); }
+  const thwart = (t, dy = 0.17) => { const p = P(t, 1, 1); add(new THREE.BoxGeometry(p[0] * 2 - 0.06, 0.045, 0.26), oak, 0, p[1] - dy, p[2]); add(new THREE.BoxGeometry(0.06, p[1] - dy - keel(t) - 0.04, 0.06), dark, 0, (p[1] - dy + keel(t)) / 2 + 0.02, p[2]); };
+  thwart(0.5); thwart(0.72);
+  { const p = P(0.1, 1, 1); add(new THREE.BoxGeometry(p[0] * 2 - 0.1, 0.045, 0.42), oak, 0, p[1] - 0.2, p[2] + 0.1); }
+  // the tholes: a pair of pins either side, the oar between them
+  const lock = P(0.5, 1, 1);
+  for (const sx of [-1, 1]) for (const dz of [-0.06, 0.06]) add(new THREE.CylinderGeometry(0.014, 0.016, 0.13, 6), iron, sx * (lock[0] + 0.01), lock[1] + 0.09, lock[2] + 0.08 + dz);
+  // the oars: a loom with its grip, out through the tholes to a long blade. (Each turns about its thole: rotation.y
+  // swings it fore and aft, rotation.z lifts the blade out of the water and dips it in)
   const oars = [];
   for (const sx of [-1, 1]) {
-    const o = new THREE.Group(); o.position.set(sx * W * 0.47, 0.42, 0.05); g.add(o);
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 2.4, 6), wood); shaft.rotation.z = Math.PI / 2; shaft.position.x = sx * 0.75; o.add(shaft);
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.02, 0.15), wood); blade.position.x = sx * 1.85; o.add(blade);
-    o.rotation.z = -sx * 0.32; oars.push(o);
+    const o = new THREE.Group(); o.position.set(sx * (lock[0] + 0.01), lock[1] + 0.07, lock[2] + 0.08); g.add(o);
+    const loom = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.03, 2.5, 8), oak); loom.rotation.z = Math.PI / 2; loom.position.x = sx * 0.85; o.add(loom);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.18, 8), dark); grip.rotation.z = Math.PI / 2; grip.position.x = -sx * 0.48; o.add(grip);
+    const bs = new THREE.Shape(); bs.moveTo(0, -0.025); bs.lineTo(0.62, -0.075); bs.quadraticCurveTo(0.7, 0, 0.62, 0.075); bs.lineTo(0, 0.025); bs.lineTo(0, -0.025);
+    const bg = new THREE.ExtrudeGeometry(bs, { depth: 0.018, bevelEnabled: false }); bg.translate(0, 0, -0.009); if (sx < 0) bg.rotateY(Math.PI);
+    const blade = new THREE.Mesh(bg, oak); blade.position.x = sx * 2.05; blade.rotation.x = Math.PI / 2; o.add(blade);
+    for (const m of [loom, grip, blade]) m.castShadow = true;
+    o.userData.side = sx; oars.push(o);
   }
-  g.userData.oars = oars;
+  g.userData.oars = oars; g.userData.bladeR = 2.4;   // (from the thole to the middle of the blade)
+  // the cover: the hull's inside at a hand above the waterline, drawn into the depth only and last of the solid
+  // things, so the water (drawn after) can't show through inside the boat — but whatever's in the boat still shows
+  { const pos = [], idx = [], Y = 0.2, M = 24;
+    for (let i = 0; i <= M; i++) { const t = 0.01 + i / M * 0.98; let s = 0; for (let k = 0; k < 40; k++) { const sm = (k + 0.5) / 40; if (P(t, sm, 1)[1] < Y) s = sm; } const p = P(t, s, 1); pos.push(-p[0] * 0.98, Y, p[2], p[0] * 0.98, Y, p[2]); }
+    for (let i = 0; i < M; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
+    const cover = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide })); cover.renderOrder = 50; cover.userData.noShadow = true; g.add(cover); }
+  ownGrainAll(g);
   return g;
 }
 

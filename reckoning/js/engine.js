@@ -54,7 +54,10 @@ addEventListener("mousemove", e => {
   if (Math.abs(e.movementX) > 250 || Math.abs(e.movementY) > 250) return;
   if (document.pointerLockElement || (input.freeLook && G.mode === "play")) { input.mdx += e.movementX; input.mdy += e.movementY; }
 });
-addEventListener("mousedown", e => { if (e.button === 0) { input.click = true; input.mouseDown = true; } if (e.button === 2) { input.rclick = true; input.rdown = true; } });
+// (a click is a swing, a shot, a bite only when it's on the world itself: one on a map, a menu, a list or any window
+//  over the game is that window's, and nothing in your hand is used)
+const onWorld = e => !!document.pointerLockElement || e.target === renderer.domElement || e.target === window;
+addEventListener("mousedown", e => { if (!onWorld(e)) return; if (e.button === 0) { input.click = true; input.mouseDown = true; } if (e.button === 2) { input.rclick = true; input.rdown = true; } });
 addEventListener("mouseup", e => { if (e.button === 2) input.rdown = false; });
 addEventListener("contextmenu", e => { if (G.mode === "play") e.preventDefault(); });
 addEventListener("mouseup", e => { if (e.button === 0) input.mouseDown = false; });
@@ -2190,7 +2193,7 @@ let wpBeam = null, wpEl = null;
 function updateWaypoint() {
   const wp = G.waypoint, w = G.world, on = !!(wp && wp.w === w && G.mode === "play" && !G.cine), shown = on && !G.menuLock && !G.mapOpen;
   if (!wpEl) { wpEl = document.createElement("div"); wpEl.id = "wpMark"; wpEl.innerHTML = `<i></i><span></span>`; document.body.appendChild(wpEl); }
-  if (!on) { wpEl.style.display = "none"; if (wpBeam && wpBeam.parent) wpBeam.parent.remove(wpBeam); return; }
+  if (!on) { if (wpEl.style.display !== "none") wpEl.style.display = "none"; if (wpBeam && wpBeam.parent) wpBeam.parent.remove(wpBeam); return; }
   if (!wpBeam) {
     const m = new THREE.MeshBasicMaterial({ color: 0xffc860, transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide });
     wpBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 140, 10, 1, true).translate(0, 70, 0), m); wpBeam.renderOrder = 5;
@@ -2204,8 +2207,11 @@ function updateWaypoint() {
   // (behind you, or off the edge: held at the edge of the screen, on the side it lies)
   if (v.z > 1) { sx = innerWidth - sx; sy = innerHeight - 40; }
   sx = Math.max(24, Math.min(innerWidth - 24, sx)); sy = Math.max(40, Math.min(innerHeight - 60, sy));
-  wpEl.style.display = shown ? "block" : "none"; wpEl.style.transform = `translate(${sx}px, ${sy}px)`;
-  wpEl.lastChild.textContent = d >= 1000 ? (d / 1000).toFixed(1) + " km" : Math.round(d) + " m";
+  // (the page touched only when something's changed: a moving marker repainted every frame over the whole game
+  //  costs more than it should)
+  const disp = shown ? "block" : "none"; if (wpEl.style.display !== disp) wpEl.style.display = disp;
+  const tf = `translate(${Math.round(sx)}px, ${Math.round(sy)}px)`; if (wpEl._tf !== tf) { wpEl._tf = tf; wpEl.style.transform = tf; }
+  const txt = d >= 1000 ? (d / 1000).toFixed(1) + " km" : (d >= 100 ? Math.round(d / 10) * 10 : Math.round(d)) + " m"; if (wpEl._txt !== txt) { wpEl._txt = txt; wpEl.lastChild.textContent = txt; }
 }
 // The minimap every frame, smoothly: the ground is drawn once into a sheet twice the map's reach and only
 // slid under it as you walk (drawn again when you near its edge, or every few seconds for what has changed),

@@ -362,7 +362,7 @@ class Room {
       // into a boat: at the helm if nobody is, or aboard a ship as one of its crew
       case "board": {
         const o = this.boats[String(m.id || "")]; if (!o || p.dead) return;
-        if (!this.near(p, o.x, o.z, o.kind === "ship" ? 14 : 4)) return;
+        if (!this.near(p, o.x, o.z, o.kind === "ship" ? 16 : 6.5)) return;   // (a little more than the reach the game offers it at: where you are reaches the server a moment late)
         const B = R.BOATS[o.kind];
         for (const b of Object.values(this.boats)) { if (b.driver === p.pid) b.driver = null; b.riders = (b.riders || []).filter(q => q !== p.pid); }
         if (!o.driver) o.driver = p.pid;
@@ -439,7 +439,9 @@ class Room {
         const d = R.BUILD[m.type]; if (!d) return;
         const x = num(m.x), z = num(m.z), ry = num(m.ry);
         const no = text => p.sock.send({ t: "err", text });
-        if (m.type === "hearth" && (st.wood < d.wood || st.stone + (this.packOf(p.pid).stone | 0) < d.stone)) return no(`A town hall takes ${d.wood} logs from the store.`);
+        // (the first town hall: from the store and from the logs in your arms — before it stands there's nowhere else to put them)
+        const armsOf = () => (this.recs[p.pid] && this.recs[p.pid].carry) | 0;
+        if (m.type === "hearth" && (st.wood + armsOf() < d.wood || st.stone + (this.packOf(p.pid).stone | 0) < d.stone)) return no(`A town hall takes ${d.wood} logs — from the store, or carried to where it's to stand.`);
         if (!this.near(p, x, z, 16)) return no("Too far away to build there.");
         if (Math.abs(x) > this.half - 10 || Math.abs(z) > this.half - 10) return no("That's the edge of the map.");
         // (a boat on the water, near enough the shore to step into; a shipyard at the water's edge, its front to the water)
@@ -465,7 +467,8 @@ class Room {
         for (const q of Object.values(this.sites)) { const e = R.BUILD[q.type]; if (Math.hypot(q.x - x, q.z - z) < (d.wall ? 0.3 : d.r) + (e.wall ? 0.3 : e.r) - 0.2) return no("There's a site laid out there already."); }
         // the town hall: lit at once, from what's in the store (it's where everything else is kept)
         if (m.type === "hearth") {
-          st.wood -= d.wood; { const pk = this.packOf(p.pid), fs = Math.min(st.stone, d.stone); st.stone -= fs; pk.stone -= d.stone - fs; if (d.stone > fs) this.sendPack(p); }
+          { const rec = this.recs[p.pid], fromArms = Math.min(armsOf(), d.wood); if (fromArms) { rec.carry -= fromArms; p.sock.send({ t: "carry", n: rec.carry }); } st.wood -= d.wood - fromArms; }
+          { const pk = this.packOf(p.pid), fs = Math.min(st.stone, d.stone); st.stone -= fs; pk.stone -= d.stone - fs; if (d.stone > fs) this.sendPack(p); }
           const b = { id: "b" + (this.nextB++), type: m.type, x, z, ry, owner: p.pid, hp: d.hp, at: t };
           this.buildings[b.id] = b; this.all({ t: "b", b }); this.stock(p); this.dirty = true;
           return;

@@ -189,6 +189,44 @@ const RECIPES = {
     crackles(d, sr, 0.08, 0.45, 70, 0.3, 2500, 7000);
     return finish(d, 0.85);
   },
+  // an oar's blade going in at the catch: the soft plunge of it, the water closing over it in a gurgle, and the swirl
+  // it leaves as it's pulled through — low and wet, nothing like a splash
+  oarDip(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.9));
+    hiss(d, sr, 0, 0.06, 0.7, new Biquad("lp", rand(420, 600), 0.8, sr), x => Math.min(1, x / 0.006) * Math.exp(-x / 0.025));
+    modes(d, sr, 0.004, [[rand(70, 95), 0.06, 0.35]]);
+    for (let k = 0; k < 9; k++) bubble(d, sr, rand(0.01, 0.3), rand(260, 700), rand(1.4, 2.1), rand(0.03, 0.07), rand(0.15, 0.45));
+    // (the swirl, pulled along under the blade: a low churning hiss that swells and fades)
+    const bp = new Biquad("bp", 650, 0.6, sr);
+    hiss(d, sr, 0.05, 0.75, 0.32, { run: x => { return bp.run(x); } }, x => Math.sin(Math.PI * Math.min(1, x / 0.75)) * (0.7 + 0.3 * Math.sin(x * 37)));
+    return finish(d, 0.55);
+  },
+  // the blade lifted out: water running off it, and drops pattering back
+  oarDrip(sr) {
+    const d = new Float32Array(Math.floor(sr * 1.0));
+    hiss(d, sr, 0, 0.35, 0.18, new Biquad("bp", rand(1500, 2400), 0.7, sr), x => Math.exp(-x / 0.1));
+    let t = 0.02; while ((t += -Math.log(1 - Math.random()) / (26 * Math.exp(-t * 3))) < 0.9) bubble(d, sr, t, rand(900, 2600), rand(1.5, 2.4), rand(0.008, 0.02), rand(0.08, 0.3) * Math.exp(-t * 2.2));
+    return finish(d, 0.35);
+  },
+  // the water along a hull as it goes: a long, low, uneven wash, made to loop
+  wash(sr) {
+    const L = 4, n = Math.floor(sr * L), d = new Float32Array(n), lp = new Biquad("lp", 700, 0.6, sr), bp = new Biquad("bp", 1400, 0.5, sr);
+    let g = 0.5, gt = 0.5;
+    for (let i = 0; i < n; i++) { if (i % 2400 === 0) gt = rand(0.3, 1); g += (gt - g) * 0.0006; const w = Math.random() * 2 - 1; d[i] = (lp.run(w) * 0.9 + bp.run(w) * 0.25 * g) * g; }
+    // (and now and then the lap of a wave against the planks)
+    for (let k = 0; k < 6; k++) { const t = rand(0.1, L - 0.4); hiss(d, sr, t, 0.25, 0.5, new Biquad("lp", 500, 0.7, sr), x => Math.sin(Math.PI * Math.min(1, x / 0.25))); modes(d, sr, t + 0.02, [[rand(110, 160), 0.04, 0.15]]); }
+    const xf = Math.floor(sr * 0.5); for (let i = 0; i < xf; i++) { const k = i / xf; d[i] = d[i] * k + d[n - xf + i] * (1 - k); }
+    const out = d.subarray(0, n - xf); let m = 0; for (const v of out) m = Math.max(m, Math.abs(v)); for (let i = 0; i < out.length; i++) out[i] *= 0.9 / (m || 1);
+    return out;
+  },
+  // a hull run up on the shallows: the keel grinding over sand and stones, and the planks' dull knock
+  scrape(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.8));
+    hiss(d, sr, 0, 0.6, 0.6, new Biquad("lp", 900, 0.7, sr), x => Math.min(1, x / 0.03) * Math.exp(-x / 0.25));
+    crackles(d, sr, 0.02, 0.5, 60, 0.35, 600, 2500);
+    modes(d, sr, 0, [[rand(85, 110), 0.12, 0.9], [rand(180, 230), 0.06, 0.4]]);
+    return finish(d, 0.8);
+  },
   // drinking: two or three swallows — the water's own little glug, and the throat's soft knock under it
   gulp(sr) {
     const d = new Float32Array(Math.floor(sr * 1.1)), n = 2 + Math.floor(Math.random() * 2);
@@ -245,7 +283,7 @@ const RECIPES = {
     return out;
   },
 };
-const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, swish: 2, packIn: 4, packOut: 4, gulp: 3 };
+const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3 };
 
 // ---------------------------------------------------------------------------
 const made = {};
@@ -283,7 +321,7 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
   last.connect(out);
   src.start();
 }
-let fireSrc = null, FIRE_AT = null;
+let fireSrc = null, FIRE_AT = null, washSrc = null;
 export const FOLEY = {
   play,
   chop: (at, vol = 0.8) => play("chop", { vol, at, rate: [0.9, 1.1] }),
@@ -307,6 +345,18 @@ export const FOLEY = {
   },
   plop: (at, vol = 0.5) => play("plop", { vol, at, reach: 30, rate: [0.85, 1.2] }),
   splash: (at, vol = 0.7) => play("splash", { vol, at, reach: 45, rate: [0.85, 1.15] }),
+  oarDip: (at, vol = 0.5) => play("oarDip", { vol, at, reach: 40, rate: [0.9, 1.1] }),
+  oarDrip: (at, vol = 0.35) => play("oarDrip", { vol, at, reach: 25, rate: [0.9, 1.15] }),
+  scrape: (at, vol = 0.7) => play("scrape", { vol, at, reach: 40, rate: [0.9, 1.1] }),
+  // the wash along the hull of the boat you're in, as loud as she's going fast (0 to 1)
+  wash(k) {
+    const a = ac(), out = window.__foresterBus; if (!a || !out) return;
+    if (k > 0.01 && !washSrc) { const s = a.createBufferSource(); s.buffer = bufs("wash")[0]; s.loop = true; const g = a.createGain(); g.gain.value = 0; s.connect(g); g.connect(out); s.start(); washSrc = { s, g }; }
+    if (!washSrc) return;
+    washSrc.g.gain.setTargetAtTime(0.32 * Math.min(1, k), a.currentTime, 0.3);
+    washSrc.s.playbackRate.setTargetAtTime(0.85 + 0.3 * Math.min(1, k), a.currentTime, 0.5);
+    if (k <= 0.01) { const w = washSrc; washSrc = null; setTimeout(() => { try { w.s.stop(); } catch (e) {} }, 1500); }
+  },
   gulp: (vol = 0.5) => play("gulp", { vol, rate: [0.92, 1.08] }),
   swish: (vol = 0.35) => play("swish", { vol, rate: [0.85, 1.2] }),
   packIn: (vol = 0.45) => play("packIn", { vol, rate: [0.9, 1.1] }),

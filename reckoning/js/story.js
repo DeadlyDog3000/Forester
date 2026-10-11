@@ -1544,7 +1544,7 @@ async function ch7(w) {
     const soil = [], rows = [];
     const addSoil = st => {
       const y = w.heightAt(st.x, st.z);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 7), mat(0x3e2e22, { surface: "stone" }));
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 7), mat(0x3e2e22, { surface: "ground" }));
       m.position.set(st.x, y + 0.02, st.z); m.rotation.y = FIELD.ry; m.receiveShadow = true; w.root.add(m); soil.push(m);
       // furrows along it
       for (const f of [-0.5, 0, 0.5]) { const r2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 6.8), mat(0x2e2218)); r2.position.set(st.x + f * c2, y + 0.1, st.z - f * s2); r2.rotation.y = FIELD.ry; w.root.add(r2); soil.push(r2); }
@@ -1708,7 +1708,7 @@ function homestead(w, { stack = 6, growth = 1 } = {}) {
   const H = [0.12, 0.12, 0.45, 0.95][growth], C = [0x6a8a3a, 0x6a8a3a, 0x7a9a3e, 0xc8a850][growth];
   for (const o of [-2.2, 0, 2.2]) {
     const x = FIELD.x + o * c, z = FIELD.z - o * sn, y = w.heightAt(x, z);
-    const soil = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 7), mat(0x3e2e22, { surface: "stone" }));
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 7), mat(0x3e2e22, { surface: "ground" }));
     soil.position.set(x, y + 0.02, z); soil.rotation.y = FIELD.ry; soil.receiveShadow = true; field.add(soil);
     if (growth > 0) for (const f of [-0.5, 0, 0.5]) for (let k = -3; k <= 3; k += growth > 1 ? 0.3 : 0.5) {
       const m = new THREE.Mesh(new THREE.ConeGeometry(growth > 1 ? 0.05 : 0.03, H, 4), mat(C, { surface: "needles" }));
