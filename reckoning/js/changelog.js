@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "0.99.0", date: "11 October 2026", title: "Horseback",
+    items: [
+      "Frontier: build a stable (B; sixteen logs and four stone) — a lean-to with two stalls, hay, and a horse standing in it. At its open front, F to take the horse out and ride: better than twice as fast as walking, which on the big Earth is the difference between an afternoon and a week. X gets you down anywhere and the horse finds its own way home; or F at the stable to put it back in its stall.",
+      "Everyone sees you on horseback: up in the saddle, the horse under you going at your pace.",
+      "The big map of a large land is drawn a few rows at a time in the background while you play, so the first look at it no longer freezes the game for a second.",
+      "The sea names on the world map sit out in open water now, clear of the coasts and the edge of the sheet.",
+      "Behind the scenes: if the server ever fails over one thing a player does, it writes it down and carries on — it used to hang up on that player without a word.",
+    ],
+  },
+  {
     v: "0.98.1", date: "11 October 2026", title: "Rock and bough",
     items: [
       "Frontier: the rocks are solid where the rock is — their own lumpy outline as they sit on the slope, not a circle round them — so you come right up against the stone, and don't stop short of it in thin air.",

@@ -204,7 +204,7 @@ export class Caves {
     this.inside = true; this.root.visible = true; this._entering = true;
     UI.fade(1, 0.5).then(() => {
       pl.place(this.start.x, this.start.z, Math.PI); this._entering = false;
-      if (pl.horse) pl.dismount();
+      if (pl.horse) { if (G.mp && G.mp.dismount) G.mp.dismount(); else pl.dismount(); }
       // (the lantern held out ahead and a little up, so it lights the way rather than the axe in your hand)
       if (!this.lantern) { this.lantern = new THREE.PointLight(0xffd2a8, 10, 24, 1.8); this.lantern.position.set(-0.2, 0.3, -1.3); }
       camera.add(this.lantern);

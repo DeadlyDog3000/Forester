@@ -11,7 +11,7 @@ import { G, Actor, setWorld, blendAtmo, input } from "../engine.js";
 import { UI, $ } from "../ui.js";
 import { AUDIO } from "../audio.js";
 import { FOLEY } from "../foley.js";
-import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel, makeLogs, makeRowboat, makeShipyard, makeShip } from "../models.js";
+import { makeAxe, makePick, makeTorch, makeSpade, makeSickle, makeSack, modelCopy, ensureModel, makeLogs, makeRowboat, makeShipyard, makeShip, makeHorse } from "../models.js";
 import { blowLands } from "../fight.js";
 import { resetForMode } from "../story.js";
 import { siteSign } from "../town.js";
@@ -83,7 +83,13 @@ export class Remote {
     this.tag = nameTag(this.name, fr ? "#9fe08f" : this.game.mode === "pvp" ? "#f0a090" : "#f3e7c6");
     this.tag.position.y = 2.15; this.actor.root.add(this.tag);
   }
-  set(l) { [, this.tx, this.ty, this.tz, this.tyaw, this.anim, , this.spd, this.guard] = l; this.tyaw += Math.PI; }
+  set(l) { [, this.tx, this.ty, this.tz, this.tyaw, this.anim, this.held, this.spd, this.guard] = l; this.tyaw += Math.PI; this.ride(this.held === "horse"); }
+  // up on a horse, or down off it: the horse under them, going at their pace
+  ride(on) {
+    const a = this.actor;
+    if (on && !this.horse) { this.horse = makeHorse(0x6a4428); G.world.root.add(this.horse.root); a.person.held.visible = false; }
+    else if (!on && this.horse) { G.world.root.remove(this.horse.root); this.horse = null; a.person.held.visible = true; a.person.sitting = 0; }
+  }
   update(dt) {
     const a = this.actor, k = Math.min(1, dt * 9);
     a.pos.x += (this.tx - a.pos.x) * k; a.pos.z += (this.tz - a.pos.z) * k;
@@ -93,16 +99,22 @@ export class Remote {
     a.speed = this.dead ? 0 : this.spd;
     a.person.fight = !!this.guard;
     a.person.setPose(this.dead ? "idle" : this.anim === "chop" ? "chop" : this.anim === "hammer" ? "hammer" : "idle");
-    a.person.update(dt, a.speed);
+    if (this.horse) a.person.sitting += (1 - a.person.sitting) * Math.min(1, dt * 6);
+    a.person.update(dt, this.horse ? 0 : a.speed);
     a.sync();
     // (swimming, or up a tower: the height they're at, not the ground's)
     const gy = G.world.heightAt(a.pos.x, a.pos.z);
     // (or down a cave, under the ground: there, out of sight of all but those down there too)
     a.root.position.y += ((this.ty ?? gy) - gy > 0.3 || gy < 0 || (this.ty ?? gy) < gy - 20 ? (this.ty - gy) : 0);
+    // (on horseback: up in the saddle, the horse under them with its legs going at their pace)
+    if (this.horse) {
+      const h = this.horse; h.root.position.copy(a.root.position); h.root.rotation.y = a.yaw;
+      h.gait(dt, a.speed); a.root.position.y += 1.02;
+    }
     const far = Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z);
     this.tag.visible = far < 45 && !this.dead && Math.abs(a.root.position.y - G.player.pos.y) < 25;
   }
-  remove() { if (this.tag) { this.tag.material.map.dispose(); this.tag.material.dispose(); } this.actor.remove(); }
+  remove() { this.ride(false); if (this.tag) { this.tag.material.map.dispose(); this.tag.material.dispose(); } this.actor.remove(); }
 }
 
 // one of the settlers: the server walks them about and sets them to work; this shows them
@@ -290,6 +302,16 @@ export class MPGame {
       can: () => !this.dead && (this.carry > 0 || this.packHas() || (this.stock.wood > 0 && this.carry < 6)),
       label: () => this.carry > 0 || this.packHas() ? `Put in the store: ${[this.carry && `${this.carry} log${this.carry > 1 ? "s" : ""}`, this.pack.stone && `${this.pack.stone} stone`, this.pack.food && `${this.pack.food} food`].filter(Boolean).join(", ")}` : `Take logs from the store (${this.stock.wood})`,
       use: () => this.net.send({ t: this.carry > 0 || this.packHas() ? "stack" : "unstack", id: b.id }) });
+    // a stable of your own (or the colony's): a horse out from it to ride, and put back
+    if (b.type === "stable" && fr) {
+      const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), fx = b.x + (d.d / 2 + 1.2) * sn, fz = b.z + (d.d / 2 + 1.2) * c, pl = G.player;
+      e.it2 = this.w.addInteract({ x: fx, y: this.w.heightAt(fx, fz) + 1.2, z: fz, reach: 2.8, can: () => !this.dead && !this.aboard,
+        label: () => pl.horse ? "Put the horse back in the stable" : "Take a horse out, and ride",
+        use: () => {
+          if (pl.horse) { this.dismount(); UI.hint("The horse is back in its stall.", 2.5); return; }
+          this.mount(e); UI.hint("Up you go. Walk and run as ever — far quicker. X to get down anywhere (it finds its own way home).", 5);
+        } });
+    }
     // a cabin's door: F to open it and go in, F to shut it
     if (e.setDoor) {
       const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), dx = b.x + 3.05 * sn, dz = b.z + 3.05 * c;
@@ -376,7 +398,7 @@ export class MPGame {
     n.die = m => {
       const loot = m.dropped ? ` — ${goodsText(m.dropped)} spilled from their pack` : "";
       if (m.pid === this.pid) {
-        this.dead = true; this.hp = 0; G.downed = true; G.lockMove = true;
+        this.dead = true; this.hp = 0; G.downed = true; G.lockMove = true; this.dismount();
         UI.fade(1, 1.4);
         this.banner(`You fell to ${esc(this.nameOf(m.by))}.`, `${m.dropped ? `A third of what you carried — ${esc(goodsText(m.dropped))} — lies in a sack where you fell, for whoever gets there first.` : "You had nothing worth taking."} You'll wake ${this.myHearth() ? "at your hearth" : "somewhere safe"} in a moment.`);
         return;
@@ -543,7 +565,7 @@ export class MPGame {
     $("buildmenu").classList.toggle("hidden", !on);
     $("mpBuild").classList.add("hidden");
     if (!on) return;
-    const IC = G.icons || {}, PIC = { hearth: "logs", cabin: "cabin", shed: "logs", house: "cabin", field: "seeds", well: "well", wall: "logs", gate: "logs", tower: "weapon", forge: "tools", market: "coin", rowboat: "logs", shipyard: "planks" };
+    const IC = G.icons || {}, PIC = { stable: "stable", hearth: "logs", cabin: "cabin", shed: "logs", house: "cabin", field: "seeds", well: "well", wall: "logs", gate: "logs", tower: "weapon", forge: "tools", market: "coin", rowboat: "logs", shipyard: "planks" };
     $("buildTitle").textContent = "Plans";
     $("buildList").innerHTML = BUILD_ORDER.map((k, i) => {
       // (the hearth is lit from the store; anything else is laid out as a site, and its logs brought to it)
@@ -664,7 +686,7 @@ export class MPGame {
     if ((this.sendT -= dt) <= 0) {
       this.sendT = 0.1;
       const guard = !!(input.rdown && pl.axe && !this.build);
-      this.net.send({ t: "st", c: pl.crouched ? 1 : 0, x: +pl.pos.x.toFixed(2), y: +pl.pos.y.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(3), a: pl.swingT >= 0 ? "chop" : G.working && G.working.until > G.time && G.working.kind === "hammer" ? "hammer" : "idle", h: "axe", s: +(pl.speed || 0).toFixed(2), g: guard });
+      this.net.send({ t: "st", c: pl.crouched ? 1 : 0, x: +pl.pos.x.toFixed(2), y: +pl.pos.y.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(3), a: pl.swingT >= 0 ? "chop" : G.working && G.working.until > G.time && G.working.kind === "hammer" ? "hammer" : "idle", h: pl.horse ? "horse" : "axe", s: +(pl.speed || 0).toFixed(2), g: guard });
     }
     if ((this.atmoT -= dt) <= 0) { this.atmoT = 0.5; this.atmo(); this.drawWar(); }
     // spawn shield
@@ -958,8 +980,22 @@ export class MPGame {
     if (helm || crew) { if (!this.aboard || this.aboard.e !== e || this.aboard.helm !== helm) this.embark(e, helm, Math.max(0, (o.riders || []).indexOf(this.pid))); }
     else if (this.aboard && this.aboard.e === e) this.disembark(false);
   }
+  // up on a horse from a stable: its horse gone from the stall while you're out on it
+  mount(e) {
+    const pl = G.player; if (pl.horse) return;
+    pl.mount(); this.horseFrom = e.b.id;
+    const h = e.g.userData.horse; if (h) h.root.visible = false;
+    sfx("pickup");
+  }
+  // down again, and the horse home (wherever you are)
+  dismount() {
+    const pl = G.player; if (!pl || !pl.horse) return;
+    pl.dismount();
+    const e = this.w.blds.get(this.horseFrom); if (e && e.g.userData.horse) e.g.userData.horse.root.visible = true;
+    this.horseFrom = null;
+  }
   embark(e, helm, seat = 0) {
-    const pl = G.player;
+    const pl = G.player; this.dismount();
     this.aboard = { e, helm, seat, speed: 0, sendT: 0 };
     G.lockMove = true; pl.holsterAxe && pl.holsterAxe(true); if (pl.bow) pl.showBow(false);
     const ship = e.o.kind === "ship";

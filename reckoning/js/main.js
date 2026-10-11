@@ -1975,7 +1975,8 @@ addEventListener("keydown", e => {
   if (e.code === "KeyH" && !e.repeat && G.mode === "play") showOverlay("guideBook", overlay !== "guideBook");
   // X: down off the horse, wherever you are; it goes home to the stable by itself
   if (e.code === "KeyX" && !e.repeat && G.mode === "play" && G.player && G.player.horse) {
-    G.player.dismount(); const st = G.town && G.town.S.buildings.find(b => b.type === "stable" && b.done); if (st) G.town.show(st);
+    if (G.mp && G.mp.dismount) G.mp.dismount(); else G.player.dismount();
+    const st = G.town && G.town.S.buildings.find(b => b.type === "stable" && b.done); if (st) G.town.show(st);
     UI.hint("You get down. The horse trots home to the stable.", 3);
   }
   // ; : the free camera — the view flies loose of you (WASD, Space up, C down, Shift quicker); ; again to come back

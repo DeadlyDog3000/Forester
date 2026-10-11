@@ -22,9 +22,10 @@ export const BUILD = {
   forge:     { name: "Forge",       wood: 20, stone: 16, hp: 520, r: 4.4, w: 8, d: 6, model: "town/forge_1", note: "A smith's forge: with one, your axe bites deeper — trees fall and walls break a blow sooner." },
   rowboat:   { name: "Rowboat",     wood: 8,  stone: 0,  hp: 90,  r: 1.4, w: 1.4, d: 3.6, boat: "rowboat", note: "A clinker-built rowing boat with a pair of oars: lay it on the water by the shore, and row across lakes and along the coast. F to get in and out." },
   shipyard:  { name: "Shipyard",    wood: 90, stone: 30, hp: 900, r: 9,   w: 14, d: 24, shore: true, note: "A great slipway running down into the water, with a crane and a timber shed: at it, ships are built for the open sea. Lay it at the water's edge, its front to the water." },
+  stable:    { name: "Stable",      wood: 16, stone: 4,  hp: 320, r: 3.4, w: 6.4, d: 4.2, note: "Stalls and hay for your horses. Take one out at the stable's front (F) and ride — better than twice as fast as walking, and a great deal quicker over a big land. X gets you down anywhere, and the horse finds its own way home." },
   market:    { name: "Market",      wood: 30, stone: 8,  hp: 480, r: 5.2, w: 8.6, d: 10, model: "town/market_1", note: "A market stall: trade logs for stone and stone for logs." },
 };
-export const BUILD_ORDER = ["hearth", "cabin", "field", "shed", "wall", "gate", "tower", "well", "house", "forge", "market", "rowboat", "shipyard"];
+export const BUILD_ORDER = ["hearth", "cabin", "field", "shed", "wall", "gate", "tower", "well", "house", "stable", "forge", "market", "rowboat", "shipyard"];
 // a ship, built at a shipyard: what it takes from the store, and how many it carries besides the one at the helm
 export const SHIP = { wood: 120, stone: 20, crew: 7 };
 // how fast they go on the water, metres a second, and how they turn

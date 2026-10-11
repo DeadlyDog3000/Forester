@@ -9,7 +9,7 @@
 
 import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, mat, ownGrainAll } from "../core.js";
 import { G, WorldBase } from "../engine.js";
-import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShipyard, SWAY } from "../models.js";
+import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShipyard, makeHorse, SWAY } from "../models.js";
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief, caveIcon } from "../map.js";
 import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
@@ -389,6 +389,23 @@ export class Wilds extends WorldBase {
       g.add(bl.build(MAT.rough, { shadow: false }));
       g.userData.rye = new THREE.Group(); g.add(g.userData.rye);
       this.setGrowth(b, g, b.growth || 0);
+    } else if (b.type === "stable") {
+      // a lean-to on posts, boarded at the back and the ends, two stalls, hay — and a horse in it, when yours isn't out
+      const bb = new Builder(), W = d.w, D = d.d;
+      for (const px of [-W / 2, 0, W / 2]) for (const pz of [-D / 2, D / 2]) bb.box(0.18, pz < 0 ? 2.6 : 2.2, 0.18, px, (pz < 0 ? 2.6 : 2.2) / 2, pz, 0x5a4230);
+      bb.box(W, 1.6, 0.08, 0, 0.8, -D / 2, 0x6a4a2e);
+      for (const px of [-W / 2, W / 2]) bb.box(0.08, 1.4, D, px, 0.7, 0, 0x6a4a2e);
+      bb.box(0.08, 1.2, D * 0.8, 0, 0.6, -D * 0.1, 0x7a5634);
+      bb.add(new THREE.BoxGeometry(W + 0.6, 0.12, D + 0.8), 0x4e3a28, 0, 2.45, 0, -0.1, 0, 0);
+      bb.box(1.1, 0.5, 0.7, W / 2 - 0.8, 0.25, -D / 2 + 0.5, 0xc8a850);
+      bb.box(0.9, 0.35, 0.3, -W / 2 + 0.7, 0.9, -D / 2 + 0.25, 0x7a5634);
+      g.add(bb.build(MAT.rough));
+      const h = makeHorse(0x6a4428 + Math.floor(hash(b.x, b.z) * 3) * 0x080604); h.root.scale.setScalar(0.92); h.root.position.set(-W / 4, 0, -0.2); h.root.rotation.y = Math.PI; g.add(h.root); g.userData.horse = h;
+      // (solid at the back and the ends; the front open, to lead a horse in and out)
+      const c0 = Math.cos(b.ry || 0), s0 = Math.sin(b.ry || 0), at = (lx, lz) => [b.x + lx * c0 + lz * s0, b.z - lx * s0 + lz * c0];
+      { const [px, pz] = at(0, -D / 2); cols.push(this.col.addOBox(px, pz, W / 2 + 0.1, 0.15, b.ry || 0, y + 2.6)); }
+      for (const sx of [-1, 1]) { const [px, pz] = at(sx * W / 2, 0); cols.push(this.col.addOBox(px, pz, 0.12, D / 2, b.ry || 0, y + 2.2)); }
+      { const [px, pz] = at(0, -D * 0.1); cols.push(this.col.addOBox(px, pz, 0.1, D * 0.4, b.ry || 0, y + 1.3)); }
     } else if (b.type === "tower") {
       const bl = new Builder(), H = 5.2;
       for (const [x, z] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) bl.add(new THREE.CylinderGeometry(0.14, 0.17, H + 1.4, 6), 0x5a4030, x, (H + 1.4) / 2, z);
@@ -536,16 +553,43 @@ export class Wilds extends WorldBase {
   // the whole land drawn once, at a size to suit it, then only copied out
   mapSheet() {
     if (this._sheet) return this._sheet;
+    const job = this.sheetJob(); while (!job.step(1e9));
+    return this._sheet;
+  }
+  // the same, but painted a few rows at a time while you play — so the first look at the map, or the minimap coming up,
+  // doesn't stop the game for a second while the whole land is drawn (null until it's ready)
+  mapSheetSoon() {
+    if (this._sheet) return this._sheet;
+    if (!this._sheetBusy) {
+      this._sheetBusy = true; const job = this.sheetJob();
+      const go = () => { if (this._sheet) return; if (job.step(10)) { G.mapRedraw && G.mapRedraw(); return; } setTimeout(go, 16); };
+      setTimeout(go, 0);
+    }
+    return null;
+  }
+  sheetJob() {
+    if (this._job) return this._job;
     const N = this.land.kind === "earth" ? 1000 : this.half > 1500 ? 1500 : 1100, cv = document.createElement("canvas"); cv.width = cv.height = N;
-    this.paintMap(cv.getContext("2d"), -this.half, -this.half, 2 * this.half, N);
-    return this._sheet = { cv, N };
+    const job = this.paintJob(cv.getContext("2d"), -this.half, -this.half, 2 * this.half, N);
+    return this._job = { step: ms => { const done = job.step(ms); if (done) this._sheet = { cv, N }; return done; } };
   }
   // a square of the land, `size` metres from (x0, z0), painted onto N pixels: the country's colour, the hills in
   // contour, the woods stamped, the coast inked (the whole sheet is one; so is each close-up piece of it)
-  paintMap(c, x0, z0, size, N) {
+  paintMap(c, x0, z0, size, N) { const job = this.paintJob(c, x0, z0, size, N); while (!job.step(1e9)); }
+  // (as a job, done a slice of `ms` at a time: true when it's finished)
+  paintJob(c, x0, z0, size, N) {
     fillPaper(c, N, N);
-    const img = c.getImageData(0, 0, N, N), d = img.data, S = size / N, L = this.land, e = Math.max(1.5, Math.min(6, S));
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const img = c.getImageData(0, 0, N, N);
+    let j = 0;
+    return { step: ms => {
+      const t0 = performance.now();
+      while (j < N) { this.paintRow(img.data, x0, z0, size, N, j++); if (performance.now() - t0 > ms) return false; }
+      c.putImageData(img, 0, 0); this.paintOver(c, x0, z0, size, N); return true;
+    } };
+  }
+  paintRow(d, x0, z0, size, N, j) {
+    const S = size / N, L = this.land, e = Math.max(1.5, Math.min(6, S));
+    for (let i = 0; i < N; i++) {
       const x = x0 + (i + 0.5) * S, z = z0 + (j + 0.5) * S, h = L.heightAt(x, z), o = (j * N + i) * 4;
       let r, g, b, a = 1;
       if (h < WATER) { const k = clamp(-h / 10, 0, 1); r = 120 - k * 50; g = 150 - k * 40; b = 160 - k * 20; }
@@ -561,7 +605,9 @@ export class Wilds extends WorldBase {
       }
       d[o] = d[o] * (1 - a) + r * a; d[o + 1] = d[o + 1] * (1 - a) + g * a; d[o + 2] = d[o + 2] * (1 - a) + b * a;
     }
-    c.putImageData(img, 0, 0);
+  }
+  paintOver(c, x0, z0, size, N) {
+    const S = size / N, L = this.land;
     // the contours over it (a line every few metres on an island; every ten in the mountains of the wide world)
     const K = N / size, bb = { x0, x1: x0 + size, z0, z1: z0 + size }, whole = size >= 2 * this.half;
     const XX = x => (x - x0) * K, ZZ = z => (z - z0) * K, st = Math.max(whole ? 4 : 1, size / 380);
@@ -625,11 +671,13 @@ export class Wilds extends WorldBase {
       for (const k of cv.rocks) if (!k.gone && cv.seen.some(i => { const h = cv.halls[i]; return Math.hypot(k.x - h.x, k.z - h.z) < h.r + 1; })) { c.beginPath(); c.arc(X(k.x), Z(k.z), Math.max(3, S * 0.9), 0, Math.PI * 2); c.fill(); c.stroke(); }
       return;
     }
-    const sh = this.mapSheet();
-    c.save(); c.imageSmoothingEnabled = true;
-    c.drawImage(sh.cv, X(-this.half), Z(-this.half), 2 * this.half * S, 2 * this.half * S);
-    c.restore();
-    if (big) this.mapTiles(c, X, Z, S);
+    const sh = this.mapSheetSoon();
+    if (sh) {
+      c.save(); c.imageSmoothingEnabled = true;
+      c.drawImage(sh.cv, X(-this.half), Z(-this.half), 2 * this.half * S, 2 * this.half * S);
+      c.restore();
+      if (big) this.mapTiles(c, X, Z, S);
+    }
     // close up, the trees themselves
     if (S > 1.4) {
       const W = c.canvas.width, H = c.canvas.height, ts = Math.max(2.2, Math.min(4.2, S * 1.6));

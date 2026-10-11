@@ -33,6 +33,6 @@ export const REALMS_1683 = [
   ["New Holland", 134, -25, 690], ["New Guinea", 142, -5.5, 60], ["Staten Landt", 172, -41.5, 40],
 ];
 export const SEAS_1683 = [
-  ["The Western Ocean", -35, 15], ["Mar del Sur", -140, 5], ["Mar del Sur", 165, 18], ["The Indian Sea", 78, -20],
+  ["The Western Ocean", -42, 24], ["Mar del Sur", -140, 5], ["Mar del Sur", 156, 22], ["The Indian Sea", 78, -20],
   ["The Frozen Sea", 0, 72], ["Mare Magellanicum", 40, -55], ["Mediterranean Sea", 18, 35.5], ["German Ocean", 3.5, 56],
 ];

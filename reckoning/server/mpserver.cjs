@@ -59,7 +59,14 @@ class Sock {
       if (op === 0 && this.frag) { this.frag.push(data); if (fin) { const all = Buffer.concat(this.frag); this.frag = null; this.deliver(all); } }
     }
   }
-  deliver(data) { if (process.env.MP_DEBUG && data.length > 100000) console.log(`big message ${data.length}`); if (this.onmessage) this.onmessage(data.toString("utf8")); }
+  // (a fault in handling one message is the server's, not the player's: it's written down, and they stay connected —
+  //  it used to throw out to the frame parser, which hung up on them without a word)
+  deliver(data) {
+    if (process.env.MP_DEBUG && data.length > 100000) console.log(`big message ${data.length}`);
+    if (!this.onmessage) return;
+    try { this.onmessage(data.toString("utf8")); }
+    catch (e) { console.error(`[${new Date().toISOString()}] a message went wrong: ${String(data).slice(0, 120)}\n${e.stack}`); }
+  }
   raw(head, data) {
     if (!this.open) return;
     const n = data.length, h = n < 126 ? Buffer.from([head, n]) : n < 65536 ? Buffer.from([head, 126, n >> 8, n & 255]) : (() => { const x = Buffer.alloc(10); x[0] = head; x[1] = 127; x.writeBigUInt64BE(BigInt(n), 2); return x; })();
@@ -236,6 +243,7 @@ class Room {
   leave(p) {
     if (!this.online.has(p.pid) || this.online.get(p.pid) !== p) return;
     this.online.delete(p.pid); p.sock.player = null;
+    if (process.env.MP_TRACE) console.log(`left "${this.name}": ${p.name} ${new Error().stack.split("\n").slice(2, 4).map(x => x.trim()).join(" < ")}`);
     // (their place in a boat, given up)
     for (const o of Object.values(this.boats || {})) { if (o.driver === p.pid) { o.driver = (o.riders || []).shift() || null; this.all({ t: "boat", o }); } else if ((o.riders || []).includes(p.pid)) { o.riders = o.riders.filter(q => q !== p.pid); this.all({ t: "boat", o }); } }
     const r = this.recs[p.pid]; if (r) r.seen = now();
