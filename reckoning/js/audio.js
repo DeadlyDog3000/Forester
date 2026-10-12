@@ -12,11 +12,33 @@ import { createMusic } from "./music.js";
 let MUSIC = null;
 
 let ac = null, bus = null, musicBus = null, noise = null;
+// ---- the budget: how much is sounding at once ----
+// Every sound here is made as it plays — a man's cry alone is a couple of dozen nodes — and the audio thread can only
+// render so many at a time: in a charge, with men dying all round and every musket going, it fell behind and the sound
+// stuttered and cut out. So every source started anywhere is counted while it plays, and past a point the quieter and
+// further things (a cry across the field, a far shot's echo) are left out — the near ones never. The audio clock is
+// watched too: if it ever falls behind real time, the point comes down until it keeps up again.
+let liveSrc = 0, pressure = 1;
+function budget(a) {
+  if (a.__budget) return; a.__budget = true;
+  const P = window.AudioScheduledSourceNode && AudioScheduledSourceNode.prototype; if (!P) return;
+  const st = P.start;
+  P.start = function (...x) { liveSrc++; this.addEventListener("ended", () => { liveSrc--; }, { once: true }); return st.apply(this, x); };
+  let ct = a.currentTime, wt = performance.now();
+  setInterval(() => {
+    const w = performance.now(), r = (a.currentTime - ct) / Math.max(0.001, (w - wt) / 1000); ct = a.currentTime; wt = w;
+    if (a.state !== "running") return;
+    pressure = r < 0.93 ? Math.max(0.25, pressure * 0.7) : Math.min(1, pressure + 0.04);
+  }, 500);
+}
+// room for one more of this importance (0 a faint far thing .. 1 right by you)
+const room = imp => liveSrc < (60 + 200 * imp) * pressure;
 function ctx() {
   if (ac) { if (ac.state === "suspended") ac.resume(); return ac; }
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
   ac = window.__foresterAC;
   if (!ac) return null;
+  budget(ac);
   bus = ac.createGain(); bus.gain.value = 1; bus.connect(window.__foresterMaster);
   musicBus = ac.createGain(); musicBus.gain.value = 0.55; musicBus.connect(window.__foresterMaster);
   noise = window.__foresterNoise;
@@ -285,6 +307,7 @@ export const AUDIO = {
   gunshot(vol = 1, at = null) {
     const a = ctx(); if (!a) return;
     const small = vol < 0.85, D = shotDistance(at), v = 0.55 * vol * Math.max(0.12, 1 - D / 260);   // (well under the cannon: room left above it)
+    if (!room(Math.max(0, 1 - D / 120))) return;
     const t = a.currentTime + D / 343 + (at ? 0 : 0);
     const out = shotOut(a, D, 1);
     // the lock: the flint on the steel, and the priming going up in the pan
@@ -360,7 +383,7 @@ export const AUDIO = {
 
   // a blade or a haft through the air: noise that swells and falls away, its pitch rising with the stroke's speed
   whoosh(vol = 0.5, heavy = true) {
-    const a = ctx(); if (!a) return;
+    const a = ctx(); if (!a || vol < 0.02 || !room(vol)) return;
     const t = a.currentTime, dur = heavy ? rnd(0.3, 0.36) : rnd(0.2, 0.25), peak = t + dur * 0.45;
     const s = noiseSrc(a), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.Q.value = 0.9;
@@ -382,7 +405,7 @@ export const AUDIO = {
   // a breath dragged in, sharp, through an open mouth: before a scream, between sobs
   gasp({ at = null, vol = 1, delay = 0 } = {}) {
     const a = ctx(); if (!a) return;
-    const { node, k } = placed(a, at, 40); if (k * vol < 0.02) return;
+    const { node, k } = placed(a, at, 40); if (k * vol < 0.02 || !room(k * vol)) return;
     const t = a.currentTime + delay, dur = rnd(0.16, 0.26);
     const n = noiseSrc(a), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.Q.value = 1.6; f.frequency.setValueAtTime(rnd(1100, 1400), t); f.frequency.linearRampToValueAtTime(rnd(1900, 2400), t + dur);
@@ -393,6 +416,7 @@ export const AUDIO = {
   voice(kind = "war", { high = false, at = null, vol = 1, delay = 0, seg = false } = {}) {
     const a = ctx(); if (!a) return;
     const { node, k } = placed(a, at, 70); if (k * vol < 0.02) return;
+    if (!room(Math.min(1, k * vol))) return;
     const t = a.currentTime + delay;
     // a man going down doesn't cry once: a gasp, the scream, and then it breaks down — a catch of breath, and a moan or
     // two falling away, each weaker (the same throat throughout)
@@ -401,7 +425,8 @@ export const AUDIO = {
       this.gasp && this.gasp({ at, vol: vol * 0.5, delay });
       this.voice("death", { ...me, delay: delay + 0.12 });
       let at2 = delay + 0.12 + d0 + rnd(0.2, 0.45);
-      for (let i = 0, n = Math.random() < 0.7 ? 1 + Math.floor(Math.random() * 2) : 0; i < n; i++) {
+      // (the moans after only where there's room for them: a man near you, or a quiet moment)
+      for (let i = 0, n = Math.random() < 0.7 && room(0.3 + k * 0.7) ? 1 + Math.floor(Math.random() * 2) : 0; i < n; i++) {
         this.gasp && this.gasp({ at, vol: vol * 0.35, delay: at2 - 0.22 });
         this.voice(Math.random() < 0.5 ? "moan" : "sob", { ...me, vol: vol * (0.7 - i * 0.2), delay: at2 });
         at2 += rnd(0.9, 1.5);
@@ -553,7 +578,7 @@ export const AUDIO = {
   // steel on steel: a bright strike and a ring of partials that don't quite agree, dying away
   clang(vol = 1, at = null) {
     const a = ctx(); if (!a) return;
-    const { node, k } = placed(a, at, 55); if (k * vol < 0.02) return;
+    const { node, k } = placed(a, at, 55); if (k * vol < 0.02 || !room(k * vol)) return;
     const t = a.currentTime, f = rnd(430, 620), v = 0.2 * vol * k;
     for (const [m, g, d] of [[1, 1, 0.9], [2.76, 0.6, 0.7], [5.40, 0.4, 0.45], [8.93, 0.25, 0.3], [13.3, 0.14, 0.2], [1.51, 0.3, 1.1]]) {
       const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.value = f * m * rnd(0.995, 1.005);
@@ -696,7 +721,7 @@ export const AUDIO = {
       const knock = () => {
         if (loops.melee !== self) return;
         const k = self.fight, t = a.currentTime + rnd(0, 0.05);
-        if (k > 0.02) {
+        if (k > 0.02 && room(0.35)) {
           const far = rnd(0.35, 1) * k, r = Math.random(), o = a.createGain(); o.gain.value = far; o.connect(g);
           const b = (dur, vol, f0, f1, q, type = "bandpass") => { const s = noiseSrc(a), f = a.createBiquadFilter(), gg = a.createGain(); f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur); gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(vol, t + 0.003); gg.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(f); f.connect(gg); gg.connect(o); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02); };
           if (r < 0.4) {
@@ -902,6 +927,7 @@ export const AUDIO = {
     if (!MUSIC) MUSIC = createMusic(() => ctx(), () => { ctx(); return musicBus; });
     MUSIC.play(mood);
   },
+  get load() { return { live: liveSrc, pressure }; },
   get musicState() { return MUSIC ? { mood: MUSIC.mood, playing: MUSIC.playing } : null; },
 };
 

@@ -170,6 +170,9 @@ function refreshTitle() {
   // (the chapter and the save on a small second line, so the button keeps the width of the others)
   $("btnContinue").innerHTML = s ? `Continue<small class="btn-sub">${CHAPTERS[(s.chapter || 1) - 1].title}${getSlot() > 1 ? ` · save ${getSlot()}` : ""}</small>` : "Continue";
   UI.show("btnChapters", !!s);
+  // (a story under way: Continue is the big button, and starting another is a quieter one under it)
+  $("btnNew").innerHTML = s ? "New story" : `Begin the story<small class="btn-sub">${CHAPTERS[0].title} · your family's tale</small>`;
+  $("btnNew").classList.toggle("primary", !s); $("btnNew").classList.toggle("tm-second", !!s);
 }
 function toTitle() {
   G.endFreecam && G.endFreecam();

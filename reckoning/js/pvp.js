@@ -1555,7 +1555,7 @@ class Bot extends Fighter {
     setTimeout(() => this.alive && a.person.setPose("idle"), 520);
     const f = new THREE.Vector3(Math.sin(a.yaw), 0, Math.cos(a.yaw)), from = new THREE.Vector3(a.pos.x, a.pos.y + 1.8, a.pos.z).addScaledVector(f, 0.35);
     const to = { x: tp.x + (Math.random() - 0.5) * 2 * sp, z: tp.z + (Math.random() - 0.5) * 2 * sp };
-    setTimeout(() => { if (!this.alive || !this.arena.field) return; this.arena.field.throwNade(from, to, this.team); AUDIO.whoosh && AUDIO.whoosh(0.4, true); }, 260);
+    setTimeout(() => { if (!this.alive || !this.arena.field) return; this.arena.field.throwNade(from, to, this.team); const dd = Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z); if (dd < 22) AUDIO.whoosh && AUDIO.whoosh(0.4 * (1 - dd / 22) ** 1.5, true); }, 260);
     if (Math.random() < 0.5) AUDIO.voice && AUDIO.voice("war", { at: a.pos, vol: 0.7, high: isF(this.info.look) });
   }
   // his steel: the bayonet fixed on his musket if he has the two; else his blade
@@ -1643,7 +1643,8 @@ class Bot extends Fighter {
       if (was > 0.62 && this.wind <= 0.62) a.person.setPose(blowPose(this.steel(), this.dir));
       if (this.wind <= 0) {
         setTimeout(() => this.alive && a.person.setPose("idle"), 500);
-        AUDIO.whoosh && AUDIO.whoosh(0.45, this.lo.blade !== "sword");
+        // (heard from where he is: by you, full; across the field, nothing)
+        { const dd = Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z); if (dd < 22) AUDIO.whoosh && AUDIO.whoosh(0.45 * (1 - dd / 22) ** 1.5, this.lo.blade !== "sword"); }
         const B = BLADE[this.steel()];
         this.cool = (1.4 - s * 0.6) / B.rate * (0.85 + Math.random() * 0.3);
         if (d < B.reach - 0.3 && T.alive) {

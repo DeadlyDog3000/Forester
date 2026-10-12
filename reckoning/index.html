@@ -218,22 +218,31 @@
         <div class="logo-sub">Reckoning</div>
       </div>
       <p class="tagline">Hamburg, 1683. A house by the harbour, a family with a good name, and bread on every table on the quay.</p>
+      <!-- the title asks one thing: alone, or with others? — the story on one side, everything online on the other; the
+           rest is housekeeping, small, along the bottom -->
       <nav class="menu title-menu">
-        <div class="tm-main">
-          <button id="btnContinue" class="btn hidden">Continue</button>
-          <button id="btnNew" class="btn primary">New Game</button>
-          <button id="btnMulti" class="btn">Multiplayer</button>
-          <button id="btnPvp" class="btn">PvP</button>
+        <div class="tm-modes">
+          <div class="tm-card">
+            <div class="tm-kicker">Single player</div>
+            <div class="tm-head">The Story</div>
+            <button id="btnContinue" class="btn primary hidden">Continue</button>
+            <button id="btnNew" class="btn primary">Begin the story</button>
+            <div class="tm-links"><button id="btnChapters" class="tm-lnk hidden">Chapters</button><button id="btnSlots" class="tm-lnk">Saves</button></div>
+          </div>
+          <div class="tm-card">
+            <div class="tm-kicker">Multiplayer</div>
+            <div class="tm-head">Online</div>
+            <button id="btnPvp" class="btn">Battles &amp; duels<small class="btn-sub">Your company against other players</small></button>
+            <button id="btnMulti" class="btn">Frontier<small class="btn-sub">Build a settlement together</small></button>
+          </div>
         </div>
-        <div class="tm-grid">
-          <button id="btnChapters" class="btn hidden">Chapters</button>
-          <button id="btnSlots" class="btn">Saves</button>
-          <button id="btnAch" class="btn">Achievements</button>
-          <button id="btnSettings" class="btn">Settings</button>
-          <button id="btnControls" class="btn">Controls</button>
-          <button id="btnUpdates" class="btn">What's new</button>
-          <button id="btnCredits" class="btn">Credits</button>
-          <button id="btnQuitGame" class="btn hidden">Quit</button>
+        <div class="tm-foot">
+          <button id="btnSettings" class="tm-lnk">Settings</button>
+          <button id="btnControls" class="tm-lnk">Controls</button>
+          <button id="btnAch" class="tm-lnk">Achievements</button>
+          <button id="btnUpdates" class="tm-lnk">What's new</button>
+          <button id="btnCredits" class="tm-lnk">Credits</button>
+          <button id="btnQuitGame" class="tm-lnk hidden">Quit</button>
         </div>
       </nav>
       <footer class="credit">A <strong>DeadlyDog Productions</strong> game &middot; &copy; 2026 Roan Fraese &middot; <span id="verNum"></span></footer>

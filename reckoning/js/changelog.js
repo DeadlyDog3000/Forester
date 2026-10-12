@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.25.0", date: "12 October 2026", title: "Two ways in",
+    items: [
+      "The title screen asks one thing: alone, or with others? The Story (single player) on one side — Continue, big, if you've a story going, with New story, Chapters and Saves quietly under it; Begin the story if you haven't — and Online on the other, with Battles & duels and Frontier together. Settings, Controls, Achievements, What's new, Credits and Quit along the bottom. Eleven buttons of the same size were too many to choose from.",
+      "Sound in a charge: every sound playing is counted now, and when the field is at its loudest — men dying all round, every musket going — the furthest and quietest (a cry across the field, a far shot) give way so the audio keeps up; the ones near you always play. The audio clock is watched as well, and if it ever falls behind, less is let through until it catches up. Another man's swing is heard from where he is: before, every bot's swing anywhere on the field whooshed at full volume in your ear.",
+    ],
+  },
+  {
     v: "1.24.2", date: "12 October 2026", title: "Arrows that stay in",
     items: [
       "An arrow or a bolt that strikes a man goes in: its point driven to the limb or the body it meets, along the way it flew, and carried by that part of him — it moves with his arm, goes down with him and stays in him as he lies. Before, it stopped a hand's breadth short of him in the air and hung there, fixed to where he'd stood, while he walked off or fell away from it.",
