@@ -73,8 +73,8 @@ export function muzzleFlash(root, at, dir, scale = 1) {
 export function powderSmoke(root, at, dir, o = {}) {
   textures();
   const scale = o.scale || 1, life = o.life || 7, n = o.n || 14, speed = o.speed || 9;
-  // (dark: the dirty grey-black of coarse powder burnt in a hurry — the haze it leaves a lighter grey)
-  const day = daylight(), tint = new THREE.Color(o.tint || 0x2c2d2f).multiplyScalar(day), hazeTint = new THREE.Color(0x46474a).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
+  // (a dark grey: coarse powder burnt in a hurry — the haze it leaves a lighter grey)
+  const day = daylight(), tint = new THREE.Color(o.tint || 0x707174).multiplyScalar(day), hazeTint = new THREE.Color(0x85868a).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
   const add = (p0, v0, s0, grow, l, a0, delay = 0, col = tint) => {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFFS[Math.floor(Math.random() * PUFFS.length)], color: col, transparent: true, opacity: 0, depthWrite: false, fog: true }));
     m.position.copy(p0); m.scale.setScalar(s0); m.material.rotation = Math.random() * Math.PI * 2;

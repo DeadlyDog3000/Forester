@@ -19,6 +19,9 @@ import { shake } from "./fight.js";
 import { P, makeLogs, makeStump, makeSheaf, makeSack } from "./models.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _z = new THREE.Vector3(0, 0, 1), _up = new THREE.Vector3(0, 1, 0);
+// the drill's steps, and where each ends in the loading (0 just fired, 1 loaded)
+const DRILL = [["back", 0, 0.05], ["sponge", 0.05, 0.3], ["load", 0.3, 0.42], ["ram", 0.42, 0.62], ["prime", 0.62, 0.72], ["lay", 0.72, 0.86], ["run", 0.86, 1]];
 
 // a thing built of many pieces made into one mesh to each material it's made of (hundreds of stones in a wall drawn as
 // one): every plain mesh in it, in its place, merged; anything else — several materials on one mesh, instanced — left
@@ -77,7 +80,11 @@ export function soldierLook(u, seed, base = {}) {
   //  few darker — men from the south of Europe, from the Turkish wars, from the ports)
   const weighed = l => { let x = r() * l.reduce((t, [, w]) => t + w, 0); for (const [v, w] of l) if ((x -= w) <= 0) return v; return l[0][0]; };
   const skin = weighed([[0xf3d8c4, 30], [0xf1d3bc, 26], [0xeac6aa, 18], [0xe2b896, 11], [0xd4a882, 6], [0xc99a74, 4], [0xa87652, 2.5], [0x7e5236, 1.5], [0x5a3a26, 1]]);
-  return { body: "watchman", skin, hair: pick([0x2a1c12, 0x4a3020, 0x6e4a2a, 0x9a6a38, 0x8a8a88]),
+  // (the hair: dark for the most part, brown and fair a good many, the odd red or grey; and the face shaven, as most
+  //  soldiers' were, or a moustache — the fashion — or, here and there, a beard)
+  const hair = weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
+  const face = weighed([["clean", 45], ["tash", 38], ["full", 17]]);
+  return { body: "watchman", skin, hair, face,
     eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: 0xe6dcc8, stockings: pick([0xd8d0c0, 0x5a5048]),
     height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
     coat: u.coat, vest: u.vest, legs: u.legs, sash: u.sash, hat: "hat", hatColor: u.hat };
@@ -101,6 +108,7 @@ export class Field {
       leaf: mat(0x3e5626, { surface: "needles" }), leaf2: mat(0x4a5e2c, { surface: "needles" }), rail: mat(0x7e6a50, { surface: "wood" }),
       soot: mat(0x231d18, { surface: "wood" }), ash: mat(0x3a342e, { surface: "ground" }), boulder: mat(0x8e897f, { surface: "rock", weather: false }),
       hay: mat(0xb0924e, { surface: "none" }), tarp: mat(0x6e6650, { surface: "cloth" }),
+      fleece: mat(0x8a7a62, { surface: "cloth" }), flannel: mat(0xc8b890, { surface: "cloth" }),
     };
     void M;
     this.fortSide = battle ? fort : null;
@@ -534,15 +542,111 @@ export class Field {
     const m = makeCannon(); const ry = sx < 0 ? -Math.PI / 2 : Math.PI / 2;   // (pointing at the other side: -z of the model, out east or west)
     this.put(m, x, z, ry, 0, false);
     // (solid from the muzzle to the trail's end: the carriage and wheels a box, the barrel out before them a narrower one)
-    { const c = this.at(x, z, ry, 0, 0.45); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.55, 1.15, ry, this.y(x, z) + 1.05)); }
+    { const c = this.at(x, z, ry, 0, -0.32); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.6, 0.5, ry, this.y(x, z) + 1.05)); }
+    { const c = this.at(x, z, ry, 0, 0.95); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.24, 0.75, ry, this.y(x, z) + 0.9)); }
     { const c = this.at(x, z, ry, 0, -1.25); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.22, 0.6, ry, this.y(x, z) + 1.1)); }
-    this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, recoil: 0, target: null, firing: true, next: 10 + this.r() * 8, crew: [] });
+    this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, reloadT: 1, recoil: 0, back: 0, base: m.position.clone(), target: null, firing: true, next: 10 + this.r() * 8, crew: [], tools: this.gunTools() });
   }
   // where a gun's crew stand to work it: either side of the breech, clear of the wheels (i 0: the gunner, who lays and
   // fires it; 1: the loader, with the rammer and the sponge)
-  station(g, i) {
-    const lx = i ? 0.95 : -0.95, lz = 0.55, c = Math.cos(g.ry), s = Math.sin(g.ry);
-    return { x: g.x + lx * c + lz * s, z: g.z - lx * s + lz * c };
+  station(g, i) { const w = this.crewWork(g, i); return { x: w.x, z: w.z }; }
+  // ---- the drill: how a gun is served, step by step, as the loading goes ----
+  // fired, it's thrown back on its wheels. The loader sponges the bore out (three strokes, the wet wool killing any
+  // spark left), while the gunner stops the vent with his thumb; the gunner brings the cartridge and puts it in the
+  // muzzle, and the loader turns his staff end for end and rams it home, a long push and two hard strokes; the gunner
+  // pricks the cartridge through the vent and primes it from his horn, then crouches behind the trail and lays the gun;
+  // both heave it back up to its place at the wheels; and the gunner stands by it with the burning linstock
+  drill(g) {
+    if (g.loaded) return { ph: "ready", k: 0 };
+    const p = clamp(1 - g.reload / (g.reloadT || 1), 0, 1);
+    for (const [ph, a, b] of DRILL) if (p < b) return { ph, k: (p - a) / (b - a), p };
+    return { ph: "run", k: 1, p };
+  }
+  // where each of the crew is in it, which way he looks, and how he stands
+  crewWork(g, i) {
+    const { ph, k } = this.drill(g), ry = g.ry + g.yaw, back = g.back || 0;
+    const L = (lx, lz) => { const c = Math.cos(ry), s = Math.sin(ry), z2 = lz + back; return { x: g.x + lx * c + z2 * s, z: g.z - lx * s + z2 * c }; };
+    const muz = L(0, -1.7), vent = L(0, 0.3);
+    let at, face, pose = "idle", crouch = false;
+    if (i) {   // the loader: the sponge and the rammer
+      if (ph === "sponge" || ph === "ram") { at = L(0.62, -2.5); face = muz; pose = "reach"; }
+      else if (ph === "load") { at = L(0.7, -2.2); face = muz; pose = "hold"; }
+      else if (ph === "run") { at = L(0.93, -0.3); face = L(0.93, -3); pose = "reach"; }
+      else { at = L(0.95, 0.55); face = null; }
+    } else {   // the gunner: the vent, the cartridge, the priming, the laying and the match
+      if (ph === "back" || ph === "sponge" || ph === "ram") { at = L(-0.56, 0.3); face = vent; pose = "reach"; }
+      else if (ph === "load") { at = k < 0.45 ? L(-0.95, 0.4) : L(-0.7, -2.1); face = k < 0.45 ? null : muz; pose = "hold"; }
+      else if (ph === "prime") { at = L(-0.56, 0.3); face = vent; pose = "reach"; }
+      else if (ph === "lay") { at = L(0, 2.1); face = muz; crouch = true; }
+      else if (ph === "run") { at = L(-0.93, -0.3); face = L(-0.93, -3); pose = "reach"; }
+      else { at = L(-1.0, 0.7); face = null; pose = "torch"; }
+    }
+    return { x: at.x, z: at.z, face, pose, crouch, ph, k };
+  }
+  // the gun's tools, out of their hooks: the staff (a sheepskin sponge one end, the rammer's head the other), the
+  // cartridge (a flannel bag of powder with the ball strapped to it), and the linstock with its glowing match
+  gunTools() {
+    const staff = new THREE.Group();
+    { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.2, 6).rotateX(Math.PI / 2), this.M.wood); staff.add(p);
+      const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.24, 10).rotateX(Math.PI / 2), this.M.fleece); sp.position.z = -1.1; staff.add(sp);
+      const rh = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.1, 10).rotateX(Math.PI / 2), this.M.wood); rh.position.z = 1.1; staff.add(rh); }
+    const cart = new THREE.Group();
+    { const bag = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10).rotateX(Math.PI / 2), this.M.flannel); bag.position.z = 0.1; cart.add(bag);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 8), this.M.iron); ball.position.z = -0.03; cart.add(ball); }
+    const lin = new THREE.Group();
+    { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 1.1, 6), this.M.wood); p.position.y = 0.55; lin.add(p);
+      const fork = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.008, 4, 8, Math.PI), this.M.iron); fork.position.y = 1.12; lin.add(fork);
+      const match = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff7a2a })); match.position.set(0.04, 1.13, 0); lin.add(match); lin.userData.match = match; }
+    for (const o of [staff, cart, lin]) { o.visible = false; o.traverse(c => { if (c.isMesh) c.castShadow = true; }); this.root.add(o); }
+    return { staff, cart, lin };
+  }
+  // each frame: the gun thrown back and run up again, the tools where the men's hands are, and the drill heard
+  drillTick(g, dt) {
+    const m = g.model, T = g.tools, D = this.drill(g), n = g.crewN, crew = g.crew.filter(u => u.alive);
+    const loader = g.crew[1] && g.crew[1].alive ? g.crew[1] : null, gunner = g.crew[0] && g.crew[0].alive ? g.crew[0] : null;
+    // (back on its wheels a pace when it fires; brought up again in the drill's last step)
+    if (D.ph === "run" && n) g.back = Math.min(g.back, 0.75 * (1 - D.k));
+    else if (D.ph === "ready") g.back = Math.max(0, g.back - dt * 0.8);
+    const ry = g.ry + g.yaw;
+    m.position.set(g.base.x + Math.sin(ry) * g.back, g.base.y, g.base.z + Math.cos(ry) * g.back);
+    m.updateMatrixWorld(true);
+    const ud = m.userData, muzzle = ud.muzzle.getWorldPosition(_v1), q = ud.barrel.getWorldQuaternion(_q1), out = _v2.set(0, 0, -1).applyQuaternion(q);
+    const busy = n && (D.ph === "sponge" || D.ph === "ram" || D.ph === "load");
+    for (const o of ud.stowed || []) o.visible = !busy;
+    // the staff: sponge end in the bore, three strokes; held upright while the cartridge goes in; turned end for end
+    // and the rammer driven home, a long push and two short hard ones
+    T.staff.visible = !!(busy && loader);
+    if (T.staff.visible) {
+      let depth = 0, ramEnd = false;
+      if (D.ph === "sponge") depth = 0.15 + 0.75 * (0.5 - 0.5 * Math.cos(D.k * Math.PI * 6));
+      else if (D.ph === "ram") { ramEnd = true; depth = D.k < 0.45 ? 0.1 + D.k / 0.45 * 0.85 : D.k < 0.85 ? 0.82 + 0.13 * Math.abs(Math.sin((D.k - 0.45) / 0.4 * Math.PI * 2)) : 0.95 * (1 - (D.k - 0.85) / 0.15); }
+      if (D.ph === "load") {
+        T.staff.position.set(loader.pos.x, loader.pos.y + 1.1, loader.pos.z); T.staff.quaternion.setFromUnitVectors(_z, _up);
+      } else {
+        T.staff.quaternion.setFromUnitVectors(_z, ramEnd ? _v3.copy(out).negate() : out);
+        T.staff.position.copy(muzzle).addScaledVector(out, 1.1 - depth);
+        T.staff.rotateZ(D.k * 9);
+      }
+      // (heard: the sponge each stroke in, the rammer each time it strikes the charge)
+      const stroke = D.ph === "sponge" ? Math.floor(D.k * 3) : D.ph === "ram" ? (D.k < 0.45 ? 0 : D.k < 0.65 ? 1 : D.k < 0.85 ? 2 : 3) : -1;
+      if (stroke !== g.stroke && stroke >= 0) { const F = window.__foley; if (F && F.load) F.load(D.ph === "sponge" ? "sponge" : "gunRam", muzzle, 0.75); }
+      g.stroke = stroke;
+    } else g.stroke = -1;
+    // the cartridge: in the gunner's hands, and into the muzzle
+    T.cart.visible = !!(D.ph === "load" && gunner && D.k < 0.92);
+    if (T.cart.visible) {
+      if (D.k < 0.7) { const f = gunner.yaw; T.cart.position.set(gunner.pos.x + Math.sin(f) * 0.35, gunner.pos.y + 1.0, gunner.pos.z + Math.cos(f) * 0.35); T.cart.rotation.set(0, f, 0); }
+      else { T.cart.quaternion.setFromUnitVectors(_z, out); T.cart.position.copy(muzzle).addScaledVector(out, 0.15 - (D.k - 0.7) / 0.22 * 0.35); }
+    }
+    // (the priming heard; the wheels as it's run up)
+    if (D.ph !== g.lastPh) {
+      const F = window.__foley, vent = ud.barrel.localToWorld(_v3.set(0, 0.17, 0.6));
+      if (F && F.load && n) { if (D.ph === "prime") F.load("prick", vent, 0.7); if (D.ph === "run") F.load("runOut", m.position, 0.9); }
+      g.lastPh = D.ph;
+    }
+    // the linstock: in the gunner's hand while it's loaded, the match glowing
+    T.lin.visible = !!(D.ph === "ready" && gunner);
+    if (T.lin.visible) { const f = gunner.yaw + Math.PI / 2; T.lin.position.set(gunner.pos.x + Math.sin(f) * 0.28, gunner.pos.y + 0.1, gunner.pos.z + Math.cos(f) * 0.28); T.lin.rotation.set(0, gunner.yaw, 0.12); T.lin.userData.match.scale.setScalar(0.8 + Math.random() * 0.5); }
   }
   // how many of its crew are at it
   manned(g) { return g.crew.filter(u => u.alive && Math.hypot(u.pos.x - g.x, u.pos.z - g.z) < 2.6).length; }
@@ -562,7 +666,7 @@ export class Field {
     g.model.updateMatrixWorld(true);
     const at = m.muzzle.getWorldPosition(new THREE.Vector3());
     const yaw = g.ry + g.yaw, dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(g.pitch), Math.sin(g.pitch), -Math.cos(yaw) * Math.cos(g.pitch));
-    g.loaded = false; g.reload = 6.5 + this.r() * 2.5; g.recoil = 1;
+    g.loaded = false; g.reload = g.reloadT = 9 + this.r() * 2.5; g.recoil = 1; g.back = 0.75;
     this.balls.push({ p: at.clone(), v: dir.multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
     muzzleFlash(root, at.clone().addScaledVector(dir, 0.2), dir, 3);
     powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 32, n: 60, speed: 15, haze: true, hazeN: 18, hazeA: 0.36 });
@@ -598,6 +702,7 @@ export class Field {
       }
       g.recoil = Math.max(0, g.recoil - dt * 1.4);
       const m = g.model; m.rotation.y = g.ry + g.yaw; m.userData.barrel.rotation.x = g.pitch;
+      this.drillTick(g, dt);
     }
     const root = this.w.root;
     for (const b of this.balls) {

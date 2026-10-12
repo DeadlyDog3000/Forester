@@ -260,6 +260,7 @@ function buildControls() {
       + sw("hair", "Hair", SWATCH.hair, L.hair)
       + sw("eyes", "Eyes", SWATCH.eyes, L.eyes ?? SWATCH.eyes[0])
       + `<div class="mp-row"><span>Hat</span><div class="cb-hats">${HAT_STYLES.map(hs => `<button data-hat="${hs.id}" class="${(L.hat || "hat") === hs.id ? "on" : ""}">${hs.name}</button>`).join("")}</div></div>`
+      + (/^(father|jakob|magistrate|watchman|raider)$/.test(L.body) ? `<div class="mp-row"><span>Face</span><div class="cb-hats">${[["full", "Beard"], ["tash", "Moustache"], ["clean", "Clean-shaven"]].map(([id, n]) => `<button data-face="${id}" class="${(L.face || "full") === id ? "on" : ""}">${n}</button>`).join("")}</div></div>` : "")
       + (L.hat !== "none" ? sw("hatColor", "Hat colour", SWATCH.hat.slice(1).concat([0xe6dcc8, 0xf0ebe0]), L.hatColor ?? SWATCH.hat[1]) : "");
   } else {
     h = sw("coat", f ? "Bodice" : "Coat", SWATCH.coat, L.coat)
@@ -278,6 +279,7 @@ function buildControls() {
   };
   for (const b of $("mpControls").querySelectorAll("[data-body]")) b.onclick = () => { L.body = b.dataset.body; buildControls(); showLook(); };
   for (const b of $("mpControls").querySelectorAll("[data-hat]")) b.onclick = () => { L.hat = b.dataset.hat; buildControls(); showLook(); };
+  for (const b of $("mpControls").querySelectorAll("[data-face]")) b.onclick = () => { L.face = b.dataset.face; buildControls(); showLook(); };
   for (const b of $("mpControls").querySelectorAll(".sw")) b.onclick = () => { set(b.dataset.k, b.dataset.v === "" ? null : +b.dataset.v); buildControls(); };
   for (const i of $("mpControls").querySelectorAll(".cb-pick")) i.oninput = () => { set(i.dataset.k, parseInt(i.value.slice(1), 16)); for (const b of i.parentNode.querySelectorAll(".sw")) b.classList.remove("on"); };
   for (const i of $("mpControls").querySelectorAll("[data-s]")) i.oninput = () => { L[i.dataset.s] = +i.value; const o = $("mpControls").querySelector(`[data-o="${i.dataset.s}"]`); if (o) o.textContent = { height: v => `${Math.round(170 * v)} cm`, build: v => v < 0.96 ? "slight" : v > 1.05 ? "broad" : "middling", head: v => `${Math.round(v * 100)}%` }[i.dataset.s](+i.value); showLook(); };

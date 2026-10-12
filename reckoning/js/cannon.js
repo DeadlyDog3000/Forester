@@ -89,11 +89,12 @@ export function makeCannon() {
   // the rammer and the sponge, laid along the left cheek, down its slope, on iron hooks
   const SL = 0.425, along = (t, x) => [x, 0.47 + (0.6 - t) * Math.tan(SL) * 0.0 + (0.6 - t) * 0.453, t];
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.9, 6).rotateX(Math.PI / 2), oakD);
-  { const [x, y, z] = along(0.6, -0.285); put(pole, x, y, z, SL); }
-  { const [x, y, z] = along(-0.33, -0.285); put(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10).rotateX(Math.PI / 2), mat(0x5e5040, { roughness: 1 })), x, y, z, SL); }
-  { const [x, y, z] = along(1.52, -0.285); put(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 10).rotateX(Math.PI / 2), oakD), x, y, z, SL); }
+  const stowed = [];
+  { const [x, y, z] = along(0.6, -0.285); stowed.push(put(pole, x, y, z, SL)); }
+  { const [x, y, z] = along(-0.33, -0.285); stowed.push(put(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10).rotateX(Math.PI / 2), mat(0x5e5040, { roughness: 1 })), x, y, z, SL)); }
+  { const [x, y, z] = along(1.52, -0.285); stowed.push(put(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 10).rotateX(Math.PI / 2), oakD), x, y, z, SL)); }
   for (const t of [0.0, 1.1]) { const [x, y, z] = along(t, -0.262); put(new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 4, 8, Math.PI), iron), x, y - 0.01, z, 0, Math.PI / 2, Math.PI); }
-  g.userData = { barrel, muzzle };
+  g.userData = { barrel, muzzle, stowed };
   return g;
 }
 

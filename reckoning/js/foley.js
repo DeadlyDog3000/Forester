@@ -356,6 +356,43 @@ const RECIPES = {
     slide(d, sr, 0.16, 0.2, rand(450, 520), 0.35, t => Math.sin(Math.PI * t), 0.3);
     return finish(d, 0.62);
   },
+  // ---- a gun's drill ----
+  // the wet sponge thrust down the bore and drawn back: wool scrubbing on the bronze, the tube booming faintly round
+  // it, and the hiss of the last sparks put out
+  sponge(sr) {
+    const L = 1.0, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 500, 1.2, sr), lp = new Biquad("lp", 1800, 0.7, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr, k = Math.sin(Math.PI * t / L) ** 1.5 * (0.7 + 0.3 * Math.sin(t * TAU * 2.4)); bp.set("bp", 380 + 420 * Math.sin(Math.PI * t / L), 1.2, sr); d[i] = lp.run(bp.run(Math.random() * 2 - 1)) * k; }
+    modes(d, sr, 0.05, [[rand(140, 170), 0.35, 0.12], [rand(390, 430), 0.25, 0.06]]);
+    hiss(d, sr, 0.35, 0.4, 0.12, new Biquad("hp", 3500, 0.7, sr), x => Math.exp(-x / 0.15));
+    return finish(d, 0.5);
+  },
+  // the rammer's head driven down on the charge: a deep, dead thud, the long bronze tube ringing round it, wood knocking
+  gunRam(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.9));
+    slide(d, sr, 0, 0.12, rand(220, 260), 0.35, t => 1 - t * 0.5, 0.2);
+    modes(d, sr, 0.12, [[rand(70, 90), 0.12, 1], [rand(150, 175), 0.07, 0.45]]);
+    hiss(d, sr, 0.12, 0.05, 0.6, new Biquad("lp", 700, 0.7, sr), x => Math.exp(-x / 0.012));
+    metal(d, sr, 0.12, rand(160, 190), 0.4, 0.35, 12, 0.5);
+    modes(d, sr, 0.125, [[rand(600, 760), 0.02, 0.25]]);
+    return finish(d, 0.75);
+  },
+  // the gun run back up to its place: the crew heaving at the wheels — iron tyres grinding on the ground, the axle
+  // creaking, the trail scraping
+  runOut(sr) {
+    const L = 1.3, d = new Float32Array(Math.floor(sr * L)), lp = new Biquad("lp", 260, 0.8, sr), bp = new Biquad("bp", 1100, 6, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr, k = Math.min(1, t / 0.15) * Math.min(1, (L - t) / 0.3), g = 0.6 + 0.4 * Math.sin(t * TAU * 5.3); d[i] = lp.run(Math.random() * 2 - 1) * k * g * 2.2; }
+    for (let i = 0, n = 2 + Math.floor(Math.random() * 2); i < n; i++) { const t0 = rand(0.1, L - 0.4); for (let j = 0; j < sr * 0.25 && t0 * sr + j < d.length; j++) { const t = j / sr; d[Math.floor(t0 * sr) + j] += bp.run(Math.random() * 2 - 1) * Math.sin(Math.PI * t / 0.25) * 0.5; } }
+    crackles(d, sr, 0, L, 30, 0.25, 800, 4000);
+    return finish(d, 0.6);
+  },
+  // the vent pricked through the cartridge with the wire, and powder poured in from the horn
+  prick(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.75));
+    slide(d, sr, 0, 0.12, rand(2400, 2900), 0.5, t => Math.sin(Math.PI * t), 0.6);
+    hiss(d, sr, 0.25, 0.45, 0.35, new Biquad("bp", 4200, 1.2, sr), x => Math.min(1, x / 0.05) * Math.exp(-x / 0.3));
+    crackles(d, sr, 0.25, 0.4, 120, 0.15, 3000, 9000);
+    return finish(d, 0.45);
+  },
   // the plug bayonet fixed: the blade's grip pushed into the muzzle — steel scraping into iron — and seated hard
   fixBayonet(sr) {
     const L = 0.6, d = new Float32Array(Math.floor(sr * L));

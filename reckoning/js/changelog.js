@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.17.0", date: "12 October 2026", title: "Serve the guns",
+    items: [
+      "The guns are served as they were: fired, a gun leaps back on its wheels. The loader sponges out the bore — three strokes of the wet sheepskin — while the gunner stops the vent with his thumb; the gunner brings up the cartridge and puts it in the muzzle; the loader turns his staff end for end and rams it home, a long push and two hard strokes; the gunner pricks it through the vent and primes it from his horn, then crouches behind the trail to lay the gun; both heave it back up into its place at the wheels; and the gunner stands by with the linstock's match glowing. Every step heard — the sponge in the bore, the rammer's thud, the priming wire, the wheels grinding.",
+      "Parry warnings are back: the marks round the crosshair show where a blow is coming from whatever you hold — the musket too. With the steel close, right-click brings the musket up crosswise to guard (up over your head, or to a side), and raised just as the blow comes, it parries.",
+      "Better faces: a beard and a moustache are their own parts now, so soldiers are mostly clean-shaven, many with a moustache, some bearded — and hair and beards come out the colour they're meant to be (they were always nearly black). Skin no longer comes out orange, in the battle or in the character builder. The builder has a Face choice — beard, moustache or clean-shaven — for the outfits that have one.",
+      "Smoke is a dark grey, not black — and still more of it.",
+    ],
+  },
+  {
     v: "1.16.0", date: "12 October 2026", title: "By night",
     items: [
       "Battles by night: about one in three is fought under the moon and stars, the field lit only by a watch-fire behind each line and a lantern by every gun. No one sees far — the soldiers open fire much closer than by day. Others are fought in the morning, the afternoon or the evening light.",

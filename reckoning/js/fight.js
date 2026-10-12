@@ -169,15 +169,20 @@ function foes() {
 // (true while a fight is on round you: the health bar shows)
 export function stanceTick() {
   const pl = G.player;
-  if (!pl || !pl.axe) { UI.stance(null); return false; }
+  if (!pl || (!pl.axe && !pl.gun)) { UI.stance(null); G.meleeNear = false; return false; }
   const f = pl.forward();
-  let threat = null, td = 99, urg = 0, foe = null, fd = 4, any = false;
+  let threat = null, td = 99, urg = 0, foe = null, fd = 4, any = false, near = 99;
   for (const r of foes()) {
     const p = r.pos, dx = p.x - pl.pos.x, dz = p.z - pl.pos.z, d = Math.hypot(dx, dz);
     if (d < 9 && (r.woke !== false)) any = true;
     if (r.wind > 0 && (r.duel === pl || d < 2.6) && d < td) { td = r.duel === pl ? 0 : d; threat = r.dir; urg = 1 - r.wind / WIND; }
     if (d < fd && (dx * f.x + dz * f.z) / (d || 1) > 0.5) { fd = d; foe = r.guardDir; }
+    if (d < near) near = d;
   }
+  // (someone close enough for the steel: a musket's right button guards, and doesn't aim)
+  G.meleeNear = near < 3.4;
+  // (a gun in your hands and no one near: no marks — they're for the steel)
+  if (!pl.axe && !G.meleeNear && !threat) { UI.stance(null); return false; }
   if (!any && !(G.town && G.town.raids && G.town.raids.active) && !G.arena) { UI.stance(null); return false; }
   UI.stance({ mine: pl.stance || "right", threat, foe, urg });
   return any;

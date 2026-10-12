@@ -244,6 +244,7 @@ def build_person(key):
         M[name] = make_material(f"{key}_{name}", color, rough, metal)
     mat("skin", WHITE, 0.6)
     mat("hair", WHITE, 0.8)
+    if o.get("beard"): mat("beard", WHITE, 0.8); mat("tash", WHITE, 0.8)
     mat("eyes", WHITE, 0.25)
     mat("coat", rgb(o["coat"]))
     mat("legs", rgb(o.get("legs", 0x3a3028)))
@@ -657,14 +658,20 @@ def build_person(key):
     if o.get("beard"):
         bc = rgb(o["beard"])
         short = o.get("beardShort")
+        # (the beard round the jaw and the moustache over the lip: two parts, so the game can leave either off — a
+        #  clean-shaven man, one with only a moustache, or both)
         def bmask(X, Y, Z, phi):
             under = smooth((-0.3 - Z) / 0.09) * smooth((1.5 - abs(phi)) / 0.15)
-            tash = gauss(Z + 0.39, 0.035) * gauss(X, 0.28) * smooth((0.6 - abs(phi)) / 0.2)
             hole = gauss(X, 0.24) * gauss(Z + 0.5, 0.075)
-            return max(0.0, min(1.0, max(under * (1 - hole), tash * 1.2)))
+            return max(0.0, min(1.0, under * (1 - hole)))
+        def tmask(X, Y, Z, phi):
+            tash = gauss(Z + 0.39, 0.035) * gauss(X, 0.28) * smooth((0.6 - abs(phi)) / 0.2)
+            return max(0.0, min(1.0, tash * 1.2))
         thickness = (lambda X, Y, Z: 0.004 + 0.003 * smooth((-Z - 0.5) / 0.3)) if short else (lambda X, Y, Z: 0.006 + (0.03 if wild else 0.018) * smooth((-Z - 0.55) / 0.4) * gauss(X, 0.6))
         b = hair_shell(RX, RY, RZ, 28, 20, bmask, thickness, 0.0016, lambda r_, m_, Z: tint(bc, (0.75 + 120 * r_, 0.75 + 120 * r_, 0.75 + 120 * r_)))
-        merge(b, "hair")
+        merge(b, "beard")
+        t_ = hair_shell(RX, RY, RZ, 28, 20, tmask, thickness, 0.0016, lambda r_, m_, Z: tint(bc, (0.75 + 120 * r_, 0.75 + 120 * r_, 0.75 + 120 * r_)))
+        merge(t_, "tash")
 
     # (hands are the skin's own: a plain mitten of a hand, no fingers)
 

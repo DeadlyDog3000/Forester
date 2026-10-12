@@ -1194,10 +1194,12 @@ class Bot extends Fighter {
       a.person.crouching = !!(this.cover && gd < 1.2 && (!useK || !this.los));
       // (at the gun: working it — the loader sponging and ramming, the gunner with the powder and the priming — and
       //  watching where it's laid when it's loaded)
-      if (this.crewOf && gd <= 1.4) {
-        const g = this.crewOf; a.path = []; this.aimUp(false);
-        if (!g.loaded) { a.faceTo(g.x - Math.sin(g.ry + g.yaw) * 1.4, g.z - Math.cos(g.ry + g.yaw) * 1.4); a.person.setPose(this.crewIdx ? "hammer" : "reach"); }
-        else { a.faceTo(fp.x, fp.z); a.person.setPose("idle"); }
+      if (this.crewOf && gd <= 1.6) {
+        const W = field.crewWork(this.crewOf, this.crewIdx); a.path = []; this.aimUp(false);
+        // (into his exact place for this part of the drill — a step or two along the gun — and to it)
+        if (gd > 0.08) { const st = Math.min(gd, dt * 1.7); a.pos.x += (goal.x - a.pos.x) / gd * st; a.pos.z += (goal.z - a.pos.z) / gd * st; }
+        a.faceTo(W.face ? W.face.x : fp.x, W.face ? W.face.z : fp.z);
+        a.person.crouching = W.crouch; a.person.setPose(W.pose);
         return;
       }
       // the volley: every loaded piece brought up at the word, and fired together

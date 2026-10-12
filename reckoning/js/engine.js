@@ -384,7 +384,7 @@ export class Player {
       if (this.gunReload === 0) this.gunLoaded = true;
     }
     const reloading = this.gunReload > 0;
-    const aimWant = free && input.rdown && !reloading ? 1 : 0;
+    const aimWant = free && input.rdown && !reloading && !this.guard ? 1 : 0;
     this.gunAim += (aimWant - this.gunAim) * Math.min(1, dt * 9);
     if (this.model) this.model.aimWant = this.gunAim > 0.5;
     // the bayonet: fired, and loading, a click is the steel instead — the loading left off (R to begin it again), the
@@ -435,6 +435,14 @@ export class Player {
     const v = H.map((h, i) => h + (P[i] - h) * LP.prime);
     g.position.set(v[0], v[1], v[2]); g.rotation.set(v[3], v[4], v[5]);
     // (the thrust: drawn back a little, then out hard along the line of the barrel, and back to the hip)
+    // (guarding with it: held crosswise before you — up over your head against a blow from above, or upright to the side
+    //  it's coming from)
+    this.gunGuard = (this.gunGuard || 0) + ((this.guard ? 1 : 0) - (this.gunGuard || 0)) * Math.min(1, dt * 14);
+    if (this.gunGuard > 0.01) {
+      const q = this.gunGuard, up = this.stance === "up", sd = this.stance === "left" ? -1 : 1;
+      g.position.x += ((up ? 0.05 : sd * 0.12) - g.position.x) * q; g.position.y += ((up ? 0.02 : -0.12) - g.position.y) * q; g.position.z += (-0.42 - g.position.z) * q;
+      g.rotation.x += ((up ? 0.1 : 1.2) - g.rotation.x) * q; g.rotation.y += ((up ? 1.45 : sd * 0.25) - g.rotation.y) * q; g.rotation.z += ((up ? 0 : -sd * 0.35) - g.rotation.z) * q;
+    }
     if (this.thrustT >= 0) { const t = this.thrustT, out = t < 0.12 ? -0.12 * (t / 0.12) : t < 0.24 ? -0.12 + 0.62 * ((t - 0.12) / 0.12) : 0.5 * (1 - Math.min(1, (t - 0.24) / 0.38)); g.position.z -= out; g.position.y += out * 0.12; g.rotation.x -= out * 0.12; }
     // (stood up for the charge and the rod: leaning away to the left, the muzzle up in the corner of your eye — so the
     //  hand at it and the rod going down are in sight, and the field in front of you still is)
@@ -1077,7 +1085,9 @@ export class Player {
 
     // the guard: right mouse held with the axe or a weapon out (and nothing in front of you to use) —
     // the haft brought up across you. Raised just as a blow comes, it turns it aside: a parry.
-    const guard = !!this.axe && input.rdown && !G.interactTarget && this.swingT < 0 && G.mode === "play" && !G.lockMove && !G.downed;
+    // (a musket too, with the steel close: brought up crosswise, barrel and stock, to take the blow — a man within a few
+    //  paces is no one to aim at)
+    const guard = (!!this.axe || (!!this.gun && !!G.meleeNear && !(this.gunReload > 0) && !(this.thrustT >= 0))) && input.rdown && !G.interactTarget && this.swingT < 0 && G.mode === "play" && !G.lockMove && !G.downed;
     // (raised, or moved to another side, just now: that is what makes a parry)
     if (guard && (!this.guard || this.stance !== this._gs)) this.guardAt = G.time;
     this.guard = guard; this._gs = this.stance;

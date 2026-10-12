@@ -426,7 +426,7 @@ export function makePerson(o = {}) {
 // shape built in code with the same name. See models/README.md.
 export const MODELS = {};
 const CLOTH_PARTS = new Set(["coat", "legs", "stockings", "linen", "vest", "skirt", "apron", "hat", "sash", "cloth", "rope", "sail", "flag"]);
-const BARE_PARTS = new Set(["skin", "eyes", "hair", "metal", "leather"]);
+const BARE_PARTS = new Set(["skin", "eyes", "hair", "beard", "tash", "metal", "leather"]);
 export async function loadModels(base = "models/") {
   let list;
   try { const r = await fetch(base + "manifest.json", { cache: "no-cache" }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
@@ -497,6 +497,13 @@ export function modelCopy(key) {
 // Swap a built person for a Blender one. The code-built skeleton keeps working
 // underneath, unseen, so held things and poses still have somewhere to hang;
 // the model plays its own Idle / Walk / Run / Sit / Chop animations if it has them.
+// the mean of a mesh's painted colours (once per geometry)
+function paintedMean(geo) {
+  if (geo.userData.mean) return geo.userData.mean;
+  const c = geo.attributes.color, n = c.count, m = [0, 0, 0];
+  for (let i = 0; i < n; i++) { m[0] += c.getX(i); m[1] += c.getY(i); m[2] += c.getZ(i); }
+  return geo.userData.mean = m.map(v => v / (n || 1));
+}
 function useModel(P, key, colors = {}) {
   const m = modelCopy(key); if (!m) return;
   P.root.traverse(o => { if (o.isMesh) o.visible = false; });
@@ -505,11 +512,19 @@ function useModel(P, key, colors = {}) {
   const own = {};
   m.scene.traverse(o => {
     if (!o.isMesh || !o.material) return;
-    const part = o.material.userData.part, want = colors[part];
+    const part = o.material.userData.part, want = colors[part === "beard" || part === "tash" ? "hair" : part];
     // (a part left off altogether: the watch's sash, when the uniform has none)
     if (colors.hide && colors.hide.includes(part)) { o.visible = false; return; }
     if (want === undefined || want === null) return;
-    if (!own[part]) { own[part] = o.material.clone(); own[part].color.set(want); addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface }); }
+    if (!own[part]) {
+      own[part] = o.material.clone(); own[part].color.set(want);
+      // (a part painted in the model — skin, hair — has its colours in its vertices, and the tint multiplied them: a
+      //  dark-haired model could only ever be darker. Divided by what's painted there, the colour asked for is the
+      //  colour seen, its shading kept)
+      const vc = o.material.vertexColors && o.geometry.attributes.color;
+      if (vc) { const mean = paintedMean(o.geometry); own[part].color.r /= Math.max(0.04, mean[0]); own[part].color.g /= Math.max(0.04, mean[1]); own[part].color.b /= Math.max(0.04, mean[2]); }
+      addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface });
+    }
     o.material = own[part];
   });
   const mixer = new THREE.AnimationMixer(m.scene);
