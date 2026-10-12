@@ -1490,7 +1490,7 @@ async function start(opts = {}) {
     const d = ws.duel, me = ws.side, them = 1 - me; if (!d || d.over) return;
     const relay = o => duelSend(d, them, o);
     switch (m.t) {
-      case "ds": return relay({ t: "ds", x: num(m.x), z: num(m.z), yaw: num(m.yaw), s: num(m.s), h: String(m.h || "").slice(0, 12), aim: m.aim ? 1 : 0, g: m.g ? 1 : 0, c: m.c ? 1 : 0, dn: m.dn ? 1 : 0 });
+      case "ds": return relay({ t: "ds", x: num(m.x), z: num(m.z), yaw: num(m.yaw), s: num(m.s), h: String(m.h || "").slice(0, 12), aim: m.aim ? 1 : 0, g: m.g ? 1 : 0, c: m.c ? 1 : 0, dn: m.dn ? 1 : 0, ld: Math.max(0, Math.min(10, num(m.ld))) });
       case "dfire": return relay({ t: "dfire", k: String(m.k || "").slice(0, 10), p: num(m.p, 1), f: (m.f || []).slice(0, 3).map(v => num(v)), d: (m.d || []).slice(0, 3).map(v => num(v)) });
       case "dwind": return relay({ t: "dwind", dir: ["up", "left", "right"].includes(m.dir) ? m.dir : "right" });
       case "dswing": return relay({ t: "dswing", dir: ["up", "left", "right"].includes(m.dir) ? m.dir : "right", dmg: Math.max(0, Math.min(30, num(m.dmg))), reach: Math.max(1, Math.min(3.2, num(m.reach, 2.4))) });

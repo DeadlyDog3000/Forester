@@ -525,6 +525,8 @@ ICON.canteen2 = ICON.leather;
 ICON.bolts = ICON.bolts0 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
   for (let i = 0; i < 3; i++) { x.save(); x.translate(20 + i * 10, 34); x.rotate(-0.75); x.fillStyle = "#8a6a44"; x.fillRect(-18, -1.6, 30, 3.2); x.fillStyle = "#5a5e66"; x.beginPath(); x.moveTo(12, -4); x.lineTo(20, 0); x.lineTo(12, 4); x.fill(); x.fillStyle = "#c8c0a8"; x.fillRect(-19, -4, 5, 8); x.restore(); }
   return c.toDataURL(); })();
+// (the long arms, the pistol, the battle axe and the dagger: drawn as the other items are, in tools/make_icons.py)
+Object.assign(ICON, { musket: "art/item_musket.png", pistol: "art/item_pistol.png", battleaxe: "art/item_battleaxe.png", dagger: "art/item_dagger.png" });
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let invItems = [], invPieces = [];
 const cap1 = s => s ? s[0].toUpperCase() + s.slice(1) : s;

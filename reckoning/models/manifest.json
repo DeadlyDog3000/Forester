@@ -24,5 +24,11 @@
   "raider": "raider.glb",
   "watchman_tricorn": "watchman_tricorn.glb",
   "watchwoman": "watchwoman.glb",
-  "watchwoman_tricorn": "watchwoman_tricorn.glb"
+  "watchwoman_tricorn": "watchwoman_tricorn.glb",
+  "musket": "musket.glb",
+  "pistol": "pistol.glb",
+  "sword": "sword.glb",
+  "dagger": "dagger.glb",
+  "battleaxe": "battleaxe.glb",
+  "spear": "spear.glb"
 }

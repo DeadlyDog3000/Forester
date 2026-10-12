@@ -16,8 +16,10 @@ import { FOLEY } from "./foley.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst } from "./fight.js";
-import { makeArm, makeCrossbow, modelCopy } from "./models.js";
+import { makeArm, modelCopy, shoulderArm } from "./models.js";
 import { resetForMode } from "./story.js";
+import { loadSteps } from "./reload.js";
+import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
 import { Net, addressOf } from "./mp/net.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 
@@ -27,29 +29,45 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // ---- what can be carried in ----
 export const LONG = {
-  musket: { name: "Musket", icon: "musket", stats: [["Ball", "64 · head 102"], ["Range", "90 m"], ["Loading", "6.5 s"]], note: "One to the head, two to the body. Then the long business of loading it." },
-  bow: { name: "Bow", icon: "bow", stats: [["Arrow", "12–42 · head ×1.6"], ["Range", "60 m, falling"], ["Loading", "0.9 s"]], note: "Quick, and quiet. The harder you draw, the harder it hits — 20 arrows." },
-  crossbow: { name: "Crossbow", icon: "crossbow", stats: [["Bolt", "52 · head 83"], ["Range", "70 m"], ["Spanning", "2.6 s"]], note: "Nearly a musket's blow, and quicker to span — 12 bolts." },
+  musket: { name: "Musket", icon: "musket", w: 7, stats: [["Ball", "64 · head 102"], ["Range", "90 m"], ["Loading", "6.5 s"]], note: "One to the head, two to the body. Then the long business of loading it." },
+  bow: { name: "Bow", icon: "bow", w: 3, stats: [["Arrow", "12–42 · head ×1.6"], ["Range", "60 m, falling"], ["Loading", "0.9 s"]], note: "Quick, and quiet. The harder you draw, the harder it hits — 20 arrows." },
+  crossbow: { name: "Crossbow", icon: "crossbow", w: 5, stats: [["Bolt", "52 · head 83"], ["Range", "70 m"], ["Spanning", "2.6 s"]], note: "Nearly a musket's blow, and quicker to span — 12 bolts." },
+  none: { name: "None", icon: "", w: 0, stats: [["Load", "nothing"]], note: "No long arm: the pistol and the blade, and lighter on your feet." },
 };
 export const SIDE = {
-  pistol: { name: "Pistol", icon: "pistol", stats: [["Ball", "45 · head 72"], ["Range", "45 m"], ["Loading", "3.6 s"]], note: "A horseman's flintlock: one shot, close, when the long arm is empty." },
-  none: { name: "Nothing", icon: "arrows", stats: [["Instead", "more arrows or bolts"]], note: "No pistol — and half as many arrows or bolts again in your quiver." },
+  pistol: { name: "Pistol", icon: "pistol", w: 3, stats: [["Ball", "32 · head 51"], ["Range", "25 m, wild"], ["Loading", "2.4 s"]], note: "A horseman's flintlock: quick to load, but only for close work — past a few paces it could go anywhere." },
+  none: { name: "None", icon: "", w: 0, stats: [["Load", "nothing"]], note: "No pistol. A musket wants both hands and most of what you can carry." },
 };
 export const BLADE = {
-  sword: { name: "Sword", icon: "sword5", dmg: 20, rate: 1.15, reach: 2.4, stats: [["Blow", "20"], ["Pace", "quick"], ["Reach", "2.4 m"]], note: "A soldier's sword: quick to strike and quick to guard." },
-  battleaxe: { name: "Battle axe", icon: "battleaxe", dmg: 28, rate: 0.8, reach: 2.4, stats: [["Blow", "28"], ["Pace", "slow"], ["Reach", "2.4 m"]], note: "Heavy. Fewer blows, and every one of them felt." },
-  spear: { name: "Spear", icon: "spear", dmg: 16, rate: 1.0, reach: 3.0, stats: [["Blow", "16"], ["Pace", "steady"], ["Reach", "3 m"]], note: "Keeps him off: you reach him before he reaches you." },
-  axe: { name: "Felling axe", icon: "axe", dmg: 14, rate: 1.05, reach: 2.3, stats: [["Blow", "14"], ["Pace", "steady"], ["Reach", "2.3 m"]], note: "The woodsman's axe. It'll do, in the right hands." },
+  sword: { name: "Sword", icon: "sword5", w: 3, dmg: 20, rate: 1.15, reach: 2.4, stats: [["Blow", "20"], ["Pace", "quick"], ["Reach", "2.4 m"]], note: "A soldier's sword: quick to strike and quick to guard." },
+  battleaxe: { name: "Battle axe", icon: "battleaxe", w: 4, dmg: 28, rate: 0.8, reach: 2.4, stats: [["Blow", "28"], ["Pace", "slow"], ["Reach", "2.4 m"]], note: "Heavy. Fewer blows, and every one of them felt." },
+  spear: { name: "Spear", icon: "spear", w: 3, dmg: 16, rate: 1.0, reach: 3.0, stats: [["Blow", "16"], ["Pace", "steady"], ["Reach", "3 m"]], note: "Keeps him off: you reach him before he reaches you." },
+  axe: { name: "Felling axe", icon: "axe", w: 3, dmg: 14, rate: 1.05, reach: 2.3, stats: [["Blow", "14"], ["Pace", "steady"], ["Reach", "2.3 m"]], note: "The woodsman's axe. It'll do, in the right hands." },
+  dagger: { name: "Dagger", icon: "dagger", w: 1, dmg: 11, rate: 1.5, reach: 1.9, stats: [["Blow", "11"], ["Pace", "very quick"], ["Reach", "1.9 m"]], note: "A long knife for the belt: light enough to carry beside a musket." },
 };
+// what you can carry: a long arm, a sidearm and a blade, all within this. (A musket is so heavy it's your sidearm's
+// share too: beside it, only a dagger.) The lighter you go, the quicker on your feet.
+export const LOAD_MAX = 9;
+export const weightOf = l => (LONG[l.long] || LONG.none).w + (SIDE[l.side] || SIDE.none).w + (BLADE[l.blade] || BLADE.dagger).w;
+export const loadMul = l => 1.06 - weightOf(l) * 0.012;
+// a choice made, and whatever else no longer fits put down (the sidearm first, then the blade down to the dagger)
+function fitLoad(l, keep) {
+  const o = { ...l };
+  if (weightOf(o) > LOAD_MAX && keep !== "side") o.side = "none";
+  if (weightOf(o) > LOAD_MAX && keep !== "blade") o.blade = "dagger";
+  if (weightOf(o) > LOAD_MAX && keep !== "long") o.long = "none";
+  if (weightOf(o) > LOAD_MAX) o.side = "none";
+  return o;
+}
 const AMMO = { bow: 20, crossbow: 12 };
-const RELOAD = { musket: 6.5, pistol: 3.6, bow: 0.9, crossbow: 2.6 };
-const RANGE = { musket: 55, pistol: 18, bow: 38, crossbow: 45 };
+const RELOAD = { musket: 6.5, pistol: 2.4, bow: 0.9, crossbow: 2.6 };
+const RANGE = { musket: 55, pistol: 12, bow: 38, crossbow: 45 };
 const HP = 100, ROUNDS_TO_WIN = 2, ROUND_SECS = 150;
 
 // what a shot or an arrow does to a man (by its power, as the hunt tells it): a musket ball, a pistol's, a bolt, an
 // arrow by how hard it was drawn — and to the head, more than half as much again (a musket ball there, the end of it)
 export function dmgOf(power, head) {
-  const d = power >= 2.5 ? 64 : power >= 1.85 ? 45 : power >= 1.7 ? 52 : 12 + power * 30;
+  const d = power >= 2.5 ? 64 : power >= 1.85 ? 32 : power >= 1.7 ? 52 : 12 + power * 30;
   return Math.round(d * (head ? 1.6 : 1));
 }
 
@@ -58,7 +76,7 @@ const LO_KEY = "reckoning.pvp.loadout", REC_KEY = "reckoning.pvp.record";
 export function loadout() {
   let l = null; try { l = JSON.parse(localStorage.getItem(LO_KEY)); } catch (e) {}
   l = l || {};
-  return { long: LONG[l.long] ? l.long : "musket", side: SIDE[l.side] ? l.side : "pistol", blade: BLADE[l.blade] ? l.blade : "sword" };
+  return fitLoad({ long: LONG[l.long] ? l.long : "musket", side: SIDE[l.side] ? l.side : "none", blade: BLADE[l.blade] ? l.blade : "dagger" }, "long");
 }
 function saveLoadout(l) { try { localStorage.setItem(LO_KEY, JSON.stringify(l)); } catch (e) {} }
 export function record() {
@@ -85,19 +103,24 @@ export function initPvp(c) {
   $("pvpTitle").onclick = () => ctx.screen("title");
   $("pvpCols").addEventListener("click", e => {
     const b = e.target.closest("[data-slot][data-id]"); if (!b) return;
-    lo[b.dataset.slot] = b.dataset.id; saveLoadout(lo); drawLoadout();
+    const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
+    const put = ["long", "side", "blade"].filter(k => k !== b.dataset.slot && lo[k] !== was[k]).map(k => ({ long: LONG, side: SIDE, blade: BLADE }[k][was[k]].name.toLowerCase()));
+    drawLoadout(put.length ? `Too heavy to carry it all: you put down the ${put.join(" and the ")}.` : "");
     window.__uisfx && window.__uisfx.click && window.__uisfx.click();
   });
 }
 export const PVP_SCREENS = ["pvp", "pvpFind", "pvpEnd"];
 function openLoadout() { lo = loadout(); drawLoadout(); ctx.screen("pvp"); }
-function drawLoadout() {
-  const I = ctx.ICON, card = (slot, id, o) => `<button class="pv-card${lo[slot] === id ? " on" : ""}" data-slot="${slot}" data-id="${id}">
-      <img src="${I[o.icon] || ""}" alt=""><span class="pv-name">${esc(o.name)}</span>
+function drawLoadout(note = "") {
+  const I = ctx.ICON, heavy = (slot, id) => weightOf({ ...lo, [slot]: id }) > LOAD_MAX;
+  const card = (slot, id, o) => `<button class="pv-card${lo[slot] === id ? " on" : ""}${heavy(slot, id) ? " heavy" : ""}" data-slot="${slot}" data-id="${id}" title="${heavy(slot, id) ? "Too heavy with the rest — choosing it puts something else down" : ""}">
+      ${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="pv-none"></span>`}<span class="pv-name">${esc(o.name)}<span class="pv-w" title="Weight">${o.w}</span></span>
       <span class="pv-stats">${o.stats.map(([k, v]) => `<span><b>${esc(k)}</b> ${esc(v)}</span>`).join("")}</span>
       <span class="pv-note">${esc(o.note)}</span></button>`;
   const col = (slot, title, list) => `<div class="pv-col"><div class="pv-h">${title}</div>${Object.entries(list).map(([id, o]) => card(slot, id, o)).join("")}</div>`;
   $("pvpCols").innerHTML = col("long", "Long arm", LONG) + col("side", "Sidearm", SIDE) + col("blade", "Blade", BLADE);
+  const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100);
+  $("pvpLoad").innerHTML = `<div class="pv-load-h"><b>Load</b> ${w} of ${LOAD_MAX}<span>${sp >= 0 ? `${sp}% quicker on your feet` : `${-sp}% slower on your feet`}</span></div><div class="pv-load-bar">${Array.from({ length: LOAD_MAX }, (_, i) => `<i class="${i < w ? "on" : ""}"></i>`).join("")}</div><div class="pv-load-note">${esc(note)}</div>`;
   const r = record(), me = ctx.identity();
   $("pvpRec").innerHTML = `<span class="pv-rank">${rankOf(r.rating)}</span> · rating <b>${Math.round(r.rating)}</b> · ${r.w} won, ${r.l} lost${r.streak > 1 ? ` · ${r.streak} in a row` : ""}<br><small>You fight as ${esc(me.name)}.</small>`;
 }
@@ -148,7 +171,8 @@ const LAST = ["Brenner", "Kohl", "Weidner", "Falk", "Ostermann", "Lindau", "Raus
 function botFoe() {
   const look = randomLook(), f = isF(look), first = FIRST.filter((_, i) => f ? i >= 8 : i < 8);
   const pick = a => a[Math.floor(Math.random() * a.length)];
-  return { name: `${pick(first)} ${pick(LAST)}`, look, lo: { long: pick(Object.keys(LONG)), side: Math.random() < 0.7 ? "pistol" : "none", blade: pick(Object.keys(BLADE)) } };
+  let l; do l = { long: pick(["musket", "bow", "crossbow"]), side: Math.random() < 0.6 ? "pistol" : "none", blade: pick(Object.keys(BLADE)) }; while (weightOf(l) > LOAD_MAX);
+  return { name: `${pick(first)} ${pick(LAST)}`, look, lo: l };
 }
 
 // ---------------------------------------------------------------------------
@@ -212,26 +236,28 @@ class Arena {
     if (L.long === "bow") { out.push({ icon: "bow", name: "Bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
     if (L.long === "crossbow") { out.push({ icon: "crossbow", name: "Crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: (G.body.tools.bolts || 0) }); }
     if (L.side === "pistol") out.push({ icon: "pistol", name: "Pistol", tool: "gun", kind: "pistol" });
-    const B = BLADE[L.blade]; out.push({ icon: B.icon, name: B.name, tool: "arm", kind: L.blade });
+    const B = BLADE[L.blade] || BLADE.dagger; out.push({ icon: B.icon, name: B.name, tool: "arm", kind: L.blade });
     return out;
   }
   // ---- a round: both put back at their ends, made whole, loaded, and three, two, one ----
   beginRound() {
     this.round++; this.live = false; this.clock = ROUND_SECS; this.roundDone = false;
+    this.rise();
     const pl = G.player, mine = this.spawns[this.side], theirs = this.spawns[1 - this.side];
     G.downed = false; G.health = 1; G.stamina = 1; G.hurtT = 0; G.panting = 0; G.hitShake = 0;
     if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.giveAxe(false);
     pl.gunSaved = {}; pl.gunLoaded = true; pl.gunReload = 0; pl.xspan = 1;
-    const extra = this.lo.side === "none" ? 1.5 : 1;
+    const extra = 1;
     pl.hasBow = this.lo.long === "bow"; pl.arrows = Math.round(AMMO.bow * extra);
     G.body.tools.bolts = Math.round(AMMO.crossbow * extra); G.body.tools.crossbow = this.lo.long === "crossbow" ? 1 : 0; G.body.tools.musket = this.lo.long === "musket" ? 1 : 0;
     G.body.hunger = 1; G.body.thirst = 1; G.body.temp = 0;
+    clearDropped();
     // (arrows lying about from the last round: gone)
     for (const ar of this.hunt.arrows) { this.w.root.remove(ar.mesh); if (ar.it) this.w.removeInteract(ar.it); }
     this.hunt.arrows = [];
     pl.place(mine.x, mine.z, Math.atan2(-(theirs.x - mine.x), -(theirs.z - mine.z)));
-    pl.swingRate = BLADE[this.lo.blade].rate;
-    this.takeUp(this.lo.long);
+    pl.swingRate = BLADE[this.lo.blade].rate; G.loadMul = loadMul(this.lo);
+    this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
     this.foe.reset(theirs, mine);
     G.lockMove = true;
     this.showHud();
@@ -271,12 +297,57 @@ class Arena {
     else { G.health = Math.max(0, G.health - dmg / 100); if (G.health <= 0) G.die(from); }
     if (this.net) this.net.send({ t: "dhp", hp: Math.round(G.health * HP), r: this.round });
   }
-  youDown() {
+  youDown(from) {
     G.downed = true; G.lockMove = true;
+    this.deathFall(from);
     if (this.net) { this.net.send({ t: "ddown", r: this.round }); this.live = false; return; }
     this.endRound(1);
   }
   foeDown() { if (!this.net) this.endRound(0); }
+  // you're down: your body falls as it falls (a ragdoll), your eye goes with your head, the world reddens and dims,
+  // and who won is written over it
+  deathFall(from) {
+    const pl = G.player, m = pl.model; if (!m) return;
+    if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.giveAxe(false);
+    // (your whole body back, head and all — first person it's only the neck down)
+    for (const b of m._fp || []) b.scale.setScalar(1); m._fpOn = false; if (m._cap) m._cap.visible = false;
+    m.aimHidden = false; m.load = null;
+    const src = from && from.pos ? from.pos : this.foe.pos, push = new THREE.Vector3(pl.pos.x - src.x, 0, pl.pos.z - src.z).normalize().multiplyScalar(2.6).add(new THREE.Vector3(0, 0.4, 0));
+    const gun = m.aimH && m.aimH.obj; if (gun) { m.aimHold(null); m.root.add(gun); dropThing(gun, push.clone().multiplyScalar(0.4).add(new THREE.Vector3(0, 1.2, 0))); }
+    pl.frozen = true;
+    const rag = this.myRag = ragdoll(m, push, "chest");
+    if (rag) {
+      const f = new THREE.Vector3(), up = new THREE.Vector3(), eye = new THREE.Vector3();
+      // (which way the face looks, against the shoulders and the spine: settled now, while you're still facing it)
+      { const p = rag.p, u = p.crown.clone().sub(p.neck).normalize(), f0 = p.shR.clone().sub(p.shL).cross(u);
+        rag.flip = f0.dot(new THREE.Vector3(-Math.sin(pl.yaw), 0, -Math.cos(pl.yaw))) < 0; }
+      G.deathCam = cam => {
+        const p = rag.p;
+        // (looking out of the face: square to the shoulders and the spine, the way the body faced)
+        up.copy(p.crown).sub(p.neck).normalize();
+        f.copy(p.shR).sub(p.shL).cross(up).normalize();
+        if (rag.flip) f.negate();
+        eye.copy(p.head).lerp(p.crown, 0.55).addScaledVector(f, 0.09);
+        cam.position.copy(eye); cam.up.copy(up); cam.lookAt(eye.clone().add(f).addScaledVector(up, -0.15));
+      };
+    }
+    // the red, coming in slowly from the edges, and the name over it
+    let fx = $("deathFx");
+    if (!fx) { fx = document.createElement("div"); fx.id = "deathFx"; fx.innerHTML = `<div class="dfx-t"></div><div class="dfx-s"></div>`; $("hud").appendChild(fx); }
+    fx.querySelector(".dfx-t").textContent = `${this.foeInfo.name} won`;
+    fx.querySelector(".dfx-s").textContent = this.foeInfo.bot ? "" : "";
+    fx.classList.remove("on"); void fx.offsetWidth; fx.classList.add("on");
+    document.body.classList.add("dead");
+    AUDIO.voice && AUDIO.voice("pain", { high: G.who === "sister", vol: 1 });
+  }
+  // up again for the next round: the ragdoll let go of, your eye your own again
+  rise() {
+    const pl = G.player;
+    if (this.myRag) { this.myRag.stop(); this.myRag = null; }
+    G.deathCam = null; pl.frozen = false;
+    const fx = $("deathFx"); if (fx) fx.classList.remove("on");
+    document.body.classList.remove("dead");
+  }
   // a round over: who took it (0 you, 1 them, -1 neither — time ran out with nothing between you)
   endRound(who) {
     if (this.roundDone) return; this.roundDone = true; this.live = false;
@@ -284,7 +355,9 @@ class Arena {
     this.showHud();
     slowMo(1.4, 0.3);
     const done = who >= 0 && this.wins[who] >= ROUNDS_TO_WIN;
-    this.banner(who === 0 ? "You take the round" : who === 1 ? `${esc(this.foeInfo.name)} takes the round` : "Time — nobody", `${this.wins[0]} – ${this.wins[1]}`);
+    if (who === 1 && G.deathCam) this.banner(null);
+    else this.banner(who === 0 ? "You take the round" : who === 1 ? `${esc(this.foeInfo.name)} takes the round` : "Time — nobody", `${this.wins[0]} – ${this.wins[1]}`);
+    if (who === 1 && G.deathCam) { const fx = $("deathFx"); if (fx) fx.querySelector(".dfx-s").textContent = `${this.wins[0]} – ${this.wins[1]}${done ? "" : " · next round"}`; }
     setTimeout(() => { if (G.arena !== this) return; if (done) this.finish(who === 0); else if (!this.net) this.beginRound(); }, 3200);
   }
   // ---- the match over: the record, and the result ----
@@ -309,7 +382,8 @@ class Arena {
     G.arena = null; this.live = false;
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
     G.onSwing = null; G.onDowned = null; G.onGunshot = null; G.onLoose = null; G.onSwingStart = null;
-    G.player.swingRate = 1; G.lockMove = false; G.downed = false;
+    this.rise();
+    G.player.swingRate = 1; G.loadMul = 1; G.lockMove = false; G.downed = false;
     if (this.net) { this.net.send({ t: "dleave" }); this.net.close(); this.net = null; }
     if ($("pvpHud")) $("pvpHud").classList.add("hidden");
     this.banner(null);
@@ -407,7 +481,8 @@ class Arena {
     if ((this.sendT = (this.sendT || 0) - dt) > 0) return; this.sendT = 1 / 12;
     const pl = G.player, held = pl.gun ? pl.gunIs : pl.bow ? "bow" : pl.xbow ? "crossbow" : pl.axe ? this.lo.blade : "";
     const aim = (pl.gun && pl.gunAim > 0.5) || (pl.bow && pl.draw > 0.1) || (pl.xbow && pl.xaim > 0.5);
-    this.net.send({ t: "ds", x: +pl.pos.x.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(2), s: +(pl.speed || 0).toFixed(1), h: held, aim: aim ? 1 : 0, g: pl.guard ? 1 : 0, c: pl.crouched ? 1 : 0, dn: G.downed ? 1 : 0 });
+    const ld = pl.gun && pl.gunReload > 0 ? +((pl.gunIs === "pistol" ? 2.4 : 6.5) - pl.gunReload).toFixed(2) : 0;
+    this.net.send({ t: "ds", x: +pl.pos.x.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(2), s: +(pl.speed || 0).toFixed(1), h: held, aim: aim ? 1 : 0, g: pl.guard ? 1 : 0, c: pl.crouched ? 1 : 0, dn: G.downed ? 1 : 0, ld });
   }
 }
 
@@ -431,29 +506,38 @@ class Fighter {
   startle() {}
   // (for the marks round the crosshair: his wind-up and his guard)
   view() { return { pos: this.a.pos, wind: this.wind, dir: this.dir, guardDir: this.guardDir, duel: G.player, alive: this.alive }; }
-  // what's in his hands
+  // what's in his hands: a long arm or the pistol in both hands (or the one) at the shoulder; the bow in the left; a blade
   hold(k) {
+    if (k === "none") k = null;
     if (this.heldK === k) return; this.heldK = k;
-    const P = this.a.person; P.held.clear(); P.heldL.clear();
+    const P = this.a.person; P.held.clear(); P.heldL.clear(); P.aimHold && P.aimHold(null);
     if (!k) return;
     if (k === "bow") { const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a })); bow.rotation.set(0, Math.PI / 2, 0); this.a.hold(bow, true); return; }
-    // (a gun or a crossbow carried level, pointing where he faces — the turn that lines its barrel up with his
-    //  arm's in the pose he holds it in, found by trying them all; a blade upright, as any man holds one)
-    if (k === "crossbow" || k === "musket" || k === "pistol") {
-      const g = new THREE.Group(), Q = Math.PI / 4, m = k === "crossbow" ? makeCrossbow() : makeArm(k);
-      // (the crossbow: its prod lying flat, across)
-      if (k === "crossbow") { m.rotation.x = Math.PI / 2; const r = new THREE.Group(); r.rotation.y = Math.PI / 2; r.add(m); g.add(r); }
-      else g.add(m); g.rotation.set(3 * Q, 2 * Q, -Q); this.a.hold(g); return;
-    }
+    if (k === "crossbow" || k === "musket" || k === "pistol") { this.gun = shoulderArm(P, k); return; }
     this.a.hold(makeArm(k));
   }
-  muzzle() { const f = new THREE.Vector3(Math.sin(this.a.yaw), 0, Math.cos(this.a.yaw)); return new THREE.Vector3(this.a.pos.x, this.a.pos.y + 1.45, this.a.pos.z).addScaledVector(f, this.heldK === "pistol" ? 0.6 : 1.1); }
-  fallDown() {
-    this.a.path = []; this.a.person.setPose("idle"); this.a.lying = true; this.a.yOff = 0.05; this.wind = 0;
-    AUDIO.voice && AUDIO.voice("pain", { at: this.a.pos, vol: 1.1, high: isF(this.info.look) });
-    blowLands(this.a, "down");
+  // brought up to aim, or down at the ready
+  aimUp(on) { this.a.person.aimWant = !!on; }
+  muzzle() {
+    const g = this.gun && this.gun.parent && this.gun.userData.muzzle;
+    if (g) return g.getWorldPosition(new THREE.Vector3());
+    const f = new THREE.Vector3(Math.sin(this.a.yaw), 0, Math.cos(this.a.yaw)); return new THREE.Vector3(this.a.pos.x, this.a.pos.y + 1.45, this.a.pos.z).addScaledVector(f, this.heldK === "pistol" ? 0.6 : 1.1);
   }
-  standUp() { this.a.lying = false; this.a.yOff = 0; this.a.person.setPose("idle"); }
+  // down: let go, a ragdoll, pushed the way the blow came (from `from`, a place); what was in the hands falls
+  fallDown(from, head) {
+    const a = this.a, P = a.person; a.path = []; this.wind = 0; a.squareTo = null;
+    AUDIO.voice && AUDIO.voice("pain", { at: a.pos, vol: 1.1, high: isF(this.info.look) });
+    blowLands(a, "down");
+    const src = from || G.player.pos, push = new THREE.Vector3(a.pos.x - src.x, 0, a.pos.z - src.z).normalize().multiplyScalar(3.2).add(new THREE.Vector3(0, 0.6, 0));
+    P.load = null; P.aimWant = false;
+    const gun = P.aimH && P.aimH.obj; if (gun) { P.aimHold(null); P.root.add(gun); dropThing(gun, push.clone().multiplyScalar(0.4).add(new THREE.Vector3(0, 1.2, 0))); }
+    for (const h of [P.held, P.heldL]) for (const c of [...h.children]) dropThing(c, push.clone().multiplyScalar(0.3).add(new THREE.Vector3(0, 1, 0)));
+    this.heldK = null;
+    this.rag = ragdoll(P, push, head ? "head" : "chest");
+    if (!this.rag) { a.lying = true; a.yOff = 0.05; }
+    a.ragdoll = !!this.rag;
+  }
+  standUp() { if (this.rag) { this.rag.stop(); this.rag = null; } this.a.ragdoll = false; this.a.lying = false; this.a.yOff = 0; this.a.person.setPose("idle"); }
 }
 
 // ---------------------------------------------------------------------------
@@ -469,7 +553,7 @@ class Bot extends Fighter {
   reset(at, face) {
     this.hp = HP; this.standUp(); this.a.place(at.x, at.z, Math.atan2(face.x - at.x, face.z - at.z));
     this.loaded = { long: true, side: this.lo.side === "pistol" }; this.rl = { long: 0, side: 0 };
-    const extra = this.lo.side === "none" ? 1.5 : 1; this.ammo = Math.round((AMMO[this.lo.long] || 0) * extra);
+    const extra = 1; this.ammo = Math.round((AMMO[this.lo.long] || 0) * extra);
     this.wind = 0; this.cool = 1; this.stun = 0; this.aimT = 0; this.stepT = 0; this.losT = 0; this.los = true; this.awake = false;
     this.mode = "range"; this.guardT = 0;
     this.hold(this.lo.long); this.a.squareTo = null;
@@ -490,11 +574,11 @@ class Bot extends Fighter {
     this.damage(dmg, true);
   }
   // an arrow or a ball in him
-  hit(power, head) { this.damage(dmgOf(power, head), false); if (head && this.alive) UI.hint("In the head.", 1.2); }
-  damage(d, melee) {
+  hit(power, head) { this.damage(dmgOf(power, head), false, head); if (head && this.alive) UI.hint("In the head.", 1.2); }
+  damage(d, melee, head = false) {
     if (!this.alive || !this.arena.live) return;
     this.hp = Math.max(0, this.hp - d);
-    if (this.hp <= 0) { this.fallDown(); this.arena.foeDown(); return; }
+    if (this.hp <= 0) { this.fallDown(G.player.pos, head); this.arena.foeDown(); return; }
     blowLands(this.a, "hit"); this.a.person.flinch && this.a.person.flinch();
     AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos, high: isF(this.info.look) });
     if (!(this.wind > 0)) { this.stun = melee ? 0.25 : 0.4; this.a.path = []; this.aimT = 0; }
@@ -516,6 +600,13 @@ class Bot extends Fighter {
     const a = this.a, pl = G.player, fp = pl.pos, d = Math.hypot(fp.x - a.pos.x, fp.z - a.pos.z), s = this.s;
     // reloading goes on whatever he's doing, as yours does (each weapon its own time)
     for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt; if (this.rl[k] <= 0) this.loaded[k] = true; }
+    // (the gun in his hands, if it's being loaded: the drill, seen and heard)
+    { const hk = this.heldK, slot = hk === "pistol" ? "side" : "long";
+      if ((hk === "musket" || hk === "pistol") && !this.loaded[slot] && this.rl[slot] > 0) {
+        const e = RELOAD[hk] - this.rl[slot], e0 = this.loadE ?? e; this.loadE = e;
+        a.person.load = { kind: hk, e }; this.aimUp(false);
+        for (const st of loadSteps(hk, e0, e)) FOLEY.load && FOLEY.load(st, a.pos, 0.6, hk === "pistol");
+      } else { a.person.load = null; this.loadE = null; } }
     if ((this.losT -= dt) <= 0) { this.losT = 0.25; this.los = this.sees(); }
     if (this.stun > 0) { this.stun -= dt; return; }
     // his guard: to a side, or (the better he is) to the side you're on
@@ -543,7 +634,7 @@ class Bot extends Fighter {
     // close: the blade. (Farther, if nothing's loaded and you're coming on.)
     const melee = d < 4.2 || (!haveLong && !(haveSide && d < RANGE.pistol) && d < 10);
     if (melee) {
-      if (this.mode !== "melee") { this.mode = "melee"; this.hold(this.lo.blade); this.aimT = 0; a.person.setPose("guard"); }
+      if (this.mode !== "melee") { this.mode = "melee"; this.aimUp(false); this.hold(this.lo.blade); this.aimT = 0; a.person.setPose("guard"); }
       const B = BLADE[this.lo.blade], reach = B.reach - 0.5, run = 3.2 + s * 1.4;
       if (d > reach + 0.5) { if (!a.path.length || this.stepT <= 0) { this.stepT = 0.35; a.approach(fp, reach - 0.2, run); } }
       else if (d < 1.0) { if (this.stepT <= 0) { this.stepT = 0.5; a.approach(fp, 1.5, 2.4); } }
@@ -561,7 +652,7 @@ class Bot extends Fighter {
     if (!useK) {
       // nothing loaded: the long arm in hand, loading; side to side so he's hard to hit, keeping his distance
       if (this.heldK !== longK) this.hold(longK);
-      a.person.setPose("idle"); this.aimT = 0;
+      a.person.setPose("idle"); this.aimT = 0; this.aimUp(false);
       if (this.stepT <= 0) { this.stepT = 1.2 + Math.random() * 1.2; a.circleAbout(fp, clamp(d, 12, 30), 2.4 + s); }
       return;
     }
@@ -569,12 +660,12 @@ class Bot extends Fighter {
     const R = RANGE[useK];
     if (!this.los || d > R) {
       // in closer, or round to where he can see you
-      this.aimT = 0; a.person.setPose("idle");
+      this.aimT = 0; a.person.setPose("idle"); this.aimUp(false);
       if (!a.path.length || this.stepT <= 0) { this.stepT = 0.7; if (!this.los && d < R) a.circleAbout(fp, Math.max(6, d - 3), 3 + s); else a.approach(fp, R * 0.7, 3.2 + s); }
       return;
     }
     // aimed: he stands, brings it up, takes his time (less, the better he is), and fires
-    a.path = []; a.faceTo(fp.x, fp.z); a.person.setPose(useK === "bow" ? "reach" : "point");
+    a.path = []; a.faceTo(fp.x, fp.z); a.person.setPose(useK === "bow" ? "reach" : "idle"); this.aimUp(useK !== "bow");
     this.aimT += dt;
     const aimFor = (useK === "musket" ? 1.5 : useK === "bow" ? 1.2 : 1.1) * (1.25 - s * 0.6);
     if (this.aimT >= aimFor) { this.fire(useK, d); this.aimT = 0; this.stepT = 0.4; }
@@ -601,7 +692,7 @@ class Bot extends Fighter {
     const dir = new THREE.Vector3(pl.pos.x - from.x, pl.pos.y + 1.2 - from.y, pl.pos.z - from.z).normalize();
     AUDIO.gunshot && AUDIO.gunshot(k === "pistol" ? 0.75 : 0.95, a.pos);
     G.gunSmoke && G.gunSmoke(from, dir, k === "pistol" ? 0.6 : 1);
-    const range = k === "pistol" ? 45 : 90, moving = Math.min(1, (pl.speed || 0) / 5);
+    const range = k === "pistol" ? 25 : 90, moving = Math.min(1, (pl.speed || 0) / 5);
     const p = (0.32 + 0.55 * s) * Math.pow(clamp(1 - d / range, 0.1, 1), 0.6) * (1 - moving * (0.45 - s * 0.2)) * (pl.crouched ? 0.8 : 1);
     if (Math.random() < p) {
       const head = Math.random() < 0.05 + s * 0.12;
@@ -622,15 +713,19 @@ class Bot extends Fighter {
 // ---------------------------------------------------------------------------
 class NetFoe extends Fighter {
   constructor(arena, info) { super(arena, info); this.tx = this.a.pos.x; this.tz = this.a.pos.z; this.tyaw = 0; }
-  reset(at, face) { this.hp = HP; this.standUp(); this.a.place(at.x, at.z, Math.atan2(face.x - at.x, face.z - at.z)); this.tx = at.x; this.tz = at.z; this.tyaw = this.a.yaw; this.wind = 0; this.hold(this.info.lo ? this.info.lo.long : "musket"); }
+  reset(at, face) { this.hp = HP; this.isDown = false; this.standUp(); this.a.place(at.x, at.z, Math.atan2(face.x - at.x, face.z - at.z)); this.tx = at.x; this.tz = at.z; this.tyaw = this.a.yaw; this.wind = 0; this.hold(this.info.lo ? this.info.lo.long : "musket"); }
   go() {}
   state(m) {
     this.tx = +m.x; this.tz = +m.z; this.tyaw = Math.PI + (+m.yaw || 0); this.spd = +m.s || 0;
     if (m.h !== undefined) this.hold(m.h || null);
-    if (this.wind <= 0) this.a.person.setPose(m.dn ? "idle" : m.aim ? (m.h === "bow" ? "reach" : "point") : m.g ? "guard" : "idle");
+    if (this.wind <= 0) this.a.person.setPose(m.dn ? "idle" : m.aim && m.h === "bow" ? "reach" : m.g ? "guard" : "idle");
+    this.aimUp(!!m.aim && m.h !== "bow");
+    // (loading: the drill as their game has it, and its sounds from where they stand)
+    if (m.ld > 0 && (m.h === "musket" || m.h === "pistol")) { const e0 = this.loadE ?? +m.ld; this.loadE = +m.ld; this.a.person.load = { kind: m.h, e: +m.ld }; for (const st of loadSteps(m.h, e0, +m.ld)) FOLEY.load && FOLEY.load(st, this.a.pos, 0.6, m.h === "pistol"); }
+    else { this.a.person.load = null; this.loadE = null; }
     this.guardDir = m.g ? "right" : null;
-    if (m.dn && !this.a.lying) this.fallDown();
-    if (!m.dn && this.a.lying) this.standUp();
+    if (m.dn && !this.isDown) { this.isDown = true; this.fallDown(G.player.pos); }
+    if (!m.dn && this.isDown) { this.isDown = false; this.standUp(); }
   }
   windUp(dir) { this.wind = 0.35; this.dir = dir === "left" ? "right" : dir === "right" ? "left" : "up"; this.a.person.setPose(dir === "up" ? "overhead" : "chop"); glint(this.a); setTimeout(() => { this.wind = 0; this.a.person.setPose("idle"); }, 450); }
   // your blade on them: they judge it, on their screen, against their guard
@@ -657,6 +752,7 @@ class NetFoe extends Fighter {
     }
   }
   tick(dt) {
+    if (this.rag) return;
     const a = this.a, k = Math.min(1, dt * 10);
     a.pos.x += (this.tx - a.pos.x) * k; a.pos.z += (this.tz - a.pos.z) * k;
     let dy = this.tyaw - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); a.yaw += dy * k; a.targetYaw = a.yaw;

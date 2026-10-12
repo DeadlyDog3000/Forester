@@ -7,6 +7,20 @@
 
 export const CHANGELOG = [
   {
+    v: "1.10.0", date: "12 October 2026", title: "Powder, ball and rod", img: "art/updates/1.10.0.jpg",
+    items: [
+      "The musket, the pistol, the sword, the battle axe and the spear are new, and there's a dagger: shaped as they were made — a walnut stock with its dropped butt and slim wrist, the barrel half sunk in the fore-end, a flintlock with its cock, flint and steel, brass at the butt and the guard; blades forged to a ridge, a turned hilt with its knuckle bow.",
+      "Loading is the drill, seen and heard: half cock, the pan primed and the steel snapped shut, the charge poured, the ball rattling down, the ramrod drawn, three strokes, the rod back, and full cock — on the screen in your hands, and on anyone else loading near you.",
+      "A long arm is held in both hands, at the shoulder when aimed and slanted across the chest at the ready; the crossbow too.",
+      "The loadout has a weight to it: nine in all. A musket takes most of it — beside it, only a dagger — and the lighter you go, the quicker you are on your feet.",
+      "The pistol is for close work: quicker to load, but wilder, shorter in reach and lighter in the blow.",
+      "With a bow, a gun or a crossbow in your hands the cross is only a dot.",
+      "A man shot or cut down falls as a body falls, and what he held drops from his hands. Killed yourself, you go down with it — your eye with your head — the world reddens, and who won is written over it.",
+      "Bodies on the ground aren't pushed aside by you walking up to them any more.",
+      "New pictures for the musket, the pistol, the battle axe and the dagger.",
+    ],
+  },
+  {
     v: "1.9.0", date: "12 October 2026", title: "The duel", img: "art/updates/1.9.0.jpg",
     items: [
       "PvP, from the title: one against one in a deer ride in the woods, best of three rounds. It looks for anyone else wanting a fight on the servers you know, and if there's nobody, puts you up against a bot as strong as you are — the more you win, the better it gets.",

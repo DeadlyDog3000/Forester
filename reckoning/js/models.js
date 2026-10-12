@@ -5,6 +5,7 @@
 // People, trees, and the furniture of a life: all built from primitives at
 // load, the way the first Forester built its sounds instead of loading them.
 
+import { loadPose } from "./reload.js";
 import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, noSnow, ownGrainAll } from "./core.js";
 import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
 
@@ -77,6 +78,97 @@ function swimLay(P, dt) {
   const k = P.swimK;
   P.body.rotation.x = (P.body.rotation.x || 0) * (1 - k) + 1.3 * k;
   P.body.position.y = 0.86 * k; P.body.position.z = -0.75 * k;
+}
+// ---- a long arm held in both hands ----
+// The weapon is set at the right shoulder — at the cheek when aiming, slanted across the chest at the ready — and each
+// hand brought onto its grip by bending the arm at the shoulder and the elbow (a two-bone reach: the elbow kept down
+// and out, as a man's is when he shoulders a gun). P.aimHold(obj, {base, grips, aim, ready}) sets it; null lets go.
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3(), _f = new THREE.Vector3();
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion();
+function swing(bone, fromW, toW) {
+  // turn a bone so that a direction (world) on it points along another
+  _qa.setFromUnitVectors(fromW.clone().normalize(), toW.clone().normalize());
+  bone.getWorldQuaternion(_qb); bone.parent.getWorldQuaternion(_qc);
+  bone.quaternion.copy(_qc.invert().multiply(_qa.multiply(_qb)));
+  bone.updateMatrixWorld(true);
+}
+function reach(up, fore, hand, T, pole) {
+  if (!up || !fore || !hand) return;
+  const u = up.getWorldPosition(_a), e0 = fore.getWorldPosition(_b), h0 = hand.getWorldPosition(_c);
+  const palm = _d.copy(h0).sub(e0).normalize().multiplyScalar(0.07).add(h0);
+  const A = u.distanceTo(e0), Bl = e0.distanceTo(palm), toT = _e.copy(T).sub(u), dist = toT.length();
+  const d = Math.max(Math.abs(A - Bl) + 1e-3, Math.min(A + Bl - 1e-3, dist)), dir = toT.normalize();
+  const pl = _f.copy(pole).sub(u); pl.addScaledVector(dir, -pl.dot(dir)); if (pl.lengthSq() < 1e-8) pl.set(0, -1, 0); pl.normalize();
+  const x = (A * A - Bl * Bl + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, A * A - x * x));
+  const elbow = u.clone().addScaledVector(dir, x).addScaledVector(pl, hh);
+  swing(up, e0.clone().sub(u), elbow.clone().sub(u));
+  const e1 = fore.getWorldPosition(new THREE.Vector3()), h1 = hand.getWorldPosition(new THREE.Vector3());
+  const palm1 = h1.clone().sub(e1).normalize().multiplyScalar(0.07).add(h1);
+  swing(fore, palm1.sub(e1), T.clone().sub(e1));
+}
+function aimPlace(P, dt) {
+  const H = P.aimH; if (!H) return;
+  const B = P.bones || {}, root = P.root, obj = H.obj;
+  P.aimK = (P.aimK ?? 0) + ((P.aimWant ? 1 : 0) - (P.aimK ?? 0)) * Math.min(1, dt * 7);
+  const k = P.aimK * P.aimK * (3 - 2 * P.aimK);
+  root.updateMatrixWorld(true);
+  const shR = B["upper_arm.R"] || P.armR, shL = B["upper_arm.L"] || P.armL;
+  const sR = root.worldToLocal(shR.getWorldPosition(new THREE.Vector3())), sL = root.worldToLocal(shL.getWorldPosition(new THREE.Vector3()));
+  const inw = Math.sign(sL.x - sR.x) || 1;
+  // loading (reload.js): stood up before the chest, muzzle up, the free hand going to the lock, the muzzle, the rod
+  const LP = P.load && obj.userData.muzzle ? loadPose(P.load.kind, P.load.e) : null, up = LP ? LP.up : 0, pr = LP ? LP.prime : 0;
+  const LOADAT = P.load && P.load.kind === "pistol" ? [0.16, -0.3, 0.3] : [0.2, -0.62, 0.32];
+  const at = H.ready.map((v, i) => { const a0 = v + (H.aim[i] - v) * k; return a0 + (LOADAT[i] - a0) * up + (H.ready[i] - a0) * pr; });
+  obj.position.set(sR.x + inw * at[0], sR.y + at[1], sR.z + at[2]);
+  // (at the ready the muzzle up and across the body; aimed, level and straight ahead; loading, straight up)
+  const xr = -(H.lift ?? 0.95) * (1 - k), zr = -inw * (H.across ?? 0.55) * (1 - k);
+  obj.quaternion.setFromEuler(new THREE.Euler(xr * (1 - up) - 1.45 * up, 0, zr * (1 - up) + inw * 0.6 * pr, "ZYX")).multiply(H.base);
+  obj.updateMatrixWorld(true);
+  // (the ramrod, out of its pipes and down the bore)
+  if (obj.userData.muzzle) {
+    let rod = obj.userData.rod;
+    const rodL = P.load && P.load.kind === "pistol" ? 0.27 : 0.92;
+    if (LP && LP.rod.out > 0.02 && !rod) { rod = obj.userData.rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 1, 6).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 })); obj.add(rod); }
+    if (rod) {
+      rod.visible = !!(LP && LP.rod.out > 0.02); rod.scale.y = rodL;
+      const mz = obj.userData.muzzle.position; if (LP) rod.position.set(mz.x, mz.y - LP.rod.depth * rodL * 0.85 + (1 - LP.rod.out) * rodL * 0.2, mz.z);
+    }
+  }
+  obj.visible = !P.aimHidden;
+  if (!P.bones || P.aimHidden) return;
+  P._aimBack = ["upper_arm.L", "upper_arm.R", "forearm.L", "forearm.R"].filter(n => B[n]).map(n => [B[n], B[n].quaternion.clone()]);
+  const down = new THREE.Vector3(0, -1, 0).transformDirection(root.matrixWorld);
+  const grips = H.grips.slice();
+  // (the free hand's place while loading — at the lock, at the muzzle, on top of the rod)
+  if (LP && LP.hand && obj.userData.muzzle) {
+    const mz = obj.userData.muzzle.position, rod = obj.userData.rod;
+    grips[1] = LP.hand === "lock" ? new THREE.Vector3(0.06, mz.y * 0.05, 0.05) : LP.hand === "muzzle" || !rod ? new THREE.Vector3(mz.x, mz.y + 0.04, mz.z) : new THREE.Vector3(mz.x, rod.position.y + rod.scale.y - 0.05, mz.z);
+  }
+  grips.forEach((gp, i) => {
+    if (!gp) return;
+    const s = i === 0 ? "R" : "L", T = obj.localToWorld(gp.clone());
+    const sh = (i === 0 ? shR : shL).getWorldPosition(new THREE.Vector3());
+    const outw = new THREE.Vector3(i === 0 ? -inw : inw, 0, 0).transformDirection(root.matrixWorld);
+    const pole = sh.clone().addScaledVector(down, 0.5).addScaledVector(outw, 0.35);
+    reach(B["upper_arm." + s], B["forearm." + s], B["hand." + s], T, pole);
+  });
+}
+// a long arm for a body to hold (see aimPlace): the musket, the pistol or the crossbow, with where it sits and how it's
+// turned — its barrel brought round to point the way the body faces, its top up. P.aimWant: aiming, or at the ready.
+const GUN_BASE = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)));
+const XBOW_BASE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+export function shoulderArm(P, kind) {
+  const m = kind === "crossbow" ? makeCrossbow() : kind === "pistol" ? makePistol() : makeMusket();
+  m.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const grips = m.userData.grips || [];
+  // [inward, up, forward] from the right shoulder: aimed, and at the ready
+  const how = kind === "pistol"
+    ? { base: GUN_BASE, grips, aim: [0.08, 0.04, 0.56], ready: [-0.02, -0.42, 0.2], lift: -0.7, across: 0 }
+    : kind === "crossbow"
+      ? { base: XBOW_BASE, grips, aim: [0.12, 0.04, 0.24], ready: [0.14, -0.3, 0.26], lift: 0.5, across: 0.4 }
+      : { base: GUN_BASE, grips, aim: [0.15, 0.05, 0.22], ready: [0.12, -0.3, 0.24], lift: 0.95, across: 0.55 };
+  P.aimHold(m, how);
+  return m;
 }
 export function makePerson(o = {}) {
   const r = rng(o.seed ?? Math.floor(Math.random() * 1e9));
@@ -231,6 +323,12 @@ export function makePerson(o = {}) {
   const P = {
     colors: { skin: o.skinColor ?? skin, coat: o.coat ?? coat, linen: o.linenColor ?? 0xd9d2c3 },   // (what your own hands and sleeves are, first person)
     root, body, hips, legL, legR, armL, armR, neck, head, held, heldL,
+    // (a long arm in both hands: see aimPlace)
+    aimHold(obj, how) {
+      if (this.aimH && this.aimH.obj !== obj) this.root.remove(this.aimH.obj);
+      this.aimH = obj ? { obj, ...how } : null;
+      if (obj) { this.root.add(obj); this.aimK = this.aimWant ? 1 : 0; }
+    },
     phase: r() * TAU, walkAmt: 0, pose: "idle", poseT: 0, look: 0, sitting: 0,
     update(dt, speed = 0) {
       this.poseT += dt;
@@ -303,6 +401,8 @@ export function makePerson(o = {}) {
       }
       neck.rotation.y += (this.look - neck.rotation.y) * Math.min(1, dt * 5);
       if (this.sitting > 0.01) { legL.rotation.x = -1.45 * this.sitting; legR.rotation.x = -1.45 * this.sitting; }
+      // (a long arm, placed at the shoulder; a body of the model's own bends its arms to it after its clip, below)
+      if (!this.bones && this.aimH) aimPlace(this, dt);
     },
     setPose(p) { if (p !== this.pose) { this.pose = p; this.poseT = 0; } },
     // a child's head is big for the body; it evens out as they grow
@@ -338,7 +438,7 @@ function loaderReady() {
   return _loaderP || (_loaderP = Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js")]).then(([{ GLTFLoader }, SU]) => { _clone = SU.clone; _loader = new GLTFLoader(); }));
 }
 // what a model's material is named for decides its grain: a building's plaster, brick and tiles get their own
-const SURF_BY_NAME = { fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "log", wood: "wood", log: "log", glass: "none", iron: "none", soot: "none", horn: "none",
+const SURF_BY_NAME = { steel: "none", brass: "none", fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "log", wood: "wood", log: "log", glass: "none", iron: "none", soot: "none", horn: "none",
   // (a tree's bark and needles; a ship's hull; the oven's clay; a candle's wax; a burned house's char and ash; the far city's water and roofs)
   bark: "bark", needles: "needles", hull: "wood", clay: "plaster", wax: "none", char: "wood", ash: "none", water: "none", copper: "none", earth: "none", house: "plaster" };
 const _loading = {};
@@ -358,6 +458,8 @@ async function fetchModel(k, url) {
       // (a quarry's and a mine's stone is the rock of the hill, broken — not a mason's wall)
       if (n === "stone" && /quarry|mine/.test(k)) m.userData.surface = "rock";
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
+      // (bright metal — a gun's furniture, a blade — with no reflection to show goes black: kept only a little metal)
+      if (n === "steel" || n === "brass" || n === "iron") m.metalness = Math.min(m.metalness, n === "iron" ? 0.3 : 0.4);
       // (a hat of steel — the watch's morion — is polished metal, not felt: no weave on it, and bright, since with no
       // reflection to show a metal goes dark)
       // (a steel helmet: dark polished iron with the sun's sheen on it — it was a pale grey that read as white in daylight)
@@ -469,6 +571,8 @@ function useModel(P, key, colors = {}) {
   const base = P.update.bind(P);
   P.update = function (dt, speed = 0) {
     base(dt, speed);
+    // (let go — a ragdoll, ragdoll.js — the clips leave it alone)
+    if (this.rag) return;
     // the model does its own moving, so the code-built body stands straight
     P.body.rotation.x = 0; P.hips.position.y = 0.92;
     let pose = (this.pose || "idle").toLowerCase();
@@ -503,7 +607,9 @@ function useModel(P, key, colors = {}) {
     if (this.lookApplied) { if (headB) headB.rotateY(-this.lookApplied * 0.65); if (neckB) neckB.rotateY(-this.lookApplied * 0.3); this.lookApplied = 0; }
     // (last frame's stroke taken off first, as the head's turn is: a bone the clip doesn't move would keep it, and add to it)
     if (this._swimBack) { for (const [b, q] of this._swimBack) b.quaternion.copy(q); this._swimBack = null; }
+    if (this._aimBack) { for (const [b, q] of this._aimBack) b.quaternion.copy(q); this._aimBack = null; }
     mixer.update(dt);
+    aimPlace(this, dt);
     // swimming: laid along the water (as the code-built body is), the arms and legs in their stroke over the clip
     swimLay(this, dt);
     if (this.swimK > 0.02) swimBones(this, dt);
@@ -610,7 +716,9 @@ export function makeAxe(tier) {
 // the arms, held by the grip
 const BLADE_SHAPE = len => [[0.026, 0], [0.024, len * 0.8], [0.0, len, 0, len], [-0.024, len * 0.8], [-0.026, 0]];
 export function makeSword(tier) {
-  const t = tier === 1 ? 1 : tier === 3 || tier === 4 ? tier : 5, g = new THREE.Group(), fitting = tmat("brass", () => mat(0x8a7040, { metalness: 0.5, roughness: 0.45, flatShading: true }));
+  const t = tier === 1 ? 1 : tier === 3 || tier === 4 ? tier : 5;
+  if (t === 5) { const m = modelCopy("sword"); if (m) { const g = new THREE.Group(); g.add(m.scene); return g; } }
+  const g = new THREE.Group(), fitting = tmat("brass", () => mat(0x8a7040, { metalness: 0.5, roughness: 0.45, flatShading: true }));
   if (t === 1) {
     // a wooden sword: a cudgel cut flat, a crosspiece lashed on
     mesh(plateGeo("woodBlade", [[0.03, 0], [0.028, 0.7], [0, 0.82], [-0.028, 0.7], [-0.03, 0]], 0.024, 0.004), WOOD(), g, 0, 0.24);
@@ -630,6 +738,7 @@ export function makeSword(tier) {
   return g;
 }
 export function makeSpear() {
+  { const m = modelCopy("spear"); if (m) { const g = new THREE.Group(); g.add(m.scene); return g; } }
   const g = new THREE.Group();
   mesh(haftGeo(1.9, 0.02, 0.017, 7, -0.45), WOOD(), g);
   mesh(tgeo("spearSocket", () => new THREE.CylinderGeometry(0.016, 0.022, 0.1, 7)), STUFF(5), g, 0, 1.48);
@@ -637,6 +746,7 @@ export function makeSpear() {
   return g;
 }
 export function makeBattleAxe() {
+  { const m = modelCopy("battleaxe"); if (m) { const g = new THREE.Group(); g.add(m.scene); return g; } }
   const g = makeAxe(5); g.scale.set(1.15, 1.2, 1.15);
   mesh(tgeo("bAxeSpike", () => { const c = new THREE.ConeGeometry(0.02, 0.1, 4); c.rotateX(-Math.PI / 2); return c; }), STUFF(5), g, 0, 0.63, -0.08);
   return g;
@@ -651,6 +761,11 @@ export function makeClub() {
   }), WOOD_DARK(), g);
   for (let i = 0; i < 4; i++) mesh(tgeo("knot", () => new THREE.DodecahedronGeometry(0.018, 0)), LEATHER(), g, Math.sin(i * 1.7) * 0.05, 0.42 + i * 0.06, Math.cos(i * 1.7) * 0.05);
   return g;
+}
+// a dagger: a long knife with a cross and a pommel (the Blender one; a knife's shape till it loads)
+export function makeDagger() {
+  const m = modelCopy("dagger"); if (m) { const g = new THREE.Group(); g.add(m.scene); return g; }
+  const g = makeKnife(); g.scale.set(1, 1.5, 1); return g;
 }
 export function makeKnife() {
   const g = new THREE.Group();
@@ -808,36 +923,107 @@ export function makeOwnArm(kind, smithSword = false) {
   if ((kind || "axe") === "axe" && t && t.axe >= 3) return makeAxe(t.axe);
   return makeArm(kind);
 }
-// a musket: the walnut stock and the long barrel, the lock and its flint, the ramrod under the barrel; held at the
-// wrist of the stock, pointing +Y along the barrel
-export function makeMusket() {
-  const g = new THREE.Group(), wood = mat(0x5a3820, { surface: "wood" }), iron = mat(0x3a3c40, { metalness: 0.7, roughness: 0.4 }), brass = mat(0xb08a3a, { metalness: 0.6, roughness: 0.35 });
-  const butt = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.32, 0.11), wood); butt.position.set(0, -0.22, -0.035); butt.rotation.x = 0.12; g.add(butt);
-  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.85, 0.05), wood); stock.position.y = 0.36; g.add(stock);
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.016, 1.0, 8), iron); barrel.position.set(0, 0.62, 0.03); g.add(barrel);
-  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.85, 5), wood); rod.position.set(0, 0.55, -0.02); g.add(rod);
-  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.035), iron); lock.position.set(0.025, 0.06, 0.02); g.add(lock);
-  const cock = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.05, 0.012), iron); cock.position.set(0.03, 0.12, 0.035); cock.rotation.x = -0.5; g.add(cock);
-  const band = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 4, 10), brass); band.rotation.x = Math.PI / 2; band.position.set(0, 0.7, 0.01); g.add(band);
-  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.12), brass); plate.position.set(0, -0.38, -0.035); g.add(plate);
-  g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 1.13, 0.03); g.add(g.userData.muzzle);
+// ---- firearms, as the gunsmiths of Suhl and Liège made them in the 1680s ----
+// A side view of the stock drawn as a line round its edge — (along the barrel, up from it) pairs — and given its
+// thickness, rounded at the edges; laid so the barrel runs up +Y and the top of the gun faces +Z.
+function stockFrom(P, thick, m) {
+  const sh = new THREE.Shape(); sh.moveTo(P[0][0], P[0][1]); for (const [a, b] of P.slice(1)) sh.lineTo(a, b);
+  const bev = Math.min(0.008, thick * 0.3);
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: thick - bev * 2, bevelEnabled: true, bevelThickness: bev, bevelSize: bev * 0.8, bevelSegments: 2, curveSegments: 4 });
+  geo.translate(0, 0, -(thick - bev * 2) / 2);
+  geo.applyMatrix4(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)));
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, m);
+}
+// a part along the barrel (from y0 to y1, its axis at z), round or eight-sided
+function along(r0, r1, y0, y1, z, m, sides = 12) { const c = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, y1 - y0, sides), m); c.position.set(0, (y0 + y1) / 2, z); if (sides === 8) c.rotation.y = Math.PI / 8; return c; }
+// a flintlock on the right of the stock (x = side): the lock plate, the cock with its flint held in its jaws, the
+// steel (frizzen) standing over the pan, and its spring; k sizes it (1 a musket's, smaller a pistol's)
+function flintlock(g, side, y, z, k, iron, steel) {
+  const add = (m, x, yy, zz, rx = 0) => { m.position.set(x, yy, zz); m.rotation.x = rx; g.add(m); return m; };
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.15 * k, 0.03 * k), iron); add(plate, side, y + 0.06 * k, z);
+  plate.scale.set(1, 1, 1);
+  // (the plate's ends pointed, as they were)
+  for (const e of [-1, 1]) { const tip = new THREE.Mesh(new THREE.CylinderGeometry(0, 0.015 * k, 0.03 * k, 4), iron); tip.scale.z = 0.25; tip.rotation.z = e > 0 ? 0 : Math.PI; add(tip, side, y + 0.06 * k + e * 0.09 * k, z); tip.rotation.y = Math.PI / 4; }
+  // the cock: a swan neck rising from its tumbler, the jaws at the top gripping the flint, the screw through them
+  const cg = new THREE.Group(); cg.position.set(side + 0.006, y + 0.015 * k, z + 0.004); g.add(cg);
+  const neck = new THREE.Mesh(new THREE.TorusGeometry(0.018 * k, 0.0045 * k, 5, 10, Math.PI * 0.9), steel); neck.rotation.y = Math.PI / 2; neck.position.set(0, 0.014 * k, 0.014 * k); cg.add(neck);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.008 * k, 0.012 * k, 0.018 * k), steel); jaw.position.set(0, 0.032 * k, 0.03 * k); cg.add(jaw);
+  const flint = new THREE.Mesh(new THREE.BoxGeometry(0.009 * k, 0.014 * k, 0.005 * k), new THREE.MeshStandardMaterial({ color: 0x5a5650, roughness: 0.6 })); flint.position.set(0, 0.044 * k, 0.03 * k); cg.add(flint);
+  const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.0025 * k, 0.0025 * k, 0.022 * k, 6), steel); screw.position.set(0, 0.034 * k, 0.04 * k); cg.add(screw);
+  cg.rotation.x = -0.15;
+  // the steel over the pan, and the pan
+  const friz = new THREE.Mesh(new THREE.BoxGeometry(0.008 * k, 0.006 * k, 0.03 * k), steel); add(friz, side + 0.002, y + 0.07 * k, z + 0.03 * k, -0.25);
+  const pan = new THREE.Mesh(new THREE.BoxGeometry(0.012 * k, 0.018 * k, 0.006 * k), iron); add(pan, side + 0.001, y + 0.068 * k, z + 0.014 * k);
+  const spring = new THREE.Mesh(new THREE.BoxGeometry(0.004 * k, 0.04 * k, 0.005 * k), steel); add(spring, side + 0.003, y + 0.105 * k, z + 0.002 * k, 0.15);
+  return cg;
+}
+const GUNM = () => ({ wood: mat(0x4e2f19, { surface: "wood" }), iron: mat(0x2c2e33, { metalness: 0.75, roughness: 0.42 }), steel: mat(0x6e737a, { metalness: 0.85, roughness: 0.3 }), brass: mat(0xb48c3c, { metalness: 0.7, roughness: 0.32 }) });
+// a musket: a flintlock of the Dutch pattern — a walnut stock with a dropped butt and a slim wrist, the lock on its
+// right, brass at the butt, the trigger guard and the ramrod pipes, a long iron barrel octagonal at the breech and
+// round to the muzzle, a blade sight at the end. Held at the wrist of the stock, pointing +Y along the barrel.
+// (the model made in Blender — tools/blender/arms.py — once it has loaded; the one built here till then)
+function fromModel(key, muzzle, grips) {
+  const m = modelCopy(key); if (!m) return null;
+  const g = new THREE.Group(); g.add(m.scene);
+  g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(...muzzle); g.add(g.userData.muzzle);
+  g.userData.grips = grips.map(p => new THREE.Vector3(...p));
   return g;
 }
-// a horseman's pistol: a flintlock with a long walnut stock running nearly to the muzzle, its butt dropped steeply and
-// capped with a brass pommel, a ramrod under the barrel. Built like the musket: the barrel up +y, the muzzle at its end.
+export function makeMusket() {
+  const fm = fromModel("musket", [0, 1.13, 0.032], [[0, -0.07, -0.02], [0, 0.3, -0.016]]); if (fm) return fm;
+  const g = new THREE.Group(), M = GUNM();
+  // the stock, in side view: the butt (dropped, its toe down), the narrow wrist, the lock's flat, and the long fore-end
+  g.add(stockFrom([[-0.42, 0.006], [-0.42, -0.128], [-0.33, -0.112], [-0.2, -0.082], [-0.1, -0.052], [-0.03, -0.046], [0.05, -0.04], [0.2, -0.03], [0.6, -0.022], [0.94, -0.016], [0.95, 0.012], [0.6, 0.014], [0.2, 0.017], [0.04, 0.02], [-0.04, 0.012], [-0.12, 0.004], [-0.3, 0.006]], 0.042, M.wood));
+  // the comb, a little raised where the cheek lies
+  { const comb = stockFrom([[-0.4, 0.004], [-0.4, 0.016], [-0.18, 0.012], [-0.14, 0.004]], 0.03, M.wood); g.add(comb); }
+  // the barrel: eight-sided at the breech, round on to the muzzle, a ring there, a blade sight; the tang along the wrist
+  g.add(along(0.0165, 0.0165, 0.03, 0.3, 0.03, M.iron, 8));
+  g.add(along(0.015, 0.0125, 0.3, 1.12, 0.03, M.iron, 14));
+  g.add(along(0.0145, 0.0145, 1.1, 1.125, 0.03, M.iron, 14));
+  { const sight = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.012, 0.008), M.brass); sight.position.set(0, 1.1, 0.047); g.add(sight); }
+  { const tang = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.09, 0.004), M.iron); tang.position.set(0, -0.03, 0.017); tang.rotation.x = 0.08; g.add(tang); }
+  // the ramrod under the barrel, its brass-tipped end at the muzzle, and the pipes that hold it
+  g.add(along(0.0045, 0.0045, 0.12, 1.1, 0.002, mat(0x6a4a2a, { surface: "wood" }), 6));
+  g.add(along(0.0055, 0.0055, 1.09, 1.105, 0.002, M.brass, 8));
+  for (const y of [0.42, 0.7, 0.98]) { const pipe = along(0.0075, 0.0075, y, y + 0.03, 0.002, M.brass, 8); g.add(pipe); }
+  // the barrel bands (brass) round barrel and fore-end together
+  for (const y of [0.55, 0.85]) { const b = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.0035, 5, 14), M.brass); b.rotation.x = Math.PI / 2; b.position.set(0, y, 0.008); b.scale.set(0.85, 1, 1.35); g.add(b); }
+  // the lock, on the right
+  flintlock(g, 0.023, -0.005, 0.004, 1, M.iron, M.steel);
+  // and the side plate opposite it, brass
+  { const sp = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.13, 0.016), M.brass); sp.position.set(-0.022, 0.05, -0.004); g.add(sp); }
+  // the trigger and its guard, the butt plate, the sling swivels
+  { const tr = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.008, 0.026), M.steel); tr.position.set(0, 0.0, -0.058); tr.rotation.x = -0.35; g.add(tr); }
+  { const gd = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.0035, 5, 14, Math.PI), M.brass); gd.rotation.y = Math.PI / 2; gd.rotation.z = Math.PI; gd.position.set(0, 0.0, -0.045); gd.scale.set(1, 1.6, 1); g.add(gd); }
+  { const bp = stockFrom([[-0.428, 0.008], [-0.428, -0.13], [-0.418, -0.13], [-0.418, 0.008]], 0.046, M.brass); g.add(bp); }
+  for (const y of [-0.24, 0.62]) { const sw = new THREE.Mesh(new THREE.TorusGeometry(0.009, 0.002, 4, 10), M.iron); sw.rotation.y = Math.PI / 2; sw.position.set(0, y, y < 0 ? -0.105 : -0.03); g.add(sw); }
+  g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 1.13, 0.03); g.add(g.userData.muzzle);
+  // where two hands hold it: the right round the wrist, the left under the fore-end
+  g.userData.grips = [new THREE.Vector3(0, -0.07, -0.02), new THREE.Vector3(0, 0.3, -0.014)];
+  return g;
+}
+// a horseman's pistol: a flintlock with a walnut stock running nearly to the muzzle, the butt dropped steeply to a
+// brass-capped pommel, a long barrel octagonal at the breech, a brass muzzle cap and the ramrod beneath. Built like
+// the musket: the barrel up +Y, its top to +Z, held at the grip.
 export function makePistol() {
-  const g = new THREE.Group(), wood = mat(0x5a3820, { surface: "wood" }), iron = mat(0x3a3c40, { metalness: 0.7, roughness: 0.4 }), brass = mat(0xb08a3a, { metalness: 0.6, roughness: 0.35 });
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.3, 8), iron); barrel.position.set(0, 0.16, 0.022); g.add(barrel);
-  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.27, 0.03), wood); stock.position.set(0, 0.13, 0.004); g.add(stock);
-  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.25, 5), wood); rod.position.set(0, 0.15, -0.014); g.add(rod);
-  // (the grip, dropped steeply below the lock, and its pommel)
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.13, 0.034), wood); grip.position.set(0, -0.035, -0.045); grip.rotation.x = 0.95; g.add(grip);
-  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), brass); pommel.position.set(0, -0.075, -0.098); pommel.scale.set(1, 0.8, 1.15); g.add(pommel);
-  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.07, 0.024), iron); lock.position.set(0.016, 0.02, 0.012); g.add(lock);
-  const cock = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.034, 0.009), iron); cock.position.set(0.02, 0.0, 0.03); cock.rotation.x = 0.5; g.add(cock);
-  const guard = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.003, 4, 10, Math.PI), brass); guard.rotation.y = Math.PI / 2; guard.position.set(0, 0.02, -0.022); g.add(guard);
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.012, 8), brass); cap.position.set(0, 0.272, 0.01); g.add(cap);
-  g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 0.32, 0.022); g.add(g.userData.muzzle);
+  const fm = fromModel("pistol", [0, 0.336, 0.022], [[0, -0.065, -0.072]]); if (fm) return fm;
+  const g = new THREE.Group(), M = GUNM();
+  g.add(stockFrom([[0.3, 0.012], [0.04, 0.016], [-0.01, 0.01], [-0.05, -0.02], [-0.085, -0.06], [-0.11, -0.095], [-0.12, -0.112], [-0.095, -0.128], [-0.06, -0.11], [-0.03, -0.07], [0.0, -0.045], [0.04, -0.03], [0.3, -0.012]], 0.03, M.wood));
+  g.add(along(0.0118, 0.0118, 0.02, 0.12, 0.022, M.iron, 8));
+  g.add(along(0.011, 0.0095, 0.12, 0.33, 0.022, M.iron, 12));
+  { const cap = along(0.0125, 0.0125, 0.29, 0.31, 0.012, M.brass, 10); g.add(cap); }
+  g.add(along(0.0035, 0.0035, 0.06, 0.32, 0.0, mat(0x6a4a2a, { surface: "wood" }), 6));
+  g.add(along(0.0045, 0.0045, 0.315, 0.327, 0.0, M.brass, 8));
+  flintlock(g, 0.016, -0.012, 0.004, 0.72, M.iron, M.steel);
+  // the pommel cap, brass, with its spurs up the sides of the grip
+  { const pm = new THREE.Mesh(new THREE.SphereGeometry(0.024, 12, 8), M.brass); pm.position.set(0, -0.112, -0.118); pm.scale.set(0.8, 0.9, 1.1); g.add(pm); }
+  for (const sd of [-1, 1]) { const spur = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.05, 0.008), M.brass); spur.position.set(sd * 0.0155, -0.09, -0.095); spur.rotation.x = 0.85; g.add(spur); }
+  { const tr = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.006, 0.02), M.steel); tr.position.set(0, -0.005, -0.045); tr.rotation.x = -0.4; g.add(tr); }
+  { const gd = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.0028, 5, 12, Math.PI), M.brass); gd.rotation.y = Math.PI / 2; gd.rotation.z = Math.PI; gd.position.set(0, -0.004, -0.032); gd.scale.set(1, 1.5, 1); g.add(gd); }
+  { const sight = new THREE.Mesh(new THREE.BoxGeometry(0.0025, 0.008, 0.005), M.brass); sight.position.set(0, 0.315, 0.034); g.add(sight); }
+  g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 0.335, 0.022); g.add(g.userData.muzzle);
+  g.userData.grips = [new THREE.Vector3(0, -0.06, -0.07)];
   return g;
 }
 // a crossbow of the time, as a German hunter would carry one: a walnut tiller, its butt dropped for the cheek and set
@@ -920,9 +1106,11 @@ export function makeCrossbow() {
     lay(S1, tips[0], mid); lay(S2, tips[1], mid);
   } };
   g.userData.span(1);
+  // where two hands hold it: the right round the wrist of the tiller at the trigger, the left under the fore-end
+  g.userData.grips = [new THREE.Vector3(0.012, -0.06, 0.02), new THREE.Vector3(-0.006, -0.05, -0.2)];
   return g;
 }
-export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pistol: makePistol, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
+export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pistol: makePistol, dagger: makeDagger, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
 // (the pick's making is the player's, read from the game at the moment it is made)
 let _toolsOf = () => null;
 export const setToolSource = f => { _toolsOf = f; };

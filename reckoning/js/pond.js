@@ -112,7 +112,7 @@ export class Pond {
     // (the first time you come to it, the guide's page on it)
     if (pp && !this.told && Math.hypot(pp.x - POND.x, pp.z - POND.z) < POND.r + 9 && G.mode === "play") { this.told = true; G.guide && G.guide("pond"); }
     // the first time you come down to the water without a rod, one is put in your hands, and you're told how
-    if (pp && G.body && G.body.tools && !(G.body.tools.rod > 0) && !this.gave && Math.hypot(pp.x - POND.x, pp.z - POND.z) < POND.r + 14 && G.mode === "play" && !G.cine && !UI.dialogOpen) {
+    if (pp && !G.arena && G.body && G.body.tools && !(G.body.tools.rod > 0) && !this.gave && Math.hypot(pp.x - POND.x, pp.z - POND.z) < POND.r + 14 && G.mode === "play" && !G.cine && !UI.dialogOpen) {
       this.gave = true; G.body.tools.rod = 1; G.body.dirty = true;
       const sib = G.who === "sister" ? "Brother" : "Sister";
       const line = "Here — I cut you a rod from the hazel, and twisted a line. Take it out with its number and click to cast. Watch the line where it goes in. When it's drawn right away under — not just a twitch — click, quick!";

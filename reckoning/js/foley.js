@@ -252,6 +252,70 @@ const RECIPES = {
     }
     return finish(d, 0.6);
   },
+  // ---- loading a flintlock, step by step ----
+  // the cock drawn back to half cock (or on to full): the tumbler's two clicks, small and hard, and the spring
+  halfcock(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.3));
+    for (const [t, a] of [[0, 1], [0.05 + rand(0, 0.02), 0.7]]) { hiss(d, sr, t, 0.012, a, new Biquad("hp", 2500, 0.8, sr), x => Math.exp(-x / 0.002)); modes(d, sr, t, [[rand(3200, 3800), 0.02, 0.25], [rand(5600, 6400), 0.012, 0.15]]); }
+    return finish(d, 0.7);
+  },
+  cock(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.35));
+    for (const [t, a] of [[0, 0.8], [0.07 + rand(0, 0.02), 1]]) { hiss(d, sr, t, 0.014, a, new Biquad("hp", 2000, 0.8, sr), x => Math.exp(-x / 0.0025)); modes(d, sr, t, [[rand(2800, 3300), 0.03, 0.35], [rand(4800, 5600), 0.018, 0.2]]); }
+    return finish(d, 0.8);
+  },
+  // fine powder shaken from the flask into the pan: a soft dry hiss of grains, a few ticks as they land
+  prime(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.45));
+    hiss(d, sr, 0.02, 0.32, 0.5, new Biquad("bp", 5200, 1.2, sr), x => Math.min(1, x / 0.04) * Math.exp(-x / 0.18));
+    crackles(d, sr, 0.03, 0.3, 160, 0.18, 4000, 9000);
+    return finish(d, 0.45);
+  },
+  // the steel snapped down over the pan: a sharp clack of iron on iron, the spring behind it
+  frizzen(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.3));
+    hiss(d, sr, 0, 0.01, 1, new Biquad("hp", 1500, 0.7, sr), x => Math.exp(-x / 0.0018));
+    modes(d, sr, 0, [[rand(1900, 2300), 0.05, 0.5], [rand(3400, 3900), 0.03, 0.3], [rand(620, 720), 0.04, 0.3]]);
+    return finish(d, 0.75);
+  },
+  // the charge poured down the barrel from a paper cartridge: a run of grains, hollow, rung by the long iron tube
+  powder(sr) {
+    const L = 0.7, d = new Float32Array(Math.floor(sr * L));
+    hiss(d, sr, 0, 0.6, 0.6, new Biquad("bp", 3800, 0.9, sr), x => Math.min(1, x / 0.05) * Math.exp(-x / 0.35));
+    crackles(d, sr, 0.02, 0.55, 220, 0.14, 3000, 8000);
+    // (the tube: a faint hollow note under it)
+    modes(d, sr, 0.03, [[rand(410, 470), 0.35, 0.06], [rand(1240, 1380), 0.2, 0.04]]);
+    return finish(d, 0.45);
+  },
+  // the ball let go at the muzzle: a little click on the iron, then its rattle and roll down the bore, a soft knock at the bottom
+  ball(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.6));
+    hiss(d, sr, 0, 0.006, 0.6, new Biquad("hp", 3000, 0.7, sr), x => Math.exp(-x / 0.0015));
+    let t = 0.02;
+    for (let i = 0; i < 9; i++) { modes(d, sr, t, [[rand(900, 1300) * (1 - i * 0.05), 0.012, 0.25 * (1 - i * 0.07)]]); t += rand(0.025, 0.04); }
+    modes(d, sr, t + 0.03, [[rand(140, 180), 0.05, 0.6], [rand(420, 480), 0.03, 0.2]]);
+    return finish(d, 0.55);
+  },
+  // the ramrod drawn from its pipes (or put back): wood sliding through brass, a dry rising rasp, a tap at the end
+  rodOut(sr) {
+    const L = 0.5, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 1500, 1.4, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr, u = t / L; bp.set("bp", 1100 + 1600 * u, 1.4, sr); d[i] = bp.run(Math.random() * 2 - 1) * Math.sin(Math.PI * Math.min(1, u * 1.15)) * (0.7 + 0.3 * Math.sin(t * 90)); }
+    modes(d, sr, L * 0.9, [[rand(1700, 2100), 0.02, 0.3]]);
+    return finish(d, 0.5);
+  },
+  rodIn(sr) {
+    const L = 0.45, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 1500, 1.4, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr, u = t / L; bp.set("bp", 2400 - 1300 * u, 1.4, sr); d[i] = bp.run(Math.random() * 2 - 1) * Math.sin(Math.PI * u) * (0.7 + 0.3 * Math.sin(t * 80)); }
+    modes(d, sr, L * 0.85, [[rand(800, 1000), 0.03, 0.4], [rand(2600, 3000), 0.015, 0.2]]);
+    return finish(d, 0.5);
+  },
+  // the rod rammed home on the ball: a dull wooden thud deep in the barrel, the tube ringing faintly round it
+  ram(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.35));
+    hiss(d, sr, 0, 0.03, 0.5, new Biquad("lp", 900, 0.7, sr), x => Math.exp(-x / 0.008));
+    modes(d, sr, 0, [[rand(170, 210), 0.06, 0.9], [rand(520, 600), 0.04, 0.35], [rand(1300, 1500), 0.08, 0.08]]);
+    return finish(d, 0.65);
+  },
   // a musket ball going by close: not a whistle but a short, rough flutter of torn air — a round ball tumbles — that
   // drops in pitch as it passes and is gone
   whiz(sr) {
@@ -393,6 +457,8 @@ export const FOLEY = {
   gulp: (vol = 0.5) => play("gulp", { vol, rate: [0.92, 1.08] }),
   swish: (vol = 0.35) => play("swish", { vol, rate: [0.85, 1.2] }),
   whiz: (vol = 0.55) => play("whiz", { vol, rate: [0.9, 1.12] }),
+  // a step of loading (see the recipes): at a place, or in your own hands
+  load: (step, at = null, vol = 0.55, small = false) => RECIPES[step] && play(step, { vol, at, reach: 25, rate: small ? [1.12, 1.25] : [0.94, 1.06] }),
   thunk: (at, vol = 0.7) => play("thunk", { vol, at, reach: 40, rate: [0.85, 1.15] }),
   packIn: (vol = 0.45) => play("packIn", { vol, rate: [0.9, 1.1] }),
   packOut: (vol = 0.45) => play("packOut", { vol, rate: [0.9, 1.1] }),

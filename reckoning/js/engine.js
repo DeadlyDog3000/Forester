@@ -9,7 +9,8 @@
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, addDetail, ownGrain } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
-import { makeMusket, makePistol, makeCrossbow } from "./models.js";
+import { makeMusket, makePistol, makeCrossbow, shoulderArm } from "./models.js";
+import { LOAD, loadPose, loadSteps } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
@@ -195,6 +196,7 @@ export function blendAtmo(a, b, t) {
 // it sways behind a turn, bobs with your stride, drops when you land, and comes up from below when you take a thing out
 export const vm = new THREE.Group();
 // (the splash of a stroke, a plunge, a going-under: the foley's, when it's there)
+let _gv, _gd, _gz, _gv2, _gq, _gq2;
 const FOLEY_SPLASH = (p, vol) => { const F = window.__foley; if (F && F.splash) F.splash({ x: p.x, y: p.y + 1.2, z: p.z }, vol); };
 camera.add(vm);
 
@@ -273,7 +275,7 @@ export class Player {
         a.add(h); return h;
       };
       // (a sword's grip is short: the second hand close under the guard)
-      const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], pick: [0.03, 0.15] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
+      const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], pick: [0.03, 0.15], dagger: [0.02, 0.08] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
       this.hands = [hand(grips[0]), hand(grips[1])];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
@@ -314,7 +316,11 @@ export class Player {
       const cuffM = ARMS_M.cuff;
       const fist = (y, z) => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); f.rotation.z = Math.PI / 2; h.add(f); h.position.set(0, y, z); m.add(h); return h; };
       // (a pistol is held in the one hand, at the grip)
-      this.hands = pis ? [fist(-0.035, -0.05)] : [fist(0.02, -0.02), fist(0.5, -0.01)];
+      this.hands = pis ? [fist(-0.06, -0.068), fist(0.1, -0.03)] : [fist(-0.065, -0.024), fist(0.46, -0.016)];
+      // (the ramrod, for loading: drawn out of its pipes and down the barrel)
+      const rodL = pis ? 0.27 : 0.92;
+      this.gunRod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, rodL, 6).translate(0, rodL / 2, 0), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 }));
+      this.gunRod.userData.len = rodL; this.gunRod.visible = false; m.add(this.gunRod);
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
         arm.add(new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM));
@@ -323,58 +329,88 @@ export class Player {
         return { arm, sleeve: arm.children[0], cuff, shoulder: new THREE.Vector3(i === 0 ? 0.26 : 0.02, i === 0 ? -0.48 : -0.55, 0.12) };
       });
       this.gunLoaded ??= true; this.gunReload = this.gunReload || 0; this.gunAim = 0; this.gunKickT = 0;
-      if (this.model && this.model.held) { this.gunBody = pis ? makePistol() : makeMusket(); this.gunBody.rotation.x = Math.PI / 2; this.model.held.add(this.gunBody); }
+      // (and in both hands of your body, at the shoulder, for when the camera is behind you)
+      if (this.model && this.model.aimHold) this.gunBody = shoulderArm(this.model, this.gunIs);
     } else if (!on && this.gun) {
       (this.gunSaved ??= {})[this.gunIs || "musket"] = { l: this.gunLoaded, r: this.gunReload };
       vm.remove(this.gun); this.gun = null;
       for (const a of this.arms || []) vm.remove(a.arm);
       this.arms = null; this.hands = null;
-      if (this.gunBody && this.model && this.model.held) this.model.held.remove(this.gunBody); this.gunBody = null;
+      if (this.gunBody && this.model && this.model.aimHold) this.model.aimHold(null); this.gunBody = null;
     }
   }
   updateGun(dt) {
+    _gv ??= new THREE.Vector3(); _gd ??= new THREE.Vector3(); _gz ??= new THREE.Vector3(); _gv2 ??= new THREE.Vector3(); _gq ??= new THREE.Quaternion(); _gq2 ??= new THREE.Quaternion();
     if (!this.gun) return;
     const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
-    const pis = this.gunIs === "pistol", RL = pis ? 3.6 : 6.5;
-    // loading: lowered and tipped up, the ramrod three times down the barrel, and up again
+    const pis = this.gunIs === "pistol", kind = pis ? "pistol" : "musket", RL = LOAD[kind].time;
+    // loading, as the drill goes (reload.js): each step heard as it's done
     if (this.gunReload > 0) {
       const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt);
-      const p = 1 - this.gunReload / RL;
-      for (const at of [0.35, 0.5, 0.65]) if (1 - before / RL < at && p >= at) AUDIO.ramrod && AUDIO.ramrod();
-      if (this.gunReload === 0) { this.gunLoaded = true; SFX.pickup && SFX.pickup(); }
+      const F = window.__foley;
+      for (const st of loadSteps(kind, RL - before, RL - this.gunReload + (this.gunReload === 0 ? 1 : 0))) F && F.load && F.load(st, null, 0.6, pis);
+      if (this.gunReload === 0) this.gunLoaded = true;
     }
     const reloading = this.gunReload > 0;
     const aimWant = free && input.rdown && !reloading ? 1 : 0;
     this.gunAim += (aimWant - this.gunAim) * Math.min(1, dt * 9);
+    if (this.model) this.model.aimWant = this.gunAim > 0.5;
     // fire
     if (free && input.click && this.gunLoaded && !reloading) {
       input.click = false;
       const q = camera.getWorldQuaternion(new THREE.Quaternion());
-      const spread = (pis ? 0.009 : 0.004) + (1 - this.gunAim) * (pis ? 0.022 : 0.03) + Math.min(1, this.speed / 4) * 0.02;
+      const spread = (pis ? 0.022 : 0.004) + (1 - this.gunAim) * (pis ? 0.04 : 0.03) + Math.min(1, this.speed / 4) * 0.02;
       const dir = new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread, -1).normalize().applyQuaternion(q);
       const from = camera.getWorldPosition(new THREE.Vector3());
       const muzzle = this.gunModel.userData.muzzle.getWorldPosition(new THREE.Vector3());
       AUDIO.gunshot && AUDIO.gunshot(pis ? 0.8 : 1);
       if (G.onGunshot) G.onGunshot(from, dir, this.gunIs);
-      if (G.hunt) { const r = G.hunt.shoot(from, dir, pis ? 1.9 : 2.6, pis ? 45 : 90); if (r.struck && r.struck !== "ground") G.practise && G.practise("archery", 0.6); }
+      if (G.hunt) { const r = G.hunt.shoot(from, dir, pis ? 1.9 : 2.6, pis ? 25 : 90); if (r.struck && r.struck !== "ground") G.practise && G.practise("archery", 0.6); }
       gunSmoke(muzzle, dir, pis ? 0.6 : 1);
       this.gunLoaded = false; this.gunReload = RL; this.gunKickT = 1; G.bowKick = pis ? 1.0 : 1.4;
       if (!this.gunTip) { this.gunTip = true; setTimeout(() => UI.hint("Loading takes a while — powder, ball, and the ramrod. Find cover.", 4), 600); }
     } else if (free && input.click && !this.gunLoaded) input.click = false;
     this.gunKickT = Math.max(0, this.gunKickT - dt * 4);
     // where it is: at the hip, at the eye, or down for loading; and kicked by the shot
-    const a = this.gunAim, k = this.gunKickT * this.gunKickT, rl = reloading ? Math.sin(Math.min(1, (1 - this.gunReload / RL) * 1.15) * Math.PI) : 0;
-    const g = this.gun;
-    // (a pistol: out at arm's length to aim, its kick a sharp flip of the wrist)
-    if (pis) {
-      g.position.set(0.2 - 0.17 * a - 0.04 * rl, -0.21 + 0.155 * a - 0.12 * rl, -0.36 - 0.14 * a + 0.05 * k);
-      g.rotation.set(0.05 * (1 - a) + 0.35 * k + 0.9 * rl, 0.05 * (1 - a) + 0.03 * a, 0.12 * (1 - a) + 0.3 * rl);
-      this.fitArms(); return;
+    const a = this.gunAim, k = this.gunKickT * this.gunKickT, g = this.gun;
+    const LP = reloading ? loadPose(kind, RL - this.gunReload) : { up: 0, prime: 0, hand: null, rod: { out: 0, depth: 0 } };
+    if (this.model) this.model.load = reloading ? { kind, e: RL - this.gunReload } : null;
+    // three places for it: at the hip or the eye (aimed); low and turned lock-up for priming; and stood on its butt
+    // before you, the muzzle up, for the charge, the ball and the rod. (A pistol: out at arm's length to aim, its kick
+    // a sharp flip of the wrist.)
+    const H = pis
+      ? [0.2 - 0.17 * a, -0.21 + 0.155 * a, -0.36 - 0.14 * a + 0.05 * k, 0.05 * (1 - a) + 0.35 * k, 0.05 * (1 - a) + 0.03 * a, 0.12 * (1 - a)]
+      : [0.22 - 0.22 * a, -0.27 + 0.155 * a, -0.32 + 0.02 * a + 0.06 * k, 0.04 * (1 - a) + 0.12 * k, 0.06 * (1 - a), 0.1 * (1 - a)];
+    const P = pis ? [0.1, -0.27, -0.34, 0.25, 0.45, -1.0] : [0.12, -0.34, -0.4, 0.2, 0.45, -1.05];
+    const v = H.map((h, i) => h + (P[i] - h) * LP.prime);
+    g.position.set(v[0], v[1], v[2]); g.rotation.set(v[3], v[4], v[5]);
+    // (stood up for the charge and the rod: leaning away to the left, the muzzle up in the corner of your eye — so the
+    //  hand at it and the rod going down are in sight, and the field in front of you still is)
+    if (LP.up > 0.001) {
+      const M = pis ? _gv.set(-0.17, -0.06, -0.46) : _gv.set(-0.32, 0.0, -0.72), d = _gd.set(pis ? -0.3 : -0.4, 0.82, pis ? -0.42 : -0.42).normalize();
+      const len = this.gunModel.userData.muzzle.position.y;
+      _gq.setFromUnitVectors(_gz.set(0, 0, -1), d);                 // (the barrel, -z in here, along d)
+      _gq.multiply(_gq2.setFromAxisAngle(_gz.set(0, 0, 1), pis ? 0.4 : 0.5));   // (rolled, the lock toward you)
+      g.quaternion.slerp(_gq, LP.up);
+      g.position.lerp(_gv2.copy(M).addScaledVector(d, -len), LP.up);
     }
-    g.position.set(0.22 - 0.22 * a - 0.05 * rl, -0.27 + 0.155 * a - 0.12 * rl, -0.32 + 0.02 * a + 0.06 * k);
-    g.rotation.set(0.04 * (1 - a) + 0.12 * k + 0.9 * rl, 0.06 * (1 - a), 0.1 * (1 - a) + 0.35 * rl);
-    // (the ramrod hand at the muzzle while loading)
-    if (this.hands) this.hands[1].position.set(0, reloading && rl > 0.5 ? 1.0 + Math.sin(G.time * 9) * 0.08 : 0.5, reloading && rl > 0.5 ? 0.06 : -0.01);
+    // the free hand: on the fore-end (the pistol's out of sight), or at the lock, the muzzle, the rod
+    const muzY = this.gunModel.userData.muzzle.position.y, rod = this.gunRod, rodL = rod ? rod.userData.len : 0;
+    if (rod) {
+      rod.visible = LP.rod.out > 0.02;
+      // (drawn up out of the pipes and over, then down the bore as far as the strokes take it)
+      rod.position.set(0, muzY - LP.rod.depth * rodL * 0.85 + (1 - LP.rod.out) * rodL * 0.2, 0.032 * (pis ? 0.7 : 1));
+    }
+    if (this.hands && this.hands[1]) {
+      const h = this.hands[1], rest = pis ? null : [0.46, -0.016];
+      const tgt = LP.hand === "lock" ? [0.06, 0.07] : LP.hand === "muzzle" ? [muzY + 0.03, 0.03] : LP.hand === "rod" && rod ? [rod.position.y + rodL - 0.04, 0.03] : rest;
+      h.userData.at = h.userData.at || [rest ? rest[0] : 0.1, rest ? rest[1] : -0.03];
+      if (tgt) { const kk = Math.min(1, dt * 12); h.userData.at[0] += (tgt[0] - h.userData.at[0]) * kk; h.userData.at[1] += (tgt[1] - h.userData.at[1]) * kk; }
+      h.position.set(LP.hand === "lock" ? 0.05 : 0, h.userData.at[0], h.userData.at[1]);
+      if (pis && this.arms && this.arms[1]) { const seen = !!(reloading && LP.hand); this.arms[1].arm.visible = seen; h.visible = seen; }
+    }
+    // (the free arm comes in from your left shoulder while it's at the muzzle and the rod)
+    if (this.arms && this.arms[1]) { const sh = this.arms[1].shoulder, base = this.arms[1].base ??= sh.clone(); sh.set(base.x + (-0.3 - base.x) * LP.up, base.y + (-0.62 - base.y) * LP.up, base.z); }
     this.fitArms();
   }
   // ---- the bow: held out in the left hand, the right on the string ----
@@ -520,14 +556,14 @@ export class Player {
         return { arm, sleeve: arm.children[0], cuff, shoulder: new THREE.Vector3(i === 0 ? 0.26 : -0.02, i === 0 ? -0.48 : -0.55, 0.12) };
       });
       // (and the one the others see, in your hands)
-      if (this.model && this.model.held) { this.xbowBody = makeCrossbow(); this.xbowBody.rotation.set(Math.PI / 2, 0, 0); this.model.held.add(this.xbowBody); }
+      if (this.model && this.model.aimHold) this.xbowBody = shoulderArm(this.model, "crossbow");
       this.xaim = 0; this.xspan = (G.body && G.body.tools.bolts > 0) ? 1 : 0; this.xkick = 0;
       this.xposeIt();
     } else if (!on && this.xbow) {
       vm.remove(this.xbow); this.xbow = null;
       for (const a of this.arms || []) vm.remove(a.arm);
       this.arms = null; this.hands = null;
-      if (this.xbowBody && this.model && this.model.held) this.model.held.remove(this.xbowBody); this.xbowBody = null;
+      if (this.xbowBody && this.model && this.model.aimHold) this.model.aimHold(null); this.xbowBody = null;
     }
   }
   // how it lies in the hands: at the hip, or up at the eye with the bolt along the sight; the string back or loosed
@@ -559,6 +595,7 @@ export class Player {
     const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
     const bolts = G.body ? G.body.tools.bolts || 0 : 0;
     this.xaim += ((free && input.rdown ? 1 : 0) - this.xaim) * Math.min(1, dt * 9);
+    if (this.model) this.model.aimWant = this.xaim > 0.5;
     this.xkick = Math.max(0, this.xkick - dt * 3);
     this.xwind = (this.xwind || 0) + ((this.xspan < 1 && bolts > 0 && this.xkick < 0.6 ? 1 : 0) - (this.xwind || 0)) * Math.min(1, dt * 6);
     // the shot: down the line of the sight if aimed, wider from the hip
@@ -859,7 +896,7 @@ export class Player {
     if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.15; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(this.pos.x, this.pos.z)); this.wading = G.world && G.world.waterDepth ? G.world.waterDepth(this.pos.x, this.pos.z) : 0; }
     // (wading is slow going, and slower the deeper)
     const wade = this.wading > 0.05 && !this.horse ? 1 - Math.min(0.55, this.wading * 0.7) : 1;
-    const max = this.swimming ? (sprint ? 2.7 : 1.8) : (this.draw > 0 ? 1.6 - this.draw * 0.5 : 1) * (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1) * wade;
+    const max = this.swimming ? (sprint ? 2.7 : 1.8) : (this.draw > 0 ? 1.6 - this.draw * 0.5 : 1) * (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (G.loadMul ?? 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1) * wade;
     if (this.horse) this.crouched = false;
     const len = Math.hypot(mx, mz);
     const c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
@@ -965,6 +1002,8 @@ export class Player {
       if (this.horse) m.root.position.y += 1.02;
       if (fp) { const bk = G.fpBack ?? 0.12; m.root.position.x += Math.sin(this.yaw) * bk; m.root.position.z += Math.cos(this.yaw) * bk; m.root.position.y -= G.fpDown ?? 0.05; }
       firstPersonBones(m, fp);
+      // (and the gun at your body's shoulder is the one on the screen, first person: not drawn twice)
+      m.aimHidden = fp;
       // (first person in the water, your own body's under you and out of sight: the arms on the screen do the swimming)
       m.root.visible = !(fp && this.swimming);
     }
@@ -1177,6 +1216,9 @@ G.toggleFreecam = () => {
 };
 function updateCamera(dt) {
   const p = G.player;
+  // (dead: the eye goes where the head goes, as the body falls — see pvp.js — and nothing in your hands)
+  if (G.deathCam) { G.deathCam(camera, dt); vm.visible = false; sky.position.copy(camera.position); G.wasDeathCam = true; return; }
+  if (G.wasDeathCam) { G.wasDeathCam = false; camera.up.set(0, 1, 0); vm.visible = true; }
   if (G.freecam) { freeCamera(dt); sky.position.copy(camera.position); return; }
   const third = !!G.forceThird;   // first person always; only a scene may step the camera back
   const bobY = third ? 0 : Math.sin(p.bob * 2) * 0.035 * Math.min(1, p.speed / 3);
@@ -1715,7 +1757,8 @@ export class Actor {
     if (!w || !w.col) return;
     w.col.resolve(p, NPC_R, w.heightAt(p.x, p.z) + 0.3, 1.4, true);
     const pl = G.player;
-    if (pl && pl.pos) {
+    // (someone lying on the ground — asleep, knocked down, dead — isn't shoved aside by you walking up to them)
+    if (pl && pl.pos && !this.lying && !this.ragdoll) {
       const dx = p.x - pl.pos.x, dz = p.z - pl.pos.z, d = Math.hypot(dx, dz), rr = NPC_R + (pl.radius || 0.3);
       if (d < rr && d > 1e-4) { p.x = pl.pos.x + dx / d * rr; p.z = pl.pos.z + dz / d * rr; }
     }
@@ -1938,9 +1981,11 @@ function updateInteract(dt) {
     k = Math.max(k, crossFlash);
     ch.classList.toggle("active", !!it);
     // the cross opens wide with the bow out, and closes in as you draw
-    const pl = G.player, bow = pl && pl.bow;
-    const gap = bow ? 16 - 13 * (pl.draw || 0) + (pl.shake || 0) * 5 : 4;
-    ch.style.setProperty("--gap", gap.toFixed(1) + "px");
+    // (with something to shoot in your hands — the bow, a gun, the crossbow — only a dot: you aim down it, not by a
+    //  cross on the screen)
+    const pl = G.player;
+    ch.classList.toggle("dot", !!(pl && (pl.bow || pl.gun || pl.xbow)));
+    ch.style.setProperty("--gap", "4px");
     // and turns red over something you can hunt (never a person)
     const game = G.hunt && huntTarget();
     ch.classList.toggle("kill", !!game);
