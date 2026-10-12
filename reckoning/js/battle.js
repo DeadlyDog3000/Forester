@@ -732,7 +732,9 @@ export class Field {
           if (sp > 8) {
             cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 10, colour: 0x6a5a44, life: 2.4, speed: 4, size: 1.1, opacity: 0.6 }); const F = window.__foley; F && F.thunk && F.thunk(b.p, 0.9);
             // (where it strikes: earth, stones and splinters flung about — the men close by cut down or knocked flat)
-            for (const u of units) { if (!u.alive || b.hits.has(u)) continue; const dd = Math.hypot(u.pos.x - b.p.x, u.pos.z - b.p.z); if (dd < 2.0 * Math.min(1, sp / 60)) { b.hits.add(u); hit(u, b.p.clone(), b.v.clone()); } }
+            // (the man it strikes is killed; the men about him hurt — stones and splinters, not the ball — and the further off,
+            //  the less)
+            for (const u of units) { if (!u.alive || b.hits.has(u)) continue; const dd = Math.hypot(u.pos.x - b.p.x, u.pos.z - b.p.z), R = 1.6 * Math.min(1, sp / 60); if (dd < R) { b.hits.add(u); hit(u, b.p.clone(), b.v.clone(), dd < 0.45 ? 400 : Math.round(70 * (1 - dd / R) + 15)); } }
           }
           // (it grazes and bounds on, low, as round shot does — a ricochet as deadly as the first strike)
           if (sp > 12 && b.bounces < 5) { b.bounces++; b.v.y = Math.abs(b.v.y) * 0.25 + 1.5; b.v.x *= 0.72; b.v.z *= 0.72; }

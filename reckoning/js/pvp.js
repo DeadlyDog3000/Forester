@@ -633,9 +633,9 @@ class Arena {
     // (the guns fall silent when it's over, and between rounds)
     if (this.field) this.field.active = this.live && !this.over && !this.ended;
     // (on the other player's game the guns and their shot are only shown: what they hit, the host's game says)
-    if (this.field) this.field.update(dt, this.remote ? [] : [...this.units, this.you], (u, from, v) => {
-      if (u === this.you) this.hurtMe(400, { pos: from });
-      else u.damage(400, false, false, from);
+    if (this.field) this.field.update(dt, this.remote ? [] : [...this.units, this.you], (u, from, v, dmg = 400) => {
+      if (u === this.you) this.hurtMe(dmg, { pos: from });
+      else u.damage(dmg, false, false, from);
     });
     for (const m of (this.marks ||= []).slice()) { m.t += dt; m.mesh.material.opacity = Math.max(0, 0.8 * (1 - m.t / 2.6)); m.mesh.scale.setScalar(1 + m.t * 0.25); if (m.t > 2.6) { this.w.root.remove(m.mesh); this.marks.splice(this.marks.indexOf(m), 1); } }
     // (dead and watching: your eye on one of your own still standing)

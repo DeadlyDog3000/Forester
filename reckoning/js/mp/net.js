@@ -7,9 +7,11 @@
 
 import { PROTOCOL } from "./rules.js";
 
-// where the wide world lives. (Set once it's up; a tester can point the game elsewhere with
-// localStorage "reckoning.mp.global" = "wss://host:port".)
-export const DEFAULT_GLOBAL = "";
+// where the wide world lives: the Forester server, in Seattle. (A tester can point the game elsewhere with
+// localStorage "reckoning.mp.global" = "wss://host:port".) It has no name or certificate yet, so a secure web page —
+// the game played in a browser, from the website — can't reach it; there the game keeps to the servers typed in.
+const FORESTER_SERVER = "ws://45.76.245.44:47810";
+export const DEFAULT_GLOBAL = typeof location !== "undefined" && location.protocol === "https:" ? "" : FORESTER_SERVER;
 export function globalServer() {
   let u = "";
   try { u = localStorage.getItem("reckoning.mp.global") || ""; } catch (e) {}

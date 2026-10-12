@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.19.0", date: "12 October 2026", title: "The Forester server",
+    items: [
+      "Reckoning has its own server now, in Seattle: duels, battles against another player, and the Wide World — one great shared map, where what you build stays — all find each other there, wherever you're playing from. Nothing to set up: the game knows where it is.",
+      "Round shot rebalanced now that guns are bought from the purse: the man a ball strikes is still killed outright, but those about him are hurt by the stones and splinters, not all killed — a single shot was taking three or four men out of a packed line.",
+    ],
+  },
+  {
     v: "1.18.1", date: "12 October 2026", title: "Your gun, in your hands",
     items: [
       "Fixed: your gun (and whatever else you held) unseen for a whole battle. If you'd fallen in the battle before, the free camera at its end remembered your hands as hidden, and put them back that way when you left — so the next battle began with nothing in view.",
