@@ -5,7 +5,7 @@
 // man going down, the view shaken by what hits you and what you hit, sparks off steel and blood off a man, and a
 // glint on a raised blade the instant before it comes. And the one way any raider's blow lands on you — a raid's,
 // a camp's or a cave's: parried, blocked, or taken.
-import { THREE } from "./core.js";
+import { THREE, camera } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -67,6 +67,30 @@ export function burst(at, dir, kind = "sparks", n = 12) {
     if (t > (spark ? 0.5 : 5)) { for (const b of bits) root.remove(b); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
   };
   G.onFrame.push(tick);
+}
+// ---- your kill: an X where it struck, popping in and fading, and a dull thud felt as much as heard ----
+let killEl = null;
+export function killMark(at) {
+  if (!at) return;
+  if (!killEl) {
+    killEl = document.createElement("div"); killEl.id = "killX";
+    killEl.innerHTML = '<i></i><i></i>';
+    (document.getElementById("hud") || document.body).appendChild(killEl);
+  }
+  const el = killEl, p = at.clone(); let t = 0;
+  AUDIO.killThud && AUDIO.killThud();
+  const tick = dt => {
+    t += dt;
+    const v = p.clone().project(camera), on = v.z < 1 && Math.abs(v.x) < 1.2 && Math.abs(v.y) < 1.2;
+    const k = t < 0.08 ? t / 0.08 : 1, fade = t < 0.35 ? 1 : Math.max(0, 1 - (t - 0.35) / 0.4);
+    el.style.display = on ? "block" : "none";
+    el.style.left = ((v.x + 1) / 2 * innerWidth) + "px"; el.style.top = ((1 - v.y) / 2 * innerHeight) + "px";
+    el.style.opacity = fade.toFixed(3); el.style.transform = `translate(-50%, -50%) scale(${(1.45 - 0.45 * k).toFixed(3)})`;
+    if (t > 0.75) { el.style.display = "none"; const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
+  };
+  // (a new kill replaces the mark of the last)
+  if (killEl._tick) { const i = G.onFrame.indexOf(killEl._tick); if (i >= 0) G.onFrame.splice(i, 1); }
+  killEl._tick = tick; G.onFrame.push(tick);
 }
 // (for a ball into the earth: a little spurt of it)
 G.burst = (at, dir) => burst(at, dir, "sparks", 5);

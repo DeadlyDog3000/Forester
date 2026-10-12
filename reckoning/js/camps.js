@@ -11,7 +11,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { makeArm, MODELS } from "./models.js";
 import { CLEARING, POND } from "./woods.js";
-import { WIND, strikeYou, blowLands, glint } from "./fight.js";
+import { WIND, strikeYou, blowLands, glint, killMark, chestOf } from "./fight.js";
 import { ITEM, roomFor } from "./body.js";
 
 const RETURN_DAYS = 8;            // a cleared camp: how long before another band moves in, somewhere else
@@ -121,7 +121,7 @@ export class Bandit {
     }
     this.hp -= n;
     if (this.hp > 0) { blowLands(this.a, "hit", from); AUDIO.voice && AUDIO.voice("pain", { at: this.a.pos }); this.a.person.flinch && this.a.person.flinch(); if (!(this.wind > 0)) this.stun = Math.max(this.stun, 0.25); return; }
-    blowLands(this.a, "down", from);
+    blowLands(this.a, "down", from); if (from === G.player || (this.youHitPos && G.time - (this.youHitAt ?? -9) < 1.5)) killMark(from === G.player ? chestOf(this.a) : this.youHitPos);
     this.down = true; this.a.lying = true; this.a.path = []; this.a.squareTo = null; this.duel = null;
     AUDIO.voice && AUDIO.voice("fear", { at: this.a.pos });
     // what he had on him

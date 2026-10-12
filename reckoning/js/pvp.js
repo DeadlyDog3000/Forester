@@ -16,7 +16,7 @@ import { FOLEY } from "./foley.js";
 import { pool, sever, heal, clearGore } from "./gore.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
-import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst } from "./fight.js";
+import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst, killMark, chestOf } from "./fight.js";
 import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold } from "./models.js";
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
@@ -921,6 +921,7 @@ class Arena {
     }
     if (!best) return;
     AUDIO.chop ? AUDIO.chop() : FOLEY.chop(best.pos, 0.7); G.impact && G.impact();
+    best.youHitAt = G.time; best.youHitPos = chestOf(best.a);
     best.struck(B.dmg, pl.swingDir || "right");
   }
   // you fall: the red, and the word; and then, while your company's still fighting, your eye on one of them
@@ -1140,6 +1141,7 @@ class Arena {
     const fwd = pl.forward(), dx = f.pos.x - pl.pos.x, dz = f.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
     if (d > B.reach || (dx * fwd.x + dz * fwd.z) / (d || 1) < 0.45) return;
     AUDIO.chop ? AUDIO.chop() : FOLEY.chop(f.pos, 0.7); G.impact && G.impact();
+    f.youHitAt = G.time; f.youHitPos = chestOf(f.a);
     f.struck(B.dmg, pl.swingDir || "right");
   }
   // ---- what reaches you: a blow, a ball, an arrow ----
@@ -1542,6 +1544,8 @@ class Fighter {
   // down: let go, a ragdoll, pushed the way the blow came (from `from`, a place); what was in the hands falls
   fallDown(from, head) {
     const a = this.a, P = a.person; a.path = []; this.wind = 0; a.squareTo = null;
+    // (your kill: he went down a moment after you hit him — the mark where it struck, and the sound of it)
+    if (this.youHitPos && G.time - (this.youHitAt ?? -9) < 1.5) { killMark(this.youHitPos); this.youHitPos = null; }
     if (!head && !this.quiet) AUDIO.voice && AUDIO.voice("death", { at: a.pos, vol: 1.1, high: isF(this.info.look) });
     blowLands(a, "down");
     const src = from || G.player.pos, push = new THREE.Vector3(a.pos.x - src.x, 0, a.pos.z - src.z).normalize().multiplyScalar(3.2).add(new THREE.Vector3(0, 0.6, 0));

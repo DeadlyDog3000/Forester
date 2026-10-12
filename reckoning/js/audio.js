@@ -675,6 +675,15 @@ export const AUDIO = {
     l.lp.frequency.setTargetAtTime(under ? 1400 : 5000 + k * 3000, a.currentTime, 0.4);
     l.hp.frequency.setTargetAtTime(under ? 250 : 900 - k * 400, a.currentTime, 0.4);
   },
+  // your kill, felt: a low, dull thud — the way a man going down is felt through the ground as much as heard — with
+  // a muted knock in it (no ring, no chime: nothing a field ever made)
+  killThud() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900; lp.connect(bus);
+    thump(a, lp, t, 95, 48, 0.42, 0.14);
+    shotBurst(a, lp, t, { type: "bandpass", f: 520, q: 1.6, peak: 0.18, attack: 0.002, decay: 0.05 });
+    shotBurst(a, lp, t + 0.012, { type: "lowpass", f: 200, peak: 0.22, attack: 0.004, decay: 0.12 });
+  },
   // your own heart, loud in your ears: the lub, low and thick, and the dub a sixth of a second after, a little higher and
   // softer — felt as much as heard, the chest's thud and no ring to it
   heartbeat(vol = 1) {

@@ -1414,3 +1414,10 @@ body.dead #crosshair, body.dead #hotbar, body.dead #stance, body.dead #hbName { 
 @media (max-width: 860px) { .mus-cols { grid-template-columns: 1fr; } }
 .cc .btn { min-width: 0; padding: 6px 16px; font-size: 14px; }
 .camp-alt .btn { min-width: 0; }
+
+/* your kill: an X where the blow or the ball struck, white with a dark edge, red at its heart */
+#killX { position: fixed; left: 0; top: 0; width: 30px; height: 30px; pointer-events: none; display: none; z-index: 5; }
+#killX i { position: absolute; left: 50%; top: 50%; width: 30px; height: 4px; margin: -2px 0 0 -15px; background: linear-gradient(90deg, #fff 0 30%, #d43a2a 30% 70%, #fff 70%); border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 0 6px rgba(0,0,0,0.5); }
+#killX i:first-child { transform: rotate(45deg); }
+#killX i:last-child { transform: rotate(-45deg); }

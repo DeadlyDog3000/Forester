@@ -24,7 +24,7 @@ import { blowMul, SWORD_MUL } from "./body.js";
 // your own sword strikes by its making (the smith's by his); anything else as it is
 const ownBlade = pl => pl.blade === "sword" && G.body && G.body.tools.sword > 0 && !(G.town && G.town.playerArm && G.town.playerArm() === "sword" && G.body.tools.sword < 3) ? SWORD_MUL[G.body.tools.sword] : 1;
 import { THREE } from "./core.js";
-import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo } from "./fight.js";
+import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, killMark, chestOf } from "./fight.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -102,7 +102,7 @@ class Raider {
     this.hp -= d;
     // (the captain, half beaten: he says so, and fights the harder for it)
     if (this.boss && was > BOSS_HP / 2 && this.hp <= BOSS_HP / 2 && this.hp > 0) { UI.bark("Captain Wolff", ["Brandt said you'd run. He doesn't know you, does he?", "Good. I was paid for a fight, not a fire."][Math.random() < 0.5 ? 0 : 1], 3.5); this.cool = Math.min(this.cool, 0.3); }
-    if (this.hp <= 0) { AUDIO.voice("death", { at: this.pos, vol: 1.1 }); blowLands(this.a, "down", from); return this.down(); }
+    if (this.hp <= 0) { AUDIO.voice("death", { at: this.pos, vol: 1.1 }); blowLands(this.a, "down", from); if (from === G.player || (this.youHitPos && G.time - (this.youHitAt ?? -9) < 1.5)) killMark(from === G.player ? chestOf(this.a) : this.youHitPos); return this.down(); }
     blowLands(this.a, "hit", from);
     this.a.person.flinch && this.a.person.flinch();
     // struck by you: whoever he was fighting, it's you he turns on now

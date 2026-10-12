@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.28.0", date: "12 October 2026", title: "Your kill",
+    items: [
+      "When a man goes down to you — your ball, your arrow, your blade — an X marks the place it struck him, white and red, popping in and fading in under a second, and you feel it: a low, dull thud with a muted knock in it, the way a man going down is felt through the ground. In battles, duels, and the story's fights alike; only your own kills, not your company's.",
+    ],
+  },
+  {
     v: "1.27.0", date: "12 October 2026", title: "Every army as it was",
     items: [
       "The armies of the East dress as they did in 1683. The Ottoman Janissaries: the long dolama to the shins, frogged across the breast, a broad sash knotted at the front, yellow boots, a powder horn at the hip, and a turban wound round a red cap — moustached, as Janissaries were. The Muscovite streltsy: long crimson kaftans frogged green, the regiment's fur-trimmed cap, yellow boots and the bandolier — bearded. Sobieski's Polish haiduks: long blue coats frogged red, a red sash, red boots and a tall kolpak with a white plume.",

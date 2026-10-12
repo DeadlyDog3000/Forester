@@ -12,6 +12,8 @@
 // well-drawn one, or two.
 
 import { THREE, clamp } from "./core.js";
+// (a man or a beast you hit, marked with where and when: if he falls a moment after, it was you — see fight.js killMark)
+const youHit = (a, p) => { a.youHitAt = G.time; a.youHitPos = p.clone(); };
 let STREAK = null, STREAK_GEO = null;
 import { G } from "./engine.js";
 import { modelCopy, makeBeast } from "./models.js";
@@ -528,12 +530,12 @@ export class Hunt {
             if (!a.alive || a === b.npc) continue;
             if (a.K.upright) {
               const q = a.pos;
-              if (b.pos.y >= q.y + 0.1 && b.pos.y <= q.y + 1.85 && Math.hypot(b.pos.x - q.x, b.pos.z - q.z) < a.K.r) { b.done = true; a.hit(b.power, b.pos.y > q.y + 1.48); break; }
+              if (b.pos.y >= q.y + 0.1 && b.pos.y <= q.y + 1.85 && Math.hypot(b.pos.x - q.x, b.pos.z - q.z) < a.K.r) { b.done = true; if (!b.npc && !b.atYou) youHit(a, b.pos); a.hit(b.power, b.pos.y > q.y + 1.48); break; }
               continue;
             }
             const c = a.centre(), fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
             const along = clamp((b.pos.x - c.x) * fx + (b.pos.z - c.z) * fz, -a.K.len, a.K.len);
-            if (Math.hypot(b.pos.x - (c.x + fx * along), b.pos.y - c.y, b.pos.z - (c.z + fz * along)) < a.K.r) { b.done = true; a.hit(b.power); break; }
+            if (Math.hypot(b.pos.x - (c.x + fx * along), b.pos.y - c.y, b.pos.z - (c.z + fz * along)) < a.K.r) { b.done = true; if (!b.npc && !b.atYou) youHit(a, b.pos); a.hit(b.power); break; }
           }
           if (b.done) break;
         }
@@ -620,14 +622,14 @@ export class Hunt {
           // a man stands upright: his whole height, feet to head, and a shot to the head counts double
           if (a.K.upright) {
             const p = a.pos, y0 = p.y + 0.2, y1 = p.y + 1.78, yy = clamp(ar.pos.y, y0, y1);
-            if (ar.pos.y >= y0 - 0.1 && ar.pos.y <= y1 + 0.1 && Math.hypot(ar.pos.x - p.x, ar.pos.z - p.z) < a.K.r) { this.stick(ar, a); a.hit(ar.power, yy > p.y + 1.48); break; }
+            if (ar.pos.y >= y0 - 0.1 && ar.pos.y <= y1 + 0.1 && Math.hypot(ar.pos.x - p.x, ar.pos.z - p.z) < a.K.r) { if (!ar.npc && !ar.atYou) youHit(a, ar.pos); this.stick(ar, a); a.hit(ar.power, yy > p.y + 1.48); break; }
             continue;
           }
           // the body is a short capsule along the animal's length
           const c = a.centre(), fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
           const along = clamp((ar.pos.x - c.x) * fx + (ar.pos.z - c.z) * fz, -a.K.len, a.K.len);
           const px = c.x + fx * along, pz = c.z + fz * along;
-          if (Math.hypot(ar.pos.x - px, ar.pos.y - c.y, ar.pos.z - pz) < a.K.r) { this.stick(ar, a); a.hit(ar.power, false, ar.npc ? ar.from : undefined); break; }
+          if (Math.hypot(ar.pos.x - px, ar.pos.y - c.y, ar.pos.z - pz) < a.K.r) { if (!ar.npc && !ar.atYou) youHit(a, ar.pos); this.stick(ar, a); a.hit(ar.power, false, ar.npc ? ar.from : undefined); break; }
         }
         if (ar.stuck) break;
         const gy = w.heightAt(ar.pos.x, ar.pos.z);
