@@ -770,13 +770,23 @@ export function makeDagger() {
   const m = modelCopy("dagger"); if (m) { const g = new THREE.Group(); g.add(m.scene); return g; }
   const g = makeKnife(); g.scale.set(1, 1.5, 1); return g;
 }
-// a musket with a plug bayonet in its muzzle: the dagger's grip pushed into the bore, the blade standing out past the
-// muzzle — held as a pike is, the right hand at the wrist of the stock (here, where the haft's grip is) and the left on
-// the fore-end
+// a bayonet fixed on a musket: its socket — a short iron sleeve with a crooked neck — slid over the muzzle and
+// turned, the blade standing out beside and below the barrel, so the musket still loads and fires
+export function addBayonet(m) {
+  if (!m || m.userData.bayonet) return m && m.userData.bayonet;
+  const muzY = m.userData.muzzle ? m.userData.muzzle.position.y : 1.13, b = new THREE.Group();
+  const iron = mat(0x55595f, { metalness: 0.4, roughness: 0.45 });
+  const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.085, 10, 1, true), iron); sock.position.set(0, muzY - 0.05, 0.032); b.add(sock);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.045), iron); neck.position.set(0, muzY - 0.03, 0.006); b.add(neck);
+  const d = makeDagger(); d.position.set(0, muzY - 0.06, -0.014); b.add(d);
+  b.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  m.add(b); m.userData.bayonet = b; return b;
+}
+// the musket with its bayonet fixed, held as a pike is (for the steel, close in): the right hand at the wrist of the
+// stock (here, where a haft's grip is), the left on the fore-end
 export function makeBayonetMusket() {
-  const g = new THREE.Group(), m = makeMusket(), d = makeDagger();
-  m.position.y = 0.07; g.add(m);
-  d.position.set(0, 1.13 + 0.07 - 0.07, 0.032); g.add(d);
+  const g = new THREE.Group(), m = makeMusket();
+  m.position.y = 0.07; g.add(m); addBayonet(m);
   if (m.userData.rodMesh) g.userData.rodMesh = m.userData.rodMesh;
   return g;
 }

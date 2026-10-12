@@ -16,7 +16,7 @@ import { FOLEY } from "./foley.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst } from "./fight.js";
-import { makeArm, modelCopy, shoulderArm } from "./models.js";
+import { makeArm, modelCopy, shoulderArm, addBayonet } from "./models.js";
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
@@ -51,7 +51,7 @@ export const BLADE = {
   battleaxe: { name: "Battle axe", icon: "battleaxe", w: 4, dmg: 28, rate: 0.8, reach: 2.4, stats: [["Blow", "28"], ["Pace", "slow"], ["Reach", "2.4 m"]], note: "Heavy. Fewer blows, and every one of them felt." },
   spear: { name: "Spear", icon: "spear", w: 3, dmg: 16, rate: 1.0, reach: 3.0, stats: [["Blow", "16"], ["Pace", "steady"], ["Reach", "3 m"]], note: "Keeps him off: you reach him before he reaches you." },
   axe: { name: "Felling axe", icon: "axe", w: 3, dmg: 14, rate: 1.05, reach: 2.3, stats: [["Blow", "14"], ["Pace", "steady"], ["Reach", "2.3 m"]], note: "The woodsman's axe. It'll do, in the right hands." },
-  dagger: { name: "Bayonet", icon: "dagger", w: 1, dmg: 11, rate: 1.5, reach: 1.9, stats: [["Blow", "11 · fixed 24"], ["Reach", "1.9 m · fixed 2.7"]], note: "A plug bayonet: a long dagger for the belt, its grip made to push into a musket's muzzle — and then your musket's a pike (but it won't fire till it's out)." },
+  dagger: { name: "Bayonet", icon: "dagger", w: 1, dmg: 11, rate: 1.5, reach: 1.9, stats: [["Blow", "11 · fixed 24"], ["Reach", "1.9 m · fixed 2.7"]], note: "A socket bayonet: with a musket, F fixes it under the muzzle, for good — you still fire, slower to load and less true, and once you've fired a click is the steel. Alone, a long dagger." },
   // (the musket with the bayonet fixed: not chosen, but what the musket and the bayonet make together)
   bayonet: { name: "Fixed bayonet", icon: "musket", w: 0, dmg: 24, rate: 0.95, reach: 2.7, hidden: true, stats: [], note: "" },
 };
@@ -147,6 +147,7 @@ function drawArmy() {
   el.innerHTML = `<div class="pv-h">Your company</div>
     <div class="pv-steps">${step("allies", "With you", A.allies, 0, 12)}${step("enemies", "Against you", A.enemies, 1, 20)}
       <button class="pv-bt${A.battle ? " on" : ""}" data-bt="1"><b>Battle Mode</b><small>${A.battle ? "On — " : ""}uniforms, earthworks and guns, somewhere on the Earth</small></button></div>
+    ${A.battle ? `<div class="pv-grounds">${[["open", "Open field", "Both sides behind their works"], ["ours", "Your fort", "You hold it; they come for it"], ["theirs", "Their fort", "They hold it; you take it"]].map(([k, n, t]) => `<button class="pv-gr${A.ground === k ? " on" : ""}" data-gr="${k}"><b>${n}</b><small>${t}</small></button>`).join("")}</div>` : ""}
     ${A.battle ? `<div class="pv-unis">${Object.entries(UNIFORMS).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div><div class="pv-uni-note">${esc(UNIFORMS[A.uniform].note)} — theirs will be another's, drawn by lot.</div>` : ""}
     <div class="pv-army-note">${multi ? `Against bots${A.allies ? `, your ${A.allies} with you` : ""}. ${A.allies || A.battle ? "In the field the number keys are your orders; the wheel, your weapons." : ""}` : "One against one: another player if anyone's looking, or a bot as strong as you are."}</div>`;
   $("pvpGo").textContent = multi ? "To the field" : "Find a match";
@@ -157,6 +158,7 @@ function armyClick(e) {
   if (b.dataset.k) setArmy({ [b.dataset.k]: A[b.dataset.k] + +b.dataset.d });
   else if (b.dataset.bt) setArmy({ battle: !A.battle, enemies: !A.battle && A.enemies < 6 ? 8 : A.enemies, allies: !A.battle && A.allies < 4 ? 6 : A.allies });
   else if (b.dataset.uni) setArmy({ uniform: b.dataset.uni });
+  else if (b.dataset.gr) setArmy({ ground: b.dataset.gr });
   else return;
   drawArmy();
   window.__uisfx && window.__uisfx.click && window.__uisfx.click();
@@ -245,7 +247,8 @@ export function army() {
   let a = {}; try { a = JSON.parse(localStorage.getItem(ARMY_KEY) || "{}") || {}; } catch (e) {}
   const keys = Object.keys(UNIFORMS), uniform = keys.includes(a.uniform) ? a.uniform : keys[0];
   const others = keys.filter(k => k !== uniform);
-  return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)] };
+  const ground = ["open", "ours", "theirs"].includes(a.ground) ? a.ground : "open";
+  return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)], ground };
 }
 export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
 const TAKE_OVER = 3;   // (fallen in battle: up again in a comrade's place while this many of them still stand)
@@ -335,7 +338,10 @@ class Arena {
     this.units = [];
     if (this.multi) {
       // the field: its works, and the guns (a battle); a few things lying about between the lines (any fight with men)
-      this.field = new Field(w, C, this.dx, this.battle);
+      this.fortSide = this.battle ? { ours: 0, theirs: 1 }[A.ground] ?? null : null;
+      this.field = new Field(w, C, this.dx, this.battle, undefined, this.fortSide);
+      // (the fort's people start inside it, at its front wall)
+      if (this.field.fortAt) this.spawns[this.fortSide] = this.clearSpot(this.field.fortAt.anchor.x, this.field.fortAt.anchor.z);
       this.orders = [new Orders(0), new Orders(1)];
       if (!this.battle) this.orders[1].form = "loose";
       this.book = new OrderBook(id => this.give(id));
@@ -348,9 +354,19 @@ class Arena {
       };
       for (let i = 0; i < A.enemies; i++) mk(1, i);
       for (let i = 0; i < A.allies; i++) mk(0, i);
+      // every gun with its crew: a gunner and a loader, with hangers at their belts for anyone who comes at the gun
+      for (const g of this.field.guns) for (let c = 0; c < 2; c++) {
+        const u = mk(g.side, 100 + this.units.length);
+        u.lo = { long: "none", side: "none", blade: "sword" }; u.info.lo = u.lo; u.crewOf = g; u.crewIdx = c; g.crew.push(u);
+        u.info.name = `${c ? "Loader" : "Gunner"} — ${u.info.name.split(" — ").pop()}`;
+      }
+      // and yours to work yourself: F at one, and it's laid on where you're looking and fired
+      this.gunIts = this.field.guns.filter(g => g.side === 0).map(g => this.w.addInteract({ x: g.x, y: this.w.heightAt(g.x, g.z) + 1.0, z: g.z, reach: 2.4,
+        can: () => G.arena === this && this.live && !G.downed,
+        label: () => g.loaded ? "Lay the gun on where you're looking, and fire it" : `The gun's loading${g.crewN ? ` — ${g.crewN} of its crew at it` : " — and nobody's at it"}`,
+        use: () => { if (!g.loaded) return; this.field.layAndFire(g, this.lookPoint()); } }));
       this.foe = this.units.find(u => u.team === 1);
       this.foeInfo = { ...this.foe.info, name: this.uni ? this.uni[1].name : this.foe.info.name };
-      this.keyH = e => this.onKey(e); addEventListener("keydown", this.keyH, true);
       // (the mouse stays yours to fight with while the book's open: aim, fire, strike)
     } else {
       // the foe
@@ -358,6 +374,7 @@ class Arena {
       this.hunt.animals.push(this.foe);
       if (foe.bot) this.units.push(this.foe);
     }
+    this.keyH = e => this.onKey(e); addEventListener("keydown", this.keyH, true);
     // your hands: the swing, the shots, and going down
     G.onSwing = () => this.swing();
     G.onDowned = from => this.youDown(from);
@@ -393,7 +410,8 @@ class Arena {
   hearable(p) { return Math.hypot(p.x - G.player.pos.x, p.z - G.player.pos.z) < 70; }
   // a man's place in his company: in the formation his officer has set, round where it's to be, facing the other side
   slotFor(u) {
-    const O = this.orders[u.team], mates = this.alliesOf(u.team).sort((a, b) => a.idx - b.idx), i = Math.max(0, mates.indexOf(u)), n = mates.length;
+    if (u.crewOf) return this.field.station(u.crewOf, u.crewIdx);
+    const O = this.orders[u.team], mates = this.alliesOf(u.team).filter(m => !m.crewOf).sort((a, b) => a.idx - b.idx), i = Math.max(0, mates.indexOf(u)), n = mates.length;
     const foes = this.enemiesOf(u.team);
     const cx = foes.length ? foes.reduce((a, f) => a + f.pos.x, 0) / foes.length : C.x + (u.team === 0 ? 1 : -1) * 10;
     const cz = foes.length ? foes.reduce((a, f) => a + f.pos.z, 0) / foes.length : C.z;
@@ -436,7 +454,7 @@ class Arena {
     const pl = G.player, mine = this.spawns[0], theirs = this.spawns[1];
     G.downed = false; G.health = 1; G.stamina = 1; G.hurtT = 0; G.panting = 0; G.hitShake = 0;
     if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.giveAxe(false);
-    pl.gunSaved = {}; pl.gunLoaded = true; pl.gunReload = 0; pl.xspan = 1;
+    pl.gunSaved = {}; pl.gunLoaded = true; pl.gunReload = 0; pl.xspan = 1; pl.bayonet = false; pl.thrustT = -1;
     pl.hasBow = this.lo.long === "bow"; pl.arrows = AMMO.bow;
     G.body.tools.bolts = AMMO.crossbow; G.body.tools.crossbow = this.lo.long === "crossbow" ? 1 : 0; G.body.tools.musket = this.lo.long === "musket" ? 1 : 0;
     G.body.hunger = 1; G.body.thirst = 1; G.body.temp = 0;
@@ -445,16 +463,19 @@ class Arena {
     const face0 = Math.atan2(theirs.x - mine.x, theirs.z - mine.z), face1 = face0 + Math.PI;
     const O0 = this.orders[0], O1 = this.orders[1];
     O0.mode = "follow"; O0.at = null; O1.mode = "hold"; O1.at = { x: theirs.x, z: theirs.z };
+    // (holding your fort: your company on its front wall from the start)
+    if (this.fortSide === 0) { O0.mode = "hold"; O0.at = { x: mine.x, z: mine.z }; }
     pl.place(mine.x + Math.sin(face0) * 3, mine.z + Math.cos(face0) * 3, face0 + Math.PI);
     for (const [team, at, face, O] of [[0, mine, face0, O0], [1, theirs, face1, O1]]) {
-      const list = this.alliesOf(team).sort((a, b) => a.idx - b.idx);
+      const list = this.alliesOf(team).filter(u => !u.crewOf).sort((a, b) => a.idx - b.idx);
       list.forEach((u, i) => { const p = this.clearSpot(...Object.values(O.slot(i, list.length, at, face))); u.reset(p, team ? mine : theirs); });
+      for (const u of this.alliesOf(team).filter(u => u.crewOf)) u.reset(this.field.station(u.crewOf, u.crewIdx), team ? mine : theirs);
     }
     pl.swingRate = BLADE[this.lo.blade].rate; G.loadMul = loadMul(this.lo);
     this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
     G.lockMove = true;
     // (their officer: how long he'll hold his ground before he comes on)
-    this.holdFor = this.battle ? 15 + Math.random() * 15 : 3 + Math.random() * 5; this.cmdT = 0; this.volT = 10 + Math.random() * 6;
+    this.holdFor = this.fortSide === 1 ? Infinity : this.fortSide === 0 ? 4 + Math.random() * 5 : this.battle ? 15 + Math.random() * 15 : 3 + Math.random() * 5; this.cmdT = 0; this.volT = 10 + Math.random() * 6;
     this.showHud();
     const allies = this.alliesOf(0).length, foes = this.alliesOf(1).length;
     this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
@@ -469,7 +490,7 @@ class Arena {
       for (const u of this.units) u.go();
       AUDIO.voice && AUDIO.voice("war", { high: G.who === "sister", vol: 0.7 });
       setTimeout(() => G.arena === this && this.banner(null), 1000);
-      if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("The number keys give your orders, as the page at the left has them — and you fight on the while. The wheel changes your weapon.", 6), 2200); } }
+      if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("The number keys give your orders, as the page at the left has them — and you fight on the while. The wheel changes your weapon" + (this.canBayonet() ? "; F fixes your bayonet (for good)." : "."), 6), 2200); } }
     }, 2600 + steps.length * 800);
   }
   // every frame of it: the men, the officer over there, the guns and their shot, your marks on the ground
@@ -495,6 +516,14 @@ class Arena {
     const cen = l => ({ x: l.reduce((s, u) => s + u.pos.x, 0) / l.length, z: l.reduce((s, u) => s + u.pos.z, 0) / l.length });
     const a = cen(theirs), b = cen(ours), d = Math.hypot(b.x - a.x, b.z - a.z) || 1;
     const shout = () => { const o = theirs[0]; AUDIO.voice && AUDIO.voice("war", { at: o.pos, vol: 0.9, high: isF(o.info.look) }); };
+    // (holding a fort: they stay on its wall and fire, volley as you come, and only go at you with the steel when you're
+    //  inside it)
+    if (this.fortSide === 1) {
+      const F = this.field.fortAt, inFort = ours.some(u => (u.pos.x - F.front) * F.sx > -0.5 && (u.pos.x - F.back) * F.sx < 0.5 && Math.abs(u.pos.z - F.z) < F.W);
+      O.charge = inFort;
+      if ((this.volT -= dt) <= 0 && d < 60 && !O.charge) { this.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
+      return;
+    }
     if (O.mode === "hold" && (t > this.holdFor || theirs.length > ours.length * 1.6 || d < 22)) { O.mode = "advance"; shout(); }
     if (O.mode === "advance" && (this.cmdT -= dt) <= 0) {
       this.cmdT = 2.5;
@@ -577,8 +606,16 @@ class Arena {
   // as numbers too, but marked as the wheel's)
   takesNumbers(e) { return !!(this.book && this.book.open && !e.fromWheel && /^Digit\d$/.test(e.code)); }
   onKey(e) {
-    if (G.arena !== this || !this.book || !this.book.open || e.fromWheel || e.repeat) return;
-    if (!this.live || G.downed || G.mode !== "play") return;
+    if (G.arena !== this || e.repeat || !this.live || G.downed || G.mode !== "play") return;
+    // F (with nothing else to hand): the bayonet fixed under your musket's muzzle — for good, this fight. It's in the way
+    // of the rod and the aim: slower loading, and the shot less true
+    if (e.code === "KeyF" && this.canBayonet() && !G.player.bayonet && !G.interactTarget) {
+      e.stopImmediatePropagation(); e.preventDefault();
+      const pl = G.player; if (!pl.gun || pl.gunIs !== "musket") this.takeUp("musket");
+      if (pl.fixBayonet(true)) UI.hint("Bayonet fixed — for the rest of the fight. It's in the way: loading's slower, the aim's less true. Once you've fired, a click is the bayonet.", 4);
+      return;
+    }
+    if (!this.book || !this.book.open || e.fromWheel) return;
     if (this.book.key(e)) { e.stopImmediatePropagation(); e.preventDefault(); }
   }
   // where you're looking, on the ground (within the field)
@@ -600,6 +637,9 @@ class Arena {
   }
   give(id) {
     this.giveNow(id);
+    // (and the word taken up down the line: a man or two shouting it back)
+    const mates = this.alliesOf(0).filter(u => !u.crewOf);
+    for (let i = 0; i < Math.min(2, mates.length); i++) { const u = mates[Math.floor(Math.random() * mates.length)]; setTimeout(() => u.alive && AUDIO.voice && AUDIO.voice(Math.random() < 0.6 ? "war" : "grunt", { at: u.pos, vol: 0.55, high: isF(u.info.look) }), 350 + i * 260 + Math.random() * 200); }
     if (this.book) this.book.update(this.bookState());
   }
   giveNow(id) {
@@ -631,13 +671,12 @@ class Arena {
   // ---- the bar of what you carry: your loadout, nothing else ----
   hotbar() {
     const L = this.lo, out = [], pl = G.player;
-    if (L.long === "musket") out.push({ icon: "musket", name: "Musket", tool: "gun", kind: "musket" });
+    if (L.long === "musket") out.push({ icon: "musket", name: pl.bayonet ? "Musket, bayonet fixed" : L.blade === "dagger" ? "Musket (F: fix bayonet)" : "Musket", tool: "gun", kind: "musket" });
     if (L.long === "bow") { out.push({ icon: "bow", name: "Bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
     if (L.long === "crossbow") { out.push({ icon: "crossbow", name: "Crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: (G.body.tools.bolts || 0) }); }
     if (L.side === "pistol") out.push({ icon: "pistol", name: "Pistol", tool: "gun", kind: "pistol" });
     const B = BLADE[L.blade] || BLADE.dagger;
     // (a musket and a bayonet: the bayonet's fixed on the musket — the blade alone is only the last resort)
-    if (L.long === "musket" && L.blade === "dagger") out.splice(1, 0, { icon: "musket", name: "Fix bayonet", tool: "arm", kind: "bayonet" });
     out.push({ icon: B.icon, name: L.blade === "dagger" ? "Bayonet, in hand" : B.name, tool: "arm", kind: L.blade });
     return out;
   }
@@ -649,7 +688,7 @@ class Arena {
     const pl = G.player, mine = this.spawns[this.side], theirs = this.spawns[1 - this.side];
     G.downed = false; G.health = 1; G.stamina = 1; G.hurtT = 0; G.panting = 0; G.hitShake = 0;
     if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.giveAxe(false);
-    pl.gunSaved = {}; pl.gunLoaded = true; pl.gunReload = 0; pl.xspan = 1;
+    pl.gunSaved = {}; pl.gunLoaded = true; pl.gunReload = 0; pl.xspan = 1; pl.bayonet = false; pl.thrustT = -1;
     const extra = 1;
     pl.hasBow = this.lo.long === "bow"; pl.arrows = Math.round(AMMO.bow * extra);
     G.body.tools.bolts = Math.round(AMMO.crossbow * extra); G.body.tools.crossbow = this.lo.long === "crossbow" ? 1 : 0; G.body.tools.musket = this.lo.long === "musket" ? 1 : 0;
@@ -686,7 +725,8 @@ class Arena {
   }
   // ---- your blade: a stroke at him, if he's in reach and in front of you ----
   // what your blade is now: the bayonet on your musket, if it's fixed; else the one in your belt
-  myBlade() { return G.player.blade === "bayonet" ? BLADE.bayonet : BLADE[this.lo.blade] || BLADE.dagger; }
+  myBlade() { const pl = G.player; return (pl.gun && pl.bayonet && pl.gunIs === "musket") || pl.blade === "bayonet" ? BLADE.bayonet : BLADE[this.lo.blade] || BLADE.dagger; }
+  canBayonet() { return this.lo.long === "musket" && this.lo.blade === "dagger"; }
   swing() {
     if (this.multi) return this.swingAt();
     const pl = G.player, f = this.foe, B = this.myBlade();
@@ -790,7 +830,7 @@ class Arena {
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
     G.onSwing = null; G.onDowned = null; G.onGunshot = null; G.onLoose = null; G.onSwingStart = null;
     this.rise();
-    G.player.swingRate = 1; G.loadMul = 1; G.lockMove = false; G.downed = false;
+    G.player.swingRate = 1; G.loadMul = 1; G.lockMove = false; G.downed = false; G.player.bayonet = false;
     if (this.net) { this.net.send({ t: "dleave" }); this.net.close(); this.net = null; }
     if ($("pvpHud")) $("pvpHud").classList.add("hidden");
     this.banner(null);
@@ -798,6 +838,7 @@ class Arena {
     if (this.keyH) removeEventListener("keydown", this.keyH, true);
     if (this.clickH) removeEventListener("mousedown", this.clickH, true);
     if (this.book) this.book.hide();
+    for (const it of this.gunIts || []) this.w.removeInteract(it);
     if (this.field) this.field.dispose();
     for (const m of this.marks || []) this.w.root.remove(m.mesh);
     this.marks = [];
@@ -980,11 +1021,14 @@ class Bot extends Fighter {
     this.ammo = AMMO[this.lo.long] || 0;
     this.wind = 0; this.cool = 1; this.stun = 0; this.aimT = 0; this.stepT = 0; this.losT = 0; this.los = true; this.awake = false;
     this.mode = "range"; this.guardT = 0; this.T = null; this.pickT = 0; this.cover = null; this.dodgeT = 0;
+    this.fixed = this.arena.battle && this.steel() === "bayonet"; this.heldK = undefined;
     this.hold(this.lo.long); this.a.squareTo = null;
   }
   go() { this.awake = true; this.aimT = -0.9 - Math.random() * 0.6; }
   // his steel: the bayonet fixed on his musket if he has the two; else his blade
   steel() { return this.lo.long === "musket" && this.lo.blade === "dagger" ? "bayonet" : this.lo.blade; }
+  // (a soldier in a battle fixes his bayonet before ever he comes on, and fires with it fixed)
+  hold(k) { super.hold(k); if (k === "musket" && this.fixed && this.gun) addBayonet(this.gun); }
   // a blow on him — yours (from the side you swung) or another man's: turned aside if he's guarding that side and
   // facing whoever struck (the better he is, the oftener)
   struck(dmg, side, by = null) {
@@ -1038,7 +1082,7 @@ class Bot extends Fighter {
     const a = this.a, s = this.s, pl = G.player;
     // reloading goes on whatever he's doing, as yours does (each weapon its own time)
     const moving = a.path.length > 0;
-    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
+    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1) * (k === "long" && this.fixed ? 0.8 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
     // (the gun in his hands, if it's being loaded: the drill, seen and heard)
     { const hk = this.heldK, slot = hk === "pistol" ? "side" : "long";
       if ((hk === "musket" || hk === "pistol") && !this.loaded[slot] && this.rl[slot] > 0) {
@@ -1078,14 +1122,15 @@ class Bot extends Fighter {
     const longK = this.lo.long, haveLong = longK !== "none" && this.loaded.long && (longK === "musket" || this.ammo > 0), haveSide = this.loaded.side;
     // (you reloading, close by: his moment to come at you with steel)
     const youReloading = T.isPlayer && ((pl.gun && pl.gunReload > 0) || (pl.xbow && pl.xspan < 1)) && d < 14;
-    const charge = (O && O.charge) || (youReloading && s > 0.3 && !haveLong);
+    const charge = (O && O.charge && !this.crewOf) || (youReloading && s > 0.3 && !haveLong);
     // close: the blade. (Farther, if nothing's loaded and he's coming on, or ordered in.)
-    const melee = d < 4.2 || charge || (!haveLong && !(haveSide && d < RANGE.pistol) && d < 10);
+    // (a gun's crew stay by their gun: only a man right on it brings them away from it)
+    const melee = d < 4.2 || charge || (!haveLong && !(haveSide && d < RANGE.pistol) && d < (this.crewOf ? 5 : 10));
     if (melee) {
       if (this.mode !== "melee") {
         this.mode = "melee"; this.aimUp(false); this.hold(this.steel()); this.aimT = 0; a.person.setPose("guard"); this.releaseCover();
         // (the bayonet pushed into the muzzle as he comes on: a moment's work, and heard)
-        if (this.steel() === "bayonet") { FOLEY.load && FOLEY.load("fixBayonet", a.pos, 0.6); this.cool = Math.max(this.cool, 0.9); }
+        if (this.steel() === "bayonet" && !this.fixed) { this.fixed = true; FOLEY.load && FOLEY.load("fixBayonet", a.pos, 0.6); this.cool = Math.max(this.cool, 0.9); }
       }
       const B = BLADE[this.steel()], reach = B.reach - 0.5, run = 3.2 + s * 1.4;
       if (d > reach + 0.5) { if (!a.path.length || this.stepT <= 0) { this.stepT = 0.35; a.approach(fp, reach - 0.2, run); } }
@@ -1105,9 +1150,17 @@ class Bot extends Fighter {
     if (O) {
       const want = this.arena.slotFor(this);
       // (loading, or ordered down: behind the nearest thing that'll stop a ball, if there's one near his place)
-      const wantCover = field && (O.cover || (!useK && s > 0.25)) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.team, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
+      const wantCover = field && !this.crewOf && (O.cover || (!useK && s > 0.25)) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.team, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
       if (wantCover !== this.cover) { this.releaseCover(); this.cover = wantCover; if (wantCover) wantCover.taken = this; }
       const goal = this.cover || want, gd = Math.hypot(goal.x - a.pos.x, goal.z - a.pos.z);
+      // (at the gun: working it — the loader sponging and ramming, the gunner with the powder and the priming — and
+      //  watching where it's laid when it's loaded)
+      if (this.crewOf && gd <= 1.4) {
+        const g = this.crewOf; a.path = []; this.aimUp(false);
+        if (!g.loaded) { a.faceTo(g.x - Math.sin(g.ry + g.yaw) * 1.4, g.z - Math.cos(g.ry + g.yaw) * 1.4); a.person.setPose(this.crewIdx ? "hammer" : "reach"); }
+        else { a.faceTo(fp.x, fp.z); a.person.setPose("idle"); }
+        return;
+      }
       // the volley: every loaded piece brought up at the word, and fired together
       if (O.volleyAt && G.time < O.volleyAt + 0.4 && useK && useK !== "bow" && this.los) {
         a.path = []; a.faceTo(fp.x, fp.z); this.aimUp(true);
@@ -1187,7 +1240,7 @@ class Bot extends Fighter {
     const to = new THREE.Vector3(tp.x, tp.y + (low ? 0.95 : 1.25), tp.z), flight = from.distanceTo(to) / sp;
     if (tv) to.addScaledVector(new THREE.Vector3(tv.x, 0, tv.z), flight * (0.3 + s * 0.7));
     to.y += 4.9 * flight * flight;
-    const sigma = (pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014);
+    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1);
     const dir = to.sub(from).normalize(), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(), up = new THREE.Vector3().crossVectors(side, dir);
     dir.addScaledVector(side, randn() * sigma).addScaledVector(up, randn() * sigma).normalize();
     AUDIO.gunshot && AUDIO.gunshot(pis ? 0.75 : 0.95, a.pos);

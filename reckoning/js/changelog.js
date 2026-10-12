@@ -7,9 +7,20 @@
 
 export const CHANGELOG = [
   {
+    v: "1.13.0", date: "12 October 2026", title: "Forts, and the guns' crews",
+    items: [
+      "Forts: in Battle Mode choose the ground — the open field, your fort to hold, or theirs to take. A redoubt of earth: its front a rampart chest-high to the men behind it, with embrasures for its guns; palisaded flanks and rear, the gate behind, and a breach the last siege left in one flank. The other side throws up a siege battery. Hold it and they come for you; attack it and they stay on the wall, volley as you come, and only go at you with the steel when you're inside.",
+      "Every gun has its crew — a gunner and a loader with hangers at their belts. They work it at the drill's pace, ramming and priming at the breech; with one of them down it loads at half speed, and with both, it's silent. They'll leave it only for a man who comes right at it. And F at one of your own guns lays it on where you're looking and fires it.",
+      "The bayonet is a socket bayonet now, fixed under the muzzle: F fixes it, for the rest of the fight. You still fire — slower to load and less true with it in the way — and once you've fired, a click is the bayonet, driven straight out. Soldiers in a battle fix theirs before they ever come on.",
+      "A line of more than fourteen stands in two ranks.",
+      "Your men take up an order down the line, a shout or two back.",
+      "A company's faces: fair for by far the most part.",
+    ],
+  },
+  {
     v: "1.12.0", date: "12 October 2026", title: "Fix bayonets",
     items: [
-      "The bayonet: the dagger is a plug bayonet now, its grip made to push into a musket's muzzle. With a musket, fix it from your weapons (the wheel) — it's heard going in — and your musket's a pike, thrust and not swung, with a long reach; it won't fire till the bayonet's out again. Soldiers fix theirs as they close, and most of a battle's companies carry them.",
+      "The bayonet: the dagger fixes on a musket, and your musket's a pike, thrust and not swung, with a long reach. Soldiers fix theirs as they close, and most of a battle's companies carry them.",
       "Orders are the number keys: the page of orders stays at the side of the field, and its number gives each one while you fight on — no F, nothing in the way. The formation's number turns to the formations. The wheel changes your weapon.",
       "Fall in battle while three of your company still stand, and you're up again in the place of one of them — the one furthest from the fighting — and fight on.",
       "No slowing down or freezing when someone's killed in a fight of companies: a battle goes on at its own pace. No music over a fight either — the field, the shots and the shouting are its sound; a side drum beats the advance.",

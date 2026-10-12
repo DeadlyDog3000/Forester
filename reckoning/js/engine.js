@@ -9,7 +9,7 @@
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, addDetail, ownGrain } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
-import { makeMusket, makePistol, makeCrossbow, shoulderArm } from "./models.js";
+import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm } from "./models.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
@@ -349,6 +349,8 @@ export class Player {
       this.gunLoaded ??= true; this.gunReload = this.gunReload || 0; this.gunAim = 0; this.gunKickT = 0;
       // (and in both hands of your body, at the shoulder, for when the camera is behind you)
       if (this.model && this.model.aimHold) this.gunBody = shoulderArm(this.model, this.gunIs);
+      // (the bayonet, if it's fixed, on it: on the gun in your hands and the one your body carries)
+      if (this.bayonet && !pis) { addBayonet(m); addBayonet(this.gunBody); }
     } else if (!on && this.gun) {
       (this.gunSaved ??= {})[this.gunIs || "musket"] = { l: this.gunLoaded, r: this.gunReload };
       vm.remove(this.gun); this.gun = null;
@@ -357,14 +359,25 @@ export class Player {
       if (this.gunBody && this.model && this.model.aimHold) this.model.aimHold(null); this.gunBody = null;
     }
   }
+  // the bayonet fixed under the muzzle, or taken off: a second's work, heard; nothing fired or thrust till it's done
+  fixBayonet(on) {
+    if (!!this.bayonet === !!on || G.time < (this.fixUntil || 0)) return false;
+    this.bayonet = !!on; this.fixUntil = G.time + 1.0;
+    const F = window.__foley; F && F.load && F.load(on ? "fixBayonet" : "unfixBayonet", null, 0.7);
+    if (this.gun && this.gunIs === "musket") {
+      if (on) { addBayonet(this.gunModel); addBayonet(this.gunBody); }
+      else for (const m of [this.gunModel, this.gunBody]) if (m && m.userData.bayonet) { m.remove(m.userData.bayonet); m.userData.bayonet = null; }
+    }
+    return true;
+  }
   updateGun(dt) {
     _gv ??= new THREE.Vector3(); _gd ??= new THREE.Vector3(); _gz ??= new THREE.Vector3(); _gv2 ??= new THREE.Vector3(); _gq ??= new THREE.Quaternion(); _gq2 ??= new THREE.Quaternion();
     if (!this.gun) return;
     const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
     const pis = this.gunIs === "pistol", kind = pis ? "pistol" : "musket", RL = LOAD[kind].time;
     // loading, as the drill goes (reload.js): each step heard as it's done
-    if (this.gunReload > 0) {
-      const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt * loadPace(this));
+    if (this.gunReload > 0 && !(this.thrustT >= 0)) {
+      const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt * loadPace(this) * (this.bayonet && !pis ? 0.8 : 1));   // (the bayonet in the way of the rod)
       const F = window.__foley;
       for (const st of loadSteps(kind, RL - before, RL - this.gunReload + (this.gunReload === 0 ? 1 : 0))) F && F.load && F.load(st, null, 0.6, pis);
       if (this.gunReload === 0) this.gunLoaded = true;
@@ -373,14 +386,25 @@ export class Player {
     const aimWant = free && input.rdown && !reloading ? 1 : 0;
     this.gunAim += (aimWant - this.gunAim) * Math.min(1, dt * 9);
     if (this.model) this.model.aimWant = this.gunAim > 0.5;
+    // the bayonet: fired, and loading, a click is the steel instead — the loading left off (begun again after), the
+    // musket driven out straight before you and back
+    if (free && input.click && this.bayonet && !pis && !this.gunLoaded && !(this.thrustT >= 0) && G.time >= (this.fixUntil || 0)) {
+      input.click = false; this.thrustT = 0; this.thrustHit = false; this.gunReload = RL;
+      AUDIO.whoosh && AUDIO.whoosh(0.5, true);
+    }
+    if (this.thrustT >= 0) {
+      this.thrustT += dt;
+      if (this.thrustT > 0.2 && !this.thrustHit) { this.thrustHit = true; G.onSwing && G.onSwing(); }
+      if (this.thrustT > 0.62) this.thrustT = -1;
+    }
     // fire
-    if (free && input.click && this.gunLoaded && !reloading) {
+    if (free && input.click && this.gunLoaded && !reloading && G.time >= (this.fixUntil || 0)) {
       input.click = false;
       const q = camera.getWorldQuaternion(new THREE.Quaternion());
       // a smoothbore's scatter, as it was: a round ball a size smaller than the bore, rattling out — aimed with care, a
       // musket throws a hand's breadth or two either side at fifty paces and twice that at a hundred; from the hip, or
       // on the move, much wider; a pistol is wild past a few paces
-      const sigma = (pis ? 0.014 : 0.0065) + (1 - this.gunAim) * (pis ? 0.03 : 0.022) + Math.min(1, this.speed / 4) * 0.015 + (this.crouched ? -0.0015 : 0);
+      const sigma = ((pis ? 0.014 : 0.0065) + (1 - this.gunAim) * (pis ? 0.03 : 0.022) + Math.min(1, this.speed / 4) * 0.015 + (this.crouched ? -0.0015 : 0)) * (this.bayonet && !pis ? 1.4 : 1);   // (and its weight at the muzzle in the way of the aim)
       const dir = new THREE.Vector3(randn() * sigma, randn() * sigma, -1).normalize().applyQuaternion(q);
       const from = camera.getWorldPosition(new THREE.Vector3());
       const muzzle = this.gunModel.userData.muzzle.getWorldPosition(new THREE.Vector3());
@@ -405,6 +429,8 @@ export class Player {
     const P = pis ? [0.1, -0.27, -0.34, 0.25, 0.45, -1.0] : [0.12, -0.34, -0.4, 0.2, 0.45, -1.05];
     const v = H.map((h, i) => h + (P[i] - h) * LP.prime);
     g.position.set(v[0], v[1], v[2]); g.rotation.set(v[3], v[4], v[5]);
+    // (the thrust: drawn back a little, then out hard along the line of the barrel, and back to the hip)
+    if (this.thrustT >= 0) { const t = this.thrustT, out = t < 0.12 ? -0.12 * (t / 0.12) : t < 0.24 ? -0.12 + 0.62 * ((t - 0.12) / 0.12) : 0.5 * (1 - Math.min(1, (t - 0.24) / 0.38)); g.position.z -= out; g.position.y += out * 0.12; g.rotation.x -= out * 0.12; }
     // (stood up for the charge and the rod: leaning away to the left, the muzzle up in the corner of your eye — so the
     //  hand at it and the rod going down are in sight, and the field in front of you still is)
     if (LP.up > 0.001) {

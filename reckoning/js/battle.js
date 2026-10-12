@@ -39,7 +39,7 @@ export function soldierLook(u, seed, base = {}) {
   // (the faces of a German or northern company of the 1680s: fair for the most part, weathered or sallow in many, and a
   //  few darker — men from the south of Europe, from the Turkish wars, from the ports)
   const weighed = l => { let x = r() * l.reduce((t, [, w]) => t + w, 0); for (const [v, w] of l) if ((x -= w) <= 0) return v; return l[0][0]; };
-  const skin = weighed([[0xf1d3bc, 30], [0xeac6aa, 24], [0xe2b896, 20], [0xd4a882, 11], [0xc99a74, 7], [0xa87652, 4], [0x7e5236, 2.5], [0x5a3a26, 1.5]]);
+  const skin = weighed([[0xf3d8c4, 30], [0xf1d3bc, 26], [0xeac6aa, 18], [0xe2b896, 11], [0xd4a882, 6], [0xc99a74, 4], [0xa87652, 2.5], [0x7e5236, 1.5], [0x5a3a26, 1]]);
   return { body: "watchman", skin, hair: pick([0x2a1c12, 0x4a3020, 0x6e4a2a, 0x9a6a38, 0x8a8a88]),
     eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: 0xe6dcc8, stockings: pick([0xd8d0c0, 0x5a5048]),
     height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
@@ -53,7 +53,8 @@ export function inUniform(look, u) { return { ...look, coat: u.coat, vest: u.ves
 // ---------------------------------------------------------------------------
 export class Field {
   // C: the middle of the field; dx: how far either side's line stands from it (west is side 0, east side 1)
-  constructor(w, C, dx, battle, seed = Math.random() * 1e9) {
+  // fort: the side whose fort it is (0 yours, 1 theirs), or null for the open field
+  constructor(w, C, dx, battle, seed = Math.random() * 1e9, fort = null) {
     this.w = w; this.C = C; this.dx = dx; this.root = new THREE.Group(); w.root.add(this.root);
     this.pieces = []; this.spots = [[], []]; this.guns = []; this.balls = [];
     let s = seed | 0 || 7; this.r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
@@ -62,13 +63,14 @@ export class Field {
       stone: mat(0x8a8478, { surface: "rock" }), iron: mat(0x2a2b2e, { metalness: 0.4, roughness: 0.55 }), stave: mat(0x7a5634, { surface: "wood" }),
     };
     void M;
-    if (battle) for (const side of [0, 1]) this.works(side);
+    this.fortSide = battle ? fort : null;
+    if (battle) for (const side of [0, 1]) side === this.fortSide ? this.fort(side) : this.works(side);
     this.between(battle ? 7 : 4);
   }
   y(x, z) { return this.w.heightAt(x, z); }
   put(m, x, z, ry = 0, dy = 0) { m.position.set(x, this.y(x, z) + dy, z); m.rotation.y = ry; m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); this.root.add(m); return m; }
   // something solid, and a place behind it to crouch: (x, z) its middle, len along it at angle ry, high
-  solid(x, z, len, depth, ry, high, side) {
+  solid(x, z, len, depth, ry, high, side, inward = null) {
     const c = this.w.col.addOBox(x, z, len / 2, depth / 2, ry, this.y(x, z) + high);
     this.pieces.push({ x, z, len, depth, ry, high, c });
     // (cover is behind it, from the side that's coming: for a side's own works the enemy's way; between the lines,
@@ -79,7 +81,8 @@ export class Field {
       const nx = Math.sin(ry), nz = Math.cos(ry);
       for (const sd of side == null ? [0, 1] : [side]) {
         // (the face of it away from the enemy's line)
-        const toward = sd === 0 ? -1 : 1, k = Math.sign(nx * toward) || 1;
+        // (a fort's walls: on the inside of them, whichever way they face)
+        const toward = sd === 0 ? -1 : 1, k = inward ? Math.sign((inward.x - px) * nx + (inward.z - pz) * nz) || 1 : Math.sign(nx * toward) || 1;
         this.spots[sd].push({ x: px + nx * k * (depth / 2 + 0.7), z: pz + nz * k * (depth / 2 + 0.7), high, taken: null });
       }
     }
@@ -109,6 +112,60 @@ export class Field {
     for (let i = 0; i < 2; i++) this.cheval(lineX - sx * (6 + r() * 3), C.z + (r() - 0.5) * 22, Math.PI / 2 + (r() - 0.5) * 0.4, side);
     this.palisade(lineX - sx * (3 + r() * 2), C.z + (r() < 0.5 ? -1 : 1) * (6 + r() * 6), 5 + r() * 4, Math.PI / 2 + (r() - 0.5) * 0.3, side);
   }
+  // a fort: a square redoubt of earth, its front a rampart as high as a man's chest with embrasures cut for the guns,
+  // its flanks and rear an earth bank with a palisade along it; the gate in the rear, and a breach the last siege left
+  // in one flank. The defenders stand behind the front, firing over it; the guns look out through the embrasures
+  fort(side) {
+    const r = this.r, C = this.C, sx = side === 0 ? -1 : 1, W = 12, D = 16;
+    const fx = C.x + sx * (this.dx - 6), bx = fx + sx * D, mx = (fx + bx) / 2, inside = { x: mx, z: C.z };
+    this.fortAt = { side, front: fx, back: bx, mx, z: C.z, W, D, sx, anchor: { x: fx + sx * 2.2, z: C.z } };
+    // the front: rampart in three pieces, the two embrasures between them, a gun behind each
+    const emb = [-4.5, 4.5], gapW = 1.6;
+    const cuts = [-W, ...emb.flatMap(e => [e - gapW / 2, e + gapW / 2]), W];
+    for (let i = 0; i < cuts.length; i += 2) { const z0 = C.z + cuts[i], z1 = C.z + cuts[i + 1]; this.rampart(fx, (z0 + z1) / 2, z1 - z0, Math.PI / 2, side, inside); }
+    for (const e of emb) { this.gabion(fx - sx * 0.2, C.z + e - gapW / 2 - 0.45); this.gabion(fx - sx * 0.2, C.z + e + gapW / 2 + 0.45); this.gun(side, fx + sx * 1.3, C.z + e, sx); }
+    // the flanks: bank and palisade, one with its breach
+    const breach = r() < 0.5 ? -1 : 1;
+    for (const zs of [-1, 1]) {
+      const z = C.z + zs * W;
+      if (zs === breach) { const L1 = D * 0.45, L2 = D * 0.35; this.flankWall(fx + sx * L1 / 2, z, L1, side, inside); this.flankWall(bx - sx * L2 / 2, z, L2, side, inside); this.rubble(fx + sx * (L1 + (D - L1 - L2) / 2), z); }
+      else this.flankWall(mx, z, D, side, inside);
+    }
+    // the rear: bank and palisade either side of the gate, the gate's two leaves stood open
+    const gw = 3.2;
+    for (const zs of [-1, 1]) { const L = W - gw / 2; this.flankWall(bx, C.z + zs * (gw / 2 + L / 2), L, side, inside, Math.PI / 2); }
+    for (const zs of [-1, 1]) { const leaf = new THREE.Group(); for (let i = 0; i < 6; i++) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.26, 2.2, 0.1), this.M.log); st.position.set(i * 0.27 + 0.13, 1.1, 0); leaf.add(st); } const bar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.06), this.M.wood); bar.position.set(0.8, 1.4, 0.07); leaf.add(bar); this.put(leaf, bx, C.z + zs * gw / 2, zs > 0 ? Math.PI / 2 + sx * 1.1 : -Math.PI / 2 - sx * 1.1); }
+    // inside: a powder store of barrels, and the flag on its staff
+    this.barrels(mx + sx * 3, C.z + (r() < 0.5 ? -7 : 7));
+    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 6, 6), this.M.wood); this.put(staff, mx, C.z, 0, 3);
+  }
+  // the front rampart: earth piled up behind a revetment of logs, chest high to the men behind it
+  rampart(x, z, len, ry, side, inward) {
+    const sh = new THREE.Shape(); sh.moveTo(-1.6, 0); sh.lineTo(-0.5, 1.3); sh.lineTo(0.55, 1.32); sh.lineTo(0.85, 0.8); sh.lineTo(1.0, 0); sh.lineTo(-1.6, 0);
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); geo.translate(0, 0, -len / 2);
+    const g = new THREE.Group(), m = new THREE.Mesh(geo, this.M.earth); m.rotation.y = Math.PI / 2;
+    // (which face is outward: the long slope toward the enemy, the steep revetted face inside)
+    const sx = side === 0 ? -1 : 1; m.scale.z = -sx; g.add(m);
+    for (let i = 0; i < Math.round(len / 0.32); i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, 1.0, 6), this.M.log); lg.position.set(sx * 0.95, 0.5, -len / 2 + (i + 0.5) * 0.32); g.add(lg); }
+    const gg = new THREE.Group(); gg.add(g); g.rotation.y = -Math.PI / 2;
+    this.put(gg, x, z, ry - Math.PI / 2, -0.05);
+    this.solid(x, z, len, 2.4, ry, 1.3, side, inward);
+  }
+  // a flank of the fort: a low bank with a palisade standing on it
+  flankWall(x, z, len, side, inward, ry = 0) {
+    this.bank(x, z, len, ry, side, inward);
+    const g = new THREE.Group(), n = Math.round(len / 0.24);
+    for (let i = 0; i < n; i++) { const h = 1.3 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, h, 6), this.M.log); st.position.set(-len / 2 + (i + 0.5) * len / n, 0.9 + h / 2, 0); g.add(st); const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 6), this.M.stave); tip.position.set(st.position.x, 0.9 + h + 0.12, 0); g.add(tip); }
+    this.put(g, x, z, ry);
+    this.solid(x, z, len, 0.35, ry, 2.4, side, inward);
+  }
+  // a breach: the bank thrown down, its earth and broken stakes lying in the gap
+  rubble(x, z) {
+    const g = new THREE.Group();
+    for (let i = 0; i < 9; i++) { const c = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4 + this.r() * 0.35, 0), this.M.earth); c.position.set((this.r() - 0.5) * 3, 0.1, (this.r() - 0.5) * 1.6); c.scale.y = 0.45; g.add(c); }
+    for (let i = 0; i < 5; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), this.M.log); st.position.set((this.r() - 0.5) * 3, 0.25, (this.r() - 0.5) * 1.4); st.rotation.set(Math.PI / 2 + (this.r() - 0.5), this.r() * 3, 0); g.add(st); }
+    this.put(g, x, z, this.r() * 3);
+  }
   gabion(x, z) {
     const g = new THREE.Group(), h = 1.15, R = 0.42;
     const basket = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.96, h, 12, 4, true), this.M.wicker); basket.position.y = h / 2; g.add(basket);
@@ -117,13 +174,13 @@ export class Field {
     const top = new THREE.Mesh(new THREE.SphereGeometry(R * 0.98, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), this.M.earth); top.scale.y = 0.35; top.position.y = h - 0.02; g.add(top);
     this.put(g, x, z, this.r() * 6);
   }
-  bank(x, z, len, ry, side) {
+  bank(x, z, len, ry, side, inward = null) {
     // a long mound of earth, sloped both faces
     const sh = new THREE.Shape(); sh.moveTo(-1.3, 0); sh.lineTo(-0.35, 1.1); sh.lineTo(0.35, 1.15); sh.lineTo(1.3, 0); sh.lineTo(-1.3, 0);
     const geo = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); geo.translate(0, 0, -len / 2);
     const m = new THREE.Mesh(geo, this.M.earth); const g = new THREE.Group(); m.rotation.y = Math.PI / 2; g.add(m);
     this.put(g, x, z, ry, -0.08);
-    this.solid(x, z, len, 1.6, ry, 1.05, side);
+    this.solid(x, z, len, 1.6, ry, 1.05, side, inward);
   }
   cheval(x, z, ry, side) {
     // a log with sharpened stakes through it, crossed both ways: no one walks through that
@@ -198,7 +255,23 @@ export class Field {
     const m = makeCannon(); const ry = sx < 0 ? -Math.PI / 2 : Math.PI / 2;   // (pointing at the other side: -z of the model, out east or west)
     this.put(m, x, z, ry);
     this.w.col.addCircle(x, z, 0.8, this.y(x, z) + 1.0);
-    this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, recoil: 0, target: null, firing: true, next: 10 + this.r() * 8 });
+    this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, recoil: 0, target: null, firing: true, next: 10 + this.r() * 8, crew: [] });
+  }
+  // where a gun's crew stand to work it: either side of the breech, clear of the wheels (i 0: the gunner, who lays and
+  // fires it; 1: the loader, with the rammer and the sponge)
+  station(g, i) {
+    const lx = i ? 0.95 : -0.95, lz = 0.55, c = Math.cos(g.ry), s = Math.sin(g.ry);
+    return { x: g.x + lx * c + lz * s, z: g.z - lx * s + lz * c };
+  }
+  // how many of its crew are at it
+  manned(g) { return g.crew.filter(u => u.alive && Math.hypot(u.pos.x - g.x, u.pos.z - g.z) < 2.6).length; }
+  // laid there, now, and fired (a gun you work yourself)
+  layAndFire(g, at) {
+    const dx = at.x - g.x, dz = at.z - g.z, want = Math.atan2(-dx, -dz), d = Math.hypot(dx, dz);
+    g.yaw = clamp(Math.atan2(Math.sin(want - g.ry), Math.cos(want - g.ry)), -0.9, 0.9);
+    g.pitch = 0.5 * Math.asin(clamp(d * 9.8 / (140 * 140), -1, 1)) + (this.y(at.x, at.z) - this.y(g.x, g.z) - 0.9) / Math.max(4, d);
+    const m = g.model; m.rotation.y = g.ry + g.yaw; m.userData.barrel.rotation.x = g.pitch;
+    this.fire(g);
   }
   // a gun's target, given (a point on the ground) or taken away
   // (taken away: they go back to laying on the thickest of the other side, as they see fit)
@@ -220,7 +293,9 @@ export class Field {
   // each frame: the guns laid and fired, the balls flying; hit(u, from, v) is called for anyone a ball goes through
   update(dt, units, hit) {
     for (const g of this.guns) {
-      if (!g.loaded) { g.reload -= dt; if (g.reload <= 0) g.loaded = true; }
+      // (a gun is only as good as its crew: two load it at the drill's pace, one at half, none not at all — nor fire it)
+      const crewN = g.crew.length ? this.manned(g) : 2; g.crewN = crewN;
+      if (!g.loaded && crewN) { g.reload -= dt * (crewN >= 2 ? 1 : 0.5); if (g.reload <= 0) g.loaded = true; }
       // (their side: laid on the thickest part of yours, now and then; yours: on where you said)
       if (!g.target) { if ((g.next -= dt) <= 0) { g.next = 6; const t = this.thickest(units.filter(u => u.team !== g.side && u.alive)); if (t) g.aim = { x: t.x + (this.r() - 0.5) * 3.5, z: t.z + (this.r() - 0.5) * 3.5 }; } }
       else if (g.target) g.aim = g.target;
@@ -230,7 +305,7 @@ export class Field {
         g.yaw += (clamp(dy, -0.9, 0.9) - g.yaw) * Math.min(1, dt * 1.5);
         const need = 0.5 * Math.asin(clamp(d * 9.8 / (140 * 140), -1, 1)) + (this.y(g.aim.x, g.aim.z) - this.y(g.x, g.z) - 0.9) / Math.max(4, d);
         g.pitch += (need - g.pitch) * Math.min(1, dt * 1.5);
-        if (g.loaded && g.firing && Math.abs(clamp(dy, -0.9, 0.9) - g.yaw) < 0.04) this.fire(g);
+        if (g.loaded && g.firing && crewN && !g.byHand && Math.abs(clamp(dy, -0.9, 0.9) - g.yaw) < 0.04) this.fire(g);
       }
       g.recoil = Math.max(0, g.recoil - dt * 1.4);
       const m = g.model; m.rotation.y = g.ry + g.yaw; m.userData.barrel.rotation.x = g.pitch;
@@ -297,7 +372,8 @@ export class Orders {
   slot(i, n, anchor, face) {
     const fx = Math.sin(face), fz = Math.cos(face), rx = Math.cos(face), rz = -Math.sin(face);
     let a = 0, b = 0;                                     // (across, and forward)
-    if (this.form === "line") { a = (i - (n - 1) / 2) * 1.6; b = 0; }
+    // (a line of more than fourteen is two ranks, the second a pace behind the first, covering its gaps)
+    if (this.form === "line") { const per = n > 14 ? Math.ceil(n / 2) : n, rk = Math.floor(i / per), j = i % per, m = rk ? n - per : per; a = (j - (m - 1) / 2) * 1.6 + rk * 0.8; b = -rk * 1.4; }
     else if (this.form === "column") { a = (i % 2 - 0.5) * 1.2; b = -Math.floor(i / 2) * 1.5; }
     else if (this.form === "square") { const per = Math.max(1, Math.ceil(n / 4)), sideI = i % 4, k = Math.floor(i / 4), half = per * 0.8 + 0.8, t = (k - (per - 1) / 2) * 1.6; [a, b] = [[t, half], [half, -t], [-t, -half], [-half, t]][sideI]; }
     else { const h = Math.sin(i * 12.9898) * 43758.5453 % 1; a = (i - (n - 1) / 2) * 3.8; b = (h - 0.5) * 4; }
