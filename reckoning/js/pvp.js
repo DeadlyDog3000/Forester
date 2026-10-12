@@ -441,6 +441,8 @@ class Arena {
       const gunsHost = this.battle ? (setup ? setup.guns : this.gunsBought) : null;
       this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost);
       if (this.night) this.field.nightFires();
+      // (each side's colours behind its line: yours and theirs — on the other player's game, turned about)
+      if (this.battle && this.uni) { const keyOf = u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u); for (const t of [0, 1]) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t])); }
       if (this.remote) {
         // (and then turned about: the east line, and the guns there, are ours here)
         this.spawns.reverse();
@@ -660,13 +662,25 @@ class Arena {
       if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) { this.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
       return;
     }
-    if (O.mode === "hold" && (t > this.holdFor || theirs.length > ours.length * 1.6 || d < 22)) { O.mode = "advance"; shout(); }
+    if (O.mode === "hold" && (t > this.holdFor || theirs.length > ours.length * 1.6 || d < 22)) { O.mode = "advance"; O.at = O.at || { x: a.x, z: a.z }; this.adv = { march: true, until: G.time + 8 }; shout(); }
+    // the advance, as the drill had it: a march of some paces, the line kept together — then, once in range, a halt and
+    // a volley — and on again, until they're close enough for the steel
     if (O.mode === "advance" && (this.cmdT -= dt) <= 0) {
-      this.cmdT = 2.5;
-      const step = Math.max(0, Math.min(d - 12, 10));
-      O.at = { x: a.x + (b.x - a.x) / d * step, z: a.z + (b.z - a.z) / d * step };
+      this.cmdT = 2;
+      const adv = this.adv ||= { march: true, until: G.time + 8 }, inRange = d < RANGE.musket * this.sight;
+      if (G.time > adv.until) {
+        adv.march = !adv.march || !inRange; adv.until = G.time + (adv.march ? 7 + Math.random() * 3 : 5 + Math.random() * 2);
+        if (!adv.march) { O.volleyAt = G.time + 0.9; shout(); }
+      }
+      if (adv.march) {
+        // (on only as fast as the line keeps up: the men in their places, near enough)
+        // (the middle man's distance from his place, not the mean: one man off after his own business doesn't hold a line)
+        const men = theirs.filter(u => !u.crewOf && !u.isNet), gaps = men.map(u => { const p = this.slotFor(u); return Math.hypot(p.x - u.pos.x, p.z - u.pos.z); }).sort((x, y) => x - y), lag = gaps.length ? gaps[gaps.length >> 1] : 0;
+        const from = O.at || a, dd = Math.hypot(b.x - from.x, b.z - from.z) || 1, step = lag < 5 ? Math.max(0, Math.min(dd - 20, 7)) : 0;
+        O.at = { x: from.x + (b.x - from.x) / dd * step, z: from.z + (b.z - from.z) / dd * step };
+      }
     }
-    if (!O.charge && d < 15 && (theirs.length >= ours.length * 0.8 || t > this.holdFor + 45)) { O.charge = true; shout(); }
+    if (!O.charge && d < 26 && (theirs.length >= ours.length * 0.8 || t > this.holdFor + 40)) { O.charge = true; shout(); }
     if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) { this.volT = 11 + Math.random() * 8; O.volleyAt = G.time + 1.3; shout(); }
   }
   // your blade in the press: the nearest of theirs in reach, in front of you
@@ -1442,7 +1456,8 @@ class Bot extends Fighter {
     if (O) {
       const want = this.arena.slotFor(this);
       // (loading, or ordered down: behind the nearest thing that'll stop a ball, if there's one near his place)
-      const wantCover = field && !this.crewOf && (O.cover || (!useK && s > 0.25 && !this.wasCrew)) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.team, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
+      // (but not on the march: the line keeps its order, and loads where it stands)
+      const wantCover = field && !this.crewOf && (O.cover || (!useK && s > 0.25 && !this.wasCrew && O.mode !== "advance")) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.team, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
       if (wantCover !== this.cover) { this.releaseCover(); this.cover = wantCover; if (wantCover) wantCover.taken = this; }
       const goal = this.cover || want, gd = Math.hypot(goal.x - a.pos.x, goal.z - a.pos.z);
       // (behind his cover and not firing: down low)

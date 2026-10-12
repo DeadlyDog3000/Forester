@@ -23,6 +23,35 @@ const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vect
 // the drill's steps, and where each ends in the loading (0 just fired, 1 loaded)
 const DRILL = [["back", 0, 0.05], ["sponge", 0.05, 0.3], ["load", 0.3, 0.42], ["ram", 0.42, 0.62], ["prime", 0.62, 0.72], ["lay", 0.72, 0.86], ["run", 0.86, 1]];
 
+// ---- the colours of the armies of 1683, painted: each its own flag ----
+function drawColours(x, key) {
+  const W = 192, H = 128, fill = (c, ...r) => { x.fillStyle = c; x.fillRect(...r); };
+  const eagle = (c, cx, cy, s, two = true) => {
+    x.fillStyle = c; x.beginPath();
+    // (wings spread, a body, a tail; two heads, or one)
+    x.moveTo(cx, cy - 6 * s);
+    for (const sd of [1, -1]) { x.lineTo(cx + sd * 30 * s, cy - 22 * s); x.lineTo(cx + sd * 34 * s, cy - 8 * s); x.lineTo(cx + sd * 26 * s, cy - 2 * s); x.lineTo(cx + sd * 30 * s, cy + 6 * s); x.lineTo(cx + sd * 12 * s, cy + 4 * s); x.lineTo(cx + sd * 14 * s, cy + 22 * s); x.lineTo(cx, cy + 14 * s); }
+    x.closePath(); x.fill();
+    for (const sd of two ? [1, -1] : [1]) { x.beginPath(); x.ellipse(cx + sd * (two ? 7 : 4) * s, cy - 14 * s, 4 * s, 5 * s, 0, 0, Math.PI * 2); x.fill(); }
+    x.beginPath(); x.ellipse(cx, cy, 8 * s, 12 * s, 0, 0, Math.PI * 2); x.fill();
+  };
+  const lily = (c, cx, cy, s) => { x.fillStyle = c; x.beginPath(); x.ellipse(cx, cy - 6 * s, 3 * s, 9 * s, 0, 0, Math.PI * 2); x.fill(); for (const sd of [1, -1]) { x.beginPath(); x.ellipse(cx + sd * 6 * s, cy - 2 * s, 2.5 * s, 7 * s, sd * 0.7, 0, Math.PI * 2); x.fill(); } fill(c, cx - 7 * s, cy + 1 * s, 14 * s, 3 * s); fill(c, cx - 1.5 * s, cy + 3 * s, 3 * s, 7 * s); };
+  switch (key) {
+    case "imperial": fill("#d8b13a", 0, 0, W, H); eagle("#1a1714", W / 2, H / 2 + 4, 1.4); break;
+    case "saxon": for (let i = 0; i < 10; i++) fill(i % 2 ? "#1a1714" : "#d8b13a", 0, i * H / 10, W, H / 10 + 1); x.strokeStyle = "#2e7a3a"; x.lineWidth = 9; x.beginPath(); x.moveTo(-10, H + 10); x.lineTo(W + 10, -10); x.stroke(); break;
+    case "bavarian": fill("#f2efe6", 0, 0, W, H); x.fillStyle = "#3a68b0"; for (let i = -2; i < 14; i++) for (let j = -2; j < 10; j++) if ((i + j) % 2 === 0) { const cx = i * 16, cy = j * 16; x.beginPath(); x.moveTo(cx, cy - 8); x.lineTo(cx + 8, cy); x.lineTo(cx, cy + 8); x.lineTo(cx - 8, cy); x.fill(); } break;
+    case "swedish": fill("#2c5aa0", 0, 0, W, H); fill("#e8c040", 54, 0, 22, H); fill("#e8c040", 0, H / 2 - 11, W, 22); break;
+    case "brandenburg": fill("#f2efe6", 0, 0, W, H); eagle("#a8261e", W / 2, H / 2 + 4, 1.45, false); break;
+    case "french": fill("#f4f1e8", 0, 0, W, H); for (const [cx, cy] of [[48, 40], [96, 64], [144, 40], [48, 96], [144, 96], [96, 22]]) lily("#c89a2e", cx, cy, 1.1); break;
+    case "english": fill("#f4f1e8", 0, 0, W, H); fill("#b8241c", W / 2 - 13, 0, 26, H); fill("#b8241c", 0, H / 2 - 13, W, 26); break;
+    case "hamburg": fill("#b8241c", 0, 0, W, H); x.fillStyle = "#f4f1e8"; fill("#f4f1e8", 56, 66, 80, 40); for (const [tx, th] of [[56, 34], [86, 48], [120, 34]]) { fill("#f4f1e8", tx, 66 - th, 16, th + 2); for (let k = 0; k < 3; k++) fill("#f4f1e8", tx + k * 6, 60 - th, 4, 6); } fill("#b8241c", 88, 84, 16, 22); break;
+    default: fill("#9a2a22", 0, 0, W, H);
+  }
+  // (worn: the cloth darker at its edges, and the weave)
+  const sh = x.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 120); sh.addColorStop(0, "rgba(0,0,0,0)"); sh.addColorStop(1, "rgba(30,20,10,0.35)"); x.fillStyle = sh; x.fillRect(0, 0, W, H);
+  for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(${Math.random() < 0.5 ? "0,0,0" : "255,250,230"},0.05)`; x.fillRect(Math.random() * W, Math.random() * H, 1, 1); }
+}
+
 // a thing built of many pieces made into one mesh to each material it's made of (hundreds of stones in a wall drawn as
 // one): every plain mesh in it, in its place, merged; anything else — several materials on one mesh, instanced — left
 // as it is
@@ -226,7 +255,7 @@ export class Field {
     }
     // inside: a powder store of barrels, and the flag on its staff
     this.barrels(mx + sx * 3, C.z + (r() < 0.5 ? -7 : 7));
-    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 6, 6), this.M.wood); this.put(staff, mx, C.z, 0, 3);
+    this.fortStaff = this.put(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 6, 6), this.M.wood), mx, C.z, 0, 3);
     this.cols.push(this.w.col.addCircle(mx, C.z, 0.1, this.y(mx, C.z) + 6));
     // (the fort and the ground round it kept for it)
     this.claim(mx, C.z, Math.hypot(W, D / 2) + 1);
@@ -501,6 +530,23 @@ export class Field {
     const fl = makeFlame(0.5, new THREE.PointLight(0xffb060, 5, 13, 1.6)); fl.position.set(x, this.y(x, z) + 1.64, z + 0.36); this.root.add(fl); this.flames.push(fl);
     this.cols.push(this.w.col.addCircle(x, z, 0.08, this.y(x, z) + 2));
   }
+  // a side's colours: its flag on a tall staff behind its line (or over its fort), the cloth worked in the wind
+  colours(side, key) {
+    const sx = side === 0 ? -1 : 1, F = this.fortAt && this.fortAt.side === side ? this.fortAt : null;
+    let x = F ? F.mx : this.C.x + sx * (this.dx + 6), z = F ? this.C.z : this.C.z + 2.5;
+    if (F && this.fortStaff) { this.root.remove(this.fortStaff); this.fortStaff = null; }
+    else { const p = this.find(i => ({ x: x + sx * (i % 5) * 0.8, z: z + (i % 3) * 1.5 }), 0.6, 15, 0.4); if (p) { x = p.x; z = p.z; } this.cols.push(this.w.col.addCircle(x, z, 0.1, this.y(x, z) + 7)); }
+    const g = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 7, 7), this.M.wood); pole.position.y = 3.5; g.add(pole);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 6), mat(0xb8963e, { metalness: 0.6, roughness: 0.4 })); tip.position.y = 7.14; g.add(tip);
+    const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawColours(cv.getContext("2d"), key);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const geo = new THREE.PlaneGeometry(1.9, 1.3, 20, 5); geo.translate(0.95, 0, 0);
+    const cloth = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.95 }));
+    cloth.position.set(0.04, 6.25, 0); g.add(cloth);
+    this.put(g, x, z, sx < 0 ? 0.5 : Math.PI - 0.5, 0, false);
+    (this.flags ||= []).push({ geo, base: Float32Array.from(geo.attributes.position.array), t: this.r() * 10 });
+  }
   // a gun's powder, kept back from it: a few casks under a tarpaulin pegged down over a ridge-pole
   powder(x, z, ry) {
     const g = new THREE.Group();
@@ -680,6 +726,11 @@ export class Field {
   // each frame: the guns laid and fired, the balls flying; hit(u, from, v) is called for anyone a ball goes through
   update(dt, units, hit) {
     for (const f of this.flames || []) flicker(f, dt);
+    for (const f of this.flags || []) {
+      f.t += dt; const p = f.geo.attributes.position, b = f.base;
+      for (let i = 0; i < p.count; i++) { const bx = b[i * 3], by = b[i * 3 + 1], k = bx / 1.9; p.setZ(i, Math.sin(f.t * 3.0 - bx * 3.2 + by * 0.6) * 0.14 * k + Math.sin(f.t * 5.3 - bx * 6) * 0.035 * k); p.setY(i, by - k * k * 0.07); }
+      p.needsUpdate = true; f.geo.computeVertexNormals();
+    }
     // (the guns open only once the field's had a moment: a crew isn't cut down before it's even seen the enemy)
     if (this.active !== false) this.opened = (this.opened || 0) + dt;
     for (const g of this.guns) {

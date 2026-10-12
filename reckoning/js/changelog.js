@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.20.0", date: "12 October 2026", title: "The advance",
+    items: [
+      "The other side's officer advances as the drill had it: a march of some paces with the line kept together, then — once in range — a halt and a volley, and on again, until it's close enough for the steel. Battles come to a decision now; before, his line crept forward at half a pace a second and the fight could stand off for minutes.",
+      "Men on the march load where they stand and keep their places, instead of every man with an empty musket breaking off to look for cover — which pulled the line apart and held the whole advance up.",
+      "Colours: each side's flag flies on a tall staff behind its line (or over its fort), worked by the wind — the Emperor's black eagle on gold, Saxony's black and gold bars with the green crown of rue, Bavaria's lozenges, Sweden's yellow cross, Brandenburg's red eagle, France's lilies, St George's cross, and Hamburg's white castle on red.",
+    ],
+  },
+  {
     v: "1.19.0", date: "12 October 2026", title: "The Forester server",
     items: [
       "Reckoning has its own server now, in Seattle: duels, battles against another player, and the Wide World — one great shared map, where what you build stays — all find each other there, wherever you're playing from. Nothing to set up: the game knows where it is.",
