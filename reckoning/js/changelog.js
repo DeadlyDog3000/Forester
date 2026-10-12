@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.24.2", date: "12 October 2026", title: "Arrows that stay in",
+    items: [
+      "An arrow or a bolt that strikes a man goes in: its point driven to the limb or the body it meets, along the way it flew, and carried by that part of him — it moves with his arm, goes down with him and stays in him as he lies. Before, it stopped a hand's breadth short of him in the air and hung there, fixed to where he'd stood, while he walked off or fell away from it.",
+    ],
+  },
+  {
     v: "1.24.1", date: "12 October 2026", title: "Gore, on or off",
     items: [
       "A Gore switch in Settings (under Content). On, it's all there: the mist and the spray, the blood that stays on the ground, coats soaking dark, pools under the fallen, limbs torn off by cannon and grenades. Off, there is none at all — not a drop: no blood thrown from a blow, no stains, no pools, nobody torn apart; and turned off mid-battle, everything already shed is gone and the fallen are whole. A wounded animal's trail is still there to follow when it's off, as scuffed, kicked-up earth.",

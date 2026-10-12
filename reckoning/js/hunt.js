@@ -576,7 +576,8 @@ export class Hunt {
         if (best) {
           // (in by a few fingers past the line of the bone's nearest pass: the shaft standing out of the cloth)
           // (its point at the bone, come in along its flight: the shaft standing out of him the way it came)
-          ar.pos.copy(best.at).addScaledVector(dir, 0.03); this.orient(ar); ar.mesh.updateMatrixWorld(true);
+          // (the shaft's middle is where it's held: the iron 0.43 ahead of it, a bolt's half that)
+          ar.pos.copy(best.at).addScaledVector(dir, 0.04 - (ar.bolt ? 0.215 : 0.43)); this.orient(ar); ar.mesh.updateMatrixWorld(true);
           best.bone.attach(ar.mesh); ar.inBone = best.bone;
           return;
         }
