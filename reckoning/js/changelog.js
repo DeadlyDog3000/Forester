@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.11.0", date: "12 October 2026", title: "To arms", img: "art/updates/1.11.0.jpg",
+    items: [
+      "Battle Mode: take a company into the field against another — your own colours (Imperial, Saxon, Bavarian, Swedish, Brandenburg, French, English or Hamburg's militia), theirs drawn by lot — up to 12 men with you and 20 against you.",
+      "Every battle is somewhere new on the Earth as it stood in 1683: any land that's open and level enough, never the sea — the savanna of Brazil one time, the woods of Muscovy the next — named for the realm it's in.",
+      "The field is made fresh each time: gabions and earth banks for each side's works, chevaux-de-frise and palisades before them, carts, barrels and fallen trees between, and guns in the batteries firing round shot that bounces, ploughs the ground, and goes through a file of men.",
+      "F gives your orders, from a page in a captain's hand, while you fight on: follow me, hold here, advance to where you're looking, take cover, fire at will or hold your fire, a volley at your word, bring down the man you're looking at, charge — and the formation: line, column, square or loose order; in a battle, the guns laid on where you're looking.",
+      "Their officer holds his works a while, then brings his men on, volleys, and sends them in with the steel when they're close.",
+      "Skirmishes too: any number with you and against you, without the uniforms and the guns, in the ride in the woods.",
+      "Fall in battle and the red comes in as ever — then your eye goes to one of your company still fighting, to the end.",
+      "The bots are sharper: they take cover while they load, step out of your sights when you aim at them, come at you slanting, and come in with the steel when you're loading.",
+    ],
+  },
+  {
     v: "1.10.3", date: "12 October 2026", title: "Doors that shut",
     items: [
       "Frontier: the cabin's door is there again — it had been swung to nowhere by the gates' hinges — and it opens and shuts with F as before.",

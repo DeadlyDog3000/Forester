@@ -708,7 +708,17 @@ export class Wilds extends WorldBase {
   }
   // a building's ground (and its yard), in its own frame: is this point on it?
   inFp(f, x, z, pad = 0) { const wx = x - f.x, wz = z - f.z, lx = wx * f.c - wz * f.s, lz = wx * f.s + wz * f.c; return lx > f.x0 - pad && lx < f.x1 + pad && lz > f.z0 - pad && lz < f.z1 + pad; }
-  underBuilding(x, z, pad = 0.4) { for (const e of this.blds.values()) if (e.fp && this.inFp(e.fp, x, z, pad)) return true; return false; }
+  underBuilding(x, z, pad = 0.4) {
+    for (const e of this.blds.values()) if (e.fp && this.inFp(e.fp, x, z, pad)) return true;
+    for (const q of this.clearZones || []) if (Math.hypot(x - q.x, z - q.z) < q.r && !(q.keep && q.keep(x, z))) return true;
+    return false;
+  }
+  // ground opened up (for a battle): the trees and the rocks in a ring gone — but those keep() would leave standing —
+  // and kept gone when its pieces of the map are made again
+  clearScenery(x, z, r, road, keep) {
+    (this.clearZones ??= []).push({ x, z, r, keep });
+    for (const ch of this.chunks.values()) for (const t of [...ch.trees, ...ch.rocks]) if (!t.gone && this.underBuilding(t.x, t.z, 0)) this.clearThing(t);
+  }
   // a tree or a rock where a building stands: gone, without a stump or a word (it was cleared to build)
   clearThing(t) {
     for (const [m, i] of t.slots || (t.slot ? [t.slot] : [])) { m.setMatrixAt(i, ZERO); m.instanceMatrix.needsUpdate = true; }

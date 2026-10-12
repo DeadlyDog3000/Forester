@@ -8,7 +8,7 @@
 // the story's own fighting: the musket that wants loading, the bow drawn, the crossbow spanned, the guard to the side
 // the blow is coming from and the parry just as it comes.
 
-import { THREE } from "./core.js";
+import { THREE, camera } from "./core.js";
 import { G, Actor, setWorld, setAtmo } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -21,6 +21,10 @@ import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
 import { Net, addressOf, HOST, globalServer } from "./mp/net.js";
+import { Wilds } from "./mp/wilds.js";
+import { WATER } from "./mp/terrain.js";
+import { EARTH_SIZES } from "./mp/rules.js";
+import { REALMS_1683 } from "./mp/earth-1683.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook } from "./battle.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
@@ -106,6 +110,7 @@ export function initPvp(c) {
   $("pvpAgain").onclick = () => findMatch();
   $("pvpLoadout").onclick = () => openLoadout();
   $("pvpTitle").onclick = () => ctx.screen("title");
+  if ($("pvpArmy")) $("pvpArmy").addEventListener("click", armyClick);
   $("pvpCols").addEventListener("click", e => {
     const b = e.target.closest("[data-slot][data-id]"); if (!b) return;
     const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
@@ -126,8 +131,33 @@ function drawLoadout(note = "") {
   $("pvpCols").innerHTML = col("long", "Long arm", LONG) + col("side", "Sidearm", SIDE) + col("blade", "Blade", BLADE);
   const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100);
   $("pvpLoad").innerHTML = `<div class="pv-load-h"><b>Load</b> ${w} of ${LOAD_MAX}<span>${sp >= 0 ? `${sp}% quicker on your feet` : `${-sp}% slower on your feet`}</span></div><div class="pv-load-bar">${Array.from({ length: LOAD_MAX }, (_, i) => `<i class="${i < w ? "on" : ""}"></i>`).join("")}</div><div class="pv-load-note">${esc(note)}</div>`;
+  drawArmy();
   const r = record(), me = ctx.identity();
   $("pvpRec").innerHTML = `<span class="pv-rank">${rankOf(r.rating)}</span> · rating <b>${Math.round(r.rating)}</b> · ${r.w} won, ${r.l} lost${r.streak > 1 ? ` · ${r.streak} in a row` : ""}<br><small>You fight as ${esc(me.name)}.</small>`;
+}
+
+// ---- the company: alone, or with men of your own against more of theirs; a battle, in uniform, with works and guns ----
+function drawArmy() {
+  const el = $("pvpArmy"); if (!el) return;
+  const A = army(), multi = A.allies > 0 || A.enemies > 1 || A.battle;
+  const step = (k, label, v, lo, hi) => `<div class="pv-step"><span>${label}</span><button data-k="${k}" data-d="-1"${v <= lo ? " disabled" : ""}>−</button><b>${v}</b><button data-k="${k}" data-d="1"${v >= hi ? " disabled" : ""}>+</button></div>`;
+  const sw = u => `<i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i>`;
+  el.innerHTML = `<div class="pv-h">Your company</div>
+    <div class="pv-steps">${step("allies", "With you", A.allies, 0, 12)}${step("enemies", "Against you", A.enemies, 1, 20)}
+      <button class="pv-bt${A.battle ? " on" : ""}" data-bt="1"><b>Battle Mode</b><small>${A.battle ? "On — " : ""}uniforms, earthworks and guns, somewhere on the Earth</small></button></div>
+    ${A.battle ? `<div class="pv-unis">${Object.entries(UNIFORMS).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div><div class="pv-uni-note">${esc(UNIFORMS[A.uniform].note)} — theirs will be another's, drawn by lot.</div>` : ""}
+    <div class="pv-army-note">${multi ? `Against bots${A.allies ? `, your ${A.allies} with you` : ""}. ${A.allies || A.battle ? "F in the field gives your orders." : ""}` : "One against one: another player if anyone's looking, or a bot as strong as you are."}</div>`;
+  $("pvpGo").textContent = multi ? "To the field" : "Find a match";
+}
+function armyClick(e) {
+  const b = e.target.closest("button"); if (!b) return;
+  const A = army();
+  if (b.dataset.k) setArmy({ [b.dataset.k]: A[b.dataset.k] + +b.dataset.d });
+  else if (b.dataset.bt) setArmy({ battle: !A.battle, enemies: !A.battle && A.enemies < 6 ? 8 : A.enemies, allies: !A.battle && A.allies < 4 ? 6 : A.allies });
+  else if (b.dataset.uni) setArmy({ uniform: b.dataset.uni });
+  else return;
+  drawArmy();
+  window.__uisfx && window.__uisfx.click && window.__uisfx.click();
 }
 
 // ---- the search: anyone else looking for a fight ----
@@ -139,6 +169,8 @@ const SEARCH_SECS = 10;
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
 async function findMatch() {
   cancelSearch(true);
+  // (companies against bots: no one to look for)
+  { const A = army(); if (A.allies > 0 || A.enemies > 1 || A.battle) { search = null; startDuel({ bot: true }); return; } }
   const s = search = { t0: performance.now(), net: null, key: null, done: false, seen: [] };
   window.__pvpSearch = s;
   ctx.screen("pvpFind");
@@ -214,6 +246,7 @@ export function army() {
   return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)] };
 }
 export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
+const FORM_WORD = { line: "Form line", column: "Form column", square: "Form square", loose: "Loose order — spread out" };
 // a bot's name and look, made up fresh
 const FIRST = ["Hans", "Matthias", "Jörg", "Kaspar", "Lorenz", "Veit", "Ulrich", "Bastian", "Anna", "Margarethe", "Ursula", "Dorothea", "Barbara", "Elsbeth"];
 const LAST = ["Brenner", "Kohl", "Weidner", "Falk", "Ostermann", "Lindau", "Rausch", "Haberland", "Steinkopf", "Wedel", "Asmus", "Grote"];
@@ -236,8 +269,32 @@ function startDuel(o) {
 }
 
 // the ground: the deer ride in the woods below the clearing, open in the middle and the trees thick round it
-const C = { x: HUNT.x, z: HUNT.z }, BOUND = 40;
-const SPAWN = [{ x: C.x - 19, z: C.z + 2 }, { x: C.x + 19, z: C.z - 2 }];
+let C = { x: HUNT.x, z: HUNT.z }, SPAWN = [];
+const BOUND = 40, setC = c => { C = c; SPAWN = [{ x: C.x - 19, z: C.z + 2 }, { x: C.x + 19, z: C.z - 2 }]; };
+setC(C);
+
+// a battle's ground: somewhere on the Earth as it was in 1683 — anywhere there's land, open enough and level enough
+// for two companies to stand off across it (never the sea, a lake, the ice or the peaks), a new place every time;
+// and the name of the realm it lies in, or nearest to
+function battleGround() {
+  const half = EARTH_SIZES.l, w = new Wilds({ seed: (Math.random() * 1e9) | 0, half, kind: "earth" }), L = w.land, R = 64;
+  for (let tries = 0; tries < 6000; tries++) {
+    const x = (Math.random() * 2 - 1) * half * 0.94, z = (Math.random() * 2 - 1) * half * 0.42;
+    const h = L.heightAt(x, z); if (h < WATER + 2.5 || h > 44) continue;
+    const b = L.biomeAt(x, z); if (b === "ice" || b === "alpine") continue;
+    let lo = h, hi = h, ok = true;
+    for (let i = -2; i <= 2 && ok; i++) for (let j = -2; j <= 2; j++) { const y = L.heightAt(x + i * R / 2, z + j * R / 2); if (y < WATER + 1.5) { ok = false; break; } lo = Math.min(lo, y); hi = Math.max(hi, y); }
+    if (!ok || hi - lo > 10) continue;
+    return { w, x, z, name: placeName(x / half * 180, -z / half * 180), biome: b };
+  }
+  return null;
+}
+function placeName(lon, lat) {
+  let best = null, bd = Infinity;
+  for (const [n, lo, la] of REALMS_1683) { const dl = Math.abs(((lon - lo + 540) % 360) - 180) * Math.cos(lat * Math.PI / 180), d = Math.hypot(dl, lat - la); if (d < bd) { bd = d; best = n; } }
+  const ns = `${Math.abs(lat).toFixed(0)}°${lat >= 0 ? "N" : "S"} ${Math.abs(lon).toFixed(0)}°${lon >= 0 ? "E" : "W"}`;
+  return { text: !best ? "The wide world" : bd < 12 ? `Near ${best}` : `Far beyond ${best}`, at: ns };
+}
 
 class Arena {
   constructor({ me, lo, foe, net, side, army: A = null }) {
@@ -247,8 +304,14 @@ class Arena {
     this.army = A; this.multi = !!A; this.battle = !!(A && A.battle);
     this.wins = [0, 0]; this.round = 0; this.over = false; this.live = false; this.clock = ROUND_SECS;
     // (a company's fight wants more room than a duel: the ride opened wider, the two lines further apart)
-    this.bound = this.battle ? 60 : this.multi ? 48 : BOUND; this.dx = this.battle ? 31 : this.multi ? 21 : 19;
-    const w = this.w = new Woods(); setWorld(w); setAtmo("afternoon");
+    this.bound = this.battle ? 60 : this.multi ? 48 : BOUND; this.dx = this.battle ? 27 : this.multi ? 21 : 19;
+    // (a duel or a skirmish: the deer ride in the woods; a battle: somewhere on the Earth, new every time)
+    const ground = this.battle ? battleGround() : null;
+    const w = this.w = ground ? ground.w : new Woods();
+    setC(ground ? { x: ground.x, z: ground.z } : { x: HUNT.x, z: HUNT.z });
+    this.place = ground ? ground.name : null;
+    setWorld(w); setAtmo("afternoon");
+    if (ground) w.buildNear(C.x, C.z, 99);
     w.huntOpen = true;
     this.hunt = new Hunt(w, { x: C.x, z: C.z, r: 1 }, {});
     G.who = isF(me.look) ? "sister" : "brother";
@@ -285,7 +348,7 @@ class Arena {
       this.foeInfo = { ...this.foe.info, name: this.uni ? this.uni[1].name : this.foe.info.name };
       this.keyH = e => this.onKey(e); addEventListener("keydown", this.keyH, true);
       this.wheelH = e => { if (this.book && this.book.open) { e.stopImmediatePropagation(); this.book.wheel(e.deltaY); } }; addEventListener("wheel", this.wheelH, true);
-      this.clickH = e => { if (this.book && this.book.open && e.button === 0) { e.stopImmediatePropagation(); e.preventDefault(); this.book.key({ code: "KeyF" }); } }; addEventListener("mousedown", this.clickH, true);
+      // (the mouse stays yours to fight with while the book's open: aim, fire, strike)
     } else {
       // the foe
       this.foe = foe.bot ? new Bot(this, { ...foe, team: 1 }) : new NetFoe(this, foe);
@@ -344,7 +407,8 @@ class Arena {
   // a man down: the duel's round, or the battle's tally
   unitDown(u) {
     if (!this.multi) { this.endRound(0); return; }
-    if (u.team === 1) { this.killed = (this.killed || 0) + 1; }
+    if (u.team === 1) this.killed = (this.killed || 0) + 1; else this.lost = (this.lost || 0) + 1;
+    if (this.orders && this.orders[0].target === u) this.orders[0].target = null;
     this.showHud();
     this.checkEnd();
   }
@@ -359,6 +423,177 @@ class Arena {
       setTimeout(() => G.arena === this && this.finish(won), 4200);
     }
   }
+  // ---------------------------------------------------------------------------
+  //  a fight of companies: everyone in their places, the word given, and the field until one side's gone
+  // ---------------------------------------------------------------------------
+  beginBattle() {
+    this.round = 1; this.live = false; this.ended = false; this.killed = 0; this.lost = 0; this.clock = 0;
+    this.rise();
+    const pl = G.player, mine = this.spawns[0], theirs = this.spawns[1];
+    G.downed = false; G.health = 1; G.stamina = 1; G.hurtT = 0; G.panting = 0; G.hitShake = 0;
+    if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.giveAxe(false);
+    pl.gunSaved = {}; pl.gunLoaded = true; pl.gunReload = 0; pl.xspan = 1;
+    pl.hasBow = this.lo.long === "bow"; pl.arrows = AMMO.bow;
+    G.body.tools.bolts = AMMO.crossbow; G.body.tools.crossbow = this.lo.long === "crossbow" ? 1 : 0; G.body.tools.musket = this.lo.long === "musket" ? 1 : 0;
+    G.body.hunger = 1; G.body.thirst = 1; G.body.temp = 0;
+    clearDropped();
+    // you before your company, a few paces in front of its line; they in their ranks behind; the other side at its own
+    const face0 = Math.atan2(theirs.x - mine.x, theirs.z - mine.z), face1 = face0 + Math.PI;
+    const O0 = this.orders[0], O1 = this.orders[1];
+    O0.mode = "follow"; O0.at = null; O1.mode = "hold"; O1.at = { x: theirs.x, z: theirs.z };
+    pl.place(mine.x + Math.sin(face0) * 3, mine.z + Math.cos(face0) * 3, face0 + Math.PI);
+    for (const [team, at, face, O] of [[0, mine, face0, O0], [1, theirs, face1, O1]]) {
+      const list = this.alliesOf(team).sort((a, b) => a.idx - b.idx);
+      list.forEach((u, i) => { const p = this.clearSpot(...Object.values(O.slot(i, list.length, at, face))); u.reset(p, team ? mine : theirs); });
+    }
+    pl.swingRate = BLADE[this.lo.blade].rate; G.loadMul = loadMul(this.lo);
+    this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
+    G.lockMove = true;
+    // (their officer: how long he'll hold his ground before he comes on)
+    this.holdFor = this.battle ? 15 + Math.random() * 15 : 3 + Math.random() * 5; this.cmdT = 0; this.volT = 10 + Math.random() * 6;
+    this.showHud();
+    const allies = this.alliesOf(0).length, foes = this.alliesOf(1).length;
+    this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
+      `${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · F for orders" : ""}`);
+    UI.fadeNow(1); UI.fade(0, 1.2);
+    const steps = ["3", "2", "1"];
+    steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && !this.live && !this.over) { this.banner(t, ""); AUDIO.clang && AUDIO.clang(0.25); } }, 2600 + i * 800));
+    setTimeout(() => {
+      if (G.arena !== this || this.over) return;
+      this.banner(this.battle ? "Forward!" : "Fight!", ""); G.lockMove = false; this.live = true; this.liveAt = G.time;
+      for (const u of this.units) u.go();
+      AUDIO.voice && AUDIO.voice("war", { high: G.who === "sister", vol: 0.7 });
+      setTimeout(() => G.arena === this && this.banner(null), 1000);
+      if (allies && !this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("F: your orders — follow, hold, advance, take cover, fire, charge, the formation" + (this.battle ? ", and the guns" : "") + ".", 6), 2200); }
+    }, 2600 + steps.length * 800);
+  }
+  // every frame of it: the men, the officer over there, the guns and their shot, your marks on the ground
+  updateField(dt) {
+    for (const u of this.units) u.tick(dt);
+    stanceTick();
+    if (this.live) { this.clock += dt; this.commander(dt); }
+    if (this.field) this.field.update(dt, [...this.units, this.you], (u, from, v) => {
+      if (u === this.you) this.hurtMe(400, { pos: from });
+      else u.damage(400, false, false, from);
+    });
+    for (const m of (this.marks ||= []).slice()) { m.t += dt; m.mesh.material.opacity = Math.max(0, 0.8 * (1 - m.t / 2.6)); m.mesh.scale.setScalar(1 + m.t * 0.25); if (m.t > 2.6) { this.w.root.remove(m.mesh); this.marks.splice(this.marks.indexOf(m), 1); } }
+    // (dead and watching: your eye on one of your own still standing)
+    if (this.watching) this.watchTick();
+    this.drawHud();
+  }
+  // their officer: holds his ground at the works for a while (less if he's the stronger), then brings them on, a few
+  // paces at a time, at your company; volleys when they're near enough; and, close, sends them in with the steel
+  commander(dt) {
+    const O = this.orders[1], t = G.time - this.liveAt;
+    const theirs = this.alliesOf(1), ours = this.alliesOf(0).concat(this.you.alive ? [this.you] : []);
+    if (!theirs.length || !ours.length) return;
+    const cen = l => ({ x: l.reduce((s, u) => s + u.pos.x, 0) / l.length, z: l.reduce((s, u) => s + u.pos.z, 0) / l.length });
+    const a = cen(theirs), b = cen(ours), d = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    const shout = () => { const o = theirs[0]; AUDIO.voice && AUDIO.voice("war", { at: o.pos, vol: 0.9, high: isF(o.info.look) }); };
+    if (O.mode === "hold" && (t > this.holdFor || theirs.length > ours.length * 1.6 || d < 22)) { O.mode = "advance"; shout(); }
+    if (O.mode === "advance" && (this.cmdT -= dt) <= 0) {
+      this.cmdT = 2.5;
+      const step = Math.max(0, Math.min(d - 12, 10));
+      O.at = { x: a.x + (b.x - a.x) / d * step, z: a.z + (b.z - a.z) / d * step };
+    }
+    if (!O.charge && d < 15 && (theirs.length >= ours.length * 0.8 || t > this.holdFor + 45)) { O.charge = true; shout(); }
+    if ((this.volT -= dt) <= 0 && d < 60 && !O.charge) { this.volT = 11 + Math.random() * 8; O.volleyAt = G.time + 1.3; shout(); }
+  }
+  // your blade in the press: the nearest of theirs in reach, in front of you
+  swingAt() {
+    const pl = G.player, B = BLADE[this.lo.blade], fwd = pl.forward();
+    if (!this.live) return;
+    let best = null, bd = Infinity;
+    for (const u of this.alliesOf(1)) {
+      const dx = u.pos.x - pl.pos.x, dz = u.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
+      if (d > B.reach || (dx * fwd.x + dz * fwd.z) / (d || 1) < 0.45) continue;
+      if (d < bd) { bd = d; best = u; }
+    }
+    if (!best) return;
+    AUDIO.chop ? AUDIO.chop() : FOLEY.chop(best.pos, 0.7); G.impact && G.impact();
+    best.struck(B.dmg, pl.swingDir || "right");
+  }
+  // you fall: the red, and the word; and then, while your company's still fighting, your eye on one of them
+  fallInBattle(from) {
+    const left = this.alliesOf(0).length;
+    this.deathFall(from, "You've fallen", left ? "Your company fights on" : "");
+    this.showHud();
+    if (left) setTimeout(() => {
+      if (G.arena !== this || this.over || this.ended) return;
+      const fx = $("deathFx"); if (fx) fx.classList.add("watch");
+      this.watching = true; this.watchTick();
+      UI.hint("Watching your company. Esc to leave the field.", 4);
+    }, 3800);
+    this.checkEnd();
+  }
+  watchTick() {
+    let u = this.watched;
+    if (!u || !u.alive) u = this.watched = this.alliesOf(0)[0];
+    if (!u) { this.watching = false; return; }
+    const back = new THREE.Vector3(), look = new THREE.Vector3();
+    G.deathCam = cam => {
+      const p = u.pos, yaw = u.yaw;
+      back.set(p.x - Math.sin(yaw) * 4.2, p.y + 2.4, p.z - Math.cos(yaw) * 4.2);
+      cam.position.lerp(back, 0.08); cam.up.set(0, 1, 0);
+      look.set(p.x + Math.sin(yaw) * 6, p.y + 1.2, p.z + Math.cos(yaw) * 6); cam.lookAt(look);
+    };
+  }
+  // ---- the orders: F in the field ----
+  bookState() { const O = this.orders[0]; return { count: this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, guns: !!this.gunsOn, mode: O.mode, form: O.form }; }
+  onKey(e) {
+    if (G.arena !== this || !this.book) return;
+    if (this.book.open) {
+      if (this.book.key(e)) { e.stopImmediatePropagation(); e.preventDefault(); }
+      return;
+    }
+    if (e.code === "KeyF" && !e.repeat && this.live && !G.downed && G.mode === "play" && !G.interactTarget && (this.alliesOf(0).length || this.battle)) {
+      e.stopImmediatePropagation(); e.preventDefault();
+      this.book.show(this.bookState());
+    }
+  }
+  // where you're looking, on the ground (within the field)
+  lookPoint() {
+    const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+    const p = camera.position, w = this.w;
+    let at = null;
+    for (let t = 1; t < 180; t += 0.5) { const x = p.x + dir.x * t, y = p.y + dir.y * t, z = p.z + dir.z * t; if (y <= w.heightAt(x, z)) { at = { x, z }; break; } }
+    if (!at) at = { x: p.x + dir.x * 60, z: p.z + dir.z * 60 };
+    const dx = at.x - C.x, dz = at.z - C.z, d = Math.hypot(dx, dz), lim = this.bound - 3;
+    if (d > lim) { at.x = C.x + dx / d * lim; at.z = C.z + dz / d * lim; }
+    return at;
+  }
+  // a mark on the ground where you sent them, fading
+  mark(at, colour = 0xf0d890) {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.15, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.8, depthWrite: false }));
+    m.position.set(at.x, this.w.heightAt(at.x, at.z) + 0.08, at.z); this.w.root.add(m);
+    (this.marks ||= []).push({ mesh: m, t: 0 });
+  }
+  give(id) {
+    const O = this.orders[0], pl = G.player, say = (t, v = "war") => { UI.hint(t, 2.2); AUDIO.voice && AUDIO.voice(v, { high: G.who === "sister", vol: 0.8 }); };
+    if (id.startsWith("form:")) { O.form = id.slice(5); say(`${FORM_WORD[O.form] || "Form up"}!`); return; }
+    switch (id) {
+      case "follow": O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; say("On me — fall in!"); break;
+      case "hold": O.mode = "hold"; O.at = { x: pl.pos.x, z: pl.pos.z }; O.cover = false; O.charge = false; this.mark(O.at); say("Halt! Hold here."); break;
+      case "advance": O.mode = "advance"; O.at = this.lookPoint(); O.cover = false; O.charge = false; this.mark(O.at); say("Forward — there!"); break;
+      case "cover": O.cover = true; O.charge = false; if (O.mode === "follow") { O.mode = "hold"; O.at = { x: pl.pos.x, z: pl.pos.z }; } say("Get down — take cover!"); break;
+      case "fire": O.fire = !O.fire; say(O.fire ? "Fire at will!" : "Hold your fire!"); break;
+      case "volley": O.volleyAt = G.time + 1.1; O.fire = true; say("Make ready… present… fire!"); break;
+      case "target": {
+        const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+        let best = null, ba = 0.12;
+        for (const u of this.alliesOf(1)) { const v = new THREE.Vector3(u.pos.x - camera.position.x, u.pos.y + 1.2 - camera.position.y, u.pos.z - camera.position.z), d = v.length(); if (d > 150) continue; const ang = v.normalize().angleTo(dir); if (ang < ba) { ba = ang; best = u; } }
+        if (!best) { UI.hint("Look at the man you want brought down, then give the order.", 2.5); return; }
+        O.target = best; this.mark(best.pos, 0xd86a50); say("That one — bring him down!"); break;
+      }
+      case "charge": O.charge = !O.charge; if (O.charge) O.cover = false; say(O.charge ? "Charge!" : "Halt — fall back in!"); break;
+      case "guns": {
+        if (!this.field || !this.field.guns.some(g => g.side === 0)) { UI.hint("Your company has no guns here.", 2); return; }
+        this.gunsOn = !this.gunsOn;
+        const at = this.gunsOn ? this.lookPoint() : null; this.field.order(0, at); if (at) this.mark(at, 0xd86a50);
+        say(this.gunsOn ? "Guns — on that ground there!" : "Guns — fire at will!"); break;
+      }
+    }
+  }
   // ---- the bar of what you carry: your loadout, nothing else ----
   hotbar() {
     const L = this.lo, out = [], pl = G.player;
@@ -371,6 +606,7 @@ class Arena {
   }
   // ---- a round: both put back at their ends, made whole, loaded, and three, two, one ----
   beginRound() {
+    if (this.multi) return this.beginBattle();
     this.round++; this.live = false; this.clock = ROUND_SECS; this.roundDone = false;
     this.rise();
     const pl = G.player, mine = this.spawns[this.side], theirs = this.spawns[1 - this.side];
@@ -413,6 +649,7 @@ class Arena {
   }
   // ---- your blade: a stroke at him, if he's in reach and in front of you ----
   swing() {
+    if (this.multi) return this.swingAt();
     const pl = G.player, f = this.foe, B = BLADE[this.lo.blade];
     if (!this.live || !f.alive) return;
     const fwd = pl.forward(), dx = f.pos.x - pl.pos.x, dz = f.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
@@ -429,6 +666,7 @@ class Arena {
   }
   youDown(from) {
     G.downed = true; G.lockMove = true;
+    if (this.multi) return this.fallInBattle(from);
     this.deathFall(from);
     if (this.net) { this.net.send({ t: "ddown", r: this.round }); this.live = false; return; }
     this.endRound(1);
@@ -436,7 +674,7 @@ class Arena {
   foeDown() { if (!this.net) this.endRound(0); }
   // you're down: your body falls as it falls (a ragdoll), your eye goes with your head, the world reddens and dims,
   // and who won is written over it
-  deathFall(from) {
+  deathFall(from, title = null, sub = "") {
     const pl = G.player, m = pl.model; if (!m) return;
     if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.giveAxe(false);
     // (your whole body back, head and all — first person it's only the neck down)
@@ -464,8 +702,8 @@ class Arena {
     // the red, coming in slowly from the edges, and the name over it
     let fx = $("deathFx");
     if (!fx) { fx = document.createElement("div"); fx.id = "deathFx"; fx.innerHTML = `<div class="dfx-t"></div><div class="dfx-s"></div>`; $("hud").appendChild(fx); }
-    fx.querySelector(".dfx-t").textContent = `${this.foeInfo.name} won`;
-    fx.querySelector(".dfx-s").textContent = this.foeInfo.bot ? "" : "";
+    fx.querySelector(".dfx-t").textContent = title || `${this.foeInfo.name} won`;
+    fx.querySelector(".dfx-s").textContent = sub;
     fx.classList.remove("on"); void fx.offsetWidth; fx.classList.add("on");
     document.body.classList.add("dead");
     AUDIO.voice && AUDIO.voice("pain", { high: G.who === "sister", vol: 1 });
@@ -475,7 +713,7 @@ class Arena {
     const pl = G.player;
     if (this.myRag) { this.myRag.stop(); this.myRag = null; }
     G.deathCam = null; pl.frozen = false;
-    const fx = $("deathFx"); if (fx) fx.classList.remove("on");
+    const fx = $("deathFx"); if (fx) fx.classList.remove("on", "watch");
     document.body.classList.remove("dead");
   }
   // a round over: who took it (0 you, 1 them, -1 neither — time ran out with nothing between you)
@@ -498,12 +736,12 @@ class Arena {
     r.rating = Math.max(100, r.rating + delta); if (won) { r.w++; r.streak = (r.streak || 0) + 1; } else { r.l++; r.streak = 0; }
     saveRecord(r);
     if (won && G.achEvent) { G.achEvent("pvp-win"); if (r.streak >= 5) G.achEvent("pvp-streak5"); }
-    const score = `${this.wins[0]} – ${this.wins[1]}`;
+    const score = this.multi ? `${this.killed || 0} of theirs down, ${this.lost || 0} of yours${this.place ? ` · ${esc(this.place.text)}` : ""}` : `${this.wins[0]} – ${this.wins[1]}`;
     this.stop();
     ctx.end();
     $("pvpEndK").textContent = left ? "They left the field" : won ? "Victory" : "Defeat";
-    $("pvpEndT").textContent = won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
-    $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot ? " · against a bot" : ""}<br>Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost`;
+    $("pvpEndT").textContent = this.multi ? (won ? "The field is yours" : "The day is lost") : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
+    $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost`;
     ctx.screen("pvpEnd");
   }
   // gone from the arena (the match done, or quit from the pause menu)
@@ -518,14 +756,22 @@ class Arena {
     if ($("pvpHud")) $("pvpHud").classList.add("hidden");
     this.banner(null);
     UI.stance && UI.stance(null);
+    if (this.keyH) removeEventListener("keydown", this.keyH, true);
+    if (this.wheelH) removeEventListener("wheel", this.wheelH, true);
+    if (this.clickH) removeEventListener("mousedown", this.clickH, true);
+    if (this.book) this.book.hide();
+    if (this.field) this.field.dispose();
+    for (const m of this.marks || []) this.w.root.remove(m.mesh);
+    this.marks = [];
   }
   // ---- every frame ----
   update(dt) {
     if (G.arena !== this) return;
     const pl = G.player;
     // (the field: the ride and the trees round it; out past them, you're turned back)
-    const dx = pl.pos.x - C.x, dz = pl.pos.z - C.z, d = Math.hypot(dx, dz);
-    if (d > BOUND) { pl.pos.x = C.x + dx / d * BOUND; pl.pos.z = C.z + dz / d * BOUND; if (!this.boundTold || G.time - this.boundTold > 4) { this.boundTold = G.time; UI.hint("The fight's here, in the ride.", 1.5); } }
+    const dx = pl.pos.x - C.x, dz = pl.pos.z - C.z, d = Math.hypot(dx, dz), B = this.bound;
+    if (d > B) { pl.pos.x = C.x + dx / d * B; pl.pos.z = C.z + dz / d * B; if (!this.boundTold || G.time - this.boundTold > 4) { this.boundTold = G.time; UI.hint(this.battle ? "The battle's here — your company's behind you." : "The fight's here, in the ride.", 1.5); } }
+    if (this.multi) { this.updateField(dt); return; }
     this.foe.tick(dt);
     stanceTick();
     if (this.live && !this.net && G.mode === "play") {
@@ -549,6 +795,15 @@ class Arena {
   }
   showHud() {
     const h = $("pvpHud"); if (!h) return;
+    h.classList.toggle("multi", this.multi);
+    if (this.multi) {
+      const ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0), theirs = this.alliesOf(1).length;
+      h.querySelector(".ph-me .ph-name").textContent = `${this.uni ? this.uni[0].name : "Yours"} · ${ours} standing`;
+      h.querySelector(".ph-foe .ph-name").textContent = `${this.uni ? this.uni[1].name : "Theirs"} · ${theirs} standing`;
+      h.querySelector(".ph-me .ph-pips").innerHTML = ""; h.querySelector(".ph-foe .ph-pips").innerHTML = "";
+      h.querySelector(".ph-round").textContent = this.place ? this.place.text : this.battle ? "Battle" : "Skirmish";
+      return;
+    }
     const pips = n => Array.from({ length: ROUNDS_TO_WIN }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("");
     h.querySelector(".ph-me .ph-name").textContent = this.me.name;
     h.querySelector(".ph-foe .ph-name").innerHTML = `${esc(this.foeInfo.name)}${this.foeInfo.bot ? ` <small>bot</small>` : ""}`;
@@ -559,8 +814,8 @@ class Arena {
   drawHud() {
     const h = $("pvpHud"); if (!h) return;
     const s = Math.max(0, Math.ceil(this.clock)), c = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-    if (c !== this._c) { this._c = c; h.querySelector(".ph-clock").textContent = c; h.querySelector(".ph-clock").classList.toggle("low", s <= 20); }
-    const k = clamp(this.foe.hp / HP, 0, 1);
+    if (c !== this._c) { this._c = c; h.querySelector(".ph-clock").textContent = c; h.querySelector(".ph-clock").classList.toggle("low", !this.multi && s <= 20); }
+    const k = this.multi ? clamp(this.alliesOf(1).length / Math.max(1, this.army.enemies), 0, 1) : clamp(this.foe.hp / HP, 0, 1);
     if (Math.abs(k - (this._k ?? -1)) > 0.004) { this._k = k; h.querySelector(".ph-hp i").style.width = `${k * 100}%`; }
   }
   banner(t, sub) {

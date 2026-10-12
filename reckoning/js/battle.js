@@ -192,10 +192,11 @@ export class Field {
     const m = makeCannon(); const ry = sx < 0 ? -Math.PI / 2 : Math.PI / 2;   // (pointing at the other side: -z of the model, out east or west)
     this.put(m, x, z, ry);
     this.w.col.addCircle(x, z, 0.8, this.y(x, z) + 1.0);
-    this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, recoil: 0, target: null, firing: side === 1, next: 8 + this.r() * 6 });
+    this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, recoil: 0, target: null, firing: true, next: 10 + this.r() * 8 });
   }
   // a gun's target, given (a point on the ground) or taken away
-  order(side, at) { for (const g of this.guns) if (g.side === side) { g.target = at ? { x: at.x, z: at.z } : null; g.firing = !!at; } }
+  // (taken away: they go back to laying on the thickest of the other side, as they see fit)
+  order(side, at) { for (const g of this.guns) if (g.side === side) { g.target = at ? { x: at.x, z: at.z } : null; g.firing = true; } }
   fire(g) {
     const m = g.model.userData, root = this.w.root;
     g.model.updateMatrixWorld(true);
@@ -215,7 +216,7 @@ export class Field {
     for (const g of this.guns) {
       if (!g.loaded) { g.reload -= dt; if (g.reload <= 0) g.loaded = true; }
       // (their side: laid on the thickest part of yours, now and then; yours: on where you said)
-      if (g.side === 1 && !g.target) { if ((g.next -= dt) <= 0) { g.next = 6; const t = this.thickest(units.filter(u => u.team === 0 && u.alive)); if (t) g.aim = { x: t.x + (this.r() - 0.5) * 6, z: t.z + (this.r() - 0.5) * 6 }; } }
+      if (!g.target) { if ((g.next -= dt) <= 0) { g.next = 6; const t = this.thickest(units.filter(u => u.team !== g.side && u.alive)); if (t) g.aim = { x: t.x + (this.r() - 0.5) * 7, z: t.z + (this.r() - 0.5) * 7 }; } }
       else if (g.target) g.aim = g.target;
       if (g.aim) {
         const dx = g.aim.x - g.x, dz = g.aim.z - g.z, want = Math.atan2(-dx, -dz), d = Math.hypot(dx, dz);
@@ -304,7 +305,7 @@ export const ORDER_LIST = [
   { id: "target", label: "Bring him down", sub: "The man I'm looking at" },
   { id: "charge", label: "Charge!", alt: "Halt — fall back in", sub: "Steel, and at them" },
   { id: "form", label: "Formation", sub: "Line, column, square, loose", more: true },
-  { id: "guns", label: "Guns — fire there", alt: "Guns — cease fire", sub: "Round shot on where I'm looking", battle: true },
+  { id: "guns", label: "Guns — fire there", alt: "Guns — at will", sub: "Round shot on where I'm looking", battle: true },
 ];
 export class OrderBook {
   constructor(onGive) {
@@ -327,15 +328,16 @@ export class OrderBook {
     const list = this.items(this.state), roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
     this.el.innerHTML = `<div class="ob-head"><span class="ob-seal"></span><div><div class="ob-t">${this.page === "form" ? "Formation" : "Orders"}</div><div class="ob-s">${this.state.count} under your command</div></div></div>
       <ol class="ob-list">${list.map((o, i) => `<li class="${i === this.sel ? "sel" : ""}${o.on ? " on" : ""}"><span class="ob-n">${roman[i]}</span><span class="ob-l">${o.label}${o.more ? " ›" : ""}</span><span class="ob-sub">${o.sub || ""}</span><span class="ob-k">${i + 1 < 10 ? i + 1 : 0}</span></li>`).join("")}</ol>
-      <div class="ob-foot">${this.page === "form" ? "Esc: back" : "Wheel or number, F to give · Esc to put it by"}</div>`;
+      <div class="ob-foot">${this.page === "form" ? "Esc: back" : "Wheel or number, F to give · Esc to put it by — you can fight the while"}</div>`;
   }
   key(e) {
     const list = this.items(this.state);
     if (e.code === "Escape") { if (this.page !== "main") { this.page = "main"; this.sel = 0; this.draw(); } else this.hide(); return true; }
     if (e.code === "KeyF" || e.code === "Enter") { this.pick(list[this.sel]); return true; }
     const m = /^Digit(\d)$/.exec(e.code); if (m) { const i = (+m[1] || 10) - 1; if (list[i]) { this.sel = i; this.pick(list[i]); } return true; }
-    if (e.code === "ArrowDown" || e.code === "KeyS") { this.sel = (this.sel + 1) % list.length; this.draw(); return true; }
-    if (e.code === "ArrowUp" || e.code === "KeyW") { this.sel = (this.sel - 1 + list.length) % list.length; this.draw(); return true; }
+    // (W and S are still your feet: the book's only the arrows, the wheel, the numbers and F — you fight while you give them)
+    if (e.code === "ArrowDown") { this.sel = (this.sel + 1) % list.length; this.draw(); return true; }
+    if (e.code === "ArrowUp") { this.sel = (this.sel - 1 + list.length) % list.length; this.draw(); return true; }
     return false;
   }
   wheel(dy) { const list = this.items(this.state); this.sel = (this.sel + (dy > 0 ? 1 : -1) + list.length) % list.length; this.draw(); }
