@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.26.0", date: "12 October 2026", title: "Generalship",
+    items: [
+      "The other side's officer commands as well as your record has earned: at the start he's rash, on at you and in with the steel as soon as he's near — but the higher your rating, the better the officer. A seasoned one stands off at a good musket-shot and makes his volleys tell, giving fire when his men are loaded and you're in range; holds where he is behind cover when he has the fewer men and lets you come on into it; charges only when it's worth it — when he's clearly the stronger, when your line has just fired and is still loading, or when you're nearly done — and calls a charge off that's going against him, falling back to re-form and take up the firing again.",
+      "Against another player, a fort is no longer a toss of a coin: the field is open, unless one company is clearly the smaller (fewer than four men in five of the other's, counting a gun as two) — then the smaller has a fort, walls to make up its numbers, and both players are told why when the battle begins.",
+      "If the connection drops while you're mustering for a battle against another player, the game says so, and puts you back in camp — before, it said they'd left the muster. (The game's server was being restarted with each update today, which dropped musters in progress; it's now only restarted when its own workings change.)",
+    ],
+  },
+  {
     v: "1.25.1", date: "12 October 2026", title: "Worlds & colonies",
     items: [
       "The second Online button says what's behind it: Worlds & colonies — the Wide World, a co-op colony, Classic nations, Frontier and Frontier rivals — not just Frontier. The screen it opens is called the same.",

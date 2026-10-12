@@ -229,8 +229,11 @@ function openMuster(kind, link = null) {
     const n = must.net, M = must;
     n.on.bmust = m => { if (must !== M) return; M.theirs = m; drawVs(); maybeStart(); };
     n.on.bunmust = () => { if (must !== M) return; M.theirs = null; drawVs(); };
-    const gone = () => { if (must !== M || G.arena) return; must = null; openCamp(); campNote(`${M.foe.name || "They"} left the muster.`); };
-    n.on.dend = gone; n.on.lost = gone;
+    const gone = why => { if (must !== M || G.arena) return; clearInterval(M.clock); must = null; openCamp(); campNote(why); };
+    n.on.dend = () => gone(`${M.foe.name || "They"} left the muster.`);
+    // (the connection itself gone — the server restarting, or the line dropping — is not them leaving: said so, and
+    //  you're back in camp, which finds the server again by itself)
+    n.on.lost = () => gone("The connection to the server dropped while you mustered — you're back in camp. Challenge them again when you see them.");
     // (two minutes to muster, then ready as you stand)
     clearInterval(M.clock); M.clock = setInterval(() => { if (must !== M) return clearInterval(M.clock); drawVs(); if (!M.mine && performance.now() - M.t0 > 120000) musterReady(); }, 1000);
   }
@@ -500,8 +503,10 @@ function startDuel(o) {
     const keys = Object.keys(UNIFORMS);
     if (o.side === 0) {
       let uf = keys.includes(theirs.uniform) ? theirs.uniform : keys[1]; if (uf === mine.uniform) uf = keys.filter(k => k !== mine.uniform)[Math.floor(Math.random() * (keys.length - 1))];
-      // (the ground against a player: as it falls — the open field mostly, now and then one side's fort)
-      const gr = Math.random(), ground = gr < 0.7 ? "open" : gr < 0.85 ? "ours" : "theirs";
+      // (the ground against a player: the open field — unless one company is clearly the smaller, which then has a fort
+      //  to hold, walls to make up its numbers; never a fort for one of two even sides by the luck of the draw)
+      const nMine = menOf(mine) + (mine.guns | 0) * 2, nTheirs = (theirs.allies | 0) + (theirs.guns | 0) * 2;
+      const ground = nMine < nTheirs * 0.8 ? "ours" : nTheirs < nMine * 0.8 ? "theirs" : "open";
       const A = { battle: true, allies: menOf(mine), enemies: theirs.allies | 0, ground, uniform: mine.uniform, enemyUniform: uf, vs: "player", purse: 900, muster: mine.muster, guns: mine.guns };
       if (must) { clearInterval(must.clock); must = null; }
       ctx.begin();
@@ -515,7 +520,7 @@ function startDuel(o) {
         ctx.begin();
         new Arena({ me, lo: { ...lo }, foe: { ...o.foe, bot: false }, net: o.net, side: 1, army: A, setup: m });
       };
-      o.net.on.lost = () => { if (!G.arena) { if (must) { clearInterval(must.clock); must = null; } openCamp(); campNote("They left before the field was set."); } };
+      o.net.on.lost = () => { if (!G.arena) { if (must) { clearInterval(must.clock); must = null; } openCamp(); campNote("The connection dropped before the field was set — you're back in camp."); } };
     }
     return;
   }
@@ -804,6 +809,8 @@ class Arena {
     this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
       `${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
     UI.fadeNow(1); UI.fade(0, 1.2);
+    // (a fort against a player: why it's theirs or yours, so it doesn't look like a coin that fell the other way)
+    if (this.netBattle && this.fortSide != null) setTimeout(() => G.arena === this && UI.hint(this.fortSide === 0 ? "You hold the fort: your company's the smaller, so you have the walls to make up the numbers. Hold them." : "They hold the fort: theirs is the smaller company, so they have the walls to make up the numbers. Take it.", 7), 900);
     const steps = ["3", "2", "1"];
     steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && !this.live && !this.over) { this.banner(t, ""); } }, 2600 + i * 800));
     setTimeout(() => {
@@ -857,7 +864,18 @@ class Arena {
       if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) { this.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
       return;
     }
-    if (O.mode === "hold" && (t > this.holdFor || theirs.length > ours.length * 1.6 || d < 22)) { O.mode = "advance"; O.at = O.at || { x: a.x, z: a.z }; this.adv = { march: true, until: G.time + 8 }; shout(); }
+    // his generalship, as your record has earned you an opponent: a green officer is rash — on at you and in with the
+    // steel as soon as he's near; a seasoned one stands off at musket range and makes his volleys tell, holds behind
+    // cover when he's the fewer, waits for your line to have fired before he charges it, and calls a charge off that's
+    // going against him
+    const gen = this.gen ??= clamp((record().rating - 800) / 900, 0, 1), L = (x, y) => x + (y - x) * gen;
+    const nT = theirs.length, nO = ours.length, ratio = nT / Math.max(1, nO);
+    const loadedOf = l => { const m = l.filter(u => u.loaded); return m.length ? m.filter(u => u.loaded.long).length / m.length : 1; };
+    const oursEmpty = 1 - loadedOf(ours), theirsLoaded = loadedOf(theirs), inRange = d < RANGE.musket * this.sight;
+    const outnumbered = gen > 0.35 && ratio < 0.85;
+    // (the fewer, and a head on him: he stays where he is, in cover, and lets you come on into his fire)
+    if (O.mode === "hold") O.cover = outnumbered && !O.charge;
+    if (O.mode === "hold" && !(outnumbered && d > 22) && (t > this.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; this.adv = { march: true, until: G.time + 8 }; shout(); }
     // the advance, as the drill had it: a march of some paces, the line kept together — then, once in range, a halt and
     // a volley — and on again, until they're close enough for the steel
     if (O.mode === "advance" && (this.cmdT -= dt) <= 0) {
@@ -871,12 +889,25 @@ class Arena {
         // (on only as fast as the line keeps up: the men in their places, near enough)
         // (the middle man's distance from his place, not the mean: one man off after his own business doesn't hold a line)
         const men = theirs.filter(u => !u.crewOf && !u.isNet), gaps = men.map(u => { const p = this.slotFor(u); return Math.hypot(p.x - u.pos.x, p.z - u.pos.z); }).sort((x, y) => x - y), lag = gaps.length ? gaps[gaps.length >> 1] : 0;
-        const from = O.at || a, dd = Math.hypot(b.x - from.x, b.z - from.z) || 1, step = lag < 5 ? Math.max(0, Math.min(dd - 20, 7)) : 0;
+        // (where he means to stand: close for the steel, if he's rash; at a good musket-shot, if he isn't)
+        const keep = L(20, 36), from = O.at || a, dd = Math.hypot(b.x - from.x, b.z - from.z) || 1, step = lag < 5 ? Math.max(0, Math.min(dd - keep, 7)) : 0;
         O.at = { x: from.x + (b.x - from.x) / dd * step, z: from.z + (b.z - from.z) / dd * step };
       }
     }
-    if (!O.charge && d < 26 && (theirs.length >= ours.length * 0.8 || t > this.holdFor + 40)) { O.charge = true; shout(); }
-    if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) { this.volT = 11 + Math.random() * 8; O.volleyAt = G.time + 1.3; shout(); }
+    // the charge: when it's near enough, and worth it — the rash man's reasons, or the seasoned one's
+    const chargeD = L(26, 38), needRatio = L(0.8, 1.4), patience = L(40, 160);
+    const caught = gen > 0.25 && oursEmpty > L(0.9, 0.55) && ratio >= 0.85;   // (your line has just fired: in before it's loaded)
+    if (!O.charge && d < chargeD && (ratio >= needRatio || caught || nO <= 2 || t > this.holdFor + patience)) { O.charge = true; O.cover = false; this.chargedAt = G.time; shout(); }
+    // (a charge going against him, called off — the men back to re-form at a musket-shot, and the firing taken up again)
+    if (O.charge && gen > 0.45 && G.time - (this.chargedAt || 0) > 6 && ratio < L(0.5, 0.75) && nO > 2) {
+      O.charge = false; O.mode = "advance"; const away = Math.hypot(a.x - b.x, a.z - b.z) || 1;
+      O.at = { x: a.x + (a.x - b.x) / away * 14, z: a.z + (a.z - b.z) / away * 14 }; this.adv = { march: false, until: G.time + 8 }; this.cmdT = 8; shout();
+    }
+    // the volleys: on a clock, if he's rash; when his men are loaded and you're in range, if he isn't
+    if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) {
+      if (gen < 0.3 || (theirsLoaded > 0.7 && inRange)) { this.volT = L(11, 6) + Math.random() * L(8, 3); O.volleyAt = G.time + 1.1; shout(); }
+      else this.volT = 1;
+    }
   }
   // your blade in the press: the nearest of theirs in reach, in front of you
   swingAt() {
