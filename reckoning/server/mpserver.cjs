@@ -1464,15 +1464,16 @@ async function start(opts = {}) {
   // The server keeps the score and the rounds; where each is, what they fire and what lands, it only passes on.
   const pvpQ = [];
   const unqueue = ws => { const i = pvpQ.findIndex(q => q.ws === ws); if (i >= 0) pvpQ.splice(i, 1); };
-  const LOK = { long: ["musket", "bow", "crossbow"], side: ["pistol", "none"], blade: ["sword", "battleaxe", "spear", "axe"] };
+  const LOK = { long: ["musket", "bow", "crossbow"], side: ["pistol", "none"], blade: ["sword", "battleaxe", "spear", "axe", "dagger"] };
   const cleanLo = l => { const o = {}; for (const k in LOK) o[k] = LOK[k].includes(l && l[k]) ? l[k] : LOK[k][0]; return o; };
   const duelSend = (d, i, m) => { const ws = d.p[i]; if (ws && ws.open) ws.send(m); };
   function pair(a, b) {
-    const d = { id: crypto.randomBytes(4).toString("hex"), p: [a.ws, b.ws], who: [a, b], wins: [0, 0], round: 1, hp: [100, 100], start: now() + 4000, decided: false, over: false };
+    const d = { id: crypto.randomBytes(4).toString("hex"), p: [a.ws, b.ws], who: [a, b], wins: [0, 0], round: 1, hp: [100, 100], start: now() + 4000, decided: false, over: false, battle: a.mode === "battle" };
     a.ws.duel = d; b.ws.duel = d; a.ws.side = 0; b.ws.side = 1;
-    const pub = q => ({ name: q.who.name, user: q.who.user, look: q.who.look, lo: q.lo, rating: q.rating });
-    duelSend(d, 0, { t: "duel", id: d.id, side: 0, foe: pub(b) });
-    duelSend(d, 1, { t: "duel", id: d.id, side: 1, foe: pub(a) });
+    const pub = q => ({ name: q.who.name, user: q.who.user, look: q.who.look, lo: q.lo, rating: q.rating, army: q.army });
+    // (a battle: each player's company as they set it; the first of the two keeps the field and its men — the host)
+    duelSend(d, 0, { t: "duel", id: d.id, side: 0, foe: pub(b), battle: d.battle, army: a.army });
+    duelSend(d, 1, { t: "duel", id: d.id, side: 1, foe: pub(a), battle: d.battle, army: b.army });
     log(`a duel: ${a.who.name} against ${b.who.name}`);
   }
   function duelEnd(d, winner, left = false) {
@@ -1486,9 +1487,13 @@ async function start(opts = {}) {
     if (winner >= 0 && d.wins[winner] >= 2) { setTimeout(() => duelEnd(d, winner), 3300); return; }
     setTimeout(() => { if (d.over) return; d.round++; d.decided = false; d.hp = [100, 100]; d.start = now() + 4000; for (let i = 0; i < 2; i++) duelSend(d, i, { t: "dstart", r: d.round }); }, 3300);
   }
-  function duelMsg(ws, m) {
+  function duelMsg(ws, m, raw) {
     const d = ws.duel, me = ws.side, them = 1 - me; if (!d || d.over) return;
     const relay = o => duelSend(d, them, o);
+    // a battle's own word between the two games — the field, the men on it, the shots, the orders: passed on as it is
+    // (the host's game keeps the battle; this server only carries it), within reason as to size
+    if (d.battle && /^b[a-z]{1,10}$/.test(m.t) && raw.length < 60000) return relay(m);
+    if (d.battle && m.t === "ddown") return;
     switch (m.t) {
       case "ds": return relay({ t: "ds", x: num(m.x), z: num(m.z), yaw: num(m.yaw), s: num(m.s), h: String(m.h || "").slice(0, 12), aim: m.aim ? 1 : 0, g: m.g ? 1 : 0, c: m.c ? 1 : 0, dn: m.dn ? 1 : 0, ld: Math.max(0, Math.min(10, num(m.ld))) });
       case "dfire": return relay({ t: "dfire", k: String(m.k || "").slice(0, 10), p: num(m.p, 1), f: (m.f || []).slice(0, 3).map(v => num(v)), d: (m.d || []).slice(0, 3).map(v => num(v)) });
@@ -1504,7 +1509,7 @@ async function start(opts = {}) {
   // (a round runs two and a half minutes; then whoever's least hurt has it)
   const ivDuel = setInterval(() => {
     const seen = new Set();
-    for (const ws of socks) { const d = ws.duel; if (!d || seen.has(d) || d.over || d.decided) continue; seen.add(d); if (now() - d.start > 150000) roundTo(d, d.hp[0] > d.hp[1] ? 0 : d.hp[1] > d.hp[0] ? 1 : -1); }
+    for (const ws of socks) { const d = ws.duel; if (!d || seen.has(d) || d.over || d.decided || d.battle) continue; seen.add(d); if (now() - d.start > 150000) roundTo(d, d.hp[0] > d.hp[1] ? 0 : d.hp[1] > d.hp[0] ? 1 : -1); }
     // (anyone waiting too long is told no one came — the game then finds them a bot)
     for (let i = pvpQ.length - 1; i >= 0; i--) if (!pvpQ[i].ws.open) pvpQ.splice(i, 1);
   }, 1000);
@@ -1529,15 +1534,19 @@ async function start(opts = {}) {
       // the duel: looking for a fight (paired with whoever else is, nearest your rating), or no longer
       if (m.t === "pvpq") {
         unqueue(ws); if (ws.duel) return;
-        const me = { ws, who: { ...who }, lo: cleanLo(m.lo), rating: Math.max(0, Math.min(4000, num(m.rating, 1000))), at: now() };
+        const mode = m.mode === "battle" ? "battle" : "duel";
+        const A = m.army || {}, M = A.muster && typeof A.muster === "object" ? A.muster : {}, muster = {};
+        for (const k of Object.keys(M).slice(0, 12)) if (/^[a-z]{1,12}$/.test(k)) muster[k] = Math.max(0, Math.min(30, M[k] | 0));
+        const army = mode === "battle" ? { allies: Math.max(0, Math.min(30, A.allies | 0)), ground: ["open", "ours", "theirs"].includes(A.ground) ? A.ground : "open", uniform: String(A.uniform || "").slice(0, 20), muster, guns: Math.max(0, Math.min(3, A.guns | 0)) } : null;
+        const me = { ws, who: { ...who }, lo: cleanLo(m.lo), rating: Math.max(0, Math.min(4000, num(m.rating, 1000))), at: now(), mode, army };
         if (m.user) me.who.user = userOf(m.user);
         let best = -1, bd = Infinity;
-        pvpQ.forEach((q, i) => { if (q.who.pid === who.pid || !q.ws.open) return; const dd = Math.abs(q.rating - me.rating); if (dd < bd) { bd = dd; best = i; } });
+        pvpQ.forEach((q, i) => { if (q.who.pid === who.pid || !q.ws.open || q.mode !== mode) return; const dd = Math.abs(q.rating - me.rating); if (dd < bd) { bd = dd; best = i; } });
         if (best >= 0) { const q = pvpQ.splice(best, 1)[0]; return pair(q, me); }
         pvpQ.push(me); return;
       }
       if (m.t === "pvpcancel") { unqueue(ws); return; }
-      if (ws.duel) return duelMsg(ws, m);
+      if (ws.duel) return duelMsg(ws, m, text);
       if (m.t === "host") {
         if (rooms.size > 200) return ws.send({ t: "err", text: "This server has as many games as it can hold." });
     // (meta for the lobby: a colony lists without being joinable once ended)

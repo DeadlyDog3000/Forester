@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.18.0", date: "12 October 2026", title: "Commanders",
+    items: [
+      "Battle Mode against another player: in To Arms choose Battle Mode, then Against a player. Each of you raises and commands your own company; the first to arrive holds the field and chooses the ground — somewhere on the Earth, by day or by night — and the other's game builds the same. Your orders go to your own men only; your shots, blows, cannon and parries count on both screens; fall while three of yours still stand and you take a man's place, as against bots. Play it on your own network, or on a server you both know.",
+      "The treasury: a battle's companies are raised from a purse — the same for both sides — and spent as the commander sees fit. Musketeers (musket and bayonet, 60 thalers), crossbowmen (36), swordsmen with pistols (42), pikemen (28), axemen (26), bowmen (22) and field guns with their crews (160): a few men in the best of arms, or a crowd of bowmen. Against bots choose a skirmish's purse (500), a battle's (900) or a great battle's (1,500); their officer has the same, and spends it his own way. Against a player it's 900 each.",
+      "The guns page in the orders: 0 opens it — fire there, fire at will, or abandon the guns (their crews leave them and fall in with the line, swords out; the same key mans them again). The formation and gun pages have a Back on a number key: the orders never want anything but the numbers.",
+    ],
+  },
+  {
     v: "1.17.0", date: "12 October 2026", title: "Serve the guns",
     items: [
       "The guns are served as they were: fired, a gun leaps back on its wheels. The loader sponges out the bore — three strokes of the wet sheepskin — while the gunner stops the vent with his thumb; the gunner brings up the cartridge and puts it in the muzzle; the loader turns his staff end for end and rams it home, a long push and two hard strokes; the gunner pricks it through the vent and primes it from his horn, then crouches behind the trail to lay the gun; both heave it back up into its place at the wheels; and the gunner stands by with the linstock's match glowing. Every step heard — the sponge in the bore, the rammer's thud, the priming wire, the wheels grinding.",

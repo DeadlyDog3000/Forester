@@ -98,7 +98,8 @@ export function inUniform(look, u) { return { ...look, coat: u.coat, vest: u.ves
 export class Field {
   // C: the middle of the field; dx: how far either side's line stands from it (west is side 0, east side 1)
   // fort: the side whose fort it is (0 yours, 1 theirs), or null for the open field
-  constructor(w, C, dx, battle, seed = Math.random() * 1e9, fort = null) {
+  constructor(w, C, dx, battle, seed = Math.random() * 1e9, fort = null, guns = null) {
+    this.gunsWant = guns;   // (each side's guns, as its purse paid for them: [west, east]; null, as it falls)
     this.w = w; this.C = C; this.dx = dx; this.root = new THREE.Group(); w.root.add(this.root);
     this.pieces = []; this.spots = [[], []]; this.guns = []; this.balls = []; this.cols = []; this.used = []; this.battle = !!battle;
     let s = seed | 0 || 7; this.r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
@@ -174,7 +175,7 @@ export class Field {
       const t = i / (n - 1) - 0.5, z = C.z + t * 18, x = lineX - sx * Math.cos(t * 1.4) * 1.5;
       this.gabion(x, z, side); this.claim(x, z, 0.5);
     }
-    const ng = 1 + Math.floor(r() * 2.4);
+    const ng0 = 1 + Math.floor(r() * 2.4), ng = this.gunsWant ? this.gunsWant[side] : ng0;
     for (let g = 0; g < Math.min(ng, gaps.length + 1); g++) {
       const t = (g === 0 ? gaps[0] : g === 1 ? gaps[1] : Math.floor(n / 2)) / (n - 1) - 0.5, z = C.z + t * 18, x = lineX + sx * 1.6;
       this.gun(side, x, z, sx); this.claim(x, z, 1.4);
@@ -207,7 +208,7 @@ export class Field {
     const emb = [-4.5, 4.5], gapW = 1.6;
     const cuts = [-W, ...emb.flatMap(e => [e - gapW / 2, e + gapW / 2]), W];
     for (let i = 0; i < cuts.length; i += 2) { const z0 = C.z + cuts[i], z1 = C.z + cuts[i + 1]; this.rampart(fx, (z0 + z1) / 2, z1 - z0, Math.PI / 2, side, inside); }
-    for (const e of emb) { this.gabion(fx - sx * 0.2, C.z + e - gapW / 2 - 0.45); this.gabion(fx - sx * 0.2, C.z + e + gapW / 2 + 0.45); this.gun(side, fx + sx * 1.3, C.z + e, sx); }
+    emb.forEach((e, i) => { this.gabion(fx - sx * 0.2, C.z + e - gapW / 2 - 0.45); this.gabion(fx - sx * 0.2, C.z + e + gapW / 2 + 0.45); if (!this.gunsWant || i < this.gunsWant[side]) this.gun(side, fx + sx * 1.3, C.z + e, sx); });
     // the flanks: bank and palisade, one with its breach
     const breach = r() < 0.5 ? -1 : 1;
     for (const zs of [-1, 1]) {
@@ -674,6 +675,7 @@ export class Field {
     AUDIO.cannon ? AUDIO.cannon(1, at) : AUDIO.gunshot && AUDIO.gunshot(1.4, at);
     const pl = G.player, d = Math.hypot(at.x - pl.pos.x, at.z - pl.pos.z);
     if (d < 45) shake(Math.max(0.12, 1 - d / 45) * 0.8);
+    this.onFire && this.onFire(g);
   }
   // each frame: the guns laid and fired, the balls flying; hit(u, from, v) is called for anyone a ball goes through
   update(dt, units, hit) {
@@ -681,6 +683,13 @@ export class Field {
     // (the guns open only once the field's had a moment: a crew isn't cut down before it's even seen the enemy)
     if (this.active !== false) this.opened = (this.opened || 0) + dt;
     for (const g of this.guns) {
+      // (another player's field: the guns laid and loaded as their game says; only the drill and the shot are this one's)
+      if (this.remote) {
+        if (g.net) { const [yw, pt, ld, fr] = g.net; g.yaw = yw; g.pitch = pt; g.loaded = !!ld; g.reloadT = 1; g.reload = ld ? 0 : 1 - fr; }
+        g.crewN = this.manned(g);
+        const m = g.model; m.rotation.y = g.ry + g.yaw; m.userData.barrel.rotation.x = g.pitch;
+        this.drillTick(g, dt); continue;
+      }
       // (a gun is only as good as its crew: two load it at the drill's pace, one at half, none not at all — nor fire it)
       const crewN = g.crew.length ? this.manned(g) : 2; g.crewN = crewN;
       if (!g.loaded && crewN) { g.reload -= dt * (crewN >= 2 ? 1 : 0.5); if (g.reload <= 0) g.loaded = true; }
@@ -786,8 +795,8 @@ export const ORDER_LIST = [
   { id: "volley", label: "Present — fire!", sub: "Every loaded piece together, at my word" },
   { id: "target", label: "Bring him down", sub: "The man I'm looking at" },
   { id: "charge", label: "Charge!", alt: "Halt — fall back in", sub: "Steel, and at them" },
-  { id: "form", label: "Formation", sub: "Line, column, square, loose", more: true },
-  { id: "guns", label: "Guns — fire there", alt: "Guns — at will", sub: "Round shot on where I'm looking", battle: true },
+  { id: "form", label: "Formation", sub: "Line, column, square, loose", more: "form" },
+  { id: "guns", label: "The guns", sub: "Fire there, at will — or abandon them", more: "guns", battle: true },
 ];
 export class OrderBook {
   constructor(onGive) {
@@ -797,8 +806,16 @@ export class OrderBook {
     this.el = el;
   }
   items(state) {
-    if (this.page === "form") return Object.entries(FORMATIONS).map(([id, label]) => ({ id: "form:" + id, label, on: state.form === id }));
-    return ORDER_LIST.filter(o => !o.battle || state.battle).map(o => ({ ...o, label: (o.id === "fire" && state.fire) || (o.id === "charge" && state.charge) || (o.id === "guns" && state.guns) ? o.alt : o.label, on: o.id === state.mode || (o.id === "cover" && state.cover) }));
+    if (this.page === "form") return [...Object.entries(FORMATIONS).map(([id, label]) => ({ id: "form:" + id, label, on: state.form === id })), { id: "back", label: "‹ Back" }];
+    // (the guns: laid on a place, or left to their gunners — or their crews called off them to fall in with the line,
+    //  and sent back to them)
+    if (this.page === "guns") return [
+      { id: "guns:there", label: "Fire there", on: state.guns && !state.abandoned },
+      { id: "guns:will", label: "Fire at will", on: !state.guns && !state.abandoned },
+      { id: "guns:abandon", label: state.abandoned ? "Man the guns again" : "Abandon the guns", on: state.abandoned },
+      { id: "back", label: "‹ Back" },
+    ];
+    return ORDER_LIST.filter(o => !o.battle || state.battle).map(o => ({ ...o, label: (o.id === "fire" && state.fire) || (o.id === "charge" && state.charge) ? o.alt : o.label, on: o.id === state.mode || (o.id === "cover" && state.cover) || (o.id === "guns" && state.abandoned) }));
   }
   show(state) {
     this.state = state; this.open = true; this.draw();
@@ -808,10 +825,10 @@ export class OrderBook {
   update(state) { this.state = state; if (this.open) this.draw(); }
   draw() {
     const list = this.items(this.state), roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
-    this.el.classList.toggle("form", this.page === "form");
-    this.el.innerHTML = `<div class="ob-head"><span class="ob-seal"></span><div><div class="ob-t">${this.page === "form" ? "Formation" : "Orders"}</div><div class="ob-s">${this.state.count} under your command</div></div></div>
+    this.el.classList.toggle("form", this.page !== "main");
+    this.el.innerHTML = `<div class="ob-head"><span class="ob-seal"></span><div><div class="ob-t">${this.page === "form" ? "Formation" : this.page === "guns" ? "The guns" : "Orders"}</div><div class="ob-s">${this.state.count} under your command</div></div></div>
       <ol class="ob-list">${list.map((o, i) => `<li class="${i === this.lit ? "lit" : ""}${o.on ? " on" : ""}"><span class="ob-k">${(i + 1) % 10}</span><span class="ob-l">${o.label}${o.more ? " ›" : ""}</span><span class="ob-n">${roman[i]}</span></li>`).join("")}</ol>
-      <div class="ob-foot">${this.page === "form" ? "A number for the formation · Esc: back" : "The number gives the order · the wheel, your weapons"}</div>`;
+      <div class="ob-foot">${this.page === "form" ? "A number for the formation" : this.page === "guns" ? "A number for the guns" : "The number gives the order · the wheel, your weapons"}</div>`;
   }
   // a key: a number gives that order (or opens the formations); Esc puts the formations away. True if it was the book's
   key(e) {
@@ -823,9 +840,10 @@ export class OrderBook {
     return true;
   }
   pick(o, i) {
-    if (o.more) { this.page = "form"; this.lit = -1; this.draw(); const F = window.__foley; F && F.packOut && F.packOut(0.15); return; }
+    if (o.id === "back") { this.page = "main"; this.lit = -1; this.draw(); return; }
+    if (o.more) { this.page = o.more; this.lit = -1; this.draw(); const F = window.__foley; F && F.packOut && F.packOut(0.15); return; }
     this.page = "main"; this.onGive(o.id);
-    this.lit = this.items(this.state).findIndex(x => x.id === o.id || (o.id.startsWith("form:") && x.id === "form")); if (this.lit < 0) this.lit = i;
+    this.lit = this.items(this.state).findIndex(x => x.id === o.id || (o.id.startsWith("form:") && x.id === "form") || (o.id.startsWith("guns:") && x.id === "guns")); if (this.lit < 0) this.lit = i;
     this.draw(); clearTimeout(this.litT); this.litT = setTimeout(() => { this.lit = -1; if (this.open) this.draw(); }, 900);
   }
 }
