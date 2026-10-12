@@ -16,8 +16,45 @@ import { AUDIO } from "./audio.js";
 import { makeCannon, cloud, segDist } from "./cannon.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { shake } from "./fight.js";
+import { P, makeLogs, makeStump, makeSheaf, makeSack } from "./models.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// a thing built of many pieces made into one mesh to each material it's made of (hundreds of stones in a wall drawn as
+// one): every plain mesh in it, in its place, merged; anything else — several materials on one mesh, instanced — left
+// as it is
+function merged(g) {
+  g.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), by = new Map(), keep = [];
+  g.traverse(o => {
+    if (o === g || !o.isMesh) return;
+    for (let p = o.parent; p && p !== g; p = p.parent) if (keep.includes(p)) return;
+    if (o.isInstancedMesh || Array.isArray(o.material) || o.children.some(c => c.isMesh)) { keep.push(o); return; }
+    const geo = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    (by.get(o.material) || by.set(o.material, []).get(o.material)).push(geo);
+  });
+  if (!by.size) return g;
+  const out = new THREE.Group();
+  for (const [m, list] of by) {
+    let n = 0; for (const geo of list) n += geo.attributes.position.count;
+    const Pa = new Float32Array(n * 3), N = new Float32Array(n * 3), U = new Float32Array(n * 2);
+    let k = 0;
+    for (const geo of list) {
+      const c = geo.attributes.position.count;
+      Pa.set(geo.attributes.position.array, k * 3);
+      if (geo.attributes.normal) N.set(geo.attributes.normal.array, k * 3);
+      if (geo.attributes.uv) U.set(geo.attributes.uv.array, k * 2);
+      k += c; geo.dispose();
+    }
+    const bg = new THREE.BufferGeometry();
+    bg.setAttribute("position", new THREE.BufferAttribute(Pa, 3)); bg.setAttribute("normal", new THREE.BufferAttribute(N, 3)); bg.setAttribute("uv", new THREE.BufferAttribute(U, 2));
+    bg.computeBoundingSphere();
+    out.add(new THREE.Mesh(bg, m));
+  }
+  // (what couldn't be merged, kept in its place)
+  for (const o of keep) { const w = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld); o.parent.remove(o); w.decompose(o.position, o.quaternion, o.scale); out.add(o); }
+  return out;
+}
 
 // ---- the uniforms of 1683: the armies that came to Vienna, and their neighbours ----
 export const UNIFORMS = {
@@ -56,23 +93,29 @@ export class Field {
   // fort: the side whose fort it is (0 yours, 1 theirs), or null for the open field
   constructor(w, C, dx, battle, seed = Math.random() * 1e9, fort = null) {
     this.w = w; this.C = C; this.dx = dx; this.root = new THREE.Group(); w.root.add(this.root);
-    this.pieces = []; this.spots = [[], []]; this.guns = []; this.balls = [];
+    this.pieces = []; this.spots = [[], []]; this.guns = []; this.balls = []; this.cols = []; this.used = []; this.battle = !!battle;
     let s = seed | 0 || 7; this.r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
     const M = this.M = {
       earth: mat(0x6a5236, { surface: "ground" }), wicker: mat(0x7a5c36, { surface: "bark" }), wood: mat(0x6a4a2e, { surface: "wood" }), log: mat(0x5a4028, { surface: "log" }),
       stone: mat(0x8a8478, { surface: "rock" }), iron: mat(0x2a2b2e, { metalness: 0.4, roughness: 0.55 }), stave: mat(0x7a5634, { surface: "wood" }),
+      leaf: mat(0x3e5626, { surface: "needles" }), leaf2: mat(0x4a5e2c, { surface: "needles" }), rail: mat(0x7e6a50, { surface: "wood" }),
+      soot: mat(0x231d18, { surface: "wood" }), ash: mat(0x3a342e, { surface: "ground" }), boulder: mat(0x8e897f, { surface: "rock", weather: false }),
+      hay: mat(0xb0924e, { surface: "none" }), tarp: mat(0x6e6650, { surface: "cloth" }),
     };
     void M;
     this.fortSide = battle ? fort : null;
     if (battle) for (const side of [0, 1]) side === this.fortSide ? this.fort(side) : this.works(side);
-    this.between(battle ? 7 : 4);
+    this.between(battle ? 13 : 5);
   }
   y(x, z) { return this.w.heightAt(x, z); }
-  put(m, x, z, ry = 0, dy = 0) { m.position.set(x, this.y(x, z) + dy, z); m.rotation.y = ry; m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); this.root.add(m); return m; }
+  // set down on the ground there; its pieces merged, one mesh to each material (bake: false for what moves)
+  put(m, x, z, ry = 0, dy = 0, bake = true) { if (bake) m = merged(m); m.position.set(x, this.y(x, z) + dy, z); m.rotation.y = ry; m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); this.root.add(m); return m; }
   // something solid, and a place behind it to crouch: (x, z) its middle, len along it at angle ry, high
-  solid(x, z, len, depth, ry, high, side, inward = null) {
-    const c = this.w.col.addOBox(x, z, len / 2, depth / 2, ry, this.y(x, z) + high);
+  // (side false: no place to crouch behind it; collide false: the place, but what's solid is given on its own)
+  solid(x, z, len, depth, ry, high, side, inward = null, collide = true) {
+    const c = collide ? this.w.col.addOBox(x, z, len / 2, depth / 2, ry, this.y(x, z) + high) : null;
     this.pieces.push({ x, z, len, depth, ry, high, c });
+    if (side === false) return;
     // (cover is behind it, from the side that's coming: for a side's own works the enemy's way; between the lines,
     //  both sides, whichever is the far side from the one shooting)
     const n = Math.max(1, Math.round(len / 1.6));
@@ -87,30 +130,63 @@ export class Field {
       }
     }
   }
-  // a side's works: a battery of gabions in an arc with its guns behind, an earth bank, and obstacles before them
+  // ---- room on the field: each thing claims a circle of ground, and nothing else goes down inside it ----
+  // free: nothing of the field's there already (with a gap to walk through between), none of the trees left standing,
+  // and the ground level enough for it
+  free(x, z, rad, gap = 1.6) {
+    if (this.used.some(u => Math.hypot(u.x - x, u.z - z) < u.rad + rad + gap)) return false;
+    for (let i = 0; i < 9; i++) {
+      const a = i / 8 * Math.PI * 2, k = i ? rad : 0, px = x + Math.cos(a) * k, pz = z + Math.sin(a) * k;
+      if (this.w.col.solidAt(px, this.y(px, pz) + 0.8, pz, 0.8)) return false;
+    }
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, h = this.y(x + Math.cos(a) * rad, z + Math.sin(a) * rad); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    return hi - lo < 0.7 + rad * 0.2;
+  }
+  claim(x, z, rad) { this.used.push({ x, z, rad }); }
+  // somewhere gen() offers that's free, claimed (or null, if nowhere was)
+  find(gen, rad, tries = 40, gap) {
+    for (let i = 0; i < tries; i++) { const p = gen(i); if (this.free(p.x, p.z, rad, gap)) { this.claim(p.x, p.z, rad); return p; } }
+    return null;
+  }
+  // a point (lx along, lz across) of something set down at (x, z) turned ry
+  at(x, z, ry, lx, lz) { const c = Math.cos(ry), s = Math.sin(ry); return { x: x + lx * c + lz * s, z: z - lx * s + lz * c }; }
+
+  // a side's works: a battery of gabions in an arc with its guns behind, an earth bank on a flank, and obstacles out
+  // before them — each set clear of the others, so there's a way through between them, and none of it in the line
   works(side) {
     const r = this.r, C = this.C, sx = side === 0 ? -1 : 1, lineX = C.x + sx * (this.dx - 4);
-    // the battery: gabions — wicker baskets as high as a man's chest, packed with earth — in a shallow arc
+    // (where the line stands, and its guns: kept clear)
+    for (let z = -12; z <= 12; z += 4) this.claim(C.x + sx * this.dx, C.z + z, 2.5);
+    // the battery: gabions — wicker baskets as high as a man's chest, packed with earth — in a shallow arc, each solid
+    // on its own, so the gaps the guns look out through are open
     const n = 9 + Math.floor(r() * 4), gaps = [Math.floor(n * 0.3), Math.floor(n * 0.7)];
     for (let i = 0; i < n; i++) {
       if (gaps.includes(i)) continue;
       const t = i / (n - 1) - 0.5, z = C.z + t * 18, x = lineX - sx * Math.cos(t * 1.4) * 1.5;
-      this.gabion(x, z);
+      this.gabion(x, z, side); this.claim(x, z, 0.5);
     }
-    // (one piece of solid along them, for the cover it gives)
-    this.solid(lineX - sx * 1.2, C.z, 18, 1.0, Math.PI / 2, 1.25, side);
-    // the guns, in the gaps, behind the line and looking out over it
     const ng = 1 + Math.floor(r() * 2.4);
     for (let g = 0; g < Math.min(ng, gaps.length + 1); g++) {
       const t = (g === 0 ? gaps[0] : g === 1 ? gaps[1] : Math.floor(n / 2)) / (n - 1) - 0.5, z = C.z + t * 18, x = lineX + sx * 1.6;
-      this.gun(side, x, z, sx);
+      this.gun(side, x, z, sx); this.claim(x, z, 1.4);
+      // (the gun's line of fire out through its gap: nothing set down in it for a good way)
+      for (let k = 4; k <= 16; k += 4) this.claim(x - sx * k, z, 1.2);
     }
-    // an earth bank to one flank
-    const bz = C.z + (r() < 0.5 ? -1 : 1) * (12 + r() * 5), bx = lineX - sx * (2 + r() * 3);
-    this.bank(bx, bz, 7 + r() * 4, Math.PI / 2 + (r() - 0.5) * 0.5, side);
-    // obstacles out in front: chevaux-de-frise, and a palisade
-    for (let i = 0; i < 2; i++) this.cheval(lineX - sx * (6 + r() * 3), C.z + (r() - 0.5) * 22, Math.PI / 2 + (r() - 0.5) * 0.4, side);
-    this.palisade(lineX - sx * (3 + r() * 2), C.z + (r() < 0.5 ? -1 : 1) * (6 + r() * 6), 5 + r() * 4, Math.PI / 2 + (r() - 0.5) * 0.3, side);
+    // an earth bank on one flank, swung back a little, as a shoulder to the battery
+    const bs = r() < 0.5 ? -1 : 1, bl = 7 + r() * 4;
+    const bp = this.find(() => ({ x: lineX - sx * (1 + r() * 3), z: C.z + bs * (13 + r() * 5) }), bl / 2);
+    if (bp) this.bank(bp.x, bp.z, bl, Math.PI / 2 + bs * sx * (0.2 + r() * 0.3), side);
+    // chevaux-de-frise out in front, staggered so their gaps don't line up; a palisade on the other flank
+    for (let i = 0; i < 3; i++) {
+      const p = this.find(() => ({ x: lineX - sx * (6.5 + r() * 4), z: C.z + (r() - 0.5) * 28 }), 1.8, 40, 1.0);
+      if (p) this.cheval(p.x, p.z, Math.PI / 2 + (r() - 0.5) * 0.35, side);
+    }
+    const pl = 5 + r() * 4, pp = this.find(() => ({ x: lineX - sx * (3.5 + r() * 2.5), z: C.z - bs * (11 + r() * 5) }), pl / 2);
+    if (pp) this.palisade(pp.x, pp.z, pl, Math.PI / 2 + (r() - 0.5) * 0.3, side);
+    // the powder for the guns, back behind them under a tarpaulin
+    const ap = this.find(() => ({ x: lineX + sx * (9 + r() * 3), z: C.z + (r() - 0.5) * 14 }), 1.2);
+    if (ap) this.powder(ap.x, ap.z, r() * 3);
   }
   // a fort: a square redoubt of earth, its front a rampart as high as a man's chest with embrasures cut for the guns,
   // its flanks and rear an earth bank with a palisade along it; the gate in the rear, and a breach the last siege left
@@ -134,10 +210,17 @@ export class Field {
     // the rear: bank and palisade either side of the gate, the gate's two leaves stood open
     const gw = 3.2;
     for (const zs of [-1, 1]) { const L = W - gw / 2; this.flankWall(bx, C.z + zs * (gw / 2 + L / 2), L, side, inside, Math.PI / 2); }
-    for (const zs of [-1, 1]) { const leaf = new THREE.Group(); for (let i = 0; i < 6; i++) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.26, 2.2, 0.1), this.M.log); st.position.set(i * 0.27 + 0.13, 1.1, 0); leaf.add(st); } const bar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.06), this.M.wood); bar.position.set(0.8, 1.4, 0.07); leaf.add(bar); this.put(leaf, bx, C.z + zs * gw / 2, zs > 0 ? Math.PI / 2 + sx * 1.1 : -Math.PI / 2 - sx * 1.1); }
+    for (const zs of [-1, 1]) {
+      const leaf = new THREE.Group(); for (let i = 0; i < 6; i++) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.26, 2.2, 0.1), this.M.log); st.position.set(i * 0.27 + 0.13, 1.1, 0); leaf.add(st); } const bar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.06), this.M.wood); bar.position.set(0.8, 1.4, 0.07); leaf.add(bar);
+      const lz = C.z + zs * gw / 2, lry = zs > 0 ? Math.PI / 2 + sx * 1.1 : -Math.PI / 2 - sx * 1.1; this.put(leaf, bx, lz, lry);
+      const c = this.at(bx, lz, lry, 0.8, 0); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.8, 0.07, lry, this.y(c.x, c.z) + 2.2));
+    }
     // inside: a powder store of barrels, and the flag on its staff
     this.barrels(mx + sx * 3, C.z + (r() < 0.5 ? -7 : 7));
     const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 6, 6), this.M.wood); this.put(staff, mx, C.z, 0, 3);
+    this.cols.push(this.w.col.addCircle(mx, C.z, 0.1, this.y(mx, C.z) + 6));
+    // (the fort and the ground round it kept for it)
+    this.claim(mx, C.z, Math.hypot(W, D / 2) + 1);
   }
   // the front rampart: earth piled up behind a revetment of logs, chest high to the men behind it
   rampart(x, z, len, ry, side, inward) {
@@ -167,13 +250,16 @@ export class Field {
     for (let i = 0; i < 5; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), this.M.log); st.position.set((this.r() - 0.5) * 3, 0.25, (this.r() - 0.5) * 1.4); st.rotation.set(Math.PI / 2 + (this.r() - 0.5), this.r() * 3, 0); g.add(st); }
     this.put(g, x, z, this.r() * 3);
   }
-  gabion(x, z) {
+  gabion(x, z, side = null) {
     const g = new THREE.Group(), h = 1.15, R = 0.42;
     const basket = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.96, h, 12, 4, true), this.M.wicker); basket.position.y = h / 2; g.add(basket);
     // (the weave: bands round it)
     for (let k = 1; k < 5; k++) { const b = new THREE.Mesh(new THREE.TorusGeometry(R + 0.008, 0.012, 4, 14), this.M.wicker); b.rotation.x = Math.PI / 2; b.position.y = k * h / 5; g.add(b); }
     const top = new THREE.Mesh(new THREE.SphereGeometry(R * 0.98, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), this.M.earth); top.scale.y = 0.35; top.position.y = h - 0.02; g.add(top);
     this.put(g, x, z, this.r() * 6);
+    // (solid round, as a basket is; a place to crouch behind it, for the side whose it is)
+    this.cols.push(this.w.col.addCircle(x, z, 0.42, this.y(x, z) + 1.18));
+    if (side != null) this.solid(x, z, 0.9, 0.9, Math.PI / 2, 1.15, side, null, false);
   }
   bank(x, z, len, ry, side, inward = null) {
     // a long mound of earth, sloped both faces
@@ -207,27 +293,185 @@ export class Field {
     this.put(g, x, z, ry);
     this.solid(x, z, len, 0.3, ry, 1.9, side);   // (to the stakes' points: nothing goes over the top of it below them)
   }
-  // between the lines: what the country left lying about
+  // ---- between the lines: what the country left lying about ----
+  // farms, field walls and hedges, a woodcutter's felling, rocks, haystacks, a wagon broken down — set down by turns on
+  // either half, so neither side has it all; walls and hedges mostly across the field, to get down behind
   between(n) {
-    const r = this.r, C = this.C;
+    const r = this.r, C = this.C, ix = this.battle ? this.dx - 15 : this.dx - 7, iz = this.battle ? 30 : 22;
+    const across = () => r() < 0.8 ? Math.PI / 2 + (r() - 0.5) * 0.7 : r() * Math.PI;
+    const KINDS = this.battle
+      ? [["wall", 3], ["hedge", 2], ["farm", 1], ["felled", 2], ["rocks", 2], ["hay", 2], ["wagon", 2], ["fence", 2], ["barrels", 1]]
+      : [["wall", 3], ["felled", 2], ["rocks", 2], ["wagon", 1], ["fence", 1], ["barrels", 1]];
+    const total = KINDS.reduce((s, k) => s + k[1], 0), had = {};
+    const pick = () => { let v = r() * total; for (const [k, w] of KINDS) if ((v -= w) < 0) return k; return KINDS[0][0]; };
     for (let i = 0; i < n; i++) {
-      const x = C.x + (r() - 0.5) * (this.dx * 1.1), z = C.z + (r() - 0.5) * 30, ry = r() * Math.PI, kind = r();
-      if (kind < 0.35) this.wall(x, z, 3 + r() * 4, ry);
-      else if (kind < 0.55) this.cart(x, z, ry);
-      else if (kind < 0.8) this.barrels(x, z);
-      else this.fallen(x, z, ry);
+      let kind = pick();
+      if (kind === "farm" && had.farm) kind = "wall";
+      had[kind] = (had[kind] || 0) + 1;
+      // (on the near half or the far one by turns; the very middle left open, mostly)
+      const half = i % 2 ? 1 : -1, ry = across();
+      const len = kind === "wall" ? 6 + r() * 7 : kind === "hedge" ? 8 + r() * 7 : kind === "fence" ? 9 + r() * 8 : 0;
+      const rad = len ? len / 2 : { farm: 6.5, felled: 4.5, rocks: 2.6, hay: 3.2, wagon: 3, barrels: 1.2 }[kind];
+      const p = this.find(() => ({ x: C.x + half * (2 + r() * Math.max(1, ix - 2 - rad * 0.4)), z: C.z + (r() * 2 - 1) * (iz - rad * 0.5) }), rad);
+      if (!p) continue;
+      if (kind === "wall") {
+        // (a long one, now and then, with a gap where a gate stood or the stones came down)
+        if (len > 9 && r() < 0.6) { const g = 1.6 + r(), a = (len - g) * (0.3 + r() * 0.4), b = len - g - a; const A = this.at(p.x, p.z, ry, -len / 2 + a / 2, 0), B = this.at(p.x, p.z, ry, len / 2 - b / 2, 0); this.wall(A.x, A.z, a, ry); this.wall(B.x, B.z, b, ry); }
+        else this.wall(p.x, p.z, len, ry);
+      }
+      else if (kind === "hedge") this.hedge(p.x, p.z, len, ry);
+      else if (kind === "fence") this.fence(p.x, p.z, len, ry);
+      else if (kind === "farm") this.farm(p.x, p.z, across());
+      else if (kind === "felled") this.felled(p.x, p.z, r() * Math.PI);
+      else if (kind === "rocks") this.rocks(p.x, p.z);
+      else if (kind === "hay") this.hay(p.x, p.z);
+      else if (kind === "wagon") this.wagon(p.x, p.z, r() * Math.PI);
+      else this.barrels(p.x, p.z);
     }
   }
   wall(x, z, len, ry) {
-    // a field wall of rough stones, dry-laid, waist high, a few fallen from its top
+    // a field wall of rough stones, dry-laid, waist high, a few fallen from its top and lying at its foot
     const g = new THREE.Group(), r = this.r;
     for (let i = 0; i < len / 0.4; i++) for (let row = 0; row < 3; row++) {
       if (row === 2 && r() < 0.3) continue;
       const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22 + r() * 0.08, 0), this.M.stone);
-      st.position.set(-len / 2 + i * 0.4 + (row % 2) * 0.2, 0.2 + row * 0.3, (r() - 0.5) * 0.15); st.scale.set(1.1, 0.75, 0.9); st.rotation.set(r() * 3, r() * 3, r() * 3); g.add(st);
+      st.position.set(-len / 2 + 0.2 + i * 0.4 + (row % 2) * 0.2 - 0.1, 0.2 + row * 0.3, (r() - 0.5) * 0.15); st.scale.set(1.1, 0.75, 0.9); st.rotation.set(r() * 3, r() * 3, r() * 3); g.add(st);
     }
+    for (let i = 0; i < len / 2; i++) { const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18 + r() * 0.08, 0), this.M.stone); st.position.set((r() - 0.5) * len, 0.08, (r() < 0.5 ? -1 : 1) * (0.45 + r() * 0.4)); st.scale.y = 0.6; g.add(st); }
     this.put(g, x, z, ry);
     this.solid(x, z, len, 0.6, ry, 0.95, null);
+  }
+  // a hedge: hawthorn and blackthorn grown thick along a field's edge, higher than a man's head, its stems at the foot
+  hedge(x, z, len, ry) {
+    const g = new THREE.Group(), r = this.r;
+    for (let i = 0; i < len / 0.6; i++) for (let k = 0; k < 3; k++) {
+      const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5 + r() * 0.3, 1), r() < 0.5 ? this.M.leaf : this.M.leaf2);
+      b.position.set(-len / 2 + 0.3 + i * 0.6 + (r() - 0.5) * 0.3, 0.55 + k * 0.55 + r() * 0.2, (r() - 0.5) * 0.45); b.scale.set(1.1, 0.85 + r() * 0.3, 0.9); b.rotation.set(r() * 3, r() * 3, 0); g.add(b);
+    }
+    for (let i = 0; i < len / 0.9; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.7, 5), this.M.log); st.position.set(-len / 2 + 0.4 + i * 0.9, 0.3, (r() - 0.5) * 0.3); st.rotation.z = (r() - 0.5) * 0.5; g.add(st); }
+    this.put(g, x, z, ry);
+    this.solid(x, z, len, 1.2, ry, 1.9, null);
+  }
+  // a snake fence of split rails: lengths laid zig-zag, end on end, five high, no posts — it stops a man, not a ball
+  fence(x, z, len, ry) {
+    const g = new THREE.Group(), r = this.r, L = 3.2, n = Math.max(2, Math.round(len / (L * 0.9))), step = len / n;
+    for (let i = 0; i < n; i++) {
+      const a = (i % 2 ? 1 : -1) * 0.32, cx = -len / 2 + (i + 0.5) * step;
+      for (let k = 0; k < 5; k++) { const rail = new THREE.Mesh(new THREE.BoxGeometry(L, 0.09, 0.12), this.M.rail); rail.position.set(cx, 0.1 + k * 0.2, 0); rail.rotation.set((r() - 0.5) * 0.1, a, (r() - 0.5) * 0.04); g.add(rail); }
+    }
+    this.put(g, x, z, ry);
+    const c = this.w.col.addOBox(x, z, len / 2, 0.5, ry, this.y(x, z) + 0.95); c.noSight = true; this.cols.push(c);
+  }
+  // a farm burnt out and abandoned: the stone walls of the house standing roofless to different heights, a door gone
+  // from its front and a window from a side, the chimney stack still up at one end, its roof-beams lying charred across
+  // the floor; a log pile and barrels by it
+  farm(x, z, ry) {
+    const r = this.r, W = 6.5, D = 4.6, T = 0.5;
+    // (each wall: along from a to b, in the house's own frame; its height, ragged; a gap in it)
+    const walls = [
+      { a: [-W / 2, -D / 2], b: [W / 2, -D / 2], h: 1.9, gap: null },
+      { a: [-W / 2, D / 2], b: [W / 2, D / 2], h: 1.5, gap: [0.4, 1.1] },
+      { a: [-W / 2, -D / 2], b: [-W / 2, D / 2], h: 2.2, gap: null },
+      { a: [W / 2, -D / 2], b: [W / 2, D / 2], h: 1.2, gap: [-0.2, 1.0, 0.7] },
+    ];
+    for (const wl of walls) {
+      const dx = wl.b[0] - wl.a[0], dz = wl.b[1] - wl.a[1], L = Math.hypot(dx, dz), wry = ry + Math.atan2(-dz, dx);
+      // (the gap: [where along, how wide, and how high the sill below it — 0 for a door])
+      const parts = wl.gap ? [[-L / 2, wl.gap[0] - wl.gap[1] / 2], [wl.gap[0] + wl.gap[1] / 2, L / 2]] : [[-L / 2, L / 2]];
+      const mid = this.at(x, z, ry, (wl.a[0] + wl.b[0]) / 2, (wl.a[1] + wl.b[1]) / 2);
+      const g = new THREE.Group();
+      for (const [p0, p1] of parts) {
+        const len = p1 - p0; if (len < 0.3) continue;
+        const cols = Math.max(1, Math.round(len / 0.5)), cw = len / cols;
+        let hmax = 0;
+        for (let i = 0; i < cols; i++) {
+          // (ragged at the top: lower toward the open end of a broken wall)
+          const hh = wl.h * (0.55 + 0.45 * r()) + (i === 0 || i === cols - 1 ? -0.2 : 0), rows = Math.max(1, Math.round(hh / 0.3));
+          hmax = Math.max(hmax, rows * 0.3);
+          for (let k = 0; k < rows; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(cw * (0.9 + r() * 0.12), 0.27 + r() * 0.04, T * (0.9 + r() * 0.15)), this.M.stone); st.position.set(p0 + (i + 0.5) * cw + (k % 2 ? 0.08 : -0.08), 0.15 + k * 0.3, (r() - 0.5) * 0.05); st.rotation.y = (r() - 0.5) * 0.06; g.add(st); }
+        }
+        const pm = (p0 + p1) / 2, pc = this.at(mid.x, mid.z, wry, pm, 0);
+        this.solid(pc.x, pc.z, len, T + 0.1, wry, Math.min(hmax, 1.9), null);
+      }
+      // (under a window: the sill and the wall below it)
+      if (wl.gap && wl.gap[2]) { const rows = Math.round(wl.gap[2] / 0.3); for (let k = 0; k < rows; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(wl.gap[1], 0.28, T), this.M.stone); st.position.set(wl.gap[0], 0.15 + k * 0.3, 0); g.add(st); } const pc = this.at(mid.x, mid.z, wry, wl.gap[0], 0); this.solid(pc.x, pc.z, wl.gap[1], T + 0.1, wry, wl.gap[2], false); }
+      this.put(g, mid.x, mid.z, wry);
+    }
+    // the chimney stack, at the west end, up above the rest
+    { const c = this.at(x, z, ry, -W / 2 + 0.6, 0), g = new THREE.Group(); const st = new THREE.Mesh(new THREE.BoxGeometry(1.0, 3.6, 0.9), this.M.stone); st.position.y = 1.8; g.add(st); const cap = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.0), this.M.soot); cap.position.y = 3.62; g.add(cap); this.put(g, c.x, c.z, ry); const cc = this.w.col.addOBox(c.x, c.z, 0.5, 0.45, ry, this.y(c.x, c.z) + 3.6); this.cols.push(cc); }
+    // the roof-beams, fallen in and burnt black, one end up on the wall
+    for (let i = 0; i < 3; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(D + 0.4, 0.2, 0.2), this.M.soot), c = this.at(x, z, ry, -1.6 + i * 1.6 + (r() - 0.5) * 0.6, 0), g = new THREE.Group(); b.rotation.set(0, Math.PI / 2 + (r() - 0.5) * 0.4, (r() - 0.5) * 0.5); b.position.y = 0.25 + r() * 0.3; g.add(b); this.put(g, c.x, c.z, ry); }
+    // ash and char over the floor
+    { const g = new THREE.Group(), f = new THREE.Mesh(new THREE.BoxGeometry(W - 0.8, 0.04, D - 0.8), this.M.ash); f.position.y = 0.02; g.add(f); this.put(g, x, z, ry); }
+    // the log pile against the back wall, and barrels by the door
+    { const c = this.at(x, z, ry, 0.5, -D / 2 - 0.9), lp = P.logPile(0, 0, 10, 0); lp.position.set(c.x, this.y(c.x, c.z), c.z); lp.rotation.y = ry + Math.PI / 2; this.root.add(lp); this.solid(c.x, c.z, 2.3, 1.4, ry, 0.9, null); }
+    { const c = this.at(x, z, ry, -1.4, D / 2 + 1.3); this.barrels(c.x, c.z); }
+  }
+  // where a woodcutter was at work: the stumps of what he felled, two trunks lying limbed where they came down, and his
+  // stack of cut logs
+  felled(x, z, ry) {
+    const r = this.r;
+    for (let i = 0; i < 2; i++) {
+      const L = 6 + r() * 3, R = 0.28 + r() * 0.1, c = this.at(x, z, ry, (r() - 0.5) * 1.5, (i ? 1 : -1) * (1.3 + r() * 0.8)), a = ry + (r() - 0.5) * 0.5;
+      const m = makeLogs([{ x: 0, y: R, z: 0, len: L, r: R, dir: "x" }], (x * 7 + z * 3 + i) | 0); m.position.set(c.x, this.y(c.x, c.z), c.z); m.rotation.y = a; this.root.add(m);
+      this.solid(c.x, c.z, L, R * 2 + 0.1, a, R * 2 + 0.05, null);
+      // (its stump, where it stood: at the butt end)
+      const s = this.at(c.x, c.z, a, -L / 2 - 0.6, 0), st = makeStump({ x: s.x, z: s.z, h: 12 }, "spruce"); st.position.set(s.x, this.y(s.x, s.z), s.z); st.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); this.root.add(st);
+      this.cols.push(this.w.col.addCircle(s.x, s.z, 0.32, this.y(s.x, s.z) + 0.55));
+    }
+    { const c = this.at(x, z, ry, 2.4, 0), lp = P.logPile(0, 0, 13, 0); lp.position.set(c.x, this.y(c.x, c.z), c.z); lp.rotation.y = ry; this.root.add(lp); this.solid(c.x, c.z, 1.5, 2.3, ry, 1.05, null); }
+  }
+  // boulders, lying where the ice left them: a big one to get behind, and smaller round it
+  rocks(x, z) {
+    const r = this.r, n = 3 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i++) {
+      const R = i ? 0.35 + r() * 0.35 : 0.9 + r() * 0.35, a = r() * Math.PI * 2, d = i ? 1.2 + r() * 1.2 : 0, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+      const g = new THREE.Group(), m = new THREE.Mesh(new THREE.DodecahedronGeometry(R, 1), this.M.boulder);
+      // (lumpy: its points pushed in and out a little)
+      const p = m.geometry.attributes.position; for (let k = 0; k < p.count; k++) { const f = 0.85 + ((Math.sin(p.getX(k) * 7.1 + p.getY(k) * 3.3 + p.getZ(k) * 5.7 + i) + 1) / 2) * 0.3; p.setXYZ(k, p.getX(k) * f, p.getY(k) * f, p.getZ(k) * f); } m.geometry.computeVertexNormals();
+      const hy = 0.7 + r() * 0.2; m.scale.set(1.1, hy, 0.95); m.position.y = R * hy * 0.55; m.rotation.y = r() * 3; g.add(m);
+      this.put(g, px, pz, 0);
+      const top = R * hy * 1.5;
+      if (i === 0) this.solid(px, pz, R * 1.7, R * 1.6, r() * 3, top, null);
+      else this.cols.push(this.w.col.addCircle(px, pz, R * 0.95, this.y(px, pz) + top));
+    }
+  }
+  // a haystack, built round a pole and thatched against the rain, and stooks of sheaves stood drying by it
+  hay(x, z) {
+    const r = this.r, g = new THREE.Group();
+    const prof = [[0, 0], [1.75, 0], [1.9, 0.5], [1.85, 1.1], [1.5, 1.8], [0.95, 2.4], [0.35, 2.85], [0.05, 3.0]].map(([a, b]) => new THREE.Vector2(a, b));
+    const stack = new THREE.Mesh(new THREE.LatheGeometry(prof, 18), this.M.hay); g.add(stack);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.0, 6), this.M.log); pole.position.y = 3.2; g.add(pole);
+    for (let k = 0; k < 2; k++) { const band = new THREE.Mesh(new THREE.TorusGeometry(1.2 - k * 0.45, 0.03, 4, 18), this.M.rail); band.rotation.x = Math.PI / 2; band.position.y = 1.95 + k * 0.55; band.scale.setScalar(1 + (1 - k) * 0.2); g.add(band); }
+    this.put(g, x, z, r() * 3);
+    this.solid(x, z, 3.0, 3.0, r() * 3, 2.8, null);
+    for (let i = 0; i < 3 + Math.floor(r() * 3); i++) {
+      const a = r() * Math.PI * 2, d = 2.6 + r() * 1.2, s = new THREE.Group();
+      for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2, sh = makeSheaf(); sh.scale.setScalar(2.4); sh.rotation.set(0, t, -0.3); sh.position.set(-Math.cos(t) * 0.2, 0, Math.sin(t) * 0.2); s.add(sh); }
+      this.put(s, x + Math.cos(a) * d, z + Math.sin(a) * d, r() * 3);
+    }
+  }
+  // a wagon broken down and left: the farm cart over on its side, its load spilled — barrels rolled off, sacks split
+  wagon(x, z, ry) {
+    this.cart(x, z, ry);
+    const r = this.r;
+    for (let i = 0; i < 2 + Math.floor(r() * 2); i++) {
+      const c = this.at(x, z, ry, (r() - 0.5) * 2.6, 1.0 + r() * 1.2), g = new THREE.Group();
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 12), this.M.stave); b.rotation.z = Math.PI / 2; b.position.y = 0.32; g.add(b);
+      for (const h of [-0.3, 0.3]) { const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.015, 4, 14), this.M.iron); hoop.rotation.y = Math.PI / 2; hoop.position.set(h, 0.32, 0); g.add(hoop); }
+      const a = r() * 3; this.put(g, c.x, c.z, a);
+      this.cols.push(this.w.col.addOBox(c.x, c.z, 0.45, 0.33, a, this.y(c.x, c.z) + 0.64));
+    }
+    for (let i = 0; i < 3; i++) { const c = this.at(x, z, ry, (r() - 0.5) * 3, -0.9 - r() * 0.8), sk = makeSack(); sk.scale.setScalar(2.2); sk.rotation.set(Math.PI / 2 * (r() < 0.6 ? 1 : 0), r() * 3, 0); this.put(sk, c.x, c.z, r() * 3, 0.1); }
+  }
+  // a gun's powder, kept back from it: a few casks under a tarpaulin pegged down over a ridge-pole
+  powder(x, z, ry) {
+    const g = new THREE.Group();
+    for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.6, 10), this.M.stave); b.position.set((i % 2) * 0.55 - 0.27, 0.3, Math.floor(i / 2) * 0.55 - 0.27); g.add(b); }
+    for (const sd of [-1, 1]) { const t = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.02, 1.15), this.M.tarp); t.position.set(0, 0.62, sd * 0.42); t.rotation.x = sd * 0.75; g.add(t); }
+    for (const e of [-0.85, 0.85]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.05, 5), this.M.wood); p.position.set(e, 0.52, 0); g.add(p); }
+    this.put(g, x, z, ry);
+    this.solid(x, z, 1.8, 1.7, ry, 0.95, null);
   }
   cart(x, z, ry) {
     // a farm cart overturned on its side: a bed of planks, a wheel up in the air
@@ -239,13 +483,16 @@ export class Field {
     this.solid(x, z, 2.4, 0.8, ry, 1.1, null);
   }
   barrels(x, z) {
-    const g = new THREE.Group(), n = 2 + Math.floor(this.r() * 3);
+    const g = new THREE.Group(), n = 2 + Math.floor(this.r() * 3), ry = this.r() * 3, pos = [];
     for (let i = 0; i < n; i++) {
-      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 12), this.M.stave); b.position.set((i % 2) * 0.66 - 0.3, 0.45, Math.floor(i / 2) * 0.66 - 0.3); g.add(b);
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 12), this.M.stave); b.position.set((i % 2) * 0.66 - 0.33, 0.45, Math.floor(i / 2) * 0.66 - 0.33 * (n > 2 ? 1 : 0)); g.add(b); pos.push(b.position.clone());
       for (const h of [0.15, 0.75]) { const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.015, 4, 14), this.M.iron); hoop.rotation.x = Math.PI / 2; hoop.position.set(b.position.x, h, b.position.z); g.add(hoop); }
     }
-    this.put(g, x, z, this.r() * 3);
-    this.solid(x, z, 1.4, 1.4, 0, 0.9, null);
+    this.put(g, x, z, ry);
+    // (each cask solid as it stands; and a place to crouch behind the lot)
+    for (const p of pos) { const c = this.at(x, z, ry, p.x, p.z); this.cols.push(this.w.col.addCircle(c.x, c.z, 0.33, this.y(c.x, c.z) + 0.9)); }
+    const c = this.at(x, z, ry, 0, n > 2 ? 0 : -0.33);
+    this.solid(c.x, c.z, 1.3, n > 2 ? 1.3 : 0.66, ry, 0.9, null, null, false);
   }
   fallen(x, z, ry) {
     const g = new THREE.Group(), L = 5 + this.r() * 3;
@@ -257,8 +504,10 @@ export class Field {
   // ---- the guns ----
   gun(side, x, z, sx) {
     const m = makeCannon(); const ry = sx < 0 ? -Math.PI / 2 : Math.PI / 2;   // (pointing at the other side: -z of the model, out east or west)
-    this.put(m, x, z, ry);
-    this.w.col.addCircle(x, z, 0.8, this.y(x, z) + 1.0);
+    this.put(m, x, z, ry, 0, false);
+    // (solid from the muzzle to the trail's end: the carriage and wheels a box, the barrel out before them a narrower one)
+    { const c = this.at(x, z, ry, 0, 0.45); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.55, 1.15, ry, this.y(x, z) + 1.05)); }
+    { const c = this.at(x, z, ry, 0, -1.25); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.22, 0.6, ry, this.y(x, z) + 1.1)); }
     this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, recoil: 0, target: null, firing: true, next: 10 + this.r() * 8, crew: [] });
   }
   // where a gun's crew stand to work it: either side of the breech, clear of the wheels (i 0: the gunner, who lays and
@@ -301,15 +550,20 @@ export class Field {
       const crewN = g.crew.length ? this.manned(g) : 2; g.crewN = crewN;
       if (!g.loaded && crewN) { g.reload -= dt * (crewN >= 2 ? 1 : 0.5); if (g.reload <= 0) g.loaded = true; }
       // (their side: laid on the thickest part of yours, now and then; yours: on where you said)
-      if (!g.target) { if ((g.next -= dt) <= 0) { g.next = 6; const t = this.thickest(units.filter(u => u.team !== g.side && u.alive)); if (t) g.aim = { x: t.x + (this.r() - 0.5) * 3.5, z: t.z + (this.r() - 0.5) * 3.5 }; } }
-      else if (g.target) g.aim = g.target;
+      // (never at nothing: laid afresh the moment the men it was laid on are down or gone, and with no one there, not fired)
+      if (!g.target) {
+        const foes = units.filter(u => u.team !== g.side && u.alive);
+        const stale = !g.aim || !foes.some(u => Math.hypot(u.pos.x - g.aim.x, u.pos.z - g.aim.z) < 6);
+        if ((g.next -= dt) <= 0 || (stale && g.loaded)) { g.next = 6; const t = this.thickest(foes); g.aim = t ? { x: t.x + (this.r() - 0.5) * 3.5, z: t.z + (this.r() - 0.5) * 3.5 } : null; }
+      }
+      else g.aim = g.target;
       if (g.aim) {
         const dx = g.aim.x - g.x, dz = g.aim.z - g.z, want = Math.atan2(-dx, -dz), d = Math.hypot(dx, dz);
         const dy = Math.atan2(Math.sin(want - g.ry), Math.cos(want - g.ry));
         g.yaw += (clamp(dy, -0.9, 0.9) - g.yaw) * Math.min(1, dt * 1.5);
         const need = 0.5 * Math.asin(clamp(d * 9.8 / (140 * 140), -1, 1)) + (this.y(g.aim.x, g.aim.z) - this.y(g.x, g.z) - 0.9) / Math.max(4, d);
         g.pitch += (need - g.pitch) * Math.min(1, dt * 1.5);
-        if (g.loaded && g.firing && crewN && !g.byHand && Math.abs(clamp(dy, -0.9, 0.9) - g.yaw) < 0.04) this.fire(g);
+        if (g.loaded && g.firing && crewN && !g.byHand && this.active !== false && Math.abs(clamp(dy, -0.9, 0.9) - g.yaw) < 0.04) this.fire(g);
       }
       g.recoil = Math.max(0, g.recoil - dt * 1.4);
       const m = g.model; m.rotation.y = g.ry + g.yaw; m.userData.barrel.rotation.x = g.pitch;
@@ -327,7 +581,7 @@ export class Field {
           const c = u.pos; if (segDist(from, b.p, new THREE.Vector3(c.x, c.y + 0.9, c.z)) < 1.25) { b.hits.add(u); hit(u, from, b.v.clone()); b.v.multiplyScalar(0.9); cloud(root, new THREE.Vector3(c.x, c.y + 1.1, c.z), b.v.clone().normalize(), { n: 4, colour: 0x7a1a12, life: 1.2, speed: 2, size: 0.5, opacity: 0.45 }); }
         }
         const gy = this.y(b.p.x, b.p.z);
-        if (b.p.y <= gy + 0.07 || (b.v.length() > 8 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0))) {
+        if (b.p.y <= gy + 0.07 || (b.v.length() > 8 && b.t > 0.035 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0))) {
           b.p.y = Math.max(b.p.y, gy + 0.07);
           const sp = b.v.length();
           if (sp > 8) {
@@ -363,7 +617,7 @@ export class Field {
     }
     return best;
   }
-  dispose() { this.w.root.remove(this.root); for (const b of this.balls) this.w.root.remove(b.mesh); for (const p of this.pieces) this.w.col.remove && this.w.col.remove(p.c); }
+  dispose() { this.w.root.remove(this.root); for (const b of this.balls) this.w.root.remove(b.mesh); for (const c of [...this.pieces.map(p => p.c), ...this.cols]) c && this.w.col.remove && this.w.col.remove(c); }
 }
 
 // ---------------------------------------------------------------------------

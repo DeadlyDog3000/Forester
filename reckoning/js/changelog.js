@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.15.0", date: "12 October 2026", title: "The ground between",
+    items: [
+      "R to load: a musket or a pistol stays empty after it's fired until you set about loading it, and the crossbow until you wind it. A click on an empty gun gives the dry snap of the lock. A bayonet thrust leaves the loading off — R to begin it again.",
+      "The lines stand much further apart — over seventy paces — and the field is wider; muskets carry a little further, and a line has to come on to do much harm.",
+      "Far more between the lines, and better set: a burnt-out farm with its walls standing to different heights, its chimney stack and its fallen roof-beams; field walls (some with a gap); thick hedges; snake fences; a woodcutter's felling with stumps, trunks and a log stack; boulders; haystacks with stooks round them; a broken-down wagon with its load spilt. Everything is laid out clear of everything else, the two halves of the field get their share, walls and hedges run mostly across the field where they're cover, and each gun's line of fire is left open.",
+      "Colliders that fit: each gabion is solid as itself — no more one great box along the battery that blocked its gun gaps; casks, gate leaves, the flagstaff, stumps and the guns themselves (muzzle to trail) are solid now; casks stand where they look.",
+      "The guns no longer fire at empty ground: they're laid afresh the moment the men they were on are down, hold their fire with no one there, and fall silent between rounds and when it's over.",
+      "Powder smoke is dark: a dirty grey-black, the haze it leaves greyer.",
+      "No more odd crouched sword-stance after a blow: fighters come back to their guard.",
+      "The pause menu in a fight says Restart duel or Restart battle — and does it, against the same sides (a battle on new ground). Leave says battle or duel too.",
+    ],
+  },
+  {
     v: "1.14.0", date: "12 October 2026", title: "Smoke and steel",
     items: [
       "Everyone moves better in a fight, with motion from a proper animation library fitted to our own people: a swordsman's ready stance and a real cut — a lunge in, the blade across — a flinch from a blow to the body and another to the head, and crouching, still and on the move.",

@@ -2,7 +2,7 @@
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
 
-// POWDER SMOKE: what black powder does when it goes off. A jet of thick white smoke thrown out of the muzzle, braking
+// POWDER SMOKE: what black powder does when it goes off. A jet of thick, dirty grey-black smoke thrown out of the muzzle, braking
 // hard in a couple of paces and rolling over on itself into a lumpy cloud, sunlit on top and grey beneath; then it
 // hangs there, swelling and thinning, lifting a little and drifting off down the wind — a musket's for a handful of
 // seconds, a cannon's for the better part of half a minute, and a haze after it. A flintlock throws a puff of its own
@@ -72,9 +72,10 @@ export function muzzleFlash(root, at, dir, scale = 1) {
 export function powderSmoke(root, at, dir, o = {}) {
   textures();
   const scale = o.scale || 1, life = o.life || 7, n = o.n || 14, speed = o.speed || 9;
-  const tint = new THREE.Color(0xe8e9ea).lerp(new THREE.Color(0xc4c9d0), 0.25).multiplyScalar(daylight()), drift = wind(), puffs = [], alpha = o.alpha || 1;
-  const add = (p0, v0, s0, grow, l, a0, delay = 0) => {
-    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFFS[Math.floor(Math.random() * PUFFS.length)], color: tint, transparent: true, opacity: 0, depthWrite: false, fog: true }));
+  // (dark: the dirty grey-black of coarse powder burnt in a hurry — the haze it leaves a lighter grey)
+  const day = daylight(), tint = new THREE.Color(o.tint || 0x3e3f42).multiplyScalar(day), hazeTint = new THREE.Color(0x626366).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
+  const add = (p0, v0, s0, grow, l, a0, delay = 0, col = tint) => {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFFS[Math.floor(Math.random() * PUFFS.length)], color: col, transparent: true, opacity: 0, depthWrite: false, fog: true }));
     m.position.copy(p0); m.scale.setScalar(s0); m.material.rotation = Math.random() * Math.PI * 2;
     m.userData = { v: v0, s0, grow, l, a0, delay, spin: (Math.random() - 0.5) * 0.4, t: 0 };
     root.add(m); puffs.push(m);
@@ -89,7 +90,7 @@ export function powderSmoke(root, at, dir, o = {}) {
   // (black powder's smoke hangs: a musket's too leaves a bank of it drifting off down the line — o.hazeN puffs, o.hazeA thick)
   if (o.haze) for (let i = 0; i < (o.hazeN || 6); i++) {
     const v = dir.clone().multiplyScalar(speed * 0.25 * Math.random()).add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 0.6, (Math.random() - 0.5) * 2));
-    add(at.clone().addScaledVector(dir, (2 + Math.random() * 3) * Math.min(1, scale)), v, 1.0 * scale, 2.2 * scale, life * 1.4, o.hazeA || 0.1, 0.6 + Math.random() * 0.8);
+    add(at.clone().addScaledVector(dir, (2 + Math.random() * 3) * Math.min(1, scale)), v, 1.0 * scale, 2.2 * scale, life * 1.4, o.hazeA || 0.1, 0.6 + Math.random() * 0.8, hazeTint);
   }
   const tick = dt => {
     let alive = 0;

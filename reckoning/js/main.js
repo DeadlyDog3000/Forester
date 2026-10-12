@@ -843,7 +843,7 @@ function renderKeys() {
   const K = (keys, what) => `<div class="kr-k">${keys.map(k => `<kbd>${k}</kbd>`).join(" ")}</div><div>${what}</div>`;
   const sec = t => `<div class="kr-sec">${t}</div>`;
   let h = sec("Moving") + K(["W", "A", "S", "D"], "Walk") + K(["Shift"], "Run") + K(["C"], "Crouch") + K(["Space"], "Jump · move a conversation on") + K(["Q", "E"], "Lean") + K(["Z"], "Hold to look closer") + K(["M"], "Lock or free the mouse");
-  h += sec("Doing") + K(["F"], "Take, open, talk — hold it for work that takes time · close a menu") + K(["Left click"], "Swing what you hold — the way you look is the way it comes") + K(["Right click"], "Draw the bow · raise your guard") + K(["1", "–", "9"], "Take out a tool · eat food in that slot");
+  h += sec("Doing") + K(["F"], "Take, open, talk — hold it for work that takes time · close a menu") + K(["Left click"], "Swing what you hold — the way you look is the way it comes") + K(["Right click"], "Draw the bow · raise your guard") + K(["R"], "Load the musket or pistol · wind the crossbow") + K(["1", "–", "9"], "Take out a tool · eat food in that slot");
   h += sec("Seeing") + K(["J"], "The map") + K(["T"], "Inventory") + K(["P"], "Skills") + K(["H"], "The guide: how everything works") + K([";"], "Free camera — fly the view loose, ; again to come back") + K(["X"], "Get down off your horse") + K(["Tab"], "These keys");
   if (G.town) h += sec("The settlement") + K(["B"], "Plans — what you can build") + K(["V"], "Inspect a building: upkeep, mend, rebuild, pull down") + K(["G"], "Government: the nation, research, people, faith, Europe, ambitions");
   h += sec("") + K(["Esc"], "Pause");
@@ -2027,10 +2027,12 @@ function pause() {
   if (G.mode !== "play") return;
   G.mode = "pause";
   // (in a game with others: no chapter to restart, and the game goes on without you while you're here)
-  UI.show("btnRestart", !G.mp);
+  // (a fight: the duel or the battle begun again — never one with someone online)
+  UI.show("btnRestart", G.arena ? !G.arena.net : !G.mp);
+  $("btnRestart").textContent = restartWord();
   UI.show("btnPausePeople", !!G.mp);
-  $("pause").querySelector(".sub").textContent = G.mp ? "The others play on while you're in here — your body stands where you left it." : "Your progress is kept at the start of every chapter, and as you work.";
-  $("btnQuit").textContent = G.arena ? "Leave the duel (counts as a loss)" : G.mp ? "Leave the game" : "Quit to title";
+  $("pause").querySelector(".sub").textContent = G.arena && !G.arena.net ? "The fight waits for you." : G.mp ? "The others play on while you're in here — your body stands where you left it." : "Your progress is kept at the start of every chapter, and as you work.";
+  $("btnQuit").textContent = G.arena ? `Leave the ${G.arena.multi ? "battle" : "duel"} (counts as a loss)` : G.mp ? "Leave the game" : "Quit to title";
   setFreeLook(false);
   if (overlay) showOverlay(overlay, false);
   SFX.pauseAll && SFX.pauseAll(true);
@@ -2048,15 +2050,18 @@ $("btnPauseSettings").onclick = () => { back = "pause"; screen("settings"); };
 $("btnPauseControls").onclick = () => { back = "pause"; screen("controls"); };
 // (restarting throws away what you've done since the chapter began: the first click asks, a second within a few seconds does it)
 let restartArmed = 0;
+const restartWord = () => G.arena ? (G.arena.multi ? "Restart battle" : "Restart duel") : "Restart chapter";
 $("btnRestart").onclick = () => {
   const b = $("btnRestart");
   if (Date.now() - restartArmed > 4000) {
     restartArmed = Date.now(); b.textContent = "Restart? Click again"; b.classList.add("armed");
-    setTimeout(() => { if (Date.now() - restartArmed >= 3900) { b.textContent = "Restart chapter"; b.classList.remove("armed"); } }, 4000);
+    setTimeout(() => { if (Date.now() - restartArmed >= 3900) { b.textContent = restartWord(); b.classList.remove("armed"); } }, 4000);
     return;
   }
-  restartArmed = 0; b.textContent = "Restart chapter"; b.classList.remove("armed");
-  SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock(); startChapter(G.chapter || 1);
+  restartArmed = 0; b.textContent = restartWord(); b.classList.remove("armed");
+  SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock();
+  if (G.arena) { G.arena.restart(); return; }
+  startChapter(G.chapter || 1);
 };
 $("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.arena) { G.arena.finish(false, false); return; } if (G.mp) { G.mp.leave(); if (G.town && G.town.persist && !G.town.replica) G.town.persist(); mpDone(); toTitle(); openLobby(); return; } toTitle(); };
 // (only a lock that was had and then lost pauses: a refused request can fire this too, and that's no reason to stop)

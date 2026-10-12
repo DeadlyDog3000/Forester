@@ -71,7 +71,7 @@ function fitLoad(l, keep) {
 }
 const AMMO = { bow: 20, crossbow: 12 };
 const RELOAD = { musket: 6.5, pistol: 2.4, bow: 0.9, crossbow: 2.6 };
-const RANGE = { musket: 55, pistol: 12, bow: 38, crossbow: 45 };
+const RANGE = { musket: 70, pistol: 12, bow: 38, crossbow: 45 };
 const HP = 100, ROUNDS_TO_WIN = 2, ROUND_SECS = 150;
 
 // what a shot or an arrow does to a man (by its power, as the hunt tells it): a musket ball, a pistol's, a bolt, an
@@ -283,7 +283,7 @@ setC(C);
 // for two companies to stand off across it (never the sea, a lake, the ice or the peaks), a new place every time;
 // and the name of the realm it lies in, or nearest to
 function battleGround() {
-  const half = EARTH_SIZES.l, w = new Wilds({ seed: (Math.random() * 1e9) | 0, half, kind: "earth" }), L = w.land, R = 64;
+  const half = EARTH_SIZES.l, w = new Wilds({ seed: (Math.random() * 1e9) | 0, half, kind: "earth" }), L = w.land, R = 80;
   for (let tries = 0; tries < 6000; tries++) {
     const x = (Math.random() * 2 - 1) * half * 0.94, z = (Math.random() * 2 - 1) * half * 0.42;
     const h = L.heightAt(x, z); if (h < WATER + 2.5 || h > 44) continue;
@@ -310,7 +310,7 @@ class Arena {
     this.army = A; this.multi = !!A; this.battle = !!(A && A.battle);
     this.wins = [0, 0]; this.round = 0; this.over = false; this.live = false; this.clock = ROUND_SECS;
     // (a company's fight wants more room than a duel: the ride opened wider, the two lines further apart)
-    this.bound = this.battle ? 60 : this.multi ? 48 : BOUND; this.dx = this.battle ? 27 : this.multi ? 21 : 19;
+    this.bound = this.battle ? 76 : this.multi ? 48 : BOUND; this.dx = this.battle ? 38 : this.multi ? 21 : 19;
     // (a duel or a skirmish: the deer ride in the woods; a battle: somewhere on the Earth, new every time)
     const ground = this.battle ? battleGround() : null;
     const w = this.w = ground ? ground.w : new Woods();
@@ -332,7 +332,9 @@ class Arena {
     // close by where either side starts), and the ground they stand on clear
     const hash = (x, z) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const lines = [{ x: C.x - this.dx, z: C.z }, { x: C.x + this.dx, z: C.z }];
-    w.clearScenery(C.x, C.z, this.bound - 6, null, (x, z) => hash(x, z) < (this.battle ? 0.1 : 0.2) && lines.every(p => Math.hypot(p.x - x, p.z - z) > (this.multi ? 12 : 7)) && Math.hypot(x - C.x, z - C.z) > 4);
+    w.clearScenery(C.x, C.z, this.bound - 6, null, (x, z) => hash(x, z) < (this.battle ? 0.1 : 0.2) && lines.every(p => Math.hypot(p.x - x, p.z - z) > (this.multi ? 12 : 7)) && Math.hypot(x - C.x, z - C.z) > 4
+      // (and none where either side's works or fort go)
+      && !(this.battle && Math.abs(Math.abs(x - C.x) - this.dx) < 16 && Math.abs(z - C.z) < 30));
     this.spawns = this.multi ? lines.map(p => this.clearSpot(p.x, p.z)) : SPAWN.map(p => this.clearSpot(p.x, p.z));
     this.you = { isPlayer: true, team: 0, get pos() { return G.player.pos; }, get alive() { return !G.downed; }, get yaw() { return G.player.yaw + Math.PI; }, name: me.name };
     this.units = [];
@@ -498,6 +500,8 @@ class Arena {
     for (const u of this.units) u.tick(dt);
     stanceTick();
     if (this.live) { this.clock += dt; this.commander(dt); }
+    // (the guns fall silent when it's over, and between rounds)
+    if (this.field) this.field.active = this.live && !this.over && !this.ended;
     if (this.field) this.field.update(dt, [...this.units, this.you], (u, from, v) => {
       if (u === this.you) this.hurtMe(400, { pos: from });
       else u.damage(400, false, false, from);
@@ -521,7 +525,7 @@ class Arena {
     if (this.fortSide === 1) {
       const F = this.field.fortAt, inFort = ours.some(u => (u.pos.x - F.front) * F.sx > -0.5 && (u.pos.x - F.back) * F.sx < 0.5 && Math.abs(u.pos.z - F.z) < F.W);
       O.charge = inFort;
-      if ((this.volT -= dt) <= 0 && d < 60 && !O.charge) { this.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
+      if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) { this.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
       return;
     }
     if (O.mode === "hold" && (t > this.holdFor || theirs.length > ours.length * 1.6 || d < 22)) { O.mode = "advance"; shout(); }
@@ -531,7 +535,7 @@ class Arena {
       O.at = { x: a.x + (b.x - a.x) / d * step, z: a.z + (b.z - a.z) / d * step };
     }
     if (!O.charge && d < 15 && (theirs.length >= ours.length * 0.8 || t > this.holdFor + 45)) { O.charge = true; shout(); }
-    if ((this.volT -= dt) <= 0 && d < 60 && !O.charge) { this.volT = 11 + Math.random() * 8; O.volleyAt = G.time + 1.3; shout(); }
+    if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) { this.volT = 11 + Math.random() * 8; O.volleyAt = G.time + 1.3; shout(); }
   }
   // your blade in the press: the nearest of theirs in reach, in front of you
   swingAt() {
@@ -836,6 +840,13 @@ class Arena {
     $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost`;
     ctx.screen("pvpEnd");
   }
+  // begun again from the start, the same sides and loads (a fight against bots: the pause menu's Restart); a battle on
+  // new ground
+  restart() {
+    if (this.net) return;
+    const a = { me: this.me, lo: { ...lo }, foe: this.foeInfo, net: null, side: this.side, army: this.army };
+    this.over = true; this.stop(); ctx.begin(); new Arena(a);
+  }
   // gone from the arena (the match done, or quit from the pause menu)
   stop() {
     if (G.arena !== this) return;
@@ -1136,7 +1147,7 @@ class Bot extends Fighter {
     }
     const longK = this.lo.long, haveLong = longK !== "none" && this.loaded.long && (longK === "musket" || this.ammo > 0), haveSide = this.loaded.side;
     // (you reloading, close by: his moment to come at you with steel)
-    const youReloading = T.isPlayer && ((pl.gun && pl.gunReload > 0) || (pl.xbow && pl.xspan < 1)) && d < 14;
+    const youReloading = T.isPlayer && ((pl.gun && !pl.gunLoaded) || (pl.xbow && pl.xspan < 1)) && d < 14;
     const charge = (O && O.charge && !this.crewOf) || (youReloading && s > 0.3 && !haveLong);
     // close: the blade. (Farther, if nothing's loaded and he's coming on, or ordered in.)
     // (a gun's crew stay by their gun: only a man right on it brings them away from it)

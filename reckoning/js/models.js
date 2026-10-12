@@ -590,7 +590,8 @@ function useModel(P, key, colors = {}) {
     let pose = (this.pose || "idle").toLowerCase();
     if (pose === "swim") pose = "idle";
     // in a fight and doing nothing else: the guard, not standing about
-    if (this.fight && (pose === "idle" || pose === "reach" && !acts.reach) && acts.guard) pose = this.blade && acts.ready ? "ready" : "guard";
+    // (the guard: never the library's crouched sword-stance, which looked like nothing a soldier does after a blow)
+    if (this.fight && (pose === "idle" || pose === "reach" && !acts.reach) && acts.guard) pose = "guard";
     // walking and running win over a held pose, except for what the hands must keep doing (a load carried, a light held)
     const keepsHands = ["torch", "lantern", "writ", "bound", "hold", "guard"].includes(pose);
     const moving = speed > 0.15 && this.sitting <= 0.5;

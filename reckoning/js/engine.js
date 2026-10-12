@@ -375,7 +375,8 @@ export class Player {
     if (!this.gun) return;
     const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
     const pis = this.gunIs === "pistol", kind = pis ? "pistol" : "musket", RL = LOAD[kind].time;
-    // loading, as the drill goes (reload.js): each step heard as it's done
+    // loading: only when you set about it (R), fired and empty — then as the drill goes (reload.js), each step heard
+    if (free && input.hit("KeyR") && !this.gunLoaded && !(this.gunReload > 0) && !(this.thrustT >= 0) && G.time >= (this.fixUntil || 0)) this.gunReload = RL;
     if (this.gunReload > 0 && !(this.thrustT >= 0)) {
       const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt * loadPace(this) * (this.bayonet && !pis ? 0.8 : 1));   // (the bayonet in the way of the rod)
       const F = window.__foley;
@@ -386,10 +387,10 @@ export class Player {
     const aimWant = free && input.rdown && !reloading ? 1 : 0;
     this.gunAim += (aimWant - this.gunAim) * Math.min(1, dt * 9);
     if (this.model) this.model.aimWant = this.gunAim > 0.5;
-    // the bayonet: fired, and loading, a click is the steel instead — the loading left off (begun again after), the
+    // the bayonet: fired, and loading, a click is the steel instead — the loading left off (R to begin it again), the
     // musket driven out straight before you and back
     if (free && input.click && this.bayonet && !pis && !this.gunLoaded && !(this.thrustT >= 0) && G.time >= (this.fixUntil || 0)) {
-      input.click = false; this.thrustT = 0; this.thrustHit = false; this.gunReload = RL;
+      input.click = false; this.thrustT = 0; this.thrustHit = false; this.gunReload = 0;
       AUDIO.whoosh && AUDIO.whoosh(0.5, true);
     }
     if (this.thrustT >= 0) {
@@ -412,9 +413,13 @@ export class Player {
       if (G.onGunshot) G.onGunshot(from, dir, this.gunIs);
       if (G.hunt) { G.hunt.fireBall(from.clone().addScaledVector(dir, 0.6), dir, { speed: pis ? 260 : 420, power: pis ? 1.9 : 2.6, range: pis ? 60 : 160 }); G.practise && G.practise("archery", 0.3); }
       gunSmoke(muzzle, dir, pis ? 0.6 : 1);
-      this.gunLoaded = false; this.gunReload = RL; this.gunKickT = 1; G.bowKick = pis ? 1.0 : 1.4;
-      if (!this.gunTip) { this.gunTip = true; setTimeout(() => UI.hint("Loading takes a while — powder, ball, and the ramrod. Find cover.", 4), 600); }
-    } else if (free && input.click && !this.gunLoaded) input.click = false;
+      this.gunLoaded = false; this.gunReload = 0; this.gunKickT = 1; G.bowKick = pis ? 1.0 : 1.4;
+      if (!this.gunTip) { this.gunTip = true; setTimeout(() => UI.hint("R to load — powder, ball, and the ramrod. It takes a while: find cover.", 4), 600); }
+    } else if (free && input.click && !this.gunLoaded) {
+      input.click = false;
+      // (the dry click of a cock let fall on an empty pan — and a word, if you've forgotten)
+      if (!reloading && !this.bayonet && G.time > (this.emptyTold || 0)) { this.emptyTold = G.time + 2.5; const F = window.__foley; F && F.load && F.load("latch", null, 0.35, pis); UI.hint("Empty — R to load.", 1.6); }
+    }
     this.gunKickT = Math.max(0, this.gunKickT - dt * 4);
     // where it is: at the hip, at the eye, or down for loading; and kicked by the shot
     const a = this.gunAim, k = this.gunKickT * this.gunKickT, g = this.gun;
@@ -651,7 +656,8 @@ export class Player {
     this.xaim += ((free && input.rdown ? 1 : 0) - this.xaim) * Math.min(1, dt * 9);
     if (this.model) this.model.aimWant = this.xaim > 0.5;
     this.xkick = Math.max(0, this.xkick - dt * 3);
-    this.xwind = (this.xwind || 0) + ((this.xspan < 1 && bolts > 0 && this.xkick < 0.6 ? 1 : 0) - (this.xwind || 0)) * Math.min(1, dt * 6);
+    if (free && input.hit("KeyR") && this.xspan < 1 && bolts > 0) this.xwinding = true;
+    this.xwind = (this.xwind || 0) + ((this.xspan < 1 && bolts > 0 && this.xwinding && this.xkick < 0.6 ? 1 : 0) - (this.xwind || 0)) * Math.min(1, dt * 6);
     // the shot: down the line of the sight if aimed, wider from the hip
     if (free && input.click && this.xspan >= 1 && bolts > 0) {
       input.click = false;
@@ -659,19 +665,20 @@ export class Player {
       const dir = new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread, -1).normalize().applyQuaternion(q);
       const from = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
       G.body.tools.bolts = bolts - 1; G.body.dirty = true;
-      this.xspan = 0; this.xkick = 1; G.bowKick = 1.2;
+      this.xspan = 0; this.xkick = 1; G.bowKick = 1.2; this.xwinding = false;
       if (G.hunt) G.hunt.loose(from, dir, 1.75, true);
       G.practise && G.practise("archery", 0.6);
       AUDIO.twang ? AUDIO.twang(1.3) : SFX.swingFist && SFX.swingFist();
     } else if (free && input.click && bolts <= 0 && this.xspan < 1) { input.click = false; UI.hint("No bolts. Make some at the chopping block (it takes iron, so a forge).", 3); }
-    // spanning it again: the crank wound, the string drawn back to the nut, a bolt laid in the groove
-    if (this.xspan < 1 && bolts > 0) {
+    else if (free && input.click && this.xspan < 1 && !this.xwinding) { input.click = false; if (G.time > (this.emptyTold || 0)) { this.emptyTold = G.time + 2.5; UI.hint("Unspanned — R to wind it.", 1.6); } }
+    // spanning it again (R): the crank wound, the string drawn back to the nut, a bolt laid in the groove
+    if (this.xspan < 1 && bolts > 0 && this.xwinding) {
       const pace = loadPace(this), was = this.xspan; this.xspan = Math.min(1, this.xspan + dt / 2.6 * pace);
       this.xcrank.rotation.x += dt * 14 * pace;
       const F = window.__foley;
       // (the windlass ratcheting round, the string caught on the nut, a bolt laid in the groove)
       if (Math.floor(was * 5) !== Math.floor(this.xspan * 5) && this.xspan < 1) F && F.load && F.load("crank", null, 0.45);
-      if (this.xspan >= 1) { F && F.load && F.load("latch", null, 0.55); setTimeout(() => F && F.load && F.load("boltLay", null, 0.4), 260); }
+      if (this.xspan >= 1) { this.xwinding = false; F && F.load && F.load("latch", null, 0.55); setTimeout(() => F && F.load && F.load("boltLay", null, 0.4), 260); }
     }
     this.xposeIt();
   }
