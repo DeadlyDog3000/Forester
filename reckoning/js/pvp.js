@@ -288,6 +288,8 @@ function battleGround() {
     const x = (Math.random() * 2 - 1) * half * 0.94, z = (Math.random() * 2 - 1) * half * 0.42;
     const h = L.heightAt(x, z); if (h < WATER + 2.5 || h > 44) continue;
     const b = L.biomeAt(x, z); if (b === "ice" || b === "alpine") continue;
+    // (and no cave mouth anywhere on it: walking into one would take the sky away)
+    if (L.cavesNear && L.cavesNear(x, z, 140).length) continue;
     let lo = h, hi = h, ok = true;
     for (let i = -2; i <= 2 && ok; i++) for (let j = -2; j <= 2; j++) { const y = L.heightAt(x + i * R / 2, z + j * R / 2); if (y < WATER + 1.5) { ok = false; break; } lo = Math.min(lo, y); hi = Math.max(hi, y); }
     if (!ok || hi - lo > 10) continue;
@@ -316,7 +318,13 @@ class Arena {
     const w = this.w = ground ? ground.w : new Woods();
     setC(ground ? { x: ground.x, z: ground.z } : { x: HUNT.x, z: HUNT.z });
     this.place = ground ? ground.name : null;
-    setWorld(w); setAtmo("afternoon");
+    // (the hour: a battle by day mostly — morning, afternoon or evening — and now and then by night, under the moon,
+    //  the field lit by its fires and the guns' lanterns, and no one seeing far)
+    const hr = Math.random();
+    this.hour = !this.battle ? "afternoon" : window.__battleHour ? window.__battleHour : hr < 0.3 ? "night" : hr < 0.45 ? "evening" : hr < 0.65 ? "morning" : "afternoon";
+    this.night = this.hour === "night"; this.sight = this.night ? 0.65 : 1;
+    if (this.place && this.night) this.place = { ...this.place, text: this.place.text + " · by night" };
+    setWorld(w); setAtmo(this.hour); G.cloud = 0; G.mist = 0; G.flash = 0; if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
     if (ground) w.buildNear(C.x, C.z, 99);
     w.huntOpen = true;
     this.hunt = new Hunt(w, { x: C.x, z: C.z, r: 1 }, {});
@@ -342,6 +350,7 @@ class Arena {
       // the field: its works, and the guns (a battle); a few things lying about between the lines (any fight with men)
       this.fortSide = this.battle ? { ours: 0, theirs: 1 }[A.ground] ?? null : null;
       this.field = new Field(w, C, this.dx, this.battle, undefined, this.fortSide);
+      if (this.night) this.field.nightFires();
       // (the fort's people start inside it, at its front wall)
       if (this.field.fortAt) this.spawns[this.fortSide] = this.clearSpot(this.field.fortAt.anchor.x, this.field.fortAt.anchor.z);
       this.orders = [new Orders(0), new Orders(1)];
@@ -608,7 +617,8 @@ class Arena {
   bookState() { const O = this.orders[0]; return { count: this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, cover: O.cover, guns: !!this.gunsOn, mode: O.mode, form: O.form }; }
   // the number keys are your orders, in a fight of companies (the wheel still goes through your weapons: its turns come
   // as numbers too, but marked as the wheel's)
-  takesNumbers(e) { return !!(this.book && this.book.open && !e.fromWheel && /^Digit\d$/.test(e.code)); }
+  // (in a fight of companies, always — the page shown or not: a number that fell through to the bar put your musket away)
+  takesNumbers(e) { return !!(this.multi && !e.fromWheel && /^Digit\d$/.test(e.code)); }
   onKey(e) {
     if (G.arena === this && this.viewing && e.code === "Enter" && !e.repeat) { e.stopImmediatePropagation(); e.preventDefault(); G.endFreecam && G.endFreecam(); this.finish(this.viewing.won); return; }
     if (G.arena !== this || e.repeat || !this.live || G.downed || G.mode !== "play") return;
@@ -1202,7 +1212,7 @@ class Bot extends Fighter {
         return;
       }
       a.path = [];
-      if (!useK || !O.fire || !this.los || d > RANGE[useK]) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
+      if (!useK || !O.fire || !this.los || d > RANGE[useK] * this.arena.sight) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
       if (this.heldK !== useK) { this.hold(useK); this.aimT = -0.5; }
       a.faceTo(fp.x, fp.z); a.person.setPose(useK === "bow" ? "reach" : "idle"); this.aimUp(useK !== "bow");
       this.aimT += dt;
@@ -1229,7 +1239,7 @@ class Bot extends Fighter {
       return;
     }
     if (this.heldK !== useK) { this.hold(useK); this.aimT = -0.5; }
-    const R = RANGE[useK];
+    const R = RANGE[useK] * this.arena.sight;
     if (!this.los || d > R) {
       // in closer — not straight at you, but slanting this way and that — or round to where he can see you
       this.aimT = 0; a.person.setPose("idle"); this.aimUp(false);

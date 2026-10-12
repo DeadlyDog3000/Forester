@@ -41,6 +41,7 @@ function daylight() { return G.sun ? Math.max(0.14, Math.min(1, 0.14 + G.sun.int
 // (a gentle wind, the same for every cloud a while, turning slowly)
 function wind() { const t = (G.time || 0) * 0.01; return new THREE.Vector3(Math.cos(t) * 0.55, 0, Math.sin(t * 0.7) * 0.4); }
 
+const _cp = new THREE.Vector3();
 function run(tick) { G.onFrame.push(tick); }
 function stop(tick) { const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
 
@@ -73,7 +74,7 @@ export function powderSmoke(root, at, dir, o = {}) {
   textures();
   const scale = o.scale || 1, life = o.life || 7, n = o.n || 14, speed = o.speed || 9;
   // (dark: the dirty grey-black of coarse powder burnt in a hurry — the haze it leaves a lighter grey)
-  const day = daylight(), tint = new THREE.Color(o.tint || 0x3e3f42).multiplyScalar(day), hazeTint = new THREE.Color(0x626366).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
+  const day = daylight(), tint = new THREE.Color(o.tint || 0x2c2d2f).multiplyScalar(day), hazeTint = new THREE.Color(0x46474a).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
   const add = (p0, v0, s0, grow, l, a0, delay = 0, col = tint) => {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFFS[Math.floor(Math.random() * PUFFS.length)], color: col, transparent: true, opacity: 0, depthWrite: false, fog: true }));
     m.position.copy(p0); m.scale.setScalar(s0); m.material.rotation = Math.random() * Math.PI * 2;
@@ -110,7 +111,10 @@ export function powderSmoke(root, at, dir, o = {}) {
       m.material.rotation += u.spin * dt;
       // (thinner as it spreads: the same smoke over more air, until it's a haze, and then nothing)
       const k = t / u.l, spread = Math.min(1, (u.s0 + u.grow * 0.55) / sc);
-      m.material.opacity = u.a0 * Math.min(1, t * 12) * (1 - Math.pow(k, 1.1)) * spread;
+      // (and see-through as it comes over your eyes: a cloud you stand in is a haze round you, never a wall over the
+      //  view — a dark puff across the whole sky turned it black)
+      const cam = window.__camera, near = cam ? cam.getWorldPosition(_cp).distanceTo(m.position) / (sc * 0.55 + 0.4) : 9;
+      m.material.opacity = u.a0 * Math.min(1, t * 12) * (1 - Math.pow(k, 1.1)) * spread * Math.min(1, Math.max(0, near - 0.35) / 0.9);
     }
     if (!alive) stop(tick);
   };

@@ -9,7 +9,7 @@
 // Your company is yours to command (F): where to stand and in what order, when to fire and at whom, when to charge.
 // The other side has its own officer.
 
-import { THREE, mat } from "./core.js";
+import { THREE, mat, makeFlame, flicker, FLAMES } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -464,6 +464,34 @@ export class Field {
     }
     for (let i = 0; i < 3; i++) { const c = this.at(x, z, ry, (r() - 0.5) * 3, -0.9 - r() * 0.8), sk = makeSack(); sk.scale.setScalar(2.2); sk.rotation.set(Math.PI / 2 * (r() < 0.6 ? 1 : 0), r() * 3, 0); this.put(sk, c.x, c.z, r() * 3, 0.1); }
   }
+  // by night: a watch-fire behind each side's line, and a lantern on a pole by every gun — the only light on the field
+  // but the moon's and the muzzles'
+  nightFires() {
+    const C = this.C; this.flames = [];
+    for (const side of [0, 1]) {
+      const sx = side === 0 ? -1 : 1, F = this.fortAt && this.fortAt.side === side ? this.fortAt : null;
+      const p = F ? { x: F.mx + sx * 2, z: C.z + 5 } : this.find(() => ({ x: C.x + sx * (this.dx + 7 + this.r() * 4), z: C.z + (this.r() - 0.5) * 16 }), 1.4, 40, 1.0) || { x: C.x + sx * (this.dx + 9), z: C.z };
+      this.watchFire(p.x, p.z);
+    }
+    for (const g of this.guns) { const c = this.at(g.x, g.z, g.ry, -1.7, 1.2); this.lantern(c.x, c.z); }
+  }
+  watchFire(x, z) {
+    const g = new THREE.Group(), r = this.r;
+    for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2, st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.16 + r() * 0.06, 0), this.M.stone); st.position.set(Math.cos(a) * 0.62, 0.08, Math.sin(a) * 0.62); st.scale.y = 0.7; g.add(st); }
+    for (let i = 0; i < 5; i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.9, 6), this.M.soot); lg.position.y = 0.2; lg.rotation.set(0.9, i / 5 * Math.PI * 2, 0); lg.position.x = Math.cos(i / 5 * Math.PI * 2) * 0.15; g.add(lg); }
+    this.put(g, x, z, r() * 3);
+    const fl = makeFlame(2.4, new THREE.PointLight(0xff9a48, 14, 30, 1.5)); fl.position.set(x, this.y(x, z) + 0.15, z); this.root.add(fl); this.flames.push(fl);
+    this.cols.push(this.w.col.addCircle(x, z, 0.75, this.y(x, z) + 0.6));
+  }
+  lantern(x, z) {
+    const g = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 2.0, 6), this.M.wood); pole.position.y = 1.0; g.add(pole);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.4), this.M.wood); arm.position.set(0, 1.95, 0.18); g.add(arm);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.18), this.M.iron); box.position.set(0, 1.72, 0.36); g.add(box);
+    this.put(g, x, z, 0);
+    const fl = makeFlame(0.5, new THREE.PointLight(0xffb060, 5, 13, 1.6)); fl.position.set(x, this.y(x, z) + 1.64, z + 0.36); this.root.add(fl); this.flames.push(fl);
+    this.cols.push(this.w.col.addCircle(x, z, 0.08, this.y(x, z) + 2));
+  }
   // a gun's powder, kept back from it: a few casks under a tarpaulin pegged down over a ridge-pole
   powder(x, z, ry) {
     const g = new THREE.Group();
@@ -537,7 +565,7 @@ export class Field {
     g.loaded = false; g.reload = 6.5 + this.r() * 2.5; g.recoil = 1;
     this.balls.push({ p: at.clone(), v: dir.multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
     muzzleFlash(root, at.clone().addScaledVector(dir, 0.2), dir, 3);
-    powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 26, n: 42, speed: 15, haze: true, hazeN: 12, hazeA: 0.3 });
+    powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 32, n: 60, speed: 15, haze: true, hazeN: 18, hazeA: 0.36 });
     { const b = m.barrel; b.updateMatrixWorld(true); panPuff(root, b.localToWorld(new THREE.Vector3(0, 0.2, 0.6)), 1.4); }
     AUDIO.cannon ? AUDIO.cannon(1, at) : AUDIO.gunshot && AUDIO.gunshot(1.4, at);
     const pl = G.player, d = Math.hypot(at.x - pl.pos.x, at.z - pl.pos.z);
@@ -545,6 +573,9 @@ export class Field {
   }
   // each frame: the guns laid and fired, the balls flying; hit(u, from, v) is called for anyone a ball goes through
   update(dt, units, hit) {
+    for (const f of this.flames || []) flicker(f, dt);
+    // (the guns open only once the field's had a moment: a crew isn't cut down before it's even seen the enemy)
+    if (this.active !== false) this.opened = (this.opened || 0) + dt;
     for (const g of this.guns) {
       // (a gun is only as good as its crew: two load it at the drill's pace, one at half, none not at all — nor fire it)
       const crewN = g.crew.length ? this.manned(g) : 2; g.crewN = crewN;
@@ -563,7 +594,7 @@ export class Field {
         g.yaw += (clamp(dy, -0.9, 0.9) - g.yaw) * Math.min(1, dt * 1.5);
         const need = 0.5 * Math.asin(clamp(d * 9.8 / (140 * 140), -1, 1)) + (this.y(g.aim.x, g.aim.z) - this.y(g.x, g.z) - 0.9) / Math.max(4, d);
         g.pitch += (need - g.pitch) * Math.min(1, dt * 1.5);
-        if (g.loaded && g.firing && crewN && !g.byHand && this.active !== false && Math.abs(clamp(dy, -0.9, 0.9) - g.yaw) < 0.04) this.fire(g);
+        if (g.loaded && g.firing && crewN && !g.byHand && this.active !== false && this.opened > 7 + g.side * 2 && Math.abs(clamp(dy, -0.9, 0.9) - g.yaw) < 0.04) this.fire(g);
       }
       g.recoil = Math.max(0, g.recoil - dt * 1.4);
       const m = g.model; m.rotation.y = g.ry + g.yaw; m.userData.barrel.rotation.x = g.pitch;
@@ -617,7 +648,7 @@ export class Field {
     }
     return best;
   }
-  dispose() { this.w.root.remove(this.root); for (const b of this.balls) this.w.root.remove(b.mesh); for (const c of [...this.pieces.map(p => p.c), ...this.cols]) c && this.w.col.remove && this.w.col.remove(c); }
+  dispose() { for (const f of this.flames || []) FLAMES.delete(f); this.w.root.remove(this.root); for (const b of this.balls) this.w.root.remove(b.mesh); for (const c of [...this.pieces.map(p => p.c), ...this.cols]) c && this.w.col.remove && this.w.col.remove(c); }
 }
 
 // ---------------------------------------------------------------------------

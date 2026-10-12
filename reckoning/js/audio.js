@@ -379,15 +379,49 @@ export const AUDIO = {
   // is: the throat's buzz (not a plain wave — its overtones falling away as a real one's do, the pitch never quite
   // steady, a rasp of roughness under it when it's forced), breath through it, and the mouth shaping it — five
   // resonances, gliding from one vowel to the next as the cry goes. Each cry a little different.
-  voice(kind = "war", { high = false, at = null, vol = 1 } = {}) {
+  // a breath dragged in, sharp, through an open mouth: before a scream, between sobs
+  gasp({ at = null, vol = 1, delay = 0 } = {}) {
+    const a = ctx(); if (!a) return;
+    const { node, k } = placed(a, at, 40); if (k * vol < 0.02) return;
+    const t = a.currentTime + delay, dur = rnd(0.16, 0.26);
+    const n = noiseSrc(a), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g = a.createGain();
+    f.type = "bandpass"; f.Q.value = 1.6; f.frequency.setValueAtTime(rnd(1100, 1400), t); f.frequency.linearRampToValueAtTime(rnd(1900, 2400), t + dur);
+    f2.type = "bandpass"; f2.Q.value = 3; f2.frequency.value = rnd(2800, 3400);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32 * vol * k, t + dur * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(f); n.connect(f2); f.connect(g); f2.connect(g); g.connect(node); n.start(t, Math.random() * 1.5); n.stop(t + dur + 0.05);
+  },
+  voice(kind = "war", { high = false, at = null, vol = 1, delay = 0, seg = false } = {}) {
     const a = ctx(); if (!a) return;
     const { node, k } = placed(a, at, 70); if (k * vol < 0.02) return;
-    const t = a.currentTime;
+    const t = a.currentTime + delay;
+    // a man going down doesn't cry once: a gasp, the scream, and then it breaks down — a catch of breath, and a moan or
+    // two falling away, each weaker (the same throat throughout)
+    if (kind === "death" && !seg) {
+      const me = { high, at, vol, seg: true }, d0 = rnd(0.9, 1.35);
+      this.gasp && this.gasp({ at, vol: vol * 0.5, delay });
+      this.voice("death", { ...me, delay: delay + 0.12 });
+      let at2 = delay + 0.12 + d0 + rnd(0.2, 0.45);
+      for (let i = 0, n = Math.random() < 0.7 ? 1 + Math.floor(Math.random() * 2) : 0; i < n; i++) {
+        this.gasp && this.gasp({ at, vol: vol * 0.35, delay: at2 - 0.22 });
+        this.voice(Math.random() < 0.5 ? "moan" : "sob", { ...me, vol: vol * (0.7 - i * 0.2), delay: at2 });
+        at2 += rnd(0.9, 1.5);
+      }
+      return;
+    }
+    if (kind === "pain" && !seg && Math.random() < 0.45) {
+      // (sometimes it's two: the cry, a breath sucked in through the teeth, and a second, shorter)
+      this.voice("pain", { high, at, vol, delay, seg: true });
+      this.gasp && this.gasp({ at, vol: vol * 0.4, delay: delay + rnd(0.55, 0.75) });
+      this.voice("sob", { high, at, vol: vol * 0.75, delay: delay + rnd(0.85, 1.05), seg: true });
+      return;
+    }
     // [pitch, how long, vowels from → to, the rise at the start, how the pitch ends, loudness, roughness, breathiness]
     const P = {
       war:   [rnd(155, 200), rnd(0.9, 1.4), ["a", r2(["a", "o"])], 1.3, 0.88, 1.0, 0.35, 0.18],
       pain:  [rnd(230, 320), rnd(0.42, 0.75), [r2(["ae", "a"]), r2(["a", "u"])], 1.45, 0.62, 1.05, 0.55, 0.28],
-      death: [rnd(200, 270), rnd(1.0, 1.5), ["a", "u"], 1.25, 0.45, 1.0, 0.7, 0.4],
+      death: [rnd(240, 330), rnd(0.9, 1.35), [r2(["a", "ae"]), r2(["a", "u"])], 1.35, 0.5, 1.15, 0.8, 0.35],
+      moan:  [rnd(140, 190), rnd(0.8, 1.3), [r2(["o", "u"]), "u"], 1.06, 0.7, 0.55, 0.55, 0.55],
+      sob:   [rnd(220, 300), rnd(0.35, 0.55), [r2(["a", "ae"]), "u"], 1.2, 0.6, 0.7, 0.65, 0.5],
       fear:  [rnd(330, 420), rnd(0.8, 1.3), [r2(["ae", "e"]), "a"], 1.2, 0.8, 0.85, 0.3, 0.3],
       grunt: [rnd(105, 145), rnd(0.15, 0.24), [r2(["u", "o"]), "u"], 1.08, 0.85, 0.75, 0.6, 0.45],
     }[kind] || [170, 1, ["a", "a"], 1.2, 0.9, 1, 0.3, 0.2];
@@ -400,6 +434,13 @@ export const AUDIO = {
     pitch.offset.linearRampToValueAtTime(f0 * rise, t + Math.min(0.12, dur * 0.2));
     pitch.offset.linearRampToValueAtTime(f0 * rise * 0.94, t + dur * 0.55);
     pitch.offset.exponentialRampToValueAtTime(f0 * fall, t + dur);
+    // (a cry forced past what the throat can do breaks: the pitch jumps — up, cracking, or down into the chest — and
+    //  back; the more pain, the more often)
+    const SCREAM = kind === "pain" || kind === "death" || kind === "fear" || kind === "sob";
+    if (SCREAM) for (let i = 0, n = Math.floor(rough * 3 * Math.random()) + (kind === "death" ? 1 : 0); i < n; i++) {
+      const bt = t + dur * rnd(0.2, 0.75), up = Math.random() < 0.55, j = up ? rnd(1.25, 1.6) : rnd(0.6, 0.75), bl = rnd(0.05, 0.16);
+      pitch.offset.setValueAtTime(f0 * rise * 0.94 * j, bt); pitch.offset.setValueAtTime(f0 * rise * 0.92, Math.min(t + dur * 0.85, bt + bl));
+    }
     // (jitter: the pitch never quite steady — slow noise on it, and a quicker tremor when it's strained)
     const jit = noiseSrc(a), jf = a.createBiquadFilter(), jg = a.createGain(); jf.type = "lowpass"; jf.frequency.value = 18; jg.gain.value = f0 * (0.05 + rough * 0.06);
     jit.connect(jf); jf.connect(jg);
@@ -433,15 +474,28 @@ export const AUDIO = {
     }
     // (a little of the throat straight through: the chest of the voice, under the mouth's shaping)
     const chest = a.createBiquadFilter(), cg = a.createGain(); chest.type = "lowpass"; chest.frequency.value = 400 * tract; cg.gain.value = 0.35; src.connect(chest); chest.connect(cg); cg.connect(out);
+    // (the harshness of a scream: its loudness beating fast — forty to a hundred and ten times a second — as no calm
+    //  voice does; and chaos in the throat, a hiss in the voice's own band)
+    let rough2 = null;
+    if (SCREAM) {
+      rough2 = a.createGain(); rough2.gain.value = 1 - rough * 0.32;
+      const am = a.createOscillator(), amg = a.createGain(); am.frequency.setValueAtTime(rnd(40, 75), t); am.frequency.linearRampToValueAtTime(rnd(70, 110), t + dur);
+      amg.gain.value = rough * 0.32; am.connect(amg); amg.connect(rough2.gain); am.start(t); am.stop(t + dur + 0.05);
+      const hs = noiseSrc(a), hf = a.createBiquadFilter(), hg = a.createGain(); hf.type = "bandpass"; hf.frequency.value = 1400 * tract; hf.Q.value = 0.8;
+      hg.gain.setValueAtTime(0, t); hg.gain.linearRampToValueAtTime(rough * 0.5, t + dur * 0.3); hg.gain.linearRampToValueAtTime(rough * 0.25, t + dur);
+      hs.connect(hf); hf.connect(hg); hg.connect(out); hs.start(t, Math.random() * 1.5); hs.stop(t + dur + 0.05);
+    }
     // the envelope: in fast, held, and then let go — a death cry breaking up into breath
     const env = a.createGain(), v = 0.42 * loud * vol * k;
     env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(v, t + (kind === "war" ? 0.07 : 0.025));
     env.gain.setValueAtTime(v * 0.9, t + dur * 0.55);
     if (kind === "death") { env.gain.linearRampToValueAtTime(v * 0.35, t + dur * 0.8); env.gain.linearRampToValueAtTime(v * 0.45, t + dur * 0.86); }
+    if (kind === "sob" || kind === "moan") { env.gain.linearRampToValueAtTime(v * 0.55, t + dur * 0.3); env.gain.linearRampToValueAtTime(v * 0.8, t + dur * 0.42); }
     env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     // pushed hard, a voice breaks: rounded over, not clipped
     const sh = a.createWaveShaper(), c = new Float32Array(512); for (let i = 0; i < 512; i++) { const x = i / 256 - 1; c[i] = Math.tanh(x * 1.8); } sh.curve = c;
-    out.connect(sh); sh.connect(env); env.connect(node);
+    if (rough2) { out.connect(rough2); rough2.connect(sh); } else out.connect(sh);
+    sh.connect(env); env.connect(node);
     const end = t + dur + 0.05;
     for (const o of [pitch, throat, fry, trem]) { o.start(t); o.stop(end); }
     jit.start(t, Math.random() * 1.5); jit.stop(end); br.start(t, Math.random() * 1.5); br.stop(end);

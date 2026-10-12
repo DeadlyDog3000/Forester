@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.16.0", date: "12 October 2026", title: "By night",
+    items: [
+      "Battles by night: about one in three is fought under the moon and stars, the field lit only by a watch-fire behind each line and a lantern by every gun. No one sees far — the soldiers open fire much closer than by day. Others are fought in the morning, the afternoon or the evening light.",
+      "The sky going black is fixed. Two causes: a cloud of the dark smoke rolling over your eyes covered the whole sky — now smoke thins to a haze as it comes over you — and a battle could be set over a cave's mouth, and walking into it took the sky away; battles are never set near a cave now.",
+      "Your gun no longer vanishes: a number key pressed while the orders page was hidden (after you'd taken a comrade's place, or between rounds) went through to the bar and put your musket away. In a company fight the numbers are only ever orders.",
+      "More smoke, and blacker: thicker clouds from every musket and cannon, slower to clear.",
+      "Screams that sound like screams: the harsh beating rasp a real scream has, the voice cracking and breaking as it's forced, and a gasp before it. A man going down cries out, catches his breath, and moans or sobs once or twice more, weaker each time; a wound sometimes draws a second, shorter cry through the teeth.",
+      "The guns hold their first shot for a few moments, so a crew isn't cut down before the fight has begun.",
+    ],
+  },
+  {
     v: "1.15.0", date: "12 October 2026", title: "The ground between",
     items: [
       "R to load: a musket or a pistol stays empty after it's fired until you set about loading it, and the crossbow until you wind it. A click on an empty gun gives the dry snap of the lock. A bayonet thrust leaves the loading off — R to begin it again.",

@@ -1375,7 +1375,7 @@ function gunSmoke(at, dir, k = 1) {
   if (!G.world) return;
   muzzleFlash(G.world.root, at, dir, k);
   // (a thick white cloud, as black powder makes: rolling out of the muzzle, and a bank of it hanging after)
-  powderSmoke(G.world.root, at, dir, { scale: k, life: 13 * Math.sqrt(k), n: Math.round(26 * k), speed: 9 * k, haze: true, hazeN: Math.round(5 * k), hazeA: 0.24 });
+  powderSmoke(G.world.root, at, dir, { scale: k, life: 16 * Math.sqrt(k), n: Math.round(36 * k), speed: 9 * k, haze: true, hazeN: Math.round(8 * k), hazeA: 0.3 });
   const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
   panPuff(G.world.root, at.clone().addScaledVector(dir, k < 1 ? -0.3 : -0.95).addScaledVector(side, 0.06));
 }
