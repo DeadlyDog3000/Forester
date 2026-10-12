@@ -86,9 +86,10 @@ export function powderSmoke(root, at, dir, o = {}) {
     add(at.clone().addScaledVector(dir, 0.1 * scale), v, (0.18 + Math.random() * 0.12) * scale, (0.8 + Math.random() * 0.6) * scale, life * (0.7 + Math.random() * 0.6), (0.7 + Math.random() * 0.25) * alpha);
   }
   // (a cannon's leaves a wide, faint haze hanging after the cloud has gone)
-  if (o.haze) for (let i = 0; i < 6; i++) {
+  // (black powder's smoke hangs: a musket's too leaves a bank of it drifting off down the line — o.hazeN puffs, o.hazeA thick)
+  if (o.haze) for (let i = 0; i < (o.hazeN || 6); i++) {
     const v = dir.clone().multiplyScalar(speed * 0.25 * Math.random()).add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 0.6, (Math.random() - 0.5) * 2));
-    add(at.clone().addScaledVector(dir, 2 + Math.random() * 3), v, 1.0 * scale, 2.2 * scale, life * 1.4, 0.1, 0.6 + Math.random() * 0.8);
+    add(at.clone().addScaledVector(dir, (2 + Math.random() * 3) * Math.min(1, scale)), v, 1.0 * scale, 2.2 * scale, life * 1.4, o.hazeA || 0.1, 0.6 + Math.random() * 0.8);
   }
   const tick = dt => {
     let alive = 0;

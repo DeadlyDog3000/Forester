@@ -28,7 +28,7 @@ import { REALMS_1683 } from "./mp/earth-1683.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook } from "./battle.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
-const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "chop";
+const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "slash";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -442,7 +442,7 @@ class Arena {
       const won = !theirs;
       slowMo(1.6, 0.3);
       this.banner(won ? "The field is yours" : "The day is lost", won ? `${this.killed || 0} of theirs down` : "");
-      setTimeout(() => G.arena === this && this.finish(won), 4200);
+      setTimeout(() => G.arena === this && this.overView(won), 2600);
     }
   }
   // ---------------------------------------------------------------------------
@@ -606,6 +606,7 @@ class Arena {
   // as numbers too, but marked as the wheel's)
   takesNumbers(e) { return !!(this.book && this.book.open && !e.fromWheel && /^Digit\d$/.test(e.code)); }
   onKey(e) {
+    if (G.arena === this && this.viewing && e.code === "Enter" && !e.repeat) { e.stopImmediatePropagation(); e.preventDefault(); G.endFreecam && G.endFreecam(); this.finish(this.viewing.won); return; }
     if (G.arena !== this || e.repeat || !this.live || G.downed || G.mode !== "play") return;
     // F (with nothing else to hand): the bayonet fixed under your musket's muzzle — for good, this fight. It's in the way
     // of the rod and the aim: slower loading, and the shot less true
@@ -805,7 +806,19 @@ class Arena {
     if (who === 1 && G.deathCam) this.banner(null);
     else this.banner(who === 0 ? "You take the round" : who === 1 ? `${esc(this.foeInfo.name)} takes the round` : "Time — nobody", `${this.wins[0]} – ${this.wins[1]}`);
     if (who === 1 && G.deathCam) { const fx = $("deathFx"); if (fx) fx.querySelector(".dfx-s").textContent = `${this.wins[0]} – ${this.wins[1]}${done ? "" : " · next round"}`; }
-    setTimeout(() => { if (G.arena !== this) return; if (done) this.finish(who === 0); else if (!this.net) this.beginRound(); }, 3200);
+    setTimeout(() => { if (G.arena !== this) return; if (done) this.overView(who === 0); else if (!this.net) this.beginRound(); }, 3200);
+  }
+  // ---- over: the field to look over as long as you like (the free camera), and Enter to leave it ----
+  overView(won) {
+    if (this.over || this.viewing) return;
+    this.viewing = { won }; this.watching = false;
+    // (your body where it fell; your eye loosed from it, and the red gone)
+    G.deathCam = null; const fx = $("deathFx"); if (fx) fx.classList.remove("on", "watch"); document.body.classList.remove("dead");
+    if (this.book) this.book.hide();
+    G.downed = false; G.lockMove = false;
+    if (!G.freecam && G.toggleFreecam) G.toggleFreecam();
+    this.banner(null);
+    UI.hint(`${won ? "Won." : "Lost."} Look over the field — WASD to fly, Space up, C down. Enter to leave it.`, 8);
   }
   // ---- the match over: the record, and the result ----
   finish(won, left = false) {
@@ -826,6 +839,7 @@ class Arena {
   // gone from the arena (the match done, or quit from the pause menu)
   stop() {
     if (G.arena !== this) return;
+    if (G.freecam && G.endFreecam) G.endFreecam();
     G.arena = null; this.live = false;
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
     G.onSwing = null; G.onDowned = null; G.onGunshot = null; G.onLoose = null; G.onSwingStart = null;
@@ -976,6 +990,7 @@ class Fighter {
     if (k === "none") k = null;
     if (this.heldK === k) return; this.heldK = k;
     const P = this.a.person; P.held.clear(); P.heldL.clear(); P.aimHold && P.aimHold(null);
+    P.blade = !!k && !["bow", "crossbow", "musket", "pistol"].includes(k);
     if (!k) return;
     if (k === "bow") { const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a })); bow.rotation.set(0, Math.PI / 2, 0); this.a.hold(bow, true); return; }
     if (k === "crossbow" || k === "musket" || k === "pistol") { this.gun = shoulderArm(P, k); return; }
@@ -1127,6 +1142,7 @@ class Bot extends Fighter {
     // (a gun's crew stay by their gun: only a man right on it brings them away from it)
     const melee = d < 4.2 || charge || (!haveLong && !(haveSide && d < RANGE.pistol) && d < (this.crewOf ? 5 : 10));
     if (melee) {
+      a.person.crouching = false;
       if (this.mode !== "melee") {
         this.mode = "melee"; this.aimUp(false); this.hold(this.steel()); this.aimT = 0; a.person.setPose("guard"); this.releaseCover();
         // (the bayonet pushed into the muzzle as he comes on: a moment's work, and heard)
@@ -1142,7 +1158,7 @@ class Bot extends Fighter {
       } else if (this.stepT <= 0) { this.stepT = 0.6 + Math.random() * 0.8; if (Math.random() < 0.7) a.circleAbout(fp, reach, 1.4 + s); else a.path = []; }
       return;
     }
-    this.mode = "range";
+    this.mode = "range"; if (!O) a.person.crouching = false;
     // at range: the long arm if it's loaded, the pistol if near enough
     const useK = haveLong ? longK : haveSide && d < RANGE.pistol + 6 ? "pistol" : null;
     const field = this.arena.field;
@@ -1153,6 +1169,8 @@ class Bot extends Fighter {
       const wantCover = field && !this.crewOf && (O.cover || (!useK && s > 0.25)) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.team, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
       if (wantCover !== this.cover) { this.releaseCover(); this.cover = wantCover; if (wantCover) wantCover.taken = this; }
       const goal = this.cover || want, gd = Math.hypot(goal.x - a.pos.x, goal.z - a.pos.z);
+      // (behind his cover and not firing: down low)
+      a.person.crouching = !!(this.cover && gd < 1.2 && (!useK || !this.los));
       // (at the gun: working it — the loader sponging and ramming, the gunner with the powder and the priming — and
       //  watching where it's laid when it's loaded)
       if (this.crewOf && gd <= 1.4) {

@@ -509,7 +509,8 @@ export class Hunt {
     const w = this.w, pl = G.player, F = window.__foley;
     for (const b of this.balls) {
       if (b.done) continue;
-      const sp = b.vel.length(), n = Math.max(1, Math.ceil(sp * dt / 0.8)), h = dt / n;
+      // (stepped a hand's breadth at a time, so it can't hop over a stake or a plank between one look and the next)
+      const sp = b.vel.length(), n = Math.max(1, Math.ceil(sp * dt / 0.2)), h = dt / n;
       for (let k = 0; k < n && !b.done; k++) {
         b.vel.multiplyScalar(Math.exp(-h / 0.75)); b.vel.y -= GRAVITY * h;
         b.pos.addScaledVector(b.vel, h); b.t += h;

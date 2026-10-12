@@ -154,8 +154,9 @@ export class Field {
   // a flank of the fort: a low bank with a palisade standing on it
   flankWall(x, z, len, side, inward, ry = 0) {
     this.bank(x, z, len, ry, side, inward);
-    const g = new THREE.Group(), n = Math.round(len / 0.24);
-    for (let i = 0; i < n; i++) { const h = 1.3 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, h, 6), this.M.log); st.position.set(-len / 2 + (i + 0.5) * len / n, 0.9 + h / 2, 0); g.add(st); const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 6), this.M.stave); tip.position.set(st.position.x, 0.9 + h + 0.12, 0); g.add(tip); }
+    const g = new THREE.Group(), n = Math.round(len / 0.18);
+    { const back = new THREE.Mesh(new THREE.BoxGeometry(len, 1.15, 0.05), this.M.wood); back.position.set(0, 0.9 + 0.6, 0.1); g.add(back); }
+    for (let i = 0; i < n; i++) { const h = 1.3 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, h, 7), this.M.log); st.position.set(-len / 2 + (i + 0.5) * len / n, 0.9 + h / 2, 0); g.add(st); const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 6), this.M.stave); tip.position.set(st.position.x, 0.9 + h + 0.12, 0); g.add(tip); }
     this.put(g, x, z, ry);
     this.solid(x, z, len, 0.35, ry, 2.4, side, inward);
   }
@@ -192,16 +193,19 @@ export class Field {
     this.put(g, x, z, ry);
     this.solid(x, z, L, 1.0, ry, 1.0, side);
   }
+  // stakes driven in shoulder to shoulder (overlapping, so no light shows between them), and planks nailed across the
+  // back of them
   palisade(x, z, len, ry, side) {
-    const g = new THREE.Group(), n = Math.round(len / 0.24);
+    const g = new THREE.Group(), n = Math.round(len / 0.18);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(len, 1.35, 0.05), this.M.wood); back.position.set(0, 0.7, 0.1); g.add(back);
     for (let i = 0; i < n; i++) {
-      const h = 1.5 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, h, 6), this.M.log);
+      const h = 1.5 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, h, 7), this.M.log);
       st.position.set(-len / 2 + (i + 0.5) * len / n, h / 2, 0); g.add(st);
       const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 6), this.M.stave); tip.position.set(st.position.x, h + 0.12, 0); g.add(tip);
     }
     const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, 0.06), this.M.wood); rail.position.set(0, 0.9, 0.12); g.add(rail);
     this.put(g, x, z, ry);
-    this.solid(x, z, len, 0.3, ry, 1.6, side);
+    this.solid(x, z, len, 0.3, ry, 1.9, side);   // (to the stakes' points: nothing goes over the top of it below them)
   }
   // between the lines: what the country left lying about
   between(n) {
@@ -284,7 +288,7 @@ export class Field {
     g.loaded = false; g.reload = 6.5 + this.r() * 2.5; g.recoil = 1;
     this.balls.push({ p: at.clone(), v: dir.multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
     muzzleFlash(root, at.clone().addScaledVector(dir, 0.2), dir, 3);
-    powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 16, n: 26, speed: 15, haze: true });
+    powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 26, n: 42, speed: 15, haze: true, hazeN: 12, hazeA: 0.3 });
     { const b = m.barrel; b.updateMatrixWorld(true); panPuff(root, b.localToWorld(new THREE.Vector3(0, 0.2, 0.6)), 1.4); }
     AUDIO.cannon ? AUDIO.cannon(1, at) : AUDIO.gunshot && AUDIO.gunshot(1.4, at);
     const pl = G.player, d = Math.hypot(at.x - pl.pos.x, at.z - pl.pos.z);

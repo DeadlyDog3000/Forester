@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.14.0", date: "12 October 2026", title: "Smoke and steel",
+    items: [
+      "Everyone moves better in a fight, with motion from a proper animation library fitted to our own people: a swordsman's ready stance and a real cut — a lunge in, the blade across — a flinch from a blow to the body and another to the head, and crouching, still and on the move.",
+      "Crouch and you crouch, instead of shrinking; soldiers get down low behind their cover while they load.",
+      "When a battle's over — or the last round of a duel — you're loosed into the free camera to look over the field as long as you like (WASD to fly, Space up, C down); Enter to leave it.",
+      "Palisades are solid: the stakes stand shoulder to shoulder with planks behind them, no daylight between, and a ball stops in them — it was jumping clean through thin cover between one moment and the next.",
+      "More smoke: black powder's thick white cloud rolls out of every musket and hangs, drifting off on the wind, so a volley leaves the line in a fog; a cannon's is far bigger and slower to clear.",
+    ],
+  },
+  {
     v: "1.13.0", date: "12 October 2026", title: "Forts, and the guns' crews",
     items: [
       "Forts: in Battle Mode choose the ground — the open field, your fort to hold, or theirs to take. A redoubt of earth: its front a rampart chest-high to the men behind it, with embrasures for its guns; palisaded flanks and rear, the gate behind, and a breach the last siege left in one flank. The other side throws up a siege battery. Hold it and they come for you; attack it and they stay on the wall, volley as you come, and only go at you with the steel when you're inside.",

@@ -1545,6 +1545,12 @@ def animate(rig, key, f, J):
                    "Punch": "LR", "Overhead": "LR", "Hit": "LR", "Dig": "L", "Gather": "LR", "Saw": "LR", "Whittle": "LR", "Torch": "LR", "Lantern": "LR", "Hold": "LR", "Writ": "LR",
                    "Point": "LR", "ArmsCrossed": "LR", "Bound": "LR", "Grieve": "LR", "Reach": "LR"})
 
+    # and from Quaternius's Universal Animation Library (ual.py), put onto this rig: a soldier's sword-work — the ready
+    # stance and the cut — the flinch of a blow to the body or the head, and crouching, still and on the move
+    from ual import add_ual_clips
+    add_ual_clips(rig, [("Sword_Attack", "Slash"), ("Sword_Idle", "Ready"), ("Hit_Chest", "HitChest"), ("Hit_Head", "HitHead"),
+                        ("Crouch_Idle_Loop", "Crouch"), ("Crouch_Fwd_Loop", "CrouchWalk")])
+
     # stand in the rest pose when nothing plays
     for b in pb:
         b.rotation_euler = Euler((0, 0, 0))

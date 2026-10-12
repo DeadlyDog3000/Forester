@@ -1048,7 +1048,9 @@ export class Player {
       const m = this.model;
       m.root.position.set(this.pos.x, this.pos.y, this.pos.z);
       m.root.rotation.y = this.yaw + Math.PI;
-      m.body.scale.y = (this.model.scaleBase ?? 1) * (this.crouched ? 0.7 : 1);
+      // (a model with a crouch of its own crouches; an older one is squat)
+      m.crouching = this.crouched && !this.swimming;
+      m.body.scale.y = (this.model.scaleBase ?? 1) * (this.crouched && !(m.has && m.has("crouch")) ? 0.7 : 1);
       // on a bench or a stool, your body sits too
       m.sitting += ((this.seated || this.horse ? 1 : 0) - m.sitting) * Math.min(1, dt * 6);
       if (this.swimming) m.setPose("swim"); else if (m.pose === "swim") m.setPose("idle");
@@ -1109,7 +1111,7 @@ export class Player {
         else if (T < 0.36) pose(HIT, THRU, (T - 0.29) / 0.07);
         else pose(THRU, REST, Math.min(1, (T - 0.36) / 0.3));
       }
-      if (this.model) { this.model.setPose(THRUST.has(this.blade) ? "punch" : this.swingDir === "up" ? "overhead" : "chop"); this.model.poseT = T / 1.25 * 1; }
+      if (this.model) { this.model.setPose(THRUST.has(this.blade) ? "punch" : this.swingDir === "up" ? "overhead" : G.arena ? "slash" : "chop"); this.model.poseT = T / 1.25 * 1; }
       if (T > 0.29 && !this._hitDone) {
         this._hitDone = true; const before = this.impactT || 0;
         this.onSwingHit && this.onSwingHit();
@@ -1365,7 +1367,8 @@ G.wear = (k, n = 1) => {
 function gunSmoke(at, dir, k = 1) {
   if (!G.world) return;
   muzzleFlash(G.world.root, at, dir, k);
-  powderSmoke(G.world.root, at, dir, { scale: k, life: 7 * Math.sqrt(k), n: Math.round(14 * k), speed: 9 * k });
+  // (a thick white cloud, as black powder makes: rolling out of the muzzle, and a bank of it hanging after)
+  powderSmoke(G.world.root, at, dir, { scale: k, life: 13 * Math.sqrt(k), n: Math.round(26 * k), speed: 9 * k, haze: true, hazeN: Math.round(5 * k), hazeA: 0.24 });
   const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
   panPuff(G.world.root, at.clone().addScaledVector(dir, k < 1 ? -0.3 : -0.95).addScaledVector(side, 0.06));
 }
