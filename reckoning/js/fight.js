@@ -25,8 +25,10 @@ G.timeWarp = dt => {
   G.fovKick = (G.fovKick || 0) * Math.pow(0.004, dt);
   return dt * k;
 };
-export const hitStop = s => { stopT = Math.max(stopT, s); };
-export const slowMo = (s, k) => { if (slowT <= 0 || k < slowK) slowK = k; slowT = Math.max(slowT, s); slowLen = slowT; };
+// (never in a fight of companies: a battle goes on at its own pace, nobody's kill stops it)
+const inBattle = () => !!(G.arena && G.arena.multi);
+export const hitStop = s => { if (inBattle()) return; stopT = Math.max(stopT, s); };
+export const slowMo = (s, k) => { if (inBattle()) return; if (slowT <= 0 || k < slowK) slowK = k; slowT = Math.max(slowT, s); slowLen = slowT; };
 export const shake = a => { G.shakeA = Math.min(1.2, Math.max(G.shakeA || 0, a)); };
 export const kickFov = d => { G.fovKick = d; };
 

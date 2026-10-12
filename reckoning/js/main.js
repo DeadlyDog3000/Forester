@@ -1693,6 +1693,8 @@ setInterval(showHbName, 60);
 }
 addEventListener("keydown", e => {
   if (G.mode !== "play" || overlay || !/^Digit[1-9]$/.test(e.code)) return;
+  // (in a fight of companies the numbers are your orders; only the wheel's turns change your weapon)
+  if (G.arena && G.arena.takesNumbers && G.arena.takesNumbers(e)) return;
   const it = hotbarItems()[+e.code.slice(5) - 1];
   const pl = G.player, blade = pl.blade || "axe";
   // food in the hand: put away first. If what you picked is already out behind it (the axe, a blade, the bow), that's

@@ -55,6 +55,33 @@ function crackles(d, sr, at, dur, rate, amp, f0 = 1500, f1 = 6000) {
 }
 
 // a bubble: a note that rises as the bubble closes, dying away fast — the sound of a drop, of water stirred
+// ---- metal: what makes iron and steel sound like themselves, and not like a beep ----
+// a strike on a piece of metal: not one tone but a dense spray of them, unevenly spaced as a bar's or a plate's
+// overtones are (and each a little off), the high ones dying first, over a short hard tick of noise
+function metal(d, sr, at, base, amp = 1, decay = 0.05, n = 14, bright = 1) {
+  const R = [1, 2.76, 5.40, 8.93, 13.3, 18.6, 1.48, 3.9, 7.1, 11.2, 2.1, 4.6, 6.3, 9.8, 15.5, 21.4];
+  const list = [];
+  for (let i = 0; i < n; i++) { const f = base * R[i % R.length] * rand(0.97, 1.03) * (i >= R.length ? rand(1.05, 1.3) : 1); if (f > sr * 0.45) continue; list.push([f, decay * Math.min(1.6, Math.pow(base / f, 0.45) * 1.5) * rand(0.7, 1.2), amp * rand(0.25, 1) * Math.pow(base / f, 0.35 / bright) * 0.4]); }
+  modes(d, sr, at, list);
+  hiss(d, sr, at, 0.008, amp * 0.9, new Biquad("hp", Math.min(9000, base * 2.2), 0.7, sr), x => Math.exp(-x / 0.0012));
+}
+// one piece of metal sliding on another — a steel rod drawn through its pipes or down an iron barrel, a blade into a
+// muzzle: friction (rough noise, catching and slipping) ringing the pieces' own resonances, faster or slower as it goes
+function slide(d, sr, at, dur, base, amp = 1, speed = t => Math.sin(Math.PI * Math.min(1, t)), grit = 1) {
+  const R = [1, 2.76, 5.4, 8.93, 13.3], bps = R.map(r => new Biquad("bp", base * r * rand(0.97, 1.03), 22 + Math.random() * 20, sr));
+  const hp = new Biquad("hp", 900, 0.7, sr), i0 = Math.floor(at * sr), n = Math.floor(dur * sr);
+  let stick = 0;
+  for (let i = 0; i < n && i0 + i < d.length; i++) {
+    const t = i / n, v = Math.max(0, speed(t));
+    // (stick and slip: the rub comes in little catches, more of them the faster it goes)
+    stick = Math.max(0, stick * 0.996 + (Math.random() < 0.0016 * (1 + v * 3) ? rand(0.4, 1) : 0) - 0.0004);
+    const ex = (Math.random() * 2 - 1) * (0.35 + stick * 1.4) * v;
+    let y = hp.run(ex) * 0.22;
+    for (let k = 0; k < bps.length; k++) y += bps[k].run(ex) * (0.9 / (k + 1));
+    d[i0 + i] += y * amp;
+  }
+  if (grit) crackles(d, sr, at, dur * 0.9, 60 * grit, 0.12 * amp, 3000, 9000);
+}
 function bubble(d, sr, at, f0, rise, dur, amp) {
   const i0 = Math.floor(at * sr), n = Math.floor(dur * 3 * sr); let ph = 0;
   for (let i = 0; i < n && i0 + i < d.length; i++) { const t = i / sr, f = f0 * (1 + (rise - 1) * Math.min(1, t / dur)); ph += TAU * f / sr; d[i0 + i] += Math.sin(ph) * amp * Math.exp(-t / (dur * 0.8)) * Math.min(1, t / 0.001); }
@@ -252,68 +279,97 @@ const RECIPES = {
     }
     return finish(d, 0.6);
   },
-  // ---- loading a flintlock, step by step ----
-  // the cock drawn back to half cock (or on to full): the tumbler's two clicks, small and hard, and the spring
+  // ---- loading a flintlock, step by step: iron, steel and brass, worked by hand ----
+  // the cock drawn back to half cock (or on to full): the tumbler going round under the mainspring, a stiff turn and
+  // its notch catching — iron on iron, small and hard, the lock plate ringing a little with it
   halfcock(sr) {
-    const d = new Float32Array(Math.floor(sr * 0.3));
-    for (const [t, a] of [[0, 1], [0.05 + rand(0, 0.02), 0.7]]) { hiss(d, sr, t, 0.012, a, new Biquad("hp", 2500, 0.8, sr), x => Math.exp(-x / 0.002)); modes(d, sr, t, [[rand(3200, 3800), 0.02, 0.25], [rand(5600, 6400), 0.012, 0.15]]); }
-    return finish(d, 0.7);
+    const d = new Float32Array(Math.floor(sr * 0.35));
+    slide(d, sr, 0, 0.05, rand(2100, 2600), 0.25, t => 1 - t, 0);
+    metal(d, sr, 0.05 + rand(0, 0.015), rand(1900, 2300), 1, 0.035, 14, 1.2);
+    return finish(d, 0.6);
   },
   cock(sr) {
-    const d = new Float32Array(Math.floor(sr * 0.35));
-    for (const [t, a] of [[0, 0.8], [0.07 + rand(0, 0.02), 1]]) { hiss(d, sr, t, 0.014, a, new Biquad("hp", 2000, 0.8, sr), x => Math.exp(-x / 0.0025)); modes(d, sr, t, [[rand(2800, 3300), 0.03, 0.35], [rand(4800, 5600), 0.018, 0.2]]); }
-    return finish(d, 0.8);
+    const d = new Float32Array(Math.floor(sr * 0.4));
+    slide(d, sr, 0, 0.08, rand(1900, 2300), 0.3, t => 1 - t * 0.6, 0);
+    metal(d, sr, 0.02, rand(2300, 2700), 0.6, 0.03, 10, 1.2);
+    metal(d, sr, 0.08 + rand(0, 0.02), rand(1700, 2050), 1, 0.045, 16, 1.1);
+    return finish(d, 0.72);
   },
-  // fine powder shaken from the flask into the pan: a soft dry hiss of grains, a few ticks as they land
+  // fine powder shaken from the flask into the pan: the brass spout's tick on the steel, and a soft dry hiss of grains
   prime(sr) {
     const d = new Float32Array(Math.floor(sr * 0.45));
-    hiss(d, sr, 0.02, 0.32, 0.5, new Biquad("bp", 5200, 1.2, sr), x => Math.min(1, x / 0.04) * Math.exp(-x / 0.18));
-    crackles(d, sr, 0.03, 0.3, 160, 0.18, 4000, 9000);
-    return finish(d, 0.45);
+    metal(d, sr, 0, rand(3200, 3800), 0.35, 0.02, 8, 1.3);
+    hiss(d, sr, 0.03, 0.3, 0.45, new Biquad("bp", 5200, 1.2, sr), x => Math.min(1, x / 0.04) * Math.exp(-x / 0.16));
+    crackles(d, sr, 0.04, 0.28, 160, 0.16, 4000, 9000);
+    return finish(d, 0.42);
   },
-  // the steel snapped down over the pan: a sharp clack of iron on iron, the spring behind it
+  // the steel snapped down over the pan: a hard clack of iron on iron, the frizzen spring behind it
   frizzen(sr) {
-    const d = new Float32Array(Math.floor(sr * 0.3));
-    hiss(d, sr, 0, 0.01, 1, new Biquad("hp", 1500, 0.7, sr), x => Math.exp(-x / 0.0018));
-    modes(d, sr, 0, [[rand(1900, 2300), 0.05, 0.5], [rand(3400, 3900), 0.03, 0.3], [rand(620, 720), 0.04, 0.3]]);
+    const d = new Float32Array(Math.floor(sr * 0.32));
+    slide(d, sr, 0, 0.025, rand(2600, 3000), 0.3, t => 1, 0);
+    metal(d, sr, 0.025, rand(1300, 1600), 1, 0.06, 16, 1);
     return finish(d, 0.75);
   },
-  // the charge poured down the barrel from a paper cartridge: a run of grains, hollow, rung by the long iron tube
+  // the charge poured down the barrel: a run of grains, hollow, rung by the long iron tube
   powder(sr) {
     const L = 0.7, d = new Float32Array(Math.floor(sr * L));
-    hiss(d, sr, 0, 0.6, 0.6, new Biquad("bp", 3800, 0.9, sr), x => Math.min(1, x / 0.05) * Math.exp(-x / 0.35));
+    hiss(d, sr, 0, 0.6, 0.55, new Biquad("bp", 3800, 0.9, sr), x => Math.min(1, x / 0.05) * Math.exp(-x / 0.35));
     crackles(d, sr, 0.02, 0.55, 220, 0.14, 3000, 8000);
-    // (the tube: a faint hollow note under it)
-    modes(d, sr, 0.03, [[rand(410, 470), 0.35, 0.06], [rand(1240, 1380), 0.2, 0.04]]);
-    return finish(d, 0.45);
+    // (the barrel answering it: a faint ring of the tube under the grains, rubbed rather than struck)
+    slide(d, sr, 0.02, 0.6, rand(420, 480), 0.12, t => Math.exp(-t * 2), 0);
+    return finish(d, 0.42);
   },
-  // the ball let go at the muzzle: a little click on the iron, then its rattle and roll down the bore, a soft knock at the bottom
+  // the ball let go at the muzzle: a tap of lead on the iron, then the ball rolling and knocking down the bore — the
+  // whole barrel rumbling with it — and the soft stop at the bottom
   ball(sr) {
-    const d = new Float32Array(Math.floor(sr * 0.6));
-    hiss(d, sr, 0, 0.006, 0.6, new Biquad("hp", 3000, 0.7, sr), x => Math.exp(-x / 0.0015));
-    let t = 0.02;
-    for (let i = 0; i < 9; i++) { modes(d, sr, t, [[rand(900, 1300) * (1 - i * 0.05), 0.012, 0.25 * (1 - i * 0.07)]]); t += rand(0.025, 0.04); }
-    modes(d, sr, t + 0.03, [[rand(140, 180), 0.05, 0.6], [rand(420, 480), 0.03, 0.2]]);
+    const d = new Float32Array(Math.floor(sr * 0.65));
+    metal(d, sr, 0, rand(1500, 1800), 0.55, 0.03, 12, 0.8);
+    slide(d, sr, 0.02, 0.36, rand(380, 460), 0.55, t => 0.6 + t * 0.6, 0.6);
+    let t = 0.04; for (let i = 0; i < 6; i++) { metal(d, sr, t, rand(700, 950) * (1 - i * 0.04), 0.18 * (1 - i * 0.1), 0.02, 8, 0.7); t += rand(0.04, 0.06); }
+    hiss(d, sr, t + 0.02, 0.03, 0.6, new Biquad("lp", 700, 0.7, sr), x => Math.exp(-x / 0.01));
+    modes(d, sr, t + 0.02, [[rand(150, 180), 0.04, 0.4]]);
     return finish(d, 0.55);
   },
-  // the ramrod drawn from its pipes (or put back): wood sliding through brass, a dry rising rasp, a tap at the end
+  // the ramrod drawn from its pipes: steel sliding through brass, a long rough ring rising as it comes faster, and the
+  // last of it leaving the pipe with a tick
   rodOut(sr) {
-    const L = 0.5, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 1500, 1.4, sr);
-    for (let i = 0; i < d.length; i++) { const t = i / sr, u = t / L; bp.set("bp", 1100 + 1600 * u, 1.4, sr); d[i] = bp.run(Math.random() * 2 - 1) * Math.sin(Math.PI * Math.min(1, u * 1.15)) * (0.7 + 0.3 * Math.sin(t * 90)); }
-    modes(d, sr, L * 0.9, [[rand(1700, 2100), 0.02, 0.3]]);
-    return finish(d, 0.5);
+    const L = 0.55, d = new Float32Array(Math.floor(sr * L));
+    slide(d, sr, 0, L * 0.9, rand(1050, 1250), 1, t => Math.sin(Math.PI * Math.min(1, t * 1.1)) * (0.6 + t * 0.6));
+    metal(d, sr, L * 0.88, rand(2000, 2400), 0.4, 0.03, 10, 1.1);
+    return finish(d, 0.55);
   },
+  // and put back: in, the long slide falling, and the rod home in the last pipe with a knock
   rodIn(sr) {
-    const L = 0.45, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 1500, 1.4, sr);
-    for (let i = 0; i < d.length; i++) { const t = i / sr, u = t / L; bp.set("bp", 2400 - 1300 * u, 1.4, sr); d[i] = bp.run(Math.random() * 2 - 1) * Math.sin(Math.PI * u) * (0.7 + 0.3 * Math.sin(t * 80)); }
-    modes(d, sr, L * 0.85, [[rand(800, 1000), 0.03, 0.4], [rand(2600, 3000), 0.015, 0.2]]);
-    return finish(d, 0.5);
+    const L = 0.5, d = new Float32Array(Math.floor(sr * L));
+    slide(d, sr, 0, L * 0.85, rand(1000, 1200), 1, t => Math.sin(Math.PI * Math.min(1, t)) * (1 - t * 0.4));
+    metal(d, sr, L * 0.84, rand(900, 1100), 0.8, 0.05, 14, 0.9);
+    return finish(d, 0.55);
   },
-  // the rod rammed home on the ball: a dull wooden thud deep in the barrel, the tube ringing faintly round it
+  // the rod rammed home on the ball: the rod's iron end struck down on the lead, deep in the barrel — a dull knock,
+  // the long tube ringing round it, and the rod scraping as it comes back up for the next
   ram(sr) {
-    const d = new Float32Array(Math.floor(sr * 0.35));
-    hiss(d, sr, 0, 0.03, 0.5, new Biquad("lp", 900, 0.7, sr), x => Math.exp(-x / 0.008));
-    modes(d, sr, 0, [[rand(170, 210), 0.06, 0.9], [rand(520, 600), 0.04, 0.35], [rand(1300, 1500), 0.08, 0.08]]);
+    const d = new Float32Array(Math.floor(sr * 0.45));
+    slide(d, sr, 0, 0.07, rand(450, 520), 0.5, t => 1 - t * 0.3, 0.4);
+    hiss(d, sr, 0.07, 0.03, 0.55, new Biquad("lp", 900, 0.7, sr), x => Math.exp(-x / 0.008));
+    modes(d, sr, 0.07, [[rand(170, 210), 0.06, 0.7]]);
+    metal(d, sr, 0.07, rand(430, 500), 0.55, 0.12, 12, 0.6);
+    slide(d, sr, 0.16, 0.2, rand(450, 520), 0.35, t => Math.sin(Math.PI * t), 0.3);
+    return finish(d, 0.62);
+  },
+  // the plug bayonet fixed: the blade's grip pushed into the muzzle — steel scraping into iron — and seated hard
+  fixBayonet(sr) {
+    const L = 0.6, d = new Float32Array(Math.floor(sr * L));
+    metal(d, sr, 0, rand(2600, 3000), 0.4, 0.04, 10, 1.2);
+    slide(d, sr, 0.04, 0.38, rand(700, 820), 0.9, t => Math.sin(Math.PI * Math.min(1, t * 1.2)) * (1 - t * 0.5));
+    metal(d, sr, 0.43, rand(900, 1050), 1, 0.07, 16, 0.9);
+    return finish(d, 0.7);
+  },
+  // and twisted out again: a grind, a long pull, and free
+  unfixBayonet(sr) {
+    const L = 0.55, d = new Float32Array(Math.floor(sr * L));
+    slide(d, sr, 0, 0.12, rand(650, 760), 0.8, t => 1, 0.8);
+    slide(d, sr, 0.12, 0.34, rand(720, 840), 0.85, t => Math.sin(Math.PI * t) + 0.3);
+    metal(d, sr, 0.46, rand(2200, 2600), 0.35, 0.05, 10, 1.2);
     return finish(d, 0.65);
   },
   // ---- the bow and the crossbow, loading ----
@@ -341,15 +397,17 @@ const RECIPES = {
   // the windlass wound: a pawl clicking over the ratchet, the cord taking up, the steel prod groaning
   crank(sr) {
     const L = 0.55, d = new Float32Array(Math.floor(sr * L));
-    for (let t = 0.01; t < L - 0.03; t += rand(0.055, 0.075)) { hiss(d, sr, t, 0.006, 0.7, new Biquad("hp", 2200, 0.8, sr), x => Math.exp(-x / 0.0016)); modes(d, sr, t, [[rand(2600, 3100), 0.02, 0.25]]); }
-    hiss(d, sr, 0, L, 0.12, new Biquad("bp", 500, 2, sr), x => Math.min(1, x / 0.05));
+    // (the pawl over the ratchet: each click a little iron strike, the cord creaking and the prod groaning under them)
+    for (let t = 0.01; t < L - 0.03; t += rand(0.055, 0.075)) metal(d, sr, t, rand(2300, 2800), 0.6, 0.02, 9, 1.2);
+    slide(d, sr, 0, L, rand(300, 360), 0.25, t => Math.min(1, t * 6), 0);
+    hiss(d, sr, 0, L, 0.08, new Biquad("bp", 500, 2, sr), x => Math.min(1, x / 0.05));
     return finish(d, 0.5);
   },
   // the string caught on the nut: a solid clack of horn and steel
   latch(sr) {
     const d = new Float32Array(Math.floor(sr * 0.3));
-    hiss(d, sr, 0, 0.012, 1, new Biquad("hp", 1200, 0.7, sr), x => Math.exp(-x / 0.002));
-    modes(d, sr, 0, [[rand(900, 1100), 0.04, 0.5], [rand(2400, 2800), 0.025, 0.3], [rand(140, 180), 0.05, 0.4]]);
+    metal(d, sr, 0, rand(950, 1150), 1, 0.05, 14, 0.9);
+    modes(d, sr, 0, [[rand(140, 180), 0.05, 0.4]]);
     return finish(d, 0.7);
   },
   // a bolt laid in the groove: wood tapped on wood, a little slide
@@ -423,7 +481,7 @@ const RECIPES = {
 };
 const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3,
   whiz: 3, thunk: 3, halfcock: 3, cock: 3, prime: 3, frizzen: 3, powder: 2, ball: 3, rodOut: 2, rodIn: 2, ram: 4,
-  quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3 };
+  quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3, fixBayonet: 3, unfixBayonet: 2 };
 // (every recipe needs its count above, or it's made no times and never heard: anything left out gets two)
 for (const k in RECIPES) VARIANTS[k] ??= 2;
 

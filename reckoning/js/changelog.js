@@ -7,12 +7,26 @@
 
 export const CHANGELOG = [
   {
+    v: "1.12.0", date: "12 October 2026", title: "Fix bayonets",
+    items: [
+      "The bayonet: the dagger is a plug bayonet now, its grip made to push into a musket's muzzle. With a musket, fix it from your weapons (the wheel) — it's heard going in — and your musket's a pike, thrust and not swung, with a long reach; it won't fire till the bayonet's out again. Soldiers fix theirs as they close, and most of a battle's companies carry them.",
+      "Orders are the number keys: the page of orders stays at the side of the field, and its number gives each one while you fight on — no F, nothing in the way. The formation's number turns to the formations. The wheel changes your weapon.",
+      "Fall in battle while three of your company still stand, and you're up again in the place of one of them — the one furthest from the fighting — and fight on.",
+      "No slowing down or freezing when someone's killed in a fight of companies: a battle goes on at its own pace. No music over a fight either — the field, the shots and the shouting are its sound; a side drum beats the advance.",
+      "The guns: steel now, solid from every side (you could see through the barrels), quicker to load and better laid; a round shot goes through a file of men, throws up earth and splinters where it strikes, and bounds on low.",
+      "Shots sound as they do out of doors: the lock and the pan a moment first, a hard crack, the boom, and the report going off round the country and back — later and duller the further off it is. A pistol is smaller. A cannon is far louder and deeper than any musket, and its thunder rolls on for seconds.",
+      "Loading sounds as iron and steel do: the ramrod sliding through its pipes and down the barrel, the ball rolling down the bore, the lock's tumbler catching — no more beeps. The crossbow's ratchet and nut too.",
+      "Cries are human: a voice with breath and roughness in it, its pitch never quite steady, the vowel changing as it goes — and a man who's killed cries out and breaks off into breath (unless it was his head).",
+      "A company's faces vary: fair for the most part, weathered or sallow in many, a few darker.",
+    ],
+  },
+  {
     v: "1.11.0", date: "12 October 2026", title: "To arms", img: "art/updates/1.11.0.jpg",
     items: [
       "Battle Mode: take a company into the field against another — your own colours (Imperial, Saxon, Bavarian, Swedish, Brandenburg, French, English or Hamburg's militia), theirs drawn by lot — up to 12 men with you and 20 against you.",
       "Every battle is somewhere new on the Earth as it stood in 1683: any land that's open and level enough, never the sea — the savanna of Brazil one time, the woods of Muscovy the next — named for the realm it's in.",
       "The field is made fresh each time: gabions and earth banks for each side's works, chevaux-de-frise and palisades before them, carts, barrels and fallen trees between, and guns in the batteries firing round shot that bounces, ploughs the ground, and goes through a file of men.",
-      "F gives your orders, from a page in a captain's hand, while you fight on: follow me, hold here, advance to where you're looking, take cover, fire at will or hold your fire, a volley at your word, bring down the man you're looking at, charge — and the formation: line, column, square or loose order; in a battle, the guns laid on where you're looking.",
+      "Orders, from a page in a captain's hand, while you fight on: follow me, hold here, advance to where you're looking, take cover, fire at will or hold your fire, a volley at your word, bring down the man you're looking at, charge — and the formation: line, column, square or loose order; in a battle, the guns laid on where you're looking.",
       "Their officer holds his works a while, then brings his men on, volleys, and sends them in with the steel when they're close.",
       "Skirmishes too: any number with you and against you, without the uniforms and the guns, in the ride in the woods.",
       "Fall in battle and the red comes in as ever — then your eye goes to one of your company still fighting, to the end.",

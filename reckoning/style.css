@@ -1269,26 +1269,27 @@ body.dead #crosshair, body.dead #hotbar, body.dead #stance, body.dead #hbName { 
 #deathFx.on.watch { animation: none; opacity: 0.3; transition: opacity 1.6s; }
 #deathFx.watch .dfx-t, #deathFx.watch .dfx-s { opacity: 0 !important; animation: none; transition: opacity 0.8s; }
 
-/* ---- the order book: a captain's page of orders, not a computer's menu ---- */
-#orderBook { position: absolute; left: 34px; top: 50%; transform: translateY(-50%); width: 330px; padding: 16px 18px 12px; z-index: 8; pointer-events: none;
+/* ---- the order book: a captain's page of orders at the side of the field, given by their numbers ---- */
+#orderBook { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); width: 236px; padding: 11px 13px 9px; z-index: 6; pointer-events: none; opacity: 0.9;
   background: linear-gradient(170deg, #efe2c2 0%, #e2d0a6 60%, #d4bf92 100%); color: #2c2016; border-radius: 2px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), inset 0 0 40px rgba(120, 84, 40, 0.28); font-family: var(--serif); }
-#orderBook.hidden { display: none; }
-#orderBook.in { animation: obIn 0.22s ease-out; }
-@keyframes obIn { from { opacity: 0; transform: translateY(-50%) translateX(-16px) rotate(-1.5deg); } to { opacity: 1; transform: translateY(-50%); } }
-#orderBook .ob-head { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(60, 40, 20, 0.35); padding-bottom: 8px; margin-bottom: 6px; }
-#orderBook .ob-seal { width: 34px; height: 34px; border-radius: 50%; flex: none; background: radial-gradient(circle at 38% 35%, #c04a3a, #7a1c14 70%); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 0 0 3px rgba(0, 0, 0, 0.15); }
-#orderBook .ob-t { font: 600 24px var(--display); letter-spacing: 0.04em; }
-#orderBook .ob-s { font-style: italic; font-size: 13px; color: #5a4430; }
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(120, 84, 40, 0.28); font-family: var(--serif); }
+#orderBook.hidden, body.dead #orderBook { display: none; }
+#orderBook.in { animation: obIn 0.3s ease-out; }
+#orderBook.form { opacity: 1; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(122, 28, 20, 0.5), inset 0 0 30px rgba(120, 84, 40, 0.28); }
+@keyframes obIn { from { opacity: 0; transform: translateY(-50%) translateX(-14px) rotate(-1.5deg); } to { opacity: 0.9; transform: translateY(-50%); } }
+#orderBook .ob-head { display: flex; align-items: center; gap: 9px; border-bottom: 1px solid rgba(60, 40, 20, 0.35); padding-bottom: 6px; margin-bottom: 4px; }
+#orderBook .ob-seal { width: 24px; height: 24px; border-radius: 50%; flex: none; background: radial-gradient(circle at 38% 35%, #c04a3a, #7a1c14 70%); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(0, 0, 0, 0.15); }
+#orderBook .ob-t { font: 600 18px var(--display); letter-spacing: 0.04em; }
+#orderBook .ob-s { font-style: italic; font-size: 12px; color: #5a4430; }
 #orderBook .ob-list { list-style: none; margin: 0; padding: 0; }
-#orderBook li { display: grid; grid-template-columns: 30px 1fr 18px; grid-template-rows: auto auto; column-gap: 6px; padding: 4px 6px; border-radius: 2px; }
-#orderBook .ob-n { grid-row: 1 / span 2; font: 600 14px var(--display); color: #7a5a3a; align-self: center; }
-#orderBook .ob-l { font-size: 17px; }
-#orderBook .ob-sub { grid-column: 2; font-style: italic; font-size: 12px; color: #6a5440; }
-#orderBook .ob-k { grid-row: 1 / span 2; grid-column: 3; align-self: center; font: 600 11px var(--sans); color: #8a6a4a; text-align: right; }
-#orderBook li.sel { background: rgba(122, 28, 20, 0.13); box-shadow: inset 3px 0 0 #7a1c14; }
+#orderBook li { display: grid; grid-template-columns: 20px 1fr auto; align-items: baseline; column-gap: 7px; padding: 2px 5px; border-radius: 2px; transition: background 0.3s; }
+#orderBook .ob-k { font: 600 13px var(--sans); color: #7a1c14; text-align: center; border: 1px solid rgba(122, 28, 20, 0.4); border-radius: 2px; line-height: 17px; }
+#orderBook .ob-l { font-size: 15px; }
+#orderBook .ob-n { font: 600 10px var(--display); color: #8a6a4a; }
+#orderBook li.on .ob-l { font-weight: 600; }
 #orderBook li.on .ob-l::after { content: " ✓"; color: #7a1c14; }
-#orderBook .ob-foot { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(60, 40, 20, 0.25); font: 12px var(--sans); color: #6a5440; }
+#orderBook li.lit { background: rgba(122, 28, 20, 0.22); }
+#orderBook .ob-foot { margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(60, 40, 20, 0.25); font: 11px var(--sans); color: #6a5440; }
 
 /* (the load and the company side by side under the arms; and the whole page scrolls if the window's short) */
 #pvp { max-height: 100vh; overflow-y: auto; }

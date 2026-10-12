@@ -28,7 +28,7 @@ import { REALMS_1683 } from "./mp/earth-1683.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook } from "./battle.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
-const blowPose = (k, dir) => k === "spear" ? "punch" : dir === "up" ? "overhead" : "chop";
+const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "chop";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -51,7 +51,9 @@ export const BLADE = {
   battleaxe: { name: "Battle axe", icon: "battleaxe", w: 4, dmg: 28, rate: 0.8, reach: 2.4, stats: [["Blow", "28"], ["Pace", "slow"], ["Reach", "2.4 m"]], note: "Heavy. Fewer blows, and every one of them felt." },
   spear: { name: "Spear", icon: "spear", w: 3, dmg: 16, rate: 1.0, reach: 3.0, stats: [["Blow", "16"], ["Pace", "steady"], ["Reach", "3 m"]], note: "Keeps him off: you reach him before he reaches you." },
   axe: { name: "Felling axe", icon: "axe", w: 3, dmg: 14, rate: 1.05, reach: 2.3, stats: [["Blow", "14"], ["Pace", "steady"], ["Reach", "2.3 m"]], note: "The woodsman's axe. It'll do, in the right hands." },
-  dagger: { name: "Dagger", icon: "dagger", w: 1, dmg: 11, rate: 1.5, reach: 1.9, stats: [["Blow", "11"], ["Pace", "very quick"], ["Reach", "1.9 m"]], note: "A long knife for the belt: light enough to carry beside a musket." },
+  dagger: { name: "Bayonet", icon: "dagger", w: 1, dmg: 11, rate: 1.5, reach: 1.9, stats: [["Blow", "11 · fixed 24"], ["Reach", "1.9 m · fixed 2.7"]], note: "A plug bayonet: a long dagger for the belt, its grip made to push into a musket's muzzle — and then your musket's a pike (but it won't fire till it's out)." },
+  // (the musket with the bayonet fixed: not chosen, but what the musket and the bayonet make together)
+  bayonet: { name: "Fixed bayonet", icon: "musket", w: 0, dmg: 24, rate: 0.95, reach: 2.7, hidden: true, stats: [], note: "" },
 };
 // what you can carry: a long arm, a sidearm and a blade, all within this. (A musket is so heavy it's your sidearm's
 // share too: beside it, only a dagger.) The lighter you go, the quicker on your feet.
@@ -127,7 +129,7 @@ function drawLoadout(note = "") {
       ${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="pv-none"></span>`}<span class="pv-name">${esc(o.name)}<span class="pv-w" title="Weight">${o.w}</span></span>
       <span class="pv-stats">${o.stats.map(([k, v]) => `<span><b>${esc(k)}</b> ${esc(v)}</span>`).join("")}</span>
       <span class="pv-note">${esc(o.note)}</span></button>`;
-  const col = (slot, title, list) => `<div class="pv-col"><div class="pv-h">${title}</div>${Object.entries(list).map(([id, o]) => card(slot, id, o)).join("")}</div>`;
+  const col = (slot, title, list) => `<div class="pv-col"><div class="pv-h">${title}</div>${Object.entries(list).filter(([, o]) => !o.hidden).map(([id, o]) => card(slot, id, o)).join("")}</div>`;
   $("pvpCols").innerHTML = col("long", "Long arm", LONG) + col("side", "Sidearm", SIDE) + col("blade", "Blade", BLADE);
   const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100);
   $("pvpLoad").innerHTML = `<div class="pv-load-h"><b>Load</b> ${w} of ${LOAD_MAX}<span>${sp >= 0 ? `${sp}% quicker on your feet` : `${-sp}% slower on your feet`}</span></div><div class="pv-load-bar">${Array.from({ length: LOAD_MAX }, (_, i) => `<i class="${i < w ? "on" : ""}"></i>`).join("")}</div><div class="pv-load-note">${esc(note)}</div>`;
@@ -146,7 +148,7 @@ function drawArmy() {
     <div class="pv-steps">${step("allies", "With you", A.allies, 0, 12)}${step("enemies", "Against you", A.enemies, 1, 20)}
       <button class="pv-bt${A.battle ? " on" : ""}" data-bt="1"><b>Battle Mode</b><small>${A.battle ? "On — " : ""}uniforms, earthworks and guns, somewhere on the Earth</small></button></div>
     ${A.battle ? `<div class="pv-unis">${Object.entries(UNIFORMS).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div><div class="pv-uni-note">${esc(UNIFORMS[A.uniform].note)} — theirs will be another's, drawn by lot.</div>` : ""}
-    <div class="pv-army-note">${multi ? `Against bots${A.allies ? `, your ${A.allies} with you` : ""}. ${A.allies || A.battle ? "F in the field gives your orders." : ""}` : "One against one: another player if anyone's looking, or a bot as strong as you are."}</div>`;
+    <div class="pv-army-note">${multi ? `Against bots${A.allies ? `, your ${A.allies} with you` : ""}. ${A.allies || A.battle ? "In the field the number keys are your orders; the wheel, your weapons." : ""}` : "One against one: another player if anyone's looking, or a bot as strong as you are."}</div>`;
   $("pvpGo").textContent = multi ? "To the field" : "Find a match";
 }
 function armyClick(e) {
@@ -246,6 +248,7 @@ export function army() {
   return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)] };
 }
 export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
+const TAKE_OVER = 3;   // (fallen in battle: up again in a comrade's place while this many of them still stand)
 const FORM_WORD = { line: "Form line", column: "Form column", square: "Form square", loose: "Loose order — spread out" };
 // a bot's name and look, made up fresh
 const FIRST = ["Hans", "Matthias", "Jörg", "Kaspar", "Lorenz", "Veit", "Ulrich", "Bastian", "Anna", "Margarethe", "Ursula", "Dorothea", "Barbara", "Elsbeth"];
@@ -320,7 +323,8 @@ class Arena {
     const myLook = this.uni ? inUniform(me.look, this.uni[0]) : me.look;
     G.player.setModel(lookOpts(myLook, me.name)); G.player.model.scaleBase = me.look.height || 1;
     G.showHealth = true; G.hasMap = false;
-    AUDIO.music("battle");
+    // (no music over a fight: the field, the shots and the shouting are the sound of it)
+    AUDIO.music(null);
     // the ride opened up for the fight: most of its trees gone, one here and there left standing for cover (never
     // close by where either side starts), and the ground they stand on clear
     const hash = (x, z) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
@@ -339,7 +343,7 @@ class Arena {
         const b = botFoe(), seed = 1000 + team * 100 + i;
         const look = this.uni ? soldierLook(this.uni[team], seed) : b.look;
         const info = { ...b, look, name: this.uni ? `${(this.uni[team].name)} — ${b.name}` : b.name, bot: true, skill: sk * (team === 0 ? 0.95 : 1), team, idx: i };
-        if (this.battle && Math.random() < 0.7) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
+        if (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
       };
       for (let i = 0; i < A.enemies; i++) mk(1, i);
@@ -347,7 +351,6 @@ class Arena {
       this.foe = this.units.find(u => u.team === 1);
       this.foeInfo = { ...this.foe.info, name: this.uni ? this.uni[1].name : this.foe.info.name };
       this.keyH = e => this.onKey(e); addEventListener("keydown", this.keyH, true);
-      this.wheelH = e => { if (this.book && this.book.open) { e.stopImmediatePropagation(); this.book.wheel(e.deltaY); } }; addEventListener("wheel", this.wheelH, true);
       // (the mouse stays yours to fight with while the book's open: aim, fire, strike)
     } else {
       // the foe
@@ -408,6 +411,7 @@ class Arena {
   unitDown(u) {
     if (!this.multi) { this.endRound(0); return; }
     if (u.team === 1) this.killed = (this.killed || 0) + 1; else this.lost = (this.lost || 0) + 1;
+    if (this.book) this.book.update(this.bookState());
     if (this.orders && this.orders[0].target === u) this.orders[0].target = null;
     this.showHud();
     this.checkEnd();
@@ -454,17 +458,18 @@ class Arena {
     this.showHud();
     const allies = this.alliesOf(0).length, foes = this.alliesOf(1).length;
     this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
-      `${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · F for orders" : ""}`);
+      `${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
     UI.fadeNow(1); UI.fade(0, 1.2);
     const steps = ["3", "2", "1"];
-    steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && !this.live && !this.over) { this.banner(t, ""); AUDIO.clang && AUDIO.clang(0.25); } }, 2600 + i * 800));
+    steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && !this.live && !this.over) { this.banner(t, ""); } }, 2600 + i * 800));
     setTimeout(() => {
       if (G.arena !== this || this.over) return;
       this.banner(this.battle ? "Forward!" : "Fight!", ""); G.lockMove = false; this.live = true; this.liveAt = G.time;
+      if (this.battle) AUDIO.drumRoll && AUDIO.drumRoll(1.8, 0.28);   // (the side drum, beating the advance)
       for (const u of this.units) u.go();
       AUDIO.voice && AUDIO.voice("war", { high: G.who === "sister", vol: 0.7 });
       setTimeout(() => G.arena === this && this.banner(null), 1000);
-      if (allies && !this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("F: your orders — follow, hold, advance, take cover, fire, charge, the formation" + (this.battle ? ", and the guns" : "") + ".", 6), 2200); }
+      if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("The number keys give your orders, as the page at the left has them — and you fight on the while. The wheel changes your weapon.", 6), 2200); } }
     }, 2600 + steps.length * 800);
   }
   // every frame of it: the men, the officer over there, the guns and their shot, your marks on the ground
@@ -501,7 +506,7 @@ class Arena {
   }
   // your blade in the press: the nearest of theirs in reach, in front of you
   swingAt() {
-    const pl = G.player, B = BLADE[this.lo.blade], fwd = pl.forward();
+    const pl = G.player, B = this.myBlade(), fwd = pl.forward();
     if (!this.live) return;
     let best = null, bd = Infinity;
     for (const u of this.alliesOf(1)) {
@@ -516,8 +521,11 @@ class Arena {
   // you fall: the red, and the word; and then, while your company's still fighting, your eye on one of them
   fallInBattle(from) {
     const left = this.alliesOf(0).length;
-    this.deathFall(from, "You've fallen", left ? "Your company fights on" : "");
+    // (while three of your company still stand, you fight on as one of them)
+    const on = left >= TAKE_OVER;
+    this.deathFall(from, "You've fallen", on ? "You take a place in the ranks" : left ? "Your company fights on" : "");
     this.showHud();
+    if (on) { setTimeout(() => this.takeOver(), 3600); return; }
     if (left) setTimeout(() => {
       if (G.arena !== this || this.over || this.ended) return;
       const fx = $("deathFx"); if (fx) fx.classList.add("watch");
@@ -525,6 +533,31 @@ class Arena {
       UI.hint("Watching your company. Esc to leave the field.", 4);
     }, 3800);
     this.checkEnd();
+  }
+  // up again as one of your own: the man furthest from the fighting gives you his place — he falls where you fell, and you
+  // stand where he stood, whole, loaded, and carrying what you carry
+  takeOver() {
+    if (G.arena !== this || this.over || this.ended) return;
+    const mates = this.alliesOf(0);
+    if (mates.length < TAKE_OVER) { this.fallInBattleWatch(); return; }
+    const foes = this.alliesOf(1), far = u => Math.min(...foes.map(f => Math.hypot(f.pos.x - u.pos.x, f.pos.z - u.pos.z)), 999);
+    const u = mates.sort((a, b) => far(b) - far(a))[0], pl = G.player, at = { x: u.pos.x, z: u.pos.z }, was = { x: pl.pos.x, z: pl.pos.z };
+    UI.fadeNow(1); UI.fade(0, 0.9);
+    // (his body where yours lay: the fallen man is the one there now)
+    u.quiet = true; u.hp = 0; u.a.place(was.x, was.z, u.a.yaw); u.fallDown(this.spawns[1]);
+    this.units.splice(this.units.indexOf(u), 1); this.lost = (this.lost || 0) + 1;
+    this.rise(); this.watching = false;
+    G.downed = false; G.health = 1; G.stamina = 1; G.hurtT = 0; G.lockMove = false; pl.frozen = false;
+    pl.gunSaved = {}; pl.gunLoaded = true; pl.gunReload = 0; pl.xspan = 1;
+    const th = foes[0] ? foes[0].pos : this.spawns[1];
+    pl.place(at.x, at.z, Math.atan2(-(th.x - at.x), -(th.z - at.z)));
+    this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
+    this.showHud();
+    UI.hint(`Up — in his place. ${mates.length - 1} of your company still standing.`, 3);
+  }
+  fallInBattleWatch() {
+    const fx = $("deathFx"); if (fx) fx.classList.add("watch");
+    this.watching = true; this.watchTick();
   }
   watchTick() {
     let u = this.watched;
@@ -538,18 +571,15 @@ class Arena {
       look.set(p.x + Math.sin(yaw) * 6, p.y + 1.2, p.z + Math.cos(yaw) * 6); cam.lookAt(look);
     };
   }
-  // ---- the orders: F in the field ----
-  bookState() { const O = this.orders[0]; return { count: this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, guns: !!this.gunsOn, mode: O.mode, form: O.form }; }
+  // ---- the orders: the number keys, in the field ----
+  bookState() { const O = this.orders[0]; return { count: this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, cover: O.cover, guns: !!this.gunsOn, mode: O.mode, form: O.form }; }
+  // the number keys are your orders, in a fight of companies (the wheel still goes through your weapons: its turns come
+  // as numbers too, but marked as the wheel's)
+  takesNumbers(e) { return !!(this.book && this.book.open && !e.fromWheel && /^Digit\d$/.test(e.code)); }
   onKey(e) {
-    if (G.arena !== this || !this.book) return;
-    if (this.book.open) {
-      if (this.book.key(e)) { e.stopImmediatePropagation(); e.preventDefault(); }
-      return;
-    }
-    if (e.code === "KeyF" && !e.repeat && this.live && !G.downed && G.mode === "play" && !G.interactTarget && (this.alliesOf(0).length || this.battle)) {
-      e.stopImmediatePropagation(); e.preventDefault();
-      this.book.show(this.bookState());
-    }
+    if (G.arena !== this || !this.book || !this.book.open || e.fromWheel || e.repeat) return;
+    if (!this.live || G.downed || G.mode !== "play") return;
+    if (this.book.key(e)) { e.stopImmediatePropagation(); e.preventDefault(); }
   }
   // where you're looking, on the ground (within the field)
   lookPoint() {
@@ -569,6 +599,10 @@ class Arena {
     (this.marks ||= []).push({ mesh: m, t: 0 });
   }
   give(id) {
+    this.giveNow(id);
+    if (this.book) this.book.update(this.bookState());
+  }
+  giveNow(id) {
     const O = this.orders[0], pl = G.player, say = (t, v = "war") => { UI.hint(t, 2.2); AUDIO.voice && AUDIO.voice(v, { high: G.who === "sister", vol: 0.8 }); };
     if (id.startsWith("form:")) { O.form = id.slice(5); say(`${FORM_WORD[O.form] || "Form up"}!`); return; }
     switch (id) {
@@ -601,7 +635,10 @@ class Arena {
     if (L.long === "bow") { out.push({ icon: "bow", name: "Bow", tool: "bow" }); out.push({ icon: "arrows", name: "Arrows", n: pl.arrows || 0 }); }
     if (L.long === "crossbow") { out.push({ icon: "crossbow", name: "Crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: (G.body.tools.bolts || 0) }); }
     if (L.side === "pistol") out.push({ icon: "pistol", name: "Pistol", tool: "gun", kind: "pistol" });
-    const B = BLADE[L.blade] || BLADE.dagger; out.push({ icon: B.icon, name: B.name, tool: "arm", kind: L.blade });
+    const B = BLADE[L.blade] || BLADE.dagger;
+    // (a musket and a bayonet: the bayonet's fixed on the musket — the blade alone is only the last resort)
+    if (L.long === "musket" && L.blade === "dagger") out.splice(1, 0, { icon: "musket", name: "Fix bayonet", tool: "arm", kind: "bayonet" });
+    out.push({ icon: B.icon, name: L.blade === "dagger" ? "Bayonet, in hand" : B.name, tool: "arm", kind: L.blade });
     return out;
   }
   // ---- a round: both put back at their ends, made whole, loaded, and three, two, one ----
@@ -631,7 +668,7 @@ class Arena {
     this.banner(`Round ${n}`, this.wins[0] + this.wins[1] ? `${this.wins[0]} – ${this.wins[1]}` : `Best of three · ${esc(this.foeInfo.name)}${this.foeInfo.bot ? " (bot)" : ""}`);
     UI.fadeNow(1); UI.fade(0, 0.8);
     const steps = ["3", "2", "1"];
-    steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && this.round === n) { this.banner(t, ""); AUDIO.clang && AUDIO.clang(0.25); } }, 1400 + i * 800));
+    steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && this.round === n) { this.banner(t, ""); } }, 1400 + i * 800));
     setTimeout(() => {
       if (G.arena !== this || this.round !== n) return;
       this.banner("Fight!", ""); G.lockMove = false; this.live = true; this.foe.go();
@@ -648,9 +685,11 @@ class Arena {
     else pl.wield(this.lo.blade);
   }
   // ---- your blade: a stroke at him, if he's in reach and in front of you ----
+  // what your blade is now: the bayonet on your musket, if it's fixed; else the one in your belt
+  myBlade() { return G.player.blade === "bayonet" ? BLADE.bayonet : BLADE[this.lo.blade] || BLADE.dagger; }
   swing() {
     if (this.multi) return this.swingAt();
-    const pl = G.player, f = this.foe, B = BLADE[this.lo.blade];
+    const pl = G.player, f = this.foe, B = this.myBlade();
     if (!this.live || !f.alive) return;
     const fwd = pl.forward(), dx = f.pos.x - pl.pos.x, dz = f.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
     if (d > B.reach || (dx * fwd.x + dz * fwd.z) / (d || 1) < 0.45) return;
@@ -706,7 +745,7 @@ class Arena {
     fx.querySelector(".dfx-s").textContent = sub;
     fx.classList.remove("on"); void fx.offsetWidth; fx.classList.add("on");
     document.body.classList.add("dead");
-    AUDIO.voice && AUDIO.voice("pain", { high: G.who === "sister", vol: 1 });
+    AUDIO.voice && AUDIO.voice("death", { high: G.who === "sister", vol: 1 });
   }
   // up again for the next round: the ragdoll let go of, your eye your own again
   rise() {
@@ -757,7 +796,6 @@ class Arena {
     this.banner(null);
     UI.stance && UI.stance(null);
     if (this.keyH) removeEventListener("keydown", this.keyH, true);
-    if (this.wheelH) removeEventListener("wheel", this.wheelH, true);
     if (this.clickH) removeEventListener("mousedown", this.clickH, true);
     if (this.book) this.book.hide();
     if (this.field) this.field.dispose();
@@ -769,6 +807,7 @@ class Arena {
     if (G.arena !== this) return;
     const pl = G.player;
     // (the field: the ride and the trees round it; out past them, you're turned back)
+    pl.swingRate = this.myBlade().rate;   // (the bayonet on the musket strikes at its own pace, not the blade's in your belt)
     const dx = pl.pos.x - C.x, dz = pl.pos.z - C.z, d = Math.hypot(dx, dz), B = this.bound;
     if (d > B) { pl.pos.x = C.x + dx / d * B; pl.pos.z = C.z + dz / d * B; if (!this.boundTold || G.time - this.boundTold > 4) { this.boundTold = G.time; UI.hint(this.battle ? "The battle's here — your company's behind you." : "The fight's here, in the ride.", 1.5); } }
     if (this.multi) { this.updateField(dt); return; }
@@ -854,7 +893,7 @@ class Arena {
     G.onSwingStart = dir => net.send({ t: "dwind", dir });
     const prevSwing = G.onSwing;
     G.onSwing = () => {
-      const pl = G.player, B = BLADE[this.lo.blade], dx = f.pos.x - pl.pos.x, dz = f.pos.z - pl.pos.z, d = Math.hypot(dx, dz), fwd = pl.forward();
+      const pl = G.player, B = this.myBlade(), dx = f.pos.x - pl.pos.x, dz = f.pos.z - pl.pos.z, d = Math.hypot(dx, dz), fwd = pl.forward();
       if (!this.live || d > B.reach || (dx * fwd.x + dz * fwd.z) / (d || 1) < 0.45) return prevSwing && 0;
       G.impact && G.impact();
       net.send({ t: "dswing", dir: pl.swingDir || "right", dmg: B.dmg, reach: B.reach });
@@ -911,7 +950,7 @@ class Fighter {
   // down: let go, a ragdoll, pushed the way the blow came (from `from`, a place); what was in the hands falls
   fallDown(from, head) {
     const a = this.a, P = a.person; a.path = []; this.wind = 0; a.squareTo = null;
-    AUDIO.voice && AUDIO.voice("pain", { at: a.pos, vol: 1.1, high: isF(this.info.look) });
+    if (!head && !this.quiet) AUDIO.voice && AUDIO.voice("death", { at: a.pos, vol: 1.1, high: isF(this.info.look) });
     blowLands(a, "down");
     const src = from || G.player.pos, push = new THREE.Vector3(a.pos.x - src.x, 0, a.pos.z - src.z).normalize().multiplyScalar(3.2).add(new THREE.Vector3(0, 0.6, 0));
     P.load = null; P.aimWant = false;
@@ -944,6 +983,8 @@ class Bot extends Fighter {
     this.hold(this.lo.long); this.a.squareTo = null;
   }
   go() { this.awake = true; this.aimT = -0.9 - Math.random() * 0.6; }
+  // his steel: the bayonet fixed on his musket if he has the two; else his blade
+  steel() { return this.lo.long === "musket" && this.lo.blade === "dagger" ? "bayonet" : this.lo.blade; }
   // a blow on him — yours (from the side you swung) or another man's: turned aside if he's guarding that side and
   // facing whoever struck (the better he is, the oftener)
   struck(dmg, side, by = null) {
@@ -1021,11 +1062,11 @@ class Bot extends Fighter {
       a.path = []; a.faceTo(fp.x, fp.z);
       const was = this.wind; this.wind -= dt;
       if (was > 0.45 && this.wind <= 0.45 && T.isPlayer) glint(a);
-      if (was > 0.62 && this.wind <= 0.62) a.person.setPose(blowPose(this.lo.blade, this.dir));
+      if (was > 0.62 && this.wind <= 0.62) a.person.setPose(blowPose(this.steel(), this.dir));
       if (this.wind <= 0) {
         setTimeout(() => this.alive && a.person.setPose("idle"), 500);
         AUDIO.whoosh && AUDIO.whoosh(0.45, this.lo.blade !== "sword");
-        const B = BLADE[this.lo.blade];
+        const B = BLADE[this.steel()];
         this.cool = (1.4 - s * 0.6) / B.rate * (0.85 + Math.random() * 0.3);
         if (d < B.reach - 0.3 && T.alive) {
           if (T.isPlayer) { if (strikeYou(a, this.dir, B.dmg, d, this.arena.tips ??= {}) === "parry") { this.stun = 1.0; this.cool = Math.max(this.cool, 1.3); a.person.flinch && a.person.flinch(); } }
@@ -1041,8 +1082,12 @@ class Bot extends Fighter {
     // close: the blade. (Farther, if nothing's loaded and he's coming on, or ordered in.)
     const melee = d < 4.2 || charge || (!haveLong && !(haveSide && d < RANGE.pistol) && d < 10);
     if (melee) {
-      if (this.mode !== "melee") { this.mode = "melee"; this.aimUp(false); this.hold(this.lo.blade); this.aimT = 0; a.person.setPose("guard"); this.releaseCover(); }
-      const B = BLADE[this.lo.blade], reach = B.reach - 0.5, run = 3.2 + s * 1.4;
+      if (this.mode !== "melee") {
+        this.mode = "melee"; this.aimUp(false); this.hold(this.steel()); this.aimT = 0; a.person.setPose("guard"); this.releaseCover();
+        // (the bayonet pushed into the muzzle as he comes on: a moment's work, and heard)
+        if (this.steel() === "bayonet") { FOLEY.load && FOLEY.load("fixBayonet", a.pos, 0.6); this.cool = Math.max(this.cool, 0.9); }
+      }
+      const B = BLADE[this.steel()], reach = B.reach - 0.5, run = 3.2 + s * 1.4;
       if (d > reach + 0.5) { if (!a.path.length || this.stepT <= 0) { this.stepT = 0.35; a.approach(fp, reach - 0.2, run); } }
       else if (d < 1.0) { if (this.stepT <= 0) { this.stepT = 0.5; a.approach(fp, 1.5, 2.4); } }
       else if (this.cool <= 0) {

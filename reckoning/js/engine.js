@@ -19,6 +19,8 @@ import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
 import { tickTemperature } from "./temperature.js";
 import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, thirstTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
+// (what's only ever thrust, never swung: the spear, and a musket with its bayonet fixed)
+const THRUST = new Set(["spear", "bayonet"]);
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
 const ARMS_M = { skin: new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.6 }), sleeve: new THREE.MeshStandardMaterial({ color: 0x4d5a3c, roughness: 0.95 }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 }) };
 
@@ -256,6 +258,8 @@ export class Player {
   }
   // take up a weapon in place of the axe (or the axe again): the same two-handed swing
   wield(kind) {
+    // (a plug bayonet fixed in the muzzle: pushed in and seated, a moment before it's any use)
+    if (kind === "bayonet" && this.blade !== "bayonet") { const F = window.__foley; F && F.load && F.load("fixBayonet", null, 0.7); this.fixUntil = G.time + 1.0; }
     const owned = this.hasAxe;
     if (this.axe) this.giveAxe(false);
     this.blade = kind; this.giveAxe(true);
@@ -287,7 +291,7 @@ export class Player {
         a.add(h); return h;
       };
       // (a sword's grip is short: the second hand close under the guard)
-      const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], pick: [0.03, 0.15], dagger: [0.02, 0.08] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
+      const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], bayonet: [0.0, 0.42], pick: [0.03, 0.15], dagger: [0.02, 0.08] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
       this.hands = [hand(grips[0]), hand(grips[1])];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
@@ -311,6 +315,8 @@ export class Player {
   // ---- the musket: carried at the hip; right mouse brings it up to the eye, a click fires it, and then the long
   // business of loading it again — powder, ball, the ramrod down the barrel three times — before it can fire again ----
   showGun(on) {
+    // (the bayonet out of the muzzle first, if it's in: it plugs the barrel)
+    if (on && this.blade === "bayonet") { const F = window.__foley; F && F.load && F.load("unfixBayonet", null, 0.7); this.blade = "axe"; this.unfixUntil = G.time + 0.9; }
     if (on && !this.gun) {
       this.dropFood(); if (this.xbow) this.showXbow(false);
       if (this.axe) this.holsterAxe(true);
@@ -778,9 +784,11 @@ export class Player {
     sleeve.scale.set(1, Math.max(0.05, L - 0.08), 1); cuff.position.y = Math.max(0.05, L - 0.12);
   }
   // held low on the right, head up, ready
-  axeRest() { this.axe.position.set(0.34, -0.5, -0.42); this.axe.rotation.set(1.05, -0.35, -0.5); }
+  axeRest() { const R = this.restPose(); this.axe.rotation.set(R[0], R[1], R[2]); this.axe.position.set(R[3], R[4], R[5]); }
+  // (a pike or a fixed bayonet is carried levelled, its point out before you — "charge your bayonets" — not upright)
+  restPose() { return THRUST.has(this.blade) ? [0.22, -0.1, 0.0, 0.28, -0.36, -0.12] : [1.05, -0.35, -0.5, 0.34, -0.5, -0.42]; }
   swing(onHit) {
-    if (this.swingT >= 0 || this.swimming) return;
+    if (this.swingT >= 0 || this.swimming || G.time < (this.fixUntil || 0)) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
     // (a pickaxe only ever comes down from above, into the rock)
     this.swingDir = this.blade === "pick" ? "up" : this.stance || "right";
@@ -804,7 +812,7 @@ export class Player {
       if (this.turnAcc < -14) this.side = "left"; else if (this.turnAcc > 14) this.side = "right";
       this.stance = this.pitch > 0.04 ? "up" : (this.side || "right");
       // with a blade or the axe out and not already swinging, an arrow shows which way the next stroke comes
-      UI.swingArrow(this.axe && this.swingT < 0 && !this.workKind && !UI.dialogOpen && G.mode === "play" && this.blade !== "pick" && this.blade !== "spear" ? this.stance : null);
+      UI.swingArrow(this.axe && this.swingT < 0 && !this.workKind && !UI.dialogOpen && G.mode === "play" && this.blade !== "pick" && !THRUST.has(this.blade) ? this.stance : null);
     } else if (G.cine && G.cine.look) {
       // steer the view toward whatever the scene wants seen
       const d = G.cine.look.clone().sub(this.eyePos());
@@ -1040,7 +1048,7 @@ export class Player {
     this.guard = guard; this._gs = this.stance;
     // the guard where the blow will come: across above you, or upright on the left or the right;
     // the hands move there (and from one side to another) quickly, but not in no time
-    const R = [1.05, -0.35, -0.5, 0.34, -0.5, -0.42];
+    const R = this.restPose();
     const U = { up: [0.15, 1.35, 0.2, 0.3, -0.12, -0.6], right: [1.45, 0.1, 0.0, 0.3, -0.34, -0.52], left: [1.45, -0.1, 0.0, -0.2, -0.34, -0.52] }[this.stance || "right"];
     const want = guard ? U : R;
     if (!this.gp) this.gp = R.slice();
@@ -1061,21 +1069,21 @@ export class Player {
         // (pitch, yaw, roll) of the hands, and where they are: a level swing from right to left
         const e = x => x * x * (3 - 2 * x), L = (a, b, k) => a + (b - a) * k;
         // (pitch, yaw, roll, x, y, z) — from the right (a level stroke leftward), from the left (backhand, rightward), or from above
-        const REST = [1.05, -0.35, -0.5, 0.3, -0.42, -0.4];
+        const REST = THRUST.has(this.blade) ? this.restPose() : [1.05, -0.35, -0.5, 0.3, -0.42, -0.4];
         const [BACK, HIT, THRU] = {
           right: [[0.25, -1.25, 0.0, 0.42, -0.24, -0.26], [0.18, 0.75, 0.0, 0.1, -0.3, -0.46], [0.2, 1.6, 0.0, -0.12, -0.34, -0.36]],
           left: [[0.25, 1.2, 0.0, -0.3, -0.22, -0.3], [0.18, -0.7, 0.0, 0.02, -0.3, -0.46], [0.2, -1.5, 0.0, 0.3, -0.36, -0.36]],
           up: [[1.95, -0.1, 1.57, 0.2, -0.3, -0.3], [0.25, 0.0, 1.57, 0.08, -0.3, -0.5], [-0.4, 0.0, 1.57, 0.06, -0.44, -0.42]],   // (the head of the pick goes back over your shoulder; your hands stay low, at your chest)
           // (a spear is never swung: drawn back level at the hip, then driven straight out before you, and back)
           thrust: [[0.1, -0.1, 0.0, 0.3, -0.34, 0.02], [0.02, -0.03, 0.0, 0.16, -0.27, -0.92], [0.03, -0.03, 0.0, 0.17, -0.28, -0.82]],
-        }[this.blade === "spear" ? "thrust" : this.swingDir || "right"];
+        }[THRUST.has(this.blade) ? "thrust" : this.swingDir || "right"];
         const pose = (A, B, k) => { k = e(k); this.axe.rotation.set(L(A[0], B[0], k), L(A[1], B[1], k), L(A[2], B[2], k)); this.axe.position.set(L(A[3], B[3], k), L(A[4], B[4], k), L(A[5], B[5], k)); };
         if (T < 0.2) pose(REST, BACK, T / 0.2);
         else if (T < 0.29) pose(BACK, HIT, (T - 0.2) / 0.09);
         else if (T < 0.36) pose(HIT, THRU, (T - 0.29) / 0.07);
         else pose(THRU, REST, Math.min(1, (T - 0.36) / 0.3));
       }
-      if (this.model) { this.model.setPose(this.blade === "spear" ? "punch" : this.swingDir === "up" ? "overhead" : "chop"); this.model.poseT = T / 1.25 * 1; }
+      if (this.model) { this.model.setPose(THRUST.has(this.blade) ? "punch" : this.swingDir === "up" ? "overhead" : "chop"); this.model.poseT = T / 1.25 * 1; }
       if (T > 0.29 && !this._hitDone) {
         this._hitDone = true; const before = this.impactT || 0;
         this.onSwingHit && this.onSwingHit();
@@ -1381,7 +1389,7 @@ function viewModel(dt, p, third) {
   if (p.swingT >= 0) {
     const T = p.swingT, s = p.swingDir === "left" ? -1 : 1;
     const wind = Math.sin(clamp(T / 0.2, 0, 1) * Math.PI) * 0.6, blow = Math.exp(-(((T - 0.3) / 0.07) ** 2));
-    if (p.blade === "spear") camera.rotation.x += wind * 0.008 - blow * 0.012;
+    if (THRUST.has(p.blade)) camera.rotation.x += wind * 0.008 - blow * 0.012;
     else if (p.swingDir === "up") camera.rotation.x += wind * 0.03 - blow * 0.035;
     else { camera.rotation.y += (-wind * 0.015 + blow * 0.025) * s; camera.rotation.z += (wind * 0.012 - blow * 0.02) * s; }
   }

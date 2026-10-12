@@ -28,7 +28,10 @@ const RELOAD = 7, SPEED = 58, GRAV = 9.8, TRAVERSE = 0.9, ELEV = [-0.06, 0.42];
 export function makeCannon() {
   const g = new THREE.Group();
   const oak = mat(0x5e4128, { surface: "wood" }), oakD = mat(0x4a321e, { surface: "wood" });
-  const iron = mat(0x2a2b2e, { metalness: 0.7, roughness: 0.5 }), bronze = mat(0x8a6834, { metalness: 0.8, roughness: 0.4 }), dark = new THREE.MeshBasicMaterial({ color: 0x080606 });
+  // (the barrel cast and bored in steel-grey iron, the fittings wrought iron: metal enough to catch the light, not so much
+  //  it goes black where there's nothing bright to mirror)
+  const iron = mat(0x3a3c40, { metalness: 0.4, roughness: 0.55 }), bronze = mat(0x6e737a, { metalness: 0.45, roughness: 0.38 }), dark = new THREE.MeshBasicMaterial({ color: 0x080606 });
+  bronze.side = THREE.DoubleSide;
   const put = (m, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => { m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
   const box = (w, h, d, m, x, y, z, rx = 0, ry = 0, rz = 0) => put(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m), x, y, z, rx, ry, rz);
   const AX = -0.32, R = 0.47;                        // (the axle, and the wheels' size)
@@ -71,7 +74,8 @@ export function makeCannon() {
   const prof = [[0, 0.8], [0.04, 0.79], [0.055, 0.76], [0.05, 0.73], [0.028, 0.7], [0.03, 0.67], [0.12, 0.655], [0.152, 0.63], [0.168, 0.6], [0.168, 0.555], [0.152, 0.545],
     [0.149, 0.31], [0.164, 0.3], [0.164, 0.27], [0.143, 0.26], [0.138, 0.02], [0.15, 0.01], [0.15, -0.025], [0.126, -0.035], [0.108, -1.05], [0.122, -1.08], [0.122, -1.11], [0.106, -1.13],
     [0.112, -1.24], [0.134, -1.33], [0.146, -1.38], [0.146, -1.415], [0.06, -1.42], [0.055, -1.1], [0.001, -1.1]];
-  const lg = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y + 0.12)), 28); lg.rotateX(Math.PI / 2);
+  // (the outline turned muzzle-first, so its faces look outward: the other way round they faced in, and you saw through it)
+  const lg = new THREE.LatheGeometry(prof.slice().reverse().map(([r, y]) => new THREE.Vector2(r, y + 0.12)), 28); lg.rotateX(Math.PI / 2); lg.computeVertexNormals();
   const tube = new THREE.Mesh(lg, bronze); tube.castShadow = true; barrel.add(tube);
   const bore = new THREE.Mesh(new THREE.CircleGeometry(0.056, 16), dark); bore.position.z = -1.0; bore.rotation.y = Math.PI; barrel.add(bore);
   const trun = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.44, 10).rotateZ(Math.PI / 2), bronze); barrel.add(trun);

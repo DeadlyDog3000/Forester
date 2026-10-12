@@ -32,9 +32,15 @@ export const UNIFORMS = {
 };
 // a soldier of a company: its uniform, his own face and build
 export function soldierLook(u, seed, base = {}) {
-  let s = seed | 0 || 1; const r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
+  // (the seeds of a company's men run one after another: stirred first, so neighbours in the line don't come out alike)
+  let s = Math.imul((seed | 0) || 1, 2654435761) ^ 0x5bd1e995; const r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
+  r(); r();
   const pick = a => a[Math.floor(r() * a.length)];
-  return { body: "watchman", skin: pick([0xf1d3bc, 0xe2b896, 0xc99a74, 0xa87652]), hair: pick([0x2a1c12, 0x4a3020, 0x6e4a2a, 0x9a6a38, 0x8a8a88]),
+  // (the faces of a German or northern company of the 1680s: fair for the most part, weathered or sallow in many, and a
+  //  few darker — men from the south of Europe, from the Turkish wars, from the ports)
+  const weighed = l => { let x = r() * l.reduce((t, [, w]) => t + w, 0); for (const [v, w] of l) if ((x -= w) <= 0) return v; return l[0][0]; };
+  const skin = weighed([[0xf1d3bc, 30], [0xeac6aa, 24], [0xe2b896, 20], [0xd4a882, 11], [0xc99a74, 7], [0xa87652, 4], [0x7e5236, 2.5], [0x5a3a26, 1.5]]);
+  return { body: "watchman", skin, hair: pick([0x2a1c12, 0x4a3020, 0x6e4a2a, 0x9a6a38, 0x8a8a88]),
     eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: 0xe6dcc8, stockings: pick([0xd8d0c0, 0x5a5048]),
     height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
     coat: u.coat, vest: u.vest, legs: u.legs, sash: u.sash, hat: "hat", hatColor: u.hat };
@@ -202,7 +208,7 @@ export class Field {
     g.model.updateMatrixWorld(true);
     const at = m.muzzle.getWorldPosition(new THREE.Vector3());
     const yaw = g.ry + g.yaw, dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(g.pitch), Math.sin(g.pitch), -Math.cos(yaw) * Math.cos(g.pitch));
-    g.loaded = false; g.reload = 9 + this.r() * 3; g.recoil = 1;
+    g.loaded = false; g.reload = 6.5 + this.r() * 2.5; g.recoil = 1;
     this.balls.push({ p: at.clone(), v: dir.multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
     muzzleFlash(root, at.clone().addScaledVector(dir, 0.2), dir, 3);
     powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 16, n: 26, speed: 15, haze: true });
@@ -216,7 +222,7 @@ export class Field {
     for (const g of this.guns) {
       if (!g.loaded) { g.reload -= dt; if (g.reload <= 0) g.loaded = true; }
       // (their side: laid on the thickest part of yours, now and then; yours: on where you said)
-      if (!g.target) { if ((g.next -= dt) <= 0) { g.next = 6; const t = this.thickest(units.filter(u => u.team !== g.side && u.alive)); if (t) g.aim = { x: t.x + (this.r() - 0.5) * 7, z: t.z + (this.r() - 0.5) * 7 }; } }
+      if (!g.target) { if ((g.next -= dt) <= 0) { g.next = 6; const t = this.thickest(units.filter(u => u.team !== g.side && u.alive)); if (t) g.aim = { x: t.x + (this.r() - 0.5) * 3.5, z: t.z + (this.r() - 0.5) * 3.5 }; } }
       else if (g.target) g.aim = g.target;
       if (g.aim) {
         const dx = g.aim.x - g.x, dz = g.aim.z - g.z, want = Math.atan2(-dx, -dz), d = Math.hypot(dx, dz);
@@ -238,14 +244,20 @@ export class Field {
         b.v.y -= 9.8 * h; b.p.addScaledVector(b.v, h); b.t += h;
         if (b.v.length() > 8) for (const u of units) {
           if (!u.alive || b.hits.has(u)) continue;
-          const c = u.pos; if (segDist(from, b.p, new THREE.Vector3(c.x, c.y + 1.0, c.z)) < 0.9) { b.hits.add(u); hit(u, from, b.v.clone()); b.v.multiplyScalar(0.8); cloud(root, new THREE.Vector3(c.x, c.y + 1.1, c.z), b.v.clone().normalize(), { n: 4, colour: 0x7a1a12, life: 1.2, speed: 2, size: 0.5, opacity: 0.45 }); }
+          // (a round shot takes a man and goes on through the file behind him, losing little)
+          const c = u.pos; if (segDist(from, b.p, new THREE.Vector3(c.x, c.y + 0.9, c.z)) < 1.25) { b.hits.add(u); hit(u, from, b.v.clone()); b.v.multiplyScalar(0.9); cloud(root, new THREE.Vector3(c.x, c.y + 1.1, c.z), b.v.clone().normalize(), { n: 4, colour: 0x7a1a12, life: 1.2, speed: 2, size: 0.5, opacity: 0.45 }); }
         }
         const gy = this.y(b.p.x, b.p.z);
         if (b.p.y <= gy + 0.07 || (b.v.length() > 8 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0))) {
           b.p.y = Math.max(b.p.y, gy + 0.07);
           const sp = b.v.length();
-          if (sp > 8) { cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 8, colour: 0x6a5a44, life: 2.4, speed: 3.5, size: 1.0, opacity: 0.6 }); const F = window.__foley; F && F.thunk && F.thunk(b.p, 0.9); }
-          if (sp > 14 && b.bounces < 3) { b.bounces++; b.v.y = Math.abs(b.v.y) * 0.3 + 2; b.v.x *= 0.6; b.v.z *= 0.6; }
+          if (sp > 8) {
+            cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 10, colour: 0x6a5a44, life: 2.4, speed: 4, size: 1.1, opacity: 0.6 }); const F = window.__foley; F && F.thunk && F.thunk(b.p, 0.9);
+            // (where it strikes: earth, stones and splinters flung about — the men close by cut down or knocked flat)
+            for (const u of units) { if (!u.alive || b.hits.has(u)) continue; const dd = Math.hypot(u.pos.x - b.p.x, u.pos.z - b.p.z); if (dd < 2.0 * Math.min(1, sp / 60)) { b.hits.add(u); hit(u, b.p.clone(), b.v.clone()); } }
+          }
+          // (it grazes and bounds on, low, as round shot does — a ricochet as deadly as the first strike)
+          if (sp > 12 && b.bounces < 5) { b.bounces++; b.v.y = Math.abs(b.v.y) * 0.25 + 1.5; b.v.x *= 0.72; b.v.z *= 0.72; }
           else { b.v.set(0, 0, 0); b.done = true; }
         }
       }
@@ -293,8 +305,8 @@ export class Orders {
   }
 }
 
-// ---- the order book: F, in the field. A page of orders in a captain's hand, not a menu of the computer's: numbered
-// as orders are, the one under your eye picked out; 1-9 or the wheel and F to give one, Esc or F again to put it by ----
+// ---- the order book: a captain's page of orders, kept at the side of the field, not a menu of the computer's — each
+// numbered, and given by its number (1 to 0) while you fight on; the formation's number turns to a page of them ----
 export const ORDER_LIST = [
   { id: "follow", label: "Follow me", sub: "Fall in on me, and keep up" },
   { id: "hold", label: "Hold here", sub: "Stand where you are" },
@@ -309,41 +321,41 @@ export const ORDER_LIST = [
 ];
 export class OrderBook {
   constructor(onGive) {
-    this.onGive = onGive; this.open = false; this.sel = 0; this.page = "main";
+    this.onGive = onGive; this.open = false; this.page = "main"; this.lit = -1;
     let el = document.getElementById("orderBook");
     if (!el) { el = document.createElement("div"); el.id = "orderBook"; el.className = "hidden"; document.getElementById("hud").appendChild(el); }
     this.el = el;
   }
   items(state) {
-    if (this.page === "form") return Object.entries(FORMATIONS).map(([id, label]) => ({ id: "form:" + id, label, sub: state.form === id ? "as they stand now" : "", on: state.form === id }));
-    return ORDER_LIST.filter(o => !o.battle || state.battle).map(o => ({ ...o, label: (o.id === "fire" && state.fire) || (o.id === "charge" && state.charge) || (o.id === "guns" && state.guns) ? (o.id === "fire" ? o.alt : o.alt) : o.label, on: (o.id === state.mode) }));
+    if (this.page === "form") return Object.entries(FORMATIONS).map(([id, label]) => ({ id: "form:" + id, label, on: state.form === id }));
+    return ORDER_LIST.filter(o => !o.battle || state.battle).map(o => ({ ...o, label: (o.id === "fire" && state.fire) || (o.id === "charge" && state.charge) || (o.id === "guns" && state.guns) ? o.alt : o.label, on: o.id === state.mode || (o.id === "cover" && state.cover) }));
   }
   show(state) {
-    this.state = state; this.open = true; this.page = "main"; this.sel = Math.min(this.sel, this.items(state).length - 1); this.draw();
-    this.el.classList.remove("hidden"); this.el.classList.remove("out"); void this.el.offsetWidth; this.el.classList.add("in");
-    const F = window.__foley; F && F.packOut && F.packOut(0.25);
+    this.state = state; this.open = true; this.draw();
+    if (this.el.classList.contains("hidden")) { this.el.classList.remove("hidden"); void this.el.offsetWidth; this.el.classList.add("in"); }
   }
-  hide() { this.open = false; this.el.classList.add("hidden"); const F = window.__foley; F && F.packIn && F.packIn(0.2); }
+  hide() { this.open = false; this.el.classList.add("hidden"); }
+  update(state) { this.state = state; if (this.open) this.draw(); }
   draw() {
     const list = this.items(this.state), roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+    this.el.classList.toggle("form", this.page === "form");
     this.el.innerHTML = `<div class="ob-head"><span class="ob-seal"></span><div><div class="ob-t">${this.page === "form" ? "Formation" : "Orders"}</div><div class="ob-s">${this.state.count} under your command</div></div></div>
-      <ol class="ob-list">${list.map((o, i) => `<li class="${i === this.sel ? "sel" : ""}${o.on ? " on" : ""}"><span class="ob-n">${roman[i]}</span><span class="ob-l">${o.label}${o.more ? " ›" : ""}</span><span class="ob-sub">${o.sub || ""}</span><span class="ob-k">${i + 1 < 10 ? i + 1 : 0}</span></li>`).join("")}</ol>
-      <div class="ob-foot">${this.page === "form" ? "Esc: back" : "Wheel or number, F to give · Esc to put it by — you can fight the while"}</div>`;
+      <ol class="ob-list">${list.map((o, i) => `<li class="${i === this.lit ? "lit" : ""}${o.on ? " on" : ""}"><span class="ob-k">${(i + 1) % 10}</span><span class="ob-l">${o.label}${o.more ? " ›" : ""}</span><span class="ob-n">${roman[i]}</span></li>`).join("")}</ol>
+      <div class="ob-foot">${this.page === "form" ? "A number for the formation · Esc: back" : "The number gives the order · the wheel, your weapons"}</div>`;
   }
+  // a key: a number gives that order (or opens the formations); Esc puts the formations away. True if it was the book's
   key(e) {
     const list = this.items(this.state);
-    if (e.code === "Escape") { if (this.page !== "main") { this.page = "main"; this.sel = 0; this.draw(); } else this.hide(); return true; }
-    if (e.code === "KeyF" || e.code === "Enter") { this.pick(list[this.sel]); return true; }
-    const m = /^Digit(\d)$/.exec(e.code); if (m) { const i = (+m[1] || 10) - 1; if (list[i]) { this.sel = i; this.pick(list[i]); } return true; }
-    // (W and S are still your feet: the book's only the arrows, the wheel, the numbers and F — you fight while you give them)
-    if (e.code === "ArrowDown") { this.sel = (this.sel + 1) % list.length; this.draw(); return true; }
-    if (e.code === "ArrowUp") { this.sel = (this.sel - 1 + list.length) % list.length; this.draw(); return true; }
-    return false;
+    if (e.code === "Escape" && this.page !== "main") { this.page = "main"; this.draw(); return true; }
+    const m = /^Digit(\d)$/.exec(e.code); if (!m) return false;
+    const i = (+m[1] || 10) - 1; if (!list[i]) return true;
+    this.pick(list[i], i);
+    return true;
   }
-  wheel(dy) { const list = this.items(this.state); this.sel = (this.sel + (dy > 0 ? 1 : -1) + list.length) % list.length; this.draw(); }
-  pick(o) {
-    if (!o) return;
-    if (o.more) { this.page = "form"; this.sel = 0; this.draw(); return; }
-    this.onGive(o.id); this.hide();
+  pick(o, i) {
+    if (o.more) { this.page = "form"; this.lit = -1; this.draw(); const F = window.__foley; F && F.packOut && F.packOut(0.15); return; }
+    this.page = "main"; this.onGive(o.id);
+    this.lit = this.items(this.state).findIndex(x => x.id === o.id || (o.id.startsWith("form:") && x.id === "form")); if (this.lit < 0) this.lit = i;
+    this.draw(); clearTimeout(this.litT); this.litT = setTimeout(() => { this.lit = -1; if (this.open) this.draw(); }, 900);
   }
 }

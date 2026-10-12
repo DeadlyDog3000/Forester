@@ -102,7 +102,7 @@ class Raider {
     this.hp -= d;
     // (the captain, half beaten: he says so, and fights the harder for it)
     if (this.boss && was > BOSS_HP / 2 && this.hp <= BOSS_HP / 2 && this.hp > 0) { UI.bark("Captain Wolff", ["Brandt said you'd run. He doesn't know you, does he?", "Good. I was paid for a fight, not a fire."][Math.random() < 0.5 ? 0 : 1], 3.5); this.cool = Math.min(this.cool, 0.3); }
-    if (this.hp <= 0) { AUDIO.voice("pain", { at: this.pos, vol: 1.1 }); blowLands(this.a, "down", from); return this.down(); }
+    if (this.hp <= 0) { AUDIO.voice("death", { at: this.pos, vol: 1.1 }); blowLands(this.a, "down", from); return this.down(); }
     blowLands(this.a, "hit", from);
     this.a.person.flinch && this.a.person.flinch();
     // struck by you: whoever he was fighting, it's you he turns on now

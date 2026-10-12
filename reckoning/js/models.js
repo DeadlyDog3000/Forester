@@ -770,6 +770,16 @@ export function makeDagger() {
   const m = modelCopy("dagger"); if (m) { const g = new THREE.Group(); g.add(m.scene); return g; }
   const g = makeKnife(); g.scale.set(1, 1.5, 1); return g;
 }
+// a musket with a plug bayonet in its muzzle: the dagger's grip pushed into the bore, the blade standing out past the
+// muzzle — held as a pike is, the right hand at the wrist of the stock (here, where the haft's grip is) and the left on
+// the fore-end
+export function makeBayonetMusket() {
+  const g = new THREE.Group(), m = makeMusket(), d = makeDagger();
+  m.position.y = 0.07; g.add(m);
+  d.position.set(0, 1.13 + 0.07 - 0.07, 0.032); g.add(d);
+  if (m.userData.rodMesh) g.userData.rodMesh = m.userData.rodMesh;
+  return g;
+}
 export function makeKnife() {
   const g = new THREE.Group();
   mesh(plateGeo("knifeBlade", [[-0.014, 0], [0.016, 0], [0.018, 0.12, 0, 0.2], [-0.012, 0.1, -0.014, 0]], 0.006, 0.0015), STUFF(5), g, 0, 0.11);
@@ -1115,7 +1125,7 @@ export function makeCrossbow() {
   g.userData.grips = [new THREE.Vector3(0.012, -0.06, 0.02), new THREE.Vector3(-0.006, -0.05, -0.2)];
   return g;
 }
-export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pistol: makePistol, dagger: makeDagger, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
+export const makeArm = kind => ({ bayonet: makeBayonetMusket, sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pistol: makePistol, dagger: makeDagger, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
 // (the pick's making is the player's, read from the game at the moment it is made)
 let _toolsOf = () => null;
 export const setToolSource = f => { _toolsOf = f; };

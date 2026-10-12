@@ -43,6 +43,57 @@ function noiseSrc(a, loop = true) {
   const s = a.createBufferSource(); s.buffer = noise; s.loop = loop; return s;
 }
 
+// ---- the sound of a shot, out of doors ----
+// how far off it is; where it goes: straight to you (dry, duller the further), and into the country round about and
+// back (wet: a long outdoor echo, more of the whole the further off)
+function shotDistance(at) { const GG = window.__G; return at && GG && GG.player ? Math.hypot(at.x - GG.player.pos.x, at.z - GG.player.pos.z) : 0; }
+// (shots go through the game's limiter and soft clipper, so a cannon can be as loud as a cannon and round over
+//  rather than clip square; and so the clearing's own room is round them too)
+const shotBus = () => window.__foresterBus || bus;
+let _outdoor = null;
+function outdoor(a) {
+  if (_outdoor && _outdoor.context === a) return _outdoor;
+  // (the echo: a few hard reflections off the near trees and banks, then the long tail off everything further)
+  const sr = a.sampleRate, n = Math.floor(sr * 3.4), buf = a.createBuffer(2, n, sr);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < n; i++) { const x = i / sr; d[i] = (Math.random() * 2 - 1) * Math.exp(-x * 1.7) * (x < 0.03 ? x / 0.03 : 1) * 0.5; }
+    for (const [x, k] of [[0.07, 0.6], [0.13, 0.45], [0.21, 0.4], [0.34, 0.3], [0.52, 0.22]]) { const at = Math.floor((x + (c ? 0.011 : 0)) * sr); for (let i = 0; i < 300; i++) d[at + i] += (Math.random() * 2 - 1) * k * Math.exp(-i / 90); }
+  }
+  const cv = a.createConvolver(); cv.buffer = buf;
+  const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2200;
+  cv.connect(lp); lp.connect(shotBus());
+  return _outdoor = cv;
+}
+function shotOut(a, D, big) {
+  const dry = a.createGain(), dl = a.createBiquadFilter(), wet = a.createGain();
+  dl.type = "lowpass"; dl.frequency.value = Math.max(700, 16000 / (1 + D / 18));
+  dry.gain.value = Math.max(0.08, 1 / (1 + D / 35)); wet.gain.value = Math.min(1.2, 0.35 + D / 120) * big;
+  dry.connect(dl); dl.connect(shotBus()); wet.connect(outdoor(a));
+  return { dry, wet };
+}
+// noise through a filter, struck and dying away
+function shotBurst(a, to, t, { type = "lowpass", f = 1000, q = 0.7, sweep = 0, attack = 0.002, peak = 0.5, decay = 0.2, len = null }) {
+  const s = noiseSrc(a), fl = a.createBiquadFilter(), g = a.createGain();   // (looped: a rumble outlasts the two seconds of noise)
+  fl.type = type; fl.frequency.setValueAtTime(f, t); fl.Q.value = q; if (sweep) fl.frequency.exponentialRampToValueAtTime(sweep, t + (len || decay * 3));
+  const end = t + (len || decay * 4);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + attack); g.gain.setTargetAtTime(0.0001, t + attack, decay / 2.3);
+  s.connect(fl); fl.connect(g); g.connect(to); s.start(t, Math.random() * 1.5); s.stop(end + 0.05);
+}
+// a low thump: a sine falling in pitch
+function thump(a, to, t, f0, f1, peak, decay) {
+  const o = a.createOscillator(), g = a.createGain(); o.type = "sine";
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + decay);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + decay * 1.4);
+  o.connect(g); g.connect(to); o.start(t); o.stop(t + decay * 1.5);
+}
+// driven hard, as the air is by a charge going off: the peaks flattened, the sound thick with it
+const _curves = {};
+function shaped(a, to, k) {
+  const ws = a.createWaveShaper(), c = _curves[k] ??= (() => { const n = 1024, arr = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; arr[i] = Math.tanh(k * x) / Math.tanh(k); } return arr; })();
+  ws.curve = c; ws.oversample = "2x"; ws.connect(to); return ws;
+}
+
 const loops = {};
 function loop(name, on, build) {
   const a = ctx(); if (!a) return;
@@ -227,40 +278,49 @@ export const AUDIO = {
     }
   },
 
-  // a musket: the snap of the flint and the hiss of the pan, then the boom, rolling away through the trees
+  // a musket: the flint struck and the pan flashing — a scrape and a fizz, a moment before — then the charge: a hard
+  // crack, the boom of it in the chest, and the report going off through the country and coming back from it. Heard
+  // from further off it comes later (the sound's own travel, three hundred and forty metres a second), duller, and more
+  // of it is the echo. A pistol is the same, smaller: higher, shorter, less to come back.
   gunshot(vol = 1, at = null) {
     const a = ctx(); if (!a) return;
-    let v = vol;
-    const GG = window.__G; if (at && GG && GG.player) { const d = Math.hypot(at.x - GG.player.pos.x, at.z - GG.player.pos.z); v *= Math.max(0.15, 1 - d / 160); }
-    const t = a.currentTime;
-    const s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
-    f.type = "lowpass"; f.frequency.setValueAtTime(5200, t + 0.03); f.frequency.exponentialRampToValueAtTime(240, t + 1.4);
-    g.gain.setValueAtTime(0.0001, t); g.gain.setValueAtTime(0.0001, t + 0.03); g.gain.exponentialRampToValueAtTime(0.9 * v, t + 0.036); g.gain.exponentialRampToValueAtTime(0.2 * v, t + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
-    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 1.7);
-    const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.setValueAtTime(90, t + 0.03); o.frequency.exponentialRampToValueAtTime(38, t + 0.5);
-    og.gain.setValueAtTime(0.0001, t + 0.03); og.gain.exponentialRampToValueAtTime(0.7 * v, t + 0.04); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-    o.connect(og); og.connect(bus); o.start(t + 0.03); o.stop(t + 0.65);
-    const c = noiseSrc(a), cf = a.createBiquadFilter(), cg = a.createGain(); cf.type = "highpass"; cf.frequency.value = 2500;
-    cg.gain.setValueAtTime(0.0001, t); cg.gain.exponentialRampToValueAtTime(0.18 * v, t + 0.004); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
-    c.connect(cf); cf.connect(cg); cg.connect(bus); c.start(t, Math.random()); c.stop(t + 0.04);
+    const small = vol < 0.85, D = shotDistance(at), v = 0.55 * vol * Math.max(0.12, 1 - D / 260);   // (well under the cannon: room left above it)
+    const t = a.currentTime + D / 343 + (at ? 0 : 0);
+    const out = shotOut(a, D, 1);
+    // the lock: the flint on the steel, and the priming going up in the pan
+    if (D < 40) {
+      shotBurst(a, out.dry, t, { type: "highpass", f: 3500, attack: 0.001, peak: 0.25 * v, decay: 0.012 });
+      shotBurst(a, out.dry, t + 0.006, { type: "bandpass", f: 4200, q: 0.9, attack: 0.004, peak: 0.16 * v, decay: 0.05 });
+    }
+    const tc = t + (small ? 0.035 : 0.05) + Math.random() * 0.025;   // (the lock time: the pan, then the barrel)
+    // the crack: the gas out of the muzzle, hard and wide, clipped as a real one sounds through the air
+    const crack = shaped(a, out.dry, 3.5);
+    shotBurst(a, crack, tc, { type: "highpass", f: small ? 900 : 650, attack: 0.0008, peak: (small ? 0.75 : 0.95) * v, decay: small ? 0.035 : 0.05 });
+    // the body: the boom, a thump under it
+    shotBurst(a, out.dry, tc, { type: "lowpass", f: small ? 2600 : 1900, sweep: small ? 300 : 180, attack: 0.002, peak: 0.75 * v, decay: small ? 0.22 : 0.4, len: 1.2 });
+    thump(a, out.dry, tc, small ? 130 : 95, small ? 55 : 40, (small ? 0.45 : 0.7) * v, small ? 0.18 : 0.32);
+    // and the report rolling away: the same, into the country round about and back
+    shotBurst(a, out.wet, tc, { type: "lowpass", f: 1400, attack: 0.002, peak: (small ? 0.45 : 0.7) * v, decay: 0.25 });
   },
-  // a cannon: the crack of it, and a boom far deeper than a musket's, rolling off through the woods and back
+  // a cannon: the linstock to the vent and the priming fizzing down it, then a blast nothing else on the field comes
+  // near — a crack like a split tree and a boom you feel in the ground — and the thunder of it going round the hills
+  // for seconds after
   cannon(vol = 1, at = null) {
     const a = ctx(); if (!a) return;
-    let v = vol;
-    const GG = window.__G; if (at && GG && GG.player) { const d = Math.hypot(at.x - GG.player.pos.x, at.z - GG.player.pos.z); v *= Math.max(0.25, 1 - d / 400); }
-    const t = a.currentTime;
-    const s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
-    f.type = "lowpass"; f.frequency.setValueAtTime(3800, t); f.frequency.exponentialRampToValueAtTime(110, t + 2.6);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.0 * v, t + 0.01); g.gain.exponentialRampToValueAtTime(0.35 * v, t + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
-    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 3.3);
-    const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.setValueAtTime(62, t); o.frequency.exponentialRampToValueAtTime(24, t + 1.1);
-    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.95 * v, t + 0.015); og.gain.exponentialRampToValueAtTime(0.0001, t + 1.3);
-    o.connect(og); og.connect(bus); o.start(t); o.stop(t + 1.35);
-    // (the echo off the far trees)
-    const e = noiseSrc(a), ef = a.createBiquadFilter(), eg = a.createGain(); ef.type = "lowpass"; ef.frequency.value = 400;
-    eg.gain.setValueAtTime(0.0001, t + 0.7); eg.gain.exponentialRampToValueAtTime(0.18 * v, t + 0.8); eg.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
-    e.connect(ef); ef.connect(eg); eg.connect(bus); e.start(t + 0.7, Math.random()); e.stop(t + 2.5);
+    const D = shotDistance(at), v = vol * Math.max(0.3, 1 - D / 700);
+    const t = a.currentTime + D / 343;
+    const out = shotOut(a, D, 1.6);
+    if (D < 30) shotBurst(a, out.dry, t, { type: "bandpass", f: 3000, q: 0.7, attack: 0.02, peak: 0.12 * v, decay: 0.16, len: 0.2 });
+    const tc = t + 0.18 + Math.random() * 0.05;
+    const crack = shaped(a, out.dry, 6);
+    shotBurst(a, crack, tc, { type: "highpass", f: 400, attack: 0.001, peak: 1.4 * v, decay: 0.09 });
+    shotBurst(a, shaped(a, out.dry, 2.5), tc, { type: "lowpass", f: 1500, sweep: 90, attack: 0.003, peak: 1.5 * v, decay: 0.9, len: 3 });
+    thump(a, out.dry, tc, 58, 19, 1.5 * v, 1.2);
+    thump(a, out.dry, tc + 0.01, 34, 16, 1.0 * v, 1.8);
+    // (the rumble that goes on, low, while the echo answers from far off)
+    shotBurst(a, out.dry, tc + 0.05, { type: "lowpass", f: 160, attack: 0.08, peak: 0.6 * v, decay: 2.6, len: 4 });
+    shotBurst(a, out.wet, tc, { type: "lowpass", f: 900, attack: 0.004, peak: 1.6 * v, decay: 0.5 });
+    for (const [dt, k] of [[0.45, 0.35], [0.95, 0.22], [1.7, 0.16]]) shotBurst(a, out.wet, tc + dt + Math.random() * 0.15, { type: "lowpass", f: 500, attack: 0.03, peak: k * v, decay: 0.6, len: 1.6 });
   },
   // loading: the ramrod down the barrel, a scrape and a knock
   ramrod() {
@@ -315,40 +375,76 @@ export const AUDIO = {
   // a human voice raised: a buzzing throat through the mouth's shape (a vowel), the pitch bending as a cry does.
   //   kind: "war" (a charging yell, low and long), "pain" (cut short, breaking), "fear" (high, a scream), "grunt" (the effort of a blow)
   //   high: a woman's or a boy's voice. at: where in the world it comes from.
+  // a man's voice, crying out: a war cry, a cry of pain, fear, a grunt, and the cry of a man going down. Made as a voice
+  // is: the throat's buzz (not a plain wave — its overtones falling away as a real one's do, the pitch never quite
+  // steady, a rasp of roughness under it when it's forced), breath through it, and the mouth shaping it — five
+  // resonances, gliding from one vowel to the next as the cry goes. Each cry a little different.
   voice(kind = "war", { high = false, at = null, vol = 1 } = {}) {
     const a = ctx(); if (!a) return;
-    const { node, k } = placed(a, at); if (k * vol < 0.02) return;
+    const { node, k } = placed(a, at, 70); if (k * vol < 0.02) return;
     const t = a.currentTime;
-    const P = { war: [rnd(150, 190), rnd(0.9, 1.4), "a", 1.35, 0.8], pain: [rnd(220, 290), rnd(0.35, 0.6), r2(["ae", "a"]), 1.5, 0.55], fear: [rnd(330, 420), rnd(0.8, 1.3), r2(["ae", "e"]), 1.25, 0.75], grunt: [rnd(120, 160), rnd(0.16, 0.24), r2(["u", "o"]), 1.1, 1.6] }[kind];
-    let [f0, dur, vw, rise, gain] = P;
-    if (high) f0 *= 1.75;
-    // the throat: a sawtooth and a square a little apart, for roughness, with a shake of vibrato
+    // [pitch, how long, vowels from → to, the rise at the start, how the pitch ends, loudness, roughness, breathiness]
+    const P = {
+      war:   [rnd(155, 200), rnd(0.9, 1.4), ["a", r2(["a", "o"])], 1.3, 0.88, 1.0, 0.35, 0.18],
+      pain:  [rnd(230, 320), rnd(0.42, 0.75), [r2(["ae", "a"]), r2(["a", "u"])], 1.45, 0.62, 1.05, 0.55, 0.28],
+      death: [rnd(200, 270), rnd(1.0, 1.5), ["a", "u"], 1.25, 0.45, 1.0, 0.7, 0.4],
+      fear:  [rnd(330, 420), rnd(0.8, 1.3), [r2(["ae", "e"]), "a"], 1.2, 0.8, 0.85, 0.3, 0.3],
+      grunt: [rnd(105, 145), rnd(0.15, 0.24), [r2(["u", "o"]), "u"], 1.08, 0.85, 0.75, 0.6, 0.45],
+    }[kind] || [170, 1, ["a", "a"], 1.2, 0.9, 1, 0.3, 0.2];
+    let [f0, dur, [v0, v1], rise, fall, loud, rough, breath] = P;
+    // (each man's throat his own: longer or shorter, which moves all the resonances together)
+    const tract = (high ? 1.17 : 1) * rnd(0.93, 1.07);
+    if (high) f0 *= 1.7;
+    // the pitch through the cry: up hard at the start, held with a waver, and falling away at the end
+    const pitch = a.createConstantSource(); pitch.offset.setValueAtTime(f0 * 0.82, t);
+    pitch.offset.linearRampToValueAtTime(f0 * rise, t + Math.min(0.12, dur * 0.2));
+    pitch.offset.linearRampToValueAtTime(f0 * rise * 0.94, t + dur * 0.55);
+    pitch.offset.exponentialRampToValueAtTime(f0 * fall, t + dur);
+    // (jitter: the pitch never quite steady — slow noise on it, and a quicker tremor when it's strained)
+    const jit = noiseSrc(a), jf = a.createBiquadFilter(), jg = a.createGain(); jf.type = "lowpass"; jf.frequency.value = 18; jg.gain.value = f0 * (0.05 + rough * 0.06);
+    jit.connect(jf); jf.connect(jg);
+    const trem = a.createOscillator(), tg = a.createGain(); trem.frequency.value = rnd(5.5, 8); tg.gain.value = f0 * (kind === "fear" ? 0.05 : 0.018);
+    trem.connect(tg);
+    // the throat: a wave whose overtones fall away twelve decibels an octave, as a voice's do
+    const glot = (() => { const n = 40, re = new Float32Array(n), im = new Float32Array(n); for (let h = 1; h < n; h++) im[h] = 1 / (h * h ** 0.5) * (h % 2 ? 1 : 0.85); return a.createPeriodicWave(re, im); })();
     const src = a.createGain(); src.gain.value = 1;
-    const oscs = [["sawtooth", 1], ["square", 1.006]].map(([type, m]) => {
-      const o = a.createOscillator(); o.type = type;
-      o.frequency.setValueAtTime(f0 * m * 0.85, t);
-      o.frequency.linearRampToValueAtTime(f0 * m * rise, t + dur * 0.25);
-      o.frequency.linearRampToValueAtTime(f0 * m * (kind === "pain" ? 0.7 : 0.92), t + dur);
-      const og = a.createGain(); og.gain.value = type === "square" ? 0.25 : 0.6; o.connect(og); og.connect(src);
-      return o;
-    });
-    const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = rnd(5, 7.5); vg.gain.value = f0 * (kind === "fear" ? 0.045 : 0.025);
-    vib.connect(vg); for (const o of oscs) vg.connect(o.frequency);
-    // and breath in it, rasping
-    const br = noiseSrc(a), bf = a.createBiquadFilter(), bg = a.createGain(); bf.type = "bandpass"; bf.frequency.value = 1800; bf.Q.value = 0.7; bg.gain.value = kind === "grunt" ? 0.5 : 0.22;
+    const throat = a.createOscillator(); throat.setPeriodicWave(glot); throat.frequency.value = 0;
+    pitch.connect(throat.frequency); jg.connect(throat.frequency); tg.connect(throat.frequency);
+    const thg = a.createGain(); thg.gain.value = 0.9; throat.connect(thg); thg.connect(src);
+    // (forced: a rasp under it — the cords flapping at half the pitch, unevenly)
+    const fry = a.createOscillator(); fry.type = "sawtooth"; fry.frequency.value = 0;
+    const half = a.createGain(); half.gain.value = 0.5; pitch.connect(half); half.connect(fry.frequency); jg.connect(fry.frequency);
+    const fryG = a.createGain(); fryG.gain.setValueAtTime(rough * 0.35, t); fryG.gain.linearRampToValueAtTime(rough * (kind === "death" ? 0.7 : 0.45), t + dur);
+    fry.connect(fryG); fryG.connect(src);
+    // breath through it: louder as the voice gives out at the end
+    const br = noiseSrc(a), bf = a.createBiquadFilter(), bg = a.createGain(); bf.type = "highpass"; bf.frequency.value = 500;
+    bg.gain.setValueAtTime(breath * 0.6, t); bg.gain.linearRampToValueAtTime(breath * 0.9, t + dur * 0.7); bg.gain.linearRampToValueAtTime(breath * 1.6, t + dur);
     br.connect(bf); bf.connect(bg); bg.connect(src);
-    // the mouth: three formants in parallel
+    // the mouth: five resonances, each sliding from the first vowel's place to the second's
+    const FM = { a: [730, 1090, 2440, 3400, 4300], ae: [660, 1720, 2410, 3400, 4300], o: [570, 840, 2410, 3300, 4200], e: [530, 1840, 2480, 3500, 4400], u: [440, 1020, 2240, 3250, 4200] };
+    const AMP = [1, 0.62, 0.32, 0.16, 0.08], BW = [90, 110, 160, 220, 280];
     const out = a.createGain();
-    for (const [f, g] of VOWELS[vw]) { const bp = a.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f * (high ? 1.15 : 1) * rnd(0.95, 1.05); bp.Q.value = 6; const fg = a.createGain(); fg.gain.value = g * 2.2; src.connect(bp); bp.connect(fg); fg.connect(out); }
-    // the envelope: in fast, held, falling away (a pain cry breaks off)
-    const env = a.createGain(), v = 0.3 * gain * vol * k;
-    env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(v, t + (kind === "war" ? 0.08 : 0.03));
-    env.gain.setValueAtTime(v * 0.85, t + dur * 0.6); env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    // a little grit on top, as a voice cracks when it's pushed
-    const sh = a.createWaveShaper(), c = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 128 - 1; c[i] = Math.tanh(x * 2.5); } sh.curve = c;
+    for (let i = 0; i < 5; i++) {
+      const bp = a.createBiquadFilter(); bp.type = "bandpass";
+      const fA = FM[v0][i] * tract, fB = FM[v1][i] * tract;
+      bp.frequency.setValueAtTime(fA, t); bp.frequency.setValueAtTime(fA, t + dur * 0.35); bp.frequency.linearRampToValueAtTime(fB, t + dur * 0.9);
+      bp.Q.value = fA / BW[i];
+      const fg = a.createGain(); fg.gain.value = AMP[i] * 3.2; src.connect(bp); bp.connect(fg); fg.connect(out);
+    }
+    // (a little of the throat straight through: the chest of the voice, under the mouth's shaping)
+    const chest = a.createBiquadFilter(), cg = a.createGain(); chest.type = "lowpass"; chest.frequency.value = 400 * tract; cg.gain.value = 0.35; src.connect(chest); chest.connect(cg); cg.connect(out);
+    // the envelope: in fast, held, and then let go — a death cry breaking up into breath
+    const env = a.createGain(), v = 0.42 * loud * vol * k;
+    env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(v, t + (kind === "war" ? 0.07 : 0.025));
+    env.gain.setValueAtTime(v * 0.9, t + dur * 0.55);
+    if (kind === "death") { env.gain.linearRampToValueAtTime(v * 0.35, t + dur * 0.8); env.gain.linearRampToValueAtTime(v * 0.45, t + dur * 0.86); }
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    // pushed hard, a voice breaks: rounded over, not clipped
+    const sh = a.createWaveShaper(), c = new Float32Array(512); for (let i = 0; i < 512; i++) { const x = i / 256 - 1; c[i] = Math.tanh(x * 1.8); } sh.curve = c;
     out.connect(sh); sh.connect(env); env.connect(node);
-    for (const o of oscs) { o.start(t); o.stop(t + dur + 0.05); }
-    vib.start(t); vib.stop(t + dur + 0.05); br.start(t, Math.random() * 1.5); br.stop(t + dur + 0.05);
+    const end = t + dur + 0.05;
+    for (const o of [pitch, throat, fry, trem]) { o.start(t); o.stop(end); }
+    jit.start(t, Math.random() * 1.5); jit.stop(end); br.start(t, Math.random() * 1.5); br.stop(end);
   },
 
   // your own breath: air through an open mouth — pink noise (soft, no crackle) shaped by the mouth's resonances,
