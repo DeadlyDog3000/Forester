@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.10.1", date: "12 October 2026", title: "A friend in the house",
+    items: [
+      "PvP finds a friend on your own network: every copy of the game that's looking keeps a little place on its own computer, hears the others', and you all meet at the same one — no address to type. (The first time, your Mac may ask whether Forester: Reckoning may accept incoming connections: say yes, on both computers.)",
+      "The search takes its time — ten seconds before it says nobody's come yet — and keeps looking after that. Fight a bot instead whenever you like.",
+    ],
+  },
+  {
     v: "1.10.0", date: "12 October 2026", title: "Powder, ball and rod", img: "art/updates/1.10.0.jpg",
     items: [
       "The musket, the pistol, the sword, the battle axe and the spear are new, and there's a dagger: shaped as they were made — a walnut stock with its dropped butt and slim wrist, the barrel half sunk in the fore-end, a flintlock with its cock, flint and steel, brass at the butt and the guard; blades forged to a ridge, a turned hilt with its knuckle bow.",

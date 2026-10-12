@@ -20,7 +20,7 @@ import { makeArm, modelCopy, shoulderArm } from "./models.js";
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
-import { Net, addressOf } from "./mp/net.js";
+import { Net, addressOf, HOST, globalServer } from "./mp/net.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 
 const $ = id => document.getElementById(id);
@@ -98,6 +98,7 @@ export function initPvp(c) {
   $("pvpBack").onclick = () => ctx.screen("title");
   $("pvpGo").onclick = () => findMatch();
   $("pvpCancel").onclick = () => cancelSearch();
+  $("pvpBotNow").onclick = () => botNow();
   $("pvpAgain").onclick = () => findMatch();
   $("pvpLoadout").onclick = () => openLoadout();
   $("pvpTitle").onclick = () => ctx.screen("title");
@@ -125,38 +126,72 @@ function drawLoadout(note = "") {
   $("pvpRec").innerHTML = `<span class="pv-rank">${rankOf(r.rating)}</span> · rating <b>${Math.round(r.rating)}</b> · ${r.w} won, ${r.l} lost${r.streak > 1 ? ` · ${r.streak} in a row` : ""}<br><small>You fight as ${esc(me.name)}.</small>`;
 }
 
-// ---- the search: a server you know, and anyone on it looking for a fight; or, after a while, a bot ----
+// ---- the search: anyone else looking for a fight ----
+// On the wide world's server if there is one; otherwise (in the app) on your own network — every copy of the game that's
+// looking hosts a little server of its own, hears the others', and all of them queue on the same one (the first by
+// name), so two friends in the same house find each other in a moment. Ten seconds, and then a word that nobody's come
+// yet; a bot whenever you like.
+const SEARCH_SECS = 10;
+const sleep = ms => new Promise(ok => setTimeout(ok, ms));
 async function findMatch() {
   cancelSearch(true);
-  const s = search = { t0: performance.now(), net: null, done: false };
+  const s = search = { t0: performance.now(), net: null, key: null, done: false, seen: [] };
+  window.__pvpSearch = s;
   ctx.screen("pvpFind");
   const say = (t, sub) => { $("pvpFindT").textContent = t; if (sub != null) $("pvpFindS").textContent = sub; };
-  say("Looking for an opponent…", "Anyone else looking for a fight, on the servers you know.");
-  const clock = setInterval(() => { if (search !== s) return clearInterval(clock); $("pvpFindC").textContent = `${Math.floor((performance.now() - s.t0) / 1000)} s`; }, 250);
+  say("Looking for an opponent…", HOST ? "Anyone on your network looking for a fight — or on the servers you know." : "Anyone else looking for a fight, on the servers you know.");
+  $("pvpFindC").textContent = "0 s";
+  const clock = setInterval(() => {
+    if (search !== s) return clearInterval(clock);
+    const t = Math.floor((performance.now() - s.t0) / 1000);
+    $("pvpFindC").textContent = `${t} s`;
+    if (t === SEARCH_SECS && !s.told) { s.told = true; say("Nobody's turned up yet.", `Still looking${s.where ? ` — ${s.where}` : ""}. Keep waiting, or fight a bot as strong as you are.`); }
+  }, 250);
   const me = ctx.identity(), r = record();
-  // (the servers: the wide world's, and any you've typed in; the first to answer is the one)
-  const addrs = ctx.servers().map(addressOf).filter(Boolean);
-  let net = null;
-  if (addrs.length) {
-    net = await Promise.any(addrs.map(async a => { const n = new Net(a); try { await n.connect(me.name, me.look); return n; } catch (e) { n.close(); throw e; } })).catch(() => null);
+  // (this computer's own little server, in the app: so a friend's game can find you as you can find theirs)
+  let self = null;
+  if (HOST) { try { const h = await HOST.host(); self = { port: h.port, name: h.name || "" }; } catch (e) {} }
+  const glob = globalServer();
+  const go = async (key, addr, where) => {
+    if (s.key === key || search !== s) return;
+    if (s.net) { s.net.send({ t: "pvpcancel" }); s.net.close(); s.net = null; }
+    s.key = key; s.where = where;
+    const n = new Net(addr);
+    try { await n.connect(me.name, me.look); } catch (e) { s.err = "connect " + key + ": " + e.message; n.close(); if (s.key === key) s.key = null; return; }
+    if (search !== s || s.key !== key) { n.close(); return; }
+    s.net = n;
+    if (!s.told) say("Looking for an opponent…", `${where[0].toUpperCase() + where.slice(1)}.`);
+    n.on.duel = m => {
+      if (search !== s || s.done) return;
+      s.done = true; search = null; clearInterval(clock);
+      startDuel({ net: n, side: m.side, foe: m.foe, seed: m.seed });
+    };
+    n.send({ t: "pvpq", lo, rating: Math.round(r.rating), user: ctx.user() });
+  };
+  while (search === s && !s.done) {
+    // the wide world's server, if there is one: everyone shares it
+    if (glob && addressOf(glob)) await go("global", addressOf(glob), "on the Forester server");
+    else if (HOST) {
+      // the games on this network (yours among them): all of you on the same one — the first, by name
+      const list = await HOST.discover(2300).catch(e => { s.err = String(e && e.message || e); return []; });
+      s.seen = list.map(v => `${v.name}|${v.address}:${v.port}${v.self ? " (self)" : ""}`);
+      if (search !== s || s.done) break;
+      const all = list.map(v => ({ key: `${v.name || v.address}|${v.self ? (self && self.port) || v.port : v.port}`, addr: addressOf(`${v.self ? "127.0.0.1" : v.address}:${v.port}`), where: v.self ? "on your network (this computer is keeping the place)" : `on your network, at ${v.name || v.address}` })).filter(v => v.addr);
+      all.sort((x, y) => x.key < y.key ? -1 : x.key > y.key ? 1 : 0);
+      if (all.length) await go(all[0].key, all[0].addr, all[0].where);
+    } else {
+      // (in a browser: the servers you've typed in)
+      const typed = ctx.servers().map(addressOf).filter(Boolean);
+      if (typed.length) await go(typed[0].label, typed[0], `on ${typed[0].label}`);
+      await sleep(1400);
+    }
+    await sleep(200);
   }
-  if (search !== s) { if (net) net.close(); return; }
-  if (net) {
-    s.net = net;
-    say("Looking for an opponent…", `On ${net.addr.label}. If nobody turns up, a bot as good as you are.`);
-    net.send({ t: "pvpq", lo, rating: Math.round(r.rating), user: ctx.user() });
-    const m = await net.next("duel", 14000).catch(() => null);
-    if (search !== s) { net.send({ t: "pvpcancel" }); net.close(); return; }
-    if (m) { s.done = true; search = null; clearInterval(clock); return startDuel({ net, side: m.side, foe: m.foe, seed: m.seed }); }
-    net.send({ t: "pvpcancel" }); net.close(); s.net = null;
-  } else {
-    await new Promise(ok => setTimeout(ok, 2200));
-    if (search !== s) return;
-  }
-  say("Nobody else is looking.", "A bot, then — as strong as you are.");
-  await new Promise(ok => setTimeout(ok, 1200));
-  if (search !== s) return;
-  s.done = true; search = null; clearInterval(clock);
+}
+// a bot now, whatever the search has found
+function botNow() {
+  const s = search; if (!s) return;
+  cancelSearch(true);
   startDuel({ bot: true });
 }
 function cancelSearch(quiet) {
