@@ -1284,12 +1284,15 @@ G.endFreecam = () => { if (G.freecam) G.toggleFreecam(); document.body.classList
 G.toggleFreecam = () => {
   if (G.freecam) {
     for (const [c, v] of G.freecam.shown) c.visible = v;
+    // (what's in your hands always back in them: the free camera taken up after you'd fallen — at a battle's end —
+    //  remembered them hidden, and the next battle began with no gun to be seen)
+    vm.visible = !G.deathCam;
     // (back in yourself standing, as you went out)
     G.player.crouched = !!G.freecam.crouched;
     G.freecam = null; if (G.player.model) G.player.model.root.visible = false; document.body.classList.remove("freecam"); return false;
   }
   const p = G.player, e = p.eyePos();
-  G.freecam = { x: e.x, y: e.y, z: e.z, yaw: p.yaw, pitch: p.pitch, shown: camera.children.map(c => [c, c.visible]), crouched: !!p.crouched };
+  G.freecam = { x: e.x, y: e.y, z: e.z, yaw: p.yaw, pitch: p.pitch, shown: camera.children.filter(c => c !== vm).map(c => [c, c.visible]), crouched: !!p.crouched };
   document.body.classList.add("freecam");
   return true;
 };

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.18.1", date: "12 October 2026", title: "Your gun, in your hands",
+    items: [
+      "Fixed: your gun (and whatever else you held) unseen for a whole battle. If you'd fallen in the battle before, the free camera at its end remembered your hands as hidden, and put them back that way when you left — so the next battle began with nothing in view.",
+    ],
+  },
+  {
     v: "1.18.0", date: "12 October 2026", title: "Commanders",
     items: [
       "Battle Mode against another player: in To Arms choose Battle Mode, then Against a player. Each of you raises and commands your own company; the first to arrive holds the field and chooses the ground — somewhere on the Earth, by day or by night — and the other's game builds the same. Your orders go to your own men only; your shots, blows, cannon and parries count on both screens; fall while three of yours still stand and you take a man's place, as against bots. Play it on your own network, or on a server you both know.",

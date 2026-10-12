@@ -957,7 +957,7 @@ class Arena {
   rise() {
     const pl = G.player;
     if (this.myRag) { this.myRag.stop(); this.myRag = null; }
-    G.deathCam = null; pl.frozen = false;
+    G.deathCam = null; pl.frozen = false; G.wasDeathCam = true;   // (your hands shown again, next frame)
     const fx = $("deathFx"); if (fx) fx.classList.remove("on", "watch");
     document.body.classList.remove("dead");
   }
