@@ -22,6 +22,9 @@ import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
 import { Net, addressOf, HOST, globalServer } from "./mp/net.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
+import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook } from "./battle.js";
+// (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
+const blowPose = (k, dir) => k === "spear" ? "punch" : dir === "up" ? "overhead" : "chop";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -201,6 +204,16 @@ function cancelSearch(quiet) {
   if (!quiet) openLoadout();
 }
 
+// the company you take out against bots: how many with you, how many against, and whether it's a battle — your
+// colours, and theirs, drawn from the others (kept between games)
+const ARMY_KEY = "reckoning.pvp.battle";
+export function army() {
+  let a = {}; try { a = JSON.parse(localStorage.getItem(ARMY_KEY) || "{}") || {}; } catch (e) {}
+  const keys = Object.keys(UNIFORMS), uniform = keys.includes(a.uniform) ? a.uniform : keys[0];
+  const others = keys.filter(k => k !== uniform);
+  return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)] };
+}
+export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
 // a bot's name and look, made up fresh
 const FIRST = ["Hans", "Matthias", "Jörg", "Kaspar", "Lorenz", "Veit", "Ulrich", "Bastian", "Anna", "Margarethe", "Ursula", "Dorothea", "Barbara", "Elsbeth"];
 const LAST = ["Brenner", "Kohl", "Weidner", "Falk", "Ostermann", "Lindau", "Rausch", "Haberland", "Steinkopf", "Wedel", "Asmus", "Grote"];
@@ -217,8 +230,9 @@ function botFoe() {
 function startDuel(o) {
   const me = ctx.identity(), r = record();
   ctx.begin();
+  const A = o.bot ? army() : null, multi = A && (A.allies > 0 || A.enemies > 1 || A.battle);
   const foe = o.bot ? { ...botFoe(), bot: true, skill: skillOf(r.rating) } : { ...o.foe, bot: false };
-  new Arena({ me, lo: { ...lo }, foe, net: o.net || null, side: o.side || 0 });
+  new Arena({ me, lo: { ...lo }, foe, net: o.net || null, side: o.side || 0, army: multi ? A : null });
 }
 
 // the ground: the deer ride in the woods below the clearing, open in the middle and the trees thick round it
@@ -226,26 +240,58 @@ const C = { x: HUNT.x, z: HUNT.z }, BOUND = 40;
 const SPAWN = [{ x: C.x - 19, z: C.z + 2 }, { x: C.x + 19, z: C.z - 2 }];
 
 class Arena {
-  constructor({ me, lo, foe, net, side }) {
+  constructor({ me, lo, foe, net, side, army: A = null }) {
     resetForMode();
     G.arena = this;
     this.me = me; this.lo = lo; this.foeInfo = foe; this.net = net; this.side = side;
+    this.army = A; this.multi = !!A; this.battle = !!(A && A.battle);
     this.wins = [0, 0]; this.round = 0; this.over = false; this.live = false; this.clock = ROUND_SECS;
+    // (a company's fight wants more room than a duel: the ride opened wider, the two lines further apart)
+    this.bound = this.battle ? 60 : this.multi ? 48 : BOUND; this.dx = this.battle ? 31 : this.multi ? 21 : 19;
     const w = this.w = new Woods(); setWorld(w); setAtmo("afternoon");
     w.huntOpen = true;
     this.hunt = new Hunt(w, { x: C.x, z: C.z, r: 1 }, {});
     G.who = isF(me.look) ? "sister" : "brother";
-    G.player.setModel(lookOpts(me.look, me.name)); G.player.model.scaleBase = me.look.height || 1;
+    // (in a battle, your company's colours: on you too)
+    this.uni = this.battle ? [UNIFORMS[A.uniform] || UNIFORMS.imperial, UNIFORMS[A.enemyUniform]] : null;
+    const myLook = this.uni ? inUniform(me.look, this.uni[0]) : me.look;
+    G.player.setModel(lookOpts(myLook, me.name)); G.player.model.scaleBase = me.look.height || 1;
     G.showHealth = true; G.hasMap = false;
     AUDIO.music("battle");
-    // the foe
-    this.foe = foe.bot ? new Bot(this, foe) : new NetFoe(this, foe);
-    this.hunt.animals.push(this.foe);
     // the ride opened up for the fight: most of its trees gone, one here and there left standing for cover (never
-    // close by where either of you starts), and the ground they stand on clear
+    // close by where either side starts), and the ground they stand on clear
     const hash = (x, z) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
-    w.clearScenery(C.x, C.z, BOUND - 6, null, (x, z) => hash(x, z) < 0.2 && SPAWN.every(p => Math.hypot(p.x - x, p.z - z) > 7) && Math.hypot(x - C.x, z - C.z) > 4);
-    this.spawns = SPAWN.map(p => this.clearSpot(p.x, p.z));
+    const lines = [{ x: C.x - this.dx, z: C.z }, { x: C.x + this.dx, z: C.z }];
+    w.clearScenery(C.x, C.z, this.bound - 6, null, (x, z) => hash(x, z) < (this.battle ? 0.1 : 0.2) && lines.every(p => Math.hypot(p.x - x, p.z - z) > (this.multi ? 12 : 7)) && Math.hypot(x - C.x, z - C.z) > 4);
+    this.spawns = this.multi ? lines.map(p => this.clearSpot(p.x, p.z)) : SPAWN.map(p => this.clearSpot(p.x, p.z));
+    this.you = { isPlayer: true, team: 0, get pos() { return G.player.pos; }, get alive() { return !G.downed; }, get yaw() { return G.player.yaw + Math.PI; }, name: me.name };
+    this.units = [];
+    if (this.multi) {
+      // the field: its works, and the guns (a battle); a few things lying about between the lines (any fight with men)
+      this.field = new Field(w, C, this.dx, this.battle);
+      this.orders = [new Orders(0), new Orders(1)];
+      if (!this.battle) this.orders[1].form = "loose";
+      this.book = new OrderBook(id => this.give(id));
+      const sk = foe.skill, mk = (team, i) => {
+        const b = botFoe(), seed = 1000 + team * 100 + i;
+        const look = this.uni ? soldierLook(this.uni[team], seed) : b.look;
+        const info = { ...b, look, name: this.uni ? `${(this.uni[team].name)} — ${b.name}` : b.name, bot: true, skill: sk * (team === 0 ? 0.95 : 1), team, idx: i };
+        if (this.battle && Math.random() < 0.7) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
+        const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
+      };
+      for (let i = 0; i < A.enemies; i++) mk(1, i);
+      for (let i = 0; i < A.allies; i++) mk(0, i);
+      this.foe = this.units.find(u => u.team === 1);
+      this.foeInfo = { ...this.foe.info, name: this.uni ? this.uni[1].name : this.foe.info.name };
+      this.keyH = e => this.onKey(e); addEventListener("keydown", this.keyH, true);
+      this.wheelH = e => { if (this.book && this.book.open) { e.stopImmediatePropagation(); this.book.wheel(e.deltaY); } }; addEventListener("wheel", this.wheelH, true);
+      this.clickH = e => { if (this.book && this.book.open && e.button === 0) { e.stopImmediatePropagation(); e.preventDefault(); this.book.key({ code: "KeyF" }); } }; addEventListener("mousedown", this.clickH, true);
+    } else {
+      // the foe
+      this.foe = foe.bot ? new Bot(this, { ...foe, team: 1 }) : new NetFoe(this, foe);
+      this.hunt.animals.push(this.foe);
+      if (foe.bot) this.units.push(this.foe);
+    }
     // your hands: the swing, the shots, and going down
     G.onSwing = () => this.swing();
     G.onDowned = from => this.youDown(from);
@@ -264,7 +310,55 @@ class Arena {
     }
     return { x, z };
   }
-  foes() { return this.foe && this.foe.alive && this.foe.view ? [this.foe.view()] : []; }
+  foes() {
+    if (!this.multi) return this.foe && this.foe.alive && this.foe.view ? [this.foe.view()] : [];
+    const p = G.player.pos;
+    return this.units.filter(u => u.team === 1 && u.alive && Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < 6).map(u => ({ ...u.view(), duel: u.T === this.you ? G.player : null }));
+  }
+  // ---- the sides ----
+  enemiesOf(team) {
+    const out = this.units.filter(u => u.alive && u.team !== team);
+    if (team !== 0 && this.you.alive) out.push(this.you);
+    return out;
+  }
+  alliesOf(team) { return this.units.filter(u => u.alive && u.team === team); }
+  // (worth showing you: the hints about a head-shot only if it's near enough to be your doing)
+  youCanSee(u) { return Math.hypot(u.pos.x - G.player.pos.x, u.pos.z - G.player.pos.z) < 60; }
+  hearable(p) { return Math.hypot(p.x - G.player.pos.x, p.z - G.player.pos.z) < 70; }
+  // a man's place in his company: in the formation his officer has set, round where it's to be, facing the other side
+  slotFor(u) {
+    const O = this.orders[u.team], mates = this.alliesOf(u.team).sort((a, b) => a.idx - b.idx), i = Math.max(0, mates.indexOf(u)), n = mates.length;
+    const foes = this.enemiesOf(u.team);
+    const cx = foes.length ? foes.reduce((a, f) => a + f.pos.x, 0) / foes.length : C.x + (u.team === 0 ? 1 : -1) * 10;
+    const cz = foes.length ? foes.reduce((a, f) => a + f.pos.z, 0) / foes.length : C.z;
+    let anchor;
+    if (u.team === 0 && O.mode === "follow" && this.you.alive) { const pl = G.player, fw = pl.forward(); anchor = { x: pl.pos.x - fw.x * 2.4, z: pl.pos.z - fw.z * 2.4 }; }
+    else anchor = O.at || this.spawns[u.team];
+    const face = Math.atan2(cx - anchor.x, cz - anchor.z);
+    const p = O.slot(i, n, anchor, face);
+    // (never out past the trees)
+    const dx = p.x - C.x, dz = p.z - C.z, d = Math.hypot(dx, dz), lim = this.bound - 3;
+    if (d > lim) { p.x = C.x + dx / d * lim; p.z = C.z + dz / d * lim; }
+    return p;
+  }
+  // a man down: the duel's round, or the battle's tally
+  unitDown(u) {
+    if (!this.multi) { this.endRound(0); return; }
+    if (u.team === 1) { this.killed = (this.killed || 0) + 1; }
+    this.showHud();
+    this.checkEnd();
+  }
+  checkEnd() {
+    if (this.over || this.ended) return;
+    const theirs = this.alliesOf(1).length, ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0);
+    if (!theirs || !ours) {
+      this.ended = true; this.live = false;
+      const won = !theirs;
+      slowMo(1.6, 0.3);
+      this.banner(won ? "The field is yours" : "The day is lost", won ? `${this.killed || 0} of theirs down` : "");
+      setTimeout(() => G.arena === this && this.finish(won), 4200);
+    }
+  }
   // ---- the bar of what you carry: your loadout, nothing else ----
   hotbar() {
     const L = this.lo, out = [], pl = G.player;
@@ -583,59 +677,72 @@ const DIRS = ["up", "left", "right"];
 class Bot extends Fighter {
   constructor(arena, info) {
     super(arena, info);
-    this.s = info.skill; this.lo = info.lo;
+    this.s = info.skill; this.lo = info.lo; this.team = info.team ?? 1; this.idx = info.idx || 0;
     info.rating = record().rating;
   }
   reset(at, face) {
     this.hp = HP; this.standUp(); this.a.place(at.x, at.z, Math.atan2(face.x - at.x, face.z - at.z));
     this.loaded = { long: true, side: this.lo.side === "pistol" }; this.rl = { long: 0, side: 0 };
-    const extra = 1; this.ammo = Math.round((AMMO[this.lo.long] || 0) * extra);
+    this.ammo = AMMO[this.lo.long] || 0;
     this.wind = 0; this.cool = 1; this.stun = 0; this.aimT = 0; this.stepT = 0; this.losT = 0; this.los = true; this.awake = false;
-    this.mode = "range"; this.guardT = 0;
+    this.mode = "range"; this.guardT = 0; this.T = null; this.pickT = 0; this.cover = null; this.dodgeT = 0;
     this.hold(this.lo.long); this.a.squareTo = null;
   }
-  go() { this.awake = true; this.a.squareTo = G.player; this.aimT = -0.9 - Math.random() * 0.6; }
-  // your blade on him: turned aside if he's guarding that side and facing you (the better he is, the oftener)
-  struck(dmg, side) {
+  go() { this.awake = true; this.aimT = -0.9 - Math.random() * 0.6; }
+  // a blow on him — yours (from the side you swung) or another man's: turned aside if he's guarding that side and
+  // facing whoever struck (the better he is, the oftener)
+  struck(dmg, side, by = null) {
     if (!this.alive) return;
-    const pl = G.player, dx = pl.pos.x - this.pos.x, dz = pl.pos.z - this.pos.z;
+    const src = by ? by.pos : G.player.pos, dx = src.x - this.pos.x, dz = src.z - this.pos.z;
     const facing = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) > 0.3;
-    if (facing && this.wind <= 0 && this.stun <= 0 && this.mode === "melee" && this.guardDir === side && Math.random() < 0.35 + this.s * 0.5) {
-      AUDIO.clang && AUDIO.clang(0.9, this.pos); blowLands(this.a, "parried");
-      this.a.person.setPose("chop"); setTimeout(() => this.alive && this.a.person.setPose("idle"), 300);
-      this.cool = Math.min(this.cool, 0.4); pl.parryJolt = G.time + 0.3;
+    const guarded = by ? Math.random() < 0.15 + this.s * 0.3 : this.guardDir === side && Math.random() < 0.35 + this.s * 0.5;
+    if (facing && this.wind <= 0 && this.stun <= 0 && this.mode === "melee" && guarded) {
+      AUDIO.clang && AUDIO.clang(0.9, this.pos); blowLands(this.a, "parried", by ? by.a : G.player);
+      this.a.person.setPose(blowPose(this.heldK, "right")); setTimeout(() => this.alive && this.a.person.setPose("idle"), 300);
+      this.cool = Math.min(this.cool, 0.4);
+      if (by) { by.stun = Math.max(by.stun, 0.8); return; }
+      G.player.parryJolt = G.time + 0.3;
       if (!this.arena.parryTold) { this.arena.parryTold = true; UI.hint("He turned it — he was guarding that side (the grey mark). Strike from another.", 4); }
       return;
     }
-    this.damage(dmg, true);
+    this.damage(dmg, true, false, src);
   }
   // an arrow or a ball in him
-  hit(power, head) { this.damage(dmgOf(power, head), false, head); if (head && this.alive) UI.hint("In the head.", 1.2); }
-  damage(d, melee, head = false) {
+  hit(power, head) { this.damage(dmgOf(power, head), false, head); if (head && this.alive && this.arena.youCanSee(this)) UI.hint("In the head.", 1.2); }
+  damage(d, melee, head = false, from = null) {
     if (!this.alive || !this.arena.live) return;
     this.hp = Math.max(0, this.hp - d);
-    if (this.hp <= 0) { this.fallDown(G.player.pos, head); this.arena.foeDown(); return; }
+    if (this.hp <= 0) { this.fallDown(from || (this.T && this.T.pos) || G.player.pos, head); this.arena.unitDown(this); return; }
     blowLands(this.a, "hit"); this.a.person.flinch && this.a.person.flinch();
     AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos, high: isF(this.info.look) });
     if (!(this.wind > 0)) { this.stun = melee ? 0.25 : 0.4; this.a.path = []; this.aimT = 0; }
     // (hurt at range, he doesn't stand there: he moves)
-    if (!melee) this.stepT = 0;
+    if (!melee) { this.stepT = 0; this.hurtT = G.time; }
   }
-  // can he see you: nothing solid on the line from his eyes to your chest
-  sees() {
-    const w = this.arena.w, pl = G.player, a = this.pos;
-    const ax = a.x, ay = a.y + 1.5, az = a.z, bx = pl.pos.x, by = pl.pos.y + 1.3, bz = pl.pos.z, d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / 0.5);
+  // can he see a man: nothing solid on the line from his eyes to the other's chest
+  sees(T) {
+    const w = this.arena.w, p = T.pos, a = this.pos;
+    const ax = a.x, ay = a.y + 1.5, az = a.z, bx = p.x, by = p.y + 1.3, bz = p.z, d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / 0.5);
     for (let i = 2; i < n - 1; i++) {
       const t = i / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t, z = az + (bz - az) * t;
       if (y < w.heightAt(x, z) + 0.2 || w.col.solidAt(x, y, z, 0)) return false;
     }
     return true;
   }
+  // whom he's fighting: the man his officer named, or the nearest of the other side he can see (or just the nearest)
+  pick() {
+    const O = this.arena.orders && this.arena.orders[this.team], foes = this.arena.enemiesOf(this.team);
+    if (O && O.target && O.target.alive && foes.includes(O.target)) return O.target;
+    let best = null, bd = Infinity;
+    for (const f of foes) { const d = Math.hypot(f.pos.x - this.pos.x, f.pos.z - this.pos.z) * (f === this.T ? 0.8 : 1); if (d < bd) { bd = d; best = f; } }
+    return best;
+  }
   tick(dt) {
     if (!this.alive || !this.awake || !this.arena.live || G.mode !== "play") return;
-    const a = this.a, pl = G.player, fp = pl.pos, d = Math.hypot(fp.x - a.pos.x, fp.z - a.pos.z), s = this.s;
+    const a = this.a, s = this.s, pl = G.player;
     // reloading goes on whatever he's doing, as yours does (each weapon its own time)
-    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt; if (this.rl[k] <= 0) this.loaded[k] = true; }
+    const moving = a.path.length > 0;
+    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
     // (the gun in his hands, if it's being loaded: the drill, seen and heard)
     { const hk = this.heldK, slot = hk === "pistol" ? "side" : "long";
       if ((hk === "musket" || hk === "pistol") && !this.loaded[slot] && this.rl[slot] > 0) {
@@ -643,100 +750,149 @@ class Bot extends Fighter {
         a.person.load = { kind: hk, e }; this.aimUp(false);
         for (const st of loadSteps(hk, e0, e)) FOLEY.load && FOLEY.load(st, a.pos, 0.6, hk === "pistol");
       } else { a.person.load = null; this.loadE = null; } }
-    if ((this.losT -= dt) <= 0) { this.losT = 0.25; this.los = this.sees(); }
+    if ((this.pickT -= dt) <= 0 || !this.T || !this.T.alive) { this.pickT = 0.8 + Math.random() * 0.4; this.T = this.pick(); }
+    const T = this.T;
+    if (!T) { a.path = []; this.aimUp(false); return; }
+    a.squareTo = T.isPlayer ? G.player : T.a;
+    const fp = T.pos, d = Math.hypot(fp.x - a.pos.x, fp.z - a.pos.z);
+    if ((this.losT -= dt) <= 0) { this.losT = 0.25 + Math.random() * 0.1; this.los = this.sees(T); }
     if (this.stun > 0) { this.stun -= dt; return; }
+    const O = this.arena.orders && this.arena.orders[this.team];
     // his guard: to a side, or (the better he is) to the side you're on
-    if ((this.guardT -= dt) <= 0) { this.guardT = 0.6 + Math.random() * (1.2 - s * 0.5); this.guardDir = Math.random() < 0.3 + s * 0.5 && pl.stance ? pl.stance : DIRS[Math.floor(Math.random() * 3)]; }
+    if ((this.guardT -= dt) <= 0) { this.guardT = 0.6 + Math.random() * (1.2 - s * 0.5); this.guardDir = T.isPlayer && Math.random() < 0.3 + s * 0.5 && pl.stance ? pl.stance : DIRS[Math.floor(Math.random() * 3)]; }
     this.stepT -= dt; this.cool -= dt;
     // a blow on its way: it lands, or it doesn't
     if (this.wind > 0) {
       a.path = []; a.faceTo(fp.x, fp.z);
       const was = this.wind; this.wind -= dt;
-      if (was > 0.45 && this.wind <= 0.45) glint(a);
-      if (was > 0.62 && this.wind <= 0.62) a.person.setPose(this.dir === "up" ? "overhead" : "chop");
+      if (was > 0.45 && this.wind <= 0.45 && T.isPlayer) glint(a);
+      if (was > 0.62 && this.wind <= 0.62) a.person.setPose(blowPose(this.lo.blade, this.dir));
       if (this.wind <= 0) {
         setTimeout(() => this.alive && a.person.setPose("idle"), 500);
         AUDIO.whoosh && AUDIO.whoosh(0.45, this.lo.blade !== "sword");
         const B = BLADE[this.lo.blade];
-        // (and after it, a moment to find his feet again: your opening)
         this.cool = (1.4 - s * 0.6) / B.rate * (0.85 + Math.random() * 0.3);
-        if (d < B.reach - 0.3) {
-          if (strikeYou(a, this.dir, B.dmg, d, this.arena.tips ??= {}) === "parry") { this.stun = 1.0; this.cool = Math.max(this.cool, 1.3); a.person.flinch && a.person.flinch(); }
+        if (d < B.reach - 0.3 && T.alive) {
+          if (T.isPlayer) { if (strikeYou(a, this.dir, B.dmg, d, this.arena.tips ??= {}) === "parry") { this.stun = 1.0; this.cool = Math.max(this.cool, 1.3); a.person.flinch && a.person.flinch(); } }
+          else { T.struck(B.dmg, this.dir, this); FOLEY.chop && FOLEY.chop(T.pos, 0.6); }
         }
       }
       return;
     }
-    const longK = this.lo.long, haveLong = this.loaded.long && (longK === "musket" || this.ammo > 0), haveSide = this.loaded.side;
-    // close: the blade. (Farther, if nothing's loaded and you're coming on.)
-    const melee = d < 4.2 || (!haveLong && !(haveSide && d < RANGE.pistol) && d < 10);
+    const longK = this.lo.long, haveLong = longK !== "none" && this.loaded.long && (longK === "musket" || this.ammo > 0), haveSide = this.loaded.side;
+    // (you reloading, close by: his moment to come at you with steel)
+    const youReloading = T.isPlayer && ((pl.gun && pl.gunReload > 0) || (pl.xbow && pl.xspan < 1)) && d < 14;
+    const charge = (O && O.charge) || (youReloading && s > 0.3 && !haveLong);
+    // close: the blade. (Farther, if nothing's loaded and he's coming on, or ordered in.)
+    const melee = d < 4.2 || charge || (!haveLong && !(haveSide && d < RANGE.pistol) && d < 10);
     if (melee) {
-      if (this.mode !== "melee") { this.mode = "melee"; this.aimUp(false); this.hold(this.lo.blade); this.aimT = 0; a.person.setPose("guard"); }
+      if (this.mode !== "melee") { this.mode = "melee"; this.aimUp(false); this.hold(this.lo.blade); this.aimT = 0; a.person.setPose("guard"); this.releaseCover(); }
       const B = BLADE[this.lo.blade], reach = B.reach - 0.5, run = 3.2 + s * 1.4;
       if (d > reach + 0.5) { if (!a.path.length || this.stepT <= 0) { this.stepT = 0.35; a.approach(fp, reach - 0.2, run); } }
       else if (d < 1.0) { if (this.stepT <= 0) { this.stepT = 0.5; a.approach(fp, 1.5, 2.4); } }
       else if (this.cool <= 0) {
         a.path = [];
-        // (the wind-up: two seconds for a beginner's bot to show you which side; under one and a half for a good one's)
-        this.wind = WIND * (1 - s * 0.3); this.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose("guard");
+        this.wind = WIND * (1 - s * 0.3) * (T.isPlayer ? 1 : 0.7); this.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose("guard");
         if (Math.random() < 0.6) AUDIO.voice && AUDIO.voice(Math.random() < 0.5 ? "grunt" : "war", { at: a.pos, vol: 0.8, high: isF(this.info.look) });
       } else if (this.stepT <= 0) { this.stepT = 0.6 + Math.random() * 0.8; if (Math.random() < 0.7) a.circleAbout(fp, reach, 1.4 + s); else a.path = []; }
       return;
     }
-    // at range: the long arm if it's loaded, the pistol if you're near enough, otherwise keep moving while it loads
-    const useK = haveLong ? longK : haveSide && d < RANGE.pistol + 6 ? "pistol" : null;
     this.mode = "range";
+    // at range: the long arm if it's loaded, the pistol if near enough
+    const useK = haveLong ? longK : haveSide && d < RANGE.pistol + 6 ? "pistol" : null;
+    const field = this.arena.field;
+    // ---- in a company: his place in the formation, or cover, as he's ordered ----
+    if (O) {
+      const want = this.arena.slotFor(this);
+      // (loading, or ordered down: behind the nearest thing that'll stop a ball, if there's one near his place)
+      const wantCover = field && (O.cover || (!useK && s > 0.25)) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.team, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
+      if (wantCover !== this.cover) { this.releaseCover(); this.cover = wantCover; if (wantCover) wantCover.taken = this; }
+      const goal = this.cover || want, gd = Math.hypot(goal.x - a.pos.x, goal.z - a.pos.z);
+      // the volley: every loaded piece brought up at the word, and fired together
+      if (O.volleyAt && G.time < O.volleyAt + 0.4 && useK && useK !== "bow" && this.los) {
+        a.path = []; a.faceTo(fp.x, fp.z); this.aimUp(true);
+        if (G.time >= O.volleyAt + this.idx * 0.02 && this.volleyed !== O.volleyAt) { this.volleyed = O.volleyAt; this.fire(useK, T); }
+        return;
+      }
+      if (gd > 1.4) {
+        this.aimT = 0; this.aimUp(false); a.person.setPose("idle");
+        if (!a.path.length || this.stepT <= 0) { this.stepT = 0.5; a.walkTo(goal.x, goal.z, gd > 6 || O.mode === "advance" ? 3.4 + s * 0.8 : 1.8); }
+        return;
+      }
+      a.path = [];
+      if (!useK || !O.fire || !this.los || d > RANGE[useK]) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
+      if (this.heldK !== useK) { this.hold(useK); this.aimT = -0.5; }
+      a.faceTo(fp.x, fp.z); a.person.setPose(useK === "bow" ? "reach" : "idle"); this.aimUp(useK !== "bow");
+      this.aimT += dt;
+      if (this.aimT >= (useK === "musket" ? 1.6 : 1.2) * (1.3 - s * 0.6)) { this.fire(useK, T); this.aimT = 0; }
+      return;
+    }
+    // ---- on his own (the duel): keep moving, use what cover there is, don't stand in your sights ----
+    // (you aiming at him: a step aside, the better he is the sooner)
+    if (T.isPlayer && (this.dodgeT -= dt) <= 0) {
+      const aiming = (pl.gun && pl.gunAim > 0.6 && pl.gunLoaded) || (pl.bow && pl.draw > 0.5) || (pl.xbow && pl.xaim > 0.6 && pl.xspan >= 1);
+      if (aiming) {
+        const fw = pl.forward(), dx = a.pos.x - pl.pos.x, dz = a.pos.z - pl.pos.z, dd = Math.hypot(dx, dz) || 1;
+        if ((dx * fw.x + dz * fw.z) / dd > 0.985 && Math.random() < 0.25 + s * 0.5) { this.dodgeT = 1.5 + Math.random(); this.aimT = Math.min(this.aimT, 0.2); a.circleAbout(fp, d, 3.6 + s); return; }
+      }
+      this.dodgeT = 0.3;
+    }
     if (!useK) {
-      // nothing loaded: the long arm in hand, loading; side to side so he's hard to hit, keeping his distance
-      if (this.heldK !== longK) this.hold(longK);
+      // nothing loaded: the long arm in hand, loading — behind something if there's something near, else side to side
+      if (this.heldK !== longK && longK !== "none") this.hold(longK);
       a.person.setPose("idle"); this.aimT = 0; this.aimUp(false);
+      const cv = field && field.coverNear(this.team, a.pos.x, a.pos.z, fp.x, fp.z, 10, this);
+      if (cv) { if (Math.hypot(cv.x - a.pos.x, cv.z - a.pos.z) > 0.8 && (!a.path.length || this.stepT <= 0)) { this.stepT = 0.6; a.walkTo(cv.x, cv.z, 3.4 + s); } else if (a.path.length === 0) a.faceTo(fp.x, fp.z); return; }
       if (this.stepT <= 0) { this.stepT = 1.2 + Math.random() * 1.2; a.circleAbout(fp, clamp(d, 12, 30), 2.4 + s); }
       return;
     }
     if (this.heldK !== useK) { this.hold(useK); this.aimT = -0.5; }
     const R = RANGE[useK];
     if (!this.los || d > R) {
-      // in closer, or round to where he can see you
+      // in closer — not straight at you, but slanting this way and that — or round to where he can see you
       this.aimT = 0; a.person.setPose("idle"); this.aimUp(false);
-      if (!a.path.length || this.stepT <= 0) { this.stepT = 0.7; if (!this.los && d < R) a.circleAbout(fp, Math.max(6, d - 3), 3 + s); else a.approach(fp, R * 0.7, 3.2 + s); }
+      if (!a.path.length || this.stepT <= 0) { this.stepT = 0.9; if (!this.los && d < R) a.circleAbout(fp, Math.max(6, d - 3), 3 + s); else { const ang = Math.atan2(a.pos.x - fp.x, a.pos.z - fp.z) + (Math.random() - 0.5) * 0.9, rr = Math.max(R * 0.7, d - 7); a.walkTo(fp.x + Math.sin(ang) * rr, fp.z + Math.cos(ang) * rr, 3.2 + s); } }
       return;
     }
     // aimed: he stands, brings it up, takes his time (less, the better he is), and fires
     a.path = []; a.faceTo(fp.x, fp.z); a.person.setPose(useK === "bow" ? "reach" : "idle"); this.aimUp(useK !== "bow");
     this.aimT += dt;
     const aimFor = (useK === "musket" ? 1.5 : useK === "bow" ? 1.2 : 1.1) * (1.25 - s * 0.6);
-    if (this.aimT >= aimFor) { this.fire(useK, d); this.aimT = 0; this.stepT = 0.4; }
+    if (this.aimT >= aimFor) { this.fire(useK, T); this.aimT = 0; this.stepT = 0.4; }
   }
-  fire(k, d) {
-    const a = this.a, pl = G.player, s = this.s, slot = k === "pistol" ? "side" : "long";
+  releaseCover() { if (this.cover && this.cover.taken === this) this.cover.taken = null; this.cover = null; }
+  fire(k, T) {
+    const a = this.a, s = this.s, slot = k === "pistol" ? "side" : "long";
     this.loaded[slot] = false; this.rl[slot] = RELOAD[k];
-    const from = this.muzzle();
+    const from = this.muzzle(), tp = T.pos, tv = T.isPlayer ? G.player.vel : new THREE.Vector3(Math.sin(T.yaw) * (T.a.speed || 0), 0, Math.cos(T.yaw) * (T.a.speed || 0));
+    const low = T.isPlayer && G.player.crouched;
+    const atYou = T.isPlayer ? (pw, head) => { this.arena.hurtMe(dmgOf(pw, head), a); if (head) UI.hint("In the head.", 1.2); } : null;
     if (k === "bow" || k === "crossbow") {
       this.ammo--;
-      // the arrow loosed, as a man would: up a little for the drop, ahead of you if you're running
+      // the arrow loosed, as a man would: up a little for the drop, ahead of him if he's running
       const power = k === "bow" ? 0.95 : 1.75, v = 14 + 32 * power;
-      const to = new THREE.Vector3(pl.pos.x, pl.pos.y + 1.25, pl.pos.z), flight = from.distanceTo(to) / v;
-      if (pl.vel) to.addScaledVector(new THREE.Vector3(pl.vel.x, 0, pl.vel.z), flight * (0.4 + s * 0.6));
+      const to = new THREE.Vector3(tp.x, tp.y + (low ? 0.95 : 1.25), tp.z), flight = from.distanceTo(to) / v;
+      if (tv) to.addScaledVector(new THREE.Vector3(tv.x, 0, tv.z), flight * (0.4 + s * 0.6));
       to.y += 4.9 * flight * flight;
       const dir = to.sub(from).normalize(), wob = 0.075 - s * 0.06;
       dir.x += (Math.random() - 0.5) * wob; dir.y += (Math.random() - 0.5) * wob * 0.6; dir.z += (Math.random() - 0.5) * wob; dir.normalize();
       from.addScaledVector(dir, 0.3);
-      this.arena.hunt.loose(from, dir, power, k === "crossbow", a, (pw, head) => { this.arena.hurtMe(dmgOf(pw, head), a); if (head) UI.hint("In the head.", 1.2); });
-      AUDIO.twang && AUDIO.twang(k === "crossbow" ? 1.2 : 0.8);
+      this.arena.hunt.loose(from, dir, power, k === "crossbow", this, atYou);
+      if (this.arena.hearable(a.pos)) AUDIO.twang && AUDIO.twang(k === "crossbow" ? 1.2 : 0.8);
       return;
     }
-    // a ball: aimed at the middle of you, a little ahead if you're moving (the better he is, the better he leads), and
-    // off by a smoothbore's scatter and his own unsteadiness — then it flies, and hits whatever's in its way
+    // a ball: aimed at the middle of him, a little ahead if he's moving (the better the shot, the better he leads),
+    // and off by a smoothbore's scatter and his own unsteadiness — then it flies, and hits whatever's in its way
     const pis = k === "pistol", sp = pis ? 260 : 420;
-    const to = new THREE.Vector3(pl.pos.x, pl.pos.y + (pl.crouched ? 0.95 : 1.25), pl.pos.z), flight = from.distanceTo(to) / sp;
-    if (pl.vel) to.addScaledVector(new THREE.Vector3(pl.vel.x, 0, pl.vel.z), flight * (0.3 + s * 0.7));
+    const to = new THREE.Vector3(tp.x, tp.y + (low ? 0.95 : 1.25), tp.z), flight = from.distanceTo(to) / sp;
+    if (tv) to.addScaledVector(new THREE.Vector3(tv.x, 0, tv.z), flight * (0.3 + s * 0.7));
     to.y += 4.9 * flight * flight;
     const sigma = (pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014);
     const dir = to.sub(from).normalize(), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(), up = new THREE.Vector3().crossVectors(side, dir);
     dir.addScaledVector(side, randn() * sigma).addScaledVector(up, randn() * sigma).normalize();
     AUDIO.gunshot && AUDIO.gunshot(pis ? 0.75 : 0.95, a.pos);
     G.gunSmoke && G.gunSmoke(from, dir, pis ? 0.6 : 1);
-    this.arena.hunt.fireBall(from.clone().addScaledVector(dir, 0.4), dir, { speed: sp, power: pis ? 1.9 : 2.6, range: pis ? 60 : 160, npc: this,
-      atYou: (pw, head) => { this.arena.hurtMe(dmgOf(pw, head), a); if (head) UI.hint("In the head.", 1.2); } });
+    this.arena.hunt.fireBall(from.clone().addScaledVector(dir, 0.4), dir, { speed: sp, power: pis ? 1.9 : 2.6, range: pis ? 60 : 160, npc: this, atYou });
   }
 }
 
@@ -759,7 +915,7 @@ class NetFoe extends Fighter {
     if (m.dn && !this.isDown) { this.isDown = true; this.fallDown(G.player.pos); }
     if (!m.dn && this.isDown) { this.isDown = false; this.standUp(); }
   }
-  windUp(dir) { this.wind = 0.35; this.dir = dir === "left" ? "right" : dir === "right" ? "left" : "up"; this.a.person.setPose(dir === "up" ? "overhead" : "chop"); glint(this.a); setTimeout(() => { this.wind = 0; this.a.person.setPose("idle"); }, 450); }
+  windUp(dir) { this.wind = 0.35; this.dir = dir === "left" ? "right" : dir === "right" ? "left" : "up"; this.a.person.setPose(blowPose(this.heldK, dir)); glint(this.a); setTimeout(() => { this.wind = 0; this.a.person.setPose("idle"); }, 450); }
   // your blade on them: they judge it, on their screen, against their guard
   struck() {}
   // an arrow or a ball in them, on your screen: told to them

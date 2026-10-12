@@ -106,7 +106,7 @@ function puffTex() {
   return PUFF;
 }
 // a cloud: n puffs from `at`, pushed along `dir`, spreading and fading over `life` seconds
-function cloud(root, at, dir, { n = 10, colour = 0xd8d4cc, life = 4, speed = 4, size = 1.4, opacity = 0.55 } = {}) {
+export function cloud(root, at, dir, { n = 10, colour = 0xd8d4cc, life = 4, speed = 4, size = 1.4, opacity = 0.55 } = {}) {
   const tex = puffTex(), parts = [];
   // (smoke isn't lit as the world is: dimmed by hand to the daylight there is, or at night it glows like a lamp)
   const lightK = G.sun ? Math.max(0.16, Math.min(1, 0.16 + G.sun.intensity / 2.4 * 0.84)) : 1, tint = new THREE.Color(colour).multiplyScalar(lightK);
@@ -289,7 +289,7 @@ export class Artillery {
   }
 }
 // how near a point comes to a line between two others
-function segDist(a, b, p) {
+export function segDist(a, b, p) {
   const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z, apx = p.x - a.x, apy = p.y - a.y, apz = p.z - a.z;
   const L = abx * abx + aby * aby + abz * abz, t = L ? Math.max(0, Math.min(1, (apx * abx + apy * aby + apz * abz) / L)) : 0;
   return Math.hypot(apx - abx * t, apy - aby * t, apz - abz * t);

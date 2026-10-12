@@ -804,7 +804,7 @@ export class Player {
       if (this.turnAcc < -14) this.side = "left"; else if (this.turnAcc > 14) this.side = "right";
       this.stance = this.pitch > 0.04 ? "up" : (this.side || "right");
       // with a blade or the axe out and not already swinging, an arrow shows which way the next stroke comes
-      UI.swingArrow(this.axe && this.swingT < 0 && !this.workKind && !UI.dialogOpen && G.mode === "play" && this.blade !== "pick" ? this.stance : null);
+      UI.swingArrow(this.axe && this.swingT < 0 && !this.workKind && !UI.dialogOpen && G.mode === "play" && this.blade !== "pick" && this.blade !== "spear" ? this.stance : null);
     } else if (G.cine && G.cine.look) {
       // steer the view toward whatever the scene wants seen
       const d = G.cine.look.clone().sub(this.eyePos());
@@ -1066,14 +1066,16 @@ export class Player {
           right: [[0.25, -1.25, 0.0, 0.42, -0.24, -0.26], [0.18, 0.75, 0.0, 0.1, -0.3, -0.46], [0.2, 1.6, 0.0, -0.12, -0.34, -0.36]],
           left: [[0.25, 1.2, 0.0, -0.3, -0.22, -0.3], [0.18, -0.7, 0.0, 0.02, -0.3, -0.46], [0.2, -1.5, 0.0, 0.3, -0.36, -0.36]],
           up: [[1.95, -0.1, 1.57, 0.2, -0.3, -0.3], [0.25, 0.0, 1.57, 0.08, -0.3, -0.5], [-0.4, 0.0, 1.57, 0.06, -0.44, -0.42]],   // (the head of the pick goes back over your shoulder; your hands stay low, at your chest)
-        }[this.swingDir || "right"];
+          // (a spear is never swung: drawn back level at the hip, then driven straight out before you, and back)
+          thrust: [[0.1, -0.1, 0.0, 0.3, -0.34, 0.02], [0.02, -0.03, 0.0, 0.16, -0.27, -0.92], [0.03, -0.03, 0.0, 0.17, -0.28, -0.82]],
+        }[this.blade === "spear" ? "thrust" : this.swingDir || "right"];
         const pose = (A, B, k) => { k = e(k); this.axe.rotation.set(L(A[0], B[0], k), L(A[1], B[1], k), L(A[2], B[2], k)); this.axe.position.set(L(A[3], B[3], k), L(A[4], B[4], k), L(A[5], B[5], k)); };
         if (T < 0.2) pose(REST, BACK, T / 0.2);
         else if (T < 0.29) pose(BACK, HIT, (T - 0.2) / 0.09);
         else if (T < 0.36) pose(HIT, THRU, (T - 0.29) / 0.07);
         else pose(THRU, REST, Math.min(1, (T - 0.36) / 0.3));
       }
-      if (this.model) { this.model.setPose(this.swingDir === "up" ? "overhead" : "chop"); this.model.poseT = T / 1.25 * 1; }
+      if (this.model) { this.model.setPose(this.blade === "spear" ? "punch" : this.swingDir === "up" ? "overhead" : "chop"); this.model.poseT = T / 1.25 * 1; }
       if (T > 0.29 && !this._hitDone) {
         this._hitDone = true; const before = this.impactT || 0;
         this.onSwingHit && this.onSwingHit();
@@ -1379,7 +1381,8 @@ function viewModel(dt, p, third) {
   if (p.swingT >= 0) {
     const T = p.swingT, s = p.swingDir === "left" ? -1 : 1;
     const wind = Math.sin(clamp(T / 0.2, 0, 1) * Math.PI) * 0.6, blow = Math.exp(-(((T - 0.3) / 0.07) ** 2));
-    if (p.swingDir === "up") camera.rotation.x += wind * 0.03 - blow * 0.035;
+    if (p.blade === "spear") camera.rotation.x += wind * 0.008 - blow * 0.012;
+    else if (p.swingDir === "up") camera.rotation.x += wind * 0.03 - blow * 0.035;
     else { camera.rotation.y += (-wind * 0.015 + blow * 0.025) * s; camera.rotation.z += (wind * 0.012 - blow * 0.02) * s; }
   }
   // the shot: the string's slap runs up the arm, and the view jolts, a little, and settles

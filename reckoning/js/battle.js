@@ -1,0 +1,347 @@
+// ===========================================================================
+//  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
+// ===========================================================================
+
+// BATTLE: two companies in the field, in their colours. The ground between them worked as armies worked it in the
+// 1680s — a battery of gabions with the guns behind it on each side, an earth bank, palisades and chevaux-de-frise
+// before them, and between the lines whatever the country left: field walls, a broken cart, barrels, felled trees.
+// Each side's guns fire round shot that ploughs through whoever stands in its way and skips on along the ground.
+// Your company is yours to command (F): where to stand and in what order, when to fire and at whom, when to charge.
+// The other side has its own officer.
+
+import { THREE, mat } from "./core.js";
+import { G } from "./engine.js";
+import { UI } from "./ui.js";
+import { AUDIO } from "./audio.js";
+import { makeCannon, cloud, segDist } from "./cannon.js";
+import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
+import { shake } from "./fight.js";
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// ---- the uniforms of 1683: the armies that came to Vienna, and their neighbours ----
+export const UNIFORMS = {
+  imperial: { name: "Imperial", note: "The Emperor's foot: pearl grey, faced red", coat: 0xb8b2a2, vest: 0x9a2a22, legs: 0x8a8478, sash: 0x9a2a22, hat: 0x1e1c1a },
+  saxon: { name: "Saxon", note: "The Elector of Saxony's: red coats, yellow facings", coat: 0x9a2a22, vest: 0xd8b84a, legs: 0x5a4a36, sash: 0xd8b84a, hat: 0x1e1c1a },
+  bavarian: { name: "Bavarian", note: "Max Emanuel's blue, faced white", coat: 0x34507e, vest: 0xe2dcca, legs: 0x3a3a3e, sash: 0xe2dcca, hat: 0x1e1c1a },
+  swedish: { name: "Swedish", note: "Blue and yellow, the King's colours", coat: 0x2c4a86, vest: 0xd4ac3a, legs: 0x2e2e33, sash: 0xd4ac3a, hat: 0x22201c },
+  brandenburg: { name: "Brandenburg", note: "Prussian blue, faced red", coat: 0x1e2c4a, vest: 0x9a2222, legs: 0x2a2a2a, sash: 0x9a2222, hat: 0x161412 },
+  french: { name: "French", note: "Undyed grey-white, faced blue", coat: 0xd6d0be, vest: 0x2a3a7a, legs: 0xc8c2b0, sash: 0x2a3a7a, hat: 0x1e1c1a },
+  english: { name: "English", note: "Red coats, faced blue", coat: 0xa02a22, vest: 0x2a3a6a, legs: 0x8a2a22, sash: 0x2a3a6a, hat: 0x1e1c1a },
+  hamburg: { name: "Hamburg", note: "The city's own militia: brown, faced green", coat: 0x5a4632, vest: 0x3a5a3a, legs: 0x4a4035, sash: 0x8a2a22, hat: 0x2a2420 },
+};
+// a soldier of a company: its uniform, his own face and build
+export function soldierLook(u, seed, base = {}) {
+  let s = seed | 0 || 1; const r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
+  const pick = a => a[Math.floor(r() * a.length)];
+  return { body: "watchman", skin: pick([0xf1d3bc, 0xe2b896, 0xc99a74, 0xa87652]), hair: pick([0x2a1c12, 0x4a3020, 0x6e4a2a, 0x9a6a38, 0x8a8a88]),
+    eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: 0xe6dcc8, stockings: pick([0xd8d0c0, 0x5a5048]),
+    height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
+    coat: u.coat, vest: u.vest, legs: u.legs, sash: u.sash, hat: "hat", hatColor: u.hat };
+}
+// your own body in your company's colours (your outfit and face as they are)
+export function inUniform(look, u) { return { ...look, coat: u.coat, vest: u.vest, sash: u.sash, legs: look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body) ? look.legs : u.legs, hatColor: u.hat }; }
+
+// ---------------------------------------------------------------------------
+//  the field: the works, the cover they give, and the guns
+// ---------------------------------------------------------------------------
+export class Field {
+  // C: the middle of the field; dx: how far either side's line stands from it (west is side 0, east side 1)
+  constructor(w, C, dx, battle, seed = Math.random() * 1e9) {
+    this.w = w; this.C = C; this.dx = dx; this.root = new THREE.Group(); w.root.add(this.root);
+    this.pieces = []; this.spots = [[], []]; this.guns = []; this.balls = [];
+    let s = seed | 0 || 7; this.r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
+    const M = this.M = {
+      earth: mat(0x6a5236, { surface: "ground" }), wicker: mat(0x7a5c36, { surface: "bark" }), wood: mat(0x6a4a2e, { surface: "wood" }), log: mat(0x5a4028, { surface: "log" }),
+      stone: mat(0x8a8478, { surface: "rock" }), iron: mat(0x2a2b2e, { metalness: 0.4, roughness: 0.55 }), stave: mat(0x7a5634, { surface: "wood" }),
+    };
+    void M;
+    if (battle) for (const side of [0, 1]) this.works(side);
+    this.between(battle ? 7 : 4);
+  }
+  y(x, z) { return this.w.heightAt(x, z); }
+  put(m, x, z, ry = 0, dy = 0) { m.position.set(x, this.y(x, z) + dy, z); m.rotation.y = ry; m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); this.root.add(m); return m; }
+  // something solid, and a place behind it to crouch: (x, z) its middle, len along it at angle ry, high
+  solid(x, z, len, depth, ry, high, side) {
+    const c = this.w.col.addOBox(x, z, len / 2, depth / 2, ry, this.y(x, z) + high);
+    this.pieces.push({ x, z, len, depth, ry, high, c });
+    // (cover is behind it, from the side that's coming: for a side's own works the enemy's way; between the lines,
+    //  both sides, whichever is the far side from the one shooting)
+    const n = Math.max(1, Math.round(len / 1.6));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n - 0.5, px = x + Math.cos(ry) * len * t, pz = z - Math.sin(ry) * len * t;
+      const nx = Math.sin(ry), nz = Math.cos(ry);
+      for (const sd of side == null ? [0, 1] : [side]) {
+        // (the face of it away from the enemy's line)
+        const toward = sd === 0 ? -1 : 1, k = Math.sign(nx * toward) || 1;
+        this.spots[sd].push({ x: px + nx * k * (depth / 2 + 0.7), z: pz + nz * k * (depth / 2 + 0.7), high, taken: null });
+      }
+    }
+  }
+  // a side's works: a battery of gabions in an arc with its guns behind, an earth bank, and obstacles before them
+  works(side) {
+    const r = this.r, C = this.C, sx = side === 0 ? -1 : 1, lineX = C.x + sx * (this.dx - 4);
+    // the battery: gabions — wicker baskets as high as a man's chest, packed with earth — in a shallow arc
+    const n = 9 + Math.floor(r() * 4), gaps = [Math.floor(n * 0.3), Math.floor(n * 0.7)];
+    for (let i = 0; i < n; i++) {
+      if (gaps.includes(i)) continue;
+      const t = i / (n - 1) - 0.5, z = C.z + t * 18, x = lineX - sx * Math.cos(t * 1.4) * 1.5;
+      this.gabion(x, z);
+    }
+    // (one piece of solid along them, for the cover it gives)
+    this.solid(lineX - sx * 1.2, C.z, 18, 1.0, Math.PI / 2, 1.25, side);
+    // the guns, in the gaps, behind the line and looking out over it
+    const ng = 1 + Math.floor(r() * 2.4);
+    for (let g = 0; g < Math.min(ng, gaps.length + 1); g++) {
+      const t = (g === 0 ? gaps[0] : g === 1 ? gaps[1] : Math.floor(n / 2)) / (n - 1) - 0.5, z = C.z + t * 18, x = lineX + sx * 1.6;
+      this.gun(side, x, z, sx);
+    }
+    // an earth bank to one flank
+    const bz = C.z + (r() < 0.5 ? -1 : 1) * (12 + r() * 5), bx = lineX - sx * (2 + r() * 3);
+    this.bank(bx, bz, 7 + r() * 4, Math.PI / 2 + (r() - 0.5) * 0.5, side);
+    // obstacles out in front: chevaux-de-frise, and a palisade
+    for (let i = 0; i < 2; i++) this.cheval(lineX - sx * (6 + r() * 3), C.z + (r() - 0.5) * 22, Math.PI / 2 + (r() - 0.5) * 0.4, side);
+    this.palisade(lineX - sx * (3 + r() * 2), C.z + (r() < 0.5 ? -1 : 1) * (6 + r() * 6), 5 + r() * 4, Math.PI / 2 + (r() - 0.5) * 0.3, side);
+  }
+  gabion(x, z) {
+    const g = new THREE.Group(), h = 1.15, R = 0.42;
+    const basket = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.96, h, 12, 4, true), this.M.wicker); basket.position.y = h / 2; g.add(basket);
+    // (the weave: bands round it)
+    for (let k = 1; k < 5; k++) { const b = new THREE.Mesh(new THREE.TorusGeometry(R + 0.008, 0.012, 4, 14), this.M.wicker); b.rotation.x = Math.PI / 2; b.position.y = k * h / 5; g.add(b); }
+    const top = new THREE.Mesh(new THREE.SphereGeometry(R * 0.98, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), this.M.earth); top.scale.y = 0.35; top.position.y = h - 0.02; g.add(top);
+    this.put(g, x, z, this.r() * 6);
+  }
+  bank(x, z, len, ry, side) {
+    // a long mound of earth, sloped both faces
+    const sh = new THREE.Shape(); sh.moveTo(-1.3, 0); sh.lineTo(-0.35, 1.1); sh.lineTo(0.35, 1.15); sh.lineTo(1.3, 0); sh.lineTo(-1.3, 0);
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); geo.translate(0, 0, -len / 2);
+    const m = new THREE.Mesh(geo, this.M.earth); const g = new THREE.Group(); m.rotation.y = Math.PI / 2; g.add(m);
+    this.put(g, x, z, ry, -0.08);
+    this.solid(x, z, len, 1.6, ry, 1.05, side);
+  }
+  cheval(x, z, ry, side) {
+    // a log with sharpened stakes through it, crossed both ways: no one walks through that
+    const g = new THREE.Group(), L = 3.2;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, L, 8).rotateZ(Math.PI / 2), this.M.log); beam.position.y = 0.6; g.add(beam);
+    for (let i = 0; i < 7; i++) for (const a of [0.8, -0.8]) {
+      const st = new THREE.Mesh(new THREE.ConeGeometry(0.045, 1.5, 6), this.M.stave); st.position.set(-L / 2 + 0.2 + i * (L - 0.4) / 6, 0.6, 0); st.rotation.x = a; g.add(st);
+    }
+    this.put(g, x, z, ry);
+    this.solid(x, z, L, 1.0, ry, 1.0, side);
+  }
+  palisade(x, z, len, ry, side) {
+    const g = new THREE.Group(), n = Math.round(len / 0.24);
+    for (let i = 0; i < n; i++) {
+      const h = 1.5 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, h, 6), this.M.log);
+      st.position.set(-len / 2 + (i + 0.5) * len / n, h / 2, 0); g.add(st);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 6), this.M.stave); tip.position.set(st.position.x, h + 0.12, 0); g.add(tip);
+    }
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, 0.06), this.M.wood); rail.position.set(0, 0.9, 0.12); g.add(rail);
+    this.put(g, x, z, ry);
+    this.solid(x, z, len, 0.3, ry, 1.6, side);
+  }
+  // between the lines: what the country left lying about
+  between(n) {
+    const r = this.r, C = this.C;
+    for (let i = 0; i < n; i++) {
+      const x = C.x + (r() - 0.5) * (this.dx * 1.1), z = C.z + (r() - 0.5) * 30, ry = r() * Math.PI, kind = r();
+      if (kind < 0.35) this.wall(x, z, 3 + r() * 4, ry);
+      else if (kind < 0.55) this.cart(x, z, ry);
+      else if (kind < 0.8) this.barrels(x, z);
+      else this.fallen(x, z, ry);
+    }
+  }
+  wall(x, z, len, ry) {
+    // a field wall of rough stones, dry-laid, waist high, a few fallen from its top
+    const g = new THREE.Group(), r = this.r;
+    for (let i = 0; i < len / 0.4; i++) for (let row = 0; row < 3; row++) {
+      if (row === 2 && r() < 0.3) continue;
+      const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22 + r() * 0.08, 0), this.M.stone);
+      st.position.set(-len / 2 + i * 0.4 + (row % 2) * 0.2, 0.2 + row * 0.3, (r() - 0.5) * 0.15); st.scale.set(1.1, 0.75, 0.9); st.rotation.set(r() * 3, r() * 3, r() * 3); g.add(st);
+    }
+    this.put(g, x, z, ry);
+    this.solid(x, z, len, 0.6, ry, 0.95, null);
+  }
+  cart(x, z, ry) {
+    // a farm cart overturned on its side: a bed of planks, a wheel up in the air
+    const g = new THREE.Group();
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.9, 0.12), this.M.wood); bed.position.y = 0.6; g.add(bed);
+    const side2 = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.7), this.M.wood); side2.position.set(0, 0.12, 0.36); g.add(side2);
+    for (const sx of [-0.8, 0.8]) { const wh = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.05, 6, 16), this.M.wood); wh.position.set(sx, 1.15, -0.1); wh.rotation.y = 0.2; g.add(wh); }
+    this.put(g, x, z, ry);
+    this.solid(x, z, 2.4, 0.8, ry, 1.1, null);
+  }
+  barrels(x, z) {
+    const g = new THREE.Group(), n = 2 + Math.floor(this.r() * 3);
+    for (let i = 0; i < n; i++) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 12), this.M.stave); b.position.set((i % 2) * 0.66 - 0.3, 0.45, Math.floor(i / 2) * 0.66 - 0.3); g.add(b);
+      for (const h of [0.15, 0.75]) { const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.015, 4, 14), this.M.iron); hoop.rotation.x = Math.PI / 2; hoop.position.set(b.position.x, h, b.position.z); g.add(hoop); }
+    }
+    this.put(g, x, z, this.r() * 3);
+    this.solid(x, z, 1.4, 1.4, 0, 0.9, null);
+  }
+  fallen(x, z, ry) {
+    const g = new THREE.Group(), L = 5 + this.r() * 3;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.4, L, 9).rotateZ(Math.PI / 2), this.M.log); trunk.position.y = 0.35; g.add(trunk);
+    this.put(g, x, z, ry);
+    this.solid(x, z, L, 0.75, ry, 0.75, null);
+  }
+
+  // ---- the guns ----
+  gun(side, x, z, sx) {
+    const m = makeCannon(); const ry = sx < 0 ? -Math.PI / 2 : Math.PI / 2;   // (pointing at the other side: -z of the model, out east or west)
+    this.put(m, x, z, ry);
+    this.w.col.addCircle(x, z, 0.8, this.y(x, z) + 1.0);
+    this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, recoil: 0, target: null, firing: side === 1, next: 8 + this.r() * 6 });
+  }
+  // a gun's target, given (a point on the ground) or taken away
+  order(side, at) { for (const g of this.guns) if (g.side === side) { g.target = at ? { x: at.x, z: at.z } : null; g.firing = !!at; } }
+  fire(g) {
+    const m = g.model.userData, root = this.w.root;
+    g.model.updateMatrixWorld(true);
+    const at = m.muzzle.getWorldPosition(new THREE.Vector3());
+    const yaw = g.ry + g.yaw, dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(g.pitch), Math.sin(g.pitch), -Math.cos(yaw) * Math.cos(g.pitch));
+    g.loaded = false; g.reload = 9 + this.r() * 3; g.recoil = 1;
+    this.balls.push({ p: at.clone(), v: dir.multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
+    muzzleFlash(root, at.clone().addScaledVector(dir, 0.2), dir, 3);
+    powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 16, n: 26, speed: 15, haze: true });
+    { const b = m.barrel; b.updateMatrixWorld(true); panPuff(root, b.localToWorld(new THREE.Vector3(0, 0.2, 0.6)), 1.4); }
+    AUDIO.cannon ? AUDIO.cannon(1, at) : AUDIO.gunshot && AUDIO.gunshot(1.4, at);
+    const pl = G.player, d = Math.hypot(at.x - pl.pos.x, at.z - pl.pos.z);
+    if (d < 45) shake(Math.max(0.12, 1 - d / 45) * 0.8);
+  }
+  // each frame: the guns laid and fired, the balls flying; hit(u, from, v) is called for anyone a ball goes through
+  update(dt, units, hit) {
+    for (const g of this.guns) {
+      if (!g.loaded) { g.reload -= dt; if (g.reload <= 0) g.loaded = true; }
+      // (their side: laid on the thickest part of yours, now and then; yours: on where you said)
+      if (g.side === 1 && !g.target) { if ((g.next -= dt) <= 0) { g.next = 6; const t = this.thickest(units.filter(u => u.team === 0 && u.alive)); if (t) g.aim = { x: t.x + (this.r() - 0.5) * 6, z: t.z + (this.r() - 0.5) * 6 }; } }
+      else if (g.target) g.aim = g.target;
+      if (g.aim) {
+        const dx = g.aim.x - g.x, dz = g.aim.z - g.z, want = Math.atan2(-dx, -dz), d = Math.hypot(dx, dz);
+        const dy = Math.atan2(Math.sin(want - g.ry), Math.cos(want - g.ry));
+        g.yaw += (clamp(dy, -0.9, 0.9) - g.yaw) * Math.min(1, dt * 1.5);
+        const need = 0.5 * Math.asin(clamp(d * 9.8 / (140 * 140), -1, 1)) + (this.y(g.aim.x, g.aim.z) - this.y(g.x, g.z) - 0.9) / Math.max(4, d);
+        g.pitch += (need - g.pitch) * Math.min(1, dt * 1.5);
+        if (g.loaded && g.firing && Math.abs(clamp(dy, -0.9, 0.9) - g.yaw) < 0.04) this.fire(g);
+      }
+      g.recoil = Math.max(0, g.recoil - dt * 1.4);
+      const m = g.model; m.rotation.y = g.ry + g.yaw; m.userData.barrel.rotation.x = g.pitch;
+    }
+    const root = this.w.root;
+    for (const b of this.balls) {
+      if (b.done) { b.t += dt; continue; }
+      const steps = 4, h = dt / steps;
+      for (let s = 0; s < steps && !b.done; s++) {
+        const from = b.p.clone();
+        b.v.y -= 9.8 * h; b.p.addScaledVector(b.v, h); b.t += h;
+        if (b.v.length() > 8) for (const u of units) {
+          if (!u.alive || b.hits.has(u)) continue;
+          const c = u.pos; if (segDist(from, b.p, new THREE.Vector3(c.x, c.y + 1.0, c.z)) < 0.9) { b.hits.add(u); hit(u, from, b.v.clone()); b.v.multiplyScalar(0.8); cloud(root, new THREE.Vector3(c.x, c.y + 1.1, c.z), b.v.clone().normalize(), { n: 4, colour: 0x7a1a12, life: 1.2, speed: 2, size: 0.5, opacity: 0.45 }); }
+        }
+        const gy = this.y(b.p.x, b.p.z);
+        if (b.p.y <= gy + 0.07 || (b.v.length() > 8 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0))) {
+          b.p.y = Math.max(b.p.y, gy + 0.07);
+          const sp = b.v.length();
+          if (sp > 8) { cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 8, colour: 0x6a5a44, life: 2.4, speed: 3.5, size: 1.0, opacity: 0.6 }); const F = window.__foley; F && F.thunk && F.thunk(b.p, 0.9); }
+          if (sp > 14 && b.bounces < 3) { b.bounces++; b.v.y = Math.abs(b.v.y) * 0.3 + 2; b.v.x *= 0.6; b.v.z *= 0.6; }
+          else { b.v.set(0, 0, 0); b.done = true; }
+        }
+      }
+      b.mesh.position.copy(b.p);
+    }
+    for (const b of this.balls.slice()) if (b.done && b.t > 20) { root.remove(b.mesh); this.balls.splice(this.balls.indexOf(b), 1); }
+  }
+  // where a company stands thickest: the man with most of his fellows near him
+  thickest(list) {
+    let best = null, bn = -1;
+    for (const u of list) { const n = list.filter(o => Math.hypot(o.pos.x - u.pos.x, o.pos.z - u.pos.z) < 6).length; if (n > bn) { bn = n; best = u.pos; } }
+    return best;
+  }
+  // the best place near (x, z) to get down behind something from a man at (ex, ez): behind it from him, free, close
+  coverNear(side, x, z, ex, ez, maxD = 12, who = null) {
+    let best = null, bd = Infinity;
+    for (const s of this.spots[side]) {
+      if (s.taken && s.taken !== who && s.taken.alive) continue;
+      const d = Math.hypot(s.x - x, s.z - z); if (d > maxD) continue;
+      // (it has to be between you and him: the spot nearer you than the piece is, seen from him)
+      const toE = Math.hypot(ex - s.x, ez - s.z); if (toE < 5) continue;
+      const score = d + (this.w.col.lineOfSight && this.w.col.lineOfSight(new THREE.Vector3(s.x, this.y(s.x, s.z) + 0.9, s.z), new THREE.Vector3(ex, this.y(ex, ez) + 1.3, ez)) ? 8 : 0);
+      if (score < bd) { bd = score; best = s; }
+    }
+    return best;
+  }
+  dispose() { this.w.root.remove(this.root); for (const b of this.balls) this.w.root.remove(b.mesh); for (const p of this.pieces) this.w.col.remove && this.w.col.remove(p.c); }
+}
+
+// ---------------------------------------------------------------------------
+//  orders: where a company stands, how, and what it does
+// ---------------------------------------------------------------------------
+export const FORMATIONS = { line: "Line", column: "Column", square: "Square", loose: "Loose order" };
+export class Orders {
+  constructor(team) { this.team = team; this.mode = team === 0 ? "follow" : "hold"; this.at = null; this.form = team === 0 ? "line" : "line"; this.fire = true; this.charge = false; this.cover = false; this.target = null; this.volleyAt = 0; this.facing = 0; }
+  // a man's place, i of n in the company, given the anchor and the way it faces
+  slot(i, n, anchor, face) {
+    const fx = Math.sin(face), fz = Math.cos(face), rx = Math.cos(face), rz = -Math.sin(face);
+    let a = 0, b = 0;                                     // (across, and forward)
+    if (this.form === "line") { a = (i - (n - 1) / 2) * 1.6; b = 0; }
+    else if (this.form === "column") { a = (i % 2 - 0.5) * 1.2; b = -Math.floor(i / 2) * 1.5; }
+    else if (this.form === "square") { const per = Math.max(1, Math.ceil(n / 4)), sideI = i % 4, k = Math.floor(i / 4), half = per * 0.8 + 0.8, t = (k - (per - 1) / 2) * 1.6; [a, b] = [[t, half], [half, -t], [-t, -half], [-half, t]][sideI]; }
+    else { const h = Math.sin(i * 12.9898) * 43758.5453 % 1; a = (i - (n - 1) / 2) * 3.8; b = (h - 0.5) * 4; }
+    return { x: anchor.x + rx * a + fx * b, z: anchor.z + rz * a + fz * b };
+  }
+}
+
+// ---- the order book: F, in the field. A page of orders in a captain's hand, not a menu of the computer's: numbered
+// as orders are, the one under your eye picked out; 1-9 or the wheel and F to give one, Esc or F again to put it by ----
+export const ORDER_LIST = [
+  { id: "follow", label: "Follow me", sub: "Fall in on me, and keep up" },
+  { id: "hold", label: "Hold here", sub: "Stand where you are" },
+  { id: "advance", label: "Advance — there", sub: "To where I'm looking" },
+  { id: "cover", label: "Take cover", sub: "Get down behind something" },
+  { id: "fire", label: "Fire at will", alt: "Hold your fire", sub: "Each man as he sees fit" },
+  { id: "volley", label: "Present — fire!", sub: "Every loaded piece together, at my word" },
+  { id: "target", label: "Bring him down", sub: "The man I'm looking at" },
+  { id: "charge", label: "Charge!", alt: "Halt — fall back in", sub: "Steel, and at them" },
+  { id: "form", label: "Formation", sub: "Line, column, square, loose", more: true },
+  { id: "guns", label: "Guns — fire there", alt: "Guns — cease fire", sub: "Round shot on where I'm looking", battle: true },
+];
+export class OrderBook {
+  constructor(onGive) {
+    this.onGive = onGive; this.open = false; this.sel = 0; this.page = "main";
+    let el = document.getElementById("orderBook");
+    if (!el) { el = document.createElement("div"); el.id = "orderBook"; el.className = "hidden"; document.getElementById("hud").appendChild(el); }
+    this.el = el;
+  }
+  items(state) {
+    if (this.page === "form") return Object.entries(FORMATIONS).map(([id, label]) => ({ id: "form:" + id, label, sub: state.form === id ? "as they stand now" : "", on: state.form === id }));
+    return ORDER_LIST.filter(o => !o.battle || state.battle).map(o => ({ ...o, label: (o.id === "fire" && state.fire) || (o.id === "charge" && state.charge) || (o.id === "guns" && state.guns) ? (o.id === "fire" ? o.alt : o.alt) : o.label, on: (o.id === state.mode) }));
+  }
+  show(state) {
+    this.state = state; this.open = true; this.page = "main"; this.sel = Math.min(this.sel, this.items(state).length - 1); this.draw();
+    this.el.classList.remove("hidden"); this.el.classList.remove("out"); void this.el.offsetWidth; this.el.classList.add("in");
+    const F = window.__foley; F && F.packOut && F.packOut(0.25);
+  }
+  hide() { this.open = false; this.el.classList.add("hidden"); const F = window.__foley; F && F.packIn && F.packIn(0.2); }
+  draw() {
+    const list = this.items(this.state), roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+    this.el.innerHTML = `<div class="ob-head"><span class="ob-seal"></span><div><div class="ob-t">${this.page === "form" ? "Formation" : "Orders"}</div><div class="ob-s">${this.state.count} under your command</div></div></div>
+      <ol class="ob-list">${list.map((o, i) => `<li class="${i === this.sel ? "sel" : ""}${o.on ? " on" : ""}"><span class="ob-n">${roman[i]}</span><span class="ob-l">${o.label}${o.more ? " ›" : ""}</span><span class="ob-sub">${o.sub || ""}</span><span class="ob-k">${i + 1 < 10 ? i + 1 : 0}</span></li>`).join("")}</ol>
+      <div class="ob-foot">${this.page === "form" ? "Esc: back" : "Wheel or number, F to give · Esc to put it by"}</div>`;
+  }
+  key(e) {
+    const list = this.items(this.state);
+    if (e.code === "Escape") { if (this.page !== "main") { this.page = "main"; this.sel = 0; this.draw(); } else this.hide(); return true; }
+    if (e.code === "KeyF" || e.code === "Enter") { this.pick(list[this.sel]); return true; }
+    const m = /^Digit(\d)$/.exec(e.code); if (m) { const i = (+m[1] || 10) - 1; if (list[i]) { this.sel = i; this.pick(list[i]); } return true; }
+    if (e.code === "ArrowDown" || e.code === "KeyS") { this.sel = (this.sel + 1) % list.length; this.draw(); return true; }
+    if (e.code === "ArrowUp" || e.code === "KeyW") { this.sel = (this.sel - 1 + list.length) % list.length; this.draw(); return true; }
+    return false;
+  }
+  wheel(dy) { const list = this.items(this.state); this.sel = (this.sel + (dy > 0 ? 1 : -1) + list.length) % list.length; this.draw(); }
+  pick(o) {
+    if (!o) return;
+    if (o.more) { this.page = "form"; this.sel = 0; this.draw(); return; }
+    this.onGive(o.id); this.hide();
+  }
+}

@@ -342,8 +342,9 @@ export class MPGame {
     }
     // a cabin's door: F to open it and go in, F to shut it
     if (e.setDoor) {
-      const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), dx = b.x + 3.05 * sn, dz = b.z + 3.05 * c;
-      e.it3 = this.w.addInteract({ x: dx, y: this.w.heightAt(dx, dz) + 1.2, z: dz, reach: 2.1, label: () => e.doorOpen ? "Close the door" : "Open the door",
+      // (where its door is: the cabin's in the middle of its front; a hall's or a house's wherever its doorway was cut)
+      const c = Math.cos(b.ry || 0), sn = Math.sin(b.ry || 0), at = () => e.g.userData.doorAt || { lx: 0, lz: b.type === "cabin" ? 3.05 : (d.d || 6) / 2 };
+      const it = e.it3 = this.w.addInteract({ get x() { const a = at(); return b.x + a.lx * c + a.lz * sn; }, get z() { const a = at(); return b.z - a.lx * sn + a.lz * c; }, y: this.w.heightAt(b.x, b.z) + 1.2, reach: 2.1, label: () => e.doorOpen ? "Close the door" : "Open the door",
         use: () => { e.setDoor(!e.doorOpen); AUDIO.door && AUDIO.door(e.doorOpen, 0.3); } });
     }
     // a shipyard of your own: a ship built there, off the slipway into the water

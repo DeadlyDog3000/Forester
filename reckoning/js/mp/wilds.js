@@ -9,7 +9,7 @@
 
 import { THREE, Collision, addDetail, MAT, makeFlame, clamp, Builder, noSnow, mat, ownGrainAll, footingOf } from "../core.js";
 import { G, WorldBase } from "../engine.js";
-import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShipyard, makeHorse, SWAY } from "../models.js";
+import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShipyard, makeHorse, SWAY, P } from "../models.js";
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief, caveIcon } from "../map.js";
 import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
@@ -83,8 +83,26 @@ function doorway(g, sc, dx, zf, deep = 0.7) {
   const door = new THREE.Group(), db = new Builder();
   for (let i = 0; i < 4; i++) db.box(DOOR_W * 2 / 4 - 0.01, DOOR_H - 0.06, 0.07, (i + 0.5) * DOOR_W * 2 / 4, (DOOR_H - 0.06) / 2, 0, 0x6a4a30);
   for (const y of [0.45, DOOR_H - 0.5]) db.box(DOOR_W * 2 - 0.1, 0.07, 0.02, DOOR_W, y, 0.045, 0x2a2622);
-  door.add(db.build(MAT.rough)); door.position.set(dx - DOOR_W, 0, zf - 0.3); door.rotation.y = -1.75; g.add(door);
+  // (hung shut in the doorway, swinging in on its hinge when it's opened — so you see it from inside as from out)
+  door.add(db.build(MAT.rough)); door.position.set(dx - DOOR_W, 0, zf - 0.22); g.add(door);
   void wood;
+  return door;
+}
+// a building's front wall, felt for: rays out from its middle at a person's height, toward the front, in its own
+// frame. wall: where they meet the wall, along most of it; lobby: a door-case stands into the room before the door —
+// inner, its back; vw, its half-width
+const _rc = new THREE.Raycaster(), _ro = new THREE.Vector3(), _rd = new THREE.Vector3();
+function frontOf(sc, g, X0, X1, dx, Z1) {
+  g.updateMatrixWorld(true);
+  const meshes = []; sc.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const q = new THREE.Quaternion(); g.getWorldQuaternion(q);
+  const hit = lx => { _ro.set(lx, 1.0, 0); g.localToWorld(_ro); _rd.set(0, 0, 1).applyQuaternion(q); _rc.set(_ro, _rd); _rc.far = Z1 + 2; const h = _rc.intersectObjects(meshes, false)[0]; return h ? g.worldToLocal(h.point.clone()).z : null; };
+  const W = X1 - X0, side = [X0 + 0.9, X0 + W * 0.25, X1 - W * 0.25, X1 - 0.9].map(hit).filter(v => v != null).sort((a, b) => a - b);
+  if (side.length < 2) return null;
+  const wall = side[Math.floor(side.length / 2)], inner = hit(dx);
+  if (inner == null || inner > wall - 0.3) return { wall, lobby: false };
+  let vw = 0.2; while (vw < W / 2 - 0.5) { const z = hit(dx + vw), z2 = hit(dx - vw); if ((z == null || z > wall - 0.15) && (z2 == null || z2 > wall - 0.15)) break; vw += 0.1; }
+  return { wall, lobby: true, inner, vw: vw - 0.05 };
 }
 // the hall within: a long table down the middle with its benches, the reeve's desk at the far end with the ledger
 // open on it, the store's great chest against the wall, the owner's banner hung behind, and a lantern overhead
@@ -486,14 +504,34 @@ export class Wilds extends WorldBase {
         if (WALK_IN.has(b.type)) {
           // a building you go into: its four walls solid (a little inside the model's), a doorway in the middle of the
           // front, where its door is; and a floor of boards inside, level, whatever the ground does under it
-          const t = 0.3, dw = 0.8, X0 = x0 + 0.06, X1 = x1 - 0.06, Z0 = z0 + 0.06, Z1 = z1 - 0.06;
+          const t = 0.3, dw = 0.8, X0 = x0 + 0.06, X1 = x1 - 0.06, Z0 = z0 + 0.06;
+          let Z1 = z1 - 0.06;
           const dx = Math.max(X0 + dw + t, Math.min(X1 - dw - t, 0));   // (the door on the building's own middle line)
-          body = [box(X0, X1, Z0, Z0 + t), box(X0, X0 + t, Z0, Z1), box(X1 - t, X1, Z0, Z1), box(X0, dx - dw, Z1 - t, Z1), box(dx + dw, X1, Z1 - t, Z1)];
+          // (where its front wall really stands, felt for from inside: the footing takes in a porch or a door-case that
+          //  stands out before it, and the wall's further back. A door-case — a little lobby of boards round the door,
+          //  out from the wall and into the room — is walled as it's built, and its back cut through to the room)
+          const F2 = hallLv === 4 ? null : frontOf(sc, g, X0, X1, dx, Z1);
+          let W = Z1, vw = 0, deep = hallLv === 4 ? 3.2 : 0.7;
+          if (F2 && F2.wall < Z1 - 0.4) {
+            W = F2.wall;
+            if (F2.lobby && F2.vw > dw) { vw = F2.vw; deep = Z1 + 0.06 - F2.inner + 0.15; }
+            else Z1 = W + 0.4;
+          }
+          if (vw) body = [box(X0, X1, Z0, Z0 + t), box(X0, X0 + t, Z0, W + 0.35), box(X1 - t, X1, Z0, W + 0.35), box(X0, dx - vw, W - 0.05, W + 0.35), box(dx + vw, X1, W - 0.05, W + 0.35),
+            box(dx - vw - t, dx - vw, W, Z1), box(dx + vw, dx + vw + t, W, Z1), box(dx - vw, dx - dw, Z1 - t, Z1), box(dx + dw, dx + vw, Z1 - t, Z1)];
+          else body = [box(X0, X1, Z0, Z0 + t), box(X0, X0 + t, Z0, Z1), box(X1 - t, X1, Z0, Z1), box(X0, dx - dw, Z1 - t, Z1), box(dx + dw, X1, Z1 - t, Z1)];
           cols.push(...body);
-          const fl = new THREE.Mesh(new THREE.BoxGeometry(X1 - X0 - 2 * t, 0.08, Z1 - Z0 - 2 * t), FLOOR_MAT()); fl.position.set(mx, 0.05, mz); fl.receiveShadow = true; g.add(fl);
-          // the doorway itself: the wall not drawn where the door is, a frame round it, the door stood open
-          doorway(g, sc, dx, Z1 + 0.06, hallLv === 4 ? 3.2 : 0.7);   // (the grandest hall's door is back behind its arcade)
-          const fl2 = b.type === "hearth" ? furnishHall(g, X0 + t, X1 - t, Z0 + t, Z1 - t, b.colour || 0x7a2a22) : b.type === "house" ? furnishHouse(g, X0 + t, X1 - t, Z0 + t, Z1 - t) : b.type === "forge" ? furnishForge(g, X0 + t, X1 - t, Z0 + t, Z1 - t) : null;
+          const FW = vw ? W : Z1 - t;
+          const fl = new THREE.Mesh(new THREE.BoxGeometry(X1 - X0 - 2 * t, 0.08, FW - Z0 - t), FLOOR_MAT()); fl.position.set(mx, 0.05, (Z0 + t + FW) / 2); fl.receiveShadow = true; g.add(fl);
+          if (vw) { const f2 = new THREE.Mesh(new THREE.BoxGeometry(2 * vw, 0.08, Z1 - W), FLOOR_MAT()); f2.position.set(dx, 0.05, (W + Z1) / 2); f2.receiveShadow = true; g.add(f2); }
+          // the doorway itself: the wall not drawn where the door is, a frame round it, the door in it
+          const dr = doorway(g, sc, dx, Z1 + 0.06, deep);   // (the grandest hall's door is back behind its arcade)
+          // (shut, it closes the doorway: F at it to open it, as the cabin's)
+          for (const c of g.userData.doorCols || []) { this.col.remove(c); cols.splice(cols.indexOf(c), 1); }
+          g.userData.door = dr; g.userData.doorOpenA = 1.75; g.userData.doorAt = { lx: dx, lz: Z1 };
+          g.userData.doorCols = [-0.42, 0, 0.42].map(o => { const c2 = this.col.addCircle(b.x + (dx + o) * c + (Z1 - 0.2) * s, b.z - (dx + o) * s + (Z1 - 0.2) * c, 0.28, y + 3); cols.push(c2); return c2; });
+          const ent = this.blds.get(b.id); if (ent && ent.doorOpen) for (const c2 of g.userData.doorCols) c2.disabled = true;
+          const fl2 = b.type === "hearth" ? furnishHall(g, X0 + t, X1 - t, Z0 + t, vw ? W : Z1 - t, b.colour || 0x7a2a22) : b.type === "house" ? furnishHouse(g, X0 + t, X1 - t, Z0 + t, vw ? W : Z1 - t) : b.type === "forge" ? furnishForge(g, X0 + t, X1 - t, Z0 + t, vw ? W : Z1 - t) : null;
           if (fl2) { this.flames.push(fl2); (g.userData.flames ??= []).push(fl2); }
           const e = this.blds.get(b.id) || null; const inner = { x: b.x, z: b.z, c, s, x0: X0 + t, x1: X1 - t, z0: Z0 + t, z1: Z1, y: y + 0.09 };
           g.userData.inner = inner; if (e) e.inner = inner;
@@ -513,8 +551,17 @@ export class Wilds extends WorldBase {
         wall(-2.55, -3.05, 2.55, -3.05); wall(-2.55, -3.05, -2.55, 3.05); wall(2.55, -3.05, 2.55, 3.05);
         wall(-2.55, 3.05, -0.95, 3.05); wall(0.95, 3.05, 2.55, 3.05);
         circle(-1.2, -3.6, 0.6);
+        // (furnished as the cabin in the clearing is after its first night: its two beds — straw pallets along the
+        //  right-hand wall — and a table and bench by the left; solid where they stand)
+        const fb = new Builder(); fb.cloth = new Builder();
+        P.pallet(fb, 1.7, -1.75, 0); P.pallet(fb, 1.7, 0.35, 0);
+        P.table(fb, -1.55, 0.2, 1.4, 0.8, Math.PI / 2); P.bench(fb, -0.95, 0.2, 1.4, Math.PI / 2);
+        const furn = fb.build(MAT.rough); if (!fb.cloth.empty) furn.add(fb.cloth.build(MAT.rough)); furn.position.y = 0.07; g.add(furn);
+        for (const lz of [-2.4, -1.1, -0.3, 1.0]) circle(1.7, lz, 0.42);
+        circle(-1.55, -0.3, 0.42); circle(-1.55, 0.7, 0.42);
         // the door, while it's shut (F at it opens it, as the cabin's in the clearing)
         g.userData.doorCols = [-0.45, 0, 0.45].map(lx => { circle(lx, 3.05, 0.26); return cols[cols.length - 1]; });
+        g.userData.doorAt = { lx: 0, lz: 3.05 }; g.userData.doorOpenA = 1.45;
       } else if (!body) cols.push(body = this.col.addOBox(b.x, b.z, (d.w || 4) * 0.45, (d.d || 4) * 0.45, b.ry || 0, y + 5));
     }
     if (b.type === "hearth") {
@@ -618,9 +665,15 @@ export class Wilds extends WorldBase {
       if (b.type !== "field" && b.type !== "shipyard") g.add(yardPatch(this, b, e.fp, y));
     }
     // (a door that swings in on its hinge, and lets you through when it's open)
-    if (g.userData.doorCols) e.setDoor = open => {
-      e.doorOpen = open; for (const c of g.userData.doorCols) c.disabled = open;
-      const dr = g.userData.door; if (dr) dr.rotation.y = open ? 1.45 : 0;
+    // (the hall's and the others' come with their model, which may still be on its way: so asked for when it's used)
+    if (g.userData.doorCols || b.type === "cabin" || WALK_IN.has(b.type)) e.setDoor = open => {
+      e.doorOpen = open; for (const c of g.userData.doorCols || []) c.disabled = open;
+      const dr = g.userData.door; if (!dr) return;
+      // (from wherever the door hangs shut in its model — not square to the cabin, necessarily)
+      const base = dr.userData.base ??= dr.rotation.y;
+      const from = dr.rotation.y, to = base + (open ? g.userData.doorOpenA || 1.45 : 0), t0 = performance.now();
+      const step = () => { const k = Math.min(1, (performance.now() - t0) / 450), q = k * k * (3 - 2 * k); dr.rotation.y = from + (to - from) * q; if (k < 1 && e.doorOpen === open) requestAnimationFrame(step); };
+      step();
     };
     this.blds.set(b.id, e);
     return e;
@@ -736,7 +789,8 @@ export class Wilds extends WorldBase {
     for (const e of this.blds.values()) {
       if (e.shake > 0) { e.shake = Math.max(0, e.shake - dt); e.g.position.x = e.b.x + Math.sin(this.t * 60) * e.shake * 0.12; }
       const fl = e.g.userData.flag; if (fl) fl.rotation.y = Math.sin(this.t * 2.3 + e.b.x) * 0.25;
-      const door = e.g.userData.door;
+      // (a gate's door only: a cabin's or a hall's is opened and shut by hand)
+      const door = e.g.userData.doorA !== undefined && e.g.userData.door;
       if (door) {
         // a gate swings open for the friendly near it
         let want = 0;

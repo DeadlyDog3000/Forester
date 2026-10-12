@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.10.3", date: "12 October 2026", title: "Doors that shut",
+    items: [
+      "Frontier: the cabin's door is there again — it had been swung to nowhere by the gates' hinges — and it opens and shuts with F as before.",
+      "Frontier: the cabin is furnished as the one in the clearing is after its first night: its two beds, straw pallets along the wall, and a table and bench.",
+      "Frontier: the town hall, the house and the forge have a door that's shut until you open it (F), and you see it from inside as from out; the town hall's lobby is open through to the hall, so the door's in sight from the table.",
+      "Frontier: the town hall's walls are where its walls are — you could walk a pace or more beyond the front of it, and through its lobby — and its floor stops at the wall.",
+      "The spear is thrust, never swung: drawn back at the hip and driven straight out — on your screen, on your body, and by anyone else who carries one.",
+    ],
+  },
+  {
     v: "1.10.2", date: "12 October 2026", title: "Heard, and seen going",
     items: [
       "Loading is heard again — every step of it, for the musket and the pistol, which had gone silent; and the bow and the crossbow have theirs: the arrow drawn from the quiver and nocked, the bow drawn creaking; the windlass ratcheting round, the string caught on the nut, a bolt laid in.",
