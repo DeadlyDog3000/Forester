@@ -116,14 +116,26 @@ function aimPlace(P, dt) {
   const sR = root.worldToLocal(shR.getWorldPosition(new THREE.Vector3())), sL = root.worldToLocal(shL.getWorldPosition(new THREE.Vector3()));
   const inw = Math.sign(sL.x - sR.x) || 1;
   // loading (reload.js): stood up before the chest, muzzle up, the free hand going to the lock, the muzzle, the rod
-  const LP = P.load && obj.userData.muzzle ? loadPose(P.load.kind, P.load.e) : null, up = LP ? LP.up : 0, pr = LP ? LP.prime : 0;
+  // a pike's hold (a spear, a bayonet): low in both hands, the point up before the face; the thrust drawn back a hand's
+  // breadth, then driven straight out along its line, held a moment, and recovered
+  if (H.pike) {
+    const t = P.thrustT ?? 9, e = x => x * x * (3 - 2 * x);
+    const th = t < 0.12 ? -0.35 * e(t / 0.12) : t < 0.24 ? -0.35 + 1.35 * e((t - 0.12) / 0.12) : t < 0.36 ? 1 : t < 0.7 ? 1 - e((t - 0.36) / 0.34) : 0;
+    const L = (a, b) => a + (b - a) * th, at = H.ready.map((v, i) => L(v, H.lunge[i]));
+    obj.position.set(sR.x + inw * at[0], sR.y + at[1], sR.z + at[2]);
+    obj.quaternion.setFromEuler(new THREE.Euler(-L(H.lift, H.lunge[3]), 0, -inw * L(H.across, H.lunge[4]), "ZYX")).multiply(H.base);
+    obj.updateMatrixWorld(true);
+  }
+  const LP = !H.pike && P.load && obj.userData.muzzle ? loadPose(P.load.kind, P.load.e) : null, up = LP ? LP.up : 0, pr = LP ? LP.prime : 0;
   const LOADAT = P.load && P.load.kind === "pistol" ? [0.16, -0.3, 0.3] : [0.2, -0.62, 0.32];
+  if (!H.pike) {
   const at = H.ready.map((v, i) => { const a0 = v + (H.aim[i] - v) * k; return a0 + (LOADAT[i] - a0) * up + (H.ready[i] - a0) * pr; });
   obj.position.set(sR.x + inw * at[0], sR.y + at[1], sR.z + at[2]);
   // (at the ready the muzzle up and across the body; aimed, level and straight ahead; loading, straight up)
   const xr = -(H.lift ?? 0.95) * (1 - k), zr = -inw * (H.across ?? 0.55) * (1 - k);
   obj.quaternion.setFromEuler(new THREE.Euler(xr * (1 - up) - 1.45 * up, 0, zr * (1 - up) + inw * 0.6 * pr, "ZYX")).multiply(H.base);
   obj.updateMatrixWorld(true);
+  }
   // (the ramrod, out of its pipes and down the bore)
   if (obj.userData.muzzle) {
     let rod = obj.userData.rod;
@@ -172,6 +184,19 @@ export function shoulderArm(P, kind) {
       : { base: GUN_BASE, grips, aim: [0.15, 0.05, 0.22], ready: [0.12, -0.3, 0.24], lift: 0.95, across: 0.55 };
   P.aimHold(m, how);
   return m;
+}
+// a spear, or a musket with its bayonet fixed, held as a pike was for the push: low, in both hands, the right at the
+// butt end by the hip and the left a forearm's length ahead of it, the point up before the face (see aimPlace)
+export function pikeHold(P, obj, kind) {
+  if (!P.aimHold) return false;
+  let g0 = null;
+  if (kind === "spear") g0 = -0.3;
+  else { const c = [obj, ...obj.children].find(o => o.userData && o.userData.grips && o.userData.grips.length); g0 = c ? c.userData.grips[0].y + (c === obj ? 0 : c.position.y) : 0.25; }
+  const grips = [new THREE.Vector3(0, g0, 0), new THREE.Vector3(0, g0 + 0.4, 0)];
+  const back = kind === "spear" ? 0.3 : 0;   // (the spear's own middle is where it's held: the musket's, its butt)
+  P.aimHold(obj, { base: GUN_BASE, grips, pike: true, ready: [0.0, -0.52, -0.08 + back], lunge: [0.08, -0.4, 0.26 + back, 0.08, 0.1], lift: 0.42, across: 0.28 });
+  P.aimWant = false;
+  return true;
 }
 export function makePerson(o = {}) {
   const r = rng(o.seed ?? Math.floor(Math.random() * 1e9));
@@ -334,7 +359,7 @@ export function makePerson(o = {}) {
     },
     phase: r() * TAU, walkAmt: 0, pose: "idle", poseT: 0, look: 0, sitting: 0,
     update(dt, speed = 0) {
-      this.poseT += dt;
+      this.poseT += dt; if (this.thrustT != null) this.thrustT += dt;
       const moving = speed > 0.15;
       this.walkAmt += ((moving ? Math.min(1, speed / 1.6) : 0) - this.walkAmt) * Math.min(1, dt * 8);
       this.phase += dt * (2.2 + speed * 2.4) * (moving ? 1 : 0.3);
@@ -407,7 +432,7 @@ export function makePerson(o = {}) {
       // (a long arm, placed at the shoulder; a body of the model's own bends its arms to it after its clip, below)
       if (!this.bones && this.aimH) aimPlace(this, dt);
     },
-    setPose(p) { if (p !== this.pose) { this.pose = p; this.poseT = 0; } },
+    setPose(p) { if (p !== this.pose) { this.pose = p; this.poseT = 0; if (p === "punch") this.thrustT = 0; } },
     // a child's head is big for the body; it evens out as they grow
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };

@@ -650,6 +650,16 @@ export const AUDIO = {
     l.lp.frequency.setTargetAtTime(under ? 1400 : 5000 + k * 3000, a.currentTime, 0.4);
     l.hp.frequency.setTargetAtTime(under ? 250 : 900 - k * 400, a.currentTime, 0.4);
   },
+  // your own heart, loud in your ears: the lub, low and thick, and the dub a sixth of a second after, a little higher and
+  // softer — felt as much as heard, the chest's thud and no ring to it
+  heartbeat(vol = 1) {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 160; lp.Q.value = 0.9; lp.connect(bus);
+    for (const [dt, f, k] of [[0, 52, 1], [0.17, 64, 0.65]]) {
+      thump(a, lp, t + dt, f * 1.25, f * 0.75, 0.55 * vol * k, 0.11);
+      shotBurst(a, lp, t + dt, { type: "lowpass", f: 120, peak: 0.25 * vol * k, attack: 0.008, decay: 0.07 });
+    }
+  },
   // the din of a melee, under the blows you hear one by one: a crowd of men roaring, steel knocking on steel and on
   // musket stocks, men going down, and the thud of a running line's feet — fight: how much of the fighting is about you
   // (0 to 1), run: how much of a line is running at it (0 to 1)

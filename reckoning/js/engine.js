@@ -9,7 +9,7 @@
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, addDetail, ownGrain } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
-import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm } from "./models.js";
+import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
@@ -304,11 +304,14 @@ export class Player {
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
       this.axeBody = (G.town ? k => makeOwnArm(k, !!(G.town.playerArm && G.town.playerArm() === "sword")) : makeArm)(this.blade || "axe"); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
-      if (this.model && this.model.held) this.model.held.add(this.axeBody);
+      // (a spear or a bayonet in both hands, as a pike, seen from behind; anything else in the right)
+      if (this.model && THRUST.has(this.blade) && pikeHold(this.model, this.axeBody, this.blade)) this.axeBody.rotation.x = 0;
+      else if (this.model && this.model.held) this.model.held.add(this.axeBody);
     } else if (!on && this.axe) {
       vm.remove(this.axe); this.axe = null;
       for (const a of this.arms || []) vm.remove(a.arm);
       this.arms = null; this.hands = null;
+      if (this.axeBody && this.model && this.model.aimH && this.model.aimH.obj === this.axeBody) this.model.aimHold(null);
       if (this.axeBody && this.model && this.model.held) this.model.held.remove(this.axeBody); this.axeBody = null;
     }
   }
@@ -913,6 +916,7 @@ export class Player {
         }
       }
     }
+    heartTick(dt);
     // health: blows take it, and it comes back slowly once nothing has hit you for a while
     if (G.health !== undefined) {
       G.hurtT = (G.hurtT || 0) + dt;
@@ -1749,7 +1753,24 @@ G.practise = (id, xp) => {
   if (up) { const sk = BODY_SKILLS.find(s => s.id === id); UI.hint(`${sk.name} rose to ${up}.${up === 100 ? " No one could be better." : ""}`, 3); window.__uisfx && (up % 10 === 0 ? window.__uisfx.fanfare() : window.__uisfx.done()); }
 };
 // dying: whatever killed you, a share of every skill goes (15%), and you wake in your own bed if you have one
+// near death: your heart in your ears, and the edges of your sight going red with every beat of it — quicker and harder
+// the less of you is left
+const heart = { t: 0, beat: 9, on: 0 };
+function heartTick(dt) {
+  const el = document.getElementById("lowHpFx"); if (!el) return;
+  const h = G.health, low = h !== undefined && h < 0.35 && h > 0 && !G.downed && G.mode === "play" ? (0.35 - h) / 0.35 : 0;
+  heart.on += ((low > 0 ? 1 : 0) - heart.on) * Math.min(1, dt * 2);
+  if (heart.on < 0.01) { if (el.style.opacity !== "0") el.style.opacity = "0"; heart.t = 0; return; }
+  const period = 60 / (72 + 68 * low);
+  if ((heart.t -= dt) <= 0) { heart.t += period; heart.beat = 0; if (low > 0) AUDIO.heartbeat && AUDIO.heartbeat(0.45 + 0.55 * low); }
+  heart.beat += dt;
+  // (the lub and the dub, a sixth of a second apart, the second weaker; each a quick swell and a slower ebb)
+  const pulse = b => b < 0 ? 0 : b < 0.05 ? b / 0.05 : Math.exp(-(b - 0.05) * 7);
+  const p = Math.max(pulse(heart.beat), 0.65 * pulse(heart.beat - 0.17));
+  el.style.opacity = Math.min(1, heart.on * (0.35 + 0.3 * low + (0.3 + 0.2 * low) * p)).toFixed(3);
+}
 G.die = (from) => {
+  { const el = document.getElementById("lowHpFx"); if (el) el.style.opacity = "0"; heart.on = 0; }
   if (G.downed) return;
   G.downed = true; G.health = 0;
   const lost = loseSkills(G.body, 0.15);

@@ -200,6 +200,7 @@ kbd { display: inline-block; min-width: 26px; padding: 3px 7px; border: 1px soli
 #hunger.low .hg-fill { background: linear-gradient(180deg, #e0703a, #9a3a14); }
 @media (max-width: 640px) { #vitals { top: 144px; right: 12px; } #health .hp-bar, #hunger .hg-bar { width: 120px; } }
 /* a blow: red at the edges of sight */
+#lowHpFx { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(150, 0, 0, 0.06) 22%, rgba(170, 0, 0, 0.5) 55%, rgba(110, 0, 0, 0.92) 85%, rgba(60, 0, 0, 1) 100%); mix-blend-mode: normal; }
 #hurtFx { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(150, 0, 0, 0.55) 100%); transition: opacity 0.5s ease-out; }
 
 #caught { position: fixed; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; text-align: center; pointer-events: none;

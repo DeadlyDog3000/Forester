@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.23.0", date: "12 October 2026", title: "The heart in your ears",
+    items: [
+      "Near death you hear your own heart — a thick lub and a softer dub — and the edges of your sight beat red with it, quicker and harder the less of you is left (from about a third of your health down). It eases away as you mend.",
+      "The spear and the bayonet are held as a pike was: low at the hip in both hands, the point up before the face — and the thrust is a thrust: drawn back a hand's breadth, driven straight out level along its line, held a moment, and recovered. Seen on the other men and on your own body from behind; before, it played a one-handed fist jab, and the weapon waved about in one hand.",
+    ],
+  },
+  {
     v: "1.22.1", date: "12 October 2026", title: "The din of the charge",
     items: [
       "A charge no longer goes quiet. When the muskets stopped and the lines closed, all that was left to hear were the odd blow and cry near you — it sounded as if the sound had cut out. Now there's the din of a melee under them: men roaring, steel on steel and on musket stocks, men knocked down, and the thud of a running line's feet, louder the more of the fighting is about you and fading as it ends.",

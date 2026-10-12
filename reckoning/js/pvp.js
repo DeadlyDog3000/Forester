@@ -16,7 +16,7 @@ import { FOLEY } from "./foley.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst } from "./fight.js";
-import { makeArm, modelCopy, shoulderArm, addBayonet } from "./models.js";
+import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold } from "./models.js";
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
@@ -1495,7 +1495,10 @@ class Fighter {
     if (!k) return;
     if (k === "bow") { const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a })); bow.rotation.set(0, Math.PI / 2, 0); this.a.hold(bow, true); return; }
     if (k === "crossbow" || k === "musket" || k === "pistol") { this.gun = shoulderArm(P, k); return; }
-    this.a.hold(makeArm(k));
+    // (a spear or the bayonet: in both hands, as a pike — see pikeHold; anything else in the right hand)
+    const arm = makeArm(k); arm.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    if ((k === "spear" || k === "bayonet") && pikeHold(P, arm, k)) return;
+    this.a.hold(arm);
   }
   // brought up to aim, or down at the ready
   aimUp(on) { this.a.person.aimWant = !!on; }
