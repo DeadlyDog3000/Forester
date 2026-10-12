@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.22.0", date: "12 October 2026", title: "The musketeer's coat",
+    items: [
+      "Soldiers dress as the musketeers of the 1680s did: a coat cuffed in the regiment's facings, a buff belt at the waist, a bandolier over the left shoulder hung with wooden powder chargers, a bullet bag and a priming flask at the hip, and a broad felt hat with a low crown, cocked up on one side.",
+      "No two coats alike: each man's cloth from its own dye-vat, faded by the sun, greyed with dust and powder smoke, darkened by rain — the colours muted, as wool dyed with madder, woad and weld really was, instead of bright paint. Breeches and stockings a man's own as often as the issue, the linen long past white, and the mud of the march up his stockings.",
+      "In a battle your own man (if you're dressed as one) takes the musketeer's coat, bandolier and hat in your colours. And Musketeer is an outfit of its own now in the look, with its cocked felt hat among the hats.",
+    ],
+  },
+  {
     v: "1.21.0", date: "12 October 2026", title: "The camp",
     items: [
       "To Arms is the camp now: one big Quick Play button for a battle against another player, Battle against bots and Duel beside it — and the camp itself: everyone who's in it right now, their rank and what they're about (in camp, looking for a battle, mustering, in battle), a talk you all share, and the best commanders. Challenge anyone in camp to a battle or a duel with a click; they're asked, and accept or decline.",

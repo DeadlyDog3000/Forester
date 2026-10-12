@@ -125,13 +125,25 @@ export function soldierLook(u, seed, base = {}) {
   //  soldiers' were, or a moustache — the fashion — or, here and there, a beard)
   const hair = weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
   const face = weighed([["clean", 45], ["tash", 38], ["full", 17]]);
-  return { body: "watchman", skin, hair, face,
-    eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: 0xe6dcc8, stockings: pick([0xd8d0c0, 0x5a5048]),
+  // (and the cloth: no two coats of a regiment came out of the same dye-vat, and none stayed as it came — faded by the
+  //  sun, greyed with dust and powder, darkened by rain and grease; the breeches and stockings a man's own as often as
+  //  the issue; the linen long past white)
+  const wear = (c, k = 1) => {
+    const a = new THREE.Color(c), g = a.r * 0.3 + a.g * 0.59 + a.b * 0.11;
+    const grey = 0.22 + r() * 0.14, dust = r() * 0.16 * k, dark = 0.84 + r() * 0.2;
+    const ch = v => (v + (g - v) * grey) * (1 - dust) * dark;
+    a.setRGB(ch(a.r) + dust * 0.42, ch(a.g) + dust * 0.38, ch(a.b) + dust * 0.31);
+    return a.getHex();
+  };
+  const legs = weighed([[u.legs, 55], [0x5e5a50, 15], [0x564434, 15], [0x8e8470, 10], [0x3a3a3c, 5]]);
+  return { body: "musketeer", skin, hair, face,
+    eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: wear(0xe2d8c2, 1.5), stockings: wear(weighed([[0xc8c0ae, 35], [0x6a6862, 30], [0x4e5262, 15], [0x7a3a30, 8], [0x5a4a3a, 12]]), 1.5),
     height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
-    coat: u.coat, vest: u.vest, legs: u.legs, sash: u.sash, hat: "hat", hatColor: u.hat };
+    coat: wear(u.coat), vest: wear(u.vest, 0.8), cuff: wear(u.vest, 0.6), legs: wear(legs, 1.3), hat: "hat", hatColor: wear(u.hat, 0.6) };
 }
 // your own body in your company's colours (your outfit and face as they are)
-export function inUniform(look, u) { return { ...look, coat: u.coat, vest: u.vest, sash: u.sash, legs: look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body) ? look.legs : u.legs, hatColor: u.hat }; }
+// (a man takes the musketeer's coat, bandolier and hat over his own face; a woman keeps her own dress in the colours)
+export function inUniform(look, u) { const f = look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body); return { ...look, ...(f ? { sash: u.sash } : { body: "musketeer", hat: "hat" }), coat: u.coat, vest: u.vest, cuff: u.vest, legs: look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body) ? look.legs : u.legs, hatColor: u.hat }; }
 
 // ---------------------------------------------------------------------------
 //  the field: the works, the cover they give, and the guns

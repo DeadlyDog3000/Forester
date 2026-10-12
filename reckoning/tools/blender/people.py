@@ -53,6 +53,9 @@ CAST = {
     "watchman_tricorn": dict(sex="m", age="mid", coat=0x7a2a26, legs=0x2a2a30, vest=0xc8b890, hair=0x3a2a1e, skin=0xd4a07a, hat="tricorn", sash=0xe0d8c0, beard=0x3a2a1e, beardShort=True),
     "watchwoman": dict(sex="f", age="mid", coat=0x7a2a26, skirt=0x2a2a30, hair=0x6a4a30, skin=0xe2b894, hat="helmet", sash=0xe0d8c0),
     "watchwoman_tricorn": dict(sex="f", age="mid", coat=0x7a2a26, skirt=0x2a2a30, hair=0x6a4a30, skin=0xe2b894, hat="tricorn", sash=0xe0d8c0),
+    # a musketeer of the 1680s, for the battles: the coat cuffed in his regiment's facings, a buff belt at the waist,
+    # the bandolier of powder chargers over his shoulder, a broad felt hat cocked up on one side
+    "musketeer": dict(sex="m", age="mid", coat=0x8a3428, legs=0x5a4a36, vest=0xd8b84a, hair=0x3a2a1e, skin=0xd4a07a, hat="hat", hatColor=0x26221e, beard=0x3a2a1e, beardShort=True, soldier=True),
     "albers": dict(sex="f", age="old", coat=0x5a4a3a, skirt=0x3e4a5c, apron=0xf0ebe0, hair=0x8a8078, skin=0xe0b898, hat="bonnet", wide=0.1),
     "townsman": dict(sex="m", age="mid", coat=0x5b4a3a, legs=0x3a3028, hair=0x4a3a2a, skin=0xdcb08a, hat="tricorn"),
     "townswoman": dict(sex="f", age="mid", coat=0x6a5a48, skirt=0x4a4038, apron=0xf0ebe0, hair=0x6a4a30, skin=0xe2b894, hat="bonnet"),
@@ -258,6 +261,11 @@ def build_person(key):
         if o.get("apron"): mat("apron", rgb(o["apron"]))
     if o.get("hat"): mat("hat", rgb(o.get("hatColor", 0x1e1a18 if o["hat"] != "bonnet" else 0xf0ebe0) if o["hat"] != "helmet" else 0xa4a8ae), 0.42 if o["hat"] == "helmet" else 0.9, 0.3 if o["hat"] == "helmet" else 0.0)
     if o.get("sash"): mat("sash", rgb(o["sash"]))
+    soldier = o.get("soldier", False)
+    if soldier:
+        mat("cuff", rgb(o["vest"]))                 # the facings: the game tints them to the regiment's
+        mat("belt", rgb(0xb89868), 0.75)            # buff leather
+        mat("wood", rgb(0x4a3020), 0.7)             # the chargers
 
     skin = rgb(o["skin"])
     hair = rgb(o["hair"])
@@ -387,6 +395,9 @@ def build_person(key):
             m = "legs"                                      # breeches to the knee
         else:
             m = "stockings"
+            if o.get("soldier") and z < 0.3:
+                k = 0.6 + 0.4 * z / 0.3                     # the mud of the march, up the stockings
+                col = (k * 0.95, k * 0.9, k * 0.82, 1)
         fc.material_index = idx[m]
         if m == "skin":
             col = skin
@@ -408,6 +419,12 @@ def build_person(key):
         if (p - loc).dot(n) < off:
             return loc + n * off
         return p
+    # (the trunk alone, so a strap round it isn't caught on an arm; and a point laid on it, `off` out from the cloth)
+    tf = [tuple(p.vertices) for p in me.polygons if abs(p.center.x) < sh - 0.035 or p.center.z > 1.43]
+    ttree = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], tf)
+    def hug(p, off=0.008):
+        loc, n, i, d = ttree.find_nearest(Vector(p))
+        return Vector(p) if loc is None else loc + n * off
 
     P = Parts(key)
     hz = 1.56                                            # the base of the skull
@@ -731,12 +748,50 @@ def build_person(key):
         # deep turned-back cuffs, buttoned
         for sd in (-1, 1):
             x0 = sd * (sh + 0.04)
-            P.cyl("coat", WHITE, (x0, 0.0, 0.97), (x0, -0.005, 1.075), 0.05, 0.058, segs=16)
+            P.cyl("cuff" if soldier else "coat", WHITE, (x0, 0.0, 0.97), (x0, -0.005, 1.075), 0.05, 0.058, segs=16)
             for k in range(2):
                 P.sphere("metal", WHITE, (x0 + sd * 0.052, -0.012, 1.0 + k * 0.04), (0.006, 0.006, 0.006), segs=6, rings=4)
         if o.get("sash"):
             P.cyl("sash", WHITE, (0, 0, 1.12), (0, 0, 1.18), 0.162, 0.166, segs=20)
             P.box("sash", WHITE, (0.0, -0.02, 1.2), (0.06, 0.24, 0.62), (0.2, 0.62, 0))
+        if soldier:
+            # the waist belt, buff, buckled at the front
+            rows = []
+            for z in (1.045, 1.0):
+                rows.append([hug((math.sin(j / 40 * 2 * PI) * 0.3, -math.cos(j / 40 * 2 * PI) * 0.3, z), 0.012) for j in range(40)])
+            sheet(P, "belt", rows, thick=0.005, closed=True)
+            b0 = hug((0, -0.3, 1.022), 0.02)
+            P.box("metal", WHITE, b0, (0.05, 0.008, 0.045))
+            # the bandolier, over the left shoulder to the right hip: the wooden chargers hanging from it, each a
+            # measured shot of powder with its leather cap on a cord, and the bullet bag at its foot
+            hip_, sho_ = Vector((-0.16, 0, 1.0)), Vector((0.1, 0, 1.5))
+            u = sho_ - hip_; half = u.length / 2; u.normalize(); c = (sho_ + hip_) / 2
+            yv = Vector((0, 1, 0)); nrm = u.cross(yv).normalized()
+            N = 48
+            mid = [c + u * half * math.cos(j / N * 2 * PI) + yv * 0.2 * math.sin(j / N * 2 * PI) for j in range(N)]
+            mid = [hug(p, 0.016) for p in mid]
+            rows = [[p + nrm * w for p in mid] for w in (0.022, -0.022)]
+            sheet(P, "leather", rows, thick=0.004, closed=True)
+            # (down the front and round the back, where they'd hang clear of the arm)
+            for j in range(N):
+                a = j / N * 2 * PI
+                ca = math.cos(a)
+                if ca > 0.55 or ca < -0.7 or j % 3:
+                    continue
+                p = mid[j]
+                out = hug(p, 0.04) - hug(p, 0.0)
+                out = out.normalized() if out.length > 1e-6 else Vector((0, -1, 0))
+                top = p + out * 0.012 - Vector((0, 0, 0.012))
+                P.cyl("leather", WHITE, top, top - Vector((0, 0, 0.022)), 0.003, 0.003, segs=4, caps=False)
+                bt = top - Vector((0, 0, 0.022)) + out * 0.006
+                P.cyl("wood", WHITE, bt, bt - Vector((0, 0, 0.062)), 0.0135, 0.0125, segs=8)
+                P.cyl("leather", WHITE, bt + Vector((0, 0, 0.004)), bt - Vector((0, 0, 0.012)), 0.0145, 0.0145, segs=8)
+            bag = hug(hip_ + Vector((0.0, 0.09, -0.06)), 0.035)
+            P.sphere("leather", WHITE, bag, (0.032, 0.025, 0.045), segs=10, rings=7)
+            # the priming flask beside it, horn-tipped
+            fl = hug(hip_ + Vector((-0.01, -0.07, -0.09)), 0.03)
+            P.sphere("wood", WHITE, fl, (0.028, 0.012, 0.04), segs=10, rings=7)
+            P.cyl("metal", WHITE, fl - Vector((0, 0, 0.035)), fl - Vector((0, 0, 0.06)), 0.006, 0.003, segs=6)
         if o.get("chain"):
             for i in range(20):
                 a = i / 20 * 2 * PI
@@ -867,9 +922,12 @@ def build_person(key):
         sheet(P, "hat", rows, thick=0.005, closed=True, col=lambda i, j: (0.8, 0.8, 0.8, 1) if i == 5 else WHITE)
     elif hat == "hat":
         # broad-brimmed, the crown high and rounded, a band round it
-        dome("hat", WHITE, (0, hy, top + 0.09), (0.098, 0.102, 0.04), 0.0)
-        P.cyl("hat", WHITE, (0, hy, top - 0.04), (0, hy, top + 0.09), 0.105, 0.098, segs=24)
-        rows = ring_rows(0.1, 0.21, 5, 40, lambda t, a, r: top - 0.04 - 0.012 * t * t * (0.5 + 0.5 * math.cos(2 * a)), cy=hy)
+        ch = 0.05 if soldier else 0.09               # (a soldier's crown lower and rounder: the felt of the 1680s)
+        dome("hat", WHITE, (0, hy, top + ch), (0.1, 0.104, 0.05 if soldier else 0.04), 0.0)
+        P.cyl("hat", WHITE, (0, hy, top - 0.04), (0, hy, top + ch), 0.106, 0.1, segs=24)
+        # (a soldier's cocked up on the left, out of the way of the musket at his right shoulder)
+        cock = (lambda t, a: 0.13 * t ** 1.6 * max(0.0, math.sin(a)) ** 3) if soldier else (lambda t, a: 0.0)
+        rows = ring_rows(0.1, 0.21, 5, 40, lambda t, a, r: top - 0.04 - 0.012 * t * t * (0.5 + 0.5 * math.cos(2 * a)) + cock(t, a), cy=hy)
         sheet(P, "hat", rows, thick=0.006, closed=True)
         P.cyl("leather", WHITE, (0, hy, top - 0.035), (0, hy, top - 0.005), 0.107, 0.104, segs=24)
         P.box("metal", WHITE, (0, hy - 0.106, top - 0.02), (0.022, 0.006, 0.02))

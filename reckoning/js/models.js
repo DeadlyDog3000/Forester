@@ -411,7 +411,7 @@ export function makePerson(o = {}) {
     // a child's head is big for the body; it evens out as they grow
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };
-  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor, eyes: o.eyeColor, stockings: o.stockingsColor, linen: o.linenColor });
+  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, cuff: o.cuff ?? o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor, eyes: o.eyeColor, stockings: o.stockingsColor, linen: o.linenColor });
   // a hat of another outfit's than this one's own
   if (o.hatStyle && o.hatStyle !== o.model && P.modelScene) borrowHat(P, P.modelScene, o.hatStyle, o.hatColor);
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
@@ -425,8 +425,8 @@ export function makePerson(o = {}) {
 // Anything listed in models/manifest.json is loaded at start, and replaces the
 // shape built in code with the same name. See models/README.md.
 export const MODELS = {};
-const CLOTH_PARTS = new Set(["coat", "legs", "stockings", "linen", "vest", "skirt", "apron", "hat", "sash", "cloth", "rope", "sail", "flag"]);
-const BARE_PARTS = new Set(["skin", "eyes", "hair", "beard", "tash", "metal", "leather"]);
+const CLOTH_PARTS = new Set(["coat", "cuff", "legs", "stockings", "linen", "vest", "skirt", "apron", "hat", "sash", "cloth", "rope", "sail", "flag"]);
+const BARE_PARTS = new Set(["skin", "eyes", "hair", "beard", "tash", "metal", "leather", "belt"]);
 export async function loadModels(base = "models/") {
   let list;
   try { const r = await fetch(base + "manifest.json", { cache: "no-cache" }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }

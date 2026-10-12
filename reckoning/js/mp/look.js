@@ -13,6 +13,7 @@ export const BODIES = [
   { id: "jakob", common: true, name: "Apprentice", f: false, note: "A plain short coat, a boy's first good one" },
   { id: "magistrate", name: "Gentleman", f: false, note: "The long coat of a man of standing" },
   { id: "watchman", name: "Watchman", f: false, note: "The city's coat, a sash across it" },
+  { id: "musketeer", name: "Musketeer", f: false, note: "A soldier's coat cuffed in the facings, a bandolier of chargers" },
   { id: "raider", name: "Rover", f: false, note: "Fur and leather, rough-made for the road" },
   { id: "townswoman", common: true, name: "Burgher's wife", f: true, note: "Bodice, skirt and apron" },
   { id: "sister", common: true, name: "Woodswoman", f: true, note: "A working dress, sleeves rolled" },
@@ -23,7 +24,7 @@ export const BODIES = [
 export const HAT_STYLES = [
   { id: "hat", name: "The outfit's own" }, { id: "none", name: "None" },
   { id: "townsman", name: "Burgher's hat" }, { id: "brother", name: "Woodsman's hat" }, { id: "magistrate", name: "Gentleman's hat" },
-  { id: "jakob", name: "Apprentice's cap" }, { id: "watchman", name: "Watchman's hat" }, { id: "watchman_tricorn", name: "Tricorn" },
+  { id: "jakob", name: "Apprentice's cap" }, { id: "watchman", name: "Watchman's hat" }, { id: "watchman_tricorn", name: "Tricorn" }, { id: "musketeer", name: "Cocked felt hat" },
   { id: "raider", name: "Fur hat" }, { id: "townswoman", name: "Bonnet" }, { id: "albers", name: "Goodwife's cap" }, { id: "watchwoman", name: "Watchwoman's hat" },
 ];
 export const SWATCH = {
@@ -73,7 +74,7 @@ export function lookOpts(l, name) {
   // (the face: a beard and a moustache, either, or neither — where the outfit's man has them)
   if (l.face === "clean") hide.push("beard", "tash"); else if (l.face === "tash") hide.push("beard");
   return { model: body, name, seed: l.seed, coat: l.coat, legs: f ? undefined : l.legs, skirt: f, skirtColor: f ? l.legs : undefined,
-    vest: l.vest ?? undefined, apron: f ? l.apron || undefined : undefined, hatColor: style === "none" ? undefined : l.hatColor, hatStyle: style === "hat" || style === "none" ? undefined : style, sash: l.sash ?? undefined,
+    vest: l.vest ?? undefined, cuff: l.cuff ?? undefined, apron: f ? l.apron || undefined : undefined, hatColor: style === "none" ? undefined : l.hatColor, hatStyle: style === "hat" || style === "none" ? undefined : style, sash: l.sash ?? undefined,
     skinColor: l.skin, hairColor: l.hair, eyeColor: l.eyes ?? undefined, linenColor: l.linen ?? undefined, stockingsColor: l.stockings ?? undefined,
     scale: l.height || 1, build: l.build || 1, headScale: l.head && l.head !== 1 ? l.head : undefined, hide: hide.length ? hide : undefined };
 }
