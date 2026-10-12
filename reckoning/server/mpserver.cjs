@@ -1462,6 +1462,27 @@ async function start(opts = {}) {
   });
   // ---- the duel: those looking for a fight, paired off (nearest in rating first); each pair's fight passed between them ----
   // The server keeps the score and the rounds; where each is, what they fire and what lands, it only passes on.
+  // the camp: its talk (the last of it, for whoever comes in), and the best commanders (kept on disk, if there's a disk)
+  const campTalk = [];
+  const boardFile = dataDir ? path.join(dataDir, "board.json") : null;
+  let boardMap = {}; try { if (boardFile && fs.existsSync(boardFile)) boardMap = JSON.parse(fs.readFileSync(boardFile, "utf8")) || {}; } catch (e) { boardMap = {}; }
+  let boardSaveT = null;
+  const boardSeen = c => {
+    const k = c.user || c.pid; if (!k) return;
+    boardMap[k] = { name: c.name, user: c.user, rating: c.rating, rank: c.rank, w: c.w, l: c.l, at: now() };
+    if (boardFile && !boardSaveT) boardSaveT = setTimeout(() => { boardSaveT = null; try { fs.writeFileSync(boardFile, JSON.stringify(boardMap)); } catch (e) {} }, 5000);
+  };
+  const boardTop = () => Object.values(boardMap).filter(b => (b.w + b.l) > 0).sort((a, b) => b.rating - a.rating).slice(0, 15);
+  // who's in the camp, and what each is about: told to everyone there (a moment after it changes, all at once)
+  let campT = null;
+  const campChanged = () => {
+    if (campT) return;
+    campT = setTimeout(() => {
+      campT = null;
+      const list = [...socks].filter(o => o.camp && o.open).map(o => ({ ...o.camp, status: o.duel ? (o.duel.battle ? "battle" : "duel") : pvpQ.some(q => q.ws === o) ? "looking" : o.camp.status }));
+      for (const o of socks) if (o.camp && o.open) o.send({ t: "campers", list, board: boardTop() });
+    }, 250);
+  };
   const pvpQ = [];
   const unqueue = ws => { const i = pvpQ.findIndex(q => q.ws === ws); if (i >= 0) pvpQ.splice(i, 1); };
   const LOK = { long: ["musket", "bow", "crossbow"], side: ["pistol", "none"], blade: ["sword", "battleaxe", "spear", "axe", "dagger"] };
@@ -1474,11 +1495,12 @@ async function start(opts = {}) {
     // (a battle: each player's company as they set it; the first of the two keeps the field and its men — the host)
     duelSend(d, 0, { t: "duel", id: d.id, side: 0, foe: pub(b), battle: d.battle, army: a.army });
     duelSend(d, 1, { t: "duel", id: d.id, side: 1, foe: pub(a), battle: d.battle, army: b.army });
-    log(`a duel: ${a.who.name} against ${b.who.name}`);
+    log(`a ${d.battle ? "battle" : "duel"}: ${a.who.name} against ${b.who.name}`); campChanged();
   }
   function duelEnd(d, winner, left = false) {
     if (d.over) return; d.over = true;
     for (let i = 0; i < 2; i++) { duelSend(d, i, { t: "dend", winner, left }); if (d.p[i]) { d.p[i].duel = null; } }
+    campChanged();
   }
   function roundTo(d, winner) {
     if (d.decided || d.over) return; d.decided = true;
@@ -1518,7 +1540,7 @@ async function start(opts = {}) {
     const ws = upgrade(req, socket); if (!ws) return;
     socks.add(ws);
     let who = null;
-    ws.onclose = () => { socks.delete(ws); unqueue(ws); if (ws.duel) { const d = ws.duel; duelEnd(d, 1 - ws.side, true); } if (ws.player) ws.player.room.leave(ws.player); };
+    ws.onclose = () => { socks.delete(ws); unqueue(ws); if (ws.camp) { ws.camp = null; campChanged(); } if (ws.duel) { const d = ws.duel; duelEnd(d, 1 - ws.side, true); } if (ws.player) ws.player.room.leave(ws.player); };
     ws.onmessage = text => {
       let m; try { m = JSON.parse(text); } catch (e) { return; }
       if (!m || typeof m.t !== "string") return;
@@ -1526,7 +1548,7 @@ async function start(opts = {}) {
         if ((m.v | 0) !== R.PROTOCOL) return ws.send({ t: "err", fatal: true, text: "This server runs a different version of the game. Update the game, or wait for the server to be." });
         const token = String(m.token || ""); if (token.length < 16) return ws.close();
         // (the username is who you are, and stays; the name is who you play this time — invitations go by the username)
-        who = { pid: pidOf(token), user: userOf(m.user), name: clean(m.name, 24) || "Stranger", look: sanitizeLook(m.look) };
+        who = { pid: pidOf(token), user: userOf(m.user), name: clean(m.name, 24) || "Stranger", look: sanitizeLook(m.look) }; ws.who = who;
         return ws.send({ t: "hi", pid: who.pid, server: stats() });
       }
       if (!who) return;
@@ -1543,9 +1565,43 @@ async function start(opts = {}) {
         let best = -1, bd = Infinity;
         pvpQ.forEach((q, i) => { if (q.who.pid === who.pid || !q.ws.open || q.mode !== mode) return; const dd = Math.abs(q.rating - me.rating); if (dd < bd) { bd = dd; best = i; } });
         if (best >= 0) { const q = pvpQ.splice(best, 1)[0]; return pair(q, me); }
-        pvpQ.push(me); return;
+        pvpQ.push(me); campChanged(); return;
       }
-      if (m.t === "pvpcancel") { unqueue(ws); return; }
+      if (m.t === "pvpcancel") { unqueue(ws); campChanged(); return; }
+      // ---- the camp: everyone in the To Arms menus — who's there, the talk, challenges, the best commanders ----
+      if (m.t === "camp") {
+        ws.camp = { pid: who.pid, name: who.name, user: who.user, rating: Math.max(0, Math.min(4000, Math.round(num(m.rating, 1000)))), rank: clean(m.rank, 24), w: Math.max(0, num(m.w) | 0), l: Math.max(0, num(m.l) | 0), status: ["camp", "looking", "mustering"].includes(m.status) ? m.status : "camp" };
+        boardSeen(ws.camp); campChanged();
+        if (!ws.campTold) { ws.campTold = true; ws.send({ t: "said", list: campTalk.slice(-40) }); }
+        ws.send({ t: "board", list: boardTop() });
+        return;
+      }
+      if (m.t === "uncamp") { ws.camp = null; campChanged(); return; }
+      if (m.t === "say") {
+        if (!ws.camp) return;
+        const text = clean(m.text, 200); if (!text) return;
+        // (a word now and then: no one fills the camp with it)
+        const t = now(); ws.sayT = (ws.sayT || []).filter(x => t - x < 10000); if (ws.sayT.length >= 5) return ws.send({ t: "said", msg: { name: "", text: "Slow down a little — a word at a time.", at: t, sys: true } }); ws.sayT.push(t);
+        const msg = { name: who.name, user: who.user, text, at: t }; campTalk.push(msg); if (campTalk.length > 80) campTalk.shift();
+        for (const o of socks) if (o.camp && o.open) o.send({ t: "said", msg });
+        return;
+      }
+      if (m.t === "challenge") {
+        if (!ws.camp || ws.duel) return;
+        const to = [...socks].find(o => o.camp && o.camp.pid === m.to && o !== ws);
+        if (!to || to.duel) return ws.send({ t: "declined", name: to ? to.camp.name : "", why: "busy" });
+        to.challenge = { from: ws, mode: m.mode === "duel" ? "duel" : "battle", at: now() };
+        to.send({ t: "challenged", from: who.pid, name: who.name, rating: ws.camp.rating, mode: to.challenge.mode });
+        return;
+      }
+      if (m.t === "answer") {
+        const ch = ws.challenge; ws.challenge = null; if (!ch || now() - ch.at > 60000) return;
+        const from = ch.from; if (!from.open || from.duel || ws.duel) return ws.send({ t: "declined", name: from.camp ? from.camp.name : "", why: "gone" });
+        if (!m.yes) return from.send({ t: "declined", name: who.name, why: "no" });
+        unqueue(from); unqueue(ws);
+        const q = o => ({ ws: o, who: { ...o.who }, lo: cleanLo(null), rating: o.camp ? o.camp.rating : 1000, at: now(), mode: ch.mode, army: ch.mode === "battle" ? { allies: 0, ground: "open", uniform: "", muster: {}, guns: 0 } : null });
+        return pair(q(from), q(ws));
+      }
       if (ws.duel) return duelMsg(ws, m, text);
       if (m.t === "host") {
         if (rooms.size > 200) return ws.send({ t: "err", text: "This server has as many games as it can hold." });

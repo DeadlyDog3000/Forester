@@ -44,6 +44,12 @@ function drawColours(x, key) {
     case "brandenburg": fill("#f2efe6", 0, 0, W, H); eagle("#a8261e", W / 2, H / 2 + 4, 1.45, false); break;
     case "french": fill("#f4f1e8", 0, 0, W, H); for (const [cx, cy] of [[48, 40], [96, 64], [144, 40], [48, 96], [144, 96], [96, 22]]) lily("#c89a2e", cx, cy, 1.1); break;
     case "english": fill("#f4f1e8", 0, 0, W, H); fill("#b8241c", W / 2 - 13, 0, 26, H); fill("#b8241c", 0, H / 2 - 13, W, 26); break;
+    case "polish": fill("#c8261e", 0, 0, W, H); eagle("#f4f1e8", W / 2, H / 2 + 4, 1.45, false); break;
+    case "ottoman": fill("#b8241c", 0, 0, W, H); x.fillStyle = "#f4f1e8"; for (const [cx, cy, r] of [[60, 42, 18], [132, 42, 18], [96, 92, 18]]) { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); x.fillStyle = "#b8241c"; x.beginPath(); x.arc(cx + r * 0.38, cy - r * 0.08, r * 0.86, 0, Math.PI * 2); x.fill(); x.fillStyle = "#f4f1e8"; } break;
+    case "dutch": fill("#e07a24", 0, 0, W, H / 3 + 1); fill("#f4f1e8", 0, H / 3, W, H / 3 + 1); fill("#2a4a8a", 0, H * 2 / 3, W, H / 3 + 1); break;
+    case "muscovite": fill("#f4f1e8", 0, 0, W, H); x.strokeStyle = "#2a4aa0"; x.lineWidth = 22; x.beginPath(); x.moveTo(0, 0); x.lineTo(W, H); x.moveTo(W, 0); x.lineTo(0, H); x.stroke(); break;
+    case "spanish": fill("#f4f1e8", 0, 0, W, H); x.strokeStyle = "#b8241c"; x.lineWidth = 14; x.lineCap = "round"; x.beginPath(); x.moveTo(30, 16); x.lineTo(162, 112); x.moveTo(162, 16); x.lineTo(30, 112); x.stroke(); x.fillStyle = "#b8241c"; for (const [px, py] of [[54, 34], [138, 34], [54, 94], [138, 94], [82, 54], [110, 74]]) { x.beginPath(); x.arc(px, py, 7, 0, Math.PI * 2); x.fill(); } break;
+    case "danish": fill("#c8261e", 0, 0, W, H); fill("#f4f1e8", 54, 0, 20, H); fill("#f4f1e8", 0, H / 2 - 10, W, 20); break;
     case "hamburg": fill("#b8241c", 0, 0, W, H); x.fillStyle = "#f4f1e8"; fill("#f4f1e8", 56, 66, 80, 40); for (const [tx, th] of [[56, 34], [86, 48], [120, 34]]) { fill("#f4f1e8", tx, 66 - th, 16, th + 2); for (let k = 0; k < 3; k++) fill("#f4f1e8", tx + k * 6, 60 - th, 4, 6); } fill("#b8241c", 88, 84, 16, 22); break;
     default: fill("#9a2a22", 0, 0, W, H);
   }
@@ -98,6 +104,12 @@ export const UNIFORMS = {
   french: { name: "French", note: "Undyed grey-white, faced blue", coat: 0xd6d0be, vest: 0x2a3a7a, legs: 0xc8c2b0, sash: 0x2a3a7a, hat: 0x1e1c1a },
   english: { name: "English", note: "Red coats, faced blue", coat: 0xa02a22, vest: 0x2a3a6a, legs: 0x8a2a22, sash: 0x2a3a6a, hat: 0x1e1c1a },
   hamburg: { name: "Hamburg", note: "The city's own militia: brown, faced green", coat: 0x5a4632, vest: 0x3a5a3a, legs: 0x4a4035, sash: 0x8a2a22, hat: 0x2a2420 },
+  polish: { name: "Polish", note: "The Crown's foot, come with Sobieski to Vienna: blue, faced red", coat: 0x2e4a86, vest: 0xb02a24, legs: 0x8a2a24, sash: 0xd8b84a, hat: 0x3a2a20 },
+  ottoman: { name: "Ottoman", note: "The Sultan's Janissaries: crimson and blue, the white börk", coat: 0x9a2228, vest: 0x2a3e7a, legs: 0x2a3e7a, sash: 0xd4a83a, hat: 0xe6e0d0 },
+  dutch: { name: "Dutch", note: "The States' foot: blue, faced orange", coat: 0x2a3e6e, vest: 0xd8782a, legs: 0x3a3a40, sash: 0xd8782a, hat: 0x1e1c1a },
+  muscovite: { name: "Muscovite", note: "The Tsar's streltsy: crimson coats, faced green", coat: 0x8a2234, vest: 0x3a6a3a, legs: 0x3a6a3a, sash: 0xd8b84a, hat: 0x3a6a3a },
+  spanish: { name: "Spanish", note: "The King of Spain's tercios: buff, faced red", coat: 0xc8b48a, vest: 0xa8261e, legs: 0x8a7a5a, sash: 0xa8261e, hat: 0x2a2420 },
+  danish: { name: "Danish", note: "The King of Denmark's: grey-white, faced red", coat: 0xd2ccbc, vest: 0xb02a24, legs: 0xb02a24, sash: 0xb02a24, hat: 0x1e1c1a },
 };
 // a soldier of a company: its uniform, his own face and build
 export function soldierLook(u, seed, base = {}) {
@@ -143,7 +155,7 @@ export class Field {
     void M;
     this.fortSide = battle ? fort : null;
     if (battle) for (const side of [0, 1]) side === this.fortSide ? this.fort(side) : this.works(side);
-    this.between(battle ? 13 : 5);
+    this.between(battle ? 20 : 5);
   }
   y(x, z) { return this.w.heightAt(x, z); }
   // set down on the ground there; its pieces merged, one mesh to each material (bake: false for what moves)
@@ -335,10 +347,12 @@ export class Field {
   // farms, field walls and hedges, a woodcutter's felling, rocks, haystacks, a wagon broken down — set down by turns on
   // either half, so neither side has it all; walls and hedges mostly across the field, to get down behind
   between(n) {
-    const r = this.r, C = this.C, ix = this.battle ? this.dx - 15 : this.dx - 7, iz = this.battle ? 30 : 22;
+    // (the very middle left open — the ground the two lines cross to meet; the cover on either side of it, and well out
+    //  up and down the field)
+    const r = this.r, C = this.C, ix = this.battle ? this.dx - 14 : this.dx - 7, iz = this.battle ? 44 : 22, mid = this.battle ? 9 : 3;
     const across = () => r() < 0.8 ? Math.PI / 2 + (r() - 0.5) * 0.7 : r() * Math.PI;
     const KINDS = this.battle
-      ? [["wall", 3], ["hedge", 2], ["farm", 1], ["felled", 2], ["rocks", 2], ["hay", 2], ["wagon", 2], ["fence", 2], ["barrels", 1]]
+      ? [["wall", 4], ["farm", 1], ["felled", 2], ["rocks", 3], ["hay", 2], ["wagon", 2], ["fence", 1], ["barrels", 2]]
       : [["wall", 3], ["felled", 2], ["rocks", 2], ["wagon", 1], ["fence", 1], ["barrels", 1]];
     const total = KINDS.reduce((s, k) => s + k[1], 0), had = {};
     const pick = () => { let v = r() * total; for (const [k, w] of KINDS) if ((v -= w) < 0) return k; return KINDS[0][0]; };
@@ -350,7 +364,7 @@ export class Field {
       const half = i % 2 ? 1 : -1, ry = across();
       const len = kind === "wall" ? 6 + r() * 7 : kind === "hedge" ? 8 + r() * 7 : kind === "fence" ? 9 + r() * 8 : 0;
       const rad = len ? len / 2 : { farm: 6.5, felled: 4.5, rocks: 2.6, hay: 3.2, wagon: 3, barrels: 1.2 }[kind];
-      const p = this.find(() => ({ x: C.x + half * (2 + r() * Math.max(1, ix - 2 - rad * 0.4)), z: C.z + (r() * 2 - 1) * (iz - rad * 0.5) }), rad);
+      const p = this.find(() => ({ x: C.x + half * (mid + rad * 0.6 + r() * Math.max(1, ix - mid - rad)), z: C.z + (r() * 2 - 1) * (iz - rad * 0.5) }), rad);
       if (!p) continue;
       if (kind === "wall") {
         // (a long one, now and then, with a gap where a gate stood or the stones came down)
@@ -546,6 +560,61 @@ export class Field {
     cloth.position.set(0.04, 6.25, 0); g.add(cloth);
     this.put(g, x, z, sx < 0 ? 0.5 : Math.PI - 0.5, 0, false);
     (this.flags ||= []).push({ geo, base: Float32Array.from(geo.attributes.position.array), t: this.r() * 10 });
+  }
+  // ---- grenades: iron balls full of powder, the fuse lit, thrown by hand ----
+  // thrown from `from` to land at `to`: a lob, a second or so in the air; it bounds and rolls, and goes off when its fuse
+  // burns down
+  throwNade(from, to, side) {
+    const dx = to.x - from.x, dz = to.z - from.z, d = Math.hypot(dx, dz), tf = clamp(d / 13, 0.8, 1.7);
+    const dy = this.y(to.x, to.z) + 0.1 - from.y;
+    const v = new THREE.Vector3(dx / tf, (dy + 0.5 * 9.8 * tf * tf) / tf, dz / tf), fuse = tf + 0.5 + this.r() * 0.7;
+    this.nade(from, v, side, fuse);
+    this.onNade && this.onNade(from, v, side, fuse);
+  }
+  nade(from, v, side, fuse) {
+    const root = this.w.root, m = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), this.M.iron); m.position.copy(from); m.castShadow = true; root.add(m);
+    const spark = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xffb050, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false })); spark.scale.setScalar(0.16); root.add(spark);
+    (this.nades ||= []).push({ p: from.clone(), v: v.clone(), t: 0, fuse, side, mesh: m, spark, hiss: 0 });
+  }
+  nadesTick(dt, units, hit) {
+    if (!this.nades || !this.nades.length) return;
+    const root = this.w.root, F = window.__foley;
+    for (const n of this.nades) {
+      n.t += dt;
+      // (flying, then down: it bounds — less each time — and rolls to a stop, or off whatever it struck)
+      const steps = 3, h = dt / steps;
+      for (let k = 0; k < steps; k++) {
+        n.v.y -= 9.8 * h; const prev = n.p.clone(); n.p.addScaledVector(n.v, h);
+        const gy = this.y(n.p.x, n.p.z) + 0.075;
+        if (n.p.y < gy) { n.p.y = gy; if (n.v.y < -1.5) { n.v.y = -n.v.y * 0.28; F && F.thunk && n.v.length() > 3 && F.thunk(n.p, 0.25); } else n.v.y = 0; n.v.x *= 0.62; n.v.z *= 0.62; }
+        else if (this.w.col.solidAt(n.p.x, n.p.y, n.p.z, 0)) { n.p.copy(prev); n.v.x *= -0.3; n.v.z *= -0.3; n.v.y *= 0.5; }
+        if (n.p.y <= gy + 0.001) { n.v.x *= Math.exp(-h * 3); n.v.z *= Math.exp(-h * 3); }
+      }
+      n.mesh.position.copy(n.p); n.mesh.rotation.x += n.v.length() * dt * 4;
+      n.spark.position.set(n.p.x, n.p.y + 0.09, n.p.z); n.spark.scale.setScalar(0.12 + Math.random() * 0.12); n.spark.material.opacity = 0.7 + Math.random() * 0.3;
+      if ((n.hiss -= dt) <= 0) { n.hiss = 0.45; F && F.sizzle && F.sizzle(n.p, 0.35); }
+      if (n.t >= n.fuse) this.burst(n, units, hit);
+    }
+    for (const n of this.nades.slice()) if (n.done) { root.remove(n.mesh, n.spark); n.spark.material.dispose(); this.nades.splice(this.nades.indexOf(n), 1); }
+  }
+  // it goes off: a flash, a bang, earth and iron flung out — whoever's within a few paces hurt, the nearer the worse,
+  // unless something solid stands between
+  burst(n, units, hit) {
+    n.done = true;
+    const root = this.w.root, at = n.p.clone(), up = new THREE.Vector3(0, 1, 0);
+    muzzleFlash(root, at.clone().setY(at.y + 0.2), up, 3.2);
+    powderSmoke(root, at.clone().setY(at.y + 0.3), up, { scale: 2.2, life: 16, n: 28, speed: 7, haze: true, hazeN: 6, hazeA: 0.3 });
+    cloud(root, at.clone(), up, { n: 14, colour: 0x6a5a44, life: 2.4, speed: 7, size: 1.1, opacity: 0.7 });
+    AUDIO.cannon ? AUDIO.cannon(0.42, at) : AUDIO.gunshot && AUDIO.gunshot(1.3, at);
+    const pl = G.player, dp = Math.hypot(at.x - pl.pos.x, at.z - pl.pos.z); if (dp < 22) shake(Math.max(0.1, 1 - dp / 22) * 0.6);
+    const R = 5;
+    for (const u of units) {
+      if (!u.alive) continue;
+      const c = u.pos, dd = Math.hypot(c.x - at.x, c.z - at.z, (c.y + 0.9 - at.y) * 0.6); if (dd > R) continue;
+      const shield = this.w.col.lineOfSight && !this.w.col.lineOfSight(new THREE.Vector3(at.x, at.y + 0.25, at.z), new THREE.Vector3(c.x, c.y + 0.9, c.z));
+      const dmg = Math.round((dd < 1.2 ? 140 : 95 * Math.pow(1 - dd / R, 1.2) + 12) * (shield ? 0.25 : 1));
+      if (dmg > 4) hit(u, at.clone(), new THREE.Vector3(c.x - at.x, 1.5, c.z - at.z), dmg);
+    }
   }
   // a gun's powder, kept back from it: a few casks under a tarpaulin pegged down over a ridge-pole
   powder(x, z, ry) {
@@ -764,6 +833,7 @@ export class Field {
       const m = g.model; m.rotation.y = g.ry + g.yaw; m.userData.barrel.rotation.x = g.pitch;
       this.drillTick(g, dt);
     }
+    this.nadesTick(dt, units, hit);
     const root = this.w.root;
     for (const b of this.balls) {
       if (b.done) { b.t += dt; continue; }
@@ -815,7 +885,7 @@ export class Field {
     }
     return best;
   }
-  dispose() { for (const f of this.flames || []) FLAMES.delete(f); this.w.root.remove(this.root); for (const b of this.balls) this.w.root.remove(b.mesh); for (const c of [...this.pieces.map(p => p.c), ...this.cols]) c && this.w.col.remove && this.w.col.remove(c); }
+  dispose() { for (const n of this.nades || []) this.w.root.remove(n.mesh, n.spark); for (const f of this.flames || []) FLAMES.delete(f); this.w.root.remove(this.root); for (const b of this.balls) this.w.root.remove(b.mesh); for (const c of [...this.pieces.map(p => p.c), ...this.cols]) c && this.w.col.remove && this.w.col.remove(c); }
 }
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "1.21.0", date: "12 October 2026", title: "The camp",
+    items: [
+      "To Arms is the camp now: one big Quick Play button for a battle against another player, Battle against bots and Duel beside it — and the camp itself: everyone who's in it right now, their rank and what they're about (in camp, looking for a battle, mustering, in battle), a talk you all share, and the best commanders. Challenge anyone in camp to a battle or a duel with a click; they're asked, and accept or decline.",
+      "The muster: matched with another commander, you each equip your own soldier and raise your company from the purse, choose your colours, and say you're Ready — you see when they are, and the battle begins when you both are (or after two minutes). Against bots, the same screen and To the field. Much simpler than the old one-page loadout.",
+      "Grenadiers: 120 thalers, the price of two musketeers — a musket and bayonet, and three grenades: lit and lobbed at men twenty paces off, bounding and rolling, and bursting with a flash and a bang, hurting all about — less behind something solid.",
+      "Six more armies, each with its colours: the Polish (Sobieski's foot, the white eagle on red), the Ottoman Janissaries (crimson and blue, the white börk, crescents on red), the Dutch (blue faced orange, the Prince's flag), the Muscovite streltsy (crimson faced green, St Andrew's cross), the Spanish tercios (buff faced red, the ragged cross of Burgundy) and the Danish (the Dannebrog).",
+      "The battlefield: the very middle left open for the two lines to cross; more cover across the rest of it — walls, rocks, carts, barrels, a farm, a felling, haystacks — and further out to the flanks. The hedges are gone, and so are the country's own bushes and trees: everything on the field that looks like it'd stop a ball does.",
+      "Men on the march halt to fire when a man of theirs is in range and in sight, and load as they go on — a company ordered forward no longer walks into the enemy's muskets without a shot.",
+      "Battles against another player end on both screens: a man knocked down counts as fallen on the other game at once (he was being struck at as he lay, and the battle couldn't end), every fall is told straight away, both sides stand down when it's over, and if the word that it's over is ever lost, the other game ends it itself.",
+    ],
+  },
+  {
     v: "1.20.0", date: "12 October 2026", title: "The advance",
     items: [
       "The other side's officer advances as the drill had it: a march of some paces with the line kept together, then — once in range — a halt and a volley, and on again, until it's close enough for the steel. Battles come to a decision now; before, his line crept forward at half a pace a second and the fight could stand off for minutes.",

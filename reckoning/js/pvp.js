@@ -104,43 +104,196 @@ const rankOf = r => r < 900 ? "Recruit" : r < 1050 ? "Musketeer" : r < 1200 ? "C
 let ctx = null, lo = loadout(), search = null;
 export function initPvp(c) {
   ctx = c;
-  $("btnPvp").onclick = () => openLoadout();
-  $("pvpBack").onclick = () => ctx.screen("title");
-  $("pvpGo").onclick = () => findMatch();
+  $("btnPvp").onclick = () => openCamp();
+  $("pvpBack").onclick = () => { leaveCamp(); ctx.screen("title"); };
+  $("pvpQuick").onclick = () => quickPlay();
+  $("pvpBots").onclick = () => openMuster("bots");
+  $("pvpDuel").onclick = () => openMuster("duel");
   $("pvpCancel").onclick = () => cancelSearch();
   $("pvpBotNow").onclick = () => botNow();
-  $("pvpAgain").onclick = () => findMatch();
-  $("pvpLoadout").onclick = () => openLoadout();
+  $("pvpAgain").onclick = () => again();
+  $("pvpLoadout").onclick = () => openCamp();
   $("pvpTitle").onclick = () => ctx.screen("title");
-  if ($("pvpArmy")) $("pvpArmy").addEventListener("click", armyClick);
-  $("pvpCols").addEventListener("click", e => {
-    const b = e.target.closest("[data-slot][data-id]"); if (!b) return;
+  $("musBack").onclick = () => leaveMuster();
+  $("musReady").onclick = () => musterReady();
+  $("musArmy").addEventListener("click", armyClick);
+  $("musMe").addEventListener("click", e => {
+    const b = e.target.closest("[data-slot][data-id]"); if (!b || (must && must.mine)) return;
     const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
     const put = ["long", "side", "blade"].filter(k => k !== b.dataset.slot && lo[k] !== was[k]).map(k => ({ long: LONG, side: SIDE, blade: BLADE }[k][was[k]].name.toLowerCase()));
-    drawLoadout(put.length ? `Too heavy to carry it all: you put down the ${put.join(" and the ")}.` : "");
+    drawMe(put.length ? `Too heavy to carry it all: you put down the ${put.join(" and the ")}.` : "");
     window.__uisfx && window.__uisfx.click && window.__uisfx.click();
   });
+  for (const b of document.querySelectorAll(".camp-tabs [data-tab]")) b.onclick = () => {
+    for (const x of document.querySelectorAll(".camp-tabs [data-tab]")) x.classList.toggle("on", x === b);
+    $("campPaneCamp").classList.toggle("hidden", b.dataset.tab !== "camp"); $("campPaneBoard").classList.toggle("hidden", b.dataset.tab !== "board");
+  };
+  $("campSay").addEventListener("keydown", e => {
+    e.stopPropagation();
+    if (e.key !== "Enter") return;
+    const t = $("campSay").value.trim(); if (!t || !camp || !camp.net) return;
+    camp.net.send({ t: "say", text: t }); $("campSay").value = "";
+  });
+  $("campWho").addEventListener("click", e => { const b = e.target.closest("[data-ch]"); if (!b || !camp || !camp.net) return; camp.net.send({ t: "challenge", to: b.dataset.ch, mode: b.dataset.mode }); campNote(`Challenge sent to ${b.dataset.name} — waiting for an answer…`); });
+  $("campCard").addEventListener("click", e => {
+    const b = e.target.closest("[data-ans]"); if (!b || !camp || !camp.net || !camp.challenge) return;
+    camp.net.send({ t: "answer", yes: b.dataset.ans === "yes" }); camp.challenge = null; drawCard();
+  });
 }
-export const PVP_SCREENS = ["pvp", "pvpFind", "pvpEnd"];
-function openLoadout() { lo = loadout(); drawLoadout(); ctx.screen("pvp"); }
-function drawLoadout(note = "") {
-  const I = ctx.ICON, heavy = (slot, id) => weightOf({ ...lo, [slot]: id }) > LOAD_MAX;
-  const card = (slot, id, o) => `<button class="pv-card${lo[slot] === id ? " on" : ""}${heavy(slot, id) ? " heavy" : ""}" data-slot="${slot}" data-id="${id}" title="${heavy(slot, id) ? "Too heavy with the rest — choosing it puts something else down" : ""}">
-      ${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="pv-none"></span>`}<span class="pv-name">${esc(o.name)}<span class="pv-w" title="Weight">${o.w}</span></span>
-      <span class="pv-stats">${o.stats.map(([k, v]) => `<span><b>${esc(k)}</b> ${esc(v)}</span>`).join("")}</span>
-      <span class="pv-note">${esc(o.note)}</span></button>`;
-  const col = (slot, title, list) => `<div class="pv-col"><div class="pv-h">${title}</div>${Object.entries(list).filter(([, o]) => !o.hidden).map(([id, o]) => card(slot, id, o)).join("")}</div>`;
-  $("pvpCols").innerHTML = col("long", "Long arm", LONG) + col("side", "Sidearm", SIDE) + col("blade", "Blade", BLADE);
-  const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100);
-  $("pvpLoad").innerHTML = `<div class="pv-load-h"><b>Load</b> ${w} of ${LOAD_MAX}<span>${sp >= 0 ? `${sp}% quicker on your feet` : `${-sp}% slower on your feet`}</span></div><div class="pv-load-bar">${Array.from({ length: LOAD_MAX }, (_, i) => `<i class="${i < w ? "on" : ""}"></i>`).join("")}</div><div class="pv-load-note">${esc(note)}</div>`;
-  drawArmy();
+export const PVP_SCREENS = ["pvp", "pvpFind", "pvpEnd", "pvpMuster"];
+
+// ---------------------------------------------------------------------------
+//  the camp: To Arms' home — Quick Play, and everyone else here: who, what they're about, the talk, the best of them
+// ---------------------------------------------------------------------------
+let camp = null, lastMode = "quick";
+const mine = () => { const r = record(); return { rating: Math.round(r.rating), rank: rankOf(r.rating), w: r.w, l: r.l }; };
+function openCamp() {
+  lo = loadout(); ctx.screen("pvp");
   const r = record(), me = ctx.identity();
   $("pvpRec").innerHTML = `<span class="pv-rank">${rankOf(r.rating)}</span> · rating <b>${Math.round(r.rating)}</b> · ${r.w} won, ${r.l} lost${r.streak > 1 ? ` · ${r.streak} in a row` : ""}<br><small>You fight as ${esc(me.name)}.</small>`;
+  drawWho(); drawTalk(); drawBoard(); drawCard();
+  connectCamp();
+}
+function leaveCamp() { if (camp && camp.net) { camp.net.send({ t: "uncamp" }); } }
+async function connectCamp() {
+  if (camp && camp.net && camp.net.open) { camp.net.send({ t: "camp", status: "camp", ...mine() }); return; }
+  if (camp && camp.connecting) return;
+  const g = globalServer(), addr = g && addressOf(g);
+  camp = { net: null, list: camp ? camp.list : [], talk: camp ? camp.talk : [], board: camp ? camp.board : [], connecting: true };
+  if (!addr) { camp.connecting = false; campNote("No camp to join here — Quick Play looks for players on your own network."); return; }
+  campNote("Coming into the camp…");
+  const me = ctx.identity(), n = new Net(addr);
+  try { await n.connect(me.name, me.look); } catch (e) { camp.connecting = false; campNote("The camp can't be reached just now. Quick Play looks on your own network meanwhile."); return; }
+  camp.net = n; camp.connecting = false; campNote("");
+  n.on.campers = m => { camp.list = m.list || []; if (m.board) camp.board = m.board; drawWho(); drawBoard(); };
+  n.on.said = m => { if (m.list) camp.talk = m.list; else if (m.msg) camp.talk.push(m.msg); camp.talk = camp.talk.slice(-80); drawTalk(); };
+  n.on.board = m => { camp.board = m.list || []; drawBoard(); };
+  n.on.challenged = m => { camp.challenge = m; drawCard(); window.__uisfx && window.__uisfx.click && window.__uisfx.click(); };
+  n.on.declined = m => campNote(m.why === "busy" ? `${m.name || "They"} can't just now.` : m.why === "gone" ? "They've gone." : `${m.name} declined.`);
+  n.on.duel = m => matched(n, m);
+  n.on.lost = () => { if (camp && camp.net === n) { camp.net = null; campNote("Lost the camp — coming back in…"); setTimeout(() => { if (!G.arena && !must) connectCamp(); }, 3000); } };
+  n.send({ t: "camp", status: "camp", ...mine() });
+}
+function campNote(t) { const el = $("campState"); if (el) el.textContent = t; }
+const STATUS = { camp: "in camp", looking: "looking for a battle", mustering: "mustering", battle: "in battle", duel: "in a duel" };
+function drawWho() {
+  const el = $("campWho"); if (!el || !camp) return;
+  const me = camp.net && camp.net.pid, list = camp.list || [];
+  $("campN").textContent = list.length ? `· ${list.length}` : "";
+  el.innerHTML = list.length ? list.map(p => `<div class="cw${p.pid === me ? " me" : ""}"><span class="cw-n"><b>${esc(p.name)}</b>${p.pid === me ? " <i>(you)</i>" : ""}<small>${esc(p.rank || "")} · ${p.rating}</small></span><span class="cw-s s-${p.status}">${STATUS[p.status] || ""}</span>${p.pid !== me && (p.status === "camp" || p.status === "looking") ? `<span class="cw-ch"><button data-ch="${esc(p.pid)}" data-mode="battle" data-name="${esc(p.name)}">Battle</button><button data-ch="${esc(p.pid)}" data-mode="duel" data-name="${esc(p.name)}">Duel</button></span>` : ""}</div>`).join("") : `<div class="cw-empty">Nobody else in camp just now.</div>`;
+}
+function drawTalk() {
+  const el = $("campLines"); if (!el || !camp) return;
+  const near = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  el.innerHTML = camp.talk.length ? camp.talk.map(m => m.sys ? `<div class="ct sys">${esc(m.text)}</div>` : `<div class="ct"><b>${esc(m.name)}</b> ${esc(m.text)}</div>`).join("") : `<div class="ct sys">The camp is quiet.</div>`;
+  if (near) el.scrollTop = el.scrollHeight;
+}
+function drawBoard() {
+  const el = $("campBoard"); if (!el || !camp) return;
+  const b = camp.board || [];
+  el.innerHTML = b.length ? `<table><tr><th></th><th>Commander</th><th>Rank</th><th>Rating</th><th>Won–lost</th></tr>${b.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.rank || "")}</td><td>${p.rating}</td><td>${p.w}–${p.l}</td></tr>`).join("")}</table>` : `<div class="cw-empty">No one has fought yet. Be the first.</div>`;
+}
+function drawCard() {
+  const el = $("campCard"); if (!el) return;
+  const c = camp && camp.challenge;
+  el.innerHTML = c ? `<div class="cc"><b>${esc(c.name)}</b> challenges you to ${c.mode === "duel" ? "a duel" : "a battle"}.<span><button class="btn" data-ans="no">Decline</button><button class="btn primary" data-ans="yes">Accept</button></span></div>` : "";
+}
+// paired — by Quick Play or a challenge: a battle goes to the muster; a duel straight to the ride
+function matched(n, m) {
+  if (camp && camp.net === n) camp.net = null;
+  for (const k of ["campers", "said", "board", "challenged", "declined", "duel"]) n.on[k] = null;
+  if (search) { search.done = true; search = null; }
+  if (m.battle) openMuster("mp", { net: n, side: m.side, foe: m.foe });
+  else startDuel({ net: n, side: m.side, foe: m.foe });
+}
+function quickPlay() {
+  lastMode = "quick";
+  setArmy({ battle: true, vs: "player" });
+  findMatch();
+}
+function again() { if (lastMode === "bots") openMuster("bots"); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
+
+// ---------------------------------------------------------------------------
+//  the muster: your arms, and your company from the purse — then Ready. (Against a player, both must be.)
+// ---------------------------------------------------------------------------
+let must = null;
+function openMuster(kind, link = null) {
+  lo = loadout();
+  if (kind === "bots") setArmy({ battle: true, vs: "bots" });
+  else if (kind === "mp") setArmy({ battle: true, vs: "player" });
+  else setArmy({ battle: false, allies: 0, enemies: 1 });
+  must = { kind, ...(link || {}), mine: false, theirs: null, t0: performance.now() };
+  if (kind !== "mp" && camp && camp.net) camp.net.send({ t: "camp", status: "camp", ...mine() });
+  if (kind === "mp") {
+    const n = must.net, M = must;
+    n.on.bmust = m => { if (must !== M) return; M.theirs = m; drawVs(); maybeStart(); };
+    n.on.bunmust = () => { if (must !== M) return; M.theirs = null; drawVs(); };
+    const gone = () => { if (must !== M || G.arena) return; must = null; openCamp(); campNote(`${M.foe.name || "They"} left the muster.`); };
+    n.on.dend = gone; n.on.lost = gone;
+    // (two minutes to muster, then ready as you stand)
+    clearInterval(M.clock); M.clock = setInterval(() => { if (must !== M) return clearInterval(M.clock); drawVs(); if (!M.mine && performance.now() - M.t0 > 120000) musterReady(); }, 1000);
+  }
+  ctx.screen("pvpMuster");
+  drawMuster();
+}
+function leaveMuster() {
+  const M = must; must = null;
+  if (M && M.kind === "mp" && M.net) { clearInterval(M.clock); M.net.send({ t: "dleave" }); M.net.close(); }
+  openCamp();
+}
+function drawMuster() {
+  if (!must) return;
+  const k = must.kind;
+  $("musT").textContent = k === "duel" ? "Your arms" : k === "bots" ? "Muster — against bots" : "Muster your company";
+  drawMe(); drawArmy(); drawVs();
+}
+function drawVs() {
+  if (!must) return;
+  const k = must.kind, el = $("musVs"), btn = $("musReady");
+  if (k === "duel") { el.innerHTML = `<span class="mv-n">One against one, best of three — another player if anyone's looking, or a bot as strong as you are.</span>`; btn.textContent = "Find a match"; return; }
+  if (k === "bots") { el.innerHTML = `<span class="mv-n">Their officer raises his company from the same purse, and spends it his own way.</span>`; btn.textContent = "To the field"; return; }
+  const left = Math.max(0, 120 - Math.floor((performance.now() - must.t0) / 1000));
+  el.innerHTML = `<span class="mv-n">Against <b>${esc(must.foe.name || "another commander")}</b>${must.foe.rating ? ` · ${rankOf(must.foe.rating)}` : ""}</span>
+    <span class="mv-s ${must.theirs ? "ok" : ""}">${must.theirs ? "Ready" : "Mustering…"}</span><span class="mv-s ${must.mine ? "ok" : ""}">You: ${must.mine ? "Ready" : "mustering"}</span>
+    ${must.mine && must.theirs ? `<span class="mv-n">Both ready — the field is being chosen…</span>` : !must.mine ? `<span class="mv-t">${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}</span>` : ""}`;
+  btn.textContent = must.mine ? (must.theirs ? "Taking the field…" : "Not ready yet") : "Ready";
+  btn.disabled = !!(must.mine && must.theirs);
+  $("pvpMuster").classList.toggle("ready", !!must.mine);
+}
+// your own arms: three rows of choices, one of each
+function drawMe(note = "") {
+  const I = ctx.ICON, heavy = (slot, id) => weightOf({ ...lo, [slot]: id }) > LOAD_MAX;
+  const chip = (slot, id, o) => `<button class="mc${lo[slot] === id ? " on" : ""}${heavy(slot, id) ? " heavy" : ""}" data-slot="${slot}" data-id="${id}" title="${esc(o.stats.map(([a, b]) => a + " " + b).join(" · ") + " — " + o.note)}">${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="mc-none"></span>`}<span>${esc(o.name)}</span></button>`;
+  const row = (slot, title, list) => `<div class="mr"><div class="pv-h">${title}</div><div class="mcs">${Object.entries(list).filter(([, o]) => !o.hidden).map(([id, o]) => chip(slot, id, o)).join("")}</div></div>`;
+  const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100), pick = { long: LONG[lo.long], side: SIDE[lo.side], blade: BLADE[lo.blade] };
+  $("musMe").innerHTML = `<div class="pv-h big">Your soldier</div>` + row("long", "Long arm", LONG) + row("side", "Sidearm", SIDE) + row("blade", "Blade", BLADE)
+    + `<div class="m-load"><b>Load</b> ${w} of ${LOAD_MAX} · ${sp >= 0 ? `${sp}% quicker` : `${-sp}% slower`} on your feet</div>`
+    + `<div class="m-pick">${["long", "side", "blade"].filter(k => pick[k] && pick[k].icon).map(k => `<div><b>${esc(pick[k].name)}</b> ${esc(pick[k].stats.map(([a, b]) => a + " " + b).join(" · "))}</div>`).join("")}</div>`
+    + (note ? `<div class="m-note">${esc(note)}</div>` : "");
+}
+// ready: against bots or in a duel, off at once; against a player, said — and when both are, the field
+function musterReady() {
+  if (!must) return;
+  const k = must.kind;
+  if (k === "bots") { lastMode = "bots"; must = null; startDuel({ bot: true }); return; }
+  if (k === "duel") { lastMode = "duel"; must = null; findMatch(); return; }
+  lastMode = "quick";
+  if (must.mine && must.theirs) return;
+  must.mine = !must.mine;
+  const A = army();
+  must.net.send(must.mine ? { t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A) }, lo } : { t: "bunmust" });
+  drawVs(); maybeStart();
+}
+function maybeStart() {
+  const M = must; if (!M || M.kind !== "mp" || !M.mine) return;
+  // (the other player's game waits to be told the field; the host's raises it when both are ready)
+  if (M.side === 1 && !M.started) { M.started = true; startDuel({ net: M.net, side: 1, foe: { ...M.foe, lo: M.theirs ? M.theirs.lo : M.foe.lo }, battle: true }); return; }
+  if (M.side === 0 && M.theirs && !M.started) { M.started = true; clearInterval(M.clock); const t = M.theirs; must = null; startDuel({ net: M.net, side: 0, foe: { ...M.foe, army: t.army, lo: t.lo || M.foe.lo }, battle: true }); }
 }
 
 // ---- the company: alone, or with men of your own against more of theirs; a battle, in uniform, with works and guns ----
 function drawArmy() {
-  const el = $("pvpArmy"); if (!el) return;
+  const el = $("musArmy"); if (!el) return;
   const A = army(), multi = A.allies > 0 || A.enemies > 1 || A.battle;
   const step = (k, label, v, lo, hi) => `<div class="pv-step"><span>${label}</span><button data-k="${k}" data-d="-1"${v <= lo ? " disabled" : ""}>−</button><b>${v}</b><button data-k="${k}" data-d="1"${v >= hi ? " disabled" : ""}>+</button></div>`;
   const sw = u => `<i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i>`;
@@ -150,18 +303,20 @@ function drawArmy() {
   const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? `<span class="pv-pf">The purse: <b>900</b> thalers each</span>` : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
     <div class="pv-muster">${Object.entries(TROOPS).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "A field gun and its two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
-  el.innerHTML = `<div class="pv-h">Your company</div>
-    <div class="pv-steps">${A.battle ? "" : step("allies", "With you", A.allies, 0, 12) + step("enemies", "Against you", A.enemies, 1, 20)}
-      <button class="pv-bt${A.battle ? " on" : ""}" data-bt="1"><b>Battle Mode</b><small>${A.battle ? "On — " : ""}uniforms, earthworks and guns, somewhere on the Earth</small></button></div>
+  if (!A.battle) { el.innerHTML = ""; el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  const locked = must && must.mine;
+  el.classList.toggle("locked", !!locked);
+  // (colours as swatches; the ground — against bots only: against a player it falls as it will)
+  el.innerHTML = `<div class="pv-h big">Your company</div>
     ${muster}
-    ${A.battle ? `<div class="pv-grounds pv-vs">${[["bots", "Against bots", "Their company's officer is the game"], ["player", "Against a player", "Another player commands the other company"]].map(([k, n, t]) => `<button class="pv-gr${A.vs === k ? " on" : ""}" data-vs="${k}"><b>${n}</b><small>${t}</small></button>`).join("")}</div>` : ""}
-    ${A.battle ? `<div class="pv-grounds">${[["open", "Open field", "Both sides behind their works"], ["ours", "Your fort", "You hold it; they come for it"], ["theirs", "Their fort", "They hold it; you take it"]].map(([k, n, t]) => `<button class="pv-gr${A.ground === k ? " on" : ""}" data-gr="${k}"><b>${n}</b><small>${t}</small></button>`).join("")}</div>` : ""}
-    ${A.battle ? `<div class="pv-unis">${Object.entries(UNIFORMS).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div><div class="pv-uni-note">${esc(UNIFORMS[A.uniform].note)} — theirs will be another's, drawn by lot.</div>` : ""}
-    <div class="pv-army-note">${A.battle && A.vs === "player" ? `Against another player: each of you raises your own company from the same purse, and commands it. The first to arrive holds the field.` : A.battle ? `Against bots: their officer has the same purse, and spends it as he sees fit. In the field the number keys are your orders; the wheel, your weapons.` : multi ? `Against bots${A.allies ? `, your ${A.allies} with you` : ""}. ${A.allies || A.battle ? "In the field the number keys are your orders; the wheel, your weapons." : ""}` : "One against one: another player if anyone's looking, or a bot as strong as you are."}</div>`;
-  $("pvpGo").textContent = A.battle && A.vs === "player" ? "Find an opponent" : multi ? "To the field" : "Find a match";
+    <div class="pv-h">Colours</div>
+    <div class="pv-unis">${Object.entries(UNIFORMS).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div>
+    ${A.vs !== "player" ? `<div class="pv-h">The ground</div><div class="pv-grounds">${[["open", "Open field"], ["ours", "Your fort"], ["theirs", "Their fort"]].map(([k, n]) => `<button class="pv-gr${A.ground === k ? " on" : ""}" data-gr="${k}"><b>${n}</b></button>`).join("")}</div>` : ""}`;
+  void step; void multi;
 }
 function armyClick(e) {
-  const b = e.target.closest("button"); if (!b) return;
+  const b = e.target.closest("button"); if (!b || (must && must.mine)) return;
   const A = army();
   if (b.dataset.k) setArmy({ [b.dataset.k]: A[b.dataset.k] + +b.dataset.d });
   else if (b.dataset.bt) setArmy({ battle: !A.battle, enemies: !A.battle && A.enemies < 6 ? 8 : A.enemies, allies: !A.battle && A.allies < 4 ? 6 : A.allies });
@@ -188,6 +343,22 @@ async function findMatch() {
   // (companies against bots: no one to look for)
   const A0 = army(), wantBattle = A0.battle && A0.vs === "player";
   if (!wantBattle && (A0.allies > 0 || A0.enemies > 1 || A0.battle)) { search = null; startDuel({ bot: true }); return; }
+  // (in the camp: the same connection looks — and anyone in camp sees you're looking)
+  if (camp && camp.net && camp.net.open) {
+    const s = search = { t0: performance.now(), net: camp.net, viaCamp: true, done: false };
+    ctx.screen("pvpFind");
+    $("pvpFindT").textContent = wantBattle ? "Looking for another commander…" : "Looking for an opponent…";
+    $("pvpFindS").textContent = "Everyone in the camp, and anyone who comes in.";
+    const clock = setInterval(() => {
+      if (search !== s) return clearInterval(clock);
+      const t = Math.floor((performance.now() - s.t0) / 1000); $("pvpFindC").textContent = `${t} s`;
+      if (t === SEARCH_SECS) $("pvpFindS").textContent = wantBattle ? "Nobody's come yet. Keep waiting — or fight bots meanwhile." : "Nobody's come yet. Keep waiting, or fight a bot as strong as you are.";
+    }, 250);
+    const r = record(), n = camp.net;
+    n.on.duel = m => { if (search !== s) return; clearInterval(clock); matched(n, m); };
+    n.send({ t: "pvpq", lo, rating: Math.round(r.rating), user: ctx.user(), mode: wantBattle ? "battle" : "duel", army: wantBattle ? { allies: menOf(A0), ground: A0.ground, uniform: A0.uniform, muster: A0.muster, guns: A0.guns } : undefined });
+    return;
+  }
   const s = search = { t0: performance.now(), net: null, key: null, done: false, seen: [] };
   window.__pvpSearch = s;
   ctx.screen("pvpFind");
@@ -217,7 +388,7 @@ async function findMatch() {
     n.on.duel = m => {
       if (search !== s || s.done) return;
       s.done = true; search = null; clearInterval(clock);
-      startDuel({ net: n, side: m.side, foe: m.foe, seed: m.seed, battle: !!m.battle });
+      matched(n, m);
     };
     n.send({ t: "pvpq", lo, rating: Math.round(r.rating), user: ctx.user(), mode: wantBattle ? "battle" : "duel", army: wantBattle ? { allies: menOf(A0), ground: A0.ground, uniform: A0.uniform, muster: A0.muster, guns: A0.guns } : undefined });
   };
@@ -244,13 +415,14 @@ async function findMatch() {
 // a bot now, whatever the search has found
 function botNow() {
   const s = search; if (!s) return;
+  const battle = army().battle;
   cancelSearch(true);
-  startDuel({ bot: true });
+  if (battle) openMuster("bots"); else startDuel({ bot: true });
 }
 function cancelSearch(quiet) {
   const s = search; search = null;
-  if (s && s.net) { s.net.send({ t: "pvpcancel" }); s.net.close(); }
-  if (!quiet) openLoadout();
+  if (s && s.net) { s.net.send({ t: "pvpcancel" }); if (!s.viaCamp) s.net.close(); else s.net.on.duel = m => matched(s.net, m); }
+  if (!quiet) openCamp();
 }
 
 // the company you take out against bots: how many with you, how many against, and whether it's a battle — your
@@ -272,6 +444,7 @@ export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.ene
 // with cheap ones; guns cost dearest of all (and come with their crews)
 export const TROOPS = {
   musketeer: { name: "Musketeers", one: "Musketeer", cost: 60, lo: { long: "musket", side: "none", blade: "dagger" }, note: "Musket and bayonet: the line's backbone" },
+  grenadier: { name: "Grenadiers", one: "Grenadier", cost: 120, lo: { long: "musket", side: "none", blade: "dagger" }, nades: 3, note: "Musket, bayonet, and three grenades to throw" },
   crossbow: { name: "Crossbowmen", one: "Crossbowman", cost: 36, lo: { long: "crossbow", side: "none", blade: "sword" }, note: "Crossbow and sword" },
   sword: { name: "Swordsmen", one: "Swordsman", cost: 42, lo: { long: "none", side: "pistol", blade: "sword" }, note: "Sword and a pistol, for close work" },
   pike: { name: "Pikemen", one: "Pikeman", cost: 28, lo: { long: "none", side: "none", blade: "spear" }, note: "A long spear: keeps a man at a distance" },
@@ -298,7 +471,7 @@ function fitMuster(m, guns, purse) {
 function botMuster(purse) {
   const guns = purse >= 900 ? 1 + (Math.random() < 0.5 ? 1 : 0) : Math.random() < 0.4 ? 1 : 0, m = {};
   let left = purse - guns * GUN_COST;
-  const pick = () => { const r = Math.random(); return r < 0.5 ? "musketeer" : r < 0.62 ? "pike" : r < 0.74 ? "crossbow" : r < 0.84 ? "bow" : r < 0.93 ? "sword" : "axe"; };
+  const pick = () => { const r = Math.random(); return r < 0.46 ? "musketeer" : r < 0.54 ? "grenadier" : r < 0.64 ? "pike" : r < 0.75 ? "crossbow" : r < 0.85 ? "bow" : r < 0.94 ? "sword" : "axe"; };
   for (let tries = 0; tries < 200 && left >= 22; tries++) { const k = pick(); if (TROOPS[k].cost <= left && Object.values(m).reduce((a, b) => a + b, 0) < MAX_MEN) { m[k] = (m[k] || 0) + 1; left -= TROOPS[k].cost; } }
   return { muster: m, guns };
 }
@@ -326,19 +499,22 @@ function startDuel(o) {
     const keys = Object.keys(UNIFORMS);
     if (o.side === 0) {
       let uf = keys.includes(theirs.uniform) ? theirs.uniform : keys[1]; if (uf === mine.uniform) uf = keys.filter(k => k !== mine.uniform)[Math.floor(Math.random() * (keys.length - 1))];
-      const A = { battle: true, allies: menOf(mine), enemies: theirs.allies | 0, ground: mine.ground, uniform: mine.uniform, enemyUniform: uf, vs: "player", purse: 900, muster: mine.muster, guns: mine.guns };
+      // (the ground against a player: as it falls — the open field mostly, now and then one side's fort)
+      const gr = Math.random(), ground = gr < 0.7 ? "open" : gr < 0.85 ? "ours" : "theirs";
+      const A = { battle: true, allies: menOf(mine), enemies: theirs.allies | 0, ground, uniform: mine.uniform, enemyUniform: uf, vs: "player", purse: 900, muster: mine.muster, guns: mine.guns };
+      if (must) { clearInterval(must.clock); must = null; }
       ctx.begin();
       new Arena({ me, lo: { ...lo }, foe: { ...o.foe, bot: false }, net: o.net, side: 0, army: A });
     } else {
       $("pvpFindT").textContent = `${o.foe.name || "Your opponent"} has the field`; $("pvpFindS").textContent = "They're choosing the ground — somewhere on the Earth…";
       o.net.on.bsetup = m => {
-        o.net.on.bsetup = null;
+        o.net.on.bsetup = null; if (must) { clearInterval(must.clock); must = null; }
         // (the field as theirs, seen from the other side: their company is "them" here, and yours "you")
         const A = { battle: true, allies: m.counts[1], enemies: m.counts[0], ground: m.fort === 1 ? "ours" : m.fort === 0 ? "theirs" : "open", uniform: m.uni[1], enemyUniform: m.uni[0], vs: "player" };
         ctx.begin();
         new Arena({ me, lo: { ...lo }, foe: { ...o.foe, bot: false }, net: o.net, side: 1, army: A, setup: m });
       };
-      o.net.on.lost = () => { if (!G.arena) { $("pvpFindT").textContent = "They left before the field was set."; } };
+      o.net.on.lost = () => { if (!G.arena) { if (must) { clearInterval(must.clock); must = null; } openCamp(); campNote("They left before the field was set."); } };
     }
     return;
   }
@@ -379,6 +555,8 @@ function placeName(lon, lat) {
   return { text: !best ? "The wide world" : bd < 12 ? `Near ${best}` : `Far beyond ${best}`, at: ns };
 }
 
+// (the guest's own ending, when the host's word doesn't come: as if it had — winner in the host's numbering)
+function net_end(A, winner) { const h = A.net && A.net.on.bend; if (h) h({ winner, k: A.lost | 0, l: A.killed | 0 }); }
 class Arena {
   constructor({ me, lo, foe, net, side, army: A = null, setup = null }) {
     resetForMode();
@@ -418,7 +596,9 @@ class Arena {
     // close by where either side starts), and the ground they stand on clear
     const hash = (x, z) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const lines = [{ x: C.x - this.dx, z: C.z }, { x: C.x + this.dx, z: C.z }];
-    w.clearScenery(C.x, C.z, this.bound - 6, null, (x, z) => hash(x, z) < (this.battle ? 0.1 : 0.2) && lines.every(p => Math.hypot(p.x - x, p.z - z) > (this.multi ? 12 : 7)) && Math.hypot(x - C.x, z - C.z) > 4
+    // (a battle's field cleared of the country's own trees and bushes altogether: its cover is the field's own — walls,
+    //  carts, rocks — that stops a ball as it looks it would)
+    w.clearScenery(C.x, C.z, this.bound - 6, null, (x, z) => !this.battle && hash(x, z) < 0.2 && lines.every(p => Math.hypot(p.x - x, p.z - z) > (this.multi ? 12 : 7)) && Math.hypot(x - C.x, z - C.z) > 4
       // (and none where either side's works or fort go)
       && !(this.battle && Math.abs(Math.abs(x - C.x) - this.dx) < 16 && Math.abs(z - C.z) < 30));
     this.spawns = this.multi ? lines.map(p => this.clearSpot(p.x, p.z)) : SPAWN.map(p => this.clearSpot(p.x, p.z));
@@ -459,7 +639,7 @@ class Arena {
         const look = this.uni ? soldierLook(this.uni[team], seed) : b.look;
         const tk = this.musters && this.musters[team][i], T = tk && TROOPS[tk];
         const info = { ...b, look, name: this.uni ? `${(this.uni[team].name)}${T ? " " + T.one.toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (team === 0 ? 0.95 : 1), team, idx: i };
-        if (T) info.lo = { ...T.lo };
+        if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; }
         else if (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
       };
@@ -499,7 +679,11 @@ class Arena {
     G.onSwing = () => this.swing();
     G.onDowned = from => this.youDown(from);
     if (net) this.wire(net);
-    if (this.netBattle) { this.wireBattle(net); if (this.host) this.field.onFire = g => net.send({ t: "bgun", i: this.field.guns.indexOf(g) }); }
+    if (this.netBattle) {
+      this.wireBattle(net);
+      if (this.host) { this.field.onFire = g => net.send({ t: "bgun", i: this.field.guns.indexOf(g) }); this.field.onNade = (f, v, side, fuse) => net.send({ t: "bnade", f: [f.x, f.y, f.z].map(n => +n.toFixed(2)), v: [v.x, v.y, v.z].map(n => +n.toFixed(2)), fuse: +fuse.toFixed(2) }); }
+      else net.on.bnade = m => this.field && this.field.nade(new THREE.Vector3(...m.f.map(Number)), new THREE.Vector3(...m.v.map(Number)), 0, +m.fuse || 2);
+    }
     this.hud();
     this.tick = dt => this.update(dt);
     G.onFrame.push(this.tick);
@@ -566,6 +750,10 @@ class Arena {
     this.showHud();
     this.checkEnd();
   }
+  // it's over: every man stands where he is, steel down — nobody goes on striking at the fallen
+  standDown() {
+    for (const u of this.units) { if (!u.alive) continue; u.wind = 0; u.aimUp && u.aimUp(false); const P = u.a.person; P.crouching = false; P.load = null; P.setPose("idle"); u.a.path = []; }
+  }
   checkEnd() {
     if (this.over || this.ended || this.remote) return;
     const theirs = this.alliesOf(1).length, ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0);
@@ -573,6 +761,7 @@ class Arena {
       this.ended = true; this.live = false;
       const won = !theirs;
       if (this.host) this.net.send({ t: "bend", winner: won ? 0 : 1, k: this.killed || 0, l: this.lost || 0 });
+      this.standDown();
       slowMo(1.6, 0.3);
       this.banner(won ? "The field is yours" : "The day is lost", won ? `${this.killed || 0} of theirs down` : "");
       setTimeout(() => G.arena === this && this.overView(won), 2600);
@@ -629,6 +818,11 @@ class Arena {
   // every frame of it: the men, the officer over there, the guns and their shot, your marks on the ground
   updateField(dt) {
     for (const u of this.units) u.tick(dt);
+    // (the other player's game: one side gone, and no word from the host within a few seconds — ended here all the same)
+    if (this.remote && this.live && !this.ended) {
+      const ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0), theirs = this.alliesOf(1).length;
+      if (!ours || !theirs) { if ((this.noWordT = (this.noWordT || 0) + dt) > 5) net_end(this, theirs ? 0 : 1); } else this.noWordT = 0;
+    }
     if (this.netBattle) { this.sendState(dt); if (this.host) this.sendSnap(dt); }
     stanceTick();
     if (this.live) { this.clock += dt; this.commander(dt); }
@@ -925,6 +1119,7 @@ class Arena {
   }
   youDown(from) {
     G.downed = true; G.lockMove = true;
+    if (this.netBattle) { this.net.send({ t: "dhp", hp: 0, r: this.round }); this.sendT = 0; this.sendState(0); }
     if (this.multi) return this.fallInBattle(from);
     this.deathFall(from);
     if (this.net) { this.net.send({ t: "ddown", r: this.round }); this.live = false; return; }
@@ -1199,7 +1394,7 @@ class Arena {
       };
       net.on.btook = m => m.none ? this.fallInBattleWatch() : this.takeOver({ x: +m.x, z: +m.z });
       net.on.bend = m => {
-        if (this.ended || this.over) return; this.ended = true; this.live = false;
+        if (this.ended || this.over) return; this.ended = true; this.live = false; this.standDown();
         const won = m.winner === 1; this.killed = m.l | 0; this.lost = m.k | 0;
         slowMo(1.6, 0.3);
         this.banner(won ? "The field is yours" : "The day is lost", won ? `${this.killed} of theirs down` : "");
@@ -1325,10 +1520,20 @@ class Bot extends Fighter {
     this.ammo = AMMO[this.lo.long] || 0;
     this.wind = 0; this.cool = 1; this.stun = 0; this.aimT = 0; this.stepT = 0; this.losT = 0; this.los = true; this.awake = false;
     this.mode = "range"; this.guardT = 0; this.T = null; this.pickT = 0; this.cover = null; this.dodgeT = 0;
-    this.fixed = this.arena.battle && this.steel() === "bayonet"; this.heldK = undefined;
+    this.fixed = this.arena.battle && this.steel() === "bayonet"; this.heldK = undefined; this.nades = this.info.nades || 0; this.nadeT = undefined;
     this.hold(this.lo.long); this.a.squareTo = null;
   }
   go() { this.awake = true; this.aimT = -0.9 - Math.random() * 0.6; }
+  // a grenade: the fuse lit from his match, the arm swung over, and it's away — a little off, the less steady the man
+  throwNade(T) {
+    const a = this.a, tp = T.pos, sp = (1 - this.s) * 2.2 + 0.6;
+    a.faceTo(tp.x, tp.z); this.aimUp(false); a.person.setPose("overhead");
+    setTimeout(() => this.alive && a.person.setPose("idle"), 520);
+    const f = new THREE.Vector3(Math.sin(a.yaw), 0, Math.cos(a.yaw)), from = new THREE.Vector3(a.pos.x, a.pos.y + 1.8, a.pos.z).addScaledVector(f, 0.35);
+    const to = { x: tp.x + (Math.random() - 0.5) * 2 * sp, z: tp.z + (Math.random() - 0.5) * 2 * sp };
+    setTimeout(() => { if (!this.alive || !this.arena.field) return; this.arena.field.throwNade(from, to, this.team); AUDIO.whoosh && AUDIO.whoosh(0.4, true); }, 260);
+    if (Math.random() < 0.5) AUDIO.voice && AUDIO.voice("war", { at: a.pos, vol: 0.7, high: isF(this.info.look) });
+  }
   // his steel: the bayonet fixed on his musket if he has the two; else his blade
   steel() { return this.lo.long === "musket" && this.lo.blade === "dagger" ? "bayonet" : this.lo.blade; }
   // (a soldier in a battle fixes his bayonet before ever he comes on, and fires with it fixed)
@@ -1478,7 +1683,15 @@ class Bot extends Fighter {
         if (G.time >= O.volleyAt + this.idx * 0.02 && this.volleyed !== O.volleyAt) { this.volleyed = O.volleyAt; this.fire(useK, T); }
         return;
       }
-      if (gd > 1.4) {
+      // (a grenadier, a man close enough and in sight: a grenade lobbed at him — now and then, while he has any — on the
+      //  march or standing)
+      if (this.nades > 0 && O.fire && this.los && d > 9 && d < 26 && field && (this.nadeT = (this.nadeT ?? 1.5 + Math.random() * 3) - dt) <= 0) {
+        this.nadeT = 7 + Math.random() * 4; this.nades--; a.path = []; this.throwNade(T); return;
+      }
+      // (on the march, loaded, and a man of theirs in range and in sight: he halts, presents, fires — and loads as he
+      //  goes on again)
+      const engage = useK && useK !== "bow" && O.fire && this.los && O.mode === "advance" && d < RANGE[useK] * this.arena.sight * 0.8;
+      if (gd > 1.4 && !engage) {
         this.aimT = 0; this.aimUp(false); a.person.setPose("idle");
         if (!a.path.length || this.stepT <= 0) { this.stepT = 0.5; a.walkTo(goal.x, goal.z, gd > 6 || O.mode === "advance" ? 3.4 + s * 0.8 : 1.8); }
         return;
@@ -1625,7 +1838,12 @@ class NetFoe extends Fighter {
     if (m.ld > 0 && (m.h === "musket" || m.h === "pistol")) { const e0 = this.loadE ?? +m.ld; this.loadE = +m.ld; this.a.person.load = { kind: m.h, e: +m.ld }; for (const st of loadSteps(m.h, e0, +m.ld)) FOLEY.load && FOLEY.load(st, this.a.pos, 0.6, m.h === "pistol"); }
     else { this.a.person.load = null; this.loadE = null; }
     this.guardDir = m.g ? "right" : null;
-    if (m.dn && !this.isDown) { this.isDown = true; this.fallDown(G.player.pos); }
+    if (m.dn && !this.isDown) {
+      this.isDown = true; this.fallDown(G.player.pos);
+      // (in a battle, down is down: counted fallen at once, whatever health their game last told — a man knocked flat and
+      //  not quite dead was still "standing" here, his body struck at for ever, and the battle could never end)
+      if (this.arena.netBattle && this.hp > 0) { this.hp = 0; this.arena.unitDown(this); }
+    }
     if (!m.dn && this.isDown) { this.isDown = false; this.standUp(); }
   }
   windUp(dir) { this.wind = 0.35; this.dir = dir === "left" ? "right" : dir === "right" ? "left" : "up"; this.a.person.setPose(blowPose(this.heldK, dir)); glint(this.a); setTimeout(() => { this.wind = 0; this.a.person.setPose("idle"); }, 450); }

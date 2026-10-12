@@ -1324,3 +1324,87 @@ body.dead #crosshair, body.dead #hotbar, body.dead #stance, body.dead #hbName { 
 .pv-tr button:hover:not([disabled]) { border-color: var(--gold); }
 .pv-tr button[disabled] { opacity: 0.3; cursor: default; }
 @media (max-width: 720px) { .pv-muster { grid-template-columns: 1fr; } }
+
+/* ---- To Arms: the camp — Quick Play, and everyone else here ---- */
+#pvp { width: min(1120px, 100%); }
+.camp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 28px; align-items: start; text-align: left; }
+.camp-main { display: flex; flex-direction: column; gap: 14px; padding-top: 10px; }
+.camp-main h2 { margin: 0; }
+.camp-main .sub { margin: 0 0 6px; }
+.camp-quick { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 26px 18px; border: 2px solid var(--gold); border-radius: 6px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(164, 40, 28, 0.95), rgba(120, 26, 18, 0.95)); color: #f6ead2; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45); transition: transform 0.12s, filter 0.12s; }
+.camp-quick:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.camp-quick b { font: 600 34px var(--display); letter-spacing: 0.06em; }
+.camp-quick small { font: italic 15px var(--serif); opacity: 0.85; }
+.camp-alt { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.camp-alt .btn { width: 100%; }
+.camp-main #pvpRec { text-align: center; margin: 4px 0; }
+.camp-side { border: 1px solid var(--edge); border-radius: 6px; background: rgba(9, 24, 16, 0.72); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 460px; }
+.camp-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--edge); padding-bottom: 8px; }
+.camp-tabs button { background: none; border: 1px solid transparent; border-radius: 3px; color: var(--ink-dim); font: 600 13px var(--sans); letter-spacing: 0.04em; padding: 5px 10px; cursor: pointer; }
+.camp-tabs button.on { color: var(--ink); border-color: var(--edge); background: rgba(255, 255, 255, 0.05); }
+.camp-pane { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+#campWho { max-height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.cw { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 3px; background: rgba(255, 255, 255, 0.03); }
+.cw.me { background: rgba(212, 180, 90, 0.1); }
+.cw-n { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.cw-n b { font: 600 14px var(--sans); color: var(--ink); }
+.cw-n i { font: italic 12px var(--serif); color: var(--ink-dim); }
+.cw-n small { font: 12px var(--sans); color: var(--ink-dim); }
+.cw-s { font: italic 12px var(--serif); color: var(--ink-dim); white-space: nowrap; }
+.cw-s.s-battle, .cw-s.s-duel { color: #e09a7a; }
+.cw-s.s-looking, .cw-s.s-mustering { color: var(--gold); }
+.cw-ch { display: flex; gap: 4px; }
+.cw-ch button { border: 1px solid rgba(212, 180, 90, 0.45); background: rgba(212, 180, 90, 0.08); color: var(--ink); border-radius: 3px; font: 600 11px var(--sans); padding: 3px 7px; cursor: pointer; }
+.cw-ch button:hover { border-color: var(--gold); }
+.cw-empty { font: italic 14px var(--serif); color: var(--ink-dim); padding: 8px; }
+#campLines { flex: 1; min-height: 170px; max-height: 260px; overflow-y: auto; border-top: 1px solid var(--edge); padding-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+.ct { font: 13.5px/1.35 var(--sans); color: var(--ink); overflow-wrap: anywhere; }
+.ct b { color: var(--gold); font-weight: 600; margin-right: 4px; }
+.ct.sys { font: italic 13px var(--serif); color: var(--ink-dim); }
+#campSay { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 3px; background: rgba(0, 0, 0, 0.35); color: var(--ink); font: 14px var(--sans); }
+#campSay:focus { outline: none; border-color: var(--gold); }
+#campBoard table { width: 100%; border-collapse: collapse; font: 13.5px var(--sans); color: var(--ink); }
+#campBoard th { text-align: left; font: 600 11px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); padding: 4px 6px; border-bottom: 1px solid var(--edge); }
+#campBoard td { padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+#campBoard tr:nth-child(2) td { color: var(--gold); font-weight: 600; }
+#campState { font: italic 13px var(--serif); color: var(--ink-dim); min-height: 18px; }
+.cc { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(120, 26, 18, 0.35); font: 15px var(--serif); color: var(--ink); }
+.cc span { display: flex; gap: 8px; justify-content: flex-end; }
+@media (max-width: 860px) { .camp { grid-template-columns: 1fr; } .camp-side { min-height: 0; } }
+
+/* ---- the muster: your arms, your company, and Ready ---- */
+#pvpMuster { width: min(1120px, 100%); max-height: 100vh; overflow-y: auto; }
+.mus { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.mus-head { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.mus-head h2 { margin: 0; }
+#musVs { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
+.mv-n { font: italic 15px var(--serif); color: var(--ink-dim); }
+.mv-n b { font: 600 15px var(--sans); font-style: normal; color: var(--ink); }
+.mv-s { font: 600 12px var(--sans); letter-spacing: 0.05em; padding: 3px 9px; border-radius: 10px; border: 1px solid var(--edge); color: var(--ink-dim); }
+.mv-s.ok { border-color: #6ab06a; color: #a8e0a0; background: rgba(60, 120, 60, 0.25); }
+.mv-t { font: 600 14px var(--sans); color: var(--gold); }
+.mus-cols { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 22px; align-items: start; }
+.mus-cols > div { border: 1px solid var(--edge); border-radius: 6px; background: rgba(9, 24, 16, 0.72); padding: 12px 14px; }
+#musArmy.hidden + * { }
+.pv-h.big { font: 600 16px var(--display); letter-spacing: 0.08em; color: var(--ink); margin-bottom: 6px; }
+.mr { margin-bottom: 8px; }
+.mcs { display: flex; flex-wrap: wrap; gap: 6px; }
+.mc { display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border: 1px solid var(--edge); border-radius: 4px; background: rgba(255, 255, 255, 0.03); color: var(--ink); font: 600 13px var(--sans); cursor: pointer; }
+.mc img { width: 26px; height: 26px; object-fit: contain; }
+.mc .mc-none { width: 26px; height: 26px; border: 1px dashed rgba(255, 255, 255, 0.2); border-radius: 3px; }
+.mc.on { border-color: #8cc084; background: rgba(80, 140, 80, 0.3); }
+.mc.heavy:not(.on) { opacity: 0.55; }
+.mc:hover { border-color: var(--gold); }
+.m-load { font: 13px var(--sans); color: var(--ink-dim); margin: 6px 0; }
+.m-load b { color: var(--ink); }
+.m-pick { display: flex; flex-direction: column; gap: 2px; font: 12.5px var(--sans); color: var(--ink-dim); }
+.m-pick b { color: var(--ink); }
+.m-note { font: italic 13px var(--serif); color: var(--gold); margin-top: 6px; }
+#musArmy .pv-h { margin-top: 10px; }
+#musArmy.locked, #pvpMuster.ready #musMe { opacity: 0.6; pointer-events: none; }
+#musReady { min-width: 200px; font-size: 18px; }
+#musReady[disabled] { opacity: 0.7; }
+@media (max-width: 860px) { .mus-cols { grid-template-columns: 1fr; } }
+.cc .btn { min-width: 0; padding: 6px 16px; font-size: 14px; }
+.camp-alt .btn { min-width: 0; }

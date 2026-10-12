@@ -252,12 +252,30 @@
     <!-- a new game: which kind -->
     <!-- the duel: what you carry in, the search for someone to fight, and how it went -->
     <section id="pvp" class="screen hidden">
-      <h2>To Arms</h2>
-      <p class="sub">A duel, one against one in a deer ride in the woods, best of three — or a fight of companies, and battles in uniform anywhere on the Earth.</p>
-      <div id="pvpCols"></div>
-      <div class="pv-row"><div id="pvpLoad"></div><div id="pvpArmy"></div></div>
-      <div id="pvpRec"></div>
-      <div class="pv-acts"><button class="btn ghost" id="pvpBack">Back</button><button class="btn primary" id="pvpGo">Find a match</button></div>
+      <div class="camp">
+        <div class="camp-main">
+          <h2>To Arms</h2>
+          <p class="sub">Raise a company, meet another commander's, and take the field — anywhere on the Earth.</p>
+          <button class="camp-quick" id="pvpQuick"><b>Quick Play</b><small>A battle against another player</small></button>
+          <div class="camp-alt"><button class="btn" id="pvpBots">Battle against bots</button><button class="btn" id="pvpDuel">Duel</button></div>
+          <div id="pvpRec"></div>
+          <div class="pv-acts"><button class="btn ghost" id="pvpBack">Back</button></div>
+        </div>
+        <div class="camp-side">
+          <div class="camp-tabs"><button data-tab="camp" class="on">The camp <span id="campN"></span></button><button data-tab="board">Best commanders</button></div>
+          <div id="campCard"></div>
+          <div class="camp-pane" id="campPaneCamp"><div id="campWho"></div><div id="campLines"></div><input id="campSay" maxlength="200" placeholder="Say something to the camp — Enter to send" autocomplete="off"></div>
+          <div class="camp-pane hidden" id="campPaneBoard"><div id="campBoard"></div></div>
+          <div id="campState"></div>
+        </div>
+      </div>
+    </section>
+    <section id="pvpMuster" class="screen hidden">
+      <div class="mus">
+        <div class="mus-head"><h2 id="musT">Muster</h2><div id="musVs"></div></div>
+        <div class="mus-cols"><div id="musMe"></div><div id="musArmy"></div></div>
+        <div class="pv-acts"><button class="btn ghost" id="musBack">Back</button><button class="btn primary" id="musReady">Ready</button></div>
+      </div>
     </section>
     <section id="pvpFind" class="screen hidden">
       <div class="pv-find">
@@ -265,7 +283,7 @@
         <h2 id="pvpFindT">Looking for an opponent…</h2>
         <p class="sub" id="pvpFindS"></p>
         <div id="pvpFindC">0 s</div>
-        <div class="pv-acts"><button class="btn ghost" id="pvpCancel">Cancel</button><button class="btn" id="pvpBotNow">Fight a bot instead</button></div>
+        <div class="pv-acts"><button class="btn ghost" id="pvpCancel">Cancel</button><button class="btn" id="pvpBotNow">Fight bots instead</button></div>
       </div>
     </section>
     <section id="pvpEnd" class="screen hidden">
@@ -273,7 +291,7 @@
         <div class="ls-kicker" id="pvpEndK"></div>
         <h2 id="pvpEndT"></h2>
         <p class="sub" id="pvpEndS"></p>
-        <div class="pv-acts"><button class="btn ghost" id="pvpTitle">Title</button><button class="btn" id="pvpLoadout">Loadout</button><button class="btn primary" id="pvpAgain">Again</button></div>
+        <div class="pv-acts"><button class="btn ghost" id="pvpTitle">Title</button><button class="btn" id="pvpLoadout">The camp</button><button class="btn primary" id="pvpAgain">Again</button></div>
       </div>
     </section>
 
