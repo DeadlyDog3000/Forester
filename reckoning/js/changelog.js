@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.10.2", date: "12 October 2026", title: "Heard, and seen going",
+    items: [
+      "Loading is heard again — every step of it, for the musket and the pistol, which had gone silent; and the bow and the crossbow have theirs: the arrow drawn from the quiver and nocked, the bow drawn creaking; the windlass ratcheting round, the string caught on the nut, a bolt laid in.",
+      "The ramrod comes as it should: drawn up out of its pipes under the barrel, after the powder and the ball, turned end for end, rammed home, and slid back.",
+      "Loading on the move is slower: walking, running, or cramped down in cover.",
+      "A musket or pistol ball is a ball now: you see it go, a quick grey streak, slowing and falling as it flies, and it hits whatever's in its way — cover stops it. And a smoothbore is as true as it was: a hand's breadth or two at fifty paces aimed with care, much wider from the hip or running; a pistol wild past a few paces. Their shots are the same: no more luck of the dice.",
+    ],
+  },
+  {
     v: "1.10.1", date: "12 October 2026", title: "A friend in the house",
     items: [
       "PvP finds a friend on your own network: every copy of the game that's looking keeps a little place on its own computer, hears the others', and you all meet at the same one — no address to type. (The first time, your Mac may ask whether Forester: Reckoning may accept incoming connections: say yes, on both computers.)",

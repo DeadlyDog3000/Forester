@@ -62,6 +62,8 @@ export function burst(at, dir, kind = "sparks", n = 12) {
   };
   G.onFrame.push(tick);
 }
+// (for a ball into the earth: a little spurt of it)
+G.burst = (at, dir) => burst(at, dir, "sparks", 5);
 // where on a man a blow lands: about his chest
 export const chestOf = a => new THREE.Vector3(a.pos.x, a.pos.y + 1.25, a.pos.z);
 // from one to another, flat

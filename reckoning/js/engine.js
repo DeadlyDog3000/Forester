@@ -10,7 +10,7 @@ import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, A
 import { renderFrame, post } from "./post.js";
 export { post };
 import { makeMusket, makePistol, makeCrossbow, shoulderArm } from "./models.js";
-import { LOAD, loadPose, loadSteps } from "./reload.js";
+import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
@@ -197,6 +197,18 @@ export function blendAtmo(a, b, t) {
 export const vm = new THREE.Group();
 // (the splash of a stroke, a plunge, a going-under: the foley's, when it's there)
 let _gv, _gd, _gz, _gv2, _gq, _gq2;
+// a ramrod laid between its two ends ([y, z] up and across the gun, as reload.js gives them)
+const _ra = new THREE.Vector3(), _rb = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+function placeRod(rod, RE, L) {
+  _ra.set(0, RE.R[0], RE.R[1]); _rb.set(0, RE.T[0], RE.T[1]);
+  rod.position.copy(_ra).add(_rb).multiplyScalar(0.5);
+  rod.quaternion.setFromUnitVectors(_up, _rb.sub(_ra).normalize());
+  rod.scale.set(1, L, 1);
+}
+// a normal spread (a gun's scatter is bunched in the middle, with the odd wild one)
+const randn = () => { let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+// how fast you load, as you are: standing still, full speed; crouched in cover, cramped; walking, slower; running, much
+const loadPace = p => (p.crouched ? 0.75 : 1) * (p.speed > 4.2 ? 0.4 : p.speed > 0.6 ? 0.6 : 1);
 const FOLEY_SPLASH = (p, vol) => { const F = window.__foley; if (F && F.splash) F.splash({ x: p.x, y: p.y + 1.2, z: p.z }, vol); };
 camera.add(vm);
 
@@ -319,7 +331,7 @@ export class Player {
       this.hands = pis ? [fist(-0.06, -0.068), fist(0.1, -0.03)] : [fist(-0.065, -0.024), fist(0.46, -0.016)];
       // (the ramrod, for loading: drawn out of its pipes and down the barrel)
       const rodL = pis ? 0.27 : 0.92;
-      this.gunRod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, rodL, 6).translate(0, rodL / 2, 0), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 }));
+      this.gunRod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 1, 6), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 }));
       this.gunRod.userData.len = rodL; this.gunRod.visible = false; m.add(this.gunRod);
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
@@ -346,7 +358,7 @@ export class Player {
     const pis = this.gunIs === "pistol", kind = pis ? "pistol" : "musket", RL = LOAD[kind].time;
     // loading, as the drill goes (reload.js): each step heard as it's done
     if (this.gunReload > 0) {
-      const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt);
+      const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt * loadPace(this));
       const F = window.__foley;
       for (const st of loadSteps(kind, RL - before, RL - this.gunReload + (this.gunReload === 0 ? 1 : 0))) F && F.load && F.load(st, null, 0.6, pis);
       if (this.gunReload === 0) this.gunLoaded = true;
@@ -359,13 +371,16 @@ export class Player {
     if (free && input.click && this.gunLoaded && !reloading) {
       input.click = false;
       const q = camera.getWorldQuaternion(new THREE.Quaternion());
-      const spread = (pis ? 0.022 : 0.004) + (1 - this.gunAim) * (pis ? 0.04 : 0.03) + Math.min(1, this.speed / 4) * 0.02;
-      const dir = new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread, -1).normalize().applyQuaternion(q);
+      // a smoothbore's scatter, as it was: a round ball a size smaller than the bore, rattling out — aimed with care, a
+      // musket throws a hand's breadth or two either side at fifty paces and twice that at a hundred; from the hip, or
+      // on the move, much wider; a pistol is wild past a few paces
+      const sigma = (pis ? 0.014 : 0.0065) + (1 - this.gunAim) * (pis ? 0.03 : 0.022) + Math.min(1, this.speed / 4) * 0.015 + (this.crouched ? -0.0015 : 0);
+      const dir = new THREE.Vector3(randn() * sigma, randn() * sigma, -1).normalize().applyQuaternion(q);
       const from = camera.getWorldPosition(new THREE.Vector3());
       const muzzle = this.gunModel.userData.muzzle.getWorldPosition(new THREE.Vector3());
       AUDIO.gunshot && AUDIO.gunshot(pis ? 0.8 : 1);
       if (G.onGunshot) G.onGunshot(from, dir, this.gunIs);
-      if (G.hunt) { const r = G.hunt.shoot(from, dir, pis ? 1.9 : 2.6, pis ? 25 : 90); if (r.struck && r.struck !== "ground") G.practise && G.practise("archery", 0.6); }
+      if (G.hunt) { G.hunt.fireBall(from.clone().addScaledVector(dir, 0.6), dir, { speed: pis ? 260 : 420, power: pis ? 1.9 : 2.6, range: pis ? 60 : 160 }); G.practise && G.practise("archery", 0.3); }
       gunSmoke(muzzle, dir, pis ? 0.6 : 1);
       this.gunLoaded = false; this.gunReload = RL; this.gunKickT = 1; G.bowKick = pis ? 1.0 : 1.4;
       if (!this.gunTip) { this.gunTip = true; setTimeout(() => UI.hint("Loading takes a while — powder, ball, and the ramrod. Find cover.", 4), 600); }
@@ -396,14 +411,18 @@ export class Player {
     }
     // the free hand: on the fore-end (the pistol's out of sight), or at the lock, the muzzle, the rod
     const muzY = this.gunModel.userData.muzzle.position.y, rod = this.gunRod, rodL = rod ? rod.userData.len : 0;
+    // (drawn up out of its pipes under the barrel, turned end for end, down the bore as far as the strokes take it,
+    //  and back — reload.js; the one lying in the pipes hidden while it's out)
+    const RE = reloading ? rodEnds(kind, RL - this.gunReload) : { show: false };
     if (rod) {
-      rod.visible = LP.rod.out > 0.02;
-      // (drawn up out of the pipes and over, then down the bore as far as the strokes take it)
-      rod.position.set(0, muzY - LP.rod.depth * rodL * 0.85 + (1 - LP.rod.out) * rodL * 0.2, 0.032 * (pis ? 0.7 : 1));
+      rod.visible = !!RE.show;
+      if (RE.show) placeRod(rod, RE, rodL);
+      const baked = this.gunModel.userData.rodMesh; if (baked) baked.visible = !RE.show;
     }
     if (this.hands && this.hands[1]) {
       const h = this.hands[1], rest = pis ? null : [0.46, -0.016];
-      const tgt = LP.hand === "lock" ? [0.06, 0.07] : LP.hand === "muzzle" ? [muzY + 0.03, 0.03] : LP.hand === "rod" && rod ? [rod.position.y + rodL - 0.04, 0.03] : rest;
+      const top = RE.show ? (RE.R[0] > RE.T[0] ? RE.R : RE.T) : null;
+      const tgt = LP.hand === "lock" ? [0.06, 0.07] : LP.hand === "muzzle" ? [muzY + 0.03, 0.03] : LP.hand === "rod" && top ? [top[0] - 0.05, top[1]] : LP.hand === "rod" ? [muzY + 0.03, 0.03] : rest;
       h.userData.at = h.userData.at || [rest ? rest[0] : 0.1, rest ? rest[1] : -0.03];
       if (tgt) { const kk = Math.min(1, dt * 12); h.userData.at[0] += (tgt[0] - h.userData.at[0]) * kk; h.userData.at[1] += (tgt[1] - h.userData.at[1]) * kk; }
       h.position.set(LP.hand === "lock" ? 0.05 : 0, h.userData.at[0], h.userData.at[1]);
@@ -490,13 +509,16 @@ export class Player {
   updateBow(dt) {
     if (!this.bow) return;
     const free = G.mode === "play" && !G.lockMove && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning);
-    this.reload = Math.max(0, this.reload - dt);
+    // (the next arrow from the quiver and onto the string: slower on the move)
+    { const was = this.reload; this.reload = Math.max(0, this.reload - dt * loadPace(this)); const F = window.__foley;
+      if (was > 0.6 && this.reload <= 0.6 && (this.arrows || 0) > 0) F && F.load && F.load("quiver", null, 0.4);
+      if (was > 0.12 && this.reload <= 0.12 && (this.arrows || 0) > 0) F && F.load && F.load("nock", null, 0.45); }
     this.release = Math.max(0, (this.release || 0) - dt * 2.6);
     // hold the right mouse button to draw; let it go to loose
     if (!input.rdown) this.noDraw = false;
     // (nor does holding right-click on something to use it, like an arrow to pull out)
     if (free && input.rdown && !this.noDraw && (this.arrows || 0) > 0 && this.reload <= 0) {
-      if (this.draw === 0) { SFX.pickup && SFX.pickup(); this.heldFull = 0; this.creakT = 0; this.breathHeld = 0; this.letdown = false; }
+      if (this.draw === 0) { const F = window.__foley; F && F.load && F.load("drawBow", null, 0.45); this.heldFull = 0; this.creakT = 0; this.breathHeld = 0; this.letdown = false; }
       // (it comes easily at first and harder the further back it comes: the bow stacks)
       this.draw = Math.min(1, this.draw + dt / 0.85 * (1.35 - 0.75 * this.draw));
       if (this.draw < 1 && (this.creakT -= dt) <= 0) { this.creakT = 0.14 + Math.random() * 0.12; AUDIO.bowCreak && AUDIO.bowCreak(this.draw); }
@@ -508,7 +530,7 @@ export class Player {
         // (the arrow goes where the bow was pointing — sway and all — not where the crosshair is)
         const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(this.swY || 0, this.swX || 0, 0, "YXZ")).applyQuaternion(q);
         const from = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
-        this.arrows--; this.reload = 0.9; this.release = 1; G.bowKick = 0.6 + 0.4 * this.draw;
+        this.arrows--; this.reload = 0.9; this.release = 1; G.bowKick = 0.6 + 0.4 * this.draw; this.nockAt = 0.9;
         if (G.hunt) G.hunt.loose(from, dir, this.draw);
         G.practise("archery", 0.5);
         AUDIO.twang ? AUDIO.twang(this.draw) : SFX.swingFist && SFX.swingFist();
@@ -612,10 +634,12 @@ export class Player {
     } else if (free && input.click && bolts <= 0 && this.xspan < 1) { input.click = false; UI.hint("No bolts. Make some at the chopping block (it takes iron, so a forge).", 3); }
     // spanning it again: the crank wound, the string drawn back to the nut, a bolt laid in the groove
     if (this.xspan < 1 && bolts > 0) {
-      const was = this.xspan; this.xspan = Math.min(1, this.xspan + dt / 2.6);
-      this.xcrank.rotation.x += dt * 14;
-      if (Math.floor(was * 8) !== Math.floor(this.xspan * 8)) AUDIO.bowCreak && AUDIO.bowCreak(0.4 + this.xspan * 0.5);
-      if (this.xspan >= 1) SFX.pickup && SFX.pickup();
+      const pace = loadPace(this), was = this.xspan; this.xspan = Math.min(1, this.xspan + dt / 2.6 * pace);
+      this.xcrank.rotation.x += dt * 14 * pace;
+      const F = window.__foley;
+      // (the windlass ratcheting round, the string caught on the nut, a bolt laid in the groove)
+      if (Math.floor(was * 5) !== Math.floor(this.xspan * 5) && this.xspan < 1) F && F.load && F.load("crank", null, 0.45);
+      if (this.xspan >= 1) { F && F.load && F.load("latch", null, 0.55); setTimeout(() => F && F.load && F.load("boltLay", null, 0.4), 260); }
     }
     this.xposeIt();
   }

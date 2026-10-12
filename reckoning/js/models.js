@@ -5,7 +5,7 @@
 // People, trees, and the furniture of a life: all built from primitives at
 // load, the way the first Forester built its sounds instead of loading them.
 
-import { loadPose } from "./reload.js";
+import { loadPose, rodEnds, ROD_GEO } from "./reload.js";
 import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, noSnow, ownGrainAll } from "./core.js";
 import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
 
@@ -127,12 +127,14 @@ function aimPlace(P, dt) {
   // (the ramrod, out of its pipes and down the bore)
   if (obj.userData.muzzle) {
     let rod = obj.userData.rod;
-    const rodL = P.load && P.load.kind === "pistol" ? 0.27 : 0.92;
-    if (LP && LP.rod.out > 0.02 && !rod) { rod = obj.userData.rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 1, 6).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 })); obj.add(rod); }
+    const kind = P.load ? P.load.kind : "musket", RE = P.load ? rodEnds(kind, P.load.e) : { show: false }, rodL = ROD_GEO[kind].L;
+    if (RE.show && !rod) { rod = obj.userData.rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 1, 6), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 })); obj.add(rod); }
     if (rod) {
-      rod.visible = !!(LP && LP.rod.out > 0.02); rod.scale.y = rodL;
-      const mz = obj.userData.muzzle.position; if (LP) rod.position.set(mz.x, mz.y - LP.rod.depth * rodL * 0.85 + (1 - LP.rod.out) * rodL * 0.2, mz.z);
+      rod.visible = !!RE.show;
+      if (RE.show) { const a = new THREE.Vector3(0, RE.R[0], RE.R[1]), b = new THREE.Vector3(0, RE.T[0], RE.T[1]); rod.position.copy(a).add(b).multiplyScalar(0.5); rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.sub(a).normalize()); rod.scale.set(1, rodL, 1); }
     }
+    if (obj.userData.rodMesh) obj.userData.rodMesh.visible = !RE.show;
+    obj.userData.rodTop = RE.show ? (RE.R[0] > RE.T[0] ? RE.R : RE.T) : null;
   }
   obj.visible = !P.aimHidden;
   if (!P.bones || P.aimHidden) return;
@@ -142,7 +144,8 @@ function aimPlace(P, dt) {
   // (the free hand's place while loading — at the lock, at the muzzle, on top of the rod)
   if (LP && LP.hand && obj.userData.muzzle) {
     const mz = obj.userData.muzzle.position, rod = obj.userData.rod;
-    grips[1] = LP.hand === "lock" ? new THREE.Vector3(0.06, mz.y * 0.05, 0.05) : LP.hand === "muzzle" || !rod ? new THREE.Vector3(mz.x, mz.y + 0.04, mz.z) : new THREE.Vector3(mz.x, rod.position.y + rod.scale.y - 0.05, mz.z);
+    const tp = obj.userData.rodTop;
+    grips[1] = LP.hand === "lock" ? new THREE.Vector3(0.06, mz.y * 0.05, 0.05) : LP.hand === "muzzle" || !tp ? new THREE.Vector3(mz.x, mz.y + 0.04, mz.z) : new THREE.Vector3(0, tp[0] - 0.05, tp[1]);
   }
   grips.forEach((gp, i) => {
     if (!gp) return;
@@ -438,7 +441,7 @@ function loaderReady() {
   return _loaderP || (_loaderP = Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js")]).then(([{ GLTFLoader }, SU]) => { _clone = SU.clone; _loader = new GLTFLoader(); }));
 }
 // what a model's material is named for decides its grain: a building's plaster, brick and tiles get their own
-const SURF_BY_NAME = { steel: "none", brass: "none", fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "log", wood: "wood", log: "log", glass: "none", iron: "none", soot: "none", horn: "none",
+const SURF_BY_NAME = { steel: "none", brass: "none", rod: "wood", fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "log", wood: "wood", log: "log", glass: "none", iron: "none", soot: "none", horn: "none",
   // (a tree's bark and needles; a ship's hull; the oven's clay; a candle's wax; a burned house's char and ash; the far city's water and roofs)
   bark: "bark", needles: "needles", hull: "wood", clay: "plaster", wax: "none", char: "wood", ash: "none", water: "none", copper: "none", earth: "none", house: "plaster" };
 const _loading = {};
@@ -966,6 +969,8 @@ const GUNM = () => ({ wood: mat(0x4e2f19, { surface: "wood" }), iron: mat(0x2c2e
 function fromModel(key, muzzle, grips) {
   const m = modelCopy(key); if (!m) return null;
   const g = new THREE.Group(); g.add(m.scene);
+  // (the ramrod lying in its pipes: a piece of its own, hidden while it's drawn)
+  m.scene.traverse(o => { if (o.isMesh && o.material && /_rod(\.\d+)?$/.test(o.material.name || "")) g.userData.rodMesh = o; });
   g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(...muzzle); g.add(g.userData.muzzle);
   g.userData.grips = grips.map(p => new THREE.Vector3(...p));
   return g;

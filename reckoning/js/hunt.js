@@ -12,6 +12,7 @@
 // well-drawn one, or two.
 
 import { THREE, clamp } from "./core.js";
+let STREAK = null, STREAK_GEO = null;
 import { G } from "./engine.js";
 import { modelCopy, makeBeast } from "./models.js";
 import { SPECIES } from "./mp/fauna.js";
@@ -491,6 +492,65 @@ export class Hunt {
     for (const a of this.animals) if (a.alive && a !== struck && a.startle && Math.hypot(a.pos.x - from.x, a.pos.z - from.z) < 60) a.startle(from, 1.4);
     return { struck, at: p };
   }
+  // ---- a ball from a gun: there almost at once, but not quite — a faint grey streak, slowing and falling as it goes
+  // (a round ball sheds its speed fast), and whatever it meets first it strikes: a man (the head counting more), a
+  // beast, a tree or a wall or the ground. atYou: a ball fired at you, that strikes you if it finds you; npc: who fired
+  // it (it doesn't hit him); ghost: only to be seen (someone else's game says what it hit)
+  fireBall(from, dir, { speed = 420, power = 2.6, range = 160, npc = null, atYou = null, ghost = false } = {}) {
+    STREAK ??= new THREE.MeshBasicMaterial({ color: 0xe4ded0, transparent: true, opacity: 0.6, depthWrite: false });
+    const mesh = new THREE.Mesh(STREAK_GEO ??= new THREE.CylinderGeometry(0.011, 0.004, 1, 5).rotateX(Math.PI / 2).translate(0, 0, -0.5), STREAK);
+    mesh.frustumCulled = false; this.w.root.add(mesh);
+    // (everything for sixty metres round hears it and takes fright)
+    if (!ghost) for (const a of this.animals) if (a.alive && a !== npc && a.startle && Math.hypot(a.pos.x - from.x, a.pos.z - from.z) < 60) a.startle(from, 1.4);
+    (this.balls ??= []).push({ pos: from.clone(), from: from.clone(), vel: dir.clone().normalize().multiplyScalar(speed), power, range, t: 0, npc, atYou, ghost, mesh, whizzed: false });
+  }
+  updateBalls(dt) {
+    if (!this.balls || !this.balls.length) return;
+    const w = this.w, pl = G.player, F = window.__foley;
+    for (const b of this.balls) {
+      if (b.done) continue;
+      const sp = b.vel.length(), n = Math.max(1, Math.ceil(sp * dt / 0.8)), h = dt / n;
+      for (let k = 0; k < n && !b.done; k++) {
+        b.vel.multiplyScalar(Math.exp(-h / 0.75)); b.vel.y -= GRAVITY * h;
+        b.pos.addScaledVector(b.vel, h); b.t += h;
+        // (past your ear: the flutter of it, if it wasn't yours)
+        if (pl && b.npc !== null && !b.whizzed) { const dx = b.pos.x - pl.pos.x, dz = b.pos.z - pl.pos.z, dy = b.pos.y - pl.pos.y - 1.5; if (dx * dx + dy * dy + dz * dz < 4) { b.whizzed = true; F && F.whiz && F.whiz(0.5); } }
+        if (b.ghost) { /* (only seen) */ }
+        else {
+          if (b.atYou && pl && !G.downed) {
+            const p = pl.pos, top = p.y + (pl.crouched ? 1.3 : 1.78);
+            if (b.pos.y >= p.y + 0.1 && b.pos.y <= top && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 0.3) { b.done = true; b.atYou(b.power, b.pos.y > top - 0.28); break; }
+          }
+          for (const a of this.animals) {
+            if (!a.alive || a === b.npc) continue;
+            if (a.K.upright) {
+              const q = a.pos;
+              if (b.pos.y >= q.y + 0.1 && b.pos.y <= q.y + 1.85 && Math.hypot(b.pos.x - q.x, b.pos.z - q.z) < a.K.r) { b.done = true; a.hit(b.power, b.pos.y > q.y + 1.48); break; }
+              continue;
+            }
+            const c = a.centre(), fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
+            const along = clamp((b.pos.x - c.x) * fx + (b.pos.z - c.z) * fz, -a.K.len, a.K.len);
+            if (Math.hypot(b.pos.x - (c.x + fx * along), b.pos.y - c.y, b.pos.z - (c.z + fz * along)) < a.K.r) { b.done = true; a.hit(b.power); break; }
+          }
+          if (b.done) break;
+        }
+        const gy = w.heightAt(b.pos.x, b.pos.z);
+        if (b.pos.y <= gy + 0.02 || w.col.solidAt(b.pos.x, b.pos.y, b.pos.z, 0)) {
+          b.done = true;
+          // (into the earth or the wood: a spurt of dirt or splinters, and the thud of it, near enough to hear)
+          if (pl && Math.hypot(b.pos.x - pl.pos.x, b.pos.z - pl.pos.z) < 40) F && F.thunk && F.thunk(b.pos, 0.5);
+          if (G.burst) G.burst(b.pos.clone().setY(Math.max(b.pos.y, gy + 0.05)), new THREE.Vector3(0, 1, 0));
+          break;
+        }
+        if (b.t * sp > b.range * 1.5 || b.t > 2) { b.done = true; break; }
+      }
+      // the streak: behind the ball, as long as it goes in a sixtieth of a second — a blur, as the eye sees it
+      const L = Math.min(7, b.vel.length() / 60, b.pos.distanceTo(b.from));
+      b.mesh.position.copy(b.pos); b.mesh.lookAt(b.pos.clone().add(b.vel)); b.mesh.scale.set(1, 1, L);
+      b.mesh.visible = !b.done && b.t > 0.012;
+    }
+    if (this.balls.some(b => b.done)) this.balls = this.balls.filter(b => { if (b.done) this.w.root.remove(b.mesh); return !b.done; });
+  }
   orient(ar) { ar.mesh.position.copy(ar.pos); ar.mesh.lookAt(ar.pos.clone().add(ar.vel)); }
   // an arrow has come to rest; it can be pulled out and used again
   stick(ar, into = null) {
@@ -554,6 +614,7 @@ export class Hunt {
       // (just off the string an arrow flexes and wobbles — the archer's paradox — and straightens as it flies)
       if (!ar.stuck && ar.t < 0.4) { const k = 1 - ar.t / 0.4; ar.mesh.rotateY(Math.sin(ar.t * 62) * 0.07 * k); ar.mesh.rotateX(Math.cos(ar.t * 55) * 0.04 * k); }
     }
+    this.updateBalls(dt);
     if (this.arrows.some(ar => ar.gone)) this.arrows = this.arrows.filter(ar => { if (ar.gone) this.w.root.remove(ar.mesh); return !ar.gone; });
     for (const a of this.animals) a.update(dt);
   }

@@ -38,7 +38,7 @@ class Arms(Kit):
         super().__init__(name, seed)
         # metal shines and wood is oiled: each stuff its own finish
         for key, rough, metal in (("wood", 0.55, 0.0), ("iron", 0.42, 0.75), ("steel", 0.26, 0.9), ("brass", 0.32, 0.85),
-                                  ("leather", 0.8, 0.0), ("horn", 0.45, 0.0), ("soot", 1.0, 0.0)):
+                                  ("leather", 0.8, 0.0), ("horn", 0.45, 0.0), ("soot", 1.0, 0.0), ("rod", 0.6, 0.0)):
             self.material(key, rough, metal)
 
     def faces_paint(self, key, faces, color):
@@ -227,8 +227,8 @@ def musket():
     k.slab("brass", [(1.088, 0.046), (1.104, 0.046), (1.1, 0.052), (1.092, 0.052)], ("y", "z"), 0.003, rgb(BRASS, 0.03, j), round_=0.2)  # foresight
     k.slab("iron", [(0.26, 0.046), (0.285, 0.046), (0.285, 0.052), (0.26, 0.052)], ("y", "z"), 0.012, rgb(IRON, 0.03, j), round_=0.2)   # backsight
     # the ramrod under the barrel, its tip, the pipes holding it; the brass nose cap of the fore-end
-    k.lathe("wood", [(0.12, 0.0046), (1.09, 0.0046)], rgb(DARKWOOD, 0.04, j), segs=8, c=(0, -0.018))
-    k.lathe("brass", [(1.088, 0.0056), (1.112, 0.0056)], rgb(BRASS, 0.03, j), segs=8, c=(0, -0.018))
+    k.lathe("rod", [(0.12, 0.0046), (1.09, 0.0046)], rgb(DARKWOOD, 0.04, j), segs=8, c=(0, -0.018))
+    k.lathe("rod", [(1.088, 0.0056), (1.112, 0.0056)], rgb(BRASS, 0.03, j), segs=8, c=(0, -0.018))
     for y in (0.46, 0.74, 0.98):
         k.lathe("brass", [(y, 0.0078), (y + 0.032, 0.0078)], rgb(BRASS, 0.03, j), segs=12, c=(0, -0.018))
     k.slab("brass", [(0.938, -0.016), (0.952, -0.012), (0.952, 0.03), (0.938, 0.031)], ("y", "z"), 0.035, rgb(BRASS, 0.03, j), round_=0.3)
@@ -256,8 +256,8 @@ def pistol():
     k.lathe("iron", [(0.318, 0.0108), (0.332, 0.0108)], rgb(IRON, 0.03, j), segs=20, c=(0, 0.022))
     k.lathe("soot", [(0.331, 0.0058), (0.3335, 0.0058)], rgb(SOOT), segs=12, c=(0, 0.022))
     k.slab("brass", [(0.276, -0.011), (0.294, -0.008), (0.294, 0.026), (0.276, 0.027)], ("y", "z"), 0.032, rgb(BRASS, 0.03, j), round_=0.3)
-    k.lathe("wood", [(0.06, 0.0034), (0.326, 0.0034)], rgb(DARKWOOD, 0.04, j), segs=8, c=(0, -0.006))
-    k.lathe("brass", [(0.32, 0.0045), (0.334, 0.0045)], rgb(BRASS), segs=8, c=(0, -0.006))
+    k.lathe("rod", [(0.06, 0.0034), (0.326, 0.0034)], rgb(DARKWOOD, 0.04, j), segs=8, c=(0, -0.006))
+    k.lathe("rod", [(0.32, 0.0045), (0.334, 0.0045)], rgb(BRASS), segs=8, c=(0, -0.006))
     flintlock(k, 0.0145, -0.012, 0.006, 0.72)
     # the pommel: a brass cap swelling over the butt
     k.lathe("brass", [(-0.142, 0.0), (-0.138, 0.016), (-0.128, 0.024), (-0.114, 0.023), (-0.104, 0.016), (-0.1, 0.0)], rgb(BRASS, 0.03, j), segs=16, axis="z", c=(0.0, -0.1))

@@ -26,6 +26,7 @@ import { lookOpts, randomLook, isF } from "./mp/look.js";
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const randn = () => { let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 
 // ---- what can be carried in ----
 export const LONG = {
@@ -723,23 +724,19 @@ class Bot extends Fighter {
       AUDIO.twang && AUDIO.twang(k === "crossbow" ? 1.2 : 0.8);
       return;
     }
-    // a ball: there at once — it finds you or it doesn't (his skill, how far, how fast you're moving, crouched)
-    const dir = new THREE.Vector3(pl.pos.x - from.x, pl.pos.y + 1.2 - from.y, pl.pos.z - from.z).normalize();
-    AUDIO.gunshot && AUDIO.gunshot(k === "pistol" ? 0.75 : 0.95, a.pos);
-    G.gunSmoke && G.gunSmoke(from, dir, k === "pistol" ? 0.6 : 1);
-    const range = k === "pistol" ? 25 : 90, moving = Math.min(1, (pl.speed || 0) / 5);
-    const p = (0.32 + 0.55 * s) * Math.pow(clamp(1 - d / range, 0.1, 1), 0.6) * (1 - moving * (0.45 - s * 0.2)) * (pl.crouched ? 0.8 : 1);
-    if (Math.random() < p) {
-      const head = Math.random() < 0.05 + s * 0.12;
-      this.arena.hurtMe(dmgOf(k === "pistol" ? 1.9 : 2.6, head), a);
-      if (head) UI.hint("In the head.", 1.2);
-    } else {
-      // a miss: past your ear, or into the ground beside you
-      setTimeout(() => {
-        if (Math.random() < 0.5) FOLEY.whiz && FOLEY.whiz(0.5);
-        else { const at = new THREE.Vector3(pl.pos.x + (Math.random() - 0.5) * 3, 0, pl.pos.z + (Math.random() - 0.5) * 3); at.y = this.arena.w.heightAt(at.x, at.z) + 0.05; FOLEY.thunk && FOLEY.thunk(at, 0.6); burst(at, new THREE.Vector3(0, 1, 0), "sparks", 4); }
-      }, Math.min(400, d * 3));
-    }
+    // a ball: aimed at the middle of you, a little ahead if you're moving (the better he is, the better he leads), and
+    // off by a smoothbore's scatter and his own unsteadiness — then it flies, and hits whatever's in its way
+    const pis = k === "pistol", sp = pis ? 260 : 420;
+    const to = new THREE.Vector3(pl.pos.x, pl.pos.y + (pl.crouched ? 0.95 : 1.25), pl.pos.z), flight = from.distanceTo(to) / sp;
+    if (pl.vel) to.addScaledVector(new THREE.Vector3(pl.vel.x, 0, pl.vel.z), flight * (0.3 + s * 0.7));
+    to.y += 4.9 * flight * flight;
+    const sigma = (pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014);
+    const dir = to.sub(from).normalize(), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(), up = new THREE.Vector3().crossVectors(side, dir);
+    dir.addScaledVector(side, randn() * sigma).addScaledVector(up, randn() * sigma).normalize();
+    AUDIO.gunshot && AUDIO.gunshot(pis ? 0.75 : 0.95, a.pos);
+    G.gunSmoke && G.gunSmoke(from, dir, pis ? 0.6 : 1);
+    this.arena.hunt.fireBall(from.clone().addScaledVector(dir, 0.4), dir, { speed: sp, power: pis ? 1.9 : 2.6, range: pis ? 60 : 160, npc: this,
+      atYou: (pw, head) => { this.arena.hurtMe(dmgOf(pw, head), a); if (head) UI.hint("In the head.", 1.2); } });
   }
 }
 
@@ -778,9 +775,8 @@ class NetFoe extends Fighter {
     if (m.k === "musket" || m.k === "pistol") {
       AUDIO.gunshot && AUDIO.gunshot(m.k === "pistol" ? 0.75 : 0.95, this.a.pos);
       G.gunSmoke && G.gunSmoke(f.clone().addScaledVector(d, 1), d, m.k === "pistol" ? 0.6 : 1);
-      // (past you, if it was near)
-      const pl = G.player, to = new THREE.Vector3(pl.pos.x, pl.pos.y + 1.3, pl.pos.z).sub(f), along = to.dot(d), miss = to.clone().addScaledVector(d, -along).length();
-      if (along > 0 && miss < 2.5) setTimeout(() => FOLEY.whiz && FOLEY.whiz(0.5), 120);
+      // (the ball, seen flying and heard going by: what it hit, their game says)
+      this.arena.hunt.fireBall(f.clone().addScaledVector(d, 0.6), d, { speed: m.k === "pistol" ? 260 : 420, npc: this, ghost: true });
     } else {
       this.arena.hunt.loose(f, d, clamp(+m.p || 1, 0.1, 2), m.k === "crossbow", this.a, () => {});
       AUDIO.twang && AUDIO.twang(m.k === "crossbow" ? 1.2 : 0.8);

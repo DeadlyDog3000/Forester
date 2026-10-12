@@ -316,6 +316,49 @@ const RECIPES = {
     modes(d, sr, 0, [[rand(170, 210), 0.06, 0.9], [rand(520, 600), 0.04, 0.35], [rand(1300, 1500), 0.08, 0.08]]);
     return finish(d, 0.65);
   },
+  // ---- the bow and the crossbow, loading ----
+  // an arrow drawn from the quiver: the shaft rubbing up past the others, the fletching's whisper
+  quiver(sr) {
+    const L = 0.38, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 2400, 1.1, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr, u = t / L; bp.set("bp", 1800 + 2600 * u, 1.1, sr); d[i] = bp.run(Math.random() * 2 - 1) * Math.sin(Math.PI * u) ** 1.5; }
+    crackles(d, sr, 0.02, 0.3, 50, 0.25, 1500, 4000);
+    return finish(d, 0.45);
+  },
+  // the nock pressed onto the string: a small hard click, and the string's faint thrum
+  nock(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.25));
+    hiss(d, sr, 0, 0.006, 0.8, new Biquad("hp", 2500, 0.7, sr), x => Math.exp(-x / 0.0015));
+    modes(d, sr, 0.002, [[rand(180, 230), 0.08, 0.12], [rand(1700, 2100), 0.015, 0.3]]);
+    return finish(d, 0.55);
+  },
+  // the bow drawn: the limbs creaking as they bend, the string stretching under the fingers
+  drawBow(sr) {
+    const L = 0.7, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 600, 4, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr, u = t / L; bp.set("bp", 380 + 420 * u, 5, sr); d[i] = bp.run(Math.random() * 2 - 1) * Math.min(1, u * 4) * (1 - u * 0.5) * 0.5; }
+    let t = 0.05; while ((t += rand(0.04, 0.11)) < L - 0.1) modes(d, sr, t, [[rand(320, 520), 0.025, 0.25 * rand(0.4, 1)]]);
+    return finish(d, 0.4);
+  },
+  // the windlass wound: a pawl clicking over the ratchet, the cord taking up, the steel prod groaning
+  crank(sr) {
+    const L = 0.55, d = new Float32Array(Math.floor(sr * L));
+    for (let t = 0.01; t < L - 0.03; t += rand(0.055, 0.075)) { hiss(d, sr, t, 0.006, 0.7, new Biquad("hp", 2200, 0.8, sr), x => Math.exp(-x / 0.0016)); modes(d, sr, t, [[rand(2600, 3100), 0.02, 0.25]]); }
+    hiss(d, sr, 0, L, 0.12, new Biquad("bp", 500, 2, sr), x => Math.min(1, x / 0.05));
+    return finish(d, 0.5);
+  },
+  // the string caught on the nut: a solid clack of horn and steel
+  latch(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.3));
+    hiss(d, sr, 0, 0.012, 1, new Biquad("hp", 1200, 0.7, sr), x => Math.exp(-x / 0.002));
+    modes(d, sr, 0, [[rand(900, 1100), 0.04, 0.5], [rand(2400, 2800), 0.025, 0.3], [rand(140, 180), 0.05, 0.4]]);
+    return finish(d, 0.7);
+  },
+  // a bolt laid in the groove: wood tapped on wood, a little slide
+  boltLay(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.3));
+    modes(d, sr, 0, [[rand(600, 800), 0.03, 0.5], [rand(1500, 1800), 0.02, 0.25]]);
+    hiss(d, sr, 0.03, 0.15, 0.25, new Biquad("bp", 2200, 1.2, sr), x => Math.exp(-x / 0.05));
+    return finish(d, 0.45);
+  },
   // a musket ball going by close: not a whistle but a short, rough flutter of torn air — a round ball tumbles — that
   // drops in pitch as it passes and is gone
   whiz(sr) {
@@ -378,7 +421,11 @@ const RECIPES = {
     return out;
   },
 };
-const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3 };
+const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3,
+  whiz: 3, thunk: 3, halfcock: 3, cock: 3, prime: 3, frizzen: 3, powder: 2, ball: 3, rodOut: 2, rodIn: 2, ram: 4,
+  quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3 };
+// (every recipe needs its count above, or it's made no times and never heard: anything left out gets two)
+for (const k in RECIPES) VARIANTS[k] ??= 2;
 
 // ---------------------------------------------------------------------------
 const made = {};
