@@ -96,20 +96,22 @@ function merged(g) {
 
 // ---- the uniforms of 1683: the armies that came to Vienna, and their neighbours ----
 export const UNIFORMS = {
-  imperial: { name: "Imperial", note: "The Emperor's foot: pearl grey, faced red", coat: 0xb8b2a2, vest: 0x9a2a22, legs: 0x8a8478, sash: 0x9a2a22, hat: 0x1e1c1a },
-  saxon: { name: "Saxon", note: "The Elector of Saxony's: red coats, yellow facings", coat: 0x9a2a22, vest: 0xd8b84a, legs: 0x5a4a36, sash: 0xd8b84a, hat: 0x1e1c1a },
-  bavarian: { name: "Bavarian", note: "Max Emanuel's blue, faced white", coat: 0x34507e, vest: 0xe2dcca, legs: 0x3a3a3e, sash: 0xe2dcca, hat: 0x1e1c1a },
-  swedish: { name: "Swedish", note: "Blue and yellow, the King's colours", coat: 0x2c4a86, vest: 0xd4ac3a, legs: 0x2e2e33, sash: 0xd4ac3a, hat: 0x22201c },
-  brandenburg: { name: "Brandenburg", note: "Prussian blue, faced red", coat: 0x1e2c4a, vest: 0x9a2222, legs: 0x2a2a2a, sash: 0x9a2222, hat: 0x161412 },
-  french: { name: "French", note: "Undyed grey-white, faced blue", coat: 0xd6d0be, vest: 0x2a3a7a, legs: 0xc8c2b0, sash: 0x2a3a7a, hat: 0x1e1c1a },
-  english: { name: "English", note: "Red coats, faced blue", coat: 0xa02a22, vest: 0x2a3a6a, legs: 0x8a2a22, sash: 0x2a3a6a, hat: 0x1e1c1a },
-  hamburg: { name: "Hamburg", note: "The city's own militia: brown, faced green", coat: 0x5a4632, vest: 0x3a5a3a, legs: 0x4a4035, sash: 0x8a2a22, hat: 0x2a2420 },
-  polish: { name: "Polish", note: "The Crown's foot, come with Sobieski to Vienna: blue, faced red", coat: 0x2e4a86, vest: 0xb02a24, legs: 0x8a2a24, sash: 0xd8b84a, hat: 0x3a2a20 },
-  ottoman: { name: "Ottoman", note: "The Sultan's Janissaries: crimson and blue, the white börk", coat: 0x9a2228, vest: 0x2a3e7a, legs: 0x2a3e7a, sash: 0xd4a83a, hat: 0xe6e0d0 },
-  dutch: { name: "Dutch", note: "The States' foot: blue, faced orange", coat: 0x2a3e6e, vest: 0xd8782a, legs: 0x3a3a40, sash: 0xd8782a, hat: 0x1e1c1a },
-  muscovite: { name: "Muscovite", note: "The Tsar's streltsy: crimson coats, faced green", coat: 0x8a2234, vest: 0x3a6a3a, legs: 0x3a6a3a, sash: 0xd8b84a, hat: 0x3a6a3a },
-  spanish: { name: "Spanish", note: "The King of Spain's tercios: buff, faced red", coat: 0xc8b48a, vest: 0xa8261e, legs: 0x8a7a5a, sash: 0xa8261e, hat: 0x2a2420 },
-  danish: { name: "Danish", note: "The King of Denmark's: grey-white, faced red", coat: 0xd2ccbc, vest: 0xb02a24, legs: 0xb02a24, sash: 0xb02a24, hat: 0x1e1c1a },
+  // (body: the man's dress — the musketeer's coat of the West, or the East's own; stock: the breeches and stockings a
+  //  company's men had on, weighed; boots: the East's, instead)
+  imperial: { name: "Imperial", note: "The Emperor's foot: pearl grey, faced red, red stockings", coat: 0xb8b2a2, vest: 0x9a2a22, legs: 0x9a9284, sash: 0x9a2a22, hat: 0x1e1c1a, stock: [[0x9a2a22, 50], [0x8a8478, 35], [0xc8c0ae, 15]] },
+  saxon: { name: "Saxon", note: "The Elector of Saxony's: red coats, yellow facings", coat: 0x9a2a22, vest: 0xd8b84a, legs: 0x8a7a5a, sash: 0xd8b84a, hat: 0x1e1c1a, stock: [[0xc8c0ae, 45], [0x8a2a22, 30], [0x6a6862, 25]] },
+  bavarian: { name: "Bavarian", note: "Max Emanuel's light blue, faced white, white breeches", coat: 0x4a6a9e, vest: 0xe2dcca, legs: 0xd2cab6, sash: 0xe2dcca, hat: 0x1e1c1a, stock: [[0xd8d0c0, 55], [0x4a6a9e, 30], [0x6a6862, 15]] },
+  swedish: { name: "Swedish", note: "The Caroleans: blue, faced yellow, buff breeches, blue stockings", coat: 0x2c4a86, vest: 0xd4ac3a, legs: 0xc8a866, sash: 0xd4ac3a, hat: 0x22201c, stock: [[0x2c4a86, 65], [0x6a6862, 20], [0xc8c0ae, 15]] },
+  brandenburg: { name: "Brandenburg", note: "Prussian blue, faced red", coat: 0x1e2c4a, vest: 0x9a2222, legs: 0x2a2e3a, sash: 0x9a2222, hat: 0x161412, stock: [[0xc8c0ae, 45], [0x9a2222, 30], [0x3a3a40, 25]] },
+  french: { name: "French", note: "Undyed grey-white, faced blue — red or grey stockings", coat: 0xd6d0be, vest: 0x2a3a7a, legs: 0xc8c2b0, sash: 0x2a3a7a, hat: 0x1e1c1a, stock: [[0x9a2a22, 40], [0x8a8478, 35], [0x2a3a7a, 25]] },
+  english: { name: "English", note: "Red coats, faced blue, blue breeches", coat: 0xa02a22, vest: 0x2a3a6a, legs: 0x2a3a6a, sash: 0x2a3a6a, hat: 0x1e1c1a, stock: [[0x8a8478, 45], [0x2a3a6a, 30], [0xc8c0ae, 25]] },
+  hamburg: { name: "Hamburg", note: "The city's own militia: brown, faced green", coat: 0x5a4632, vest: 0x3a5a3a, legs: 0x4a4035, sash: 0x8a2a22, hat: 0x2a2420, stock: [[0x6a6862, 40], [0xc8c0ae, 30], [0x5a4a3a, 30]] },
+  polish: { name: "Polish", body: "haiduk", note: "Sobieski's haiduks: long blue coats, frogged red, a kolpak and red boots", coat: 0x3a5a8a, vest: 0xa02a24, legs: 0x8a2a24, sash: 0xb02a24, hat: 0x2e4a7e, boots: 0x7a2a1e },
+  ottoman: { name: "Ottoman", body: "janissary", note: "The Sultan's Janissaries: the long dolama, a sash, the turban, yellow boots", coat: 0x2a3a6a, vest: 0x9a2228, legs: 0x9a2228, sash: 0xd4a83a, hat: 0xe8e2d2, boots: 0xc09a3a },
+  dutch: { name: "Dutch", note: "The States' foot: blue, faced orange, grey breeches", coat: 0x2a3e6e, vest: 0xd8782a, legs: 0x6a6862, sash: 0xd8782a, hat: 0x1e1c1a, stock: [[0x6a6862, 45], [0x2a3e6e, 30], [0xc8c0ae, 25]] },
+  muscovite: { name: "Muscovite", body: "strelets", note: "The Tsar's streltsy: crimson kaftans frogged green, a fur-trimmed cap, yellow boots", coat: 0x8a2234, vest: 0x2e5a2e, legs: 0x3a3a30, sash: 0x2e5a2e, hat: 0x2e5a2e, boots: 0xb08a30 },
+  spanish: { name: "Spanish", note: "The King of Spain's tercios: buff, faced red", coat: 0xc8b48a, vest: 0xa8261e, legs: 0x8a7a5a, sash: 0xa8261e, hat: 0x2a2420, stock: [[0xa8261e, 40], [0x8a8478, 35], [0xc8c0ae, 25]] },
+  danish: { name: "Danish", note: "The King of Denmark's: grey-white, faced red, red stockings", coat: 0xd2ccbc, vest: 0xb02a24, legs: 0xb8b2a2, sash: 0xb02a24, hat: 0x1e1c1a, stock: [[0xb02a24, 55], [0x8a8478, 30], [0xc8c0ae, 15]] },
 };
 // a soldier of a company: its uniform, his own face and build
 export function soldierLook(u, seed, base = {}) {
@@ -124,7 +126,7 @@ export function soldierLook(u, seed, base = {}) {
   // (the hair: dark for the most part, brown and fair a good many, the odd red or grey; and the face shaven, as most
   //  soldiers' were, or a moustache — the fashion — or, here and there, a beard)
   const hair = weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
-  const face = weighed([["clean", 45], ["tash", 38], ["full", 17]]);
+  const face = weighed({ janissary: [["tash", 85], ["clean", 10], ["full", 5]], strelets: [["full", 75], ["tash", 20], ["clean", 5]], haiduk: [["tash", 80], ["clean", 10], ["full", 10]] }[u.body] || [["clean", 45], ["tash", 38], ["full", 17]]);
   // (and the cloth: no two coats of a regiment came out of the same dye-vat, and none stayed as it came — faded by the
   //  sun, greyed with dust and powder, darkened by rain and grease; the breeches and stockings a man's own as often as
   //  the issue; the linen long past white)
@@ -135,15 +137,17 @@ export function soldierLook(u, seed, base = {}) {
     a.setRGB(ch(a.r) + dust * 0.42, ch(a.g) + dust * 0.38, ch(a.b) + dust * 0.31);
     return a.getHex();
   };
-  const legs = weighed([[u.legs, 55], [0x5e5a50, 15], [0x564434, 15], [0x8e8470, 10], [0x3a3a3c, 5]]);
-  return { body: "musketeer", skin, hair, face,
-    eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: wear(0xe2d8c2, 1.5), stockings: wear(weighed([[0xc8c0ae, 35], [0x6a6862, 30], [0x4e5262, 15], [0x7a3a30, 8], [0x5a4a3a, 12]]), 1.5),
+  const legs = u.body ? u.legs : weighed([[u.legs, 60], [0x5e5a50, 14], [0x564434, 14], [0x8e8470, 8], [0x3a3a3c, 4]]);
+  // (the East's men in their boots; the West's in the stockings their company wore, and now and then their own)
+  const stockings = u.boots ? wear(u.boots, 1.2) : wear(weighed([...(u.stock || [[0xc8c0ae, 35], [0x6a6862, 30]]), [0x5a4a3a, 8], [0x4e5262, 6]]), 1.5);
+  return { body: u.body || "musketeer", skin, hair, face,
+    eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: wear(0xe2d8c2, 1.5), stockings,
     height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
-    coat: wear(u.coat), vest: wear(u.vest, 0.8), cuff: wear(u.vest, 0.6), legs: wear(legs, 1.3), hat: "hat", hatColor: wear(u.hat, 0.6) };
+    coat: wear(u.coat), vest: wear(u.vest, 0.8), cuff: wear(u.vest, 0.6), legs: wear(legs, 1.3), hat: "hat", hatColor: wear(u.hat, 0.6), ...(u.body ? { sash: wear(u.sash, 0.6) } : {}) };
 }
 // your own body in your company's colours (your outfit and face as they are)
 // (a man takes the musketeer's coat, bandolier and hat over his own face; a woman keeps her own dress in the colours)
-export function inUniform(look, u) { const f = look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body); return { ...look, ...(f ? { sash: u.sash } : { body: "musketeer", hat: "hat" }), coat: u.coat, vest: u.vest, cuff: u.vest, legs: look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body) ? look.legs : u.legs, hatColor: u.hat }; }
+export function inUniform(look, u) { const f = look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body); return { ...look, ...(f ? { sash: u.sash } : { body: u.body || "musketeer", hat: "hat", ...(u.boots ? { stockings: u.boots } : {}) }), coat: u.coat, vest: u.vest, cuff: u.vest, legs: look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body) ? look.legs : u.legs, hatColor: u.hat }; }
 
 // ---------------------------------------------------------------------------
 //  the field: the works, the cover they give, and the guns

@@ -224,7 +224,7 @@ async function connect(target) {
 let pv = null, tab = "body";
 const BODY_NOTE = Object.fromEntries(BODIES.map(b => [b.id, b.note]));
 // (what each outfit has to be coloured: a waistcoat, a sash)
-const HAS = { vest: ["brother", "father", "watchman", "musketeer"], sash: ["watchman", "watchwoman"] };
+const HAS = { vest: ["brother", "father", "watchman", "musketeer", "janissary", "strelets", "haiduk"], sash: ["watchman", "watchwoman", "janissary", "haiduk"] };
 function openBuilder(target) {
   ctx.screen("mpBuilder");
   $("mpName").value = me.name || ""; try { if (me.name) localStorage.setItem("reckoning.mp.name", me.name); } catch (e) {}

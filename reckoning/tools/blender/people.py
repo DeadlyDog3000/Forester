@@ -56,6 +56,12 @@ CAST = {
     # a musketeer of the 1680s, for the battles: the coat cuffed in his regiment's facings, a buff belt at the waist,
     # the bandolier of powder chargers over his shoulder, a broad felt hat cocked up on one side
     "musketeer": dict(sex="m", age="mid", coat=0x8a3428, legs=0x5a4a36, vest=0xd8b84a, hair=0x3a2a1e, skin=0xd4a07a, hat="hat", hatColor=0x26221e, beard=0x3a2a1e, beardShort=True, soldier=True),
+    # the armies of the East, as they came to Vienna: a Janissary of the Sultan's in his long dolama, the sash, a turban
+    # wound over a red cap and yellow boots; a strelets of the Tsar's in a long kaftan frogged across the breast, his
+    # regiment's fur-trimmed cap and the bandolier; a haiduk of the Polish foot in a long coat, a sash and a kolpak
+    "janissary": dict(sex="m", age="mid", coat=0x2a3a6a, legs=0x9a2228, vest=0x9a2228, hair=0x2a1c12, skin=0xc89870, hat="turban", hatColor=0xe8e2d2, sash=0xd4a83a, beard=0x2a1c12, beardShort=True, soldier=True, east="janissary"),
+    "strelets": dict(sex="m", age="mid", coat=0x8a2234, legs=0x3a3a30, vest=0x2e5a2e, hair=0x6e4a2a, skin=0xe2b896, hat="shapka", hatColor=0x2e5a2e, beard=0x6e4a2a, soldier=True, east="strelets"),
+    "haiduk": dict(sex="m", age="mid", coat=0x3a5a8a, legs=0x8a2a24, vest=0xa02a24, hair=0x4a3020, skin=0xe2b896, hat="kolpak", hatColor=0x2e4a7e, sash=0xb02a24, beard=0x4a3020, beardShort=True, soldier=True, east="haiduk"),
     "albers": dict(sex="f", age="old", coat=0x5a4a3a, skirt=0x3e4a5c, apron=0xf0ebe0, hair=0x8a8078, skin=0xe0b898, hat="bonnet", wide=0.1),
     "townsman": dict(sex="m", age="mid", coat=0x5b4a3a, legs=0x3a3028, hair=0x4a3a2a, skin=0xdcb08a, hat="tricorn"),
     "townswoman": dict(sex="f", age="mid", coat=0x6a5a48, skirt=0x4a4038, apron=0xf0ebe0, hair=0x6a4a30, skin=0xe2b894, hat="bonnet"),
@@ -262,6 +268,9 @@ def build_person(key):
     if o.get("hat"): mat("hat", rgb(o.get("hatColor", 0x1e1a18 if o["hat"] != "bonnet" else 0xf0ebe0) if o["hat"] != "helmet" else 0xa4a8ae), 0.42 if o["hat"] == "helmet" else 0.9, 0.3 if o["hat"] == "helmet" else 0.0)
     if o.get("sash"): mat("sash", rgb(o["sash"]))
     soldier = o.get("soldier", False)
+    east = o.get("east")
+    if o.get("hat") in ("shapka", "kolpak") and "fur" not in M: mat("fur", rgb(0x4a3a2a), 1.0)
+    if o.get("hat") == "turban": mat("cap", rgb(0x8a1a14), 0.85)       # (the red kavuk the turban is wound round)
     if soldier:
         mat("cuff", rgb(o["vest"]))                 # the facings: the game tints them to the regiment's
         mat("belt", rgb(0xb89868), 0.75)            # buff leather
@@ -714,6 +723,8 @@ def build_person(key):
         P.cyl("linen", WHITE, (0, hy, 1.46), (0, hy, 1.52), 0.066, 0.056, segs=16)
         if o.get("bands"):
             P.box("linen", WHITE, (0, -0.1, 1.42), (0.07, 0.01, 0.12))
+        elif east:
+            pass                                     # (no cravat in the East: the kaftan closes at the throat)
         else:
             P.sphere("linen", WHITE, (0, -0.086, 1.44), (0.034, 0.016, 0.028), segs=12, rings=8)
             for sd in (-1, 1):
@@ -725,23 +736,34 @@ def build_person(key):
         ph = [rnd.random() * 6 for _ in range(4)]
         fold = lambda t, a: (0.002 + 0.014 * t) * (math.sin(a * 7 + ph[0]) * 0.7 + math.sin(a * 13 + ph[1]) * 0.3)
         rad = lambda t: (0.172 + wide + 0.1 * t, 0.13 + wide * 0.6 + 0.085 * t)
-        for a0, a1 in ((0.3, PI - 0.03), (PI + 0.03, 2 * PI - 0.3)):
-            rows = skirt_rows(0.97, 0.42, 9, a0, a1, 18, rad, fold, 0.01)
-            sheet(P, "coat", rows, thick=0.007, col=lambda i, j: (0.86, 0.86, 0.86, 1) if i == 8 else WHITE)
+        # (an eastern coat: one long wrap closed across the front, down to the shins, split only at the back)
+        z1 = {"janissary": 0.24, "strelets": 0.28, "haiduk": 0.3}.get(east, 0.42)
+        if east: rad = lambda t: (0.172 + wide + 0.13 * t, 0.13 + wide * 0.6 + 0.11 * t)
+        for a0, a1 in (((0.05, PI - 0.03), (PI + 0.03, 2 * PI - 0.05)) if east else ((0.3, PI - 0.03), (PI + 0.03, 2 * PI - 0.3))):
+            rows = skirt_rows(0.97, z1, 9 if not east else 12, a0, a1, 18, rad, fold, 0.01)
+            sheet(P, "coat", rows, thick=0.007, col=lambda i, j: (0.86, 0.86, 0.86, 1) if i == len(rows) - 1 else WHITE)
         # pocket flaps, each with three buttons
-        for sd in (-1, 1):
+        for sd in ((-1, 1) if not east else ()):
             a = sd * 0.8
             p = clear(Vector((math.sin(a) * 0.23, -math.cos(a) * 0.17, 0.77)), 0.02)
             P.box("coat", WHITE, p, (0.15, 0.012, 0.055), (0.05, 0, a))
             for k in (-1, 0, 1):
                 P.sphere("metal", WHITE, p + Vector((math.cos(a) * 0.045 * k, math.sin(a) * 0.045 * k - 0.006, -0.012)), (0.008, 0.005, 0.008), segs=8, rings=5)
         # a waistcoat showing at the front, buttoned
-        if o.get("vest"):
+        if o.get("vest") and not east:
             P.box("vest", WHITE, (0, -0.104, 1.18), (0.15, 0.03, 0.42))
             for i in range(7):
                 P.sphere("metal", WHITE, (0, -0.121, 1.36 - i * 0.048), (0.008, 0.005, 0.008), segs=8, rings=5)
+        # (an eastern coat frogged across the breast instead: cords in the facing colour, a toggle at each end)
+        if east:
+            for i in range(6):
+                z = 1.37 - i * 0.055
+                c0 = hug((0, -0.3, z), 0.012)
+                P.box("cuff", WHITE, c0, (0.13 - i * 0.006, 0.008, 0.012))
+                for sd in (-1, 1):
+                    P.sphere("metal", WHITE, hug((sd * (0.068 - i * 0.003), -0.3, z), 0.016), (0.009, 0.007, 0.009), segs=8, rings=5)
         # coat facings and buttons
-        for sd in (-1, 1):
+        for sd in ((-1, 1) if not east else ()):
             P.box("coat", WHITE, (sd * 0.1, -0.108, 1.15), (0.05, 0.02, 0.5), (0, sd * -0.25, 0))
             for i in range(6):
                 P.sphere("metal", WHITE, (sd * 0.076, -0.119, 1.36 - i * 0.06), (0.0095, 0.006, 0.0095), segs=8, rings=5)
@@ -751,10 +773,24 @@ def build_person(key):
             P.cyl("cuff" if soldier else "coat", WHITE, (x0, 0.0, 0.97), (x0, -0.005, 1.075), 0.05, 0.058, segs=16)
             for k in range(2):
                 P.sphere("metal", WHITE, (x0 + sd * 0.052, -0.012, 1.0 + k * 0.04), (0.006, 0.006, 0.006), segs=6, rings=4)
-        if o.get("sash"):
+        if o.get("sash") and east:
+            # a broad sash wound round the waist, its ends knotted and hanging at the front
+            rows = [[hug((math.sin(j / 40 * 2 * PI) * 0.3, -math.cos(j / 40 * 2 * PI) * 0.3, z), 0.016) for j in range(40)] for z in (1.09, 1.04, 0.99, 0.94)]
+            sheet(P, "sash", rows, thick=0.006, closed=True)
+            k0 = hug((0.07, -0.3, 0.98), 0.03)
+            P.sphere("sash", WHITE, k0, (0.035, 0.022, 0.03), segs=10, rings=6)
+            for dx, ln in ((0.05, 0.2), (0.09, 0.16)):
+                P.box("sash", WHITE, k0 + Vector((dx - 0.07, -0.012, -ln / 2 - 0.02)), (0.045, 0.008, ln), (0.04, 0, 0.06))
+        elif o.get("sash"):
             P.cyl("sash", WHITE, (0, 0, 1.12), (0, 0, 1.18), 0.162, 0.166, segs=20)
             P.box("sash", WHITE, (0.0, -0.02, 1.2), (0.06, 0.24, 0.62), (0.2, 0.62, 0))
-        if soldier:
+        if soldier and east in ("janissary", "haiduk"):
+            # (no bandolier: a powder horn on a cord at the right hip, and a pouch beside it)
+            fl = hug((-0.17, -0.06, 0.9), 0.04)
+            P.cyl("wood", WHITE, fl + Vector((0, 0, 0.06)), fl - Vector((0, 0.03, 0.08)), 0.026, 0.008, segs=10)
+            P.sphere("metal", WHITE, fl + Vector((0, 0, 0.065)), (0.024, 0.024, 0.012), segs=8, rings=5)
+            P.sphere("leather", WHITE, hug((-0.16, 0.07, 0.92), 0.035), (0.04, 0.025, 0.045), segs=10, rings=7)
+        if soldier and east not in ("janissary", "haiduk"):
             # the waist belt, buff, buckled at the front
             rows = []
             for z in (1.045, 1.0):
@@ -796,13 +832,17 @@ def build_person(key):
             for i in range(20):
                 a = i / 20 * 2 * PI
                 P.sphere("metal", WHITE, (math.cos(a) * 0.12, -0.05 - math.sin(a) * 0.12 * math.cos(1.15) * 0.3, 1.34 - math.sin(a) * 0.12 * math.sin(1.15)), (0.012, 0.012, 0.012), segs=6, rings=4)
+        # (eastern boots: the top turned down below the knee)
+        for sd in ((-1, 1) if east else ()):
+            kx = sd * (hp + 0.005)
+            P.cyl("stockings", WHITE, (kx, -0.015, 0.45), (kx, -0.015, 0.51), 0.06, 0.066, segs=14)
         # the breeches buckled below the knee
-        for sd in (-1, 1):
+        for sd in ((-1, 1) if not east else ()):
             kx = sd * (hp + 0.005)
             P.cyl("legs", WHITE, (kx, -0.015, 0.49), (kx, -0.015, 0.53), 0.06, 0.062, segs=14)
             P.box("metal", WHITE, (kx + sd * 0.055, -0.02, 0.51), (0.008, 0.018, 0.022))
         # shoes: a heel, a tongue, a square buckle
-        for sd in (-1, 1):
+        for sd in ((-1, 1) if not east else ()):
             fx = sd * (hp + 0.01)
             P.box("leather", WHITE, (fx, 0.035, 0.018), (0.056, 0.05, 0.036))
             P.box("leather", WHITE, (fx, -0.075, 0.105), (0.05, 0.012, 0.06), (-0.5, 0, 0))
@@ -981,6 +1021,21 @@ def build_person(key):
         for i in range(14):
             a = i / 14 * 2 * PI
             P.sphere("metal", WHITE, (math.sin(a) * 0.108, hy - math.cos(a) * 0.126, top - 0.045), (0.006, 0.006, 0.006), segs=6, rings=4)
+    elif hat == "turban":
+        # a turban: the long cloth wound round and round a red cap, each turn a little askew, the cap's top showing
+        for i, (dz, sx, sz) in enumerate(((-0.065, 0.124, 0.042), (-0.03, 0.128, 0.046), (0.006, 0.12, 0.044), (0.04, 0.102, 0.038))):
+            P.sphere("hat", WHITE, (0, hy - 0.006, top + dz), (sx, sx * 1.07, sz), (0.09 * (1 if i % 2 else -1), 0.06 * (i - 1.5), 0), segs=22, rings=10)
+        P.sphere("cap", WHITE, (0, hy - 0.004, top + 0.06), (0.062, 0.066, 0.07), segs=16, rings=8)
+    elif hat in ("shapka", "kolpak"):
+        # a cap of cloth (the regiment's colour), a deep band of fur round it; the kolpak taller, a brooch at the front
+        tall = 0.13 if hat == "kolpak" else 0.07
+        P.cyl("hat", WHITE, (0, hy, top - 0.05), (0, hy, top + tall), 0.1, 0.088 if hat == "kolpak" else 0.094, segs=22)
+        P.sphere("hat", WHITE, (0, hy, top + tall), (0.088 if hat == "kolpak" else 0.094, 0.092 if hat == "kolpak" else 0.098, 0.03), segs=18, rings=8)
+        P.cyl("fur", WHITE, (0, hy, top - 0.08), (0, hy, top + 0.0), 0.122, 0.118, segs=22)
+        P.sphere("fur", WHITE, (0, hy, top - 0.04), (0.126, 0.132, 0.045), segs=22, rings=8)
+        if hat == "kolpak":
+            P.sphere("metal", WHITE, (0, hy - 0.128, top - 0.02), (0.014, 0.008, 0.016), segs=8, rings=5)
+            P.box("linen", WHITE, (0.0, hy - 0.124, top + 0.05), (0.008, 0.006, 0.11), (0.25, 0, 0))   # (a white plume up the front)
     elif hat == "furhat":
         # a shapeless cap of fur, pulled down to the brows
         b = hair_shell(RX, RY, RZ, 32, 22, lambda X, Y, Z, phi: smooth((Z - piecewise([(0, 0.5), (1.2, 0.3), (1.6, 0.0), (PI, -0.25)], abs(phi))) / 0.05),

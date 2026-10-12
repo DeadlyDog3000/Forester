@@ -14,6 +14,9 @@ export const BODIES = [
   { id: "magistrate", name: "Gentleman", f: false, note: "The long coat of a man of standing" },
   { id: "watchman", name: "Watchman", f: false, note: "The city's coat, a sash across it" },
   { id: "musketeer", name: "Musketeer", f: false, note: "A soldier's coat cuffed in the facings, a bandolier of chargers" },
+  { id: "janissary", name: "Janissary", f: false, note: "The Sultan's foot: the long dolama, a sash, a turban" },
+  { id: "strelets", name: "Strelets", f: false, note: "The Tsar's foot: a long frogged kaftan, a fur-trimmed cap" },
+  { id: "haiduk", name: "Haiduk", f: false, note: "The Polish foot: a long coat, a sash, a kolpak" },
   { id: "raider", name: "Rover", f: false, note: "Fur and leather, rough-made for the road" },
   { id: "townswoman", common: true, name: "Burgher's wife", f: true, note: "Bodice, skirt and apron" },
   { id: "sister", common: true, name: "Woodswoman", f: true, note: "A working dress, sleeves rolled" },
@@ -24,7 +27,7 @@ export const BODIES = [
 export const HAT_STYLES = [
   { id: "hat", name: "The outfit's own" }, { id: "none", name: "None" },
   { id: "townsman", name: "Burgher's hat" }, { id: "brother", name: "Woodsman's hat" }, { id: "magistrate", name: "Gentleman's hat" },
-  { id: "jakob", name: "Apprentice's cap" }, { id: "watchman", name: "Watchman's hat" }, { id: "watchman_tricorn", name: "Tricorn" }, { id: "musketeer", name: "Cocked felt hat" },
+  { id: "jakob", name: "Apprentice's cap" }, { id: "watchman", name: "Watchman's hat" }, { id: "watchman_tricorn", name: "Tricorn" }, { id: "musketeer", name: "Cocked felt hat" }, { id: "janissary", name: "Turban" }, { id: "strelets", name: "Fur-trimmed cap" }, { id: "haiduk", name: "Kolpak" },
   { id: "raider", name: "Fur hat" }, { id: "townswoman", name: "Bonnet" }, { id: "albers", name: "Goodwife's cap" }, { id: "watchwoman", name: "Watchwoman's hat" },
 ];
 export const SWATCH = {

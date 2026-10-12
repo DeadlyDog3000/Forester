@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.27.0", date: "12 October 2026", title: "Every army as it was",
+    items: [
+      "The armies of the East dress as they did in 1683. The Ottoman Janissaries: the long dolama to the shins, frogged across the breast, a broad sash knotted at the front, yellow boots, a powder horn at the hip, and a turban wound round a red cap — moustached, as Janissaries were. The Muscovite streltsy: long crimson kaftans frogged green, the regiment's fur-trimmed cap, yellow boots and the bandolier — bearded. Sobieski's Polish haiduks: long blue coats frogged red, a red sash, red boots and a tall kolpak with a white plume.",
+      "Every army of the West in its own breeches and stockings: the Imperials' red stockings, the Bavarians' white breeches under Max Emanuel's light blue, the Caroleans' buff breeches and blue stockings, the English blue breeches, the French red or grey stockings, the Danes' red — each company's men mostly in its issue, and now and then a man in his own.",
+      "Janissary, Strelets and Haiduk are outfits of your own too, with the turban, the fur-trimmed cap and the kolpak among the hats.",
+    ],
+  },
+  {
     v: "1.26.0", date: "12 October 2026", title: "Generalship",
     items: [
       "The other side's officer commands as well as your record has earned: at the start he's rash, on at you and in with the steel as soon as he's near — but the higher your rating, the better the officer. A seasoned one stands off at a good musket-shot and makes his volleys tell, giving fire when his men are loaded and you're in range; holds where he is behind cover when he has the fewer men and lets you come on into it; charges only when it's worth it — when he's clearly the stronger, when your line has just fired and is still loading, or when you're nearly done — and calls a charge off that's going against him, falling back to re-form and take up the firing again.",
