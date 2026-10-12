@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.24.0", date: "12 October 2026", title: "What a battle leaves",
+    items: [
+      "Wounds bleed as they should: a fine red mist off the wound the way the ball or the blade went, heavier spray, and the blood left on the ground — thrown out behind a man where he was hit, spattered where he stood, every drop that lands soaking in as a spot instead of lying there as a red bead and vanishing. It stays for the whole battle.",
+      "A man's coat, shirt and breeches darken with his blood, a little more with every wound.",
+      "Where a man falls a pool of blood spreads out from under him over some seconds, and stays.",
+      "A cannonball or a grenade that kills a man may tear an arm or a leg from him — flung off tumbling, trailing blood, landing in a pool of its own — and the stump pumps blood in time with what's left of his heart, weaker each time.",
+    ],
+  },
+  {
     v: "1.23.0", date: "12 October 2026", title: "The heart in your ears",
     items: [
       "Near death you hear your own heart — a thick lub and a softer dub — and the edges of your sight beat red with it, quicker and harder the less of you is left (from about a third of your health down). It eases away as you mend.",

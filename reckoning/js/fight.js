@@ -9,6 +9,7 @@ import { THREE } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
+import { wound, drop } from "./gore.js";
 
 // every raider winds up this long before his blow lands: two seconds to see it coming and meet it
 export const WIND = 2.0;
@@ -35,7 +36,7 @@ export const kickFov = d => { G.fovKick = d; };
 // ---- sparks and blood ----
 let geoS = null, geoB = null;
 const matS = new THREE.MeshBasicMaterial({ color: 0xffd27a, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
-const matB = new THREE.MeshStandardMaterial({ color: 0x6a0e0a, roughness: 0.6 });
+const matB = new THREE.MeshStandardMaterial({ color: 0x4a0605, roughness: 0.3 });
 // at `at`, flying mostly along `dir`: kind "sparks" (bright, quick, gone) or "blood" (drops that fall and lie a while)
 export function burst(at, dir, kind = "sparks", n = 12) {
   const root = G.scene; if (!root || !at) return;
@@ -58,7 +59,8 @@ export function burst(at, dir, kind = "sparks", n = 12) {
       v.y -= (spark ? 9 : 11) * dt; b.position.addScaledVector(v, dt);
       if (spark) { b.lookAt(b.position.x + v.x, b.position.y + v.y, b.position.z + v.z); b.scale.z = Math.max(0.01, 1 - t / 0.45); }
       const gy = G.world && G.world.heightAt ? G.world.heightAt(b.position.x, b.position.z) + 0.01 : -1e9;
-      if (b.position.y < gy) { b.position.y = gy; b.userData.v = null; if (!spark) b.scale.set(b.scale.x * 1.8, 0.15, b.scale.z * 1.8); }
+      // (a drop of blood lands as a spot of it on the ground, soaking in; a spark just goes out)
+      if (b.position.y < gy) { b.position.y = gy; b.userData.v = null; if (!spark) { b.visible = false; drop(b.position.x, b.position.z, b.scale.x); } }
     }
     if (t > (spark ? 0.5 : 5)) { for (const b of bits) root.remove(b); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
   };
@@ -148,9 +150,9 @@ export function blowLands(a, kind, from = G.player) {
   if (!near) return;
   const at = chestOf(a), dir = from && from.pos ? away(from.pos, a.pos) : new THREE.Vector3(0, 0, 1);
   if (kind === "parried") { burst(at, dir.clone().multiplyScalar(-1), "sparks", 14); hitStop(0.07); shake(0.3); return; }
-  if (kind === "hit") { burst(at, dir, "blood", 10); if (from === G.player) { hitStop(0.06); shake(0.22); } return; }
+  if (kind === "hit") { burst(at, dir, "blood", 10); wound(a, "hit", dir, at); if (from === G.player) { hitStop(0.06); shake(0.22); } return; }
   if (kind === "down") {
-    burst(at, dir, "blood", 22);
+    burst(at, dir, "blood", 22); wound(a, "down", dir, at);
     if (from === G.player || !from) { hitStop(0.08); slowMo(1.1, 0.22); shake(0.5); kickFov(-8); }
   }
 }

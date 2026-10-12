@@ -547,7 +547,7 @@ function useModel(P, key, colors = {}) {
       //  dark-haired model could only ever be darker. Divided by what's painted there, the colour asked for is the
       //  colour seen, its shading kept)
       const vc = o.material.vertexColors && o.geometry.attributes.color;
-      if (vc) { const mean = paintedMean(o.geometry); own[part].color.r /= Math.max(0.04, mean[0]); own[part].color.g /= Math.max(0.04, mean[1]); own[part].color.b /= Math.max(0.04, mean[2]); }
+      if (vc) { const mean = paintedMean(o.geometry); own[part].userData.vcMean = mean; own[part].color.r /= Math.max(0.04, mean[0]); own[part].color.g /= Math.max(0.04, mean[1]); own[part].color.b /= Math.max(0.04, mean[2]); }
       addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface });
     }
     o.material = own[part];

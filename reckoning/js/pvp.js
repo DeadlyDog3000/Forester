@@ -13,6 +13,7 @@ import { G, Actor, setWorld, setAtmo } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { FOLEY } from "./foley.js";
+import { pool, sever, heal, clearGore } from "./gore.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst } from "./fight.js";
@@ -743,7 +744,7 @@ class Arena {
   // a man down: the duel's round, or the battle's tally
   unitDown(u) {
     if (!this.multi) { this.endRound(0); return; }
-    if (this.host && !u.isNet) this.net.send({ t: "bdown", id: u.uid, x: +(u.fromX ?? u.pos.x).toFixed(1), z: +(u.fromZ ?? u.pos.z).toFixed(1), h: u.headShot ? 1 : 0 });
+    if (this.host && !u.isNet) this.net.send({ t: "bdown", id: u.uid, x: +(u.fromX ?? u.pos.x).toFixed(1), z: +(u.fromZ ?? u.pos.z).toFixed(1), h: u.headShot ? 1 : 0, b: u.blastDown ? 1 : 0 });
     if (u.team === 1) this.killed = (this.killed || 0) + 1; else this.lost = (this.lost || 0) + 1;
     if (this.book) this.book.update(this.bookState());
     if (this.orders && this.orders[0].target === u) this.orders[0].target = null;
@@ -831,7 +832,7 @@ class Arena {
     // (on the other player's game the guns and their shot are only shown: what they hit, the host's game says)
     if (this.field) this.field.update(dt, this.remote ? [] : [...this.units, this.you], (u, from, v, dmg = 400) => {
       if (u === this.you) this.hurtMe(dmg, { pos: from });
-      else u.damage(dmg, false, false, from);
+      else { u.blast = dmg >= 60; u.damage(dmg, false, false, from); u.blast = false; }
     });
     for (const m of (this.marks ||= []).slice()) { m.t += dt; m.mesh.material.opacity = Math.max(0, 0.8 * (1 - m.t / 2.6)); m.mesh.scale.setScalar(1 + m.t * 0.25); if (m.t > 2.6) { this.w.root.remove(m.mesh); this.marks.splice(this.marks.indexOf(m), 1); } }
     // (dead and watching: your eye on one of your own still standing)
@@ -1235,7 +1236,7 @@ class Arena {
   }
   stop() {
     if (G.arena !== this) return;
-    AUDIO.melee && AUDIO.melee(0, 0);
+    AUDIO.melee && AUDIO.melee(0, 0); clearGore();
     if (G.freecam && G.endFreecam) G.endFreecam();
     G.arena = null; this.live = false;
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
@@ -1398,7 +1399,7 @@ class Arena {
         }
       };
       net.on.bgun = m => { const g = this.field.guns[m.i | 0]; if (g) this.field.fire(g); };
-      net.on.bdown = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; u.hp = 0; u.fallDown({ x: +m.x, z: +m.z }, !!m.h); this.unitDown(u); };
+      net.on.bdown = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; u.hp = 0; u.blast = !!m.b; u.fallDown({ x: +m.x, z: +m.z }, !!m.h); u.blast = false; this.unitDown(u); };
       net.on.bhurt = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; blowLands(u.a, "hit"); u.a.person.flinch && u.a.person.flinch(); AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: u.pos, high: isF(u.info.look) }); };
       net.on.bgone = m => { const u = this.unitById(m.id); if (!u) return; u.hp = 0; if (m.hide) u.a.root.visible = false; else { u.quiet = true; u.a.place(+m.x, +m.z, u.a.yaw); u.fallDown(this.spawns[0]); } const i = this.units.indexOf(u); if (i >= 0) this.units.splice(i, 1); this.showHud(); };
       // (one of theirs at you with the steel: judged here, against your guard)
@@ -1518,10 +1519,13 @@ class Fighter {
     for (const h of [P.held, P.heldL]) for (const c of [...h.children]) dropThing(c, push.clone().multiplyScalar(0.3).add(new THREE.Vector3(0, 1, 0)));
     this.heldK = null;
     this.rag = ragdoll(P, push, head ? "head" : "chest");
+    // (where he lies, a pool; and a ball or a burst that killed him may have taken an arm or a leg with it)
+    this.blastDown = !!this.blast; pool(a, this.blast ? 1.4 : 1);
+    if (this.blast) sever(a, src, push);
     if (!this.rag) { a.lying = true; a.yOff = 0.05; }
     a.ragdoll = !!this.rag;
   }
-  standUp() { if (this.rag) { this.rag.stop(); this.rag = null; } this.a.ragdoll = false; this.a.lying = false; this.a.yOff = 0; this.a.person.setPose("idle"); }
+  standUp() { heal(this.a.person); if (this.rag) { this.rag.stop(); this.rag = null; } this.a.ragdoll = false; this.a.lying = false; this.a.yOff = 0; this.a.person.setPose("idle"); }
 }
 
 // ---------------------------------------------------------------------------
