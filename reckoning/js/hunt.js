@@ -453,15 +453,18 @@ export class Hunt {
       } });
     this._onDown && this._onDown(a);
   }
-  loose(from, dir, power, bolt = false, npc = null) {
+  // (atYou: an arrow loosed at you — by an archer in the arena — that strikes you if it finds you: atYou(power, head))
+  loose(from, dir, power, bolt = false, npc = null, atYou = null) {
     const m = modelCopy("arrow");
     const mesh = m ? m.scene : new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.74).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xb89a6a }));
     // (a crossbow's bolt: half the length of an arrow, and stouter)
     if (bolt) mesh.scale.set(1.5, 1.5, 0.5);
     this.w.root.add(mesh);
-    const ar = { mesh, pos: from.clone(), from: from.clone(), vel: dir.clone().multiplyScalar(14 + 32 * power), power, t: 0, stuck: false, npc };
+    const ar = { mesh, pos: from.clone(), from: from.clone(), vel: dir.clone().multiplyScalar(14 + 32 * power), power, t: 0, stuck: false, npc, atYou, bolt };
     this.arrows.push(ar);
     this.orient(ar);
+    // (yours: told to whoever else should see it fly)
+    if (!npc && !atYou && G.onLoose) G.onLoose(from, dir, power, bolt);
   }
   // a musket ball: no arrow to see, it's there at once — along the line from the muzzle until it meets something: a man
   // (anywhere on him, the head counting double), a beast, a tree or a wall, or the ground. Everything for sixty metres
@@ -519,8 +522,15 @@ export class Hunt {
         ar.vel.y -= GRAVITY * h;
         ar.pos.addScaledVector(ar.vel, h);
         ar.t += h;
+        // (at you: your whole height, the head counting more; it goes in, and is gone from sight)
+        if (ar.atYou && G.player && !G.downed) {
+          const p = G.player.pos, top = p.y + (G.player.crouched ? 1.3 : 1.78);
+          if (ar.pos.y >= p.y + 0.1 && ar.pos.y <= top && Math.hypot(ar.pos.x - p.x, ar.pos.z - p.z) < 0.34) {
+            ar.stuck = true; ar.mesh.visible = false; ar.gone = true; ar.atYou(ar.power, ar.pos.y > top - 0.3); break;
+          }
+        }
         for (const a of this.animals) {
-          if (!a.alive) continue;
+          if (!a.alive || a === ar.npc) continue;
           // a man stands upright: his whole height, feet to head, and a shot to the head counts double
           if (a.K.upright) {
             const p = a.pos, y0 = p.y + 0.2, y1 = p.y + 1.78, yy = clamp(ar.pos.y, y0, y1);
@@ -539,10 +549,12 @@ export class Hunt {
         if (w.col.solidAt(ar.pos.x, ar.pos.y, ar.pos.z, 0)) { this.stick(ar); break; }
         if (ar.t > 6) { this.stick(ar); break; }
       }
+      if (ar.gone) continue;
       if (!ar.stuck || !ar.in) this.orient(ar);
       // (just off the string an arrow flexes and wobbles — the archer's paradox — and straightens as it flies)
       if (!ar.stuck && ar.t < 0.4) { const k = 1 - ar.t / 0.4; ar.mesh.rotateY(Math.sin(ar.t * 62) * 0.07 * k); ar.mesh.rotateX(Math.cos(ar.t * 55) * 0.04 * k); }
     }
+    if (this.arrows.some(ar => ar.gone)) this.arrows = this.arrows.filter(ar => { if (ar.gone) this.w.root.remove(ar.mesh); return !ar.gone; });
     for (const a of this.animals) a.update(dt);
   }
   // co-op: the beasts as the colony's own game has them, [id, kind, x, z, yaw, speed, state, head, fawn] — new ones

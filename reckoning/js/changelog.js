@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.9.0", date: "12 October 2026", title: "The duel", img: "art/updates/1.9.0.jpg",
+    items: [
+      "PvP, from the title: one against one in a deer ride in the woods, best of three rounds. It looks for anyone else wanting a fight on the servers you know, and if there's nobody, puts you up against a bot as strong as you are — the more you win, the better it gets.",
+      "A loadout to take in: a long arm (musket, bow or crossbow), a sidearm (a pistol — new — or more arrows instead), and a blade (sword, battle axe, spear or felling axe), each with its own blow, reach and pace.",
+      "Everything is the game's own fighting: the musket loaded with powder, ball and ramrod, the bow drawn, the crossbow spanned, the red mark of a blow coming and the guard to meet it. Your rating and record are kept, and there are two new achievements.",
+      "The update log has pictures.",
+    ],
+  },
+  {
     v: "1.8.3", date: "11 October 2026", title: "A tap",
     items: [
       "A tap of F does the quick things — taking logs, opening the store, laying out a site — without holding it down. Felling, building and the like still want it held.",
@@ -26,14 +35,14 @@ export const CHANGELOG = [
     ],
   },
   {
-    v: "1.8.0", date: "11 October 2026", title: "How will you play?",
+    v: "1.8.0", date: "11 October 2026", title: "How will you play?", img: "art/updates/1.8.0.jpg",
     items: [
       "A new game asks how you'll play. The Story: Hamburg, 1683, the chapters from the first. Free Play: a clearing in the woods and a cabin to raise — your own settlement from the first day, grown into a nation, with no story to it. The Frontier: an island, a continent or the whole Earth on your own — the Frontier's setup, ready for one, kept on this computer (in the desktop app); invite others later if you like.",
       "A hosted game can be for one: Players — 1, just you.",
     ],
   },
   {
-    v: "1.7.0", date: "11 October 2026", title: "The crown",
+    v: "1.7.0", date: "11 October 2026", title: "The crown", img: "art/updates/1.7.0.jpg",
     items: [
       "Raise a town hall in Frontier and you're crowned: King or Queen of the ground round it, with the news of it carried to everyone in the land. In a co-op colony, whoever raises the hall wears the crown, and everyone in the colony is one of its people.",
       "G opens your government — the same window as the settlement's in the story. The Nation: its name and title (King, Queen, Duke, Duchess, Elector, Margrave and the rest — proclaim a new one when you like), its people, settlers, town hall, the ground it claims, its buildings and its store. People: your governors and citizens — make a citizen a governor, or a governor a citizen, or send someone away. Invite: ask anyone here to join, as a citizen or as a governor; they answer Y or N. Realms: every nation in the land.",
@@ -62,7 +71,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    v: "1.4.0", date: "11 October 2026", title: "Oars in the water",
+    v: "1.4.0", date: "11 October 2026", title: "Oars in the water", img: "art/updates/1.4.0.jpg",
     items: [
       "A new rowboat, clinker-built: five lapped planks a side, tarred below the waterline with a green top strake, a sheer rising to a sharp stem, a broad transom, ribs, two thwarts and a stern seat, rails along the gunwales and the oars in their tholes. It sits up in the water as a boat does — dry inside — and its grain is its own, not sliding over it as it moves. A rowboat now takes 6 logs.",
       "Rowing as rowing is: each stroke the blades go in at the catch, are pulled through the water, come out and swing forward clear of it. And it sounds like water — the blade going in with a gurgle and a swirl, the water running off it as it lifts, the wash along the hull growing as she gathers way, and the keel grinding on the shallows if you run her in. (No more thud of a hammer.)",
@@ -77,13 +86,13 @@ export const CHANGELOG = [
     ],
   },
   {
-    v: "1.3.2", date: "11 October 2026", title: "Name and username",
+    v: "1.3.2", date: "11 October 2026", title: "Name and username", img: "art/updates/1.3.2.jpg",
     items: [
       "Over each player's head, their roleplay name, and under it, small and grey, their username — and the same in Who's here (Tab).",
     ],
   },
   {
-    v: "1.3.1", date: "11 October 2026", title: "Who you are",
+    v: "1.3.1", date: "11 October 2026", title: "Who you are", img: "art/updates/1.3.1.jpg",
     items: [
       "A username: the first time you open the game it asks what you'd like to be called by other players, and keeps it. It's who you are online — people invite you to their games by it (in Invite when hosting, or /invite username in the talk) — and it never changes when you play under another name. Change it on purpose from the multiplayer screen.",
       "And a roleplay name for each game: going into a game, the character builder asks who you play this time. Call yourself anything, as often as you like — your invitations still find you. Who's here (Tab) shows each person's name with their username beside it.",
@@ -103,14 +112,14 @@ export const CHANGELOG = [
     ],
   },
   {
-    v: "1.2.1", date: "11 October 2026", title: "In at the door",
+    v: "1.2.1", date: "11 October 2026", title: "In at the door", img: "art/updates/1.2.1.jpg",
     items: [
       "In the story too, walk into the settlement's buildings, in at the door: the bakery, the sawmill, the brickworks, the smelter, the forge, the town hall, the church, the jail, the hospital, a settler's shop.",
       "Every doorway is where the building's door is, even on one whose oven or lean-to stands out to the side.",
     ],
   },
   {
-    v: "1.2.0", date: "11 October 2026", title: "The town hall",
+    v: "1.2.0", date: "11 October 2026", title: "The town hall", img: "art/updates/1.2.0.jpg",
     items: [
       "Frontier: the hearth is a town hall now — a small log hall to begin with, still only ten logs from the store — with its fire out in front and your banner beside it. Rebuild it grander as you go (hold F at its door): a timber hall, then timber and plaster, then brick, each from the store, and each claiming more ground round it.",
       "Walk into the town hall, a house or the forge: in at the door, boards under your feet.",
@@ -123,7 +132,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    v: "1.1.0", date: "11 October 2026", title: "Dressed for it",
+    v: "1.1.0", date: "11 October 2026", title: "Dressed for it", img: "art/updates/1.1.0.jpg",
     items: [
       "The character builder has outfits now, not just colours: for men the Burgher, Woodsman, Craftsman, Apprentice, Gentleman (the long coat of a man of standing), Watchman (the city's coat and sash) and Rover (fur and leather); for women the Burgher's wife, Woodswoman, Goodwife and Watchwoman. Every one in the colours you choose — coat, breeches or skirt, waistcoat, sash, shirt, stockings.",
       "Hats to choose from, made for the time: a tricorn, a broad felt hat, a tall capotain, a plumed cavalier's hat, a knitted cap, a straw hat, a fur cap, a linen coif or a kerchief — or the outfit's own, or none. Each is fitted to the head it's on, turns with it, and comes in your colour.",
@@ -199,7 +208,7 @@ export const CHANGELOG = [
     ],
   },
   {
-    v: "0.98.1", date: "11 October 2026", title: "Rock and bough",
+    v: "0.98.1", date: "11 October 2026", title: "Rock and bough", img: "art/updates/0.98.1.jpg",
     items: [
       "Frontier: the rocks are solid where the rock is — their own lumpy outline as they sit on the slope, not a circle round them — so you come right up against the stone, and don't stop short of it in thin air.",
       "Scots pines have a proper crown now: a flat-topped head and boughs standing out under it, each a cloud of needles, instead of one blob on a pole. Oaks are broad, low-crowned and thick in the bole.",

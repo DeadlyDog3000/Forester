@@ -992,11 +992,13 @@ export class Woods extends WorldBase {
     return out;
   }
   // the forest taken away round a spot, for good (a cave's mouth, a new clearing): no trees, no stumps
-  clearScenery(x, z, r, road = null) {
+  // (keep(x, z): any to be left standing)
+  clearScenery(x, z, r, road = null, keep = null) {
     const touched = new Set();
     for (const s of this.forest) {
       if (s.gone) continue;
       if (Math.hypot(s.x - x, s.z - z) > r && !(road && road(s.x, s.z))) continue;
+      if (keep && keep(s.x, s.z)) continue;
       s.gone = true;
       for (const [m, i] of s.slots || []) { m.setMatrixAt(i, ZERO); touched.add(m); }
       if (s.col) s.col.disabled = true;

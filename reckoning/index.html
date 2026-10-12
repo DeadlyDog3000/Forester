@@ -222,6 +222,7 @@
           <button id="btnContinue" class="btn hidden">Continue</button>
           <button id="btnNew" class="btn primary">New Game</button>
           <button id="btnMulti" class="btn">Multiplayer</button>
+          <button id="btnPvp" class="btn">PvP</button>
         </div>
         <div class="tm-grid">
           <button id="btnChapters" class="btn hidden">Chapters</button>
@@ -249,6 +250,32 @@
     </section>
 
     <!-- a new game: which kind -->
+    <!-- the duel: what you carry in, the search for someone to fight, and how it went -->
+    <section id="pvp" class="screen hidden">
+      <h2>The Duel</h2>
+      <p class="sub">One against one in a deer ride in the woods, best of three. Another player if anyone else is looking for a fight; if not, a bot as strong as you are.</p>
+      <div id="pvpCols"></div>
+      <div id="pvpRec"></div>
+      <div class="pv-acts"><button class="btn ghost" id="pvpBack">Back</button><button class="btn primary" id="pvpGo">Find a match</button></div>
+    </section>
+    <section id="pvpFind" class="screen hidden">
+      <div class="pv-find">
+        <div class="pv-spin"></div>
+        <h2 id="pvpFindT">Looking for an opponent…</h2>
+        <p class="sub" id="pvpFindS"></p>
+        <div id="pvpFindC">0 s</div>
+        <button class="btn ghost" id="pvpCancel">Cancel</button>
+      </div>
+    </section>
+    <section id="pvpEnd" class="screen hidden">
+      <div class="pv-end">
+        <div class="ls-kicker" id="pvpEndK"></div>
+        <h2 id="pvpEndT"></h2>
+        <p class="sub" id="pvpEndS"></p>
+        <div class="pv-acts"><button class="btn ghost" id="pvpTitle">Title</button><button class="btn" id="pvpLoadout">Loadout</button><button class="btn primary" id="pvpAgain">Again</button></div>
+      </div>
+    </section>
+
     <section id="modeSel" class="screen hidden">
       <h2>How will you play?</h2>
       <p class="sub">A game of your own. The story from its beginning, a settlement of your own with no story to it, or the frontier.</p>

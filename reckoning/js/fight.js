@@ -159,6 +159,7 @@ function foes() {
   const w = G.world;
   if (w && w.camps) for (const c of w.camps.camps.values()) for (const b of c.band) if (!b.down) out.push(b);
   if (w && w.cave && w.cave.inside) for (const b of w.cave.band || []) if (!b.down) out.push(b);
+  if (G.arena) for (const b of G.arena.foes()) out.push(b);
   return out;
 }
 // (true while a fight is on round you: the health bar shows)
@@ -173,7 +174,7 @@ export function stanceTick() {
     if (r.wind > 0 && (r.duel === pl || d < 2.6) && d < td) { td = r.duel === pl ? 0 : d; threat = r.dir; urg = 1 - r.wind / WIND; }
     if (d < fd && (dx * f.x + dz * f.z) / (d || 1) > 0.5) { fd = d; foe = r.guardDir; }
   }
-  if (!any && !(G.town && G.town.raids && G.town.raids.active)) { UI.stance(null); return false; }
+  if (!any && !(G.town && G.town.raids && G.town.raids.active) && !G.arena) { UI.stance(null); return false; }
   UI.stance({ mine: pl.stance || "right", threat, foe, urg });
   return any;
 }

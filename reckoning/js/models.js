@@ -823,6 +823,23 @@ export function makeMusket() {
   g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 1.13, 0.03); g.add(g.userData.muzzle);
   return g;
 }
+// a horseman's pistol: a flintlock with a long walnut stock running nearly to the muzzle, its butt dropped steeply and
+// capped with a brass pommel, a ramrod under the barrel. Built like the musket: the barrel up +y, the muzzle at its end.
+export function makePistol() {
+  const g = new THREE.Group(), wood = mat(0x5a3820, { surface: "wood" }), iron = mat(0x3a3c40, { metalness: 0.7, roughness: 0.4 }), brass = mat(0xb08a3a, { metalness: 0.6, roughness: 0.35 });
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.3, 8), iron); barrel.position.set(0, 0.16, 0.022); g.add(barrel);
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.27, 0.03), wood); stock.position.set(0, 0.13, 0.004); g.add(stock);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.25, 5), wood); rod.position.set(0, 0.15, -0.014); g.add(rod);
+  // (the grip, dropped steeply below the lock, and its pommel)
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.13, 0.034), wood); grip.position.set(0, -0.035, -0.045); grip.rotation.x = 0.95; g.add(grip);
+  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), brass); pommel.position.set(0, -0.075, -0.098); pommel.scale.set(1, 0.8, 1.15); g.add(pommel);
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.07, 0.024), iron); lock.position.set(0.016, 0.02, 0.012); g.add(lock);
+  const cock = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.034, 0.009), iron); cock.position.set(0.02, 0.0, 0.03); cock.rotation.x = 0.5; g.add(cock);
+  const guard = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.003, 4, 10, Math.PI), brass); guard.rotation.y = Math.PI / 2; guard.position.set(0, 0.02, -0.022); g.add(guard);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.012, 8), brass); cap.position.set(0, 0.272, 0.01); g.add(cap);
+  g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 0.32, 0.022); g.add(g.userData.muzzle);
+  return g;
+}
 // a crossbow of the time, as a German hunter would carry one: a walnut tiller, its butt dropped for the cheek and set
 // with bone; a steel prod, swept back, lashed to the front with cord; a horn nut that holds the string; a long
 // trigger lever under the stock; a stirrup; sights to look down; and a windlass on the side to span it. Built
@@ -905,7 +922,7 @@ export function makeCrossbow() {
   g.userData.span(1);
   return g;
 }
-export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
+export const makeArm = kind => ({ sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pistol: makePistol, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
 // (the pick's making is the player's, read from the game at the moment it is made)
 let _toolsOf = () => null;
 export const setToolSource = f => { _toolsOf = f; };

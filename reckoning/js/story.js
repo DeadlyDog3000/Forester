@@ -312,13 +312,15 @@ export function clearSlot(n) { _slotCache.delete(n); try { localStorage.removeIt
 export function loadSave() { return readSlot(slot); }
 // the body is written to the save now and then, when it has changed
 // (in multiplayer, only a game kept in a save of its own — your colony, your nation — keeps what you carry)
-setInterval(() => { if (G.body && G.body.dirty && G.mode === "play" && (!G.mp || G.mp.ownSave)) { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
+setInterval(() => { if (G.body && G.body.dirty && G.mode === "play" && !G.arena && (!G.mp || G.mp.ownSave)) { G.body.dirty = false; writeSave({ body: bodyToSave(G.body) }); } }, 4000);
 // the bushes you've cut down, kept with the save, so they stay down
 G.loadCut = () => (loadSave() || {}).cutBushes || [];
-G.saveCut = list => { if (!G.mp || G.mp.ownSave) writeSave({ cutBushes: list }); };
+G.saveCut = list => { if (!G.arena && (!G.mp || G.mp.ownSave)) writeSave({ cutBushes: list }); };
 // (everything you have on you written down now, before something drastic: the graphics lost and the page started again)
-G.flushSave = () => { try { if (G.mp && !G.mp.ownSave) return; if (G.body && G.mode === "play") writeSave({ body: bodyToSave(G.body) }); if (G.town && G.town.persist) G.town.persist(); } catch (e) {} };
+G.flushSave = () => { try { if ((G.mp && !G.mp.ownSave) || G.arena) return; if (G.body && G.mode === "play") writeSave({ body: bodyToSave(G.body) }); if (G.town && G.town.persist) G.town.persist(); } catch (e) {} };
 export function writeSave(patch) {
+  // (a duel is no part of any save: nothing from it is written into yours)
+  if (G.arena) return readSlotKept(slot) || {};
   const s = { ...(readSlotKept(slot) || {}), ...patch, at: Date.now() };
   // (anything named with a leading underscore is the game's own bookkeeping, not worth keeping)
   writeSlot(slot, s);

@@ -29,7 +29,8 @@ import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWor
 import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
-import { initLobby, openLobby, openLookEditor, askUser, hasUser, openSoloFrontier, SCREENS as MP_SCREENS } from "./mp/lobby.js";
+import { initLobby, openLobby, openLookEditor, askUser, hasUser, openSoloFrontier, SCREENS as MP_SCREENS, pvpIdentity, knownServers } from "./mp/lobby.js";
+import { initPvp, PVP_SCREENS } from "./pvp.js";
 import { HOST } from "./mp/net.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
@@ -154,7 +155,7 @@ for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setDa
 G.player = new Player();
 
 // ---- screens ----
-const screens = ["title", "modeSel", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", "achievements", ...MP_SCREENS];
+const screens = ["title", "modeSel", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", "achievements", ...MP_SCREENS, ...PVP_SCREENS];
 let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
@@ -292,6 +293,12 @@ initLobby({
     lock();
   },
 });
+// the duel: a loadout, a match (another player, or a bot as good as you), and back here after
+initPvp({
+  screen, get ICON() { return ICON; }, identity: pvpIdentity, servers: knownServers, user: () => { try { return localStorage.getItem("reckoning.mp.user") || ""; } catch (e) { return ""; } },
+  begin() { try { AUDIO.music(null); } catch (e) {} AUDIO.init(); applySettings(); G.mode = "play"; screen(null); $("menus").classList.remove("backdrop"); UI.show("hud", true); lock(); },
+  end() { toTitle(); },
+});
 // (the first time the game is opened: who are you to other players?)
 if (!hasUser() && !/[?&](autoplay|probe)/.test(location.search) && !window.__probe) askUser(() => screen("title"));
 $("btnSettings").onclick = () => { back = "title"; screen("settings"); };
@@ -320,7 +327,33 @@ $("btnPauseLook").onclick = () => {
 $("btnPausePeople").onclick = () => { if (!G.mp) return; resume(); setTimeout(() => G.mp && (G.mp.togglePeople ? G.mp.togglePeople(true) : G.mp.toggleList && G.mp.toggleList(true)), 60); };
 // quit: in the desktop app, closing the window ends the game (a browser tab cannot be closed by its page, so there it isn't offered)
 if (/Electron/.test(navigator.userAgent)) { $("btnQuitGame").classList.remove("hidden"); $("btnQuitGame").onclick = () => window.close(); }
-$("updateList").innerHTML = CHANGELOG.map(u => `<article class="upd"><div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");
+// the update log: each with its picture — a look at it in the game, or (for the older ones) the game's own painting of
+// whatever it was mostly about
+const UPD_ART = [
+  [/\b(sea|seas|boat|boats|ship|ships|rowboat|oars?|harbour|swim|swimming|swell|waves)\b/i, ["cut1_hamburg"]],
+  [/\b(duel|pvp|musket|pistol|crossbow|cannon|guns?|powder|sword|battle|war party|raiders?|raids?|soldiers?|siege|fight|claim war)\b/i, ["event_war", "event_warparty", "vig_firstwar"]],
+  [/crown|king|realm|nation|govern|law|rebellion|tax/i, ["event_conquest", "event_peace"]],
+  [/trade|caravan|market|merchant|pedlar|sell|coin|DM\b/i, ["event_caravan"]],
+  [/sick|plague|disease|illness|fever|died|death|grave/i, ["event_defeat"]],
+  [/ally|allies|alliance|peace|treaty/i, ["event_peace"]],
+  [/winter|snow|cold|frost|ice\b/i, ["vig_firstwinter"]],
+  [/child|born|birth|family/i, ["vig_firstchild"]],
+  [/settler|newcomer|recruit|people come|stranger/i, ["vig_firstrecruit"]],
+  [/hamburg|harbour|city|quay|chapter|story/i, ["cut1_hamburg", "cut2_accusation"]],
+  [/road|flight|escape|journey|walk out/i, ["cut3_flight"]],
+  [/fire|burn|ruin|smoke/i, ["ruins_scene"]],
+  [/cabin|house|roof|build|wall|hall|door|furniture|bed/i, ["vig_cabindone", "vig_village"]],
+  [/town|village|settlement|colony|hamlet/i, ["vig_settlement", "vig_village"]],
+  [/forest|wood|tree|clearing|hunt|deer|beast|fish|river|sea|boat|lake|map|earth|world|cave/i, ["cut4_clearing", "vig_settlement"]],
+];
+function updArt(u) {
+  if (u.img) return u.img;
+  const text = u.title + " " + u.items.join(" "), seed = [...u.v].reduce((a, c) => a * 31 + c.charCodeAt(0), 7);
+  for (const [re, list] of UPD_ART) if (re.test(text)) return `../assets/sprites/ui/${list[seed % list.length]}.png`;
+  const any = ["cut4_clearing", "vig_settlement", "vig_village", "vig_cabindone"];
+  return `../assets/sprites/ui/${any[seed % any.length]}.png`;
+}
+$("updateList").innerHTML = CHANGELOG.map((u, i) => `<article class="upd${u.img ? " shot" : ""}"><img class="upd-img" src="${updArt(u)}" alt="" loading="${i < 3 ? "eager" : "lazy"}" decoding="async"><div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");
 for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => screen(back);
 for (const b of document.querySelectorAll("[data-who]")) b.onclick = () => {
   const who = b.dataset.who;
@@ -438,6 +471,23 @@ ICON.seed = ICON.seed || ICON.seeds;
 ICON.musket = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
   x.translate(32, 32); x.rotate(-0.62); x.fillStyle = "#5a3820"; x.fillRect(-28, -3, 26, 7); x.beginPath(); x.moveTo(-28, -3); x.lineTo(-34, -6); x.lineTo(-34, 9); x.lineTo(-28, 4); x.fill();
   x.fillStyle = "#3a3c40"; x.fillRect(-4, -2, 36, 4); x.fillStyle = "#b08a3a"; x.fillRect(8, -3, 2, 6); x.fillRect(-35, -6, 2, 15); x.fillStyle = "#2a2a2c"; x.fillRect(-10, -6, 5, 4);
+  return c.toDataURL(); })();
+// the pistol's: a short barrel, and the stock dropping steeply to a brass pommel
+ICON.pistol = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.translate(30, 30); x.rotate(-0.25); x.fillStyle = "#3a3c40"; x.fillRect(-6, -6, 34, 5); x.fillStyle = "#5a3820"; x.fillRect(-10, -3, 30, 5);
+  x.beginPath(); x.moveTo(-10, -3); x.lineTo(-2, 2); x.lineTo(-12, 22); x.lineTo(-22, 18); x.closePath(); x.fill();
+  x.fillStyle = "#b08a3a"; x.beginPath(); x.ellipse(-18, 21, 6, 5, 0.4, 0, Math.PI * 2); x.fill(); x.fillRect(26, -7, 3, 7);
+  x.strokeStyle = "#b08a3a"; x.lineWidth = 1.6; x.beginPath(); x.arc(-1, 5, 4, 0, Math.PI); x.stroke();
+  x.fillStyle = "#2a2a2c"; x.fillRect(-9, -9, 5, 4); return c.toDataURL(); })();
+// a battle axe (a bearded head, broad and dark, on a long haft) and a spear (a leaf-shaped head on an ash shaft)
+ICON.battleaxe = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.translate(32, 32); x.rotate(0.75); x.fillStyle = "#6a4a2a"; x.fillRect(-2.5, -28, 5, 58); x.fillStyle = "#3a3c40";
+  x.beginPath(); x.moveTo(2, -24); x.quadraticCurveTo(22, -26, 20, -6); x.quadraticCurveTo(12, -12, 2, -8); x.closePath(); x.fill();
+  x.beginPath(); x.moveTo(-2, -22); x.lineTo(-11, -18); x.lineTo(-2, -13); x.fill(); x.fillStyle = "#9aa0a8"; x.fillRect(16, -22, 3, 14);
+  return c.toDataURL(); })();
+ICON.spear = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+  x.translate(32, 32); x.rotate(0.78); x.fillStyle = "#8a6a44"; x.fillRect(-1.8, -14, 3.6, 46); x.fillStyle = "#3a3c40"; x.fillRect(-3, -15, 6, 4);
+  x.fillStyle = "#9aa0a8"; x.beginPath(); x.moveTo(0, -31); x.quadraticCurveTo(7, -22, 0, -12); x.quadraticCurveTo(-7, -22, 0, -31); x.fill();
   return c.toDataURL(); })();
 // the crossbow's picture, and its bolts', drawn here too
 ICON.crossbow = ICON.crossbow5 = (() => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
@@ -1560,6 +1610,7 @@ G.ask = (title, value = "") => new Promise(res => {
 
 // ---- the hotbar: nine slots along the bottom; 1-9 picks one; the axe's slot takes it out or puts it away ----
 function hotbarItems() {
+  if (G.arena) return G.arena.hotbar();
   const pl = G.player, out = [];
   const tl = G.body && G.body.tools;
   if (pl.hasAxe) out.push({ icon: "axe", name: tl && tl.axe >= 3 && G.town ? `${cap(TIER_NAME[tl.axe])} axe` : "Old felling axe", tool: "axe" });
@@ -1647,7 +1698,7 @@ addEventListener("keydown", e => {
   const holding = heldFood(), same = holding && it && it.icon === holding.icon && !!it.fromStore === !!holding.fromStore;
   if (holding) {
     putFoodAway();
-    if (it && ((it.tool === "axe" && pl.axe && blade === "axe") || (it.tool === "arm" && pl.axe && blade === it.kind) || (it.tool === "pick" && pl.axe && blade === "pick") || (it.tool === "bow" && pl.bow) || (it.tool === "gun" && pl.gun))) return;
+    if (it && ((it.tool === "axe" && pl.axe && blade === "axe") || (it.tool === "arm" && pl.axe && blade === it.kind) || (it.tool === "pick" && pl.axe && blade === "pick") || (it.tool === "bow" && pl.bow) || (it.tool === "gun" && pl.gun && (pl.gunIs || "musket") === (it.kind || "musket")))) return;
   }
   // the rod: out, or away (anything else taken up puts it away first)
   if (it && it.tool === "rod") { G.toggleRod && G.toggleRod(!G.rodOut); return; }
@@ -1656,7 +1707,8 @@ addEventListener("keydown", e => {
   if (it && it.tool === "arm") { if (pl.axe && blade === it.kind) { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield(it.kind); }
   if (it && it.tool === "pick") { if (pl.axe && blade === "pick") { pl.giveAxe(false); pl.hasAxe = true; pl.blade = "axe"; } else pl.wield("pick"); }
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
-  if (it && it.tool === "gun") G.player.showGun(!G.player.gun);
+  // (the musket or the pistol: the one asked for, in place of the other)
+  if (it && it.tool === "gun") { const k = it.kind || "musket"; if (pl.gun && (pl.gunIs || "musket") === k) pl.showGun(false); else { if (pl.gun) pl.showGun(false); pl.gunKind = k; pl.showGun(true); } }
   // the canteen: not taken in hand — drunk from, filled, or boiled, as where you are allows
   if (it && it.tool === "canteen") { G.useCanteen && G.useCanteen(); return; }
   if (it && it.tool === "xbow") G.player.showXbow(!G.player.xbow);
@@ -1667,7 +1719,7 @@ addEventListener("keydown", e => {
 // which slot is in your hand now (-1: none)
 function selIndex(items) {
   const pl = G.player, hf = G.heldFood;
-  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow) || (i.tool === "gun" && pl.gun) || (i.tool === "xbow" && pl.xbow) || (i.tool === "rod" && G.rodOut));
+  return items.findIndex(i => hf ? i.icon === hf.icon && !!i.fromStore === hf.fromStore : (i.tool === "axe" && pl.axe && (pl.blade || "axe") === "axe") || (i.tool === "arm" && pl.axe && pl.blade === i.kind) || (i.tool === "pick" && pl.axe && pl.blade === "pick") || (i.tool === "bow" && pl.bow) || (i.tool === "gun" && pl.gun && (pl.gunIs || "musket") === (i.kind || "musket")) || (i.tool === "xbow" && pl.xbow) || (i.tool === "rod" && G.rodOut));
 }
 // the wheel: the next thing along the bar (or the one before) into your hand — tools, weapons, the bow and food; logs,
 // arrows and the like are passed over. A notch a step (a trackpad's run of little nudges is gathered into notches)
@@ -1900,6 +1952,7 @@ const guideSeen = () => { const s = loadSave() || {}; return s.tips || []; };
 const guideQ = [];
 let guidePage = null, guideShowing = false;
 G.guide = id => {
+  if (G.arena) return;            // (not in the middle of a duel)
   if (!GUIDE[id] || guideQ.includes(id) || window.__noGuide) return;
   if (guideSeen().includes("guide:" + id)) return;
   guideQ.push(id);
@@ -1973,7 +2026,7 @@ function pause() {
   UI.show("btnRestart", !G.mp);
   UI.show("btnPausePeople", !!G.mp);
   $("pause").querySelector(".sub").textContent = G.mp ? "The others play on while you're in here — your body stands where you left it." : "Your progress is kept at the start of every chapter, and as you work.";
-  $("btnQuit").textContent = G.mp ? "Leave the game" : "Quit to title";
+  $("btnQuit").textContent = G.arena ? "Leave the duel (counts as a loss)" : G.mp ? "Leave the game" : "Quit to title";
   setFreeLook(false);
   if (overlay) showOverlay(overlay, false);
   SFX.pauseAll && SFX.pauseAll(true);
@@ -2001,7 +2054,7 @@ $("btnRestart").onclick = () => {
   restartArmed = 0; b.textContent = "Restart chapter"; b.classList.remove("armed");
   SFX.pauseAll && SFX.pauseAll(false); screen(null); G.mode = "play"; lock(); startChapter(G.chapter || 1);
 };
-$("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.mp) { G.mp.leave(); if (G.town && G.town.persist && !G.town.replica) G.town.persist(); mpDone(); toTitle(); openLobby(); return; } toTitle(); };
+$("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.arena) { G.arena.finish(false, false); return; } if (G.mp) { G.mp.leave(); if (G.town && G.town.persist && !G.town.replica) G.town.persist(); mpDone(); toTitle(); openLobby(); return; } toTitle(); };
 // (only a lock that was had and then lost pauses: a refused request can fire this too, and that's no reason to stop)
 let hadLock = false;
 document.addEventListener("pointerlockchange", () => {

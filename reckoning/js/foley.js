@@ -252,6 +252,24 @@ const RECIPES = {
     }
     return finish(d, 0.6);
   },
+  // a musket ball going by close: not a whistle but a short, rough flutter of torn air — a round ball tumbles — that
+  // drops in pitch as it passes and is gone
+  whiz(sr) {
+    const L = rand(0.22, 0.3), d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 2400, 2.2, sr), f0 = rand(2200, 2900), wob = rand(55, 80);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr, u = t / L, env = Math.min(1, u / 0.18) * Math.pow(1 - u, 1.6) * (0.75 + 0.25 * Math.sin(TAU * wob * t));
+      bp.set("bp", f0 * (1 - 0.62 * u), 2.2, sr); d[i] = bp.run(Math.random() * 2 - 1) * env;
+    }
+    return finish(d, 0.7);
+  },
+  // a ball into the earth beside you: a dull, heavy thud, and the spatter of soil and grit thrown up
+  thunk(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.7));
+    modes(d, sr, 0, [[rand(60, 80), 0.07, 1], [rand(130, 170), 0.04, 0.5]]);
+    hiss(d, sr, 0, 0.12, 0.7, new Biquad("lp", 1400, 0.8, sr), x => Math.exp(-x / 0.03));
+    crackles(d, sr, 0.04, 0.45, 70, 0.3, 1500, 5000);
+    return finish(d, 0.8);
+  },
   // a rod's line swished through the air as it's cast or lifted: a thin rising and falling whistle of air
   swish(sr) {
     const L = 0.35, d = new Float32Array(Math.floor(sr * L)), bp = new Biquad("bp", 1200, 3, sr);
@@ -374,6 +392,8 @@ export const FOLEY = {
   },
   gulp: (vol = 0.5) => play("gulp", { vol, rate: [0.92, 1.08] }),
   swish: (vol = 0.35) => play("swish", { vol, rate: [0.85, 1.2] }),
+  whiz: (vol = 0.55) => play("whiz", { vol, rate: [0.9, 1.12] }),
+  thunk: (at, vol = 0.7) => play("thunk", { vol, at, reach: 40, rate: [0.85, 1.15] }),
   packIn: (vol = 0.45) => play("packIn", { vol, rate: [0.9, 1.1] }),
   packOut: (vol = 0.45) => play("packOut", { vol, rate: [0.9, 1.1] }),
   fellStart: (at, vol = 1) => play("fellStart", { vol, at, reach: 60, rate: [0.92, 1.06] }),

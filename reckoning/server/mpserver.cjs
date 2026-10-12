@@ -1460,12 +1460,60 @@ async function start(opts = {}) {
     if (u.pathname === "/" || u.pathname === "/status") return res.end(JSON.stringify(stats()));
     res.statusCode = 404; res.end("{}");
   });
+  // ---- the duel: those looking for a fight, paired off (nearest in rating first); each pair's fight passed between them ----
+  // The server keeps the score and the rounds; where each is, what they fire and what lands, it only passes on.
+  const pvpQ = [];
+  const unqueue = ws => { const i = pvpQ.findIndex(q => q.ws === ws); if (i >= 0) pvpQ.splice(i, 1); };
+  const LOK = { long: ["musket", "bow", "crossbow"], side: ["pistol", "none"], blade: ["sword", "battleaxe", "spear", "axe"] };
+  const cleanLo = l => { const o = {}; for (const k in LOK) o[k] = LOK[k].includes(l && l[k]) ? l[k] : LOK[k][0]; return o; };
+  const duelSend = (d, i, m) => { const ws = d.p[i]; if (ws && ws.open) ws.send(m); };
+  function pair(a, b) {
+    const d = { id: crypto.randomBytes(4).toString("hex"), p: [a.ws, b.ws], who: [a, b], wins: [0, 0], round: 1, hp: [100, 100], start: now() + 4000, decided: false, over: false };
+    a.ws.duel = d; b.ws.duel = d; a.ws.side = 0; b.ws.side = 1;
+    const pub = q => ({ name: q.who.name, user: q.who.user, look: q.who.look, lo: q.lo, rating: q.rating });
+    duelSend(d, 0, { t: "duel", id: d.id, side: 0, foe: pub(b) });
+    duelSend(d, 1, { t: "duel", id: d.id, side: 1, foe: pub(a) });
+    log(`a duel: ${a.who.name} against ${b.who.name}`);
+  }
+  function duelEnd(d, winner, left = false) {
+    if (d.over) return; d.over = true;
+    for (let i = 0; i < 2; i++) { duelSend(d, i, { t: "dend", winner, left }); if (d.p[i]) { d.p[i].duel = null; } }
+  }
+  function roundTo(d, winner) {
+    if (d.decided || d.over) return; d.decided = true;
+    if (winner >= 0) d.wins[winner]++;
+    for (let i = 0; i < 2; i++) duelSend(d, i, { t: "dround", r: d.round, winner, wins: d.wins });
+    if (winner >= 0 && d.wins[winner] >= 2) { setTimeout(() => duelEnd(d, winner), 3300); return; }
+    setTimeout(() => { if (d.over) return; d.round++; d.decided = false; d.hp = [100, 100]; d.start = now() + 4000; for (let i = 0; i < 2; i++) duelSend(d, i, { t: "dstart", r: d.round }); }, 3300);
+  }
+  function duelMsg(ws, m) {
+    const d = ws.duel, me = ws.side, them = 1 - me; if (!d || d.over) return;
+    const relay = o => duelSend(d, them, o);
+    switch (m.t) {
+      case "ds": return relay({ t: "ds", x: num(m.x), z: num(m.z), yaw: num(m.yaw), s: num(m.s), h: String(m.h || "").slice(0, 12), aim: m.aim ? 1 : 0, g: m.g ? 1 : 0, c: m.c ? 1 : 0, dn: m.dn ? 1 : 0 });
+      case "dfire": return relay({ t: "dfire", k: String(m.k || "").slice(0, 10), p: num(m.p, 1), f: (m.f || []).slice(0, 3).map(v => num(v)), d: (m.d || []).slice(0, 3).map(v => num(v)) });
+      case "dwind": return relay({ t: "dwind", dir: ["up", "left", "right"].includes(m.dir) ? m.dir : "right" });
+      case "dswing": return relay({ t: "dswing", dir: ["up", "left", "right"].includes(m.dir) ? m.dir : "right", dmg: Math.max(0, Math.min(30, num(m.dmg))), reach: Math.max(1, Math.min(3.2, num(m.reach, 2.4))) });
+      case "dres": return relay({ t: "dres", how: String(m.how || "").slice(0, 8) });
+      case "dhit": return relay({ t: "dhit", dmg: Math.max(0, Math.min(130, num(m.dmg))), head: !!m.head });
+      case "dhp": d.hp[me] = Math.max(0, Math.min(100, num(m.hp, 100))); return relay({ t: "dhp", hp: d.hp[me] });
+      case "ddown": if ((m.r | 0) === d.round) roundTo(d, them); return;
+      case "dleave": duelEnd(d, them, true); return;
+    }
+  }
+  // (a round runs two and a half minutes; then whoever's least hurt has it)
+  const ivDuel = setInterval(() => {
+    const seen = new Set();
+    for (const ws of socks) { const d = ws.duel; if (!d || seen.has(d) || d.over || d.decided) continue; seen.add(d); if (now() - d.start > 150000) roundTo(d, d.hp[0] > d.hp[1] ? 0 : d.hp[1] > d.hp[0] ? 1 : -1); }
+    // (anyone waiting too long is told no one came — the game then finds them a bot)
+    for (let i = pvpQ.length - 1; i >= 0; i--) if (!pvpQ[i].ws.open) pvpQ.splice(i, 1);
+  }, 1000);
   const socks = new Set();
   server.on("upgrade", (req, socket) => {
     const ws = upgrade(req, socket); if (!ws) return;
     socks.add(ws);
     let who = null;
-    ws.onclose = () => { socks.delete(ws); if (ws.player) ws.player.room.leave(ws.player); };
+    ws.onclose = () => { socks.delete(ws); unqueue(ws); if (ws.duel) { const d = ws.duel; duelEnd(d, 1 - ws.side, true); } if (ws.player) ws.player.room.leave(ws.player); };
     ws.onmessage = text => {
       let m; try { m = JSON.parse(text); } catch (e) { return; }
       if (!m || typeof m.t !== "string") return;
@@ -1478,6 +1526,18 @@ async function start(opts = {}) {
       }
       if (!who) return;
       if (m.t === "rooms") return ws.send({ t: "rooms", rooms: list(who), server: stats() });
+      // the duel: looking for a fight (paired with whoever else is, nearest your rating), or no longer
+      if (m.t === "pvpq") {
+        unqueue(ws); if (ws.duel) return;
+        const me = { ws, who: { ...who }, lo: cleanLo(m.lo), rating: Math.max(0, Math.min(4000, num(m.rating, 1000))), at: now() };
+        if (m.user) me.who.user = userOf(m.user);
+        let best = -1, bd = Infinity;
+        pvpQ.forEach((q, i) => { if (q.who.pid === who.pid || !q.ws.open) return; const dd = Math.abs(q.rating - me.rating); if (dd < bd) { bd = dd; best = i; } });
+        if (best >= 0) { const q = pvpQ.splice(best, 1)[0]; return pair(q, me); }
+        pvpQ.push(me); return;
+      }
+      if (m.t === "pvpcancel") { unqueue(ws); return; }
+      if (ws.duel) return duelMsg(ws, m);
       if (m.t === "host") {
         if (rooms.size > 200) return ws.send({ t: "err", text: "This server has as many games as it can hold." });
     // (meta for the lobby: a colony lists without being joinable once ended)
@@ -1515,7 +1575,7 @@ async function start(opts = {}) {
     biv = setInterval(shout, 2000); setTimeout(shout, 100);
   }
   const stop = () => new Promise(ok => {
-    clearInterval(iv1); clearInterval(iv2); clearInterval(iv3); if (biv) clearInterval(biv); if (beacon) try { beacon.close(); } catch (e) {}
+    clearInterval(iv1); clearInterval(iv2); clearInterval(iv3); clearInterval(ivDuel); if (biv) clearInterval(biv); if (beacon) try { beacon.close(); } catch (e) {}
     saveWorld(); for (const s of socks) s.close(); server.close(() => ok());
     setTimeout(ok, 1500);
   });

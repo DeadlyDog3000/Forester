@@ -129,6 +129,9 @@ async function refreshNow(quiet) {
 // ---- hosting ----
 let seedNow = Math.floor(Math.random() * 2 ** 31);
 // the frontier on your own (New Game): the hosting form, set for one — a private game on this computer, just you
+// for the duel: who you are (your Frontier character, or a fresh one), and the servers you know of
+export function pvpIdentity() { return { name: (me && me.name) || myUser() || "Stranger", look: (me && me.look) || randomLook() }; }
+export function knownServers() { const g = globalServer(); return [...(g ? [g] : []), ...typed()]; }
 export function openSoloFrontier() {
   if (!myUser()) return askUser(() => openSoloFrontier());
   solo = true; openHost();

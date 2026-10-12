@@ -54,6 +54,8 @@ export const ACH = [
   ["colonyjoin", "Shoulder to Shoulder", "Join someone's colony in co-op.", "With others", "colony-join"],
   ["ally", "Sworn", "Make an alliance.", "With others", "mp-ally"],
   ["capture", "Conqueror", "Take someone's homestead in a claim war.", "With others", "mp-capture"],
+  ["duel", "First Blood", "Win a duel.", "With others", "pvp-win"],
+  ["duel5", "Five Times on the Field", "Win five duels in a row.", "With others", "pvp-streak5"],
   ["hold", "Hold the Line", "Keep your homestead through a claim war.", "With others", "mp-held"],
   ["settlers12", "Patron", "Have twelve settlers living at your homestead.", "With others", "mp-settlers-12"],
   ["loot", "Spoils", "Loot another player's sack.", "With others", "mp-loot"],
