@@ -424,6 +424,8 @@ export class Hunt {
       this.bloodM = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: 0x6a0e0a, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -4 }), 160);
       this.bloodM.count = 0; this.bloodM.frustumCulled = false; this.w.root.add(this.bloodM); this.bloodN = 0; this.bloodT = new Float32Array(160);
     }
+    // (with the gore setting off the trail is still there to follow, but as scuffed, kicked-up earth rather than blood)
+    this.bloodM.material.color.setHex(G.settings && G.settings.gore === false ? 0x3e3426 : 0x6a0e0a);
     const i = this.bloodN; this.bloodN = (i + 1) % 160;
     const d = new THREE.Object3D(), s = (0.5 + Math.random() * 0.8) * (0.6 + k * 0.6);
     d.position.set(x + (Math.random() - 0.5) * 0.3, this.w.heightAt(x, z) + 0.02, z + (Math.random() - 0.5) * 0.3); d.rotation.y = Math.random() * 6.28; d.scale.set(s, 1, s * (0.6 + Math.random() * 0.6)); d.updateMatrix();
@@ -557,6 +559,28 @@ export class Hunt {
   stick(ar, into = null) {
     ar.stuck = true; ar.in = into;
     if (into) {
+      // a man with a skeleton: the arrow driven on along its flight into the limb or the body it meets — the nearest of
+      // his bones to its line — and carried by that bone, so it stays in him as he moves, falls and lies (not hanging in
+      // the air at the edge of the space he's tested in, fixed to where he stood)
+      const P = (into.a && into.a.person) || into.person, B = P && P.bones;
+      if (B) {
+        P.root.updateMatrixWorld(true);
+        const dir = ar.vel.clone().normalize(), segs = [];
+        for (const b of new Set(Object.values(B))) if (b.parent && b.parent.isBone && b.scale.x > 0.01) segs.push([b.parent.getWorldPosition(new THREE.Vector3()), b.getWorldPosition(new THREE.Vector3()), b.parent]);
+        let best = null, bd = Infinity;
+        const q = new THREE.Vector3(), seg = new THREE.Line3(), cp = new THREE.Vector3();
+        for (let s = -0.3; s <= 0.9; s += 0.02) {
+          q.copy(ar.pos).addScaledVector(dir, s);
+          for (const [a0, a1, bone] of segs) { seg.set(a0, a1); seg.closestPointToPoint(q, true, cp); const d = cp.distanceTo(q); if (d < bd) { bd = d; best = { s, bone, at: cp.clone() }; } }
+        }
+        if (best) {
+          // (in by a few fingers past the line of the bone's nearest pass: the shaft standing out of the cloth)
+          // (its point at the bone, come in along its flight: the shaft standing out of him the way it came)
+          ar.pos.copy(best.at).addScaledVector(dir, 0.03); this.orient(ar); ar.mesh.updateMatrixWorld(true);
+          best.bone.attach(ar.mesh); ar.inBone = best.bone;
+          return;
+        }
+      }
       // carried along with the animal
       into.root.attach(ar.mesh);
       return;

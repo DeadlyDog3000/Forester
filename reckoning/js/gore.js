@@ -45,7 +45,7 @@ function keep(m) {
 }
 // blood on the ground at (x, z), size across; dark: a pool's, wet and deep
 export function splat(x, z, size, dark = false) {
-  if (!G.scene) return null;
+  if (!G.scene || (G.settings && G.settings.gore === false)) return null;
   const m = new THREE.Mesh(PLANE, stainMat(dark));
   m.position.set(x, groundY(x, z) + 0.015 + Math.random() * 0.006, z); m.rotation.y = Math.random() * 6.28; m.scale.set(size, 1, size * rnd(0.75, 1.25));
   m.renderOrder = 1; keep(m); return m;
@@ -199,6 +199,11 @@ export function sever(a, from, push) {
 export function heal(P) {
   if (P && P.bones) for (const b of Object.values(P.bones)) if (b.scale.x < 0.01) b.scale.setScalar(1);
   P && P.modelScene && P.modelScene.traverse(o => { const u = o.isMesh && o.material && o.material.userData; if (u && u.base0) { o.material.color.copy(u.base0); u.blood = 0; } });
+}
+// the setting turned off: nothing of it left anywhere — the marks gone, every fallen man whole and clean
+export function goreOff() {
+  clearGore();
+  const A = G.arena; if (A) for (const u of [...(A.units || [])]) if (u.a && u.a.person) heal(u.a.person);
 }
 // the field cleared of it all (the battle over)
 export function clearGore() {

@@ -22,6 +22,7 @@ import { GUIDE, GUIDE_ORDER } from "./guide.js";
 import { KINDS } from "./economy.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
 import { loadModels } from "./models.js";
+import { goreOff } from "./gore.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
@@ -62,7 +63,7 @@ function applySettings() {
   window.__reckonMusic = s.music;
   AUDIO.setMusicVolume(s.music ? 1 : 0);
   $("setSens").value = s.sens; $("setFov").value = s.fov; $("setVol").value = s.volume;
-  $("setInvert").checked = s.invert; $("setMusic").checked = s.music;
+  $("setInvert").checked = s.invert; $("setMusic").checked = s.music; $("setGore").checked = s.gore !== false;
   // the graphics preset fills in the boosters; touching any booster makes it Custom
   if (s.quality === "low") s.quality = "performance";      // (the old two-way setting)
   const P = PRESETS[s.quality];
@@ -147,6 +148,8 @@ function meterFps(dtReal) {
     else if (fps > aim + 8 && dynScale < 1) { dynScale = Math.min(1, dynScale + 0.05); applyScale(); }
   }
 }
+// (gore off: what's already been shed goes too, and the fallen are whole)
+$("setGore").addEventListener("change", e => { G.settings.gore = e.target.checked; G.saveSettings(); if (!e.target.checked) goreOff(); });
 for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setDark", "dark"]]) {
   $(id).addEventListener("change", e => { G.settings[key] = e.target.checked; applySettings(); G.saveSettings(); });
 }

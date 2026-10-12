@@ -75,7 +75,7 @@ export const G = {
   mode: "title",        // title | play | pause
   scene: new THREE.Scene(),
   world: null, player: null,
-  settings: { sens: 1, fov: 72, invert: false, volume: 0.7, music: true, third: false },
+  settings: { sens: 1, fov: 72, invert: false, volume: 0.7, music: true, third: false, gore: true },
   who: "brother",       // which of the two you are
   marker: null,
   cine: null,           // {look: Vector3, speed} — the camera is steered for you

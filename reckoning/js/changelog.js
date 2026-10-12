@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.24.1", date: "12 October 2026", title: "Gore, on or off",
+    items: [
+      "A Gore switch in Settings (under Content). On, it's all there: the mist and the spray, the blood that stays on the ground, coats soaking dark, pools under the fallen, limbs torn off by cannon and grenades. Off, there is none at all — not a drop: no blood thrown from a blow, no stains, no pools, nobody torn apart; and turned off mid-battle, everything already shed is gone and the fallen are whole. A wounded animal's trail is still there to follow when it's off, as scuffed, kicked-up earth.",
+    ],
+  },
+  {
     v: "1.24.0", date: "12 October 2026", title: "What a battle leaves",
     items: [
       "Wounds bleed as they should: a fine red mist off the wound the way the ball or the blade went, heavier spray, and the blood left on the ground — thrown out behind a man where he was hit, spattered where he stood, every drop that lands soaking in as a spot instead of lying there as a red bead and vanishing. It stays for the whole battle.",

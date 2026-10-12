@@ -40,6 +40,7 @@ const matB = new THREE.MeshStandardMaterial({ color: 0x4a0605, roughness: 0.3 })
 // at `at`, flying mostly along `dir`: kind "sparks" (bright, quick, gone) or "blood" (drops that fall and lie a while)
 export function burst(at, dir, kind = "sparks", n = 12) {
   const root = G.scene; if (!root || !at) return;
+  if (kind === "blood" && G.settings && G.settings.gore === false) return;   // (the gore setting off: no blood whatever)
   geoS ??= new THREE.BoxGeometry(0.012, 0.012, 0.09); geoB ??= new THREE.SphereGeometry(0.022, 5, 4);
   const spark = kind === "sparks", bits = [];
   const d = dir ? dir.clone().normalize() : new THREE.Vector3(0, 0, 1);
@@ -53,6 +54,7 @@ export function burst(at, dir, kind = "sparks", n = 12) {
   let t = 0;
   const tick = dt => {
     t += dt;
+    if (!spark && G.settings && G.settings.gore === false) t = 99;   // (gore turned off while it flew: gone)
     for (const b of bits) {
       const v = b.userData.v;
       if (!v) continue;
