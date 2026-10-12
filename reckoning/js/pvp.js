@@ -1218,8 +1218,24 @@ class Arena {
     this.over = true; this.stop(); ctx.begin(); new Arena(a);
   }
   // gone from the arena (the match done, or quit from the pause menu)
+  // the din of the fighting round you: men at close quarters near you, and men running (a charge coming on), heard as one
+  dinTick(dt) {
+    if (!this.battle || (this.dinT = (this.dinT || 0) - dt) > 0) return;
+    const step = 0.25; this.dinT = step;
+    const pl = G.player.pos, near = (p, r) => Math.max(0, 1 - Math.hypot(p.x - pl.x, p.z - pl.z) / r);
+    const us = (this.units || []).filter(u => u.alive && u.pos);
+    let fight = 0, run = 0;
+    for (const u of us) {
+      const k = near(u.pos, 55); if (k <= 0) { u.dinAt = null; continue; }
+      if (us.some(v => v.team !== u.team && Math.abs(v.pos.x - u.pos.x) < 3.5 && Math.abs(v.pos.z - u.pos.z) < 3.5)) fight += k;
+      if (u.dinAt) { const sp = Math.hypot(u.pos.x - u.dinAt.x, u.pos.z - u.dinAt.z) / step; if (sp > 2.6) run += k; }
+      u.dinAt = { x: u.pos.x, z: u.pos.z };
+    }
+    AUDIO.melee && AUDIO.melee(Math.min(1, fight / 7), Math.min(1, run / 9));
+  }
   stop() {
     if (G.arena !== this) return;
+    AUDIO.melee && AUDIO.melee(0, 0);
     if (G.freecam && G.endFreecam) G.endFreecam();
     G.arena = null; this.live = false;
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
@@ -1246,6 +1262,7 @@ class Arena {
     pl.swingRate = this.myBlade().rate;   // (the bayonet on the musket strikes at its own pace, not the blade's in your belt)
     const dx = pl.pos.x - C.x, dz = pl.pos.z - C.z, d = Math.hypot(dx, dz), B = this.bound;
     if (d > B) { pl.pos.x = C.x + dx / d * B; pl.pos.z = C.z + dz / d * B; if (!this.boundTold || G.time - this.boundTold > 4) { this.boundTold = G.time; UI.hint(this.battle ? "The battle's here — your company's behind you." : "The fight's here, in the ride.", 1.5); } }
+    this.dinTick(dt);
     if (this.multi) { this.updateField(dt); return; }
     this.foe.tick(dt);
     stanceTick();

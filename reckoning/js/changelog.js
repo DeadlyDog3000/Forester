@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.22.1", date: "12 October 2026", title: "The din of the charge",
+    items: [
+      "A charge no longer goes quiet. When the muskets stopped and the lines closed, all that was left to hear were the odd blow and cry near you — it sounded as if the sound had cut out. Now there's the din of a melee under them: men roaring, steel on steel and on musket stocks, men knocked down, and the thud of a running line's feet, louder the more of the fighting is about you and fading as it ends.",
+    ],
+  },
+  {
     v: "1.22.0", date: "12 October 2026", title: "The musketeer's coat",
     items: [
       "Soldiers dress as the musketeers of the 1680s did: a coat cuffed in the regiment's facings, a buff belt at the waist, a bandolier over the left shoulder hung with wooden powder chargers, a bullet bag and a priming flask at the hip, and a broad felt hat with a low crown, cocked up on one side.",

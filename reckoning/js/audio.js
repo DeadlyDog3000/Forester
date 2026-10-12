@@ -650,6 +650,64 @@ export const AUDIO = {
     l.lp.frequency.setTargetAtTime(under ? 1400 : 5000 + k * 3000, a.currentTime, 0.4);
     l.hp.frequency.setTargetAtTime(under ? 250 : 900 - k * 400, a.currentTime, 0.4);
   },
+  // the din of a melee, under the blows you hear one by one: a crowd of men roaring, steel knocking on steel and on
+  // musket stocks, men going down, and the thud of a running line's feet — fight: how much of the fighting is about you
+  // (0 to 1), run: how much of a line is running at it (0 to 1)
+  melee(fight = 0, run = 0) {
+    const a = ctx(); if (!a) return;
+    if (fight <= 0.01 && run <= 0.01) { loop("melee", false); return; }
+    if (!loops.melee) loop("melee", true, a => {
+      const g = a.createGain(); g.gain.value = 0.0001; g.connect(bus);
+      const wet = a.createGain(); wet.gain.value = 0.5; g.connect(wet); wet.connect(outdoor(a));
+      const stop = [], self = { g, stop, fight: 0, run: 0 };
+      // (the roar: many throats on an open "a" and "o", each swelling and breaking off on its own breath — rough noise
+      //  through each voice's own formants, a buzz of chest under it, the pitch wandering)
+      const roar = a.createGain(); roar.gain.value = 0.0001; roar.connect(g); self.roar = roar;
+      for (let i = 0; i < 6; i++) {
+        const v = VOWELS[r2(["a", "a", "o", "ae"])], vg = a.createGain(), sw = a.createGain();
+        const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = rnd(0.25, 0.9); lg.gain.value = 0.5; sw.gain.value = 0.5;
+        lfo.connect(lg); lg.connect(sw.gain); vg.connect(sw); sw.connect(roar);
+        const s = noiseSrc(a), o = a.createOscillator(), og = a.createGain(), vib = a.createOscillator(), vibg = a.createGain();
+        o.type = "sawtooth"; o.frequency.value = rnd(130, 230); vib.frequency.value = rnd(3, 6); vibg.gain.value = rnd(4, 9);
+        vib.connect(vibg); vibg.connect(o.frequency); og.gain.value = 0.18;
+        o.connect(og);
+        for (const [f, k] of v) {
+          const bp = a.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f * rnd(0.92, 1.08); bp.Q.value = 5;
+          const fg = a.createGain(); fg.gain.value = k; s.connect(bp); og.connect(bp); bp.connect(fg); fg.connect(vg);
+        }
+        s.start(0, Math.random() * 1.9); o.start(); vib.start(); lfo.start(); stop.push(s, o, vib, lfo);
+      }
+      // (the feet: a thudding rumble, uneven, low)
+      const feet = a.createGain(); feet.gain.value = 0.0001; feet.connect(g); self.feet = feet;
+      { const s = noiseSrc(a), lp = a.createBiquadFilter(), am = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
+        lp.type = "lowpass"; lp.frequency.value = 170; lp.Q.value = 1.2; am.gain.value = 0.6; lfo.type = "square"; lfo.frequency.value = 5.3; lg.gain.value = 0.4;
+        lfo.connect(lg); lg.connect(am.gain); s.connect(lp); lp.connect(am); am.connect(feet); s.start(0, Math.random()); lfo.start(); stop.push(s, lfo); }
+      // (and struck things, now and again — more of them the thicker the fight)
+      const knock = () => {
+        if (loops.melee !== self) return;
+        const k = self.fight, t = a.currentTime + rnd(0, 0.05);
+        if (k > 0.02) {
+          const far = rnd(0.35, 1) * k, r = Math.random(), o = a.createGain(); o.gain.value = far; o.connect(g);
+          const b = (dur, vol, f0, f1, q, type = "bandpass") => { const s = noiseSrc(a), f = a.createBiquadFilter(), gg = a.createGain(); f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur); gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(vol, t + 0.003); gg.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(f); f.connect(gg); gg.connect(o); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02); };
+          if (r < 0.4) {
+            // steel on steel: a hard tick and a short ring of a blade's partials
+            b(0.03, 0.12, rnd(3000, 4500), 2500, 2);
+            for (const f of [rnd(1900, 2600), rnd(3300, 4200), rnd(5200, 6400)]) { const os = a.createOscillator(), og = a.createGain(); os.frequency.value = f; og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.02, t + 0.002); og.gain.exponentialRampToValueAtTime(0.0001, t + rnd(0.12, 0.3)); os.connect(og); og.connect(o); os.start(t); os.stop(t + 0.32); }
+          } else if (r < 0.75) b(rnd(0.05, 0.09), 0.14, rnd(500, 900), 300, 3);          // wood: a stock knocked aside, a parry with a musket
+          else b(rnd(0.08, 0.14), 0.2, rnd(180, 260), 70, 1, "lowpass");                 // a body: a man knocked down, a butt-stroke home
+        }
+        setTimeout(knock, rnd(40, 160) / (0.15 + k));
+      };
+      setTimeout(knock, 60);
+      return self;
+    });
+    const l = loops.melee; if (!l) return;
+    const t = a.currentTime;
+    l.fight = fight; l.run = run;
+    l.g.gain.setTargetAtTime(1, t, 0.3);
+    l.roar.gain.setTargetAtTime(0.0001 + 0.05 * Math.max(fight, run * 0.6), t, 0.6);
+    l.feet.gain.setTargetAtTime(0.0001 + 0.09 * Math.max(run, fight * 0.4), t, 0.4);
+  },
   // a brook: a bright babble over stones, louder as you come near (k, 0 to 1)
   brook(k) {
     const a = ctx(); if (!a) return;
