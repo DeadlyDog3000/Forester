@@ -6,7 +6,7 @@
 // people who walk around with you, the camera over (or behind) your eyes, and
 // the one thing in front of you that E would do something to.
 
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, addDetail, ownGrain } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
@@ -154,6 +154,9 @@ function applyAtmo(a00) {
   G.sunDir = a.sun.clone ? a.sun.clone().normalize() : new THREE.Vector3(...a.sun).normalize();
   hemi.color.copy(a.hemiS); hemi.groundColor.copy(a.hemiG); hemi.intensity = a.hemiI;
   fill.intensity = a.fill ?? 0.1;
+  RIM.value.copy(a.hemiS).multiplyScalar(0.55 * a.hemiI);
+  // (the sun for the post pass's shafts: where, how strong, what colour)
+  post.sunDir = G.sunDir; post.sunI = a.sunI; (post.sunC ||= new THREE.Color()).copy(a.sunC);
   // (the draw distance booster pulls the fog in, and the camera stops drawing just beyond it)
   const dm = G.drawMul ?? 1;
   G.scene.fog.color.copy(a.fog); G.scene.fog.near = a.near * dm; G.scene.fog.far = a.far * dm;

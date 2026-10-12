@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.29.0", date: "12 October 2026", title: "Light",
+    items: [
+      "Shafts of sunlight: look toward a low sun and its light streams out from behind whatever stands in front of it — the trees, the ranks, the powder smoke — strongest in the morning and the evening.",
+      "A rim of sky light along the edges of everything turned from you — a man's shoulder, a coat's skirt, a roof's ridge — so men and buildings stand out from the land behind them instead of melting into it.",
+      "Sharper: the picture sharpened as much as the smoothing of its edges had softened it, less where an edge is already hard (no halos); and a lens's faint colour fringe toward the corners.",
+    ],
+  },
+  {
     v: "1.28.0", date: "12 October 2026", title: "Your kill",
     items: [
       "When a man goes down to you — your ball, your arrow, your blade — an X marks the place it struck him, white and red, popping in and fading in under a second, and you feel it: a low, dull thud with a muted knock in it, the way a man going down is felt through the ground. In battles, duels, and the story's fights alike; only your own kills, not your company's.",

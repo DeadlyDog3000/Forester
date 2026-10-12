@@ -211,16 +211,30 @@ export const SNOW = { value: 0 };
 export const AUTO_FULL = { value: 1 };
 // a roofed room where no snow lies: (centre x, centre z, turn, on) and (half across, half deep, eaves height)
 export const ROOFED = { value: new THREE.Vector4(0, 0, 0, 0) }, ROOFSIZE = { value: new THREE.Vector3(2.8, 3.3, 0) };
-export const RELIEF = { value: 1 };   // (the graphics setting: 0 turns the relief off)
+export const RELIEF = { value: 1 };
+// the sky's light caught along the edges of things turned away from you — a man's shoulder, a roof's ridge against the
+// field — so they stand out from what's behind them (set from the sky's colour and strength, applyAtmo)
+export const RIM = { value: new THREE.Color(0, 0, 0) };   // (the graphics setting: 0 turns the relief off)
 // (local: the grain laid on in the thing's own space, not the world's — for what's carried in your hands, which
 //  would otherwise slide through the world's grain as you turn)
 export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true, local = false } = {}) {
   const surf = SURFACE[surface] ?? -1;
   material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow, weather, local };
+  const lit = material.isMeshStandardMaterial || material.isMeshLambertMaterial || material.isMeshPhongMaterial;
   material.onBeforeCompile = sh => {
+    detailCompile(sh);
+    // (the rim: lit stuff only — a flat-coloured thing has no light to catch)
+    if (lit) sh.fragmentShader = sh.fragmentShader.replace("#include <opaque_fragment>", `{
+        float rk = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
+        outgoingLight += dRim * mix(diffuseColor.rgb, vec3(0.6), 0.35) * rk * rk * rk;
+      }
+      #include <opaque_fragment>`);
+  };
+  const detailCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount }; sh.uniforms.dNear = { value: seeThrough };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
     sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dSnowK = { value: typeof snow === "number" ? snow : 1 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
+    sh.uniforms.dRim = RIM;
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] }; sh.uniforms.dTexCol = { value: colourTex };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal;")
@@ -233,7 +247,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         vDReal = (modelMatrix * dwp).xyz;
         ${local ? "vDWorld = dwp.xyz * 2.0; vDNormal = normalize(dn);" : "vDWorld = vDReal; vDNormal = normalize(mat3(modelMatrix) * dn);"}`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         float dHgt = 0.0, dHk = 0.0;
         // leaves and needles right up against the eye (standing inside a tree) thin away in a fine dither,

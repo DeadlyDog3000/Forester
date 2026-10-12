@@ -7,6 +7,7 @@
 // not a hole; the highlights warmed; the corners darkened a touch; and a faint grain over all of it. (Cinematic shading,
 // in the settings; the Performance preset goes without.)
 import { THREE, renderer } from "./core.js";
+const _v = new THREE.Vector3(), _f = new THREE.Vector3();
 
 export const post = { on: true, failed: false };
 
@@ -41,12 +42,35 @@ const blurM = new THREE.ShaderMaterial({
       gl_FragColor = vec4(c, 1.0);
     }`,
 });
+// the sun's shafts: the bright sky about the sun kept (what stands in front of it is dark, and so cuts it), then drawn
+// out toward the sun in a long radial smear — the light through the trees, the smoke and the ranks
+const rayMaskM = new THREE.ShaderMaterial({
+  uniforms: { tSrc: { value: null }, sun: { value: new THREE.Vector2(0.5, 0.5) }, aspect: { value: 1 }, threshold: { value: 0.9 } },
+  vertexShader: VERT, depthTest: false, depthWrite: false,
+  fragmentShader: `varying vec2 vUv; uniform sampler2D tSrc; uniform vec2 sun; uniform float aspect, threshold;
+    void main() {
+      vec3 c = texture2D(tSrc, vUv).rgb;
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      float d = length((vUv - sun) * vec2(aspect, 1.0));
+      gl_FragColor = vec4(c * smoothstep(threshold, threshold * 1.8, l) * (1.0 - smoothstep(0.05, 0.75, d)), 1.0);
+    }`,
+});
+const rayBlurM = new THREE.ShaderMaterial({
+  uniforms: { tSrc: { value: null }, sun: { value: new THREE.Vector2(0.5, 0.5) }, len: { value: 0.5 } },
+  vertexShader: VERT, depthTest: false, depthWrite: false,
+  fragmentShader: `varying vec2 vUv; uniform sampler2D tSrc; uniform vec2 sun; uniform float len;
+    void main() {
+      vec2 d = (sun - vUv) * len / 28.0; vec2 p = vUv; vec3 c = vec3(0.0); float w = 1.0, ws = 0.0;
+      for (int i = 0; i < 28; i++) { c += texture2D(tSrc, p).rgb * w; ws += w; w *= 0.955; p += d; }
+      gl_FragColor = vec4(c / ws, 1.0);
+    }`,
+});
 // and the finish
 const finalM = new THREE.ShaderMaterial({
-  uniforms: { tScene: { value: null }, tBloom: { value: null }, exposure: { value: 1 }, time: { value: 0 }, res: { value: new THREE.Vector2(1, 1) },
-    bloom: { value: 0.4 }, lift: { value: 1 }, grain: { value: 0.016 }, vignette: { value: 0.16 } },
+  uniforms: { tScene: { value: null }, tBloom: { value: null }, tRays: { value: null }, exposure: { value: 1 }, time: { value: 0 }, res: { value: new THREE.Vector2(1, 1) },
+    bloom: { value: 0.4 }, lift: { value: 1 }, grain: { value: 0.016 }, vignette: { value: 0.16 }, rays: { value: 0 }, rayCol: { value: new THREE.Color(1, 0.85, 0.6) }, sharp: { value: 0.35 }, fringe: { value: 0.0012 } },
   vertexShader: VERT, depthTest: false, depthWrite: false,
-  fragmentShader: `varying vec2 vUv; uniform sampler2D tScene, tBloom; uniform float exposure, time, bloom, lift, grain, vignette; uniform vec2 res;
+  fragmentShader: `varying vec2 vUv; uniform sampler2D tScene, tBloom, tRays; uniform float exposure, time, bloom, lift, grain, vignette, rays, sharp, fringe; uniform vec3 rayCol; uniform vec2 res;
     vec3 postRRTFit(vec3 v) { vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
     vec3 postAces(vec3 color) {
       const mat3 pIn = mat3(vec3(0.59719, 0.07600, 0.02840), vec3(0.35458, 0.90834, 0.13383), vec3(0.04823, 0.01566, 0.83777));
@@ -57,7 +81,15 @@ const finalM = new THREE.ShaderMaterial({
     vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
-      vec3 c = texture2D(tScene, vUv).rgb + texture2D(tBloom, vUv).rgb * bloom;
+      // (a lens's faint fringe toward the corners: the red and the blue a hair apart)
+      vec2 fo = (vUv - 0.5) * fringe;
+      vec3 c = vec3(texture2D(tScene, vUv + fo).r, texture2D(tScene, vUv).g, texture2D(tScene, vUv - fo).b);
+      // (sharpened as much as the anti-aliasing softened it, less where the edge is already hard — no halos)
+      vec2 px = 1.0 / res;
+      vec3 n4 = texture2D(tScene, vUv + vec2(px.x, 0.0)).rgb + texture2D(tScene, vUv - vec2(px.x, 0.0)).rgb + texture2D(tScene, vUv + vec2(0.0, px.y)).rgb + texture2D(tScene, vUv - vec2(0.0, px.y)).rgb;
+      vec3 edge = c - n4 * 0.25;
+      c = max(c + edge * sharp / (1.0 + abs(edge) * 6.0), 0.0);
+      c += texture2D(tBloom, vUv).rgb * bloom + texture2D(tRays, vUv).rgb * rayCol * rays;
       c = postAces(c);
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       // the light warmed, a touch
@@ -77,16 +109,17 @@ const finalM = new THREE.ShaderMaterial({
 });
 
 post.u = finalM.uniforms;
-let rt = null, bA = null, bB = null;
+let rt = null, bA = null, bB = null, rA = null, rB = null;
 const size = new THREE.Vector2();
 function ensure() {
   renderer.getDrawingBufferSize(size);
   if (rt && rt.width === size.x && rt.height === size.y) return;
-  for (const t of [rt, bA, bB]) if (t) t.dispose();
+  for (const t of [rt, bA, bB, rA, rB]) if (t) t.dispose();
   const o = { type: THREE.HalfFloatType, depthBuffer: false };
   rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
   const bw = Math.max(1, size.x >> 2), bh = Math.max(1, size.y >> 2);
   bA = new THREE.WebGLRenderTarget(bw, bh, o); bB = new THREE.WebGLRenderTarget(bw, bh, o);
+  rA = new THREE.WebGLRenderTarget(bw, bh, o); rB = new THREE.WebGLRenderTarget(bw, bh, o);
 }
 function pass(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(scene2, cam2); }
 
@@ -99,7 +132,22 @@ export function renderFrame(scene, camera) {
     brightM.uniforms.tSrc.value = rt.texture; brightM.uniforms.texel.value.set(1 / size.x * 2, 1 / size.y * 2); pass(brightM, bA);
     blurM.uniforms.tSrc.value = bA.texture; blurM.uniforms.dir.value.set(1 / bA.width, 0); pass(blurM, bB);
     blurM.uniforms.tSrc.value = bB.texture; blurM.uniforms.dir.value.set(0, 1 / bA.height); pass(blurM, bA);
-    const u = finalM.uniforms;
+    // the sun's shafts, when it's in front of you and not too high (they show best low: morning, evening)
+    const u = finalM.uniforms, sd = post.sunDir;
+    let rk = 0;
+    if (sd && post.sunI > 0.2) {
+      _v.copy(camera.position).addScaledVector(sd, 500).project(camera);
+      const fwd = camera.getWorldDirection(_f).dot(sd), sx = (_v.x + 1) / 2, sy = (_v.y + 1) / 2;
+      const onScr = 1 - Math.min(1, Math.max(0, Math.max(Math.abs(_v.x), Math.abs(_v.y)) - 1) * 1.5);
+      rk = Math.max(0, fwd) ** 2 * onScr * Math.min(1, post.sunI / 1.5) * (0.55 + 0.45 * (1 - Math.min(1, Math.max(0, sd.y) / 0.6)));
+      if (rk > 0.01) {
+        rayMaskM.uniforms.tSrc.value = rt.texture; rayMaskM.uniforms.sun.value.set(sx, sy); rayMaskM.uniforms.aspect.value = size.x / size.y; rayMaskM.uniforms.threshold.value = 0.9 * Math.max(0.5, renderer.toneMappingExposure); pass(rayMaskM, rA);
+        rayBlurM.uniforms.sun.value.set(sx, sy);
+        rayBlurM.uniforms.tSrc.value = rA.texture; rayBlurM.uniforms.len.value = 0.9; pass(rayBlurM, rB);
+        rayBlurM.uniforms.tSrc.value = rB.texture; rayBlurM.uniforms.len.value = 0.35; pass(rayBlurM, rA);
+      }
+    }
+    u.rays.value = rk * 0.55; u.tRays.value = rA.texture; if (post.sunC) u.rayCol.value.copy(post.sunC);
     u.tScene.value = rt.texture; u.tBloom.value = bA.texture; u.exposure.value = renderer.toneMappingExposure;
     u.time.value = (performance.now() % 100000) / 1000; u.res.value.set(size.x, size.y);
     pass(finalM, null);
