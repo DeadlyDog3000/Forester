@@ -23,7 +23,7 @@ import { KINDS } from "./economy.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
 import { loadModels } from "./models.js";
 import { goreOff } from "./gore.js";
-import { full, gate, activate, recheck, SHOP, SALES_OPEN, buyUrl } from "./licence.js";
+import { full, gate, activate, recheck, SHOP, SALES_OPEN, buyUrl, startPurchase, watchPurchase } from "./licence.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
@@ -268,7 +268,22 @@ G.openBuy = what => {
 };
 G.demoGate = () => gate("story");
 $("btnUnlock").onclick = () => G.openBuy("title");
-$("buyGo").onclick = () => window.open(buyUrl(), "_blank");
+// (bought from here: Stripe's checkout in the browser, and the game unlocking itself as soon as it's paid)
+const bought = (key, a) => {
+  const m = $("buyMsg");
+  if (a && a.ok) { m.className = "buy-msg good"; m.textContent = `Paid — thank you. The whole game is yours. Your key, for your other computers: ${key}`; refreshTitle(); }
+  else { m.className = "buy-msg bad"; m.textContent = `Paid — your key is ${key}. It didn't unlock this computer by itself: paste it above and press Unlock. (${a ? a.why : ""})`; $("buyKey").value = key; }
+};
+$("buyGo").onclick = async () => {
+  if (SHOP.checkout) { window.open(buyUrl(), "_blank"); return; }
+  const m = $("buyMsg"); m.className = "buy-msg"; m.textContent = "Opening the checkout…";
+  const r = await startPurchase();
+  if (!r.ok) { m.className = "buy-msg bad"; m.textContent = r.why; return; }
+  m.textContent = "The checkout's open in your browser. Pay there, and the game unlocks by itself — you can leave this page open.";
+  watchPurchase(bought);
+};
+// (a checkout opened in an earlier session, still being paid for: watched for again)
+watchPurchase(bought);
 $("buyBack").onclick = () => { screen("title"); refreshTitle(); };
 $("buyUnlock").onclick = async () => {
   const m = $("buyMsg"); m.className = "buy-msg"; m.textContent = "Checking with the shop…";

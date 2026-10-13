@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.35.1", date: "13 October 2026", title: "The shop, readied",
+    items: [
+      "The full game will be sold through Stripe's checkout. Buy it from inside the game and it unlocks by itself the moment the payment goes through — no key to copy — and shows you your key for your other computers (each key works on up to three).",
+      "Bought from the website instead, your key is shown as soon as you've paid, and it's on your receipt too.",
+      "Nothing is for sale yet: the shop opens once it's been set up and tested. Everyone who's played before then keeps the whole game, free.",
+    ],
+  },
+  {
     v: "1.35.0", date: "13 October 2026", title: "Custom battles",
     items: [
       "Custom battles against bots: choose the sides in the muster — 1 v 2, 2 v 2, 3 v 3, 4 v 4, three or four sides each against all the others (1 v 1 v 1, 1 v 1 v 1 v 1, 2 v 2 v 2), or make your own, up to four sides of up to four companies each.",
