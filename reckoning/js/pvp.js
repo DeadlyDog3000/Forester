@@ -325,7 +325,7 @@ function drawVs() {
   if (!must) return;
   const k = must.kind, el = $("musVs"), btn = $("musReady");
   if (k === "duel") { el.innerHTML = `<span class="mv-n">One against one, best of three — another player if anyone's looking, or a bot as strong as you are.</span>`; btn.textContent = "Find a match"; return; }
-  if (k === "bots") { el.innerHTML = `<span class="mv-n">Their officer raises his company from the same purse, and spends it his own way.</span>`; btn.textContent = "To the field"; return; }
+  if (k === "bots") { const A = army(); el.innerHTML = `<span class="mv-n">${isCustom(A) ? `${sidesWord(A.sides)} — every other company's officer raises it from the same purse, and spends it his own way.` : "Their officer raises his company from the same purse, and spends it his own way."}</span>`; btn.textContent = "To the field"; return; }
   const left = Math.max(0, 120 - Math.floor((performance.now() - must.t0) / 1000));
   el.innerHTML = `<span class="mv-n">Against <b>${esc(must.foe.name || "another commander")}</b>${must.foe.rating ? ` · ${rankOf(must.foe.rating)}` : ""}</span>
     <span class="mv-s ${must.theirs ? "ok" : ""}">${must.theirs ? "Ready" : "Mustering…"}</span><span class="mv-s ${must.mine ? "ok" : ""}">You: ${must.mine ? "Ready" : "mustering"}</span>
@@ -387,8 +387,19 @@ function drawArmy() {
     ${muster}
     <div class="pv-h">Colours</div>
     <div class="pv-unis">${Object.entries(UNIFORMS).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div>
-    ${A.vs !== "player" ? `<div class="pv-h">The ground</div><div class="pv-grounds">${[["open", "Open field"], ["ours", "Your fort"], ["theirs", "Their fort"]].map(([k, n]) => `<button class="pv-gr${A.ground === k ? " on" : ""}" data-gr="${k}"><b>${n}</b></button>`).join("")}</div>` : ""}`;
+    ${A.vs !== "player" ? sidesRow(A) : ""}
+    ${A.vs !== "player" && !isCustom(A) ? `<div class="pv-h">The ground</div><div class="pv-grounds">${[["open", "Open field"], ["ours", "Your fort"], ["theirs", "Their fort"]].map(([k, n]) => `<button class="pv-gr${A.ground === k ? " on" : ""}" data-gr="${k}"><b>${n}</b></button>`).join("")}</div>` : ""}`;
   void step; void multi;
+}
+// (the sides, against bots: one against one, as a battle's always been — or any of the usual others, or your own: up to
+//  four sides, up to four companies to a side)
+function sidesRow(A) {
+  const S = A.sides, one = p => p.length === 2 && p[0] === 1 && p[1] === 1 ? "1 v 1" : sidesWord(p), cos = S.reduce((t, n) => t + n, 0);
+  return `<div class="pv-h">The sides</div>
+    <div class="pv-sides">${[[1, 1], ...SIDE_PRESETS].map(p => `<button class="pv-gr${sidesWord(p) === sidesWord(S) ? " on" : ""}" data-sides="${p.join(",")}"><b>${one(p)}</b></button>`).join("")}</div>
+    <div class="pv-sidesc">${S.map((n, a) => `<div class="pv-step"><span>${a ? `Side ${a + 1}` : "Yours"}</span><button data-side="${a}" data-d="-1"${n <= 1 ? " disabled" : ""}>−</button><b>${n}</b><button data-side="${a}" data-d="1"${n >= 4 ? " disabled" : ""}>+</button></div>`).join("")}
+      <button class="pv-gr pv-add" data-addside="1"${S.length >= 4 ? " disabled" : ""}><b>+ Side</b></button><button class="pv-gr pv-add" data-addside="-1"${S.length <= 2 ? " disabled" : ""}><b>− Side</b></button></div>
+    <div class="pv-sn">${isCustom(A) ? `${cos} companies, each raised from the same purse${cos > 4 ? " (the bots' smaller, with so many on the field)" : ""}. You lead one of yours; bots lead the rest${S.length > 2 ? ` — and with ${S.length} sides, every side is against every other` : ""}.` : "Your company against one other — the forts are for this."}</div>`;
 }
 function armyClick(e) {
   const b = e.target.closest("button"); if (!b || (must && must.mine)) return;
@@ -399,6 +410,9 @@ function armyClick(e) {
   else if (b.dataset.gr) setArmy({ ground: b.dataset.gr });
   else if (b.dataset.vs) setArmy({ vs: b.dataset.vs });
   else if (b.dataset.purse) setArmy({ purse: +b.dataset.purse });
+  else if (b.dataset.sides) setArmy({ sides: b.dataset.sides.split(",").map(Number) });
+  else if (b.dataset.side) { const S = A.sides.slice(); S[+b.dataset.side] += +b.dataset.d; setArmy({ sides: S }); }
+  else if (b.dataset.addside) { const S = A.sides.slice(); if (+b.dataset.addside > 0) S.push(1); else S.pop(); setArmy({ sides: S }); }
   else if (b.dataset.tr === "guns") setArmy({ guns: A.guns + +b.dataset.d });
   else if (b.dataset.tr) setArmy({ muster: { ...A.muster, [b.dataset.tr]: (A.muster[b.dataset.tr] | 0) + +b.dataset.d } });
   else return;
@@ -511,7 +525,7 @@ export function army() {
   const purse = PURSES[a.purse] ? +a.purse : 900;
   const F = fitMuster(a.muster || { musketeer: 8, pike: 2, bow: 2 }, a.guns ?? 1, a.vs === "player" ? 900 : purse);
   return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)], ground, vs: a.vs === "player" ? "player" : "bots",
-    purse: a.vs === "player" ? 900 : purse, muster: F.muster, guns: F.guns };
+    purse: a.vs === "player" ? 900 : purse, muster: F.muster, guns: F.guns, sides: fitSides(a.sides) };
 }
 export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? 900 : (PURSES[a.purse] ? +a.purse : 900)); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
 // ---- the treasury: what a company costs to raise ----
@@ -551,6 +565,13 @@ function botMuster(purse) {
   for (let tries = 0; tries < 200 && left >= 22; tries++) { const k = pick(); if (TROOPS[k].cost <= left && Object.values(m).reduce((a, b) => a + b, 0) < MAX_MEN) { m[k] = (m[k] || 0) + 1; left -= TROOPS[k].cost; } }
   return { muster: m, guns };
 }
+// ---- a custom battle: two to four sides, and one to four companies to a side — you lead one of the first side's,
+// bots lead all the rest (each its own officer, as the one against you always was) ----
+export const SIDE_PRESETS = [[1, 2], [2, 2], [3, 3], [4, 4], [2, 1], [1, 1, 1], [1, 1, 1, 1], [2, 2, 2]];
+const CUSTOM_MEN = 170;   // (the most men on the field, all the companies together: past that, each bot company smaller)
+export const sidesWord = S => S.join(" v ");
+export const isCustom = A => !!(A && A.battle && A.vs !== "player" && Array.isArray(A.sides) && !(A.sides.length === 2 && A.sides[0] === 1 && A.sides[1] === 1));
+const fitSides = S => { S = Array.isArray(S) ? S.slice(0, 4).map(n => Math.max(1, Math.min(4, n | 0))) : [1, 1]; while (S.length < 2) S.push(1); return S; };
 const TAKE_OVER = 3;   // (fallen in battle: up again in a comrade's place while this many of them still stand)
 const FORM_WORD = { line: "Form line", column: "Form column", square: "Form square", loose: "Loose order — spread out" };
 // a bot's name and look, made up fresh
@@ -671,9 +692,11 @@ export function buildStage(S) {
     && !(battle && Math.abs(Math.abs(x - C.x) - dx) < 16 && Math.abs(z - C.z) < 30));
   let field = null;
   if (multi) {
-    field = new Field(w, C, dx, battle, S.fieldSeed, S.hostFort ?? null, battle ? S.guns : null);
+    const K = S.custom, camps = K && K.camps ? K.camps.map(c => ({ ...c, x: c.x + C.x, z: c.z + C.z })) : null;
+    field = new Field(w, C, dx, battle, S.fieldSeed, S.hostFort ?? null, battle ? S.guns : null, camps);
     if (S.night) field.nightFires();
-    if (battle && S.uni) for (const t of [0, 1]) if (S.uni[t]) field.colours(S.remote ? 1 - t : t, S.uni[t]);
+    if (K && K.flags) K.flags.forEach((f, a) => field.colours(a, f.key, { x: f.x + C.x, z: f.z + C.z }));
+    else if (battle && S.uni) for (const t of [0, 1]) if (S.uni[t]) field.colours(S.remote ? 1 - t : t, S.uni[t]);
     if (S.remote) { for (const g of field.guns) g.side = 1 - g.side; field.spots.reverse(); }
     field.remote = true;   // (its guns laid and loaded as the recording says)
   }
@@ -681,6 +704,8 @@ export function buildStage(S) {
 }
 export const makePuppet = (owner, info) => new Puppet(owner, info);
 
+// (a field of many sides: each company's battery, where it stood — written down from the middle of the field)
+const camps0 = A => A.field && A.field.camps ? A.field.camps.map(c => ({ side: c.side, co: c.co, guns: c.guns, x: c.x - C.x, z: c.z - C.z })) : null;
 // (the guest's own ending, when the host's word doesn't come: as if it had — winner in the host's numbering)
 function net_end(A, winner) { const h = A.net && A.net.on.bend; if (h) h({ winner, k: A.lost | 0, l: A.killed | 0 }); }
 class Arena {
@@ -693,6 +718,8 @@ class Arena {
     // (a battle against another player: the host's game keeps it — its men, its guns, its officer's orders for both
     //  sides, carried out — and the other's shows it, the sides turned about so that its player's company is "ours")
     this.netBattle = !!(net && this.battle); this.host = this.netBattle && side === 0; this.remote = this.netBattle && side === 1;
+    // (a custom battle: the sides, as so many companies each — against bots only)
+    this.custom = !net && !setup && isCustom(A) ? A.sides.slice() : null;
     this.wins = [0, 0]; this.round = 0; this.over = false; this.live = false; this.clock = ROUND_SECS;
     // (a company's fight wants more room than a duel: the ride opened wider, the two lines further apart)
     this.bound = this.battle ? 76 : this.multi ? 48 : BOUND; this.dx = this.battle ? 38 : this.multi ? 21 : 19;
@@ -714,6 +741,8 @@ class Arena {
     G.who = isF(me.look) ? "sister" : "brother";
     // (in a battle, your company's colours: on you too)
     this.uni = this.battle ? [UNIFORMS[A.uniform] || UNIFORMS.imperial, UNIFORMS[A.enemyUniform]] : null;
+    // (every side its own colours, none the same as another's)
+    if (this.custom) { const left = Object.keys(UNIFORMS).filter(k => UNIFORMS[k] !== this.uni[0] && k !== A.enemyUniform).sort(() => Math.random() - 0.5); for (let a = 2; a < this.custom.length; a++) this.uni.push(UNIFORMS[left.pop()]); }
     const myLook = this.myLook = this.uni ? inUniform(me.look, this.uni[0]) : me.look;
     this.foeName = foe.name;
     G.player.setModel(lookOpts(myLook, me.name)); G.player.model.scaleBase = me.look.height || 1;
@@ -730,28 +759,60 @@ class Arena {
       // (and none where either side's works or fort go)
       && !(this.battle && Math.abs(Math.abs(x - C.x) - this.dx) < 16 && Math.abs(z - C.z) < 30));
     this.spawns = this.multi ? lines.map(p => this.clearSpot(p.x, p.z)) : SPAWN.map(p => this.clearSpot(p.x, p.z));
-    this.you = { isPlayer: true, team: 0, get pos() { return G.player.pos; }, get alive() { return !G.downed; }, get yaw() { return G.player.yaw + Math.PI; }, name: me.name };
+    this.you = { isPlayer: true, team: 0, al: 0, get pos() { return G.player.pos; }, get alive() { return !G.downed; }, get yaw() { return G.player.yaw + Math.PI; }, name: me.name };
     this.units = [];
     if (this.multi) {
       // the field: its works, and the guns (a battle); a few things lying about between the lines (any fight with men)
-      this.fortSide = this.battle ? { ours: 0, theirs: 1 }[A.ground] ?? null : null;
+      this.fortSide = this.battle && !this.custom ? { ours: 0, theirs: 1 }[A.ground] ?? null : null;
+      // a custom battle's companies: each side's in a row where it stands — two sides at either end of the field, as a
+      // battle always has them; three or four round it, facing in — yours the first of the first side's
+      if (this.custom) {
+        const S = this.custom, N = S.length; this.cos = [];
+        for (let a = 0; a < N; a++) {
+          const ang = N === 2 ? (a ? 0 : Math.PI) : Math.PI + a * 2 * Math.PI / N, hx = C.x + Math.cos(ang) * this.dx, hz = C.z + Math.sin(ang) * this.dx, lat = { x: -Math.sin(ang), z: Math.cos(ang) }, gap = N === 2 ? 20 : 15;
+          const order = Array.from({ length: S[a] }, (_, k) => k).sort((p, q) => Math.abs(p - (S[a] - 1) / 2) - Math.abs(q - (S[a] - 1) / 2));
+          for (const k of order) { const o = (k - (S[a] - 1) / 2) * gap; this.cos.push({ al: a, x: hx + lat.x * o, z: hz + lat.z * o, home: { x: hx, z: hz } }); }
+        }
+        // (each company raised from the same purse: yours as you mustered it; the others' as their officers see fit, and
+        //  smaller when there are many of them, so the field isn't more men than it can hold)
+        const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
+        const per = Math.max(6, Math.floor((CUSTOM_MEN - menOf(A)) / Math.max(1, this.cos.length - 1))), many = this.cos.length > 4;
+        this.musters = []; this.gunsBought = [];
+        this.cos.forEach((c, i) => {
+          const M = i ? botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1)) : A;
+          let l = list(M); if (i) { l.sort(() => Math.random() - 0.5); l = l.slice(0, per); }
+          this.musters.push(l); c.guns = i ? Math.min(M.guns | 0, many ? 1 : 2) : Math.min(A.guns | 0, N === 2 ? 3 : 2); this.gunsBought.push(c.guns);
+        });
+        A.allies = this.musters.filter((m, i) => i && this.cos[i].al === 0).reduce((t, m) => t + m.length, this.musters[0].length);
+        A.enemies = this.musters.filter((m, i) => this.cos[i].al !== 0).reduce((t, m) => t + m.length, 0);
+      }
       // (the field made the same on both games: the same seed, and built as the host's side has it — west the host's)
       this.fieldSeed = setup ? setup.fieldSeed : (Math.random() * 1e9) | 0;
       const hostFort = this.remote && this.fortSide != null ? 1 - this.fortSide : this.fortSide;
       // (a battle: each side's company as its purse raised it — yours as you mustered it; theirs as their officer, or
       //  the other player, did)
-      if (this.battle && !this.remote) {
+      if (this.battle && !this.remote && !this.custom) {
         const theirs = this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, 900) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1));   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
         A.allies = this.musters[0].length; A.enemies = this.musters[1].length;
       }
-      const gunsHost = this.battle ? (setup ? setup.guns : this.gunsBought) : null;
-      this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost);
+      // (a custom battle of two sides: each end's works with the guns of all its companies; of more: every company its
+      //  own little battery)
+      const sumGuns = a => Math.min(3, this.cos.filter(c => c.al === a).reduce((t, c) => t + c.guns, 0));
+      const gunsHost = this.battle ? (setup ? setup.guns : this.custom ? (this.custom.length === 2 ? [sumGuns(0), sumGuns(1)] : null) : this.gunsBought) : null;
+      const camps = this.custom && this.custom.length > 2 ? this.cos.map((c, i) => ({ side: c.al, co: i, x: c.x, z: c.z, guns: c.guns })) : null;
+      this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost, camps);
+      if (camps) { let k = 0; for (const c of camps) for (let j = 0; j < Math.min(2, c.guns); j++) if (this.field.guns[k]) this.field.guns[k++].co = c.co; }
       this.hostFort = hostFort; this.gunsHost = gunsHost;
       if (this.night) this.field.nightFires();
       // (each side's colours behind its line: yours and theirs — on the other player's game, turned about)
-      if (this.battle && this.uni) { const keyOf = u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u); for (const t of [0, 1]) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t])); }
+      const keyOf = u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u);
+      if (this.custom && this.custom.length > 2) {
+        this.flags = this.custom.map((n, a) => { const h = this.cos.find(c => c.al === a).home, d = Math.hypot(h.x - C.x, h.z - C.z) || 1; return { key: keyOf(this.uni[a]), x: h.x + (h.x - C.x) / d * 7, z: h.z + (h.z - C.z) / d * 7 }; });
+        this.flags.forEach((f, a) => this.field.colours(a, f.key, f));
+      }
+      else if (this.battle && this.uni) for (const t of [0, 1]) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t]));
       if (this.remote) {
         // (and then turned about: the east line, and the guns there, are ours here)
         this.spawns.reverse();
@@ -760,25 +821,31 @@ class Arena {
       }
       // (the fort's people start inside it, at its front wall)
       if (this.field.fortAt) this.spawns[this.fortSide] = this.clearSpot(this.field.fortAt.anchor.x, this.field.fortAt.anchor.z);
-      this.orders = [new Orders(0), new Orders(1)];
+      this.orders = this.custom ? this.cos.map((c, i) => new Orders(i)) : [new Orders(0), new Orders(1)];
+      if (this.custom) this.spawns = this.cos.map(c => this.clearSpot(c.x, c.z));
       if (!this.battle) this.orders[1].form = "loose";
       this.book = new OrderBook(id => this.give(id));
       const sk = this.netBattle ? skillOf(record().rating) : foe.skill, mk = (team, i) => {
         const b = botFoe(), seed = 1000 + team * 100 + i;
-        const look = this.uni ? soldierLook(this.uni[team], seed) : b.look;
+        const look = this.uni ? soldierLook(this.uni[this.alOf(team)], seed) : b.look;
         const tk = this.musters && this.musters[team][i], T = tk && TROOPS[tk];
-        const info = { ...b, look, name: this.uni ? `${(this.uni[team].name)}${T ? " " + T.one.toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (team === 0 ? 0.95 : 1), team, idx: i };
+        const info = { ...b, look, name: this.uni ? `${(this.uni[this.alOf(team)].name)}${T ? " " + T.one.toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i };
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; }
         else if (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
       };
       if (this.remote) this.puppets(setup.roster);
       else {
-        for (let i = 0; i < A.enemies; i++) mk(1, i);
-        for (let i = 0; i < A.allies; i++) mk(0, i);
+        if (this.custom) this.musters.forEach((l, co) => { for (let i = 0; i < l.length; i++) mk(co, i); });
+        else {
+          for (let i = 0; i < A.enemies; i++) mk(1, i);
+          for (let i = 0; i < A.allies; i++) mk(0, i);
+        }
         // every gun with its crew: a gunner and a loader, with hangers at their belts for anyone who comes at the gun
         for (const g of this.field.guns) for (let c = 0; c < 2; c++) {
-          const u = mk(g.side, 100 + this.units.length);
+          // (a custom battle's guns: crewed by the company whose they are — or, at a side's works, the nearest of its own)
+          const co = !this.custom ? g.side : g.co ?? this.cos.map((c, i) => [c, i]).filter(([c]) => c.al === g.side).sort(([p], [q]) => Math.hypot(p.x - g.x, p.z - g.z) - Math.hypot(q.x - g.x, q.z - g.z))[0][1];
+          const u = mk(co, 100 + this.units.length);
           u.lo = { long: "none", side: "none", blade: "sword" }; u.info.lo = u.lo; u.crewOf = g; u.crewIdx = c; g.crew.push(u);
           u.info.name = `${c ? "Loader" : "Gunner"} — ${u.info.name.split(" — ").pop()}`;
         }
@@ -794,8 +861,8 @@ class Arena {
         const nf = this.netFoe = new NetFoe(this, { ...foe, look: inUniform(foe.look || randomLook(), this.uni[1]) });
         nf.team = 1; nf.idx = -1; nf.uid = -1; nf.isNet = true; this.units.push(nf); this.hunt.animals.push(nf);
       }
-      this.foe = this.netFoe || this.units.find(u => u.team === 1);
-      this.foeInfo = { ...this.foe.info, name: this.uni ? this.uni[1].name : this.foe.info.name };
+      this.foe = this.netFoe || this.units.find(u => this.alOf(u.team) !== 0);
+      this.foeInfo = { ...this.foe.info, name: this.custom ? `${sidesWord(this.custom)} · ${this.uni.slice(1).map(u => u.name).join(", ")}` : this.uni ? this.uni[1].name : this.foe.info.name };
       // (the mouse stays yours to fight with while the book's open: aim, fire, strike)
     } else {
       // the foe
@@ -815,7 +882,8 @@ class Arena {
     }
     // (all of it written down as it's fought, to be played over again: see replay.js)
     this.stageSetup = { battle: this.battle, multi: this.multi, seed: ground ? ground.seed : 0, x: C.x, z: C.z, fieldSeed: this.fieldSeed || 0, hostFort: this.hostFort ?? null, guns: this.gunsHost || null,
-      remote: !!this.remote, uni: this.uni ? this.uni.map(u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u)) : null, night: !!this.night, hour: this.hour, dx: this.dx, bound: this.bound };
+      remote: !!this.remote, uni: this.uni ? this.uni.map(u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u)) : null, night: !!this.night, hour: this.hour, dx: this.dx, bound: this.bound,
+      custom: this.custom ? { sides: this.custom, camps: camps0(this), flags: this.flags ? this.flags.map(f => ({ key: f.key, x: f.x - C.x, z: f.z - C.z })) : null } : null };
     const rec = this.rec = new Recorder(this, this.stageSetup);
     { const H = this.hunt, fb = H.fireBall.bind(H), lz = H.loose.bind(H);
       H.fireBall = (from, dir, o = {}) => { rec.shot(o.npc, from, dir, o.speed === 260); return fb(from, dir, o); };
@@ -847,14 +915,18 @@ class Arena {
   foes() {
     if (!this.multi) return this.foe && this.foe.alive && this.foe.view ? [this.foe.view()] : [];
     const p = G.player.pos;
-    return this.units.filter(u => u.team === 1 && u.alive && Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < 6).map(u => ({ ...u.view(), duel: u.T === this.you ? G.player : null }));
+    return this.units.filter(u => this.alOf(u.team) !== 0 && u.alive && Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < 6).map(u => ({ ...u.view(), duel: u.T === this.you ? G.player : null }));
   }
   // ---- the sides ----
+  // (a unit's team is its company; its side, the companies it fights with — in any battle but a custom one, the same)
+  alOf(team) { return this.cos ? (this.cos[team] ? this.cos[team].al : 1) : team; }
   enemiesOf(team) {
-    const out = this.units.filter(u => u.alive && u.team !== team);
-    if (team !== 0 && this.you.alive) out.push(this.you);
+    const al = this.alOf(team), out = this.units.filter(u => u.alive && this.alOf(u.team) !== al);
+    if (al !== 0 && this.you.alive) out.push(this.you);
     return out;
   }
+  // (every man on a side, every company of it)
+  sideOf(al) { return this.units.filter(u => u.alive && this.alOf(u.team) === al); }
   alliesOf(team) { return this.units.filter(u => u.alive && u.team === team); }
   // (worth showing you: the hints about a head-shot only if it's near enough to be your doing)
   youCanSee(u) { return Math.hypot(u.pos.x - G.player.pos.x, u.pos.z - G.player.pos.z) < 60; }
@@ -881,7 +953,7 @@ class Arena {
   unitDown(u) {
     if (!this.multi) { this.endRound(0); return; }
     if (this.host && !u.isNet) this.net.send({ t: "bdown", id: u.uid, x: +(u.fromX ?? u.pos.x).toFixed(1), z: +(u.fromZ ?? u.pos.z).toFixed(1), h: u.headShot ? 1 : 0, b: u.blastDown ? 1 : 0 });
-    if (u.team === 1) this.killed = (this.killed || 0) + 1; else this.lost = (this.lost || 0) + 1;
+    if (this.alOf(u.team) !== 0) this.killed = (this.killed || 0) + 1; else this.lost = (this.lost || 0) + 1;
     if (this.book) this.book.update(this.bookState());
     if (this.orders && this.orders[0].target === u) this.orders[0].target = null;
     this.showHud();
@@ -893,7 +965,9 @@ class Arena {
   }
   checkEnd() {
     if (this.over || this.ended || this.remote) return;
-    const theirs = this.alliesOf(1).length, ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0);
+    // (over when your side's gone, or it's the only one left standing — of two sides or of four)
+    const standing = new Set(this.units.filter(u => u.alive).map(u => this.alOf(u.team))); if (this.you.alive) standing.add(0);
+    const ours = standing.has(0) ? 1 : 0, theirs = [...standing].filter(a => a !== 0).length;
     if (!theirs || !ours) {
       this.ended = true; this.live = false;
       const won = !theirs;
@@ -919,31 +993,37 @@ class Arena {
     G.body.hunger = 1; G.body.thirst = 1; G.body.temp = 0;
     clearDropped();
     // you before your company, a few paces in front of its line; they in their ranks behind; the other side at its own
-    const face0 = Math.atan2(theirs.x - mine.x, theirs.z - mine.z), face1 = face0 + Math.PI;
+    // (a custom battle: every company facing the middle of the field — straight across it, two sides; in at its
+    //  centre, more)
+    const N = this.custom ? this.custom.length : 2, toward = at => !this.custom ? null : N === 2 ? { x: C.x, z: at.z } : { x: C.x, z: C.z };
+    const face0 = this.custom ? Math.atan2(toward(mine).x - mine.x, toward(mine).z - mine.z) : Math.atan2(theirs.x - mine.x, theirs.z - mine.z), face1 = face0 + Math.PI;
     const O0 = this.orders[0], O1 = this.orders[1];
     O0.mode = "follow"; O0.at = null; O1.mode = "hold"; O1.at = { x: theirs.x, z: theirs.z };
     // (holding your fort: your company on its front wall from the start)
     if (this.fortSide === 0) { O0.mode = "hold"; O0.at = { x: mine.x, z: mine.z }; }
     pl.place(mine.x + Math.sin(face0) * 3, mine.z + Math.cos(face0) * 3, face0 + Math.PI);
-    for (const [team, at, face, O] of [[0, mine, face0, O0], [1, theirs, face1, O1]]) {
+    const placing = this.custom ? this.cos.map((c, co) => { const at = this.spawns[co], tw = toward(at), O = this.orders[co]; if (co) { O.mode = "hold"; O.at = { x: at.x, z: at.z }; } return [co, at, Math.atan2(tw.x - at.x, tw.z - at.z), O, tw]; })
+      : [[0, mine, face0, O0, theirs], [1, theirs, face1, O1, mine]];
+    for (const [team, at, face, O, look] of placing) {
       const list = this.alliesOf(team).filter(u => !u.crewOf).sort((a, b) => a.idx - b.idx);
-      list.forEach((u, i) => { const p = this.clearSpot(...Object.values(O.slot(i, list.length, at, face))); u.reset(p, team ? mine : theirs); });
-      for (const u of this.alliesOf(team).filter(u => u.crewOf)) u.reset(this.field.station(u.crewOf, u.crewIdx), team ? mine : theirs);
+      list.forEach((u, i) => { const p = this.clearSpot(...Object.values(O.slot(i, list.length, at, face))); u.reset(p, look); });
+      for (const u of this.alliesOf(team).filter(u => u.crewOf)) u.reset(this.field.station(u.crewOf, u.crewIdx), look);
     }
+    this.cmds = [];
     pl.swingRate = BLADE[this.lo.blade].rate; G.loadMul = loadMul(this.lo);
     this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
     G.lockMove = true;
     // (their officer: how long he'll hold his ground before he comes on)
     this.holdFor = this.fortSide === 1 ? Infinity : this.fortSide === 0 ? 4 + Math.random() * 5 : this.battle ? 15 + Math.random() * 15 : 3 + Math.random() * 5; this.cmdT = 0; this.volT = this.battle ? 3.5 + Math.random() * 3 : 10 + Math.random() * 6;   // (the first volley soon: nobody stands loaded under fire)
     this.showHud();
-    const allies = this.alliesOf(0).length, foes = this.alliesOf(1).length;
+    const allies = this.sideOf(0).length, foes = this.enemiesOf(0).length - 0;
     UI.fadeNow(1); UI.fade(0, 1.2);
     // the opening: the field from the air, each side in its ranks, the ground, and down into your own eyes (a battle
     // only; a skirmish in the woods goes straight to it)
     const lead = this.battle && !window.__noIntro ? this.intro() : 0;
     const say = () => {
       this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
-        `${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
+        `${this.custom ? `${sidesWord(this.custom)} · ` : ""}${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
       // (a fort against a player: why it's theirs or yours, so it doesn't look like a coin that fell the other way)
       if (this.netBattle && this.fortSide != null) setTimeout(() => G.arena === this && UI.hint(this.fortSide === 0 ? "You hold the fort: your company's the smaller, so you have the walls to make up the numbers. Hold them." : "They hold the fort: theirs is the smaller company, so they have the walls to make up the numbers. Take it.", 7), 900);
     };
@@ -999,8 +1079,29 @@ class Arena {
   // paces at a time, at your company; volleys when they're near enough; and, close, sends them in with the steel
   commander(dt) {
     if (this.netBattle) return;   // (the other company has its own commander: the other player)
-    const O = this.orders[1], t = G.time - this.liveAt;
-    const theirs = this.alliesOf(1), ours = this.alliesOf(0).concat(this.you.alive ? [this.you] : []);
+    if (!this.custom) { this.command(1, this, dt); return; }
+    // (a custom battle: every company but yours its own officer — your side's as well as the others')
+    for (let co = 1; co < this.cos.length; co++) if (this.alliesOf(co).length) this.command(co, this.kOf(co), dt);
+  }
+  // an officer's own reckoning, company by company (in any battle but a custom one, the other side's, kept on the arena)
+  kOf(co) {
+    if (!this.custom) return this;
+    return (this.cmds ||= [])[co] ||= { holdFor: co && this.cos[co].al === 0 ? 4 + Math.random() * 6 : 12 + Math.random() * 14, cmdT: 0, volT: 3.5 + Math.random() * 3 };
+  }
+  // (whom he means to fight: the nearest company of another side — looked at again every few seconds, or when it's gone)
+  foeCoOf(co, K, dt) {
+    const al = this.alOf(co), cen = l => ({ x: l.reduce((s, u) => s + u.pos.x, 0) / l.length, z: l.reduce((s, u) => s + u.pos.z, 0) / l.length });
+    const members = c => this.alliesOf(c).concat(c === 0 && this.you.alive ? [this.you] : []);
+    if (K.foeCo != null && (K.foeT -= dt) > 0 && members(K.foeCo).length) return K.foeCo;
+    const mine = this.alliesOf(co); if (!mine.length) return null;
+    const me = cen(mine); let best = null, bd = Infinity;
+    for (let c = 0; c < this.cos.length; c++) { if (this.cos[c].al === al) continue; const l = members(c); if (!l.length) continue; const p = cen(l), d = Math.hypot(p.x - me.x, p.z - me.z) * (c === K.foeCo ? 0.8 : 1); if (d < bd) { bd = d; best = c; } }
+    K.foeT = 5; K.foeCo = best; return best;
+  }
+  command(co, K, dt) {
+    const O = this.orders[co], t = G.time - this.liveAt;
+    const fc = this.custom ? this.foeCoOf(co, K, dt) : 0; if (fc == null) return;
+    const theirs = this.alliesOf(co), ours = this.alliesOf(fc).concat(fc === 0 && this.you.alive ? [this.you] : []);
     if (!theirs.length || !ours.length) return;
     const cen = l => ({ x: l.reduce((s, u) => s + u.pos.x, 0) / l.length, z: l.reduce((s, u) => s + u.pos.z, 0) / l.length });
     const a = cen(theirs), b = cen(ours), d = Math.hypot(b.x - a.x, b.z - a.z) || 1;
@@ -1010,14 +1111,14 @@ class Arena {
     if (this.fortSide === 1) {
       const F = this.field.fortAt, inFort = ours.some(u => (u.pos.x - F.front) * F.sx > -0.5 && (u.pos.x - F.back) * F.sx < 0.5 && Math.abs(u.pos.z - F.z) < F.W);
       O.charge = inFort;
-      if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) { this.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
+      if ((K.volT -= dt) <= 0 && d < 80 && !O.charge) { K.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
       return;
     }
     // his generalship, as your record has earned you an opponent: a green officer is rash — on at you and in with the
     // steel as soon as he's near; a seasoned one stands off at musket range and makes his volleys tell, holds behind
     // cover when he's the fewer, waits for your line to have fired before he charges it, and calls a charge off that's
     // going against him
-    const gen = this.gen ??= generalship(), L = (x, y) => x + (y - x) * gen;
+    const gen = K.gen ??= generalship(), L = (x, y) => x + (y - x) * gen;
     const nT = theirs.length, nO = ours.length, ratio = nT / Math.max(1, nO);
     const loadedOf = l => { const m = l.filter(u => u.loaded); return m.length ? m.filter(u => u.loaded.long).length / m.length : 1; };
     const oursEmpty = 1 - loadedOf(ours), theirsLoaded = loadedOf(theirs), inRange = d < RANGE.musket * this.sight;
@@ -1025,25 +1126,25 @@ class Arena {
     // (the line he means to come at: yours — or, with men to spare, the end of it that's thinnest, so his line overlaps
     //  yours there and folds round it)
     const px = -(b.z - a.z) / d, pz = (b.x - a.x) / d;
-    if (this.flank === undefined || (this.flankT -= dt) <= 0) {
-      this.flankT = 6; let l = 0, r = 0; for (const u of ours) ((u.pos.x - b.x) * px + (u.pos.z - b.z) * pz > 0 ? r++ : l++);
-      this.flank = l === r ? (this.flank || 1) : r < l ? 1 : -1;
+    if (K.flank === undefined || (K.flankT -= dt) <= 0) {
+      K.flankT = 6; let l = 0, r = 0; for (const u of ours) ((u.pos.x - b.x) * px + (u.pos.z - b.z) * pz > 0 ? r++ : l++);
+      K.flank = l === r ? (K.flank || 1) : r < l ? 1 : -1;
     }
-    const lap = gen > 0.5 && ratio > 1.15 ? Math.min(14, (nT - nO) * 1.1) * gen : 0, tgt = { x: b.x + px * lap * this.flank, z: b.z + pz * lap * this.flank };
+    const lap = gen > 0.5 && ratio > 1.15 ? Math.min(14, (nT - nO) * 1.1) * gen : 0, tgt = { x: b.x + px * lap * K.flank, z: b.z + pz * lap * K.flank };
     // (your charge coming on: he meets it with every loaded musket at a dozen paces — then the steel at it)
-    const O0 = this.orders[0], youCharge = O0 && O0.charge;
+    const O0 = this.orders[fc], youCharge = O0 && O0.charge;
     if (youCharge && !O.charge && gen > 0.4) {
-      if (d < 26 && theirsLoaded > 0.4 && G.time - (this.metAt || -99) > 8) { this.metAt = G.time; O.volleyAt = G.time + 0.35; O.fire = true; shout(); }
-      if (d < 11 || (this.metAt && G.time - this.metAt > 1.2 && d < 18)) { O.charge = true; O.cover = false; this.chargedAt = G.time; shout(); }
+      if (d < 26 && theirsLoaded > 0.4 && G.time - (K.metAt || -99) > 8) { K.metAt = G.time; O.volleyAt = G.time + 0.35; O.fire = true; shout(); }
+      if (d < 11 || (K.metAt && G.time - K.metAt > 1.2 && d < 18)) { O.charge = true; O.cover = false; K.chargedAt = G.time; shout(); }
     }
     // (the fewer, and a head on him: he stays where he is, in cover, and lets you come on into his fire)
     if (O.mode === "hold") O.cover = outnumbered && !O.charge;
-    if (O.mode === "hold" && !(outnumbered && d > 22) && (t > this.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; this.adv = { march: true, until: G.time + 8 }; shout(); }
+    if (O.mode === "hold" && !(outnumbered && d > 22) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; shout(); }
     // the advance, as the drill had it: a march of some paces, the line kept together — then, once in range, a halt and
     // a volley — and on again, until they're close enough for the steel
-    if (O.mode === "advance" && (this.cmdT -= dt) <= 0) {
-      this.cmdT = 2;
-      const adv = this.adv ||= { march: true, until: G.time + 8 }, inRange = d < RANGE.musket * this.sight;
+    if (O.mode === "advance" && (K.cmdT -= dt) <= 0) {
+      K.cmdT = 2;
+      const adv = K.adv ||= { march: true, until: G.time + 8 }, inRange = d < RANGE.musket * this.sight;
       if (G.time > adv.until) {
         // (the first volley held until it'll tell: the seasoned officer halts well inside a musket-shot, not at its end)
         const telling = d < RANGE.musket * this.sight * L(1, 0.6);
@@ -1065,19 +1166,19 @@ class Arena {
     // (or yours is all anyhow — strung out on the march, men off on their own — and his isn't)
     const spread = l => { const c = cen(l); return l.reduce((s2, u) => s2 + Math.hypot(u.pos.x - c.x, u.pos.z - c.z), 0) / l.length; };
     const broken = gen > 0.6 && nO > 3 && spread(ours) > spread(theirs) * 1.8 && ratio >= 0.9;
-    if (!O.charge && d < chargeD && (ratio >= needRatio || caught || broken || nO <= 2 || t > this.holdFor + patience)) { O.charge = true; O.cover = false; this.chargedAt = G.time; shout(); }
+    if (!O.charge && d < chargeD && (ratio >= needRatio || caught || broken || nO <= 2 || t > K.holdFor + patience)) { O.charge = true; O.cover = false; K.chargedAt = G.time; shout(); }
     // (a charge going against him, called off — the men back to re-form at a musket-shot, and the firing taken up again)
-    if (O.charge && gen > 0.45 && G.time - (this.chargedAt || 0) > 6 && ratio < L(0.5, 0.75) && nO > 2) {
+    if (O.charge && gen > 0.45 && G.time - (K.chargedAt || 0) > 6 && ratio < L(0.5, 0.75) && nO > 2) {
       O.charge = false; O.mode = "advance"; const away = Math.hypot(a.x - b.x, a.z - b.z) || 1;
-      O.at = { x: a.x + (a.x - b.x) / away * 14, z: a.z + (a.z - b.z) / away * 14 }; this.adv = { march: false, until: G.time + 8 }; this.cmdT = 8; shout();
+      O.at = { x: a.x + (a.x - b.x) / away * 14, z: a.z + (a.z - b.z) / away * 14 }; K.adv = { march: false, until: G.time + 8 }; K.cmdT = 8; shout();
     }
     // (taking losses where he stands: answered at once, with whatever's loaded)
-    if (this.nWas != null && nT < this.nWas) this.hitAt = G.time; this.nWas = nT;
-    if (this.hitAt && G.time - this.hitAt < 1.5 && !O.charge && d < RANGE.musket * this.sight + 10 && theirsLoaded > 0.3 && this.volT > 1.2) this.volT = 0.5 + Math.random() * 0.6;
+    if (K.nWas != null && nT < K.nWas) K.hitAt = G.time; K.nWas = nT;
+    if (K.hitAt && G.time - K.hitAt < 1.5 && !O.charge && d < RANGE.musket * this.sight + 10 && theirsLoaded > 0.3 && K.volT > 1.2) K.volT = 0.5 + Math.random() * 0.6;
     // the volleys: on a clock, if he's rash; when his men are loaded and you're in range, if he isn't
-    if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) {
-      if (gen < 0.3 || (theirsLoaded > 0.7 && inRange)) { this.volT = L(11, 6) + Math.random() * L(8, 3); O.volleyAt = G.time + 1.1; shout(); }
-      else this.volT = 1;
+    if ((K.volT -= dt) <= 0 && d < 80 && !O.charge) {
+      if (gen < 0.3 || (theirsLoaded > 0.7 && inRange)) { K.volT = L(11, 6) + Math.random() * L(8, 3); O.volleyAt = G.time + 1.1; shout(); }
+      else K.volT = 1;
     }
   }
   // your blade in the press: the nearest of theirs in reach, in front of you
@@ -1085,7 +1186,7 @@ class Arena {
     const pl = G.player, B = this.myBlade(), fwd = pl.forward();
     if (!this.live) return;
     let best = null, bd = Infinity;
-    for (const u of this.alliesOf(1)) {
+    for (const u of this.enemiesOf(0)) {
       const dx = u.pos.x - pl.pos.x, dz = u.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
       if (d > B.reach || (dx * fwd.x + dz * fwd.z) / (d || 1) < 0.45) continue;
       if (d < bd) { bd = d; best = u; }
@@ -1124,14 +1225,14 @@ class Arena {
       this.rise(); this.watching = false;
       G.downed = false; G.health = 1; G.stamina = 1; G.hurtT = 0; G.lockMove = false; pl.frozen = false;
       pl.gunSaved = {}; pl.gunLoaded = true; pl.gunReload = 0; pl.xspan = 1;
-      const th = this.alliesOf(1)[0] ? this.alliesOf(1)[0].pos : this.spawns[1];
+      const th = this.enemiesOf(0)[0] ? this.enemiesOf(0)[0].pos : this.spawns[1];
       pl.place(given.x, given.z, Math.atan2(-(th.x - given.x), -(th.z - given.z)));
       this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
       this.net.send({ t: "dhp", hp: HP, r: this.round });
       this.showHud(); UI.hint(`Up — in his place. ${mates.length - 1} of your company still standing.`, 3);
       return;
     }
-    const foes = this.alliesOf(1), far = u => Math.min(...foes.map(f => Math.hypot(f.pos.x - u.pos.x, f.pos.z - u.pos.z)), 999);
+    const foes = this.enemiesOf(0), far = u => Math.min(...foes.map(f => Math.hypot(f.pos.x - u.pos.x, f.pos.z - u.pos.z)), 999);
     const u = mates.sort((a, b) => far(b) - far(a))[0], pl = G.player, at = { x: u.pos.x, z: u.pos.z }, was = { x: pl.pos.x, z: pl.pos.z };
     UI.fadeNow(1); UI.fade(0, 0.9);
     // (his body where yours lay: the fallen man is the one there now)
@@ -1231,7 +1332,7 @@ class Arena {
       case "target": {
         const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
         let best = null, ba = 0.12;
-        for (const u of this.alliesOf(1)) { const v = new THREE.Vector3(u.pos.x - camera.position.x, u.pos.y + 1.2 - camera.position.y, u.pos.z - camera.position.z), d = v.length(); if (d > 150) continue; const ang = v.normalize().angleTo(dir); if (ang < ba) { ba = ang; best = u; } }
+        for (const u of this.enemiesOf(0)) { const v = new THREE.Vector3(u.pos.x - camera.position.x, u.pos.y + 1.2 - camera.position.y, u.pos.z - camera.position.z), d = v.length(); if (d > 150) continue; const ang = v.normalize().angleTo(dir); if (ang < ba) { ba = ang; best = u; } }
         if (!best) { UI.hint("Look at the man you want brought down, then give the order.", 2.5); return; }
         O.target = best; this.mark(best.pos, 0xd86a50); say("That one — bring him down!"); break;
       }
@@ -1414,21 +1515,23 @@ class Arena {
     const battle = this.battle, pl = G.player, D = battle ? 14 : 7.5;
     const P = (x, z, up) => ({ x, y: groundY(x, z) + up, z });
     const cen = l => l.length ? { x: l.reduce((a, u) => a + u.pos.x, 0) / l.length, z: l.reduce((a, u) => a + u.pos.z, 0) / l.length } : { x: C.x, z: C.z };
-    const mine = () => this.alliesOf(0).filter(u => !u.crewOf), theirs = () => this.alliesOf(1).filter(u => !u.crewOf);
+    // (a custom battle: the line shown against you is the nearest company of another side's)
+    const K = this.custom, foeCo = K ? Math.max(1, this.cos.findIndex(c => c.al !== 0)) : 1, myCos = K ? this.cos.map((c, i) => i).filter(i => this.cos[i].al === 0) : [0], foeCos = K ? this.cos.map((c, i) => i).filter(i => this.cos[i].al !== 0) : [1];
+    const mine = () => this.alliesOf(0).filter(u => !u.crewOf), theirs = () => this.alliesOf(foeCo).filter(u => !u.crewOf);
     // (each side's company in a line of words: so many of each, and the guns)
     const tally = team => {
-      const l = this.alliesOf(team), by = {};
-      for (const u of l) { const k = u.crewOf ? null : (this.musters && this.musters[team] && this.musters[team][u.idx]) || null; if (k) by[k] = (by[k] || 0) + 1; }
-      const guns = this.field ? this.field.guns.filter(g => g.side === team).length : 0, men = l.filter(u => !u.crewOf).length + (team === 0 ? 1 : 0);
+      const cos = team === 0 ? myCos : foeCos, l = cos.flatMap(c => this.alliesOf(c)), by = {};
+      for (const u of l) { const k = u.crewOf ? null : (this.musters && this.musters[u.team] && this.musters[u.team][u.idx]) || null; if (k) by[k] = (by[k] || 0) + 1; }
+      const guns = this.field ? this.field.guns.filter(g => team === 0 ? g.side === 0 : g.side !== 0).length : 0, men = l.filter(u => !u.crewOf).length + (team === 0 ? 1 : 0);
       const parts = Object.keys(by).length ? Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${(n === 1 ? TROOPS[k].one : TROOPS[k].name).toLowerCase()}`) : [`${men} men`];
       return parts.slice(0, 4).join(" · ") + (guns ? ` · ${guns} gun${guns > 1 ? "s" : ""}` : "");
     };
     const foeName = this.netBattle || (this.net && !this.multi) ? (this.foeName || "another commander") : null;
     const hourWord = { morning: "Morning", afternoon: "Afternoon", evening: "Evening", night: "Night" }[this.hour] || "";
     const shots = battle ? [
-      { at: 0, len: 3.6, cap: [this.place ? this.place.text.replace(" · by night", "") : "The field", `${this.place ? this.place.at + " · " : ""}${hourWord}${this.fortSide === 0 ? " · you hold the fort" : this.fortSide === 1 ? " · they hold the fort" : ""}`, "To Arms", true] },
-      { at: 3.6, len: 3.3, cap: [this.uni[0].name, tally(0), `Your company · under ${this.me.name}`] },
-      { at: 6.9, len: 3.3, cap: [this.uni[1].name, tally(1), foeName ? `Against you · under ${foeName}` : "Against you"] },
+      { at: 0, len: 3.6, cap: [this.place ? this.place.text.replace(" · by night", "") : "The field", `${this.place ? this.place.at + " · " : ""}${hourWord}${this.fortSide === 0 ? " · you hold the fort" : this.fortSide === 1 ? " · they hold the fort" : ""}`, K ? `To Arms · ${sidesWord(K)}` : "To Arms", true] },
+      { at: 3.6, len: 3.3, cap: [this.uni[0].name, tally(0), K && K[0] > 1 ? `Your side · ${K[0]} companies, yours under ${this.me.name}` : `Your company · under ${this.me.name}`] },
+      { at: 6.9, len: 3.3, cap: K ? [this.uni.slice(1).map(u => u.name).join(" · "), tally(1), `Against you · ${foeCos.length} compan${foeCos.length > 1 ? "ies" : "y"}${K.length > 2 ? ", and each against the others" : ""}`] : [this.uni[1].name, tally(1), foeName ? `Against you · under ${foeName}` : "Against you"] },
       { at: 10.2, len: 1.9, cap: null },
       { at: 12.1, len: 1.9, cap: null },
     ] : [
@@ -1462,9 +1565,9 @@ class Arena {
       if (T >= D) { done(); return; }
       let i = shots.length - 1; while (i > 0 && shots[i].at > T) i--;
       const S = shots[i], u = clamp((T - S.at) / S.len, 0, 1);
-      if (i !== cur) { cur = i; sm.cut(); if (i) FILM.dip(300); if (S.cap) FILM.cap(...S.cap); else FILM.cap(null); }
       const a = cen(mine()), b = cen(theirs()), dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz) || 1, f = [dx / d, dz / d], r = [dz / d, -dx / d];
-      const m = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+      const m = K && K.length > 2 ? { x: C.x, z: C.z } : { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+      const geo = (sm, u) => {
       if (battle) {
         if (i === 0) {
           // from high over the field, coming down and round
@@ -1496,6 +1599,15 @@ class Arena {
       if (u > 0.9) G.forceThird = false;   // (into your own head: the body you see from inside, as you always do)
       const want = { x: e.x + (look.x - e.x) * k, y: e.y - 0.25 + (look.y - e.y + 0.25) * k, z: e.z + (look.z - e.z) * k }, fv = (G.settings && G.settings.fov) || 70;
       return sm.go(cam, from, want, fv - (1 - k) * 18, u > 0.75 ? 30 : 7, rdt);
+      };
+      // (each shot's path worked out whole as it begins, the height it needs over the works along it with it — the last,
+      //  into your eyes, never lifted)
+      if (i !== cur) {
+        cur = i; sm.cut(); if (i) FILM.dip(300); if (S.cap) FILM.cap(...S.cap); else FILM.cap(null);
+        if (i === shots.length - 1) sm.fixed = 0;
+        else { const cap = { go: (c, from, to) => [from, to] }; sm.plan(uu => geo(cap, uu)); }
+      }
+      return geo(sm, u);
     };
     return D;
   }
@@ -1526,7 +1638,7 @@ class Arena {
     if (this.rec && !left) {
       this.rec.push("E", won ? 1 : 0);
       const kind = this.battle ? "battle" : this.multi ? "skirmish" : "duel", vs = this.net ? "player" : "bots";
-      rec = this.rec.finish({ name: this.me.name, foe: this.multi ? (this.netBattle ? this.foeName : `${this.uni ? this.uni[1].name : "bots"} (bots)`) : `${this.foeInfo.name}${this.foeInfo.bot ? " (bot)" : ""}`,
+      rec = this.rec.finish({ name: this.me.name, sides: this.custom || undefined, foe: this.multi ? (this.netBattle ? this.foeName : this.custom ? `${sidesWord(this.custom)} (bots)` : `${this.uni ? this.uni[1].name : "bots"} (bots)`) : `${this.foeInfo.name}${this.foeInfo.bot ? " (bot)" : ""}`,
         kind, vs, place: this.place ? this.place.text : "", hour: this.hour, won, k: this.multi ? this.killed | 0 : this.wins[0], l: this.multi ? this.lost | 0 : this.wins[1],
         uni: this.uni ? this.uni.map(u => u.name) : [], men: this.multi ? [this.army.allies + 1, this.army.enemies] : [1, 1] });
       if (rec) { lastRec = rec; keepMine(rec); if (shareOn()) upload(rec).then(id => { if (id) rec.id = id; }); }
@@ -1563,7 +1675,7 @@ class Arena {
     let fight = 0, run = 0;
     for (const u of us) {
       const k = near(u.pos, 55); if (k <= 0) { u.dinAt = null; continue; }
-      if (us.some(v => v.team !== u.team && Math.abs(v.pos.x - u.pos.x) < 3.5 && Math.abs(v.pos.z - u.pos.z) < 3.5)) fight += k;
+      if (us.some(v => this.alOf(v.team) !== this.alOf(u.team) && Math.abs(v.pos.x - u.pos.x) < 3.5 && Math.abs(v.pos.z - u.pos.z) < 3.5)) fight += k;
       if (u.dinAt) { const sp = Math.hypot(u.pos.x - u.dinAt.x, u.pos.z - u.dinAt.z) / step; if (sp > 2.6) run += k; }
       u.dinAt = { x: u.pos.x, z: u.pos.z };
     }
@@ -1627,9 +1739,11 @@ class Arena {
     const h = $("pvpHud"); if (!h) return;
     h.classList.toggle("multi", this.multi);
     if (this.multi) {
-      const ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0), theirs = this.alliesOf(1).length;
+      const ours = this.sideOf(0).length + (this.you.alive ? 1 : 0), theirs = this.enemiesOf(0).length;
+      // (a custom battle: your side, and every other side still in it, by its colours)
+      const others = this.custom ? this.custom.map((n, a) => a && this.sideOf(a).length ? `${this.uni[a].name} ${this.sideOf(a).length}` : null).filter(Boolean).join(" · ") : null;
       h.querySelector(".ph-me .ph-name").textContent = `${this.uni ? this.uni[0].name : "Yours"} · ${ours} standing`;
-      h.querySelector(".ph-foe .ph-name").textContent = `${this.uni ? this.uni[1].name : "Theirs"} · ${theirs} standing`;
+      h.querySelector(".ph-foe .ph-name").textContent = others != null ? (others || "None standing") : `${this.uni ? this.uni[1].name : "Theirs"} · ${theirs} standing`;
       h.querySelector(".ph-me .ph-pips").innerHTML = ""; h.querySelector(".ph-foe .ph-pips").innerHTML = "";
       h.querySelector(".ph-round").textContent = this.place ? this.place.text : this.battle ? "Battle" : "Skirmish";
       return;
@@ -1645,7 +1759,7 @@ class Arena {
     const h = $("pvpHud"); if (!h) return;
     const s = Math.max(0, Math.ceil(this.clock)), c = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     if (c !== this._c) { this._c = c; h.querySelector(".ph-clock").textContent = c; h.querySelector(".ph-clock").classList.toggle("low", !this.multi && s <= 20); }
-    const k = this.multi ? clamp(this.alliesOf(1).length / Math.max(1, this.army.enemies), 0, 1) : clamp(this.foe.hp / HP, 0, 1);
+    const k = this.multi ? clamp((this.custom ? this.enemiesOf(0).length : this.alliesOf(1).length) / Math.max(1, this.army.enemies), 0, 1) : clamp(this.foe.hp / HP, 0, 1);
     if (Math.abs(k - (this._k ?? -1)) > 0.004) { this._k = k; h.querySelector(".ph-hp i").style.width = `${k * 100}%`; }
   }
   banner(t, sub) {
@@ -1878,7 +1992,7 @@ const DIRS = ["up", "left", "right"];
 class Bot extends Fighter {
   constructor(arena, info) {
     super(arena, info);
-    this.s = info.skill; this.lo = info.lo; this.team = info.team ?? 1; this.idx = info.idx || 0;
+    this.s = info.skill; this.lo = info.lo; this.team = info.team ?? 1; this.al = info.al ?? this.team; this.idx = info.idx || 0;
     info.rating = record().rating;
   }
   reset(at, face) {
@@ -1898,7 +2012,7 @@ class Bot extends Fighter {
     setTimeout(() => this.alive && a.person.setPose("idle"), 520);
     const f = new THREE.Vector3(Math.sin(a.yaw), 0, Math.cos(a.yaw)), from = new THREE.Vector3(a.pos.x, a.pos.y + 1.8, a.pos.z).addScaledVector(f, 0.35);
     const to = { x: tp.x + (Math.random() - 0.5) * 2 * sp, z: tp.z + (Math.random() - 0.5) * 2 * sp };
-    setTimeout(() => { if (!this.alive || !this.arena.field) return; this.arena.field.throwNade(from, to, this.team); const dd = Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z); if (dd < 22) AUDIO.whoosh && AUDIO.whoosh(0.4 * (1 - dd / 22) ** 1.5, true); }, 260);
+    setTimeout(() => { if (!this.alive || !this.arena.field) return; this.arena.field.throwNade(from, to, this.al); const dd = Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z); if (dd < 22) AUDIO.whoosh && AUDIO.whoosh(0.4 * (1 - dd / 22) ** 1.5, true); }, 260);
     if (Math.random() < 0.5) AUDIO.voice && AUDIO.voice("war", { at: a.pos, vol: 0.7, high: isF(this.info.look) });
   }
   // his steel: the bayonet fixed on his musket if he has the two; else his blade
@@ -1953,7 +2067,7 @@ class Bot extends Fighter {
     if (O && O.target && O.target.alive && foes.includes(O.target)) return O.target;
     // (the sharp officer's men pick their mark: a man out in the open before one behind cover, a man already hurt, a
     //  gun's crew — fire where it'll tell — and never all on one while others go untouched)
-    const sharp = this.team === 1 && (this.arena.gen || 0) > 0.5 && this.arena.battle, on = sharp ? new Map() : null;
+    const sharp = this.al !== 0 && (this.arena.kOf(this.team).gen || 0) > 0.5 && this.arena.battle, on = sharp ? new Map() : null;
     if (sharp) for (const m of this.arena.alliesOf(this.team)) if (m !== this && m.T) on.set(m.T, (on.get(m.T) || 0) + 1);
     let best = null, bd = Infinity;
     for (const f of foes) {
@@ -2046,7 +2160,7 @@ class Bot extends Fighter {
       const want = this.arena.slotFor(this);
       // (loading, or ordered down: behind the nearest thing that'll stop a ball, if there's one near his place)
       // (but not on the march: the line keeps its order, and loads where it stands)
-      const wantCover = field && !this.crewOf && (O.cover || (!useK && s > 0.25 && !this.wasCrew && O.mode !== "advance")) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.team, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
+      const wantCover = field && !this.crewOf && (O.cover || (!useK && s > 0.25 && !this.wasCrew && O.mode !== "advance")) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.al, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
       if (wantCover !== this.cover) { this.releaseCover(); this.cover = wantCover; if (wantCover) wantCover.taken = this; }
       const goal = this.cover || want, gd = Math.hypot(goal.x - a.pos.x, goal.z - a.pos.z);
       // (behind his cover and not firing: down low)
@@ -2070,7 +2184,7 @@ class Bot extends Fighter {
       // (a grenadier, a man close enough and in sight: a grenade lobbed at him — now and then, while he has any — on the
       //  march or standing)
       if (this.nades > 0 && O.fire && this.los && d > 9 && d < 26 && field && (this.nadeT = (this.nadeT ?? 1.5 + Math.random() * 3) - dt) <= 0) {
-        this.nadeT = 7 + Math.random() * 4; this.nades--; a.path = []; this.throwNade(this.team === 1 && (this.arena.gen || 0) > 0.5 ? this.crowd(T) : T); return;
+        this.nadeT = 7 + Math.random() * 4; this.nades--; a.path = []; this.throwNade(this.al !== 0 && (this.arena.kOf(this.team).gen || 0) > 0.5 ? this.crowd(T) : T); return;
       }
       // (on the march, loaded, and a man of theirs in range and in sight: he halts, presents, fires — and loads as he
       //  goes on again)
@@ -2102,7 +2216,7 @@ class Bot extends Fighter {
       // nothing loaded: the long arm in hand, loading — behind something if there's something near, else side to side
       if (this.heldK !== longK && longK !== "none") this.hold(longK);
       a.person.setPose("idle"); this.aimT = 0; this.aimUp(false);
-      const cv = field && field.coverNear(this.team, a.pos.x, a.pos.z, fp.x, fp.z, 10, this);
+      const cv = field && field.coverNear(this.al, a.pos.x, a.pos.z, fp.x, fp.z, 10, this);
       if (cv) { if (Math.hypot(cv.x - a.pos.x, cv.z - a.pos.z) > 0.8 && (!a.path.length || this.stepT <= 0)) { this.stepT = 0.6; a.walkTo(cv.x, cv.z, 3.4 + s); } else if (a.path.length === 0) a.faceTo(fp.x, fp.z); return; }
       if (this.stepT <= 0) { this.stepT = 1.2 + Math.random() * 1.2; a.circleAbout(fp, clamp(d, 12, 30), 2.4 + s); }
       return;

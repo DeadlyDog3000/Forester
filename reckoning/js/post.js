@@ -151,9 +151,10 @@ const finalM = new THREE.ShaderMaterial({
       if (aoK > 0.0) { float ao = texture2D(tAO, vUv).x; c *= mix(1.0, ao, aoK); }
       // out of focus, in a film: nearer or further than what the eye is on, softened by how far it is from it
       if (dofK > 0.0) {
-        float z = zAt(vUv), coc = clamp(abs(z - focus) / max(focus * 0.9, 1.0), 0.0, 1.0);
-        if (texture2D(tDepth, vUv).x >= 0.99999) coc = 1.0;
-        c = mix(c, texture2D(tSoft, vUv).rgb, smoothstep(0.08, 0.7, coc) * dofK);
+        // (a long lens's gentle falloff: what's near the subject stays sharp, only what's well off it goes soft, and never
+        //  all the way)
+        float z = zAt(vUv), coc = clamp(abs(z - focus) / max(focus * 2.2, 6.0), 0.0, 1.0);
+        c = mix(c, texture2D(tSoft, vUv).rgb, smoothstep(0.3, 1.0, coc) * dofK * 0.75);
       }
       c += texture2D(tBloom, vUv).rgb * bloom + texture2D(tRays, vUv).rgb * rayCol * rays;
       c = postAces(c);

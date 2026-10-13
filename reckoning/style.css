@@ -1512,4 +1512,16 @@ body.dead #crosshair, body.dead #hotbar, body.dead #stance, body.dead #hbName { 
 #pvpEndReplay .btn { min-width: 0; padding: 8px 18px; font-size: 14px; background: rgba(8, 18, 12, 0.6); color: var(--ink); border-color: rgba(246, 236, 208, 0.35); }
 #pvpEndReplay .btn:hover { border-color: var(--gold); color: var(--gold); }
 /* (the opening running: nothing of the HUD's about it) */
-body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cine #objective, body.cine #pvpBook, body.cine .order-book { visibility: hidden; }
+body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cine #objective, body.cine #pvpBook, body.cine .order-book, body.cine #hbName { visibility: hidden; }
+
+/* the sides of a custom battle, in the muster */
+.pv-sides { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 6px; margin-top: 8px; }
+.pv-sides .pv-gr { align-items: center; }
+.pv-sidesc { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 8px; }
+.pv-sidesc .pv-step { display: flex; align-items: center; gap: 6px; font: 600 11px var(--sans); letter-spacing: 0.06em; color: var(--ink-dim); text-transform: uppercase; }
+.pv-sidesc .pv-step button { width: 22px; height: 22px; border: 1px solid var(--edge); border-radius: 3px; background: rgba(9, 24, 16, 0.5); color: var(--ink); cursor: pointer; padding: 0; }
+.pv-sidesc .pv-step button:disabled { opacity: 0.35; cursor: default; }
+.pv-sidesc .pv-step b { min-width: 12px; text-align: center; color: var(--ink); font: 600 13px var(--sans); }
+.pv-sidesc .pv-add { padding: 3px 8px; }
+.pv-sidesc .pv-add:disabled { opacity: 0.35; cursor: default; }
+.pv-sn { margin-top: 6px; font: italic 12px var(--serif); color: var(--ink-dim); }

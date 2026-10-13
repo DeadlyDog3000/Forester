@@ -62,7 +62,7 @@ export class Recorder {
       if (this.ids.has(u)) continue;
       let id = u.uid; if (id == null || id < 0) { while ([...this.ids.values()].includes(this.nextId)) this.nextId++; id = this.nextId++; }
       const g = u.crewOf && A.field ? A.field.guns.indexOf(u.crewOf) : -1;
-      add(u, id, { team: u.team ?? 1, name: u.info.name, look: u.info.look, lo: u.lo || u.info.lo, gun: g, ci: u.crewIdx | 0, them: !A.multi && u === A.foe ? 1 : undefined });
+      add(u, id, { team: A.alOf ? A.alOf(u.team ?? 1) : u.team ?? 1, name: u.info.name, look: u.info.look, lo: u.lo || u.info.lo, gun: g, ci: u.crewIdx | 0, them: !A.multi && u === A.foe ? 1 : undefined });
     }
   }
   idOf(x) { if (x == null) return ME; return this.ids.has(x) ? this.ids.get(x) : null; }
@@ -346,7 +346,7 @@ export const FILM = {
     if (!f) { f = document.createElement("div"); f.id = "film"; f.innerHTML = `<div class="fm-bar fm-top"><div class="fm-note"></div></div><div class="fm-bar fm-bot"></div><div class="fm-cap"><div class="fm-k"></div><div class="fm-t"></div><div class="fm-s"></div></div><div class="fm-dip"></div>`; document.body.appendChild(f); }
     return f;
   },
-  bars(on) { const f = this.el(); f.classList.toggle("on", !!on); post.dof = on ? 0.85 : 0; },
+  bars(on) { const f = this.el(); f.classList.toggle("on", !!on); post.dof = on ? 0.5 : 0; },
   note(t) { this.el().querySelector(".fm-note").textContent = t || ""; },
   // a title over the film (k a small line above it); null to take it off
   cap(t, s = "", k = "", big = false) {
@@ -375,7 +375,7 @@ const _e = new THREE.Vector3();
 function blocked(p, l, up) {
   const w = G.world; if (!w) return false;
   const dx = l.x - p.x, dy = l.y - p.y - up, dz = l.z - p.z, d = Math.hypot(dx, dy, dz), n = Math.ceil(d / 0.45);
-  for (let i = 1; i < n - 3; i++) {
+  for (let i = 0; i < n - 3; i++) {
     const t = i / n, x = p.x + dx * t, y = p.y + up + dy * t, z = p.z + dz * t;
     if (y < groundY(x, z) + 0.05 || (w.col && w.col.solidAt(x, y, z, 0.05))) return true;
   }
@@ -391,12 +391,26 @@ export class Smooth {
     this.p.y = Math.max(this.p.y, groundY(this.p.x, this.p.z) + 0.5);
     // (only ever up, within a shot: risen over a gabion, it stays risen — coming down again as soon as the way looked
     //  clear set it bobbing over every basket it passed)
-    let want = 0; while (want < 7 && blocked(this.p, this.l, want)) want += 0.6;
-    if (this.lift < 0) this.lift = want; else if (want > this.lift) this.lift += (want - this.lift) * (1 - Math.exp(-3 * dt));
+    if (this.fixed != null) this.lift = this.fixed;
+    else {
+      let want = 0; while (want < 7 && blocked(this.p, this.l, want)) want += 0.6;
+      if (this.lift < 0) this.lift = want; else if (want > this.lift) this.lift += (want - this.lift) * (1 - Math.exp(-3 * dt));
+    }
     _e.copy(this.p); _e.y += this.lift;
     aim(cam, _e, this.l, fov);
   }
-  cut() { this.p = null; this.l = null; }
+  cut() { this.p = null; this.l = null; this.fixed = null; }
+  // a shot whose whole path is known beforehand (fn(u) → [from, to], u 0 to 1): the height it needs to clear
+  // everything in its way anywhere along it, found at once and kept — so it glides level over a row of gabions instead
+  // of rising at each in turn
+  plan(fn) {
+    let need = 0;
+    for (let i = 0; i <= 24; i++) {
+      const [f, t] = fn(i / 24), p = _v.set(f.x, Math.max(f.y, groundY(f.x, f.z) + 0.5), f.z), l = _w.set(t.x, t.y, t.z);
+      let up = need; while (up < 7 && blocked(p, l, up)) up += 0.3; need = up;
+    }
+    this.fixed = need ? need + 0.25 : 0;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -415,8 +429,81 @@ export class Theatre {
     this.t = 0; this.rate = 1; this.paused = false; this.fi = 0; this.ei = 0; this.gunState = null;
     this.cam = "auto"; this.sm = new Smooth(); this.free = null; this.keys = new Set();
     this.hl = rec.hl && rec.hl.length ? rec.hl : highlights(rec);
+    this.ahead();
     this.build();
   }
+  // ---- knowing what's coming: the recording read ahead, so the eye can be where the action will be, not chase it ----
+  // (each man's path as a list of where he was when; and every shot, fall, gun and grenade, where and when, weighted
+  //  by how much it's worth looking at)
+  ahead() {
+    const d = this.d, S = this.S, T = this.tracks = new Map();
+    for (const f of d.frames) for (const e of f.u) { let k = T.get(e[0]); if (!k) T.set(e[0], k = { t: [], x: [], z: [], y: [] }); k.t.push(f.t); k.x.push(e[1]); k.z.push(e[2]); k.y.push(e[3]); }
+    const A = this.acts = [];
+    for (const e of d.ev) {
+      const a = e.a;
+      if (e.k === "s") A.push({ t: e.t, x: a[2] + S.x, z: a[4] + S.z, w: 1 });
+      else if (e.k === "d") A.push({ t: e.t, x: a[1] / 10 + S.x, z: a[2] / 10 + S.z, w: 3 });
+      else if (e.k === "n") A.push({ t: e.t, x: a[0] + S.x, z: a[2] + S.z, w: 2 });
+    }
+    // (the line the battle's fought across: from the first side's middle to the others', as they first stood)
+    const f0 = d.frames[0], sideOf = id => (d.names.get(id) || {}).team ?? 1;
+    if (f0) { let ax = 0, az = 0, an = 0, bx = 0, bz = 0, bn = 0; for (const e of f0.u) { if (sideOf(e[0]) === 0) { ax += e[1]; az += e[2]; an++; } else { bx += e[1]; bz += e[2]; bn++; } } if (an && bn) this.axis = Math.atan2(bz / bn - az / an, bx / bn - ax / an); }
+    this.axis ??= 0;
+  }
+  // where a man was at t (between two of his entries, the way between)
+  track(id, t) {
+    const k = this.tracks.get(id); if (!k || !k.t.length) return null;
+    const T = k.t; let lo = 0, hi = T.length - 1;
+    if (t <= T[0]) return { x: k.x[0], z: k.z[0], yaw: k.y[0] };
+    if (t >= T[hi]) return { x: k.x[hi], z: k.z[hi], yaw: k.y[hi] };
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (T[m] <= t) lo = m; else hi = m; }
+    const u = (t - T[lo]) / Math.max(1e-3, T[hi] - T[lo]);
+    return { x: k.x[lo] + (k.x[hi] - k.x[lo]) * u, z: k.z[lo] + (k.z[hi] - k.z[lo]) * u, yaw: k.y[lo] };
+  }
+  // (his path smoothed, and a little ahead of him: the eye leads him, as a cameraman leads a runner, and his every
+  //  shuffle and step aside doesn't shake the picture)
+  glide(id, t) {
+    let x = 0, z = 0, sy = 0, cy = 0, n = 0;
+    for (let i = 0; i <= 8; i++) { const p = this.track(id, t - 0.6 + i * 0.2); if (!p) continue; x += p.x; z += p.z; sy += Math.sin(p.yaw); cy += Math.cos(p.yaw); n++; }
+    if (!n) return null;
+    return { x: x / n, z: z / n, yaw: Math.atan2(sy, cy) };
+  }
+  // where the action will be: the shots, falls and blasts of the next few seconds (and the last moment or two), the
+  // nearer in time the more they count — or, with nothing doing, the middle of everyone still standing
+  focus(t) {
+    let x = 0, z = 0, w = 0;
+    for (const a of this.acts) { if (a.t < t - 1.5) continue; if (a.t > t + 4.5) break; const k = a.w * Math.exp(-((a.t - t - 1.2) ** 2) / 6); x += a.x * k; z += a.z * k; w += k; }
+    const alive = [...this.bodies.values()].filter(u => u.alive && !u.goneX);
+    const c = alive.length ? { x: alive.reduce((s, u) => s + u.pos.x, 0) / alive.length, z: alive.reduce((s, u) => s + u.pos.z, 0) / alive.length } : { x: this.S.x, z: this.S.z };
+    if (w < 0.4) return c;
+    // (the action, mostly; the whole field's middle a little, so one stray shot doesn't swing the eye away)
+    const k = Math.min(1, w / 2) * 0.85;
+    return { x: c.x + (x / w - c.x) * k, z: c.z + (z / w - c.z) * k };
+  }
+  // the director, for the whole battle: a place to stand chosen for where the action's about to be, held there while
+  // the eye pans with it — and a cut to a new place only when it's moved on, or the shot's had its time
+  director(cam, rdt) {
+    const D = this.dir ||= {}, t = this.t, F = this.focus(t);
+    const fresh = D.t0 == null || t < D.last - 0.3 || t > D.last + 3;
+    D.look ||= { ...F };
+    const dtB = fresh ? 0 : Math.max(0, t - D.last); D.last = t;
+    { const k = 1 - Math.exp(-dtB / 1.3); D.look.x += (F.x - D.look.x) * k; D.look.z += (F.z - D.look.z) * k; }
+    const off = D.anchor ? Math.hypot(D.look.x - D.anchor.x, D.look.z - D.anchor.z) : 0;
+    if (fresh || (t - D.t0 > 7 && off > 13) || t - D.t0 > 17 || off > 26) {
+      // (the new place: where the action's going to be a couple of seconds on; from the same side of the battle's line as
+      //  before, mostly — the way a film keeps its sides, so left stays left — at a fresh angle and height)
+      const A = this.focus(t + 2); D.anchor = A; if (fresh) D.look = { ...F };
+      D.t0 = t; D.side = D.side == null || Math.random() < 0.15 ? (Math.random() < 0.5 ? 1 : -1) : D.side;
+      D.ang = this.axis + D.side * Math.PI / 2 + (Math.random() - 0.5) * 1.3; D.R = 17 + Math.random() * 12; D.h = 3.5 + Math.random() * 6;
+      this.sm.cut();
+      const at = this.dirPos(D, t), gy = groundY(D.anchor.x, D.anchor.z);
+      this.sm.plan(() => [at, { x: D.anchor.x, y: gy + 1.2, z: D.anchor.z }]);
+    }
+    const at = this.dirPos(D, t), gy = groundY(D.look.x, D.look.z);
+    return this.sm.go(cam, at, { x: D.look.x, y: gy + 1.2, z: D.look.z }, 46, 2.2, rdt);
+  }
+  // (the camera's own place in a director's shot: by the anchor, drifting slowly round it as a crane would)
+  dirPos(D, t) { const a = D.ang + (t - D.t0) * 0.025 * D.side, x = D.anchor.x + Math.cos(a) * D.R, z = D.anchor.z + Math.sin(a) * D.R; return { x, y: groundY(x, z) + D.h, z }; }
   build() {
     const S = this.S;
     UI.fadeNow(1);
@@ -547,7 +634,7 @@ export class Theatre {
     if (R.i >= this.hl.length) return this.reelDone();
     const h = R.h = this.hl[R.i];
     if (h.t0 < this.t - 0.05 || h.t0 > this.t + 1.2) { FILM.dip(320); this.seek(h.t0); }
-    R.shot = h.kind; R.u0 = this.t; this.sm.cut(); R.a0 = Math.random() * Math.PI * 2;
+    R.shot = h.kind; R.u0 = this.t; this.sm.cut(); R.a0 = Math.random() * Math.PI * 2; R.close = null; R.cut2 = false;
     const k = R.i === 0 ? titleOf(this.tape).t : "";
     if (this.mode === "ambient") return;
     FILM.cap(h.cap, h.sub || "", k, R.i === 0);
@@ -593,20 +680,19 @@ export class Theatre {
       }
     }
     if (this.cam === "top") {
-      const c = cen(alive), gy = groundY(c.x, c.z);
-      return sm.go(cam, { x: c.x + 0.01, y: gy + 62, z: c.z + 24 }, { x: c.x, y: gy, z: c.z }, 50, 2, rdt);
+      const c = cen(alive), T = this.topC ||= { ...c }; T.x += (c.x - T.x) * Math.min(1, rdt * 0.5); T.z += (c.z - T.z) * Math.min(1, rdt * 0.5);
+      const gy = groundY(T.x, T.z);
+      return sm.go(cam, { x: T.x + 0.01, y: gy + 62, z: T.z + 24 }, { x: T.x, y: gy, z: T.z }, 50, 2, rdt);
     }
-    // the director: round where the action is, the angle turning slowly, now high, now low
-    const act = this.lastAct && this.t - this.lastAct.t < 4 ? this.lastAct : null, c0 = cen(alive);
-    const fx = act ? c0.x * 0.4 + act.x * 0.6 : c0.x, fz = act ? c0.z * 0.4 + act.z * 0.6 : c0.z;
-    this.dirA = (this.dirA ?? 0.6) + rdt * 0.07; const hh = 6 + Math.sin(this.dirA * 0.7) * 3.5, R = 20 + Math.cos(this.dirA * 0.5) * 6;
-    const gy = groundY(fx, fz);
-    return sm.go(cam, { x: fx + Math.cos(this.dirA) * R, y: gy + hh, z: fz + Math.sin(this.dirA) * R }, { x: fx, y: gy + 1.2, z: fz }, 48, 1.6, rdt);
+    // the director: placed ahead of the action, panning with it (see director())
+    return this.director(cam, rdt);
   }
   // a highlight's shot, by its kind
   shot(cam, rdt) {
     const R = this.reel, h = R.h, sm = this.sm, S = this.S, u = clamp((this.t - h.t0) / Math.max(0.1, h.t1 - h.t0), 0, 1);
-    const B = id => this.bodies.get(id), P = (x, z, up) => ({ x, y: groundY(x, z) + up, z });
+    // (the men in it as their smoothed, led paths — read ahead from the recording — not their every shuffle)
+    const B = id => { const b = this.bodies.get(id); if (!b) return null; const g = this.glide(id, this.t); return g ? { pos: { x: g.x, y: groundY(g.x, g.z), z: g.z }, a: { yaw: g.yaw } } : b; };
+    const P = (x, z, up) => ({ x, y: groundY(x, z) + up, z });
     const at = h.at || { x: S.x, z: S.z };
     switch (h.kind) {
       case "open": {
@@ -621,7 +707,8 @@ export class Theatre {
         const me = B(h.ids[0]), v = B(h.ids[1]); if (!me || !v) break;
         const dx = v.pos.x - me.pos.x, dz = v.pos.z - me.pos.z, d = Math.hypot(dx, dz) || 1, f = [dx / d, dz / d], r = [f[1], -f[0]];
         // (close: over your shoulder at him; far: from beside, to see both)
-        if (d < 30) { const back = 1.7 + (1 - u) * 0.8; return sm.go(cam, P(me.pos.x - f[0] * back + r[0] * 0.6, me.pos.z - f[1] * back + r[1] * 0.6, 1.75), { x: v.pos.x, y: groundY(v.pos.x, v.pos.z) + 1.1, z: v.pos.z }, d < 8 ? 52 : 40 - Math.min(14, d * 0.4), 5, rdt); }
+        if (R.close == null) { const k = h.at && h.at.t != null ? h.at.t : this.t, p = this.track(h.ids[0], k), q = this.track(h.ids[1], k); R.close = !p || !q || Math.hypot(p.x - q.x, p.z - q.z) < 30; }
+        if (R.close) { const back = 1.7 + (1 - u) * 0.8; return sm.go(cam, P(me.pos.x - f[0] * back + r[0] * 0.6, me.pos.z - f[1] * back + r[1] * 0.6, 1.75), { x: v.pos.x, y: groundY(v.pos.x, v.pos.z) + 1.1, z: v.pos.z }, d < 8 ? 52 : 40 - Math.min(14, d * 0.4), 5, rdt); }
         const m = { x: (me.pos.x + v.pos.x) / 2, z: (me.pos.z + v.pos.z) / 2 };
         return sm.go(cam, P(m.x + r[0] * d * 0.55, m.z + r[1] * d * 0.55, 3), P(m.x, m.z, 1.2), 50, 3, rdt);
       }
@@ -632,7 +719,8 @@ export class Theatre {
       }
       case "gun": {
         const g = this.field && this.field.guns[h.gun]; if (!g) break;
-        const fw = [-Math.sin(g.ry + g.yaw), -Math.cos(g.ry + g.yaw)], rt = [fw[1], -fw[0]];
+        // (framed on the line from the gun to where its shot struck — not on the barrel, which swings as it's laid)
+        const tdx = at.x - g.x, tdz = at.z - g.z, tl = Math.hypot(tdx, tdz), fw = tl > 2 ? [tdx / tl, tdz / tl] : [-Math.sin(g.ry), -Math.cos(g.ry)], rt = [fw[1], -fw[0]];
         if (u < 0.5) return sm.go(cam, P(g.x + rt[0] * 3.2 - fw[0] * 2.4, g.z + rt[1] * 3.2 - fw[1] * 2.4, 1.3), P(g.x + fw[0] * 8, g.z + fw[1] * 8, 1.0), 50, 6, rdt);
         if (!R.cut2) { R.cut2 = true; sm.cut(); }
         return sm.go(cam, P(at.x - fw[0] * 4 + rt[0] * 14, at.z - fw[1] * 4 + rt[1] * 14, 3.5), P(at.x, at.z, 0.8), 46, 3, rdt);

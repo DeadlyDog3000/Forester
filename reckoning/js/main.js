@@ -23,7 +23,7 @@ import { KINDS } from "./economy.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
 import { loadModels } from "./models.js";
 import { goreOff } from "./gore.js";
-import { full, gate, activate, recheck, SHOP, SALES_OPEN } from "./licence.js";
+import { full, gate, activate, recheck, SHOP, SALES_OPEN, buyUrl } from "./licence.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
@@ -268,7 +268,7 @@ G.openBuy = what => {
 };
 G.demoGate = () => gate("story");
 $("btnUnlock").onclick = () => G.openBuy("title");
-$("buyGo").onclick = () => window.open(SHOP.url, "_blank");
+$("buyGo").onclick = () => window.open(buyUrl(), "_blank");
 $("buyBack").onclick = () => { screen("title"); refreshTitle(); };
 $("buyUnlock").onclick = async () => {
   const m = $("buyMsg"); m.className = "buy-msg"; m.textContent = "Checking with the shop…";

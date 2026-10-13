@@ -164,10 +164,13 @@ export function inUniform(look, u) {
 export class Field {
   // C: the middle of the field; dx: how far either side's line stands from it (west is side 0, east side 1)
   // fort: the side whose fort it is (0 yours, 1 theirs), or null for the open field
-  constructor(w, C, dx, battle, seed = Math.random() * 1e9, fort = null, guns = null) {
+  // camps: a field of three or four sides (a custom battle) — no works at either end, but each company's own little
+  // battery where it stands, [{ side, x, z, guns }], every side's men taking cover wherever it faces away from the shot
+  constructor(w, C, dx, battle, seed = Math.random() * 1e9, fort = null, guns = null, camps = null) {
     this.gunsWant = guns;   // (each side's guns, as its purse paid for them: [west, east]; null, as it falls)
     this.w = w; this.C = C; this.dx = dx; this.root = new THREE.Group(); w.root.add(this.root);
     this.pieces = []; this.spots = [[], []]; this.guns = []; this.balls = []; this.cols = []; this.used = []; this.battle = !!battle;
+    this.camps = camps; if (camps) { const L = []; this.spots = [L, L, L, L]; }
     let s = seed | 0 || 7; this.r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
     const M = this.M = {
       earth: mat(0x6a5236, { surface: "ground" }), wicker: mat(0x7a5c36, { surface: "bark" }), wood: mat(0x6a4a2e, { surface: "wood" }), log: mat(0x5a4028, { surface: "log" }),
@@ -179,7 +182,8 @@ export class Field {
     };
     void M;
     this.fortSide = battle ? fort : null;
-    if (battle) for (const side of [0, 1]) side === this.fortSide ? this.fort(side) : this.works(side);
+    if (camps) for (const c of camps) this.battery(c);
+    else if (battle) for (const side of [0, 1]) side === this.fortSide ? this.fort(side) : this.works(side);
     this.between(battle ? 20 : 5);
   }
   y(x, z) { return this.w.heightAt(x, z); }
@@ -197,6 +201,9 @@ export class Field {
     for (let i = 0; i < n; i++) {
       const t = (i + 0.5) / n - 0.5, px = x + Math.cos(ry) * len * t, pz = z - Math.sin(ry) * len * t;
       const nx = Math.sin(ry), nz = Math.cos(ry);
+      // (a field of many sides: both faces of everything, for anyone — whichever is away from the shot is found when
+      //  it's wanted)
+      if (this.camps) { for (const k of inward ? [Math.sign((inward.x - px) * nx + (inward.z - pz) * nz) || 1] : [-1, 1]) this.spots[0].push({ x: px + nx * k * (depth / 2 + 0.7), z: pz + nz * k * (depth / 2 + 0.7), high, taken: null }); continue; }
       for (const sd of side == null ? [0, 1] : [side]) {
         // (the face of it away from the enemy's line)
         // (a fort's walls: on the inside of them, whichever way they face)
@@ -227,6 +234,22 @@ export class Field {
   // a point (lx along, lz across) of something set down at (x, z) turned ry
   at(x, z, ry, lx, lz) { const c = Math.cos(ry), s = Math.sin(ry); return { x: x + lx * c + lz * s, z: z - lx * s + lz * c }; }
 
+  // a company's own battery, on a field of many sides: a short arc of gabions before where it stands, facing the middle
+  // of the field, its guns behind the gaps — and the field kept clear where the company forms
+  battery(c) {
+    const C = this.C, fx = C.x - c.x, fz = C.z - c.z, fl = Math.hypot(fx, fz) || 1, f = { x: fx / fl, z: fz / fl }, rt = { x: f.z, z: -f.x };
+    const P = (along, out) => ({ x: c.x + rt.x * along + f.x * out, z: c.z + rt.z * along + f.z * out });
+    for (let k = -8; k <= 8; k += 4) { const q = P(k, 0); this.claim(q.x, q.z, 2.5); }
+    const home = P(0, -3), ng = Math.min(2, c.guns | 0), gapAt = ng === 1 ? [0] : ng === 2 ? [-3.2, 3.2] : [];
+    for (let k = -6; k <= 6.01; k += 1.6) {
+      if (gapAt.some(g => Math.abs(k - g) < 1.0)) continue;
+      const q = P(k, 4.5 - Math.abs(k) * 0.12); this.gabion(q.x, q.z, c.side, home); this.claim(q.x, q.z, 0.5);
+    }
+    for (const g of gapAt) {
+      const q = P(g, 2.9); this.gun(c.side, q.x, q.z, 0, Math.atan2(-f.x, -f.z)); this.claim(q.x, q.z, 1.4);
+      for (let k = 4; k <= 16; k += 4) { const o = P(g, 2.9 + k); this.claim(o.x, o.z, 1.2); }
+    }
+  }
   // a side's works: a battery of gabions in an arc with its guns behind, an earth bank on a flank, and obstacles out
   // before them — each set clear of the others, so there's a way through between them, and none of it in the line
   works(side) {
@@ -325,7 +348,7 @@ export class Field {
     for (let i = 0; i < 5; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), this.M.log); st.position.set((this.r() - 0.5) * 3, 0.25, (this.r() - 0.5) * 1.4); st.rotation.set(Math.PI / 2 + (this.r() - 0.5), this.r() * 3, 0); g.add(st); }
     this.put(g, x, z, this.r() * 3);
   }
-  gabion(x, z, side = null) {
+  gabion(x, z, side = null, inward = null) {
     const g = new THREE.Group(), h = 1.15, R = 0.42;
     const basket = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.96, h, 12, 4, true), this.M.wicker); basket.position.y = h / 2; g.add(basket);
     // (the weave: bands round it)
@@ -334,7 +357,7 @@ export class Field {
     this.put(g, x, z, this.r() * 6);
     // (solid round, as a basket is; a place to crouch behind it, for the side whose it is)
     this.cols.push(this.w.col.addCircle(x, z, 0.42, this.y(x, z) + 1.18));
-    if (side != null) this.solid(x, z, 0.9, 0.9, Math.PI / 2, 1.15, side, null, false);
+    if (side != null) this.solid(x, z, 0.9, 0.9, inward ? Math.atan2(inward.x - x, inward.z - z) : Math.PI / 2, 1.15, side, inward, false);
   }
   bank(x, z, len, ry, side, inward = null) {
     // a long mound of earth, sloped both faces
@@ -545,7 +568,8 @@ export class Field {
   // but the moon's and the muzzles'
   nightFires() {
     const C = this.C; this.flames = [];
-    for (const side of [0, 1]) {
+    if (this.camps) for (const c of this.camps) { const d = Math.hypot(c.x - C.x, c.z - C.z) || 1, p = this.find(() => ({ x: c.x + (c.x - C.x) / d * (7 + this.r() * 3) + (this.r() - 0.5) * 6, z: c.z + (c.z - C.z) / d * (7 + this.r() * 3) + (this.r() - 0.5) * 6 }), 1.4, 40, 1.0); if (p) this.watchFire(p.x, p.z); }
+    for (const side of this.camps ? [] : [0, 1]) {
       const sx = side === 0 ? -1 : 1, F = this.fortAt && this.fortAt.side === side ? this.fortAt : null;
       const p = F ? { x: F.mx + sx * 2, z: C.z + 5 } : this.find(() => ({ x: C.x + sx * (this.dx + 7 + this.r() * 4), z: C.z + (this.r() - 0.5) * 16 }), 1.4, 40, 1.0) || { x: C.x + sx * (this.dx + 9), z: C.z };
       this.watchFire(p.x, p.z);
@@ -570,9 +594,9 @@ export class Field {
     this.cols.push(this.w.col.addCircle(x, z, 0.08, this.y(x, z) + 2));
   }
   // a side's colours: its flag on a tall staff behind its line (or over its fort), the cloth worked in the wind
-  colours(side, key) {
-    const sx = side === 0 ? -1 : 1, F = this.fortAt && this.fortAt.side === side ? this.fortAt : null;
-    let x = F ? F.mx : this.C.x + sx * (this.dx + 6), z = F ? this.C.z : this.C.z + 2.5;
+  colours(side, key, at = null) {
+    const sx = at ? (at.x < this.C.x ? -1 : 1) : side === 0 ? -1 : 1, F = !at && this.fortAt && this.fortAt.side === side ? this.fortAt : null;
+    let x = at ? at.x : F ? F.mx : this.C.x + sx * (this.dx + 6), z = at ? at.z : F ? this.C.z : this.C.z + 2.5;
     if (F && this.fortStaff) { this.root.remove(this.fortStaff); this.fortStaff = null; }
     else { const p = this.find(i => ({ x: x + sx * (i % 5) * 0.8, z: z + (i % 3) * 1.5 }), 0.6, 15, 0.4); if (p) { x = p.x; z = p.z; } this.cols.push(this.w.col.addCircle(x, z, 0.1, this.y(x, z) + 7)); }
     const g = new THREE.Group();
@@ -679,8 +703,8 @@ export class Field {
   }
 
   // ---- the guns ----
-  gun(side, x, z, sx) {
-    const m = makeCannon(); const ry = sx < 0 ? -Math.PI / 2 : Math.PI / 2;   // (pointing at the other side: -z of the model, out east or west)
+  gun(side, x, z, sx, ry = sx < 0 ? -Math.PI / 2 : Math.PI / 2) {
+    const m = makeCannon();   // (pointing at the other side: -z of the model, out east or west)
     this.put(m, x, z, ry, 0, false);
     // (solid from the muzzle to the trail's end: the carriage and wheels a box, the barrel out before them a narrower one)
     { const c = this.at(x, z, ry, 0, -0.32); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.6, 0.5, ry, this.y(x, z) + 1.05)); }
@@ -841,7 +865,7 @@ export class Field {
       // (their side: laid on the thickest part of yours, now and then; yours: on where you said)
       // (never at nothing: laid afresh the moment the men it was laid on are down or gone, and with no one there, not fired)
       if (!g.target) {
-        const foes = units.filter(u => u.team !== g.side && u.alive);
+        const foes = units.filter(u => (u.al ?? u.team) !== g.side && u.alive);
         const stale = !g.aim || !foes.some(u => Math.hypot(u.pos.x - g.aim.x, u.pos.z - g.aim.z) < 6);
         if ((g.next -= dt) <= 0 || (stale && g.loaded)) { g.next = 6; const t = this.thickest(foes); g.aim = t ? { x: t.x + (this.r() - 0.5) * 3.5, z: t.z + (this.r() - 0.5) * 3.5 } : null; }
       }

@@ -12,14 +12,19 @@
 
 import { G } from "./engine.js";
 
-export const SALES_OPEN = false;
 export const SHOP = {
-  // (the product's page in the shop, and its ids there: a key from any other product, or any other shop, isn't ours)
+  // GOING LIVE: the three things from the shop — its checkout link (Products → the product → Share), the store's ID
+  // (Settings → Stores) and the product's ID (on the product's page). All three set, and the shop is open: the demo
+  // locks, the Buy buttons sell, and only keys for this product in this store unlock it. None of them is a secret.
+  checkout: "",
+  storeId: 0, productId: 0,
+  // (the game's page, where the buy box is: what the Buy button opens until there's a checkout link of its own)
   url: "https://deadlydog3000.github.io/deadlydog-productions/reckoning.html#buy",
   price: "CA$19.99",
-  storeId: 0, productId: 0,
   relay: "http://45.76.245.44:47810/licence",
 };
+export const SALES_OPEN = !!(SHOP.checkout && SHOP.storeId && SHOP.productId);
+export const buyUrl = () => SHOP.checkout || SHOP.url;
 const KEY = "reckoning.licence.v1";
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } };
 const write = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} };

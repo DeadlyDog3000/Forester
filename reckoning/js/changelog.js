@@ -7,6 +7,21 @@
 
 export const CHANGELOG = [
   {
+    v: "1.35.0", date: "13 October 2026", title: "Custom battles",
+    items: [
+      "Custom battles against bots: choose the sides in the muster — 1 v 2, 2 v 2, 3 v 3, 4 v 4, three or four sides each against all the others (1 v 1 v 1, 1 v 1 v 1 v 1, 2 v 2 v 2), or make your own, up to four sides of up to four companies each.",
+      "Every company is raised from the same purse, in its side's own colours, and every one but yours has its own officer — your side's as well as the others'. With many companies on the field, the bots' are smaller, so the field never holds more men than the game can keep up with.",
+      "Two sides stand at either end of the field behind their works, their companies in a row; three or four sides stand round the field, each company behind a short battery of gabions with its own guns, facing in.",
+      "The opening, the score at the top, the highlights and the replays all know the sides: your side against every other.",
+      "Replays are filmed steadily: the camera reads ahead in the recording, settles where the action is about to be before it happens, and pans smoothly with it — cutting to a new place only when the fighting has moved on, and keeping to one side of the battle so left stays left. Before, it jumped to every shot as it was fired.",
+      "Highlight shots follow each man's smoothed path, led a little ahead of him, instead of his every step; the guns are framed from the gun to where its shot struck, instead of swinging with the barrel as it's laid.",
+      "The overhead replay camera drifts with the battle instead of jerking after it.",
+      "The opening no longer shows the weapon name in the corner of the picture.",
+      "The battle's opening is far less blurred: only what's well away from what the camera's on goes soft, and never all the way.",
+      "The opening's camera no longer bobs over the gabions in front of the enemy's line: each shot works out the height it needs over everything along its way before it starts, and glides level.",
+    ],
+  },
+  {
     v: "1.34.1", date: "13 October 2026", title: "No more freezing",
     items: [
       "Battles no longer freeze partway through: once a battle had left enough marks on the ground, a limb torn off by a cannonball or a grenade could become the oldest of them, and clearing it away failed — every frame, so nothing moved again. Fixed; and if anything of the kind ever goes wrong again, the rest of the game carries on instead of stopping dead.",
