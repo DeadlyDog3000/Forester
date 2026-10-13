@@ -371,6 +371,9 @@ const PACK = {
 };
 
 export async function startChapter(n, opts = {}) {
+  // (the demo's story is the first chapter: past it, the page that offers the rest — the save moved on to where it
+  //  stopped, so bought, it carries straight on)
+  if (n > 1 && G.demoGate && !G.demoGate(n)) { try { const s = loadSave(); if (s && (s.chapter || 1) < n) writeSave({ chapter: n }); } catch (e) {} return; }
   GEN++;
   G.onFrame.length = 0;
   // your body comes with you from the save; time passes between chapters, and you have eaten in it

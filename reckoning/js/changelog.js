@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.30.0", date: "12 October 2026", title: "The demo and the full game",
+    items: [
+      "Ready for the shop: Forester: Reckoning will come as a free demo — the story's first chapter, and battles and duels against the bots — and the full game, unlocked with a licence key from the shop: the whole story, battles and duels against other players, and the Worlds & colonies. A page says what's in it, with the way to the shop and a box for the key; the story stops at its second chapter with the save moved on, so once bought it carries straight on.",
+      "Nothing is locked yet — the shop isn't open. And everyone who's played before it does — anyone with a save or a battle record — is an alpha supporter and keeps the whole game for nothing, for good.",
+    ],
+  },
+  {
     v: "1.29.1", date: "12 October 2026", title: "No more standing about",
     items: [
       "Men in a battle no longer freeze and stutter in the press: finding a way round things was rationed to one man a frame, so in a melee of forty, re-routing after each other, most of them stood still waiting their turn — the charge crawled, and crawled worse the lower your frame rate. Now eight a frame: they run at their real pace.",

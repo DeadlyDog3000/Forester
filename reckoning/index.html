@@ -223,14 +223,14 @@
       <nav class="menu title-menu">
         <div class="tm-modes">
           <div class="tm-card">
-            <div class="tm-kicker">Single player</div>
+            <div class="tm-kicker" id="tmStoryKick">Single player</div>
             <div class="tm-head">The Story</div>
             <button id="btnContinue" class="btn primary hidden">Continue</button>
             <button id="btnNew" class="btn primary">Begin the story</button>
-            <div class="tm-links"><button id="btnChapters" class="tm-lnk hidden">Chapters</button><button id="btnSlots" class="tm-lnk">Saves</button></div>
+            <div class="tm-links"><button id="btnChapters" class="tm-lnk hidden">Chapters</button><button id="btnSlots" class="tm-lnk">Saves</button><button id="btnUnlock" class="tm-lnk tm-gold hidden">Unlock the full game</button></div>
           </div>
           <div class="tm-card">
-            <div class="tm-kicker">Multiplayer</div>
+            <div class="tm-kicker" id="tmOnlineKick">Multiplayer</div>
             <div class="tm-head">Online</div>
             <button id="btnPvp" class="btn">Battles &amp; duels<small class="btn-sub">Your company against other players</small></button>
             <button id="btnMulti" class="btn">Worlds &amp; colonies<small class="btn-sub">Wide World · colonies · nations · Frontier</small></button>
@@ -412,6 +412,19 @@
       <button class="btn ghost" data-back>Back</button>
     </section>
 
+    <!-- the demo's end, and the full game: what's in it, the shop, and a licence key -->
+    <section id="buy" class="screen hidden">
+      <div class="buy-box">
+        <div class="tm-kicker" id="buyKick">The full game</div>
+        <h2>Forester: Reckoning</h2>
+        <p class="sub" id="buyWhy"></p>
+        <ul class="buy-list" id="buyList"></ul>
+        <button id="buyGo" class="btn primary">Buy the full game<small class="btn-sub" id="buyPrice"></small></button>
+        <div class="buy-key"><input id="buyKey" placeholder="Bought it? Paste your licence key" spellcheck="false" autocomplete="off"><button id="buyUnlock" class="btn">Unlock</button></div>
+        <p id="buyMsg" class="buy-msg"></p>
+        <button id="buyBack" class="btn ghost">Back</button>
+      </div>
+    </section>
     <section id="credits" class="screen hidden">
       <h2>Credits</h2>
       <div class="credits">

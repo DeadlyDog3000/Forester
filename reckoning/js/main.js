@@ -23,6 +23,7 @@ import { KINDS } from "./economy.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
 import { loadModels } from "./models.js";
 import { goreOff } from "./gore.js";
+import { full, gate, activate, recheck, SHOP, SALES_OPEN } from "./licence.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
@@ -158,7 +159,7 @@ for (const [id, key] of [["setInvert", "invert"], ["setMusic", "music"], ["setDa
 G.player = new Player();
 
 // ---- screens ----
-const screens = ["title", "modeSel", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", "achievements", ...MP_SCREENS, ...PVP_SCREENS];
+const screens = ["title", "modeSel", "choose", "chapters", "settings", "controls", "pause", "updates", "slots", "credits", "achievements", "buy", ...MP_SCREENS, ...PVP_SCREENS];
 let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
@@ -173,6 +174,11 @@ function refreshTitle() {
   // (a story under way: Continue is the big button, and starting another is a quieter one under it)
   $("btnNew").innerHTML = s ? "New story" : `Begin the story<small class="btn-sub">${CHAPTERS[0].title} · your family's tale</small>`;
   $("btnNew").classList.toggle("primary", !s); $("btnNew").classList.toggle("tm-second", !!s);
+  // (the demo: said so on the cards, and the way to the rest)
+  const f = full();
+  $("tmStoryKick").textContent = f ? "Single player" : "Single player · demo";
+  $("tmOnlineKick").textContent = f ? "Multiplayer" : "Multiplayer · demo: bots";
+  UI.show("btnUnlock", !f);
 }
 function toTitle() {
   G.endFreecam && G.endFreecam();
@@ -246,7 +252,28 @@ $("btnChapters").onclick = () => { buildChapters(); back = "title"; screen("chap
 // (a colony you host is kept in a save of its own; the one you were playing is put back after)
 let mpSlotWas = null;
 function mpDone() { if (mpSlotWas != null) { useSlot(mpSlotWas); mpSlotWas = null; } }
-$("btnMulti").onclick = () => { back = "title"; openLobby(); };
+$("btnMulti").onclick = () => { if (!gate("worlds")) return; back = "title"; openLobby(); };
+// ---- the full game: the page that offers it, from the title or wherever the demo stops ----
+const BUY_WHY = { story: "That's the end of the demo's story. The rest of it is in the full game — and your save carries straight on.", online: "Battles and duels against other players are in the full game. Against the bots, they're free.", worlds: "The Worlds & colonies are in the full game.", title: "Everything the demo has, and the rest." };
+G.openBuy = what => {
+  if (G.mode === "play" || G.mode === "pause") { toTitle(); }
+  $("buyKick").textContent = what === "story" ? "The demo ends here" : "The full game";
+  $("buyWhy").textContent = BUY_WHY[what] || BUY_WHY.title;
+  $("buyList").innerHTML = [`The whole story — all ${CHAPTERS.length} chapters, Hamburg to a city of your own`, "Battles & duels against other players, ranked, in the camp", "Worlds & colonies — the Wide World, a co-op colony, nations, Frontier", "Every update to come"].map(x => `<li>${x}</li>`).join("");
+  $("buyPrice").textContent = SHOP.price; $("buyMsg").textContent = ""; $("buyMsg").className = "buy-msg";
+  screen("buy");
+};
+G.demoGate = () => gate("story");
+$("btnUnlock").onclick = () => G.openBuy("title");
+$("buyGo").onclick = () => window.open(SHOP.url, "_blank");
+$("buyBack").onclick = () => { screen("title"); refreshTitle(); };
+$("buyUnlock").onclick = async () => {
+  const m = $("buyMsg"); m.className = "buy-msg"; m.textContent = "Checking with the shop…";
+  const r = await activate($("buyKey").value);
+  if (r.ok) { m.className = "buy-msg good"; m.textContent = "Unlocked — thank you. The whole game is yours."; refreshTitle(); setTimeout(() => { if ($("buy") && !$("buy").classList.contains("hidden")) { screen("title"); refreshTitle(); } }, 1800); }
+  else { m.className = "buy-msg bad"; m.textContent = r.why; }
+};
+recheck();
 initLobby({
   screen,
   enter(net, inMsg, me, target) {

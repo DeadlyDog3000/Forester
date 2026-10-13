@@ -14,6 +14,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { FOLEY } from "./foley.js";
 import { pool, sever, heal, clearGore } from "./gore.js";
+import { full, gate } from "./licence.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst, killMark, chestOf } from "./fight.js";
@@ -107,7 +108,7 @@ export function initPvp(c) {
   ctx = c;
   $("btnPvp").onclick = () => openCamp();
   $("pvpBack").onclick = () => { leaveCamp(); ctx.screen("title"); };
-  $("pvpQuick").onclick = () => quickPlay();
+  $("pvpQuick").onclick = () => gate("online") && quickPlay();
   $("pvpBots").onclick = () => openMuster("bots");
   $("pvpDuel").onclick = () => openMuster("duel");
   $("pvpCancel").onclick = () => cancelSearch();
@@ -135,9 +136,10 @@ export function initPvp(c) {
     const t = $("campSay").value.trim(); if (!t || !camp || !camp.net) return;
     camp.net.send({ t: "say", text: t }); $("campSay").value = "";
   });
-  $("campWho").addEventListener("click", e => { const b = e.target.closest("[data-ch]"); if (!b || !camp || !camp.net) return; camp.net.send({ t: "challenge", to: b.dataset.ch, mode: b.dataset.mode }); campNote(`Challenge sent to ${b.dataset.name} — waiting for an answer…`); });
+  $("campWho").addEventListener("click", e => { const b = e.target.closest("[data-ch]"); if (!b || !camp || !camp.net) return; if (!gate("online")) return; camp.net.send({ t: "challenge", to: b.dataset.ch, mode: b.dataset.mode }); campNote(`Challenge sent to ${b.dataset.name} — waiting for an answer…`); });
   $("campCard").addEventListener("click", e => {
     const b = e.target.closest("[data-ans]"); if (!b || !camp || !camp.net || !camp.challenge) return;
+    if (b.dataset.ans === "yes" && !gate("online")) return;
     camp.net.send({ t: "answer", yes: b.dataset.ans === "yes" }); camp.challenge = null; drawCard();
   });
 }
@@ -280,7 +282,8 @@ function musterReady() {
   if (!must) return;
   const k = must.kind;
   if (k === "bots") { lastMode = "bots"; must = null; startDuel({ bot: true }); return; }
-  if (k === "duel") { lastMode = "duel"; must = null; findMatch(); return; }
+  // (a duel in the demo: against a bot, at once — another player is the full game's)
+  if (k === "duel") { lastMode = "duel"; must = null; if (full()) findMatch(); else startDuel({ bot: true }); return; }
   lastMode = "quick";
   if (must.mine && must.theirs) return;
   must.mine = !must.mine;

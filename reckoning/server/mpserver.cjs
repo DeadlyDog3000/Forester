@@ -1458,8 +1458,26 @@ async function start(opts = {}) {
     res.setHeader("Content-Type", "application/json");
     if (u.pathname === "/rooms") { const who = u.searchParams.get("pid") || u.searchParams.get("name") || u.searchParams.get("user") ? { pid: String(u.searchParams.get("pid") || ""), name: String(u.searchParams.get("name") || ""), user: userOf(u.searchParams.get("user")) } : null; return res.end(JSON.stringify({ ...stats(), rooms: list(who) })); }
     if (u.pathname === "/" || u.pathname === "/status") return res.end(JSON.stringify(stats()));
+    // a licence key, checked with the shop (Lemon Squeezy's licence API) for a game that can't ask it itself
+    if (u.pathname === "/licence") return licence(u, res, req);
     res.statusCode = 404; res.end("{}");
   });
+  // (passed on as it is: activate a key on a machine, or check a key already activated; a few a minute from anyone)
+  const licAsks = new Map();
+  function licence(u, res, req) {
+    const op = u.searchParams.get("op"), key = String(u.searchParams.get("key") || "").slice(0, 80), inst = String(u.searchParams.get("inst") || "").slice(0, 80), name = String(u.searchParams.get("name") || "Forester Reckoning").slice(0, 60);
+    if (!["activate", "validate", "deactivate"].includes(op) || !/^[A-Za-z0-9-]{8,80}$/.test(key)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "bad request" })); }
+    const ip = (req.socket && req.socket.remoteAddress) || "x", t = now(), recent = (licAsks.get(ip) || []).filter(x => t - x < 60000);
+    if (recent.length > 10) { res.statusCode = 429; return res.end(JSON.stringify({ error: "too many" })); }
+    recent.push(t); licAsks.set(ip, recent);
+    const body = new URLSearchParams(op === "activate" ? { license_key: key, instance_name: name } : { license_key: key, instance_id: inst }).toString();
+    const rq = require("https").request({ host: "api.lemonsqueezy.com", path: `/v1/licenses/${op}`, method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded", "Content-Length": Buffer.byteLength(body) }, timeout: 10000 }, r => {
+      let d = ""; r.on("data", c => d += c); r.on("end", () => { res.statusCode = r.statusCode || 502; res.end(d || "{}"); });
+    });
+    rq.on("error", () => { res.statusCode = 502; res.end(JSON.stringify({ error: "shop unreachable" })); });
+    rq.on("timeout", () => rq.destroy());
+    rq.end(body);
+  }
   // ---- the duel: those looking for a fight, paired off (nearest in rating first); each pair's fight passed between them ----
   // The server keeps the score and the rounds; where each is, what they fire and what lands, it only passes on.
   // the camp: its talk (the last of it, for whoever comes in), and the best commanders (kept on disk, if there's a disk)
