@@ -1433,7 +1433,7 @@ class Arena {
       };
       net.on.bgun = m => { const g = this.field.guns[m.i | 0]; if (g) this.field.fire(g); };
       net.on.bdown = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; u.hp = 0; u.blast = !!m.b; u.fallDown({ x: +m.x, z: +m.z }, !!m.h); u.blast = false; this.unitDown(u); };
-      net.on.bhurt = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; blowLands(u.a, "hit"); u.a.person.flinch && u.a.person.flinch(); AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: u.pos, high: isF(u.info.look) }); };
+      net.on.bhurt = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; blowLands(u.a, "hit", u.youHitPos && G.time - (u.youHitAt ?? -9) < 0.6 ? G.player : { pos: u.pos }); u.a.person.flinch && u.a.person.flinch(); AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: u.pos, high: isF(u.info.look) }); };
       net.on.bgone = m => { const u = this.unitById(m.id); if (!u) return; u.hp = 0; if (m.hide) u.a.root.visible = false; else { u.quiet = true; u.a.place(+m.x, +m.z, u.a.yaw); u.fallDown(this.spawns[0]); } const i = this.units.indexOf(u); if (i >= 0) this.units.splice(i, 1); this.showHud(); };
       // (one of theirs at you with the steel: judged here, against your guard)
       net.on.bswing = m => {
@@ -1545,9 +1545,12 @@ class Fighter {
   fallDown(from, head) {
     const a = this.a, P = a.person; a.path = []; this.wind = 0; a.squareTo = null;
     // (your kill: he went down a moment after you hit him — the mark where it struck, and the sound of it)
-    if (this.youHitPos && G.time - (this.youHitAt ?? -9) < 1.5) { killMark(this.youHitPos); this.youHitPos = null; }
+    const yours = this.youHitPos && G.time - (this.youHitAt ?? -9) < 1.5;
+    if (yours) { killMark(this.youHitPos); this.youHitPos = null; }
     if (!head && !this.quiet) AUDIO.voice && AUDIO.voice("death", { at: a.pos, vol: 1.1, high: isF(this.info.look) });
-    blowLands(a, "down");
+    // (the blood where he falls — and the slowed moment, the shake, only if it was you who did it: not every man
+    //  going down anywhere on the field)
+    blowLands(a, "down", yours ? G.player : { pos: from || a.pos });
     const src = from || G.player.pos, push = new THREE.Vector3(a.pos.x - src.x, 0, a.pos.z - src.z).normalize().multiplyScalar(3.2).add(new THREE.Vector3(0, 0.6, 0));
     P.load = null; P.aimWant = false;
     const gun = P.aimH && P.aimH.obj; if (gun) { P.aimHold(null); P.root.add(gun); dropThing(gun, push.clone().multiplyScalar(0.4).add(new THREE.Vector3(0, 1.2, 0))); }
@@ -1622,7 +1625,7 @@ class Bot extends Fighter {
     this.hp = Math.max(0, this.hp - d);
     if (this.hp <= 0) { const f = from || (this.T && this.T.pos) || G.player.pos; this.fromX = f.x; this.fromZ = f.z; this.headShot = head; this.fallDown(f, head); this.arena.unitDown(this); return; }
     if (this.arena.host) this.arena.net.send({ t: "bhurt", id: this.uid });
-    blowLands(this.a, "hit"); this.a.person.flinch && this.a.person.flinch();
+    blowLands(this.a, "hit", this.youHitPos && G.time - (this.youHitAt ?? -9) < 0.3 ? G.player : { pos: from || this.pos }); this.a.person.flinch && this.a.person.flinch();
     AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos, high: isF(this.info.look) });
     if (!(this.wind > 0)) { this.stun = melee ? 0.25 : 0.4; this.a.path = []; this.aimT = 0; }
     // (hurt at range, he doesn't stand there: he moves)

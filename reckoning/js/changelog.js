@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.29.1", date: "12 October 2026", title: "No more standing about",
+    items: [
+      "Men in a battle no longer freeze and stutter in the press: finding a way round things was rationed to one man a frame, so in a melee of forty, re-routing after each other, most of them stood still waiting their turn — the charge crawled, and crawled worse the lower your frame rate. Now eight a frame: they run at their real pace.",
+      "The slowed moment, the screen's shake and the hit-pause are for your own blows and kills only: every man going down anywhere on the field set them off, so a big battle kept lurching in and out of slow time.",
+    ],
+  },
+  {
     v: "1.29.0", date: "12 October 2026", title: "Light",
     items: [
       "Shafts of sunlight: look toward a low sun and its light streams out from behind whatever stands in front of it — the trees, the ranks, the powder smoke — strongest in the morning and the evening.",

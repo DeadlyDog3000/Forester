@@ -1465,7 +1465,10 @@ function viewModel(dt, p, third) {
 // and the corners are pulled tight so the walk still looks direct.
 const NPC_R = 0.3, CELL = 0.5;
 const stepClock = { t: 0 };
-let planFrame = -1;
+let planFrame = -1, plansNow = 0;
+// (routes found per frame, at most: enough that a melee of forty men re-routing after each other aren't left standing
+//  waiting their turn — they were, one route a frame, and a charge crawled and stuttered)
+const PLANS_PER_FRAME = 8;
 // would someone standing here be inside something? (the same height band you collide in)
 // (y is the ground height, found once per search: sampling the terrain for every cell is the slow part)
 function blockedAt(w, x, z, pad = NPC_R, y = w.heightAt(x, z)) {
@@ -1923,9 +1926,10 @@ export class Actor {
       const t = this.path[0];
       // plan the way to the next point the first time we head for it, or again when stuck
       // (one search a frame between everyone, so a crowd setting off at once doesn't stutter)
-      if (this.stepsFor !== t && planFrame === G.time) { this.person.update(dt, 0); this.sync(); return; }
+      if (planFrame !== G.time) { planFrame = G.time; plansNow = 0; }
+      if (this.stepsFor !== t && plansNow >= PLANS_PER_FRAME) { this.person.update(dt, 0); this.sync(); return; }
       if (this.stepsFor !== t) {
-        planFrame = G.time; this.steps = findPath(G.world, p.x, p.z, t.x, t.z); this.stepsFor = t; this.stuck = 0; this.replans = this.replans && this.lastFor === t ? this.replans : 0; this.lastFor = t; this.bestD = Infinity; }
+        plansNow++; this.steps = findPath(G.world, p.x, p.z, t.x, t.z); this.stepsFor = t; this.stuck = 0; this.replans = this.replans && this.lastFor === t ? this.replans : 0; this.lastFor = t; this.bestD = Infinity; }
       const st = this.steps[0];
       const dx = st.x - p.x, dz = st.z - p.z, l = Math.hypot(dx, dz);
       if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.25; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(p.x, p.z)); }
