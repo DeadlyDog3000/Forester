@@ -2479,7 +2479,16 @@ export function frame(dt, skipRender) {
       const inside = t.r ? Math.hypot(p.x - t.x, p.z - t.z) < t.r : (p.x > t.x0 && p.x < t.x1 && p.z > t.z0 && p.z < t.z1);
       if (inside && (!t.cond || t.cond())) { if (t.once !== false) t.done = true; t.fn(); }
     }
-    for (const f of G.onFrame.slice()) f(dt);
+    // (one thing going wrong never stops the rest: a fault in any one of these used to end the frame there, every frame
+    //  — nothing moved again, and the game looked frozen. Now it's reported once and the frame goes on; a thing that
+    //  fails frame after frame is taken out)
+    for (const f of G.onFrame.slice()) {
+      try { f(dt); f.__bad = 0; }
+      catch (e) {
+        if (!f.__bad) console.error("Reckoning: a frame task failed —", e && e.stack ? e.stack.split("\n").slice(0, 3).join(" | ") : e);
+        if ((f.__bad = (f.__bad || 0) + 1) > 90) { const i = G.onFrame.indexOf(f); if (i >= 0) G.onFrame.splice(i, 1); }
+      }
+    }
     // (after everything else has set the sky: under the ground, it is dark)
     if (G.world && G.world.cave && G.world.cave.inside) G.world.cave.dark();
     if (G.mode === "play") {

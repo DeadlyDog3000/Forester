@@ -39,9 +39,15 @@ function stainMat(dark) {
   return MATS[i];
 }
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+// (a mark let go of: a stain's own shape freed; a torn-off limb is a group of them — a stain-shaped dispose on it threw,
+//  every frame, the moment a limb was the oldest mark kept, and the battle stopped dead)
+function free(o) {
+  if (o.parent) o.parent.remove(o);
+  o.traverse(c => { if (c.geometry && c.geometry !== PLANE && c.geometry !== DRAPE) c.geometry.dispose(); });
+}
 function keep(m) {
   G.scene.add(m); marks.push(m);
-  while (marks.length > MAX) { const o = marks.shift(); if (o.parent) o.parent.remove(o); if (o.geometry !== PLANE) o.geometry.dispose(); }
+  while (marks.length > MAX) free(marks.shift());
 }
 // blood on the ground at (x, z), size across; dark: a pool's, wet and deep
 // (a stain bigger than a hand is laid over the ground's rises and dips, not flat across them: a flat one sank into the
@@ -222,6 +228,6 @@ export function goreOff() {
 }
 // the field cleared of it all (the battle over)
 export function clearGore() {
-  for (const m of [...marks, ...drops]) { if (m.parent) m.parent.remove(m); if (m.geometry && m.geometry !== PLANE) m.geometry.dispose(); }
+  for (const m of [...marks, ...drops]) free(m);
   marks.length = 0; drops.length = 0;
 }

@@ -20,6 +20,7 @@
 
 import { THREE, camera } from "./core.js";
 import { G } from "./engine.js";
+import { post } from "./post.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { clearGore } from "./gore.js";
@@ -345,7 +346,7 @@ export const FILM = {
     if (!f) { f = document.createElement("div"); f.id = "film"; f.innerHTML = `<div class="fm-bar fm-top"><div class="fm-note"></div></div><div class="fm-bar fm-bot"></div><div class="fm-cap"><div class="fm-k"></div><div class="fm-t"></div><div class="fm-s"></div></div><div class="fm-dip"></div>`; document.body.appendChild(f); }
     return f;
   },
-  bars(on) { const f = this.el(); f.classList.toggle("on", !!on); },
+  bars(on) { const f = this.el(); f.classList.toggle("on", !!on); post.dof = on ? 0.85 : 0; },
   note(t) { this.el().querySelector(".fm-note").textContent = t || ""; },
   // a title over the film (k a small line above it); null to take it off
   cap(t, s = "", k = "", big = false) {
@@ -355,12 +356,13 @@ export const FILM = {
     c.classList.toggle("big", big); c.classList.remove("show"); void c.offsetWidth; c.classList.add("show");
   },
   dip(ms = 260) { const d = this.el().querySelector(".fm-dip"); d.style.transition = "none"; d.style.opacity = 1; void d.offsetWidth; d.style.transition = `opacity ${ms}ms ease`; d.style.opacity = 0; },
-  off() { const f = $("film"); if (f) { f.classList.remove("on"); this.cap(null); this.note(""); } },
+  off() { post.dof = 0; const f = $("film"); if (f) { f.classList.remove("on"); this.cap(null); this.note(""); } },
 };
 
 // ---- the camera's moves: put it somewhere, looking at something, smoothly ----
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 export function aim(cam, from, to, fov = 50) {
+  post.focus = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
   cam.position.set(from.x, from.y, from.z); cam.up.set(0, 1, 0); cam.lookAt(to.x, to.y, to.z);
   if (Math.abs(cam.fov - fov) > 0.05) { cam.fov = fov; cam.updateProjectionMatrix(); }
 }
@@ -387,8 +389,10 @@ export class Smooth {
     else { this.p.lerp(_v.set(from.x, from.y, from.z), a); this.l.lerp(_w.set(to.x, to.y, to.z), a); }
     // (never under the ground)
     this.p.y = Math.max(this.p.y, groundY(this.p.x, this.p.z) + 0.5);
+    // (only ever up, within a shot: risen over a gabion, it stays risen — coming down again as soon as the way looked
+    //  clear set it bobbing over every basket it passed)
     let want = 0; while (want < 7 && blocked(this.p, this.l, want)) want += 0.6;
-    this.lift = this.lift < 0 ? want : this.lift + (want - this.lift) * (1 - Math.exp(-5 * dt));
+    if (this.lift < 0) this.lift = want; else if (want > this.lift) this.lift += (want - this.lift) * (1 - Math.exp(-3 * dt));
     _e.copy(this.p); _e.y += this.lift;
     aim(cam, _e, this.l, fov);
   }

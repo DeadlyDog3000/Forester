@@ -76,6 +76,7 @@ function applySettings() {
   $("setChat").value = String(s.chat || 1); document.documentElement.style.setProperty("--chat-k", String(s.chat || 1));
   $("setDark").checked = !!s.dark; document.body.classList.toggle("dark-fantasy", !!s.dark);
   post.on = s.post !== false; $("setPost").checked = post.on;
+  post.ao = post.on && s.ao !== false; $("setAO").checked = s.ao !== false; $("setAO").disabled = !post.on;
   // saturation and pixelation: the colour turned up or down, and the picture drawn in bigger, harder pixels
   const sat = s.sat ?? 1, pix = s.pix ?? 1;
   $("setSat").value = sat; $("satVal").textContent = Math.round(sat * 100) + "%";
@@ -98,9 +99,9 @@ for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true]
 $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.value; applySettings(); G.saveSettings(); });
 // ---- FPS boosters ----
 const PRESETS = {
-  high: { scale: 1, dynres: false, shadows: "high", draw: 1, trees: "full", post: true },
-  balanced: { scale: 0.85, dynres: true, shadows: "low", draw: 0.75, trees: "medium", post: true },
-  performance: { scale: 0.65, dynres: true, shadows: "off", draw: 0.55, trees: "low", post: false },
+  high: { scale: 1, dynres: false, shadows: "high", draw: 1, trees: "full", post: true, ao: true },
+  balanced: { scale: 0.85, dynres: true, shadows: "low", draw: 0.75, trees: "medium", post: true, ao: false },
+  performance: { scale: 0.65, dynres: true, shadows: "off", draw: 0.55, trees: "low", post: false, ao: false },
 };
 let dynScale = 1;
 function applyScale() {
@@ -134,6 +135,7 @@ document.addEventListener("fullscreenchange", syncFull); addEventListener("resiz
 addEventListener("mousedown", function first() { removeEventListener("mousedown", first); if (G.settings.fullscreen && !isFull()) setFull(true); });
 $("setFps").addEventListener("change", e => { G.settings.showFps = e.target.checked; applySettings(); G.saveSettings(); });
 $("setPost").addEventListener("change", e => custom("post", e.target.checked));
+$("setAO").addEventListener("change", e => custom("ao", e.target.checked));
 // the frame rate, measured each half second: shown if asked, and used by auto resolution
 let fpsN = 0, fpsT = 0, lowFor = 0;
 function meterFps(dtReal) {

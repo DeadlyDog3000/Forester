@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.34.1", date: "13 October 2026", title: "No more freezing",
+    items: [
+      "Battles no longer freeze partway through: once a battle had left enough marks on the ground, a limb torn off by a cannonball or a grenade could become the oldest of them, and clearing it away failed — every frame, so nothing moved again. Fixed; and if anything of the kind ever goes wrong again, the rest of the game carries on instead of stopping dead.",
+      "Contact shade (on with the High preset, or in Settings): a soft shadow where things meet — men's feet on the ground, the foot of a wall or a parapet, the corners of the works.",
+      "The battle's opening and the replays are filmed with a depth of field: what the camera's on sharp, the rest softened.",
+      "The opening's camera rises once over the gabions in its way, instead of bobbing over each one.",
+    ],
+  },
+  {
     v: "1.34.0", date: "13 October 2026", title: "The battle on film",
     items: [
       "A battle opens like a film: the field from high in the air with the place named, along your ranks and along theirs with what each side has brought, a gun or the ground between, and then down out of the sky into your own eyes — with music under it. A duel opens on the two of you, face to face. Any key skips it.",
