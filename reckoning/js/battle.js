@@ -150,7 +150,13 @@ export function soldierLook(u, seed, base = {}) {
 }
 // your own body in your company's colours (your outfit and face as they are)
 // (a man takes the musketeer's coat, bandolier and hat over his own face; a woman keeps her own dress in the colours)
-export function inUniform(look, u) { const f = look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body); return { ...look, ...(f ? { sash: u.sash } : { body: u.body || "musketeer", hat: "hat", ...(u.boots ? { stockings: u.boots } : {}) }), coat: u.coat, vest: u.vest, cuff: u.vest, legs: look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body) ? look.legs : u.legs, hatColor: u.hat }; }
+// (the uniform as worn, faded and dusty as the rest of the company's: fresh from the dye-vat, yours stood out from
+//  every man round you)
+export function inUniform(look, u) {
+  const f = look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body), w = soldierLook(u, (look && look.seed) || 7);
+  return { ...look, ...(f ? { sash: w.sash || u.sash } : { body: u.body || "musketeer", hat: "hat", stockings: w.stockings, ...(u.body ? { sash: w.sash } : {}) }),
+    coat: w.coat, vest: w.vest, cuff: w.cuff, legs: f ? look.legs : w.legs, hatColor: w.hatColor, linen: f ? look.linen : w.linen };
+}
 
 // ---------------------------------------------------------------------------
 //  the field: the works, the cover they give, and the guns

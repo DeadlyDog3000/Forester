@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "1.32.0", date: "13 October 2026", title: "A sharper enemy",
+    items: [
+      "The other side's officer is never a fool now — the greenest a capable man, and the best, once your record's a good one, as sharp as any:",
+      "With men to spare he comes at the thin end of your line, so his overlaps yours there and folds round it.",
+      "He holds his first volley until it'll tell — well inside a musket-shot, not at the end of one.",
+      "Charge him and he meets you with every loaded musket at a dozen paces, then goes at you with the steel.",
+      "He sends his men in when your line's in disorder — strung out, men off on their own — as well as when it's just fired.",
+      "His men choose their marks: a man out in the open before one behind cover, a man already hurt, a gun's crew — and they don't all fire at one man while others go untouched. His grenadiers throw where most of yours stand together.",
+      "Your own uniform is worn like the rest of the company's — faded, dusty, a pair of stockings of your own — instead of fresh from the dye-vat and brighter than every man round you.",
+    ],
+  },
+  {
     v: "1.31.1", date: "13 October 2026", title: "Smoke over the field",
     items: [
       "Powder smoke hides what's under it: blood on the ground was drawn on top of the clouds, so the pools showed straight through a gun's smoke.",

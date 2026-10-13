@@ -871,11 +871,27 @@ class Arena {
     // steel as soon as he's near; a seasoned one stands off at musket range and makes his volleys tell, holds behind
     // cover when he's the fewer, waits for your line to have fired before he charges it, and calls a charge off that's
     // going against him
-    const gen = this.gen ??= clamp((record().rating - 800) / 900, 0, 1), L = (x, y) => x + (y - x) * gen;
+    // (never a fool now: the least of them a capable officer, and the best — by the time your record's a good one —
+    //  as sharp as any)
+    const gen = this.gen ??= clamp(0.55 + (record().rating - 800) / 800, 0.55, 1), L = (x, y) => x + (y - x) * gen;
     const nT = theirs.length, nO = ours.length, ratio = nT / Math.max(1, nO);
     const loadedOf = l => { const m = l.filter(u => u.loaded); return m.length ? m.filter(u => u.loaded.long).length / m.length : 1; };
     const oursEmpty = 1 - loadedOf(ours), theirsLoaded = loadedOf(theirs), inRange = d < RANGE.musket * this.sight;
     const outnumbered = gen > 0.35 && ratio < 0.85;
+    // (the line he means to come at: yours — or, with men to spare, the end of it that's thinnest, so his line overlaps
+    //  yours there and folds round it)
+    const px = -(b.z - a.z) / d, pz = (b.x - a.x) / d;
+    if (this.flank === undefined || (this.flankT -= dt) <= 0) {
+      this.flankT = 6; let l = 0, r = 0; for (const u of ours) ((u.pos.x - b.x) * px + (u.pos.z - b.z) * pz > 0 ? r++ : l++);
+      this.flank = l === r ? (this.flank || 1) : r < l ? 1 : -1;
+    }
+    const lap = gen > 0.5 && ratio > 1.15 ? Math.min(14, (nT - nO) * 1.1) * gen : 0, tgt = { x: b.x + px * lap * this.flank, z: b.z + pz * lap * this.flank };
+    // (your charge coming on: he meets it with every loaded musket at a dozen paces — then the steel at it)
+    const O0 = this.orders[0], youCharge = O0 && O0.charge;
+    if (youCharge && !O.charge && gen > 0.4) {
+      if (d < 26 && theirsLoaded > 0.4 && G.time - (this.metAt || -99) > 8) { this.metAt = G.time; O.volleyAt = G.time + 0.35; O.fire = true; shout(); }
+      if (d < 11 || (this.metAt && G.time - this.metAt > 1.2 && d < 18)) { O.charge = true; O.cover = false; this.chargedAt = G.time; shout(); }
+    }
     // (the fewer, and a head on him: he stays where he is, in cover, and lets you come on into his fire)
     if (O.mode === "hold") O.cover = outnumbered && !O.charge;
     if (O.mode === "hold" && !(outnumbered && d > 22) && (t > this.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; this.adv = { march: true, until: G.time + 8 }; shout(); }
@@ -885,7 +901,9 @@ class Arena {
       this.cmdT = 2;
       const adv = this.adv ||= { march: true, until: G.time + 8 }, inRange = d < RANGE.musket * this.sight;
       if (G.time > adv.until) {
-        adv.march = !adv.march || !inRange; adv.until = G.time + (adv.march ? 7 + Math.random() * 3 : 5 + Math.random() * 2);
+        // (the first volley held until it'll tell: the seasoned officer halts well inside a musket-shot, not at its end)
+        const telling = d < RANGE.musket * this.sight * L(1, 0.6);
+        adv.march = !adv.march || !telling; adv.until = G.time + (adv.march ? 7 + Math.random() * 3 : 5 + Math.random() * 2);
         if (!adv.march) { O.volleyAt = G.time + 0.9; shout(); }
       }
       if (adv.march) {
@@ -893,14 +911,17 @@ class Arena {
         // (the middle man's distance from his place, not the mean: one man off after his own business doesn't hold a line)
         const men = theirs.filter(u => !u.crewOf && !u.isNet), gaps = men.map(u => { const p = this.slotFor(u); return Math.hypot(p.x - u.pos.x, p.z - u.pos.z); }).sort((x, y) => x - y), lag = gaps.length ? gaps[gaps.length >> 1] : 0;
         // (where he means to stand: close for the steel, if he's rash; at a good musket-shot, if he isn't)
-        const keep = L(20, 36), from = O.at || a, dd = Math.hypot(b.x - from.x, b.z - from.z) || 1, step = lag < 5 ? Math.max(0, Math.min(dd - keep, 7)) : 0;
-        O.at = { x: from.x + (b.x - from.x) / dd * step, z: from.z + (b.z - from.z) / dd * step };
+        const keep = L(20, 34), from = O.at || a, dd = Math.hypot(tgt.x - from.x, tgt.z - from.z) || 1, step = lag < 5 ? Math.max(0, Math.min(dd - keep, 7)) : 0;
+        O.at = { x: from.x + (tgt.x - from.x) / dd * step, z: from.z + (tgt.z - from.z) / dd * step };
       }
     }
     // the charge: when it's near enough, and worth it — the rash man's reasons, or the seasoned one's
     const chargeD = L(26, 38), needRatio = L(0.8, 1.4), patience = L(40, 160);
     const caught = gen > 0.25 && oursEmpty > L(0.9, 0.55) && ratio >= 0.85;   // (your line has just fired: in before it's loaded)
-    if (!O.charge && d < chargeD && (ratio >= needRatio || caught || nO <= 2 || t > this.holdFor + patience)) { O.charge = true; O.cover = false; this.chargedAt = G.time; shout(); }
+    // (or yours is all anyhow — strung out on the march, men off on their own — and his isn't)
+    const spread = l => { const c = cen(l); return l.reduce((s2, u) => s2 + Math.hypot(u.pos.x - c.x, u.pos.z - c.z), 0) / l.length; };
+    const broken = gen > 0.6 && nO > 3 && spread(ours) > spread(theirs) * 1.8 && ratio >= 0.9;
+    if (!O.charge && d < chargeD && (ratio >= needRatio || caught || broken || nO <= 2 || t > this.holdFor + patience)) { O.charge = true; O.cover = false; this.chargedAt = G.time; shout(); }
     // (a charge going against him, called off — the men back to re-form at a musket-shot, and the firing taken up again)
     if (O.charge && gen > 0.45 && G.time - (this.chargedAt || 0) > 6 && ratio < L(0.5, 0.75) && nO > 2) {
       O.charge = false; O.mode = "advance"; const away = Math.hypot(a.x - b.x, a.z - b.z) || 1;
@@ -1648,8 +1669,23 @@ class Bot extends Fighter {
   pick() {
     const O = this.arena.orders && this.arena.orders[this.team], foes = this.arena.enemiesOf(this.team);
     if (O && O.target && O.target.alive && foes.includes(O.target)) return O.target;
+    // (the sharp officer's men pick their mark: a man out in the open before one behind cover, a man already hurt, a
+    //  gun's crew — fire where it'll tell — and never all on one while others go untouched)
+    const sharp = this.team === 1 && (this.arena.gen || 0) > 0.5 && this.arena.battle, on = sharp ? new Map() : null;
+    if (sharp) for (const m of this.arena.alliesOf(this.team)) if (m !== this && m.T) on.set(m.T, (on.get(m.T) || 0) + 1);
     let best = null, bd = Infinity;
-    for (const f of foes) { const d = Math.hypot(f.pos.x - this.pos.x, f.pos.z - this.pos.z) * (f === this.T ? 0.8 : 1); if (d < bd) { bd = d; best = f; } }
+    for (const f of foes) {
+      let d = Math.hypot(f.pos.x - this.pos.x, f.pos.z - this.pos.z) * (f === this.T ? 0.8 : 1);
+      if (sharp && d > 4.5) d *= (f.cover && f.a && f.a.person.crouching ? 1.5 : 1) * (f.hp != null && f.hp < 55 ? 0.7 : 1) * (f.crewOf ? 0.75 : 1) * (1 + 0.12 * Math.max(0, (on.get(f) || 0) - 2));
+      if (d < bd) { bd = d; best = f; }
+    }
+    return best;
+  }
+  // (a grenadier's mark: where most of theirs stand together, in his throw)
+  crowd(T) {
+    const foes = this.arena.enemiesOf(this.team); let best = T, bn = 0;
+    for (const f of foes) { const d = Math.hypot(f.pos.x - this.pos.x, f.pos.z - this.pos.z); if (d < 9 || d > 26) continue;
+      let n = 0; for (const g of foes) if (Math.hypot(g.pos.x - f.pos.x, g.pos.z - f.pos.z) < 3.2) n++; if (n > bn) { bn = n; best = f; } }
     return best;
   }
   tick(dt) {
@@ -1752,7 +1788,7 @@ class Bot extends Fighter {
       // (a grenadier, a man close enough and in sight: a grenade lobbed at him — now and then, while he has any — on the
       //  march or standing)
       if (this.nades > 0 && O.fire && this.los && d > 9 && d < 26 && field && (this.nadeT = (this.nadeT ?? 1.5 + Math.random() * 3) - dt) <= 0) {
-        this.nadeT = 7 + Math.random() * 4; this.nades--; a.path = []; this.throwNade(T); return;
+        this.nadeT = 7 + Math.random() * 4; this.nades--; a.path = []; this.throwNade(this.team === 1 && (this.arena.gen || 0) > 0.5 ? this.crowd(T) : T); return;
       }
       // (on the march, loaded, and a man of theirs in range and in sight: he halts, presents, fires — and loads as he
       //  goes on again)
