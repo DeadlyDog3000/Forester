@@ -122,11 +122,14 @@ export function soldierLook(u, seed, base = {}) {
   // (the faces of a German or northern company of the 1680s: fair for the most part, weathered or sallow in many, and a
   //  few darker — men from the south of Europe, from the Turkish wars, from the ports)
   const weighed = l => { let x = r() * l.reduce((t, [, w]) => t + w, 0); for (const [v, w] of l) if ((x -= w) <= 0) return v; return l[0][0]; };
-  const skin = weighed([[0xf3d8c4, 30], [0xf1d3bc, 26], [0xeac6aa, 18], [0xe2b896, 11], [0xd4a882, 6], [0xc99a74, 4], [0xa87652, 2.5], [0x7e5236, 1.5], [0x5a3a26, 1]]);
+  // (the Sultan's men: dark-skinned, brown to black)
+  const skin = u.body === "janissary" ? weighed([[0x3a2418, 26], [0x4a2e1e, 26], [0x5a3a26, 22], [0x6e4630, 16], [0x7e5236, 10]])
+    : weighed([[0xf3d8c4, 30], [0xf1d3bc, 26], [0xeac6aa, 18], [0xe2b896, 11], [0xd4a882, 6], [0xc99a74, 4], [0xa87652, 2.5], [0x7e5236, 1.5], [0x5a3a26, 1]]);
   // (the hair: dark for the most part, brown and fair a good many, the odd red or grey; and the face shaven, as most
-  //  soldiers' were, or a moustache — the fashion — or, here and there, a beard)
-  const hair = weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
-  const face = weighed({ janissary: [["tash", 85], ["clean", 10], ["full", 5]], strelets: [["full", 75], ["tash", 20], ["clean", 5]], haiduk: [["tash", 80], ["clean", 10], ["full", 10]] }[u.body] || [["clean", 45], ["tash", 38], ["full", 17]]);
+  //  soldiers' were, or here and there a beard)
+  const hair = u.body === "janissary" ? weighed([[0x120c08, 60], [0x1e1610, 30], [0x2a1c12, 10]]) : weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
+  // (shaven: the beard's shell read as a dark mask over the jaw, and the lone moustache as a smudge under the nose)
+  const face = "clean";
   // (and the cloth: no two coats of a regiment came out of the same dye-vat, and none stayed as it came — faded by the
   //  sun, greyed with dust and powder, darkened by rain and grease; the breeches and stockings a man's own as often as
   //  the issue; the linen long past white)
@@ -141,7 +144,7 @@ export function soldierLook(u, seed, base = {}) {
   // (the East's men in their boots; the West's in the stockings their company wore, and now and then their own)
   const stockings = u.boots ? wear(u.boots, 1.2) : wear(weighed([...(u.stock || [[0xc8c0ae, 35], [0x6a6862, 30]]), [0x5a4a3a, 8], [0x4e5262, 6]]), 1.5);
   return { body: u.body || "musketeer", skin, hair, face,
-    eyes: pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: wear(0xe2d8c2, 1.5), stockings,
+    eyes: u.body === "janissary" ? pick([0x2a1a10, 0x3a2414]) : pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: wear(0xe2d8c2, 1.5), stockings,
     height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
     coat: wear(u.coat), vest: wear(u.vest, 0.8), cuff: wear(u.vest, 0.6), legs: wear(legs, 1.3), hat: "hat", hatColor: wear(u.hat, 0.6), ...(u.body ? { sash: wear(u.sash, 0.6) } : {}) };
 }

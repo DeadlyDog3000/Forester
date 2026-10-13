@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.31.0", date: "12 October 2026", title: "Faces",
+    items: [
+      "Eyes that look like eyes: the whole eyeball was being tinted the colour of the iris, so every man stared out of two dark beads. Now the whites are white, the iris its own colour round a black pupil, the eye set back in its socket under a thin lid — no more goggling.",
+      "Faces with more to them: the sockets deeper, the cheekbones catching the light, the shade under the nose and in the hollow of the cheek, and brows that read.",
+      "No more dark mask over the jaw: the shadow a beard casts was being baked into the skin under it, and stayed there when the man was clean-shaven. And the soldiers in a battle go shaven — the little moustache read as a smudge under the nose.",
+      "The Ottoman army's men are dark-skinned, with black hair and dark eyes.",
+      "Standing about with nothing in hand, people stand easy — breathing, arms hanging — instead of swaying from hip to hip and glancing round.",
+    ],
+  },
+  {
     v: "1.30.1", date: "12 October 2026", title: "The guns' smoke",
     items: [
       "A battle's cannon fire now throws out its flash and its great bank of smoke at the muzzle, as the story's guns always have: the ball's speed was being worked out on the very arrow that pointed the smoke, so the flash and the whole cloud were flung hundreds of paces off across the field, and a gun went off clean.",

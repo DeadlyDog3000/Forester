@@ -436,7 +436,7 @@ export function makePerson(o = {}) {
     // a child's head is big for the body; it evens out as they grow
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };
-  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, cuff: o.cuff ?? o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor, eyes: o.eyeColor, stockings: o.stockingsColor, linen: o.linenColor });
+  if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, cuff: o.cuff ?? o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor, iris: o.eyeColor, stockings: o.stockingsColor, linen: o.linenColor });
   // a hat of another outfit's than this one's own
   if (o.hatStyle && o.hatStyle !== o.model && P.modelScene) borrowHat(P, P.modelScene, o.hatStyle, o.hatColor);
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
@@ -451,7 +451,7 @@ export function makePerson(o = {}) {
 // shape built in code with the same name. See models/README.md.
 export const MODELS = {};
 const CLOTH_PARTS = new Set(["coat", "cuff", "legs", "stockings", "linen", "vest", "skirt", "apron", "hat", "sash", "cloth", "rope", "sail", "flag"]);
-const BARE_PARTS = new Set(["skin", "eyes", "hair", "beard", "tash", "metal", "leather", "belt"]);
+const BARE_PARTS = new Set(["skin", "eyes", "iris", "hair", "beard", "tash", "metal", "leather", "belt"]);
 export async function loadModels(base = "models/") {
   let list;
   try { const r = await fetch(base + "manifest.json", { cache: "no-cache" }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
@@ -547,7 +547,8 @@ function useModel(P, key, colors = {}) {
       //  dark-haired model could only ever be darker. Divided by what's painted there, the colour asked for is the
       //  colour seen, its shading kept)
       const vc = o.material.vertexColors && o.geometry.attributes.color;
-      if (vc) { const mean = paintedMean(o.geometry); own[part].userData.vcMean = mean; own[part].color.r /= Math.max(0.04, mean[0]); own[part].color.g /= Math.max(0.04, mean[1]); own[part].color.b /= Math.max(0.04, mean[2]); }
+      // (the iris tinted as it's painted, light to dark: brightened to its mean, a brown eye lit up amber)
+      if (vc && part !== "iris") { const mean = paintedMean(o.geometry); own[part].userData.vcMean = mean; own[part].color.r /= Math.max(0.04, mean[0]); own[part].color.g /= Math.max(0.04, mean[1]); own[part].color.b /= Math.max(0.04, mean[2]); }
       addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface });
     }
     o.material = own[part];

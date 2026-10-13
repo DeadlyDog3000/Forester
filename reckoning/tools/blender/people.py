@@ -214,7 +214,12 @@ def bake_ao(sc, objs):
         sc.world = bpy.data.worlds.new("w")
     sc.world.light_settings.distance = 0.12
     sc.render.bake.target = "VERTEX_COLORS"
+    # (the beard and moustache out of the render while it bakes: the game leaves them off a shaven man, and the shade
+    #  they cast on the skin under them stayed behind as a dark mask over his jaw)
+    optional = [o2 for o2 in sc.objects if o2.name.rsplit("_", 1)[-1] in ("beard", "tash")]
+    for o2 in optional: o2.hide_render = True
     for ob in objs:
+        if ob in optional: continue
         me = ob.data
         if "Col" not in me.color_attributes:
             continue
@@ -238,6 +243,7 @@ def bake_ao(sc, objs):
         me.color_attributes.active_color = me.color_attributes["Col"]
         me.color_attributes.render_color_index = me.color_attributes.find("Col")
         ob.select_set(False)
+    for o2 in optional: o2.hide_render = False
 
 
 def build_person(key):
@@ -254,7 +260,7 @@ def build_person(key):
     mat("skin", WHITE, 0.6)
     mat("hair", WHITE, 0.8)
     if o.get("beard"): mat("beard", WHITE, 0.8); mat("tash", WHITE, 0.8)
-    mat("eyes", WHITE, 0.25)
+    mat("eyes", WHITE, 0.12); mat("iris", WHITE, 0.1)
     mat("coat", rgb(o["coat"]))
     mat("legs", rgb(o.get("legs", 0x3a3028)))
     mat("linen", WHITE, 0.95)
@@ -542,15 +548,20 @@ def build_person(key):
         c = mix(c, tint(skin, (1.06, 0.82, 0.8)), blush)
         c = mix(c, tint(skin, (1.04, 0.86, 0.84)), 0.35 * gauss(X, 0.12) * gauss(Z + 0.28, 0.07) * fr)    # the nose's tip
         for sd in (-1, 1):
-            c = mix(c, tint(skin, (0.86, 0.8, 0.8)), 0.4 * gauss(X - sd * 0.39, 0.17) * gauss(Z - 0.05, 0.13) * fr)   # the sockets in shade
+            c = mix(c, tint(skin, (0.8, 0.72, 0.72)), 0.55 * gauss(X - sd * 0.39, 0.17) * gauss(Z - 0.05, 0.13) * fr)  # the sockets in shade
+            c = mix(c, tint(skin, (0.86, 0.8, 0.8)), 0.35 * gauss(X - sd * 0.36, 0.11) * gauss(Z + 0.07, 0.03) * fr)   # the lower lid's crease
+            c = mix(c, tint(skin, (1.07, 1.04, 1.0)), 0.3 * gauss(X - sd * 0.5, 0.14) * gauss(Z + 0.14, 0.08) * fr)   # the cheekbones catching the light
+            c = mix(c, tint(skin, (0.82, 0.76, 0.76)), 0.3 * gauss(X - sd * 0.62, 0.12) * gauss(Z + 0.42, 0.18) * fr)  # the hollow of the cheek
+        c = mix(c, tint(skin, (0.8, 0.74, 0.74)), 0.4 * gauss(X, 0.13) * gauss(Z + 0.395, 0.03) * fr)   # the shade under the nose
+        c = mix(c, tint(skin, (0.84, 0.78, 0.78)), 0.35 * smooth((-Z - 0.8) / 0.12) * fr)            # under the jaw
         lip = gauss(X, 0.22) * max(gauss(Z + 0.46, 0.032), gauss(Z + 0.555, 0.038)) * fr
         c = mix(c, lipc, min(1.0, lip * (0.85 if f else 0.6)))
         c = mix(c, tint(lipc, (0.55, 0.5, 0.5)), 0.6 * gauss(X, 0.22) * gauss(Z + 0.505, 0.018) * fr)  # the line between them
         # eyebrows, painted on: a soft arch over each eye
         for sd in (-1, 1):
             zc = 0.25 + 0.035 * gauss(abs(X) - 0.36, 0.2)
-            m_ = gauss(Z - zc, 0.03 if f else 0.045) * smooth((abs(X) - 0.1) / 0.06) * smooth((0.66 - abs(X)) / 0.08) * (1 if X * sd > 0 else 0) * fr
-            c = mix(c, rgb(o.get("beard", o["hair"])) if not old else rgb(0xa8a49c), min(1.0, m_ * (0.85 if f else 1.0)))
+            m_ = gauss(Z - zc, 0.03 if f else 0.05) * smooth((abs(X) - 0.1) / 0.06) * smooth((0.66 - abs(X)) / 0.08) * (1 if X * sd > 0 else 0) * fr
+            c = mix(c, tint(rgb(o.get("beard", o["hair"])), (0.8, 0.8, 0.8)) if not old else rgb(0xa8a49c), min(1.0, m_ * (0.9 if f else 1.15)))
         # the hairline painted on, finer than the hair's own shell can draw it
         phi = math.atan2(X, -Y)
         mh = smooth((Z - piecewise(HL, abs(phi)) + 0.02) / 0.11)
@@ -573,32 +584,39 @@ def build_person(key):
     for sd in (-1, 1):
         ex, ez = sd * 0.034, hc.z + 0.008
         ey = front(ex, ez)
-        er = 0.0122
-        ec = Vector((ex, ey + er - 0.0055, ez))
+        er = 0.0118
+        ec = Vector((ex, ey + er - 0.0028, ez))   # (set back in the socket: further out, the ball stared)
         b = newbm()
-        bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=12, radius=er)
+        bmesh.ops.create_uvsphere(b, u_segments=24, v_segments=16, radius=er)
         bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.pi / 2, 3, "X"))
         def ecol(v):
             a = math.acos(max(-1.0, min(1.0, -v.co.y / er)))
-            return rgb(0x0a0706) if a < 0.2 else iris if a < 0.5 else rgb(0xe6ded2)
+            return mix(rgb(0xd6cdc0), rgb(0xb8988c), smooth((a - 0.85) / 0.6))
         paint_verts(b, ecol)
         bmesh.ops.translate(b, verts=b.verts, vec=ec)
         merge(b, "eyes")
+        # the iris and pupil: a cap over the front of the ball, the pupil black, the iris light in the middle and dark
+        # at its rim (the game tints it to the man's own eye colour)
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=24, v_segments=16, radius=er * 1.012)
+        bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.pi / 2, 3, "X"))
+        bmesh.ops.delete(b, geom=[v for v in b.verts if math.acos(max(-1.0, min(1.0, -v.co.y / (er * 1.012)))) > 0.7], context="VERTS")
+        def icol(v):
+            a = math.acos(max(-1.0, min(1.0, -v.co.y / (er * 1.012))))
+            return rgb(0x060505) if a < 0.24 else mix(rgb(0xb8b0a8), rgb(0x3a3430), smooth((a - 0.38) / 0.3))
+        paint_verts(b, icol)
+        bmesh.ops.translate(b, verts=b.verts, vec=ec)
+        merge(b, "iris")
         # the upper lid, its lashes dark along its edge
         b = newbm()
         bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=10, radius=1)
         bmesh.ops.delete(b, geom=[v for v in b.verts if v.co.z < -0.02], context="VERTS")
         bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(-0.42, 3, "X"))
-        paint_verts(b, lambda v: tint(skin, (0.3, 0.25, 0.22)) if v.co.z < 0.1 else mix(skin, tint(skin, (0.9, 0.82, 0.8)), 0.5))
-        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(ec + Vector((0, -0.0006, 0.0006)), Euler((0, 0, 0)), Vector((er * 1.12, er * 1.1, er * 1.02))))
+        # (thin, close over the ball — a thick shell stood off it like a goggle — the lashes a fine line at its edge)
+        paint_verts(b, lambda v: tint(skin, (0.42, 0.36, 0.33)) if v.co.z < 0.02 else mix(skin, tint(skin, (0.92, 0.86, 0.84)), 0.4))
+        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(ec + Vector((0, 0.0002, 0.0002)), Euler((0, 0, 0)), Vector((er * 1.035, er * 1.03, er * 1.0))))
         merge(b, "skin")
-        # the lower lid, a soft roll
-        b = newbm()
-        bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=8, radius=1)
-        bmesh.ops.delete(b, geom=[v for v in b.verts if v.co.z > 0.0 or v.co.y > 0.2], context="VERTS")
-        paint_verts(b, lambda v: tint(skin, (0.92, 0.84, 0.82)))
-        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(ec + Vector((0, -0.0004, 0.0)), Euler((0.3, 0, 0)), Vector((er * 1.1, er * 1.08, er * 1.0))))
-        merge(b, "skin")
+        # (the lower lid: no roll of its own, which bulged — the eye sits in the face, its shade painted under it)
         # the ear: a rim and the bowl inside it
         ecn = Vector((sd * 0.084, hc.y + 0.008, hc.z - 0.006))
         b = newbm()
@@ -687,7 +705,7 @@ def build_person(key):
         # (the beard round the jaw and the moustache over the lip: two parts, so the game can leave either off — a
         #  clean-shaven man, one with only a moustache, or both)
         def bmask(X, Y, Z, phi):
-            under = smooth((-0.3 - Z) / 0.09) * smooth((1.5 - abs(phi)) / 0.15)
+            under = smooth((-0.4 - Z) / 0.13) * smooth((1.45 - abs(phi)) / 0.2)
             hole = gauss(X, 0.24) * gauss(Z + 0.5, 0.075)
             return max(0.0, min(1.0, under * (1 - hole)))
         def tmask(X, Y, Z, phi):
@@ -1406,16 +1424,17 @@ def animate(rig, key, f, J):
 
     # Idle: four seconds of breathing — the chest and shoulders rise and settle — a slow shift of the weight from one
     # foot to the other, and a glance aside
+    # (only that: standing easy, the arms hanging and the elbows a little bent — no swaying from hip to hip, no knee
+    #  dipping, no looking about, which on a man with empty hands read as a fidget)
     def idle_at(t):
         br = math.sin(t * 2 * PI * 3)               # three breaths
-        sw = math.sin(t * 2 * PI)                   # one shift of weight
-        return P(chest=(0.025 * br, 0, -0.025 * sw), spine=(0.01 * br, 0.01 * sw, -0.02 * sw), hips=(0, 0.015 * sw, 0.04 * sw),
-                 neck=(-0.015 * br, 0.04 * math.sin(t * 2 * PI * 2 + 1), 0.06 * math.sin(t * 2 * PI + 2)),
-                 shoulder_L=(0, 0, -0.02 * br), shoulder_R=(0, 0, 0.02 * br),
-                 upper_arm_L=(0.03 * sw, 0, 0.08 + 0.01 * br), upper_arm_R=(-0.03 * sw, 0, -0.08 - 0.01 * br),
-                 thigh_L=(0, 0, -0.04 * sw), thigh_R=(0, 0, -0.04 * sw), shin_L=(0.09 * max(0, -sw), 0, 0), shin_R=(0.09 * max(0, sw), 0, 0))
-    # (the hips over the standing leg and back, the free knee easing)
-    a = cycle("Idle", 120, idle_at, lambda t: (0.022 * math.sin(t * 2 * PI), 0, -0.006 * abs(math.sin(t * 2 * PI))), 24)
+        sw = math.sin(t * 2 * PI)                   # the weight, barely shifting
+        return P(chest=(0.018 * br, 0, -0.006 * sw), spine=(0.006 * br, 0, -0.004 * sw), hips=(0, 0, 0.006 * sw),
+                 neck=(-0.01 * br, 0, 0),
+                 shoulder_L=(0, 0, -0.012 * br), shoulder_R=(0, 0, 0.012 * br),
+                 upper_arm_L=(0.02, 0, 0.06 + 0.006 * br), upper_arm_R=(0.02, 0, -0.06 - 0.006 * br),
+                 forearm_L=(-0.18, 0, 0), forearm_R=(-0.18, 0, 0))
+    a = cycle("Idle", 120, idle_at, lambda t: (0.004 * math.sin(t * 2 * PI), 0, -0.002 * abs(math.sin(t * 2 * PI))), 24)
 
     # Walk and run, from the curves of a real stride (hip, knee and ankle through one step of one leg, as a gait lab
     # measures them), the other leg half a stride behind. Phase 0 is this leg's foot meeting the ground.
