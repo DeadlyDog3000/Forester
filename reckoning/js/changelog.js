@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.30.1", date: "12 October 2026", title: "The guns' smoke",
+    items: [
+      "A battle's cannon fire now throws out its flash and its great bank of smoke at the muzzle, as the story's guns always have: the ball's speed was being worked out on the very arrow that pointed the smoke, so the flash and the whole cloud were flung hundreds of paces off across the field, and a gun went off clean.",
+    ],
+  },
+  {
     v: "1.30.0", date: "12 October 2026", title: "The demo and the full game",
     items: [
       "Ready for the shop: Forester: Reckoning will come as a free demo — the story's first chapter, and battles and duels against the bots — and the full game, unlocked with a licence key from the shop: the whole story, battles and duels against other players, and the Worlds & colonies. A page says what's in it, with the way to the shop and a box for the key; the story stops at its second chapter with the save moved on, so once bought it carries straight on.",

@@ -799,7 +799,7 @@ export class Field {
     const at = m.muzzle.getWorldPosition(new THREE.Vector3());
     const yaw = g.ry + g.yaw, dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(g.pitch), Math.sin(g.pitch), -Math.cos(yaw) * Math.cos(g.pitch));
     g.loaded = false; g.reload = g.reloadT = 9 + this.r() * 2.5; g.recoil = 1; g.back = 0.75;
-    this.balls.push({ p: at.clone(), v: dir.multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
+    this.balls.push({ p: at.clone(), v: dir.clone().multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
     muzzleFlash(root, at.clone().addScaledVector(dir, 0.2), dir, 3);
     powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 32, n: 60, speed: 15, haze: true, hazeN: 18, hazeA: 0.36 });
     { const b = m.barrel; b.updateMatrixWorld(true); panPuff(root, b.localToWorld(new THREE.Vector3(0, 0.2, 0.6)), 1.4); }

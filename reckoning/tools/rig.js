@@ -49,13 +49,14 @@ export const rig = {
   ease(t) { return t * t * (3 - 2 * t); },
   // run the game without filming (to let a scene settle)
   run(secs, fn) { const n = Math.round(secs * this.fps); for (let i = 0; i < n; i++) { if (fn) G.camOverride = cam => fn(0, cam); frame(1 / this.fps, true); } G.camOverride = null; },
-  async shot(name, secs, fn, { quality = 0.92, from = 0 } = {}) {
+  // (speed below 1: slow motion — each frame steps less game time, the shot as long on screen)
+  async shot(name, secs, fn, { quality = 0.92, from = 0, speed = 1 } = {}) {
     const n = Math.round(secs * this.fps);
     for (let i = from; i < n; i++) {
       const t = n > 1 ? i / (n - 1) : 0;
       // (the game shows the hands again every frame, so they are hidden every frame)
       G.camOverride = cam => { fn(t, cam); if (!this.showHands) for (const c of cam.children) if (!c.isLight) c.visible = false; };
-      frame(1 / this.fps, false);
+      frame(speed / this.fps, false);
       const url = canvas().toDataURL("image/jpeg", quality);
       await fetch(`/__frame?name=${name}/${String(i).padStart(4, "0")}.jpg`, { method: "POST", body: url });
     }
