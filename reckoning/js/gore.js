@@ -41,13 +41,27 @@ function stainMat(dark) {
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 function keep(m) {
   G.scene.add(m); marks.push(m);
-  while (marks.length > MAX) { const o = marks.shift(); if (o.parent) o.parent.remove(o); }
+  while (marks.length > MAX) { const o = marks.shift(); if (o.parent) o.parent.remove(o); if (o.geometry !== PLANE) o.geometry.dispose(); }
 }
 // blood on the ground at (x, z), size across; dark: a pool's, wet and deep
+// (a stain bigger than a hand is laid over the ground's rises and dips, not flat across them: a flat one sank into the
+//  ground where it rose, cut off along a straight line)
+const DRAPE = new THREE.PlaneGeometry(1, 1, 8, 8).rotateX(-Math.PI / 2), _dv = new THREE.Vector3();
+function drape(m) {
+  if (m.geometry === PLANE) m.geometry = DRAPE.clone();
+  const pos = m.geometry.attributes.position, base = DRAPE.attributes.position;
+  m.updateMatrixWorld(true);
+  for (let i = 0; i < pos.count; i++) {
+    _dv.set(base.getX(i), 0, base.getZ(i)).applyMatrix4(m.matrixWorld);
+    pos.setY(i, (groundY(_dv.x, _dv.z) + 0.02 - m.position.y) / (m.scale.y || 1));
+  }
+  pos.needsUpdate = true; m.geometry.computeBoundingSphere();
+}
 export function splat(x, z, size, dark = false) {
   if (!G.scene || (G.settings && G.settings.gore === false)) return null;
   const m = new THREE.Mesh(PLANE, stainMat(dark));
   m.position.set(x, groundY(x, z) + 0.015 + Math.random() * 0.006, z); m.rotation.y = Math.random() * 6.28; m.scale.set(size, 1, size * rnd(0.75, 1.25));
+  if (size > 0.35) drape(m);
   m.renderOrder = 1; keep(m); return m;
 }
 
@@ -121,7 +135,8 @@ export function pool(a, big = 1) {
     const tick = dt => {
       t += dt; const k = 1 - Math.pow(1 - Math.min(1, t / 9), 2); m.scale.set(0.1 + R * k * sx, 1, 0.1 + R * k);
       // (under him wherever he comes to rest: a body thrown by a blast is still going when it starts)
-      if (t < 3 && b) { b.getWorldPosition(p); m.position.set(p.x, groundY(p.x, p.z) + 0.016, p.z); } if (t > 9 || !m.parent) off(tick); };
+      if (t < 3 && b) { b.getWorldPosition(p); m.position.set(p.x, groundY(p.x, p.z) + 0.016, p.z); }
+      drape(m); if (t > 9 || !m.parent) off(tick); };
     G.onFrame.push(tick);
   }, 900);
 }
@@ -207,6 +222,6 @@ export function goreOff() {
 }
 // the field cleared of it all (the battle over)
 export function clearGore() {
-  for (const m of [...marks, ...drops]) if (m.parent) m.parent.remove(m);
+  for (const m of [...marks, ...drops]) { if (m.parent) m.parent.remove(m); if (m.geometry !== PLANE) m.geometry.dispose(); }
   marks.length = 0; drops.length = 0;
 }

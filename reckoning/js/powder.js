@@ -73,11 +73,13 @@ export function muzzleFlash(root, at, dir, scale = 1) {
 export function powderSmoke(root, at, dir, o = {}) {
   textures();
   const scale = o.scale || 1, life = o.life || 7, n = o.n || 14, speed = o.speed || 9;
-  // (a dark grey: coarse powder burnt in a hurry — the haze it leaves a lighter grey)
-  const day = daylight(), tint = new THREE.Color(o.tint || 0x707174).multiplyScalar(day), hazeTint = new THREE.Color(0x85868a).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
+  // (a grey: coarse powder burnt in a hurry — the haze it leaves lighter. Darker than this, a gun's cloud hung in a
+  //  sunlit field as a black blot)
+  const day = daylight(), tint = new THREE.Color(o.tint || 0x9a9996).multiplyScalar(day), hazeTint = new THREE.Color(0xaeadaa).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
   const add = (p0, v0, s0, grow, l, a0, delay = 0, col = tint) => {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFFS[Math.floor(Math.random() * PUFFS.length)], color: col, transparent: true, opacity: 0, depthWrite: false, fog: true }));
     m.position.copy(p0); m.scale.setScalar(s0); m.material.rotation = Math.random() * Math.PI * 2;
+    m.renderOrder = 2;   // (over the blood on the ground, which is drawn at 1: a cloud hides what lies under it)
     m.userData = { v: v0, s0, grow, l, a0, delay, spin: (Math.random() - 0.5) * 0.4, t: 0 };
     root.add(m); puffs.push(m);
   };

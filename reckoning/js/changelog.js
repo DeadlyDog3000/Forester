@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.31.1", date: "13 October 2026", title: "Smoke over the field",
+    items: [
+      "Powder smoke hides what's under it: blood on the ground was drawn on top of the clouds, so the pools showed straight through a gun's smoke.",
+      "The smoke is the grey-white of black powder, not a charcoal grey: in a sunlit field a gun's cloud hung in front of you as a black blot. A battle gun's cloud hangs a little less long, too.",
+    ],
+  },
+  {
     v: "1.31.0", date: "12 October 2026", title: "Faces",
     items: [
       "Eyes that look like eyes: the whole eyeball was being tinted the colour of the iris, so every man stared out of two dark beads. Now the whites are white, the iris its own colour round a black pupil, the eye set back in its socket under a thin lid — no more goggling.",
