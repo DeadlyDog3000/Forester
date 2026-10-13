@@ -40,6 +40,8 @@ function ctx() {
   if (!ac) return null;
   budget(ac);
   bus = ac.createGain(); bus.gain.value = 1; bus.connect(window.__foresterMaster);
+  // (the menus' own clicks on a way of their own, so the field can be hushed without them)
+  if (!window.__foresterUiBus) { const u = ac.createGain(); u.gain.value = 1; u.connect(window.__foresterMaster); window.__foresterUiBus = u; }
   musicBus = ac.createGain(); musicBus.gain.value = 0.55; musicBus.connect(window.__foresterMaster);
   noise = window.__foresterNoise;
   return ac;
@@ -675,15 +677,32 @@ export const AUDIO = {
     l.lp.frequency.setTargetAtTime(under ? 1400 : 5000 + k * 3000, a.currentTime, 0.4);
     l.hp.frequency.setTargetAtTime(under ? 250 : 900 - k * 400, a.currentTime, 0.4);
   },
+  // the pause menu opening: a light boom, like a gun far off across the country — a soft low thud, and its roll
+  // dying away in the hills (on the game's own bus, so it's heard while the field's sounds are held)
+  pauseBoom() {
+    const a = ctx(); if (!a) return;
+    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 420; lp.connect(bus);
+    thump(a, lp, t, 62, 34, 0.32, 0.32);
+    shotBurst(a, lp, t, { type: "lowpass", f: 260, sweep: 90, peak: 0.16, attack: 0.012, decay: 0.28 });
+    shotBurst(a, lp, t + 0.09, { type: "lowpass", f: 140, peak: 0.07, attack: 0.08, decay: 0.9, len: 1.6 });
+  },
   // your kill, felt: a low, dull thud — the way a man going down is felt through the ground as much as heard — with
   // a muted knock in it (no ring, no chime: nothing a field ever made)
   killThud() {
     const a = ctx(); if (!a) return;
-    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900; lp.connect(bus);
-    thump(a, lp, t, 95, 48, 0.42, 0.14);
-    shotBurst(a, lp, t, { type: "bandpass", f: 520, q: 1.6, peak: 0.18, attack: 0.002, decay: 0.05 });
-    shotBurst(a, lp, t + 0.012, { type: "lowpass", f: 200, peak: 0.22, attack: 0.004, decay: 0.12 });
+    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1900; lp.connect(bus);
+    // the blow landing: a hard, dry smack into cloth and what's under it, with a crunch in it
+    shotBurst(a, lp, t, { type: "bandpass", f: 1250, q: 1.3, peak: 0.26, attack: 0.001, decay: 0.035 });
+    shotBurst(a, lp, t, { type: "highpass", f: 2400, peak: 0.1, attack: 0.001, decay: 0.018 });
+    thump(a, lp, t, 120, 46, 0.62, 0.18);
+    // and him going down: the weight of a body meeting the ground, twice — knees, then the rest — and the earth's
+    // dull answer under it
+    thump(a, lp, t + 0.16, 86, 38, 0.5, 0.26);
+    shotBurst(a, lp, t + 0.16, { type: "lowpass", f: 260, peak: 0.34, attack: 0.006, decay: 0.2 });
+    thump(a, lp, t + 0.3, 70, 34, 0.32, 0.3);
+    shotBurst(a, lp, t + 0.3, { type: "lowpass", f: 180, sweep: 70, peak: 0.2, attack: 0.01, decay: 0.4, len: 0.9 });
   },
+
   // your own heart, loud in your ears: the lub, low and thick, and the dub a sixth of a second after, a little higher and
   // softer — felt as much as heard, the chest's thud and no ring to it
   heartbeat(vol = 1) {
@@ -935,6 +954,35 @@ export const AUDIO = {
     this._mood = mood;
     if (!MUSIC) MUSIC = createMusic(() => ctx(), () => { ctx(); return musicBus; });
     MUSIC.play(mood);
+  },
+  // ---- the score: a recording, not the players — for a battle's opening and its highlights only (see replay.js) ----
+  // (the Sarabande from Handel's suite in D minor, HWV 437, as zero-project arranged it: CC BY 3.0, credited)
+  async score(at = 0, { vol = 0.85, fade = 1.4 } = {}) {
+    this.scoreOff(0.4);
+    const a = ctx(), n = this._scoreN; if (!a) return null;
+    try {
+      if (!this._scoreBuf) { const r = await fetch(new URL("../art/score/sarabande.mp3", import.meta.url)); this._scoreBuf = await a.decodeAudioData(await r.arrayBuffer()); }
+    } catch (e) { return null; }
+    if (n !== this._scoreN) return null;   // (stopped, or another asked for, while it loaded)
+    const s = a.createBufferSource(), g = a.createGain(), t = a.currentTime;
+    s.buffer = this._scoreBuf; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + fade);
+    s.connect(g); g.connect(musicBus); s.start(t, Math.max(0, Math.min(at, this._scoreBuf.duration - 1)));
+    const h = this._score = { s, g, at, t0: t };
+    s.onended = () => { if (this._score === h) this._score = null; };
+    return h;
+  },
+  scoreOff(fade = 2) {
+    const h = this._score; this._score = null; this._scoreN = (this._scoreN || 0) + 1;
+    if (!h) return;
+    const a = ctx(), t = a.currentTime;
+    try { h.g.gain.cancelScheduledValues(t); h.g.gain.setValueAtTime(Math.max(0.0001, h.g.gain.value), t); h.g.gain.exponentialRampToValueAtTime(0.0001, t + fade); h.s.stop(t + fade + 0.05); } catch (e) {}
+  },
+  // the field's own sounds turned down (a battle played behind the menus: heard as if from far off), or back up
+  hush(k = 1) {
+    const a = ctx(); if (!a) return;
+    const fb = window.__foresterBus, t = a.currentTime;
+    if (fb && this._fbBase == null) this._fbBase = fb.gain.value;
+    for (const [node, base] of [[bus, 1], [fb, this._fbBase ?? 1]]) if (node) { node.gain.cancelScheduledValues(t); node.gain.setTargetAtTime(base * k, t, 0.25); }
   },
   get load() { return { live: liveSrc, pressure }; },
   get musicState() { return MUSIC ? { mood: MUSIC.mood, playing: MUSIC.playing } : null; },

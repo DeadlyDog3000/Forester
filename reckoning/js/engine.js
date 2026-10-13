@@ -2462,7 +2462,8 @@ export function frame(dt, skipRender) {
   G.time += dt;
   const w = G.world;
   // (in a game with others the world doesn't stop for you: paused, or reading a card, it goes on — only your hands stop)
-  const live = G.mode === "play" || (G.mp && (G.mode === "pause" || G.mode === "lesson"));
+  // (and a battle played back — see replay.js — goes on with nobody in it to play)
+  const live = G.mode === "play" || G.mode === "theatre" || (G.mp && (G.mode === "pause" || G.mode === "lesson"));
   if (live && w) {
     if (!G.player.frozen && G.mode === "play") G.player.update(dt);
     for (const a of w.actors.slice()) a.update(dt);

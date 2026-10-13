@@ -69,15 +69,27 @@ export function muzzleFlash(root, at, dir, scale = 1) {
   run(tick);
 }
 
+// (how many puffs there are on the field at once, all told: a battle's volleys made thousands, each drawn on its own,
+//  and the game crawled — so past a point a shot's cloud is made of fewer, bigger puffs, a far one of fewer still, and
+//  when there are too many the oldest thin away the sooner)
+const CAP = 420, ALL = new Set();
+// (a puff of a field since cleared away — its ticking stopped with the scene — doesn't count)
+const live = () => { if (ALL.size > CAP / 2) for (const m of ALL) { let o = m; while (o.parent) o = o.parent; if (o !== G.scene) ALL.delete(m); } return ALL.size; };
+window.__smokeN = () => live();
+const _cd = new THREE.Vector3();
 // the smoke itself. o: { scale (1 a musket, about 3 a cannon), life (seconds), n (puffs), speed (of the jet) }
 export function powderSmoke(root, at, dir, o = {}) {
   textures();
-  const scale = o.scale || 1, life = o.life || 7, n = o.n || 14, speed = o.speed || 9;
+  const cam0 = window.__camera, far = cam0 ? cam0.getWorldPosition(_cd).distanceTo(at) : 0;
+  const LIVE = live(), room = Math.max(0.12, 1 - LIVE / CAP) * (far > 90 ? 0.35 : far > 45 ? 0.6 : 1);
+  const n0 = o.n || 14, n = Math.max(Math.min(n0, 3), Math.round(n0 * room)), big = Math.min(2.2, Math.sqrt(n0 / n));
+  const scale = o.scale || 1, life = o.life || 7, speed = o.speed || 9;
   // (a grey: coarse powder burnt in a hurry — the haze it leaves lighter. Darker than this, a gun's cloud hung in a
   //  sunlit field as a black blot)
   const day = daylight(), tint = new THREE.Color(o.tint || 0x9a9996).multiplyScalar(day), hazeTint = new THREE.Color(0xaeadaa).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
   const add = (p0, v0, s0, grow, l, a0, delay = 0, col = tint) => {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFFS[Math.floor(Math.random() * PUFFS.length)], color: col, transparent: true, opacity: 0, depthWrite: false, fog: true }));
+    s0 *= big; grow *= big; ALL.add(m);
     m.position.copy(p0); m.scale.setScalar(s0); m.material.rotation = Math.random() * Math.PI * 2;
     m.renderOrder = 2;   // (over the blood on the ground, which is drawn at 1: a cloud hides what lies under it)
     m.userData = { v: v0, s0, grow, l, a0, delay, spin: (Math.random() - 0.5) * 0.4, t: 0 };
@@ -91,7 +103,7 @@ export function powderSmoke(root, at, dir, o = {}) {
   }
   // (a cannon's leaves a wide, faint haze hanging after the cloud has gone)
   // (black powder's smoke hangs: a musket's too leaves a bank of it drifting off down the line — o.hazeN puffs, o.hazeA thick)
-  if (o.haze) for (let i = 0; i < (o.hazeN || 6); i++) {
+  if (o.haze) for (let i = 0, hn = Math.round((o.hazeN || 6) * room); i < hn; i++) {
     const v = dir.clone().multiplyScalar(speed * 0.25 * Math.random()).add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 0.6, (Math.random() - 0.5) * 2));
     add(at.clone().addScaledVector(dir, (2 + Math.random() * 3) * Math.min(1, scale)), v, 1.0 * scale, 2.2 * scale, life * 1.4, o.hazeA || 0.1, 0.6 + Math.random() * 0.8, hazeTint);
   }
@@ -101,7 +113,10 @@ export function powderSmoke(root, at, dir, o = {}) {
       const u = m.userData; u.t += dt;
       if (u.t < u.delay) { alive++; continue; }
       const t = u.t - u.delay;
-      if (t > u.l) { if (m.parent) { root.remove(m); m.material.dispose(); } continue; }
+      // (too many on the field: the older ones thin away over a second and a half)
+      if (ALL.size > CAP && t > 3 && u.kill == null) u.kill = 1;
+      if (u.kill != null) u.kill -= dt / 1.5;
+      if (t > u.l || (u.kill != null && u.kill <= 0)) { if (m.parent) { root.remove(m); m.material.dispose(); } ALL.delete(m); continue; }
       alive++;
       // braking hard out of the jet, then hanging, lifting a little, and away on the wind
       u.v.multiplyScalar(Math.exp(-dt * 3.4));
@@ -116,7 +131,7 @@ export function powderSmoke(root, at, dir, o = {}) {
       // (and see-through as it comes over your eyes: a cloud you stand in is a haze round you, never a wall over the
       //  view — a dark puff across the whole sky turned it black)
       const cam = window.__camera, near = cam ? cam.getWorldPosition(_cp).distanceTo(m.position) / (sc * 0.55 + 0.4) : 9;
-      m.material.opacity = u.a0 * Math.min(1, t * 12) * (1 - Math.pow(k, 1.1)) * spread * Math.min(1, Math.max(0, near - 0.35) / 0.9);
+      m.material.opacity = u.a0 * Math.min(1, t * 12) * (1 - Math.pow(k, 1.1)) * spread * Math.min(1, Math.max(0, near - 0.35) / 0.9) * (u.kill != null ? Math.max(0, u.kill) : 1);
     }
     if (!alive) stop(tick);
   };

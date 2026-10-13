@@ -9,7 +9,7 @@
 // in the game, and played on the game's own bus (so the mute and the volume govern them too).
 
 const ac = () => { const a = window.__foresterAC; if (a && a.state === "suspended") a.resume(); return a || null; };
-const bus = () => window.__foresterBus || null;
+const bus = () => window.__foresterUiBus || window.__foresterBus || null;
 const quiet = () => { const S = window.FSET || {}; return S.uiSounds === false; };
 
 // a struck note: a sine and a little of its octave and twelfth, quick to speak, ringing off — marimba and glass

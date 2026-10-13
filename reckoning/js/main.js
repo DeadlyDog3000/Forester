@@ -164,6 +164,7 @@ let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
   $("menus").classList.toggle("hidden", !id);
+  G.onScreen && G.onScreen(id);
 }
 function refreshTitle() {
   const s = loadSave();
@@ -331,6 +332,8 @@ initPvp({
   screen, get ICON() { return ICON; }, identity: pvpIdentity, servers: knownServers, user: () => { try { return localStorage.getItem("reckoning.mp.user") || ""; } catch (e) { return ""; } },
   begin() { try { AUDIO.music(null); } catch (e) {} AUDIO.init(); applySettings(); G.mode = "play"; screen(null); $("menus").classList.remove("backdrop"); UI.show("hud", true); lock(); },
   end() { toTitle(); },
+  // (a battle played back: the menus out of the way, and no tune over it — the reel brings its own)
+  film() { try { AUDIO.music(null); } catch (e) {} AUDIO.init(); applySettings(); screen(null); $("menus").classList.remove("backdrop"); UI.show("hud", false); },
 });
 // (the first time the game is opened: who are you to other players?)
 if (!hasUser() && !/[?&](autoplay|probe)/.test(location.search) && !window.__probe) askUser(() => screen("title"));
@@ -2069,6 +2072,7 @@ function pause() {
   setFreeLook(false);
   if (overlay) showOverlay(overlay, false);
   SFX.pauseAll && SFX.pauseAll(true);
+  AUDIO.pauseBoom && AUDIO.pauseBoom();
   back = "pause";
   screen("pause");
 }

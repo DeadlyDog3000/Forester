@@ -1462,8 +1462,71 @@ async function start(opts = {}) {
     if (u.pathname === "/" || u.pathname === "/status") return res.end(JSON.stringify(stats()));
     // a licence key, checked with the shop (Lemon Squeezy's licence API) for a game that can't ask it itself
     if (u.pathname === "/licence") return licence(u, res, req);
+    // the battles fought, as they were: sent in when each is over; listed (the latest, or a commander's best); fetched
+    if (u.pathname === "/replays" || u.pathname.startsWith("/replays/")) return replays(u, res, req);
     res.statusCode = 404; res.end("{}");
   });
+  // ---- replays: every battle recorded on the games that fought it, kept here for anyone to watch ----
+  // (on disk, if there's a disk: the newest few hundred, and each commander's best and latest whatever their age; in
+  //  memory otherwise, fewer)
+  const zlib = require("zlib");
+  const repDir = dataDir ? path.join(dataDir, "replays") : null, repIndexFile = repDir && path.join(repDir, "index.json");
+  let repIndex = []; try { if (repIndexFile && fs.existsSync(repIndexFile)) repIndex = JSON.parse(fs.readFileSync(repIndexFile, "utf8")) || []; } catch (e) { repIndex = []; }
+  const repMem = new Map(), repAsks = new Map();
+  const REP_KEEP = repDir ? 400 : 40, REP_EACH = 3, REP_MAX = 6 * 1024 * 1024, REP_RAW = 48 * 1024 * 1024;
+  const repFile = id => path.join(repDir, id + ".json.gz");
+  let repSaveT = null;
+  const repSave = () => { if (!repIndexFile || repSaveT) return; repSaveT = setTimeout(() => { repSaveT = null; try { fs.writeFileSync(repIndexFile + ".tmp", JSON.stringify(repIndex)); fs.renameSync(repIndexFile + ".tmp", repIndexFile); } catch (e) { log("couldn't save the replay index:", e.message); } }, 2000); };
+  // (the newest kept, and for every commander their best few and their latest few — the rest let go)
+  const repPrune = () => {
+    const keep = new Set(repIndex.slice().sort((a, b) => b.at - a.at).slice(0, REP_KEEP).map(r => r.id)), by = {};
+    for (const r of repIndex) if (r.pid) (by[r.pid] ||= []).push(r);
+    for (const l of Object.values(by)) { for (const r of l.slice().sort((a, b) => b.score - a.score).slice(0, REP_EACH)) keep.add(r.id); for (const r of l.slice().sort((a, b) => b.at - a.at).slice(0, REP_EACH)) keep.add(r.id); }
+    for (const r of repIndex) if (!keep.has(r.id)) { repMem.delete(r.id); if (repDir) try { fs.unlinkSync(repFile(r.id)); } catch (e) {} }
+    repIndex = repIndex.filter(r => keep.has(r.id));
+  };
+  const repPublic = r => ({ id: r.id, at: r.at, pid: r.pid, name: r.name, foe: r.foe, kind: r.kind, vs: r.vs, place: r.place, hour: r.hour, won: r.won, k: r.k, l: r.l, secs: r.secs, score: r.score, uni: r.uni, men: r.men, hl: r.hl });
+  function replays(u, res, req) {
+    if (req.method === "OPTIONS") { res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Token"); res.statusCode = 204; return res.end(); }
+    const id = u.pathname.slice("/replays/".length);
+    if (req.method === "GET" && id) {
+      if (!/^[a-f0-9]{12}$/.test(id) || !repIndex.some(r => r.id === id)) { res.statusCode = 404; return res.end("{}"); }
+      const send = buf => { res.setHeader("Content-Encoding", "gzip"); res.setHeader("Cache-Control", "public, max-age=86400"); res.end(buf); };
+      if (repMem.has(id)) return send(repMem.get(id));
+      return fs.readFile(repFile(id), (e, buf) => { if (e) { res.statusCode = 404; return res.end("{}"); } send(buf); });
+    }
+    if (req.method === "GET") {
+      const n = Math.max(1, Math.min(60, num(u.searchParams.get("n"), 20) | 0)), pid = String(u.searchParams.get("pid") || ""), sort = u.searchParams.get("sort") === "best" ? "best" : "recent";
+      let l = pid ? repIndex.filter(r => r.pid === pid) : repIndex.slice();
+      // (the recent ones worth watching: a battle that was over in a moment, nobody down, isn't)
+      if (!pid) l = l.filter(r => r.hl > 0);
+      l.sort(sort === "best" ? (a, b) => b.score - a.score || b.at - a.at : (a, b) => b.at - a.at);
+      return res.end(JSON.stringify({ ok: true, list: l.slice(0, n).map(repPublic) }));
+    }
+    if (req.method !== "POST") { res.statusCode = 405; return res.end("{}"); }
+    // (sent in: a few an hour from anyone, and no bigger than a long battle makes)
+    const ip = (req.socket && req.socket.remoteAddress) || "x", t = now(), recent = (repAsks.get(ip) || []).filter(x => t - x < 600000);
+    if (recent.length >= 12) { res.statusCode = 429; return res.end(JSON.stringify({ error: "too many" })); }
+    recent.push(t); repAsks.set(ip, recent);
+    const parts = []; let size = 0, over = false;
+    req.on("data", c => { size += c.length; if (size > REP_MAX) { over = true; req.destroy(); } else parts.push(c); });
+    req.on("end", () => {
+      if (over) return;
+      const buf = Buffer.concat(parts);
+      zlib.gunzip(buf, { maxOutputLength: REP_RAW }, (e, raw) => {
+        let R0 = null; try { if (!e) R0 = JSON.parse(raw.toString("utf8")); } catch (er) {}
+        const M = R0 && R0.meta;
+        if (!M || R0.v !== 1 || !Array.isArray(R0.frames) || !Array.isArray(R0.ev) || !Array.isArray(R0.roster) || !R0.setup) { res.statusCode = 400; return res.end(JSON.stringify({ error: "not a replay" })); }
+        const token = String(req.headers["x-token"] || ""), id = crypto.randomBytes(6).toString("hex");
+        const r = { id, at: now(), pid: token.length >= 16 ? pidOf(token) : "", name: clean(M.name, 24) || "Stranger", foe: clean(M.foe, 48), kind: ["battle", "skirmish", "duel"].includes(M.kind) ? M.kind : "battle", vs: M.vs === "player" ? "player" : "bots",
+          place: clean(M.place, 48), hour: clean(M.hour, 12), won: !!M.won, k: Math.max(0, num(M.k) | 0), l: Math.max(0, num(M.l) | 0), secs: Math.max(0, Math.min(7200, Math.round(num(M.secs)))), score: Math.max(0, Math.min(999, Math.round(num(M.score)))),
+          uni: Array.isArray(M.uni) ? M.uni.slice(0, 2).map(x => clean(x, 20)) : [], men: Array.isArray(M.men) ? M.men.slice(0, 2).map(x => Math.max(0, num(x) | 0)) : [], hl: Math.max(0, Math.min(40, num(M.hl) | 0)) };
+        const done = () => { repIndex.push(r); repPrune(); repSave(); log(`replay ${id}: ${r.name} vs ${r.foe || "?"} (${r.kind}, ${r.secs}s, ${(buf.length / 1024).toFixed(0)} KB)`); res.end(JSON.stringify({ ok: true, id })); };
+        if (!repDir) { repMem.set(id, buf); return done(); }
+        fs.mkdir(repDir, { recursive: true }, () => fs.writeFile(repFile(id), buf, er => { if (er) { res.statusCode = 500; return res.end(JSON.stringify({ error: "couldn't keep it" })); } done(); }));
+      });
+    });
+  }
   // (passed on as it is: activate a key on a machine, or check a key already activated; a few a minute from anyone)
   const licAsks = new Map();
   function licence(u, res, req) {
@@ -1489,10 +1552,11 @@ async function start(opts = {}) {
   let boardSaveT = null;
   const boardSeen = c => {
     const k = c.user || c.pid; if (!k) return;
-    boardMap[k] = { name: c.name, user: c.user, rating: c.rating, rank: c.rank, w: c.w, l: c.l, at: now() };
+    boardMap[k] = { name: c.name, user: c.user, pid: c.pid, rating: c.rating, rank: c.rank, w: c.w, l: c.l, at: now() };
     if (boardFile && !boardSaveT) boardSaveT = setTimeout(() => { boardSaveT = null; try { fs.writeFileSync(boardFile, JSON.stringify(boardMap)); } catch (e) {} }, 5000);
   };
-  const boardTop = () => Object.values(boardMap).filter(b => (b.w + b.l) > 0).sort((a, b) => b.rating - a.rating).slice(0, 15);
+  // (with how many of each one's battles there are to watch)
+  const boardTop = () => Object.values(boardMap).filter(b => (b.w + b.l) > 0).sort((a, b) => b.rating - a.rating).slice(0, 15).map(b => ({ ...b, reps: b.pid ? repIndex.filter(r => r.pid === b.pid).length : 0 }));
   // who's in the camp, and what each is about: told to everyone there (a moment after it changes, all at once)
   let campT = null;
   const campChanged = () => {

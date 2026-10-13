@@ -7,6 +7,21 @@
 
 export const CHANGELOG = [
   {
+    v: "1.34.0", date: "13 October 2026", title: "The battle on film",
+    items: [
+      "A battle opens like a film: the field from high in the air with the place named, along your ranks and along theirs with what each side has brought, a gun or the ground between, and then down out of the sky into your own eyes — with music under it. A duel opens on the two of you, face to face. Any key skips it.",
+      "Every battle and duel is recorded as it's fought. When it's over you see its highlights at once — the opening, the volleys that told, the guns, the lines meeting, your kills, the moment you fell, the last man down — slowed where it matters.",
+      "Then watch the whole of it as often as you like: pause, slow it, speed it, jump anywhere on the timeline (every man down is marked on it), and see it from the director's eye, behind you, from above, or flying free.",
+      "Your battles are sent to the server (Settings can turn that off). The camp has a Highlights tab of the battles lately fought, and your own; the best commanders' board lets you watch any one's best or latest battle.",
+      "On a big enough screen, the battles lately fought play behind the To Arms menus, quietly, one after another.",
+      "Battles no longer slow to a crawl when the volleys start: there's a limit to how much powder smoke hangs on the field at once (later shots make fewer, bigger clouds, and the oldest thin away first), and fewer old bloodstains are kept. In a big battle the game was drawing nearly two thousand puffs of smoke and stains during a charge.",
+      "The enemy fires from the start: a musket now reaches 100 metres, so the two lines are in range of each other as they first stand, their officer gives his first volley within a few seconds, and they answer at once when they start losing men.",
+      "Your kills sound heavier: the blow landing, and the man going down.",
+      "Two bigger purses: An epic battle (2000 thalers) and A magnificent battle (2500), with room for up to fifty men and four guns a side.",
+      "A light boom, like a gun far off, when you open the pause menu.",
+    ],
+  },
+  {
     v: "1.33.1", date: "13 October 2026", title: "One world",
     items: [
       "The wide world is the same world from the day it's made: until someone had built in it, the server laid out a new one every time it started.",

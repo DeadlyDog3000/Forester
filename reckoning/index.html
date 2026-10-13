@@ -272,10 +272,11 @@
           <div class="pv-acts"><button class="btn ghost" id="pvpBack">Back</button></div>
         </div>
         <div class="camp-side">
-          <div class="camp-tabs"><button data-tab="camp" class="on">The camp <span id="campN"></span></button><button data-tab="board">Best commanders</button></div>
+          <div class="camp-tabs"><button data-tab="camp" class="on">The camp <span id="campN"></span></button><button data-tab="board">Best commanders</button><button data-tab="hl">Highlights</button></div>
           <div id="campCard"></div>
           <div class="camp-pane" id="campPaneCamp"><div id="campWho"></div><div id="campLines"></div><input id="campSay" maxlength="200" placeholder="Say something to the camp — Enter to send" autocomplete="off"></div>
           <div class="camp-pane hidden" id="campPaneBoard"><div id="campBoard"></div></div>
+          <div class="camp-pane hidden" id="campPaneHl"><div id="campHl"></div></div>
           <div id="campState"></div>
         </div>
       </div>
@@ -301,6 +302,7 @@
         <div class="ls-kicker" id="pvpEndK"></div>
         <h2 id="pvpEndT"></h2>
         <p class="sub" id="pvpEndS"></p>
+        <div id="pvpEndReplay"></div>
         <div class="pv-acts"><button class="btn ghost" id="pvpTitle">Title</button><button class="btn" id="pvpLoadout">The camp</button><button class="btn primary" id="pvpAgain">Again</button></div>
       </div>
     </section>
@@ -373,6 +375,8 @@
         <label class="check"><input id="setMusic" type="checkbox"> Music</label>
         <div class="set-sec">Content</div>
         <label class="check"><input id="setGore" type="checkbox"> Gore — blood, wounds, men torn apart (off: none at all)</label>
+        <label class="check"><input id="setShareReplays" type="checkbox"> Share your battles — each one's recording sent to the server, for others to watch</label>
+        <label class="check"><input id="setAmbientReplays" type="checkbox"> Battles lately fought, played behind the To Arms menus (on a large enough screen)</label>
         <div class="set-sec">Multiplayer</div>
         <label class="row sel">Chat size
           <select id="setChat"><option value="1">Normal</option><option value="1.3">Large</option><option value="1.65">Larger</option><option value="2">Largest</option></select>
@@ -434,6 +438,7 @@
         <div class="cr-role">Tested by</div><div class="cr-name">JR Teja</div>
         <div class="cr-note">Thank you for playing.</div>
         <div class="cr-libs">Made with <b>three.js</b> (MIT Licence, &copy; the three.js authors) and <b>Electron</b> (MIT Licence).<br>
+          Music for the battles' openings and highlights: <b>Sarabande</b> from the Suite in D minor, HWV 437, by G. F. Handel, arranged and performed by <b>zero-project</b> &mdash; under the Creative Commons Attribution 3.0 licence.<br>
           Type: <b>Cinzel</b> by Natanael Gama, <b>IM Fell English</b> by Igino Marini, <b>Open Sans</b> by Steve Matteson &mdash; under the SIL Open Font Licence.</div>
       </div>
       <button class="btn ghost" data-back>Back</button>

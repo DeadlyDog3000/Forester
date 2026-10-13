@@ -29,6 +29,7 @@ import { EARTH_SIZES } from "./mp/rules.js";
 import { REALMS_1683 } from "./mp/earth-1683.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
+import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, ago, mmss } from "./replay.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
 const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "slash";
 
@@ -73,7 +74,7 @@ function fitLoad(l, keep) {
 }
 const AMMO = { bow: 20, crossbow: 12 };
 const RELOAD = { musket: 6.5, pistol: 2.4, bow: 0.9, crossbow: 2.6 };
-const RANGE = { musket: 70, pistol: 12, bow: 38, crossbow: 45 };
+const RANGE = { musket: 100, pistol: 12, bow: 38, crossbow: 45 };   // (a musket's reach: the two lines as they first stand, and a little more)
 const HP = 100, ROUNDS_TO_WIN = 2, ROUND_SECS = 150;
 
 // what a shot or an arrow does to a man (by its power, as the hunt tells it): a musket ball, a pistol's, a bolt, an
@@ -135,8 +136,18 @@ export function initPvp(c) {
   });
   for (const b of document.querySelectorAll(".camp-tabs [data-tab]")) b.onclick = () => {
     for (const x of document.querySelectorAll(".camp-tabs [data-tab]")) x.classList.toggle("on", x === b);
-    $("campPaneCamp").classList.toggle("hidden", b.dataset.tab !== "camp"); $("campPaneBoard").classList.toggle("hidden", b.dataset.tab !== "board");
+    $("campPaneCamp").classList.toggle("hidden", b.dataset.tab !== "camp"); $("campPaneBoard").classList.toggle("hidden", b.dataset.tab !== "board"); $("campPaneHl").classList.toggle("hidden", b.dataset.tab !== "hl");
+    if (b.dataset.tab === "hl") drawHl();
   };
+  // the battles to watch: anyone's lately, your own, a commander's best or latest
+  $("campHl").addEventListener("click", e => pickReplay(e));
+  $("campBoard").addEventListener("click", e => pickReplay(e));
+  // (the settings for them)
+  const sh = $("setShareReplays"), am = $("setAmbientReplays");
+  if (sh) { sh.checked = shareOn(); sh.onchange = () => setShare(sh.checked); }
+  if (am) { am.checked = ambientOn(); am.onchange = () => { setAmbient(am.checked); if (!am.checked) stopAmbient(); } };
+  // (behind the To Arms menus, while one of them is up: the battles lately fought; gone the moment anything else is)
+  G.onScreen = id => { if (id === "pvp" || id === "pvpFind") setTimeout(() => startAmbient(), 700); else if (id !== null || !theatre() || theatre().mode === "ambient") stopAmbient(); };
   $("campSay").addEventListener("keydown", e => {
     e.stopPropagation();
     if (e.key !== "Enter") return;
@@ -201,7 +212,57 @@ function drawTalk() {
 function drawBoard() {
   const el = $("campBoard"); if (!el || !camp) return;
   const b = camp.board || [];
-  el.innerHTML = b.length ? `<table><tr><th></th><th>Commander</th><th>Rank</th><th>Rating</th><th>Won–lost</th></tr>${b.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.rank || "")}</td><td>${p.rating}</td><td>${p.w}–${p.l}</td></tr>`).join("")}</table>` : `<div class="cw-empty">No one has fought yet. Be the first.</div>`;
+  el.innerHTML = b.length ? `<table><tr><th></th><th>Commander</th><th>Rank</th><th>Rating</th><th>Won–lost</th><th>Battles</th></tr>${b.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.rank || "")}</td><td>${p.rating}</td><td>${p.w}–${p.l}</td><td class="cb-hl">${p.pid && p.reps ? `<button data-pid="${esc(p.pid)}" data-sort="best" title="${esc(p.name)}'s best battle">Best</button><button data-pid="${esc(p.pid)}" data-sort="recent" title="${esc(p.name)}'s latest battle">Latest</button>` : ""}</td></tr>`).join("")}</table>` : `<div class="cw-empty">No one has fought yet. Be the first.</div>`;
+}
+// the highlights tab: the battles lately fought (from the server), and your own (kept here)
+let hlList = [], hlMine = [];
+async function drawHl() {
+  const el = $("campHl"); if (!el) return;
+  const row = (r, src) => { const t = titleOf(r), m = r.meta || r; return `<div class="hl-row"><span class="hl-n"><b>${esc(t.t)}</b><small>${esc(t.s)} · ${m.won ? "won" : "lost"}${m.k != null ? ` · ${m.k}–${m.l}` : ""} · ${mmss(m.secs || 0)} · ${ago(r.at || m.at)}</small></span><span class="hl-b"><button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="highlights">Highlights</button><button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="full">Whole</button></span></div>`; };
+  const draw = () => { el.innerHTML = `<div class="pv-h">Lately, on the server</div>${hlList.length ? hlList.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${hlList.loading ? "Looking…" : "No battles on the server yet — or it can't be reached."}</div>`}<div class="pv-h">Your own</div>${hlMine.length ? hlMine.map(r => row(r, "mine")).join("") : `<div class="cw-empty">Your battles are kept here once you've fought one.</div>`}`; };
+  hlList.loading = true; draw();
+  const [a, b] = await Promise.all([listReplays({ sort: "recent", n: 15 }), mineList()]);
+  hlList = a; hlMine = b; draw();
+}
+async function pickReplay(e) {
+  const b = e.target.closest("button[data-id],button[data-pid]"); if (!b) return;
+  window.__uisfx && window.__uisfx.click && window.__uisfx.click();
+  let rec = null;
+  if (b.dataset.pid) { const l = await listReplays({ pid: b.dataset.pid, sort: b.dataset.sort, n: 1 }); if (l[0]) rec = await fetchReplay(l[0].id); }
+  else if (b.dataset.src === "mine") rec = hlMine.find(r => r.key === b.dataset.id) || null;
+  else rec = await fetchReplay(b.dataset.id);
+  if (!rec) { campNote("That battle couldn't be fetched just now."); return; }
+  watch(rec, b.dataset.mode || "highlights", "camp");
+}
+// ---- behind the menus: the battles lately fought, their highlights one after another, quiet and far off ----
+let amb = null;
+async function startAmbient() {
+  const on = id => !$(id).classList.contains("hidden");
+  if (amb || !ambientOn() || G.arena || (theatre() && theatre().mode !== "ambient") || innerWidth < 1100 || innerHeight < 640 || !(on("pvp") || on("pvpFind"))) return;
+  const A = amb = { i: -1, list: [] };
+  const server = await listReplays({ sort: "recent", n: 12 });
+  A.list = server.length ? server.map(r => ({ id: r.id })) : (await mineList()).slice(0, 6).map(r => ({ rec: r }));
+  if (amb !== A || !A.list.length) { if (amb === A) amb = null; return; }
+  const next = async () => {
+    if (amb !== A) return;
+    for (let tries = 0; tries < A.list.length; tries++) {
+      A.i = (A.i + 1) % A.list.length;
+      const it = A.list[A.i], rec = it.rec || await fetchReplay(it.id);
+      if (amb !== A) return;
+      if (!rec || !(rec.hl && rec.hl.length)) continue;
+      const th = new Theatre(rec, { mode: "ambient", onEnd: () => setTimeout(next, 600) });
+      th.onWatch = r => watch(r, "highlights", "camp");
+      $("menus").classList.remove("backdrop"); $("menus").classList.add("ambient");
+      return;
+    }
+    if (amb === A) amb = null;
+  };
+  next();
+}
+function stopAmbient() {
+  const was = !!amb; amb = null;
+  const th = theatre(); if (th && th.mode === "ambient") th.stop(true);
+  if (was || $("menus").classList.contains("ambient")) { $("menus").classList.remove("ambient"); if (!$("menus").classList.contains("hidden")) $("menus").classList.add("backdrop"); }
 }
 function drawCard() {
   const el = $("campCard"); if (!el) return;
@@ -466,8 +527,9 @@ export const TROOPS = {
   bow: { name: "Bowmen", one: "Bowman", cost: 22, lo: { long: "bow", side: "none", blade: "dagger" }, note: "Bow and knife: cheap, quick, many" },
 };
 export const GUN_COST = 160;
-export const PURSES = { 500: "A skirmish", 900: "A battle", 1500: "A great battle" };
-const MAX_MEN = 30, MAX_GUNS = 3;
+export const PURSES = { 500: "A skirmish", 900: "A battle", 1500: "A great battle", 2000: "An epic battle", 2500: "A magnificent battle" };
+// (the most a side can field: room enough for the biggest purse to be spent on men, not left in the chest)
+const MAX_MEN = 50, MAX_GUNS = 4;
 export const spentOf = A => Object.entries(A.muster || {}).reduce((t, [k, n]) => t + (TROOPS[k] ? TROOPS[k].cost * n : 0), 0) + (A.guns | 0) * GUN_COST;
 export const menOf = A => Object.values(A.muster || {}).reduce((t, n) => t + (n | 0), 0);
 // a muster cut down to a purse (anything over, the dearest first), and to the most men a side can have
@@ -483,7 +545,7 @@ function fitMuster(m, guns, purse) {
 // the other side's officer raising his company: a gun or two if the purse runs to it, then men — mostly muskets, the
 // rest as it falls
 function botMuster(purse) {
-  const guns = purse >= 900 ? 1 + (Math.random() < 0.5 ? 1 : 0) : Math.random() < 0.4 ? 1 : 0, m = {};
+  const guns = purse >= 2000 ? 2 + (Math.random() < 0.5 ? 1 : 0) : purse >= 900 ? 1 + (Math.random() < 0.5 ? 1 : 0) : Math.random() < 0.4 ? 1 : 0, m = {};
   let left = purse - guns * GUN_COST;
   const pick = () => { const r = Math.random(); return r < 0.46 ? "musketeer" : r < 0.54 ? "grenadier" : r < 0.64 ? "pike" : r < 0.75 ? "crossbow" : r < 0.85 ? "bow" : r < 0.94 ? "sword" : "axe"; };
   for (let tries = 0; tries < 200 && left >= 22; tries++) { const k = pick(); if (TROOPS[k].cost <= left && Object.values(m).reduce((a, b) => a + b, 0) < MAX_MEN) { m[k] = (m[k] || 0) + 1; left -= TROOPS[k].cost; } }
@@ -505,6 +567,7 @@ function botFoe() {
 //  into the ride
 // ---------------------------------------------------------------------------
 function startDuel(o) {
+  stopAmbient();
   const me = ctx.identity(), r = record();
   // a battle against another player: the host (the first of the two) chooses the ground and raises both companies; the
   // other waits for the field to be described to it, and builds the same
@@ -540,6 +603,23 @@ function startDuel(o) {
   new Arena({ me, lo: { ...lo }, foe, net: o.net || null, side: o.side || 0, army: multi ? A : null });
 }
 
+// ---------------------------------------------------------------------------
+//  played back: the battle just fought, or anyone's from the server (replay.js plays it)
+// ---------------------------------------------------------------------------
+let lastRec = null;
+// (from: where Leave goes — the result, or the camp)
+function watch(rec, mode = "highlights", from = "camp", title = null) {
+  stopAmbient();
+  ctx.film();
+  new Theatre(rec, { mode, from, title, onExit: () => { ctx.end(); if (from === "end") ctx.screen("pvpEnd"); else openCamp(); } });
+}
+// the result's buttons to see it again
+function endReplay(rec) {
+  const el = $("pvpEndReplay"); if (!el) return;
+  el.innerHTML = rec ? `<button class="btn" data-rp="highlights">Watch the highlights</button><button class="btn" data-rp="full">The whole battle</button>` : "";
+  el.onclick = e => { const b = e.target.closest("[data-rp]"); if (b && lastRec) watch(lastRec, b.dataset.rp, "end"); };
+}
+
 // the ground: the deer ride in the woods below the clearing, open in the middle and the trees thick round it
 let C = { x: HUNT.x, z: HUNT.z }, SPAWN = [];
 const BOUND = 40, setC = c => { C = c; SPAWN = [{ x: C.x - 19, z: C.z + 2 }, { x: C.x + 19, z: C.z - 2 }]; };
@@ -571,10 +651,41 @@ function placeName(lon, lat) {
   return { text: !best ? "The wide world" : bd < 12 ? `Near ${best}` : `Far beyond ${best}`, at: ns };
 }
 
+// the field again, for a battle played back (replay.js): the same ground, cleared the same way, the same works and guns
+// and colours where they stood — built from what the battle's own game wrote down of it
+export function buildStage(S) {
+  resetForMode();
+  const battle = !!S.battle, multi = !!S.multi;
+  const ground = battle ? battleGround({ seed: S.seed, x: S.x, z: S.z }) : null;
+  const w = ground ? ground.w : new Woods();
+  setC(ground ? { x: ground.x, z: ground.z } : { x: HUNT.x, z: HUNT.z });
+  setWorld(w); setAtmo(S.hour || "afternoon"); G.cloud = 0; G.mist = 0; G.flash = 0; if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
+  if (ground) w.buildNear(C.x, C.z, 99);
+  w.huntOpen = true;
+  const hunt = new Hunt(w, { x: C.x, z: C.z, r: 1 }, {});
+  AUDIO.music(null);
+  const dx = S.dx || (battle ? 38 : multi ? 21 : 19), bound = S.bound || (battle ? 76 : multi ? 48 : BOUND);
+  const hash = (x, z) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
+  const lines = [{ x: C.x - dx, z: C.z }, { x: C.x + dx, z: C.z }];
+  w.clearScenery(C.x, C.z, bound - 6, null, (x, z) => !battle && hash(x, z) < 0.2 && lines.every(p => Math.hypot(p.x - x, p.z - z) > (multi ? 12 : 7)) && Math.hypot(x - C.x, z - C.z) > 4
+    && !(battle && Math.abs(Math.abs(x - C.x) - dx) < 16 && Math.abs(z - C.z) < 30));
+  let field = null;
+  if (multi) {
+    field = new Field(w, C, dx, battle, S.fieldSeed, S.hostFort ?? null, battle ? S.guns : null);
+    if (S.night) field.nightFires();
+    if (battle && S.uni) for (const t of [0, 1]) if (S.uni[t]) field.colours(S.remote ? 1 - t : t, S.uni[t]);
+    if (S.remote) { for (const g of field.guns) g.side = 1 - g.side; field.spots.reverse(); }
+    field.remote = true;   // (its guns laid and loaded as the recording says)
+  }
+  return { w, hunt, field };
+}
+export const makePuppet = (owner, info) => new Puppet(owner, info);
+
 // (the guest's own ending, when the host's word doesn't come: as if it had — winner in the host's numbering)
 function net_end(A, winner) { const h = A.net && A.net.on.bend; if (h) h({ winner, k: A.lost | 0, l: A.killed | 0 }); }
 class Arena {
   constructor({ me, lo, foe, net, side, army: A = null, setup = null }) {
+    stopTheatre();
     resetForMode();
     G.arena = this;
     this.me = me; this.lo = lo; this.foeInfo = foe; this.net = net; this.side = side;
@@ -603,7 +714,8 @@ class Arena {
     G.who = isF(me.look) ? "sister" : "brother";
     // (in a battle, your company's colours: on you too)
     this.uni = this.battle ? [UNIFORMS[A.uniform] || UNIFORMS.imperial, UNIFORMS[A.enemyUniform]] : null;
-    const myLook = this.uni ? inUniform(me.look, this.uni[0]) : me.look;
+    const myLook = this.myLook = this.uni ? inUniform(me.look, this.uni[0]) : me.look;
+    this.foeName = foe.name;
     G.player.setModel(lookOpts(myLook, me.name)); G.player.model.scaleBase = me.look.height || 1;
     G.showHealth = true; G.hasMap = false;
     // (no music over a fight: the field, the shots and the shouting are the sound of it)
@@ -636,6 +748,7 @@ class Arena {
       }
       const gunsHost = this.battle ? (setup ? setup.guns : this.gunsBought) : null;
       this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost);
+      this.hostFort = hostFort; this.gunsHost = gunsHost;
       if (this.night) this.field.nightFires();
       // (each side's colours behind its line: yours and theirs — on the other player's game, turned about)
       if (this.battle && this.uni) { const keyOf = u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u); for (const t of [0, 1]) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t])); }
@@ -700,6 +813,14 @@ class Arena {
       if (this.host) { this.field.onFire = g => net.send({ t: "bgun", i: this.field.guns.indexOf(g) }); this.field.onNade = (f, v, side, fuse) => net.send({ t: "bnade", f: [f.x, f.y, f.z].map(n => +n.toFixed(2)), v: [v.x, v.y, v.z].map(n => +n.toFixed(2)), fuse: +fuse.toFixed(2) }); }
       else net.on.bnade = m => this.field && this.field.nade(new THREE.Vector3(...m.f.map(Number)), new THREE.Vector3(...m.v.map(Number)), 0, +m.fuse || 2);
     }
+    // (all of it written down as it's fought, to be played over again: see replay.js)
+    this.stageSetup = { battle: this.battle, multi: this.multi, seed: ground ? ground.seed : 0, x: C.x, z: C.z, fieldSeed: this.fieldSeed || 0, hostFort: this.hostFort ?? null, guns: this.gunsHost || null,
+      remote: !!this.remote, uni: this.uni ? this.uni.map(u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u)) : null, night: !!this.night, hour: this.hour, dx: this.dx, bound: this.bound };
+    const rec = this.rec = new Recorder(this, this.stageSetup);
+    { const H = this.hunt, fb = H.fireBall.bind(H), lz = H.loose.bind(H);
+      H.fireBall = (from, dir, o = {}) => { rec.shot(o.npc, from, dir, o.speed === 260); return fb(from, dir, o); };
+      H.loose = (from, dir, power, bolt, npc, atYou) => { rec.arrow(npc, from, dir, power, bolt); return lz(from, dir, power, bolt, npc, atYou); };
+      if (this.field) { const F = this.field, ff = F.fire.bind(F), fn = F.nade.bind(F); F.fire = g => { ff(g); rec.gun(F.guns.indexOf(g)); }; F.nade = (f, v, sd, fuse) => { fn(f, v, sd, fuse); rec.nade(f, v, fuse); }; } }
     this.hud();
     this.tick = dt => this.update(dt);
     G.onFrame.push(this.tick);
@@ -780,7 +901,7 @@ class Arena {
       this.standDown();
       slowMo(1.6, 0.3);
       this.banner(won ? "The field is yours" : "The day is lost", won ? `${this.killed || 0} of theirs down` : "");
-      setTimeout(() => G.arena === this && this.overView(won), 2600);
+      setTimeout(() => G.arena === this && this.afterBattle(won), 2600);
     }
   }
   // ---------------------------------------------------------------------------
@@ -813,25 +934,43 @@ class Arena {
     this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
     G.lockMove = true;
     // (their officer: how long he'll hold his ground before he comes on)
-    this.holdFor = this.fortSide === 1 ? Infinity : this.fortSide === 0 ? 4 + Math.random() * 5 : this.battle ? 15 + Math.random() * 15 : 3 + Math.random() * 5; this.cmdT = 0; this.volT = 10 + Math.random() * 6;
+    this.holdFor = this.fortSide === 1 ? Infinity : this.fortSide === 0 ? 4 + Math.random() * 5 : this.battle ? 15 + Math.random() * 15 : 3 + Math.random() * 5; this.cmdT = 0; this.volT = this.battle ? 3.5 + Math.random() * 3 : 10 + Math.random() * 6;   // (the first volley soon: nobody stands loaded under fire)
     this.showHud();
     const allies = this.alliesOf(0).length, foes = this.alliesOf(1).length;
-    this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
-      `${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
     UI.fadeNow(1); UI.fade(0, 1.2);
-    // (a fort against a player: why it's theirs or yours, so it doesn't look like a coin that fell the other way)
-    if (this.netBattle && this.fortSide != null) setTimeout(() => G.arena === this && UI.hint(this.fortSide === 0 ? "You hold the fort: your company's the smaller, so you have the walls to make up the numbers. Hold them." : "They hold the fort: theirs is the smaller company, so they have the walls to make up the numbers. Take it.", 7), 900);
-    const steps = ["3", "2", "1"];
-    steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && !this.live && !this.over) { this.banner(t, ""); } }, 2600 + i * 800));
-    setTimeout(() => {
+    // the opening: the field from the air, each side in its ranks, the ground, and down into your own eyes (a battle
+    // only; a skirmish in the woods goes straight to it)
+    const lead = this.battle && !window.__noIntro ? this.intro() : 0;
+    const say = () => {
+      this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
+        `${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
+      // (a fort against a player: why it's theirs or yours, so it doesn't look like a coin that fell the other way)
+      if (this.netBattle && this.fortSide != null) setTimeout(() => G.arena === this && UI.hint(this.fortSide === 0 ? "You hold the fort: your company's the smaller, so you have the walls to make up the numbers. Hold them." : "They hold the fort: theirs is the smaller company, so they have the walls to make up the numbers. Take it.", 7), 900);
+    };
+    if (!lead) say();
+    const steps = ["3", "2", "1"], base = lead ? 600 : 2600;
+    // (the countdown, after the opening — or at once, if the opening's skipped where nobody else is waiting on it)
+    const go = this.countdown = () => {
+      if (this.counting) return; this.counting = true; clearTimeout(this.goT);
+      if (lead) say();
+      this.rec && this.rec.begin();
+      steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && !this.live && !this.over) { this.banner(t, ""); } }, base + i * 800));
+      setTimeout(() => this.forward(allies), base + steps.length * 800);
+    };
+    this.counting = false;
+    if (lead) this.goT = setTimeout(go, lead * 1000); else go();
+  }
+  forward(allies) {
+    {
       if (G.arena !== this || this.over) return;
+      this.rec && this.rec.push("F");
       this.banner(this.battle ? "Forward!" : "Fight!", ""); G.lockMove = false; this.live = true; this.liveAt = G.time;
       if (this.battle) AUDIO.drumRoll && AUDIO.drumRoll(1.8, 0.28);   // (the side drum, beating the advance)
       for (const u of this.units) u.go();
       AUDIO.voice && AUDIO.voice("war", { high: G.who === "sister", vol: 0.7 });
       setTimeout(() => G.arena === this && this.banner(null), 1000);
       if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("The number keys give your orders, as the page at the left has them — and you fight on the while. The wheel changes your weapon" + (this.canBayonet() ? "; F fixes your bayonet (for good)." : "."), 6), 2200); } }
-    }, 2600 + steps.length * 800);
+    }
   }
   // every frame of it: the men, the officer over there, the guns and their shot, your marks on the ground
   updateField(dt) {
@@ -932,6 +1071,9 @@ class Arena {
       O.charge = false; O.mode = "advance"; const away = Math.hypot(a.x - b.x, a.z - b.z) || 1;
       O.at = { x: a.x + (a.x - b.x) / away * 14, z: a.z + (a.z - b.z) / away * 14 }; this.adv = { march: false, until: G.time + 8 }; this.cmdT = 8; shout();
     }
+    // (taking losses where he stands: answered at once, with whatever's loaded)
+    if (this.nWas != null && nT < this.nWas) this.hitAt = G.time; this.nWas = nT;
+    if (this.hitAt && G.time - this.hitAt < 1.5 && !O.charge && d < RANGE.musket * this.sight + 10 && theirsLoaded > 0.3 && this.volT > 1.2) this.volT = 0.5 + Math.random() * 0.6;
     // the volleys: on a clock, if he's rash; when his men are loaded and you're in range, if he isn't
     if ((this.volT -= dt) <= 0 && d < 80 && !O.charge) {
       if (gen < 0.3 || (theirsLoaded > 0.7 && inRange)) { this.volT = L(11, 6) + Math.random() * L(8, 3); O.volleyAt = G.time + 1.1; shout(); }
@@ -1140,16 +1282,29 @@ class Arena {
     G.lockMove = true;
     this.showHud();
     const n = this.round;
-    this.banner(`Round ${n}`, this.wins[0] + this.wins[1] ? `${this.wins[0]} – ${this.wins[1]}` : `Best of three · ${esc(this.foeInfo.name)}${this.foeInfo.bot ? " (bot)" : ""}`);
+    const say = () => this.banner(`Round ${n}`, this.wins[0] + this.wins[1] ? `${this.wins[0]} – ${this.wins[1]}` : `Best of three · ${esc(this.foeInfo.name)}${this.foeInfo.bot ? " (bot)" : ""}`);
     UI.fadeNow(1); UI.fade(0, 0.8);
+    // (the first round: the two of you shown, face to face, before it)
+    const lead = n === 1 && !window.__noIntro ? this.intro() : 0;
+    if (!lead) say();
     const steps = ["3", "2", "1"];
-    steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && this.round === n) { this.banner(t, ""); } }, 1400 + i * 800));
-    setTimeout(() => {
+    const go = this.countdown = () => {
+      if (this.counting === n) return; this.counting = n; clearTimeout(this.goT);
+      if (lead) say();
+      this.rec && this.rec.begin(); this.rec && this.rec.push("R", n);
+      steps.forEach((t, i) => setTimeout(() => { if (G.arena === this && this.round === n) { this.banner(t, ""); } }, 1400 + i * 800));
+      setTimeout(() => this.fight(n), 1400 + steps.length * 800);
+    };
+    if (lead) this.goT = setTimeout(go, lead * 1000); else go();
+  }
+  fight(n) {
+    {
       if (G.arena !== this || this.round !== n) return;
+      this.rec && this.rec.push("F");
       this.banner("Fight!", ""); G.lockMove = false; this.live = true; this.foe.go();
       AUDIO.voice && AUDIO.voice("war", { high: G.who === "sister", vol: 0.6 });
       setTimeout(() => G.arena === this && this.banner(null), 900);
-    }, 1400 + steps.length * 800);
+    }
   }
   // the weapon in your hand, as the loadout has it
   takeUp(k) {
@@ -1178,6 +1333,7 @@ class Arena {
     if (G.downed || !this.live) return;
     if (G.mode === "play") G.hurt(dmg, from);
     else { G.health = Math.max(0, G.health - dmg / 100); if (G.health <= 0) G.die(from); }
+    if (this.rec && !G.downed) this.rec.hurt(this.you);
     if (this.net) this.net.send({ t: "dhp", hp: Math.round(G.health * HP), r: this.round });
   }
   youDown(from) {
@@ -1192,7 +1348,9 @@ class Arena {
   // you're down: your body falls as it falls (a ragdoll), your eye goes with your head, the world reddens and dims,
   // and who won is written over it
   deathFall(from, title = null, sub = "") {
-    const pl = G.player, m = pl.model; if (!m) return;
+    const pl = G.player, m = pl.model;
+    if (this.rec) this.rec.down(this.you, { from: from && from.pos ? from.pos : from });
+    if (!m) return;
     if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.giveAxe(false);
     // (your whole body back, head and all — first person it's only the neck down)
     for (const b of m._fp || []) b.scale.setScalar(1); m._fpOn = false; if (m._cap) m._cap.visible = false;
@@ -1235,7 +1393,9 @@ class Arena {
   }
   // a round over: who took it (0 you, 1 them, -1 neither — time ran out with nothing between you)
   endRound(who) {
-    if (this.roundDone) return; this.roundDone = true; this.live = false;
+    if (this.roundDone) return; this.roundDone = true;
+    if (this.rec) { this.rec.tick(0.1); this.rec.push("W", who); }
+    this.live = false;
     if (who >= 0) this.wins[who]++;
     this.showHud();
     slowMo(1.4, 0.3);
@@ -1243,7 +1403,108 @@ class Arena {
     if (who === 1 && G.deathCam) this.banner(null);
     else this.banner(who === 0 ? "You take the round" : who === 1 ? `${esc(this.foeInfo.name)} takes the round` : "Time — nobody", `${this.wins[0]} – ${this.wins[1]}`);
     if (who === 1 && G.deathCam) { const fx = $("deathFx"); if (fx) fx.querySelector(".dfx-s").textContent = `${this.wins[0]} – ${this.wins[1]}${done ? "" : " · next round"}`; }
-    setTimeout(() => { if (G.arena !== this) return; if (done) this.overView(who === 0); else if (!this.net) this.beginRound(); }, 3200);
+    setTimeout(() => { if (G.arena !== this) return; if (done) this.afterBattle(who === 0); else if (!this.net) this.beginRound(); }, 3200);
+  }
+  // ---------------------------------------------------------------------------
+  //  the opening: before the word is given, the field as a film would show it — from the air, the place named; along
+  //  your ranks; along theirs; the ground; and down out of the sky into your own eyes. Any key skips it (against a
+  //  player, only the pictures: the word's given on both games at once). Returns how long it runs.
+  // ---------------------------------------------------------------------------
+  intro() {
+    const battle = this.battle, pl = G.player, D = battle ? 14 : 7.5;
+    const P = (x, z, up) => ({ x, y: groundY(x, z) + up, z });
+    const cen = l => l.length ? { x: l.reduce((a, u) => a + u.pos.x, 0) / l.length, z: l.reduce((a, u) => a + u.pos.z, 0) / l.length } : { x: C.x, z: C.z };
+    const mine = () => this.alliesOf(0).filter(u => !u.crewOf), theirs = () => this.alliesOf(1).filter(u => !u.crewOf);
+    // (each side's company in a line of words: so many of each, and the guns)
+    const tally = team => {
+      const l = this.alliesOf(team), by = {};
+      for (const u of l) { const k = u.crewOf ? null : (this.musters && this.musters[team] && this.musters[team][u.idx]) || null; if (k) by[k] = (by[k] || 0) + 1; }
+      const guns = this.field ? this.field.guns.filter(g => g.side === team).length : 0, men = l.filter(u => !u.crewOf).length + (team === 0 ? 1 : 0);
+      const parts = Object.keys(by).length ? Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${(n === 1 ? TROOPS[k].one : TROOPS[k].name).toLowerCase()}`) : [`${men} men`];
+      return parts.slice(0, 4).join(" · ") + (guns ? ` · ${guns} gun${guns > 1 ? "s" : ""}` : "");
+    };
+    const foeName = this.netBattle || (this.net && !this.multi) ? (this.foeName || "another commander") : null;
+    const hourWord = { morning: "Morning", afternoon: "Afternoon", evening: "Evening", night: "Night" }[this.hour] || "";
+    const shots = battle ? [
+      { at: 0, len: 3.6, cap: [this.place ? this.place.text.replace(" · by night", "") : "The field", `${this.place ? this.place.at + " · " : ""}${hourWord}${this.fortSide === 0 ? " · you hold the fort" : this.fortSide === 1 ? " · they hold the fort" : ""}`, "To Arms", true] },
+      { at: 3.6, len: 3.3, cap: [this.uni[0].name, tally(0), `Your company · under ${this.me.name}`] },
+      { at: 6.9, len: 3.3, cap: [this.uni[1].name, tally(1), foeName ? `Against you · under ${foeName}` : "Against you"] },
+      { at: 10.2, len: 1.9, cap: null },
+      { at: 12.1, len: 1.9, cap: null },
+    ] : [
+      { at: 0, len: 3.4, cap: [`${this.me.name} against ${this.foeInfo.name}`, `Best of three${this.foeInfo.bot ? " · against a bot" : ""}`, "Duel", true] },
+      { at: 3.4, len: 2.2, cap: null },
+      { at: 5.6, len: 1.9, cap: null },
+    ];
+    const t0 = this.introT0 = performance.now(), sm = new Smooth(); let cur = -1, ended = false;
+    G.forceThird = true; UI.show("hud", false); FILM.bars(true); FILM.note(""); document.body.classList.add("cine");
+    if (!this.introMusic) { this.introMusic = true; AUDIO.score(battle ? 12.5 : 16, { vol: battle ? 0.8 : 0.6, fade: 1.8 }); }
+    const done = () => {
+      if (ended) return; ended = true;
+      G.deathCam = null; G.forceThird = false; UI.show("hud", true); FILM.off(); document.body.classList.remove("cine");
+      removeEventListener("keydown", skip, true); removeEventListener("mousedown", skip, true);
+      AUDIO.scoreOff(battle ? 5 : 3);
+    };
+    this.introEnd = done;
+    // (skipped: the pictures stop; and against bots, on at once — against a player, the word still waits for both)
+    const skip = e => {
+      if (G.arena !== this || ended) return;
+      if (e.type === "keydown" && (e.repeat || /^(F\d+|Meta|Alt|Control|Shift)/.test(e.key))) return;
+      e.stopImmediatePropagation(); e.preventDefault();
+      done(); UI.fadeNow(1); UI.fade(0, 0.5);
+      if (!this.net) this.countdown && this.countdown();
+    };
+    setTimeout(() => { if (!ended) { addEventListener("keydown", skip, true); addEventListener("mousedown", skip, true); } }, 400);
+    let lastT = t0;
+    G.deathCam = cam => {
+      if (G.arena !== this || this.over) { done(); return; }
+      const now = performance.now(), T = (now - t0) / 1000, rdt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+      if (T >= D) { done(); return; }
+      let i = shots.length - 1; while (i > 0 && shots[i].at > T) i--;
+      const S = shots[i], u = clamp((T - S.at) / S.len, 0, 1);
+      if (i !== cur) { cur = i; sm.cut(); if (i) FILM.dip(300); if (S.cap) FILM.cap(...S.cap); else FILM.cap(null); }
+      const a = cen(mine()), b = cen(theirs()), dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz) || 1, f = [dx / d, dz / d], r = [dz / d, -dx / d];
+      const m = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+      if (battle) {
+        if (i === 0) {
+          // from high over the field, coming down and round
+          const ang = Math.atan2(r[1], r[0]) + 0.5 - u * 0.5, R = 70 - u * 18, h = 62 - ease(u) * 22;
+          return sm.go(cam, P(m.x + Math.cos(ang) * R, m.z + Math.sin(ang) * R, h), P(m.x, m.z, 0), 46, 8, rdt);
+        }
+        if (i === 1 || i === 2) {
+          // along the front of a line, at a man's height, the colours behind it
+          const l = i === 1 ? mine() : theirs(), c = cen(l), dir = i === 1 ? f : [-f[0], -f[1]], side = i === 1 ? r : [-r[0], -r[1]];
+          let w = 4; for (const q of l) w = Math.max(w, Math.abs((q.pos.x - c.x) * side[0] + (q.pos.z - c.z) * side[1]));
+          const o = (u - 0.5) * Math.min(18, w * 1.4), fr = i === 1 ? 7.5 : 7;   // (yours: further out than you stand before it)
+          return sm.go(cam, P(c.x + dir[0] * fr + side[0] * o, c.z + dir[1] * fr + side[1] * o, i === 1 ? 1.55 : 1.0), P(c.x + side[0] * (o + 4), c.z + side[1] * (o + 4), 1.45), i === 1 ? 44 : 40, 6, rdt);
+        }
+        if (i === 3) {
+          // the ground: a gun of yours, laid; or the fort; or the open field between the two lines, low
+          const g = this.field && this.field.guns.find(q => q.side === 0);
+          // (the gun from in front and to the side, its crew at it: a portrait of it)
+          if (g) { const fw = [-Math.sin(g.ry + g.yaw), -Math.cos(g.ry + g.yaw)], rt = [fw[1], -fw[0]]; return sm.go(cam, P(g.x + rt[0] * (2.4 - u * 0.4) + fw[0] * 1.6, g.z + rt[1] * (2.4 - u * 0.4) + fw[1] * 1.6, 0.95), P(g.x - fw[0] * 0.4, g.z - fw[1] * 0.4, 0.7), 50, 6, rdt); }
+          return sm.go(cam, P(m.x + r[0] * (12 - u * 4), m.z + r[1] * (12 - u * 4), 0.7), P(b.x, b.z, 1.4), 38, 6, rdt);
+        }
+      } else {
+        if (i === 0) { const ang = Math.atan2(r[1], r[0]) + u * 0.9, R = 9 - u * 2; return sm.go(cam, P(m.x + Math.cos(ang) * R, m.z + Math.sin(ang) * R, 1.8 + u * 0.6), P(m.x, m.z, 1.2), 46, 6, rdt); }
+        if (i === 1) { const fo = this.foe, y = fo.a ? fo.a.yaw : 0, fw = [Math.sin(y), Math.cos(y)], q = fo.pos; return sm.go(cam, P(q.x + fw[0] * (3.2 - u * 0.8) + fw[1] * 0.6, q.z + fw[1] * (3.2 - u * 0.8) - fw[0] * 0.6, 1.65), P(q.x, q.z, 1.6), 34, 6, rdt); }
+      }
+      // last: down out of the sky behind you, into your own eyes — the shot ending exactly where your eye will be
+      const e = pl.eyePos(), cy = Math.cos(pl.pitch), look = { x: e.x - Math.sin(pl.yaw) * cy * 10, y: e.y + Math.sin(pl.pitch) * 10, z: e.z - Math.cos(pl.yaw) * cy * 10 };
+      const k = ease(u), bx = Math.sin(pl.yaw) * 7, bz = Math.cos(pl.yaw) * 7;
+      const from = { x: e.x + bx * (1 - k), y: e.y + (battle ? 6 : 2.5) * (1 - k), z: e.z + bz * (1 - k) };
+      if (u > 0.9) G.forceThird = false;   // (into your own head: the body you see from inside, as you always do)
+      const want = { x: e.x + (look.x - e.x) * k, y: e.y - 0.25 + (look.y - e.y + 0.25) * k, z: e.z + (look.z - e.z) * k }, fv = (G.settings && G.settings.fov) || 70;
+      return sm.go(cam, from, want, fv - (1 - k) * 18, u > 0.75 ? 30 : 7, rdt);
+    };
+    return D;
+  }
+  // a battle won or lost: its highlights, at once — then the result. (Short, or nothing written: the old way, the field
+  // to look over)
+  afterBattle(won) {
+    if (this.over) return;
+    if (this.rec && this.rec.on && this.rec.t > 6) this.finish(won, false, true);
+    else this.overView(won);
   }
   // ---- over: the field to look over as long as you like (the free camera), and Enter to leave it ----
   overView(won) {
@@ -1258,8 +1519,18 @@ class Arena {
     UI.hint(`${won ? "Won." : "Lost."} Look over the field — WASD to fly, Space up, C down. Enter to leave it.`, 8);
   }
   // ---- the match over: the record, and the result ----
-  finish(won, left = false) {
+  finish(won, left = false, reel = false) {
     if (this.over) return; this.over = true;
+    // (the recording closed, kept here, and sent to the server for anyone to watch)
+    let rec = null;
+    if (this.rec && !left) {
+      this.rec.push("E", won ? 1 : 0);
+      const kind = this.battle ? "battle" : this.multi ? "skirmish" : "duel", vs = this.net ? "player" : "bots";
+      rec = this.rec.finish({ name: this.me.name, foe: this.multi ? (this.netBattle ? this.foeName : `${this.uni ? this.uni[1].name : "bots"} (bots)`) : `${this.foeInfo.name}${this.foeInfo.bot ? " (bot)" : ""}`,
+        kind, vs, place: this.place ? this.place.text : "", hour: this.hour, won, k: this.multi ? this.killed | 0 : this.wins[0], l: this.multi ? this.lost | 0 : this.wins[1],
+        uni: this.uni ? this.uni.map(u => u.name) : [], men: this.multi ? [this.army.allies + 1, this.army.enemies] : [1, 1] });
+      if (rec) { lastRec = rec; keepMine(rec); if (shareOn()) upload(rec).then(id => { if (id) rec.id = id; }); }
+    }
     const r = record(), foeR = this.foeInfo.rating || r.rating, exp = 1 / (1 + Math.pow(10, (foeR - r.rating) / 400)), k = 32;
     const delta = Math.round(k * ((won ? 1 : 0) - exp));
     r.rating = Math.max(100, r.rating + delta); if (won) { r.w++; r.streak = (r.streak || 0) + 1; } else { r.l++; r.streak = 0; }
@@ -1271,6 +1542,8 @@ class Arena {
     $("pvpEndK").textContent = left ? "They left the field" : won ? "Victory" : "Defeat";
     $("pvpEndT").textContent = this.multi ? (won ? "The field is yours" : "The day is lost") : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
     $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost`;
+    endReplay(rec);
+    if (reel && rec) { watch(rec, "highlights", "end", { t: won ? "Victory" : "Defeat", s: titleOf(rec).t }); return; }
     ctx.screen("pvpEnd");
   }
   // begun again from the start, the same sides and loads (a fight against bots: the pause menu's Restart); a battle on
@@ -1308,6 +1581,7 @@ class Arena {
     if (this.net) { this.net.send({ t: "dleave" }); this.net.close(); this.net = null; }
     if ($("pvpHud")) $("pvpHud").classList.add("hidden");
     this.banner(null);
+    clearTimeout(this.goT); if (this.introEnd) this.introEnd();
     UI.stance && UI.stance(null);
     if (this.keyH) removeEventListener("keydown", this.keyH, true);
     if (this.clickH) removeEventListener("mousedown", this.clickH, true);
@@ -1320,6 +1594,7 @@ class Arena {
   // ---- every frame ----
   update(dt) {
     if (G.arena !== this) return;
+    if (this.rec && this.live) this.rec.tick(dt);
     const pl = G.player;
     // (the field: the ride and the trees round it; out past them, you're turned back)
     pl.swingRate = this.myBlade().rate;   // (the bayonet on the musket strikes at its own pace, not the blade's in your belt)
@@ -1462,7 +1737,7 @@ class Arena {
       };
       net.on.bgun = m => { const g = this.field.guns[m.i | 0]; if (g) this.field.fire(g); };
       net.on.bdown = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; u.hp = 0; u.blast = !!m.b; u.fallDown({ x: +m.x, z: +m.z }, !!m.h); u.blast = false; this.unitDown(u); };
-      net.on.bhurt = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; blowLands(u.a, "hit", u.youHitPos && G.time - (u.youHitAt ?? -9) < 0.6 ? G.player : { pos: u.pos }); u.a.person.flinch && u.a.person.flinch(); AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: u.pos, high: isF(u.info.look) }); };
+      net.on.bhurt = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; if (this.rec) this.rec.hurt(u); blowLands(u.a, "hit", u.youHitPos && G.time - (u.youHitAt ?? -9) < 0.6 ? G.player : { pos: u.pos }); u.a.person.flinch && u.a.person.flinch(); AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: u.pos, high: isF(u.info.look) }); };
       net.on.bgone = m => { const u = this.unitById(m.id); if (!u) return; u.hp = 0; if (m.hide) u.a.root.visible = false; else { u.quiet = true; u.a.place(+m.x, +m.z, u.a.yaw); u.fallDown(this.spawns[0]); } const i = this.units.indexOf(u); if (i >= 0) this.units.splice(i, 1); this.showHud(); };
       // (one of theirs at you with the steel: judged here, against your guard)
       net.on.bswing = m => {
@@ -1478,7 +1753,7 @@ class Arena {
         const won = m.winner === 1; this.killed = m.l | 0; this.lost = m.k | 0;
         slowMo(1.6, 0.3);
         this.banner(won ? "The field is yours" : "The day is lost", won ? `${this.killed} of theirs down` : "");
-        setTimeout(() => G.arena === this && this.overView(won), 2600);
+        setTimeout(() => G.arena === this && this.afterBattle(won), 2600);
       };
     }
   }
@@ -1575,6 +1850,7 @@ class Fighter {
     const a = this.a, P = a.person; a.path = []; this.wind = 0; a.squareTo = null;
     // (your kill: he went down a moment after you hit him — the mark where it struck, and the sound of it)
     const yours = this.youHitPos && G.time - (this.youHitAt ?? -9) < 1.5;
+    const rec = this.arena.rec; if (rec) rec.down(this, { from, head, blast: !!this.blast, yours, quiet: this.quiet });
     if (yours) { killMark(this.youHitPos); this.youHitPos = null; }
     if (!head && !this.quiet) AUDIO.voice && AUDIO.voice("death", { at: a.pos, vol: 1.1, high: isF(this.info.look) });
     // (the blood where he falls — and the slowed moment, the shake, only if it was you who did it: not every man
@@ -1637,7 +1913,7 @@ class Bot extends Fighter {
     const facing = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) > 0.3;
     const guarded = by ? Math.random() < 0.15 + this.s * 0.3 : this.guardDir === side && Math.random() < 0.35 + this.s * 0.5;
     if (facing && this.wind <= 0 && this.stun <= 0 && this.mode === "melee" && guarded) {
-      AUDIO.clang && AUDIO.clang(0.9, this.pos); blowLands(this.a, "parried", by ? by.a : G.player);
+      AUDIO.clang && AUDIO.clang(0.9, this.pos); blowLands(this.a, "parried", by ? by.a : G.player); if (this.arena.rec) this.arena.rec.parried(this);
       this.a.person.setPose(blowPose(this.heldK, "right")); setTimeout(() => this.alive && this.a.person.setPose("idle"), 300);
       this.cool = Math.min(this.cool, 0.4);
       if (by) { by.stun = Math.max(by.stun || 0, 0.8); if (by.isNet && this.arena.net) this.arena.net.send({ t: "dres", how: "parry" }); return; }
@@ -1654,6 +1930,7 @@ class Bot extends Fighter {
     this.hp = Math.max(0, this.hp - d);
     if (this.hp <= 0) { const f = from || (this.T && this.T.pos) || G.player.pos; this.fromX = f.x; this.fromZ = f.z; this.headShot = head; this.fallDown(f, head); this.arena.unitDown(this); return; }
     if (this.arena.host) this.arena.net.send({ t: "bhurt", id: this.uid });
+    if (this.arena.rec) this.arena.rec.hurt(this);
     blowLands(this.a, "hit", this.youHitPos && G.time - (this.youHitAt ?? -9) < 0.3 ? G.player : { pos: from || this.pos }); this.a.person.flinch && this.a.person.flinch();
     AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos, high: isF(this.info.look) });
     if (!(this.wind > 0)) { this.stun = melee ? 0.25 : 0.4; this.a.path = []; this.aimT = 0; }

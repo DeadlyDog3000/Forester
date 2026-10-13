@@ -10,7 +10,7 @@ import { THREE } from "./core.js";
 import { G } from "./engine.js";
 import { burst } from "./fight.js";
 
-const MAX = 240;                 // (marks on the ground, the oldest going first)
+const MAX = 160;                 // (marks on the ground, the oldest going first)
 const marks = [];
 const rnd = (a, b) => a + Math.random() * (b - a);
 const off = f => { const i = G.onFrame.indexOf(f); if (i >= 0) G.onFrame.splice(i, 1); };
@@ -72,7 +72,7 @@ export function drop(x, z, k = 1) {
   const m = new THREE.Mesh(PLANE, stainMat(false));
   m.position.set(x, groundY(x, z) + 0.012 + Math.random() * 0.004, z); m.rotation.y = Math.random() * 6.28; m.scale.setScalar(rnd(0.05, 0.11) * k);
   m.renderOrder = 1; G.scene.add(m); drops.push(m);
-  while (drops.length > 400) { const o = drops.shift(); if (o.parent) o.parent.remove(o); }
+  while (drops.length > 160) { const o = drops.shift(); if (o.parent) o.parent.remove(o); }
 }
 
 // ---- the mist: a puff of fine red spray off the wound, the way the blow went ----
@@ -222,6 +222,6 @@ export function goreOff() {
 }
 // the field cleared of it all (the battle over)
 export function clearGore() {
-  for (const m of [...marks, ...drops]) { if (m.parent) m.parent.remove(m); if (m.geometry !== PLANE) m.geometry.dispose(); }
+  for (const m of [...marks, ...drops]) { if (m.parent) m.parent.remove(m); if (m.geometry && m.geometry !== PLANE) m.geometry.dispose(); }
   marks.length = 0; drops.length = 0;
 }
