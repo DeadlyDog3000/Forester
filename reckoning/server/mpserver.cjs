@@ -1427,7 +1427,9 @@ async function start(opts = {}) {
   if (opts.world) {
     const f = dataDir && path.join(dataDir, "world.json");
     try { if (f && fs.existsSync(f)) world = Room.from(JSON.parse(fs.readFileSync(f, "utf8"))); } catch (e) { log("world file unreadable:", e.message); }
-    if (!world) world = new Room({ id: "world", name: "The Wide World", mode: "pvp", kind: "earth", max: 500, persistent: true, half: R.WORLD_HALF, seed: opts.seed });
+    // (a new world saved at once, so it's this world from now on — not a fresh seed every time the server starts while
+    //  no one has yet built in it)
+    if (!world) { world = new Room({ id: "world", name: "The Wide World", mode: "pvp", kind: "earth", max: 500, persistent: true, half: R.WORLD_HALF, seed: opts.seed }); world.dirty = true; }
     world.id = "world";
     // (a world saved at another scale — or on another map — is laid out again on the Earth at the full scale: everything
     //  built stays where it stood on the globe, the trees and rocks grown afresh)

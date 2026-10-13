@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.33.1", date: "13 October 2026", title: "One world",
+    items: [
+      "The wide world is the same world from the day it's made: until someone had built in it, the server laid out a new one every time it started.",
+    ],
+  },
+  {
     v: "1.33.0", date: "13 October 2026", title: "The wide world, worked through",
     items: [
       "Your axe goes into the tree in front of you, not your own cabin behind it: near your buildings a swing hit the nearest wall instead — and a homestead's own walls came down a log at a time. Breaking your own building now takes a second swing, on purpose.",
