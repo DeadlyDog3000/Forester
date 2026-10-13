@@ -2050,7 +2050,9 @@ function pickInteract() {
     const to = new THREE.Vector3(ix - eye.x, (it.y ?? 1) - eye.y, iz - eye.z).normalize();
     const dot = to.dot(fwd);
     if (dot < (d < 1 ? 0.2 : 0.72)) continue;
-    const score = d * (2 - dot);
+    // (what you're looking at, more than what's nearest: a site straight ahead, not the store chest off to the side a
+    //  pace nearer)
+    const score = d * (2 - dot) ** 3;
     if (score < bestScore) { bestScore = score; best = it; }
   }
   return best;

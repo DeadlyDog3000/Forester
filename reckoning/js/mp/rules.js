@@ -11,7 +11,7 @@ export const PROTOCOL = 1;
 // or for walls a length); `claim`, the ground round it that becomes yours
 export const BUILD = {
   hearth:    { name: "Town hall",   wood: 10, stone: 0,  hp: 320, r: 5.2, w: 9.6, d: 10, claim: 32, note: "The heart of your homestead: its store, and its fire in front to roast what you catch. The ground round it is yours — no one else can build there — and you wake here after a fall. Rebuild it grander to claim more ground." },
-  cabin:     { name: "Cabin",       wood: 30, stone: 0,  hp: 420, r: 4.2, w: 5.2, d: 6.2, model: "cabin", beds: 2, note: "A log cabin: beds for two settlers, who come to live in it and work for you." },
+  cabin:     { name: "Cabin",       wood: 24, stone: 0,  hp: 420, r: 4.2, w: 5.2, d: 6.2, model: "cabin", beds: 2, note: "A log cabin: beds for two settlers, who come to live in it and work for you." },
   shed:      { name: "Woodshed",    wood: 18, stone: 0,  hp: 300, r: 3.0, w: 4.4, d: 3.0, model: "woodshed", store: true, note: "Where your logs and stone are kept. Break someone's woodshed and half of what they have is yours." },
   house:     { name: "House",       wood: 45, stone: 10, hp: 600, r: 5.0, w: 7.0, d: 6.0, model: "town/house_2", beds: 4, note: "A timber house, plastered: beds for four settlers." },
   field:     { name: "Field",       wood: 6,  stone: 0,  hp: 120, r: 3.6, w: 6.6, d: 7.4, field: true, note: "Three strips of rye. A settler farms it, and each harvest feeds the homestead. Settlers eat, and with no food they won't stay." },
@@ -36,7 +36,7 @@ export const BOATS = { rowboat: { speed: 3.4, turn: 1.1, draft: 0.35, seats: 1, 
 
 export const START_STOCK = { wood: 12, stone: 0, food: 24 };
 export const TREE_HITS = { spruce: 4, pine: 4, birch: 3, oak: 5, palm: 3, acacia: 3, jungle: 6, scrub: 1 };
-export const LOGS_PER_TREE = { spruce: 5, pine: 5, birch: 3, oak: 6, palm: 3, acacia: 3, jungle: 8, scrub: 1 };
+export const LOGS_PER_TREE = { spruce: 5, pine: 5, birch: 3, oak: 6, palm: 4, acacia: 4, jungle: 8, scrub: 2 };
 export const ROCK_HITS = 5, STONE_PER_ROCK = 4;
 export const REGROW_MS = 12 * 60 * 1000;          // a felled tree, a broken rock: back after this, out of sight
 export const REACH = 3.6;                         // how far a blow reaches (with a little slack for the lag)

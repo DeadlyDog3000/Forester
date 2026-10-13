@@ -808,7 +808,7 @@ class Room {
         return;
       }
       case "allyno": { const q = this.online.get(String(m.pid || "")); this.invites.delete(p.pid + ">" + (q && q.pid)); if (q) q.sock.send({ t: "note", text: `${p.name} would rather not.` }); return; }
-      case "unally": { if (rec.group) { const g = this.groups[rec.group]; this.quitGroup(p.pid); this.all({ t: "groups", groups: this.groups }); this.note(`${p.name} has left ${g ? g.name : "their alliance"}.`); this.dirty = true; } return; }
+      case "unally": { if (rec.group) { const g = this.groups[rec.group]; this.quitGroup(p.pid); this.all({ t: "groups", groups: this.groups }); this.note(`${p.name} has left ${g && !g.name.startsWith(p.name) ? g.name : "the alliance"}.`); this.dirty = true; } return; }
       case "give": {             // logs or stone handed to someone near
         const q = this.online.get(String(m.pid || "")); if (!q || q === p || !this.near(p, q.x, q.z, 6)) return;
         // (from your arms and your pack, into theirs, as much as they can take)

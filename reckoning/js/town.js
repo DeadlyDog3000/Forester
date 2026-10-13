@@ -237,6 +237,9 @@ export function siteSign(rows, ready) {
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
   sp.scale.set(W / 110, H / 110, 1); sp.renderOrder = 10;
+  // (fading as you come up to it — close by, the F prompt says the same, and the sign would fill the view)
+  const _p = new THREE.Vector3();
+  sp.onBeforeRender = (r, sc, cam) => { sp.material.opacity = Math.max(0, Math.min(1, (cam.position.distanceTo(sp.getWorldPosition(_p)) - 3.5) / 3)); };
   (async () => {
     const c = cv.getContext("2d");
     c.fillStyle = "rgba(8,20,13,0.82)"; c.strokeStyle = ready ? "#8cc084" : "rgba(140,192,132,0.55)"; c.lineWidth = 3;

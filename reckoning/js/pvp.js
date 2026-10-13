@@ -96,6 +96,13 @@ export function record() {
   return { rating: 1000, w: 0, l: 0, streak: 0, ...(r || {}) };
 }
 function saveRecord(r) { try { localStorage.setItem(REC_KEY, JSON.stringify(r)); } catch (e) {} }
+// the other side's officer, as your record has earned you: your first battles against an easy one, to learn the
+// field on; then sharper as you win — by a rating of 1300, as sharp as any; and easier again if you lose
+export function generalship() {
+  const r = record(), fought = (r.w || 0) + (r.l || 0);
+  const g = clamp(0.2 + (r.rating - 1000) / 400, 0.15, 1);
+  return fought < 3 ? Math.min(g, 0.25) : g;
+}
 // how good a bot is, from a rating: a beginner's bot misses and is slow to the guard; a strong player's is neither
 const skillOf = rating => clamp((rating - 550) / 1000, 0.12, 0.95);
 const rankOf = r => r < 900 ? "Recruit" : r < 1050 ? "Musketeer" : r < 1200 ? "Corporal" : r < 1350 ? "Sergeant" : r < 1550 ? "Lieutenant" : "Captain";
@@ -622,7 +629,7 @@ class Arena {
       // (a battle: each side's company as its purse raised it — yours as you mustered it; theirs as their officer, or
       //  the other player, did)
       if (this.battle && !this.remote) {
-        const theirs = this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, 900) : botMuster(A.purse || 900);
+        const theirs = this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, 900) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1));   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
         A.allies = this.musters[0].length; A.enemies = this.musters[1].length;
@@ -871,9 +878,7 @@ class Arena {
     // steel as soon as he's near; a seasoned one stands off at musket range and makes his volleys tell, holds behind
     // cover when he's the fewer, waits for your line to have fired before he charges it, and calls a charge off that's
     // going against him
-    // (never a fool now: the least of them a capable officer, and the best — by the time your record's a good one —
-    //  as sharp as any)
-    const gen = this.gen ??= clamp(0.55 + (record().rating - 800) / 800, 0.55, 1), L = (x, y) => x + (y - x) * gen;
+    const gen = this.gen ??= generalship(), L = (x, y) => x + (y - x) * gen;
     const nT = theirs.length, nO = ours.length, ratio = nT / Math.max(1, nO);
     const loadedOf = l => { const m = l.filter(u => u.loaded); return m.length ? m.filter(u => u.loaded.long).length / m.length : 1; };
     const oursEmpty = 1 - loadedOf(ours), theirsLoaded = loadedOf(theirs), inRange = d < RANGE.musket * this.sight;

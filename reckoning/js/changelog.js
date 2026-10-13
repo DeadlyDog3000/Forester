@@ -7,6 +7,20 @@
 
 export const CHANGELOG = [
   {
+    v: "1.33.0", date: "13 October 2026", title: "The wide world, worked through",
+    items: [
+      "Your axe goes into the tree in front of you, not your own cabin behind it: near your buildings a swing hit the nearest wall instead — and a homestead's own walls came down a log at a time. Breaking your own building now takes a second swing, on purpose.",
+      "The pickaxe finds the rock in front of you wherever it lies: a rock just over the corner of one stretch of land and the next couldn't be struck at all, however long you swung.",
+      "F does what you're looking at: by the town hall, F at a site laid out beside it went to the hall's store instead — your logs went into the chest, and the woodshed never went up.",
+      "Raise a building where you stand and you step out of it, not shut inside its walls; and you never come back into the world inside one.",
+      "Stone in your pack counts toward breaking ten stone, as much as stone in the store.",
+      "A building site's sign fades as you come up to it, instead of filling the view (in the story too).",
+      "A new homestead comes along quicker: a cabin takes 24 logs, not 30, and acacias and palms give four logs, scrub two.",
+      "With a town hall of your own, its plan says so first, not that something's in the way.",
+      "A battle's first few fights are against an easy officer, with a company a little the smaller; he sharpens as you win, and eases off if you lose.",
+    ],
+  },
+  {
     v: "1.32.0", date: "13 October 2026", title: "A sharper enemy",
     items: [
       "The other side's officer is never a fool now — the greenest a capable man, and the best, once your record's a good one, as sharp as any:",

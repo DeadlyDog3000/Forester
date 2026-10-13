@@ -45,7 +45,8 @@ const MP_GOALS = [
   { text: () => "Wait for your first settler to come through the woods — keep felling meanwhile", done: g => g.mine() >= 1 },
   { text: g => lay(g, "a field", "settlers eat, and with no food they won't stay"), done: g => g.has("field") },
   { text: g => lay(g, "a woodshed", "to keep the logs and stone"), done: g => g.has("shed") },
-  { text: g => `Break stone from the grey rocks with the pickaxe (2) — ${Math.min(10, g.stock.stone)} of 10`, done: g => g.stock.stone >= 10 || g.has("well") || g.has("tower") || g.has("house") },
+  // (what's in your pack counts as much as what's in the store: it's yours either way)
+  { text: g => `Break stone from the grey rocks with the pickaxe (2) — ${Math.min(10, g.stoneAll())} of 10`, done: g => g.stoneAll() >= 10 || g.has("well") || g.has("tower") || g.has("house") },
   { text: g => lay(g, "a palisade with a gate in it", "round your ground"), done: g => g.has("wall") && g.has("gate") },
   { text: g => lay(g, "a watchtower", "two of your settlers keep watch"), done: g => g.has("tower") },
   { text: g => `Grow your homestead to six settlers — ${g.mine()} of 6 (more beds: cabins and houses)`, done: g => g.mine() >= 6 },
@@ -210,7 +211,7 @@ export class MPGame {
     G.hasMap = true;
     w.setFelled(inMsg.felled || []); w.setBroken(inMsg.broken || []);
     for (const p of inMsg.players || []) this.addRemote(p);
-    for (const b of inMsg.buildings || []) this.addB(b);
+    for (const b of inMsg.buildings || []) { this.addB(b); this.clearOf(b); }   // (and never back in the world inside a wall)
     this.drops = new Map(); for (const d of inMsg.drops || []) this.addDrop(d);
     this.piles = new Map(); for (const q of inMsg.piles || []) this.setPile(q);
     this.sites = new Map(); for (const q of inMsg.sites || []) this.setSite(q);
@@ -277,6 +278,15 @@ export class MPGame {
     this.owners[p.pid] = p.name;
     this.remotes.set(p.pid, new Remote(this, p));
     this.hudCount();
+  }
+  // a building raised where you stand: you step out of it to its nearest side, not left shut in its walls
+  clearOf(b) {
+    const d = BUILD[b.type], p = G.player && G.player.pos; if (!d || !p || d.wall || d.field || d.boat || this.aboard) return;
+    const c = Math.cos(b.ry || 0), s = Math.sin(b.ry || 0), dx = p.x - b.x, dz = p.z - b.z;
+    const u = dx * c - dz * s, v = dx * s + dz * c, hw = (d.w || d.r * 1.4) / 2 + 0.7, hd = (d.d || d.r * 1.4) / 2 + 0.7;
+    if (Math.abs(u) >= hw || Math.abs(v) >= hd) return;
+    let nu = u, nv = v; if (hw - Math.abs(u) < hd - Math.abs(v)) nu = Math.sign(u || 1) * hw; else nv = Math.sign(v || 1) * hd;
+    p.x = b.x + nu * c + nv * s; p.z = b.z - nu * s + nv * c;
   }
   addB(b) {
     const own = b.owner === this.pid, fr = this.friendly(b.owner);
@@ -377,7 +387,7 @@ export class MPGame {
     };
     n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.crash(0.35, { x: k.x, z: k.z }); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("Stone into your pack — put it in the store at the town hall"); };
     n.grow = m => { for (const id of m.trees || []) w.showTree(id); for (const id of m.rocks || []) w.showRock(id); };
-    n.b = m => { this.owners[m.b.owner] ??= this.nameOf(m.b.owner); this.addB(m.b); if (Math.hypot(m.b.x - G.player.pos.x, m.b.z - G.player.pos.z) < 40) sfx("build"); };
+    n.b = m => { this.owners[m.b.owner] ??= this.nameOf(m.b.owner); this.addB(m.b); this.clearOf(m.b); if (Math.hypot(m.b.x - G.player.pos.x, m.b.z - G.player.pos.z) < 40) sfx("build"); };
     n.bhp = m => { w.hitBuilding(m.id, m.hp); const e = w.blds.get(m.id); if (e && Math.hypot(e.b.x - G.player.pos.x, e.b.z - G.player.pos.z) < 40) { sfx("chop"); if (e.mine) this.warn(`${this.nameOf(m.by)} is breaking your ${BUILD[e.b.type].name.toLowerCase()}!`); } };
     n.bx = m => {
       const e = w.blds.get(m.id); const mine = e && e.mine;
@@ -505,6 +515,7 @@ export class MPGame {
     this.goalAt = i < 0 ? MP_GOALS.length : i;
     UI.objective(i < 0 ? "Your homestead stands, full. Hold it — and grow." : `${this.room.name} · ${MP_GOALS[i].text(this)}`);
   }
+  stoneAll() { return (this.stock.stone | 0) + ((this.pack && this.pack.stone) | 0); }
   myHearth() { for (const e of this.w.blds.values()) if (e.b.type === "hearth" && (e.mine || this.mode === "coop" || this.sameNation(e.b.owner, this.pid))) return e; return null; }
   // ---- your blow: at whoever or whatever is in front of you ----
   swing() {
@@ -558,17 +569,24 @@ export class MPGame {
       else dist = ahead(e.b.x, e.b.z, d.r + 2.2) - d.r;
       if (dist < bd) { bd = dist; bb = e; }
     }
-    if (bb) {
-      if (!bb.mine && (this.mode === "coop" || bb.friendly)) { UI.hint("That isn't yours to break.", 2); return; }
-      sfx("chop"); G.impact && G.impact(); this.w.hitBuilding(bb.b.id, bb.hp);
-      this.net.send({ t: "hitb", id: bb.b.id });
-      return;
-    }
-    // a tree
+    const bdist = bd;
+    // a tree (looked for first: one in front of you, nearer than the wall, takes the blow — not your own cabin behind it)
     let tr = null; bd = Infinity;
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
       const ch = this.w.chunkAt(p.x + i * 3, p.z + j * 3); if (!ch) continue;
       for (const t of ch.trees) { if (t.gone || this.w.felled.has(t.id)) continue; const d = ahead(t.x, t.z, 2.6); if (d < bd) { bd = d; tr = t; } }
+    }
+    if (bb && !(tr && G.player.blade !== "pick" && bd < bdist + 0.6)) {
+      if (!bb.mine && (this.mode === "coop" || bb.friendly)) { UI.hint("That isn't yours to break.", 2); return; }
+      // (your own: only on purpose — a second swing while it's said)
+      if (bb.mine && !(this.breakAsk && this.breakAsk.id === bb.b.id && performance.now() - this.breakAsk.at < 3000)) {
+        this.breakAsk = { id: bb.b.id, at: performance.now() };
+        UI.hint(`That's your own ${BUILD[bb.b.type].name.toLowerCase()} — swing again to break it.`, 3); return;
+      }
+      if (bb.mine) this.breakAsk.at = performance.now();
+      sfx("chop"); G.impact && G.impact(); this.w.hitBuilding(bb.b.id, bb.hp);
+      this.net.send({ t: "hitb", id: bb.b.id });
+      return;
     }
     if (tr && G.player.blade !== "pick") {
       sfx("chop"); G.impact && G.impact(); G.woodChips && G.woodChips(tr, 1);
@@ -579,8 +597,7 @@ export class MPGame {
     if (G.player.blade !== "pick") { if (this.rockAhead(p, f)) UI.hint("Stone wants the pickaxe — take it out (2) and swing at the rock.", 3); return; }
     if (!this.rockAhead(p, f)) { if (tr) UI.hint("That's the pickaxe — take out the axe (1) for trees.", 2.5); return; }
     let rk = null; bd = Infinity;
-    const ch = this.w.chunkAt(p.x, p.z);
-    for (const c of [ch, this.w.chunkAt(p.x + 4, p.z), this.w.chunkAt(p.x - 4, p.z), this.w.chunkAt(p.x, p.z + 4), this.w.chunkAt(p.x, p.z - 4)]) if (c) for (const k of c.rocks) { if (k.gone) continue; const d = ahead(k.x, k.z, k.s + 2.2) - k.s; if (d < bd) { bd = d; rk = k; } }
+    for (const c of this.chunksNear(p)) for (const k of c.rocks) { if (k.gone) continue; const d = ahead(k.x, k.z, k.s + 2.2) - k.s; if (d < bd) { bd = d; rk = k; } }
     if (rk) {
       AUDIO.clang && AUDIO.clang(0.35, { x: rk.x, y: rk.y + 0.5, z: rk.z }); G.rockChips && G.rockChips(rk, 1); G.impact && G.impact();
       this.net.send({ t: "mine", id: rk.id });
@@ -687,6 +704,8 @@ export class MPGame {
       let lo = Infinity, hi = -Infinity; for (const [a, b] of [[r, 0], [-r, 0], [0, r], [0, -r], [0, 0]]) { const h = this.w.heightAt(x + a, z + b); lo = Math.min(lo, h); hi = Math.max(hi, h); }
       if (hi - lo > (d.wall ? 1.6 : d.shore ? 6 : 1.2)) why = "Too steep";
     }
+    // (you have one: said first, before whatever's in the way of a second)
+    if (!why && B.type === "hearth" && this.myHearth()) why = this.mode === "coop" ? "The colony has its town hall" : "You have a town hall already";
     if (!why) for (const e of this.w.blds.values()) {
       const c = BUILD[e.b.type];
       if (c.claim && !e.friendly && Math.hypot(e.b.x - x, e.b.z - z) < claimOf(e.b)) { why = `${e.ownerName}'s ground`; break; }
@@ -919,8 +938,10 @@ export class MPGame {
   }
   // a fallen player's sack: where they fell, F to take what's in it
   // a grey rock ahead, close enough to strike
+  // (the chunks round a place — all eight about it, the corners too: a rock just over a corner is still in front of you)
+  chunksNear(p, r = 4) { const out = new Set(); for (const i of [-r, 0, r]) for (const j of [-r, 0, r]) { const c = this.w.chunkAt(p.x + i, p.z + j); if (c) out.add(c); } return out; }
   rockAhead(p, f) {
-    for (const c of [this.w.chunkAt(p.x, p.z), this.w.chunkAt(p.x + 4, p.z), this.w.chunkAt(p.x - 4, p.z), this.w.chunkAt(p.x, p.z + 4), this.w.chunkAt(p.x, p.z - 4)]) if (c) for (const k of c.rocks) {
+    for (const c of this.chunksNear(p)) for (const k of c.rocks) {
       if (k.gone) continue; const dx = k.x - p.x, dz = k.z - p.z, d = Math.hypot(dx, dz);
       if (d < k.s + 2.4 && (d < 0.7 || (dx * f.x + dz * f.z) / d > 0.45)) return k;
     }
