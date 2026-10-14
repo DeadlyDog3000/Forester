@@ -19,7 +19,7 @@
 //
 // Every key is also emailed to its buyer the moment the payment's known — found by whichever comes first: the game
 // asking, the thank-you page, or a look through Stripe's finished checkouts every minute (so a buyer who closes the tab
-// before it loads still gets the letter). Sent from SMTP_USER (a Gmail address and its app password, SMTP_PASS).
+// before it loads still gets the letter). Sent through any mail service's SMTP (SMTP_HOST, SMTP_USER, SMTP_PASS), from SMTP_FROM — Brevo's, or Gmail's with an app password.
 //
 // The secrets live in a file beside the server's data, never in the code: STRIPE_SECRET_KEY (a restricted key will
 // do: Checkout Sessions write, Payment Intents and Charges read) and STRIPE_PRICE (the price_… of the game). It's read
@@ -160,7 +160,7 @@ Keep this email. If you ever lose your key or need a hand, just reply to it.
 </div></body></html>`;
     try {
       await mailer.send({ host: cfg("SMTP_HOST") || "smtp.gmail.com", port: cfg("SMTP_PORT") || 465, secure: cfg("SMTP_TLS") !== "0", user, pass: cfg("SMTP_PASS"),
-        from: user, fromName: "DeadlyDog Productions", to: r.email, subject: "Your Forester: Reckoning licence key", text, html });
+        from: cfg("SMTP_FROM") || user, fromName: "DeadlyDog Productions", to: r.email, subject: "Your Forester: Reckoning licence key", text, html });
       r.mailed = Date.now(); log(`shop: key emailed — ${key.slice(0, 8)}…`);
     } catch (e) { log("shop: couldn't email the key:", e.message); }
     sending.delete(key); save();
