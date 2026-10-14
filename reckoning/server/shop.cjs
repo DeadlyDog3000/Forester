@@ -17,11 +17,16 @@
 //   GET /shop/key?s=cs_…      a page with the key             — the website's thank-you page links here
 //   licence(op, key, …)       activate / validate / deactivate one of our keys (FR-…), for /licence
 //
+// Every key is also emailed to its buyer the moment the payment's known — found by whichever comes first: the game
+// asking, the thank-you page, or a look through Stripe's finished checkouts every minute (so a buyer who closes the tab
+// before it loads still gets the letter). Sent from SMTP_USER (a Gmail address and its app password, SMTP_PASS).
+//
 // The secrets live in a file beside the server's data, never in the code: STRIPE_SECRET_KEY (a restricted key will
 // do: Checkout Sessions write, Payment Intents and Charges read) and STRIPE_PRICE (the price_… of the game). It's read
 // again whenever it changes, so setting it needs no restart.
 
 const fs = require("fs"), path = require("path"), crypto = require("crypto"), https = require("https"), http = require("http");
+const mailer = require("./mailer.cjs");
 
 const MAX_COMPUTERS = 3;
 const KEY_RX = /^FR(-[A-Z2-9]{5}){4}$/;
@@ -115,8 +120,65 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
       if (s.status === "expired" && !r.paid) r.expired = true;
       save();
     } catch (e) { log("shop: couldn't ask Stripe:", e.message); }
+    if (r.paid && !r.revoked) deliver(key);
     return r.paid && !r.revoked;
   }
+
+  // ---- the letter with the key in it: once to each buyer (tried again a few times if the mail server won't take it) ----
+  const sending = new Set();
+  async function deliver(key) {
+    const r = book.keys[key];
+    if (!r || !r.paid || r.revoked || r.mailed || !r.email || sending.has(key) || !cfg("SMTP_USER") || !cfg("SMTP_PASS")) return;
+    if ((r.mailTries || 0) >= 6 || Date.now() - (r.mailAt || 0) < 60000 * (r.mailTries || 0)) return;
+    sending.add(key); r.mailTries = (r.mailTries || 0) + 1; r.mailAt = Date.now();
+    const site = SITE(), user = cfg("SMTP_USER");
+    const text = `Thank you for buying Forester: Reckoning.
+
+Your licence key:
+
+    ${key}
+
+To unlock the full game: open Forester: Reckoning, choose "Unlock the full game" on the title screen, paste the key, and press Unlock. It works on up to ${MAX_COMPUTERS} computers.
+
+(Bought from inside the game? It has already unlocked itself — keep this key for your other computers.)
+
+The game, and its news: ${site}
+
+Keep this email. If you ever lose your key or need a hand, just reply to it.
+
+— Roan, DeadlyDog Productions`;
+    const html = `<!doctype html><html><body style="margin:0;padding:0;background:#e9edf0">
+<div style="max-width:520px;margin:0 auto;padding:36px 24px;font:16px/1.55 Georgia,'Times New Roman',serif;color:#25303a">
+<p style="margin:0 0 6px;font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:#5a6570">Forester · Reckoning</p>
+<h1 style="margin:0 0 18px;font-weight:normal;font-size:26px">Thank you — the game is yours.</h1>
+<p style="margin:0 0 10px">Your licence key:</p>
+<p style="margin:0 0 22px;padding:16px;border:1px solid #9aa6b0;border-radius:4px;background:#f6f8f9;font:600 20px/1.3 Menlo,Consolas,monospace;letter-spacing:.05em;text-align:center">${key}</p>
+<p style="margin:0 0 12px">To unlock it: open Forester: Reckoning, choose <b>Unlock the full game</b> on the title screen, paste the key, and press <b>Unlock</b>. It works on up to ${MAX_COMPUTERS} computers.</p>
+<p style="margin:0 0 12px;color:#4a5661">Bought from inside the game? It has already unlocked itself — keep this key for your other computers.</p>
+<p style="margin:0 0 24px"><a href="${site}" style="color:#2f5266">The game's page</a></p>
+<p style="margin:0;color:#5a6570;font-size:14px">Keep this email. If you ever lose your key or need a hand, just reply to it.<br>— Roan, DeadlyDog Productions</p>
+</div></body></html>`;
+    try {
+      await mailer.send({ host: cfg("SMTP_HOST") || "smtp.gmail.com", port: cfg("SMTP_PORT") || 465, secure: cfg("SMTP_TLS") !== "0", user, pass: cfg("SMTP_PASS"),
+        from: user, fromName: "DeadlyDog Productions", to: r.email, subject: "Your Forester: Reckoning licence key", text, html });
+      r.mailed = Date.now(); log(`shop: key emailed — ${key.slice(0, 8)}…`);
+    } catch (e) { log("shop: couldn't email the key:", e.message); }
+    sending.delete(key); save();
+  }
+  // (every minute: Stripe's checkouts finished in the last two days, any of ours not yet known paid, or not yet emailed)
+  async function sweep() {
+    if (!isOn()) return;
+    try {
+      const since = Math.floor(Date.now() / 1000) - 2 * 86400;
+      const l = await stripe("GET", `/v1/checkout/sessions?status=complete&limit=100&created[gte]=${since}`);
+      for (const s of l.data || []) {
+        const key = book.sessions[s.id], r = key && book.keys[key]; if (!r) continue;
+        if (s.customer_details && s.customer_details.email && !r.email) r.email = s.customer_details.email;
+        if (!r.paid) await paid(key, true); else deliver(key);
+      }
+    } catch (e) { if (!/couldn't reach|ENOTFOUND|ETIMEDOUT/.test(e.message)) log("shop: the sweep:", e.message); }
+  }
+  setInterval(sweep, 60000).unref(); setTimeout(sweep, 5000).unref();
 
   // ---- the keys, as the game asks after them (answered in the shape Lemon Squeezy's licence API uses, which the game
   //      already understands) ----
@@ -201,5 +263,5 @@ var r=document.createRange();r.selectNodeContents(k);var s=getSelection();s.remo
     json(res, 404, {}); return true;
   }
 
-  return { handle, licence, isOn, isLive, _book: () => book };
+  return { handle, licence, isOn, isLive, sweep, _book: () => book };
 };
