@@ -6,6 +6,8 @@
 // who is speaking, what to do next, and the one-key prompt for the thing in
 // front of you.
 
+import { shownAs } from "./keys.js";
+
 export const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -239,7 +241,7 @@ export const UI = {
   // a strip of keys and what they do: [["W","A","S","D"], "walk"], ["Shift", "run"] ...
   keys(parts, secs = 7) {
     const k = $("keys");
-    k.innerHTML = parts.map(([keys, what]) => `<span class="kp">${[].concat(keys).map(x => `<kbd>${x}</kbd>`).join("")}<span>${what}</span></span>`).join("");
+    k.innerHTML = parts.map(([keys, what]) => `<span class="kp">${[].concat(keys).map(x => `<kbd>${shownAs(x) || x}</kbd>`).join("")}<span>${what}</span></span>`).join("");
     k.classList.remove("hidden"); k.style.opacity = 1;
     clearTimeout(this._keysT); clearTimeout(this._keysHide);
     this._keysT = setTimeout(() => { k.style.opacity = 0; this._keysHide = setTimeout(() => k.classList.add("hidden"), 500); }, secs * 1000);

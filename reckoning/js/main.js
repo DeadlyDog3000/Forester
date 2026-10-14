@@ -13,6 +13,7 @@ import { BUILDINGS as TOWN_BUILDINGS, JOBS, MAT_NAME, YEAR, UPGRADES, WORKS, SHE
 import { TECH, TECH_TREES, techCost, techTime } from "./gov.js";
 import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
+import { ACTIONS, keyOf, keyName, bind as bindKey, resetKeys, listenFor, shownAs, changed as changedKey } from "./keys.js";
 import { AUDIO } from "./audio.js";
 import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE, WATER_NAME, packLayout, setToolItems } from "./body.js";
 import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot, applyStoryLook, storyLookOf } from "./story.js";
@@ -51,12 +52,15 @@ $("view").appendChild(renderer.domElement);
 const SET_KEY = "reckoning.settings.v1";
 try { Object.assign(G.settings, JSON.parse(localStorage.getItem(SET_KEY)) || {}); } catch (e) {}
 G.saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(G.settings)); } catch (e) {} };
-// the very first run: a graphics preset to suit the machine — High on Apple's own chips and on a real graphics card,
-// Balanced on the integrated Intel graphics of older laptops (the player can change it in Settings either way)
+// the very first run: a graphics preset to suit the machine — High on Apple's own chips and on a real graphics card;
+// Balanced on graphics built into the processor (Intel's, and AMD's "Radeon Graphics" and Vega); Performance where
+// there's no graphics card being used at all (drawn in software). The player can change it in Settings either way
+let gpuName = "";
+try { const gl = renderer.getContext(), ext = gl.getExtension("WEBGL_debug_renderer_info"); gpuName = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch (e) {}
 if (!G.settings.quality) {
-  let gpu = "";
-  try { const gl = renderer.getContext(), ext = gl.getExtension("WEBGL_debug_renderer_info"); gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch (e) {}
-  G.settings.quality = /intel|llvmpipe|swiftshader|software/i.test(gpu) && !/apple m\d/i.test(gpu) ? "balanced" : "high";
+  const soft = /llvmpipe|swiftshader|software|basic render|microsoft basic/i.test(gpuName);
+  const built = /intel|radeon\(tm\) graphics|radeon graphics|radeon vega|vega \d+ graphics|mali|adreno|powervr/i.test(gpuName) && !/apple m\d|arc\b|radeon (rx|pro)/i.test(gpuName);
+  G.settings.quality = soft ? "performance" : built ? "balanced" : "high";
 }
 function applySettings() {
   const s = G.settings;
@@ -97,6 +101,30 @@ for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true]
   $(id).addEventListener("input", e => { G.settings[key] = num ? +e.target.value : e.target.value; applySettings(); G.saveSettings(); });
 }
 $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.value; applySettings(); G.saveSettings(); });
+// ---- your keys: each action, the key it's on — click it and press another. A key another action had is swapped over to
+//      it, so nothing's ever left without one ----
+function drawKeys(note = "") {
+  const el = $("keyBinds");
+  el.innerHTML = ACTIONS.map(a => `<div class="kb-row${changedKey(a.id) ? " moved" : ""}"><span>${a.label}</span><button class="kb-key" data-kb="${a.id}">${keyName(keyOf(a.id))}</button></div>`).join("")
+    + `<div class="kb-foot"><span class="kb-note" id="kbNote">${note || "Click a key, then press the one you want. Esc and the number keys stay as they are."}</span><button class="kb-reset" id="kbReset">Reset all</button></div>`;
+}
+$("setKeysOpen").onclick = () => { const el = $("keyBinds"), open = el.classList.toggle("hidden") === false; $("setKeysOpen").textContent = open ? "Done" : "Change keys…"; if (open) drawKeys(); else listenFor(null); };
+$("keyBinds").addEventListener("click", e => {
+  if (e.target.id === "kbReset") { resetKeys(); drawKeys("Every key back as it was."); return; }
+  const b = e.target.closest("[data-kb]"); if (!b) return;
+  for (const x of document.querySelectorAll(".kb-key.wait")) x.classList.remove("wait");
+  b.classList.add("wait"); b.textContent = "Press a key…";
+  const id = b.dataset.kb, a = ACTIONS.find(x => x.id === id);
+  listenFor(code => {
+    if (code === "Escape") { drawKeys("Left as it was."); return; }
+    const r = bindKey(id, code);
+    drawKeys(!r.ok ? r.why : r.swapped ? `${a.label}: ${keyName(code)}. ${r.swapped} takes its old key, ${keyName(keyOf(ACTIONS.find(x => x.label === r.swapped).id))}.` : `${a.label}: ${keyName(code)}.`);
+  });
+});
+// (the controls list shows your keys, not the ones the game came with)
+function relabelControls() {
+  for (const k of document.querySelectorAll("#controls kbd")) { k.dataset.k ??= k.textContent; k.textContent = shownAs(k.dataset.k) || k.dataset.k; }
+}
 // ---- FPS boosters ----
 const PRESETS = {
   high: { scale: 1, dynres: false, shadows: "high", draw: 1, trees: "full", post: true, ao: true },
@@ -137,13 +165,19 @@ $("setFps").addEventListener("change", e => { G.settings.showFps = e.target.chec
 $("setPost").addEventListener("change", e => custom("post", e.target.checked));
 $("setAO").addEventListener("change", e => custom("ao", e.target.checked));
 // the frame rate, measured each half second: shown if asked, and used by auto resolution
-let fpsN = 0, fpsT = 0, lowFor = 0;
+let fpsN = 0, fpsT = 0, lowFor = 0, slowFor = 0;
 function meterFps(dtReal) {
   fpsN++; fpsT += dtReal;
   if (fpsT < 0.5) return;
   const fps = fpsN / fpsT; fpsN = 0; fpsT = 0;
   const s = G.settings, m = $("fpsMeter");
   if (s.showFps) { m.textContent = `${Math.round(fps)} FPS${dynScale < 1 ? ` · ${Math.round((s.scale ?? 1) * dynScale * 100)}%` : ""}`; m.classList.toggle("slow", fps < 30); }
+  // (on High, and running slowly — under 28 a second for half a minute of play — stepped down to Balanced, once, and
+  //  said so: a machine the first guess got wrong isn't left struggling)
+  if (s.quality === "high" && G.mode === "play" && !s.autoEased) {
+    slowFor = fps < 28 ? slowFor + 0.5 : Math.max(0, slowFor - 1);
+    if (slowFor >= 30) { s.autoEased = true; s.quality = "balanced"; applySettings(); G.saveSettings(); UI.hint("The game was running slowly, so the graphics are now Balanced. Settings → Graphics to change it back.", 6); }
+  }
   if (s.dynres && G.mode === "play") {
     const aim = s.cap ? s.cap * 0.92 : 50;
     if (fps < aim) lowFor++; else lowFor = 0;
@@ -364,7 +398,7 @@ addEventListener("keydown", e => {
   const i = bs.indexOf(document.activeElement), n = e.code === "ArrowDown" ? (i + 1) % bs.length : (i <= 0 ? bs.length - 1 : i - 1);
   bs[n].focus(); window.__uisfx && window.__uisfx.hover();
 });
-$("btnControls").onclick = () => { back = "title"; screen("controls"); };
+$("btnControls").onclick = () => { back = "title"; relabelControls(); screen("controls"); };
 $("btnUpdates").onclick = () => { back = "title"; screen("updates"); };
 $("btnCredits").onclick = () => { back = "title"; screen("credits"); };
 $("btnAch").onclick = () => { back = "title"; renderAchievements($("achList")); screen("achievements"); };
@@ -2101,7 +2135,7 @@ function resume() {
 }
 $("btnResume").onclick = resume;
 $("btnPauseSettings").onclick = () => { back = "pause"; screen("settings"); };
-$("btnPauseControls").onclick = () => { back = "pause"; screen("controls"); };
+$("btnPauseControls").onclick = () => { back = "pause"; relabelControls(); screen("controls"); };
 // (restarting throws away what you've done since the chapter began: the first click asks, a second within a few seconds does it)
 let restartArmed = 0;
 const restartWord = () => G.arena ? (G.arena.multi ? "Restart battle" : "Restart duel") : "Restart chapter";
@@ -2204,6 +2238,12 @@ loadModels().finally(() => $("loading").remove());
 renderer.domElement.addEventListener("webglcontextlost", e => {
   e.preventDefault();
   console.error("Reckoning: the graphics were lost — saving and starting again");
+  // (lost again within a few minutes: the card's struggling — the lightest graphics from now on, rather than going round
+  //  and round)
+  try {
+    const t = Date.now(), last = +(sessionStorage.getItem("reckoning.lost") || 0); sessionStorage.setItem("reckoning.lost", String(t));
+    if (t - last < 180000 && G.settings.quality !== "performance") { G.settings.quality = "performance"; G.settings.autoEased = true; G.saveSettings(); }
+  } catch (e2) {}
   G.flushSave && G.flushSave();
   try { if (G.mode === "play") sessionStorage.setItem("reckoning.resume", "1"); } catch (e2) {}
   setTimeout(() => location.reload(), 400);

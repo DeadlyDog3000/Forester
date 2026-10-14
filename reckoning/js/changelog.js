@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.36.0", date: "14 October 2026", title: "Your keys",
+    items: [
+      "Change any key: Settings → Keys → Change keys… Click an action and press the key you want. A key another action had is swapped over to it, so nothing's ever left without one; Reset all puts every key back. The controls list and the key hints in the game show your keys. (Esc and the number keys stay as they are.)",
+      "Fixed on Windows: crouching (Ctrl) and walking along a wall could close the game — the game window still had a hidden menu that answered Ctrl+W. On Windows the game's window has no menu at all now; F11 is still full screen, and updates still come by themselves.",
+      "Ctrl no longer sets off the browser's own shortcuts (save, find, bookmark, print) while you play in a browser.",
+      "Faster on laptops with two graphics chips: the game asks for the stronger one. On Windows, a graphics card the browser would refuse is used anyway, instead of drawing everything in software at a few frames a second.",
+      "Better first guesses: built-in AMD graphics start on Balanced, like Intel's, and a computer with no graphics card in use starts on Performance. If the game runs slowly on High for half a minute of play, it steps down to Balanced by itself, once, and tells you.",
+      "If the graphics driver keeps giving out, the game drops to the Performance graphics instead of restarting again and again.",
+      "The game writes down which graphics card it's using in its log, for when something's slow.",
+      "The full game will be CA$14.99.",
+    ],
+  },
+  {
     v: "1.35.1", date: "13 October 2026", title: "The shop, readied",
     items: [
       "The full game will be sold through Stripe's checkout. Buy it from inside the game and it unlocks by itself the moment the payment goes through — no key to copy — and shows you your key for your other computers (each key works on up to three).",

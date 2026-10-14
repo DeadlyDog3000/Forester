@@ -6,6 +6,7 @@
 // people who walk around with you, the camera over (or behind) your eyes, and
 // the one thing in front of you that E would do something to.
 
+import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
@@ -41,6 +42,9 @@ addEventListener("keydown", e => {
   if (!input.keys.has(e.code)) input.pressed.add(e.code);
   input.keys.add(e.code);
   if (["Space", "Tab"].includes(e.code) && G.mode === "play") e.preventDefault();
+  // (Ctrl is crouch: in play, none of the browser's own Ctrl shortcuts — save the page, find, bookmark, print — go off
+  //  as you crouch and walk)
+  if (e.ctrlKey && !e.metaKey && !e.altKey && G.mode === "play" && /^Key[A-Z]$|^Digit\d$/.test(e.code)) e.preventDefault();
 });
 addEventListener("keyup", e => input.keys.delete(e.code));
 addEventListener("blur", () => input.keys.clear());
