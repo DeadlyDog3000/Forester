@@ -6,7 +6,7 @@
 # Test-mode keys (sk_test_/rk_test_) first, to try a purchase with Stripe's test card; then the live ones.
 set -e
 read -rsp "Stripe secret key (sk_… or rk_…, hidden as you type): " K; echo
-read -rp  "Price ID (price_…): " P
+read -rp  "Price ID (Enter for price_1UQGV8DrqvgAMdV8w2pnuRir): " P; P=${P:-price_1UQGV8DrqvgAMdV8w2pnuRir}
 read -rp  "Let Stripe work out sales tax? Only once Stripe Tax is set up (y/N): " TX
 case "$K" in sk_*|rk_*) ;; *) echo "That doesn't look like a Stripe secret key."; exit 1;; esac
 case "$P" in price_*) ;; *) echo "That doesn't look like a price ID."; exit 1;; esac

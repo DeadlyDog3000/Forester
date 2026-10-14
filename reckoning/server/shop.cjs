@@ -84,7 +84,6 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
       client_reference_id: key,
       metadata: { licence: key },
       payment_intent_data: { description: `Forester: Reckoning — licence key ${key}`, metadata: { licence: key } },
-      custom_text: { submit: { message: "Your licence key is shown as soon as you've paid, and it's on your receipt. Bought from inside the game? It unlocks by itself." } },
       allow_promotion_codes: "true",
       ...(cfg("STRIPE_TAX") === "1" ? { automatic_tax: { enabled: "true" } } : {}),
     });
