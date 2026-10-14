@@ -184,7 +184,11 @@ button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8
         if (r.revoked) return page(res, 200, "Refunded", `<h1>This purchase was refunded</h1><p>Its key no longer unlocks the game.</p>`), true;
         if (!ok) return page(res, 200, "Almost there", `<h1>Almost there</h1><p>Stripe hasn't confirmed the payment yet. This page will look again in a few seconds.</p><script>setTimeout(()=>location.reload(),4000)</script>`), true;
         return page(res, 200, "Thank you", `<h1>Thank you</h1><p>Forester: Reckoning is yours. Here's your licence key:</p><div class="key" id="k">${esc(key)}</div>
-<button onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('k').textContent).then(()=>this.textContent='Copied')">Copy the key</button>
+<button id="cp">Copy the key</button>
+<script>document.getElementById("cp").onclick=function(){var k=document.getElementById("k"),b=this,done=function(){b.textContent="Copied"};
+// (a plain-http page has no clipboard API: the key selected and copied the old way instead)
+if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(k.textContent).then(done);return}
+var r=document.createRange();r.selectNodeContents(k);var s=getSelection();s.removeAllRanges();s.addRange(r);try{if(document.execCommand("copy"))done();else b.textContent="Selected — press Cmd+C"}catch(e){b.textContent="Selected — press Cmd+C"}};</script>
 <p>In the game: <b>Unlock the full game</b> on the title screen, paste the key, and <b>Unlock</b>. It works on up to ${MAX_COMPUTERS} computers. It's also in the description on your emailed receipt — keep it.</p>
 <p><a class="b" href="${esc(SITE())}">Back to the game's page</a></p><small>Lost it later? Write to deadlydogdev@gmail.com with the email you paid with.</small>`), true;
       }
