@@ -66,7 +66,7 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
     const base = new URL(cfg("STRIPE_API_BASE") || "https://api.stripe.com"), body = params ? form(params) : "";
     const lib = base.protocol === "http:" ? http : https;
     const rq = lib.request({ protocol: base.protocol, hostname: base.hostname, port: base.port || undefined, path: p, method, timeout: 15000,
-      headers: { Authorization: `Bearer ${cfg("STRIPE_SECRET_KEY")}`, "Content-Type": "application/x-www-form-urlencoded", "Content-Length": Buffer.byteLength(body), "Stripe-Version": "2024-06-20" } }, r => {
+      headers: { Authorization: `Bearer ${cfg("STRIPE_SECRET_KEY")}`, "Content-Type": "application/x-www-form-urlencoded", "Content-Length": Buffer.byteLength(body), "Stripe-Version": "2025-03-31.basil" } }, r => {
       let d = ""; r.on("data", c => d += c); r.on("end", () => { let j = null; try { j = JSON.parse(d); } catch (e) {} if (r.statusCode >= 200 && r.statusCode < 300 && j) ok(j); else no(new Error((j && j.error && j.error.message) || `Stripe answered ${r.statusCode}`)); });
     });
     rq.on("error", no); rq.on("timeout", () => rq.destroy(new Error("Stripe didn't answer")));
