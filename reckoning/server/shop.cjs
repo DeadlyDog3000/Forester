@@ -45,6 +45,8 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
   };
   const cfg = k => readEnv()[k] || process.env[k] || "";
   const SITE = () => cfg("SHOP_SITE") || "https://deadlydog3000.github.io/deadlydog-productions/reckoning.html";
+  // (where a buyer writes for help: the address the keys are sent from — a real inbox, whoever runs the shop)
+  const contact = () => cfg("SMTP_FROM") || cfg("SMTP_USER") || "the address on the game's page";
   const isOn = () => !!(cfg("STRIPE_SECRET_KEY") && cfg("STRIPE_PRICE"));
   const isLive = () => /^(sk|rk)_live_/.test(cfg("STRIPE_SECRET_KEY"));
 
@@ -241,7 +243,7 @@ button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8
       if (p === "/shop/key") {
         if (tooMany(req, "k", 30, 60000)) return page(res, 429, "One moment", `<h1>One moment</h1><p>Try again in a minute.</p>`), true;
         const sid = String(u.searchParams.get("s") || ""), key = /^cs_(test|live)_[A-Za-z0-9]{10,200}$/.test(sid) && book.sessions[sid];
-        if (!key) return page(res, 404, "Not found", `<h1>We can't find that purchase</h1><p>If you've paid and see this, write to <a class="b" href="mailto:deadlydogdev@gmail.com">deadlydogdev@gmail.com</a> with the email you paid with — your key is also in the description on your Stripe receipt.</p>`), true;
+        if (!key) return page(res, 404, "Not found", `<h1>We can't find that purchase</h1><p>If you've paid and see this, write to <a class="b" href="mailto:${esc(contact())}">${esc(contact())}</a> with the email you paid with — your key is also in the description on your Stripe receipt.</p>`), true;
         const ok = await paid(key, true), r = book.keys[key];
         if (r.revoked) return page(res, 200, "Refunded", `<h1>This purchase was refunded</h1><p>Its key no longer unlocks the game.</p>`), true;
         if (!ok) return page(res, 200, "Almost there", `<h1>Almost there</h1><p>Stripe hasn't confirmed the payment yet. This page will look again in a few seconds.</p><script>setTimeout(()=>location.reload(),4000)</script>`), true;
@@ -252,7 +254,7 @@ button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8
 if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(k.textContent).then(done);return}
 var r=document.createRange();r.selectNodeContents(k);var s=getSelection();s.removeAllRanges();s.addRange(r);try{if(document.execCommand("copy"))done();else b.textContent="Selected — press Cmd+C"}catch(e){b.textContent="Selected — press Cmd+C"}};</script>
 <p>In the game: <b>Unlock the full game</b> on the title screen, paste the key, and <b>Unlock</b>. It works on up to ${MAX_COMPUTERS} computers. It's also in the description on your emailed receipt — keep it.</p>
-<p><a class="b" href="${esc(SITE())}">Back to the game's page</a></p><small>Lost it later? Write to deadlydogdev@gmail.com with the email you paid with.</small>`), true;
+<p><a class="b" href="${esc(SITE())}">Back to the game's page</a></p><small>Lost it later? Write to ${esc(contact())} with the email you paid with.</small>`), true;
       }
     } catch (e) {
       log("shop:", e.message);
