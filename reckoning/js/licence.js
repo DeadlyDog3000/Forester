@@ -25,7 +25,7 @@ export const SHOP = {
   storeId: 0, productId: 0,
   // (the game's page, where the buy box is: what the Buy button opens until there's a checkout link of its own)
   url: "https://deadlydog3000.github.io/deadlydog-productions/reckoning.html#buy",
-  price: "CA$19.99",
+  price: "CA$14.99",
 };
 export const SALES_OPEN = !!SHOP.open;
 export const buyUrl = () => SHOP.checkout || SHOP.url;
