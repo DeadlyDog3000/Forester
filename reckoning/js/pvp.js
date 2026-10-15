@@ -415,7 +415,7 @@ function drawArmy() {
   const tr = (k, T, n, cost, max) => `<div class="pv-tr"><span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><b class="pv-tr-c">${n}</b><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
   const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? " — you're the host: the size of battle is yours to choose" : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
-    <div class="pv-muster">${Object.entries(TROOPS).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "A field gun and its two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
+    <div class="pv-muster">${Object.entries(TROOPS).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
   if (!A.battle) { el.innerHTML = ""; el.classList.add("hidden"); return; }
   el.classList.remove("hidden");
   const locked = must && must.mine;
@@ -603,14 +603,14 @@ export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.ene
 // Every side has the same purse, and spends it as its commander sees fit: a few men with the best of arms, or many
 // with cheap ones; guns cost dearest of all (and come with their crews)
 export const TROOPS = {
-  musketeer: { name: "Musketeers", one: "Musketeer", cost: 60, lo: { long: "musket", side: "none", blade: "dagger" }, note: "Musket and bayonet: the line's backbone" },
-  grenadier: { name: "Grenadiers", one: "Grenadier", cost: 120, lo: { long: "musket", side: "none", blade: "dagger" }, nades: 3, note: "Musket, bayonet, and three grenades to throw" },
+  musketeer: { name: "Musketeers", one: "Musketeer", cost: 60, lo: { long: "musket", side: "none", blade: "dagger" }, note: "Musket and bayonet" },
+  grenadier: { name: "Grenadiers", one: "Grenadier", cost: 120, lo: { long: "musket", side: "none", blade: "dagger" }, nades: 3, note: "Musket, bayonet, 3 grenades" },
   crossbow: { name: "Crossbowmen", one: "Crossbowman", cost: 36, lo: { long: "crossbow", side: "none", blade: "sword" }, note: "Crossbow and sword" },
-  sword: { name: "Swordsmen", one: "Swordsman", cost: 42, lo: { long: "none", side: "pistol", blade: "sword" }, note: "Sword and a pistol, for close work" },
-  pike: { name: "Pikemen", one: "Pikeman", cost: 28, lo: { long: "none", side: "none", blade: "spear" }, note: "A long spear: keeps a man at a distance" },
-  axe: { name: "Axemen", one: "Axeman", cost: 26, lo: { long: "none", side: "none", blade: "battleaxe" }, note: "A battle axe: slow, and every blow felt" },
-  bow: { name: "Bowmen", one: "Bowman", cost: 22, lo: { long: "bow", side: "none", blade: "dagger" }, note: "Bow and knife: cheap, quick, many" },
-  cavalry: { name: "Cavalry", one: "Trooper", cost: 150, horse: true, lo: { long: "none", side: "pistol", blade: "sword" }, note: "A trooper on his horse: a pistol, a sabre, and the weight of the horse behind every charge — but pikes are death to him" },
+  sword: { name: "Swordsmen", one: "Swordsman", cost: 42, lo: { long: "none", side: "pistol", blade: "sword" }, note: "Sword and pistol" },
+  pike: { name: "Pikemen", one: "Pikeman", cost: 28, lo: { long: "none", side: "none", blade: "spear" }, note: "Long spear · stops horse" },
+  axe: { name: "Axemen", one: "Axeman", cost: 26, lo: { long: "none", side: "none", blade: "battleaxe" }, note: "Battle axe · slow, heavy" },
+  bow: { name: "Bowmen", one: "Bowman", cost: 22, lo: { long: "bow", side: "none", blade: "dagger" }, note: "Bow and knife · cheap" },
+  cavalry: { name: "Cavalry", one: "Trooper", cost: 150, horse: true, lo: { long: "none", side: "pistol", blade: "sword" }, note: "Horse, pistol, sabre · fears pikes" },
 };
 // ---- a part of the company to command by itself: a letter for each arm (pressed again, the whole company) ----
 export const GROUPS = [

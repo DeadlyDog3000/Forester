@@ -15,6 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=IM+Fell+English:ital@0;1&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script src="js/keep.js"></script>
   <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
 </head>
 <body>
@@ -361,6 +362,7 @@
       <p class="sub" id="slotsSub">Six games, side by side. Export one to keep it safe or to carry it to another computer; import it back into any slot.</p>
       <div id="slotList"></div>
       <input id="slotFile" type="file" accept=".json,application/json" hidden>
+      <div id="slotBackups" class="slot-bk hidden"></div>
       <button class="btn ghost" data-back>Back</button>
     </section>
 

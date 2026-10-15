@@ -1646,3 +1646,19 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-news { padding: 10px 12px; border: 1px solid var(--gold); border-radius: 4px; background: var(--panel); color: var(--ink); font: 13px/1.45 var(--sans); }
 .cmp-news b { display: block; font: 16px var(--serif); margin-bottom: 4px; }
 .cmp-news div { padding: 2px 0; } .cmp-news span { color: var(--ink-dim); } .cmp-news .tm-lnk { margin-top: 4px; }
+
+/* (a lost game brought back: the copies the app put by) */
+.slot-bk { margin: 6px auto; max-width: 560px; }
+.slot-bk.open { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 50; width: min(600px, calc(100vw - 32px)); margin: 0; padding: 18px 20px; background: rgba(12, 22, 15, 0.97); border: 1px solid rgba(201, 162, 74, 0.6); border-radius: 4px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55), 0 10px 40px rgba(0, 0, 0, 0.6); }
+.slot-bk.open .sub { color: #e8dcc0; }
+.slot-bk .bk-list { display: flex; flex-direction: column; gap: 6px; max-height: 36vh; overflow-y: auto; margin: 8px 0; }
+.slot-bk .bk { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 8px 12px; }
+.slot-bk .bk small { font: 12px var(--sans); opacity: 0.8; }
+
+/* (the company's rows never wider than their column: a long note cut short, not the page pushed out) */
+.pv-tr { min-width: 0; } .pv-tr-n { min-width: 0; overflow: hidden; } .pv-tr-n small, .pv-tr-n b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* (the muster kept short: the colours six to a row, the sizes of battle smaller) */
+.pv-unis { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 4px; }
+.pv-uni { padding: 3px 6px; font-size: 12px; }
+.pv-purse .pv-gr { padding: 3px 7px; }
+.pv-purse .pv-gr b { font-size: 11px; }

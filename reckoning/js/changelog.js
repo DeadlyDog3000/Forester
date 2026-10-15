@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.41.1", date: "15 October 2026", title: "Your saves, kept safe",
+    items: [
+      "Lost a game? On the Saves screen, \"Lost a game? Bring back an earlier copy of your saves\" lists the copies of all your saves the app put by before each new version. Choose one and the game restarts with your games, your name online and your records as they were. Your saves as they are now are put by first, so trying one loses nothing.",
+      "The app now keeps a copy of everything the game saves (your games, who you are online, your records) in a file of its own, renewed every minute. If the game ever starts with its storage wiped, it brings it all back from that copy by itself: no lost games, and no new stranger in place of you online.",
+      "A copy of the saves is now put by at every game update, not only when the app itself is reinstalled. The newest ten are kept, and the fullest of them too, however old. Before, the copies were weeded by their names, which could throw away the newest first.",
+      "Online hosting on your own network works again after an update. The updated app had been starting without its link to the page.",
+      "The muster is shorter: each kind of soldier's description is a few words, and the colours and sizes of battle take less room. Nothing runs off the side any more.",
+    ],
+  },
+  {
     v: "1.41.0", date: "15 October 2026", title: "Command each arm",
     items: [
       "Command one arm of your company at a time: in a battle, a letter picks it out (L musketeers, O grenadiers, P pikemen, I bowmen and crossbowmen, U swordsmen and axemen, K cavalry), and the number keys then give orders to them alone. Hold the pikes on a hill, send the horse round the flank and keep the musketeers with you. The same letter again gives your orders to the whole company. The page of orders shows which arm you're commanding.",

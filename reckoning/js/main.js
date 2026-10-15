@@ -283,6 +283,28 @@ function play(chapter, opts) {
 // a new game: first, which of the six saves it goes in
 $("btnNew").onclick = () => { back = "title"; slotMode = "new"; buildSlots(); screen("slots"); };
 $("btnSlots").onclick = () => { back = "title"; slotMode = "play"; buildSlots(); screen("slots"); };
+// ---- a lost game brought back: the app puts by a copy of all the saves before every new version; any of them can be
+// put back in place of the saves now (which are themselves put by first, so nothing is lost by trying) ----
+async function drawBackups(open) {
+  const el = $("slotBackups"), K = window.reckoningKeep; if (!el) return;
+  if (!K || !K.backups) { el.classList.add("hidden"); return; }
+  el.classList.remove("hidden"); el.classList.toggle("open", !!open);
+  if (!open) { el.innerHTML = `<button class="linkish" id="bkOpen">Lost a game? Bring back an earlier copy of your saves</button>`; $("bkOpen").onclick = () => drawBackups(true); return; }
+  el.innerHTML = `<p class="sub">Looking…</p>`;
+  let list = []; try { list = await K.backups(); } catch (e) {}
+  const mb = n => n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+  el.innerHTML = list.length ? `<p class="sub">Before every new version the app put by a copy of all your saves: your games, your name online, your records. Choose one to put back — the game restarts with it. (Your saves as they are now are put by first, so you can come back to them the same way.) The biggest is likely the one with the most played.</p>
+    <div class="bk-list">${list.map(b => `<button class="btn ghost bk" data-bk="${b.name.replace(/"/g, "")}"><b>${new Date(b.at).toLocaleString()}</b><small>${b.name.replace(/^before-/, "before ").replace(/-from-/, ", from ").replace(/-\d{4}-\d\d-\d\d$/, "")} · ${mb(b.size)}</small></button>`).join("")}</div>
+    <button class="linkish" id="bkClose">Never mind</button>`
+    : `<p class="sub">No earlier copies of your saves on this computer yet.</p><button class="linkish" id="bkClose">Close</button>`;
+  $("bkClose").onclick = () => drawBackups(false);
+  for (const b of el.querySelectorAll("[data-bk]")) b.onclick = async () => {
+    if (!confirm(`Put back the saves from ${b.querySelector("b").textContent}? The game will restart. Your saves as they are now are kept as a backup too.`)) return;
+    el.innerHTML = `<p class="sub">Putting it back — the game restarts…</p>`;
+    try { G.flushSave && G.flushSave(); } catch (e) {}
+    await K.restore(b.dataset.bk);
+  };
+}
 $("btnContinue").onclick = () => { const s = loadSave(); if (!s) return; G.who = s.who || "brother"; play(s.chapter || 1); };
 $("btnChapters").onclick = () => { buildChapters(); back = "title"; screen("chapters"); };
 // multiplayer: the lobby, and from it into a game
@@ -475,6 +497,7 @@ function slotDesc(s) {
   return { t: `${c.title}`, d: `${who} · ${esc(town)}<br>Played ${slotWhen(s.at)}` };
 }
 function buildSlots() {
+  drawBackups(false);
   $("slotsTitle").textContent = slotMode === "new" ? "A new game — which save?" : "Saves";
   $("slotsSub").textContent = slotMode === "new" ? "Pick an empty save, or one to start over (the game in it will be gone)." : "Six games, side by side. Export one to keep it safe or to carry it to another computer; import it back into any save.";
   const cur = getSlot();
