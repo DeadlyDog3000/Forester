@@ -300,13 +300,18 @@ function checkEnd() {
 // ---------------------------------------------------------------------------
 //  the screens: choosing a crown, and the map
 // ---------------------------------------------------------------------------
-let view = { z: 1, ox: 0, oy: 0 }, sel = null, selCity = null, hov = null, hovCity = null, note = "";
+let view = { z: 1, ox: 0, oy: 0 }, sel = null, selCity = null, hov = null, hovCity = null, note = "", news = [];
 export function initCampaign(c, battle) {
   ctx = c; startBattle = battle;
   $("cmpBack").onclick = () => ctx.screen("pvp");
   $("cmpNew").onclick = () => drawPick();
   $("cmpPick").addEventListener("click", e => { const b = e.target.closest("[data-crown]"); if (!b) return; if (load() && !confirm("Start a new campaign? The one you have now will be lost.")) return; begin(b.dataset.crown); sel = null; selCity = null; drawMap(true); });
-  $("cmpEnd").onclick = () => { endSeason(); note = ""; drawMap(); };
+  $("cmpEnd").onclick = () => {
+    const before = C.log.length ? C.log[0] : null; endSeason();
+    // (what happened while the season turned: the news of it, at the top)
+    const fresh = []; for (const l of C.log) { if (l === before) break; fresh.push(l); }
+    news = fresh.filter(l => !/^(Spring|Summer|Autumn|Winter) \d+$/.test(l.title)).reverse(); note = ""; drawMap();
+  };
   $("cmpSide").addEventListener("click", sideClick);
   const cv = $("cmpMap");
   let drag = null;
@@ -347,7 +352,26 @@ function drawPick() {
 }
 function paint() {
   const cv = $("cmpMap"); if (!cv || !C) return;
-  drawEurope(cv, E(), { hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false });
+  const g = drawEurope(cv, E(), { hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false });
+  // over the map: your towns ringed in your colour; the towns of your enemies within your army's reach marked with
+  // crossed swords (dim once it's marched this season); a town an enemy marches on, red
+  const c = cv.getContext("2d"), S = cv.width / MG_W, k = cv.width / 1300, at = ct => { const [x, y] = gridOf(ct[1], ct[2]); return [(x * S - view.ox) * view.z, (y * S - view.oy) * view.z]; };
+  const threat = new Set(C.events.filter(e => e.kind === "attack" && !e.done).map(e => e.ct));
+  // (crossed swords, drawn: two blades and their guards)
+  const swords = (x, y, r, col) => { c.save(); c.strokeStyle = col; c.lineCap = "round"; c.lineWidth = 2.2 * k; c.beginPath(); c.moveTo(x - r, y - r); c.lineTo(x + r, y + r); c.moveTo(x + r, y - r); c.lineTo(x - r, y + r); c.stroke(); c.lineWidth = 2 * k; c.beginPath(); c.moveTo(x - r * 0.95, y + r * 0.35); c.lineTo(x - r * 0.35, y + r * 0.95); c.moveTo(x + r * 0.95, y + r * 0.35); c.lineTo(x + r * 0.35, y + r * 0.95); c.stroke(); c.restore(); };
+  c.save(); c.lineWidth = 2.2 * k;
+  for (const ct of CITIES) {
+    const own2 = cityOwner(g, ct); if (!own2) continue;
+    const [x, y] = at(ct); if (x < -20 || y < -20 || x > cv.width + 20 || y > cv.height + 20) continue;
+    if (own2 === C.me) {
+      c.strokeStyle = threat.has(ct[0]) ? "#c0281a" : NATIONS[C.me].color; c.beginPath(); c.arc(x, y, (7 + ct[3] * 1.5) * k, 0, 7); c.stroke();
+      c.strokeStyle = "rgba(40,28,16,0.8)"; c.lineWidth = 1 * k; c.beginPath(); c.arc(x, y, (8.6 + ct[3] * 1.5) * k, 0, 7); c.stroke(); c.lineWidth = 2.2 * k;
+      if (threat.has(ct[0])) swords(x, y - 17 * k, 5 * k, "#c0281a");
+    } else if (atWar(own2) && distFrom(g, C.me, ct) <= REACH) {
+      swords(x, y - 14 * k, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
+    }
+  }
+  c.restore();
 }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
@@ -380,6 +404,7 @@ function drawSide() {
     if (e.kind === "peace") h += `<div class="cmp-ev"><b>${esc(NATIONS[e.foe].name)} offers peace</b><small>${e.gold ? `And ${e.gold} thalers to have it.` : "Each side keeps what it holds."}</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Make peace</button><button class="btn" data-ev="${i}" data-how="no">Fight on</button></span></div>`;
   }
   if (note) h += `<div class="cmp-note">${esc(note)}</div>`;
+  if (news.length) h += `<div class="cmp-news"><b>The season's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="news">Close</button></div>`;
   // the town or the crown chosen on the map
   if (selCity) {
     const own2 = cityOwner(g, selCity), mineT = own2 === C.me, d = distFrom(g, C.me, selCity), can = !mineT && own2 && atWar(own2) && d <= REACH && !C.moved && C.army >= 5;
@@ -424,6 +449,7 @@ function sideClick(e) {
   }
   const a = b.dataset.act;
   if (a === "fight" || a === "auto") { const o = march(selCity); if (!o) return; if (a === "fight") { persist(); fight(o); return; } const w = auto(o); note = w ? `${selCity[0]} is yours.` : `The attack on ${selCity[0]} failed.`; persist(); drawMap(); return; }
+  if (a === "news") { news = []; drawMap(); return; }
   if (a === "r1") recruit(1); else if (a === "r5") recruit(5);
   else if (a === "newgame") { drawPick(); return; }
   if (b.dataset.dip) { const id = selCity ? cityOwner(grid(), selCity) : sel; const t = diplo(id, b.dataset.dip); if (t) { note = t; if (!/^You|refuses|won't/.test(t)) say(t); } persist(); }

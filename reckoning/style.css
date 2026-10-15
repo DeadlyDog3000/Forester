@@ -1623,3 +1623,6 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .pv-share { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; margin-top: 10px; font: 13px var(--sans); color: var(--ink); cursor: pointer; }
 .pv-share input:disabled + span { color: var(--gold); }
 .pv-gr.theirs { border-style: dashed; border-color: var(--gold); }
+.cmp-news { padding: 10px 12px; border: 1px solid var(--gold); border-radius: 4px; background: var(--panel); color: var(--ink); font: 13px/1.45 var(--sans); }
+.cmp-news b { display: block; font: 16px var(--serif); margin-bottom: 4px; }
+.cmp-news div { padding: 2px 0; } .cmp-news span { color: var(--ink-dim); } .cmp-news .tm-lnk { margin-top: 4px; }

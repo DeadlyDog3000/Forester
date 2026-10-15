@@ -1067,6 +1067,7 @@ class Arena {
   }
   // a man breaks: and when a company's breaking — a third of it running — word of it, and maybe the end of it
   broke(u) {
+    this.showHud();
     const co = this.alliesOf(u.team), run = co.filter(m => m.routing).length;
     (this.brokeTold ||= {});
     if (run >= Math.max(2, co.length * 0.34) && !this.brokeTold[u.team]) {
@@ -1092,7 +1093,10 @@ class Arena {
       if (this.host) this.net.send({ t: "bend", winner: won ? 0 : 1, k: this.killed || 0, l: this.lost || 0 });
       this.standDown();
       slowMo(1.6, 0.3);
-      this.banner(won ? "The field is yours" : "The day is lost", won ? `${this.killed || 0} of theirs down` : "");
+      // (won because the last of them broke and ran: said so)
+      const fled = won ? this.units.filter(u => u.alive && u.routing && this.alOf(u.team) !== 0).length : this.units.filter(u => u.alive && u.routing && this.alOf(u.team) === 0).length;
+      this.routEnd = fled > 0;
+      this.banner(won ? (fled ? "They break and run!" : "The field is yours") : (fled ? "Your men break and run" : "The day is lost"), won ? `${this.killed || 0} of theirs down${fled ? `, ${fled} fleeing` : ""}` : "");
       setTimeout(() => G.arena === this && this.afterBattle(won), 2600);
     }
   }
@@ -1810,7 +1814,7 @@ class Arena {
     this.stop();
     ctx.end();
     $("pvpEndK").textContent = left ? "They left the field" : won ? "Victory" : "Defeat";
-    $("pvpEndT").textContent = this.multi ? (won ? "The field is yours" : "The day is lost") : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
+    $("pvpEndT").textContent = this.multi ? (won ? (this.routEnd ? "They broke and ran" : "The field is yours") : (this.routEnd ? "Your men broke and ran" : "The day is lost")) : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
     $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>${rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
     // (a historical battle: kept as won or not, on that side — and how it went in truth)
     // (a campaign's: its outcome back to the campaign, which takes or loses the town)
@@ -1910,9 +1914,10 @@ class Arena {
       // (a custom battle: your side, and every other side still in it, by its colours)
       // (a historical battle: the two armies by their own names — King William's, King James's)
       const HS = this.hist ? [this.hist.b.sides[this.hist.side].name, this.hist.b.sides[1 - this.hist.side].name] : null;
-      const others = HS ? `${HS[1]} · ${theirs}` : this.custom ? this.custom.map((n, a) => a && this.sideOf(a).length ? `${this.uni[a].name} ${this.sideOf(a).length}` : null).filter(Boolean).join(" · ") : null;
-      h.querySelector(".ph-me .ph-name").textContent = `${HS ? HS[0] : this.uni ? this.uni[0].name : "Yours"} · ${ours} standing`;
-      h.querySelector(".ph-foe .ph-name").textContent = others != null ? (others || "None standing") : `${this.uni ? this.uni[1].name : "Theirs"} · ${theirs} standing`;
+      const runT = this.units.filter(u => u.alive && u.routing && this.alOf(u.team) !== 0).length, runM = this.units.filter(u => u.alive && u.routing && this.alOf(u.team) === 0).length;
+      const others = HS ? `${HS[1]} · ${theirs - runT}${runT ? ` · ${runT} running` : ""}` : this.custom ? this.custom.map((n, a) => a && this.sideOf(a).length ? `${this.uni[a].name} ${this.sideOf(a).length}` : null).filter(Boolean).join(" · ") : null;
+      h.querySelector(".ph-me .ph-name").textContent = `${HS ? HS[0] : this.uni ? this.uni[0].name : "Yours"} · ${ours - runM} standing${runM ? ` · ${runM} running` : ""}`;
+      h.querySelector(".ph-foe .ph-name").textContent = others != null ? (others || "None standing") : `${this.uni ? this.uni[1].name : "Theirs"} · ${theirs - runT} standing${runT ? ` · ${runT} running` : ""}`;
       h.querySelector(".ph-me .ph-pips").innerHTML = ""; h.querySelector(".ph-foe .ph-pips").innerHTML = "";
       h.querySelector(".ph-round").textContent = this.place ? this.place.text : this.battle ? "Battle" : "Skirmish";
       return;
