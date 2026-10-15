@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.40.2", date: "15 October 2026", title: "Rally!",
+    items: [
+      "Rally your men: when they break and run, get among them and give 1 (On me!), and the ones near you who have it in them come back to the ranks. It works once every few seconds, so a company that's being cut to pieces will break again.",
+    ],
+  },
+  {
     v: "1.40.1", date: "15 October 2026", title: "A fair start",
     items: [
       "Campaign: a new crown gets two years' grace before any neighbour declares war on it.",

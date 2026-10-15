@@ -1072,6 +1072,20 @@ class Arena {
     this.showHud();
     this.checkEnd();
   }
+  // "on me!": the men of a company running near their officer, called back — steadied by the voice, and the ones that
+  // have it in them back in the ranks (how many)
+  rally(team, at) {
+    let n = 0;
+    // (a call that's only worth so much: once in a while, not with every breath)
+    (this.rallyAt ||= {}); if (G.time - (this.rallyAt[team] ?? -99) < 8) return 0; this.rallyAt[team] = G.time;
+    for (const u of this.alliesOf(team)) {
+      if (!u.routing || Math.hypot(u.pos.x - at.x, u.pos.z - at.z) > 22) continue;
+      u.nerve = Math.min(1, (u.nerve || 0) + 0.55 * Math.min(1.2, u.brave || 1));
+      if (u.nerve > 0.42) { u.routing = false; u.a.person.crouching = false; u.a.path = []; u.hold(u.lo.long !== "none" ? u.lo.long : u.steel()); n++; }
+    }
+    if (n) this.showHud();
+    return n;
+  }
   // a man breaks: and when a company's breaking — a third of it running — word of it, and maybe the end of it
   broke(u) {
     this.showHud();
@@ -1080,7 +1094,7 @@ class Arena {
     if (run >= Math.max(2, co.length * 0.34) && !this.brokeTold[u.team]) {
       this.brokeTold[u.team] = true;
       const U = this.coUni && this.coUni[u.team] || (this.uni && this.uni[this.alOf(u.team)]);
-      UI.hint(this.alOf(u.team) === 0 ? `Your ${U ? U.name + " " : ""}men are breaking — get among them to steady them!` : `The ${U ? U.name + " " : ""}line is breaking!`, 4);
+      UI.hint(this.alOf(u.team) === 0 ? `Your ${U ? U.name + " " : ""}men are breaking! Get among them and give 1 — On me! — to rally them` : `The ${U ? U.name + " " : ""}line is breaking!`, 4);
     }
     this.checkEnd();
   }
@@ -1494,7 +1508,7 @@ class Arena {
     const O = this.orders[0], pl = G.player, say = (t, v = "war") => { UI.hint(t, 2.2); AUDIO.voice && AUDIO.voice(v, { high: G.who === "sister", vol: 0.8 }); };
     if (id.startsWith("form:")) { O.form = id.slice(5); say(`${FORM_WORD[O.form] || "Form up"}!`); return; }
     switch (id) {
-      case "follow": O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; say("On me — fall in!"); break;
+      case "follow": { O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; const n = this.rally(0, pl.pos); say(n ? `Rally! On me! — ${n} back in the ranks` : "On me — fall in!"); break; }
       case "hold": O.mode = "hold"; O.at = { x: pl.pos.x, z: pl.pos.z }; O.cover = false; O.charge = false; this.mark(O.at); say("Halt! Hold here."); break;
       case "advance": O.mode = "advance"; O.at = this.lookPoint(); O.cover = false; O.charge = false; this.mark(O.at); say("Forward — there!"); break;
       case "cover": O.cover = true; O.charge = false; if (O.mode === "follow") { O.mode = "hold"; O.at = { x: pl.pos.x, z: pl.pos.z }; } say("Get down — take cover!"); break;
@@ -1990,7 +2004,7 @@ class Arena {
     const O = this.orders[1], at = m.at && isFinite(m.at.x) ? { x: +m.at.x, z: +m.at.z } : null, pos = m.pos && isFinite(m.pos.x) ? { x: +m.pos.x, z: +m.pos.z } : null, id = String(m.id || "");
     if (id.startsWith("form:")) { if (FORMATIONS[id.slice(5)]) O.form = id.slice(5); return; }
     switch (id) {
-      case "follow": O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; break;
+      case "follow": O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; if (pos) this.rally(1, pos); break;
       case "hold": O.mode = "hold"; O.at = pos; O.cover = false; O.charge = false; break;
       case "advance": O.mode = "advance"; O.at = at; O.cover = false; O.charge = false; break;
       case "cover": O.cover = true; O.charge = false; if (O.mode === "follow") { O.mode = "hold"; O.at = pos; } break;
