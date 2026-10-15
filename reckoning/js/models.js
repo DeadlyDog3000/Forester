@@ -2159,3 +2159,58 @@ export function makeShipyard(w = 14, d = 24) {
   const g = new THREE.Group(); g.add(m);
   return g;
 }
+
+// ---- a soldier made one: for a battle's crowd ----
+// A rigged person is a score of skinned pieces — coat, cuffs, hat, skin, hair, buttons — each with a skeleton of its
+// own to work out every frame and a draw of its own. A hundred and fifty of them on a field was three thousand: too
+// many. So for a battle's men the pieces showing are made into one or two (the cloth and skin; the metal), sharing one
+// skeleton, each piece's tint baked into its colours. The pieces themselves are kept, hidden, for anything that asks
+// for them.
+export function mergeRig(root) {
+  const parts = [];
+  root.traverse(o => { if (o.isSkinnedMesh && !Array.isArray(o.material) && o.geometry.attributes.skinIndex) { let v = true; for (let p = o; p && p !== root; p = p.parent) if (!p.visible) { v = false; break; } if (v) parts.push(o); } });
+  if (parts.length < 3) return null;
+  const bones = parts[0].skeleton.bones, bind = parts[0].bindMatrix;
+  root.updateMatrixWorld(true);
+  const W0 = parts[0].matrixWorld, near = (A, B) => A.elements.every((v, i) => Math.abs(v - B.elements[i]) < 1e-4);
+  const same = o => o.skeleton.bones.length === bones.length && o.skeleton.bones.every((b, i) => b === bones[i]) && o.bindMatrix.equals(bind) && near(o.matrixWorld, W0);
+  const buckets = new Map();
+  for (const o of parts) { if (!same(o)) continue; const metal = (o.material.metalness || 0) > 0.3 ? 1 : 0; (buckets.get(metal) || buckets.set(metal, []).get(metal)).push(o); }
+  const made = [];
+  for (const [metal, list] of buckets) {
+    if (list.length < 2) continue;
+    let nv = 0, ni = 0; for (const o of list) { nv += o.geometry.attributes.position.count; ni += o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count; }
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), si = new Uint16Array(nv * 4), sw = new Float32Array(nv * 4), idx = new Uint32Array(ni);
+    let v0 = 0, i0 = 0;
+    const c = new THREE.Color();
+    for (const o of list) {
+      const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
+      for (let k = 0; k < P.count; k++) {
+        const j = v0 + k;
+        pos[j * 3] = P.getX(k); pos[j * 3 + 1] = P.getY(k); pos[j * 3 + 2] = P.getZ(k);
+        if (N) { nor[j * 3] = N.getX(k); nor[j * 3 + 1] = N.getY(k); nor[j * 3 + 2] = N.getZ(k); }
+        const r = C && o.material.vertexColors ? C.getX(k) : 1, gg = C && o.material.vertexColors ? C.getY(k) : 1, b = C && o.material.vertexColors ? C.getZ(k) : 1;
+        col[j * 3] = r * m.r; col[j * 3 + 1] = gg * m.g; col[j * 3 + 2] = b * m.b;
+        for (let q = 0; q < 4; q++) { si[j * 4 + q] = SI.getComponent(k, q); sw[j * 4 + q] = SW.getComponent(k, q); }
+      }
+      if (g.index) for (let k = 0; k < g.index.count; k++) idx[i0 + k] = g.index.getX(k) + v0;
+      else for (let k = 0; k < P.count; k++) idx[i0 + k] = k + v0;
+      i0 += g.index ? g.index.count : P.count; v0 += P.count;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3)); geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    geo.computeBoundingSphere(); geo.computeBoundingBox();
+    // (the material: the first piece's own — its finish and its grain — white, so the baked colours show as they were)
+    const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = M0.material.clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;
+    if (!metal) { mat.metalness = 0; mat.roughness = Math.max(0.7, mat.roughness ?? 0.85); }
+    const sk = new THREE.SkinnedMesh(geo, mat); sk.name = "merged_" + (metal ? "metal" : "cloth");
+    sk.castShadow = true; sk.receiveShadow = true; sk.frustumCulled = false;
+    list[0].parent.add(sk); sk.bind(list[0].skeleton, bind);
+    for (const o of list) o.visible = false;
+    made.push(sk); made.hidden = (made.hidden || []).concat(list);
+  }
+  if (!made.length) return null;
+  // (and made many again: a wound darkens his own coat, piece by piece)
+  return () => { for (const m of made) { m.parent && m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } for (const o of made.hidden) o.visible = true; };
+}

@@ -18,7 +18,7 @@ import { full, gate } from "./licence.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst, killMark, chestOf } from "./fight.js";
-import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, makeHorse } from "./models.js";
+import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, makeHorse, mergeRig } from "./models.js";
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
@@ -607,7 +607,7 @@ const COATS = [0x5a3a22, 0x6a4428, 0x7a3e1e, 0x2a221c, 0x8a8478, 0x9a7a52, 0x4a3
 export const GUN_COST = 160;
 export const PURSES = { 500: "A skirmish", 900: "A battle", 1500: "A great battle", 2000: "An epic battle", 2500: "A magnificent battle", 3500: "A grand battle", 5000: "A great war" };
 // (the most a side can field: room enough for the biggest purse to be spent on men, not left in the chest)
-const MAX_MEN = 70, MAX_GUNS = 4;
+const MAX_MEN = 90, MAX_GUNS = 4;
 export const spentOf = A => Object.entries(A.muster || {}).reduce((t, [k, n]) => t + (TROOPS[k] ? TROOPS[k].cost * n : 0), 0) + (A.guns | 0) * GUN_COST;
 export const menOf = A => Object.values(A.muster || {}).reduce((t, n) => t + (n | 0), 0);
 // a muster cut down to a purse (anything over, the dearest first), and to the most men a side can have
@@ -2157,6 +2157,8 @@ class Fighter {
     this.K = { r: 0.36, h: 1.05, len: 0.18, name: "man", upright: true };
     this.wind = 0; this.dir = "right"; this.guardDir = "right"; this.heldK = null;
     if (info.horse) this.remount();
+    // (a man of a company: his pieces made one, for the crowd's sake — see models.js)
+    if (arena.multi && info.bot) { const P = this.a.person; try { P.unmerge = mergeRig(P.root); } catch (e) { P.unmerge = null; } }
   }
   // (a trooper: in the saddle — again, if he was thrown in a round before)
   remount() { if (this.a.horse) { this.a.yOff = 0.68; this.a.person.sitting = 1; return; } { const k = Math.abs(Math.sin((this.info.idx || 0) * 12.99 + (this.info.team || 0) * 7.7)); this.a.mountHorse(makeHorse(COATS[Math.floor(k * COATS.length) % COATS.length], (this.info.idx || 0) + 1)); this.a.radius = 0.6; } }

@@ -106,6 +106,7 @@ const SOAKS = new Set(["coat", "vest", "cuff", "linen", "legs", "stockings", "sa
 const BLOOD = new THREE.Color(0x3a0503);
 function stain(P, amt) {
   const sc = P && P.modelScene; if (!sc) return;
+  if (P.unmerge) { P.unmerge(); P.unmerge = null; }
   sc.traverse(o => {
     const m = o.isMesh && o.material, part = m && m.userData && m.userData.part;
     if (!part || !SOAKS.has(part) || !m.color) return;

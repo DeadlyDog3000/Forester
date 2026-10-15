@@ -123,9 +123,9 @@ export function buildThings(w, C, b, flip) {
     // a vineyard: rows of stakes, each with its vine (no more than a tangle at knee and hip height)
     vines(u0, u1, v0, v1, gap = 2.6) {
       const list = []; for (let u = u0; u <= u1; u += gap) for (let v = v0; v <= v1; v += 1.4) list.push(at(u + (hsh(u, v) - 0.5) * 0.3, v));
-      const sg2 = new THREE.CylinderGeometry(0.035, 0.045, 1.5, 4), vg = new THREE.IcosahedronGeometry(0.42, 0);
+      const sg2 = new THREE.CylinderGeometry(0.035, 0.045, 1.5, 4), vg = new THREE.IcosahedronGeometry(0.3, 0);
       const st = new THREE.InstancedMesh(sg2, M_.stake, list.length), vi = new THREE.InstancedMesh(vg, M_.vine, list.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-      list.forEach((p, i) => { const yy = y(p.x, p.z); m4.makeTranslation(p.x, yy + 0.7, p.z); st.setMatrixAt(i, m4); e.set(0, hsh(p.x, p.z) * 6, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(p.x, yy + 0.75, p.z), q, new THREE.Vector3(1, 1.3 + hsh(p.z, p.x) * 0.5, 0.8)); vi.setMatrixAt(i, m4); });
+      list.forEach((p, i) => { const yy = y(p.x, p.z); m4.makeTranslation(p.x, yy + 0.7, p.z); st.setMatrixAt(i, m4); e.set(0, hsh(p.x, p.z) * 6, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(p.x, yy + 0.85, p.z), q, new THREE.Vector3(0.75, 1.5 + hsh(p.z, p.x) * 0.4, 0.45)); vi.setMatrixAt(i, m4); });
       st.castShadow = vi.castShadow = true; g.add(st, vi);
     },
     // a bridge of boats: planks over a line of pontoons, from bank to bank

@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.39.1", date: "15 October 2026", title: "A bigger field, smoother",
+    items: [
+      "Big battles run several times faster. Each soldier used to be drawn as twenty-odd separate pieces, and now he's one, so a field of a hundred and fifty men runs about five times smoother. A man's coat still darkens when he's wounded.",
+      "Companies can now be up to 90 men each, for the great battles against other players.",
+      "Vienna's vines are vines now, not green boulders taller than the men.",
+    ],
+  },
+  {
     v: "1.39.0", date: "15 October 2026", title: "Cavalry, and the field before the fight",
     items: [
       "Cavalry: troopers on horseback with pistol and sabre, at 150 thalers each. They gallop, charge home at full tilt and ride on through to come again, and they're death to men caught in the open. Pikes are death to them, and when a trooper falls his horse bolts riderless. Enemy commanders raise them too, and the historical armies have their horse: Sobieski's hussars at Vienna, the Great Elector's cuirassiers at Fehrbellin, the Sultan's sipahis.",
