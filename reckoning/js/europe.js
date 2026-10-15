@@ -318,7 +318,9 @@ function chaikin(pts, closed, n) {
 }
 function addLoop(p, pts) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); }
 function addLine(p, pts) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); }
+let GONE = null;
 function drawSheet(W, H, E, g, homePop) {
+  GONE = E && E.gone || null;
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const c = cv.getContext("2d"), S = W / GW, r = rng(1683);
   // ---- the paper: warm, uneven, a little foxed, darker to the edges ----
@@ -406,6 +408,9 @@ function drawSheet(W, H, E, g, homePop) {
   // ---- the crowns' names ----
   c.textAlign = "center";
   for (const [n, lo, la, size, ang = 0] of NAMES) {
+    // (a crown conquered to the last town: its name gone from the map with it)
+    const w0 = n.split(/\s/)[0].toLowerCase(), nid = { holy: "hre", papal: "papal", crimean: "crimea", holland: "dutch" }[w0] || w0;
+    if (GONE && GONE[nid]) continue;
     const [x, y] = lonlat(lo, la, S), px = Math.round(S * [3.9, 4.5, 5.3, 6.6, 8][size + 1]);
     c.save(); c.translate(x, y); c.rotate(ang * Math.PI / 180);
     c.font = `${size >= 2 ? "" : "italic "}${px}px ${FELL}`; c.fillStyle = INK_SOFT + "0.92)";

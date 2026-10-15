@@ -7,6 +7,20 @@
 
 export const CHANGELOG = [
   {
+    v: "1.41.0", date: "15 October 2026", title: "Command each arm",
+    items: [
+      "Command one arm of your company at a time: in a battle, a letter picks it out (L musketeers, O grenadiers, P pikemen, I bowmen and crossbowmen, U swordsmen and axemen, K cavalry), and the number keys then give orders to them alone. Hold the pikes on a hill, send the horse round the flank and keep the musketeers with you. The same letter again gives your orders to the whole company. The page of orders shows which arm you're commanding.",
+      "An arm with orders of its own forms its own ranks, behind the rest when they're sent to the same ground.",
+      "Troopers no longer get off to hide behind walls, and pikemen keep their block instead of scattering for cover.",
+      "Online battles: the host chooses the size of battle (up to A great war), and the other player's muster follows as it changes.",
+      "A new reload for the musket: you stand it up before you and hold it by the barrel in the left hand while the right does the work. Your arms bend at the elbow as they work. You see the priming flask tipped to the pan, a powder charge from the bandolier poured down the muzzle, the ball let fall in after it, and the rod drawn, turned and driven home.",
+      "Campaign: the map fills the whole screen, with the season's bar and the side panel laid over it (Panel, or Tab, hides the panel).",
+      "Campaign: sounds for the campaign table: the map's parchment, the quill and the wax seal on treaties, the drum when armies march or war is declared, guns far off when battles are fought, and church bells when a town is taken or holds.",
+      "Campaign: take a crown's last town and all its land is yours, every corner of it. Its name goes from the map.",
+      "Campaign: hit back after you're attacked. At war, the enemy's nearest town is always within your army's reach, even if all their towns are far off. When you throw an attack back, their nearest town is picked out on the map for you.",
+    ],
+  },
+  {
     v: "1.40.2", date: "15 October 2026", title: "Rally!",
     items: [
       "Rally your men: when they break and run, get among them and give 1 (On me!), and the ones near you who have it in them come back to the ranks. It works once every few seconds, so a company that's being cut to pieces will break again.",

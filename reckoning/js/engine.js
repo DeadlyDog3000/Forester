@@ -214,6 +214,36 @@ function placeRod(rod, RE, L) {
   rod.quaternion.setFromUnitVectors(_up, _rb.sub(_ra).normalize());
   rod.scale.set(1, L, 1);
 }
+// the things in the working hand through the loading, in the gun's own frame (y up the barrel, z over it): the
+// priming flask, its spout to the pan; a charge off the bandolier — a little wooden bottle — upended over the muzzle and
+// poured; and the ball, let fall in after it. Each shown only for its part of the drill (reload.js's steps).
+const KIT_M = { horn: new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 0.55 }), wood: new THREE.MeshStandardMaterial({ color: 0x5b3a1e, roughness: 0.7 }), brass: new THREE.MeshStandardMaterial({ color: 0xb08a3c, metalness: 0.7, roughness: 0.35 }), lead: new THREE.MeshStandardMaterial({ color: 0x6d7074, metalness: 0.5, roughness: 0.45 }) };
+function loadKit(hand) {
+  const flask = new THREE.Group();
+  flask.add(new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.13, 10).rotateX(Math.PI), KIT_M.horn));
+  const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.05, 6), KIT_M.brass); sp.position.y = -0.085; flask.add(sp);
+  const bottle = new THREE.Group();
+  bottle.add(new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.07, 10), KIT_M.wood));
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.012, 0.018, 8), KIT_M.wood); cap.position.y = 0.044; bottle.add(cap);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0095, 10, 8), KIT_M.lead);
+  for (const o of [flask, bottle, ball]) { o.visible = false; hand.add(o); }
+  const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  return {
+    show(kind, e, muzY) {
+      const L = LOAD[kind] || LOAD.musket, at = n => (L.steps.find(s => s[1] === n) || [0])[0], f = kind === "pistol" ? 0.4 : 1;
+      const on = !!kind, sP = at("prime"), sF = at("frizzen"), sW = at("powder"), sB = at("ball"), sR = at("rodOut");
+      // (the flask: tipped to the pan, a shake or two)
+      flask.visible = on && e > sP - 0.15 * f && e < sF;
+      if (flask.visible) { flask.position.set(0.0, 0.08, 0.06); flask.rotation.set(-0.9 + 0.15 * Math.sin(e * 22), 0, 0.3); }
+      // (the charge: up out of the hand, upended over the muzzle, and poured)
+      bottle.visible = on && e > sW - 0.1 * f && e < sB - 0.05 * f;
+      if (bottle.visible) { const tip = ease((e - sW) / (0.35 * f)); bottle.position.set(0, 0.085, 0.02); bottle.rotation.set(Math.PI * (0.25 + 0.72 * tip), 0, 0); }
+      // (the ball: taken from the mouth or the pouch, held over the muzzle, and let go — down into the bore)
+      ball.visible = on && e > sB - 0.05 * f && e < sB + 0.45 * f;
+      if (ball.visible) { const drop = ease((e - sB - 0.25 * f) / (0.15 * f)); ball.position.set(0, 0.06 - drop * 0.12, 0.0); ball.scale.setScalar(drop > 0.95 ? 0.001 : 1); }
+    },
+  };
+}
 // a normal spread (a gun's scatter is bunched in the middle, with the odd wild one)
 const randn = () => { let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 // how fast you load, as you are: standing still, full speed; crouched in cover, cramped; walking, slower; running, much
@@ -349,13 +379,17 @@ export class Player {
       const rodL = pis ? 0.27 : 0.92;
       this.gunRod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 1, 6), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 }));
       this.gunRod.userData.len = rodL; this.gunRod.visible = false; m.add(this.gunRod);
+      // (each arm in two, jointed at the elbow — it bends as the hand comes in to the work, and straightens as it goes out)
       this.arms = this.hands.map((h, i) => {
-        const arm = new THREE.Group();
-        arm.add(new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM));
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
-        vm.add(arm);
-        return { arm, sleeve: arm.children[0], cuff, shoulder: new THREE.Vector3(i === 0 ? 0.26 : 0.02, i === 0 ? -0.48 : -0.55, 0.12) };
+        const arm = new THREE.Group(), fore = new THREE.Group();
+        arm.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM));
+        fore.add(new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.046, 1, 10).translate(0, 0.5, 0), sleeveM));
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); fore.add(cuff);
+        vm.add(arm); vm.add(fore);
+        return { arm, sleeve: arm.children[0], fore, foreSleeve: fore.children[0], cuff, side: i === 0 ? 1 : -1, len: pis ? 0.3 : 0.56, bend: 0, shoulder: new THREE.Vector3(i === 0 ? 0.26 : 0.02, i === 0 ? -0.48 : -0.55, 0.12) };
       });
+      // (what the working hand holds through the drill: the priming flask, a charge off the bandolier, the ball)
+      this.loadKit = loadKit(this.hands[pis ? 1 : 0]);
       this.gunLoaded ??= true; this.gunReload = this.gunReload || 0; this.gunAim = 0; this.gunKickT = 0;
       // (and in both hands of your body, at the shoulder, for when the camera is behind you)
       if (this.model && this.model.aimHold) this.gunBody = shoulderArm(this.model, this.gunIs);
@@ -364,8 +398,8 @@ export class Player {
     } else if (!on && this.gun) {
       (this.gunSaved ??= {})[this.gunIs || "musket"] = { l: this.gunLoaded, r: this.gunReload };
       vm.remove(this.gun); this.gun = null;
-      for (const a of this.arms || []) vm.remove(a.arm);
-      this.arms = null; this.hands = null;
+      for (const a of this.arms || []) { vm.remove(a.arm); if (a.fore) vm.remove(a.fore); }
+      this.arms = null; this.hands = null; this.loadKit = null;
       if (this.gunBody && this.model && this.model.aimHold) this.model.aimHold(null); this.gunBody = null;
     }
   }
@@ -457,7 +491,7 @@ export class Player {
     // (stood up for the charge and the rod: leaning away to the left, the muzzle up in the corner of your eye — so the
     //  hand at it and the rod going down are in sight, and the field in front of you still is)
     if (LP.up > 0.001) {
-      const M = pis ? _gv.set(-0.17, -0.06, -0.46) : _gv.set(-0.32, 0.0, -0.72), d = _gd.set(pis ? -0.3 : -0.4, 0.82, pis ? -0.42 : -0.42).normalize();
+      const M = pis ? _gv.set(-0.17, -0.06, -0.46) : _gv.set(-0.15, -0.04, -0.6), d = _gd.set(pis ? -0.3 : -0.12, 0.85, pis ? -0.42 : -0.34).normalize();
       const len = this.gunModel.userData.muzzle.position.y;
       _gq.setFromUnitVectors(_gz.set(0, 0, -1), d);                 // (the barrel, -z in here, along d)
       _gq.multiply(_gq2.setFromAxisAngle(_gz.set(0, 0, 1), pis ? 0.4 : 0.5));   // (rolled, the lock toward you)
@@ -475,16 +509,23 @@ export class Player {
       const baked = this.gunModel.userData.rodMesh; if (baked) baked.visible = !RE.show;
     }
     if (this.hands && this.hands[1]) {
-      const h = this.hands[1], rest = pis ? null : [0.46, -0.016];
+      // (the musket: stood up, it's held by the barrel in the left hand and the right does the work — the pan, the
+      //  charge, the ball, the rod — as the drill had it. The pistol stays in the right, and the left works.)
+      const wi = pis ? 1 : 0, h = this.hands[wi], rest = pis ? null : [-0.065, -0.024];
       const top = RE.show ? (RE.R[0] > RE.T[0] ? RE.R : RE.T) : null;
-      const tgt = LP.hand === "lock" ? [0.06, 0.07] : LP.hand === "muzzle" ? [muzY + 0.03, 0.03] : LP.hand === "rod" && top ? [top[0] - 0.05, top[1]] : LP.hand === "rod" ? [muzY + 0.03, 0.03] : rest;
+      const tgt = LP.hand === "lock" ? [0.07, 0.06] : LP.hand === "muzzle" ? [muzY + 0.05, 0.035] : LP.hand === "rod" && top ? [top[0] - 0.05, top[1]] : LP.hand === "rod" ? [muzY + 0.03, 0.03] : rest;
       h.userData.at = h.userData.at || [rest ? rest[0] : 0.1, rest ? rest[1] : -0.03];
       if (tgt) { const kk = Math.min(1, dt * 12); h.userData.at[0] += (tgt[0] - h.userData.at[0]) * kk; h.userData.at[1] += (tgt[1] - h.userData.at[1]) * kk; }
-      h.position.set(LP.hand === "lock" ? 0.05 : 0, h.userData.at[0], h.userData.at[1]);
+      h.position.set(LP.hand === "lock" ? 0.05 : !pis && LP.hand ? 0.045 : 0, h.userData.at[0], h.userData.at[1]);
       if (pis && this.arms && this.arms[1]) { const seen = !!(reloading && LP.hand); this.arms[1].arm.visible = seen; h.visible = seen; }
+      if (!pis) { const f = this.hands[1]; f.position.y = 0.46 + (0.6 - 0.46) * LP.up; }
+      if (this.loadKit) this.loadKit.show(reloading ? kind : null, RL - this.gunReload, muzY);
     }
-    // (the free arm comes in from your left shoulder while it's at the muzzle and the rod)
-    if (this.arms && this.arms[1]) { const sh = this.arms[1].shoulder, base = this.arms[1].base ??= sh.clone(); sh.set(base.x + (-0.3 - base.x) * LP.up, base.y + (-0.62 - base.y) * LP.up, base.z); }
+    // (the arms come in to it while it's stood up: the shoulders forward, the elbows bent)
+    if (this.arms) for (let i = 0; i < this.arms.length; i++) {
+      const A = this.arms[i], sh = A.shoulder, base = A.base ??= sh.clone(), to = pis ? (i ? [-0.3, -0.62, base.z] : [base.x, base.y, base.z]) : i ? [-0.3, -0.6, 0.0] : [0.3, -0.8, 0.0];
+      sh.set(base.x + (to[0] - base.x) * LP.up, base.y + (to[1] - base.y) * LP.up, base.z + (to[2] - base.z) * LP.up); A.bend = pis ? 0 : LP.up;
+    }
     this.fitArms();
   }
   // ---- the bow: held out in the left hand, the right on the string ----
@@ -706,10 +747,26 @@ export class Player {
     (this.axe || this.bow || this.gun || this.xbow).updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < this.arms.length; i++) {
-      const { arm, sleeve, cuff, shoulder } = this.arms[i];
+      const { arm, sleeve, cuff, shoulder, fore, foreSleeve } = this.arms[i];
       const hp = new THREE.Vector3().setFromMatrixPosition(this.hands[i].matrixWorld).applyMatrix4(inv);
       const d = new THREE.Vector3().subVectors(hp, shoulder), L = d.length();
       arm.position.copy(shoulder);
+      if (fore) {
+        // (two bones: reach far and the arm's straight; nearer, the elbow drops down and out to the side)
+        const A = this.arms[i].len, dir = d.clone().normalize(), Y = new THREE.Vector3(0, 1, 0);
+        let elbow;
+        if (L >= 2 * A - 1e-3 || !this.arms[i].bend) elbow = shoulder.clone().addScaledVector(dir, L / 2);
+        else {
+          const x = L / 2, h = Math.sqrt(Math.max(0, A * A - x * x));
+          const pole = new THREE.Vector3(this.arms[i].side * 0.5, -1, -0.1); pole.addScaledVector(dir, -pole.dot(dir)).normalize();
+          elbow = shoulder.clone().addScaledVector(dir, x).addScaledVector(pole, h);
+        }
+        const up = elbow.clone().sub(shoulder), lo = hp.clone().sub(elbow), ul = up.length(), ll = lo.length();
+        arm.quaternion.setFromUnitVectors(Y, up.normalize()); sleeve.scale.set(1, Math.max(0.02, ul), 1);
+        fore.position.copy(elbow); fore.quaternion.setFromUnitVectors(Y, lo.normalize()); fore.visible = arm.visible;
+        foreSleeve.scale.set(1, Math.max(0.02, ll - 0.08), 1); cuff.position.y = Math.max(0.02, ll - 0.12);
+        continue;
+      }
       arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
       sleeve.scale.set(1, Math.max(0.05, L - 0.08), 1);
       cuff.position.y = Math.max(0.05, L - 0.12);

@@ -322,9 +322,16 @@ function openMuster(kind, link = null) {
   if (kind === "mp") {
     const n = must.net, M = must;
     n.on.bmust = m => { if (must !== M) return; M.theirs = m; drawVs(); maybeStart(); };
-    // (the size of battle they ask for: yours made up to it, if it's the larger)
-    n.on.bpurse = m => { if (must !== M || !PURSES[m.v]) return; M.theirPurse = +m.v; setArmy({}); drawArmy(); };
-    n.send({ t: "bpurse", v: prefPurse(army()) });
+    // (the size of battle: the host's to choose, and the other player's muster made to fit it as it changes — if
+    //  they'd already said they were ready, their company as it now stands sent again)
+    if (M.side === 0) { n.on.bpurseq = () => { if (must === M) n.send({ t: "bpurse", v: prefPurse(army()) }); }; n.send({ t: "bpurse", v: prefPurse(army()) }); }
+    else {
+      n.on.bpurse = m => {
+        if (must !== M || !PURSES[m.v]) return; const was = M.theirPurse; M.theirPurse = +m.v; setArmy({}); drawArmy();
+        if (M.mine) { const A = army(); n.send({ t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A), ride: riding() ? 1 : 0 }, lo }); }
+      };
+      n.send({ t: "bpurseq" });
+    }
     n.on.bunmust = () => { if (must !== M) return; M.theirs = null; drawVs(); };
     const gone = why => { if (must !== M || G.arena) return; clearInterval(M.clock); must = null; openCamp(); campNote(why); };
     n.on.dend = () => gone(`${M.foe.name || "They"} left the muster.`);
@@ -406,7 +413,7 @@ function drawArmy() {
   // (a battle: the company raised from the purse — so many of each, as you can pay for them)
   const spent = spentOf(A), left = A.purse - spent;
   const tr = (k, T, n, cost, max) => `<div class="pv-tr"><span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><b class="pv-tr-c">${n}</b><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
-  const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.ppurse === +v ? " on" : ""}${A.purse === +v && A.ppurse !== +v ? " theirs" : ""}" data-ppurse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${must && must.theirPurse > A.ppurse ? ` — ${esc(must.foe.name || "they")} asked for a bigger battle` : must && must.theirPurse && must.theirPurse < A.ppurse ? " — the bigger battle's yours" : ""}</span>` : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
+  const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? " — you're the host: the size of battle is yours to choose" : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
     <div class="pv-muster">${Object.entries(TROOPS).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "A field gun and its two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
   if (!A.battle) { el.innerHTML = ""; el.classList.add("hidden"); return; }
@@ -468,7 +475,7 @@ function armyClick(e) {
   else if (b.dataset.gr) setArmy({ ground: b.dataset.gr });
   else if (b.dataset.vs) setArmy({ vs: b.dataset.vs });
   else if (b.dataset.purse) setArmy({ purse: +b.dataset.purse });
-  else if (b.dataset.ppurse) { setArmy({ ppurse: +b.dataset.ppurse }); if (must && must.kind === "mp" && must.net) must.net.send({ t: "bpurse", v: +b.dataset.ppurse }); }
+  else if (b.dataset.ppurse) { if (must && must.kind === "mp" && must.side === 1) return; setArmy({ ppurse: +b.dataset.ppurse }); if (must && must.kind === "mp" && must.net) must.net.send({ t: "bpurse", v: +b.dataset.ppurse }); }
   else if (b.dataset.sides) setArmy({ sides: b.dataset.sides.split(",").map(Number) });
   else if (b.dataset.side) { const S = A.sides.slice(); S[+b.dataset.side] += +b.dataset.d; setArmy({ sides: S }); }
   else if (b.dataset.addside) { const S = A.sides.slice(); if (+b.dataset.addside > 0) S.push(1); else S.pop(); setArmy({ sides: S }); }
@@ -579,7 +586,8 @@ const ARMY_KEY = "reckoning.pvp.battle";
 // (against a player: each asks for a size of battle, and it's fought at the larger of the two — a great battle if
 //  either of you wants one)
 const prefPurse = a => PURSES[a.ppurse] ? +a.ppurse : 900;
-const livePurse = a => Math.max(prefPurse(a), (must && must.kind === "mp" && must.theirPurse) || 0);
+// (against a player, the host's choice: theirs, if you're the guest — till it comes, the smallest)
+const livePurse = a => must && must.kind === "mp" && must.side === 1 ? (must.theirPurse || 900) : prefPurse(a);
 export function army() {
   let a = {}; try { a = JSON.parse(localStorage.getItem(ARMY_KEY) || "{}") || {}; } catch (e) {}
   const keys = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist), uniform = keys.includes(a.uniform) ? a.uniform : keys[0];
@@ -604,6 +612,22 @@ export const TROOPS = {
   bow: { name: "Bowmen", one: "Bowman", cost: 22, lo: { long: "bow", side: "none", blade: "dagger" }, note: "Bow and knife: cheap, quick, many" },
   cavalry: { name: "Cavalry", one: "Trooper", cost: 150, horse: true, lo: { long: "none", side: "pistol", blade: "sword" }, note: "A trooper on his horse: a pistol, a sabre, and the weight of the horse behind every charge — but pikes are death to him" },
 };
+// ---- a part of the company to command by itself: a letter for each arm (pressed again, the whole company) ----
+export const GROUPS = [
+  { key: "KeyL", id: "line", name: "Musketeers", kinds: ["musketeer"] },
+  { key: "KeyO", id: "gren", name: "Grenadiers", kinds: ["grenadier"] },
+  { key: "KeyP", id: "pike", name: "Pikemen", kinds: ["pike"] },
+  { key: "KeyI", id: "shot", name: "Bowmen and crossbowmen", kinds: ["bow", "crossbow"] },
+  { key: "KeyU", id: "blade", name: "Swordsmen and axemen", kinds: ["sword", "axe"] },
+  { key: "KeyK", id: "horse", name: "Cavalry", kinds: ["cavalry"] },
+];
+// (a man's arm: his muster says it — or, a company raised without one, what he carries)
+const armOf = u => {
+  const k = u.info && u.info.kind; if (k) return k;
+  const lo = u.lo || (u.info && u.info.lo) || {};
+  return u.info && u.info.horse ? "cavalry" : lo.long === "musket" ? "musketeer" : lo.long === "crossbow" ? "crossbow" : lo.long === "bow" ? "bow" : lo.blade === "spear" ? "pike" : lo.blade === "battleaxe" ? "axe" : "sword";
+};
+export const groupOf = u => { const k = armOf(u), g = GROUPS.find(g => g.kinds.includes(k)); return g ? g.id : null; };
 // ---- nerve: how much a man can stand before he breaks and runs ----
 // (the drilled and the well-paid steadiest — pikes in their block, grenadiers, troopers; the cheap levies the first to
 //  go: a mob of bowmen and axemen thrown at a line that fires steadily into them comes apart before it gets there)
@@ -931,7 +955,7 @@ class Arena {
       }
       // (the fort's people start inside it, at its front wall)
       if (this.field.fortAt) this.spawns[this.fortSide] = this.clearSpot(this.field.fortAt.anchor.x, this.field.fortAt.anchor.z);
-      this.orders = this.custom ? this.cos.map((c, i) => new Orders(i)) : [new Orders(0), new Orders(1)];
+      this.orders = this.custom ? this.cos.map((c, i) => new Orders(i)) : [new Orders(0), new Orders(1)]; this.sub = null; this.sel = null;
       if (this.custom) this.spawns = this.cos.map(c => this.clearSpot(c.x, c.z));
       if (!this.battle) this.orders[1].form = "loose";
       this.book = new OrderBook(id => this.give(id));
@@ -1007,7 +1031,7 @@ class Arena {
     //  says it is, and both begin)
     if (this.host) {
       this.net.send({ t: "bsetup", ride: riding() ? 1 : 0, seed: ground.seed, x: C.x, z: C.z, fieldSeed: this.fieldSeed, hour: this.hour, fort: this.fortSide, uni: [A.uniform, A.enemyUniform], counts: [A.allies, A.enemies], guns: this.gunsBought,
-        roster: this.units.filter(u => !u.isNet).map(u => ({ id: u.uid, team: u.team, look: u.info.look, name: u.info.name, lo: u.lo, horse: u.info.horse ? 1 : 0, gun: u.crewOf ? this.field.guns.indexOf(u.crewOf) : -1, ci: u.crewIdx | 0, idx: u.idx })) });
+        roster: this.units.filter(u => !u.isNet).map(u => ({ id: u.uid, team: u.team, look: u.info.look, name: u.info.name, lo: u.lo, horse: u.info.horse ? 1 : 0, kind: u.info.kind || null, gun: u.crewOf ? this.field.guns.indexOf(u.crewOf) : -1, ci: u.crewIdx | 0, idx: u.idx })) });
       this.banner(this.place ? esc(this.place.text) : "Battle", `Waiting for ${esc(foe.name || "the other side")} to take the field…`);
       UI.fadeNow(1); UI.fade(0, 1.2);
       this.waitT = setTimeout(() => { if (G.arena === this && !this.round) this.finish(true, true); }, 90000);
@@ -1042,10 +1066,20 @@ class Arena {
   // (worth showing you: the hints about a head-shot only if it's near enough to be your doing)
   youCanSee(u) { return Math.hypot(u.pos.x - G.player.pos.x, u.pos.z - G.player.pos.z) < 60; }
   hearable(p) { return Math.hypot(p.x - G.player.pos.x, p.z - G.player.pos.z) < 70; }
+  // the orders a man is under: his own arm's, if it's been given some of its own — else the company's
+  orderOf(u) {
+    if (!this.orders) return null;
+    const S = !u.crewOf && this.sub && this.sub[u.team], g = S && groupOf(u);
+    return (g && S[g]) || this.orders[u.team];
+  }
+  // every set of orders a side is under (the company's, and its arms')
+  ordersOf(team) { return [this.orders[team], ...Object.values((this.sub && this.sub[team]) || {})]; }
   // a man's place in his company: in the formation his officer has set, round where it's to be, facing the other side
   slotFor(u) {
     if (u.crewOf) return this.field.station(u.crewOf, u.crewIdx);
-    const O = this.orders[u.team], mates = this.alliesOf(u.team).filter(m => !m.crewOf).sort((a, b) => a.idx - b.idx), i = Math.max(0, mates.indexOf(u)), n = mates.length;
+    const O = this.orderOf(u), mates = this.alliesOf(u.team).filter(m => !m.crewOf && this.orderOf(m) === O).sort((a, b) => a.idx - b.idx), i = Math.max(0, mates.indexOf(u)), n = mates.length;
+    // (an arm following on its own: a few paces further back than the company, each arm its own rows)
+    const S = this.sub && this.sub[u.team], back = O === this.orders[u.team] || !S ? 0 : 3.4 * (1 + Object.keys(S).sort().indexOf(groupOf(u)));
     const foes = this.enemiesOf(u.team);
     const cx = foes.length ? foes.reduce((a, f) => a + f.pos.x, 0) / foes.length : C.x + (u.team === 0 ? 1 : -1) * 10;
     const cz = foes.length ? foes.reduce((a, f) => a + f.pos.z, 0) / foes.length : C.z;
@@ -1054,6 +1088,8 @@ class Arena {
     else if (u.team === 1 && O.mode === "follow" && this.netFoe && this.netFoe.alive) { const f = this.netFoe, y = f.a.yaw; anchor = { x: f.pos.x - Math.sin(y) * 2.4, z: f.pos.z - Math.cos(y) * 2.4 }; }
     else anchor = O.at || this.spawns[u.team];
     const face = Math.atan2(cx - anchor.x, cz - anchor.z);
+    // (an arm sent to the same ground as the rest — or following you with them — forms its own rows behind theirs)
+    if (back) { const M = this.orders[u.team], same = O.mode === "follow" ? M.mode === "follow" : M.mode !== "follow" && M.at && Math.hypot(M.at.x - anchor.x, M.at.z - anchor.z) < 4; if (same) anchor = { x: anchor.x - Math.sin(face) * back, z: anchor.z - Math.cos(face) * back }; }
     const p = O.slot(i, n, anchor, face);
     // (never out past the trees)
     const dx = p.x - C.x, dz = p.z - C.z, d = Math.hypot(dx, dz), lim = this.bound - 3;
@@ -1068,7 +1104,7 @@ class Arena {
     if (this.host && !u.isNet) this.net.send({ t: "bdown", id: u.uid, x: +(u.fromX ?? u.pos.x).toFixed(1), z: +(u.fromZ ?? u.pos.z).toFixed(1), h: u.headShot ? 1 : 0, b: u.blastDown ? 1 : 0 });
     if (this.alOf(u.team) !== 0) this.killed = (this.killed || 0) + 1; else this.lost = (this.lost || 0) + 1;
     if (this.book) this.book.update(this.bookState());
-    if (this.orders && this.orders[0].target === u) this.orders[0].target = null;
+    if (this.orders) for (const O of this.ordersOf(0)) if (O.target === u) O.target = null;
     this.showHud();
     this.checkEnd();
   }
@@ -1141,6 +1177,7 @@ class Arena {
     const N = this.custom ? this.custom.length : 2, toward = at => !this.custom ? null : N === 2 ? { x: C.x, z: at.z } : { x: C.x, z: C.z };
     const face0 = this.custom ? Math.atan2(toward(mine).x - mine.x, toward(mine).z - mine.z) : Math.atan2(theirs.x - mine.x, theirs.z - mine.z), face1 = face0 + Math.PI;
     const O0 = this.orders[0], O1 = this.orders[1];
+    this.sub = null; this.sel = null;
     O0.mode = "follow"; O0.at = null; O1.mode = "hold"; O1.at = { x: theirs.x, z: theirs.z };
     // (holding your fort: your company on its front wall from the start)
     if (this.fortSide === 0) { O0.mode = "hold"; O0.at = { x: mine.x, z: mine.z }; }
@@ -1230,7 +1267,7 @@ class Arena {
       for (const u of this.units) u.go();
       AUDIO.voice && AUDIO.voice("war", { high: G.who === "sister", vol: 0.7 });
       setTimeout(() => G.arena === this && this.banner(null), 1000);
-      if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("The number keys give your orders, as the page at the left has them — and you fight on the while. The wheel changes your weapon" + (this.canBayonet() ? "; F fixes your bayonet (for good)." : "."), 6), 2200); } }
+      if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("The number keys give your orders, as the page at the left has them — and you fight on the while. The wheel changes your weapon" + (this.canBayonet() ? "; F fixes your bayonet (for good)." : ".") + (this.groupsHere().length > 1 ? " A letter picks out one arm to order alone: " + this.groupsHere().map(g => `${g.key.slice(3)} ${g.name.split(" ")[0].toLowerCase()}`).join(", ") + "." : ""), 8), 2200); } }
     }
   }
   // every frame of it: the men, the officer over there, the guns and their shot, your marks on the ground
@@ -1317,7 +1354,7 @@ class Arena {
     }
     const lap = gen > 0.5 && ratio > 1.15 ? Math.min(14, (nT - nO) * 1.1) * gen : 0, tgt = { x: b.x + px * lap * K.flank, z: b.z + pz * lap * K.flank };
     // (your charge coming on: he meets it with every loaded musket at a dozen paces — then the steel at it)
-    const O0 = this.orders[fc], youCharge = O0 && O0.charge;
+    const youCharge = !!this.orders[fc] && this.ordersOf(fc).some(o => o.charge);
     if (youCharge && !O.charge && gen > 0.4) {
       if (d < 26 && theirsLoaded > 0.4 && G.time - (K.metAt || -99) > 8) { K.metAt = G.time; O.volleyAt = G.time + 0.35; O.fire = true; shout(); }
       if (d < 11 || (K.metAt && G.time - K.metAt > 1.2 && d < 18)) { O.charge = true; O.cover = false; K.chargedAt = G.time; shout(); }
@@ -1451,7 +1488,7 @@ class Arena {
     };
   }
   // ---- the orders: the number keys, in the field ----
-  bookState() { const O = this.orders[0]; return { count: this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, cover: O.cover, guns: !!this.gunsOn, abandoned: !!(this.abandoned && this.abandoned[0]), mode: O.mode, form: O.form }; }
+  bookState() { const O = (this.sel && this.sub && this.sub[0][this.sel]) || this.orders[0], g = this.sel && GROUPS.find(g => g.id === this.sel); return { group: g ? g.name : null, groups: this.groupsHere(), count: this.sel ? this.alliesOf(0).filter(u => !u.crewOf && groupOf(u) === this.sel).length : this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, cover: O.cover, guns: !!this.gunsOn, abandoned: !!(this.abandoned && this.abandoned[0]), mode: O.mode, form: O.form }; }
   // a side's guns left: their crews called off them to fall in with the line, swords out — or sent back to them
   abandonGuns(team, on) {
     (this.abandoned ||= [false, false])[team] = on;
@@ -1464,6 +1501,7 @@ class Arena {
   // the number keys are your orders, in a fight of companies (the wheel still goes through your weapons: its turns come
   // as numbers too, but marked as the wheel's)
   // (in a fight of companies, always — the page shown or not: a number that fell through to the bar put your musket away)
+  takesKey(e) { return !!(G.arena === this && this.multi && this.battle && this.live && !e.metaKey && !e.ctrlKey && GROUPS.some(g => g.key === e.code)); }
   takesNumbers(e) { return !!(this.multi && !e.fromWheel && /^Digit\d$/.test(e.code)); }
   onKey(e) {
     if (G.arena === this && this.viewing && e.code === "Enter" && !e.repeat) { e.stopImmediatePropagation(); e.preventDefault(); G.endFreecam && G.endFreecam(); this.finish(this.viewing.won); return; }
@@ -1476,6 +1514,8 @@ class Arena {
       if (pl.fixBayonet(true)) UI.hint("Bayonet fixed — for the rest of the fight. It's in the way: loading's slower, the aim's less true. Once you've fired, a click is the bayonet.", 4);
       return;
     }
+    const grp = this.takesKey(e) && GROUPS.find(g => g.key === e.code);
+    if (grp) { e.stopImmediatePropagation(); e.preventDefault(); this.pickGroup(grp); return; }
     if (!this.book || !this.book.open || e.fromWheel) return;
     if (this.book.key(e)) { e.stopImmediatePropagation(); e.preventDefault(); }
   }
@@ -1498,30 +1538,66 @@ class Arena {
   }
   give(id) {
     this.giveNow(id);
-    if (this.remote) { const pl = G.player; this.net.send({ t: "bord", id, at: this.lookPoint(), pos: { x: pl.pos.x, z: pl.pos.z }, tid: id === "target" && this.orders[0].target ? this.orders[0].target.uid : null }); }
+    if (this.remote) { const pl = G.player; const T = this.selOrders().target; this.net.send({ t: "bord", id, grp: this.sel || null, at: this.lookPoint(), pos: { x: pl.pos.x, z: pl.pos.z }, tid: id === "target" && T ? T.uid : null }); }
     // (and the word taken up down the line: a man or two shouting it back)
     const mates = this.alliesOf(0).filter(u => !u.crewOf);
     for (let i = 0; i < Math.min(2, mates.length); i++) { const u = mates[Math.floor(Math.random() * mates.length)]; setTimeout(() => u.alive && AUDIO.voice && AUDIO.voice(Math.random() < 0.6 ? "war" : "grunt", { at: u.pos, vol: 0.55, high: isF(u.info.look) }), 350 + i * 260 + Math.random() * 200); }
     if (this.book) this.book.update(this.bookState());
   }
-  giveNow(id) {
-    const O = this.orders[0], pl = G.player, say = (t, v = "war") => { UI.hint(t, 2.2); AUDIO.voice && AUDIO.voice(v, { high: G.who === "sister", vol: 0.8 }); };
-    if (id.startsWith("form:")) { O.form = id.slice(5); say(`${FORM_WORD[O.form] || "Form up"}!`); return; }
+  // the orders being given now: the company's, or (a letter pressed) one arm's own
+  selOrders() { return this.sel ? ((this.sub ||= [{}, {}])[0][this.sel] ||= Object.assign(new Orders(0), this.orders[0], { target: null })) : this.orders[0]; }
+  // the arms there are in your company (each with its letter)
+  groupsHere() { const have = new Set(this.alliesOf(0).filter(u => !u.crewOf).map(groupOf)); return GROUPS.filter(g => have.has(g.id)); }
+  // a letter: that arm picked out, to take the orders by itself — the same letter again, the whole company
+  pickGroup(g) {
+    if (this.sel === g.id) { this.sel = null; UI.hint("The whole company — your orders go to every man.", 2.2); }
+    else {
+      const n = this.alliesOf(0).filter(u => !u.crewOf && groupOf(u) === g.id).length;
+      if (!n) { UI.hint(`You have no ${g.name.toLowerCase()} here.`, 1.8); return; }
+      this.sel = g.id;
+      UI.hint(`${g.name} (${n}) — your orders go to them alone. ${g.key.slice(3)} again: the whole company.`, 2.8);
+    }
+    const F = window.__foley; F && F.packOut && F.packOut(0.12);
+    if (this.book) this.book.update(this.bookState());
+  }
+  // one order, carried out by a set of orders (pos: where the commander stands; at: where he's looking)
+  applyOrder(team, O, id, at, pos, tgt) {
+    if (id.startsWith("form:")) { if (FORMATIONS[id.slice(5)]) O.form = id.slice(5); return; }
     switch (id) {
-      case "follow": { O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; const n = this.rally(0, pl.pos); say(n ? `Rally! On me! — ${n} back in the ranks` : "On me — fall in!"); break; }
-      case "hold": O.mode = "hold"; O.at = { x: pl.pos.x, z: pl.pos.z }; O.cover = false; O.charge = false; this.mark(O.at); say("Halt! Hold here."); break;
-      case "advance": O.mode = "advance"; O.at = this.lookPoint(); O.cover = false; O.charge = false; this.mark(O.at); say("Forward — there!"); break;
-      case "cover": O.cover = true; O.charge = false; if (O.mode === "follow") { O.mode = "hold"; O.at = { x: pl.pos.x, z: pl.pos.z }; } say("Get down — take cover!"); break;
-      case "fire": O.fire = !O.fire; say(O.fire ? "Fire at will!" : "Hold your fire!"); break;
-      case "volley": O.volleyAt = G.time + 1.1; O.fire = true; say("Make ready… present… fire!"); break;
+      case "follow": O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; break;
+      case "hold": O.mode = "hold"; O.at = pos; O.cover = false; O.charge = false; break;
+      case "advance": O.mode = "advance"; O.at = at; O.cover = false; O.charge = false; break;
+      case "cover": O.cover = true; O.charge = false; if (O.mode === "follow") { O.mode = "hold"; O.at = pos; } break;
+      case "fire": O.fire = !O.fire; break;
+      case "volley": O.volleyAt = G.time + 1.1; O.fire = true; break;
+      case "target": O.target = tgt && tgt.alive ? tgt : null; break;
+      case "charge": O.charge = !O.charge; if (O.charge) O.cover = false; break;
+    }
+  }
+  // (to the whole company: every arm with orders of its own takes it too; to one arm, that arm alone)
+  ordersFor(team, grp) {
+    if (grp && GROUPS.some(g => g.id === grp)) { const S = (this.sub ||= [{}, {}])[team] ||= {}; return [S[grp] ||= Object.assign(new Orders(team), this.orders[team], { target: null })]; }
+    return this.ordersOf(team);
+  }
+  giveNow(id) {
+    const O = this.selOrders(), pl = G.player, say = (t, v = "war") => { UI.hint(this.sel ? `${GROUPS.find(g => g.id === this.sel).name}: ${t}` : t, 2.2); AUDIO.voice && AUDIO.voice(v, { high: G.who === "sister", vol: 0.8 }); };
+    const all = this.ordersFor(0, this.sel), pos = { x: pl.pos.x, z: pl.pos.z }, go = (at, tgt) => { for (const o of all) this.applyOrder(0, o, id, at, pos, tgt); };
+    if (id.startsWith("form:")) { go(); say(`${FORM_WORD[O.form] || "Form up"}!`); return; }
+    switch (id) {
+      case "follow": { go(); const n = this.rally(0, pl.pos); say(n ? `Rally! On me! — ${n} back in the ranks` : "On me — fall in!"); break; }
+      case "hold": go(); this.mark(pos); say("Halt! Hold here."); break;
+      case "advance": { const at = this.lookPoint(); go(at); this.mark(at); say("Forward — there!"); break; }
+      case "cover": go(); say("Get down — take cover!"); break;
+      case "fire": { const on = !O.fire; for (const o of all) o.fire = on; say(on ? "Fire at will!" : "Hold your fire!"); break; }
+      case "volley": go(); say("Make ready… present… fire!"); break;
       case "target": {
         const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
         let best = null, ba = 0.12;
         for (const u of this.enemiesOf(0)) { const v = new THREE.Vector3(u.pos.x - camera.position.x, u.pos.y + 1.2 - camera.position.y, u.pos.z - camera.position.z), d = v.length(); if (d > 150) continue; const ang = v.normalize().angleTo(dir); if (ang < ba) { ba = ang; best = u; } }
         if (!best) { UI.hint("Look at the man you want brought down, then give the order.", 2.5); return; }
-        O.target = best; this.mark(best.pos, 0xd86a50); say("That one — bring him down!"); break;
+        go(null, best); this.mark(best.pos, 0xd86a50); say("That one — bring him down!"); break;
       }
-      case "charge": O.charge = !O.charge; if (O.charge) O.cover = false; say(O.charge ? "Charge!" : "Halt — fall back in!"); break;
+      case "charge": { const on = !O.charge; for (const o of all) { o.charge = on; if (on) o.cover = false; } say(on ? "Charge!" : "Halt — fall back in!"); break; }
       case "guns:there": case "guns:will": case "guns:abandon": {
         if (!this.field || !this.field.guns.some(g => g.side === 0)) { UI.hint("Your company has no guns here.", 2); return; }
         if (id === "guns:abandon") { const on = !(this.abandoned && this.abandoned[0]); this.abandonGuns(0, on); say(on ? "Leave the guns — fall in with the line!" : "Back to your guns!"); break; }
@@ -1982,7 +2058,7 @@ class Arena {
   puppets(roster) {
     this.byId = new Map();
     for (const r of roster) {
-      const u = new Puppet(this, { name: r.name, look: r.look, lo: r.lo, team: 1 - r.team, idx: r.idx, uid: r.id, bot: true, horse: !!r.horse });
+      const u = new Puppet(this, { name: r.name, look: r.look, lo: r.lo, team: 1 - r.team, idx: r.idx, uid: r.id, bot: true, horse: !!r.horse, kind: typeof r.kind === "string" ? r.kind : null });
       if (r.gun >= 0 && this.field.guns[r.gun]) { const g = this.field.guns[r.gun]; u.crewOf = g; u.crewIdx = r.ci; g.crew.push(u); }
       this.units.push(u); this.hunt.animals.push(u); this.byId.set(r.id, u);
     }
@@ -2001,20 +2077,15 @@ class Arena {
   }
   // the other player's orders to their company, carried out here
   remoteOrder(m) {
-    const O = this.orders[1], at = m.at && isFinite(m.at.x) ? { x: +m.at.x, z: +m.at.z } : null, pos = m.pos && isFinite(m.pos.x) ? { x: +m.pos.x, z: +m.pos.z } : null, id = String(m.id || "");
-    if (id.startsWith("form:")) { if (FORMATIONS[id.slice(5)]) O.form = id.slice(5); return; }
-    switch (id) {
-      case "follow": O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; if (pos) this.rally(1, pos); break;
-      case "hold": O.mode = "hold"; O.at = pos; O.cover = false; O.charge = false; break;
-      case "advance": O.mode = "advance"; O.at = at; O.cover = false; O.charge = false; break;
-      case "cover": O.cover = true; O.charge = false; if (O.mode === "follow") { O.mode = "hold"; O.at = pos; } break;
-      case "fire": O.fire = !O.fire; break;
-      case "volley": O.volleyAt = G.time + 1.1; O.fire = true; break;
-      case "target": { const t = m.tid === -1 ? this.you : this.unitById(m.tid); O.target = t && t.alive ? t : null; break; }
-      case "charge": O.charge = !O.charge; if (O.charge) O.cover = false; break;
-      case "guns:abandon": this.abandonGuns(1, !(this.abandoned && this.abandoned[1])); break;
-      case "guns:there": case "guns:will": if (this.abandoned && this.abandoned[1]) this.abandonGuns(1, false); this.field.order(1, id === "guns:there" ? at : null); break;
-    }
+    const at = m.at && isFinite(m.at.x) ? { x: +m.at.x, z: +m.at.z } : null, pos = m.pos && isFinite(m.pos.x) ? { x: +m.pos.x, z: +m.pos.z } : null, id = String(m.id || "");
+    const all = this.ordersFor(1, typeof m.grp === "string" ? m.grp : null), O = all[0];
+    if (id === "fire") { const on = !O.fire; for (const o of all) o.fire = on; return; }
+    if (id === "charge") { const on = !O.charge; for (const o of all) { o.charge = on; if (on) o.cover = false; } return; }
+    const tgt = id === "target" ? (m.tid === -1 ? this.you : this.unitById(m.tid)) : null;
+    for (const o of all) this.applyOrder(1, o, id, at, pos, tgt);
+    if (id === "follow" && pos) this.rally(1, pos);
+    if (id === "guns:abandon") this.abandonGuns(1, !(this.abandoned && this.abandoned[1]));
+    if (id === "guns:there" || id === "guns:will") { if (this.abandoned && this.abandoned[1]) this.abandonGuns(1, false); this.field.order(1, id === "guns:there" ? at : null); }
   }
   wireBattle(net) {
     const D3 = a => new THREE.Vector3(...(a || [0, 0, 0]).map(Number));
@@ -2255,7 +2326,7 @@ class Bot extends Fighter {
     //  back, or on a man running away, goes in where he can't guard — half again)
     const fromBehind = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) < -0.25;
     // (a horseman's blow on a man in a square: the bristling front of it turns most of it)
-    const sq = (by ? by.mounted : !!G.player.horse) && this.arena.orders && this.arena.orders[this.team] && this.arena.orders[this.team].form === "square" && !this.routing;
+    const sq = (by ? by.mounted : !!G.player.horse) && this.arena.orderOf && this.arena.orderOf(this) && this.arena.orderOf(this).form === "square" && !this.routing;
     const k = (this.mounted && by && by.steel && by.steel() === "spear" ? 2 : 1) * (fromBehind || this.routing ? 1.5 : 1) * (sq ? 0.5 : 1);
     this.damage(dmg * k, true, false, src);
   }
@@ -2301,7 +2372,7 @@ class Bot extends Fighter {
   }
   // whom he's fighting: the man his officer named, or the nearest of the other side he can see (or just the nearest)
   pick() {
-    const O = this.arena.orders && this.arena.orders[this.team], foes = this.arena.enemiesOf(this.team);
+    const O = this.arena.orderOf && this.arena.orderOf(this), foes = this.arena.enemiesOf(this.team);
     if (O && O.target && O.target.alive && foes.includes(O.target)) return O.target;
     // (the sharp officer's men pick their mark: a man out in the open before one behind cover, a man already hurt, a
     //  gun's crew — fire where it'll tell — and never all on one while others go untouched)
@@ -2366,7 +2437,7 @@ class Bot extends Fighter {
     const fp = T.pos, d = Math.hypot(fp.x - a.pos.x, fp.z - a.pos.z);
     if ((this.losT -= dt) <= 0) { this.losT = 0.25 + Math.random() * 0.1; this.los = this.sees(T); }
     if (this.stun > 0) { this.stun -= dt; return; }
-    const O = this.arena.orders && this.arena.orders[this.team];
+    const O = this.arena.orderOf && this.arena.orderOf(this);
     // his guard: to a side, or (the better he is) to the side you're on
     if ((this.guardT -= dt) <= 0) { this.guardT = 0.6 + Math.random() * (1.2 - s * 0.5); this.guardDir = T.isPlayer && Math.random() < 0.3 + s * 0.5 && pl.stance ? pl.stance : DIRS[Math.floor(Math.random() * 3)]; }
     this.stepT -= dt; this.cool -= dt;
@@ -2423,8 +2494,9 @@ class Bot extends Fighter {
     if (O) {
       const want = this.arena.slotFor(this);
       // (loading, or ordered down: behind the nearest thing that'll stop a ball, if there's one near his place)
-      // (but not on the march: the line keeps its order, and loads where it stands)
-      const wantCover = field && !this.crewOf && (O.cover || (!useK && s > 0.25 && !this.wasCrew && O.mode !== "advance")) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.al, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
+      // (but not on the march: the line keeps its order, and loads where it stands; and not a man on a horse, nor one with
+      //  only steel — the pikes keep their block)
+      const wantCover = field && !this.crewOf && !this.mounted && (O.cover || (!useK && longK !== "none" && s > 0.25 && !this.wasCrew && O.mode !== "advance")) ? (this.cover && this.cover.taken === this ? this.cover : field.coverNear(this.al, want.x, want.z, fp.x, fp.z, O.cover ? 14 : 8, this)) : null;
       if (wantCover !== this.cover) { this.releaseCover(); this.cover = wantCover; if (wantCover) wantCover.taken = this; }
       const goal = this.cover || want, gd = Math.hypot(goal.x - a.pos.x, goal.z - a.pos.z);
       // (behind his cover and not firing: down low)

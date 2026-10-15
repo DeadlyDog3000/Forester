@@ -494,6 +494,65 @@ const RECIPES = {
     hiss(d, sr, 0.18, 0.16, 0.5, new Biquad("bp", rand(1800, 2800), 0.7, sr), x => Math.sin(Math.PI * Math.min(1, x / 0.16)) ** 2);
     return finish(d, 0.75);
   },
+  // ---- the campaign's table: a map of parchment, a quill, a seal, and what comes in from outside ----
+  // the map handled: stiff old paper lifted and laid down — a dry crackle over a soft rush
+  parchment(sr) {
+    const L = rand(0.35, 0.5), d = new Float32Array(Math.floor(sr * L));
+    hiss(d, sr, 0, L, 0.35, new Biquad("bp", rand(2400, 3600), 0.6, sr), x => Math.sin(Math.PI * Math.min(1, x / L)) ** 1.5);
+    hiss(d, sr, 0, L, 0.25, new Biquad("lp", 900, 0.6, sr), x => Math.sin(Math.PI * Math.min(1, x / L)));
+    crackles(d, sr, 0.02, L - 0.06, 70, 0.6, 2500, 7500);
+    return finish(d, 0.7);
+  },
+  // a quill across paper: three or four strokes, each a dry scratch with the nib's catch in it
+  quill(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.9)); let t = 0.02;
+    for (let k = 0, n = 3 + Math.floor(Math.random() * 2); k < n; k++) {
+      const len = rand(0.08, 0.2), bp = new Biquad("bp", rand(3500, 6000), 2.2, sr);
+      hiss(d, sr, t, len, 0.6, bp, x => Math.sin(Math.PI * Math.min(1, x / len)) * (0.6 + 0.4 * Math.sin(x * rand(90, 160))));
+      crackles(d, sr, t, len, 90, 0.35, 4000, 9000);
+      t += len + rand(0.04, 0.12);
+    }
+    return finish(d, 0.55);
+  },
+  // the seal pressed into the wax: a soft knock of the brass on the table through the paper, and the squeeze
+  seal(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.45));
+    modes(d, sr, 0.01, [[rand(110, 140), 0.06, 0.9], [rand(260, 320), 0.035, 0.4], [rand(700, 900), 0.012, 0.15]]);
+    hiss(d, sr, 0.0, 0.03, 0.5, new Biquad("lp", 1500, 0.7, sr), x => Math.exp(-x / 0.006));
+    hiss(d, sr, 0.03, 0.25, 0.18, new Biquad("bp", rand(500, 800), 1.2, sr), x => Math.min(1, x / 0.05) * Math.exp(-x / 0.08));
+    return finish(d, 0.75);
+  },
+  // the regiment's drum beating the march: a calfskin head and its snares — a flam, a short roll, and the beats
+  drum(sr) {
+    const d = new Float32Array(Math.floor(sr * 1.6)), p = rand(0.95, 1.05);
+    const hit = (t, a) => {
+      modes(d, sr, t, [[175 * p, 0.12, 0.9 * a], [282 * p, 0.07, 0.5 * a], [395 * p, 0.05, 0.3 * a], [520 * p, 0.03, 0.2 * a]]);
+      hiss(d, sr, t, 0.18, 0.55 * a, new Biquad("hp", 2600, 0.7, sr), x => Math.exp(-x / 0.05));
+      hiss(d, sr, t, 0.01, 0.6 * a, new Biquad("bp", 1800, 0.8, sr), x => Math.exp(-x / 0.002));
+    };
+    hit(0, 0.45); hit(0.03, 1);                                                    // (the flam)
+    for (let k = 0; k < 7; k++) hit(0.3 + k * 0.045, 0.35 + k * 0.05);             // (the roll)
+    hit(0.66, 1); hit(1.0, 0.8); hit(1.2, 0.9);
+    return finish(d, 0.8);
+  },
+  // a church bell tolling: a bronze bell's partials — the hum an octave under, the minor third that makes it a bell,
+  // the fifth, the nominal — each dying at its own pace, the low ones longest
+  bell(sr) {
+    const L = 4.5, d = new Float32Array(Math.floor(sr * L)), f = rand(290, 380);
+    modes(d, sr, 0, [[f * 0.5, 2.6, 0.55], [f, 1.9, 0.7], [f * 1.19, 1.5, 0.5], [f * 1.5, 1.1, 0.35], [f * 2, 0.9, 0.45], [f * 2.5, 0.6, 0.25], [f * 3.01, 0.45, 0.2], [f * 4.1, 0.3, 0.12]]);
+    hiss(d, sr, 0, 0.02, 0.4, new Biquad("bp", f * 6, 1.5, sr), x => Math.exp(-x / 0.004));     // (the clapper's strike)
+    return finish(d, 0.7);
+  },
+  // guns far off, beyond the hills: low thumps that roll on, one after another
+  guns(sr) {
+    const L = 3.2, d = new Float32Array(Math.floor(sr * L)); let t = 0.02;
+    for (let k = 0, n = 2 + Math.floor(Math.random() * 3); k < n; k++) {
+      hiss(d, sr, t, 1.6, rand(0.7, 1), new Biquad("lp", rand(90, 140), 0.8, sr), x => Math.min(1, x / 0.01) * Math.exp(-x / 0.35));
+      hiss(d, sr, t + 0.25, 1.4, 0.35, new Biquad("lp", 70, 0.7, sr), x => Math.min(1, x / 0.2) * Math.exp(-x / 0.5));
+      t += rand(0.35, 0.8);
+    }
+    return finish(d, 0.85);
+  },
   // a fire burning: a light thing — the soft breath of the flames drawing, a faint hiss of sap, and over it the
   // crackle, many small dry ticks and now and then a snap; a knot pops once in a while. (It was a heavy roar once,
   // more furnace than campfire.) Made long enough to loop without being heard to.
@@ -518,7 +577,8 @@ const RECIPES = {
 };
 const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3,
   whiz: 3, thunk: 3, halfcock: 3, cock: 3, prime: 3, frizzen: 3, powder: 2, ball: 3, rodOut: 2, rodIn: 2, ram: 4,
-  quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3, fixBayonet: 3, unfixBayonet: 2 };
+  quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3, fixBayonet: 3, unfixBayonet: 2,
+  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2 };
 // (every recipe needs its count above, or it's made no times and never heard: anything left out gets two)
 for (const k in RECIPES) VARIANTS[k] ??= 2;
 
@@ -601,6 +661,8 @@ export const FOLEY = {
   whiz: (vol = 0.55) => play("whiz", { vol, rate: [0.9, 1.12] }),
   // a step of loading (see the recipes): at a place, or in your own hands
   load: (step, at = null, vol = 0.55, small = false) => RECIPES[step] && play(step, { vol, at, reach: 25, rate: small ? [1.12, 1.25] : [0.94, 1.06] }),
+  // the campaign's sounds, beside you (parchment, quill, seal, drum, bell, guns)
+  cmp: (name, vol = 0.5) => RECIPES[name] && play(name, { vol, rate: name === "bell" ? [0.97, 1.03] : [0.92, 1.08] }),
   thunk: (at, vol = 0.7) => play("thunk", { vol, at, reach: 40, rate: [0.85, 1.15] }),
   packIn: (vol = 0.45) => play("packIn", { vol, rate: [0.9, 1.1] }),
   packOut: (vol = 0.45) => play("packOut", { vol, rate: [0.9, 1.1] }),

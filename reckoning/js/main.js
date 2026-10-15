@@ -2160,6 +2160,8 @@ document.addEventListener("pointerlockchange", () => {
   hadLock = false;
 });
 addEventListener("keydown", e => {
+  // (a battle's letters pick out the arms of your company: theirs, not the books')
+  if (G.arena && G.arena.takesKey && G.arena.takesKey(e)) return;
   // (a game with others has keys of its own: talking, the people here, building)
   if (G.mp && G.mp.key(e)) return;
   if (e.code === "Escape" && G.mode === "pause" && !document.pointerLockElement) { /* the browser ate the first Escape */ }
@@ -2283,6 +2285,7 @@ function legendCanvas() {
 });
 let legendOn = false;
 addEventListener("keydown", e => {
+  if (G.arena && G.arena.takesKey && G.arena.takesKey(e)) return;
   if (e.code !== "KeyK" || e.repeat || G.mode !== "play" || (overlay && overlay !== "bigmap")) return;
   legendOn = !legendOn; $("mmLegend").classList.toggle("hidden", !legendOn);
 });

@@ -12,6 +12,7 @@
 // The map is the story's own (europe.js): the real coasts and the crowns' borders of 1683, every conquest laid over
 // them. A town is a province: taking one takes the country round it.
 
+import { FOLEY } from "./foley.js";
 import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H } from "./europe.js";
 
 const KEY = "reckoning.campaign.v1";
@@ -22,6 +23,9 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 const R = () => Math.random();
 const pick = a => a[Math.floor(R() * a.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// the sounds of the campaign table: the map's parchment, the quill and the seal, the drum, the bells, the guns far off
+// (each real — foley.js — and a few strung together, a moment apart)
+const sfx = (name, vol = 0.5, after = 0) => { const go = () => { try { name === "coin" ? FOLEY.play("coin", { vol }) : FOLEY.cmp(name, vol); } catch (e) {} }; after ? setTimeout(go, after) : go(); };
 
 // each crown's coats on the field, and how its army's made up
 export const UNI_OF = {
@@ -94,6 +98,14 @@ function seize(ct, to) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const k = (c + dx) + "," + (r + dy); if (!seen.has(k) && g[r + dy] && g[r + dy][c + dx] === from && Math.hypot(c + dx - x0, r + dy - y0) < 13) { seen.add(k); q.push([c + dx, r + dy]); } }
   }
   C._dirty = true;
+  // (its last town gone: the whole crown is the taker's — every field and forest of it, to the last corner)
+  if (!CITIES.some(o => o !== ct && cityOwner(g, o) === from)) n += annex(g, from, to);
+  return n;
+}
+function annex(g, from, to) {
+  let n = 0;
+  for (let r = 0; r < MG_H; r++) { const row = g[r]; for (let c = 0; c < MG_W; c++) if (row[c] === from) { own.set(c + "," + r, to); n++; } }
+  C._dirty = true; C.gone = { ...(C.gone || {}), [from]: to }; C.E.gone = C.gone;
   return n;
 }
 // how far a town lies from a crown's own land, in cells (up to REACH: further is out of reach)
@@ -111,6 +123,17 @@ function neighbours(g, id) {
   return out;
 }
 const atWar = id => !!C.E.war[id];
+// a town your army can march on: within its reach of your land — or, at war with a crown none of whose towns is that
+// near, the nearest of them (a war can always be carried to the enemy; it only takes longer to get there)
+function inReach(g, ct, by = C.me) {
+  if (distFrom(g, by, ct) <= REACH) return true;
+  const foe = cityOwner(g, ct); if (!foe || foe === by) return false;
+  const mine = citiesOfNow(g, by).map(cellOf); if (!mine.length) return false;
+  const far = t => { const [x, y] = cellOf(t); return Math.min(...mine.map(([a, b]) => Math.hypot(a - x, b - y))); };
+  const theirs = citiesOfNow(g, foe); if (theirs.some(t => distFrom(g, by, t) <= REACH)) return false;
+  const best = theirs.reduce((b, t) => far(t) < far(b) ? t : b, theirs[0]);
+  return best === ct;
+}
 const alive = (g, id) => citiesOfNow(g, id).length > 0;
 
 // ---- a fight for a town: by your hand, or your generals' ----
@@ -130,10 +153,16 @@ function settle(o, won, myLossK, theirLossK) {
     if (won) { seize(o.ct, C.me); C.took[o.foe] = (C.took[o.foe] || 0) + 1; for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === o.foe ? 8 : 2; say(`${name} is yours`, `Taken from ${the(o.foe)}.`); }
     else say(`Beaten before ${name}`, `Your army falls back with what it has left: ${C.army} regiments.`);
   } else {
-    if (won) say(`${name} holds`, `${The(o.foe)}'s army is thrown back.`);
+    if (won) { say(`${name} holds`, `${The(o.foe)}'s army is thrown back.`); strikeBack(o.foe); }
     else { seize(o.ct, o.foe); C.lost[o.foe] = (C.lost[o.foe] || 0) + 1; say(`${name} has fallen`, `${The(o.foe)} takes it.`); }
   }
   checkEnd();
+}
+// (their army thrown back from your walls: their nearest town picked out on the map, to carry the war to them)
+function strikeBack(foe) {
+  const g = grid(), t = citiesOfNow(g, foe).filter(ct => inReach(g, ct)).sort((a, b) => b[3] - a[3])[0];
+  if (!t || C.moved || C.army < 5) return;
+  selCity = t; sel = foe; note = `${The(foe)}'s army is beaten back and weakened. Strike back while it's down: ${t[0]} is within your reach.`;
 }
 function auto(o) {
   const p = odds(o.att, o.def, o.walls), attWins = R() < p, won = o.attack ? attWins : !attWins;
@@ -171,6 +200,7 @@ function fight(o) {
     const P = C.pending; if (!P) return; C.pending = null;
     const k = Math.min(0.9, (lost || 0) / myMen) * 0.8 + 0.05, t = Math.min(0.9, (killed || 0) / theirMen) * 0.8 + 0.05;
     settle({ ...P, ct: CITIES.find(c => c[0] === P.ct) }, won, k, t); persist();
+    if (won) sfx("bell", 0.45, 1800);
   };
   startBattle(b);
 }
@@ -185,7 +215,7 @@ function abandoned() {
 // ---- your season's doings ----
 function march(ct) {
   const g = grid(), foe = cityOwner(g, ct);
-  if (C.moved || !foe || !atWar(foe) || C.army < 5 || distFrom(g, C.me, ct) > REACH) return null;
+  if (C.moved || !foe || !atWar(foe) || C.army < 5 || !inReach(g, ct)) return null;
   C.moved = true;
   return { attack: true, foe, ct, att: C.army, def: garrison(ct) + Math.round((C.foes[foe] || 0) * 0.55), walls: ct[3] >= 3 || (ct[3] === 2 && R() < 0.5) };
 }
@@ -263,7 +293,7 @@ function endSeason() {
   // who marches on your towns: each crown at war with you, now and then, at a town of yours within its reach
   for (const id of ids) {
     if (!atWar(id) || C.foes[id] < 8 || R() > (C.s === 3 ? 0.2 : 0.5)) continue;
-    const near = mine.filter(ct => distFrom(g2, id, ct) <= REACH); if (!near.length) continue;
+    const near = mine.filter(ct => inReach(g2, ct, id)); if (!near.length) continue;
     const ct = pick(near), att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
     C.events.push({ kind: "attack", foe: id, ct: ct[0], att, def: garrison(ct) + levy(mine.length) + Math.round(C.army * 0.7), walls: ct[3] >= 2 });
   }
@@ -298,7 +328,7 @@ function checkEnd() {
   const g = grid(), n = citiesOfNow(g, C.me).length;
   if (!n && !C.over) { C.over = "lost"; say("Your crown is lost", "The last of your towns has fallen."); }
   if (n >= WIN_CITIES && !C.won) { C.won = true; say("Europe is yours", `${n} towns under your crown. Play on, if you like.`); }
-  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !alive(g, id)) { C.E.war[id] = false; say(`${The(id)} is no more`, "Its last town is yours or another's."); }
+  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !alive(g, id)) { C.E.war[id] = false; const by = C.gone && C.gone[id]; say(`${The(id)} is no more`, by === C.me ? "Its last town has fallen to you, and every acre of its land is yours." : by ? `${The(by)} has taken the last of it.` : "Its last town is yours or another's."); }
 }
 
 // ---------------------------------------------------------------------------
@@ -309,14 +339,21 @@ export function initCampaign(c, battle) {
   ctx = c; startBattle = battle;
   $("cmpBack").onclick = () => ctx.screen("pvp");
   $("cmpNew").onclick = () => drawPick();
-  $("cmpPick").addEventListener("click", e => { const b = e.target.closest("[data-crown]"); if (!b) return; if (load() && !confirm("Start a new campaign? The one you have now will be lost.")) return; begin(b.dataset.crown); sel = null; selCity = null; drawMap(true); });
+  $("cmpPick").addEventListener("click", e => { const b = e.target.closest("[data-crown]"); if (!b) return; if (load() && !confirm("Start a new campaign? The one you have now will be lost.")) return; begin(b.dataset.crown); sel = null; selCity = null; drawMap(true); sfx("bell", 0.45); sfx("drum", 0.4, 900); });
   $("cmpEnd").onclick = () => {
     const before = C.log.length ? C.log[0] : null; endSeason();
+    sfx("parchment", 0.55);
     // (what happened while the season turned: the news of it, at the top)
     const fresh = []; for (const l of C.log) { if (l === before) break; fresh.push(l); }
     news = fresh.filter(l => !/^(Spring|Summer|Autumn|Winter) \d+$/.test(l.title)).reverse(); note = ""; drawMap();
+    // (war on you, or an army on its way: the drum; a crown gone from the map: the bells)
+    if (C.events.some(e => e.kind === "attack" && !e.done) || news.some(l => /declares war on you/.test(l.title))) sfx("drum", 0.5, 400);
+    else if (news.some(l => /is no more|takes /.test(l.title))) sfx("guns", 0.4, 400);
   };
   $("cmpSide").addEventListener("click", sideClick);
+  $("cmpPanel").onclick = () => { $("cmpSide").classList.toggle("shut"); sfx("parchment", 0.5); };
+  addEventListener("keydown", e => { if (e.code === "Tab" && !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden")) { e.preventDefault(); e.stopImmediatePropagation(); $("cmpPanel").click(); } }, true);
+  addEventListener("resize", () => { if (C && !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden")) drawMap(); });
   const cv = $("cmpMap");
   let drag = null;
   const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
@@ -335,7 +372,7 @@ export function initCampaign(c, battle) {
   cv.onmouseup = e => {
     const moved = drag ? drag.moved : 0; drag = null; if (moved > 5 || !C) return;
     const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z);
-    selCity = ct || null; sel = ct ? cityOwner(grid(), ct) : nationAt(E(), cv, ...p); note = ""; drawMap();
+    selCity = ct || null; sel = ct ? cityOwner(grid(), ct) : nationAt(E(), cv, ...p); note = ""; drawMap(); if (selCity || sel) sfx("parchment", 0.28);
   };
   for (const b of document.querySelectorAll("#campaign .cmp-zoom button")) b.onclick = () => { const cx = cv.width / 2, cy = cv.height / 2, [bx, by] = toMap([cx, cy]); view.z *= b.dataset.z === "in" ? 1.5 : 1 / 1.5; clampV(); view.ox = bx - cx / view.z; view.oy = by - cy / view.z; clampV(); paint(); };
 }
@@ -371,7 +408,7 @@ function paint() {
       c.strokeStyle = threat.has(ct[0]) ? "#c0281a" : NATIONS[C.me].color; c.beginPath(); c.arc(x, y, (7 + ct[3] * 1.5) * k, 0, 7); c.stroke();
       c.strokeStyle = "rgba(40,28,16,0.8)"; c.lineWidth = 1 * k; c.beginPath(); c.arc(x, y, (8.6 + ct[3] * 1.5) * k, 0, 7); c.stroke(); c.lineWidth = 2.2 * k;
       if (threat.has(ct[0])) swords(x, y - 17 * k, 5 * k, "#c0281a");
-    } else if (atWar(own2) && distFrom(g, C.me, ct) <= REACH) {
+    } else if (atWar(own2) && inReach(g, ct)) {
       swords(x, y - 14 * k, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
     }
   }
@@ -379,8 +416,11 @@ function paint() {
 }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
-  const cv = $("cmpMap"), wrap = cv.parentElement;
-  const W = Math.round(Math.min(1600, Math.max(800, wrap.clientWidth || 1000)) * 1.5); if (cv.width !== W) { cv.width = W; cv.height = Math.round(W * MAP_ASPECT); }
+  const cv = $("cmpMap");
+  // (the whole window covered: the map as wide as it, or as tall, whichever covers it — its edges, the sea, past them)
+  const cw = Math.max(innerWidth, innerHeight / MAP_ASPECT);
+  cv.style.width = Math.round(cw) + "px"; cv.style.height = Math.round(cw * MAP_ASPECT) + "px";
+  const W = Math.round(Math.min(2600, Math.max(1200, cw * Math.min(2, devicePixelRatio || 1)))); if (cv.width !== W) { cv.width = W; cv.height = Math.round(W * MAP_ASPECT); }
   if (fit) {
     // (looking at your own crown, close enough to see its towns)
     const g = grid(), mine = citiesOfNow(g, C.me).map(cellOf);
@@ -411,10 +451,10 @@ function drawSide() {
   if (news.length) h += `<div class="cmp-news"><b>The season's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="news">Close</button></div>`;
   // the town or the crown chosen on the map
   if (selCity) {
-    const own2 = cityOwner(g, selCity), mineT = own2 === C.me, d = distFrom(g, C.me, selCity), can = !mineT && own2 && atWar(own2) && d <= REACH && !C.moved && C.army >= 5;
+    const own2 = cityOwner(g, selCity), mineT = own2 === C.me, reach = !mineT && own2 && inReach(g, selCity), can = !mineT && own2 && atWar(own2) && reach && !C.moved && C.army >= 5;
     const def = own2 && !mineT ? garrison(selCity) + Math.round((C.foes[own2] || 0) * 0.55) : 0, walls = selCity[3] >= 3;
     h += `<div class="cmp-card"><div class="cmp-h"><b>${esc(selCity[0])}</b><small>${["", "A town", "A city", "A great city"][selCity[3]]} · ${own2 ? esc(NATIONS[own2].name) : "nobody's"}</small></div>
-      ${mineT ? `<p>Yours. Garrison ${garrison(selCity)}; worth ${selCity[3] * 22} thalers a season.</p>` : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${Math.round((C.foes[own2] || 0) * 0.55)} regiments to it${walls ? ", behind walls" : ""}. ${d > REACH ? "It's beyond your army's reach: take the towns between first." : !atWar(own2) ? `You're not at war with ${the(own2)}.` : C.moved ? "Your army has already marched this season." : `Your odds: ${Math.round(odds(C.army, def, walls) * 100)}%.`}</p>` : ""}
+      ${mineT ? `<p>Yours. Garrison ${garrison(selCity)}; worth ${selCity[3] * 22} thalers a season.</p>` : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${Math.round((C.foes[own2] || 0) * 0.55)} regiments to it${walls ? ", behind walls" : ""}. ${!reach ? "It's beyond your army's reach: take the towns between first." : !atWar(own2) ? `You're not at war with ${the(own2)}.` : C.moved ? "Your army has already marched this season." : `Your odds: ${Math.round(odds(C.army, def, walls) * 100)}%.`}</p>` : ""}
       ${can ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">March, and fight it yourself</button><button class="btn" data-act="auto">March, and leave it to your generals</button></div>` : ""}</div>`;
   }
   const id = selCity ? cityOwner(g, selCity) : sel;
@@ -443,20 +483,21 @@ function sideClick(e) {
   if (b.dataset.ev != null) {
     const ev = C.events[+b.dataset.ev]; if (!ev || ev.done) return; ev.done = true;
     const ct = CITIES.find(c => c[0] === ev.ct);
-    if (ev.kind === "peace") { if (b.dataset.how === "yes") { makePeace(ev.foe); C.gold += ev.gold || 0; } else C.E.rel[ev.foe] -= 5; }
+    if (ev.kind === "peace") { if (b.dataset.how === "yes") { makePeace(ev.foe); C.gold += ev.gold || 0; sfx("quill", 0.5); sfx("seal", 0.6, 900); if (ev.gold) sfx("coin", 0.4, 1300); } else { C.E.rel[ev.foe] -= 5; sfx("drum", 0.45); } }
     else if (ev.kind === "attack") {
       // (the town may already have gone, to another's march this season)
       if (cityOwner(grid(), ct) !== C.me) { note = `${ev.ct} is no longer yours to defend.`; }
-      else { const o = { attack: false, foe: ev.foe, ct, att: ev.att, def: ev.def, walls: ev.walls }; if (b.dataset.how === "fight") { C.events = C.events.filter(x => !x.done); persist(); fight(o); return; } auto(o); }
+      else { const o = { attack: false, foe: ev.foe, ct, att: ev.att, def: ev.def, walls: ev.walls }; if (b.dataset.how === "fight") { C.events = C.events.filter(x => !x.done); persist(); fight(o); return; } const held = auto(o); sfx("guns", 0.6); if (held) sfx("bell", 0.4, 1600); }
     }
     C.events = C.events.filter(x => !x.done); persist(); drawMap(); return;
   }
   const a = b.dataset.act;
-  if (a === "fight" || a === "auto") { const o = march(selCity); if (!o) return; if (a === "fight") { persist(); fight(o); return; } const w = auto(o); note = w ? `${selCity[0]} is yours.` : `The attack on ${selCity[0]} failed.`; persist(); drawMap(); return; }
+  if (a === "fight" || a === "auto") { const o = march(selCity); if (!o) return; sfx("drum", 0.55); if (a === "fight") { persist(); fight(o); return; } const w = auto(o); sfx("guns", 0.6, 900); if (w) sfx("bell", 0.45, 2300); note = w ? `${selCity[0]} is yours.` : `The attack on ${selCity[0]} failed.`; persist(); drawMap(); return; }
   if (a === "news") { news = []; drawMap(); return; }
-  if (a === "r1") recruit(1); else if (a === "r5") recruit(5);
+  if (a === "r1" || a === "r5") { recruit(a === "r1" ? 1 : 5); sfx("coin", 0.45); sfx("drum", 0.3, 250); }
   else if (a === "newgame") { drawPick(); return; }
-  if (b.dataset.dip) { const id = selCity ? cityOwner(grid(), selCity) : sel; const t = diplo(id, b.dataset.dip); if (t) { note = t; if (!/^You|refuses|won't/.test(t)) say(t); } persist(); }
+  if (b.dataset.dip) { const id = selCity ? cityOwner(grid(), selCity) : sel, w = b.dataset.dip; const t = diplo(id, w);
+    if (t) { if (w === "war") { sfx("quill", 0.4); sfx("drum", 0.6, 600); } else if (w === "gift") sfx("coin", 0.5); else if (w === "envoy" || w === "unpact" || w === "unally" || /refuses|won't/.test(t)) sfx("quill", 0.5); else { sfx("quill", 0.5); sfx("seal", 0.6, 850); } } if (t) { note = t; if (!/^You|refuses|won't/.test(t)) say(t); } persist(); }
   drawMap();
 }
 // (after a battle fought by hand: straight back to the map)
