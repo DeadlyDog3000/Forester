@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.37.0", date: "14 October 2026", title: "Historical battles",
+    items: [
+      "Historical battles: ten fields of the game's own years, under To Arms → Historical battles. Chocim, Seneffe, Fehrbellin, Lund, Vienna, Sedgemoor, Hamburg, the Boyne, Zenta and Narva, fought with the armies that stood there, in their own coats and under their own colours, at the hour and in the weather of the day. Fight for either side, and lead one company while bots lead the rest.",
+      "Each field is shaped like the real one. The Boyne runs between the two kings' armies and Oldbridge stands on the far bank. At Vienna the relief army comes down the Kahlenberg's vineyards towards the Turkish tents, with St Stephen's spire and the city walls beyond. The Bussex Rhine's ditch lies in front of the King's camp at Sedgemoor, by night and in mist. Zenta's bridgehead has the Tisza and the bridge of boats behind it, Narva is in the snow under its castle, and Hamburg fights from its walls with its church spires behind.",
+      "Monmouth's rebels carry scythes and pitchforks, and there are two new flags: Monmouth's green 'Fear nothing but God' and King James's Irish harp.",
+      "When it's over you learn how it really went, and whether you've changed history. A mark on the list shows the battles you've won.",
+      "Ratings begin again: everyone starts at 1000, with a new board of best commanders. From now on only battles and duels against other players count; fighting bots no longer changes your rating, though bots still get sharper as you beat them.",
+      "Fixed: the sound cutting out when a lot was going on at once. Every finished shot, cry and clash was still being processed until it was cleared away, and in a big battle the sound fell behind and dropped out. They're let go of at once now, the sound has more room to keep up when the computer's busy, and if it still falls behind, only distant sounds are left out, never yours.",
+    ],
+  },
+  {
     v: "1.36.0", date: "14 October 2026", title: "Your keys",
     items: [
       "Change any key: Settings → Keys → Change keys… Click an action and press the key you want. A key another action had is swapped over to it, so nothing's ever left without one; Reset all puts every key back. The controls list and the key hints in the game show your keys. (Esc and the number keys stay as they are.)",

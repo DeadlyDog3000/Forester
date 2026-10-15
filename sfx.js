@@ -38,7 +38,11 @@ const SFX = (() => {
 
   function ctx() {
     if (!ac) {
-      ac = new (window.AudioContext || window.webkitAudioContext)();
+      // (a bigger buffer than the browser's own, which is barely five milliseconds: with the computer busy — a battle
+      //  drawing, something else running — the audio thread missed it and the sound cut out in stutters and gaps. Forty
+      //  milliseconds rides that out, and is still sooner than a shot's sound would reach you from twelve paces.)
+      const AC = window.AudioContext || window.webkitAudioContext;
+      try { ac = new AC({ latencyHint: 0.04 }); } catch (e) { ac = new AC(); }
       master = ac.createGain();
       master.gain.value = 0.5;
       master.connect(ac.destination);

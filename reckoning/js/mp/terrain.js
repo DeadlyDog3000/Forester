@@ -145,7 +145,10 @@ export function makeTerrain(seed, half, kind = "island") {
   };
   // (the sea stands a little higher up the shore than the land was first laid out for)
   const SEA_RISE = 0.9;
-  function heightAt(x, z) { return height0(x, z) - SEA_RISE; }
+  // (and the ground reshaped, where a historical battle's field wants its river, its hill, its ditch: see histmap.js)
+  let sculpt = null;
+  function heightAt(x, z) { const h = height0(x, z) - SEA_RISE; return sculpt ? sculpt(h, x, z) : h; }
+  const setSculpt = f => { sculpt = f; };
   function height0(x, z) {
     const c = coast(x, z);
     if (c > 1.05) return -16;
@@ -321,7 +324,7 @@ export function makeTerrain(seed, half, kind = "island") {
     }
     return best || { x: 0, z: 0 };
   }
-  return { seed, half, kind, big, lonOf, latOf, climate, biomeAt, warmWet, heightAt, slopeAt, forestAt, meadowAt, sandAt, treeIn, treeById, rockIn, rockById, chunkTrees, chunkRocks, findHome, coast, caveIn, caveById, cavesNear, CAVE_CELL };
+  return { setSculpt, seed, half, kind, big, lonOf, latOf, climate, biomeAt, warmWet, heightAt, slopeAt, forestAt, meadowAt, sandAt, treeIn, treeById, rockIn, rockById, chunkTrees, chunkRocks, findHome, coast, caveIn, caveById, cavesNear, CAVE_CELL };
 }
 
 // a seeded run of numbers from 0 to 1 (the same as core.js's, without needing it)

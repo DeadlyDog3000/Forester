@@ -51,6 +51,8 @@ function drawColours(x, key) {
     case "spanish": fill("#f4f1e8", 0, 0, W, H); x.strokeStyle = "#b8241c"; x.lineWidth = 14; x.lineCap = "round"; x.beginPath(); x.moveTo(30, 16); x.lineTo(162, 112); x.moveTo(162, 16); x.lineTo(30, 112); x.stroke(); x.fillStyle = "#b8241c"; for (const [px, py] of [[54, 34], [138, 34], [54, 94], [138, 94], [82, 54], [110, 74]]) { x.beginPath(); x.arc(px, py, 7, 0, Math.PI * 2); x.fill(); } break;
     case "danish": fill("#c8261e", 0, 0, W, H); fill("#f4f1e8", 54, 0, 20, H); fill("#f4f1e8", 0, H / 2 - 10, W, 20); break;
     case "hamburg": fill("#b8241c", 0, 0, W, H); x.fillStyle = "#f4f1e8"; fill("#f4f1e8", 56, 66, 80, 40); for (const [tx, th] of [[56, 34], [86, 48], [120, 34]]) { fill("#f4f1e8", tx, 66 - th, 16, th + 2); for (let k = 0; k < 3; k++) fill("#f4f1e8", tx + k * 6, 60 - th, 4, 6); } fill("#b8241c", 88, 84, 16, 22); break;
+    case "rebels": fill("#2e5a2e", 0, 0, W, H); x.fillStyle = "#d8b84a"; x.font = "bold 19px Georgia, serif"; x.textAlign = "center"; x.fillText("FEAR NOTHING", W / 2, H / 2 - 6); x.fillText("BUT GOD", W / 2, H / 2 + 18); break;
+    case "irish": fill("#2e6a3a", 0, 0, W, H); x.strokeStyle = "#d8b84a"; x.lineWidth = 6; x.beginPath(); x.moveTo(78, 100); x.lineTo(78, 30); x.quadraticCurveTo(110, 26, 122, 56); x.lineTo(78, 100); x.stroke(); x.lineWidth = 2; for (let i = 1; i < 6; i++) { x.beginPath(); x.moveTo(78 + i * 6, 32 + i * 2); x.lineTo(78 + i * 6, 100 - i * 7.5); x.stroke(); } break;
     default: fill("#9a2a22", 0, 0, W, H);
   }
   // (worn: the cloth darker at its edges, and the weave)
@@ -111,6 +113,9 @@ export const UNIFORMS = {
   dutch: { name: "Dutch", note: "The States' foot: blue, faced orange, grey breeches", coat: 0x2a3e6e, vest: 0xd8782a, legs: 0x6a6862, sash: 0xd8782a, hat: 0x1e1c1a, stock: [[0x6a6862, 45], [0x2a3e6e, 30], [0xc8c0ae, 25]] },
   muscovite: { name: "Muscovite", body: "strelets", note: "The Tsar's streltsy: crimson kaftans frogged green, a fur-trimmed cap, yellow boots", coat: 0x8a2234, vest: 0x2e5a2e, legs: 0x3a3a30, sash: 0x2e5a2e, hat: 0x2e5a2e, boots: 0xb08a30 },
   spanish: { name: "Spanish", note: "The King of Spain's tercios: buff, faced red", coat: 0xc8b48a, vest: 0xa8261e, legs: 0x8a7a5a, sash: 0xa8261e, hat: 0x2a2420, stock: [[0xa8261e, 40], [0x8a8478, 35], [0xc8c0ae, 25]] },
+  // (two only the historical battles dress: never a side's in an ordinary battle)
+  rebels: { name: "Monmouth's", hist: true, note: "The Duke of Monmouth's rebels: no uniform — their own working clothes, a green sprig or ribbon for a favour", coat: 0x6a5a44, vest: 0x4a5a3a, legs: 0x5a5246, sash: 0x3e6a34, hat: 0x2a2420, stock: [[0x6a6862, 40], [0x5a4a3a, 35], [0xc8c0ae, 25]] },
+  irish: { name: "Irish", hist: true, note: "King James's Irish foot: grey coats, faced red, grey breeches", coat: 0x8a8678, vest: 0xa02a24, legs: 0x7a766a, sash: 0xa02a24, hat: 0x1e1c1a, stock: [[0x7a766a, 50], [0xa02a24, 25], [0xc8c0ae, 25]] },
   danish: { name: "Danish", note: "The King of Denmark's: grey-white, faced red, red stockings", coat: 0xd2ccbc, vest: 0xb02a24, legs: 0xb8b2a2, sash: 0xb02a24, hat: 0x1e1c1a, stock: [[0xb02a24, 55], [0x8a8478, 30], [0xc8c0ae, 15]] },
 };
 // a soldier of a company: its uniform, his own face and build

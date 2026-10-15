@@ -1539,3 +1539,29 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 @keyframes kbWait { 50% { opacity: 0.55; } }
 .kb-foot { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
 .kb-note { font: italic 13px var(--serif); color: var(--ink-dim); }
+
+/* historical battles: the list, the battle, the sides */
+.hb-list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
+.hist-b { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 8px; border: 1px solid var(--edge); border-radius: 4px; background: rgba(9, 24, 16, 0.5); color: var(--ink); cursor: pointer; text-align: left; }
+.hist-b small { font: 600 10px var(--sans); letter-spacing: 0.08em; color: var(--ink-dim); }
+.hist-b b { font: 15px var(--serif); }
+.hist-b:hover { border-color: var(--gold); }
+.hist-b.on { border-color: var(--gold); background: rgba(46, 106, 64, 0.4); }
+.hb-won { position: absolute; top: 4px; right: 6px; font-style: normal; color: var(--gold); font-size: 12px; }
+.hb-card { padding: 12px 14px; border: 1px solid var(--edge); border-radius: 4px; background: rgba(6, 16, 10, 0.55); }
+.hb-t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.hb-t b { font: 22px var(--serif); color: var(--ink); }
+.hb-t span { font: italic 14px var(--serif); color: var(--gold); }
+.hb-brief { margin: 8px 0 4px; font: 14px/1.5 var(--serif); color: var(--ink); }
+.hb-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hb-side { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 4px; background: rgba(9, 24, 16, 0.5); color: var(--ink); cursor: pointer; text-align: left; }
+.hb-side:hover { border-color: var(--gold); }
+.hb-side.on { border-color: var(--gold); background: rgba(46, 106, 64, 0.4); }
+.hb-sn { display: flex; align-items: center; gap: 4px; }
+.hb-sn b { margin-left: 4px; font: 16px var(--serif); }
+.hb-side small { font: 12px var(--sans); color: var(--ink-dim); }
+.hb-side small.hb-co b { color: var(--gold); font-weight: 600; }
+.pv-histend { margin-top: 12px; max-width: 560px; font: 15px/1.5 var(--serif); color: var(--ink); text-align: left; }
+.pv-histend b { display: block; font: 600 11px var(--sans); letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.camp-alt { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 760px) { .hb-list { grid-template-columns: repeat(2, 1fr); } .hb-sides { grid-template-columns: 1fr; } .camp-alt { grid-template-columns: 1fr; } }

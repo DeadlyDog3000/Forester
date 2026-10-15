@@ -1552,7 +1552,9 @@ async function start(opts = {}) {
   // The server keeps the score and the rounds; where each is, what they fire and what lands, it only passes on.
   // the camp: its talk (the last of it, for whoever comes in), and the best commanders (kept on disk, if there's a disk)
   const campTalk = [];
-  const boardFile = dataDir ? path.join(dataDir, "board.json") : null;
+  // (the second season's board: every rating begun again — the first's board.json left as it was, unread; and a game
+  //  from before the new season, still counting its battles against bots, kept off it)
+  const boardFile = dataDir ? path.join(dataDir, "board-2.json") : null;
   let boardMap = {}; try { if (boardFile && fs.existsSync(boardFile)) boardMap = JSON.parse(fs.readFileSync(boardFile, "utf8")) || {}; } catch (e) { boardMap = {}; }
   let boardSaveT = null;
   const boardSeen = c => {
@@ -1660,7 +1662,7 @@ async function start(opts = {}) {
       // ---- the camp: everyone in the To Arms menus — who's there, the talk, challenges, the best commanders ----
       if (m.t === "camp") {
         ws.camp = { pid: who.pid, name: who.name, user: who.user, rating: Math.max(0, Math.min(4000, Math.round(num(m.rating, 1000)))), rank: clean(m.rank, 24), w: Math.max(0, num(m.w) | 0), l: Math.max(0, num(m.l) | 0), status: ["camp", "looking", "mustering"].includes(m.status) ? m.status : "camp" };
-        boardSeen(ws.camp); campChanged();
+        if (num(m.season, 1) >= 2) boardSeen(ws.camp); campChanged();
         if (!ws.campTold) { ws.campTold = true; ws.send({ t: "said", list: campTalk.slice(-40) }); }
         ws.send({ t: "board", list: boardTop() });
         return;

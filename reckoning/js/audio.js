@@ -23,16 +23,23 @@ function budget(a) {
   if (a.__budget) return; a.__budget = true;
   const P = window.AudioScheduledSourceNode && AudioScheduledSourceNode.prototype; if (!P) return;
   const st = P.start;
-  P.start = function (...x) { liveSrc++; this.addEventListener("ended", () => { liveSrc--; }, { once: true }); return st.apply(this, x); };
-  let ct = a.currentTime, wt = performance.now();
+  // (and a sound done is let go of at once: its source cut loose from the filters and gains it played through, so they
+  //  fall silent and stop being worked — left connected, a battle's thousand finished shots and cries were all still
+  //  being worked out every few milliseconds until the garbage was next taken out, and that's what cut the sound out)
+  P.start = function (...x) { liveSrc++; this.addEventListener("ended", () => { liveSrc--; try { this.disconnect(); } catch (e) {} }, { once: true }); return st.apply(this, x); };
+  // (behind: the audio clock slipping, or — where the browser can tell — the sound having run dry, a gap heard)
+  let ct = a.currentTime, wt = performance.now(), u0 = -1;
+  const dry = () => { try { const p = a.playbackStats; return p ? p.underrunEvents : -1; } catch (e) { return -1; } };
   setInterval(() => {
     const w = performance.now(), r = (a.currentTime - ct) / Math.max(0.001, (w - wt) / 1000); ct = a.currentTime; wt = w;
     if (a.state !== "running") return;
-    pressure = r < 0.93 ? Math.max(0.25, pressure * 0.7) : Math.min(1, pressure + 0.04);
+    const u = dry(), gaps = u0 >= 0 && u >= 0 ? u - u0 : 0; u0 = u;
+    pressure = r < 0.93 || gaps > 1 ? Math.max(0.2, pressure * 0.6) : Math.min(1, pressure + 0.03);
   }, 500);
 }
 // room for one more of this importance (0 a faint far thing .. 1 right by you)
-const room = imp => liveSrc < (60 + 200 * imp) * pressure;
+// (what's right by you — your own shot, the man you're fighting — always: only the further things are ever left out)
+const room = imp => imp >= 0.85 || liveSrc < (44 + 120 * imp) * pressure;
 function ctx() {
   if (ac) { if (ac.state === "suspended") ac.resume(); return ac; }
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
@@ -113,9 +120,9 @@ function thump(a, to, t, f0, f1, peak, decay) {
 }
 // driven hard, as the air is by a charge going off: the peaks flattened, the sound thick with it
 const _curves = {};
-function shaped(a, to, k) {
+function shaped(a, to, k, fine = true) {
   const ws = a.createWaveShaper(), c = _curves[k] ??= (() => { const n = 1024, arr = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; arr[i] = Math.tanh(k * x) / Math.tanh(k); } return arr; })();
-  ws.curve = c; ws.oversample = "2x"; ws.connect(to); return ws;
+  ws.curve = c; ws.oversample = fine ? "2x" : "none"; ws.connect(to); return ws;
 }
 
 const loops = {};
@@ -319,7 +326,7 @@ export const AUDIO = {
     }
     const tc = t + (small ? 0.035 : 0.05) + Math.random() * 0.025;   // (the lock time: the pan, then the barrel)
     // the crack: the gas out of the muzzle, hard and wide, clipped as a real one sounds through the air
-    const crack = shaped(a, out.dry, 3.5);
+    const crack = shaped(a, out.dry, 3.5, D < 30);
     shotBurst(a, crack, tc, { type: "highpass", f: small ? 900 : 650, attack: 0.0008, peak: (small ? 0.75 : 0.95) * v, decay: small ? 0.035 : 0.05 });
     // the body: the boom, a thump under it
     shotBurst(a, out.dry, tc, { type: "lowpass", f: small ? 2600 : 1900, sweep: small ? 300 : 180, attack: 0.002, peak: 0.75 * v, decay: small ? 0.22 : 0.4, len: 1.2 });

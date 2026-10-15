@@ -27,6 +27,8 @@ import { Wilds } from "./mp/wilds.js";
 import { WATER } from "./mp/terrain.js";
 import { EARTH_SIZES } from "./mp/rules.js";
 import { REALMS_1683 } from "./mp/earth-1683.js";
+import { BATTLES, battleById, histArmy, histRecord, histResult } from "./history.js";
+import { shapeField, buildThings } from "./histmap.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, ago, mmss } from "./replay.js";
@@ -85,7 +87,10 @@ export function dmgOf(power, head) {
 }
 
 // ---- your loadout and your record, kept on this computer ----
-const LO_KEY = "reckoning.pvp.loadout", REC_KEY = "reckoning.pvp.record";
+// (the record's second season: every rating begun again at 1000 in 1.37, and from then only battles and duels against
+//  other players move it — the first season's kept under its old name, untouched)
+const LO_KEY = "reckoning.pvp.loadout", REC_KEY = "reckoning.pvp.record.2", OLD_REC = "reckoning.pvp.record", BOT_KEY = "reckoning.pvp.bots";
+export const SEASON = 2;
 export function loadout() {
   let l = null; try { l = JSON.parse(localStorage.getItem(LO_KEY)); } catch (e) {}
   l = l || {};
@@ -97,10 +102,18 @@ export function record() {
   return { rating: 1000, w: 0, l: 0, streak: 0, ...(r || {}) };
 }
 function saveRecord(r) { try { localStorage.setItem(REC_KEY, JSON.stringify(r)); } catch (e) {} }
+// how you do against bots: not a rating anyone sees — only how sharp their officers and their men are against you (begun
+// from your old rating, so nobody who'd earned sharp ones is handed easy ones again)
+export function botRecord() {
+  let r = null; try { r = JSON.parse(localStorage.getItem(BOT_KEY)); } catch (e) {}
+  if (!r) { let o = null; try { o = JSON.parse(localStorage.getItem(OLD_REC)); } catch (e) {} r = o ? { rating: o.rating || 1000, w: o.w || 0, l: o.l || 0 } : null; }
+  return { rating: 1000, w: 0, l: 0, ...(r || {}) };
+}
+function saveBotRecord(r) { try { localStorage.setItem(BOT_KEY, JSON.stringify(r)); } catch (e) {} }
 // the other side's officer, as your record has earned you: your first battles against an easy one, to learn the
 // field on; then sharper as you win — by a rating of 1300, as sharp as any; and easier again if you lose
 export function generalship() {
-  const r = record(), fought = (r.w || 0) + (r.l || 0);
+  const r = botRecord(), fought = (r.w || 0) + (r.l || 0);
   const g = clamp(0.2 + (r.rating - 1000) / 400, 0.15, 1);
   return fought < 3 ? Math.min(g, 0.25) : g;
 }
@@ -119,6 +132,7 @@ export function initPvp(c) {
   $("pvpQuick").onclick = () => gate("online") && quickPlay();
   $("pvpBots").onclick = () => openMuster("bots");
   $("pvpDuel").onclick = () => openMuster("duel");
+  $("pvpHist").onclick = () => openMuster("hist");
   $("pvpCancel").onclick = () => cancelSearch();
   $("pvpBotNow").onclick = () => botNow();
   $("pvpAgain").onclick = () => again();
@@ -167,7 +181,7 @@ export const PVP_SCREENS = ["pvp", "pvpFind", "pvpEnd", "pvpMuster"];
 //  the camp: To Arms' home — Quick Play, and everyone else here: who, what they're about, the talk, the best of them
 // ---------------------------------------------------------------------------
 let camp = null, lastMode = "quick";
-const mine = () => { const r = record(); return { rating: Math.round(r.rating), rank: rankOf(r.rating), w: r.w, l: r.l }; };
+const mine = () => { const r = record(); return { rating: Math.round(r.rating), rank: rankOf(r.rating), w: r.w, l: r.l, season: SEASON }; };
 function openCamp() {
   lo = loadout(); ctx.screen("pvp");
   const r = record(), me = ctx.identity();
@@ -282,7 +296,7 @@ function quickPlay() {
   setArmy({ battle: true, vs: "player" });
   findMatch();
 }
-function again() { if (lastMode === "bots") openMuster("bots"); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
+function again() { if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots") openMuster("bots"); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
 
 // ---------------------------------------------------------------------------
 //  the muster: your arms, and your company from the purse — then Ready. (Against a player, both must be.)
@@ -292,6 +306,7 @@ function openMuster(kind, link = null) {
   lo = loadout();
   if (kind === "bots") setArmy({ battle: true, vs: "bots" });
   else if (kind === "mp") setArmy({ battle: true, vs: "player" });
+  else if (kind === "hist") { /* (its armies are history's: nothing of yours to set) */ }
   else setArmy({ battle: false, allies: 0, enemies: 1 });
   must = { kind, ...(link || {}), mine: false, theirs: null, t0: performance.now() };
   if (kind !== "mp" && camp && camp.net) camp.net.send({ t: "camp", status: "camp", ...mine() });
@@ -318,13 +333,14 @@ function leaveMuster() {
 function drawMuster() {
   if (!must) return;
   const k = must.kind;
-  $("musT").textContent = k === "duel" ? "Your arms" : k === "bots" ? "Muster — against bots" : "Muster your company";
+  $("musT").textContent = k === "hist" ? "Historical battles" : k === "duel" ? "Your arms" : k === "bots" ? "Muster — against bots" : "Muster your company";
   drawMe(); drawArmy(); drawVs();
 }
 function drawVs() {
   if (!must) return;
   const k = must.kind, el = $("musVs"), btn = $("musReady");
   if (k === "duel") { el.innerHTML = `<span class="mv-n">One against one, best of three — another player if anyone's looking, or a bot as strong as you are.</span>`; btn.textContent = "Find a match"; return; }
+  if (k === "hist") { const P = histPick(), b = battleById(P.id); el.innerHTML = `<span class="mv-n"><b>${esc(b.name)}</b>, ${esc(b.date)} — for ${esc(b.sides[P.side].name)}. Against bots; it doesn't touch your rating.</span>`; btn.textContent = "To the field"; return; }
   if (k === "bots") { const A = army(); el.innerHTML = `<span class="mv-n">${isCustom(A) ? `${sidesWord(A.sides)} — every other company's officer raises it from the same purse, and spends it his own way.` : "Their officer raises his company from the same purse, and spends it his own way."}</span>`; btn.textContent = "To the field"; return; }
   const left = Math.max(0, 120 - Math.floor((performance.now() - must.t0) / 1000));
   el.innerHTML = `<span class="mv-n">Against <b>${esc(must.foe.name || "another commander")}</b>${must.foe.rating ? ` · ${rankOf(must.foe.rating)}` : ""}</span>
@@ -350,6 +366,7 @@ function musterReady() {
   if (!must) return;
   const k = must.kind;
   if (k === "bots") { lastMode = "bots"; must = null; startDuel({ bot: true }); return; }
+  if (k === "hist") { const P = histPick(); lastMode = "hist"; must = null; startDuel({ bot: true, army: histArmy(battleById(P.id), P.side) }); return; }
   // (a duel in the demo: against a bot, at once — another player is the full game's)
   if (k === "duel") { lastMode = "duel"; must = null; if (full()) findMatch(); else startDuel({ bot: true }); return; }
   lastMode = "quick";
@@ -369,6 +386,7 @@ function maybeStart() {
 // ---- the company: alone, or with men of your own against more of theirs; a battle, in uniform, with works and guns ----
 function drawArmy() {
   const el = $("musArmy"); if (!el) return;
+  if (must && must.kind === "hist") { drawHist(el); return; }
   const A = army(), multi = A.allies > 0 || A.enemies > 1 || A.battle;
   const step = (k, label, v, lo, hi) => `<div class="pv-step"><span>${label}</span><button data-k="${k}" data-d="-1"${v <= lo ? " disabled" : ""}>−</button><b>${v}</b><button data-k="${k}" data-d="1"${v >= hi ? " disabled" : ""}>+</button></div>`;
   const sw = u => `<i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i>`;
@@ -386,10 +404,30 @@ function drawArmy() {
   el.innerHTML = `<div class="pv-h big">Your company</div>
     ${muster}
     <div class="pv-h">Colours</div>
-    <div class="pv-unis">${Object.entries(UNIFORMS).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div>
+    <div class="pv-unis">${Object.entries(UNIFORMS).filter(([, u]) => !u.hist).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div>
     ${A.vs !== "player" ? sidesRow(A) : ""}
     ${A.vs !== "player" && !isCustom(A) ? `<div class="pv-h">The ground</div><div class="pv-grounds">${[["open", "Open field"], ["ours", "Your fort"], ["theirs", "Their fort"]].map(([k, n]) => `<button class="pv-gr${A.ground === k ? " on" : ""}" data-gr="${k}"><b>${n}</b></button>`).join("")}</div>` : ""}`;
   void step; void multi;
+}
+// ---- the historical battles: which, and on which side ----
+const PICK_KEY = "reckoning.history.pick";
+function histPick() { let p = null; try { p = JSON.parse(localStorage.getItem(PICK_KEY)); } catch (e) {} const b = p && battleById(p.id) || BATTLES[0]; return { id: b.id, side: p && b.id === p.id && (p.side === 0 || p.side === 1) ? p.side : b.you }; }
+function setHistPick(p) { try { localStorage.setItem(PICK_KEY, JSON.stringify(p)); } catch (e) {} }
+function drawHist(el) {
+  el.classList.remove("hidden", "locked");
+  const P = histPick(), b = battleById(P.id), R = histRecord();
+  const sw = k => { const u = UNIFORMS[k]; return `<span class="pv-sw" title="${esc(u.note)}"><i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i></span>`; };
+  const men = c => Object.entries(c.muster).map(([k, n]) => `${n} ${c.call && c.call[k] ? c.call[k].toLowerCase() + (n > 1 ? "s" : "") : (n > 1 ? TROOPS[k].name : TROOPS[k].one).toLowerCase()}`).join(", ") + (c.guns ? `, ${c.guns} gun${c.guns > 1 ? "s" : ""}` : "");
+  const laurel = id => { const e = R[id]; return e && (e.won[0] || e.won[1]) ? `<i class="hb-won" title="Won${e.won[0] && e.won[1] ? " on both sides" : ""}">✦</i>` : ""; };
+  el.innerHTML = `<div class="pv-h big">Choose a battle</div>
+    <div class="hb-list">${BATTLES.map(x => `<button class="hist-b${x.id === b.id ? " on" : ""}" data-hb="${x.id}"><small>${x.year}</small><b>${esc(x.name)}</b>${laurel(x.id)}</button>`).join("")}</div>
+    <div class="hb-card">
+      <div class="hb-t"><b>${esc(b.name)}</b><span>${esc(b.date)} · ${esc(b.at)}</span></div>
+      <p class="hb-brief">${esc(b.brief)}</p>
+      <div class="pv-h">Fight for</div>
+      <div class="hb-sides">${b.sides.map((S, i) => `<button class="hb-side${P.side === i ? " on" : ""}" data-hs="${i}"><span class="hb-sn">${S.cos.map(c => sw(c.uni)).join("")}<b>${esc(S.name)}</b></span><small>${esc(S.lead)}${b.fort === i ? " · holds the works" : ""}${S.cos.length > 1 ? ` · ${S.cos.length} companies` : ""}</small>${S.cos.map((c, j) => `<small class="hb-co">${i === P.side && !j ? "<b>Yours:</b> " : ""}${esc(UNIFORMS[c.uni].name)} — ${men(c)}</small>`).join("")}</button>`).join("")}</div>
+      <p class="pv-sn">${b.won == null ? "Neither side won it outright." : `In ${b.year}, ${esc(b.sides[b.won].name)} won the day.`} You lead one company, and the bots lead the rest. Neither side has its cavalry here.</p>
+    </div>`;
 }
 // (the sides, against bots: one against one, as a battle's always been — or any of the usual others, or your own: up to
 //  four sides, up to four companies to a side)
@@ -403,6 +441,13 @@ function sidesRow(A) {
 }
 function armyClick(e) {
   const b = e.target.closest("button"); if (!b || (must && must.mine)) return;
+  if (must && must.kind === "hist") {
+    const P = histPick();
+    if (b.dataset.hb) { const nb = battleById(b.dataset.hb); setHistPick({ id: nb.id, side: nb.you }); }
+    else if (b.dataset.hs) setHistPick({ ...P, side: +b.dataset.hs });
+    else return;
+    drawHist($("musArmy")); drawVs(); window.__uisfx && window.__uisfx.click && window.__uisfx.click(); return;
+  }
   const A = army();
   if (b.dataset.k) setArmy({ [b.dataset.k]: A[b.dataset.k] + +b.dataset.d });
   else if (b.dataset.bt) setArmy({ battle: !A.battle, enemies: !A.battle && A.enemies < 6 ? 8 : A.enemies, allies: !A.battle && A.allies < 4 ? 6 : A.allies });
@@ -519,7 +564,7 @@ function cancelSearch(quiet) {
 const ARMY_KEY = "reckoning.pvp.battle";
 export function army() {
   let a = {}; try { a = JSON.parse(localStorage.getItem(ARMY_KEY) || "{}") || {}; } catch (e) {}
-  const keys = Object.keys(UNIFORMS), uniform = keys.includes(a.uniform) ? a.uniform : keys[0];
+  const keys = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist), uniform = keys.includes(a.uniform) ? a.uniform : keys[0];
   const others = keys.filter(k => k !== uniform);
   const ground = ["open", "ours", "theirs"].includes(a.ground) ? a.ground : "open";
   const purse = PURSES[a.purse] ? +a.purse : 900;
@@ -594,7 +639,7 @@ function startDuel(o) {
   // other waits for the field to be described to it, and builds the same
   if (o.net && o.battle) {
     const mine = army(), theirs = o.foe.army || {};
-    const keys = Object.keys(UNIFORMS);
+    const keys = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist);
     if (o.side === 0) {
       let uf = keys.includes(theirs.uniform) ? theirs.uniform : keys[1]; if (uf === mine.uniform) uf = keys.filter(k => k !== mine.uniform)[Math.floor(Math.random() * (keys.length - 1))];
       // (the ground against a player: the open field — unless one company is clearly the smaller, which then has a fort
@@ -619,8 +664,8 @@ function startDuel(o) {
     return;
   }
   ctx.begin();
-  const A = o.bot ? army() : null, multi = A && (A.allies > 0 || A.enemies > 1 || A.battle);
-  const foe = o.bot ? { ...botFoe(), bot: true, skill: skillOf(r.rating) } : { ...o.foe, bot: false };
+  const A = o.bot ? o.army || army() : null, multi = A && (A.allies > 0 || A.enemies > 1 || A.battle);
+  const foe = o.bot ? { ...botFoe(), bot: true, skill: skillOf(botRecord().rating) } : { ...o.foe, bot: false };
   new Arena({ me, lo: { ...lo }, foe, net: o.net || null, side: o.side || 0, army: multi ? A : null });
 }
 
@@ -665,6 +710,26 @@ function battleGround(given = null) {
   }
   return null;
 }
+// (a historical battle's: as near where it was fought as the ground's open and level enough — the same spot every time)
+const histSpots = {};
+function histGround(b, given = null) {
+  if (given) return battleGround(given);
+  if (histSpots[b.id]) return battleGround(histSpots[b.id]);
+  const half = EARTH_SIZES.l, seed = 1683 + b.year * 7 + b.id.length, w = new Wilds({ seed, half, kind: "earth" }), L = w.land, R = 80;
+  const x0 = b.lon / 180 * half, z0 = -b.lat / 180 * half;
+  for (let r = 0; r < 1600; r += 40) for (let a = 0; a < 6.28; a += r ? 40 / r : 7) {
+    const x = x0 + Math.cos(a) * r, z = z0 + Math.sin(a) * r;
+    const h = L.heightAt(x, z); if (h < WATER + 2.5 || h > 44) continue;
+    const bi = L.biomeAt(x, z); if (bi === "ice" || bi === "alpine") continue;
+    if (L.cavesNear && L.cavesNear(x, z, 140).length) continue;
+    let lo = h, hi = h, ok = true;
+    for (let i = -2; i <= 2 && ok; i++) for (let j = -2; j <= 2; j++) { const y = L.heightAt(x + i * R / 2, z + j * R / 2); if (y < WATER + 1.5) { ok = false; break; } lo = Math.min(lo, y); hi = Math.max(hi, y); }
+    if (!ok || hi - lo > 10) continue;
+    histSpots[b.id] = { seed, x, z };
+    return { w, x, z, seed, biome: bi };
+  }
+  return battleGround();
+}
 function placeName(lon, lat) {
   let best = null, bd = Infinity;
   for (const [n, lo, la] of REALMS_1683) { const dl = Math.abs(((lon - lo + 540) % 360) - 180) * Math.cos(lat * Math.PI / 180), d = Math.hypot(dl, lat - la); if (d < bd) { bd = d; best = n; } }
@@ -680,8 +745,11 @@ export function buildStage(S) {
   const ground = battle ? battleGround({ seed: S.seed, x: S.x, z: S.z }) : null;
   const w = ground ? ground.w : new Woods();
   setC(ground ? { x: ground.x, z: ground.z } : { x: HUNT.x, z: HUNT.z });
-  setWorld(w); setAtmo(S.hour || "afternoon"); G.cloud = 0; G.mist = 0; G.flash = 0; if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
+  const HB = S.hist && ground ? battleById(S.hist) : null;
+  if (HB) shapeField(w, C, HB, !!S.histFlip);
+  setWorld(w); setAtmo(S.hour || "afternoon"); G.cloud = S.cloud || 0; G.mist = S.mist || 0; G.flash = 0; if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
   if (ground) w.buildNear(C.x, C.z, 99);
+  if (HB) buildThings(w, C, HB, !!S.histFlip);
   w.huntOpen = true;
   const hunt = new Hunt(w, { x: C.x, z: C.z, r: 1 }, {});
   AUDIO.music(null);
@@ -720,29 +788,36 @@ class Arena {
     this.netBattle = !!(net && this.battle); this.host = this.netBattle && side === 0; this.remote = this.netBattle && side === 1;
     // (a custom battle: the sides, as so many companies each — against bots only)
     this.custom = !net && !setup && isCustom(A) ? A.sides.slice() : null;
+    // (a historical battle: the field, the armies, the hour and the weather as they were)
+    this.hist = A && A.hist ? { ...A.hist, b: battleById(A.hist.id) } : null; const HB = this.hist && this.hist.b;
     this.wins = [0, 0]; this.round = 0; this.over = false; this.live = false; this.clock = ROUND_SECS;
     // (a company's fight wants more room than a duel: the ride opened wider, the two lines further apart)
     this.bound = this.battle ? 76 : this.multi ? 48 : BOUND; this.dx = this.battle ? 38 : this.multi ? 21 : 19;
     // (a duel or a skirmish: the deer ride in the woods; a battle: somewhere on the Earth, new every time)
-    const ground = this.battle ? battleGround(setup) : null;
+    const ground = this.battle ? (HB ? histGround(HB) : battleGround(setup)) : null;
     const w = this.w = ground ? ground.w : new Woods();
     setC(ground ? { x: ground.x, z: ground.z } : { x: HUNT.x, z: HUNT.z });
-    this.place = ground ? ground.name : null;
+    // (a historical battle's ground shaped as its own was, before any of it's built)
+    if (HB && ground) shapeField(w, C, HB, this.hist.side === 1);
+    this.place = HB ? { text: `${HB.name} · ${HB.date}`, at: HB.at } : ground ? ground.name : null;
     // (the hour: a battle by day mostly — morning, afternoon or evening — and now and then by night, under the moon,
     //  the field lit by its fires and the guns' lanterns, and no one seeing far)
     const hr = Math.random();
-    this.hour = !this.battle ? "afternoon" : setup ? setup.hour : window.__battleHour ? window.__battleHour : hr < 0.3 ? "night" : hr < 0.45 ? "evening" : hr < 0.65 ? "morning" : "afternoon";
+    this.hour = !this.battle ? "afternoon" : setup ? setup.hour : HB ? HB.hour : window.__battleHour ? window.__battleHour : hr < 0.3 ? "night" : hr < 0.45 ? "evening" : hr < 0.65 ? "morning" : "afternoon";
     this.night = this.hour === "night"; this.sight = this.night ? 0.65 : 1;
-    if (this.place && this.night) this.place = { ...this.place, text: this.place.text + " · by night" };
-    setWorld(w); setAtmo(this.hour); G.cloud = 0; G.mist = 0; G.flash = 0; if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
+    if (this.place && this.night && !HB) this.place = { ...this.place, text: this.place.text + " · by night" };
+    setWorld(w); setAtmo(this.hour); G.cloud = HB ? HB.cloud || 0 : 0; G.mist = HB ? HB.mist || 0 : 0; G.flash = 0; if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
     if (ground) w.buildNear(C.x, C.z, 99);
+    if (HB && ground) this.things = buildThings(w, C, HB, this.hist.side === 1);
     w.huntOpen = true;
     this.hunt = new Hunt(w, { x: C.x, z: C.z, r: 1 }, {});
     G.who = isF(me.look) ? "sister" : "brother";
     // (in a battle, your company's colours: on you too)
     this.uni = this.battle ? [UNIFORMS[A.uniform] || UNIFORMS.imperial, UNIFORMS[A.enemyUniform]] : null;
     // (every side its own colours, none the same as another's)
-    if (this.custom) { const left = Object.keys(UNIFORMS).filter(k => UNIFORMS[k] !== this.uni[0] && k !== A.enemyUniform).sort(() => Math.random() - 0.5); for (let a = 2; a < this.custom.length; a++) this.uni.push(UNIFORMS[left.pop()]); }
+    // (and every company of a historical battle its own: the Poles, the Emperor's men and the Saxons on one side)
+    if (HB) { this.coUni = this.hist.cos.map(c => UNIFORMS[c.uni]); this.uni = [UNIFORMS[A.uniform], UNIFORMS[A.enemyUniform]]; }
+    else if (this.custom) { const left = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist && UNIFORMS[k] !== this.uni[0] && k !== A.enemyUniform).sort(() => Math.random() - 0.5); for (let a = 2; a < this.custom.length; a++) this.uni.push(UNIFORMS[left.pop()]); }
     const myLook = this.myLook = this.uni ? inUniform(me.look, this.uni[0]) : me.look;
     this.foeName = foe.name;
     G.player.setModel(lookOpts(myLook, me.name)); G.player.model.scaleBase = me.look.height || 1;
@@ -778,7 +853,8 @@ class Arena {
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         const per = Math.max(6, Math.floor((CUSTOM_MEN - menOf(A)) / Math.max(1, this.cos.length - 1))), many = this.cos.length > 4;
         this.musters = []; this.gunsBought = [];
-        this.cos.forEach((c, i) => {
+        if (HB) this.cos.forEach((c, i) => { const H = this.hist.cos[i]; this.musters.push(Object.entries(H.muster).flatMap(([k, n]) => Array(n | 0).fill(k))); c.guns = Math.min(2, H.guns | 0); c.hold = H.hold; this.gunsBought.push(c.guns); });
+        else this.cos.forEach((c, i) => {
           const M = i ? botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1)) : A;
           let l = list(M); if (i) { l.sort(() => Math.random() - 0.5); l = l.slice(0, per); }
           this.musters.push(l); c.guns = i ? Math.min(M.guns | 0, many ? 1 : 2) : Math.min(A.guns | 0, N === 2 ? 3 : 2); this.gunsBought.push(c.guns);
@@ -792,7 +868,7 @@ class Arena {
       // (a battle: each side's company as its purse raised it — yours as you mustered it; theirs as their officer, or
       //  the other player, did)
       if (this.battle && !this.remote && !this.custom) {
-        const theirs = this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, 900) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1));   // (an easy officer's company a little the smaller)
+        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, 900) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1));   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
         A.allies = this.musters[0].length; A.enemies = this.musters[1].length;
@@ -825,11 +901,11 @@ class Arena {
       if (this.custom) this.spawns = this.cos.map(c => this.clearSpot(c.x, c.z));
       if (!this.battle) this.orders[1].form = "loose";
       this.book = new OrderBook(id => this.give(id));
-      const sk = this.netBattle ? skillOf(record().rating) : foe.skill, mk = (team, i) => {
+      const sk = this.netBattle ? skillOf(botRecord().rating) : foe.skill, mk = (team, i) => {
         const b = botFoe(), seed = 1000 + team * 100 + i;
-        const look = this.uni ? soldierLook(this.uni[this.alOf(team)], seed) : b.look;
-        const tk = this.musters && this.musters[team][i], T = tk && TROOPS[tk];
-        const info = { ...b, look, name: this.uni ? `${(this.uni[this.alOf(team)].name)}${T ? " " + T.one.toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i };
+        const U = this.coUni && this.coUni[team] || (this.uni && this.uni[this.alOf(team)]), look = U ? soldierLook(U, seed) : b.look;
+        const tk = this.musters && this.musters[team] && this.musters[team][i], T = tk && TROOPS[tk], call = this.hist && this.hist.cos[team] && this.hist.cos[team].call;
+        const info = { ...b, look, name: U ? `${U.name}${T ? " " + ((call && call[tk]) || T.one).toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i };
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; }
         else if (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
@@ -862,7 +938,7 @@ class Arena {
         nf.team = 1; nf.idx = -1; nf.uid = -1; nf.isNet = true; this.units.push(nf); this.hunt.animals.push(nf);
       }
       this.foe = this.netFoe || this.units.find(u => this.alOf(u.team) !== 0);
-      this.foeInfo = { ...this.foe.info, name: this.custom ? `${sidesWord(this.custom)} · ${this.uni.slice(1).map(u => u.name).join(", ")}` : this.uni ? this.uni[1].name : this.foe.info.name };
+      this.foeInfo = { ...this.foe.info, name: HB ? HB.sides[1 - this.hist.side].name : this.custom ? `${sidesWord(this.custom)} · ${this.uni.slice(1).map(u => u.name).join(", ")}` : this.uni ? this.uni[1].name : this.foe.info.name };
       // (the mouse stays yours to fight with while the book's open: aim, fire, strike)
     } else {
       // the foe
@@ -882,7 +958,7 @@ class Arena {
     }
     // (all of it written down as it's fought, to be played over again: see replay.js)
     this.stageSetup = { battle: this.battle, multi: this.multi, seed: ground ? ground.seed : 0, x: C.x, z: C.z, fieldSeed: this.fieldSeed || 0, hostFort: this.hostFort ?? null, guns: this.gunsHost || null,
-      remote: !!this.remote, uni: this.uni ? this.uni.map(u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u)) : null, night: !!this.night, hour: this.hour, dx: this.dx, bound: this.bound,
+      remote: !!this.remote, uni: this.uni ? this.uni.map(u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u)) : null, night: !!this.night, hour: this.hour, dx: this.dx, bound: this.bound, cloud: G.cloud || 0, mist: G.mist || 0, hist: HB ? HB.id : undefined, histFlip: HB ? this.hist.side === 1 : undefined, coUni: this.coUni ? this.hist.cos.map(c => c.uni) : undefined,
       custom: this.custom ? { sides: this.custom, camps: camps0(this), flags: this.flags ? this.flags.map(f => ({ key: f.key, x: f.x - C.x, z: f.z - C.z })) : null } : null };
     const rec = this.rec = new Recorder(this, this.stageSetup);
     { const H = this.hunt, fb = H.fireBall.bind(H), lz = H.loose.bind(H);
@@ -1014,7 +1090,7 @@ class Arena {
     this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
     G.lockMove = true;
     // (their officer: how long he'll hold his ground before he comes on)
-    this.holdFor = this.fortSide === 1 ? Infinity : this.fortSide === 0 ? 4 + Math.random() * 5 : this.battle ? 15 + Math.random() * 15 : 3 + Math.random() * 5; this.cmdT = 0; this.volT = this.battle ? 3.5 + Math.random() * 3 : 10 + Math.random() * 6;   // (the first volley soon: nobody stands loaded under fire)
+    this.holdFor = this.fortSide === 1 ? Infinity : this.hist && this.hist.cos[1].hold != null ? this.hist.cos[1].hold * (0.8 + Math.random() * 0.4) : this.fortSide === 0 ? 4 + Math.random() * 5 : this.battle ? 15 + Math.random() * 15 : 3 + Math.random() * 5; this.cmdT = 0; this.volT = this.battle ? 3.5 + Math.random() * 3 : 10 + Math.random() * 6;   // (the first volley soon: nobody stands loaded under fire)
     this.showHud();
     const allies = this.sideOf(0).length, foes = this.enemiesOf(0).length - 0;
     UI.fadeNow(1); UI.fade(0, 1.2);
@@ -1086,7 +1162,7 @@ class Arena {
   // an officer's own reckoning, company by company (in any battle but a custom one, the other side's, kept on the arena)
   kOf(co) {
     if (!this.custom) return this;
-    return (this.cmds ||= [])[co] ||= { holdFor: co && this.cos[co].al === 0 ? 4 + Math.random() * 6 : 12 + Math.random() * 14, cmdT: 0, volT: 3.5 + Math.random() * 3 };
+    return (this.cmds ||= [])[co] ||= { holdFor: this.cos[co].hold != null ? this.cos[co].hold * (0.8 + Math.random() * 0.4) : co && this.cos[co].al === 0 ? 4 + Math.random() * 6 : 12 + Math.random() * 14, cmdT: 0, volT: 3.5 + Math.random() * 3 };
   }
   // (whom he means to fight: the nearest company of another side — looked at again every few seconds, or when it's gone)
   foeCoOf(co, K, dt) {
@@ -1643,17 +1719,26 @@ class Arena {
         uni: this.uni ? this.uni.map(u => u.name) : [], men: this.multi ? [this.army.allies + 1, this.army.enemies] : [1, 1] });
       if (rec) { lastRec = rec; keepMine(rec); if (shareOn()) upload(rec).then(id => { if (id) rec.id = id; }); }
     }
-    const r = record(), foeR = this.foeInfo.rating || r.rating, exp = 1 / (1 + Math.pow(10, (foeR - r.rating) / 400)), k = 32;
+    // (rated only against another player: a fight with bots moves nothing anyone sees — only how sharp the bots are
+    //  against you next time)
+    const rated = !!this.net, r = rated ? record() : botRecord(), foeR = (rated && this.foeInfo.rating) || r.rating, exp = 1 / (1 + Math.pow(10, (foeR - r.rating) / 400)), k = 32;
     const delta = Math.round(k * ((won ? 1 : 0) - exp));
     r.rating = Math.max(100, r.rating + delta); if (won) { r.w++; r.streak = (r.streak || 0) + 1; } else { r.l++; r.streak = 0; }
-    saveRecord(r);
+    if (rated) saveRecord(r); else saveBotRecord(r);
+    const R = record();
     if (won && G.achEvent) { G.achEvent("pvp-win"); if (r.streak >= 5) G.achEvent("pvp-streak5"); }
     const score = this.multi ? `${this.killed || 0} of theirs down, ${this.lost || 0} of yours${this.place ? ` · ${esc(this.place.text)}` : ""}` : `${this.wins[0]} – ${this.wins[1]}`;
     this.stop();
     ctx.end();
     $("pvpEndK").textContent = left ? "They left the field" : won ? "Victory" : "Defeat";
     $("pvpEndT").textContent = this.multi ? (won ? "The field is yours" : "The day is lost") : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
-    $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost`;
+    $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>${rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
+    // (a historical battle: kept as won or not, on that side — and how it went in truth)
+    if (this.hist && !left) {
+      const HB = this.hist.b, sd = this.hist.side; histResult(HB.id, sd, won);
+      const asIt = HB.won == null ? null : (HB.won === sd) === won;
+      $("pvpEndS").innerHTML += `<div class="pv-histend"><b>${asIt === null ? "As it was" : asIt ? "As it happened" : "History, changed"}</b> ${esc(HB.after[asIt === false ? 1 : 0])}</div>`;
+    }
     endReplay(rec);
     if (reel && rec) { watch(rec, "highlights", "end", { t: won ? "Victory" : "Defeat", s: titleOf(rec).t }); return; }
     ctx.screen("pvpEnd");
@@ -1741,8 +1826,10 @@ class Arena {
     if (this.multi) {
       const ours = this.sideOf(0).length + (this.you.alive ? 1 : 0), theirs = this.enemiesOf(0).length;
       // (a custom battle: your side, and every other side still in it, by its colours)
-      const others = this.custom ? this.custom.map((n, a) => a && this.sideOf(a).length ? `${this.uni[a].name} ${this.sideOf(a).length}` : null).filter(Boolean).join(" · ") : null;
-      h.querySelector(".ph-me .ph-name").textContent = `${this.uni ? this.uni[0].name : "Yours"} · ${ours} standing`;
+      // (a historical battle: the two armies by their own names — King William's, King James's)
+      const HS = this.hist ? [this.hist.b.sides[this.hist.side].name, this.hist.b.sides[1 - this.hist.side].name] : null;
+      const others = HS ? `${HS[1]} · ${theirs}` : this.custom ? this.custom.map((n, a) => a && this.sideOf(a).length ? `${this.uni[a].name} ${this.sideOf(a).length}` : null).filter(Boolean).join(" · ") : null;
+      h.querySelector(".ph-me .ph-name").textContent = `${HS ? HS[0] : this.uni ? this.uni[0].name : "Yours"} · ${ours} standing`;
       h.querySelector(".ph-foe .ph-name").textContent = others != null ? (others || "None standing") : `${this.uni ? this.uni[1].name : "Theirs"} · ${theirs} standing`;
       h.querySelector(".ph-me .ph-pips").innerHTML = ""; h.querySelector(".ph-foe .ph-pips").innerHTML = "";
       h.querySelector(".ph-round").textContent = this.place ? this.place.text : this.battle ? "Battle" : "Skirmish";
@@ -1993,7 +2080,7 @@ class Bot extends Fighter {
   constructor(arena, info) {
     super(arena, info);
     this.s = info.skill; this.lo = info.lo; this.team = info.team ?? 1; this.al = info.al ?? this.team; this.idx = info.idx || 0;
-    info.rating = record().rating;
+    info.rating = botRecord().rating;
   }
   reset(at, face) {
     this.hp = HP; this.standUp(); this.a.place(at.x, at.z, Math.atan2(face.x - at.x, face.z - at.z));
