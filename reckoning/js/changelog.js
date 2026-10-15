@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.40.0", date: "15 October 2026", title: "Ride into battle",
+    items: [
+      "Ride into battle yourself: choose \"On horseback\" under Mount in your arms. You go quicker than any man on foot, your sabre reaches further and hits harder at the gallop, and you're thrown when you fall. It costs 150 thalers from your purse, as any trooper does, and nothing in historical and campaign battles. The other player sees you mounted in an online battle.",
+      "Squares: infantry formed in square (Formation → Square) take half the harm from horsemen, and a seasoned enemy officer forms square when your horse comes at his men, then goes back into line once it's past.",
+      "Cavalry ride for what horse is good against, the gun crews, men running away and men out on their own, and keep clear of the pikes.",
+    ],
+  },
+  {
     v: "1.39.3", date: "15 October 2026", title: "The rout, and the map",
     items: [
       "A side that breaks is shown breaking: the battle's top bar counts the men running as well as the men standing, and a battle won because the last of them fled ends with \"They break and run!\" (or, the other way, \"Your men break and run\").",

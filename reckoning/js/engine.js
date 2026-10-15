@@ -2532,7 +2532,7 @@ export function frame(dt, skipRender) {
     // the axe swings on a click, when there is an axe
     // food in the hand: a click is a bite of it, not a swing
     if (input.click && G.foodInHand && G.foodInHand() && !UI.dialogOpen && !G.cine) { G.eatHeld(); input.click = false; }
-    if (input.click && G.player.axe && !G.player.horse && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);
+    if (input.click && G.player.axe && (!G.player.horse || G.arena) && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);
     // move dialogue on
     if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();
     }

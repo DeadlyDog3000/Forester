@@ -98,6 +98,10 @@ export function loadout() {
   return fitLoad({ long: LONG[l.long] ? l.long : "musket", side: SIDE[l.side] ? l.side : "none", blade: BLADE[l.blade] ? l.blade : "dagger" }, "long");
 }
 function saveLoadout(l) { try { localStorage.setItem(LO_KEY, JSON.stringify(l)); } catch (e) {} }
+// (and whether you ride into a battle: a trooper's horse under you, paid for from the purse as a trooper's is)
+const RIDE_KEY = "reckoning.pvp.ride", RIDE_COST = 150;
+export const riding = () => { try { return localStorage.getItem(RIDE_KEY) === "1"; } catch (e) { return false; } };
+const setRiding = on => { try { localStorage.setItem(RIDE_KEY, on ? "1" : "0"); } catch (e) {} };
 export function record() {
   let r = null; try { r = JSON.parse(localStorage.getItem(REC_KEY)); } catch (e) {}
   return { rating: 1000, w: 0, l: 0, streak: 0, ...(r || {}) };
@@ -146,6 +150,7 @@ export function initPvp(c) {
   $("musReady").onclick = () => musterReady();
   $("musArmy").addEventListener("click", armyClick);
   $("musMe").addEventListener("click", e => {
+    const r = e.target.closest("[data-ride]"); if (r && !(must && must.mine)) { setRiding(!riding()); setArmy({}); drawMe(); drawArmy(); window.__uisfx && window.__uisfx.click && window.__uisfx.click(); return; }
     const b = e.target.closest("[data-slot][data-id]"); if (!b || (must && must.mine)) return;
     const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
     const put = ["long", "side", "blade"].filter(k => k !== b.dataset.slot && lo[k] !== was[k]).map(k => ({ long: LONG, side: SIDE, blade: BLADE }[k][was[k]].name.toLowerCase()));
@@ -366,6 +371,7 @@ function drawMe(note = "") {
   $("musMe").innerHTML = `<div class="pv-h big">Your soldier</div>` + row("long", "Long arm", LONG) + row("side", "Sidearm", SIDE) + row("blade", "Blade", BLADE)
     + `<div class="m-load"><b>Load</b> ${w} of ${LOAD_MAX} · ${sp >= 0 ? `${sp}% quicker` : `${-sp}% slower`} on your feet</div>`
     + `<div class="m-pick">${["long", "side", "blade"].filter(k => pick[k] && pick[k].icon).map(k => `<div><b>${esc(pick[k].name)}</b> ${esc(pick[k].stats.map(([a, b]) => a + " " + b).join(" · "))}</div>`).join("")}</div>`
+    + (must && must.kind !== "duel" ? `<div class="mr"><div class="pv-h">Mount</div><div class="mcs"><button class="mc${riding() ? " on" : ""}" data-ride="1"><span>${riding() ? "On horseback" : "On foot"}</span></button></div><div class="m-load">${riding() ? `You ride into battle: quicker than any man, a longer reach with the blade, and the weight of the horse in a charge — but pikes are death to a rider.${must.kind === "bots" || must.kind === "mp" ? ` ${RIDE_COST} thalers from the purse.` : ""}` : "Click to ride into battle instead."}</div></div>` : "")
     + (note ? `<div class="m-note">${esc(note)}</div>` : "");
 }
 // ready: against bots or in a duel, off at once; against a player, said — and when both are, the field
@@ -380,7 +386,7 @@ function musterReady() {
   if (must.mine && must.theirs) return;
   must.mine = !must.mine;
   const A = army();
-  must.net.send(must.mine ? { t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A) }, lo } : { t: "bunmust" });
+  must.net.send(must.mine ? { t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A), ride: riding() ? 1 : 0 }, lo } : { t: "bunmust" });
   drawVs(); maybeStart();
 }
 function maybeStart() {
@@ -580,11 +586,11 @@ export function army() {
   const others = keys.filter(k => k !== uniform);
   const ground = ["open", "ours", "theirs"].includes(a.ground) ? a.ground : "open";
   const purse = PURSES[a.purse] ? +a.purse : 900;
-  const F = fitMuster(a.muster || { musketeer: 8, pike: 2, bow: 2 }, a.guns ?? 1, a.vs === "player" ? livePurse(a) : purse);
+  const F = fitMuster(a.muster || { musketeer: 8, pike: 2, bow: 2 }, a.guns ?? 1, a.vs === "player" ? livePurse(a) : purse, riding());
   return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)], ground, vs: a.vs === "player" ? "player" : "bots",
-    purse: a.vs === "player" ? livePurse(a) : purse, ppurse: prefPurse(a), muster: F.muster, guns: F.guns, sides: fitSides(a.sides) };
+    purse: a.vs === "player" ? livePurse(a) : purse, ppurse: prefPurse(a), muster: F.muster, guns: F.guns, sides: fitSides(a.sides), ride: riding() };
 }
-export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? livePurse(a) : (PURSES[a.purse] ? +a.purse : 900)); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
+export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? livePurse(a) : (PURSES[a.purse] ? +a.purse : 900), riding()); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
 // ---- the treasury: what a company costs to raise ----
 // Every side has the same purse, and spends it as its commander sees fit: a few men with the best of arms, or many
 // with cheap ones; guns cost dearest of all (and come with their crews)
@@ -608,13 +614,13 @@ export const GUN_COST = 160;
 export const PURSES = { 500: "A skirmish", 900: "A battle", 1500: "A great battle", 2000: "An epic battle", 2500: "A magnificent battle", 3500: "A grand battle", 5000: "A great war" };
 // (the most a side can field: room enough for the biggest purse to be spent on men, not left in the chest)
 const MAX_MEN = 90, MAX_GUNS = 4;
-export const spentOf = A => Object.entries(A.muster || {}).reduce((t, [k, n]) => t + (TROOPS[k] ? TROOPS[k].cost * n : 0), 0) + (A.guns | 0) * GUN_COST;
+export const spentOf = A => Object.entries(A.muster || {}).reduce((t, [k, n]) => t + (TROOPS[k] ? TROOPS[k].cost * n : 0), 0) + (A.guns | 0) * GUN_COST + (A.ride ? RIDE_COST : 0);
 export const menOf = A => Object.values(A.muster || {}).reduce((t, n) => t + (n | 0), 0);
 // a muster cut down to a purse (anything over, the dearest first), and to the most men a side can have
-function fitMuster(m, guns, purse) {
+function fitMuster(m, guns, purse, ride = false) {
   const out = {}; for (const k in TROOPS) out[k] = Math.max(0, Math.min(MAX_MEN, (m && m[k]) | 0));
   guns = Math.max(0, Math.min(MAX_GUNS, guns | 0));
-  const A = { muster: out, guns };
+  const A = { muster: out, guns, ride };
   // (over the purse: a gun given up first, then the dearest men)
   while (spentOf(A) > purse) { if (A.guns) { A.guns--; continue; } const k = Object.keys(TROOPS).filter(k => out[k]).sort((a, b) => TROOPS[b].cost - TROOPS[a].cost)[0]; if (!k) break; out[k]--; }
   while (menOf(A) > MAX_MEN) { const k = Object.keys(out).find(k => out[k]); out[k]--; }
@@ -896,7 +902,7 @@ class Arena {
       // (a battle: each side's company as its purse raised it — yours as you mustered it; theirs as their officer, or
       //  the other player, did)
       if (this.battle && !this.remote && !this.custom) {
-        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1));   // (an easy officer's company a little the smaller)
+        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride)) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1));   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
         A.allies = this.musters[0].length; A.enemies = this.musters[1].length;
@@ -962,7 +968,8 @@ class Arena {
         use: () => { if (!g.loaded) return; if (this.remote) { this.net.send({ t: "bgunlay", i: this.field.guns.indexOf(g), at: this.lookPoint() }); return; } this.field.layAndFire(g, this.lookPoint()); } }));
       // (the other player, on their own side: a body your game moves as theirs tells it)
       if (this.netBattle) {
-        const nf = this.netFoe = new NetFoe(this, { ...foe, look: inUniform(foe.look || randomLook(), this.uni[1]) });
+        // (on horseback, if they ride: as their muster said, or the host's word of itself)
+        const nf = this.netFoe = new NetFoe(this, { ...foe, look: inUniform(foe.look || randomLook(), this.uni[1]), horse: this.host ? !!(foe.army && foe.army.ride) : !!(setup && setup.ride) });
         nf.team = 1; nf.idx = -1; nf.uid = -1; nf.isNet = true; this.units.push(nf); this.hunt.animals.push(nf);
       }
       this.foe = this.netFoe || this.units.find(u => this.alOf(u.team) !== 0);
@@ -999,7 +1006,7 @@ class Arena {
     // (against a player: the host tells the other game the field and the men, and waits for it to be ready; the other
     //  says it is, and both begin)
     if (this.host) {
-      this.net.send({ t: "bsetup", seed: ground.seed, x: C.x, z: C.z, fieldSeed: this.fieldSeed, hour: this.hour, fort: this.fortSide, uni: [A.uniform, A.enemyUniform], counts: [A.allies, A.enemies], guns: this.gunsBought,
+      this.net.send({ t: "bsetup", ride: riding() ? 1 : 0, seed: ground.seed, x: C.x, z: C.z, fieldSeed: this.fieldSeed, hour: this.hour, fort: this.fortSide, uni: [A.uniform, A.enemyUniform], counts: [A.allies, A.enemies], guns: this.gunsBought,
         roster: this.units.filter(u => !u.isNet).map(u => ({ id: u.uid, team: u.team, look: u.info.look, name: u.info.name, lo: u.lo, horse: u.info.horse ? 1 : 0, gun: u.crewOf ? this.field.guns.indexOf(u.crewOf) : -1, ci: u.crewIdx | 0, idx: u.idx })) });
       this.banner(this.place ? esc(this.place.text) : "Battle", `Waiting for ${esc(foe.name || "the other side")} to take the field…`);
       UI.fadeNow(1); UI.fade(0, 1.2);
@@ -1123,6 +1130,8 @@ class Arena {
     O0.mode = "follow"; O0.at = null; O1.mode = "hold"; O1.at = { x: theirs.x, z: theirs.z };
     // (holding your fort: your company on its front wall from the start)
     if (this.fortSide === 0) { O0.mode = "hold"; O0.at = { x: mine.x, z: mine.z }; }
+    // (in the saddle, if you're riding into it)
+    if (this.battle && riding()) { if (!pl.horse) pl.mount(); } else if (pl.horse) pl.dismount();
     pl.place(mine.x + Math.sin(face0) * 3, mine.z + Math.cos(face0) * 3, face0 + Math.PI);
     const placing = this.custom ? this.cos.map((c, co) => { const at = this.spawns[co], tw = toward(at), O = this.orders[co]; if (co) { O.mode = "hold"; O.at = { x: at.x, z: at.z }; } return [co, at, Math.atan2(tw.x - at.x, tw.z - at.z), O, tw]; })
       : [[0, mine, face0, O0, theirs], [1, theirs, face1, O1, mine]];
@@ -1264,6 +1273,10 @@ class Arena {
     const cen = l => ({ x: l.reduce((s, u) => s + u.pos.x, 0) / l.length, z: l.reduce((s, u) => s + u.pos.z, 0) / l.length });
     const a = cen(theirs), b = cen(ours), d = Math.hypot(b.x - a.x, b.z - a.z) || 1;
     const shout = () => { const o = theirs[0]; AUDIO.voice && AUDIO.voice("war", { at: o.pos, vol: 0.9, high: isF(o.info.look) }); };
+    // (horse coming at them: a seasoned officer forms square till it's past — and back into line after)
+    { const horse = ours.filter(u => (u.isPlayer ? !!G.player.horse : u.mounted) && Math.hypot(u.pos.x - a.x, u.pos.z - a.z) < 24).length, gen0 = K.gen ?? generalship();
+      if (horse >= 1 && gen0 > 0.4 && O.form !== "square" && !O.charge) { K.lineForm = O.form; O.form = "square"; shout(); }
+      else if (!horse && O.form === "square" && K.lineForm !== undefined) { O.form = K.lineForm; K.lineForm = undefined; } }
     // (holding a fort: they stay on its wall and fire, volley as you come, and only go at you with the steel when you're
     //  inside it)
     if (this.fortSide === 1) {
@@ -1575,7 +1588,11 @@ class Arena {
   }
   // ---- your blade: a stroke at him, if he's in reach and in front of you ----
   // what your blade is now: the bayonet on your musket, if it's fixed; else the one in your belt
-  myBlade() { const pl = G.player; return (pl.gun && pl.bayonet && pl.gunIs === "musket") || pl.blade === "bayonet" ? BLADE.bayonet : BLADE[this.lo.blade] || BLADE.dagger; }
+  myBlade() {
+    const pl = G.player, B = (pl.gun && pl.bayonet && pl.gunIs === "musket") || pl.blade === "bayonet" ? BLADE.bayonet : BLADE[this.lo.blade] || BLADE.dagger;
+    // (from the saddle: further, and harder at the gallop)
+    return pl.horse ? { ...B, reach: B.reach + 0.8, dmg: B.dmg * (pl.speed > 6 ? 1.7 : 1.25) } : B;
+  }
   canBayonet() { return this.lo.long === "musket" && this.lo.blade === "dagger"; }
   swing() {
     if (this.multi) return this.swingAt();
@@ -1596,6 +1613,7 @@ class Arena {
     if (this.net) this.net.send({ t: "dhp", hp: Math.round(G.health * HP), r: this.round });
   }
   youDown(from) {
+    if (G.player.horse) G.player.dismount();   // (thrown from the saddle)
     G.downed = true; G.lockMove = true;
     if (this.netBattle) { this.net.send({ t: "dhp", hp: 0, r: this.round }); this.sendT = 0; this.sendState(0); }
     if (this.multi) return this.fallInBattle(from);
@@ -1860,7 +1878,7 @@ class Arena {
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
     G.onSwing = null; G.onDowned = null; G.onGunshot = null; G.onLoose = null; G.onSwingStart = null;
     this.rise();
-    G.player.swingRate = 1; G.loadMul = 1; G.lockMove = false; G.downed = false; G.player.bayonet = false;
+    G.player.swingRate = 1; G.loadMul = 1; G.lockMove = false; G.downed = false; G.player.bayonet = false; if (G.player.horse) G.player.dismount();
     if (this.net) { this.net.send({ t: "dleave" }); this.net.close(); this.net = null; }
     if ($("pvpHud")) $("pvpHud").classList.add("hidden");
     this.banner(null);
@@ -2222,7 +2240,9 @@ class Bot extends Fighter {
     // (a pike or a spear against a horseman: the horse runs onto it — twice the harm; and a blow from his side or his
     //  back, or on a man running away, goes in where he can't guard — half again)
     const fromBehind = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) < -0.25;
-    const k = (this.mounted && by && by.steel && by.steel() === "spear" ? 2 : 1) * (fromBehind || this.routing ? 1.5 : 1);
+    // (a horseman's blow on a man in a square: the bristling front of it turns most of it)
+    const sq = (by ? by.mounted : !!G.player.horse) && this.arena.orders && this.arena.orders[this.team] && this.arena.orders[this.team].form === "square" && !this.routing;
+    const k = (this.mounted && by && by.steel && by.steel() === "spear" ? 2 : 1) * (fromBehind || this.routing ? 1.5 : 1) * (sq ? 0.5 : 1);
     this.damage(dmg * k, true, false, src);
   }
   // his blade as he uses it: from the saddle, longer in the reach, and heavier at the gallop; a man winded from a long
@@ -2277,6 +2297,9 @@ class Bot extends Fighter {
     for (const f of foes) {
       let d = Math.hypot(f.pos.x - this.pos.x, f.pos.z - this.pos.z) * (f === this.T ? 0.8 : 1);
       if (sharp && d > 4.5) d *= (f.cover && f.a && f.a.person.crouching ? 1.5 : 1) * (f.hp != null && f.hp < 55 ? 0.7 : 1) * (f.crewOf ? 0.75 : 1) * (1 + 0.12 * Math.max(0, (on.get(f) || 0) - 2));
+      // (a trooper rides for what horse is good against — the gun crews, men running, men out on their own — and
+      //  keeps clear of the pikes)
+      if (this.mounted) { const pike = f.steel && f.steel() === "spear", alone = !foes.some(g => g !== f && Math.hypot(g.pos.x - f.pos.x, g.pos.z - f.pos.z) < 4); d *= (pike ? 2.6 : 1) * (f.crewOf ? 0.6 : 1) * (f.routing ? 0.5 : 1) * (alone ? 0.7 : 1); }
       if (d < bd) { bd = d; best = f; }
     }
     return best;
@@ -2346,7 +2369,7 @@ class Bot extends Fighter {
         const B = this.blade();
         this.cool = (1.4 - s * 0.6) / B.rate * (0.85 + Math.random() * 0.3);
         if (d < B.reach - 0.3 && T.alive) {
-          if (T.isPlayer) { if (strikeYou(a, this.dir, B.dmg, d, this.arena.tips ??= {}) === "parry") { this.stun = 1.0; this.cool = Math.max(this.cool, 1.3); a.person.flinch && a.person.flinch(); } }
+          if (T.isPlayer) { if (strikeYou(a, this.dir, B.dmg * (pl.horse && this.steel() === "spear" ? 2 : 1), d, this.arena.tips ??= {}) === "parry") { this.stun = 1.0; this.cool = Math.max(this.cool, 1.3); a.person.flinch && a.person.flinch(); } }
           else { T.struck(B.dmg, this.dir, this); FOLEY.chop && FOLEY.chop(T.pos, 0.6); }
         }
       }
