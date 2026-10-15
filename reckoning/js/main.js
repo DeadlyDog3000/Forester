@@ -2205,7 +2205,7 @@ addEventListener("keydown", e => {
   }
 });
 // (on the free cursor, any click asks for the lock again: the moment it comes, turning has no edge)
-addEventListener("mousedown", e => { if (G.mode === "play" && input.freeLook && !document.pointerLockElement && !overlay && e.target === renderer.domElement && !(G.mp && (G.mp.menuOpen || G.mp.listOpen || G.mp.newsOpen))) { try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }, true);
+addEventListener("mousedown", e => { if (G.mode === "play" && input.freeLook && !document.pointerLockElement && !G.noLock && !overlay && e.target === renderer.domElement && !(G.mp && (G.mp.menuOpen || G.mp.listOpen || G.mp.newsOpen))) { try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }, true);
 // a click on the world while playing re-takes the mouse
 renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !overlay) lock(); });
 

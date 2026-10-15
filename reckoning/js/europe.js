@@ -273,6 +273,51 @@ function landPath(c, S) {
 
 // the finished sheet, without the things that change by the second (the pointer, the lit crown)
 let sheet = null, sheetKey = "";
+// ---- a crown's outline: its squares' edges joined into loops, each run through the middles of its edges (so a stair of
+// squares becomes a slope) and rounded off; with runs, the stretches of it that are a border with another crown ----
+function trace(g, id, borders = false) {
+  const VW = GW + 1, out = new Map(), edges = [];
+  const at = (x, y) => (g[y] && g[y][x]) || null;
+  const add = (x0, y0, x1, y1, other) => { const e = { a: y0 * VW + x0, b: y1 * VW + x1, x: (x0 + x1) / 2, y: (y0 + y1) / 2, other, used: false }; edges.push(e); (out.get(e.a) || out.set(e.a, []).get(e.a)).push(e); };
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+    if (g[y][x] !== id) continue;
+    let n;
+    if ((n = at(x, y - 1)) !== id) add(x, y, x + 1, y, n);
+    if ((n = at(x + 1, y)) !== id) add(x + 1, y, x + 1, y + 1, n);
+    if ((n = at(x, y + 1)) !== id) add(x + 1, y + 1, x, y + 1, n);
+    if ((n = at(x - 1, y)) !== id) add(x, y + 1, x, y, n);
+  }
+  const loops = [], runs = [];
+  for (const e0 of edges) {
+    if (e0.used) continue;
+    const loop = []; let e = e0;
+    while (e && !e.used) { e.used = true; loop.push(e); const nx = out.get(e.b); e = nx && (nx.find(q => !q.used) || null); }
+    if (loop.length < 4) continue;
+    loops.push(chaikin(loop.map(q => [q.x, q.y]), true, 2));
+    if (borders) {
+      // (a border with a crown — not the sea, not the free woods — drawn by the one of the two that comes first)
+      const isB = q => q.other && q.other !== "wilds" && NATIONS[q.other] && q.other > id;
+      let k0 = loop.findIndex(q => !isB(q)); if (k0 < 0) { runs.push(chaikin(loop.map(q => [q.x, q.y]), true, 2)); continue; }
+      let cur = [];
+      for (let i = 1; i <= loop.length; i++) { const q = loop[(k0 + i) % loop.length]; if (isB(q)) cur.push([q.x, q.y]); else if (cur.length) { if (cur.length > 1) runs.push(chaikin(cur, false, 2)); cur = []; } }
+      if (cur.length > 1) runs.push(chaikin(cur, false, 2));
+    }
+  }
+  return { loops, runs };
+}
+// rounding a line off: each corner cut, twice over
+function chaikin(pts, closed, n) {
+  for (let it = 0; it < n; it++) {
+    const o = [], N = pts.length;
+    if (!closed) o.push(pts[0]);
+    for (let i = 0; i < (closed ? N : N - 1); i++) { const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % N]; o.push([x0 * 0.75 + x1 * 0.25, y0 * 0.75 + y1 * 0.25], [x0 * 0.25 + x1 * 0.75, y0 * 0.25 + y1 * 0.75]); }
+    if (!closed) o.push(pts[N - 1]);
+    pts = o;
+  }
+  return pts;
+}
+function addLoop(p, pts) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); }
+function addLine(p, pts) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); }
 function drawSheet(W, H, E, g, homePop) {
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const c = cv.getContext("2d"), S = W / GW, r = rng(1683);
@@ -307,39 +352,34 @@ function drawSheet(W, H, E, g, homePop) {
   // ---- the land: the paper, a shade lighter, and each crown hand-coloured — a band of colour along its borders, a thin wash within ----
   c.save(); landPath(c, S); c.clip("evenodd");
   c.fillStyle = "rgba(245,236,210,0.55)"; c.fillRect(0, 0, W, H);
-  const wash = document.createElement("canvas"); wash.width = GW; wash.height = GH;
-  const wc = wash.getContext("2d"), img = wc.createImageData(GW, GH);
-  // distance in from each crown's edge, a few cells deep
-  const depth = new Uint8Array(GW * GH).fill(9);
-  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
-    const id = g[y][x]; if (!id || id === "wilds") continue;
-    let edge = false;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = g[y + dy] && g[y + dy][x + dx]; if (n !== id) { edge = true; break; } }
-    if (edge) depth[y * GW + x] = 0;
-  }
-  for (let pass = 1; pass <= 4; pass++) for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
-    const k = y * GW + x; if (depth[k] < pass) continue;
-    const id = g[y][x]; if (!id || id === "wilds") continue;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = (y + dy) * GW + x + dx; if (g[y + dy] && g[y + dy][x + dx] === id && depth[n] === pass - 1) { depth[k] = pass; break; } }
-  }
-  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
-    const id = g[y][x], k = y * GW + x; if (!id) continue;
+  // (each crown traced round as a line — not the grid's squares — and that line rounded off, the way an engraver drew a
+  //  border: then washed inside it, a deeper band of colour along it, and the border itself dotted where one crown
+  //  meets another)
+  const ext = g.map(row => row.slice());
+  // (the colour carried a little out over the sea, so the coast — cut to the real one — is coloured right to its edge)
+  for (let pass = 0; pass < 3; pass++) { const prev = ext.map(row => row.slice()); for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (!prev[y][x]) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = prev[y + dy] && prev[y + dy][x + dx]; if (n) { ext[y][x] = n; break; } } }
+  const ids = new Set(); for (const row of g) for (const id of row) if (id) ids.add(id);
+  const band = Math.max(2, S * 2.2);
+  // (the deeper bands drawn on a layer of their own, and softened all at once)
+  const bl = document.createElement("canvas"); bl.width = W; bl.height = H; const bc = bl.getContext("2d"); bc.lineJoin = "round"; bc.lineWidth = band * 2;
+  for (const id of ids) {
+    const { loops } = trace(ext, id);
+    if (!loops.length) continue;
+    const path = new Path2D(); for (const L of loops) addLoop(path, L.map(([x, y]) => [x * S, y * S]));
     const [R, G, B] = id === "wilds" ? [120, 140, 90] : hexRGB(NATIONS[id].color);
-    const d = depth[k], a = id === "wilds" ? 0.35 : d === 0 ? 0.95 : d === 1 ? 0.7 : d === 2 ? 0.45 : 0.22;
-    img.data.set([R, G, B, Math.round(a * 255)], k * 4);
+    c.save(); c.clip(path, "evenodd");
+    c.fillStyle = `rgba(${R},${G},${B},${id === "wilds" ? 0.3 : 0.22})`; c.fillRect(0, 0, W, H);
+    c.restore();
+    if (id !== "wilds") { bc.save(); bc.clip(path, "evenodd"); bc.strokeStyle = `rgba(${R},${G},${B},0.85)`; bc.stroke(path); bc.restore(); }
   }
-  wc.putImageData(img, 0, 0);
-  c.imageSmoothingEnabled = true; c.filter = `blur(${(S * 0.55).toFixed(1)}px)`; c.globalAlpha = 0.85;
-  c.drawImage(wash, 0, 0, W, H);
-  c.filter = "none"; c.globalAlpha = 1;
-  // borders: a dotted line where one crown meets another
-  c.fillStyle = INK_SOFT + "0.7)";
-  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
-    const id = g[y][x]; if (!id) continue;
-    const e = g[y][x + 1], s = g[y + 1] && g[y + 1][x];
-    if (e && e !== id && (x + y) % 2 === 0) { c.beginPath(); c.arc((x + 1) * S, (y + 0.5) * S, Math.max(0.7, S * 0.2), 0, 7); c.fill(); }
-    if (s && s !== id && (x + y) % 2 === 0) { c.beginPath(); c.arc((x + 0.5) * S, (y + 1) * S, Math.max(0.7, S * 0.2), 0, 7); c.fill(); }
+  c.filter = `blur(${(S * 0.6).toFixed(1)}px)`; c.drawImage(bl, 0, 0); c.filter = "none";
+  // borders: dotted, along the rounded line, where one crown meets another (each border once)
+  c.save(); c.strokeStyle = INK_SOFT + "0.72)"; c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = Math.max(1.3, S * 0.42); c.setLineDash([0, Math.max(3, S * 0.95)]);
+  for (const id of ids) {
+    if (id === "wilds") continue;
+    for (const run of trace(g, id, true).runs) { const p = new Path2D(); addLine(p, run.map(([x, y]) => [x * S, y * S])); c.stroke(p); }
   }
+  c.restore();
   // rivers: a fine wandering line in a paler ink, thicker toward the mouth
   for (const rv of RIVERS) {
     const pts = rv.map(([lo, la]) => lonlat(lo, la, S));

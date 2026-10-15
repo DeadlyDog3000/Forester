@@ -4,8 +4,8 @@
 
 // HISTORICAL BATTLES: ten fields of the game's own years, fought again on the ground where they were — the armies that
 // stood there, in their own coats, under their own colours, at the hour of the day it was and in its weather; you a
-// captain of a company on whichever side you choose. Each is a company's share of the day, not the whole of it (no
-// cavalry: the horse fought elsewhere on those fields, or on foot here), and against bots only; a win or a loss
+// captain of a company on whichever side you choose. Each is a company's share of the day, not the whole of it (the
+// cavalry only a share of it: the great charges were thousands strong), and against bots only; a win or a loss
 // rates nothing — what's kept is which you've won, and on which side.
 //
 // A battle: its sides, each a list of companies (the first of the side you choose is yours): uni, the coats; muster,
@@ -32,7 +32,7 @@ export const BATTLES = [
     brief: "The Prince of Condé has caught William of Orange's allied army strung out on the march: Dutch, Spanish and the Emperor's men. He falls on them in the afternoon, and the fighting runs on, village by village, until well past dark: one of the bloodiest days of the war.",
     after: ["Both sides claimed it. Condé held the field and took the baggage, but neither army could do more for the rest of the year. Close to twenty thousand men were killed or wounded.", "Both sides claimed it. Condé held the field and took the baggage, but neither army could do more for the rest of the year. Close to twenty thousand men were killed or wounded."],
     sides: [
-      { name: "The French", lead: "Louis, Prince of Condé", cos: [{ uni: "french", muster: { musketeer: 14, pike: 6, grenadier: 4 }, guns: 1 }, { uni: "french", muster: { musketeer: 14, pike: 6, sword: 4 }, guns: 1 }] },
+      { name: "The French", lead: "Louis, Prince of Condé", cos: [{ uni: "french", muster: { musketeer: 14, pike: 6, grenadier: 4 }, guns: 1 }, { uni: "french", muster: { musketeer: 12, pike: 6, cavalry: 4 }, guns: 1 }] },
       { name: "The Allies", lead: "William of Orange", hold: 20, cos: [{ uni: "dutch", muster: { musketeer: 12, pike: 6 }, guns: 1 }, { uni: "spanish", muster: { musketeer: 10, pike: 8, sword: 2 } }, { uni: "imperial", muster: { musketeer: 12, pike: 4, grenadier: 2 }, guns: 1 }] },
     ],
   },
@@ -43,8 +43,8 @@ export const BATTLES = [
     brief: "The Swedes have invaded Brandenburg while its Elector was away at the Rhine. Frederick William has marched back faster than anyone believed he could. He caught Wrangel's rearguard in the fog by the Rhin marshes, fewer men but more guns, and set his guns on the sandhills.",
     after: ["The Brandenburg guns on the hills, and their horse, broke the Swedish line, and the Swedes fell back across the marshes. Brandenburg had beaten the army everyone feared. From that day the Elector was called the Great.", "Here Sweden's army kept its fearsome name."],
     sides: [
-      { name: "Brandenburg", lead: "Frederick William, the Great Elector", cos: [{ uni: "brandenburg", muster: { musketeer: 10, sword: 8, grenadier: 2 }, guns: 3, call: { sword: "Dragoon" } }] },
-      { name: "Sweden", lead: "Wolmar Wrangel", hold: 40, cos: [{ uni: "swedish", muster: { musketeer: 18, pike: 8 }, guns: 2 }] },
+      { name: "Brandenburg", lead: "Frederick William, the Great Elector", cos: [{ uni: "brandenburg", muster: { musketeer: 8, sword: 4, cavalry: 8 }, guns: 3, call: { sword: "Dragoon", cavalry: "Cuirassier" } }] },
+      { name: "Sweden", lead: "Wolmar Wrangel", hold: 40, cos: [{ uni: "swedish", muster: { musketeer: 16, pike: 8, cavalry: 3 }, guns: 2 }] },
     ],
   },
   {
@@ -54,8 +54,8 @@ export const BATTLES = [
     brief: "Christian V has brought a Danish army over the Sound to win back Scania. Young Charles XI of Sweden crosses the frozen river at first light and attacks, on ground hard with frost. The Danes outnumber him.",
     after: ["After eight hours, about half of all the men on the field had been killed or wounded, the bloodiest battle Scandinavia ever saw. The Swedes held the field, and Scania stayed Swedish.", "Here the Danes won back Scania's last hope."],
     sides: [
-      { name: "Sweden", lead: "King Charles XI", cos: [{ uni: "swedish", muster: { musketeer: 14, pike: 6, sword: 4 }, guns: 1 }, { uni: "swedish", muster: { musketeer: 14, pike: 6, grenadier: 2 }, guns: 1 }] },
-      { name: "Denmark", lead: "King Christian V", hold: 12, cos: [{ uni: "danish", muster: { musketeer: 14, pike: 6 }, guns: 1 }, { uni: "danish", muster: { musketeer: 14, pike: 6 } }, { uni: "danish", muster: { musketeer: 12, pike: 4, grenadier: 2 }, guns: 1 }] },
+      { name: "Sweden", lead: "King Charles XI", cos: [{ uni: "swedish", muster: { musketeer: 12, pike: 6, cavalry: 4 }, guns: 1 }, { uni: "swedish", muster: { musketeer: 14, pike: 6, grenadier: 2 }, guns: 1 }] },
+      { name: "Denmark", lead: "King Christian V", hold: 12, cos: [{ uni: "danish", muster: { musketeer: 14, pike: 6 }, guns: 1 }, { uni: "danish", muster: { musketeer: 10, pike: 4, cavalry: 4 } }, { uni: "danish", muster: { musketeer: 12, pike: 4, grenadier: 2 }, guns: 1 }] },
     ],
   },
   {
@@ -65,8 +65,8 @@ export const BATTLES = [
     brief: "Kara Mustafa's army has had Vienna under siege for two months, and the city is near its end. The relief army has come over the Wienerwald: the Emperor's men, the Saxons and Bavarians, and King Jan Sobieski's Poles. They fight down the vineyards of the Kahlenberg all day towards the Turkish camp, and at the end of it comes the greatest cavalry charge in history.",
     after: ["The relief army broke through the Turkish lines, and Sobieski's winged hussars rode down into the camp. The siege was lifted that evening. The Ottoman Empire would never stand at Vienna again.", "Here the relief failed. Vienna's fate hangs on the walls alone."],
     sides: [
-      { name: "The Holy League", lead: "King Jan III Sobieski", cos: [{ uni: "polish", muster: { musketeer: 10, sword: 6, grenadier: 2 }, guns: 1 }, { uni: "imperial", muster: { musketeer: 12, pike: 4, grenadier: 2 }, guns: 1 }, { uni: "saxon", muster: { musketeer: 12, pike: 4 }, guns: 1 }, { uni: "bavarian", muster: { musketeer: 10, pike: 4, grenadier: 2 } }] },
-      { name: "The Ottoman army", lead: "Grand Vizier Kara Mustafa", hold: 35, cos: [{ uni: "ottoman", muster: { musketeer: 12, bow: 5, sword: 5 }, guns: 1 }, { uni: "ottoman", muster: { musketeer: 12, bow: 5, sword: 5 }, guns: 1 }, { uni: "ottoman", muster: { musketeer: 10, bow: 6, sword: 6 } }] },
+      { name: "The Holy League", lead: "King Jan III Sobieski", cos: [{ uni: "polish", muster: { musketeer: 8, sword: 4, cavalry: 6 }, guns: 1, call: { cavalry: "Hussar" } }, { uni: "imperial", muster: { musketeer: 12, pike: 4, grenadier: 2 }, guns: 1 }, { uni: "saxon", muster: { musketeer: 12, pike: 4 }, guns: 1 }, { uni: "bavarian", muster: { musketeer: 10, pike: 4, grenadier: 2 } }] },
+      { name: "The Ottoman army", lead: "Grand Vizier Kara Mustafa", hold: 35, cos: [{ uni: "ottoman", muster: { musketeer: 12, bow: 5, sword: 3, cavalry: 2 }, guns: 1, call: { cavalry: "Sipahi" } }, { uni: "ottoman", muster: { musketeer: 12, bow: 5, sword: 5 }, guns: 1 }, { uni: "ottoman", muster: { musketeer: 10, bow: 6, sword: 6 } }] },
     ],
   },
   {
@@ -76,7 +76,7 @@ export const BATTLES = [
     brief: "The Duke of Monmouth has raised the West Country against his uncle, King James II. His army is farmers and weavers, many armed with scythes fixed to poles. He tries a night march across the moor to surprise the King's army asleep in its camp, but a shot goes off in the mist, and the regulars wake behind the Bussex Rhine ditch.",
     after: ["The rebels could not get across the ditch, and stood firing into the dark until dawn. Then the King's guns and horse broke them. It was the last pitched battle on English soil. Monmouth was beheaded nine days later, and hundreds of his men were hanged.", "Here the rebellion won its night. Monmouth's road to London lies open."],
     sides: [
-      { name: "The King's army", lead: "the Earl of Feversham", hold: 999, cos: [{ uni: "english", muster: { musketeer: 14, pike: 6, grenadier: 4 }, guns: 3 }] },
+      { name: "The King's army", lead: "the Earl of Feversham", hold: 999, cos: [{ uni: "english", muster: { musketeer: 12, pike: 6, grenadier: 3, cavalry: 3 }, guns: 3 }] },
       { name: "Monmouth's rebels", lead: "James, Duke of Monmouth", cos: [{ uni: "rebels", muster: { musketeer: 14, axe: 12, pike: 8 }, guns: 1, call: { axe: "Scytheman", pike: "Pitchfork" } }] },
     ],
   },
@@ -98,7 +98,7 @@ export const BATTLES = [
     brief: "Two kings face each other across the river. William III leads Dutch guards, English and Danish regiments; his father-in-law James II leads French regiments and his Irish army. At Oldbridge, William's Dutch Blue Guards wade in up to their waists, under fire from the southern bank.",
     after: ["William's men forced the crossing, and James's army fell back towards Dublin in good order. James fled to France. The Boyne decided who would reign in England, Scotland and Ireland.", "Here King James held the river, and kept his crown within reach."],
     sides: [
-      { name: "King William's army", lead: "William III", cos: [{ uni: "dutch", muster: { musketeer: 14, pike: 4, grenadier: 2 }, guns: 1 }, { uni: "english", muster: { musketeer: 14, pike: 4 }, guns: 1 }, { uni: "danish", muster: { musketeer: 14, pike: 4 } }] },
+      { name: "King William's army", lead: "William III", cos: [{ uni: "dutch", muster: { musketeer: 14, pike: 4, grenadier: 2 }, guns: 1 }, { uni: "english", muster: { musketeer: 12, pike: 4, cavalry: 3 }, guns: 1 }, { uni: "danish", muster: { musketeer: 14, pike: 4 } }] },
       { name: "King James's army", lead: "James II", hold: 45, cos: [{ uni: "french", muster: { musketeer: 16, pike: 4, grenadier: 2 }, guns: 1 }, { uni: "irish", muster: { musketeer: 12, pike: 8, sword: 4 } }] },
     ],
   },
@@ -110,7 +110,7 @@ export const BATTLES = [
     after: ["The Imperial foot stormed the bridgehead and drove the Ottoman army into the river. Tens of thousands died before dark, while the Imperials lost a few hundred. Two years later the Sultan gave up Hungary at Karlowitz.", "Here the bridgehead held, and the Sultan's army got away over the river."],
     sides: [
       { name: "The Emperor's army", lead: "Prince Eugene of Savoy", cos: [{ uni: "imperial", muster: { musketeer: 18, grenadier: 6, pike: 4 }, guns: 3 }] },
-      { name: "The Ottoman army", lead: "Sultan Mustafa II", hold: 999, cos: [{ uni: "ottoman", muster: { musketeer: 14, bow: 8, sword: 10 }, guns: 2 }] },
+      { name: "The Ottoman army", lead: "Sultan Mustafa II", hold: 999, cos: [{ uni: "ottoman", muster: { musketeer: 14, bow: 8, sword: 6, cavalry: 4 }, guns: 2, call: { cavalry: "Sipahi" } }] },
     ],
   },
   {

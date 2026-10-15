@@ -7,6 +7,20 @@
 
 export const CHANGELOG = [
   {
+    v: "1.39.0", date: "15 October 2026", title: "Cavalry, and the field before the fight",
+    items: [
+      "Cavalry: troopers on horseback with pistol and sabre, at 150 thalers each. They gallop, charge home at full tilt and ride on through to come again, and they're death to men caught in the open. Pikes are death to them, and when a trooper falls his horse bolts riderless. Enemy commanders raise them too, and the historical armies have their horse: Sobieski's hussars at Vienna, the Great Elector's cuirassiers at Fehrbellin, the Sultan's sipahis.",
+      "Deploy before every battle: the camera rises over the field and you click where your company should stand, anywhere in the gold ring on your side. Against another player you both deploy, with half a minute each.",
+      "Tactics count. Every man has nerve: seeing comrades fall beside him and being hit shakes him, and quiet, or you near him, steadies him. Shaken men break and run, and a side that's all running has lost. Cheap levies break first and pikes and grenadiers hold best, so a mob charging a steady line that fires into it comes apart before it gets there. Men who run a long way arrive winded and strike weakly, and a blow from the flank or behind, or on a running man, does half as much again.",
+      "Bigger battles against other players: choose the size in the muster, from a skirmish to a great war (5,000 thalers), and it's fought at the larger of the two choices. Companies can now be up to 70 men.",
+      "No more forts in battles against other players. It's always the open field.",
+      "Fixed: blows on the other player's soldiers in an online battle often did nothing. Over a real connection the soldier stands a step or two away from where your screen shows him, and the blow was thrown out.",
+      "Your battles go on the Highlights only if you tick the box for it on the result screen.",
+      "The map of Europe has its borders of 1683, drawn as an engraver would, instead of in squares. Riga and Livonia are Sweden's along the Daugava, Brescia and Bergamo Venice's, Abruzzo Naples', Slavonia, the Banat and Dobruja the Sultan's, Ingria and Karelia Sweden's, Bremen-Verden Sweden's, Magdeburg Brandenburg's, and Royal Hungary only the narrow strip it was.",
+      "Big battles run smoother: men far off are animated less often, and only men near you cast shadows.",
+    ],
+  },
+  {
     v: "1.38.0", date: "14 October 2026", title: "The campaign",
     items: [
       "A campaign: To Arms → Campaign. Take any of the 34 crowns of 1683, from the Ottoman Empire and France to Tuscany and the Crimean Khanate, and play Europe season by season on the engraved map of the time.",

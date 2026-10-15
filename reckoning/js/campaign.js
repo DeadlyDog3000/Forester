@@ -32,10 +32,10 @@ export const UNI_OF = {
   tripoli: "ottoman", dutch: "dutch", morocco: "ottoman",
 };
 const STYLE = {
-  west: [["musketeer", 0.62], ["pike", 0.16], ["grenadier", 0.12], ["sword", 0.1]],
-  east: [["musketeer", 0.45], ["bow", 0.25], ["sword", 0.3]],
-  steppe: [["musketeer", 0.48], ["sword", 0.26], ["bow", 0.14], ["pike", 0.12]],
-  tsar: [["musketeer", 0.72], ["pike", 0.18], ["axe", 0.1]],
+  west: [["musketeer", 0.58], ["pike", 0.15], ["grenadier", 0.1], ["cavalry", 0.1], ["sword", 0.07]],
+  east: [["musketeer", 0.42], ["bow", 0.22], ["sword", 0.2], ["cavalry", 0.16]],
+  steppe: [["musketeer", 0.42], ["cavalry", 0.22], ["sword", 0.16], ["bow", 0.1], ["pike", 0.1]],
+  tsar: [["musketeer", 0.66], ["pike", 0.18], ["cavalry", 0.08], ["axe", 0.08]],
 };
 const styleOf = id => ({ ottoman: "east", crimea: "east", algiers: "east", tunis: "east", tripoli: "east", morocco: "east", poland: "steppe", cossacks: "steppe", moldavia: "steppe", wallachia: "steppe", transylvania: "steppe", russia: "tsar" }[id] || "west");
 function muster(id, men) {
@@ -432,4 +432,5 @@ function sideClick(e) {
 // (after a battle fought by hand: straight back to the map)
 export const campaignOn = () => !!C;
 // (for the tests: the campaign's own doings, from the console)
+window.__setView = v => { view = v; paint(); };
 window.__cmp = { get C() { return C; }, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };

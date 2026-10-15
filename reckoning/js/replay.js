@@ -62,7 +62,7 @@ export class Recorder {
       if (this.ids.has(u)) continue;
       let id = u.uid; if (id == null || id < 0) { while ([...this.ids.values()].includes(this.nextId)) this.nextId++; id = this.nextId++; }
       const g = u.crewOf && A.field ? A.field.guns.indexOf(u.crewOf) : -1;
-      add(u, id, { team: A.alOf ? A.alOf(u.team ?? 1) : u.team ?? 1, name: u.info.name, look: u.info.look, lo: u.lo || u.info.lo, gun: g, ci: u.crewIdx | 0, them: !A.multi && u === A.foe ? 1 : undefined });
+      add(u, id, { team: A.alOf ? A.alOf(u.team ?? 1) : u.team ?? 1, name: u.info.name, look: u.info.look, lo: u.lo || u.info.lo, horse: u.info.horse ? 1 : undefined, gun: g, ci: u.crewIdx | 0, them: !A.multi && u === A.foe ? 1 : undefined });
     }
   }
   idOf(x) { if (x == null) return ME; return this.ids.has(x) ? this.ids.get(x) : null; }
@@ -513,7 +513,7 @@ export class Theatre {
     this.battle = !!S.battle; this.multi = !!S.multi; this.live = false; this.net = null; this.over = true;
     this.bodies = new Map();
     for (const r of this.tape.roster) {
-      const u = makePuppet(this, { name: r.name, look: r.look, lo: r.lo || { long: "musket", side: "none", blade: "dagger" }, team: r.team, idx: r.id, uid: r.id, bot: !r.you });
+      const u = makePuppet(this, { name: r.name, look: r.look, lo: r.lo || { long: "musket", side: "none", blade: "dagger" }, team: r.team, idx: r.id, uid: r.id, bot: !r.you, horse: !!r.horse });
       if (r.gun >= 0 && this.field && this.field.guns[r.gun]) { const g = this.field.guns[r.gun]; u.crewOf = g; u.crewIdx = r.ci | 0; g.crew.push(u); }
       u.r = r; this.bodies.set(r.id, u);
       if (r.you) this.you = u;

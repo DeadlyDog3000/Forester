@@ -1620,3 +1620,11 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .camp-alt { grid-template-columns: 1fr 1fr; }
 @media (max-width: 900px) { .cmp-main { grid-template-columns: 1fr; } .cmp-play { height: auto; } .cmp-mapwrap { height: 55vh; } }
 .cmp-bb .btn { min-width: 0; padding: 8px 14px; }
+.pv-share { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; margin-top: 10px; font: 13px var(--sans); color: var(--ink); cursor: pointer; }
+.pv-share input:disabled + span { color: var(--gold); }
+.pv-gr.theirs { border-style: dashed; border-color: var(--gold); }
+/* deployment: the box over the field from above */
+#deployBox { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 60; width: min(520px, calc(100vw - 32px)); padding: 12px 16px; background: var(--panel); border: 1px solid var(--edge); border-top: 2px solid var(--gold); border-radius: 4px; color: var(--ink); text-align: center; font: 13px/1.45 var(--sans); }
+#deployBox b { display: block; font: 20px var(--serif); margin-bottom: 4px; }
+#deployBox div { margin-top: 8px; }
+#deployBox small { display: block; margin-top: 4px; color: var(--ink-dim); }

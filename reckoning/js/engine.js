@@ -1831,6 +1831,8 @@ function personalSpace(list, dt) {
     }
   }
 }
+// (how high a rider's seat is lifted: the seated clip's hips stand 0.9 over its feet, and the horse's back is 1.5 up)
+const SADDLE = 0.68;
 export class Actor {
   constructor(opts, x, z, yaw = 0) {
     this.person = makePerson(opts);
@@ -1856,12 +1858,20 @@ export class Actor {
     this.root.rotation.x = -Math.PI / 2 * (this.lieK ?? (this.lying ? 1 : 0));
   }
   place(x, z, yaw) { this.pos.x = x; this.pos.z = z; if (yaw !== undefined) { this.yaw = this.targetYaw = yaw; } this.path = []; this.sync(); }
+  // up on a horse (a trooper in a battle): sat in the saddle, carried at the horse's pace — twice and more a man's — its
+  // legs going under him; and thrown from it (killed), the horse bolting away riderless
+  mountHorse(h) { this.horse = h; this.yOff = SADDLE; this.person.sitting = 1; G.scene.add(h.root); }
+  unhorse(from = null) {
+    const h = this.horse; if (!h) return; this.horse = null; this.yOff = 0;
+    const p = this.pos, a = from ? Math.atan2(p.x - from.x, p.z - from.z) : this.yaw + (Math.random() - 0.5) * 2;
+    this.bolt = { h, a: a + (Math.random() - 0.5) * 1.2, t: 0 };
+  }
   // walk a list of [x,z] points; resolves on arrival
   walk(points, speed = 1.4) {
     this.follow = null;
     this.path = points.map(p => ({ x: p[0], z: p[1] }));
     // (settlers walk faster once the settlement knows horses)
-    this.walkSpeed = speed * (this.settler && G.town ? G.town.walkMul : 1);
+    this.walkSpeed = speed * (this.settler && G.town ? G.town.walkMul : 1) * (this.horse ? 2.2 : 1);
     if (this.resolve) this.resolve();
     return new Promise(r => { this.resolve = r; });
   }
@@ -1993,7 +2003,7 @@ export class Actor {
       this.stepD = (this.stepD || 0) + spd * dt;
       if (this.stepD > (spd > 3 ? 1.5 : 0.75)) {
         this.stepD = 0;
-        const d = Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z), hear = this.heavy ? 26 : 16;
+        const d = Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z), hear = this.horse ? 40 : this.heavy ? 26 : 16;
         if (d < hear && G.time - (stepClock.t) > 0.09) {
           stepClock.t = G.time;
           const w = G.world, k = (1 - d / hear) ** 2;
@@ -2013,12 +2023,34 @@ export class Actor {
     else if (!this.lying && this.lieK > 0) this.lieK = Math.max(0, this.lieK - dt * 2.5);
     // (stepping round in a turn, unless they're busy at something with their hands)
     const stepTurn = this.turnStep > 0 && !moving && (!this.person.pose || this.person.pose === "idle" || this.person.pose === "talk") && !per.fight;
-    this.person.update(dt, stepTurn ? Math.max(this.speed, 0.65) : this.speed);
+    if (this.horse) this.person.sitting = 1;
+    // (a crowd far off — a battle's hundred men across the field — moved as often as the eye can tell: every frame
+    //  close by, a few times a second further out; and only those near the eye throw a shadow)
+    const cx = camera.position.x - p.x, cz = camera.position.z - p.z, far2 = cx * cx + cz * cz;
+    const every = G.arena && !this.lying ? (far2 > 6400 ? 6 : far2 > 1225 ? 3 : 1) : 1;
+    this._animAcc = (this._animAcc || 0) + dt; this._animN = (this._animN || 0) + 1;
+    if (this._animN % every === 0) { this.person.update(this._animAcc, this.horse ? 0 : stepTurn ? Math.max(this.speed, 0.65) : this.speed); this._animAcc = 0; }
+    if (G.arena && (this._shT = (this._shT || 0) - dt) <= 0) {
+      this._shT = 0.5 + Math.random() * 0.2;
+      const cast = far2 < 900;
+      if (cast !== this._cast) { this._cast = cast; this.root.traverse(o => { if (o.isMesh) o.castShadow = cast; }); if (this.horse) this.horse.root.traverse(o => { if (o.isMesh) o.castShadow = cast; }); }
+    }
     if (this.onUpdate) this.onUpdate(dt);
     this.sync();
+    // (the horse under him, on the ground, its gait going with the pace)
+    if (this.horse) { const h = this.horse; h.root.position.set(p.x, p.y - this.yOff, p.z); h.root.rotation.y = this.yaw; h.gait(dt, this.speed); }
+    // (his horse, riderless: off at a gallop away from the fight, and gone)
+    if (this.bolt) {
+      const b = this.bolt, h = b.h, w = G.world; b.t += dt;
+      const sp = b.t < 4 ? 8 : 0; h.root.position.x += Math.sin(b.a) * sp * dt; h.root.position.z += Math.cos(b.a) * sp * dt;
+      if (w) h.root.position.y = w.heightAt(h.root.position.x, h.root.position.z);
+      h.root.rotation.y = b.a; h.gait(dt, sp);
+      if (b.t > 6) { G.scene.remove(h.root); this.bolt = null; }
+    }
   }
   remove() {
     G.scene.remove(this.root);
+    if (this.horse) G.scene.remove(this.horse.root); if (this.bolt) G.scene.remove(this.bolt.h.root);
     if (G.world) { const a = G.world.actors; const i = a.indexOf(this); if (i >= 0) a.splice(i, 1); }
     if (this.resolve) { const r = this.resolve; this.resolve = null; r(); }
   }
