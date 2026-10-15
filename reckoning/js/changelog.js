@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.40.1", date: "15 October 2026", title: "A fair start",
+    items: [
+      "Campaign: a new crown gets two years' grace before any neighbour declares war on it.",
+      "Campaign: a crown down to its last few towns calls out the levy, so every man in them takes up arms and the garrisons hold far better. A small state like Savoy can now survive its great neighbours instead of being swallowed in its first few years.",
+    ],
+  },
+  {
     v: "1.40.0", date: "15 October 2026", title: "Ride into battle",
     items: [
       "Ride into battle yourself: choose \"On horseback\" under Mount in your arms. You go quicker than any man on foot, your sabre reaches further and hits harder at the gallop, and you're thrown when you fall. It costs 150 thalers from your purse, as any trooper does, and nothing in historical and campaign battles. The other player sees you mounted in an online battle.",

@@ -117,6 +117,8 @@ const alive = (g, id) => citiesOfNow(g, id).length > 0;
 // (strength: your field army against the town's garrison and the defending crown's army; walls make a big town
 //  harder)
 function garrison(ct) { return ct[3] * 4 + 2; }
+// (the levy: a crown down to its last few towns, every man in them takes up arms — the fewer, the fiercer)
+const levy = towns => Math.round(18 / Math.max(1, towns));
 function odds(att, def, walls) { const a = Math.pow(att, 1.25), d = Math.pow(def * (walls ? 1.3 : 1), 1.25); return a / (a + d); }
 // the outcome applied, however it was decided: casualties both ways; the town changes hands if the attacker won
 function settle(o, won, myLossK, theirLossK) {
@@ -246,8 +248,10 @@ function endSeason() {
   crownsWar(g, ids);
   const g2 = grid(), mine = citiesOfNow(g2, C.me), nb = neighbours(g2, C.me), big = mine.length;
   // who'll make war on you: a neighbour that hates you, or fears you as you grow — and thinks itself able
+  // (a new crown is watched for its first two years before anyone tries it)
+  const seasons = (C.year - 1683) * 4 + C.s;
   for (const id of ids) {
-    if (atWar(id) || C.ally[id] || (C.truce[id] || 0) > 0 || !nb.has(id) || !alive(g2, id)) continue;
+    if (seasons < 8 || atWar(id) || C.ally[id] || (C.truce[id] || 0) > 0 || !nb.has(id) || !alive(g2, id)) continue;
     const p = 0.015 + Math.max(0, -C.E.rel[id]) / 500 + (big > 12 ? 0.03 : 0) + (big > 25 ? 0.05 : 0), able = C.foes[id] > C.army * 0.6 ? 1 : 0.3;
     // (fewer piling on when you've already enemies enough — a crown waits to see how those wars go)
     const already = Object.keys(C.E.war).filter(k => C.E.war[k]).length;
@@ -261,7 +265,7 @@ function endSeason() {
     if (!atWar(id) || C.foes[id] < 8 || R() > (C.s === 3 ? 0.2 : 0.5)) continue;
     const near = mine.filter(ct => distFrom(g2, id, ct) <= REACH); if (!near.length) continue;
     const ct = pick(near), att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
-    C.events.push({ kind: "attack", foe: id, ct: ct[0], att, def: garrison(ct) + Math.round(C.army * 0.7), walls: ct[3] >= 2 });
+    C.events.push({ kind: "attack", foe: id, ct: ct[0], att, def: garrison(ct) + levy(mine.length) + Math.round(C.army * 0.7), walls: ct[3] >= 2 });
   }
   // a plague or a bad harvest, now and then
   if (R() < 0.08) { const id = pick(ids); C.E.plague[id] = 3; say(`Plague in ${the(id)}`, "Their armies thin."); C.foes[id] = Math.round(C.foes[id] * 0.8); }
@@ -459,4 +463,4 @@ function sideClick(e) {
 export const campaignOn = () => !!C;
 // (for the tests: the campaign's own doings, from the console)
 window.__setView = v => { view = v; paint(); };
-window.__cmp = { get C() { return C; }, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get C() { return C; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
