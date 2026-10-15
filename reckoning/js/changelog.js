@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.38.0", date: "14 October 2026", title: "The campaign",
+    items: [
+      "A campaign: To Arms → Campaign. Take any of the 34 crowns of 1683, from the Ottoman Empire and France to Tuscany and the Crimean Khanate, and play Europe season by season on the engraved map of the time.",
+      "Every town is a province. Declare war, march on an enemy town within your army's reach, and fight the battle yourself on the ground where the town stands, or leave it to your generals. Win and the town and its country are yours. Great cities fight from behind their walls, and in winter the ground is under snow.",
+      "Keep your neighbours sweet with envoys and gifts. Trade pacts bring in money, and allies join your wars. You can offer peace, and a beaten enemy may offer it to you, with silver to have it.",
+      "The other crowns have their own minds. They make war on each other and the borders move. A neighbour that hates or fears you will declare war, and the more you grow, the more of them will. They march on your towns, and you defend each one yourself or leave it to the garrison.",
+      "Raise regiments from your treasury, but pay them, or they desert. Lose every town and your crown is gone; hold forty and Europe is yours, though you can play on. The campaign saves itself as you go.",
+    ],
+  },
+  {
     v: "1.37.0", date: "14 October 2026", title: "Historical battles",
     items: [
       "Historical battles: ten fields of the game's own years, under To Arms → Historical battles. Chocim, Seneffe, Fehrbellin, Lund, Vienna, Sedgemoor, Hamburg, the Boyne, Zenta and Narva, fought with the armies that stood there, in their own coats and under their own colours, at the hour and in the weather of the day. Fight for either side, and lead one company while bots lead the rest.",

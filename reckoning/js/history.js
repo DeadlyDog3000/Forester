@@ -144,7 +144,7 @@ export function histArmy(b, side) {
   const men = c => Object.values(c.muster).reduce((t, n) => t + n, 0);
   return {
     battle: true, vs: "bots", purse: 900,
-    hist: { id: b.id, side, cos },
+    hist: { id: b.id, side, cos, b: b.campaign ? b : undefined },
     sides: [mine.cos.length, theirs.cos.length],
     uniform: mine.cos[0].uni, enemyUniform: theirs.cos[0].uni,
     ground: b.fort == null ? "open" : b.fort === side ? "ours" : "theirs",

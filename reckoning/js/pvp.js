@@ -29,6 +29,7 @@ import { EARTH_SIZES } from "./mp/rules.js";
 import { REALMS_1683 } from "./mp/earth-1683.js";
 import { BATTLES, battleById, histArmy, histRecord, histResult } from "./history.js";
 import { shapeField, buildThings } from "./histmap.js";
+import { initCampaign, openCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, ago, mmss } from "./replay.js";
@@ -133,6 +134,9 @@ export function initPvp(c) {
   $("pvpBots").onclick = () => openMuster("bots");
   $("pvpDuel").onclick = () => openMuster("duel");
   $("pvpHist").onclick = () => openMuster("hist");
+  $("pvpCampaign").onclick = () => openCampaign();
+  // (a campaign's battle fought by hand: its field and its armies, as the campaign gives them)
+  initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); });
   $("pvpCancel").onclick = () => cancelSearch();
   $("pvpBotNow").onclick = () => botNow();
   $("pvpAgain").onclick = () => again();
@@ -175,7 +179,7 @@ export function initPvp(c) {
     camp.net.send({ t: "answer", yes: b.dataset.ans === "yes" }); camp.challenge = null; drawCard();
   });
 }
-export const PVP_SCREENS = ["pvp", "pvpFind", "pvpEnd", "pvpMuster"];
+export const PVP_SCREENS = ["pvp", "pvpFind", "pvpEnd", "pvpMuster", "campaign"];
 
 // ---------------------------------------------------------------------------
 //  the camp: To Arms' home — Quick Play, and everyone else here: who, what they're about, the talk, the best of them
@@ -296,7 +300,7 @@ function quickPlay() {
   setArmy({ battle: true, vs: "player" });
   findMatch();
 }
-function again() { if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots") openMuster("bots"); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
+function again() { if (lastMode === "campaign") openCampaign(); else if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots") openMuster("bots"); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
 
 // ---------------------------------------------------------------------------
 //  the muster: your arms, and your company from the purse — then Ready. (Against a player, both must be.)
@@ -745,7 +749,7 @@ export function buildStage(S) {
   const ground = battle ? battleGround({ seed: S.seed, x: S.x, z: S.z }) : null;
   const w = ground ? ground.w : new Woods();
   setC(ground ? { x: ground.x, z: ground.z } : { x: HUNT.x, z: HUNT.z });
-  const HB = S.hist && ground ? battleById(S.hist) : null;
+  const HB = S.hist && ground ? S.histB || battleById(S.hist) : null;
   if (HB) shapeField(w, C, HB, !!S.histFlip);
   setWorld(w); setAtmo(S.hour || "afternoon"); G.cloud = S.cloud || 0; G.mist = S.mist || 0; G.flash = 0; if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
   if (ground) w.buildNear(C.x, C.z, 99);
@@ -789,7 +793,7 @@ class Arena {
     // (a custom battle: the sides, as so many companies each — against bots only)
     this.custom = !net && !setup && isCustom(A) ? A.sides.slice() : null;
     // (a historical battle: the field, the armies, the hour and the weather as they were)
-    this.hist = A && A.hist ? { ...A.hist, b: battleById(A.hist.id) } : null; const HB = this.hist && this.hist.b;
+    this.hist = A && A.hist ? { ...A.hist, b: A.hist.b || battleById(A.hist.id) } : null; const HB = this.hist && this.hist.b;
     this.wins = [0, 0]; this.round = 0; this.over = false; this.live = false; this.clock = ROUND_SECS;
     // (a company's fight wants more room than a duel: the ride opened wider, the two lines further apart)
     this.bound = this.battle ? 76 : this.multi ? 48 : BOUND; this.dx = this.battle ? 38 : this.multi ? 21 : 19;
@@ -958,7 +962,7 @@ class Arena {
     }
     // (all of it written down as it's fought, to be played over again: see replay.js)
     this.stageSetup = { battle: this.battle, multi: this.multi, seed: ground ? ground.seed : 0, x: C.x, z: C.z, fieldSeed: this.fieldSeed || 0, hostFort: this.hostFort ?? null, guns: this.gunsHost || null,
-      remote: !!this.remote, uni: this.uni ? this.uni.map(u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u)) : null, night: !!this.night, hour: this.hour, dx: this.dx, bound: this.bound, cloud: G.cloud || 0, mist: G.mist || 0, hist: HB ? HB.id : undefined, histFlip: HB ? this.hist.side === 1 : undefined, coUni: this.coUni ? this.hist.cos.map(c => c.uni) : undefined,
+      remote: !!this.remote, uni: this.uni ? this.uni.map(u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u)) : null, night: !!this.night, hour: this.hour, dx: this.dx, bound: this.bound, cloud: G.cloud || 0, mist: G.mist || 0, hist: HB ? HB.id : undefined, histB: HB && HB.campaign ? { id: HB.id, year: HB.year, lon: HB.lon, lat: HB.lat, map: HB.map } : undefined, histFlip: HB ? this.hist.side === 1 : undefined, coUni: this.coUni ? this.hist.cos.map(c => c.uni) : undefined,
       custom: this.custom ? { sides: this.custom, camps: camps0(this), flags: this.flags ? this.flags.map(f => ({ key: f.key, x: f.x - C.x, z: f.z - C.z })) : null } : null };
     const rec = this.rec = new Recorder(this, this.stageSetup);
     { const H = this.hunt, fb = H.fireBall.bind(H), lz = H.loose.bind(H);
@@ -1734,11 +1738,14 @@ class Arena {
     $("pvpEndT").textContent = this.multi ? (won ? "The field is yours" : "The day is lost") : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
     $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>${rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
     // (a historical battle: kept as won or not, on that side — and how it went in truth)
-    if (this.hist && !left) {
+    // (a campaign's: its outcome back to the campaign, which takes or loses the town)
+    if (this.hist && this.hist.b.campaign) { try { this.hist.b.onEnd && this.hist.b.onEnd(won && !left, this.killed | 0, this.lost | 0); } catch (e) { console.error(e); } }
+    else if (this.hist && !left) {
       const HB = this.hist.b, sd = this.hist.side; histResult(HB.id, sd, won);
       const asIt = HB.won == null ? null : (HB.won === sd) === won;
       $("pvpEndS").innerHTML += `<div class="pv-histend"><b>${asIt === null ? "As it was" : asIt ? "As it happened" : "History, changed"}</b> ${esc(HB.after[asIt === false ? 1 : 0])}</div>`;
     }
+    $("pvpAgain").textContent = lastMode === "campaign" ? "Back to the campaign" : "Again";
     endReplay(rec);
     if (reel && rec) { watch(rec, "highlights", "end", { t: won ? "Victory" : "Defeat", s: titleOf(rec).t }); return; }
     ctx.screen("pvpEnd");
@@ -1746,7 +1753,7 @@ class Arena {
   // begun again from the start, the same sides and loads (a fight against bots: the pause menu's Restart); a battle on
   // new ground
   restart() {
-    if (this.net) return;
+    if (this.net || (this.hist && this.hist.b.campaign)) return;   // (a campaign's battle is fought once: no second try)
     const a = { me: this.me, lo: { ...lo }, foe: this.foeInfo, net: null, side: this.side, army: this.army };
     this.over = true; this.stop(); ctx.begin(); new Arena(a);
   }
