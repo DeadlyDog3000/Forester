@@ -981,7 +981,6 @@ class Arena {
     if (net) this.wire(net);
     if (this.netBattle) {
       this.wireBattle(net);
-      net.on.bdeploy = m => this.gotDeploy(m);
       if (this.host) { this.field.onFire = g => net.send({ t: "bgun", i: this.field.guns.indexOf(g) }); this.field.onNade = (f, v, side, fuse) => net.send({ t: "bnade", f: [f.x, f.y, f.z].map(n => +n.toFixed(2)), v: [v.x, v.y, v.z].map(n => +n.toFixed(2)), fuse: +fuse.toFixed(2) }); }
       else net.on.bnade = m => this.field && this.field.nade(new THREE.Vector3(...m.f.map(Number)), new THREE.Vector3(...m.v.map(Number)), 0, +m.fuse || 2);
     }
@@ -1161,84 +1160,29 @@ class Arena {
       this.counting = false;
       if (lead) this.goT = setTimeout(go, lead * 1000); else go();
     };
-    if (this.canDeploy()) this.deploy(open); else open();
+    if (this.canDeploy()) this.autoDeploy();
+    open();
   }
-  // ---- deployment: before the opening, the field from above, and your company put where you want it ----
-  // (any battle of companies — but not one where you hold a fort: your men's place is on its wall)
-  canDeploy() { return this.battle && !window.__noDeploy && !window.__noIntro && this.fortSide !== 0 && !this.over; }
-  deploy(open) {
-    const pl = G.player, home = { ...this.spawns[0] }, R = 24;
-    const foeCen = () => { const l = this.enemiesOf(0).filter(u => !u.crewOf && u !== this.you); return l.length ? { x: l.reduce((a, u) => a + u.pos.x, 0) / l.length, z: l.reduce((a, u) => a + u.pos.z, 0) / l.length } : { x: C.x, z: C.z }; };
-    const fc = foeCen(), mid = { x: home.x * 0.62 + fc.x * 0.38, z: home.z * 0.62 + fc.z * 0.38 };
-    const D = this.dep = { done: false, at: null, open, t0: performance.now() };
-    // (the ground yours to choose from: a ring of gold on it, and a mark where you've put them)
-    const y0 = this.w.heightAt(home.x, home.z);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(R - 0.6, R, 64), new THREE.MeshBasicMaterial({ color: 0xd8b84a, transparent: true, opacity: 0.75, depthTest: false, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(home.x, y0 + 2.5, home.z); ring.renderOrder = 10;
-    const fill = new THREE.Mesh(new THREE.CircleGeometry(R - 0.6, 64), new THREE.MeshBasicMaterial({ color: 0xd8b84a, transparent: true, opacity: 0.08, depthTest: false, side: THREE.DoubleSide }));
-    fill.rotation.x = -Math.PI / 2; fill.position.copy(ring.position); fill.renderOrder = 9;
-    const mark = new THREE.Mesh(new THREE.RingGeometry(2.2, 3, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }));
-    mark.rotation.x = -Math.PI / 2; mark.renderOrder = 11; mark.visible = false;
-    G.scene.add(ring, fill, mark);
-    // (the camera high over your side of the field, looking across at theirs)
-    const dx = fc.x - home.x, dz = fc.z - home.z, dl = Math.hypot(dx, dz) || 1;
-    const camAt = { x: mid.x - dx / dl * 46, y: y0 + 62, z: mid.z - dz / dl * 46 }, lookAt = { x: mid.x + dx / dl * 6, y: y0, z: mid.z + dz / dl * 6 };
-    G.deathCam = cam => { D.cam = cam; cam.position.set(camAt.x, camAt.y, camAt.z); cam.up.set(0, 1, 0); cam.lookAt(lookAt.x, lookAt.y, lookAt.z); if (cam.fov !== 50) { cam.fov = 50; cam.updateProjectionMatrix(); } };
-    G.noLock = true; try { document.exitPointerLock && document.exitPointerLock(); } catch (e) {}
-    UI.show("hud", false); if (this.book) this.book.hide();
-    const box = document.createElement("div"); box.id = "deployBox";
-    const net = this.netBattle;
-    box.innerHTML = `<b>Deploy your company</b><span>Click anywhere inside the gold ring to put your company there, facing the enemy. Click again to move it.${net ? " The other commander is deploying too." : ""}</span><div><button class="btn primary" id="deployGo">Begin</button></div><small id="deployT"></small>`;
-    document.body.appendChild(box);
-    // (a click on the field: the ground under the pointer, found along the ray from the eye)
-    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-    const pick = e => {
-      if (!D.cam) return null;
-      ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, D.cam);
-      const o = ray.ray.origin, v = ray.ray.direction;
-      for (let t = 2; t < 400; t += 0.5) { const x = o.x + v.x * t, y = o.y + v.y * t, z = o.z + v.z * t; if (y <= this.w.heightAt(x, z)) return { x, z }; }
-      return null;
+  // ---- deployment: your company put on the best ground near where it starts, by its officer, before the opening ----
+  // (any battle of companies against bots — not one where you hold a fort, whose wall is your men's place; and not one
+  //  against a player, whose field the host keeps as it was set)
+  canDeploy() { return this.battle && !this.net && this.fortSide !== 0 && !this.over; }
+  // the ground he picks: a little higher if there's height to have, with cover near to hand, out of the water, and no
+  // nearer the enemy than where you started — looked over in a ring round your starting place
+  autoDeploy() {
+    const home = { ...this.spawns[0] }, w = this.w, R = 18;
+    const foes = this.enemiesOf(0).filter(u => !u.crewOf && u !== this.you), fc = foes.length ? { x: foes.reduce((a, u) => a + u.pos.x, 0) / foes.length, z: foes.reduce((a, u) => a + u.pos.z, 0) / foes.length } : { x: C.x, z: C.z };
+    const d0 = Math.hypot(fc.x - home.x, fc.z - home.z), h0 = w.heightAt(home.x, home.z), spots = (this.field && this.field.spots && this.field.spots[0]) || [];
+    const score = (x, z) => {
+      if (w.waterDepth && w.waterDepth(x, z) > 0.2) return -Infinity;
+      if (Math.hypot(x - C.x, z - C.z) > this.bound - 10) return -Infinity;
+      const toFoe = Math.hypot(fc.x - x, fc.z - z); if (toFoe < d0 - 4) return -Infinity;
+      const cover = spots.filter(q => Math.hypot(q.x - x, q.z - z) < 10).length;
+      return (w.heightAt(x, z) - h0) * 1.2 + Math.min(cover, 6) * 0.6 - Math.hypot(x - home.x, z - home.z) * 0.05;
     };
-    const click = e => {
-      if (D.done || e.target.closest && e.target.closest("#deployBox")) return;
-      e.stopImmediatePropagation(); e.preventDefault();
-      const p = pick(e); if (!p) return;
-      const d = Math.hypot(p.x - home.x, p.z - home.z); if (d > R) { p.x = home.x + (p.x - home.x) / d * R; p.z = home.z + (p.z - home.z) / d * R; }
-      if (this.w.waterDepth && this.w.waterDepth(p.x, p.z) > 0.4) { UI.hint("Not in the water.", 1.5); return; }
-      const q = this.clearSpot(p.x, p.z); D.at = q;
-      this.placeCo(0, q);
-      mark.position.set(q.x, this.w.heightAt(q.x, q.z) + 2.6, q.z); mark.visible = true;
-      window.__uisfx && window.__uisfx.click && window.__uisfx.click();
-    };
-    const key = e => { if (D.done) return; if (e.code === "Enter" || e.code === "Space") { e.stopImmediatePropagation(); e.preventDefault(); finish(); } };
-    const finish = () => {
-      if (D.done) return; D.done = true;
-      removeEventListener("mousedown", click, true); removeEventListener("keydown", key, true); clearInterval(D.clock);
-      G.scene.remove(ring, fill, mark); ring.geometry.dispose(); fill.geometry.dispose(); mark.geometry.dispose();
-      box.remove(); G.deathCam = null; G.noLock = false; UI.show("hud", true);
-      if (net) this.net.send({ t: "bdeploy", x: D.at ? +D.at.x.toFixed(2) : null, z: D.at ? +D.at.z.toFixed(2) : null });
-      this.tryOpen();
-    };
-    D.finish = finish;
-    addEventListener("mousedown", click, true); addEventListener("keydown", key, true);
-    $("deployGo").onclick = () => finish();
-    // (against a player: half a minute to deploy, and then the field waits for the other commander as well)
-    if (net) D.clock = setInterval(() => { const left = 30 - Math.floor((performance.now() - D.t0) / 1000); const el = $("deployT"); if (el) el.textContent = `${Math.max(0, left)} s`; if (left <= 0) finish(); }, 250);
-  }
-  // the other commander has deployed (a player's battle): their company where they put it — the host moves it there,
-  // as it moves everyone — and the opening once both have
-  gotDeploy(m) {
-    this.theirDeploy = m || {};
-    if (this.host && m && m.x != null) this.placeCo(1, this.clearSpot(+m.x, +m.z));
-    this.tryOpen();
-  }
-  tryOpen() {
-    const D = this.dep; if (!D || !D.done || D.opened || G.arena !== this) return;
-    if (this.netBattle && !this.theirDeploy) {
-      if (!D.waitT) { this.banner("Waiting for the other commander", "They're still deploying"); D.waitT = setTimeout(() => { this.theirDeploy = this.theirDeploy || {}; this.tryOpen(); }, 35000); }
-      return;
-    }
-    clearTimeout(D.waitT); D.opened = true; this.banner(null); D.open();
+    let best = home, bs = score(home.x, home.z);
+    for (let r = 4; r <= R; r += 4) for (let a = 0; a < 6.28; a += 0.5) { const x = home.x + Math.cos(a) * r, z = home.z + Math.sin(a) * r, sc = score(x, z); if (sc > bs + 0.3) { bs = sc; best = { x, z }; } }
+    if (best !== home) this.placeCo(0, this.clearSpot(best.x, best.z));
   }
   // a company stood in its ranks round a place, facing the other side — and you before it, if it's yours
   placeCo(team, p) {
@@ -1908,7 +1852,6 @@ class Arena {
     if (G.arena !== this) return;
     AUDIO.melee && AUDIO.melee(0, 0); clearGore();
     if (G.freecam && G.endFreecam) G.endFreecam();
-    if (this.dep && !this.dep.done) { this.dep.opened = true; this.dep.finish(); }
     G.arena = null; this.live = false;
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
     G.onSwing = null; G.onDowned = null; G.onGunshot = null; G.onLoose = null; G.onSwingStart = null;

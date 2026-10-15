@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.39.2", date: "15 October 2026", title: "Deployed for you",
+    items: [
+      "Deployment is automatic now. Your officer puts your company on the best ground near where it starts: higher if there's height to be had, near cover, out of the water, and never marched forward into the enemy. Fixed: the manual deployment showed a black screen, because the battle's fade-in waited until you'd finished placing your men.",
+    ],
+  },
+  {
     v: "1.39.1", date: "15 October 2026", title: "A bigger field, smoother",
     items: [
       "Big battles run several times faster. Each soldier used to be drawn as twenty-odd separate pieces, and now he's one, so a field of a hundred and fifty men runs about five times smoother. A man's coat still darkens when he's wounded.",
