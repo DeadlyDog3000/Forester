@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.48.0", date: "16 October 2026", title: "Armies on the map",
+    items: [
+      "Campaign: your army is on the map. Click it, then right-click anywhere (on the map or the 3D land) to march there: about 350 km a year, and a long march takes several years. You can only attack, besiege or supply a town within a year's march of your army. Town cards say how far off it is, with a button to march toward it.",
+      "Campaign: enemy armies are on the map too, with their regiment counts. When one marches on a town of yours you see it coming a year ahead, a dashed red line to its target. Your army only helps defend a town if it's close by.",
+      "Campaign: a simpler side panel. Your army and the crown of a selected town fold down to one summary line (click to open, and it stays as you leave it); the news shows the latest four items, with the rest under Earlier; the help is one line; the action buttons are shorter; the top bar fits on one line.",
+      "Battles: the orders page folds down to its heading and the order in force a few seconds after your last order, and opens again at any order key. The first-battle hint is one short line.",
+    ],
+  },
+  {
     v: "1.47.0", date: "16 October 2026", title: "Leagues and convoys",
     items: [
       "Campaign: Europe starts as it stood in 1683. The Holy League (the Emperor, Poland, Venice and the Pope), the Laxenburg Alliance against France, the Dutch–Swedish Association, France's allies Denmark and Brandenburg, the Sultan and his vassals, and the Spanish crowns are all allied from the start. Wars already under way are on too: the Turk against Vienna and Poland, Thököly's rising, and France against Spain.",

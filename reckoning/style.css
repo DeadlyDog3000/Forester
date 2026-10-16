@@ -1787,3 +1787,28 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-siege span { display: block; opacity: 0.85; margin: 2px 0 6px; }
 .cmp-siege i { display: block; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
 .cmp-siege u { display: block; height: 100%; background: #b8865a; text-decoration: none; }
+/* cards that fold down to their heading line */
+.cmp-fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.cmp-fold > summary::-webkit-details-marker { display: none; }
+.cmp-fold > summary .cmp-h { flex: 1; margin: 0; }
+.cmp-fold > summary::after { content: ""; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); opacity: 0.6; transition: transform 0.15s; flex: none; }
+.cmp-fold[open] > summary::after { transform: rotate(45deg); }
+.cmp-fold[open] > summary { margin-bottom: 8px; }
+.cmp-help p { margin: 0; font-size: 12.5px; line-height: 1.55; opacity: 0.85; }
+.cmp-more > summary { cursor: pointer; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; padding: 4px 0; list-style: none; }
+.cmp-more > summary::-webkit-details-marker { display: none; }
+/* the campaign's top bar on one line: smaller buttons beside the year's figures */
+.cmp-bar { flex-wrap: nowrap; }
+.cmp-bb { display: flex; gap: 6px; align-items: center; flex: none; }
+.cmp-bb .btn { padding: 6px 11px; font-size: 13px; letter-spacing: 0.04em; }
+.cmp-bb .btn.primary, .cmp-bb #cmpEnd { padding: 8px 16px; font-size: 14px; }
+.cmp-top { gap: 6px 16px; min-width: 0; }
+.cmp-top .cmp-crownname { font-size: 18px; }
+@media (max-width: 1200px) { .cmp-bar { flex-wrap: wrap; } }
+/* the orders, folded: the heading and the order in force, nothing else */
+#orderBook { transition: width 0.25s, opacity 0.25s; }
+#orderBook.mini { width: 190px; opacity: 0.78; padding: 7px 10px 6px; }
+#orderBook.mini .ob-list li:not(.on), #orderBook.mini .ob-arms, #orderBook.mini .ob-foot { display: none; }
+#orderBook.mini .ob-head { border-bottom: 0; margin-bottom: 0; padding-bottom: 2px; }
+#orderBook.mini .ob-t { font-size: 15px; }
+#orderBook.mini .ob-seal { width: 18px; height: 18px; }

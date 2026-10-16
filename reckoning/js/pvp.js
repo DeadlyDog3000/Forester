@@ -1303,7 +1303,7 @@ class Arena {
       for (const u of this.units) u.go();
       AUDIO.voice && AUDIO.voice("war", { high: G.who === "sister", vol: 0.7 });
       setTimeout(() => G.arena === this && this.banner(null), 1000);
-      if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("The number keys give your orders, as the page at the left has them — and you fight on the while. The wheel changes your weapon" + (this.canBayonet() ? "; F fixes your bayonet (for good)." : ".") + (this.groupsHere().length > 1 ? " A letter picks out one arm to order alone: " + this.groupsHere().map(g => `${g.key.slice(3)} ${g.name.split(" ")[0].toLowerCase()}`).join(", ") + "." : ""), 8), 2200); } }
+      if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("1–0: orders · wheel: weapon" + (this.canBayonet() ? " · F: bayonet" : "") + (this.groupsHere().length > 1 ? " · " + this.groupsHere().map(g => g.key.slice(3)).join(" ") + ": one arm alone" : ""), 6), 2200); } }
     }
   }
   // ---- the assault on a walled town: which side of the wall a man is, the ways in, and the ladders ----
@@ -1633,7 +1633,7 @@ class Arena {
       return;
     }
     const grp = this.takesKey(e) && GROUPS.find(g => g.key === e.code);
-    if (grp) { e.stopImmediatePropagation(); e.preventDefault(); this.pickGroup(grp); return; }
+    if (grp) { e.stopImmediatePropagation(); e.preventDefault(); this.pickGroup(grp); this.book && this.book.wake && this.book.wake(); return; }
     if (!this.book || !this.book.open || e.fromWheel) return;
     if (this.book.key(e)) { e.stopImmediatePropagation(); e.preventDefault(); }
   }

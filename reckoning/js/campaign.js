@@ -66,7 +66,7 @@ const load = (i = slot) => { try { return JSON.parse(localStorage.getItem(slotKe
 // The campaign holds one crown "on top" (C.me, and these fields of C) and the other's put by in C.H; as(crown, fn)
 // does a thing as that crown, and puts everything back. The shared things — the year, the map, the other crowns'
 // armies and wars — are C's own.
-const SLICE = ["gold", "army", "moved", "did", "ally", "truce", "warT", "took", "lost", "events", "log", "over", "won", "pending", "tech", "guns", "gen", "govs", "govCands", "levyQ", "rule", "morale", "siege", "supplied"];
+const SLICE = ["gold", "army", "moved", "did", "ally", "truce", "warT", "took", "lost", "events", "log", "over", "won", "pending", "tech", "guns", "gen", "govs", "govCands", "levyQ", "rule", "morale", "siege", "supplied", "pos", "go"];
 let mp = null;    // (the link to the other player: { net, side, host, foe, ... } — null playing alone)
 const humans = () => (C && C.mp ? C.mp.humans : []);
 const isHuman = id => humans().includes(id);
@@ -223,6 +223,20 @@ function inReach(g, ct, by = C.me) {
   return best === ct;
 }
 const alive = (g, id) => citiesOfNow(g, id).length > 0;
+// ---- the armies on the map: where each stands, in squares of the map (some ten kilometres each), and how far it gets in
+//  a year's campaigning. Yours goes where you send it; a town is only marched on from within a year's march of it ----
+const MARCH = 35;
+const cellXY = ct => { const [x, y] = gridOf(ct[1], ct[2]); return { x, y }; };
+const dist2 = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+function homeOf(g, id) { const t = citiesOfNow(g, id).sort((a, b) => b[3] - a[3])[0]; return t ? cellXY(t) : null; }
+function armyPos() { if (!C.pos || !isFinite(C.pos.x)) C.pos = homeOf(grid(), C.me) || { x: MG_W / 2, y: MG_H / 2 }; return C.pos; }
+function stepToward(p, t, d) { const L = dist2(p, t); return L <= d ? { x: t.x, y: t.y, arrived: true } : { x: p.x + (t.x - p.x) / L * d, y: p.y + (t.y - p.y) / L * d, arrived: false }; }
+const inMarch = ct => dist2(armyPos(), cellXY(ct)) <= MARCH + 0.5;
+const yearsTo = t => Math.max(1, Math.ceil(dist2(armyPos(), t) / MARCH));
+// (the other crowns' field armies: at their capital, or on the march toward a town of yours)
+function foeArmyPos(id) { C.foePos ||= {}; if (!C.foePos[id] || !isFinite(C.foePos[id].x)) { const h = homeOf(grid(), id); if (h) C.foePos[id] = { x: h.x, y: h.y }; } return C.foePos[id] || null; }
+// (your army near enough to a town of yours to come to its help: half a year's march)
+const armyNear = ct => !C.siege && dist2(armyPos(), cellXY(ct)) <= MARCH * 0.5;
 
 // ---- a fight for a town: by your hand, or your generals' ----
 // (strength: your field army against the town's garrison and the defending crown's army; walls make a big town
@@ -351,9 +365,11 @@ function settle(o, won, myLossK, theirLossK) {
     if (won) { seize(o.ct, C.me); C.took[o.foe] = (C.took[o.foe] || 0) + 1; for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === o.foe ? 8 : 2; say(`${name} is yours`, `Taken from ${the(o.foe)}.`); }
     else say(`Beaten before ${name}`, `Your army falls back with what it has left: ${C.army} regiments.`);
   } else {
-    if (won) { say(`${name} holds`, `${The(o.foe)}'s army is thrown back.`); strikeBack(o.foe); }
+    if (won) { say(`${name} holds`, `${The(o.foe)}'s army is thrown back.`); if (!isHuman(o.foe) && C.foePos && C.foePos[o.foe]) { const h = homeOf(grid(), o.foe); if (h) { const b = stepToward(cellXY(o.ct), h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } } strikeBack(o.foe); }
     else { seize(o.ct, o.foe); C.lost[o.foe] = (C.lost[o.foe] || 0) + 1; say(`${name} has fallen`, `${The(o.foe)} takes it.`); if (C.govs) delete C.govs[name]; }
   }
+  // (where your army ends up: in the town it took, or fallen back toward home from the one it couldn't)
+  if (o.attack && !o.convoy) { const t = cellXY(o.ct); if (won) C.pos = { x: t.x, y: t.y }; else { const h = homeOf(grid(), C.me) || armyPos(); const b = stepToward(t, h, 6); C.pos = { x: b.x, y: b.y }; } }
   // (a storm through the breach: the siege over, won or lost)
   if (o.attack && siegeOf(o.ct)) C.siege = null;
   // (the army's spirit: up with a victory — more for a town taken — down hard with a defeat)
@@ -367,7 +383,7 @@ function settle(o, won, myLossK, theirLossK) {
 }
 // (their army thrown back from your walls: their nearest town picked out on the map, to carry the war to them)
 function strikeBack(foe) {
-  const g = grid(), t = citiesOfNow(g, foe).filter(ct => inReach(g, ct)).sort((a, b) => b[3] - a[3])[0];
+  const g = grid(), t = citiesOfNow(g, foe).filter(ct => inMarch(ct)).sort((a, b) => b[3] - a[3])[0];
   if (!t || C.moved || C.army < 5) return;
   selCity = t; sel = foe; note = `${The(foe)}'s army is beaten back and weakened. Strike back while it's down: ${t[0]} is within your reach.`;
 }
@@ -481,8 +497,8 @@ function march(ct) {
   const g = grid(), foe = cityOwner(g, ct), S = siegeOf(ct);
   // (an army sat down before one town can't march on another: the siege is lifted first)
   if (C.siege && !S) return null;
-  if (C.moved || !foe || !atWar(foe) || C.army < 5 || !inReach(g, ct)) return null;
-  C.moved = true;
+  if (C.moved || !foe || !atWar(foe) || C.army < 5 || !inMarch(ct)) return null;
+  C.moved = true; C.go = null;
   return { attack: true, foe, ct, att: C.army, def: defOf(g, ct, foe), walls: hasWalls(ct, foe, g), breach: !!S && S.bat >= 1, battered: S ? S.bat : 0, siege: !!S };
 }
 // ---- a siege: the army sat down before a walled town, year after year — the garrison starving, the guns battering the
@@ -628,9 +644,17 @@ function endSeason(part = {}) {
   for (const id of ids) {
     if (!atWar(id) || C.foes[id] < 8 || R() > 0.5) continue;
     // (a walled town is only sat down before by a crown with guns to batter it)
-    const near = mine.filter(ct => inReach(g2, ct, id) && (!hasWalls(ct, C.me, g2) || (C.fguns[id] | 0) > 0)); if (!near.length) continue;
-    const ct = pick(near), att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
-    C.events.push({ kind: "attack", foe: id, ct: ct[0], att, def: garrison(ct) + levy(mine.length) + Math.round(C.army * 0.7), walls: hasWalls(ct, C.me) });
+    // (a town already marched toward: kept to; else one within its reach)
+    C.foeGo ||= {};
+    let ct = C.foeGo[id] && mine.find(c => c[0] === C.foeGo[id]);
+    if (!ct) { const near = mine.filter(c => inReach(g2, c, id) && (!hasWalls(c, C.me, g2) || (C.fguns[id] | 0) > 0)); if (!near.length) continue; ct = pick(near); }
+    // its army on the road: there this year if it's near enough, else a year's march nearer — seen coming
+    const fp = foeArmyPos(id), tc = cellXY(ct);
+    if (fp && dist2(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${The(id)}'s army marches toward ${ct[0]}`, `Some ${C.foes[id]} regiments, a year's march off. They'll be at its walls next year.`); continue; }
+    if (fp) C.foePos[id] = { x: tc.x, y: tc.y }; delete C.foeGo[id];
+    const att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
+    // (your army comes to its help only if it's near)
+    C.events.push({ kind: "attack", foe: id, ct: ct[0], att, def: garrison(ct) + levy(mine.length) + (armyNear(ct) ? Math.round(C.army * 0.7) : 0), walls: hasWalls(ct, C.me), army: armyNear(ct) });
   }
   }
   // a plague or a bad harvest, now and then
@@ -643,6 +667,8 @@ function endSeason(part = {}) {
   if (turn) { C.year++; C.s = Math.floor(R() * 3); }
   if (!mine) { persist(); return; }
   C.moved = false; C.did = {}; C.supplied = false;
+  // (an army still on its way: the year's march taken up with getting there)
+  if (C.go && !C.siege) { const st = stepToward(armyPos(), C.go, MARCH); C.pos = { x: st.x, y: st.y }; if (st.arrived) { C.go = null; say("Your army arrives", "It's where you sent it, and can march again next year."); } C.moved = true; }
   say(`${C.year}`, `${income(grid()) - upkeep() >= 0 ? "+" : ""}${income(grid()) - upkeep()} thalers a year. ${C.events.filter(e => !e.done).length ? "Things need your word." : ""}`);
   checkEnd(); persist();
 }
@@ -742,8 +768,16 @@ export function initCampaign(c, battle, withPlayer) {
     if (ct !== hovCity || id !== hov) { hovCity = ct; hov = id; paint(); }
   };
   cv.onmouseleave = () => { drag = null; hov = null; hovCity = null; paint(); };
+  // (right-click: your army sent there)
+  cv.oncontextmenu = e => {
+    e.preventDefault(); if (!C) return;
+    const [mx, my] = toMap(pos(e)), S = cv.width / MG_W; doAct({ k: "move", x: mx / S, y: my / S }); armySel = false;
+  };
   cv.onmouseup = e => {
-    const moved = drag ? drag.moved : 0; drag = null; if (moved > 5 || !C) return;
+    const moved = drag ? drag.moved : 0; drag = null; if (moved > 5 || !C || e.button !== 0) return;
+    // (your army: picked up — the next right-click sends it)
+    if (armyHit(cv, ...pos(e))) { armySel = !armySel; selCity = null; sel = null; note = armySel ? "Your army: right-click anywhere on the map to march there. A year's march takes it about 350 km; a town within that is in its reach." : ""; drawMap(); sfx("drum", 0.25); return; }
+    armySel = false;
     const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z);
     selCity = ct || null; sel = ct ? cityOwner(grid(), ct) : nationAt(E(), cv, ...p); note = ""; drawMap(); if (selCity || sel) sfx("parchment", 0.28);
   };
@@ -761,6 +795,8 @@ export function initCampaign(c, battle, withPlayer) {
       eu3d.el.addEventListener("wheel", e => { e.preventDefault(); eu3d.dist = Math.max(2.2, eu3d.dist * Math.exp(e.deltaY * 0.0015)); if (eu3d.dist > DIST_2D) leave3d(); }, { passive: false });
       let d3 = null;
       eu3d.el.addEventListener("mousedown", e => { d3 = { x: e.clientX, y: e.clientY, moved: 0 }; });
+      // (right-click on the land: your army sent there)
+      eu3d.el.addEventListener("contextmenu", e => { e.preventDefault(); if (!C) return; const r = eu3d.el.getBoundingClientRect(), hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top); if (!hit || !hit.ll) return; const [gx, gy] = gridOf(...hit.ll); doAct({ k: "move", x: gx, y: gy }); });
       addEventListener("mousemove", e => {
         if (!on3d) return;
         if (d3 && e.buttons & 1) { const dx = e.clientX - d3.x, dy = e.clientY - d3.y; d3.moved += Math.abs(dx) + Math.abs(dy); d3.x = e.clientX; d3.y = e.clientY; eu3d.pan(dx, dy); eu3d.el.style.cursor = "grabbing"; return; }
@@ -862,8 +898,12 @@ function marks3d() {
     const own = cityOwner(g, ct); if (!own) continue;
     const at = { name: ct[0], lon: ct[1], lat: ct[2] };
     if (own === C.me) { out.push({ ...at, kind: "ring", color: threat.has(ct[0]) ? "#c0281a" : NATIONS[C.me].color }); if (threat.has(ct[0])) out.push({ ...at, kind: "swords", color: "#c0281a" }); }
-    else { if (isHuman(own)) out.push({ ...at, kind: "dash", color: NATIONS[own].color }); if (atWar(own) && inReach(g, ct)) out.push({ ...at, kind: "swords", color: "#b0281a", dim: !!C.moved }); }
+    else { if (isHuman(own)) out.push({ ...at, kind: "dash", color: NATIONS[own].color }); if (atWar(own) && inMarch(ct)) out.push({ ...at, kind: "swords", color: "#b0281a", dim: !!C.moved }); }
   }
+  // (the armies, standing on the land: a colour on its staff and the regiments' count)
+  const flag = (p, id, n, mine) => { const [lon, lat] = llOf(p.x, p.y); out.push({ name: "army-" + id, lon, lat, kind: "army", color: NATIONS[id].color, n, mine: !!mine }); };
+  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) flag(fp, id, foeArmy(id), false); }
+  flag(armyPos(), C.me, C.army, true);
   return out;
 }
 function paint() {
@@ -888,13 +928,47 @@ function paint() {
       if (threat.has(ct[0])) swords(x, y - 17 * k, 5 * k, "#c0281a");
     } else if (isHuman(own2)) {
       c.save(); c.setLineDash([4 * k, 3 * k]); c.strokeStyle = NATIONS[own2].color; c.beginPath(); c.arc(x, y, (7 + ct[3] * 1.5) * k, 0, 7); c.stroke(); c.restore();
-      if (atWar(own2) && inReach(g, ct)) swords(x, y - 14 * k, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
-    } else if (atWar(own2) && inReach(g, ct)) {
+      if (atWar(own2) && inMarch(ct)) swords(x, y - 14 * k, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
+    } else if (atWar(own2) && inMarch(ct)) {
       swords(x, y - 14 * k, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
     }
   }
+  // ---- the armies: a regiment's block under its colour, how many regiments, and where it's marching ----
+  const scr = p => [(p.x * S - view.ox) * view.z, (p.y * S - view.oy) * view.z];
+  const army = (p, id, n, mine, go) => {
+    const [x, y] = scr(p); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return;
+    const col = NATIONS[id].color, u = armyU(k);
+    if (go) {
+      // (the road it's on: dashed to where it's going, an arrowhead there)
+      const [gx, gy] = scr(go), a = Math.atan2(gy - y, gx - x);
+      c.save(); c.strokeStyle = mine ? "rgba(40,28,16,0.85)" : "rgba(150,30,20,0.9)"; c.lineWidth = 2.2 * u; c.setLineDash([7 * u, 5 * u]);
+      c.beginPath(); c.moveTo(x, y); c.lineTo(gx, gy); c.stroke(); c.setLineDash([]);
+      c.fillStyle = c.strokeStyle; c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx - Math.cos(a - 0.45) * 11 * u, gy - Math.sin(a - 0.45) * 11 * u); c.lineTo(gx - Math.cos(a + 0.45) * 11 * u, gy - Math.sin(a + 0.45) * 11 * u); c.fill(); c.restore();
+    }
+    c.save(); c.translate(x, y);
+    // (its shadow on the map, the block of men in three ranks, and their colour on a staff over them)
+    c.fillStyle = "rgba(30,20,10,0.25)"; c.beginPath(); c.ellipse(0, 3 * u, 15 * u, 4.5 * u, 0, 0, 7); c.fill();
+    for (let r = 0; r < 3; r++) for (let i = 0; i < 5; i++) { c.fillStyle = r === 0 ? col : "rgba(58,42,26,0.9)"; c.fillRect((-11 + i * 4.6 + (r % 2) * 1.2) * u, (-5 + r * 3.2) * u, 3.4 * u, 2.6 * u); }
+    c.strokeStyle = "#2a1c10"; c.lineWidth = 1.4 * u; c.beginPath(); c.moveTo(-12 * u, -5 * u); c.lineTo(-12 * u, -24 * u); c.stroke();
+    c.fillStyle = col; c.beginPath(); c.moveTo(-12 * u, -24 * u); c.quadraticCurveTo(-4 * u, -27 * u, 2 * u, -22 * u); c.lineTo(2 * u, -14 * u); c.quadraticCurveTo(-4 * u, -18 * u, -12 * u, -15 * u); c.closePath(); c.fill(); c.strokeStyle = "rgba(40,28,16,0.9)"; c.lineWidth = 1 * u; c.stroke();
+    // (the count, on a little label)
+    const t = String(n); c.font = `bold ${Math.round(10 * u)}px ${'"IM Fell English", Georgia, serif'}`; const tw = c.measureText(t).width + 8 * u;
+    c.fillStyle = mine ? "#f4ead2" : "#f0d8c8"; c.strokeStyle = mine ? "#2a1c10" : "#8a2a1a"; c.lineWidth = (mine && armySel ? 2.4 : 1.2) * u;
+    c.beginPath(); c.roundRect ? c.roundRect(5 * u, -26 * u, tw, 13 * u, 3 * u) : c.rect(5 * u, -26 * u, tw, 13 * u); c.fill(); c.stroke();
+    c.fillStyle = "#2a1c10"; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText(t, 9 * u, -19.4 * u);
+    if (mine && armySel) { c.strokeStyle = "#d8b048"; c.lineWidth = 2.4 * u; c.beginPath(); c.ellipse(0, 1 * u, 19 * u, 8 * u, 0, 0, 7); c.stroke(); }
+    c.restore();
+  };
+  // (the other crowns at war with you, and their marches on your towns; the other player's; then yours, on top)
+  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) { const tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); army(fp, id, foeArmy(id), false, tg ? cellXY(tg) : null); } }
+  if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) army(sl.pos, h, sl.army | 0, false, null); }
+  army(armyPos(), C.me, C.army, true, C.go || null);
   c.restore();
 }
+let armySel = false;
+const armyU = k => k * Math.min(2.3, 1.15 + view.z * 0.26);
+// (your army under the pointer: within a little of its block on the map)
+function armyHit(cv, px, py) { if (!C) return false; const S = cv.width / MG_W, p = armyPos(), x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z; const u = armyU(cv.width / 1300); return Math.hypot(px - x, py + 10 * u - y) < 22 * u; }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
   const cv = $("cmpMap");
@@ -966,6 +1040,10 @@ function drawTech() {
       return `<button class="cmp-tech${done ? " done" : cur ? " cur" : can ? " can" : " lock"}" data-study="${id}"${done || !can ? " disabled" : ""}><b>${esc(t.n)}</b><small>${esc(t.d)}</small><em>${done ? "Known" : cur ? `Studying · ${T.pts}/${t.cost}` : can ? `${t.cost} to learn` : `After ${(t.req || []).map(r => TECHS[r].n).join(", ")}`}</em></button>`; }).join("")}</div>`).join("")}</div>
     <div class="pv-acts"><button class="btn" data-techx="1">Close</button></div></div>`;
 }
+// ---- the side panel's cards folded down to a line when you don't need them (kept as you leave them) ----
+const FOLDKEY = "reckoning.campaign.folds";
+let folds = (() => { try { return JSON.parse(localStorage.getItem(FOLDKEY)) || {}; } catch (e) { return {}; } })();
+const fold = (key, head, body, open0 = false) => `<details class="cmp-card cmp-fold" data-fold="${key}"${(folds[key] ?? open0) ? " open" : ""}><summary>${head}</summary>${body}</details>`;
 function drawSide() {
   const g = grid(), el = $("cmpSide"), r = C.E.rel;
   let h = "";
@@ -984,12 +1062,12 @@ function drawSide() {
   if (news.length) h += `<div class="cmp-news"><b>The year's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="news">Close</button></div>`;
   // the town or the crown chosen on the map
   if (selCity) {
-    const own2 = cityOwner(g, selCity), mineT = own2 === C.me, reach = !mineT && own2 && inReach(g, selCity), can = !mineT && own2 && atWar(own2) && reach && !C.moved && C.army >= 5;
+    const own2 = cityOwner(g, selCity), mineT = own2 === C.me, reach = !mineT && own2 && inMarch(selCity), can = !mineT && own2 && atWar(own2) && reach && !C.moved && C.army >= 5;
     const S = siegeOf(selCity), def = own2 && !mineT ? defOf(g, selCity, own2) : 0, walls = own2 ? hasWalls(selCity, own2, g) : false, open = walls && S && S.bat >= 1;
     h += `<div class="cmp-card"><div class="cmp-h"><b>${esc(selCity[0])}</b><small>${["", "A town", "A city", "A great city"][selCity[3]]} · ${own2 ? esc(NATIONS[own2].name) : "nobody's"}</small></div>
-      ${mineT ? townCard(g, selCity) : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${Math.round(foeArmy(own2) * (isHuman(own2) ? 0.7 : 0.65))} regiments to it${walls ? ", behind walls" : ""}. ${!reach ? "It's beyond your army's reach: take the towns between first." : !atWar(own2) ? `You're not at war with ${the(own2)}.` : C.moved ? "Your army has already marched this season." : `Your odds: ${Math.round(odds(C.army * cmdMul(C.gen) * moraleK(), def, walls && !open) * 100)}%.`}</p>` : ""}
-      ${S ? `<div class="cmp-siege"><b>Under siege · year ${S.years}</b><span>Garrison ${S.starve >= 0.6 ? "starving" : S.starve >= 0.3 ? "on short rations" : "well fed"} (${Math.round(garrison(selCity) * (1 - S.starve))} of ${garrison(selCity)} men fit) · walls ${S.bat >= 1 ? "breached" : `${Math.round(S.bat * 100)}% battered`}</span><i><u style="width:${Math.min(100, Math.round(S.bat * 100))}%"></u></i>${!C.supplied && C.gold >= SUPPLY_COST ? `<div class="cmp-acts"><button class="btn" data-act="supply" title="Fresh men, powder and bread for the siege lines — if they get through the enemy's raiders">Send supplies · ${SUPPLY_COST} — escort it yourself</button><button class="btn ghost" data-act="supplyauto">Send supplies — leave the escort to it</button></div>` : C.supplied ? `<small class="cmp-fine">This year's supply train has gone.</small>` : ""}</div>` : ""}
-      ${can && S ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Storm it yourself</button><button class="btn" data-act="auto">Storm it — leave it to your generals</button><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : can && !C.siege ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">March, and fight it yourself</button><button class="btn" data-act="auto">March, and leave it to your generals</button>${walls && !isHuman(own2) && C.army >= 8 ? `<button class="btn" data-act="siege" title="Starve it out and batter its walls, a year at a time">Lay siege</button>` : ""}</div>` : C.siege && !S && !mineT && own2 ? `<p class="cmp-fine">Your army is besieging ${esc(C.siege.ct)}: lift that siege to march here.</p>` : S && C.moved ? `<div class="cmp-acts"><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : ""}</div>`;
+      ${mineT ? townCard(g, selCity) : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${Math.round(foeArmy(own2) * (isHuman(own2) ? 0.7 : 0.65))} regiments to it${walls ? ", behind walls" : ""}. ${!reach ? `Your army is ${yearsTo(cellXY(selCity))} year${yearsTo(cellXY(selCity)) > 1 ? "s" : ""}' march away.` : !atWar(own2) ? `You're not at war with ${the(own2)}.` : C.moved ? "Your army has already marched this season." : `Your odds: ${Math.round(odds(C.army * cmdMul(C.gen) * moraleK(), def, walls && !open) * 100)}%.`}</p>` : ""}
+      ${S ? `<div class="cmp-siege"><b>Under siege · year ${S.years}</b><span>Garrison ${S.starve >= 0.6 ? "starving" : S.starve >= 0.3 ? "on short rations" : "well fed"} (${Math.round(garrison(selCity) * (1 - S.starve))} of ${garrison(selCity)} men fit) · walls ${S.bat >= 1 ? "breached" : `${Math.round(S.bat * 100)}% battered`}</span><i><u style="width:${Math.min(100, Math.round(S.bat * 100))}%"></u></i>${!C.supplied && C.gold >= SUPPLY_COST ? `<div class="cmp-acts"><button class="btn" data-act="supply" title="Fresh men, powder and bread for the siege lines — if they get through the enemy's raiders">Send supplies · ${SUPPLY_COST} · you escort</button><button class="btn ghost" data-act="supplyauto">Supplies · escort alone</button></div>` : C.supplied ? `<small class="cmp-fine">This year's supply train has gone.</small>` : ""}</div>` : ""}
+      ${can && S ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Storm · you lead</button><button class="btn" data-act="auto">Storm · generals lead</button><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : can && !C.siege ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Attack · you lead</button><button class="btn" data-act="auto">Attack · generals lead</button>${walls && !isHuman(own2) && C.army >= 8 ? `<button class="btn" data-act="siege" title="Starve it out and batter its walls, a year at a time">Lay siege</button>` : ""}</div>` : C.siege && !S && !mineT && own2 ? `<p class="cmp-fine">Your army is besieging ${esc(C.siege.ct)}: lift that siege to march here.</p>` : !C.siege && !C.moved && (mineT || (own2 && !reach)) && dist2(armyPos(), cellXY(selCity)) > 1 ? `<div class="cmp-acts"><button class="btn" data-act="goto">${mineT ? "Move your army here" : "March toward it"} · ${yearsTo(cellXY(selCity))} yr</button></div>` : S && C.moved ? `<div class="cmp-acts"><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : ""}</div>`;
   }
   const id = selCity ? cityOwner(g, selCity) : sel;
   if (id && isHuman(id) && id !== C.me) {
@@ -1002,7 +1080,8 @@ function drawSide() {
         <button class="btn danger" data-dip="war" ${tr ? `disabled title="A treaty: ${tr} more years"` : ""}>Declare war</button>`}</div></div>`;
   } else if (id && id !== C.me && NATIONS[id]) {
     const did = C.did[id] || {}, war = atWar(id), tr = C.truce[id] || 0;
-    h += `<div class="cmp-card"><div class="cmp-h"><i style="background:${NATIONS[id].color}"></i><b>${esc(NATIONS[id].name)}</b><small>${citiesOfNow(g, id).length} town${citiesOfNow(g, id).length === 1 ? "" : "s"} · army ${C.foes[id] || 0} · ${war ? "<em class='down'>at war with you</em>" : C.ally[id] ? "your ally" : C.E.pact[id] ? "trade pact" : relWord(r[id])}</small></div>
+    const head = `<span class="cmp-h"><i style="background:${NATIONS[id].color}"></i><b>${esc(NATIONS[id].name)}</b><small>${citiesOfNow(g, id).length} town${citiesOfNow(g, id).length === 1 ? "" : "s"} · army ${C.foes[id] || 0} · ${war ? "<em class='down'>at war with you</em>" : C.ally[id] ? "your ally" : C.E.pact[id] ? "trade pact" : relWord(r[id])}</small></span>`;
+    h += (selCity ? (b2 => fold("crown", head, b2)) : (b2 => `<div class="cmp-card">${head}${b2}</div>`))(`
       <div class="cmp-rel"><i style="left:${(r[id] + 100) / 2}%"></i><span>Their view of you: ${r[id] > 0 ? "+" : ""}${Math.round(r[id])}</span></div>
       ${C.foeGen && C.foeGen[id] ? `<div class="cmp-foegen">${face(C.foeGen[id], "sm")}<span><b>${esc(C.foeGen[id].name)}</b><small>Their general · command ${"●".repeat(C.foeGen[id].st[0])}${"○".repeat(5 - C.foeGen[id].st[0])} · ${(C.fguns[id] | 0) ? `${C.fguns[id]} gun${C.fguns[id] > 1 ? "s" : ""}: they can besiege walled towns` : "no guns: walled towns are safe from them"}</small></span></div>` : ""}
       <div class="cmp-acts">${war ? `<button class="btn" data-dip="peace" ${did.peace ? "disabled" : ""}>Offer peace</button>` : `
@@ -1010,17 +1089,20 @@ function drawSide() {
         <button class="btn" data-dip="gift" ${did.gift || C.gold < 150 ? "disabled" : ""}>A gift · 150</button>
         ${C.E.pact[id] ? `<button class="btn" data-dip="unpact">End the trade pact</button>` : `<button class="btn" data-dip="pact" ${r[id] < 20 ? "disabled title='They need to think well of you (20)'" : ""}>Trade pact</button>`}
         ${C.ally[id] ? `<button class="btn" data-dip="unally">Break the alliance</button>` : `<button class="btn" data-dip="ally" ${r[id] < 55 || did.ally ? "disabled title='They need to be friendly (55)'" : ""}>Propose an alliance</button>`}
-        <button class="btn danger" data-dip="war" ${tr ? `disabled title="A treaty: ${tr} more years"` : ""}>Declare war</button>`}</div></div>`;
-  } else if (!selCity) h += `<div class="cmp-card"><p>Click a town to march on it, or a crown to deal with it. WASD or drag to move; wheel or Q and E to zoom — close in, and the land rises.</p></div>`;
+        <button class="btn danger" data-dip="war" ${tr ? `disabled title="A treaty: ${tr} more years"` : ""}>Declare war</button>`}</div>`);
+  } else if (!selCity && !armySel) h += `<div class="cmp-card cmp-help"><p><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom</p></div>`;
   // your own: the treasury's use
   const rc = regCost(g);
-  h += `<div class="cmp-card"><div class="cmp-h"><b>Your army</b><small>${C.army} regiments${C.levyQ ? ` (+${C.levyQ} next year)` : ""} · ${C.guns} gun${C.guns === 1 ? "" : "s"} · ${C.siege ? `besieging ${esc(C.siege.ct)}, year ${C.siege.years}` : C.moved ? "has marched this year" : "ready to march"}</small></div>
+  h += fold("army", `<span class="cmp-h"><b>Your army</b><small>${C.army} regiments${C.levyQ ? ` (+${C.levyQ})` : ""} · ${C.guns} gun${C.guns === 1 ? "" : "s"} · ${moraleWord(C.morale ?? 50).toLowerCase()} · ${C.siege ? `besieging ${esc(C.siege.ct)}` : C.go ? "on the march" : C.moved ? "marched this year" : "ready"}</small></span>`, `
     <div class="cmp-morale"><small>Morale</small><b>${moraleWord(C.morale ?? 50)}</b><i><u style="width:${C.morale ?? 50}%"></u></i><small>${C.morale ?? 50}</small></div>
     ${C.gen ? manCard(C.gen) : `<p class="cmp-fine">No general leads it: choose one.</p>`}
     <div class="cmp-acts"><button class="btn" data-act="r1" ${C.gold < rc ? "disabled" : ""}>Raise a regiment · ${rc}</button><button class="btn" data-act="r5" ${C.gold < rc * 5 ? "disabled" : ""}>Raise five · ${rc * 5}</button></div>
-    <small class="cmp-fine">Regiments raised now join next year. Upkeep ${upkeep()} a year. Guns are cast at a foundry.</small></div>`;
-  h += `<div class="cmp-log">${C.log.slice(0, 14).map(l => `<div><small>${esc(l.t)}</small><b>${esc(l.title)}</b>${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}</div>`;
+    <small class="cmp-fine">New regiments join next year · upkeep ${upkeep()} a year</small>`, armySel);
+  // (the news: the last few lines; the rest folded away)
+  const L = C.log.slice(0, 14), line = l => `<div><small>${esc(l.t)}</small><b>${esc(l.title)}</b>${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`;
+  h += `<div class="cmp-log">${L.slice(0, 4).map(line).join("")}${L.length > 4 ? `<details class="cmp-more" data-fold="log"${folds.log ? " open" : ""}><summary>Earlier</summary>${L.slice(4).map(line).join("")}</details>` : ""}</div>`;
   el.innerHTML = h;
+  for (const d of el.querySelectorAll("details[data-fold]")) d.addEventListener("toggle", () => { folds[d.dataset.fold] = d.open; try { localStorage.setItem(FOLDKEY, JSON.stringify(folds)); } catch (e) {} });
 }
 function sideClick(e) {
   const b = e.target.closest("button"); if (!b || !C) return;
@@ -1036,6 +1118,7 @@ function sideClick(e) {
   if (a === "fight" || a === "auto") { if (selCity) doAct({ k: "march", ct: selCity[0], how: a }); return; }
   if (a === "siege") { if (selCity) doAct({ k: "siege", ct: selCity[0] }); return; }
   if (a === "lift") { doAct({ k: "lift" }); return; }
+  if (a === "goto") { if (selCity) { const t = cellXY(selCity); doAct({ k: "move", x: t.x, y: t.y }); } return; }
   if (a === "supply" || a === "supplyauto") { doAct({ k: "supply", how: a === "supply" ? "fight" : "auto" }); return; }
   if (a === "govs") { if (selCity) doAct({ k: "govs", ct: selCity[0] }); return; }
   if (a === "news") { news = []; drawMap(); return; }
@@ -1076,14 +1159,22 @@ function apply(actor, a) {
     }
     if (a.k === "siege") {
       const ct = city(a.ct), foe = ct && cityOwner(g, ct);
-      if (!ct || C.siege || C.moved || !foe || isHuman(foe) || !atWar(foe) || C.army < 8 || !inReach(g, ct) || !hasWalls(ct, foe, g)) return { note: "Your army can't lay siege there now." };
-      C.siege = { ct: ct[0], foe, years: 0, starve: 0, bat: 0 }; C.moved = true; persist();
+      if (!ct || C.siege || C.moved || !foe || isHuman(foe) || !atWar(foe) || C.army < 8 || !inMarch(ct) || !hasWalls(ct, foe, g)) return { note: "Your army can't lay siege there now." };
+      C.siege = { ct: ct[0], foe, years: 0, starve: 0, bat: 0 }; C.moved = true; C.go = null; { const t = cellXY(ct); C.pos = { x: t.x, y: t.y }; } persist();
       return { note: `Your army sits down before ${ct[0]}: trenches dug, the guns brought up, the roads closed. Each year the garrison grows hungrier and the walls weaker.`, sfx: [["drum", 0.55], ["guns", 0.5, 900]] };
     }
     if (a.k === "supply") {
       const o = sendSupply(); if (!o) return { note: `A supply train costs ${SUPPLY_COST} thalers, and only one goes a year.` };
       if (a.how === "fight") { C.pending = { ...o, ct: o.ct[0] }; persist(); return { sfx: [["drum", 0.5]], fight: { ...o, ct: o.ct[0] } }; }
       convoyEnd(o, R() < odds(o.def * cmdMul(C.gen) * moraleK(), o.att, false), 0.15); persist(); return { note: C.log[0].title + ".", sfx: [["drum", 0.5]] };
+    }
+    // the army sent somewhere: as far as a year's march takes it now, the rest of the way in the years after
+    if (a.k === "move") {
+      if (C.siege) return { note: `Your army is sitting down before ${C.siege.ct}: lift the siege first.` };
+      if (C.moved) return { note: "Your army has already marched this year." };
+      const t = { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }; if (!isFinite(t.x) || !isFinite(t.y)) return null;
+      const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; persist();
+      return { note: st.arrived ? "Your army marches, and is there by the year's end." : `Your army is on the march: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there.`, sfx: [["drum", 0.45]] };
     }
     if (a.k === "lift") { if (!C.siege) return null; const n = C.siege.ct; C.siege = null; persist(); return { note: `The siege of ${n} is lifted. The army is free to march.`, sfx: [["drum", 0.5]] }; }
     if (a.k === "march") {

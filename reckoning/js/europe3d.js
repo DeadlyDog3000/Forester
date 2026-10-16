@@ -284,11 +284,17 @@ export class EuropeView3D {
     const key = JSON.stringify(list); if (key === this.markKey) return; this.markKey = key;
     if (this.markGroup) { this.markGroup.traverse(o => { if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); this.scene.remove(this.markGroup); }
     const grp = this.markGroup = new THREE.Group(), tex = new Map();
-    const texOf = (kind, color, dim) => {
-      const k = kind + color + dim; if (tex.has(k)) return tex.get(k);
+    const texOf = (kind, color, dim, n = "", mine = false) => {
+      const k = kind + color + dim + n + mine; if (tex.has(k)) return tex.get(k);
       const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d");
       c.globalAlpha = dim ? 0.45 : 1; c.strokeStyle = color; c.lineCap = "round";
-      if (kind === "swords") {
+      if (kind === "army") {
+        // (an army: its colour on a staff, and the count of its regiments under it)
+        c.strokeStyle = "#2a1c10"; c.lineWidth = 2.5; c.beginPath(); c.moveTo(18, 6); c.lineTo(18, 46); c.stroke();
+        c.fillStyle = color; c.beginPath(); c.moveTo(18, 6); c.quadraticCurveTo(32, 2, 46, 9); c.lineTo(46, 24); c.quadraticCurveTo(32, 18, 18, 22); c.closePath(); c.fill(); c.strokeStyle = "rgba(40,28,16,0.9)"; c.lineWidth = 1.5; c.stroke();
+        c.fillStyle = mine ? "#f4ead2" : "#f0d8c8"; c.strokeStyle = mine ? "#2a1c10" : "#8a2a1a"; c.lineWidth = 2; c.beginPath(); c.rect(6, 44, 52, 16); c.fill(); c.stroke();
+        c.fillStyle = "#2a1c10"; c.font = "bold 13px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(n), 32, 52.5);
+      } else if (kind === "swords") {
         c.lineWidth = 5; c.beginPath(); c.moveTo(14, 14); c.lineTo(50, 50); c.moveTo(50, 14); c.lineTo(14, 50); c.stroke();
         c.lineWidth = 4.5; c.beginPath(); c.moveTo(15, 38); c.lineTo(26, 49); c.moveTo(49, 38); c.lineTo(38, 49); c.stroke();
       } else {
@@ -298,9 +304,9 @@ export class EuropeView3D {
       const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; tex.set(k, t); return t;
     };
     for (const m of list) {
-      const [x, z] = toWorld(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords";
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim), depthTest: false, sizeAttenuation: false, transparent: true }));
-      sp.scale.set(swords ? 0.034 : 0.05, swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (swords ? 0.5 : 0.05), z); sp.renderOrder = swords ? 6 : 4;
+      const [x, z] = toWorld(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords", arm = m.kind === "army";
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim, m.n, m.mine), depthTest: false, sizeAttenuation: false, transparent: true }));
+      sp.scale.set(arm ? 0.06 : swords ? 0.034 : 0.05, arm ? 0.06 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.6 : swords ? 0.5 : 0.05), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
       grp.add(sp);
     }
     this.scene.add(grp);

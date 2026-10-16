@@ -1067,7 +1067,11 @@ export class OrderBook {
   show(state) {
     this.state = state; this.open = true; this.draw();
     if (this.el.classList.contains("hidden")) { this.el.classList.remove("hidden"); void this.el.offsetWidth; this.el.classList.add("in"); }
+    this.wake();
   }
+  // (out of the way while you fight: folded to its heading and the order in force a few seconds after you last gave one,
+  //  and open again at a key)
+  wake(secs = 6) { this.el.classList.remove("mini"); clearTimeout(this.miniT); this.miniT = setTimeout(() => { if (this.page === "main") this.el.classList.add("mini"); }, secs * 1000); }
   hide() { this.open = false; this.el.classList.add("hidden"); }
   update(state) { this.state = state; if (this.open) this.draw(); }
   draw() {
@@ -1080,6 +1084,7 @@ export class OrderBook {
   }
   // a key: a number gives that order (or opens the formations); Esc puts the formations away. True if it was the book's
   key(e) {
+    if (/^(Digit\d|Key[LOPUK])$/.test(e.code)) this.wake();
     const list = this.items(this.state);
     if (e.code === "Escape" && this.page !== "main") { this.page = "main"; this.draw(); return true; }
     const m = /^Digit(\d)$/.exec(e.code); if (!m) return false;
