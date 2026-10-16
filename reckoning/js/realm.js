@@ -17,46 +17,58 @@
 // (inc: thalers a year; rp: learning a year; gar: men to the garrison; morale: your army's nerve; cheap: off
 //  the cost of a regiment; gunCast: a gun a year can be cast; rank: the least a town must be)
 export const CHAINS = {
-  farm: { name: "The land", icon: "🌾", levels: [
+  farm: { name: "The land", levels: [
     { n: "Peasant farms", d: "Strips and commons, worked as their grandfathers worked them." },
     { n: "Developed farms", cost: 110, inc: 10, d: "Fields drained and hedged, a mill on the stream." },
     { n: "Improved farms", cost: 210, inc: 22, tech: "rotation", d: "Turnips and clover in the rotation: no field lies fallow." },
     { n: "Great estates", cost: 360, inc: 36, tech: "seeddrill", d: "Enclosed estates, sown in rows by the drill." },
   ] },
-  trade: { name: "Trade", icon: "⚖", levels: [
+  trade: { name: "Trade", levels: [
     { n: "Market cross", d: "A market day once a week." },
     { n: "Market hall", cost: 140, inc: 12, d: "A covered hall, a weigh-house, fairs twice a year." },
     { n: "Trading house", cost: 250, inc: 26, tech: "banking", rank: 2, d: "Merchants' houses dealing far afield, on credit." },
     { n: "Exchange", cost: 420, inc: 44, tech: "jointstock", rank: 3, d: "A bourse: shares, bills and insurance." },
   ] },
-  works: { name: "Industry", icon: "⚒", levels: [
+  works: { name: "Industry", levels: [
     { n: "Craftsmen", d: "Smiths, weavers and coopers in their own shops." },
     { n: "Workshops", cost: 130, inc: 8, cheap: 2, d: "Masters with journeymen under one roof." },
     { n: "Manufactory", cost: 250, inc: 18, cheap: 4, tech: "labour", rank: 2, d: "A hundred hands, each at one task." },
     { n: "Ironworks", cost: 400, inc: 26, cheap: 6, tech: "coke", rank: 2, d: "Blast furnaces and forges: iron for guns and tools." },
   ] },
-  army: { name: "Barracks", icon: "⚔", levels: [
+  army: { name: "Barracks", levels: [
     { n: "Muster ground", d: "Where the militia drill on feast days." },
     { n: "Drill yard", cost: 120, morale: 0.04, gar: 2, d: "Sergeants drilling the levy every week." },
     { n: "Barracks", cost: 230, morale: 0.08, gar: 4, tech: "linear", rank: 2, d: "A standing garrison, housed and drilled." },
     { n: "Military academy", cost: 380, morale: 0.12, gar: 6, tech: "academy", rank: 3, d: "Officers schooled in fortification and gunnery." },
   ] },
-  foundry: { name: "Foundry", icon: "⛬", levels: [
+  foundry: { name: "Foundry", levels: [
     { n: "No foundry", d: "Guns must be bought abroad, if at all." },
     { n: "Gun foundry", cost: 200, gunCast: 1, tech: "founding", rank: 2, d: "Bronze guns cast in sand: one a year." },
     { n: "Cannon foundry", cost: 360, gunCast: 2, tech: "fieldart", rank: 2, d: "Iron guns bored from the solid: two a year." },
   ] },
-  church: { name: "Learning", icon: "✝", levels: [
+  church: { name: "Learning", levels: [
     { n: "Parish church", d: "The priest teaches a few boys their letters." },
     { n: "School", cost: 120, rp: 1, d: "A grammar school: Latin, sums, a little geometry." },
     { n: "College", cost: 240, rp: 2, tech: "natphil", rank: 2, d: "Lecturers in mathematics and natural philosophy." },
     { n: "University", cost: 420, rp: 3, tech: "enlight", rank: 3, d: "Faculties, a library and an observatory." },
   ] },
-  walls: { name: "Defences", icon: "⛫", levels: [
+  walls: { name: "Defences", levels: [
     { n: "No walls", d: "Open to anyone who comes." },
     { n: "Stone walls", cost: 0, gar: 3, d: "A wall of stone on an earth rampart, towers and a gate: an attacker must batter his way in." },
     { n: "Star fort", cost: 420, gar: 7, tech: "trace", rank: 2, d: "Low, thick bastioned walls that shrug off shot: twice as hard to breach." },
   ] },
+};
+// each chain's mark: a little engraving, drawn in the ink of the page (stroked in the text's own colour)
+const SV = d => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+export const MARK = {
+  farm: SV('<path d="M12 21V8"/><path d="M12 9c-2-1-3-3-3-5 2 1 3 3 3 5zM12 9c2-1 3-3 3-5-2 1-3 3-3 5zM12 13c-2-1-3.5-3-3.5-5 2 1 3.5 3 3.5 5zM12 13c2-1 3.5-3 3.5-5-2 1-3.5 3-3.5 5zM12 17c-2-1-3.5-3-3.5-5 2 1 3.5 3 3.5 5zM12 17c2-1 3.5-3 3.5-5-2 1-3.5 3-3.5 5z"/>'),
+  trade: SV('<path d="M12 4v16M8 20h8M5 7h14"/><path d="M5 7l-2.5 6h5zM19 7l-2.5 6h5z"/><path d="M2.5 13a2.5 1.5 0 0 0 5 0M16.5 13a2.5 1.5 0 0 0 5 0"/>'),
+  works: SV('<path d="M4 20l9-9"/><path d="M11 5l3-2 7 7-2 3z"/><path d="M13 7l4 4"/>'),
+  army: SV('<path d="M5 4l12 12M19 4L7 16"/><path d="M4 15l5 5M20 15l-5 5"/><path d="M15 18l2-2M9 18l-2-2"/>'),
+  foundry: SV('<circle cx="7" cy="16" r="3.2"/><path d="M8.5 13.5L20 8l1 2.5-11 5"/><path d="M3 20h9"/>'),
+  church: SV('<path d="M12 2v5M10 4h4"/><path d="M6 21V12l6-5 6 5v9z"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/>'),
+  walls: SV('<path d="M4 21V9h3V6h2v3h2V6h2v3h2V6h2v3h3v12z"/><path d="M10 21v-5a2 2 0 0 1 4 0v5"/>'),
+  gun: SV('<circle cx="7" cy="16" r="3.2"/><path d="M8.5 13.5L20 8l1 2.5-11 5"/><path d="M3 20h9"/>'),
 };
 export const CHAIN_ORDER = ["farm", "trade", "works", "army", "foundry", "church", "walls"];
 // (a town's walls cost what its size makes them)

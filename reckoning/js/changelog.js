@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.44.1", date: "15 October 2026", title: "Engraved marks",
+    items: [
+      "Campaign: the buildings in a town are marked with small engraved drawings (a sheaf, scales, a hammer, crossed swords, a gun, a church, a tower) instead of emoji.",
+    ],
+  },
+  {
     v: "1.44.0", date: "15 October 2026", title: "Generals, governors and learning",
     items: [
       "Campaign: a turn is now a year. The top of the map shows the year, and End the year moves it on.",

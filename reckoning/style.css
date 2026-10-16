@@ -1774,3 +1774,4 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-cand .cmp-stats > span { flex-direction: row; gap: 4px; align-items: baseline; }
 .cmp-cand .cmp-stats small { font-size: 8.5px; }
 .cmp-cand .cmp-stats i { font-size: 9px; letter-spacing: 0; }
+.cmp-bi { display: flex; align-items: center; justify-content: center; color: #c9b48a; opacity: 0.9; }

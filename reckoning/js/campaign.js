@@ -16,7 +16,7 @@ import { FOLEY } from "./foley.js";
 import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, llOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { TROOPS } from "./pvp.js";
-import { CHAINS, CHAIN_ORDER, levelCost, capOf, TECHS, BRANCHES, canStudy, newMan, historicalOf, portOf, GSTATS, VSTATS, SERVICE } from "./realm.js";
+import { CHAINS, CHAIN_ORDER, MARK, levelCost, capOf, TECHS, BRANCHES, canStudy, newMan, historicalOf, portOf, GSTATS, VSTATS, SERVICE } from "./realm.js";
 
 const KEY = "reckoning.campaign.v1";
 const SEASONS = ["Spring", "Summer", "Autumn", "Winter"];
@@ -801,12 +801,12 @@ function townCard(g, ct) {
   for (const ch of CHAIN_ORDER) {
     const lv = lvOf(n, ch), cap = capOf(ch, ct[3]), o = opts.get(ch), here = q && q.chain === ch;
     if (ch === "foundry" && ct[3] < 2) continue;
-    h += `<div class="cmp-bld${here ? " busy" : ""}"><span class="cmp-bi">${CHAINS[ch].icon}</span><span class="cmp-bn"><b>${esc(CHAINS[ch].levels[lv].n)}</b><small>${esc(CHAINS[ch].name)} · ${"▰".repeat(lv)}${"▱".repeat(cap - lv)}</small></span>`;
+    h += `<div class="cmp-bld${here ? " busy" : ""}"><span class="cmp-bi">${MARK[ch]}</span><span class="cmp-bn"><b>${esc(CHAINS[ch].levels[lv].n)}</b><small>${esc(CHAINS[ch].name)} · ${"▰".repeat(lv)}${"▱".repeat(cap - lv)}</small></span>`;
     if (here) h += `<span class="cmp-bq">Building ${esc(CHAINS[ch].levels[lv + 1].n)}<button class="tm-lnk" data-unbuild="1">Stop</button></span>`;
     else if (o) h += o.tech ? `<span class="cmp-bq lock" title="${esc(o.L.d)}">${esc(o.L.n)}: needs ${esc(TECHS[o.tech].n)}</span>` : `<button class="btn" data-build="${ch}" title="${esc(o.L.d)}"${q || C.gold < o.cost ? " disabled" : ""}>${esc(o.L.n)} · ${o.cost}</button>`;
     h += `</div>`;
   }
-  if (lvOf(n, "foundry")) h += `<div class="cmp-bld${q && q.gun ? " busy" : ""}"><span class="cmp-bi">⛬</span><span class="cmp-bn"><b>Cast a gun</b><small>For your artillery train: ${C.guns} now</small></span>${q && q.gun ? `<span class="cmp-bq">Casting<button class="tm-lnk" data-unbuild="1">Stop</button></span>` : `<button class="btn" data-gun="1"${q || C.gold < GUN_COST ? " disabled" : ""}>Cast · ${GUN_COST}</button>`}</div>`;
+  if (lvOf(n, "foundry")) h += `<div class="cmp-bld${q && q.gun ? " busy" : ""}"><span class="cmp-bi">${MARK.gun}</span><span class="cmp-bn"><b>Cast a gun</b><small>For your artillery train: ${C.guns} now</small></span>${q && q.gun ? `<span class="cmp-bq">Casting<button class="tm-lnk" data-unbuild="1">Stop</button></span>` : `<button class="btn" data-gun="1"${q || C.gold < GUN_COST ? " disabled" : ""}>Cast · ${GUN_COST}</button>`}</div>`;
   return h + `</div>`;
 }
 // learning: the four branches, what's known, what's being studied, what can be
