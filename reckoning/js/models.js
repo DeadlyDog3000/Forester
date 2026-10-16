@@ -2048,6 +2048,15 @@ export function makeHorse(coat = 0x6a4428, seed = 1) {
   return H;
 }
 const BOXG = new THREE.BoxGeometry(1, 1, 1);
+// ---- a scaling ladder: two rough poles and the rungs lashed across them, long enough to reach a town's parapet. Its
+//  foot at the origin, running up +Y, the rails either side along Z ----
+export function makeLadder(len = 7) {
+  const b = new Builder(), wood = 0x6a5236, dark = 0x4a3826;
+  for (const s of [-1, 1]) b.add(taper(0.045, 0.06, 6), wood, 0, len / 2, s * 0.26, 0, 0, s * 0.012, 1, len, 1);
+  for (let y = 0.35; y < len - 0.2; y += 0.36) b.add(BOXG, dark, 0, y, 0, 0, 0, 0, 0.05, 0.05, 0.56);
+  const m = b.build(MAT.solid); m.castShadow = true;
+  const g = new THREE.Group(); g.add(m); return g;
+}
 function b_ring(b, col, x, y, z, r, ry = 0, sy = 1) { b.add(HTOR, col, x, y, z, 0, ry, 0, r, r * sy, r); }
 function b_cone(b, col, x, y, z, r, h, rx = 0, rz = 0) { b.add(HCONE, col, x, y, z, rx, 0, rz, r, h, r); }
 

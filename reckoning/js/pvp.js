@@ -18,7 +18,7 @@ import { full, gate } from "./licence.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst, killMark, chestOf } from "./fight.js";
-import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, makeHorse, mergeRig } from "./models.js";
+import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, makeHorse, mergeRig, makeLadder } from "./models.js";
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
@@ -241,7 +241,7 @@ function drawBoard() {
 let hlList = [], hlMine = [];
 async function drawHl() {
   const el = $("campHl"); if (!el) return;
-  const row = (r, src) => { const t = titleOf(r), m = r.meta || r; return `<div class="hl-row"><span class="hl-n"><b>${esc(t.t)}</b><small>${esc(t.s)} · ${m.won ? "won" : "lost"}${m.k != null ? ` · ${m.k}–${m.l}` : ""} · ${mmss(m.secs || 0)} · ${ago(r.at || m.at)}</small></span><span class="hl-b"><button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="highlights">Highlights</button><button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="full">Whole</button></span></div>`; };
+  const row = (r, src) => { const t = titleOf(r), m = r.meta || r; return `<div class="hl-row"><span class="hl-n"><b>${esc(t.t)}</b><small>${esc(t.s)} · ${m.won ? "won" : "lost"}${m.k != null ? ` · ${m.k}–${m.l}` : ""} · ${mmss(m.secs || 0)} · ${ago(r.at || m.at)}</small></span><span class="hl-b"><button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="full">Watch</button></span></div>`; };
   const draw = () => { el.innerHTML = `<div class="pv-h">Lately, on the server</div>${hlList.length ? hlList.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${hlList.loading ? "Looking…" : "No battles on the server yet — or it can't be reached."}</div>`}<div class="pv-h">Your own</div>${hlMine.length ? hlMine.map(r => row(r, "mine")).join("") : `<div class="cw-empty">Your battles are kept here once you've fought one.</div>`}`; };
   hlList.loading = true; draw();
   const [a, b] = await Promise.all([listReplays({ sort: "recent", n: 15 }), mineList()]);
@@ -255,11 +255,12 @@ async function pickReplay(e) {
   else if (b.dataset.src === "mine") rec = hlMine.find(r => r.key === b.dataset.id) || null;
   else rec = await fetchReplay(b.dataset.id);
   if (!rec) { campNote("That battle couldn't be fetched just now."); return; }
-  watch(rec, b.dataset.mode || "highlights", "camp");
+  watch(rec, "full", "camp");
 }
 // ---- behind the menus: the battles lately fought, their highlights one after another, quiet and far off ----
 let amb = null, fieldWait = false;
 async function startAmbient() {
+  return;   // (no highlight reels behind the menus any more: the menus stand on their own)
   const on = id => !$(id).classList.contains("hidden");
   if (amb || !ambientOn() || G.arena || fieldWait || (theatre() && theatre().mode !== "ambient") || innerWidth < 1100 || innerHeight < 640 || !(on("pvp") || on("pvpFind"))) return;
   const A = amb = { i: -1, list: [] };
@@ -741,7 +742,7 @@ function startDuel(o) {
 // ---------------------------------------------------------------------------
 let lastRec = null;
 // (from: where Leave goes — the result, or the camp)
-function watch(rec, mode = "highlights", from = "camp", title = null) {
+function watch(rec, mode = "full", from = "camp", title = null) {
   stopAmbient();
   ctx.film();
   new Theatre(rec, { mode, from, title, onExit: () => { ctx.end(); if (from === "end") ctx.screen("pvpEnd"); else openCamp(); } });
@@ -749,15 +750,15 @@ function watch(rec, mode = "highlights", from = "camp", title = null) {
 // the result's buttons to see it again
 function endReplay(rec) {
   const el = $("pvpEndReplay"); if (!el) return;
-  el.innerHTML = rec ? `<button class="btn" data-rp="highlights">Watch the highlights</button><button class="btn" data-rp="full">The whole battle</button>
-    <label class="check pv-share"><input type="checkbox" id="pvpShareIt"${rec.id ? " checked disabled" : ""}> <span>${rec.id ? "On the Highlights, for everyone to watch" : "Put this battle on the Highlights, for everyone to watch"}</span></label>` : "";
+  el.innerHTML = rec ? `<button class="btn" data-rp="full">Watch the battle again</button>
+    <label class="check pv-share"><input type="checkbox" id="pvpShareIt"${rec.id ? " checked disabled" : ""}> <span>${rec.id ? "Shared, for everyone to watch" : "Share this battle on the server, for everyone to watch"}</span></label>` : "";
   el.onclick = e => { const b = e.target.closest("[data-rp]"); if (b && lastRec) watch(lastRec, b.dataset.rp, "end"); };
   // (only when you say so: ticked, it's sent — and once it's there, it stays)
   const box = $("pvpShareIt");
   if (box) box.onchange = () => {
     if (!box.checked || rec.id) return;
-    box.disabled = true; const t = box.nextElementSibling; t.textContent = "Sending it to the Highlights…";
-    upload(rec).then(id => { if (id) { rec.id = id; t.textContent = "On the Highlights, for everyone to watch"; } else { box.checked = false; box.disabled = false; t.textContent = "Couldn't reach the server — tick it to try again"; } });
+    box.disabled = true; const t = box.nextElementSibling; t.textContent = "Sending it to the server…";
+    upload(rec).then(id => { if (id) { rec.id = id; t.textContent = "Shared, for everyone to watch"; } else { box.checked = false; box.disabled = false; t.textContent = "Couldn't reach the server — tick it to try again"; } });
   };
 }
 
@@ -960,7 +961,7 @@ class Arena {
       const gunsHost = this.battle ? (setup ? setup.guns : this.custom ? (this.custom.length === 2 ? [sumGuns(0), sumGuns(1)] : null) : this.gunsBought) : null;
       const camps = this.custom && this.custom.length > 2 ? this.cos.map((c, i) => ({ side: c.al, co: i, x: c.x, z: c.z, guns: c.guns })) : null;
       // (a walled town: its defenders on the walk behind the parapet, their guns in its embrasures)
-      const TS = this.things && this.things.siege, siege = TS && !this.remote ? { side: TS.d > 0 ? 1 : 0, guns: TS.guns, anchor: TS.anchor } : null;
+      const TS = this.things && this.things.siege, siege = TS && !this.remote ? { side: TS.d > 0 ? 1 : 0, guns: TS.guns, anchor: TS.anchor, ladders: (TS.ladders || []).map(L => ({ ...L })), wall: TS.wall } : null;
       this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost, camps, siege);
       this.siege = siege; if (this.things && this.things.breaks) this.field.breaks = this.things.breaks;
       // (besieged a year or more before this: the walls as the guns left them, breaches already open)
@@ -1305,9 +1306,72 @@ class Arena {
       if (this.book && (allies || this.battle)) { this.book.show(this.bookState()); if (!this.toldBook) { this.toldBook = true; setTimeout(() => G.arena === this && UI.hint("The number keys give your orders, as the page at the left has them — and you fight on the while. The wheel changes your weapon" + (this.canBayonet() ? "; F fixes your bayonet (for good)." : ".") + (this.groupsHere().length > 1 ? " A letter picks out one arm to order alone: " + this.groupsHere().map(g => `${g.key.slice(3)} ${g.name.split(" ")[0].toLowerCase()}`).join(", ") + "." : ""), 8), 2200); } }
     }
   }
+  // ---- the assault on a walled town: which side of the wall a man is, the ways in, and the ladders ----
+  outside(p) { const W = this.siege && this.siege.wall; return !!W && (p.x - W.ox) * W.ux < W.faceU - 0.3; }
+  // (an open way in, nearest to him: a breach the guns made, a tower brought down, the gate hacked open)
+  openWay(p) {
+    const W = this.siege && this.siege.wall; if (!W || !this.field) return null;
+    let best = null, bd = Infinity;
+    for (const b of this.field.breaks) {
+      if (!b.down) continue;
+      const d = Math.abs(b.z - p.z) + Math.abs(b.x - p.x) * 0.3; if (d >= bd) continue;
+      bd = d; const deep = b.kind === "tower" ? 7 : 5;
+      best = { out: { x: b.x - W.ux * 3.2, z: b.z }, inn: { x: b.x + W.ux * deep, z: b.z }, b };
+    }
+    return best;
+  }
+  // a ladder set up against the wall: swung up off the ground by the men at its foot
+  plantLadder(L) {
+    if (L.up || L.fallT > 0) return;
+    // (its foot on the ground where it stands; its head on that length of wall's parapet, as high as the guns have left it)
+    L.footY = this.w.heightAt(L.out.x, L.out.z);
+    const wb = this.field && this.field.breaks.find(b => !b.gate && Math.abs(b.z - L.top.z) < b.hd && Math.abs(b.x - L.top.x) < b.hw + 1); if (wb) L.topY = wb.top;
+    const len = Math.hypot(L.top.x - L.out.x, L.top.z - L.out.z, L.topY + 0.3 - L.footY) + 1.1;   // (its head standing up over the parapet, as a scaling ladder's did)
+    L.mesh = makeLadder(len); L.mesh.position.set(L.out.x, L.footY, L.out.z); this.w.root.add(L.mesh);
+    L.up = true; L.raise = 0; L.push = 0; L.busy = 0; L.raiseT = 0;
+    FOLEY.thunk && FOLEY.thunk({ x: L.top.x, z: L.top.z }, 0.5);
+    // (you can go up it too)
+    if (this.w.addInteract && !L.it) L.it = this.w.addInteract({ x: L.out.x, y: L.footY + 1.2, z: L.out.z, reach: 2.4, hold: 1.2, anim: "reach",
+      can: () => L.up && L.raise >= 1 && !(L.fallT > 0) && this.live && this.you.alive && this.alOf(0) !== this.siege.side,
+      label: "Climb the ladder, onto the wall",
+      use: () => { const pl = G.player, y = this.w.heightAt(L.inn.x, L.inn.z); pl.pos.set(L.inn.x, y + 0.05, L.inn.z); pl.vy = 0; FOLEY.ladder && FOLEY.ladder(0.6); } });
+  }
+  // the ladder's lean: from lying out on the ground (0) to against the parapet (1)
+  leanLadder(L, k) {
+    const up = new THREE.Vector3(0, 1, 0), dir = new THREE.Vector3(L.top.x - L.out.x, L.topY + 0.3 - L.footY, L.top.z - L.out.z).normalize();
+    const flat = new THREE.Vector3(L.out.x - L.top.x, 0.05, L.out.z - L.top.z).normalize();
+    const q0 = new THREE.Quaternion().setFromUnitVectors(up, flat), q1 = new THREE.Quaternion().setFromUnitVectors(up, dir);
+    L.mesh.quaternion.copy(q0).slerp(q1, Math.max(0, Math.min(1, k)));
+  }
+  ladderTick(dt) {
+    const S = this.siege;
+    // (a man killed on the rungs: down off it)
+    for (const u of this.units) if (u.climb && !u.alive) { u.climb = null; u.a.yOff = 0; }
+    for (const L of S.ladders) {
+      if (!L.mesh) continue;
+      if (L.fallT > 0) {
+        L.fallT -= dt; this.leanLadder(L, L.fallT / 1.2);
+        if (L.fallT <= 0) { this.w.root.remove(L.mesh); L.mesh = null; L.up = false; L.raise = 0; L.raiseT = -4; }
+        continue;
+      }
+      if (L.raise < 1) { L.raise = Math.min(1, L.raise + dt / 1.1); this.leanLadder(L, L.raise * L.raise * (3 - 2 * L.raise)); }
+      L.busy = Math.max(0, (L.busy || 0) - dt);
+      // the defenders at its head: two or three seconds of heaving with their pikes and shoulders, and over it goes
+      const at = this.units.filter(u => u.alive && !u.routing && u.al === S.side && !u.climb && Math.hypot(u.pos.x - L.inn.x, u.pos.z - L.inn.z) < 3.4).length
+        + (this.alOf(0) === S.side && this.you.alive && Math.hypot(G.player.pos.x - L.inn.x, G.player.pos.z - L.inn.z) < 3 ? 2 : 0);
+      L.push = at ? (L.push || 0) + dt * Math.min(2, at) : Math.max(0, (L.push || 0) - dt * 0.5);
+      if (L.push > 3.2) {
+        L.fallT = 1.2; L.push = 0;
+        FOLEY.crash && FOLEY.crash(0.5, { x: L.out.x, z: L.out.z });
+        for (const u of this.units) if (u.climb && u.climb.L === L) u.fall();
+        if (this.alOf(0) !== S.side && Math.hypot(G.player.pos.x - L.out.x, G.player.pos.z - L.out.z) < 30) UI.hint("They've thrown a ladder down!", 2);
+      }
+    }
+  }
   // every frame of it: the men, the officer over there, the guns and their shot, your marks on the ground
   updateField(dt) {
     for (const u of this.units) u.tick(dt);
+    if (this.siege && this.siege.ladders && this.live) this.ladderTick(dt);
     // (the other player's game: one side gone, and no word from the host within a few seconds — ended here all the same)
     if (this.remote && this.live && !this.ended) {
       const ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0), theirs = this.alliesOf(1).length;
@@ -1997,7 +2061,6 @@ class Arena {
     }
     $("pvpAgain").textContent = lastMode === "campaign" ? "Back to the campaign" : "Again";
     endReplay(rec);
-    if (reel && rec) { watch(rec, "highlights", "end", { t: won ? "Victory" : "Defeat", s: titleOf(rec).t }); return; }
     ctx.screen("pvpEnd");
   }
   // begun again from the start, the same sides and loads (a fight against bots: the pause menu's Restart); a battle on
@@ -2439,6 +2502,64 @@ class Bot extends Fighter {
     }
     return true;
   }
+  // ---- storming a walled town: on the wrong side of the wall, he makes for a way in — a breach, the gate (to hack at
+  //  it, if it's still shut), or a ladder (raised, then climbed one man at a time); shooters keep up their fire on the
+  //  walls while they've a mark, unless they're ordered in. Returns true while that's what he's doing ----
+  storm(dt, T, O) {
+    const A = this.arena, S = A.siege, a = this.a;
+    if (!S || !S.wall || this.al === S.side || !A.battle) return false;
+    if (this.climb) { this.climbTick(dt); return true; }
+    if (!A.outside(a.pos) || (T && A.outside(T.pos))) return false;
+    const shooter = ["musket", "bow", "crossbow"].includes(this.lo.long);
+    if (shooter && this.los && this.loaded.long && !(O && O.charge)) return false;
+    const go = (x, z, sp = 3.6) => { if (!a.path.length || this.stepT <= 0) { this.stepT = 1; a.walkTo(x, z, sp); } };
+    const way = A.openWay(a.pos);
+    if (way) {
+      // (through the breach: up the rubble and in)
+      if (Math.hypot(a.pos.x - way.out.x, a.pos.z - way.out.z) > 2.2 && A.outside(a.pos)) { if (!a.path.length || this.stepT <= 0) { this.stepT = 1.2; a.walk([[way.out.x + (Math.random() - 0.5) * 2, way.out.z + (Math.random() - 0.5) * 3], [way.inn.x, way.inn.z + (Math.random() - 0.5) * 3]], this.mounted ? 4.2 : 3.6); } }
+      else go(way.inn.x, way.inn.z + (Math.random() - 0.5) * 3, 3.4);
+      return true;
+    }
+    if (this.mounted) return false;   // (horse can't climb a ladder: they wait for a way in)
+    // the gate: the axemen and the grenadiers, and a share of the rest, at its doors
+    const gb = A.field && A.field.breaks.find(b => b.gate && !b.down);
+    const W = S.wall, idx = this.info.idx || 0;
+    if (gb && (this.steel() === "battleaxe" || this.info.kind === "grenadier" || idx % 4 === 0 || !S.ladders.length)) {
+      const gx = gb.x - W.ux * 1.4, gz = gb.z + ((idx % 5) - 2) * 0.9;
+      if (Math.hypot(a.pos.x - gx, a.pos.z - gz) > 1.2) { go(gx, gz, 3.6); return true; }
+      a.path = []; a.faceTo(gb.x, gz);
+      if ((this.hackT = (this.hackT || 0) - dt) <= 0) { this.hackT = 0.9 + Math.random() * 0.5; a.person.setPose("chop"); FOLEY.chop && FOLEY.chop({ x: gb.x, z: gb.z }, 0.5); }
+      return true;
+    }
+    if (!S.ladders.length) return false;
+    // his ladder: by his place in the company, spread along the wall
+    const L = this.ladder && S.ladders.includes(this.ladder) ? this.ladder : (this.ladder = S.ladders[(idx * 7 + this.team * 3) % S.ladders.length]);
+    if (Math.hypot(a.pos.x - L.out.x, a.pos.z - L.out.z) > 1.6) { go(L.out.x - W.ux * Math.random() * 1.2, L.out.z + (Math.random() - 0.5) * 1.4, 3.8); return true; }
+    a.path = []; a.faceTo(L.top.x, L.top.z);
+    if (!L.up && !(L.fallT > 0)) { L.raiseT = (L.raiseT || 0) + dt; a.person.setPose("reach"); if (L.raiseT > 1.4) A.plantLadder(L); return true; }
+    if (L.up && L.raise >= 1 && !(L.fallT > 0) && !(L.busy > 0)) { this.climb = { L, t: 0 }; L.busy = 1.1; a.person.setPose("reach"); AUDIO.voice && Math.random() < 0.5 && AUDIO.voice("war", { at: a.pos, vol: 0.6, high: isF(this.info.look) }); }
+    return true;
+  }
+  // up the ladder, hand over hand, over the parapet and down onto the walk
+  climbTick(dt) {
+    const c = this.climb, L = c.L, a = this.a, w = this.arena.w;
+    if (!L.up || L.fallT > 0) { this.fall(); return; }
+    c.t = Math.min(1, c.t + dt / 2.8);
+    let x, z, y;
+    if (c.t < 0.82) { const k = c.t / 0.82; x = L.out.x + (L.top.x - L.out.x) * k; z = L.out.z + (L.top.z - L.out.z) * k; y = L.footY + (L.topY + 0.35 - L.footY) * k; }
+    else { const k = (c.t - 0.82) / 0.18, gy = w.heightAt(L.inn.x, L.inn.z); x = L.top.x + (L.inn.x - L.top.x) * k; z = L.top.z + (L.inn.z - L.top.z) * k; y = L.topY + 0.35 + (gy - L.topY - 0.35) * k; }
+    a.path = []; a.pos.x = x; a.pos.z = z; a.yOff = y - w.heightAt(x, z);
+    if (Math.floor(c.t * 9) !== Math.floor((c.t - dt / 2.8) * 9)) FOLEY.ladder && Math.hypot(G.player.pos.x - x, G.player.pos.z - z) < 25 && FOLEY.ladder(0.25);
+    if (c.t >= 1) { this.climb = null; a.yOff = 0; a.place(L.inn.x + (Math.random() - 0.5), L.inn.z + (Math.random() - 0.5), a.yaw); a.person.setPose("guard"); }
+  }
+  // thrown off it: the ladder pushed down, or a ball as he climbed — down to the foot of the wall, hurt
+  fall() {
+    const c = this.climb; if (!c) return; this.climb = null;
+    const L = c.L, a = this.a, high = c.t; a.yOff = 0;
+    a.place(L.out.x - this.arena.siege.wall.ux * (1 + Math.random() * 1.5), L.out.z + (Math.random() - 0.5) * 2, a.yaw);
+    AUDIO.voice && AUDIO.voice("pain", { at: a.pos, vol: 0.8, high: isF(this.info.look) });
+    if (high > 0.25) this.damage(18 + high * 45, false, false, null);
+  }
   // whom he's fighting: the man his officer named, or the nearest of the other side he can see (or just the nearest)
   pick() {
     const O = this.arena.orderOf && this.arena.orderOf(this), foes = this.arena.enemiesOf(this.team);
@@ -2531,6 +2652,8 @@ class Bot extends Fighter {
       }
       return;
     }
+    // (the assault: the way in first, then the fight)
+    if (this.storm(dt, T, O)) return;
     const longK = this.lo.long, haveLong = longK !== "none" && this.loaded.long && (longK === "musket" || this.ammo > 0), haveSide = this.loaded.side;
     // (you reloading, close by: his moment to come at you with steel)
     const youReloading = T.isPlayer && ((pl.gun && !pl.gunLoaded) || (pl.xbow && pl.xspan < 1)) && d < 14;

@@ -48,6 +48,9 @@ export function shapeField(w, C, b, flip) {
     let y = h + (base - h) * k;
     // (a walled town's rampart: the earth piled behind its wall, the walk along its top, a slope down inside — cut
     //  through at the gate)
+    // (inside a walled town: the ground graded level, as a town's was — no hills under its streets and houses; it
+    //  meets the country again past its flank walls and its far end)
+    if (TW) { const uu = TW.d * u, P = TW.L, av = Math.abs(v); const kin = ss((uu - P.wallU + 2) / 4) * (1 - ss((uu - 132) / 10)) * (1 - ss((av - P.W - 7) / 8)); if (kin > 0) y += (Hb + ramp(TW.d * (P.wallU + 40)) - y) * kin; }
     if (TW) { const uu = TW.d * u, P = TW.L, av = Math.abs(v); if (av < P.W + 6 && uu > P.wallU - 1.5 && uu < P.inner + 1) {
       const rise = uu < P.wallU ? ss((uu - P.wallU + 1.5) / 1.5) : uu < P.wallU + P.top ? 1 : 1 - ss((uu - P.wallU - P.top) / (P.inner - P.wallU - P.top));
       const cut = av < P.gate + 0.6 ? 0 : av < P.gate + 1.6 ? ss(av - P.gate - 0.6) : 1, ends = 1 - ss((av - P.W - 3) / 3);
@@ -239,13 +242,24 @@ export function buildThings(w, C, b, flip) {
         tgt = rub; { const fp = T(faceU - 2.4, 0); box(M_.door, fp.x - d * 0.6, foot(0) + 0.2, fp.z - 1.4, dh * 0.9, 0.3, gate * 1.05, 0.2); box(M_.door, fp.x + d * 0.3, foot(0) + 0.25, fp.z + 1.6, dh * 0.85, 0.3, gate * 0.95, -0.25); }
         tgt = g; rub.visible = false; g.add(grp, rub);
         const col = solid(dc.x, dc.z, 0.4, gate, 0, foot(0) + dh);
-        if (col) breaks.push({ kind: "gate", hp: 70, max: 70, col, grp, rub, merl: [], x: dc.x, z: dc.z, hw: 1.2, hd: gate + 0.3, top: foot(0) + dh, gate: true }); }
+        if (col) breaks.push({ kind: "gate", hp: 220 * hk, max: 220 * hk, col, grp, rub, merl: [], x: dc.x, z: dc.z, hw: 1.2, hd: gate + 0.3, top: foot(0) + dh, gate: true }); }
       // (its flanks: a plain wall back along either side of the town)
-      for (const sv of [-1, 1]) { const a = T(wallU, sv * (W + 6)), b = T(end + 10, sv * (W + 6)), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2, len = Math.abs(b.x - a.x), y0 = Math.min(y(a.x, a.z), y(b.x, b.z), y(x, z)) - 1.2;
-        box(M_.ashlar, x, y0 + (Hr + 2.5) / 2, z, len, Hr + 2.5, Th); solid(x, z, len / 2, Th / 2, 0, y0 + Hr + 2.5); }
+      // (in lengths of eight metres, each standing on its own ground, with a coping along its top)
+      for (const sv of [-1, 1]) for (let u0 = wallU; u0 < end + 10; u0 += 8) {
+        const u1 = Math.min(end + 10, u0 + 8.05), a = T(u0, sv * (W + 6)), b = T(u1, sv * (W + 6)), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2, len = Math.abs(b.x - a.x);
+        const gs = [y(a.x, a.z), y(b.x, b.z), y(x, z)], y0 = Math.min(...gs) - 1.2, top = Math.max(...gs) + Hr + 1.3;
+        box(M_.ashlar, x, (y0 + top) / 2, z, len, top - y0, Th);
+        box(M_.ashlar2, x, top + 0.12, z, len + 0.02, 0.24, Th + 0.25);
+        solid(x, z, len / 2, Th / 2 + 0.2, 0, top + 0.24); }
       // (for the field: where the defenders stand and their guns go — on the walk, behind the embrasures)
       const ap = T(wallU + 2.4, 0);
       siege = { d: d * sg, anchor: { x: ap.x, z: ap.z }, guns: emb.map(e => T(wallU + 2.6, e)) };
+      // (where the storming parties set their ladders: along the plain lengths of wall, clear of the towers, the gate
+      //  and the gun embrasures — the foot out from the wall, its head on the parapet, and the walk behind it)
+      const lv = []; for (const sv of [-1, 1]) for (const v0 of [gate + 9, L.tower - 7, L.tower + 8, W - 5]) { const v1 = sv * v0; if (towersAt.some(t => Math.abs(t - v1) < 4.6) || emb.some(e => Math.abs(e - v1) < 2.6) || Math.abs(v1) < gate + 5) continue; lv.push(v1); }
+      siege.ladders = lv.map(v1 => { const o = T(faceU - 2.1, v1), tp = T(faceU - 0.2, v1), i = T(wallU + 2.6, v1); return { v: v1, out: { x: o.x, z: o.z }, top: { x: tp.x, z: tp.z }, inn: { x: i.x, z: i.z }, footY: foot(v1), topY: foot(v1) + Hr + 1.25 }; });
+      // (and the line of the wall: which side of it a man is)
+      siege.wall = { ox: C.x, ux: d * sg, faceU, wallU, gateZ: T(faceU, 0).z };
     },
     // a windmill, on its post
     mill(u, v) {

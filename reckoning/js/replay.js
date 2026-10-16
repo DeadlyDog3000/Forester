@@ -779,7 +779,7 @@ export class Theatre {
         <span class="th-dur"></span>
         <span class="th-grp th-speed">${[0.25, 0.5, 1, 2, 4].map(s => `<button data-speed="${s}">${s < 1 ? (s === 0.25 ? "¼" : "½") : s}×</button>`).join("")}</span>
         <span class="th-grp th-cams">${[["auto", "Director"], ["you", "You"], ["top", "Above"], ["free", "Free"]].map(([k, n]) => `<button data-cam="${k}" title="${n} (${["auto", "you", "top", "free"].indexOf(k) + 1})">${n}</button>`).join("")}</span>
-        <button data-a="reel" class="th-b th-reel">Highlights</button>
+        <button data-a="reel" class="th-b th-reel" style="display:none">Highlights</button>
         <button data-a="exit" class="th-b th-exit" title="Leave (Esc)">Leave</button>
       </div>`;
     el.onclick = e => this.click(e);

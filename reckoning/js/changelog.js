@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.46.0", date: "16 October 2026", title: "Escalade",
+    items: [
+      "Storming a walled town: the attackers now make for a way in instead of stopping at the walls. They raise scaling ladders against the wall and climb onto the walk one man at a time, hack at the gate with axes, and pour through any breach. Musketeers keep firing at the walls while they can see a target, unless ordered to charge.",
+      "Defenders at the top of a ladder push it over, throwing down the men on it. You can climb the ladders yourself (hold F at the foot).",
+      "Town gates are much stronger: a few men no longer break one down in seconds.",
+      "The ground inside walled towns is now level, so houses and streets no longer sit on hillsides. The side walls are built in lengths that follow the ground, with a coping along the top.",
+      "Highlight reels removed: no reel after a battle and none behind the menus. You can still watch any battle again in full from Replays.",
+    ],
+  },
+  {
     v: "1.45.1", date: "16 October 2026", title: "The shop opens",
     items: [
       "Forester: Reckoning is on sale: CA$14.99, from the title screen or the game's page. Pay through Stripe's checkout and the game unlocks by itself. Your key works on up to three computers.",
