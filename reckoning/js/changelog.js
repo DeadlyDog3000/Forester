@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.44.3", date: "16 October 2026", title: "Their true faces",
+    items: [
+      "Campaign: the historical generals and governors now have their real portraits, paintings and engravings of their own time: Luxembourg, Vauban, La Reynie, Lorraine, Starhemberg, Türkenlouis, Jabłonowski, Kara Mustafa, Gordon, Golitsyn, Ascheberg, Dahlbergh, Derfflinger, William of Orange, Morosini, Max Emanuel, Thököly and others. All are public domain, from Wikimedia Commons.",
+    ],
+  },
+  {
     v: "1.44.2", date: "15 October 2026", title: "Whole crowns",
     items: [
       "Campaign: when a crown loses its last town, all of its land now goes to whoever took that town. Before, it could keep land with no towns left, for example when a harbour town fell along with the country around a neighbouring town. Saves where this already happened are fixed when you load them: the leftover land goes to you if you were at war with that crown.",

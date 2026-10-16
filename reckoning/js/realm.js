@@ -146,7 +146,7 @@ export const HISTORICAL = {
   transylvania: [{ g: 1, name: "Michael I Apafi", short: "Apafi", port: "apafi", st: [2, 2, 3], d: "Prince of Transylvania, a vassal of the Turk, who prefers his books to war." }],
 };
 // (which historical portraits are on disk: the rest are shown as an engraved name until they are)
-export const HAVE_PORT = new Set([]);
+export const HAVE_PORT = new Set(["abdipasha", "apafi", "ascheberg", "baden", "dahlbergh", "derfflinger", "feversham", "golitsyn", "gordon", "gyldenlove", "jablonowski", "johngeorge", "karamustafa", "katski", "lareynie", "lorraine", "luxembourg", "maxemanuel", "morosini", "muradgiray", "orange", "samoylovych", "starhemberg", "thokoly", "vauban", "victoramadeus"]);
 
 // ---- new men: names by tongue, and their portraits by the look of their people ----
 const NAMES = {
