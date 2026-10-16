@@ -7,6 +7,24 @@
 
 export const CHANGELOG = [
   {
+    v: "1.44.0", date: "15 October 2026", title: "Generals, governors and learning",
+    items: [
+      "Campaign: a turn is now a year. The top of the map shows the year, and End the year moves it on.",
+      "Campaign: build up your towns a level at a time, in chains: the land (peasant farms to great estates), trade (a market hall to an exchange), industry (workshops to ironworks), barracks, a gun foundry, learning (a school to a university) and defences (stone walls to a star fort). Each town takes one piece of work a year, finished at the year's end. You can stop it and get your money back. Bigger towns can build higher.",
+      "Campaign: learning. Open Learning at the top of the map: four branches of a tree (agriculture, commerce and industry, war, philosophy) with sixteen things to study, from crop rotation and banking to the socket bayonet, gun founding, the trace italienne and the Enlightenment. They unlock the higher buildings and bring bonuses. Schools, colleges and universities speed it up.",
+      "Campaign: generals and governors. You start with the real men of 1683: Luxembourg leading France's army, Vauban governing Strassburg, Lorraine and Starhemberg for the Emperor, Kara Mustafa for the Sultan, Gordon for the Tsar, and others. Generals have command, morale and corruption. Governors have corruption, production and defence. They serve ten years, or until a battle ends it, and then you choose the next man from three put forward, each with his own painted portrait.",
+      "Campaign: a governor can rule his town for you: tick the box and he puts its works in hand himself each year.",
+      "Campaign: your general's command counts in battles left to the generals, and his morale (with your barracks and the bayonet) in battles you fight yourself. Enemy crowns have generals of their own, shown on their card.",
+      "Campaign: guns are an artillery train now. You start with a few and cast more at a foundry, and they're what you can bring to a battle. Lose a battle and you may lose a gun.",
+      "Campaign: an enemy only lays siege to a walled town if it has guns. Its card says whether it does.",
+      "Campaign: regiments raised now join your army next year.",
+      "Campaign: you can call off a march you've ordered, from the muster, before the battle's fought. The army stays free to march again that year.",
+      "Campaign: star forts take twice the battering of plain stone walls.",
+      "The campaign map is no longer squashed on wide screens.",
+      "No friendly fire anywhere: musket balls, arrows, cannonballs and grenades pass your own side's men by. Yours and theirs.",
+    ],
+  },
+  {
     v: "1.43.0", date: "15 October 2026", title: "Storm the town",
     items: [
       "Campaign battles are fought at the town itself. You start outside and push your way in: past the wall if it has one, into its streets, with the square behind the gate and the main street leading in, houses either side, and the church at the end.",

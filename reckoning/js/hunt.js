@@ -527,7 +527,7 @@ export class Hunt {
             if (b.pos.y >= p.y + 0.1 && b.pos.y <= top && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 0.3) { b.done = true; b.atYou(b.power, b.pos.y > top - 0.28); break; }
           }
           for (const a of this.animals) {
-            if (!a.alive || a === b.npc) continue;
+            if (!a.alive || a === b.npc || (this.friend && this.friend(b.npc, a))) continue;
             if (a.K.upright) {
               const q = a.pos;
               if (b.pos.y >= q.y + 0.1 && b.pos.y <= q.y + 1.85 && Math.hypot(b.pos.x - q.x, b.pos.z - q.z) < a.K.r) { b.done = true; if (!b.npc && !b.atYou) youHit(a, b.pos); a.hit(b.power, b.pos.y > q.y + 1.48); break; }
@@ -618,7 +618,7 @@ export class Hunt {
           }
         }
         for (const a of this.animals) {
-          if (!a.alive || a === ar.npc) continue;
+          if (!a.alive || a === ar.npc || (this.friend && this.friend(ar.npc, a))) continue;
           // a man stands upright: his whole height, feet to head, and a shot to the head counts double
           if (a.K.upright) {
             const p = a.pos, y0 = p.y + 0.2, y1 = p.y + 1.78, yy = clamp(ar.pos.y, y0, y1);

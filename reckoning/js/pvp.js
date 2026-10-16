@@ -890,6 +890,8 @@ class Arena {
     if (HB && ground) this.things = buildThings(w, C, HB, this.hist.side === 1);
     w.huntOpen = true;
     this.hunt = new Hunt(w, { x: C.x, z: C.z, r: 1 }, {});
+    // (no friendly fire: a shot or an arrow goes by your own side's men — yours by your company, theirs by theirs)
+    this.hunt.friend = (src, a) => { const side = x => x.isPlayer ? 0 : x.al ?? (x.team != null ? this.alOf(x.team) : null), ta = side(a); return ta != null && (src ? side(src) : 0) === ta; };
     G.who = isF(me.look) ? "sister" : "brother";
     // (in a battle, your company's colours: on you too)
     this.uni = this.battle ? [UNIFORMS[A.uniform] || UNIFORMS.imperial, UNIFORMS[A.enemyUniform]] : null;
@@ -2151,10 +2153,10 @@ class Arena {
     net.on.dhp = m => { const nf = this.netFoe, was = nf.alive; prevHp && prevHp(m); if (this.host && was && !nf.alive) this.unitDown(nf); };
     if (this.host) {
       net.on.bready = () => { clearTimeout(this.waitT); if (!this.round && G.arena === this) this.beginRound(); };
-      net.on.bhit = m => { const u = this.unitById(m.id); if (u && u.alive && u.damage) u.damage(clamp(+m.dmg || 0, 0, 130), false, !!m.head, this.netFoe.pos); };
+      net.on.bhit = m => { const u = this.unitById(m.id); if (u && u.alive && u.damage && this.alOf(u.team) === 0) u.damage(clamp(+m.dmg || 0, 0, 130), false, !!m.head, this.netFoe.pos); };
       // (the other player's blow on one of the men: as their screen had it — a little behind this one, over the wire,
       //  so a man a step or two further off here than there is still struck)
-      net.on.bstrike = m => { const u = this.unitById(m.id); if (u && u.alive && u.struck && Math.hypot(u.pos.x - this.netFoe.pos.x, u.pos.z - this.netFoe.pos.z) < 5.5) u.struck(clamp(+m.dmg || 0, 0, 30), ["up", "left", "right"].includes(m.dir) ? m.dir : "right", this.netFoe); };
+      net.on.bstrike = m => { const u = this.unitById(m.id); if (u && u.alive && u.struck && this.alOf(u.team) === 0 && Math.hypot(u.pos.x - this.netFoe.pos.x, u.pos.z - this.netFoe.pos.z) < 5.5) u.struck(clamp(+m.dmg || 0, 0, 30), ["up", "left", "right"].includes(m.dir) ? m.dir : "right", this.netFoe); };
       net.on.bparry = m => { const u = this.unitById(m.id); if (u) { u.stun = 1.0; u.cool = Math.max(u.cool || 0, 1.3); u.a.person.flinch && u.a.person.flinch(); } };
       net.on.bord = m => this.remoteOrder(m);
       net.on.bgunlay = m => { const g = this.field.guns[m.i | 0]; if (g && g.side === 1 && g.loaded && m.at) this.field.layAndFire(g, { x: +m.at.x, z: +m.at.z }); };
@@ -2344,7 +2346,7 @@ class Bot extends Fighter {
     this.ammo = AMMO[this.lo.long] || 0;
     this.wind = 0; this.cool = 1; this.stun = 0; this.aimT = 0; this.stepT = 0; this.losT = 0; this.los = true; this.awake = false;
     this.mode = "range"; this.guardT = 0; this.T = null; this.pickT = 0; this.cover = null; this.dodgeT = 0;
-    this.nerve = 1; this.brave = (STEADY[this.info.kind] || 1) * (0.85 + this.s * 0.3); this.routing = false; this.blown = 0; this.quietT = 0;
+    this.nerve = 1; this.brave = (STEADY[this.info.kind] || 1) * (0.85 + this.s * 0.3) * ((this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team] && this.arena.hist.cos[this.team].brave) || 1); this.routing = false; this.blown = 0; this.quietT = 0;
     this.fixed = this.arena.battle && this.steel() === "bayonet"; this.heldK = undefined; this.nades = this.info.nades || 0; this.nadeT = undefined;
     this.hold(this.lo.long); this.a.squareTo = null;
   }

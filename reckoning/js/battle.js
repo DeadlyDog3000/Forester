@@ -318,6 +318,8 @@ export class Field {
     }
     return false;
   }
+  // no friendly fire: a side's shot and its bombs harm only the other side's men (side: the side that fired it)
+  foeTo(u, side) { return side == null || (u.al ?? u.team ?? 0) !== side; }
   // a gun struck: a ball's direct hit wrecks it — the carriage smashed, the barrel down in the dirt; no more firing
   hitGun(g) {
     if (g.dead) return; g.hp = (g.hp ?? 2) - 1; if (g.hp > 0) return;
@@ -701,7 +703,7 @@ export class Field {
     const pl = G.player, dp = Math.hypot(at.x - pl.pos.x, at.z - pl.pos.z); if (dp < 22) shake(Math.max(0.1, 1 - dp / 22) * 0.6);
     const R = 5;
     for (const u of units) {
-      if (!u.alive) continue;
+      if (!u.alive || !this.foeTo(u, n.side)) continue;
       const c = u.pos, dd = Math.hypot(c.x - at.x, c.z - at.z, (c.y + 0.9 - at.y) * 0.6); if (dd > R) continue;
       const shield = this.w.col.lineOfSight && !this.w.col.lineOfSight(new THREE.Vector3(at.x, at.y + 0.25, at.z), new THREE.Vector3(c.x, c.y + 0.9, c.z));
       const dmg = Math.round((dd < 1.2 ? 140 : 95 * Math.pow(1 - dd / R, 1.2) + 12) * (shield ? 0.25 : 1));
@@ -944,7 +946,7 @@ export class Field {
         const from = b.p.clone();
         b.v.y -= 9.8 * h; b.p.addScaledVector(b.v, h); b.t += h;
         if (b.v.length() > 8) for (const u of units) {
-          if (!u.alive || b.hits.has(u)) continue;
+          if (!u.alive || b.hits.has(u) || !this.foeTo(u, b.side)) continue;
           // (a round shot takes a man and goes on through the file behind him, losing little)
           const c = u.pos; if (segDist(from, b.p, new THREE.Vector3(c.x, c.y + 0.9, c.z)) < 1.25) { b.hits.add(u); hit(u, from, b.v.clone()); b.v.multiplyScalar(0.9); cloud(root, new THREE.Vector3(c.x, c.y + 1.1, c.z), b.v.clone().normalize(), { n: 4, colour: 0x7a1a12, life: 1.2, speed: 2, size: 0.5, opacity: 0.45 }); }
         }
@@ -962,7 +964,7 @@ export class Field {
             // (where it strikes: earth, stones and splinters flung about — the men close by cut down or knocked flat)
             // (the man it strikes is killed; the men about him hurt — stones and splinters, not the ball — and the further off,
             //  the less)
-            for (const u of units) { if (!u.alive || b.hits.has(u)) continue; const dd = Math.hypot(u.pos.x - b.p.x, u.pos.z - b.p.z), R = 1.6 * Math.min(1, sp / 60); if (dd < R) { b.hits.add(u); hit(u, b.p.clone(), b.v.clone(), dd < 0.45 ? 400 : Math.round(70 * (1 - dd / R) + 15)); } }
+            for (const u of units) { if (!u.alive || b.hits.has(u) || !this.foeTo(u, b.side)) continue; const dd = Math.hypot(u.pos.x - b.p.x, u.pos.z - b.p.z), R = 1.6 * Math.min(1, sp / 60); if (dd < R) { b.hits.add(u); hit(u, b.p.clone(), b.v.clone(), dd < 0.45 ? 400 : Math.round(70 * (1 - dd / R) + 15)); } }
           }
           // (it grazes and bounds on, low, as round shot does — a ricochet as deadly as the first strike)
           if (sp > 12 && b.bounces < 5) { b.bounces++; b.v.y = Math.abs(b.v.y) * 0.25 + 1.5; b.v.x *= 0.72; b.v.z *= 0.72; }

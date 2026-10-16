@@ -186,7 +186,8 @@ export function buildThings(w, C, b, flip) {
       { const p = T(sq - 8, -10), y0 = y(p.x, p.z); const wl = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 0.9, 12), M_.stone); wl.position.set(p.x, y0 + 0.45, p.z); wl.castShadow = true; g.add(wl); solid(p.x, p.z, 1.1, 1.1, 0, y0 + 0.9); }
       if (!walls) return;
       // ---- the wall: its face a little out from the rampart's foot, the parapet a man's chest over the walk ----
-      const Hr = L.Hr, Th = 1.6, faceU = wallU - Th / 2, gate = L.gate;
+      // (a star fort's low thick bastioned walls: twice the battering to bring down)
+      const Hr = L.Hr, Th = 1.6, faceU = wallU - Th / 2, gate = L.gate, hk = walls >= 2 ? 2 : 1;
       // (the wall's foot: the ground outside it, which the rampart rises from)
       const foot = v => { const p = T(wallU - 2.5, v); return y(p.x, p.z); };
       // a length of it, va to vb: the face from below the ground to the parapet's top, a battered plinth at its foot, a
@@ -205,7 +206,7 @@ export function buildThings(w, C, b, flip) {
         for (let i = 0; i < Math.max(4, len * 2.2); i++) { const p = T(faceU - 1.2 - rr() * 3.5, va + rr() * len), y1 = y(p.x, p.z), sz = 0.35 + rr() * 0.75; const st = new THREE.Mesh(new THREE.DodecahedronGeometry(sz, 0), M_.ashlar); st.position.set(p.x, y1 + sz * 0.25, p.z); st.rotation.set(rr() * 3, rr() * 3, rr() * 3); st.castShadow = st.receiveShadow = true; rub.add(st); }
         tgt = g; rub.visible = false; g.add(grp, rub);
         const col = solid(c.x, c.z, Th / 2 + 0.35, len / 2, 0, top);
-        if (col) breaks.push({ kind, hp: (low ? 90 : 150) * len / 6, max: (low ? 90 : 150) * len / 6, col, grp, rub, merl, x: c.x, z: c.z, hw: Th / 2 + 0.9, hd: len / 2 + 0.2, top });
+        if (col) breaks.push({ kind, hp: (low ? 90 : 150) * hk * len / 6, max: (low ? 90 : 150) * hk * len / 6, col, grp, rub, merl, x: c.x, z: c.z, hw: Th / 2 + 0.9, hd: len / 2 + 0.2, top });
       };
       // a tower: square, out before the wall, a little higher, crenellated
       const tower = v => {
@@ -218,7 +219,7 @@ export function buildThings(w, C, b, flip) {
         tgt = rub; for (let i = 0; i < 16; i++) { const p = T(faceU - 2 - rr() * 6, v + (rr() - 0.5) * 7), y1 = y(p.x, p.z), s2 = 0.4 + rr() * 0.9; const st = new THREE.Mesh(new THREE.DodecahedronGeometry(s2, 0), M_.ashlar); st.position.set(p.x, y1 + s2 * 0.25, p.z); st.rotation.set(rr() * 3, rr() * 3, rr() * 3); st.castShadow = true; rub.add(st); }
         tgt = g; rub.visible = false; g.add(grp, rub);
         const col = solid(c.x, c.z, sz / 2, sz / 2, 0, top);
-        if (col) breaks.push({ kind: "tower", hp: 320, max: 320, col, grp, rub, merl, x: c.x, z: c.z, hw: sz / 2 + 0.5, hd: sz / 2 + 0.5, top });
+        if (col) breaks.push({ kind: "tower", hp: 320 * hk, max: 320 * hk, col, grp, rub, merl, x: c.x, z: c.z, hw: sz / 2 + 0.5, hd: sz / 2 + 0.5, top });
       };
       // ---- along it: the towers, the gate between two of them, embrasures for the guns ----
       const towersAt = [-(W + 3), -L.tower, -(gate + 3.6), gate + 3.6, L.tower, W + 3], emb = L.guns;
