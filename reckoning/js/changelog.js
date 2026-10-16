@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "1.50.0", date: "16 October 2026", title: "The nations of the woods",
+    items: [
+      "Campaign: the Native nations of North America are now nations you can deal with, ally with and go to war with: the Haudenosaunee, Wabanaki, Cherokee, Muscogee, Choctaw, Shawnee, Illinois, Anishinaabe, Dakota and Cree. 1683's alliances are there: the Covenant Chain binds the Haudenosaunee to England, and New France stands with the Anishinaabe, Wabanaki and Illinois. The Beaver Wars are being fought.",
+      "They fight as they did: with the bow, the war club and a few trade muskets, and no artillery or horse. They raise no stone walls and can't besiege a walled town.",
+      "Their towns stand behind wooden palisades. Attack one and you fight at the village: longhouses of elm bark, wigwams, cornfields outside, and the palisade round it all with a way in at the front.",
+      "Palisades burn. Hold the use key at a length of it to set it alight, and in about twenty seconds it burns through to charred stumps, leaving a gap. Your soldiers will fire any length they reach, and guns can batter it too.",
+      "A new soldier: the Woodlands warrior, head shaved but for the scalp lock, with a red roach and an eagle feather, paint across the eyes, breechcloth and leggings of trade stroud, a finger-woven sash, and shot pouch and powder horn. He's also an outfit you can wear in multiplayer.",
+      "Their war leaders and sachems have their own names from the records of the time, and their own portraits, painted after Verelst's portraits of the Haudenosaunee leaders of 1710.",
+      "The borders between the nations now wander instead of running in ruled lines. A town's card says when your army would have to sail to reach it, and what that costs.",
+    ],
+  },
+  {
     v: "1.49.0", date: "16 October 2026", title: "The New World",
     items: [
       "Campaign: the map now runs west over the Atlantic to the Mississippi and south to Havana. North America is shown as it stood in 1683: England's colonies from New England to Carolina, plus Newfoundland and the Hudson's Bay posts; New France on the St Lawrence and Acadia, with Fort Frontenac and Michilimackinac; Spanish Florida, Cuba and New Spain. 24 new towns, from Boston and Québec to La Habana.",

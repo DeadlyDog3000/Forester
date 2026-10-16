@@ -168,25 +168,44 @@ const NAMES = {
 const TONGUE = { france: "fr", savoy: "fr", england: "en", scotland: "en", ireland: "en", castile: "es", aragon: "es", portugal: "es", naples: "it", sicily: "it", milan: "it",
   venice: "it", tuscany: "it", papal: "it", hre: "de", austria: "de", bavaria: "de", saxony: "de", brandenburg: "de", dutch: "nl", sweden: "sv", denmark: "da", poland: "pl",
   russia: "ru", cossacks: "ru", hungary: "hu", transylvania: "hu", moldavia: "ro", wallachia: "ro", ottoman: "tr", crimea: "tr", algiers: "ar", tunis: "ar", tripoli: "ar", morocco: "ar" };
-const LOOK = { fr: "west", en: "west", es: "west", it: "west", de: "west", nl: "west", sv: "north", da: "north", pl: "east", ru: "east", hu: "east", ro: "east", tr: "ottoman", ar: "ottoman" };
+// (the woods' nations: their leaders known by one name, as the French and English records of the time give them)
+const NW_NAMES = {
+  p_iroquois: ["Garakontié", "Otreouti", "Teganissorens", "Sadekanaktie", "Tekarihoga", "Ohonsiowanne", "Aradgi", "Tahajadoris", "Hotreouati", "Skanudharoua"],
+  p_wabanaki: ["Madockawando", "Mogg", "Kancamagus", "Wanalancet", "Assacumbuit", "Taxous", "Moxus"],
+  p_cherokee: ["Moytoy", "Kalanu", "Oukah-Ulah", "Skiagusta", "Tathtowe", "Ostenaco", "Amoscossite"],
+  p_creek: ["Brims", "Chekilli", "Tomochichi", "Ouletta", "Chigelly", "Malatchi", "Hoboyetly"],
+  p_choctaw: ["Taboca", "Alibamon Mingo", "Shulush Homa", "Mingo Ouma", "Tchakta Mingo", "Pakana Mingo"],
+  p_shawnee: ["Opessa", "Kakowatcheky", "Neucheconneh", "Pucksinwah", "Wapatomica", "Kishkalwa"],
+  p_illinois: ["Chicagou", "Mamantouensa", "Rouensa", "Chachagouesse", "Kiraoueria", "Peoria"],
+  p_anishinaabe: ["Kiskakon", "Sinagos", "Onanguissé", "Kinongé", "Outoutagan", "Miscouaky", "Koutaoiliboe"],
+  p_dakota: ["Ouasicoude", "Akipa", "Wabasha", "Shakopee", "Tatankamani", "Ouakantape"],
+  p_cree: ["Mouchouaouastiirinioek", "Kiskatinaw", "Maskwa", "Wapistan", "Atihk", "Kakakiw"],
+};
+const LOOK = { native: "native", fr: "west", en: "west", es: "west", it: "west", de: "west", nl: "west", sv: "north", da: "north", pl: "east", ru: "east", hu: "east", ro: "east", tr: "ottoman", ar: "ottoman" };
 // the portraits painted for new men: how many of each look there are, generals (g) and governors (v)
-export const POOL = { g: { west: 10, north: 4, east: 8, ottoman: 8 }, v: { west: 8, north: 3, east: 6, ottoman: 6 } };
+export const POOL = { g: { west: 10, north: 4, east: 8, ottoman: 8, native: 6 }, v: { west: 8, north: 3, east: 6, ottoman: 6, native: 4 } };
 const TRAITS = {
   g: ["A veteran of the siege of Candia.", "Rose from the ranks.", "A favourite at court.", "Learned his trade under Montecuccoli.", "Bold to the point of rashness.",
     "Careful of his men's lives.", "Gambles away his pay.", "Never retreats.", "An engineer as much as a soldier.", "Loved by the cavalry.", "A hard drinker, a harder fighter.", "Reads Vegetius in camp."],
   v: ["A lawyer by training.", "Rich from the salt trade.", "Builds churches and bridges.", "Hangs bandits at the crossroads.", "Takes a tenth of every contract.",
     "A careful keeper of accounts.", "Popular with the guilds.", "Distrusted by the clergy.", "A former soldier.", "Married into the old nobility.", "Collects books and debts."],
 };
+const TRAITS_NW = {
+  g: ["Led the war parties against the Illinois.", "Speaks for the young men at council.", "Never retreats.", "Careful of his men's lives.", "Bold to the point of rashness.",
+    "Knows every trail between the lakes.", "Trades furs with the French and the English both.", "A hunter before he was a war leader.", "Fights best in the woods, from cover."],
+  v: ["Keeps the wampum of the old treaties.", "Chosen by the clan mothers.", "Speaks well at council.", "Distrusts the traders.", "Generous with the town's stores.",
+    "Remembers every grievance.", "A peacemaker.", "Keeps the corn stores full against a hard winter."],
+};
 let seq = 0;
 const pick = (a, r) => a[Math.floor(r() * a.length)];
 // a man, made up: his name in his crown's tongue, a portrait of his people's look, his stats and a line about him
 export function newMan(crown, role, r = Math.random) {
-  const t = TONGUE[crown] || "de", [first, last] = NAMES[t], look = LOOK[t], kind = role === "general" ? "g" : "v";
-  const name = t === "tr" || t === "ar" ? `${pick(first, r)} ${pick(last, r)}` : `${pick(first, r)} ${pick(last, r)}`;
+  const nw = NW_NAMES[crown], t = nw ? "native" : TONGUE[crown] || "de", [first, last] = nw ? [nw, [""]] : NAMES[t], look = LOOK[t], kind = role === "general" ? "g" : "v";
+  const name = nw ? pick(nw, r) : `${pick(first, r)} ${pick(last, r)}`;
   const n = POOL[kind][look], port = `${kind}-${look}-${String(1 + Math.floor(r() * n)).padStart(2, "0")}`;
   const roll = () => { const x = r() + r() + r(); return Math.max(1, Math.min(5, Math.round(x * 5 / 3 + 0.2))); };
   const st = role === "general" ? [roll(), roll(), Math.max(0, roll() - 1)] : [Math.max(0, roll() - 1), roll(), roll()];
-  return { id: `m${Date.now().toString(36)}${(seq++).toString(36)}`, role, name, short: name.split(" ").slice(-1)[0] === "Pasha" || name.split(" ").slice(-1)[0] === "Bey" ? name : name.split(" ").slice(1).join(" "), port, gen: true, st, d: pick(TRAITS[kind], r), served: 0 };
+  return { id: `m${Date.now().toString(36)}${(seq++).toString(36)}`, role, name, short: nw ? name : name.split(" ").slice(-1)[0] === "Pasha" || name.split(" ").slice(-1)[0] === "Bey" ? name : name.split(" ").slice(1).join(" "), port, gen: true, st, d: pick((nw ? TRAITS_NW : TRAITS)[kind], r), served: 0 };
 }
 // the historical men of a crown, made into characters (governors only of towns it holds)
 export function historicalOf(crown, holds) {

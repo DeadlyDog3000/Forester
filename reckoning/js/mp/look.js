@@ -18,6 +18,7 @@ export const BODIES = [
   { id: "strelets", name: "Strelets", f: false, note: "The Tsar's foot: a long frogged kaftan, a fur-trimmed cap" },
   { id: "haiduk", name: "Haiduk", f: false, note: "The Polish foot: a long coat, a sash, a kolpak" },
   { id: "raider", name: "Rover", f: false, note: "Fur and leather, rough-made for the road" },
+  { id: "warrior", name: "Woodlands warrior", f: false, note: "Breechcloth and leggings of stroud, a woven sash, the roach and a feather" },
   { id: "townswoman", common: true, name: "Burgher's wife", f: true, note: "Bodice, skirt and apron" },
   { id: "sister", common: true, name: "Woodswoman", f: true, note: "A working dress, sleeves rolled" },
   { id: "albers", common: true, name: "Goodwife", f: true, note: "A housewife's dress and apron, a cap to it" },
@@ -28,7 +29,7 @@ export const HAT_STYLES = [
   { id: "hat", name: "The outfit's own" }, { id: "none", name: "None" },
   { id: "townsman", name: "Burgher's hat" }, { id: "brother", name: "Woodsman's hat" }, { id: "magistrate", name: "Gentleman's hat" },
   { id: "jakob", name: "Apprentice's cap" }, { id: "watchman", name: "Watchman's hat" }, { id: "watchman_tricorn", name: "Tricorn" }, { id: "musketeer", name: "Cocked felt hat" }, { id: "janissary", name: "Turban" }, { id: "strelets", name: "Fur-trimmed cap" }, { id: "haiduk", name: "Kolpak" },
-  { id: "raider", name: "Fur hat" }, { id: "townswoman", name: "Bonnet" }, { id: "albers", name: "Goodwife's cap" }, { id: "watchwoman", name: "Watchwoman's hat" },
+  { id: "raider", name: "Fur hat" }, { id: "warrior", name: "Roach and feather" }, { id: "townswoman", name: "Bonnet" }, { id: "albers", name: "Goodwife's cap" }, { id: "watchwoman", name: "Watchwoman's hat" },
 ];
 export const SWATCH = {
   skin: [0xf1d3bc, 0xe2b896, 0xc99a74, 0xa87652, 0x7e5236, 0x5a3a26],

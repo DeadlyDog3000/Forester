@@ -87,6 +87,17 @@ export const NATIONS = {
   tripoli: { name: "Tripolitania", color: "#d8d090", strength: 2 },
   dutch: { name: "Dutch Republic", color: "#f0a860", strength: 3 },
   morocco: { name: "Sultanate of Morocco", color: "#d8a880", strength: 2 },
+  // the nations of the New World's woods (nw): towns behind palisades, no walls of stone and no guns, few muskets
+  p_iroquois: { name: "Haudenosaunee", color: "#c09060", strength: 3, nw: true, people: true },
+  p_wabanaki: { name: "Wabanaki", color: "#8fae74", strength: 1, nw: true, people: true },
+  p_cherokee: { name: "Cherokee", color: "#c8906c", strength: 2, nw: true, people: true },
+  p_creek: { name: "Muscogee", color: "#bca064", strength: 2, nw: true, people: true },
+  p_choctaw: { name: "Choctaw", color: "#a8a070", strength: 2, nw: true, people: true },
+  p_shawnee: { name: "Shawnee", color: "#a4b070", strength: 1, nw: true, people: true },
+  p_illinois: { name: "Illinois", color: "#c4a478", strength: 2, nw: true, people: true },
+  p_anishinaabe: { name: "Anishinaabe", color: "#8ca884", strength: 2, nw: true, people: true },
+  p_dakota: { name: "Dakota", color: "#c0a070", strength: 2, nw: true, people: true },
+  p_cree: { name: "Cree", color: "#94a88c", strength: 1, nw: true, people: true },
 };
 export const NATION_FAITH = {
   scotland: "reformed", england: "reformed", ireland: "catholic", france: "catholic", castile: "catholic", aragon: "catholic", portugal: "catholic", hre: "catholic",
@@ -94,16 +105,17 @@ export const NATION_FAITH = {
   papal: "catholic", naples: "catholic", sicily: "catholic", sweden: "lutheran", denmark: "lutheran", poland: "catholic", russia: "orthodox", cossacks: "orthodox", crimea: "muslim",
   hungary: "catholic", transylvania: "reformed", moldavia: "orthodox", wallachia: "orthodox", ottoman: "muslim", algiers: "muslim", tunis: "muslim", tripoli: "muslim",
   dutch: "reformed", morocco: "muslim",
+  p_iroquois: "native", p_wabanaki: "native", p_cherokee: "native", p_creek: "native", p_choctaw: "native", p_shawnee: "native", p_illinois: "native", p_anishinaabe: "native", p_dakota: "native", p_cree: "native",
 };
 // who can reach you with a war party: the crowns within a few days' march
 export const NEAR = new Set(["denmark", "sweden", "brandenburg", "hre", "saxony", "poland", "england", "france", "bavaria", "dutch"]);
 
 // a crown's name as a sentence wants it: "the Kingdom of France", "The Ottoman Empire seizes…", "Denmark"
-export const the = id => (/^(Kingdom|Tsardom|Holy|Papal|Swedish|Austrian|Ottoman|Crimean|Cossacks|Dutch|Sultanate)/.test(NATIONS[id].name) ? "the " : "") + NATIONS[id].name;
+export const the = id => (NATIONS[id].people || /^(Kingdom|Tsardom|Holy|Papal|Swedish|Austrian|Ottoman|Crimean|Cossacks|Dutch|Sultanate)/.test(NATIONS[id].name) ? "the " : "") + NATIONS[id].name;
 export const The = id => { const n = the(id); return n[0].toUpperCase() + n.slice(1); };
 // (the Cossacks are many: "the Cossacks seize", not "seizes")
-const seizes = id => id === "cossacks" ? "seize" : "seizes";
-const id2take = id => id === "cossacks" ? "take" : "takes";
+const seizes = id => id === "cossacks" || NATIONS[id].people ? "seize" : "seizes";
+const id2take = id => id === "cossacks" || NATIONS[id].people ? "take" : "takes";
 
 // ---- the sheet: longitude and latitude to the grid, and back ----
 export const llOf = (gx, gy) => [BOUNDS.lon0 + gx / GW * SPAN_X / K, BOUNDS.lat1 - gy / GH * SPAN_Y];
@@ -124,7 +136,7 @@ function baseGrid() {
   return BASE;
 }
 // (not a crown's: the free woods, and the peoples' country)
-export const isFree = id => id === "wilds" || !!PEOPLES[id];
+export const isFree = id => id === "wilds";
 // the people whose country a square is, if any
 export function peopleAt(cv, x, y, E) { const g = buildGrid(E), S = cv.width / GW, id = g[Math.floor(y / S)] && g[Math.floor(y / S)][Math.floor(x / S)]; return id && PEOPLES[id] ? id : null; }
 // the political map as it stands: 1683's, with every conquest since laid over it
@@ -181,7 +193,7 @@ export function strengthOf(E, id) { return Math.max(1, NATIONS[id].strength - (E
 // a day in Europe: wars start, battles are fought and a province changes hands, peace is made; plague and famine
 // come and go; crowns' tempers drift. Returns news — [{title, sub, img}] — worth a card.
 export function europeDay(S, day) {
-  const E = ensureEurope(S), news = [], ids = Object.keys(NATIONS);
+  const E = ensureEurope(S), news = [], ids = Object.keys(NATIONS).filter(id => !NATIONS[id].nw);
   const say = (title, sub, img) => { news.push({ title, sub, img }); E.news.unshift({ day, title, sub }); E.news.length = Math.min(E.news.length, 30); };
   const g = buildGrid(E);
   if (E.wars.length < 3 && Math.random() < 0.1) {
@@ -301,8 +313,8 @@ export const CITIES = [
   ["Québec", -71.21, 46.81, 2], ["Montréal", -73.57, 45.5, 1], ["Trois-Rivières", -72.55, 46.35, 1], ["Port-Royal", -65.52, 44.74, 1], ["Fort Frontenac", -76.48, 44.23, 1],
   ["Plaisance", -53.97, 47.25, 1], ["Michilimackinac", -84.73, 45.86, 1],
   ["La Habana", -82.36, 23.13, 2], ["San Agustín", -81.31, 29.9, 1], ["San Luis de Talimali", -84.32, 30.45, 1],
-  ["Onondaga", -76.1, 42.95, 1], ["Ganondagan", -77.42, 42.96, 1], ["Norridgewock", -69.8, 44.77, 1], ["Chota", -84.15, 35.53, 1], ["Coweta", -85.0, 32.3, 1],
-  ["Kunshak Chito", -88.9, 32.6, 1], ["Kaskaskia", -88.9, 41.3, 1], ["Chillicothe", -82.98, 39.33, 1], ["Mde Wakan", -93.6, 46.2, 1], ["Waswanipi", -76.5, 49.7, 1],
+  ["Onondaga", -76.1, 42.95, 2], ["Ganondagan", -77.42, 42.96, 1], ["Norridgewock", -69.8, 44.77, 1], ["Chota", -84.15, 35.53, 1], ["Coweta", -85.0, 32.3, 1],
+  ["Kunshak Chito", -88.9, 32.6, 1], ["Kaskaskia", -88.9, 41.3, 1], ["Chillicothe", -82.98, 39.33, 1], ["Mde Wakan", -93.6, 46.2, 1], ["Waswanipi", -76.5, 49.7, 1], ["Bawating", -84.35, 46.5, 1], ["Chequamegon", -90.9, 46.6, 1],
 ];
 
 
@@ -346,7 +358,7 @@ function trace(g, id, borders = false) {
     loops.push(chaikin(loop.map(q => [q.x, q.y]), true, 2));
     if (borders) {
       // (a border with a crown — not the sea, not the free woods — drawn by the one of the two that comes first)
-      const isB = q => q.other && ((NATIONS[q.other] && q.other > id) || PEOPLES[q.other]);
+      const isB = q => q.other && q.other !== "wilds" && NATIONS[q.other] && q.other > id;
       let k0 = loop.findIndex(q => !isB(q)); if (k0 < 0) { runs.push(chaikin(loop.map(q => [q.x, q.y]), true, 2)); continue; }
       let cur = [];
       for (let i = 1; i <= loop.length; i++) { const q = loop[(k0 + i) % loop.length]; if (isB(q)) cur.push([q.x, q.y]); else if (cur.length) { if (cur.length > 1) runs.push(chaikin(cur, false, 2)); cur = []; } }
@@ -430,11 +442,11 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
     const { loops } = traceOf(ext, id, false, tkey);
     if (!loops.length) continue;
     const path = new Path2D(); for (const L of loops) addLoop(path, L.map(([x, y]) => [x * S, y * S]));
-    const [R, G, B] = id === "wilds" ? [120, 140, 90] : hexRGB((NATIONS[id] || PEOPLES[id]).color);
+    const [R, G, B] = id === "wilds" ? [120, 140, 90] : hexRGB(NATIONS[id].color);
     c.save(); c.clip(path, "evenodd");
-    c.fillStyle = `rgba(${R},${G},${B},${id === "wilds" ? 0.3 : PEOPLES[id] ? 0.26 : 0.22})`; c.fillRect(0, 0, W, H);
+    c.fillStyle = `rgba(${R},${G},${B},${id === "wilds" ? 0.3 : 0.22})`; c.fillRect(0, 0, W, H);
     c.restore();
-    if (id !== "wilds" && !PEOPLES[id]) { bc.save(); bc.clip(path, "evenodd"); bc.strokeStyle = `rgba(${R},${G},${B},0.85)`; bc.stroke(path); bc.restore(); }
+    if (id !== "wilds") { bc.save(); bc.clip(path, "evenodd"); bc.strokeStyle = `rgba(${R},${G},${B},0.85)`; bc.stroke(path); bc.restore(); }
   }
   c.filter = `blur(${(S * 0.6 * Z).toFixed(1)}px)`; lay(bl); c.filter = "none";
   // borders: dotted, along the rounded line, where one crown meets another (each border once)
@@ -474,7 +486,7 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   c.textAlign = "center";
   for (const [n, lo, la, size, ang = 0] of NAMES) {
     // (a crown conquered to the last town: its name gone from the map with it)
-    const w0 = n.split(/\s/)[0].toLowerCase(), nid = { holy: "hre", papal: "papal", crimean: "crimea", holland: "dutch" }[w0] || w0;
+    const w0 = n.split(/\s/)[0].toLowerCase(), nid = { holy: "hre", papal: "papal", crimean: "crimea", holland: "dutch", haudenosaunee: "p_iroquois", muscogee: "p_creek" }[w0] || (NATIONS["p_" + w0] ? "p_" + w0 : w0);
     if (GONE && GONE[nid]) continue;
     const [x, y] = lonlat(lo, la, S), px = Math.round(S * [3.9, 4.5, 5.3, 6.6, 8][size + 1]);
     c.save(); c.translate(x, y); c.rotate(ang * Math.PI / 180);

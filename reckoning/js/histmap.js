@@ -73,7 +73,7 @@ export function shapeField(w, C, b, flip) {
 // what stood on it: built once the ground is, into the world's own scene (and gone with it)
 export function buildThings(w, C, b, flip) {
   const M = b.map || {}; if (!M.things || !M.things.length) return null;
-  const sg = flip ? -1 : 1, g = new THREE.Group(), cols = [], breaks = []; let tgt = g, siege = null;
+  const sg = flip ? -1 : 1, g = new THREE.Group(), cols = [], breaks = [], palisade = []; let tgt = g, siege = null;
   const at = (u, v) => ({ x: C.x + u * sg, z: C.z + v });
   const y = (x, z) => w.heightAt(x, z);
   const M_ = {
@@ -293,6 +293,71 @@ export function buildThings(w, C, b, flip) {
       const n2 = Math.max(2, Math.min(9, n | 0)), gap = 11;
       for (let i = 0; i < n2; i++) wagon(-((n2 - 1) * gap) / 2 + i * gap + (rr() - 0.5) * 2, Math.PI * (rr() < 0.85 ? 0 : 1) + (rr() - 0.5) * 0.25);
     },
+    // ---- a town of the Eastern Woodlands' nations: its longhouses of elm bark over bent poles, a few round wigwams, the
+    //  cornfields about it, and round it all a palisade of sharpened logs — in lengths of six metres, each of which can
+    //  be battered down or set alight and burnt through. d: the defenders' end of the field; rank: how big a town ----
+    village(d = 1, rank = 1, seed = 1) {
+      let s0 = seed | 0 || 1; const rr = () => (s0 = Math.imul(s0 ^ (s0 >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s0 >>> 0) % 1e6) / 1e6);
+      const T = (uu, v) => at(d * uu, v), bark = mat(0x6e5a44, { surface: "wood" }), bark2 = mat(0x5e4c3a, { surface: "wood" }), log = mat(0x7a6248, { surface: "wood" }), char = mat(0x1e1a16, { surface: "wood" });
+      const corn = mat(0x8a9a48), husk = mat(0xb8a868), mat2 = mat(0x8a7a5a, { surface: "plaster" });
+      const U0 = 16, U1 = 16 + 58 + rank * 8, W = 32 + rank * 6, gate = 2.2;
+      // the longhouses: long, round-roofed, a door at each end, laid along the town
+      const longhouse = (uu, v, L, Wd) => {
+        const p = T(uu, v), y0 = Math.min(y(p.x, p.z - L / 2), y(p.x, p.z + L / 2), y(p.x - Wd / 2, p.z), y(p.x + Wd / 2, p.z)) - 0.2, wallH = 2.3;
+        box(bark, p.x, y0 + wallH / 2, p.z, Wd, wallH, L);
+        const rf = new THREE.Mesh(new THREE.CylinderGeometry(Wd / 2 + 0.15, Wd / 2 + 0.15, L + 0.3, 14, 1, false, 0, Math.PI), bark2);
+        rf.rotation.set(Math.PI / 2, Math.PI / 2, 0); rf.position.set(p.x, y0 + wallH, p.z); rf.castShadow = rf.receiveShadow = true; tgt.add(rf);
+        // (the bark in strips: darker bands across the roof)
+        for (let k = -L / 2 + 2; k < L / 2; k += 3.2) { const st = new THREE.Mesh(new THREE.CylinderGeometry(Wd / 2 + 0.2, Wd / 2 + 0.2, 0.18, 14, 1, true, 0, Math.PI), char); st.rotation.set(Math.PI / 2, Math.PI / 2, 0); st.position.set(p.x, y0 + wallH, p.z + k); tgt.add(st); }
+        for (const e of [-1, 1]) { box(char, p.x, y0 + 0.95, p.z + e * (L / 2 + 0.02), 1.1, 1.9, 0.1); }
+        solid(p.x, p.z, Wd / 2, L / 2, 0, y0 + wallH + Wd / 2);
+      };
+      const wigwam = (uu, v, r) => {
+        const p = T(uu, v), y0 = y(p.x, p.z) - 0.15;
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), rr() < 0.5 ? bark : mat2); m.scale.y = 0.85; m.position.set(p.x, y0, p.z); m.castShadow = m.receiveShadow = true; tgt.add(m);
+        box(char, p.x + r * 0.95, y0 + 0.7, p.z, 0.1, 1.4, 0.9);
+        solid(p.x, p.z, r * 0.8, r * 0.8, 0, y0 + r * 0.85);
+      };
+      // (the houses in two or three rows along the town, lanes between; round houses where there's room)
+      const rows = rank >= 2 ? [-W * 0.55, 0, W * 0.55] : [-W * 0.4, W * 0.4];
+      for (const v0 of rows) { let uu = U0 + 10; while (uu < U1 - 14) { const L = 16 + rr() * 10; if (uu + L > U1 - 6) break; longhouse(uu + L / 2, v0 + (rr() - 0.5) * 3, L, 6 + rr() * 1.2); uu += L + 5 + rr() * 4; } }
+      for (let i = 0; i < 3 + rank * 2; i++) wigwam(U0 + 8 + rr() * (U1 - U0 - 16), (rr() < 0.5 ? -1 : 1) * (W * 0.78 + rr() * 2), 2.2 + rr() * 0.8);
+      // the cornfields outside, beyond the palisade on either side: rows of tall stalks, hilled
+      const stalks = [];
+      for (const sv of [-1, 1]) for (let uu = U0 + 4; uu < U1 - 4; uu += 1.6) for (let v = W + 10; v < W + 34; v += 1.5) if (rr() < 0.85) stalks.push(T(uu + (rr() - 0.5) * 0.5, sv * v + (rr() - 0.5) * 0.4));
+      if (stalks.length) {
+        const sgeo = new THREE.CylinderGeometry(0.025, 0.04, 2.1, 4), lgeo = new THREE.ConeGeometry(0.28, 1.2, 4);
+        const im = new THREE.InstancedMesh(sgeo, corn, stalks.length), il = new THREE.InstancedMesh(lgeo, husk, stalks.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+        stalks.forEach((p, i) => { const yy = y(p.x, p.z); e.set((hsh(p.x, p.z) - 0.5) * 0.15, hsh(p.z, p.x) * 6, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(p.x, yy + 1.05, p.z), q, new THREE.Vector3(1, 0.9 + hsh(p.x, 1) * 0.25, 1)); im.setMatrixAt(i, m4); m4.compose(new THREE.Vector3(p.x, yy + 1.2, p.z), q, new THREE.Vector3(1, 1, 1)); il.setMatrixAt(i, m4); });
+        im.castShadow = il.castShadow = true; g.add(im, il);
+      }
+      // ---- the palisade: a line of logs, sharpened, set in a trench shoulder to shoulder, a little over four metres
+      //  high; round the town, with the way in at the front ----
+      const sgeo = new THREE.CylinderGeometry(0.17, 0.2, 4.0, 6), tgeo = new THREE.ConeGeometry(0.17, 0.5, 6);
+      const length = (a, b, front) => {
+        // a, b: [uu, v] ends of a straight length
+        const n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.36)), grp = new THREE.Group(), rub = new THREE.Group(), pts = [];
+        for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, uu = a[0] + (b[0] - a[0]) * t, v = a[1] + (b[1] - a[1]) * t; pts.push(T(uu + (hsh(uu, v) - 0.5) * 0.08, v)); }
+        const ims = new THREE.InstancedMesh(sgeo, log, n), imt = new THREE.InstancedMesh(tgeo, log, n), imr = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.17, 0.2, 1, 6), char, n), m4 = new THREE.Matrix4(), one = new THREE.Quaternion();
+        let lo = Infinity;
+        pts.forEach((p, i) => { const yy = y(p.x, p.z), hh = 3.8 + hsh(p.x, p.z) * 0.5; lo = Math.min(lo, yy);
+          m4.compose(new THREE.Vector3(p.x, yy + hh / 2 - 0.2, p.z), one, new THREE.Vector3(1, hh / 4, 1)); ims.setMatrixAt(i, m4);
+          m4.compose(new THREE.Vector3(p.x, yy + hh - 0.2 + 0.25, p.z), one, new THREE.Vector3(1, 1, 1)); imt.setMatrixAt(i, m4);
+          const st = 0.3 + hsh(p.z, p.x) * 0.9; m4.compose(new THREE.Vector3(p.x, yy + st / 2 - 0.1, p.z), one, new THREE.Vector3(1, st, 1)); imr.setMatrixAt(i, m4); });
+        ims.castShadow = imt.castShadow = true; grp.add(ims, imt); rub.add(imr); rub.visible = false; g.add(grp, rub);
+        const A = T(a[0], a[1]), Bq = T(b[0], b[1]), x = (A.x + Bq.x) / 2, z = (A.z + Bq.z) / 2, alongV = Math.abs(Bq.z - A.z) > Math.abs(Bq.x - A.x);
+        const hw = alongV ? 0.35 : Math.abs(Bq.x - A.x) / 2, hd = alongV ? Math.abs(Bq.z - A.z) / 2 : 0.35, top = lo + 4.1;
+        const col = solid(x, z, hw, hd, 0, top);
+        if (col) palisade.push({ kind: "palisade", hp: 160, max: 160, col, grp, rub, merl: [], x, z, hw: hw + 0.5, hd: hd + 0.5, top, front, out: alongV ? { x: x + Math.sign(x - T((U0 + U1) / 2, 0).x) * 2.2, z } : { x, z: z + Math.sign(z - C.z || 1) * 2.2 }, pts });
+      };
+      const run = (a, b, front = false) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.round(L / 6)); for (let i = 0; i < n; i++) length([a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n], [a[0] + (b[0] - a[0]) * (i + 1) / n, a[1] + (b[1] - a[1]) * (i + 1) / n], front); };
+      palisade.side = d * sg > 0 ? 1 : 0;
+      run([U0, -W], [U0, -gate], true); run([U0, gate], [U0, W], true);
+      run([U0, W], [U1, W]); run([U1, W], [U1, -W]); run([U1, -W], [U0, -W]);
+      // (a fire in the middle of the town, and racks of hides and fish drying)
+      { const p = T((U0 + U1) / 2, 0), y0 = y(p.x, p.z); for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; box(M_.stone, p.x + Math.cos(a) * 0.9, y0 + 0.1, p.z + Math.sin(a) * 0.9, 0.35, 0.25, 0.35); } }
+      for (let i = 0; i < 4; i++) { const p = T(U0 + 12 + rr() * (U1 - U0 - 24), (rr() - 0.5) * W * 0.3), y0 = y(p.x, p.z); for (const e of [-1, 1]) box(M_.wood, p.x, y0 + 0.9, p.z + e * 1.2, 0.1, 1.8, 0.1); box(M_.wood, p.x, y0 + 1.75, p.z, 0.08, 0.08, 2.5); box(mat(0x9a7a5a), p.x, y0 + 1.3, p.z, 0.05, 0.8, 2.0); }
+    },
     // a windmill, on its post
     mill(u, v) {
       const p = at(u, v), y0 = y(p.x, p.z);
@@ -307,6 +372,7 @@ export function buildThings(w, C, b, flip) {
   for (const [k, ...a] of M.things) {
     if (CLEAR[k]) { const p = at(a[0], a[1]); w.clearScenery(p.x, p.z, CLEAR[k] * (k === "castle" ? a[2] || 1 : 1)); }
     else if (k === "convoy") { const d = a[0] || -1; for (let v = -100; v <= 100; v += 8) { const p = at(d * 12, v); w.clearScenery(p.x, p.z, 8); } }
+    else if (k === "village") { const d = a[0] || 1; for (let uu = 0; uu <= 140; uu += 12) for (let v = -90; v <= 90; v += 12) { const p = at(d * uu, v); w.clearScenery(p.x, p.z, 9); } }
     else if (k === "town") { const d = a[0] || 1; for (let uu = -70; uu <= 95; uu += 12) for (let v = -80; v <= 80; v += 12) { const p = at(d * uu, v); w.clearScenery(p.x, p.z, 9); } }
     else if (k === "city") for (let v = Math.min(a[1], a[2]); v <= Math.max(a[1], a[2]); v += 30) { const p = at(a[0] - 40, v); w.clearScenery(p.x, p.z, 55); }
     else if (k === "tents" || k === "vines") { const p = at((a[0] + a[1]) / 2, (a[2] + a[3]) / 2); w.clearScenery(p.x, p.z, Math.hypot(a[1] - a[0], a[3] - a[2]) / 2 + 6); }
@@ -315,5 +381,5 @@ export function buildThings(w, C, b, flip) {
   w.root.add(g);
   // (a town besieged before the assault: how far its walls are already battered down, 0 to 1 and more)
   const twn = M.things.find(t => t[0] === "town");
-  return { g, cols, breaks, siege, battered: (twn && twn[5]) || 0 };
+  return { g, cols, breaks: [...breaks, ...palisade], palisade, siege, battered: (twn && twn[5]) || 0 };
 }

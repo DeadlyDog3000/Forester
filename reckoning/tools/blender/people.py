@@ -66,6 +66,11 @@ CAST = {
     "townsman": dict(sex="m", age="mid", coat=0x5b4a3a, legs=0x3a3028, hair=0x4a3a2a, skin=0xdcb08a, hat="tricorn"),
     "townswoman": dict(sex="f", age="mid", coat=0x6a5a48, skirt=0x4a4038, apron=0xf0ebe0, hair=0x6a4a30, skin=0xe2b894, hat="bonnet"),
     # the men who come out of the forest: no coat or breeches, but skins and furs and rags, the legs bound in strips
+    # a warrior of the Eastern Woodlands' nations: the head shaved but for the scalp lock, a roach of red-dyed deer hair
+    # and an eagle feather over it; bare to the waist, paint across the eyes; a breechcloth of trade stroud, leggings
+    # to the hip gartered under the knee, moccasins; a finger-woven sash, silver armbands, and a strap over the shoulder
+    # with the shot pouch and powder horn
+    "warrior": dict(sex="m", age="mid", coat=0x8a2a1e, legs=0x2e3a5a, hair=0x141010, skin=0xa8704a, hat="roach", hatColor=0x9a2a1a, sash=0xc8a050, native=True),
     "raider": dict(sex="m", age="mid", coat=0x4a3424, legs=0x3a3226, hair=0x4a3624, beard=0x4a3624, skin=0xc8946c, hat="furhat", hatColor=0x5a4632, wild=True, longHair=True),
 }
 
@@ -275,6 +280,10 @@ def build_person(key):
     if o.get("sash"): mat("sash", rgb(o["sash"]))
     soldier = o.get("soldier", False)
     east = o.get("east")
+    native = o.get("native", False)
+    if native:
+        mat("horn", rgb(0xd8c8a0), 0.5)
+        mat("feather", rgb(0xf0ece2), 0.8)
     if o.get("hat") in ("shapka", "kolpak") and "fur" not in M: mat("fur", rgb(0x4a3a2a), 1.0)
     if o.get("hat") == "turban": mat("cap", rgb(0x8a1a14), 0.85)       # (the red kavuk the turban is wound round)
     if soldier:
@@ -381,7 +390,10 @@ def build_person(key):
         ax = abs(x)
         arm = ax > sh - 0.02 and z > 0.78 and z < 1.5
         col = WHITE
-        if z < 0.13:
+        if native:
+            # bare from the waist up; the breechcloth at the loins, the leggings below it, moccasins
+            m = "leather" if z < 0.1 else "skin" if (arm or z > 0.95) else "coat" if (z > 0.84 and ax < 0.11) else "legs"
+        elif z < 0.13:
             m = "leather"                                   # shoes
         elif arm and (z < 0.9 or (z < 0.945 and not f and not wild)):
             m = "skin"                                      # hands, and the wrist below a short shirt frill
@@ -476,6 +488,8 @@ def build_person(key):
     # combed in fine ridges from the crown ----
     if f:
         HL = [(0, 0.52), (0.8, 0.46), (1.2, 0.12), (1.6, -0.12), (2.2, -0.4), (PI, -0.5)]
+    elif native:
+        HL = [(0, 1.5), (PI, 1.5)]                       # (shaved: no hairline but the scalp lock's, below)
     elif wild:
         HL = [(0, 0.46), (0.8, 0.44), (1.1, 0.15), (1.35, -0.25), (1.62, 0.0), (2.0, -0.45), (PI, -0.65)]
     else:
@@ -566,8 +580,13 @@ def build_person(key):
         phi = math.atan2(X, -Y)
         mh = smooth((Z - piecewise(HL, abs(phi)) + 0.02) / 0.11)
         c = mix(c, tint(hair, (0.62, 0.62, 0.62)), mh)
+        if native:
+            # paint: a band of vermilion across the eyes and the brow, black from the cheekbone to the jaw on one side
+            band = smooth((0.3 - Z) / 0.06) * smooth((Z + 0.12) / 0.06) * fr
+            c = mix(c, rgb(0x9a1e14), 0.85 * band)
+            c = mix(c, rgb(0x1a1412), 0.8 * smooth((X - 0.3) / 0.08) * smooth((-0.16 - Z) / 0.05) * smooth((Z + 0.75) / 0.08) * fr)
         # a shadow of beard on the shaven
-        if not f and not o.get("beard") and not young:
+        if not f and not o.get("beard") and not young and not native:
             c = mix(c, tint(skin, (0.78, 0.78, 0.8)), 0.35 * smooth((-Z - 0.35) / 0.25) * smooth(fr / 0.3) * (1 - gauss(X, 0.25) * gauss(Z + 0.5, 0.1)))
         return c
     paint_verts(hb, hcol)
@@ -666,7 +685,13 @@ def build_person(key):
         paint_verts(b, lambda v: col(*uv[v]))
         return b
     vol = 0.007 if young else 0.008
-    b = hair_shell(RX, RY, RZ, 40, 28, lambda X, Y, Z, phi: smooth((Z - piecewise(HL, abs(phi)) - 0.1) / 0.09),
+    # (shaved but for a patch at the crown, where the scalp lock grows: a braid of it hanging down the back)
+    hmask = (lambda X, Y, Z, phi: smooth((Z - 0.62) / 0.08) * smooth((0.28 - abs(X)) / 0.08)) if native else (lambda X, Y, Z, phi: smooth((Z - piecewise(HL, abs(phi)) - 0.1) / 0.09))
+    if native:
+        for i in range(9):
+            t = i / 8
+            P.sphere("hair", WHITE, (0, hc.y + RY * (0.55 + 0.5 * t), hc.z + RZ * (0.75 - 1.6 * t)), (0.012 - 0.004 * t, 0.012 - 0.004 * t, 0.018), segs=8, rings=5)
+    b = hair_shell(RX, RY, RZ, 40, 28, hmask,
                    lambda X, Y, Z: vol + 0.007 * smooth(Z + 0.2), 0.0024,
                    lambda r_, m_, Z: tint(hcol_, (0.7 + 110 * r_, 0.7 + 110 * r_, 0.7 + 110 * r_)),
                    (lambda X, Y, Z, phi: 0.004 * gauss(phi, 0.07) * smooth((Z - 0.3) / 0.2)) if f else None)
@@ -736,7 +761,48 @@ def build_person(key):
                 row.append(clear(p, off))
             rows.append(row)
         return rows
-    if not f and not wild:
+    if native:
+        # the breechcloth: a length of stroud passed between the legs and over the belt, its flaps hanging before and
+        # behind, a white selvage at their hems
+        for a0, a1, z1 in ((-0.42, 0.42, 0.6), (PI - 0.48, PI + 0.48, 0.64)):
+            rows = skirt_rows(0.95, z1, 7, a0, a1, 10, lambda t: (0.17 + 0.03 * t, 0.13 + 0.03 * t), lambda t, a: 0.004 * t * math.sin(a * 9), 0.012)
+            sheet(P, "coat", rows, thick=0.006, col=lambda i, j: (0.72, 0.72, 0.72, 1) if i == len(rows) - 1 else WHITE)
+        # the belt it hangs from, a thong; the sash over it, knotted at the left hip, its fringed ends hanging
+        P.cyl("leather", WHITE, (0, 0, 0.93), (0, 0, 0.95), 0.168, 0.166, segs=24)
+        rows = [[hug((math.sin(j / 40 * 2 * PI) * 0.3, -math.cos(j / 40 * 2 * PI) * 0.3, z), 0.016) for j in range(40)] for z in (1.04, 1.0, 0.965)]
+        sheet(P, "sash", rows, thick=0.006, closed=True)
+        k0 = hug((0.15, -0.12, 0.99), 0.03)
+        P.sphere("sash", WHITE, k0, (0.03, 0.022, 0.03), segs=10, rings=6)
+        for dx, ln in ((0.0, 0.3), (0.035, 0.26)):
+            P.box("sash", WHITE, k0 + Vector((dx, 0.0, -ln / 2 - 0.02)), (0.035, 0.008, ln), (0.05, 0, 0.1))
+        # the leggings' flaps down the outside of each leg, and the garters under the knee
+        for sd in (-1, 1):
+            kx = sd * (hp + 0.06)
+            P.box("legs", WHITE, (kx, 0.0, 0.5), (0.008, 0.07, 0.62))
+            P.cyl("sash", WHITE, (sd * (hp + 0.005), -0.015, 0.43), (sd * (hp + 0.005), -0.015, 0.455), 0.06, 0.06, segs=14)
+        # moccasins: soft, the cuff turned down round the ankle
+        for sd in (-1, 1):
+            fx = sd * (hp + 0.01)
+            P.box("leather", WHITE, (fx, -0.03, 0.03), (0.06, 0.2, 0.05))
+            P.cyl("leather", WHITE, (fx, 0.015, 0.09), (fx, 0.015, 0.13), 0.06, 0.055, segs=12)
+        # silver bands on the upper arms and wrists
+        for sd in (-1, 1):
+            for zz, r in ((1.27, 0.06), (0.95, 0.042)):
+                P.cyl("metal", WHITE, (sd * (sh + 0.035), 0.01, zz), (sd * (sh + 0.035), 0.01, zz + 0.025), r, r, segs=14, caps=False)
+        # the strap over the left shoulder to the right hip: the shot pouch at its foot, the powder horn beside it
+        hip_, sho_ = Vector((-0.16, 0, 0.98)), Vector((0.1, 0, 1.5))
+        u = sho_ - hip_; half = u.length / 2; u.normalize(); c = (sho_ + hip_) / 2
+        yv = Vector((0, 1, 0)); nrm = u.cross(yv).normalized()
+        mid = [hug(c + u * half * math.cos(j / 48 * 2 * PI) + yv * 0.2 * math.sin(j / 48 * 2 * PI), 0.014) for j in range(48)]
+        sheet(P, "leather", [[p + nrm * w for p in mid] for w in (0.014, -0.014)], thick=0.004, closed=True)
+        P.box("leather", WHITE, hug(hip_ + Vector((0.0, 0.06, -0.04)), 0.04), (0.11, 0.03, 0.12))
+        fl = hug(hip_ + Vector((-0.02, -0.08, -0.02)), 0.04)
+        P.cyl("horn", WHITE, fl + Vector((0.07, 0, 0.03)), fl - Vector((0.08, 0, 0.04)), 0.03, 0.008, segs=10)
+        # a necklace of shell beads
+        for i in range(16):
+            a = -1.1 + 2.2 * i / 15
+            P.sphere("feather", WHITE, hug((math.sin(a) * 0.12, -0.3, 1.43 - 0.1 * math.cos(a * 0.9)), 0.012), (0.009, 0.006, 0.009), segs=6, rings=4)
+    elif not f and not wild:
         # collar and cravat
         P.cyl("linen", WHITE, (0, hy, 1.46), (0, hy, 1.52), 0.066, 0.056, segs=16)
         if o.get("bands"):
@@ -1054,6 +1120,25 @@ def build_person(key):
         if hat == "kolpak":
             P.sphere("metal", WHITE, (0, hy - 0.128, top - 0.02), (0.014, 0.008, 0.016), segs=8, rings=5)
             P.box("linen", WHITE, (0.0, hy - 0.124, top + 0.05), (0.008, 0.006, 0.11), (0.25, 0, 0))   # (a white plume up the front)
+    elif hat == "roach":
+        # the roach: a crest of stiff deer hair, dyed red, from the crown back along the scalp lock, on a bone spreader
+        # with an eagle feather standing up from it, its tip dark
+        for i in range(26):
+            t = i / 25
+            ang = -0.25 + 1.5 * t                                 # (from the top of the head back over the crown)
+            base = hc + Vector((0, math.sin(ang) * RY * 0.98, math.cos(ang) * RZ * 0.98))
+            out = Vector((0, math.sin(ang), math.cos(ang)))
+            for sd in (-1, 1):
+                tip = base + out * 0.07 + Vector((sd * 0.035, 0.02, 0))
+                P.cyl("hat", WHITE, base + Vector((sd * 0.006, 0, 0)), tip, 0.006, 0.002, segs=4, caps=False)
+            P.cyl("hat", WHITE, base, base + out * 0.085 + Vector((0, 0.025, 0)), 0.007, 0.002, segs=4, caps=False)
+        fb = hc + Vector((0, RY * 0.35, RZ * 0.98))
+        P.cyl("feather", WHITE, fb, fb + Vector((0.01, 0.05, 0.2)), 0.004, 0.003, segs=5)
+        b = newbm()
+        bmesh.ops.create_uvsphere(b, u_segments=8, v_segments=6, radius=1)
+        paint_verts(b, lambda v: (0.15, 0.12, 0.1, 1) if v.co.z > 0.55 else WHITE)
+        bmesh.ops.transform(b, verts=b.verts, matrix=Matrix.LocRotScale(fb + Vector((0.005, 0.03, 0.12)), Euler((-0.25, 0, 0)), Vector((0.004, 0.02, 0.1))))
+        merge(b, "feather")
     elif hat == "furhat":
         # a shapeless cap of fur, pulled down to the brows
         b = hair_shell(RX, RY, RZ, 32, 22, lambda X, Y, Z, phi: smooth((Z - piecewise([(0, 0.5), (1.2, 0.3), (1.6, 0.0), (PI, -0.25)], abs(phi))) / 0.05),

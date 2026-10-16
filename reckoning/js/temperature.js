@@ -15,7 +15,7 @@ import { THREE, FLAMES, SNOW } from "./core.js";
 const CLOTHES = {
   raider: [10, 9],       // fur and leather
   magistrate: [7, 6],    // the long coat
-  townsman: [6, 5], watchman: [6, 5], musketeer: [6, 5], janissary: [7, 5], strelets: [8, 6], haiduk: [7, 5], brother: [6, 4], watchwoman: [5, 4],
+  townsman: [6, 5], watchman: [6, 5], musketeer: [6, 5], janissary: [7, 5], strelets: [8, 6], haiduk: [7, 5], warrior: [3, 2], brother: [6, 4], watchwoman: [5, 4],
   jakob: [4, 3],         // a short coat
   townswoman: [3, 1], albers: [3, 1],
   father: [2, 0],        // shirtsleeves and a waistcoat

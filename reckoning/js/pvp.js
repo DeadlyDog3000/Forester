@@ -8,7 +8,7 @@
 // the story's own fighting: the musket that wants loading, the bow drawn, the crossbow spanned, the guard to the side
 // the blow is coming from and the parry just as it comes.
 
-import { THREE, camera } from "./core.js";
+import { THREE, camera, makeFlame } from "./core.js";
 import { G, Actor, setWorld, setAtmo } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -962,8 +962,12 @@ class Arena {
       const camps = this.custom && this.custom.length > 2 ? this.cos.map((c, i) => ({ side: c.al, co: i, x: c.x, z: c.z, guns: c.guns })) : null;
       // (a walled town: its defenders on the walk behind the parapet, their guns in its embrasures)
       const TS = this.things && this.things.siege, siege = TS && !this.remote ? { side: TS.d > 0 ? 1 : 0, guns: TS.guns, anchor: TS.anchor, ladders: (TS.ladders || []).map(L => ({ ...L })), wall: TS.wall } : null;
+      w.woods = this.things && this.things.palisade && this.things.palisade.length ? this.things.palisade.side : null;
       this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost, camps, siege);
       this.siege = siege; if (this.things && this.things.breaks) this.field.breaks = this.things.breaks;
+      // (a town of the woods' nations: its palisade, a length at a time to be burnt through or battered down)
+      this.palisade = this.things && this.things.palisade && this.things.palisade.length && !this.remote ? this.things.palisade : null;
+      if (this.palisade) this.palisadeSetup();
       // (besieged a year or more before this: the walls as the guns left them, breaches already open)
       if (this.things && this.things.battered) { const n = this.field.preBatter(this.things.battered); this.breachedAtStart = n; }
       this.field.onBreach = b => { if (G.arena === this) UI.hint(b.gate ? "The gate's down!" : b.kind === "tower" ? "A tower's down — a breach!" : "A breach in the wall!", 3); };
@@ -1368,10 +1372,64 @@ class Arena {
       }
     }
   }
+  // ---- a palisade: each length of it can be set alight from outside — by you (hold the use key at it) or by the men
+  //  of the attacking side who come up to it — and burns through in twenty seconds or so, the logs going down to
+  //  charred stumps and leaving a way in. The defenders inside can't put it out once it's well alight ----
+  palisadeSetup() {
+    const P = this.palisade;
+    this.torchT = 6;
+    for (const b of P) {
+      if (!this.w.addInteract || !b.out) continue;
+      b.it = this.w.addInteract({ x: b.out.x, y: this.w.heightAt(b.out.x, b.out.z) + 1.2, z: b.out.z, reach: 3.2, hold: 1.4, anim: "reach",
+        can: () => this.live && this.you.alive && !b.down && !b.fire && this.alOf(0) !== P.side,
+        label: "Set the palisade alight", use: () => this.torch(b, true) });
+    }
+  }
+  torch(b, mine = false) {
+    if (b.fire || b.down || !this.field) return;
+    b.fire = { t: 0, fl: [], puff: 0 };
+    const n = Math.max(2, Math.min(4, Math.round(b.pts.length / 6)));
+    for (let i = 0; i < n; i++) {
+      const p = b.pts[Math.floor((i + 0.5) / n * b.pts.length)], fl = makeFlame(1.4, i === 0 ? new THREE.PointLight(0xff8a3a, 9, 24, 1.6) : null);
+      const ox = b.out.x - b.x, oz = b.out.z - b.z, ol = Math.hypot(ox, oz) || 1, fx = p.x + ox / ol * 0.45, fz = p.z + oz / ol * 0.45;
+      fl.position.set(fx, this.w.heightAt(fx, fz) + 0.1, fz); this.field.root.add(fl); (this.field.flames ||= []).push(fl); b.fire.fl.push(fl);
+    }
+    FOLEY.play("fire", { vol: 0.55, at: { x: b.x, z: b.z }, reach: 70 });
+    if (mine) UI.hint("The palisade's alight. Stand clear: it'll burn through in a little while.", 3);
+    else if (Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 60) UI.hint(this.alOf(0) === this.palisade.side ? "They've fired the palisade!" : "Our men have fired the palisade!", 2.5);
+  }
+  palisadeTick(dt) {
+    const P = this.palisade;
+    for (const b of P) {
+      const F = b.fire; if (!F) continue;
+      F.t += dt;
+      // (the fire climbs the logs as it takes: small at their foot, then up the whole height of them)
+      const k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1;
+      for (const fl of F.fl) { fl.scale.setScalar((0.6 + 1.6 * k) * out); fl.position.y = this.w.heightAt(fl.position.x, fl.position.z) + 0.1 + (b.down ? 0 : 1.6 * k); fl.visible = out > 0.02; }
+      if ((F.puff -= dt) <= 0 && out > 0.1) { F.puff = 0.35; const p = b.pts[Math.floor(Math.random() * b.pts.length)]; this.field.smoke(p.x, this.w.heightAt(p.x, p.z) + 3 + 2 * k, p.z); }
+      if (b.down) continue;
+      b.hp -= dt * b.max / 22;
+      if (b.hp < b.max * 0.5 && !b.half) { b.half = true; b.col.y1 -= 1.6; b.top -= 1.6; }
+      if (b.hp <= 0) {
+        b.down = true; F.downAt = F.t; b.grp.visible = false; b.rub.visible = true; b.col.disabled = true;
+        FOLEY.crash && FOLEY.crash(0.55, { x: b.x, z: b.z });
+        if (Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 70) UI.hint("The palisade's burnt through: a way in!", 3);
+      }
+    }
+    // (the attackers' own firebrands: a man of theirs come up against an unburnt length sets it going)
+    if (!this.live || (this.torchT -= dt) > 0) return;
+    this.torchT = 1.2;
+    for (const u of this.units) {
+      if (!u.alive || u.routing || u.al === P.side || u.crewOf || Math.random() > 0.2) continue;
+      const b = P.find(q => !q.down && !q.fire && Math.hypot(u.pos.x - q.out.x, u.pos.z - q.out.z) < 3.6);
+      if (b) { this.torch(b); break; }
+    }
+  }
   // every frame of it: the men, the officer over there, the guns and their shot, your marks on the ground
   updateField(dt) {
     for (const u of this.units) u.tick(dt);
     if (this.siege && this.siege.ladders && this.live) this.ladderTick(dt);
+    if (this.palisade && this.field) this.palisadeTick(dt);
     // (the other player's game: one side gone, and no word from the host within a few seconds — ended here all the same)
     if (this.remote && this.live && !this.ended) {
       const ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0), theirs = this.alliesOf(1).length;
