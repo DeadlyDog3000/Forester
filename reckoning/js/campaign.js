@@ -992,7 +992,7 @@ function paint() {
     const [x, y] = at(ct); if (x < -20 || y < -20 || x > cv.width + 20 || y > cv.height + 20) continue;
     // (your towns, and the other player's, are told by the flag over each — gold-edged for yours; a town of yours an
     //  enemy marches on, and an enemy's within your reach, marked with crossed swords over it)
-    const up = 30 * k;
+    const up = ct[3] <= 1 ? 12 * k : 30 * k;
     if (own2 === C.me) { if (threat.has(ct[0])) swords(x, y - up, 5 * k, "#c0281a"); }
     else if (atWar(own2) && inMarch(ct)) swords(x, y - up, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
   }

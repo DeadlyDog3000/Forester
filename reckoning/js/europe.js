@@ -554,12 +554,13 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
   // (the pictures drawn north to south, so a town further down the sheet stands in front of the one behind it; a
   //  little larger close in)
   const u = k * Math.min(2.3, 1.15 + v.z / (opt.zf || 1) * 0.22);
-  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 10 : ct[3] === 2 ? 8 : 6) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]] }); taken.push([x - hw, y - 13 * u, x + hw, y + 3 * u]); }
+  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 10 : ct[3] === 2 ? 8 : 2.5) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]] }); taken.push(ct[3] <= 1 ? [x - hw, y - hw, x + hw, y + hw] : [x - hw, y - 13 * u, x + hw, y + 3 * u]); }
   for (const [ct, x, y] of at) {
     const [n, , , rank] = ct;
     c.font = rank === 3 ? `${Math.round(k * 15)}px ${FELL}` : `italic ${Math.round(k * (rank === 2 ? 14 : 13))}px ${FELL}`;
-    const w = c.measureText(n).width, h = k * 15, d = u * (rank === 3 ? 11.5 : rank === 2 ? 9.5 : 7.5);
-    const tries = [[x + d, y - 2 * u, "left"], [x - d, y - 2 * u, "right"], [x, y + 3 * u + h * 0.6, "center"], [x, y - 14 * u - h * 0.4, "center"], [x + d * 0.6, y + 3 * u + h * 0.6, "left"], [x + d * 0.6, y - 14 * u - h * 0.4, "left"]];
+    const w = c.measureText(n).width, h = k * 15, d = u * (rank === 3 ? 11.5 : rank === 2 ? 9.5 : 3.5);
+    const up = rank <= 1 ? 3 * u : 14 * u, dn = 3 * u, yy = rank <= 1 ? y : y - 2 * u;
+    const tries = [[x + d, yy, "left"], [x - d, yy, "right"], [x, y + dn + h * 0.6, "center"], [x, y - up - h * 0.4, "center"], [x + d * 0.6, y + dn + h * 0.6, "left"], [x + d * 0.6, y - up - h * 0.4, "left"]];
     for (const [tx, ty, al] of tries) {
       const x0 = al === "left" ? tx : al === "right" ? tx - w : tx - w / 2, b = [x0, ty - h / 2, x0 + w, ty + h / 2];
       if (hit(b)) continue;
@@ -575,6 +576,12 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
 // behind it. Its holder's colours fly over it. (x, y): the place; u: the size of a unit on the screen
 // opt: { mine: your own (the flag gold-edged), walled: walls built round it, grand: a little larger }
 function townGlyph(c, x, y, u, rank, own, opt = {}) {
+  // (a town, no more than that: a dot — the cities and the crowns' seats are drawn as pictures)
+  if (rank <= 1) {
+    c.save(); c.fillStyle = INK; c.beginPath(); c.arc(x, y, 1.5 * u, 0, 7); c.fill();
+    if (opt.mine) { c.strokeStyle = "#b8862a"; c.lineWidth = Math.max(0.8, u * 0.7); c.beginPath(); c.arc(x, y, 2.6 * u, 0, 7); c.stroke(); }
+    c.restore(); return;
+  }
   const woods = own && NATIONS[own] && NATIONS[own].nw, walled = !woods && (opt.walled || rank === 3);
   const lw = Math.max(0.7, u * 0.75), roof = "rgba(150,72,48,0.92)", wall = "#efe4c6", stone = "#d8ccb0";
   c.save(); c.lineJoin = "round"; c.lineCap = "round"; c.strokeStyle = INK; c.lineWidth = lw;
