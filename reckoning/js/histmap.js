@@ -19,6 +19,7 @@
 //   things  what stands on it: [kind, u, v, ...]
 
 import { THREE, mat } from "./core.js";
+import { makeHorse } from "./models.js";
 import { WATER } from "./mp/terrain.js";
 
 const ss = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
@@ -261,6 +262,37 @@ export function buildThings(w, C, b, flip) {
       // (and the line of the wall: which side of it a man is)
       siege.wall = { ox: C.x, ux: d * sg, faceU, wallU, gateZ: T(faceU, 0).z };
     },
+    // ---- a supply train on the road to a siege: the dirt road across the field, the wagons along it — covered carts
+    //  with their canvas tilts on hoops, the casks and the sacks, two draught horses in each one's shafts — and the
+    //  carters' things lying about. d: which side's half it's in; n: how many wagons ----
+    convoy(d = -1, n = 6, seed = 1) {
+      let s0 = seed | 0 || 1; const rr = () => (s0 = Math.imul(s0 ^ (s0 >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s0 >>> 0) % 1e6) / 1e6);
+      const U = d * 12, dirt = mat(0x6e5a40, { surface: "stone" }), rut = mat(0x5a4a34, { surface: "stone" }), canvas = mat(0xd8ceb0, { surface: "plaster" }), plank = mat(0x6a5236, { surface: "wood" }), dark = mat(0x3a2c1e, { surface: "wood" }), cask = mat(0x7a5a38, { surface: "wood" }), sackM = mat(0xb8a882, { surface: "plaster" });
+      // the road: its bed of beaten earth, two ruts worn in it
+      for (let v = -95; v <= 95; v += 3.2) { const p = at(U + Math.sin(v * 0.02) * 3, v); box(dirt, p.x, y(p.x, p.z) + 0.02, p.z, 4.6, 0.06, 3.4); for (const o of [-0.8, 0.8]) box(rut, p.x + o, y(p.x, p.z) + 0.05, p.z, 0.32, 0.04, 3.4); }
+      const wagon = (v, ry) => {
+        const p = at(U + Math.sin(v * 0.02) * 3, v), y0 = y(p.x, p.z), r = ry * sg, c = Math.cos(r), sn = Math.sin(r);
+        const off = (a, b) => ({ x: p.x + a * c + b * sn, z: p.z - a * sn + b * c });
+        // (the bed and its sides; the tilt over it; four wheels, the hind pair bigger)
+        const bed = off(0, 0); box(plank, bed.x, y0 + 1.05, bed.z, 1.5, 0.12, 3.4, r);
+        for (const sx of [-0.72, 0.72]) { const q = off(sx, 0); box(plank, q.x, y0 + 1.35, q.z, 0.08, 0.55, 3.4, r); }
+        const tilt = new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.86, 3.0, 12, 1, true, -Math.PI / 2, Math.PI), canvas);
+        tilt.material.side = THREE.DoubleSide; tilt.rotation.set(-Math.PI / 2, 0, 0); const tg = new THREE.Group(); tg.add(tilt); tg.position.set(bed.x, y0 + 1.6, bed.z); tg.rotation.y = r; tilt.castShadow = true; tgt.add(tg);
+        for (const [a, b, rad] of [[-0.82, 1.15, 0.5], [0.82, 1.15, 0.5], [-0.82, -1.15, 0.62], [0.82, -1.15, 0.62]]) {
+          const q = off(a, b), wh = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, 0.1, 14), dark); wh.position.set(q.x, y0 + rad, q.z); wh.rotation.set(0, r, Math.PI / 2); wh.castShadow = true; tgt.add(wh);
+          const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 8), plank); hub.position.copy(wh.position); hub.rotation.copy(wh.rotation); tgt.add(hub);
+        }
+        // (the shafts, forward to the team)
+        for (const sx of [-0.45, 0.45]) { const q = off(sx, 2.7); box(plank, q.x, y0 + 0.95, q.z, 0.08, 0.08, 2.4, r); }
+        // the team: two draught horses, one before the other, in harness
+        for (const [k, b] of [[0, 3.4], [1, 5.9]]) { const h = makeHorse([0x5a3a22, 0x6a4428, 0x3a2a1e, 0x8a8478][Math.floor(rr() * 4)], Math.floor(rr() * 1000), { draught: true }); const q = off(0, b); h.root.position.set(q.x, y(q.x, q.z), q.z); h.root.rotation.y = r; tgt.add(h.root); solid(q.x, q.z, 0.35, 1.1, r, y(q.x, q.z) + 1.7); }
+        // the load spilling out of the back: casks of powder and biscuit, sacks of flour
+        for (let i = 0; i < 3; i++) { const q = off((rr() - 0.5) * 1.6, -2.2 - rr() * 1.4); if (rr() < 0.5) { const k = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.75, 10), cask); k.position.set(q.x, y(q.x, q.z) + 0.37, q.z); k.castShadow = true; tgt.add(k); } else { const sk = new THREE.Mesh(new THREE.SphereGeometry(0.34, 8, 6), sackM); sk.scale.set(1, 0.7, 1.3); sk.position.set(q.x, y(q.x, q.z) + 0.22, q.z); sk.rotation.y = rr() * 3; sk.castShadow = true; tgt.add(sk); } }
+        solid(bed.x, bed.z, 0.85, 1.9, r, y0 + 2.4);
+      };
+      const n2 = Math.max(2, Math.min(9, n | 0)), gap = 11;
+      for (let i = 0; i < n2; i++) wagon(-((n2 - 1) * gap) / 2 + i * gap + (rr() - 0.5) * 2, Math.PI * (rr() < 0.85 ? 0 : 1) + (rr() - 0.5) * 0.25);
+    },
     // a windmill, on its post
     mill(u, v) {
       const p = at(u, v), y0 = y(p.x, p.z);
@@ -274,6 +306,7 @@ export function buildThings(w, C, b, flip) {
   const CLEAR = { house: 9, church: 16, spire: 30, castle: 34, tent: 6, mill: 7 };
   for (const [k, ...a] of M.things) {
     if (CLEAR[k]) { const p = at(a[0], a[1]); w.clearScenery(p.x, p.z, CLEAR[k] * (k === "castle" ? a[2] || 1 : 1)); }
+    else if (k === "convoy") { const d = a[0] || -1; for (let v = -100; v <= 100; v += 8) { const p = at(d * 12, v); w.clearScenery(p.x, p.z, 8); } }
     else if (k === "town") { const d = a[0] || 1; for (let uu = -70; uu <= 95; uu += 12) for (let v = -80; v <= 80; v += 12) { const p = at(d * uu, v); w.clearScenery(p.x, p.z, 9); } }
     else if (k === "city") for (let v = Math.min(a[1], a[2]); v <= Math.max(a[1], a[2]); v += 30) { const p = at(a[0] - 40, v); w.clearScenery(p.x, p.z, 55); }
     else if (k === "tents" || k === "vines") { const p = at((a[0] + a[1]) / 2, (a[2] + a[3]) / 2); w.clearScenery(p.x, p.z, Math.hypot(a[1] - a[0], a[3] - a[2]) / 2 + 6); }

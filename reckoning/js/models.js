@@ -1899,7 +1899,7 @@ const HSPH = new THREE.SphereGeometry(1, 14, 10), HTAPER = {}, HCONE = new THREE
 const taper = (rt, rb, seg = 10) => HTAPER[rt + "," + rb] ??= new THREE.CylinderGeometry(rt, rb, 1, seg);
 let HORSE_MAT = null;
 const G_T = () => performance.now() / 1000;
-export function makeHorse(coat = 0x6a4428, seed = 1) {
+export function makeHorse(coat = 0x6a4428, seed = 1, { draught = false } = {}) {
   HORSE_MAT ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0 });
   const rr = (() => { let s = (Math.imul(seed + 7, 2654435761) ^ 0x9e3779b9) >>> 0; const f = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; for (let i = 0; i < 4; i++) f(); return f; })();
   const c = new THREE.Color(coat), hide = coat;
@@ -1928,25 +1928,34 @@ export function makeHorse(coat = 0x6a4428, seed = 1) {
     e(body, hide, s * 0.155, 1.15, -0.56, 0.13, 0.3, 0.24, 0.25);   // the thigh
   }
   e(body, dark, 0, 1.38, -0.86, 0.06, 0.07, 0.1);                   // the dock
-  // the cloth, a soldier's shabraque: over the back and down each side, bordered
-  box(body, cloth, 0.36, 0.025, 0.8, 0, 1.53, -0.03);
-  for (const s of [-1, 1]) {
-    box(body, cloth, 0.025, 0.42, 0.8, s * 0.262, 1.33, -0.03, 0, 0, s * 0.2);
-    box(body, trim, 0.03, 0.035, 0.82, s * 0.302, 1.125, -0.03, 0, 0, s * 0.2);
-    // the girth, the stirrup leather and its iron
-    box(body, leather, 0.025, 0.36, 0.06, s * 0.27, 1.06, 0.2, 0, 0, s * 0.25);
-    box(body, leather, 0.018, 0.4, 0.035, s * 0.33, 1.3, 0.06);
-    b_ring(body, iron, s * 0.335, 1.08, 0.06, 0.055);
-    // the pistol holsters, either side of the pommel, under their bearskin caps
-    cyl(body, leather, 0.035, 0.05, 0.3, s * 0.2, 1.48, 0.42, 0.95, 0, s * 0.35);
-    e(body, 0x1a1612, s * 0.22, 1.6, 0.34, 0.06, 0.05, 0.07);
+  if (draught) {
+    // a draught horse's harness: the collar round its neck, the hames on it, the traces back along its sides to the
+    //  cart, the saddle-pad and the breeching over its quarters
+    b_ring(body, leather, 0, 1.34, 0.74, 0.27, 0, 1.25);
+    for (const s of [-1, 1]) { box(body, iron, 0.03, 0.42, 0.04, s * 0.22, 1.34, 0.76, 0, 0, s * 0.15); box(body, leather, 0.03, 0.05, 1.5, s * 0.28, 1.12, -0.1); }
+    box(body, leather, 0.42, 0.06, 0.3, 0, 1.53, 0.12);
+    box(body, leather, 0.62, 0.05, 0.05, 0, 1.18, -0.82);
+  } else {
+    // the cloth, a soldier's shabraque: over the back and down each side, bordered
+    box(body, cloth, 0.36, 0.025, 0.8, 0, 1.53, -0.03);
+    for (const s of [-1, 1]) {
+      box(body, cloth, 0.025, 0.42, 0.8, s * 0.262, 1.33, -0.03, 0, 0, s * 0.2);
+      box(body, trim, 0.03, 0.035, 0.82, s * 0.302, 1.125, -0.03, 0, 0, s * 0.2);
+      // the girth, the stirrup leather and its iron
+      box(body, leather, 0.025, 0.36, 0.06, s * 0.27, 1.06, 0.2, 0, 0, s * 0.25);
+      box(body, leather, 0.018, 0.4, 0.035, s * 0.33, 1.3, 0.06);
+      b_ring(body, iron, s * 0.335, 1.08, 0.06, 0.055);
+      // the pistol holsters, either side of the pommel, under their bearskin caps
+      cyl(body, leather, 0.035, 0.05, 0.3, s * 0.2, 1.48, 0.42, 0.95, 0, s * 0.35);
+      e(body, 0x1a1612, s * 0.22, 1.6, 0.34, 0.06, 0.05, 0.07);
+    }
+    box(body, leather, 0.42, 0.025, 0.06, 0, 0.88, 0.2);              // the girth under the belly
+    // the saddle: the seat, the pommel before it and the cantle behind
+    box(body, leather, 0.32, 0.05, 0.5, 0, 1.565, 0.0);
+    e(body, leather, 0, 1.62, 0.25, 0.12, 0.07, 0.06);
+    e(body, leather, 0, 1.635, -0.25, 0.16, 0.08, 0.05);
+    box(body, leather, 0.44, 0.04, 0.035, 0, 1.24, 0.86, 0, 0, 0);   // the breastplate strap
   }
-  box(body, leather, 0.42, 0.025, 0.06, 0, 0.88, 0.2);              // the girth under the belly
-  // the saddle: the seat, the pommel before it and the cantle behind
-  box(body, leather, 0.32, 0.05, 0.5, 0, 1.565, 0.0);
-  e(body, leather, 0, 1.62, 0.25, 0.12, 0.07, 0.06);
-  e(body, leather, 0, 1.635, -0.25, 0.16, 0.08, 0.05);
-  box(body, leather, 0.44, 0.04, 0.035, 0, 1.24, 0.86, 0, 0, 0);   // the breastplate strap
   bod.add(body.build(HORSE_MAT));
   // ---- the neck and the head ----
   const neck = new THREE.Group(); neck.position.set(0, 1.38, 0.76); neck.rotation.x = -0.75; bod.add(neck);

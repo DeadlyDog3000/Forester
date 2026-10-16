@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.47.0", date: "16 October 2026", title: "Leagues and convoys",
+    items: [
+      "Campaign: Europe starts as it stood in 1683. The Holy League (the Emperor, Poland, Venice and the Pope), the Laxenburg Alliance against France, the Dutch–Swedish Association, France's allies Denmark and Brandenburg, the Sultan and his vassals, and the Spanish crowns are all allied from the start. Wars already under way are on too: the Turk against Vienna and Poland, Thököly's rising, and France against Spain.",
+      "Campaign: a crown attacked by a neighbour may be joined by its allies, and crowns don't go to war with their own allies.",
+      "Campaign: send supplies to a siege. A supply train costs 150 thalers, one a year. The enemy's horse will try to take it on the road: fight that battle yourself among the wagons and their teams, or leave it to the escort. If it gets through you gain fresh regiments, morale and a healthy camp for the year; if it's taken, the escort suffers.",
+    ],
+  },
+  {
     v: "1.46.0", date: "16 October 2026", title: "Escalade",
     items: [
       "Storming a walled town: the attackers now make for a way in instead of stopping at the walls. They raise scaling ladders against the wall and climb onto the walk one man at a time, hack at the gate with axes, and pour through any breach. Musketeers keep firing at the walls while they can see a target, unless ordered to charge.",
