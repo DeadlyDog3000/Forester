@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.48.1", date: "16 October 2026", title: "Provinces, and armies drawn as the engravers drew them",
+    items: [
+      "Campaign: taking a town takes its whole province, not a circle round it. That's all the loser's land nearer to that town than to any other of theirs, with wandering borders like old provinces had. Scraps of the loser's land that end up cut off from all their towns go with it.",
+      "Campaign map: armies are no longer flags on staffs. Each is a small formation flat on the map: two lines of battalions in the crown's colour, horse on the wings, and the regiment count in italic beneath. It turns to face the way it's marching. Smaller, and it covers far less of the map, in 2D and 3D.",
+    ],
+  },
+  {
     v: "1.48.0", date: "16 October 2026", title: "Armies on the map",
     items: [
       "Campaign: your army is on the map. Click it, then right-click anywhere (on the map or the 3D land) to march there: about 350 km a year, and a long march takes several years. You can only attack, besiege or supply a town within a year's march of your army. Town cards say how far off it is, with a button to march toward it.",

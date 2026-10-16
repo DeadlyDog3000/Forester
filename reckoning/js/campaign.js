@@ -158,6 +158,10 @@ function say(title, sub = "") { C.log.unshift({ t: `${C.year}`, title, sub }); C
 function sayAll(title, sub = "") { say(title, sub); for (const h of humans()) if (h !== C.me) as(h, () => say(title, sub)); }
 
 // ---- the ground: whose, and how far from whose ----
+// (a province's border wanders: a little smooth noise added to the distances, so the line between two towns' country
+//  bends like an old border, following no ruler — and the same each time it's worked out)
+const pnoise = (x, y) => { const h = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); }; const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), w = yf * yf * (3 - 2 * yf); return h(xi, yi) * (1 - u) * (1 - w) + h(xi + 1, yi) * u * (1 - w) + h(xi, yi + 1) * (1 - u) * w + h(xi + 1, yi + 1) * u * w; };
+const pjit = (c, r, ox = 0, oy = 0) => (pnoise(c / 9 + ox * 0.37, r / 9 + oy * 0.53) - 0.5) * 9 + (pnoise(c / 3.5 + ox, r / 3.5 + oy) - 0.5) * 3;
 // (a town taken: its country with it — the loser's land round it, a day or two's march across)
 function seize(ct, to) {
   const g = grid(), from = cityOwner(g, ct); if (!from || from === to) return 0;
@@ -165,16 +169,30 @@ function seize(ct, to) {
   let [x0, y0] = cellOf(ct);
   // (its own cell may be the sea or the woods: the nearest of the loser's)
   if (g[y0] && g[y0][x0] !== from) { let best = null, bd = 99; for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) if (g[y0 + dy] && g[y0 + dy][x0 + dx] === from && Math.hypot(dx, dy) < bd) { bd = Math.hypot(dx, dy); best = [x0 + dx, y0 + dy]; } if (!best) return 0; [x0, y0] = best; }
+  // (the town's province: every square of the loser's that's nearer to this town than to any other of theirs — the
+  //  way a country's land falls to the town it's governed from — reached across the loser's own land, the borders
+  //  between provinces wandering as old ones did, not ruled: no circle about the town, but its whole country)
+  const others = CITIES.filter(o => o !== ct && cityOwner(g, o) === from).map(cellOf), [tx, ty] = cellOf(ct), d0 = (c, r) => Math.hypot(c - x0, r - y0) + pjit(c, r, tx, ty);
   const q = [[x0, y0]], seen = new Set([x0 + "," + y0]); let n = 0;
-  // (no further than halfway to the loser's next town: the province is the town's own country)
-  const others = CITIES.filter(o => o !== ct && cityOwner(g, o) === from).map(cellOf);
-  while (q.length && n < 520) {
+  while (q.length) {
     const [c, r] = q.shift(); if (g[r][c] !== from) continue;
-    if (others.some(([ox, oy]) => Math.hypot(c - ox, r - oy) < Math.hypot(c - x0, r - y0))) continue;
+    const me = d0(c, r); if ((c !== x0 || r !== y0) && Math.hypot(c - x0, r - y0) > 2 && others.some(([ox, oy]) => Math.hypot(c - ox, r - oy) + pjit(c, r, ox, oy) < me)) continue;
     own.set(c + "," + r, to); n++;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const k = (c + dx) + "," + (r + dy); if (!seen.has(k) && g[r + dy] && g[r + dy][c + dx] === from && Math.hypot(c + dx - x0, r + dy - y0) < 13) { seen.add(k); q.push([c + dx, r + dy]); } }
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const k = (c + dx) + "," + (r + dy); if (!seen.has(k) && g[r + dy] && g[r + dy][c + dx] === from) { seen.add(k); q.push([c + dx, r + dy]); } }
   }
   C._dirty = true;
+  // (and the pockets the new border cut off from every town of the loser's: they go with the province, not left as
+  //  islands of the old colour in the taker's country)
+  const towns = new Set(others.map(([c, r]) => c + "," + r)), done = new Set();
+  for (const k of seen) {
+    const [c0, r0] = k.split(",").map(Number); if (done.has(k) || own.get(k) === to || g[r0][c0] !== from) continue;
+    const bag = [k], pq = [[c0, r0]]; done.add(k); let home = false;
+    while (pq.length && !home && bag.length < 900) {
+      const [c, r] = pq.pop();
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const kk = (c + dx) + "," + (r + dy); if (done.has(kk) || !g[r + dy] || g[r + dy][c + dx] !== from || own.get(kk) === to) continue; if (towns.has(kk)) { home = true; break; } done.add(kk); bag.push(kk); pq.push([c + dx, r + dy]); }
+    }
+    if (!home && !pq.length) for (const kk of bag) { own.set(kk, to); n++; }
+  }
   // (its last town gone: the whole crown is the taker's — every field and forest of it, to the last corner)
   if (!CITIES.some(o => o !== ct && cityOwner(g, o) === from)) n += annex(g, from, to);
   orphans(to);
@@ -946,17 +964,25 @@ function paint() {
       c.fillStyle = c.strokeStyle; c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx - Math.cos(a - 0.45) * 11 * u, gy - Math.sin(a - 0.45) * 11 * u); c.lineTo(gx - Math.cos(a + 0.45) * 11 * u, gy - Math.sin(a + 0.45) * 11 * u); c.fill(); c.restore();
     }
     c.save(); c.translate(x, y);
-    // (its shadow on the map, the block of men in three ranks, and their colour on a staff over them)
-    c.fillStyle = "rgba(30,20,10,0.25)"; c.beginPath(); c.ellipse(0, 3 * u, 15 * u, 4.5 * u, 0, 0, 7); c.fill();
-    for (let r = 0; r < 3; r++) for (let i = 0; i < 5; i++) { c.fillStyle = r === 0 ? col : "rgba(58,42,26,0.9)"; c.fillRect((-11 + i * 4.6 + (r % 2) * 1.2) * u, (-5 + r * 3.2) * u, 3.4 * u, 2.6 * u); }
-    c.strokeStyle = "#2a1c10"; c.lineWidth = 1.4 * u; c.beginPath(); c.moveTo(-12 * u, -5 * u); c.lineTo(-12 * u, -24 * u); c.stroke();
-    c.fillStyle = col; c.beginPath(); c.moveTo(-12 * u, -24 * u); c.quadraticCurveTo(-4 * u, -27 * u, 2 * u, -22 * u); c.lineTo(2 * u, -14 * u); c.quadraticCurveTo(-4 * u, -18 * u, -12 * u, -15 * u); c.closePath(); c.fill(); c.strokeStyle = "rgba(40,28,16,0.9)"; c.lineWidth = 1 * u; c.stroke();
-    // (the count, on a little label)
-    const t = String(n); c.font = `bold ${Math.round(10 * u)}px ${'"IM Fell English", Georgia, serif'}`; const tw = c.measureText(t).width + 8 * u;
-    c.fillStyle = mine ? "#f4ead2" : "#f0d8c8"; c.strokeStyle = mine ? "#2a1c10" : "#8a2a1a"; c.lineWidth = (mine && armySel ? 2.4 : 1.2) * u;
-    c.beginPath(); c.roundRect ? c.roundRect(5 * u, -26 * u, tw, 13 * u, 3 * u) : c.rect(5 * u, -26 * u, tw, 13 * u); c.fill(); c.stroke();
-    c.fillStyle = "#2a1c10"; c.textAlign = "left"; c.textBaseline = "middle"; c.fillText(t, 9 * u, -19.4 * u);
-    if (mine && armySel) { c.strokeStyle = "#d8b048"; c.lineWidth = 2.4 * u; c.beginPath(); c.ellipse(0, 1 * u, 19 * u, 8 * u, 0, 0, 7); c.stroke(); }
+    // (drawn as the engravers of the day drew an army in the field, flat on the paper: its battalions in two lines
+    //  in its colour, horse on the wings, the front turned the way it marches — and the count of regiments in
+    //  small italic under it, haloed against the map, no flag or box to cover the country it's in)
+    const face = go ? (() => { const [gx, gy] = scr(go); return Math.atan2(gy - y, gx - x) + Math.PI / 2; })() : 0;
+    c.save(); c.rotate(face);
+    c.fillStyle = "rgba(244,234,210,0.55)"; c.beginPath(); c.ellipse(0, 0, 15 * u, 6.5 * u, 0, 0, 7); c.fill(); c.fillStyle = "rgba(30,20,10,0.16)"; c.beginPath(); c.ellipse(0.8 * u, 1.6 * u, 13 * u, 5 * u, 0, 0, 7); c.fill();
+    const ink = mine ? "#2a1c10" : "#7a2216";
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) {
+      const bx = (-8.6 + i * 4.6 + r * 1.1) * u, by = (-3.2 + r * 3.6) * u;
+      c.globalAlpha = r ? 0.78 : 1; c.fillStyle = col; c.fillRect(bx, by, 3.6 * u, 2.2 * u);
+      c.globalAlpha = 1; c.strokeStyle = ink; c.lineWidth = 0.9 * u; c.strokeRect(bx, by, 3.6 * u, 2.2 * u);
+    }
+    for (const sx of [-1, 1]) { c.fillStyle = col; c.strokeStyle = ink; c.beginPath(); const hx = sx * 12.2 * u, hy = -1.2 * u; c.moveTo(hx, hy - 2 * u); c.lineTo(hx + 1.8 * u, hy); c.lineTo(hx, hy + 2 * u); c.lineTo(hx - 1.8 * u, hy); c.closePath(); c.fill(); c.stroke(); }
+    // (the front: a fine rule before the first line)
+    c.strokeStyle = ink; c.lineWidth = 0.9 * u; c.beginPath(); c.moveTo(-9.2 * u, -4.4 * u); c.lineTo(8.4 * u, -4.4 * u); c.stroke();
+    c.restore();
+    if (mine && armySel) { c.save(); c.strokeStyle = "#c89a30"; c.lineWidth = 1.6 * u; c.setLineDash([3 * u, 2.4 * u]); c.beginPath(); c.ellipse(0, 0, 16 * u, 9 * u, face, 0, 7); c.stroke(); c.restore(); }
+    const t = String(n); c.font = `italic bold ${Math.round(9.5 * u)}px ${'"IM Fell English", Georgia, serif'}`; c.textAlign = "center"; c.textBaseline = "top";
+    c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 3 * u; c.strokeText(t, 0, 7 * u); c.fillStyle = ink; c.fillText(t, 0, 7 * u);
     c.restore();
   };
   // (the other crowns at war with you, and their marches on your towns; the other player's; then yours, on top)
@@ -966,9 +992,9 @@ function paint() {
   c.restore();
 }
 let armySel = false;
-const armyU = k => k * Math.min(2.3, 1.15 + view.z * 0.26);
+const armyU = k => k * Math.min(2.7, 1.45 + view.z * 0.26);
 // (your army under the pointer: within a little of its block on the map)
-function armyHit(cv, px, py) { if (!C) return false; const S = cv.width / MG_W, p = armyPos(), x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z; const u = armyU(cv.width / 1300); return Math.hypot(px - x, py + 10 * u - y) < 22 * u; }
+function armyHit(cv, px, py) { if (!C) return false; const S = cv.width / MG_W, p = armyPos(), x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z; const u = armyU(cv.width / 1300); return Math.hypot(px - x, py - y - 3 * u) < 16 * u; }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
   const cv = $("cmpMap");

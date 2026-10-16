@@ -289,11 +289,13 @@ export class EuropeView3D {
       const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d");
       c.globalAlpha = dim ? 0.45 : 1; c.strokeStyle = color; c.lineCap = "round";
       if (kind === "army") {
-        // (an army: its colour on a staff, and the count of its regiments under it)
-        c.strokeStyle = "#2a1c10"; c.lineWidth = 2.5; c.beginPath(); c.moveTo(18, 6); c.lineTo(18, 46); c.stroke();
-        c.fillStyle = color; c.beginPath(); c.moveTo(18, 6); c.quadraticCurveTo(32, 2, 46, 9); c.lineTo(46, 24); c.quadraticCurveTo(32, 18, 18, 22); c.closePath(); c.fill(); c.strokeStyle = "rgba(40,28,16,0.9)"; c.lineWidth = 1.5; c.stroke();
-        c.fillStyle = mine ? "#f4ead2" : "#f0d8c8"; c.strokeStyle = mine ? "#2a1c10" : "#8a2a1a"; c.lineWidth = 2; c.beginPath(); c.rect(6, 44, 52, 16); c.fill(); c.stroke();
-        c.fillStyle = "#2a1c10"; c.font = "bold 13px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(n), 32, 52.5);
+        // (an army as the engravers drew one: two lines of battalions in its colour, horse on the wings, the count
+        //  of regiments in italic under it — flat and small, not a flag over the country)
+        const ink = mine ? "#2a1c10" : "#7a2216";
+        for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) { const bx = 12 + i * 9.4 + r * 2.2, by = 18 + r * 7.5; c.globalAlpha = r ? 0.8 : 1; c.fillStyle = color; c.fillRect(bx, by, 7.4, 4.6); c.globalAlpha = 1; c.strokeStyle = ink; c.lineWidth = 1.3; c.strokeRect(bx, by, 7.4, 4.6); }
+        for (const hx of [6, 58]) { c.fillStyle = color; c.strokeStyle = ink; c.beginPath(); c.moveTo(hx, 18); c.lineTo(hx + 3.6, 22); c.lineTo(hx, 26); c.lineTo(hx - 3.6, 22); c.closePath(); c.fill(); c.stroke(); }
+        c.strokeStyle = ink; c.lineWidth = 1.6; c.beginPath(); c.moveTo(11, 15.5); c.lineTo(48, 15.5); c.stroke();
+        c.font = "italic bold 16px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 5; c.strokeText(String(n), 32, 46); c.fillStyle = ink; c.fillText(String(n), 32, 46);
       } else if (kind === "swords") {
         c.lineWidth = 5; c.beginPath(); c.moveTo(14, 14); c.lineTo(50, 50); c.moveTo(50, 14); c.lineTo(14, 50); c.stroke();
         c.lineWidth = 4.5; c.beginPath(); c.moveTo(15, 38); c.lineTo(26, 49); c.moveTo(49, 38); c.lineTo(38, 49); c.stroke();
@@ -306,7 +308,7 @@ export class EuropeView3D {
     for (const m of list) {
       const [x, z] = toWorld(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords", arm = m.kind === "army";
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim, m.n, m.mine), depthTest: false, sizeAttenuation: false, transparent: true }));
-      sp.scale.set(arm ? 0.06 : swords ? 0.034 : 0.05, arm ? 0.06 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.6 : swords ? 0.5 : 0.05), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
+      sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.3 : swords ? 0.5 : 0.05), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
       grp.add(sp);
     }
     this.scene.add(grp);
