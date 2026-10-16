@@ -29,7 +29,7 @@ import { EARTH_SIZES } from "./mp/rules.js";
 import { REALMS_1683 } from "./mp/earth-1683.js";
 import { BATTLES, battleById, histArmy, histRecord, histResult } from "./history.js";
 import { shapeField, buildThings } from "./histmap.js";
-import { initCampaign, openCampaign } from "./campaign.js";
+import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, ago, mmss } from "./replay.js";
@@ -140,7 +140,7 @@ export function initPvp(c) {
   $("pvpHist").onclick = () => openMuster("hist");
   $("pvpCampaign").onclick = () => openCampaign();
   // (a campaign's battle fought by hand: its field and its armies, as the campaign gives them)
-  initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); });
+  initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); }, fieldWithPlayer);
   $("pvpCancel").onclick = () => cancelSearch();
   $("pvpBotNow").onclick = () => botNow();
   $("pvpAgain").onclick = () => again();
@@ -219,12 +219,12 @@ async function connectCamp() {
   n.send({ t: "camp", status: "camp", ...mine() });
 }
 function campNote(t) { const el = $("campState"); if (el) el.textContent = t; }
-const STATUS = { camp: "in camp", looking: "looking for a battle", mustering: "mustering", battle: "in battle", duel: "in a duel" };
+const STATUS = { camp: "in camp", looking: "looking for a battle", mustering: "mustering", battle: "in battle", duel: "in a duel", campaign: "on campaign" };
 function drawWho() {
   const el = $("campWho"); if (!el || !camp) return;
   const me = camp.net && camp.net.pid, list = camp.list || [];
   $("campN").textContent = list.length ? `· ${list.length}` : "";
-  el.innerHTML = list.length ? list.map(p => `<div class="cw${p.pid === me ? " me" : ""}"><span class="cw-n"><b>${esc(p.name)}</b>${p.pid === me ? " <i>(you)</i>" : ""}<small>${esc(p.rank || "")} · ${p.rating}</small></span><span class="cw-s s-${p.status}">${STATUS[p.status] || ""}</span>${p.pid !== me && (p.status === "camp" || p.status === "looking") ? `<span class="cw-ch"><button data-ch="${esc(p.pid)}" data-mode="battle" data-name="${esc(p.name)}">Battle</button><button data-ch="${esc(p.pid)}" data-mode="duel" data-name="${esc(p.name)}">Duel</button></span>` : ""}</div>`).join("") : `<div class="cw-empty">Nobody else in camp just now.</div>`;
+  el.innerHTML = list.length ? list.map(p => `<div class="cw${p.pid === me ? " me" : ""}"><span class="cw-n"><b>${esc(p.name)}</b>${p.pid === me ? " <i>(you)</i>" : ""}<small>${esc(p.rank || "")} · ${p.rating}</small></span><span class="cw-s s-${p.status}">${STATUS[p.status] || ""}</span>${p.pid !== me && (p.status === "camp" || p.status === "looking") ? `<span class="cw-ch"><button data-ch="${esc(p.pid)}" data-mode="battle" data-name="${esc(p.name)}">Battle</button><button data-ch="${esc(p.pid)}" data-mode="duel" data-name="${esc(p.name)}">Duel</button><button data-ch="${esc(p.pid)}" data-mode="campaign" data-name="${esc(p.name)}" title="A campaign across Europe together: each a crown, the seasons in step">Campaign</button></span>` : ""}</div>`).join("") : `<div class="cw-empty">Nobody else in camp just now.</div>`;
 }
 function drawTalk() {
   const el = $("campLines"); if (!el || !camp) return;
@@ -258,20 +258,22 @@ async function pickReplay(e) {
   watch(rec, b.dataset.mode || "highlights", "camp");
 }
 // ---- behind the menus: the battles lately fought, their highlights one after another, quiet and far off ----
-let amb = null;
+let amb = null, fieldWait = false;
 async function startAmbient() {
   const on = id => !$(id).classList.contains("hidden");
-  if (amb || !ambientOn() || G.arena || (theatre() && theatre().mode !== "ambient") || innerWidth < 1100 || innerHeight < 640 || !(on("pvp") || on("pvpFind"))) return;
+  if (amb || !ambientOn() || G.arena || fieldWait || (theatre() && theatre().mode !== "ambient") || innerWidth < 1100 || innerHeight < 640 || !(on("pvp") || on("pvpFind"))) return;
   const A = amb = { i: -1, list: [] };
   const server = await listReplays({ sort: "recent", n: 12 });
+  // (a battle begun while the list was fetched — or one being waited for: no reel, it would take the field from it)
+  if (G.arena || fieldWait) { if (amb === A) amb = null; return; }
   A.list = server.length ? server.map(r => ({ id: r.id })) : (await mineList()).slice(0, 6).map(r => ({ rec: r }));
   if (amb !== A || !A.list.length) { if (amb === A) amb = null; return; }
   const next = async () => {
-    if (amb !== A) return;
+    if (amb !== A || G.arena || fieldWait) { if (amb === A) amb = null; return; }
     for (let tries = 0; tries < A.list.length; tries++) {
       A.i = (A.i + 1) % A.list.length;
       const it = A.list[A.i], rec = it.rec || await fetchReplay(it.id);
-      if (amb !== A) return;
+      if (amb !== A || G.arena || fieldWait) { if (amb === A) amb = null; return; }
       if (!rec || !(rec.hl && rec.hl.length)) continue;
       const th = new Theatre(rec, { mode: "ambient", onEnd: () => setTimeout(next, 600) });
       th.onWatch = r => watch(r, "highlights", "camp");
@@ -290,13 +292,14 @@ function stopAmbient() {
 function drawCard() {
   const el = $("campCard"); if (!el) return;
   const c = camp && camp.challenge;
-  el.innerHTML = c ? `<div class="cc"><b>${esc(c.name)}</b> challenges you to ${c.mode === "duel" ? "a duel" : "a battle"}.<span><button class="btn" data-ans="no">Decline</button><button class="btn primary" data-ans="yes">Accept</button></span></div>` : "";
+  el.innerHTML = c ? `<div class="cc"><b>${esc(c.name)}</b> ${c.mode === "campaign" ? "asks you to campaign with them — a crown each, across Europe" : `challenges you to ${c.mode === "duel" ? "a duel" : "a battle"}`}.<span><button class="btn" data-ans="no">Decline</button><button class="btn primary" data-ans="yes">Accept</button></span></div>` : "";
 }
 // paired — by Quick Play or a challenge: a battle goes to the muster; a duel straight to the ride
 function matched(n, m) {
   if (camp && camp.net === n) camp.net = null;
   for (const k of ["campers", "said", "board", "challenged", "declined", "duel"]) n.on[k] = null;
   if (search) { search.done = true; search = null; }
+  if (m.campaign) { lastMode = "campaign"; openMpCampaign(n, m.side, m.foe); return; }
   if (m.battle) openMuster("mp", { net: n, side: m.side, foe: m.foe });
   else startDuel({ net: n, side: m.side, foe: m.foe });
 }
@@ -681,13 +684,27 @@ function botFoe() {
 // ---------------------------------------------------------------------------
 //  into the ride
 // ---------------------------------------------------------------------------
+// two players of a campaign meeting on the field: a line of its own to the server, the battle's key, and the battle as any
+// online battle is — the companies the campaign's, the outcome back to it. (o: key, side, foe, army (yours), theirs, onEnd)
+async function fieldWithPlayer(o) {
+  const g = globalServer(), addr = g && addressOf(g); if (!addr) { o.onFail && o.onFail("No server to meet on."); return; }
+  const me = ctx.identity(), n = new Net(addr);
+  try { await n.connect(me.name, me.look); } catch (e) { o.onFail && o.onFail("The server can't be reached just now."); return; }
+  lastMode = "campaign"; must = null; fieldWait = true; stopAmbient();
+  n.on.duel = m => { n.on.duel = null; startDuel({ net: n, side: m.side, foe: { ...m.foe, name: o.foe.name || m.foe.name, army: o.theirs }, battle: true, army: o.army, cmpEnd: o.onEnd, at: o.at || null }); };
+  n.on.dend = () => { if (!G.arena) { fieldWait = false; o.onFail && o.onFail(`${o.foe.name || "They"} didn't come to the field.`); } };
+  n.send({ t: "cbpair", key: o.key, side: o.side, lo });
+  // (a minute and a half and nobody: the battle's left to the generals)
+  setTimeout(() => { if (fieldWait && !G.arena) { fieldWait = false; try { n.close(); } catch (e) {} o.onFail && o.onFail(`${o.foe.name || "They"} didn't come to the field — the generals fought it.`); } }, 90000);
+  $("pvpFindT").textContent = `Marching to meet ${o.foe.name || "them"}…`; $("pvpFindS").textContent = "Both armies must come to the field."; ctx.screen("pvpFind");
+}
 function startDuel(o) {
   stopAmbient();
   const me = ctx.identity(), r = record();
   // a battle against another player: the host (the first of the two) chooses the ground and raises both companies; the
   // other waits for the field to be described to it, and builds the same
   if (o.net && o.battle) {
-    const mine = army(), theirs = o.foe.army || {};
+    const mine = o.army || army(), theirs = o.foe.army || {};
     const keys = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist);
     if (o.side === 0) {
       let uf = keys.includes(theirs.uniform) ? theirs.uniform : keys[1]; if (uf === mine.uniform) uf = keys.filter(k => k !== mine.uniform)[Math.floor(Math.random() * (keys.length - 1))];
@@ -696,7 +713,7 @@ function startDuel(o) {
       const nMine = menOf(mine) + (mine.guns | 0) * 2, nTheirs = (theirs.allies | 0) + (theirs.guns | 0) * 2;
       // (always the open field against a player: no walls handed to either side)
       const ground = "open"; void nMine; void nTheirs;
-      const A = { battle: true, allies: menOf(mine), enemies: theirs.allies | 0, ground, uniform: mine.uniform, enemyUniform: uf, vs: "player", purse: mine.purse, muster: mine.muster, guns: mine.guns };
+      const A = { battle: true, allies: menOf(mine), enemies: theirs.allies | 0, ground: o.ground || ground, uniform: mine.uniform, enemyUniform: uf, vs: "player", purse: mine.purse, muster: mine.muster, guns: mine.guns, cmpEnd: o.cmpEnd || null, at: o.at || null };
       if (must) { clearInterval(must.clock); must = null; }
       ctx.begin();
       new Arena({ me, lo: { ...lo }, foe: { ...o.foe, bot: false }, net: o.net, side: 0, army: A });
@@ -705,7 +722,7 @@ function startDuel(o) {
       o.net.on.bsetup = m => {
         o.net.on.bsetup = null; if (must) { clearInterval(must.clock); must = null; }
         // (the field as theirs, seen from the other side: their company is "them" here, and yours "you")
-        const A = { battle: true, allies: m.counts[1], enemies: m.counts[0], ground: m.fort === 1 ? "ours" : m.fort === 0 ? "theirs" : "open", uniform: m.uni[1], enemyUniform: m.uni[0], vs: "player" };
+        const A = { battle: true, allies: m.counts[1], enemies: m.counts[0], ground: m.fort === 1 ? "ours" : m.fort === 0 ? "theirs" : "open", uniform: m.uni[1], enemyUniform: m.uni[0], vs: "player", cmpEnd: o.cmpEnd || null, at: o.at || null };
         ctx.begin();
         new Arena({ me, lo: { ...lo }, foe: { ...o.foe, bot: false }, net: o.net, side: 1, army: A, setup: m });
       };
@@ -836,6 +853,7 @@ const camps0 = A => A.field && A.field.camps ? A.field.camps.map(c => ({ side: c
 function net_end(A, winner) { const h = A.net && A.net.on.bend; if (h) h({ winner, k: A.lost | 0, l: A.killed | 0 }); }
 class Arena {
   constructor({ me, lo, foe, net, side, army: A = null, setup = null }) {
+    stopAmbient(); fieldWait = false;
     stopTheatre();
     resetForMode();
     G.arena = this;
@@ -847,17 +865,20 @@ class Arena {
     // (a custom battle: the sides, as so many companies each — against bots only)
     this.custom = !net && !setup && isCustom(A) ? A.sides.slice() : null;
     // (a historical battle: the field, the armies, the hour and the weather as they were)
+    this.cmpEnd = (A && A.cmpEnd) || null;
     this.hist = A && A.hist ? { ...A.hist, b: A.hist.b || battleById(A.hist.id) } : null; const HB = this.hist && this.hist.b;
     this.wins = [0, 0]; this.round = 0; this.over = false; this.live = false; this.clock = ROUND_SECS;
     // (a company's fight wants more room than a duel: the ride opened wider, the two lines further apart)
     this.bound = this.battle ? 76 : this.multi ? 48 : BOUND; this.dx = this.battle ? 38 : this.multi ? 21 : 19;
     // (a duel or a skirmish: the deer ride in the woods; a battle: somewhere on the Earth, new every time)
-    const ground = this.battle ? (HB ? histGround(HB) : battleGround(setup)) : null;
+    // (a campaign's two players meeting: at the town, as a campaign's battles against the computer are)
+    const CA = A && A.at && isFinite(A.at.lon) ? A.at : null;
+    const ground = this.battle ? (HB ? histGround(HB) : CA && !setup ? histGround({ id: "cmp-" + CA.name, year: 1683, lon: +CA.lon, lat: +CA.lat }) : battleGround(setup)) : null;
     const w = this.w = ground ? ground.w : new Woods();
     setC(ground ? { x: ground.x, z: ground.z } : { x: HUNT.x, z: HUNT.z });
     // (a historical battle's ground shaped as its own was, before any of it's built)
     if (HB && ground) shapeField(w, C, HB, this.hist.side === 1);
-    this.place = HB ? { text: `${HB.name} · ${HB.date}`, at: HB.at } : ground ? ground.name : null;
+    this.place = HB ? { text: `${HB.name} · ${HB.date}`, at: HB.at } : CA ? { text: `${String(CA.name).slice(0, 40)} · ${String(CA.date || "").slice(0, 30)}`, at: String(CA.at || "").slice(0, 80) } : ground ? ground.name : null;
     // (the hour: a battle by day mostly — morning, afternoon or evening — and now and then by night, under the moon,
     //  the field lit by its fires and the guns' lanterns, and no one seeing far)
     const hr = Math.random();
@@ -1881,6 +1902,8 @@ class Arena {
   // to look over)
   afterBattle(won) {
     if (this.over) return;
+    // (a campaign's battle: its outcome back to the campaign the moment it's decided — not only once you've left the field)
+    this.toCampaign(won, false);
     if (this.rec && this.rec.on && this.rec.t > 6) this.finish(won, false, true);
     else this.overView(won);
   }
@@ -1895,6 +1918,12 @@ class Arena {
     if (!G.freecam && G.toggleFreecam) G.toggleFreecam();
     this.banner(null);
     UI.hint(`${won ? "Won." : "Lost."} Look over the field — WASD to fly, Space up, C down. Enter to leave it.`, 8);
+  }
+  // ---- a campaign's battle (with bots, or the other player): told the campaign once ----
+  toCampaign(won, left) {
+    if (this.toldCmp) return;
+    if (this.cmpEnd) { this.toldCmp = true; try { this.cmpEnd(won, this.killed | 0, this.lost | 0, !!left); } catch (e) { console.error(e); } }
+    else if (this.hist && this.hist.b.campaign) { this.toldCmp = true; try { this.hist.b.onEnd && this.hist.b.onEnd(won && !left, this.killed | 0, this.lost | 0); } catch (e) { console.error(e); } }
   }
   // ---- the match over: the record, and the result ----
   finish(won, left = false, reel = false) {
@@ -1912,7 +1941,7 @@ class Arena {
     }
     // (rated only against another player: a fight with bots moves nothing anyone sees — only how sharp the bots are
     //  against you next time)
-    const rated = !!this.net, r = rated ? record() : botRecord(), foeR = (rated && this.foeInfo.rating) || r.rating, exp = 1 / (1 + Math.pow(10, (foeR - r.rating) / 400)), k = 32;
+    const rated = !!this.net && !this.cmpEnd, r = rated ? record() : botRecord(), foeR = (rated && this.foeInfo.rating) || r.rating, exp = 1 / (1 + Math.pow(10, (foeR - r.rating) / 400)), k = 32;
     const delta = Math.round(k * ((won ? 1 : 0) - exp));
     r.rating = Math.max(100, r.rating + delta); if (won) { r.w++; r.streak = (r.streak || 0) + 1; } else { r.l++; r.streak = 0; }
     if (rated) saveRecord(r); else saveBotRecord(r);
@@ -1926,8 +1955,9 @@ class Arena {
     $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>${rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
     // (a historical battle: kept as won or not, on that side — and how it went in truth)
     // (a campaign's: its outcome back to the campaign, which takes or loses the town)
-    if (this.hist && this.hist.b.campaign) { try { this.hist.b.onEnd && this.hist.b.onEnd(won && !left, this.killed | 0, this.lost | 0); } catch (e) { console.error(e); } }
-    else if (this.hist && !left) {
+    // (two players of a campaign: rated nowhere, and the outcome back to the campaign they share)
+    this.toCampaign(won, left);
+    if (this.hist && !this.hist.b.campaign && !left) {
       const HB = this.hist.b, sd = this.hist.side; histResult(HB.id, sd, won);
       const asIt = HB.won == null ? null : (HB.won === sd) === won;
       $("pvpEndS").innerHTML += `<div class="pv-histend"><b>${asIt === null ? "As it was" : asIt ? "As it happened" : "History, changed"}</b> ${esc(HB.after[asIt === false ? 1 : 0])}</div>`;

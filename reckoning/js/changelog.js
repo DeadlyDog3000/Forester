@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.42.0", date: "15 October 2026", title: "A campaign for two",
+    items: [
+      "Campaign with a friend: in the camp, challenge a player to a campaign. You each choose a crown, play your seasons side by side, and the season turns when you're both ready. Make war on each other, or alliances, peace and trade pacts, or send gold. The host keeps the campaign to take up again together later.",
+      "March on your friend's town and they choose: meet you on the field in a real battle between the two of you, at that town, or leave it to the garrison. Whoever wins the battle takes the town or holds it, and both of you see it on the map.",
+      "Campaign: the map has depth. Zoom in far enough and the land rises: hills, woods, rivers and the towns themselves, with your towns ringed and the ones you can march on marked with crossed swords. Zoom out to go back to the map.",
+      "Campaign: move over the map with WASD or the arrow keys, zoom with Q and E, and hold Shift to go faster.",
+      "Campaign: keep up to three campaigns at once. New campaign, at the top of the map, shows your campaigns to go back to and every crown to begin another with. Starting one no longer throws away the one you have.",
+      "A campaign's battle tells the campaign who won as soon as it's decided, not only once you've left the field.",
+    ],
+  },
+  {
     v: "1.41.1", date: "15 October 2026", title: "Your saves, kept safe",
     items: [
       "Lost a game? On the Saves screen, \"Lost a game? Bring back an earlier copy of your saves\" lists the copies of all your saves the app put by before each new version. Choose one and the game restarts with your games, your name online and your records as they were. Your saves as they are now are put by first, so trying one loses nothing.",

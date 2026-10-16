@@ -159,7 +159,8 @@ export class EuropeView3D {
   }
   // the political map changed (a conquest) or first shown: rebuild what depends on it
   setMap(E, homePop = 2, homeName = "Forester's Clearing") {
-    const g = buildGrid(E), key = E.conq.length + "|" + homeName;
+    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName;
+    const g = buildGrid(E);
     if (this.g && this.mapKey === key) return;
     this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName;
     this.buildBase(); this.buildBorders(); this.buildCities(homePop);
@@ -303,8 +304,35 @@ export class EuropeView3D {
       grp.add(sprite); this.labels.push(sprite);
     };
     for (const ct of CITIES) place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false);
-    const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL);
-    place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true);
+    // (your own clearing — not on a campaign's map, which has none)
+    if (this.homeName !== null) { const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL); place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true); }
+    this.scene.add(grp);
+  }
+  // marks over towns (a campaign's): crossed swords where you can march, a ring round your own, red where they're
+  // threatened — [{ name, lon, lat, kind: "swords" | "ring" | "dash", color, dim }]
+  marks(list) {
+    const key = JSON.stringify(list); if (key === this.markKey) return; this.markKey = key;
+    if (this.markGroup) { this.markGroup.traverse(o => { if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); this.scene.remove(this.markGroup); }
+    const grp = this.markGroup = new THREE.Group(), tex = new Map();
+    const texOf = (kind, color, dim) => {
+      const k = kind + color + dim; if (tex.has(k)) return tex.get(k);
+      const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d");
+      c.globalAlpha = dim ? 0.45 : 1; c.strokeStyle = color; c.lineCap = "round";
+      if (kind === "swords") {
+        c.lineWidth = 5; c.beginPath(); c.moveTo(14, 14); c.lineTo(50, 50); c.moveTo(50, 14); c.lineTo(14, 50); c.stroke();
+        c.lineWidth = 4.5; c.beginPath(); c.moveTo(15, 38); c.lineTo(26, 49); c.moveTo(49, 38); c.lineTo(38, 49); c.stroke();
+      } else {
+        if (kind === "dash") c.setLineDash([7, 5]);
+        c.lineWidth = 5; c.beginPath(); c.arc(32, 32, 24, 0, 7); c.stroke(); c.setLineDash([]); c.strokeStyle = "rgba(40,28,16,0.8)"; c.lineWidth = 2; c.beginPath(); c.arc(32, 32, 28.5, 0, 7); c.stroke();
+      }
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; tex.set(k, t); return t;
+    };
+    for (const m of list) {
+      const [x, z] = toWorld(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords";
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim), depthTest: false, sizeAttenuation: false, transparent: true }));
+      sp.scale.set(swords ? 0.034 : 0.05, swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (swords ? 0.5 : 0.05), z); sp.renderOrder = swords ? 6 : 4;
+      grp.add(sp);
+    }
     this.scene.add(grp);
   }
   // look at a place: lon, lat, and how far off

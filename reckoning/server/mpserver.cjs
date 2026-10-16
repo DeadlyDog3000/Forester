@@ -1570,23 +1570,23 @@ async function start(opts = {}) {
     if (campT) return;
     campT = setTimeout(() => {
       campT = null;
-      const list = [...socks].filter(o => o.camp && o.open).map(o => ({ ...o.camp, status: o.duel ? (o.duel.battle ? "battle" : "duel") : pvpQ.some(q => q.ws === o) ? "looking" : o.camp.status }));
+      const list = [...socks].filter(o => o.camp && o.open).map(o => ({ ...o.camp, status: o.duel ? (o.duel.campaign ? "campaign" : o.duel.battle ? "battle" : "duel") : pvpQ.some(q => q.ws === o) ? "looking" : o.camp.status }));
       for (const o of socks) if (o.camp && o.open) o.send({ t: "campers", list, board: boardTop() });
     }, 250);
   };
-  const pvpQ = [];
+  const pvpQ = [], cbWait = new Map();
   const unqueue = ws => { const i = pvpQ.findIndex(q => q.ws === ws); if (i >= 0) pvpQ.splice(i, 1); };
   const LOK = { long: ["musket", "bow", "crossbow"], side: ["pistol", "none"], blade: ["sword", "battleaxe", "spear", "axe", "dagger"] };
   const cleanLo = l => { const o = {}; for (const k in LOK) o[k] = LOK[k].includes(l && l[k]) ? l[k] : LOK[k][0]; return o; };
   const duelSend = (d, i, m) => { const ws = d.p[i]; if (ws && ws.open) ws.send(m); };
   function pair(a, b) {
-    const d = { id: crypto.randomBytes(4).toString("hex"), p: [a.ws, b.ws], who: [a, b], wins: [0, 0], round: 1, hp: [100, 100], start: now() + 4000, decided: false, over: false, battle: a.mode === "battle" };
+    const d = { id: crypto.randomBytes(4).toString("hex"), p: [a.ws, b.ws], who: [a, b], wins: [0, 0], round: 1, hp: [100, 100], start: now() + 4000, decided: false, over: false, battle: a.mode === "battle", campaign: a.mode === "campaign" };
     a.ws.duel = d; b.ws.duel = d; a.ws.side = 0; b.ws.side = 1;
     const pub = q => ({ name: q.who.name, user: q.who.user, look: q.who.look, lo: q.lo, rating: q.rating, army: q.army });
     // (a battle: each player's company as they set it; the first of the two keeps the field and its men — the host)
-    duelSend(d, 0, { t: "duel", id: d.id, side: 0, foe: pub(b), battle: d.battle, army: a.army });
-    duelSend(d, 1, { t: "duel", id: d.id, side: 1, foe: pub(a), battle: d.battle, army: b.army });
-    log(`a ${d.battle ? "battle" : "duel"}: ${a.who.name} against ${b.who.name}`); campChanged();
+    duelSend(d, 0, { t: "duel", id: d.id, side: 0, foe: pub(b), battle: d.battle, campaign: d.campaign, army: a.army });
+    duelSend(d, 1, { t: "duel", id: d.id, side: 1, foe: pub(a), battle: d.battle, campaign: d.campaign, army: b.army });
+    log(`a ${d.campaign ? "campaign" : d.battle ? "battle" : "duel"}: ${a.who.name} ${d.campaign ? "with" : "against"} ${b.who.name}`); campChanged();
   }
   function duelEnd(d, winner, left = false) {
     if (d.over) return; d.over = true;
@@ -1606,6 +1606,8 @@ async function start(opts = {}) {
     // a battle's own word between the two games — the field, the men on it, the shots, the orders: passed on as it is
     // (the host's game keeps the battle; this server only carries it), within reason as to size
     if (d.battle && /^b[a-z]{1,10}$/.test(m.t) && raw.length < 60000) return relay(m);
+    // (a campaign shared by two: its word — the map and the treasuries, what each does, the seasons — passed on whole)
+    if (d.campaign) { if (/^c[a-z]{1,10}$/.test(m.t) && raw.length < 8 * 1024 * 1024) return relay(m); if (m.t === "dleave") duelEnd(d, them, true); return; }
     if (d.battle && m.t === "ddown") return;
     switch (m.t) {
       case "ds": return relay({ t: "ds", x: num(m.x), z: num(m.z), yaw: num(m.yaw), s: num(m.s), h: String(m.h || "").slice(0, 12), aim: m.aim ? 1 : 0, g: m.g ? 1 : 0, c: m.c ? 1 : 0, dn: m.dn ? 1 : 0, ld: Math.max(0, Math.min(10, num(m.ld))) });
@@ -1622,7 +1624,7 @@ async function start(opts = {}) {
   // (a round runs two and a half minutes; then whoever's least hurt has it)
   const ivDuel = setInterval(() => {
     const seen = new Set();
-    for (const ws of socks) { const d = ws.duel; if (!d || seen.has(d) || d.over || d.decided || d.battle) continue; seen.add(d); if (now() - d.start > 150000) roundTo(d, d.hp[0] > d.hp[1] ? 0 : d.hp[1] > d.hp[0] ? 1 : -1); }
+    for (const ws of socks) { const d = ws.duel; if (!d || seen.has(d) || d.over || d.decided || d.battle || d.campaign) continue; seen.add(d); if (now() - d.start > 150000) roundTo(d, d.hp[0] > d.hp[1] ? 0 : d.hp[1] > d.hp[0] ? 1 : -1); }
     // (anyone waiting too long is told no one came — the game then finds them a bot)
     for (let i = pvpQ.length - 1; i >= 0; i--) if (!pvpQ[i].ws.open) pvpQ.splice(i, 1);
   }, 1000);
@@ -1659,6 +1661,16 @@ async function start(opts = {}) {
         pvpQ.push(me); campChanged(); return;
       }
       if (m.t === "pvpcancel") { unqueue(ws); campChanged(); return; }
+      // (two players of a campaign, meeting on the field: each comes on a line of its own with the battle's key, and the
+      //  two are paired as any battle is — each on the side the campaign gave them)
+      if (m.t === "cbpair") {
+        if (ws.duel) return; const key = String(m.key || "").slice(0, 40); if (!/^[a-z0-9]{8,40}$/.test(key)) return;
+        for (const [k, v] of cbWait) if (!v.ws.open || now() - v.at > 120000) cbWait.delete(k);
+        const other = cbWait.get(key), me = { ws, who: { ...who }, lo: cleanLo(m.lo), rating: 1000, at: now(), mode: "battle", army: null, side: m.side ? 1 : 0 };
+        if (!other || other.ws === ws) { cbWait.set(key, me); return; }
+        cbWait.delete(key);
+        return me.side === 0 ? pair(me, other) : pair(other, me);
+      }
       // ---- the camp: everyone in the To Arms menus — who's there, the talk, challenges, the best commanders ----
       if (m.t === "camp") {
         ws.camp = { pid: who.pid, name: who.name, user: who.user, rating: Math.max(0, Math.min(4000, Math.round(num(m.rating, 1000)))), rank: clean(m.rank, 24), w: Math.max(0, num(m.w) | 0), l: Math.max(0, num(m.l) | 0), status: ["camp", "looking", "mustering"].includes(m.status) ? m.status : "camp" };
@@ -1681,7 +1693,7 @@ async function start(opts = {}) {
         if (!ws.camp || ws.duel) return;
         const to = [...socks].find(o => o.camp && o.camp.pid === m.to && o !== ws);
         if (!to || to.duel) return ws.send({ t: "declined", name: to ? to.camp.name : "", why: "busy" });
-        to.challenge = { from: ws, mode: m.mode === "duel" ? "duel" : "battle", at: now() };
+        to.challenge = { from: ws, mode: m.mode === "duel" ? "duel" : m.mode === "campaign" ? "campaign" : "battle", at: now() };
         to.send({ t: "challenged", from: who.pid, name: who.name, rating: ws.camp.rating, mode: to.challenge.mode });
         return;
       }
