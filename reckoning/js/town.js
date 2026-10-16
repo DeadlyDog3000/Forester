@@ -2118,20 +2118,7 @@ export class Town {
     t.g.visible = false; t.state = "gone"; t.col.disabled = true;
     const rec = () => this.S.felled.find(f => f.i === this.w.fellable.indexOf(t));
     if (t.dug || (rec() || {}).dug) { t.dug = true; return; }
-    if (!this.stumps.has(t)) {
-      const m = makeStump(t, t.kind || (t.src && t.src.kind) || "spruce"); m.position.set(t.x, t.y - 0.02, t.z);
-      this.w.root.add(m); this.stumps.set(t, m);
-      // a stump can be dug out, roots and all: then nothing grows there again
-      m.userData.it = this.w.addInteract({ x: t.x, y: t.y + 0.4, z: t.z, reach: 1.9, hold: 3.5, anim: "dig",
-        label: "Dig up the stump — nothing grows back", can: () => this.stumps.get(t) === m,
-        onHoldTick: (dt, k) => { if (Math.floor(k * 1.6) !== Math.floor((k - dt) * 1.6)) SFX().dig ? SFX().dig() : SFX().chop(); },
-        use: () => {
-          this.w.root.remove(m); this.stumps.delete(t); this.w.removeInteract(m.userData.it);
-          t.dug = true; const f = rec(); if (f) f.dug = true;
-          G.practise && G.practise("strength", 0.4);
-          this.persist(); SFX().pickup();
-        } });
-    }
+    // (no stump left behind: the ground is clear where it stood, until a tree comes up there again)
   }
   // a stump grows back into a young tree, then a tree
   // is there anything of ours where a tree would come up? (buildings, paths, fields, walls, shops, the roads out)

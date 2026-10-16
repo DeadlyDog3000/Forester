@@ -445,6 +445,8 @@ export class Wilds extends WorldBase {
     if (!quiet || !this.stumps.has(t.id)) this.addStump(t);
   }
   addStump(t) {
+    // (felled trees leave no stump: the ground is simply clear)
+    return;
     if (this.stumps.has(t.id)) return;
     const s = makeStump(t, t.kind); s.position.set(t.x, t.y - 0.02, t.z); this.root.add(s); this.stumps.set(t.id, s);
   }

@@ -963,6 +963,8 @@ class Arena {
       const TS = this.things && this.things.siege, siege = TS && !this.remote ? { side: TS.d > 0 ? 1 : 0, guns: TS.guns, anchor: TS.anchor } : null;
       this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost, camps, siege);
       this.siege = siege; if (this.things && this.things.breaks) this.field.breaks = this.things.breaks;
+      // (besieged a year or more before this: the walls as the guns left them, breaches already open)
+      if (this.things && this.things.battered) { const n = this.field.preBatter(this.things.battered); this.breachedAtStart = n; }
       this.field.onBreach = b => { if (G.arena === this) UI.hint(b.gate ? "The gate's down!" : b.kind === "tower" ? "A tower's down — a breach!" : "A breach in the wall!", 3); };
       // (a gun wrecked: its crew take up their swords and fall in with the rest)
       this.field.onGunDown = g => { for (const u of g.crew) if (u && u.alive) { u.crewOf = null; u.wasCrew = null; u.a.path = []; u.hold && u.hold(u.lo.long !== "none" ? u.lo.long : u.lo.blade); } g.crew = []; if (G.arena === this && g.side === 0) UI.hint("One of your guns is wrecked.", 2.5); };
@@ -1131,7 +1133,7 @@ class Arena {
   unitDown(u) {
     if (!this.multi) { this.endRound(0); return; }
     // (the men round him see him fall: the nearer, the more it shakes them)
-    if (!this.remote) for (const m of this.units) if (m !== u && m.alive && m.nerve != null && m.team === u.team) { const d = Math.hypot(m.pos.x - u.pos.x, m.pos.z - u.pos.z); if (d < 14) m.shaken((0.13 - d * 0.006)); }
+    if (!this.remote) for (const m of this.units) if (m !== u && m.alive && m.nerve != null && m.team === u.team) { const d = Math.hypot(m.pos.x - u.pos.x, m.pos.z - u.pos.z); if (d < 14) m.shaken((0.09 - d * 0.004)); }
     if (this.host && !u.isNet) this.net.send({ t: "bdown", id: u.uid, x: +(u.fromX ?? u.pos.x).toFixed(1), z: +(u.fromZ ?? u.pos.z).toFixed(1), h: u.headShot ? 1 : 0, b: u.blastDown ? 1 : 0 });
     if (this.alOf(u.team) !== 0) this.killed = (this.killed || 0) + 1; else this.lost = (this.lost || 0) + 1;
     if (this.book) this.book.update(this.bookState());
@@ -1169,6 +1171,8 @@ class Arena {
   standDown() {
     for (const u of this.units) { if (!u.alive) continue; u.wind = 0; u.aimUp && u.aimUp(false); const P = u.a.person; P.crouching = false; P.load = null; P.setPose("idle"); u.a.path = []; }
   }
+  // (the first minute of a battle: every company holds, whatever happens to it)
+  steadyNow() { return !!this.battle && this.liveAt != null && G.time - this.liveAt < 60; }
   checkEnd() {
     if (this.over || this.ended || this.remote) return;
     // (over when your side's gone, or it's the only one left standing — of two sides or of four)
@@ -2386,7 +2390,10 @@ class Bot extends Fighter {
     const fromBehind = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) < -0.25;
     // (a horseman's blow on a man in a square: the bristling front of it turns most of it)
     const sq = (by ? by.mounted : !!G.player.horse) && this.arena.orderOf && this.arena.orderOf(this) && this.arena.orderOf(this).form === "square" && !this.routing;
+    const pike = this.mounted && by && by.steel && (by.steel() === "spear" || by.steel() === "bayonet");
     const k = (this.mounted && by && by.steel && by.steel() === "spear" ? 2 : 1) * (fromBehind || this.routing ? 1.5 : 1) * (sq ? 0.5 : 1);
+    // (the point in its chest: the horse goes up on its hind legs, screaming through its nose)
+    if (pike && this.a.horse) { this.a.horse.rear(); FOLEY.snort && FOLEY.snort(this.a.pos, 0.7); }
     this.damage(dmg * k, true, false, src);
   }
   // his blade as he uses it: from the saddle, longer in the reach, and heavier at the gallop; a man winded from a long
@@ -2400,6 +2407,9 @@ class Bot extends Fighter {
   }
   // he breaks: weapon down, and away from them as fast as he can go — to the back of the field
   rout() {
+    // (nobody breaks in the first minute of a battle: whatever the first volley does, a company stands it out a while —
+    //  armies of the day came to the field to fight, and did, before the weaker one gave way)
+    if (this.arena.steadyNow && this.arena.steadyNow()) { this.nerve = Math.max(this.nerve, 0.3); return; }
     this.routing = true; this.wind = 0; this.aimUp(false); this.releaseCover && this.releaseCover(); this.a.squareTo = null; this.a.person.crouching = false; this.a.person.setPose("idle");
     if (Math.random() < 0.6) AUDIO.voice && AUDIO.voice("pain", { at: this.pos, vol: 0.8, high: isF(this.info.look) });
     this.arena.broke && this.arena.broke(this);
@@ -2508,6 +2518,8 @@ class Bot extends Fighter {
       if (was > 0.62 && this.wind <= 0.62) a.person.setPose(blowPose(this.steel(), this.dir));
       if (this.wind <= 0) {
         setTimeout(() => this.alive && a.person.setPose("idle"), 500);
+        // (from the saddle: the horse surges into the blow, its head thrown up)
+        if (a.horse) a.horse.strike();
         // (heard from where he is: by you, full; across the field, nothing)
         { const dd = Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z); if (dd < 22) AUDIO.whoosh && AUDIO.whoosh(0.45 * (1 - dd / 22) ** 1.5, this.lo.blade !== "sword"); }
         const B = this.blade();
@@ -2536,6 +2548,9 @@ class Bot extends Fighter {
       // (a trooper charges in at the gallop, strikes in passing, and rides on through to wheel and come again)
       const B = this.blade(), reach = B.reach - 0.5, run = this.mounted ? 4.2 + s : 3.2 + s * 1.4;
       if (this.mounted && d < 1.6 && this.stepT <= 0) { this.stepT = 1.2; const ang = Math.atan2(a.pos.x - fp.x, a.pos.z - fp.z) + (Math.random() - 0.5) * 0.6; a.walkTo(fp.x - Math.sin(ang) * 9, fp.z - Math.cos(ang) * 9, run); return; }
+      // (riding in: the sabre held out straight at the point, the whole weight of man and horse behind it — and the
+      //  guard again as he closes)
+      if (this.mounted && this.wind <= 0) a.person.setPose(d > 7 && a.speed > 4 ? "point" : "guard");
       if (d > reach + 0.5) { if (!a.path.length || this.stepT <= 0) { this.stepT = 0.35; a.approach(fp, reach - 0.2, run); } }
       else if (d < 1.0) { if (this.stepT <= 0) { this.stepT = 0.5; a.approach(fp, 1.5, 2.4); } }
       else if (this.cool <= 0) {

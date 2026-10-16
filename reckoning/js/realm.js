@@ -198,3 +198,5 @@ export const portOf = m => !m ? null : m.hist ? (HAVE_PORT.has(m.port) ? `art/po
 export const GSTATS = ["Command", "Morale", "Corruption"], VSTATS = ["Corruption", "Production", "Defence"];
 // how many years a man serves before age takes him (Military academies: two more, for generals)
 export const SERVICE = 10;
+// (a general serves far longer: fifty years at the head of the army, if no battle ends it first)
+export const GEN_SERVICE = 50;

@@ -3226,6 +3226,8 @@ function makeSibAxe() {
   return g;
 }
 function stump(w, t) {
+  // (felled trees leave no stump: the ground is simply clear)
+  return;
   if (t.stump) return;
   const m = makeStump(t, t.kind || (t.src && t.src.kind) || "spruce"); m.position.set(t.x, t.y - 0.02, t.z);
   w.root.add(m); t.stump = m;

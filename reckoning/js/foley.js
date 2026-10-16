@@ -88,6 +88,37 @@ function bubble(d, sr, at, f0, rise, dur, amp) {
 }
 // ---- the sounds, each a recipe, worked out in a few versions ----
 const RECIPES = {
+  // ---- horses ----
+  // a hoof coming down on turf: not a click (that's coconut shells on a stage) but the heavy, dull blow of half a
+  // ton landing on one foot — the ground's own thump, the knock of the hoof wall, the crunch of earth giving under it
+  // and clods of it thrown back behind
+  hoof(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.32)), p = rand(0.85, 1.18);
+    modes(d, sr, 0, [[rand(70, 95) * p, 0.05, 1], [rand(120, 150) * p, 0.035, 0.55], [rand(200, 240) * p, 0.02, 0.25]]);   // the ground taking the weight
+    hiss(d, sr, 0, 0.05, 0.9, new Biquad("lp", 520 * p, 0.9, sr), x => Math.exp(-x / 0.012));                              // the thud
+    hiss(d, sr, 0.001, 0.03, 0.55, new Biquad("bp", rand(650, 900) * p, 3.2, sr), x => Math.exp(-x / 0.007));             // the hoof wall's knock
+    hiss(d, sr, 0.004, 0.08, 0.35, new Biquad("bp", rand(1400, 2000), 0.9, sr), x => Math.exp(-x / 0.02));                // turf torn
+    crackles(d, sr, 0.03, 0.18, 55, 0.13, 900, 3200);                                                                        // clods flung back
+    return finish(d, 0.85);
+  },
+  // a horse blowing through its nostrils: a breath forced out so hard the soft nose flutters with it
+  snort(sr) {
+    const L = rand(0.45, 0.7), d = new Float32Array(Math.floor(sr * L)), b1 = new Biquad("bp", rand(380, 520), 1.1, sr), b2 = new Biquad("bp", rand(1100, 1500), 1.4, sr), hp = new Biquad("hp", 2600, 0.7, sr);
+    const fl = rand(24, 34);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr, u = t / L, env = Math.min(1, t / 0.025) * Math.pow(1 - u, 1.8);
+      const flut = 0.55 + 0.45 * Math.sin(TAU * fl * t * (1 - 0.3 * u)) ** 2, n = Math.random() * 2 - 1;
+      d[i] = (b1.run(n) * 1.3 + b2.run(n) * 0.7 * flut + hp.run(n) * 0.18) * env * flut;
+    }
+    return finish(d, 0.7);
+  },
+  // the tack as the horse goes: the bit's rings, the curb chain, a stirrup iron knocking — small iron, shaken
+  tack(sr) {
+    const d = new Float32Array(Math.floor(sr * 0.35));
+    for (let k = 0, n = 2 + Math.floor(rand(0, 3)); k < n; k++) metal(d, sr, rand(0, 0.06), rand(1700, 2600), rand(0.25, 0.6), 0.03, 10, 1.2);
+    hiss(d, sr, 0, 0.08, 0.15, new Biquad("bp", rand(700, 1000), 0.8, sr), x => Math.sin(Math.PI * Math.min(1, x / 0.08)));   // leather creaking
+    return finish(d, 0.55);
+  },
   // an axe into standing wood, as it really sounds: not a note but a thwack — the sharp crack of the edge going in, the
   // dull thud of the trunk taking the blow (a knock with no ring to it: a live tree is wet and heavy), the crunch of the
   // fibres it cuts, a chip or two flicking off, and the slap of it coming back off the trees round about
@@ -578,7 +609,7 @@ const RECIPES = {
 const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3,
   whiz: 3, thunk: 3, halfcock: 3, cock: 3, prime: 3, frizzen: 3, powder: 2, ball: 3, rodOut: 2, rodIn: 2, ram: 4,
   quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3, fixBayonet: 3, unfixBayonet: 2,
-  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2 };
+  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, hoof: 8, snort: 3, tack: 4 };
 // (every recipe needs its count above, or it's made no times and never heard: anything left out gets two)
 for (const k in RECIPES) VARIANTS[k] ??= 2;
 
@@ -619,8 +650,14 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
   src.start();
 }
 let fireSrc = null, FIRE_AT = null, washSrc = null;
+let HOOVES = [];
 export const FOLEY = {
   play,
+  // a horse's hooves, its snorting and its tack, from where it is — hoofbeats kept to so many a second over the whole
+  //  field, so a charge of thirty is a drumming and not a jam (the nearest are heard; the rest are already a roar)
+  hoof(at, vol = 0.6) { const t = performance.now(); HOOVES = HOOVES.filter(q => t - q < 1000); if (HOOVES.length > 26) return; HOOVES.push(t); play("hoof", { vol, at, reach: 70, rate: [0.88, 1.12] }); },
+  snort: (at, vol = 0.5) => play("snort", { vol, at, reach: 35, rate: [0.9, 1.12] }),
+  tack: (at, vol = 0.3) => play("tack", { vol, at, reach: 18, rate: [0.92, 1.1] }),
   chop: (at, vol = 0.8) => play("chop", { vol, at, rate: [0.9, 1.1] }),
   // the sound of other people at work, from where they are, timed to the blow in what they're doing
   work(actors) {

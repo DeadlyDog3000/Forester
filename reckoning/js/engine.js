@@ -18,6 +18,7 @@ import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
+import { FOLEY } from "./foley.js";
 import { tickTemperature } from "./temperature.js";
 import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, thirstTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
 // (what's only ever thrust, never swung: the spear, and a musket with its bayonet fixed)
@@ -898,6 +899,7 @@ export class Player {
   swing(onHit) {
     if (this.swingT >= 0 || this.swimming || G.time < (this.fixUntil || 0)) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
+    if (this.horse && this.horse.strike) this.horse.strike();   // (the horse surging into the blow under you)
     // (a pickaxe only ever comes down from above, into the rock)
     this.swingDir = this.blade === "pick" ? "up" : this.stance || "right";
     G.practise("strength", 0.3);
@@ -1037,7 +1039,7 @@ export class Player {
     if ((this.pathT = (this.pathT || 0) - dt) <= 0) { this.pathT = 0.15; this.onPath = !!(G.town && G.town.pathAt && G.town.pathAt(this.pos.x, this.pos.z)); this.wading = G.world && G.world.waterDepth ? G.world.waterDepth(this.pos.x, this.pos.z) : 0; }
     // (wading is slow going, and slower the deeper)
     const wade = this.wading > 0.05 && !this.horse ? 1 - Math.min(0.55, this.wading * 0.7) : 1;
-    const max = this.swimming ? (sprint ? 2.7 : 1.8) : (this.draw > 0 ? 1.6 - this.draw * 0.5 : 1) * (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (G.loadMul ?? 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 2.0 : 2.4) : 1) * wade;
+    const max = this.swimming ? (sprint ? 2.7 : 1.8) : (this.draw > 0 ? 1.6 - this.draw * 0.5 : 1) * (this.crouched ? 1.5 : sprint ? (G.sprintSpeed ?? 5.6) : 3.1) * (G.town ? G.town.walkMul : 1) * (G.loadMul ?? 1) * (this.onPath ? PATH_SPEED : 1) * (this.horse ? (sprint ? 1.6 : 2.0) : 1) * wade;
     if (this.horse) this.crouched = false;
     const len = Math.hypot(mx, mz);
     const c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
@@ -1097,8 +1099,11 @@ export class Player {
       const h = this.horse;
       h.root.position.set(this.pos.x, this.pos.y, this.pos.z); h.root.rotation.y = this.yaw + Math.PI;
       h.phase = h.gait(dt, this.speed);
-      // (hoofbeats: four to a stride)
-      if (this.onGround && this.speed > 0.6 && Math.floor(h.phase * 4) !== h.lastBeat) { h.lastBeat = Math.floor(h.phase * 4); AUDIO.step("dirt", this.speed > 6 ? 0.9 : 0.6, { fast: this.speed > 6 }); }
+      // (hoofbeats: each hoof as it comes down — the walk's four, the trot's two, the gallop's drumming three and the
+      //  moment in the air; the tack jingling with the pace, and now and then a snort)
+      if (this.onGround) for (const i of h.falls) FOLEY.hoof(null, (this.speed > 6 ? 0.75 : 0.55) * (i < 2 ? 1 : 0.85));
+      if (this.speed > 1.5 && h.falls.length && Math.random() < 0.18 * Math.min(1, this.speed / 6)) FOLEY.tack(null, 0.22);
+      if ((h.snortT = (h.snortT ?? 8) - dt) <= 0) { h.snortT = 8 + Math.random() * 14; if (this.speed > 3 || Math.random() < 0.4) FOLEY.snort(null, 0.4); }
     }
     // footsteps
     if (this.onGround && this.speed > 0.4 && !this.horse) {
@@ -1928,7 +1933,7 @@ export class Actor {
     this.follow = null;
     this.path = points.map(p => ({ x: p[0], z: p[1] }));
     // (settlers walk faster once the settlement knows horses)
-    this.walkSpeed = speed * (this.settler && G.town ? G.town.walkMul : 1) * (this.horse ? 2.2 : 1);
+    this.walkSpeed = speed * (this.settler && G.town ? G.town.walkMul : 1) * (this.horse ? 1.85 : 1);
     if (this.resolve) this.resolve();
     return new Promise(r => { this.resolve = r; });
   }
@@ -2093,15 +2098,22 @@ export class Actor {
       if (cast !== this._cast) { this._cast = cast; this.root.traverse(o => { if (o.isMesh) o.castShadow = cast; }); if (this.horse) this.horse.root.traverse(o => { if (o.isMesh) o.castShadow = cast; }); }
     }
     if (this.onUpdate) this.onUpdate(dt);
+    // (the saddle where the horse has it: up with it when it rears)
+    if (this.horse) this.yOff = SADDLE + (this.horse.lift || 0);
     this.sync();
-    // (the horse under him, on the ground, its gait going with the pace)
-    if (this.horse) { const h = this.horse; h.root.position.set(p.x, p.y - this.yOff, p.z); h.root.rotation.y = this.yaw; h.gait(dt, this.speed); }
+    // (the horse under him, on the ground, its gait going with the pace; its hooves heard near you, and its snort)
+    if (this.horse) {
+      const h = this.horse; h.root.position.set(p.x, p.y - this.yOff, p.z); h.root.rotation.y = this.yaw; h.gait(dt, this.speed);
+      if (h.falls.length && far2 < 3600) { const at = { x: p.x, z: p.z }; for (const i of h.falls) FOLEY.hoof(at, this.speed > 6 ? 0.7 : 0.5); if (Math.random() < 0.12) FOLEY.tack(at, 0.25); }
+      if ((h.snortT = (h.snortT ?? 4 + Math.random() * 20) - dt) <= 0) { h.snortT = 10 + Math.random() * 25; if (far2 < 900) FOLEY.snort({ x: p.x, z: p.z }, 0.45); }
+    }
     // (his horse, riderless: off at a gallop away from the fight, and gone)
     if (this.bolt) {
       const b = this.bolt, h = b.h, w = G.world; b.t += dt;
       const sp = b.t < 4 ? 8 : 0; h.root.position.x += Math.sin(b.a) * sp * dt; h.root.position.z += Math.cos(b.a) * sp * dt;
       if (w) h.root.position.y = w.heightAt(h.root.position.x, h.root.position.z);
       h.root.rotation.y = b.a; h.gait(dt, sp);
+      if (h.falls.length && b.t < 4) for (const i of h.falls) FOLEY.hoof({ x: h.root.position.x, z: h.root.position.z }, 0.6);
       if (b.t > 6) { G.scene.remove(h.root); this.bolt = null; }
     }
   }

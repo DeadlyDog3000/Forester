@@ -266,5 +266,7 @@ export function buildThings(w, C, b, flip) {
   }
   for (const [k, ...a] of M.things) if (B[k]) B[k](...a);
   w.root.add(g);
-  return { g, cols, breaks, siege };
+  // (a town besieged before the assault: how far its walls are already battered down, 0 to 1 and more)
+  const twn = M.things.find(t => t[0] === "town");
+  return { g, cols, breaks, siege, battered: (twn && twn[5]) || 0 };
 }

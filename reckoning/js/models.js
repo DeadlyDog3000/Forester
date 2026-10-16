@@ -582,6 +582,12 @@ function useModel(P, key, colors = {}) {
   const part = (c, arms) => { if (!c) return null; const k = c.clone(); k.tracks = k.tracks.filter(t => ARM.test(t.name.split(".")[0]) === arms); k.name = c.name + (arms ? "·arms" : "·legs"); return mixer.clipAction(k); };
   for (const n of ["walk", "run"]) if (acts[n]) acts[n + "Legs"] = part(clip(n), false);
   for (const n of ["torch", "lantern", "writ", "bound", "hold", "guard"]) if (acts[n]) acts[n + "Arms"] = part(clip(n), true);
+  // (and for a man in the saddle: the seat from the waist down, and from the waist up the cut, the thrust, the guard or
+  //  the sabre held out at the point for the charge — so a trooper fights from his horse, not sits on it like a sack)
+  const UP = /shoulder|arm|elbow|wrist|hand|finger|thumb|spine|chest|neck|head/i;
+  const upper = (c, up) => { if (!c) return null; const k = c.clone(); k.tracks = k.tracks.filter(t => UP.test(t.name.split(".")[0]) === up); k.name = c.name + (up ? "·up" : "·low"); return mixer.clipAction(k); };
+  if (acts.sit) acts.sitLow = upper(clip("sit"), false);
+  for (const n of ["overhead", "slash", "punch", "guard", "point"]) if (acts[n]) { acts[n + "Up"] = upper(acts[n].getClip(), true); if (n === "overhead" || n === "slash") { acts[n + "Up"].setLoop(THREE.LoopOnce, 1); acts[n + "Up"].clampWhenFinished = true; } }
   let cur = null, curArms = null;
   // (each person their own tempo, a touch quicker or slower; and a standing clip — breathing, talking, a held pose —
   // starts anywhere in its loop, so a crowd doesn't breathe and shift its weight all together, like clockwork)
@@ -651,6 +657,9 @@ function useModel(P, key, colors = {}) {
     } else if (keepsHands && moving && acts[pose + "Arms"] && acts.walkLegs) {
       // walking with something held: the legs walk, the arms keep hold
       play(speed > 2.1 && acts.runLegs ? "runLegs" : "walkLegs"); playArms(pose + "Arms");
+    } else if (this.sitting > 0.5 && acts.sitLow && acts[pose + "Up"] && (ONCE || pose === "guard" || pose === "point")) {
+      // in the saddle with a blade: sat, and fighting from the waist up
+      play("sitLow", 0.2); playArms(pose + "Up"); this.wasSeated = true;
     } else {
       playArms(null);
       // (sitting down or getting up takes a moment, not a blink: the blend into the seat and out of it is slow)
@@ -1877,66 +1886,170 @@ export function makeShip(len = 18, seed = 3) {
   return g;
 }
 
-// ---- a horse, low-poly: body, neck and head, four legs that swing from the shoulder and hip, a mane and a tail ----
-// facing +Z, standing on y = 0; { root, legs: [fl, fr, bl, br], neck, gait(t, k) } — gait swings the legs (k: 0 still, 1 gallop)
+// ---- a horse: a cavalry remount of the 1680s, shaped rather than boxed — the deep barrel and the rounded quarters,
+// the shoulder and the thigh standing out of the side, a crested neck and a long, wedge-shaped head; legs that taper
+// from forearm to cannon, with knee, fetlock and pastern; the hoof. Its coat by its seed: socks and a blaze or a star,
+// as no two horses are marked alike. A trooper's saddle on it, the cloth under it bordered, pistol holsters at the
+// pommel, the bridle and the bit, the stirrups hanging.
+// facing +Z, standing on y = 0. { root, legs: [fl, fr, bl, br], neck, gait(dt, speed), strike(), rear(), lift, falls }
+// — gait goes with the pace; falls is which hooves came down this frame (for the hoofbeats); strike() throws the head
+// and surges forward under a rider's blow; rear() up on its hind legs (a pike in its chest); lift is how far the
+// saddle rose with it (the rider goes up too)
+const HSPH = new THREE.SphereGeometry(1, 14, 10), HTAPER = {}, HCONE = new THREE.ConeGeometry(1, 1, 6), HTOR = new THREE.TorusGeometry(1, 0.16, 5, 12);
+const taper = (rt, rb, seg = 10) => HTAPER[rt + "," + rb] ??= new THREE.CylinderGeometry(rt, rb, 1, seg);
+let HORSE_MAT = null;
+const G_T = () => performance.now() / 1000;
 export function makeHorse(coat = 0x6a4428, seed = 1) {
-  const root = new THREE.Group();
-  // (a coat, not timber: no grain on it)
-  const hide = mat(coat, { roughness: 0.9, surface: "none" }), dark = mat(0x2a1c12, { roughness: 0.9, surface: "none" }), hoof = mat(0x1a1410, { roughness: 0.8, surface: "none" });
-  const bx = (w, h, d, x, y, z, m, p = root) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; };
-  // the barrel, a little rounder at the chest and the rump
-  bx(0.5, 0.52, 1.5, 0, 1.18, 0, hide);
-  bx(0.46, 0.5, 0.36, 0, 1.2, 0.72, hide);
-  bx(0.48, 0.5, 0.34, 0, 1.22, -0.72, hide);
-  // neck and head, from the withers forward and up
-  const neck = new THREE.Group(); neck.position.set(0, 1.36, 0.82); neck.rotation.x = -0.75; root.add(neck);
-  bx(0.26, 0.3, 0.75, 0, 0, 0.3, hide, neck);
-  bx(0.06, 0.14, 0.7, 0, 0.19, 0.28, dark, neck);                   // the mane
-  const head = new THREE.Group(); head.position.set(0, 0.02, 0.66); head.rotation.x = 1.25; neck.add(head);
-  bx(0.22, 0.2, 0.55, 0, 0, 0.22, hide, head);
-  bx(0.18, 0.16, 0.12, 0, -0.02, 0.5, dark, head);                  // the muzzle
-  for (const s of [-1, 1]) bx(0.05, 0.12, 0.05, s * 0.08, 0.15, 0.02, hide, head);   // ears
-  // the saddle and the blanket under it
-  bx(0.56, 0.05, 0.62, 0, 1.46, 0.05, mat(0x6a2a20, { roughness: 0.9, surface: "cloth" }));
-  bx(0.4, 0.1, 0.48, 0, 1.51, 0.05, mat(0x3a2414, { roughness: 0.7, surface: "none" }));
-  // the tail
-  const tail = new THREE.Group(); tail.position.set(0, 1.35, -0.9); tail.rotation.x = 0.5; root.add(tail);
-  bx(0.1, 0.1, 0.62, 0, 0, -0.3, dark, tail);
-  // the legs: an upper and a lower, hung from the shoulder or hip
-  const legs = [];
-  for (const [x, z] of [[-0.17, 0.62], [0.17, 0.62], [-0.17, -0.62], [0.17, -0.62]]) {
-    const l = new THREE.Group(); l.position.set(x, 1.0, z); root.add(l);
-    bx(0.13, 0.52, 0.15, 0, -0.26, 0, hide, l);
-    const low = new THREE.Group(); low.position.y = -0.5; l.add(low);
-    bx(0.09, 0.46, 0.1, 0, -0.23, 0, hide, low);
-    bx(0.12, 0.06, 0.13, 0, -0.47, 0.01, hoof, low);
-    l.userData.low = low; legs.push(l);
+  HORSE_MAT ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0 });
+  const rr = (() => { let s = (Math.imul(seed + 7, 2654435761) ^ 0x9e3779b9) >>> 0; const f = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; for (let i = 0; i < 4; i++) f(); return f; })();
+  const c = new THREE.Color(coat), hide = coat;
+  // (the mane, tail and lower legs: black on a bay, darker on the rest; a grey's go paler)
+  const grey = c.r > 0.45 && Math.abs(c.r - c.b) < 0.08, bay = !grey && c.r > c.b * 1.3;
+  const dark = grey ? 0xb8b4ac : bay ? 0x1c1612 : c.clone().multiplyScalar(0.55).getHex(), hoofC = 0x2a221c, white = 0xe8e2d6;
+  const muz = c.clone().multiplyScalar(0.7).getHex(), leather = 0x3a2416, cloth = [0x7a2a22, 0x2a3a5a, 0x2a4a32, 0x6a5a2a][Math.floor(rr() * 4)], trim = 0xc8a050, iron = 0x6a6a68;
+  const socks = [0, 1, 2, 3].map(() => rr() < 0.22), face = rr() < 0.3 ? "blaze" : rr() < 0.4 ? "star" : null;
+  const parts = [];
+  const B = () => { const b = new Builder(); parts.push(b); return b; };
+  const e = (b, col, x, y, z, sx, sy, sz, rx = 0, ry = 0, rz = 0) => b.add(HSPH, col, x, y, z, rx, ry, rz, sx, sy, sz);
+  const cyl = (b, col, rt, rb, len, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sz = 1) => b.add(taper(rt, rb), col, x, y, z, rx, ry, rz, sx, len, sz);
+  const box = (b, col, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0) => b.add(BOXG, col, x, y, z, rx, ry, rz, w, h, d);
+  const root = new THREE.Group(), bod = new THREE.Group(); root.add(bod);
+  // ---- the body ----
+  const body = B();
+  e(body, hide, 0, 1.2, 0, 0.27, 0.32, 0.72);                       // the barrel
+  e(body, hide, 0, 1.2, 0.54, 0.25, 0.33, 0.32);                    // the chest
+  e(body, hide, 0, 1.02, 0.66, 0.19, 0.17, 0.14);                   // the breast
+  e(body, hide, 0, 1.42, 0.46, 0.12, 0.12, 0.3);                    // the withers
+  e(body, hide, 0, 1.26, -0.5, 0.29, 0.32, 0.38);                   // the quarters
+  e(body, hide, 0, 1.42, -0.52, 0.2, 0.12, 0.32);                   // the croup
+  e(body, hide, 0, 1.0, -0.02, 0.23, 0.16, 0.55);                   // the belly
+  for (const s of [-1, 1]) {
+    e(body, hide, s * 0.15, 1.17, 0.58, 0.11, 0.27, 0.18, -0.35);   // the shoulder
+    e(body, hide, s * 0.155, 1.15, -0.56, 0.13, 0.3, 0.24, 0.25);   // the thigh
   }
+  e(body, dark, 0, 1.38, -0.86, 0.06, 0.07, 0.1);                   // the dock
+  // the cloth, a soldier's shabraque: over the back and down each side, bordered
+  box(body, cloth, 0.36, 0.025, 0.8, 0, 1.53, -0.03);
+  for (const s of [-1, 1]) {
+    box(body, cloth, 0.025, 0.42, 0.8, s * 0.262, 1.33, -0.03, 0, 0, s * 0.2);
+    box(body, trim, 0.03, 0.035, 0.82, s * 0.302, 1.125, -0.03, 0, 0, s * 0.2);
+    // the girth, the stirrup leather and its iron
+    box(body, leather, 0.025, 0.36, 0.06, s * 0.27, 1.06, 0.2, 0, 0, s * 0.25);
+    box(body, leather, 0.018, 0.4, 0.035, s * 0.33, 1.3, 0.06);
+    b_ring(body, iron, s * 0.335, 1.08, 0.06, 0.055);
+    // the pistol holsters, either side of the pommel, under their bearskin caps
+    cyl(body, leather, 0.035, 0.05, 0.3, s * 0.2, 1.48, 0.42, 0.95, 0, s * 0.35);
+    e(body, 0x1a1612, s * 0.22, 1.6, 0.34, 0.06, 0.05, 0.07);
+  }
+  box(body, leather, 0.42, 0.025, 0.06, 0, 0.88, 0.2);              // the girth under the belly
+  // the saddle: the seat, the pommel before it and the cantle behind
+  box(body, leather, 0.32, 0.05, 0.5, 0, 1.565, 0.0);
+  e(body, leather, 0, 1.62, 0.25, 0.12, 0.07, 0.06);
+  e(body, leather, 0, 1.635, -0.25, 0.16, 0.08, 0.05);
+  box(body, leather, 0.44, 0.04, 0.035, 0, 1.24, 0.86, 0, 0, 0);   // the breastplate strap
+  bod.add(body.build(HORSE_MAT));
+  // ---- the neck and the head ----
+  const neck = new THREE.Group(); neck.position.set(0, 1.38, 0.76); neck.rotation.x = -0.75; bod.add(neck);
+  const nb = B();
+  cyl(nb, hide, 0.12, 0.21, 0.88, 0, 0, 0.36, Math.PI / 2, 0, 0, 0.7, 1.15);
+  e(nb, hide, 0, 0.11, 0.34, 0.07, 0.08, 0.42);                     // the crest
+  // the mane: falling to the off side in locks
+  for (let i = 0; i < 9; i++) { const z = -0.02 + i * 0.09; box(nb, dark, 0.03, 0.13 + rr() * 0.05, 0.1, 0.06, 0.13 - i * 0.004, z, 0, 0, -0.5 - rr() * 0.2); }
+  for (const s of [-1, 1]) box(nb, leather, 0.012, 0.012, 0.72, s * 0.105, -0.01, 0.44);   // the reins along the neck
+  neck.add(nb.build(HORSE_MAT));
+  const head = new THREE.Group(); head.position.set(0, 0.0, 0.8); head.rotation.x = 1.25; neck.add(head);
+  const hb = B();
+  e(hb, hide, 0, 0.03, 0.04, 0.11, 0.12, 0.14);                     // the poll and the brow
+  e(hb, hide, 0, -0.06, 0.06, 0.1, 0.1, 0.12);                      // the jowl
+  cyl(hb, hide, 0.07, 0.1, 0.44, 0, 0, 0.27, Math.PI / 2, 0, 0, 0.95, 1.12);   // the long face
+  e(hb, muz, 0, -0.02, 0.5, 0.075, 0.08, 0.09);                     // the muzzle
+  for (const s of [-1, 1]) {
+    e(hb, 0x120c0a, s * 0.04, 0.0, 0.57, 0.018, 0.024, 0.016);      // the nostrils
+    e(hb, 0x0c0808, s * 0.098, 0.06, 0.08, 0.024, 0.026, 0.026);    // the eyes
+    b_cone(hb, hide, s * 0.055, 0.17, -0.03, 0.035, 0.14, -0.25, s * 0.15);   // the ears
+    box(hb, leather, 0.012, 0.022, 0.34, s * 0.102, 0.02, 0.2);     // the cheekpieces
+    b_ring(hb, iron, s * 0.082, -0.06, 0.47, 0.022, Math.PI / 2);   // the bit's rings
+  }
+  b_ring(hb, leather, 0, 0.0, 0.37, 0.088, 0, 1.15);                // the noseband
+  e(hb, dark, 0, 0.13, 0.1, 0.045, 0.03, 0.1);                      // the forelock
+  if (face === "blaze") e(hb, white, 0, 0.088, 0.26, 0.032, 0.02, 0.24);
+  else if (face === "star") e(hb, white, 0, 0.11, 0.1, 0.035, 0.02, 0.04);
+  head.add(hb.build(HORSE_MAT));
+  // ---- the tail: the dock and the hair hanging from it, in two lengths so it swings ----
+  const tail = new THREE.Group(); tail.position.set(0, 1.37, -0.9); tail.rotation.x = -1.2; bod.add(tail);
+  const tb = B(); cyl(tb, dark, 0.05, 0.07, 0.4, 0, 0, -0.2, -Math.PI / 2, 0, 0, 0.8, 1); tail.add(tb.build(HORSE_MAT));
+  const tail2 = new THREE.Group(); tail2.position.z = -0.38; tail.add(tail2);
+  const t2 = B(); cyl(t2, dark, 0.075, 0.055, 0.5, 0, 0, -0.24, -Math.PI / 2, 0, 0, 0.55, 1);   // (the hair spreading as it falls) tail2.add(t2.build(HORSE_MAT));
+  // ---- the legs: forearm or gaskin hung from the shoulder or hip; then the knee or hock, the cannon, the fetlock, the
+  //  pastern and the hoof ----
+  const legs = [];
+  [[-0.14, 0.56], [0.14, 0.56], [-0.15, -0.56], [0.15, -0.56]].forEach(([x, z], i) => {
+    const front = i < 2, l = new THREE.Group(); l.position.set(x, 1.02, z); bod.add(l);
+    const ub = B();
+    e(ub, hide, 0, -0.06, 0, 0.085, 0.15, 0.11);
+    cyl(ub, hide, 0.075, 0.048, 0.5, 0, -0.25, 0);
+    if (front) e(ub, hide, 0, -0.5, 0.005, 0.052, 0.06, 0.055);    // the knee
+    else e(ub, hide, 0, -0.49, -0.03, 0.05, 0.065, 0.075);          // the hock, its point behind
+    l.add(ub.build(HORSE_MAT));
+    const low = new THREE.Group(); low.position.y = -0.5; l.add(low);
+    const lb = B(), sk = socks[i] ? white : bay ? dark : hide;
+    cyl(lb, socks[i] ? white : bay ? dark : hide, 0.04, 0.037, 0.34, 0, -0.17, 0);
+    e(lb, sk, 0, -0.35, -0.005, 0.048, 0.05, 0.055);                // the fetlock
+    cyl(lb, sk, 0.034, 0.04, 0.09, 0, -0.41, 0.018, -0.3);          // the pastern
+    cyl(lb, hoofC, 0.048, 0.062, 0.085, 0, -0.475, 0.032);          // the hoof
+    low.add(lb.build(HORSE_MAT));
+    l.userData.low = low; legs.push(l);
+  });
+  root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   // its gaits as a horse has them: a four-beat walk, a trot on the diagonals, a gallop with the hinds and then the fores
   // (fore left, fore right, hind left, hind right: when each comes down, and for how much of the stride); the stride
   // lengthens with the pace, and a hoof on the ground sweeps back exactly as fast as the horse goes over it
-  const GAITS = { walk: { off: [0.25, 0.75, 0, 0.5], duty: 0.62, stride: 1.7 }, trot: { off: [0, 0.5, 0.5, 0], duty: 0.42, stride: 2.7 }, gallop: { off: [0.55, 0.65, 0, 0.1], duty: 0.3, stride: 4.6 } };
-  let ph = 0;
-  const gait = (dt, speed) => {
-    const g = speed < 2.6 ? GAITS.walk : speed < 6 ? GAITS.trot : GAITS.gallop, still = Math.min(1, speed / 0.8);
-    ph = (ph + dt * speed / g.stride) % 1;
+  const GAITS = { walk: { off: [0.25, 0.75, 0, 0.5], duty: 0.62, stride: 1.8 }, trot: { off: [0, 0.5, 0.5, 0], duty: 0.42, stride: 3.0 }, gallop: { off: [0.55, 0.65, 0, 0.1], duty: 0.3, stride: 5.6 } };
+  let ph = 0, strikeT = 0, rearT = 0, ext = 0;
+  const H = { root, legs, neck, lift: 0, falls: [] };
+  H.strike = () => { strikeT = 0.6; };
+  H.rear = () => { if (rearT <= 0) rearT = 1.4; };
+  H.gait = (dt, speed) => {
+    const g = speed < 2.6 ? GAITS.walk : speed < 6.2 ? GAITS.trot : GAITS.gallop, still = Math.min(1, speed / 0.8);
+    const ph0 = ph; ph = (ph + dt * speed / g.stride) % 1;
     const A = Math.min(0.62, g.duty * g.stride / 2.0) * still;
+    H.falls.length = 0;
     legs.forEach((l, i) => {
-      const u = (ph + g.off[i]) % 1, front = i < 2;
+      const u = (ph + g.off[i]) % 1, u0 = (ph0 + g.off[i]) % 1, front = i < 2;
+      // (a hoof down: the moment its stance begins — heard)
+      if (speed > 0.5 && u < u0 && u0 > 0.5) H.falls.push(i);
       let a, fold = 0;
       if (u < g.duty) a = -A + 2 * A * (u / g.duty);
-      else { const q = (u - g.duty) / (1 - g.duty), e = q * q * (3 - 2 * q); a = A - 2 * A * e; fold = Math.sin(q * Math.PI) * (front ? 1.2 : 0.8) * still; }
+      else { const q = (u - g.duty) / (1 - g.duty), sm = q * q * (3 - 2 * q); a = A - 2 * A * sm; fold = Math.sin(q * Math.PI) * (front ? 1.2 : 0.8) * still; }
       l.rotation.x = a;
       l.userData.low.rotation.x += ((front ? fold : -fold * 0.7) - l.userData.low.rotation.x) * Math.min(1, dt * 30);
     });
-    const k = Math.min(1, speed / 8);
-    // the head nods with each stride (twice at the walk), and the tail lifts with the pace
-    neck.rotation.x = -0.75 + Math.sin(ph * Math.PI * 2 * (g === GAITS.walk ? 2 : 1)) * (0.05 + 0.05 * k) * still;
-    tail.rotation.x = 0.5 + k * 0.4 + Math.sin(ph * Math.PI * 4) * 0.1 * k;
+    const k = Math.min(1, speed / 9);
+    // (at the gallop the neck stretches out and the body rocks with each bound, rising as the fores push off)
+    ext += ((g === GAITS.gallop ? 1 : 0) - ext) * Math.min(1, dt * 3);
+    const beat = Math.sin(ph * Math.PI * 2 * (g === GAITS.walk ? 2 : 1));
+    // a blow from the saddle: the horse surges into it, head thrown up and to the side
+    strikeT = Math.max(0, strikeT - dt); const sk = Math.sin(Math.min(1, (0.6 - strikeT) / 0.6) * Math.PI) * (strikeT > 0 ? 1 : 0);
+    // reared: up on the hinds and down again, the forelegs pawing
+    rearT = Math.max(0, rearT - dt); const rk = rearT > 0 ? Math.sin((1 - rearT / 1.4) * Math.PI) : 0;
+    bod.rotation.x = -(beat * 0.035 * ext * still) - rk * 0.42 - sk * 0.06;
+    bod.position.y = Math.abs(beat) * 0.03 * k * still + rk * 0.12;
+    // (rearing pivots on the hindquarters: the saddle goes up with it)
+    H.lift = rk * (0.12 + 0.56 * Math.sin(0.42)) + sk * 0.02;
+    if (rk > 0) { legs[0].rotation.x = -0.9 * rk + Math.sin(rearT * 14) * 0.3 * rk; legs[1].rotation.x = -0.9 * rk + Math.cos(rearT * 14) * 0.3 * rk; legs[0].userData.low.rotation.x = 1.4 * rk; legs[1].userData.low.rotation.x = 1.4 * rk; legs[2].rotation.x = legs[3].rotation.x = 0.42 * rk; }
+    // the head nods with each stride (twice at the walk), the tail lifts and streams with the pace
+    neck.rotation.x = -0.75 + ext * 0.28 * still + beat * (0.05 + 0.05 * k) * still - sk * 0.45 - rk * 0.3;
+    neck.rotation.y = sk * 0.25;
+    tail.rotation.x = -1.2 + k * 0.8 + Math.sin(ph * Math.PI * 4) * 0.08 * k;
+    tail2.rotation.x = -0.32 * (1 - k) + k * 0.3 + Math.sin(ph * Math.PI * 2 + 1) * 0.12 * k;
+    tail2.rotation.y = Math.sin(G_T() * 0.7 + seed) * 0.08 * (1 - k);   // (swishing at the flies, standing)
     return ph;
   };
-  return { root, legs, neck, gait };
+  return H;
 }
+const BOXG = new THREE.BoxGeometry(1, 1, 1);
+function b_ring(b, col, x, y, z, r, ry = 0, sy = 1) { b.add(HTOR, col, x, y, z, 0, ry, 0, r, r * sy, r); }
+function b_cone(b, col, x, y, z, r, h, rx = 0, rz = 0) { b.add(HCONE, col, x, y, z, rx, 0, rz, r, h, r); }
 
 // ---------------------------------------------------------------------------
 //  the beasts of the wider world, built here: a body, four legs that swing at the hip and bend at the knee (named as the

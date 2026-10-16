@@ -300,6 +300,21 @@ export class Field {
   }
   // ---- battering: a ball (or a bomb, or men at the gate) into the town's wall; a length of it, its tower, its gate,
   //  brought down a little at a time — the merlons first, then the whole of it into a slope of rubble, a breach ----
+  // the walls as a siege left them: a year or more of the besiegers' guns before the assault — stretches of the parapet
+  //  knocked down, the wall walk broken, and with enough of it whole lengths of wall in ruin: the breaches to storm
+  //  (f: how much battering, 0 to 1 and more; the gate's left to the assault — the guns were laid on the walls)
+  preBatter(f) {
+    if (!(f > 0)) return 0;
+    let down = 0;
+    for (const b of this.breaks) {
+      if (b.gate || b.down) continue;
+      b.hp -= b.max * f * (b.kind === "tower" ? 0.5 : 1) * (0.35 + Math.random() * 1.1);
+      if (b.hp < b.max * 0.75) for (const m of b.merl.splice(0, Math.ceil(b.merl.length * 0.6))) m.visible = false;
+      if (!b.half && b.hp < b.max * 0.5) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; for (const m of b.merl) m.visible = false; b.merl = []; b.rub.visible = true; }
+      if (b.hp <= 0) { b.down = true; b.grp.visible = false; b.rub.visible = true; b.col.disabled = true; down++; }
+    }
+    return down;
+  }
   batter(p, dmg) {
     for (const b of this.breaks) {
       if (b.down || Math.abs(p.x - b.x) > b.hw || Math.abs(p.z - b.z) > b.hd || p.y > b.top + 1.5) continue;

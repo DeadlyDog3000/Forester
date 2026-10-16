@@ -1775,3 +1775,15 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-cand .cmp-stats small { font-size: 8.5px; }
 .cmp-cand .cmp-stats i { font-size: 9px; letter-spacing: 0; }
 .cmp-bi { display: flex; align-items: center; justify-content: center; color: #c9b48a; opacity: 0.9; }
+/* the army's morale: a word, a bar and its number */
+.cmp-morale { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; font-size: 13px; }
+.cmp-morale small { opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+.cmp-morale b { font-weight: 600; min-width: 92px; }
+.cmp-morale i { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.cmp-morale u { display: block; height: 100%; background: linear-gradient(90deg, #a0483a, #c8a050 50%, #7aa05a); text-decoration: none; }
+/* a town under siege: the year, the garrison's hunger, how far the walls are battered */
+.cmp-siege { margin: 6px 0 8px; padding: 8px 10px; border-left: 3px solid #a0483a; background: rgba(160,72,58,0.12); font-size: 13px; }
+.cmp-siege b { display: block; font-weight: 600; }
+.cmp-siege span { display: block; opacity: 0.85; margin: 2px 0 6px; }
+.cmp-siege i { display: block; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.cmp-siege u { display: block; height: 100%; background: #b8865a; text-decoration: none; }

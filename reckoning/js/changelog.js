@@ -7,6 +7,22 @@
 
 export const CHANGELOG = [
   {
+    v: "1.45.0", date: "16 October 2026", title: "Horse and siege",
+    items: [
+      "New horses: shaped, not boxes. A deep body with rounded quarters, a crested neck, a long head with ears, eyes and nostrils, and legs with knees, fetlocks and hooves. Each horse has its own markings (white socks, a blaze or a star) and a trooper's saddle: a bordered saddle cloth, pistol holsters, bridle, bit and stirrups.",
+      "Horses gallop slower and more like horses: a longer stride, the neck stretched out and the body rocking with each bound. The tail hangs when the horse stands and streams out at speed.",
+      "Hoofbeats: each hoof is heard as it comes down, for your horse and every rider near you. You also hear the tack jingle and the odd snort.",
+      "Cavalry fight from the saddle: a trooper charges with his sabre held out at the point, then cuts and thrusts from his horse, and the horse surges into each blow. A pike or bayonet in its chest makes the horse rear.",
+      "Campaign: sieges. Lay siege to a walled town instead of assaulting it. Each year the garrison starves and your guns batter the walls. Your camp loses men to sickness, and the enemy may send an army to lift the siege. The town may surrender, or you can storm it whenever you like, and the battle starts with its walls as your guns left them. Star forts take twice as long to batter.",
+      "Campaign: your army has a morale level, set by your general's morale and your barracks. Victories raise it; defeats, a fallen general and missed pay lower it. It counts in every battle, whether you fight it yourself or leave it to your generals.",
+      "Campaign: generals serve fifty years instead of ten.",
+      "Campaign: appointing a governor costs money. The bigger the town and the better the man, the higher the price.",
+      "Campaign: the other crowns start with larger armies, rebuild them faster and defend their towns more stoutly.",
+      "Battles: no company breaks in the first minute, and one volley no longer makes a whole company run at once.",
+      "Felled trees no longer leave stumps.",
+    ],
+  },
+  {
     v: "1.44.3", date: "16 October 2026", title: "Their true faces",
     items: [
       "Campaign: the historical generals and governors now have their real portraits, paintings and engravings of their own time: Luxembourg, Vauban, La Reynie, Lorraine, Starhemberg, Türkenlouis, Jabłonowski, Kara Mustafa, Gordon, Golitsyn, Ascheberg, Dahlbergh, Derfflinger, William of Orange, Morosini, Max Emanuel, Thököly and others. All are public domain, from Wikimedia Commons.",
