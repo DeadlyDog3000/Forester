@@ -165,7 +165,27 @@ const alive = (g, id) => citiesOfNow(g, id).length > 0;
 // ---- a fight for a town: by your hand, or your generals' ----
 // (strength: your field army against the town's garrison and the defending crown's army; walls make a big town
 //  harder)
-function garrison(ct) { return ct[3] * 4 + 2; }
+function garrison(ct) { return ct[3] * 4 + 2 + (C && C.walls && C.walls[ct[0]] ? 3 : 0); }
+// ---- a town's works, in peace or war: its land developed (more to the treasury), and walls raised round it ----
+// (walls only where they've been built — by you, or by the crown that holds the town — save a crown's last town,
+//  which every man in it holds to the end behind whatever they can throw up)
+const DEV_MAX = 3;
+const worth = ct => Math.round(ct[3] * 22 * (1 + 0.25 * ((C.dev && C.dev[ct[0]]) || 0)));
+const devCost = ct => 50 + ct[3] * 15 + 45 * ((C.dev && C.dev[ct[0]]) || 0);
+const wallCost = ct => 90 + ct[3] * 60;
+function hasWalls(ct, owner, g = grid()) { return !!(C.walls && C.walls[ct[0]]) || (!!owner && citiesOfNow(g, owner).length === 1); }
+const workedNow = name => C.work && C.work[name] === C.year * 4 + C.s;
+// (the walls raised: finished at the season's turn; the other crowns walling their own towns as they can afford it)
+function raiseWalls(g, ids) {
+  C.walls ||= {}; C.raising ||= {};
+  for (const n of Object.keys(C.raising)) { C.walls[n] = 1; delete C.raising[n]; const ct = CITIES.find(c => c[0] === n), o = ct && cityOwner(g, ct); if (o && (o === C.me || isHuman(o))) as(o, () => say(`${n} is walled`, "The masons are done: its walls stand round it now.")); }
+  for (const id of ids) {
+    if (R() > 0.02 + NATIONS[id].strength * 0.012) continue;
+    const open = citiesOfNow(g, id).filter(ct => !C.walls[ct[0]]).sort((a, b) => b[3] - a[3]); if (!open.length) continue;
+    const ct = R() < 0.7 ? open[0] : pick(open); C.walls[ct[0]] = 1;
+    if ((C.mp ? humans() : [C.me]).some(h => as(h, () => atWar(id) || citiesOfNow(g, h).some(m => distFrom(g, h, ct) <= REACH)))) sayAll(`${The(id)} walls ${ct[0]}`, "Masons and labourers at work round the town: it will be harder to take.");
+  }
+}
 // (the levy: a crown down to its last few towns, every man in them takes up arms — the fewer, the fiercer)
 const levy = towns => Math.round(18 / Math.max(1, towns));
 function odds(att, def, walls) { const a = Math.pow(att, 1.25), d = Math.pow(def * (walls ? 1.3 : 1), 1.25); return a / (a + d); }
@@ -207,18 +227,15 @@ function fight(o) {
   const ally = Object.keys(C.ally).find(id => C.ally[id] && C.E.wars.some(w => (w.a === id && w.b === o.foe) || (w.b === id && w.a === o.foe)));
   const s = C.s, hourR = R();
   const def = o.attack ? 1 : 0, ct = o.ct;
-  const things = [];
-  // (the town behind its defenders: its houses, its church; a great town's walls and towers further off)
+  // (the battle fought in the town itself: its streets and square, and its wall with the way in, if it has one)
   const bu = def === 1 ? 1 : -1;
-  for (let i = 0; i < 3 + ct[3]; i++) things.push(["house", bu * (62 + (i % 3) * 9), (i - 2) * 16 + 34, (i * 0.7) % 1.5, 7, 5, i % 2 ? "tile" : "thatch"]);
-  things.push(["church", bu * 90, -34, 0.2, 16 + ct[3] * 3, 9]);
-  if (ct[3] >= 3) { things.push(["city", bu * 150, -90, 90, 11]); things.push(["spire", bu * 190, 10, 90]); }
+  const things = [["town", bu, ct[3], o.walls ? 1 : 0, Math.round(ct[1] * 1000 + ct[2] * 100)]];
   const b = {
     id: "cmp-" + ct[0], campaign: true, name: ct[0], date: `${SEASONS[s]} ${C.year}`, year: C.year, lon: ct[1], lat: ct[2],
     at: o.attack ? `You march on ${the(o.foe)}'s town` : `${The(o.foe)} marches on your town`,
     hour: hourR < 0.1 ? "night" : hourR < 0.35 ? "morning" : hourR < 0.8 ? "afternoon" : "evening",
     cloud: s === 3 ? 0.7 : s === 2 ? 0.5 : s === 0 ? 0.35 : 0.1, mist: s === 2 ? 0.3 : s === 3 ? 0.25 : 0,
-    fort: o.walls ? def : null, won: undefined, you: 0,
+    fort: null, won: undefined, you: 0,
     sides: [
       { name: NATIONS[C.me].name, lead: "you", hold: o.attack ? undefined : 999, cos: [{ uni: UNI_OF[C.me], muster: { ...o.pick.men }, guns: o.pick.guns | 0 }, ...(ally && !o.walls ? [{ uni: UNI_OF[ally], muster: muster(ally, 14), guns: 1 }] : [])] },
       { name: NATIONS[o.foe].name, lead: "their officers", hold: o.attack ? 999 : undefined, cos: [{ uni: UNI_OF[o.foe] === UNI_OF[C.me] ? (UNI_OF[C.me] === "imperial" ? "bavarian" : "imperial") : UNI_OF[o.foe], muster: muster(o.foe, theirMen), guns: Math.min(3, Math.floor(theirs / 22)) }] },
@@ -295,10 +312,10 @@ function march(ct) {
   const g = grid(), foe = cityOwner(g, ct);
   if (C.moved || !foe || !atWar(foe) || C.army < 5 || !inReach(g, ct)) return null;
   C.moved = true;
-  return { attack: true, foe, ct, att: C.army, def: garrison(ct) + Math.round(foeArmy(foe) * (isHuman(foe) ? 0.7 : 0.55)) + (isHuman(foe) ? levy(citiesOfNow(g, foe).length) : 0), walls: ct[3] >= 3 || (ct[3] === 2 && R() < 0.5) };
+  return { attack: true, foe, ct, att: C.army, def: garrison(ct) + Math.round(foeArmy(foe) * (isHuman(foe) ? 0.7 : 0.55)) + (isHuman(foe) ? levy(citiesOfNow(g, foe).length) : 0), walls: hasWalls(ct, foe, g) };
 }
 function recruit(n) { const k = Math.min(n, Math.floor(C.gold / REGIMENT)); if (k <= 0) return; C.gold -= k * REGIMENT; C.army += k; persist(); }
-const income = g => 40 + citiesOfNow(g, C.me).reduce((t, ct) => t + ct[3] * 22, 0) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0);
+const income = g => 40 + citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct), 0) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0);
 const upkeep = () => Math.round(C.army * 1.6);
 // diplomacy: what you can do with a crown this season
 function diplo(id, what) {
@@ -356,6 +373,7 @@ function endSeason(part = {}) {
   }
   // (and they at each other: their wars begun, fought and ended, and the borders moving)
   if (world) crownsWar(g, ids);
+  if (world) raiseWalls(g, ids);
   if (mine && !C.over) {
   const g2 = grid(), mine = citiesOfNow(g2, C.me), nb = neighbours(g2, C.me), big = mine.length;
   // who'll make war on you: a neighbour that hates you, or fears you as you grow — and thinks itself able
@@ -376,7 +394,7 @@ function endSeason(part = {}) {
     if (!atWar(id) || C.foes[id] < 8 || R() > (C.s === 3 ? 0.2 : 0.5)) continue;
     const near = mine.filter(ct => inReach(g2, ct, id)); if (!near.length) continue;
     const ct = pick(near), att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
-    C.events.push({ kind: "attack", foe: id, ct: ct[0], att, def: garrison(ct) + levy(mine.length) + Math.round(C.army * 0.7), walls: ct[3] >= 2 });
+    C.events.push({ kind: "attack", foe: id, ct: ct[0], att, def: garrison(ct) + levy(mine.length) + Math.round(C.army * 0.7), walls: hasWalls(ct, C.me) });
   }
   }
   // a plague or a bad harvest, now and then
@@ -617,6 +635,8 @@ function paint() {
   for (const ct of CITIES) {
     const own2 = cityOwner(g, ct); if (!own2) continue;
     const [x, y] = at(ct); if (x < -20 || y < -20 || x > cv.width + 20 || y > cv.height + 20) continue;
+    // (a walled town: a little bastioned outline round it, as the engravers drew a fortress)
+    if (C.walls && C.walls[ct[0]]) { const r = (11 + ct[3] * 1.5) * k; c.save(); c.strokeStyle = "rgba(40,28,16,0.85)"; c.lineWidth = 1.4 * k; c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? r * 0.78 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); c.stroke(); c.restore(); }
     if (own2 === C.me) {
       c.strokeStyle = threat.has(ct[0]) ? "#c0281a" : NATIONS[C.me].color; c.beginPath(); c.arc(x, y, (7 + ct[3] * 1.5) * k, 0, 7); c.stroke();
       c.strokeStyle = "rgba(40,28,16,0.8)"; c.lineWidth = 1 * k; c.beginPath(); c.arc(x, y, (8.6 + ct[3] * 1.5) * k, 0, 7); c.stroke(); c.lineWidth = 2.2 * k;
@@ -673,9 +693,11 @@ function drawSide() {
   // the town or the crown chosen on the map
   if (selCity) {
     const own2 = cityOwner(g, selCity), mineT = own2 === C.me, reach = !mineT && own2 && inReach(g, selCity), can = !mineT && own2 && atWar(own2) && reach && !C.moved && C.army >= 5;
-    const def = own2 && !mineT ? garrison(selCity) + Math.round(foeArmy(own2) * (isHuman(own2) ? 0.7 : 0.55)) : 0, walls = selCity[3] >= 3;
+    const def = own2 && !mineT ? garrison(selCity) + Math.round(foeArmy(own2) * (isHuman(own2) ? 0.7 : 0.55)) : 0, walls = own2 ? hasWalls(selCity, own2, g) : false;
     h += `<div class="cmp-card"><div class="cmp-h"><b>${esc(selCity[0])}</b><small>${["", "A town", "A city", "A great city"][selCity[3]]} · ${own2 ? esc(NATIONS[own2].name) : "nobody's"}</small></div>
-      ${mineT ? `<p>Yours. Garrison ${garrison(selCity)}; worth ${selCity[3] * 22} thalers a season.</p>` : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${Math.round(foeArmy(own2) * (isHuman(own2) ? 0.7 : 0.55))} regiments to it${walls ? ", behind walls" : ""}. ${!reach ? "It's beyond your army's reach: take the towns between first." : !atWar(own2) ? `You're not at war with ${the(own2)}.` : C.moved ? "Your army has already marched this season." : `Your odds: ${Math.round(odds(C.army, def, walls) * 100)}%.`}</p>` : ""}
+      ${mineT ? (() => { const n = selCity[0], dv = (C.dev && C.dev[n]) || 0, wl = C.walls && C.walls[n], up = C.raising && C.raising[n], busy = workedNow(n), last = citiesOfNow(g, C.me).length === 1;
+        return `<p>Yours. Garrison ${garrison(selCity)}; worth ${worth(selCity)} thalers a season. ${wl ? "Walled." : up ? "Its walls are going up: done at the season's end." : last ? "No walls, but your last town: its people will hold it to the end." : "No walls."}</p>
+        <div class="cmp-dev"><span>Land ${"●".repeat(dv)}${"○".repeat(DEV_MAX - dv)}</span>${busy ? `<small>Work's under way here this season.</small>` : `${dv < DEV_MAX ? `<button class="btn" data-act="develop"${C.gold < devCost(selCity) ? " disabled" : ""}>Develop the land · ${devCost(selCity)}<small>+${Math.round(selCity[3] * 22 * 0.25)} a season: fields drained, a market, a mill</small></button>` : ""}${!wl && !up ? `<button class="btn" data-act="wall"${C.gold < wallCost(selCity) ? " disabled" : ""}>Build walls · ${wallCost(selCity)}<small>Stone walls round it, with a gate: an attacker must batter his way in</small></button>` : ""}`}</div>`; })() : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${Math.round(foeArmy(own2) * (isHuman(own2) ? 0.7 : 0.55))} regiments to it${walls ? ", behind walls" : ""}. ${!reach ? "It's beyond your army's reach: take the towns between first." : !atWar(own2) ? `You're not at war with ${the(own2)}.` : C.moved ? "Your army has already marched this season." : `Your odds: ${Math.round(odds(C.army, def, walls) * 100)}%.`}</p>` : ""}
       ${can ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">March, and fight it yourself</button><button class="btn" data-act="auto">March, and leave it to your generals</button></div>` : ""}</div>`;
   }
   const id = selCity ? cityOwner(g, selCity) : sel;
@@ -712,6 +734,7 @@ function sideClick(e) {
   if (b.dataset.ev != null) { doAct({ k: "ev", i: +b.dataset.ev, how: b.dataset.how }); return; }
   const a = b.dataset.act;
   if (a === "fight" || a === "auto") { if (selCity) doAct({ k: "march", ct: selCity[0], how: a }); return; }
+  if (a === "develop" || a === "wall") { if (selCity) doAct({ k: "build", ct: selCity[0], what: a }); return; }
   if (a === "news") { news = []; drawMap(); return; }
   if (a === "r1" || a === "r5") { doAct({ k: "recruit", n: a === "r1" ? 1 : 5 }); return; }
   if (a === "newgame") { if (mp) return; drawPick(); return; }
@@ -792,6 +815,13 @@ function apply(actor, a) {
       // (a player's town taken from their garrison: told to them)
       if (isHuman(P.foe) && P.attack) as(P.foe, () => say(a.won ? `${P.ct} has fallen` : `${P.ct} holds`, a.won ? `${nameOf(actor)} takes it from its garrison.` : `${nameOf(actor)}'s attack is thrown back by the garrison.`));
       persist(); return { sfx: a.won ? [["bell", 0.45, 1800]] : [] };
+    }
+    if (a.k === "build") {
+      const ct = city(a.ct); if (!ct || cityOwner(g, ct) !== C.me || workedNow(ct[0])) return null;
+      C.dev ||= {}; C.walls ||= {}; C.raising ||= {}; C.work ||= {};
+      if (a.what === "develop") { const dv = C.dev[ct[0]] || 0, cost = devCost(ct); if (dv >= DEV_MAX || C.gold < cost) return null; C.gold -= cost; C.dev[ct[0]] = dv + 1; C.work[ct[0]] = C.year * 4 + C.s; persist(); return { note: `${ct[0]}: the land developed. It brings ${worth(ct)} thalers a season now.`, sfx: [["coin", 0.45], ["quill", 0.35, 300]] }; }
+      if (a.what === "wall") { const cost = wallCost(ct); if (C.walls[ct[0]] || C.raising[ct[0]] || C.gold < cost) return null; C.gold -= cost; C.raising[ct[0]] = 1; C.work[ct[0]] = C.year * 4 + C.s; persist(); return { note: `Masons set to work on ${ct[0]}'s walls. They'll stand by the season's end.`, sfx: [["coin", 0.45], ["seal", 0.4, 300]] }; }
+      return null;
     }
     if (a.k === "mustered") {
       const M = C.mp && C.mp.meet; if (!M || M.key !== a.key || (actor !== M.attacker && actor !== M.defender)) return null;

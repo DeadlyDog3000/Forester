@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "1.43.0", date: "15 October 2026", title: "Storm the town",
+    items: [
+      "Campaign battles are fought at the town itself. You start outside and push your way in: past the wall if it has one, into its streets, with the square behind the gate and the main street leading in, houses either side, and the church at the end.",
+      "A walled town's wall is an earth rampart faced with dressed stone, with towers along it and crenellations along the top. The defenders stand up on the walk behind the parapet and fire down on you, with a gun or two in the embrasures. The gate is shut.",
+      "Guns batter walls down slowly. Each hit knocks stones and merlons off, a length that's taken enough hits comes down into a slope of rubble you can climb, and towers take longer. Men at the gate hack and heave at it until it gives, and grenades help.",
+      "Guns can be wrecked: a direct hit from a cannonball smashes the carriage and puts the gun out of the fight, and its crew take up their swords.",
+      "When a gun's crew are shot down, the nearest of your men step in and serve it, and the enemy's do the same. You can still lay and fire any of your guns yourself (F beside it), or give them orders (0).",
+      "Campaign, in peace or war: develop the land of your towns (three times each, more money every time) and build walls round them. Walls take the season to go up. Click one of your towns to see what it has.",
+      "Towns only have walls where they've been built, by you or by the crown that holds them. The other crowns wall their own towns over time. The one exception is a crown's last town: its people hold it behind walls to the end. Walled towns are drawn on the map with a fortress outline.",
+    ],
+  },
+  {
     v: "1.42.2", date: "15 October 2026", title: "Real mountains",
     items: [
       "The map of Europe shows its real mountains: the Alps, Pyrenees, Carpathians, Apennines, the Balkan ranges, the Scandinavian mountains, the Atlas, the Caucasus and the rest, shaded as the light falls on them, with snow on the highest peaks. They're the same ranges the land rises into in 3D. Zoom in and the shading is drawn finer for the closer view.",

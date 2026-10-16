@@ -957,7 +957,13 @@ class Arena {
       const sumGuns = a => Math.min(3, this.cos.filter(c => c.al === a).reduce((t, c) => t + c.guns, 0));
       const gunsHost = this.battle ? (setup ? setup.guns : this.custom ? (this.custom.length === 2 ? [sumGuns(0), sumGuns(1)] : null) : this.gunsBought) : null;
       const camps = this.custom && this.custom.length > 2 ? this.cos.map((c, i) => ({ side: c.al, co: i, x: c.x, z: c.z, guns: c.guns })) : null;
-      this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost, camps);
+      // (a walled town: its defenders on the walk behind the parapet, their guns in its embrasures)
+      const TS = this.things && this.things.siege, siege = TS && !this.remote ? { side: TS.d > 0 ? 1 : 0, guns: TS.guns, anchor: TS.anchor } : null;
+      this.field = new Field(w, C, this.dx, this.battle, this.fieldSeed, hostFort, gunsHost, camps, siege);
+      this.siege = siege; if (this.things && this.things.breaks) this.field.breaks = this.things.breaks;
+      this.field.onBreach = b => { if (G.arena === this) UI.hint(b.gate ? "The gate's down!" : b.kind === "tower" ? "A tower's down — a breach!" : "A breach in the wall!", 3); };
+      // (a gun wrecked: its crew take up their swords and fall in with the rest)
+      this.field.onGunDown = g => { for (const u of g.crew) if (u && u.alive) { u.crewOf = null; u.wasCrew = null; u.a.path = []; u.hold && u.hold(u.lo.long !== "none" ? u.lo.long : u.lo.blade); } g.crew = []; if (G.arena === this && g.side === 0) UI.hint("One of your guns is wrecked.", 2.5); };
       if (camps) { let k = 0; for (const c of camps) for (let j = 0; j < Math.min(2, c.guns); j++) if (this.field.guns[k]) this.field.guns[k++].co = c.co; }
       this.hostFort = hostFort; this.gunsHost = gunsHost;
       if (this.night) this.field.nightFires();
@@ -976,6 +982,8 @@ class Arena {
       }
       // (the fort's people start inside it, at its front wall)
       if (this.field.fortAt) this.spawns[this.fortSide] = this.clearSpot(this.field.fortAt.anchor.x, this.field.fortAt.anchor.z);
+      // (a walled town's defenders start up on its walk, behind the parapet)
+      if (this.siege) this.spawns[this.siege.side] = { x: this.siege.anchor.x, z: this.siege.anchor.z };
       this.orders = this.custom ? this.cos.map((c, i) => new Orders(i)) : [new Orders(0), new Orders(1)]; this.sub = null; this.sel = null;
       if (this.custom) this.spawns = this.cos.map(c => this.clearSpot(c.x, c.z));
       if (!this.battle) this.orders[1].form = "loose";
@@ -1009,8 +1017,8 @@ class Arena {
       // and yours to work yourself: F at one, and it's laid on where you're looking and fired
       this.gunIts = this.field.guns.filter(g => g.side === 0).map(g => this.w.addInteract({ x: g.x, y: this.w.heightAt(g.x, g.z) + 1.0, z: g.z, reach: 2.4,
         can: () => G.arena === this && this.live && !G.downed,
-        label: () => g.loaded ? "Lay the gun on where you're looking, and fire it" : `The gun's loading${g.crewN ? ` — ${g.crewN} of its crew at it` : " — and nobody's at it"}`,
-        use: () => { if (!g.loaded) return; if (this.remote) { this.net.send({ t: "bgunlay", i: this.field.guns.indexOf(g), at: this.lookPoint() }); return; } this.field.layAndFire(g, this.lookPoint()); } }));
+        label: () => g.dead ? "The gun's wrecked" : g.loaded ? "Lay the gun on where you're looking, and fire it" : `The gun's loading${g.crewN ? ` — ${g.crewN} of its crew at it` : " — and nobody's at it"}`,
+        use: () => { if (!g.loaded || g.dead) return; if (this.remote) { this.net.send({ t: "bgunlay", i: this.field.guns.indexOf(g), at: this.lookPoint() }); return; } this.field.layAndFire(g, this.lookPoint()); } }));
       // (the other player, on their own side: a body your game moves as theirs tells it)
       if (this.netBattle) {
         // (on horseback, if they ride: as their muster said, or the host's word of itself)
@@ -1301,7 +1309,7 @@ class Arena {
     }
     if (this.netBattle) { this.sendState(dt); if (this.host) this.sendSnap(dt); }
     stanceTick();
-    if (this.live) { this.clock += dt; this.commander(dt); }
+    if (this.live) { this.clock += dt; this.commander(dt); if ((this.recrewT = (this.recrewT || 0) - dt) <= 0) { this.recrewT = 1; this.recrew(); } }
     // (the guns fall silent when it's over, and between rounds)
     if (this.field) this.field.active = this.live && !this.over && !this.ended;
     // (on the other player's game the guns and their shot are only shown: what they hit, the host's game says)
@@ -1510,6 +1518,25 @@ class Arena {
   }
   // ---- the orders: the number keys, in the field ----
   bookState() { const O = (this.sel && this.sub && this.sub[0][this.sel]) || this.orders[0], g = this.sel && GROUPS.find(g => g.id === this.sel); return { group: g ? g.name : null, groups: this.groupsHere(), count: this.sel ? this.alliesOf(0).filter(u => !u.crewOf && groupOf(u) === this.sel).length : this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, cover: O.cover, guns: !!this.gunsOn, abandoned: !!(this.abandoned && this.abandoned[0]), mode: O.mode, form: O.form }; }
+  // a gun's crew down: the nearest of its own side's men go to it and serve it in their place (not while the guns are
+  // given up, nor the horse, nor anyone running)
+  recrew() {
+    if (this.remote || !this.field || !this.field.guns.length) return;
+    for (const g of this.field.guns) {
+      if (g.dead || (this.abandoned && this.abandoned[g.side])) continue;
+      for (let i = 0; i < 2; i++) {
+        if (g.crew[i] && g.crew[i].alive) continue;
+        let best = null, bd = 40;
+        for (const u of this.units) {
+          if (!u.alive || u.isNet || u.crewOf || u.wasCrew || u.mounted || u.routing || (u.al ?? u.team) !== g.side) continue;
+          const d = Math.hypot(u.pos.x - g.x, u.pos.z - g.z); if (d < bd) { bd = d; best = u; }
+        }
+        if (!best) break;
+        best.crewOf = g; best.crewIdx = i; g.crew[i] = best; best.a.path = []; best.releaseCover && best.releaseCover();
+        if (g.side === 0 && G.arena === this && !this.toldRecrew) { this.toldRecrew = true; UI.hint("Men of yours step in to serve a gun whose crew are down.", 3); }
+      }
+    }
+  }
   // a side's guns left: their crews called off them to fall in with the line, swords out — or sent back to them
   abandonGuns(team, on) {
     (this.abandoned ||= [false, false])[team] = on;

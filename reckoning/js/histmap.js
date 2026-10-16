@@ -24,11 +24,16 @@ import { WATER } from "./mp/terrain.js";
 const ss = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
 const hsh = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
 
+// a town's plan, shared by the ground (its rampart) and what's built on it
+export function townPlan(rank) {
+  return { wallU: 8, Hr: rank >= 3 ? 3.4 : 2.9, top: 6, inner: 8 + 6 + 7, gate: 3, W: rank >= 3 ? 66 : rank === 2 ? 58 : 48, tower: 30, guns: [-15, 15, -42, 42] };
+}
 // the ground reshaped: called before any of it is built (the terrain's chunks, its trees, the field's works)
 export function shapeField(w, C, b, flip) {
   const M = b.map || {}, L = w.land; if (!L.setSculpt) return;
   L.setSculpt(null);
   const sg = flip ? -1 : 1, H0 = L.heightAt(C.x, C.z);
+  const tw = (M.things || []).find(t => t[0] === "town" && t[3]), TW = tw ? { d: tw[1] || 1, L: townPlan(tw[2] || 2) } : null;
   const Hb = M.low ? WATER + Math.max(2.8, M.low === true ? 2.8 : M.low) : H0;
   const wet = (M.rivers && M.rivers.length) || M.marsh;
   const R1 = M.r1 || (wet ? 160 : 110), R2 = M.r2 || (wet ? 330 : 220);
@@ -41,6 +46,12 @@ export function shapeField(w, C, b, flip) {
     if (M.marsh) { const k = ss((u - M.marsh.u0) / 25) * (1 - ss((u - M.marsh.u1) / 25)); if (k > 0) base = base + (WATER + 0.25 + (hsh(Math.floor(u / 9), Math.floor(v / 9)) - 0.55) * 1.1 - base) * k; }
     const k = r < R1 ? 1 : 1 - ss((r - R1) / (R2 - R1));
     let y = h + (base - h) * k;
+    // (a walled town's rampart: the earth piled behind its wall, the walk along its top, a slope down inside — cut
+    //  through at the gate)
+    if (TW) { const uu = TW.d * u, P = TW.L, av = Math.abs(v); if (av < P.W + 6 && uu > P.wallU - 1.5 && uu < P.inner + 1) {
+      const rise = uu < P.wallU ? ss((uu - P.wallU + 1.5) / 1.5) : uu < P.wallU + P.top ? 1 : 1 - ss((uu - P.wallU - P.top) / (P.inner - P.wallU - P.top));
+      const cut = av < P.gate + 0.6 ? 0 : av < P.gate + 1.6 ? ss(av - P.gate - 0.6) : 1, ends = 1 - ss((av - P.W - 3) / 3);
+      y += P.Hr * rise * cut * ends; } }
     // (a river: its bed below the water, its banks drawn down to it — on across the whole of the reshaped country)
     for (const R of M.rivers || []) {
       // (never ruled straight: it winds a little, as a river does)
@@ -58,17 +69,18 @@ export function shapeField(w, C, b, flip) {
 // what stood on it: built once the ground is, into the world's own scene (and gone with it)
 export function buildThings(w, C, b, flip) {
   const M = b.map || {}; if (!M.things || !M.things.length) return null;
-  const sg = flip ? -1 : 1, g = new THREE.Group(), cols = [];
+  const sg = flip ? -1 : 1, g = new THREE.Group(), cols = [], breaks = []; let tgt = g, siege = null;
   const at = (u, v) => ({ x: C.x + u * sg, z: C.z + v });
   const y = (x, z) => w.heightAt(x, z);
   const M_ = {
-    wall: mat(0xb8ad96), whitewash: mat(0xd8d0bc), thatch: mat(0x8a7444), tile: mat(0x8a3a28), slate: mat(0x4a4c52), copper: mat(0x5a8a78), wood: mat(0x5a4632),
-    stone: mat(0x8a8478), dark: mat(0x3a3430), canvas: mat(0xe2d8c0), red: mat(0xa8322a), green: mat(0x3e6a40), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
+    wall: mat(0xb8ad96, { surface: "plaster" }), whitewash: mat(0xd8d0bc, { surface: "plaster" }), thatch: mat(0x8a7444), tile: mat(0x8a3a28, { surface: "tiles" }), slate: mat(0x4a4c52, { surface: "tiles" }), copper: mat(0x5a8a78), wood: mat(0x5a4632, { surface: "wood" }),
+    stone: mat(0x8a8478, { surface: "stone" }), dark: mat(0x3a3430, { surface: "wood" }), plaster: mat(0xcfc0a0, { surface: "plaster" }), ochre: mat(0xc8a46a, { surface: "plaster" }), brick: mat(0x9a5a40, { surface: "brick" }), tile2: mat(0x9c5236, { surface: "tiles" }),
+    ashlar: mat(0xa49a88, { surface: "stone" }), ashlar2: mat(0x938a7a, { surface: "stone" }), door: mat(0x4e3a26, { surface: "wood" }), iron: mat(0x26262a, { metalness: 0.4, roughness: 0.6 }), canvas: mat(0xe2d8c0), red: mat(0xa8322a), green: mat(0x3e6a40), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
   };
-  const box = (m, x, yy, z, sx, sy, sz, ry = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; g.add(o); return o; };
-  const roof = (m, x, yy, z, sx, h, sz, ry = 0) => { const s = new THREE.Shape(); s.moveTo(-sx / 2 - 0.3, 0); s.lineTo(0, h); s.lineTo(sx / 2 + 0.3, 0); s.lineTo(-sx / 2 - 0.3, 0); const geo = new THREE.ExtrudeGeometry(s, { depth: sz + 0.6, bevelEnabled: false }); geo.translate(0, 0, -(sz + 0.6) / 2); const o = new THREE.Mesh(geo, m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = true; g.add(o); return o; };
-  const cone = (m, x, yy, z, r, h, n = 8) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, n), m); o.position.set(x, yy + h / 2, z); o.castShadow = true; g.add(o); return o; };
-  const solid = (x, z, hw, hd, ry, top) => { if (Math.hypot(x - C.x, z - C.z) < 200) cols.push(w.col.addOBox(x, z, hw, hd, ry, top)); };
+  const box = (m, x, yy, z, sx, sy, sz, ry = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; tgt.add(o); return o; };
+  const roof = (m, x, yy, z, sx, h, sz, ry = 0) => { const s = new THREE.Shape(); s.moveTo(-sx / 2 - 0.3, 0); s.lineTo(0, h); s.lineTo(sx / 2 + 0.3, 0); s.lineTo(-sx / 2 - 0.3, 0); const geo = new THREE.ExtrudeGeometry(s, { depth: sz + 0.6, bevelEnabled: false }); geo.translate(0, 0, -(sz + 0.6) / 2); const o = new THREE.Mesh(geo, m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = true; tgt.add(o); return o; };
+  const cone = (m, x, yy, z, r, h, n = 8) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, n), m); o.position.set(x, yy + h / 2, z); o.castShadow = true; tgt.add(o); return o; };
+  const solid = (x, z, hw, hd, ry, top) => { if (Math.hypot(x - C.x, z - C.z) < 200) { const c = w.col.addOBox(x, z, hw, hd, ry, top); cols.push(c); return c; } return null; };
   const B = {
     // a cottage: whitewashed or stone, a thatched or tiled roof
     house(u, v, ry = 0, sx = 7, sz = 5, kind = "thatch") {
@@ -134,6 +146,106 @@ export function buildThings(w, C, b, flip) {
       for (let i = 0; i <= n; i++) { const p = at(u0 + (u1 - u0) * i / n, v); box(M_.dark, p.x, WATER - 0.1, p.z, 2.4, 0.9, wd + 1.6); }
       const a = at(u0, v), c = at(u1, v); box(M_.wood, (a.x + c.x) / 2, WATER + 0.55, (a.z + c.z) / 2, Math.abs(c.x - a.x), 0.22, wd);
     },
+    // a town to fight in: you come at it from outside. A walled town stands behind its wall — an earth rampart faced
+    // with stone, a parapet along its top that the defenders stand behind and fire over, towers along it, the gate
+    // shut — and the guns can batter it down, a length at a time. Inside: a square behind the gate, the main street on
+    // from it, lanes either side, houses shoulder to shoulder. An open town: its houses, and the way in. d: the
+    // defenders' end of the field (1 east, -1 west); rank: 1 a town, 2 a great town, 3 a crown's seat
+    town(d = 1, rank = 2, walls = 1, seed = 1) {
+      let s0 = seed | 0 || 1; const rr = () => (s0 = Math.imul(s0 ^ (s0 >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s0 >>> 0) % 1e6) / 1e6);
+      const T = (uu, v) => at(d * uu, v), L = townPlan(rank), W = L.W, wallU = L.wallU, end = 110;
+      const fronts = [M_.whitewash, M_.wall, M_.plaster, M_.ochre, M_.brick, M_.whitewash, M_.plaster];
+      const roofs = rank >= 2 ? [M_.tile, M_.tile, M_.slate, M_.tile2] : [M_.thatch, M_.tile, M_.thatch];
+      const storeys = () => rank >= 3 ? 2 + Math.floor(rr() * 3) : rank === 2 ? 2 + Math.floor(rr() * 2) : 1 + Math.floor(rr() * 2);
+      const house = (uu0, uu1, v0, v1) => {
+        const a = T(uu0, v0), b = T(uu1, v1), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2, sx = Math.abs(b.x - a.x), sz = Math.abs(b.z - a.z);
+        if (sx < 3 || sz < 3) return;
+        const y0 = Math.min(y(a.x, a.z), y(b.x, b.z), y(a.x, b.z), y(b.x, a.z)) - 0.3, h = storeys() * 3.1 + 0.6, fm = fronts[Math.floor(rr() * fronts.length)];
+        box(fm, x, y0 + h / 2, z, sx, h, sz);
+        box(M_.dark, x, y0 + h - 0.15, z, sx + 0.08, 0.3, sz + 0.08);
+        const rh = Math.min(sx, sz) * (0.45 + rr() * 0.2), rm = roofs[Math.floor(rr() * roofs.length)];
+        if (sx >= sz) roof(rm, x, y0 + h, z, sz, rh, sx, Math.PI / 2); else roof(rm, x, y0 + h, z, sx, rh, sz, 0);
+        if (rr() < 0.5) box(M_.brick, x + (rr() - 0.5) * sx * 0.5, y0 + h + rh * 0.7, z + (rr() - 0.5) * sz * 0.5, 0.7, rh * 1.1, 0.7);
+        solid(x, z, sx / 2, sz / 2, 0, y0 + h + rh);
+      };
+      const row = (uu0, uu1, v0, v1) => { let u = uu0; while (u < uu1 - 3) { const wd = Math.min(uu1 - u, 5.5 + rr() * 3.5); house(u, u + wd, v0, v1); u += wd; } };
+      const block = (uu0, uu1, v0, v1) => { if (Math.abs(v1 - v0) < 15) row(uu0, uu1, v0, v1); else { const m = v0 + (v1 - v0) / 2; row(uu0, uu1, v0, m); row(uu0, uu1, m, v1); } };
+      // inside: the lane behind the rampart (u in, to in + 5), the square behind the gate (to sq), the main street on
+      const inn = L.inner, sq = inn + 30;
+      for (const sv of [-1, 1]) {
+        const f = (v0, v1) => [sv * v0, sv * v1];
+        block(inn + 5, sq, ...f(21, W)); row(inn + 12, sq, ...f(16, 21));
+        block(sq, end, ...f(7, 21)); block(sq, end, ...f(27, W));
+      }
+      // the church, down the main street
+      { const p = T(end + 10, 0), y0 = y(p.x, p.z) - 0.4, big = rank >= 2, Lc = big ? 18 : 14, Wd = big ? 9 : 7, th = big ? 26 + rank * 4 : 16;
+        box(M_.ashlar, p.x, y0 + 4, p.z, Lc, 8, Wd); roof(M_.slate, p.x, y0 + 7.6, p.z, Wd, 4.5, Lc, Math.PI / 2);
+        const t = T(end + 10 - Lc / 2 - 2.5, 0); box(M_.ashlar, t.x, y0 + th / 2, t.z, 5.5, th, 5.5);
+        cone(rank >= 3 ? M_.copper : M_.slate, t.x, y0 + th, t.z, 3.8, th * 0.45, rank >= 3 ? 8 : 4);
+        solid(p.x, p.z, Lc / 2, Wd / 2, 0, y0 + 9); solid(t.x, t.z, 2.75, 2.75, 0, y0 + th); }
+      { const p = T(sq - 8, -10), y0 = y(p.x, p.z); const wl = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 0.9, 12), M_.stone); wl.position.set(p.x, y0 + 0.45, p.z); wl.castShadow = true; g.add(wl); solid(p.x, p.z, 1.1, 1.1, 0, y0 + 0.9); }
+      if (!walls) return;
+      // ---- the wall: its face a little out from the rampart's foot, the parapet a man's chest over the walk ----
+      const Hr = L.Hr, Th = 1.6, faceU = wallU - Th / 2, gate = L.gate;
+      // (the wall's foot: the ground outside it, which the rampart rises from)
+      const foot = v => { const p = T(wallU - 2.5, v); return y(p.x, p.z); };
+      // a length of it, va to vb: the face from below the ground to the parapet's top, a battered plinth at its foot, a
+      // string course under the parapet, merlons along it (none at an embrasure, where a gun looks out low)
+      const length = (va, vb, low = false, kind = "wall") => {
+        const len = vb - va; if (len < 0.4) return;
+        const grp = new THREE.Group(), rub = new THREE.Group(); tgt = grp;
+        const vm = (va + vb) / 2, c = T(faceU, vm), y0 = Math.min(foot(va), foot(vb), foot(vm)) - 1.2, top = Math.min(foot(va), foot(vb), foot(vm)) + Hr + (low ? 0.3 : 1.25);
+        box(M_.ashlar, c.x, (y0 + top) / 2, c.z, Th, top - y0, len);
+        const pl = T(faceU - 0.35, vm); box(M_.ashlar2, pl.x, y0 + 1.6, pl.z, Th + 0.7, 2.4, len + 0.02);
+        const sc = T(faceU - 0.1, vm); box(M_.ashlar2, sc.x, top - 0.55, sc.z, Th + 0.3, 0.22, len + 0.02);
+        const merl = [];
+        if (!low) for (let k = 0.6; k < len - 0.5; k += 2.2) { const m = T(faceU - 0.2, va + k + 0.55); merl.push(box(M_.ashlar, m.x, top + 0.42, m.z, Th - 0.3, 0.85, 1.1)); }
+        tgt = rub;
+        // (what's left when it comes down: the stones in a slope at its foot, up to where the rampart's earth shows)
+        for (let i = 0; i < Math.max(4, len * 2.2); i++) { const p = T(faceU - 1.2 - rr() * 3.5, va + rr() * len), y1 = y(p.x, p.z), sz = 0.35 + rr() * 0.75; const st = new THREE.Mesh(new THREE.DodecahedronGeometry(sz, 0), M_.ashlar); st.position.set(p.x, y1 + sz * 0.25, p.z); st.rotation.set(rr() * 3, rr() * 3, rr() * 3); st.castShadow = st.receiveShadow = true; rub.add(st); }
+        tgt = g; rub.visible = false; g.add(grp, rub);
+        const col = solid(c.x, c.z, Th / 2 + 0.35, len / 2, 0, top);
+        if (col) breaks.push({ kind, hp: (low ? 90 : 150) * len / 6, max: (low ? 90 : 150) * len / 6, col, grp, rub, merl, x: c.x, z: c.z, hw: Th / 2 + 0.9, hd: len / 2 + 0.2, top });
+      };
+      // a tower: square, out before the wall, a little higher, crenellated
+      const tower = v => {
+        const grp = new THREE.Group(), rub = new THREE.Group(); tgt = grp;
+        const c = T(faceU - 2.2, v), y0 = foot(v) - 1.2, top = foot(v) + Hr + 4.2, sz = 6.4;
+        box(M_.ashlar, c.x, (y0 + top) / 2, c.z, sz, top - y0, sz);
+        box(M_.ashlar2, c.x, y0 + 1.6, c.z, sz + 0.6, 2.4, sz + 0.6);
+        box(M_.ashlar2, c.x, top - 0.5, c.z, sz + 0.3, 0.24, sz + 0.3);
+        const merl = []; for (let i = 0; i < 4; i++) for (let k = 0; k < 3; k++) { const o = -sz / 2 + 0.6 + k * 2.6, side = [[o, -sz / 2 + 0.5], [o, sz / 2 - 0.5], [-sz / 2 + 0.5, o], [sz / 2 - 0.5, o]][i]; merl.push(box(M_.ashlar, c.x + side[0], top + 0.45, c.z + side[1], 1.1, 0.9, 1.1)); }
+        tgt = rub; for (let i = 0; i < 16; i++) { const p = T(faceU - 2 - rr() * 6, v + (rr() - 0.5) * 7), y1 = y(p.x, p.z), s2 = 0.4 + rr() * 0.9; const st = new THREE.Mesh(new THREE.DodecahedronGeometry(s2, 0), M_.ashlar); st.position.set(p.x, y1 + s2 * 0.25, p.z); st.rotation.set(rr() * 3, rr() * 3, rr() * 3); st.castShadow = true; rub.add(st); }
+        tgt = g; rub.visible = false; g.add(grp, rub);
+        const col = solid(c.x, c.z, sz / 2, sz / 2, 0, top);
+        if (col) breaks.push({ kind: "tower", hp: 320, max: 320, col, grp, rub, merl, x: c.x, z: c.z, hw: sz / 2 + 0.5, hd: sz / 2 + 0.5, top });
+      };
+      // ---- along it: the towers, the gate between two of them, embrasures for the guns ----
+      const towersAt = [-(W + 3), -L.tower, -(gate + 3.6), gate + 3.6, L.tower, W + 3], emb = L.guns;
+      const stops = [...towersAt.map(v => [v - 3.2, v + 3.2]), [-gate, gate], ...emb.map(v => [v - 1.2, v + 1.2])].sort((a, b) => a[0] - b[0]);
+      let v = -(W + 3) - 3.2;
+      for (const [a, b] of stops) { if (a > v) { for (let s2 = v; s2 < a - 0.3; s2 += 6.5) length(s2, Math.min(a, s2 + 6.5)); } if (emb.some(e => Math.abs(e - (a + b) / 2) < 0.01)) length(a, b, true, "wall"); v = Math.max(v, b); }
+      for (const tv of towersAt) tower(tv);
+      // the gate: an arch of dressed stone over the way, and its doors — oak, banded with iron — shut
+      { const c = T(faceU, 0), y0 = foot(0) - 1.2, top = foot(0) + Hr + 1.25;
+        const archLo = foot(0) + 3.7, archHi = Math.max(top + 0.8, archLo + 1.2);
+        box(M_.ashlar, c.x, (archLo + archHi) / 2, c.z, Th + 0.4, archHi - archLo, gate * 2 + 0.6);
+        const grp = new THREE.Group(), rub = new THREE.Group(); tgt = grp;
+        const dc = T(faceU + 0.2, 0), dh = 3.7;
+        box(M_.door, dc.x, foot(0) + dh / 2, dc.z, 0.35, dh, gate * 2);
+        for (const hy of [0.7, dh / 2, dh - 0.7]) box(M_.iron, dc.x - d * 0.2, foot(0) + hy, dc.z, 0.06, 0.12, gate * 2 + 0.02);
+        box(M_.iron, dc.x - d * 0.2, foot(0) + dh / 2, dc.z, 0.06, dh, 0.1);
+        tgt = rub; { const fp = T(faceU - 2.4, 0); box(M_.door, fp.x - d * 0.6, foot(0) + 0.2, fp.z - 1.4, dh * 0.9, 0.3, gate * 1.05, 0.2); box(M_.door, fp.x + d * 0.3, foot(0) + 0.25, fp.z + 1.6, dh * 0.85, 0.3, gate * 0.95, -0.25); }
+        tgt = g; rub.visible = false; g.add(grp, rub);
+        const col = solid(dc.x, dc.z, 0.4, gate, 0, foot(0) + dh);
+        if (col) breaks.push({ kind: "gate", hp: 70, max: 70, col, grp, rub, merl: [], x: dc.x, z: dc.z, hw: 1.2, hd: gate + 0.3, top: foot(0) + dh, gate: true }); }
+      // (its flanks: a plain wall back along either side of the town)
+      for (const sv of [-1, 1]) { const a = T(wallU, sv * (W + 6)), b = T(end + 10, sv * (W + 6)), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2, len = Math.abs(b.x - a.x), y0 = Math.min(y(a.x, a.z), y(b.x, b.z), y(x, z)) - 1.2;
+        box(M_.ashlar, x, y0 + (Hr + 2.5) / 2, z, len, Hr + 2.5, Th); solid(x, z, len / 2, Th / 2, 0, y0 + Hr + 2.5); }
+      // (for the field: where the defenders stand and their guns go — on the walk, behind the embrasures)
+      const ap = T(wallU + 2.4, 0);
+      siege = { d: d * sg, anchor: { x: ap.x, z: ap.z }, guns: emb.map(e => T(wallU + 2.6, e)) };
+    },
     // a windmill, on its post
     mill(u, v) {
       const p = at(u, v), y0 = y(p.x, p.z);
@@ -147,10 +259,11 @@ export function buildThings(w, C, b, flip) {
   const CLEAR = { house: 9, church: 16, spire: 30, castle: 34, tent: 6, mill: 7 };
   for (const [k, ...a] of M.things) {
     if (CLEAR[k]) { const p = at(a[0], a[1]); w.clearScenery(p.x, p.z, CLEAR[k] * (k === "castle" ? a[2] || 1 : 1)); }
+    else if (k === "town") { const d = a[0] || 1; for (let uu = -70; uu <= 95; uu += 12) for (let v = -80; v <= 80; v += 12) { const p = at(d * uu, v); w.clearScenery(p.x, p.z, 9); } }
     else if (k === "city") for (let v = Math.min(a[1], a[2]); v <= Math.max(a[1], a[2]); v += 30) { const p = at(a[0] - 40, v); w.clearScenery(p.x, p.z, 55); }
     else if (k === "tents" || k === "vines") { const p = at((a[0] + a[1]) / 2, (a[2] + a[3]) / 2); w.clearScenery(p.x, p.z, Math.hypot(a[1] - a[0], a[3] - a[2]) / 2 + 6); }
   }
   for (const [k, ...a] of M.things) if (B[k]) B[k](...a);
   w.root.add(g);
-  return { g, cols };
+  return { g, cols, breaks, siege };
 }

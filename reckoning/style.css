@@ -1699,3 +1699,10 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-mtot b { font-size: 17px; color: var(--ink); }
 .cmp-mbox .pv-acts { justify-content: center; margin-top: 10px; }
 .cmp-mtot em { font-style: normal; }
+/* a town's works: its land, and the buttons to develop it and wall it */
+.cmp-dev { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.cmp-dev > span { font: 12px var(--sans); color: var(--ink-dim); letter-spacing: 0.05em; }
+.cmp-dev .btn { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; padding: 7px 10px; }
+.cmp-dev .btn small { font: 11px var(--sans); text-transform: none; letter-spacing: 0; color: rgba(46, 34, 20, 0.72); }
+.cmp-dev .btn:disabled { opacity: 0.45; }
+.cmp-dev > small { font: 12px var(--sans); color: var(--ink-dim); font-style: italic; }

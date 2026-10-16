@@ -171,7 +171,8 @@ export class Field {
   // fort: the side whose fort it is (0 yours, 1 theirs), or null for the open field
   // camps: a field of three or four sides (a custom battle) — no works at either end, but each company's own little
   // battery where it stands, [{ side, x, z, guns }], every side's men taking cover wherever it faces away from the shot
-  constructor(w, C, dx, battle, seed = Math.random() * 1e9, fort = null, guns = null, camps = null) {
+  // siege: a walled town's ({ side, guns: [{x, z}] }) — its defenders' guns on the wall's walk, not works in the field
+  constructor(w, C, dx, battle, seed = Math.random() * 1e9, fort = null, guns = null, camps = null, siege = null) {
     this.gunsWant = guns;   // (each side's guns, as its purse paid for them: [west, east]; null, as it falls)
     this.w = w; this.C = C; this.dx = dx; this.root = new THREE.Group(); w.root.add(this.root);
     this.pieces = []; this.spots = [[], []]; this.guns = []; this.balls = []; this.cols = []; this.used = []; this.battle = !!battle;
@@ -186,9 +187,9 @@ export class Field {
       fleece: mat(0x8a7a62, { surface: "cloth" }), flannel: mat(0xc8b890, { surface: "cloth" }),
     };
     void M;
-    this.fortSide = battle ? fort : null;
+    this.fortSide = battle ? fort : null; this.siege = siege; this.breaks = [];
     if (camps) for (const c of camps) this.battery(c);
-    else if (battle) for (const side of [0, 1]) side === this.fortSide ? this.fort(side) : this.works(side);
+    else if (battle) for (const side of [0, 1]) siege && side === siege.side ? this.wallGuns(side, siege) : side === this.fortSide ? this.fort(side) : this.works(side);
     this.between(battle ? 20 : 5);
   }
   y(x, z) { return this.w.heightAt(x, z); }
@@ -290,6 +291,41 @@ export class Field {
     // the powder for the guns, back behind them under a tarpaulin
     const ap = this.find(() => ({ x: lineX + sx * (9 + r() * 3), z: C.z + (r() - 0.5) * 14 }), 1.2);
     if (ap) this.powder(ap.x, ap.z, r() * 3);
+  }
+  // a walled town's guns: up on the walk behind the embrasures, looking out over the field (as many as were raised)
+  wallGuns(side, S) {
+    const sx = side === 0 ? -1 : 1, n = Math.min(S.guns.length, this.gunsWant ? this.gunsWant[side] : 2);
+    for (let i = 0; i < n; i++) { const p = S.guns[i]; this.gun(side, p.x, p.z, sx); this.claim(p.x, p.z, 1.6); }
+    for (let z = -12; z <= 12; z += 4) this.claim(S.anchor.x, S.anchor.z + z, 2.5);
+  }
+  // ---- battering: a ball (or a bomb, or men at the gate) into the town's wall; a length of it, its tower, its gate,
+  //  brought down a little at a time — the merlons first, then the whole of it into a slope of rubble, a breach ----
+  batter(p, dmg) {
+    for (const b of this.breaks) {
+      if (b.down || Math.abs(p.x - b.x) > b.hw || Math.abs(p.z - b.z) > b.hd || p.y > b.top + 1.5) continue;
+      b.hp -= dmg;
+      cloud(this.w.root, p.clone(), new THREE.Vector3(0, 1, 0), { n: 8, colour: b.gate ? 0x6a5236 : 0x9a917f, life: 2.6, speed: 3.5, size: 1.2, opacity: 0.65 });
+      // (the merlons knocked off one by one as it's hit; the parapet low and broken once it's half gone)
+      if (b.merl.length && Math.random() < 0.6) { const m = b.merl.splice(Math.floor(Math.random() * b.merl.length), 1)[0]; m.visible = false; }
+      if (!b.half && b.hp < b.max * 0.5) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; for (const m of b.merl) m.visible = false; b.merl = []; b.rub.visible = true; }
+      if (b.hp <= 0) {
+        b.down = true; b.grp.visible = false; b.rub.visible = true; b.col.disabled = true;
+        cloud(this.w.root, new THREE.Vector3(b.x, b.top - 1, b.z), new THREE.Vector3(0, 1, 0), { n: 22, colour: 0x9a917f, life: 4, speed: 5, size: 2.2, opacity: 0.7 });
+        AUDIO.cannon && AUDIO.cannon(0.6, new THREE.Vector3(b.x, b.top, b.z)); shake(0.25);
+        this.onBreach && this.onBreach(b);
+      }
+      return true;
+    }
+    return false;
+  }
+  // a gun struck: a ball's direct hit wrecks it — the carriage smashed, the barrel down in the dirt; no more firing
+  hitGun(g) {
+    if (g.dead) return; g.hp = (g.hp ?? 2) - 1; if (g.hp > 0) return;
+    g.dead = true; g.loaded = false; g.firing = false;
+    const m = g.model; m.rotation.z = 0.35; m.position.y -= 0.25; if (m.userData.barrel) m.userData.barrel.rotation.x = -0.25;
+    m.traverse(o => { if (o.isMesh && o.material && o.material.color) { o.material = o.material.clone(); o.material.color.multiplyScalar(0.45); } });
+    cloud(this.w.root, new THREE.Vector3(g.x, this.y(g.x, g.z) + 0.8, g.z), new THREE.Vector3(0, 1, 0), { n: 16, colour: 0x5a4a38, life: 3, speed: 5, size: 1.4, opacity: 0.7 });
+    this.onGunDown && this.onGunDown(g);
   }
   // a fort: a square redoubt of earth, its front a rampart as high as a man's chest with embrasures cut for the guns,
   // its flanks and rear an earth bank with a palisade along it; the gate in the rear, and a breach the last siege left
@@ -656,6 +692,8 @@ export class Field {
   burst(n, units, hit) {
     n.done = true;
     const root = this.w.root, at = n.p.clone(), up = new THREE.Vector3(0, 1, 0);
+    // (a bomb at the gate or the foot of the wall: it takes some of the blow)
+    if (this.breaks.length) for (const dz of [0, -1, 1]) if (this.batter(new THREE.Vector3(at.x, at.y + 0.5, at.z + dz * 0.8), 9)) break;
     muzzleFlash(root, at.clone().setY(at.y + 0.2), up, 3.2);
     powderSmoke(root, at.clone().setY(at.y + 0.3), up, { scale: 2.2, life: 16, n: 28, speed: 7, haze: true, hazeN: 6, hazeA: 0.3 });
     cloud(root, at.clone(), up, { n: 14, colour: 0x6a5a44, life: 2.4, speed: 7, size: 1.1, opacity: 0.7 });
@@ -837,7 +875,7 @@ export class Field {
     const at = m.muzzle.getWorldPosition(new THREE.Vector3());
     const yaw = g.ry + g.yaw, dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(g.pitch), Math.sin(g.pitch), -Math.cos(yaw) * Math.cos(g.pitch));
     g.loaded = false; g.reload = g.reloadT = 9 + this.r() * 2.5; g.recoil = 1; g.back = 0.75;
-    this.balls.push({ p: at.clone(), v: dir.clone().multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
+    this.balls.push({ p: at.clone(), v: dir.clone().multiplyScalar(140), hits: new Set(), bounces: 0, t: 0, side: g.side, gun: g, mesh: (() => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0x1c1c1e, { metalness: 0.4, roughness: 0.5 })); b.position.copy(at); root.add(b); return b; })() });
     muzzleFlash(root, at.clone().addScaledVector(dir, 0.2), dir, 3);
     powderSmoke(root, at.clone().addScaledVector(dir, 0.3), dir, { scale: 3, life: 22, n: 60, speed: 15, haze: true, hazeN: 18, hazeA: 0.3 });
     { const b = m.barrel; b.updateMatrixWorld(true); panPuff(root, b.localToWorld(new THREE.Vector3(0, 0.2, 0.6)), 1.4); }
@@ -857,6 +895,7 @@ export class Field {
     // (the guns open only once the field's had a moment: a crew isn't cut down before it's even seen the enemy)
     if (this.active !== false) this.opened = (this.opened || 0) + dt;
     for (const g of this.guns) {
+      if (g.dead) continue;
       // (another player's field: the guns laid and loaded as their game says; only the drill and the shot are this one's)
       if (this.remote) {
         if (g.net) { const [yw, pt, ld, fr] = g.net; g.yaw = yw; g.pitch = pt; g.loaded = !!ld; g.reloadT = 1; g.reload = ld ? 0 : 1 - fr; }
@@ -888,6 +927,15 @@ export class Field {
       this.drillTick(g, dt);
     }
     this.nadesTick(dt, units, hit);
+    // (men at a shut gate, hacking and heaving at it: it gives, in time)
+    if (this.siege) for (const b of this.breaks) {
+      if (!b.gate || b.down) continue;
+      const n = units.filter(u => u.alive && (u.al ?? u.team) !== this.siege.side && Math.hypot(u.pos.x - b.x, u.pos.z - b.z) < 3.2).length;
+      if (!n) continue;
+      b.hp -= n * dt * 0.9; b.knock = (b.knock || 0) - dt;
+      if (b.knock <= 0) { b.knock = 0.7 + Math.random() * 0.6; const F = window.__foley; F && F.thunk && F.thunk(new THREE.Vector3(b.x, b.top - 1.5, b.z), 0.5); }
+      if (b.hp <= 0) this.batter(new THREE.Vector3(b.x, b.top - 1, b.z), 1);
+    }
     const root = this.w.root;
     for (const b of this.balls) {
       if (b.done) { b.t += dt; continue; }
@@ -900,8 +948,13 @@ export class Field {
           // (a round shot takes a man and goes on through the file behind him, losing little)
           const c = u.pos; if (segDist(from, b.p, new THREE.Vector3(c.x, c.y + 0.9, c.z)) < 1.25) { b.hits.add(u); hit(u, from, b.v.clone()); b.v.multiplyScalar(0.9); cloud(root, new THREE.Vector3(c.x, c.y + 1.1, c.z), b.v.clone().normalize(), { n: 4, colour: 0x7a1a12, life: 1.2, speed: 2, size: 0.5, opacity: 0.45 }); }
         }
+        // (a gun in its way: struck)
+        if (b.v.length() > 8 && b.t > 0.05) for (const g of this.guns) { if (g.dead || g === b.gun) continue; if (segDist(from, b.p, new THREE.Vector3(g.x, this.y(g.x, g.z) + 0.7, g.z)) < 1.0) { this.hitGun(g); b.v.multiplyScalar(0.5); } }
         const gy = this.y(b.p.x, b.p.z);
-        if (b.p.y <= gy + 0.07 || (b.v.length() > 8 && b.t > 0.035 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0))) {
+        const struck = b.v.length() > 8 && b.t > 0.035 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0);
+        // (into a town's wall: it takes the blow, and the ball's spent)
+        if (struck && this.breaks.length && this.batter(b.p, 18 * Math.min(1.4, b.v.length() / 120))) { b.v.set(0, 0, 0); b.done = true; continue; }
+        if (b.p.y <= gy + 0.07 || struck) {
           b.p.y = Math.max(b.p.y, gy + 0.07);
           const sp = b.v.length();
           if (sp > 8) {
