@@ -100,14 +100,17 @@ const cellOf = ct => { W0(); const [x, y] = gridOf(ct[1], ct[2]); return [Math.f
 //  — on screen: the map's canvas covers the window either way, so it's the squares' size on the screen that's compared)
 const ZF = () => { W0(); const iw = innerWidth || 1280, ih = innerHeight || 768, was = Math.max(iw, ih / (370 / 400)) / 400, now = Math.max(iw, ih / MAP_ASPECT) / MG_W; return was / now; };
 // a campaign saved on Europe's sheet alone (before 1.49): its squares carried west by the New World's width
-const NEWW = 629;
 function toWorldGrid() {
-  if (!C || C.gridV === 3) return;
-  const sh = p => p && isFinite(p.x) ? { ...p, x: p.x + NEWW } : p;
-  own = new Map([...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return [(c + NEWW) + "," + r, to]; }));
+  if (!C || C.gridV === 4) return;
+  // (a column of an older sheet to this one's: Europe's alone, before 1.49 — its squares 0.14° from 12°W; the world's of
+  //  1.49 and 1.50, from 100.06°W, all even — each by its longitude)
+  const v3 = !C.gridV, lonAt = x => v3 ? -12 + x * 0.14 : -100.06 + x * 0.14;
+  W0(); const nx = x => gridOf(lonAt(x), 45)[0];
+  const sh = p => p && isFinite(p.x) ? { ...p, x: nx(p.x) } : p;
+  own = new Map([...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return [Math.floor(nx(c + 0.5)) + "," + r, to]; }));
   C.pos = sh(C.pos); C.go = sh(C.go); if (C.foePos) for (const id of Object.keys(C.foePos)) C.foePos[id] = sh(C.foePos[id]);
   for (const h of Object.values(C.H || {})) { h.pos = sh(h.pos); h.go = sh(h.go); }
-  C.gridV = 3; C._dirty = true; C.own = [...own];
+  C.gridV = 4; C._dirty = true; C.own = [...own];
 }
 
 // ---- 1683 as it stood: the leagues already sworn, and the wars already being fought ----
@@ -152,7 +155,7 @@ function fresh(me) {
   }
   // (your allies' wars against your enemies are fought with you)
   for (const w of wars) if ((ally[w.a] && war[w.b]) || (ally[w.b] && war[w.a])) w.withYou = true;
-  return { v: 1, gridV: 3, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
+  return { v: 1, gridV: 4, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
     E: { rel, war, wars, conq: [], pact: {}, plague: {}, famine: {}, beaten: {}, news: [], gridV: 2 },
     foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [] };
 }

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.50.1", date: "16 October 2026", title: "North America in proportion",
+    items: [
+      "Campaign map: North America no longer looks squeezed and tall. The sheet was scaled for Europe's latitude, and the colonies lie well south of it. West of 50°W, out in the open Atlantic, the map is now drawn to their own latitude, so Florida, the coast and the Great Lakes have their proper shape. Europe and the story's map are exactly as they were, and your campaigns carry over.",
+    ],
+  },
+  {
     v: "1.50.0", date: "16 October 2026", title: "The nations of the woods",
     items: [
       "Campaign: the Native nations of North America are now nations you can deal with, ally with and go to war with: the Haudenosaunee, Wabanaki, Cherokee, Muscogee, Choctaw, Shawnee, Illinois, Anishinaabe, Dakota and Cree. 1683's alliances are there: the Covenant Chain binds the Haudenosaunee to England, and New France stands with the Anishinaabe, Wabanaki and Illinois. The Beaver Wars are being fought.",
