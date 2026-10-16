@@ -2,7 +2,7 @@
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
 
-// THE DEMO AND THE FULL GAME. Free: the story's first chapter, and battles and duels against the bots. The full game:
+// THE DEMO AND THE FULL GAME. Free: Part One of the story (its first six chapters, to "Ashes"), and battles and duels against the bots. The full game:
 // the rest of the story, battles and duels against other players, and the Worlds & colonies. Bought through Stripe's
 // checkout, opened by the game's own server (server/shop.cjs), which makes the licence key, and gives it to the game
 // the moment the payment's through — so a purchase from inside the game unlocks it by itself. A key is entered by
@@ -17,7 +17,7 @@ import { G } from "./engine.js";
 export const SHOP = {
   // GOING LIVE: once the server's shop is set up with Stripe (its secret key and price, in the server's stripe.env —
   // never here) and a test purchase has gone through, open: true. Then the demo locks and the Buy buttons sell.
-  open: false,
+  open: true,
   server: "http://45.76.245.44:47810",
   // (Lemon Squeezy, the first shop: its checkout link and ids, if it's ever used again — a key from any other product or
   //  shop isn't ours)

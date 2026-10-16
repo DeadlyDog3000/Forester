@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.45.1", date: "16 October 2026", title: "The shop opens",
+    items: [
+      "Forester: Reckoning is on sale: CA$14.99, from the title screen or the game's page. Pay through Stripe's checkout and the game unlocks by itself. Your key works on up to three computers.",
+      "The free demo is Part One of the story, the first six chapters up to \"Ashes\", plus battles and duels against the bots. Buy the full game and your save carries straight on.",
+      "Everyone who played before the shop opened keeps the full game, free, as an alpha supporter. Thank you.",
+    ],
+  },
+  {
     v: "1.45.0", date: "16 October 2026", title: "Horse and siege",
     items: [
       "New horses: shaped, not boxes. A deep body with rounded quarters, a crested neck, a long head with ears, eyes and nostrils, and legs with knees, fetlocks and hooves. Each horse has its own markings (white socks, a blaze or a star) and a trooper's saddle: a bordered saddle cloth, pistol holsters, bridle, bit and stirrups.",

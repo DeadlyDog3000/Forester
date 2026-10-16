@@ -313,7 +313,7 @@ let mpSlotWas = null;
 function mpDone() { if (mpSlotWas != null) { useSlot(mpSlotWas); mpSlotWas = null; } }
 $("btnMulti").onclick = () => { if (!gate("worlds")) return; back = "title"; openLobby(); };
 // ---- the full game: the page that offers it, from the title or wherever the demo stops ----
-const BUY_WHY = { story: "That's the end of the demo's story. The rest of it is in the full game — and your save carries straight on.", online: "Battles and duels against other players are in the full game. Against the bots, they're free.", worlds: "The Worlds & colonies are in the full game.", title: "Everything the demo has, and the rest." };
+const BUY_WHY = { story: "That's the end of Part One, and of the demo. The rest of the story is in the full game — and your save carries straight on.", online: "Battles and duels against other players are in the full game. Against the bots, they're free.", worlds: "The Worlds & colonies are in the full game.", title: "Everything the demo has, and the rest." };
 G.openBuy = what => {
   if (G.mode === "play" || G.mode === "pause") { toTitle(); }
   $("buyKick").textContent = what === "story" ? "The demo ends here" : "The full game";
