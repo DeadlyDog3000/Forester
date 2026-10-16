@@ -209,12 +209,13 @@ export class EuropeView3D {
   }
   // the ground near where you look, finely
   buildDetail() {
-    if (this.dist > 16) { if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; this.detailAt = ""; this.sinkBase(0, -1, 0, -1); } return; }
-    const cx = Math.round(this.target.x / 4) * 4, cz = Math.round(this.target.z / 4) * 4;
-    if (this.detail && this.detailAt === cx + "," + cz) return;
-    this.detailAt = cx + "," + cz;
+    if (this.dist > 50) { if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; this.detailAt = ""; this.sinkBase(0, -1, 0, -1); } return; }
+    // (close in, a small patch, very fine; further off, a wider one — so the land never shows the coarse ground's blur)
+    const wide = this.dist > 16, step = wide ? 12 : 4, cx = Math.round(this.target.x / step) * step, cz = Math.round(this.target.z / step) * step;
+    if (this.detail && this.detailAt === cx + "," + cz + wide) return;
+    this.detailAt = cx + "," + cz + wide;
     if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); }
-    const size = 30, geo = new THREE.PlaneGeometry(size, size, 240, 240).rotateX(-Math.PI / 2);
+    const size = wide ? 110 : 30, geo = new THREE.PlaneGeometry(size, size, wide ? 400 : 240, wide ? 400 : 240).rotateX(-Math.PI / 2);
     geo.translate(cx, 0, cz);
     this.detail = this.terrainMesh(geo, 0, { x0: cx - size / 2, x1: cx + size / 2, z0: cz - size / 2, z1: cz + size / 2, band: 6 }); this.scene.add(this.detail);
     // the coarse ground under the patch's middle goes under the water, so its rougher coast can't show through the fine one

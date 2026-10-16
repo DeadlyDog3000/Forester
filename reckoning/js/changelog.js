@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.42.1", date: "15 October 2026", title: "Choose who marches",
+    items: [
+      "Campaign: when you fight a battle yourself, you choose who takes the field first. Pick how many men (a bigger army can field more) and of which arms: musketeers, grenadiers, pikemen, swordsmen, axemen, bowmen, crossbowmen and cavalry, and how many guns. One click sets it as your army stands, all you can field, or clears it. You can still leave it to your generals from there.",
+      "Campaign: the map stays sharp when you zoom in. Once you stop moving, the part in view is drawn again at that zoom instead of a picture stretched up.",
+      "Campaign: the 3D land is finer further out too, not only very close in.",
+    ],
+  },
+  {
     v: "1.42.0", date: "15 October 2026", title: "A campaign for two",
     items: [
       "Campaign with a friend: in the camp, challenge a player to a campaign. You each choose a crown, play your seasons side by side, and the season turns when you're both ready. Make war on each other, or alliances, peace and trade pacts, or send gold. The host keeps the campaign to take up again together later.",

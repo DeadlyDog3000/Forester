@@ -319,10 +319,15 @@ function chaikin(pts, closed, n) {
 function addLoop(p, pts) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); }
 function addLine(p, pts) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); }
 let GONE = null;
-function drawSheet(W, H, E, g, homePop) {
+// vp: { w, h, z, ox, oy } — only that part of the sheet, drawn at that zoom (sharp close in, not a picture stretched)
+function drawSheet(W, H, E, g, homePop, vp = null) {
   GONE = E && E.gone || null;
-  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
-  const c = cv.getContext("2d"), S = W / GW, r = rng(1683);
+  const cv = document.createElement("canvas"); cv.width = vp ? vp.w : W; cv.height = vp ? vp.h : H;
+  const at = x => { if (vp) x.setTransform(vp.z, 0, 0, vp.z, -vp.ox * vp.z, -vp.oy * vp.z); return x; }, Z = vp ? vp.z : 1;
+  // (a layer drawn in the same place, laid on as it is)
+  const layer = () => { const l = document.createElement("canvas"); l.width = cv.width; l.height = cv.height; return l; };
+  const lay = l => { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(l, 0, 0); c.restore(); };
+  const c = at(cv.getContext("2d")), S = W / GW, r = rng(1683);
   // ---- the paper: warm, uneven, a little foxed, darker to the edges ----
   c.fillStyle = PAPER; c.fillRect(0, 0, W, H);
   for (let i = 0; i < 26; i++) {
@@ -341,14 +346,14 @@ function drawSheet(W, H, E, g, homePop) {
   // water-lining: fine rings of ink along every coast, fainter as they go out to sea. Drawn on a layer of their own —
   // each ring a band of ink with its middle cut out — so only the lines themselves reach the paper
   {
-    const wl = document.createElement("canvas"); wl.width = W; wl.height = H;
-    const w = wl.getContext("2d"), coast = coastPath(S), gap = S * 0.85, lw = Math.max(0.8, S * 0.16);
+    const wl = layer();
+    const w = at(wl.getContext("2d")), coast = coastPath(S), gap = S * 0.85, lw = Math.max(0.8, S * 0.16);
     w.lineJoin = "round";
     for (let i = 6; i >= 1; i--) {
       w.globalCompositeOperation = "source-over"; w.lineWidth = i * gap * 2 + lw; w.strokeStyle = INK_SOFT + (0.5 * (1 - i / 7)).toFixed(3) + ")"; w.stroke(coast);
       w.globalCompositeOperation = "destination-out"; w.lineWidth = i * gap * 2 - lw; w.strokeStyle = "#000"; w.stroke(coast);
     }
-    c.drawImage(wl, 0, 0);
+    lay(wl);
   }
   c.restore();
   // ---- the land: the paper, a shade lighter, and each crown hand-coloured — a band of colour along its borders, a thin wash within ----
@@ -363,7 +368,7 @@ function drawSheet(W, H, E, g, homePop) {
   const ids = new Set(); for (const row of g) for (const id of row) if (id) ids.add(id);
   const band = Math.max(2, S * 2.2);
   // (the deeper bands drawn on a layer of their own, and softened all at once)
-  const bl = document.createElement("canvas"); bl.width = W; bl.height = H; const bc = bl.getContext("2d"); bc.lineJoin = "round"; bc.lineWidth = band * 2;
+  const bl = layer(); const bc = at(bl.getContext("2d")); bc.lineJoin = "round"; bc.lineWidth = band * 2;
   for (const id of ids) {
     const { loops } = trace(ext, id);
     if (!loops.length) continue;
@@ -374,7 +379,7 @@ function drawSheet(W, H, E, g, homePop) {
     c.restore();
     if (id !== "wilds") { bc.save(); bc.clip(path, "evenodd"); bc.strokeStyle = `rgba(${R},${G},${B},0.85)`; bc.stroke(path); bc.restore(); }
   }
-  c.filter = `blur(${(S * 0.6).toFixed(1)}px)`; c.drawImage(bl, 0, 0); c.filter = "none";
+  c.filter = `blur(${(S * 0.6 * Z).toFixed(1)}px)`; lay(bl); c.filter = "none";
   // borders: dotted, along the rounded line, where one crown meets another (each border once)
   c.save(); c.strokeStyle = INK_SOFT + "0.72)"; c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = Math.max(1.3, S * 0.42); c.setLineDash([0, Math.max(3, S * 0.95)]);
   for (const id of ids) {
@@ -577,16 +582,25 @@ function frame(c, W, H, S) {
 
 // the sheet, and over it what changes: the crown under the pointer and the one chosen, the wars, the plague, your clearing
 // view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
-export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true } = {}) {
+let near = null, nearT = 0;
+export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null } = {}) {
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
   // (drawn at twice the size, so it stays sharp when zoomed)
   if (!sheet || key !== sheetKey) { sheet = drawSheet(W * 2, H * 2, E, g, homePop); sheetKey = key; }
   const c = cv.getContext("2d");
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = "#1a1510"; c.fillRect(0, 0, W, H);
+  // (close in, the part in view drawn again at that zoom once the view rests — the picture stretched only while it moves)
+  const vkey = key + "|" + v.z.toFixed(4) + "," + v.ox.toFixed(2) + "," + v.oy.toFixed(2);
+  if (sharp && v.z > 1.15 && near && near.key === vkey) c.drawImage(near.cv, 0, 0);
+  else {
+    c.setTransform(v.z, 0, 0, v.z, -v.ox * v.z, -v.oy * v.z);
+    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+    c.drawImage(sheet, 0, 0, W, H);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    if (sharp && v.z > 1.15) { clearTimeout(nearT); nearT = setTimeout(() => { near = { key: vkey, cv: drawSheet(W, H, E, g, homePop, { w: W, h: H, z: v.z, ox: v.ox, oy: v.oy }) }; sharp(); }, 140); }
+  }
   c.setTransform(v.z, 0, 0, v.z, -v.ox * v.z, -v.oy * v.z);
-  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
-  c.drawImage(sheet, 0, 0, W, H);
   // the lit crowns: a warm wash over them
   for (const [id, a] of [[hover, 0.16], [selected, 0.28]]) {
     if (!id || !NATIONS[id]) continue;
