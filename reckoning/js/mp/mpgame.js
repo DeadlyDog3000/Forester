@@ -554,12 +554,9 @@ export class MPGame {
     // left on the ground
     let sq = null; bd = Infinity;
     for (const e of this.sites.values()) { const d = BUILD[e.q.type], dist = ahead(e.q.x, e.q.z, (d.wall ? d.len / 2 : d.r) + 2.2) - (d.wall ? 0 : d.r); if (dist < bd) { bd = dist; sq = e; } }
-    if (sq && (sq.q.owner === this.pid || (this.mode === "coop" && this.room.hostPid === this.pid))) {
-      if (this.unsiteAsk && this.unsiteAsk.id === sq.q.id && performance.now() - this.unsiteAsk.at < 3000) { this.unsiteAsk = null; this.net.send({ t: "unsite", id: sq.q.id }); G.impact && G.impact(); return; }
-      this.unsiteAsk = { id: sq.q.id, at: performance.now() };
-      UI.hint(`Swing again to take down the ${BUILD[sq.q.type].name.toLowerCase()}'s site — its logs are left on the ground.`, 3);
-      return;
-    }
+    // (an axe swung near a site leaves it be — chopping a tree beside it was taking it down. A site comes down only on
+    //  purpose: X, twice, looking at it)
+    if (sq && bd < 0.6 && (sq.q.owner === this.pid || (this.mode === "coop" && this.room.hostPid === this.pid))) { UI.hint("To take this site down, look at it and press X twice.", 2.5); return; }
     // something built
     let bb = null; bd = Infinity;
     for (const e of this.w.blds.values()) {
@@ -657,7 +654,7 @@ export class MPGame {
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(fw, 0.05, fd)), new THREE.LineBasicMaterial({ color: 0x7fe07a })); edges.position.y = 0.05; ghost.add(edges); ghost.userData.edges = edges; ghost.userData.tint = tint;
     // the ground it will claim, for a town hall
     if (d.claim) { const ring = new THREE.Mesh(new THREE.RingGeometry(d.claim - 0.25, d.claim, 64).rotateX(-Math.PI / 2), tint); ring.position.y = 0.3; ghost.add(ring); }
-    UI.keys(d.wall ? [["Click", "lay a length"], ["Hold R / Y", "turn it"], ["B", "done"]] : [["Click", "set it here"], ["Hold R / Y", "turn it"], ["B", "put the plan away"]]);
+    UI.keys(d.wall ? [["Click", "lay a length"], ["Hold R / Y", "turn it"], ["Hold Alt", "don't snap"], ["B", "done"]] : [["Click", "set it here"], ["Hold R / Y", "turn it"], ["Hold Alt", "don't snap"], ["B", "put the plan away"]]);
     G.scene.add(ghost);
     this.build = { type, d, ghost, rot: this.wallRy ?? G.player.yaw, ok: false };
     G.onSwing = null;
@@ -669,15 +666,47 @@ export class MPGame {
     this.build = null; $("keys").classList.add("hidden"); G.onSwing = () => this.swing();
     $("mpBuildBar").classList.add("hidden");
   }
+  snap(d, x, z, ry) {
+    const things = [...this.w.blds.values()].map(e => e.b).concat([...this.sites.values()].map(e => e.q));
+    if (d.wall) {
+      const h = d.len / 2, ux = Math.cos(ry), uz = -Math.sin(ry); let bd = 1.6, out = { x, z, ry };
+      for (const b of things) {
+        const e = BUILD[b.type]; if (!e || !e.wall) continue;
+        const bu = Math.cos(b.ry || 0), bz = -Math.sin(b.ry || 0), bh = e.len / 2;
+        for (const s2 of [-1, 1]) { const ex = b.x + bu * bh * s2, ez = b.z + bz * bh * s2;
+          for (const s1 of [-1, 1]) { const ax = x + ux * h * s1, az = z + uz * h * s1, dd = Math.hypot(ax - ex, az - ez); if (dd < bd) { bd = dd; out = { x: x + (ex - ax), z: z + (ez - az), ry }; } } }
+      }
+      return out;
+    }
+    const sz = q => [(q.w || (q.r || 1.5) * 2) / 2, (q.d || (q.r || 1.5) * 2) / 2];
+    let best = null, bd = Infinity;
+    for (const b of things) { const e = BUILD[b.type]; if (!e || e.wall || e.boat) continue; const dd = Math.hypot(b.x - x, b.z - z); if (dd < Math.max(...sz(e)) + Math.max(...sz(d)) + 4 && dd < bd) { bd = dd; best = b; } }
+    if (!best) return { x, z, ry };
+    const q = Math.PI / 2, br = best.ry || 0, rel = ry - br, k = Math.round(rel / q);
+    if (Math.abs(rel - k * q) > 0.35) return { x, z, ry };
+    const nry = br + k * q, c = Math.cos(br), s = Math.sin(br), dx = x - best.x, dz = z - best.z;
+    let lx = dx * c - dz * s, lz = dx * s + dz * c;
+    const [bw, bdp] = sz(BUILD[best.type]), [w0, d0] = sz(d), turned = Math.abs(k) % 2 === 1, mw = turned ? d0 : w0, md = turned ? w0 : d0, gap = 1.2;
+    // (never closer than the two may stand — the server keeps buildings apart by their reach — and a step beyond that)
+    const apart = (BUILD[best.type].r || 1.5) + (d.r || 1.5) + 0.3;
+    // (beside it, or before or behind it — whichever side it's nearer: in line with it if nearly so, and stood off from it
+    //  to just clear, if it's that close)
+    if (Math.abs(lx) >= Math.abs(lz)) { if (Math.abs(lz) < 2) lz = 0; const want = Math.max(bw + mw + gap, apart); if (Math.abs(lx) < want + 2 && Math.hypot(lx, lz) < want + 2) lx = Math.sign(lx || 1) * want; }
+    else { if (Math.abs(lx) < 2) lx = 0; const want = Math.max(bdp + md + gap, apart); if (Math.abs(lz) < want + 2 && Math.hypot(lx, lz) < want + 2) lz = Math.sign(lz || 1) * want; }
+    return { x: best.x + lx * c + lz * s, z: best.z - lx * s + lz * c, ry: nry };
+  }
   tickBuild() {
     const B = this.build, pl = G.player, d = B.d, f = pl.forward();
     const dist = d.wall ? 3.2 : d.boat ? 4.5 : (d.r || 1.5) + 3.6;
-    const x = pl.pos.x + f.x * dist, z = pl.pos.z + f.z * dist;
-    // (turned smoothly while R is held, Y the other way — nothing snaps, as in the settlement)
+    let x = pl.pos.x + f.x * dist, z = pl.pos.z + f.z * dist;
+    // (turned smoothly while R is held, Y the other way)
     const dt = 1 / 60;
     if (input.down("KeyR")) B.rot += dt * 1.7 * (input.down("ShiftLeft") || input.down("ShiftRight") ? -1 : 1);
     if (input.down("KeyY")) B.rot -= dt * 1.7;
-    const ry = B.rot;
+    let ry = B.rot;
+    // snapping (hold Alt to place freely): a length of palisade or a gate joins the end of the nearest one; anything
+    // else, near a building, turns square to it and lines up with it — in a row beside it, a little gap between
+    if (!d.boat && !input.down("AltLeft") && !input.down("AltRight")) ({ x, z, ry } = this.snap(d, x, z, ry));
     const y = this.w.heightAt(x, z);
     B.ghost.position.set(x, d.boat ? WATER - 0.05 : y, z); B.ghost.rotation.y = ry;
     // will it do?
@@ -819,7 +848,25 @@ export class MPGame {
     $("mpMode").textContent = `${MODES[this.mode]} · ${TERRAINS[this.room.kind] ? TERRAINS[this.room.kind].name : ""}`;
     this.hudStock(); this.hudCount(); this.drawChat();
   }
+  // a woodshed of your own (or the colony's) is filled with the logs in the store, as the settlement's is — not the
+  // model's own stack, always full: two stacks along it, as many rows as there are logs for. (Run now and then, as a
+  // model fetched late comes in with its own logs to be put away)
+  shedLogs() {
+    const n = Math.max(0, Math.min(30, Math.round((this.stock.wood | 0) / 2)));
+    for (const e of this.w.blds.values()) {
+      if (e.b.type !== "shed" || !(e.mine || this.mode === "coop") || !e.g) continue;
+      e.g.traverse(q => { if (q.isMesh && /log/i.test(q.name) && !q.userData.ours) q.visible = false; });
+      if (e.g.userData.pileN === n) continue;
+      e.g.userData.pileN = n;
+      if (e.g.userData.pile) e.g.remove(e.g.userData.pile);
+      const L = [];
+      for (let k = 0; k < n; k++) { const side = k % 2, idx = Math.floor(k / 2), row = Math.floor(idx / 5), col = idx % 5; L.push({ x: side ? 0.8 : -0.8, y: 0.17 + row * 0.29, z: -0.1 + (col - 2) * 0.31 + (row % 2) * 0.05, len: 1.5, r: 0.15, dir: "x" }); }
+      const pile = n ? makeLogs(L, n) : new THREE.Group(); pile.traverse(q => { q.userData.ours = true; });
+      e.g.userData.pile = pile; e.g.add(pile);
+    }
+  }
   hudStock(flash) {
+    this.shedLogs();
     // (as the settlement's own bar: its pictures, under the objective)
     const IC = G.icons || {}, el = $("mpStock");
     el.innerHTML = `<span class="tb" title="logs"><img src="${IC.logs || ""}" alt=""><b id="mpLogs">${this.stock.wood}</b></span><span class="tb" title="stone"><img src="${IC.stone || ""}" alt=""><b id="mpStone">${this.stock.stone}</b></span><span class="tb" title="food"><img src="${IC.bread || IC.rye || ""}" alt=""><b id="mpFood">${this.stock.food | 0}</b></span>`;
@@ -896,9 +943,27 @@ export class MPGame {
     clearTimeout(this._invT); this._invT = setTimeout(() => { e.classList.add("hidden"); this.invite = null; }, 30000);
   }
   // keys main.js passes on while a game is on; true if taken
+  // a site of yours you're looking at, near enough to take down (X, twice)
+  siteAhead() {
+    const p = G.player, fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw); let best = null, bd = 4.5;
+    for (const e of this.sites.values()) {
+      const d = BUILD[e.q.type], dx = e.q.x - p.pos.x, dz = e.q.z - p.pos.z, dist = Math.hypot(dx, dz) - (d.wall ? d.len / 2 : d.r);
+      if (dist > bd || (dx * fx + dz * fz) < 0) continue;
+      if (!(e.q.owner === this.pid || (this.mode === "coop" && this.room.hostPid === this.pid))) continue;
+      bd = dist; best = e;
+    }
+    return best;
+  }
   key(e) {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return false;
     if (G.mode !== "play" || e.repeat) return ["Tab", "KeyB", "KeyT", "KeyP", "KeyG", "KeyH", "KeyV"].includes(e.code) && G.mode === "play";
+    if (e.code === "KeyX" && !e.repeat && !this.dead && !(G.player && G.player.horse)) {
+      const sq = this.siteAhead(); if (!sq) return false;
+      if (this.unsiteAsk && this.unsiteAsk.id === sq.q.id && performance.now() - this.unsiteAsk.at < 3000) { this.unsiteAsk = null; this.net.send({ t: "unsite", id: sq.q.id }); G.impact && G.impact(); UI.hint("The site's taken down. Its logs are left on the ground.", 2.5); return true; }
+      this.unsiteAsk = { id: sq.q.id, at: performance.now() };
+      UI.hint(`Press X again to take down the ${BUILD[sq.q.type].name.toLowerCase()}'s site. Its logs will be left on the ground.`, 3);
+      return true;
+    }
     // (Enter to talk — T is the inventory, as everywhere else)
     if (e.code === "Enter") { e.preventDefault(); this.openChat(); return true; }
     if (e.code === "Tab") { e.preventDefault(); this.toggleList(); return true; }

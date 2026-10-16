@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.2", date: "16 October 2026", title: "Worlds: sites that stay put, sheds that fill, buildings that line up",
+    items: [
+      "Worlds: building sites no longer vanish. Swinging your axe near one of your own sites, say at a tree beside it, used to take the site down and leave its logs on the ground. Now a site only comes down on purpose: look at it and press X twice.",
+      "Worlds: a woodshed is a woodshed. Its logs are the ones in your store, stacked in two piles along it that grow and shrink as the store does, not a painted stack that was always full.",
+      "Worlds: building snaps. A length of palisade or a gate joins onto the end of the one beside it. A building near another turns square to it and lines up in a row beside it or in front of it, with a step between them, never overlapping. Hold Alt to place freely.",
+      "The Woodlands warrior's sash colour can be chosen in the character builder.",
+    ],
+  },
+  {
     v: "1.51.1", date: "16 October 2026", title: "A town is a dot",
     items: [
       "Map: a town is a plain dot again, gold-ringed if it's yours. Only the cities and the crowns' seats are drawn as little pictures.",
