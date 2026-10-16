@@ -16,7 +16,7 @@
 // Alps would be a wrinkle.
 
 import { THREE, rng } from "./core.js";
-import { NATIONS, CITIES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, effLon, lonOfEff, E0 } from "./europe.js";
+import { NATIONS, CITIES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
 
 const K = Math.cos(49 * Math.PI / 180);
@@ -24,16 +24,17 @@ export const U = 10;                                       // units per degree o
 // (the sheet's size, from the one in use — Europe's for the story, the world's for a campaign: taken up afresh whenever
 //  the land's built or drawn)
 let MAP_W = 1, MAP_H = 1, CELL = 1;
-const sync = () => { MAP_W = (BOUNDS.lon1 - E0) * K * U; MAP_H = (BOUNDS.lat1 - BOUNDS.lat0) * U; CELL = MAP_W / GW; };
-export const toWorld = (lon, lat) => [(effLon(lon, lat) - E0) * K * U, (BOUNDS.lat1 - lat) * U];
-export const toLL = (x, z) => { const lat = BOUNDS.lat1 - z / U; return [lonOfEff(E0 + x / (K * U), lat), lat]; };
+const sync = () => { MAP_W = (BOUNDS.lon1 - BOUNDS.lon0) * K * U; MAP_H = (BOUNDS.lat1 - BOUNDS.lat0) * U; CELL = MAP_W / GW; };
+// (the land laid out as the sheet is: in its effective degrees — North America larger, as on the map)
+export const toWorld = (lon, lat) => { const [ex, ey] = fwd(lon, lat); return [(ex - BOUNDS.lon0) * K * U, (BOUNDS.lat1 - ey) * U]; };
+export const toLL = (x, z) => inv(BOUNDS.lon0 + x / (K * U), BOUNDS.lat1 - z / U);
 
 
 // ---- the land: which ground is land, from the map's grid, softened into a coast ----
 let landGrid = null;
 function landAt(g, lon, lat) {
   // bilinear over the grid's land and sea, so the coast is a line and not steps
-  const gx = (effLon(lon, lat) - E0) / (BOUNDS.lon1 - E0) * GW - 0.5, gy = (BOUNDS.lat1 - lat) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
+  const [ex, ey] = fwd(lon, lat), gx = (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, gy = (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
   const x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
   const L = (x, y) => (g[y] && g[y][x] ? 1 : 0);
   return L(x0, y0) * (1 - fx) * (1 - fy) + L(x0 + 1, y0) * fx * (1 - fy) + L(x0, y0 + 1) * (1 - fx) * fy + L(x0 + 1, y0 + 1) * fx * fy;

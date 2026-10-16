@@ -23,29 +23,34 @@ import { rangeKm, fbm } from "./relief.js";
 //  is the sheet's; useSheet() changes them all at once, and is a no-op when it's the one already in use ----
 export let GW = 0, GH = 0, BOUNDS = null, MG_W = 0, MG_H = 0, MAP_ASPECT = 1, HOME = null, SHEET = "";
 let K = 1, SPAN_X = 1, SPAN_Y = 1, COAST = [], X0 = 0, Y0 = 0;
-export let E0 = 0;
 // (west of the bend, out in the Atlantic, a degree of longitude is drawn wider — North America's at its own latitude,
 //  not Europe's: longitude to "effective" longitude, which the sheet is even in, and back)
+// (the sheet is laid out in "effective" degrees: Europe's plain longitude and latitude; North America drawn true to
+//  shape about 80°W and larger, blended across the Atlantic — tools/geo/build.mjs, PROJ)
 const PJ = WB.proj, cosr = lat => Math.cos(lat * Math.PI / 180) / Math.cos(PJ.ref * Math.PI / 180);
-export const effLon = (lon, lat) => {
-  if (!PJ || lon >= PJ.b1) return lon;
-  const c = cosr(lat), xa = PJ.A + (PJ.b0 - PJ.cm) * c;
-  return lon <= PJ.b0 ? PJ.A + (lon - PJ.cm) * c : xa + (lon - PJ.b0) / (PJ.b1 - PJ.b0) * (PJ.b1 - xa);
+export const fwd = (lon, lat) => {
+  const P = PJ; if (!P || lon >= P.b1) return [lon, lat];
+  const naY = P.LC + (lat - P.LC) * P.M, naX = lo => P.A + (lo - P.cm) * cosr(lat) * P.M;
+  if (lon <= P.b0) return [naX(lon), naY];
+  const t = (lon - P.b0) / (P.b1 - P.b0), xa = naX(P.b0);
+  return [xa + t * (P.b1 - xa), naY + t * (lat - naY)];
 };
-export const lonOfEff = (e, lat) => {
-  if (!PJ || e >= PJ.b1) return e;
-  const c = cosr(lat), xa = PJ.A + (PJ.b0 - PJ.cm) * c;
-  return e <= xa ? PJ.cm + (e - PJ.A) / c : PJ.b0 + (e - xa) / (PJ.b1 - xa) * (PJ.b1 - PJ.b0);
+export const inv = (ex, ey) => {
+  const P = PJ; if (!P || ex >= P.b1) return [ex, ey];
+  let lat = P.LC + (ey - P.LC) / P.M, lon = P.cm + (ex - P.A) / (cosr(lat) * P.M);
+  if (lon <= P.b0) return [lon, lat];
+  let t = 0.5;
+  for (let i = 0; i < 12; i++) { lat = (ey - (1 - t) * P.LC * (1 - P.M)) / ((1 - t) * P.M + t); const xa = P.A + (P.b0 - P.cm) * cosr(lat) * P.M; t = Math.max(0, Math.min(1, (ex - xa) / (P.b1 - xa))); }
+  return [P.b0 + t * (P.b1 - P.b0), lat];
 };
 export function useSheet(name) {
   if (name === SHEET) return;
   SHEET = name;
-  const e0 = WB.e0, [x0, y0, w, h] = name === "world" ? [0, 0, WGW, WGH] : WINDOWS[name], dl = (WB.lon1 - e0) / WGW, dt = (WB.lat1 - WB.lat0) / WGH;
+  const [x0, y0, w, h] = name === "world" ? [0, 0, WGW, WGH] : WINDOWS[name], dl = (WB.lon1 - WB.lon0) / WGW, dt = (WB.lat1 - WB.lat0) / WGH;
   X0 = x0; Y0 = y0; GW = MG_W = w; GH = MG_H = h; MAP_ASPECT = h / w;
-  E0 = e0 + x0 * dl;
-  // (lon0: the sheet's west edge where it's plain — a window on Europe; the world's runs further west at its foot)
-  BOUNDS = { lon0: x0 ? E0 : WB.lon0, lon1: E0 + w * dl, lat0: WB.lat1 - (y0 + h) * dt, lat1: WB.lat1 - y0 * dt, latRef: WB.latRef };
-  K = Math.cos(BOUNDS.latRef * Math.PI / 180); SPAN_X = w * dl * K; SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
+  // (in effective degrees: a window on Europe, plain ones)
+  BOUNDS = { lon0: WB.lon0 + x0 * dl, lon1: WB.lon0 + (x0 + w) * dl, lat0: WB.lat1 - (y0 + h) * dt, lat1: WB.lat1 - y0 * dt, latRef: WB.latRef };
+  K = Math.cos(BOUNDS.latRef * Math.PI / 180); SPAN_X = (BOUNDS.lon1 - BOUNDS.lon0) * K; SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
   // (the coasts that touch the window, carried to its corner)
   COAST = WCOAST.map(r => r.map(([x, y]) => [x - x0 * 10, y - y0 * 10])).filter(r => r.some(([x, y]) => x > -50 && y > -50 && x < w * 10 + 50 && y < h * 10 + 50));
   { const [x, y] = gridOf(...HOME_LL); HOME = { mx: Math.floor(x), my: Math.floor(y) }; }
@@ -134,8 +139,8 @@ const seizes = id => id === "cossacks" || NATIONS[id].people ? "seize" : "seizes
 const id2take = id => id === "cossacks" || NATIONS[id].people ? "take" : "takes";
 
 // ---- the sheet: longitude and latitude to the grid, and back ----
-export const llOf = (gx, gy) => { const lat = BOUNDS.lat1 - gy / GH * SPAN_Y; return [lonOfEff(E0 + gx / GW * SPAN_X / K, lat), lat]; };
-export const gridOf = (lon, lat) => [(effLon(lon, lat) - E0) * K / SPAN_X * GW, (BOUNDS.lat1 - lat) / SPAN_Y * GH];
+export const llOf = (gx, gy) => inv(BOUNDS.lon0 + gx / GW * SPAN_X / K, BOUNDS.lat1 - gy / GH * SPAN_Y);
+export const gridOf = (lon, lat) => { const [ex, ey] = fwd(lon, lat); return [(ex - BOUNDS.lon0) * K / SPAN_X * GW, (BOUNDS.lat1 - ey) / SPAN_Y * GH]; };
 // your clearing, in the woods north-east of Hamburg on the Lübeck road
 const HOME_LL = [10.75, 53.72];
 
@@ -539,19 +544,22 @@ function nameBoxes(c, S) {
 }
 // the cities, over the sheet at whatever zoom: a dot each, the same size on screen at any zoom, and the name where it
 // finds room (right, left, above, below) — so zooming in makes room, and more of the towns' names appear
-function drawCities(c, g, S, v, W, H) {
+function drawCities(c, g, S, v, W, H, opt = {}) {
   const k = W / 1300, taken = nameBoxes(c, S).map(b => [(b[0] - v.ox) * v.z, (b[1] - v.oy) * v.z, (b[2] - v.ox) * v.z, (b[3] - v.oy) * v.z]);
   const hit = b => taken.some(t => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
   c.textBaseline = "middle";
   const sorted = [...CITIES].sort((a, b) => b[3] - a[3]);
   // the dots first, so no name is written over one
   const at = sorted.map(ct => { const [x, y] = lonlat(ct[1], ct[2], S); return [ct, (x - v.ox) * v.z, (y - v.oy) * v.z]; }).filter(([, x, y]) => x > -40 && y > -40 && x < W + 40 && y < H + 40);
-  for (const [ct, x, y] of at) { townSign(c, x, y, k * 4.2, ct[3], cityOwner(g, ct)); taken.push([x - 5 * k, y - 5 * k, x + 5 * k, y + 5 * k]); }
+  // (the pictures drawn north to south, so a town further down the sheet stands in front of the one behind it; a
+  //  little larger close in)
+  const u = k * Math.min(2.3, 1.15 + v.z / (opt.zf || 1) * 0.22);
+  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 10 : ct[3] === 2 ? 8 : 6) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]] }); taken.push([x - hw, y - 13 * u, x + hw, y + 3 * u]); }
   for (const [ct, x, y] of at) {
     const [n, , , rank] = ct;
     c.font = rank === 3 ? `${Math.round(k * 15)}px ${FELL}` : `italic ${Math.round(k * (rank === 2 ? 14 : 13))}px ${FELL}`;
-    const w = c.measureText(n).width, h = k * 15, d = k * (rank === 3 ? 9 : 6);
-    const tries = [[x + d, y, "left"], [x - d, y, "right"], [x, y - h * 0.9, "center"], [x, y + h * 0.9, "center"], [x + d * 0.6, y - h * 0.8, "left"], [x + d * 0.6, y + h * 0.8, "left"]];
+    const w = c.measureText(n).width, h = k * 15, d = u * (rank === 3 ? 11.5 : rank === 2 ? 9.5 : 7.5);
+    const tries = [[x + d, y - 2 * u, "left"], [x - d, y - 2 * u, "right"], [x, y + 3 * u + h * 0.6, "center"], [x, y - 14 * u - h * 0.4, "center"], [x + d * 0.6, y + 3 * u + h * 0.6, "left"], [x + d * 0.6, y - 14 * u - h * 0.4, "left"]];
     for (const [tx, ty, al] of tries) {
       const x0 = al === "left" ? tx : al === "right" ? tx - w : tx - w / 2, b = [x0, ty - h / 2, x0 + w, ty + h / 2];
       if (hit(b)) continue;
@@ -561,12 +569,59 @@ function drawCities(c, g, S, v, W, H) {
     }
   }
 }
-// a city's mark: a dot — a larger one ringed in its crown's colour for a seat, a middling one for a great town, a small one for a town
-function townSign(c, x, y, S, rank, own) {
-  const r = S * (rank === 3 ? 0.62 : rank === 2 ? 0.46 : 0.32);
-  c.save();
-  if (rank === 3) { c.beginPath(); c.arc(x, y, r * 1.9, 0, 7); c.fillStyle = own ? NATIONS[own].color : "#b0281a"; c.fill(); c.lineWidth = Math.max(0.6, S * 0.12); c.strokeStyle = INK; c.stroke(); }
-  c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = INK; c.fill();
+// a town's mark, as the engravers drew one on a map of the time: a little picture of it standing on its place — a
+// seat of the crown walled, with its towers and the spire of its great church; a great town a cluster of roofs about
+// its church; a town two or three houses and a steeple; a town of the woods' nations a palisade with a longhouse
+// behind it. Its holder's colours fly over it. (x, y): the place; u: the size of a unit on the screen
+// opt: { mine: your own (the flag gold-edged), walled: walls built round it, grand: a little larger }
+function townGlyph(c, x, y, u, rank, own, opt = {}) {
+  const woods = own && NATIONS[own] && NATIONS[own].nw, walled = !woods && (opt.walled || rank === 3);
+  const lw = Math.max(0.7, u * 0.75), roof = "rgba(150,72,48,0.92)", wall = "#efe4c6", stone = "#d8ccb0";
+  c.save(); c.lineJoin = "round"; c.lineCap = "round"; c.strokeStyle = INK; c.lineWidth = lw;
+  const base = y + 2.5 * u;
+  // (its shadow on the paper: a soft smudge to the south-east, so it stands up off the map)
+  c.fillStyle = "rgba(58,42,26,0.16)"; c.beginPath(); c.ellipse(x + 1.2 * u, base + 0.6 * u, (rank === 3 ? 10 : rank === 2 ? 8 : 6) * u, 1.8 * u, 0, 0, 7); c.fill();
+  const house = (hx, w, h, rh = w * 0.6) => {
+    c.fillStyle = wall; c.beginPath(); c.rect(hx - w / 2, base - h, w, h); c.fill(); c.stroke();
+    c.fillStyle = roof; c.beginPath(); c.moveTo(hx - w / 2 - 0.4 * u, base - h); c.lineTo(hx, base - h - rh); c.lineTo(hx + w / 2 + 0.4 * u, base - h); c.closePath(); c.fill(); c.stroke();
+  };
+  const church = (hx, h, sp) => {
+    c.fillStyle = wall; c.beginPath(); c.rect(hx - 1.4 * u, base - h, 2.8 * u, h); c.fill(); c.stroke();
+    c.fillStyle = "rgba(70,78,82,0.95)"; c.beginPath(); c.moveTo(hx - 1.7 * u, base - h); c.lineTo(hx, base - h - sp); c.lineTo(hx + 1.7 * u, base - h); c.closePath(); c.fill(); c.stroke();
+    return base - h - sp;
+  };
+  let top;
+  if (woods) {
+    // the longhouse, round-roofed, and the palisade's stakes before it
+    c.fillStyle = "rgba(110,88,66,0.95)"; c.beginPath(); c.moveTo(x - 6 * u, base - 1 * u); c.lineTo(x - 6 * u, base - 3.5 * u); c.quadraticCurveTo(x, base - 9 * u, x + 6 * u, base - 3.5 * u); c.lineTo(x + 6 * u, base - 1 * u); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = "#8a6e50";
+    for (let i = -7; i <= 7; i++) { const sx = x + i * 1.05 * u, hh = (3.6 + (i % 2 ? 0.5 : 0)) * u; c.beginPath(); c.moveTo(sx - 0.45 * u, base); c.lineTo(sx - 0.45 * u, base - hh); c.lineTo(sx, base - hh - 0.9 * u); c.lineTo(sx + 0.45 * u, base - hh); c.lineTo(sx + 0.45 * u, base); c.closePath(); c.fill(); c.stroke(); }
+    top = base - 9 * u;
+  } else if (rank === 3) {
+    // walled: two towers at either end of a curtain wall, the roofs and the great church's spire over it
+    house(x - 4.5 * u, 4 * u, 5 * u); house(x + 4.8 * u, 3.6 * u, 4.6 * u); top = church(x, 7.5 * u, 6.5 * u);
+    if (walled) {
+      c.fillStyle = stone; c.beginPath(); c.rect(x - 9 * u, base - 3.4 * u, 18 * u, 3.4 * u); c.fill(); c.stroke();
+      for (const tx of [-9, 9]) { c.beginPath(); c.rect(x + tx * u - 1.8 * u, base - 6 * u, 3.6 * u, 6 * u); c.fill(); c.stroke(); for (const m of [-1.2, 0, 1.2]) { c.beginPath(); c.rect(x + tx * u + m * u - 0.45 * u, base - 6.9 * u, 0.9 * u, 0.9 * u); c.fill(); c.stroke(); } }
+      for (let m = -6.5; m <= 6.5; m += 2.2) { c.beginPath(); c.rect(x + m * u - 0.5 * u, base - 4.2 * u, 1 * u, 0.8 * u); c.fill(); c.stroke(); }
+      c.fillStyle = INK; c.beginPath(); c.arc(x, base - 0.2 * u, 1.2 * u, Math.PI, 0); c.fill();
+    }
+  } else if (rank === 2) {
+    house(x - 4.2 * u, 3.6 * u, 4 * u); house(x + 4 * u, 3.4 * u, 3.6 * u); top = church(x, 5.2 * u, 5 * u);
+    if (walled) { c.fillStyle = stone; c.beginPath(); c.rect(x - 7 * u, base - 2.2 * u, 14 * u, 2.2 * u); c.fill(); c.stroke(); for (let m = -6; m <= 6; m += 2) { c.beginPath(); c.rect(x + m * u - 0.45 * u, base - 2.9 * u, 0.9 * u, 0.7 * u); c.fill(); c.stroke(); } }
+  } else {
+    house(x - 2.4 * u, 3.2 * u, 3.2 * u); top = church(x + 2 * u, 3.8 * u, 3.6 * u);
+    if (walled) { c.fillStyle = stone; c.beginPath(); c.rect(x - 5 * u, base - 1.8 * u, 10 * u, 1.8 * u); c.fill(); c.stroke(); }
+  }
+  // the ground line it stands on
+  c.beginPath(); c.moveTo(x - (rank === 3 ? 10 : rank === 2 ? 8 : 6) * u, base); c.lineTo(x + (rank === 3 ? 10 : rank === 2 ? 8 : 6) * u, base); c.stroke();
+  // its holder's colours, on a staff over it
+  if (own && NATIONS[own]) {
+    const fx = woods ? x + 4 * u : x + (rank === 1 ? 2 * u : 0), ft = (woods ? base - 7 * u : top) - 4.5 * u;
+    c.beginPath(); c.moveTo(fx, woods ? base - 6 * u : top); c.lineTo(fx, ft); c.stroke();
+    c.fillStyle = NATIONS[own].color; c.strokeStyle = opt.mine ? "#b8862a" : INK; c.lineWidth = opt.mine ? lw * 1.8 : lw;
+    c.beginPath(); c.moveTo(fx, ft); c.quadraticCurveTo(fx + 2.6 * u, ft - 0.7 * u, fx + 5 * u, ft + 0.2 * u); c.lineTo(fx + 5 * u, ft + 2.6 * u); c.quadraticCurveTo(fx + 2.6 * u, ft + 1.8 * u, fx, ft + 2.4 * u); c.closePath(); c.fill(); c.stroke();
+  }
   c.restore();
 }
 // letters drawn one by one, with space between, centred on x
@@ -611,14 +666,14 @@ function frame(c, W, H, S) {
   c.lineWidth = 0.8; c.strokeRect(m + S * 1.1, m + S * 1.1, W - 2 * m - S * 2.2, H - 2 * m - S * 2.2);
   // degrees along the frame, in alternating bars, numbered every five
   c.font = `${Math.round(S * 1.9)}px ${FELL}`; c.fillStyle = INK; c.textAlign = "center"; c.textBaseline = "middle";
-  for (let lon = Math.ceil(BOUNDS.lon0); lon < BOUNDS.lon1; lon++) {
+  for (let lon = Math.ceil(Math.max(BOUNDS.lon0, PJ ? PJ.b1 : -999)); lon < BOUNDS.lon1; lon++) {
     const x = gridOf(lon, BOUNDS.lat0)[0] * S, x2 = gridOf(lon + 1, BOUNDS.lat0)[0] * S;
     if (lon % 2 === 0) { c.fillRect(x, m, x2 - x, S * 1.1); c.fillRect(x, H - m - S * 1.1, x2 - x, S * 1.1); }
     // (the meridian counted from Ferro, in the Canaries, as the Dutch map-makers counted it: about 18° west of Greenwich)
     if ((lon + 18) % 5 === 0) c.fillText(String(lon + 18), x, m + S * 2.6);
   }
   for (let lat = Math.ceil(BOUNDS.lat0); lat < BOUNDS.lat1; lat++) {
-    const y = gridOf(BOUNDS.lon0, lat)[1] * S, y2 = gridOf(BOUNDS.lon0, lat + 1)[1] * S;
+    const y = gridOf(BOUNDS.lon1 - 1, lat)[1] * S, y2 = gridOf(BOUNDS.lon1 - 1, lat + 1)[1] * S;
     if (lat % 2 === 0) { c.fillRect(m, y2, S * 1.1, y - y2); c.fillRect(W - m - S * 1.1, y2, S * 1.1, y - y2); }
     if (lat % 5 === 0) c.fillText(String(lat), m + S * 3, y);
   }
@@ -664,7 +719,7 @@ function reliefLayer(part = null) {
 // the sheet, and over it what changes: the crown under the pointer and the one chosen, the wars, the plague, your clearing
 // view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
 let near = null, nearT = 0;
-export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null } = {}) {
+export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null, me = null, walled = null, zf = 1 } = {}) {
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + (E.rev | 0) + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
   // (drawn at twice the size, so it stays sharp when zoomed)
@@ -704,7 +759,7 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
     c.fillText(homeName, hx - S * 1.6, hy - S * 1.8);
   }
   c.setTransform(1, 0, 0, 1, 0, 0);
-  drawCities(c, g, S, v, W, H);
+  drawCities(c, g, S, v, W, H, { me, walled, zf });
   // the chosen city's ring, over its dot
   for (const [ct, strong] of [[hoverCity, false], [city, true]]) {
     if (!ct) continue;

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.0", date: "16 October 2026", title: "Towns drawn as towns, and a larger New World",
+    items: [
+      "Map: towns are no longer dots and rings. Each is drawn as the engravers drew towns: a crown's seat walled, with corner towers and its great church's spire; a great town a cluster of roofs about its church; a small town two houses and a steeple; a Native town a palisade with a longhouse behind it. Walls appear once a town has them built. Its holder's flag flies over it, gold-edged for your own, and crossed swords still mark the towns in your reach and the ones under threat.",
+      "Campaign map: North America is drawn larger, about half again across and up, so the colonies, the Native nations and their towns have room. It's still true to shape at every latitude. Europe and the story's map are unchanged, and your campaigns carry over.",
+    ],
+  },
+  {
     v: "1.50.2", date: "16 October 2026", title: "North America, true to shape",
     items: [
       "Campaign map: North America is now drawn with each latitude at its true width, about a middle meridian at 80°W, as continents were drawn on the sheets of the time. Florida, the colonies, the Great Lakes and Hudson Bay all keep their real proportions, where before the south came out narrow and tall and the north too broad. The projection blends into Europe's across the open Atlantic, so Europe and the story's map are unchanged. Your campaigns carry over.",

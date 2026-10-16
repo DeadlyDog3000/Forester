@@ -101,17 +101,23 @@ const cellOf = ct => { W0(); const [x, y] = gridOf(ct[1], ct[2]); return [Math.f
 const ZF = () => { W0(); const iw = innerWidth || 1280, ih = innerHeight || 768, was = Math.max(iw, ih / (370 / 400)) / 400, now = Math.max(iw, ih / MAP_ASPECT) / MG_W; return was / now; };
 // a campaign saved on Europe's sheet alone (before 1.49): its squares carried west by the New World's width
 function toWorldGrid() {
-  if (!C || C.gridV === 5) return;
-  // (a column of an older sheet to this one's, by the longitude it stood for: Europe's alone, before 1.49 — squares of
-  //  0.14° from 12°W; the world's of 1.49 and 1.50, even from 100.06°W; 1.50.1's, bent at 50°W. The rows are the same)
-  const BK = Math.cos(41 * Math.PI / 180) / Math.cos(49 * Math.PI / 180), v = C.gridV | 0;
-  const lonAt = x => v === 4 ? (e => e >= -50 ? e : -50 + (e + 50) / BK)(-108.46 + x * 0.14) : v === 3 ? -100.06 + x * 0.14 : -12 + x * 0.14;
-  W0(); const latAt = y => 66 - y * 34 / 370, nx = (x, y) => gridOf(lonAt(x), latAt(y))[0];
-  const sh = p => p && isFinite(p.x) ? { ...p, x: nx(p.x, p.y) } : p;
-  own = new Map([...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return [Math.floor(nx(c + 0.5, r + 0.5)) + "," + r, to]; }));
+  if (!C || C.gridV === 6) return;
+  // (a square of an older sheet to this one's, by the place it stood for: Europe's alone, before 1.49 — squares of
+  //  0.14° from 12°W; the world's of 1.49 and 1.50, even from 100.06°W; 1.50.1's, bent at 50°W; 1.50.2's, sinusoidal
+  //  west of 50°W. The rows of all of those were the same, 66°N down)
+  const v = C.gridV | 0, cr = (lat, ref = 49) => Math.cos(lat * Math.PI / 180) / Math.cos(ref * Math.PI / 180), BK = cr(41);
+  const old = (x, y) => {
+    const lat = 66 - y * 34 / 370;
+    if (v === 5) { const e = -110 + x * 0.14; if (e >= -20) return [e, lat]; const c = cr(lat), xa = -80 + 30 * c; return [e <= xa ? -80 + (e + 80) / c : -50 + (e - xa) / (-20 - xa) * 30, lat]; }
+    if (v === 4) { const e = -108.46 + x * 0.14; return [e >= -50 ? e : -50 + (e + 50) / BK, lat]; }
+    return [v === 3 ? -100.06 + x * 0.14 : -12 + x * 0.14, lat];
+  };
+  W0(); const nw = (x, y) => gridOf(...old(x, y));
+  const sh = p => p && isFinite(p.x) ? (([x, y]) => ({ ...p, x, y }))(nw(p.x, p.y)) : p;
+  own = new Map([...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number), [x, y] = nw(c + 0.5, r + 0.5); return [Math.floor(x) + "," + Math.floor(y), to]; }));
   C.pos = sh(C.pos); C.go = sh(C.go); if (C.foePos) for (const id of Object.keys(C.foePos)) C.foePos[id] = sh(C.foePos[id]);
   for (const h of Object.values(C.H || {})) { h.pos = sh(h.pos); h.go = sh(h.go); }
-  C.gridV = 5; C._dirty = true; C.own = [...own];
+  C.gridV = 6; C._dirty = true; C.own = [...own];
 }
 
 // ---- 1683 as it stood: the leagues already sworn, and the wars already being fought ----
@@ -156,7 +162,7 @@ function fresh(me) {
   }
   // (your allies' wars against your enemies are fought with you)
   for (const w of wars) if ((ally[w.a] && war[w.b]) || (ally[w.b] && war[w.a])) w.withYou = true;
-  return { v: 1, gridV: 5, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
+  return { v: 1, gridV: 6, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
     E: { rel, war, wars, conq: [], pact: {}, plague: {}, famine: {}, beaten: {}, news: [], gridV: 2 },
     foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [] };
 }
@@ -973,7 +979,7 @@ function marks3d() {
 function paint() {
   const cv = $("cmpMap"); if (!cv || !C) return; W0();
   if (on3d && eu3d) { eu3d.setMap(E(), 2, null); eu3d.marks(marks3d()); if (!raf3d) loop3d(); return; }
-  const g = drawEurope(cv, E(), { hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false, sharp: () => { if (shown() && !on3d) paint(); } });
+  const g = drawEurope(cv, E(), { hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false, me: C.me, walled: C.walls || null, zf: ZF(), sharp: () => { if (shown() && !on3d) paint(); } });
   // over the map: your towns ringed in your colour; the towns of your enemies within your army's reach marked with
   // crossed swords (dim once it's marched this season); a town an enemy marches on, red
   const c = cv.getContext("2d"), S = cv.width / MG_W, k = cv.width / 1300, at = ct => { const [x, y] = gridOf(ct[1], ct[2]); return [(x * S - view.ox) * view.z, (y * S - view.oy) * view.z]; };
@@ -984,18 +990,11 @@ function paint() {
   for (const ct of CITIES) {
     const own2 = cityOwner(g, ct); if (!own2) continue;
     const [x, y] = at(ct); if (x < -20 || y < -20 || x > cv.width + 20 || y > cv.height + 20) continue;
-    // (a walled town: a little bastioned outline round it, as the engravers drew a fortress)
-    if (C.walls && C.walls[ct[0]]) { const r = (11 + ct[3] * 1.5) * k; c.save(); c.strokeStyle = "rgba(40,28,16,0.85)"; c.lineWidth = 1.4 * k; c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? r * 0.78 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); c.stroke(); c.restore(); }
-    if (own2 === C.me) {
-      c.strokeStyle = threat.has(ct[0]) ? "#c0281a" : NATIONS[C.me].color; c.beginPath(); c.arc(x, y, (7 + ct[3] * 1.5) * k, 0, 7); c.stroke();
-      c.strokeStyle = "rgba(40,28,16,0.8)"; c.lineWidth = 1 * k; c.beginPath(); c.arc(x, y, (8.6 + ct[3] * 1.5) * k, 0, 7); c.stroke(); c.lineWidth = 2.2 * k;
-      if (threat.has(ct[0])) swords(x, y - 17 * k, 5 * k, "#c0281a");
-    } else if (isHuman(own2)) {
-      c.save(); c.setLineDash([4 * k, 3 * k]); c.strokeStyle = NATIONS[own2].color; c.beginPath(); c.arc(x, y, (7 + ct[3] * 1.5) * k, 0, 7); c.stroke(); c.restore();
-      if (atWar(own2) && inMarch(ct)) swords(x, y - 14 * k, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
-    } else if (atWar(own2) && inMarch(ct)) {
-      swords(x, y - 14 * k, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
-    }
+    // (your towns, and the other player's, are told by the flag over each — gold-edged for yours; a town of yours an
+    //  enemy marches on, and an enemy's within your reach, marked with crossed swords over it)
+    const up = 30 * k;
+    if (own2 === C.me) { if (threat.has(ct[0])) swords(x, y - up, 5 * k, "#c0281a"); }
+    else if (atWar(own2) && inMarch(ct)) swords(x, y - up, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
   }
   // ---- the armies: a regiment's block under its colour, how many regiments, and where it's marching ----
   const scr = p => [(p.x * S - view.ox) * view.z, (p.y * S - view.oy) * view.z];
