@@ -101,16 +101,17 @@ const cellOf = ct => { W0(); const [x, y] = gridOf(ct[1], ct[2]); return [Math.f
 const ZF = () => { W0(); const iw = innerWidth || 1280, ih = innerHeight || 768, was = Math.max(iw, ih / (370 / 400)) / 400, now = Math.max(iw, ih / MAP_ASPECT) / MG_W; return was / now; };
 // a campaign saved on Europe's sheet alone (before 1.49): its squares carried west by the New World's width
 function toWorldGrid() {
-  if (!C || C.gridV === 4) return;
-  // (a column of an older sheet to this one's: Europe's alone, before 1.49 — its squares 0.14° from 12°W; the world's of
-  //  1.49 and 1.50, from 100.06°W, all even — each by its longitude)
-  const v3 = !C.gridV, lonAt = x => v3 ? -12 + x * 0.14 : -100.06 + x * 0.14;
-  W0(); const nx = x => gridOf(lonAt(x), 45)[0];
-  const sh = p => p && isFinite(p.x) ? { ...p, x: nx(p.x) } : p;
-  own = new Map([...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return [Math.floor(nx(c + 0.5)) + "," + r, to]; }));
+  if (!C || C.gridV === 5) return;
+  // (a column of an older sheet to this one's, by the longitude it stood for: Europe's alone, before 1.49 — squares of
+  //  0.14° from 12°W; the world's of 1.49 and 1.50, even from 100.06°W; 1.50.1's, bent at 50°W. The rows are the same)
+  const BK = Math.cos(41 * Math.PI / 180) / Math.cos(49 * Math.PI / 180), v = C.gridV | 0;
+  const lonAt = x => v === 4 ? (e => e >= -50 ? e : -50 + (e + 50) / BK)(-108.46 + x * 0.14) : v === 3 ? -100.06 + x * 0.14 : -12 + x * 0.14;
+  W0(); const latAt = y => 66 - y * 34 / 370, nx = (x, y) => gridOf(lonAt(x), latAt(y))[0];
+  const sh = p => p && isFinite(p.x) ? { ...p, x: nx(p.x, p.y) } : p;
+  own = new Map([...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return [Math.floor(nx(c + 0.5, r + 0.5)) + "," + r, to]; }));
   C.pos = sh(C.pos); C.go = sh(C.go); if (C.foePos) for (const id of Object.keys(C.foePos)) C.foePos[id] = sh(C.foePos[id]);
   for (const h of Object.values(C.H || {})) { h.pos = sh(h.pos); h.go = sh(h.go); }
-  C.gridV = 4; C._dirty = true; C.own = [...own];
+  C.gridV = 5; C._dirty = true; C.own = [...own];
 }
 
 // ---- 1683 as it stood: the leagues already sworn, and the wars already being fought ----
@@ -155,7 +156,7 @@ function fresh(me) {
   }
   // (your allies' wars against your enemies are fought with you)
   for (const w of wars) if ((ally[w.a] && war[w.b]) || (ally[w.b] && war[w.a])) w.withYou = true;
-  return { v: 1, gridV: 4, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
+  return { v: 1, gridV: 5, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
     E: { rel, war, wars, conq: [], pact: {}, plague: {}, famine: {}, beaten: {}, news: [], gridV: 2 },
     foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [] };
 }

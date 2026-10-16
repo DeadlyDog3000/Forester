@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.50.2", date: "16 October 2026", title: "North America, true to shape",
+    items: [
+      "Campaign map: North America is now drawn with each latitude at its true width, about a middle meridian at 80°W, as continents were drawn on the sheets of the time. Florida, the colonies, the Great Lakes and Hudson Bay all keep their real proportions, where before the south came out narrow and tall and the north too broad. The projection blends into Europe's across the open Atlantic, so Europe and the story's map are unchanged. Your campaigns carry over.",
+    ],
+  },
+  {
     v: "1.50.1", date: "16 October 2026", title: "North America in proportion",
     items: [
       "Campaign map: North America no longer looks squeezed and tall. The sheet was scaled for Europe's latitude, and the colonies lie well south of it. West of 50°W, out in the open Atlantic, the map is now drawn to their own latitude, so Florida, the coast and the Great Lakes have their proper shape. Europe and the story's map are exactly as they were, and your campaigns carry over.",

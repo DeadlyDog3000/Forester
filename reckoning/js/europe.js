@@ -22,19 +22,30 @@ import { rangeKm, fbm } from "./relief.js";
 //  Europe, which is the very grid it always was). Everything here — the grid, the projection, the coasts, the caches —
 //  is the sheet's; useSheet() changes them all at once, and is a no-op when it's the one already in use ----
 export let GW = 0, GH = 0, BOUNDS = null, MG_W = 0, MG_H = 0, MAP_ASPECT = 1, HOME = null, SHEET = "";
-let K = 1, SPAN_X = 1, SPAN_Y = 1, COAST = [], X0 = 0, Y0 = 0, E0 = 0;
+let K = 1, SPAN_X = 1, SPAN_Y = 1, COAST = [], X0 = 0, Y0 = 0;
+export let E0 = 0;
 // (west of the bend, out in the Atlantic, a degree of longitude is drawn wider — North America's at its own latitude,
 //  not Europe's: longitude to "effective" longitude, which the sheet is even in, and back)
-export const effLon = lon => !WB.bend || lon >= WB.bend ? lon : WB.bend + (lon - WB.bend) * WB.bk;
-export const lonOfEff = e => !WB.bend || e >= WB.bend ? e : WB.bend + (e - WB.bend) / WB.bk;
+const PJ = WB.proj, cosr = lat => Math.cos(lat * Math.PI / 180) / Math.cos(PJ.ref * Math.PI / 180);
+export const effLon = (lon, lat) => {
+  if (!PJ || lon >= PJ.b1) return lon;
+  const c = cosr(lat), xa = PJ.A + (PJ.b0 - PJ.cm) * c;
+  return lon <= PJ.b0 ? PJ.A + (lon - PJ.cm) * c : xa + (lon - PJ.b0) / (PJ.b1 - PJ.b0) * (PJ.b1 - xa);
+};
+export const lonOfEff = (e, lat) => {
+  if (!PJ || e >= PJ.b1) return e;
+  const c = cosr(lat), xa = PJ.A + (PJ.b0 - PJ.cm) * c;
+  return e <= xa ? PJ.cm + (e - PJ.A) / c : PJ.b0 + (e - xa) / (PJ.b1 - xa) * (PJ.b1 - PJ.b0);
+};
 export function useSheet(name) {
   if (name === SHEET) return;
   SHEET = name;
-  const e0 = effLon(WB.lon0), [x0, y0, w, h] = name === "world" ? [0, 0, WGW, WGH] : WINDOWS[name], dl = (WB.lon1 - e0) / WGW, dt = (WB.lat1 - WB.lat0) / WGH;
+  const e0 = WB.e0, [x0, y0, w, h] = name === "world" ? [0, 0, WGW, WGH] : WINDOWS[name], dl = (WB.lon1 - e0) / WGW, dt = (WB.lat1 - WB.lat0) / WGH;
   X0 = x0; Y0 = y0; GW = MG_W = w; GH = MG_H = h; MAP_ASPECT = h / w;
-  BOUNDS = { lon0: lonOfEff(e0 + x0 * dl), lon1: lonOfEff(e0 + (x0 + w) * dl), lat0: WB.lat1 - (y0 + h) * dt, lat1: WB.lat1 - y0 * dt, latRef: WB.latRef };
   E0 = e0 + x0 * dl;
-  K = Math.cos(BOUNDS.latRef * Math.PI / 180); SPAN_X = (effLon(BOUNDS.lon1) - E0) * K; SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
+  // (lon0: the sheet's west edge where it's plain — a window on Europe; the world's runs further west at its foot)
+  BOUNDS = { lon0: x0 ? E0 : WB.lon0, lon1: E0 + w * dl, lat0: WB.lat1 - (y0 + h) * dt, lat1: WB.lat1 - y0 * dt, latRef: WB.latRef };
+  K = Math.cos(BOUNDS.latRef * Math.PI / 180); SPAN_X = w * dl * K; SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
   // (the coasts that touch the window, carried to its corner)
   COAST = WCOAST.map(r => r.map(([x, y]) => [x - x0 * 10, y - y0 * 10])).filter(r => r.some(([x, y]) => x > -50 && y > -50 && x < w * 10 + 50 && y < h * 10 + 50));
   { const [x, y] = gridOf(...HOME_LL); HOME = { mx: Math.floor(x), my: Math.floor(y) }; }
@@ -123,8 +134,8 @@ const seizes = id => id === "cossacks" || NATIONS[id].people ? "seize" : "seizes
 const id2take = id => id === "cossacks" || NATIONS[id].people ? "take" : "takes";
 
 // ---- the sheet: longitude and latitude to the grid, and back ----
-export const llOf = (gx, gy) => [lonOfEff(E0 + gx / GW * SPAN_X / K), BOUNDS.lat1 - gy / GH * SPAN_Y];
-export const gridOf = (lon, lat) => [(effLon(lon) - E0) * K / SPAN_X * GW, (BOUNDS.lat1 - lat) / SPAN_Y * GH];
+export const llOf = (gx, gy) => { const lat = BOUNDS.lat1 - gy / GH * SPAN_Y; return [lonOfEff(E0 + gx / GW * SPAN_X / K, lat), lat]; };
+export const gridOf = (lon, lat) => [(effLon(lon, lat) - E0) * K / SPAN_X * GW, (BOUNDS.lat1 - lat) / SPAN_Y * GH];
 // your clearing, in the woods north-east of Hamburg on the Lübeck road
 const HOME_LL = [10.75, 53.72];
 
