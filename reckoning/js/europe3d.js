@@ -128,7 +128,7 @@ export class EuropeView3D {
   }
   // the political map changed (a conquest) or first shown: rebuild what depends on it
   setMap(E, homePop = 2, homeName = "Forester's Clearing") {
-    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName;
+    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = (E.rev | 0) + ":" + cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName;
     const g = buildGrid(E);
     if (this.g && this.mapKey === key) return;
     this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName;

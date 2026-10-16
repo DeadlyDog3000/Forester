@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.44.2", date: "15 October 2026", title: "Whole crowns",
+    items: [
+      "Campaign: when a crown loses its last town, all of its land now goes to whoever took that town. Before, it could keep land with no towns left, for example when a harbour town fell along with the country around a neighbouring town. Saves where this already happened are fixed when you load them: the leftover land goes to you if you were at war with that crown.",
+      "Campaign: the map now redraws reliably when land changes hands.",
+    ],
+  },
+  {
     v: "1.44.1", date: "15 October 2026", title: "Engraved marks",
     items: [
       "Campaign: the buildings in a town are marked with small engraved drawings (a sheaf, scales, a hammer, crossed swords, a gun, a church, a tower) instead of emoji.",

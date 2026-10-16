@@ -82,7 +82,7 @@ const nameOf = id => (C.mp && C.mp.names[id]) || The(id);
 // the land as it stands: 1683's, and every town taken since (kept as a map of cells, handed to the map as E.conq)
 let own = new Map();
 function E() {
-  if (!C.E.conq || C.E.conq.length !== own.size || C._dirty) { C.E.conq = [...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return { c, r, to }; }); C._dirty = false; }
+  if (!C.E.conq || C.E.conq.length !== own.size || C._dirty) { C.E.conq = [...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return { c, r, to }; }); C.E.rev = (C.E.rev | 0) + 1; C._dirty = false; }
   return C.E;
 }
 const grid = () => buildGrid(E());
@@ -102,7 +102,20 @@ function fresh(me) {
     foes: army, ally: {}, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [] };
 }
 function begin(me, into = slot) { slot = into; C = fresh(me); ensureRealm(); own = new Map(); say(`${The(me)} — ${C.year}`, `You take the crown. ${citiesOfNow(grid(), me).length} towns, ${C.army} regiments, ${C.gold} thalers in the treasury.`); save(); }
-function resume() { C = load(); if (!C) return false; own = new Map(C.own || []); C._dirty = true; ensureRealm(); return true; }
+function resume() {
+  C = load(); if (!C) return false; own = new Map(C.own || []); C._dirty = true; ensureRealm();
+  // (a save from before 1.44.2: a crown that had towns in 1683, has none now, yet still holds land — its taker
+  //  was never told so; the land goes to you if you fought it, else to its strongest neighbour)
+  if (!C.lastBy) {
+    const g0 = buildGrid({ conq: [] }), g = grid(); C.lastBy = {};
+    for (const id of new Set(CITIES.map(ct => cityOwner(g0, ct)).filter(Boolean))) {
+      if (alive(g, id) || !g.some(row => row.includes(id))) continue;
+      C.lastBy[id] = C.E.war[id] !== undefined || (C.took && C.took[id]) ? C.me : [...neighbours(g, id)].sort((a, b) => citiesOfNow(g, b).length - citiesOfNow(g, a).length)[0] || C.me;
+    }
+    orphans(C.me); persist();
+  }
+  return true;
+}
 function persist() { C.own = [...own]; save(); }
 function say(title, sub = "") { C.log.unshift({ t: `${C.year}`, title, sub }); C.log.length = Math.min(C.log.length, 60); }
 // (news of the world: to every player of the campaign)
@@ -112,6 +125,7 @@ function sayAll(title, sub = "") { say(title, sub); for (const h of humans()) if
 // (a town taken: its country with it — the loser's land round it, a day or two's march across)
 function seize(ct, to) {
   const g = grid(), from = cityOwner(g, ct); if (!from || from === to) return 0;
+  C.lastBy = { ...(C.lastBy || {}), [from]: to };
   let [x0, y0] = cellOf(ct);
   // (its own cell may be the sea or the woods: the nearest of the loser's)
   if (g[y0] && g[y0][x0] !== from) { let best = null, bd = 99; for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) if (g[y0 + dy] && g[y0 + dy][x0 + dx] === from && Math.hypot(dx, dy) < bd) { bd = Math.hypot(dx, dy); best = [x0 + dx, y0 + dy]; } if (!best) return 0; [x0, y0] = best; }
@@ -127,6 +141,17 @@ function seize(ct, to) {
   C._dirty = true;
   // (its last town gone: the whole crown is the taker's — every field and forest of it, to the last corner)
   if (!CITIES.some(o => o !== ct && cityOwner(g, o) === from)) n += annex(g, from, to);
+  orphans(to);
+  return n;
+}
+// (a crown left with land but not one town — its last one gone with the country round another's: all of it to
+//  whoever last took from it, so no ghost of a kingdom lingers on the map)
+function orphans(fallback) {
+  const g = grid(), held = new Set();
+  for (const row of g) for (const id of row) if (id && NATIONS[id]) held.add(id);
+  let n = 0;
+  // (only a crown that has lost a town: a little one with no town of its own from the start is left be)
+  for (const id of held) if (C.lastBy && C.lastBy[id] && !alive(g, id)) n += annex(g, id, C.lastBy[id] || fallback);
   return n;
 }
 function annex(g, from, to) {
@@ -526,6 +551,7 @@ function crownsWar(g, ids) {
   }
 }
 function checkEnd() {
+  orphans(C.me);
   const g = grid(), n = citiesOfNow(g, C.me).length;
   if (!n && !C.over) { C.over = "lost"; say("Your crown is lost", "The last of your towns has fallen."); }
   if (n >= WIN_CITIES && !C.won) { C.won = true; say("Europe is yours", `${n} towns under your crown. Play on, if you like.`); }

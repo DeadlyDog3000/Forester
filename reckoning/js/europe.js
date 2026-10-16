@@ -98,7 +98,7 @@ function baseGrid() {
 let gridCache = null, gridKey = "";
 export function buildGrid(E) {
   // (the same conquests, the same map: asked for on every movement of the pointer, so kept)
-  const cq = (E && E.conq) || [], key = cq.length + ":" + (cq.length ? cq[cq.length - 1].c + "," + cq[cq.length - 1].r + cq[cq.length - 1].to : "");
+  const cq = (E && E.conq) || [], key = ((E && E.rev) | 0) + ":" + cq.length + ":" + (cq.length ? cq[cq.length - 1].c + "," + cq[cq.length - 1].r + cq[cq.length - 1].to : "");
   if (gridCache && key === gridKey) return gridCache.map(row => row.slice());
   const g = baseGrid().map(row => row.slice());
   for (const q of cq) if (g[q.r] && g[q.r][q.c] && g[q.r][q.c] !== "wilds") g[q.r][q.c] = q.to;
@@ -567,7 +567,7 @@ function reliefLayer(part = null) {
 let near = null, nearT = 0;
 export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null } = {}) {
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
-  const key = W + "x" + H + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
+  const key = W + "x" + H + "|" + (E.rev | 0) + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
   // (drawn at twice the size, so it stays sharp when zoomed)
   if (!sheet || key !== sheetKey) { sheet = drawSheet(W * 2, H * 2, E, g, homePop); sheetKey = key; }
   const c = cv.getContext("2d");
