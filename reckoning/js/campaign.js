@@ -13,7 +13,7 @@
 // them. A town is a province: taking one takes the country round it.
 
 import { FOLEY } from "./foley.js";
-import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, llOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H } from "./europe.js";
+import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, llOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H, useSheet, PEOPLES, peopleAt } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { TROOPS } from "./pvp.js";
 import { CHAINS, CHAIN_ORDER, MARK, levelCost, capOf, TECHS, BRANCHES, canStudy, newMan, historicalOf, portOf, GSTATS, VSTATS, SERVICE, GEN_SERVICE } from "./realm.js";
@@ -85,9 +85,25 @@ function E() {
   if (!C.E.conq || C.E.conq.length !== own.size || C._dirty) { C.E.conq = [...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return { c, r, to }; }); C.E.rev = (C.E.rev | 0) + 1; C._dirty = false; }
   return C.E;
 }
-const grid = () => buildGrid(E());
+// (a campaign is played on the whole sheet — Europe and the New World across the Atlantic — the story on Europe's window
+//  of it: every way into the map here takes up the world's first)
+const W0 = () => useSheet("world");
+const grid = () => (W0(), buildGrid(E()));
 function citiesOfNow(g, id) { return CITIES.filter(ct => cityOwner(g, ct) === id); }
-const cellOf = ct => { const [x, y] = gridOf(ct[1], ct[2]); return [Math.floor(x), Math.floor(y)]; };
+const cellOf = ct => { W0(); const [x, y] = gridOf(ct[1], ct[2]); return [Math.floor(x), Math.floor(y)]; };
+// (how much wider the world's sheet is than Europe's: zooms are reckoned in Europe's)
+//  — on screen: the map's canvas covers the window either way, so it's the squares' size on the screen that's compared)
+const ZF = () => { W0(); const iw = innerWidth || 1280, ih = innerHeight || 768, was = Math.max(iw, ih / (370 / 400)) / 400, now = Math.max(iw, ih / MAP_ASPECT) / MG_W; return was / now; };
+// a campaign saved on Europe's sheet alone (before 1.49): its squares carried west by the New World's width
+const NEWW = 629;
+function toWorldGrid() {
+  if (!C || C.gridV === 3) return;
+  const sh = p => p && isFinite(p.x) ? { ...p, x: p.x + NEWW } : p;
+  own = new Map([...own].map(([k, to]) => { const [c, r] = k.split(",").map(Number); return [(c + NEWW) + "," + r, to]; }));
+  C.pos = sh(C.pos); C.go = sh(C.go); if (C.foePos) for (const id of Object.keys(C.foePos)) C.foePos[id] = sh(C.foePos[id]);
+  for (const h of Object.values(C.H || {})) { h.pos = sh(h.pos); h.go = sh(h.go); }
+  C.gridV = 3; C._dirty = true; C.own = [...own];
+}
 
 // ---- 1683 as it stood: the leagues already sworn, and the wars already being fought ----
 // (the Treaty of Warsaw that spring, the Emperor and Poland against the Turk, Venice and the Pope with them in the Holy
@@ -125,7 +141,7 @@ function fresh(me) {
   }
   // (your allies' wars against your enemies are fought with you)
   for (const w of wars) if ((ally[w.a] && war[w.b]) || (ally[w.b] && war[w.a])) w.withYou = true;
-  return { v: 1, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
+  return { v: 1, gridV: 3, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
     E: { rel, war, wars, conq: [], pact: {}, plague: {}, famine: {}, beaten: {}, news: [], gridV: 2 },
     foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [] };
 }
@@ -139,7 +155,7 @@ function begin(me, into = slot) {
   save();
 }
 function resume() {
-  C = load(); if (!C) return false; own = new Map(C.own || []); C._dirty = true; ensureRealm();
+  C = load(); if (!C) return false; own = new Map(C.own || []); C._dirty = true; toWorldGrid(); ensureRealm();
   // (a save from before 1.44.2: a crown that had towns in 1683, has none now, yet still holds land — its taker
   //  was never told so; the land goes to you if you fought it, else to its strongest neighbour)
   if (!C.lastBy) {
@@ -244,13 +260,18 @@ const alive = (g, id) => citiesOfNow(g, id).length > 0;
 // ---- the armies on the map: where each stands, in squares of the map (some ten kilometres each), and how far it gets in
 //  a year's campaigning. Yours goes where you send it; a town is only marched on from within a year's march of it ----
 const MARCH = 35;
-const cellXY = ct => { const [x, y] = gridOf(ct[1], ct[2]); return { x, y }; };
+const cellXY = ct => { W0(); const [x, y] = gridOf(ct[1], ct[2]); return { x, y }; };
 const dist2 = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
 function homeOf(g, id) { const t = citiesOfNow(g, id).sort((a, b) => b[3] - a[3])[0]; return t ? cellXY(t) : null; }
 function armyPos() { if (!C.pos || !isFinite(C.pos.x)) C.pos = homeOf(grid(), C.me) || { x: MG_W / 2, y: MG_H / 2 }; return C.pos; }
-function stepToward(p, t, d) { const L = dist2(p, t); return L <= d ? { x: t.x, y: t.y, arrived: true } : { x: p.x + (t.x - p.x) / L * d, y: p.y + (t.y - p.y) / L * d, arrived: false }; }
+// (across the Atlantic it's no march: the army takes ship, and the crossing — some two months at sea, with the waiting
+//  for a fleet and a wind — is the year's campaigning; it lands where it was sent)
+const seaSide = p => llOf(p.x, p.y)[0] < -42;
+const overSea = (p, t) => seaSide(p) !== seaSide(t);
+const VOYAGE = 120;
+function stepToward(p, t, d) { if (overSea(p, t)) return { x: t.x, y: t.y, arrived: true, sea: true }; const L = dist2(p, t); return L <= d ? { x: t.x, y: t.y, arrived: true } : { x: p.x + (t.x - p.x) / L * d, y: p.y + (t.y - p.y) / L * d, arrived: false }; }
 const inMarch = ct => dist2(armyPos(), cellXY(ct)) <= MARCH + 0.5;
-const yearsTo = t => Math.max(1, Math.ceil(dist2(armyPos(), t) / MARCH));
+const yearsTo = t => overSea(armyPos(), t) ? 1 : Math.max(1, Math.ceil(dist2(armyPos(), t) / MARCH));
 // (the other crowns' field armies: at their capital, or on the march toward a town of yours)
 function foeArmyPos(id) { C.foePos ||= {}; if (!C.foePos[id] || !isFinite(C.foePos[id].x)) { const h = homeOf(grid(), id); if (h) C.foePos[id] = { x: h.x, y: h.y }; } return C.foePos[id] || null; }
 // (your army near enough to a town of yours to come to its help: half a year's march)
@@ -668,6 +689,7 @@ function endSeason(part = {}) {
     if (!ct) { const near = mine.filter(c => inReach(g2, c, id) && (!hasWalls(c, C.me, g2) || (C.fguns[id] | 0) > 0)); if (!near.length) continue; ct = pick(near); }
     // its army on the road: there this year if it's near enough, else a year's march nearer — seen coming
     const fp = foeArmyPos(id), tc = cellXY(ct);
+    if (fp && overSea(fp, tc)) { C.foePos[id] = { x: tc.x, y: tc.y }; C.foeGo[id] = ct[0]; say(`${The(id)} ships an army over the Atlantic`, `Some ${C.foes[id]} regiments, bound for ${ct[0]}. They'll be at its walls next year.`); continue; }
     if (fp && dist2(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${The(id)}'s army marches toward ${ct[0]}`, `Some ${C.foes[id]} regiments, a year's march off. They'll be at its walls next year.`); continue; }
     if (fp) C.foePos[id] = { x: tc.x, y: tc.y }; delete C.foeGo[id];
     const att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
@@ -726,13 +748,14 @@ function checkEnd() {
 // ---------------------------------------------------------------------------
 let view = { z: 1, ox: 0, oy: 0 }, sel = null, selCity = null, hov = null, hovCity = null, note = "", news = [];
 // (close in, the land itself: hills, woods, the towns' roofs — the government's map, as in the story)
-const ZOOM_3D = 4.2, DIST_2D = 110;
+let ZOOM_3D = 4.2 * 2.5; const DIST_2D = 110;
 let eu3d = null, on3d = false, raf3d = 0, fade3d = 0, enter3d = () => {}, leave3d = () => {};
 // (drawn only while the campaign's map is in front of you)
 const loop3d = () => { if (!on3d || !shown()) { if (eu3d) eu3d.visible = false; raf3d = 0; return; } eu3d.visible = true; if (innerWidth !== eu3d.w || innerHeight !== eu3d.h) eu3d.size(innerWidth, innerHeight); eu3d.frame(); raf3d = requestAnimationFrame(loop3d); };
 const shown = () => !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden");
 export function initCampaign(c, battle, withPlayer) {
   ctx = c; startBattle = battle; fieldWithPlayer = withPlayer || null;
+  ZOOM_3D = 4.2 * ZF(); addEventListener("resize", () => { ZOOM_3D = 4.2 * ZF(); });
   // (leaving a campaign of two: the link closed — the host keeps it to take up again — and the one alone as it was)
   $("cmpBack").onclick = () => { if (mp) leaveMp(); ctx.screen("pvp"); };
   $("cmpNew").onclick = () => { if (!mp) drawPick(); };
@@ -770,7 +793,7 @@ export function initCampaign(c, battle, withPlayer) {
   let drag = null;
   const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
   const toMap = ([x, y]) => [view.ox + x / view.z, view.oy + y / view.z];
-  const clampV = () => { view.z = clamp(view.z, 1, 6); view.ox = clamp(view.ox, 0, cv.width - cv.width / view.z); view.oy = clamp(view.oy, 0, cv.height - cv.height / view.z); };
+  const clampV = () => { view.z = clamp(view.z, 1, 6 * ZF()); view.ox = clamp(view.ox, 0, cv.width - cv.width / view.z); view.oy = clamp(view.oy, 0, cv.height - cv.height / view.z); };
   const zoomAt = (px, py, f) => {
     const [bx, by] = toMap([px, py]); view.z *= f;
     if (view.z > ZOOM_3D) { view.z = ZOOM_3D; clampV(); view.ox = bx - px / view.z; view.oy = by - py / view.z; clampV(); return enter3d(); }
@@ -797,7 +820,10 @@ export function initCampaign(c, battle, withPlayer) {
     if (armyHit(cv, ...pos(e))) { armySel = !armySel; selCity = null; sel = null; note = armySel ? "Your army: right-click anywhere on the map to march there. A year's march takes it about 350 km; a town within that is in its reach." : ""; drawMap(); sfx("drum", 0.25); return; }
     armySel = false;
     const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z);
-    selCity = ct || null; sel = ct ? cityOwner(grid(), ct) : nationAt(E(), cv, ...p); note = ""; drawMap(); if (selCity || sel) sfx("parchment", 0.28);
+    selCity = ct || null; sel = ct ? cityOwner(grid(), ct) : nationAt(E(), cv, ...p); note = "";
+    // (the peoples' country: whose it is, and that it isn't a crown's)
+    if (!selCity && !sel) { const pp = peopleAt(cv, ...p, E()); if (pp) note = `This is the country of ${PEOPLES[pp].long}. It is their own, and no crown's to take: an army may cross it, but not seize it.`; }
+    drawMap(); if (selCity || sel || note) sfx("parchment", 0.28);
   };
   // the middle of the window, on the canvas (which is bigger than the window, and centred on it)
   const mid = () => { const r = cv.getBoundingClientRect(); return [(innerWidth / 2 - r.left) * cv.width / r.width, (innerHeight / 2 - r.top) * cv.height / r.height]; };
@@ -808,6 +834,7 @@ export function initCampaign(c, battle, withPlayer) {
   // ---- into the land, and back out to the map ----
   const wrap = cv.parentElement;
   enter3d = () => {
+    W0();
     if (!eu3d) {
       eu3d = new EuropeView3D(wrap);
       eu3d.el.addEventListener("wheel", e => { e.preventDefault(); eu3d.dist = Math.max(2.2, eu3d.dist * Math.exp(e.deltaY * 0.0015)); if (eu3d.dist > DIST_2D) leave3d(); }, { passive: false });
@@ -841,11 +868,12 @@ export function initCampaign(c, battle, withPlayer) {
     cancelAnimationFrame(raf3d); raf3d = 0; loop3d();
   };
   leave3d = () => {
+    W0();
     const [lon, lat] = eu3d.centreLL(), [gx, gy] = gridOf(lon, lat), S = cv.width / MG_W;
     // (the map drawn under the land, and the land faded off it — the last frame held while it goes)
     on3d = false; cv.style.visibility = "visible"; eu3d.el.classList.remove("on"); clearTimeout(fade3d);
     fade3d = setTimeout(() => { if (!on3d) { eu3d.visible = false; eu3d.el.style.display = "none"; } }, 520);
-    view.z = ZOOM_3D - 0.4; const [cx, cy] = mid(); view.ox = gx * S - cx / view.z; view.oy = gy * S - cy / view.z; clampV(); paint();
+    view.z = ZOOM_3D - 0.4 * ZF(); const [cx, cy] = mid(); view.ox = gx * S - cx / view.z; view.oy = gy * S - cy / view.z; clampV(); paint();
   };
   // ---- WASD (or the arrows) to move over the map; Q and E to come in and go out; Shift, faster ----
   const keys = new Set();
@@ -925,7 +953,7 @@ function marks3d() {
   return out;
 }
 function paint() {
-  const cv = $("cmpMap"); if (!cv || !C) return;
+  const cv = $("cmpMap"); if (!cv || !C) return; W0();
   if (on3d && eu3d) { eu3d.setMap(E(), 2, null); eu3d.marks(marks3d()); if (!raf3d) loop3d(); return; }
   const g = drawEurope(cv, E(), { hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false, sharp: () => { if (shown() && !on3d) paint(); } });
   // over the map: your towns ringed in your colour; the towns of your enemies within your army's reach marked with
@@ -992,12 +1020,12 @@ function paint() {
   c.restore();
 }
 let armySel = false;
-const armyU = k => k * Math.min(2.7, 1.45 + view.z * 0.26);
+const armyU = k => k * Math.min(2.7, 1.45 + view.z / ZF() * 0.26);
 // (your army under the pointer: within a little of its block on the map)
 function armyHit(cv, px, py) { if (!C) return false; const S = cv.width / MG_W, p = armyPos(), x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z; const u = armyU(cv.width / 1300); return Math.hypot(px - x, py - y - 3 * u) < 16 * u; }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
-  const cv = $("cmpMap");
+  const cv = $("cmpMap"); W0();
   // (the whole window covered: the map as wide as it, or as tall, whichever covers it — its edges, the sea, past them)
   const cw = Math.max(innerWidth, innerHeight / MAP_ASPECT);
   cv.style.width = Math.round(cw) + "px"; cv.style.height = Math.round(cw * MAP_ASPECT) + "px";
@@ -1006,8 +1034,11 @@ function drawMap(fit = false) {
   if (fit && on3d) { on3d = false; clearTimeout(fade3d); eu3d.visible = false; eu3d.el.classList.remove("on"); eu3d.el.style.display = "none"; cv.style.visibility = "visible"; }
   if (fit) {
     // (looking at your own crown, close enough to see its towns)
-    const g = grid(), mine = citiesOfNow(g, C.me).map(cellOf);
-    if (mine.length) { const S = cv.width / MG_W, cx = mine.reduce((t, p) => t + p[0], 0) / mine.length * S, cy = mine.reduce((t, p) => t + p[1], 0) / mine.length * S; view.z = 2.2; view.ox = clamp(cx - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(cy - cv.height / view.z / 2, 0, cv.height - cv.height / view.z); }
+    // (where your army is — at home, or over the sea — and your towns about it, not the middle of the ocean between
+    //  your crown's two halves)
+    const g = grid(), ap = armyPos(), mine = citiesOfNow(g, C.me).map(cellOf).filter(([x, y]) => Math.hypot(x - ap.x, y - ap.y) < 90);
+    if (!mine.length) mine.push([ap.x, ap.y]);
+    if (mine.length) { const S = cv.width / MG_W, cx = mine.reduce((t, p) => t + p[0], 0) / mine.length * S, cy = mine.reduce((t, p) => t + p[1], 0) / mine.length * S; view.z = 2.2 * ZF(); view.ox = clamp(cx - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(cy - cv.height / view.z / 2, 0, cv.height - cv.height / view.z); }
   }
   paint(); drawTop(); drawSide();
 }
@@ -1090,7 +1121,9 @@ function drawSide() {
   if (selCity) {
     const own2 = cityOwner(g, selCity), mineT = own2 === C.me, reach = !mineT && own2 && inMarch(selCity), can = !mineT && own2 && atWar(own2) && reach && !C.moved && C.army >= 5;
     const S = siegeOf(selCity), def = own2 && !mineT ? defOf(g, selCity, own2) : 0, walls = own2 ? hasWalls(selCity, own2, g) : false, open = walls && S && S.bat >= 1;
-    h += `<div class="cmp-card"><div class="cmp-h"><b>${esc(selCity[0])}</b><small>${["", "A town", "A city", "A great city"][selCity[3]]} · ${own2 ? esc(NATIONS[own2].name) : "nobody's"}</small></div>
+    const pp = own2 ? null : (() => { const [x, y] = cellOf(selCity); for (let r = 0; r <= 3; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const v = g[y + dy] && g[y + dy][x + dx]; if (PEOPLES[v]) return v; } return null; })();
+    h += `<div class="cmp-card"><div class="cmp-h"><b>${esc(selCity[0])}</b><small>${["", "A town", "A city", "A great city"][selCity[3]]} · ${own2 ? esc(NATIONS[own2].name) : pp ? esc(PEOPLES[pp].name) : "nobody's"}</small></div>
+      ${pp ? `<p>A town of ${esc(PEOPLES[pp].long)}, in their own country. It isn't any crown's to take.</p>` : ""}
       ${mineT ? townCard(g, selCity) : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${Math.round(foeArmy(own2) * (isHuman(own2) ? 0.7 : 0.65))} regiments to it${walls ? ", behind walls" : ""}. ${!reach ? `Your army is ${yearsTo(cellXY(selCity))} year${yearsTo(cellXY(selCity)) > 1 ? "s" : ""}' march away.` : !atWar(own2) ? `You're not at war with ${the(own2)}.` : C.moved ? "Your army has already marched this season." : `Your odds: ${Math.round(odds(C.army * cmdMul(C.gen) * moraleK(), def, walls && !open) * 100)}%.`}</p>` : ""}
       ${S ? `<div class="cmp-siege"><b>Under siege · year ${S.years}</b><span>Garrison ${S.starve >= 0.6 ? "starving" : S.starve >= 0.3 ? "on short rations" : "well fed"} (${Math.round(garrison(selCity) * (1 - S.starve))} of ${garrison(selCity)} men fit) · walls ${S.bat >= 1 ? "breached" : `${Math.round(S.bat * 100)}% battered`}</span><i><u style="width:${Math.min(100, Math.round(S.bat * 100))}%"></u></i>${!C.supplied && C.gold >= SUPPLY_COST ? `<div class="cmp-acts"><button class="btn" data-act="supply" title="Fresh men, powder and bread for the siege lines — if they get through the enemy's raiders">Send supplies · ${SUPPLY_COST} · you escort</button><button class="btn ghost" data-act="supplyauto">Supplies · escort alone</button></div>` : C.supplied ? `<small class="cmp-fine">This year's supply train has gone.</small>` : ""}</div>` : ""}
       ${can && S ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Storm · you lead</button><button class="btn" data-act="auto">Storm · generals lead</button><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : can && !C.siege ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Attack · you lead</button><button class="btn" data-act="auto">Attack · generals lead</button>${walls && !isHuman(own2) && C.army >= 8 ? `<button class="btn" data-act="siege" title="Starve it out and batter its walls, a year at a time">Lay siege</button>` : ""}</div>` : C.siege && !S && !mineT && own2 ? `<p class="cmp-fine">Your army is besieging ${esc(C.siege.ct)}: lift that siege to march here.</p>` : !C.siege && !C.moved && (mineT || (own2 && !reach)) && dist2(armyPos(), cellXY(selCity)) > 1 ? `<div class="cmp-acts"><button class="btn" data-act="goto">${mineT ? "Move your army here" : "March toward it"} · ${yearsTo(cellXY(selCity))} yr</button></div>` : S && C.moved ? `<div class="cmp-acts"><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : ""}</div>`;
@@ -1158,7 +1191,7 @@ function sideClick(e) {
 export const campaignOn = () => !!C;
 // (for the tests: the campaign's own doings, from the console)
 window.__setView = v => { view = v; paint(); };
-window.__cmp = { get C() { return C; }, get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
 //  what you do on the campaign's map, as an act: done here, playing alone — or, a campaign of two, done on the
@@ -1198,7 +1231,13 @@ function apply(actor, a) {
     if (a.k === "move") {
       if (C.siege) return { note: `Your army is sitting down before ${C.siege.ct}: lift the siege first.` };
       if (C.moved) return { note: "Your army has already marched this year." };
-      const t = { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }; if (!isFinite(t.x) || !isFinite(t.y)) return null;
+      W0(); const t = { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }; if (!isFinite(t.x) || !isFinite(t.y)) return null;
+      // (over the sea: shipping for the regiments, paid for before they sail)
+      if (overSea(armyPos(), t)) {
+        if (C.gold < VOYAGE) return { note: `Shipping the army over the Atlantic costs ${VOYAGE} thalers. The treasury hasn't got it.` };
+        C.gold -= VOYAGE; C.pos = { x: t.x, y: t.y }; C.go = null; C.moved = true; C.sailed = C.year; persist();
+        return { note: `The army takes ship for the other side of the Atlantic: ${VOYAGE} thalers for the shipping. It lands where you sent it, and can march again next year.`, sfx: [["bell", 0.4]] };
+      }
       const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; persist();
       return { note: st.arrived ? "Your army marches, and is there by the year's end." : `Your army is on the march: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there.`, sfx: [["drum", 0.45]] };
     }
@@ -1413,7 +1452,7 @@ function broadcast() {
 // (on the other player's game: the campaign as the host has it, turned round to your own crown)
 function takeState(S) {
   const sel0 = selCity && selCity[0], sel1 = sel;
-  C = S; own = new Map(C.own || []); C._dirty = true;
+  C = S; own = new Map(C.own || []); C._dirty = true; toWorldGrid();
   const me = humans()[1]; if (C.me !== me && C.H && C.H[me]) { stash(C.me); unstash(me); }
   selCity = sel0 ? CITIES.find(c => c[0] === sel0) || null : null; sel = sel1;
   const onMap = !$("campaign").classList.contains("hidden");
@@ -1451,7 +1490,7 @@ function maybeBegin() {
 function savedMp() { try { const j = JSON.parse(localStorage.getItem(MPKEY)); return j && j.C && j.C.mp && j.partner && mp && j.partner === mp.foe.pid ? j : null; } catch (e) { return null; } }
 function resumeMp() {
   const j = savedMp(); if (!j) return;
-  C = j.C; own = new Map(C.own || []); C._dirty = true;
+  C = j.C; own = new Map(C.own || []); C._dirty = true; toWorldGrid();
   if (C.me !== C.mp.humans[0] && C.H && C.H[C.mp.humans[0]]) { stash(C.me); unstash(C.mp.humans[0]); }
   C.mp.names[C.mp.humans[1]] = mp.foe.name || C.mp.names[C.mp.humans[1]]; C.mp.ready = {}; ensureRealm();
   sfx("drum", 0.4); broadcast(); drawMap(true);

@@ -28,7 +28,7 @@ import { full, gate, activate, recheck, SHOP, SALES_OPEN, buyUrl, startPurchase,
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
-import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf, cityAt, cityOwner, cityFirstOwner, buildGrid, CITIES, gridOf, llOf, MG_W } from "./europe.js";
+import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf, cityAt, cityOwner, cityFirstOwner, buildGrid, CITIES, gridOf, llOf, MG_W, useSheet } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
@@ -1438,7 +1438,7 @@ function clampView(cv) {
   euView.ox = Math.max(0, Math.min(W - W / euView.z, euView.ox)); euView.oy = Math.max(0, Math.min(H - H / euView.z, euView.oy));
 }
 function drawEuropeTab(t) {
-  const cv = $("euMap"); if (!cv) return;
+  const cv = $("euMap"); if (!cv) return; useSheet("europe");
   const E = ensureEurope(t.S);
   const homeName = (t.S.isTown ? "the Town of " : "") + (t.S.name || "Forester's Clearing");
   if (eu3dOn && eu3d) { eu3d.setMap(E, t.S.people.length + 2, homeName); }
@@ -1484,10 +1484,11 @@ function euSide(t, E) {
 function wireEurope(t) {
   const cv = $("euMap"), wrap = cv.parentElement;
   // canvas pixels to the sheet's own units (at zoom 1)
-  const pos = e => { const r = cv.getBoundingClientRect(); const px = (e.clientX - r.left) * cv.width / r.width, py = (e.clientY - r.top) * cv.height / r.height; return [euView.ox + px / euView.z, euView.oy + py / euView.z]; };
+  const pos = e => { useSheet("europe"); const r = cv.getBoundingClientRect(); const px = (e.clientX - r.left) * cv.width / r.width, py = (e.clientY - r.top) * cv.height / r.height; return [euView.ox + px / euView.z, euView.oy + py / euView.z]; };
   const choose = (ct, id) => { euCity = ct || null; euSel = ct ? cityOwner(buildGrid(ensureEurope(t.S)), ct) : id; euPanelHtml = ""; drawEuropeTab(t); };
   // ---- into the land, and back out to the map ----
   const enter3d = () => {
+    useSheet("europe");
     if (!eu3d) {
       eu3d = new EuropeView3D(wrap);
       eu3d.el.addEventListener("wheel", e => { e.preventDefault(); eu3d.dist *= Math.exp(e.deltaY * 0.0015); eu3d.dist = Math.max(2.2, eu3d.dist); if (eu3d.dist > DIST_2D) leave3d(); }, { passive: false });
@@ -1517,6 +1518,7 @@ function wireEurope(t) {
     loop();
   };
   const leave3d = () => {
+    useSheet("europe");
     const [lon, lat] = eu3d.centreLL(), [gx, gy] = gridOf(lon, lat), S = cv.width / MG_W;
     eu3dOn = false; eu3d.visible = false; eu3d.el.style.display = "none"; cv.style.visibility = "visible";
     euView.z = ZOOM_3D - 0.4; euView.ox = gx * S - cv.width / euView.z / 2; euView.oy = gy * S - cv.height / euView.z / 2; clampView(cv);
@@ -1526,6 +1528,7 @@ function wireEurope(t) {
   if (eu3d && eu3dOn) { wrap.appendChild(eu3d.el); enter3d(); }
   // ---- the map: zoom about the pointer, drag to move ----
   const zoomAt = (px, py, f) => {
+    useSheet("europe");
     const [bx, by] = [euView.ox + px / euView.z, euView.oy + py / euView.z];
     euView.z *= f;
     if (euView.z > ZOOM_3D) { euView.z = ZOOM_3D; clampView(cv); euView.ox = bx - px / euView.z; euView.oy = by - py / euView.z; clampView(cv); return enter3d(); }

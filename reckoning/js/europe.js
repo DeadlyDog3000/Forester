@@ -15,11 +15,40 @@
 // after which it is not bandits that come up your road but its soldiers.
 
 import { rng } from "./core.js";
-import { GW, GH, BOUNDS, IDS, GRID_RLE, COAST } from "./europe-data.js";
+import { GW as WGW, GH as WGH, BOUNDS as WB, IDS, GRID_RLE, COAST as WCOAST, WINDOWS } from "./europe-data.js";
 import { rangeKm, fbm } from "./relief.js";
 
-// (the old names, for anything that still asks the grid's size by them)
-export const MG_W = GW, MG_H = GH, MAP_ASPECT = GH / GW;
+// ---- the sheet in use: the whole of it (Europe and the New World, for a campaign), or a window on it (the story's
+//  Europe, which is the very grid it always was). Everything here — the grid, the projection, the coasts, the caches —
+//  is the sheet's; useSheet() changes them all at once, and is a no-op when it's the one already in use ----
+export let GW = 0, GH = 0, BOUNDS = null, MG_W = 0, MG_H = 0, MAP_ASPECT = 1, HOME = null, SHEET = "";
+let K = 1, SPAN_X = 1, SPAN_Y = 1, COAST = [], X0 = 0, Y0 = 0;
+export function useSheet(name) {
+  if (name === SHEET) return;
+  SHEET = name;
+  const [x0, y0, w, h] = name === "world" ? [0, 0, WGW, WGH] : WINDOWS[name], dl = (WB.lon1 - WB.lon0) / WGW, dt = (WB.lat1 - WB.lat0) / WGH;
+  X0 = x0; Y0 = y0; GW = MG_W = w; GH = MG_H = h; MAP_ASPECT = h / w;
+  BOUNDS = { lon0: WB.lon0 + x0 * dl, lon1: WB.lon0 + (x0 + w) * dl, lat0: WB.lat1 - (y0 + h) * dt, lat1: WB.lat1 - y0 * dt, latRef: WB.latRef };
+  K = Math.cos(BOUNDS.latRef * Math.PI / 180); SPAN_X = (BOUNDS.lon1 - BOUNDS.lon0) * K; SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
+  // (the coasts that touch the window, carried to its corner)
+  COAST = WCOAST.map(r => r.map(([x, y]) => [x - x0 * 10, y - y0 * 10])).filter(r => r.some(([x, y]) => x > -50 && y > -50 && x < w * 10 + 50 && y < h * 10 + 50));
+  { const [x, y] = gridOf(...HOME_LL); HOME = { mx: Math.floor(x), my: Math.floor(y) }; }
+  BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; coastP = null; relief = null; reliefPart = null; near = null; traced = null;
+}
+// a crown's land, or a people's, or nobody's: the peoples of the New World have their country on the map in their own
+// names, and it isn't any crown's to take
+export const PEOPLES = {
+  p_iroquois: { name: "Haudenosaunee", long: "the Haudenosaunee, the Five Nations of the Iroquois", color: "#b9946a" },
+  p_wabanaki: { name: "Wabanaki", long: "the Wabanaki Confederacy", color: "#9aae7e" },
+  p_cherokee: { name: "Cherokee", long: "the Cherokee", color: "#c49a7a" },
+  p_creek: { name: "Muscogee", long: "the Muscogee (the Creek)", color: "#b8a070" },
+  p_choctaw: { name: "Choctaw", long: "the Choctaw", color: "#a8a07e" },
+  p_shawnee: { name: "Shawnee", long: "the Shawnee", color: "#a8b07a" },
+  p_illinois: { name: "Illinois", long: "the Illinois Confederation", color: "#c0a882" },
+  p_anishinaabe: { name: "Anishinaabe", long: "the Anishinaabe — Odawa, Ojibwe and Potawatomi", color: "#94a88a" },
+  p_dakota: { name: "Dakota", long: "the Dakota", color: "#bca27c" },
+  p_cree: { name: "Cree", long: "the Cree", color: "#9aa890" },
+};
 
 // each crown's wash — the colours a map-seller's colourist kept in his box
 export const NATIONS = {
@@ -77,23 +106,27 @@ const seizes = id => id === "cossacks" ? "seize" : "seizes";
 const id2take = id => id === "cossacks" ? "take" : "takes";
 
 // ---- the sheet: longitude and latitude to the grid, and back ----
-const K = Math.cos(BOUNDS.latRef * Math.PI / 180), SPAN_X = (BOUNDS.lon1 - BOUNDS.lon0) * K, SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
 export const llOf = (gx, gy) => [BOUNDS.lon0 + gx / GW * SPAN_X / K, BOUNDS.lat1 - gy / GH * SPAN_Y];
 export const gridOf = (lon, lat) => [(lon - BOUNDS.lon0) * K / SPAN_X * GW, (BOUNDS.lat1 - lat) / SPAN_Y * GH];
 // your clearing, in the woods north-east of Hamburg on the Lübeck road
 const HOME_LL = [10.75, 53.72];
-export const HOME = (() => { const [x, y] = gridOf(...HOME_LL); return { mx: Math.floor(x), my: Math.floor(y) }; })();
 
 // ---- the grid of who holds what ----
-let BASE = null;
+let BASE = null, ALL = null;
 function baseGrid() {
   if (BASE) return BASE;
-  const flat = [];
-  const re = /(\d+)(.)/g; let m;
-  while ((m = re.exec(GRID_RLE))) { const n = +m[1], ch = m[2]; const id = ch === "." ? null : ch === "~" ? "wilds" : IDS["ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".indexOf(ch)]; for (let i = 0; i < n; i++) flat.push(id); }
-  BASE = Array.from({ length: GH }, (_, r) => flat.slice(r * GW, r * GW + GW));
+  if (!ALL) {
+    ALL = [];
+    const re = /(\d+)(.)/g; let m;
+    while ((m = re.exec(GRID_RLE))) { const n = +m[1], ch = m[2]; const id = ch === "." ? null : ch === "~" ? "wilds" : IDS["ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".indexOf(ch)]; for (let i = 0; i < n; i++) ALL.push(id); }
+  }
+  BASE = Array.from({ length: GH }, (_, r) => ALL.slice((r + Y0) * WGW + X0, (r + Y0) * WGW + X0 + GW));
   return BASE;
 }
+// (not a crown's: the free woods, and the peoples' country)
+export const isFree = id => id === "wilds" || !!PEOPLES[id];
+// the people whose country a square is, if any
+export function peopleAt(cv, x, y, E) { const g = buildGrid(E), S = cv.width / GW, id = g[Math.floor(y / S)] && g[Math.floor(y / S)][Math.floor(x / S)]; return id && PEOPLES[id] ? id : null; }
 // the political map as it stands: 1683's, with every conquest since laid over it
 let gridCache = null, gridKey = "";
 export function buildGrid(E) {
@@ -101,7 +134,7 @@ export function buildGrid(E) {
   const cq = (E && E.conq) || [], key = ((E && E.rev) | 0) + ":" + cq.length + ":" + (cq.length ? cq[cq.length - 1].c + "," + cq[cq.length - 1].r + cq[cq.length - 1].to : "");
   if (gridCache && key === gridKey) return gridCache.map(row => row.slice());
   const g = baseGrid().map(row => row.slice());
-  for (const q of cq) if (g[q.r] && g[q.r][q.c] && g[q.r][q.c] !== "wilds") g[q.r][q.c] = q.to;
+  for (const q of cq) if (g[q.r] && g[q.r][q.c] && !isFree(g[q.r][q.c])) g[q.r][q.c] = q.to;
   gridCache = g; gridKey = key;
   return g.map(row => row.slice());
 }
@@ -130,6 +163,7 @@ const hexRGB = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) 
 // rel: each crown's view of you, −100 to 100 (it starts where its faith and its distance put it)
 // war: crowns at war with you; wars: crowns at war with each other; conq: land that changed hands; pact: trade pacts
 export function ensureEurope(S) {
+  useSheet("europe");
   const E = S.europe;
   if (E) {
     // (a map from before the real one: its conquests were on the old, coarse grid, and mean nothing on this one)
@@ -210,8 +244,15 @@ const NAMES = [
   ["SWEDEN", 15.4, 60.8, 2], ["FINLAND", 26.5, 62.6, 0], ["DENMARK", 9.2, 56.1, 0], ["NORWAY", 8.4, 61.6, 1], ["POLAND", 19.6, 52, 2], ["LITHUANIA", 25.4, 54.6, 1], ["RUSSIA", 36.5, 57, 3],
   ["COSSACKS", 32.8, 49.8, 0], ["CRIMEAN\nKHANATE", 34.6, 46.3, -1], ["HUNGARY", 19.4, 48.7, -1], ["TRANSYLVANIA", 24, 46.6, -1], ["MOLDAVIA", 27.6, 47.4, -1], ["WALLACHIA", 25, 44.4, -1],
   ["OTTOMAN\nEMPIRE", 22.4, 42.2, 2], ["ANATOLIA", 33.5, 39, 1], ["ALGIERS", 2.4, 34.4, 1], ["TUNIS", 9.6, 34.1, -1], ["TRIPOLI", 15.5, 32.6, -1], ["HOLLAND", 5.4, 52.9, -1], ["MOROCCO", -6.2, 33.4, 1],
+  // the New World: the crowns' colonies, and the peoples whose country it is
+  ["NEW ENGLAND", -71.6, 42.75, -1], ["NEW YORK", -74.3, 41.3, -1, -60], ["VIRGINIA", -77.6, 37.4, -1], ["CAROLINA", -79.6, 34.4, -1], ["PENSILVANIA", -75.9, 40.0, -1],
+  ["NOUVELLE\nFRANCE", -71.0, 48.6, 1], ["ACADIE", -65.6, 45.6, -1], ["FLORIDA", -82.2, 29.4, -1], ["NUEVA ESPAÑA", -98.3, 23.6, 0], ["CUBA", -79.3, 22.0, -1],
+  ["TERRE NEUVE", -56.2, 49.2, -1], ["RUPERT'S LAND", -88.5, 54.6, -1],
+  ["Haudenosaunee", -76.4, 42.55, -1], ["Wabanaki", -69.6, 45.9, -1], ["Cherokee", -84.1, 35.2, -1], ["Muscogee", -84.9, 32.3, -1], ["Choctaw", -89.6, 32.1, -1],
+  ["Shawnee", -83.4, 38.9, -1], ["Illinois", -89.6, 40.2, -1], ["Anishinaabe", -85.5, 44.2, -1], ["Dakota", -95.4, 45.6, -1], ["Cree", -84.5, 50.5, -1],
 ];
-const SEAS = [["OCEANUS\nATLANTICUS", -8.9, 48.9], ["OCEANUS\nGERMANICUS", 3, 55.4], ["MARE BALTICUM", 18.4, 56.5], ["MARE MEDITERRANEUM", 5.2, 38.8], ["MARE ADRIATICUM", 15.4, 43.1, 36], ["PONTUS EUXINUS", 34.4, 43.4], ["MARE\nAEGAEUM", 25, 38.4], ["SINUS\nBOTHNICUS", 20.6, 62.6]];
+const SEAS = [["OCEANUS\nATLANTICUS", -8.9, 48.9], ["OCEANUS\nGERMANICUS", 3, 55.4], ["MARE BALTICUM", 18.4, 56.5], ["MARE MEDITERRANEUM", 5.2, 38.8], ["MARE ADRIATICUM", 15.4, 43.1, 36], ["PONTUS EUXINUS", 34.4, 43.4], ["MARE\nAEGAEUM", 25, 38.4], ["SINUS\nBOTHNICUS", 20.6, 62.6],
+  ["OCEANUS\nATLANTICUS", -40, 44], ["MARE DEL NORT", -62, 33], ["SINUS\nMEXICANUS", -90.5, 25.6], ["MARE\nCHRISTIANUM", -82, 59.5], ["MARE\nGLACIALE", -55, 63.4]];
 // rivers, as the engraver would have traced them: a few points each, from the mouth up
 const RIVERS = [
   [[4.1, 51.9], [6.1, 51.8], [6.8, 51.3], [7.6, 50.4], [8.3, 49.9], [8.4, 49], [7.6, 47.6], [9.3, 47.6]],
@@ -224,6 +265,14 @@ const RIVERS = [
   [[0.1, 49.4], [1.2, 49.3], [2.3, 48.8], [3, 48.5], [4, 48.3]], [[-2.2, 47.2], [0.7, 47.4], [1.9, 47.9], [3, 47.2], [4, 46]],
   [[4.8, 43.4], [4.8, 44.9], [4.9, 45.7], [6.1, 46.2]], [[12.4, 44.9], [10.9, 45.1], [9.2, 45.1], [7.7, 45]], [[-9.2, 38.7], [-8.2, 39.4], [-6.5, 39.8], [-4.3, 39.9], [-2.2, 40.4]],
   [[0.8, 40.7], [-0.9, 41.6], [-2.4, 42.4], [-3.7, 43]], [[24, 57], [25.5, 56.5], [26.5, 55.9], [28.8, 55.5], [30.2, 55.2]], [[21.2, 55.3], [22.5, 55.1], [23.9, 54.9], [25.8, 54.2]],
+  // the New World's: the St Lawrence, the Hudson, the Mississippi, the Ohio, the Missouri, the Delaware, the Susquehanna, the Connecticut, the Savannah
+  [[-66.5, 49.2], [-69.7, 48.1], [-71.2, 46.8], [-72.5, 46.3], [-73.6, 45.5], [-74.7, 45.0], [-75.9, 44.4], [-76.4, 44.1]],
+  [[-74.0, 40.7], [-73.95, 41.7], [-73.75, 42.65], [-73.6, 43.3]],
+  [[-89.3, 29.2], [-90.1, 30.0], [-91.2, 31.0], [-91.1, 32.6], [-90.2, 35.1], [-89.2, 37.0], [-90.2, 38.7], [-91.2, 40.5], [-91.1, 42.8], [-92.9, 44.9], [-93.6, 46.3], [-95.2, 47.3]],
+  [[-89.1, 37.0], [-87.5, 37.9], [-85.8, 38.3], [-84.5, 39.1], [-82.6, 38.6], [-80.7, 39.9], [-80.0, 40.45], [-79.9, 41.6]],
+  [[-90.2, 38.8], [-92.0, 38.6], [-94.6, 39.1], [-95.9, 41.0], [-96.6, 42.5], [-98.3, 43.6]],
+  [[-75.4, 39.3], [-75.15, 40.0], [-75.0, 40.9], [-75.1, 41.9]], [[-76.1, 39.55], [-76.4, 40.3], [-76.9, 41.0], [-76.1, 41.8]], [[-72.35, 41.3], [-72.6, 42.2], [-72.4, 43.3], [-71.5, 44.9]],
+  [[-80.9, 32.05], [-81.5, 32.9], [-82.2, 33.6], [-82.8, 34.6]],
 ];
 // the cities of 1683, as the map-makers named them: rank 3 a crown's seat (drawn walled, with its flag), 2 a great town, 1 a town
 export const CITIES = [
@@ -245,6 +294,15 @@ export const CITIES = [
   ["Nantes", -1.55, 47.22, 1], ["Toulouse", 1.44, 43.6, 1], ["Brest", -4.49, 48.39, 1], ["Cádiz", -6.29, 36.53, 1], ["Porto", -8.61, 41.15, 1], ["Glasgow", -4.25, 55.86, 1],
   ["Cork", -8.47, 51.9, 1], ["Norwich", 1.3, 52.63, 1], ["Magdeburg", 11.63, 52.13, 1], ["Posen", 16.93, 52.41, 1], ["Sarajevo", 18.41, 43.86, 1],
   ["Ragusa", 18.09, 42.65, 1], ["Ancona", 13.52, 43.62, 1], ["Messina", 15.55, 38.19, 1], ["Tula", 37.62, 54.19, 1], ["Poltava", 34.55, 49.59, 1],
+  // the New World: the colonies' towns and forts, and the peoples' own towns (no crown's: they're shown, not taken)
+  ["Boston", -71.06, 42.36, 2], ["New York", -74.01, 40.71, 2], ["Albany", -73.75, 42.65, 1], ["Philadelphia", -75.16, 39.95, 1], ["Jamestown", -76.78, 37.21, 1],
+  ["St. Mary's City", -76.43, 38.19, 1], ["Charles Town", -79.93, 32.78, 1], ["Newport", -71.31, 41.49, 1], ["St. John's", -52.71, 47.56, 1],
+  ["Moose Factory", -80.6, 51.27, 1], ["York Factory", -92.4, 57.0, 1],
+  ["Québec", -71.21, 46.81, 2], ["Montréal", -73.57, 45.5, 1], ["Trois-Rivières", -72.55, 46.35, 1], ["Port-Royal", -65.52, 44.74, 1], ["Fort Frontenac", -76.48, 44.23, 1],
+  ["Plaisance", -53.97, 47.25, 1], ["Michilimackinac", -84.73, 45.86, 1],
+  ["La Habana", -82.36, 23.13, 2], ["San Agustín", -81.31, 29.9, 1], ["San Luis de Talimali", -84.32, 30.45, 1],
+  ["Onondaga", -76.1, 42.95, 1], ["Ganondagan", -77.42, 42.96, 1], ["Norridgewock", -69.8, 44.77, 1], ["Chota", -84.15, 35.53, 1], ["Coweta", -85.0, 32.3, 1],
+  ["Kunshak Chito", -88.9, 32.6, 1], ["Kaskaskia", -88.9, 41.3, 1], ["Chillicothe", -82.98, 39.33, 1], ["Mde Wakan", -93.6, 46.2, 1], ["Waswanipi", -76.5, 49.7, 1],
 ];
 
 
@@ -288,7 +346,7 @@ function trace(g, id, borders = false) {
     loops.push(chaikin(loop.map(q => [q.x, q.y]), true, 2));
     if (borders) {
       // (a border with a crown — not the sea, not the free woods — drawn by the one of the two that comes first)
-      const isB = q => q.other && q.other !== "wilds" && NATIONS[q.other] && q.other > id;
+      const isB = q => q.other && ((NATIONS[q.other] && q.other > id) || PEOPLES[q.other]);
       let k0 = loop.findIndex(q => !isB(q)); if (k0 < 0) { runs.push(chaikin(loop.map(q => [q.x, q.y]), true, 2)); continue; }
       let cur = [];
       for (let i = 1; i <= loop.length; i++) { const q = loop[(k0 + i) % loop.length]; if (isB(q)) cur.push([q.x, q.y]); else if (cur.length) { if (cur.length > 1) runs.push(chaikin(cur, false, 2)); cur = []; } }
@@ -311,8 +369,17 @@ function chaikin(pts, closed, n) {
 function addLoop(p, pts) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); }
 function addLine(p, pts) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); }
 let GONE = null;
+// (the outlines depend only on the map, not the view: kept for as long as the map stands — a close view redrawn as you
+//  pan doesn't trace every crown round again)
+let traced = null;
+function traceOf(g, id, borders, key) {
+  if (!key) return trace(g, id, borders);
+  if (!traced || traced.key !== key) traced = { key, m: new Map() };
+  const k = id + (borders ? "|b" : ""); if (!traced.m.has(k)) traced.m.set(k, trace(g, id, borders));
+  return traced.m.get(k);
+}
 // vp: { w, h, z, ox, oy } — only that part of the sheet, drawn at that zoom (sharp close in, not a picture stretched)
-function drawSheet(W, H, E, g, homePop, vp = null) {
+function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   GONE = E && E.gone || null;
   const cv = document.createElement("canvas"); cv.width = vp ? vp.w : W; cv.height = vp ? vp.h : H;
   const at = x => { if (vp) x.setTransform(vp.z, 0, 0, vp.z, -vp.ox * vp.z, -vp.oy * vp.z); return x; }, Z = vp ? vp.z : 1;
@@ -351,29 +418,30 @@ function drawSheet(W, H, E, g, homePop, vp = null) {
   // (each crown traced round as a line — not the grid's squares — and that line rounded off, the way an engraver drew a
   //  border: then washed inside it, a deeper band of colour along it, and the border itself dotted where one crown
   //  meets another)
-  const ext = g.map(row => row.slice());
+  const ext = traced && traced.key === tkey && traced.ext || g.map(row => row.slice());
   // (the colour carried a little out over the sea, so the coast — cut to the real one — is coloured right to its edge)
-  for (let pass = 0; pass < 3; pass++) { const prev = ext.map(row => row.slice()); for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (!prev[y][x]) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = prev[y + dy] && prev[y + dy][x + dx]; if (n) { ext[y][x] = n; break; } } }
+  if (!(traced && traced.key === tkey && traced.ext)) for (let pass = 0; pass < 3; pass++) { const prev = ext.map(row => row.slice()); for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (!prev[y][x]) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = prev[y + dy] && prev[y + dy][x + dx]; if (n) { ext[y][x] = n; break; } } }
+  if (tkey) { if (!traced || traced.key !== tkey) traced = { key: tkey, m: new Map() }; traced.ext = ext; }
   const ids = new Set(); for (const row of g) for (const id of row) if (id) ids.add(id);
   const band = Math.max(2, S * 2.2);
   // (the deeper bands drawn on a layer of their own, and softened all at once)
   const bl = layer(); const bc = at(bl.getContext("2d")); bc.lineJoin = "round"; bc.lineWidth = band * 2;
   for (const id of ids) {
-    const { loops } = trace(ext, id);
+    const { loops } = traceOf(ext, id, false, tkey);
     if (!loops.length) continue;
     const path = new Path2D(); for (const L of loops) addLoop(path, L.map(([x, y]) => [x * S, y * S]));
-    const [R, G, B] = id === "wilds" ? [120, 140, 90] : hexRGB(NATIONS[id].color);
+    const [R, G, B] = id === "wilds" ? [120, 140, 90] : hexRGB((NATIONS[id] || PEOPLES[id]).color);
     c.save(); c.clip(path, "evenodd");
-    c.fillStyle = `rgba(${R},${G},${B},${id === "wilds" ? 0.3 : 0.22})`; c.fillRect(0, 0, W, H);
+    c.fillStyle = `rgba(${R},${G},${B},${id === "wilds" ? 0.3 : PEOPLES[id] ? 0.26 : 0.22})`; c.fillRect(0, 0, W, H);
     c.restore();
-    if (id !== "wilds") { bc.save(); bc.clip(path, "evenodd"); bc.strokeStyle = `rgba(${R},${G},${B},0.85)`; bc.stroke(path); bc.restore(); }
+    if (id !== "wilds" && !PEOPLES[id]) { bc.save(); bc.clip(path, "evenodd"); bc.strokeStyle = `rgba(${R},${G},${B},0.85)`; bc.stroke(path); bc.restore(); }
   }
   c.filter = `blur(${(S * 0.6 * Z).toFixed(1)}px)`; lay(bl); c.filter = "none";
   // borders: dotted, along the rounded line, where one crown meets another (each border once)
   c.save(); c.strokeStyle = INK_SOFT + "0.72)"; c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = Math.max(1.3, S * 0.42); c.setLineDash([0, Math.max(3, S * 0.95)]);
   for (const id of ids) {
-    if (id === "wilds") continue;
-    for (const run of trace(g, id, true).runs) { const p = new Path2D(); addLine(p, run.map(([x, y]) => [x * S, y * S])); c.stroke(p); }
+    if (isFree(id)) continue;
+    for (const run of traceOf(g, id, true, tkey).runs) { const p = new Path2D(); addLine(p, run.map(([x, y]) => [x * S, y * S])); c.stroke(p); }
   }
   c.restore();
   // rivers: a fine wandering line in a paler ink, thicker toward the mouth
@@ -482,7 +550,10 @@ function spaced(c, t, x, y, sp) {
   c.textAlign = align;
 }
 function cartouche(c, W, H, S) {
-  const w = S * 58, h = S * 21, x = S * 7, y = S * 7;
+  // (the world's sheet: its title longer, and the cartouche larger to carry it on so wide a sheet)
+  const title = SHEET === "world" ? "EUROPA ET NOVUS ORBIS" : "EUROPA"; if (SHEET === "world") S *= 1.7;
+  c.font = `${Math.round(S * 6.4)}px ${FELL}`; const tw = [...title].reduce((t, ch) => t + c.measureText(ch).width, 0) + S * 1.8 * (title.length - 1);
+  const w = Math.max(S * 58, tw + S * 22), h = S * 21, x = S * 7 / (SHEET === "world" ? 1.7 : 1), y = S * 7 / (SHEET === "world" ? 1.7 : 1);
   c.save();
   c.fillStyle = "#efe3c4"; c.strokeStyle = INK; c.lineWidth = 1.4;
   // a scrolled frame: the box, its curled ends, a double rule inside
@@ -490,7 +561,7 @@ function cartouche(c, W, H, S) {
   for (const side of [0, 1]) { const cx = side ? x + w - 4 : x + 4; c.beginPath(); c.arc(cx, y + 6, 5, 0, 7); c.stroke(); c.beginPath(); c.arc(cx, y + h - 6, 5, 0, 7); c.stroke(); }
   c.lineWidth = 0.7; c.strokeRect(x + 14, y + 5, w - 28, h - 10);
   c.fillStyle = INK; c.textAlign = "center"; c.textBaseline = "middle";
-  c.font = `${Math.round(S * 6.4)}px ${FELL}`; spaced(c, "EUROPA", x + w / 2, y + h * 0.38, S * 1.8);
+  c.font = `${Math.round(S * 6.4)}px ${FELL}`; spaced(c, title, x + w / 2, y + h * 0.38, S * 1.8);
   c.font = `italic ${Math.round(S * 2.5)}px ${FELL}`;
   c.fillText("nova et accurata descriptio · Anno Domini MDCLXXXIII", x + w / 2, y + h * 0.72);
   c.restore();
@@ -569,7 +640,7 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + (E.rev | 0) + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
   // (drawn at twice the size, so it stays sharp when zoomed)
-  if (!sheet || key !== sheetKey) { sheet = drawSheet(W * 2, H * 2, E, g, homePop); sheetKey = key; }
+  if (!sheet || key !== sheetKey) { sheet = drawSheet(W * 2, H * 2, E, g, homePop, null, SHEET + key); sheetKey = key; }
   const c = cv.getContext("2d");
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = "#1a1510"; c.fillRect(0, 0, W, H);
   // (close in, the part in view drawn again at that zoom once the view rests — the picture stretched only while it moves)
@@ -580,7 +651,7 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
     c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
     c.drawImage(sheet, 0, 0, W, H);
     c.setTransform(1, 0, 0, 1, 0, 0);
-    if (sharp && v.z > 1.15) { clearTimeout(nearT); nearT = setTimeout(() => { near = { key: vkey, cv: drawSheet(W, H, E, g, homePop, { w: W, h: H, z: v.z, ox: v.ox, oy: v.oy }) }; sharp(); }, 140); }
+    if (sharp && v.z > 1.15) { clearTimeout(nearT); nearT = setTimeout(() => { near = { key: vkey, cv: drawSheet(W, H, E, g, homePop, { w: W, h: H, z: v.z, ox: v.ox, oy: v.oy }, SHEET + key) }; sharp(); }, 140); }
   }
   c.setTransform(v.z, 0, 0, v.z, -v.ox * v.z, -v.oy * v.z);
   // the lit crowns: a warm wash over them
@@ -629,3 +700,5 @@ export function nationAt(E, cv, x, y) {
   const id = g[r] && g[r][c];
   return id && NATIONS[id] ? id : null;
 }
+
+useSheet("europe");

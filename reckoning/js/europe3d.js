@@ -16,16 +16,17 @@
 // Alps would be a wrinkle.
 
 import { THREE, rng } from "./core.js";
-import { GW, GH, BOUNDS } from "./europe-data.js";
-import { NATIONS, CITIES, buildGrid, cityOwner, HOME } from "./europe.js";
+import { NATIONS, CITIES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
 
-const K = Math.cos(BOUNDS.latRef * Math.PI / 180);
+const K = Math.cos(49 * Math.PI / 180);
 export const U = 10;                                       // units per degree of latitude
-const MAP_W = (BOUNDS.lon1 - BOUNDS.lon0) * K * U, MAP_H = (BOUNDS.lat1 - BOUNDS.lat0) * U;
+// (the sheet's size, from the one in use — Europe's for the story, the world's for a campaign: taken up afresh whenever
+//  the land's built or drawn)
+let MAP_W = 1, MAP_H = 1, CELL = 1;
+const sync = () => { MAP_W = (BOUNDS.lon1 - BOUNDS.lon0) * K * U; MAP_H = (BOUNDS.lat1 - BOUNDS.lat0) * U; CELL = MAP_W / GW; };
 export const toWorld = (lon, lat) => [(lon - BOUNDS.lon0) * K * U, (BOUNDS.lat1 - lat) * U];
 export const toLL = (x, z) => [BOUNDS.lon0 + x / (K * U), BOUNDS.lat1 - z / U];
-const CELL = MAP_W / GW;                                   // a grid square, in units
 
 
 // ---- the land: which ground is land, from the map's grid, softened into a coast ----
@@ -63,6 +64,8 @@ export function biomeAt(lon, lat, h) {
   if (h > snowline) return "snow";
   if (h > snowline - 0.3) return "rock";
   if (lat > 64 || (lat > 61 && lon > 35)) return "tundra";
+  // (the New World: the north's forest and barrens, the prairie past the Mississippi, the broad woods of the east)
+  if (lon < -45) return lat > 58 ? "tundra" : lat > 46.5 ? "taiga" : lon < -94.5 && lat < 47 ? "steppe" : lat < 30.5 ? "med" : "temperate";
   if (lat < 34.5 && lon < 36) return h > 1.2 ? "rock" : "desert";
   if ((lon > 29 && lat < 51 && lat > 44.5 && lon < 44) || (lon > 18.5 && lon < 22.2 && lat > 45.4 && lat < 48.2) || (lon > 31 && lon < 40 && lat > 37.6 && lat < 40.6)) return "steppe";
   if (lat > 57.5 || (lat > 53 && lon > 28) || h > 1.3) return "taiga";
@@ -111,7 +114,7 @@ export class EuropeView3D {
     this.el = document.createElement("canvas"); this.el.className = "eu3d";
     parent.appendChild(this.el);
     this.renderer = new THREE.WebGLRenderer({ canvas: this.el, antialias: true });
-    this.renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+    this.renderer.setPixelRatio(Math.min(2, devicePixelRatio)); sync();
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xb9cbd6);
     this.scene.fog = new THREE.Fog(0xb9cbd6, 30, 90);
@@ -119,7 +122,7 @@ export class EuropeView3D {
     this.scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x5a5040, 1.1));
     const sun = new THREE.DirectionalLight(0xfff0d8, 1.6); sun.position.set(-40, 60, 30); this.scene.add(sun);
     // the sea: one sheet, at nought
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 1.4, MAP_H * 1.4).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3e6f86, roughness: 0.35, metalness: 0.1 }));
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 1.6, MAP_H * 1.6).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3e6f86, roughness: 0.35, metalness: 0.1 }));
     sea.position.set(MAP_W / 2, 0, MAP_H / 2); this.scene.add(sea);
     this.kinds = treeKinds();
     this.cells = new Map();          // patches of trees, by cell key
@@ -128,18 +131,21 @@ export class EuropeView3D {
   }
   // the political map changed (a conquest) or first shown: rebuild what depends on it
   setMap(E, homePop = 2, homeName = "Forester's Clearing") {
-    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = (E.rev | 0) + ":" + cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName;
+    sync();
+    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = SHEET + (E.rev | 0) + ":" + cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName;
     const g = buildGrid(E);
     if (this.g && this.mapKey === key) return;
     this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName;
-    this.buildBase(); this.buildBorders(); this.buildCities(homePop);
+    // (the ground itself doesn't change with a conquest — only who holds it: raised once for the sheet)
+    if (!this.base || this.baseSheet !== SHEET) { this.buildBase(); this.baseSheet = SHEET; }
+    this.buildBorders(); this.buildCities(homePop);
     if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; }
     for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
   }
   // all of Europe, coarsely: what you see far off, and under the fine patch
   buildBase() {
     if (this.base) { this.scene.remove(this.base); this.base.geometry.dispose(); }
-    const nx = 360, nz = Math.round(nx * MAP_H / MAP_W), geo = new THREE.PlaneGeometry(MAP_W, MAP_H, nx, nz).rotateX(-Math.PI / 2);
+    const nx = Math.min(900, Math.round(360 * GW / 400)), nz = Math.round(nx * MAP_H / MAP_W), geo = new THREE.PlaneGeometry(MAP_W, MAP_H, nx, nz).rotateX(-Math.PI / 2);
     geo.translate(MAP_W / 2, 0, MAP_H / 2);
     // (a little under the fine ground, so where both are drawn the fine one's coast is the one you see)
     this.base = this.terrainMesh(geo, -0.02);
@@ -231,10 +237,10 @@ export class EuropeView3D {
     if (this.borders) { this.scene.remove(this.borders); this.borders.geometry.dispose(); }
     const g = this.g, pts = [], y = (x, z) => this.groundY(x, z) + 0.04;
     for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {
-      const id = g[r][c]; if (!id || id === "wilds") continue;
+      const id = g[r][c]; if (!id || !NATIONS[id]) continue;
       const e = g[r][c + 1], s = g[r + 1] && g[r + 1][c];
-      if (e && e !== id && e !== "wilds") { const x = (c + 1) * CELL, z0 = r * CELL, z1 = (r + 1) * CELL; pts.push(x, y(x, z0), z0, x, y(x, z1), z1); }
-      if (s && s !== id && s !== "wilds") { const z = (r + 1) * CELL, x0 = c * CELL, x1 = (c + 1) * CELL; pts.push(x0, y(x0, z), z, x1, y(x1, z), z); }
+      if (e && e !== id && NATIONS[e]) { const x = (c + 1) * CELL, z0 = r * CELL, z1 = (r + 1) * CELL; pts.push(x, y(x, z0), z0, x, y(x, z1), z1); }
+      if (s && s !== id && NATIONS[s]) { const z = (r + 1) * CELL, x0 = c * CELL, x1 = (c + 1) * CELL; pts.push(x0, y(x0, z), z, x1, y(x1, z), z); }
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
     this.borders = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x9a2a1a, transparent: true, opacity: 0.7 }));
@@ -318,6 +324,9 @@ export class EuropeView3D {
   centreLL() { return toLL(this.target.x, this.target.z); }
   size(w, h) { this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.w = w; this.h = h; }
   frame() {
+    sync();
+    // (the near plane drawn back as the eye goes up, so the sea and the low coast don't fight over the same depth)
+    const nr = Math.max(0.01, this.dist * 0.004); if (Math.abs(this.camera.near - nr) > nr * 0.1) { this.camera.near = nr; this.camera.updateProjectionMatrix(); }
     if (!this.visible || !this.g) return;
     this.buildDetail(); this.treesNear();
     const ty = Math.max(0, this.groundY(this.target.x, this.target.z));
@@ -341,6 +350,6 @@ export class EuropeView3D {
     return g ? { ll: toLL(g.point.x, g.point.z) } : null;
   }
   // drag: move over the ground by pixels
-  pan(dx, dy) { const k = this.dist / (this.h || 600) * 1.1; this.target.x = Math.max(0, Math.min(MAP_W, this.target.x - dx * k)); this.target.z = Math.max(0, Math.min(MAP_H, this.target.z - dy * k * 1.4)); }
+  pan(dx, dy) { sync(); const k = this.dist / (this.h || 600) * 1.1; this.target.x = Math.max(0, Math.min(MAP_W, this.target.x - dx * k)); this.target.z = Math.max(0, Math.min(MAP_H, this.target.z - dy * k * 1.4)); }
   dispose() { this.renderer.dispose(); this.el.remove(); }
 }

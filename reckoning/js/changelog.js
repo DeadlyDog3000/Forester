@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.49.0", date: "16 October 2026", title: "The New World",
+    items: [
+      "Campaign: the map now runs west over the Atlantic to the Mississippi and south to Havana. North America is shown as it stood in 1683: England's colonies from New England to Carolina, plus Newfoundland and the Hudson's Bay posts; New France on the St Lawrence and Acadia, with Fort Frontenac and Michilimackinac; Spanish Florida, Cuba and New Spain. 24 new towns, from Boston and Québec to La Habana.",
+      "The Native nations hold their own country on the map, in their own names: the Haudenosaunee, Wabanaki, Cherokee, Muscogee, Choctaw, Shawnee, Illinois, Anishinaabe, Dakota and Cree. Their towns are marked too. Their land isn't any crown's to take: armies can cross it, but not seize it. Click it to see whose it is.",
+      "Crossing the Atlantic: send your army over the sea and it takes ship. The crossing costs 120 thalers for shipping, takes the year, and lands the army where you sent it. Crowns at war with you can ship armies over too, and you'll hear of it.",
+      "The Great Lakes, the St Lawrence, the Hudson, the Mississippi, the Ohio and the Missouri are on the map, along with the Appalachians and the other eastern ranges, in 2D and in the 3D land.",
+      "Your old campaigns carry over: their conquests and armies move onto the bigger map. The story's map of Europe is unchanged.",
+      "The 3D land no longer flickers along the coasts when seen from high up, and it doesn't rebuild the ground after every conquest.",
+    ],
+  },
+  {
     v: "1.48.1", date: "16 October 2026", title: "Provinces, and armies drawn as the engravers drew them",
     items: [
       "Campaign: taking a town takes its whole province, not a circle round it. That's all the loser's land nearer to that town than to any other of theirs, with wandering borders like old provinces had. Scraps of the loser's land that end up cut off from all their towns go with it.",
