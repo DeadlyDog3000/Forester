@@ -16,6 +16,7 @@
 
 import { rng } from "./core.js";
 import { GW, GH, BOUNDS, IDS, GRID_RLE, COAST } from "./europe-data.js";
+import { rangeKm, fbm } from "./relief.js";
 
 // (the old names, for anything that still asks the grid's size by them)
 export const MG_W = GW, MG_H = GH, MAP_ASPECT = GH / GW;
@@ -224,15 +225,6 @@ const RIVERS = [
   [[4.8, 43.4], [4.8, 44.9], [4.9, 45.7], [6.1, 46.2]], [[12.4, 44.9], [10.9, 45.1], [9.2, 45.1], [7.7, 45]], [[-9.2, 38.7], [-8.2, 39.4], [-6.5, 39.8], [-4.3, 39.9], [-2.2, 40.4]],
   [[0.8, 40.7], [-0.9, 41.6], [-2.4, 42.4], [-3.7, 43]], [[24, 57], [25.5, 56.5], [26.5, 55.9], [28.8, 55.5], [30.2, 55.2]], [[21.2, 55.3], [22.5, 55.1], [23.9, 54.9], [25.8, 54.2]],
 ];
-// hills in profile, along the ranges
-const HILLS = [
-  [6.9, 45.5], [7.6, 45.9], [8.5, 46.4], [9.5, 46.5], [10.5, 46.6], [11.5, 47], [12.5, 47], [13.5, 47.1], [14.5, 47.3], [7.2, 44.6], [8.2, 46.8], [10, 46.2], [11.7, 46.4], [13, 46.5],
-  [-1.2, 43], [0, 42.8], [1, 42.7], [2, 42.5], [18.5, 49.3], [19.8, 49.3], [21, 49.3], [22.5, 49], [23.8, 48.2], [24.8, 47.6], [25.6, 46.8], [25.9, 45.8], [25.2, 45.4], [24, 45.4], [22.8, 45.3],
-  [8, 61], [9, 62], [10, 62.5], [12, 63.5], [13, 64.5], [7.5, 60], [8.5, 60.5], [11, 63], [14, 65.5], [10, 44.2], [11.5, 43.8], [12.6, 43.3], [13.5, 42.3], [14.5, 41.5], [15.5, 40.6], [16.2, 39.5],
-  [23, 42.8], [24.5, 42.7], [25.5, 42.7], [19.5, 42.8], [20.5, 42.3], [21.8, 41.6], [22, 40], [-4.5, 33], [-3, 33.5], [-1, 34.2], [2, 35.5], [4, 36.2], [6, 35.5], [40, 43.5], [42, 43], [43.5, 42.7],
-  [-4.5, 57], [-5, 57.5], [-4, 57.2], [13, 50.5], [15.5, 50.7], [14, 49], [16, 44], [17.5, 43.5], [18.8, 43], [21, 39.8], [21.5, 39], [30, 38], [33, 37.3], [36, 38], [39, 39],
-  [-3.5, 37.1], [-4.5, 40.4], [-6, 40.3], [3.2, 45.3], [2.9, 44.5], [-3.9, 52.6], [-3.4, 54.5],
-];
 // the cities of 1683, as the map-makers named them: rank 3 a crown's seat (drawn walled, with its flag), 2 a great town, 1 a town
 export const CITIES = [
   ["London", -0.12, 51.5, 3], ["Paris", 2.35, 48.85, 3], ["Madrid", -3.7, 40.4, 3], ["Lisboa", -9.14, 38.72, 3], ["Wien", 16.37, 48.21, 3], ["Roma", 12.5, 41.9, 3],
@@ -336,13 +328,10 @@ function drawSheet(W, H, E, g, homePop, vp = null) {
     c.fillStyle = gr; c.fillRect(x - rad, y - rad, rad * 2, rad * 2);
   }
   { const vg = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(120,90,50,0.22)"); c.fillStyle = vg; c.fillRect(0, 0, W, H); }
-  // ---- the sea: a pale wash, and a portolan's rhumb lines from the rose ----
+  // ---- the sea: a pale wash ----
   // (the sea is left pale, as the colourists left it, with only a cool breath of tint)
   c.save(); c.fillStyle = "rgba(214,226,218,0.32)"; c.fillRect(0, 0, W, H); c.restore();
-  const [rx, ry] = lonlat(-5, 46.2, S);
   c.save(); landPath(c, S); c.rect(W, 0, -W, H); c.clip("evenodd");
-  c.strokeStyle = INK_SOFT + "0.16)"; c.lineWidth = 0.7;
-  for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; c.beginPath(); c.moveTo(rx, ry); c.lineTo(rx + Math.cos(a) * W * 1.6, ry + Math.sin(a) * W * 1.6); c.stroke(); }
   // water-lining: fine rings of ink along every coast, fainter as they go out to sea. Drawn on a layer of their own —
   // each ring a band of ink with its middle cut out — so only the lines themselves reach the paper
   {
@@ -400,13 +389,16 @@ function drawSheet(W, H, E, g, homePop, vp = null) {
       c.stroke();
     }
   }
-  // hills in profile: a humped outline, shaded on its eastern side
-  for (const [lo, la] of HILLS) {
-    const [x, y] = lonlat(lo, la, S), w = S * (1.8 + r() * 0.8), h = S * (1.5 + r() * 0.9);
-    c.fillStyle = "rgba(240,228,200,0.95)"; c.strokeStyle = INK; c.lineWidth = Math.max(0.8, S * 0.22);
-    c.beginPath(); c.moveTo(x - w, y); c.quadraticCurveTo(x - w * 0.3, y - h * 1.4, x, y - h); c.quadraticCurveTo(x + w * 0.4, y - h * 1.3, x + w, y); c.fill(); c.stroke();
-    c.lineWidth = Math.max(0.5, S * 0.12); for (let j = 0; j < 4; j++) { c.beginPath(); c.moveTo(x + w * (0.1 + j * 0.2), y - h * (0.8 - j * 0.18)); c.lineTo(x + w * (0.25 + j * 0.2), y); c.stroke(); }
-  }
+  // the mountains where they truly run: the land shaded as the light falls on it from the north-west, high ground
+  // a shade browner, the highest peaks pale with snow
+  c.save(); landPath(c, S); c.clip("evenodd"); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high"; 
+  if (vp && vp.z > 1.6) {
+    // (close in: only what's in view, shaded at this zoom — a little past the edges, so a pan shows no seam)
+    const m = 0.08, x0 = vp.ox, y0 = vp.oy, w = vp.w / vp.z, h = vp.h / vp.z;
+    const part = [(x0 - w * m) / S, (y0 - h * m) / S, (x0 + w * (1 + m)) / S, (y0 + h * (1 + m)) / S].map(v => Math.round(v * 100) / 100);
+    c.drawImage(reliefLayer(part), part[0] * S, part[1] * S, (part[2] - part[0]) * S, (part[3] - part[1]) * S);
+  } else c.drawImage(reliefLayer(), 0, 0, W, H);
+  c.restore();
   c.restore();
   // ---- the coast itself, inked ----
   landPath(c, S); c.strokeStyle = INK; c.lineWidth = Math.max(1.2, S * 0.42); c.lineJoin = "round"; c.stroke();
@@ -431,9 +423,6 @@ function drawSheet(W, H, E, g, homePop, vp = null) {
     c.restore();
   }
   // ---- ornament: the rose, a ship, a monster, the cartouche, a scale, the frame ----
-  rose(c, rx, ry, S * 8);
-  ship(c, ...lonlat(-9.6, 41.4, S), S * 0.45);
-  monster(c, ...lonlat(-8.6, 56.6, S), S * 0.5);
   cartouche(c, W, H, S);
   scaleBar(c, W, H, S);
   frame(c, W, H, S);
@@ -492,49 +481,6 @@ function spaced(c, t, x, y, sp) {
   [...t].forEach((ch, i) => { c.fillText(ch, at, y); at += ws[i] + sp; });
   c.textAlign = align;
 }
-function rose(c, x, y, R) {
-  c.save(); c.translate(x, y);
-  c.strokeStyle = INK; c.lineWidth = 1;
-  c.beginPath(); c.arc(0, 0, R * 1.08, 0, 7); c.stroke(); c.beginPath(); c.arc(0, 0, R * 0.98, 0, 7); c.stroke();
-  // sixteen points: long and dark for the four winds, shorter for the rest
-  for (let i = 0; i < 16; i++) {
-    const a = i / 16 * Math.PI * 2 - Math.PI / 2, len = i % 4 === 0 ? R : i % 2 === 0 ? R * 0.68 : R * 0.45, w = i % 4 === 0 ? R * 0.14 : R * 0.08;
-    for (const side of [-1, 1]) {
-      c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * len, Math.sin(a) * len); c.lineTo(Math.cos(a + side * Math.PI / 2) * w, Math.sin(a + side * Math.PI / 2) * w); c.closePath();
-      c.fillStyle = side < 0 ? INK : (i % 4 === 0 ? "#d9c79a" : "#e6d7b0"); c.fill(); c.stroke();
-    }
-  }
-  // the lily for north
-  c.fillStyle = INK; c.font = `${Math.round(R * 0.3)}px ${FELL}`; c.textAlign = "center"; c.textBaseline = "middle";
-  c.fillText("⚜", 0, -R * 1.22);
-  c.restore();
-}
-function ship(c, x, y, s) {
-  c.save(); c.translate(x, y); c.scale(s, s);
-  c.strokeStyle = INK; c.fillStyle = "#d8c7a0"; c.lineWidth = 0.9;
-  // hull, three masts, square sails swelling, a pennant
-  c.beginPath(); c.moveTo(-16, 0); c.quadraticCurveTo(0, 7, 16, -1); c.lineTo(13, -4); c.lineTo(-14, -3); c.closePath(); c.fill(); c.stroke();
-  for (const [mx, h] of [[-8, 16], [0, 22], [8, 16]]) {
-    c.beginPath(); c.moveTo(mx, -3); c.lineTo(mx, -3 - h); c.stroke();
-    for (const k of [0.35, 0.7]) { c.beginPath(); c.moveTo(mx - 5, -3 - h * k); c.quadraticCurveTo(mx + 3, -3 - h * k + h * 0.15, mx - 5, -3 - h * k + h * 0.28); c.lineTo(mx + 5, -3 - h * k + h * 0.28); c.quadraticCurveTo(mx + 8, -3 - h * k + h * 0.15, mx + 5, -3 - h * k); c.closePath(); c.fill(); c.stroke(); }
-  }
-  c.beginPath(); c.moveTo(0, -25); c.lineTo(7, -24); c.lineTo(0, -23); c.fill(); c.stroke();
-  // the sea under her
-  c.lineWidth = 0.6; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(-22 + i * 9, 5 + Math.abs(i)); c.quadraticCurveTo(-18 + i * 9, 2 + Math.abs(i), -14 + i * 9, 5 + Math.abs(i)); c.stroke(); }
-  c.restore();
-}
-function monster(c, x, y, s) {
-  c.save(); c.translate(x, y); c.scale(s, s);
-  c.strokeStyle = INK; c.fillStyle = "#cbb88e"; c.lineWidth = 0.9;
-  // a sea serpent: humps out of the water, a toothed head, a spout
-  c.beginPath(); c.moveTo(-24, 2); c.quadraticCurveTo(-18, -12, -12, 2); c.moveTo(-8, 2); c.quadraticCurveTo(-2, -14, 4, 2); c.fill(); c.stroke();
-  c.beginPath(); c.moveTo(8, 2); c.quadraticCurveTo(10, -14, 18, -12); c.quadraticCurveTo(24, -11, 22, -6); c.lineTo(16, -6); c.quadraticCurveTo(14, -2, 13, 2); c.closePath(); c.fill(); c.stroke();
-  c.beginPath(); c.arc(18, -9.5, 0.8, 0, 7); c.fillStyle = INK; c.fill();
-  c.beginPath(); for (let i = 0; i < 3; i++) { c.moveTo(16 + i * 2, -6); c.lineTo(17 + i * 2, -4.5); } c.stroke();
-  c.beginPath(); c.moveTo(18, -13); c.quadraticCurveTo(16, -20, 13, -22); c.moveTo(18, -13); c.quadraticCurveTo(20, -20, 23, -21); c.stroke();
-  c.lineWidth = 0.6; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 8 - 4, 4); c.quadraticCurveTo(i * 8, 1, i * 8 + 4, 4); c.stroke(); }
-  c.restore();
-}
 function cartouche(c, W, H, S) {
   const w = S * 58, h = S * 21, x = S * 7, y = S * 7;
   c.save();
@@ -580,6 +526,42 @@ function frame(c, W, H, S) {
   c.restore();
 }
 
+// ---- the relief: shaded once, for the whole sheet, from the ranges (relief.js) ----
+// (a part of it — gx0, gy0, gx1, gy1 in grid squares — shaded finer, for a close view)
+let relief = null, reliefPart = null;
+function reliefLayer(part = null) {
+  if (!part && relief) return relief;
+  if (part && reliefPart && reliefPart.key === part.join()) return reliefPart.cv;
+  const [gx0, gy0, gx1, gy1] = part || [0, 0, GW, GH];
+  const RW = part ? 760 : 1100, RH = Math.round(RW * (gy1 - gy0) / (gx1 - gx0)), h = new Float32Array(RW * RH);
+  for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++) {
+    const [lon, lat] = llOf(gx0 + (x + 0.5) / RW * (gx1 - gx0), gy0 + (y + 0.5) / RH * (gy1 - gy0));
+    let v = rangeKm(lon, lat, K);
+    // (ridges and valleys along the range: it reads as mountains, not a smooth swell)
+    if (v > 0.04) { const n = fbm(lon * 3.2, lat * 3.2, 31, 4), rdg = 1 - Math.abs(n * 2 - 1), m = fbm(lon * 1.1, lat * 1.1, 11, 2); v *= (0.35 + rdg * 0.9) * (0.6 + m * 0.7); }
+    h[y * RW + x] = v;
+  }
+  const cv = document.createElement("canvas"); cv.width = RW; cv.height = RH;
+  const c = cv.getContext("2d"), img = c.createImageData(RW, RH), d = img.data, ex = 2.2 * 1100 / 1400 * (RW / 1100) * (GW / (gx1 - gx0));
+  for (let y = 1; y < RH - 1; y++) for (let x = 1; x < RW - 1; x++) {
+    const i = y * RW + x, v = h[i]; if (v < 0.06) continue;
+    const dx = (h[i + 1] - h[i - 1]) * ex, dy = (h[i + RW] - h[i - RW]) * ex;
+    // (light from the north-west: slopes facing it lit, the far sides in shadow)
+    const lit = (-dx - dy) / Math.SQRT2 / Math.sqrt(1 + dx * dx + dy * dy), fade = Math.min(1, (v - 0.06) / 0.35);
+    let r, g, b, a;
+    if (lit < 0) { r = 92; g = 70; b = 46; a = Math.min(0.62, -lit * 0.95) * fade; }
+    else { r = 255; g = 248; b = 228; a = Math.min(0.4, lit * 0.6) * fade; }
+    // (the high ground a shade of brown; snow on the highest)
+    const hi = Math.min(1, Math.max(0, (v - 0.9) / 1.4)), snow = Math.min(1, Math.max(0, (v - 2.3) / 0.8));
+    const tint = 0.22 * hi * fade;
+    r = r * (1 - tint) + 150 * tint; g = g * (1 - tint) + 122 * tint; b = b * (1 - tint) + 84 * tint; a = Math.max(a, tint);
+    if (snow > 0) { r = r * (1 - snow) + 250 * snow; g = g * (1 - snow) + 250 * snow; b = b * (1 - snow) + 246 * snow; a = Math.max(a, 0.55 * snow); }
+    d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b; d[i * 4 + 3] = a * 255;
+  }
+  c.putImageData(img, 0, 0);
+  if (part) { reliefPart = { key: part.join(), cv }; return cv; }
+  return (relief = cv);
+}
 // the sheet, and over it what changes: the crown under the pointer and the one chosen, the wars, the plague, your clearing
 // view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
 let near = null, nearT = 0;

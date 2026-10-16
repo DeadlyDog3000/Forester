@@ -232,20 +232,34 @@ function fight(o) {
 // ---- the muster before a battle you fight yourself: how many of your army take the field, and of which arms ----
 const MUST_KINDS = ["musketeer", "grenadier", "pike", "sword", "axe", "bow", "crossbow", "cavalry"];
 function musterFor(o) {
-  const mine = o.attack ? o.att : o.def, cap = fieldMen(mine), gunCap = fieldGuns(mine);
-  const theirs = o.attack ? o.def : o.att, theirMen = clamp(Math.round(10 + theirs / 2.2), 10, 48);
-  const first = muster(C.me, clamp(Math.round(10 + mine / 2.2), 10, cap));
+  const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att, theirMen = clamp(Math.round(10 + theirs / 2.2), 10, 48);
+  musterScreen({
+    title: o.attack ? `March on ${o.ct[0]}` : `Hold ${o.ct[0]}`, regs: mine,
+    foe: `${The(o.foe)} can field about ${theirMen}${o.walls ? (o.attack ? ", behind their walls" : "; your walls are with you") : ""}.`,
+    onGo: P => fight({ ...o, pick: P }),
+    onAuto: C.mp ? null : () => {
+      // (the generals fight it instead — as if you'd left it to them from the first)
+      C.pending = null; const won = auto(o); persist();
+      note = won ? (o.attack ? `${o.ct[0]} is yours.` : `${o.ct[0]} holds.`) : (o.attack ? `The attack on ${o.ct[0]} failed.` : `${o.ct[0]} has fallen.`);
+      sfx("guns", 0.5); if (won) sfx("bell", 0.4, 1600); drawMap();
+    },
+  });
+}
+// the muster itself: { title, regs (your regiments), foe (a line on the other side), onGo(pick), onAuto (or none) }
+function musterScreen({ title, regs, foe, onGo, onAuto }) {
+  const cap = fieldMen(regs), gunCap = fieldGuns(regs);
+  const first = muster(C.me, clamp(Math.round(10 + regs / 2.2), 10, cap));
   const P = { men: Object.fromEntries(MUST_KINDS.map(k => [k, first[k] | 0])), guns: gunCap };
   let el = $("cmpMust"); if (!el) { el = document.createElement("div"); el.id = "cmpMust"; el.className = "cmp-must"; $("campaign").appendChild(el); }
   const total = () => MUST_KINDS.reduce((t, k) => t + P.men[k], 0);
   const draw = () => {
     const n = total();
-    el.innerHTML = `<div class="cmp-mbox"><h2>${o.attack ? `March on ${esc(o.ct[0])}` : `Hold ${esc(o.ct[0])}`}</h2>
-      <p class="sub">Who takes the field? Your ${mine} regiments can put up to <b>${cap}</b> men in it and ${gunCap ? `${gunCap} gun${gunCap > 1 ? "s" : ""}` : "no guns"}. ${The(o.foe)} can field about ${theirMen}${o.walls ? (o.attack ? ", behind their walls" : "; your walls are with you") : ""}.</p>
+    el.innerHTML = `<div class="cmp-mbox"><h2>${esc(title)}</h2>
+      <p class="sub">Who takes the field? Your ${regs} regiments can put up to <b>${cap}</b> men in it and ${gunCap ? `${gunCap} gun${gunCap > 1 ? "s" : ""}` : "no guns"}. ${esc(foe)}</p>
       <div class="cmp-mrows">${MUST_KINDS.map(k => { const T = TROOPS[k]; return `<div class="cmp-mrow"><span><b>${T.name}</b><small>${esc(T.note)}</small></span><span class="cmp-step"><button data-mk="${k}" data-d="-5">−5</button><button data-mk="${k}" data-d="-1">−</button><em>${P.men[k]}</em><button data-mk="${k}" data-d="1"${n >= cap ? " disabled" : ""}>+</button><button data-mk="${k}" data-d="5"${n >= cap ? " disabled" : ""}>+5</button></span></div>`; }).join("")}
       ${gunCap ? `<div class="cmp-mrow"><span><b>Guns</b><small>Field gun, two crew</small></span><span class="cmp-step"><button data-mk="guns" data-d="-1">−</button><em>${P.guns}</em><button data-mk="guns" data-d="1"${P.guns >= gunCap ? " disabled" : ""}>+</button></span></div>` : ""}</div>
       <div class="cmp-mtot"><em><b>${n}</b> of ${cap} men${P.guns ? ` · ${P.guns} gun${P.guns > 1 ? "s" : ""}` : ""}</em><span><button class="tm-lnk" data-mp="army">As your army stands</button> · <button class="tm-lnk" data-mp="all">All you can</button> · <button class="tm-lnk" data-mp="none">Clear</button></span></div>
-      <div class="pv-acts"><button class="btn primary" data-mgo="1"${n < 5 ? " disabled" : ""}>${n < 5 ? "Take at least 5 men" : "To the field"}</button>${C.mp ? "" : `<button class="btn ghost" data-mauto="1">Leave it to your generals</button>`}</div></div>`;
+      <div class="pv-acts"><button class="btn primary" data-mgo="1"${n < 5 ? " disabled" : ""}>${n < 5 ? "Take at least 5 men" : "To the field"}</button>${onAuto ? `<button class="btn ghost" data-mauto="1">Leave it to your generals</button>` : ""}</div></div>`;
   };
   el.onclick = e => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
@@ -256,18 +270,19 @@ function musterFor(o) {
       sfx("parchment", 0.18); draw(); return;
     }
     if (b.dataset.mp) {
-      const m = b.dataset.mp === "none" ? {} : muster(C.me, b.dataset.mp === "all" ? cap : clamp(Math.round(10 + mine / 2.2), 10, cap));
+      const m = b.dataset.mp === "none" ? {} : muster(C.me, b.dataset.mp === "all" ? cap : clamp(Math.round(10 + regs / 2.2), 10, cap));
       for (const k of MUST_KINDS) P.men[k] = m[k] | 0; if (b.dataset.mp === "all") P.guns = gunCap; sfx("quill", 0.3); draw(); return;
     }
-    if (b.dataset.mgo) { el.remove(); sfx("drum", 0.5); const men = {}; for (const k of MUST_KINDS) if (P.men[k]) men[k] = P.men[k]; fight({ ...o, pick: { men, guns: P.guns } }); return; }
-    if (b.dataset.mauto) {
-      // (the generals fight it instead — as if you'd left it to them from the first)
-      el.remove(); C.pending = null; const won = auto(o); persist();
-      note = won ? (o.attack ? `${o.ct[0]} is yours.` : `${o.ct[0]} holds.`) : (o.attack ? `The attack on ${o.ct[0]} failed.` : `${o.ct[0]} has fallen.`);
-      sfx("guns", 0.5); if (won) sfx("bell", 0.4, 1600); drawMap();
-    }
+    if (b.dataset.mgo) { el.remove(); sfx("drum", 0.5); const men = {}; for (const k of MUST_KINDS) if (P.men[k]) men[k] = P.men[k]; onGo({ men, guns: P.guns }); return; }
+    if (b.dataset.mauto && onAuto) { el.remove(); onAuto(); }
   };
   draw(); sfx("parchment", 0.4);
+}
+// (a muster sent from the other player's screen: held to what their army can field)
+function fairPick(p, regs, crown) {
+  const cap = fieldMen(regs), men = {}; let n = 0;
+  for (const k of MUST_KINDS) { const v = clamp((p && p.men && p.men[k]) | 0, 0, cap - n); if (v) { men[k] = v; n += v; } }
+  return { men: n >= 5 ? men : muster(crown, Math.min(cap, 20)), guns: clamp((p && p.guns) | 0, 0, fieldGuns(regs)) };
 }
 // a battle fought by hand and never finished (left from the pause menu): the army withdrew from it — lost
 function abandoned() {
@@ -407,7 +422,7 @@ function checkEnd() {
 let view = { z: 1, ox: 0, oy: 0 }, sel = null, selCity = null, hov = null, hovCity = null, note = "", news = [];
 // (close in, the land itself: hills, woods, the towns' roofs — the government's map, as in the story)
 const ZOOM_3D = 4.2, DIST_2D = 110;
-let eu3d = null, on3d = false, raf3d = 0, enter3d = () => {}, leave3d = () => {};
+let eu3d = null, on3d = false, raf3d = 0, fade3d = 0, enter3d = () => {}, leave3d = () => {};
 // (drawn only while the campaign's map is in front of you)
 const loop3d = () => { if (!on3d || !shown()) { if (eu3d) eu3d.visible = false; raf3d = 0; return; } eu3d.visible = true; if (innerWidth !== eu3d.w || innerHeight !== eu3d.h) eu3d.size(innerWidth, innerHeight); eu3d.frame(); raf3d = requestAnimationFrame(loop3d); };
 const shown = () => !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden");
@@ -502,13 +517,17 @@ export function initCampaign(c, battle, withPlayer) {
     // (the middle of the window's view, as a place)
     const S = cv.width / MG_W, [mx, my] = toMap(mid()), [lon, lat] = llOf(mx / S, my / S);
     eu3d.look(lon, lat, DIST_2D - 12);
-    on3d = true; eu3d.visible = true; eu3d.el.style.display = "block"; cv.style.visibility = "hidden";
+    // (the land fades in over the map — the map hidden under it once it's there)
+    on3d = true; eu3d.visible = true; clearTimeout(fade3d); eu3d.el.style.display = "block"; eu3d.el.classList.remove("on"); void eu3d.el.offsetWidth; eu3d.el.classList.add("on");
+    fade3d = setTimeout(() => { if (on3d) cv.style.visibility = "hidden"; }, 420);
     eu3d.size(innerWidth, innerHeight); paint();
     cancelAnimationFrame(raf3d); raf3d = 0; loop3d();
   };
   leave3d = () => {
     const [lon, lat] = eu3d.centreLL(), [gx, gy] = gridOf(lon, lat), S = cv.width / MG_W;
-    on3d = false; eu3d.visible = false; eu3d.el.style.display = "none"; cv.style.visibility = "visible";
+    // (the map drawn under the land, and the land faded off it — the last frame held while it goes)
+    on3d = false; cv.style.visibility = "visible"; eu3d.el.classList.remove("on"); clearTimeout(fade3d);
+    fade3d = setTimeout(() => { if (!on3d) { eu3d.visible = false; eu3d.el.style.display = "none"; } }, 520);
     view.z = ZOOM_3D - 0.4; const [cx, cy] = mid(); view.ox = gx * S - cx / view.z; view.oy = gy * S - cy / view.z; clampV(); paint();
   };
   // ---- WASD (or the arrows) to move over the map; Q and E to come in and go out; Shift, faster ----
@@ -619,7 +638,7 @@ function drawMap(fit = false) {
   cv.style.width = Math.round(cw) + "px"; cv.style.height = Math.round(cw * MAP_ASPECT) + "px";
   const W = Math.round(Math.min(2600, Math.max(1200, cw * Math.min(2, devicePixelRatio || 1)))); if (cv.width !== W) { cv.width = W; cv.height = Math.round(W * MAP_ASPECT); }
   // (a fresh look: from above, on the map)
-  if (fit && on3d) { on3d = false; eu3d.visible = false; eu3d.el.style.display = "none"; cv.style.visibility = "visible"; }
+  if (fit && on3d) { on3d = false; clearTimeout(fade3d); eu3d.visible = false; eu3d.el.classList.remove("on"); eu3d.el.style.display = "none"; cv.style.visibility = "visible"; }
   if (fit) {
     // (looking at your own crown, close enough to see its towns)
     const g = grid(), mine = citiesOfNow(g, C.me).map(cellOf);
@@ -774,6 +793,12 @@ function apply(actor, a) {
       if (isHuman(P.foe) && P.attack) as(P.foe, () => say(a.won ? `${P.ct} has fallen` : `${P.ct} holds`, a.won ? `${nameOf(actor)} takes it from its garrison.` : `${nameOf(actor)}'s attack is thrown back by the garrison.`));
       persist(); return { sfx: a.won ? [["bell", 0.45, 1800]] : [] };
     }
+    if (a.k === "mustered") {
+      const M = C.mp && C.mp.meet; if (!M || M.key !== a.key || (actor !== M.attacker && actor !== M.defender)) return null;
+      M.pick[actor] = { men: a.men || {}, guns: a.guns | 0 };
+      if (M.pick[M.attacker] && M.pick[M.defender]) { setTimeout(() => { if (C && C.mp && C.mp.meet === M) meetGo(); }, 0); return {}; }
+      return { wait: `Waiting for ${nameOf(actor === M.attacker ? M.defender : M.attacker)} to choose their men…` };
+    }
     if (a.k === "end") {
       if (!C.mp) { endSeason(); return null; }
       C.mp.ready[actor] = !C.mp.ready[actor]; persist();
@@ -828,16 +853,27 @@ function humanMarch(actor, o, how) {
 // the two players on one field: the battle hosted by the campaign's host, each company as big as their armies
 function meet(attacker, defender, att) {
   const key = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
-  const ct = CITIES.find(c => c[0] === att.ct), men = r => clamp(Math.round(10 + r / 2.2), 10, 42);
-  const armyFor = (crown, regs) => { const m = muster(crown, men(regs)); return { muster: m, guns: Math.min(3, Math.floor(regs / 22)), uniform: UNI_OF[crown], purse: 99999, allies: Object.values(m).reduce((t, n) => t + n, 0), ride: 0 }; };
+  // (each chooses who takes the field first — the field met once both have)
+  C.mp.meet = { key, att: { ...att }, attacker, defender, pick: {} };
+  for (const crown of [attacker, defender]) {
+    const regs = crown === attacker ? att.att : att.def, foe = crown === attacker ? defender : attacker;
+    tell(crown, { muster: { key, regs, title: crown === attacker ? `March on ${att.ct}` : `Hold ${att.ct}`, foe: `${nameOf(foe)}, at the head of ${the(foe)}, has ${crown === attacker ? att.def : att.att} regiments, and is choosing their men as you choose yours.` } });
+  }
+  persist();
+  return {};
+}
+// both mustered: the armies as each chose, and the field
+function meetGo() {
+  const M = C.mp.meet, att = M.att, attacker = M.attacker, defender = M.defender, key = M.key;
+  const ct = CITIES.find(c => c[0] === att.ct);
+  const armyFor = (crown, regs) => { const p = fairPick(M.pick[crown], regs, crown); return { muster: p.men, guns: p.guns, uniform: UNI_OF[crown], purse: 99999, allies: Object.values(p.men).reduce((t, n) => t + n, 0), ride: 0 }; };
   const A = armyFor(attacker, att.att), D = armyFor(defender, att.def);
   if (D.uniform === A.uniform) D.uniform = A.uniform === "imperial" ? "bavarian" : "imperial";
-  C.mp.meet = { key, att: { ...att }, attacker, defender, menA: A.allies, menD: D.allies };
+  M.menA = A.allies; M.menD = D.allies;
   const hostC = humans()[0];
   const at = { name: ct[0], lon: ct[1], lat: ct[2], date: `${SEASONS[C.s]} ${C.year}`, at: `${nameOf(attacker)} marches on ${nameOf(defender)}'s town` };
   for (const crown of [attacker, defender]) tell(crown, { meet: { key, side: crown === hostC ? 0 : 1, foe: crown === attacker ? defender : attacker, army: crown === attacker ? A : D, theirs: crown === attacker ? D : A, ct: att.ct, at } });
   persist();
-  return {};
 }
 // (the meeting's outcome, from the host's game: the town taken or held)
 function meetEnd(wonHost, killed, lost, left) {
@@ -874,8 +910,14 @@ function react(r) {
   if (r.news) { news = r.news; note = ""; }
   for (const [n, v, after] of r.sfx || []) sfx(n, v, after);
   if (r.fight) { const o = { ...r.fight, ct: CITIES.find(c => c[0] === r.fight.ct) }; if (o.ct) { fight(o); return; } }
+  if (r.muster && mp) {
+    const M = r.muster; $("cmpMust") && $("cmpMust").remove();
+    musterScreen({ title: M.title, regs: M.regs, foe: M.foe, onGo: P => doAct({ k: "mustered", key: M.key, men: P.men, guns: P.guns }) });
+    return;
+  }
+  if (r.wait) { let el = $("cmpMust"); if (!el) { el = document.createElement("div"); el.id = "cmpMust"; el.className = "cmp-must"; $("campaign").appendChild(el); } el.onclick = null; el.innerHTML = `<div class="cmp-mbox"><h2>Mustered</h2><p class="sub">${esc(r.wait)}</p></div>`; return; }
   if (r.meet && mp && fieldWithPlayer) {
-    const M = r.meet;
+    const M = r.meet; $("cmpMust") && $("cmpMust").remove();
     fieldWithPlayer({ key: M.key, side: M.side, foe: { name: nameOf(M.foe) }, army: M.army, theirs: M.theirs, at: M.at,
       onEnd: (won, killed, lost, left) => { if (mp && mp.host) meetEnd(won, killed, lost, left); },
       onFail: why => { note = why; if (mp && mp.host) { const Mt = C.mp.meet; if (Mt) { C.mp.meet = null; as(Mt.attacker, () => { const w = auto({ ...Mt.att, ct: CITIES.find(c => c[0] === Mt.att.ct) }); void w; }); broadcast(); } } openCampaign(); } });

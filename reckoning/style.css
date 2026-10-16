@@ -1633,7 +1633,8 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-main { position: absolute; inset: 0; display: block; }
 .cmp-mapwrap { position: absolute; inset: 0; border: 0; border-radius: 0; display: block; }
 .cmp-mapwrap canvas { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-.cmp-mapwrap canvas.eu3d { left: 0; top: 0; transform: none; width: 100vw; height: 100vh; display: none; cursor: grab; }
+.cmp-mapwrap canvas.eu3d { left: 0; top: 0; transform: none; width: 100vw; height: 100vh; display: none; cursor: grab; opacity: 0; transition: opacity 0.45s ease; pointer-events: none; }
+.cmp-mapwrap canvas.eu3d.on { opacity: 1; pointer-events: auto; }
 .cmp-mapwrap::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 120px rgba(20, 12, 4, 0.75), inset 0 0 22px rgba(20, 12, 4, 0.6); }
 .cmp-bar { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 2; background: rgba(12, 22, 15, 0.86); backdrop-filter: blur(6px); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45); }
 .cmp-side { position: absolute; top: 92px; right: 10px; bottom: 10px; width: 380px; z-index: 2; transition: transform 0.35s ease, opacity 0.35s; padding-right: 2px; }

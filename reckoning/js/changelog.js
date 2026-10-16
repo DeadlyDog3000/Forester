@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.42.2", date: "15 October 2026", title: "Real mountains",
+    items: [
+      "The map of Europe shows its real mountains: the Alps, Pyrenees, Carpathians, Apennines, the Balkan ranges, the Scandinavian mountains, the Atlas, the Caucasus and the rest, shaded as the light falls on them, with snow on the highest peaks. They're the same ranges the land rises into in 3D. Zoom in and the shading is drawn finer for the closer view.",
+      "Gone from the map: the sea monster, the ship, the compass rose and its lines across the sea, and the little cartoon hills.",
+      "Campaign: coming out of the 3D land, it fades away over the map instead of vanishing at once, and fades in the same way going in.",
+      "Campaign with a friend: before you meet on the field, you each choose how many men and which arms you bring, the same way as against the computer. The battle starts once you've both chosen.",
+    ],
+  },
+  {
     v: "1.42.1", date: "15 October 2026", title: "Choose who marches",
     items: [
       "Campaign: when you fight a battle yourself, you choose who takes the field first. Pick how many men (a bigger army can field more) and of which arms: musketeers, grenadiers, pikemen, swordsmen, axemen, bowmen, crossbowmen and cavalry, and how many guns. One click sets it as your army stands, all you can field, or clears it. You can still leave it to your generals from there.",
