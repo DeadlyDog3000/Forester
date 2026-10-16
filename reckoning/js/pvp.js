@@ -132,7 +132,7 @@ const rankOf = r => r < 900 ? "Recruit" : r < 1050 ? "Musketeer" : r < 1200 ? "C
 let ctx = null, lo = loadout(), search = null;
 export function initPvp(c) {
   ctx = c;
-  $("btnPvp").onclick = () => openCamp();
+  $("btnPvp").onclick = () => gate("online") && openCamp();
   $("pvpBack").onclick = () => { leaveCamp(); ctx.screen("title"); };
   $("pvpQuick").onclick = () => gate("online") && quickPlay();
   $("pvpBots").onclick = () => openMuster("bots");
