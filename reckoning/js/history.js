@@ -2,7 +2,7 @@
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
 
-// HISTORICAL BATTLES: ten fields of the game's own years, fought again on the ground where they were — the armies that
+// HISTORICAL BATTLES: ten fields of the game's own years and two fights at sea, fought again on the ground where they were — the armies that
 // stood there, in their own coats, under their own colours, at the hour of the day it was and in its weather; you a
 // captain of a company on whichever side you choose. Each is a company's share of the day, not the whole of it (the
 // cavalry only a share of it: the great charges were thousands strong), and against bots only; a win or a loss
@@ -12,6 +12,8 @@
 // its men by kind (pvp.js's TROOPS); guns; call, a kind's own name in that army. fort: the side that holds works (one
 // company a side only). hold: how long a side's officers stand before coming on (a defender, long). won: the side
 // that won the day, as it happened (null: neither). map: its ground and what stood on it (histmap.js).
+// A battle at sea (sea: true) has, for each side, a fleet (naval.js's ships, each of its own nation where the side's a
+// league of two), and is fought as the campaign's are: you on the flagship, the other captains on their own.
 
 export const BATTLES = [
   {
@@ -100,6 +102,26 @@ export const BATTLES = [
     sides: [
       { name: "King William's army", lead: "William III", cos: [{ uni: "dutch", muster: { musketeer: 14, pike: 4, grenadier: 2 }, guns: 1 }, { uni: "english", muster: { musketeer: 12, pike: 4, cavalry: 3 }, guns: 1 }, { uni: "danish", muster: { musketeer: 14, pike: 4 } }] },
       { name: "King James's army", lead: "James II", hold: 45, cos: [{ uni: "french", muster: { musketeer: 16, pike: 4, grenadier: 2 }, guns: 1 }, { uni: "irish", muster: { musketeer: 12, pike: 8, sword: 4 } }] },
+    ],
+  },
+  {
+    id: "beachyhead", name: "Beachy Head", date: "10 July 1690", year: 1690, lon: 0.25, lat: 50.66, at: "Off the Sussex coast, in the Channel",
+    sea: true, won: 0, you: 0,
+    brief: "The French fleet is out in the Channel in strength, and King William is away in Ireland. Admiral Tourville has more ships than the allies; the Earl of Torrington, ordered to fight anyway, sends the Dutch in first, and they bear the worst of it while the English hold off.",
+    after: ["The Dutch squadron was badly mauled and the allies ran for the Thames, burning their own crippled ships. For a few weeks the French held the Channel, but Tourville never landed an army. Torrington was court-martialled and acquitted, and never served at sea again.", "Here the allied line held, and Tourville's fleet went home to Brest with the Channel still closed to it."],
+    sides: [
+      { name: "The French fleet", lead: "the Comte de Tourville", color: "#e9e4d4", nation: "Kingdom of France", fleet: [{ k: "line" }, { k: "line" }, { k: "frigate" }, { k: "frigate" }] },
+      { name: "The Anglo-Dutch fleet", lead: "the Earl of Torrington", color: "#c0392b", nation: "Kingdom of England", fleet: [{ k: "line" }, { k: "line", color: "#e07b26", name: "Dutch Republic" }, { k: "frigate", color: "#e07b26", name: "Dutch Republic" }, { k: "sloop" }] },
+    ],
+  },
+  {
+    id: "barfleur", name: "Barfleur", date: "29 May 1692", year: 1692, lon: -1.27, lat: 49.67, at: "Off Cape Barfleur, Normandy",
+    sea: true, won: 0, you: 1,
+    brief: "King Louis has an army waiting on the Norman coast to sail for England and put James II back on the throne. Tourville is ordered to clear the way, and he attacks, though Admiral Russell's English and Dutch ships nearly double his own. All day the French line fights the allies in fog and failing wind.",
+    after: ["Tourville's fleet fought the allies to a standstill and slipped away in the fog, but with the tide against them many could not reach safe harbour. Over the next days the English burned fifteen of them at Cherbourg and La Hougue, under the eyes of King James himself. The invasion of England was never tried again.", "Here Tourville broke the allied line, and the road across the Channel lay open to King James's army."],
+    sides: [
+      { name: "The Anglo-Dutch fleet", lead: "Admiral Edward Russell", color: "#c0392b", nation: "Kingdom of England", fleet: [{ k: "line" }, { k: "line" }, { k: "line", color: "#e07b26", name: "Dutch Republic" }, { k: "frigate" }, { k: "frigate", color: "#e07b26", name: "Dutch Republic" }] },
+      { name: "The French fleet", lead: "the Comte de Tourville", color: "#e9e4d4", nation: "Kingdom of France", fleet: [{ k: "line" }, { k: "line" }, { k: "frigate" }] },
     ],
   },
   {

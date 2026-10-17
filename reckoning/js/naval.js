@@ -188,6 +188,7 @@ class Ship {
 // (the enemy's ships called by their crown: "French", "Danish" — or simply "Enemy")
 const ADJ = [[/engl/, "English"], [/fran/, "French"], [/castil|spain|spanish|aragon/, "Spanish"], [/dutch|holland/, "Dutch"], [/portug/, "Portuguese"], [/swed/, "Swedish"], [/denm|danish/, "Danish"], [/ottoman|turk/, "Turkish"], [/venic|venet/, "Venetian"], [/algi/, "Algerine"], [/tunis/, "Tunisian"], [/tripol/, "Tripolitan"], [/morocc/, "Moroccan"], [/naples|neapol/, "Neapolitan"], [/scot/, "Scottish"], [/brandenb/, "Brandenburg"]];
 const enemyOf = name => { const n = String(name || "").toLowerCase(), m = ADJ.find(([rx]) => rx.test(n)); return m ? m[1] : "Enemy"; };
+export const enemyOfName = enemyOf;
 // opts: { title, mine: [{ k, hp }], theirs: [{ k, hp }], myColor, theirColor, myName, theirName, onEnd(result) }
 // result: { won, left, mine: [{ k, hp, sunk, struck }], theirs: [...] } — hp the hull left, 0..1
 export function navalBattle(opts) {
@@ -213,7 +214,7 @@ class Battle {
     this.cam = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 6000); this.orbit = { a: Math.PI, e: 0.32, d: 95 };
     // the two fleets: in line ahead, a long way apart, coming on
     this.ships = [];
-    const lay = (list, team, color, name) => list.forEach((s, i) => { const row = team ? 1 : -1, x = (i - (list.length - 1) / 2) * 60 + (Math.random() - 0.5) * 20, z = row * 300 + (Math.random() - 0.5) * 30; this.ships.push(new Ship(this, team, s.k, s.hp, x, z, team ? Math.PI : 0, color, name)); });
+    const lay = (list, team, color, name) => list.forEach((s, i) => { const row = team ? 1 : -1, x = (i - (list.length - 1) / 2) * 60 + (Math.random() - 0.5) * 20, z = row * 300 + (Math.random() - 0.5) * 30; this.ships.push(new Ship(this, team, s.k, s.hp, x, z, team ? Math.PI : 0, s.color || color, s.name || name)); });
     // (the biggest of yours carries your flag)
     const mine = [...o.mine].sort((a, b) => SHIP_KINDS.indexOf(b.k) - SHIP_KINDS.indexOf(a.k));
     lay(mine, 0, o.myColor || "#c0281a", o.myName || "You"); lay(o.theirs, 1, o.theirColor || "#2a5aa0", o.theirName || "The enemy");
@@ -279,7 +280,7 @@ class Battle {
     for (const s of this.ships) if (s.team !== f.team && s.alive) { const d = Math.hypot(s.x - f.x, s.z - f.z); if (Math.abs(wrap(Math.atan2(s.x - f.x, s.z - f.z) - a)) < 0.5 && d < best * 2) best = d; }
     return best;
   }
-  begin() { this.started = true; this.el.querySelector(".nv-intro")?.remove(); }
+  begin() { this.started = true; this.lastHit = this.t; this.el.querySelector(".nv-intro")?.remove(); }
   step(dt) {
     this.t += dt;
     for (const tm of this.timers.splice(0)) if (tm.at <= this.t) tm.fn(); else this.timers.push(tm);
@@ -307,7 +308,7 @@ class Battle {
         if (Math.abs(lx) < s.beam / 2 && Math.abs(lz) < s.L / 2 && y > -1 && y < 22 * s.S.scale) { hit = { s, y }; break; }
       }
       if (hit) {
-        const s = hit.s, sc = s.S.scale;
+        const s = hit.s, sc = s.S.scale; this.lastHit = this.t;
         if (hit.y < 4.2 * sc) { s.hull -= b.dmg; s.crew -= b.dmg * 1.6 * (0.6 + Math.random() * 0.8); for (let i = 0; i < 3; i++) this.puff(b.x, b.y, b.z, { color: 0x7a5a3a, size: 0.9, grow: 1, vx: (Math.random() - 0.5) * 6, vy: 3 + Math.random() * 4, vz: (Math.random() - 0.5) * 6, g: 9, life: 1.1, alpha: 0.9 }); if (this.camDist(b.x, b.z) < 260 && Math.random() < 0.3) try { FOLEY.play("crash", { vol: 0.18, rate: [1.3, 1.6] }); } catch (e) {} }
         else { s.rig = Math.max(0.15, s.rig - b.dmg * 0.006); s.crew -= b.dmg * 0.3; }
         // (a ship struck hard: her colours come down when her crew is cut to pieces, or she's sinking under them)
@@ -339,6 +340,12 @@ class Battle {
     if (this.started && !this.over) {
       const mine = this.ships.some(s => s.team === 0 && s.alive), theirs = this.ships.some(s => s.team === 1 && s.alive);
       if (!mine || !theirs) { this.endT = (this.endT || 0) + dt; if (this.endT > 4) this.end(theirs ? false : true); }
+      // (no shot striking home for two and a half minutes: the fleets have drawn apart, and the day goes to the side that
+      //  took more of the other's ships — or to neither)
+      else if (this.t - (this.lastHit ?? 0) > 150) {
+        const lost = team => this.ships.filter(s => s.team === team && !s.alive).length, a = lost(1), b = lost(0);
+        this.drawn = a === b; this.end(a > b, a === b);
+      }
       if (f && !f.alive) { const n = this.ships.find(s => s.team === 0 && s.alive); if (n) { this.flag = n; this.note(`Your flag shifts to the ${n.S.one.toLowerCase()}`); } }
     }
   }
@@ -371,10 +378,10 @@ class Battle {
     const R = this.result, n = (L, f) => L.filter(f).length;
     // (the counts that aren't nothing, in words: "2 sunk, 1 got away")
     const say = parts => parts.filter(p => p[0] > 0).map(p => `${p[0]} ${p[1]}`).join("; ") || "none";
-    this.el.insertAdjacentHTML("beforeend", `<div class="nv-end"><div class="nv-box"><h2>${won ? "Victory at sea" : left ? "You break off the action" : "Beaten at sea"}</h2>
+    this.el.insertAdjacentHTML("beforeend", `<div class="nv-end"><div class="nv-box"><h2>${won ? "Victory at sea" : this.drawn ? "The fleets draw apart" : left ? "You break off the action" : "Beaten at sea"}</h2>
       <p>Theirs: ${say([[n(R.theirs, s => s.sunk), "sunk"], [n(R.theirs, s => s.struck), won ? "taken, prizes for your fleet" : "struck, and retaken by them"], [n(R.theirs, s => !s.sunk && !s.struck), won ? "got away" : "still hold the sea"]])}.</p>
       <p>Yours: ${say([[n(R.mine, s => s.sunk), "sunk"], [n(R.mine, s => s.struck), won ? "struck, and retaken" : "struck, taken by them"], [n(R.mine, s => !s.sunk && !s.struck), won ? "afloat" : "got away"]])}.</p>
-      <button class="btn primary" data-nv="done">Back to the map</button></div></div>`);
+      <button class="btn primary" data-nv="done">${this.o.doneText || "Back to the map"}</button></div></div>`);
   }
   close() {
     cancelAnimationFrame(this.raf); removeEventListener("keydown", this.onKey, true); removeEventListener("keyup", this.onKey, true); removeEventListener("mouseup", this.onUp); removeEventListener("mousemove", this.onMove); removeEventListener("resize", this.onResize);

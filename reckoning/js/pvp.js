@@ -28,6 +28,7 @@ import { WATER } from "./mp/terrain.js";
 import { EARTH_SIZES } from "./mp/rules.js";
 import { REALMS_1683 } from "./mp/earth-1683.js";
 import { BATTLES, battleById, histArmy, histRecord, histResult } from "./history.js";
+import { SHIPS, navalBattle, enemyOfName } from "./naval.js";
 import { shapeField, buildThings } from "./histmap.js";
 import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
@@ -365,7 +366,7 @@ function drawVs() {
   if (!must) return;
   const k = must.kind, el = $("musVs"), btn = $("musReady");
   if (k === "duel") { el.innerHTML = `<span class="mv-n">One against one, best of three — another player if anyone's looking, or a bot as strong as you are.</span>`; btn.textContent = "Find a match"; return; }
-  if (k === "hist") { const P = histPick(), b = battleById(P.id); el.innerHTML = `<span class="mv-n"><b>${esc(b.name)}</b>, ${esc(b.date)} — for ${esc(b.sides[P.side].name)}. Against bots; it doesn't touch your rating.</span>`; btn.textContent = "To the field"; return; }
+  if (k === "hist") { const P = histPick(), b = battleById(P.id); el.innerHTML = `<span class="mv-n"><b>${esc(b.name)}</b>, ${esc(b.date)} — for ${esc(b.sides[P.side].name.replace(/^The /, "the "))}. Against bots; it doesn't touch your rating.</span>`; btn.textContent = b.sea ? "Make sail" : "To the field"; return; }
   if (k === "bots") { const A = army(); el.innerHTML = `<span class="mv-n">${isCustom(A) ? `${sidesWord(A.sides)} — every other company's officer raises it from the same purse, and spends it his own way.` : "Their officer raises his company from the same purse, and spends it his own way."}</span>`; btn.textContent = "To the field"; return; }
   const left = Math.max(0, 120 - Math.floor((performance.now() - must.t0) / 1000));
   el.innerHTML = `<span class="mv-n">Against <b>${esc(must.foe.name || "another commander")}</b>${must.foe.rating ? ` · ${rankOf(must.foe.rating)}` : ""}</span>
@@ -381,6 +382,7 @@ function drawMe(note = "") {
   const chip = (slot, id, o) => `<button class="mc${lo[slot] === id ? " on" : ""}${heavy(slot, id) ? " heavy" : ""}" data-slot="${slot}" data-id="${id}" title="${esc(o.stats.map(([a, b]) => a + " " + b).join(" · ") + " — " + o.note)}">${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="mc-none"></span>`}<span>${esc(o.name)}</span></button>`;
   const row = (slot, title, list) => `<div class="mr"><div class="pv-h">${title}</div><div class="mcs">${Object.entries(list).filter(([, o]) => !o.hidden).map(([id, o]) => chip(slot, id, o)).join("")}</div></div>`;
   const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100), pick = { long: LONG[lo.long], side: SIDE[lo.side], blade: BLADE[lo.blade] };
+  { const sea = !!(must && must.kind === "hist" && battleById(histPick().id).sea); $("musMe").classList.toggle("hidden", sea); $("musMe").parentElement.classList.toggle("solo", sea); }
   $("musMe").innerHTML = `<div class="pv-h big">Your soldier</div>` + row("long", "Long arm", LONG) + row("side", "Sidearm", SIDE) + row("blade", "Blade", BLADE)
     + `<div class="m-load"><b>Load</b> ${w} of ${LOAD_MAX} · ${sp >= 0 ? `${sp}% quicker` : `${-sp}% slower`} on your feet</div>`
     + `<div class="m-pick">${["long", "side", "blade"].filter(k => pick[k] && pick[k].icon).map(k => `<div><b>${esc(pick[k].name)}</b> ${esc(pick[k].stats.map(([a, b]) => a + " " + b).join(" · "))}</div>`).join("")}</div>`
@@ -392,7 +394,7 @@ function musterReady() {
   if (!must) return;
   const k = must.kind;
   if (k === "bots") { lastMode = "bots"; must = null; startDuel({ bot: true }); return; }
-  if (k === "hist") { const P = histPick(); lastMode = "hist"; must = null; startDuel({ bot: true, army: histArmy(battleById(P.id), P.side) }); return; }
+  if (k === "hist") { const P = histPick(), b = battleById(P.id); lastMode = "hist"; must = null; if (b.sea) { seaHist(b, P.side); return; } startDuel({ bot: true, army: histArmy(b, P.side) }); return; }
   // (a duel in the demo: against a bot, at once — another player is the full game's)
   if (k === "duel") { lastMode = "duel"; must = null; if (full()) findMatch(); else startDuel({ bot: true }); return; }
   lastMode = "quick";
@@ -438,11 +440,22 @@ function drawArmy() {
 // ---- the historical battles: which, and on which side ----
 const PICK_KEY = "reckoning.history.pick";
 function histPick() { let p = null; try { p = JSON.parse(localStorage.getItem(PICK_KEY)); } catch (e) {} const b = p && battleById(p.id) || BATTLES[0]; return { id: b.id, side: p && b.id === p.id && (p.side === 0 || p.side === 1) ? p.side : b.you }; }
+// a battle at sea: fought as the campaign's are, on the flagship of your side's fleet; its end kept as a field's is
+function seaHist(b, side) {
+  const mine = b.sides[side], theirs = b.sides[1 - side], fleet = S => S.fleet.map(f => ({ k: f.k, hp: 1, color: f.color, name: f.name || S.nation }));
+  window.__uisfx && window.__uisfx.click && window.__uisfx.click();
+  navalBattle({ title: b.name, sub: `${b.date} · ${b.at}. ${b.brief}`, mine: fleet(mine), theirs: fleet(theirs), myColor: mine.color, theirColor: theirs.color, myName: mine.name, theirName: theirs.name, doneText: "Back to the battles",
+    onEnd: r => { if (!r.left || r.mine.length) histResult(b.id, side, !!r.won); openMuster("hist"); } });
+}
 function setHistPick(p) { try { localStorage.setItem(PICK_KEY, JSON.stringify(p)); } catch (e) {} }
 function drawHist(el) {
   el.classList.remove("hidden", "locked");
   const P = histPick(), b = battleById(P.id), R = histRecord();
+  // (at sea there's no soldier to arm: you're on the flagship's quarterdeck)
+  $("musMe").classList.toggle("hidden", !!b.sea); $("musMe").parentElement.classList.toggle("solo", !!b.sea);
   const sw = k => { const u = UNIFORMS[k]; return `<span class="pv-sw" title="${esc(u.note)}"><i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i></span>`; };
+  // (a fleet in words: "2 ships of the line, 2 frigates (one Dutch)")
+  const ships = F => ["line", "frigate", "sloop"].map(k => { const L = F.filter(f => f.k === k), n = L.length, du = L.filter(f => f.name).length; return n ? `${n} ${n > 1 ? SHIPS[k].name.toLowerCase() : SHIPS[k].one.toLowerCase()}${du ? ` (${du === n ? (n > 1 ? "all " : "") : du === 1 ? "one " : `${du} `}${enemyOfName(L.find(f => f.name).name)})` : ""}` : ""; }).filter(Boolean).join(", ");
   const men = c => Object.entries(c.muster).map(([k, n]) => `${n} ${c.call && c.call[k] ? c.call[k].toLowerCase() + (n > 1 ? "s" : "") : (n > 1 ? TROOPS[k].name : TROOPS[k].one).toLowerCase()}`).join(", ") + (c.guns ? `, ${c.guns} gun${c.guns > 1 ? "s" : ""}` : "");
   const laurel = id => { const e = R[id]; return e && (e.won[0] || e.won[1]) ? `<i class="hb-won" title="Won${e.won[0] && e.won[1] ? " on both sides" : ""}">✦</i>` : ""; };
   el.innerHTML = `<div class="pv-h big">Choose a battle</div>
@@ -451,8 +464,8 @@ function drawHist(el) {
       <div class="hb-t"><b>${esc(b.name)}</b><span>${esc(b.date)} · ${esc(b.at)}</span></div>
       <p class="hb-brief">${esc(b.brief)}</p>
       <div class="pv-h">Fight for</div>
-      <div class="hb-sides">${b.sides.map((S, i) => `<button class="hb-side${P.side === i ? " on" : ""}" data-hs="${i}"><span class="hb-sn">${S.cos.map(c => sw(c.uni)).join("")}<b>${esc(S.name)}</b></span><small>${esc(S.lead)}${b.fort === i ? " · holds the works" : ""}${S.cos.length > 1 ? ` · ${S.cos.length} companies` : ""}</small>${S.cos.map((c, j) => `<small class="hb-co">${i === P.side && !j ? "<b>Yours:</b> " : ""}${esc(UNIFORMS[c.uni].name)} — ${men(c)}</small>`).join("")}</button>`).join("")}</div>
-      <p class="pv-sn">${b.won == null ? "Neither side won it outright." : `In ${b.year}, ${esc(b.sides[b.won].name)} won the day.`} You lead one company, and the bots lead the rest.</p>
+      <div class="hb-sides">${b.sea ? b.sides.map((S, i) => `<button class="hb-side${P.side === i ? " on" : ""}" data-hs="${i}"><span class="hb-sn">${[...new Set(S.fleet.map(f => f.color || S.color))].map(c => `<span class="pv-sw"><i style="background:${c}"></i></span>`).join("")}<b>${esc(S.name)}</b></span><small>${esc(S.lead)} · ${S.fleet.length} ships</small><small class="hb-co">${i === P.side ? "<b>Yours:</b> " : ""}${ships(S.fleet)}</small></button>`).join("") : b.sides.map((S, i) => `<button class="hb-side${P.side === i ? " on" : ""}" data-hs="${i}"><span class="hb-sn">${S.cos.map(c => sw(c.uni)).join("")}<b>${esc(S.name)}</b></span><small>${esc(S.lead)}${b.fort === i ? " · holds the works" : ""}${S.cos.length > 1 ? ` · ${S.cos.length} companies` : ""}</small>${S.cos.map((c, j) => `<small class="hb-co">${i === P.side && !j ? "<b>Yours:</b> " : ""}${esc(UNIFORMS[c.uni].name)} — ${men(c)}</small>`).join("")}</button>`).join("")}</div>
+      <p class="pv-sn">${b.won == null ? "Neither side won it outright." : `In ${b.year}, ${esc(b.sides[b.won].name.replace(/^The /, "the "))} won the day.`} ${b.sea ? "You command the flagship; the other captains fight their own ships." : "You lead one company, and the bots lead the rest."}</p>
     </div>`;
 }
 // (the sides, against bots: one against one, as a battle's always been — or any of the usual others, or your own: up to

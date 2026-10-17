@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.61.0", date: "17 October 2026", title: "Beachy Head and Barfleur",
+    items: [
+      "Historical battles at sea: Beachy Head (1690), where Tourville beat the English and Dutch in the Channel, and Barfleur (1692), where the French line fought an allied fleet twice its size. Command the flagship for either side; the other captains fight their own ships. The Dutch ships fly their own colours beside the English.",
+      "Sea battles that go quiet end: if no shot strikes home for two and a half minutes, the fleets draw apart, and the day goes to the side that took more of the other's ships, or to neither. Before, two ships could chase each other round the sea for ever.",
+    ],
+  },
+  {
     v: "1.60.12", date: "17 October 2026", title: "Near the Sahara",
     items: [
       "Battles on the Earth are named as English has it: near the Sahara, near the Dzungar Khanate, near the Holy Roman Empire, near Spain. Before, it was \"Near The Sahara\" and \"Near Dzungar Khanate\".",
