@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.53.2", date: "16 October 2026", title: "The regiment's card",
+    items: [
+      "Campaign: click a regiment's picture in your army's roll for its card: the plate large, how it fights (fire, melee, pace, and how it stands against horse), what it costs to raise and keep, and how yours of it stand.",
+    ],
+  },
+  {
     v: "1.53.1", date: "16 October 2026", title: "Men to fill the ranks",
     items: [
       "Campaign: a town that fights off an attack on its own no longer costs your field army men when the army is far away. The army loses only the part of it that came to the town's help.",

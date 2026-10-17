@@ -704,6 +704,20 @@ const UNIT = {
   crossbow: { cost: 24, men: 600, up: 1.2 },
 };
 const kindsOf = id => STYLE[styleOf(id)].map(([k]) => k);
+// (how each arm fights, out of five: its fire, its hand-to-hand, its pace, and how it stands against horse)
+const RATE = { musketeer: [4, 2, 2, 2], grenadier: [4, 3, 2, 2], pike: [0, 3, 2, 5], sword: [1, 4, 3, 2], axe: [0, 4, 2, 1], bow: [3, 1, 3, 1], crossbow: [3, 2, 2, 1], cavalry: [1, 4, 5, 3] };
+const RATE_N = ["Fire", "Melee", "Pace", "Against horse"];
+// a regiment's card, large: its plate, its arms, what it costs and keeps, how it fights, and yours of it
+function unitCard(k) {
+  let el = $("cmpUnit"); if (!el) { el = document.createElement("div"); el.id = "cmpUnit"; el.className = "cmp-must"; $("campaign").appendChild(el); el.onclick = e => { if (e.target === el || e.target.closest("[data-ux]")) el.remove(); }; }
+  const T = TROOPS[k], U = UNIT[k] || UNIT.musketeer, R = RATE[k] || [2, 2, 2, 2], mine = field().filter(u => u.k === k), gar = (C.units || []).filter(u => u.k === k && u.at);
+  const xp = mine.length ? mine.reduce((t, u) => t + (u.xp || 0), 0) / mine.length : 0, full = mine.length ? Math.round(mine.reduce((t, u) => t + u.hp, 0) / mine.length * 100) : 0;
+  el.innerHTML = `<div class="cmp-mbox cmp-ucard">${unitArt(k) ? `<img src="${unitArt(k)}" alt="">` : ""}<div><h2>${esc(T.name)}</h2><p class="sub">${esc(T.note)}</p>
+    <div class="cmp-urates">${R.map((v, i) => `<span><small>${RATE_N[i]}</small><i>${"●".repeat(v)}${"○".repeat(5 - v)}</i></span>`).join("")}</div>
+    <p>${U.men} men to a regiment, raised for ${unitCost(k)} thalers and kept for ${U.up} a year.${U.need ? ` Raised only in a town with ${esc(U.why)}.` : ""}</p>
+    <p>${mine.length ? `In your army: ${mine.length} regiment${mine.length > 1 ? "s" : ""}, ${full}% of full strength${xp >= 0.75 ? `, ${["", "blooded", "seasoned", "veterans"][Math.min(3, Math.floor(xp + 0.25))]}` : ""}.` : "None in your army."}${gar.length ? ` ${gar.length} more holding your towns.` : ""}</p>
+    <div class="pv-acts"><button class="btn" data-ux="1">Close</button></div></div></div>`;
+}
 // (each kind's picture, as its crown's way of war dresses it: a uniform plate of the time)
 const UNIT_ART = new Set(["west-musketeer", "west-pike", "west-grenadier", "west-cavalry", "west-sword", "east-musketeer", "east-bow", "east-sword", "east-cavalry", "steppe-musketeer", "steppe-cavalry", "steppe-sword", "steppe-bow", "steppe-pike", "tsar-musketeer", "tsar-pike", "tsar-cavalry", "tsar-axe", "woods-bow", "woods-axe", "woods-musketeer"]);
 const unitArt = (k, id = C.me) => { const a = `${styleOf(id)}-${k}`; return UNIT_ART.has(a) ? `art/units/${a}.jpg` : UNIT_ART.has(`west-${k}`) ? `art/units/west-${k}.jpg` : null; };
@@ -1321,7 +1335,7 @@ function rollHtml() {
   const by = {}; for (const u of field()) (by[u.k] ||= []).push(u);
   const ks = Object.keys(by).sort((a, b) => by[b].length - by[a].length);
   if (!ks.length) return `<p class="cmp-fine">Your army has no regiments left. Raise new ones in your towns.</p>`;
-  return `<div class="cmp-roll">${ks.map(k => { const L = by[k].map(u => u.hp), full = Math.round(L.reduce((t, v) => t + v, 0) / L.length * 100), xp = by[k].reduce((t, u) => t + (u.xp || 0), 0) / L.length, ch = Math.floor(xp + 0.25); return `<div class="cmp-ru">${unitImg(k, "sm")}<b>${L.length}</b><span>${esc(TROOPS[k].name)}${ch ? ` <em class="cmp-chev" title="Experience: ${["", "blooded", "seasoned", "veterans"][ch]}">${"❯".repeat(ch)}</em>` : ""}<small>${esc(TROOPS[k].note)} · upkeep ${UNIT[k] ? UNIT[k].up : 1.6} each</small></span><i title="${full}% of their full strength"><u style="width:${full}%"></u></i><button class="tm-lnk" data-disband="${k}" title="Disband one regiment of ${esc(TROOPS[k].name.toLowerCase())} — the thinnest — and send its men home">Disband</button></div>`; }).join("")}</div>`;
+  return `<div class="cmp-roll">${ks.map(k => { const L = by[k].map(u => u.hp), full = Math.round(L.reduce((t, v) => t + v, 0) / L.length * 100), xp = by[k].reduce((t, u) => t + (u.xp || 0), 0) / L.length, ch = Math.floor(xp + 0.25); return `<div class="cmp-ru"><button class="cmp-uopen" data-ucard="${k}" title="About ${esc(TROOPS[k].name.toLowerCase())}">${unitImg(k, "sm")}</button><b>${L.length}</b><span>${esc(TROOPS[k].name)}${ch ? ` <em class="cmp-chev" title="Experience: ${["", "blooded", "seasoned", "veterans"][ch]}">${"❯".repeat(ch)}</em>` : ""}<small>${esc(TROOPS[k].note)} · upkeep ${UNIT[k] ? UNIT[k].up : 1.6} each</small></span><i title="${full}% of their full strength"><u style="width:${full}%"></u></i><button class="tm-lnk" data-disband="${k}" title="Disband one regiment of ${esc(TROOPS[k].name.toLowerCase())} — the thinnest — and send its men home">Disband</button></div>`; }).join("")}</div>`;
 }
 // (the town's own regiments, and — with your army standing at it — regiments to leave here, or take back into the army)
 function garHtml(ct) {
@@ -1475,6 +1489,7 @@ function sideClick(e) {
   if (b.dataset.build && selCity) { doAct({ k: "build", ct: selCity[0], chain: b.dataset.build }); return; }
   if (b.dataset.rec && (b.dataset.at || selCity)) { doAct({ k: "recruit", t: b.dataset.at || selCity[0], u: b.dataset.rec }); return; }
   if (b.dataset.goto) { __selectTown(b.dataset.goto); return; }
+  if (b.dataset.ucard) { unitCard(b.dataset.ucard); return; }
   if (b.dataset.station && selCity) { doAct({ k: "station", t: selCity[0], u: b.dataset.station }); return; }
   if (b.dataset.unstation && selCity) { doAct({ k: "station", t: selCity[0], u: b.dataset.unstation, out: true }); return; }
   if (b.dataset.tax != null) { doAct({ k: "tax", v: +b.dataset.tax }); return; }

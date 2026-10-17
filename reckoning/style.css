@@ -1867,3 +1867,15 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-gar > span b { font: 600 13px var(--serif); color: var(--ink); }
 .cmp-gar .tm-lnk { all: unset; cursor: pointer; font: 10.5px var(--sans); color: var(--ink-dim); text-decoration: underline; }
 .cmp-gar.leave small { font: 11px var(--sans); color: var(--ink-dim); margin-right: 2px; }
+.cmp-uopen { all: unset; cursor: zoom-in; display: block; }
+.cmp-ucard { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; max-width: 620px; text-align: left; }
+.cmp-ucard img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 4px; border: 1px solid rgba(0,0,0,0.5); box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+.cmp-ucard h2 { text-align: left; margin-top: 4px; }
+.cmp-ucard .sub { text-align: left; }
+.cmp-ucard p { font: 13px/1.45 var(--sans); color: var(--ink); margin: 8px 0; }
+.cmp-urates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; margin: 10px 0; }
+.cmp-urates span { display: flex; justify-content: space-between; gap: 8px; font: 12px var(--sans); }
+.cmp-urates small { color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; }
+.cmp-urates i { font-style: normal; color: #d8b45a; letter-spacing: 1px; }
+.cmp-ucard .pv-acts { justify-content: flex-start; }
+@media (max-width: 560px) { .cmp-ucard { grid-template-columns: 1fr; } .cmp-ucard img { max-width: 200px; margin: 0 auto; } }
