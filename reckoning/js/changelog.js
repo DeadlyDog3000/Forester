@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.64.0", date: "17 October 2026", title: "Two lines at close quarters",
+    items: [
+      "Battles: when the steel comes out, the men fight in lines, not one great knot. Each side's men at close quarters take their places along the front a pace and a half apart, face the man across from them, and fight him. No enemy is set on by more than a couple while others stand free, and between blows a man keeps his place instead of circling round behind.",
+    ],
+  },
+  {
     v: "1.63.0", date: "17 October 2026", title: "Armies on the march",
     items: [
       "Campaign, seen close (the 3D view): an army is its own men, not a mark. A company of soldiers in their crown's coats, drawn up in two ranks with muskets shouldered and its colours flying beside them, the count of regiments over them. On the march they step out the way they're bound; halted, they stand at ease. A war party of the woods' nations goes in open order.",

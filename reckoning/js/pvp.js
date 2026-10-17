@@ -2667,9 +2667,48 @@ class Bot extends Fighter {
     if (high > 0.25) this.damage(18 + high * 45, false, false, null);
   }
   // whom he's fighting: the man his officer named, or the nearest of the other side he can see (or just the nearest)
+  // (the front between his side and theirs: which way is forward, for his company, and where across it he stands —
+  //  worked out a few times a second for the whole side)
+  front() {
+    const A = this.arena, K = (A._front ||= {}), F0 = K[this.al];
+    if (F0 && G.time - F0.t < 0.5) return F0;
+    const mates = A.alliesOf(this.team).filter(u => !u.isPlayer), foes = A.enemiesOf(this.team);
+    const mid = L => L.length ? L.reduce((m, u) => ({ x: m.x + u.pos.x / L.length, z: m.z + u.pos.z / L.length }), { x: 0, z: 0 }) : null;
+    const a = mid(mates), b = mid(foes); if (!a || !b) return null;
+    let fx = b.x - a.x, fz = b.z - a.z; const n = Math.hypot(fx, fz) || 1; fx /= n; fz /= n;
+    const F = { t: G.time, fx, fz, px: -fz, pz: fx, ox: (a.x + b.x) / 2, oz: (a.z + b.z) / 2, slot: new Map() };
+    // (the men at close quarters along it, each his own place a pace and a half from the next, in the order they stand)
+    const lat = p => (p.x - F.ox) * F.px + (p.z - F.oz) * F.pz, mel = mates.filter(u => u.alive && u.mode === "melee" && !u.mounted && !u.crewOf).sort((u, v) => lat(u.pos) - lat(v.pos));
+    if (mel.length) { const c = mel.reduce((t, u) => t + lat(u.pos), 0) / mel.length; mel.forEach((u, i) => F.slot.set(u, c + (i - (mel.length - 1) / 2) * 1.5)); }
+    // (and where the two lines meet: halfway between the men at close quarters on either side, or between the sides)
+    const om = foes.filter(u => u.alive && u.mode === "melee"), fwd = p => (p.x - F.ox) * fx + (p.z - F.oz) * fz;
+    if (mel.length && om.length) { const m1 = mel.reduce((t, u) => t + fwd(u.pos), 0) / mel.length, m2 = om.reduce((t, u) => t + fwd(u.pos), 0) / om.length, mid = (m1 + m2) / 2; F.ox += fx * mid; F.oz += fz * mid; }
+    return K[this.al] = F;
+  }
+  // (his own place in his side's line at close quarters: on his side of where the lines meet, at his slot along it)
+  lineSpot(reach) {
+    const Fr = this.front(); if (!Fr || !Fr.slot.has(this)) return null;
+    const l = Fr.slot.get(this), back = Math.max(0.55, (reach - 0.9) / 2);
+    return { x: Fr.ox + Fr.px * l - Fr.fx * back, z: Fr.oz + Fr.pz * l - Fr.fz * back };
+  }
   pick() {
     const O = this.arena.orderOf && this.arena.orderOf(this), foes = this.arena.enemiesOf(this.team);
     if (O && O.target && O.target.alive && foes.includes(O.target)) return O.target;
+    // (at close quarters, in a battle: the man across from him in their line — not the nearest, so that the whole of
+    //  his company doesn't fall on the same few and the fight stays two lines, not one great knot; none set on by
+    //  more than two while others stand free)
+    const Fr = this.mode === "melee" && O && this.arena.battle && !this.mounted && this.front();
+    if (Fr) {
+      const sp = this.lineSpot(this.blade().reach) || this.pos, lat = p => (p.x - Fr.ox) * Fr.px + (p.z - Fr.oz) * Fr.pz, me = lat(sp), on = new Map();
+      for (const m of this.arena.alliesOf(this.team)) if (m !== this && m.T && m.mode === "melee") on.set(m.T, (on.get(m.T) || 0) + 1);
+      let best = null, bs = Infinity;
+      for (const f of foes) {
+        const d = Math.hypot(f.pos.x - this.pos.x, f.pos.z - this.pos.z); if (d > 30) continue;
+        const sc = Math.abs(lat(f.pos) - me) * 1.2 + d * 0.35 + Math.max(0, (on.get(f) || 0) - 1) * 4 + (f === this.T ? -1 : 0);
+        if (sc < bs) { bs = sc; best = f; }
+      }
+      if (best) return best;
+    }
     // (the sharp officer's men pick their mark: a man out in the open before one behind cover, a man already hurt, a
     //  gun's crew — fire where it'll tell — and never all on one while others go untouched)
     const sharp = this.al !== 0 && (this.arena.kOf(this.team).gen || 0) > 0.5 && this.arena.battle, on = sharp ? new Map() : null;
@@ -2780,13 +2819,31 @@ class Bot extends Fighter {
       // (riding in: the sabre held out straight at the point, the whole weight of man and horse behind it — and the
       //  guard again as he closes)
       if (this.mounted && this.wind <= 0) a.person.setPose(d > 7 && a.speed > 4 ? "point" : "guard");
+      // (in a battle's line: he closes to the place on his own side of his man, square across the front — the lines meet
+      //  face to face, not in a ring round each other)
+      const st = O && this.arena.battle && !this.mounted && !T.isPlayer && d < 16 && this.lineSpot(B.reach);
+      if (st) {
+        const sd = Math.hypot(st.x - a.pos.x, st.z - a.pos.z);
+        if (sd > 0.55 && (this.cool > 0 || d > B.reach - 0.3)) { if (!a.path.length || this.stepT <= 0) { this.stepT = 0.3; a.walkTo(st.x, st.z, sd > 3 ? run : 2.2); } a.faceTo(fp.x, fp.z); return; }
+        // (in his place: his man in reach, a blow; else he waits there for one to come, facing across)
+        if (d > B.reach - 0.3) { a.path = []; a.faceTo(fp.x, fp.z); this.pickT = Math.min(this.pickT, 0.2); return; }
+      }
       if (d > reach + 0.5) { if (!a.path.length || this.stepT <= 0) { this.stepT = 0.35; a.approach(fp, reach - 0.2, run); } }
       else if (d < 1.0) { if (this.stepT <= 0) { this.stepT = 0.5; a.approach(fp, 1.5, 2.4); } }
       else if (this.cool <= 0) {
         a.path = [];
         this.wind = WIND * (1 - s * 0.3) * (T.isPlayer ? 1 : 0.7); this.dir = DIRS[Math.floor(Math.random() * 3)]; a.person.setPose("guard");
         if (Math.random() < 0.6) AUDIO.voice && AUDIO.voice(Math.random() < 0.5 ? "grunt" : "war", { at: a.pos, vol: 0.8, high: isF(this.info.look) });
-      } else if (this.stepT <= 0) { this.stepT = 0.6 + Math.random() * 0.8; if (Math.random() < 0.7) a.circleAbout(fp, reach, 1.4 + s); else a.path = []; }
+      } else if (this.stepT <= 0) {
+        this.stepT = 0.6 + Math.random() * 0.8;
+        // (in the line: a step along it, away from the man at his elbow if he's too close — a pace and a half each — not
+        //  round his opponent's back)
+        const Fr = O && this.arena.battle && !this.mounted && this.front();
+        if (Fr) {
+          let push = 0; for (const m of this.arena.alliesOf(this.team)) { if (m === this || m.isPlayer || !m.alive) continue; const ox = m.pos.x - a.pos.x, oz = m.pos.z - a.pos.z, dd = Math.hypot(ox, oz); if (dd < 1.5) push -= Math.sign(ox * Fr.px + oz * Fr.pz || Math.random() - 0.5) * (1.5 - dd); }
+          if (Math.abs(push) > 0.1) a.walkTo(a.pos.x + Fr.px * push * 1.2, a.pos.z + Fr.pz * push * 1.2, 1.6); else a.path = [];
+        } else if (Math.random() < 0.7) a.circleAbout(fp, reach, 1.4 + s); else a.path = [];
+      }
       return;
     }
     this.mode = "range"; if (!O) a.person.crouching = false;
