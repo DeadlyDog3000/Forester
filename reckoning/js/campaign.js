@@ -1030,8 +1030,10 @@ const popOf = ct => { C.pop ||= {}; return C.pop[ct[0]] ??= popBase(ct); };
 const popFloor = ct => Math.round(popBase(ct) * 0.3);
 // (the crown's taxes: light, fair or heavy — more for the treasury the heavier, and the people slower to grow)
 const TAX = [{ n: "Light", k: 0.75, g: 0.008 }, { n: "Fair", k: 1, g: 0 }, { n: "Heavy", k: 1.25, g: -0.01 }];
+// (a town of yours: its own rate, if you've set one, else the realm's)
+const taxAt = ct => { const t = C.ttax && C.ttax[ct[0]]; return t != null ? t : C.tax ?? 1; };
 const taxOf = id => { const s2 = id && (id === C.me || isHuman(id)) ? sliceOf(id) : null; return TAX[s2 && s2.tax != null ? s2.tax : 1]; };
-const popRate = (ct, o = cityOwner(grid(), ct)) => { const p = popOf(ct), cap = popCap(ct); if (p > cap) return -0.02; return (0.018 + lvOf(ct[0], "farm") * 0.01 + (lvOf(ct[0], "trade") ? 0.004 : 0)) * (1 - p / cap * 0.6) + taxOf(o).g; };
+const popRate = (ct, o = cityOwner(grid(), ct)) => { const p = popOf(ct), cap = popCap(ct); if (p > cap) return -0.02; return (0.018 + lvOf(ct[0], "farm") * 0.01 + (lvOf(ct[0], "trade") ? 0.004 : 0)) * (1 - p / cap * 0.6) + (o === C.me ? TAX[taxAt(ct)].g : taxOf(o).g); };
 const fmtN = n => Math.round(n).toLocaleString("en-GB");
 // what each kind of regiment costs, the men it takes from its town, its upkeep a year, and what it needs to be raised
 const UNIT = {
@@ -1220,7 +1222,7 @@ let ORIG_G = null;
 const peopleOf = ct => { W0(); ORIG_G ||= buildGrid({ conq: [] }); return cityOwner(ORIG_G, ct); };
 const FAITH_WORD = { catholic: "Catholic", reformed: "Reformed", lutheran: "Lutheran", orthodox: "Orthodox", muslim: "Muslim", native: "their own" };
 function loyalty(ct) {
-  const n = ct[0], t = C.tax ?? 1, v = govOf(n), out = [["Your rule", 1]];
+  const n = ct[0], t = taxAt(ct), v = govOf(n), out = [["Your rule", 1]];
   if (t === 2) out.push(["Heavy taxes", -2]); else if (t === 0) out.push(["Light taxes", 1]);
   if (ct[3] === 3) out.push(["A great city's crowds", -1]);
   const gar = Math.min(2, garUnits(n).length); if (gar) out.push([`Garrison of ${garUnits(n).length}`, gar]);
@@ -1247,7 +1249,8 @@ function orderOf(ct) { return loyalty(ct).reduce((t, [, v]) => t + v, 0); }
 function loyaltyHtml(ct) {
   const L = loyalty(ct), o = L.reduce((t, [, v]) => t + v, 0);
   return `<div class="cmp-loyal"><span>Loyalty: <b class="${o < 0 ? "down" : ""}">${orderWord(o)}</b> <em>${o > 0 ? "+" : ""}${o}</em>${o < 0 ? " · it may riot at the year's end, and a town that riots two years running rises" : ""}</span>
-    <ul>${L.map(([k, v]) => `<li class="${v < 0 ? "down" : "up"}"><i>${v > 0 ? "+" : ""}${v}</i>${esc(k)}</li>`).join("")}</ul></div>`;
+    <ul>${L.map(([k, v]) => `<li class="${v < 0 ? "down" : "up"}"><i>${v > 0 ? "+" : ""}${v}</i>${esc(k)}</li>`).join("")}</ul>
+    ${cityOwner(grid(), ct) === C.me ? `<div class="cmp-ttax"><small>Taxes here${C.ttax && C.ttax[ct[0]] != null ? "" : " (the realm's)"}:</small>${TAX.map((x, i) => `<button class="btn${i === taxAt(ct) ? " on" : ""}" data-ttax="${i}"${i === taxAt(ct) ? " disabled" : ""} title="${i === 0 ? "Content, and growing faster; three quarters of its worth to the treasury" : i === 2 ? "A quarter more for the treasury; slower to grow, and restless (−2 loyalty)" : "Its worth in full"}">${x.n}</button>`).join("")}</div>` : ""}</div>`;
 }
 const orderWord = o => o >= 2 ? "Content" : o >= 0 ? "Quiet" : o === -1 ? "Restless" : "Close to rising";
 function riots(g) {
@@ -1256,8 +1259,8 @@ function riots(g) {
     const o = orderOf(ct); if (o >= 0 || R() > 0.2 * -o) { delete C.riotN[ct[0]]; continue; }
     // (a second year of riots in a row: the town rises)
     if ((C.riotN[ct[0]] = (C.riotN[ct[0]] || 0) + 1) >= 2 && !C.events.some(e => !e.done && e.kind === "rising" && e.ct === ct[0])) { C.riotN[ct[0]] = 0; C.events.push({ kind: "rising", ct: ct[0], att: Math.round(popOf(ct) / 4000) + 3 }); }
-    const w = Math.round(worth(ct) * TAX[C.tax ?? 1].k); C.gold -= w; C.pop[ct[0]] = Math.round(popOf(ct) * 0.97);
-    say(`Riots in ${ct[0]}`, `${C.tax === 2 ? "The heavy taxes" : "The crowds"} drive its people into the streets. The town pays none of its ${w} thalers this year${garUnits(ct[0]).length ? "" : "; a regiment in its garrison would keep order"}.`);
+    const w = Math.round(worth(ct) * TAX[taxAt(ct)].k); C.gold -= w; C.pop[ct[0]] = Math.round(popOf(ct) * 0.97);
+    say(`Riots in ${ct[0]}`, `${taxAt(ct) === 2 ? "The heavy taxes" : "The crowds"} drive its people into the streets. The town pays none of its ${w} thalers this year${garUnits(ct[0]).length ? "" : "; a regiment in its garrison would keep order"}.`);
   }
 }
 // (the army's thin regiments filled up again from your towns: fast at home, slowly abroad, hardly at all in a siege)
@@ -1274,7 +1277,7 @@ function replenish(g, garrisons = true) {
   C.army = Math.round(unitSum());
   return filled;
 }
-const income = g => 40 + Math.round(citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct), 0) * TAX[C.tax ?? 1].k) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0);
+const income = g => 40 + Math.round(citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct) * TAX[taxAt(ct)].k, 0)) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0);
 const upkeep = () => shipUp() + Math.round((C.units ? C.units.reduce((t, u) => t + u.hp * (UNIT[u.k] || UNIT.musketeer).up, 0) : C.army * 1.6) * (1 + (C.gen ? C.gen.st[2] : 2) * 0.04));
 // diplomacy: what you can do with a crown this season
 function diplo(id, what) {
@@ -1533,6 +1536,8 @@ export function initCampaign(c, battle, withPlayer) {
   $("cmpSide").addEventListener("change", e => { const t = e.target.closest("[data-rule]"); if (t && C) doAct({ k: "rule", ct: t.dataset.rule, on: t.checked }); });
   $("cmpTechB").onclick = () => { if (C) { drawTech(); sfx("parchment", 0.4); } };
   $("cmpPanel").onclick = () => { $("cmpSide").classList.toggle("shut"); sfx("parchment", 0.5); };
+  // (L: the loyalty map, on and off)
+  addEventListener("keydown", e => { if (e.code !== "KeyL" || e.repeat || e.metaKey || e.ctrlKey || e.altKey || !C || $("campaign").classList.contains("hidden") || $("cmpPlay").classList.contains("hidden") || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return; e.preventDefault(); e.stopImmediatePropagation(); toggleLoy(); }, true);
   addEventListener("keydown", e => { if (e.code === "Tab" && !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden")) { e.preventDefault(); e.stopImmediatePropagation(); $("cmpPanel").click(); } }, true);
   addEventListener("resize", () => { if (C && !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden")) drawMap(); });
   const cv = $("cmpMap");
@@ -1586,7 +1591,7 @@ export function initCampaign(c, battle, withPlayer) {
     if (hit && hit.id !== (C.ar | 0)) { doAct({ k: "usearmy", id: hit.id }); armySel = false; }
     if (hit) { armySel = !armySel; selCity = null; sel = null; note = armySel ? `${(C.armies || []).length ? `The ${armyName(C.ar | 0).toLowerCase()}` : "Your army"}: right-click anywhere on the map to march there. A year's march takes it about 350 km; a town within that is in its reach.` : ""; drawMap(); sfx("drum", 0.25); return; }
     armySel = false;
-    const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z);
+    const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z) || loyTownAt(...p);
     selCity = ct || null; sel = ct ? cityOwner(grid(), ct) : nationAt(E(), cv, ...p); note = "";
     // (the peoples' country: whose it is, and that it isn't a crown's)
     if (!selCity && !sel) { const pp = peopleAt(cv, ...p, E()); if (pp) note = `This is the country of ${PEOPLES[pp].long}. It is their own, and no crown's to take: an army may cross it, but not seize it.`; }
@@ -1801,6 +1806,7 @@ function paint() {
   // over the map: your towns ringed in your colour; the towns of your enemies within your army's reach marked with
   // crossed swords (dim once it's marched this season); a town an enemy marches on, red
   const c = cv.getContext("2d"), S = cv.width / MG_W, k = cv.width / 1300, at = ct => { const [x, y] = gridOf(ct[1], ct[2]); return [(x * S - view.ox) * view.z, (y * S - view.oy) * view.z]; };
+  if (loyMap) paintLoyalty(c, g, S, k, at);
   const threat = new Set(C.events.filter(e => e.kind === "attack" && !e.done).map(e => e.ct));
   // (crossed swords, drawn: two blades and their guards)
   const swords = (x, y, r, col) => { c.save(); c.strokeStyle = col; c.lineCap = "round"; c.lineWidth = 2.2 * k; c.beginPath(); c.moveTo(x - r, y - r); c.lineTo(x + r, y + r); c.moveTo(x + r, y - r); c.lineTo(x - r, y + r); c.stroke(); c.lineWidth = 2 * k; c.beginPath(); c.moveTo(x - r * 0.95, y + r * 0.35); c.lineTo(x - r * 0.35, y + r * 0.95); c.moveTo(x + r * 0.95, y + r * 0.35); c.lineTo(x + r * 0.35, y + r * 0.95); c.stroke(); c.restore(); };
@@ -1918,6 +1924,43 @@ function armyMark(c, x, y, face, id, n, mine, sel, u) {
     c.restore();
 }
 let armySel = false, armyOff = {}, foeOff = {};
+// ---- the loyalty map (L): your lands, each town's country coloured by how loyal it is ----
+let loyMap = false, loyCache = null;
+const LOY_COL = o => o <= -3 ? [150, 24, 18] : o === -2 ? [196, 56, 30] : o === -1 ? [222, 128, 48] : o === 0 ? [226, 200, 110] : o === 1 ? [150, 190, 90] : o === 2 ? [86, 160, 70] : [40, 120, 50];
+// (each square of your land given to the nearest of your towns: its country)
+function loyRegions(g) {
+  const towns = citiesOfNow(g, C.me), key = towns.map(c => c[0]).join("|");
+  if (loyCache && loyCache.g === g && loyCache.key === key) return loyCache;
+  const pts = towns.map(ct => cellXY(ct)), own = new Int16Array(MG_W * MG_H).fill(-1);
+  for (let y = 0; y < MG_H; y++) { const row = g[y]; if (!row) continue; for (let x = 0; x < MG_W; x++) { if (row[x] !== C.me) continue; let b = -1, bd = 1e9; for (let i = 0; i < pts.length; i++) { const d = (pts[i].x - x - 0.5) ** 2 + (pts[i].y - y - 0.5) ** 2; if (d < bd) { bd = d; b = i; } } own[y * MG_W + x] = b; } }
+  return loyCache = { g, key, towns, own, cv: null, sig: "" };
+}
+function toggleLoy() { loyMap = !loyMap; if (loyMap && on3d) leave3d(); note = loyMap ? "The loyalty map: each of your towns' country coloured by its loyalty. Click one to see why, and to set its taxes. L to close." : ""; sfx("quill", 0.25); drawMap(); }
+function loyTownAt(mx, my) { if (!loyMap || !C) return null; const g = grid(), R2 = loyRegions(g), S = $("cmpMap").width / MG_W, x = Math.floor(mx / S), y = Math.floor(my / S); if (x < 0 || y < 0 || x >= MG_W || y >= MG_H) return null; const i = R2.own[y * MG_W + x]; return i >= 0 ? R2.towns[i] : null; }
+function paintLoyalty(c, g, S, k, at) {
+  const R2 = loyRegions(g), vals = R2.towns.map(ct => orderOf(ct)), sig = vals.join(",") + "|" + (selCity ? selCity[0] : "");
+  if (!R2.cv || R2.sig !== sig) {
+    const cv2 = R2.cv || (R2.cv = document.createElement("canvas")); cv2.width = MG_W; cv2.height = MG_H; const x2 = cv2.getContext("2d"), im = x2.createImageData(MG_W, MG_H), d = im.data, si = selCity ? R2.towns.findIndex(t => t[0] === selCity[0]) : -1;
+    for (let y = 0; y < MG_H; y++) for (let x = 0; x < MG_W; x++) {
+      const j = y * MG_W + x, i = R2.own[j]; if (i < 0) continue; const col = LOY_COL(vals[i]);
+      // (the edges between towns' countries drawn darker; the chosen town's lighter)
+      const edge = (x + 1 < MG_W && R2.own[j + 1] !== i) || (y + 1 < MG_H && R2.own[j + MG_W] !== i) || (x > 0 && R2.own[j - 1] !== i) || (y > 0 && R2.own[j - MG_W] !== i);
+      const m = edge ? 0.45 : i === si ? 1.18 : 1; d[j * 4] = Math.min(255, col[0] * m); d[j * 4 + 1] = Math.min(255, col[1] * m); d[j * 4 + 2] = Math.min(255, col[2] * m); d[j * 4 + 3] = edge ? 210 : i === si ? 190 : 150;
+    }
+    x2.putImageData(im, 0, 0); R2.sig = sig;
+  }
+  c.save(); c.imageSmoothingEnabled = false; c.drawImage(R2.cv, -view.ox * view.z, -view.oy * view.z, MG_W * S * view.z, MG_H * S * view.z); c.restore();
+  // (each town's loyalty, in a little plate under its dot)
+  c.save(); c.font = `600 ${Math.round(11 * k)}px Georgia, serif`; c.textAlign = "center"; c.textBaseline = "middle";
+  R2.towns.forEach((ct, i) => { const [x, y] = at(ct), o = vals[i], t = (o > 0 ? "+" : "") + o, w = c.measureText(t).width + 9 * k; c.fillStyle = "rgba(24,18,12,0.82)"; c.beginPath(); c.roundRect(x - w / 2, y + 7 * k, w, 15 * k, 4 * k); c.fill(); const col = LOY_COL(o); c.fillStyle = `rgb(${Math.min(255, col[0] + 60)},${Math.min(255, col[1] + 60)},${Math.min(255, col[2] + 60)})`; c.fillText(t, x, y + 14.5 * k); });
+  // (the key, bottom left)
+  // (in the screen's own pixels: clear of the zoom buttons, whatever the window's size)
+  k = c.canvas.width / Math.max(1, c.canvas.getBoundingClientRect().width);
+  const L = [-3, -2, -1, 0, 1, 2, 3].map(o => [o, orderWord(o) + (o < 0 ? ", may riot" : "")]), bw = 222 * k, bh = (30 + L.length * 15) * k, bx = 50 * k, by = c.canvas.height - bh - 12 * k;
+  c.fillStyle = "rgba(24,18,12,0.86)"; c.beginPath(); c.roundRect(bx, by, bw, bh, 5 * k); c.fill(); c.textAlign = "left"; c.fillStyle = "#efe4c6"; c.font = `600 ${Math.round(12 * k)}px Georgia, serif`; c.fillText("Loyalty · L to close", bx + 9 * k, by + 13 * k);
+  c.font = `${Math.round(11 * k)}px Georgia, serif`; L.forEach(([o, n], i) => { const col = LOY_COL(o), yy = by + (30 + i * 15) * k; c.fillStyle = `rgb(${col})`; c.fillRect(bx + 9 * k, yy - 5 * k, 14 * k, 10 * k); c.fillStyle = "#e6d9b8"; c.fillText(`${o > 0 ? "+" : ""}${o}${o === -3 ? " or less" : o === 3 ? " or more" : ""} · ${n}`, bx + 30 * k, yy); });
+  c.restore();
+}
 // ---- an army on the march, seen marching: a file of its men stepping out along its road, drawn over the map on a
 //  canvas of their own (the map itself is too much to draw again every frame) — while the 2D map is up ----
 let marchRaf = 0, marchCv = null, marchView = null, marchAnims = [], lastArmyAt = {}, lastArmyOf = null;
@@ -2209,6 +2252,7 @@ function drawSide() {
   } else if (!selCity && !armySel) h += `<div class="cmp-card cmp-help"><p><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom</p></div>` + fold("how", `<span class="cmp-h"><b>How it works</b><small>armies, towns, the sea, the New World</small></span>`, `<ul class="cmp-howto">
       <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it. Right-click an enemy town within reach to attack it. An army that marches up to a town's walls can still attack it that year, once.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
+      <li><b>Loyalty map.</b> Press L to colour each of your towns' country by its loyalty, red where it may riot, green where it's content. Click a country to see why, and set that town's own taxes.</li>
       <li><b>Military access.</b> Your armies cross another crown's land only with its leave: when you're at war with it, allied to it, or given access. Choose the crown and ask for it. The other crowns ask yours before they march through your land.</li>
       <li><b>Garrisons.</b> With your army at one of your towns, leave regiments there to hold it, or take its garrison into the army.</li>
       <li><b>The navy.</b> Build sloops, frigates and ships of the line in your ports' dockyards. Click a fleet, then right-click on the sea to sail it: a year's sailing crosses the Atlantic. Bring a fleet to the shore where an army stands to take it aboard, sail it, and land it anywhere. Ships of your own carry an army free and guard it; hired transports cost money, and enemy fleets may fall on them. Enemy fleets come for yours in war: fight the battle at sea yourself, or leave it to your admirals. Ships that strike their colours are taken as prizes. A town on the Great Lakes has a dockyard too, for sloops and frigates that sail its lake: Huron, Michigan and Erie are joined, but Ontario and Superior keep to themselves.</li>
@@ -2234,7 +2278,7 @@ function drawSide() {
     ${(C.lq || []).length ? `<small class="cmp-fine">Raising: ${C.lq.map(q => `${esc(TROOPS[q.k].one.toLowerCase())} at ${esc(q.t)}`).join(", ")}. They join the army at the year's end, or hold their towns if it's far off.</small>` : ""}
     <small class="cmp-fine">Regiments are raised in your towns: choose one on the map. Thin regiments fill their ranks again from your towns each year, fastest on your own land. Upkeep ${upkeep()} a year.</small>`, armySel);
   // (the taxes: three rates, the treasury against the people's growth)
-  { const t = C.tax ?? 1; h += `<div class="cmp-card cmp-tax"><span class="cmp-h"><b>Taxes</b><small>${TAX[t].n}: ${t === 0 ? "the towns grow faster and are content; the treasury takes three quarters" : t === 2 ? "a quarter more for the treasury; the towns slow to grow, and restless" : "the towns' worth in full"}${(() => { const r = citiesOfNow(grid(), C.me).filter(ct => orderOf(ct) < 0).length; return r ? ` · <em class="down">${r} town${r > 1 ? "s" : ""} may riot</em>` : ""; })()}</small></span><span class="cmp-taxb">${TAX.map((x, i) => `<button class="btn${i === t ? " on" : ""}" data-tax="${i}"${i === t ? " disabled" : ""}>${x.n}</button>`).join("")}</span></div>`; }
+  { const t = C.tax ?? 1; h += `<div class="cmp-card cmp-tax"><span class="cmp-h"><b>Taxes</b><small>${TAX[t].n}: ${t === 0 ? "the towns grow faster and are content; the treasury takes three quarters" : t === 2 ? "a quarter more for the treasury; the towns slow to grow, and restless" : "the towns' worth in full"}${(() => { const r = citiesOfNow(grid(), C.me).filter(ct => orderOf(ct) < 0).length; return r ? ` · <em class="down">${r} town${r > 1 ? "s" : ""} may riot</em>` : ""; })()}${(() => { const n2 = Object.keys(C.ttax || {}).length; return n2 ? ` · ${n2} town${n2 > 1 ? "s" : ""} taxed apart (setting the realm's resets them)` : ""; })()} · <b>L</b> for the loyalty map</small></span><span class="cmp-taxb">${TAX.map((x, i) => `<button class="btn${i === t ? " on" : ""}" data-tax="${i}"${i === t ? " disabled" : ""}>${x.n}</button>`).join("")}</span></div>`; }
   // (every town of yours that can raise regiments this year, in one list: a little picture of each kind to raise there)
   { const g2 = grid(), towns = citiesOfNow(g2, C.me).sort((a, b) => b[3] - a[3] || popOf(b) - popOf(a)), free = towns.reduce((t, ct) => t + Math.max(0, slotsOf(ct) - raising(ct[0]).length), 0);
     h += fold("recruit", `<span class="cmp-h"><b>Your towns</b><small>${towns.length} town${towns.length === 1 ? "" : "s"} · ${free} regiment${free === 1 ? "" : "s"} can still be raised this year</small></span>`, `<div class="cmp-rtowns">${towns.map(ct => { const n = ct[0], q = raising(n), sl = slotsOf(ct);
@@ -2271,6 +2315,7 @@ function sideClick(e) {
   if (b.dataset.ucard) { unitCard(b.dataset.ucard); return; }
   if (b.dataset.station && selCity) { doAct({ k: "station", t: selCity[0], u: b.dataset.station }); return; }
   if (b.dataset.unstation && selCity) { doAct({ k: "station", t: selCity[0], u: b.dataset.unstation, out: true }); return; }
+  if (b.dataset.ttax != null && selCity) { doAct({ k: "ttax", t: selCity[0], v: +b.dataset.ttax }); return; }
   if (b.dataset.tax != null) { doAct({ k: "tax", v: +b.dataset.tax }); return; }
   if (b.dataset.disband) { doAct({ k: "disband", u: b.dataset.disband }); return; }
   if (b.dataset.unrec && selCity) { doAct({ k: "unrecruit", t: selCity[0] }); return; }
@@ -2382,7 +2427,8 @@ function apply(actor, a) {
     if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4]] }; }
     if (a.k === "askgen") { askGeneral(); return {}; }
     if (a.k === "station") { const why = station(a.t, a.u, !!a.out); return why ? { note: why } : { sfx: [["drum", 0.3]] }; }
-    if (a.k === "tax") { C.tax = clamp(a.v | 0, 0, 2); persist(); return { sfx: [["coin", 0.35]] }; }
+    if (a.k === "ttax") { const ct = city(a.t); if (!ct || cityOwner(g, ct) !== C.me) return null; const v = clamp(a.v | 0, 0, 2); C.ttax ||= {}; if (v === (C.tax ?? 1)) delete C.ttax[ct[0]]; else C.ttax[ct[0]] = v; persist(); return { sfx: [["coin", 0.35]] }; }
+    if (a.k === "tax") { C.tax = clamp(a.v | 0, 0, 2); C.ttax = {}; persist(); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "disband") { const t = disband(a.u); if (t == null) return null; return { note: `A regiment of ${TROOPS[a.u].name.toLowerCase()} is disbanded${t ? `, its men sent home to ${t}` : ""}.`, sfx: [["drum", 0.3]] }; }
     if (a.k === "unrecruit") { unrecruit(a.t); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "dip") {

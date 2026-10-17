@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.72.0", date: "17 October 2026", title: "The loyalty map",
+    items: [
+      "Campaign: press L for the loyalty map. Each of your towns' country is coloured by how loyal it is, from deep red (close to rising) through yellow (quiet) to green (content), with its loyalty written under the town and a key in the corner. Press L again to close it.",
+      "Click a country on the loyalty map to choose its town and see every reason for and against its loyalty.",
+      "Taxes town by town: a town of yours has its own Light, Fair and Heavy under its loyalty. Ease them where a town is restless, and raise them where it's content. Setting the realm's taxes sets every town's again.",
+    ],
+  },
+  {
     v: "1.71.0", date: "17 October 2026", title: "Military access",
     items: [
       "Campaign: your armies cross another crown's land only by its leave, as in the Total War games. A march, an attack or a landing that would cross a crown you aren't at war or allied with is stopped, and you're told whose land is in the way. Choose that crown and press Ask military access: the better they think of you, the likelier they agree, and a trade pact helps. You can give the access up again from the same card.",

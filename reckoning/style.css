@@ -1960,3 +1960,8 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-loyal li i { font-style: normal; font-weight: 700; min-width: 20px; text-align: right; }
 .cmp-loyal li.up i { color: #8fc07a; }
 .cmp-loyal li.down i, .cmp-loyal b.down { color: #e0806a; }
+/* a town's own taxes, under its loyalty */
+.cmp-ttax { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; }
+.cmp-ttax small { font: 11px var(--sans); color: var(--ink-dim); margin-right: 2px; }
+.cmp-ttax .btn { flex: 0 0 auto; width: auto; min-width: 0; padding: 3px 10px; font-size: 11px; }
+.cmp-ttax .btn.on { background: linear-gradient(#7a5424, #5a3c16); border-color: #d8b45a; color: #f6e6bc; opacity: 1; }
