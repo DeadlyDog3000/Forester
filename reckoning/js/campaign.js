@@ -1719,6 +1719,13 @@ function paint() {
     c.restore();
   };
   // (the other crowns at war with you, and their marches on your towns; the other player's; then yours, on top)
+  // (the straits that join the great lakes, too narrow for the map's coast to show: drawn in, so a lake's ships aren't
+  //  seen sailing over the land)
+  { const cell = Math.max(1.5, scr({ x: 1, y: 0 })[0] - scr({ x: 0, y: 0 })[0]); c.save(); c.lineCap = "round";
+    for (const [[lo0, la0], [lo1, la1]] of STRAITS) { const [x0, y0] = scr({ x: gridOf(lo0, la0)[0], y: gridOf(lo0, la0)[1] }), [x1, y1] = scr({ x: gridOf(lo1, la1)[0], y: gridOf(lo1, la1)[1] });
+      c.strokeStyle = "rgba(60,48,32,0.75)"; c.lineWidth = cell * 0.9 + 1.6; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      c.strokeStyle = "rgb(225,221,199)"; c.lineWidth = cell * 0.9; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); }
+    c.restore(); }
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) { const tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); army(fp, id, foeArmy(id), false, tg ? cellXY(tg) : null); } }
   if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) army(sl.pos, h, sl.army | 0, false, null); }
   // (your armies standing together fanned out a little on the screen, so each can be seen and clicked)

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.3", date: "17 October 2026", title: "The straits on the map",
+    items: [
+      "Campaign: the straits of Mackinac and the Detroit river are drawn on the map, the water ways that join Huron to Michigan and to Erie. A lake's ships no longer seem to sail over the land between them.",
+    ],
+  },
+  {
     v: "1.60.2", date: "17 October 2026", title: "One count for the army",
     items: [
       "Campaign: the army is counted the same way everywhere, by its regiments as on its roll and in the bar along the top. When their ranks are thin it says what they come to at full strength too: \"36 regiments (27 at full strength)\". Before, the attack cards counted only the full-strength figure, and the two numbers didn't agree.",
