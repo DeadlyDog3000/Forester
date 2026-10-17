@@ -1396,7 +1396,7 @@ class Arena {
         label: "Set the palisade alight", use: () => this.torch(b, true) });
     }
   }
-  torch(b, mine = false) {
+  torch(b, mine = false, quiet = false) {
     if (b.fire || b.down || !this.field) return;
     b.fire = { t: 0, fl: [], puff: 0 };
     const n = Math.max(2, Math.min(4, Math.round(b.pts.length / 6)));
@@ -1407,7 +1407,7 @@ class Arena {
     }
     FOLEY.play("fire", { vol: 0.55, at: { x: b.x, z: b.z }, reach: 70 });
     if (mine) UI.hint("The palisade's alight. Stand clear: it'll burn through in a little while.", 3);
-    else if (Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 60) UI.hint(this.alOf(0) === this.palisade.side ? "They've fired the palisade!" : "Our men have fired the palisade!", 2.5);
+    else if (!quiet && Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 60) UI.hint(this.alOf(0) === this.palisade.side ? "They've fired the palisade!" : "Our men have fired the palisade!", 2.5);
   }
   palisadeTick(dt) {
     const P = this.palisade;
@@ -1420,6 +1420,8 @@ class Arena {
       const k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1;
       for (const fl of F.fl) { fl.scale.setScalar((0.6 + 1.6 * k) * out); fl.position.y = this.w.heightAt(fl.position.x, fl.position.z) + 0.1 + (b.down ? 0 : 1.6 * k); fl.visible = out > 0.02; }
       if ((F.puff -= dt) <= 0 && out > 0.1) { F.puff = 0.35; const p = b.pts[Math.floor(Math.random() * b.pts.length)]; this.field.smoke(p.x, this.w.heightAt(p.x, p.z) + 3 + 2 * k, p.z); }
+      // (well alight, the fire takes in the lengths either side, now and then)
+      if (!F.spread && F.t > 11) { F.spread = true; for (const q of P) if (q !== b && !q.fire && !q.down && Math.hypot(q.x - b.x, q.z - b.z) < 6.8 && Math.random() < 0.35) this.torch(q, false, true); }
       if (b.down) continue;
       b.hp -= dt * b.max / 22;
       if (b.hp < b.max * 0.5 && !b.half) { b.half = true; b.col.y1 -= 1.6; b.top -= 1.6; }

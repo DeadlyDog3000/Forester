@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.21", date: "16 October 2026", title: "Fire spreads",
+    items: [
+      "Battle: a palisade length that's well alight sometimes catches the lengths either side of it, so a fire set in one place can open a wide gap.",
+    ],
+  },
+  {
     v: "1.51.20", date: "16 October 2026", title: "Know what you march into",
     items: [
       "Campaign: marching on a town of the woods' nations, the muster tells you they'll hold it behind its palisade, and how to get in: by the way in, or through a length you've burnt. The town card says it stands behind a palisade.",
