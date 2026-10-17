@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.59.5", date: "17 October 2026", title: "Updates that don't stall",
+    items: [
+      "The app: an update that stalls on a slow connection gives up after a while and is tried again ten minutes later, instead of hanging until the game is closed and leaving you a version behind. The game also looks for updates every few hours while it stays open.",
+      "Check for updates in the menu says so if it can't fetch the update, and why.",
+    ],
+  },
+  {
     v: "1.59.4", date: "17 October 2026", title: "Who bought it",
     items: [
       "Buying the game from inside it, or unlocking it with a key bought on the website, tells the shop the name you go by online, if you've chosen one. Nothing else about you is sent.",
