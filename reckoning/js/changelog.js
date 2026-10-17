@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.74.2", date: "17 October 2026", title: "Answers you can see",
+    items: [
+      "Campaign: the answer to whatever you do or ask (a crown granting or refusing, a march begun, a regiment raised, an order that can't be carried out) appears as a large card over the map, green with a tick for yes and red with a cross for no. It stays long enough to read, or click it away. It's still written at the top of the side panel too.",
+      "Campaign: fleets no longer seem to cross the land. A fleet's dotted course follows the sea round the coasts, as its mark does when it sails; and an army put ashore from a ship, or carried over the water, appears where it lands instead of being seen walking across the sea.",
+    ],
+  },
+  {
     v: "1.74.1", date: "17 October 2026", title: "No more walking on water",
     items: [
       "Campaign: armies march by land, round bays, lakes and seas, not straight across them. The dashed road shows the way they'll go, and the army's mark follows it as it marches; a fleet's follows its course round the coasts.",

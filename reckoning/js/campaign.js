@@ -725,6 +725,8 @@ function landPath0(g, a, b) {
   const end = out[out.length - 1]; if (dry(Math.floor(b.x), Math.floor(b.y)) && clear(end, b)) out[out.length - 1] = { x: b.x, y: b.y };
   return out;
 }
+// (land anywhere on the straight line between two points)
+function landBetween(a, b) { const g = grid(), k = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * 2); for (let i = 1; i < k; i++) { const x = Math.floor(a.x + (b.x - a.x) * i / k), y = Math.floor(a.y + (b.y - a.y) * i / k); if (g[y] && g[y][x] !== null && g[y][x] !== undefined) return true; } return false; }
 // (a point along a way, so far along its length — a fraction of it — with the way it faces there)
 function alongPts(P, f) {
   let L = 0; for (let i = 1; i < P.length; i++) L += Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y);
@@ -1919,7 +1921,7 @@ function paint() {
     // (an army somewhere new since it was last drawn — marched there on your order, or the enemy's at the year's end:
     //  its mark seen going there, drawn over the map on its way — see marchLoop — and not here till it arrives)
     const now = performance.now();
-    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 220) { marchAnims = marchAnims.filter(A => A.key !== key); const pts = !overSea(was, p) && landPath(grid(), was, p); marchAnims.push({ key, from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, pts: pts && pts.length > 2 ? pts : null, id, n, mine, t0: now, dur: 1400 + Math.min(1800, d * 45) }); } }
+    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 220) { marchAnims = marchAnims.filter(A => A.key !== key); const sea = overSea(was, p) || landPath(grid(), was, p) === null, pts = !sea && landPath(grid(), was, p); if (!sea) marchAnims.push({ key, from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, pts: pts && pts.length > 2 ? pts : null, id, n, mine, t0: now, dur: 1400 + Math.min(1800, d * 45) }); } }
       lastArmyAt[key] = { x: p.x, y: p.y }; }
     const [x, y0] = scr(p), y = y0 + townNudge(p, armyU(k)); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return;
     const u = armyU(k);
@@ -1950,15 +1952,18 @@ function paint() {
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) { const tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); army({ x: fp.x + (foeOff[id] || 0), y: fp.y }, id, foeArmy(id), false, tg ? cellXY(tg) : null); } }
   if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) army({ x: sl.pos.x + (foeOff[h] || 0), y: sl.pos.y }, h, sl.army | 0, false, null); }
   for (const a of C.armies || []) if (a.pos && a.emb == null) army({ x: a.pos.x + (armyOff[a.id] || 0), y: a.pos.y }, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null, false, C.me + "#" + a.id);
-  if (C.emb == null) army(armyPos(), C.me, field().length || C.army, true, C.go || null, true, C.me + "#" + (C.ar | 0));
+  // (an army aboard ship isn't seen marching: when it lands it's simply there, not walked over the water)
+  if (C.emb == null) army(armyPos(), C.me, field().length || C.army, true, C.go || null, true, C.me + "#" + (C.ar | 0)); else delete lastArmyAt[C.me + "#" + (C.ar | 0)];
+  for (const a of C.armies || []) if (a.emb != null) delete lastArmyAt[C.me + "#" + a.id];
   marchStart(cv);
   // ---- the fleets: a ship under sail, engraved, in her crown's colour, how many ships under her, and where she's bound ----
   const shipMark = (p, col, n, mine, sel, go, cargo, key) => {
     // (a fleet somewhere new since it was last drawn: seen sailing there, over the map, and drawn here once it's in)
     const now = performance.now();
-    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 400) { marchAnims = marchAnims.filter(A => A.key !== key); marchAnims.push({ key, fleet: true, pts: (sp => sp && sp.length > 2 ? sp : null)(seaPath(grid(), was, p)), from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, col, n, mine, cargo, t0: now, dur: 1400 + Math.min(2200, d * 30) }); } } lastArmyAt[key] = { x: p.x, y: p.y }; }
+    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 400) { marchAnims = marchAnims.filter(A => A.key !== key); const sp = seaPath(grid(), was, p); if (sp || !landBetween(was, p)) marchAnims.push({ key, fleet: true, pts: sp && sp.length > 2 ? [{ x: was.x, y: was.y }, ...sp, { x: p.x, y: p.y }] : null, from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, col, n, mine, cargo, t0: now, dur: 1400 + Math.min(2200, d * 30) }); } } lastArmyAt[key] = { x: p.x, y: p.y }; }
     const [x, y] = scr(p); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return; const u = armyU(k);
-    if (go) { const [gx, gy] = scr(go); c.save(); c.strokeStyle = mine ? "rgba(30,50,70,0.8)" : "rgba(150,30,20,0.8)"; c.lineWidth = 1.8 * u; c.setLineDash([2 * u, 4 * u]); c.beginPath(); c.moveTo(x, y); c.lineTo(gx, gy); c.stroke(); c.restore(); }
+    // (its course: by the sea, round the coasts)
+    if (go) { const [gx, gy] = scr(go), P = seaPath(grid(), p, go); c.save(); c.strokeStyle = mine ? "rgba(30,50,70,0.8)" : "rgba(150,30,20,0.8)"; c.lineWidth = 1.8 * u; c.setLineDash([2 * u, 4 * u]); c.beginPath(); c.moveTo(x, y); if (P) for (const q of P.filter((_, i) => i % 3 === 0)) c.lineTo(...scr(q)); c.lineTo(gx, gy); c.stroke(); c.restore(); }
     if (marchAnims.some(A => A.key === key && now - A.t0 < A.dur)) return;
     fleetMark(c, x, y, col, n, mine, sel, cargo, u);
   };
@@ -2830,10 +2835,21 @@ function tell(crown, r) {
   if (crown === mine) setTimeout(() => react(r), 0);
   else if (mp && mp.net) mp.net.send({ t: "cres", r });
 }
+// (the answer to what you did or asked, where you'll see it: a card over the map, green for yes, red for no, until
+//  you click it or it has been there long enough to read)
+let answerT = 0;
+function answer(t) {
+  const wrap = document.querySelector("#campaign .cmp-mapwrap"); if (!wrap || !t) return;
+  let el = $("cmpAnswer"); if (!el) { el = document.createElement("div"); el.id = "cmpAnswer"; el.className = "cmp-answer"; wrap.appendChild(el); el.onclick = () => el.classList.remove("on"); }
+  const no = /\b(refuses?|won't|can't|cannot|hasn't|haven't|isn't|not |no |too |lost|fails?|failed|already|beyond|first\.)/i.test(t), yes = !no && /\b(grants?|agrees?|accepts?|yours|ally|pact|raised|joins?|marches|sails|formed|as one|received|launched|sells|buys)/i.test(t);
+  el.className = "cmp-answer on " + (no ? "no" : yes ? "yes" : "");
+  el.innerHTML = `<b>${no ? "✕" : yes ? "✓" : "✦"}</b><span>${esc(t)}</span>`;
+  clearTimeout(answerT); answerT = setTimeout(() => el.classList.remove("on"), 3500 + Math.min(6000, t.length * 45));
+}
 // what an act comes to on your screen: a word, the sounds, a battle to fight, a field to meet the other player on
 function react(r) {
   if (!r) return;
-  if (r.note) note = r.note;
+  if (r.note) { note = r.note; answer(r.note); }
   if (r.news) { news = r.news; note = ""; setTimeout(() => gazette(news), 0); }
   for (const [n, v, after] of r.sfx || []) sfx(n, v, after);
   if (r.sea) { const q = r.sea; seaFight(q.id, q.foe, q.attack, res => { doAct({ k: "searesult", id: q.id, foe: q.foe, r: res }); drawMap(); }); return; }

@@ -1968,3 +1968,10 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 /* the campaign's pause menu */
 .cmp-pausebox { width: min(360px, 100%); }
 .cmp-pausebox .menu { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+/* the answer to what you did or asked, over the map */
+.cmp-answer { position: absolute; top: 74px; left: calc((100% - 390px) / 2); transform: translate(-50%, -12px); z-index: 12; display: flex; gap: 12px; align-items: flex-start; max-width: min(560px, calc(100% - 420px)); padding: 14px 18px; border-radius: 6px; background: linear-gradient(#f3e7c8, #e6d4a8); color: #2a1e12; border: 2px solid #8a6a3a; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55); font: 600 16px/1.4 var(--serif, Georgia, serif); opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; cursor: pointer; }
+.cmp-answer.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.cmp-answer b { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 700 16px/1 var(--sans, sans-serif); color: #fff; background: #8a6a3a; }
+.cmp-answer.yes { border-color: #3f7a34; } .cmp-answer.yes b { background: #3f7a34; }
+.cmp-answer.no { border-color: #9a2a1e; } .cmp-answer.no b { background: #9a2a1e; }
+@media (max-width: 900px) { .cmp-answer { left: 50%; max-width: calc(100% - 32px); top: 64px; font-size: 14px; } }
