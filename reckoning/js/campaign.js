@@ -899,8 +899,11 @@ function orderOf(ct) {
 }
 const orderWord = o => o >= 2 ? "Content" : o >= 0 ? "Quiet" : o === -1 ? "Restless" : "Close to rising";
 function riots(g) {
+  C.riotN ||= {};
   for (const ct of citiesOfNow(g, C.me)) {
-    const o = orderOf(ct); if (o >= 0 || R() > 0.2 * -o) continue;
+    const o = orderOf(ct); if (o >= 0 || R() > 0.2 * -o) { delete C.riotN[ct[0]]; continue; }
+    // (a second year of riots in a row: the town rises)
+    if ((C.riotN[ct[0]] = (C.riotN[ct[0]] || 0) + 1) >= 2 && !C.events.some(e => !e.done && e.kind === "rising" && e.ct === ct[0])) { C.riotN[ct[0]] = 0; C.events.push({ kind: "rising", ct: ct[0], att: Math.round(popOf(ct) / 4000) + 3 }); }
     const w = Math.round(worth(ct) * TAX[C.tax ?? 1].k); C.gold -= w; C.pop[ct[0]] = Math.round(popOf(ct) * 0.97);
     say(`Riots in ${ct[0]}`, `${C.tax === 2 ? "The heavy taxes" : "The crowds"} drive its people into the streets. The town pays none of its ${w} thalers this year${garUnits(ct[0]).length ? "" : "; a regiment in its garrison would keep order"}.`);
   }
@@ -1563,6 +1566,7 @@ function drawSide() {
   for (const [i, e] of C.events.entries()) {
     if (e.done) continue;
     if (e.kind === "appoint") { h += `<div class="cmp-ev"><b>Choose a general for ${e.ar ? `the ${esc(armyName(e.ar).toLowerCase())}` : "your army"}</b><small>One of three men put forward. He serves fifty years, if the enemy doesn't end it first.</small>${candidates(e.cands, `data-ev="${i}" data-appg`)}</div>`; continue; }
+    if (e.kind === "rising") { const ct = CITIES.find(c => c[0] === e.ct); h += `<div class="cmp-ev war"><b>${esc(e.ct)} rises!</b><small>A second year of riots, and the town is up in arms: some ${e.att} companies of townsmen against its garrison of ${ct ? garrison(ct) : 0}. Put it down by force, or buy peace with concessions${ct ? ` (${worth(ct) * 2} thalers)` : ""}.</small><span><button class="btn primary" data-ev="${i}" data-how="crush">Put it down</button><button class="btn" data-ev="${i}" data-how="concede">Grant concessions</button></span></div>`; continue; }
     if (e.kind === "fieldatk") { h += `<div class="cmp-ev war"><b>${esc(poss(The(e.foe)))} army falls on ${e.ar ? `your ${esc(armyName(e.ar).toLowerCase())}` : "your army"}!</b><small>${e.att} regiments against your ${e.def}, in the open near ${esc(e.ct)}. Your odds: ${Math.round(odds(e.def, e.att, false) * 100)}%.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Fight it yourself</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your general</button></span></div>`; continue; }
     if (e.kind === "attack" && e.human) { h += `<div class="cmp-ev war"><b>${esc(nameOf(e.foe))} marches on ${esc(e.ct)}!</b><small>${e.att} regiments of ${esc(NATIONS[e.foe].name)} against your ${e.def} (garrison and army)${e.walls ? " · behind its walls" : ""}. Meet them on the field yourself, the two of you in one battle, or leave it to the garrison and let them fight it.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Meet them on the field</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to the garrison</button></span></div>`; continue; }
     if (e.kind === "ally" || e.kind === "pact" || (e.kind === "peace" && e.human)) { h += `<div class="cmp-ev"><b>${esc(nameOf(e.foe) === NATIONS[e.foe].name ? The(e.foe) : nameOf(e.foe))} ${v3(e.foe, "proposes")} ${e.kind === "peace" ? "peace" : e.kind === "ally" ? "an alliance" : NATIONS[e.foe].nw ? "the fur trade" : "a trade pact"}</b><small>${e.kind === "peace" ? "Each side keeps what it holds." : e.kind === "ally" ? "Their wars yours, and yours theirs." : (NATIONS[e.foe].nw ? "Beaver pelts down to your posts; kettles, cloth and trade muskets up to their towns." : "Their merchants in your towns, and yours in theirs.")}</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Agree</button><button class="btn" data-ev="${i}" data-how="no">Decline</button></span></div>`; continue; }
@@ -1618,7 +1622,7 @@ function drawSide() {
       <li><b>Garrisons.</b> With your army at one of your towns, leave regiments there to hold it, or take its garrison into the army.</li>
       <li><b>Battles in the field.</b> Click an enemy army on the map: if your army can reach it this year, fall on it in the open before it reaches your towns. Beaten, it falls back and its march is stopped.</li>
       <li><b>More than one army.</b> Form a new army from a town's garrison. Click an army on the map to give it orders; each marches, besieges and fights on its own, under its own general. Two armies in one place can join.</li>
-      <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing: regiments in its garrison and a school keep order. A town's people make its wealth, and fill the army's thin regiments each year.</li>
+      <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing, and a town that riots two years running rises: put it down, or buy peace with concessions. Regiments in its garrison and a school keep order. A town's people make its wealth, and fill the army's thin regiments each year.</li>
       <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
       <li><b>Walled towns</b> are taken by siege: sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
       <li><b>Taking a town</b> takes its whole province with it. A crown with no towns left is gone, and its land is yours.</li>
@@ -1778,6 +1782,14 @@ function apply(actor, a) {
       if (ev.kind === "ally" || ev.kind === "pact") {
         if (a.how === "yes") { const both = (x, y) => as(x, () => { if (ev.kind === "ally") C.ally[y] = true; else C.E.pact[y] = true; C.E.rel[y] = Math.max(C.E.rel[y], 40); say(ev.kind === "ally" ? `An alliance with ${nameOf(y)}` : `A trade pact with ${nameOf(y)}`); }); both(actor, ev.foe); both(ev.foe, actor); tell(ev.foe, { note: `${nameOf(actor)} ${v3(actor, "agrees")}.`, sfx: [["seal", 0.6]] }); return done({ sfx: [["quill", 0.5], ["seal", 0.6, 850]] }); }
         tell(ev.foe, { note: `${nameOf(actor)} ${v3(actor, "declines")}.` }); return done({});
+      }
+      if (ev.kind === "rising") {
+        const ct = city(ev.ct); if (!ct || cityOwner(g, ct) !== C.me) return done({});
+        if (a.how === "concede") { const c = worth(ct) * 2; C.gold -= c; say(`${ct[0]} is quieted`, `Its grievances heard and ${c} thalers in concessions: the town goes back to its work.`); return done({ sfx: [["coin", 0.45], ["quill", 0.4, 500]] }); }
+        const mine = garrison(ct) + helpNear(ct), w = R() < odds(mine, ev.att, false);
+        if (w) { C.pop[ct[0]] = Math.round(popOf(ct) * 0.96); say(`The rising in ${ct[0]} is put down`, "The garrison clears the streets. The ringleaders hang, and the town is quiet, for now."); }
+        else { const G = garUnits(ct[0]).length; C.units = C.units.filter(u => u.at !== ct[0]); C.pop[ct[0]] = Math.round(popOf(ct) * 0.9); C.gold -= worth(ct); say(`The rising in ${ct[0]} wins the day`, `The garrison is overwhelmed${G ? `, ${G} regiment${G > 1 ? "s" : ""} of it lost` : ""}, the town's books burned and a year's taxes lost before order is restored.`); }
+        return done({ sfx: [["drum", 0.5], ["guns", 0.4, 700]] });
       }
       if (ev.kind === "fieldatk") {
         if (armyIds().includes(ev.ar | 0)) useArmy(ev.ar | 0);

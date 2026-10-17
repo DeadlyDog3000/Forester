@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.56.0", date: "16 October 2026", title: "Risings",
+    items: [
+      "Campaign: a town that riots two years running rises in revolt. Put the rising down with its garrison and any army of yours nearby, or buy peace with concessions. A rising that wins kills the garrison's regiments, costs the town people and burns a year's taxes.",
+    ],
+  },
+  {
     v: "1.55.8", date: "16 October 2026", title: "A word on what's new",
     items: [
       "Campaign: the first time you open a campaign after this update, a note tells you where the new recruiting, garrisons, armies and field battles are.",
