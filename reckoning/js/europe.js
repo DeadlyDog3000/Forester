@@ -564,7 +564,7 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
   // (the pictures drawn north to south, so a town further down the sheet stands in front of the one behind it; a
   //  little larger close in)
   const u = k * Math.min(2.3, 1.15 + v.z / (opt.zf || 1) * 0.22);
-  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 4.5 : ct[3] === 2 ? 2.5 : 2) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]] }); taken.push([x - hw, y - hw, x + hw, y + hw]); }
+  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 4.5 : ct[3] === 2 ? 2.5 : 2) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]], pop: opt.pop && opt.pop[ct[0]] }); taken.push([x - hw, y - hw, x + hw, y + hw]); }
   for (const [ct, x, y] of at) {
     const [n, , , rank] = ct;
     c.font = rank === 3 ? `${Math.round(k * 15)}px ${FELL}` : `italic ${Math.round(k * (rank === 2 ? 14 : 13))}px ${FELL}`;
@@ -588,7 +588,8 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
 function townGlyph(c, x, y, u, rank, own, opt = {}) {
   // (every town a dot, a little larger the greater it is — a seat of the crown ringed, as the engravers marked one)
   if (!opt.picture) {
-    const r = (rank === 3 ? 2.3 : rank === 2 ? 1.9 : 1.5) * u;
+    // (on a campaign's map, as great as its people: a town that grows, a bigger dot)
+    const r = (opt.pop ? Math.min(3.1, Math.max(1.3, 0.9 + Math.sqrt(opt.pop / 10000) * 0.75)) : rank === 3 ? 2.3 : rank === 2 ? 1.9 : 1.5) * u;
     c.save(); c.fillStyle = INK; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
     if (rank === 3) { c.strokeStyle = INK; c.lineWidth = Math.max(0.6, u * 0.45); c.beginPath(); c.arc(x, y, r + 1.3 * u, 0, 7); c.stroke(); }
     if (opt.mine) { c.strokeStyle = "#b8862a"; c.lineWidth = Math.max(0.8, u * 0.7); c.beginPath(); c.arc(x, y, r + (rank === 3 ? 2.6 : 1.2) * u, 0, 7); c.stroke(); }
@@ -774,7 +775,7 @@ function reliefLayer(part = null) {
 // the sheet, and over it what changes: the crown under the pointer and the one chosen, the wars, the plague, your clearing
 // view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
 let near = null, nearT = 0;
-export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null, me = null, walled = null, zf = 1, spread = null } = {}) {
+export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null, me = null, walled = null, zf = 1, spread = null, pop = null } = {}) {
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + (E.rev | 0) + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
   // (drawn at twice the size, so it stays sharp when zoomed)
@@ -828,7 +829,7 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
     c.fillText(homeName, hx - S * 1.6, hy - S * 1.8);
   }
   c.setTransform(1, 0, 0, 1, 0, 0);
-  drawCities(c, g, S, v, W, H, { me, walled, zf });
+  drawCities(c, g, S, v, W, H, { me, walled, zf, pop });
   // the chosen city's ring, over its dot
   for (const [ct, strong] of [[hoverCity, false], [city, true]]) {
     if (!ct) continue;

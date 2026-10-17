@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.56.1", date: "16 October 2026", title: "Towns that grow",
+    items: [
+      "Campaign map: each town's dot is as large as its people, so a town that grows is seen to grow, and a sacked city shrinks. Crowns' seats keep their ring.",
+    ],
+  },
+  {
     v: "1.56.0", date: "16 October 2026", title: "Risings",
     items: [
       "Campaign: a town that riots two years running rises in revolt. Put the rising down with its garrison and any army of yours nearby, or buy peace with concessions. A rising that wins kills the garrison's regiments, costs the town people and burns a year's taxes.",

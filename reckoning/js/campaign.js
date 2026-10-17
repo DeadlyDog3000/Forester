@@ -368,6 +368,7 @@ function askGeneral() { if (C.gen || C.events.some(e => e.kind === "appoint" && 
 function ensureRealm() {
   if (!C) return;
   C.B ||= {}; C.Q ||= {}; C.walls ||= {}; C.foeGen ||= {}; C.fguns ||= {};
+  for (const ct of CITIES) popOf(ct);
   if (C.dev) { for (const [n, v] of Object.entries(C.dev)) (C.B[n] ||= {}).farm = Math.max(C.B[n].farm | 0, v | 0); delete C.dev; }
   if (C.raising) { for (const n of Object.keys(C.raising)) C.Q[n] = { chain: "walls", by: C.me, cost: 0 }; delete C.raising; }
   delete C.work;
@@ -1349,7 +1350,7 @@ function paint() {
   spreadCheck();
   let sp = null;
   if (spread) { const t = (performance.now() - spread.t0) / spread.dur; if (t >= 1) spread = null; else { const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; sp = { cells: spread.cells, p: e * (spread.max + 4) - 1 }; if (!spreadRaf) spreadRaf = requestAnimationFrame(spreadTick); } }
-  const g = drawEurope(cv, E(), { spread: sp, hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false, me: C.me, walled: C.walls || null, zf: ZF(), sharp: () => { if (shown() && !on3d) paint(); } });
+  const g = drawEurope(cv, E(), { spread: sp, pop: C.pop || null, hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false, me: C.me, walled: C.walls || null, zf: ZF(), sharp: () => { if (shown() && !on3d) paint(); } });
   // over the map: your towns ringed in your colour; the towns of your enemies within your army's reach marked with
   // crossed swords (dim once it's marched this season); a town an enemy marches on, red
   const c = cv.getContext("2d"), S = cv.width / MG_W, k = cv.width / 1300, at = ct => { const [x, y] = gridOf(ct[1], ct[2]); return [(x * S - view.ox) * view.z, (y * S - view.oy) * view.z]; };
