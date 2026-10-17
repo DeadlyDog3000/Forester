@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.5", date: "16 October 2026", title: "Tokens on the map",
+    items: [
+      "Map: a town raising regiments shows a gold token with how many, and a town holding a garrison a paper one with its regiments.",
+      "Map: your armies standing together are fanned out a little, so each can be seen and clicked.",
+    ],
+  },
+  {
     v: "1.55.4", date: "16 October 2026", title: "Every army counted",
     items: [
       "Campaign: the army buttons show where each of your armies stands, and hovering one tells its general and what it's doing.",

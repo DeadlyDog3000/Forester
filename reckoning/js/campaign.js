@@ -1357,7 +1357,12 @@ function paint() {
     // (your towns, and the other player's, are told by the flag over each — gold-edged for yours; a town of yours an
     //  enemy marches on, and an enemy's within your reach, marked with crossed swords over it)
     const up = (ct[3] === 3 ? 13 : 10) * k;
-    if (own2 === C.me) { if (threat.has(ct[0])) swords(x, y - up, 5 * k, "#c0281a"); }
+    if (own2 === C.me) {
+      if (threat.has(ct[0])) swords(x, y - up, 5 * k, "#c0281a");
+      // (regiments being raised there: a little gold token with how many, beside the dot)
+      const rq = raising(ct[0]).length, gu = garUnits(ct[0]).length;
+      if (rq || gu) { const tx = x - 11 * k, ty = y - 8 * k; c.save(); c.fillStyle = rq ? "#c9a45a" : "rgba(239,228,198,0.95)"; c.strokeStyle = "#3a2a1a"; c.lineWidth = 1.1 * k; c.beginPath(); c.arc(tx, ty, 7 * k, 0, 7); c.fill(); c.stroke(); c.fillStyle = "#2a1c10"; c.font = `bold ${Math.round(9.5 * k)}px Georgia, serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(rq ? `+${rq}` : String(gu), tx, ty + 0.5 * k); c.restore(); }
+    }
     else if (atWar(own2) && inMarch(ct)) swords(x, y - up, 4.5 * k, C.moved ? "rgba(120,40,30,0.45)" : "#b0281a");
   }
   // ---- the armies: a regiment's block under its colour, how many regiments, and where it's marching ----
@@ -1403,11 +1408,13 @@ function paint() {
   // (the other crowns at war with you, and their marches on your towns; the other player's; then yours, on top)
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) { const tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); army(fp, id, foeArmy(id), false, tg ? cellXY(tg) : null); } }
   if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) army(sl.pos, h, sl.army | 0, false, null); }
-  for (const a of C.armies || []) if (a.pos) army(a.pos, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null, false);
+  // (your armies standing together fanned out a little on the screen, so each can be seen and clicked)
+  armyOff = {}; { const placed = []; for (const [id, p] of [[C.ar | 0, armyPos()], ...(C.armies || []).filter(a => a.pos).map(a => [a.id, a.pos])]) { let [sx, sy] = scr(p), dx = 0; while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx += 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); armyOff[id] = dx / (S * view.z); } }
+  for (const a of C.armies || []) if (a.pos) army({ x: a.pos.x + (armyOff[a.id] || 0), y: a.pos.y }, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null, false);
   army(armyPos(), C.me, field().length || C.army, true, C.go || null);
   c.restore();
 }
-let armySel = false;
+let armySel = false, armyOff = {};
 // (an army standing in a town: drawn just below it, so the town's own mark isn't hidden under it)
 const townNudge = (p, u) => CITIES.some(ct => { const t = cellXY(ct); return Math.hypot(t.x - p.x, t.y - p.y) < 2.5; }) ? 10 * u : 0;
 const armyU = k => k * Math.min(2.7, 1.45 + view.z / ZF() * 0.26);
@@ -1425,7 +1432,7 @@ function armyHit(cv, px, py) {
   if (!C) return false; const S = cv.width / MG_W, u = armyU(cv.width / 1300);
   const at = p => { const x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z + townNudge(p, u); return Math.hypot(px - x, py - y - 3 * u) < 16 * u; };
   if (at(armyPos())) return { id: C.ar | 0 };
-  const o = (C.armies || []).find(a => a.pos && at(a.pos)); return o ? { id: o.id } : false;
+  const o = (C.armies || []).find(a => a.pos && at({ x: a.pos.x + (armyOff[a.id] || 0), y: a.pos.y })); return o ? { id: o.id } : false;
 }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
