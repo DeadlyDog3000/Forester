@@ -1189,7 +1189,15 @@ function drawSide() {
         ${C.E.pact[id] ? `<button class="btn" data-dip="unpact">End the trade pact</button>` : `<button class="btn" data-dip="pact" ${r[id] < 20 ? "disabled title='They need to think well of you (20)'" : ""}>Trade pact</button>`}
         ${C.ally[id] ? `<button class="btn" data-dip="unally">Break the alliance</button>` : `<button class="btn" data-dip="ally" ${r[id] < 55 || did.ally ? "disabled title='They need to be friendly (55)'" : ""}>Propose an alliance</button>`}
         <button class="btn danger" data-dip="war" ${tr ? `disabled title="A treaty: ${tr} more years"` : ""}>Declare war</button>`}</div>`);
-  } else if (!selCity && !armySel) h += `<div class="cmp-card cmp-help"><p><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom</p></div>`;
+  } else if (!selCity && !armySel) h += `<div class="cmp-card cmp-help"><p><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom</p></div>` + fold("how", `<span class="cmp-h"><b>How it works</b><small>armies, towns, the sea, the New World</small></span>`, `<ul class="cmp-howto">
+      <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it.</li>
+      <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
+      <li><b>Walled towns</b> are taken by siege: sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
+      <li><b>Taking a town</b> takes its whole province with it. A crown with no towns left is gone, and its land is yours.</li>
+      <li><b>The woods' nations</b> raise no stone walls and have no guns. Their towns stand behind palisades: hold <kbd>F</kbd> at a length of one in battle to set it alight.</li>
+      <li><b>Generals</b> serve fifty years. Their command and the army's morale decide how hard it fights. <b>Governors</b> run your towns, for a fee.</li>
+      <li><b>Leagues</b> stand with their own when one is attacked, but only in wars they can reach.</li>
+    </ul>`);
   // your own: the treasury's use
   const rc = regCost(g);
   h += fold("army", `<span class="cmp-h"><b>Your army</b><small>${C.army} regiments${C.levyQ ? ` (+${C.levyQ})` : ""} · ${C.guns} gun${C.guns === 1 ? "" : "s"} · ${moraleWord(C.morale ?? 50).toLowerCase()} · ${C.siege ? `besieging ${esc(C.siege.ct)}` : C.go ? "on the march" : C.moved ? "marched this year" : "ready"}</small></span>`, `

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.13", date: "16 October 2026", title: "How the campaign works",
+    items: [
+      "Campaign: a folding \"How it works\" card in the side panel covers the year's march, ships over the Atlantic, sieges and supply, taking provinces, the woods' nations and their palisades, generals and governors, and leagues.",
+    ],
+  },
+  {
     v: "1.51.12", date: "16 October 2026", title: "Open order",
     items: [
       "Battle: the woods' warriors come on in open order, each man to his own ground, as they fought, not shoulder to shoulder in ranks like a European line.",
