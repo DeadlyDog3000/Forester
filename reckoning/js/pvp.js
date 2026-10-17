@@ -55,6 +55,7 @@ export const SIDE = {
 export const BLADE = {
   sword: { name: "Sword", icon: "sword5", w: 3, dmg: 20, rate: 1.15, reach: 2.4, stats: [["Blow", "20"], ["Pace", "quick"], ["Reach", "2.4 m"]], note: "A soldier's sword: quick to strike and quick to guard." },
   battleaxe: { name: "Battle axe", icon: "battleaxe", w: 4, dmg: 28, rate: 0.8, reach: 2.4, stats: [["Blow", "28"], ["Pace", "slow"], ["Reach", "2.4 m"]], note: "Heavy. Fewer blows, and every one of them felt." },
+  warclub: { name: "War club", icon: "battleaxe", w: 2, dmg: 22, rate: 1.1, reach: 2.2, stats: [["Blow", "22"], ["Pace", "quick"], ["Reach", "2.2 m"]], note: "The ball-headed club of the woods' nations: light, quick, and it breaks a skull." },
   spear: { name: "Spear", icon: "spear", w: 3, dmg: 16, rate: 1.0, reach: 3.0, stats: [["Blow", "16"], ["Pace", "steady"], ["Reach", "3 m"]], note: "Keeps him off: you reach him before he reaches you." },
   axe: { name: "Felling axe", icon: "axe", w: 3, dmg: 14, rate: 1.05, reach: 2.3, stats: [["Blow", "14"], ["Pace", "steady"], ["Reach", "2.3 m"]], note: "The woodsman's axe. It'll do, in the right hands." },
   dagger: { name: "Bayonet", icon: "dagger", w: 1, dmg: 11, rate: 1.5, reach: 1.9, stats: [["Blow", "11 · fixed 24"], ["Reach", "1.9 m · fixed 2.7"]], note: "A socket bayonet: with a musket, F fixes it under the muzzle, for good — you still fire, slower to load and less true, and once you've fired a click is the steel. Alone, a long dagger." },
@@ -629,7 +630,7 @@ export const GROUPS = [
 const armOf = u => {
   const k = u.info && u.info.kind; if (k) return k;
   const lo = u.lo || (u.info && u.info.lo) || {};
-  return u.info && u.info.horse ? "cavalry" : lo.long === "musket" ? "musketeer" : lo.long === "crossbow" ? "crossbow" : lo.long === "bow" ? "bow" : lo.blade === "spear" ? "pike" : lo.blade === "battleaxe" ? "axe" : "sword";
+  return u.info && u.info.horse ? "cavalry" : lo.long === "musket" ? "musketeer" : lo.long === "crossbow" ? "crossbow" : lo.long === "bow" ? "bow" : lo.blade === "spear" ? "pike" : lo.blade === "battleaxe" || lo.blade === "warclub" ? "axe" : "sword";
 };
 export const groupOf = u => { const k = armOf(u), g = GROUPS.find(g => g.kinds.includes(k)); return g ? g.id : null; };
 // ---- nerve: how much a man can stand before he breaks and runs ----
@@ -1003,6 +1004,8 @@ class Arena {
         const tk = this.musters && this.musters[team] && this.musters[team][i], T = tk && TROOPS[tk], call = this.hist && this.hist.cos[team] && this.hist.cos[team].call;
         const info = { ...b, look, name: U ? `${U.name}${T ? " " + ((call && call[tk]) || T.one).toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i, kind: tk || null };
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; }
+        // (the woods' nations' warriors: the war club, not a battle axe — and warriors, by name, whatever they carry)
+        if (U && U.body === "warrior") { if (info.lo.blade === "battleaxe") info.lo.blade = "warclub"; info.name = `${U.name} warrior — ${b.name}`; }
         else if (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
       };

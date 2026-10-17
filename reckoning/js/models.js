@@ -818,6 +818,19 @@ export function makeBattleAxe() {
   mesh(tgeo("bAxeSpike", () => { const c = new THREE.ConeGeometry(0.02, 0.1, 4); c.rotateX(-Math.PI / 2); return c; }), STUFF(5), g, 0, 0.63, -0.08);
   return g;
 }
+// a war club of the Eastern Woodlands: a curved haft of maple ending in a carved ball, a little spike set in it
+export function makeWarClub() {
+  const g = new THREE.Group();
+  mesh(tgeo("warclubHaft", () => {
+    const c = new THREE.CylinderGeometry(0.016, 0.022, 0.62, 7, 8), p = c.attributes.position;
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setZ(i, p.getZ(i) - 0.06 * Math.pow((y + 0.31) / 0.62, 2)); }
+    c.translate(0, 0.24, 0); c.computeVertexNormals(); return c;
+  }), WOOD(), g);
+  mesh(tgeo("warclubBall", () => new THREE.SphereGeometry(0.055, 10, 8)), WOOD_DARK(), g, 0, 0.58, -0.075);
+  mesh(tgeo("warclubSpike", () => { const c = new THREE.ConeGeometry(0.012, 0.06, 5); c.rotateX(-Math.PI / 2); return c; }), STUFF(5), g, 0, 0.58, -0.14);
+  for (let i = 0; i < 3; i++) mesh(tgeo("warclubWrap" + i, () => new THREE.TorusGeometry(0.021, 0.004, 4, 10).rotateX(Math.PI / 2)), LEATHER(), g, 0, 0.0 + i * 0.03, 0);
+  return g;
+}
 // a club: a cudgel of root-wood, gnarled and knotted
 export function makeClub() {
   const g = new THREE.Group();
@@ -1199,7 +1212,7 @@ export function makeCrossbow() {
   g.userData.grips = [new THREE.Vector3(0.012, -0.06, 0.02), new THREE.Vector3(-0.006, -0.05, -0.2)];
   return g;
 }
-export const makeArm = kind => ({ bayonet: makeBayonetMusket, sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, club: makeClub, knife: makeKnife, musket: makeMusket, pistol: makePistol, dagger: makeDagger, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
+export const makeArm = kind => ({ bayonet: makeBayonetMusket, sword: makeSword, spear: makeSpear, battleaxe: makeBattleAxe, warclub: makeWarClub, club: makeClub, knife: makeKnife, musket: makeMusket, pistol: makePistol, dagger: makeDagger, pick: () => makePick((G_TOOLS() || {}).pick || 1) })[kind]?.() || makeAxe();
 // (the pick's making is the player's, read from the game at the moment it is made)
 let _toolsOf = () => null;
 export const setToolSource = f => { _toolsOf = f; };

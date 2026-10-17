@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.4", date: "16 October 2026", title: "The war club",
+    items: [
+      "Battle: the warriors of the woods' nations no longer carry European battle axes. They fight with the ball-headed war club: a curved maple haft with a carved ball and a spike set in it, lighter and quicker than an axe. You can carry one too.",
+      "Battle: they're called warriors in the field, whatever they carry.",
+    ],
+  },
+  {
     v: "1.51.3", date: "16 October 2026", title: "Wars that make sense",
     items: [
       "Campaign: a crown fighting several wars has its armies divided among them. The Sultan can't bring his whole army to Vienna, Kraków and Venice at once. Allies fighting the same enemy now count in each other's battles, so the Holy League fights as a league. The Ottomans no longer roll across Europe unopposed, and wars swing both ways.",
