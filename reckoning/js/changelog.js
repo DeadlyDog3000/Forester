@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.56.2", date: "16 October 2026", title: "Armies at a glance",
+    items: [
+      "Campaign map: hover over an army, yours or an enemy's, to see its strength, its general and what it's doing. An enemy army within your reach says so.",
+    ],
+  },
+  {
     v: "1.56.1", date: "16 October 2026", title: "Towns that grow",
     items: [
       "Campaign map: each town's dot is as large as its people, so a town that grows is seen to grow, and a sacked city shrinks. Crowns' seats keep their ring.",

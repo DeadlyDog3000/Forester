@@ -1151,7 +1151,8 @@ export function initCampaign(c, battle, withPlayer) {
     const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z), id = nationAt(E(), cv, ...p);
     cv.style.cursor = ct || id ? "pointer" : "grab";
     if (ct !== hovCity || id !== hov) { hovCity = ct; hov = id; paint(); }
-    townTip(ct, e);
+    const px = pos(e), fh = foeHit(cv, ...px), ah = !fh && armyHit(cv, ...px);
+    if (fh || ah) { cv.style.cursor = "pointer"; armyTip(fh, ah, e); } else townTip(ct, e);
   };
   cv.onmouseleave = () => { drag = null; hov = null; hovCity = null; townTip(null); paint(); };
   // (right-click: your army sent there)
@@ -1310,6 +1311,13 @@ function marks3d() {
   for (const a of C.armies || []) if (a.pos) { const [lon, lat] = llOf(a.pos.x, a.pos.y); out.push({ name: "army-" + C.me + "-" + a.id, lon, lat, kind: "army", color: NATIONS[C.me].color, n: C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, mine: true }); }
   flag(armyPos(), C.me, field().length || C.army, true);
   return out;
+}
+// (an army under the pointer: whose, how strong, under whom, and what it's about)
+function armyTip(foe, mine, e) {
+  let el = $("cmpTip"); if (!el) { el = document.createElement("div"); el.id = "cmpTip"; el.className = "cmp-tip"; $("campaign").appendChild(el); }
+  if (foe) { const tg = C.foeGo && C.foeGo[foe], fg = C.foeGen && C.foeGen[foe]; el.innerHTML = `<b>${esc(poss(The(foe)))} army</b><small>${C.foes[foe] | 0} regiments${fg ? ` · under ${esc(fg.name)}` : ""}</small><span>${tg ? `Marching on ${esc(tg)}` : "In the field"}${canField(foe) ? " · within your reach" : ""}</span>`; }
+  else { const id = mine.id, A = id === (C.ar | 0) ? C : (C.armies || []).find(a => a.id === id) || {}, n = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length; el.innerHTML = `<b>${(C.armies || []).length ? esc(armyName(id)) : "Your army"}</b><small>${n} regiments${A.gen ? ` · under ${esc(A.gen.name)}` : " · no general"}</small><span>${A.siege ? `Besieging ${esc(A.siege.ct)}` : A.go ? "On the march" : A.moved ? "Marched this year" : "Ready to march"}</span>`; }
+  el.style.display = "block"; el.style.left = Math.min(innerWidth - 220, e.clientX + 16) + "px"; el.style.top = Math.min(innerHeight - 70, e.clientY + 14) + "px";
 }
 // (a town under the pointer: its name, how great it is, whose, and its people — beside the pointer)
 function townTip(ct, e) {
