@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.77.1", date: "17 October 2026", title: "Tax sliders",
+    items: [
+      "Campaign: taxes are sliders. The realm's runs Light, Fair, Heavy; a town's own runs Exempt, Light, Fair, Heavy, each stop named under it. Drag it and let go to set the taxes.",
+      "Campaign: an enemy town's card no longer tells you how many regiments its crown can bring to it, unless you have a politician of theirs in your pay.",
+    ],
+  },
+  {
     v: "1.77.0", date: "17 October 2026", title: "Colonies, fleets and smooth marches",
     items: [
       "Campaign: the crowns of Europe with towns in the New World have colonial armies there, apart from their armies at home. They're on the map while you're at war with them, defend their colonies, march on yours, and can be attacked and beaten in the open field. Their size is hidden unless you have a politician of theirs in your pay. An army at home can't come over to help, nor the colonial army go home.",

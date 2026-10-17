@@ -1982,3 +1982,14 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .gun-badge kbd { display: inline-block; padding: 0 5px; margin: 0 1px; border: 1px solid rgba(239, 228, 198, 0.5); border-radius: 3px; font: 600 11px var(--sans, sans-serif); background: rgba(255, 255, 255, 0.08); }
 /* pictures stay where they are: no dragging a portrait or a plate out of its box */
 img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-select: none; }
+/* taxes, as a slider: low to the left, high to the right */
+.cmp-tslide { margin: 6px 2px 2px; }
+.cmp-tslide input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; margin: 8px 0 4px; cursor: pointer;
+  background: linear-gradient(90deg, #6a9a4a 0%, #c9a45a var(--p, 50%), rgba(255,255,255,0.12) var(--p, 50%)); outline: none; }
+.cmp-tslide input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(#f3e3b4, #c9a45a); border: 2px solid #5a3c16; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+.cmp-tslide input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: linear-gradient(#f3e3b4, #c9a45a); border: 2px solid #5a3c16; }
+.cmp-tticks { display: flex; justify-content: space-between; font: 10.5px var(--sans); color: var(--ink-dim); }
+.cmp-tticks span { flex: 1; text-align: center; } .cmp-tticks span:first-child { text-align: left; } .cmp-tticks span:last-child { text-align: right; }
+.cmp-tticks span.on { color: #e8c96a; font-weight: 600; }
+.cmp-ttax { display: block; margin-top: 8px; }
+.cmp-tax kbd, .cmp-ttax kbd { display: inline-block; padding: 0 4px; border: 1px solid rgba(239,228,198,0.4); border-radius: 3px; font: 600 10px var(--sans); }
