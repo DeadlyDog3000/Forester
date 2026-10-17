@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.4", date: "17 October 2026", title: "A town left to its garrison",
+    items: [
+      "Campaign: a town held by its garrison alone, your army too far off to come, is fought with the garrison's men and the guns on its walls, not your army's. Losing it no longer costs your army its guns, its spirit or its general, who were never there.",
+      "Campaign: a march on one of your towns says how much of the enemy's army comes (\"23 regiments of its 43\"), and when your army is too far off to help.",
+    ],
+  },
+  {
     v: "1.60.3", date: "17 October 2026", title: "The straits on the map",
     items: [
       "Campaign: the straits of Mackinac and the Detroit river are drawn on the map, the water ways that join Huron to Michigan and to Erie. A lake's ships no longer seem to sail over the land between them.",
