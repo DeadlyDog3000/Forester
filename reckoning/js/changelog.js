@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.59.2", date: "17 October 2026", title: "Struck or sunk, you can tell",
+    items: [
+      "Battles at sea: a ship that strikes her colours hauls down her flag and pennant for a white one, lets her sails fly, and carries a white label over her: struck, and for an enemy, a prize.",
+      "A ship holed below the waterline carries a red label as she goes down, sinking, and once she's gone the label stays over the wreck for a while: sunk.",
+      "The fleets panel says it in words under each ship too: Struck, Sinking or Sunk.",
+    ],
+  },
+  {
     v: "1.59.1", date: "17 October 2026", title: "Your gun crews fire on their own",
     items: [
       "Battles at sea: your flagship's gun crews fire a broadside on their own whenever it's loaded and an enemy is on that beam within range, as your other captains' ships always did. Steer to bring the enemy abeam and the guns do the rest. Q and E still fire at once, at longer range or a wider bearing.",

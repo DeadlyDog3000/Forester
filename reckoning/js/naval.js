@@ -94,9 +94,21 @@ class Ship {
     const f = [Math.sin(this.yaw), Math.cos(this.yaw)], w = this.B.windTo, rel = Math.acos(clamp(f[0] * w[0] + f[1] * w[1], -1, 1)) * 180 / Math.PI;
     return rel <= 90 ? 0.8 + 0.2 * rel / 90 : rel <= 140 ? 1 - (rel - 90) / 50 * 0.55 : Math.max(0.06, 0.45 - (rel - 140) / 40 * 0.4);
   }
+  // (a word over a ship that's out of the fight, seen across the water: struck, and taken; sinking; sunk, over the wreck)
+  tag(word, color) {
+    if (this.tagWord === word) return; this.tagWord = word;
+    const cv = document.createElement("canvas"); cv.width = 640; cv.height = 80; const c = cv.getContext("2d");
+    c.font = "bold 34px Georgia, serif"; const w = Math.min(624, c.measureText(word).width + 44), x0 = (640 - w) / 2;
+    c.fillStyle = "rgba(12,18,22,0.8)"; c.beginPath(); c.roundRect(x0, 10, w, 60, 10); c.fill(); c.strokeStyle = color; c.lineWidth = 3; c.stroke();
+    c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = color; c.fillText(word, 320, 41, 600);
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+    if (!this.tagS) { this.tagS = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false, fog: false })); this.tagS.scale.set(0.36, 0.045, 1); this.tagS.renderOrder = 9; this.B.scene.add(this.tagS); }
+    else { this.tagS.material.map.dispose(); this.tagS.material.map = t; this.tagS.material.needsUpdate = true; }
+  }
   update(dt, t) {
+    if (this.tagS) { this.tagS.position.set(this.x, (this.sunk ? 6 : 34) * this.S.scale, this.z); if (this.sunk) { this.wreckT = (this.wreckT || 0) + dt; this.tagS.material.opacity = clamp(1 - (this.wreckT - 20) / 5, 0, 1); } }
     if (this.sunk) return;
-    if (this.hull <= 0) { this.sink += dt * 0.32; if (this.sink > 9) { this.sunk = true; this.root.visible = false; } }
+    if (this.hull <= 0) { this.sink += dt * 0.32; if (this.sink > 9) { this.sunk = true; this.root.visible = false; this.tag(`${this.team ? "Enemy" : "Your"} ${this.S.one.toLowerCase()} · sunk`, "#e07a5f"); } else this.tag(`${this.team ? "Enemy" : "Your"} ${this.S.one.toLowerCase()} · sinking`, "#e07a5f"); }
     const S = this.S, go = this.hull > 0 && !this.struck;
     const target = go ? S.speed * this.trim * this.pointK() * (0.35 + 0.65 * this.rig) * (0.5 + 0.5 * this.frac) : 0;
     this.spd += (target - this.spd) * Math.min(1, dt * 0.35);
@@ -111,7 +123,9 @@ class Ship {
     this.root.position.set(this.x, h - 0.15 - this.sink * (this.sink > 4 ? 1.6 : 0.5), this.z);
     this.root.rotation.set(Math.atan2(hs - hb, 2 * L) * 0.6 + (this.hull <= 0 ? this.sink * 0.05 : 0), this.yaw, Math.atan2(hl - hr, 2 * W) * 0.7 + this.heelK + this.recoil + (this.hull <= 0 ? this.sink * 0.06 : 0), "YXZ");
     if (this.pen) this.pen.rotation.y = Math.atan2(-this.B.windTo[1], this.B.windTo[0]) - this.yaw + Math.sin(t * 3 + this.x) * 0.15;
-    if (this.flag) this.flag.visible = !this.struck;
+    // (struck: her colours down and a white flag in their place, her sails let fly, and the word over her)
+    if (this.struck && !this.whiteFlag) { this.whiteFlag = true; if (this.flag) this.flag.material.color.set(0xf4f1e6); if (this.pen) this.pen.material.color.set(0xf4f1e6); this.trim = 0; }
+    if (this.struck && this.hull > 0) this.tag(`${this.team ? "Enemy" : "Your"} ${this.S.one.toLowerCase()} · struck${this.team ? ", a prize" : ""}`, "#f4f1e6");
   }
   // a broadside: side +1 her starboard, −1 her larboard. dist: how far to lay the guns for (elevation)
   fire(side, dist = 150) {
@@ -316,7 +330,7 @@ class Battle {
       const r = s => s.reload[s === f ? 0 : 0];
       me.innerHTML = `<b>${f.S.one}</b><span>Hull <i><u style="width:${Math.max(0, f.frac) * 100}%"></u></i></span><span>Crew <i><u style="width:${clamp(f.crew / f.S.crew, 0, 1) * 100}%"></u></i></span><span>Rigging <i><u style="width:${f.rig * 100}%"></u></i></span><span>Sail <em>${["Furled", "Battle sail", "All plain sail"][Math.round(f.trim * 2)]}</em> · ${Math.round(f.spd * 1.3)} knots</span><span class="nv-guns"><em class="${f.reload[0] <= 0 ? "ready" : ""}">Q larboard ${f.reload[0] <= 0 ? "ready" : Math.ceil(f.reload[0]) + "s"}</em><em class="${f.reload[1] <= 0 ? "ready" : ""}">E starboard ${f.reload[1] <= 0 ? "ready" : Math.ceil(f.reload[1]) + "s"}</em></span>`;
     }
-    const row = team => this.ships.filter(s => s.team === team).map(s => `<span class="${s.sunk || s.hull <= 0 ? "sunk" : s.struck ? "struck" : ""}${s === f ? " flag" : ""}" title="${s.S.one}">${s.k === "line" ? "Line" : s.k === "frigate" ? "Frigate" : "Sloop"}<i><u style="width:${Math.max(0, s.frac) * 100}%"></u></i></span>`).join("");
+    const row = team => this.ships.filter(s => s.team === team).map(s => `<span class="${s.sunk || s.hull <= 0 ? "sunk" : s.struck ? "struck" : ""}${s === f ? " flag" : ""}" title="${s.S.one}${s.sunk ? ": sunk" : s.hull <= 0 ? ": sinking" : s.struck ? ": struck her colours" : ""}">${s.k === "line" ? "Line" : s.k === "frigate" ? "Frigate" : "Sloop"}${s.sunk ? "<em>Sunk</em>" : s.hull <= 0 ? "<em>Sinking</em>" : s.struck ? "<em>Struck</em>" : ""}<i><u style="width:${Math.max(0, s.frac) * 100}%"></u></i></span>`).join("");
     this.el.querySelector(".nv-fleets").innerHTML = `<div><b>${this.o.myName || "Yours"}</b>${row(0)}</div><div><b>${this.o.theirName || "Theirs"}</b>${row(1)}</div>`;
     // (the wind's arrow, as it blows across the view)
     const ca = Math.atan2(this.cam.position.x - (f ? f.x : 0), this.cam.position.z - (f ? f.z : 0)), wa = Math.atan2(this.windTo[0], this.windTo[1]);
