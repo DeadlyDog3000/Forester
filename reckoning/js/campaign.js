@@ -522,6 +522,8 @@ const fieldMen = regs => clamp(Math.round(10 + regs / 1.6), 10, 70), fieldGuns =
 function fight(o) {
   // (first the muster: how many go, and which arms — asked each time you fight it yourself)
   if (!o.pick) { musterFor(o); return; }
+  // (the battle begun: from here, leaving it is leaving the field)
+  if (C.pending && !C.pending.begun) { C.pending.begun = true; persist(); }
   const g = grid(), mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att;
   const myMen = Object.values(o.pick.men).reduce((t, n) => t + n, 0) || 10, theirMen = clamp(Math.round(10 + theirs / 2.2), 10, 48);
   const ally = Object.keys(C.ally).find(id => C.ally[id] && C.E.wars.some(w => (w.a === id && w.b === o.foe) || (w.b === id && w.a === o.foe)));
@@ -869,6 +871,9 @@ function fairPick(p, regs, crown) {
 // a battle fought by hand and never finished (left from the pause menu): the army withdrew from it — lost
 function abandoned() {
   if (!C || !C.pending || (window.__G && window.__G.arena)) return;
+  // (closed at the muster, before a shot was fired: the muster again, not a defeat)
+  const P = C.pending, ct = !C.mp && !P.begun && CITIES.find(c => c[0] === P.ct);
+  if (ct) { setTimeout(() => { if (C && C.pending === P && !$("cmpMust")) fight({ ...P, ct }); }, 0); return; }
   doAct({ k: "result", won: false, left: true });
 }
 

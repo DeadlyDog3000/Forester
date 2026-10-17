@@ -1811,6 +1811,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-top { gap: 6px 16px; min-width: 0; }
 .cmp-top .cmp-crownname { font-size: 18px; }
 @media (max-width: 1200px) { .cmp-bar { flex-wrap: wrap; } }
+@media (max-width: 720px) { .cmp-bb { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-end; } .cmp-bb .btn { padding: 6px 8px; font-size: 12px; } .cmp-bb #cmpEnd { order: -1; flex: 1 1 100%; } }
 /* the orders, folded: the heading and the order in force, nothing else */
 #orderBook { transition: width 0.25s, opacity 0.25s; }
 #orderBook.mini { width: 190px; opacity: 0.78; padding: 7px 10px 6px; }

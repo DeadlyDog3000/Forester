@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.5", date: "17 October 2026", title: "Back to the muster",
+    items: [
+      "Campaign: a battle closed at the muster, before a shot was fired (the game quit, or the window reloaded), brings you back to the muster when you return. Before, it counted as leaving the field, and the battle was lost.",
+      "Campaign: in a narrow window, the top bar's buttons wrap onto their own lines, End the year above the rest. Before, it could run off the edge of the screen.",
+    ],
+  },
+  {
     v: "1.60.4", date: "17 October 2026", title: "A town left to its garrison",
     items: [
       "Campaign: a town held by its garrison alone, your army too far off to come, is fought with the garrison's men and the guns on its walls, not your army's. Losing it no longer costs your army its guns, its spirit or its general, who were never there.",
