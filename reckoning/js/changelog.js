@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.78.0", date: "17 October 2026", title: "Missions from the Crown",
+    items: [
+      "Campaign: missions, as in Empire: Total War. Now and then the Crown sets you a task with a year to have it done by: take an enemy town, raise a building in one of yours, field an army of so many regiments, beat a crown's army, sign a trade pact, or put so many ships to sea. Do it in time and the reward, in thalers, comes at once, with a lift to the army's spirits; let the time run out and the court is displeased. Two at most at a time, shown on the side panel.",
+      "A simpler screen. The top bar has only Learning, Panel, a ? for how the campaign works, and End the year; another campaign and the battles menu are in the Esc menu. The help strip and the long notes are gone from the side panel; the taxes are one line and a slider; a town's reasons for its loyalty fold away under its loyalty, open when it may riot.",
+      "The loyalty map's colours lie under the map's ink: the coasts, frontiers and rivers stay drawn over them, and the only lines it adds are between your own towns' countries.",
+    ],
+  },
+  {
     v: "1.77.1", date: "17 October 2026", title: "Tax sliders",
     items: [
       "Campaign: taxes are sliders. The realm's runs Light, Fair, Heavy; a town's own runs Exempt, Light, Fair, Heavy, each stop named under it. Drag it and let go to set the taxes.",
