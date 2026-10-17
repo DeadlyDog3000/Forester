@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.20", date: "16 October 2026", title: "Know what you march into",
+    items: [
+      "Campaign: marching on a town of the woods' nations, the muster tells you they'll hold it behind its palisade, and how to get in: by the way in, or through a length you've burnt. The town card says it stands behind a palisade.",
+    ],
+  },
+  {
     v: "1.51.19", date: "16 October 2026", title: "War parties",
     items: [
       "Campaign map: an army of the woods' nations is drawn as a war party, its men scattered in open order, not as battalions in two lines.",
