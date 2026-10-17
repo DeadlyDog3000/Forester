@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.71.0", date: "17 October 2026", title: "Military access",
+    items: [
+      "Campaign: your armies cross another crown's land only by its leave, as in the Total War games. A march, an attack or a landing that would cross a crown you aren't at war or allied with is stopped, and you're told whose land is in the way. Choose that crown and press Ask military access: the better they think of you, the likelier they agree, and a trade pact helps. You can give the access up again from the same card.",
+      "The other crowns ask yours. When one of them is at war and its road to the enemy runs through your country, its envoy asks leave to cross. Grant it and they think better of you, and their armies can reach towns they couldn't before. Refuse it and they think worse of you, must go another way, and won't ask again for some years. A leave you've granted can be revoked from their card.",
+      "Allies cross each other's land freely, and so does anyone at war with you. An army standing in a crown's land when its leave ends can always march out.",
+    ],
+  },
+  {
     v: "1.70.0", date: "17 October 2026", title: "Militia, and garrisons that wait",
     items: [
       "Militia: townsmen called out and handed a musket. A regiment of them costs less than half what musketeers do, in thalers and in upkeep, and every crown can raise them in any town. They're far less skilled: they shoot wide, load slowly, and break sooner. In battle they stand with the musketeers.",
