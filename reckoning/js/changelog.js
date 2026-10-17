@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.6", date: "17 October 2026", title: "Names apart",
+    items: [
+      "Sea battles: when ships bunch up, their names no longer sit on top of one another. The nearer ship's stays where it is and a farther one's rises above it, so each can be read.",
+    ],
+  },
+  {
     v: "1.60.5", date: "17 October 2026", title: "Back to the muster",
     items: [
       "Campaign: a battle closed at the muster, before a shot was fired (the game quit, or the window reloaded), brings you back to the muster when you return. Before, it counted as leaving the field, and the battle was lost.",

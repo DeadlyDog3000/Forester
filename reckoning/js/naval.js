@@ -100,7 +100,7 @@ class Ship {
     const cv = document.createElement("canvas"); cv.width = 640; cv.height = 80; const c = cv.getContext("2d");
     c.font = "bold 34px Georgia, serif"; const w = Math.min(624, c.measureText(word).width + 44), x0 = (640 - w) / 2;
     c.fillStyle = quiet ? "rgba(12,18,22,0.55)" : "rgba(12,18,22,0.8)"; c.beginPath(); c.roundRect(x0, 10, w, 60, 10); c.fill(); c.strokeStyle = color; c.lineWidth = quiet ? 2 : 3; if (!quiet) c.stroke(); else { c.beginPath(); c.moveTo(x0 + 14, 62); c.lineTo(x0 + w - 14, 62); c.stroke(); }
-    c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = color; c.fillText(word, 320, 41, 600);
+    c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = color; c.fillText(word, 320, 41, 600); this.tagW = w / 640;
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
     const sc = quiet ? [0.26, 0.0325] : [0.36, 0.045];
     if (this.tagS) this.tagS.scale.set(sc[0], sc[1], 1);
@@ -222,6 +222,18 @@ class Battle {
     this.hud();
   }
   later(d, fn) { this.timers.push({ at: this.t + d, fn }); }
+  // (the ships' words kept apart on the screen: the nearer ship's stays put, a farther one's rises above it)
+  unclutter(dt) {
+    this.cam.updateMatrixWorld(); const P = this.cam.projectionMatrix.elements, py = P[5], px = P[0], v = new THREE.Vector3(), placed = [];
+    const L = this.ships.filter(s => s.tagS && s.tagS.visible !== false && s.tagS.material.opacity > 0.05).map(s => ({ s, d: this.camDist(s.x, s.z) })).sort((a, b) => a.d - b.d);
+    for (const { s } of L) {
+      v.copy(s.tagS.position).project(this.cam); if (v.z > 1) continue;
+      const w = s.tagS.scale.x * px * (s.tagW || 0.5) + 0.01, h = s.tagS.scale.y * py * 0.8;
+      let lift = 0; for (let i = 0; i < 5 && placed.some(q => Math.abs(q.x - v.x) < (q.w + w) / 2 && Math.abs(q.y - (v.y + lift * h)) < (q.h + h) / 2); i++) lift++;
+      placed.push({ x: v.x, y: v.y + lift * h, w, h });
+      const c = s.tagS.center, to = 0.5 - lift * 0.8 / 1; c.y += (to - c.y) * Math.min(1, dt * 8);
+    }
+  }
   camDist(x, z) { return Math.hypot(this.cam.position.x - x, this.cam.position.z - z); }
   ball(b) { const m = new THREE.Mesh(this.ballGeo ||= new THREE.SphereGeometry(0.28, 6, 4), this.ballMat ||= new THREE.MeshBasicMaterial({ color: 0x1a1a1a })); m.position.set(b.x, b.y, b.z); this.scene.add(m); b.m = m; this.balls.push(b); }
   puff(x, y, z, o) {
@@ -320,6 +332,7 @@ class Battle {
     this.cam.lookAt(c.x, 8, c.z);
     const cell = 4200 / 280; this.sea.position.set(Math.round(c.x / cell) * cell, 0, Math.round(c.z / cell) * cell); this.dome.position.set(c.x, 0, c.z);
     this.sea.material.uniforms.uT.value = this.t;
+    this.unclutter(dt);
     this.renderer.render(this.scene, this.cam);
     this.drawHud();
     try { FOLEY.wash(f && f.alive ? clamp(f.spd / 8, 0.15, 1) : 0.15); } catch (e) {}
