@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.73.1", date: "17 October 2026", title: "Towns under armies",
+    items: [
+      "Campaign: a town with an army standing on it can be chosen. Click the town's dot and you get the town, not the army, whoever's army it is. Click an army that's already chosen again and you get the town beneath it.",
+    ],
+  },
+  {
     v: "1.73.0", date: "17 October 2026", title: "Fleets together",
     items: [
       "Campaign: fleets join together. Click a fleet of yours, then right-click another of your fleets: it sails to it, and the two become one fleet, with any army aboard carried over. If the other fleet is more than a year's sail off, yours follows it and joins when it arrives.",

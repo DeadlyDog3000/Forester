@@ -1598,19 +1598,21 @@ export function initCampaign(c, battle, withPlayer) {
   };
   cv.onmouseup = e => {
     const moved = drag ? drag.moved : 0; drag = null; if (moved > 5 || !C || e.button !== 0) return;
-    // (your army: picked up — the next right-click sends it)
-    const sh = fleetHit(cv, ...pos(e));
+    // (a town's own dot, clicked, is the town, whatever army or fleet stands over it; and a second click on an army or
+    //  fleet already chosen goes through it to the town beneath)
+    const dot = dotAt(cv, pos(e)), thru = dot.ct && (dot.on || (selFoe && foeHit(cv, ...pos(e)) === selFoe) || (armySel && (armyHit(cv, ...pos(e)) || {}).id === (C.ar | 0)) || (selFleet != null && (fleetHit(cv, ...pos(e)) || {}).mine === selFleet) || (selFoeFleet && (fleetHit(cv, ...pos(e)) || {}).foe === selFoeFleet));
+    const sh = !thru && fleetHit(cv, ...pos(e));
     if (sh) { if (sh.mine != null) { selFleet = selFleet === sh.mine ? null : sh.mine; selFoeFleet = null; } else { selFoeFleet = sh.foe; sel = pFleet(sh.foe) ? pFleet(sh.foe).h : sh.foe; } selCity = null; selFoe = null; armySel = false; note = selFleet != null && sh.mine != null ? "Your fleet: right-click on the sea to sail there." : ""; drawMap(); sfx("bell", 0.15); return; }
     if (selFleet != null) { selFleet = null; }
     selFoeFleet = null;
-    const fh = foeHit(cv, ...pos(e));
+    const fh = !thru && foeHit(cv, ...pos(e));
     if (fh) { selFoe = fh; sel = fh; selCity = null; armySel = false; note = ""; drawMap(); sfx("drum", 0.2); return; }
     selFoe = null;
-    const hit = armyHit(cv, ...pos(e));
+    const hit = !thru && armyHit(cv, ...pos(e));
     if (hit && hit.id !== (C.ar | 0)) { doAct({ k: "usearmy", id: hit.id }); armySel = false; }
     if (hit) { armySel = !armySel; selCity = null; sel = null; note = armySel ? `${(C.armies || []).length ? `The ${armyName(C.ar | 0).toLowerCase()}` : "Your army"}: right-click anywhere on the map to march there. A year's march takes it about 350 km; a town within that is in its reach.` : ""; drawMap(); sfx("drum", 0.25); return; }
     armySel = false;
-    const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z) || loyTownAt(...p);
+    const p = toMap(pos(e)), ct = (thru ? dot.ct : null) || cityAt(cv, ...p, view.z) || loyTownAt(...p);
     selCity = ct || null; sel = ct ? cityOwner(grid(), ct) : nationAt(E(), cv, ...p); note = "";
     // (the peoples' country: whose it is, and that it isn't a crown's)
     if (!selCity && !sel) { const pp = peopleAt(cv, ...p, E()); if (pp) note = `This is the country of ${PEOPLES[pp].long}. It is their own, and no crown's to take: an army may cross it, but not seize it.`; }
@@ -2022,6 +2024,14 @@ function fleetHit(cv, px, py) {
   const id = Object.keys(C.foeFleets || {}).find(id => C.foeFleets[id].ships.length && at(C.foeFleets[id].pos)); return id ? { foe: id } : null;
 }
 // (an enemy army under the pointer: one at war with you, on the map)
+// (the town under a point on the screen, and whether the point is right on its dot)
+const toMapPt = (cv, [x, y]) => [view.ox + x / view.z, view.oy + y / view.z];
+// (the nearest town within an army mark's reach of the point, for the click that goes through it)
+function dotAt(cv, px) {
+  const p = toMapPt(cv, px), S = cv.width / MG_W, k = cv.width / 1300; let ct = null, bd = 30 * k;
+  for (const c of CITIES) { const [gx, gy] = gridOf(c[1], c[2]), d = Math.hypot(gx * S - p[0], gy * S - p[1]) * view.z; if (d < bd) { bd = d; ct = c; } }
+  return { ct, on: !!ct && bd < 7 * k };
+}
 function foeHit(cv, px, py) {
   if (!C) return null; const S = cv.width / MG_W, u = armyU(cv.width / 1300), g = grid();
   for (const id of Object.keys(C.E.war)) {
