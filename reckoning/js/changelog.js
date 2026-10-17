@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.57.2", date: "16 October 2026", title: "Generals who learn",
+    items: [
+      "Campaign: a general grows in command with every third victory, up to the most a man can have. His card counts his victories.",
+    ],
+  },
+  {
     v: "1.57.1", date: "16 October 2026", title: "Towns for sale",
     items: [
       "Campaign: offer to buy a town from a crown that thinks well of you: its town nearest your lands, never its seat, at a price set by the town's worth. The friendlier they are, the likelier they'll sell.",

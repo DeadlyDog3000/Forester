@@ -338,6 +338,11 @@ const regCost = g => REGIMENT - Math.max(0, ...citiesOfNow(g, C.me).map(ct => CH
 const GUN_COST = 140;
 // (your army's nerve in a battle: the drill of your barracks, the bayonet, the general's hold on his men)
 const braveMul = g => moraleK() * (1 + Math.max(0, ...citiesOfNow(g, C.me).map(ct => CHAINS.army.levels[lvOf(ct[0], "army")].morale || 0)) + (knows("bayonet") ? 0.05 : 0) + (C.gen ? (C.gen.st[1] - 3) * 0.06 : -0.06) + vetK());
+// (a general's victories: every third one, he grows in command, up to the most a man can have)
+function genWin() {
+  const G = C.gen; if (!G) return; G.wins = (G.wins | 0) + 1;
+  if (G.wins % 3 === 0 && G.st[0] < 5) { G.st[0]++; say(`${G.name} grows in command`, `${G.wins} victories behind him: his command is now ${G.st[0]} of 5.`); }
+}
 // (the army's experience: its regiments' battles behind them, up to three chevrons each — a veteran army a tenth steadier)
 const vetK = () => { const L = C.units || []; return L.length ? L.reduce((t, u) => t + (u.xp || 0), 0) / L.length * 0.033 : 0; };
 const cmdMul = gen => gen ? 1 + (gen.st[0] - 3) * 0.07 : 0.93;
@@ -483,7 +488,7 @@ function settle(o, won, myLossK, theirLossK) {
   // (a storm through the breach: the siege over, won or lost)
   if (o.attack && siegeOf(o.ct)) C.siege = null;
   // (the army's spirit: up with a victory — more for a town taken — down hard with a defeat)
-  moraleMove(won ? (o.attack ? 12 : 8) : -16);
+  moraleMove(won ? (o.attack ? 12 : 8) : -16); if (won && (o.attack || !o.walls)) genWin();
   // (the generals' fate: in a lost battle one may fall; even in a won one, now and then)
   if (C.gen && R() < (won ? 0.05 : 0.25)) { moraleMove(-10); say(`${C.gen.name} falls at ${name}`, "Killed at the head of his men. Choose who will lead your army now."); C.gen = null; needGeneral(); }
   const fg = !isHuman(o.foe) && C.foeGen && C.foeGen[o.foe]; if (fg && R() < (won ? 0.2 : 0.04)) { say(`${fg.name} falls at ${name}`, `${poss(The(o.foe))} general is dead. ${(C.foeGen[o.foe] = newMan(o.foe, "general")).name} takes his place.`); }
@@ -556,7 +561,7 @@ function fieldEnd(o, won, myLossK, theirLossK) {
   const near = o.ct[0], h = homeOf(grid(), o.foe), fp = foeArmyPos(o.foe); C.moved = true; C.go = null;
   if (won) {
     if (h && fp) { const b = stepToward(fp, h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } if (C.foeGo) delete C.foeGo[o.foe];
-    moraleMove(10); say(`Victory in the field near ${near}`, `${o.attack ? "" : "Your army stands its ground. "}${poss(The(o.foe))} army is broken and falls back toward home, ${C.foes[o.foe]} regiments left to it. Its march is stopped.`);
+    moraleMove(10); genWin(); say(`Victory in the field near ${near}`, `${o.attack ? "" : "Your army stands its ground. "}${poss(The(o.foe))} army is broken and falls back toward home, ${C.foes[o.foe]} regiments left to it. Its march is stopped.`);
   } else {
     const mh = homeOf(grid(), C.me); if (mh) { const b = stepToward(armyPos(), mh, 4); C.pos = { x: b.x, y: b.y }; }
     moraleMove(-12); say(`Beaten in the field near ${near}`, `Your army falls back with what it has left: ${C.army} regiments.`);
@@ -1515,7 +1520,7 @@ function statsOf(m) {
   return `<span class="cmp-stats">${(m.role === "general" ? GSTATS : VSTATS).map((s2, i) => `<span class="${s2 === "Corruption" ? "bad" : ""}"><small>${s2}</small><i>${"●".repeat(m.st[i])}${"○".repeat(5 - m.st[i])}</i></span>`).join("")}</span>`;
 }
 function manCard(m, extra = "") {
-  return `<div class="cmp-man">${face(m)}<div><b>${esc(m.name)}</b>${m.hist ? `<em class="cmp-hist">Historical</em>` : ""}<small>${esc(m.d)}</small>${statsOf(m)}<small class="cmp-yrs">${m.served | 0} of ${lifeOf(m)} years' service</small>${extra}</div></div>`;
+  return `<div class="cmp-man">${face(m)}<div><b>${esc(m.name)}</b>${m.hist ? `<em class="cmp-hist">Historical</em>` : ""}<small>${esc(m.d)}</small>${statsOf(m)}<small class="cmp-yrs">${m.served | 0} of ${lifeOf(m)} years' service${m.wins ? ` · ${m.wins} victor${m.wins > 1 ? "ies" : "y"}` : ""}</small>${extra}</div></div>`;
 }
 function candidates(list, attr, fee = null) {
   return `<div class="cmp-cands">${list.map((m, i) => { const f = fee ? fee(m) : 0; return `<div class="cmp-cand">${face(m)}<b>${esc(m.name)}</b><small>${esc(m.d)}</small>${statsOf(m)}<button class="btn" ${attr}="${i}"${f > C.gold ? " disabled" : ""}>Appoint${f ? ` · ${f}` : ""}</button></div>`; }).join("")}</div>`;
