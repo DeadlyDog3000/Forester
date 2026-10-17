@@ -54,6 +54,27 @@ function drawColours(x, key) {
     case "hamburg": fill("#b8241c", 0, 0, W, H); x.fillStyle = "#f4f1e8"; fill("#f4f1e8", 56, 66, 80, 40); for (const [tx, th] of [[56, 34], [86, 48], [120, 34]]) { fill("#f4f1e8", tx, 66 - th, 16, th + 2); for (let k = 0; k < 3; k++) fill("#f4f1e8", tx + k * 6, 60 - th, 4, 6); } fill("#b8241c", 88, 84, 16, 22); break;
     case "rebels": fill("#2e5a2e", 0, 0, W, H); x.fillStyle = "#d8b84a"; x.font = "bold 19px Georgia, serif"; x.textAlign = "center"; x.fillText("FEAR NOTHING", W / 2, H / 2 - 6); x.fillText("BUT GOD", W / 2, H / 2 + 18); break;
     case "irish": fill("#2e6a3a", 0, 0, W, H); x.strokeStyle = "#d8b84a"; x.lineWidth = 6; x.beginPath(); x.moveTo(78, 100); x.lineTo(78, 30); x.quadraticCurveTo(110, 26, 122, 56); x.lineTo(78, 100); x.stroke(); x.lineWidth = 2; for (let i = 1; i < 6; i++) { x.beginPath(); x.moveTo(78 + i * 6, 32 + i * 2); x.lineTo(78 + i * 6, 100 - i * 7.5); x.stroke(); } break;
+    case "scottish": fill("#1f4a96", 0, 0, W, H); x.strokeStyle = "#f4f1e8"; x.lineWidth = 22; x.beginPath(); x.moveTo(0, 0); x.lineTo(W, H); x.moveTo(W, 0); x.lineTo(0, H); x.stroke(); break;
+    case "reich": fill("#d8b13a", 0, 0, W, H); eagle("#1a1714", W / 2, H / 2 + 4, 1.4); fill("#a8261e", 0, 0, W, 10); fill("#a8261e", 0, H - 10, W, 10); break;
+    case "portuguese": fill("#f4f1e8", 0, 0, W, H); x.fillStyle = "#b8241c"; x.fillRect(70, 30, 52, 64); x.fillStyle = "#f4f1e8"; x.fillRect(78, 38, 36, 48); x.fillStyle = "#2a4aa0"; for (const [cx, cy] of [[96, 46], [86, 62], [106, 62], [96, 78], [96, 62]]) x.fillRect(cx - 4, cy - 5, 8, 10); break;
+    case "aragonese": fill("#e2b83a", 0, 0, W, H); for (let i = 0; i < 4; i++) fill("#b8241c", 0, 10 + i * 30, W, 15); break;
+    case "milanese": fill("#f4f1e8", 0, 0, W, H); fill("#b8241c", W / 2 - 12, 0, 24, H); fill("#b8241c", 0, H / 2 - 12, W, 24); x.strokeStyle = "#2a4aa0"; x.lineWidth = 7; x.beginPath(); x.moveTo(30, 100); for (let i = 0; i < 6; i++) x.quadraticCurveTo(40 + i * 22, i % 2 ? 80 : 120, 52 + i * 22, 100); x.stroke(); break;
+    case "savoyard": fill("#b8241c", 0, 0, W, H); fill("#f4f1e8", W / 2 - 13, 0, 26, H); fill("#f4f1e8", 0, H / 2 - 13, W, 26); break;
+    case "venetian": fill("#9a1e2a", 0, 0, W, H); eagle("#d8b13a", W / 2, H / 2 + 4, 1.3, false); for (let i = 0; i < 6; i++) { x.fillStyle = "#d8b13a"; x.beginPath(); x.moveTo(W - 30, i * 22); x.lineTo(W, i * 22 + 11); x.lineTo(W - 30, i * 22 + 22); x.fill(); } break;
+    case "tuscan": fill("#d8b13a", 0, 0, W, H); x.fillStyle = "#b8241c"; for (const [cx, cy] of [[96, 26], [70, 48], [122, 48], [66, 78], [126, 78], [96, 104]]) { x.beginPath(); x.arc(cx, cy, 12, 0, Math.PI * 2); x.fill(); } break;
+    case "papal": fill("#e2c040", 0, 0, W / 2, H); fill("#f4f1e8", W / 2, 0, W / 2, H); x.strokeStyle = "#8a6a2a"; x.lineWidth = 8; x.lineCap = "round"; x.beginPath(); x.moveTo(60, 30); x.lineTo(132, 100); x.moveTo(132, 30); x.lineTo(60, 100); x.stroke(); break;
+    case "neapolitan": fill("#e2c040", 0, 0, W, H); x.strokeStyle = "#b8241c"; x.lineWidth = 14; x.lineCap = "round"; x.beginPath(); x.moveTo(30, 16); x.lineTo(162, 112); x.moveTo(162, 16); x.lineTo(30, 112); x.stroke(); break;
+    case "sicilian": x.fillStyle = "#e2c040"; x.beginPath(); x.moveTo(0, 0); x.lineTo(W, 0); x.lineTo(0, H); x.fill(); x.fillStyle = "#b8241c"; x.beginPath(); x.moveTo(W, 0); x.lineTo(W, H); x.lineTo(0, H); x.fill(); break;
+    case "cossack": fill("#a8261e", 0, 0, W, H); fill("#f4f1e8", W / 2 - 8, 20, 16, H - 40); fill("#f4f1e8", W / 2 - 34, H / 2 - 18, 68, 16); x.fillStyle = "#e2c040"; for (const [cx, cy] of [[34, 30], [158, 30], [34, 98], [158, 98]]) { x.beginPath(); x.arc(cx, cy, 7, 0, Math.PI * 2); x.fill(); } break;
+    case "tatar": fill("#3a6ab0", 0, 0, W, H); x.strokeStyle = "#e2c040"; x.lineWidth = 8; x.beginPath(); x.moveTo(96, 104); x.lineTo(96, 40); x.moveTo(72, 40); x.lineTo(72, 64); x.lineTo(120, 64); x.lineTo(120, 40); x.stroke(); break;
+    case "hungarian": for (let i = 0; i < 8; i++) fill(i % 2 ? "#f4f1e8" : "#b8241c", 0, i * H / 8, W, H / 8 + 1); break;
+    case "transylvanian": fill("#2a4aa0", 0, 0, W, H / 2); fill("#e2c040", 0, H / 2, W, H / 2); break;
+    case "moldavian": fill("#a8261e", 0, 0, W, H); x.fillStyle = "#e2c040"; x.beginPath(); x.ellipse(96, 68, 26, 30, 0, 0, Math.PI * 2); x.fill(); x.fillRect(64, 32, 10, 24); x.fillRect(118, 32, 10, 24); break;
+    case "wallachian": fill("#2a4aa0", 0, 0, W, H); eagle("#e2c040", W / 2, H / 2 + 6, 1.3, false); fill("#e2c040", W / 2 - 3, 14, 6, 26); fill("#e2c040", W / 2 - 11, 20, 22, 6); break;
+    case "algerine": fill("#2e7a3a", 0, 0, W, H / 3 + 1); fill("#e2c040", 0, H / 3, W, H / 3 + 1); fill("#b8241c", 0, H * 2 / 3, W, H / 3 + 1); break;
+    case "tunisian": fill("#2e7a3a", 0, 0, W, H); fill("#b8241c", 0, H / 4, W, H / 2); break;
+    case "tripolitan": fill("#2e7a3a", 0, 0, W, H); x.fillStyle = "#f4f1e8"; x.beginPath(); x.arc(92, 64, 30, 0, Math.PI * 2); x.fill(); x.fillStyle = "#2e7a3a"; x.beginPath(); x.arc(104, 60, 26, 0, Math.PI * 2); x.fill(); break;
+    case "moroccan": fill("#b8241c", 0, 0, W, H); break;
     default: fill("#9a2a22", 0, 0, W, H);
   }
   // (worn: the cloth darker at its edges, and the weave)
@@ -121,6 +142,52 @@ export const UNIFORMS = {
   native_north: { name: "Native", hist: true, body: "warrior_braids", note: "The warriors of the upper lakes and the north: the hair long and braided, black paint, buckskin leggings", coat: 0x6a3a24, vest: 0x6a3a24, legs: 0x8a6a48, sash: 0xb04a2a, hat: 0x6a3a24 },
   native: { name: "Native", hist: true, body: "warrior", note: "The warriors of the Eastern Woodlands: breechcloth and leggings of trade stroud, a finger-woven sash, paint, the roach and an eagle feather", coat: 0x8a2a1e, vest: 0x8a2a1e, legs: 0x2e3a5a, sash: 0xc8a050, hat: 0x9a2a1a },
   danish: { name: "Danish", note: "The King of Denmark's: grey-white, faced red, red stockings", coat: 0xd2ccbc, vest: 0xb02a24, legs: 0xb8b2a2, sash: 0xb02a24, hat: 0x1e1c1a, stock: [[0xb02a24, 55], [0x8a8478, 30], [0xc8c0ae, 15]] },
+  // (every other crown of the campaign in its own coat, as near as the records of the 1680s and 90s let us: nat, not
+  //  offered in the muster's colours, but worn by its own nation's armies)
+  scottish: { name: "Scottish", nat: true, note: "The Scots foot of King James VII: red coats faced white, grey breeches, the blue bonnet", coat: 0xa42a20, vest: 0xe2dccc, legs: 0x7a766a, sash: 0xe2dccc, hat: 0x2a3a6e, stock: [[0x7a766a, 45], [0xc8c0ae, 30], [0x2a3a6e, 25]] },
+  reich: { name: "Circle", nat: true, note: "The Empire's Circle regiments: blue coats, faced red, red stockings", coat: 0x2e4478, vest: 0xa22a22, legs: 0x8a8274, sash: 0xa22a22, hat: 0x1e1c1a, stock: [[0xa22a22, 45], [0x8a8478, 35], [0xc8c0ae, 20]] },
+  portuguese: { name: "Portuguese", nat: true, note: "The terços of King Pedro II: dark blue, faced red", coat: 0x26345e, vest: 0xa8261e, legs: 0x6a6658, sash: 0xa8261e, hat: 0x1e1c1a, stock: [[0x6a6658, 45], [0xa8261e, 30], [0xc8c0ae, 25]] },
+  aragonese: { name: "Aragonese", nat: true, note: "The tercios of the Crown of Aragon: yellow coats faced red, after its arms", coat: 0xc8a43a, vest: 0xa8261e, legs: 0x7a6a4e, sash: 0xa8261e, hat: 0x2a2420, stock: [[0xa8261e, 40], [0x8a8478, 35], [0xc8c0ae, 25]] },
+  milanese: { name: "Milanese", nat: true, note: "The State of Milan's foot, in the King of Spain's pay: red, faced yellow", coat: 0x962a22, vest: 0xd0aa40, legs: 0x8a7a5a, sash: 0xd0aa40, hat: 0x1e1c1a, stock: [[0xc8c0ae, 40], [0x962a22, 35], [0x6a6862, 25]] },
+  savoyard: { name: "Savoyard", nat: true, note: "Duke Victor Amadeus's foot: blue, faced red, red stockings", coat: 0x2c4c8a, vest: 0xa8261e, legs: 0x2c4c8a, sash: 0xa8261e, hat: 0x1e1c1a, stock: [[0xa8261e, 50], [0x6a6862, 30], [0xc8c0ae, 20]] },
+  venetian: { name: "Venetian", nat: true, note: "The Serenissima's oltremarini: crimson, faced blue, blue breeches", coat: 0x8e1e2a, vest: 0x2a3a6e, legs: 0x2a3a6e, sash: 0xc8a040, hat: 0x1e1c1a, stock: [[0x2a3a6e, 40], [0xc8c0ae, 35], [0x8e1e2a, 25]] },
+  tuscan: { name: "Tuscan", nat: true, note: "The Grand Duke's foot, in the Medici colours: red, faced gold", coat: 0xa22822, vest: 0xd8b04a, legs: 0x8a7e66, sash: 0xd8b04a, hat: 0x1e1c1a, stock: [[0xd8b04a, 35], [0xc8c0ae, 35], [0x8a8478, 30]] },
+  papal: { name: "Papal", nat: true, note: "His Holiness's foot: yellow coats, faced red, red stockings", coat: 0xd2b048, vest: 0xa8261e, legs: 0xc8b88a, sash: 0xa8261e, hat: 0x1e1c1a, stock: [[0xa8261e, 55], [0xc8c0ae, 30], [0x8a8478, 15]] },
+  neapolitan: { name: "Neapolitan", nat: true, note: "The tercios of the Kingdom of Naples: white-grey, faced blue, blue stockings", coat: 0xcfc8b6, vest: 0x2a4a8a, legs: 0xb8b0a0, sash: 0x2a4a8a, hat: 0x1e1c1a, stock: [[0x2a4a8a, 50], [0x8a8478, 30], [0xc8c0ae, 20]] },
+  sicilian: { name: "Sicilian", nat: true, note: "The tercios of Sicily: buff, faced yellow and red", coat: 0xbca478, vest: 0xd0a63a, legs: 0x8a7a5a, sash: 0xa8261e, hat: 0x2a2420, stock: [[0xa8261e, 40], [0xc8c0ae, 35], [0x8a8478, 25]] },
+  cossack: { name: "Cossack", nat: true, body: "strelets", note: "The Zaporozhian Host: a blue zhupan, wide red sharovary, a fur cap with a red bag", coat: 0x2e4a86, vest: 0xb02a24, legs: 0xb02a24, sash: 0xd4a83a, hat: 0x3a2a1e, boots: 0x7a2a1e },
+  tatar: { name: "Tatar", nat: true, body: "strelets", note: "The Khan's horsemen: a quilted kaftan in brown and green, a fur-trimmed cap, yellow boots", coat: 0x6a5232, vest: 0x3e5a34, legs: 0x5a4a34, sash: 0x9a2a22, hat: 0x2a2018, boots: 0xb08a30 },
+  hungarian: { name: "Hungarian", nat: true, body: "haiduk", note: "The hajdús of Hungary: a red dolman frogged in yellow, blue trousers, a kalpak", coat: 0xa22822, vest: 0x2a3a72, legs: 0x2a3a72, sash: 0xd4a83a, hat: 0x2a2018, boots: 0xb08a30 },
+  transylvanian: { name: "Transylvanian", nat: true, body: "haiduk", note: "The Prince of Transylvania's foot: a green dolman frogged red, red trousers", coat: 0x2e5a34, vest: 0xa8261e, legs: 0xa8261e, sash: 0xd4a83a, hat: 0x2e5a34, boots: 0x7a2a1e },
+  moldavian: { name: "Moldavian", nat: true, body: "haiduk", note: "The Hospodar's darabani: a red dolman, blue trousers, a black kalpak", coat: 0x9a2224, vest: 0x2a3a6a, legs: 0x2a3a6a, sash: 0xc8a040, hat: 0x1e1a16, boots: 0x6a4a2a },
+  wallachian: { name: "Wallachian", nat: true, body: "haiduk", note: "The Prince of Wallachia's seimeni: dark blue, faced yellow, red boots", coat: 0x22305a, vest: 0xd4a83a, legs: 0x22305a, sash: 0xd4a83a, hat: 0x1e1a16, boots: 0x8a2a20 },
+  algerine: { name: "Algerine", nat: true, body: "janissary", note: "The Odjak of Algiers: the janissary's dolama in red, a green sash", coat: 0x9a2224, vest: 0x2e5a34, legs: 0xe2dccc, sash: 0x2e5a34, hat: 0xe8e2d2, boots: 0xa8261e },
+  tunisian: { name: "Tunisian", nat: true, body: "janissary", note: "The Bey of Tunis's men: green, faced red, white trousers", coat: 0x2e5a34, vest: 0xa8261e, legs: 0xe2dccc, sash: 0xa8261e, hat: 0xe8e2d2, boots: 0xc09a3a },
+  tripolitan: { name: "Tripolitan", nat: true, body: "janissary", note: "The Regency of Tripoli's janissaries: white, faced green", coat: 0xd8d2c2, vest: 0x2e5a34, legs: 0xd8d2c2, sash: 0x2e5a34, hat: 0xe8e2d2, boots: 0xc09a3a },
+  moroccan: { name: "Moroccan", nat: true, body: "janissary", note: "Moulay Ismail's Black Guard: the white haik, a red sash and cap", coat: 0xe2dccc, vest: 0xa8261e, legs: 0xe2dccc, sash: 0xa8261e, hat: 0xa8261e, boots: 0xc8b07a },
+  // (each nation of the woods in its own: the colour of its trade stroud, its sash and paint, as their own men wore them)
+  haudenosaunee: { name: "Haudenosaunee", nat: true, body: "warrior", note: "The warriors of the Five Nations: red stroud leggings, a finger-woven sash, the roach", coat: 0x8a2a1e, vest: 0x8a2a1e, legs: 0x8a2a1e, sash: 0xc8a050, hat: 0x9a2a1a },
+  wabanaki: { name: "Wabanaki", nat: true, body: "warrior", note: "The warriors of the Dawnland: blue stroud, beaded, a red sash", coat: 0x2e3a5a, vest: 0x2e3a5a, legs: 0x2e3a5a, sash: 0xb04a2a, hat: 0x2a2018 },
+  cherokee: { name: "Cherokee", nat: true, body: "warrior", note: "The warriors of the Cherokee towns: deerskin and red stroud, a trade-cloth sash", coat: 0x8a6a48, vest: 0x8a6a48, legs: 0x8a2a1e, sash: 0xd8b04a, hat: 0x9a2a1a },
+  muscogee: { name: "Muscogee", nat: true, body: "warrior", note: "The warriors of the Muscogee towns: deerskin, blue stroud, a red sash", coat: 0x8a6a48, vest: 0x8a6a48, legs: 0x2e3a5a, sash: 0xb02a24, hat: 0x2a2018 },
+  choctaw: { name: "Choctaw", nat: true, body: "warrior", note: "The warriors of the Choctaw: deerskin, white and red paint, a sash of beads", coat: 0x9a7a54, vest: 0x9a7a54, legs: 0x9a7a54, sash: 0xe2dccc, hat: 0x2a2018 },
+  shawnee: { name: "Shawnee", nat: true, body: "warrior", note: "The warriors of the Shawnee: black stroud, red paint, a woven sash", coat: 0x2a2420, vest: 0x2a2420, legs: 0x2a2420, sash: 0xb04a2a, hat: 0x9a2a1a },
+  illinois: { name: "Illinois", nat: true, body: "warrior", note: "The warriors of the Illinois: deerskin, quilled, a red sash", coat: 0x8a6a48, vest: 0x8a6a48, legs: 0x6a4a30, sash: 0xb02a24, hat: 0x9a2a1a },
+  anishinaabe: { name: "Anishinaabe", nat: true, body: "warrior_braids", note: "The warriors of the upper lakes: buckskin, black paint, the hair long and braided", coat: 0x6a3a24, vest: 0x6a3a24, legs: 0x8a6a48, sash: 0xb04a2a, hat: 0x6a3a24 },
+  dakota: { name: "Dakota", nat: true, body: "warrior_braids", note: "The warriors of the Oceti Sakowin: painted buckskin, the hair braided, an eagle feather", coat: 0x9a7a54, vest: 0x9a7a54, legs: 0x9a7a54, sash: 0x2e3a5a, hat: 0x9a7a54 },
+  cree: { name: "Cree", nat: true, body: "warrior_braids", note: "The warriors of the Cree: smoked hide, red and blue stroud, the hair braided", coat: 0x5a3a26, vest: 0x5a3a26, legs: 0x2e3a5a, sash: 0xb02a24, hat: 0x5a3a26 },
+  pawnee: { name: "Pawnee", nat: true, body: "warrior_braids", note: "The warriors of the Pawnee: buffalo hide and red paint, the scalp-lock standing", coat: 0x7a5a3a, vest: 0x7a5a3a, legs: 0x7a5a3a, sash: 0xa8261e, hat: 0x7a5a3a },
+  osage: { name: "Osage", nat: true, body: "warrior", note: "The warriors of the Osage: deerskin, the roach, the head shaved to it, red paint", coat: 0x8a6a48, vest: 0x8a6a48, legs: 0x8a6a48, sash: 0xa8261e, hat: 0x9a2a1a },
+  caddo: { name: "Caddo", nat: true, body: "warrior", note: "The warriors of the Caddo: painted deerskin, blue and red, a feathered roach", coat: 0x8a6a48, vest: 0x8a6a48, legs: 0x2e3a5a, sash: 0xa8261e, hat: 0x9a2a1a },
+};
+// (the colours of a crown's own: what its uniform and flag are, in its armies — every one of its own, none borrowed)
+export const UNI_OF_NATION = {
+  scotland: "scottish", england: "english", ireland: "irish", france: "french", castile: "spanish", aragon: "aragonese", portugal: "portuguese", hre: "reich",
+  brandenburg: "brandenburg", saxony: "saxon", bavaria: "bavarian", austria: "imperial", milan: "milanese", savoy: "savoyard", venice: "venetian", tuscany: "tuscan",
+  papal: "papal", naples: "neapolitan", sicily: "sicilian", sweden: "swedish", denmark: "danish", poland: "polish", russia: "muscovite", cossacks: "cossack",
+  crimea: "tatar", hungary: "hungarian", transylvania: "transylvanian", moldavia: "moldavian", wallachia: "wallachian", ottoman: "ottoman", algiers: "algerine", tunis: "tunisian",
+  tripoli: "tripolitan", dutch: "dutch", morocco: "moroccan",
+  p_iroquois: "haudenosaunee", p_wabanaki: "wabanaki", p_cherokee: "cherokee", p_creek: "muscogee", p_choctaw: "choctaw", p_shawnee: "shawnee", p_illinois: "illinois", p_anishinaabe: "anishinaabe", p_dakota: "dakota", p_cree: "cree", p_pawnee: "pawnee", p_osage: "osage", p_caddo: "caddo",
 };
 // a soldier of a company: its uniform, his own face and build
 export function soldierLook(u, seed, base = {}) {
@@ -150,7 +217,7 @@ export function soldierLook(u, seed, base = {}) {
     a.setRGB(ch(a.r) + dust * 0.42, ch(a.g) + dust * 0.38, ch(a.b) + dust * 0.31);
     return a.getHex();
   };
-  const legs = /^warrior/.test(u.body || "") ? weighed([[0x2e3a5a, 40], [0x8a6a48, 35], [0x5a2420, 25]]) : u.body ? u.legs : weighed([[u.legs, 60], [0x5e5a50, 14], [0x564434, 14], [0x8e8470, 8], [0x3a3a3c, 4]]);
+  const legs = /^warrior/.test(u.body || "") ? weighed([[u.legs, 55], [0x2e3a5a, 15], [0x8a6a48, 18], [0x5a2420, 12]]) : u.body ? u.legs : weighed([[u.legs, 60], [0x5e5a50, 14], [0x564434, 14], [0x8e8470, 8], [0x3a3a3c, 4]]);
   // (the East's men in their boots; the West's in the stockings their company wore, and now and then their own)
   const stockings = u.boots ? wear(u.boots, 1.2) : wear(weighed([...(u.stock || [[0xc8c0ae, 35], [0x6a6862, 30]]), [0x5a4a3a, 8], [0x4e5262, 6]]), 1.5);
   return { body: u.body || "musketeer", skin, hair, face,

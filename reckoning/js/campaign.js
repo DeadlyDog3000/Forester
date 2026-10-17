@@ -16,6 +16,7 @@ import { FOLEY } from "./foley.js";
 import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, llOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H, useSheet, PEOPLES, peopleAt } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { TROOPS } from "./pvp.js";
+import { UNI_OF_NATION } from "./battle.js";
 import { plateOf } from "./unitart.js";
 import { SHIPS, SHIP_KINDS, navalBattle } from "./naval.js";
 import { CHAINS, CHAIN_ORDER, MARK, levelCost, capOf, TECHS, BRANCHES, canStudy, newMan, historicalOf, portOf, GSTATS, VSTATS, SERVICE, GEN_SERVICE } from "./realm.js";
@@ -33,14 +34,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const sfx = (name, vol = 0.5, after = 0) => { const go = () => { try { name === "coin" ? FOLEY.play("coin", { vol }) : FOLEY.cmp(name, vol); } catch (e) {} }; after ? setTimeout(go, after) : go(); };
 
 // each crown's coats on the field, and how its army's made up
-export const UNI_OF = {
-  scotland: "english", england: "english", ireland: "irish", france: "french", castile: "spanish", aragon: "spanish", portugal: "spanish", hre: "imperial",
-  brandenburg: "brandenburg", saxony: "saxon", bavaria: "bavarian", austria: "imperial", milan: "spanish", savoy: "french", venice: "imperial", tuscany: "imperial",
-  papal: "imperial", naples: "spanish", sicily: "spanish", sweden: "swedish", denmark: "danish", poland: "polish", russia: "muscovite", cossacks: "muscovite",
-  crimea: "ottoman", hungary: "imperial", transylvania: "polish", moldavia: "polish", wallachia: "polish", ottoman: "ottoman", algiers: "ottoman", tunis: "ottoman",
-  tripoli: "ottoman", dutch: "dutch", morocco: "ottoman",
-  p_iroquois: "native", p_wabanaki: "native", p_cherokee: "native", p_creek: "native", p_choctaw: "native", p_shawnee: "native", p_illinois: "native", p_anishinaabe: "native_north", p_dakota: "native_north", p_cree: "native_north", p_pawnee: "native_north", p_osage: "native", p_caddo: "native",
-};
+export const UNI_OF = UNI_OF_NATION;
 const STYLE = {
   west: [["musketeer", 0.58], ["pike", 0.15], ["grenadier", 0.1], ["cavalry", 0.1], ["sword", 0.07]],
   east: [["musketeer", 0.42], ["bow", 0.22], ["sword", 0.2], ["cavalry", 0.16]],

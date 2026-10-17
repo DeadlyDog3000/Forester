@@ -8,7 +8,11 @@
 
 const HAVE = new Set(["west-musketeer", "west-pike", "west-grenadier", "west-cavalry", "west-sword", "east-musketeer", "east-bow", "east-sword", "east-cavalry", "steppe-musketeer", "steppe-cavalry", "steppe-sword", "steppe-bow", "steppe-pike", "tsar-musketeer", "tsar-pike", "tsar-cavalry", "tsar-axe", "woods-bow", "woods-axe", "woods-musketeer", "west-bow", "west-crossbow", "west-axe"]);
 // (a battle's coats to the way of war they belong to)
-export const wayOfUniform = key => ({ ottoman: "east", polish: "steppe", muscovite: "tsar", native: "woods", native_north: "woods" }[key] || "west");
+// (the way a uniform's army fights and is drawn, by the dress its men wear: the janissary's the East's, the haiduk's the
+//  steppe's, the strelets' the Tsar's, the warrior's the woods')
+const WAYS = { ottoman: "east", algerine: "east", tunisian: "east", tripolitan: "east", moroccan: "east", polish: "steppe", hungarian: "steppe", transylvanian: "steppe", moldavian: "steppe", wallachian: "steppe", muscovite: "tsar", cossack: "tsar", tatar: "steppe",
+  native: "woods", native_north: "woods", haudenosaunee: "woods", wabanaki: "woods", cherokee: "woods", muscogee: "woods", choctaw: "woods", shawnee: "woods", illinois: "woods", anishinaabe: "woods", dakota: "woods", cree: "woods", pawnee: "woods", osage: "woods", caddo: "woods" };
+export const wayOfUniform = key => WAYS[key] || "west";
 // the plate for an arm, in a way of war — or the West's, or the nearest of kin, or none
 export function plateOf(way, kind) {
   for (const k of [kind, ...({ crossbow: ["bow"], axe: ["sword"], sword: ["axe"], bow: ["crossbow"] }[kind] || [])]) {

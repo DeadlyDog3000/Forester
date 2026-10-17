@@ -432,7 +432,7 @@ function drawArmy() {
   el.innerHTML = `<div class="pv-h big">Your company</div>
     ${muster}
     <div class="pv-h">Colours</div>
-    <div class="pv-unis">${Object.entries(UNIFORMS).filter(([, u]) => !u.hist).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div>
+    <div class="pv-unis">${Object.entries(UNIFORMS).filter(([, u]) => !u.hist && !u.nat).map(([k, u]) => `<button class="pv-uni${A.uniform === k ? " on" : ""}" data-uni="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span>${esc(u.name)}</button>`).join("")}</div>
     ${A.vs !== "player" ? sidesRow(A) : ""}
     ${A.vs !== "player" && !isCustom(A) ? `<div class="pv-h">The ground</div><div class="pv-grounds">${[["open", "Open field"], ["ours", "Your fort"], ["theirs", "Their fort"]].map(([k, n]) => `<button class="pv-gr${A.ground === k ? " on" : ""}" data-gr="${k}"><b>${n}</b></button>`).join("")}</div>` : ""}`;
   void step; void multi;
@@ -609,7 +609,7 @@ const prefPurse = a => PURSES[a.ppurse] ? +a.ppurse : 900;
 const livePurse = a => must && must.kind === "mp" && must.side === 1 ? (must.theirPurse || 900) : prefPurse(a);
 export function army() {
   let a = {}; try { a = JSON.parse(localStorage.getItem(ARMY_KEY) || "{}") || {}; } catch (e) {}
-  const keys = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist), uniform = keys.includes(a.uniform) ? a.uniform : keys[0];
+  const keys = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist && !UNIFORMS[k].nat), uniform = keys.includes(a.uniform) ? a.uniform : keys[0];
   const others = keys.filter(k => k !== uniform);
   const ground = ["open", "ours", "theirs"].includes(a.ground) ? a.ground : "open";
   const purse = PURSES[a.purse] ? +a.purse : 900;
@@ -722,7 +722,7 @@ function startDuel(o) {
   // other waits for the field to be described to it, and builds the same
   if (o.net && o.battle) {
     const mine = o.army || army(), theirs = o.foe.army || {};
-    const keys = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist);
+    const keys = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist && !UNIFORMS[k].nat);
     if (o.side === 0) {
       let uf = keys.includes(theirs.uniform) ? theirs.uniform : keys[1]; if (uf === mine.uniform) uf = keys.filter(k => k !== mine.uniform)[Math.floor(Math.random() * (keys.length - 1))];
       // (the ground against a player: the open field — unless one company is clearly the smaller, which then has a fort
@@ -922,7 +922,7 @@ class Arena {
     // (every side its own colours, none the same as another's)
     // (and every company of a historical battle its own: the Poles, the Emperor's men and the Saxons on one side)
     if (HB) { this.coUni = this.hist.cos.map(c => UNIFORMS[c.uni]); this.uni = [UNIFORMS[A.uniform], UNIFORMS[A.enemyUniform]]; }
-    else if (this.custom) { const left = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist && UNIFORMS[k] !== this.uni[0] && k !== A.enemyUniform).sort(() => Math.random() - 0.5); for (let a = 2; a < this.custom.length; a++) this.uni.push(UNIFORMS[left.pop()]); }
+    else if (this.custom) { const left = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist && !UNIFORMS[k].nat && UNIFORMS[k] !== this.uni[0] && k !== A.enemyUniform).sort(() => Math.random() - 0.5); for (let a = 2; a < this.custom.length; a++) this.uni.push(UNIFORMS[left.pop()]); }
     const myLook = this.myLook = this.uni ? inUniform(me.look, this.uni[0]) : me.look;
     this.foeName = foe.name;
     G.player.setModel(lookOpts(myLook, me.name)); G.player.model.scaleBase = me.look.height || 1;

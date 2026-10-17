@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.62.0", date: "17 October 2026", title: "Every crown in its own coat",
+    items: [
+      "Every nation's army wears its own uniform and carries its own colours. Scotland's men are Scots: red coats faced white and the blue bonnet, under the saltire. Before, Scotland borrowed England's coats, and fighting England against Scotland put them in the Emperor's grey.",
+      "Twenty-one new uniforms, as near as the records of the 1680s and 90s let us: the Empire's Circle regiments, Portugal, Aragon, Milan, Savoy, Venice, Tuscany, the Papal States, Naples, Sicily; the Cossacks and the Crimean Tatars; Hungary's hajdús, Transylvania, Moldavia and Wallachia; Algiers, Tunis, Tripoli and Moulay Ismail's Black Guard of Morocco. Each with its own flag.",
+      "Each of the thirteen Native nations in its own dress: the Haudenosaunee in red stroud, the Wabanaki in blue, the Shawnee in black, and so on, every warrior named by his own people.",
+    ],
+  },
+  {
     v: "1.61.2", date: "17 October 2026", title: "Lighter battles",
     items: [
       "Battles no longer slow down as the fighting goes on. A wounded man used to fall apart, for drawing, into the score of pieces he's made of, each with a skeleton of its own; with every man hit the battle drew more. Now his coat darkens with the blood and he stays one.",
