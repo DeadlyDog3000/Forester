@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.2", date: "16 October 2026", title: "Split the army",
+    items: [
+      "Campaign: split an army in two from its card. Half of each arm marches off as an army of its own, beside the first; join them again whenever they stand together.",
+      "Campaign: a new army formed in a town where another of yours already stands is drawn beside it, not on top of it.",
+    ],
+  },
+  {
     v: "1.55.1", date: "16 October 2026", title: "They come for your armies too",
     items: [
       "Campaign: an enemy army stronger than one of yours, and near it in the open, may fall on it. Fight the battle yourself, or leave it to your general.",

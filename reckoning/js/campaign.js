@@ -792,7 +792,20 @@ function formArmy(n) {
   if ((C.armies || []).length >= 5) return "You have armies enough to command.";
   const id = Math.max(...armyIds()) + 1, t = cellXY(ct);
   for (const u of G) { delete u.at; u.ar = id; }
-  (C.armies ||= []).push({ id, pos: { x: t.x, y: t.y }, go: null, moved: false, siege: null, army: Math.round(G.reduce((s2, u) => s2 + u.hp, 0)), gen: null, morale: 50, supplied: false, sailed: 0 });
+  // (beside the town, a little off any army of yours already standing in it)
+  const crowd = dist2(armyPos(), t) < 1.5 || (C.armies || []).some(a => a.pos && dist2(a.pos, t) < 1.5);
+  (C.armies ||= []).push({ id, pos: { x: t.x + (crowd ? 1.8 : 0), y: t.y + (crowd ? 0.8 : 0) }, go: null, moved: false, siege: null, army: Math.round(G.reduce((s2, u) => s2 + u.hp, 0)), gen: null, morale: 50, supplied: false, sailed: 0 });
+  useArmy(id); persist(); return null;
+}
+// (the army in hand split in two where it stands: half of each arm marched off as an army of its own)
+function splitArmy() {
+  reconcile(); const F = field(); if (F.length < 4) return "Too few regiments to split.";
+  if (C.siege) return "Not while it's besieging a town."; if ((C.armies || []).length >= 5) return "You have armies enough to command.";
+  const id = Math.max(...armyIds()) + 1, by = {}; for (const u of F) (by[u.k] ||= []).push(u);
+  let n = 0; for (const L of Object.values(by)) for (const u of L.slice(0, Math.floor(L.length / 2))) { u.ar = id; n++; }
+  if (!n) return "Too few regiments to split."; const p = armyPos(), moved = C.moved;
+  const str = Math.round(C.units.filter(u => !u.at && u.ar === id).reduce((t, u) => t + u.hp, 0)); C.army = Math.round(unitSum());
+  (C.armies ||= []).push({ id, pos: { x: p.x + 1.8, y: p.y + 0.8 }, go: null, moved, siege: null, army: str, gen: null, morale: C.morale ?? 50, supplied: false, sailed: 0 });
   useArmy(id); persist(); return null;
 }
 // (two of your armies in one place: the one in hand marched into the other, and gone)
@@ -1597,7 +1610,7 @@ function drawSide() {
     <div class="cmp-morale"><small>Morale</small><b>${moraleWord(C.morale ?? 50)}</b><i><u style="width:${C.morale ?? 50}%"></u></i><small>${C.morale ?? 50}</small></div>
     ${(C.armies || []).length ? `<div class="cmp-armies">${armyIds().map(id => { const n2 = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length; return `<button class="btn${id === (C.ar | 0) ? " on" : ""}" data-army="${id}"${id === (C.ar | 0) ? " disabled" : ""}>${esc(armyName(id))} · ${n2}</button>`; }).join("")}</div>` : ""}
     ${C.gen ? manCard(C.gen) : `<div class="cmp-nogov"><span>No general leads it: it fights the worse for it.</span>${(C.ar | 0) !== armyIds()[0] ? `<button class="btn" data-askgen="1">Choose a general</button>` : ""}</div>`}
-    ${(C.armies || []).some(a => a.pos && dist2(a.pos, armyPos()) <= 3 && !a.siege) && !C.siege ? `<div class="cmp-acts"><button class="btn" data-join="1">Join the other army here</button></div>` : ""}
+    <div class="cmp-acts">${(C.armies || []).some(a => a.pos && dist2(a.pos, armyPos()) <= 3 && !a.siege) && !C.siege ? `<button class="btn" data-join="1">Join the other army here</button>` : ""}${field().length >= 4 && !C.siege ? `<button class="btn ghost" data-split="1" title="Half of each arm marches off as an army of its own">Split the army</button>` : ""}</div>
     ${rollHtml()}
     ${(C.lq || []).length ? `<small class="cmp-fine">Raising: ${C.lq.map(q => `${esc(TROOPS[q.k].one.toLowerCase())} at ${esc(q.t)}`).join(", ")}. They join the army at the year's end, or hold their towns if it's far off.</small>` : ""}
     <small class="cmp-fine">Regiments are raised in your towns: choose one on the map. Thin regiments fill their ranks again from your towns each year, fastest on your own land. Upkeep ${upkeep()} a year.</small>`, armySel);
@@ -1626,6 +1639,7 @@ function sideClick(e) {
   if (b.dataset.army != null) { doAct({ k: "usearmy", id: +b.dataset.army }); const p2 = armyPos(), cv2 = $("cmpMap"), S2 = cv2.width / MG_W; view.ox = clamp(p2.x * S2 - cv2.width / view.z / 2, 0, cv2.width - cv2.width / view.z); view.oy = clamp(p2.y * S2 - cv2.height / view.z / 2, 0, cv2.height - cv2.height / view.z); drawMap(); return; }
   if (b.dataset.form && selCity) { doAct({ k: "form", t: selCity[0] }); return; }
   if (b.dataset.join) { doAct({ k: "join" }); return; }
+  if (b.dataset.split) { doAct({ k: "split" }); return; }
   if (b.dataset.askgen) { doAct({ k: "askgen" }); return; }
   if (b.dataset.ucard) { unitCard(b.dataset.ucard); return; }
   if (b.dataset.station && selCity) { doAct({ k: "station", t: selCity[0], u: b.dataset.station }); return; }
@@ -1685,6 +1699,7 @@ function apply(actor, a) {
     }
     if (a.k === "usearmy") { if (!armyIds().includes(a.id | 0)) return null; useArmy(a.id | 0); persist(); return {}; }
     if (a.k === "form") { const why = formArmy(a.t); return why ? { note: why } : { note: `A new army is formed at ${a.t} from its garrison: the ${armyName(C.ar | 0).toLowerCase()}. Choose a general for it from its card.`, sfx: [["drum", 0.5]] }; }
+    if (a.k === "split") { const why = splitArmy(); return why ? { note: why } : { note: `The army is split in two: the ${armyName(C.ar | 0).toLowerCase()} marches under its own colours. Choose a general for it.`, sfx: [["drum", 0.45]] }; }
     if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4]] }; }
     if (a.k === "askgen") { askGeneral(); return {}; }
     if (a.k === "station") { const why = station(a.t, a.u, !!a.out); return why ? { note: why } : { sfx: [["drum", 0.3]] }; }
