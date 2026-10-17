@@ -1409,6 +1409,8 @@ class Arena {
   }
   palisadeTick(dt) {
     const P = this.palisade;
+    // (the attacker told, once the fighting's begun, what a palisade's for)
+    if (!this.toldPal && this.live && this.clock > 3 && this.alOf(0) !== P.side) { this.toldPal = true; UI.hint("Their town stands behind a palisade. Hold F at a length of it to set it alight. Your men will fire any they reach.", 6); }
     for (const b of P) {
       const F = b.fire; if (!F) continue;
       F.t += dt;

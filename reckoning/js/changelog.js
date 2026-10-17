@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.10", date: "16 October 2026", title: "The Great Lakes, true to shape",
+    items: [
+      "Map: the Great Lakes are drawn far more truly. Superior has the Keweenaw, Michigan has Green Bay and the Door, and Huron has Saginaw Bay, Georgian Bay and the Bruce. Before, they were rough wedges.",
+      "Battle: attacking a town of the woods' nations, you're told that its palisade can be set alight.",
+    ],
+  },
+  {
     v: "1.51.9", date: "16 October 2026", title: "The ocean, as the chart-makers drew it",
     items: [
       "Map: the Atlantic is drawn as the Dutch sheets drew their seas. A great compass rose with its lily at the north, thirty-two rhumb lines out across the water, a smaller rose off Portugal, ships under sail on the crossing, and a sea serpent in the deep.",
