@@ -247,6 +247,8 @@ const pjit = (c, r, ox = 0, oy = 0) => (pnoise(c / 9 + ox * 0.37, r / 9 + oy * 0
 function seize(ct, to) {
   const g = grid(), from = cityOwner(g, ct); if (!from || from === to) return 0;
   C.lastBy = { ...(C.lastBy || {}), [from]: to };
+  // (whose it was, and whose its people first were: for its loyalty to the new crown)
+  { const H = (C.held ||= {}), was = H[ct[0]]; H[ct[0]] = { from, by: to, y: C.year, orig: was && was.orig ? was.orig : from }; if (H[ct[0]].orig === to) delete H[ct[0]]; }
   // (a town taken: some of its people killed in the sack, or fled)
   if (C.pop) C.pop[ct[0]] = Math.round(popOf(ct) * 0.85);
   // (and the loser's regiments that held it: killed or taken)
@@ -1187,9 +1189,42 @@ function peopleYear(g) {
 // ---- public order: a town's temper — soured by heavy taxes and a great city's crowds, sweetened by light ones, held by
 //  regiments in its garrison and by a school or church that keeps its people in hand; a corrupt governor makes it worse.
 //  Below zero, it may riot: the year's taxes not paid, some of its people killed or fled ----
-function orderOf(ct) {
-  const n = ct[0], t = C.tax ?? 1, v = govOf(n);
-  return (t === 2 ? -2 : t === 0 ? 1 : 0) - (ct[3] === 3 ? 1 : 0) + Math.min(2, garUnits(n).length) + (lvOf(n, "church") ? 1 : 0) + (v ? (v.st[0] >= 4 ? -1 : v.st[0] <= 1 ? 1 : 0) : 0) + 1;
+// ---- a town's loyalty, as the Total War games keep it: each thing that sways it, for or against, and the sum of them.
+//  A town you took is the hardest to hold: newly conquered, its people remember their old crown (the more while you
+//  fight it), and pray, it may be, in another church — every one of which fades as the years go by under your rule ----
+// (whose a town's people are: the crown that held it in 1683, whoever has taken it since)
+let ORIG_G = null;
+const peopleOf = ct => { W0(); ORIG_G ||= buildGrid({ conq: [] }); return cityOwner(ORIG_G, ct); };
+const FAITH_WORD = { catholic: "Catholic", reformed: "Reformed", lutheran: "Lutheran", orthodox: "Orthodox", muslim: "Muslim", native: "their own" };
+function loyalty(ct) {
+  const n = ct[0], t = C.tax ?? 1, v = govOf(n), out = [["Your rule", 1]];
+  if (t === 2) out.push(["Heavy taxes", -2]); else if (t === 0) out.push(["Light taxes", 1]);
+  if (ct[3] === 3) out.push(["A great city's crowds", -1]);
+  const gar = Math.min(2, garUnits(n).length); if (gar) out.push([`Garrison of ${garUnits(n).length}`, gar]);
+  if (lvOf(n, "church")) out.push(["The church", 1]);
+  if (v) { const k = v.st[0] >= 4 ? -1 : v.st[0] <= 1 ? 1 : 0; if (k) out.push([`Governor ${v.name.split(" ").pop()}${k < 0 ? ", corrupt" : ", honest"}`, k]); }
+  // (your army standing by it: soldiers in the streets keep the peace — as long as they're there)
+  if (C.emb == null && !C.siege && dist2(armyPos(), cellXY(ct)) <= 6) out.push(["Your army in the town", 1]);
+  const H = C.held && C.held[n], folk = peopleOf(ct), yrs = H && H.by === C.me ? C.year - H.y : 99;
+  if (folk === C.me) {
+    // (one of your own towns won back: its people glad of it, for a few years)
+    if (yrs < 4) out.push(["Liberated", 1]);
+  } else if (folk && NATIONS[folk]) {
+    // (newly conquered: fierce at first, fading over some six years)
+    const nc = yrs < 2 ? -3 : yrs < 4 ? -2 : yrs < 7 ? -1 : 0; if (nc) out.push([yrs < 1 ? "Newly conquered" : `Conquered ${yrs} year${yrs > 1 ? "s" : ""} ago`, nc]);
+    // (its people remember their own crown, while it stands — the more while you're at war with it — for fifteen years)
+    if (alive(grid(), folk) && yrs < 15) out.push([`Remembers ${the(folk)}${atWar(folk) ? ", at war with you" : ""}`, atWar(folk) ? -2 : -1]);
+    // (its people of another church than yours, till a generation has grown up under you)
+    const f = NATION_FAITH[folk], mf = NATION_FAITH[C.me]; if (f && mf && f !== mf && yrs < 25) out.push([`${FAITH_WORD[f] || f} people under a ${FAITH_WORD[mf] || mf} crown`, -1]);
+  }
+  return out;
+}
+function orderOf(ct) { return loyalty(ct).reduce((t, [, v]) => t + v, 0); }
+// (each thing that sways it, laid out for the town's card)
+function loyaltyHtml(ct) {
+  const L = loyalty(ct), o = L.reduce((t, [, v]) => t + v, 0);
+  return `<div class="cmp-loyal"><span>Loyalty: <b class="${o < 0 ? "down" : ""}">${orderWord(o)}</b> <em>${o > 0 ? "+" : ""}${o}</em>${o < 0 ? " · it may riot at the year's end, and a town that riots two years running rises" : ""}</span>
+    <ul>${L.map(([k, v]) => `<li class="${v < 0 ? "down" : "up"}"><i>${v > 0 ? "+" : ""}${v}</i>${esc(k)}</li>`).join("")}</ul></div>`;
 }
 const orderWord = o => o >= 2 ? "Content" : o >= 0 ? "Quiet" : o === -1 ? "Restless" : "Close to rising";
 function riots(g) {
@@ -2036,7 +2071,7 @@ function recruitHtml(ct) {
 // your own town: its worth and garrison, its governor, and its buildings a chain at a time — one piece of work a year
 function townCard(g, ct) {
   const n = ct[0], q = C.Q && C.Q[n], v = govOf(n), last = citiesOfNow(g, C.me).length === 1, wl = lvOf(n, "walls");
-  let h = `<p>Yours. Garrison ${garrison(ct)}; worth ${worth(ct)} thalers a year. ${wl ? CHAINS.walls.levels[wl].n + "." : last ? "No walls, but it's your last town: its people will hold it to the end." : "No walls."}</p><p class="cmp-pop">${popLine(ct)}</p>${(h => h ? `<p class="cmp-pop">${onLake(grid(), h) ? "A port on the Great Lakes: its ships sail the lakes, never out to the sea." : "A port, on the sea."}</p>` : "")(harbourOf(ct))}<p class="cmp-pop">Public order: <b class="${orderOf(ct) < 0 ? "down" : ""}">${orderWord(orderOf(ct))}</b>${orderOf(ct) < 0 ? " · it may riot at the year's end. Lighter taxes, a regiment in its garrison or a school will calm it." : ""}</p>` + garHtml(ct) + recruitHtml(ct) + dockHtml(ct);
+  let h = `<p>Yours. Garrison ${garrison(ct)}; worth ${worth(ct)} thalers a year. ${wl ? CHAINS.walls.levels[wl].n + "." : last ? "No walls, but it's your last town: its people will hold it to the end." : "No walls."}</p><p class="cmp-pop">${popLine(ct)}</p>${(h => h ? `<p class="cmp-pop">${onLake(grid(), h) ? "A port on the Great Lakes: its ships sail the lakes, never out to the sea." : "A port, on the sea."}</p>` : "")(harbourOf(ct))}${loyaltyHtml(ct)}` + garHtml(ct) + recruitHtml(ct) + dockHtml(ct);
   h += v ? manCard(v, `<label class="cmp-rule"><input type="checkbox" data-rule="${esc(n)}"${C.rule && C.rule[n] ? " checked" : ""}> Let him rule: he puts the town's works in hand himself</label>`)
     : C.govCands && C.govCands[n] ? `<div class="cmp-subh">Choose a governor for ${esc(n)}</div>${candidates(C.govCands[n], "data-gov", m => govFee(m, ct))}`
     : `<div class="cmp-nogov"><span>No governor: a clerk keeps the books, and some of the money goes missing.</span><button class="btn" data-act="govs">Appoint a governor</button></div>`;
@@ -2076,7 +2111,7 @@ function drawSide() {
     if (e.done) continue;
     if (e.kind === "appoint") { h += `<div class="cmp-ev"><b>Choose a general for ${e.ar ? `the ${esc(armyName(e.ar).toLowerCase())}` : "your army"}</b><small>One of three men put forward. He serves fifty years, if the enemy doesn't end it first.</small>${candidates(e.cands, `data-ev="${i}" data-appg`)}</div>`; continue; }
     if (e.kind === "seabattle") { const f = fleetById(e.fid), F = C.foeFleets && C.foeFleets[e.foe]; if (!f || !F) { e.done = true; continue; } h += `<div class="cmp-ev war"><b>${esc(poss(The(e.foe)))} fleet falls on your ${esc(fleetName(f).toLowerCase())}!</b><small>${F.ships.length} ships of war against your ${f.ships.length}${aboardRegs(f.id) ? `, with ${aboardRegs(f.id)} regiments aboard yours` : ""}. Your odds: ${Math.round(odds(gunsOf(f.ships), gunsOf(F.ships), false) * 100)}%.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Command the fleet</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your admirals</button></span></div>`; continue; }
-    if (e.kind === "rising") { const ct = CITIES.find(c => c[0] === e.ct); h += `<div class="cmp-ev war"><b>${esc(e.ct)} rises!</b><small>A second year of riots, and the town is up in arms: some ${e.att} companies of townsmen against its garrison of ${ct ? garrison(ct) : 0}. Put it down by force, or buy peace with concessions${ct ? ` (${worth(ct) * 2} thalers)` : ""}.</small><span><button class="btn primary" data-ev="${i}" data-how="crush">Put it down</button><button class="btn" data-ev="${i}" data-how="concede">Grant concessions</button></span></div>`; continue; }
+    if (e.kind === "rising") { const ct = CITIES.find(c => c[0] === e.ct); h += `<div class="cmp-ev war"><b>${esc(e.ct)} rises!</b><small>A second year of riots, and the town is up in arms: some ${e.att} companies of townsmen against its garrison of ${ct ? garrison(ct) : 0}.${(() => { const old = ct && peopleOf(ct); return old && old !== C.me && NATIONS[old] && alive(grid(), old) ? ` If it wins, the town goes over to ${esc(the(old))}.` : ""; })()} Put it down by force, or buy peace with concessions${ct ? ` (${worth(ct) * 2} thalers)` : ""}.</small><span><button class="btn primary" data-ev="${i}" data-how="crush">Put it down</button><button class="btn" data-ev="${i}" data-how="concede">Grant concessions</button></span></div>`; continue; }
     if (e.kind === "fieldatk" && e.human) { h += `<div class="cmp-ev war"><b>${esc(nameOf(e.foe))} ${v3(e.foe, "falls")} on ${e.ar ? `your ${esc(armyName(e.ar).toLowerCase())}` : "your army"}!</b><small>${e.att} regiments of ${esc(NATIONS[e.foe].name)} against your ${e.def}, in the open near ${esc(e.ct)}. Meet them in the field yourself, the two of you in one battle, or leave it to your general.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Meet them in the field</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your general</button></span></div>`; continue; }
     if (e.kind === "fieldatk") { h += `<div class="cmp-ev war"><b>${esc(poss(The(e.foe)))} army falls on ${e.ar ? `your ${esc(armyName(e.ar).toLowerCase())}` : "your army"}!</b><small>${e.att} regiments against your ${e.def}, in the open near ${esc(e.ct)}. Your odds: ${Math.round(odds(e.def, e.att, false) * 100)}%.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Fight it yourself</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your general</button></span></div>`; continue; }
     if (e.kind === "attack" && e.human) { h += `<div class="cmp-ev war"><b>${esc(nameOf(e.foe))} marches on ${esc(e.ct)}!</b><small>${e.att} regiments of ${esc(NATIONS[e.foe].name)} against your ${e.def} (${e.army === false ? "the garrison: your army is too far off to come" : "garrison and army"})${e.walls ? " · behind its walls" : ""}. Meet them on the field yourself, the two of you in one battle, or leave it to the garrison and let them fight it.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Meet them on the field</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to the garrison</button></span></div>`; continue; }
@@ -2142,7 +2177,7 @@ function drawSide() {
       <li><b>The navy.</b> Build sloops, frigates and ships of the line in your ports' dockyards. Click a fleet, then right-click on the sea to sail it: a year's sailing crosses the Atlantic. Bring a fleet to the shore where an army stands to take it aboard, sail it, and land it anywhere. Ships of your own carry an army free and guard it; hired transports cost money, and enemy fleets may fall on them. Enemy fleets come for yours in war: fight the battle at sea yourself, or leave it to your admirals. Ships that strike their colours are taken as prizes. A town on the Great Lakes has a dockyard too, for sloops and frigates that sail its lake: Huron, Michigan and Erie are joined, but Ontario and Superior keep to themselves.</li>
       <li><b>Battles in the field.</b> Click an enemy army on the map, or right-click it: if your army can reach it this year, fall on it in the open before it reaches your towns. Beaten, it falls back and its march is stopped. In a campaign for two, the other player's army can be fallen on too, and they choose whether to meet you in the field themselves.</li>
       <li><b>More than one army.</b> Form a new army from a town's garrison. Click an army on the map to give it orders; each marches, besieges and fights on its own, under its own general. Right-click another of your armies to march to it and join the two into one.</li>
-      <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing, and a town that riots two years running rises: put it down, or buy peace with concessions. Regiments in its garrison and a school keep order. A town's people make its wealth, and fill the army's thin regiments each year.</li>
+      <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing, and a town that riots two years running rises: put it down, or buy peace with concessions. Regiments in its garrison and a school keep order. <b>Loyalty</b>: a town you conquer is the hardest to hold — newly conquered, its people remembering their own crown (the more while you're at war with it) and praying, it may be, in another church — and each fades as the years pass under you. Its card shows every reason for and against. A conquered town that rises and wins goes back to its own crown; one of your own won back is glad of it. A town's people make its wealth, and fill the army's thin regiments each year.</li>
       <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
       <li><b>Walled towns</b> are taken by siege: sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
       <li><b>Taking a town</b> takes its whole province with it. A crown with no towns left is gone, and its land is yours.</li>
@@ -2370,6 +2405,10 @@ function apply(actor, a) {
         if (a.how === "concede") { const c = worth(ct) * 2; C.gold -= c; say(`${ct[0]} is quieted`, `Its grievances heard and ${c} thalers in concessions: the town goes back to its work.`); return done({ sfx: [["coin", 0.45], ["quill", 0.4, 500]] }); }
         const mine = garrison(ct) + helpNear(ct), w = R() < odds(mine, ev.att, false);
         if (w) { C.pop[ct[0]] = Math.round(popOf(ct) * 0.96); say(`The rising in ${ct[0]} is put down`, "The garrison clears the streets. The ringleaders hang, and the town is quiet, for now."); }
+        else if ((() => { const old = peopleOf(ct); return old && old !== C.me && NATIONS[old] && alive(g, old) && (ev.back = old); })()) {
+          // (a conquered town risen and the day won: it opens its gates to its old crown)
+          const G = garUnits(ct[0]).length; seize(ct, ev.back); say(`${ct[0]} goes over to ${the(ev.back)}`, `The rising wins the day${G ? `, the garrison of ${G} regiment${G > 1 ? "s" : ""} overwhelmed` : ""}, and the town opens its gates to its old crown.`);
+        }
         else { const G = garUnits(ct[0]).length; C.units = C.units.filter(u => u.at !== ct[0]); C.pop[ct[0]] = Math.round(popOf(ct) * 0.9); C.gold -= worth(ct); say(`The rising in ${ct[0]} wins the day`, `The garrison is overwhelmed${G ? `, ${G} regiment${G > 1 ? "s" : ""} of it lost` : ""}, the town's books burned and a year's taxes lost before order is restored.`); }
         return done({ sfx: [["drum", 0.5], ["guns", 0.4, 700]] });
       }

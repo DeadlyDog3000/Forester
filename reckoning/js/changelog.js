@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.68.0", date: "17 October 2026", title: "Loyalty",
+    items: [
+      "Campaign: towns have loyalty, as in the Total War games. Each town's card lists every reason for and against: your rule, the taxes, its garrison, its church, its governor, your army in its streets, a great city's crowds.",
+      "A town you conquer is the hardest to hold. Newly conquered (−3, fading over some six years); its people remembering their own crown (−1, or −2 while you're at war with it); and, if they pray in another church than yours, a people of another faith under your crown (−1, till a generation has grown up). A town of your own won back is glad of it instead: Liberated, +1.",
+      "A town that riots two years running rises, as before; and a conquered town that rises and wins opens its gates to its own crown again. The rising's card says so before you choose.",
+    ],
+  },
+  {
     v: "1.67.0", date: "17 October 2026", title: "The gazette",
     items: [
       "Campaign: each year begins with the gazette laid before you, your own crown's paper: The London Gazette, the Gazette de France, the Gaceta de Madrid, the Wienerisches Diarium, the Vedomosti and the rest, dated and numbered. The year's great matter is its headline under a woodcut, and the rest of the news is set out in columns: From the Wars, From the Courts, At Home, From Abroad. Lay it aside to play the year, or read it again from the year's news.",
