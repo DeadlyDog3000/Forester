@@ -10,9 +10,18 @@
 
 import { THREE } from "./core.js";
 import { G } from "./engine.js";
+import { Billboards } from "./billboards.js";
 
 // ---- the look of it: lumpy, cauliflowered puffs, shaded as if lit from above (a few of them, for variety) ----
-let PUFFS = null, FLASH = null, SPARK = null;
+let PUFFS = null, FLASH = null, SPARK = null, SHEET = null, SHEET_C = null;
+// (each world's two pools of them: the smoke, sorted and see-through; the flashes and sparks, adding light)
+const POOL = new WeakMap();
+function pools(root) {
+  let P = POOL.get(root); if (P && P.smoke.mesh.parent === root) return P;
+  Billboards.install(G.scene);
+  P = { smoke: new Billboards(root, SHEET, { grid: [2, 2], order: 2 }), flash: new Billboards(root, FLASH, { additive: true, order: 3 }) };
+  POOL.set(root, P); return P;
+}
 function textures() {
   if (PUFFS) return;
   PUFFS = [];
@@ -30,7 +39,10 @@ function textures() {
     const sh = x.createLinearGradient(0, 30, 0, 118); sh.addColorStop(0, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(70,72,78,0.55)");
     x.fillStyle = sh; x.fillRect(0, 0, 128, 128);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; PUFFS.push(t);
+    (SHEET_C ||= []).push(c);
   }
+  // (the four on one sheet, two by two, for the puffs drawn all together)
+  { const sh = document.createElement("canvas"); sh.width = sh.height = 256; const x2 = sh.getContext("2d"); SHEET_C.forEach((c, i) => x2.drawImage(c, (i % 2) * 128, (1 - Math.floor(i / 2)) * 128)); SHEET = new THREE.CanvasTexture(sh); SHEET.colorSpace = THREE.SRGBColorSpace; }
   const f = document.createElement("canvas"); f.width = f.height = 64; const y = f.getContext("2d");
   const g = y.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(255,252,230,1)"); g.addColorStop(0.25, "rgba(255,200,110,0.9)"); g.addColorStop(0.6, "rgba(255,120,40,0.35)"); g.addColorStop(1, "rgba(255,90,20,0)");
   y.fillStyle = g; y.fillRect(0, 0, 64, 64); FLASH = new THREE.CanvasTexture(f);
@@ -48,15 +60,14 @@ function stop(tick) { const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.s
 // the flash: a burst of light at the muzzle and a spray of sparks, a tenth of a second
 export function muzzleFlash(root, at, dir, scale = 1) {
   textures();
-  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLASH, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
-  core.position.copy(at).addScaledVector(dir, 0.15 * scale); core.scale.setScalar(0.9 * scale); root.add(core);
-  const tongue = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLASH, color: 0xffa050, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
-  tongue.position.copy(at).addScaledVector(dir, 0.5 * scale); tongue.scale.set(0.7 * scale, 0.7 * scale, 1); root.add(tongue);
+  const F = pools(root).flash;
+  const core = F.add(0, 0xffffff); core.position.copy(at).addScaledVector(dir, 0.15 * scale); core.scale.setScalar(0.9 * scale);
+  const tongue = F.add(0, 0xffa050); tongue.position.copy(at).addScaledVector(dir, 0.5 * scale); tongue.scale.setScalar(0.7 * scale);
   const sparks = [];
   for (let i = 0; i < 6 + 6 * scale; i++) {
-    const s = new THREE.Sprite(SPARK); s.scale.setScalar(0.05 * Math.sqrt(scale)); s.position.copy(at);
+    const s = F.add(0, 0xffc070); s.scale.setScalar(0.05 * Math.sqrt(scale)); s.position.copy(at);
     s.userData.v = dir.clone().multiplyScalar(8 + Math.random() * 12).add(new THREE.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.3) * 4, (Math.random() - 0.5) * 4));
-    root.add(s); sparks.push(s);
+    sparks.push(s);
   }
   let t = 0;
   const tick = dt => {
@@ -64,7 +75,7 @@ export function muzzleFlash(root, at, dir, scale = 1) {
     core.material.opacity = Math.max(0, 1 - t / 0.08); core.scale.setScalar(0.9 * scale * (1 + t * 6));
     tongue.material.opacity = Math.max(0, 1 - t / 0.06); tongue.position.addScaledVector(dir, dt * 6 * scale);
     for (const s of sparks) { s.userData.v.y -= 9 * dt; s.position.addScaledVector(s.userData.v, dt); s.visible = t < 0.35 + Math.random() * 0.1; }
-    if (t > 0.5) { root.remove(core, tongue, ...sparks); core.material.dispose(); tongue.material.dispose(); stop(tick); }
+    if (t > 0.5) { for (const p of [core, tongue, ...sparks]) F.remove(p); stop(tick); }
   };
   run(tick);
 }
@@ -87,13 +98,14 @@ export function powderSmoke(root, at, dir, o = {}) {
   // (a grey: coarse powder burnt in a hurry — the haze it leaves lighter. Darker than this, a gun's cloud hung in a
   //  sunlit field as a black blot)
   const day = daylight(), tint = new THREE.Color(o.tint || 0x9a9996).multiplyScalar(day), hazeTint = new THREE.Color(0xaeadaa).multiplyScalar(day), drift = wind(), puffs = [], alpha = o.alpha || 1;
+  const SM = pools(root).smoke;
   const add = (p0, v0, s0, grow, l, a0, delay = 0, col = tint) => {
-    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFFS[Math.floor(Math.random() * PUFFS.length)], color: col, transparent: true, opacity: 0, depthWrite: false, fog: true }));
+    const m = SM.add(Math.floor(Math.random() * 4), col); m.material.opacity = 0;
     s0 *= big; grow *= big; ALL.add(m);
     m.position.copy(p0); m.scale.setScalar(s0); m.material.rotation = Math.random() * Math.PI * 2;
-    m.renderOrder = 2;   // (over the blood on the ground, which is drawn at 1: a cloud hides what lies under it)
+    // (drawn at 2, over the blood on the ground at 1: a cloud hides what lies under it)
     m.userData = { v: v0, s0, grow, l, a0, delay, spin: (Math.random() - 0.5) * 0.4, t: 0 };
-    root.add(m); puffs.push(m);
+    puffs.push(m);
   };
   // the jet: out along the barrel in a narrow cone, the front of it fastest
   for (let i = 0; i < n; i++) {
@@ -116,7 +128,7 @@ export function powderSmoke(root, at, dir, o = {}) {
       // (too many on the field: the older ones thin away over a second and a half)
       if (ALL.size > CAP && t > 3 && u.kill == null) u.kill = 1;
       if (u.kill != null) u.kill -= dt / 1.5;
-      if (t > u.l || (u.kill != null && u.kill <= 0)) { if (m.parent) { root.remove(m); m.material.dispose(); } ALL.delete(m); continue; }
+      if (t > u.l || (u.kill != null && u.kill <= 0)) { if (m.parent) SM.remove(m); ALL.delete(m); continue; }
       alive++;
       // braking hard out of the jet, then hanging, lifting a little, and away on the wind
       u.v.multiplyScalar(Math.exp(-dt * 3.4));

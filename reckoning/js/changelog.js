@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.69.0", date: "17 October 2026", title: "Smoke in one",
+    items: [
+      "Battles: the powder smoke of every volley, and the flash and sparks at every muzzle, are drawn together, all at once, instead of each puff by itself. A great battle's smoke was some hundreds of separate things for the graphics card each frame, and a company's volley was a hitch you could feel. It looks just as it did.",
+    ],
+  },
+  {
     v: "1.68.0", date: "17 October 2026", title: "Loyalty",
     items: [
       "Campaign: towns have loyalty, as in the Total War games. Each town's card lists every reason for and against: your rule, the taxes, its garrison, its church, its governor, your army in its streets, a great city's crowds.",
