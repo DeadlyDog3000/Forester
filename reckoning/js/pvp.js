@@ -880,6 +880,10 @@ class Arena {
     setC(ground ? { x: ground.x, z: ground.z } : { x: HUNT.x, z: HUNT.z });
     // (a historical battle's ground shaped as its own was, before any of it's built)
     if (HB && ground) shapeField(w, C, HB, this.hist.side === 1);
+    // (two players met at a town of the campaign: the town itself on the field — its streets, its walls if it has them,
+    //  or a village's palisade — at the defender's end, built alike on both their games)
+    const TW = !HB && CA && CA.rank ? { map: { things: [CA.village ? ["village", CA.def === 1 ? 1 : -1, CA.rank | 0, CA.seed | 0] : ["town", CA.def === 1 ? 1 : -1, CA.rank | 0, CA.walls | 0, CA.seed | 0, 0]] } } : null;
+    if (TW && ground) shapeField(w, C, TW, false);
     this.place = HB ? { text: `${HB.name} · ${HB.date}`, at: HB.at } : CA ? { text: `${String(CA.name).slice(0, 40)} · ${String(CA.date || "").slice(0, 30)}`, at: String(CA.at || "").slice(0, 80) } : ground ? ground.name : null;
     // (the hour: a battle by day mostly — morning, afternoon or evening — and now and then by night, under the moon,
     //  the field lit by its fires and the guns' lanterns, and no one seeing far)
@@ -890,6 +894,7 @@ class Arena {
     setWorld(w); setAtmo(this.hour); G.cloud = HB ? HB.cloud || 0 : 0; G.mist = HB ? HB.mist || 0 : 0; G.flash = 0; if (G.sky) G.sky.visible = true; G.reAtmo && G.reAtmo();
     if (ground) w.buildNear(C.x, C.z, 99);
     if (HB && ground) this.things = buildThings(w, C, HB, this.hist.side === 1);
+    else if (TW && ground) this.things = buildThings(w, C, TW, false);
     w.huntOpen = true;
     this.hunt = new Hunt(w, { x: C.x, z: C.z, r: 1 }, {});
     // (no friendly fire: a shot or an arrow goes by your own side's men — yours by your company, theirs by theirs)

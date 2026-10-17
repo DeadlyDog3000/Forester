@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.8", date: "16 October 2026", title: "Two players meet in the town",
+    items: [
+      "Campaign of two: when one player's army marches on the other's town and you meet on the field, the battle is fought at the town itself, as battles against the computer are: its streets and houses at the defender's end, its walls if it has them, or a village's palisade.",
+    ],
+  },
+  {
     v: "1.51.7", date: "16 October 2026", title: "Towns in their clearings",
     items: [
       "The land (3D map): the woods no longer grow through the towns. Every town stands in its own clearing, larger for a great city.",

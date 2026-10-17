@@ -1427,7 +1427,9 @@ function meetGo() {
   if (D.uniform === A.uniform) D.uniform = A.uniform === "imperial" ? "bavarian" : "imperial";
   M.menA = A.allies; M.menD = D.allies;
   const hostC = humans()[0];
-  const at = { name: ct[0], lon: ct[1], lat: ct[2], date: `${SEASONS[C.s]} ${C.year}`, at: `${nameOf(attacker)} ${v3(attacker, "marches")} on ${poss(nameOf(defender))} town` };
+  const at = { name: ct[0], lon: ct[1], lat: ct[2], date: `${SEASONS[C.s]} ${C.year}`, at: `${nameOf(attacker)} ${v3(attacker, "marches")} on ${poss(nameOf(defender))} town`,
+    // (the town itself, to be fought in: whose end it's at, how big, its walls, or a village's palisade)
+    def: defender === hostC ? 0 : 1, rank: ct[3], walls: att.walls ? Math.max(1, lvOf(ct[0], "walls")) : 0, village: isVillage(ct), seed: Math.round(ct[1] * 1000 + ct[2] * 100) };
   for (const crown of [attacker, defender]) tell(crown, { meet: { key, side: crown === hostC ? 0 : 1, foe: crown === attacker ? defender : attacker, army: crown === attacker ? A : D, theirs: crown === attacker ? D : A, ct: att.ct, at } });
   persist();
 }
