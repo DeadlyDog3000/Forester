@@ -223,20 +223,22 @@ button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8
   const tokenFile = dataDir ? path.join(dataDir, "sales.token") : null;
   const salesToken = () => { try { return tokenFile && fs.existsSync(tokenFile) ? fs.readFileSync(tokenFile, "utf8").trim() : ""; } catch (e) { return ""; } };
   const tokenOk = t => { const want = salesToken(); if (!want || !t) return false; const a = Buffer.from(String(t)), b = Buffer.from(want); return a.length === b.length && crypto.timingSafeEqual(a, b); };
+  // (only the sales of the mode the shop is in: the test purchases made before it went live aren't sales)
+  const ofMode = r => /^cs_live_/.test(r.s || "") === isLive();
   let backfilling = false;
   async function backfill() {
     // (sales from before the counter: what they came to, asked of Stripe a few at a time)
     if (backfilling || !isOn()) return; backfilling = true;
-    try { let n = 0; for (const [k, r] of Object.entries(book.keys)) { if (!r.paid || r.amt != null) continue; if (n++ >= 5) break; await paid(k, true); } } finally { backfilling = false; }
+    try { let n = 0; for (const [k, r] of Object.entries(book.keys)) { if (!r.paid || r.amt != null || !ofMode(r)) continue; if (n++ >= 5) break; await paid(k, true); } } finally { backfilling = false; }
   }
   function sales() {
-    const L = Object.values(book.keys).filter(r => r.paid), day = Date.now() - 86400000, week = Date.now() - 7 * 86400000, gross = {}, net = {};
+    const all = Object.values(book.keys).filter(ofMode), L = all.filter(r => r.paid), day = Date.now() - 86400000, week = Date.now() - 7 * 86400000, gross = {}, net = {};
     for (const r of L) { if (r.amt == null) continue; const c = (r.cur || "?").toUpperCase(); gross[c] = (gross[c] || 0) + r.amt; if (!r.revoked) net[c] = (net[c] || 0) + r.amt; }
     const when = r => r.paidAt || r.at || 0;
     return {
       sold: L.filter(r => !r.revoked).length, refunded: L.filter(r => r.revoked).length, gross, net,
       today: L.filter(r => !r.revoked && when(r) >= day).length, week: L.filter(r => !r.revoked && when(r) >= week).length,
-      opened: Object.keys(book.keys).length, live: isLive(), on: isOn(),
+      opened: all.length, live: isLive(), on: isOn(),
       last: L.sort((a, b) => when(b) - when(a)).slice(0, 12).map(r => ({ at: when(r), amt: r.amt ?? null, cur: (r.cur || "").toUpperCase(), cc: r.cc || "", refunded: !!r.revoked })),
       now: Date.now(),
     };
