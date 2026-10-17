@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.75.0", date: "17 October 2026", title: "A man at their court",
+    items: [
+      "Campaign: you no longer know how big another crown's army is. Its mark on the map shows a question mark instead of a count; clicking it or hovering it says its size is unknown; their card says army ?; and the odds of attacking it can't be reckoned. The news of their marches and wars leaves the number out too.",
+      "Corrupt a politician: on any crown's card, war or peace, pay 300 thalers to buy a man at their court. From then on you know their army's size everywhere: on the map, on its card, in the odds and in the news. Each crown is bought once.",
+      "Another player's army is still shown as it is.",
+    ],
+  },
+  {
     v: "1.74.3", date: "17 October 2026", title: "Off the gun",
     items: [
       "Battles: Shift takes you off a gun you're working. F still does too, and no longer puts you straight back on it (the same press was taking the gun up again), and walking off with W A S D leaves it as well.",
