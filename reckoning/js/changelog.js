@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.59.0", date: "16 October 2026", title: "Fleets on the lakes, and in sight",
+    items: [
+      "Campaign: the Great Lakes are sailable. A town on them has a dockyard for sloops and frigates, too small for ships of the line, and its ships keep to their lake. Huron, Michigan and Erie are joined by the straits of Mackinac and the Detroit river. Niagara's falls and the rapids keep Ontario and Superior apart, and keep all of them from the sea.",
+      "Campaign: the river ports are ports again: London, Hamburg, Bremen, Antwerp, Rouen, Nantes, Bordeaux, Seville, York, Lübeck, Königsberg and Stettin. Inland cities like Florence and Turin are not.",
+      "Campaign: fleets are drawn on the land seen close, the 3D view: the ship herself on the water, her pennant in her crown's colours, heading where she's bound, with how many ships are with her.",
+      "Campaign for two: you see the other player's fleets, on the map and in the 3D view. At war, you can fall on them. A battle between two players' fleets is fought by the admirals, and both players are told the outcome. Prizes are taken, and the regiments aboard a lost ship are lost with her.",
+      "Campaign for two: the other crowns' fleets are built up and repaired once a year, not once for each player. A fleet at war with both players goes after the one whose fleet lies nearest.",
+      "Battles at sea where no ship is lost now say so, instead of reporting nought sunk on either side.",
+    ],
+  },
+  {
     v: "1.58.0", date: "16 October 2026", title: "The navy",
     items: [
       "Campaign: build ships in your ports' dockyards: sloops, frigates and, in a city's dockyard, ships of the line. Each has its own painted plate, its guns, the regiments it can carry and its upkeep. They're launched at the year's end, into a fleet lying off the port or a new one of their own.",

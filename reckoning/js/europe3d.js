@@ -18,6 +18,7 @@
 import { THREE, rng } from "./core.js";
 import { NATIONS, CITIES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
+import { ensureModel, modelCopy } from "./models.js";
 
 const K = Math.cos(49 * Math.PI / 180);
 export const U = 10;                                       // units per degree of latitude
@@ -344,6 +345,28 @@ export class EuropeView3D {
     }
     this.scene.add(grp);
   }
+  // the fleets at sea: a ship of the line herself on the water, her pennant in her crown's colours, heading the way
+  //  she's bound, and how many ships are with her written beside — drawn the same size however far off the eye is
+  //  [{ name, lon, lat, color, n, yaw, mine }]
+  fleets(list) {
+    const key = JSON.stringify(list); if (key === this.fleetKey && this.fleetModel) return; this.fleetKey = key;
+    if (!this.fleetModel) ensureModel("ship").then(ok => { if (ok && !this.fleetModel) { this.fleetModel = true; this.fleetKey = null; this.fleets(list); } });
+    if (this.fleetGroup) { this.fleetGroup.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); this.scene.remove(this.fleetGroup); }
+    const grp = this.fleetGroup = new THREE.Group();
+    for (const f of list) {
+      const [x, z] = toWorld(f.lon, f.lat), ship = new THREE.Group(); ship.position.set(x, 0, z); ship.rotation.y = f.yaw || 0; ship.userData.fleet = true;
+      const m = modelCopy("ship");
+      if (m) { m.scene.position.z = -2.4; m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; if (o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(f.color); } } }); ship.add(m.scene); }
+      else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; ship.add(hull); }
+      const pen = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.6), new THREE.MeshBasicMaterial({ color: f.color, side: THREE.DoubleSide })); pen.geometry.translate(3.5, 0, 0); pen.position.set(0, 25, 2.5); pen.rotation.y = Math.PI / 2; ship.add(pen);
+      grp.add(ship);
+      const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), ink = f.mine ? "#2a1c10" : "#7a2216";
+      c.font = "italic bold 22px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 6; c.strokeText(String(f.n), 32, 32); c.fillStyle = ink; c.fillText(String(f.n), 32, 32);
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, sizeAttenuation: false, transparent: true })); sp.scale.set(0.05, 0.05, 1); sp.renderOrder = 7; sp.userData.over = ship; grp.add(sp);
+    }
+    this.scene.add(grp);
+  }
   // look at a place: lon, lat, and how far off
   look(lon, lat, dist) { const [x, z] = toWorld(lon, lat); this.target.set(x, 0, z); if (dist) this.dist = dist; }
   centreLL() { return toLL(this.target.x, this.target.z); }
@@ -363,6 +386,8 @@ export class EuropeView3D {
     this.scene.fog.near = this.dist * 2 + 10; this.scene.fog.far = this.dist * 6 + 60;
     // names: the great ones always; the rest only close in
     for (const s of this.labels) s.visible = this.dist < 14 || s.userData.rank >= (this.dist < 45 ? 2 : 3);
+    // (the fleets kept the same size on the view however near or far: a ship's length about a twentieth of its height)
+    if (this.fleetGroup) { const k = this.dist * 0.0036; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
     this.renderer.render(this.scene, this.camera);
   }
   // what is under a point on the view: a city's name, or the ground (lon, lat)
