@@ -35,5 +35,6 @@
   "dagger": "dagger.glb",
   "battleaxe": "battleaxe.glb",
   "spear": "spear.glb",
-  "warrior": "warrior.glb"
+  "warrior": "warrior.glb",
+  "warrior_braids": "warrior_braids.glb"
 }

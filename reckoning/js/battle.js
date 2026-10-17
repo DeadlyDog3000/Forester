@@ -117,6 +117,7 @@ export const UNIFORMS = {
   rebels: { name: "Monmouth's", hist: true, note: "The Duke of Monmouth's rebels: no uniform — their own working clothes, a green sprig or ribbon for a favour", coat: 0x6a5a44, vest: 0x4a5a3a, legs: 0x5a5246, sash: 0x3e6a34, hat: 0x2a2420, stock: [[0x6a6862, 40], [0x5a4a3a, 35], [0xc8c0ae, 25]] },
   irish: { name: "Irish", hist: true, note: "King James's Irish foot: grey coats, faced red, grey breeches", coat: 0x8a8678, vest: 0xa02a24, legs: 0x7a766a, sash: 0xa02a24, hat: 0x1e1c1a, stock: [[0x7a766a, 50], [0xa02a24, 25], [0xc8c0ae, 25]] },
   // (the nations of the New World's woods: no uniform but their own dress — stroud and deerskin, paint, the roach)
+  native_north: { name: "Native", hist: true, body: "warrior_braids", note: "The warriors of the upper lakes and the north: the hair long and braided, black paint, buckskin leggings", coat: 0x6a3a24, vest: 0x6a3a24, legs: 0x8a6a48, sash: 0xb04a2a, hat: 0x6a3a24 },
   native: { name: "Native", hist: true, body: "warrior", note: "The warriors of the Eastern Woodlands: breechcloth and leggings of trade stroud, a finger-woven sash, paint, the roach and an eagle feather", coat: 0x8a2a1e, vest: 0x8a2a1e, legs: 0x2e3a5a, sash: 0xc8a050, hat: 0x9a2a1a },
   danish: { name: "Danish", note: "The King of Denmark's: grey-white, faced red, red stockings", coat: 0xd2ccbc, vest: 0xb02a24, legs: 0xb8b2a2, sash: 0xb02a24, hat: 0x1e1c1a, stock: [[0xb02a24, 55], [0x8a8478, 30], [0xc8c0ae, 15]] },
 };
@@ -130,12 +131,12 @@ export function soldierLook(u, seed, base = {}) {
   //  few darker — men from the south of Europe, from the Turkish wars, from the ports)
   const weighed = l => { let x = r() * l.reduce((t, [, w]) => t + w, 0); for (const [v, w] of l) if ((x -= w) <= 0) return v; return l[0][0]; };
   // (the Sultan's men: dark-skinned, brown to black)
-  const skin = u.body === "warrior" ? weighed([[0x8a5a3a, 22], [0x9a6644, 28], [0xa8724c, 26], [0x7a4e32, 14], [0xb47e56, 10]])
+  const skin = /^warrior/.test(u.body || "") ? weighed([[0x8a5a3a, 22], [0x9a6644, 28], [0xa8724c, 26], [0x7a4e32, 14], [0xb47e56, 10]])
     : u.body === "janissary" ? weighed([[0x3a2418, 26], [0x4a2e1e, 26], [0x5a3a26, 22], [0x6e4630, 16], [0x7e5236, 10]])
     : weighed([[0xf3d8c4, 30], [0xf1d3bc, 26], [0xeac6aa, 18], [0xe2b896, 11], [0xd4a882, 6], [0xc99a74, 4], [0xa87652, 2.5], [0x7e5236, 1.5], [0x5a3a26, 1]]);
   // (the hair: dark for the most part, brown and fair a good many, the odd red or grey; and the face shaven, as most
   //  soldiers' were, or here and there a beard)
-  const hair = u.body === "warrior" ? weighed([[0x0e0a08, 70], [0x1a1410, 30]]) : u.body === "janissary" ? weighed([[0x120c08, 60], [0x1e1610, 30], [0x2a1c12, 10]]) : weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
+  const hair = /^warrior/.test(u.body || "") ? weighed([[0x0e0a08, 70], [0x1a1410, 30]]) : u.body === "janissary" ? weighed([[0x120c08, 60], [0x1e1610, 30], [0x2a1c12, 10]]) : weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
   // (shaven: the beard's shell read as a dark mask over the jaw, and the lone moustache as a smudge under the nose)
   const face = "clean";
   // (and the cloth: no two coats of a regiment came out of the same dye-vat, and none stayed as it came — faded by the
@@ -148,11 +149,11 @@ export function soldierLook(u, seed, base = {}) {
     a.setRGB(ch(a.r) + dust * 0.42, ch(a.g) + dust * 0.38, ch(a.b) + dust * 0.31);
     return a.getHex();
   };
-  const legs = u.body === "warrior" ? weighed([[0x2e3a5a, 40], [0x8a6a48, 35], [0x5a2420, 25]]) : u.body ? u.legs : weighed([[u.legs, 60], [0x5e5a50, 14], [0x564434, 14], [0x8e8470, 8], [0x3a3a3c, 4]]);
+  const legs = /^warrior/.test(u.body || "") ? weighed([[0x2e3a5a, 40], [0x8a6a48, 35], [0x5a2420, 25]]) : u.body ? u.legs : weighed([[u.legs, 60], [0x5e5a50, 14], [0x564434, 14], [0x8e8470, 8], [0x3a3a3c, 4]]);
   // (the East's men in their boots; the West's in the stockings their company wore, and now and then their own)
   const stockings = u.boots ? wear(u.boots, 1.2) : wear(weighed([...(u.stock || [[0xc8c0ae, 35], [0x6a6862, 30]]), [0x5a4a3a, 8], [0x4e5262, 6]]), 1.5);
   return { body: u.body || "musketeer", skin, hair, face,
-    eyes: u.body === "janissary" || u.body === "warrior" ? pick([0x2a1a10, 0x3a2414]) : pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: wear(0xe2d8c2, 1.5), stockings,
+    eyes: u.body === "janissary" || /^warrior/.test(u.body || "") ? pick([0x2a1a10, 0x3a2414]) : pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: wear(0xe2d8c2, 1.5), stockings,
     height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
     coat: wear(u.coat), vest: wear(u.vest, 0.8), cuff: wear(u.vest, 0.6), legs: wear(legs, 1.3), hat: "hat", hatColor: wear(u.hat, 0.6), ...(u.body ? { sash: wear(u.sash, 0.6) } : {}) };
 }

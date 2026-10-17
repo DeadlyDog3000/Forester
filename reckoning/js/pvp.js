@@ -1005,7 +1005,7 @@ class Arena {
         const info = { ...b, look, name: U ? `${U.name}${T ? " " + ((call && call[tk]) || T.one).toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i, kind: tk || null };
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; }
         // (the woods' nations' warriors: the war club, not a battle axe — and warriors, by name, whatever they carry)
-        if (U && U.body === "warrior") { if (info.lo.blade === "battleaxe") info.lo.blade = "warclub"; info.name = `${U.name} warrior — ${b.name}`; }
+        if (U && /^warrior/.test(U.body || "")) { if (info.lo.blade === "battleaxe") info.lo.blade = "warclub"; info.name = `${U.name} warrior — ${b.name}`; }
         else if (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
       };

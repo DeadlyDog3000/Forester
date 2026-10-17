@@ -37,7 +37,7 @@ export const UNI_OF = {
   papal: "imperial", naples: "spanish", sicily: "spanish", sweden: "swedish", denmark: "danish", poland: "polish", russia: "muscovite", cossacks: "muscovite",
   crimea: "ottoman", hungary: "imperial", transylvania: "polish", moldavia: "polish", wallachia: "polish", ottoman: "ottoman", algiers: "ottoman", tunis: "ottoman",
   tripoli: "ottoman", dutch: "dutch", morocco: "ottoman",
-  p_iroquois: "native", p_wabanaki: "native", p_cherokee: "native", p_creek: "native", p_choctaw: "native", p_shawnee: "native", p_illinois: "native", p_anishinaabe: "native", p_dakota: "native", p_cree: "native",
+  p_iroquois: "native", p_wabanaki: "native", p_cherokee: "native", p_creek: "native", p_choctaw: "native", p_shawnee: "native", p_illinois: "native", p_anishinaabe: "native_north", p_dakota: "native_north", p_cree: "native_north",
 };
 const STYLE = {
   west: [["musketeer", 0.58], ["pike", 0.15], ["grenadier", 0.1], ["cavalry", 0.1], ["sword", 0.07]],

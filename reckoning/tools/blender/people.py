@@ -71,6 +71,9 @@ CAST = {
     # to the hip gartered under the knee, moccasins; a finger-woven sash, silver armbands, and a strap over the shoulder
     # with the shot pouch and powder horn
     "warrior": dict(sex="m", age="mid", coat=0x8a2a1e, legs=0x2e3a5a, hair=0x141010, skin=0xa8704a, hat="roach", hatColor=0x9a2a1a, sash=0xc8a050, native=True),
+    # a warrior of the north and the upper lakes — Anishinaabe, Cree, Dakota: the hair long, parted and in two braids
+    # wrapped in fur, a feather at the back; black paint, not red
+    "warrior_braids": dict(sex="m", age="mid", coat=0x6a3a24, legs=0x8a6a48, hair=0x141010, skin=0xa8704a, sash=0xb04a2a, native=True, braids=True, paint="black"),
     "raider": dict(sex="m", age="mid", coat=0x4a3424, legs=0x3a3226, hair=0x4a3624, beard=0x4a3624, skin=0xc8946c, hat="furhat", hatColor=0x5a4632, wild=True, longHair=True),
 }
 
@@ -488,6 +491,8 @@ def build_person(key):
     # combed in fine ridges from the crown ----
     if f:
         HL = [(0, 0.52), (0.8, 0.46), (1.2, 0.12), (1.6, -0.12), (2.2, -0.4), (PI, -0.5)]
+    elif native and o.get("braids"):
+        HL = [(0, 0.5), (0.8, 0.45), (1.2, 0.1), (1.6, -0.2), (2.2, -0.45), (PI, -0.6)]
     elif native:
         HL = [(0, 1.5), (PI, 1.5)]                       # (shaved: no hairline but the scalp lock's, below)
     elif wild:
@@ -583,7 +588,7 @@ def build_person(key):
         if native:
             # paint: a band of vermilion across the eyes and the brow, black from the cheekbone to the jaw on one side
             band = smooth((0.3 - Z) / 0.06) * smooth((Z + 0.12) / 0.06) * fr
-            c = mix(c, rgb(0x9a1e14), 0.85 * band)
+            c = mix(c, rgb(0x1a1412) if o.get("paint") == "black" else rgb(0x9a1e14), 0.85 * band)
             c = mix(c, rgb(0x1a1412), 0.8 * smooth((X - 0.3) / 0.08) * smooth((-0.16 - Z) / 0.05) * smooth((Z + 0.75) / 0.08) * fr)
         # a shadow of beard on the shaven
         if not f and not o.get("beard") and not young and not native:
@@ -686,8 +691,17 @@ def build_person(key):
         return b
     vol = 0.007 if young else 0.008
     # (shaved but for a patch at the crown, where the scalp lock grows: a braid of it hanging down the back)
-    hmask = (lambda X, Y, Z, phi: smooth((Z - 0.62) / 0.08) * smooth((0.28 - abs(X)) / 0.08)) if native else (lambda X, Y, Z, phi: smooth((Z - piecewise(HL, abs(phi)) - 0.1) / 0.09))
-    if native:
+    hmask = (lambda X, Y, Z, phi: smooth((Z - 0.62) / 0.08) * smooth((0.28 - abs(X)) / 0.08)) if native and not o.get("braids") else (lambda X, Y, Z, phi: smooth((Z - piecewise(HL, abs(phi)) - 0.1) / 0.09))
+    if native and o.get("braids"):
+        # two braids, from behind the ears down over the front of the shoulders, wrapped in fur at their ends
+        for sd in (-1, 1):
+            for i in range(12):
+                t = i / 11
+                P.sphere("hair", WHITE, (sd * (RX * 0.95 + 0.02 * t), hc.y + RY * (0.25 - 0.9 * t), hc.z - RZ * 0.2 - 0.36 * t), (0.016, 0.016, 0.024), segs=8, rings=5)
+            P.cyl("fur" if "fur" in M else "leather", WHITE, (sd * (RX * 0.95 + 0.02), hc.y - RY * 0.5, hc.z - RZ * 0.2 - 0.26), (sd * (RX * 0.95 + 0.02), hc.y - RY * 0.62, hc.z - RZ * 0.2 - 0.36), 0.02, 0.02, segs=8)
+        fb = hc + Vector((0, RY * 0.9, RZ * 0.4))
+        P.cyl("feather", WHITE, fb, fb + Vector((0.02, 0.08, 0.17)), 0.004, 0.003, segs=5)
+    elif native:
         for i in range(9):
             t = i / 8
             P.sphere("hair", WHITE, (0, hc.y + RY * (0.55 + 0.5 * t), hc.z + RZ * (0.75 - 1.6 * t)), (0.012 - 0.004 * t, 0.012 - 0.004 * t, 0.018), segs=8, rings=5)

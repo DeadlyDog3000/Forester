@@ -18,6 +18,7 @@ export const BODIES = [
   { id: "strelets", name: "Strelets", f: false, note: "The Tsar's foot: a long frogged kaftan, a fur-trimmed cap" },
   { id: "haiduk", name: "Haiduk", f: false, note: "The Polish foot: a long coat, a sash, a kolpak" },
   { id: "raider", name: "Rover", f: false, note: "Fur and leather, rough-made for the road" },
+  { id: "warrior_braids", name: "Warrior of the lakes", f: false, note: "Long braided hair and a feather, buckskin leggings, black paint" },
   { id: "warrior", name: "Woodlands warrior", f: false, note: "Breechcloth and leggings of stroud, a woven sash, the roach and a feather" },
   { id: "townswoman", common: true, name: "Burgher's wife", f: true, note: "Bodice, skirt and apron" },
   { id: "sister", common: true, name: "Woodswoman", f: true, note: "A working dress, sleeves rolled" },

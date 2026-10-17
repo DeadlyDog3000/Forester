@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.5", date: "16 October 2026", title: "The nations of the north",
+    items: [
+      "The Anishinaabe, Cree and Dakota now look like themselves in the field: long hair parted and braided, a feather at the back, black paint across the eyes, and buckskin leggings. The roach and red paint are for the Eastern nations.",
+      "Multiplayer: the Warrior of the lakes is a new outfit in the character builder.",
+    ],
+  },
+  {
     v: "1.51.4", date: "16 October 2026", title: "The war club",
     items: [
       "Battle: the warriors of the woods' nations no longer carry European battle axes. They fight with the ball-headed war club: a curved maple haft with a carved ball and a spike set in it, lighter and quicker than an axe. You can carry one too.",
