@@ -1236,7 +1236,9 @@ class Arena {
     if (this.fortSide === 0) { O0.mode = "hold"; O0.at = { x: mine.x, z: mine.z }; }
     // (in the saddle, if you're riding into it)
     if (this.battle && riding()) { if (!pl.horse) pl.mount(); } else if (pl.horse) pl.dismount();
-    pl.place(mine.x + Math.sin(face0) * 3, mine.z + Math.cos(face0) * 3, face0 + Math.PI);
+    // (a pace before the line where there are works ahead, so the battery's gabions are a few paces off and not in your face)
+    const lead0 = this.battle && this.fortSide == null && !this.siege ? 1 : 3;
+    pl.place(mine.x + Math.sin(face0) * lead0, mine.z + Math.cos(face0) * lead0, face0 + Math.PI);
     const placing = this.custom ? this.cos.map((c, co) => { const at = this.spawns[co], tw = toward(at), O = this.orders[co]; if (co) { O.mode = "hold"; O.at = { x: at.x, z: at.z }; } return [co, at, Math.atan2(tw.x - at.x, tw.z - at.z), O, tw]; })
       : [[0, mine, face0, O0, theirs], [1, theirs, face1, O1, mine]];
     for (const [team, at, face, O, look] of placing) {

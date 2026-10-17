@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.11", date: "17 October 2026", title: "A pace back from the baskets",
+    items: [
+      "Battles: you start a pace before your company's line, not three, so the battery's gabions are a few paces ahead of you and the field can be seen over them. Before, you began nose to nose with the baskets.",
+    ],
+  },
+  {
     v: "1.60.10", date: "17 October 2026", title: "Straight in",
     items: [
       "A first game goes straight in: with every save still empty, Begin the story no longer asks which of the six to use. It takes the first, and the save list is there when there's a choice to make.",
