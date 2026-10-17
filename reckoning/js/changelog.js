@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.15", date: "16 October 2026", title: "Past the Mississippi",
+    items: [
+      "Campaign: three more nations hold the country past the Mississippi, where the map was empty before: the Pawnee on the Platte and the Loup, the Osage on their river, and the Caddo on the Red and in the piney woods. Each has its towns, Kitkehahki, the Osage Village, Kadohadacho and Hasinai, and leaders of its own.",
+    ],
+  },
+  {
     v: "1.51.14", date: "16 October 2026", title: "No compass circles",
     items: [
       "Map: the Hudson's Bay posts and the French forts hold ground with wandering edges, not perfect circles. The Cree's country lies naturally about James Bay and the lowlands of Hudson Bay, not in a ruled box.",

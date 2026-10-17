@@ -119,6 +119,9 @@ export const NATIONS = {
   p_anishinaabe: { name: "Anishinaabe", color: "#8ca884", strength: 2, nw: true, people: true },
   p_dakota: { name: "Dakota", color: "#c0a070", strength: 2, nw: true, people: true },
   p_cree: { name: "Cree", color: "#94a88c", strength: 1, nw: true, people: true },
+  p_pawnee: { name: "Pawnee", color: "#c4ac80", strength: 2, nw: true, people: true },
+  p_osage: { name: "Osage", color: "#b49870", strength: 2, nw: true, people: true },
+  p_caddo: { name: "Caddo", color: "#c8a078", strength: 2, nw: true, people: true },
 };
 export const NATION_FAITH = {
   scotland: "reformed", england: "reformed", ireland: "catholic", france: "catholic", castile: "catholic", aragon: "catholic", portugal: "catholic", hre: "catholic",
@@ -126,7 +129,7 @@ export const NATION_FAITH = {
   papal: "catholic", naples: "catholic", sicily: "catholic", sweden: "lutheran", denmark: "lutheran", poland: "catholic", russia: "orthodox", cossacks: "orthodox", crimea: "muslim",
   hungary: "catholic", transylvania: "reformed", moldavia: "orthodox", wallachia: "orthodox", ottoman: "muslim", algiers: "muslim", tunis: "muslim", tripoli: "muslim",
   dutch: "reformed", morocco: "muslim",
-  p_iroquois: "native", p_wabanaki: "native", p_cherokee: "native", p_creek: "native", p_choctaw: "native", p_shawnee: "native", p_illinois: "native", p_anishinaabe: "native", p_dakota: "native", p_cree: "native",
+  p_iroquois: "native", p_wabanaki: "native", p_cherokee: "native", p_creek: "native", p_choctaw: "native", p_shawnee: "native", p_illinois: "native", p_anishinaabe: "native", p_dakota: "native", p_cree: "native", p_pawnee: "native", p_osage: "native", p_caddo: "native",
 };
 // who can reach you with a war party: the crowns within a few days' march
 export const NEAR = new Set(["denmark", "sweden", "brandenburg", "hre", "saxony", "poland", "england", "france", "bavaria", "dutch"]);
@@ -282,7 +285,7 @@ const NAMES = [
   ["NOUVELLE\nFRANCE", -71.0, 48.6, 1], ["ACADIE", -65.6, 45.6, -1], ["FLORIDA", -82.2, 29.4, -1], ["NUEVA ESPAÑA", -98.3, 23.6, 0], ["CUBA", -79.3, 22.0, -1],
   ["TERRE NEUVE", -56.2, 49.2, -1], ["RUPERT'S LAND", -88.5, 54.6, -1],
   ["Haudenosaunee", -76.4, 42.55, -1], ["Wabanaki", -69.6, 45.9, -1], ["Cherokee", -84.1, 35.2, -1], ["Muscogee", -84.9, 32.3, -1], ["Choctaw", -89.6, 32.1, -1],
-  ["Shawnee", -83.4, 38.9, -1], ["Illinois", -89.6, 40.2, -1], ["Anishinaabe", -85.5, 44.2, -1], ["Dakota", -95.4, 45.6, -1], ["Cree", -84.5, 50.5, -1],
+  ["Shawnee", -83.4, 38.9, -1], ["Illinois", -89.6, 40.2, -1], ["Anishinaabe", -85.5, 44.2, -1], ["Dakota", -95.4, 45.6, -1], ["Cree", -84.5, 50.5, -1], ["Pawnee", -98.2, 40.6, -1], ["Osage", -94.2, 37.6, -1], ["Caddo", -94.4, 32.4, -1],
 ];
 const SEAS = [["OCEANUS\nATLANTICUS", -8.9, 48.9], ["OCEANUS\nGERMANICUS", 3, 55.4], ["MARE BALTICUM", 18.4, 56.5], ["MARE MEDITERRANEUM", 5.2, 38.8], ["MARE ADRIATICUM", 15.4, 43.1, 36], ["PONTUS EUXINUS", 34.4, 43.4], ["MARE\nAEGAEUM", 25, 38.4], ["SINUS\nBOTHNICUS", 20.6, 62.6],
   ["OCEANUS\nATLANTICUS", -40, 44], ["MARE DEL NORT", -62, 33], ["SINUS\nMEXICANUS", -90.5, 25.6], ["MARE\nCHRISTIANUM", -82, 59.5], ["MARE\nGLACIALE", -55, 63.4]];
@@ -335,7 +338,7 @@ export const CITIES = [
   ["Plaisance", -53.97, 47.25, 1], ["Michilimackinac", -84.73, 45.86, 1],
   ["La Habana", -82.36, 23.13, 2], ["San Agustín", -81.31, 29.9, 1], ["San Luis de Talimali", -84.32, 30.45, 1],
   ["Onondaga", -76.1, 42.95, 2], ["Ganondagan", -77.42, 42.96, 1], ["Norridgewock", -69.8, 44.77, 1], ["Chota", -84.15, 35.53, 1], ["Coweta", -85.0, 32.3, 1],
-  ["Kunshak Chito", -88.9, 32.6, 1], ["Kaskaskia", -88.9, 41.3, 1], ["Chillicothe", -82.98, 39.33, 1], ["Mde Wakan", -93.6, 46.2, 1], ["Waswanipi", -76.5, 49.7, 1], ["Bawating", -84.35, 46.5, 1], ["Chequamegon", -90.9, 46.6, 1],
+  ["Kunshak Chito", -88.9, 32.6, 1], ["Kaskaskia", -88.9, 41.3, 1], ["Chillicothe", -82.98, 39.33, 1], ["Mde Wakan", -93.6, 46.2, 1], ["Waswanipi", -76.5, 49.7, 1], ["Bawating", -84.35, 46.5, 1], ["Chequamegon", -90.9, 46.6, 1], ["Kitkehahki", -98.3, 41.3, 1], ["Osage Village", -94.0, 38.0, 1], ["Kadohadacho", -94.0, 33.4, 1], ["Hasinai", -95.0, 31.6, 1],
 ];
 
 

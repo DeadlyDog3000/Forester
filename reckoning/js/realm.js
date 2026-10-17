@@ -179,6 +179,9 @@ const NW_NAMES = {
   p_illinois: ["Chicagou", "Mamantouensa", "Rouensa", "Chachagouesse", "Kiraoueria", "Peoria"],
   p_anishinaabe: ["Kiskakon", "Sinagos", "Onanguissé", "Kinongé", "Outoutagan", "Miscouaky", "Koutaoiliboe"],
   p_dakota: ["Ouasicoude", "Akipa", "Wabasha", "Shakopee", "Tatankamani", "Ouakantape"],
+  p_pawnee: ["Tirawahut", "Kitkehaki", "Skidi", "Lachelesharo", "Pitalesharu", "Tahirussawichi"],
+  p_osage: ["Pawhuska", "Clermont", "Cheshewalla", "Tawagahe", "Mad Buffalo", "Big Soldier"],
+  p_caddo: ["Bigotes", "Xinesi", "Tinhiouen", "Cocay", "Hasinai", "Dehahuit"],
   p_cree: ["Mouchouaouastiirinioek", "Kiskatinaw", "Maskwa", "Wapistan", "Atihk", "Kakakiw"],
 };
 const LOOK = { native: "native", fr: "west", en: "west", es: "west", it: "west", de: "west", nl: "west", sv: "north", da: "north", pl: "east", ru: "east", hu: "east", ro: "east", tr: "ottoman", ar: "ottoman" };
