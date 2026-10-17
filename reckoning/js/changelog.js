@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.53.1", date: "16 October 2026", title: "Men to fill the ranks",
+    items: [
+      "Campaign: a town that fights off an attack on its own no longer costs your field army men when the army is far away. The army loses only the part of it that came to the town's help.",
+      "Campaign: the other crowns' armies are as large as their people can keep. Take a crown's great cities and it has fewer men to fill its ranks.",
+    ],
+  },
+  {
     v: "1.53.0", date: "16 October 2026", title: "Garrisons",
     items: [
       "Campaign: regiments can hold your towns. With your army at one of your towns, leave regiments there from the town's card, or take its garrison back into the army. A town's own regiments add to its garrison, fight beside the army when it's attacked, and are lost with it if it falls.",

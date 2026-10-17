@@ -443,8 +443,13 @@ function odds(att, def, walls) { const a = Math.pow(att, 1.25), d = Math.pow(def
 function settle(o, won, myLossK, theirLossK) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att;
   // (defending a town: its own regiments bear their share of the losses, beside the field army's)
+  //  — and the field army only its own: the part of it that came to the town's help, not the whole of it far away
   let loss = mine * myLossK;
-  if (!o.attack && C.units) { const G = garUnits(o.ct[0]), gs = G.reduce((t, u) => t + u.hp, 0); if (gs > 0) { const gl = Math.min(gs, loss * gs / Math.max(1, mine)), f = 1 - gl / gs; for (const u of G) u.hp *= f; C.units = C.units.filter(u => !u.at || u.hp >= 0.12); loss -= gl; } }
+  if (!o.attack && C.units) {
+    const G = garUnits(o.ct[0]), gs = G.reduce((t, u) => t + u.hp, 0), fieldPart = clamp(mine - garrison(o.ct), 0, mine);
+    if (gs > 0) { const gl = Math.min(gs, loss * gs / Math.max(1, mine)), f = 1 - gl / gs; for (const u of G) u.hp *= f; C.units = C.units.filter(u => !u.at || u.hp >= 0.12); }
+    loss = mine * myLossK * fieldPart / Math.max(1, mine);
+  }
   const broken = wearUnits(loss, o.pick) || {};
   // (the regiments that fought: the wiser for it — the more so for a victory)
   for (const u of C.units || []) if (!o.pick || (o.pick.men && o.pick.men[u.k])) u.xp = Math.min(3, (u.xp || 0) + (won ? 0.6 : 0.3) * (o.pick ? 1 : 0.6));
@@ -847,7 +852,8 @@ function endSeason(part = {}) {
   if (C.gold < 0) { const lose = Math.ceil(-C.gold / REGIMENT); C.army = Math.max(0, C.army - lose); C.gold = 0; moraleMove(-15); say("The pay chest is empty", `${lose} regiments desert for want of pay.`); } }
   // (the other crowns: their armies made up again; their tempers going back to where their faith puts them)
   for (const id of ids) {
-    const cap = NATIONS[id].nw ? NATIONS[id].strength * 11 + citiesOfNow(g, id).length * 2 + 6 : NATIONS[id].strength * 17 + citiesOfNow(g, id).length * 3 + 8;
+    // (as many regiments as its people can keep: a crown that loses its great cities loses the men to fill its ranks)
+    const folk = citiesOfNow(g, id).reduce((t, ct) => t + popOf(ct), 0), cap = NATIONS[id].nw ? NATIONS[id].strength * 11 + Math.round(folk / 5000) + 6 : NATIONS[id].strength * 17 + Math.round(folk / 9000) + 8;
     if (world) C.foes[id] = Math.min(Math.max(cap, C.foes[id] || 0), (C.foes[id] || 0) + Math.max(1, Math.round(NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0))));
     if (!mine) continue;
     const home = (NATION_FAITH[id] === NATION_FAITH[C.me] ? 18 : 0) + (C.E.pact[id] ? 15 : 0) + (C.ally[id] ? 25 : 0) - (atWar(id) ? 40 : 0);
