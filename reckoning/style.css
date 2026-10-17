@@ -1886,3 +1886,4 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-armies .btn.on { background: linear-gradient(#7a5424, #5a3c16); border-color: #d8b45a; color: #f6e6bc; opacity: 1; }
 .cmp-rtown > small i { font-style: normal; } .cmp-rtown > small i.down { color: #e08a70; }
 .cmp-rtown > small { grid-column: 1 / -1; text-align: left !important; }
+.cmp-armies .btn small { display: block; font: 9.5px var(--sans); opacity: 0.75; text-transform: none; letter-spacing: 0; }

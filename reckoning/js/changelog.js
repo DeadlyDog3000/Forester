@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.4", date: "16 October 2026", title: "Every army counted",
+    items: [
+      "Campaign: the army buttons show where each of your armies stands, and hovering one tells its general and what it's doing.",
+      "Campaign: the other crowns weigh all your armies together, not only the one you have in hand, when they decide on war and peace.",
+    ],
+  },
+  {
     v: "1.55.3", date: "16 October 2026", title: "Armies on the land",
     items: [
       "The land (3D map): click one of your armies to give it orders, or an enemy army to see it and attack it, as on the map.",

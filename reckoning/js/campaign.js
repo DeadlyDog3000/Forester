@@ -936,7 +936,7 @@ function diplo(id, what) {
   }
   if (what === "peace") {
     if (!atWar(id) || did.peace) return null;
-    const ratio = C.army / Math.max(1, foeArmy(id)), p = clamp(0.15 + ratio * 0.18 + (C.took[id] || 0) * 0.12 - (C.lost[id] || 0) * 0.06 + (C.warT[id] || 0) * 0.03 + r[id] / 300, 0.05, 0.9);
+    const ratio = allArmies() / Math.max(1, foeArmy(id)), p = clamp(0.15 + ratio * 0.18 + (C.took[id] || 0) * 0.12 - (C.lost[id] || 0) * 0.06 + (C.warT[id] || 0) * 0.03 + r[id] / 300, 0.05, 0.9);
     did.peace = true;
     if (R() < p) { makePeace(id); return done(`${The(id)} ${v3(id, "agrees")} to peace.`); }
     persist(); return `${The(id)} ${v3(id, "refuses")} your peace — for now.`;
@@ -986,14 +986,14 @@ function endSeason(part = {}) {
   const years = C.year - 1683;
   for (const id of ids) {
     if (years < 2 || atWar(id) || C.ally[id] || (C.truce[id] || 0) > 0 || !nb.has(id) || !alive(g2, id)) continue;
-    const p = 0.015 + Math.max(0, -C.E.rel[id]) / 500 + (big > 12 ? 0.03 : 0) + (big > 25 ? 0.05 : 0), able = C.foes[id] > C.army * 0.6 ? 1 : 0.3;
+    const p = 0.015 + Math.max(0, -C.E.rel[id]) / 500 + (big > 12 ? 0.03 : 0) + (big > 25 ? 0.05 : 0), able = C.foes[id] > allArmies() * 0.6 ? 1 : 0.3;
     // (fewer piling on when you've already enemies enough — a crown waits to see how those wars go)
     const already = Object.keys(C.E.war).filter(k => C.E.war[k]).length;
     if (R() < p * able * Math.pow(0.45, already)) declare(id, id);
   }
   // who'll make peace: worn out, or beaten
-  for (const id of ids) if (atWar(id) && (C.warT[id] || 0) >= 3 && R() < 0.12 + (C.foes[id] < C.army * 0.5 ? 0.2 : 0) + (C.took[id] || 0) * 0.04)
-    C.events.push({ kind: "peace", foe: id, gold: C.foes[id] < C.army * 0.4 ? 60 + NATIONS[id].strength * 30 : 0 });
+  for (const id of ids) if (atWar(id) && (C.warT[id] || 0) >= 3 && R() < 0.12 + (C.foes[id] < allArmies() * 0.5 ? 0.2 : 0) + (C.took[id] || 0) * 0.04)
+    C.events.push({ kind: "peace", foe: id, gold: C.foes[id] < allArmies() * 0.4 ? 60 + NATIONS[id].strength * 30 : 0 });
   // who falls on your armies in the field: an enemy army near one of yours, and the stronger, now and then
   for (const id of ids) {
     if (!atWar(id) || (C.foes[id] | 0) < 10 || R() > 0.3 || C.events.some(e => !e.done && e.foe === id)) continue;
@@ -1616,7 +1616,7 @@ function drawSide() {
   reconcile();
   h += fold("army", `<span class="cmp-h"><b>${(C.armies || []).length ? esc(armyName(C.ar | 0)) : "Your army"}</b><small>${field().length} regiment${field().length === 1 ? "" : "s"}${C.levyQ ? ` (+${C.levyQ} raising)` : ""}${C.units.some(u => u.at) ? ` · ${C.units.filter(u => u.at).length} in garrisons` : ""} · ${C.guns} gun${C.guns === 1 ? "" : "s"} · ${moraleWord(C.morale ?? 50).toLowerCase()} · ${C.siege ? `besieging ${esc(C.siege.ct)}` : C.go ? "on the march" : C.moved ? "marched this year" : "ready"}</small></span>`, `
     <div class="cmp-morale"><small>Morale</small><b>${moraleWord(C.morale ?? 50)}</b><i><u style="width:${C.morale ?? 50}%"></u></i><small>${C.morale ?? 50}</small></div>
-    ${(C.armies || []).length ? `<div class="cmp-armies">${armyIds().map(id => { const n2 = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length; return `<button class="btn${id === (C.ar | 0) ? " on" : ""}" data-army="${id}"${id === (C.ar | 0) ? " disabled" : ""}>${esc(armyName(id))} · ${n2}</button>`; }).join("")}</div>` : ""}
+    ${(C.armies || []).length ? `<div class="cmp-armies">${armyIds().map(id => { const n2 = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length, A = id === (C.ar | 0) ? C : C.armies.find(a => a.id === id) || {}, at = A.pos ? nearTown(A.pos)[0] : ""; return `<button class="btn${id === (C.ar | 0) ? " on" : ""}" data-army="${id}"${id === (C.ar | 0) ? " disabled" : ""} title="${esc(`${armyName(id)}: ${n2} regiments, near ${at}${A.gen ? `, under ${A.gen.name}` : ", no general"} · ${A.siege ? `besieging ${A.siege.ct}` : A.go ? "on the march" : A.moved ? "marched this year" : "ready"}`)}">${esc(armyName(id))} · ${n2}<small>${esc(at)}</small></button>`; }).join("")}</div>` : ""}
     ${C.gen ? manCard(C.gen) : `<div class="cmp-nogov"><span>No general leads it: it fights the worse for it.</span>${(C.ar | 0) !== armyIds()[0] ? `<button class="btn" data-askgen="1">Choose a general</button>` : ""}</div>`}
     <div class="cmp-acts">${(C.armies || []).some(a => a.pos && dist2(a.pos, armyPos()) <= 3 && !a.siege) && !C.siege ? `<button class="btn" data-join="1">Join the other army here</button>` : ""}${field().length >= 4 && !C.siege ? `<button class="btn ghost" data-split="1" title="Half of each arm marches off as an army of its own">Split the army</button>` : ""}</div>
     ${rollHtml()}
