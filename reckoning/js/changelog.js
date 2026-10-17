@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.27", date: "16 October 2026", title: "Proposals, in their words",
+    items: [
+      "Campaign: a nation of the woods proposes the fur trade, not a trade pact, in proper grammar: \"The Cherokee propose the fur trade\".",
+    ],
+  },
+  {
     v: "1.51.26", date: "16 October 2026", title: "No colours where none were carried",
     items: [
       "Battle: the woods' nations no longer raise a European regimental colour on a staff behind their line. They carried none.",
