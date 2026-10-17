@@ -118,6 +118,8 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
       const ch = s.payment_intent && s.payment_intent.latest_charge;
       r.revoked = !!(ch && typeof ch === "object" && (ch.refunded || ch.disputed));
       if (s.customer_details && s.customer_details.email) r.email = s.customer_details.email;
+      // (for the sales counter: what was paid, in what, and when — and the buyer's country, nothing more)
+      if (r.paid) { r.amt = s.amount_total | 0; r.cur = s.currency || ""; r.paidAt ||= was ? (s.created || 0) * 1000 : Date.now(); r.cc = (s.customer_details && s.customer_details.address && s.customer_details.address.country) || r.cc || ""; }
       if (r.paid && !was) log(`shop: paid — ${key.slice(0, 8)}…`);
       if (s.status === "expired" && !r.paid) r.expired = true;
       save();
@@ -216,9 +218,37 @@ Keep this email. If you ever lose your key or need a hand, just reply to it.
 button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8a24a;border-radius:3px;background:#2a3a24;color:#f2e8c8;font:inherit;cursor:pointer;text-decoration:none}small{color:#8f8a7c}</style></head><body><main>${body}</main></body></html>`);
   };
 
+  // ---- the sales counter, for the shop's keeper alone: a token kept in the data folder (made the first time it's asked
+  //      for), never the Stripe key. Counts, takings and the last sales — no keys, no emails ----
+  const tokenFile = dataDir ? path.join(dataDir, "sales.token") : null;
+  const salesToken = () => { try { return tokenFile && fs.existsSync(tokenFile) ? fs.readFileSync(tokenFile, "utf8").trim() : ""; } catch (e) { return ""; } };
+  const tokenOk = t => { const want = salesToken(); if (!want || !t) return false; const a = Buffer.from(String(t)), b = Buffer.from(want); return a.length === b.length && crypto.timingSafeEqual(a, b); };
+  let backfilling = false;
+  async function backfill() {
+    // (sales from before the counter: what they came to, asked of Stripe a few at a time)
+    if (backfilling || !isOn()) return; backfilling = true;
+    try { let n = 0; for (const [k, r] of Object.entries(book.keys)) { if (!r.paid || r.amt != null) continue; if (n++ >= 5) break; await paid(k, true); } } finally { backfilling = false; }
+  }
+  function sales() {
+    const L = Object.values(book.keys).filter(r => r.paid), day = Date.now() - 86400000, week = Date.now() - 7 * 86400000, gross = {}, net = {};
+    for (const r of L) { if (r.amt == null) continue; const c = (r.cur || "?").toUpperCase(); gross[c] = (gross[c] || 0) + r.amt; if (!r.revoked) net[c] = (net[c] || 0) + r.amt; }
+    const when = r => r.paidAt || r.at || 0;
+    return {
+      sold: L.filter(r => !r.revoked).length, refunded: L.filter(r => r.revoked).length, gross, net,
+      today: L.filter(r => !r.revoked && when(r) >= day).length, week: L.filter(r => !r.revoked && when(r) >= week).length,
+      opened: Object.keys(book.keys).length, live: isLive(), on: isOn(),
+      last: L.sort((a, b) => when(b) - when(a)).slice(0, 12).map(r => ({ at: when(r), amt: r.amt ?? null, cur: (r.cur || "").toUpperCase(), cc: r.cc || "", refunded: !!r.revoked })),
+      now: Date.now(),
+    };
+  }
   async function handle(u, req, res) {
     const p = u.pathname;
     if (p === "/shop/status") return json(res, 200, { on: isOn(), live: isLive() }), true;
+    if (p === "/shop/sales") {
+      if (tooMany(req, "x", 30, 60000)) return json(res, 429, { error: "too many" }), true;
+      if (!tokenOk(u.searchParams.get("t"))) return json(res, 403, { error: "no" }), true;
+      res.setHeader("Cache-Control", "no-store"); backfill(); return json(res, 200, sales()), true;
+    }
     if (!p.startsWith("/shop/")) return false;
     if (!isOn()) { if (p === "/shop/buy" || p === "/shop/key") page(res, 503, "The shop isn't open yet", `<h1>The shop isn't open yet</h1><p>Forester: Reckoning can't be bought just yet. Check back soon.</p>`); else json(res, 503, { error: "the shop isn't open" }); return true; }
     try {
