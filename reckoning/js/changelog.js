@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.54.0", date: "16 October 2026", title: "Armies",
+    items: [
+      "Campaign: command more than one army. Form a new army at any of your towns from its garrison. Each army marches, lays siege and fights on its own, with its own general and its own morale.",
+      "Campaign: click an army on the map to give it orders, or pick it from the buttons on the army card. Two of your armies in one place can join into one.",
+      "Campaign: new regiments join the nearest of your armies within a year's march; every army near a town comes to its help when it's attacked.",
+      "Campaign: choose a general for a new army from its card. An army without one fights the worse for it.",
+    ],
+  },
+  {
     v: "1.53.4", date: "16 October 2026", title: "Plates in the orders",
     items: [
       "Battle: the orders panel shows each arm's plate beside its letter, dressed as your side's way of war.",
