@@ -427,6 +427,10 @@ function realmMine(g) {
   const T = C.tech; T.pts += research(g);
   if (T.cur && T.pts >= TECHS[T.cur].cost) { T.pts -= TECHS[T.cur].cost; T.done[T.cur] = true; say(`Your scholars master ${TECHS[T.cur].n.replace(/^The /, "the ")}`, TECHS[T.cur].d); T.cur = null; }
   if (!T.cur) T.pts = Math.min(T.pts, 6);
+  // (thin regiments of one arm in one army made into one: their men together, their experience as the men bring it)
+  { let merged = 0; const groups = {}; for (const u of C.units) if (u.hp < 0.6) (groups[`${u.at || "a" + (u.ar | 0)}|${u.k}`] ||= []).push(u);
+    for (const L of Object.values(groups)) { L.sort((a, b) => a.hp - b.hp); while (L.length > 1 && L[0].hp + L[1].hp <= 1) { const [a, b] = L.splice(0, 2), hp = a.hp + b.hp; b.xp = ((a.xp || 0) * a.hp + (b.xp || 0) * b.hp) / hp; b.hp = hp; C.units.splice(C.units.indexOf(a), 1); merged++; if (hp < 0.6) { L.push(b); L.sort((x, y) => x.hp - y.hp); } } }
+    if (merged) say(`${merged} thin regiment${merged > 1 ? "s" : ""} merged`, "Too few men left in them to stand alone: their men go into others of the same arm."); }
   eachArmy(id => {
     siegeYear(g);
     C.morale = Math.round((C.morale ?? moraleBase()) + (moraleBase() - (C.morale ?? moraleBase())) * 0.35);

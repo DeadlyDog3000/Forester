@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.57.5", date: "16 October 2026", title: "Thin regiments merged",
+    items: [
+      "Campaign: at the year's end, thin regiments of the same arm in the same army, or the same garrison, are merged into fuller ones, their experience carried with their men. The army's strength is unchanged; its roll is shorter and truer.",
+    ],
+  },
+  {
     v: "1.57.4", date: "16 October 2026", title: "The books at a glance",
     items: [
       "Campaign: hover over the treasury for the year's account: what comes in from your towns and trade, and what goes out on your regiments' upkeep.",
