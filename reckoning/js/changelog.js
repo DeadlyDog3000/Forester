@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.52.1", date: "16 October 2026", title: "The muster rolls",
+    items: [
+      "Campaign: a Recruitment card lists every town of yours with what it can still raise this year. Click a regiment's picture to raise it there, or the town's name to go to it on the map.",
+      "Campaign: hover over a town on the map to see its size, its holder and its people.",
+      "Campaign: disband a regiment from the army card. The thinnest of its kind goes, its men go home to a town, and its upkeep is saved.",
+      "Campaign: after a battle, the news names the regiments broken in it.",
+      "Campaign: towns' people grow a little faster.",
+    ],
+  },
+  {
     v: "1.52.0", date: "16 October 2026", title: "Raised in the towns",
     items: [
       "Campaign: every town has its people now, shown on its card. They grow as the land feeds them: improve the farms and a town can hold more. A town's people make its wealth.",

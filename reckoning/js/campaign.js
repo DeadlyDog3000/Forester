@@ -396,7 +396,7 @@ function realmWorld(g, ids) {
 }
 // ---- and for each player: the levies in, the learning done, the years told on their men ----
 function realmMine(g) {
-  reconcile(); replenish(g);
+  reconcile(); { const men = replenish(g); if (men >= 300) say(`The regiments fill their ranks`, `${fmtN(Math.round(men / 100) * 100)} men from your towns join the thin regiments.`); }
   if (C.lq && C.lq.length) {
     const by = {}; for (const q of C.lq) { C.units.push({ k: q.k, hp: 1 }); by[q.k] = (by[q.k] || 0) + 1; }
     const n = C.lq.length; C.army = Math.round(unitSum());
@@ -437,7 +437,7 @@ function odds(att, def, walls) { const a = Math.pow(att, 1.25), d = Math.pow(def
 // the outcome applied, however it was decided: casualties both ways; the town changes hands if the attacker won
 function settle(o, won, myLossK, theirLossK) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att;
-  wearUnits(mine * myLossK, o.pick);
+  const broken = wearUnits(mine * myLossK, o.pick) || {};
   setFoeArmy(o.foe, Math.max(0, Math.round(foeArmy(o.foe) - Math.max(0, theirs - garrison(o.ct)) * theirLossK)));
   const name = o.ct[0];
   if (o.attack) {
@@ -447,6 +447,7 @@ function settle(o, won, myLossK, theirLossK) {
     if (won) { say(`${name} holds`, `${poss(The(o.foe))} army is thrown back.`); if (!isHuman(o.foe) && C.foePos && C.foePos[o.foe]) { const h = homeOf(grid(), o.foe); if (h) { const b = stepToward(cellXY(o.ct), h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } } strikeBack(o.foe); }
     else { seize(o.ct, o.foe); C.lost[o.foe] = (C.lost[o.foe] || 0) + 1; say(`${name} has fallen`, `${The(o.foe)} ${v3(o.foe, "takes")} it.`); if (C.govs) delete C.govs[name]; }
   }
+  if (Object.keys(broken).length) say(`Regiments broken at ${name}`, `${Object.entries(broken).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: too few men left to stand as regiments, they are struck off the roll.`);
   // (where your army ends up: in the town it took, or fallen back toward home from the one it couldn't)
   if (o.attack && !o.convoy) { const t = cellXY(o.ct); if (won) C.pos = { x: t.x, y: t.y }; else { const h = homeOf(grid(), C.me) || armyPos(); const b = stepToward(t, h, 6); C.pos = { x: b.x, y: b.y }; } }
   // (a storm through the breach: the siege over, won or lost)
@@ -671,7 +672,7 @@ const popCap = ct => Math.round(popBase(ct) * (1.3 + lvOf(ct[0], "farm") * 0.35 
 const popOf = ct => { C.pop ||= {}; return C.pop[ct[0]] ??= popBase(ct); };
 // (the fewest a town can be left with by the recruiting sergeants: the men to bring the harvest in)
 const popFloor = ct => Math.round(popBase(ct) * 0.3);
-const popRate = ct => { const p = popOf(ct), cap = popCap(ct); if (p > cap) return -0.02; return (0.012 + lvOf(ct[0], "farm") * 0.008 + (lvOf(ct[0], "trade") ? 0.003 : 0)) * (1 - p / cap * 0.6); };
+const popRate = ct => { const p = popOf(ct), cap = popCap(ct); if (p > cap) return -0.02; return (0.018 + lvOf(ct[0], "farm") * 0.01 + (lvOf(ct[0], "trade") ? 0.004 : 0)) * (1 - p / cap * 0.6); };
 const fmtN = n => Math.round(n).toLocaleString("en-GB");
 // what each kind of regiment costs, the men it takes from its town, its upkeep a year, and what it needs to be raised
 const UNIT = {
@@ -716,7 +717,9 @@ function wearUnits(loss, pick) {
     const tw = C.units.reduce((t, u) => t + (u.hp > 0 ? (pass ? u.hp : w(u)) : 0), 0); if (tw <= 0) continue;
     const L = left; for (const u of C.units) { if (u.hp <= 0) continue; const d = Math.min(u.hp, L * (pass ? u.hp : w(u)) / tw); u.hp -= d; left -= d; }
   }
+  const broken = {}; for (const u of C.units) if (u.hp < 0.12) broken[u.k] = (broken[u.k] || 0) + 1;
   C.units = C.units.filter(u => u.hp >= 0.12); C.army = Math.round(unitSum());
+  return broken;
 }
 // a regiment raised at one of your towns: the thalers and the men paid now; it joins the army next year
 function recruitAt(n, k) {
@@ -727,6 +730,14 @@ function recruitAt(n, k) {
   const c = unitCost(k, g); if (C.gold < c) return "The treasury hasn't the money.";
   if (popOf(ct) - UNIT[k].men < popFloor(ct)) return `${n} hasn't the men to spare.`;
   C.gold -= c; C.pop[n] = popOf(ct) - UNIT[k].men; (C.lq ||= []).push({ t: n, k, c }); C.levyQ = C.lq.length; persist(); return null;
+}
+// (a regiment disbanded: the thinnest of its kind, its men sent home to the town with the fewest, the upkeep saved)
+function disband(k) {
+  reconcile(); const L = C.units.filter(u => u.k === k); if (!L.length) return null;
+  const u = L.reduce((a, b) => (b.hp < a.hp ? b : a)); C.units.splice(C.units.indexOf(u), 1); C.army = Math.round(unitSum());
+  const t = citiesOfNow(grid(), C.me).sort((a, b) => popOf(a) / popCap(a) - popOf(b) / popCap(b))[0];
+  if (t) C.pop[t[0]] = popOf(t) + Math.round(u.hp * ((UNIT[k] || UNIT.musketeer).men));
+  persist(); return t ? t[0] : "";
 }
 // (and called off before the year's out: the money back, the men home)
 function unrecruit(n) {
@@ -964,16 +975,17 @@ export function initCampaign(c, battle, withPlayer) {
     if (view.z > ZOOM_3D) { view.z = ZOOM_3D; clampV(); view.ox = bx - px / view.z; view.oy = by - py / view.z; clampV(); return enter3d(); }
     clampV(); view.ox = bx - px / view.z; view.oy = by - py / view.z; clampV(); paint();
   };
-  cv.addEventListener("wheel", e => { e.preventDefault(); const [px, py] = pos(e); zoomAt(px, py, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+  cv.addEventListener("wheel", e => { e.preventDefault(); townTip(null); const [px, py] = pos(e); zoomAt(px, py, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
   cv.onmousedown = e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; };
   cv.onmousemove = e => {
-    if (drag && e.buttons & 1) { const r = cv.getBoundingClientRect(), dx = (e.clientX - drag.x) * cv.width / r.width, dy = (e.clientY - drag.y) * cv.height / r.height; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY; if (drag.moved > 5) { view.ox -= dx / view.z; view.oy -= dy / view.z; clampV(); paint(); return; } }
+    if (drag && e.buttons & 1) { const r = cv.getBoundingClientRect(), dx = (e.clientX - drag.x) * cv.width / r.width, dy = (e.clientY - drag.y) * cv.height / r.height; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY; if (drag.moved > 5) { townTip(null); view.ox -= dx / view.z; view.oy -= dy / view.z; clampV(); paint(); return; } }
     if (!C) return;
     const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z), id = nationAt(E(), cv, ...p);
     cv.style.cursor = ct || id ? "pointer" : "grab";
     if (ct !== hovCity || id !== hov) { hovCity = ct; hov = id; paint(); }
+    townTip(ct, e);
   };
-  cv.onmouseleave = () => { drag = null; hov = null; hovCity = null; paint(); };
+  cv.onmouseleave = () => { drag = null; hov = null; hovCity = null; townTip(null); paint(); };
   // (right-click: your army sent there)
   cv.oncontextmenu = e => {
     e.preventDefault(); if (!C) return;
@@ -1116,6 +1128,15 @@ function marks3d() {
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) flag(fp, id, foeArmy(id), false); }
   flag(armyPos(), C.me, (C.units || []).length || C.army, true);
   return out;
+}
+// (a town under the pointer: its name, how great it is, whose, and its people — beside the pointer)
+function townTip(ct, e) {
+  let el = $("cmpTip");
+  if (!ct || !e) { if (el) el.style.display = "none"; return; }
+  if (!el) { el = document.createElement("div"); el.id = "cmpTip"; el.className = "cmp-tip"; $("campaign").appendChild(el); }
+  const o = cityOwner(grid(), ct), r = popRate(ct);
+  el.innerHTML = `<b>${esc(ct[0])}</b><small>${["", "A town", "A city", "A great city"][ct[3]]}${o ? ` · ${o === C.me ? "yours" : esc(NATIONS[o].name)}` : ""}</small><span>${fmtN(popOf(ct))} people${o === C.me && r ? ` · ${r > 0 ? "+" : "−"}${Math.abs(r * 100).toFixed(1)}% a year` : ""}</span>`;
+  el.style.display = "block"; el.style.left = Math.min(innerWidth - 200, e.clientX + 16) + "px"; el.style.top = Math.min(innerHeight - 70, e.clientY + 14) + "px";
 }
 // ---- land changing hands, shown spreading: out from the taker's own border across the province, a square at a time,
 //  rather than the whole of it changing colour at once ----
@@ -1266,7 +1287,7 @@ function rollHtml() {
   const by = {}; for (const u of C.units || []) (by[u.k] ||= []).push(u.hp);
   const ks = Object.keys(by).sort((a, b) => by[b].length - by[a].length);
   if (!ks.length) return `<p class="cmp-fine">Your army has no regiments left. Raise new ones in your towns.</p>`;
-  return `<div class="cmp-roll">${ks.map(k => { const L = by[k], full = Math.round(L.reduce((t, v) => t + v, 0) / L.length * 100); return `<div class="cmp-ru">${unitImg(k, "sm")}<b>${L.length}</b><span>${esc(TROOPS[k].name)}<small>${esc(TROOPS[k].note)}</small></span><i title="${full}% of their full strength"><u style="width:${full}%"></u></i></div>`; }).join("")}</div>`;
+  return `<div class="cmp-roll">${ks.map(k => { const L = by[k], full = Math.round(L.reduce((t, v) => t + v, 0) / L.length * 100); return `<div class="cmp-ru">${unitImg(k, "sm")}<b>${L.length}</b><span>${esc(TROOPS[k].name)}<small>${esc(TROOPS[k].note)} · upkeep ${UNIT[k] ? UNIT[k].up : 1.6} each</small></span><i title="${full}% of their full strength"><u style="width:${full}%"></u></i><button class="tm-lnk" data-disband="${k}" title="Disband one regiment of ${esc(TROOPS[k].name.toLowerCase())} — the thinnest — and send its men home">Disband</button></div>`; }).join("")}</div>`;
 }
 // (a town's people: how many, and which way they're going)
 function popLine(ct) { const r = popRate(ct); return `Population ${fmtN(popOf(ct))}${r ? ` · ${r > 0 ? "growing" : "falling"} ${Math.abs(r * 100).toFixed(1)}% a year` : ""} · its land feeds ${fmtN(popCap(ct))}`; }
@@ -1385,6 +1406,10 @@ function drawSide() {
     ${rollHtml()}
     ${(C.lq || []).length ? `<small class="cmp-fine">Raising: ${C.lq.map(q => `${esc(TROOPS[q.k].one.toLowerCase())} at ${esc(q.t)}`).join(", ")}. They join the army at the year's end.</small>` : ""}
     <small class="cmp-fine">Regiments are raised in your towns: choose one on the map. Thin regiments fill their ranks again from your towns each year, fastest on your own land. Upkeep ${upkeep()} a year.</small>`, armySel);
+  // (every town of yours that can raise regiments this year, in one list: a little picture of each kind to raise there)
+  { const g2 = grid(), towns = citiesOfNow(g2, C.me).sort((a, b) => b[3] - a[3] || popOf(b) - popOf(a)), free = towns.reduce((t, ct) => t + Math.max(0, slotsOf(ct) - raising(ct[0]).length), 0);
+    h += fold("recruit", `<span class="cmp-h"><b>Recruitment</b><small>${free} regiment${free === 1 ? "" : "s"} can still be raised this year, in ${towns.length} town${towns.length === 1 ? "" : "s"}</small></span>`, `<div class="cmp-rtowns">${towns.map(ct => { const n = ct[0], q = raising(n), sl = slotsOf(ct);
+      return `<div class="cmp-rtown"><button class="tm-lnk" data-goto="${esc(n)}"><b>${esc(n)}</b></button><small>${fmtN(popOf(ct))} · ${q.length}/${sl}</small><span>${kindsOf(C.me).map(k => { const U = UNIT[k], c = unitCost(k, g2), bad = (U.need && !U.need(ct)) || popOf(ct) - U.men < popFloor(ct) || q.length >= sl || C.gold < c; return `<button class="cmp-rmini" data-rec="${k}" data-at="${esc(n)}" title="${esc(`${TROOPS[k].name} at ${n}: ${c} thalers, ${U.men} men`)}"${bad ? " disabled" : ""}>${unitImg(k)}</button>`; }).join("")}</span></div>`; }).join("")}</div>`); }
   // (the news: the last few lines; the rest folded away)
   const L = C.log.slice(0, 14), line = l => `<div><small>${esc(l.t)}</small><b>${esc(l.title)}</b>${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`;
   h += `<div class="cmp-log">${L.slice(0, 4).map(line).join("")}${L.length > 4 ? `<details class="cmp-more" data-fold="log"${folds.log ? " open" : ""}><summary>Earlier</summary>${L.slice(4).map(line).join("")}</details>` : ""}</div>`;
@@ -1398,7 +1423,9 @@ function sideClick(e) {
   if (b.dataset.appg != null && b.dataset.ev != null) { doAct({ k: "appoint", role: "general", ev: +b.dataset.ev, i: +b.dataset.appg }); return; }
   if (b.dataset.ev != null) { doAct({ k: "ev", i: +b.dataset.ev, how: b.dataset.how }); return; }
   if (b.dataset.build && selCity) { doAct({ k: "build", ct: selCity[0], chain: b.dataset.build }); return; }
-  if (b.dataset.rec && selCity) { doAct({ k: "recruit", t: selCity[0], u: b.dataset.rec }); return; }
+  if (b.dataset.rec && (b.dataset.at || selCity)) { doAct({ k: "recruit", t: b.dataset.at || selCity[0], u: b.dataset.rec }); return; }
+  if (b.dataset.goto) { __selectTown(b.dataset.goto); return; }
+  if (b.dataset.disband) { doAct({ k: "disband", u: b.dataset.disband }); return; }
   if (b.dataset.unrec && selCity) { doAct({ k: "unrecruit", t: selCity[0] }); return; }
   if (b.dataset.gun && selCity) { doAct({ k: "build", ct: selCity[0], gun: true }); return; }
   if (b.dataset.unbuild && selCity) { doAct({ k: "unbuild", ct: selCity[0] }); return; }
@@ -1420,6 +1447,11 @@ function sideClick(e) {
 export const campaignOn = () => !!C;
 // (for the tests: the campaign's own doings, from the console)
 window.__setView = v => { view = v; paint(); };
+// (a town picked from a list: chosen, and the map brought round to it)
+function __selectTown(n) {
+  const ct = CITIES.find(c => c[0] === n); if (!ct) return; selCity = ct; sel = cityOwner(grid(), ct); armySel = false;
+  const cv = $("cmpMap"), S = cv.width / MG_W, t = cellXY(ct); view.ox = clamp(t.x * S - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(t.y * S - cv.height / view.z / 2, 0, cv.height - cv.height / view.z); drawMap();
+}
 window.__cmp = { get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
@@ -1438,6 +1470,7 @@ function apply(actor, a) {
   return as(actor, () => {
     const g = grid(), city = n => CITIES.find(c => c[0] === n);
     if (a.k === "recruit") { const why = recruitAt(a.t, a.u); return why ? { note: why } : { sfx: [["coin", 0.45], ["drum", 0.3, 250]] }; }
+    if (a.k === "disband") { const t = disband(a.u); if (t == null) return null; return { note: `A regiment of ${TROOPS[a.u].name.toLowerCase()} is disbanded${t ? `, its men sent home to ${t}` : ""}.`, sfx: [["drum", 0.3]] }; }
     if (a.k === "unrecruit") { unrecruit(a.t); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "dip") {
       if (isHuman(a.id)) return humanDip(actor, a.id, a.w);

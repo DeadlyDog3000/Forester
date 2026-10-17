@@ -1833,9 +1833,24 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-rq { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 5px; }
 .cmp-rq span { font: 11px var(--sans); padding: 2px 7px; border-radius: 10px; background: rgba(201,164,90,0.14); border: 1px solid rgba(201,164,90,0.4); color: #e2c57c; }
 .cmp-roll { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
-.cmp-ru { display: grid; grid-template-columns: 30px 24px minmax(0, 1fr) 64px; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 3px; background: rgba(255,255,255,0.03); }
+.cmp-ru { display: grid; grid-template-columns: 30px 24px minmax(0, 1fr) 54px auto; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 3px; background: rgba(255,255,255,0.03); }
 .cmp-ru > b { font: 600 15px var(--serif); text-align: right; color: var(--ink); }
 .cmp-ru span { display: flex; flex-direction: column; font: 13px var(--serif); color: var(--ink); min-width: 0; }
 .cmp-ru small { font: 10.5px var(--sans); color: var(--ink-dim); }
 .cmp-ru i { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
 .cmp-ru u { display: block; height: 100%; background: #c9a45a; text-decoration: none; }
+.cmp-ru .tm-lnk { all: unset; cursor: pointer; font: 10.5px var(--sans); color: var(--ink-dim); text-decoration: underline; }
+.cmp-ru .tm-lnk:hover { color: #d8b45a; }
+.cmp-tip { position: fixed; z-index: 30; pointer-events: none; display: none; padding: 5px 9px 6px; border-radius: 3px; background: rgba(239,228,198,0.96); border: 1px solid #5a4630; box-shadow: 0 3px 10px rgba(0,0,0,0.35); color: #2a1c10; font: 12px var(--sans); }
+.cmp-tip b { display: block; font: 14px var(--serif); }
+.cmp-tip small { display: block; color: #6a5640; }
+.cmp-rtowns { display: flex; flex-direction: column; gap: 3px; }
+.cmp-rtown { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; align-items: center; padding: 4px 6px; border-radius: 3px; background: rgba(255,255,255,0.03); }
+.cmp-rtown > .tm-lnk { all: unset; cursor: pointer; font: 13px var(--serif); color: var(--ink); }
+.cmp-rtown > .tm-lnk:hover { color: #d8b45a; }
+.cmp-rtown > small { font: 10.5px var(--sans); color: var(--ink-dim); text-align: right; }
+.cmp-rtown > span { grid-column: 1 / -1; display: flex; gap: 3px; flex-wrap: wrap; }
+.cmp-rmini { all: unset; width: 26px; cursor: pointer; border-radius: 2px; outline: 1px solid rgba(255,255,255,0.12); }
+.cmp-rmini:hover:not(:disabled) { outline-color: #d8b45a; transform: translateY(-1px); }
+.cmp-rmini:disabled { opacity: 0.3; cursor: default; filter: grayscale(0.8); }
+.cmp-rmini .cmp-uimg { border: none; }
