@@ -513,14 +513,14 @@ function fight(o) {
   // (the battle fought in the town itself: its streets and square, and its wall with the way in, if it has one)
   const bu = def === 1 ? 1 : -1;
   // (a supply train on its way to the siege lines: fought on the open road, its wagons in your half of the field)
-  const things = o.convoy ? [["convoy", -1, o.carts || 6, Math.round(ct[1] * 777 + C.year)]] : isVillage(ct) ? [["village", bu, ct[3], Math.round(ct[1] * 1000 + ct[2] * 100)]] : [["town", bu, ct[3], o.walls ? Math.max(1, lvOf(ct[0], "walls")) : 0, Math.round(ct[1] * 1000 + ct[2] * 100), o.battered || 0]];
+  const things = o.field ? [] : o.convoy ? [["convoy", -1, o.carts || 6, Math.round(ct[1] * 777 + C.year)]] : isVillage(ct) ? [["village", bu, ct[3], Math.round(ct[1] * 1000 + ct[2] * 100)]] : [["town", bu, ct[3], o.walls ? Math.max(1, lvOf(ct[0], "walls")) : 0, Math.round(ct[1] * 1000 + ct[2] * 100), o.battered || 0]];
   // (their raiders: horse, most of them — that's what's sent to fall on a convoy)
   const theirMuster = muster(o.foe, theirMen); if (o.convoy && !NATIONS[o.foe].nw) { const hk = Math.round(theirMen * 0.35); theirMuster.cavalry = (theirMuster.cavalry || 0) + hk; theirMuster.musketeer = Math.max(0, (theirMuster.musketeer || 0) - hk); }
   // (each side's nerve: your barracks, your learning, your general; theirs, their general's hold on them)
   const fg = genOf(o.foe), theirBrave = fg ? 1 + (fg.st[1] - 3) * 0.06 : 1, foeGuns = isHuman(o.foe) ? as(o.foe, () => C.guns | 0) : (C.fguns[o.foe] | 0);
   const b = {
-    id: "cmp-" + ct[0], campaign: true, name: o.convoy ? `The road to ${ct[0]}` : ct[0], date: `${SEASONS[s]} ${C.year}`, year: C.year, lon: ct[1], lat: ct[2],
-    at: o.convoy ? `${The(o.foe)} ${v3(o.foe, "falls")} on your supply train to ${ct[0]}` : o.attack ? `You march on ${poss(the(o.foe))} town` : `${The(o.foe)} ${v3(o.foe, "marches")} on your town`,
+    id: "cmp-" + ct[0], campaign: true, name: o.field ? `The field near ${ct[0]}` : o.convoy ? `The road to ${ct[0]}` : ct[0], date: `${SEASONS[s]} ${C.year}`, year: C.year, lon: ct[1], lat: ct[2],
+    at: o.field ? `You fall on ${poss(the(o.foe))} army on the march` : o.convoy ? `${The(o.foe)} ${v3(o.foe, "falls")} on your supply train to ${ct[0]}` : o.attack ? `You march on ${poss(the(o.foe))} town` : `${The(o.foe)} ${v3(o.foe, "marches")} on your town`,
     hour: hourR < 0.1 ? "night" : hourR < 0.35 ? "morning" : hourR < 0.8 ? "afternoon" : "evening",
     cloud: s === 3 ? 0.7 : s === 2 ? 0.5 : s === 0 ? 0.35 : 0.1, mist: s === 2 ? 0.3 : s === 3 ? 0.25 : 0,
     fort: null, won: undefined, you: 0,
@@ -534,19 +534,45 @@ function fight(o) {
   b.onEnd = (won, killed, lost) => doAct({ k: "result", won: !!won, killed: killed | 0, lost: lost | 0, myMen, theirMen });
   startBattle(b);
 }
+// ---- a battle in the open field: your army falls on an enemy army on the march, wherever it stands ----
+// (an enemy army you can fall on: at war, this side of the ocean, within a year's march of the army in hand)
+function canField(id) {
+  const fp = !isHuman(id) && atWar(id) && foeArmyPos(id); if (!fp || C.moved || C.siege || C.army < 5 || (C.foes[id] | 0) < 3) return false;
+  return !overSea(armyPos(), fp) && yearsTo(fp) <= 1;
+}
+// (the town nearest the field, to name the battle after and give it its country)
+const nearTown = p => CITIES.reduce((b, ct) => { const d = dist2(cellXY(ct), p); return !b || d < b[1] ? [ct, d] : b; }, null)[0];
+function fieldOf(id) { const fp = foeArmyPos(id); return { attack: true, field: true, foe: id, ct: nearTown(fp), att: C.army, def: Math.max(3, Math.round((C.foes[id] | 0) * 0.85)), walls: false, at: { x: fp.x, y: fp.y } }; }
+// the field battle decided: the losses both ways; the beaten army thrown back, its march broken
+function fieldEnd(o, won, myLossK, theirLossK) {
+  const broken = wearUnits(o.att * myLossK, o.pick) || {};
+  for (const u of field()) if (!o.pick || (o.pick.men && o.pick.men[u.k])) u.xp = Math.min(3, (u.xp || 0) + (won ? 0.6 : 0.3) * (o.pick ? 1 : 0.6));
+  C.foes[o.foe] = Math.max(0, Math.round((C.foes[o.foe] | 0) - o.def * theirLossK - (won ? o.def * 0.12 : 0)));
+  const near = o.ct[0], h = homeOf(grid(), o.foe), fp = foeArmyPos(o.foe); C.moved = true; C.go = null;
+  if (won) {
+    if (h && fp) { const b = stepToward(fp, h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } if (C.foeGo) delete C.foeGo[o.foe];
+    moraleMove(10); say(`Victory in the field near ${near}`, `${poss(The(o.foe))} army is broken and falls back toward home, ${C.foes[o.foe]} regiments left to it. Its march is stopped.`);
+  } else {
+    const mh = homeOf(grid(), C.me); if (mh) { const b = stepToward(armyPos(), mh, 4); C.pos = { x: b.x, y: b.y }; }
+    moraleMove(-12); say(`Beaten in the field near ${near}`, `Your army falls back with what it has left: ${C.army} regiments.`);
+  }
+  if (Object.keys(broken).length) say(`Regiments broken near ${near}`, `${Object.entries(broken).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: too few men left to stand as regiments, they are struck off the roll.`);
+  if (C.gen && R() < (won ? 0.04 : 0.2)) { moraleMove(-10); say(`${C.gen.name} falls near ${near}`, "Killed at the head of his men."); C.gen = null; needGeneral(); }
+  if (!won && C.guns > 0 && R() < 0.5) C.guns--;
+}
 // ---- the muster before a battle you fight yourself: how many of your army take the field, and of which arms ----
 const MUST_KINDS = ["musketeer", "grenadier", "pike", "sword", "axe", "bow", "crossbow", "cavalry"];
 function musterFor(o) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att, theirMen = clamp(Math.round(10 + theirs / 2.2), 10, 48);
   musterScreen({
-    title: o.convoy ? `Escort the supply train to ${o.ct[0]}` : o.attack ? `March on ${o.ct[0]}` : `Hold ${o.ct[0]}`, regs: mine,
-    foe: o.convoy ? `${poss(The(o.foe))} raiders, about ${theirMen}, most of them horse, are out to take or burn your ${o.carts} wagons.` : `${The(o.foe)} can field about ${theirMen}${o.walls ? (o.attack ? ", behind their walls" : "; your walls are with you") : ""}.${o.attack && isVillage(o.ct) ? " They'll hold their town behind its palisade: go in by the way in, or set a length of it alight and go through when it's burnt." : ""}`,
+    title: o.field ? `Attack ${poss(the(o.foe))} army` : o.convoy ? `Escort the supply train to ${o.ct[0]}` : o.attack ? `March on ${o.ct[0]}` : `Hold ${o.ct[0]}`, regs: mine,
+    foe: o.field ? `${poss(The(o.foe))} army can field about ${theirMen}, on open ground near ${o.ct[0]}.` : o.convoy ? `${poss(The(o.foe))} raiders, about ${theirMen}, most of them horse, are out to take or burn your ${o.carts} wagons.` : `${The(o.foe)} can field about ${theirMen}${o.walls ? (o.attack ? ", behind their walls" : "; your walls are with you") : ""}.${o.attack && isVillage(o.ct) ? " They'll hold their town behind its palisade: go in by the way in, or set a length of it alight and go through when it's burnt." : ""}`,
     onGo: P => fight({ ...o, pick: P }), guns: C.guns | 0, town: o.attack ? null : o.ct[0],
     // (a march you've ordered, called off before the battle: the army stays in camp, free to march again this year)
     onCancel: o.attack && !o.convoy ? () => doAct({ k: "calloff" }) : null,
     onAuto: C.mp ? null : () => {
       // (the generals fight it instead — as if you'd left it to them from the first)
-      C.pending = null; if (o.convoy) { convoyEnd(o, R() < odds(o.def * cmdMul(C.gen) * moraleK(), o.att, false), 0.15, 0.2); persist(); drawMap(); return; } const won = auto(o); persist();
+      C.pending = null; if (o.field) { const w = R() < odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.35 : 0.12); persist(); note = C.log.find(l => /field/.test(l.title)).title + "."; sfx("guns", 0.5); drawMap(); return; } if (o.convoy) { convoyEnd(o, R() < odds(o.def * cmdMul(C.gen) * moraleK(), o.att, false), 0.15, 0.2); persist(); drawMap(); return; } const won = auto(o); persist();
       note = won ? (o.attack ? `${o.ct[0]} is yours.` : `${o.ct[0]} holds.`) : (o.attack ? `The attack on ${o.ct[0]} failed.` : `${o.ct[0]} has fallen.`);
       sfx("guns", 0.5); if (won) sfx("bell", 0.4, 1600); drawMap();
     },
@@ -1032,6 +1058,7 @@ function checkEnd() {
 // ---------------------------------------------------------------------------
 //  the screens: choosing a crown, and the map
 // ---------------------------------------------------------------------------
+let selFoe = null;
 let view = { z: 1, ox: 0, oy: 0 }, sel = null, selCity = null, hov = null, hovCity = null, note = "", news = [];
 // (close in, the land itself: hills, woods, the towns' roofs — the government's map, as in the story)
 let ZOOM_3D = 4.2 * 2.5; const DIST_2D = 110;
@@ -1104,6 +1131,9 @@ export function initCampaign(c, battle, withPlayer) {
   cv.onmouseup = e => {
     const moved = drag ? drag.moved : 0; drag = null; if (moved > 5 || !C || e.button !== 0) return;
     // (your army: picked up — the next right-click sends it)
+    const fh = foeHit(cv, ...pos(e));
+    if (fh) { selFoe = fh; sel = fh; selCity = null; armySel = false; note = ""; drawMap(); sfx("drum", 0.2); return; }
+    selFoe = null;
     const hit = armyHit(cv, ...pos(e));
     if (hit && hit.id !== (C.ar | 0)) { doAct({ k: "usearmy", id: hit.id }); armySel = false; }
     if (hit) { armySel = !armySel; selCity = null; sel = null; note = armySel ? `${(C.armies || []).length ? `The ${armyName(C.ar | 0).toLowerCase()}` : "Your army"}: right-click anywhere on the map to march there. A year's march takes it about 350 km; a town within that is in its reach.` : ""; drawMap(); sfx("drum", 0.25); return; }
@@ -1350,6 +1380,15 @@ let armySel = false;
 const townNudge = (p, u) => CITIES.some(ct => { const t = cellXY(ct); return Math.hypot(t.x - p.x, t.y - p.y) < 2.5; }) ? 10 * u : 0;
 const armyU = k => k * Math.min(2.7, 1.45 + view.z / ZF() * 0.26);
 // (your army under the pointer: within a little of its block on the map)
+// (an enemy army under the pointer: one at war with you, on the map)
+function foeHit(cv, px, py) {
+  if (!C) return null; const S = cv.width / MG_W, u = armyU(cv.width / 1300), g = grid();
+  for (const id of Object.keys(C.E.war)) {
+    if (!C.E.war[id] || isHuman(id) || !alive(g, id)) continue; const p = foeArmyPos(id); if (!p) continue;
+    const x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z + townNudge(p, u); if (Math.hypot(px - x, py - y - 3 * u) < 16 * u) return id;
+  }
+  return null;
+}
 function armyHit(cv, px, py) {
   if (!C) return false; const S = cv.width / MG_W, u = armyU(cv.width / 1300);
   const at = p => { const x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z + townNudge(p, u); return Math.hypot(px - x, py - y - 3 * u) < 16 * u; };
@@ -1497,6 +1536,12 @@ function drawSide() {
       ${S ? `<div class="cmp-siege"><b>Under siege · year ${S.years}</b><span>Garrison ${S.starve >= 0.6 ? "starving" : S.starve >= 0.3 ? "on short rations" : "well fed"} (${Math.round(garrison(selCity) * (1 - S.starve))} of ${garrison(selCity)} men fit) · walls ${S.bat >= 1 ? "breached" : `${Math.round(S.bat * 100)}% battered`}</span><i><u style="width:${Math.min(100, Math.round(S.bat * 100))}%"></u></i>${!C.supplied && C.gold >= SUPPLY_COST ? `<div class="cmp-acts"><button class="btn" data-act="supply" title="Fresh men, powder and bread for the siege lines — if they get through the enemy's raiders">Send supplies · ${SUPPLY_COST} · you escort</button><button class="btn ghost" data-act="supplyauto">Supplies · escort alone</button></div>` : C.supplied ? `<small class="cmp-fine">This year's supply train has gone.</small>` : ""}</div>` : ""}
       ${can && S ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Storm · you lead</button><button class="btn" data-act="auto">Storm · generals lead</button><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : can && !C.siege ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Attack · you lead</button><button class="btn" data-act="auto">Attack · generals lead</button>${walls && !isHuman(own2) && C.army >= 8 ? `<button class="btn" data-act="siege" title="Starve it out and batter its walls, a year at a time">Lay siege</button>` : ""}</div>` : C.siege && !S && !mineT && own2 ? `<p class="cmp-fine">Your army is besieging ${esc(C.siege.ct)}: lift that siege to march here.</p>` : !C.siege && !C.moved && (mineT || (own2 && !reach)) && dist2(armyPos(), cellXY(selCity)) > 1 ? `<div class="cmp-acts"><button class="btn" data-act="goto">${overSea(armyPos(), cellXY(selCity)) ? `Ship your army here · 1 yr · ${VOYAGE} thalers` : `${mineT ? "Move your army here" : "March toward it"} · ${yearsTo(cellXY(selCity))} yr`}</button></div>` : S && C.moved ? `<div class="cmp-acts"><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : ""}</div>`;
   }
+  if (selFoe && !selCity && C.E.war[selFoe] && NATIONS[selFoe]) {
+    const f = selFoe, fp = foeArmyPos(f), tg = C.foeGo && C.foeGo[f], can = canField(f), o = can ? fieldOf(f) : null;
+    h += `<div class="cmp-card"><div class="cmp-h"><i style="background:${NATIONS[f].color}"></i><b>${esc(poss(The(f)))} army</b><small>${C.foes[f] | 0} regiments${tg ? ` · marching on ${esc(tg)}` : ""}</small></div>
+      <p>${can ? `Within your reach. Fall on it in the open field, before it reaches your towns: ${(C.armies || []).length ? `your ${esc(armyName(C.ar | 0).toLowerCase())}'s` : "your army's"} ${C.army} regiments against some ${o.def} of theirs. Your odds: ${Math.round(odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(f)), false) * 100)}%.` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : fp && overSea(armyPos(), fp) ? "It's on the other side of the Atlantic." : "It's beyond a year's march of your army."}</p>
+      ${can ? `<div class="cmp-acts"><button class="btn primary" data-fieldf="fight">Attack · you lead</button><button class="btn" data-fieldf="auto">Attack · generals lead</button></div>` : ""}</div>`;
+  }
   const id = selCity ? cityOwner(g, selCity) : sel;
   if (id && isHuman(id) && id !== C.me) {
     const did = C.did[id] || {}, war = atWar(id), tr = C.truce[id] || 0;
@@ -1524,6 +1569,7 @@ function drawSide() {
       <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
       <li><b>Garrisons.</b> With your army at one of your towns, leave regiments there to hold it, or take its garrison into the army.</li>
+      <li><b>Battles in the field.</b> Click an enemy army on the map: if your army can reach it this year, fall on it in the open before it reaches your towns. Beaten, it falls back and its march is stopped.</li>
       <li><b>More than one army.</b> Form a new army from a town's garrison. Click an army on the map to give it orders; each marches, besieges and fights on its own, under its own general. Two armies in one place can join.</li>
       <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing: regiments in its garrison and a school keep order. A town's people make its wealth, and fill the army's thin regiments each year.</li>
       <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
@@ -1564,6 +1610,7 @@ function sideClick(e) {
   if (b.dataset.build && selCity) { doAct({ k: "build", ct: selCity[0], chain: b.dataset.build }); return; }
   if (b.dataset.rec && (b.dataset.at || selCity)) { doAct({ k: "recruit", t: b.dataset.at || selCity[0], u: b.dataset.rec }); return; }
   if (b.dataset.goto) { __selectTown(b.dataset.goto); return; }
+  if (b.dataset.fieldf && selFoe) { doAct({ k: "field", foe: selFoe, how: b.dataset.fieldf }); return; }
   if (b.dataset.army != null) { doAct({ k: "usearmy", id: +b.dataset.army }); const p2 = armyPos(), cv2 = $("cmpMap"), S2 = cv2.width / MG_W; view.ox = clamp(p2.x * S2 - cv2.width / view.z / 2, 0, cv2.width - cv2.width / view.z); view.oy = clamp(p2.y * S2 - cv2.height / view.z / 2, 0, cv2.height - cv2.height / view.z); drawMap(); return; }
   if (b.dataset.form && selCity) { doAct({ k: "form", t: selCity[0] }); return; }
   if (b.dataset.join) { doAct({ k: "join" }); return; }
@@ -1617,6 +1664,13 @@ function apply(actor, a) {
   return as(actor, () => {
     const g = grid(), city = n => CITIES.find(c => c[0] === n);
     if (a.k === "recruit") { const why = recruitAt(a.t, a.u); return why ? { note: why } : { sfx: [["coin", 0.45], ["drum", 0.3, 250]] }; }
+    if (a.k === "field") {
+      if (!canField(a.foe)) return { note: "Your army can't reach that army this year." };
+      const o = fieldOf(a.foe);
+      if (a.how === "fight") { C.moved = true; C.pending = { ...o, ct: o.ct[0], ar: C.ar | 0 }; persist(); return { sfx: [["drum", 0.55]], fight: { ...o, ct: o.ct[0] } }; }
+      const w = R() < odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.35 : 0.12); persist();
+      return { note: C.log.find(l => /field/.test(l.title)).title + ".", sfx: [["drum", 0.55], ["guns", 0.6, 900], ...(w ? [["bell", 0.45, 2300]] : [])] };
+    }
     if (a.k === "usearmy") { if (!armyIds().includes(a.id | 0)) return null; useArmy(a.id | 0); persist(); return {}; }
     if (a.k === "form") { const why = formArmy(a.t); return why ? { note: why } : { note: `A new army is formed at ${a.t} from its garrison: the ${armyName(C.ar | 0).toLowerCase()}. Choose a general for it from its card.`, sfx: [["drum", 0.5]] }; }
     if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4]] }; }
@@ -1696,6 +1750,7 @@ function apply(actor, a) {
     if (a.k === "result") {
       const P = C.pending; if (!P) return null; C.pending = null; if (P.ar != null && armyIds().includes(P.ar)) useArmy(P.ar);
       const ct = city(P.ct);
+      if (P.field) { if (a.left) { fieldEnd({ ...P, ct }, false, 0.3, 0.05); persist(); return {}; } const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05; fieldEnd({ ...P, ct }, a.won, k, t); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
       if (P.convoy) { const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.6 + 0.03; convoyEnd({ ...P, ct }, !a.left && a.won, k, 0); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
       if (a.left) { settle({ ...P, ct }, false, 0.3, 0.05); C.log[0].sub += " (You left the field.)"; persist(); return {}; }
       const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05;

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.0", date: "16 October 2026", title: "Battles in the field",
+    items: [
+      "Campaign: click an enemy army on the map to see its strength and where it's marching. If your army can reach it this year, attack it in the open field, leading the battle yourself or leaving it to your generals.",
+      "Campaign: an army beaten in the field loses men, falls back toward home and gives up its march. Stop it before it reaches your walls.",
+    ],
+  },
+  {
     v: "1.54.1", date: "16 October 2026", title: "Your towns",
     items: [
       "Campaign: the Recruitment card is now Your towns, a ledger of every town you hold: its people and how fast they grow, its worth, its public order and its garrison, with the regiments it can raise this year.",
