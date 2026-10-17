@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.53.3", date: "16 October 2026", title: "Public order",
+    items: [
+      "Campaign: every town of yours has a public order, shown on its card. Heavy taxes and a great city's crowds sour it; light taxes, regiments in its garrison, a school and an honest governor keep it. A restless town may riot at the year's end: it pays none of its taxes that year, and loses some of its people. The Taxes card warns how many towns may riot.",
+    ],
+  },
+  {
     v: "1.53.2", date: "16 October 2026", title: "The regiment's card",
     items: [
       "Campaign: click a regiment's picture in your army's roll for its card: the plate large, how it fights (fire, melee, pace, and how it stands against horse), what it costs to raise and keep, and how yours of it stand.",

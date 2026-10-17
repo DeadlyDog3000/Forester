@@ -400,6 +400,7 @@ function realmWorld(g, ids) {
 }
 // ---- and for each player: the levies in, the learning done, the years told on their men ----
 function realmMine(g) {
+  riots(g);
   reconcile(); { const men = replenish(g); if (men >= 300) say(`The regiments fill their ranks`, `${fmtN(Math.round(men / 100) * 100)} men from your towns join the thin regiments.`); }
   if (C.lq && C.lq.length) {
     // (drilled where they were raised: a barracks sends its recruits out blooded, a military academy seasoned)
@@ -801,6 +802,21 @@ function peopleYear(g) {
     if (C.E.plague && C.E.plague[o]) p *= 0.94;
     if (siegeOf(ct)) p *= 0.95;
     C.pop[ct[0]] = Math.round(Math.max(popFloor(ct) * 0.6, p));
+  }
+}
+// ---- public order: a town's temper — soured by heavy taxes and a great city's crowds, sweetened by light ones, held by
+//  regiments in its garrison and by a school or church that keeps its people in hand; a corrupt governor makes it worse.
+//  Below zero, it may riot: the year's taxes not paid, some of its people killed or fled ----
+function orderOf(ct) {
+  const n = ct[0], t = C.tax ?? 1, v = govOf(n);
+  return (t === 2 ? -2 : t === 0 ? 1 : 0) - (ct[3] === 3 ? 1 : 0) + Math.min(2, garUnits(n).length) + (lvOf(n, "church") ? 1 : 0) + (v ? (v.st[0] >= 4 ? -1 : v.st[0] <= 1 ? 1 : 0) : 0) + 1;
+}
+const orderWord = o => o >= 2 ? "Content" : o >= 0 ? "Quiet" : o === -1 ? "Restless" : "Close to rising";
+function riots(g) {
+  for (const ct of citiesOfNow(g, C.me)) {
+    const o = orderOf(ct); if (o >= 0 || R() > 0.2 * -o) continue;
+    const w = Math.round(worth(ct) * TAX[C.tax ?? 1].k); C.gold -= w; C.pop[ct[0]] = Math.round(popOf(ct) * 0.97);
+    say(`Riots in ${ct[0]}`, `${C.tax === 2 ? "The heavy taxes" : "The crowds"} drive its people into the streets. The town pays none of its ${w} thalers this year${garUnits(ct[0]).length ? "" : "; a regiment in its garrison would keep order"}.`);
   }
 }
 // (the army's thin regiments filled up again from your towns: fast at home, slowly abroad, hardly at all in a siege)
@@ -1367,7 +1383,7 @@ function recruitHtml(ct) {
 // your own town: its worth and garrison, its governor, and its buildings a chain at a time — one piece of work a year
 function townCard(g, ct) {
   const n = ct[0], q = C.Q && C.Q[n], v = govOf(n), last = citiesOfNow(g, C.me).length === 1, wl = lvOf(n, "walls");
-  let h = `<p>Yours. Garrison ${garrison(ct)}; worth ${worth(ct)} thalers a year. ${wl ? CHAINS.walls.levels[wl].n + "." : last ? "No walls, but it's your last town: its people will hold it to the end." : "No walls."}</p><p class="cmp-pop">${popLine(ct)}</p>` + garHtml(ct) + recruitHtml(ct);
+  let h = `<p>Yours. Garrison ${garrison(ct)}; worth ${worth(ct)} thalers a year. ${wl ? CHAINS.walls.levels[wl].n + "." : last ? "No walls, but it's your last town: its people will hold it to the end." : "No walls."}</p><p class="cmp-pop">${popLine(ct)}</p><p class="cmp-pop">Public order: <b class="${orderOf(ct) < 0 ? "down" : ""}">${orderWord(orderOf(ct))}</b>${orderOf(ct) < 0 ? " · it may riot at the year's end. Lighter taxes, a regiment in its garrison or a school will calm it." : ""}</p>` + garHtml(ct) + recruitHtml(ct);
   h += v ? manCard(v, `<label class="cmp-rule"><input type="checkbox" data-rule="${esc(n)}"${C.rule && C.rule[n] ? " checked" : ""}> Let him rule: he puts the town's works in hand himself</label>`)
     : C.govCands && C.govCands[n] ? `<div class="cmp-subh">Choose a governor for ${esc(n)}</div>${candidates(C.govCands[n], "data-gov", m => govFee(m, ct))}`
     : `<div class="cmp-nogov"><span>No governor: a clerk keeps the books, and some of the money goes missing.</span><button class="btn" data-act="govs">Appoint a governor</button></div>`;
@@ -1452,7 +1468,7 @@ function drawSide() {
       <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
       <li><b>Garrisons.</b> With your army at one of your towns, leave regiments there to hold it, or take its garrison into the army.</li>
-      <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. A town's people make its wealth, and fill the army's thin regiments each year.</li>
+      <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing: regiments in its garrison and a school keep order. A town's people make its wealth, and fill the army's thin regiments each year.</li>
       <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
       <li><b>Walled towns</b> are taken by siege: sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
       <li><b>Taking a town</b> takes its whole province with it. A crown with no towns left is gone, and its land is yours.</li>
@@ -1469,7 +1485,7 @@ function drawSide() {
     ${(C.lq || []).length ? `<small class="cmp-fine">Raising: ${C.lq.map(q => `${esc(TROOPS[q.k].one.toLowerCase())} at ${esc(q.t)}`).join(", ")}. They join the army at the year's end, or hold their towns if it's far off.</small>` : ""}
     <small class="cmp-fine">Regiments are raised in your towns: choose one on the map. Thin regiments fill their ranks again from your towns each year, fastest on your own land. Upkeep ${upkeep()} a year.</small>`, armySel);
   // (the taxes: three rates, the treasury against the people's growth)
-  { const t = C.tax ?? 1; h += `<div class="cmp-card cmp-tax"><span class="cmp-h"><b>Taxes</b><small>${TAX[t].n}: ${t === 0 ? "the towns grow faster, the treasury takes three quarters" : t === 2 ? "a quarter more for the treasury, and the towns slow to grow" : "the towns' worth in full"}</small></span><span class="cmp-taxb">${TAX.map((x, i) => `<button class="btn${i === t ? " on" : ""}" data-tax="${i}"${i === t ? " disabled" : ""}>${x.n}</button>`).join("")}</span></div>`; }
+  { const t = C.tax ?? 1; h += `<div class="cmp-card cmp-tax"><span class="cmp-h"><b>Taxes</b><small>${TAX[t].n}: ${t === 0 ? "the towns grow faster and are content; the treasury takes three quarters" : t === 2 ? "a quarter more for the treasury; the towns slow to grow, and restless" : "the towns' worth in full"}${(() => { const r = citiesOfNow(grid(), C.me).filter(ct => orderOf(ct) < 0).length; return r ? ` · <em class="down">${r} town${r > 1 ? "s" : ""} may riot</em>` : ""; })()}</small></span><span class="cmp-taxb">${TAX.map((x, i) => `<button class="btn${i === t ? " on" : ""}" data-tax="${i}"${i === t ? " disabled" : ""}>${x.n}</button>`).join("")}</span></div>`; }
   // (every town of yours that can raise regiments this year, in one list: a little picture of each kind to raise there)
   { const g2 = grid(), towns = citiesOfNow(g2, C.me).sort((a, b) => b[3] - a[3] || popOf(b) - popOf(a)), free = towns.reduce((t, ct) => t + Math.max(0, slotsOf(ct) - raising(ct[0]).length), 0);
     h += fold("recruit", `<span class="cmp-h"><b>Recruitment</b><small>${free} regiment${free === 1 ? "" : "s"} can still be raised this year, in ${towns.length} town${towns.length === 1 ? "" : "s"}</small></span>`, `<div class="cmp-rtowns">${towns.map(ct => { const n = ct[0], q = raising(n), sl = slotsOf(ct);

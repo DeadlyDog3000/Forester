@@ -1879,3 +1879,4 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-urates i { font-style: normal; color: #d8b45a; letter-spacing: 1px; }
 .cmp-ucard .pv-acts { justify-content: flex-start; }
 @media (max-width: 560px) { .cmp-ucard { grid-template-columns: 1fr; } .cmp-ucard img { max-width: 200px; margin: 0 auto; } }
+.cmp-pop .down, .cmp-tax .down { color: #e08a70; font-style: normal; }
