@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.58.0", date: "16 October 2026", title: "The navy",
+    items: [
+      "Campaign: build ships in your ports' dockyards: sloops, frigates and, in a city's dockyard, ships of the line. Each has its own painted plate, its guns, the regiments it can carry and its upkeep. They're launched at the year's end, into a fleet lying off the port or a new one of their own.",
+      "Campaign: click a fleet, then right-click on the sea to sail it. A year's sailing crosses the Atlantic or the length of the Mediterranean, and the way is found around the land. Ships in a port of yours are repaired.",
+      "Campaign: bring a fleet to the shore where an army stands to take the army aboard, if the ships have room. Sail it, then land it on any shore. Hired transports still serve, but cost money, and an enemy fleet may fall on them.",
+      "Campaign: the sea powers keep fleets of their own, built up over the years. In war they come for your fleets, and you can attack theirs.",
+      "Battles at sea: command your fleet from your flagship. Make or shorten sail with W and S, steer with A and D, fire larboard and starboard broadsides with Q and E. No ship sails into the wind, so turn to bring your guns to bear. Your other captains fight their own ships. Shot in the hull kills crews and sinks ships; shot in the rigging slows them. A ship whose crew is cut down strikes her colours and is taken as a prize. Lose the ships carrying an army, and the army goes down with them.",
+      "Or leave a battle at sea to your admirals: the weight of each side's broadsides decides it.",
+    ],
+  },
+  {
     v: "1.57.5", date: "16 October 2026", title: "Thin regiments merged",
     items: [
       "Campaign: at the year's end, thin regiments of the same arm in the same army, or the same garrison, are merged into fuller ones, their experience carried with their men. The army's strength is unchanged; its roll is shorter and truer.",
