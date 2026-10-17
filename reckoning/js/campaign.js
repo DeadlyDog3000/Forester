@@ -302,13 +302,16 @@ function armyPos() { if (!C.pos || !isFinite(C.pos.x)) C.pos = homeOf(grid(), C.
 const seaSide = p => llOf(p.x, p.y)[0] < -42;
 const overSea = (p, t) => seaSide(p) !== seaSide(t);
 const VOYAGE = 120;
-function stepToward(p, t, d) { if (overSea(p, t)) return { x: t.x, y: t.y, arrived: true, sea: true }; const L = dist2(p, t); return L <= d ? { x: t.x, y: t.y, arrived: true } : { x: p.x + (t.x - p.x) / L * d, y: p.y + (t.y - p.y) / L * d, arrived: false }; }
-const inMarch = ct => dist2(armyPos(), cellXY(ct)) <= MARCH + 0.5;
-const yearsTo = t => overSea(armyPos(), t) ? 1 : Math.max(1, Math.ceil(dist2(armyPos(), t) / MARCH));
+// (the New World is drawn larger than Europe — 1.45 times, west of 50°W — so a year's march there covers more squares)
+const magAt = p => { const lon = llOf(p.x, p.y)[0]; return lon <= -50 ? 1.45 : lon >= -20 ? 1 : 1 + 0.45 * (-20 - lon) / 30; };
+const mdist = (p, q) => dist2(p, q) / magAt({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+function stepToward(p, t, d) { if (overSea(p, t)) return { x: t.x, y: t.y, arrived: true, sea: true }; d *= magAt({ x: (p.x + t.x) / 2, y: (p.y + t.y) / 2 }); const L = dist2(p, t); return L <= d ? { x: t.x, y: t.y, arrived: true } : { x: p.x + (t.x - p.x) / L * d, y: p.y + (t.y - p.y) / L * d, arrived: false }; }
+const inMarch = ct => mdist(armyPos(), cellXY(ct)) <= MARCH + 0.5;
+const yearsTo = t => overSea(armyPos(), t) ? 1 : Math.max(1, Math.ceil(mdist(armyPos(), t) / MARCH));
 // (the other crowns' field armies: at their capital, or on the march toward a town of yours)
 function foeArmyPos(id) { C.foePos ||= {}; if (!C.foePos[id] || !isFinite(C.foePos[id].x)) { const h = homeOf(grid(), id); if (h) C.foePos[id] = { x: h.x, y: h.y }; } return C.foePos[id] || null; }
 // (your army near enough to a town of yours to come to its help: half a year's march)
-const armyNear = ct => !C.siege && dist2(armyPos(), cellXY(ct)) <= MARCH * 0.5;
+const armyNear = ct => !C.siege && mdist(armyPos(), cellXY(ct)) <= MARCH * 0.5;
 // (all your armies near enough to come to a town's help, together)
 const helpNear = ct => eachArmy(() => armyNear(ct) ? Math.round(C.army * 0.7) : 0).reduce((t, v) => t + v, 0);
 
@@ -848,7 +851,7 @@ const armyAt = ct => !C.siege && dist2(armyPos(), cellXY(ct)) <= 3;
 function station(n, k, out) {
   const ct = CITIES.find(c => c[0] === n); if (!ct || cityOwner(grid(), ct) !== C.me || !armyAt(ct)) return "Your army must stand at the town.";
   reconcile();
-  if (out) { const L = garUnits(n).filter(u => !k || u.k === k); if (!L.length) return null; for (const u of k ? [L[0]] : L) delete u.at; }
+  if (out) { const all = !k || k === "*", L = garUnits(n).filter(u => all || u.k === k); if (!L.length) return null; for (const u of all ? L : [L[0]]) { delete u.at; u.ar = C.ar | 0; } }
   else { const L = field().filter(u => u.k === k); if (!L.length) return null; L.reduce((a, b) => (b.hp > a.hp ? b : a)).at = n; }
   C.army = Math.round(unitSum()); persist(); return null;
 }
@@ -998,7 +1001,7 @@ function endSeason(part = {}) {
   for (const id of ids) {
     if (!atWar(id) || (C.foes[id] | 0) < 10 || R() > 0.3 || C.events.some(e => !e.done && e.foe === id)) continue;
     const fp = foeArmyPos(id); if (!fp) continue;
-    const hit = eachArmy(aid => { const p = armyPos(); return !C.siege && C.army >= 3 && !overSea(p, fp) && dist2(p, fp) <= MARCH && !CITIES.some(ct => cityOwner(g2, ct) === C.me && dist2(cellXY(ct), p) < 2.5) && C.foes[id] > C.army * 1.1 ? { aid, army: C.army, at: { x: p.x, y: p.y } } : null; }).find(Boolean);
+    const hit = eachArmy(aid => { const p = armyPos(); return !C.siege && C.army >= 3 && !overSea(p, fp) && mdist(p, fp) <= MARCH && !CITIES.some(ct => cityOwner(g2, ct) === C.me && dist2(cellXY(ct), p) < 2.5) && C.foes[id] > C.army * 1.1 ? { aid, army: C.army, at: { x: p.x, y: p.y } } : null; }).find(Boolean);
     if (!hit) continue;
     C.foePos[id] = { x: hit.at.x + (fp.x - hit.at.x) * 0.15, y: hit.at.y + (fp.y - hit.at.y) * 0.15 };
     C.events.push({ kind: "fieldatk", foe: id, ar: hit.aid, att: Math.round(C.foes[id] * 0.85), def: hit.army, ct: nearTown(hit.at)[0] });
@@ -1015,7 +1018,7 @@ function endSeason(part = {}) {
     // its army on the road: there this year if it's near enough, else a year's march nearer — seen coming
     const fp = foeArmyPos(id), tc = cellXY(ct);
     if (fp && overSea(fp, tc)) { C.foePos[id] = { x: tc.x, y: tc.y }; C.foeGo[id] = ct[0]; say(`${The(id)} ${v3(id, "ships")} an army over the Atlantic`, `Some ${C.foes[id]} regiments, bound for ${ct[0]}. They'll be at its walls next year.`); continue; }
-    if (fp && dist2(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${poss(The(id))} ${NATIONS[id].nw ? "war party" : "army"} marches toward ${ct[0]}`, `Some ${C.foes[id]} ${NATIONS[id].nw ? "bands of warriors" : "regiments"}, a year's march off. They'll be at its walls next year.`); continue; }
+    if (fp && mdist(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${poss(The(id))} ${NATIONS[id].nw ? "war party" : "army"} marches toward ${ct[0]}`, `Some ${C.foes[id]} ${NATIONS[id].nw ? "bands of warriors" : "regiments"}, a year's march off. They'll be at its walls next year.`); continue; }
     if (fp) C.foePos[id] = { x: tc.x, y: tc.y }; delete C.foeGo[id];
     const att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
     // (your army comes to its help only if it's near)
@@ -1492,7 +1495,7 @@ function garHtml(ct) {
   const fk = {}; if (here) for (const u of field()) fk[u.k] = (fk[u.k] || 0) + 1;
   if (!G.length && !here) return "";
   let h = `<div class="cmp-subh">Garrison regiments${G.length ? ` · ${G.length}` : ""}</div>`;
-  if (G.length) h += `<div class="cmp-gar">${Object.entries(by).map(([k, c]) => `<span title="${esc(TROOPS[k].name)}">${unitImg(k, "sm")}<b>${c}</b>${here ? `<button class="tm-lnk" data-unstation="${k}">To the army</button>` : ""}</span>`).join("")}</div>`;
+  if (G.length) h += `<div class="cmp-gar">${Object.entries(by).map(([k, c]) => `<span title="${esc(TROOPS[k].name)}">${unitImg(k, "sm")}<b>${c}</b>${here ? `<button class="tm-lnk" data-unstation="${k}">To the army</button>` : ""}</span>`).join("")}${here && G.length > 1 ? `<button class="tm-lnk" data-unstation="*">All to the army</button>` : ""}</div>`;
   if (here && Object.keys(fk).length) h += `<div class="cmp-gar leave"><small>Leave in ${esc(n)}:</small>${Object.entries(fk).map(([k, c]) => `<button class="cmp-rmini" data-station="${k}" title="Leave a regiment of ${esc(TROOPS[k].name.toLowerCase())} to hold ${esc(n)} (${c} in the army)">${unitImg(k)}</button>`).join("")}</div>`;
   else if (G.length && !here) h += `<small class="cmp-fine">Bring an army here to take them into it.</small>`;
   if (G.length) h += `<div class="cmp-acts"><button class="btn" data-form="1" title="March the garrison out as an army of its own">Form a new army from the garrison</button></div>`;

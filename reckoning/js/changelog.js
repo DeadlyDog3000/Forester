@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.6", date: "16 October 2026", title: "Colonial armies",
+    items: [
+      "Campaign: armies in North America march as far in a year as they do in Europe. The New World is drawn larger on the map, and marches there had been falling short: Boston to New York took two years, and now takes one.",
+      "Campaign: regiments taken from a garrison join the army standing in the town, not your main army. A town's card can take its whole garrison into the army at once.",
+      "Campaign: regiments raised in a colony, with no army of yours on that side of the ocean, hold their towns; form a colonial army from them there.",
+    ],
+  },
+  {
     v: "1.55.5", date: "16 October 2026", title: "Tokens on the map",
     items: [
       "Map: a town raising regiments shows a gold token with how many, and a town holding a garrison a paper one with its regiments.",
