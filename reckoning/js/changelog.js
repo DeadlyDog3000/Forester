@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.74.3", date: "17 October 2026", title: "Off the gun",
+    items: [
+      "Battles: Shift takes you off a gun you're working. F still does too, and no longer puts you straight back on it (the same press was taking the gun up again), and walking off with W A S D leaves it as well.",
+      "While you're on a gun, a sign at the bottom of the screen says so the whole time: look to lay it, click to fire, Shift to leave the gun.",
+    ],
+  },
+  {
     v: "1.74.2", date: "17 October 2026", title: "Answers you can see",
     items: [
       "Campaign: the answer to whatever you do or ask (a crown granting or refusing, a march begun, a regiment raised, an order that can't be carried out) appears as a large card over the map, green with a tick for yes and red with a cross for no. It stays long enough to read, or click it away. It's still written at the top of the side panel too.",

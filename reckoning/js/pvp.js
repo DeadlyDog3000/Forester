@@ -1059,7 +1059,7 @@ class Arena {
       this.gunIts = this.field.guns.filter(g => g.side === 0).map(g => this.w.addInteract({ x: g.x, y: this.w.heightAt(g.x, g.z) + 1.0, z: g.z, reach: 2.4,
         can: () => G.arena === this && this.live && !G.downed && this.gunMan !== g,
         label: () => g.dead ? "The gun's wrecked" : this.remote ? (g.loaded ? "Lay the gun on where you're looking, and fire it" : "The gun's loading") : `Take the gun${g.loaded ? " — loaded" : g.crewN ? ` — loading, ${g.crewN} of its crew at it` : " — not loaded"}`,
-        use: () => { if (g.dead) return; if (this.remote) { if (g.loaded) this.net.send({ t: "bgunlay", i: this.field.guns.indexOf(g), at: this.lookPoint() }); return; } this.manGun(g); } }));
+        use: () => { if (g.dead) return; if (this.remote) { if (g.loaded) this.net.send({ t: "bgunlay", i: this.field.guns.indexOf(g), at: this.lookPoint() }); return; } if (this.gunMan === g || performance.now() - (this.gunLeftT || 0) < 700) return; this.manGun(g); } }));
       // (the other player, on their own side: a body your game moves as theirs tells it)
       if (this.netBattle) {
         // (on horseback, if they ride: as their muster said, or the host's word of itself)
@@ -1738,8 +1738,8 @@ class Arena {
     if (G.arena !== this || e.repeat || !this.live || G.downed || G.mode !== "play") return;
     // F (with nothing else to hand): the bayonet fixed under your musket's muzzle — for good, this fight. It's in the way
     // of the rod and the aim: slower loading, and the shot less true
-    if (e.code === "KeyF" && this.lo.long === "musket" && this.lo.blade === "dagger" && !this.myTech("bayonet") && !G.player.bayonet && !G.interactTarget) { e.stopImmediatePropagation(); e.preventDefault(); UI.hint("Your crown hasn't the socket bayonet yet: the blade can't be fixed under the muzzle. Study it in the campaign's Learning.", 4); return; }
-    if (e.code === "KeyF" && this.canBayonet() && !G.player.bayonet && !G.interactTarget) {
+    if (e.code === "KeyF" && !this.gunMan && this.lo.long === "musket" && this.lo.blade === "dagger" && !this.myTech("bayonet") && !G.player.bayonet && !G.interactTarget) { e.stopImmediatePropagation(); e.preventDefault(); UI.hint("Your crown hasn't the socket bayonet yet: the blade can't be fixed under the muzzle. Study it in the campaign's Learning.", 4); return; }
+    if (e.code === "KeyF" && !this.gunMan && this.canBayonet() && !G.player.bayonet && !G.interactTarget) {
       e.stopImmediatePropagation(); e.preventDefault();
       const pl = G.player; if (!pl.gun || pl.gunIs !== "musket") this.takeUp("musket");
       if (pl.fixBayonet(true)) UI.hint("Bayonet fixed — for the rest of the fight. It's in the way: loading's slower, the aim's less true. Once you've fired, a click is the bayonet.", 4);
@@ -2231,9 +2231,14 @@ class Arena {
     this.gunMan = g; g.byHand = true; g.manned = true;
     if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.holsterAxe && pl.holsterAxe(true);
     G.lockMove = true; pl.yaw = g.ry + g.yaw; pl.pitch = g.pitch;
-    UI.hint(`The gun is yours. Look to lay it — the ring is where the ball will strike — and click to fire. The crew load it again${g.crew && g.crew.some(u => u.alive) ? "" : ", and you with them"}. F to leave it.`, 7);
-    this.gunKey = e => { if (e.code === "KeyF" && !e.repeat && this.gunMan) { e.preventDefault(); e.stopImmediatePropagation(); this.unmanGun(); } };
-    setTimeout(() => this.gunMan === g && addEventListener("keydown", this.gunKey, true), 250);
+    UI.hint(`The gun is yours. Look to lay it — the ring is where the ball will strike — and click to fire. The crew load it again${g.crew && g.crew.some(u => u.alive) ? "" : ", and you with them"}. Shift to leave it.`, 7);
+    // (leaving it: F, as you took it — or simply stepping away, as you would)
+    const walk = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].map(k => G.keyOf ? G.keyOf(k) || k : k));
+    this.gunKey = e => { if (!this.gunMan || e.repeat) return; if (e.code === "ShiftLeft" || e.code === "ShiftRight" || e.key === "Shift" || e.code === "KeyF" || walk.has(e.code)) { if (!walk.has(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); } this.unmanGun(); G.holdLatch = true; G.tapFor = null; this.gunLeftT = performance.now(); UI.hint("You leave the gun to its crew.", 2); } };
+    // (and while you're at it, said plainly on the screen the whole time)
+    let b = document.getElementById("gunBadge"); if (!b) { b = document.createElement("div"); b.id = "gunBadge"; b.className = "gun-badge"; document.body.appendChild(b); }
+    b.innerHTML = `<b>On the gun</b><span>Look to lay it · <kbd>Click</kbd> fire · <kbd>Shift</kbd> leave the gun</span>`; b.classList.add("on");
+    addEventListener("keydown", this.gunKey, true);
     if (!this.gunRing) { this.gunRing = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.45, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xd8b84a, transparent: true, opacity: 0.75, depthWrite: false })); this.gunRing.renderOrder = 3; }
     this.w.root.add(this.gunRing);
   }
@@ -2241,6 +2246,7 @@ class Arena {
     const g = this.gunMan; if (!g) return;
     this.gunMan = null; g.byHand = false; g.manned = false; G.lockMove = false;
     removeEventListener("keydown", this.gunKey, true);
+    { const b = document.getElementById("gunBadge"); if (b) b.classList.remove("on"); }
     if (this.gunRing) this.w.root.remove(this.gunRing);
     if (this.live) this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
   }
