@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.77.0", date: "17 October 2026", title: "Colonies, fleets and smooth marches",
+    items: [
+      "Campaign: the crowns of Europe with towns in the New World have colonial armies there, apart from their armies at home. They're on the map while you're at war with them, defend their colonies, march on yours, and can be attacked and beaten in the open field. Their size is hidden unless you have a politician of theirs in your pay. An army at home can't come over to help, nor the colonial army go home.",
+      "Invasions over the narrow seas: an enemy can take ship for a town of yours across the Channel, the North Sea or the Mediterranean. A fleet of yours lying in the way stops them. If they have a fleet they must beat yours first, and you can fight that battle yourself or leave it to your admirals; if they have none, they can't cross at all. Beaten, the invasion fails with men lost on the transports.",
+      "Fleet battles: right-click an enemy fleet with yours selected to attack it, or sail toward it if it's too far. A fleet that has sailed up to an enemy this year can still attack it.",
+      "Marches are smooth. The campaign worked out the whole map afresh hundreds of times a turn, and the side panel and every order waited on it: a redraw is now ten times quicker, an order is no longer followed by a second's freeze, and a march no longer stalls when it ends. The way an army or fleet goes is drawn as a smooth road round the water, the mark turning gently as it goes.",
+      "A new army formed from a garrison, split off, or put aboard ship appears where it stands, instead of marching in from somewhere else.",
+      "Pictures (portraits, unit plates, the gazette's woodcut) can no longer be dragged out of their places.",
+    ],
+  },
+  {
     v: "1.76.0", date: "17 October 2026", title: "Aboard, and over there",
     items: [
       "Campaign: armies go aboard your fleets. A fleet off a river port such as London was too far from the army in the town to take it aboard, and the button simply didn't appear. Now it reaches, and you can also click your army and right-click your fleet to embark it. If the fleet can't carry the whole army, as many regiments as it can carry go aboard as an army of their own, and the rest stay ashore. When it can't be done, the fleet's card says why.",

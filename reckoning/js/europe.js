@@ -165,15 +165,17 @@ export const isFree = id => id === "wilds";
 export function peopleAt(cv, x, y, E) { const g = buildGrid(E), S = cv.width / GW, id = g[Math.floor(y / S)] && g[Math.floor(y / S)][Math.floor(x / S)]; return id && PEOPLES[id] ? id : null; }
 // the political map as it stands: 1683's, with every conquest since laid over it
 let gridCache = null, gridKey = "";
-export function buildGrid(E) {
+// (the same, not copied: for a reader that never writes into it — the campaign asks hundreds of times a turn, and a copy of
+//  the whole sheet each time was most of the time a turn took)
+export function buildGridRO(E) {
   // (the same conquests, the same map: asked for on every movement of the pointer, so kept)
   const cq = (E && E.conq) || [], key = ((E && E.rev) | 0) + ":" + cq.length + ":" + (cq.length ? cq[cq.length - 1].c + "," + cq[cq.length - 1].r + cq[cq.length - 1].to : "");
-  if (gridCache && key === gridKey) return gridCache.map(row => row.slice());
+  if (gridCache && key === gridKey) return gridCache;
   const g = baseGrid().map(row => row.slice());
   for (const q of cq) if (g[q.r] && g[q.r][q.c] && !isFree(g[q.r][q.c])) g[q.r][q.c] = q.to;
-  gridCache = g; gridKey = key;
-  return g.map(row => row.slice());
+  gridCache = g; gridKey = key; return g;
 }
+export function buildGrid(E) { return buildGridRO(E).map(row => row.slice()); }
 function neighbours(g, id) {
   const out = new Set();
   for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {

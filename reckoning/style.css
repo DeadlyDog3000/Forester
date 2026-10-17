@@ -1980,3 +1980,5 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .gun-badge.on { display: flex; transform: translate(-50%, 0); }
 .gun-badge b { font: 600 15px var(--serif, Georgia, serif); color: #e8c96a; letter-spacing: 0.04em; }
 .gun-badge kbd { display: inline-block; padding: 0 5px; margin: 0 1px; border: 1px solid rgba(239, 228, 198, 0.5); border-radius: 3px; font: 600 11px var(--sans, sans-serif); background: rgba(255, 255, 255, 0.08); }
+/* pictures stay where they are: no dragging a portrait or a plate out of its box */
+img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-select: none; }

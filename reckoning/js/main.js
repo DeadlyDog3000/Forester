@@ -231,6 +231,8 @@ function toTitle() {
   $("menus").classList.add("backdrop");
 }
 G.toTitle = toTitle;
+// (and the browser's own dragging of a picture, stopped wherever it starts)
+document.addEventListener("dragstart", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); }, true);
 // (a menu screen opened from somewhere other than the pause menu — the campaign's — and Back returns there)
 G.openFrom = (from, id) => { back = from; if (id === "controls") relabelControls(); screen(id); };
 
