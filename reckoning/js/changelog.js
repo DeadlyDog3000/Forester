@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.52.2", date: "16 October 2026", title: "Taxes, and what the enemy fields",
+    items: [
+      "Campaign: set your crown's taxes: light (three quarters of the towns' worth, and faster growth), fair, or heavy (a quarter more, and slower growth).",
+      "Campaign: a crown's card shows what its army is made of, with a picture of each arm. The nations of the woods have their own plates: the bow, the war club and the trade musket.",
+    ],
+  },
+  {
     v: "1.52.1", date: "16 October 2026", title: "The muster rolls",
     items: [
       "Campaign: a Recruitment card lists every town of yours with what it can still raise this year. Click a regiment's picture to raise it there, or the town's name to go to it on the map.",

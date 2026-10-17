@@ -69,7 +69,7 @@ const load = (i = slot) => { try { return JSON.parse(localStorage.getItem(slotKe
 // The campaign holds one crown "on top" (C.me, and these fields of C) and the other's put by in C.H; as(crown, fn)
 // does a thing as that crown, and puts everything back. The shared things — the year, the map, the other crowns'
 // armies and wars — are C's own.
-const SLICE = ["gold", "army", "moved", "did", "ally", "truce", "warT", "took", "lost", "events", "log", "over", "won", "pending", "tech", "guns", "gen", "govs", "govCands", "levyQ", "lq", "units", "rule", "morale", "siege", "supplied", "pos", "go"];
+const SLICE = ["gold", "army", "moved", "did", "ally", "truce", "warT", "took", "lost", "events", "log", "over", "won", "pending", "tech", "guns", "gen", "govs", "govCands", "levyQ", "lq", "units", "tax", "rule", "morale", "siege", "supplied", "pos", "go"];
 let mp = null;    // (the link to the other player: { net, side, host, foe, ... } — null playing alone)
 const humans = () => (C && C.mp ? C.mp.humans : []);
 const isHuman = id => humans().includes(id);
@@ -672,7 +672,10 @@ const popCap = ct => Math.round(popBase(ct) * (1.3 + lvOf(ct[0], "farm") * 0.35 
 const popOf = ct => { C.pop ||= {}; return C.pop[ct[0]] ??= popBase(ct); };
 // (the fewest a town can be left with by the recruiting sergeants: the men to bring the harvest in)
 const popFloor = ct => Math.round(popBase(ct) * 0.3);
-const popRate = ct => { const p = popOf(ct), cap = popCap(ct); if (p > cap) return -0.02; return (0.018 + lvOf(ct[0], "farm") * 0.01 + (lvOf(ct[0], "trade") ? 0.004 : 0)) * (1 - p / cap * 0.6); };
+// (the crown's taxes: light, fair or heavy — more for the treasury the heavier, and the people slower to grow)
+const TAX = [{ n: "Light", k: 0.75, g: 0.008 }, { n: "Fair", k: 1, g: 0 }, { n: "Heavy", k: 1.25, g: -0.01 }];
+const taxOf = id => { const s2 = id && isHuman(id) ? sliceOf(id) : null; return TAX[s2 && s2.tax != null ? s2.tax : 1]; };
+const popRate = (ct, o = cityOwner(grid(), ct)) => { const p = popOf(ct), cap = popCap(ct); if (p > cap) return -0.02; return (0.018 + lvOf(ct[0], "farm") * 0.01 + (lvOf(ct[0], "trade") ? 0.004 : 0)) * (1 - p / cap * 0.6) + taxOf(o).g; };
 const fmtN = n => Math.round(n).toLocaleString("en-GB");
 // what each kind of regiment costs, the men it takes from its town, its upkeep a year, and what it needs to be raised
 const UNIT = {
@@ -687,9 +690,9 @@ const UNIT = {
 };
 const kindsOf = id => STYLE[styleOf(id)].map(([k]) => k);
 // (each kind's picture, as its crown's way of war dresses it: a uniform plate of the time)
-const UNIT_ART = new Set(["west-musketeer", "west-pike", "west-grenadier", "west-cavalry", "west-sword", "east-musketeer", "east-bow", "east-sword", "east-cavalry", "steppe-musketeer", "steppe-cavalry", "steppe-sword", "steppe-bow", "steppe-pike", "tsar-musketeer", "tsar-pike", "tsar-cavalry", "tsar-axe"]);
+const UNIT_ART = new Set(["west-musketeer", "west-pike", "west-grenadier", "west-cavalry", "west-sword", "east-musketeer", "east-bow", "east-sword", "east-cavalry", "steppe-musketeer", "steppe-cavalry", "steppe-sword", "steppe-bow", "steppe-pike", "tsar-musketeer", "tsar-pike", "tsar-cavalry", "tsar-axe", "woods-bow", "woods-axe", "woods-musketeer"]);
 const unitArt = (k, id = C.me) => { const a = `${styleOf(id)}-${k}`; return UNIT_ART.has(a) ? `art/units/${a}.jpg` : UNIT_ART.has(`west-${k}`) ? `art/units/west-${k}.jpg` : null; };
-const unitImg = (k, cls = "") => { const a = unitArt(k); return a ? `<img class="cmp-uimg ${cls}" src="${a}" alt="" loading="lazy">` : `<span class="cmp-uimg none ${cls}"></span>`; };
+const unitImg = (k, cls = "", id = C.me) => { const a = unitArt(k, id); return a ? `<img class="cmp-uimg ${cls}" src="${a}" alt="" loading="lazy">` : `<span class="cmp-uimg none ${cls}"></span>`; };
 // (the regiments a town can raise in a year: one a town, two a city, three a great one; a barracks one more)
 const slotsOf = ct => ct[3] + (lvOf(ct[0], "army") >= 2 ? 1 : 0);
 const unitCost = (k, g = grid()) => Math.max(8, UNIT[k].cost - (REGIMENT - regCost(g)));
@@ -750,7 +753,7 @@ function peopleYear(g) {
   C.pop ||= {};
   for (const ct of CITIES) {
     const o = cityOwner(g, ct); if (!o) continue;
-    let p = popOf(ct); p *= 1 + popRate(ct);
+    let p = popOf(ct); p *= 1 + popRate(ct, o);
     if (C.E.plague && C.E.plague[o]) p *= 0.94;
     if (siegeOf(ct)) p *= 0.95;
     C.pop[ct[0]] = Math.round(Math.max(popFloor(ct) * 0.6, p));
@@ -770,7 +773,7 @@ function replenish(g) {
   C.army = Math.round(unitSum());
   return filled;
 }
-const income = g => 40 + citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct), 0) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0);
+const income = g => 40 + Math.round(citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct), 0) * TAX[C.tax ?? 1].k) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0);
 const upkeep = () => Math.round((C.units ? C.units.reduce((t, u) => t + u.hp * (UNIT[u.k] || UNIT.musketeer).up, 0) : C.army * 1.6) * (1 + (C.gen ? C.gen.st[2] : 2) * 0.04));
 // diplomacy: what you can do with a crown this season
 function diplo(id, what) {
@@ -1379,6 +1382,7 @@ function drawSide() {
     const head = `<span class="cmp-h"><i style="background:${NATIONS[id].color}"></i><b>${esc(NATIONS[id].name)}</b><small>${citiesOfNow(g, id).length} town${citiesOfNow(g, id).length === 1 ? "" : "s"} · army ${C.foes[id] || 0} · ${war ? "<em class='down'>at war with you</em>" : C.ally[id] ? "your ally" : C.E.pact[id] ? "trade pact" : relWord(r[id])}</small></span>`;
     h += (selCity ? (b2 => fold("crown", head, b2)) : (b2 => `<div class="cmp-card">${head}${b2}</div>`))(`
       <div class="cmp-rel"><i style="left:${(r[id] + 100) / 2}%"></i><span>Their view of you: ${r[id] > 0 ? "+" : ""}${Math.round(r[id])}</span></div>
+      ${(() => { const m = muster(id, 100); return `<div class="cmp-farmy">${Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const nm = NATIONS[id].nw ? ({ axe: "War club", bow: "Bow", musketeer: "Trade musket" }[k] || TROOPS[k].name) : TROOPS[k].name; return `<span title="${esc(nm)}: about ${n}% of their army">${unitImg(k, "", id)}<small>${esc(nm)}</small></span>`; }).join("")}</div>`; })()}
       ${NATIONS[id].nw ? `<p class="cmp-help">A nation of the woods. Their towns stand behind wooden palisades, with no stone walls to besiege; a palisade can be set alight and burnt through. Their warriors fight with the bow and the war club, a few with trade muskets. They have no guns and no horse.</p>` : ""}
       ${C.foeGen && C.foeGen[id] ? `<div class="cmp-foegen">${face(C.foeGen[id], "sm")}<span><b>${esc(C.foeGen[id].name)}</b><small>Their general · command ${"●".repeat(C.foeGen[id].st[0])}${"○".repeat(5 - C.foeGen[id].st[0])} · ${(C.fguns[id] | 0) ? `${C.fguns[id]} gun${C.fguns[id] > 1 ? "s" : ""}: they can besiege walled towns` : "no guns: walled towns are safe from them"}</small></span></div>` : ""}
       <div class="cmp-acts">${war ? `<button class="btn" data-dip="peace" ${did.peace ? "disabled" : ""}>Offer peace</button>` : `
@@ -1390,7 +1394,7 @@ function drawSide() {
   } else if (!selCity && !armySel) h += `<div class="cmp-card cmp-help"><p><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom</p></div>` + fold("how", `<span class="cmp-h"><b>How it works</b><small>armies, towns, the sea, the New World</small></span>`, `<ul class="cmp-howto">
       <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end. A town raises one a year, a city two, a great city three.</li>
-      <li><b>People</b> grow as the land feeds them: improve the farms for more. A town's people make its wealth, and fill the army's thin regiments each year.</li>
+      <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. A town's people make its wealth, and fill the army's thin regiments each year.</li>
       <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
       <li><b>Walled towns</b> are taken by siege: sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
       <li><b>Taking a town</b> takes its whole province with it. A crown with no towns left is gone, and its land is yours.</li>
@@ -1406,6 +1410,8 @@ function drawSide() {
     ${rollHtml()}
     ${(C.lq || []).length ? `<small class="cmp-fine">Raising: ${C.lq.map(q => `${esc(TROOPS[q.k].one.toLowerCase())} at ${esc(q.t)}`).join(", ")}. They join the army at the year's end.</small>` : ""}
     <small class="cmp-fine">Regiments are raised in your towns: choose one on the map. Thin regiments fill their ranks again from your towns each year, fastest on your own land. Upkeep ${upkeep()} a year.</small>`, armySel);
+  // (the taxes: three rates, the treasury against the people's growth)
+  { const t = C.tax ?? 1; h += `<div class="cmp-card cmp-tax"><span class="cmp-h"><b>Taxes</b><small>${TAX[t].n}: ${t === 0 ? "the towns grow faster, the treasury takes three quarters" : t === 2 ? "a quarter more for the treasury, and the towns slow to grow" : "the towns' worth in full"}</small></span><span class="cmp-taxb">${TAX.map((x, i) => `<button class="btn${i === t ? " on" : ""}" data-tax="${i}"${i === t ? " disabled" : ""}>${x.n}</button>`).join("")}</span></div>`; }
   // (every town of yours that can raise regiments this year, in one list: a little picture of each kind to raise there)
   { const g2 = grid(), towns = citiesOfNow(g2, C.me).sort((a, b) => b[3] - a[3] || popOf(b) - popOf(a)), free = towns.reduce((t, ct) => t + Math.max(0, slotsOf(ct) - raising(ct[0]).length), 0);
     h += fold("recruit", `<span class="cmp-h"><b>Recruitment</b><small>${free} regiment${free === 1 ? "" : "s"} can still be raised this year, in ${towns.length} town${towns.length === 1 ? "" : "s"}</small></span>`, `<div class="cmp-rtowns">${towns.map(ct => { const n = ct[0], q = raising(n), sl = slotsOf(ct);
@@ -1425,6 +1431,7 @@ function sideClick(e) {
   if (b.dataset.build && selCity) { doAct({ k: "build", ct: selCity[0], chain: b.dataset.build }); return; }
   if (b.dataset.rec && (b.dataset.at || selCity)) { doAct({ k: "recruit", t: b.dataset.at || selCity[0], u: b.dataset.rec }); return; }
   if (b.dataset.goto) { __selectTown(b.dataset.goto); return; }
+  if (b.dataset.tax != null) { doAct({ k: "tax", v: +b.dataset.tax }); return; }
   if (b.dataset.disband) { doAct({ k: "disband", u: b.dataset.disband }); return; }
   if (b.dataset.unrec && selCity) { doAct({ k: "unrecruit", t: selCity[0] }); return; }
   if (b.dataset.gun && selCity) { doAct({ k: "build", ct: selCity[0], gun: true }); return; }
@@ -1470,6 +1477,7 @@ function apply(actor, a) {
   return as(actor, () => {
     const g = grid(), city = n => CITIES.find(c => c[0] === n);
     if (a.k === "recruit") { const why = recruitAt(a.t, a.u); return why ? { note: why } : { sfx: [["coin", 0.45], ["drum", 0.3, 250]] }; }
+    if (a.k === "tax") { C.tax = clamp(a.v | 0, 0, 2); persist(); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "disband") { const t = disband(a.u); if (t == null) return null; return { note: `A regiment of ${TROOPS[a.u].name.toLowerCase()} is disbanded${t ? `, its men sent home to ${t}` : ""}.`, sfx: [["drum", 0.3]] }; }
     if (a.k === "unrecruit") { unrecruit(a.t); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "dip") {

@@ -1854,3 +1854,10 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-rmini:hover:not(:disabled) { outline-color: #d8b45a; transform: translateY(-1px); }
 .cmp-rmini:disabled { opacity: 0.3; cursor: default; filter: grayscale(0.8); }
 .cmp-rmini .cmp-uimg { border: none; }
+.cmp-farmy { display: flex; gap: 4px; margin: 6px 0 4px; }
+.cmp-farmy span { flex: 1; max-width: 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.cmp-farmy small { font: 9.5px/1.1 var(--sans); color: var(--ink-dim); text-align: center; }
+.cmp-tax { display: flex; flex-direction: column; gap: 6px; }
+.cmp-taxb { display: flex; gap: 4px; }
+.cmp-taxb .btn { flex: 1; min-width: 0; width: auto; padding: 4px 6px; font-size: 11px; }
+.cmp-taxb .btn.on { background: linear-gradient(#7a5424, #5a3c16); border-color: #d8b45a; color: #f6e6bc; opacity: 1; }
