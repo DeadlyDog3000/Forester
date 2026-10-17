@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.57.4", date: "16 October 2026", title: "The books at a glance",
+    items: [
+      "Campaign: hover over the treasury for the year's account: what comes in from your towns and trade, and what goes out on your regiments' upkeep.",
+      "Campaign map: hovering over a town of yours also shows its public order, its garrison and the regiments it's raising.",
+    ],
+  },
+  {
     v: "1.57.3", date: "16 October 2026", title: "Two crowns, many armies",
     items: [
       "Campaign of two: losses in a battle against the other player now fall on the army they have in hand, and no longer swell it when they command more than one.",

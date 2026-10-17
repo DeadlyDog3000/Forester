@@ -1888,3 +1888,4 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-rtown > small { grid-column: 1 / -1; text-align: left !important; }
 .cmp-armies .btn small { display: block; font: 9.5px var(--sans); opacity: 0.75; text-transform: none; letter-spacing: 0; }
 .pv-tr-img { width: 22px; height: 29px; object-fit: cover; border-radius: 2px; border: 1px solid rgba(0,0,0,0.45); flex: none; margin-left: -3px; }
+.cmp-tip span { display: block; }
