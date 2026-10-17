@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.7", date: "17 October 2026", title: "Struck, and retaken",
+    items: [
+      "Campaign: a ship of yours that struck her colours in a sea battle you went on to win is retaken, and stays in your fleet. Before, she was lost as if the enemy had carried her off. The same holds for theirs when they win.",
+      "Sea battles: the tally at the end says only what happened (\"2 sunk; 1 got away\"), and the right way round: beaten, the enemy's ships still hold the sea, not \"got away\".",
+    ],
+  },
+  {
     v: "1.60.6", date: "17 October 2026", title: "Names apart",
     items: [
       "Sea battles: when ships bunch up, their names no longer sit on top of one another. The nearer ship's stays where it is and a farther one's rises above it, so each can be read.",

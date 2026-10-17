@@ -747,7 +747,8 @@ function seaEnd(fid, foe, res) {
   const capBefore = fleetCap(f), keep = L => L.filter(s => !s.sunk && !s.struck).map(s => ({ k: s.k, hp: Math.max(0.1, s.hp) })), taken = L => L.filter(s => s.struck).map(s => ({ k: s.k, hp: Math.max(0.2, s.hp) }));
   f.ships = keep(res.mine); F.ships = keep(res.theirs);
   const prizes = res.won ? taken(res.theirs) : [], lostTo = res.won ? [] : taken(res.mine);
-  f.ships.push(...prizes); F.ships.push(...lostTo);
+  // (and the winner's own struck ships, retaken once the loser is beaten off or gone)
+  f.ships.push(...prizes, ...(res.won ? taken(res.mine) : [])); F.ships.push(...lostTo, ...(res.won ? [] : taken(res.theirs)));
   const sunkM = res.mine.filter(s => s.sunk).length, sunkT = res.theirs.filter(s => s.sunk).length;
   say(res.won ? `Victory at sea` : res.left ? `Your fleet breaks off the action` : `Beaten at sea`, `Against ${poss(the(foe))} fleet: ${!sunkT && !sunkM && !prizes.length && !lostTo.length ? "neither side loses a ship, though both are badly knocked about." : `${sunkT} of theirs sunk${prizes.length ? `, ${prizes.length} taken as prize${prizes.length > 1 ? "s" : ""}` : ""}; ${sunkM} of yours sunk${lostTo.length ? `, ${lostTo.length} taken` : ""}.`}`);
   // (the regiments aboard ships that went down or were taken: lost with them)

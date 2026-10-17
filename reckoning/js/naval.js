@@ -369,9 +369,11 @@ class Battle {
     const tally = team => this.ships.filter(s => s.team === team).map(s => ({ k: s.k, hp: Math.max(0, s.frac), sunk: s.hull <= 0 || s.sunk, struck: s.struck && s.hull > 0 }));
     this.result = { won: !!won, left, mine: tally(0), theirs: tally(1) };
     const R = this.result, n = (L, f) => L.filter(f).length;
+    // (the counts that aren't nothing, in words: "2 sunk, 1 got away")
+    const say = parts => parts.filter(p => p[0] > 0).map(p => `${p[0]} ${p[1]}`).join("; ") || "none";
     this.el.insertAdjacentHTML("beforeend", `<div class="nv-end"><div class="nv-box"><h2>${won ? "Victory at sea" : left ? "You break off the action" : "Beaten at sea"}</h2>
-      <p>Theirs: ${n(R.theirs, s => s.sunk)} sunk, ${n(R.theirs, s => s.struck)} taken${won && n(R.theirs, s => s.struck) ? " — prizes for your fleet" : ""}, ${n(R.theirs, s => !s.sunk && !s.struck)} got away.</p>
-      <p>Yours: ${n(R.mine, s => s.sunk)} sunk, ${n(R.mine, s => s.struck)} struck, ${n(R.mine, s => !s.sunk && !s.struck)} afloat.</p>
+      <p>Theirs: ${say([[n(R.theirs, s => s.sunk), "sunk"], [n(R.theirs, s => s.struck), won ? "taken, prizes for your fleet" : "struck, and retaken by them"], [n(R.theirs, s => !s.sunk && !s.struck), won ? "got away" : "still hold the sea"]])}.</p>
+      <p>Yours: ${say([[n(R.mine, s => s.sunk), "sunk"], [n(R.mine, s => s.struck), won ? "struck, and retaken" : "struck, taken by them"], [n(R.mine, s => !s.sunk && !s.struck), won ? "afloat" : "got away"]])}.</p>
       <button class="btn primary" data-nv="done">Back to the map</button></div></div>`);
   }
   close() {
