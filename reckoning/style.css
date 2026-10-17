@@ -253,6 +253,8 @@ h2 { font: 700 34px var(--display); letter-spacing: 0.06em; margin: 0 0 10px; }
 .upd { flex: 0 0 auto; background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 16px 20px; overflow: hidden; }
 .upd-img { display: block; width: calc(100% + 40px); margin: -16px -20px 14px; aspect-ratio: 16 / 9; max-height: 220px; object-fit: cover; background: rgba(0, 0, 0, 0.3); border-bottom: 1px solid var(--edge); }
 .upd:not(.shot) .upd-img { image-rendering: pixelated; filter: saturate(0.9) brightness(0.92); }
+.upd.patch { padding: 12px 18px; }
+.upd.patch ul { font-size: 15px; }
 .upd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .upd-v { font: 700 18px var(--display); color: var(--gold); }
 .upd-t { font: 20px var(--serif); flex: 1; }

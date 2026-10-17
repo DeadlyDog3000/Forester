@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.18", date: "16 October 2026", title: "What's new, at a glance",
+    items: [
+      "What's new: small patch releases are plain cards, so the list is quicker to read. The pictures are kept for the real updates.",
+      "Title: the Battles button now says the campaign is there too.",
+    ],
+  },
+  {
     v: "1.51.17", date: "16 October 2026", title: "The fur trade",
     items: [
       "Campaign: with a nation of the woods, a trade pact is the fur trade: beaver pelts down to your posts, and kettles, cloth and trade muskets up to their towns.",

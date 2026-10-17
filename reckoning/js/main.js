@@ -462,7 +462,9 @@ function updArt(u) {
   const any = ["cut4_clearing", "vig_settlement", "vig_village", "vig_cabindone"];
   return `../assets/sprites/ui/${any[seed % any.length]}.png`;
 }
-$("updateList").innerHTML = CHANGELOG.map((u, i) => `<article class="upd${u.img ? " shot" : ""}"><img class="upd-img" src="${updArt(u)}" alt="" loading="${i < 3 ? "eager" : "lazy"}" decoding="async"><div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");
+// (a patch — x.y.z, z past nought — a plain card; the updates themselves with their pictures)
+const isPatch = u => /^\d+\.\d+\.[1-9]/.test(u.v) && !u.img;
+$("updateList").innerHTML = CHANGELOG.map((u, i) => `<article class="upd${u.img ? " shot" : ""}${isPatch(u) ? " patch" : ""}">${isPatch(u) ? "" : `<img class="upd-img" src="${updArt(u)}" alt="" loading="${i < 3 ? "eager" : "lazy"}" decoding="async">`}<div class="upd-head"><span class="upd-v">${u.v}</span><span class="upd-t">${u.title}</span><span class="upd-d">${u.date}</span></div><ul>${u.items.map(i => `<li>${i}</li>`).join("")}</ul></article>`).join("");
 for (const b of document.querySelectorAll("[data-back]")) b.onclick = () => screen(back);
 for (const b of document.querySelectorAll("[data-who]")) b.onclick = () => {
   const who = b.dataset.who;
