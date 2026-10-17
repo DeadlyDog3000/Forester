@@ -530,7 +530,7 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   // the rose and its rhumb lines out in the ocean, a ship under sail, and a monster in the deep — as the Dutch sheets
   //  filled their seas
   const sea = (lo, la) => { const [x, y] = lonlat(lo, la, S); return [x, y]; };
-  const roses = SHEET === "world" ? [[-36, 40, 16], [-9.6, 44.6, 6]] : [[-9.6, 44.6, 7]];
+  const roses = SHEET === "world" ? [[-36, 40, 16], [-10.9, 46.2, 6]] : [[-10.6, 46.0, 7]];
   c.save(); landPath(c, S); c.rect(W, 0, -W, H); c.clip("evenodd"); for (const [lo, la] of roses) { const [x, y] = sea(lo, la); rhumbs(c, x, y, W, H, S); } c.restore();
   for (const [lo, la, rr] of roses) { const [x, y] = sea(lo, la); rose(c, x, y, S * rr); }
   if (SHEET === "world") { const [sx, sy] = sea(-24, 49); ship(c, sx, sy, S * 1.9, 1); const [s2x, s2y] = sea(-62, 31.5); ship(c, s2x, s2y, S * 1.6, -1); const [mx, my] = sea(-44, 28.5); monster(c, mx, my, S * 1.9); }

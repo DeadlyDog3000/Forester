@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.28", date: "16 October 2026", title: "A rose off Biscay",
+    items: [
+      "Map: the smaller compass rose sits out in the open Atlantic off the Bay of Biscay, clear of the coast and the towns' names.",
+    ],
+  },
+  {
     v: "1.51.27", date: "16 October 2026", title: "Proposals, in their words",
     items: [
       "Campaign: a nation of the woods proposes the fur trade, not a trade pact, in proper grammar: \"The Cherokee propose the fur trade\".",
