@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.59.3", date: "17 October 2026", title: "Assaults you can start",
+    items: [
+      "Campaign: an army that marches up to an enemy town's walls can assault it the same year. Before, the march used up the year, and the Attack buttons didn't appear until the next.",
+      "Campaign: right-click an enemy town within a year's march to fall on it. The muster before the assault opens, where you can still call it off.",
+      "Campaign: when an assault can't be made, the town says why: the army is aboard ship, besieging another town, too small, out of reach, or has already attacked this year.",
+      "Calling off an assault no longer gives the army a fresh march for the year if it had already marched.",
+    ],
+  },
+  {
     v: "1.59.2", date: "17 October 2026", title: "Struck or sunk, you can tell",
     items: [
       "Battles at sea: a ship that strikes her colours hauls down her flag and pennant for a white one, lets her sails fly, and carries a white label over her: struck, and for an enemy, a prize.",

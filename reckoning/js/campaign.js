@@ -71,7 +71,7 @@ const load = (i = slot) => { try { return JSON.parse(localStorage.getItem(slotKe
 // The campaign holds one crown "on top" (C.me, and these fields of C) and the other's put by in C.H; as(crown, fn)
 // does a thing as that crown, and puts everything back. The shared things — the year, the map, the other crowns'
 // armies and wars — are C's own.
-const SLICE = ["gold", "army", "moved", "did", "ally", "truce", "warT", "took", "lost", "events", "log", "over", "won", "pending", "tech", "guns", "gen", "govs", "govCands", "levyQ", "lq", "units", "tax", "armies", "ar", "fleets", "sq", "rule", "morale", "siege", "supplied", "pos", "go"];
+const SLICE = ["gold", "army", "moved", "did", "ally", "truce", "warT", "took", "lost", "events", "log", "over", "won", "pending", "tech", "guns", "gen", "govs", "govCands", "levyQ", "lq", "units", "tax", "armies", "ar", "fleets", "sq", "rule", "morale", "siege", "supplied", "pos", "go", "aslt"];
 let mp = null;    // (the link to the other player: { net, side, host, foe, ... } — null playing alone)
 const humans = () => (C && C.mp ? C.mp.humans : []);
 const isHuman = id => humans().includes(id);
@@ -875,9 +875,9 @@ function march(ct) {
   const g = grid(), foe = cityOwner(g, ct), S = siegeOf(ct);
   // (an army sat down before one town can't march on another: the siege is lifted first)
   if (C.siege && !S) return null;
-  if (C.moved || !foe || !atWar(foe) || C.army < 5 || !inMarch(ct)) return null;
-  C.moved = true; C.go = null;
-  return { attack: true, foe, ct, att: C.army, def: defOf(g, ct, foe), walls: hasWalls(ct, foe, g), breach: !!S && S.bat >= 1, battered: S ? S.bat : 0, siege: !!S };
+  if (!freeToStrike(ct) || !foe || !atWar(foe) || C.army < 5 || !inMarch(ct)) return null;
+  const was = !!C.moved; C.moved = true; C.go = null; C.aslt = C.year;
+  return { was, attack: true, foe, ct, att: C.army, def: defOf(g, ct, foe), walls: hasWalls(ct, foe, g), breach: !!S && S.bat >= 1, battered: S ? S.bat : 0, siege: !!S };
 }
 // ---- a siege: the army sat down before a walled town, year after year — the garrison starving, the guns battering the
 //  walls, sickness in the camp; until the town gives in, or is stormed through the breach, or a relief army comes ----
@@ -1002,7 +1002,7 @@ function ensureUnits() { if (C.units) return; const m = muster(C.me, C.army | 0)
 const field = () => (C.units || []).filter(u => !u.at && (u.ar | 0) === (C.ar | 0));
 // ---- more than one army: each its own place, march, siege, general and spirit. The one you're giving orders to stands in
 //  the campaign's own fields (C.pos, C.go, C.army…); the others wait in C.armies, and are swapped in when chosen ----
-const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb"];
+const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb", "aslt"];
 const armyIds = () => [C.ar | 0, ...(C.armies || []).map(a => a.id)].sort((a, b) => a - b);
 function useArmy(id) {
   id |= 0; if (id === (C.ar | 0)) return; const t = (C.armies || []).find(a => a.id === id); if (!t) return;
@@ -1077,6 +1077,21 @@ function wearUnits(loss, pick) {
 // (the army near enough to a town of yours to take its garrison's regiments in, or leave some there: standing in it, or
 //  a few days' march off)
 const armyAt = ct => !C.siege && dist2(armyPos(), cellXY(ct)) <= 3;
+// (free to fall on a town this year: the army hasn't marched — or it marched up to this town's walls, and hasn't yet
+//  attacked anything this year)
+// (why the army can't fall on a town now, said plainly)
+function whyNot(ct) {
+  const o = cityOwner(grid(), ct);
+  if (C.emb != null) return "Your army is aboard ship: land it first.";
+  if (C.siege && !siegeOf(ct)) return `Your army is besieging ${C.siege.ct}: lift that siege first.`;
+  if (o === C.me) return `${ct[0]} is yours.`;
+  if (!o || !atWar(o)) return `You're not at war with ${o ? the(o) : "anyone there"}.`;
+  if (C.army < 5) return "Your army is too small to attack a town: five regiments at least.";
+  if (!inMarch(ct)) return `${ct[0]} is beyond a year's march. March toward it first.`;
+  if (!freeToStrike(ct)) return armyAt(ct) ? "Your army has already attacked this year." : "Your army has already marched this year. March up to the town's walls and you can still attack it the same year.";
+  return "Your army can't march there now.";
+}
+const freeToStrike = ct => !C.moved || (armyAt(ct) && C.aslt !== C.year);
 // a regiment left in the town: out of the field army, into the garrison — or taken back out again
 function station(n, k, out) {
   const ct = CITIES.find(c => c[0] === n); if (!ct || cityOwner(grid(), ct) !== C.me || !armyAt(ct)) return "Your army must stand at the town.";
@@ -1416,6 +1431,9 @@ export function initCampaign(c, battle, withPlayer) {
     e.preventDefault(); if (!C) return;
     const [mx, my] = toMap(pos(e)), S = cv.width / MG_W;
     if (selFleet != null && fleetById(selFleet)) { doAct({ k: "sail", id: selFleet, x: mx / S, y: my / S }); return; }
+    // (an enemy town within reach: the army falls on it — the muster before the assault, where it can still be called off)
+    const ct = cityAt(cv, mx, my, view.z), o = ct && cityOwner(grid(), ct);
+    if (ct && o && o !== C.me && atWar(o) && C.emb == null && C.army >= 5 && inMarch(ct) && freeToStrike(ct) && (!C.siege || siegeOf(ct))) { selCity = ct; sel = o; armySel = false; doAct({ k: "march", ct: ct[0], how: "fight" }); return; }
     doAct({ k: "move", x: mx / S, y: my / S }); armySel = false;
   };
   cv.onmouseup = e => {
@@ -1926,13 +1944,13 @@ function drawSide() {
   if (news.length) h += `<div class="cmp-news"><b>The year's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="news">Close</button></div>`;
   // the town or the crown chosen on the map
   if (selCity) {
-    const own2 = cityOwner(g, selCity), mineT = own2 === C.me, reach = !mineT && own2 && inMarch(selCity), can = !mineT && own2 && atWar(own2) && reach && !C.moved && C.army >= 5;
+    const own2 = cityOwner(g, selCity), mineT = own2 === C.me, reach = !mineT && own2 && inMarch(selCity), can = !mineT && own2 && atWar(own2) && reach && freeToStrike(selCity) && C.army >= 5;
     const S = siegeOf(selCity), def = own2 && !mineT ? defOf(g, selCity, own2) : 0, walls = own2 ? hasWalls(selCity, own2, g) : false, open = walls && S && S.bat >= 1;
     const pp = own2 ? null : (() => { const [x, y] = cellOf(selCity); for (let r = 0; r <= 3; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const v = g[y + dy] && g[y + dy][x + dx]; if (PEOPLES[v]) return v; } return null; })();
     h += `<div class="cmp-card"><div class="cmp-h"><b>${esc(selCity[0])}</b><small>${["", "A town", "A city", "A great city"][selCity[3]]} · ${own2 ? esc(NATIONS[own2].name) : pp ? esc(PEOPLES[pp].name) : "nobody's"}</small></div>
       ${pp ? `<p>A town of ${esc(PEOPLES[pp].long)}, in their own country. It isn't any crown's to take.</p>` : ""}
       ${!mineT && own2 ? `<p class="cmp-pop">Population ${fmtN(popOf(selCity))}</p>` : ""}
-      ${mineT ? townCard(g, selCity) : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${fieldHelp(own2, selCity)} regiments to it${walls ? ", behind walls" : isVillage(selCity) ? ", behind a palisade" : ""}. ${!reach ? `${overSea(armyPos(), cellXY(selCity)) ? "Your army is on the other side of the Atlantic: a year at sea." : `Your army is ${yearsTo(cellXY(selCity)) > 1 ? `${yearsTo(cellXY(selCity))} years'` : "a year's"} march away.`}` : !atWar(own2) ? `You're not at war with ${the(own2)}.` : C.moved ? "Your army has already marched this season." : `Your odds: ${Math.round(odds(C.army * cmdMul(C.gen) * moraleK(), def, walls && !open) * 100)}%.`}</p>` : ""}
+      ${mineT ? townCard(g, selCity) : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${fieldHelp(own2, selCity)} regiments to it${walls ? ", behind walls" : isVillage(selCity) ? ", behind a palisade" : ""}. ${!reach ? `${overSea(armyPos(), cellXY(selCity)) ? "Your army is on the other side of the Atlantic: a year at sea." : `Your army is ${yearsTo(cellXY(selCity)) > 1 ? `${yearsTo(cellXY(selCity))} years'` : "a year's"} march away.`}` : !atWar(own2) ? `You're not at war with ${the(own2)}.` : !freeToStrike(selCity) ? whyNot(selCity) : `Your odds: ${Math.round(odds(C.army * cmdMul(C.gen) * moraleK(), def, walls && !open) * 100)}%.`}</p>` : ""}
       ${S ? `<div class="cmp-siege"><b>Under siege · year ${S.years}</b><span>Garrison ${S.starve >= 0.6 ? "starving" : S.starve >= 0.3 ? "on short rations" : "well fed"} (${Math.round(garrison(selCity) * (1 - S.starve))} of ${garrison(selCity)} men fit) · walls ${S.bat >= 1 ? "breached" : `${Math.round(S.bat * 100)}% battered`}</span><i><u style="width:${Math.min(100, Math.round(S.bat * 100))}%"></u></i>${!C.supplied && C.gold >= SUPPLY_COST ? `<div class="cmp-acts"><button class="btn" data-act="supply" title="Fresh men, powder and bread for the siege lines — if they get through the enemy's raiders">Send supplies · ${SUPPLY_COST} · you escort</button><button class="btn ghost" data-act="supplyauto">Supplies · escort alone</button></div>` : C.supplied ? `<small class="cmp-fine">This year's supply train has gone.</small>` : ""}</div>` : ""}
       ${can && S ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Storm · you lead</button><button class="btn" data-act="auto">Storm · generals lead</button><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : can && !C.siege ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Attack · you lead</button><button class="btn" data-act="auto">Attack · generals lead</button>${walls && !isHuman(own2) && C.army >= 8 ? `<button class="btn" data-act="siege" title="Starve it out and batter its walls, a year at a time">Lay siege</button>` : ""}</div>` : C.siege && !S && !mineT && own2 ? `<p class="cmp-fine">Your army is besieging ${esc(C.siege.ct)}: lift that siege to march here.</p>` : !C.siege && !C.moved && (mineT || (own2 && !reach)) && dist2(armyPos(), cellXY(selCity)) > 1 ? `<div class="cmp-acts"><button class="btn" data-act="goto">${overSea(armyPos(), cellXY(selCity)) ? `Ship your army here · 1 yr · ${VOYAGE} thalers` : `${mineT ? "Move your army here" : "March toward it"} · ${yearsTo(cellXY(selCity))} yr`}</button></div>` : S && C.moved ? `<div class="cmp-acts"><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : ""}</div>`;
   }
@@ -2149,7 +2167,7 @@ function apply(actor, a) {
     }
     if (a.k === "lift") { if (!C.siege) return null; const n = C.siege.ct; C.siege = null; persist(); return { note: `The siege of ${n} is lifted. The army is free to march.`, sfx: [["drum", 0.5]] }; }
     if (a.k === "march") {
-      const ct = city(a.ct), o = ct && march(ct); if (!o) return { note: "Your army can't march there now." };
+      const ct = city(a.ct), o = ct && march(ct); if (!o) return { note: ct ? whyNot(ct) : "Your army can't march there now." };
       if (isHuman(o.foe)) return humanMarch(actor, o, a.how);
       if (a.how === "fight") { C.pending = { ...o, ct: ct[0] }; persist(); return { sfx: [["drum", 0.55]], fight: { ...o, ct: ct[0] } }; }
       const w = auto(o); persist();
@@ -2237,7 +2255,7 @@ function apply(actor, a) {
     }
     if (a.k === "rule") { const ct = city(a.ct); if (!ct || cityOwner(g, ct) !== C.me) return null; C.rule[ct[0]] = !!a.on; persist(); return {}; }
     // (a march called off before the battle's fought: the army back in camp, free to march again this year)
-    if (a.k === "calloff") { const P = C.pending; if (!P || !P.attack) return null; C.pending = null; C.moved = false; persist(); return { note: `The march on ${P.ct} is called off. The army is back in camp.`, sfx: [["drum", 0.3]] }; }
+    if (a.k === "calloff") { const P = C.pending; if (!P || !P.attack) return null; C.pending = null; C.moved = !!P.was; C.aslt = null; persist(); return { note: `The march on ${P.ct} is called off. The army is back in camp.`, sfx: [["drum", 0.3]] }; }
     if (a.k === "mustered") {
       const M = C.mp && C.mp.meet; if (!M || M.key !== a.key || (actor !== M.attacker && actor !== M.defender)) return null;
       M.pick[actor] = { men: a.men || {}, guns: a.guns | 0 };
