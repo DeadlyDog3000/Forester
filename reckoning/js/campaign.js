@@ -1036,6 +1036,11 @@ function paint() {
     c.save(); c.rotate(face);
     c.fillStyle = "rgba(244,234,210,0.55)"; c.beginPath(); c.ellipse(0, 0, 15 * u, 6.5 * u, 0, 0, 7); c.fill(); c.fillStyle = "rgba(30,20,10,0.16)"; c.beginPath(); c.ellipse(0.8 * u, 1.6 * u, 13 * u, 5 * u, 0, 0, 7); c.fill();
     const ink = mine ? "#2a1c10" : "#7a2216";
+    // (a war party of the woods' nations: no battalions in line, but men in open order, scattered across the ground)
+    if (NATIONS[id] && NATIONS[id].nw) {
+      for (let i = 0; i < 9; i++) { const sx = (Math.sin(i * 2.39 + 1) * 9 + (i % 3 - 1) * 2.5) * u, sy = (Math.cos(i * 1.71) * 3.2) * u; c.fillStyle = col; c.strokeStyle = ink; c.lineWidth = 0.8 * u; c.beginPath(); c.moveTo(sx, sy - 2.4 * u); c.lineTo(sx + 1.3 * u, sy + 1.2 * u); c.lineTo(sx - 1.3 * u, sy + 1.2 * u); c.closePath(); c.fill(); c.stroke(); }
+      c.restore();
+    } else {
     for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) {
       const bx = (-8.6 + i * 4.6 + r * 1.1) * u, by = (-3.2 + r * 3.6) * u;
       c.globalAlpha = r ? 0.78 : 1; c.fillStyle = col; c.fillRect(bx, by, 3.6 * u, 2.2 * u);
@@ -1045,6 +1050,7 @@ function paint() {
     // (the front: a fine rule before the first line)
     c.strokeStyle = ink; c.lineWidth = 0.9 * u; c.beginPath(); c.moveTo(-9.2 * u, -4.4 * u); c.lineTo(8.4 * u, -4.4 * u); c.stroke();
     c.restore();
+    }
     if (mine && armySel) { c.save(); c.strokeStyle = "#c89a30"; c.lineWidth = 1.6 * u; c.setLineDash([3 * u, 2.4 * u]); c.beginPath(); c.ellipse(0, 0, 16 * u, 9 * u, face, 0, 7); c.stroke(); c.restore(); }
     const t = String(n); c.font = `italic bold ${Math.round(9.5 * u)}px ${'"IM Fell English", Georgia, serif'}`; c.textAlign = "center"; c.textBaseline = "top";
     c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 3 * u; c.strokeText(t, 0, 7 * u); c.fillStyle = ink; c.fillText(t, 0, 7 * u);

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.19", date: "16 October 2026", title: "War parties",
+    items: [
+      "Campaign map: an army of the woods' nations is drawn as a war party, its men scattered in open order, not as battalions in two lines.",
+    ],
+  },
+  {
     v: "1.51.18", date: "16 October 2026", title: "What's new, at a glance",
     items: [
       "What's new: small patch releases are plain cards, so the list is quicker to read. The pictures are kept for the real updates.",
