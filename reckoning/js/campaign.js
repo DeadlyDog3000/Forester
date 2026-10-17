@@ -169,6 +169,8 @@ function fresh(me) {
 }
 function begin(me, into = slot) {
   slot = into; spreadOf = ""; C = fresh(me); ensureRealm(); own = new Map();
+  // (England, the sea power: its fleet already in being in 1683, six ships lying off its capital)
+  if (me === "england") { const g = grid(), ct = citiesOfNow(g, me).sort((a, b) => b[3] - a[3]).find(c => harbourOf(c)), hb = ct && harbourOf(ct); if (hb) C.fleets = [{ id: 0, pos: { x: hb.x, y: hb.y }, ships: navyMix(me, 6), moved: false, go: null }]; }
   // (where you stand in 1683: your league, your wars)
   const al = Object.keys(C.ally).filter(id => C.ally[id]), wr = Object.keys(C.E.war).filter(id => C.E.war[id]);
   for (const L of LEAGUES_1683.filter(L => L.ids.includes(me))) say(`You are of ${L.n}`, `With ${L.ids.filter(x => x !== me).map(x => the(x)).join(", ")}.`);
@@ -717,8 +719,12 @@ function fleetsYear(g) {
 function fleetsStart(g) {
   for (const f of C.fleets || []) {
     f.moved = false;
-    if (f.go) { const p = seaPath(g, f.pos, f.go); if (!p) { f.go = null; continue; } const st = sailAlong(p); f.pos = { x: st.at.x, y: st.at.y }; if (st.arrived) { f.go = null; say(`The ${fleetName(f).toLowerCase()} arrives`, "It's where you sent it."); } f.moved = true; syncAboard(f); }
+    // (sent to join another fleet: following it wherever it has gone)
+    const J = f.joinTo != null && C.fleets.find(x => x.id === f.joinTo && x !== f); if (f.joinTo != null && !J) f.joinTo = null;
+    if (J && dist2(J.pos, f.pos) > 4) f.go = { x: J.pos.x, y: J.pos.y };
+    if (f.go) { const p = seaPath(g, f.pos, f.go); if (!p) { f.go = null; continue; } const st = sailAlong(p); f.pos = { x: st.at.x, y: st.at.y }; if (st.arrived && !J) { f.go = null; say(`The ${fleetName(f).toLowerCase()} arrives`, "It's where you sent it."); } f.moved = true; syncAboard(f); }
   }
+  for (const f of [...(C.fleets || [])]) { const J = f.joinTo != null && C.fleets.find(x => x.id === f.joinTo && x !== f); if (J && dist2(J.pos, f.pos) <= 4) { mergeFleet(f, J); say(`The ${fleetName(f).toLowerCase()} joins the ${fleetName(J).toLowerCase()}`, `${J.ships.length} ships now sail together.`); } }
 }
 // a fleet sent somewhere: as far as a year's sailing takes it now, the rest of the way in the years after
 function sail(fid, t) {
@@ -726,6 +732,19 @@ function sail(fid, t) {
   const p = seaPath(g, f.pos, t); if (!p) return onLake(g, f.pos) ? "The fleet can't sail there: its lake doesn't reach it." : "The fleet can't sail there: the sea doesn't reach it.";
   const st = sailAlong(p); f.pos = { x: st.at.x, y: st.at.y }; f.go = st.arrived ? null : { x: p[p.length - 1].x, y: p[p.length - 1].y }; f.moved = true; syncAboard(f); persist();
   return null;
+}
+// (two fleets of yours made one: the ships, and any army aboard, into the other; the first fleet struck from the list)
+function mergeFleet(f, T) {
+  T.ships.push(...f.ships); eachArmy(() => { if (C.emb === f.id) { C.emb = T.id; C.pos = { x: T.pos.x, y: T.pos.y }; C.go = null; } });
+  C.fleets = C.fleets.filter(x => x !== f); if (selFleet === f.id) selFleet = T.id; T.joinTo = null;
+}
+// a fleet sent to join another of yours: at once if it's within the year's sail, else following it till it gets there
+function fleetJoin(fid, to) {
+  const f = fleetById(fid), T = fleetById(to); if (!f || !T || f === T) return "No such fleet.";
+  if (dist2(f.pos, T.pos) <= 4) { mergeFleet(f, T); persist(); return null; }
+  const why = sail(fid, { x: T.pos.x, y: T.pos.y }); if (why) return why;
+  if (dist2(f.pos, T.pos) <= 4) { mergeFleet(f, T); persist(); return null; }
+  f.joinTo = to; persist(); return null;
 }
 // the army in hand taken aboard a fleet of yours lying off the shore where it stands — if she has the room
 function embark(fid) {
@@ -1566,7 +1585,7 @@ export function initCampaign(c, battle, withPlayer) {
   cv.oncontextmenu = e => {
     e.preventDefault(); if (!C) return;
     const [mx, my] = toMap(pos(e)), S = cv.width / MG_W;
-    if (selFleet != null && fleetById(selFleet)) { doAct({ k: "sail", id: selFleet, x: mx / S, y: my / S }); return; }
+    if (selFleet != null && fleetById(selFleet)) { const fh2 = fleetHit(cv, ...pos(e)); if (fh2 && fh2.mine != null && fh2.mine !== selFleet) { doAct({ k: "fjoin", id: selFleet, to: fh2.mine }); return; } doAct({ k: "sail", id: selFleet, x: mx / S, y: my / S }); return; }
     // (another army of your own: the one in hand marched to it, and the two made one when it gets there)
     { const ah = armyHit(cv, ...pos(e)); if (ah && ah.id !== (C.ar | 0) && C.emb == null) { doAct({ k: "joinat", id: ah.id }); armySel = false; return; } }
     // (an enemy army within a year's march: the army falls on it in the field)
@@ -2366,7 +2385,8 @@ function apply(actor, a) {
     if (C.emb != null && ["move", "march", "siege", "field", "supply"].includes(a.k)) return { note: "Your army is aboard ship: land it first." };
     if (a.k === "ship") { const why = buildShip(a.t, a.u); return why ? { note: why } : { sfx: [["coin", 0.45], ["hammer", 0.3, 300]] }; }
     if (a.k === "unship") { unbuildShip(a.t); return { sfx: [["coin", 0.35]] }; }
-    if (a.k === "sail") { W0(); const why = sail(a.id, { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }); return why ? { note: why } : { note: (f => f && f.go ? `The fleet is under sail: more than a year's sailing, it will be there in the years after.` : "The fleet sails, and is there by the year's end.")(fleetById(a.id)), sfx: [["bell", 0.3]] }; }
+    if (a.k === "fjoin") { const f = fleetById(a.id), T = fleetById(a.to); if (!f || !T) return null; const nm = fleetName(T).toLowerCase(), why = fleetJoin(a.id, a.to); if (why) return { note: why }; return fleetById(a.id) ? { note: `The ${fleetName(f).toLowerCase()} is under sail to join the ${nm}, and joins it when it gets there.`, sfx: [["bell", 0.35]] } : { note: `The two fleets sail as one: the ${nm}, ${T.ships.length} ships.`, sfx: [["bell", 0.4]] }; }
+    if (a.k === "sail") { { const f = fleetById(a.id); if (f) f.joinTo = null; } W0(); const why = sail(a.id, { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }); return why ? { note: why } : { note: (f => f && f.go ? `The fleet is under sail: more than a year's sailing, it will be there in the years after.` : "The fleet sails, and is there by the year's end.")(fleetById(a.id)), sfx: [["bell", 0.3]] }; }
     if (a.k === "embark") { const why = embark(a.id); return why ? { note: why } : { note: "Your army goes aboard the fleet. Sail it where you will, and land it there.", sfx: [["drum", 0.35]] }; }
     if (a.k === "land") { const why = land(); return why ? { note: why } : { note: "Your army is put ashore. It can march again next year.", sfx: [["drum", 0.4]] }; }
     if (a.k === "seafight") {

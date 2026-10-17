@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.73.0", date: "17 October 2026", title: "Fleets together",
+    items: [
+      "Campaign: fleets join together. Click a fleet of yours, then right-click another of your fleets: it sails to it, and the two become one fleet, with any army aboard carried over. If the other fleet is more than a year's sail off, yours follows it and joins when it arrives.",
+      "England starts the campaign with its fleet already at sea: six ships (two ships of the line, two frigates and two sloops) lying off its capital.",
+      "Militia wear their own grey homespun in battle, not the crown's coats; only their cuffs and waistcoats are in their side's colour. Their regiment has its own plate, too: a townsman in grey with an old musket.",
+    ],
+  },
+  {
     v: "1.72.0", date: "17 October 2026", title: "The loyalty map",
     items: [
       "Campaign: press L for the loyalty map. Each of your towns' country is coloured by how loyal it is, from deep red (close to rising) through yellow (quiet) to green (content), with its loyalty written under the town and a key in the corner. Press L again to close it.",

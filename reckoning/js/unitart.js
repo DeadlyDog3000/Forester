@@ -6,7 +6,7 @@
 // crown's way of war dressed it (art/units/<way>-<arm>.jpg). Shared by the
 // campaign and the battle's orders.
 
-const HAVE = new Set(["west-musketeer", "west-pike", "west-grenadier", "west-cavalry", "west-sword", "east-musketeer", "east-bow", "east-sword", "east-cavalry", "steppe-musketeer", "steppe-cavalry", "steppe-sword", "steppe-bow", "steppe-pike", "tsar-musketeer", "tsar-pike", "tsar-cavalry", "tsar-axe", "woods-bow", "woods-axe", "woods-musketeer", "west-bow", "west-crossbow", "west-axe"]);
+const HAVE = new Set(["west-musketeer", "west-militia", "west-pike", "west-grenadier", "west-cavalry", "west-sword", "east-musketeer", "east-bow", "east-sword", "east-cavalry", "steppe-musketeer", "steppe-cavalry", "steppe-sword", "steppe-bow", "steppe-pike", "tsar-musketeer", "tsar-pike", "tsar-cavalry", "tsar-axe", "woods-bow", "woods-axe", "woods-musketeer", "west-bow", "west-crossbow", "west-axe"]);
 // (a battle's coats to the way of war they belong to)
 // (the way a uniform's army fights and is drawn, by the dress its men wear: the janissary's the East's, the haiduk's the
 //  steppe's, the strelets' the Tsar's, the warrior's the woods')

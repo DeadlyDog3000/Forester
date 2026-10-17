@@ -1027,8 +1027,10 @@ class Arena {
       this.book = new OrderBook(id => this.give(id));
       const sk = this.netBattle ? skillOf(botRecord().rating) : foe.skill, mk = (team, i) => {
         const b = botFoe(), seed = 1000 + team * 100 + i;
-        const U = this.coUni && this.coUni[team] || (this.uni && this.uni[this.alOf(team)]), look = U ? soldierLook(U, seed) : b.look;
+        const U = this.coUni && this.coUni[team] || (this.uni && this.uni[this.alOf(team)]);
         const tk = this.musters && this.musters[team] && this.musters[team][i], T = tk && TROOPS[tk], call = this.hist && this.hist.cos[team] && this.hist.cos[team].call;
+        // (militia in their own grey homespun, not the crown's dyed coats: only the facings in its colour, to tell the sides)
+        const look = U ? soldierLook(tk === "militia" && !/^warrior/.test(U.body || "") ? { ...U, body: undefined, coat: 0x76726a, vest: U.coat, legs: 0x5e5a52, hat: 0x4a3a2a, stock: [[0x6a6862, 60], [0x8a8478, 40]] } : U, seed) : b.look;
         const info = { ...b, look, name: U ? `${U.name}${T ? " " + ((call && call[tk]) || T.one).toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i, kind: tk || null };
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; if (T.raw) info.skill *= 0.45; }
         // (the woods' nations' warriors: the war club, not a battle axe — and warriors, by name, whatever they carry)
