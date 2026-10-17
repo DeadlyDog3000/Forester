@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.26", date: "16 October 2026", title: "No colours where none were carried",
+    items: [
+      "Battle: the woods' nations no longer raise a European regimental colour on a staff behind their line. They carried none.",
+    ],
+  },
+  {
     v: "1.51.25", date: "16 October 2026", title: "War parties on the land",
     items: [
       "The land (3D map): a war party of the woods' nations is drawn as its men in open order, as on the map. Armies' marks now float above the town names instead of covering them.",

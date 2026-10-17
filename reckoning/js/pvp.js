@@ -989,7 +989,8 @@ class Arena {
         this.flags = this.custom.map((n, a) => { const h = this.cos.find(c => c.al === a).home, d = Math.hypot(h.x - C.x, h.z - C.z) || 1; return { key: keyOf(this.uni[a]), x: h.x + (h.x - C.x) / d * 7, z: h.z + (h.z - C.z) / d * 7 }; });
         this.flags.forEach((f, a) => this.field.colours(a, f.key, f));
       }
-      else if (this.battle && this.uni) for (const t of [0, 1]) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t]));
+      // (no colours on a staff for the woods' nations: they carried none)
+      else if (this.battle && this.uni) for (const t of [0, 1]) if (!/^warrior/.test((this.uni[t] && this.uni[t].body) || "")) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t]));
       if (this.remote) {
         // (and then turned about: the east line, and the guns there, are ours here)
         this.spawns.reverse();
