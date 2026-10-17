@@ -86,7 +86,8 @@ const setFoeArmy = (id, v) => { if (isHuman(id)) { const s2 = sliceOf(id); if (s
 // (a verb after a crown's name: a people takes the plural — "the Cherokee march", not "marches")
 // (a name's possessive: "the Papal States'", not "States's")
 const poss = n => /s$/.test(n) ? n + "'" : n + "'s";
-const v3 = (id, v) => !(NATIONS[id] && NATIONS[id].people) || (C && C.mp && C.mp.names[id]) ? v : v === "has" ? "have" : v === "is" ? "are" : v === "marches" ? "march" : v.replace(/s$/, "");
+// (a crown named in the plural takes a plural verb, as a people does: the Papal States wall Genova)
+const v3 = (id, v) => !(NATIONS[id] && (NATIONS[id].people || /\b(States|Provinces|Netherlands|Isles|Islands)$/.test(NATIONS[id].name))) || (C && C.mp && C.mp.names[id]) ? v : v === "has" ? "have" : v === "is" ? "are" : v === "marches" ? "march" : v.replace(/s$/, "");
 const nameOf = id => (C.mp && C.mp.names[id]) || The(id);
 
 // the land as it stands: 1683's, and every town taken since (kept as a map of cells, handed to the map as E.conq)

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.61.1", date: "17 October 2026", title: "The Papal States wall Genova",
+    items: [
+      "Campaign: a crown with a plural name takes a plural verb in the year's news: the Papal States wall Genova, not \"walls\".",
+    ],
+  },
+  {
     v: "1.61.0", date: "17 October 2026", title: "Beachy Head and Barfleur",
     items: [
       "Historical battles at sea: Beachy Head (1690), where Tourville beat the English and Dutch in the Channel, and Barfleur (1692), where the French line fought an allied fleet twice its size. Command the flagship for either side; the other captains fight their own ships. The Dutch ships fly their own colours beside the English.",
