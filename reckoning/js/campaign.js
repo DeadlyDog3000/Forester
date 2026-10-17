@@ -483,7 +483,7 @@ function settle(o, won, myLossK, theirLossK) {
   const name = o.ct[0];
   if (o.attack) {
     if (won) { seize(o.ct, C.me); C.took[o.foe] = (C.took[o.foe] || 0) + 1; for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === o.foe ? 8 : 2; say(`${name} is yours`, `Taken from ${the(o.foe)}.`); }
-    else say(`Beaten before ${name}`, `Your army falls back with what it has left: ${C.army} regiments.`);
+    else say(`Beaten before ${name}`, `Your army falls back with what it has left: ${armyStr()}.`);
   } else {
     if (won) { say(`${name} holds`, `${poss(The(o.foe))} army is thrown back.`); if (!isHuman(o.foe) && C.foePos && C.foePos[o.foe]) { const h = homeOf(grid(), o.foe); if (h) { const b = stepToward(cellXY(o.ct), h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } } strikeBack(o.foe); }
     else { seize(o.ct, o.foe); C.lost[o.foe] = (C.lost[o.foe] || 0) + 1; say(`${name} has fallen`, `${The(o.foe)} ${v3(o.foe, "takes")} it.`); if (C.govs) delete C.govs[name]; }
@@ -788,7 +788,7 @@ function fieldEnd(o, won, myLossK, theirLossK) {
     moraleMove(10); genWin(); say(`Victory in the field near ${near}`, `${o.attack ? "" : "Your army stands its ground. "}${poss(The(o.foe))} army is broken and falls back toward home, ${C.foes[o.foe]} regiments left to it. Its march is stopped.`);
   } else {
     const mh = homeOf(grid(), C.me); if (mh) { const b = stepToward(armyPos(), mh, 4); C.pos = { x: b.x, y: b.y }; }
-    moraleMove(-12); say(`Beaten in the field near ${near}`, `Your army falls back with what it has left: ${C.army} regiments.`);
+    moraleMove(-12); say(`Beaten in the field near ${near}`, `Your army falls back with what it has left: ${armyStr()}.`);
   }
   if (Object.keys(broken).length) say(`Regiments broken near ${near}`, `${Object.entries(broken).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: too few men left to stand as regiments, they are struck off the roll.`);
   if (C.gen && R() < (won ? 0.04 : 0.2)) { moraleMove(-10); say(`${C.gen.name} falls near ${near}`, "Killed at the head of his men."); C.gen = null; needGeneral(); }
@@ -1048,6 +1048,8 @@ function joinArmy() {
   C.armies = C.armies.filter(a => a.id !== from); C.army = Math.round(unitSum()); persist(); return null;
 }
 const unitSum = () => field().reduce((t, u) => t + u.hp, 0);
+// (the army said as the roll has it: its regiments, and — when their ranks are thin — what they come to at full strength)
+const armyStr = () => { const n = field().length, s = Math.round(C.army); return n && n - s >= 1 ? `${n} regiments (${s} at full strength)` : `${s} regiments`; };
 // (a town's own regiments, left there to hold it)
 const garUnits = (n, units = C.units) => (units || []).filter(u => u.at === n);
 // (the army's strength changed by the war — battles, sickness, desertion, fresh men — the roll brought into line with it:
@@ -1965,12 +1967,12 @@ function drawSide() {
   if (selFoe && !selCity && C.E.war[selFoe] && NATIONS[selFoe] && isHuman(selFoe)) {
     const f = selFoe, sl = sliceOf(f) || {}, can = canFieldP(f);
     h += `<div class="cmp-card"><div class="cmp-h"><i style="background:${NATIONS[f].color}"></i><b>${esc(poss(nameOf(f)))} army</b><small>${sl.army | 0} regiments${sl.gen ? ` · under ${esc(sl.gen.name)}` : ""}</small></div>
-      <p>${can ? `Within your reach. Fall on it in the open field: your ${C.army} regiments against their ${sl.army | 0}. ${nameOf(f)} chooses whether to fight it themselves, the two of you in one battle, or leave it to their general.` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : sl.pos && overSea(armyPos(), sl.pos) ? "It's on the other side of the Atlantic." : "It's beyond a year's march of your army."}</p>
+      <p>${can ? `Within your reach. Fall on it in the open field: your ${armyStr()} against their ${sl.army | 0}. ${nameOf(f)} chooses whether to fight it themselves, the two of you in one battle, or leave it to their general.` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : sl.pos && overSea(armyPos(), sl.pos) ? "It's on the other side of the Atlantic." : "It's beyond a year's march of your army."}</p>
       ${can ? `<div class="cmp-acts"><button class="btn primary" data-pfield="fight">Attack · you lead</button><button class="btn" data-pfield="auto">Attack · generals lead</button></div>` : ""}</div>`;
   } else if (selFoe && !selCity && C.E.war[selFoe] && NATIONS[selFoe]) {
     const f = selFoe, fp = foeArmyPos(f), tg = C.foeGo && C.foeGo[f], can = canField(f), o = can ? fieldOf(f) : null;
     h += `<div class="cmp-card"><div class="cmp-h"><i style="background:${NATIONS[f].color}"></i><b>${esc(poss(The(f)))} army</b><small>${C.foes[f] | 0} regiments${tg ? ` · marching on ${esc(tg)}` : ""}</small></div>
-      <p>${can ? `Within your reach. Fall on it in the open field, before it reaches your towns: ${(C.armies || []).length ? `your ${esc(armyName(C.ar | 0).toLowerCase())}'s` : "your army's"} ${C.army} regiments against some ${o.def} of theirs. Your odds: ${Math.round(odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(f)), false) * 100)}%.` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : fp && overSea(armyPos(), fp) ? "It's on the other side of the Atlantic." : "It's beyond a year's march of your army."}</p>
+      <p>${can ? `Within your reach. Fall on it in the open field, before it reaches your towns: ${(C.armies || []).length ? `your ${esc(armyName(C.ar | 0).toLowerCase())}'s` : "your army's"} ${armyStr()} against some ${o.def} of theirs. Your odds: ${Math.round(odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(f)), false) * 100)}%.` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : fp && overSea(armyPos(), fp) ? "It's on the other side of the Atlantic." : "It's beyond a year's march of your army."}</p>
       ${can ? `<div class="cmp-acts"><button class="btn primary" data-fieldf="fight">Attack · you lead</button><button class="btn" data-fieldf="auto">Attack · generals lead</button></div>` : ""}</div>`;
   }
   const id = selCity ? cityOwner(g, selCity) : sel;
@@ -1998,11 +2000,11 @@ function drawSide() {
         ${(t => t ? `<button class="btn" data-dip="buy" ${did.buy || r[id] < 40 || C.gold < buyPrice(t) ? `disabled title="${r[id] < 40 ? "They need to think well of you (40)" : did.buy ? "Asked this year" : "The treasury hasn't the money"}"` : `title="Offer to buy ${esc(t[0])}, their town nearest your lands"`}>Buy ${esc(t[0])} · ${buyPrice(t)}</button>` : "")(NATIONS[id].nw ? null : buyable(id))}
         <button class="btn danger" data-dip="war" ${tr ? `disabled title="A treaty: ${tr} more years"` : ""}>Declare war</button>`}</div>`);
   } else if (!selCity && !armySel) h += `<div class="cmp-card cmp-help"><p><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom</p></div>` + fold("how", `<span class="cmp-h"><b>How it works</b><small>armies, towns, the sea, the New World</small></span>`, `<ul class="cmp-howto">
-      <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it.</li>
+      <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it. Right-click an enemy town within reach to attack it. An army that marches up to a town's walls can still attack it that year, once.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
       <li><b>Garrisons.</b> With your army at one of your towns, leave regiments there to hold it, or take its garrison into the army.</li>
       <li><b>The navy.</b> Build sloops, frigates and ships of the line in your ports' dockyards. Click a fleet, then right-click on the sea to sail it: a year's sailing crosses the Atlantic. Bring a fleet to the shore where an army stands to take it aboard, sail it, and land it anywhere. Ships of your own carry an army free and guard it; hired transports cost money, and enemy fleets may fall on them. Enemy fleets come for yours in war: fight the battle at sea yourself, or leave it to your admirals. Ships that strike their colours are taken as prizes. A town on the Great Lakes has a dockyard too, for sloops and frigates that sail its lake: Huron, Michigan and Erie are joined, but Ontario and Superior keep to themselves.</li>
-      <li><b>Battles in the field.</b> Click an enemy army on the map: if your army can reach it this year, fall on it in the open before it reaches your towns. Beaten, it falls back and its march is stopped.</li>
+      <li><b>Battles in the field.</b> Click an enemy army on the map, or right-click it: if your army can reach it this year, fall on it in the open before it reaches your towns. Beaten, it falls back and its march is stopped. In a campaign for two, the other player's army can be fallen on too, and they choose whether to meet you in the field themselves.</li>
       <li><b>More than one army.</b> Form a new army from a town's garrison. Click an army on the map to give it orders; each marches, besieges and fights on its own, under its own general. Two armies in one place can join.</li>
       <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing, and a town that riots two years running rises: put it down, or buy peace with concessions. Regiments in its garrison and a school keep order. A town's people make its wealth, and fill the army's thin regiments each year.</li>
       <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
@@ -2360,7 +2362,7 @@ function pfieldEnd(attacker, defender, aWon, kA, kD, near) {
     for (const u of field()) u.xp = Math.min(3, (u.xp || 0) + (won ? 0.6 : 0.3));
     moraleMove(won ? 10 : -12); if (won) genWin();
     if (!won) { const mh = homeOf(grid(), C.me); if (mh) { const b = stepToward(armyPos(), mh, 4); C.pos = { x: b.x, y: b.y }; } C.go = null; }
-    say(won ? `Victory in the field near ${near}` : `Beaten in the field near ${near}`, `Against ${poss(nameOf(foe))} army: ${n0 - C.army} of your regiments lost. ${won ? "Theirs falls back toward home." : "Your army falls back toward home."} ${C.army} regiments left.`);
+    say(won ? `Victory in the field near ${near}` : `Beaten in the field near ${near}`, `Against ${poss(nameOf(foe))} army: men enough for ${n0 - C.army} of your regiments lost. ${won ? "Theirs falls back toward home." : "Your army falls back toward home."} ${armyStr()} left.`);
   });
   side(attacker, aWon, kA, defender); side(defender, !aWon, kD, attacker);
 }

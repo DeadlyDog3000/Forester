@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.2", date: "17 October 2026", title: "One count for the army",
+    items: [
+      "Campaign: the army is counted the same way everywhere, by its regiments as on its roll and in the bar along the top. When their ranks are thin it says what they come to at full strength too: \"36 regiments (27 at full strength)\". Before, the attack cards counted only the full-strength figure, and the two numbers didn't agree.",
+      "How it works: right-click attacks, attacking a town after marching up to it, and field battles against the other player.",
+    ],
+  },
+  {
     v: "1.60.1", date: "17 October 2026", title: "Friend from foe at sea",
     items: [
       "Battles at sea: every ship carries a small label in her side's colour, \"Your frigate\" or \"French ship of the line\", so friend and foe can be told apart across the water. A ship's label turns to struck, sinking or sunk when she's out of the fight.",
