@@ -374,7 +374,8 @@ const seaSide = p => llOf(p.x, p.y)[0] < -42;
 // (and any water between: Britain from the Continent, Ireland, Sicily, Scandinavia's islands — no land road joins them,
 //  so the army takes ship; an army in hand is never walked over the sea)
 const overSea = (p, t) => { if (seaSide(p) !== seaSide(t)) return true; const g = grid(), a = landOf(g, p), b = landOf(g, t); return a >= 0 && b >= 0 && a !== b; };
-const VOYAGE = 120;
+// (what to do about it, said when it's tried)
+const SEA_NOTE = "There's water between: no road for an army. Bring a fleet of yours to the shore where it stands, click the fleet and embark the army, then sail it over and land.";
 // (the New World is drawn larger than Europe — 1.45 times, west of 50°W — so a year's march there covers more squares)
 const magAt = p => { const lon = llOf(p.x, p.y)[0]; return lon <= -50 ? 1.45 : lon >= -20 ? 1 : 1 + 0.45 * (-20 - lon) / 30; };
 const mdist = (p, q) => dist2(p, q) / magAt({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
@@ -1528,6 +1529,7 @@ function endSeason(part = {}) {
     // (sent to join another army: following it wherever it has gone)
     const J = C.joinTo != null && (C.armies || []).find(a => a.id === C.joinTo && a.pos);
     if (J) { if (C.go || dist2(J.pos, armyPos()) > 3) C.go = { x: J.pos.x, y: J.pos.y }; } else C.joinTo = null;
+    if (C.go && C.emb == null && overSea(armyPos(), C.go)) C.go = null;
     if (C.go && !C.siege) { const st = stepToward(armyPos(), C.go, MARCH); C.pos = { x: st.x, y: st.y }; if (st.arrived) { C.go = null; say(id ? `The ${armyName(id).toLowerCase()} arrives` : "Your army arrives", "It's where you sent it, and can march again next year."); } C.moved = true; }
   });
   // (an army sent to join another, there now: the two made one)
@@ -2340,7 +2342,7 @@ function drawSide() {
       ${!mineT && own2 ? `<p class="cmp-pop">Population ${fmtN(popOf(selCity))}</p>` : ""}
       ${mineT ? townCard(g, selCity) : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring some ${fieldHelp(own2, selCity)} regiments to it${walls ? ", behind walls" : isVillage(selCity) ? ", behind a palisade" : ""}. ${!reach ? `${overSea(armyPos(), cellXY(selCity)) ? "Your army is on the other side of the Atlantic: a year at sea." : `Your army is ${yearsTo(cellXY(selCity)) > 1 ? `${yearsTo(cellXY(selCity))} years'` : "a year's"} march away.`}` : !atWar(own2) ? `You're not at war with ${the(own2)}.` : !freeToStrike(selCity) ? whyNot(selCity) : `Your odds: ${Math.round(odds(C.army * cmdMul(C.gen) * moraleK(), def, walls && !open) * 100)}%.`}</p>` : ""}
       ${S ? `<div class="cmp-siege"><b>Under siege · year ${S.years}</b><span>Garrison ${S.starve >= 0.6 ? "starving" : S.starve >= 0.3 ? "on short rations" : "well fed"} (${Math.round(garrison(selCity) * (1 - S.starve))} of ${garrison(selCity)} men fit) · walls ${S.bat >= 1 ? "breached" : `${Math.round(S.bat * 100)}% battered`}</span><i><u style="width:${Math.min(100, Math.round(S.bat * 100))}%"></u></i>${!C.supplied && C.gold >= SUPPLY_COST ? `<div class="cmp-acts"><button class="btn" data-act="supply" title="Fresh men, powder and bread for the siege lines — if they get through the enemy's raiders">Send supplies · ${SUPPLY_COST} · you escort</button><button class="btn ghost" data-act="supplyauto">Supplies · escort alone</button></div>` : C.supplied ? `<small class="cmp-fine">This year's supply train has gone.</small>` : ""}</div>` : ""}
-      ${can && S ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Storm · you lead</button><button class="btn" data-act="auto">Storm · generals lead</button><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : can && !C.siege ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Attack · you lead</button><button class="btn" data-act="auto">Attack · generals lead</button>${walls && !isHuman(own2) && C.army >= 8 ? `<button class="btn" data-act="siege" title="Starve it out and batter its walls, a year at a time">Lay siege</button>` : ""}</div>` : C.siege && !S && !mineT && own2 ? `<p class="cmp-fine">Your army is besieging ${esc(C.siege.ct)}: lift that siege to march here.</p>` : !C.siege && !C.moved && (mineT || (own2 && !reach)) && dist2(armyPos(), cellXY(selCity)) > 1 ? `<div class="cmp-acts"><button class="btn" data-act="goto">${overSea(armyPos(), cellXY(selCity)) ? `Ship your army here · 1 yr · ${VOYAGE} thalers` : `${mineT ? "Move your army here" : "March toward it"} · ${yearsTo(cellXY(selCity))} yr`}</button></div>` : S && C.moved ? `<div class="cmp-acts"><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : ""}</div>`;
+      ${can && S ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Storm · you lead</button><button class="btn" data-act="auto">Storm · generals lead</button><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : can && !C.siege ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Attack · you lead</button><button class="btn" data-act="auto">Attack · generals lead</button>${walls && !isHuman(own2) && C.army >= 8 ? `<button class="btn" data-act="siege" title="Starve it out and batter its walls, a year at a time">Lay siege</button>` : ""}</div>` : C.siege && !S && !mineT && own2 ? `<p class="cmp-fine">Your army is besieging ${esc(C.siege.ct)}: lift that siege to march here.</p>` : !C.siege && !C.moved && (mineT || (own2 && !reach)) && dist2(armyPos(), cellXY(selCity)) > 1 ? `<div class="cmp-acts"><button class="btn" data-act="goto">${overSea(armyPos(), cellXY(selCity)) ? `Over the water: needs a fleet of yours` : `${mineT ? "Move your army here" : "March toward it"} · ${yearsTo(cellXY(selCity))} yr`}</button></div>` : S && C.moved ? `<div class="cmp-acts"><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : ""}</div>`;
   }
   if (selFleet != null && fleetById(selFleet)) h += fleetCard(fleetById(selFleet));
   if (selFoeFleet && !selCity) h += pFleet(selFoeFleet) ? pFleetCard(selFoeFleet) : C.foeFleets && C.foeFleets[selFoeFleet] ? foeFleetCard(selFoeFleet) : "";
@@ -2392,7 +2394,7 @@ function drawSide() {
       <li><b>Battles in the field.</b> Click an enemy army on the map, or right-click it: if your army can reach it this year, fall on it in the open before it reaches your towns. Beaten, it falls back and its march is stopped. In a campaign for two, the other player's army can be fallen on too, and they choose whether to meet you in the field themselves.</li>
       <li><b>More than one army.</b> Form a new army from a town's garrison. Click an army on the map to give it orders; each marches, besieges and fights on its own, under its own general. Right-click another of your armies to march to it and join the two into one.</li>
       <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing, and a town that riots two years running rises: put it down, or buy peace with concessions. Regiments in its garrison and a school keep order. <b>Loyalty</b>: a town you conquer is the hardest to hold — newly conquered, its people remembering their own crown (the more while you're at war with it) and praying, it may be, in another church — and each fades as the years pass under you. Its card shows every reason for and against. A conquered town that rises and wins goes back to its own crown; one of your own won back is glad of it. A town's people make its wealth, and fill the army's thin regiments each year.</li>
-      <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
+      <li><b>Over the sea</b> an army goes only aboard a fleet of your own: bring the fleet to its shore, embark it, sail and land. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
       <li><b>Walled towns</b> are taken by siege: sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
       <li><b>Taking a town</b> takes its whole province with it. A crown with no towns left is gone, and its land is yours.</li>
       <li><b>The woods' nations</b> raise no stone walls and have no guns. Their towns stand behind palisades: hold <kbd>F</kbd> at a length of one in battle to set it alight.</li>
@@ -2590,25 +2592,17 @@ function apply(actor, a) {
       if (C.moved) return { note: "Your army has already marched this year." };
       W0(); let t = { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }; if (!isFinite(t.x) || !isFinite(t.y)) return null;
       // (sent out onto the water: to the shore nearest it — an army doesn't march on the sea)
-      { const g0 = grid(), x0 = Math.floor(t.x), y0 = Math.floor(t.y); if (g0[y0] && g0[y0][x0] === null) { const sh = landNear(g0, t, 8); if (!sh) return { note: "That's the open sea. To cross it, embark the army on a fleet of yours, or send it to land on the far side and it takes ship." }; t = sh; } }
+      { const g0 = grid(), x0 = Math.floor(t.x), y0 = Math.floor(t.y); if (g0[y0] && g0[y0][x0] === null) { const sh = landNear(g0, t, 8); if (!sh) return { note: "That's the open sea. To cross it, embark the army on a fleet of yours." }; t = sh; } }
       { const bar = barredBy(armyPos(), t, overSea(armyPos(), t)); if (bar.length) return { note: barNote(bar) }; }
-      // (over the sea: shipping for the regiments, paid for before they sail)
-      if (overSea(armyPos(), t)) {
-        const ocean = seaSide(armyPos()) !== seaSide(t);
-        if (C.gold < VOYAGE) return { note: `Shipping the army over the ${ocean ? "Atlantic" : "water"} costs ${VOYAGE} thalers. The treasury hasn't got it.` };
-        C.gold -= VOYAGE; C.pos = { x: t.x, y: t.y }; C.go = null; C.moved = true; C.sailed = C.year;
-        // (hired merchantmen, unescorted: an enemy fleet at sea may fall on them)
-        const hunter = Object.keys(C.foeFleets || {}).find(id => atWar(id) && C.foeFleets[id].ships.length && R() < 0.12 + C.foeFleets[id].ships.length * 0.04);
-        if (hunter) { const n0 = C.army; wearUnits(C.army * 0.3); persist(); say(`${poss(The(hunter))} fleet falls on your transports`, `Hired merchantmen, unescorted: ${n0 - C.army} regiments lost before the rest get ashore. Ships of your own would have protected them.`); return { note: C.log[0].title + ".", sfx: [["guns", 0.5]] }; }
-        persist();
-        return { note: `The army takes ship for ${ocean ? "the other side of the Atlantic" : "the far shore"}: ${VOYAGE} thalers for the hired shipping. It lands where you sent it, and can march again next year. Ships of your own carry it free, and guard it.`, sfx: [["bell", 0.4]] };
-      }
+      // (over the sea: no march — only aboard a fleet of your own)
+      if (overSea(armyPos(), t)) return { note: SEA_NOTE };
       const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; persist();
       return { note: st.arrived ? "Your army marches, and is there by the year's end." : `Your army is on the march: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there.`, sfx: [["drum", 0.45]] };
     }
     if (a.k === "lift") { if (!C.siege) return null; const n = C.siege.ct; C.siege = null; persist(); return { note: `The siege of ${n} is lifted. The army is free to march.`, sfx: [["drum", 0.5]] }; }
     if (a.k === "march") {
       const ct = city(a.ct), o = ct && march(ct); if (!o) return { note: ct ? whyNot(ct) : "Your army can't march there now." };
+      if (overSea(armyPos(), cellXY(ct))) return { note: SEA_NOTE };
       { const bar = barredBy(armyPos(), cellXY(ct), overSea(armyPos(), cellXY(ct))); if (bar.length) return { note: barNote(bar) }; }
       if (isHuman(o.foe)) return humanMarch(actor, o, a.how);
       if (a.how === "fight") { C.pending = { ...o, ct: ct[0] }; persist(); return { sfx: [["drum", 0.55]], fight: { ...o, ct: ct[0] } }; }

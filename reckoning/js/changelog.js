@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.75.2", date: "17 October 2026", title: "Your own ships",
+    items: [
+      "Campaign: no more hired shipping. An army can't be sent over the water (the Atlantic, the Channel, to an island) for thalers any more; it goes only aboard a fleet of your own. Bring the fleet to the shore where the army stands, embark it, sail over and land. Sending it across the water anyway tells you so.",
+    ],
+  },
+  {
     v: "1.75.1", date: "17 October 2026", title: "Beaten armies stay beaten",
     items: [
       "Campaign: an army you beat loses far more than the men you killed. A rout costs it its wounded left on the field, the men taken prisoner and the men who ran and never came back: at least two fifths of what it brought to the fight, more the more you killed. Won by your generals, the same.",
