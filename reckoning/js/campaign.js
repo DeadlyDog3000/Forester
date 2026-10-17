@@ -941,6 +941,13 @@ function diplo(id, what) {
     for (const o of Object.keys(r)) r[o] -= C.ally[o] ? 0 : 4;
     return done(`You declare war on ${the(id)}.`);
   }
+  // (a town bought from a crown at peace with you, and friendly: its town nearest your lands, never its seat)
+  if (what === "buy") {
+    const t = buyable(id); if (!t || did.buy || atWar(id)) return null; const price = buyPrice(t);
+    if (C.gold < price) return null; did.buy = true;
+    if (r[id] >= 40 && R() < 0.2 + (r[id] - 40) / 120) { C.gold -= price; seize(t, C.me); r[id] -= 10; return done(`${The(id)} ${v3(id, "sells")} you ${t[0]} for ${price} thalers: the town and its country are yours.`); }
+    r[id] -= 2; persist(); return `${The(id)} won't sell ${t[0]}.`;
+  }
   // (peace bought with a town: theirs nearest your lands, given up — if the war has gone badly enough for them)
   if (what === "demand") {
     if (!atWar(id) || did.peace) return null;
@@ -962,6 +969,8 @@ function diplo(id, what) {
   }
   return null;
 }
+const buyable = id => { const g = grid(), L = citiesOfNow(g, id); if (L.length < 3) return null; return L.filter(ct => ct[3] < 3).sort((a, b) => distFrom(g, C.me, a) - distFrom(g, C.me, b))[0] || null; };
+const buyPrice = ct => Math.round(worth(ct) * 14 / 10) * 10;
 const courtOf = id => { const c = citiesOfNow(grid(), id).sort((a, b) => b[3] - a[3])[0]; return c ? c[0] : the(id); };
 function declare(id, by) {
   C.E.war[id] = true; C.warT[id] = 0; C.E.pact[id] = false; C.ally[id] = false;
@@ -1640,6 +1649,7 @@ function drawSide() {
         <button class="btn" data-dip="gift" ${did.gift || C.gold < 150 ? "disabled" : ""}>A gift · 150</button>
         ${C.E.pact[id] ? `<button class="btn" data-dip="unpact">${NATIONS[id].nw ? "End the fur trade" : "End the trade pact"}</button>` : `<button class="btn" data-dip="pact" ${r[id] < 20 ? "disabled title='They need to think well of you (20)'" : ""}>${NATIONS[id].nw ? "Trade for furs" : "Trade pact"}</button>`}
         ${C.ally[id] ? `<button class="btn" data-dip="unally">Break the alliance</button>` : `<button class="btn" data-dip="ally" ${r[id] < 55 || did.ally ? "disabled title='They need to be friendly (55)'" : ""}>Propose an alliance</button>`}
+        ${(t => t ? `<button class="btn" data-dip="buy" ${did.buy || r[id] < 40 || C.gold < buyPrice(t) ? `disabled title="${r[id] < 40 ? "They need to think well of you (40)" : did.buy ? "Asked this year" : "The treasury hasn't the money"}"` : `title="Offer to buy ${esc(t[0])}, their town nearest your lands"`}>Buy ${esc(t[0])} · ${buyPrice(t)}</button>` : "")(NATIONS[id].nw ? null : buyable(id))}
         <button class="btn danger" data-dip="war" ${tr ? `disabled title="A treaty: ${tr} more years"` : ""}>Declare war</button>`}</div>`);
   } else if (!selCity && !armySel) h += `<div class="cmp-card cmp-help"><p><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom</p></div>` + fold("how", `<span class="cmp-h"><b>How it works</b><small>armies, towns, the sea, the New World</small></span>`, `<ul class="cmp-howto">
       <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it.</li>
