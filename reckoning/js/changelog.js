@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.0", date: "17 October 2026", title: "Battles in the field between players",
+    items: [
+      "Campaign for two: at war, fall on the other player's army in the open field, wherever it stands within a year's march. Click their army for its strength and the Attack buttons, or right-click it.",
+      "They choose how to meet it: in the field themselves, the two of you in one battle on open ground near the nearest town, or left to their general. Either way both armies take their losses and gain experience, the winner's general grows with the victory, and the beaten army falls back toward home.",
+      "Campaign: right-click an enemy army within reach to attack it, as you now can an enemy town.",
+      "Campaign: an army that has attacked once this year says so, even after it's been thrown back from the walls.",
+    ],
+  },
+  {
     v: "1.59.5", date: "17 October 2026", title: "Updates that don't stall",
     items: [
       "The app: an update that stalls on a slow connection gives up after a while and is tried again ten minutes later, instead of hanging until the game is closed and leaving you a version behind. The game also looks for updates every few hours while it stays open.",
