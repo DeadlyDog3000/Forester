@@ -73,7 +73,7 @@ export function shapeField(w, C, b, flip) {
 // what stood on it: built once the ground is, into the world's own scene (and gone with it)
 export function buildThings(w, C, b, flip) {
   const M = b.map || {}; if (!M.things || !M.things.length) return null;
-  const sg = flip ? -1 : 1, g = new THREE.Group(), cols = [], breaks = [], palisade = []; let tgt = g, siege = null;
+  const sg = flip ? -1 : 1, g = new THREE.Group(), cols = [], breaks = [], palisade = [], smokes = []; let tgt = g, siege = null;
   const at = (u, v) => ({ x: C.x + u * sg, z: C.z + v });
   const y = (x, z) => w.heightAt(x, z);
   const M_ = {
@@ -310,6 +310,8 @@ export function buildThings(w, C, b, flip) {
         // (the bark in strips: darker bands across the roof)
         for (let k = -L / 2 + 2; k < L / 2; k += 3.2) { const st = new THREE.Mesh(new THREE.CylinderGeometry(Wd / 2 + 0.2, Wd / 2 + 0.2, 0.18, 14, 1, true, 0, Math.PI), char); st.rotation.set(Math.PI / 2, Math.PI / 2, 0); st.position.set(p.x, y0 + wallH, p.z + k); tgt.add(st); }
         for (const e of [-1, 1]) { box(char, p.x, y0 + 0.95, p.z + e * (L / 2 + 0.02), 1.1, 1.9, 0.1); }
+        // (the smoke holes along the ridge, where the fires inside draw)
+        for (let k = -L / 2 + 4; k < L / 2 - 2; k += 6) smokes.push({ x: p.x, y: y0 + wallH + Wd / 2 + 0.2, z: p.z + k });
         solid(p.x, p.z, Wd / 2, L / 2, 0, y0 + wallH + Wd / 2);
       };
       const wigwam = (uu, v, r) => {
@@ -381,5 +383,5 @@ export function buildThings(w, C, b, flip) {
   w.root.add(g);
   // (a town besieged before the assault: how far its walls are already battered down, 0 to 1 and more)
   const twn = M.things.find(t => t[0] === "town");
-  return { g, cols, breaks: [...breaks, ...palisade], palisade, siege, battered: (twn && twn[5]) || 0 };
+  return { g, cols, breaks: [...breaks, ...palisade], palisade, smokes, siege, battered: (twn && twn[5]) || 0 };
 }

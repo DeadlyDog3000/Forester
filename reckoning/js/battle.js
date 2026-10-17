@@ -321,7 +321,7 @@ export class Field {
     return down;
   }
   // smoke off something burning: a few dark puffs, rising slow and spreading
-  smoke(x, y, z) { cloud(this.w.root, new THREE.Vector3(x, y, z), new THREE.Vector3(0, 1, 0), { n: 3, colour: 0x3a332c, life: 5, speed: 2.2, size: 2.4, opacity: 0.45 }); }
+  smoke(x, y, z, light = false) { cloud(this.w.root, new THREE.Vector3(x, y, z), new THREE.Vector3(0, 1, 0), light ? { n: 1, colour: 0x9a948a, life: 6, speed: 0.9, size: 1.3, opacity: 0.28 } : { n: 3, colour: 0x3a332c, life: 5, speed: 2.2, size: 2.4, opacity: 0.45 }); }
   batter(p, dmg) {
     for (const b of this.breaks) {
       if (b.down || Math.abs(p.x - b.x) > b.hw || Math.abs(p.z - b.z) > b.hd || p.y > b.top + 1.5) continue;

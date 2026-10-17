@@ -1445,6 +1445,8 @@ class Arena {
     for (const u of this.units) u.tick(dt);
     if (this.siege && this.siege.ladders && this.live) this.ladderTick(dt);
     if (this.palisade && this.field) this.palisadeTick(dt);
+    // (a town's hearths: thin smoke from the longhouses' smoke holes, as it always rose)
+    { const sm = this.things && this.things.smokes; if (sm && sm.length && this.field && (this.hearthT = (this.hearthT || 0) - dt) <= 0) { this.hearthT = 0.7; const q = sm[Math.floor(Math.random() * sm.length)]; this.field.smoke(q.x, q.y, q.z, true); } }
     // (the other player's game: one side gone, and no word from the host within a few seconds — ended here all the same)
     if (this.remote && this.live && !this.ended) {
       const ours = this.alliesOf(0).length + (this.you.alive ? 1 : 0), theirs = this.alliesOf(1).length;

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.22", date: "16 October 2026", title: "Hearth smoke",
+    items: [
+      "Battle: a town of the woods' nations is lived in. Thin smoke rises from the smoke holes along its longhouses' roofs.",
+    ],
+  },
+  {
     v: "1.51.21", date: "16 October 2026", title: "Fire spreads",
     items: [
       "Battle: a palisade length that's well alight sometimes catches the lengths either side of it, so a fire set in one place can open a wide gap.",
