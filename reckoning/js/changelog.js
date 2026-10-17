@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.57.0", date: "16 October 2026", title: "Terms of peace",
+    items: [
+      "Campaign: demand a town as the price of peace. If the war has gone badly for them, an enemy may give up its town nearest your lands, with its country, to have peace.",
+      "Campaign: an enemy that's winning may offer peace only if you give up a town nearest its lands. Accept and lose it, or fight on.",
+    ],
+  },
+  {
     v: "1.56.3", date: "16 October 2026", title: "Veterans to the front",
     items: [
       "Campaign: the muster before a battle shows each arm's experience, so you can see which of your regiments are veterans when you choose who takes the field.",

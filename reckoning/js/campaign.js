@@ -941,6 +941,18 @@ function diplo(id, what) {
     for (const o of Object.keys(r)) r[o] -= C.ally[o] ? 0 : 4;
     return done(`You declare war on ${the(id)}.`);
   }
+  // (peace bought with a town: theirs nearest your lands, given up — if the war has gone badly enough for them)
+  if (what === "demand") {
+    if (!atWar(id) || did.peace) return null;
+    const g = grid(), theirs = citiesOfNow(g, id); if (theirs.length < 2) return null;
+    const ratio = allArmies() / Math.max(1, foeArmy(id)), p = clamp(-0.1 + ratio * 0.15 + (C.took[id] || 0) * 0.1 - (C.lost[id] || 0) * 0.08 + (C.warT[id] || 0) * 0.02, 0.02, 0.75);
+    did.peace = true;
+    if (R() < p) {
+      const near = theirs.filter(ct => ct[3] < 3).sort((a, b) => distFrom(g, C.me, a) - distFrom(g, C.me, b))[0] || theirs.sort((a, b) => a[3] - b[3])[0];
+      seize(near, C.me); makePeace(id); C.E.rel[id] -= 15; return done(`${The(id)} ${v3(id, "buys")} peace with ${near[0]}: the town and its country are yours.`);
+    }
+    C.E.rel[id] -= 4; persist(); return `${The(id)} ${v3(id, "refuses")} to give up a town — the war isn't lost yet.`;
+  }
   if (what === "peace") {
     if (!atWar(id) || did.peace) return null;
     const ratio = allArmies() / Math.max(1, foeArmy(id)), p = clamp(0.15 + ratio * 0.18 + (C.took[id] || 0) * 0.12 - (C.lost[id] || 0) * 0.06 + (C.warT[id] || 0) * 0.03 + r[id] / 300, 0.05, 0.9);
@@ -1000,7 +1012,11 @@ function endSeason(part = {}) {
   }
   // who'll make peace: worn out, or beaten
   for (const id of ids) if (atWar(id) && (C.warT[id] || 0) >= 3 && R() < 0.12 + (C.foes[id] < allArmies() * 0.5 ? 0.2 : 0) + (C.took[id] || 0) * 0.04)
-    C.events.push({ kind: "peace", foe: id, gold: C.foes[id] < allArmies() * 0.4 ? 60 + NATIONS[id].strength * 30 : 0 });
+    C.events.push({ kind: "peace", foe: id, gold: C.foes[id] < allArmies() * 0.4 ? 60 + NATIONS[id].strength * 30 : 0, ...(() => {
+      // (winning, they want a town for it: yours nearest their lands)
+      if (C.foes[id] < allArmies() * 1.5 || (C.lost[id] || 0) < 1 || mine.length < 3) return {};
+      const t = mine.filter(ct => ct[3] < 3).sort((a, b) => distFrom(g2, id, a) - distFrom(g2, id, b))[0]; return t ? { cede: t[0] } : {};
+    })() });
   // who falls on your armies in the field: an enemy army near one of yours, and the stronger, now and then
   for (const id of ids) {
     if (!atWar(id) || (C.foes[id] | 0) < 10 || R() > 0.3 || C.events.some(e => !e.done && e.foe === id)) continue;
@@ -1580,7 +1596,7 @@ function drawSide() {
     if (e.kind === "attack" && e.human) { h += `<div class="cmp-ev war"><b>${esc(nameOf(e.foe))} marches on ${esc(e.ct)}!</b><small>${e.att} regiments of ${esc(NATIONS[e.foe].name)} against your ${e.def} (garrison and army)${e.walls ? " · behind its walls" : ""}. Meet them on the field yourself, the two of you in one battle, or leave it to the garrison and let them fight it.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Meet them on the field</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to the garrison</button></span></div>`; continue; }
     if (e.kind === "ally" || e.kind === "pact" || (e.kind === "peace" && e.human)) { h += `<div class="cmp-ev"><b>${esc(nameOf(e.foe) === NATIONS[e.foe].name ? The(e.foe) : nameOf(e.foe))} ${v3(e.foe, "proposes")} ${e.kind === "peace" ? "peace" : e.kind === "ally" ? "an alliance" : NATIONS[e.foe].nw ? "the fur trade" : "a trade pact"}</b><small>${e.kind === "peace" ? "Each side keeps what it holds." : e.kind === "ally" ? "Their wars yours, and yours theirs." : (NATIONS[e.foe].nw ? "Beaver pelts down to your posts; kettles, cloth and trade muskets up to their towns." : "Their merchants in your towns, and yours in theirs.")}</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Agree</button><button class="btn" data-ev="${i}" data-how="no">Decline</button></span></div>`; continue; }
     if (e.kind === "attack") h += `<div class="cmp-ev war"><b>${esc(The(e.foe))} ${v3(e.foe, "marches")} on ${esc(e.ct)}!</b><small>${e.att} regiments against your ${e.def} (garrison and army)${e.walls ? " · behind its walls" : ""}. Your odds: ${Math.round((1 - odds(e.att, e.def, e.walls)) * 100)}%.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Fight it yourself</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to the garrison</button></span></div>`;
-    if (e.kind === "peace") h += `<div class="cmp-ev"><b>${esc(The(e.foe))} ${v3(e.foe, "offers")} peace</b><small>${e.gold ? `And ${e.gold} thalers to have it.` : "Each side keeps what it holds."}</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Make peace</button><button class="btn" data-ev="${i}" data-how="no">Fight on</button></span></div>`;
+    if (e.kind === "peace") h += `<div class="cmp-ev"><b>${esc(The(e.foe))} ${v3(e.foe, "offers")} peace</b><small>${e.cede ? `If you give up ${esc(e.cede)} and its country.` : e.gold ? `And ${e.gold} thalers to have it.` : "Each side keeps what it holds."}</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Make peace</button><button class="btn" data-ev="${i}" data-how="no">Fight on</button></span></div>`;
   }
   if (note) h += `<div class="cmp-note">${esc(note)}</div>`;
   if (news.length) h += `<div class="cmp-news"><b>The year's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="news">Close</button></div>`;
@@ -1619,7 +1635,7 @@ function drawSide() {
       ${(() => { const m = muster(id, 100); return `<div class="cmp-farmy">${Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const nm = NATIONS[id].nw ? ({ axe: "War club", bow: "Bow", musketeer: "Trade musket" }[k] || TROOPS[k].name) : TROOPS[k].name; return `<span title="${esc(nm)}: about ${n}% of their army">${unitImg(k, "", id)}<small>${esc(nm)}</small></span>`; }).join("")}</div>`; })()}
       ${NATIONS[id].nw ? `<p class="cmp-help">A nation of the woods. Their towns stand behind wooden palisades, with no stone walls to besiege; a palisade can be set alight and burnt through. Their warriors fight with the bow and the war club, a few with trade muskets. They have no guns and no horse.</p>` : ""}
       ${C.foeGen && C.foeGen[id] ? `<div class="cmp-foegen">${face(C.foeGen[id], "sm")}<span><b>${esc(C.foeGen[id].name)}</b><small>Their general · command ${"●".repeat(C.foeGen[id].st[0])}${"○".repeat(5 - C.foeGen[id].st[0])} · ${(C.fguns[id] | 0) ? `${C.fguns[id]} gun${C.fguns[id] > 1 ? "s" : ""}: they can besiege walled towns` : "no guns: walled towns are safe from them"}</small></span></div>` : ""}
-      <div class="cmp-acts">${war ? `<button class="btn" data-dip="peace" ${did.peace ? "disabled" : ""}>Offer peace</button>` : `
+      <div class="cmp-acts">${war ? `<button class="btn" data-dip="peace" ${did.peace ? "disabled" : ""}>Offer peace</button><button class="btn" data-dip="demand" ${did.peace || citiesOfNow(g, id).length < 2 ? "disabled" : ""} title="Peace, if they give up their town nearest your lands. The worse the war has gone for them, the likelier.">Demand a town for peace</button>` : `
         <button class="btn" data-dip="envoy" ${did.envoy || C.gold < 40 ? "disabled" : ""}>Send an envoy · 40</button>
         <button class="btn" data-dip="gift" ${did.gift || C.gold < 150 ? "disabled" : ""}>A gift · 150</button>
         ${C.E.pact[id] ? `<button class="btn" data-dip="unpact">${NATIONS[id].nw ? "End the fur trade" : "End the trade pact"}</button>` : `<button class="btn" data-dip="pact" ${r[id] < 20 ? "disabled title='They need to think well of you (20)'" : ""}>${NATIONS[id].nw ? "Trade for furs" : "Trade pact"}</button>`}
@@ -1785,7 +1801,7 @@ function apply(actor, a) {
       const ev = C.events[a.i | 0]; if (!ev || ev.done) return null; ev.done = true;
       const done = r => { C.events = C.events.filter(x => !x.done); persist(); return r; };
       if (ev.kind === "peace") {
-        if (a.how === "yes") { makePeace(ev.foe); if (ev.human) as(ev.foe, () => makePeace(actor)); C.gold += ev.gold || 0; return done({ sfx: [["quill", 0.5], ["seal", 0.6, 900], ...(ev.gold ? [["coin", 0.4, 1300]] : [])] }); }
+        if (a.how === "yes") { if (ev.cede) { const t = city(ev.cede); if (t && cityOwner(g, t) === C.me) { seize(t, ev.foe); if (C.govs) delete C.govs[t[0]]; say(`${t[0]} is given up`, `The price of peace with ${the(ev.foe)}.`); } } makePeace(ev.foe); if (ev.human) as(ev.foe, () => makePeace(actor)); C.gold += ev.gold || 0; return done({ sfx: [["quill", 0.5], ["seal", 0.6, 900], ...(ev.gold ? [["coin", 0.4, 1300]] : [])] }); }
         C.E.rel[ev.foe] -= 5; if (ev.human) tell(ev.foe, { note: `${nameOf(actor)} won't make peace.` }); return done({ sfx: [["drum", 0.45]] });
       }
       if (ev.kind === "ally" || ev.kind === "pact") {
