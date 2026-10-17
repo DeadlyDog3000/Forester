@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.7", date: "16 October 2026", title: "Towns in their clearings",
+    items: [
+      "The land (3D map): the woods no longer grow through the towns. Every town stands in its own clearing, larger for a great city.",
+      "The land: a town of the woods' nations is drawn as it was, with longhouses inside a ring of palisade and no church.",
+    ],
+  },
+  {
     v: "1.51.6", date: "16 October 2026", title: "Colonial wars",
     items: [
       "Campaign: a crown's field army can only come to a town's help if it's on the same side of the Atlantic. Québec is held by its garrison and New France's own few companies while France's army is in Europe, so the colonies can be fought for. The town card says how many could come.",

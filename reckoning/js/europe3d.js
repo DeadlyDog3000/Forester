@@ -220,6 +220,8 @@ export class EuropeView3D {
         const wood = fbm(lon * 9, lat * 9, 13);
         if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52) || r() > 0.85) continue;
         const h = heightAt(this.g, lon, lat); if (h < 0.03 || biomeAt(lon, lat, h) === "snow") continue;
+        // (no wood growing in a town, nor in the fields close round it)
+        if (this.clearings && this.clearings.some(([cx, cz, cr]) => (x - cx) * (x - cx) + (z - cz) * (z - cz) < cr * cr)) continue;
         const s = 0.7 + r() * 0.7;
         o.position.set(x, h * EXAG, z); o.rotation.set(0, r() * 6.28, 0); o.scale.set(s, s * (0.85 + r() * 0.3), s); o.updateMatrix();
         list.push(o.matrix.clone());
@@ -252,21 +254,35 @@ export class EuropeView3D {
     if (this.cityGroup) this.scene.remove(this.cityGroup);
     const grp = this.cityGroup = new THREE.Group();
     const house = new THREE.BoxGeometry(0.04, 0.03, 0.05), roof = new THREE.ConeGeometry(0.037, 0.028, 4).rotateY(Math.PI / 4);
+    // (the woods' nations' towns: a longhouse, round-roofed, and the stakes of a palisade)
+    const longGeo = new THREE.CapsuleGeometry(0.014, 0.05, 3, 6).rotateZ(Math.PI / 2).scale(1, 1.2, 1).translate(0, 0.012, 0), barkMat = new THREE.MeshStandardMaterial({ color: 0x6e5a44, roughness: 0.95 });
+    const stakeGeo = new THREE.CylinderGeometry(0.003, 0.004, 0.036, 4), stakeMat = new THREE.MeshStandardMaterial({ color: 0x7a6248, roughness: 0.9 });
     const wall = new THREE.MeshStandardMaterial({ color: 0xe6dcc6, roughness: 0.9 }), tile = new THREE.MeshStandardMaterial({ color: 0xa04a30, roughness: 0.8 }), stone = new THREE.MeshStandardMaterial({ color: 0xb8b0a0 });
     this.labels = [];
+    this.clearings = [];
     const place = (name, lon, lat, rank, own, isHome) => {
       const [x, z] = toWorld(lon, lat), r = rng(Math.round(lon * 100 + lat * 7)), y0 = this.groundY(x, z);
+      this.clearings.push([x, z, (rank === 3 ? 0.45 : rank === 2 ? 0.34 : 0.24) + (own && NATIONS[own] && NATIONS[own].nw ? 0.08 : 0)]);
       if (y0 < -0.1) return;
       const n = isHome ? 5 : rank === 3 ? 80 : rank === 2 ? 44 : 16, spread = rank === 3 ? 0.32 : rank === 2 ? 0.22 : 0.12;
-      for (let i = 0; i < n; i++) {
+      // (a town of the woods' nations: longhouses of bark inside a ring of palisade, no church)
+      const woods = own && NATIONS[own] && NATIONS[own].nw;
+      if (woods) {
+        const R = 0.13 + rank * 0.03;
+        for (let i = 0; i < 4 + rank * 3; i++) { const a = r() * 6.28, d = Math.sqrt(r()) * R * 0.8, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz); const lh = new THREE.Mesh(longGeo, barkMat); lh.position.set(hx, hy, hz); lh.rotation.y = r() * 3; grp.add(lh); }
+        const N = 28 + rank * 10; for (let i = 0; i < N; i++) { const a = i / N * 6.28, sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R; if (Math.abs(Math.sin(a)) < 0.06 && Math.cos(a) > 0) continue; const st = new THREE.Mesh(stakeGeo, stakeMat); st.position.set(sx, this.groundY(sx, sz) + 0.018, sz); grp.add(st); }
+      }
+      for (let i = 0; i < (woods ? 0 : n); i++) {
         const a = r() * 6.28, d = Math.sqrt(r()) * spread, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz);
         const hm = new THREE.Mesh(house, wall); hm.position.set(hx, hy + 0.015, hz); hm.rotation.y = r() * 3; grp.add(hm);
         const rm = new THREE.Mesh(roof, tile); rm.position.set(hx, hy + 0.044, hz); rm.rotation.y = hm.rotation.y; grp.add(rm);
       }
       // a church, or a cathedral
       const th = 0.12 + rank * 0.03;
+      if (!woods) {
       const tw = new THREE.Mesh(new THREE.BoxGeometry(0.036, th, 0.036), stone); tw.position.set(x, y0 + th / 2, z); grp.add(tw);
       const sp = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.1, 4), new THREE.MeshStandardMaterial({ color: 0x4a5a58 })); sp.position.set(x, y0 + th + 0.05, z); grp.add(sp);
+      }
       // the name
       const cv = document.createElement("canvas"); cv.width = 256; cv.height = 64; const c = cv.getContext("2d");
       c.font = `${rank === 3 ? "600 " : ""}30px "IM Fell English", Georgia, serif`; const w = Math.min(248, c.measureText(name).width + 22);
