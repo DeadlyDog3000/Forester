@@ -1675,7 +1675,7 @@ class Arena {
     };
   }
   // ---- the orders: the number keys, in the field ----
-  bookState() { const O = (this.sel && this.sub && this.sub[0][this.sel]) || this.orders[0], g = this.sel && GROUPS.find(g => g.id === this.sel); return { group: g ? g.name : null, groups: this.groupsHere(), count: this.sel ? this.alliesOf(0).filter(u => !u.crewOf && groupOf(u) === this.sel).length : this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, cover: O.cover, guns: !!this.gunsOn, abandoned: !!(this.abandoned && this.abandoned[0]), mode: O.mode, form: O.form }; }
+  bookState() { const O = (this.sel && this.sub && this.sub[0][this.sel]) || this.orders[0], g = this.sel && GROUPS.find(g => g.id === this.sel); return { group: g ? g.name : null, groups: this.groupsHere(), uni: this.uni ? Object.keys(UNIFORMS).find(k => UNIFORMS[k] === ((this.coUni && this.coUni[0]) || this.uni[0])) : null, count: this.sel ? this.alliesOf(0).filter(u => !u.crewOf && groupOf(u) === this.sel).length : this.alliesOf(0).length, battle: this.battle, fire: O.fire, charge: O.charge, cover: O.cover, guns: !!this.gunsOn, abandoned: !!(this.abandoned && this.abandoned[0]), mode: O.mode, form: O.form }; }
   // a gun's crew down: the nearest of its own side's men go to it and serve it in their place (not while the guns are
   // given up, nor the horse, nor anyone running)
   recrew() {

@@ -16,6 +16,7 @@ import { FOLEY } from "./foley.js";
 import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, llOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H, useSheet, PEOPLES, peopleAt } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { TROOPS } from "./pvp.js";
+import { plateOf } from "./unitart.js";
 import { CHAINS, CHAIN_ORDER, MARK, levelCost, capOf, TECHS, BRANCHES, canStudy, newMan, historicalOf, portOf, GSTATS, VSTATS, SERVICE, GEN_SERVICE } from "./realm.js";
 
 const KEY = "reckoning.campaign.v1";
@@ -719,9 +720,8 @@ function unitCard(k) {
     <p>${mine.length ? `In your army: ${mine.length} regiment${mine.length > 1 ? "s" : ""}, ${full}% of full strength${xp >= 0.75 ? `, ${["", "blooded", "seasoned", "veterans"][Math.min(3, Math.floor(xp + 0.25))]}` : ""}.` : "None in your army."}${gar.length ? ` ${gar.length} more holding your towns.` : ""}</p>
     <div class="pv-acts"><button class="btn" data-ux="1">Close</button></div></div></div>`;
 }
-// (each kind's picture, as its crown's way of war dresses it: a uniform plate of the time)
-const UNIT_ART = new Set(["west-musketeer", "west-pike", "west-grenadier", "west-cavalry", "west-sword", "east-musketeer", "east-bow", "east-sword", "east-cavalry", "steppe-musketeer", "steppe-cavalry", "steppe-sword", "steppe-bow", "steppe-pike", "tsar-musketeer", "tsar-pike", "tsar-cavalry", "tsar-axe", "woods-bow", "woods-axe", "woods-musketeer"]);
-const unitArt = (k, id = C.me) => { const a = `${styleOf(id)}-${k}`; return UNIT_ART.has(a) ? `art/units/${a}.jpg` : UNIT_ART.has(`west-${k}`) ? `art/units/west-${k}.jpg` : null; };
+// (each kind's picture, as its crown's way of war dresses it: a uniform plate of the time — unitart.js)
+const unitArt = (k, id = C.me) => plateOf(styleOf(id), k);
 const unitImg = (k, cls = "", id = C.me) => { const a = unitArt(k, id); return a ? `<img class="cmp-uimg ${cls}" src="${a}" alt="" loading="lazy">` : `<span class="cmp-uimg none ${cls}"></span>`; };
 // (the regiments a town can raise in a year: one a town, two a city, three a great one; a barracks one more)
 const slotsOf = ct => ct[3] + (lvOf(ct[0], "army") >= 2 ? 1 : 0);

@@ -17,6 +17,7 @@ import { makeCannon, cloud, segDist } from "./cannon.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { shake } from "./fight.js";
 import { P, makeLogs, makeStump, makeSheaf, makeSack } from "./models.js";
+import { wayOfUniform, plateOf } from "./unitart.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _z = new THREE.Vector3(0, 0, 1), _up = new THREE.Vector3(0, 1, 0);
@@ -1087,7 +1088,7 @@ export class OrderBook {
     this.el.classList.toggle("form", this.page !== "main");
     this.el.innerHTML = `<div class="ob-head"><span class="ob-seal"></span><div><div class="ob-t">${this.page === "form" ? "Formation" : this.page === "guns" ? "The guns" : "Orders"}</div><div class="ob-s">${this.state.group ? `${this.state.group} · ${this.state.count}` : `${this.state.count} under your command`}</div></div></div>
       <ol class="ob-list">${list.map((o, i) => `<li class="${i === this.lit ? "lit" : ""}${o.on ? " on" : ""}"><span class="ob-k">${(i + 1) % 10}</span><span class="ob-l">${o.label}${o.more ? " ›" : ""}</span><span class="ob-n">${roman[i]}</span></li>`).join("")}</ol>
-      ${this.page === "main" && this.state.groups && this.state.groups.length > 1 ? `<div class="ob-arms">${this.state.groups.map(g => `<span class="${this.state.group === g.name ? "on" : ""}" title="${g.name}"><b>${g.key.slice(3)}</b>${g.name.split(" ")[0]}</span>`).join("")}</div>` : ""}
+      ${this.page === "main" && this.state.groups && this.state.groups.length > 1 ? `<div class="ob-arms">${this.state.groups.map(g => { const way = wayOfUniform(this.state.uni), pl = plateOf(way, way === "tsar" && g.id === "blade" ? "axe" : way === "woods" && g.id === "blade" ? "axe" : g.kinds[0]); return `<span class="${this.state.group === g.name ? "on" : ""}" title="${g.name}">${pl ? `<img src="${pl}" alt="">` : ""}<b>${g.key.slice(3)}</b>${g.name.split(" ")[0]}</span>`; }).join("")}</div>` : ""}
       <div class="ob-foot">${this.page === "form" ? "A number for the formation" : this.page === "guns" ? "A number for the guns" : this.state.groups && this.state.groups.length > 1 ? "A letter picks out one arm · a number gives the order" : "The number gives the order · the wheel, your weapons"}</div>`;
   }
   // a key: a number gives that order (or opens the formations); Esc puts the formations away. True if it was the book's

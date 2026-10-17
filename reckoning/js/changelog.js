@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.53.4", date: "16 October 2026", title: "Plates in the orders",
+    items: [
+      "Battle: the orders panel shows each arm's plate beside its letter, dressed as your side's way of war.",
+      "Western bowmen, crossbowmen and axemen have plates of their own, instead of borrowing the Ottoman archer's.",
+    ],
+  },
+  {
     v: "1.53.3", date: "16 October 2026", title: "Public order",
     items: [
       "Campaign: every town of yours has a public order, shown on its card. Heavy taxes and a great city's crowds sour it; light taxes, regiments in its garrison, a school and an honest governor keep it. A restless town may riot at the year's end: it pays none of its taxes that year, and loses some of its people. The Taxes card warns how many towns may riot.",

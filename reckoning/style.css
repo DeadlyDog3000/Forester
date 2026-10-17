@@ -1298,7 +1298,8 @@ body.dead #crosshair, body.dead #hotbar, body.dead #stance, body.dead #hbName { 
 #orderBook li.on .ob-l::after { content: " ✓"; color: #7a1c14; }
 #orderBook li.lit { background: rgba(122, 28, 20, 0.22); }
 #orderBook .ob-arms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; padding-top: 5px; border-top: 1px solid rgba(60, 40, 20, 0.25); }
-#orderBook .ob-arms span { font: 11px var(--sans); color: #5a4430; padding: 1px 5px 1px 2px; border-radius: 2px; border: 1px solid transparent; }
+#orderBook .ob-arms span { font: 11px var(--sans); color: #5a4430; padding: 1px 5px 1px 2px; border-radius: 2px; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 2px; }
+#orderBook .ob-arms img { width: 18px; height: 24px; object-fit: cover; border-radius: 2px; border: 1px solid rgba(60, 40, 20, 0.35); margin-right: 2px; }
 #orderBook .ob-arms b { display: inline-block; min-width: 14px; margin-right: 3px; text-align: center; color: #7a1c14; border: 1px solid rgba(122, 28, 20, 0.4); border-radius: 2px; line-height: 14px; }
 #orderBook .ob-arms span.on { background: rgba(122, 28, 20, 0.2); border-color: rgba(122, 28, 20, 0.45); color: #2c2016; font-weight: 600; }
 #orderBook .ob-foot { margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(60, 40, 20, 0.25); font: 11px var(--sans); color: #6a5440; }
