@@ -1197,7 +1197,15 @@ export function initCampaign(c, battle, withPlayer) {
         const moved = d3.moved; d3 = null; eu3d.el.style.cursor = "grab"; if (moved > 5 || !C) return;
         const r = eu3d.el.getBoundingClientRect(), hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top); if (!hit) return;
         if (hit.city) { selCity = CITIES.find(c => c[0] === hit.city) || null; sel = selCity ? cityOwner(grid(), selCity) : null; }
-        else { const [gx, gy] = gridOf(...hit.ll), g = grid(), id = g[Math.floor(gy)] && g[Math.floor(gy)][Math.floor(gx)]; selCity = null; sel = id && NATIONS[id] ? id : null; }
+        else {
+          const [gx, gy] = gridOf(...hit.ll), g = grid(), q = { x: gx, y: gy }, id = g[Math.floor(gy)] && g[Math.floor(gy)][Math.floor(gx)];
+          // (an army there, yours or an enemy's: chosen, as on the map)
+          const mineA = [[C.ar | 0, armyPos()], ...(C.armies || []).filter(a => a.pos).map(a => [a.id, a.pos])].find(([, p]) => dist2(p, q) < 2.2);
+          if (mineA) { if (mineA[0] !== (C.ar | 0)) doAct({ k: "usearmy", id: mineA[0] }); armySel = true; selCity = null; sel = null; selFoe = null; note = ""; drawMap(); sfx("drum", 0.25); return; }
+          const foeA = Object.keys(C.E.war).find(f => C.E.war[f] && !isHuman(f) && foeArmyPos(f) && dist2(foeArmyPos(f), q) < 2.2);
+          if (foeA) { selFoe = foeA; sel = foeA; selCity = null; armySel = false; note = ""; drawMap(); sfx("drum", 0.2); return; }
+          selFoe = null; selCity = null; sel = id && NATIONS[id] ? id : null;
+        }
         note = ""; drawMap(); if (selCity || sel) sfx("parchment", 0.28);
       });
     }

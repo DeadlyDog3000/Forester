@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.3", date: "16 October 2026", title: "Armies on the land",
+    items: [
+      "The land (3D map): click one of your armies to give it orders, or an enemy army to see it and attack it, as on the map.",
+    ],
+  },
+  {
     v: "1.55.2", date: "16 October 2026", title: "Split the army",
     items: [
       "Campaign: split an army in two from its card. Half of each arm marches off as an army of its own, beside the first; join them again whenever they stand together.",
