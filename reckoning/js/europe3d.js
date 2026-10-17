@@ -323,15 +323,18 @@ export class EuropeView3D {
         c.lineWidth = 5; c.beginPath(); c.moveTo(14, 14); c.lineTo(50, 50); c.moveTo(50, 14); c.lineTo(14, 50); c.stroke();
         c.lineWidth = 4.5; c.beginPath(); c.moveTo(15, 38); c.lineTo(26, 49); c.moveTo(49, 38); c.lineTo(38, 49); c.stroke();
       } else {
-        if (kind === "dash") c.setLineDash([7, 5]);
-        c.lineWidth = 5; c.beginPath(); c.arc(32, 32, 24, 0, 7); c.stroke(); c.setLineDash([]); c.strokeStyle = "rgba(40,28,16,0.8)"; c.lineWidth = 2; c.beginPath(); c.arc(32, 32, 28.5, 0, 7); c.stroke();
+        // (a town's holder: its colours on a staff, as on the map — gold-edged for yours, the other player's dashed)
+        c.strokeStyle = "#2a1c10"; c.lineWidth = 3; c.beginPath(); c.moveTo(22, 8); c.lineTo(22, 60); c.stroke();
+        c.fillStyle = color; c.beginPath(); c.moveTo(22, 8); c.quadraticCurveTo(36, 4, 52, 10); c.lineTo(52, 30); c.quadraticCurveTo(36, 24, 22, 28); c.closePath(); c.fill();
+        if (kind === "dash") c.setLineDash([5, 4]);
+        c.strokeStyle = kind === "ring" ? "#b8862a" : "rgba(40,28,16,0.9)"; c.lineWidth = kind === "ring" ? 4 : 2.5; c.stroke(); c.setLineDash([]);
       }
       const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; tex.set(k, t); return t;
     };
     for (const m of list) {
       const [x, z] = toWorld(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords", arm = m.kind === "army";
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim, m.n, m.mine), depthTest: false, sizeAttenuation: false, transparent: true }));
-      sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.3 : swords ? 0.5 : 0.05), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
+      sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.3 : swords ? 0.5 : 0.42), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
       grp.add(sp);
     }
     this.scene.add(grp);

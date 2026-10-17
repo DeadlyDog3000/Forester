@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.16", date: "16 October 2026", title: "Flags over the land",
+    items: [
+      "The land (3D map): your towns fly your colours on a staff, gold-edged, as on the map, instead of being ringed.",
+      "Campaign: forty towns makes yours the first crown of the world, not merely of Europe.",
+    ],
+  },
+  {
     v: "1.51.15", date: "16 October 2026", title: "Past the Mississippi",
     items: [
       "Campaign: three more nations hold the country past the Mississippi, where the map was empty before: the Pawnee on the Platte and the Loup, the Osage on their river, and the Caddo on the Red and in the piney woods. Each has its towns, Kitkehahki, the Osage Village, Kadohadacho and Hasinai, and leaders of its own.",

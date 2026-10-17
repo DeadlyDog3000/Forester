@@ -7,7 +7,7 @@
 // where the town stands, or left to your generals — and keep your neighbours sweet with envoys, gifts, trade and
 // alliances, or not. They have their own minds: they war on each other and the borders move; the ones who fear or
 // hate you declare war on you, march on your towns, and take them if you can't hold them. Lose every town and it's
-// over; hold forty and Europe is yours (and you can go on).
+// over; hold forty and yours is the first crown of the world (and you can go on).
 //
 // The map is the story's own (europe.js): the real coasts and the crowns' borders of 1683, every conquest laid over
 // them. A town is a province: taking one takes the country round it.
@@ -783,7 +783,7 @@ function checkEnd() {
   orphans(C.me);
   const g = grid(), n = citiesOfNow(g, C.me).length;
   if (!n && !C.over) { C.over = "lost"; say("Your crown is lost", "The last of your towns has fallen."); }
-  if (n >= WIN_CITIES && !C.won) { C.won = true; say("Europe is yours", `${n} towns under your crown. Play on, if you like.`); }
+  if (n >= WIN_CITIES && !C.won) { C.won = true; say("Yours is the first crown of the world", `${n} towns under your crown. Play on, if you like.`); }
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !alive(g, id)) { C.E.war[id] = false; const by = C.gone && C.gone[id]; say(`${The(id)} ${v3(id, "is")} no more`, by === C.me ? "Its last town has fallen to you, and every acre of its land is yours." : by ? `${The(by)} ${v3(by, "has")} taken the last of it.` : "Its last town is yours or another's."); }
 }
 
@@ -1144,7 +1144,7 @@ function drawSide() {
   const g = grid(), el = $("cmpSide"), r = C.E.rel;
   let h = "";
   if (C.over) h += `<div class="cmp-over"><b>Your crown is lost.</b> Every town has fallen. <button class="btn" data-act="newgame">Begin again</button></div>`;
-  else if (C.won) h += `<div class="cmp-won"><b>Europe is yours.</b> ${citiesOfNow(g, C.me).length} towns under your crown.</div>`;
+  else if (C.won) h += `<div class="cmp-won"><b>Yours is the first crown of the world.</b> ${citiesOfNow(g, C.me).length} towns under your crown.</div>`;
   // what's waiting for your word: towns attacked, peace offered
   for (const [i, e] of C.events.entries()) {
     if (e.done) continue;
