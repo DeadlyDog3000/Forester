@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.24", date: "16 October 2026", title: "War parties, in numbers",
+    items: [
+      "Campaign: the woods' nations field war parties of a few hundred men, fewer than a crown's regiments, both at the start and as they grow back. The Haudenosaunee no longer outnumber the whole of England's army.",
+    ],
+  },
+  {
     v: "1.51.23", date: "16 October 2026", title: "War parties, in words",
     items: [
       "Campaign: the news speaks of a nation of the woods as it should: \"the Cree's war party marches toward York Factory\", \"the Wabanaki march on Boston!\", \"the Cherokee offer peace\".",

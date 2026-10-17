@@ -152,7 +152,8 @@ function fresh(me) {
     rel[id] = Math.round((NATION_FAITH[id] === NATION_FAITH[me] ? 18 : 0) + (R() - 0.5) * 36);
     // (the other crowns start at war footing: half again what you'd have in their place, and a margin besides —
     //  1683 was a year of great armies, and none of them is waiting for you)
-    army[id] = NATIONS[id].strength * 15 + 8 + Math.floor(R() * 10);
+    // (the woods' nations: their warriors fewer than a crown's regiments, a war party being a few hundred men)
+    army[id] = NATIONS[id].nw ? NATIONS[id].strength * 10 + 6 + Math.floor(R() * 6) : NATIONS[id].strength * 15 + 8 + Math.floor(R() * 10);
   }
   delete rel[me];
   // the leagues and the wars of 1683: yours to begin with, and the other crowns' among themselves
@@ -687,7 +688,7 @@ function endSeason(part = {}) {
   if (C.gold < 0) { const lose = Math.ceil(-C.gold / REGIMENT); C.army = Math.max(0, C.army - lose); C.gold = 0; moraleMove(-15); say("The pay chest is empty", `${lose} regiments desert for want of pay.`); } }
   // (the other crowns: their armies made up again; their tempers going back to where their faith puts them)
   for (const id of ids) {
-    const cap = NATIONS[id].strength * 17 + citiesOfNow(g, id).length * 3 + 8;
+    const cap = NATIONS[id].nw ? NATIONS[id].strength * 11 + citiesOfNow(g, id).length * 2 + 6 : NATIONS[id].strength * 17 + citiesOfNow(g, id).length * 3 + 8;
     if (world) C.foes[id] = Math.min(Math.max(cap, C.foes[id] || 0), (C.foes[id] || 0) + Math.max(1, Math.round(NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0))));
     if (!mine) continue;
     const home = (NATION_FAITH[id] === NATION_FAITH[C.me] ? 18 : 0) + (C.E.pact[id] ? 15 : 0) + (C.ally[id] ? 25 : 0) - (atWar(id) ? 40 : 0);
