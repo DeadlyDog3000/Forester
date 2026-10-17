@@ -1437,6 +1437,8 @@ export function initCampaign(c, battle, withPlayer) {
     e.preventDefault(); if (!C) return;
     const [mx, my] = toMap(pos(e)), S = cv.width / MG_W;
     if (selFleet != null && fleetById(selFleet)) { doAct({ k: "sail", id: selFleet, x: mx / S, y: my / S }); return; }
+    // (another army of your own: the one in hand marched to it, and the two made one when it gets there)
+    { const ah = armyHit(cv, ...pos(e)); if (ah && ah.id !== (C.ar | 0) && C.emb == null) { doAct({ k: "joinat", id: ah.id }); armySel = false; return; } }
     // (an enemy army within a year's march: the army falls on it in the field)
     const fh = foeHit(cv, ...pos(e)); if (fh && isHuman(fh) && canFieldP(fh)) { selFoe = fh; sel = fh; selCity = null; armySel = false; doAct({ k: "pfield", h: fh, how: "fight" }); return; }
     if (fh && canField(fh) && C.emb == null) { selFoe = fh; sel = fh; selCity = null; armySel = false; doAct({ k: "field", foe: fh, how: "fight" }); return; }
@@ -2096,7 +2098,7 @@ function drawSide() {
       <li><b>Garrisons.</b> With your army at one of your towns, leave regiments there to hold it, or take its garrison into the army.</li>
       <li><b>The navy.</b> Build sloops, frigates and ships of the line in your ports' dockyards. Click a fleet, then right-click on the sea to sail it: a year's sailing crosses the Atlantic. Bring a fleet to the shore where an army stands to take it aboard, sail it, and land it anywhere. Ships of your own carry an army free and guard it; hired transports cost money, and enemy fleets may fall on them. Enemy fleets come for yours in war: fight the battle at sea yourself, or leave it to your admirals. Ships that strike their colours are taken as prizes. A town on the Great Lakes has a dockyard too, for sloops and frigates that sail its lake: Huron, Michigan and Erie are joined, but Ontario and Superior keep to themselves.</li>
       <li><b>Battles in the field.</b> Click an enemy army on the map, or right-click it: if your army can reach it this year, fall on it in the open before it reaches your towns. Beaten, it falls back and its march is stopped. In a campaign for two, the other player's army can be fallen on too, and they choose whether to meet you in the field themselves.</li>
-      <li><b>More than one army.</b> Form a new army from a town's garrison. Click an army on the map to give it orders; each marches, besieges and fights on its own, under its own general. Two armies in one place can join.</li>
+      <li><b>More than one army.</b> Form a new army from a town's garrison. Click an army on the map to give it orders; each marches, besieges and fights on its own, under its own general. Right-click another of your armies to march to it and join the two into one.</li>
       <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing, and a town that riots two years running rises: put it down, or buy peace with concessions. Regiments in its garrison and a school keep order. A town's people make its wealth, and fill the army's thin regiments each year.</li>
       <li><b>Over the sea</b> the army takes ship: 120 thalers, and the year. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
       <li><b>Walled towns</b> are taken by siege: sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
@@ -2241,6 +2243,17 @@ function apply(actor, a) {
     if (a.k === "usearmy") { if (!armyIds().includes(a.id | 0)) return null; useArmy(a.id | 0); persist(); return {}; }
     if (a.k === "form") { const why = formArmy(a.t); return why ? { note: why } : { note: `A new army is formed at ${a.t} from its garrison: the ${armyName(C.ar | 0).toLowerCase()}. Choose a general for it from its card.`, sfx: [["drum", 0.5]] }; }
     if (a.k === "split") { const why = splitArmy(); return why ? { note: why } : { note: `The army is split in two: the ${armyName(C.ar | 0).toLowerCase()} marches under its own colours. Choose a general for it.`, sfx: [["drum", 0.45]] }; }
+    // (marched to another army of yours and joined to it there: at once if it's within the year's march, else on the way)
+    if (a.k === "joinat") {
+      const o = (C.armies || []).find(x => x.id === a.id && x.pos); if (!o) return null;
+      if (o.siege) return { note: "That army is besieging a town: march to it and join it when the siege is done." };
+      if (dist2(o.pos, armyPos()) > 3) {
+        const res = apply(actor, { k: "move", x: o.pos.x, y: o.pos.y });
+        // (too far for the year: on its way, and joined with a right-click on it again once it's there)
+        if (dist2(o.pos, armyPos()) > 3) return res && res.note ? { ...res, note: `${res.note} Right-click the ${armyName(o.id).toLowerCase()} again once it's there, and they'll join.` } : res || { note: "Your army can't march to it now." };
+      }
+      const name = armyName(o.id), why = joinArmy(); return why ? { note: why } : { note: `The two armies march together as one: the ${name.toLowerCase()}, ${armyStr()}.`, sfx: [["drum", 0.5]] };
+    }
     if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4]] }; }
     if (a.k === "askgen") { askGeneral(); return {}; }
     if (a.k === "station") { const why = station(a.t, a.u, !!a.out); return why ? { note: why } : { sfx: [["drum", 0.3]] }; }

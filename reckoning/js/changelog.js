@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.66.0", date: "17 October 2026", title: "Two armies into one",
+    items: [
+      "Campaign: march one of your armies into another to join them. Pick an army up, right-click another of yours, and it marches to it and the two become one army, every regiment of both under the one you marched to. If the other is more than a year's march off, it sets out toward it: right-click again once it's there.",
+    ],
+  },
+  {
     v: "1.65.0", date: "17 October 2026", title: "Take the gun",
     items: [
       "Battles: work your own side's guns. Go to one behind the gabions and press F, and you're the gunner at its breech. It's laid on whatever you're looking at, a ring on the ground shows where the ball will strike, and a click fires it. The crew sponge and load it again, and you with them, so a gun whose crew has fallen can still be served. F to leave it.",
