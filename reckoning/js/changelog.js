@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.1", date: "16 October 2026", title: "They come for your armies too",
+    items: [
+      "Campaign: an enemy army stronger than one of yours, and near it in the open, may fall on it. Fight the battle yourself, or leave it to your general.",
+      "Campaign: a won battle in the field costs the beaten army a little less in the rout.",
+    ],
+  },
+  {
     v: "1.55.0", date: "16 October 2026", title: "Battles in the field",
     items: [
       "Campaign: click an enemy army on the map to see its strength and where it's marching. If your army can reach it this year, attack it in the open field, leading the battle yourself or leaving it to your generals.",
