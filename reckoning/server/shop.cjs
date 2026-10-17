@@ -81,7 +81,8 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
   });
 
   // ---- a checkout: the key made first, and carried by the payment ----
-  async function checkout(claim = null) {
+  const cleanUser = u => String(u || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 32);
+  async function checkout(claim = null, user = "") {
     const key = mintKey(), site = SITE();
     const s = await stripe("POST", "/v1/checkout/sessions", {
       mode: "payment",
@@ -94,7 +95,7 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
       allow_promotion_codes: "true",
       ...(cfg("STRIPE_TAX") === "1" ? { automatic_tax: { enabled: "true" } } : {}),
     });
-    book.keys[key] = { s: s.id, at: Date.now(), paid: false, checked: 0, insts: [] };
+    book.keys[key] = { s: s.id, at: Date.now(), paid: false, checked: 0, insts: [], ...(cleanUser(user) ? { user: cleanUser(user) } : {}) };
     book.sessions[s.id] = key;
     if (claim) book.claims[claim] = { key, at: Date.now() };
     // (tickets nobody came back for, after a day: forgotten)
@@ -119,7 +120,7 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
       r.revoked = !!(ch && typeof ch === "object" && (ch.refunded || ch.disputed));
       if (s.customer_details && s.customer_details.email) r.email = s.customer_details.email;
       // (for the sales counter: what was paid, in what, and when — and the buyer's country, nothing more)
-      if (r.paid) { r.amt = s.amount_total | 0; r.cur = s.currency || ""; r.paidAt ||= was ? (s.created || 0) * 1000 : Date.now(); r.cc = (s.customer_details && s.customer_details.address && s.customer_details.address.country) || r.cc || ""; }
+      if (r.paid) { r.amt = s.amount_total | 0; r.cur = s.currency || ""; r.paidAt ||= was ? (s.created || 0) * 1000 : Date.now(); const ad = (s.customer_details && s.customer_details.address) || {}; r.cc = ad.country || r.cc || ""; r.region = ad.state || r.region || ""; r.city = ad.city || r.city || ""; }
       if (r.paid && !was) log(`shop: paid — ${key.slice(0, 8)}…`);
       if (s.status === "expired" && !r.paid) r.expired = true;
       save();
@@ -186,11 +187,13 @@ Keep this email. If you ever lose your key or need a hand, just reply to it.
 
   // ---- the keys, as the game asks after them (answered in the shape Lemon Squeezy's licence API uses, which the game
   //      already understands) ----
-  async function licence(op, key, inst, name) {
+  async function licence(op, key, inst, name, user = "") {
     key = String(key || "").trim().toUpperCase();
     if (!KEY_RX.test(key)) return null;
     const r = book.keys[key];
     if (!r) return { activated: false, valid: false, error: "license_key not found" };
+    // (a key bought on the website: whose it is, learned when it's first put into the game)
+    if (op === "activate" && cleanUser(user) && !r.user) { r.user = cleanUser(user); save(); }
     const good = await paid(key, op === "activate" && !r.paid);
     if (r.revoked) return { activated: false, valid: false, error: "license_key disabled" };
     if (!good) return { activated: false, valid: false, error: r.expired ? "license_key not found" : "payment not finished yet" };
@@ -239,7 +242,7 @@ button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8
       sold: L.filter(r => !r.revoked).length, refunded: L.filter(r => r.revoked).length, gross, net,
       today: L.filter(r => !r.revoked && when(r) >= day).length, week: L.filter(r => !r.revoked && when(r) >= week).length,
       opened: all.length, live: isLive(), on: isOn(),
-      last: L.sort((a, b) => when(b) - when(a)).slice(0, 12).map(r => ({ at: when(r), amt: r.amt ?? null, cur: (r.cur || "").toUpperCase(), cc: r.cc || "", refunded: !!r.revoked })),
+      last: L.sort((a, b) => when(b) - when(a)).slice(0, 12).map(r => ({ at: when(r), amt: r.amt ?? null, cur: (r.cur || "").toUpperCase(), cc: r.cc || "", region: r.region || "", city: r.city || "", user: r.user || "", used: (r.insts || []).length, refunded: !!r.revoked })),
       now: Date.now(),
     };
   }
@@ -256,7 +259,7 @@ button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8
     try {
       if (p === "/shop/start") {
         if (tooMany(req, "s", 8, 600000)) return json(res, 429, { error: "too many" }), true;
-        const claim = crypto.randomBytes(18).toString("hex"), s = await checkout(claim);
+        const claim = crypto.randomBytes(18).toString("hex"), s = await checkout(claim, u.searchParams.get("u"));
         return json(res, 200, { url: s.url, claim }), true;
       }
       if (p === "/shop/buy") {

@@ -53,7 +53,7 @@ export const licence = () => read();
 async function ask(op, params) {
   const form = new URLSearchParams(params).toString();
   const direct = async () => { const r = await fetch(`https://api.lemonsqueezy.com/v1/licenses/${op}`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: form }); return r.json(); };
-  const relayed = async () => { const q = new URLSearchParams({ op, key: params.license_key, inst: params.instance_id || "", name: params.instance_name || "" }); const r = await fetch(`${SHOP.server}/licence?${q}`); return r.json(); };
+  const relayed = async () => { const q = new URLSearchParams({ op, key: params.license_key, inst: params.instance_id || "", name: params.instance_name || "", user: userName() }); const r = await fetch(`${SHOP.server}/licence?${q}`); return r.json(); };
   // (the shop's own keys: only the server knows them)
   if (/^FR-/i.test(params.license_key)) return await relayed();
   try { return await direct(); } catch (e) { return await relayed(); }
@@ -62,11 +62,13 @@ async function ask(op, params) {
 // ---- buying it from inside the game: Stripe's checkout opened in the browser, and the game watching for the payment ----
 // (the ticket is kept, so a game closed while its buyer pays still unlocks when it's opened again)
 const CLAIM = "reckoning.shop.claim";
+// (the name the player goes by online, if they've chosen one: told to the shop with a purchase, so its keeper knows who bought)
+const userName = () => { try { return (localStorage.getItem("reckoning.mp.user") || "").slice(0, 32); } catch (e) { return ""; } };
 export async function startPurchase() {
   // (in a browser, the tab opened at the click — before the wait for the server — or it'd be taken for a pop-up; the app
   //  opens the checkout in the real browser instead, and has no tab to open here)
   let tab = null; try { tab = window.open("", "_blank"); } catch (e) {}
-  const r = await fetch(`${SHOP.server}/shop/start`).then(r => r.json()).catch(() => null);
+  const u = userName(), r = await fetch(`${SHOP.server}/shop/start${u ? `?u=${encodeURIComponent(u)}` : ""}`).then(r => r.json()).catch(() => null);
   if (!r || !r.url) { try { tab && tab.close(); } catch (e) {} return { ok: false, why: "Couldn't reach the shop. Are you online? Try again in a moment." }; }
   try { localStorage.setItem(CLAIM, JSON.stringify({ c: r.claim, at: Date.now() })); } catch (e) {}
   if (tab && !tab.closed) tab.location.href = r.url; else window.open(r.url, "_blank");

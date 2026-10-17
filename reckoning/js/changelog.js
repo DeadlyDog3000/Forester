@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.59.4", date: "17 October 2026", title: "Who bought it",
+    items: [
+      "Buying the game from inside it, or unlocking it with a key bought on the website, tells the shop the name you go by online, if you've chosen one. Nothing else about you is sent.",
+    ],
+  },
+  {
     v: "1.59.3", date: "17 October 2026", title: "Assaults you can start",
     items: [
       "Campaign: an army that marches up to an enemy town's walls can assault it the same year. Before, the march used up the year, and the Attack buttons didn't appear until the next.",
