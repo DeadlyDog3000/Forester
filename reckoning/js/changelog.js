@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.56.3", date: "16 October 2026", title: "Veterans to the front",
+    items: [
+      "Campaign: the muster before a battle shows each arm's experience, so you can see which of your regiments are veterans when you choose who takes the field.",
+    ],
+  },
+  {
     v: "1.56.2", date: "16 October 2026", title: "Armies at a glance",
     items: [
       "Campaign map: hover over an army, yours or an enemy's, to see its strength, its general and what it's doing. An enemy army within your reach says so.",
