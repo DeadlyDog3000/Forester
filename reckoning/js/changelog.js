@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.3", date: "16 October 2026", title: "Wars that make sense",
+    items: [
+      "Campaign: a crown fighting several wars has its armies divided among them. The Sultan can't bring his whole army to Vienna, Kraków and Venice at once. Allies fighting the same enemy now count in each other's battles, so the Holy League fights as a league. The Ottomans no longer roll across Europe unopposed, and wars swing both ways.",
+      "Campaign: a crown's own seat holds out longest. It falls only on a second good day, unless it's nearly all the crown has left.",
+      "Campaign: allies only join wars they can reach. Denmark won't sail off to fight the Haudenosaunee.",
+      "Campaign map: an army standing in a town is drawn just below it, so the town isn't hidden.",
+      "Words: \"the Papal States' side\", not \"the Papal States's\".",
+    ],
+  },
+  {
     v: "1.51.2", date: "16 October 2026", title: "Worlds: sites that stay put, sheds that fill, buildings that line up",
     items: [
       "Worlds: building sites no longer vanish. Swinging your axe near one of your own sites, say at a tree beside it, used to take the site down and leave its logs on the ground. Now a site only comes down on purpose: look at it and press X twice.",

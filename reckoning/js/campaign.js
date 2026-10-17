@@ -81,6 +81,8 @@ const sliceOf = id => id === C.me ? C : (C.H && C.H[id]) || null;
 const foeArmy = id => isHuman(id) ? (sliceOf(id) || {}).army || 0 : C.foes[id] || 0;
 const setFoeArmy = (id, v) => { if (isHuman(id)) { const s2 = sliceOf(id); if (s2) s2.army = v; } else C.foes[id] = v; };
 // (a verb after a crown's name: a people takes the plural — "the Cherokee march", not "marches")
+// (a name's possessive: "the Papal States'", not "States's")
+const poss = n => /s$/.test(n) ? n + "'" : n + "'s";
 const v3 = (id, v) => !(NATIONS[id] && NATIONS[id].people) || (C && C.mp && C.mp.names[id]) ? v : v === "has" ? "have" : v === "is" ? "are" : v === "marches" ? "march" : v.replace(/s$/, "");
 const nameOf = id => (C.mp && C.mp.names[id]) || The(id);
 
@@ -278,6 +280,10 @@ function inReach(g, ct, by = C.me) {
   return best === ct;
 }
 const alive = (g, id) => citiesOfNow(g, id).length > 0;
+// (which side of the Atlantic a crown has towns on; an ally only comes into a war it can get to — Denmark doesn't
+//  march on the Iroquois)
+const sidesOf = id => new Set(citiesOfNow(grid(), id).map(ct => ct[1] < -42));
+const sameSide = (a, b) => { const A = sidesOf(a); return [...sidesOf(b)].some(x => A.has(x)); };
 // ---- the armies on the map: where each stands, in squares of the map (some ten kilometres each), and how far it gets in
 //  a year's campaigning. Yours goes where you send it; a town is only marched on from within a year's march of it ----
 const MARCH = 35;
@@ -381,7 +387,7 @@ function realmWorld(g, ids) {
   // (the other crowns: guns cast, a few a decade; their generals ageing, and new men in their place)
   for (const id of ids) {
     if (!NATIONS[id].nw && (C.fguns[id] | 0) < NATIONS[id].strength && R() < 0.12 + NATIONS[id].strength * 0.03) C.fguns[id] = (C.fguns[id] | 0) + 1;
-    const fg = C.foeGen[id]; if (fg) { fg.served = (fg.served | 0) + 1; if (fg.served >= GEN_SERVICE) { C.foeGen[id] = newMan(id, "general"); if ((C.mp ? humans() : [C.me]).some(h => as(h, () => atWar(id)))) sayAll(`${fg.name} dies`, `${The(id)}'s general, of old age. ${C.foeGen[id].name} takes his place.`); } }
+    const fg = C.foeGen[id]; if (fg) { fg.served = (fg.served | 0) + 1; if (fg.served >= GEN_SERVICE) { C.foeGen[id] = newMan(id, "general"); if ((C.mp ? humans() : [C.me]).some(h => as(h, () => atWar(id)))) sayAll(`${fg.name} dies`, `${poss(The(id))} general, of old age. ${C.foeGen[id].name} takes his place.`); } }
   }
 }
 // ---- and for each player: the levies in, the learning done, the years told on their men ----
@@ -428,7 +434,7 @@ function settle(o, won, myLossK, theirLossK) {
     if (won) { seize(o.ct, C.me); C.took[o.foe] = (C.took[o.foe] || 0) + 1; for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === o.foe ? 8 : 2; say(`${name} is yours`, `Taken from ${the(o.foe)}.`); }
     else say(`Beaten before ${name}`, `Your army falls back with what it has left: ${C.army} regiments.`);
   } else {
-    if (won) { say(`${name} holds`, `${The(o.foe)}'s army is thrown back.`); if (!isHuman(o.foe) && C.foePos && C.foePos[o.foe]) { const h = homeOf(grid(), o.foe); if (h) { const b = stepToward(cellXY(o.ct), h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } } strikeBack(o.foe); }
+    if (won) { say(`${name} holds`, `${poss(The(o.foe))} army is thrown back.`); if (!isHuman(o.foe) && C.foePos && C.foePos[o.foe]) { const h = homeOf(grid(), o.foe); if (h) { const b = stepToward(cellXY(o.ct), h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } } strikeBack(o.foe); }
     else { seize(o.ct, o.foe); C.lost[o.foe] = (C.lost[o.foe] || 0) + 1; say(`${name} has fallen`, `${The(o.foe)} ${v3(o.foe, "takes")} it.`); if (C.govs) delete C.govs[name]; }
   }
   // (where your army ends up: in the town it took, or fallen back toward home from the one it couldn't)
@@ -439,7 +445,7 @@ function settle(o, won, myLossK, theirLossK) {
   moraleMove(won ? (o.attack ? 12 : 8) : -16);
   // (the generals' fate: in a lost battle one may fall; even in a won one, now and then)
   if (C.gen && R() < (won ? 0.05 : 0.25)) { moraleMove(-10); say(`${C.gen.name} falls at ${name}`, "Killed at the head of his men. Choose who will lead your army now."); C.gen = null; needGeneral(); }
-  const fg = !isHuman(o.foe) && C.foeGen && C.foeGen[o.foe]; if (fg && R() < (won ? 0.2 : 0.04)) { say(`${fg.name} falls at ${name}`, `${The(o.foe)}'s general is dead. ${(C.foeGen[o.foe] = newMan(o.foe, "general")).name} takes his place.`); }
+  const fg = !isHuman(o.foe) && C.foeGen && C.foeGen[o.foe]; if (fg && R() < (won ? 0.2 : 0.04)) { say(`${fg.name} falls at ${name}`, `${poss(The(o.foe))} general is dead. ${(C.foeGen[o.foe] = newMan(o.foe, "general")).name} takes his place.`); }
   // (and guns lost in a defeat, left on the field)
   if (!won && C.guns > 0 && R() < 0.6) C.guns--;
   checkEnd();
@@ -448,7 +454,7 @@ function settle(o, won, myLossK, theirLossK) {
 function strikeBack(foe) {
   const g = grid(), t = citiesOfNow(g, foe).filter(ct => inMarch(ct)).sort((a, b) => b[3] - a[3])[0];
   if (!t || C.moved || C.army < 5) return;
-  selCity = t; sel = foe; note = `${The(foe)}'s army is beaten back and weakened. Strike back while it's down: ${t[0]} is within your reach.`;
+  selCity = t; sel = foe; note = `${poss(The(foe))} army is beaten back and weakened. Strike back while it's down: ${t[0]} is within your reach.`;
 }
 function auto(o) {
   const mine = cmdMul(C.gen) * moraleK(), theirs = cmdMul(genOf(o.foe)), p = odds(o.att * (o.attack ? mine : theirs), o.def * (o.attack ? theirs : mine), o.walls && !o.breach), attWins = R() < p, won = o.attack ? attWins : !attWins;
@@ -477,7 +483,7 @@ function fight(o) {
   const fg = genOf(o.foe), theirBrave = fg ? 1 + (fg.st[1] - 3) * 0.06 : 1, foeGuns = isHuman(o.foe) ? as(o.foe, () => C.guns | 0) : (C.fguns[o.foe] | 0);
   const b = {
     id: "cmp-" + ct[0], campaign: true, name: o.convoy ? `The road to ${ct[0]}` : ct[0], date: `${SEASONS[s]} ${C.year}`, year: C.year, lon: ct[1], lat: ct[2],
-    at: o.convoy ? `${The(o.foe)} ${v3(o.foe, "falls")} on your supply train to ${ct[0]}` : o.attack ? `You march on ${the(o.foe)}'s town` : `${The(o.foe)} ${v3(o.foe, "marches")} on your town`,
+    at: o.convoy ? `${The(o.foe)} ${v3(o.foe, "falls")} on your supply train to ${ct[0]}` : o.attack ? `You march on ${poss(the(o.foe))} town` : `${The(o.foe)} ${v3(o.foe, "marches")} on your town`,
     hour: hourR < 0.1 ? "night" : hourR < 0.35 ? "morning" : hourR < 0.8 ? "afternoon" : "evening",
     cloud: s === 3 ? 0.7 : s === 2 ? 0.5 : s === 0 ? 0.35 : 0.1, mist: s === 2 ? 0.3 : s === 3 ? 0.25 : 0,
     fort: null, won: undefined, you: 0,
@@ -497,7 +503,7 @@ function musterFor(o) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att, theirMen = clamp(Math.round(10 + theirs / 2.2), 10, 48);
   musterScreen({
     title: o.convoy ? `Escort the supply train to ${o.ct[0]}` : o.attack ? `March on ${o.ct[0]}` : `Hold ${o.ct[0]}`, regs: mine,
-    foe: o.convoy ? `${The(o.foe)}'s raiders, about ${theirMen}, most of them horse, are out to take or burn your ${o.carts} wagons.` : `${The(o.foe)} can field about ${theirMen}${o.walls ? (o.attack ? ", behind their walls" : "; your walls are with you") : ""}.`,
+    foe: o.convoy ? `${poss(The(o.foe))} raiders, about ${theirMen}, most of them horse, are out to take or burn your ${o.carts} wagons.` : `${The(o.foe)} can field about ${theirMen}${o.walls ? (o.attack ? ", behind their walls" : "; your walls are with you") : ""}.`,
     onGo: P => fight({ ...o, pick: P }), guns: C.guns | 0,
     // (a march you've ordered, called off before the battle: the army stays in camp, free to march again this year)
     onCancel: o.attack && !o.convoy ? () => doAct({ k: "calloff" }) : null,
@@ -594,7 +600,7 @@ function convoyEnd(o, won, myLossK) {
     say(`The supply train reaches ${o.ct[0]}`, `Powder, bread and ${fresh} regiments of fresh men come into the siege lines.${lost ? ` ${lost} lost on the road.` : ""}`);
   } else {
     moraleMove(-6); setFoeArmy(o.foe, foeArmy(o.foe) + 3);
-    say(`The supply train is taken`, `${The(o.foe)}'s raiders fall on it on the road to ${o.ct[0]}: the wagons burned or carried off, ${lost} regiments of the escort lost.`);
+    say(`The supply train is taken`, `${poss(The(o.foe))} raiders fall on it on the road to ${o.ct[0]}: the wagons burned or carried off, ${lost} regiments of the escort lost.`);
   }
 }
 function siegeYear(g) {
@@ -658,7 +664,7 @@ function declare(id, by) {
   C.E.war[id] = true; C.warT[id] = 0; C.E.pact[id] = false; C.ally[id] = false;
   C.E.rel[id] = Math.min(C.E.rel[id], -40);
   // (your allies: into it with you, against them)
-  for (const a of Object.keys(C.ally)) if (C.ally[a] && a !== id && !isHuman(a) && C.E.rel[a] >= 30 && !C.E.wars.some(w => (w.a === a && w.b === id) || (w.a === id && w.b === a))) { C.E.wars.push({ a, b: id, battles: 0, withYou: true }); say(`${The(a)} ${v3(a, "joins")} your war`, `Your ally marches on ${the(id)}.`); }
+  for (const a of Object.keys(C.ally)) if (C.ally[a] && a !== id && !isHuman(a) && C.E.rel[a] >= 30 && sameSide(a, id) && !C.E.wars.some(w => (w.a === a && w.b === id) || (w.a === id && w.b === a))) { C.E.wars.push({ a, b: id, battles: 0, withYou: true }); say(`${The(a)} ${v3(a, "joins")} your war`, `Your ally marches on ${the(id)}.`); }
   if (by !== C.me) say(`${The(id)} ${v3(id, "declares")} war on you!`, `Their army: some ${C.foes[id]} regiments.`);
 }
 function makePeace(id) { C.E.war[id] = false; C.truce[id] = 6; C.E.rel[id] = Math.max(C.E.rel[id] + 15, -20); C.E.wars = C.E.wars.filter(w => !(w.withYou && (w.a === id || w.b === id))); say(`Peace with ${the(id)}`, "A treaty is signed. Neither side may make war for six seasons."); }
@@ -714,7 +720,7 @@ function endSeason(part = {}) {
     // its army on the road: there this year if it's near enough, else a year's march nearer — seen coming
     const fp = foeArmyPos(id), tc = cellXY(ct);
     if (fp && overSea(fp, tc)) { C.foePos[id] = { x: tc.x, y: tc.y }; C.foeGo[id] = ct[0]; say(`${The(id)} ${v3(id, "ships")} an army over the Atlantic`, `Some ${C.foes[id]} regiments, bound for ${ct[0]}. They'll be at its walls next year.`); continue; }
-    if (fp && dist2(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${The(id)}'s army marches toward ${ct[0]}`, `Some ${C.foes[id]} regiments, a year's march off. They'll be at its walls next year.`); continue; }
+    if (fp && dist2(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${poss(The(id))} army marches toward ${ct[0]}`, `Some ${C.foes[id]} regiments, a year's march off. They'll be at its walls next year.`); continue; }
     if (fp) C.foePos[id] = { x: tc.x, y: tc.y }; delete C.foeGo[id];
     const att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
     // (your army comes to its help only if it's near)
@@ -744,17 +750,25 @@ function crownsWar(g, ids) {
     if (nb.length) {
       const b = pick(nb); W.push({ a, b, battles: 0 }); sayAll(`${The(a)} and ${the(b)} are at war`);
       // (and the attacked crown's league comes in on its side — one or two of them, as treaties were kept)
-      for (const x of alliesOf(b).filter(x => x !== a && x !== C.me && !isHuman(x) && alive(g, x) && !leagueOf(x, a) && !W.some(w => (w.a === x && w.b === a) || (w.a === a && w.b === x))).slice(0, 2)) if (R() < 0.6) { W.push({ a: x, b: a, battles: 0 }); sayAll(`${The(x)} ${v3(x, "comes")} in on ${the(b)}'s side`, `Against ${the(a)}, as its league binds it.`); }
+      for (const x of alliesOf(b).filter(x => x !== a && x !== C.me && !isHuman(x) && alive(g, x) && !leagueOf(x, a) && sameSide(x, a) && !W.some(w => (w.a === x && w.b === a) || (w.a === a && w.b === x))).slice(0, 2)) if (R() < 0.6) { W.push({ a: x, b: a, battles: 0 }); sayAll(`${The(x)} ${v3(x, "comes")} in on ${poss(the(b))} side`, `Against ${the(a)}, as its league binds it.`); }
     }
   }
   for (const w of W.slice()) {
     if (!alive(grid(), w.a) || !alive(grid(), w.b)) { W.splice(W.indexOf(w), 1); continue; }
     if (R() > 0.45) continue;
-    const sa = C.foes[w.a] + NATIONS[w.a].strength * 4, sb = C.foes[w.b] + NATIONS[w.b].strength * 4, aWins = R() < sa / (sa + sb);
+    // (each side with the help of its allies fighting the same enemy — the Holy League's armies at Vienna, not the
+    //  Emperor's alone — a part of their strength, as they can spare it)
+    // (and a crown with several wars on its hands has its armies divided among them: the Sultan's can't be at Vienna,
+    //  Kraków and Venice at once with the whole of them)
+    const fronts = id => Math.max(1, W.filter(v => v.a === id || v.b === id).length);
+    const pow = id => ((C.foes[id] || 0) + NATIONS[id].strength * 4) / Math.pow(fronts(id), 0.5);
+    const help = (x, foe) => W.filter(v => v !== w && ((v.a === foe && v.b !== x) || (v.b === foe && v.a !== x))).map(v => v.a === foe ? v.b : v.a).filter(y => NATIONS[y] && !isHuman(y) && (leagueOf(x, y) || C.ally[y] && x === C.me)).reduce((t, y) => t + pow(y) * 0.4, 0);
+    const sa = pow(w.a) + help(w.a, w.b), sb = pow(w.b) + help(w.b, w.a), aWins = R() < sa / (sa + sb);
     const win = aWins ? w.a : w.b, lose = aWins ? w.b : w.a, gg = grid();
     const target = citiesOfNow(gg, lose).filter(ct => distFrom(gg, win, ct) <= REACH && (!hasWalls(ct, lose, gg) || (C.fguns[win] | 0) > 0));
     C.foes[lose] = Math.max(0, C.foes[lose] - 3 - Math.floor(R() * 4)); C.foes[win] = Math.max(0, C.foes[win] - 1 - Math.floor(R() * 2));
-    if (target.length) { const ct = pick(target); seize(ct, win); if (ct[3] >= 2 || w.withYou) sayAll(`${The(win)} ${v3(win, "takes")} ${ct[0]} from ${the(lose)}`); }
+    // (a crown's own seat holds out longest: taken only on a second good day, unless it's nearly all the crown has left)
+    if (target.length) { const ct = pick(target); if (ct[3] === 3 && citiesOfNow(gg, lose).length > 3 && R() < 0.6) { w.battles++; continue; } seize(ct, win); if (ct[3] >= 2 || w.withYou) sayAll(`${The(win)} ${v3(win, "takes")} ${ct[0]} from ${the(lose)}`); }
     w.battles++;
     if (!w.withYou && w.battles >= 3 && R() < 0.3) { W.splice(W.indexOf(w), 1); sayAll(`${The(w.a)} and ${the(w.b)} make peace`); }
   }
@@ -999,7 +1013,7 @@ function paint() {
   // ---- the armies: a regiment's block under its colour, how many regiments, and where it's marching ----
   const scr = p => [(p.x * S - view.ox) * view.z, (p.y * S - view.oy) * view.z];
   const army = (p, id, n, mine, go) => {
-    const [x, y] = scr(p); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return;
+    const [x, y0] = scr(p), y = y0 + townNudge(p, armyU(k)); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return;
     const col = NATIONS[id].color, u = armyU(k);
     if (go) {
       // (the road it's on: dashed to where it's going, an arrowhead there)
@@ -1037,9 +1051,11 @@ function paint() {
   c.restore();
 }
 let armySel = false;
+// (an army standing in a town: drawn just below it, so the town's own mark isn't hidden under it)
+const townNudge = (p, u) => CITIES.some(ct => { const t = cellXY(ct); return Math.hypot(t.x - p.x, t.y - p.y) < 2.5; }) ? 17 * u : 0;
 const armyU = k => k * Math.min(2.7, 1.45 + view.z / ZF() * 0.26);
 // (your army under the pointer: within a little of its block on the map)
-function armyHit(cv, px, py) { if (!C) return false; const S = cv.width / MG_W, p = armyPos(), x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z; const u = armyU(cv.width / 1300); return Math.hypot(px - x, py - y - 3 * u) < 16 * u; }
+function armyHit(cv, px, py) { if (!C) return false; const S = cv.width / MG_W, p = armyPos(), u = armyU(cv.width / 1300), x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z + townNudge(p, u); return Math.hypot(px - x, py - y - 3 * u) < 16 * u; }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
   const cv = $("cmpMap"); W0();
@@ -1303,7 +1319,7 @@ function apply(actor, a) {
       const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05;
       settle({ ...P, ct }, a.won, k, t);
       // (a player's town taken from their garrison: told to them)
-      if (isHuman(P.foe) && P.attack) as(P.foe, () => say(a.won ? `${P.ct} has fallen` : `${P.ct} holds`, a.won ? `${nameOf(actor)} ${v3(actor, "takes")} it from its garrison.` : `${nameOf(actor)}'s attack is thrown back by the garrison.`));
+      if (isHuman(P.foe) && P.attack) as(P.foe, () => say(a.won ? `${P.ct} has fallen` : `${P.ct} holds`, a.won ? `${nameOf(actor)} ${v3(actor, "takes")} it from its garrison.` : `${poss(nameOf(actor))} attack is thrown back by the garrison.`));
       persist(); return { sfx: a.won ? [["bell", 0.45, 1800]] : [] };
     }
     // a town's work for the year: a building's next level, or a gun cast — paid now, done at the year's end
@@ -1376,7 +1392,7 @@ function humanMarch(actor, o, how) {
   const name = o.ct[0];
   if (how !== "fight") {
     const w = auto(o);
-    as(o.foe, () => say(w ? `${name} has fallen` : `${name} holds`, w ? `${nameOf(actor)}'s generals take it.` : `${nameOf(actor)}'s army is thrown back.`));
+    as(o.foe, () => say(w ? `${name} has fallen` : `${name} holds`, w ? `${poss(nameOf(actor))} generals take it.` : `${poss(nameOf(actor))} army is thrown back.`));
     tell(o.foe, { note: w ? `${nameOf(actor)} ${v3(actor, "has")} taken ${name}!` : `${name} held against ${nameOf(actor)}.`, sfx: [["guns", 0.6]] }); persist();
     return { note: w ? `${name} is yours.` : `The attack on ${name} failed.`, sfx: [["drum", 0.55], ["guns", 0.6, 900], ...(w ? [["bell", 0.45, 2300]] : [])] };
   }
@@ -1405,7 +1421,7 @@ function meetGo() {
   if (D.uniform === A.uniform) D.uniform = A.uniform === "imperial" ? "bavarian" : "imperial";
   M.menA = A.allies; M.menD = D.allies;
   const hostC = humans()[0];
-  const at = { name: ct[0], lon: ct[1], lat: ct[2], date: `${SEASONS[C.s]} ${C.year}`, at: `${nameOf(attacker)} ${v3(attacker, "marches")} on ${nameOf(defender)}'s town` };
+  const at = { name: ct[0], lon: ct[1], lat: ct[2], date: `${SEASONS[C.s]} ${C.year}`, at: `${nameOf(attacker)} ${v3(attacker, "marches")} on ${poss(nameOf(defender))} town` };
   for (const crown of [attacker, defender]) tell(crown, { meet: { key, side: crown === hostC ? 0 : 1, foe: crown === attacker ? defender : attacker, army: crown === attacker ? A : D, theirs: crown === attacker ? D : A, ct: att.ct, at } });
   persist();
 }
