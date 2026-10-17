@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.1", date: "17 October 2026", title: "Friend from foe at sea",
+    items: [
+      "Battles at sea: every ship carries a small label in her side's colour, \"Your frigate\" or \"French ship of the line\", so friend and foe can be told apart across the water. A ship's label turns to struck, sinking or sunk when she's out of the fight.",
+      "Your flagship, sailed far out of the fight with nobody at the helm, is brought about by her sailing master and headed back toward the battle.",
+    ],
+  },
+  {
     v: "1.60.0", date: "17 October 2026", title: "Battles in the field between players",
     items: [
       "Campaign for two: at war, fall on the other player's army in the open field, wherever it stands within a year's march. Click their army for its strength and the Attack buttons, or right-click it.",

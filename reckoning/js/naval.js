@@ -73,7 +73,7 @@ function puffTex() {
 // ---- a ship ----
 class Ship {
   constructor(B, team, k, hp, x, z, yaw, color, name) {
-    const S = SHIPS[k]; this.B = B; this.team = team; this.k = k; this.S = S; this.name = name;
+    const S = SHIPS[k]; this.B = B; this.team = team; this.k = k; this.S = S; this.name = name; this.color = color;
     this.maxHull = S.hull; this.hull = S.hull * clamp(hp ?? 1, 0.15, 1); this.crew = S.crew * clamp(0.5 + (hp ?? 1) * 0.5, 0.3, 1); this.rig = 1;
     this.x = x; this.z = z; this.yaw = yaw; this.spd = S.speed * 0.5; this.trim = 1; this.rudder = 0;
     this.reload = [S.reload * Math.random() * 0.5, S.reload * Math.random() * 0.5]; this.sink = 0; this.sunk = false; this.struck = false; this.heelK = 0; this.recoil = 0;
@@ -95,14 +95,16 @@ class Ship {
     return rel <= 90 ? 0.8 + 0.2 * rel / 90 : rel <= 140 ? 1 - (rel - 90) / 50 * 0.55 : Math.max(0.06, 0.45 - (rel - 140) / 40 * 0.4);
   }
   // (a word over a ship that's out of the fight, seen across the water: struck, and taken; sinking; sunk, over the wreck)
-  tag(word, color) {
+  tag(word, color, quiet = false) {
     if (this.tagWord === word) return; this.tagWord = word;
     const cv = document.createElement("canvas"); cv.width = 640; cv.height = 80; const c = cv.getContext("2d");
     c.font = "bold 34px Georgia, serif"; const w = Math.min(624, c.measureText(word).width + 44), x0 = (640 - w) / 2;
-    c.fillStyle = "rgba(12,18,22,0.8)"; c.beginPath(); c.roundRect(x0, 10, w, 60, 10); c.fill(); c.strokeStyle = color; c.lineWidth = 3; c.stroke();
+    c.fillStyle = quiet ? "rgba(12,18,22,0.55)" : "rgba(12,18,22,0.8)"; c.beginPath(); c.roundRect(x0, 10, w, 60, 10); c.fill(); c.strokeStyle = color; c.lineWidth = quiet ? 2 : 3; if (!quiet) c.stroke(); else { c.beginPath(); c.moveTo(x0 + 14, 62); c.lineTo(x0 + w - 14, 62); c.stroke(); }
     c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = color; c.fillText(word, 320, 41, 600);
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
-    if (!this.tagS) { this.tagS = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false, fog: false })); this.tagS.scale.set(0.36, 0.045, 1); this.tagS.renderOrder = 9; this.B.scene.add(this.tagS); }
+    const sc = quiet ? [0.26, 0.0325] : [0.36, 0.045];
+    if (this.tagS) this.tagS.scale.set(sc[0], sc[1], 1);
+    if (!this.tagS) { this.tagS = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false, fog: false })); this.tagS.scale.set(sc[0], sc[1], 1); this.tagS.renderOrder = 9; this.B.scene.add(this.tagS); }
     else { this.tagS.material.map.dispose(); this.tagS.material.map = t; this.tagS.material.needsUpdate = true; }
   }
   update(dt, t) {
@@ -125,6 +127,10 @@ class Ship {
     if (this.pen) this.pen.rotation.y = Math.atan2(-this.B.windTo[1], this.B.windTo[0]) - this.yaw + Math.sin(t * 3 + this.x) * 0.15;
     // (struck: her colours down and a white flag in their place, her sails let fly, and the word over her)
     if (this.struck && !this.whiteFlag) { this.whiteFlag = true; if (this.flag) this.flag.material.color.set(0xf4f1e6); if (this.pen) this.pen.material.color.set(0xf4f1e6); this.trim = 0; }
+    // (every ship still fighting: whose she is and what, small, in her side's colour — the flagship marked as yours)
+    //  (the flagship herself, under the eye, needs none)
+    if (this.alive) this.tag(this.team ? `${enemyOf(this.name)} ${this.S.one.toLowerCase()}` : `Your ${this.S.one.toLowerCase()}`, this.team ? "#9cc0ea" : "#f0b49e", true);
+    if (this.tagS) this.tagS.visible = !(this.alive && this === this.B.flag);
     if (this.struck && this.hull > 0) this.tag(`${this.team ? "Enemy" : "Your"} ${this.S.one.toLowerCase()} · struck${this.team ? ", a prize" : ""}`, "#f4f1e6");
   }
   // a broadside: side +1 her starboard, −1 her larboard. dist: how far to lay the guns for (elevation)
@@ -179,6 +185,9 @@ class Ship {
 }
 
 // ---- the battle ----
+// (the enemy's ships called by their crown: "French", "Danish" — or simply "Enemy")
+const ADJ = [[/engl/, "English"], [/fran/, "French"], [/castil|spain|spanish|aragon/, "Spanish"], [/dutch|holland/, "Dutch"], [/portug/, "Portuguese"], [/swed/, "Swedish"], [/denm|danish/, "Danish"], [/ottoman|turk/, "Turkish"], [/venic|venet/, "Venetian"], [/algi/, "Algerine"], [/tunis/, "Tunisian"], [/tripol/, "Tripolitan"], [/morocc/, "Moroccan"], [/naples|neapol/, "Neapolitan"], [/scot/, "Scottish"], [/brandenb/, "Brandenburg"]];
+const enemyOf = name => { const n = String(name || "").toLowerCase(), m = ADJ.find(([rx]) => rx.test(n)); return m ? m[1] : "Enemy"; };
 // opts: { title, mine: [{ k, hp }], theirs: [{ k, hp }], myColor, theirColor, myName, theirName, onEnd(result) }
 // result: { won, left, mine: [{ k, hp, sunk, struck }], theirs: [...] } — hp the hull left, 0..1
 export function navalBattle(opts) {
@@ -263,7 +272,13 @@ class Battle {
     this.t += dt;
     for (const tm of this.timers.splice(0)) if (tm.at <= this.t) tm.fn(); else this.timers.push(tm);
     const f = this.flag;
-    if (f && f.alive && this.started) { f.rudder = (this.keys.has("KeyA") ? 1 : 0) - (this.keys.has("KeyD") ? 1 : 0); }
+    if (f && f.alive && this.started) {
+      f.rudder = (this.keys.has("KeyA") ? 1 : 0) - (this.keys.has("KeyD") ? 1 : 0);
+      // (sailed far out of the fight: her sailing master brings her about, back toward it, unless you're steering)
+      const r = Math.hypot(f.x, f.z);
+      if (r > 1050 && !f.rudder) { const want = Math.atan2(-f.x, -f.z), d = Math.atan2(Math.sin(want - f.yaw), Math.cos(want - f.yaw)); f.rudder = Math.max(-1, Math.min(1, d * 2.2)); if (!this.toldFar) { this.toldFar = true; this.note("Your sailing master brings her about: the battle lies astern"); } }
+      else if (r < 900) this.toldFar = false;
+    }
     for (const s of this.ships) { if (s !== f || !f.alive) { if (this.started) s.think(dt); } else if (this.started) s.gunnery(); s.update(dt, this.t); }
     // (ships that run aboard one another: pushed apart, and the worse for it)
     for (let i = 0; i < this.ships.length; i++) for (let j = i + 1; j < this.ships.length; j++) {
