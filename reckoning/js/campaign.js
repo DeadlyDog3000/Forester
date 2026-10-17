@@ -1118,7 +1118,8 @@ const popOf = ct => { C.pop ||= {}; return C.pop[ct[0]] ??= popBase(ct); };
 // (the fewest a town can be left with by the recruiting sergeants: the men to bring the harvest in)
 const popFloor = ct => Math.round(popBase(ct) * 0.3);
 // (the crown's taxes: light, fair or heavy — more for the treasury the heavier, and the people slower to grow)
-const TAX = [{ n: "Light", k: 0.75, g: 0.008 }, { n: "Fair", k: 1, g: 0 }, { n: "Heavy", k: 1.25, g: -0.01 }];
+// (the fourth, a town's alone: exempt — nothing to the treasury, and its people the gladder for it)
+const TAX = [{ n: "Light", k: 0.75, g: 0.008 }, { n: "Fair", k: 1, g: 0 }, { n: "Heavy", k: 1.25, g: -0.01 }, { n: "Exempt", k: 0, g: 0.012 }];
 // (a town of yours: its own rate, if you've set one, else the realm's)
 const taxAt = ct => { const t = C.ttax && C.ttax[ct[0]]; return t != null ? t : C.tax ?? 1; };
 const taxOf = id => { const s2 = id && (id === C.me || isHuman(id)) ? sliceOf(id) : null; return TAX[s2 && s2.tax != null ? s2.tax : 1]; };
@@ -1312,7 +1313,7 @@ const peopleOf = ct => { W0(); ORIG_G ||= buildGrid({ conq: [] }); return cityOw
 const FAITH_WORD = { catholic: "Catholic", reformed: "Reformed", lutheran: "Lutheran", orthodox: "Orthodox", muslim: "Muslim", native: "their own" };
 function loyalty(ct) {
   const n = ct[0], t = taxAt(ct), v = govOf(n), out = [["Your rule", 1]];
-  if (t === 2) out.push(["Heavy taxes", -2]); else if (t === 0) out.push(["Light taxes", 1]);
+  if (t === 3) out.push(["Exempt from taxes", 2]); else if (t === 2) out.push(["Heavy taxes", -2]); else if (t === 0) out.push(["Light taxes", 1]);
   if (ct[3] === 3) out.push(["A great city's crowds", -1]);
   const gar = Math.min(2, garUnits(n).length); if (gar) out.push([`Garrison of ${garUnits(n).length}`, gar]);
   if (lvOf(n, "church")) out.push(["The church", 1]);
@@ -1339,7 +1340,7 @@ function loyaltyHtml(ct) {
   const L = loyalty(ct), o = L.reduce((t, [, v]) => t + v, 0);
   return `<div class="cmp-loyal"><span>Loyalty: <b class="${o < 0 ? "down" : ""}">${orderWord(o)}</b> <em>${o > 0 ? "+" : ""}${o}</em>${o < 0 ? " · it may riot at the year's end, and a town that riots two years running rises" : ""}</span>
     <ul>${L.map(([k, v]) => `<li class="${v < 0 ? "down" : "up"}"><i>${v > 0 ? "+" : ""}${v}</i>${esc(k)}</li>`).join("")}</ul>
-    ${cityOwner(grid(), ct) === C.me ? `<div class="cmp-ttax"><small>Taxes here${C.ttax && C.ttax[ct[0]] != null ? "" : " (the realm's)"}:</small>${TAX.map((x, i) => `<button class="btn${i === taxAt(ct) ? " on" : ""}" data-ttax="${i}"${i === taxAt(ct) ? " disabled" : ""} title="${i === 0 ? "Content, and growing faster; three quarters of its worth to the treasury" : i === 2 ? "A quarter more for the treasury; slower to grow, and restless (−2 loyalty)" : "Its worth in full"}">${x.n}</button>`).join("")}</div>` : ""}</div>`;
+    ${cityOwner(grid(), ct) === C.me ? `<div class="cmp-ttax"><small>Taxes here${C.ttax && C.ttax[ct[0]] != null ? "" : " (the realm's)"}:</small>${TAX.map((x, i) => `<button class="btn${i === taxAt(ct) ? " on" : ""}" data-ttax="${i}"${i === taxAt(ct) ? " disabled" : ""} title="${i === 0 ? "Content, and growing faster; three quarters of its worth to the treasury (+1 loyalty)" : i === 2 ? "A quarter more for the treasury; slower to grow, and restless (−2 loyalty)" : i === 3 ? "Nothing to the treasury from it; its people grateful (+2 loyalty), and growing faster" : "Its worth in full"}">${x.n}</button>`).join("")}</div>` : ""}</div>`;
 }
 const orderWord = o => o >= 2 ? "Content" : o >= 0 ? "Quiet" : o === -1 ? "Restless" : "Close to rising";
 function riots(g) {
@@ -1349,7 +1350,7 @@ function riots(g) {
     // (a second year of riots in a row: the town rises)
     if ((C.riotN[ct[0]] = (C.riotN[ct[0]] || 0) + 1) >= 2 && !C.events.some(e => !e.done && e.kind === "rising" && e.ct === ct[0])) { C.riotN[ct[0]] = 0; C.events.push({ kind: "rising", ct: ct[0], att: Math.round(popOf(ct) / 4000) + 3 }); }
     const w = Math.round(worth(ct) * TAX[taxAt(ct)].k); C.gold -= w; C.pop[ct[0]] = Math.round(popOf(ct) * 0.97);
-    say(`Riots in ${ct[0]}`, `${taxAt(ct) === 2 ? "The heavy taxes" : "The crowds"} drive its people into the streets. The town pays none of its ${w} thalers this year${garUnits(ct[0]).length ? "" : "; a regiment in its garrison would keep order"}.`);
+    say(`Riots in ${ct[0]}`, `${taxAt(ct) === 2 ? "The heavy taxes" : "The crowds"} drive its people into the streets. The town pays ${w ? `none of its ${w} thalers` : "nothing"} this year${garUnits(ct[0]).length ? "" : "; a regiment in its garrison would keep order"}.`);
   }
 }
 // (the army's thin regiments filled up again from your towns: fast at home, slowly abroad, hardly at all in a siege)
@@ -2413,7 +2414,7 @@ function drawSide() {
     ${(C.lq || []).length ? `<small class="cmp-fine">Raising: ${C.lq.map(q => `${esc(TROOPS[q.k].one.toLowerCase())} at ${esc(q.t)}`).join(", ")}. They join the army at the year's end, or hold their towns if it's far off.</small>` : ""}
     <small class="cmp-fine">Regiments are raised in your towns: choose one on the map. Thin regiments fill their ranks again from your towns each year, fastest on your own land. Upkeep ${upkeep()} a year.</small>`, armySel);
   // (the taxes: three rates, the treasury against the people's growth)
-  { const t = C.tax ?? 1; h += `<div class="cmp-card cmp-tax"><span class="cmp-h"><b>Taxes</b><small>${TAX[t].n}: ${t === 0 ? "the towns grow faster and are content; the treasury takes three quarters" : t === 2 ? "a quarter more for the treasury; the towns slow to grow, and restless" : "the towns' worth in full"}${(() => { const r = citiesOfNow(grid(), C.me).filter(ct => orderOf(ct) < 0).length; return r ? ` · <em class="down">${r} town${r > 1 ? "s" : ""} may riot</em>` : ""; })()}${(() => { const n2 = Object.keys(C.ttax || {}).length; return n2 ? ` · ${n2} town${n2 > 1 ? "s" : ""} taxed apart (setting the realm's resets them)` : ""; })()} · <b>L</b> for the loyalty map</small></span><span class="cmp-taxb">${TAX.map((x, i) => `<button class="btn${i === t ? " on" : ""}" data-tax="${i}"${i === t ? " disabled" : ""}>${x.n}</button>`).join("")}</span></div>`; }
+  { const t = C.tax ?? 1; h += `<div class="cmp-card cmp-tax"><span class="cmp-h"><b>Taxes</b><small>${TAX[t].n}: ${t === 0 ? "the towns grow faster and are content; the treasury takes three quarters" : t === 2 ? "a quarter more for the treasury; the towns slow to grow, and restless" : "the towns' worth in full"}${(() => { const r = citiesOfNow(grid(), C.me).filter(ct => orderOf(ct) < 0).length; return r ? ` · <em class="down">${r} town${r > 1 ? "s" : ""} may riot</em>` : ""; })()}${(() => { const n2 = Object.keys(C.ttax || {}).length; return n2 ? ` · ${n2} town${n2 > 1 ? "s" : ""} taxed apart (setting the realm's resets them, but not the exempt)` : ""; })()} · <b>L</b> for the loyalty map</small></span><span class="cmp-taxb">${TAX.slice(0, 3).map((x, i) => `<button class="btn${i === t ? " on" : ""}" data-tax="${i}"${i === t ? " disabled" : ""}>${x.n}</button>`).join("")}</span></div>`; }
   // (every town of yours that can raise regiments this year, in one list: a little picture of each kind to raise there)
   { const g2 = grid(), towns = citiesOfNow(g2, C.me).sort((a, b) => b[3] - a[3] || popOf(b) - popOf(a)), free = towns.reduce((t, ct) => t + Math.max(0, slotsOf(ct) - raising(ct[0]).length), 0);
     h += fold("recruit", `<span class="cmp-h"><b>Your towns</b><small>${towns.length} town${towns.length === 1 ? "" : "s"} · ${free} regiment${free === 1 ? "" : "s"} can still be raised this year</small></span>`, `<div class="cmp-rtowns">${towns.map(ct => { const n = ct[0], q = raising(n), sl = slotsOf(ct);
@@ -2563,8 +2564,8 @@ function apply(actor, a) {
     if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4]] }; }
     if (a.k === "askgen") { askGeneral(); return {}; }
     if (a.k === "station") { const why = station(a.t, a.u, !!a.out); return why ? { note: why } : { sfx: [["drum", 0.3]] }; }
-    if (a.k === "ttax") { const ct = city(a.t); if (!ct || cityOwner(g, ct) !== C.me) return null; const v = clamp(a.v | 0, 0, 2); C.ttax ||= {}; if (v === (C.tax ?? 1)) delete C.ttax[ct[0]]; else C.ttax[ct[0]] = v; persist(); return { sfx: [["coin", 0.35]] }; }
-    if (a.k === "tax") { C.tax = clamp(a.v | 0, 0, 2); C.ttax = {}; persist(); return { sfx: [["coin", 0.35]] }; }
+    if (a.k === "ttax") { const ct = city(a.t); if (!ct || cityOwner(g, ct) !== C.me) return null; const v = clamp(a.v | 0, 0, 3); C.ttax ||= {}; if (v === (C.tax ?? 1)) delete C.ttax[ct[0]]; else C.ttax[ct[0]] = v; persist(); return { sfx: [["coin", 0.35]] }; }
+    if (a.k === "tax") { C.tax = clamp(a.v | 0, 0, 2); C.ttax = Object.fromEntries(Object.entries(C.ttax || {}).filter(([, v]) => v === 3)); persist(); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "disband") { const t = disband(a.u); if (t == null) return null; return { note: `A regiment of ${TROOPS[a.u].name.toLowerCase()} is disbanded${t ? `, its men sent home to ${t}` : ""}.`, sfx: [["drum", 0.3]] }; }
     if (a.k === "unrecruit") { unrecruit(a.t); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "dip") {

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.75.3", date: "17 October 2026", title: "Exempt",
+    items: [
+      "Campaign: exempt a town from taxes. A town's tax buttons now have a fourth, Exempt: it pays the treasury nothing, its people are grateful (+2 loyalty), and it grows a little faster. Use it on a restless or newly conquered town until it settles. Exemptions stay when you change the realm's taxes.",
+    ],
+  },
+  {
     v: "1.75.2", date: "17 October 2026", title: "Your own ships",
     items: [
       "Campaign: no more hired shipping. An army can't be sent over the water (the Atlantic, the Channel, to an island) for thalers any more; it goes only aboard a fleet of your own. Bring the fleet to the shore where the army stands, embark it, sail over and land. Sending it across the water anyway tells you so.",
