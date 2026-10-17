@@ -366,12 +366,20 @@ function armyPos() { if (!C.pos || !isFinite(C.pos.x)) C.pos = homeOf(grid(), C.
 // (across the Atlantic it's no march: the army takes ship, and the crossing — some two months at sea, with the waiting
 //  for a fleet and a wind — is the year's campaigning; it lands where it was sent)
 const seaSide = p => llOf(p.x, p.y)[0] < -42;
-const overSea = (p, t) => seaSide(p) !== seaSide(t);
+// (and any water between: Britain from the Continent, Ireland, Sicily, Scandinavia's islands — no land road joins them,
+//  so the army takes ship; an army in hand is never walked over the sea)
+const overSea = (p, t) => { if (seaSide(p) !== seaSide(t)) return true; const g = grid(), a = landOf(g, p), b = landOf(g, t); return a >= 0 && b >= 0 && a !== b; };
 const VOYAGE = 120;
 // (the New World is drawn larger than Europe — 1.45 times, west of 50°W — so a year's march there covers more squares)
 const magAt = p => { const lon = llOf(p.x, p.y)[0]; return lon <= -50 ? 1.45 : lon >= -20 ? 1 : 1 + 0.45 * (-20 - lon) / 30; };
 const mdist = (p, q) => dist2(p, q) / magAt({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
-function stepToward(p, t, d) { if (overSea(p, t)) return { x: t.x, y: t.y, arrived: true, sea: true }; d *= magAt({ x: (p.x + t.x) / 2, y: (p.y + t.y) / 2 }); const L = dist2(p, t); return L <= d ? { x: t.x, y: t.y, arrived: true } : { x: p.x + (t.x - p.x) / L * d, y: p.y + (t.y - p.y) / L * d, arrived: false }; }
+function stepToward(p, t, d) {
+  if (overSea(p, t)) return { x: t.x, y: t.y, arrived: true, sea: true };
+  // (by the road over land, round any water in the way; a year's march along it)
+  const P = landPath(grid(), p, t) || [p, t]; let left = d;
+  for (let i = 1; i < P.length; i++) { const s = mdist(P[i - 1], P[i]); if (s >= left) { const k = left / s, q = { x: P[i - 1].x + (P[i].x - P[i - 1].x) * k, y: P[i - 1].y + (P[i].y - P[i - 1].y) * k }; return i === P.length - 1 && s - left < 0.01 ? { x: P[i].x, y: P[i].y, arrived: true } : { ...q, arrived: false }; } left -= s; }
+  const e = P[P.length - 1]; return { x: e.x, y: e.y, arrived: true };
+}
 const inMarch = ct => mdist(armyPos(), cellXY(ct)) <= MARCH + 0.5;
 const yearsTo = t => overSea(armyPos(), t) ? 1 : Math.max(1, Math.ceil(mdist(armyPos(), t) / MARCH));
 // (the other crowns' field armies: at their capital, or on the march toward a town of yours)
@@ -679,6 +687,49 @@ function seaPath0(g, a, b) {
   while (h < n) { const i = q[h++]; if (i === ti) break; const x = i % W, y = (i / W) | 0; for (const [dx, dy] of N8) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const j = ny * W + nx; if (prev[j] !== -1 || !oc[j]) continue; prev[j] = i; q[n++] = j; } }
   if (prev[ti] === -1) return null;
   const path = []; for (let i = ti; ; i = prev[i]) { path.push({ x: i % W + 0.5, y: ((i / W) | 0) + 0.5 }); if (i === si) break; } return path.reverse();
+}
+// ---- the roads over land: an army goes round a bay or a lake, never across it ----
+// (each land mass, labelled: the Continent one, Britain another, each island its own)
+let LANDS = null, LANDS_G = null;
+function landsOf(g) {
+  // (the land never changes, whoever holds it: worked out once for the sheet)
+  if (LANDS && LANDS_G === g.length * g[0].length) return LANDS;
+  const W = g[0].length, H = g.length, lab = new Int32Array(W * H).fill(-1), q = new Int32Array(W * H); let id = 0;
+  for (let s0 = 0; s0 < W * H; s0++) {
+    if (lab[s0] >= 0 || g[(s0 / W) | 0][s0 % W] === null) continue; let h = 0, n = 0; q[n++] = s0; lab[s0] = id;
+    while (h < n) { const i = q[h++], x = i % W, y = (i / W) | 0; for (const [dx, dy] of N8) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const j = ny * W + nx; if (lab[j] >= 0 || g[ny][nx] === null) continue; lab[j] = id; q[n++] = j; } }
+    id++;
+  }
+  LANDS_G = W * H; LANDS = lab; return lab;
+}
+// (the land a point is on — or, standing off a shore, the nearest land to it; −1 out at sea)
+function landOf(g, p) { const L = landsOf(g), W = g[0].length, x = Math.floor(p.x), y = Math.floor(p.y); if (y >= 0 && y < g.length && x >= 0 && x < W && L[y * W + x] >= 0) return L[y * W + x]; const q = landNear(g, p, 4); return q ? L[Math.floor(q.y) * W + Math.floor(q.x)] : -1; }
+const ROADS = new Map();
+function landPath(g, a, b) {
+  const key = `${Math.floor(a.x)},${Math.floor(a.y)}|${Math.floor(b.x)},${Math.floor(b.y)}|${g.length}`;
+  if (ROADS.has(key)) return ROADS.get(key);
+  const p = landPath0(g, a, b); if (ROADS.size > 400) ROADS.clear(); ROADS.set(key, p); return p;
+}
+function landPath0(g, a, b) {
+  const W = g[0].length, H = g.length, dry = (x, y) => y >= 0 && y < H && x >= 0 && x < W && g[y][x] !== null;
+  const s0 = dry(Math.floor(a.x), Math.floor(a.y)) ? a : landNear(g, a, 4), t0 = dry(Math.floor(b.x), Math.floor(b.y)) ? b : landNear(g, b, 6); if (!s0 || !t0) return null;
+  const si = Math.floor(s0.y) * W + Math.floor(s0.x), ti = Math.floor(t0.y) * W + Math.floor(t0.x);
+  const prev = new Int32Array(W * H).fill(-1), q = new Int32Array(W * H); let h = 0, n = 0; q[n++] = si; prev[si] = si;
+  while (h < n) { const i = q[h++]; if (i === ti) break; const x = i % W, y = (i / W) | 0; for (const [dx, dy] of N8) { const nx = x + dx, ny = y + dy; if (!dry(nx, ny)) continue; const j = ny * W + nx; if (prev[j] !== -1) continue; prev[j] = i; q[n++] = j; } }
+  if (prev[ti] === -1) return null;
+  const cells = []; for (let i = ti; ; i = prev[i]) { cells.push({ x: i % W + 0.5, y: ((i / W) | 0) + 0.5 }); if (i === si) break; } cells.reverse();
+  // (the square-by-square way drawn straight wherever the land allows: only the turns round the water kept)
+  const clear = (p, q2) => { const k = Math.ceil(Math.hypot(q2.x - p.x, q2.y - p.y) * 2); for (let i = 1; i < k; i++) if (!dry(Math.floor(p.x + (q2.x - p.x) * i / k), Math.floor(p.y + (q2.y - p.y) * i / k))) return false; return true; };
+  const out = [{ x: a.x, y: a.y }]; let i = 0;
+  while (i < cells.length - 1) { let j = Math.min(cells.length - 1, i + 80); while (j > i + 1 && !clear(out[out.length - 1], cells[j])) j--; out.push(cells[j]); i = j; }
+  const end = out[out.length - 1]; if (dry(Math.floor(b.x), Math.floor(b.y)) && clear(end, b)) out[out.length - 1] = { x: b.x, y: b.y };
+  return out;
+}
+// (a point along a way, so far along its length — a fraction of it — with the way it faces there)
+function alongPts(P, f) {
+  let L = 0; for (let i = 1; i < P.length; i++) L += Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y);
+  let d = f * L; for (let i = 1; i < P.length; i++) { const s = Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y); if (d <= s || i === P.length - 1) { const k = s ? Math.min(1, d / s) : 1; return { x: P[i - 1].x + (P[i].x - P[i - 1].x) * k, y: P[i - 1].y + (P[i].y - P[i - 1].y) * k, a: Math.atan2(P[i].y - P[i - 1].y, P[i].x - P[i - 1].x) }; } d -= s; }
+  return { x: P[0].x, y: P[0].y, a: 0 };
 }
 // (as far along it as a year's sailing goes: the New World drawn larger, as for marches)
 function sailAlong(path, range = SAIL) { let d = 0, i = 1; for (; i < path.length; i++) { const st = dist2(path[i - 1], path[i]) / magAt(path[i]); if (d + st > range) break; d += st; } return { at: path[i - 1], arrived: i >= path.length, len: path.reduce((t, p, j) => j ? t + dist2(path[j - 1], p) / magAt(p) : 0, 0) }; }
@@ -1868,7 +1919,7 @@ function paint() {
     // (an army somewhere new since it was last drawn — marched there on your order, or the enemy's at the year's end:
     //  its mark seen going there, drawn over the map on its way — see marchLoop — and not here till it arrives)
     const now = performance.now();
-    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 220) { marchAnims = marchAnims.filter(A => A.key !== key); marchAnims.push({ key, from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, id, n, mine, t0: now, dur: 1400 + Math.min(1800, d * 45) }); } }
+    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 220) { marchAnims = marchAnims.filter(A => A.key !== key); const pts = !overSea(was, p) && landPath(grid(), was, p); marchAnims.push({ key, from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, pts: pts && pts.length > 2 ? pts : null, id, n, mine, t0: now, dur: 1400 + Math.min(1800, d * 45) }); } }
       lastArmyAt[key] = { x: p.x, y: p.y }; }
     const [x, y0] = scr(p), y = y0 + townNudge(p, armyU(k)); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return;
     const u = armyU(k);
@@ -1876,7 +1927,7 @@ function paint() {
       // (the road it's on: dashed to where it's going, an arrowhead there)
       const [gx, gy] = scr(go), a = Math.atan2(gy - y, gx - x);
       c.save(); c.strokeStyle = mine ? "rgba(40,28,16,0.85)" : "rgba(150,30,20,0.9)"; c.lineWidth = 2.2 * u; c.setLineDash([7 * u, 5 * u]);
-      c.beginPath(); c.moveTo(x, y); c.lineTo(gx, gy); c.stroke(); c.setLineDash([]);
+      const R2 = !overSea(p, go) && landPath(grid(), p, go); c.beginPath(); c.moveTo(x, y); if (R2 && R2.length > 2) for (const q of R2.slice(1, -1)) c.lineTo(...scr(q)); c.lineTo(gx, gy); c.stroke(); c.setLineDash([]);
       c.fillStyle = c.strokeStyle; c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx - Math.cos(a - 0.45) * 11 * u, gy - Math.sin(a - 0.45) * 11 * u); c.lineTo(gx - Math.cos(a + 0.45) * 11 * u, gy - Math.sin(a + 0.45) * 11 * u); c.fill(); c.restore();
     }
     // (on its way here: drawn moving, over the map, till it's arrived)
@@ -1905,7 +1956,7 @@ function paint() {
   const shipMark = (p, col, n, mine, sel, go, cargo, key) => {
     // (a fleet somewhere new since it was last drawn: seen sailing there, over the map, and drawn here once it's in)
     const now = performance.now();
-    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 400) { marchAnims = marchAnims.filter(A => A.key !== key); marchAnims.push({ key, fleet: true, from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, col, n, mine, cargo, t0: now, dur: 1400 + Math.min(2200, d * 30) }); } } lastArmyAt[key] = { x: p.x, y: p.y }; }
+    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 400) { marchAnims = marchAnims.filter(A => A.key !== key); marchAnims.push({ key, fleet: true, pts: (sp => sp && sp.length > 2 ? sp : null)(seaPath(grid(), was, p)), from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, col, n, mine, cargo, t0: now, dur: 1400 + Math.min(2200, d * 30) }); } } lastArmyAt[key] = { x: p.x, y: p.y }; }
     const [x, y] = scr(p); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return; const u = armyU(k);
     if (go) { const [gx, gy] = scr(go); c.save(); c.strokeStyle = mine ? "rgba(30,50,70,0.8)" : "rgba(150,30,20,0.8)"; c.lineWidth = 1.8 * u; c.setLineDash([2 * u, 4 * u]); c.beginPath(); c.moveTo(x, y); c.lineTo(gx, gy); c.stroke(); c.restore(); }
     if (marchAnims.some(A => A.key === key && now - A.t0 < A.dur)) return;
@@ -2033,6 +2084,8 @@ function marchLoop(now) {
   const V = marchView, sc = (p, nudge) => [(p.x * V.S - V.ox) * V.z, (p.y * V.S - V.oy) * V.z + (nudge ? townNudge(p, V.u) : 0)];
   for (const A of marchAnims) {
     const [fx, fy] = sc(A.from, !A.fleet), [tx, ty] = sc(A.to, !A.fleet), q = Math.min(1, (now - A.t0) / A.dur), e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+    // (by its road, round the water — or, for a ship, round the land)
+    if (A.pts) { const q2 = alongPts(A.pts, e), [qx, qy] = sc(q2, !A.fleet); if (A.fleet) fleetMark(c, qx, qy, A.col, A.n, A.mine, false, A.cargo, V.u); else armyMark(c, qx, qy, q2.a + Math.PI / 2, A.id, A.n, A.mine, false, V.u); continue; }
     if (A.fleet) fleetMark(c, fx + (tx - fx) * e, fy + (ty - fy) * e, A.col, A.n, A.mine, false, A.cargo, V.u);
     else armyMark(c, fx + (tx - fx) * e, fy + (ty - fy) * e, Math.atan2(ty - fy, tx - fx) + Math.PI / 2, A.id, A.n, A.mine, false, V.u);
   }
@@ -2512,17 +2565,20 @@ function apply(actor, a) {
       C.joinTo = null;
       if (C.siege) return { note: `Your army is sitting down before ${C.siege.ct}: lift the siege first.` };
       if (C.moved) return { note: "Your army has already marched this year." };
-      W0(); const t = { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }; if (!isFinite(t.x) || !isFinite(t.y)) return null;
+      W0(); let t = { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }; if (!isFinite(t.x) || !isFinite(t.y)) return null;
+      // (sent out onto the water: to the shore nearest it — an army doesn't march on the sea)
+      { const g0 = grid(), x0 = Math.floor(t.x), y0 = Math.floor(t.y); if (g0[y0] && g0[y0][x0] === null) { const sh = landNear(g0, t, 8); if (!sh) return { note: "That's the open sea. To cross it, embark the army on a fleet of yours, or send it to land on the far side and it takes ship." }; t = sh; } }
       { const bar = barredBy(armyPos(), t, overSea(armyPos(), t)); if (bar.length) return { note: barNote(bar) }; }
       // (over the sea: shipping for the regiments, paid for before they sail)
       if (overSea(armyPos(), t)) {
-        if (C.gold < VOYAGE) return { note: `Shipping the army over the Atlantic costs ${VOYAGE} thalers. The treasury hasn't got it.` };
+        const ocean = seaSide(armyPos()) !== seaSide(t);
+        if (C.gold < VOYAGE) return { note: `Shipping the army over the ${ocean ? "Atlantic" : "water"} costs ${VOYAGE} thalers. The treasury hasn't got it.` };
         C.gold -= VOYAGE; C.pos = { x: t.x, y: t.y }; C.go = null; C.moved = true; C.sailed = C.year;
         // (hired merchantmen, unescorted: an enemy fleet at sea may fall on them)
         const hunter = Object.keys(C.foeFleets || {}).find(id => atWar(id) && C.foeFleets[id].ships.length && R() < 0.12 + C.foeFleets[id].ships.length * 0.04);
         if (hunter) { const n0 = C.army; wearUnits(C.army * 0.3); persist(); say(`${poss(The(hunter))} fleet falls on your transports`, `Hired merchantmen, unescorted: ${n0 - C.army} regiments lost before the rest get ashore. Ships of your own would have protected them.`); return { note: C.log[0].title + ".", sfx: [["guns", 0.5]] }; }
         persist();
-        return { note: `The army takes ship for the other side of the Atlantic: ${VOYAGE} thalers for the hired shipping. It lands where you sent it, and can march again next year. Ships of your own carry it free, and guard it.`, sfx: [["bell", 0.4]] };
+        return { note: `The army takes ship for ${ocean ? "the other side of the Atlantic" : "the far shore"}: ${VOYAGE} thalers for the hired shipping. It lands where you sent it, and can march again next year. Ships of your own carry it free, and guard it.`, sfx: [["bell", 0.4]] };
       }
       const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; persist();
       return { note: st.arrived ? "Your army marches, and is there by the year's end." : `Your army is on the march: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there.`, sfx: [["drum", 0.45]] };

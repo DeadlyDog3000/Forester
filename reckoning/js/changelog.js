@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.74.1", date: "17 October 2026", title: "No more walking on water",
+    items: [
+      "Campaign: armies march by land, round bays, lakes and seas, not straight across them. The dashed road shows the way they'll go, and the army's mark follows it as it marches; a fleet's follows its course round the coasts.",
+      "Where no road joins two places (Britain and the Continent, Ireland, Sicily, the Danish islands), the army takes ship, as it does over the Atlantic: hired shipping for 120 thalers, or free aboard a fleet of your own.",
+      "An army sent out onto the water marches to the nearest shore instead; out in the open sea, it's told to take ship.",
+    ],
+  },
+  {
     v: "1.74.0", date: "17 October 2026", title: "Learning you can see",
     items: [
       "Campaign: what you learn changes your battles. Until your crown has studied the socket bayonet, your musketeers and grenadiers can't fix bayonets (F tells you so), and fight hand to hand with the blade alone. Linear tactics makes them load and fire 15% faster. Without field artillery, only one gun follows your army into a battle in the open field; sieges and town fights still get them all.",
