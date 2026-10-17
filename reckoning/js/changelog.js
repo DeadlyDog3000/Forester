@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.6", date: "16 October 2026", title: "Colonial wars",
+    items: [
+      "Campaign: a crown's field army can only come to a town's help if it's on the same side of the Atlantic. Québec is held by its garrison and New France's own few companies while France's army is in Europe, so the colonies can be fought for. The town card says how many could come.",
+      "The crown picker now reads Europe and the New World in 1683.",
+    ],
+  },
+  {
     v: "1.51.5", date: "16 October 2026", title: "The nations of the north",
     items: [
       "The Anishinaabe, Cree and Dakota now look like themselves in the field: long hair parted and braided, a feather at the back, black paint across the eyes, and buckskin leggings. The roach and red paint are for the Eastern nations.",
