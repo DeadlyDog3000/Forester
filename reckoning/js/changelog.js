@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.75.1", date: "17 October 2026", title: "Beaten armies stay beaten",
+    items: [
+      "Campaign: an army you beat loses far more than the men you killed. A rout costs it its wounded left on the field, the men taken prisoner and the men who ran and never came back: at least two fifths of what it brought to the fight, more the more you killed. Won by your generals, the same.",
+      "A crown beaten in the field or before your walls finds new men only half as fast for the next two years, so its army can't simply be made up again at once.",
+    ],
+  },
+  {
     v: "1.75.0", date: "17 October 2026", title: "A man at their court",
     items: [
       "Campaign: you no longer know how big another crown's army is. Its mark on the map shows a question mark instead of a count; clicking it or hovering it says its size is unknown; their card says army ?; and the odds of attacking it can't be reckoned. The news of their marches and wars leaves the number out too.",

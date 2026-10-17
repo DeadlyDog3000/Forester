@@ -559,6 +559,7 @@ function settle(o, won, myLossK, theirLossK) {
   // (the regiments that fought: the wiser for it — the more so for a victory)
   for (const u of C.units || []) if ((!away || u.at === o.ct[0]) && (!o.pick || (o.pick.men && o.pick.men[u.k]))) u.xp = Math.min(3, (u.xp || 0) + (won ? 0.6 : 0.3) * (o.pick ? 1 : 0.6));
   setFoeArmy(o.foe, Math.max(0, Math.round(foeArmy(o.foe) - Math.max(0, theirs - garrison(o.ct)) * theirLossK)));
+  if (won && !isHuman(o.foe)) (C.foeBeat ||= {})[o.foe] = C.year;
   const name = o.ct[0];
   if (o.attack) {
     if (won) { seize(o.ct, C.me); C.took[o.foe] = (C.took[o.foe] || 0) + 1; for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === o.foe ? 8 : 2; say(`${name} is yours`, `Taken from ${the(o.foe)}.`); }
@@ -927,11 +928,15 @@ function canField(id) {
 const nearTown = p => CITIES.reduce((b, ct) => { const d = dist2(cellXY(ct), p); return !b || d < b[1] ? [ct, d] : b; }, null)[0];
 function fieldOf(id) { const fp = foeArmyPos(id); return { attack: true, field: true, foe: id, ct: nearTown(fp), att: C.army, def: Math.max(3, Math.round((C.foes[id] | 0) * 0.85)), walls: false, at: { x: fp.x, y: fp.y } }; }
 // the field battle decided: the losses both ways; the beaten army thrown back, its march broken
+// (what a battle costs the side you fought: its dead and more — beaten, the wounded it leaves on the field, the men taken
+//  prisoner and the men who ran and never came back: two fifths of it at the least)
+function routLoss(a) { const t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05; return a.won ? Math.min(0.85, Math.max(0.4, t + 0.2)) : t; }
 function fieldEnd(o, won, myLossK, theirLossK) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att;
   const broken = wearUnits(mine * myLossK, o.pick) || {};
   for (const u of field()) if (!o.pick || (o.pick.men && o.pick.men[u.k])) u.xp = Math.min(3, (u.xp || 0) + (won ? 0.6 : 0.3) * (o.pick ? 1 : 0.6));
   C.foes[o.foe] = Math.max(0, Math.round((C.foes[o.foe] | 0) - theirs * theirLossK - (won ? theirs * 0.06 : 0)));
+  if (won) (C.foeBeat ||= {})[o.foe] = C.year;
   const near = o.ct[0], h = homeOf(grid(), o.foe), fp = foeArmyPos(o.foe); C.moved = true; C.go = null;
   if (won) {
     if (h && fp) { const b = stepToward(fp, h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } if (C.foeGo) delete C.foeGo[o.foe];
@@ -956,7 +961,7 @@ function musterFor(o) {
     onCancel: o.attack && !o.convoy ? () => doAct({ k: "calloff" }) : null,
     onAuto: C.mp ? null : () => {
       // (the generals fight it instead — as if you'd left it to them from the first)
-      C.pending = null; if (o.field) { const w = R() < odds((o.attack ? o.att : o.def) * cmdMul(C.gen) * moraleK() * (1 + vetK()), (o.attack ? o.def : o.att) * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.35 : 0.12); persist(); note = C.log.find(l => /field/.test(l.title)).title + "."; sfx("guns", 0.5); drawMap(); return; } if (o.convoy) { convoyEnd(o, R() < odds(o.def * cmdMul(C.gen) * moraleK(), o.att, false), 0.15, 0.2); persist(); drawMap(); return; } const won = auto(o); persist();
+      C.pending = null; if (o.field) { const w = R() < odds((o.attack ? o.att : o.def) * cmdMul(C.gen) * moraleK() * (1 + vetK()), (o.attack ? o.def : o.att) * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12); persist(); note = C.log.find(l => /field/.test(l.title)).title + "."; sfx("guns", 0.5); drawMap(); return; } if (o.convoy) { convoyEnd(o, R() < odds(o.def * cmdMul(C.gen) * moraleK(), o.att, false), 0.15, 0.2); persist(); drawMap(); return; } const won = auto(o); persist();
       note = won ? (o.attack ? `${o.ct[0]} is yours.` : `${o.ct[0]} holds.`) : (o.attack ? `The attack on ${o.ct[0]} failed.` : `${o.ct[0]} has fallen.`);
       sfx("guns", 0.5); if (won) sfx("bell", 0.4, 1600); drawMap();
     },
@@ -1445,7 +1450,9 @@ function endSeason(part = {}) {
   for (const id of ids) {
     // (as many regiments as its people can keep: a crown that loses its great cities loses the men to fill its ranks)
     const folk = citiesOfNow(g, id).reduce((t, ct) => t + popOf(ct), 0), cap = NATIONS[id].nw ? NATIONS[id].strength * 11 + Math.round(folk / 5000) + 6 : NATIONS[id].strength * 17 + Math.round(folk / 9000) + 8;
-    if (world) C.foes[id] = Math.min(Math.max(cap, C.foes[id] || 0), (C.foes[id] || 0) + Math.max(1, Math.round(NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0))));
+    // (a crown beaten in the field these two years past finds the men slower: half as fast)
+    const beat = C.foeBeat && C.foeBeat[id] != null && C.year - C.foeBeat[id] < 2 ? 0.5 : 1;
+    if (world) C.foes[id] = Math.min(Math.max(cap, C.foes[id] || 0), (C.foes[id] || 0) + Math.max(1, Math.round((NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0)) * beat)));
     if (!mine) continue;
     const home = (NATION_FAITH[id] === NATION_FAITH[C.me] ? 18 : 0) + (C.E.pact[id] ? 15 : 0) + (C.ally[id] ? 25 : 0) - (atWar(id) ? 40 : 0);
     C.E.rel[id] += Math.sign(home - C.E.rel[id]) * Math.min(2, Math.abs(home - C.E.rel[id]));
@@ -2526,7 +2533,7 @@ function apply(actor, a) {
       if (!canField(a.foe)) return { note: "Your army can't reach that army this year." };
       const o = fieldOf(a.foe);
       if (a.how === "fight") { C.moved = true; C.pending = { ...o, ct: o.ct[0], ar: C.ar | 0 }; persist(); return { sfx: [["drum", 0.55]], fight: { ...o, ct: o.ct[0] } }; }
-      const w = R() < odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.35 : 0.12); persist();
+      const w = R() < odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12); persist();
       return { note: C.log.find(l => /field/.test(l.title)).title + ".", sfx: [["drum", 0.55], ["guns", 0.6, 900], ...(w ? [["bell", 0.45, 2300]] : [])] };
     }
     if (a.k === "usearmy") { if (!armyIds().includes(a.id | 0)) return null; useArmy(a.id | 0); persist(); return {}; }
@@ -2655,7 +2662,7 @@ function apply(actor, a) {
         const ct = city(ev.ct), o = { attack: false, field: true, foe: ev.foe, ct, att: ev.att, def: C.army, walls: false };
         if (!ct || C.army < 1) return done({});
         if (a.how === "fight") { C.pending = { ...o, ct: ct[0], ar: C.ar | 0 }; return done({ sfx: [["drum", 0.55]], fight: { ...o, ct: ct[0] } }); }
-        const w = R() < odds(o.def * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.att * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.35 : 0.12);
+        const w = R() < odds(o.def * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.att * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12);
         return done({ note: C.log.find(l => /field/.test(l.title)).title + ".", sfx: [["guns", 0.6], ...(w ? [["bell", 0.45, 1800]] : [])] });
       }
       if (ev.kind === "attack") {
@@ -2680,10 +2687,10 @@ function apply(actor, a) {
       const ct = city(P.ct);
       // (a battle left from the pause menu: lost, and the news says so — on the battle's own line, not the broken regiments')
       const leftNote = re => { const l = C.log.find(l => re.test(l.title)); if (l) l.sub += " (You left the field.)"; };
-      if (P.field) { if (a.left) { fieldEnd({ ...P, ct }, false, 0.3, 0.05); leftNote(/^Beaten in the field/); persist(); return {}; } const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05; fieldEnd({ ...P, ct }, a.won, k, t); if (a.fled) leftNote(/^Beaten in the field/); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
+      if (P.field) { if (a.left) { fieldEnd({ ...P, ct }, false, 0.3, 0.05); leftNote(/^Beaten in the field/); persist(); return {}; } const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = routLoss(a); fieldEnd({ ...P, ct }, a.won, k, t); if (a.fled) leftNote(/^Beaten in the field/); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
       if (P.convoy) { const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.6 + 0.03; convoyEnd({ ...P, ct }, !a.left && a.won, k, 0); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
       if (a.left) { settle({ ...P, ct }, false, 0.3, 0.05); leftNote(/^(Beaten before|.* has fallen$)/); persist(); return {}; }
-      const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05;
+      const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = routLoss(a);
       settle({ ...P, ct }, a.won, k, t); if (a.fled) leftNote(/^(Beaten before|.* has fallen$)/);
       // (a player's town taken from their garrison: told to them)
       if (isHuman(P.foe) && P.attack) as(P.foe, () => say(a.won ? `${P.ct} has fallen` : `${P.ct} holds`, a.won ? `${nameOf(actor)} ${v3(actor, "takes")} it from its garrison.` : `${poss(nameOf(actor))} attack is thrown back by the garrison.`));
