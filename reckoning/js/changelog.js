@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.17", date: "16 October 2026", title: "The fur trade",
+    items: [
+      "Campaign: with a nation of the woods, a trade pact is the fur trade: beaver pelts down to your posts, and kettles, cloth and trade muskets up to their towns.",
+    ],
+  },
+  {
     v: "1.51.16", date: "16 October 2026", title: "Flags over the land",
     items: [
       "The land (3D map): your towns fly your colours on a staff, gold-edged, as on the map, instead of being ringed.",
