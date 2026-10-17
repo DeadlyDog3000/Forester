@@ -151,6 +151,12 @@ class Ship {
     const r = Math.hypot(this.x, this.z); if (r > 900) want = Math.atan2(-this.x, -this.z);
     this.rudder = clamp(wrap(want - this.yaw) * 2.2, -1, 1);
     this.trim = dist < 120 ? 0.65 : 1;
+    this.gunnery(foes);
+  }
+  // (her gun captains: a broadside loaded and an enemy on that beam, within range, and they fire — yours too, as you
+  //  steer; Q and E only give the word sooner, at longer range or a wider bearing)
+  gunnery(foes = this.B.ships.filter(s => s.team !== this.team && s.alive)) {
+    if (!this.alive) return;
     for (const side of [1, -1]) {
       const a = this.yaw - side * Math.PI / 2;
       for (const f of foes) { const fd = Math.hypot(f.x - this.x, f.z - this.z); if (fd < 300 && Math.abs(wrap(Math.atan2(f.x - this.x, f.z - this.z) - a)) < 0.26) { if (this.fire(side, fd)) break; } }
@@ -244,7 +250,7 @@ class Battle {
     for (const tm of this.timers.splice(0)) if (tm.at <= this.t) tm.fn(); else this.timers.push(tm);
     const f = this.flag;
     if (f && f.alive && this.started) { f.rudder = (this.keys.has("KeyA") ? 1 : 0) - (this.keys.has("KeyD") ? 1 : 0); }
-    for (const s of this.ships) { if (s !== f || !f.alive) { if (this.started) s.think(dt); } s.update(dt, this.t); }
+    for (const s of this.ships) { if (s !== f || !f.alive) { if (this.started) s.think(dt); } else if (this.started) s.gunnery(); s.update(dt, this.t); }
     // (ships that run aboard one another: pushed apart, and the worse for it)
     for (let i = 0; i < this.ships.length; i++) for (let j = i + 1; j < this.ships.length; j++) {
       const a = this.ships[i], b = this.ships[j]; if (a.sunk || b.sunk) continue; const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), min = (a.L + b.L) * 0.3;
@@ -299,8 +305,8 @@ class Battle {
     const o = this.o;
     this.el.insertAdjacentHTML("beforeend", `<div class="nv-top"><b>${o.title || "A battle at sea"}</b><span class="nv-wind"><i></i>Wind</span></div>
       <div class="nv-note"></div><div class="nv-me"></div><div class="nv-fleets"></div>
-      <div class="nv-keys"><b>W</b>/<b>S</b> make or shorten sail · <b>A</b>/<b>D</b> helm · <b>Q</b> larboard broadside · <b>E</b> starboard broadside · <b>Tab</b> change ship · <b>T</b> time · drag to look · <b>Esc</b> withdraw</div>
-      <div class="nv-intro"><div class="nv-box"><h2>${o.title || "A battle at sea"}</h2><p>${o.sub || ""}</p><p>You command from the ${this.flag ? this.flag.S.one.toLowerCase() : "flagship"}; your other captains fight their own ships. The wind is everything: no ship sails into it. Her guns are along her sides, so turn to bring a broadside to bear. Shot in the hull kills her crew and sinks her; a ship that loses her crew strikes her colours and is taken as a prize.</p><button class="btn primary" data-nv="go">Clear for action</button></div></div>`);
+      <div class="nv-keys"><b>W</b>/<b>S</b> make or shorten sail · <b>A</b>/<b>D</b> helm · your guns fire when an enemy is on the beam · <b>Q</b>/<b>E</b> fire larboard/starboard now · <b>Tab</b> change ship · <b>T</b> time · drag to look · <b>Esc</b> withdraw</div>
+      <div class="nv-intro"><div class="nv-box"><h2>${o.title || "A battle at sea"}</h2><p>${o.sub || ""}</p><p>You command from the ${this.flag ? this.flag.S.one.toLowerCase() : "flagship"}; your other captains fight their own ships. The wind is everything: no ship sails into it. Her guns are along her sides, so turn to bring a broadside to bear: her gun crews fire on their own as soon as an enemy is on the beam and in range, or give the word sooner with Q and E. Shot in the hull kills her crew and sinks her; a ship that loses her crew strikes her colours and is taken as a prize.</p><button class="btn primary" data-nv="go">Clear for action</button></div></div>`);
     this.el.addEventListener("click", e => { const b = e.target.closest("[data-nv]"); if (!b) return; const a = b.dataset.nv; if (a === "go") this.begin(); if (a === "stay") this.el.querySelector(".nv-ask")?.remove(); if (a === "leave") { this.el.querySelector(".nv-ask")?.remove(); this.end(false, true); } if (a === "done") this.close(); });
   }
   ask() { if (this.el.querySelector(".nv-ask")) return; this.el.insertAdjacentHTML("beforeend", `<div class="nv-ask"><div class="nv-box"><h2>Withdraw?</h2><p>Your ships break off and make what sail they can. The ones still fighting get away; the battle is lost.</p><button class="btn" data-nv="leave">Withdraw</button><button class="btn primary" data-nv="stay">Fight on</button></div></div>`); }

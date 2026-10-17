@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.59.1", date: "17 October 2026", title: "Your gun crews fire on their own",
+    items: [
+      "Battles at sea: your flagship's gun crews fire a broadside on their own whenever it's loaded and an enemy is on that beam within range, as your other captains' ships always did. Steer to bring the enemy abeam and the guns do the rest. Q and E still fire at once, at longer range or a wider bearing.",
+    ],
+  },
+  {
     v: "1.59.0", date: "16 October 2026", title: "Fleets on the lakes, and in sight",
     items: [
       "Campaign: the Great Lakes are sailable. A town on them has a dockyard for sloops and frigates, too small for ships of the line, and its ships keep to their lake. Huron, Michigan and Erie are joined by the straits of Mackinac and the Detroit river. Niagara's falls and the rapids keep Ontario and Superior apart, and keep all of them from the sea.",
