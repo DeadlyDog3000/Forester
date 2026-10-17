@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.8", date: "16 October 2026", title: "A word on what's new",
+    items: [
+      "Campaign: the first time you open a campaign after this update, a note tells you where the new recruiting, garrisons, armies and field battles are.",
+    ],
+  },
+  {
     v: "1.55.7", date: "16 October 2026", title: "Plates in the muster",
     items: [
       "Battles: raising a company for a battle shows each kind of soldier's plate beside it, dressed in the colours you've chosen: Ottoman colours give Janissaries and sipahis, Muscovite streltsy, Polish hajduks and hussars.",

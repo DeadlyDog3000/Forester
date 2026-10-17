@@ -1437,8 +1437,12 @@ function armyHit(cv, px, py) {
   if (at(armyPos())) return { id: C.ar | 0 };
   const o = (C.armies || []).find(a => a.pos && at({ x: a.pos.x + (armyOff[a.id] || 0), y: a.pos.y })); return o ? { id: o.id } : false;
 }
+// (once, for a campaign of before 1.52: what's new in it, where to find it)
+const TIPKEY = "reckoning.campaign.tip.1-55";
+function newsTip() { try { if (localStorage.getItem(TIPKEY)) return; localStorage.setItem(TIPKEY, "1"); } catch (e) { return; } if (!note) note = "New in the campaign: every town has its people, and regiments are raised in your towns, a kind at a time: choose a town to recruit, or use Your towns. Leave regiments to hold a town, form new armies from garrisons, and click an enemy army to fight it in the field."; }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
+  if (C) newsTip();
   const cv = $("cmpMap"); W0();
   // (the whole window covered: the map as wide as it, or as tall, whichever covers it — its edges, the sea, past them)
   const cw = Math.max(innerWidth, innerHeight / MAP_ASPECT);
