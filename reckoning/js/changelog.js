@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.53.0", date: "16 October 2026", title: "Garrisons",
+    items: [
+      "Campaign: regiments can hold your towns. With your army at one of your towns, leave regiments there from the town's card, or take its garrison back into the army. A town's own regiments add to its garrison, fight beside the army when it's attacked, and are lost with it if it falls.",
+      "Campaign: new regiments raised far from your army no longer walk across the map to it. They hold the town they were raised in as its garrison until the army comes for them.",
+      "Campaign: the taxes you set now change how fast your towns grow, as they were meant to.",
+    ],
+  },
+  {
     v: "1.52.3", date: "16 October 2026", title: "Chevrons",
     items: [
       "Campaign: regiments gain experience in battle, more for a victory, up to three chevrons: blooded, seasoned, veterans. A veteran army fights up to a tenth steadier. New men filling a thin regiment's ranks dilute its experience.",

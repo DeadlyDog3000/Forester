@@ -1862,3 +1862,8 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-taxb .btn { flex: 1; min-width: 0; width: auto; padding: 4px 6px; font-size: 11px; }
 .cmp-taxb .btn.on { background: linear-gradient(#7a5424, #5a3c16); border-color: #d8b45a; color: #f6e6bc; opacity: 1; }
 .cmp-chev { font-style: normal; font-size: 10px; color: #d8b45a; letter-spacing: -2px; margin-left: 3px; }
+.cmp-gar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+.cmp-gar > span { display: flex; align-items: center; gap: 4px; padding: 2px 5px 2px 2px; border-radius: 3px; background: rgba(255,255,255,0.04); }
+.cmp-gar > span b { font: 600 13px var(--serif); color: var(--ink); }
+.cmp-gar .tm-lnk { all: unset; cursor: pointer; font: 10.5px var(--sans); color: var(--ink-dim); text-decoration: underline; }
+.cmp-gar.leave small { font: 11px var(--sans); color: var(--ink-dim); margin-right: 2px; }
