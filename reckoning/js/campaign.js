@@ -16,7 +16,7 @@ import { FOLEY } from "./foley.js";
 import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, llOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H, useSheet, PEOPLES, peopleAt } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { TROOPS } from "./pvp.js";
-import { UNI_OF_NATION } from "./battle.js";
+import { UNI_OF_NATION, UNIFORMS, soldierLook, coloursCanvas } from "./battle.js";
 import { plateOf } from "./unitart.js";
 import { SHIPS, SHIP_KINDS, navalBattle } from "./naval.js";
 import { CHAINS, CHAIN_ORDER, MARK, levelCost, capOf, TECHS, BRANCHES, canStudy, newMan, historicalOf, portOf, GSTATS, VSTATS, SERVICE, GEN_SERVICE } from "./realm.js";
@@ -1594,11 +1594,22 @@ function marks3d() {
     if (own === C.me) { out.push({ ...at, kind: "ring", color: threat.has(ct[0]) ? "#c0281a" : NATIONS[C.me].color }); if (threat.has(ct[0])) out.push({ ...at, kind: "swords", color: "#c0281a" }); }
     else { if (isHuman(own)) out.push({ ...at, kind: "dash", color: NATIONS[own].color }); if (atWar(own) && inMarch(ct)) out.push({ ...at, kind: "swords", color: "#b0281a", dim: !!C.moved }); }
   }
-  // (the armies, standing on the land: a colour on its staff and the regiments' count)
-  const flag = (p, id, n, mine) => { const [lon, lat] = llOf(p.x, p.y); out.push({ name: "army-" + id, lon, lat, kind: NATIONS[id].nw ? "party" : "army", color: NATIONS[id].color, n, mine: !!mine }); };
-  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) flag(fp, id, foeArmy(id), false); }
-  for (const a of C.armies || []) if (a.pos) { const [lon, lat] = llOf(a.pos.x, a.pos.y); out.push({ name: "army-" + C.me + "-" + a.id, lon, lat, kind: "army", color: NATIONS[C.me].color, n: C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, mine: true }); }
-  flag(armyPos(), C.me, field().length || C.army, true);
+  return out;
+}
+// the armies on the land, for the near view: each as a company of its own men in its own coats (europe3d.js armies)
+function armies3d() {
+  const g = grid(), out = [];
+  const add = (key, p, id, n, mine, go) => {
+    if (!p || !isFinite(p.x) || !NATIONS[id]) return;
+    const [lon, lat] = llOf(p.x, p.y), uni = UNI_OF[id], U = UNIFORMS[uni] || UNIFORMS.imperial, L = soldierLook(U, 1683 + id.length * 7), gl = go ? llOf(go.x, go.y) : null;
+    out.push({ key, lon, lat, color: NATIONS[id].color, n, mine: !!mine, body: L.body, nw: !!NATIONS[id].nw, march: !!go, glon: gl ? gl[0] : null, glat: gl ? gl[1] : null,
+      colors: { coat: L.coat, vest: L.vest, cuff: L.cuff, legs: L.legs, hat: L.hatColor, sash: L.sash, stockings: L.stockings, linen: L.linen, skin: L.skin, hair: L.hair },
+      flag: NATIONS[id].nw ? null : coloursCanvas(uni) });
+  };
+  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id), tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); if (fp) add("foe-" + id, fp, id, foeArmy(id), false, tg ? cellXY(tg) : null); }
+  if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos && sl.emb == null) add("p-" + h, sl.pos, h, sl.army | 0, false, sl.go || null); }
+  for (const a of C.armies || []) if (a.pos && a.emb == null) add("mine-" + a.id, a.pos, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null);
+  if (C.emb == null) add("mine", armyPos(), C.me, field().length || C.army, true, C.go || null);
   return out;
 }
 // (the fleets at sea, for the land seen close: yours, the other player's, and the crowns' — each heading where she's bound)
@@ -1655,7 +1666,8 @@ function spreadTick() {
 }
 function paint() {
   const cv = $("cmpMap"); if (!cv || !C) return; W0();
-  if (on3d && eu3d) { eu3d.setMap(E(), 2, null); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); if (!raf3d) loop3d(); return; }
+  if (on3d && eu3d) { eu3d.setMap(E(), 2, null); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); eu3d.armies(armies3d()); if (!raf3d) loop3d(); return; }
+  marchLines = [];
   spreadCheck();
   let sp = null;
   if (spread) { const t = (performance.now() - spread.t0) / spread.dur; if (t >= 1) spread = null; else { const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; sp = { cells: spread.cells, p: e * (spread.max + 4) - 1 }; if (!spreadRaf) spreadRaf = requestAnimationFrame(spreadTick); } }
@@ -1683,9 +1695,17 @@ function paint() {
   }
   // ---- the armies: a regiment's block under its colour, how many regiments, and where it's marching ----
   const scr = p => [(p.x * S - view.ox) * view.z, (p.y * S - view.oy) * view.z];
-  const army = (p, id, n, mine, go, act = true) => {
+  marchView = { S, ox: view.ox, oy: view.oy, z: view.z, u: armyU(k) };
+  if (lastArmyOf !== C) { lastArmyOf = C; lastArmyAt = {}; marchAnims = []; }
+  const army = (p, id, n, mine, go, act = true, key = id) => {
+    // (an army somewhere new since it was last drawn — marched there on your order, or the enemy's at the year's end:
+    //  its men seen marching from where it was)
+    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 220) marchAnims.push({ from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, col: NATIONS[id].color, ink: mine ? "#2a1c10" : "#7a2216", nw: !!NATIONS[id].nw, t0: performance.now(), dur: 2600 + Math.min(2400, d * 60) }); }
+      lastArmyAt[key] = { x: p.x, y: p.y }; }
     const [x, y0] = scr(p), y = y0 + townNudge(p, armyU(k)); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return;
     const col = NATIONS[id].color, u = armyU(k);
+    // (an army on the march: its men seen stepping out along the road, over the map — see marchLoop)
+    if (go) { const [gx, gy] = scr(go); marchLines.push({ x, y, gx, gy, col, ink: mine ? "#2a1c10" : "#7a2216", u, nw: !!(NATIONS[id] && NATIONS[id].nw) }); }
     if (go) {
       // (the road it's on: dashed to where it's going, an arrowhead there)
       const [gx, gy] = scr(go), a = Math.atan2(gy - y, gx - x);
@@ -1735,8 +1755,9 @@ function paint() {
     for (const [id, p] of foeMarks()) { let [sx, sy] = scr(p), dx = 0; while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx -= 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); foeOff[id] = dx / (S * view.z); } }
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) { const tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); army({ x: fp.x + (foeOff[id] || 0), y: fp.y }, id, foeArmy(id), false, tg ? cellXY(tg) : null); } }
   if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) army({ x: sl.pos.x + (foeOff[h] || 0), y: sl.pos.y }, h, sl.army | 0, false, null); }
-  for (const a of C.armies || []) if (a.pos && a.emb == null) army({ x: a.pos.x + (armyOff[a.id] || 0), y: a.pos.y }, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null, false);
-  if (C.emb == null) army(armyPos(), C.me, field().length || C.army, true, C.go || null);
+  for (const a of C.armies || []) if (a.pos && a.emb == null) army({ x: a.pos.x + (armyOff[a.id] || 0), y: a.pos.y }, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null, false, C.me + "#" + a.id);
+  if (C.emb == null) army(armyPos(), C.me, field().length || C.army, true, C.go || null, true, C.me + "#" + (C.ar | 0));
+  marchStart(cv);
   // ---- the fleets: a ship under sail, engraved, in her crown's colour, how many ships under her, and where she's bound ----
   const shipMark = (p, col, n, mine, sel, go, cargo) => {
     const [x, y] = scr(p); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return; const u = armyU(k);
@@ -1757,6 +1778,62 @@ function paint() {
   c.restore();
 }
 let armySel = false, armyOff = {}, foeOff = {};
+// ---- an army on the march, seen marching: a file of its men stepping out along its road, drawn over the map on a
+//  canvas of their own (the map itself is too much to draw again every frame) — while the 2D map is up ----
+let marchLines = [], marchRaf = 0, marchCv = null, marchView = null, marchAnims = [], lastArmyAt = {}, lastArmyOf = null;
+function marchStart(cv) {
+  if (!marchCv) { marchCv = document.createElement("canvas"); marchCv.id = "cmpMarch"; marchCv.style.pointerEvents = "none"; cv.parentElement.appendChild(marchCv); }
+  if (marchCv.width !== cv.width || marchCv.height !== cv.height) { marchCv.width = cv.width; marchCv.height = cv.height; }
+  marchCv.style.width = cv.style.width; marchCv.style.height = cv.style.height;
+  if (!marchRaf) marchRaf = requestAnimationFrame(marchLoop);
+}
+// (a file of men along a road from (fx, fy) to (tx, ty), q of the way through its march: the head of the column from
+//  the start to the end, the rest strung out behind it)
+function marchFile(c, fx, fy, tx, ty, u, A, t, q) {
+  const dx = tx - fx, dy = ty - fy, len = Math.hypot(dx, dy); if (len < 4 * u) return;
+  const ux = dx / len, uy = dy / len, gap = 10 * u, n = Math.max(3, Math.min(10, Math.floor(len / gap))), ease = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+  for (let i = 0; i < n; i++) {
+    const d = (len + n * gap) * ease - i * gap; if (d < 0 || d > len) continue;
+    const a = Math.min(1, (1 - q) * 4, q * 6); manOnMap(c, fx + ux * d, fy + uy * d, u, A, t, i, a);
+  }
+}
+function manOnMap(c, px, py, u, L, t, i, a) {
+  u *= 1.4;
+  const step = Math.sin((t * 2.2 + i * 0.5) * Math.PI * 2) * 1.6 * u;
+  c.save(); c.globalAlpha = a * 0.95; c.translate(px, py);
+  c.strokeStyle = L.ink; c.lineWidth = 1.1 * u; c.lineCap = "round";
+  c.beginPath(); c.moveTo(0, 1.5 * u); c.lineTo(step * 0.6, 5 * u); c.moveTo(0, 1.5 * u); c.lineTo(-step * 0.6, 5 * u); c.stroke();
+  c.fillStyle = L.nw ? "#8a6a48" : L.col; c.fillRect(-1.6 * u, -3.2 * u, 3.2 * u, 5 * u); c.strokeRect(-1.6 * u, -3.2 * u, 3.2 * u, 5 * u);
+  c.fillStyle = "#e8d0b0"; c.beginPath(); c.arc(0, -4.6 * u, 1.4 * u, 0, 7); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(1.2 * u, 0); c.lineTo(L.nw ? 3 * u : 3.4 * u, L.nw ? -4 * u : -8 * u); c.stroke();
+  c.restore();
+}
+function marchLoop(now) {
+  marchRaf = 0; if (!marchCv) return;
+  const c = marchCv.getContext("2d"); c.clearRect(0, 0, marchCv.width, marchCv.height);
+  marchAnims = marchAnims.filter(A => now - A.t0 < A.dur);
+  const live = C && !on3d && (marchLines.length || marchAnims.length) && $("cmpMap") && $("cmpMap").offsetParent && !document.hidden;
+  marchCv.style.display = live ? "" : "none";
+  if (!live) return;
+  const t = now / 1000;
+  // (an army just moved: a file of its men going from where it was to where it's drawn now, the last of them arriving
+  //  as it ends)
+  if (marchView) for (const A of marchAnims) {
+    const V = marchView, sc = p => [(p.x * V.S - V.ox) * V.z, (p.y * V.S - V.oy) * V.z], [fx, fy] = sc(A.from), [tx, ty] = sc(A.to), q = (now - A.t0) / A.dur;
+    marchFile(c, fx, fy, tx, ty, V.u, A, t, q);
+  }
+  for (const L of marchLines) {
+    const dx = L.gx - L.x, dy = L.gy - L.y, len = Math.hypot(dx, dy), u = L.u; if (len < 30 * u) continue;
+    const ux = dx / len, uy = dy / len, gap = 13 * u, n = Math.min(16, Math.floor((len - 24 * u) / gap)), spd = 9 * u;
+    for (let i = 0; i < n; i++) {
+      // (each man a step further on, the file looping from the army toward where it's bound; faded at either end)
+      const d = 16 * u + ((i * gap + t * spd) % (n * gap)), px = L.x + ux * d, py = L.y + uy * d, k = d / len;
+      const a = Math.min(1, (d - 16 * u) / (gap * 1.5), (len - d) / (gap * 2)); if (a <= 0) continue;
+      manOnMap(c, px, py, u, L, t, i, a); void k;
+    }
+  }
+  marchRaf = requestAnimationFrame(marchLoop);
+}
 // (the other armies on the map, where they stand: the crowns at war with you, and the other player)
 const foeMarks = () => { const g = grid(), out = []; for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) out.push([id, fp]); } if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) out.push([h, sl.pos]); } return out; };
 // (an army standing in a town: drawn just below it, so the town's own mark isn't hidden under it)

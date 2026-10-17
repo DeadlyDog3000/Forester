@@ -25,6 +25,9 @@ const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vect
 const DRILL = [["back", 0, 0.05], ["sponge", 0.05, 0.3], ["load", 0.3, 0.42], ["ram", 0.42, 0.62], ["prime", 0.62, 0.72], ["lay", 0.72, 0.86], ["run", 0.86, 1]];
 
 // ---- the colours of the armies of 1683, painted: each its own flag ----
+// (a crown's colours on a canvas of their own, made once: for the campaign's armies on the land)
+const COLOURS_CV = {};
+export function coloursCanvas(key) { if (COLOURS_CV[key]) return COLOURS_CV[key]; const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawColours(cv.getContext("2d"), key); return COLOURS_CV[key] = cv; }
 function drawColours(x, key) {
   const W = 192, H = 128, fill = (c, ...r) => { x.fillStyle = c; x.fillRect(...r); };
   const eagle = (c, cx, cy, s, two = true) => {

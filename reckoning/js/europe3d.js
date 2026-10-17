@@ -18,7 +18,7 @@
 import { THREE, rng } from "./core.js";
 import { NATIONS, CITIES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
-import { ensureModel, modelCopy } from "./models.js";
+import { ensureModel, modelCopy, mergeRig, makeMusket } from "./models.js";
 
 const K = Math.cos(49 * Math.PI / 180);
 export const U = 10;                                       // units per degree of latitude
@@ -367,6 +367,59 @@ export class EuropeView3D {
     }
     this.scene.add(grp);
   }
+  // the armies on the land: a company of its own men in its own coats, drawn up in two ranks under its colours —
+  //  stepping out on the march, standing at ease when it's halted — kept the same size on the view, as the fleets are.
+  //  [{ key, lon, lat, color, n, mine, body, colors, flag (a canvas, or null), march, glon, glat, nw }]
+  armies(list) {
+    const key = JSON.stringify(list.map(a => ({ ...a, flag: !!a.flag }))); if (key === this.armyKey && this.armyReady) return; this.armyKey = key;
+    const bodies = [...new Set(list.map(a => a.body))];
+    if (!this.armyReady) Promise.all([...bodies, "musket"].map(b => ensureModel(b))).then(() => { if (!this.armyReady) { this.armyReady = true; this.armyKey = null; this.armies(list); } });
+    if (this.armyGroup) { this.armyGroup.traverse(o => { if (o.isSprite || o.userData.own) { o.material.map && o.material.map.dispose(); o.material.dispose(); } if (/^merged_/.test(o.name)) { o.geometry.dispose(); if (o.skeleton) o.skeleton.dispose(); } }); this.scene.remove(this.armyGroup); }
+    const grp = this.armyGroup = new THREE.Group(); this.mixers = [];
+    for (const A of list) {
+      const [x, z] = toWorld(A.lon, A.lat), co = new THREE.Group(); co.position.set(x, 0, z); co.userData.army = true;
+      if (A.march && A.glon != null) { const [gx, gz] = toWorld(A.glon, A.glat); co.rotation.y = Math.atan2(gx - x, gz - z); }
+      // (its men: two ranks of five, or a war party in open order; each in the coats of its own crown)
+      const mats = {}, men = A.nw ? 7 : 10;
+      for (let i = 0; i < men; i++) {
+        const m = this.armyReady && modelCopy(A.body); if (!m) break;
+        m.scene.traverse(o => {
+          if (!o.isMesh || !o.material) return; o.castShadow = false; o.frustumCulled = false;
+          const part = o.material.userData.part, want = A.colors[part === "beard" || part === "tash" ? "hair" : part]; if (want == null) return;
+          if (!mats[part]) {
+            const M = mats[part] = o.material.clone(); M.userData = { ...o.material.userData, own: true }; M.color.set(want);
+            // (a part painted in its vertices: the colour divided by what's painted, so it's the colour that shows)
+            const vc = o.material.vertexColors && o.geometry.attributes.color; if (vc) { let r = 0, g = 0, b = 0; const C = o.geometry.attributes.color, n = C.count; for (let k = 0; k < n; k += 7) { r += C.getX(k); g += C.getY(k); b += C.getZ(k); } const c = Math.ceil(n / 7); M.color.r /= Math.max(0.04, r / c); M.color.g /= Math.max(0.04, g / c); M.color.b /= Math.max(0.04, b / c); }
+          }
+          o.material = mats[part];
+        });
+        try { mergeRig(m.scene); } catch (e) {}
+        const file = i % 5, rank = Math.floor(i / 5);
+        if (A.nw) m.scene.position.set(Math.sin(i * 2.39) * 1.9, 0, Math.cos(i * 1.71) * 1.1);
+        else m.scene.position.set((file - 2) * 0.85, 0, -rank * 1.05);
+        // (the musket shouldered, upright at his right side)
+        if (!A.nw) { const g = makeMusket(); if (g) { g.position.set(-0.24, 0.86, 0.02); g.rotation.x = -0.12; g.traverse(o => { if (o.isMesh) o.castShadow = false; }); m.scene.add(g); } }
+        co.add(m.scene);
+        const mixer = new THREE.AnimationMixer(m.scene), clip = m.animations.find(a => a.name === (A.march ? "Walk" : "Idle"));
+        if (clip) { const act = mixer.clipAction(clip); act.time = (i * 0.37) % clip.duration; act.play(); }
+        this.mixers.push(mixer);
+      }
+      // (its colours, carried at the right of the front rank)
+      if (!A.nw) {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 3.1, 6), new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 })); pole.userData.own = true; pole.position.set(2.55, 1.55, 0.15); co.add(pole);
+        const tex = A.flag ? new THREE.CanvasTexture(A.flag) : null; if (tex) tex.colorSpace = THREE.SRGBColorSpace;
+        const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.78), new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : A.color, side: THREE.DoubleSide, roughness: 0.95 })); cloth.userData.own = true;
+        cloth.geometry.translate(0.575, 0, 0); cloth.position.set(2.57, 2.7, 0.15); cloth.rotation.y = -0.35; co.add(cloth); co.userData.cloth = cloth;
+      }
+      grp.add(co);
+      // (how many regiments, written over them in italic: in ink for yours, red for an enemy's)
+      const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), ink = A.mine ? "#2a1c10" : "#7a2216";
+      c.font = "italic bold 22px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 6; c.strokeText(String(A.n), 32, 32); c.fillStyle = ink; c.fillText(String(A.n), 32, 32);
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, sizeAttenuation: false, transparent: true })); sp.scale.set(0.045, 0.045, 1); sp.renderOrder = 7; sp.userData.over = co; grp.add(sp);
+    }
+    this.scene.add(grp);
+  }
   // look at a place: lon, lat, and how far off
   look(lon, lat, dist) { const [x, z] = toWorld(lon, lat); this.target.set(x, 0, z); if (dist) this.dist = dist; }
   centreLL() { return toLL(this.target.x, this.target.z); }
@@ -388,6 +441,17 @@ export class EuropeView3D {
     for (const s of this.labels) s.visible = this.dist < 14 || s.userData.rank >= (this.dist < 45 ? 2 : 3);
     // (the fleets kept the same size on the view however near or far: a ship's length about a twentieth of its height)
     if (this.fleetGroup) { const k = this.dist * 0.0036; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
+    // (the armies the same: a man about a fiftieth of the view's height, standing on the ground where he is; and their
+    //  steps, their breathing, their colours stirring)
+    if (this.armyGroup) {
+      const now = performance.now(), dt = Math.min(0.1, (now - (this.armyT || now)) / 1000); this.armyT = now;
+      const k = this.dist * 0.022;
+      for (const o of this.armyGroup.children) {
+        if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) cl.rotation.y = -0.35 + Math.sin(now / 700 + o.position.x) * 0.18; }
+        else if (o.userData.over) o.position.set(o.userData.over.position.x, o.userData.over.position.y + k * 3.6, o.userData.over.position.z);
+      }
+      for (const m of this.mixers || []) m.update(dt);
+    }
     this.renderer.render(this.scene, this.camera);
   }
   // what is under a point on the view: a city's name, or the ground (lon, lat)

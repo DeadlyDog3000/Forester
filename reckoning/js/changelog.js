@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.63.0", date: "17 October 2026", title: "Armies on the march",
+    items: [
+      "Campaign, seen close (the 3D view): an army is its own men, not a mark. A company of soldiers in their crown's coats, drawn up in two ranks with muskets shouldered and its colours flying beside them, the count of regiments over them. On the march they step out the way they're bound; halted, they stand at ease. A war party of the woods' nations goes in open order.",
+      "Campaign, on the map: an army that moves is seen marching. Yours when you send it, the enemy's at the year's end: a file of its men steps out from where it stood to where it's going. An army on a march of more than a year has its men walking along its road the whole time.",
+    ],
+  },
+  {
     v: "1.62.0", date: "17 October 2026", title: "Every crown in its own coat",
     items: [
       "Every nation's army wears its own uniform and carries its own colours. Scotland's men are Scots: red coats faced white and the blue bonnet, under the saltire. Before, Scotland borrowed England's coats, and fighting England against Scotland put them in the Emperor's grey.",
