@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.10", date: "17 October 2026", title: "Straight in",
+    items: [
+      "A first game goes straight in: with every save still empty, Begin the story no longer asks which of the six to use. It takes the first, and the save list is there when there's a choice to make.",
+    ],
+  },
+  {
     v: "1.60.9", date: "17 October 2026", title: "The battle's banner",
     items: [
       "Battles: the banner at the top is as wide as its words need. A long name such as Kingdom of France no longer breaks onto a second line, and in a campaign battle both sides read alike: Kingdom of France · 19, Castile · 34.",

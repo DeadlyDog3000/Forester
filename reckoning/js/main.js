@@ -281,7 +281,8 @@ function play(chapter, opts) {
 }
 
 // a new game: first, which of the six saves it goes in
-$("btnNew").onclick = () => { back = "title"; slotMode = "new"; buildSlots(); screen("slots"); };
+// (a first game, every save empty: nothing to choose between — straight on, into the first)
+$("btnNew").onclick = () => { slotMode = "new"; if (Array.from({ length: SLOTS }, (_, i) => readSlot(i + 1)).every(s => !s)) { setSlot(1); back = "title"; screen("modeSel"); return; } back = "title"; buildSlots(); screen("slots"); };
 $("btnSlots").onclick = () => { back = "title"; slotMode = "play"; buildSlots(); screen("slots"); };
 // ---- a lost game brought back: the app puts by a copy of all the saves before every new version; any of them can be
 // put back in place of the saves now (which are themselves put by first, so nothing is lost by trying) ----
