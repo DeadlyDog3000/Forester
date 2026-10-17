@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.12", date: "16 October 2026", title: "Open order",
+    items: [
+      "Battle: the woods' warriors come on in open order, each man to his own ground, as they fought, not shoulder to shoulder in ranks like a European line.",
+    ],
+  },
+  {
     v: "1.51.11", date: "16 October 2026", title: "They hold the palisade",
     items: [
       "Battle: the warriors of a palisaded town now hold it. They stay inside at the stakes and loose and fire through the gaps as you come on, and only go at you with the club once you're inside, by the way in or through a length you've burnt. Before, they marched out into the open and were shot down without a fight.",

@@ -1003,6 +1003,8 @@ class Arena {
       this.orders = this.custom ? this.cos.map((c, i) => new Orders(i)) : [new Orders(0), new Orders(1)]; this.sub = null; this.sel = null;
       if (this.custom) this.spawns = this.cos.map(c => this.clearSpot(c.x, c.z));
       if (!this.battle) this.orders[1].form = "loose";
+      // (the woods' warriors fight in open order, each man to his own cover, as they always did — not in ranks)
+      if (this.battle) this.orders.forEach((O, t) => { const U = this.coUni && this.coUni[t] || (this.uni && this.uni[this.alOf(t)]); if (U && /^warrior/.test(U.body || "") && t !== 0) O.form = "loose"; });
       this.book = new OrderBook(id => this.give(id));
       const sk = this.netBattle ? skillOf(botRecord().rating) : foe.skill, mk = (team, i) => {
         const b = botFoe(), seed = 1000 + team * 100 + i;
