@@ -9,7 +9,7 @@
 // the blow is coming from and the parry just as it comes.
 
 import { THREE, camera, makeFlame } from "./core.js";
-import { G, Actor, setWorld, setAtmo } from "./engine.js";
+import { G, Actor, setWorld, setAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { FOLEY } from "./foley.js";
@@ -1053,9 +1053,9 @@ class Arena {
       }
       // and yours to work yourself: F at one, and it's laid on where you're looking and fired
       this.gunIts = this.field.guns.filter(g => g.side === 0).map(g => this.w.addInteract({ x: g.x, y: this.w.heightAt(g.x, g.z) + 1.0, z: g.z, reach: 2.4,
-        can: () => G.arena === this && this.live && !G.downed,
-        label: () => g.dead ? "The gun's wrecked" : g.loaded ? "Lay the gun on where you're looking, and fire it" : `The gun's loading${g.crewN ? ` — ${g.crewN} of its crew at it` : " — and nobody's at it"}`,
-        use: () => { if (!g.loaded || g.dead) return; if (this.remote) { this.net.send({ t: "bgunlay", i: this.field.guns.indexOf(g), at: this.lookPoint() }); return; } this.field.layAndFire(g, this.lookPoint()); } }));
+        can: () => G.arena === this && this.live && !G.downed && this.gunMan !== g,
+        label: () => g.dead ? "The gun's wrecked" : this.remote ? (g.loaded ? "Lay the gun on where you're looking, and fire it" : "The gun's loading") : `Take the gun${g.loaded ? " — loaded" : g.crewN ? ` — loading, ${g.crewN} of its crew at it` : " — not loaded"}`,
+        use: () => { if (g.dead) return; if (this.remote) { if (g.loaded) this.net.send({ t: "bgunlay", i: this.field.guns.indexOf(g), at: this.lookPoint() }); return; } this.manGun(g); } }));
       // (the other player, on their own side: a body your game moves as theirs tells it)
       if (this.netBattle) {
         // (on horseback, if they ride: as their muster said, or the host's word of itself)
@@ -1278,6 +1278,8 @@ class Arena {
       const say = () => {
         this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
           `${this.custom ? `${sidesWord(this.custom)} · ` : ""}${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
+        // (your guns: yours to work, if you want them — said once a battle, after the opening)
+        if (this.field && !this.remote && this.field.guns.some(g => g.side === 0 && !g.dead)) setTimeout(() => G.arena === this && !this.gunMan && UI.hint("Your guns stand behind the gabions. Go to one and press F to take it: lay it with your eye and fire it yourself.", 6), 9000);
         // (a fort against a player: why it's theirs or yours, so it doesn't look like a coin that fell the other way)
         if (this.netBattle && this.fortSide != null) setTimeout(() => G.arena === this && UI.hint(this.fortSide === 0 ? "You hold the fort: your company's the smaller, so you have the walls to make up the numbers. Hold them." : "They hold the fort: theirs is the smaller company, so they have the walls to make up the numbers. Take it.", 7), 900);
       };
@@ -2209,14 +2211,61 @@ class Arena {
     if (this.keyH) removeEventListener("keydown", this.keyH, true);
     if (this.clickH) removeEventListener("mousedown", this.clickH, true);
     if (this.book) this.book.hide();
+    if (this.gunMan) this.unmanGun();
     for (const it of this.gunIts || []) this.w.removeInteract(it);
     if (this.field) this.field.dispose();
     for (const m of this.marks || []) this.w.root.remove(m.mesh);
     this.marks = [];
   }
   // ---- every frame ----
+  // ---- a gun of your own side's, worked yourself: you at the breech, the barrel following your eye, a click to fire —
+  //  the crew loading it, and you with them (a gun whose crew is down can still be served, slowly, by you) ----
+  manGun(g) {
+    const pl = G.player; if (this.gunMan) this.unmanGun();
+    this.gunMan = g; g.byHand = true; g.manned = true;
+    if (pl.gun) pl.showGun(false); if (pl.bow) pl.showBow(false); if (pl.xbow) pl.showXbow(false); if (pl.axe) pl.holsterAxe && pl.holsterAxe(true);
+    G.lockMove = true; pl.yaw = g.ry + g.yaw; pl.pitch = g.pitch;
+    UI.hint(`The gun is yours. Look to lay it — the ring is where the ball will strike — and click to fire. The crew load it again${g.crew && g.crew.some(u => u.alive) ? "" : ", and you with them"}. F to leave it.`, 7);
+    this.gunKey = e => { if (e.code === "KeyF" && !e.repeat && this.gunMan) { e.preventDefault(); e.stopImmediatePropagation(); this.unmanGun(); } };
+    setTimeout(() => this.gunMan === g && addEventListener("keydown", this.gunKey, true), 250);
+    if (!this.gunRing) { this.gunRing = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.45, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xd8b84a, transparent: true, opacity: 0.75, depthWrite: false })); this.gunRing.renderOrder = 3; }
+    this.w.root.add(this.gunRing);
+  }
+  unmanGun() {
+    const g = this.gunMan; if (!g) return;
+    this.gunMan = null; g.byHand = false; g.manned = false; G.lockMove = false;
+    removeEventListener("keydown", this.gunKey, true);
+    if (this.gunRing) this.w.root.remove(this.gunRing);
+    if (this.live) this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
+  }
+  gunTick(dt) {
+    const g = this.gunMan, pl = G.player, F = this.field;
+    if (!g) return;
+    if (g.dead || G.downed || !this.live || this.over) { this.unmanGun(); return; }
+    // (the barrel where you look, as far as the trail swings and the quoin lets it)
+    const dy = clamp(Math.atan2(Math.sin(pl.yaw - g.ry), Math.cos(pl.yaw - g.ry)), -0.9, 0.9); pl.yaw = g.ry + dy; pl.pitch = clamp(pl.pitch, -0.08, 0.3);
+    // (laid on what you're looking at: the elevation for the range to it, as a gunner judges it — or, looking at the
+    //  sky, as high as you're looking)
+    g.yaw = dy;
+    const at = pl.pitch < 0.25 && this.lookPoint(), d = at ? Math.hypot(at.x - g.x, at.z - g.z) : 0;
+    g.pitch = at && d > 6 ? clamp(0.5 * Math.asin(clamp(d * 9.8 / (140 * 140), -1, 1)) + (F.y(at.x, at.z) - F.y(g.x, g.z) - 0.9) / Math.max(4, d), -0.08, 0.35) : clamp(pl.pitch, -0.08, 0.35);
+    // (you behind the breech, looking along it)
+    const f = g.ry + g.yaw, bx = g.x + Math.sin(f) * 2.1, bz = g.z + Math.cos(f) * 2.1;
+    pl.pos.set(bx, this.w.heightAt(bx, bz), bz); pl.vel && pl.vel.set(0, 0, 0);
+    // (where the ball comes down: its flight followed from the muzzle till it meets the ground)
+    if (this.gunRing) {
+      const dir = { x: -Math.sin(f) * Math.cos(g.pitch), y: Math.sin(g.pitch), z: -Math.cos(f) * Math.cos(g.pitch) };
+      let px = g.x + dir.x * 1.4, py = F.y(g.x, g.z) + 0.95, pz = g.z + dir.z * 1.4, vx = dir.x * 140, vy = dir.y * 140, vz = dir.z * 140, hit = null;
+      for (let i = 0; i < 400; i++) { const h = 0.01; vy -= 9.8 * h; px += vx * h; py += vy * h; pz += vz * h; const gy = this.w.heightAt(px, pz); if (py <= gy) { hit = { x: px, y: gy, z: pz }; break; } if (Math.hypot(px - C.x, pz - C.z) > this.bound + 40) break; }
+      this.gunRing.visible = !!hit; if (hit) { this.gunRing.position.set(hit.x, hit.y + 0.06, hit.z); this.gunRing.material.color.set(g.loaded ? 0xd8b84a : 0x8a8478); }
+    }
+    if (input.click) { input.click = false; if (g.loaded) F.fire(g); else UI.hint(g.reload > 0 ? `Loading — ${Math.ceil(g.reload)}s` : "Loading…", 1.2); }
+    if (g.loaded && !g.toldLoaded) { g.toldLoaded = true; if (g.fired) { UI.hint("Loaded. Fire when you're ready.", 1.4); AUDIO.ramrod && AUDIO.ramrod(); } }
+    if (!g.loaded) { g.toldLoaded = false; g.fired = true; }
+  }
   update(dt) {
     if (G.arena !== this) return;
+    this.gunTick(dt);
     if (this.rec && this.live) this.rec.tick(dt);
     const pl = G.player;
     // (the field: the ride and the trees round it; out past them, you're turned back)

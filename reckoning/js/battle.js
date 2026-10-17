@@ -1000,7 +1000,7 @@ export class Field {
         this.drillTick(g, dt); continue;
       }
       // (a gun is only as good as its crew: two load it at the drill's pace, one at half, none not at all — nor fire it)
-      const crewN = g.crew.length ? this.manned(g) : 2; g.crewN = crewN;
+      const crewN = (g.crew.length ? this.manned(g) : 2) + (g.manned ? 1 : 0); g.crewN = crewN;
       if (!g.loaded && crewN) { g.reload -= dt * (crewN >= 2 ? 1 : 0.5); if (g.reload <= 0) g.loaded = true; }
       // (their side: laid on the thickest part of yours, now and then; yours: on where you said)
       // (never at nothing: laid afresh the moment the men it was laid on are down or gone, and with no one there, not fired)
@@ -1010,7 +1010,7 @@ export class Field {
         if ((g.next -= dt) <= 0 || (stale && g.loaded)) { g.next = 6; const t = this.thickest(foes); g.aim = t ? { x: t.x + (this.r() - 0.5) * 3.5, z: t.z + (this.r() - 0.5) * 3.5 } : null; }
       }
       else g.aim = g.target;
-      if (g.aim) {
+      if (g.aim && !g.manned) {
         const dx = g.aim.x - g.x, dz = g.aim.z - g.z, want = Math.atan2(-dx, -dz), d = Math.hypot(dx, dz);
         const dy = Math.atan2(Math.sin(want - g.ry), Math.cos(want - g.ry));
         g.yaw += (clamp(dy, -0.9, 0.9) - g.yaw) * Math.min(1, dt * 1.5);

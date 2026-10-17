@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.65.0", date: "17 October 2026", title: "Take the gun",
+    items: [
+      "Battles: work your own side's guns. Go to one behind the gabions and press F, and you're the gunner at its breech. It's laid on whatever you're looking at, a ring on the ground shows where the ball will strike, and a click fires it. The crew sponge and load it again, and you with them, so a gun whose crew has fallen can still be served. F to leave it.",
+      "A battle with guns says so a few moments in: your guns stand behind the gabions, yours to take.",
+    ],
+  },
+  {
     v: "1.64.0", date: "17 October 2026", title: "Two lines at close quarters",
     items: [
       "Battles: when the steel comes out, the men fight in lines, not one great knot. Each side's men at close quarters take their places along the front a pace and a half apart, face the man across from them, and fight him. No enemy is set on by more than a couple while others stand free, and between blows a man keeps his place instead of circling round behind.",
