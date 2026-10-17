@@ -80,7 +80,8 @@ function as(c, fn) { if (!C.mp || c === C.me || !C.H || !C.H[c]) return fn(); co
 const sliceOf = id => id === C.me ? C : (C.H && C.H[id]) || null;
 // (a crown's army: a player's regiments, or the computer's)
 const foeArmy = id => isHuman(id) ? (s2 => s2 ? (s2.army | 0) + (s2.armies || []).reduce((t, a) => t + (a.army | 0), 0) : 0)(sliceOf(id)) : C.foes[id] || 0;
-const setFoeArmy = (id, v) => { if (isHuman(id)) { const s2 = sliceOf(id); if (s2) s2.army = v; } else C.foes[id] = v; };
+// (for a player, the change falls on the army they have in hand — foeArmy counts all their armies together)
+const setFoeArmy = (id, v) => { if (isHuman(id)) { const s2 = sliceOf(id); if (s2) s2.army = Math.max(0, Math.round((s2.army | 0) + v - foeArmy(id))); } else C.foes[id] = v; };
 // (a verb after a crown's name: a people takes the plural — "the Cherokee march", not "marches")
 // (a name's possessive: "the Papal States'", not "States's")
 const poss = n => /s$/.test(n) ? n + "'" : n + "'s";

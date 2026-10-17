@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.57.3", date: "16 October 2026", title: "Two crowns, many armies",
+    items: [
+      "Campaign of two: losses in a battle against the other player now fall on the army they have in hand, and no longer swell it when they command more than one.",
+    ],
+  },
+  {
     v: "1.57.2", date: "16 October 2026", title: "Generals who learn",
     items: [
       "Campaign: a general grows in command with every third victory, up to the most a man can have. His card counts his victories.",
