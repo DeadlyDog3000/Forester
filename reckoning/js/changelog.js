@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.52.3", date: "16 October 2026", title: "Chevrons",
+    items: [
+      "Campaign: regiments gain experience in battle, more for a victory, up to three chevrons: blooded, seasoned, veterans. A veteran army fights up to a tenth steadier. New men filling a thin regiment's ranks dilute its experience.",
+      "Campaign: a town with a barracks sends its recruits out blooded, one with a military academy seasoned.",
+    ],
+  },
+  {
     v: "1.52.2", date: "16 October 2026", title: "Taxes, and what the enemy fields",
     items: [
       "Campaign: set your crown's taxes: light (three quarters of the towns' worth, and faster growth), fair, or heavy (a quarter more, and slower growth).",

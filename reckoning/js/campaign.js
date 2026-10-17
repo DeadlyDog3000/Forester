@@ -329,7 +329,9 @@ const research = g => 1 + citiesOfNow(g, C.me).reduce((t, ct) => t + (CHAINS.chu
 const regCost = g => REGIMENT - Math.max(0, ...citiesOfNow(g, C.me).map(ct => CHAINS.works.levels[lvOf(ct[0], "works")].cheap || 0));
 const GUN_COST = 140;
 // (your army's nerve in a battle: the drill of your barracks, the bayonet, the general's hold on his men)
-const braveMul = g => moraleK() * (1 + Math.max(0, ...citiesOfNow(g, C.me).map(ct => CHAINS.army.levels[lvOf(ct[0], "army")].morale || 0)) + (knows("bayonet") ? 0.05 : 0) + (C.gen ? (C.gen.st[1] - 3) * 0.06 : -0.06));
+const braveMul = g => moraleK() * (1 + Math.max(0, ...citiesOfNow(g, C.me).map(ct => CHAINS.army.levels[lvOf(ct[0], "army")].morale || 0)) + (knows("bayonet") ? 0.05 : 0) + (C.gen ? (C.gen.st[1] - 3) * 0.06 : -0.06) + vetK());
+// (the army's experience: its regiments' battles behind them, up to three chevrons each — a veteran army a tenth steadier)
+const vetK = () => { const L = C.units || []; return L.length ? L.reduce((t, u) => t + (u.xp || 0), 0) / L.length * 0.033 : 0; };
 const cmdMul = gen => gen ? 1 + (gen.st[0] - 3) * 0.07 : 0.93;
 // ---- the army's morale, 0 to 100: where its general's spirit and its barracks put it, raised by victories and broken by
 //  defeats, by a general lost and by pay missed; drifting back a third of the way each year. It counts in every battle:
@@ -398,7 +400,8 @@ function realmWorld(g, ids) {
 function realmMine(g) {
   reconcile(); { const men = replenish(g); if (men >= 300) say(`The regiments fill their ranks`, `${fmtN(Math.round(men / 100) * 100)} men from your towns join the thin regiments.`); }
   if (C.lq && C.lq.length) {
-    const by = {}; for (const q of C.lq) { C.units.push({ k: q.k, hp: 1 }); by[q.k] = (by[q.k] || 0) + 1; }
+    // (drilled where they were raised: a barracks sends its recruits out blooded, a military academy seasoned)
+    const by = {}; for (const q of C.lq) { const lv = lvOf(q.t, "army"); C.units.push({ k: q.k, hp: 1, ...(lv >= 2 ? { xp: lv >= 3 ? 2 : 1 } : {}) }); by[q.k] = (by[q.k] || 0) + 1; }
     const n = C.lq.length; C.army = Math.round(unitSum());
     say(`${n} new regiment${n > 1 ? "s" : ""} join${n > 1 ? "" : "s"} the army`, `${Object.entries(by).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: raised, armed and drilled over the year.`);
   }
@@ -438,6 +441,8 @@ function odds(att, def, walls) { const a = Math.pow(att, 1.25), d = Math.pow(def
 function settle(o, won, myLossK, theirLossK) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att;
   const broken = wearUnits(mine * myLossK, o.pick) || {};
+  // (the regiments that fought: the wiser for it — the more so for a victory)
+  for (const u of C.units || []) if (!o.pick || (o.pick.men && o.pick.men[u.k])) u.xp = Math.min(3, (u.xp || 0) + (won ? 0.6 : 0.3) * (o.pick ? 1 : 0.6));
   setFoeArmy(o.foe, Math.max(0, Math.round(foeArmy(o.foe) - Math.max(0, theirs - garrison(o.ct)) * theirLossK)));
   const name = o.ct[0];
   if (o.attack) {
@@ -768,7 +773,7 @@ function replenish(g) {
   for (const u of C.units) {
     if (u.hp >= 1) continue;
     const d = Math.min(1 - u.hp, rate), men = d * UNIT[u.k].men, t = towns.find(ct => popOf(ct) - men >= popFloor(ct)); if (!t) break;
-    C.pop[t[0]] -= Math.round(men); u.hp += d; filled += men;
+    C.pop[t[0]] -= Math.round(men); if (u.xp) u.xp = Math.max(0, u.xp * (1 - d / (u.hp + d) * 0.6)); u.hp += d; filled += men;
   }
   C.army = Math.round(unitSum());
   return filled;
@@ -1287,10 +1292,10 @@ function candidates(list, attr, fee = null) {
 const govFee = (m, ct) => Math.max(30, 40 + ct[3] * 35 + (m.st[1] + m.st[2] - m.st[0]) * 15);
 // (the army's roll: its regiments by arm, each a bar for how full its ranks are)
 function rollHtml() {
-  const by = {}; for (const u of C.units || []) (by[u.k] ||= []).push(u.hp);
+  const by = {}; for (const u of C.units || []) (by[u.k] ||= []).push(u);
   const ks = Object.keys(by).sort((a, b) => by[b].length - by[a].length);
   if (!ks.length) return `<p class="cmp-fine">Your army has no regiments left. Raise new ones in your towns.</p>`;
-  return `<div class="cmp-roll">${ks.map(k => { const L = by[k], full = Math.round(L.reduce((t, v) => t + v, 0) / L.length * 100); return `<div class="cmp-ru">${unitImg(k, "sm")}<b>${L.length}</b><span>${esc(TROOPS[k].name)}<small>${esc(TROOPS[k].note)} · upkeep ${UNIT[k] ? UNIT[k].up : 1.6} each</small></span><i title="${full}% of their full strength"><u style="width:${full}%"></u></i><button class="tm-lnk" data-disband="${k}" title="Disband one regiment of ${esc(TROOPS[k].name.toLowerCase())} — the thinnest — and send its men home">Disband</button></div>`; }).join("")}</div>`;
+  return `<div class="cmp-roll">${ks.map(k => { const L = by[k].map(u => u.hp), full = Math.round(L.reduce((t, v) => t + v, 0) / L.length * 100), xp = by[k].reduce((t, u) => t + (u.xp || 0), 0) / L.length, ch = Math.floor(xp + 0.25); return `<div class="cmp-ru">${unitImg(k, "sm")}<b>${L.length}</b><span>${esc(TROOPS[k].name)}${ch ? ` <em class="cmp-chev" title="Experience: ${["", "blooded", "seasoned", "veterans"][ch]}">${"❯".repeat(ch)}</em>` : ""}<small>${esc(TROOPS[k].note)} · upkeep ${UNIT[k] ? UNIT[k].up : 1.6} each</small></span><i title="${full}% of their full strength"><u style="width:${full}%"></u></i><button class="tm-lnk" data-disband="${k}" title="Disband one regiment of ${esc(TROOPS[k].name.toLowerCase())} — the thinnest — and send its men home">Disband</button></div>`; }).join("")}</div>`;
 }
 // (a town's people: how many, and which way they're going)
 function popLine(ct) { const r = popRate(ct); return `Population ${fmtN(popOf(ct))}${r ? ` · ${r > 0 ? "growing" : "falling"} ${Math.abs(r * 100).toFixed(1)}% a year` : ""} · its land feeds ${fmtN(popCap(ct))}`; }
@@ -1298,6 +1303,7 @@ function popLine(ct) { const r = popRate(ct); return `Population ${fmtN(popOf(ct
 function recruitHtml(ct) {
   const n = ct[0], q = raising(n), slots = slotsOf(ct), g = grid();
   let h = `<div class="cmp-subh">Recruit · ${q.length} of ${slots} this year${q.length ? "" : `, ready at the year's end`}</div>`;
+  if (lvOf(n, "army") >= 2) h += `<small class="cmp-fine">Its ${lvOf(n, "army") >= 3 ? "military academy sends its recruits out seasoned (two chevrons)" : "barracks send its recruits out blooded (a chevron)"}.</small>`;
   if (q.length) h += `<div class="cmp-rq">${q.map(x => `<span>${unitImg(x.k, "xs")}${esc(TROOPS[x.k].one)}</span>`).join("")}<button class="tm-lnk" data-unrec="1">Call off the last</button></div>`;
   h += `<div class="cmp-recs">`;
   for (const k of kindsOf(C.me)) {

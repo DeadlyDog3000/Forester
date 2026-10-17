@@ -1861,3 +1861,4 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-taxb { display: flex; gap: 4px; }
 .cmp-taxb .btn { flex: 1; min-width: 0; width: auto; padding: 4px 6px; font-size: 11px; }
 .cmp-taxb .btn.on { background: linear-gradient(#7a5424, #5a3c16); border-color: #d8b45a; color: #f6e6bc; opacity: 1; }
+.cmp-chev { font-style: normal; font-size: 10px; color: #d8b45a; letter-spacing: -2px; margin-left: 3px; }
