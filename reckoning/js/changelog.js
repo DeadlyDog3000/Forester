@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.70.0", date: "17 October 2026", title: "Militia, and garrisons that wait",
+    items: [
+      "Militia: townsmen called out and handed a musket. A regiment of them costs less than half what musketeers do, in thalers and in upkeep, and every crown can raise them in any town. They're far less skilled: they shoot wide, load slowly, and break sooner. In battle they stand with the musketeers.",
+      "Campaign: regiments you raise stay in the town that raised them, as part of its garrison, instead of joining the nearest army. To send them on, choose the town and pick an army under \"Send to\": the garrison marches out, follows that army wherever it goes, and joins it when it gets there. You can still bring an army to the town to take them in.",
+      "Campaign: an army you right-click another of yours to join keeps going after it, year after year, and joins it when it arrives. You no longer need to right-click it again.",
+      "Campaign: when you move an army, its own mark slides across the map to where you sent it. Fleets do the same.",
+    ],
+  },
+  {
     v: "1.69.0", date: "17 October 2026", title: "Smoke in one",
     items: [
       "Battles: the powder smoke of every volley, and the flash and sparks at every muzzle, are drawn together, all at once, instead of each puff by itself. A great battle's smoke was some hundreds of separate things for the graphics card each frame, and a company's volley was a hitch you could feel. It looks just as it did.",

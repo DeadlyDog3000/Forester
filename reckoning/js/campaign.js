@@ -36,10 +36,10 @@ const sfx = (name, vol = 0.5, after = 0) => { const go = () => { try { name === 
 // each crown's coats on the field, and how its army's made up
 export const UNI_OF = UNI_OF_NATION;
 const STYLE = {
-  west: [["musketeer", 0.58], ["pike", 0.15], ["grenadier", 0.1], ["cavalry", 0.1], ["sword", 0.07]],
-  east: [["musketeer", 0.42], ["bow", 0.22], ["sword", 0.2], ["cavalry", 0.16]],
-  steppe: [["musketeer", 0.42], ["cavalry", 0.22], ["sword", 0.16], ["bow", 0.1], ["pike", 0.1]],
-  tsar: [["musketeer", 0.66], ["pike", 0.18], ["cavalry", 0.08], ["axe", 0.08]],
+  west: [["musketeer", 0.52], ["militia", 0.06], ["pike", 0.15], ["grenadier", 0.1], ["cavalry", 0.1], ["sword", 0.07]],
+  east: [["musketeer", 0.36], ["militia", 0.06], ["bow", 0.22], ["sword", 0.2], ["cavalry", 0.16]],
+  steppe: [["musketeer", 0.36], ["militia", 0.06], ["cavalry", 0.22], ["sword", 0.16], ["bow", 0.1], ["pike", 0.1]],
+  tsar: [["musketeer", 0.6], ["militia", 0.06], ["pike", 0.18], ["cavalry", 0.08], ["axe", 0.08]],
   // (the woods' nations: the bow and the war club for the most part; the trade musket in a few hands; no horse, no pike)
   woods: [["bow", 0.44], ["axe", 0.34], ["musketeer", 0.22]],
 };
@@ -460,9 +460,9 @@ function realmMine(g) {
   reconcile(); { const men = eachArmy(id => replenish(g, id === armyIds()[0])).reduce((t, v) => t + (v | 0), 0); if (men >= 300) say(`The regiments fill their ranks`, `${fmtN(Math.round(men / 100) * 100)} men from your towns join the thin regiments.`); }
   if (C.lq && C.lq.length) {
     // (drilled where they were raised: a barracks sends its recruits out blooded, a military academy seasoned)
-    let held = 0; const by = {}; for (const q of C.lq) { const lv = lvOf(q.t, "army"); const tc = CITIES.find(c => c[0] === q.t), na = tc && cityOwner(g, tc) === C.me ? nearestArmy(cellXY(tc)) : null, near = na != null; C.units.push({ k: q.k, hp: 1, ...(lv >= 2 ? { xp: lv >= 3 ? 2 : 1 } : {}), ...(near ? (na ? { ar: na } : {}) : tc ? { at: q.t } : {}) }); if (tc && !near) held++; if (near && na !== (C.ar | 0)) { const A = C.armies.find(a => a.id === na); if (A) A.army = (A.army | 0) + 1; } by[q.k] = (by[q.k] || 0) + 1; }
+    let held = 0; const by = {}; for (const q of C.lq) { const lv = lvOf(q.t, "army"); const tc = CITIES.find(c => c[0] === q.t), na = null, near = false; C.units.push({ k: q.k, hp: 1, ...(lv >= 2 ? { xp: lv >= 3 ? 2 : 1 } : {}), ...(near ? (na ? { ar: na } : {}) : tc ? { at: q.t } : {}) }); if (tc && !near) held++; if (near && na !== (C.ar | 0)) { const A = C.armies.find(a => a.id === na); if (A) A.army = (A.army | 0) + 1; } by[q.k] = (by[q.k] || 0) + 1; }
     const n = C.lq.length; C.army = Math.round(unitSum());
-    say(`${n} new regiment${n > 1 ? "s" : ""} raised`, `${Object.entries(by).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: armed and drilled over the year.${held ? ` ${held === n ? (n > 1 ? "Your army is too far off for them to join it: they hold their towns as garrisons until it comes for them." : "Your army is too far off for it to join: it holds its town as a garrison until the army comes for it.") : held === 1 ? "One is too far from your army to join it, and holds its town as a garrison until the army comes for it. The rest join the army." : `${held} are too far from your army to join it, and hold their towns as garrisons until the army comes for them. The rest join the army.`}` : (C.armies || []).length ? (n > 1 ? " They join the nearest of your armies." : " It joins the nearest of your armies.") : n > 1 ? " They join the army." : " It joins the army."}`);
+    say(`${n} new regiment${n > 1 ? "s" : ""} raised`, `${Object.entries(by).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: armed and drilled over the year. ${n > 1 ? "They stand" : "It stands"} in the garrison of the town that raised ${n > 1 ? "them" : "it"}: choose the town to send ${n > 1 ? "them" : "it"} to one of your armies, or bring an army to fetch ${n > 1 ? "them" : "it"}.`);
   }
   C.lq = []; C.levyQ = 0;
   const T = C.tech; T.pts += research(g);
@@ -840,7 +840,7 @@ function fieldEnd(o, won, myLossK, theirLossK) {
   if (!won && C.guns > 0 && R() < 0.5) C.guns--;
 }
 // ---- the muster before a battle you fight yourself: how many of your army take the field, and of which arms ----
-const MUST_KINDS = ["musketeer", "grenadier", "pike", "sword", "axe", "bow", "crossbow", "cavalry"];
+const MUST_KINDS = ["musketeer", "militia", "grenadier", "pike", "sword", "axe", "bow", "crossbow", "cavalry"];
 function musterFor(o) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att, theirMen = clamp(Math.round(10 + theirs / 2.2), 10, 48);
   musterScreen({
@@ -1014,6 +1014,7 @@ const fmtN = n => Math.round(n).toLocaleString("en-GB");
 // what each kind of regiment costs, the men it takes from its town, its upkeep a year, and what it needs to be raised
 const UNIT = {
   musketeer: { cost: 30, men: 600, up: 1.6 },
+  militia: { cost: 12, men: 600, up: 0.7 },
   pike: { cost: 22, men: 600, up: 1.2 },
   sword: { cost: 28, men: 450, up: 1.5 },
   grenadier: { cost: 44, men: 450, up: 2.2, need: ct => lvOf(ct[0], "army") >= 1, why: "a drill yard" },
@@ -1024,7 +1025,7 @@ const UNIT = {
 };
 const kindsOf = id => STYLE[styleOf(id)].map(([k]) => k);
 // (how each arm fights, out of five: its fire, its hand-to-hand, its pace, and how it stands against horse)
-const RATE = { musketeer: [4, 2, 2, 2], grenadier: [4, 3, 2, 2], pike: [0, 3, 2, 5], sword: [1, 4, 3, 2], axe: [0, 4, 2, 1], bow: [3, 1, 3, 1], crossbow: [3, 2, 2, 1], cavalry: [1, 4, 5, 3] };
+const RATE = { musketeer: [4, 2, 2, 2], militia: [2, 1, 2, 1], grenadier: [4, 3, 2, 2], pike: [0, 3, 2, 5], sword: [1, 4, 3, 2], axe: [0, 4, 2, 1], bow: [3, 1, 3, 1], crossbow: [3, 2, 2, 1], cavalry: [1, 4, 5, 3] };
 const RATE_N = ["Fire", "Melee", "Pace", "Against horse"];
 // a regiment's card, large: its plate, its arms, what it costs and keeps, how it fights, and yours of it
 function unitCard(k) {
@@ -1050,7 +1051,7 @@ function ensureUnits() { if (C.units) return; const m = muster(C.me, C.army | 0)
 const field = () => (C.units || []).filter(u => !u.at && (u.ar | 0) === (C.ar | 0));
 // ---- more than one army: each its own place, march, siege, general and spirit. The one you're giving orders to stands in
 //  the campaign's own fields (C.pos, C.go, C.army…); the others wait in C.armies, and are swapped in when chosen ----
-const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb", "aslt"];
+const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb", "aslt", "joinTo"];
 const armyIds = () => [C.ar | 0, ...(C.armies || []).map(a => a.id)].sort((a, b) => a - b);
 function useArmy(id) {
   id |= 0; if (id === (C.ar | 0)) return; const t = (C.armies || []).find(a => a.id === id); if (!t) return;
@@ -1090,8 +1091,8 @@ function splitArmy() {
   useArmy(id); persist(); return null;
 }
 // (two of your armies in one place: the one in hand marched into the other, and gone)
-function joinArmy() {
-  const here = armyPos(), o = (C.armies || []).find(a => a.pos && dist2(a.pos, here) <= 3 && !a.siege); if (!o) return "No other army of yours stands here.";
+function joinArmy(to) {
+  const here = armyPos(), o = (C.armies || []).find(a => a.pos && (to == null || a.id === to) && dist2(a.pos, here) <= 3 && !a.siege); if (!o) return "No other army of yours stands here.";
   const from = C.ar | 0; useArmy(o.id); for (const u of C.units) if (!u.at && (u.ar | 0) === from) u.ar = o.id;
   C.armies = C.armies.filter(a => a.id !== from); C.army = Math.round(unitSum()); persist(); return null;
 }
@@ -1397,8 +1398,13 @@ function endSeason(part = {}) {
   eachArmy(id => {
     C.moved = false; C.supplied = false;
     // (an army still on its way: the year's march taken up with getting there)
+    // (sent to join another army: following it wherever it has gone)
+    const J = C.joinTo != null && (C.armies || []).find(a => a.id === C.joinTo && a.pos);
+    if (J) { if (C.go || dist2(J.pos, armyPos()) > 3) C.go = { x: J.pos.x, y: J.pos.y }; } else C.joinTo = null;
     if (C.go && !C.siege) { const st = stepToward(armyPos(), C.go, MARCH); C.pos = { x: st.x, y: st.y }; if (st.arrived) { C.go = null; say(id ? `The ${armyName(id).toLowerCase()} arrives` : "Your army arrives", "It's where you sent it, and can march again next year."); } C.moved = true; }
   });
+  // (an army sent to join another, there now: the two made one)
+  { const keep = C.ar | 0; for (let pass = 0; pass < 6; pass++) { let done = false; for (const id of armyIds()) { useArmy(id); const to = C.joinTo; if (to == null) continue; const T = (C.armies || []).find(a => a.id === to); if (!T) { C.joinTo = null; continue; } if (T.pos && !T.siege && C.emb == null && dist2(T.pos, armyPos()) <= 3) { C.joinTo = null; const name = armyName(to); if (!joinArmy(to)) { say(`Reinforcements reach the ${name.toLowerCase()}`, `The regiments sent to join it march into its camp: ${armyStr()}.`); done = true; break; } } } if (!done) break; } useArmy(armyIds().includes(keep) ? keep : armyIds()[0]); }
   say(`${C.year}`, `${income(grid()) - upkeep() >= 0 ? "+" : ""}${income(grid()) - upkeep()} thalers a year. ${C.events.filter(e => !e.done).length ? "Things need your word." : ""}`);
   checkEnd(); persist();
 }
@@ -1747,7 +1753,6 @@ function spreadTick() {
 function paint() {
   const cv = $("cmpMap"); if (!cv || !C) return; W0();
   if (on3d && eu3d) { eu3d.setMap(E(), 2, null); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); eu3d.armies(armies3d()); if (!raf3d) loop3d(); return; }
-  marchLines = [];
   spreadCheck();
   let sp = null;
   if (spread) { const t = (performance.now() - spread.t0) / spread.dur; if (t >= 1) spread = null; else { const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; sp = { cells: spread.cells, p: e * (spread.max + 4) - 1 }; if (!spreadRaf) spreadRaf = requestAnimationFrame(spreadTick); } }
@@ -1779,13 +1784,12 @@ function paint() {
   if (lastArmyOf !== C) { lastArmyOf = C; lastArmyAt = {}; marchAnims = []; }
   const army = (p, id, n, mine, go, act = true, key = id) => {
     // (an army somewhere new since it was last drawn — marched there on your order, or the enemy's at the year's end:
-    //  its men seen marching from where it was)
-    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 220) marchAnims.push({ from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, col: NATIONS[id].color, ink: mine ? "#2a1c10" : "#7a2216", nw: !!NATIONS[id].nw, t0: performance.now(), dur: 2600 + Math.min(2400, d * 60) }); }
+    //  its mark seen going there, drawn over the map on its way — see marchLoop — and not here till it arrives)
+    const now = performance.now();
+    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 220) { marchAnims = marchAnims.filter(A => A.key !== key); marchAnims.push({ key, from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, id, n, mine, t0: now, dur: 1400 + Math.min(1800, d * 45) }); } }
       lastArmyAt[key] = { x: p.x, y: p.y }; }
     const [x, y0] = scr(p), y = y0 + townNudge(p, armyU(k)); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return;
-    const col = NATIONS[id].color, u = armyU(k);
-    // (an army on the march: its men seen stepping out along the road, over the map — see marchLoop)
-    if (go) { const [gx, gy] = scr(go); marchLines.push({ x, y, gx, gy, col, ink: mine ? "#2a1c10" : "#7a2216", u, nw: !!(NATIONS[id] && NATIONS[id].nw) }); }
+    const u = armyU(k);
     if (go) {
       // (the road it's on: dashed to where it's going, an arrowhead there)
       const [gx, gy] = scr(go), a = Math.atan2(gy - y, gx - x);
@@ -1793,33 +1797,10 @@ function paint() {
       c.beginPath(); c.moveTo(x, y); c.lineTo(gx, gy); c.stroke(); c.setLineDash([]);
       c.fillStyle = c.strokeStyle; c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx - Math.cos(a - 0.45) * 11 * u, gy - Math.sin(a - 0.45) * 11 * u); c.lineTo(gx - Math.cos(a + 0.45) * 11 * u, gy - Math.sin(a + 0.45) * 11 * u); c.fill(); c.restore();
     }
-    c.save(); c.translate(x, y);
-    // (drawn as the engravers of the day drew an army in the field, flat on the paper: its battalions in two lines
-    //  in its colour, horse on the wings, the front turned the way it marches — and the count of regiments in
-    //  small italic under it, haloed against the map, no flag or box to cover the country it's in)
+    // (on its way here: drawn moving, over the map, till it's arrived)
+    if (marchAnims.some(A => A.key === key && now - A.t0 < A.dur)) return;
     const face = go ? (() => { const [gx, gy] = scr(go); return Math.atan2(gy - y, gx - x) + Math.PI / 2; })() : 0;
-    c.save(); c.rotate(face);
-    c.fillStyle = "rgba(244,234,210,0.55)"; c.beginPath(); c.ellipse(0, 0, 15 * u, 6.5 * u, 0, 0, 7); c.fill(); c.fillStyle = "rgba(30,20,10,0.16)"; c.beginPath(); c.ellipse(0.8 * u, 1.6 * u, 13 * u, 5 * u, 0, 0, 7); c.fill();
-    const ink = mine ? "#2a1c10" : "#7a2216";
-    // (a war party of the woods' nations: no battalions in line, but men in open order, scattered across the ground)
-    if (NATIONS[id] && NATIONS[id].nw) {
-      for (let i = 0; i < 9; i++) { const sx = (Math.sin(i * 2.39 + 1) * 9 + (i % 3 - 1) * 2.5) * u, sy = (Math.cos(i * 1.71) * 3.2) * u; c.fillStyle = col; c.strokeStyle = ink; c.lineWidth = 0.8 * u; c.beginPath(); c.moveTo(sx, sy - 2.4 * u); c.lineTo(sx + 1.3 * u, sy + 1.2 * u); c.lineTo(sx - 1.3 * u, sy + 1.2 * u); c.closePath(); c.fill(); c.stroke(); }
-      c.restore();
-    } else {
-    for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) {
-      const bx = (-8.6 + i * 4.6 + r * 1.1) * u, by = (-3.2 + r * 3.6) * u;
-      c.globalAlpha = r ? 0.78 : 1; c.fillStyle = col; c.fillRect(bx, by, 3.6 * u, 2.2 * u);
-      c.globalAlpha = 1; c.strokeStyle = ink; c.lineWidth = 0.9 * u; c.strokeRect(bx, by, 3.6 * u, 2.2 * u);
-    }
-    for (const sx of [-1, 1]) { c.fillStyle = col; c.strokeStyle = ink; c.beginPath(); const hx = sx * 12.2 * u, hy = -1.2 * u; c.moveTo(hx, hy - 2 * u); c.lineTo(hx + 1.8 * u, hy); c.lineTo(hx, hy + 2 * u); c.lineTo(hx - 1.8 * u, hy); c.closePath(); c.fill(); c.stroke(); }
-    // (the front: a fine rule before the first line)
-    c.strokeStyle = ink; c.lineWidth = 0.9 * u; c.beginPath(); c.moveTo(-9.2 * u, -4.4 * u); c.lineTo(8.4 * u, -4.4 * u); c.stroke();
-    c.restore();
-    }
-    if (mine && act && armySel) { c.save(); c.strokeStyle = "#c89a30"; c.lineWidth = 1.6 * u; c.setLineDash([3 * u, 2.4 * u]); c.beginPath(); c.ellipse(0, 0, 16 * u, 9 * u, face, 0, 7); c.stroke(); c.restore(); }
-    const t = String(n); c.font = `italic bold ${Math.round(9.5 * u)}px ${'"IM Fell English", Georgia, serif'}`; c.textAlign = "center"; c.textBaseline = "top";
-    c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 3 * u; c.strokeText(t, 0, 7 * u); c.fillStyle = ink; c.fillText(t, 0, 7 * u);
-    c.restore();
+    armyMark(c, x, y, face, id, n, mine, mine && act && armySel, u);
   };
   // (the other crowns at war with you, and their marches on your towns; the other player's; then yours, on top)
   // (the straits that join the great lakes, too narrow for the map's coast to show: drawn in, so a lake's ships aren't
@@ -1839,9 +1820,22 @@ function paint() {
   if (C.emb == null) army(armyPos(), C.me, field().length || C.army, true, C.go || null, true, C.me + "#" + (C.ar | 0));
   marchStart(cv);
   // ---- the fleets: a ship under sail, engraved, in her crown's colour, how many ships under her, and where she's bound ----
-  const shipMark = (p, col, n, mine, sel, go, cargo) => {
+  const shipMark = (p, col, n, mine, sel, go, cargo, key) => {
+    // (a fleet somewhere new since it was last drawn: seen sailing there, over the map, and drawn here once it's in)
+    const now = performance.now();
+    { const was = lastArmyAt[key]; if (was) { const d = Math.hypot(p.x - was.x, p.y - was.y); if (d > 0.4 && d < 400) { marchAnims = marchAnims.filter(A => A.key !== key); marchAnims.push({ key, fleet: true, from: { x: was.x, y: was.y }, to: { x: p.x, y: p.y }, col, n, mine, cargo, t0: now, dur: 1400 + Math.min(2200, d * 30) }); } } lastArmyAt[key] = { x: p.x, y: p.y }; }
     const [x, y] = scr(p); if (x < -60 || y < -60 || x > cv.width + 60 || y > cv.height + 60) return; const u = armyU(k);
     if (go) { const [gx, gy] = scr(go); c.save(); c.strokeStyle = mine ? "rgba(30,50,70,0.8)" : "rgba(150,30,20,0.8)"; c.lineWidth = 1.8 * u; c.setLineDash([2 * u, 4 * u]); c.beginPath(); c.moveTo(x, y); c.lineTo(gx, gy); c.stroke(); c.restore(); }
+    if (marchAnims.some(A => A.key === key && now - A.t0 < A.dur)) return;
+    fleetMark(c, x, y, col, n, mine, sel, cargo, u);
+  };
+  for (const [id, F] of Object.entries(C.foeFleets || {})) if (F.ships.length) shipMark(F.pos, NATIONS[id].color, F.ships.length, false, selFoeFleet === id, null, 0, "ff-" + id);
+  for (const [h, f] of otherFleets()) shipMark(f.pos, NATIONS[h].color, f.ships.length, false, false, null, 0, "hf-" + h + "-" + f.id);
+  for (const f of C.fleets || []) if (f.ships.length) shipMark(f.pos, NATIONS[C.me].color, f.ships.length, true, selFleet === f.id, f.go, aboardRegs(f.id), "mf-" + f.id);
+  c.restore();
+}
+// a fleet's mark on the map: a ship under sail, engraved, in her crown's colour, and how many ships are under her
+function fleetMark(c, x, y, col, n, mine, sel, cargo, u) {
     c.save(); c.translate(x, y); c.lineJoin = "round";
     c.fillStyle = "rgba(244,234,210,0.6)"; c.beginPath(); c.ellipse(0, 3 * u, 13 * u, 4.5 * u, 0, 0, 7); c.fill();
     c.strokeStyle = mine ? "#2a1c10" : "#7a2216"; c.lineWidth = 1 * u;
@@ -1851,66 +1845,63 @@ function paint() {
     if (sel) { c.strokeStyle = "#c89a30"; c.lineWidth = 1.6 * u; c.setLineDash([3 * u, 2.4 * u]); c.beginPath(); c.ellipse(0, -2 * u, 16 * u, 13 * u, 0, 0, 7); c.stroke(); c.setLineDash([]); }
     c.font = `italic bold ${Math.round(9 * u)}px Georgia, serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 3 * u; const t = `${n}${cargo ? ` · ${cargo}` : ""}`; c.strokeText(t, 0, 10.5 * u); c.fillStyle = mine ? "#2a1c10" : "#7a2216"; c.fillText(t, 0, 10.5 * u);
     c.restore();
-  };
-  for (const [id, F] of Object.entries(C.foeFleets || {})) if (F.ships.length) shipMark(F.pos, NATIONS[id].color, F.ships.length, false, selFoeFleet === id, null, 0);
-  for (const [h, f] of otherFleets()) shipMark(f.pos, NATIONS[h].color, f.ships.length, false, false, null, 0);
-  for (const f of C.fleets || []) if (f.ships.length) shipMark(f.pos, NATIONS[C.me].color, f.ships.length, true, selFleet === f.id, f.go, aboardRegs(f.id));
-  c.restore();
+}
+// an army's mark on the map, as the engravers of the day drew an army in the field (see paint), at (x, y) on the canvas
+function armyMark(c, x, y, face, id, n, mine, sel, u) {
+  const col = NATIONS[id].color;
+    c.save(); c.translate(x, y);
+    // (drawn as the engravers of the day drew an army in the field, flat on the paper: its battalions in two lines
+    //  in its colour, horse on the wings, the front turned the way it marches — and the count of regiments in
+    //  small italic under it, haloed against the map, no flag or box to cover the country it's in)
+    c.save(); c.rotate(face);
+    c.fillStyle = "rgba(244,234,210,0.55)"; c.beginPath(); c.ellipse(0, 0, 15 * u, 6.5 * u, 0, 0, 7); c.fill(); c.fillStyle = "rgba(30,20,10,0.16)"; c.beginPath(); c.ellipse(0.8 * u, 1.6 * u, 13 * u, 5 * u, 0, 0, 7); c.fill();
+    const ink = mine ? "#2a1c10" : "#7a2216";
+    // (a war party of the woods' nations: no battalions in line, but men in open order, scattered across the ground)
+    if (NATIONS[id] && NATIONS[id].nw) {
+      for (let i = 0; i < 9; i++) { const sx = (Math.sin(i * 2.39 + 1) * 9 + (i % 3 - 1) * 2.5) * u, sy = (Math.cos(i * 1.71) * 3.2) * u; c.fillStyle = col; c.strokeStyle = ink; c.lineWidth = 0.8 * u; c.beginPath(); c.moveTo(sx, sy - 2.4 * u); c.lineTo(sx + 1.3 * u, sy + 1.2 * u); c.lineTo(sx - 1.3 * u, sy + 1.2 * u); c.closePath(); c.fill(); c.stroke(); }
+      c.restore();
+    } else {
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) {
+      const bx = (-8.6 + i * 4.6 + r * 1.1) * u, by = (-3.2 + r * 3.6) * u;
+      c.globalAlpha = r ? 0.78 : 1; c.fillStyle = col; c.fillRect(bx, by, 3.6 * u, 2.2 * u);
+      c.globalAlpha = 1; c.strokeStyle = ink; c.lineWidth = 0.9 * u; c.strokeRect(bx, by, 3.6 * u, 2.2 * u);
+    }
+    for (const sx of [-1, 1]) { c.fillStyle = col; c.strokeStyle = ink; c.beginPath(); const hx = sx * 12.2 * u, hy = -1.2 * u; c.moveTo(hx, hy - 2 * u); c.lineTo(hx + 1.8 * u, hy); c.lineTo(hx, hy + 2 * u); c.lineTo(hx - 1.8 * u, hy); c.closePath(); c.fill(); c.stroke(); }
+    // (the front: a fine rule before the first line)
+    c.strokeStyle = ink; c.lineWidth = 0.9 * u; c.beginPath(); c.moveTo(-9.2 * u, -4.4 * u); c.lineTo(8.4 * u, -4.4 * u); c.stroke();
+    c.restore();
+    }
+    if (sel) { c.save(); c.strokeStyle = "#c89a30"; c.lineWidth = 1.6 * u; c.setLineDash([3 * u, 2.4 * u]); c.beginPath(); c.ellipse(0, 0, 16 * u, 9 * u, face, 0, 7); c.stroke(); c.restore(); }
+    const t = String(n); c.font = `italic bold ${Math.round(9.5 * u)}px ${'"IM Fell English", Georgia, serif'}`; c.textAlign = "center"; c.textBaseline = "top";
+    c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 3 * u; c.strokeText(t, 0, 7 * u); c.fillStyle = ink; c.fillText(t, 0, 7 * u);
+    c.restore();
 }
 let armySel = false, armyOff = {}, foeOff = {};
 // ---- an army on the march, seen marching: a file of its men stepping out along its road, drawn over the map on a
 //  canvas of their own (the map itself is too much to draw again every frame) — while the 2D map is up ----
-let marchLines = [], marchRaf = 0, marchCv = null, marchView = null, marchAnims = [], lastArmyAt = {}, lastArmyOf = null;
+let marchRaf = 0, marchCv = null, marchView = null, marchAnims = [], lastArmyAt = {}, lastArmyOf = null;
 function marchStart(cv) {
   if (!marchCv) { marchCv = document.createElement("canvas"); marchCv.id = "cmpMarch"; marchCv.style.pointerEvents = "none"; cv.parentElement.appendChild(marchCv); }
   if (marchCv.width !== cv.width || marchCv.height !== cv.height) { marchCv.width = cv.width; marchCv.height = cv.height; }
   marchCv.style.width = cv.style.width; marchCv.style.height = cv.style.height;
   if (!marchRaf) marchRaf = requestAnimationFrame(marchLoop);
 }
-// (a file of men along a road from (fx, fy) to (tx, ty), q of the way through its march: the head of the column from
-//  the start to the end, the rest strung out behind it)
-function marchFile(c, fx, fy, tx, ty, u, A, t, q) {
-  const dx = tx - fx, dy = ty - fy, len = Math.hypot(dx, dy); if (len < 4 * u) return;
-  const ux = dx / len, uy = dy / len, gap = 10 * u, n = Math.max(3, Math.min(10, Math.floor(len / gap))), ease = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
-  for (let i = 0; i < n; i++) {
-    const d = (len + n * gap) * ease - i * gap; if (d < 0 || d > len) continue;
-    const a = Math.min(1, (1 - q) * 4, q * 6); manOnMap(c, fx + ux * d, fy + uy * d, u, A, t, i, a);
-  }
-}
-function manOnMap(c, px, py, u, L, t, i, a) {
-  u *= 1.4;
-  const step = Math.sin((t * 2.2 + i * 0.5) * Math.PI * 2) * 1.6 * u;
-  c.save(); c.globalAlpha = a * 0.95; c.translate(px, py);
-  c.strokeStyle = L.ink; c.lineWidth = 1.1 * u; c.lineCap = "round";
-  c.beginPath(); c.moveTo(0, 1.5 * u); c.lineTo(step * 0.6, 5 * u); c.moveTo(0, 1.5 * u); c.lineTo(-step * 0.6, 5 * u); c.stroke();
-  c.fillStyle = L.nw ? "#8a6a48" : L.col; c.fillRect(-1.6 * u, -3.2 * u, 3.2 * u, 5 * u); c.strokeRect(-1.6 * u, -3.2 * u, 3.2 * u, 5 * u);
-  c.fillStyle = "#e8d0b0"; c.beginPath(); c.arc(0, -4.6 * u, 1.4 * u, 0, 7); c.fill(); c.stroke();
-  c.beginPath(); c.moveTo(1.2 * u, 0); c.lineTo(L.nw ? 3 * u : 3.4 * u, L.nw ? -4 * u : -8 * u); c.stroke();
-  c.restore();
-}
 function marchLoop(now) {
   marchRaf = 0; if (!marchCv) return;
   const c = marchCv.getContext("2d"); c.clearRect(0, 0, marchCv.width, marchCv.height);
-  marchAnims = marchAnims.filter(A => now - A.t0 < A.dur);
-  const live = C && !on3d && (marchLines.length || marchAnims.length) && $("cmpMap") && $("cmpMap").offsetParent && !document.hidden;
+  // (a march just ended: the map drawn again, with the army where it now stands)
+  const was = marchAnims.length; marchAnims = marchAnims.filter(A => now - A.t0 < A.dur);
+  if (marchAnims.length < was && C && !on3d) paint();
+  const live = C && !on3d && marchAnims.length && $("cmpMap") && $("cmpMap").offsetParent && !document.hidden;
   marchCv.style.display = live ? "" : "none";
-  if (!live) return;
-  const t = now / 1000;
-  // (an army just moved: a file of its men going from where it was to where it's drawn now, the last of them arriving
-  //  as it ends)
-  if (marchView) for (const A of marchAnims) {
-    const V = marchView, sc = p => [(p.x * V.S - V.ox) * V.z, (p.y * V.S - V.oy) * V.z], [fx, fy] = sc(A.from), [tx, ty] = sc(A.to), q = (now - A.t0) / A.dur;
-    marchFile(c, fx, fy, tx, ty, V.u, A, t, q);
-  }
-  for (const L of marchLines) {
-    const dx = L.gx - L.x, dy = L.gy - L.y, len = Math.hypot(dx, dy), u = L.u; if (len < 30 * u) continue;
-    const ux = dx / len, uy = dy / len, gap = 13 * u, n = Math.min(16, Math.floor((len - 24 * u) / gap)), spd = 9 * u;
-    for (let i = 0; i < n; i++) {
-      // (each man a step further on, the file looping from the army toward where it's bound; faded at either end)
-      const d = 16 * u + ((i * gap + t * spd) % (n * gap)), px = L.x + ux * d, py = L.y + uy * d, k = d / len;
-      const a = Math.min(1, (d - 16 * u) / (gap * 1.5), (len - d) / (gap * 2)); if (a <= 0) continue;
-      manOnMap(c, px, py, u, L, t, i, a); void k;
-    }
+  if (!live || !marchView) return;
+  // (an army on its way: its own mark drawn going from where it was to where it's bound, turned the way it goes —
+  //  starting off and drawing up gently)
+  const V = marchView, sc = (p, nudge) => [(p.x * V.S - V.ox) * V.z, (p.y * V.S - V.oy) * V.z + (nudge ? townNudge(p, V.u) : 0)];
+  for (const A of marchAnims) {
+    const [fx, fy] = sc(A.from, !A.fleet), [tx, ty] = sc(A.to, !A.fleet), q = Math.min(1, (now - A.t0) / A.dur), e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+    if (A.fleet) fleetMark(c, fx + (tx - fx) * e, fy + (ty - fy) * e, A.col, A.n, A.mine, false, A.cargo, V.u);
+    else armyMark(c, fx + (tx - fx) * e, fy + (ty - fy) * e, Math.atan2(ty - fy, tx - fx) + Math.PI / 2, A.id, A.n, A.mine, false, V.u);
   }
   marchRaf = requestAnimationFrame(marchLoop);
 }
@@ -2049,6 +2040,7 @@ function garHtml(ct) {
   if (G.length) h += `<div class="cmp-gar">${Object.entries(by).map(([k, c]) => `<span title="${esc(TROOPS[k].name)}">${unitImg(k, "sm")}<b>${c}</b>${here ? `<button class="tm-lnk" data-unstation="${k}">To the army</button>` : ""}</span>`).join("")}${here && G.length > 1 ? `<button class="tm-lnk" data-unstation="*">All to the army</button>` : ""}</div>`;
   if (here && Object.keys(fk).length) h += `<div class="cmp-gar leave"><small>Leave in ${esc(n)}:</small>${Object.entries(fk).map(([k, c]) => `<button class="cmp-rmini" data-station="${k}" title="Leave a regiment of ${esc(TROOPS[k].name.toLowerCase())} to hold ${esc(n)} (${c} in the army)">${unitImg(k)}</button>`).join("")}</div>`;
   else if (G.length && !here) h += `<small class="cmp-fine">Bring an army here to take them into it.</small>`;
+  if (G.length && armyIds().length && field().length + (C.armies || []).length) h += `<div class="cmp-gar send"><small>Send to:</small>${armyIds().filter(id => (C.units || []).some(u => !u.at && (u.ar | 0) === id)).map(id => `<button class="tm-lnk" data-sendgar="${id}" title="March ${esc(n)}'s garrison out to the ${esc(armyName(id).toLowerCase())}, and join it when it gets there">${esc(armyName(id))}</button>`).join("")}</div>`;
   if (G.length) h += `<div class="cmp-acts"><button class="btn" data-form="1" title="March the garrison out as an army of its own">Form a new army from the garrison</button></div>`;
   return h;
 }
@@ -2226,6 +2218,7 @@ function sideClick(e) {
   if (b.dataset.seaf) { const fid = b.dataset.fid != null ? +b.dataset.fid : selFleet; if (fid != null) doAct({ k: "seafight", id: fid, foe: b.dataset.seaf, how: b.dataset.how }); return; }
   if (b.dataset.fieldf && selFoe) { doAct({ k: "field", foe: selFoe, how: b.dataset.fieldf }); return; }
   if (b.dataset.army != null) { doAct({ k: "usearmy", id: +b.dataset.army }); const p2 = armyPos(), cv2 = $("cmpMap"), S2 = cv2.width / MG_W; view.ox = clamp(p2.x * S2 - cv2.width / view.z / 2, 0, cv2.width - cv2.width / view.z); view.oy = clamp(p2.y * S2 - cv2.height / view.z / 2, 0, cv2.height - cv2.height / view.z); drawMap(); return; }
+  if (b.dataset.sendgar && selCity) { doAct({ k: "sendgar", t: selCity[0], id: +b.dataset.sendgar }); return; }
   if (b.dataset.form && selCity) { doAct({ k: "form", t: selCity[0] }); return; }
   if (b.dataset.join) { doAct({ k: "join" }); return; }
   if (b.dataset.split) { doAct({ k: "split" }); return; }
@@ -2323,15 +2316,23 @@ function apply(actor, a) {
     if (a.k === "form") { const why = formArmy(a.t); return why ? { note: why } : { note: `A new army is formed at ${a.t} from its garrison: the ${armyName(C.ar | 0).toLowerCase()}. Choose a general for it from its card.`, sfx: [["drum", 0.5]] }; }
     if (a.k === "split") { const why = splitArmy(); return why ? { note: why } : { note: `The army is split in two: the ${armyName(C.ar | 0).toLowerCase()} marches under its own colours. Choose a general for it.`, sfx: [["drum", 0.45]] }; }
     // (marched to another army of yours and joined to it there: at once if it's within the year's march, else on the way)
+    // (a town's garrison marched out to one of your armies, and joined to it when it gets there)
+    if (a.k === "sendgar") {
+      const to = a.id | 0; if (!armyIds().includes(to)) return null; const from = C.ar | 0;
+      const why = formArmy(a.t); if (why) return { note: why };
+      const nid = C.ar | 0, res = apply(actor, { k: "joinat", id: to });
+      if (armyIds().includes(nid)) useArmy(nid); else useArmy(armyIds().includes(from) ? from : to);
+      return res;
+    }
     if (a.k === "joinat") {
       const o = (C.armies || []).find(x => x.id === a.id && x.pos); if (!o) return null;
       if (o.siege) return { note: "That army is besieging a town: march to it and join it when the siege is done." };
       if (dist2(o.pos, armyPos()) > 3) {
-        const res = apply(actor, { k: "move", x: o.pos.x, y: o.pos.y });
+        const was = !!C.moved, res = apply(actor, { k: "move", x: o.pos.x, y: o.pos.y }); if (!was && C.moved) C.joinTo = o.id;
         // (too far for the year: on its way, and joined with a right-click on it again once it's there)
-        if (dist2(o.pos, armyPos()) > 3) return res && res.note ? { ...res, note: `${res.note} Right-click the ${armyName(o.id).toLowerCase()} again once it's there, and they'll join.` } : res || { note: "Your army can't march to it now." };
+        if (dist2(o.pos, armyPos()) > 3) return res && res.note ? { ...res, note: C.joinTo === o.id ? `${res.note} It joins the ${armyName(o.id).toLowerCase()} when it reaches it.` : res.note } : res || { note: "Your army can't march to it now." };
       }
-      const name = armyName(o.id), why = joinArmy(); return why ? { note: why } : { note: `The two armies march together as one: the ${name.toLowerCase()}, ${armyStr()}.`, sfx: [["drum", 0.5]] };
+      const name = armyName(o.id), why = joinArmy(o.id); return why ? { note: why } : { note: `The two armies march together as one: the ${name.toLowerCase()}, ${armyStr()}.`, sfx: [["drum", 0.5]] };
     }
     if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4]] }; }
     if (a.k === "askgen") { askGeneral(); return {}; }
@@ -2359,6 +2360,7 @@ function apply(actor, a) {
     }
     // the army sent somewhere: as far as a year's march takes it now, the rest of the way in the years after
     if (a.k === "move") {
+      C.joinTo = null;
       if (C.siege) return { note: `Your army is sitting down before ${C.siege.ct}: lift the siege first.` };
       if (C.moved) return { note: "Your army has already marched this year." };
       W0(); const t = { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }; if (!isFinite(t.x) || !isFinite(t.y)) return null;

@@ -623,6 +623,8 @@ export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.ene
 // with cheap ones; guns cost dearest of all (and come with their crews)
 export const TROOPS = {
   musketeer: { name: "Musketeers", one: "Musketeer", cost: 60, lo: { long: "musket", side: "none", blade: "dagger" }, note: "Musket and bayonet" },
+  // (townsmen called out and handed a musket: cheap, and it shows — they shoot wide, load slowly, and run sooner)
+  militia: { name: "Militia", one: "Militiaman", cost: 26, raw: true, lo: { long: "musket", side: "none", blade: "dagger" }, note: "Musket, little drill · cheap, unsteady" },
   grenadier: { name: "Grenadiers", one: "Grenadier", cost: 120, lo: { long: "musket", side: "none", blade: "dagger" }, nades: 3, note: "Musket, bayonet, 3 grenades" },
   crossbow: { name: "Crossbowmen", one: "Crossbowman", cost: 36, lo: { long: "crossbow", side: "none", blade: "sword" }, note: "Crossbow and sword" },
   sword: { name: "Swordsmen", one: "Swordsman", cost: 42, lo: { long: "none", side: "pistol", blade: "sword" }, note: "Sword and pistol" },
@@ -633,7 +635,7 @@ export const TROOPS = {
 };
 // ---- a part of the company to command by itself: a letter for each arm (pressed again, the whole company) ----
 export const GROUPS = [
-  { key: "KeyL", id: "line", name: "Musketeers", kinds: ["musketeer"] },
+  { key: "KeyL", id: "line", name: "Musketeers", kinds: ["musketeer", "militia"] },
   { key: "KeyO", id: "gren", name: "Grenadiers", kinds: ["grenadier"] },
   { key: "KeyP", id: "pike", name: "Pikemen", kinds: ["pike"] },
   { key: "KeyI", id: "shot", name: "Bowmen and crossbowmen", kinds: ["bow", "crossbow"] },
@@ -650,7 +652,7 @@ export const groupOf = u => { const k = armOf(u), g = GROUPS.find(g => g.kinds.i
 // ---- nerve: how much a man can stand before he breaks and runs ----
 // (the drilled and the well-paid steadiest — pikes in their block, grenadiers, troopers; the cheap levies the first to
 //  go: a mob of bowmen and axemen thrown at a line that fires steadily into them comes apart before it gets there)
-const STEADY = { musketeer: 1, grenadier: 1.25, pike: 1.2, cavalry: 1.15, sword: 0.95, crossbow: 0.8, axe: 0.75, bow: 0.7 };
+const STEADY = { musketeer: 1, militia: 0.6, grenadier: 1.25, pike: 1.2, cavalry: 1.15, sword: 0.95, crossbow: 0.8, axe: 0.75, bow: 0.7 };
 // (a horse's coat: bay, chestnut, black, grey, dun — as a regiment's remounts came)
 const COATS = [0x5a3a22, 0x6a4428, 0x7a3e1e, 0x2a221c, 0x8a8478, 0x9a7a52, 0x4a3220];
 export const GUN_COST = 160;
@@ -1028,7 +1030,7 @@ class Arena {
         const U = this.coUni && this.coUni[team] || (this.uni && this.uni[this.alOf(team)]), look = U ? soldierLook(U, seed) : b.look;
         const tk = this.musters && this.musters[team] && this.musters[team][i], T = tk && TROOPS[tk], call = this.hist && this.hist.cos[team] && this.hist.cos[team].call;
         const info = { ...b, look, name: U ? `${U.name}${T ? " " + ((call && call[tk]) || T.one).toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i, kind: tk || null };
-        if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; }
+        if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; if (T.raw) info.skill *= 0.45; }
         // (the woods' nations' warriors: the war club, not a battle axe — and warriors, by name, whatever they carry)
         if (U && /^warrior/.test(U.body || "")) { if (info.lo.blade === "battleaxe") info.lo.blade = "warclub"; info.name = `${U.name} warrior — ${b.name}`; }
         else if (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
@@ -2806,7 +2808,7 @@ class Bot extends Fighter {
     }
     // reloading goes on whatever he's doing, as yours does (each weapon its own time)
     const moving = a.path.length > 0;
-    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1) * (k === "long" && this.fixed ? 0.8 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
+    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1) * (k === "long" && this.fixed ? 0.8 : 1) * (this.info.kind === "militia" ? 0.62 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
     // (the gun in his hands, if it's being loaded: the drill, seen and heard)
     { const hk = this.heldK, slot = hk === "pistol" ? "side" : "long";
       if ((hk === "musket" || hk === "pistol") && !this.loaded[slot] && this.rl[slot] > 0) {

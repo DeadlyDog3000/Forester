@@ -1871,7 +1871,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-gar > span { display: flex; align-items: center; gap: 4px; padding: 2px 5px 2px 2px; border-radius: 3px; background: rgba(255,255,255,0.04); }
 .cmp-gar > span b { font: 600 13px var(--serif); color: var(--ink); }
 .cmp-gar .tm-lnk { all: unset; cursor: pointer; font: 10.5px var(--sans); color: var(--ink-dim); text-decoration: underline; }
-.cmp-gar.leave small { font: 11px var(--sans); color: var(--ink-dim); margin-right: 2px; }
+.cmp-gar.leave small, .cmp-gar.send small { font: 11px var(--sans); color: var(--ink-dim); margin-right: 2px; }
 .cmp-uopen { all: unset; cursor: zoom-in; display: block; }
 .cmp-ucard { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; max-width: 620px; text-align: left; }
 .cmp-ucard img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 4px; border: 1px solid rgba(0,0,0,0.5); box-shadow: 0 6px 18px rgba(0,0,0,0.45); }

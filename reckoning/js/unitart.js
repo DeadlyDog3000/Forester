@@ -15,7 +15,7 @@ const WAYS = { ottoman: "east", algerine: "east", tunisian: "east", tripolitan: 
 export const wayOfUniform = key => WAYS[key] || "west";
 // the plate for an arm, in a way of war — or the West's, or the nearest of kin, or none
 export function plateOf(way, kind) {
-  for (const k of [kind, ...({ crossbow: ["bow"], axe: ["sword"], sword: ["axe"], bow: ["crossbow"] }[kind] || [])]) {
+  for (const k of [kind, ...({ crossbow: ["bow"], axe: ["sword"], sword: ["axe"], bow: ["crossbow"], militia: ["musketeer"] }[kind] || [])]) {
     if (HAVE.has(`${way}-${k}`)) return `art/units/${way}-${k}.jpg`;
     if (HAVE.has(`west-${k}`)) return `art/units/west-${k}.jpg`;
   }
