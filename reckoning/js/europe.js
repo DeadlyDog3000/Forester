@@ -524,6 +524,13 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
     c.restore();
   }
   // ---- ornament: the rose, a ship, a monster, the cartouche, a scale, the frame ----
+  // the rose and its rhumb lines out in the ocean, a ship under sail, and a monster in the deep — as the Dutch sheets
+  //  filled their seas
+  const sea = (lo, la) => { const [x, y] = lonlat(lo, la, S); return [x, y]; };
+  const roses = SHEET === "world" ? [[-36, 40, 16], [-9.6, 44.6, 6]] : [[-9.6, 44.6, 7]];
+  c.save(); landPath(c, S); c.rect(W, 0, -W, H); c.clip("evenodd"); for (const [lo, la] of roses) { const [x, y] = sea(lo, la); rhumbs(c, x, y, W, H, S); } c.restore();
+  for (const [lo, la, rr] of roses) { const [x, y] = sea(lo, la); rose(c, x, y, S * rr); }
+  if (SHEET === "world") { const [sx, sy] = sea(-24, 49); ship(c, sx, sy, S * 1.9, 1); const [s2x, s2y] = sea(-62, 31.5); ship(c, s2x, s2y, S * 1.6, -1); const [mx, my] = sea(-44, 28.5); monster(c, mx, my, S * 1.9); }
   cartouche(c, W, H, S);
   scaleBar(c, W, H, S);
   frame(c, W, H, S);
@@ -638,6 +645,56 @@ function spaced(c, t, x, y, sp) {
   const align = c.textAlign; c.textAlign = "left";
   [...t].forEach((ch, i) => { c.fillText(ch, at, y); at += ws[i] + sp; });
   c.textAlign = align;
+}
+// rhumb lines: from a rose, thirty-two fine lines out across the sea, every way the wind can blow
+function rhumbs(c, x, y, W, H, S) {
+  c.save(); c.lineWidth = Math.max(0.5, S * 0.1); const L = Math.hypot(W, H);
+  for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; c.strokeStyle = INK_SOFT + (i % 4 === 0 ? "0.22)" : "0.1)"); c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); c.stroke(); }
+  c.restore();
+}
+// a compass rose: sixteen points, each half inked and half left white, in rings, the north marked with a lily
+function rose(c, x, y, R) {
+  c.save(); c.translate(x, y); c.lineJoin = "round";
+  c.fillStyle = "rgba(239,228,198,0.9)"; c.strokeStyle = INK; c.lineWidth = Math.max(0.6, R * 0.03);
+  for (const rr of [1.05, 0.98]) { c.beginPath(); c.arc(0, 0, R * rr, 0, 7); c.stroke(); }
+  c.beginPath(); c.arc(0, 0, R * 0.98, 0, 7); c.fill();
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * Math.PI * 2 - Math.PI / 2, len = i % 4 === 0 ? R : i % 2 === 0 ? R * 0.72 : R * 0.5, w = i % 4 === 0 ? R * 0.13 : R * 0.08, ca = Math.cos(a), sa = Math.sin(a);
+    const tip = [ca * len, sa * len], l = [Math.cos(a - Math.PI / 2) * w, Math.sin(a - Math.PI / 2) * w], r = [Math.cos(a + Math.PI / 2) * w, Math.sin(a + Math.PI / 2) * w];
+    c.fillStyle = INK; c.beginPath(); c.moveTo(0, 0); c.lineTo(...l); c.lineTo(...tip); c.closePath(); c.fill();
+    c.fillStyle = "#efe4c6"; c.beginPath(); c.moveTo(0, 0); c.lineTo(...r); c.lineTo(...tip); c.closePath(); c.fill(); c.stroke();
+  }
+  c.fillStyle = INK; c.beginPath(); c.arc(0, 0, R * 0.06, 0, 7); c.fill();
+  // (the lily at the north)
+  c.beginPath(); c.moveTo(0, -R * 1.32); c.quadraticCurveTo(R * 0.1, -R * 1.18, 0, -R * 1.06); c.quadraticCurveTo(-R * 0.1, -R * 1.18, 0, -R * 1.32); c.fill();
+  for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(0, -R * 1.1); c.quadraticCurveTo(sd * R * 0.16, -R * 1.25, sd * R * 0.12, -R * 1.08); c.stroke(); }
+  c.restore();
+}
+// a ship under sail: the hull, three masts and their square sails bellied with the wind, a pennant; waves at her bow
+function ship(c, x, y, k, dir = 1) {
+  c.save(); c.translate(x, y); c.scale(dir, 1); c.strokeStyle = INK; c.lineWidth = Math.max(0.6, k * 0.12); c.lineJoin = "round";
+  c.fillStyle = "rgba(90,66,44,0.9)"; c.beginPath(); c.moveTo(-6 * k, -1 * k); c.lineTo(6.5 * k, -1 * k); c.quadraticCurveTo(5.5 * k, 1.6 * k, 3 * k, 1.8 * k); c.lineTo(-4.5 * k, 1.8 * k); c.quadraticCurveTo(-6.2 * k, 0.8 * k, -6 * k, -1 * k); c.closePath(); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(-6 * k, -1 * k); c.lineTo(-6.4 * k, -2.6 * k); c.lineTo(-4 * k, -2.4 * k); c.lineTo(-4 * k, -1 * k); c.stroke();
+  for (const [mx, h, sw] of [[-2.6, 7, 2.2], [0.8, 8.4, 2.6], [3.8, 6.2, 1.9]]) {
+    c.beginPath(); c.moveTo(mx * k, -1 * k); c.lineTo(mx * k, -(1 + h) * k); c.stroke();
+    for (const [t, f] of [[0.35, 1], [0.72, 0.8]]) { const top = -(1 + h * (1 - t + 0.28)) * k, bot = -(1 + h * (1 - t)) * k + k * 0.2, w = sw * f * k; c.fillStyle = "#efe4c6"; c.beginPath(); c.moveTo(mx * k - w, top); c.lineTo(mx * k + w, top); c.quadraticCurveTo(mx * k + w * 1.25, (top + bot) / 2, mx * k + w, bot); c.lineTo(mx * k - w, bot); c.quadraticCurveTo(mx * k - w * 0.75, (top + bot) / 2, mx * k - w, top); c.closePath(); c.fill(); c.stroke(); }
+  }
+  c.fillStyle = "#a8322a"; c.beginPath(); c.moveTo(0.8 * k, -9.4 * k); c.lineTo(3.4 * k, -9 * k); c.lineTo(0.8 * k, -8.6 * k); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(6.5 * k, -1 * k); c.lineTo(9.5 * k, -3 * k); c.stroke();
+  c.strokeStyle = INK_SOFT + "0.6)"; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo((-8 + i * 5) * k, 2.6 * k); c.quadraticCurveTo((-6.5 + i * 5) * k, 1.9 * k, (-5 + i * 5) * k, 2.6 * k); c.stroke(); }
+  c.restore();
+}
+// a sea monster: the humps of a great serpent out of the water, its head reared with the jaws open, a fin, its tail
+function monster(c, x, y, k) {
+  c.save(); c.translate(x, y); c.strokeStyle = INK; c.lineWidth = Math.max(0.6, k * 0.12); c.lineJoin = "round"; c.fillStyle = "rgba(96,110,96,0.9)";
+  for (const [hx, hw] of [[-7, 2.2], [-2.5, 2.6], [2.4, 2.2]]) { c.beginPath(); c.moveTo((hx - hw) * k, 0); c.quadraticCurveTo(hx * k, -hw * 1.6 * k, (hx + hw) * k, 0); c.closePath(); c.fill(); c.stroke(); for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo((hx + i * 0.6) * k, -hw * 0.7 * k); c.lineTo((hx + i * 0.6 + 0.25) * k, -hw * 1.05 * k); c.stroke(); } }
+  // (the head, reared up at the front, jaws open; an eye)
+  c.beginPath(); c.moveTo(5 * k, 0); c.quadraticCurveTo(5.5 * k, -4.5 * k, 7.6 * k, -5.2 * k); c.lineTo(10 * k, -4.6 * k); c.lineTo(8.2 * k, -4 * k); c.lineTo(9.6 * k, -3.2 * k); c.lineTo(7.4 * k, -3.4 * k); c.quadraticCurveTo(6.6 * k, -1.6 * k, 7 * k, 0); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = INK; c.beginPath(); c.arc(7.9 * k, -4.7 * k, 0.25 * k, 0, 7); c.fill();
+  // (the tail, out of the water behind, forked)
+  c.fillStyle = "rgba(96,110,96,0.9)"; c.beginPath(); c.moveTo(-10 * k, 0); c.quadraticCurveTo(-11 * k, -2 * k, -12.6 * k, -3 * k); c.lineTo(-11.6 * k, -1.8 * k); c.lineTo(-13 * k, -1.2 * k); c.quadraticCurveTo(-11.2 * k, -0.8 * k, -10.6 * k, 0); c.closePath(); c.fill(); c.stroke();
+  c.strokeStyle = INK_SOFT + "0.55)"; for (let i = 0; i < 5; i++) { c.beginPath(); c.moveTo((-12 + i * 4.6) * k, 0.8 * k); c.quadraticCurveTo((-10.6 + i * 4.6) * k, 0.2 * k, (-9.2 + i * 4.6) * k, 0.8 * k); c.stroke(); }
+  c.restore();
 }
 function cartouche(c, W, H, S) {
   // (the world's sheet: its title longer, and the cartouche larger to carry it on so wide a sheet)

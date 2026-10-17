@@ -700,6 +700,7 @@ async function fieldWithPlayer(o) {
   setTimeout(() => { if (fieldWait && !G.arena) { fieldWait = false; try { n.close(); } catch (e) {} o.onFail && o.onFail(`${o.foe.name || "They"} didn't come to the field — the generals fought it.`); } }, 90000);
   $("pvpFindT").textContent = `Marching to meet ${o.foe.name || "them"}…`; $("pvpFindS").textContent = "Both armies must come to the field."; ctx.screen("pvpFind");
 }
+window.__duel = o => startDuel(o);   // (for the test scripts)
 function startDuel(o) {
   stopAmbient();
   const me = ctx.identity(), r = record();

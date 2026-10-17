@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.9", date: "16 October 2026", title: "The ocean, as the chart-makers drew it",
+    items: [
+      "Map: the Atlantic is drawn as the Dutch sheets drew their seas. A great compass rose with its lily at the north, thirty-two rhumb lines out across the water, a smaller rose off Portugal, ships under sail on the crossing, and a sea serpent in the deep.",
+    ],
+  },
+  {
     v: "1.51.8", date: "16 October 2026", title: "Two players meet in the town",
     items: [
       "Campaign of two: when one player's army marches on the other's town and you meet on the field, the battle is fought at the town itself, as battles against the computer are: its streets and houses at the defender's end, its walls if it has them, or a village's palisade.",
