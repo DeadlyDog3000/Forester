@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.8", date: "17 October 2026", title: "Armies side by side",
+    items: [
+      "Campaign: an enemy army standing on yours is drawn beside it, not on top of it, so both can be seen, and a click on your army picks your army. Before, the enemy's could hide yours and take the click.",
+    ],
+  },
+  {
     v: "1.60.7", date: "17 October 2026", title: "Struck, and retaken",
     items: [
       "Campaign: a ship of yours that struck her colours in a sea battle you went on to win is retaken, and stays in your fleet. Before, she was lost as if the enemy had carried her off. The same holds for theirs when they win.",

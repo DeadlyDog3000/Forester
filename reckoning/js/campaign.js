@@ -1734,10 +1734,12 @@ function paint() {
       c.strokeStyle = "rgba(60,48,32,0.75)"; c.lineWidth = cell * 0.9 + 1.6; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
       c.strokeStyle = "rgb(225,221,199)"; c.lineWidth = cell * 0.9; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); }
     c.restore(); }
-  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) { const tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); army(fp, id, foeArmy(id), false, tg ? cellXY(tg) : null); } }
-  if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) army(sl.pos, h, sl.army | 0, false, null); }
   // (your armies standing together fanned out a little on the screen, so each can be seen and clicked)
-  armyOff = {}; { const placed = []; for (const [id, p] of [[C.ar | 0, armyPos()], ...(C.armies || []).filter(a => a.pos).map(a => [a.id, a.pos])]) { let [sx, sy] = scr(p), dx = 0; while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx += 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); armyOff[id] = dx / (S * view.z); } }
+  armyOff = {}; foeOff = {}; { const placed = []; for (const [id, p] of [[C.ar | 0, armyPos()], ...(C.armies || []).filter(a => a.pos).map(a => [a.id, a.pos])]) { let [sx, sy] = scr(p), dx = 0; while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx += 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); armyOff[id] = dx / (S * view.z); }
+    // (and an enemy army standing on one of yours, or on another: set off to the other side, so neither hides the other)
+    for (const [id, p] of foeMarks()) { let [sx, sy] = scr(p), dx = 0; while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx -= 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); foeOff[id] = dx / (S * view.z); } }
+  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) { const tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); army({ x: fp.x + (foeOff[id] || 0), y: fp.y }, id, foeArmy(id), false, tg ? cellXY(tg) : null); } }
+  if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) army({ x: sl.pos.x + (foeOff[h] || 0), y: sl.pos.y }, h, sl.army | 0, false, null); }
   for (const a of C.armies || []) if (a.pos && a.emb == null) army({ x: a.pos.x + (armyOff[a.id] || 0), y: a.pos.y }, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null, false);
   if (C.emb == null) army(armyPos(), C.me, field().length || C.army, true, C.go || null);
   // ---- the fleets: a ship under sail, engraved, in her crown's colour, how many ships under her, and where she's bound ----
@@ -1759,7 +1761,9 @@ function paint() {
   for (const f of C.fleets || []) if (f.ships.length) shipMark(f.pos, NATIONS[C.me].color, f.ships.length, true, selFleet === f.id, f.go, aboardRegs(f.id));
   c.restore();
 }
-let armySel = false, armyOff = {};
+let armySel = false, armyOff = {}, foeOff = {};
+// (the other armies on the map, where they stand: the crowns at war with you, and the other player)
+const foeMarks = () => { const g = grid(), out = []; for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) out.push([id, fp]); } if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) out.push([h, sl.pos]); } return out; };
 // (an army standing in a town: drawn just below it, so the town's own mark isn't hidden under it)
 const townNudge = (p, u) => CITIES.some(ct => { const t = cellXY(ct); return Math.hypot(t.x - p.x, t.y - p.y) < 2.5; }) ? 10 * u : 0;
 const armyU = k => k * Math.min(2.7, 1.45 + view.z / ZF() * 0.26);
@@ -1775,7 +1779,7 @@ function fleetHit(cv, px, py) {
 function foeHit(cv, px, py) {
   if (!C) return null; const S = cv.width / MG_W, u = armyU(cv.width / 1300), g = grid();
   for (const id of Object.keys(C.E.war)) {
-    if (!C.E.war[id] || !alive(g, id)) continue; const p = isHuman(id) ? (sliceOf(id) || {}).pos : foeArmyPos(id); if (!p || !isFinite(p.x)) continue;
+    if (!C.E.war[id] || !alive(g, id)) continue; const p0 = isHuman(id) ? (sliceOf(id) || {}).pos : foeArmyPos(id); if (!p0 || !isFinite(p0.x)) continue; const p = { x: p0.x + (foeOff[id] || 0), y: p0.y };
     const x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z + townNudge(p, u); if (Math.hypot(px - x, py - y - 3 * u) < 16 * u) return id;
   }
   return null;
