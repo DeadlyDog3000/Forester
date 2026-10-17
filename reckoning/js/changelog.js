@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.55.7", date: "16 October 2026", title: "Plates in the muster",
+    items: [
+      "Battles: raising a company for a battle shows each kind of soldier's plate beside it, dressed in the colours you've chosen: Ottoman colours give Janissaries and sipahis, Muscovite streltsy, Polish hajduks and hussars.",
+    ],
+  },
+  {
     v: "1.55.6", date: "16 October 2026", title: "Colonial armies",
     items: [
       "Campaign: armies in North America march as far in a year as they do in Europe. The New World is drawn larger on the map, and marches there had been falling short: Boston to New York took two years, and now takes one.",

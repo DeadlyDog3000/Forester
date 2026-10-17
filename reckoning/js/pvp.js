@@ -32,6 +32,7 @@ import { shapeField, buildThings } from "./histmap.js";
 import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
+import { wayOfUniform, plateOf } from "./unitart.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, ago, mmss } from "./replay.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
 const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "slash";
@@ -417,7 +418,7 @@ function drawArmy() {
   const sw = u => `<i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i>`;
   // (a battle: the company raised from the purse — so many of each, as you can pay for them)
   const spent = spentOf(A), left = A.purse - spent;
-  const tr = (k, T, n, cost, max) => `<div class="pv-tr"><span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><b class="pv-tr-c">${n}</b><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
+  const tr = (k, T, n, cost, max) => `<div class="pv-tr">${k !== "guns" && plateOf(wayOfUniform(A.uniform), k) ? `<img class="pv-tr-img" src="${plateOf(wayOfUniform(A.uniform), k)}" alt="">` : ""}<span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><b class="pv-tr-c">${n}</b><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
   const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? " — you're the host: the size of battle is yours to choose" : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
     <div class="pv-muster">${Object.entries(TROOPS).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
