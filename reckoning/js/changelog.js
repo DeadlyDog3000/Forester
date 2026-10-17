@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.14", date: "16 October 2026", title: "No compass circles",
+    items: [
+      "Map: the Hudson's Bay posts and the French forts hold ground with wandering edges, not perfect circles. The Cree's country lies naturally about James Bay and the lowlands of Hudson Bay, not in a ruled box.",
+    ],
+  },
+  {
     v: "1.51.13", date: "16 October 2026", title: "How the campaign works",
     items: [
       "Campaign: a folding \"How it works\" card in the side panel covers the year's march, ships over the Atlantic, sieges and supply, taking provinces, the woods' nations and their palisades, generals and governors, and leagues.",
