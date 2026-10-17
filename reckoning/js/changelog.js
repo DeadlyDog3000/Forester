@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.61.2", date: "17 October 2026", title: "Lighter battles",
+    items: [
+      "Battles no longer slow down as the fighting goes on. A wounded man used to fall apart, for drawing, into the score of pieces he's made of, each with a skeleton of its own; with every man hit the battle drew more. Now his coat darkens with the blood and he stays one.",
+      "Each soldier's musket and bayonet are drawn as a few pieces instead of ten, the same for every man: in a great battle that's some five hundred fewer things for the graphics card each frame.",
+      "Battles no longer leave themselves behind. Every gabion, cart, bank and staff of a field, and the men themselves, stayed on the graphics card after the battle was over, and the game grew heavier with each one fought until it was restarted. Now they're let go of when the battle ends.",
+    ],
+  },
+  {
     v: "1.61.1", date: "17 October 2026", title: "The Papal States wall Genova",
     items: [
       "Campaign: a crown with a plural name takes a plural verb in the year's news: the Papal States wall Genova, not \"walls\".",

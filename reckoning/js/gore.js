@@ -106,6 +106,11 @@ const SOAKS = new Set(["coat", "vest", "cuff", "linen", "legs", "stockings", "sa
 const BLOOD = new THREE.Color(0x3a0503);
 function stain(P, amt) {
   const sc = P && P.modelScene; if (!sc) return;
+  // (a man of a battle's crowd, made one: his coat darkened in the colours of the one piece, so he stays one — made
+  //  many again for it, every wounded man was a score of pieces, each its own skeleton and its own draw, and a battle
+  //  ground slower with every man hit)
+  const M = P.root && P.root.userData.merged;
+  if (M && P.unmerge) { for (const sk of M) stainMerged(sk, amt); return; }
   if (P.unmerge) { P.unmerge(); P.unmerge = null; }
   sc.traverse(o => {
     const m = o.isMesh && o.material, part = m && m.userData && m.userData.part;
@@ -118,6 +123,17 @@ function stain(P, amt) {
   });
 }
 
+function stainMerged(sk, amt) {
+  const U = sk.userData, col = sk.geometry.attributes.color; if (!U.parts || !U.base || !col) return;
+  U.blood ||= {};
+  for (const p of U.parts) {
+    if (!p.part || !SOAKS.has(p.part)) continue;
+    const b = U.blood[p.start] = Math.min(0.55, (U.blood[p.start] || 0) + amt * (p.part === "legs" || p.part === "stockings" ? 0.5 : 1));
+    for (let j = p.start, e = p.start + p.count; j < e; j++) for (let q = 0; q < 3; q++) { const i = j * 3 + q, v = U.base[i]; col.array[i] = v + (BLOOD_RGB[q] - v) * b; }
+  }
+  col.needsUpdate = true;
+}
+const BLOOD_RGB = [BLOOD.r, BLOOD.g, BLOOD.b];
 // a blow landed on a man (an Actor: a.pos, a.person): kind "hit" or "down"; dir the way it went
 export function wound(a, kind, dir, at) {
   if (G.settings && G.settings.gore === false) return;
@@ -221,6 +237,8 @@ export function sever(a, from, push) {
 export function heal(P) {
   if (P && P.bones) for (const b of Object.values(P.bones)) if (b.scale.x < 0.01) b.scale.setScalar(1);
   P && P.modelScene && P.modelScene.traverse(o => { const u = o.isMesh && o.material && o.material.userData; if (u && u.base0) { o.material.color.copy(u.base0); u.blood = 0; } });
+  // (a man made one: his own colours back in the one piece)
+  for (const sk of (P && P.root && P.root.userData.merged) || []) { const U = sk.userData, col = sk.geometry.attributes.color; if (U.base && col) { col.array.set(U.base); col.needsUpdate = true; U.blood = {}; } }
 }
 // the setting turned off: nothing of it left anywhere — the marks gone, every fallen man whole and clean
 export function goreOff() {

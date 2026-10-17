@@ -1018,7 +1018,10 @@ export class Field {
     }
     return best;
   }
-  dispose() { for (const n of this.nades || []) this.w.root.remove(n.mesh, n.spark); for (const f of this.flames || []) FLAMES.delete(f); this.w.root.remove(this.root); for (const b of this.balls) this.w.root.remove(b.mesh); for (const c of [...this.pieces.map(p => p.c), ...this.cols]) c && this.w.col.remove && this.w.col.remove(c); }
+  dispose() { for (const n of this.nades || []) this.w.root.remove(n.mesh, n.spark); for (const f of this.flames || []) FLAMES.delete(f); this.w.root.remove(this.root);
+    // (the field's own shapes — every gabion, cart, bank and staff made for it — let go of on the graphics card too: taken
+    //  out of the world, they'd otherwise stay there after every battle; a shape shared with the world's stays)
+    this.root.traverse(o => { if (o.geometry && !o.geometry._shared) o.geometry.dispose(); for (const m of [].concat(o.material || [])) if (m && m.map && m.map.isTexture && !m.map.userData.shared && !m.map.userData.keep) m.map.dispose(); }); for (const b of this.balls) this.w.root.remove(b.mesh); for (const c of [...this.pieces.map(p => p.c), ...this.cols]) c && this.w.col.remove && this.w.col.remove(c); }
 }
 
 // ---------------------------------------------------------------------------

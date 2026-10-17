@@ -2120,6 +2120,9 @@ export class Actor {
   remove() {
     G.scene.remove(this.root);
     if (this.horse) G.scene.remove(this.horse.root); if (this.bolt) G.scene.remove(this.bolt.h.root);
+    // (the bones' texture each skinned body keeps on the graphics card, and a battle man's body made one: let go of with
+    //  the body — made again if it's ever put back — or every battle's men would be left there after it)
+    for (const r of [this.root, this.horse && this.horse.root]) if (r) r.traverse(o => { if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) o.skeleton.dispose(); if (/^merged_/.test(o.name)) o.geometry.dispose(); });
     if (G.world) { const a = G.world.actors; const i = a.indexOf(this); if (i >= 0) a.splice(i, 1); }
     if (this.resolve) { const r = this.resolve; this.resolve = null; r(); }
   }

@@ -844,19 +844,27 @@ export function makeClub() {
 }
 // a dagger: a long knife with a cross and a pommel (the Blender one; a knife's shape till it loads)
 export function makeDagger() {
-  const m = modelCopy("dagger"); if (m) { const g = new THREE.Group(); g.add(m.scene); return g; }
+  const M = mergedModel("dagger"), m = M ? { scene: M.clone() } : modelCopy("dagger"); if (m) { const g = new THREE.Group(); g.add(m.scene); return g; }
   const g = makeKnife(); g.scale.set(1, 1.5, 1); return g;
 }
 // a bayonet fixed on a musket: its socket — a short iron sleeve with a crooked neck — slid over the muzzle and
 // turned, the blade standing out beside and below the barrel, so the musket still loads and fires
+const BAYONETS = {};
 export function addBayonet(m) {
   if (!m || m.userData.bayonet) return m && m.userData.bayonet;
-  const muzY = m.userData.muzzle ? m.userData.muzzle.position.y : 1.13, b = new THREE.Group();
-  const iron = mat(0x55595f, { metalness: 0.4, roughness: 0.45 });
-  const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.085, 10, 1, true), iron); sock.position.set(0, muzY - 0.05, 0.032); b.add(sock);
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.045), iron); neck.position.set(0, muzY - 0.03, 0.006); b.add(neck);
-  const d = makeDagger(); d.position.set(0, muzY - 0.06, -0.014); b.add(d);
-  b.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const muzY = m.userData.muzzle ? m.userData.muzzle.position.y : 1.13, key = `bayonet_${muzY.toFixed(3)}`;
+  // (made once for each length of barrel, as a piece or two, and copied: a company's bayonets are many)
+  let b = BAYONETS[key] && BAYONETS[key].clone();
+  if (!b) {
+    b = new THREE.Group();
+    const iron = mat(0x55595f, { metalness: 0.4, roughness: 0.45 });
+    const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.085, 10, 1, true), iron); sock.position.set(0, muzY - 0.05, 0.032); b.add(sock);
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.045), iron); neck.position.set(0, muzY - 0.03, 0.006); b.add(neck);
+    const d = makeDagger(); d.position.set(0, muzY - 0.06, -0.014); b.add(d);
+    b.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    // (kept, made one, once the dagger's model is in to make it from)
+    const mg = MODELS.dagger && mergeMeshes(b, key); if (mg) { BAYONETS[key] = mg; b = mg.clone(); }
+  }
   m.add(b); m.userData.bayonet = b; return b;
 }
 // the musket with its bayonet fixed, held as a pike is (for the steel, close in): the right hand at the wrist of the
@@ -1063,8 +1071,63 @@ const GUNM = () => ({ wood: mat(0x4e2f19, { surface: "wood" }), iron: mat(0x2c2e
 // right, brass at the butt, the trigger guard and the ramrod pipes, a long iron barrel octagonal at the breech and
 // round to the muzzle, a blade sight at the end. Held at the wrist of the stock, pointing +Y along the barrel.
 // (the model made in Blender — tools/blender/arms.py — once it has loaded; the one built here till then)
+// (a held thing made of many pieces — a musket is seven: stock, horn, soot, brass, iron, steel, rod — drawn as few: the
+//  pieces of one finish made one shape, their colours already in their vertices, once for every copy; a battle's
+//  hundred muskets were seven hundred draws and their shadows. The ramrod stays a piece of its own: it's drawn out to load)
+const MERGED = {};
+function mergedModel(key) {
+  if (MERGED[key] !== undefined) return MERGED[key];
+  const src = MODELS[key]; if (!src) return null;
+  return MERGED[key] = mergeMeshes(src.scene, key);
+}
+// (any still thing of plain-coloured pieces made into a piece or two by finish, metal and not; null if it can't be)
+function mergeMeshes(root, key) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), buckets = new Map(), keep = [];
+  let ok = true;
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    const m = o.material, g = o.geometry;
+    if (Array.isArray(m) || o.isSkinnedMesh || m.map || !g.attributes.position || !g.attributes.normal) { ok = false; return; }
+    if (/_rod(\.\d+)?$/.test(m.name || "")) { keep.push(o); return; }
+    const k = (m.metalness || 0) > 0.2 ? "metal" : "plain";
+    (buckets.get(k) || buckets.set(k, []).get(k)).push(o);
+  });
+  if (!ok || buckets.size === 0) return null;
+  const out = new THREE.Group(); out.name = root.name;
+  const c = new THREE.Color();
+  for (const [k, list] of buckets) {
+    const geos = list.map(o => {
+      const g = o.geometry.clone();
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+      // (the piece's own colour, if it has one, worked into its vertices)
+      const n = g.attributes.position.count, col = new Float32Array(n * 3), C = g.attributes.color, mc = o.material.color || c.set(0xffffff), vc = o.material.vertexColors && C;
+      for (let i = 0; i < n; i++) { col[i * 3] = (vc ? C.getX(i) : 1) * mc.r; col[i * 3 + 1] = (vc ? C.getY(i) : 1) * mc.g; col[i * 3 + 2] = (vc ? C.getZ(i) : 1) * mc.b; }
+      for (const a of Object.keys(g.attributes)) if (!["position", "normal"].includes(a)) g.deleteAttribute(a);
+      g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      return g;
+    });
+    let nv = 0, ni = 0; for (const g of geos) { nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+    const P = new Float32Array(nv * 3), N = new Float32Array(nv * 3), Cc = new Float32Array(nv * 3), I = new Uint32Array(ni); let at = 0, ii = 0;
+    for (const g of geos) {
+      const n = g.attributes.position.count;
+      // (read a value at a time: a model's attributes may be interleaved, or packed small)
+      for (const [A, out] of [[g.attributes.position, P], [g.attributes.normal, N], [g.attributes.color, Cc]]) for (let k = 0; k < n; k++) { out[(at + k) * 3] = A.getX(k); out[(at + k) * 3 + 1] = A.getY(k); out[(at + k) * 3 + 2] = A.getZ(k); }
+      if (g.index) for (let k = 0; k < g.index.count; k++) I[ii++] = g.index.getX(k) + at; else for (let k = 0; k < n; k++) I[ii++] = k + at;
+      at += n; g.dispose();
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(P, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(N, 3)); geo.setAttribute("color", new THREE.BufferAttribute(Cc, 3)); geo.setIndex(new THREE.BufferAttribute(I, 1));
+    geo.computeBoundingSphere(); geo._shared = true;
+    const m0 = list[0].material, mat = m0.clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.name = `${key}_${k}`;
+    // (and its grain and finish, which a copy of a material doesn't carry)
+    mat.onBeforeCompile = m0.onBeforeCompile; if (m0.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey) mat.customProgramCacheKey = m0.customProgramCacheKey;
+    const mesh = new THREE.Mesh(geo, mat); mesh.name = `${key}_${k}`; mesh.castShadow = true; mesh.receiveShadow = true; out.add(mesh);
+  }
+  for (const o of keep) { const r = o.clone(); r.position.set(0, 0, 0); r.quaternion.identity(); r.scale.set(1, 1, 1); r.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); r.castShadow = true; r.receiveShadow = true; out.add(r); }
+  return out;
+}
 function fromModel(key, muzzle, grips) {
-  const m = modelCopy(key); if (!m) return null;
+  const M = mergedModel(key), m = M ? { scene: M.clone() } : modelCopy(key); if (!m) return null;
   const g = new THREE.Group(); g.add(m.scene);
   // (the ramrod lying in its pipes: a piece of its own, hidden while it's drawn)
   m.scene.traverse(o => { if (o.isMesh && o.material && /_rod(\.\d+)?$/.test(o.material.name || "")) g.userData.rodMesh = o; });
@@ -2326,8 +2389,10 @@ export function mergeRig(root) {
     let nv = 0, ni = 0; for (const o of list) { nv += o.geometry.attributes.position.count; ni += o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count; }
     const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), si = new Uint16Array(nv * 4), sw = new Float32Array(nv * 4), idx = new Uint32Array(ni);
     let v0 = 0, i0 = 0;
-    const c = new THREE.Color();
+    const c = new THREE.Color(), parts = [];
     for (const o of list) {
+      // (where each piece's colours lie in the whole: so a wound can darken his coat without making him many again)
+      parts.push({ part: o.material.userData && o.material.userData.part, start: v0, count: o.geometry.attributes.position.count });
       const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
       for (let k = 0; k < P.count; k++) {
         const j = v0 + k;
@@ -2349,12 +2414,14 @@ export function mergeRig(root) {
     const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = M0.material.clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;
     if (!metal) { mat.metalness = 0; mat.roughness = Math.max(0.7, mat.roughness ?? 0.85); }
     const sk = new THREE.SkinnedMesh(geo, mat); sk.name = "merged_" + (metal ? "metal" : "cloth");
+    sk.userData.parts = parts; sk.userData.base = col.slice();
     sk.castShadow = true; sk.receiveShadow = true; sk.frustumCulled = false;
     list[0].parent.add(sk); sk.bind(list[0].skeleton, bind);
     for (const o of list) o.visible = false;
     made.push(sk); made.hidden = (made.hidden || []).concat(list);
   }
   if (!made.length) return null;
-  // (and made many again: a wound darkens his own coat, piece by piece)
-  return () => { for (const m of made) { m.parent && m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } for (const o of made.hidden) o.visible = true; };
+  root.userData.merged = made;
+  // (and made many again, if anything ever needs the pieces themselves)
+  return () => { root.userData.merged = null; for (const m of made) { m.parent && m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } for (const o of made.hidden) o.visible = true; };
 }
