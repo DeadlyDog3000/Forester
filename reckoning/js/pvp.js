@@ -813,7 +813,9 @@ function placeName(lon, lat) {
   let best = null, bd = Infinity;
   for (const [n, lo, la] of REALMS_1683) { const dl = Math.abs(((lon - lo + 540) % 360) - 180) * Math.cos(lat * Math.PI / 180), d = Math.hypot(dl, lat - la); if (d < bd) { bd = d; best = n; } }
   const ns = `${Math.abs(lat).toFixed(0)}°${lat >= 0 ? "N" : "S"} ${Math.abs(lon).toFixed(0)}°${lon >= 0 ? "E" : "W"}`;
-  return { text: !best ? "The wide world" : bd < 12 ? `Near ${best}` : `Far beyond ${best}`, at: ns };
+  // (with "the" where English wants it, in the middle of a line: near the Sahara, near the Dzungar Khanate, near Spain)
+  const the = n => /^The /.test(n) ? "the" + n.slice(3) : /^(Tsardom|Holy|Kingdom|United|Swedish Empire|Italian|Ottoman Empire|Crimean|Sultanate|Regency|Funj|Kazakh|Dzungar|Khanate|Mughal|Qing|Spice|Spanish Philippines|Viceroyalty|Caribbean)\b/.test(n) ? `the ${n}` : n;
+  return { text: !best ? "The wide world" : bd < 12 ? `Near ${the(best)}` : `Far beyond ${the(best)}`, at: ns };
 }
 
 // the field again, for a battle played back (replay.js): the same ground, cleared the same way, the same works and guns

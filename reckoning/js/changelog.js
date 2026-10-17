@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.12", date: "17 October 2026", title: "Near the Sahara",
+    items: [
+      "Battles on the Earth are named as English has it: near the Sahara, near the Dzungar Khanate, near the Holy Roman Empire, near Spain. Before, it was \"Near The Sahara\" and \"Near Dzungar Khanate\".",
+    ],
+  },
+  {
     v: "1.60.11", date: "17 October 2026", title: "A pace back from the baskets",
     items: [
       "Battles: you start a pace before your company's line, not three, so the battery's gabions are a few paces ahead of you and the field can be seen over them. Before, you began nose to nose with the baskets.",
