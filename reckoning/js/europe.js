@@ -7,7 +7,7 @@
 // by the app's tools/geo) — and it is drawn as a map of the time was: engraved
 // in sepia on parchment, the coasts water-lined, each crown hand-coloured along
 // its borders, hills in profile, the seas named in Latin, a compass rose with
-// its rhumb lines, a cartouche, a ship and a monster in the ocean.
+// its rhumb lines, a cartouche and a monster in the ocean.
 //
 // It is not a backdrop. The crowns go to war with each other and the borders
 // move; plague and famine fall on them. And each has a view of you — improved
@@ -358,7 +358,7 @@ function landPath(c, S) {
 }
 
 // the finished sheet, without the things that change by the second (the pointer, the lit crown)
-let sheet = null, sheetKey = "";
+let sheet = null, sheetKey = "", prevSheet = null;
 // ---- a crown's outline: its squares' edges joined into loops, each run through the middles of its edges (so a stair of
 // squares becomes a slope) and rounded off; with runs, the stretches of it that are a border with another crown ----
 function trace(g, id, borders = false) {
@@ -526,14 +526,14 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
     n.split("\n").forEach((line, i, all) => spaced(c, line, 0, (i - (all.length - 1) / 2) * px * 1.1, px * 0.26));
     c.restore();
   }
-  // ---- ornament: the rose, a ship, a monster, the cartouche, a scale, the frame ----
-  // the rose and its rhumb lines out in the ocean, a ship under sail, and a monster in the deep — as the Dutch sheets
+  // ---- ornament: the rose, a monster, the cartouche, a scale, the frame ----
+  // the rose and its rhumb lines out in the ocean, and a monster in the deep — as the Dutch sheets
   //  filled their seas
   const sea = (lo, la) => { const [x, y] = lonlat(lo, la, S); return [x, y]; };
   const roses = SHEET === "world" ? [[-36, 40, 16], [-10.9, 46.2, 6]] : [[-10.6, 46.0, 7]];
   c.save(); landPath(c, S); c.rect(W, 0, -W, H); c.clip("evenodd"); for (const [lo, la] of roses) { const [x, y] = sea(lo, la); rhumbs(c, x, y, W, H, S); } c.restore();
   for (const [lo, la, rr] of roses) { const [x, y] = sea(lo, la); rose(c, x, y, S * rr); }
-  if (SHEET === "world") { const [sx, sy] = sea(-24, 49); ship(c, sx, sy, S * 1.9, 1); const [s2x, s2y] = sea(-62, 31.5); ship(c, s2x, s2y, S * 1.6, -1); const [mx, my] = sea(-44, 28.5); monster(c, mx, my, S * 1.9); }
+  if (SHEET === "world") { const [mx, my] = sea(-44, 28.5); monster(c, mx, my, S * 1.9); }
   cartouche(c, W, H, S);
   scaleBar(c, W, H, S);
   frame(c, W, H, S);
@@ -564,12 +564,12 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
   // (the pictures drawn north to south, so a town further down the sheet stands in front of the one behind it; a
   //  little larger close in)
   const u = k * Math.min(2.3, 1.15 + v.z / (opt.zf || 1) * 0.22);
-  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 10 : ct[3] === 2 ? 8 : 2.5) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]] }); taken.push(ct[3] <= 1 ? [x - hw, y - hw, x + hw, y + hw] : [x - hw, y - 13 * u, x + hw, y + 3 * u]); }
+  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 4.5 : ct[3] === 2 ? 2.5 : 2) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]] }); taken.push([x - hw, y - hw, x + hw, y + hw]); }
   for (const [ct, x, y] of at) {
     const [n, , , rank] = ct;
     c.font = rank === 3 ? `${Math.round(k * 15)}px ${FELL}` : `italic ${Math.round(k * (rank === 2 ? 14 : 13))}px ${FELL}`;
-    const w = c.measureText(n).width, h = k * 15, d = u * (rank === 3 ? 11.5 : rank === 2 ? 9.5 : 3.5);
-    const up = rank <= 1 ? 3 * u : 14 * u, dn = 3 * u, yy = rank <= 1 ? y : y - 2 * u;
+    const w = c.measureText(n).width, h = k * 15, d = u * (rank === 3 ? 5.5 : rank === 2 ? 3.8 : 3.5);
+    const up = (rank === 3 ? 4.5 : 3) * u, dn = up, yy = y;
     const tries = [[x + d, yy, "left"], [x - d, yy, "right"], [x, y + dn + h * 0.6, "center"], [x, y - up - h * 0.4, "center"], [x + d * 0.6, y + dn + h * 0.6, "left"], [x + d * 0.6, y - up - h * 0.4, "left"]];
     for (const [tx, ty, al] of tries) {
       const x0 = al === "left" ? tx : al === "right" ? tx - w : tx - w / 2, b = [x0, ty - h / 2, x0 + w, ty + h / 2];
@@ -586,10 +586,12 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
 // behind it. Its holder's colours fly over it. (x, y): the place; u: the size of a unit on the screen
 // opt: { mine: your own (the flag gold-edged), walled: walls built round it, grand: a little larger }
 function townGlyph(c, x, y, u, rank, own, opt = {}) {
-  // (a town, no more than that: a dot — the cities and the crowns' seats are drawn as pictures)
-  if (rank <= 1) {
-    c.save(); c.fillStyle = INK; c.beginPath(); c.arc(x, y, 1.5 * u, 0, 7); c.fill();
-    if (opt.mine) { c.strokeStyle = "#b8862a"; c.lineWidth = Math.max(0.8, u * 0.7); c.beginPath(); c.arc(x, y, 2.6 * u, 0, 7); c.stroke(); }
+  // (every town a dot, a little larger the greater it is — a seat of the crown ringed, as the engravers marked one)
+  if (!opt.picture) {
+    const r = (rank === 3 ? 2.3 : rank === 2 ? 1.9 : 1.5) * u;
+    c.save(); c.fillStyle = INK; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+    if (rank === 3) { c.strokeStyle = INK; c.lineWidth = Math.max(0.6, u * 0.45); c.beginPath(); c.arc(x, y, r + 1.3 * u, 0, 7); c.stroke(); }
+    if (opt.mine) { c.strokeStyle = "#b8862a"; c.lineWidth = Math.max(0.8, u * 0.7); c.beginPath(); c.arc(x, y, r + (rank === 3 ? 2.6 : 1.2) * u, 0, 7); c.stroke(); }
     c.restore(); return;
   }
   const woods = own && NATIONS[own] && NATIONS[own].nw, walled = !woods && (opt.walled || rank === 3);
@@ -671,20 +673,6 @@ function rose(c, x, y, R) {
   // (the lily at the north)
   c.beginPath(); c.moveTo(0, -R * 1.32); c.quadraticCurveTo(R * 0.1, -R * 1.18, 0, -R * 1.06); c.quadraticCurveTo(-R * 0.1, -R * 1.18, 0, -R * 1.32); c.fill();
   for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(0, -R * 1.1); c.quadraticCurveTo(sd * R * 0.16, -R * 1.25, sd * R * 0.12, -R * 1.08); c.stroke(); }
-  c.restore();
-}
-// a ship under sail: the hull, three masts and their square sails bellied with the wind, a pennant; waves at her bow
-function ship(c, x, y, k, dir = 1) {
-  c.save(); c.translate(x, y); c.scale(dir, 1); c.strokeStyle = INK; c.lineWidth = Math.max(0.6, k * 0.12); c.lineJoin = "round";
-  c.fillStyle = "rgba(90,66,44,0.9)"; c.beginPath(); c.moveTo(-6 * k, -1 * k); c.lineTo(6.5 * k, -1 * k); c.quadraticCurveTo(5.5 * k, 1.6 * k, 3 * k, 1.8 * k); c.lineTo(-4.5 * k, 1.8 * k); c.quadraticCurveTo(-6.2 * k, 0.8 * k, -6 * k, -1 * k); c.closePath(); c.fill(); c.stroke();
-  c.beginPath(); c.moveTo(-6 * k, -1 * k); c.lineTo(-6.4 * k, -2.6 * k); c.lineTo(-4 * k, -2.4 * k); c.lineTo(-4 * k, -1 * k); c.stroke();
-  for (const [mx, h, sw] of [[-2.6, 7, 2.2], [0.8, 8.4, 2.6], [3.8, 6.2, 1.9]]) {
-    c.beginPath(); c.moveTo(mx * k, -1 * k); c.lineTo(mx * k, -(1 + h) * k); c.stroke();
-    for (const [t, f] of [[0.35, 1], [0.72, 0.8]]) { const top = -(1 + h * (1 - t + 0.28)) * k, bot = -(1 + h * (1 - t)) * k + k * 0.2, w = sw * f * k; c.fillStyle = "#efe4c6"; c.beginPath(); c.moveTo(mx * k - w, top); c.lineTo(mx * k + w, top); c.quadraticCurveTo(mx * k + w * 1.25, (top + bot) / 2, mx * k + w, bot); c.lineTo(mx * k - w, bot); c.quadraticCurveTo(mx * k - w * 0.75, (top + bot) / 2, mx * k - w, top); c.closePath(); c.fill(); c.stroke(); }
-  }
-  c.fillStyle = "#a8322a"; c.beginPath(); c.moveTo(0.8 * k, -9.4 * k); c.lineTo(3.4 * k, -9 * k); c.lineTo(0.8 * k, -8.6 * k); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(6.5 * k, -1 * k); c.lineTo(9.5 * k, -3 * k); c.stroke();
-  c.strokeStyle = INK_SOFT + "0.6)"; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo((-8 + i * 5) * k, 2.6 * k); c.quadraticCurveTo((-6.5 + i * 5) * k, 1.9 * k, (-5 + i * 5) * k, 2.6 * k); c.stroke(); }
   c.restore();
 }
 // a sea monster: the humps of a great serpent out of the water, its head reared with the jaws open, a fin, its tail
@@ -786,11 +774,14 @@ function reliefLayer(part = null) {
 // the sheet, and over it what changes: the crown under the pointer and the one chosen, the wars, the plague, your clearing
 // view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
 let near = null, nearT = 0;
-export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null, me = null, walled = null, zf = 1 } = {}) {
+export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null, me = null, walled = null, zf = 1, spread = null } = {}) {
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + (E.rev | 0) + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
   // (drawn at twice the size, so it stays sharp when zoomed)
-  if (!sheet || key !== sheetKey) { sheet = drawSheet(W * 2, H * 2, E, g, homePop, null, SHEET + key); sheetKey = key; }
+  if (!sheet || key !== sheetKey) { if (sheet && sheet.width === W * 2) prevSheet = sheet; sheet = drawSheet(W * 2, H * 2, E, g, homePop, null, SHEET + key); sheetKey = key; }
+  // (land newly taken, spreading: the sheet as it was laid back over the squares the new colour hasn't reached yet)
+  if (spread && !prevSheet) spread = null;
+  if (spread) sharp = null;
   const c = cv.getContext("2d");
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = "#1a1510"; c.fillRect(0, 0, W, H);
   // (close in, the part in view drawn again at that zoom once the view rests — the picture stretched only while it moves)
@@ -804,6 +795,17 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
     if (sharp && v.z > 1.15) { clearTimeout(nearT); nearT = setTimeout(() => { near = { key: vkey, cv: drawSheet(W, H, E, g, homePop, { w: W, h: H, z: v.z, ox: v.ox, oy: v.oy }, SHEET + key) }; sharp(); }, 140); }
   }
   c.setTransform(v.z, 0, 0, v.z, -v.ox * v.z, -v.oy * v.z);
+  if (spread) {
+    // (rows of the squares not reached yet, run together, as the clip for the old sheet; and the squares just reached
+    //  washed in their new holder's colour — the front of it, moving out across the land)
+    const rows = new Map(), front = [];
+    for (const [x, y, st] of spread.cells) { if (st > spread.p) { let r = rows.get(y); if (!r) rows.set(y, r = []); r.push(x); } else if (st > spread.p - 4) front.push([x, y, 1 - (spread.p - st) / 4]); }
+    c.save(); c.beginPath();
+    for (const [y, xs] of rows) { xs.sort((a, b) => a - b); let a = xs[0], b = a; for (let i = 1; i <= xs.length; i++) { if (i < xs.length && xs[i] === b + 1) { b = xs[i]; continue; } c.rect(a * S - 0.3, y * S - 0.3, (b - a + 1) * S + 0.6, S + 0.6); if (i < xs.length) a = b = xs[i]; } }
+    c.clip(); c.drawImage(prevSheet, 0, 0, W, H); c.restore();
+    for (const [x, y, a] of front) { const id = g[y] && g[y][x], col = NATIONS[id] && NATIONS[id].color; if (!col) continue; c.globalAlpha = a * 0.55; c.fillStyle = col; c.fillRect(x * S - 0.2, y * S - 0.2, S + 0.4, S + 0.4); }
+    c.globalAlpha = 1;
+  }
   // the lit crowns: a warm wash over them
   for (const [id, a] of [[hover, 0.16], [selected, 0.28]]) {
     if (!id || !NATIONS[id]) continue;

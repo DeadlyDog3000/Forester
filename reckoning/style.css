@@ -1686,7 +1686,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-mbox .sub { text-align: center; margin: 0 0 12px; }
 .cmp-mrows { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 5px; }
 .cmp-mrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 8px; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 4px; background: rgba(255, 255, 255, 0.025); }
-.cmp-mrow > span:first-child { display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-width: 0; }
+.cmp-mrow > span:not(.cmp-step):not(.cmp-uimg) { flex: 1; display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-width: 0; }
 .cmp-mtot span { display: flex; gap: 4px; align-items: center; }
 .cmp-mtot .tm-lnk { all: unset; cursor: pointer; font: 12px var(--sans); color: var(--gold); text-decoration: underline; text-underline-offset: 2px; }
 .cmp-mtot .tm-lnk:hover { color: var(--ink); }
@@ -1743,7 +1743,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-bld .btn { padding: 4px 8px; font-size: 11px; white-space: nowrap; }
 .cmp-bq { font: italic 11px var(--sans); color: #d8b45a; display: flex; gap: 6px; align-items: center; text-align: right; }
 .cmp-bq.lock { color: var(--ink-dim); max-width: 130px; }
-.cmp-bq .tm-lnk { all: unset; cursor: pointer; text-decoration: underline; color: var(--ink-dim); font-style: normal; }
+.cmp-bq .tm-lnk, .cmp-rq .tm-lnk { all: unset; cursor: pointer; text-decoration: underline; color: var(--ink-dim); font-style: normal; }
 .cmp-foegen { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
 .cmp-foegen b { font: 13px var(--serif); color: var(--ink); display: block; }
 .cmp-foegen small { font: 11px var(--sans); color: var(--ink-dim); }
@@ -1817,3 +1817,25 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 #orderBook.mini .ob-head { border-bottom: 0; margin-bottom: 0; padding-bottom: 2px; }
 #orderBook.mini .ob-t { font-size: 15px; }
 #orderBook.mini .ob-seal { width: 18px; height: 18px; }
+/* the people and the regiments: a town's recruiting, and the army's roll */
+.cmp-pop { font: 12px var(--sans); color: var(--ink-dim); margin: 2px 0 4px; }
+.cmp-recs { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 5px; }
+.cmp-rec { display: flex; flex-direction: column; align-items: stretch; gap: 2px; text-align: center; padding: 3px 3px 5px; border-radius: 4px; background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.1); color: var(--ink); cursor: pointer; }
+.cmp-rec:hover:not(:disabled) { border-color: rgba(201,164,90,0.7); background: rgba(201,164,90,0.12); transform: translateY(-1px); }
+.cmp-rec:disabled { opacity: 0.45; cursor: default; filter: grayscale(0.6); }
+.cmp-rec b { font: 12px/1.1 var(--serif); }
+.cmp-rec em { font: normal 10px var(--sans); color: #d8b45a; }
+.cmp-rec em.lock { color: var(--ink-dim); font-style: italic; }
+.cmp-uimg { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 3px; background: #e9dfc6; border: 1px solid rgba(0,0,0,0.4); }
+.cmp-uimg.none { background: linear-gradient(180deg, #e9dfc6, #cdbf9e); }
+.cmp-uimg.sm { width: 30px; flex: none; }
+.cmp-uimg.xs { width: 14px; display: inline-block; vertical-align: middle; margin-right: 4px; border: none; }
+.cmp-rq { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 5px; }
+.cmp-rq span { font: 11px var(--sans); padding: 2px 7px; border-radius: 10px; background: rgba(201,164,90,0.14); border: 1px solid rgba(201,164,90,0.4); color: #e2c57c; }
+.cmp-roll { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
+.cmp-ru { display: grid; grid-template-columns: 30px 24px minmax(0, 1fr) 64px; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 3px; background: rgba(255,255,255,0.03); }
+.cmp-ru > b { font: 600 15px var(--serif); text-align: right; color: var(--ink); }
+.cmp-ru span { display: flex; flex-direction: column; font: 13px var(--serif); color: var(--ink); min-width: 0; }
+.cmp-ru small { font: 10.5px var(--sans); color: var(--ink-dim); }
+.cmp-ru i { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.cmp-ru u { display: block; height: 100%; background: #c9a45a; text-decoration: none; }

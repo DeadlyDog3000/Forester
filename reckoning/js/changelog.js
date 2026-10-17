@@ -7,6 +7,18 @@
 
 export const CHANGELOG = [
   {
+    v: "1.52.0", date: "16 October 2026", title: "Raised in the towns",
+    items: [
+      "Campaign: every town has its people now, shown on its card. They grow as the land feeds them: improve the farms and a town can hold more. A town's people make its wealth.",
+      "Campaign: regiments are raised in your towns, a kind at a time, as in the great campaigns of the age. Choose a town and recruit musketeers, pikemen, grenadiers (where there's a drill yard), horse (in a city, or where the farms breed horses) and the rest of your crown's arms. Each costs thalers and the town's men, and joins the army at the year's end. A town raises one regiment a year, a city two, a great city three, a barracks one more.",
+      "Campaign: your army is a roll of regiments. The army card lists them by arm, with how full each one's ranks are. Battles wear down the arms that fought in them, and thin regiments fill their ranks from your towns each year, fastest on your own land. Each arm has its own upkeep: horse is dear.",
+      "Campaign: the muster before a battle offers only the arms your army has, in proportion to its regiments.",
+      "Campaign: a picture of every kind of regiment, a uniform plate of the time for each crown's way of war: line musketeers and grenadiers in the West, Janissaries and sipahis for the Ottomans, hajduks, Cossacks and winged hussars in the East, streltsy for the Tsar.",
+      "Map: land you take spreads out across the province from your own border, instead of changing colour all at once.",
+      "Map: every town is a dot, with no pictures: a town a small dot, a city a larger one, a crown's seat ringed. The ships are gone from the ocean.",
+    ],
+  },
+  {
     v: "1.51.28", date: "16 October 2026", title: "A rose off Biscay",
     items: [
       "Map: the smaller compass rose sits out in the open Atlantic off the Bay of Biscay, clear of the coast and the towns' names.",
