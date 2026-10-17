@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.11", date: "16 October 2026", title: "They hold the palisade",
+    items: [
+      "Battle: the warriors of a palisaded town now hold it. They stay inside at the stakes and loose and fire through the gaps as you come on, and only go at you with the club once you're inside, by the way in or through a length you've burnt. Before, they marched out into the open and were shot down without a fight.",
+    ],
+  },
+  {
     v: "1.51.10", date: "16 October 2026", title: "The Great Lakes, true to shape",
     items: [
       "Map: the Great Lakes are drawn far more truly. Superior has the Keweenaw, Michigan has Green Bay and the Door, and Huron has Saginaw Bay, Georgian Bay and the Bruce. Before, they were rough wedges.",

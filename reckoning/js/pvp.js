@@ -1504,6 +1504,18 @@ class Arena {
       if ((K.volT -= dt) <= 0 && d < 80 && !O.charge) { K.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
       return;
     }
+    // (holding a palisaded town: they stay inside it, at the stakes, and loose and fire through the gaps as you come on;
+    //  only once you're inside — by the way in, or a length burnt through — do they go at you with the club)
+    if (this.palisade && this.alOf(co) === this.palisade.side) {
+      const P = this.palisade, xs = P.map(q => q.x), zs = P.map(q => q.z), x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+      const inside = u => u.pos.x > x0 - 0.5 && u.pos.x < x1 + 0.5 && u.pos.z > z0 - 0.5 && u.pos.z < z1 + 0.5;
+      const front = P.find(q => q.front), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+      const breached = ours.some(inside);
+      O.charge = breached; O.cover = !breached;
+      if (!breached) { O.mode = "hold"; O.at = K.palAt ||= { x: cx + ((front ? front.x : cx) - cx) * 0.6, z: cz }; }
+      if ((K.volT -= dt) <= 0 && d < 70 && !O.charge) { K.volT = 7 + Math.random() * 5; O.volleyAt = G.time + 1.1; O.fire = true; shout(); }
+      return;
+    }
     // his generalship, as your record has earned you an opponent: a green officer is rash — on at you and in with the
     // steel as soon as he's near; a seasoned one stands off at musket range and makes his volleys tell, holds behind
     // cover when he's the fewer, waits for your line to have fired before he charges it, and calls a charge off that's
