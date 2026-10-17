@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.54.1", date: "16 October 2026", title: "Your towns",
+    items: [
+      "Campaign: the Recruitment card is now Your towns, a ledger of every town you hold: its people and how fast they grow, its worth, its public order and its garrison, with the regiments it can raise this year.",
+    ],
+  },
+  {
     v: "1.54.0", date: "16 October 2026", title: "Armies",
     items: [
       "Campaign: command more than one army. Form a new army at any of your towns from its garrison. Each army marches, lays siege and fights on its own, with its own general and its own morale.",
