@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.67.0", date: "17 October 2026", title: "The gazette",
+    items: [
+      "Campaign: each year begins with the gazette laid before you, your own crown's paper: The London Gazette, the Gazette de France, the Gaceta de Madrid, the Wienerisches Diarium, the Vedomosti and the rest, dated and numbered. The year's great matter is its headline under a woodcut, and the rest of the news is set out in columns: From the Wars, From the Courts, At Home, From Abroad. Lay it aside to play the year, or read it again from the year's news.",
+    ],
+  },
+  {
     v: "1.66.0", date: "17 October 2026", title: "Two armies into one",
     items: [
       "Campaign: march one of your armies into another to join them. Pick an army up, right-click another of yours, and it marches to it and the two become one army, every regiment of both under the one you marched to. If the other is more than a year's march off, it sets out toward it: right-click again once it's there.",

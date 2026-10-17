@@ -17,7 +17,7 @@ import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, llOf, draw
 import { EuropeView3D } from "./europe3d.js";
 import { TROOPS } from "./pvp.js";
 import { UNI_OF_NATION, UNIFORMS, soldierLook, coloursCanvas } from "./battle.js";
-import { plateOf } from "./unitart.js";
+import { plateOf, wayOfUniform } from "./unitart.js";
 import { SHIPS, SHIP_KINDS, navalBattle } from "./naval.js";
 import { CHAINS, CHAIN_ORDER, MARK, levelCost, capOf, TECHS, BRANCHES, canStudy, newMan, historicalOf, portOf, GSTATS, VSTATS, SERVICE, GEN_SERVICE } from "./realm.js";
 
@@ -192,6 +192,49 @@ function resume() {
 }
 function persist() { if (C && C.me) for (const h of C.mp ? humans() : [C.me]) as(h, reconcile); C.own = [...own]; save(); }
 function say(title, sub = "") { C.log.unshift({ t: `${C.year}`, title, sub }); C.log.length = Math.min(C.log.length, 60); }
+// ---- the year's news as the gazettes printed it: your own crown's paper, the year's great matter for its headline
+//  under a woodcut, and the rest set out in columns — laid before you as the year begins ----
+const PAPERS = {
+  england: ["The London Gazette", "Published by Authority"], scotland: ["The Edinburgh Gazette", "Published by Authority"], ireland: ["The Dublin Intelligence", "Printed for the Publick"],
+  france: ["Gazette de France", "Avec Privilège du Roy"], dutch: ["Oprechte Haerlemsche Courant", "Met Privilegie"], hre: ["Wienerisches Diarium", "Mit Kaiserlicher Freiheit"], austria: ["Wienerisches Diarium", "Mit Kaiserlicher Freiheit"],
+  castile: ["Gaceta de Madrid", "Con Privilegio"], aragon: ["Gaceta de Zaragoza", "Con Privilegio"], portugal: ["Gazeta de Lisboa", "Com Privilégio Real"], sweden: ["Ordinarie Post Tidender", "Med Kongl. Privilegio"],
+  denmark: ["Den Danske Mercurius", "Med Kongelig Privilegio"], poland: ["Merkuriusz Polski", "Z Przywilejem J.K.M."], russia: ["Vedomosti", "By the Tsar's Command"], venice: ["Gazzetta di Venezia", "Con Licenza de' Superiori"],
+  papal: ["Diario di Roma", "Con Licenza de' Superiori"], tuscany: ["Gazzetta di Firenze", "Con Licenza de' Superiori"], milan: ["Gazzetta di Milano", "Con Licenza"], naples: ["Avvisi di Napoli", "Con Licenza"],
+  savoy: ["Gazzetta di Torino", "Con Privilegio"], brandenburg: ["Berlinische Zeitung", "Mit Churfürstlicher Freiheit"], saxony: ["Leipziger Post-Zeitung", "Mit Churfürstlicher Freiheit"], bavaria: ["Münchner Ordinari-Zeitung", "Mit Churfürstlicher Freiheit"],
+};
+const paperOf = id => PAPERS[id] || (NATIONS[id] && NATIONS[id].nw ? ["Words from the Council Fire", "As the runners told it"] : ["The European Mercury", "Being the News of the Year"]);
+function gazette(items) {
+  if (!C || !items || !items.length) return;
+  const mineT = new Set(citiesOfNow(grid(), C.me).map(c => c[0]));
+  const kind = l => { const t = l.title, all = t + " " + (l.sub || ""), mine = [...mineT].some(n => all.includes(n));
+    // (your own realm's doings, at home; the wars, yours and the world's; the courts' alliances and treaties; the rest)
+    if (/\byour\b|^the regiments|regiments (raised|broken|merged)|launched|riots? in|rising in|is cast|governor|treasury/i.test(t) || (mine && !/marches|army|siege|fallen|takes/i.test(t))) return "home";
+    if (/has fallen|falls to|is yours|surrenders|takes .* from| takes /i.test(t)) return "fall";
+    if (/declares war|are at war|marches|army|siege|beaten|victory|field|at sea|ships an army|holds|raid|broken|war party/i.test(t)) return "war";
+    if (/peace|alliance|league|comes? in on|treaty|pact|truce|cedes|offers|envoy|marriage|dies|succeeds|crown/i.test(t)) return "court";
+    return "abroad"; };
+  // (the headline: the year's greatest matter for you — your towns lost or won, your army's battles, war on you — else the first)
+  const score = l => { const t = l.title + " " + (l.sub || ""), k = kind(l); let v = 0; if (k === "fall") v += 50; if (k === "war") v += 30; if (k === "court") v += 20; if ([...mineT].some(n => t.includes(n)) || /\byou(r)?\b/i.test(t)) v += 40; if (/declares war on you|has fallen/.test(t)) v += 30; if (/victory|beaten/i.test(t)) v += 15; return v; };
+  const head = items.reduce((b, l) => score(l) > score(b) ? l : b, items[0]), rest = items.filter(l => l !== head);
+  const way = wayOfUniform(UNI_OF[C.me] || ""), hk = kind(head);
+  const img = /at sea|fleet|ship/i.test(head.title + head.sub) ? "art/units/ship-line.jpg" : hk === "war" || hk === "fall" ? plateOf(/field|horse|cavalry/i.test(head.sub || "") ? way : way, /field/i.test(head.title) ? "cavalry" : "musketeer") : hk === "court" ? null : plateOf(way, "pike");
+  const [name, motto] = paperOf(C.me), num = Math.max(1, C.year - 1682);
+  const sec = { war: "From the Wars", fall: "From the Wars", court: "From the Courts", home: "At Home", abroad: "From Abroad" }, cols = {};
+  for (const l of rest) (cols[sec[kind(l)]] ||= []).push(l);
+  const el = document.createElement("div"); el.className = "cmp-gazette"; el.id = "cmpGazette";
+  el.innerHTML = `<div class="gz-paper">
+    <div class="gz-mast"><small>${esc(motto)}</small><h1>${esc(name)}</h1><div class="gz-line"><span>Numb. ${num}</span><span>${esc(SEASONS[C.s] || "Spring")}, in the Year ${C.year}</span><span>Price One Penny</span></div></div>
+    <div class="gz-head">${img ? `<img class="gz-cut" src="${esc(img)}" alt="">` : ""}<div><h2>${esc(head.title)}</h2>${head.sub ? `<p class="gz-lead">${esc(head.sub)}</p>` : ""}</div></div>
+    ${Object.keys(cols).length ? `<div class="gz-cols">${Object.entries(cols).map(([h, L]) => `<section><h3>${esc(h)}</h3>${L.slice(0, 7).map(l => `<p><b>${esc(l.title)}.</b> ${esc(l.sub || "")}</p>`).join("")}</section>`).join("")}</div>` : ""}
+    <div class="gz-foot"><button class="btn primary" data-gz="1">Lay it aside</button></div>
+  </div>`;
+  const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 260); removeEventListener("keydown", key, true); };
+  const key = e => { if (e.code === "Escape" || e.code === "Enter" || e.code === "Space") { e.preventDefault(); e.stopPropagation(); close(); } };
+  el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-gz]")) close(); });
+  addEventListener("keydown", key, true);
+  $("gazetteOld")?.remove(); const old = $("cmpGazette"); if (old) old.remove();
+  $("campaign").appendChild(el); sfx("parchment", 0.5);
+}
 // (news of the world: to every player of the campaign)
 function sayAll(title, sub = "") { say(title, sub); for (const h of humans()) if (h !== C.me) as(h, () => say(title, sub)); }
 
@@ -1399,7 +1442,7 @@ export function initCampaign(c, battle, withPlayer) {
     sfx("parchment", 0.55);
     // (what happened while the season turned: the news of it, at the top)
     const fresh = []; for (const l of C.log) { if (l === before) break; fresh.push(l); }
-    news = fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$/.test(l.title)).reverse(); note = ""; drawMap();
+    news = fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$/.test(l.title)).reverse(); note = ""; drawMap(); gazette(news);
     // (war on you, or an army on its way: the drum; a crown gone from the map: the bells)
     if (C.events.some(e => e.kind === "attack" && !e.done) || news.some(l => /declares war on you/.test(l.title))) sfx("drum", 0.5, 400);
     else if (news.some(l => /is no more|takes /.test(l.title))) sfx("guns", 0.4, 400);
@@ -2042,7 +2085,7 @@ function drawSide() {
     if (e.kind === "peace") h += `<div class="cmp-ev"><b>${esc(The(e.foe))} ${v3(e.foe, "offers")} peace</b><small>${e.cede ? `If you give up ${esc(e.cede)} and its country.` : e.gold ? `And ${e.gold} thalers to have it.` : "Each side keeps what it holds."}</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Make peace</button><button class="btn" data-ev="${i}" data-how="no">Fight on</button></span></div>`;
   }
   if (note) h += `<div class="cmp-note">${esc(note)}</div>`;
-  if (news.length) h += `<div class="cmp-news"><b>The year's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="news">Close</button></div>`;
+  if (news.length) h += `<div class="cmp-news"><b>The year's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="gazette">Read the gazette</button> <button class="tm-lnk" data-act="news">Close</button></div>`;
   // the town or the crown chosen on the map
   if (selCity) {
     const own2 = cityOwner(g, selCity), mineT = own2 === C.me, reach = !mineT && own2 && inMarch(selCity), can = !mineT && own2 && atWar(own2) && reach && freeToStrike(selCity) && C.army >= 5;
@@ -2169,6 +2212,7 @@ function sideClick(e) {
   if (a === "supply" || a === "supplyauto") { doAct({ k: "supply", how: a === "supply" ? "fight" : "auto" }); return; }
   if (a === "govs") { if (selCity) doAct({ k: "govs", ct: selCity[0] }); return; }
   if (a === "news") { news = []; drawMap(); return; }
+  if (a === "gazette") { gazette(news); return; }
   if (a === "newgame") { if (mp) return; drawPick(); return; }
   if (a === "resume") { if (mp && mp.host) resumeMp(); return; }
   if (b.dataset.dip) { const id = selCity ? cityOwner(grid(), selCity) : sel; doAct({ k: "dip", id, w: b.dataset.dip }); return; }
@@ -2537,7 +2581,7 @@ function tell(crown, r) {
 function react(r) {
   if (!r) return;
   if (r.note) note = r.note;
-  if (r.news) { news = r.news; note = ""; }
+  if (r.news) { news = r.news; note = ""; setTimeout(() => gazette(news), 0); }
   for (const [n, v, after] of r.sfx || []) sfx(n, v, after);
   if (r.sea) { const q = r.sea; seaFight(q.id, q.foe, q.attack, res => { doAct({ k: "searesult", id: q.id, foe: q.foe, r: res }); drawMap(); }); return; }
   if (r.fight) { const o = { ...r.fight, ct: CITIES.find(c => c[0] === r.fight.ct) }; if (o.ct) { fight(o); return; } }
