@@ -194,13 +194,17 @@ export function buildThings(w, C, b, flip) {
       const Hr = L.Hr, Th = 1.6, faceU = wallU - Th / 2, gate = L.gate, hk = walls >= 2 ? 2 : 1;
       // (the wall's foot: the ground outside it, which the rampart rises from)
       const foot = v => { const p = T(wallU - 2.5, v); return y(p.x, p.z); };
+      // (the ground under a stretch of it, every metre or so, outside and in: its lowest, for the foot to be sunk below,
+      //  and its highest, for the top to stand over — on a hillside the uphill end must not be buried in the slope)
+      const ground = (va, vb, u0 = faceU - 2.5, u1 = wallU + 1.5) => { let lo = Infinity, hi = -Infinity; const n = Math.max(2, Math.ceil(Math.abs(vb - va))); for (let i = 0; i <= n; i++) for (const uu of [u0, faceU, u1]) { const p = T(uu, va + (vb - va) * i / n), h = y(p.x, p.z); if (h < lo) lo = h; if (h > hi) hi = h; } return { lo, hi }; };
       // a length of it, va to vb: the face from below the ground to the parapet's top, a battered plinth at its foot, a
       // string course under the parapet, merlons along it (none at an embrasure, where a gun looks out low)
+      const tops = [];
       const length = (va, vb, low = false, kind = "wall") => {
         const len = vb - va; if (len < 0.4) return;
         const grp = new THREE.Group(), rub = new THREE.Group(); tgt = grp;
-        const vm = (va + vb) / 2, c = T(faceU, vm), y0 = Math.min(foot(va), foot(vb), foot(vm)) - 1.2, top = Math.min(foot(va), foot(vb), foot(vm)) + Hr + (low ? 0.3 : 1.25);
-        box(M_.ashlar, c.x, (y0 + top) / 2, c.z, Th, top - y0, len);
+        const vm = (va + vb) / 2, c = T(faceU, vm), G0 = ground(va, vb), y0 = G0.lo - 1.2, top = Math.max(Math.min(foot(va), foot(vb), foot(vm)) + Hr, G0.hi + 1.6) + (low ? 0.3 : 1.25);
+        box(M_.ashlar, c.x, (y0 + top) / 2, c.z, Th, top - y0, len); tops.push({ va, vb, top });
         const pl = T(faceU - 0.35, vm); box(M_.ashlar2, pl.x, y0 + 1.6, pl.z, Th + 0.7, 2.4, len + 0.02);
         const sc = T(faceU - 0.1, vm); box(M_.ashlar2, sc.x, top - 0.55, sc.z, Th + 0.3, 0.22, len + 0.02);
         const merl = [];
@@ -215,7 +219,7 @@ export function buildThings(w, C, b, flip) {
       // a tower: square, out before the wall, a little higher, crenellated
       const tower = v => {
         const grp = new THREE.Group(), rub = new THREE.Group(); tgt = grp;
-        const c = T(faceU - 2.2, v), y0 = foot(v) - 1.2, top = foot(v) + Hr + 4.2, sz = 6.4;
+        const sz = 6.4, c = T(faceU - 2.2, v), G0 = ground(v - sz / 2, v + sz / 2, faceU - 2.2 - sz / 2, faceU - 2.2 + sz / 2), y0 = G0.lo - 1.2, top = Math.max(foot(v) + Hr, G0.hi + 1.6) + 4.2;
         box(M_.ashlar, c.x, (y0 + top) / 2, c.z, sz, top - y0, sz);
         box(M_.ashlar2, c.x, y0 + 1.6, c.z, sz + 0.6, 2.4, sz + 0.6);
         box(M_.ashlar2, c.x, top - 0.5, c.z, sz + 0.3, 0.24, sz + 0.3);
@@ -248,17 +252,24 @@ export function buildThings(w, C, b, flip) {
       // (in lengths of eight metres, each standing on its own ground, with a coping along its top)
       for (const sv of [-1, 1]) for (let u0 = wallU; u0 < end + 10; u0 += 8) {
         const u1 = Math.min(end + 10, u0 + 8.05), a = T(u0, sv * (W + 6)), b = T(u1, sv * (W + 6)), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2, len = Math.abs(b.x - a.x);
-        const gs = [y(a.x, a.z), y(b.x, b.z), y(x, z)], y0 = Math.min(...gs) - 1.2, top = Math.max(...gs) + Hr + 1.3;
+        const gs = []; for (let i = 0; i <= 8; i++) for (const dv of [-1.2, 0, 1.2]) { const q = T(u0 + (u1 - u0) * i / 8, sv * (W + 6 + dv)); gs.push(y(q.x, q.z)); }
+        const y0 = Math.min(...gs) - 1.2, top = Math.max(...gs) + Hr + 1.3;
         box(M_.ashlar, x, (y0 + top) / 2, z, len, top - y0, Th);
         box(M_.ashlar2, x, top + 0.12, z, len + 0.02, 0.24, Th + 0.25);
         solid(x, z, len / 2, Th / 2 + 0.2, 0, top + 0.24); }
+      // (the two corners, where the front meets the flanks: a solid block of masonry, so no gap is left on any slope)
+      for (const sv of [-1, 1]) {
+        const ua = faceU - 1, ub = wallU + 1.5, va = sv * (W + 4.6), vb = sv * (W + 7.2), G0 = ground(Math.min(va, vb), Math.max(va, vb), ua, ub);
+        const a = T(ua, va), b = T(ub, vb), x = (a.x + b.x) / 2, z = (a.z + b.z) / 2, sx = Math.abs(b.x - a.x), sz2 = Math.abs(b.z - a.z), y0 = G0.lo - 1.2, top = G0.hi + Hr + 1.3;
+        box(M_.ashlar, x, (y0 + top) / 2, z, sx, top - y0, sz2); solid(x, z, sx / 2, sz2 / 2, 0, top);
+      }
       // (for the field: where the defenders stand and their guns go — on the walk, behind the embrasures)
       const ap = T(wallU + 2.4, 0);
       siege = { d: d * sg, anchor: { x: ap.x, z: ap.z }, guns: emb.map(e => T(wallU + 2.6, e)) };
       // (where the storming parties set their ladders: along the plain lengths of wall, clear of the towers, the gate
       //  and the gun embrasures — the foot out from the wall, its head on the parapet, and the walk behind it)
       const lv = []; for (const sv of [-1, 1]) for (const v0 of [gate + 9, L.tower - 7, L.tower + 8, W - 5]) { const v1 = sv * v0; if (towersAt.some(t => Math.abs(t - v1) < 4.6) || emb.some(e => Math.abs(e - v1) < 2.6) || Math.abs(v1) < gate + 5) continue; lv.push(v1); }
-      siege.ladders = lv.map(v1 => { const o = T(faceU - 2.1, v1), tp = T(faceU - 0.2, v1), i = T(wallU + 2.6, v1); return { v: v1, out: { x: o.x, z: o.z }, top: { x: tp.x, z: tp.z }, inn: { x: i.x, z: i.z }, footY: foot(v1), topY: foot(v1) + Hr + 1.25 }; });
+      siege.ladders = lv.map(v1 => { const o = T(faceU - 2.1, v1), tp = T(faceU - 0.2, v1), i = T(wallU + 2.6, v1); return { v: v1, out: { x: o.x, z: o.z }, top: { x: tp.x, z: tp.z }, inn: { x: i.x, z: i.z }, footY: foot(v1), topY: (tops.find(t => v1 >= t.va && v1 <= t.vb) || { top: foot(v1) + Hr + 1.25 }).top }; });
       // (and the line of the wall: which side of it a man is)
       siege.wall = { ox: C.x, ux: d * sg, faceU, wallU, gateZ: T(faceU, 0).z };
     },

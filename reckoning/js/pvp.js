@@ -1691,11 +1691,15 @@ class Arena {
     if (!u || !u.alive) u = this.watched = this.alliesOf(0)[0];
     if (!u) { this.watching = false; return; }
     const back = new THREE.Vector3(), look = new THREE.Vector3();
+    // (over his shoulder, a little above — and never under the ground: on a hillside the slope behind him rises, so the
+    //  eye is lifted clear of it, and of the ground between it and him)
     G.deathCam = cam => {
-      const p = u.pos, yaw = u.yaw;
-      back.set(p.x - Math.sin(yaw) * 4.2, p.y + 2.4, p.z - Math.cos(yaw) * 4.2);
-      cam.position.lerp(back, 0.08); cam.up.set(0, 1, 0);
-      look.set(p.x + Math.sin(yaw) * 6, p.y + 1.2, p.z + Math.cos(yaw) * 6); cam.lookAt(look);
+      const p = u.pos, yaw = u.yaw, H = (x, z) => this.w.heightAt(x, z);
+      const bx = p.x - Math.sin(yaw) * 5, bz = p.z - Math.cos(yaw) * 5, mx = (bx + p.x) / 2, mz = (bz + p.z) / 2;
+      back.set(bx, Math.max(p.y + 2.8, H(bx, bz) + 1.8, H(mx, mz) + 1.6), bz);
+      if (cam.position.distanceTo(back) > 30) cam.position.copy(back); else cam.position.lerp(back, 0.08);
+      cam.position.y = Math.max(cam.position.y, H(cam.position.x, cam.position.z) + 1.4); cam.up.set(0, 1, 0);
+      look.set(p.x + Math.sin(yaw) * 6, p.y + 1.3, p.z + Math.cos(yaw) * 6); cam.lookAt(look);
     };
   }
   // ---- the orders: the number keys, in the field ----

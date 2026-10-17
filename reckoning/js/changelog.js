@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.76.0", date: "17 October 2026", title: "Aboard, and over there",
+    items: [
+      "Campaign: armies go aboard your fleets. A fleet off a river port such as London was too far from the army in the town to take it aboard, and the button simply didn't appear. Now it reaches, and you can also click your army and right-click your fleet to embark it. If the fleet can't carry the whole army, as many regiments as it can carry go aboard as an army of their own, and the rest stay ashore. When it can't be done, the fleet's card says why.",
+      "Campaign: a new game starts with soldiers in your colonies. Each of your towns over the Atlantic has a garrison: a regiment of foot (two in the larger towns) and the settlers' militia. Your army at home can't come to them.",
+      "Battles: watching your company after you fall, the camera stays above the ground. On a hillside it sat in the slope behind the soldier you were watching, and all you saw was earth.",
+      "Sieges: a town's walls and towers on a hillside stand clear of the slope. Their tops were set from the lowest ground under them, so at the uphill end and at the corners the hill came through, and you could walk into the wall. The corners where the front meets the sides are now solid too.",
+    ],
+  },
+  {
     v: "1.75.3", date: "17 October 2026", title: "Exempt",
     items: [
       "Campaign: exempt a town from taxes. A town's tax buttons now have a fourth, Exempt: it pays the treasury nothing, its people are grateful (+2 loyalty), and it grows a little faster. Use it on a restless or newly conquered town until it settles. Exemptions stay when you change the realm's taxes.",

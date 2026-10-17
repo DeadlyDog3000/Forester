@@ -177,6 +177,10 @@ function begin(me, into = slot) {
   slot = into; spreadOf = ""; C = fresh(me); ensureRealm(); own = new Map();
   // (England, the sea power: its fleet already in being in 1683, six ships lying off its capital)
   if (me === "england") { const g = grid(), ct = citiesOfNow(g, me).sort((a, b) => b[3] - a[3]).find(c => harbourOf(c)), hb = ct && harbourOf(ct); if (hb) C.fleets = [{ id: 0, pos: { x: hb.x, y: hb.y }, ships: navyMix(me, 6), moved: false, go: null }]; }
+  // (the colonies over the Atlantic: companies of their own in each town, as they had — the army at home can't come to
+  //  them: a regiment of foot in each, two in a colony's chief towns, and the settlers' militia)
+  { ensureUnits(); const g = grid(), home = homeOf(g, me);
+    if (home && !seaSide(home)) for (const ct of citiesOfNow(g, me).filter(c => seaSide(cellXY(c)))) { const n = ct[3] >= 2 ? 2 : 1; for (let i = 0; i < n; i++) C.units.push({ k: "musketeer", hp: 1, at: ct[0] }); C.units.push({ k: "militia", hp: 1, at: ct[0] }); } }
   // (where you stand in 1683: your league, your wars)
   const al = Object.keys(C.ally).filter(id => C.ally[id]), wr = Object.keys(C.E.war).filter(id => C.E.war[id]);
   for (const L of LEAGUES_1683.filter(L => L.ids.includes(me))) say(`You are of ${L.n}`, `With ${L.ids.filter(x => x !== me).map(x => the(x)).join(", ")}.`);
@@ -813,10 +817,27 @@ function fleetJoin(fid, to) {
   f.joinTo = to; persist(); return null;
 }
 // the army in hand taken aboard a fleet of yours lying off the shore where it stands — if she has the room
+// (a river port's quays are some way up from the sea: the fleet off its mouth still counts as at the shore)
+const EMBARK_R = 9;
+// (why the army in hand can't go aboard a fleet now, or null if it can)
+function whyNotEmbark(f) {
+  if (!f) return "No such fleet."; if (C.emb != null) return "Your army is already aboard a fleet.";
+  if (C.siege) return "Not while it's besieging a town."; if (!field().length) return "The army has no regiments.";
+  if (dist2(armyPos(), f.pos) > EMBARK_R) return `Bring the fleet to the shore where your army stands (it's off ${nearTown(f.pos)[0]}; the army is at ${nearTown(armyPos())[0]}).`;
+  if (fleetCap(f) - aboardRegs(f.id) < 1) return "The fleet is full. Build more ships.";
+  return null;
+}
 function embark(fid) {
-  const f = fleetById(fid); if (!f) return "No such fleet."; if (C.emb != null) return "Your army is already aboard.";
-  if (C.siege) return "Not while it's besieging a town."; if (dist2(armyPos(), f.pos) > 5) return "The fleet must lie off the shore where your army stands.";
-  const room = fleetCap(f) - aboardRegs(fid); if (room < field().length) return `The fleet has room for ${Math.max(0, room)} regiments; your army is ${field().length}. Build more ships, or split the army.`;
+  const f = fleetById(fid), why = whyNotEmbark(f); if (why) return why;
+  // (more regiments than the ships can carry: as many as they can go aboard, as an army of their own; the rest stay ashore)
+  const room = fleetCap(f) - aboardRegs(fid);
+  if (room < field().length) {
+    if ((C.armies || []).length >= 5) return `The fleet has room for ${room} of your ${field().length} regiments, and you have armies enough to split off another. Build more ships.`;
+    reconcile(); const id = Math.max(...armyIds()) + 1, F = field().sort((a, b) => b.hp - a.hp), p = armyPos();
+    for (const u of F.slice(0, room)) u.ar = id; C.army = Math.round(unitSum());
+    (C.armies ||= []).push({ id, pos: { x: p.x, y: p.y }, go: null, moved: C.moved, siege: null, army: room, gen: null, morale: C.morale ?? 50, supplied: false, sailed: 0 });
+    useArmy(id);
+  }
   C.emb = fid; C.pos = { x: f.pos.x, y: f.pos.y }; C.go = null; persist(); return null;
 }
 // and put ashore on the nearest beach — the landing takes the rest of the year
@@ -1673,6 +1694,8 @@ export function initCampaign(c, battle, withPlayer) {
     e.preventDefault(); if (!C) return;
     const [mx, my] = toMap(pos(e)), S = cv.width / MG_W;
     if (selFleet != null && fleetById(selFleet)) { const fh2 = fleetHit(cv, ...pos(e)); if (fh2 && fh2.mine != null && fh2.mine !== selFleet) { doAct({ k: "fjoin", id: selFleet, to: fh2.mine }); return; } doAct({ k: "sail", id: selFleet, x: mx / S, y: my / S }); return; }
+    // (a fleet of yours, with the army in hand: the army goes aboard it)
+    if (armySel && C.emb == null) { const fh3 = fleetHit(cv, ...pos(e)); if (fh3 && fh3.mine != null) { doAct({ k: "embark", id: fh3.mine }); armySel = false; return; } }
     // (another army of your own: the one in hand marched to it, and the two made one when it gets there)
     { const ah = armyHit(cv, ...pos(e)); if (ah && ah.id !== (C.ar | 0) && C.emb == null) { doAct({ k: "joinat", id: ah.id }); armySel = false; return; } }
     // (an enemy army within a year's march: the army falls on it in the field)
@@ -2209,12 +2232,12 @@ function shipRoll(ships) {
 }
 // your fleet chosen on the map: its ships, the armies aboard, and what it can do this year
 function fleetCard(f) {
-  const room = fleetCap(f), aboard = aboardOf(f.id), regs = aboardRegs(f.id), canEmb = C.emb == null && !C.siege && dist2(armyPos(), f.pos) <= 5 && field().length && room - regs >= field().length;
+  const room = fleetCap(f), aboard = aboardOf(f.id), regs = aboardRegs(f.id), canEmb = !whyNotEmbark(f);
   const fights = Object.keys(C.foeFleets || {}).filter(id => canSeaFight(f.id, id));
   return `<div class="cmp-card"><div class="cmp-h"><i style="background:${NATIONS[C.me].color}"></i><b>${esc(fleetName(f))}</b><small>${f.ships.length} ship${f.ships.length > 1 ? "s" : ""} · ${f.go ? "under sail" : f.moved ? "sailed this year" : "ready to sail"} · off ${esc(nearTown(f.pos)[0])}</small></div>
     ${shipRoll(f.ships)}
     <p class="cmp-pop">Carries ${room} regiments${regs ? `: ${regs} aboard (${aboard.map(id => (C.armies || []).length ? armyName(id).toLowerCase() : "your army").join(", ")})` : ", none aboard"}.</p>
-    <div class="cmp-acts">${canEmb ? `<button class="btn" data-embark="${f.id}">Take ${(C.armies || []).length ? `the ${esc(armyName(C.ar | 0).toLowerCase())}` : "your army"} aboard</button>` : ""}${C.emb === f.id ? `<button class="btn" data-land="1">Land ${(C.armies || []).length ? `the ${esc(armyName(C.ar | 0).toLowerCase())}` : "the army"}</button>` : ""}
+    <div class="cmp-acts">${C.emb === f.id ? "" : (w => `<button class="btn" data-embark="${f.id}"${w ? ` disabled title="${esc(w)}"` : ""}>Take ${(C.armies || []).length ? `the ${esc(armyName(C.ar | 0).toLowerCase())}` : "your army"} aboard</button>${w && C.emb == null ? `<small class="cmp-fine">${esc(w)}</small>` : ""}`)(whyNotEmbark(f))}${C.emb === f.id ? `<button class="btn" data-land="1">Land ${(C.armies || []).length ? `the ${esc(armyName(C.ar | 0).toLowerCase())}` : "the army"}</button>` : ""}
       ${fights.map(id => `<button class="btn primary" data-seaf="${id}" data-how="fight">Attack ${esc(poss(the(id)))} fleet · you command</button><button class="btn" data-seaf="${id}" data-how="auto">Attack · your admirals</button>`).join("")}
       ${otherFleets().filter(([h, o]) => canSeaFightP(f.id, h, o.id)).map(([h, o]) => `<button class="btn primary" data-seap="${h}" data-hf="${o.id}" data-fid="${f.id}">Attack ${esc(poss(nameOf(h)))} ${esc(fleetName(o).toLowerCase())}</button>`).join("")}</div>
     <small class="cmp-fine">${f.moved ? "It can sail again next year." : "Right-click on the sea to sail there: a year's sailing takes it across the Atlantic, or the length of the Mediterranean."}${!canEmb && C.emb == null && dist2(armyPos(), f.pos) > 5 ? " To take an army aboard, bring the fleet to the shore where it stands." : ""}</small></div>`;
@@ -2409,7 +2432,7 @@ function drawSide() {
     ${(C.armies || []).length ? `<div class="cmp-armies">${armyIds().map(id => { const n2 = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length, A = id === (C.ar | 0) ? C : C.armies.find(a => a.id === id) || {}, at = A.pos ? nearTown(A.pos)[0] : ""; return `<button class="btn${id === (C.ar | 0) ? " on" : ""}" data-army="${id}"${id === (C.ar | 0) ? " disabled" : ""} title="${esc(`${armyName(id)}: ${n2} regiments, near ${at}${A.gen ? `, under ${A.gen.name}` : ", no general"} · ${A.siege ? `besieging ${A.siege.ct}` : A.go ? "on the march" : A.moved ? "marched this year" : "ready"}`)}">${esc(armyName(id))} · ${n2}<small>${esc(at)}</small></button>`; }).join("")}</div>` : ""}
     ${C.gen ? manCard(C.gen) : `<div class="cmp-nogov"><span>No general leads it: it fights the worse for it.</span>${(C.ar | 0) !== armyIds()[0] ? `<button class="btn" data-askgen="1">Choose a general</button>` : ""}</div>`}
     <div class="cmp-acts">${(C.armies || []).some(a => a.pos && dist2(a.pos, armyPos()) <= 3 && !a.siege) && !C.siege ? `<button class="btn" data-join="1">Join the other army here</button>` : ""}${field().length >= 4 && !C.siege ? `<button class="btn ghost" data-split="1" title="Half of each arm marches off as an army of its own">Split the army</button>` : ""}</div>
-    ${C.emb != null && fleetById(C.emb) ? `<div class="cmp-nogov"><span>Aboard the ${esc(fleetName(fleetById(C.emb)).toLowerCase())}, off ${esc(nearTown(armyPos())[0])}.</span><button class="btn" data-land="1">Land the army</button></div>` : (f => f ? `<div class="cmp-acts"><button class="btn" data-embark="${f.id}">Take it aboard the ${esc(fleetName(f).toLowerCase())}</button></div>` : "")((C.fleets || []).find(f => !C.siege && dist2(armyPos(), f.pos) <= 5 && fleetCap(f) - aboardRegs(f.id) >= field().length && field().length))}
+    ${C.emb != null && fleetById(C.emb) ? `<div class="cmp-nogov"><span>Aboard the ${esc(fleetName(fleetById(C.emb)).toLowerCase())}, off ${esc(nearTown(armyPos())[0])}.</span><button class="btn" data-land="1">Land the army</button></div>` : (f => f ? `<div class="cmp-acts"><button class="btn" data-embark="${f.id}">Take it aboard the ${esc(fleetName(f).toLowerCase())}</button></div>` : "")((C.fleets || []).find(f => !whyNotEmbark(f)))}
     ${rollHtml()}
     ${(C.lq || []).length ? `<small class="cmp-fine">Raising: ${C.lq.map(q => `${esc(TROOPS[q.k].one.toLowerCase())} at ${esc(q.t)}`).join(", ")}. They join the army at the year's end, or hold their towns if it's far off.</small>` : ""}
     <small class="cmp-fine">Regiments are raised in your towns: choose one on the map. Thin regiments fill their ranks again from your towns each year, fastest on your own land. Upkeep ${upkeep()} a year.</small>`, armySel);
@@ -2504,7 +2527,7 @@ function apply(actor, a) {
     if (a.k === "unship") { unbuildShip(a.t); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "fjoin") { const f = fleetById(a.id), T = fleetById(a.to); if (!f || !T) return null; const nm = fleetName(T).toLowerCase(), why = fleetJoin(a.id, a.to); if (why) return { note: why }; return fleetById(a.id) ? { note: `The ${fleetName(f).toLowerCase()} is under sail to join the ${nm}, and joins it when it gets there.`, sfx: [["bell", 0.35]] } : { note: `The two fleets sail as one: the ${nm}, ${T.ships.length} ships.`, sfx: [["bell", 0.4]] }; }
     if (a.k === "sail") { { const f = fleetById(a.id); if (f) f.joinTo = null; } W0(); const why = sail(a.id, { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }); return why ? { note: why } : { note: (f => f && f.go ? `The fleet is under sail: more than a year's sailing, it will be there in the years after.` : "The fleet sails, and is there by the year's end.")(fleetById(a.id)), sfx: [["bell", 0.3]] }; }
-    if (a.k === "embark") { const why = embark(a.id); return why ? { note: why } : { note: "Your army goes aboard the fleet. Sail it where you will, and land it there.", sfx: [["drum", 0.35]] }; }
+    if (a.k === "embark") { const n0 = field().length, why = embark(a.id); return why ? { note: why } : { note: field().length < n0 || (C.armies || []).length && n0 !== field().length ? `${field().length} regiments go aboard the fleet, all it can carry, as the ${armyName(C.ar | 0).toLowerCase()}; the rest stay ashore. Click the fleet, then right-click the sea to sail it; land the army from the fleet's card.` : "Your army goes aboard the fleet. Click the fleet, then right-click the sea to sail it; land the army from the fleet's card.", sfx: [["drum", 0.35]] }; }
     if (a.k === "land") { const why = land(); return why ? { note: why } : { note: "Your army is put ashore. It can march again next year.", sfx: [["drum", 0.4]] }; }
     if (a.k === "seafight") {
       if (!canSeaFight(a.id, a.foe)) return { note: "Your fleet can't reach theirs this year." };
