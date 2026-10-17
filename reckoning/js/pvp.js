@@ -1738,6 +1738,7 @@ class Arena {
     if (G.arena !== this || e.repeat || !this.live || G.downed || G.mode !== "play") return;
     // F (with nothing else to hand): the bayonet fixed under your musket's muzzle — for good, this fight. It's in the way
     // of the rod and the aim: slower loading, and the shot less true
+    if (e.code === "KeyF" && this.lo.long === "musket" && this.lo.blade === "dagger" && !this.myTech("bayonet") && !G.player.bayonet && !G.interactTarget) { e.stopImmediatePropagation(); e.preventDefault(); UI.hint("Your crown hasn't the socket bayonet yet: the blade can't be fixed under the muzzle. Study it in the campaign's Learning.", 4); return; }
     if (e.code === "KeyF" && this.canBayonet() && !G.player.bayonet && !G.interactTarget) {
       e.stopImmediatePropagation(); e.preventDefault();
       const pl = G.player; if (!pl.gun || pl.gunIs !== "musket") this.takeUp("musket");
@@ -1913,7 +1914,8 @@ class Arena {
     // (from the saddle: further, and harder at the gallop)
     return pl.horse ? { ...B, reach: B.reach + 0.8, dmg: B.dmg * (pl.speed > 6 ? 1.7 : 1.25) } : B;
   }
-  canBayonet() { return this.lo.long === "musket" && this.lo.blade === "dagger"; }
+  canBayonet() { return this.lo.long === "musket" && this.lo.blade === "dagger" && this.myTech("bayonet"); }
+  myTech(k) { const c = this.hist && this.hist.cos && this.hist.cos[0]; return !c || !c.tech || c.tech[k] !== false; }
   swing() {
     if (this.multi) return this.swingAt();
     const pl = G.player, f = this.foe, B = this.myBlade();
@@ -2588,7 +2590,10 @@ class Bot extends Fighter {
     if (Math.random() < 0.5) AUDIO.voice && AUDIO.voice("war", { at: a.pos, vol: 0.7, high: isF(this.info.look) });
   }
   // his steel: the bayonet fixed on his musket if he has the two; else his blade
-  steel() { return this.lo.long === "musket" && this.lo.blade === "dagger" ? "bayonet" : this.lo.blade; }
+  steel() { return this.lo.long === "musket" && this.lo.blade === "dagger" && this.tech("bayonet") ? "bayonet" : this.lo.blade; }
+  // (what his crown has learnt, in a campaign's battle: without the socket bayonet his blade can't be fixed under the
+  //  muzzle; with linear tactics his company loads and fires the quicker. Any other battle: all of it)
+  tech(k) { const c = this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team]; return !c || !c.tech || c.tech[k] !== false; }
   // (a soldier in a battle fixes his bayonet before ever he comes on, and fires with it fixed)
   hold(k) { super.hold(k); if (k === "musket" && this.fixed && this.gun) addBayonet(this.gun); }
   // a blow on him — yours (from the side you swung) or another man's: turned aside if he's guarding that side and
@@ -2810,7 +2815,7 @@ class Bot extends Fighter {
     }
     // reloading goes on whatever he's doing, as yours does (each weapon its own time)
     const moving = a.path.length > 0;
-    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1) * (k === "long" && this.fixed ? 0.8 : 1) * (this.info.kind === "militia" ? 0.62 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
+    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1) * (k === "long" && this.fixed ? 0.8 : 1) * (this.info.kind === "militia" ? 0.62 : 1) * (this.tech("linear") && /^(musketeer|grenadier)$/.test(this.info.kind || "") && this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team] && this.arena.hist.cos[this.team].tech ? 1.15 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
     // (the gun in his hands, if it's being loaded: the drill, seen and heard)
     { const hk = this.heldK, slot = hk === "pistol" ? "side" : "long";
       if ((hk === "musket" || hk === "pistol") && !this.loaded[slot] && this.rl[slot] > 0) {

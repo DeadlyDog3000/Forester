@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.74.0", date: "17 October 2026", title: "Learning you can see",
+    items: [
+      "Campaign: what you learn changes your battles. Until your crown has studied the socket bayonet, your musketeers and grenadiers can't fix bayonets (F tells you so), and fight hand to hand with the blade alone. Linear tactics makes them load and fire 15% faster. Without field artillery, only one gun follows your army into a battle in the open field; sieges and town fights still get them all.",
+      "The other crowns learn as the age did: the bayonet by the later 1690s, platoon fire by the 1700s, light field guns soon after. Another player's crown has what it has studied.",
+      "Campaign: Esc opens a pause menu over the map, with Learning, Settings, Controls and Quit to title; the campaign is kept as it stands. Esc first closes whatever else is open (a unit's card, the learning, the loyalty map), and closes the pause menu again.",
+    ],
+  },
+  {
     v: "1.73.1", date: "17 October 2026", title: "Towns under armies",
     items: [
       "Campaign: a town with an army standing on it can be chosen. Click the town's dot and you get the town, not the army, whoever's army it is. Click an army that's already chosen again and you get the town beneath it.",

@@ -1965,3 +1965,6 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-ttax small { font: 11px var(--sans); color: var(--ink-dim); margin-right: 2px; }
 .cmp-ttax .btn { flex: 0 0 auto; width: auto; min-width: 0; padding: 3px 10px; font-size: 11px; }
 .cmp-ttax .btn.on { background: linear-gradient(#7a5424, #5a3c16); border-color: #d8b45a; color: #f6e6bc; opacity: 1; }
+/* the campaign's pause menu */
+.cmp-pausebox { width: min(360px, 100%); }
+.cmp-pausebox .menu { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }

@@ -13,6 +13,7 @@
 // them. A town is a province: taking one takes the country round it.
 
 import { FOLEY } from "./foley.js";
+import { G } from "./engine.js";
 import { NATIONS, NATION_FAITH, CITIES, buildGrid, cityOwner, gridOf, llOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H, useSheet, PEOPLES, peopleAt } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { TROOPS } from "./pvp.js";
@@ -599,6 +600,11 @@ function fight(o) {
   // (their raiders: horse, most of them — that's what's sent to fall on a convoy)
   const theirMuster = muster(o.foe, theirMen); if (o.convoy && !NATIONS[o.foe].nw) { const hk = Math.round(theirMen * 0.35); theirMuster.cavalry = (theirMuster.cavalry || 0) + hk; theirMuster.musketeer = Math.max(0, (theirMuster.musketeer || 0) - hk); }
   // (each side's nerve: your barracks, your learning, your general; theirs, their general's hold on them)
+  // (what each side has learnt: the socket bayonet, linear tactics, field guns; an AI crown has them as the age did —
+  //  the bayonet by the later 1690s, platoon fire and light field guns by the 1700s)
+  const myTech = { bayonet: knows("bayonet"), linear: knows("linear"), fieldart: knows("fieldart") }, foeTech = isHuman(o.foe) ? as(o.foe, () => ({ bayonet: knows("bayonet"), linear: knows("linear"), fieldart: knows("fieldart") })) : { bayonet: C.year >= 1697, linear: C.year >= 1705, fieldart: C.year >= 1708 };
+  // (in the open field the guns that keep up with the army: one without field artillery, the heavy guns left behind)
+  const fieldCap = (t, n) => o.field && !t.fieldart ? Math.min(1, n) : n;
   const fg = genOf(o.foe), theirBrave = fg ? 1 + (fg.st[1] - 3) * 0.06 : 1, foeGuns = isHuman(o.foe) ? as(o.foe, () => C.guns | 0) : (C.fguns[o.foe] | 0);
   const b = {
     id: "cmp-" + ct[0], campaign: true, name: o.field ? `The field near ${ct[0]}` : o.convoy ? `The road to ${ct[0]}` : ct[0], date: `${SEASONS[s]} ${C.year}`, year: C.year, lon: ct[1], lat: ct[2],
@@ -607,8 +613,8 @@ function fight(o) {
     cloud: s === 3 ? 0.7 : s === 2 ? 0.5 : s === 0 ? 0.35 : 0.1, mist: s === 2 ? 0.3 : s === 3 ? 0.25 : 0,
     fort: null, won: undefined, you: 0,
     sides: [
-      { name: NATIONS[C.me].name, lead: "you", hold: o.attack ? undefined : 999, cos: [{ uni: UNI_OF[C.me], muster: { ...o.pick.men }, guns: o.pick.guns | 0, brave: braveMul(g) }, ...(ally && !o.walls ? [{ uni: UNI_OF[ally], muster: muster(ally, 14), guns: 1 }] : [])] },
-      { name: NATIONS[o.foe].name, lead: "their officers", hold: o.attack ? 999 : undefined, cos: [{ uni: UNI_OF[o.foe] === UNI_OF[C.me] ? (UNI_OF[C.me] === "imperial" ? "bavarian" : "imperial") : UNI_OF[o.foe], muster: theirMuster, guns: o.convoy ? 0 : Math.min(3, foeGuns, Math.ceil(theirs / 15)), brave: theirBrave }] },
+      { name: NATIONS[C.me].name, lead: "you", hold: o.attack ? undefined : 999, cos: [{ uni: UNI_OF[C.me], muster: { ...o.pick.men }, guns: fieldCap(myTech, o.pick.guns | 0), brave: braveMul(g), tech: myTech }, ...(ally && !o.walls ? [{ uni: UNI_OF[ally], muster: muster(ally, 14), guns: 1 }] : [])] },
+      { name: NATIONS[o.foe].name, lead: "their officers", hold: o.attack ? 999 : undefined, cos: [{ uni: UNI_OF[o.foe] === UNI_OF[C.me] ? (UNI_OF[C.me] === "imperial" ? "bavarian" : "imperial") : UNI_OF[o.foe], muster: theirMuster, tech: foeTech, guns: o.convoy ? 0 : fieldCap(foeTech, Math.min(3, foeGuns, Math.ceil(theirs / 15))), brave: theirBrave }] },
     ],
     map: { snow: s === 3, things },
   };
@@ -1555,6 +1561,14 @@ export function initCampaign(c, battle, withPlayer) {
   $("cmpSide").addEventListener("change", e => { const t = e.target.closest("[data-rule]"); if (t && C) doAct({ k: "rule", ct: t.dataset.rule, on: t.checked }); });
   $("cmpTechB").onclick = () => { if (C) { drawTech(); sfx("parchment", 0.4); } };
   $("cmpPanel").onclick = () => { $("cmpSide").classList.toggle("shut"); sfx("parchment", 0.5); };
+  // (Esc: whatever's open over the map closed — a unit's card, the learning, the loyalty map — else the pause menu)
+  addEventListener("keydown", e => {
+    if (e.code !== "Escape" || e.repeat || !C || $("campaign").classList.contains("hidden") || $("cmpPlay").classList.contains("hidden") || $("cmpGazette") || $("cmpMust")) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    for (const id of ["cmpPause", "cmpUnit", "cmpTech"]) if ($(id)) { $(id).remove(); return; }
+    if (loyMap) { toggleLoy(); return; }
+    pauseMenu();
+  }, true);
   // (L: the loyalty map, on and off)
   addEventListener("keydown", e => { if (e.code !== "KeyL" || e.repeat || e.metaKey || e.ctrlKey || e.altKey || !C || $("campaign").classList.contains("hidden") || $("cmpPlay").classList.contains("hidden") || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return; e.preventDefault(); e.stopImmediatePropagation(); toggleLoy(); }, true);
   addEventListener("keydown", e => { if (e.code === "Tab" && !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden")) { e.preventDefault(); e.stopImmediatePropagation(); $("cmpPanel").click(); } }, true);
@@ -1955,6 +1969,20 @@ function loyRegions(g) {
   const pts = towns.map(ct => cellXY(ct)), own = new Int16Array(MG_W * MG_H).fill(-1);
   for (let y = 0; y < MG_H; y++) { const row = g[y]; if (!row) continue; for (let x = 0; x < MG_W; x++) { if (row[x] !== C.me) continue; let b = -1, bd = 1e9; for (let i = 0; i < pts.length; i++) { const d = (pts[i].x - x - 0.5) ** 2 + (pts[i].y - y - 0.5) ** 2; if (d < bd) { bd = d; b = i; } } own[y * MG_W + x] = b; } }
   return loyCache = { g, key, towns, own, cv: null, sig: "" };
+}
+// the pause menu over the campaign: back to it, the learning, the settings and controls, or away to the title (the
+//  campaign is kept as it stands)
+function pauseMenu() {
+  const el = document.createElement("div"); el.id = "cmpPause"; el.className = "cmp-must"; $("campaign").appendChild(el);
+  el.innerHTML = `<div class="cmp-mbox cmp-pausebox"><h2>Paused</h2><p class="sub">${esc(NATIONS[C.me].name)}, ${C.year}. The campaign is kept as it stands.</p>
+    <nav class="menu"><button class="btn primary" data-pz="back">Back to the campaign</button><button class="btn" data-pz="tech">Learning</button><button class="btn" data-pz="settings">Settings</button><button class="btn" data-pz="controls">Controls</button><button class="btn ghost" data-pz="title">${mp ? "Leave the campaign" : "Quit to title"}</button></nav></div>`;
+  el.onclick = e => {
+    const b = e.target.closest("[data-pz]"); if (!b) { if (e.target === el) el.remove(); return; }
+    const w = b.dataset.pz; el.remove(); sfx("quill", 0.2);
+    if (w === "tech") $("cmpTechB").click();
+    else if (w === "settings" || w === "controls") G.openFrom && G.openFrom("campaign", w);
+    else if (w === "title") { persist(); if (mp) leaveMp(); G.toTitle && G.toTitle(); }
+  };
 }
 function toggleLoy() { loyMap = !loyMap; if (loyMap && on3d) leave3d(); note = loyMap ? "The loyalty map: each of your towns' country coloured by its loyalty. Click one to see why, and to set its taxes. L to close." : ""; sfx("quill", 0.25); drawMap(); }
 function loyTownAt(mx, my) { if (!loyMap || !C) return null; const g = grid(), R2 = loyRegions(g), S = $("cmpMap").width / MG_W, x = Math.floor(mx / S), y = Math.floor(my / S); if (x < 0 || y < 0 || x >= MG_W || y >= MG_H) return null; const i = R2.own[y * MG_W + x]; return i >= 0 ? R2.towns[i] : null; }

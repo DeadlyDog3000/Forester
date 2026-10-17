@@ -231,6 +231,8 @@ function toTitle() {
   $("menus").classList.add("backdrop");
 }
 G.toTitle = toTitle;
+// (a menu screen opened from somewhere other than the pause menu — the campaign's — and Back returns there)
+G.openFrom = (from, id) => { back = from; if (id === "controls") relabelControls(); screen(id); };
 
 // M lets go of the mouse without pausing, so that release must not pause
 let freeMouse = false;
