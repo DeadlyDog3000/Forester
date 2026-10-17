@@ -447,7 +447,23 @@ function garrison(ct) { const n = ct[0], v = govOf(n), o = cityOwner(grid(), ct)
 function hasWalls(ct, owner, g = grid()) { return lvOf(ct[0], "walls") >= 1 || (!!owner && !NATIONS[owner].nw && citiesOfNow(g, owner).length === 1); }
 // (a town of the woods' nations: a palisade round it, fought in as a village)
 const isVillage = ct => { const o = cityOwner(grid(), ct); return !!o && !!NATIONS[o].nw && !lvOf(ct[0], "walls"); };
-const research = g => 1 + citiesOfNow(g, C.me).reduce((t, ct) => t + (CHAINS.church.levels[lvOf(ct[0], "church")].rp || 0), 0);
+// ---- the government, as in Empire: Total War: how the crown is ruled, and its three ministers ----
+const GOVS = {
+  absolute: { n: "Absolute monarchy", short: "Absolute", inc: 1, res: 0.9, heavy: -1, d: "The crown's will is law: heavy taxes anger the towns less (−1 loyalty, not −2), but the scholars work slower (−10%)." },
+  constitutional: { n: "Constitutional monarchy", short: "Constitutional", inc: 1.1, res: 1.1, heavy: -2, d: "King and parliament together: 10% more from the towns and trade, scholars 10% quicker; every five years an election may change a minister." },
+  republic: { n: "Republic", short: "Republic", inc: 1.15, res: 1.2, heavy: -2, loyal: 1, d: "The people's own government: 15% more from the towns and trade, scholars 20% quicker, the towns more content (+1 loyalty); but three years of war weary them (−1)." },
+};
+const GOV_START = { dutch: "republic", venice: "republic", genoa: "republic", swiss: "republic", england: "constitutional", scotland: "constitutional", ireland: "constitutional", poland: "constitutional" };
+const POSTS = [["treasury", "Treasury", "Income, by skill (±3% a star from three)"], ["war", "War", "Regiments' cost and the army's morale, by skill"], ["justice", "Justice", "Order in the towns: +1 loyalty with four stars or more, −1 with one"]];
+// (a minister: a man of the crown's own tongue, his skill one to five)
+function minister(post) { const m = newMan(C.me, "governor"); return { name: m.name, short: m.short, port: m.port, gen: m.gen, sk: m.st[1], post }; }
+function govOf_() {
+  if (!C.govt) { C.govt = { type: GOV_START[C.me] || (NATIONS[C.me].nw ? "absolute" : "absolute"), min: {}, unrest: 0, since: C.year }; for (const [p] of POSTS) C.govt.min[p] = minister(p); }
+  return C.govt;
+}
+const govType = () => GOVS[govOf_().type];
+const minSk = p => (govOf_().min[p] || { sk: 3 }).sk;
+const research = g => Math.round((1 + citiesOfNow(g, C.me).reduce((t, ct) => t + (CHAINS.church.levels[lvOf(ct[0], "church")].rp || 0), 0)) * govType().res * 10) / 10;
 const regCost = g => REGIMENT - Math.max(0, ...citiesOfNow(g, C.me).map(ct => CHAINS.works.levels[lvOf(ct[0], "works")].cheap || 0));
 const GUN_COST = 140;
 // (your army's nerve in a battle: the drill of your barracks, the bayonet, the general's hold on his men)
@@ -463,7 +479,7 @@ const cmdMul = gen => gen ? 1 + (gen.st[0] - 3) * 0.07 : 0.93;
 // ---- the army's morale, 0 to 100: where its general's spirit and its barracks put it, raised by victories and broken by
 //  defeats, by a general lost and by pay missed; drifting back a third of the way each year. It counts in every battle:
 //  a broken army fights at 85%, a confident one at 115% ----
-const moraleBase = () => clamp(30 + (C.gen ? C.gen.st[1] * 9 : 12) + (knows("bayonet") ? 4 : 0) + Math.round(Math.max(0, ...citiesOfNow(grid(), C.me).map(ct => CHAINS.army.levels[lvOf(ct[0], "army")].morale || 0)) * 100), 10, 95);
+const moraleBase = () => clamp(30 + (minSk("war") - 3) * 2 + (C.gen ? C.gen.st[1] * 9 : 12) + (knows("bayonet") ? 4 : 0) + Math.round(Math.max(0, ...citiesOfNow(grid(), C.me).map(ct => CHAINS.army.levels[lvOf(ct[0], "army")].morale || 0)) * 100), 10, 95);
 const moraleK = () => 0.85 + clamp(C.morale ?? 50, 0, 100) * 0.003;
 const moraleMove = d => { C.morale = clamp(Math.round((C.morale ?? 50) + d), 0, 100); };
 const moraleWord = v => v >= 85 ? "Eager for battle" : v >= 68 ? "Confident" : v >= 50 ? "Steady" : v >= 32 ? "Shaken" : v >= 15 ? "Wavering" : "Broken";
@@ -573,6 +589,28 @@ function missionsCheck(yearEnd) {
 function missionsHtml() {
   const M = (C && !C.mp && C.missions) || []; if (!M.length) return "";
   return `<div class="cmp-card cmp-missions"><span class="cmp-h"><b>Missions from the Crown</b></span>${M.map(m => { const left = m.by - C.year; return `<div class="cmp-mis"><b>${esc(m.title)}</b><small>${esc(m.d)}</small><span><em>${m.gold} thalers</em><i class="${left <= 0 ? "down" : ""}">${left <= 0 ? "this year" : `${left} year${left > 1 ? "s" : ""} left`}</i></span></div>`; }).join("")}</div>`;
+}
+// (the government's year: unrest counted, a revolution when it's been widespread two years running; an election in a
+//  constitutional monarchy every five years, a minister perhaps turned out)
+function govYear(g) {
+  const G = govOf_(), towns = citiesOfNow(g, C.me); G.cand = {}; G.swap = null;
+  const restless = towns.length ? towns.filter(ct => orderOf(ct) < 0).length / towns.length : 0;
+  G.unrest = restless >= 0.4 ? G.unrest + 1 : Math.max(0, G.unrest - 1);
+  if (G.unrest >= 2 && !C.events.some(e => !e.done && e.kind === "revolution")) { const to = G.type === "absolute" ? "constitutional" : G.type === "constitutional" ? "republic" : "constitutional"; C.events.push({ kind: "revolution", to }); }
+  if (G.type === "constitutional" && (C.year - G.since) % 5 === 0 && C.year !== G.since) {
+    const [p, title] = pick(POSTS), old = G.min[p], nu = minister(p); if (R() < 0.6) { G.min[p] = nu; say(`An election: a new minister of ${title.toLowerCase()}`, `${old.name} loses his seat; ${nu.name} takes the ${title.toLowerCase()}.`); } else say("An election", "Parliament returns the ministers as they were.");
+  }
+}
+function govHtml() {
+  const G = govOf_(), T = GOVS[G.type];
+  return fold("gov", `<span class="cmp-h"><b>Government</b><small title="${esc(T.d)}">${esc(T.n)}${G.unrest ? ` · <em class="down">unrest</em>` : ""}</small></span>`, `<p class="cmp-fine">${esc(T.d)}</p><div class="cmp-mins">${POSTS.map(([p, title, what]) => { const m = G.min[p]; return `<div class="cmp-min" title="${esc(what)}">${face(m, "sm")}<span><small>${title}</small><b>${esc(m.name)}</b><i>${"●".repeat(m.sk)}${"○".repeat(5 - m.sk)}</i></span>${G.swap === C.year ? "" : `<button class="tm-lnk" data-minr="${p}">Replace</button>`}</div>`; }).join("")}</div>${G.swap === C.year ? `<small class="cmp-fine">A minister has been changed this year.</small>` : ""}`);
+}
+// (a post's candidates, three men to choose from — the same three all year)
+function ministerPick(post) {
+  const G = govOf_(); G.cand ||= {}; const L = G.cand[post] ||= [minister(post), minister(post), minister(post)], title = POSTS.find(x => x[0] === post)[1];
+  const el = document.createElement("div"); el.id = "cmpMin"; el.className = "cmp-must"; $("campaign").appendChild(el);
+  el.innerHTML = `<div class="cmp-mbox cmp-minbox"><h2>Minister of ${post === "treasury" ? "the Treasury" : title}</h2><p class="sub">${esc(POSTS.find(x => x[0] === post)[2])}. Now: ${esc(G.min[post].name)}, ${"●".repeat(G.min[post].sk)}${"○".repeat(5 - G.min[post].sk)}. One minister can be changed a year.</p><div class="cmp-mincands">${L.map((m, i) => `<button class="cmp-mincand" data-minc="${i}">${face(m)}<b>${esc(m.name)}</b><i>${"●".repeat(m.sk)}${"○".repeat(5 - m.sk)}</i></button>`).join("")}</div><div class="pv-acts"><button class="btn" data-minx="1">Keep the one you have</button></div></div>`;
+  el.onclick = e => { const b = e.target.closest("[data-minc],[data-minx]"); if (!b) { if (e.target === el) el.remove(); return; } el.remove(); if (b.dataset.minc != null) doAct({ k: "minister", post, i: +b.dataset.minc }); };
 }
 function realmMine(g) {
   riots(g);
@@ -1309,7 +1347,7 @@ const unitArt = (k, id = C.me) => plateOf(styleOf(id), k);
 const unitImg = (k, cls = "", id = C.me) => { const a = unitArt(k, id); return a ? `<img class="cmp-uimg ${cls}" src="${a}" alt="" loading="lazy">` : `<span class="cmp-uimg none ${cls}"></span>`; };
 // (the regiments a town can raise in a year: one a town, two a city, three a great one; a barracks one more)
 const slotsOf = ct => ct[3] + (lvOf(ct[0], "army") >= 2 ? 1 : 0);
-const unitCost = (k, g = grid()) => Math.max(8, UNIT[k].cost - (REGIMENT - regCost(g)));
+const unitCost = (k, g = grid()) => Math.max(8, Math.round((UNIT[k].cost - (REGIMENT - regCost(g))) * (1 - (minSk("war") - 3) * 0.04)));
 const raising = n => (C.lq || []).filter(q => q.t === n);
 // (the roll, from what a save had before: its regiments as the crown's way of war made them up)
 function ensureUnits() { if (C.units) return; const m = muster(C.me, C.army | 0); C.units = []; for (const [k, n] of Object.entries(m)) for (let i = 0; i < n; i++) C.units.push({ k, hp: 1 }); C.lq ||= []; }
@@ -1467,7 +1505,11 @@ const peopleOf = ct => { W0(); ORIG_G ||= buildGrid({ conq: [] }); return cityOw
 const FAITH_WORD = { catholic: "Catholic", reformed: "Reformed", lutheran: "Lutheran", orthodox: "Orthodox", muslim: "Muslim", native: "their own" };
 function loyalty(ct) {
   const n = ct[0], t = taxAt(ct), v = govOf(n), out = [["Your rule", 1]];
-  if (t === 3) out.push(["Exempt from taxes", 2]); else if (t === 2) out.push(["Heavy taxes", -2]); else if (t === 0) out.push(["Light taxes", 1]);
+  const GV = govType();
+  if (t === 3) out.push(["Exempt from taxes", 2]); else if (t === 2) out.push(["Heavy taxes", GV.heavy]); else if (t === 0) out.push(["Light taxes", 1]);
+  if (GV.loyal) out.push(["A republic: the people's own", GV.loyal]);
+  if (GV === GOVS.republic && Object.keys(C.E.war).some(id => C.E.war[id] && (C.warT[id] || 0) >= 3)) out.push(["Weary of a long war", -1]);
+  { const j = minSk("justice"); if (j >= 4) out.push([`Justice: ${govOf_().min.justice.short}, a firm hand`, 1]); else if (j <= 1) out.push([`Justice: ${govOf_().min.justice.short}, a weak one`, -1]); }
   if (ct[3] === 3) out.push(["A great city's crowds", -1]);
   const gar = Math.min(2, garUnits(n).length); if (gar) out.push([`Garrison of ${garUnits(n).length}`, gar]);
   if (lvOf(n, "church")) out.push(["The church", 1]);
@@ -1526,7 +1568,7 @@ function replenish(g, garrisons = true) {
   C.army = Math.round(unitSum());
   return filled;
 }
-const income = g => 40 + Math.round(citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct) * TAX[taxAt(ct)].k, 0)) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0);
+const income = g => { const k = govType().inc * (1 + (minSk("treasury") - 3) * 0.03); return 40 + Math.round((citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct) * TAX[taxAt(ct)].k, 0) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0)) * k); };
 const upkeep = () => shipUp() + Math.round((C.units ? C.units.reduce((t, u) => t + u.hp * (UNIT[u.k] || UNIT.musketeer).up, 0) : C.army * 1.6) * (1 + (C.gen ? C.gen.st[2] : 2) * 0.04));
 // diplomacy: what you can do with a crown this season
 function diplo(id, what) {
@@ -1605,7 +1647,7 @@ function endSeason(part = {}) {
   // (the year's works finished first: what was put in hand this year stands at its end)
   if (world) realmWorld(g, ids);
   if (world) foeNavies(g, ids);
-  if (mine && !C.over) { C.gold += income(g) - upkeep(); realmMine(g); missionsCheck(true); launchShips(g); fleetsYear(g); navyHunt(g, ids);
+  if (mine && !C.over) { C.gold += income(g) - upkeep(); realmMine(g); missionsCheck(true); govYear(g); launchShips(g); fleetsYear(g); navyHunt(g, ids);
   if (C.gold < 0) { const lose = Math.ceil(-C.gold / REGIMENT); C.army = Math.max(0, C.army - lose); C.gold = 0; moraleMove(-15); say("The pay chest is empty", `${lose} regiments desert for want of pay.`); } }
   if (world) coloniesYear(g);
   // (the other crowns: their armies made up again; their tempers going back to where their faith puts them)
@@ -1812,7 +1854,7 @@ export function initCampaign(c, battle, withPlayer) {
   addEventListener("keydown", e => {
     if (e.code !== "Escape" || e.repeat || !C || $("campaign").classList.contains("hidden") || $("cmpPlay").classList.contains("hidden") || $("cmpGazette") || $("cmpMust")) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    for (const id of ["cmpHow", "cmpPause", "cmpUnit", "cmpTech"]) if ($(id)) { $(id).remove(); return; }
+    for (const id of ["cmpMin", "cmpHow", "cmpPause", "cmpUnit", "cmpTech"]) if ($(id)) { $(id).remove(); return; }
     if (loyMap) { toggleLoy(); return; }
     pauseMenu();
   }, true);
@@ -2503,7 +2545,7 @@ function townCard(g, ct) {
 // learning: the four branches, what's known, what's being studied, what can be
 function drawTech() {
   let el = $("cmpTech"); if (!el) { el = document.createElement("div"); el.id = "cmpTech"; el.className = "cmp-must"; $("campaign").appendChild(el); el.onclick = e => { const b = e.target.closest("[data-study],[data-techx]"); if (!b) { if (e.target === el) el.remove(); return; } if (b.dataset.techx) { el.remove(); return; } doAct({ k: "study", id: b.dataset.study }); drawTech(); }; }
-  const T = C.tech, rp = research(grid());
+  const T = C.tech, rp = research(grid()); T.pts = Math.round(T.pts * 10) / 10;
   el.innerHTML = `<div class="cmp-mbox cmp-techbox"><h2>Learning</h2><p class="sub">${T.cur ? `Your scholars study <b>${esc(TECHS[T.cur].n)}</b>: ${T.pts} of ${TECHS[T.cur].cost}, about ${Math.max(1, Math.ceil((TECHS[T.cur].cost - T.pts) / rp))} more year${Math.ceil((TECHS[T.cur].cost - T.pts) / rp) > 1 ? "s" : ""}.` : "Choose what your scholars study next."} ${rp} a year from your schools and colleges.</p>
     <div class="cmp-tree">${BRANCHES.map(([br, nm]) => `<div class="cmp-br"><div class="cmp-brh">${nm}</div>${Object.entries(TECHS).filter(([, t]) => t.br === br).map(([id, t]) => { const done = T.done[id], can = canStudy(T.done, id), cur = T.cur === id;
       return `<button class="cmp-tech${done ? " done" : cur ? " cur" : can ? " can" : " lock"}" data-study="${id}"${done || !can ? " disabled" : ""}><b>${esc(t.n)}</b><small>${esc(t.d)}</small><em>${done ? "Known" : cur ? `Studying · ${T.pts}/${t.cost}` : can ? `${t.cost} to learn` : `After ${(t.req || []).map(r => TECHS[r].n).join(", ")}`}</em></button>`; }).join("")}</div>`).join("")}</div>
@@ -2524,6 +2566,7 @@ function drawSide() {
     if (e.kind === "appoint") { h += `<div class="cmp-ev"><b>Choose a general for ${e.ar ? `the ${esc(armyName(e.ar).toLowerCase())}` : "your army"}</b><small>One of three men put forward. He serves fifty years, if the enemy doesn't end it first.</small>${candidates(e.cands, `data-ev="${i}" data-appg`)}</div>`; continue; }
     if (e.kind === "seabattle" && e.invade) { const f = fleetById(e.fid), F = C.foeFleets && C.foeFleets[e.foe]; if (!f || !F) { e.done = true; continue; } h += `<div class="cmp-ev war"><b>${esc(poss(The(e.foe)))} fleet comes to clear the way to ${esc(e.invade)}</b><small>${F.ships.length} ships against your ${esc(fleetName(f).toLowerCase())}'s ${f.ships.length}, and an army waiting to cross behind them. Beat their fleet and the invasion fails; lose, and they land near ${esc(e.invade)}.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Fight it yourself</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your admirals</button></span></div>`; continue; }
     if (e.kind === "seabattle") { const f = fleetById(e.fid), F = C.foeFleets && C.foeFleets[e.foe]; if (!f || !F) { e.done = true; continue; } h += `<div class="cmp-ev war"><b>${esc(poss(The(e.foe)))} fleet falls on your ${esc(fleetName(f).toLowerCase())}!</b><small>${F.ships.length} ships of war against your ${f.ships.length}${aboardRegs(f.id) ? `, with ${aboardRegs(f.id)} regiments aboard yours` : ""}. Your odds: ${Math.round(odds(gunsOf(f.ships), gunsOf(F.ships), false) * 100)}%.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Command the fleet</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your admirals</button></span></div>`; continue; }
+    if (e.kind === "revolution") { h += `<div class="cmp-ev war"><b>Revolution!</b><small>Two years of unrest across your towns, and now the people are in the streets demanding ${e.to === "republic" ? "a republic" : "a constitution"}. Grant it, and you rule as a ${GOVS[e.to].n.toLowerCase()}: ${esc(GOVS[e.to].d)} Crush it, and a quarter of your army is lost putting it down, its spirit with it.</small><span><button class="btn primary" data-ev="${i}" data-how="grant">Grant ${e.to === "republic" ? "the republic" : "a constitution"}</button><button class="btn" data-ev="${i}" data-how="crush">Crush it</button></span></div>`; continue; }
     if (e.kind === "passage") { h += `<div class="cmp-ev"><b>${esc(The(e.foe))} ${v3(e.foe, "asks")} leave to cross your land</b><small>${NATIONS[e.foe].nw ? "Their war parties march" : "Its army marches"} against ${esc(the(e.vs))}, toward ${esc(e.ct)}, and the road runs through your country. Granted, the leave holds until you revoke it; refused, they'll think worse of you, and must go another way.</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Grant passage</button><button class="btn" data-ev="${i}" data-how="no">Refuse</button></span></div>`; continue; }
     if (e.kind === "rising") { const ct = CITIES.find(c => c[0] === e.ct); h += `<div class="cmp-ev war"><b>${esc(e.ct)} rises!</b><small>A second year of riots, and the town is up in arms: some ${e.att} companies of townsmen against its garrison of ${ct ? garrison(ct) : 0}.${(() => { const old = ct && peopleOf(ct); return old && old !== C.me && NATIONS[old] && alive(grid(), old) ? ` If it wins, the town goes over to ${esc(the(old))}.` : ""; })()} Put it down by force, or buy peace with concessions${ct ? ` (${worth(ct) * 2} thalers)` : ""}.</small><span><button class="btn primary" data-ev="${i}" data-how="crush">Put it down</button><button class="btn" data-ev="${i}" data-how="concede">Grant concessions</button></span></div>`; continue; }
     if (e.kind === "fieldatk" && e.human) { h += `<div class="cmp-ev war"><b>${esc(nameOf(e.foe))} ${v3(e.foe, "falls")} on ${e.ar ? `your ${esc(armyName(e.ar).toLowerCase())}` : "your army"}!</b><small>${e.att} regiments of ${esc(NATIONS[e.foe].name)} against your ${e.def}, in the open near ${esc(e.ct)}. Meet them in the field yourself, the two of you in one battle, or leave it to your general.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Meet them in the field</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your general</button></span></div>`; continue; }
@@ -2595,6 +2638,8 @@ function drawSide() {
   } else if (!selCity && !armySel) howHtml = `<p class="sub"><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom · <b>Esc</b> for the menu</p><ul class="cmp-howto">
       <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it. Right-click an enemy town within reach to attack it. An army that marches up to a town's walls can still attack it that year, once.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
+      <li><b>Government.</b> Your crown is an absolute monarchy, a constitutional monarchy or a republic, each with its strengths, and has three ministers (the Treasury, War and Justice) whose skill counts. Change one a year from the side panel. Two years of widespread unrest bring a revolution: grant what the people want, or crush it at the cost of a quarter of your army.</li>
+      <li><b>Missions.</b> The Crown sets you tasks now and then, with a deadline and a reward in thalers.</li>
       <li><b>Spies.</b> You don't know how big another crown's army is. Choose the crown and corrupt one of its politicians (300 thalers): from then on its army's size shows on the map, on its card and in the news.</li>
       <li><b>Loyalty map.</b> Press L to colour each of your towns' country by its loyalty, red where it may riot, green where it's content. Click a country to see why, and set that town's own taxes.</li>
       <li><b>Military access.</b> Your armies cross another crown's land only with its leave: when you're at war with it, allied to it, or given access. Choose the crown and ask for it. The other crowns ask yours before they march through your land.</li>
@@ -2613,6 +2658,7 @@ function drawSide() {
   // your own: the treasury's use
   reconcile();
   h += missionsHtml();
+  h += govHtml();
   h += fold("army", `<span class="cmp-h"><b>${(C.armies || []).length ? esc(armyName(C.ar | 0)) : "Your army"}</b><small>${field().length} regiment${field().length === 1 ? "" : "s"}${C.levyQ ? ` (+${C.levyQ} raising)` : ""}${C.units.some(u => u.at) ? ` · ${C.units.filter(u => u.at).length} in garrisons` : ""} · ${C.guns} gun${C.guns === 1 ? "" : "s"} · ${moraleWord(C.morale ?? 50).toLowerCase()} · ${C.siege ? `besieging ${esc(C.siege.ct)}` : C.go ? "on the march" : C.moved ? "marched this year" : "ready"}</small></span>`, `
     <div class="cmp-morale"><small>Morale</small><b>${moraleWord(C.morale ?? 50)}</b><i><u style="width:${C.morale ?? 50}%"></u></i><small>${C.morale ?? 50}</small></div>
     ${(C.armies || []).length ? `<div class="cmp-armies">${armyIds().map(id => { const n2 = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length, A = id === (C.ar | 0) ? C : C.armies.find(a => a.id === id) || {}, at = A.pos ? nearTown(A.pos)[0] : ""; return `<button class="btn${id === (C.ar | 0) ? " on" : ""}" data-army="${id}"${id === (C.ar | 0) ? " disabled" : ""} title="${esc(`${armyName(id)}: ${n2} regiments, near ${at}${A.gen ? `, under ${A.gen.name}` : ", no general"} · ${A.siege ? `besieging ${A.siege.ct}` : A.go ? "on the march" : A.moved ? "marched this year" : "ready"}`)}">${esc(armyName(id))} · ${n2}<small>${esc(at)}</small></button>`; }).join("")}</div>` : ""}
@@ -2659,6 +2705,7 @@ function sideClick(e) {
   if (b.dataset.ucard) { unitCard(b.dataset.ucard); return; }
   if (b.dataset.station && selCity) { doAct({ k: "station", t: selCity[0], u: b.dataset.station }); return; }
   if (b.dataset.unstation && selCity) { doAct({ k: "station", t: selCity[0], u: b.dataset.unstation, out: true }); return; }
+  if (b.dataset.minr) { ministerPick(b.dataset.minr); return; }
   if (b.dataset.ttax != null && selCity) { doAct({ k: "ttax", t: selCity[0], v: +b.dataset.ttax }); return; }
   if (b.dataset.tax != null) { doAct({ k: "tax", v: +b.dataset.tax }); return; }
   if (b.dataset.disband) { doAct({ k: "disband", u: b.dataset.disband }); return; }
@@ -2774,6 +2821,7 @@ function apply(actor, a) {
     if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4]] }; }
     if (a.k === "askgen") { askGeneral(); return {}; }
     if (a.k === "station") { const why = station(a.t, a.u, !!a.out); return why ? { note: why } : { sfx: [["drum", 0.3]] }; }
+    if (a.k === "minister") { const G = govOf_(), m = G.cand && G.cand[a.post] && G.cand[a.post][a.i | 0]; if (!m || G.swap === C.year) return null; const old = G.min[a.post]; G.min[a.post] = m; G.swap = C.year; G.cand[a.post] = null; persist(); return { note: `${m.name} takes the ${POSTS.find(x => x[0] === a.post)[1].toLowerCase()}, in ${old.name}'s place.`, sfx: [["quill", 0.5], ["seal", 0.6, 800]] }; }
     if (a.k === "ttax") { const ct = city(a.t); if (!ct || cityOwner(g, ct) !== C.me) return null; const v = clamp(a.v | 0, 0, 3); C.ttax ||= {}; if (v === (C.tax ?? 1)) delete C.ttax[ct[0]]; else C.ttax[ct[0]] = v; persist(); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "tax") { C.tax = clamp(a.v | 0, 0, 2); C.ttax = Object.fromEntries(Object.entries(C.ttax || {}).filter(([, v]) => v === 3)); persist(); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "disband") { const t = disband(a.u); if (t == null) return null; return { note: `A regiment of ${TROOPS[a.u].name.toLowerCase()} is disbanded${t ? `, its men sent home to ${t}` : ""}.`, sfx: [["drum", 0.3]] }; }
@@ -2826,6 +2874,11 @@ function apply(actor, a) {
       if (ev.kind === "peace") {
         if (a.how === "yes") { if (ev.cede) { const t = city(ev.cede); if (t && cityOwner(g, t) === C.me) { seize(t, ev.foe); if (C.govs) delete C.govs[t[0]]; say(`${t[0]} is given up`, `The price of peace with ${the(ev.foe)}.`); } } makePeace(ev.foe); if (ev.human) as(ev.foe, () => makePeace(actor)); C.gold += ev.gold || 0; return done({ sfx: [["quill", 0.5], ["seal", 0.6, 900], ...(ev.gold ? [["coin", 0.4, 1300]] : [])] }); }
         C.E.rel[ev.foe] -= 5; if (ev.human) tell(ev.foe, { note: `${nameOf(actor)} won't make peace.` }); return done({ sfx: [["drum", 0.45]] });
+      }
+      if (ev.kind === "revolution") {
+        const G = govOf_(); G.unrest = 0;
+        if (a.how === "grant") { G.type = ev.to; G.since = C.year; for (const [p] of POSTS) if (R() < 0.5) G.min[p] = minister(p); say(`A ${GOVS[ev.to].n.toLowerCase()}`, `The ${ev.to === "republic" ? "republic is proclaimed" : "constitution is sworn"}, and the streets go quiet. ${GOVS[ev.to].d}`); return done({ note: `You rule now as a ${GOVS[ev.to].n.toLowerCase()}.`, sfx: [["bell", 0.5], ["quill", 0.4, 600]] }); }
+        const n0 = allField().length; eachArmy(() => { reconcile(); const F = field().sort((x, y) => x.hp - y.hp), gone = new Set(F.slice(0, Math.round(F.length * 0.25))); C.units = C.units.filter(u => !gone.has(u)); C.army = Math.round(unitSum()); }); moraleMove(-15); say("The revolution is crushed", `Soldiers clear the streets; ${n0 - allField().length} regiments are lost, and the army's heart with them.`); return done({ note: "The revolution is crushed, at a heavy price.", sfx: [["guns", 0.5], ["drum", 0.5, 400]] });
       }
       if (ev.kind === "passage") {
         const G = (C.E.grant ||= {});

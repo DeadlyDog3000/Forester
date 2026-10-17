@@ -2010,3 +2010,16 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-loyal details > summary::-webkit-details-marker { display: none; }
 .cmp-loyal details > summary::after { content: " ▾"; opacity: 0.5; font-size: 10px; }
 .cmp-loyal details[open] > summary::after { content: " ▴"; }
+/* the government: its ministers, and the choosing of one */
+.cmp-mins { display: grid; gap: 6px; margin-top: 4px; }
+.cmp-min { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+.cmp-min span { display: grid; line-height: 1.2; } .cmp-min small { font: 10.5px var(--sans); color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.cmp-min b { font: 600 13px var(--serif); color: var(--ink); } .cmp-min i, .cmp-mincand i { font-style: normal; color: #e8c96a; font-size: 11px; letter-spacing: 1px; }
+.cmp-minbox { width: min(620px, 100%); }
+.cmp-mincands { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0; }
+.cmp-mincand { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 4px; padding: 10px; border: 1px solid var(--edge); border-radius: 5px; background: rgba(255,255,255,0.03); text-align: center; }
+.cmp-mincand:hover { border-color: #c9a45a; background: rgba(201,164,90,0.08); }
+.cmp-mincand b { font: 600 13px var(--serif); color: var(--ink); }
+@media (max-width: 600px) { .cmp-mincands { grid-template-columns: 1fr; } }
+.cmp-min .tm-lnk { all: unset; cursor: pointer; font: 11px var(--sans); color: var(--ink-dim); text-decoration: underline; }
+.cmp-min .tm-lnk:hover { color: #e8c96a; }

@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.79.0", date: "17 October 2026", title: "Government",
+    items: [
+      "Campaign: your crown has a government, as in Empire: Total War. An absolute monarchy's heavy taxes anger its towns less, but its scholars are slower. A constitutional monarchy has 10% more income and quicker scholars, and an election every five years that may change a minister. A republic has 15% more income, scholars 20% quicker and more content towns, but a long war wearies them. The Dutch, Venice and Genoa start as republics; England, Scotland, Ireland and Poland as constitutional monarchies; the rest as absolute.",
+      "Three ministers, each with a portrait and a skill of one to five stars: the Treasury (income), War (what regiments cost, and the army's morale) and Justice (order in the towns). Change one a year from the Government card, choosing from three candidates.",
+      "Revolution: two years with unrest in two towns of every five, and the people rise. Grant them a constitution (or a republic), or crush it at the cost of a quarter of your regiments and the army's spirit.",
+    ],
+  },
+  {
     v: "1.78.0", date: "17 October 2026", title: "Missions from the Crown",
     items: [
       "Campaign: missions, as in Empire: Total War. Now and then the Crown sets you a task with a year to have it done by: take an enemy town, raise a building in one of yours, field an army of so many regiments, beat a crown's army, sign a trade pact, or put so many ships to sea. Do it in time and the reward, in thalers, comes at once, with a lift to the army's spirits; let the time run out and the court is displeased. Two at most at a time, shown on the side panel.",
