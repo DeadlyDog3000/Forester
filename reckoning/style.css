@@ -1205,11 +1205,13 @@ body:has(#bigmap:not(.hidden)) #mpTop { visibility: hidden; }
 #pvpEndS .up { color: #9fe08f; font-weight: 600; }
 #pvpEndS .down { color: #f0a090; font-weight: 600; }
 #pvpEndK { font-size: 18px; letter-spacing: 0.1em; text-transform: uppercase; }
-#pvpHud { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; padding: 7px 18px; background: linear-gradient(180deg, rgba(9, 24, 16, 0.86), rgba(9, 24, 16, 0.6)); border: 1px solid var(--edge); border-top: 2px solid var(--gold); border-radius: 3px; font: 600 14px var(--sans); color: var(--ink); pointer-events: none; z-index: 6; }
+#pvpHud { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; width: max-content; max-width: calc(100vw - 360px); align-items: center; gap: 18px; padding: 7px 18px; background: linear-gradient(180deg, rgba(9, 24, 16, 0.86), rgba(9, 24, 16, 0.6)); border: 1px solid var(--edge); border-top: 2px solid var(--gold); border-radius: 3px; font: 600 14px var(--sans); color: var(--ink); pointer-events: none; z-index: 6; }
 #pvpHud.hidden { display: none; }
 .ph-side { display: flex; align-items: center; gap: 8px; min-width: 150px; }
 .ph-me { justify-content: flex-end; }
 .ph-foe { position: relative; }
+.ph-name { white-space: nowrap; }
+@media (max-width: 1000px) { .ph-name { white-space: normal; } }
 .ph-name small { font: 600 9px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 2px; padding: 0 4px; margin-left: 4px; vertical-align: 2px; }
 .ph-pips { display: flex; gap: 4px; }
 .ph-pips i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--gold); }

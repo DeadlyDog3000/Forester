@@ -2109,7 +2109,7 @@ class Arena {
   toCampaign(won, left) {
     if (this.toldCmp) return;
     if (this.cmpEnd) { this.toldCmp = true; try { this.cmpEnd(won, this.killed | 0, this.lost | 0, !!left); } catch (e) { console.error(e); } }
-    else if (this.hist && this.hist.b.campaign) { this.toldCmp = true; try { this.hist.b.onEnd && this.hist.b.onEnd(won && !left, this.killed | 0, this.lost | 0); } catch (e) { console.error(e); } }
+    else if (this.hist && this.hist.b.campaign) { this.toldCmp = true; try { this.hist.b.onEnd && this.hist.b.onEnd(won && !left, this.killed | 0, this.lost | 0, !!left || !!this.fled); } catch (e) { console.error(e); } }
   }
   // ---- the match over: the record, and the result ----
   finish(won, left = false, reel = false) {
@@ -2239,7 +2239,7 @@ class Arena {
       const HS = this.hist ? [this.hist.b.sides[this.hist.side].name, this.hist.b.sides[1 - this.hist.side].name] : null;
       const runT = this.units.filter(u => u.alive && u.routing && this.alOf(u.team) !== 0).length, runM = this.units.filter(u => u.alive && u.routing && this.alOf(u.team) === 0).length;
       const others = HS ? `${HS[1]} · ${theirs - runT}${runT ? ` · ${runT} running` : ""}` : this.custom ? this.custom.map((n, a) => a && this.sideOf(a).length ? `${this.uni[a].name} ${this.sideOf(a).length}` : null).filter(Boolean).join(" · ") : null;
-      h.querySelector(".ph-me .ph-name").textContent = `${HS ? HS[0] : this.uni ? this.uni[0].name : "Yours"} · ${ours - runM} standing${runM ? ` · ${runM} running` : ""}`;
+      h.querySelector(".ph-me .ph-name").textContent = `${HS ? HS[0] : this.uni ? this.uni[0].name : "Yours"} · ${ours - runM}${HS ? "" : " standing"}${runM ? ` · ${runM} running` : ""}`;
       h.querySelector(".ph-foe .ph-name").textContent = others != null ? (others || "None standing") : `${this.uni ? this.uni[1].name : "Theirs"} · ${theirs - runT} standing${runT ? ` · ${runT} running` : ""}`;
       h.querySelector(".ph-me .ph-pips").innerHTML = ""; h.querySelector(".ph-foe .ph-pips").innerHTML = "";
       h.querySelector(".ph-round").textContent = this.place ? this.place.text : this.battle ? "Battle" : "Skirmish";

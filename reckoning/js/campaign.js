@@ -550,7 +550,7 @@ function fight(o) {
     map: { snow: s === 3, things },
   };
   if (!C.mp || (mp && mp.host)) { C.pending = { ...o, ct: o.ct[0], ar: C.ar | 0 }; persist(); }
-  b.onEnd = (won, killed, lost) => doAct({ k: "result", won: !!won, killed: killed | 0, lost: lost | 0, myMen, theirMen });
+  b.onEnd = (won, killed, lost, fled) => doAct({ k: "result", won: !!won, killed: killed | 0, lost: lost | 0, myMen, theirMen, fled: !!fled });
   startBattle(b);
 }
 // ---------------------------------------------------------------------------
@@ -2280,11 +2280,13 @@ function apply(actor, a) {
     if (a.k === "result") {
       const P = C.pending; if (!P) return null; C.pending = null; if (P.ar != null && armyIds().includes(P.ar)) useArmy(P.ar);
       const ct = city(P.ct);
-      if (P.field) { if (a.left) { fieldEnd({ ...P, ct }, false, 0.3, 0.05); persist(); return {}; } const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05; fieldEnd({ ...P, ct }, a.won, k, t); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
+      // (a battle left from the pause menu: lost, and the news says so — on the battle's own line, not the broken regiments')
+      const leftNote = re => { const l = C.log.find(l => re.test(l.title)); if (l) l.sub += " (You left the field.)"; };
+      if (P.field) { if (a.left) { fieldEnd({ ...P, ct }, false, 0.3, 0.05); leftNote(/^Beaten in the field/); persist(); return {}; } const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05; fieldEnd({ ...P, ct }, a.won, k, t); if (a.fled) leftNote(/^Beaten in the field/); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
       if (P.convoy) { const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.6 + 0.03; convoyEnd({ ...P, ct }, !a.left && a.won, k, 0); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
-      if (a.left) { settle({ ...P, ct }, false, 0.3, 0.05); C.log[0].sub += " (You left the field.)"; persist(); return {}; }
+      if (a.left) { settle({ ...P, ct }, false, 0.3, 0.05); leftNote(/^(Beaten before|.* has fallen$)/); persist(); return {}; }
       const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = Math.min(0.9, (a.killed || 0) / Math.max(1, a.theirMen || 20)) * 0.8 + 0.05;
-      settle({ ...P, ct }, a.won, k, t);
+      settle({ ...P, ct }, a.won, k, t); if (a.fled) leftNote(/^(Beaten before|.* has fallen$)/);
       // (a player's town taken from their garrison: told to them)
       if (isHuman(P.foe) && P.attack) as(P.foe, () => say(a.won ? `${P.ct} has fallen` : `${P.ct} holds`, a.won ? `${nameOf(actor)} ${v3(actor, "takes")} it from its garrison.` : `${poss(nameOf(actor))} attack is thrown back by the garrison.`));
       persist(); return { sfx: a.won ? [["bell", 0.45, 1800]] : [] };

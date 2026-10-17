@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.60.9", date: "17 October 2026", title: "The battle's banner",
+    items: [
+      "Battles: the banner at the top is as wide as its words need. A long name such as Kingdom of France no longer breaks onto a second line, and in a campaign battle both sides read alike: Kingdom of France · 19, Castile · 34.",
+      "Campaign: a battle left from the pause menu says so in the year's news, on the battle's own line: (You left the field.)",
+    ],
+  },
+  {
     v: "1.60.8", date: "17 October 2026", title: "Armies side by side",
     items: [
       "Campaign: an enemy army standing on yours is drawn beside it, not on top of it, so both can be seen, and a click on your army picks your army. Before, the enemy's could hide yours and take the click.",

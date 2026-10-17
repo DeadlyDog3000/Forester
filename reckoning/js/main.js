@@ -2179,7 +2179,7 @@ $("btnRestart").onclick = () => {
   if (G.arena) { G.arena.restart(); return; }
   startChapter(G.chapter || 1);
 };
-$("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.arena) { G.arena.finish(false, false); return; } if (G.mp) { G.mp.leave(); if (G.town && G.town.persist && !G.town.replica) G.town.persist(); mpDone(); toTitle(); openLobby(); return; } toTitle(); };
+$("btnQuit").onclick = () => { SFX.pauseAll && SFX.pauseAll(false); AUDIO.music(null); if (G.arena) { G.arena.fled = true; G.arena.finish(false, false); return; } if (G.mp) { G.mp.leave(); if (G.town && G.town.persist && !G.town.replica) G.town.persist(); mpDone(); toTitle(); openLobby(); return; } toTitle(); };
 // (only a lock that was had and then lost pauses: a refused request can fire this too, and that's no reason to stop)
 let hadLock = false;
 document.addEventListener("pointerlockchange", () => {
