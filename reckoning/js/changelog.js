@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.51.25", date: "16 October 2026", title: "War parties on the land",
+    items: [
+      "The land (3D map): a war party of the woods' nations is drawn as its men in open order, as on the map. Armies' marks now float above the town names instead of covering them.",
+    ],
+  },
+  {
     v: "1.51.24", date: "16 October 2026", title: "War parties, in numbers",
     items: [
       "Campaign: the woods' nations field war parties of a few hundred men, fewer than a crown's regiments, both at the start and as they grow back. The Haudenosaunee no longer outnumber the whole of England's army.",

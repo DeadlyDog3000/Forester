@@ -992,7 +992,7 @@ function marks3d() {
     else { if (isHuman(own)) out.push({ ...at, kind: "dash", color: NATIONS[own].color }); if (atWar(own) && inMarch(ct)) out.push({ ...at, kind: "swords", color: "#b0281a", dim: !!C.moved }); }
   }
   // (the armies, standing on the land: a colour on its staff and the regiments' count)
-  const flag = (p, id, n, mine) => { const [lon, lat] = llOf(p.x, p.y); out.push({ name: "army-" + id, lon, lat, kind: "army", color: NATIONS[id].color, n, mine: !!mine }); };
+  const flag = (p, id, n, mine) => { const [lon, lat] = llOf(p.x, p.y); out.push({ name: "army-" + id, lon, lat, kind: NATIONS[id].nw ? "party" : "army", color: NATIONS[id].color, n, mine: !!mine }); };
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) flag(fp, id, foeArmy(id), false); }
   flag(armyPos(), C.me, C.army, true);
   return out;
