@@ -475,8 +475,34 @@ const GUN_COST = 140;
 // (your army's nerve in a battle: the drill of your barracks, the bayonet, the general's hold on his men)
 const braveMul = g => moraleK() * (1 + Math.max(0, ...citiesOfNow(g, C.me).map(ct => CHAINS.army.levels[lvOf(ct[0], "army")].morale || 0)) + (knows("bayonet") ? 0.05 : 0) + (C.gen ? (C.gen.st[1] - 3) * 0.06 : -0.06) + vetK());
 // (a general's victories: every third one, he grows in command, up to the most a man can have)
+// ---- a general's traits, as Empire's: earned in the field and in the camp, and counting in every battle after ----
+const TRAITS = {
+  bold: { n: "Bold", d: "He has won against the odds: his army fights 6% better attacking.", att: 0.06 },
+  cautious: { n: "Cautious", d: "Twice beaten, he takes no chances: 8% better holding his ground, 4% worse attacking.", att: -0.04, def: 0.08 },
+  engineer: { n: "Siege engineer", d: "He has stormed walls before: they count for half against him.", good: 1 },
+  hero: { n: "Hero of the nation", d: "Six victories: 5% better in every battle, and the men's spirits higher.", att: 0.05, def: 0.05, mor: 6 },
+  beloved: { n: "Beloved of the men", d: "He shares their hardships: their spirits higher.", mor: 5 },
+  drunk: { n: "Drunkard", d: "Seldom sober by noon: 5% worse in every battle.", att: -0.05, def: -0.05, bad: 1 },
+  harsh: { n: "Flogger", d: "He rules by the lash: the men's spirits lower.", mor: -4, bad: 1 },
+};
+const hasT = (gen, t) => !!(gen && gen.tr && gen.tr.includes(t));
+const trSum = (gen, k) => ((gen && gen.tr) || []).reduce((t, x) => t + ((TRAITS[x] || {})[k] || 0), 0);
+function giveT(gen, t) { if (!gen || hasT(gen, t)) return; (gen.tr ||= []).push(t); say(`${gen.name}: ${TRAITS[t].n.toLowerCase()}`, TRAITS[t].d); }
+// (a battle's mark on him: bold for a win against the odds, an engineer for walls stormed twice, cautious after two defeats)
+function genMark(o, won) {
+  const G = C.gen; if (!G) return;
+  if (won && o.attack && (o.att | 0) < (o.def | 0)) giveT(G, "bold");
+  if (won && o.attack && o.walls) { G.storms = (G.storms | 0) + 1; if (G.storms >= 2) giveT(G, "engineer"); }
+  if (!won) { G.losses = (G.losses | 0) + 1; if (G.losses >= 2) giveT(G, "cautious"); }
+}
+// (a year in the camp: a vice taken up now and then; a long service unbeaten makes him loved)
+function genYear(G) {
+  if (!G) return;
+  if (R() < 0.03) giveT(G, "drunk"); else if (R() < 0.02) giveT(G, "harsh");
+  if ((G.served | 0) >= 5 && !(G.losses | 0) && !hasT(G, "harsh") && R() < 0.25) giveT(G, "beloved");
+}
 function genWin() {
-  const G = C.gen; if (!G) return; G.wins = (G.wins | 0) + 1;
+  const G = C.gen; if (!G) return; G.wins = (G.wins | 0) + 1; if (G.wins >= 6) giveT(G, "hero");
   if (G.wins % 3 === 0 && G.st[0] < 5) { G.st[0]++; say(`${G.name} grows in command`, `${G.wins} victories behind him: his command is now ${G.st[0]} of 5.`); }
 }
 // (the army's experience: its regiments' battles behind them, up to three chevrons each — a veteran army a tenth steadier)
@@ -485,7 +511,7 @@ const cmdMul = gen => gen ? 1 + (gen.st[0] - 3) * 0.07 : 0.93;
 // ---- the army's morale, 0 to 100: where its general's spirit and its barracks put it, raised by victories and broken by
 //  defeats, by a general lost and by pay missed; drifting back a third of the way each year. It counts in every battle:
 //  a broken army fights at 85%, a confident one at 115% ----
-const moraleBase = () => clamp(30 + (minSk("war") - 3) * 2 + (C.gen ? C.gen.st[1] * 9 : 12) + (knows("bayonet") ? 4 : 0) + Math.round(Math.max(0, ...citiesOfNow(grid(), C.me).map(ct => CHAINS.army.levels[lvOf(ct[0], "army")].morale || 0)) * 100), 10, 95);
+const moraleBase = () => clamp(30 + trSum(C.gen, "mor") + (minSk("war") - 3) * 2 + (C.gen ? C.gen.st[1] * 9 : 12) + (knows("bayonet") ? 4 : 0) + Math.round(Math.max(0, ...citiesOfNow(grid(), C.me).map(ct => CHAINS.army.levels[lvOf(ct[0], "army")].morale || 0)) * 100), 10, 95);
 const moraleK = () => 0.85 + clamp(C.morale ?? 50, 0, 100) * 0.003;
 const moraleMove = d => { C.morale = clamp(Math.round((C.morale ?? 50) + d), 0, 100); };
 const moraleWord = v => v >= 85 ? "Eager for battle" : v >= 68 ? "Confident" : v >= 50 ? "Steady" : v >= 32 ? "Shaken" : v >= 15 ? "Wavering" : "Broken";
@@ -682,7 +708,7 @@ function realmMine(g) {
   eachArmy(id => {
     siegeYear(g);
     C.morale = Math.round((C.morale ?? moraleBase()) + (moraleBase() - (C.morale ?? moraleBase())) * 0.35);
-    if (C.gen) { C.gen.served = (C.gen.served | 0) + 1; if (C.gen.served >= lifeOf(C.gen)) { say(`${C.gen.name} dies`, `Of old age, after long service. Choose who will lead ${id ? `the ${armyName(id).toLowerCase()}` : "your army"} now.`); C.gen = null; } }
+    if (C.gen) { C.gen.served = (C.gen.served | 0) + 1; genYear(C.gen); if (C.gen.served >= lifeOf(C.gen)) { say(`${C.gen.name} dies`, `Of old age, after long service. Choose who will lead ${id ? `the ${armyName(id).toLowerCase()}` : "your army"} now.`); C.gen = null; } }
   });
   // (an army of yours with no regiments left: gone from the roll)
   for (const a of [...(C.armies || [])]) if (!C.units.some(u => !u.at && (u.ar | 0) === a.id)) C.armies = C.armies.filter(b => b !== a);
@@ -711,7 +737,7 @@ function raiseWalls(g, ids) {
 }
 // (the levy: a crown down to its last few towns, every man in them takes up arms — the fewer, the fiercer)
 const levy = towns => Math.round(18 / Math.max(1, towns));
-function odds(att, def, walls) { const a = Math.pow(att, 1.25), d = Math.pow(def * (walls ? 1.3 : 1), 1.25); return a / (a + d); }
+function odds(att, def, walls) { const a = Math.pow(att, 1.25), d = Math.pow(def * (walls === true ? 1.3 : walls || 1), 1.25); return a / (a + d); }
 // the outcome applied, however it was decided: casualties both ways; the town changes hands if the attacker won
 function settle(o, won, myLossK, theirLossK) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att;
@@ -745,7 +771,7 @@ function settle(o, won, myLossK, theirLossK) {
   // (a storm through the breach: the siege over, won or lost)
   if (o.attack && siegeOf(o.ct)) C.siege = null;
   // (the army's spirit: up with a victory — more for a town taken — down hard with a defeat)
-  if (!away) { moraleMove(won ? (o.attack ? 12 : 8) : -16); if (won && (o.attack || !o.walls)) genWin(); }
+  if (!away) { moraleMove(won ? (o.attack ? 12 : 8) : -16); genMark(o, won); if (won && (o.attack || !o.walls)) genWin(); }
   // (the generals' fate: in a lost battle one may fall; even in a won one, now and then)
   if (C.gen && !away && R() < (won ? 0.05 : 0.25)) { moraleMove(-10); say(`${C.gen.name} falls at ${name}`, "Killed at the head of his men. Choose who will lead your army now."); C.gen = null; needGeneral(); }
   const fg = !isHuman(o.foe) && C.foeGen && C.foeGen[o.foe]; if (fg && R() < (won ? 0.2 : 0.04)) { say(`${fg.name} falls at ${name}`, `${poss(The(o.foe))} general is dead. ${(C.foeGen[o.foe] = newMan(o.foe, "general")).name} takes his place.`); }
@@ -760,7 +786,7 @@ function strikeBack(foe) {
   selCity = t; sel = foe; note = `${poss(The(foe))} army is beaten back and weakened. Strike back while it's down: ${t[0]} is within your reach.`;
 }
 function auto(o) {
-  const mine = cmdMul(C.gen) * moraleK(), theirs = cmdMul(genOf(o.foe)), p = odds(o.att * (o.attack ? mine : theirs), o.def * (o.attack ? theirs : mine), o.walls && !o.breach), attWins = R() < p, won = o.attack ? attWins : !attWins;
+  const mine = cmdMul(C.gen) * (1 + trSum(C.gen, o.attack ? "att" : "def")) * moraleK(), theirs = cmdMul(genOf(o.foe)), p = odds(o.att * (o.attack ? mine : theirs), o.def * (o.attack ? theirs : mine), o.walls && !o.breach ? (o.attack && hasT(C.gen, "engineer") ? 1.15 : true) : false), attWins = R() < p, won = o.attack ? attWins : !attWins;
   settle(o, won, won ? 0.08 + R() * 0.1 : 0.25 + R() * 0.2, won ? 0.3 + R() * 0.2 : 0.08 + R() * 0.1);
   return won;
 }
@@ -1179,10 +1205,10 @@ function fieldEnd(o, won, myLossK, theirLossK) {
   if (won) {
     if (CO) { const na = naTowns(grid(), o.foe).sort((a, b) => b[3] - a[3])[0]; if (na) { const b = stepToward(CO.pos, cellXY(na), 8); CO.pos = { x: b.x, y: b.y }; } CO.go = null; }
     else { if (h && fp) { const b = stepToward(fp, h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } if (C.foeGo) delete C.foeGo[o.foe]; }
-    moraleMove(10); genWin(); say(`Victory in the field near ${near}`, `${o.attack ? "" : "Your army stands its ground. "}${poss(The(o.foe))} ${CO ? "colonial army" : "army"} is broken and falls back${CO ? "" : " toward home"}${knowsArmy(o.foe) ? `, ${CO ? CO.n : C.foes[o.foe]} regiments left to it` : ""}. Its march is stopped.`);
+    moraleMove(10); genMark(o, true); genWin(); say(`Victory in the field near ${near}`, `${o.attack ? "" : "Your army stands its ground. "}${poss(The(o.foe))} ${CO ? "colonial army" : "army"} is broken and falls back${CO ? "" : " toward home"}${knowsArmy(o.foe) ? `, ${CO ? CO.n : C.foes[o.foe]} regiments left to it` : ""}. Its march is stopped.`);
   } else {
     const mh = homeOf(grid(), C.me); if (mh) { const b = stepToward(armyPos(), mh, 4); C.pos = { x: b.x, y: b.y }; }
-    moraleMove(-12); say(`Beaten in the field near ${near}`, `Your army falls back with what it has left: ${armyStr()}.`);
+    moraleMove(-12); genMark(o, false); say(`Beaten in the field near ${near}`, `Your army falls back with what it has left: ${armyStr()}.`);
   }
   if (Object.keys(broken).length) say(`Regiments broken near ${near}`, `${Object.entries(broken).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: too few men left to stand as regiments, they are struck off the roll.`);
   if (C.gen && R() < (won ? 0.04 : 0.2)) { moraleMove(-10); say(`${C.gen.name} falls near ${near}`, "Killed at the head of his men."); C.gen = null; needGeneral(); }
@@ -2542,7 +2568,7 @@ function statsOf(m) {
   return `<span class="cmp-stats">${(m.role === "general" ? GSTATS : VSTATS).map((s2, i) => `<span class="${s2 === "Corruption" ? "bad" : ""}"><small>${s2}</small><i>${"●".repeat(m.st[i])}${"○".repeat(5 - m.st[i])}</i></span>`).join("")}</span>`;
 }
 function manCard(m, extra = "") {
-  return `<div class="cmp-man">${face(m)}<div><b>${esc(m.name)}</b>${m.hist ? `<em class="cmp-hist">Historical</em>` : ""}<small>${esc(m.d)}</small>${statsOf(m)}<small class="cmp-yrs">${m.served | 0} of ${lifeOf(m)} years' service${m.wins ? ` · ${m.wins} victor${m.wins > 1 ? "ies" : "y"}` : ""}</small>${extra}</div></div>`;
+  return `<div class="cmp-man">${face(m)}<div><b>${esc(m.name)}</b>${m.hist ? `<em class="cmp-hist">Historical</em>` : ""}<small>${esc(m.d)}</small>${statsOf(m)}<small class="cmp-yrs">${m.served | 0} of ${lifeOf(m)} years' service${m.wins ? ` · ${m.wins} victor${m.wins > 1 ? "ies" : "y"}` : ""}</small>${(m.tr || []).length ? `<span class="cmp-traits">${m.tr.map(t => TRAITS[t] ? `<i class="${TRAITS[t].bad ? "bad" : ""}" title="${esc(TRAITS[t].d)}">${esc(TRAITS[t].n)}</i>` : "").join("")}</span>` : ""}${extra}</div></div>`;
 }
 function candidates(list, attr, fee = null) {
   return `<div class="cmp-cands">${list.map((m, i) => { const f = fee ? fee(m) : 0; return `<div class="cmp-cand">${face(m)}<b>${esc(m.name)}</b><small>${esc(m.d)}</small>${statsOf(m)}<button class="btn" ${attr}="${i}"${f > C.gold ? " disabled" : ""}>Appoint${f ? ` · ${f}` : ""}</button></div>`; }).join("")}</div>`;

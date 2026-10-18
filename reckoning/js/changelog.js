@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.82.0", date: "17 October 2026", title: "Generals' traits",
+    items: [
+      "Campaign: generals earn traits, as in Empire: Total War, and they count in every battle after. Bold, for a win against the odds: better attacking. Cautious, after two defeats: better holding ground, worse attacking. Siege engineer, after storming walls twice: walls count for half against him. Hero of the nation, after six victories: better in every battle, with the men's spirits higher.",
+      "Campaign: the camp leaves its mark too. Years of unbeaten service can make a general Beloved of the men. Now and then one turns Drunkard, worse in battle, or Flogger, with the men's spirits lower.",
+      "Campaign: traits show on the general's card under Your army, good ones in gold and bad ones in red; hover one for what it does. The news says when one is earned.",
+    ],
+  },
+  {
     v: "1.81.0", date: "17 October 2026", title: "Victory",
     items: [
       "Campaign: victory conditions, as in Empire: Total War. Every crown has its ambition: certain great towns to hold, the nearest and greatest that aren't yours (Edinburgh, Glasgow, Rouen and Paris for England; Copenhagen, Christiania, Königsberg and Danzig for Sweden), and so many towns in all, within sixty years.",
