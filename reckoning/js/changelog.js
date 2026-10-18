@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.10", date: "18 October 2026", title: "Mountains, not snowfields",
+    items: [
+      "Campaign 3D map: the eastern Alps are lower as they run out toward Wien. The hills south of the city were a broad field of snow at the western Alps' height, and they're green now.",
+      "Campaign 3D map: snow lies on the peaks, not in one smooth white sheet over the whole range. The snowline is higher and ragged, with a broad band of bare grey rock beneath it, so the ranges read as mountains rather than cloud.",
+    ],
+  },
+  {
     v: "1.90.9", date: "18 October 2026", title: "The court moves on",
     items: [
       "Campaign: when the Crown's mission runs out of time, it isn't handed straight back to you word for word in the same gazette. The court lets that kind of task rest for two years and asks for something else.",

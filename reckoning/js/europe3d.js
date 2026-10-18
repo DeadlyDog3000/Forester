@@ -58,13 +58,16 @@ export function heightAt(g, lon, lat) {
   }
   return h;
 }
+// the snowline: lower in the north, and ragged — higher on one shoulder of a range than the next
+const snowAt = (lon, lat) => 3.0 - Math.max(0, lat - 45) * 0.08 + (vnoise(lon * 6, lat * 6, 31) - 0.5) * 0.7;
 // what grows there
 export function biomeAt(lon, lat, h) {
   // (the edges between them wander, as they do)
   lat += (fbm(lon * 1.7, lat * 1.7, 21) - 0.5) * 1.6; lon += (fbm(lon * 1.7, lat * 1.7, 23) - 0.5) * 1.6;
-  const snowline = 2.6 - Math.max(0, lat - 45) * 0.06;
+  // (snow on the peaks, not a sheet over the whole range: the line high and ragged, bare rock in a broad band under it)
+  const snowline = snowAt(lon, lat);
   if (h > snowline) return "snow";
-  if (h > snowline - 0.3) return "rock";
+  if (h > snowline - 0.6) return "rock";
   if (lat > 64 || (lat > 61 && lon > 35)) return "tundra";
   // (the New World: the north's forest and barrens, the prairie past the Mississippi, the broad woods of the east)
   if (lon < -45) return lat > 58 ? "tundra" : lat > 46.5 ? "taiga" : lon < -94.5 && lat < 47 ? "steppe" : lat < 30.5 ? "med" : "temperate";
@@ -85,7 +88,7 @@ function groundColour(lon, lat, h, out) {
     if (fbm(lon * 2.2, lat * 2.2, 9) < 0.47) out.lerp(_c2.setHex(f < 0.33 ? 0xc0b25a : f < 0.66 ? 0x9cb050 : 0x7f9a44), 0.65);
   }
   // snow lies lower in the north
-  const sl = 2.4 - Math.max(0, lat - 45) * 0.06;
+  const sl = snowAt(lon, lat) - 0.12;
   if (h > sl && b !== "desert") out.lerp(_c2.setHex(0xeef1f4), Math.min(1, (h - sl) * 2.5));
   out.offsetHSL(0, 0, (vnoise(lon * 40, lat * 40, 2) - 0.5) * 0.05);
   return out;
