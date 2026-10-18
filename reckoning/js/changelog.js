@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.21", date: "18 October 2026", title: "Towns that grow",
+    items: [
+      "Campaign 3D map: a town is as big as its people. A town of 8,000 is a few dozen houses round its church; a great city of 70,000 is hundreds, and it grows on the map as its people grow (and shrinks when they're levied or starved away).",
+      "Campaign 3D map: towns are laid out as towns: a market square with the church on it, the old town packed tight inside its walls, tall houses in the middle thinning to cottages at the edge, gabled roofs of red tile, slate in the north and thatch on the outskirts.",
+      "Campaign 3D map: past the old town, a town spreads along its roads in no set directions: broad suburbs where they meet the walls, a thread of houses further out, the odd lane off to one side. The roads bend round water and steep ground and stop where they can't go on, so no house stands in a bay or hangs on a cliff.",
+      "Campaign 3D map: the ground is sharp at any distance. The edges of woods, fields, snowfields and the shore used to be smeared across the map's mesh into blotches and steps. They're now drawn crisp to the pixel, with the trees standing exactly where the forest floor is dark.",
+      "Campaign 3D map: fields in many crops with hedges between, ringing every town; and the old tilled lowlands (the Low Countries, the Paris basin, the Po, southern England) are open farmland with copses, not deep forest. Elsewhere whole regions are well wooded and others mostly fields, instead of the same mottle everywhere.",
+    ],
+  },
+  {
     v: "1.90.20", date: "18 October 2026", title: "The lie of the land",
     items: [
       "Campaign 3D map: the woods show from afar. The ground is darker green wherever the trees stand, so close in the forest has its own floor and further out it reads as forest. The open country between is a patchwork of fields in gold, green and the brown of ploughland, where it used to be broad yellow blotches like camouflage.",

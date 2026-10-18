@@ -79,30 +79,115 @@ export function biomeAt(lon, lat, h) {
 }
 const BIOME_COL = { snow: 0xf1f3f5, rock: 0x8c877e, tundra: 0x8c8a66, desert: 0xd8b77a, steppe: 0xb8b068, taiga: 0x4f6b40, med: 0x9a9a60, temperate: 0x6f9448, beach: 0xd9c89a };
 const _c = new THREE.Color(), _c2 = new THREE.Color();
-function groundColour(lon, lat, h, out) {
+// (what the ground's colour is made of, beside the colour itself: how wooded, how much open ploughland, how far over
+//  the snowline, the height, and whether sand may lie at the water's edge — handed on to the drawing as they are, so the
+//  edges of a wood, a snowfield or a shore are drawn sharp across a pixel, not smeared between the mesh's corners)
+const _t = [0, 0, 0, 0, 0];
+// the woods' noise: in the ground's own units, and hashed in whole 32-bit numbers so the drawing works it out exactly as
+// this does — the trees stand on the forest floor it darkens, however far off the view, at whatever grain the mesh is
+const ihash = (x, y, s) => { let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(s, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+function inoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y); let fx = x - xi, fy = y - yi;
+  fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+  const a = ihash(xi, yi, s), b = ihash(xi + 1, yi, s), c = ihash(xi, yi + 1, s), d = ihash(xi + 1, yi + 1, s);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+const WOOD_F = 1.15;
+// (and over it a broader swell: whole countries well wooded, others mostly fields, not the same mottle everywhere)
+export function woodAt(x, z) { let v = (inoise(x * 0.16, z * 0.16, 7) - 0.5) * 0.4, a = 0.5, f = WOOD_F; for (let i = 0; i < 4; i++) { v += a * inoise(x * f, z * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
+// the old tilled lowlands, long since cleared — the Low Countries, the Paris basin, the Po, England's south and east,
+// Saxony, the Danish isles: the woods thinned there to copses (lon, lat, how far, in degrees)
+const TILLED = [[4.6, 51.9, 1.9], [2.5, 49.1, 2.3], [0.2, 52.2, 2.3], [-1.6, 51.0, 1.4], [9.9, 45.2, 1.6], [12.0, 51.3, 1.4], [10.3, 55.6, 1.4], [7.0, 51.5, 1.0], [11.4, 44.6, 0.9]];
+const WOOD_CUT = 0.26;
+export function tilledAt(lon, lat) { let t = 0; for (const [x, y, r] of TILLED) { const d = Math.hypot((lon - x) * K, lat - y) / r; if (d < 1) t = Math.max(t, 1 - d * d); } return t; }
+function groundColour(lon, lat, h, out, x, z) {
   const b = biomeAt(lon, lat, h);
-  out.setHex(h < 0.07 && b !== "snow" && b !== "rock" ? BIOME_COL.beach : BIOME_COL[b]);
-  // the woods, darker, where the trees stand (the same noise the trees are planted by, so from afar the forest shows
-  // as forest, and close in the ground under the trees is the forest's floor)
-  const wood = (b === "temperate" || b === "taiga" || b === "med") ? fbm(lon * 9, lat * 9, 13) : 0;
-  if (wood > 0.5) out.lerp(_c2.setHex(b === "taiga" ? 0x2f4a2c : b === "med" ? 0x5a6a3c : 0x3c5a2c), Math.min(0.55, (wood - 0.5) * 5));
-  // the fields: a patchwork of strips and parcels through the open country — each its own crop, gold, green or the brown
-  // of fallow and ploughland — not broad blotches
-  else if (b === "temperate" || b === "med") {
-    const u = lon * 26 + lat * 9, v = lat * 38 - lon * 7, cell = hash(Math.floor(u), Math.floor(v), 41);
-    const open = 1 - Math.min(1, Math.max(0, (wood - 0.38) * 8));                       // (thinning out toward the woods' edge)
-    const crop = cell < 0.3 ? 0xc6b45e : cell < 0.55 ? 0x93ad4e : cell < 0.75 ? 0xa89a5a : cell < 0.88 ? 0x8a6e48 : 0x7f9a44;
-    out.lerp(_c2.setHex(crop), 0.55 * open);
-  }
-  // the shallows: the sea floor near the coast sandy and pale, going dark as it deepens
-  if (h < 0) out.setHex(0x9aa88a).lerp(_c2.setHex(0x23414e), Math.min(1, Math.max(0, (-h - 0.028) / 0.07)));
-  // snow lies lower in the north
-  const sl = snowAt(lon, lat) - 0.12;
-  if (h > sl && b !== "desert") out.lerp(_c2.setHex(0xeef1f4), Math.min(1, (h - sl) * 2.5));
-  out.offsetHSL(0, 0, (vnoise(lon * 40, lat * 40, 2) - 0.5) * 0.05);
+  out.setHex(BIOME_COL[b]);
+  const green = b === "temperate" || b === "taiga" || b === "med";
+  const till = tilledAt(lon, lat), wood = green ? woodAt(x, z) - till * WOOD_CUT : 0;
+  _t[0] = green ? 1 - till * WOOD_CUT / 0.6 : 0;
+  // (the open country: fields wherever it's tilled land and not the woods)
+  _t[1] = (b === "temperate" || b === "med" || b === "steppe" && lon > -45) ? (1 - Math.min(1, Math.max(0, (wood - 0.38) * 8))) * (b === "steppe" ? 0.45 : 1) : 0;
+  _t[2] = b === "desert" ? -1 : Math.max(-1, Math.min(1, h - (snowAt(lon, lat) - 0.12)));
+  _t[3] = h;
+  _t[4] = b === "snow" || b === "rock" ? 0 : 1;
+  out.offsetHSL(0, 0, (vnoise(lon * 40, lat * 40, 2) - 0.5) * 0.03);
   return out;
 }
-const EXAG = 10 / 111 * U;                                  // km to units, ten times over
+// the ground's drawing: the standard material, and over its colour the detail no mesh could carry — the woods' dark
+// with a canopy's dapple, the patchwork of fields with hedges between, sand at the shore, the sea floor going deep, the
+// snowline ragged; and a grain over all of it, the finer grains faded out as they'd shimmer far off
+const GROUND_VS = `
+attribute vec4 aT; attribute float aB;
+varying vec4 vT; varying float vB; varying vec3 vWP;`;
+const GROUND_FS = `
+varying vec4 vT; varying float vB; varying vec3 vWP;
+float ih(ivec2 c, int s) { uint h = uint(c.x) * 374761393u + uint(c.y) * 668265263u + uint(s) * 1442695041u; h = (h ^ (h >> 13)) * 1274126177u; return float(h ^ (h >> 16)) / 4294967296.0; }
+float inz(vec2 p, int s) { vec2 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 * f); ivec2 c = ivec2(i);
+  float a = ih(c, s), b = ih(c + ivec2(1, 0), s), d = ih(c + ivec2(0, 1), s), e = ih(c + ivec2(1, 1), s);
+  return a + (b - a) * f.x + (d - a) * f.y + (a - b - d + e) * f.x * f.y; }
+float woodN(vec2 p) { float v = (inz(p * 0.16, 7) - 0.5) * 0.4, a = 0.5, f = ${WOOD_F.toFixed(3)}; for (int i = 0; i < 4; i++) { v += a * inz(p * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
+float gh(vec2 p) { p = mod(p, 512.0); vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(gh(i), gh(i + vec2(1, 0)), f.x), mix(gh(i + vec2(0, 1)), gh(i + vec2(1, 1)), f.x), f.y); }`;
+const GROUND_MIX = `
+{
+  vec2 wp = vWP.xz; float px = length(fwidth(wp));                 // the ground a pixel covers
+  float fine = 1.0 - smoothstep(0.004, 0.011, px), mid = 1.0 - smoothstep(0.011, 0.03, px), far = 1.0 - smoothstep(0.03, 0.09, px);
+  float n1 = gn(wp * 3.0) * 0.5 + gn(wp * 7.3) * 0.3 + gn(wp * 17.0) * 0.2;
+  float n2 = mix(0.5, gn(wp * 41.0) * 0.6 + gn(wp * 97.0) * 0.4, fine);
+  vec3 col = diffuseColor.rgb;
+  // the fields: parcels and strips, their edges wandering, each its own crop; hedges dark between them
+  vec2 fw = wp + (vec2(gn(wp * 2.3), gn(wp * 2.3 + 9.0)) - 0.5) * 0.22;
+  vec2 fu = vec2(dot(fw, vec2(17.0, 3.6)), dot(fw, vec2(-2.8, 11.0)));
+  float cell = gh(floor(fu) + 17.0);
+  vec3 crop = cell < 0.24 ? vec3(0.82, 0.68, 0.30) : cell < 0.42 ? vec3(0.44, 0.60, 0.24) : cell < 0.6 ? vec3(0.55, 0.67, 0.32) : cell < 0.72 ? vec3(0.72, 0.62, 0.34) : cell < 0.86 ? vec3(0.54, 0.42, 0.27) : vec3(0.40, 0.31, 0.22);
+  crop *= 0.93 + 0.14 * gh(floor(fu) + 3.0);
+  crop = mix(vec3(0.60, 0.58, 0.31), crop, mid);
+  vec2 fe = min(fract(fu), 1.0 - fract(fu)); float hedge = (1.0 - smoothstep(0.0, 0.05, min(fe.x, fe.y * 1.5))) * fine;
+  float wood = woodN(wp) - (1.0 - vT.x) * 0.6;
+  float open = vT.y * (1.0 - clamp((wood - 0.38) * 8.0, 0.0, 1.0)) * (0.75 + 0.25 * smoothstep(0.3, 0.6, n1));
+  col = mix(col, mix(crop, vec3(0.30, 0.38, 0.20), hedge * 0.6), open * 0.72);
+  // the woods: dark where the trees stand, the edge crisp and a little ragged; a canopy's dapple close in
+  float w = smoothstep(0.5, 0.515, wood + (n1 - 0.5) * 0.02);
+  float crown = mix(0.5, mix(gn(wp * 13.0), gn(wp * 13.0) * 0.55 + gn(wp * 31.0) * 0.45, mid), far);
+  col = mix(col, col * vec3(0.5, 0.62, 0.55) * (0.78 + 0.3 * crown + 0.2 * (n2 - 0.5)), w * 0.8);
+  // sand at the water's edge, and the sea floor under the shallows going dark as it deepens
+  float h = vT.w + (n1 - 0.5) * 0.012;
+  col = mix(col, vec3(0.77, 0.72, 0.56) * (0.92 + 0.16 * n2), (1.0 - smoothstep(0.035, 0.06, h)) * vB);
+  vec3 floor0 = mix(vec3(0.58, 0.63, 0.52), vec3(0.13, 0.25, 0.30), clamp((-vT.w - 0.028) / 0.07, 0.0, 1.0));
+  col = mix(col, floor0, smoothstep(0.004, -0.004, vT.w));
+  // the snow, its line ragged and sharp; the rock under it streaked
+  float sn = smoothstep(0.0, 0.08, vT.z + (n1 - 0.5) * 0.22);
+  col = mix(col, vec3(0.93, 0.95, 0.97) * (0.94 + 0.08 * n2), sn);
+  // and a grain over all of it
+  col *= 0.9 + 0.2 * mix(0.5, n1, 0.7) + (n2 - 0.5) * 0.12;
+  diffuseColor.rgb = col;
+}`;
+function groundMaterial() {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>" + GROUND_VS)
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n vT = aT; vB = aB; vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS)
+      .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
+  };
+  m.customProgramCacheKey = () => "ground6";
+  return m;
+}
+const EXAG = 10 / 111 * U;
+// a town's people when nobody's counting (the campaign's own reckoning of a town of its rank, as it starts)
+const POP0 = [0, 8000, 24000, 70000];
+const popEst = (name, rank) => { let h = 7; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return Math.round(POP0[rank] * (0.7 + (h % 600) / 1000) / 100) * 100; };
+// how far a town spreads, by its rank (in units: a degree of latitude is ten)
+const TOWN_R = { 1: 0.15, 2: 0.24, 3: 0.36 };
+// a gable roof: unit wide, high and long, the ridge running along z, sitting on y = 0
+function gable() {
+  const v = [-0.5, 0, -0.5, 0.5, 0, -0.5, 0, 1, -0.5, -0.5, 0, 0.5, 0.5, 0, 0.5, 0, 1, 0.5];
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(v, 3));
+  g.setIndex([0, 2, 1, 3, 4, 5, 0, 3, 5, 0, 5, 2, 1, 2, 5, 1, 5, 4]);
+  const n = g.toNonIndexed(); n.computeVertexNormals(); return n;
+}                                  // km to units, ten times over
 
 // ---- trees and bushes: each kind one instanced mesh ----
 function treeKinds() {
@@ -150,13 +235,16 @@ export class EuropeView3D {
   }
   // the political map changed (a conquest) or first shown: rebuild what depends on it
   // (walls: a campaign's walled towns, { name: level } — a ring of stone round each)
-  setMap(E, homePop = 2, homeName = "Forester's Clearing", walls = null) {
+  // (pops: a campaign's towns' people, { name: count } — a town as big as it has people to fill it)
+  setMap(E, homePop = 2, homeName = "Forester's Clearing", walls = null, pops = null) {
     sync();
     const wk = walls ? Object.keys(walls).filter(n => walls[n] > 0).sort().map(n => n + walls[n]).join() : "";
-    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = SHEET + (E.rev | 0) + ":" + cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName + "|" + wk;
+    // (rebuilt when a town has grown or shrunk by a quarter or so, not at every head counted)
+    let pk = 0; if (pops) for (const n in pops) pk = (pk * 31 + Math.round(Math.log2(Math.max(1, pops[n])) * 4) + n.length) >>> 0;
+    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = SHEET + (E.rev | 0) + ":" + cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName + "|" + wk + "|" + pk;
     const g = buildGrid(E);
     if (this.g && this.mapKey === key) return;
-    this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName; this.walls = walls || {};
+    this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName; this.walls = walls || {}; this.pops = pops;
     // (the ground itself doesn't change with a conquest — only who holds it: raised once for the sheet)
     if (!this.base || this.baseSheet !== SHEET) { this.buildBase(); this.baseSheet = SHEET; }
     this.buildBorders(); this.buildCities(homePop);
@@ -190,17 +278,20 @@ export class EuropeView3D {
     return H(i, j) * (1 - fx) * (1 - fz) + H(i + 1, j) * fx * (1 - fz) + H(i, j + 1) * (1 - fx) * fz + H(i + 1, j + 1) * fx * fz;
   }
   terrainMesh(geo, dy = 0, edge = null) {
-    const p = geo.attributes.position, col = new Float32Array(p.count * 3);
+    const p = geo.attributes.position, col = new Float32Array(p.count * 3), at = new Float32Array(p.count * 4), ab = new Float32Array(p.count);
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i), [lon, lat] = toLL(x, z), h = heightAt(this.g, lon, lat);
       let y = Math.max(-0.16, h * EXAG) + dy;
       // a patch's rim eases down onto the coarse ground under it, so no cliff shows where one ends
       if (edge) { const d = Math.min(x - edge.x0, edge.x1 - x, z - edge.z0, edge.z1 - z), t = Math.max(0, Math.min(1, d / edge.band)), b = this.baseY(x, z) + 0.01; y = b + (y - b) * t * t * (3 - 2 * t); }
       p.setY(i, y);
-      groundColour(lon, lat, h, _c); col.set([_c.r, _c.g, _c.b], i * 3);
+      groundColour(lon, lat, h, _c, x, z); col.set([_c.r, _c.g, _c.b], i * 3);
+      // (round a town the woods give way to its fields)
+      const tn = this.townNear(x, z); if (tn > 0) { _t[0] *= 1 - tn; if (_t[4]) _t[1] = Math.max(_t[1], tn); }
+      at.set([_t[0], _t[1], _t[2], _t[3]], i * 4); ab[i] = _t[4];
     }
-    geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
-    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }));
+    geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.setAttribute("aT", new THREE.BufferAttribute(at, 4)); geo.setAttribute("aB", new THREE.BufferAttribute(ab, 1)); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, this.groundMat || (this.groundMat = groundMaterial()));
     return m;
   }
   // the ground near where you look, finely
@@ -216,6 +307,38 @@ export class EuropeView3D {
     this.detail = this.terrainMesh(geo, 0, { x0: cx - size / 2, x1: cx + size / 2, z0: cz - size / 2, z1: cz + size / 2, band: 6 }); this.scene.add(this.detail);
     // the coarse ground under the patch's middle goes under the water, so its rougher coast can't show through the fine one
     this.sinkBase(cx - size / 2 + 6.5, cx + size / 2 - 6.5, cz - size / 2 + 6.5, cz + size / 2 - 6.5);
+  }
+  // the trodden earth of a town's streets and yards: a disc laid over the ground, fading out at its rim
+  townGround(x, z, R, out, rings = 5, seg = 28, a0 = 0.7) {
+    const n0 = out.pos.length / 3;
+    for (let i = 0; i <= rings; i++) for (let k = 0; k < (i ? seg : 1); k++) {
+      const d = R * i / rings * (i === rings ? 1 : 1 + (hash(i, k, 5) - 0.5) * 0.12), a = k / seg * 6.283, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+      out.pos.push(px, this.groundY(px, pz) + 0.003, pz);
+      const t = i / rings; out.col.push(0.50, 0.44, 0.35, a0 * (1 - t * t * t));
+    }
+    for (let k = 0; k < seg; k++) out.idx.push(n0, n0 + 1 + (k + 1) % seg, n0 + 1 + k);
+    for (let i = 1; i < rings; i++) for (let k = 0; k < seg; k++) {
+      const a = n0 + 1 + (i - 1) * seg + k, b = n0 + 1 + (i - 1) * seg + (k + 1) % seg, c = a + seg, d = b + seg;
+      out.idx.push(a, b, c, b, d, c);
+    }
+  }
+  // ground kept clear of trees (a town's, its fields close round it): circles, filed by the unit square they touch
+  clear(x, z, r) {
+    for (let gx = Math.floor(x - r); gx <= Math.floor(x + r); gx++) for (let gz = Math.floor(z - r); gz <= Math.floor(z + r); gz++) { const k = gx + "," + gz; (this.clearings.get(k) || this.clearings.set(k, []).get(k)).push([x, z, r]); }
+  }
+  cleared(x, z) { const L = this.clearings && this.clearings.get(Math.floor(x) + "," + Math.floor(z)); return !!L && L.some(([cx, cz, cr]) => (x - cx) * (x - cx) + (z - cz) * (z - cz) < cr * cr); }
+  // how near a town a point is, for its fields: 1 close round it, falling to nought a few of its widths out
+  townNear(x, z) {
+    if (!this.townSpots || this.townSheet !== SHEET) {
+      this.townSheet = SHEET; this.townSpots = new Map();
+      for (const ct of CITIES) { const [tx, tz] = toWorld(ct[1], ct[2]), k = Math.floor(tx / 4) + "," + Math.floor(tz / 4); (this.townSpots.get(k) || this.townSpots.set(k, []).get(k)).push([tx, tz, TOWN_R[ct[3]] || 0.2]); }
+    }
+    let best = 0; const bx = Math.floor(x / 4), bz = Math.floor(z / 4);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const L = this.townSpots.get((bx + i) + "," + (bz + j)); if (!L) continue;
+      for (const [tx, tz, R] of L) { const d = Math.hypot(x - tx, z - tz), t = 1 - (d - R * 1.2) / (R * 2.2); if (t > best) best = Math.min(1, t); }
+    }
+    return best;
   }
   groundY(x, z) { const [lon, lat] = toLL(x, z); return Math.max(-0.16, heightAt(this.g, lon, lat) * EXAG); }
   // trees, a unit square at a time, the same every time for the same square
@@ -237,11 +360,11 @@ export class EuropeView3D {
       const list = per[kind] = [];
       for (let i = 0; i < max; i++) {
         const x = gx + r(), z = gz + r(), [lon, lat] = toLL(x, z);
-        const wood = fbm(lon * 9, lat * 9, 13);
+        const wood = woodAt(x, z) - tilledAt(lon, lat) * WOOD_CUT;
         if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52) || r() > 0.85) continue;
         const h = heightAt(this.g, lon, lat); if (h < 0.03 || biomeAt(lon, lat, h) === "snow") continue;
         // (no wood growing in a town, nor in the fields close round it)
-        if (this.clearings && this.clearings.some(([cx, cz, cr]) => (x - cx) * (x - cx) + (z - cz) * (z - cz) < cr * cr)) continue;
+        if (this.cleared(x, z)) continue;
         const s = 0.7 + r() * 0.7;
         o.position.set(x, h * EXAG, z); o.rotation.set(0, r() * 6.28, 0); o.scale.set(s, s * (0.85 + r() * 0.3), s); o.updateMatrix();
         list.push(o.matrix.clone());
@@ -301,12 +424,15 @@ export class EuropeView3D {
   }
   // the cities: houses and a church on the ground, and the name, in the colour of whoever holds it
   buildCities(homePop) {
-    if (this.cityGroup) { this.scene.remove(this.cityGroup); this.cityGroup.traverse(o => { if (o.isInstancedMesh) { o.dispose(); o.geometry.dispose(); o.material.dispose(); } if (o.isSprite) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); }
+    if (this.cityGroup) { this.scene.remove(this.cityGroup); this.cityGroup.traverse(o => { if (o.isInstancedMesh) { o.dispose(); o.geometry.dispose(); o.material.dispose(); } if (o.isTownGround) { o.geometry.dispose(); o.material.dispose(); } if (o.isSprite) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); }
     const grp = this.cityGroup = new THREE.Group();
     // (the thousands of houses, roofs, walls and stakes: one instanced draw for each kind, not a mesh apiece — the
     //  scene's thousands of objects were most of a frame's work)
-    const kinds = new Map(), put = m => { m.updateMatrix(); const k = m.geometry.uuid + m.material.uuid; let b = kinds.get(k); if (!b) kinds.set(k, b = { geo: m.geometry, mat: m.material, mats: [] }); b.mats.push(m.matrix.clone()); };
-    const house = new THREE.BoxGeometry(0.04, 0.03, 0.05), roof = new THREE.ConeGeometry(0.037, 0.028, 4).rotateY(Math.PI / 4);
+    const kinds = new Map(), put = (m, col) => { m.updateMatrix(); const k = m.geometry.uuid + m.material.uuid; let b = kinds.get(k); if (!b) kinds.set(k, b = { geo: m.geometry, mat: m.material, mats: [], cols: [] }); b.mats.push(m.matrix.clone()); b.cols.push(col ?? 0xffffff); };
+    // (a house a unit box, sized each its own; its roof a gable, the ridge along its length, the eaves a little over the walls)
+    const house = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), roof = gable();
+    const plaster = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), roofing = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
+    const WALLS = [0xe8dfca, 0xe2d6bc, 0xd9cdb4, 0xcfc4ae, 0xb8ab94, 0xeae4d6], TILES = [0xa64a30, 0x9a3f2a, 0xb05a38, 0x8c4430, 0x7e5a44], SLATES = [0x55605e, 0x4a5452, 0x646a66], THATCH = [0x9c8455, 0x8a7448];
     // (the woods' nations' towns: a longhouse, round-roofed, and the stakes of a palisade)
     const longGeo = new THREE.CapsuleGeometry(0.014, 0.05, 3, 6).rotateZ(Math.PI / 2).scale(1, 1.2, 1).translate(0, 0.012, 0), barkMat = new THREE.MeshStandardMaterial({ color: 0x6e5a44, roughness: 0.95 });
     const stakeGeo = new THREE.CylinderGeometry(0.003, 0.004, 0.036, 4), stakeMat = new THREE.MeshStandardMaterial({ color: 0x7a6248, roughness: 0.9 });
@@ -314,27 +440,93 @@ export class EuropeView3D {
     const curtain = new THREE.BoxGeometry(1, 0.022, 0.009).translate(0, 0.011, 0), bastion = new THREE.CylinderGeometry(0.012, 0.016, 0.026, 4).translate(0, 0.013, 0), masonry = new THREE.MeshStandardMaterial({ color: 0x9c9384, roughness: 0.95 });
     const towerGeo = new THREE.BoxGeometry(0.036, 1, 0.036), spireGeo = new THREE.ConeGeometry(0.028, 0.1, 4), slate = new THREE.MeshStandardMaterial({ color: 0x4a5a58 });
     this.labels = [];
-    this.clearings = [];
+    this.clearings = new Map(); const groundBits = { pos: [], col: [], idx: [] };
     const place = (name, lon, lat, rank, own, isHome) => {
       let [x, z] = toWorld(lon, lat); const r = rng(Math.round(lon * 100 + lat * 7));
       // (a port whose spot falls on the water at this map's grain — an inlet, a river mouth: the nearest dry ground
       //  round it, so the town stands on its shore, not out in the bay)
       if (this.groundY(x, z) < 0.02) { found: for (let d = 0.04; d <= 0.8; d += 0.04) for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283, nx = x + Math.cos(a) * d, nz = z + Math.sin(a) * d; if (this.groundY(nx, nz) >= 0.02) { x = nx; z = nz; break found; } } }
       const y0 = this.groundY(x, z);
-      this.clearings.push([x, z, (rank === 3 ? 0.45 : rank === 2 ? 0.34 : 0.24) + (own && NATIONS[own] && NATIONS[own].nw ? 0.08 : 0)]);
       if (y0 < -0.1) return;
-      const n = isHome ? 5 : rank === 3 ? 80 : rank === 2 ? 44 : 16, spread = rank === 3 ? 0.32 : rank === 2 ? 0.22 : 0.12;
+      // (its people: the campaign's count, or what a town of its rank would have — and the houses as many as house them)
+      const pop = isHome ? 0 : (this.pops && this.pops[name]) || popEst(name, rank);
+      const NH = isHome ? 5 : Math.max(14, Math.min(700, Math.round(pop / 170)));
+      // (the old town, inside its walls if it has them: about half the houses, packed close)
+      const spread = isHome ? 0.07 : 0.03 + 0.016 * Math.sqrt(NH);
       // (a town of the woods' nations: longhouses of bark inside a ring of palisade, no church)
       const woods = own && NATIONS[own] && NATIONS[own].nw;
       if (woods) {
-        const R = 0.13 + rank * 0.03;
-        for (let i = 0; i < 4 + rank * 3; i++) { const a = r() * 6.28, d = Math.sqrt(r()) * R * 0.8, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz); const lh = new THREE.Mesh(longGeo, barkMat); lh.position.set(hx, hy, hz); lh.rotation.y = r() * 3; put(lh); }
-        const N = 28 + rank * 10; for (let i = 0; i < N; i++) { const a = i / N * 6.28, sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R; if (Math.abs(Math.sin(a)) < 0.06 && Math.cos(a) > 0) continue; const st = new THREE.Mesh(stakeGeo, stakeMat); st.position.set(sx, this.groundY(sx, sz) + 0.018, sz); put(st); }
-      }
-      for (let i = 0; i < (woods ? 0 : n); i++) {
-        const a = r() * 6.28, d = Math.sqrt(r()) * spread, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz);
-        const hm = new THREE.Mesh(house, wall); hm.position.set(hx, hy + 0.015, hz); hm.rotation.y = r() * 3; put(hm);
-        const rm = new THREE.Mesh(roof, tile); rm.position.set(hx, hy + 0.044, hz); rm.rotation.y = hm.rotation.y; put(rm);
+        const R = (0.16 + rank * 0.04) * Math.max(0.8, Math.min(1.4, Math.sqrt(pop / popEst(name, rank))));
+        this.clear(x, z, R + 0.06);
+        for (let i = 0; i < 6 + rank * 5; i++) { const a = r() * 6.28, d = Math.sqrt(r()) * R * 0.8, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz); const lh = new THREE.Mesh(longGeo, barkMat); lh.position.set(hx, hy, hz); lh.rotation.y = r() * 3; lh.scale.setScalar(1.25); put(lh); }
+        const N = 40 + rank * 14; for (let i = 0; i < N; i++) { const a = i / N * 6.28, sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R; if (Math.abs(Math.sin(a)) < 0.06 && Math.cos(a) > 0) continue; const st = new THREE.Mesh(stakeGeo, stakeMat); st.position.set(sx, this.groundY(sx, sz) + 0.018, sz); st.scale.setScalar(1.2); put(st); }
+      } else {
+        // the town laid out as a town grows: a market square, the old town's streets packed round it — and out past
+        // it the roads, a few, in no set directions, the houses strung along them, the longest where it grew most;
+        // each road bending round water and steep ground, and stopping where it can't go on
+        const north = lat > 52 || lon < -45, south = lat < 44, R = spread, S = isHome ? 2 : 4 + rank, a0 = r() * 6.28;
+        const sq = R * 0.13, slots = [], ok = (px, pz, py) => py >= 0.025;
+        const lot = (hx, hz, ang, score, nx = 0, nz = 0, t = 1) => slots.push([hx, hz, ang, score, nx, nz, t]);
+        for (let k = 0; k < S; k++) {
+          const a = a0 + k / S * 6.283 + (r() - 0.5) * 0.4, len = R * (0.85 + r() * 0.25), ca = Math.cos(a), sa = Math.sin(a);
+          for (let d = sq + 0.02; d < len; d += 0.034 + d * 0.03) for (const side of [-1, 1]) {
+            const off = 0.013 + r() * 0.004;
+            lot(x + ca * d - sa * off * side, z + sa * d + ca * off * side, -a, d * 0.8, -sa * side, ca * side, d / R);
+          }
+        }
+        for (const f of NH > 60 ? [0.42, 0.72] : !isHome ? [0.55] : []) {
+          const rr = R * f, N = Math.round(6.283 * rr / 0.034);
+          for (let i = 0; i < N; i++) for (const side of [-1, 1]) { const a = i / N * 6.283 + r() * 0.05, d = rr + side * 0.013, ca = Math.cos(a), sa = Math.sin(a); lot(x + ca * d, z + sa * d, -a + Math.PI / 2, d * 0.8 + r() * 0.02, ca * side, sa * side, d / R); }
+        }
+        for (let i = 0; i < (isHome ? 0 : NH * 0.4); i++) { const a = r() * 6.283, d = sq + 0.03 + Math.sqrt(r()) * R * 0.8; lot(x + Math.cos(a) * d, z + Math.sin(a) * d, -a + (r() < 0.5 ? 0 : Math.PI / 2), d * 0.85 + r() * 0.03, 0, 0, d / R); }
+        // (the roads out, and the houses along them)
+        const arms = isHome ? 0 : 2 + ((r() * 3) | 0) + (NH > 250 ? 1 : 0), STEP = 0.034;
+        for (let k = 0; k < arms; k++) {
+          let a = r() * 6.283, px = x + Math.cos(a) * R * 0.9, pz = z + Math.sin(a) * R * 0.9, py = this.groundY(px, pz), along = 0;
+          const pull = 0.35 + r() * r() * 1.6, len = R * (1.2 + pull * 2.6);
+          if (!ok(px, pz, py)) continue;
+          while (along < len) {
+            // (on, a little this way or that; round the water or a steep side if it must — or no further)
+            let moved = false;
+            for (const turn of [0, 0.45, -0.45, 0.9, -0.9]) {
+              const b = a + turn + (r() - 0.5) * 0.5, qx = px + Math.cos(b) * STEP, qz = pz + Math.sin(b) * STEP, qy = this.groundY(qx, qz);
+              if (!ok(qx, qz, qy) || Math.abs(qy - py) / STEP > 0.55) continue;
+              a = b; px = qx; pz = qz; py = qy; moved = true; break;
+            }
+            if (!moved) break;
+            along += STEP;
+            const ca = Math.cos(a), sa = Math.sin(a), score = (R * 0.9 + along / pull) * (0.9 + r() * 0.2);
+            for (const side of [-1, 1]) {
+              if (r() < 0.9 - along / len * 0.45) lot(px - sa * 0.015 * side, pz + ca * 0.015 * side, -a, score, -sa * side, ca * side, 1 + along / len);
+              // (and close in, a row behind, and another: the suburb broad where it meets the old town, a thread at its far end)
+              for (const [off, f] of [[0.062, 0.6], [0.11, 0.3]]) if (r() < 1 - along / (len * f)) lot(px - sa * off * side, pz + ca * off * side, -a, score + off, -sa * side, ca * side, 1 + along / len);
+            }
+            // (a lane off it, now and then)
+            if (r() < 0.08) { const b = a + (r() < 0.5 ? 1.57 : -1.57), cb = Math.cos(b), sb = Math.sin(b); for (let d = 0.04; d < 0.04 + r() * 0.12; d += STEP) for (const side of [-1, 1]) lot(px + cb * d - sb * 0.015 * side, pz + sb * d + cb * 0.015 * side, -b, score + d * 2, -sb * side, cb * side, 1.2); }
+          }
+        }
+        slots.sort((p, q) => p[3] - q[3]);
+        const kept = [];
+        for (let [hx, hz, ang, , nx, nz, t] of slots) {
+          if (kept.length >= NH) break;
+          if (kept.some(([kx, kz]) => (kx - hx) * (kx - hx) + (kz - hz) * (kz - hz) < 0.00045)) continue;
+          const core = Math.max(0, 1 - t * 1.4), w = 0.022 + r() * 0.008, l = 0.03 + r() * 0.016 + core * 0.01;
+          hx += nx * l / 2; hz += nz * l / 2; const hy = this.groundY(hx, hz);
+          // (no house in the water, nor hung on a cliff)
+          if (!ok(hx, hz, hy) || Math.abs(hy - this.groundY(hx + nx * 0.03, hz + nz * 0.03)) > 0.02) continue;
+          kept.push([hx, hz]);
+          const ht = 0.018 + core * (0.016 + r() * 0.012) + r() * 0.005;
+          const hm = new THREE.Mesh(house, plaster); hm.position.set(hx, hy - 0.004, hz); hm.rotation.y = ang; hm.scale.set(w, ht + 0.004, l);
+          put(hm, WALLS[(r() * WALLS.length) | 0]);
+          const pal = north ? (r() < 0.55 ? SLATES : TILES) : t > 0.9 && r() < 0.35 ? THATCH : TILES;
+          const rm = new THREE.Mesh(roof, roofing); rm.position.set(hx, hy + ht, hz); rm.rotation.y = ang; rm.scale.set(w * 1.18, (south ? 0.45 : 0.75) * w, l * 1.08);
+          put(rm, pal[(r() * pal.length) | 0]);
+                    // (out past the old town, a yard's trodden ground round each house)
+          if (Math.hypot(hx - x, hz - z) > R) { this.clear(hx, hz, 0.09); this.townGround(hx, hz, 0.05, groundBits, 1, 8, 0.45); }
+        }
+        this.clear(x, z, R * 1.15 + 0.04);
+        // the trodden ground of the streets and yards under it all
+        this.townGround(x, z, R * 1.1, groundBits);
       }
       // (a walled town: a ring of stone round it, its bastions at the angles — more of them, and further out, for a
       //  fortress of the new kind)
@@ -350,10 +542,13 @@ export class EuropeView3D {
         for (let i = 0; i < B; i++) { const a = i / B * 6.283 + 0.3, bx = x + Math.cos(a) * (R + (wl >= 2 ? 0.012 : 0.004)), bz = z + Math.sin(a) * (R + (wl >= 2 ? 0.012 : 0.004)), m = new THREE.Mesh(bastion, masonry); m.position.set(bx, this.groundY(bx, bz) - 0.004, bz); m.rotation.y = -a + Math.PI / 4; if (wl >= 2) m.scale.set(1.4, 1, 1.4); put(m); }
       }
       // a church, or a cathedral
-      const th = 0.12 + rank * 0.03;
+      // (on the square: its nave, long under its roof, and the tower at the west end — a cathedral's twice the size)
+      const th = isHome ? 0.06 : 0.07 + rank * 0.025, cs = isHome ? 0.6 : rank === 3 ? 1.5 : rank === 2 ? 1.15 : 0.9;
       if (!woods) {
-      const tw = new THREE.Mesh(towerGeo, stone); tw.scale.y = th; tw.position.set(x, y0 + th / 2, z); put(tw);
-      const sp = new THREE.Mesh(spireGeo, slate); sp.position.set(x, y0 + th + 0.05, z); put(sp);
+        const nx0 = x + 0.03 * cs, nv = new THREE.Mesh(house, plaster); nv.position.set(nx0, y0 - 0.004, z); nv.rotation.y = Math.PI / 2; nv.scale.set(0.034 * cs, 0.036 * cs, 0.09 * cs); put(nv, 0xcfc6b2);
+        const nr = new THREE.Mesh(roof, roofing); nr.position.set(nx0, y0 + 0.032 * cs, z); nr.rotation.y = Math.PI / 2; nr.scale.set(0.04 * cs, 0.03 * cs, 0.094 * cs); put(nr, 0x56605c);
+        const tw = new THREE.Mesh(towerGeo, stone); tw.scale.set(cs * 0.75, th, cs * 0.75); tw.position.set(x - 0.02 * cs, y0 + th / 2, z); put(tw);
+        const sp = new THREE.Mesh(spireGeo, slate); sp.scale.setScalar(cs * 0.75); sp.position.set(x - 0.02 * cs, y0 + th + 0.037 * cs, z); put(sp);
       }
       // the name
       const cv = document.createElement("canvas"); cv.width = 256; cv.height = 64; const c = cv.getContext("2d");
@@ -371,7 +566,12 @@ export class EuropeView3D {
     for (const ct of CITIES) place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false);
     // (your own clearing — not on a campaign's map, which has none)
     if (this.homeName !== null) { const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL); place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true); }
-    for (const b of kinds.values()) { const im = new THREE.InstancedMesh(b.geo, b.mat, b.mats.length); b.mats.forEach((m, i) => im.setMatrixAt(i, m)); im.computeBoundingSphere(); grp.add(im); }
+    for (const b of kinds.values()) { const im = new THREE.InstancedMesh(b.geo, b.mat, b.mats.length); b.mats.forEach((m, i) => { im.setMatrixAt(i, m); if (b.mat === plaster || b.mat === roofing) im.setColorAt(i, _c.setHex(b.cols[i])); }); im.computeBoundingSphere(); grp.add(im); }
+    if (groundBits.pos.length) {
+      const gg = new THREE.BufferGeometry(); gg.setAttribute("position", new THREE.Float32BufferAttribute(groundBits.pos, 3)); gg.setAttribute("color", new THREE.Float32BufferAttribute(groundBits.col, 4)); gg.setIndex(groundBits.idx); gg.computeVertexNormals();
+      const gm = new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      gm.renderOrder = 1; gm.isTownGround = true; grp.add(gm);
+    }
     this.scene.add(grp);
   }
   // marks over towns (a campaign's): crossed swords where you can march, a ring round your own, red where they're
