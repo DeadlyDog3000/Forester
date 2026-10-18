@@ -54,7 +54,7 @@ export function useSheet(name) {
   // (the coasts that touch the window, carried to its corner)
   COAST = WCOAST.map(r => r.map(([x, y]) => [x - x0 * 10, y - y0 * 10])).filter(r => r.some(([x, y]) => x > -50 && y > -50 && x < w * 10 + 50 && y < h * 10 + 50));
   { const [x, y] = gridOf(...HOME_LL); HOME = { mx: Math.floor(x), my: Math.floor(y) }; }
-  BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; coastP = null; relief = null; reliefPart = null; near = null; traced = null; TRC.clear(); SIG = null;
+  BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; coastP = null; relief = null; reliefPart = null; near = null; traced = null; TRC.clear(); SIG = null; shapes = null;
 }
 // a crown's land, or a people's, or nobody's: the peoples of the New World have their country on the map in their own
 // names, and it isn't any crown's to take
@@ -797,6 +797,7 @@ function reliefLayer(part = null) {
 // the sheet, and over it what changes: the crown under the pointer and the one chosen, the wars, the plague, your clearing
 // view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
 let near = null, nearT = 0;
+let shapes = null;
 export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null, me = null, walled = null, zf = 1, spread = null, pop = null } = {}) {
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + (E.rev | 0) + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
@@ -834,14 +835,15 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
   // (one shape for the whole crown, filled once — row by row it overlapped itself in stripes — and laid on as an
   //  overlay, which lightens the paper and the paint but leaves black black: the coasts, frontiers and lettering stay
   //  drawn over it)
+  // (each crown's shape made once for the map as it stands, not scanned out of the grid every frame)
+  if (!shapes || shapes.key !== key) shapes = { key, wash: new Map(), mid: new Map() };
   for (const [id, a] of [[hover, 0.34], [selected, 0.55]]) {
     if (!id || !NATIONS[id]) continue;
-    c.save(); c.globalCompositeOperation = "overlay"; c.fillStyle = `rgba(255,236,190,${a})`; c.beginPath();
-    for (let y = 0; y < GH; y++) { let x0 = -1; for (let x = 0; x <= GW; x++) { const on = x < GW && g[y][x] === id; if (on && x0 < 0) x0 = x; if (!on && x0 >= 0) { c.rect(x0 * S, y * S, (x - x0) * S, S + 0.5); x0 = -1; } } }
-    c.fill(); c.restore();
+    let p = shapes.wash.get(id); if (!p) { p = new Path2D(); for (let y = 0; y < GH; y++) { let x0 = -1; for (let x = 0; x <= GW; x++) { const on = x < GW && g[y][x] === id; if (on && x0 < 0) x0 = x; if (!on && x0 >= 0) { p.rect(x0 * S, y * S, (x - x0) * S, S + 0.5); x0 = -1; } } } shapes.wash.set(id, p); }
+    c.save(); c.globalCompositeOperation = "overlay"; c.fillStyle = `rgba(255,236,190,${a})`; c.fill(p); c.restore();
   }
   // crossed swords over a crown at war (red if with you), a skull over a plague
-  const centre = id => { let sx = 0, sy = 0, n = 0; for (let y = 0; y < GH; y += 2) for (let x = 0; x < GW; x += 2) if (g[y][x] === id) { sx += x; sy += y; n++; } return n ? [sx / n * S, sy / n * S] : null; };
+  const centre = id => { if (shapes.mid.has(id)) return shapes.mid.get(id); let sx = 0, sy = 0, n = 0; for (let y = 0; y < GH; y += 2) for (let x = 0; x < GW; x += 2) if (g[y][x] === id) { sx += x; sy += y; n++; } const p = n ? [sx / n * S, sy / n * S] : null; shapes.mid.set(id, p); return p; };
   const glyph = (id, t, col, dy = 0) => { const p = centre(id); if (!p) return; c.font = `${Math.round(S * 5)}px ${FELL}`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = col; c.fillText(t, p[0], p[1] + S * (4 + dy)); };
   for (const w of E.wars) { glyph(w.a, "⚔", "rgba(90,40,20,0.85)"); glyph(w.b, "⚔", "rgba(90,40,20,0.85)"); }
   for (const id of Object.keys(E.war || {})) if (E.war[id]) glyph(id, "⚔", "#b0281a");

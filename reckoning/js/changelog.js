@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.82.3", date: "17 October 2026", title: "Smoother panning",
+    items: [
+      "Campaign: the map draws three to four times faster as you pan and zoom, about a hundredth of a second a frame where it was a thirtieth. The light wash over the crown under your mouse, and the crossed swords over crowns at war, are worked out once each time the map changes instead of every frame.",
+    ],
+  },
+  {
     v: "1.82.2", date: "17 October 2026", title: "A quicker map",
     items: [
       "Campaign: when towns change hands the map redraws two to three times faster: about an eighth of a second where it was nearly half a second, and more on a sharp screen. Only the crowns a change touched have their borders traced again, not all fifty, and the paper's grain is laid on from one small tile instead of speck by speck.",
