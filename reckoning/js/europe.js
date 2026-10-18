@@ -593,12 +593,20 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
     const w = c.measureText(n).width, h = k * 15, d = u * (rank === 3 ? 5.5 : rank === 2 ? 3.8 : 3.5);
     const up = (rank === 3 ? 4.5 : 3) * u, dn = up, yy = y;
     const tries = [[x + d, yy, "left"], [x - d, yy, "right"], [x, y + dn + h * 0.6, "center"], [x, y - up - h * 0.4, "center"], [x + d * 0.6, y + dn + h * 0.6, "left"], [x + d * 0.6, y - up - h * 0.4, "left"]];
+    let put = false;
     for (const [tx, ty, al] of tries) {
       const x0 = al === "left" ? tx : al === "right" ? tx - w : tx - w / 2, b = [x0, ty - h / 2, x0 + w, ty + h / 2];
       if (hit(b)) continue;
       taken.push(b);
       c.textAlign = al; c.fillStyle = INK_SOFT + (rank === 1 ? "0.75)" : "0.92)"); c.fillText(n, tx, ty + k);
-      break;
+      put = true; break;
+    }
+    // (a crown's seat is always named, even where the country's own name lies across it: written over it, haloed in
+    //  the paper's colour so both can be read — Wien under "AUSTRIA" went nameless)
+    if (!put && rank === 3) {
+      const [tx, ty] = tries[0], b = [tx, ty - h / 2, tx + w, ty + h / 2]; taken.push(b);
+      c.save(); c.textAlign = "left"; c.lineJoin = "round"; c.strokeStyle = "rgba(240,228,198,0.9)"; c.lineWidth = 3.2 * k; c.strokeText(n, tx, ty + k);
+      c.fillStyle = INK_SOFT + "0.95)"; c.fillText(n, tx, ty + k); c.restore();
     }
   }
 }

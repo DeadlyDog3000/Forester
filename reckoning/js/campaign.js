@@ -2513,9 +2513,12 @@ function paint() {
       c.strokeStyle = "rgb(225,221,199)"; c.lineWidth = cell * 0.9; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); }
     c.restore(); }
   // (your armies standing together fanned out a little on the screen, so each can be seen and clicked)
-  armyOff = {}; foeOff = {}; { const placed = []; for (const [id, p] of [[C.ar | 0, armyPos()], ...(C.armies || []).filter(a => a.pos).map(a => [a.id, a.pos])]) { let [sx, sy] = scr(p), dx = 0; while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx += 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); armyOff[id] = dx / (S * view.z); }
+  // (an army standing in a town stands off to the left of it, and more armies at one place further left again: the
+  //  town's name is written to its right, and an army laid over it hid it — Wien, with the Emperor's army in it)
+  const inTown = (sx, sy) => CITIES.some(t => { const q = scr(cellXY(t)); return Math.abs(q[0] - sx) < 4 && Math.abs(q[1] - sy) < 4; }) ? -20 * armyU(k) / 1.6 : 0;
+  armyOff = {}; foeOff = {}; { const placed = []; for (const [id, p] of [[C.ar | 0, armyPos()], ...(C.armies || []).filter(a => a.pos).map(a => [a.id, a.pos])]) { let [sx, sy] = scr(p), dx = inTown(sx, sy); while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx -= 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); armyOff[id] = dx / (S * view.z); }
     // (and an enemy army standing on one of yours, or on another: set off to the other side, so neither hides the other)
-    for (const [id, p] of foeMarks()) { let [sx, sy] = scr(p), dx = 0; while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx -= 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); foeOff[id] = dx / (S * view.z); } }
+    for (const [id, p] of foeMarks()) { let [sx, sy] = scr(p), dx = inTown(sx, sy); while (placed.some(([px2, py2]) => Math.hypot(px2 - sx - dx, py2 - sy) < 30 * armyU(k) / 1.6)) dx -= 34 * armyU(k) / 1.6; placed.push([sx + dx, sy]); foeOff[id] = dx / (S * view.z); } }
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !isHuman(id) && alive(g, id)) { const fp = foeArmyPos(id); if (fp) { const tg = C.foeGo && C.foeGo[id] && CITIES.find(t => t[0] === C.foeGo[id]); army({ x: fp.x + (foeOff[id] || 0), y: fp.y }, id, knowsArmy(id) ? foeArmy(id) : "?", false, tg ? cellXY(tg) : null); } }
   // (their colonial armies, over the water: at war with you, seen)
   for (const [id, c] of Object.entries(colonies())) if (atWar(id) && c.n > 0) { const tg = c.go && CITIES.find(t => t[0] === c.go); army({ x: c.pos.x + (foeOff[id + COLO] || 0), y: c.pos.y }, id, knowsArmy(id) ? c.n : "?", false, tg ? cellXY(tg) : null, true, "foe-" + id + COLO); }

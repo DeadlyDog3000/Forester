@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.8", date: "18 October 2026", title: "Wien has its name",
+    items: [
+      "Campaign map: every capital is named, even where its country's name runs across it. Wien under \"AUSTRIA\", Dresden under \"SAXONY\" and Warszawa went unnamed before. The name is now written over the country's lettering, haloed so both can be read.",
+      "Campaign map: an army standing in a town stands just to the left of it, and a second or third army further left again, so the town's name to its right isn't hidden under them.",
+    ],
+  },
+  {
     v: "1.90.7", date: "18 October 2026", title: "The last of the water",
     items: [
       "The rest of the old water system is gone. The guide no longer has a page on thirst, and getting over the flux no longer tells you to boil your water.",
