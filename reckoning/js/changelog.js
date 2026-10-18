@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.88.1", date: "17 October 2026", title: "The gazette sorts its news",
+    items: [
+      "Campaign: the year's newspaper puts the new kinds of news where they belong. Winter's toll on your army goes among the wars, and can make the headline. Tribute, protectorates and trade agreements go among the courts. Your generals' new traits, towns sacked or occupied, and the Crown's missions go in your own realm's news.",
+    ],
+  },
+  {
     v: "1.88.0", date: "17 October 2026", title: "General Winter",
     items: [
       "Campaign: winter takes its toll, as in Empire: Total War. An army that sees the year out in another crown's land in the far north (Russia, Scandinavia, the eastern Baltic) or out on the eastern steppe loses about a fourteenth of its men to the cold and sickness, and the news says so.",

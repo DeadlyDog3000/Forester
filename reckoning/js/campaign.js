@@ -258,10 +258,10 @@ function gazette(items) {
   const mineT = new Set(citiesOfNow(grid(), C.me).map(c => c[0]));
   const kind = l => { const t = l.title, all = t + " " + (l.sub || ""), mine = [...mineT].some(n => all.includes(n));
     // (your own realm's doings, at home; the wars, yours and the world's; the courts' alliances and treaties; the rest)
-    if (/\byour\b|^the regiments|regiments (raised|broken|merged)|launched|riots? in|rising in|is cast|governor|treasury/i.test(t) || (mine && !/marches|army|siege|fallen|takes/i.test(t))) return "home";
+    if (/\byour\b|^the regiments|regiments (raised|broken|merged)|launched|riots? in|rising in|is cast|governor|treasury|: (bold|cautious|siege engineer|hero of the nation|beloved of the men|drunkard|flogger)$|is (sacked|occupied)|^(a )?mission/i.test(t) || (mine && !/marches|army|siege|fallen|takes/i.test(t))) return "home";
     if (/has fallen|falls to|is yours|surrenders|takes .* from| takes /i.test(t)) return "fall";
-    if (/declares war|are at war|marches|army|siege|beaten|victory|field|at sea|ships an army|holds|raid|broken|war party/i.test(t)) return "war";
-    if (/peace|alliance|league|comes? in on|treaty|pact|truce|cedes|offers|envoy|marriage|dies|succeeds|crown/i.test(t)) return "court";
+    if (/declares war|are at war|marches|army|siege|beaten|victory|field|at sea|ships an army|holds|raid|broken|war party|^winter in/i.test(t)) return "war";
+    if (/peace|alliance|league|comes? in on|treaty|pact|truce|cedes|offers|envoy|marriage|dies|succeeds|crown|agreement|tribute|submits|protectorate/i.test(t)) return "court";
     return "abroad"; };
   // (the headline: the year's greatest matter for you — your towns lost or won, your army's battles, war on you — else the first)
   const score = l => { const t = l.title + " " + (l.sub || ""), k = kind(l); let v = 0; if (k === "fall") v += 50; if (k === "war") v += 30; if (k === "court") v += 20; if ([...mineT].some(n => t.includes(n)) || /\byou(r)?\b/i.test(t)) v += 40; if (/declares war on you|has fallen/.test(t)) v += 30; if (/victory|beaten/i.test(t)) v += 15; return v; };
