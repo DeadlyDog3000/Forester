@@ -7,6 +7,24 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.16", date: "18 October 2026", title: "News of the year",
+    items: [
+      "Campaign: learning takes years. Each study takes two years at the least, three for what's built on it and four for the furthest. Each costs twice what it did, when a realm with a few colleges learnt something every year. The Learning screen shows the year of study you're in and how many are left.",
+      "Campaign: a discovery makes the newspaper. \"A discovery: crop rotation\" takes the headline under a printer's ornament, with how many years your scholars spent at it. If something bigger has the headline, it gets its own ruled box \"From the Learned World\".",
+      "Campaign: a war you declare is in the newspaper too (\"War declared on Saxony\"), and a war declared on you heads its column. The paper now carries everything since the last one, not only what happened as the year turned: what you did during the year, a war or a treaty, used to be left out.",
+      "Campaign: a new Diplomacy screen (the button at the top, or P). Every crown is listed: at war with you, allied, bound by a pact or truce, or neither. Each shows its regard for you, its towns, its army if your spies know it, and the wars it's fighting. Click one to deal with it.",
+      "Campaign: right-click gives orders only to an army you've chosen. It used to march whichever army was last in hand, chosen or not, so a garrison's new army set off after you'd put it down. A chosen army stays chosen after a march order, and Esc puts it down.",
+      "Campaign: right-clicking an enemy army more than a year's march off sends your army after it, not just to where it stood. Once you're within a year's march it's held and can't slip away, so you can fall on it next year. If you can't attack it now (already marched this year, a siege, or under five regiments), you're told why and your army stays where it is. Before, it marched to the empty spot while the enemy walked off.",
+      "Campaign: an enemy army with one of yours right on it is held. It can't march off to one of your towns as if you weren't there: it stays, to fight its way out or be brought to battle. The paper says when one is held.",
+      "Campaign: militia are worth less than musketeers on every count. A militia regiment counts for a little over half a regiment of musketeers in the reckoning of battles fought out and of a garrison's hold, and takes 450 men from its town, not 600. In battle they already shot wider, loaded slower and broke sooner.",
+      "Bows: a bowman or a settlement's hunter carries the bow upright in the left hand at their side, not flat at the hip like a stick. Drawing, the bow arm is out straight with the bow upright and canted, the right hand draws the string back to the cheek, and an arrow is on the string.",
+      "Battles at a palisade: setting a length alight with your musket in your hands no longer fixes the bayonet. F fixes it only when there's nothing to use near you.",
+      "Battles at a palisade: the frame rate no longer drops when it burns. Every length that caught brought a light of its own, and every change in the number of lights rebuilt every lit thing's shader. Two lights now follow the fire nearest you, and the smoke is a little thinner.",
+      "Purple smears among the trees, for real this time: the faint colour fringe toward the screen's corners is gone. It split the fine dither of needles thinned near your eyes into red and blue, however it was taken.",
+      "XII. Harvest Home: the rye stooks after reaping are pale straw sheaves, each its own shade, with heads of ears at the top, not orange tents. The marker no longer vanishes when there's no settler yet to give farm work: it goes on to the cabin site.",
+    ],
+  },
+  {
     v: "1.90.15", date: "18 October 2026", title: "Seen properly",
     items: [
       "IX. The First Winter: the fire you keep alive through the blizzard burns where you can see it. The hearth had been set back inside the cabin's stone chimney, so the fire burned in the stones, and the firebox looked black and cold all night. It now stands out from the chimney face, with its hearthstone, mantel and kettle. You look down into it, not at the chimney breast.",

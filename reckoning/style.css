@@ -1760,6 +1760,28 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-tech.done em { color: var(--gold); }
 .cmp-tech.lock { opacity: 0.5; cursor: default; }
 @media (max-width: 760px) { .cmp-tree { grid-template-columns: 1fr 1fr; } }
+/* diplomacy: every crown, how it stands with you */
+.cmp-dipbox { width: min(860px, 100%); max-height: calc(100vh - 40px); overflow: auto; }
+.dp-sec { margin: 10px 0 4px; }
+.dp-sec h3 { font: 600 15px var(--serif); color: var(--ink); margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--edge); }
+.dp-sec h3 small { font: 11px var(--sans); color: var(--ink-dim); margin-left: 4px; }
+.dp-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 120px; gap: 10px; align-items: center; width: 100%; text-align: left; padding: 7px 9px; margin-bottom: 4px; border-radius: 4px; border: 1px solid var(--edge); background: rgba(9,24,16,0.6); color: var(--ink); cursor: pointer; }
+.dp-row:hover { border-color: var(--gold); }
+.dp-sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.5); }
+.dp-name b { font: 14px var(--serif); display: block; }
+.dp-name small { font: 11px/1.35 var(--sans); color: var(--ink-dim); }
+.dp-chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.dp-chip { font: normal 10.5px var(--sans); padding: 2px 6px; border-radius: 10px; border: 1px solid var(--edge); color: var(--ink-dim); white-space: nowrap; }
+.dp-chip.war { color: #f0a090; border-color: rgba(220,90,70,0.6); background: rgba(160,40,30,0.25); }
+.dp-chip.ally { color: #a8d8a0; border-color: rgba(140,192,132,0.6); background: rgba(80,140,70,0.18); }
+.dp-chip.pact { color: #d8c48a; border-color: rgba(216,180,90,0.5); }
+.dp-chip.truce { color: #b8c8d8; border-color: rgba(150,170,200,0.5); }
+.dp-chip.human { color: var(--gold); border-color: var(--gold); }
+.dp-rel { position: relative; display: block; height: 30px; }
+.dp-rel::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #a8382a, #6a6458 50%, #5a9a4a); opacity: 0.8; }
+.dp-rel u { position: absolute; top: 3px; width: 3px; height: 12px; margin-left: -1px; background: var(--ink); border-radius: 1px; }
+.dp-rel small { position: absolute; top: 15px; left: 0; right: 0; text-align: center; font: 11px var(--sans); color: var(--ink-dim); }
+@media (max-width: 640px) { .dp-row { grid-template-columns: 14px 1fr; } .dp-chips { grid-column: 2; justify-content: flex-start; } .dp-rel { grid-column: 2; } }
 /* (the side panel's small buttons: a building's next step, a man to appoint — not the big menu buttons) */
 .cmp-bld { grid-template-columns: 22px minmax(0, 1fr) auto; }
 .cmp-bld .btn, .cmp-cand .btn, .cmp-nogov .btn { width: auto; min-width: 0; max-width: 150px; padding: 4px 9px; font-size: 10.5px; line-height: 1.2; white-space: normal; letter-spacing: 0.04em; }
@@ -1942,6 +1964,14 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .gz-cols h3 { font: 600 13px var(--display); letter-spacing: 0.12em; text-transform: uppercase; text-align: center; margin: 0 0 6px; border-bottom: 1px solid rgba(36,25,14,0.5); padding-bottom: 3px; }
 .gz-cols p { font-size: 14px; line-height: 1.4; margin: 0 0 7px; text-align: justify; hyphens: auto; }
 .gz-foot { text-align: center; margin-top: 10px; }
+/* (a discovery: a printer's ornament for its woodcut, a kicker over the headline, and set apart in a ruled box) */
+.gz-kicker { display: block; font: 600 11px var(--display); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 4px; }
+.gz-head.gz-learn { grid-template-columns: auto 1fr; }
+.gz-seal { width: 78px; height: 78px; border: 3px double #24190e; border-radius: 50%; display: grid; place-items: center; font-size: 38px; line-height: 1; color: #6a2a14; background: radial-gradient(circle, rgba(255,248,225,0.6), transparent 70%); }
+.gz-learnbox { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; border: 1px solid #24190e; outline: 1px solid #24190e; outline-offset: 3px; padding: 10px 12px; margin: 4px 4px 14px; }
+.gz-learnbox .gz-seal { width: 46px; height: 46px; font-size: 22px; }
+.gz-learnbox b { font: 400 21px/1.15 "IM Fell English", Georgia, serif; }
+.gz-learnbox p { margin: 4px 0 0; font-size: 14px; line-height: 1.4; }
 @media (max-width: 560px) { .gz-head { grid-template-columns: 1fr; } .gz-cut { width: 100%; height: 160px; } .gz-mast h1 { font-size: 28px; } }
 
 /* ---- a town's loyalty, each thing that sways it ---- */

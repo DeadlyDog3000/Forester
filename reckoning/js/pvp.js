@@ -18,7 +18,7 @@ import { full, gate } from "./licence.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst, killMark, chestOf } from "./fight.js";
-import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, makeHorse, mergeRig, makeLadder } from "./models.js";
+import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, bowHold, makeHorse, mergeRig, makeLadder } from "./models.js";
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
@@ -1434,12 +1434,18 @@ class Arena {
         label: "Set the palisade alight", use: () => this.torch(b, true) });
     }
   }
+  // (something to be used — a palisade to fire, a ladder, a gate — within reach of you, looked at or not)
+  useNear() {
+    const w = this.w, p = G.player; if (!w || !w.interact || !p) return false;
+    return w.interact.some(it => it.x != null && (!it.can || it.can()) && Math.hypot(it.x - p.pos.x, it.z - p.pos.z) < (it.reach ?? 2.3) + 1);
+  }
   torch(b, mine = false, quiet = false) {
     if (b.fire || b.down || !this.field) return;
+    if (mine) this.usedT = G.time;
     b.fire = { t: 0, fl: [], puff: 0 };
     const n = Math.max(2, Math.min(4, Math.round(b.pts.length / 6)));
     for (let i = 0; i < n; i++) {
-      const p = b.pts[Math.floor((i + 0.5) / n * b.pts.length)], fl = makeFlame(1.4, i === 0 ? new THREE.PointLight(0xff8a3a, 9, 24, 1.6) : null);
+      const p = b.pts[Math.floor((i + 0.5) / n * b.pts.length)], fl = makeFlame(1.4, null);
       const ox = b.out.x - b.x, oz = b.out.z - b.z, ol = Math.hypot(ox, oz) || 1, fx = p.x + ox / ol * 0.45, fz = p.z + oz / ol * 0.45;
       fl.position.set(fx, this.w.heightAt(fx, fz) + 0.1, fz); this.field.root.add(fl); (this.field.flames ||= []).push(fl); b.fire.fl.push(fl);
     }
@@ -1449,6 +1455,14 @@ class Arena {
   }
   palisadeTick(dt) {
     const P = this.palisade;
+    // the firelight: two lights, made once and moved to the burning lengths nearest you. A light of its own for every
+    // length that caught changed how many lights the scene had — every lit thing's shader built again each time the
+    // fire spread, and each one more cost for every pixel — and the picture all but stopped
+    if (!this.palLights && this.field) { this.palLights = [0, 1].map(() => { const L = new THREE.PointLight(0xff8a3a, 0, 24, 1.6); this.field.root.add(L); return L; }); }
+    if (this.palLights) {
+      const pp = G.player.pos, lit = P.filter(b => b.fire && (!b.down || b.fire.t - b.fire.downAt < 8)).sort((a, c) => Math.hypot(a.x - pp.x, a.z - pp.z) - Math.hypot(c.x - pp.x, c.z - pp.z));
+      this.palLights.forEach((L, i) => { const b = lit[i]; if (!b) { L.intensity = 0; return; } const F = b.fire, k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1; L.position.set(b.out.x, this.w.heightAt(b.out.x, b.out.z) + 1.5 + 1.2 * k, b.out.z); L.intensity = 9 * (0.4 + 0.6 * k) * out * (0.9 + Math.random() * 0.2); });
+    }
     // (the attacker told, once the fighting's begun, what a palisade's for)
     if (!this.toldPal && this.live && this.clock > 3 && this.alOf(0) !== P.side) { this.toldPal = true; UI.hint("Their town stands behind a palisade. Hold F at a length of it to set it alight. Your men will fire any they reach.", 6); }
     for (const b of P) {
@@ -1457,7 +1471,7 @@ class Arena {
       // (the fire climbs the logs as it takes: small at their foot, then up the whole height of them)
       const k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1;
       for (const fl of F.fl) { fl.scale.setScalar((0.6 + 1.6 * k) * out); fl.position.y = this.w.heightAt(fl.position.x, fl.position.z) + 0.1 + (b.down ? 0 : 1.6 * k); fl.visible = out > 0.02; }
-      if ((F.puff -= dt) <= 0 && out > 0.1) { F.puff = 0.35; const p = b.pts[Math.floor(Math.random() * b.pts.length)]; this.field.smoke(p.x, this.w.heightAt(p.x, p.z) + 3 + 2 * k, p.z); }
+      if ((F.puff -= dt) <= 0 && out > 0.1 && Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 160) { F.puff = 0.6; const p = b.pts[Math.floor(Math.random() * b.pts.length)]; this.field.smoke(p.x, this.w.heightAt(p.x, p.z) + 3 + 2 * k, p.z); }
       // (well alight, the fire takes in the lengths either side, now and then)
       if (!F.spread && F.t > 11) { F.spread = true; for (const q of P) if (q !== b && !q.fire && !q.down && Math.hypot(q.x - b.x, q.z - b.z) < 6.8 && Math.random() < 0.35) this.torch(q, false, true); }
       if (b.down) continue;
@@ -1755,8 +1769,11 @@ class Arena {
     if (G.arena !== this || e.repeat || !this.live || G.downed || G.mode !== "play") return;
     // F (with nothing else to hand): the bayonet fixed under your musket's muzzle — for good, this fight. It's in the way
     // of the rod and the aim: slower loading, and the shot less true
-    if (e.code === "KeyF" && !this.gunMan && this.lo.long === "musket" && this.lo.blade === "dagger" && !this.myTech("bayonet") && !G.player.bayonet && !G.interactTarget) { e.stopImmediatePropagation(); e.preventDefault(); UI.hint("Your crown hasn't the socket bayonet yet: the blade can't be fixed under the muzzle. Study it in the campaign's Learning.", 4); return; }
-    if (e.code === "KeyF" && !this.gunMan && this.canBayonet() && !G.player.bayonet && !G.interactTarget) {
+    // (only with nothing to use near you: holding F at a palisade to fire it, with the musket in your hands, fixed the
+    //  bayonet the moment your eye strayed off the length, or the length caught and was done with)
+    const busyF = e.code === "KeyF" && (G.interactTarget || G.holdT > 0 || G.time - (this.usedT || -9) < 2 || this.useNear());
+    if (e.code === "KeyF" && !this.gunMan && this.lo.long === "musket" && this.lo.blade === "dagger" && !this.myTech("bayonet") && !G.player.bayonet && !busyF) { e.stopImmediatePropagation(); e.preventDefault(); UI.hint("Your crown hasn't the socket bayonet yet: the blade can't be fixed under the muzzle. Study it in the campaign's Learning.", 4); return; }
+    if (e.code === "KeyF" && !this.gunMan && this.canBayonet() && !G.player.bayonet && !busyF) {
       e.stopImmediatePropagation(); e.preventDefault();
       const pl = G.player; if (!pl.gun || pl.gunIs !== "musket") this.takeUp("musket");
       if (pl.fixBayonet(true)) UI.hint("Bayonet fixed — for the rest of the fight. It's in the way: loading's slower, the aim's less true. Once you've fired, a click is the bayonet.", 4);
@@ -2542,7 +2559,7 @@ class Fighter {
     const P = this.a.person; P.held.clear(); P.heldL.clear(); P.aimHold && P.aimHold(null);
     P.blade = !!k && !["bow", "crossbow", "musket", "pistol"].includes(k);
     if (!k) return;
-    if (k === "bow") { const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a })); bow.rotation.set(0, Math.PI / 2, 0); this.a.hold(bow, true); return; }
+    if (k === "bow") { const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a })); if (!bowHold(P, bow)) { bow.rotation.set(0, Math.PI / 2, 0); this.a.hold(bow, true); } return; }
     if (k === "crossbow" || k === "musket" || k === "pistol") { this.gun = shoulderArm(P, k); return; }
     // (a spear or the bayonet: in both hands, as a pike — see pikeHold; anything else in the right hand)
     const arm = makeArm(k); arm.traverse(o => { if (o.isMesh) o.castShadow = true; });
@@ -2976,7 +2993,7 @@ class Bot extends Fighter {
       a.path = [];
       if (!useK || !O.fire || !this.los || d > RANGE[useK] * this.arena.sight) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
       if (this.heldK !== useK) { this.hold(useK); this.aimT = -0.5; }
-      a.faceTo(fp.x, fp.z); a.person.setPose(useK === "bow" ? "reach" : "idle"); this.aimUp(useK !== "bow");
+      a.faceTo(fp.x, fp.z); a.person.setPose("idle"); this.aimUp(true);
       this.aimT += dt;
       if (this.aimT >= (useK === "musket" ? 1.6 : 1.2) * (1.3 - s * 0.6)) { this.fire(useK, T); this.aimT = 0; }
       return;
@@ -3009,7 +3026,7 @@ class Bot extends Fighter {
       return;
     }
     // aimed: he stands, brings it up, takes his time (less, the better he is), and fires
-    a.path = []; a.faceTo(fp.x, fp.z); a.person.setPose(useK === "bow" ? "reach" : "idle"); this.aimUp(useK !== "bow");
+    a.path = []; a.faceTo(fp.x, fp.z); a.person.setPose("idle"); this.aimUp(true);
     this.aimT += dt;
     const aimFor = (useK === "musket" ? 1.5 : useK === "bow" ? 1.2 : 1.1) * (1.25 - s * 0.6);
     if (this.aimT >= aimFor) { this.fire(useK, T); this.aimT = 0; this.stepT = 0.4; }
@@ -3109,8 +3126,8 @@ class NetFoe extends Fighter {
   state(m) {
     this.tx = +m.x; this.tz = +m.z; this.tyaw = Math.PI + (+m.yaw || 0); this.spd = +m.s || 0;
     if (m.h !== undefined) this.hold(m.h || null);
-    if (this.wind <= 0) this.a.person.setPose(m.dn ? "idle" : m.aim && m.h === "bow" ? "reach" : m.g ? "guard" : "idle");
-    this.aimUp(!!m.aim && m.h !== "bow");
+    if (this.wind <= 0) this.a.person.setPose(m.dn ? "idle" : m.g ? "guard" : "idle");
+    this.aimUp(!!m.aim);
     // (loading: the drill as their game has it, and its sounds from where they stand)
     if (m.ld > 0 && (m.h === "musket" || m.h === "pistol")) { const e0 = this.loadE ?? +m.ld; this.loadE = +m.ld; this.a.person.load = { kind: m.h, e: +m.ld }; for (const st of loadSteps(m.h, e0, +m.ld)) FOLEY.load && FOLEY.load(st, this.a.pos, 0.6, m.h === "pistol"); }
     else { this.a.person.load = null; this.loadE = null; }

@@ -126,6 +126,7 @@ function aimPlace(P, dt) {
     obj.quaternion.setFromEuler(new THREE.Euler(-L(H.lift, H.lunge[3]), 0, -inw * L(H.across, H.lunge[4]), "ZYX")).multiply(H.base);
     obj.updateMatrixWorld(true);
   }
+  if (H.bow) { bowPlace(P, H, obj, k, sR, sL, inw, root); return; }
   const LP = !H.pike && P.load && obj.userData.muzzle ? loadPose(P.load.kind, P.load.e) : null, up = LP ? LP.up : 0, pr = LP ? LP.prime : 0;
   const LOADAT = P.load && P.load.kind === "pistol" ? [0.16, -0.3, 0.3] : [0.2, -0.62, 0.32];
   if (!H.pike) {
@@ -167,6 +168,62 @@ function aimPlace(P, dt) {
     const pole = sh.clone().addScaledVector(down, 0.5).addScaledVector(outw, 0.35);
     reach(B["upper_arm." + s], B["forearm." + s], B["hand." + s], T, pole);
   });
+}
+// ---- a bow, held as an archer holds one ----
+// Carried: hanging in the left hand at the side, upright, the string toward the leg. Drawn (P.aimWant): the left arm
+// out straight before the left shoulder with the bow upright in the fist, a little canted, and the right hand bringing
+// the string back to the cheek. It used to be hung off the left hand like any tool: lying flat at the hip like a stick,
+// and drawn with both arms held straight out and the right hand nowhere near the string.
+const _bq0 = new THREE.Quaternion(), _bq1 = new THREE.Quaternion(), _bm = new THREE.Matrix4();
+function bowPlace(P, H, obj, k, sR, sL, inw, root) {
+  const B = P.bones || {};
+  const L = (a, b) => a + (b - a) * k;
+  // the grip: down at the side, or out at arm's length; the nock: on the string at rest, or at the cheek
+  const G = new THREE.Vector3(L(sL.x + inw * 0.1, sL.x - inw * 0.04), L(sL.y - 0.6, sL.y + 0.03), L(sL.z + 0.08, sL.z + 0.6));
+  const cheek = new THREE.Vector3(sR.x + inw * 0.13, sR.y + 0.12, sR.z + 0.07);
+  // (the bow's own frame: up along the limbs, +z from the grip toward the string and the archer)
+  const zD = cheek.clone().sub(G); const draw = zD.length(); zD.normalize();
+  const yD = new THREE.Vector3(Math.sin(-inw * 0.12), 1, 0).normalize(); yD.addScaledVector(zD, -yD.dot(zD)).normalize();
+  _bm.makeBasis(new THREE.Vector3().crossVectors(yD, zD), yD, zD); _bq1.setFromRotationMatrix(_bm);
+  // (carried: upright, a little forward at the top, the string toward the leg)
+  const zC = new THREE.Vector3(inw, 0, 0), yC = new THREE.Vector3(0, 1, 0.2).normalize(); yC.addScaledVector(zC, -yC.dot(zC)).normalize();
+  _bm.makeBasis(new THREE.Vector3().crossVectors(yC, zC), yC, zC); _bq0.setFromRotationMatrix(_bm);
+  obj.position.copy(G); obj.quaternion.copy(_bq0).slerp(_bq1, k); obj.updateMatrixWorld(true);
+  // the string: from tip to tip, through the nock — drawn back as far as the cheek
+  const st = obj.userData.string, back = obj.userData.back, tip = obj.userData.tip;
+  const nz = back + 0.02 + Math.max(0, draw - back - 0.02) * k;
+  if (st) { const a = st.geometry.attributes.position; a.setXYZ(0, 0, tip, back); a.setXYZ(1, 0, 0.012, nz); a.setXYZ(2, 0, -tip, back); a.needsUpdate = true; st.geometry.computeBoundingSphere(); }
+  if (obj.userData.arrow) { obj.userData.arrow.visible = k > 0.6; obj.userData.arrow.position.z = nz - 0.37; }
+  obj.visible = !P.aimHidden;
+  if (!P.bones || P.aimHidden) return;
+  P._aimBack = ["upper_arm.L", "upper_arm.R", "forearm.L", "forearm.R"].filter(n => B[n]).map(n => [B[n], B[n].quaternion.clone()]);
+  const down = new THREE.Vector3(0, -1, 0).transformDirection(root.matrixWorld);
+  const shR = B["upper_arm.R"], shL = B["upper_arm.L"];
+  // the left hand on the grip, always; the right on the string only as it's drawn
+  const hands = [["L", new THREE.Vector3(0, 0, 0.01), shL, inw]];
+  if (k > 0.05) hands.push(["R", new THREE.Vector3(0, 0.012, nz), shR, -inw]);
+  for (const [s, gp, sh, out] of hands) {
+    const T = obj.localToWorld(gp.clone()), sw = sh.getWorldPosition(new THREE.Vector3());
+    const outw = new THREE.Vector3(out, 0, 0).transformDirection(root.matrixWorld);
+    // (the drawing elbow up and out behind, level with the shoulder; the bow arm's straight)
+    const pole = s === "R" ? sw.clone().addScaledVector(outw, 0.5).addScaledVector(down, -0.05) : sw.clone().addScaledVector(down, 0.5).addScaledVector(outw, 0.35);
+    reach(B["upper_arm." + s], B["forearm." + s], B["hand." + s], T, pole);
+  }
+}
+// a bow for a body to hold (P.aimWant: drawn): `limbs` the bow itself, upright along y, its belly toward -z
+export function bowHold(P, limbs) {
+  if (!P.aimHold) return null;
+  const g = new THREE.Group();
+  limbs.rotation.set(0, Math.PI, 0); limbs.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  g.add(limbs);
+  const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
+  const string = new THREE.Line(sg, new THREE.LineBasicMaterial({ color: 0xd8d0b8 })); g.add(string);
+  // (an arrow on the string while it's drawn)
+  const am = modelCopy("arrow"); let arrow = null;
+  if (am) { arrow = am.scene; arrow.rotation.y = Math.PI; arrow.position.z = 0.2; arrow.visible = false; g.add(arrow); }
+  g.userData = { string, back: 0.15, tip: 0.66, arrow };
+  P.aimHold(g, { bow: true, grips: [] });
+  return g;
 }
 // a long arm for a body to hold (see aimPlace): the musket, the pistol or the crossbow, with where it sits and how it's
 // turned — its barrel brought round to point the way the body faces, its top up. P.aimWant: aiming, or at the ready.

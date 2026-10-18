@@ -252,7 +252,11 @@ function resume() {
   return true;
 }
 function persist() { if (C && C.me) for (const h of C.mp ? humans() : [C.me]) as(h, reconcile); C.own = [...own]; save(); }
-function say(title, sub = "") { C.log.unshift({ t: `${C.year}`, title, sub }); C.log.length = Math.min(C.log.length, 60); }
+function say(title, sub = "", kind) { C.logN = (C.logN | 0) + 1; C.log.unshift({ t: `${C.year}`, n: C.logN, title, sub, ...(kind ? { kind } : {}) }); C.log.length = Math.min(C.log.length, 60); }
+// (what a learning costs, and the years it takes at the least: deeper in its branch, the longer)
+const techDepth = id => { const r = TECHS[id].req || []; return r.length ? 1 + Math.max(...r.map(techDepth)) : 0; };
+const techCost = id => TECHS[id].cost * 2;
+const techYears = id => 2 + Math.min(2, techDepth(id));
 // ---- the year's news as the gazettes printed it: your own crown's paper, the year's great matter for its headline
 //  under a woodcut, and the rest set out in columns — laid before you as the year begins ----
 const PAPERS = {
@@ -267,7 +271,7 @@ const paperOf = id => PAPERS[id] || (NATIONS[id] && NATIONS[id].nw ? ["Words fro
 function gazette(items) {
   if (!C || !items || !items.length) return;
   const mineT = new Set(citiesOfNow(grid(), C.me).map(c => c[0]));
-  const kind = l => { const t = l.title, all = t + " " + (l.sub || ""), mine = [...mineT].some(n => all.includes(n));
+  const kind = l => { if (l.kind === "learn") return "learn"; if (l.kind === "war") return "war"; const t = l.title, all = t + " " + (l.sub || ""), mine = [...mineT].some(n => all.includes(n));
     // (your own realm's doings, at home; the wars, yours and the world's; the courts' alliances and treaties; the rest)
     if (/\byour\b|^the regiments|regiments (raised|broken|merged)|launched|riots? in|rising in|is cast|governor|treasury|: (bold|cautious|siege engineer|hero of the nation|beloved of the men|drunkard|flogger)$|is (sacked|occupied)|^(a )?mission/i.test(t) || (mine && !/marches|army|siege|fallen|takes/i.test(t))) return "home";
     if (/has fallen|falls to|is yours|surrenders|takes .* from| takes /i.test(t)) return "fall";
@@ -275,17 +279,21 @@ function gazette(items) {
     if (/peace|alliance|league|comes? in on|treaty|pact|truce|cedes|offers|envoy|marriage|dies|succeeds|crown|agreement|tribute|submits|protectorate/i.test(t)) return "court";
     return "abroad"; };
   // (the headline: the year's greatest matter for you — your towns lost or won, your army's battles, war on you — else the first)
-  const score = l => { const t = l.title + " " + (l.sub || ""), k = kind(l); let v = 0; if (k === "fall") v += 50; if (k === "war") v += 30; if (k === "court") v += 20; if ([...mineT].some(n => t.includes(n)) || /\byou(r)?\b/i.test(t)) v += 40; if (/declares war on you|has fallen/.test(t)) v += 30; if (/victory|beaten/i.test(t)) v += 15; return v; };
+  const score = l => { const t = l.title + " " + (l.sub || ""), k = kind(l); let v = 0; if (k === "fall") v += 50; if (k === "war") v += 30; if (k === "court") v += 20; if ([...mineT].some(n => t.includes(n)) || /\byou(r)?\b/i.test(t)) v += 40; if (/declares war on you|has fallen|^War declared/.test(t)) v += 30; if (k === "learn") v += 75; if (/victory|beaten/i.test(t)) v += 15; return v; };
   const head = items.reduce((b, l) => score(l) > score(b) ? l : b, items[0]), rest = items.filter(l => l !== head);
   const way = wayOfUniform(UNI_OF[C.me] || ""), hk = kind(head);
   const img = /at sea|fleet|ship/i.test(head.title + head.sub) ? "art/units/ship-line.jpg" : hk === "war" || hk === "fall" ? plateOf(/field|horse|cavalry/i.test(head.sub || "") ? way : way, /field/i.test(head.title) ? "cavalry" : "musketeer") : hk === "court" ? null : plateOf(way, "pike");
   const [name, motto] = paperOf(C.me), num = Math.max(1, C.year - 1682);
-  const sec = { war: "From the Wars", fall: "From the Wars", court: "From the Courts", home: "At Home", abroad: "From Abroad" }, cols = {};
-  for (const l of rest) (cols[sec[kind(l)]] ||= []).push(l);
+  const sec = { war: "From the Wars", fall: "From the Wars", court: "From the Courts", home: "At Home", abroad: "From Abroad", learn: "From the Learned World" }, cols = {};
+  // (a discovery not in the headline still gets its own box, set apart; declarations of war lead their column)
+  const learned = rest.filter(l => kind(l) === "learn");
+  for (const l of rest) if (kind(l) !== "learn") (cols[sec[kind(l)]] ||= []).push(l);
+  for (const L of Object.values(cols)) L.sort((a, b) => (/declares? war|^War declared|are at war/.test(b.title) ? 1 : 0) - (/declares? war|^War declared|are at war/.test(a.title) ? 1 : 0));
   const el = document.createElement("div"); el.className = "cmp-gazette"; el.id = "cmpGazette";
   el.innerHTML = `<div class="gz-paper">
     <div class="gz-mast"><small>${esc(motto)}</small><h1>${esc(name)}</h1><div class="gz-line"><span>Numb. ${num}</span><span>${esc(SEASONS[C.s] || "Spring")}, in the Year ${C.year}</span><span>Price One Penny</span></div></div>
-    <div class="gz-head">${img ? `<img class="gz-cut" src="${esc(img)}" alt="">` : ""}<div><h2>${esc(head.title)}</h2>${head.sub ? `<p class="gz-lead">${esc(head.sub)}</p>` : ""}</div></div>
+    <div class="gz-head${hk === "learn" ? " gz-learn" : ""}">${hk === "learn" ? `<div class="gz-seal" aria-hidden="true">✦</div>` : img ? `<img class="gz-cut" src="${esc(img)}" alt="">` : ""}<div>${hk === "learn" ? `<small class="gz-kicker">From the Learned World</small>` : /declares? war|^War declared/.test(head.title) ? `<small class="gz-kicker">Extraordinary</small>` : ""}<h2>${esc(head.title)}</h2>${head.sub ? `<p class="gz-lead">${esc(head.sub)}</p>` : ""}</div></div>
+    ${learned.map(l => `<div class="gz-learnbox"><span class="gz-seal" aria-hidden="true">✦</span><div><small class="gz-kicker">From the Learned World</small><b>${esc(l.title)}</b><p>${esc(l.sub || "")}</p></div></div>`).join("")}
     ${Object.keys(cols).length ? `<div class="gz-cols">${Object.entries(cols).map(([h, L]) => `<section><h3>${esc(h)}</h3>${L.slice(0, 7).map(l => `<p><b>${esc(l.title)}.</b> ${esc(l.sub || "")}</p>`).join("")}</section>`).join("")}</div>` : ""}
     <div class="gz-foot"><button class="btn primary" data-gz="1">Lay it aside</button></div>
   </div>`;
@@ -461,7 +469,7 @@ function govMul(n) { const v = govOf(n), cor = v ? v.st[0] : 2, pro = v ? v.st[1
 const prodMul = n => { const v = govOf(n); return v ? 1 - (v.st[1] - 3) * 0.05 : 1.05; };
 const sackLoot = ct => Math.round((ct[3] * 60 + popOf(ct) / 120) / 10) * 10;
 const worth = ct => { const n = ct[0]; let inc = ct[3] * 22 * clamp(Math.sqrt(popOf(ct) / popBase(ct)), 0.6, 1.6); for (const ch of ["farm", "trade", "works"]) inc += (CHAINS[ch].levels[lvOf(n, ch)].inc || 0) * (ch === "farm" && knows("enclosure") ? 1.15 : 1); return Math.round(inc * govMul(n)); };
-function garrison(ct) { const n = ct[0], v = govOf(n), o = cityOwner(grid(), ct), sl = o === C.me ? C : o && isHuman(o) ? sliceOf(o) : null; return Math.round(garUnits(n, sl ? sl.units : null).reduce((t, u) => t + u.hp, 0)) + ct[3] * 4 + 2 + (CHAINS.walls.levels[lvOf(n, "walls")].gar || 0) + (CHAINS.army.levels[lvOf(n, "army")].gar || 0) + (v ? v.st[2] - 2 : 0); }
+function garrison(ct) { const n = ct[0], v = govOf(n), o = cityOwner(grid(), ct), sl = o === C.me ? C : o && isHuman(o) ? sliceOf(o) : null; return Math.round(garUnits(n, sl ? sl.units : null).reduce((t, u) => t + worthOf(u), 0)) + ct[3] * 4 + 2 + (CHAINS.walls.levels[lvOf(n, "walls")].gar || 0) + (CHAINS.army.levels[lvOf(n, "army")].gar || 0) + (v ? v.st[2] - 2 : 0); }
 // (walls only where they've been built — by you, or by the crown that holds the town — save a crown's last town,
 //  which every man in it holds to the end behind whatever they can throw up)
 // (a walled town on the map: a little stone fort round it, seen from above — four curtain walls, battlemented, a round
@@ -745,7 +753,14 @@ function realmMine(g) {
   }
   C.lq = []; C.levyQ = 0;
   const T = C.tech; T.pts += research(g);
-  if (T.cur && T.pts >= TECHS[T.cur].cost) { T.pts -= TECHS[T.cur].cost; T.done[T.cur] = true; say(`Your scholars master ${TECHS[T.cur].n.replace(/^The /, "the ")}`, TECHS[T.cur].d); T.cur = null; }
+  // (a learning is years in the making, however many scholars: the first of a branch two at the least, what's built on
+  //  it three, the furthest four — and it costs twice what it did, when a realm of colleges had each in a single year)
+  if (T.cur) T.yrs = (T.yrs | 0) + 1;
+  if (T.cur && T.pts >= techCost(T.cur) && T.yrs >= techYears(T.cur)) {
+    const id = T.cur, t = TECHS[id]; T.pts -= techCost(id); T.done[id] = true;
+    say(`A discovery: ${t.n.replace(/^The /, "the ").replace(/^./, c => c.toUpperCase())}`, `After ${T.yrs} years of study, your scholars have mastered it. ${t.d}`, "learn");
+    T.cur = null; T.yrs = 0;
+  }
   if (!T.cur) T.pts = Math.min(T.pts, 6);
   // (thin regiments of one arm in one army made into one: their men together, their experience as the men bring it)
   { let merged = 0; const groups = {}; for (const u of C.units) if (u.hp < 0.6) (groups[`${u.at || "a" + (u.ar | 0)}|${u.k}`] ||= []).push(u);
@@ -794,7 +809,7 @@ function settle(o, won, myLossK, theirLossK) {
   // (a town held by its garrison alone, the army far off: the army's men, guns, spirit and general are not in it)
   const away = !o.attack && !o.field && o.army === false;
   if (!o.attack && C.units) {
-    const G = garUnits(o.ct[0]), gs = G.reduce((t, u) => t + u.hp, 0), fieldPart = clamp(mine - garrison(o.ct), 0, mine);
+    const G = garUnits(o.ct[0]), gs = G.reduce((t, u) => t + worthOf(u), 0), fieldPart = clamp(mine - garrison(o.ct), 0, mine);
     if (gs > 0) { const gl = Math.min(gs, loss * gs / Math.max(1, mine)), f = 1 - gl / gs; for (const u of G) u.hp *= f; C.units = C.units.filter(u => !u.at || u.hp >= 0.12); }
     loss = away ? 0 : mine * myLossK * fieldPart / Math.max(1, mine);
   }
@@ -1470,7 +1485,7 @@ const fmtN = n => Math.round(n).toLocaleString("en-GB");
 // what each kind of regiment costs, the men it takes from its town, its upkeep a year, and what it needs to be raised
 const UNIT = {
   musketeer: { cost: 30, men: 600, up: 1.6 },
-  militia: { cost: 12, men: 600, up: 0.7 },
+  militia: { cost: 12, men: 450, up: 0.7 },
   pike: { cost: 22, men: 600, up: 1.2 },
   sword: { cost: 28, men: 450, up: 1.5 },
   grenadier: { cost: 44, men: 450, up: 2.2, need: ct => lvOf(ct[0], "army") >= 1, why: "a drill yard" },
@@ -1507,7 +1522,7 @@ function ensureUnits() { if (C.units) return; const m = muster(C.me, C.army | 0)
 const field = () => (C.units || []).filter(u => !u.at && (u.ar | 0) === (C.ar | 0));
 // ---- more than one army: each its own place, march, siege, general and spirit. The one you're giving orders to stands in
 //  the campaign's own fields (C.pos, C.go, C.army…); the others wait in C.armies, and are swapped in when chosen ----
-const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb", "aslt", "joinTo"];
+const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb", "aslt", "joinTo", "chase"];
 const armyIds = () => [C.ar | 0, ...(C.armies || []).map(a => a.id)].sort((a, b) => a - b);
 function useArmy(id) {
   id |= 0; if (id === (C.ar | 0)) return; const t = (C.armies || []).find(a => a.id === id); if (!t) return;
@@ -1532,7 +1547,7 @@ function formArmy(n) {
   for (const u of G) { delete u.at; u.ar = id; }
   // (beside the town, a little off any army of yours already standing in it)
   const crowd = dist2(armyPos(), t) < 1.5 || (C.armies || []).some(a => a.pos && dist2(a.pos, t) < 1.5);
-  (C.armies ||= []).push({ id, pos: { x: t.x + (crowd ? 1.8 : 0), y: t.y + (crowd ? 0.8 : 0) }, go: null, moved: false, siege: null, army: Math.round(G.reduce((s2, u) => s2 + u.hp, 0)), gen: null, morale: 50, supplied: false, sailed: 0 });
+  (C.armies ||= []).push({ id, pos: { x: t.x + (crowd ? 1.8 : 0), y: t.y + (crowd ? 0.8 : 0) }, go: null, moved: false, siege: null, army: Math.round(G.reduce((s2, u) => s2 + worthOf(u), 0)), gen: null, morale: 50, supplied: false, sailed: 0 });
   appearAt(id, C.armies[C.armies.length - 1].pos);
   useArmy(id); persist(); return null;
 }
@@ -1543,7 +1558,7 @@ function splitArmy() {
   const id = Math.max(...armyIds()) + 1, by = {}; for (const u of F) (by[u.k] ||= []).push(u);
   let n = 0; for (const L of Object.values(by)) for (const u of L.slice(0, Math.floor(L.length / 2))) { u.ar = id; n++; }
   if (!n) return "Too few regiments to split."; const p = armyPos(), moved = C.moved;
-  const str = Math.round(C.units.filter(u => !u.at && u.ar === id).reduce((t, u) => t + u.hp, 0)); C.army = Math.round(unitSum());
+  const str = Math.round(C.units.filter(u => !u.at && u.ar === id).reduce((t, u) => t + worthOf(u), 0)); C.army = Math.round(unitSum());
   (C.armies ||= []).push({ id, pos: { x: p.x + 1.8, y: p.y + 0.8 }, go: null, moved, siege: null, army: str, gen: null, morale: C.morale ?? 50, supplied: false, sailed: 0 });
   appearAt(id, C.armies[C.armies.length - 1].pos);
   useArmy(id); persist(); return null;
@@ -1554,7 +1569,11 @@ function joinArmy(to) {
   const from = C.ar | 0; useArmy(o.id); for (const u of C.units) if (!u.at && (u.ar | 0) === from) u.ar = o.id;
   C.armies = C.armies.filter(a => a.id !== from); C.army = Math.round(unitSum()); persist(); return null;
 }
-const unitSum = () => field().reduce((t, u) => t + u.hp, 0);
+// (what a regiment is worth in the reckoning of strength — the odds of a battle fought out, a garrison's hold: a
+//  militia regiment, townsmen with a musket and a few Sundays' drill, a little over half a regiment of musketeers)
+const KIND_W = { militia: 0.55 };
+const worthOf = u => u.hp * (KIND_W[u.k] ?? 1);
+const unitSum = () => field().reduce((t, u) => t + worthOf(u), 0);
 // (the army said as the roll has it: its regiments, and — when their ranks are thin — what they come to at full strength)
 const armyStr = () => { const n = field().length, s = Math.round(C.army); return n && n - s >= 1 ? `${n} regiments (${s} at full strength)` : `${s} regiments`; };
 // (a town's own regiments, left there to hold it)
@@ -1903,7 +1922,9 @@ function declare(id, by) {
   C.E.rel[id] = Math.min(C.E.rel[id], -40);
   // (your allies: into it with you, against them)
   for (const a of Object.keys(C.ally)) if (C.ally[a] && a !== id && !isHuman(a) && ((C.E.rel[a] >= 30 && sameSide(a, id)) || isVassal(a)) && !C.E.wars.some(w => (w.a === a && w.b === id) || (w.a === id && w.b === a))) { C.E.wars.push({ a, b: id, battles: 0, withYou: true }); say(`${The(a)} ${v3(a, "joins")} your war`, `Your ally marches on ${the(id)}.`); }
-  if (by !== C.me) say(`${The(id)} ${v3(id, "declares")} war on you!`, knowsArmy(id) ? `Their army: some ${C.foes[id]} regiments.` : "How strong their army is, you don't know.");
+  if (by !== C.me) say(`${The(id)} ${v3(id, "declares")} war on you!`, knowsArmy(id) ? `Their army: some ${C.foes[id]} regiments.` : "How strong their army is, you don't know.", "war");
+  // (and your own declaration, as the gazettes printed it: the herald at their court, and the drums in your streets)
+  else say(`War declared on ${the(id)}`, `Your herald reads the declaration at ${poss(the(id))} court. ${knowsArmy(id) ? `Their army stands at some ${C.foes[id]} regiments.` : "How strong their army is, no one can say."}`, "war");
 }
 function makePeace(id) { C.E.war[id] = false; C.truce[id] = 6; C.E.rel[id] = Math.max(C.E.rel[id] + 15, -20); C.E.wars = C.E.wars.filter(w => !(w.withYou && (w.a === id || w.b === id))); say(`Peace with ${the(id)}`, "A treaty is signed. Neither side may make war for six seasons."); }
 
@@ -1984,6 +2005,10 @@ function endSeason(part = {}) {
     // (an army already on the road keeps marching; a new march is begun now and then)
     C.foeGo ||= {};
     if (!atWar(id) || C.foes[id] < 8 || (!C.foeGo[id] && R() > 0.5)) continue;
+    // (an army of theirs with one of yours right on it — cornered, its way out across your front — doesn't march
+    //  off as if you weren't there: it stays where it is, to fight its way out or be brought to battle)
+    { const fp = foeArmyPos(id), by = fp && eachArmy(() => { const p = armyPos(); return C.army >= 3 && !overSea(p, fp) && (mdist(p, fp) <= MARCH * 0.3 || (C.chase === id && mdist(p, fp) <= MARCH * 1.05)) ? C.army : 0; }).some(Boolean);
+      if (by) { if (C.foeGo[id]) { say(`${poss(The(id))} ${NATIONS[id].nw ? "war party" : "army"} is held`, `It was marching on ${C.foeGo[id]}, but your army stands across its road near ${nearTown(fp)[0]}: it can't march on without giving battle.`); delete C.foeGo[id]; } continue; } }
     // (a walled town is only sat down before by a crown with guns to batter it)
     // (a town already marched toward: kept to; else one within its reach)
     let ct = C.foeGo[id] && mine.find(c => c[0] === C.foeGo[id]);
@@ -2115,11 +2140,13 @@ export function initCampaign(c, battle, withPlayer) {
   });
   $("cmpEnd").onclick = () => {
     if (C && C.mp) { if (!mp || mp.gone) return; doAct({ k: "end" }); sfx("quill", 0.35); return; }
-    const before = C.log.length ? C.log[0] : null; endSeason();
+    const since = C.paperN | 0; endSeason();
     sfx("parchment", 0.55);
-    // (what happened while the season turned: the news of it, at the top)
-    const fresh = []; for (const l of C.log) { if (l === before) break; fresh.push(l); }
-    news = fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$/.test(l.title)).reverse(); note = ""; drawMap(); gazette(news); goalScreen();
+    // (what happened since the last paper — while the season turned, and what you did in it: a war you declared, a
+    //  treaty — the news of it, at the top)
+    const fresh = []; for (const l of C.log) { if (!l.n || l.n <= since) break; fresh.push(l); }
+    C.paperN = C.logN | 0;
+    news = fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$| — \d{4}$/.test(l.title)).reverse(); note = ""; drawMap(); gazette(news); goalScreen();
     // (war on you, or an army on its way: the drum; a crown gone from the map: the bells)
     if (C.events.some(e => e.kind === "attack" && !e.done) || news.some(l => /declares war on you/.test(l.title))) sfx("drum", 0.5, 400);
     else if (news.some(l => /is no more|takes /.test(l.title))) sfx("guns", 0.4, 400);
@@ -2130,15 +2157,20 @@ export function initCampaign(c, battle, withPlayer) {
   $("cmpSide").addEventListener("change", e => { const t = e.target.closest("[data-rule]"); if (t && C) doAct({ k: "rule", ct: t.dataset.rule, on: t.checked }); });
   $("cmpHelpB").onclick = () => { if (C) howTo(); };
   $("cmpTechB").onclick = () => { if (C) { drawTech(); sfx("parchment", 0.4); } };
+  $("cmpDipB").onclick = () => { if (C) { drawDiplo(); sfx("parchment", 0.4); } };
   $("cmpPanel").onclick = () => { $("cmpSide").classList.toggle("shut"); sfx("parchment", 0.5); };
   // (Esc: whatever's open over the map closed — a unit's card, the learning, the loyalty map — else the pause menu)
   addEventListener("keydown", e => {
     if (e.code !== "Escape" || e.repeat || !C || $("campaign").classList.contains("hidden") || $("cmpPlay").classList.contains("hidden") || $("cmpGazette") || $("cmpMust")) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    for (const id of ["cmpGoal", "cmpMin", "cmpHow", "cmpPause", "cmpUnit", "cmpTech"]) if ($(id)) { $(id).remove(); return; }
+    for (const id of ["cmpGoal", "cmpMin", "cmpHow", "cmpPause", "cmpUnit", "cmpTech", "cmpDip"]) if ($(id)) { $(id).remove(); return; }
     if (loyMap) { toggleLoy(); return; }
+    // (an army or a fleet in hand: put down first)
+    if (armySel || selFleet != null) { armySel = false; selFleet = null; note = ""; drawMap(); return; }
     pauseMenu();
   }, true);
+  // (P: diplomacy, open and shut)
+  addEventListener("keydown", e => { if (e.code !== "KeyP" || e.repeat || e.metaKey || e.ctrlKey || e.altKey || !C || $("campaign").classList.contains("hidden") || $("cmpPlay").classList.contains("hidden") || $("cmpGazette") || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return; e.preventDefault(); e.stopImmediatePropagation(); if ($("cmpDip")) $("cmpDip").remove(); else $("cmpDipB").click(); }, true);
   // (L: the loyalty map, on and off)
   addEventListener("keydown", e => { if (e.code !== "KeyL" || e.repeat || e.metaKey || e.ctrlKey || e.altKey || !C || $("campaign").classList.contains("hidden") || $("cmpPlay").classList.contains("hidden") || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return; e.preventDefault(); e.stopImmediatePropagation(); toggleLoy(); }, true);
   addEventListener("keydown", e => { if (e.code === "Tab" && !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden")) { e.preventDefault(); e.stopImmediatePropagation(); $("cmpPanel").click(); } }, true);
@@ -2171,6 +2203,9 @@ export function initCampaign(c, battle, withPlayer) {
     const [mx, my] = toMap(pos(e)), S = cv.width / MG_W;
     if (selFleet != null && fleetById(selFleet)) { const fh2 = fleetHit(cv, ...pos(e)); if (fh2 && fh2.mine != null && fh2.mine !== selFleet) { doAct({ k: "fjoin", id: selFleet, to: fh2.mine }); return; }
       if (fh2 && fh2.foe && C.foeFleets && C.foeFleets[fh2.foe]) { if (canSeaFight(selFleet, fh2.foe)) { doAct({ k: "seafight", id: selFleet, foe: fh2.foe, how: "fight" }); return; } if (!atWar(fh2.foe)) { react({ note: `You're not at war with ${the(fh2.foe)}.` }); drawMap(); return; } const F = C.foeFleets[fh2.foe]; doAct({ k: "sail", id: selFleet, x: F.pos.x, y: F.pos.y }); return; } doAct({ k: "sail", id: selFleet, x: mx / S, y: my / S }); return; }
+    // (nothing chosen — no army, no fleet: a right-click gives no orders. It used to march the army last in hand
+    //  wherever you clicked, chosen or not, so a garrison's new army set off after it had been put down)
+    if (!armySel) { note = "Choose an army first: click it, then right-click where it should go."; drawMap(); return; }
     // (a fleet of yours, with the army in hand: the army goes aboard it)
     if (armySel && C.emb == null) { const fh3 = fleetHit(cv, ...pos(e)); if (fh3 && fh3.mine != null) { doAct({ k: "embark", id: fh3.mine }); armySel = false; return; } }
     // (another army of your own: the one in hand marched to it, and the two made one when it gets there)
@@ -2178,10 +2213,18 @@ export function initCampaign(c, battle, withPlayer) {
     // (an enemy army within a year's march: the army falls on it in the field)
     const fh = foeHit(cv, ...pos(e)); if (fh && isHuman(fh) && canFieldP(fh)) { selFoe = fh; sel = fh; selCity = null; armySel = false; doAct({ k: "pfield", h: fh, how: "fight" }); return; }
     if (fh && canField(fh) && C.emb == null) { selFoe = fh; sel = crownOf(fh); selCity = null; armySel = false; doAct({ k: "field", foe: fh, how: "fight" }); return; }
+    // (an enemy army that can't be fallen on now: why not, said — or, out of a year's reach, gone after: marched toward
+    //  where it stands, and held where it is once you're within a year's march of it, to be brought to battle)
+    if (fh && !isHuman(fh) && !isColo(fh) && atWar(fh) && C.emb == null) {
+      const why = C.siege ? `Your army is sitting down before ${C.siege.ct}: lift the siege first.` : C.moved ? "Your army has already marched this year: attack it next year." : C.army < 5 ? "Your army is too small to give battle: five regiments at the least." : null;
+      if (why) { react({ note: why }); drawMap(); return; }
+      const fp = foeArmyPos(fh); if (fp) { selFoe = fh; doAct({ k: "move", x: fp.x, y: fp.y, chase: fh }); return; }
+    }
     // (an enemy town within reach: the army falls on it — the muster before the assault, where it can still be called off)
     const ct = cityAt(cv, mx, my, view.z), o = ct && cityOwner(grid(), ct);
     if (ct && o && o !== C.me && atWar(o) && C.emb == null && C.army >= 5 && inMarch(ct) && freeToStrike(ct) && (!C.siege || siegeOf(ct))) { selCity = ct; sel = o; armySel = false; doAct({ k: "march", ct: ct[0], how: "fight" }); return; }
-    doAct({ k: "move", x: mx / S, y: my / S }); armySel = false;
+    // (and it stays chosen after a march order, to send on somewhere else; Esc, or a click away, puts it down)
+    doAct({ k: "move", x: mx / S, y: my / S });
   };
   cv.onmouseup = e => {
     const moved = drag ? drag.moved : 0; drag = null; if (moved > 5 || !C || e.button !== 0) return;
@@ -2221,7 +2264,7 @@ export function initCampaign(c, battle, withPlayer) {
       let d3 = null;
       eu3d.el.addEventListener("mousedown", e => { d3 = { x: e.clientX, y: e.clientY, moved: 0 }; });
       // (right-click on the land: your army sent there)
-      eu3d.el.addEventListener("contextmenu", e => { e.preventDefault(); if (!C) return; const r = eu3d.el.getBoundingClientRect(), hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top); if (!hit || !hit.ll) return; const [gx, gy] = gridOf(...hit.ll); doAct({ k: "move", x: gx, y: gy }); });
+      eu3d.el.addEventListener("contextmenu", e => { e.preventDefault(); if (!C) return; if (!armySel) { note = "Choose an army first: click it, then right-click where it should go."; drawMap(); return; } const r = eu3d.el.getBoundingClientRect(), hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top); if (!hit || !hit.ll) return; const [gx, gy] = gridOf(...hit.ll); doAct({ k: "move", x: gx, y: gy }); });
       addEventListener("mousemove", e => {
         if (!on3d) return;
         if (d3 && e.buttons & 1) { const dx = e.clientX - d3.x, dy = e.clientY - d3.y; d3.moved += Math.abs(dx) + Math.abs(dy); d3.x = e.clientX; d3.y = e.clientY; eu3d.pan(dx, dy); eu3d.el.style.cursor = "grabbing"; return; }
@@ -2871,13 +2914,46 @@ function townCard(g, ct) {
   if (lvOf(n, "foundry")) h += `<div class="cmp-bld${q && q.gun ? " busy" : ""}"><span class="cmp-bi">${MARK.gun}</span><span class="cmp-bn"><b>Cast a gun</b><small>For your artillery train: ${C.guns} now</small></span>${q && q.gun ? `<span class="cmp-bq">Casting<button class="tm-lnk" data-unbuild="1">Stop</button></span>` : `<button class="btn" data-gun="1"${q || C.gold < GUN_COST ? " disabled" : ""}>Cast · ${GUN_COST}</button>`}</div>`;
   return h + `</div>`;
 }
+// diplomacy: every crown you know of, how it stands with you — at war, allied, bound by a pact or a truce, its regard
+// for you — and its own wars; one clicked is chosen on the map, its card beside it to deal with
+function drawDiplo() {
+  let el = $("cmpDip");
+  if (!el) { el = document.createElement("div"); el.id = "cmpDip"; el.className = "cmp-must"; $("campaign").appendChild(el);
+    el.onclick = e => { const b = e.target.closest("[data-dipc]"); if (!b) { if (e.target === el || e.target.closest("[data-dipx]")) el.remove(); return; } el.remove(); sel = b.dataset.dipc; selCity = null; selFoe = null; armySel = false; note = ""; drawMap(); sfx("parchment", 0.28); $("cmpSide").scrollTop = 0; }; }
+  const g = grid(), r = C.E.rel, ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(g, id));
+  const towns = id => citiesOfNow(g, id).length;
+  const theirWars = id => (C.E.wars || []).filter(w => !w.withYou && (w.a === id || w.b === id)).map(w => w.a === id ? w.b : w.a).filter(o => o !== C.me && NATIONS[o]);
+  const chips = id => {
+    const out = [];
+    if (atWar(id)) out.push(["war", `At war${C.warT && C.warT[id] ? ` · ${C.warT[id]} yr` : ""}`]);
+    if (isVassal(id)) out.push(["ally", "Your protectorate"]); else if (C.ally[id]) out.push(["ally", "Ally"]);
+    if (C.E.pact[id]) out.push(["pact", "Trade pact"]);
+    if ((C.truce[id] || 0) > 0) out.push(["truce", `Truce · ${C.truce[id]}`]);
+    if (C.E.access && C.E.access[id]) out.push(["pact", "You may cross their land"]);
+    if (C.E.grant && C.E.grant[id] === true) out.push(["pact", "They may cross yours"]);
+    if (isHuman(id)) out.push(["human", "A player"]);
+    return out.map(([k, t]) => `<i class="dp-chip ${k}">${esc(t)}</i>`).join("");
+  };
+  const row = id => { const v = Math.round(r[id] ?? 0), w = theirWars(id);
+    return `<button class="dp-row" data-dipc="${id}"><span class="dp-sw" style="background:${esc(NATIONS[id].color || "#888")}"></span><span class="dp-name"><b>${esc(NATIONS[id].name)}</b><small>${towns(id)} town${towns(id) === 1 ? "" : "s"}${knowsArmy(id) && C.foes && C.foes[id] != null ? ` · some ${C.foes[id]} regiments` : ""}${w.length ? ` · at war with ${w.slice(0, 3).map(o => esc(NATIONS[o].name)).join(", ")}${w.length > 3 ? "…" : ""}` : ""}</small></span><span class="dp-chips">${chips(id)}</span><span class="dp-rel" title="How they regard you: ${v}"><u style="left:${50 + Math.max(-50, Math.min(50, v / 2))}%"></u><small>${esc(relWord(v))}</small></span></button>`; };
+  const groups = [
+    ["At war with you", ids.filter(id => atWar(id))],
+    ["Allies and protectorates", ids.filter(id => !atWar(id) && (C.ally[id] || isVassal(id)))],
+    ["Bound by a pact or a truce", ids.filter(id => !atWar(id) && !C.ally[id] && !isVassal(id) && (C.E.pact[id] || (C.truce[id] || 0) > 0))],
+    ["The other crowns", ids.filter(id => !atWar(id) && !C.ally[id] && !isVassal(id) && !C.E.pact[id] && !((C.truce[id] || 0) > 0))],
+  ].filter(([, L]) => L.length);
+  for (const [, L] of groups) L.sort((a, b) => (r[b] ?? 0) - (r[a] ?? 0));
+  el.innerHTML = `<div class="cmp-mbox cmp-dipbox"><h2>Diplomacy</h2><p class="sub">Every crown, and how it stands with you. Click one to deal with it.</p>
+    ${groups.map(([h, L]) => `<section class="dp-sec"><h3>${esc(h)} <small>${L.length}</small></h3>${L.map(row).join("")}</section>`).join("")}
+    <div class="pv-acts"><button class="btn" data-dipx="1">Close</button></div></div>`;
+}
 // learning: the four branches, what's known, what's being studied, what can be
 function drawTech() {
   let el = $("cmpTech"); if (!el) { el = document.createElement("div"); el.id = "cmpTech"; el.className = "cmp-must"; $("campaign").appendChild(el); el.onclick = e => { const b = e.target.closest("[data-study],[data-techx]"); if (!b) { if (e.target === el) el.remove(); return; } if (b.dataset.techx) { el.remove(); return; } doAct({ k: "study", id: b.dataset.study }); drawTech(); }; }
   const T = C.tech, rp = research(grid()); T.pts = Math.round(T.pts * 10) / 10;
-  el.innerHTML = `<div class="cmp-mbox cmp-techbox"><h2>Learning</h2><p class="sub">${T.cur ? `Your scholars study <b>${esc(TECHS[T.cur].n)}</b>: ${T.pts} of ${TECHS[T.cur].cost}, about ${Math.max(1, Math.ceil((TECHS[T.cur].cost - T.pts) / rp))} more year${Math.ceil((TECHS[T.cur].cost - T.pts) / rp) > 1 ? "s" : ""}.` : "Choose what your scholars study next."} ${rp} a year from your schools and colleges.</p>
+  el.innerHTML = `<div class="cmp-mbox cmp-techbox"><h2>Learning</h2><p class="sub">${T.cur ? (() => { const left = Math.max(1, Math.ceil((techCost(T.cur) - T.pts) / Math.max(0.1, rp)), techYears(T.cur) - (T.yrs | 0)); return `Your scholars study <b>${esc(TECHS[T.cur].n)}</b>: ${T.pts} of ${techCost(T.cur)}, in its ${["first", "second", "third", "fourth", "fifth", "sixth"][Math.min(5, T.yrs | 0)]} year — about ${left} more year${left > 1 ? "s" : ""}.`; })() : "Choose what your scholars study next. Each learning takes years: two at the least, more the deeper it goes."} ${rp} a year from your schools and colleges.</p>
     <div class="cmp-tree">${BRANCHES.map(([br, nm]) => `<div class="cmp-br"><div class="cmp-brh">${nm}</div>${Object.entries(TECHS).filter(([, t]) => t.br === br).map(([id, t]) => { const done = T.done[id], can = canStudy(T.done, id), cur = T.cur === id;
-      return `<button class="cmp-tech${done ? " done" : cur ? " cur" : can ? " can" : " lock"}" data-study="${id}"${done || !can ? " disabled" : ""}><b>${esc(t.n)}</b><small>${esc(t.d)}</small><em>${done ? "Known" : cur ? `Studying · ${T.pts}/${t.cost}` : can ? `${t.cost} to learn` : `After ${(t.req || []).map(r => TECHS[r].n).join(", ")}`}</em></button>`; }).join("")}</div>`).join("")}</div>
+      return `<button class="cmp-tech${done ? " done" : cur ? " cur" : can ? " can" : " lock"}" data-study="${id}"${done || !can ? " disabled" : ""}><b>${esc(t.n)}</b><small>${esc(t.d)}</small><em>${done ? "Known" : cur ? `Studying · ${T.pts}/${techCost(id)}` : can ? `${techCost(id)} to learn · ${techYears(id)} years at the least` : `After ${(t.req || []).map(r => TECHS[r].n).join(", ")}`}</em></button>`; }).join("")}</div>`).join("")}</div>
     <div class="pv-acts"><button class="btn" data-techx="1">Close</button></div></div>`;
 }
 // ---- the side panel's cards folded down to a line when you don't need them (kept as you leave them) ----
@@ -3087,7 +3163,7 @@ function __selectTown(n) {
   if (on3d && eu3d) eu3d.look(ct[1], ct[2]);
   drawMap();
 }
-window.__cmp = { get eu3d() { return eu3d; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get eu3d() { return eu3d; }, get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
 //  what you do on the campaign's map, as an act: done here, playing alone — or, a campaign of two, done on the
@@ -3206,7 +3282,8 @@ function apply(actor, a) {
       { const bar = barredBy(armyPos(), t, overSea(armyPos(), t)); if (bar.length) return { note: barNote(bar) }; }
       // (over the sea: no march — only aboard a fleet of your own)
       if (overSea(armyPos(), t)) return { note: SEA_NOTE };
-      const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; persist();
+      const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; C.chase = a.chase && atWar(a.chase) ? a.chase : null; persist();
+      if (C.chase) { const fp = foeArmyPos(C.chase), near = fp && mdist(C.pos, fp) <= MARCH; return { note: near ? `Your army goes after ${poss(the(C.chase))} army: it's within a year's march of it now, and it won't get away. Fall on it next year.` : `Your army goes after ${poss(the(C.chase))} army: ${yearsTo(fp)} more year${yearsTo(fp) > 1 ? "s" : ""} to come up with it.`, sfx: [["drum", 0.45]] }; }
       return { note: st.arrived ? "Your army marches, and is there by the year's end." : `Your army is on the march: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there.`, sfx: [["drum", 0.45]] };
     }
     if (a.k === "lift") { if (!C.siege) return null; const n = C.siege.ct; C.siege = null; persist(); return { note: `The siege of ${n} is lifted. The army is free to march.`, sfx: [["drum", 0.5]] }; }
@@ -3338,7 +3415,7 @@ function apply(actor, a) {
       return { note: `${ct[0]}: work begins on ${o.L.n.toLowerCase()}. It'll stand at the year's end.`, sfx: [["coin", 0.45], ["quill", 0.35, 300]] };
     }
     if (a.k === "unbuild") { const ct = city(a.ct), q = ct && C.Q[ct[0]]; if (!q || q.by !== C.me) return null; C.gold += q.cost | 0; delete C.Q[ct[0]]; persist(); return { note: `The work at ${ct[0]} is stopped, and the money back in the treasury.`, sfx: [["coin", 0.4]] }; }
-    if (a.k === "study") { if (!TECHS[a.id] || !canStudy(C.tech.done, a.id)) return null; C.tech.cur = a.id; persist(); return { sfx: [["quill", 0.4]] }; }
+    if (a.k === "study") { if (!TECHS[a.id] || !canStudy(C.tech.done, a.id)) return null; if (C.tech.cur !== a.id) C.tech.yrs = 0; C.tech.cur = a.id; persist(); return { sfx: [["quill", 0.4]] }; }
     if (a.k === "govs") { const ct = city(a.ct); if (!ct || cityOwner(g, ct) !== C.me || govOf(ct[0])) return null; C.govCands[ct[0]] ||= [0, 1, 2].map(() => newMan(C.me, "governor")); persist(); return { sfx: [["parchment", 0.4]] }; }
     if (a.k === "appoint") {
       if (a.role === "general") { const ev = C.events[a.ev]; if (!ev || ev.kind !== "appoint" || ev.done || !ev.cands[a.i]) return null; const was = C.ar | 0; if (armyIds().includes(ev.ar | 0)) useArmy(ev.ar | 0); C.gen = { ...ev.cands[a.i], served: 0 }; const gn = C.gen.name, an = C.ar | 0; useArmy(was); ev.done = true; persist(); return { note: `${gn} takes command of ${an ? `the ${armyName(an).toLowerCase()}` : "your army"}.`, sfx: [["seal", 0.45], ["drum", 0.35, 400]] }; }
@@ -3470,13 +3547,14 @@ function meetEnd(wonHost, killed, lost, left) {
 }
 // the season's end, both ready: the world turns once, then each player's own part — and each told their news
 function endAll() {
-  const before = {}; for (const h of humans()) before[h] = (sliceOf(h).log || [])[0];
+  const since = {}; for (const h of humans()) since[h] = sliceOf(h).paperN | 0;
   as(humans()[0], () => endSeason({ mine: false }));
   for (const h of humans()) as(h, () => endSeason({ world: false, turn: false }));
   for (const h of humans()) C.mp.ready[h] = false;
   for (const h of humans()) {
-    const L = sliceOf(h).log || [], fresh = []; for (const l of L) { if (l === before[h]) break; fresh.push(l); }
-    tell(h, { news: fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$/.test(l.title)).reverse(), sfx: [["parchment", 0.55]] });
+    const sl = sliceOf(h), L = sl.log || [], fresh = []; for (const l of L) { if (!l.n || l.n <= since[h]) break; fresh.push(l); }
+    sl.paperN = sl.logN | 0;
+    tell(h, { news: fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$| — \d{4}$/.test(l.title)).reverse(), sfx: [["parchment", 0.55]] });
   }
 }
 // (said to a player: on this screen if it's this player, else sent)

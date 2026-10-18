@@ -21,7 +21,7 @@ import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, add
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { makeStump, modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, SWAY, addSway, swayGeo } from "./models.js";
+import { makeStump, modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, bowHold, SWAY, addSway, swayGeo } from "./models.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { Smoke, Breath, chimneyMark } from "./smoke.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
@@ -949,12 +949,18 @@ export class Town {
     }
     // the day it's reaped, the sheaves stand in stooks on the stubble, leaned together to dry
     if (b.stooks != null && !b.sown && this.day - b.stooks < 1) {
-      const sb = new Builder(), straw = 0xc9a85a, band = 0x8a6a3a;
+      // (pale, dry straw, each sheaf its own shade and lean, and its head of ears at the top — not one orange tent)
+      const sb = new Builder(), STRAW = [0xb9a77a, 0xc4b386, 0xad9a6c, 0xbfa878], EARS = [0x9c8658, 0xa8915f, 0x8f7b52], band = 0x7a6440;
+      let n = 0;
       for (const [lx, lz] of [[-2.2, -2.4], [0, -2.2], [2.2, -2.5], [-2.1, 0.2], [0.1, 0.4], [2.2, 0.1], [-2.3, 2.6], [0.2, 2.4], [2.1, 2.7]]) {
-        const y = up(lx, lz) + 0.06;
-        for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; sb.add(new THREE.CylinderGeometry(0.06, 0.1, 0.95, 5), straw, lx + Math.cos(a) * 0.18, y + 0.45, lz + Math.sin(a) * 0.18, -Math.sin(a) * 0.3, 0, Math.cos(a) * 0.3); }
-        sb.add(new THREE.ConeGeometry(0.2, 0.3, 6), 0xb08a4a, lx, y + 1.0, lz);
-        sb.add(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 6), band, lx, y + 0.55, lz);
+        const y = up(lx, lz) + 0.06, turn = (lx * 1.7 + lz * 2.3) % 1;
+        for (let k = 0; k < 8; k++) {
+          const a = (k + turn) / 8 * Math.PI * 2, lean = 0.26 + ((k * 7 + n) % 3) * 0.04, h = 0.88 + ((k * 5 + n) % 4) * 0.04, r = 0.17 + ((k + n) % 2) * 0.03; n++;
+          sb.add(new THREE.CylinderGeometry(0.055, 0.1, h, 6), STRAW[(k + n) % 4], lx + Math.cos(a) * r, y + h / 2, lz + Math.sin(a) * r, -Math.sin(a) * lean, 0, Math.cos(a) * lean);
+          // (the ears, bunched and drooping a little over the top)
+          sb.add(new THREE.SphereGeometry(0.07, 6, 4), EARS[(k + n) % 3], lx + Math.cos(a) * (r - h * Math.sin(lean) * 0.5 + 0.03), y + h * Math.cos(lean) + 0.02, lz + Math.sin(a) * (r - h * Math.sin(lean) * 0.5 + 0.03), 0, a, 0, 0.8, 1.5, 0.8);
+        }
+        sb.add(new THREE.CylinderGeometry(0.16, 0.16, 0.04, 8), band, lx, y + 0.58, lz);
       }
       const st = sb.build(MAT.rough); st.castShadow = true; g.add(st);
     }
@@ -2800,7 +2806,7 @@ export class Town {
         const H = G.hunt; let cur = null;
         a.doing = "hunting in the deer ride";
         const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a }));
-        bow.rotation.set(0, Math.PI / 2, 0); a.hold(bow, true);
+        const held = bowHold(a.person, bow); if (!held) { bow.rotation.set(0, Math.PI / 2, 0); a.hold(bow, true); }
         try {
           const ang = Math.random() * Math.PI * 2;
           await a.walkTo(HUNT.x + Math.cos(ang) * HUNT.r * 0.6, HUNT.z + Math.sin(ang) * HUNT.r * 0.6, 1.3); alive();
@@ -2820,7 +2826,7 @@ export class Town {
             }
             if (!q.alive) { q.hunted = null; continue; }
             // the bow drawn, a breath held, and loosed
-            a.faceTo(q.pos.x, q.pos.z); a.person.setPose("reach"); a.doing = `drawing on a ${q.K.name}`;
+            a.faceTo(q.pos.x, q.pos.z); a.person.setPose("idle"); a.person.aimWant = true; a.doing = `drawing on a ${q.K.name}`;
             await sleep(1.4); alive();
             if (H && q.alive) {
               const from = new THREE.Vector3(a.pos.x, a.pos.y + 1.45, a.pos.z), to = q.centre(), d = from.distanceTo(to), v = 14 + 32 * 0.9;
@@ -2831,7 +2837,7 @@ export class Town {
               H.loose(from, dir, 0.9, false, a);
               if (G.player && Math.hypot(a.pos.x - G.player.pos.x, a.pos.z - G.player.pos.z) < 30) AUDIO.twang && AUDIO.twang(0.5);
             }
-            await sleep(1.2); alive(); a.person.setPose("idle");
+            await sleep(1.2); alive(); a.person.setPose("idle"); a.person.aimWant = false;
             if (!q.alive) got = q; else { q.hunted = null; a.doing = "after it again — it bolted"; this.learn(a, "hunting", 0.3); }
           }
           if (got) {
@@ -2847,7 +2853,7 @@ export class Town {
           } else a.doing = "coming back from the hunt with nothing";
           await sleep(2);
         } finally {
-          a.person.heldL.remove(bow); a.person.setPose("idle");
+          if (held) { a.person.aimHold(null); a.person.aimWant = false; } else a.person.heldL.remove(bow); a.person.setPose("idle");
           // (called away before it was dressed: what they'd brought down isn't left lying for ever — it's in the stores)
           if (cur) { if (cur.alive) cur.hunted = null; else if (H && H.animals.includes(cur)) { H.takeBy(cur); this.S.meat = (this.S.meat || 0) + (cur.K.meat || 2); this.S.hide = (this.S.hide || 0) + 1; } }
         }

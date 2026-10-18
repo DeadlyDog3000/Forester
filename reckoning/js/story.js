@@ -2618,13 +2618,13 @@ async function chHarvest(w) {
     // the marker: the first thing still to do
     let m = null;
     if (!H.reaped && f0) m = [f0.x, f0.z, w.heightAt(f0.x, f0.z) + 1.4];
-    else if (!H.job) { let best = null, bd = Infinity; for (const a of town.actors) if (!a.settler.child && !a.gone) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } } m = best; }
-    else if (!H.joined) { const site = S.buildings.find(b => b.type === "cabin" && !b.done);
+    // (and if there's no one to give work to yet, on to the next thing: the marker never just goes)
+    if (!m && !H.job) { let best = null, bd = Infinity; for (const a of town.actors) if (!a.settler.child && !a.gone) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } } m = best; }
+    if (!m && !H.joined) { const site = S.buildings.find(b => b.type === "cabin" && !b.done);
       // (logs wanted and your arms empty: the stack; walls up and no door hewn: the sawhorse; else the site itself)
       if (site) m = site.logs < BUILDINGS.cabin.cost && !(pl.carryN > 0) && S.store > 0 && town.stackIt ? [town.stackIt.x, town.stackIt.z, w.cy + 1]
         : site.logs >= BUILDINGS.cabin.cost && !site.door && !(S.doors > 0) ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : [site.x, site.z, w.cy + 1.5]; }
-    else if (false) { let best = null, bd = Infinity; for (const a of town.actors) if (!a.settler.child && !a.gone) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } } m = best; }
-    else if (!H.furnished && !w.insideCabin(pl.pos.x, pl.pos.z)) { const [x, z] = w.cabinToWorld(0, 3.4); m = [x, z, w.cy + 1.6]; }
+    if (!m && !H.furnished && !w.insideCabin(pl.pos.x, pl.pos.z)) { const [x, z] = w.cabinToWorld(0, 3.4); m = [x, z, w.cy + 1.6]; }
     mark(m);
     if (!H.furnished && w.insideCabin(pl.pos.x, pl.pos.z) && S.store < 2 && !shortTold) { shortTold = true; bark(P.sib, "You'll want logs for that. Two for a bench — fell a tree, or wait for the stack.", 4); }
   });
