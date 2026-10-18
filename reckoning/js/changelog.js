@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.83.1", date: "17 October 2026", title: "Not lost in a day",
+    items: [
+      "Campaign: losing your last town no longer ends the campaign at once while your army is still in the field. You have three years to take a town back, with a red card at the top of the panel counting them down; retake one and the crown is saved.",
+      "Campaign: battles left to your generals favour the bigger army more, as numbers told then. Two to one now wins three times in four, and three to one nearly nine in ten; before, a garrison of 48 lost to 16 one time in five.",
+      "Campaign: a nation of the woods with a single town now starts with six companies of its own warriors holding it, so the first raid while the war party is away doesn't end everything.",
+      "Campaign: generals take to drink, or to the lash, about half as often.",
+    ],
+  },
+  {
     v: "1.83.0", date: "17 October 2026", title: "The other crowns propose",
     items: [
       "Campaign: the other crowns come to you now, as in Empire: Total War, where before only you went to them. A crown that thinks well of you offers a trade agreement. A friend of your faith, or one fighting your enemies, offers an alliance. Accept, or decline and be thought a little worse of.",

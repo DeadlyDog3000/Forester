@@ -211,6 +211,9 @@ function begin(me, into = slot) {
   //  them: a regiment of foot in each, two in a colony's chief towns, and the settlers' militia)
   { ensureUnits(); const g = grid(), home = homeOf(g, me);
     if (home && !seaSide(home)) for (const ct of citiesOfNow(g, me).filter(c => seaSide(cellXY(c)))) { const n = ct[3] >= 2 ? 2 : 1; for (let i = 0; i < n; i++) C.units.push({ k: "musketeer", hp: 1, at: ct[0] }); C.units.push({ k: "militia", hp: 1, at: ct[0] }); } }
+  // (a nation of the woods with one town: its warriors don't all go with the war party — some stay to hold the palisade,
+  //  or the first raid on it while the army's away ends everything)
+  if (NATIONS[me].nw) { const g = grid(), T = citiesOfNow(g, me); if (T.length === 1) { const kinds = {}; for (const u of C.units) if (!u.at) kinds[u.k] = (kinds[u.k] || 0) + 1; const k = Object.entries(kinds).sort((x, y) => y[1] - x[1])[0]; for (let i = 0; i < 6; i++) C.units.push({ k: k ? k[0] : "militia", hp: 1, at: T[0][0] }); } }
   // (where you stand in 1683: your league, your wars)
   const al = Object.keys(C.ally).filter(id => C.ally[id]), wr = Object.keys(C.E.war).filter(id => C.E.war[id]);
   for (const L of LEAGUES_1683.filter(L => L.ids.includes(me))) say(`You are of ${L.n}`, `With ${L.ids.filter(x => x !== me).map(x => the(x)).join(", ")}.`);
@@ -498,7 +501,7 @@ function genMark(o, won) {
 // (a year in the camp: a vice taken up now and then; a long service unbeaten makes him loved)
 function genYear(G) {
   if (!G) return;
-  if (R() < 0.03) giveT(G, "drunk"); else if (R() < 0.02) giveT(G, "harsh");
+  if (R() < 0.015) giveT(G, "drunk"); else if (R() < 0.01) giveT(G, "harsh");
   if ((G.served | 0) >= 5 && !(G.losses | 0) && !hasT(G, "harsh") && R() < 0.25) giveT(G, "beloved");
 }
 function genWin() {
@@ -739,7 +742,8 @@ function raiseWalls(g, ids) {
 }
 // (the levy: a crown down to its last few towns, every man in them takes up arms — the fewer, the fiercer)
 const levy = towns => Math.round(18 / Math.max(1, towns));
-function odds(att, def, walls) { const a = Math.pow(att, 1.25), d = Math.pow(def * (walls === true ? 1.3 : walls || 1), 1.25); return a / (a + d); }
+// (numbers tell, as they did: two to one wins three times in four, three to one nearly nine in ten)
+function odds(att, def, walls) { const a = Math.pow(att, 1.7), d = Math.pow(def * (walls === true ? 1.3 : walls || 1), 1.7); return a / (a + d); }
 // the outcome applied, however it was decided: casualties both ways; the town changes hands if the attacker won
 function settle(o, won, myLossK, theirLossK) {
   const mine = o.attack ? o.att : o.def, theirs = o.attack ? o.def : o.att;
@@ -1950,7 +1954,13 @@ function crownsWar(g, ids) {
 function checkEnd() {
   orphans(C.me);
   const g = grid(), n = citiesOfNow(g, C.me).length;
-  if (!n && !C.over) { C.over = "lost"; say("Your crown is lost", "The last of your towns has fallen."); }
+  // (the last town fallen, but an army still in the field: three years to take one back, as a court in exile might —
+  //  the crown lost only if it can't, or its army's gone too)
+  if (!n && !C.over) {
+    if (C.exile == null && allArmies() >= 4) { C.exile = C.year; say("Your last town has fallen", "Your army is still in the field. Take back a town within three years, or the crown is lost."); }
+    else if (C.exile == null || allArmies() < 1 || C.year - C.exile >= 3) { C.over = "lost"; C.exile = null; say("Your crown is lost", "The last of your towns has fallen."); }
+  }
+  if (n && C.exile != null) { C.exile = null; say("A crown again", "A town of your own once more: the crown is saved."); }
   goalCheck();
   if (n >= WIN_CITIES && !C.won) { C.won = true; say("Yours is the first crown of the world", `${n} towns under your crown. Play on, if you like.`); }
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !alive(g, id)) { C.E.war[id] = false; const by = C.gone && C.gone[id]; say(`${The(id)} ${v3(id, "is")} no more`, by === C.me ? "Its last town has fallen to you, and every acre of its land is yours." : by ? `${The(by)} ${v3(by, "has")} taken the last of it.` : "Its last town is yours or another's."); }
@@ -2716,6 +2726,7 @@ const fold = (key, head, body, open0 = false) => `<details class="cmp-card cmp-f
 function drawSide() {
   const g = grid(), el = $("cmpSide"), r = C.E.rel;
   let h = "";
+  if (C.exile != null && !C.over) { const left = 3 - (C.year - C.exile); h += `<div class="cmp-card cmp-exile"><b>Without a town</b><small>Your last town has fallen. Take one back with your army within ${left} year${left === 1 ? "" : "s"}, or the crown is lost.</small></div>`; }
   if (C.over) h += `<div class="cmp-over"><b>Your crown is lost.</b> Every town has fallen. <button class="btn" data-act="newgame">Begin again</button></div>`;
   else if (C.won) h += `<div class="cmp-won"><b>Yours is the first crown of the world.</b> ${citiesOfNow(g, C.me).length} towns under your crown.</div>`;
   // what's waiting for your word: towns attacked, peace offered

@@ -2002,6 +2002,10 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-mis span { display: flex; justify-content: space-between; font: 11px var(--sans); }
 .cmp-mis em { font-style: normal; color: #e8c96a; }
 .cmp-mis i { font-style: normal; color: var(--ink-dim); } .cmp-mis i.down { color: #d8705a; }
+/* the crown without a town */
+.cmp-exile { border-color: rgba(216,112,90,0.7); background: rgba(120,30,20,0.35); }
+.cmp-exile b { color: #f0b0a0; font: 600 14px var(--serif); display: block; }
+.cmp-exile small { color: var(--ink); }
 /* a general's traits */
 .cmp-traits { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .cmp-traits i { font: 600 10.5px var(--sans); font-style: normal; padding: 1px 6px; border-radius: 9px; border: 1px solid rgba(232,201,106,0.5); color: #e8c96a; cursor: help; }
