@@ -615,8 +615,6 @@ function townGlyph(c, x, y, u, rank, own, opt = {}) {
     c.save(); c.fillStyle = INK; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
     if (rank === 3) { c.strokeStyle = INK; c.lineWidth = Math.max(0.6, u * 0.45); c.beginPath(); c.arc(x, y, r + 1.3 * u, 0, 7); c.stroke(); }
     if (opt.mine) { c.strokeStyle = "#b8862a"; c.lineWidth = Math.max(0.8, u * 0.7); c.beginPath(); c.arc(x, y, r + (rank === 3 ? 2.6 : 1.2) * u, 0, 7); c.stroke(); }
-    // (walled: the outline of a star fort round the dot — its bastions' points — so walls show even zoomed out)
-    if (opt.walledKnown ? opt.walled : false) { const R0 = r + (rank === 3 ? 3.6 : 2.4) * u, R1 = R0 * 0.72; c.strokeStyle = INK; c.fillStyle = "rgba(120,110,95,0.35)"; c.lineWidth = Math.max(0.7, u * 0.55); c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? R1 : R0; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); c.fill(); c.stroke(); c.fillStyle = INK; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
     c.restore(); return;
   }
   // (on a campaign's map, walls only where they stand — the card and the picture agree; elsewhere a crown's seat is

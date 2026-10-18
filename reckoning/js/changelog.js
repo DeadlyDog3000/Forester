@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.89.4", date: "18 October 2026", title: "A clearer map",
+    items: [
+      "Campaign map: the trade-good badges over every town are gone from the ordinary map, and show only on the loyalty map (L), where a town's business is what you're looking at.",
+      "Campaign map: a walled town has its ring of grey stone and battlements round the town itself, at every zoom, so walls show without the badges.",
+    ],
+  },
+  {
     v: "1.89.3", date: "18 October 2026", title: "Battles at sea, walls you can see",
     items: [
       "Campaign: fleets at war fight when they meet. An enemy fleet that sails up to yours always attacks; before, it often just lay alongside. Two fleets at war that end the year beside each other fight, whoever sailed to whom.",
