@@ -132,12 +132,14 @@ export class EuropeView3D {
     this.visible = false;
   }
   // the political map changed (a conquest) or first shown: rebuild what depends on it
-  setMap(E, homePop = 2, homeName = "Forester's Clearing") {
+  // (walls: a campaign's walled towns, { name: level } — a ring of stone round each)
+  setMap(E, homePop = 2, homeName = "Forester's Clearing", walls = null) {
     sync();
-    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = SHEET + (E.rev | 0) + ":" + cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName;
+    const wk = walls ? Object.keys(walls).filter(n => walls[n] > 0).sort().map(n => n + walls[n]).join() : "";
+    const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = SHEET + (E.rev | 0) + ":" + cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName + "|" + wk;
     const g = buildGrid(E);
     if (this.g && this.mapKey === key) return;
-    this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName;
+    this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName; this.walls = walls || {};
     // (the ground itself doesn't change with a conquest — only who holds it: raised once for the sheet)
     if (!this.base || this.baseSheet !== SHEET) { this.buildBase(); this.baseSheet = SHEET; }
     this.buildBorders(); this.buildCities(homePop);
@@ -259,6 +261,7 @@ export class EuropeView3D {
     const longGeo = new THREE.CapsuleGeometry(0.014, 0.05, 3, 6).rotateZ(Math.PI / 2).scale(1, 1.2, 1).translate(0, 0.012, 0), barkMat = new THREE.MeshStandardMaterial({ color: 0x6e5a44, roughness: 0.95 });
     const stakeGeo = new THREE.CylinderGeometry(0.003, 0.004, 0.036, 4), stakeMat = new THREE.MeshStandardMaterial({ color: 0x7a6248, roughness: 0.9 });
     const wall = new THREE.MeshStandardMaterial({ color: 0xe6dcc6, roughness: 0.9 }), tile = new THREE.MeshStandardMaterial({ color: 0xa04a30, roughness: 0.8 }), stone = new THREE.MeshStandardMaterial({ color: 0xb8b0a0 });
+    const curtain = new THREE.BoxGeometry(1, 0.022, 0.009).translate(0, 0.011, 0), bastion = new THREE.CylinderGeometry(0.012, 0.016, 0.026, 4).translate(0, 0.013, 0), masonry = new THREE.MeshStandardMaterial({ color: 0x9c9384, roughness: 0.95 });
     this.labels = [];
     this.clearings = [];
     const place = (name, lon, lat, rank, own, isHome) => {
@@ -277,6 +280,19 @@ export class EuropeView3D {
         const a = r() * 6.28, d = Math.sqrt(r()) * spread, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz);
         const hm = new THREE.Mesh(house, wall); hm.position.set(hx, hy + 0.015, hz); hm.rotation.y = r() * 3; grp.add(hm);
         const rm = new THREE.Mesh(roof, tile); rm.position.set(hx, hy + 0.044, hz); rm.rotation.y = hm.rotation.y; grp.add(rm);
+      }
+      // (a walled town: a ring of stone round it, its bastions at the angles — more of them, and further out, for a
+      //  fortress of the new kind)
+      const wl = !woods && this.walls[name] | 0;
+      if (wl) {
+        const R = spread + 0.035, N = 28 + rank * 6, seg = 2 * Math.PI * R / N * 1.08;
+        for (let i = 0; i < N; i++) {
+          const a = (i + 0.5) / N * 6.283; if (Math.abs(Math.sin(a)) < 0.05 && Math.cos(a) > 0) continue;
+          const sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R, m = new THREE.Mesh(curtain, masonry);
+          m.scale.x = seg; m.position.set(sx, this.groundY(sx, sz) - 0.004, sz); m.rotation.y = -a - Math.PI / 2; grp.add(m);
+        }
+        const B = wl >= 2 ? 8 : 6;
+        for (let i = 0; i < B; i++) { const a = i / B * 6.283 + 0.3, bx = x + Math.cos(a) * (R + (wl >= 2 ? 0.012 : 0.004)), bz = z + Math.sin(a) * (R + (wl >= 2 ? 0.012 : 0.004)), m = new THREE.Mesh(bastion, masonry); m.position.set(bx, this.groundY(bx, bz) - 0.004, bz); m.rotation.y = -a + Math.PI / 4; if (wl >= 2) m.scale.set(1.4, 1, 1.4); grp.add(m); }
       }
       // a church, or a cathedral
       const th = 0.12 + rank * 0.03;

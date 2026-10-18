@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.89.0", date: "18 October 2026", title: "The fortresses of 1683",
+    items: [
+      "Campaign: the great fortresses of the age start the game walled, as they stood in 1683. That means Vienna, Buda, Belgrade, Kamieniec, Candia, Azov, Strasbourg, Antwerp, Hamburg, Danzig, Riga and Copenhagen. Taking one now means guns and a siege, or a hard storm.",
+      "Campaign: on the 3D map, a walled town has its walls: a ring of stone round the houses, with bastions at the angles (more of them for the new star forts).",
+      "Campaign: clicking a town in Your towns or on the Victory card now takes the 3D view there too. Before, only the flat map moved, so in 3D nothing seemed to happen.",
+    ],
+  },
+  {
     v: "1.88.5", date: "18 October 2026", title: "Honest marching news",
     items: [
       "Campaign: an enemy army marching on one of your towns from far away now says how many years off it is (\"three years' march off\"), and counts down. Before, it said it would be at the walls next year, every year.",

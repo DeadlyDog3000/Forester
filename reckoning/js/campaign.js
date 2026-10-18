@@ -188,6 +188,9 @@ const leagueOf = (a, b) => LEAGUES_1683.find(L => L.ids.includes(a) && L.ids.inc
 // (the leagues' word kept among the other crowns: allies of a crown that's attacked come in on its side)
 const alliesOf = id => [...new Set(LEAGUES_1683.filter(L => L.ids.includes(id)).flatMap(L => L.ids))].filter(x => x !== id);
 // a new campaign, as a crown
+// (the great fortresses of 1683: walled from the first year, as they stood — Vienna that the Turks were sitting down
+//  before, the Danube and Dniester strongholds, Candia's Venetian bastions, Strasbourg and the Baltic ports)
+const FORTS_1683 = ["Wien", "Buda", "Belgrad", "Kamieniec", "Candia", "Azov", "Strassburg", "Antwerpen", "Hamburg", "Danzig", "Riga", "Kiøbenhavn"];
 function fresh(me) {
   const rel = {}, army = {};
   for (const id of Object.keys(NATIONS)) {
@@ -209,7 +212,8 @@ function fresh(me) {
   for (const w of wars) if ((ally[w.a] && war[w.b]) || (ally[w.b] && war[w.a])) w.withYou = true;
   return { v: 1, gridV: 6, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
     E: { rel, war, wars, conq: [], pact: {}, plague: {}, famine: {}, beaten: {}, news: [], gridV: 2 },
-    foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [] };
+    foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [],
+    walls: Object.fromEntries(FORTS_1683.filter(n => CITIES.some(c => c[0] === n)).map(n => [n, 1])) };
 }
 function begin(me, into = slot) {
   slot = into; spreadOf = ""; C = fresh(me); ensureRealm(); own = new Map(); warmMaps();
@@ -2351,7 +2355,7 @@ function spreadTick() {
 }
 function paint() {
   const cv = $("cmpMap"); if (!cv || !C) return; W0();
-  if (on3d && eu3d) { eu3d.setMap(E(), 2, null); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); eu3d.armies(armies3d()); if (!raf3d) loop3d(); return; }
+  if (on3d && eu3d) { eu3d.setMap(E(), 2, null, C.walls); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); eu3d.armies(armies3d()); if (!raf3d) loop3d(); return; }
   // (marches finished since the map was last drawn: their marks drawn on it again, off the overlay)
   { const t = performance.now(); marchAnims = marchAnims.filter(A => t - A.t0 < A.dur); }
   spreadCheck();
@@ -2979,7 +2983,10 @@ window.__setView = v => { view = v; paint(); };
 // (a town picked from a list: chosen, and the map brought round to it)
 function __selectTown(n) {
   const ct = CITIES.find(c => c[0] === n); if (!ct) return; selCity = ct; sel = cityOwner(grid(), ct); armySel = false;
-  const cv = $("cmpMap"), S = cv.width / MG_W, t = cellXY(ct); view.ox = clamp(t.x * S - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(t.y * S - cv.height / view.z / 2, 0, cv.height - cv.height / view.z); drawMap();
+  const cv = $("cmpMap"), S = cv.width / MG_W, t = cellXY(ct); view.ox = clamp(t.x * S - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(t.y * S - cv.height / view.z / 2, 0, cv.height - cv.height / view.z);
+  // (on the land in 3D: the eye goes there too, at the height it's at)
+  if (on3d && eu3d) eu3d.look(ct[1], ct[2]);
+  drawMap();
 }
 window.__cmp = { get eu3d() { return eu3d; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
