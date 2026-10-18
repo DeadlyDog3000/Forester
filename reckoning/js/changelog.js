@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.81.0", date: "17 October 2026", title: "Victory",
+    items: [
+      "Campaign: victory conditions, as in Empire: Total War. Every crown has its ambition: certain great towns to hold, the nearest and greatest that aren't yours (Edinburgh, Glasgow, Rouen and Paris for England; Copenhagen, Christiania, Königsberg and Danzig for Sweden), and so many towns in all, within sixty years.",
+      "Campaign: a Victory card at the top of the panel ticks off each town as you take it and counts the years left. The top bar's town count is now out of your goal, not out of forty.",
+      "Campaign: win it and a Victory page says so over the map, after the year's newspaper. If the years run out first, a page says how near you came. Either way you can play on or begin another campaign.",
+    ],
+  },
+  {
     v: "1.80.1", date: "17 October 2026", title: "A bug sweep",
     items: [
       "Campaign: forty years played through as England, and twenty as the Dutch, Russia, Sweden, Castile, the Haudenosaunee and the Cherokee, with no errors along the way. Saves from before government, missions, trade and colonial armies load and take them up.",

@@ -270,7 +270,7 @@ function gazette(items) {
     ${Object.keys(cols).length ? `<div class="gz-cols">${Object.entries(cols).map(([h, L]) => `<section><h3>${esc(h)}</h3>${L.slice(0, 7).map(l => `<p><b>${esc(l.title)}.</b> ${esc(l.sub || "")}</p>`).join("")}</section>`).join("")}</div>` : ""}
     <div class="gz-foot"><button class="btn primary" data-gz="1">Lay it aside</button></div>
   </div>`;
-  const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 260); removeEventListener("keydown", key, true); };
+  const close = () => { el.classList.add("out"); setTimeout(() => { el.remove(); goalScreen(); }, 260); removeEventListener("keydown", key, true); };
   const key = e => { if (e.code === "Escape" || e.code === "Enter" || e.code === "Space") { e.preventDefault(); e.stopPropagation(); close(); } };
   el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-gz]")) close(); });
   addEventListener("keydown", key, true);
@@ -591,6 +591,46 @@ function missionsCheck(yearEnd) {
   if (yearEnd && M.length < MISSION_MAX && (M.length === 0 ? R() < 0.7 : R() < 0.35)) { const m = missionOffer(g); if (m) { M.push(m); say(`A mission from the Crown: ${m.title}`, `${m.d} Reward: ${m.gold} thalers.`); } }
   if (shown) persist();
   return shown;
+}
+// ---- the campaign's aim, as Empire's: certain towns to hold, and so many in all, by a year — the crown's ambition ----
+const GOAL_YEARS = 60;
+function goalOf() {
+  if (!C || C.mp) return null; if (C.goal) return C.goal;
+  const g = grid(), own = citiesOfNow(g, C.me), h = homeOf(g, C.me); if (!h) return null;
+  const nw = !!NATIONS[C.me].nw;
+  // (the prizes: the great towns nearest home that aren't yours — near and big counting for most)
+  // (across the water counts as three times as far: a crossing is a harder war)
+  const want = CITIES.filter(ct => cityOwner(g, ct) !== C.me && cityOwner(g, ct) != null && (!nw || !overSea(h, cellXY(ct))))
+    .map(ct => [ct, dist2(h, cellXY(ct)) * (overSea(h, cellXY(ct)) ? 3 : 1) / (1 + ct[3] * 0.8)]).sort((a, b) => a[1] - b[1]).slice(0, nw ? 2 : 4).map(([ct]) => ct[0]);
+  C.goal = { towns: want, n: Math.min(WIN_CITIES, Math.max(own.length + (nw ? 5 : 10), nw ? 7 : 14)), by: C.year + GOAL_YEARS };
+  return C.goal;
+}
+// (how it stands: the towns held of those asked for, and the count)
+function goalState() {
+  const G = goalOf(); if (!G) return null; const g = grid(), n = citiesOfNow(g, C.me).length;
+  const held = G.towns.map(t => { const ct = CITIES.find(c => c[0] === t); return [t, !!ct && cityOwner(g, ct) === C.me]; });
+  return { G, n, held, done: n >= G.n && held.every(([, h]) => h) };
+}
+function goalCheck() {
+  const st = goalState(); if (!st || C.over) return; const G = st.G;
+  if (st.done && !G.won) { G.won = C.year; G.show = "won"; say("Victory: the crown's ambition is won", `${G.towns.join(", ")} and ${st.n} towns in all are yours, ${G.by - C.year} years before the time. Play on, if you like.`); }
+  else if (!G.won && !G.out && C.year >= G.by) { G.out = C.year; G.show = "out"; say("The years run out", `${G.by} is come, and the crown's ambition not won: ${st.held.filter(([, h]) => h).length} of the ${G.towns.length} towns it asked for, ${st.n} of ${G.n} in all. Play on, if you like.`); }
+}
+function goalHtml() {
+  const st = goalState(); if (!st) return ""; const { G, n, held } = st, left = G.by - C.year;
+  return fold("goal", `<span class="cmp-h"><b>${G.won ? "Victory won" : "Victory"}</b><small>${G.won ? `in ${G.won}` : G.out ? "the years ran out" : `by ${G.by} · ${left} year${left === 1 ? "" : "s"} left`}</small></span>`,
+    `<div class="cmp-goals">${held.map(([t, h]) => `<span class="${h ? "on" : ""}"><i>${h ? "✓" : ""}</i>Hold ${esc(t)}</span>`).join("")}<span class="${n >= G.n ? "on" : ""}"><i>${n >= G.n ? "✓" : ""}</i>${G.n} towns in all <em>${n} now</em></span></div>`, !G.won);
+}
+// (won, or the time run out: told once, in a page of its own over the map)
+function goalScreen() {
+  const G = C && C.goal; if (!G || !G.show || $("cmpGoal") || $("cmpGazette")) return; const kind = G.show; G.show = null; persist();
+  const st = goalState(), el = document.createElement("div"); el.id = "cmpGoal"; el.className = "cmp-must"; $("campaign").appendChild(el);
+  el.innerHTML = `<div class="cmp-mbox cmp-goalbox ${kind}"><h2>${kind === "won" ? "Victory" : "The years run out"}</h2><p class="sub">${esc(NATIONS[C.me].name)}, ${C.year}</p>
+    <p>${kind === "won" ? `The crown's ambition is won, ${G.by - C.year} years before its time: every town it asked for is yours, and ${st.n} in all. Your name is in every gazette in the world.` : `${G.by} is come. Of the towns the crown asked for you hold ${st.held.filter(([, h]) => h).length} of ${G.towns.length}, and ${st.n} of the ${G.n} in all.`}</p>
+    <div class="cmp-goals">${st.held.map(([t, h]) => `<span class="${h ? "on" : ""}"><i>${h ? "✓" : ""}</i>${esc(t)}</span>`).join("")}</div>
+    <nav class="menu"><button class="btn primary" data-gl="on">Play on</button>${mp ? "" : `<button class="btn" data-gl="new">Another campaign</button>`}</nav></div>`;
+  sfx(kind === "won" ? "bell" : "parchment", 0.5);
+  el.onclick = e => { const b = e.target.closest("[data-gl]"); if (!b) return; el.remove(); if (b.dataset.gl === "new" && !mp) drawPick(); };
 }
 function missionsHtml() {
   const M = (C && !C.mp && C.missions) || []; if (!M.length) return "";
@@ -1860,6 +1900,7 @@ function checkEnd() {
   orphans(C.me);
   const g = grid(), n = citiesOfNow(g, C.me).length;
   if (!n && !C.over) { C.over = "lost"; say("Your crown is lost", "The last of your towns has fallen."); }
+  goalCheck();
   if (n >= WIN_CITIES && !C.won) { C.won = true; say("Yours is the first crown of the world", `${n} towns under your crown. Play on, if you like.`); }
   for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !alive(g, id)) { C.E.war[id] = false; const by = C.gone && C.gone[id]; say(`${The(id)} ${v3(id, "is")} no more`, by === C.me ? "Its last town has fallen to you, and every acre of its land is yours." : by ? `${The(by)} ${v3(by, "has")} taken the last of it.` : "Its last town is yours or another's."); }
 }
@@ -1900,7 +1941,7 @@ export function initCampaign(c, battle, withPlayer) {
     sfx("parchment", 0.55);
     // (what happened while the season turned: the news of it, at the top)
     const fresh = []; for (const l of C.log) { if (l === before) break; fresh.push(l); }
-    news = fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$/.test(l.title)).reverse(); note = ""; drawMap(); gazette(news);
+    news = fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$/.test(l.title)).reverse(); note = ""; drawMap(); gazette(news); goalScreen();
     // (war on you, or an army on its way: the drum; a crown gone from the map: the bells)
     if (C.events.some(e => e.kind === "attack" && !e.done) || news.some(l => /declares war on you/.test(l.title))) sfx("drum", 0.5, 400);
     else if (news.some(l => /is no more|takes /.test(l.title))) sfx("guns", 0.4, 400);
@@ -1916,7 +1957,7 @@ export function initCampaign(c, battle, withPlayer) {
   addEventListener("keydown", e => {
     if (e.code !== "Escape" || e.repeat || !C || $("campaign").classList.contains("hidden") || $("cmpPlay").classList.contains("hidden") || $("cmpGazette") || $("cmpMust")) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    for (const id of ["cmpMin", "cmpHow", "cmpPause", "cmpUnit", "cmpTech"]) if ($(id)) { $(id).remove(); return; }
+    for (const id of ["cmpGoal", "cmpMin", "cmpHow", "cmpPause", "cmpUnit", "cmpTech"]) if ($(id)) { $(id).remove(); return; }
     if (loyMap) { toggleLoy(); return; }
     pauseMenu();
   }, true);
@@ -2487,7 +2528,7 @@ function drawTop() {
   const g = grid(), n = citiesOfNow(g, C.me).length, net = income(g) - upkeep(), wars = Object.keys(C.E.war).filter(id => C.E.war[id]);
   $("cmpTop").innerHTML = `<span class="cmp-crownname"><i style="background:${NATIONS[C.me].color}"></i>${esc(NATIONS[C.me].name)}</span>
     <span><small>Year</small><b>${C.year}</b></span><span title="${esc(`A year: ${income(g)} thalers in — from your towns at ${TAX[C.tax ?? 1].n.toLowerCase()} taxes, and trade — and ${upkeep()} out on the upkeep of ${(C.units || []).length} regiments`)}"><small>Treasury</small><b>${C.gold}</b> <em class="${net >= 0 ? "up" : "down"}">${net >= 0 ? "+" : ""}${net}</em></span>
-    <span><small>${(C.armies || []).length ? `Armies · ${armyIds().length}` : "Army"}</small><b>${allField().length}</b> regiments${(C.units || []).some(u => u.at) ? ` <em title="Regiments in your towns' garrisons">+${C.units.filter(u => u.at).length}</em>` : ""}</span><span><small>People</small><b>${fmtN(citiesOfNow(g, C.me).reduce((t, ct) => t + popOf(ct), 0))}</b></span><span><small>Towns</small><b>${n}</b> of ${WIN_CITIES}</span><span><small>At war with</small><b>${wars.length ? wars.map(id => esc(NATIONS[id].name)).join(", ") : "nobody"}</b></span>${C.mp ? (() => { const o = humans().find(h => h !== C.me), ready = C.mp.ready[o]; return `<span class="cmp-mate"><small>${esc(nameOf(o))}</small><b><i style="background:${NATIONS[o].color}"></i>${esc(NATIONS[o].name)}</b><em class="${ready ? "up" : ""}">${mp && mp.gone ? "has left" : ready ? "ready to end the year" : "playing their year"}</em></span>`; })() : ""}`;
+    <span><small>${(C.armies || []).length ? `Armies · ${armyIds().length}` : "Army"}</small><b>${allField().length}</b> regiments${(C.units || []).some(u => u.at) ? ` <em title="Regiments in your towns' garrisons">+${C.units.filter(u => u.at).length}</em>` : ""}</span><span><small>People</small><b>${fmtN(citiesOfNow(g, C.me).reduce((t, ct) => t + popOf(ct), 0))}</b></span><span><small>Towns</small><b>${n}</b> of ${(goalOf() || {}).n || WIN_CITIES}</span><span><small>At war with</small><b>${wars.length ? wars.map(id => esc(NATIONS[id].name)).join(", ") : "nobody"}</b></span>${C.mp ? (() => { const o = humans().find(h => h !== C.me), ready = C.mp.ready[o]; return `<span class="cmp-mate"><small>${esc(nameOf(o))}</small><b><i style="background:${NATIONS[o].color}"></i>${esc(NATIONS[o].name)}</b><em class="${ready ? "up" : ""}">${mp && mp.gone ? "has left" : ready ? "ready to end the year" : "playing their year"}</em></span>`; })() : ""}`;
   const open = C.events.filter(e => !e.done).length, mine = C.mp && C.mp.ready[C.me], other = C.mp && humans().find(h => h !== C.me);
   $("cmpEnd").disabled = !!C.over || open > 0 || !!(mp && mp.gone); $("cmpEnd").textContent = C.over ? "The campaign is over" : open ? "Answer what's waiting first" : mine ? `Waiting for ${nameOf(other)}…` : "End the year";
   $("cmpEnd").classList.toggle("waiting", !!mine); $("cmpNew").classList.add("hidden");
@@ -2725,6 +2766,7 @@ function drawSide() {
     </ul>`;
   // your own: the treasury's use
   reconcile();
+  h += goalHtml();
   h += missionsHtml();
   h += govHtml();
   h += tradeHtml();
@@ -2805,7 +2847,7 @@ function __selectTown(n) {
   const ct = CITIES.find(c => c[0] === n); if (!ct) return; selCity = ct; sel = cityOwner(grid(), ct); armySel = false;
   const cv = $("cmpMap"), S = cv.width / MG_W, t = cellXY(ct); view.ox = clamp(t.x * S - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(t.y * S - cv.height / view.z / 2, 0, cv.height - cv.height / view.z); drawMap();
 }
-window.__cmp = { get eu3d() { return eu3d; }, begin: me => { begin(me); drawMap(); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get eu3d() { return eu3d; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
 //  what you do on the campaign's map, as an act: done here, playing alone — or, a campaign of two, done on the

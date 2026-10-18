@@ -2002,6 +2002,18 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-mis span { display: flex; justify-content: space-between; font: 11px var(--sans); }
 .cmp-mis em { font-style: normal; color: #e8c96a; }
 .cmp-mis i { font-style: normal; color: var(--ink-dim); } .cmp-mis i.down { color: #d8705a; }
+/* the campaign's aim: towns to hold by a year */
+.cmp-goals { display: grid; gap: 4px; margin-top: 6px; }
+.cmp-goals span { display: flex; align-items: center; gap: 8px; font: 12.5px var(--sans); color: var(--ink-dim); }
+.cmp-goals span.on { color: var(--ink); }
+.cmp-goals i { flex: none; width: 15px; height: 15px; border: 1.5px solid rgba(239,228,198,0.35); border-radius: 3px; display: grid; place-items: center; font: 700 11px var(--sans); font-style: normal; color: #9fd08a; }
+.cmp-goals span.on i { border-color: #9fd08a; background: rgba(120,180,100,0.18); }
+.cmp-goals em { margin-left: auto; font-style: normal; color: var(--ink-dim); font-size: 11px; }
+.cmp-goalbox { width: min(440px, 100%); text-align: center; }
+.cmp-goalbox h2 { font-size: 34px; letter-spacing: 0.06em; }
+.cmp-goalbox.won h2 { color: #e8c96a; }
+.cmp-goalbox .cmp-goals { text-align: left; margin: 12px auto; width: fit-content; }
+.cmp-goalbox .menu { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 /* simpler: the ? button, the help page, the loyalty reasons folded */
 .cmp-qb { min-width: 0; width: 34px; padding-left: 0; padding-right: 0; font-weight: 700; }
 .cmp-howbox { width: min(720px, 100%); }
