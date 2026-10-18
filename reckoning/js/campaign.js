@@ -572,6 +572,8 @@ function foeTraits(m) { if (m && !m.trRolled) { m.trRolled = true; if (R() < 0.5
 function buildable(ct) {
   const n = ct[0], out = [];
   for (const ch of CHAIN_ORDER) {
+    // (a nation of the woods raises no stone walls: its towns stand behind their palisades)
+    if (ch === "walls" && NATIONS[C.me] && NATIONS[C.me].nw) continue;
     const lv = lvOf(n, ch); if (lv >= capOf(ch, ct[3])) continue;
     const L = CHAINS[ch].levels[lv + 1]; if (L.rank && ct[3] < L.rank) continue;
     out.push({ chain: ch, lv: lv + 1, L, cost: Math.round(levelCost(ch, lv + 1, ct[3]) * prodMul(n)), tech: L.tech && !knows(L.tech) ? L.tech : null });
@@ -627,6 +629,9 @@ function realmWorld(g, ids) {
   }
 }
 // ---- and for each player: the levies in, the learning done, the years told on their men ----
+// (who sets the missions: the Crown and its court; for a nation of the woods, its council)
+const crownW = cap => NATIONS[C.me] && NATIONS[C.me].nw ? (cap ? "The council" : "the council") : (cap ? "The Crown" : "the Crown");
+const courtW = cap => NATIONS[C.me] && NATIONS[C.me].nw ? (cap ? "The council" : "the council") : (cap ? "The court" : "the court");
 // ---- the Crown's missions, as in Empire: Total War: now and then the court sets you a task — a town to take, a building
 //  to raise, an army or a fleet to have, a battle to win, a treaty to sign — with a year to have it done by and a reward
 //  when it is. Two at a time at most; one that runs out of time is simply dropped, with the court's displeasure ----
@@ -635,11 +640,11 @@ function missionOffer(g) {
   const L = [], mine = citiesOfNow(g, C.me), yr = C.year, M = C.missions ||= [], has = k => M.some(m => m.k === k) || ((C.missionRest || {})[k] | 0) > yr;   // (a kind just failed is let rest a while: not asked again the same year, word for word)
   // (a town of a crown you're at war with, near enough to march on)
   if (!has("take")) { const T = CITIES.filter(ct => { const o = cityOwner(g, ct); return o && o !== C.me && atWar(o) && !isHuman(o); }).map(ct => [ct, mdist(armyPos(), cellXY(ct))]).filter(([, d]) => d < MARCH * 3).sort((a, b) => a[1] - b[1]).slice(0, 4);
-    if (T.length) { const [ct] = pick(T), o = cityOwner(g, ct); L.push({ k: "take", t: ct[0], foe: o, by: yr + 4, gold: 300 + ct[3] * 150, title: `Take ${ct[0]}`, d: `${ct[0]} is ${poss(the(o))}, and the court wants it. Take it by ${yr + 4}.` }); } }
+    if (T.length) { const [ct] = pick(T), o = cityOwner(g, ct); L.push({ k: "take", t: ct[0], foe: o, by: yr + 4, gold: 300 + ct[3] * 150, title: `Take ${ct[0]}`, d: `${ct[0]} is ${poss(the(o))}, and ${courtW(0)} wants it. Take it by ${yr + 4}.` }); } }
   // (a building raised in a town of yours)
-  if (!has("build") && mine.length) { const ops = mine.flatMap(ct => buildable(ct).filter(o => !o.tech).map(o => [ct, o])); if (ops.length) { const [ct, o] = pick(ops); L.push({ k: "build", t: ct[0], ch: o.chain, lv: o.lv, by: yr + 3, gold: Math.round(o.cost * 0.6) + 80, title: `${o.L.n} at ${ct[0]}`, d: `Raise ${o.L.n.toLowerCase()} at ${ct[0]} by ${yr + 3}. The Crown will repay much of the cost.` }); } }
+  if (!has("build") && mine.length) { const ops = mine.flatMap(ct => buildable(ct).filter(o => !o.tech).map(o => [ct, o])); if (ops.length) { const [ct, o] = pick(ops); L.push({ k: "build", t: ct[0], ch: o.chain, lv: o.lv, by: yr + 3, gold: Math.round(o.cost * 0.6) + 80, title: `${o.L.n} at ${ct[0]}`, d: `Build the ${o.L.n.toLowerCase()} at ${ct[0]} by ${yr + 3}. ${crownW(1)} will repay much of the cost.` }); } }
   // (an army of so many regiments, all told)
-  if (!has("army")) { const n = allField().length + 6 + Math.floor(R() * 5); L.push({ k: "army", n, by: yr + 3, gold: 250 + n * 6, title: `An army of ${n} regiments`, d: `The Crown wants ${n} regiments in the field (it has ${allField().length}). Have them by ${yr + 3}.` }); }
+  if (!has("army")) { const n = allField().length + 6 + Math.floor(R() * 5); L.push({ k: "army", n, by: yr + 3, gold: 250 + n * 6, title: `An army of ${n} regiments`, d: `${crownW(1)} wants ${n} regiments in the field (it has ${allField().length}). Have them by ${yr + 3}.` }); }
   // (a battle won against a crown at war with you)
   if (!has("beat")) { const ws = Object.keys(C.E.war).filter(id => C.E.war[id] && !isHuman(id) && alive(g, id) && (C.foes[id] | 0) >= 5); if (ws.length) { const id = pick(ws); L.push({ k: "beat", foe: id, from: yr, by: yr + 3, gold: 400, title: `Beat ${poss(the(id))} army`, d: `Defeat ${poss(the(id))} army in battle, in the field or at a town, by ${yr + 3}.` }); } }
   // (a trade pact with a crown that thinks well enough of you)
@@ -663,10 +668,10 @@ function missionDone(m, g) {
 function missionsCheck(yearEnd) {
   if (!C || C.mp || C.over) return null; const g = grid(), M = C.missions ||= []; let shown = null;
   for (const m of M.slice()) {
-    if (missionDone(m, g)) { M.splice(M.indexOf(m), 1); C.gold += m.gold; moraleMove(3); say(`Mission accomplished: ${m.title}`, `The Crown is pleased: ${m.gold} thalers to the treasury.`); shown = `Mission accomplished: ${m.title}. The Crown sends ${m.gold} thalers.`; }
-    else if (yearEnd && C.year >= m.by) { M.splice(M.indexOf(m), 1); (C.missionRest ||= {})[m.k] = C.year + 2; moraleMove(-2); say(`Mission failed: ${m.title}`, "The time the Crown gave you is up. The court is displeased."); }
+    if (missionDone(m, g)) { M.splice(M.indexOf(m), 1); C.gold += m.gold; moraleMove(3); say(`Mission accomplished: ${m.title}`, `${crownW(1)} is pleased: ${m.gold} thalers to the treasury.`); shown = `Mission accomplished: ${m.title}. ${crownW(1)} sends ${m.gold} thalers.`; }
+    else if (yearEnd && C.year >= m.by) { M.splice(M.indexOf(m), 1); (C.missionRest ||= {})[m.k] = C.year + 2; moraleMove(-2); say(`Mission failed: ${m.title}`, `The time ${crownW(0)} gave you is up. ${courtW(1)} is displeased.`); }
   }
-  if (yearEnd && M.length < MISSION_MAX && (M.length === 0 ? R() < 0.7 : R() < 0.35)) { const m = missionOffer(g); if (m) { M.push(m); say(`A mission from the Crown: ${m.title}`, `${m.d} Reward: ${m.gold} thalers.`); } }
+  if (yearEnd && M.length < MISSION_MAX && (M.length === 0 ? R() < 0.7 : R() < 0.35)) { const m = missionOffer(g); if (m) { M.push(m); say(`A mission from ${crownW(0)}: ${m.title}`, `${m.d} Reward: ${m.gold} thalers.`); } }
   if (shown) persist();
   return shown;
 }
@@ -714,7 +719,7 @@ function goalScreen() {
 }
 function missionsHtml() {
   const M = (C && !C.mp && C.missions) || []; if (!M.length) return "";
-  return `<div class="cmp-card cmp-missions"><span class="cmp-h"><b>Missions from the Crown</b></span>${M.map(m => { const left = m.by - C.year; return `<div class="cmp-mis"><b>${esc(m.title)}</b><small>${esc(m.d)}</small><span><em>${m.gold} thalers</em><i class="${left <= 0 ? "down" : ""}">${left <= 0 ? "this year" : `${left} year${left > 1 ? "s" : ""} left`}</i></span></div>`; }).join("")}</div>`;
+  return `<div class="cmp-card cmp-missions"><span class="cmp-h"><b>Missions from ${crownW(0)}</b></span>${M.map(m => { const left = m.by - C.year; return `<div class="cmp-mis"><b>${esc(m.title)}</b><small>${esc(m.d)}</small><span><em>${m.gold} thalers</em><i class="${left <= 0 ? "down" : ""}">${left <= 0 ? "this year" : `${left} year${left > 1 ? "s" : ""} left`}</i></span></div>`; }).join("")}</div>`;
 }
 // (the government's year: unrest counted, a revolution when it's been widespread two years running; an election in a
 //  constitutional monarchy every five years, a minister perhaps turned out)
@@ -824,7 +829,7 @@ function settle(o, won, myLossK, theirLossK) {
     if (won) { seize(o.ct, C.me); C.took[o.foe] = (C.took[o.foe] || 0) + 1; for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === o.foe ? 8 : 2; say(`${name} is yours`, `Taken from ${the(o.foe)}.`); if (!C.mp && peopleOf(o.ct) !== C.me && !C.events.some(e => !e.done && e.kind === "sack" && e.ct === name)) C.events.push({ kind: "sack", ct: name, foe: o.foe }); }
     else say(`Beaten before ${name}`, `Your army falls back with what it has left: ${armyStr()}.`);
   } else {
-    if (won) { say(`${name} holds`, `${poss(The(o.foe))} army is thrown back.`); if (!isHuman(o.foe) && C.foePos && C.foePos[o.foe]) { const h = homeOf(grid(), o.foe); if (h) { const b = stepToward(cellXY(o.ct), h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } } strikeBack(o.foe); }
+    if (won) { say(`${name} holds`, `${poss(The(o.foe))} ${NATIONS[o.foe] && NATIONS[o.foe].nw ? "war party" : "army"} is thrown back.`); if (!isHuman(o.foe) && C.foePos && C.foePos[o.foe]) { const h = homeOf(grid(), o.foe); if (h) { const b = stepToward(cellXY(o.ct), h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } } strikeBack(o.foe); }
     else { seize(o.ct, o.foe); C.lost[o.foe] = (C.lost[o.foe] || 0) + 1; say(`${name} has fallen`, `${The(o.foe)} ${v3(o.foe, "takes")} it.`); if (C.govs) delete C.govs[name]; }
   }
   if (Object.keys(broken).length) say(`Regiments broken at ${name}`, `${Object.entries(broken).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: too few men left to stand as regiments, they are struck off the roll.`);

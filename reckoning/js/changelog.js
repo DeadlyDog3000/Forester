@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.18", date: "18 October 2026", title: "The council's missions",
+    items: [
+      "Campaign: playing a nation of the woods, you're no longer offered stone walls to build, or set a mission to raise them. Their towns stand behind palisades, as the help says.",
+      "Campaign: a nation of the woods gets its missions from its council, not from \"the Crown\" and \"the court\".",
+      "Campaign: a woods nation's force thrown back from your town is its war party, not its army, as everywhere else.",
+      "Campaign: building missions read \"Build the drill yard at Berlin\", not \"Raise drill yard at Berlin\".",
+    ],
+  },
+  {
     v: "1.90.17", date: "18 October 2026", title: "Before the town",
     items: [
       "Campaign: right-clicking a woods nation's town attacks the town, even with their war party camped in it. The click used to be taken for the war party, and your army went after it, \"marching to the Cree army\", and never attacked the town.",
