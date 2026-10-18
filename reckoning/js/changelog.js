@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.87.0", date: "17 October 2026", title: "Protectorates",
+    items: [
+      "Campaign: protectorates, as in Empire: Total War. At war with a crown no bigger than yours, choose it and Demand they submit. The worse the war has gone for them, the likelier they are to accept.",
+      "Campaign: a protectorate makes peace and becomes your ally. It pays you tribute every year, a third of what its towns are worth, fights in your wars, and never leaves the alliance or makes war on you. Its card says it's yours.",
+      "Campaign: you can release a protectorate, and it stays your ally and thinks the better of you. Declare war on it and it's free.",
+    ],
+  },
+  {
     v: "1.86.3", date: "17 October 2026", title: "No debts from riots",
     items: [
       "Campaign: granting a rising concessions you couldn't afford put the treasury into debt, and a debt makes regiments desert. Now the button is greyed out when the chest hasn't the money.",

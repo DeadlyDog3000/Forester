@@ -1750,7 +1750,8 @@ function diplo(id, what) {
   if (what === "revoke") { if (!C.E.grant || C.E.grant[id] !== true) return null; C.E.grant[id] = C.year; r[id] -= 8; return done(`You revoke ${poss(the(id))} leave to cross your land.`); }
   if (what === "unpact") { C.E.pact[id] = false; r[id] -= 10; return done(`The trade pact with ${the(id)} ${v3(id, "is")} ended.`); }
   if (what === "ally") { if (atWar(id) || C.ally[id] || r[id] < 55) return null; if (R() < 0.25 + (r[id] - 55) / 60) { C.ally[id] = true; r[id] += 5; return done(`${The(id)} ${v3(id, "is")} your ally: it will join your wars.`); } r[id] -= 3; return done(`${The(id)} won't bind itself to you — not yet.`); }
-  if (what === "unally") { C.ally[id] = false; r[id] -= 20; return done(`You break the alliance with ${the(id)}.`); }
+  if (what === "release") { if (!isVassal(id)) return null; delete C.vassal[id]; r[id] = clamp(r[id] + 15, -100, 100); return done(`${The(id)} ${v3(id, "is")} free of you, and grateful: still your ally, its tribute ended.`); }
+  if (what === "unally") { if (isVassal(id)) return null; C.ally[id] = false; r[id] -= 20; return done(`You break the alliance with ${the(id)}.`); }
   if (what === "war") {
     if (atWar(id) || (C.truce[id] || 0) > 0) return null;
     declare(id, C.me);
@@ -1765,6 +1766,16 @@ function diplo(id, what) {
     r[id] -= 2; persist(); return `${The(id)} won't sell ${t[0]}.`;
   }
   // (peace bought with a town: theirs nearest your lands, given up — if the war has gone badly enough for them)
+  // (a crown beaten in the field and smaller than yours, asked to submit: a protectorate, as Empire's — peace, its
+  //  tribute every year, and its armies in your wars)
+  if (what === "submit") {
+    if (!atWar(id) || did.peace || NATIONS[id].nw) return null;
+    const g = grid(), theirs = citiesOfNow(g, id).length, mineN = citiesOfNow(g, C.me).length; if (!theirs || theirs > mineN) return null;
+    const ratio = allArmies() / Math.max(1, foeArmy(id)), p = clamp(-0.3 + ratio * 0.12 + (C.took[id] || 0) * 0.12 - (C.lost[id] || 0) * 0.08 + (C.warT[id] || 0) * 0.02, 0.02, 0.6);
+    did.peace = true;
+    if (R() < p) { makePeace(id); (C.vassal ||= {})[id] = C.year; C.ally[id] = true; r[id] = Math.max(r[id], 30); say(`${The(id)} ${v3(id, "submits")}`, `A protectorate of yours now: peace, tribute every year, and ${NATIONS[id].people ? "their" : "its"} armies in your wars.`); return done(`${The(id)} ${v3(id, "submits")}: a protectorate of yours, paying tribute and allied to you.`); }
+    return done(`${The(id)} won't bow the knee. The war goes on.`);
+  }
   if (what === "demand") {
     if (!atWar(id) || did.peace) return null;
     const g = grid(), theirs = citiesOfNow(g, id); if (theirs.length < 2) return null;
@@ -1808,8 +1819,16 @@ function aiOffers(g, ids) {
     if (tr.length) { const id = pick(tr); C.events.push({ kind: "offer", w: "pact", foe: id }); }
   }
 }
+const isVassal = id => !!(C && C.vassal && C.vassal[id] != null);
+// (the protectorates' year: their tribute paid in — a sixth of what their towns are worth — and a protectorate that has
+//  lost its last town struck off)
+function vassalsYear(g) {
+  if (!C.vassal) return; let tot = 0;
+  for (const id of Object.keys(C.vassal)) { if (!alive(g, id)) { delete C.vassal[id]; continue; } tot += Math.round(citiesOfNow(g, id).reduce((t, ct) => t + worth(ct), 0) / 3); }
+  if (tot) { C.gold += tot; say(`Tribute from your protectorates: ${tot} thalers`); }
+}
 function declare(id, by) {
-  C.E.war[id] = true; C.warT[id] = 0; C.E.pact[id] = false; C.ally[id] = false; if (C.E.access) delete C.E.access[id]; if (C.E.grant) delete C.E.grant[id];
+  C.E.war[id] = true; C.warT[id] = 0; C.E.pact[id] = false; C.ally[id] = false; if (C.vassal) delete C.vassal[id]; if (C.E.access) delete C.E.access[id]; if (C.E.grant) delete C.E.grant[id];
   C.E.rel[id] = Math.min(C.E.rel[id], -40);
   // (your allies: into it with you, against them)
   for (const a of Object.keys(C.ally)) if (C.ally[a] && a !== id && !isHuman(a) && C.E.rel[a] >= 30 && sameSide(a, id) && !C.E.wars.some(w => (w.a === a && w.b === id) || (w.a === id && w.b === a))) { C.E.wars.push({ a, b: id, battles: 0, withYou: true }); say(`${The(a)} ${v3(a, "joins")} your war`, `Your ally marches on ${the(id)}.`); }
@@ -1826,7 +1845,7 @@ function endSeason(part = {}) {
   // (the year's works finished first: what was put in hand this year stands at its end)
   if (world) realmWorld(g, ids);
   if (world) foeNavies(g, ids);
-  if (mine && !C.over) { C.gold += income(g) - upkeep(); realmMine(g); missionsCheck(true); govYear(g); launchShips(g); fleetsYear(g); navyHunt(g, ids);
+  if (mine && !C.over) { C.gold += income(g) - upkeep(); vassalsYear(g); realmMine(g); missionsCheck(true); govYear(g); launchShips(g); fleetsYear(g); navyHunt(g, ids);
   if (C.gold < 0) { const lose = Math.ceil(-C.gold / REGIMENT); C.army = Math.max(0, C.army - lose); C.gold = 0; moraleMove(-15); say("The pay chest is empty", `${lose} regiments desert for want of pay.`); } }
   if (world) coloniesYear(g);
   // (the other crowns: their armies made up again; their tempers going back to where their faith puts them)
@@ -1841,7 +1860,7 @@ function endSeason(part = {}) {
     const home = (NATION_FAITH[id] === NATION_FAITH[C.me] ? 18 : 0) + (C.E.pact[id] ? 15 : 0) + (C.ally[id] ? 25 : 0) - (atWar(id) ? 40 : 0);
     C.E.rel[id] += Math.sign(home - C.E.rel[id]) * Math.min(2, Math.abs(home - C.E.rel[id]));
     if (C.E.pact[id] && (C.E.rel[id] < 0 || atWar(id))) { C.E.pact[id] = false; say(`${The(id)} ${v3(id, "ends")} your trade pact`); }
-    if (C.ally[id] && C.E.rel[id] < 20) { C.ally[id] = false; say(`${The(id)} ${v3(id, "leaves")} your alliance`); }
+    if (C.ally[id] && C.E.rel[id] < 20 && !isVassal(id)) { C.ally[id] = false; say(`${The(id)} ${v3(id, "leaves")} your alliance`); }
     if (C.truce[id] > 0) C.truce[id]--;
     if (atWar(id)) C.warT[id] = (C.warT[id] || 0) + 1;
   }
@@ -1855,7 +1874,7 @@ function endSeason(part = {}) {
   // (a new crown is watched for its first two years before anyone tries it)
   const years = C.year - 1683;
   for (const id of ids) {
-    if (years < 2 || atWar(id) || C.ally[id] || (C.truce[id] || 0) > 0 || !nb.has(id) || !alive(g2, id)) continue;
+    if (years < 2 || atWar(id) || C.ally[id] || isVassal(id) || (C.truce[id] || 0) > 0 || !nb.has(id) || !alive(g2, id)) continue;
     const p = 0.015 + Math.max(0, -C.E.rel[id]) / 500 + (big > 12 ? 0.03 : 0) + (big > 25 ? 0.05 : 0), able = C.foes[id] > allArmies() * 0.6 ? 1 : 0.3;
     // (fewer piling on when you've already enemies enough — a crown waits to see how those wars go)
     const already = Object.keys(C.E.war).filter(k => C.E.war[k]).length;
@@ -2817,22 +2836,22 @@ function drawSide() {
       <div class="cmp-acts">${war ? `<button class="btn" data-dip="peace" ${did.peace ? "disabled" : ""}>Propose peace</button>` : `
         <button class="btn" data-dip="gift" ${did.gift || C.gold < 150 ? "disabled" : ""}>Send 150 thalers</button>
         ${C.E.pact[id] ? `<button class="btn" data-dip="unpact">End the trade pact</button>` : `<button class="btn" data-dip="pact" ${did.pact ? "disabled" : ""}>Propose a trade pact</button>`}
-        ${C.ally[id] ? `<button class="btn" data-dip="unally">Break the alliance</button>` : `<button class="btn" data-dip="ally" ${did.ally ? "disabled" : ""}>Propose an alliance</button>`}
+        ${isVassal(id) ? `<button class="btn" data-dip="release" title="Free them: still your ally, but no more tribute">Release them</button>` : C.ally[id] ? `<button class="btn" data-dip="unally">Break the alliance</button>` : `<button class="btn" data-dip="ally" ${did.ally ? "disabled" : ""}>Propose an alliance</button>`}
         <button class="btn danger" data-dip="war" ${tr ? `disabled title="A treaty: ${tr} more years"` : ""}>Declare war</button>`}</div></div>`;
   } else if (id && id !== C.me && NATIONS[id]) {
     const did = C.did[id] || {}, war = atWar(id), tr = C.truce[id] || 0;
-    const head = `<span class="cmp-h"><i style="background:${NATIONS[id].color}"></i><b>${esc(NATIONS[id].name)}</b><small>${citiesOfNow(g, id).length} town${citiesOfNow(g, id).length === 1 ? "" : "s"} · army ${knowsArmy(id) ? C.foes[id] || 0 : `<span title="Unknown: corrupt one of their politicians to learn it">?</span>`} · ${war ? "<em class='down'>at war with you</em>" : C.ally[id] ? "your ally" : C.E.pact[id] ? "trade pact" : relWord(r[id])}${!war && !C.ally[id] && C.E.access && C.E.access[id] ? " · military access" : ""}</small></span>`;
+    const head = `<span class="cmp-h"><i style="background:${NATIONS[id].color}"></i><b>${esc(NATIONS[id].name)}</b><small>${isVassal(id) ? "your protectorate · " : ""}${citiesOfNow(g, id).length} town${citiesOfNow(g, id).length === 1 ? "" : "s"} · army ${knowsArmy(id) ? C.foes[id] || 0 : `<span title="Unknown: corrupt one of their politicians to learn it">?</span>`} · ${war ? "<em class='down'>at war with you</em>" : C.ally[id] ? "your ally" : C.E.pact[id] ? "trade pact" : relWord(r[id])}${!war && !C.ally[id] && C.E.access && C.E.access[id] ? " · military access" : ""}</small></span>`;
     h += (selCity ? (b2 => fold("crown", head, b2)) : (b2 => `<div class="cmp-card">${head}${b2}</div>`))(`
       <div class="cmp-rel"><i style="left:${(r[id] + 100) / 2}%"></i><span>Their view of you: ${r[id] > 0 ? "+" : ""}${Math.round(r[id])}</span></div>
       ${(() => { const m = muster(id, 100); return `<div class="cmp-farmy">${Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const nm = NATIONS[id].nw ? ({ axe: "War club", bow: "Bow", musketeer: "Trade musket" }[k] || TROOPS[k].name) : TROOPS[k].name; return `<span title="${esc(nm)}: about ${n}% of their army">${unitImg(k, "", id)}<small>${esc(nm)}</small></span>`; }).join("")}</div>`; })()}
       ${NATIONS[id].nw ? `<p class="cmp-help">A nation of the woods. Their towns stand behind wooden palisades, with no stone walls to besiege; a palisade can be set alight and burnt through. Their warriors fight with the bow and the war club, a few with trade muskets. They have no guns and no horse.</p>` : ""}
       ${C.foeGen && C.foeGen[id] && genOf(id) ? `<div class="cmp-foegen">${face(C.foeGen[id], "sm")}<span><b>${esc(C.foeGen[id].name)}</b><small>Their general · command ${"●".repeat(C.foeGen[id].st[0])}${"○".repeat(5 - C.foeGen[id].st[0])} · ${(C.fguns[id] | 0) ? `${C.fguns[id]} gun${C.fguns[id] > 1 ? "s" : ""}: they can besiege walled towns` : "no guns: walled towns are safe from them"}</small>${(C.foeGen[id].tr || []).length ? `<span class="cmp-traits">${C.foeGen[id].tr.map(t => TRAITS[t] ? `<i class="${TRAITS[t].bad ? "bad" : ""}" title="${esc(TRAITS[t].d)}">${esc(TRAITS[t].n)}</i>` : "").join("")}</span>` : ""}</span></div>` : ""}
-      <div class="cmp-acts">${war ? `<button class="btn" data-dip="peace" ${did.peace ? "disabled" : ""}>Offer peace</button><button class="btn" data-dip="demand" ${did.peace || citiesOfNow(g, id).length < 2 ? "disabled" : ""} title="Peace, if they give up their town nearest your lands. The worse the war has gone for them, the likelier.">Demand a town for peace</button>${C.spies && C.spies[id] ? "" : `<button class="btn" data-dip="bribe" ${C.gold < SPY_COST ? `disabled title="The treasury hasn't ${SPY_COST} thalers"` : `title="Buy a politician at their court: he tells you how big their army is, from now on"`}>Corrupt a politician · ${SPY_COST}</button>`}` : `${C.spies && C.spies[id] ? "" : `<button class="btn" data-dip="bribe" ${C.gold < SPY_COST ? `disabled title="The treasury hasn't ${SPY_COST} thalers"` : `title="Buy a politician at their court: he tells you how big their army is, from now on"`}>Corrupt a politician · ${SPY_COST}</button>`}
+      <div class="cmp-acts">${war ? `<button class="btn" data-dip="peace" ${did.peace ? "disabled" : ""}>Offer peace</button><button class="btn" data-dip="demand" ${did.peace || citiesOfNow(g, id).length < 2 ? "disabled" : ""} title="Peace, if they give up their town nearest your lands. The worse the war has gone for them, the likelier.">Demand a town for peace</button>${NATIONS[id].nw ? "" : `<button class="btn" data-dip="submit" ${did.peace || citiesOfNow(g, id).length > citiesOfNow(g, C.me).length ? "disabled" : ""} title="Peace, if they become your protectorate: tribute every year, and their armies in your wars. Only a crown no bigger than yours, and the worse the war has gone for them, the likelier.">Demand they submit</button>`}${C.spies && C.spies[id] ? "" : `<button class="btn" data-dip="bribe" ${C.gold < SPY_COST ? `disabled title="The treasury hasn't ${SPY_COST} thalers"` : `title="Buy a politician at their court: he tells you how big their army is, from now on"`}>Corrupt a politician · ${SPY_COST}</button>`}` : `${C.spies && C.spies[id] ? "" : `<button class="btn" data-dip="bribe" ${C.gold < SPY_COST ? `disabled title="The treasury hasn't ${SPY_COST} thalers"` : `title="Buy a politician at their court: he tells you how big their army is, from now on"`}>Corrupt a politician · ${SPY_COST}</button>`}
         <button class="btn" data-dip="envoy" ${did.envoy || C.gold < 40 ? "disabled" : ""}>Send an envoy · 40</button>
         <button class="btn" data-dip="gift" ${did.gift || C.gold < 150 ? "disabled" : ""}>A gift · 150</button>
         ${!NATIONS[id].nw && (C.ally[id] || C.E.pact[id]) ? (L => `<button class="btn" data-dip="learn" ${L != null && C.year - L < 5 ? `disabled title="Again in ${5 - (C.year - L)} year${5 - (C.year - L) === 1 ? "" : "s"}"` : `title="Learning points for your scholars' current study"`}>Exchange scholars</button>`)((C.learnX || {})[id]) : ""}
         ${C.E.pact[id] ? `<button class="btn" data-dip="unpact">${NATIONS[id].nw ? "End the fur trade" : "End the trade pact"}</button>` : `<button class="btn" data-dip="pact" ${r[id] < 20 ? "disabled title='They need to think well of you (20)'" : ""}>${NATIONS[id].nw ? "Trade for furs" : "Trade pact"}</button>`}
-        ${C.ally[id] ? `<button class="btn" data-dip="unally">Break the alliance</button>` : `<button class="btn" data-dip="ally" ${r[id] < 55 || did.ally ? "disabled title='They need to be friendly (55)'" : ""}>Propose an alliance</button>`}
+        ${isVassal(id) ? `<button class="btn" data-dip="release" title="Free them: still your ally, but no more tribute">Release them</button>` : C.ally[id] ? `<button class="btn" data-dip="unally">Break the alliance</button>` : `<button class="btn" data-dip="ally" ${r[id] < 55 || did.ally ? "disabled title='They need to be friendly (55)'" : ""}>Propose an alliance</button>`}
         ${C.E.access && C.E.access[id] ? `<button class="btn" data-dip="unaccess" title="Your armies may cross their land">Give up military access</button>` : C.ally[id] ? "" : `<button class="btn" data-dip="access" ${did.access || r[id] < -10 ? `disabled title="${did.access ? "Asked this year" : "They think too ill of you (−10)"}"` : `title="Ask leave for your armies to cross their land"`}>Ask military access</button>`}
         ${C.E.grant && C.E.grant[id] === true ? `<button class="btn" data-dip="revoke" title="Their armies may cross your land, by your leave">Revoke their passage</button>` : ""}
         ${(t => t ? `<button class="btn" data-dip="buy" ${did.buy || r[id] < 40 || C.gold < buyPrice(t) ? `disabled title="${r[id] < 40 ? "They need to think well of you (40)" : did.buy ? "Asked this year" : "The treasury hasn't the money"}"` : `title="Offer to buy ${esc(t[0])}, their town nearest your lands"`}>Buy ${esc(t[0])} · ${buyPrice(t)}</button>` : "")(NATIONS[id].nw ? null : buyable(id))}
@@ -2841,7 +2860,7 @@ function drawSide() {
       <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it. Right-click an enemy town within reach to attack it. An army that marches up to a town's walls can still attack it that year, once.</li>
       <li><b>Victory.</b> Your crown's ambition is in the Victory card: certain towns to take and hold, and so many towns in all, within sixty years. Lose your last town and you have three years to take one back with the army you still have, or the crown is lost.</li>
       <li><b>Generals.</b> They earn traits in the field and the camp: Bold, Cautious, Siege engineer, Hero of the nation, Beloved of the men, and the vices of drink and the lash. Each counts in battle. Hover one on the general's card to see what it does.</li>
-      <li><b>The other crowns.</b> They come to you with trade agreements and alliances, and a strong neighbour may demand tribute: pay, or risk war. The great powers card ranks the crowns by their towns and people.</li>
+      <li><b>The other crowns.</b> They come to you with trade agreements and alliances, and a strong neighbour may demand tribute: pay, or risk war. Beat a smaller crown and you can demand it submit as your protectorate: it pays you tribute every year and fights in your wars. The great powers card ranks the crowns by their towns and people.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
       <li><b>Trade.</b> Every town has its good (furs, fish, tobacco, sugar, silver, timber, iron, grain, wool, cloth, wine or silk), and each brings thalers. Trade pacts pay more for goods you don't have yourself. An enemy fleet lying off one of your ports blockades it: none of its trade gets out until you drive the fleet off.</li>
       <li><b>Government.</b> Your crown is an absolute monarchy, a constitutional monarchy or a republic, each with its strengths, and has three ministers (the Treasury, War and Justice) whose skill counts. Change one a year from the side panel. Two years of widespread unrest bring a revolution: grant what the people want, or crush it at the cost of a quarter of your army.</li>
