@@ -588,6 +588,9 @@ function nameBoxes(c, S) {
 function drawCities(c, g, S, v, W, H, opt = {}) {
   const k = W / 1300, taken = nameBoxes(c, S).map(b => [(b[0] - v.ox) * v.z, (b[1] - v.oy) * v.z, (b[2] - v.ox) * v.z, (b[3] - v.oy) * v.z]);
   const hit = b => taken.some(t => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
+  // (what the towns themselves have taken, their marks and names: the country's names aside)
+  if (opt.avoid) taken.push(...opt.avoid);
+  const nNames = taken.length, hitTown = b => taken.some((t, i) => i >= nNames && b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
   c.textBaseline = "middle";
   const sorted = [...CITIES].sort((a, b) => b[3] - a[3]);
   // the dots first, so no name is written over one
@@ -612,10 +615,21 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
     }
     // (a crown's seat is always named, even where the country's own name lies across it: written over it, haloed in
     //  the paper's colour so both can be read — Wien under "AUSTRIA" went nameless)
+    //  — but never over another town's name or mark: where a crowd of them leaves no room, a size smaller, and failing
+    //  that, left for a closer look)
     if (!put && rank === 3) {
-      const [tx, ty] = tries[0], b = [tx, ty - h / 2, tx + w, ty + h / 2]; taken.push(b);
-      c.save(); c.textAlign = "left"; c.lineJoin = "round"; c.strokeStyle = "rgba(240,228,198,0.9)"; c.lineWidth = 3.2 * k; c.strokeText(n, tx, ty + k);
-      c.fillStyle = INK_SOFT + "0.95)"; c.fillText(n, tx, ty + k); c.restore();
+      // (and if no spot is clear at all, the one it covers least of — a crown's seat is never left nameless)
+      const over = b => taken.reduce((t, q, i) => i < nNames ? t : t + Math.max(0, Math.min(b[2], q[2]) - Math.max(b[0], q[0])) * Math.max(0, Math.min(b[3], q[3]) - Math.max(b[1], q[1])), 0);
+      for (const f of [1, 0.8, 0]) {
+        const ff = f || 0.8; c.font = `${Math.round(k * 15 * ff)}px ${FELL}`; const w2 = c.measureText(n).width, h2 = h * ff;
+        const cands = tries.map(([tx, ty, al]) => { const x0 = al === "left" ? tx : al === "right" ? tx - w2 : tx - w2 / 2; return [tx, ty, al, [x0, ty - h2 / 2, x0 + w2, ty + h2 / 2]]; });
+        const spot = f ? cands.find(t => !hitTown(t[3])) : cands.sort((p, q) => over(p[3]) - over(q[3]))[0];
+        if (!spot) continue;
+        const [tx, ty, al, b] = spot; taken.push(b);
+        c.save(); c.textAlign = al; c.lineJoin = "round"; c.strokeStyle = "rgba(240,228,198,0.9)"; c.lineWidth = 3.2 * k * ff; c.strokeText(n, tx, ty + k);
+        c.fillStyle = INK_SOFT + "0.95)"; c.fillText(n, tx, ty + k); c.restore();
+        break;
+      }
     }
   }
 }
@@ -817,7 +831,7 @@ function reliefLayer(part = null) {
 // view: { z, ox, oy } — the part of the sheet shown (in the canvas's own units at z 1), for zooming and panning
 let near = null, nearT = 0;
 let shapes = null;
-export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null, me = null, walled = null, zf = 1, spread = null, pop = null } = {}) {
+export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, city = null, hoverCity = null, view = null, homeName = "Forester's Clearing", home = true, sharp = null, me = null, walled = null, zf = 1, spread = null, pop = null, avoid = null } = {}) {
   const g = buildGrid(E), W = cv.width, H = cv.height, S = W / GW, v = view || { z: 1, ox: 0, oy: 0 };
   const key = W + "x" + H + "|" + (E.rev | 0) + "|" + E.conq.length + "|" + (E.conq.length ? E.conq[E.conq.length - 1].c + "," + E.conq[E.conq.length - 1].r : "") + "|" + (document.fonts && document.fonts.status);
   // (drawn at twice the size, so it stays sharp when zoomed)
@@ -877,7 +891,7 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
     c.fillText(homeName, hx - S * 1.6, hy - S * 1.8);
   }
   c.setTransform(1, 0, 0, 1, 0, 0);
-  drawCities(c, g, S, v, W, H, { me, walled, zf, pop });
+  drawCities(c, g, S, v, W, H, { me, walled, zf, pop, avoid });
   // the chosen city's ring, over its dot
   for (const [ct, strong] of [[hoverCity, false], [city, true]]) {
     if (!ct) continue;

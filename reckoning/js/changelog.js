@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.25", date: "18 October 2026", title: "Room for the names",
+    items: [
+      "Campaign map: towns' names are written clear of the armies and fleets standing on the map, so Vienna's name no longer lies under your own army.",
+      "Campaign map: a capital whose name finds no room no longer writes it over its neighbours' names in a crowded corner like central Europe. It tries every side, then a size smaller, and only as a last resort the spot where it covers least.",
+    ],
+  },
+  {
     v: "1.90.24", date: "18 October 2026", title: "Streets and rivers",
     items: [
       "Campaign 3D map: you can see a town's streets: paved roads running out from the market square and lanes round between them, the houses lining them and none standing in the road. The square in the middle is paved, and new streets are laid as the town grows out along them.",

@@ -2525,7 +2525,12 @@ function paint() {
   spreadCheck();
   let sp = null;
   if (spread) { const t = (performance.now() - spread.t0) / spread.dur; if (t >= 1) spread = null; else { const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; sp = { cells: spread.cells, p: e * (spread.max + 4) - 1 }; if (!spreadRaf) spreadRaf = requestAnimationFrame(spreadTick); } }
-  const g = drawEurope(cv, E(), { spread: sp, pop: C.pop || null, hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false, me: C.me, walled: C.walls || null, zf: ZF(), sharp: () => { if (shown() && !on3d) paint(); } });
+  // (where the armies and fleets will stand on the view, so the towns' names are written clear of them)
+  const avoid = (() => { const S0 = cv.width / MG_W, k0 = cv.width / 1300, out = [], box = p => { if (!p || !isFinite(p.x)) return; const x = (p.x * S0 - view.ox) * view.z, y = (p.y * S0 - view.oy) * view.z; out.push([x - 32 * k0, y - 26 * k0, x + 30 * k0, y + 16 * k0]); };
+    box(armyPos()); for (const a of C.armies || []) box(a.pos); for (const f of C.fleets || []) box(f.pos);
+    for (const f of Object.keys(C.E.war || {})) if (C.E.war[f] && !isHuman(f)) box(foeArmyPos(f));
+    return out; })();
+  const g = drawEurope(cv, E(), { avoid, spread: sp, pop: C.pop || null, hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false, me: C.me, walled: C.walls || null, zf: ZF(), sharp: () => { if (shown() && !on3d) paint(); } });
   // over the map: your towns ringed in your colour; the towns of your enemies within your army's reach marked with
   // crossed swords (dim once it's marched this season); a town an enemy marches on, red
   const c = cv.getContext("2d"), S = cv.width / MG_W, k = cv.width / 1300, at = ct => { const [x, y] = gridOf(ct[1], ct[2]); return [(x * S - view.ox) * view.z, (y * S - view.oy) * view.z]; };
