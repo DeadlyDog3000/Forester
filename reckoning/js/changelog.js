@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.0", date: "18 October 2026", title: "Part Three: The Wars",
+    items: [
+      "The story goes on past the Reckoning. Part Three opens in August 1686: the King of Denmark is before Hamburg, and the city calls on its charter. Choose who goes, then take your company onto the works by the Elbe and fight the Danes yourself, in a full battle with your company to command beside the city's militia.",
+      "Then the Emperor's Commission: a colonel of the Duke of Celle's foot offers you command of an army in the Emperor's war in Hungary. Take it, and the campaign opens in 1686 as the Austrian Empire, with you as its general, who never falls in the field. Your own campaigns aren't touched. The Home button (or Home in the menu) takes you back to your settlement whenever you like, and the campaign keeps; chapter XV takes you back to it.",
+      "Free Play is now the last chapter, after Part Three. If you're already in Free Play, both new chapters are open to you in Chapters. Part Three comes after Part One and Part Two, so the demo is unchanged.",
+      "Campaign map: a walled town is drawn as a little stone fort, with curtain walls and battlements, round towers at the corners, and arrowhead bastions for a star fort.",
+    ],
+  },
+  {
     v: "1.89.4", date: "18 October 2026", title: "A clearer map",
     items: [
       "Campaign map: the trade-good badges over every town are gone from the ordinary map, and show only on the loyalty map (L), where a town's business is what you're looking at.",

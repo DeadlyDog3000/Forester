@@ -65,6 +65,10 @@ let saveWarned = false;
 //  made again from these when the campaign is opened. Sixty years of conquest was near a megabyte, written as it was)
 function packOwn(L) { if (!Array.isArray(L)) return L; const by = {}; for (const [k, to] of L) (by[to] ||= []).push(k); for (const t in by) by[t] = by[t].join(";"); return { packed: 1, by }; }
 function unpackOwn(x) { if (!x) return []; if (Array.isArray(x)) return x; const out = []; for (const [to, s2] of Object.entries(x.by || {})) for (const k of s2.split(";")) if (k) out.push([k, to]); return out; }
+// (the story's own campaign — Part Three's commission — kept apart from the three of yours, and not listed with them)
+const STORY_SLOT = 9;
+const ownSlot = () => { try { return Math.min(SLOTS - 1, Math.max(0, +localStorage.getItem(SLOTKEY) || 0)); } catch (e) { return 0; } };
+let storyHome = null;
 const load = (i = slot) => { try { return JSON.parse(localStorage.getItem(slotKey(i))); } catch (e) { return null; } };
 
 // ---- a campaign of two: each player's crown its own treasury, army, dealings with the others, wars and news ----
@@ -460,13 +464,26 @@ const worth = ct => { const n = ct[0]; let inc = ct[3] * 22 * clamp(Math.sqrt(po
 function garrison(ct) { const n = ct[0], v = govOf(n), o = cityOwner(grid(), ct), sl = o === C.me ? C : o && isHuman(o) ? sliceOf(o) : null; return Math.round(garUnits(n, sl ? sl.units : null).reduce((t, u) => t + u.hp, 0)) + ct[3] * 4 + 2 + (CHAINS.walls.levels[lvOf(n, "walls")].gar || 0) + (CHAINS.army.levels[lvOf(n, "army")].gar || 0) + (v ? v.st[2] - 2 : 0); }
 // (walls only where they've been built — by you, or by the crown that holds the town — save a crown's last town,
 //  which every man in it holds to the end behind whatever they can throw up)
-// (a walled town's badge on the map: a ring of grey stone round it, with its battlements — a star fort's points for the
-//  new works — so a wall can be told at a glance)
+// (a walled town on the map: a little stone fort round it, seen from above — four curtain walls, battlemented, a round
+//  tower at each corner; the new works, a star fort's arrowhead bastions instead — so a wall can be told at a glance)
 function wallRing(c, x, y, rr, k, lv) {
-  const R = rr + 2.6 * k; c.save(); c.strokeStyle = "#2a2018"; c.fillStyle = "#9d9381"; c.lineWidth = 1 * k;
-  if (lv >= 2) { c.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 - Math.PI / 2, r2 = i % 2 ? R + 0.6 * k : R + 3.6 * k; c.lineTo(x + Math.cos(a) * r2, y + Math.sin(a) * r2); } c.closePath(); c.fill(); c.stroke(); }
-  c.beginPath(); c.arc(x, y, R + 1.6 * k, 0, 7); c.arc(x, y, rr + 0.6 * k, 0, 7, true); c.fill("evenodd"); c.beginPath(); c.arc(x, y, R + 1.6 * k, 0, 7); c.stroke(); c.beginPath(); c.arc(x, y, rr + 0.6 * k, 0, 7); c.stroke();
-  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, mx = x + Math.cos(a) * (R + 2.3 * k), my = y + Math.sin(a) * (R + 2.3 * k); c.save(); c.translate(mx, my); c.rotate(a); c.fillRect(-0.9 * k, -1.1 * k, 1.8 * k, 2.2 * k); c.strokeRect(-0.9 * k, -1.1 * k, 1.8 * k, 2.2 * k); c.restore(); }
+  const R = rr + 2.2 * k, T = 2.3 * k, stone = "#a49a86", ink = "#2a2018";
+  c.save(); c.strokeStyle = ink; c.lineWidth = Math.max(0.8, 0.9 * k); c.lineJoin = "round";
+  // the curtain: a band of stone round the town, its battlements along the outer edge
+  c.fillStyle = stone; c.beginPath(); c.rect(x - R - T, y - R - T, 2 * (R + T), 2 * (R + T)); c.rect(x - R, y - R, 2 * R, 2 * R); c.fill("evenodd");
+  c.beginPath(); c.rect(x - R - T, y - R - T, 2 * (R + T), 2 * (R + T)); c.stroke(); c.beginPath(); c.rect(x - R, y - R, 2 * R, 2 * R); c.stroke();
+  const m = 1.3 * k, n = Math.max(2, Math.round((2 * R) / (2.4 * k)));
+  c.fillStyle = "#7f7564";
+  for (let i = 0; i < n; i++) { const t = -R + (i + 0.5) * (2 * R / n) - m / 2; for (const [mx, my] of [[x + t, y - R - T - m * 0.55], [x + t, y + R + T - m * 0.45], [x - R - T - m * 0.55, y + t], [x + R + T - m * 0.45, y + t]]) { c.fillRect(mx, my, m, m); c.strokeRect(mx, my, m, m); } }
+  // the corners: round towers, or a star fort's arrowhead bastions
+  c.fillStyle = stone;
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const cx = x + sx * (R + T / 2), cy = y + sy * (R + T / 2);
+    c.beginPath();
+    if (lv >= 2) { const a = 4.2 * k, ux = sx * 0.7071, uy = sy * 0.7071, vx = -uy, vy = ux; c.moveTo(cx + ux * a, cy + uy * a); c.lineTo(cx + vx * a * 0.62, cy + vy * a * 0.62); c.lineTo(cx - ux * a * 0.35, cy - uy * a * 0.35); c.lineTo(cx - vx * a * 0.62, cy - vy * a * 0.62); c.closePath(); }
+    else c.arc(cx, cy, 2.4 * k, 0, 7);
+    c.fill(); c.stroke();
+  }
   c.restore();
 }
 function hasWalls(ct, owner, g = grid()) { return lvOf(ct[0], "walls") >= 1 || (!!owner && !NATIONS[owner].nw && citiesOfNow(g, owner).length === 1); }
@@ -523,7 +540,7 @@ function genMark(o, won) {
 // (a year in the camp: a vice taken up now and then; a long service unbeaten makes him loved)
 function genYear(G) {
   if (!G) return;
-  if (!G.hist) { if (R() < 0.015) giveT(G, "drunk"); else if (R() < 0.01) giveT(G, "harsh"); }   // (never a real man of history)
+  if (!G.hist && !G.you) { if (R() < 0.015) giveT(G, "drunk"); else if (R() < 0.01) giveT(G, "harsh"); }   // (never a real man of history)
   if ((G.served | 0) >= 5 && !(G.losses | 0) && !hasT(G, "harsh") && R() < 0.25) giveT(G, "beloved");
 }
 function genWin() {
@@ -803,7 +820,7 @@ function settle(o, won, myLossK, theirLossK) {
   // (the army's spirit: up with a victory — more for a town taken — down hard with a defeat)
   if (!away) { moraleMove(won ? (o.attack ? 12 : 8) : -16); genMark(o, won); if (won && (o.attack || !o.walls)) genWin(); }
   // (the generals' fate: in a lost battle one may fall; even in a won one, now and then)
-  if (C.gen && !away && R() < (won ? 0.05 : 0.25)) { moraleMove(-10); say(`${C.gen.name} falls at ${name}`, "Killed at the head of his men. Choose who will lead your army now."); C.gen = null; needGeneral(); }
+  if (C.gen && !C.gen.you && !away && R() < (won ? 0.05 : 0.25)) { moraleMove(-10); say(`${C.gen.name} falls at ${name}`, "Killed at the head of his men. Choose who will lead your army now."); C.gen = null; needGeneral(); }
   const fg = !isHuman(o.foe) && C.foeGen && C.foeGen[o.foe]; if (fg && R() < (won ? 0.2 : 0.04)) { say(`${fg.name} falls at ${name}`, `${poss(The(o.foe))} general is dead. ${(C.foeGen[o.foe] = newMan(o.foe, "general")).name} takes his place.`); }
   // (and guns lost in a defeat, left on the field)
   if (!won && !away && C.guns > 0 && R() < 0.6) C.guns--;
@@ -1270,7 +1287,7 @@ function fieldEnd(o, won, myLossK, theirLossK) {
     moraleMove(-12); genMark(o, false); say(`Beaten in the field near ${near}`, `Your army falls back with what it has left: ${armyStr()}.`);
   }
   if (Object.keys(broken).length) say(`Regiments broken near ${near}`, `${Object.entries(broken).map(([k, c]) => `${c} of ${TROOPS[k].name.toLowerCase()}`).join(", ")}: too few men left to stand as regiments, they are struck off the roll.`);
-  if (C.gen && R() < (won ? 0.04 : 0.2)) { moraleMove(-10); say(`${C.gen.name} falls near ${near}`, "Killed at the head of his men."); C.gen = null; needGeneral(); }
+  if (C.gen && !C.gen.you && R() < (won ? 0.04 : 0.2)) { moraleMove(-10); say(`${C.gen.name} falls near ${near}`, "Killed at the head of his men."); C.gen = null; needGeneral(); }
   if (!won && C.guns > 0 && R() < 0.5) C.guns--;
 }
 // ---- the muster before a battle you fight yourself: how many of your army take the field, and of which arms ----
@@ -2275,11 +2292,48 @@ export function initCampaign(c, battle, withPlayer) {
   addEventListener("blur", () => keys.clear());
 }
 // To Arms → Campaign: the one you have, or a crown to choose
-export function openCampaign() {
+export function openCampaign(fromMenu = false) {
+  // (from the battles menu: your own campaigns — the story's, if it was the one open, put away for the story to take up)
+  if (fromMenu && C && C.story) { persist(); C = null; sel = null; selCity = null; note = ""; news = []; slot = ownSlot(); storyHomeBtn(); }
   ctx.screen("campaign");
   if (mp) { if (C) { abandoned(); drawMap(); } else drawPick(); return; }
   if (C || resume()) { abandoned(); drawMap(true); warmMaps(); } else drawPick();
 }
+// ---- the story's campaign: Part Three, the Emperor's commission. The Emperor's army in the Hungarian war, from the
+//  autumn of 1686, with you at its head — the story's hero as its general, who takes no ball in the field; and the way
+//  home to your settlement at the top of the screen, the campaign kept as it stands for you to come back to ----
+export function openStoryCampaign(o = {}) {
+  storyHome = o.home || null;
+  if (mp) leaveMp();
+  if (!(C && C.story)) {
+    slot = STORY_SLOT;
+    if (!resume()) {
+      begin("austria", STORY_SLOT);
+      C.story = 1; C.year = 1686; C.goal = null;
+      const g0 = newMan("hre", "general");
+      C.gen = { ...g0, name: o.name || "The Forester", short: o.short || "Forester", you: true, st: [3, 4, 1], served: 0, d: "You: out of Hamburg by the Marsh Gate, a forester in the old woods, and on the works at the Elbe when the Danes came. The Emperor's commission in your coat." };
+      C.log = C.log.filter(l => !/^You take the crown/.test(l.sub || ""));
+      say("The Emperor's commission", "You command the Emperor's army in the Hungarian war. Buda has been the Sultan's since 1541: take it, and hold what the Emperor holds. The Home button at the top takes you back to your settlement whenever you like; the campaign is kept as it stands.");
+      save();
+    }
+    C.story = 1;
+  }
+  storyHomeBtn();
+  ctx.screen("campaign"); abandoned(); drawMap(true); warmMaps();
+}
+// (the way home from the story's campaign: a button at the top, only there)
+function storyHomeBtn() {
+  let b = $("cmpHome");
+  if (!b) { b = document.createElement("button"); b.id = "cmpHome"; b.className = "btn ghost"; b.title = "Back to your settlement: the campaign is kept"; b.textContent = "Home"; $("cmpTechB").before(b); b.onclick = () => storyLeave(); }
+  b.classList.toggle("hidden", !(C && C.story));
+  { const nb = $("cmpNew"); if (nb && C && C.story) nb.classList.add("hidden"); }
+}
+function storyLeave() {
+  if (!C || !C.story) return;
+  persist(); const go = storyHome; C = null; sel = null; selCity = null; note = ""; news = []; slot = ownSlot(); storyHomeBtn();
+  if (go) go();
+}
+export const storyCampaignKept = () => { try { return !!JSON.parse(localStorage.getItem(slotKey(STORY_SLOT))); } catch (e) { return false; } };
 function leaveMp() {
   const m = mp; mp = null; C = null; sel = null; selCity = null; note = ""; news = [];
   try { m.net.send({ t: "dleave" }); m.net.close(); } catch (e) {}
@@ -2546,7 +2600,7 @@ function loyRegions(g) {
 function pauseMenu() {
   const el = document.createElement("div"); el.id = "cmpPause"; el.className = "cmp-must"; $("campaign").appendChild(el);
   el.innerHTML = `<div class="cmp-mbox cmp-pausebox"><h2>Paused</h2><p class="sub">${esc(NATIONS[C.me].name)}, ${C.year}. The campaign is kept as it stands.</p>
-    <nav class="menu"><button class="btn primary" data-pz="back">Back to the campaign</button><button class="btn" data-pz="tech">Learning</button><button class="btn" data-pz="settings">Settings</button><button class="btn" data-pz="how">How the campaign works</button><button class="btn" data-pz="controls">Controls</button>${mp ? "" : `<button class="btn" data-pz="new">Another campaign</button>`}<button class="btn" data-pz="arms">To the battles menu</button><button class="btn ghost" data-pz="title">${mp ? "Leave the campaign" : "Quit to title"}</button></nav></div>`;
+    <nav class="menu"><button class="btn primary" data-pz="back">Back to the campaign</button><button class="btn" data-pz="tech">Learning</button><button class="btn" data-pz="settings">Settings</button><button class="btn" data-pz="how">How the campaign works</button><button class="btn" data-pz="controls">Controls</button>${C.story ? `<button class="btn" data-pz="home">Home to your settlement</button>` : `${mp ? "" : `<button class="btn" data-pz="new">Another campaign</button>`}<button class="btn" data-pz="arms">To the battles menu</button>`}<button class="btn ghost" data-pz="title">${mp ? "Leave the campaign" : "Quit to title"}</button></nav></div>`;
   el.onclick = e => {
     const b = e.target.closest("[data-pz]"); if (!b) { if (e.target === el) el.remove(); return; }
     const w = b.dataset.pz; el.remove(); sfx("quill", 0.2);
@@ -2554,6 +2608,7 @@ function pauseMenu() {
     else if (w === "how") howTo();
     else if (w === "new") { if (!mp) drawPick(); }
     else if (w === "arms") $("cmpBack").click();
+    else if (w === "home") storyLeave();
     else if (w === "settings" || w === "controls") G.openFrom && G.openFrom("campaign", w);
     else if (w === "title") { persist(); if (mp) leaveMp(); G.toTitle && G.toTitle(); }
   };

@@ -141,7 +141,7 @@ export function initPvp(c) {
   $("pvpBots").onclick = () => openMuster("bots");
   $("pvpDuel").onclick = () => openMuster("duel");
   $("pvpHist").onclick = () => openMuster("hist");
-  $("pvpCampaign").onclick = () => openCampaign();
+  $("pvpCampaign").onclick = () => openCampaign(true);
   // (a campaign's battle fought by hand: its field and its armies, as the campaign gives them)
   initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); }, fieldWithPlayer);
   $("pvpCancel").onclick = () => cancelSearch();
@@ -312,7 +312,11 @@ function quickPlay() {
   setArmy({ battle: true, vs: "player" });
   findMatch();
 }
-function again() { if (lastMode === "campaign") openCampaign(); else if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots") openMuster("bots"); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
+// (a battle of the story's — Part Three's: its own field and armies, fought once, its outcome told to the story and
+//  the way back to it from the result)
+let storyNext = null;
+export function storyBattle(b, next) { lastMode = "story"; must = null; storyNext = next; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); }
+function again() { if (lastMode === "story") { const f = storyNext; storyNext = null; lastMode = null; if (f) f(); return; } if (lastMode === "campaign") openCampaign(); else if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots") openMuster("bots"); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
 
 // ---------------------------------------------------------------------------
 //  the muster: your arms, and your company from the purse — then Ready. (Against a player, both must be.)
@@ -2177,7 +2181,9 @@ class Arena {
       const asIt = HB.won == null ? null : (HB.won === sd) === won;
       $("pvpEndS").innerHTML += `<div class="pv-histend"><b>${asIt === null ? "As it was" : asIt ? "As it happened" : "History, changed"}</b> ${esc(HB.after[asIt === false ? 1 : 0])}</div>`;
     }
-    $("pvpAgain").textContent = lastMode === "campaign" ? "Back to the campaign" : "Again";
+    if (lastMode === "story" && this.hist && this.hist.b.after) $("pvpEndS").innerHTML += `<div class="pv-histend"><b>${won && !left ? "As it happened" : "The city held all the same"}</b> ${esc(this.hist.b.after[won && !left ? 0 : 1])}</div>`;
+    $("pvpAgain").textContent = lastMode === "campaign" ? "Back to the campaign" : lastMode === "story" ? "Back to the story" : "Again";
+    $("pvpLoadout").classList.toggle("hidden", lastMode === "story");
     endReplay(rec);
     ctx.screen("pvpEnd");
   }

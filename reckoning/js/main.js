@@ -16,7 +16,7 @@ import { UI, $ } from "./ui.js";
 import { ACTIONS, keyOf, keyName, bind as bindKey, resetKeys, listenFor, shownAs, changed as changedKey } from "./keys.js";
 import { AUDIO } from "./audio.js";
 import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE, WATER_NAME, packLayout, setToolItems } from "./body.js";
-import { CHAPTERS, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot, applyStoryLook, storyLookOf } from "./story.js";
+import { CHAPTERS, STORY_ORDER, storyRank, chapterOf, chapterNumeral, resetForMode, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot, applyStoryLook, storyLookOf } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { FOLEY } from "./foley.js";
 import { GUIDE, GUIDE_ORDER } from "./guide.js";
@@ -33,7 +33,8 @@ import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
 import { initLobby, openLobby, openLookEditor, askUser, hasUser, openSoloFrontier, SCREENS as MP_SCREENS, pvpIdentity, knownServers } from "./mp/lobby.js";
-import { initPvp, PVP_SCREENS } from "./pvp.js";
+import { initPvp, PVP_SCREENS, storyBattle } from "./pvp.js";
+import { openStoryCampaign } from "./campaign.js";
 import { HOST } from "./mp/net.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
@@ -206,7 +207,7 @@ function refreshTitle() {
   const s = loadSave();
   UI.show("btnContinue", !!s);
   // (the chapter and the save on a small second line, so the button keeps the width of the others)
-  $("btnContinue").innerHTML = s ? `Continue<small class="btn-sub">${CHAPTERS[(s.chapter || 1) - 1].title}${getSlot() > 1 ? ` · save ${getSlot()}` : ""}</small>` : "Continue";
+  $("btnContinue").innerHTML = s ? `Continue<small class="btn-sub">${chapterOf(s.chapter || 1).title}${getSlot() > 1 ? ` · save ${getSlot()}` : ""}</small>` : "Continue";
   UI.show("btnChapters", !!s);
   // (a story under way: Continue is the big button, and starting another is a quieter one under it)
   $("btnNew").innerHTML = s ? "New story" : `Begin the story<small class="btn-sub">${CHAPTERS[0].title} · your family's tale</small>`;
@@ -270,6 +271,15 @@ function toggleMouse() {
   if (input.freeLook) { setFreeLook(false); return; }
   lock();
 }
+// (Part Three's battle and campaign, handed over from the story: the chapter stopped, and the story taken up again
+//  when they're done — the battle's result screen goes back to the next chapter; the campaign's Home, to the settlement)
+G.storyBattle = (b, next) => { resetForMode(); storyBattle(b, () => play(next)); };
+G.storyCampaign = () => {
+  resetForMode();
+  G.endFreecam && G.endFreecam(); G.mode = "title"; setFreeLook(false); document.exitPointerLock && document.exitPointerLock();
+  UI.show("hud", false); UI.fadeNow(0); try { AUDIO.music(null); } catch (e) {} $("menus").classList.add("backdrop");
+  openStoryCampaign({ home: () => play(14) });
+};
 function play(chapter, opts) {
   AUDIO.init();
   applySettings();
@@ -499,7 +509,7 @@ let slotMode = "play", slotArmed = null, slotImportTo = 0;
 const slotWhen = at => { if (!at) return ""; const d = new Date(at), m = (Date.now() - at) / 60000; return m < 1 ? "just now" : m < 60 ? `${Math.round(m)} min ago` : m < 60 * 24 ? `${Math.round(m / 60)} h ago` : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); };
 function slotDesc(s) {
   if (!s) return { t: "Empty", d: "" };
-  const c = CHAPTERS[(s.chapter || 1) - 1] || CHAPTERS[0], who = s.who === "sister" ? "The Sister" : "The Brother";
+  const c = chapterOf(s.chapter || 1), who = s.who === "sister" ? "The Sister" : "The Brother";
   const town = s.town && s.chapter >= 11 ? `${s.town.name || "The clearing"} — ${(s.town.people || []).length + 2} souls${s.town.days != null ? `, day ${Math.floor(s.town.days) + 1}` : ""}` : c.kicker;
   return { t: `${c.title}`, d: `${who} · ${esc(town)}<br>Played ${slotWhen(s.at)}` };
 }
@@ -531,7 +541,7 @@ $("slotList").addEventListener("click", e => {
   else if (act === "export") {
     const blob = new Blob([JSON.stringify({ game: "forester-reckoning", version: CHANGELOG[0].v, save: n, data: s }, null, 1)], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = `forester-reckoning-save${n}-${(CHAPTERS[(s.chapter || 1) - 1].title || "").toLowerCase().replace(/[^a-z]+/g, "-")}.json`;
+    a.download = `forester-reckoning-save${n}-${(chapterOf(s.chapter || 1).title || "").toLowerCase().replace(/[^a-z]+/g, "-")}.json`;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   } else if (act === "import") { slotImportTo = n; $("slotFile").value = ""; $("slotFile").click(); }
 });
@@ -553,12 +563,11 @@ function buildChapters() {
   const s = loadSave() || {}, u = s.unlocked || 1;
   const list = $("chapterList");
   list.innerHTML = "";
-  for (const c of CHAPTERS) {
-    if (c.n > u) continue;             // what you have not reached yet is not shown at all
+  for (const c of STORY_ORDER.map(n => chapterOf(n))) {
+    if (storyRank(c.n) > storyRank(u)) continue;             // what you have not reached yet is not shown at all
     const b = document.createElement("button");
-    b.className = "chapter" + (c.n > u ? " locked" : "");
-    b.innerHTML = `<span class="ch-n">${["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV"][c.n - 1]}</span><span class="ch-t">${c.title}</span><span class="ch-k">${c.n > u ? "Not yet reached" : c.kicker}</span>`;
-    b.disabled = c.n > u;
+    b.className = "chapter";
+    b.innerHTML = `<span class="ch-n">${chapterNumeral(c.n)}</span><span class="ch-t">${c.title}</span><span class="ch-k">${c.kicker}</span>`;
     b.onclick = () => { G.who = s.who || "brother"; if (c.n === 6 && s.clearing && s.clearing.done) writeSave({ clearing: {} }); play(c.n); };
     list.appendChild(b);
   }

@@ -32,6 +32,7 @@ import { JOB_SKILL, SKILL_NAME } from "./people.js";
 import { FAITHS, faithOf } from "./faith.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, makeStump, P as PROPS } from "./models.js";
 import { Town, BUILDINGS, JOBS, lieOn, YEAR, RATION, RYE_HARVEST } from "./town.js";
+import { battleById } from "./history.js";
 
 /* global SFX */
 
@@ -351,8 +352,17 @@ export const CHAPTERS = [
   { n: 11, title: "Forester", kicker: "High summer", world: "woods", run: ch11 },
   { n: 12, title: "Harvest Home", kicker: "Autumn", world: "woods", run: chHarvest },
   { n: 13, title: "The Reckoning", kicker: "The first frost", world: "woods", run: chReckoning },
+  { n: 15, title: "The Danes before Hamburg", kicker: "Part Three: The Wars", world: "woods", run: chDanes },
+  { n: 16, title: "The Emperor's Commission", kicker: "Late summer, 1686", world: "woods", run: chCommission },
   { n: 14, title: "Free Play", kicker: "The settlement is yours", world: "woods", run: chFree },
 ];
+// (the story's order: Part Three's chapters came after Free Play was numbered, and are told before it — so a
+//  chapter is found by its number, and "further on" is by this order, not by the number)
+export const STORY_ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 14];
+export const storyRank = n => Math.max(0, STORY_ORDER.indexOf(n | 0));
+export const chapterOf = n => CHAPTERS.find(c => c.n === (n | 0)) || CHAPTERS[0];
+export const chapterNumeral = n => ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI"][storyRank(n)];
+const further = (a, b) => (storyRank(a) >= storyRank(b) ? a : b);
 
 // what is in your pockets in each chapter — the inventory (T) lists it
 const PACK = {
@@ -388,7 +398,7 @@ export async function startChapter(n, opts = {}) {
   G.bugs.setKind(null);
   AUDIO.murmur(false); AUDIO.water(false); AUDIO.wind(false); AUDIO.rain(0);
   SFX.fireLoop(false); SFX.insectLoop(false);
-  const ch = CHAPTERS[n - 1];
+  const ch = chapterOf(n);
   UI.fadeNow(1);
   // a fresh map for every chapter: whatever the last one moved stays where it was put
   const w = ch.world === "hamburg" ? new Hamburg() : new Woods();
@@ -399,7 +409,7 @@ export async function startChapter(n, opts = {}) {
   { const sv = loadSave() || {}; pl.hasBow = !!sv.bow; pl.arrows = 12; w.huntOpen = !!sv.bow; }
   pl.seated = false; pl.frozen = false; pl.carryN = 0;
   const save = loadSave() || {};
-  writeSave({ who: G.who, chapter: n, unlocked: Math.max(save.unlocked || 1, n) });
+  writeSave({ who: G.who, chapter: n, unlocked: further(save.unlocked || 1, n) });
   G.chapter = n;
   // the map is Jakob's gift, at the end of the first errand; from then on you always have it
   G.hasMap = n > 1 || !!(loadSave() || {}).map;
@@ -2744,13 +2754,121 @@ async function chReckoning(w) {
   // what the house fetched: the settlement's first real money, for research above all
   if (!S.houseSold) { S.houseSold = true; S.coin = (S.coin || 0) + 70; }
   town.persist();
-  writeSave({ unlocked: 14, finishedTutorial: true, reckoning: choice === 0 ? "stayed" : "went" });
+  writeSave({ unlocked: further((loadSave() || {}).unlocked || 1, 15), finishedTutorial: true, reckoning: choice === 0 ? "stayed" : "went" });
   if (choice === 1) await narrate("We went down the road to Hamburg, and saw his name in the rolls, in a clerk's good hand. By spring we had sold the house, and we came back up the road with a cart of seed and nails.", 6);
   else await narrate("Jakob sold the house on the Deichstraße. By spring a cart came up the road with seed, and nails, and a saw.", 5);
   await narrate("And with it, what was left of what the house fetched: seventy Deutsche Mark, in a purse sewn into the lining.", 4.5);
   await narrate(`${S.name} is yours. Build, fell, sow — and see who comes up the road.`, 4.5);
-  await card("Free play", S.name, 3.5);
-  return startChapter(14);
+  await narrate("Two summers went by like that. And then, in the August of 1686, Jakob came up the road again.", 5);
+  return startChapter(15);
+}
+
+// ===========================================================================
+//  PART THREE: THE WARS. The Danes before Hamburg — a battle on the city's works, fought as the battles are, with your
+//  company to command — and the Emperor's commission after it: the campaign, with you at the head of an army. All of it
+//  well past the demo's Part One (the first six chapters): none of it reaches them
+// ===========================================================================
+const COLONEL = { model: "townsman", name: "Colonel Wendt", coat: 0x8a2622, legs: 0x2a2620, hair: 0x5a4a3a, hat: "hat", hatColor: 0x1e1a18, beard: 0x4a3a2a, seed: 88 };
+// (the settlement as it stands, its people about it, and your brother or sister at the fire)
+function settleScene(w, atmo) {
+  setAtmo(atmo); G.bugs.setKind("flies"); AUDIO.music(null); AUDIO.wind(true, 0.3);
+  const pl = G.player, town = startTown(w, Object.keys(BUILDINGS)), S = town.S;
+  S.name ??= "Forester's Clearing";
+  town.spawnPeople(); town.sitesAll();
+  w.lightFire(true); w.setFire(0.5);
+  const sib = spawn(sibling(), FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
+  pl.place(CABIN.x + Math.sin(CABIN.ry) * 4.2, CABIN.z + Math.cos(CABIN.ry) * 4.2, CABIN.ry + Math.PI);
+  return { town, S, sib };
+}
+async function chDanes(w) {
+  const { town, S, sib } = settleScene(w, "morning");
+  await wait(0.2);
+  const c = card("August 1686", "XIV. The Danes before Hamburg", 3.6);
+  await wait(1.2); fade(0, 2.4); await c;
+  const r0 = w.road[w.road.length - 30];
+  const jak = spawn(JAKOB, r0.x, r0.z, 0);
+  jak.walkTo(FIRE.x - 2.4, FIRE.z + 1.4, 2.6);
+  bark("Jakob", "Is the kettle on? I've ridden since Bergedorf.", 3);
+  lookAt(jak, 1.5);
+  await Promise.race([until(() => !jak.path.length), wait(14)]); jak.path = [];
+  G.lockMove = true; jak.facePlayer(); lookAt(jak, 2);
+  await say("Jakob", "The King of Denmark is before Hamburg. Christian himself, with his siege guns, and an army round the walls from the Elbe to the Alster.");
+  await say("Jakob", "He says the city owes him homage, as Holstein's lord. The Council says it owes homage to the Emperor and to no one else, and has shut the gates.");
+  await say(YOU(), "And the charter?");
+  await say("Jakob", "That's why I've ridden. A free settlement under the Council's protection sends what men it can when the city calls. The city is calling.");
+  lookAt(sib, 2); sib.facePlayer();
+  await say(P.sib, "Three years ago they'd have hanged us at the Marsh Gate. Now they want us on the walls.");
+  await say(P.sib, "...But it's Father's city. And the charter is the only thing that keeps the next Brandt off this road.");
+  lookAt(jak, 2);
+  await say("Jakob", "The Duke of Celle is marching with the Lüneburg regiments, but he's days off yet. Until he comes it's the citizens on the works, and whoever answers.");
+  await say("Jakob", "The Council's sergeants will put a coat and a musket on every one of you at the Steintor. You'll stand with the militia on the works by the Elbe, facing the Danish camp.");
+  look(null);
+  const choice = await G.choose("Who goes to Hamburg?", ["Every able hand: the most muskets", "Only those who volunteer: fewer, but steady"]);
+  lookAt(sib, 2);
+  if (choice === 0) await say(P.sib, "Then the settlement's empty for a fortnight. Marta can keep the fire.");
+  else await say(P.sib, "Better ten who'll stand than twenty who'll run. I'll ask at the fire tonight.");
+  look(null); G.lockMove = false;
+  const P3 = { ...((loadSave() || {}).part3 || {}), company: choice };
+  writeSave({ part3: P3 });
+  await fade(1, 2.5);
+  await narrate("Two days down the road we had come up three years before, and in at the Steintor, where the Council's sergeants handed out coats and muskets from the city's store.", 6);
+  await narrate("By the afternoon we were on the works by the Elbe, with the city's militia, looking out at the Danish tents.", 4.5);
+  // the battle: your company (the first of your side's, yours to command), the city's militia beside it, the Danes
+  const H = battleById("hamburg");
+  const mus = choice === 0 ? { musketeer: 12, pike: 4 } : { musketeer: 8, pike: 2, grenadier: 3 };
+  const b = { ...H, campaign: true,
+    sides: [{ ...H.sides[0], name: `The city's militia, and ${S.name}'s company`, cos: [{ uni: "hamburg", muster: mus, guns: 0, call: { musketeer: "Militiaman" } }, ...H.sides[0].cos] }, H.sides[1]],
+    after: ["The works held. Days later the Duke of Celle's regiments came up the Elbe road, and King Christian struck his camp and went home. Hamburg stayed free.",
+      "The Danes drove you off the works by the Elbe, but the city held behind its walls until the Duke of Celle's regiments came up the road. King Christian struck his camp and went home. Hamburg stayed free."],
+    onEnd: (won, killed, lost) => writeSave({ chapter: 16, unlocked: further((loadSave() || {}).unlocked || 1, 16), part3: { ...P3, hamburg: won ? "held" : "driven", killed, lost } }) };
+  G.storyBattle(b, 16);
+}
+async function chCommission(w) {
+  const P3 = (loadSave() || {}).part3 || {};
+  const { S, sib } = settleScene(w, "afternoon");
+  // (come back to once the commission is taken: the Emperor's army, or home)
+  if (P3.commission) {
+    await wait(0.2); fade(0, 1.5);
+    const ch = await G.choose("The Emperor's army is waiting", ["Back to the Emperor's army", `Stay at ${S.name}`]);
+    if (ch === 0) return G.storyCampaign();
+    return startChapter(14);
+  }
+  await wait(0.2);
+  const c = card("Late summer, 1686", "XV. The Emperor's Commission", 3.6);
+  await wait(1.2); fade(0, 2.4); await c;
+  const r0 = w.road[w.road.length - 30];
+  const jak = spawn(JAKOB, r0.x, r0.z, 0), col = spawn(COLONEL, r0.x + 0.9, r0.z - 0.5, 0);
+  jak.walkTo(FIRE.x - 2.4, FIRE.z + 1.4, 2.4); col.walkTo(FIRE.x - 3.2, FIRE.z + 0.2, 2.2);
+  lookAt(jak, 1.5);
+  await Promise.race([until(() => !jak.path.length && !col.path.length), wait(14)]); jak.path = []; col.path = [];
+  G.lockMove = true; jak.facePlayer(); col.facePlayer(); lookAt(jak, 2);
+  const held = P3.hamburg !== "driven";
+  if (held) await say("Jakob", "The Danes are gone. Christian struck his camp the day the Duke's regiments came up, and went home. Hamburg's free, and the Council knows who stood on the Elbe works.");
+  else await say("Jakob", "The Danes are gone. They drove you off the Elbe works, but you held them long enough: the Duke's regiments came up, and Christian struck his camp. The Council knows who stood there first.");
+  lookAt(col, 2);
+  await say("Colonel Wendt", "Colonel Wendt, of the Duke of Celle's foot. I watched your company on the works, from the far bastion.");
+  await say("Colonel Wendt", "The Duke is sending regiments to the Emperor's war in Hungary. The Emperor's army has been before Buda all summer, and Buda has been the Sultan's for a hundred and forty-five years.");
+  await say("Colonel Wendt", "The Emperor wants officers who keep their men together when it goes badly. I have commissions to fill, and one has your name on it, if you'll take it: command of an army of the Emperor's.");
+  await say(YOU(), "I'm a forester. I fell trees.");
+  await say("Colonel Wendt", held ? "You held a line of militia against the King of Denmark's grenadiers. Most colonels I know couldn't." : "You held a line of militia against the King of Denmark's grenadiers longer than anyone thought you would. That's the whole of the trade.");
+  lookAt(sib, 2); sib.facePlayer();
+  await say(P.sib, "Go. The settlement will be here when you come back. I'll keep the ledger, and it'll balance.");
+  look(null);
+  const choice = await G.choose("The Emperor's commission", ["Take the Emperor's commission", `Stay at ${S.name}`]);
+  G.lockMove = false;
+  if (choice === 1) {
+    lookAt(col, 2);
+    await say("Colonel Wendt", "The commission will keep. If you change your mind, Jakob knows where to find me.");
+    look(null);
+    await fade(1, 2.5);
+    await card("Free play", S.name, 3.5);
+    return startChapter(14);
+  }
+  writeSave({ part3: { ...P3, commission: true } });
+  await fade(1, 2.5);
+  await narrate("So the forester out of Hamburg rode south-east with Colonel Wendt, down the Elbe and across Bohemia, to the Emperor's army on the Danube.", 6);
+  await narrate("The campaign is yours to command. The Home button at the top of the map brings you back to the settlement whenever you like.", 5);
+  G.storyCampaign();
 }
 
 // ---------------------------------------------------------------------------
