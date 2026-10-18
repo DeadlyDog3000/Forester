@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.6", date: "18 October 2026", title: "Clean bark",
+    items: [
+      "Bark up close no longer glitters. The trunk and boughs of a tree you stand under or beside were covered in a fizz of white specks, the bark's fine furrows lit up as noise. The furrows are shallower now, and their shading fades out wherever they're finer than the screen can show.",
+    ],
+  },
+  {
     v: "1.90.5", date: "18 October 2026", title: "A real notch",
     items: [
       "The cut your axe makes in a tree is a real notch now, not a flat picture stuck on the bark. A wedge is carved into the trunk on your side, with a flat floor and a sloped face of fresh pale wood meeting in a dark crease. It goes deeper with every stroke and fits the trunk's own shape, and it stays in the trunk as the tree comes down.",

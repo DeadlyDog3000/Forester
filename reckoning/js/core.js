@@ -195,7 +195,7 @@ const SURF_GLSL = `
 const SURF_STRENGTH = "float dStrength[9] = float[9](0.75, 0.3, 0.85, 0.8, 0.95, 0.55, 0.8, 0.85, 0.7);";
 // how deep each surface's grain stands out, in metres: the grain lit as relief, not only painted on — wood's
 // grain and checks, plaster's trowel marks, stone's pits, brick's mortar, bark's furrows, cloth's weave
-const SURF_RELIEF = "float dDepth[9] = float[9](0.012, 0.009, 0.018, 0.02, 0.026, 0.005, 0.01, 0.016, 0.02);";
+const SURF_RELIEF = "float dDepth[9] = float[9](0.012, 0.009, 0.018, 0.02, 0.009, 0.005, 0.01, 0.016, 0.02);";   // (bark kept shallow: deeper, its fine furrows lit up as a glitter of white specks on every bough)
 // the light bent by a height that changes across the surface (as three's bump map, from the screen-space slope of it)
 const RELIEF_GLSL = `
   vec3 dPerturb(vec3 sp, vec3 sn, vec2 dh, float fd) {
@@ -341,7 +341,10 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           }
         }`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
-        if (dHk > 0.0) normal = dPerturb(-vViewPosition, normal, vec2(dFdx(dHgt), dFdy(dHgt)) * dHk, faceDirection);`)
+        // (where the grain is finer than the pixels that show it — bark on a bough seen edge-on, say — its slope from one
+        //  pixel to the next is noise, not relief, and lit it is a glitter of white specks: there it fades out)
+        { vec2 dhh = vec2(dFdx(dHgt), dFdy(dHgt)); float fw = abs(dhh.x) + abs(dhh.y);
+          if (dHk > 0.0) normal = dPerturb(-vViewPosition, normal, dhh * dHk * (1.0 - smoothstep(0.04, 0.16, fw)), faceDirection); }`)
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);
   };
