@@ -2028,3 +2028,15 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-minst i, .cmp-mincand i { font-style: normal; color: #e8c96a; font-size: 10.5px; letter-spacing: 1px; }
 .cmp-minst i.bad, .cmp-mincand i.bad { color: #d8604a; }
 .cmp-mincand small { font: 10px var(--sans); color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+/* trade: the goods' pictures */
+.cmp-good { width: 30px; height: 30px; object-fit: contain; vertical-align: middle; }
+.cmp-good.sm { width: 18px; height: 18px; margin-left: 2px; }
+.cmp-tgood { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.cmp-tgood .cmp-good { width: 36px; height: 36px; }
+.cmp-tgood span { display: grid; line-height: 1.25; } .cmp-tgood b { font: 600 13px var(--serif); color: var(--ink); } .cmp-tgood small { font: 11px var(--sans); color: var(--ink-dim); }
+.cmp-goods { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 4px 0 8px; }
+.cmp-goods > span { display: grid; justify-items: center; gap: 1px; min-width: 48px; }
+.cmp-goods > span b { font: 600 13px var(--serif); color: var(--ink); line-height: 1; } .cmp-goods > span small { font: 10px var(--sans); color: var(--ink-dim); }
+.cmp-pacts { display: grid; gap: 4px; margin-bottom: 4px; }
+.cmp-pacts > div { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .cmp-pacts b { font: 600 12.5px var(--serif); color: var(--ink); } .cmp-pacts small { font: 11px var(--sans); color: var(--ink-dim); display: flex; align-items: center; gap: 2px; }
+.cmp-fine.down { color: #d8705a; display: block; }

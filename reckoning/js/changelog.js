@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.80.0", date: "17 October 2026", title: "Trade",
+    items: [
+      "Campaign: trade, as in Empire: Total War. Every town has its good: furs from Canada and Hudson's Bay, fish off Newfoundland and New England, tobacco from the Chesapeake, sugar from the Caribbean, silver from New Spain, timber and iron from the north, grain from the Baltic plains, wool from Britain, cloth from the Low Countries and Germany, wine from France and Iberia, silk from Italy and the Levant. Each is painted with its own icon: on the town's card, in the new Trade card, and on the map beside every town when you're zoomed in.",
+      "Each good brings thalers every year. Trade pacts pay more the more goods a partner has that you haven't; the Trade card shows each pact and the goods it brings you.",
+      "Blockades: an enemy fleet lying off one of your ports shuts it, so none of its trade gets out. The port is ringed in red on the map, its card says so, and the year's news tells you. Send a fleet to drive the enemy off.",
+    ],
+  },
+  {
     v: "1.79.1", date: "17 October 2026", title: "Corrupt ministers, clean lines",
     items: [
       "Campaign: every minister has a corruption of nought to four, shown in red beside his skill on the Government card and when you choose a new one. The Treasury's costs 3% of your income a point (the card says how many thalers a year), the War minister's makes regiments 3% dearer a point, and a badly corrupt minister of Justice sells verdicts (−1 loyalty in every town). Now and then a corrupt minister is caught with his hand in the treasury: the money's gone, and you turn him out or keep him.",

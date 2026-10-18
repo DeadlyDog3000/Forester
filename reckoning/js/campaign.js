@@ -600,6 +600,8 @@ function missionsHtml() {
 //  constitutional monarchy every five years, a minister perhaps turned out)
 function govYear(g) {
   const G = govOf_(), towns = citiesOfNow(g, C.me); G.cand = {}; G.swap = null;
+  // (ports shut by enemy fleets: said in the year's news)
+  { const sh = tradeOf(g).shut; if (sh.length) say(`Blockade: ${sh.map(([ct]) => ct[0]).join(", ")}`, `${sh.length > 1 ? "Enemy fleets lie" : `${poss(The(sh[0][1]))} fleet lies`} off ${sh.length > 1 ? "your ports" : sh[0][0][0]}: no trade goes in or out. Send a fleet to drive ${sh.length > 1 ? "them" : "it"} off.`); }
   // (a corrupt minister caught at it: the money gone, and the choice of turning him out or keeping him)
   for (const [p, title] of POSTS) { const m = G.min[p]; if (m.cor >= 2 && R() < 0.05 + m.cor * 0.04 && !C.events.some(e => !e.done && e.kind === "scandal")) { const lost = Math.min(C.gold, 40 + m.cor * 35); C.gold -= lost; C.events.push({ kind: "scandal", post: p, lost }); say(`Scandal: the minister of ${title === "Treasury" ? "the Treasury" : title}`, `${m.name} is found to have taken ${lost} thalers from the treasury.`); break; } }
   const restless = towns.length ? towns.filter(ct => orderOf(ct) < 0).length / towns.length : 0;
@@ -1576,7 +1578,58 @@ function replenish(g, garrisons = true) {
   C.army = Math.round(unitSum());
   return filled;
 }
-const income = g => { const k = govType().inc * (1 + (minSk("treasury") - 3) * 0.03) * (1 - corLoss()); return 40 + Math.round((citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct) * TAX[taxAt(ct)].k, 0) + Object.keys(C.E.pact).filter(id => C.E.pact[id]).reduce((t, id) => t + 10 + NATIONS[id].strength * 4, 0)) * k); };
+// ---- trade, as in Empire: Total War: each town's good, what it fetches, the pacts that carry it abroad, and the ports an
+//  enemy fleet shuts ----
+const GOODS = {
+  furs: { n: "Furs", v: 14 }, sugar: { n: "Sugar", v: 18 }, tobacco: { n: "Tobacco", v: 14 }, fish: { n: "Fish", v: 6 },
+  timber: { n: "Timber", v: 7 }, iron: { n: "Iron", v: 9 }, grain: { n: "Grain", v: 7 }, wine: { n: "Wine", v: 9 },
+  wool: { n: "Wool", v: 8 }, silk: { n: "Silk", v: 12 }, cloth: { n: "Cloth", v: 9 }, silver: { n: "Silver", v: 20 },
+};
+// (the pictures, loaded once, for the map; redrawn when they've come)
+const GOOD_PICS = {};
+const goodPic = k => GOOD_PICS[k] || (GOOD_PICS[k] = Object.assign(new Image(), { src: `art/goods/${k}.png`, onload: () => { if (C && shown() && !on3d) paint(); } }));
+const goodImg = (k, cls = "") => `<img class="cmp-good ${cls}" src="art/goods/${k}.png" alt="${esc(GOODS[k].n)}" title="${esc(GOODS[k].n)}">`;
+// (a town's good, by where it stands: the New World's furs, fish, tobacco, sugar and silver; Europe's timber and iron,
+//  grain, wool, wine, cloth and silk)
+function goodOf(ct) {
+  const lon = ct[1], lat = ct[2];
+  if (lon < -45) {
+    if (lat < 23 && lon < -90) return "silver";
+    if (lat < 28) return "sugar";
+    if (lon > -61 && lat > 45) return "fish";
+    if (lat >= 43.5) return "furs";
+    if (lat >= 33 && lat < 40 && lon > -84) return "tobacco";
+    if (lat >= 40 && lon > -75) return "fish";
+    return "furs";
+  }
+  if (lat >= 59 || (lat >= 55 && lon > 20)) return "timber";
+  if (lat >= 55 && lon > 10) return "iron";
+  if (lon < 2 && lat > 50) return "wool";
+  if (lat >= 49 && lon > 14) return "grain";
+  if (lat >= 47 && lon >= 2 && lon <= 14) return "cloth";
+  if (lat < 47 && lon > 7 && lon < 19) return "silk";
+  if (lon >= 19 && lat < 46) return "silk";
+  if (lat < 50 && lon < 8) return "wine";
+  return "grain";
+}
+// (a port of yours shut by an enemy fleet lying off it)
+function blockader(ct) { const h = harbourOf(ct); if (!h) return null; for (const [id, F] of Object.entries(C.foeFleets || {})) if (F.ships.length && atWar(id) && dist2(F.pos, h) <= 6) return id; return null; }
+// (each town's good, unless blockaded; each trade pact, the more for the goods it brings you that you haven't)
+function tradeOf(g) {
+  const mine = citiesOfNow(g, C.me), have = {}, shut = [];
+  for (const ct of mine) { const b = blockader(ct); if (b) { shut.push([ct, b]); continue; } const k = goodOf(ct); have[k] = (have[k] || 0) + 1; }
+  const goods = Object.entries(have).reduce((t, [k, n]) => t + GOODS[k].v * n, 0);
+  const pacts = Object.keys(C.E.pact).filter(id => C.E.pact[id] && alive(g, id)).map(id => { const theirs = new Set(citiesOfNow(g, id).map(goodOf)), fresh = [...theirs].filter(k => !have[k]); return { id, fresh, v: 10 + NATIONS[id].strength * 3 + Math.min(5, fresh.length) * 5 }; });
+  return { have, goods, pacts, pactV: pacts.reduce((t, p) => t + p.v, 0), shut };
+}
+const income = g => { const k = govType().inc * (1 + (minSk("treasury") - 3) * 0.03) * (1 - corLoss()), T = tradeOf(g); return 40 + Math.round((citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct) * TAX[taxAt(ct)].k, 0) + T.goods + T.pactV) * k); };
+function tradeHtml() {
+  const T = tradeOf(grid()), ks = Object.keys(T.have).sort((a, b) => GOODS[b].v * T.have[b] - GOODS[a].v * T.have[a]);
+  return fold("trade", `<span class="cmp-h"><b>Trade</b><small>${T.goods + T.pactV} thalers a year${T.shut.length ? ` · <em class="down">${T.shut.length} port${T.shut.length > 1 ? "s" : ""} blockaded</em>` : ""}</small></span>`,
+    `<div class="cmp-goods">${ks.map(k => `<span title="${esc(GOODS[k].n)}: ${GOODS[k].v} thalers a year from each town">${goodImg(k)}<b>${T.have[k]}</b><small>${esc(GOODS[k].n)}</small></span>`).join("") || `<small class="cmp-fine">No goods: every port is shut.</small>`}</div>
+    ${T.pacts.length ? `<div class="cmp-pacts">${T.pacts.map(p => `<div><b>${esc(The(p.id))}</b><small>${p.v} a year${p.fresh.length ? ` · ${p.fresh.map(k => goodImg(k, "sm")).join("")}` : ""}</small></div>`).join("")}</div>` : `<small class="cmp-fine">No trade pacts. A pact with a crown whose goods you haven't brings the most.</small>`}
+    ${T.shut.map(([ct, b]) => `<small class="cmp-fine down">${esc(ct[0])} blockaded by ${esc(poss(the(b)))} fleet: drive it off.</small>`).join("")}`);
+}
 const upkeep = () => shipUp() + Math.round((C.units ? C.units.reduce((t, u) => t + u.hp * (UNIT[u.k] || UNIT.musketeer).up, 0) : C.army * 1.6) * (1 + (C.gen ? C.gen.st[2] : 2) * 0.04));
 // diplomacy: what you can do with a crown this season
 function diplo(id, what) {
@@ -2146,6 +2199,9 @@ function paint() {
   // crossed swords (dim once it's marched this season); a town an enemy marches on, red
   const c = cv.getContext("2d"), S = cv.width / MG_W, k = cv.width / 1300, at = ct => { const [x, y] = gridOf(ct[1], ct[2]); return [(x * S - view.ox) * view.z, (y * S - view.oy) * view.z]; };
   if (loyMap) paintLoyalty(c, g, S, k, at);
+  // (close in: each town's good, small, beside its dot; a port of yours shut by an enemy fleet, a red ring round it)
+  if (view.z >= 2.2) { const sz = Math.min(28, 12 + view.z * 2) * k; c.save(); c.globalAlpha = 1; c.globalCompositeOperation = "source-over"; c.setTransform(1, 0, 0, 1, 0, 0); for (const ct of CITIES) { const [x, y] = at(ct); if (x < -20 || y < -20 || x > cv.width + 20 || y > cv.height + 20) continue; const im = goodPic(goodOf(ct)); if (im.complete && im.naturalWidth) { const bx = x + 6 * k + sz / 2, by = y - sz / 2 - 4 * k, rr = sz * 0.62; c.fillStyle = "rgba(30,22,14,0.82)"; c.strokeStyle = "#c9a45a"; c.lineWidth = 1.3 * k; c.beginPath(); c.arc(bx, by, rr, 0, 7); c.fill(); c.stroke(); c.drawImage(im, bx - sz * 0.48, by - sz * 0.48, sz * 0.96, sz * 0.96); } } c.restore(); }
+  for (const ct of citiesOfNow(g, C.me)) if (blockader(ct)) { const [x, y] = at(ct); c.save(); c.strokeStyle = "#c0281a"; c.lineWidth = 2.2 * k; c.setLineDash([3 * k, 2 * k]); c.beginPath(); c.arc(x, y, 9 * k, 0, 7); c.stroke(); c.restore(); }
   const threat = new Set(C.events.filter(e => e.kind === "attack" && !e.done).map(e => e.ct));
   // (crossed swords, drawn: two blades and their guards)
   const swords = (x, y, r, col) => { c.save(); c.strokeStyle = col; c.lineCap = "round"; c.lineWidth = 2.2 * k; c.beginPath(); c.moveTo(x - r, y - r); c.lineTo(x + r, y + r); c.moveTo(x + r, y - r); c.lineTo(x - r, y + r); c.stroke(); c.lineWidth = 2 * k; c.beginPath(); c.moveTo(x - r * 0.95, y + r * 0.35); c.lineTo(x - r * 0.35, y + r * 0.95); c.moveTo(x + r * 0.95, y + r * 0.35); c.lineTo(x + r * 0.35, y + r * 0.95); c.stroke(); c.restore(); };
@@ -2534,6 +2590,7 @@ function recruitHtml(ct) {
 function townCard(g, ct) {
   const n = ct[0], q = C.Q && C.Q[n], v = govOf(n), last = citiesOfNow(g, C.me).length === 1, wl = lvOf(n, "walls");
   let h = `<p>Yours. Garrison ${garrison(ct)}; worth ${worth(ct)} thalers a year. ${wl ? CHAINS.walls.levels[wl].n + "." : last ? "No walls, but it's your last town: its people will hold it to the end." : "No walls."}</p><p class="cmp-pop">${popLine(ct)}</p>${(h => h ? `<p class="cmp-pop">${onLake(grid(), h) ? "A port on the Great Lakes: its ships sail the lakes, never out to the sea." : "A port, on the sea."}</p>` : "")(harbourOf(ct))}${loyaltyHtml(ct)}` + garHtml(ct) + recruitHtml(ct) + dockHtml(ct);
+  { const k = goodOf(ct), b = blockader(ct); h = h.replace(`<div class="cmp-loyal">`, () => `<div class="cmp-tgood">${goodImg(k)}<span><b>${esc(GOODS[k].n)}</b><small>${b ? `<em class="down">Blockaded by ${esc(poss(the(b)))} fleet: none of it gets out</em>` : `${GOODS[k].v} thalers a year in trade`}</small></span></div><div class="cmp-loyal">`); }
   h += v ? manCard(v, `<label class="cmp-rule"><input type="checkbox" data-rule="${esc(n)}"${C.rule && C.rule[n] ? " checked" : ""}> Let him rule: he puts the town's works in hand himself</label>`)
     : C.govCands && C.govCands[n] ? `<div class="cmp-subh">Choose a governor for ${esc(n)}</div>${candidates(C.govCands[n], "data-gov", m => govFee(m, ct))}`
     : `<div class="cmp-nogov"><span>No governor: a clerk keeps the books, and some of the money goes missing.</span><button class="btn" data-act="govs">Appoint a governor</button></div>`;
@@ -2595,7 +2652,7 @@ function drawSide() {
     h += `<div class="cmp-card"><div class="cmp-h"><b>${esc(selCity[0])}</b><small>${["", "A town", "A city", "A great city"][selCity[3]]} · ${own2 ? esc(NATIONS[own2].name) : pp ? esc(PEOPLES[pp].name) : "nobody's"}</small></div>
       ${pp ? `<p>A town of ${esc(PEOPLES[pp].long)}, in their own country. It isn't any crown's to take.</p>` : ""}
       ${!mineT && own2 ? `<p class="cmp-pop">Population ${fmtN(popOf(selCity))}</p>` : ""}
-      ${mineT ? townCard(g, selCity) : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring ${knowsArmy(own2) ? `some ${fieldHelp(own2, selCity)} regiments` : "an army of a size you don't know"} to it${walls ? ", behind walls" : isVillage(selCity) ? ", behind a palisade" : ""}. ${!reach ? `${overSea(armyPos(), cellXY(selCity)) ? "Your army is on the other side of the Atlantic: a year at sea." : `Your army is ${yearsTo(cellXY(selCity)) > 1 ? `${yearsTo(cellXY(selCity))} years'` : "a year's"} march away.`}` : !atWar(own2) ? `You're not at war with ${the(own2)}.` : !freeToStrike(selCity) ? whyNot(selCity) : `Your odds: ${Math.round(odds(C.army * cmdMul(C.gen) * moraleK(), def, walls && !open) * 100)}%.`}</p>` : ""}
+      ${!mineT ? `<div class="cmp-tgood">${goodImg(goodOf(selCity))}<span><b>${esc(GOODS[goodOf(selCity)].n)}</b><small>its trade</small></span></div>` : ""}${mineT ? townCard(g, selCity) : own2 ? `<p>Held by ${garrison(selCity)} men of the garrison, and ${the(own2)} can bring ${knowsArmy(own2) ? `some ${fieldHelp(own2, selCity)} regiments` : "an army of a size you don't know"} to it${walls ? ", behind walls" : isVillage(selCity) ? ", behind a palisade" : ""}. ${!reach ? `${overSea(armyPos(), cellXY(selCity)) ? "Your army is on the other side of the Atlantic: a year at sea." : `Your army is ${yearsTo(cellXY(selCity)) > 1 ? `${yearsTo(cellXY(selCity))} years'` : "a year's"} march away.`}` : !atWar(own2) ? `You're not at war with ${the(own2)}.` : !freeToStrike(selCity) ? whyNot(selCity) : `Your odds: ${Math.round(odds(C.army * cmdMul(C.gen) * moraleK(), def, walls && !open) * 100)}%.`}</p>` : ""}
       ${S ? `<div class="cmp-siege"><b>Under siege · year ${S.years}</b><span>Garrison ${S.starve >= 0.6 ? "starving" : S.starve >= 0.3 ? "on short rations" : "well fed"} (${Math.round(garrison(selCity) * (1 - S.starve))} of ${garrison(selCity)} men fit) · walls ${S.bat >= 1 ? "breached" : `${Math.round(S.bat * 100)}% battered`}</span><i><u style="width:${Math.min(100, Math.round(S.bat * 100))}%"></u></i>${!C.supplied && C.gold >= SUPPLY_COST ? `<div class="cmp-acts"><button class="btn" data-act="supply" title="Fresh men, powder and bread for the siege lines — if they get through the enemy's raiders">Send supplies · ${SUPPLY_COST} · you escort</button><button class="btn ghost" data-act="supplyauto">Supplies · escort alone</button></div>` : C.supplied ? `<small class="cmp-fine">This year's supply train has gone.</small>` : ""}</div>` : ""}
       ${can && S ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Storm · you lead</button><button class="btn" data-act="auto">Storm · generals lead</button><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : can && !C.siege ? `<div class="cmp-acts"><button class="btn primary" data-act="fight">Attack · you lead</button><button class="btn" data-act="auto">Attack · generals lead</button>${walls && !isHuman(own2) && C.army >= 8 ? `<button class="btn" data-act="siege" title="Starve it out and batter its walls, a year at a time">Lay siege</button>` : ""}</div>` : C.siege && !S && !mineT && own2 ? `<p class="cmp-fine">Your army is besieging ${esc(C.siege.ct)}: lift that siege to march here.</p>` : !C.siege && !C.moved && (mineT || (own2 && !reach)) && dist2(armyPos(), cellXY(selCity)) > 1 ? `<div class="cmp-acts"><button class="btn" data-act="goto">${overSea(armyPos(), cellXY(selCity)) ? `Over the water: needs a fleet of yours` : `${mineT ? "Move your army here" : "March toward it"} · ${yearsTo(cellXY(selCity))} yr`}</button></div>` : S && C.moved ? `<div class="cmp-acts"><button class="btn ghost" data-act="lift">Lift the siege</button></div>` : ""}</div>`;
   }
@@ -2647,6 +2704,7 @@ function drawSide() {
   } else if (!selCity && !armySel) howHtml = `<p class="sub"><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom · <b>Esc</b> for the menu</p><ul class="cmp-howto">
       <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it. Right-click an enemy town within reach to attack it. An army that marches up to a town's walls can still attack it that year, once.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
+      <li><b>Trade.</b> Every town has its good (furs, fish, tobacco, sugar, silver, timber, iron, grain, wool, cloth, wine or silk), and each brings thalers. Trade pacts pay more for goods you don't have yourself. An enemy fleet lying off one of your ports blockades it: none of its trade gets out until you drive the fleet off.</li>
       <li><b>Government.</b> Your crown is an absolute monarchy, a constitutional monarchy or a republic, each with its strengths, and has three ministers (the Treasury, War and Justice) whose skill counts. Change one a year from the side panel. Two years of widespread unrest bring a revolution: grant what the people want, or crush it at the cost of a quarter of your army.</li>
       <li><b>Missions.</b> The Crown sets you tasks now and then, with a deadline and a reward in thalers.</li>
       <li><b>Spies.</b> You don't know how big another crown's army is. Choose the crown and corrupt one of its politicians (300 thalers): from then on its army's size shows on the map, on its card and in the news.</li>
@@ -2668,6 +2726,7 @@ function drawSide() {
   reconcile();
   h += missionsHtml();
   h += govHtml();
+  h += tradeHtml();
   h += fold("army", `<span class="cmp-h"><b>${(C.armies || []).length ? esc(armyName(C.ar | 0)) : "Your army"}</b><small>${field().length} regiment${field().length === 1 ? "" : "s"}${C.levyQ ? ` (+${C.levyQ} raising)` : ""}${C.units.some(u => u.at) ? ` · ${C.units.filter(u => u.at).length} in garrisons` : ""} · ${C.guns} gun${C.guns === 1 ? "" : "s"} · ${moraleWord(C.morale ?? 50).toLowerCase()} · ${C.siege ? `besieging ${esc(C.siege.ct)}` : C.go ? "on the march" : C.moved ? "marched this year" : "ready"}</small></span>`, `
     <div class="cmp-morale"><small>Morale</small><b>${moraleWord(C.morale ?? 50)}</b><i><u style="width:${C.morale ?? 50}%"></u></i><small>${C.morale ?? 50}</small></div>
     ${(C.armies || []).length ? `<div class="cmp-armies">${armyIds().map(id => { const n2 = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length, A = id === (C.ar | 0) ? C : C.armies.find(a => a.id === id) || {}, at = A.pos ? nearTown(A.pos)[0] : ""; return `<button class="btn${id === (C.ar | 0) ? " on" : ""}" data-army="${id}"${id === (C.ar | 0) ? " disabled" : ""} title="${esc(`${armyName(id)}: ${n2} regiments, near ${at}${A.gen ? `, under ${A.gen.name}` : ", no general"} · ${A.siege ? `besieging ${A.siege.ct}` : A.go ? "on the march" : A.moved ? "marched this year" : "ready"}`)}">${esc(armyName(id))} · ${n2}<small>${esc(at)}</small></button>`; }).join("")}</div>` : ""}
