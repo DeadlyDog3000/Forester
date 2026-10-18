@@ -626,7 +626,9 @@ function goalOf() {
   const nw = !!NATIONS[C.me].nw;
   // (the prizes: the great towns nearest home that aren't yours — near and big counting for most)
   // (across the water counts as three times as far: a crossing is a harder war)
-  const want = CITIES.filter(ct => cityOwner(g, ct) !== C.me && cityOwner(g, ct) != null && (!nw || !overSea(h, cellXY(ct))))
+  // (never a friend's: not a crown of your own league, nor an ally)
+  const friend = id => !!leagueOf(C.me, id) || !!C.ally[id];
+  const want = CITIES.filter(ct => { const o = cityOwner(g, ct); return o !== C.me && o != null && NATIONS[o] && !friend(o) && (!nw || !overSea(h, cellXY(ct))); })
     .map(ct => [ct, dist2(h, cellXY(ct)) * (overSea(h, cellXY(ct)) ? 3 : 1) / (1 + ct[3] * 0.8)]).sort((a, b) => a[1] - b[1]).slice(0, nw ? 2 : 4).map(([ct]) => ct[0]);
   C.goal = { towns: want, n: Math.min(WIN_CITIES, Math.max(own.length + (nw ? 5 : 10), nw ? 7 : 14)), by: C.year + GOAL_YEARS };
   return C.goal;

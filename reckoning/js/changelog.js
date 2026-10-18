@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.82.2", date: "17 October 2026", title: "A quicker map",
+    items: [
+      "Campaign: when towns change hands the map redraws two to three times faster: about an eighth of a second where it was nearly half a second, and more on a sharp screen. Only the crowns a change touched have their borders traced again, not all fifty, and the paper's grain is laid on from one small tile instead of speck by speck.",
+      "Campaign: victory never asks you to take a friend's towns now: none of your own league's, and none of an ally's. Austria is sent after Buda and Pressburg, not Munich and Dresden.",
+    ],
+  },
+  {
     v: "1.82.1", date: "17 October 2026", title: "The relief of Vienna",
     items: [
       "Campaign: the Sultan took Vienna within two years in most campaigns, and the Austrian Empire was often gone by 1690. Now the Holy League fights as one until 1700, as Sobieski's Poles came to Vienna with their whole army, and the Habsburgs are stronger. In six test campaigns Vienna held in five, and Austria usually pushed the Turk back down the Danube.",

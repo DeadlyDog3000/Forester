@@ -54,7 +54,7 @@ export function useSheet(name) {
   // (the coasts that touch the window, carried to its corner)
   COAST = WCOAST.map(r => r.map(([x, y]) => [x - x0 * 10, y - y0 * 10])).filter(r => r.some(([x, y]) => x > -50 && y > -50 && x < w * 10 + 50 && y < h * 10 + 50));
   { const [x, y] = gridOf(...HOME_LL); HOME = { mx: Math.floor(x), my: Math.floor(y) }; }
-  BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; coastP = null; relief = null; reliefPart = null; near = null; traced = null;
+  BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; coastP = null; relief = null; reliefPart = null; near = null; traced = null; TRC.clear(); SIG = null;
 }
 // a crown's land, or a people's, or nobody's: the peoples of the New World have their country on the map in their own
 // names, and it isn't any crown's to take
@@ -410,13 +410,32 @@ let GONE = null;
 // (the outlines depend only on the map, not the view: kept for as long as the map stands — a close view redrawn as you
 //  pan doesn't trace every crown round again)
 let traced = null;
+// (each crown's trace kept by what it's traced from — its own squares, and for its borders who lies over each edge —
+//  so when a town changes hands only the crowns it touched are traced again, not all fifty)
+const TRC = new Map(), IDH = new Map(); let SIG = null;
+const idHash = id => { let h = IDH.get(id); if (h == null) { h = 2166136261; for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619) >>> 0; IDH.set(id, h); } return h; };
+function sigs(g) {
+  if (SIG && SIG.g === g) return SIG.m; const m = new Map();
+  for (let y = 0; y < GH; y++) { const row = g[y]; for (let x = 0; x < GW; x++) {
+    const id = row[x]; if (!id) continue; let s = m.get(id); if (!s) m.set(id, s = [0, 0, 0, 0]);
+    const h = (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0; s[0] = (s[0] + h) >>> 0; s[1] = (s[1] ^ Math.imul(h, 2654435761)) >>> 0; s[2]++;
+    for (let d = 0; d < 4; d++) { const nx = x + (d === 1 ? 1 : d === 3 ? -1 : 0), ny = y + (d === 2 ? 1 : d === 0 ? -1 : 0), n = (g[ny] && g[ny][nx]) || null; if (n !== id) s[3] = (s[3] + Math.imul(h + d, n ? idHash(n) : 7)) >>> 0; }
+  } }
+  SIG = { g, m }; return m;
+}
 function traceOf(g, id, borders, key) {
   if (!key) return trace(g, id, borders);
-  if (!traced || traced.key !== key) traced = { key, m: new Map() };
-  const k = id + (borders ? "|b" : ""); if (!traced.m.has(k)) traced.m.set(k, trace(g, id, borders));
-  return traced.m.get(k);
+  const s = sigs(g).get(id) || [0, 0, 0, 0], k = id + (borders ? "|b|" + s.join(",") : "|" + s.slice(0, 3).join(","));
+  let t = TRC.get(k); if (!t) { if (TRC.size > 800) TRC.clear(); TRC.set(k, t = trace(g, id, borders)); }
+  return t;
 }
 // vp: { w, h, z, ox, oy } — only that part of the sheet, drawn at that zoom (sharp close in, not a picture stretched)
+let GRAIN = null;
+function grainTile() {
+  if (GRAIN) return GRAIN; const T = 509, cv = document.createElement("canvas"); cv.width = cv.height = T; const c = cv.getContext("2d"), r = rng(1759);
+  for (let i = 0; i < T * T / 60; i++) { c.fillStyle = `rgba(${r() < 0.5 ? "60,40,20" : "255,250,235"},${(r() * 0.08).toFixed(3)})`; c.fillRect(Math.floor(r() * T), Math.floor(r() * T), 1, 1); }
+  return (GRAIN = cv);
+}
 function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   GONE = E && E.gone || null;
   const cv = document.createElement("canvas"); cv.width = vp ? vp.w : W; cv.height = vp ? vp.h : H;
@@ -458,7 +477,7 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   //  meets another)
   const ext = traced && traced.key === tkey && traced.ext || g.map(row => row.slice());
   // (the colour carried a little out over the sea, so the coast — cut to the real one — is coloured right to its edge)
-  if (!(traced && traced.key === tkey && traced.ext)) for (let pass = 0; pass < 3; pass++) { const prev = ext.map(row => row.slice()); for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (!prev[y][x]) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = prev[y + dy] && prev[y + dy][x + dx]; if (n) { ext[y][x] = n; break; } } }
+  if (!(traced && traced.key === tkey && traced.ext)) for (let pass = 0; pass < 3; pass++) { const prev = ext.map(row => row.slice()); for (let y = 0; y < GH; y++) { const P = prev[y], U = prev[y - 1], D = prev[y + 1], X = ext[y]; for (let x = 0; x < GW; x++) if (!P[x]) { const n = P[x + 1] || P[x - 1] || (D && D[x]) || (U && U[x]); if (n) X[x] = n; } } }
   if (tkey) { if (!traced || traced.key !== tkey) traced = { key: tkey, m: new Map() }; traced.ext = ext; }
   const ids = new Set(); for (const row of g) for (const id of row) if (id) ids.add(id);
   const band = Math.max(2, S * 2.2);
@@ -539,8 +558,9 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   cartouche(c, W, H, S);
   scaleBar(c, W, H, S);
   frame(c, W, H, S);
-  // the paper's grain, over everything
-  for (let i = 0; i < W * H / 60; i++) { c.fillStyle = `rgba(${r() < 0.5 ? "60,40,20" : "255,250,235"},${(r() * 0.08).toFixed(3)})`; c.fillRect(r() * W, r() * H, 1, 1); }
+  // the paper's grain, over everything (a tile of it, made once and laid on as a pattern: speck by speck over the whole
+  //  sheet it was a quarter of a second each time the map was redrawn)
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = c.createPattern(grainTile(), "repeat"); c.fillRect(0, 0, cv.width, cv.height); c.restore();
   return cv;
 }
 function nameBoxes(c, S) {
