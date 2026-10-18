@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P } from "./core.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
@@ -1742,42 +1742,131 @@ function woodChips(t, amount = 1) {
   G.onFrame.push(tick);
 }
 G.woodChips = (t, amount = 1) => { woodChips(t, amount); if (amount === 1) notch(t); };
-// the cut the axe makes: a notch in the trunk at waist height, on the side you're at, a little deeper with every stroke
-// (laid on the bark as a curved patch that hugs the trunk: the pale face of the cut above, the shadowed one below)
-const NOTCH_TEX = [];
-function notchTex(k) {
-  if (NOTCH_TEX[k]) return NOTCH_TEX[k];
-  const c = document.createElement("canvas"); c.width = 128; c.height = 128; const x = c.getContext("2d");
-  const cy = 74, wHalf = 44 + k * 5, up = 16 + k * 7, dn = 6 + k * 3;
-  // the open mouth of the cut: a lens, sloped face above the crease, the flat face below
-  x.beginPath(); x.moveTo(64 - wHalf, cy); x.quadraticCurveTo(64, cy - up * 2, 64 + wHalf, cy); x.closePath();
-  let g = x.createLinearGradient(0, cy - up, 0, cy); g.addColorStop(0, "#e6cc98"); g.addColorStop(1, "#c4a26c"); x.fillStyle = g; x.fill();
-  x.beginPath(); x.moveTo(64 - wHalf, cy); x.quadraticCurveTo(64, cy + dn * 2, 64 + wHalf, cy); x.closePath();
-  x.fillStyle = "#7a5a38"; x.fill();
-  // the crease, deep in shadow, and the torn bark round the lip
-  x.strokeStyle = "#2a1c10"; x.lineWidth = 2 + k * 0.6; x.beginPath(); x.moveTo(64 - wHalf * 0.9, cy); x.lineTo(64 + wHalf * 0.9, cy); x.stroke();
-  x.strokeStyle = "rgba(40,26,14,0.8)"; x.lineWidth = 2; x.beginPath(); x.moveTo(64 - wHalf, cy); x.quadraticCurveTo(64, cy - up * 2, 64 + wHalf, cy); x.quadraticCurveTo(64, cy + dn * 2, 64 - wHalf, cy); x.stroke();
-  // (grain across the pale face)
-  x.strokeStyle = "rgba(150,110,60,0.35)"; x.lineWidth = 1;
-  for (let i = 1; i < 4; i++) { const yy = cy - up * i / 4.2; x.beginPath(); x.moveTo(64 - wHalf * 0.8, yy + 2); x.lineTo(64 + wHalf * 0.8, yy); x.stroke(); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return NOTCH_TEX[k] = t;
+// the cut the axe makes: a real notch, cut into the trunk at waist height on the side you're at, deeper with every
+// stroke — a flat floor and a sloped face above it meeting in a crease, the fresh wood pale. The bark in the wedge is
+// left undrawn (core.js, NOTCH_M); these two faces, fitted to the trunk's own girth there, are what you see in it.
+const NOTCH_SLOTS = [null, null, null, null], _nm = new THREE.Matrix4();
+const NOTCH_MAT = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide }), { scale: 2.5, amount: 0.12, grain: 0.6, surface: "wood", weather: false, snow: false });
+// the trunk's own outline, as the bark has it: rings of it up the trunk (each a many-sided ring, not a circle), and how
+// far out its surface is in any direction at any height — so the cut meets the bark exactly, flats and corners alike
+function trunkRings(t) {
+  let bark = null; t.g.traverse(o => { if (!bark && o.isMesh && o.material && o.material.userData.detail && o.material.userData.detail.surface === "bark") bark = o; });
+  if (!bark) return null;
+  const P = bark.geometry.attributes.position, v = new THREE.Vector3(), pts = [];
+  bark.updateMatrix();
+  for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(bark.matrix); if (v.y > -0.3 && v.y < 2.6) pts.push([v.x, v.y, v.z]); }
+  if (pts.length < 6) return null;
+  // (low boughs come out here too, more of them than the trunk's few points: the trunk is everything near the
+  //  middle out to the first wide gap)
+  let cx = 0, cz = 0, near = pts;
+  for (let pass = 0; pass < 2; pass++) {
+    const d = pts.map(p => Math.hypot(p[0] - cx, p[2] - cz)).sort((a, b) => a - b);
+    let cut = d[d.length - 1];
+    for (let k = 1; k < d.length; k++) if (d[k] > d[k - 1] * 1.6 + 0.04) { cut = d[k - 1]; break; }
+    near = pts.filter(p => Math.hypot(p[0] - cx, p[2] - cz) <= cut + 1e-4);
+    cx = near.reduce((a, p) => a + p[0], 0) / near.length; cz = near.reduce((a, p) => a + p[2], 0) / near.length;
+  }
+  // (the rings: the points at one height, the outermost of them — the stubs of boughs inside the trunk left out)
+  const by = new Map();
+  for (const p of near) { const k = Math.round(p[1] / 0.04); if (!by.has(k)) by.set(k, []); by.get(k).push(p); }
+  const rings = [];
+  for (const g of by.values()) {
+    if (g.length < 5) continue;
+    const md = Math.max(...g.map(p => Math.hypot(p[0] - cx, p[2] - cz))), ring = g.filter(p => Math.hypot(p[0] - cx, p[2] - cz) > md * 0.8);
+    if (ring.length < 5 || md < 0.05) continue;
+    rings.push({ y: ring.reduce((a, p) => a + p[1], 0) / ring.length, md, v: ring.map(p => [p[0] - cx, p[2] - cz, Math.atan2(p[2] - cz, p[0] - cx)]).sort((a, b) => a[2] - b[2]) });
+  }
+  if (!rings.length) return null;
+  rings.sort((a, b) => a.y - b.y);
+  // how far out the bark is from the middle along (dx, dz), in one ring: where that ray crosses the ring's sides
+  const out = (ring, dx, dz) => {
+    const L = ring.v, n = L.length;
+    for (let i = 0; i < n; i++) {
+      const a = L[i], b = L[(i + 1) % n], ex = b[0] - a[0], ez = b[1] - a[1], den = dx * ez - dz * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const rho = (a[0] * ez - a[1] * ex) / den, s = Math.abs(ex) > Math.abs(ez) ? (dx * rho - a[0]) / ex : (dz * rho - a[1]) / ez;
+      if (rho > 0 && s >= -1e-4 && s <= 1 + 1e-4) return rho;
+    }
+    return ring.md;
+  };
+  const R = (y, dx, dz) => {
+    let lo = rings[0], hi = rings[rings.length - 1];
+    for (const r of rings) { if (r.y <= y) lo = r; if (r.y >= y) { hi = r; break; } }
+    const a = out(lo, dx, dz), b = out(hi, dx, dz), k = hi.y > lo.y ? (y - lo.y) / (hi.y - lo.y) : 0;
+    return a + (b - a) * Math.max(0, Math.min(1, k));
+  };
+  return { cx, cz, R };
+}
+// the two faces of the cut, in its own frame (x out toward the cutter, y up from the floor, z across): sampled across
+// the face of the trunk, kept where the bark stands out past the crease, a strip from the crease out to the bark
+function notchGeo(T, a, Y, u0, D, up) {
+  const pos = [], col = [];
+  const pale = new THREE.Color(0xe4cd9c), floor = new THREE.Color(0xc9ac78), deep = new THREE.Color(0x6e5232);
+  const put = (p, c) => { pos.push(p[0], p[1], p[2]); col.push(c.r, c.g, c.b); };
+  const ux = Math.sin(a), uz = Math.cos(a), zx = -Math.cos(a), zz = Math.sin(a);
+  // (the bark's edge, in the frame, at height h over the floor, in the frame's direction phi)
+  const edge = (phi, h) => { const dx = ux * Math.cos(phi) + zx * Math.sin(phi), dz = uz * Math.cos(phi) + zz * Math.sin(phi), r = T.R(Y + h, dx, dz); return [r * Math.cos(phi), r * Math.sin(phi)]; };
+  for (const top of [false, true]) {
+    const N = 60, S = [];
+    for (let i = 0; i <= N; i++) {
+      const phi = -Math.PI / 2 + Math.PI * i / N;
+      // (on the sloped face the height depends on how far out it meets the bark: settled in a few steps)
+      let e = edge(phi, 0);
+      if (top) for (let k = 0; k < 3; k++) e = edge(phi, Math.max(0, (e[0] - u0) * up / D));
+      S.push([e[0], top ? Math.max(0, (e[0] - u0) * up / D) : 0, e[1]]);
+    }
+    const at = (A, B) => { const k = (u0 - A[0]) / (B[0] - A[0]); return [u0, 0, A[2] + (B[2] - A[2]) * k]; };
+    for (let i = 0; i < N; i++) {
+      let p = S[i], q = S[i + 1];
+      const pin = p[0] > u0, qin = q[0] > u0; if (!pin && !qin) continue;
+      // (where the bark comes in to the crease, the strip ends exactly there)
+      if (!pin) p = at(p, q); else if (!qin) q = at(p, q);
+      const cp = [u0, 0, p[2]], cq = [u0, 0, q[2]], c = top ? pale : floor;
+      if (top) { put(cp, deep); put(q, c); put(p, c); put(cp, deep); put(cq, deep); put(q, c); }
+      else { put(cp, deep); put(p, c); put(q, c); put(cp, deep); put(q, c); put(cq, deep); }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
+  g.computeVertexNormals(); return g;
 }
 function notch(t) {
   const pl = G.player; if (!t || !t.g || !pl || t.state === "falling" || t.state === "down" || t.state === "gone") return;
-  const kind = t.kind || (t.src && t.src.kind), r = Math.max(0.2, (kind === "birch" ? 0.2 : 0.3) * ((t.h || 10) / 10)) + 0.035;
+  const Y = 0.85;
   if (!t.notch) {
+    const kind = t.kind || (t.src && t.src.kind), r0 = Math.max(0.2, (kind === "birch" ? 0.2 : 0.3) * ((t.h || 10) / 10));
+    const T = trunkRings(t) || { cx: 0, cz: 0, R: () => r0 };
     // (which way you are from the tree, in the tree's own turn)
-    const a = Math.atan2(pl.pos.x - t.x, pl.pos.z - t.z) - t.g.rotation.y, span = 1.5;
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.42, 10, 1, true, a - span / 2, span),
-      new THREE.MeshStandardMaterial({ map: notchTex(0), transparent: true, alphaTest: 0.3, roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
-    m.position.y = 1.0; m.userData.k = 0; t.g.add(m); t.notch = m;
-  } else {
-    const m = t.notch; m.userData.k = Math.min(4, m.userData.k + 1); m.material.map = notchTex(m.userData.k); m.material.needsUpdate = true;
+    t.g.updateMatrixWorld(true);
+    const lp = t.g.worldToLocal(new THREE.Vector3(pl.pos.x, pl.pos.y, pl.pos.z)), a = Math.atan2(lp.x - T.cx, lp.z - T.cz);
+    const m = new THREE.Mesh(new THREE.BufferGeometry(), NOTCH_MAT); m.castShadow = false; m.receiveShadow = true;
+    // its frame: x out toward you, y up, z across
+    m.matrixAutoUpdate = false;
+    m.matrix.makeBasis(new THREE.Vector3(Math.sin(a), 0, Math.cos(a)), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-Math.cos(a), 0, Math.sin(a))).setPosition(T.cx, Y, T.cz);
+    m.userData = { k: 0, T, a, r: T.R(Y, Math.sin(a), Math.cos(a)), world: G.world };
+    let s = NOTCH_SLOTS.findIndex(x => !x || !x.notch || !x.g.visible); if (s < 0) { s = 0; G.clearNotch(NOTCH_SLOTS[0]); }
+    NOTCH_SLOTS[s] = t; m.userData.slot = s;
+    t.g.add(m); t.notch = m;
+  } else t.notch.userData.k = Math.min(6, t.notch.userData.k + 1);
+  const m = t.notch, { r, T, a } = m.userData, D = r * (0.18 + 0.08 * m.userData.k), up = D * 0.95;
+  m.geometry.dispose(); m.geometry = notchGeo(T, a, Y, r - D, D, up);
+  NOTCH_P.value[m.userData.slot].set(r, D, up, 1);
+}
+// (each frame: the world into every notch's frame, as its tree stands — or falls)
+function notchFrame() {
+  for (let i = 0; i < 4; i++) {
+    const t = NOTCH_SLOTS[i]; if (!t || !t.notch || !t.notch.parent) { NOTCH_P.value[i].w = 0; continue; }
+    NOTCH_M.value[i].copy(_nm.multiplyMatrices(t.notch.parent.matrixWorld, t.notch.matrix)).invert();
+    NOTCH_P.value[i].w = t.g.visible && t.notch.userData.world === G.world ? 1 : 0;
   }
 }
 // (a tree grown again, or stood up again, has no cut in it)
-G.clearNotch = t => { if (t && t.notch) { t.notch.parent && t.notch.parent.remove(t.notch); t.notch.geometry.dispose(); t.notch.material.dispose(); t.notch = null; } };
+G.clearNotch = t => {
+  if (!t || !t.notch) return;
+  const s = t.notch.userData.slot; if (NOTCH_SLOTS[s] === t) { NOTCH_SLOTS[s] = null; NOTCH_P.value[s].w = 0; }
+  t.notch.parent && t.notch.parent.remove(t.notch); t.notch.geometry.dispose(); t.notch = null;
+};
 // money as it is written: whole marks, or a mark and a tenth — never 0.30000000000000004
 export const dm = n => { const v = Math.round((+n || 0) * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
 G.dm = dm;
@@ -2586,6 +2675,7 @@ export function frame(dt, skipRender) {
     // (one thing going wrong never stops the rest: a fault in any one of these used to end the frame there, every frame
     //  — nothing moved again, and the game looked frozen. Now it's reported once and the frame goes on; a thing that
     //  fails frame after frame is taken out)
+    notchFrame();
     for (const f of G.onFrame.slice()) {
       try { f(dt); f.__bad = 0; }
       catch (e) {

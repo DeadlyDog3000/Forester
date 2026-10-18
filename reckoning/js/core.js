@@ -207,6 +207,10 @@ const RELIEF_GLSL = `
 `;
 
 export const SNOW = { value: 0 };
+// the axe's notches in standing trunks (up to four at once): for each, the world taken into the notch's own frame —
+// x out toward the side it was cut from, y up from the floor of the cut, z across — and (trunk radius, depth, height
+// of the sloped face, on). Bark inside the wedge is not drawn: the notch's own faces (engine.js) show through it.
+export const NOTCH_M = { value: [0, 1, 2, 3].map(() => new THREE.Matrix4()) }, NOTCH_P = { value: [0, 1, 2, 3].map(() => new THREE.Vector4()) };
 // the colour-guessed grain in full (plaster, brick, tiles) only among the city's houses
 export const AUTO_FULL = { value: 1 };
 // a roofed room where no snow lies: (centre x, centre z, turn, on) and (half across, half deep, eaves height)
@@ -235,6 +239,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
     sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dSnowK = { value: typeof snow === "number" ? snow : 1 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
     sh.uniforms.dRim = RIM;
+    if (surface === "bark") { sh.uniforms.dNotchM = NOTCH_M; sh.uniforms.dNotchP = NOTCH_P; }
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] }; sh.uniforms.dTexCol = { value: colourTex };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal;")
@@ -247,9 +252,13 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         vDReal = (modelMatrix * dwp).xyz;
         ${local ? "vDWorld = dwp.xyz * 2.0; vDNormal = normalize(dn);" : "vDWorld = vDReal; vDNormal = normalize(mat3(modelMatrix) * dn);"}`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + (surface === "bark" ? "uniform mat4 dNotchM[4]; uniform vec4 dNotchP[4];" : "") + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         float dHgt = 0.0, dHk = 0.0;
+        ${surface === "bark" ? `for (int i = 0; i < 4; i++) if (dNotchP[i].w > 0.5) {
+          vec3 q = (dNotchM[i] * vec4(vDReal, 1.0)).xyz; vec4 np = dNotchP[i];
+          if (q.y > -0.004 && length(q.xz) < np.x * 1.6 && q.x - (np.x - np.y) >= q.y * np.y / np.z) discard;
+        }` : ""}
         // leaves and needles right up against the eye (standing inside a tree) are gone, so you see out through them;
         // only a narrow edge a little further off thins away in a fine dither — a wide band of it, never quite clear,
         // laid a screen of dots over the whole view in among the trees

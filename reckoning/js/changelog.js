@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.5", date: "18 October 2026", title: "A real notch",
+    items: [
+      "The cut your axe makes in a tree is a real notch now, not a flat picture stuck on the bark. A wedge is carved into the trunk on your side, with a flat floor and a sloped face of fresh pale wood meeting in a dark crease. It goes deeper with every stroke and fits the trunk's own shape, and it stays in the trunk as the tree comes down.",
+    ],
+  },
+  {
     v: "1.90.4", date: "18 October 2026", title: "No more thirst",
     items: [
       "Water is gone as a need. There's no thirst bar, no dying of thirst, no drinking at the brook, pond or well, and no boiling water at the fire. Canteens are no longer made at the chopping block. Hunger stays as it was.",
