@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.11", date: "18 October 2026", title: "Face to face",
+    items: [
+      "Character builder: on Face, your character turns to look at you and stays there, instead of slowly spinning until you're looking at the back of their head. Whole still turns slowly, so you can see the clothes all round.",
+      "Worlds & colonies: an empty Wide World says \"No one in the world just now: be the first\" instead of \"0 people in the world now\".",
+    ],
+  },
+  {
     v: "1.90.10", date: "18 October 2026", title: "Mountains, not snowfields",
     items: [
       "Campaign 3D map: the eastern Alps are lower as they run out toward Wien. The hills south of the city were a broad field of snow at the western Alps' height, and they're green now.",

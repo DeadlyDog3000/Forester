@@ -102,7 +102,7 @@ async function refreshNow(quiet) {
   if (g) jobs.push(listRooms(addressOf(g)).then(r => {
     if (!r) { $("mpWorldState").textContent = "The wide world's server can't be reached just now."; return; }
     const w = (r.rooms || []).find(x => x.persistent);
-    $("mpWorldState").textContent = w ? `${w.players} ${w.players === 1 ? "person" : "people"} in the world now` : "Open";
+    $("mpWorldState").textContent = w ? (w.players ? `${w.players === 1 ? "One person" : `${w.players} people`} in the world now` : "No one in the world just now: be the first") : "Open";
     for (const x of r.rooms || []) if (!x.persistent) found.push({ ...x, addr: addressOf(g), where: "Online" });
   }));
   for (const a of typed()) { const ad = addressOf(a); if (ad) jobs.push(listRooms(ad).then(r => { if (r) for (const x of r.rooms || []) if (!x.persistent) found.push({ ...x, addr: ad, where: a }); })); }
@@ -239,7 +239,7 @@ function openBuilder(target) {
   showLook();
   if (!me.name) setTimeout(() => $("mpName").focus(), 50);
 }
-function setCam(c) { if (pv) pv.cam = c; for (const b of document.querySelectorAll("#mpBuilder [data-cam]")) b.classList.toggle("on", b.dataset.cam === c); }
+function setCam(c) { if (pv) { pv.cam = c; pv.faced = false; } for (const b of document.querySelectorAll("#mpBuilder [data-cam]")) b.classList.toggle("on", b.dataset.cam === c); }
 function buildControls() {
   const L = me.look, f = isF(L);
   for (const b of document.querySelectorAll("#mpBuilder [data-tab]")) b.classList.toggle("on", b.dataset.tab === tab);
@@ -310,7 +310,8 @@ function openPreview() {
     if (!pv) return;
     const dt = Math.min(0.05, (now - pv.last) / 1000); pv.last = now;
     if (pv.yawTo != null) { pv.yaw += (pv.yawTo - pv.yaw) * Math.min(1, dt * 6); if (Math.abs(pv.yawTo - pv.yaw) < 0.01) pv.yawTo = null; }
-    else if (pv.drag == null && now - (pv.idleAt || 0) > 3000) pv.yaw += dt * 0.22;
+    else if (pv.drag == null && pv.cam === "face" && !pv.faced) { const fr = 0.45 + Math.round((pv.yaw - 0.45) / (Math.PI * 2)) * Math.PI * 2; pv.yawTo = fr; pv.faced = true; }   // (close on the face: turned to look at you, and kept there)
+    else if (pv.drag == null && pv.cam !== "face" && now - (pv.idleAt || 0) > 3000) pv.yaw += dt * 0.22;
     // the camera: the whole figure, or close on the face — eased between
     const ht = (me.look.height || 1), face = pv.cam === "face";
     const wantY = face ? 1.66 * ht : 0.95 * ht, wantD = (face ? 1.75 : 4.6) * pv.zoom;
