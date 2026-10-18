@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.9", date: "18 October 2026", title: "The court moves on",
+    items: [
+      "Campaign: when the Crown's mission runs out of time, it isn't handed straight back to you word for word in the same gazette. The court lets that kind of task rest for two years and asks for something else.",
+    ],
+  },
+  {
     v: "1.90.8", date: "18 October 2026", title: "Wien has its name",
     items: [
       "Campaign map: every capital is named, even where its country's name runs across it. Wien under \"AUSTRIA\", Dresden under \"SAXONY\" and Warszawa went unnamed before. The name is now written over the country's lettering, haloed so both can be read.",

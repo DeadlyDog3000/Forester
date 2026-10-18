@@ -624,7 +624,7 @@ function realmWorld(g, ids) {
 //  when it is. Two at a time at most; one that runs out of time is simply dropped, with the court's displeasure ----
 const MISSION_MAX = 2;
 function missionOffer(g) {
-  const L = [], mine = citiesOfNow(g, C.me), yr = C.year, M = C.missions ||= [], has = k => M.some(m => m.k === k);
+  const L = [], mine = citiesOfNow(g, C.me), yr = C.year, M = C.missions ||= [], has = k => M.some(m => m.k === k) || ((C.missionRest || {})[k] | 0) > yr;   // (a kind just failed is let rest a while: not asked again the same year, word for word)
   // (a town of a crown you're at war with, near enough to march on)
   if (!has("take")) { const T = CITIES.filter(ct => { const o = cityOwner(g, ct); return o && o !== C.me && atWar(o) && !isHuman(o); }).map(ct => [ct, mdist(armyPos(), cellXY(ct))]).filter(([, d]) => d < MARCH * 3).sort((a, b) => a[1] - b[1]).slice(0, 4);
     if (T.length) { const [ct] = pick(T), o = cityOwner(g, ct); L.push({ k: "take", t: ct[0], foe: o, by: yr + 4, gold: 300 + ct[3] * 150, title: `Take ${ct[0]}`, d: `${ct[0]} is ${poss(the(o))}, and the court wants it. Take it by ${yr + 4}.` }); } }
@@ -656,7 +656,7 @@ function missionsCheck(yearEnd) {
   if (!C || C.mp || C.over) return null; const g = grid(), M = C.missions ||= []; let shown = null;
   for (const m of M.slice()) {
     if (missionDone(m, g)) { M.splice(M.indexOf(m), 1); C.gold += m.gold; moraleMove(3); say(`Mission accomplished: ${m.title}`, `The Crown is pleased: ${m.gold} thalers to the treasury.`); shown = `Mission accomplished: ${m.title}. The Crown sends ${m.gold} thalers.`; }
-    else if (yearEnd && C.year >= m.by) { M.splice(M.indexOf(m), 1); moraleMove(-2); say(`Mission failed: ${m.title}`, "The time the Crown gave you is up. The court is displeased."); }
+    else if (yearEnd && C.year >= m.by) { M.splice(M.indexOf(m), 1); (C.missionRest ||= {})[m.k] = C.year + 2; moraleMove(-2); say(`Mission failed: ${m.title}`, "The time the Crown gave you is up. The court is displeased."); }
   }
   if (yearEnd && M.length < MISSION_MAX && (M.length === 0 ? R() < 0.7 : R() < 0.35)) { const m = missionOffer(g); if (m) { M.push(m); say(`A mission from the Crown: ${m.title}`, `${m.d} Reward: ${m.gold} thalers.`); } }
   if (shown) persist();
