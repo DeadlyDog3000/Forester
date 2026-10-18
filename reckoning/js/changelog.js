@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.20", date: "18 October 2026", title: "The lie of the land",
+    items: [
+      "Campaign 3D map: the woods show from afar. The ground is darker green wherever the trees stand, so close in the forest has its own floor and further out it reads as forest. The open country between is a patchwork of fields in gold, green and the brown of ploughland, where it used to be broad yellow blotches like camouflage.",
+      "Campaign 3D map: the sea shows its shallows. The water is clear enough near a coast to see the pale sandy floor, and darkens as it deepens.",
+      "Campaign 3D map: borders are smooth red bands lying on the ground, rounded as on the parchment map. They were thin lines a pixel wide, in the map's square steps.",
+      "Campaign map: the ink stays a pen's width however close you zoom. Close in, the coast had become a thick black rope and the waterlines ran together into a grey band. Now they're fine lines, ring after ring, and the sea has a cool green-blue wash.",
+      "Campaign map: the coasts are rounded off, so Denmark and the Baltic shore curve as coasts do, not in straight runs and sharp corners.",
+    ],
+  },
+  {
     v: "1.90.19", date: "18 October 2026", title: "Years of study",
     items: [
       "Campaign: learning costs what it did before 1.90.16 again; only the minimum years of study are new. With the cost doubled as well, a small realm with no colleges spent seven years on its first study.",

@@ -82,11 +82,20 @@ const _c = new THREE.Color(), _c2 = new THREE.Color();
 function groundColour(lon, lat, h, out) {
   const b = biomeAt(lon, lat, h);
   out.setHex(h < 0.07 && b !== "snow" && b !== "rock" ? BIOME_COL.beach : BIOME_COL[b]);
-  // fields: a patchwork of greens and golds through the settled country
-  if (b === "temperate" || b === "med") {
-    const f = vnoise(lon * 22, lat * 34, 5);
-    if (fbm(lon * 2.2, lat * 2.2, 9) < 0.47) out.lerp(_c2.setHex(f < 0.33 ? 0xc0b25a : f < 0.66 ? 0x9cb050 : 0x7f9a44), 0.65);
+  // the woods, darker, where the trees stand (the same noise the trees are planted by, so from afar the forest shows
+  // as forest, and close in the ground under the trees is the forest's floor)
+  const wood = (b === "temperate" || b === "taiga" || b === "med") ? fbm(lon * 9, lat * 9, 13) : 0;
+  if (wood > 0.5) out.lerp(_c2.setHex(b === "taiga" ? 0x2f4a2c : b === "med" ? 0x5a6a3c : 0x3c5a2c), Math.min(0.55, (wood - 0.5) * 5));
+  // the fields: a patchwork of strips and parcels through the open country — each its own crop, gold, green or the brown
+  // of fallow and ploughland — not broad blotches
+  else if (b === "temperate" || b === "med") {
+    const u = lon * 26 + lat * 9, v = lat * 38 - lon * 7, cell = hash(Math.floor(u), Math.floor(v), 41);
+    const open = 1 - Math.min(1, Math.max(0, (wood - 0.38) * 8));                       // (thinning out toward the woods' edge)
+    const crop = cell < 0.3 ? 0xc6b45e : cell < 0.55 ? 0x93ad4e : cell < 0.75 ? 0xa89a5a : cell < 0.88 ? 0x8a6e48 : 0x7f9a44;
+    out.lerp(_c2.setHex(crop), 0.55 * open);
   }
+  // the shallows: the sea floor near the coast sandy and pale, going dark as it deepens
+  if (h < 0) out.setHex(0x9aa88a).lerp(_c2.setHex(0x23414e), Math.min(1, Math.max(0, (-h - 0.028) / 0.07)));
   // snow lies lower in the north
   const sl = snowAt(lon, lat) - 0.12;
   if (h > sl && b !== "desert") out.lerp(_c2.setHex(0xeef1f4), Math.min(1, (h - sl) * 2.5));
@@ -127,8 +136,13 @@ export class EuropeView3D {
     this.scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x5a5040, 1.1));
     const sun = new THREE.DirectionalLight(0xfff0d8, 1.6); sun.position.set(-40, 60, 30); this.scene.add(sun);
     // the sea: one sheet, at nought
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 1.6, MAP_H * 1.6).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3e6f86, roughness: 0.35, metalness: 0.1 }));
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 1.6, MAP_H * 1.6).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3e6f86, roughness: 0.35, metalness: 0.1, transparent: true, opacity: 0.72, depthWrite: false }));
+    // (see-through enough that the sandy shallows along a coast show under it, the deeps dark)
+    sea.renderOrder = 1;
     sea.position.set(MAP_W / 2, 0, MAP_H / 2); this.scene.add(sea);
+    // (and the deep under it, past the edges of the land, so the sky doesn't show through the water there)
+    const deep = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 1.6, MAP_H * 1.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1d3540 }));
+    deep.position.set(MAP_W / 2, -0.4, MAP_H / 2); this.scene.add(deep);
     this.kinds = treeKinds();
     this.cells = new Map();          // patches of trees, by cell key
     this.target = new THREE.Vector3(); this.dist = 30;
@@ -241,18 +255,48 @@ export class EuropeView3D {
     }
     return out;
   }
-  // borders: a red-brown line where one crown's ground meets another's
+  // borders: a red-brown band laid on the ground where one crown's land meets another's — the grid's square steps
+  // traced into lines and smoothed, so a border runs as a border does, not as a staircase a pixel wide
   buildBorders() {
     if (this.borders) { this.scene.remove(this.borders); this.borders.geometry.dispose(); }
-    const g = this.g, pts = [], y = (x, z) => this.groundY(x, z) + 0.04;
+    const g = this.g, adj = new Map(), key = (c, r) => r * (GW + 2) + c;
+    const link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); (adj.get(b) || adj.set(b, []).get(b)).push(a); };
     for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {
       const id = g[r][c]; if (!id || !NATIONS[id]) continue;
-      const e = g[r][c + 1], s = g[r + 1] && g[r + 1][c];
-      if (e && e !== id && NATIONS[e]) { const x = (c + 1) * CELL, z0 = r * CELL, z1 = (r + 1) * CELL; pts.push(x, y(x, z0), z0, x, y(x, z1), z1); }
-      if (s && s !== id && NATIONS[s]) { const z = (r + 1) * CELL, x0 = c * CELL, x1 = (c + 1) * CELL; pts.push(x0, y(x0, z), z, x1, y(x1, z), z); }
+      const e = g[r][c + 1], s2 = g[r + 1] && g[r + 1][c];
+      if (e && e !== id && NATIONS[e]) link(key(c + 1, r), key(c + 1, r + 1));
+      if (s2 && s2 !== id && NATIONS[s2]) link(key(c, r + 1), key(c + 1, r + 1));
     }
-    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-    this.borders = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x9a2a1a, transparent: true, opacity: 0.7 }));
+    // (walked into lines: from each end or fork, and then round whatever loops are left)
+    const used = new Set(), ek = (a, b) => a < b ? a + "|" + b : b + "|" + a, lines = [];
+    const walk = (start, next) => { const L = [start]; let prev = start, cur = next; used.add(ek(start, next));
+      for (;;) { L.push(cur); const nb = adj.get(cur); if (nb.length !== 2) break; const nx = nb[0] === prev ? nb[1] : nb[0]; if (used.has(ek(cur, nx))) break; used.add(ek(cur, nx)); prev = cur; cur = nx; }
+      return L; };
+    for (const [v, nb] of adj) if (nb.length !== 2) for (const n of nb) if (!used.has(ek(v, n))) lines.push(walk(v, n));
+    for (const [v, nb] of adj) for (const n of nb) if (!used.has(ek(v, n))) lines.push(walk(v, n));
+    // (smoothed: the corners cut, twice over — the ends kept where they are, where lines meet)
+    const W = GW + 2, pts = [], idx = [], HW = 0.03;
+    for (const L of lines) {
+      let P = L.map(k => [(k % W) * CELL, Math.floor(k / W) * CELL]);
+      const closed = L.length > 3 && L[0] === L[L.length - 1];
+      for (let it = 0; it < 3; it++) {
+        const Q = closed ? [] : [P[0]];
+        for (let i = 0; i < P.length - 1; i++) { const [x0, z0] = P[i], [x1, z1] = P[i + 1]; Q.push([x0 * 0.75 + x1 * 0.25, z0 * 0.75 + z1 * 0.25], [x0 * 0.25 + x1 * 0.75, z0 * 0.25 + z1 * 0.75]); }
+        if (closed) Q.push(Q[0]); else Q.push(P[P.length - 1]);
+        P = Q;
+      }
+      // (a ribbon along it, flat on the ground and a little over it)
+      for (let i = 0; i < P.length; i++) {
+        const [x, z] = P[i], [xa, za] = P[Math.max(0, i - 1)], [xb, zb] = P[Math.min(P.length - 1, i + 1)];
+        let dx = xb - xa, dz = zb - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+        const y = Math.max(0.005, this.groundY(x, z)) + 0.025, n = pts.length / 3;
+        pts.push(x - dz * HW, y, z + dx * HW, x + dz * HW, y, z - dx * HW);
+        if (i) idx.push(n - 2, n - 1, n, n - 1, n + 1, n);
+      }
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); geo.setIndex(idx);
+    this.borders = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x8a2416, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    this.borders.renderOrder = 2;
     this.scene.add(this.borders);
   }
   // the cities: houses and a church on the ground, and the name, in the colour of whoever holds it

@@ -52,7 +52,7 @@ export function useSheet(name) {
   BOUNDS = { lon0: WB.lon0 + x0 * dl, lon1: WB.lon0 + (x0 + w) * dl, lat0: WB.lat1 - (y0 + h) * dt, lat1: WB.lat1 - y0 * dt, latRef: WB.latRef };
   K = Math.cos(BOUNDS.latRef * Math.PI / 180); SPAN_X = (BOUNDS.lon1 - BOUNDS.lon0) * K; SPAN_Y = BOUNDS.lat1 - BOUNDS.lat0;
   // (the coasts that touch the window, carried to its corner)
-  COAST = WCOAST.map(r => r.map(([x, y]) => [x - x0 * 10, y - y0 * 10])).filter(r => r.some(([x, y]) => x > -50 && y > -50 && x < w * 10 + 50 && y < h * 10 + 50));
+  COAST = WCOAST.map(r => r.map(([x, y]) => [x - x0 * 10, y - y0 * 10])).filter(r => r.some(([x, y]) => x > -50 && y > -50 && x < w * 10 + 50 && y < h * 10 + 50)).map(roundRing);
   { const [x, y] = gridOf(...HOME_LL); HOME = { mx: Math.floor(x), my: Math.floor(y) }; }
   BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; coastP = null; relief = null; reliefPart = null; near = null; traced = null; TRC.clear(); SIG = null; shapes = null;
 }
@@ -345,6 +345,13 @@ export const CITIES = [
 
 
 const lonlat = (lon, lat, S) => { const [x, y] = gridOf(lon, lat); return [x * S, y * S]; };
+// (a coast's ring with its corners cut, twice over, so it runs as a coast does and not in straight runs and sharp turns
+//  — the long straight stretches of the outline as it's stored made Denmark and the Baltic look cut from card)
+function roundRing(R) {
+  let P = R;
+  for (let it = 0; it < 2; it++) { const Q = []; for (let i = 0; i < P.length; i++) { const [x0, y0] = P[i], [x1, y1] = P[(i + 1) % P.length]; Q.push([x0 * 0.75 + x1 * 0.25, y0 * 0.75 + y1 * 0.25], [x0 * 0.25 + x1 * 0.75, y0 * 0.25 + y1 * 0.75]); } P = Q; }
+  return P;
+}
 // the coast as a reusable path, at a scale
 let coastP = null, coastS = 0;
 function coastPath(S) {
@@ -443,7 +450,7 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   // (a layer drawn in the same place, laid on as it is)
   const layer = () => { const l = document.createElement("canvas"); l.width = cv.width; l.height = cv.height; return l; };
   const lay = l => { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(l, 0, 0); c.restore(); };
-  const c = at(cv.getContext("2d")), S = W / GW, r = rng(1683);
+  const c = at(cv.getContext("2d")), S = W / GW, r = rng(1683), INKZ = Math.min(1, Math.pow(Z, -0.6));
   // ---- the paper: warm, uneven, a little foxed, darker to the edges ----
   c.fillStyle = PAPER; c.fillRect(0, 0, W, H);
   for (let i = 0; i < 26; i++) {
@@ -454,13 +461,15 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   { const vg = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(120,90,50,0.22)"); c.fillStyle = vg; c.fillRect(0, 0, W, H); }
   // ---- the sea: a pale wash ----
   // (the sea is left pale, as the colourists left it, with only a cool breath of tint)
-  c.save(); c.fillStyle = "rgba(214,226,218,0.32)"; c.fillRect(0, 0, W, H); c.restore();
+  c.save(); c.fillStyle = "rgba(196,216,212,0.42)"; c.fillRect(0, 0, W, H); c.restore();
   c.save(); landPath(c, S); c.rect(W, 0, -W, H); c.clip("evenodd");
   // water-lining: fine rings of ink along every coast, fainter as they go out to sea. Drawn on a layer of their own —
   // each ring a band of ink with its middle cut out — so only the lines themselves reach the paper
   {
     const wl = layer();
-    const w = at(wl.getContext("2d")), coast = coastPath(S), gap = S * 0.85, lw = Math.max(0.8, S * 0.16);
+    // (the ink a pen's width on the screen, close in or far out: drawn in the sheet's own units, it grew with the zoom
+    //  until the rings ran together into a grey band and the coast was a thick black rope)
+    const w = at(wl.getContext("2d")), coast = coastPath(S), gap = S * 0.85, lw = Math.max(0.8, S * 0.16) * INKZ;
     w.lineJoin = "round";
     for (let i = 6; i >= 1; i--) {
       w.globalCompositeOperation = "source-over"; w.lineWidth = i * gap * 2 + lw; w.strokeStyle = INK_SOFT + (0.5 * (1 - i / 7)).toFixed(3) + ")"; w.stroke(coast);
@@ -495,7 +504,7 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   }
   c.filter = `blur(${(S * 0.6 * Z).toFixed(1)}px)`; lay(bl); c.filter = "none";
   // borders: dotted, along the rounded line, where one crown meets another (each border once)
-  c.save(); c.strokeStyle = INK_SOFT + "0.72)"; c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = Math.max(1.3, S * 0.42); c.setLineDash([0, Math.max(3, S * 0.95)]);
+  c.save(); c.strokeStyle = INK_SOFT + "0.72)"; c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = Math.max(1.3, S * 0.42) * Math.max(0.55, INKZ); c.setLineDash([0, Math.max(3, S * 0.95)]);
   for (const id of ids) {
     if (isFree(id)) continue;
     for (const run of traceOf(g, id, true, tkey).runs) { const p = new Path2D(); addLine(p, run.map(([x, y]) => [x * S, y * S])); c.stroke(p); }
@@ -526,7 +535,7 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   c.restore();
   c.restore();
   // ---- the coast itself, inked ----
-  landPath(c, S); c.strokeStyle = INK; c.lineWidth = Math.max(1.2, S * 0.42); c.lineJoin = "round"; c.stroke();
+  landPath(c, S); c.strokeStyle = INK; c.lineWidth = Math.max(1.2, S * 0.42) * INKZ; c.lineJoin = "round"; c.stroke();
   // ---- the crowns' names ----
   c.textAlign = "center";
   for (const [n, lo, la, size, ang = 0] of NAMES) {
