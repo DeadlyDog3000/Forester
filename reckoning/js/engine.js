@@ -20,7 +20,7 @@ import { Bugs } from "./bugs.js";
 import { AUDIO } from "./audio.js";
 import { FOLEY } from "./foley.js";
 import { tickTemperature } from "./temperature.js";
-import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, thirstTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
+import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
 // (what's only ever thrust, never swung: the spear, and a musket with its bayonet fixed)
 const THRUST = new Set(["spear", "bayonet"]);
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
@@ -986,10 +986,7 @@ export class Player {
     // health: blows take it, and it comes back slowly once nothing has hit you for a while
     if (G.health !== undefined) {
       G.hurtT = (G.hurtT || 0) + dt;
-      // (thirst only where there's water to be had: out in the woods, not in the city)
-      const wet = !!(G.world && G.world.waterOK);
-      const b = G.body, starving = b && b.hunger <= 0, parched = wet && b && (b.thirst ?? 1) <= 0, hungry = b && (b.hunger < 0.2 || (wet && (b.thirst ?? 1) < 0.2));
-      if (wet && b && (b.thirst ?? 1) < 0.5 && G.guide) G.guide("thirst");
+      const b = G.body, starving = b && b.hunger <= 0, hungry = b && b.hunger < 0.2;
       if (b && b.hunger < 0.5 && G.guide) G.guide("hunger");
       // the plague: it eats at you, and nothing mends while you have it; left alone it passes, or it kills you
       const sick = b && b.plague > 0;
@@ -1014,12 +1011,11 @@ export class Player {
       // with nothing in you at all, you weaken, and in the end it kills you
       if (starving && !G.downed) { G.health = Math.max(0, G.health - dt / 240); if (G.health <= 0) G.die("hunger"); }
       // with no water in you, sooner; and low on either, a slow weakening even before they're gone
-      else if (parched && !G.downed) { G.health = Math.max(0, G.health - dt / 150); if (G.health <= 0) G.die("thirst"); }
-      else if (b && !G.downed && G.mode === "play" && (b.hunger < 0.1 || (wet && (b.thirst ?? 1) < 0.1))) G.health = Math.max(0.05, G.health - dt / 700);
-      if (G.mode === "play") { hungerTick(b, dt, sprint && this.speed > 1); if (wet) thirstTick(b, dt, sprint && this.speed > 1); }
+      else if (b && !G.downed && G.mode === "play" && (b.hunger < 0.1)) G.health = Math.max(0.05, G.health - dt / 700);
+      if (G.mode === "play") { hungerTick(b, dt, sprint && this.speed > 1); }
       // the cold and the heat: out of doors (not in the city's streets and houses), the gauge fills; full, it hurts
       let temp = null;
-      if ((wet || (G.world && G.world.land)) && G.mode === "play" && !G.cine) {
+      if (G.world && (G.world.outdoors || G.world.land) && G.mode === "play" && !G.cine) {
         temp = G.temp = tickTemperature(G, dt);
         if (temp && Math.abs(temp.g) >= 0.999 && !G.downed) {
           const cold = temp.g < 0;
@@ -1030,7 +1026,7 @@ export class Player {
         if (temp && !G._toldCold && temp.g < -0.35) { G._toldCold = true; UI.hint("The cold's getting into you. A fire, a cave or a roof over you will warm you — a warmer coat keeps it out.", 6); }
         if (temp && !G._toldHeat && temp.g > 0.35) { G._toldHeat = true; UI.hint("The heat's getting to you. Get into the shade — a roof, a cave — or wear less: shirtsleeves and a brimmed hat.", 6); }
       }
-      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick || !!ill, wet && b ? b.thirst ?? 1 : null, temp);
+      UI.vitals(G.mode === "play" && !G.cine ? G.health : null, b ? b.hunger : 1, !G.hasMap, sick || !!ill, null, temp);
     } else UI.vitals(null);
     if (sprint && this.crouched) this.crouched = false;
     // (a bow drawn: no running, and a slow, careful step)

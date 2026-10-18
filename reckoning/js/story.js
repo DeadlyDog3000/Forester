@@ -248,10 +248,6 @@ function sibHints() {
       const food = (G.pack || []).find(i => i.icon === "cookedmeat" || i.icon === "dish" || i.icon === "blackberries") || (G.town && G.town.S.bread > 0 ? { icon: "bread" } : null);
       return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "cookedmeat" ? "roast meat" : food.icon === "dish" ? food.base.toLowerCase() : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
     }
-    if (G.body && G.world && G.world.waterOK && (G.body.thirst ?? 1) < 0.45 && !raid && (!once.has("thirst") || G.time - (once.thirstAt || 0) > 300)) {
-      once.add("thirst"); once.thirstAt = G.time;
-      return say1("You look parched. Drink at the brook or the pond — F at the edge. Better boiled, though: hold F at the fire and boil a pot. Unboiled water gives you the flux.", 6);
-    }
     if (pl.hasBow && pl.bow && (pl.arrows || 0) === 0 && !once.has("arrows")) { once.add("arrows"); return say1("You're out of arrows. Pull them out where they landed — F — or buy more when a trader comes.", 4.5); }
     if (G.town && G.body && !raid && !G.body.tools.pick && G.chapter >= 12 && !once.has("pick")) { once.add("pick"); return say1("You could make yourself a pickaxe at the chopping block — two logs. There's stone in the grey rocks round the clearing.", 5); }
     // the settlement's needs, every few minutes, when they've changed
@@ -1510,7 +1506,7 @@ async function ch7(w) {
 
   // ---- down the road to the burner's track ----
   if (S.stage === 1) {
-    sib.person.setPose("hammer");
+    sib.person.setPose("gather");
     UI.objective("Carry the logs to the charcoal burner, down the track with the smoke");
     mark({ x: B.x, z: B.z, y: 1.8 });
     tutor("map2", "", [["J", "the map — his track is on it"]], 6);
@@ -1777,7 +1773,7 @@ async function ch8(w, opts = {}) {
   w.lightFire(true);
   pl.place(BLOCK.x - 1.2, BLOCK.z + 1, -Math.PI / 2);
   const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIELD.x + 1.5, FIELD.z + 4, Math.PI);
-  sib.person.setPose("hammer");
+  sib.person.setPose("gather");
   // his cart, left where the road meets the clearing
   const cartB = new Builder(); PROPS.cart(cartB, 29.2, -283, 0.2); const cart = cartB.build(); cart.position.y = w.heightAt(29.2, -283); cart.visible = false; w.root.add(cart);
 

@@ -6,7 +6,7 @@
 // bark liquor in the vat, and laced up on a frame to stretch and dry, and in a while it's leather. Two frames to a
 // rack: hold F there to lace up one of your hides (from your pack, or the stores), and come back when it has gone
 // from raw pink to brown. A tanner set to work there does the same with the stores' hides by himself.
-// Leather makes a canteen that holds more, and a buff coat that turns a blow; and it sells.
+// Leather makes a buff coat that turns a blow; and it sells.
 
 import { THREE } from "./core.js";
 import { G } from "./engine.js";
@@ -115,7 +115,7 @@ export class Tannery {
     b.frames = b.frames.filter(f => this.now() - f.at < TAN_SECS);
     this.town.S.leather = (this.town.S.leather || 0) + n;
     this.town.showStore && this.town.showStore(); this.town.persist(); this.paint(b);
-    UI.hint(`${n} piece${n > 1 ? "s" : ""} of leather, into the stores. Make a buff coat or a better canteen at the chopping block, or sell it.`, 4.5);
+    UI.hint(`${n} piece${n > 1 ? "s" : ""} of leather, into the stores. Make a buff coat at the chopping block, or sell it.`, 4.5);
   }
   // the hides on the frames: there or not, pale or brown as they've come along
   paint(b) {

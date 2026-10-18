@@ -289,4 +289,4 @@ export const GUIDE = {
   },
 };
 // the order the book lists them in
-export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "thirst", "hurt", "skills", "winter", "expand", "colony", "business", "eatery", "kitchen", "feud", "horse", "cave", "revolt", "raid"];
+export const GUIDE_ORDER = ["building", "materials", "tools", "forge", "stores", "settlers", "field", "inspect", "research", "trade", "chest", "hunger", "hurt", "skills", "winter", "expand", "colony", "business", "eatery", "kitchen", "feud", "horse", "cave", "revolt", "raid"];

@@ -46,7 +46,6 @@ export class ColonyBase {
   nextForYou() {
     const b = G.body, pl = G.player, t = G.town; if (!b || !pl || !t) return "";
     const tl = b.tools || {}, S = t.S, logs = S.store || 0, shed = S.buildings.some(x => x.type === "woodshed" && x.done);
-    if ((b.thirst ?? 1) < 0.35) return "You're thirsty — F at the brook, the pond or a well to drink; or F at the fire to boil a pot of water and drink it safe";
     if ((b.hunger ?? 1) < 0.3) return "You're hungry — eat what you carry (press its number), or hunt in the deer ride and cook the meat at the fire (F)";
     if (pl.carryN) return `Carry your ${pl.carryN} log${pl.carryN > 1 ? "s" : ""} to a building site, or put ${pl.carryN > 1 ? "them" : "it"} on the ${shed ? "woodshed" : "stack"} by the cabin (F)`;
     if (!pl.hasBow) return logs >= 2 ? "Make a hunting bow: F at the chopping block by the cabin (2 logs from the stack)" : "Fell a tree (click with the axe) and stack its logs (F) — two make a hunting bow at the chopping block";
@@ -57,7 +56,6 @@ export class ColonyBase {
       if (!stone) return "Break a grey rock for stone: take out the pickaxe (its number) and swing at one — then make arrows at the chopping block";
       return "Make arrows: F at the chopping block — a log and a stone for a dozen";
     }
-    if (!tl.canteen) return "Make a canteen at the chopping block (F) — fill it at the brook (its number), then press its number by the fire to boil it";
     const site = S.buildings.find(x => !x.done && !x.gone && BUILDINGS[x.type] && !["path", "field", "fence", "wall"].includes(x.type));
     if (site) return `Help raise the ${BUILDINGS[site.type].name.toLowerCase()}: fell trees, take the logs (F) and carry them to its site (F there)`;
     if ((S.hide || 0) + (((G.pack || []).find(i => i.icon === "hide") || {}).n || 0) > 0 && S.buildings.some(x => x.type === "tannery" && x.done)) return "Tan a hide: F at the front of the tanning rack";

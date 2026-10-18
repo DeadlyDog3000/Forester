@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.4", date: "18 October 2026", title: "No more thirst",
+    items: [
+      "Water is gone as a need. There's no thirst bar, no dying of thirst, no drinking at the brook, pond or well, and no boiling water at the fire. Canteens are no longer made at the chopping block. Hunger stays as it was.",
+      "Your brother or sister no longer whacks at the ground beside the cabin with a hammer, a knock every second, in Seed Before Frost and the chapter after it. They pick stones off the ground quietly instead.",
+    ],
+  },
+  {
     v: "1.90.3", date: "18 October 2026", title: "Hands down",
     items: [
       "Nobody stands with both hands raised by their shoulders any more. That was meant to be arms folded but never looked it. Henning, the townsfolk and everyone else who stood like that now stands at ease.",

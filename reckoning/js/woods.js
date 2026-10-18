@@ -73,10 +73,10 @@ const FIRE = { x: 33.5, z: -311.5 };
 export class Woods extends WorldBase {
   constructor() {
     super(Collision);
-    this.waterOK = true;   // (thirst counts out here: there is water to be had — drink.js)
     this.col = new Collision(6);
     this.openTracks = new Set();       // forks you may walk down; the rest are barred
     this.name = "woods";
+    this.outdoors = true;   // (out in the weather: the cold and the heat count here)
     const root = this.root, r = rng(3071);
 
     // the road, as a smooth curve sampled into points

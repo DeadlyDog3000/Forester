@@ -67,8 +67,6 @@ export const TOOL_RECIPES = [
   { tool: "arrows", item: 12, tier: 0, name: "Arrows (a dozen)", cost: { logs: 1, stone: 1 }, note: "Shafts of split ash, fletched, with knapped stone heads." },
   { tool: "crossbow", tier: 5, name: "Crossbow", cost: { planks: 2, iron: 2, hide: 1 }, note: "A steel-bowed crossbow, spanned with a crank. Slow to load, but a bolt flies flat and hits harder than any arrow. It wants bolts." },
   { tool: "rod", tier: 1, name: "Fishing rod", cost: { logs: 1 }, note: "A long hazel rod in four lengths whipped together, a horsehair line tied to its top, and a bent-pin hook with a worm on it. Take it out at the water, click to cast, and click again the moment the line is drawn away under." },
-  { tool: "canteen", tier: 1, name: "Canteen", cost: { logs: 2 }, note: "A little wooden costrel on a cord: four drinks. Fill it at a well, the brook or the pond, and boil what's in it at the fire (press its number there) so it won't make you ill. Press its number anywhere else to drink." },
-  { tool: "canteen", tier: 2, name: "Leather canteen", cost: { leather: 2 }, note: "A leather bottle, waxed inside and stitched: six drinks instead of four." },
   { tool: "coat", tier: 1, name: "Buff coat", cost: { leather: 5 }, note: "A thick coat of oiled leather, as the soldiers wear under their armour: every blow takes a fifth less off you." },
   { tool: "bolts", item: 8, tier: 0, name: "Crossbow bolts (eight)", cost: { planks: 1, iron: 1 }, note: "Short, heavy bolts with iron heads, for the crossbow." },
 ];
@@ -135,7 +133,7 @@ export const ITEM = {
   crossbow: { name: "Crossbow", note: "Right-click to aim down it; click to loose a bolt. It cranks itself back for the next." },
   bolts: { name: "Crossbow bolts", note: "For the crossbow. Made at the chopping block, eight at a time, once there's a forge." },
   hide: { name: "Hide", note: "A skin off something you hunted. Four make a backpack, at the chopping block; tanned at a tanning rack, it's leather." },
-  leather: { name: "Leather", note: "A hide tanned on the rack. For a buff coat, a leather canteen — or the market." },
+  leather: { name: "Leather", note: "A hide tanned on the rack. For a buff coat — or the market." },
 };
 
 export function freshBody() {

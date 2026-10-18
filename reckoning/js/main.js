@@ -15,7 +15,7 @@ import { FURNITURE } from "./furnish.js";
 import { UI, $ } from "./ui.js";
 import { ACTIONS, keyOf, keyName, bind as bindKey, resetKeys, listenFor, shownAs, changed as changedKey } from "./keys.js";
 import { AUDIO } from "./audio.js";
-import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE, WATER_NAME, packLayout, setToolItems } from "./body.js";
+import { FOOD, BODY_SKILLS, SKILL_MAX, xpFor, TIER_NAME, TOOL_RECIPES, ITEM, nextTier, PLAGUE_SECS, roomFor, packSlots, slotsUsed, toolLeft, TOOL_LIFE, packLayout, setToolItems } from "./body.js";
 import { CHAPTERS, STORY_ORDER, storyRank, chapterOf, chapterNumeral, resetForMode, LOOKS, startChapter, loadSave, writeSave, clearSave, SLOTS, getSlot, setSlot, readSlot, writeSlot, clearSlot, MP_SLOT, NATION_SLOT, useSlot, applyStoryLook, storyLookOf } from "./story.js";
 import { CHANGELOG } from "./changelog.js";
 import { FOLEY } from "./foley.js";
@@ -39,7 +39,6 @@ import { HOST } from "./mp/net.js";
 import { MPGame } from "./mp/mpgame.js";
 import { ColonyHost, ColonyGuest } from "./mp/colony.js";
 import { NationGame } from "./mp/nations.js";
-import "./drink.js";
 import { UISFX } from "./uisfx.js";
 import "./ambience.js";
 import { renderAchievements } from "./achievements.js";
@@ -676,7 +675,6 @@ function toolItems() {
     pl.hasBow ? { key: "bow", icon: "bow", name: pl.bowMade ? "Your hunting bow" : "Henning's old bow", note: "Hold right-click to draw, let go to loose." } : null,
     pl.hasBow ? { key: "arrows", icon: "arrows", name: "Arrows", n: pl.arrows || 0, note: "Pull your misses out of the ground to use them again." } : null,
     tl.rod ? { key: "rod", icon: "rod", name: "Fishing rod", note: "At the water: click to cast, and click again the moment the line is drawn away under." } : null,
-    tl.canteen ? { key: "canteen", icon: "canteen", name: tl.canteen >= 2 ? "Leather canteen" : "Canteen", n: (G.body.water || {}).n || 0, note: "Fill it at the water, boil it at the fire, drink anywhere — press its number." } : null,
     tl.musket ? { key: "musket", icon: "musket", name: "Your musket", note: "Right mouse to raise it to your eye, click to fire. Then it wants loading: six slow seconds of powder, ball and ramrod." } : null,
     tl.crossbow ? { key: "crossbow", icon: "crossbow", name: "Your crossbow", note: "Right-click to aim, click to loose. Slow to span." } : null,
     tl.crossbow ? { key: "bolts", icon: "bolts", name: "Bolts", n: tl.bolts || 0, note: "For the crossbow." } : null,
@@ -1756,7 +1754,6 @@ function hotbarItems() {
   if (tl && tl.musket) out.push({ icon: "musket", name: "Your musket", tool: "gun" });
   if (tl && tl.crossbow) { out.push({ icon: "crossbow", name: "Your crossbow", tool: "xbow" }); out.push({ icon: "bolts", name: "Bolts", n: tl.bolts || 0 }); }
   if (tl && tl.rod && G.world && G.world.fishing) out.push({ icon: "rod", name: "Fishing rod", tool: "rod" });
-  if (tl && tl.canteen && G.world && G.world.waterOK) { const W = G.body.water || { n: 0 }, size = tl.canteen >= 2 ? 6 : 4; out.push({ icon: "canteen", name: W.n ? `Canteen — ${W.n} of ${size}, ${WATER_NAME[W.kind] || "water"}` : "Canteen — empty", tool: "canteen", n: W.n }); }
   if (pl.carryN > 0) out.push({ icon: "logs", name: "Spruce logs", n: pl.carryN });
   else if (UI.carrying && /ledger/i.test(UI.carrying)) out.push({ icon: "ledger", name: UI.carrying });
   for (const i of G.pack) out.push(i.icon === "spade" && tl && tl.spade >= 3 && G.town ? { ...i, name: `${cap(TIER_NAME[tl.spade])} spade` } : i);
@@ -1842,8 +1839,6 @@ addEventListener("keydown", e => {
   if (it && it.tool === "bow") G.player.showBow(!G.player.bow);
   // (the musket or the pistol: the one asked for, in place of the other)
   if (it && it.tool === "gun") { const k = it.kind || "musket"; if (pl.gun && (pl.gunIs || "musket") === k) pl.showGun(false); else { if (pl.gun) pl.showGun(false); pl.gunKind = k; pl.showGun(true); } }
-  // the canteen: not taken in hand — drunk from, filled, or boiled, as where you are allows
-  if (it && it.tool === "canteen") { G.useCanteen && G.useCanteen(); return; }
   if (it && it.tool === "xbow") G.player.showXbow(!G.player.xbow);
   else if (it && G.player.xbow && (it.tool || FOOD[it.icon])) G.player.showXbow(false);
   // food: taken in the hand (the number again puts it away); a click eats it
