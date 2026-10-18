@@ -70,6 +70,28 @@
     if (UI.dialogOpen && UI._advance) UI._advance();
     for (const id of ["guideOk", "lessonOk"]) { const e = document.getElementById(id); if (e && e.offsetParent) e.click(); }
     const ask = document.querySelector("#askChoices button[data-i]"); if (ask && ask.offsetParent) ask.click();
+    // a chest open: what the objective says to put in it goes in, and the lid shut — never left open across chapters
+    { const ch = document.getElementById("chest");
+      if (ch && !ch.classList.contains("hidden")) {
+        const want = ((last.match(/Put (?:the |your )?(?:rest of (?:the |your )?)?([a-z]+)/i) || [])[1] || "").toLowerCase().replace(/s$/, "");
+        const i = want ? G.pack.findIndex(it => it && ((it.icon || "").includes(want) || (it.name || "").toLowerCase().includes(want))) : -1;
+        const el = i >= 0 && ch.querySelector(`[data-pack="${i}"]`);
+        if (el) { el.click(); log.push(`${Math.round(simT)}s put the ${want} in the chest`); }
+        else for (const t of ["keydown", "keyup"]) document.dispatchEvent(new KeyboardEvent(t, { code: "Escape", key: "Escape", bubbles: true }));
+      } }
+    // the tools open: whatever the objective says to make, made
+    { const cr = document.getElementById("craft");
+      if (cr && getComputedStyle(cr).display !== "none" && !cr.classList.contains("hidden")) {
+        for (const part of last.split(" · ")) {
+          const want = (part.match(/^Make (?:a |an |some )?(.+?)(?: at the| \(|$)/i) || [])[1]; if (!want) continue;
+          const words = want.toLowerCase().split(/\s+/).filter(x => x.length > 2);
+          const row = [...cr.querySelectorAll(".cr-row")].find(r => { const t = r.innerText.toLowerCase(); return words.every(w => t.includes(w)); }) || [...cr.querySelectorAll(".cr-row")].find(r => r.innerText.toLowerCase().includes(words[words.length - 1]));
+          const b = row && row.querySelector("button[data-r]:not([disabled])");
+          if (b) { b.click(); log.push(`${Math.round(simT)}s made: ${want}`); }
+        }
+      } }
+    // (some other screen open over the game — the tools, the plans — that the objective didn't ask for: shut)
+    for (const id of ["craft", "build", "inventory", "skills", "map"]) { const e = document.getElementById(id); if (e && !e.classList.contains("hidden") && getComputedStyle(e).display !== "none" && (id === "craft" || !/\(B\)|press B/.test(last))) { for (const t of ["keydown", "keyup"]) document.dispatchEvent(new KeyboardEvent(t, { code: "Escape", key: "Escape", bubbles: true })); log.push(`${Math.round(simT)}s closed ${id}`); } }
     if (G.health != null && G.health < 0.4) { G.health = 1; G.downed = false; }
     // (told to hide: down, as a player told to would)
     if (G.player) G.player.crouched = /\bhid(e|den)\b|crouch|unseen/i.test(last);
@@ -96,7 +118,9 @@
       const its = (w.interact || []).filter(it => it.x != null && Math.hypot(it.x - pl.pos.x, it.z - pl.pos.z) < (it.reach || 2) + 0.4 && (!it.can || it.can()) && labelOf(it) && !/^Close the/.test(labelOf(it))
         // (a fire fed only when it's burning low, as the player is told)
         && !(/^Feed the fire/.test(labelOf(it)) && +((last.match(/fire (\d+)%/) || [])[1] ?? 0) > 60));
-      if (m) its.sort((a, b) => Math.hypot(a.x - m.x, a.z - m.z) - Math.hypot(b.x - m.x, b.z - m.z));
+      // (the one the objective speaks of first, as a player aims at it; then the nearest the marker)
+      { const want = stems(last), sc = it => [...stems(labelOf(it))].filter(x => want.has(x)).length;
+        its.sort((a, b) => (sc(b) - sc(a)) || (m ? Math.hypot(a.x - m.x, a.z - m.z) - Math.hypot(b.x - m.x, b.z - m.z) : 0)); }
       const it = its.find(it => !lastUse.has(it) || simT - lastUse.get(it) > 2.5);
       if (it && (!m || Math.hypot(it.x - m.x, it.z - m.z) < 4 || simT - lastT > 20)) {
         lastUse.set(it, simT); log.push(`${Math.round(simT)}s use: ${labelOf(it)}`);

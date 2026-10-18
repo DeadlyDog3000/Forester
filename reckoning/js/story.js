@@ -1377,6 +1377,7 @@ async function ch6(w) {
   let lastObj = "";
   const standing = () => w.fellable.find(t => t.state === "up" && !t.claimed);
   const objectives = onFrame(() => {
+    if (rebuilt) return;   // (done: not a frame more of "fell spruces", with the walls already going up)
     let o, m = null;
     if (!S.axe) { o = "Take the old axe from the chopping block"; m = [BLOCK.x, BLOCK.z, w.cy + 1.1]; }
     else if (pl.carryN >= CARRY_MAX || (pl.carryN > 0 && !bundles.length)) { o = `Stack the logs by the cabin (carrying ${pl.carryN})`; m = [STACK.x, STACK.z, w.cy + 1]; }
@@ -1384,7 +1385,7 @@ async function ch6(w) {
     else if (!S.door && S.store < DOOR_COST) { o = `Fell spruces for a door — ${S.store} of ${DOOR_COST} logs stacked`; const t = standing(); m = null; void t; }
     else if (!S.door) { o = "Hew a door at the sawhorse"; m = [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1]; }
     else if (S.store < CABIN_COST) { o = `Fell spruces to rebuild the cabin — ${S.store} of ${CABIN_COST} logs stacked`; }
-    else { o = "Rebuild the cabin"; m = [CABIN.x, CABIN.z, w.cy + 2]; }
+    else { o = "Rebuild the cabin"; m = [CABIN.x + Math.sin(CABIN.ry) * 3.3, CABIN.z + Math.cos(CABIN.ry) * 3.3, w.cy + 1.6]; }   // (at its doorway, where it's done: the middle of the ruin led you in among the fallen logs, with nothing to press)
     if (o !== lastObj) { if (lastObj.split("—")[0] !== o.split("—")[0]) UI.objective(o); else UI.objectiveCount(o); lastObj = o; }
     G.marker = m ? { x: m[0], z: m[1], y: m[2] } : null;
     UI.carry(pl.carryN > 0 ? `Carrying ${pl.carryN} log${pl.carryN > 1 ? "s" : ""}` : null);
@@ -2221,7 +2222,10 @@ async function ch10(w) {
     const needDoor = b.logs >= BUILDINGS.cabin.cost && !b.door;
     if (needDoor && !S.doors && !obj.told) { obj.told = true; bark(P.sib, "The walls are all there — it wants a door, like ours did. The sawhorse, by the block. Hold F.", 4.5); }
     UI.objective(b.logs < BUILDINGS.cabin.cost ? `Raise Marta's cabin — ${b.logs} of ${BUILDINGS.cabin.cost} logs at the site · ${S.store} on the stack` : needDoor ? ((S.doors || 0) > 0 ? "Hang the door on Marta's cabin" : "Hew a door at the sawhorse for Marta's cabin") : "Hold F at the site to raise the cabin");
-    mark(needDoor && !(S.doors > 0) ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : [b.x, b.z, w.cy + 1.5]);
+    // (empty-handed, with logs still wanted: the marker on the stack, where they're taken from — on the site, you stood
+    //  there with nothing to put down)
+    const fetch = b.logs < BUILDINGS.cabin.cost && !(G.player.carryN > 0) && S.store > 0;
+    mark(needDoor && !(S.doors > 0) ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : fetch ? [town.stackIt ? town.stackIt.x : STACK.x, town.stackIt ? town.stackIt.z : STACK.z, w.cy + 1] : [b.x, b.z, w.cy + 1.5]);
   });
   await until(() => S.buildings.some(b => b.type === "cabin" && b.done));
   obj(); mark(null); UI.objective(null);

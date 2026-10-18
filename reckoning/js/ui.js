@@ -9,7 +9,9 @@
 import { shownAs } from "./keys.js";
 
 export const $ = id => document.getElementById(id);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+// (?speed=N on the address hurries the game for testing — the words on the screen too)
+const SPD = Math.max(1, Math.min(8, +(new URLSearchParams(location.search).get("speed") || 1)));
+const sleep = ms => new Promise(r => setTimeout(r, ms / SPD));
 
 const G_MODE = () => (window.__G ? window.__G.mode : null);
 export const UI = {
@@ -68,7 +70,7 @@ export const UI = {
       const ch = text[i++];
       el.textContent = text.slice(0, i);
       if (click && ch.trim() && window.__audio) window.__audio.letter(click);
-      el._typer = setTimeout(next, (1000 / cps) * (/[.!?]/.test(ch) ? 7 : /[,;:—]/.test(ch) ? 3.5 : 1));
+      el._typer = setTimeout(next, (1000 / cps) * (/[.!?]/.test(ch) ? 7 : /[,;:—]/.test(ch) ? 3.5 : 1) / SPD);
     };
     next();
     return { done() { clearTimeout(el._typer); el.textContent = text; i = text.length; }, get typing() { return i < text.length; } };
@@ -110,7 +112,7 @@ export const UI = {
     // (a new line cancels the last one's fade-out too — or, following close behind it, it would be hidden while it was still being spoken)
     clearTimeout(this._barkTimer); clearTimeout(this._barkHide);
     const t = (secs ?? Math.max(2.6, text.length * 0.065)) * 1000;
-    this._barkTimer = setTimeout(() => { b.style.opacity = 0; this._barkHide = setTimeout(() => b.classList.add("hidden"), 400); }, t);
+    this._barkTimer = setTimeout(() => { b.style.opacity = 0; this._barkHide = setTimeout(() => b.classList.add("hidden"), 400); }, t / SPD);
     return sleep(t + 300);
   },
   clearBark() { clearTimeout(this._barkTimer); clearTimeout(this._barkHide); $("bark").classList.add("hidden"); },
@@ -243,13 +245,13 @@ export const UI = {
     k.innerHTML = parts.map(([keys, what]) => `<span class="kp">${[].concat(keys).map(x => `<kbd>${shownAs(x) || x}</kbd>`).join("")}<span>${what}</span></span>`).join("");
     k.classList.remove("hidden"); k.style.opacity = 1;
     clearTimeout(this._keysT); clearTimeout(this._keysHide);
-    this._keysT = setTimeout(() => { k.style.opacity = 0; this._keysHide = setTimeout(() => k.classList.add("hidden"), 500); }, secs * 1000);
+    this._keysT = setTimeout(() => { k.style.opacity = 0; this._keysHide = setTimeout(() => k.classList.add("hidden"), 500); }, secs * 1000 / SPD);
   },
   hint(text, secs = 5) {
     const h = $("hint");
     h.textContent = text; h.classList.remove("hidden"); h.style.opacity = 1;
     clearTimeout(this._hintT); clearTimeout(this._hintHide);
-    this._hintT = setTimeout(() => { h.style.opacity = 0; this._hintHide = setTimeout(() => h.classList.add("hidden"), 500); }, secs * 1000);
+    this._hintT = setTimeout(() => { h.style.opacity = 0; this._hintHide = setTimeout(() => h.classList.add("hidden"), 500); }, secs * 1000 / SPD);
   },
   eye(v) {
     const e = $("eye");

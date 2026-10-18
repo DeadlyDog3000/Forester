@@ -2249,6 +2249,7 @@ addEventListener("mousedown", e => { if (G.mode === "play" && input.freeLook && 
 renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !document.pointerLockElement && !overlay) lock(); });
 
 // ---- the loop ----
+const URL_SPEED = +(new URLSearchParams(location.search).get("speed") || 0);
 let last = performance.now();
 let lastDrawn = 0;
 function loop(now) {
@@ -2259,7 +2260,9 @@ function loop(now) {
   lastDrawn = now;
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (!window.__manual) frame(dt * (G.devSpeed || 1));    // (tests step the game themselves; the developer's panel can hurry it)
+  // (tests step the game themselves; the developer's panel, or ?speed=N on the address, hurries it — as so many
+  //  ordinary steps one after another, only the last of them drawn, so a hurried world moves as the real one does)
+  if (!window.__manual) { const k = Math.max(1, Math.min(8, Math.round(G.devSpeed || URL_SPEED || 1))); for (let i = 1; i < k; i++) frame(dt, true); frame(dt); }
   requestAnimationFrame(loop);
 }
 

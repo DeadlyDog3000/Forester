@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.13", date: "18 October 2026", title: "The cabin's doorway",
+    items: [
+      "VI. The Clearing: the marker for \"Rebuild the cabin\" stands at the cabin's doorway, where you raise it, and not in the middle of the ruin. Following it before led you in among the fallen logs, with nothing to press.",
+      "VI. The Clearing: once the walls go up, the objective doesn't flick back to \"Fell spruces… 1 of 20 logs stacked\".",
+      "X. The Stranger: while Marta's cabin still wants logs and your arms are empty, the marker is on the stack, where you take them. Before, it stayed on the building site, so following it left you standing there with nothing to put down.",
+    ],
+  },
+  {
     v: "1.90.12", date: "18 October 2026", title: "Name them first",
     items: [
       "Character builder: pressing Into the game without a roleplay name now says \"Give them a name first\" in the name box. Before, the box only turned orange and nothing happened.",
