@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.83.3", date: "17 October 2026", title: "An easier creep to the marsh gate",
+    items: [
+      "Story: creeping past the watch is easier. A watchman takes longer to be sure of what he saw, a good deal longer when you're crouched, and forgets you sooner once you're out of sight. He hears a runner from less far off.",
+      "Story: at the marsh gate, the watchmen walking the lanes go more slowly and stand longer at each end of their beat, leaving wider gaps to slip through. The gate watchman turns to check the gate more often, and for longer.",
+      "Story: each time you're caught at the marsh gate, the next try is a little kinder.",
+      "Story: the chase through Hamburg is back as it was in 1.83.1; it was eased by mistake.",
+    ],
+  },
+  {
     v: "1.83.2", date: "17 October 2026", title: "An easier chase",
     items: [
       "Story: the chase through Hamburg is easier. The watch start slower and gain on you more gently, you have a longer start, the man who runs to cut you off from the alley reacts later, the one from the north street comes later, and your breath lasts longer. They must be closer to catch you, too.",

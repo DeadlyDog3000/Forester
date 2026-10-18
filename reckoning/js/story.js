@@ -92,7 +92,6 @@ const CAUGHT = [
   "They drag you back toward the square. Not like this.",
   "You were seen. In this city, being seen is enough.",
 ];
-let chaseTries = 0;   // (how many times the watch has caught you this sitting)
 const TIPS_CHASE = ["Hold Shift and make for the narrow alley west of the square — and don't stop until you're out the far end.", "The watchman in the street lunges for where you're going: swing wide round him, along the far side.", "Save your breath for the alley: let go of Shift for a moment when nobody is close.", "A fourth comes down the north street — don't dawdle in the square."];
 const TIPS_STEALTH = ["Crouch with C, and wait for the lantern to swing away.", "Keep a crate between you and the watch. Nobody sees through wood.", "Lean round a corner with Q and E before you step out.", "Watch the eye at the top of the screen — when it opens, get out of sight.", "The watch at the gate looks west and east in turn. Move when he looks away.", "Walking is quiet. Running is heard."];
 const QUOTES = [
@@ -787,9 +786,7 @@ async function ch3(w, opts) {
   sib.followPlayer(1.6);
   G.sprintSpeed = 6.2;
   G.stamina = 1;                 // running costs breath now
-  G.staminaMul = 0.55;           // (fear keeps you going: breath lasts longer in the chase)
-  // (each time they've caught you, the next run a little easier: they're a step slower, and you've a step more start)
-  const tries = Math.min(4, chaseTries), ease = 1 - tries * 0.04;
+  G.staminaMul = 0.72;           // (fear keeps you going: breath lasts a little longer in the chase)
   G.tension = 1;                 // (and you can hear yourself breathing)
   // they come on, around what is in their way, faster the longer it goes
   const chasers = [cg1, cg2, cg3, cg4];
@@ -797,27 +794,27 @@ async function ch3(w, opts) {
   // the mouth of the alley, and where it comes out at the far end
   const MOUTH = [-24.8, 43.2], END_Z = 52.5;
   const inAlley = () => pl.pos.x < -23 && pl.pos.x > -26.4 && pl.pos.z > 42.6;
-  let caught = false, grace = 1.4 + tries * 0.3, elapsed = 0, cutOff = false, north = false, entered = false;
+  let caught = false, grace = 0.6, elapsed = 0, cutOff = false, north = false, entered = false;
   const chase = onFrame(dt => {
     grace -= dt; elapsed += dt;
     if (!entered && inAlley()) { entered = true; mark([-24.8, END_Z + 1]); UI.objective("Up the alley — don't stop"); }
     for (const g of chasers) {
       if (grace > 0) continue;
       const dx = pl.pos.x - g.pos.x, dz = pl.pos.z - g.pos.z, d = Math.hypot(dx, dz);
-      let spd = Math.min(5.6, 4.7 + elapsed * 0.07) * ease;
+      let spd = Math.min(6.0, 5.1 + elapsed * 0.11);
       let tx = dx, tz = dz;
       if (g === cg3) {
         // he waits in the street until you come, then lunges for where you are going
         // he hears you coming, and runs for the alley to cut you off; you have to get there first
         if (!cutOff && pl.pos.x > -9) { g.targetYaw = Math.atan2(dx, dz); continue; }
-        if (!cutOff) { cutOff = true; g.react = 0.6; AUDIO.shout(); bark("Watchman", "Stop! Stop there!", 1.6); }
+        if (!cutOff) { cutOff = true; g.react = 0.25; AUDIO.shout(); bark("Watchman", "Stop! Stop there!", 1.6); }
         if ((g.react -= dt) > 0) continue;
-        spd = 4.8 * ease;
+        spd = 5.3;
       }
       if (g === cg4) {
-        if (elapsed < 3.4) continue;
+        if (elapsed < 2.2) continue;
         if (!north) { north = true; AUDIO.shout(); bark("Watchman", "Down here! Cut them off!", 1.8); }
-        spd = Math.min(5.5, 5.0 + elapsed * 0.04) * ease;
+        spd = Math.min(5.9, 5.4 + elapsed * 0.05);
       }
       const l = Math.hypot(tx, tz) || 1;
       g.pos.x += tx / l * spd * dt; g.pos.z += tz / l * spd * dt;
@@ -828,7 +825,7 @@ async function ch3(w, opts) {
         if (md < 3.2) { g.pos.x = MOUTH[0] + mx / (md || 1) * 3.2; g.pos.z = MOUTH[1] + mz / (md || 1) * 3.2; }
       }
       g.targetYaw = Math.atan2(dx, dz); g.forcedSpeed = spd;
-      if (d < 1.1) caught = true;
+      if (d < 1.3) caught = true;
     }
   });
   const ok = await Promise.race([
@@ -840,7 +837,6 @@ async function ch3(w, opts) {
   if (!ok) {
     G.lockMove = true;
     AUDIO.shout();
-    chaseTries++;
     await caughtScreen(TIPS_CHASE);
     return startChapter(3, { chase: true });
   }
@@ -924,11 +920,11 @@ class Watchman {
     const ang = Math.abs(Math.atan2(Math.sin(Math.atan2(dx, dz) - a.yaw), Math.cos(Math.atan2(dx, dz) - a.yaw)));
     let seen = d < range && ang < 1.0 && this.w.col.lineOfSight(head, tgt);
     // heard: a run gives you away whichever way they face, and so does walking right up behind them
-    if (!seen && d < 8 && pl.speed > 4 && !pl.crouched) seen = true;
+    if (!seen && d < 6 && pl.speed > 4 && !pl.crouched) seen = true;
     if (!seen && d < 2.2 && pl.speed > 0.5 && !pl.crouched) seen = true;
     if (d < 1) seen = true;
     if (seen) {
-      this.sus += dt * (0.4 + 1.2 * (1 - Math.min(1, d / range))) * (pl.crouched ? 0.65 : 1);
+      this.sus += dt * (0.3 + 0.9 * (1 - Math.min(1, d / range))) * (pl.crouched ? 0.5 : 1) * (G.sneakEase || 1);
       this.seenAt = { x: pl.pos.x, z: pl.pos.z };
       // a glimpse of something: not sure what, so go over and look
       if (this.sus > 0.15 && this.sus <= 0.35 && !this.inv && !this.post) {
@@ -937,7 +933,7 @@ class Watchman {
         bark(this.who, ["Hm? What's that?", "Something moved.", "...Who's over there?"][Math.floor(Math.random() * 3)], 1.8);
       }
     }
-    else this.sus = Math.max(0, this.sus - dt * 0.35);
+    else this.sus = Math.max(0, this.sus - dt * 0.5);
     if (this.sus > 0.35 && !this.said) { this.said = true; bark(this.who, this.lines[Math.floor(Math.random() * this.lines.length)], 2.2); }
     if (this.sus < 0.1) this.said = false;
   }
@@ -1019,11 +1015,11 @@ async function ch4(w, opts) {
   const setup = () => {
     const guards = [
       // his beat runs from just past the cart (it stands at -35.6, 46) up to the gate, never through it
-      new Watchman(w, 91, [[-34.4, 49], [-35.4, 59.6]], { wait: 3, speed: 0.95, light: w.pool[3] }),
+      new Watchman(w, 91, [[-34.4, 49], [-35.4, 59.6]], { wait: 5, speed: 0.85, light: w.pool[3] }),
       // the gate watchman: he sweeps the lane, but every so often turns to check the gate behind him — that is your moment
-      new Watchman(w, 92, [[-36.5, 64.6]], { yaw: Math.PI - 0.35, sweep: 0.5, range: 6.5, crouchDiv: 1.6, post: true, glance: { every: 10, for: 6, yaw: 0.2 }, light: w.pool[4] }),
+      new Watchman(w, 92, [[-36.5, 64.6]], { yaw: Math.PI - 0.35, sweep: 0.5, range: 6.5, crouchDiv: 2, post: true, glance: { every: 8, for: 7, yaw: 0.2 }, light: w.pool[4] }),
       // and further out, the streets that lead away from the gate are walked too
-      new Watchman(w, 94, [[-35.2, 38], [-35.2, 24]], { wait: 2.5, speed: 1.0, light: w.pool[5] }),
+      new Watchman(w, 94, [[-35.2, 38], [-35.2, 24]], { wait: 4, speed: 0.9, light: w.pool[5] }),
       new Watchman(w, 95, [[-18, 40], [-12, 40]], { wait: 3, speed: 0.9, yaw: -Math.PI / 2 }),
     ];
     return guards;
@@ -1069,10 +1065,11 @@ async function ch4(w, opts) {
     const g = guards.find(g => g.sus >= 1);
     lookAt(g.a, 5); AUDIO.shout();
     await wait(0.6);
+    G.sneakEase = Math.max(0.6, (G.sneakEase || 1) - 0.1);   // (caught again: the next try a little kinder)
     await caughtScreen(TIPS_STEALTH);
     return startChapter(4, { retry: true });
   }
-  guards.forEach(g => g.a.remove());
+  guards.forEach(g => g.a.remove()); G.sneakEase = undefined;
   // the one who went over the yards is already there
   G.lockMove = true; mark(null); UI.objective(null);
   const s2 = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], -26.4, 67.2, -Math.PI / 2);
